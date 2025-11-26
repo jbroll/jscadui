@@ -467,7 +467,18 @@ p {
 	left: 10px;
   z-index: 2000;
   max-height: calc(100% - 50px);
+  min-width: 300px;
+  display: flex;
+  flex-direction: column;
+}
+#paramsHeader {
+  flex-shrink: 0;
+}
+#paramsDiv {
+  flex: 1;
   overflow-y: auto;
+  overflow-x: visible;
+  min-height: 0;
 }
 .dark #model-options {
   background: rgba(40, 40, 40, 0.5);
@@ -484,7 +495,6 @@ p {
 }
 
 #paramsDiv {
-  overflow: auto;
   display: flex;
   flex-direction: column;
 }
