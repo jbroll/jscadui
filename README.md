@@ -28,7 +28,7 @@ aim is also to simplify integrating worker in other projects
 
 # Hierarchical Parameters
 
-jscadui supports a new hierarchical parameter system that allows complex models to define parameters inline within the code, organized in a tree structure. This system is **fully backwards compatible** with the traditional `getParameterDefinitions()` approach.
+jscadui supports a hierarchical parameter system that allows complex models to define parameters inline within the code, organized in a tree structure. This system is **fully backwards compatible** with the traditional `getParameterDefinitions()` approach - legacy scripts are automatically promoted to work with the new system.
 
 ## Quick Example
 
@@ -37,14 +37,14 @@ const wheel = (params) => {
   params._type = 'Wheel'
 
   // Parameters are defined inline with rich UI hints
-  params.radius = { type: 'slider', default: 3, min: 1, max: 8, step: 0.5, caption: 'Tire Radius' }
-  params.color = { type: 'color', default: '#333333', caption: 'Tire Color' }
+  params.radius = { type: 'slider', default: 3, min: 1, max: 8, step: 0.5, label: 'Tire Radius' }
+  params.color = { type: 'color', default: '#333333', label: 'Tire Color' }
   params.style = {
     type: 'choice',
     default: 'solid',
     values: ['solid', 'spoked', 'sport'],
     captions: ['Solid Disc', '5-Spoke', 'Sport'],
-    caption: 'Wheel Style'
+    label: 'Wheel Style'
   }
 
   // Use the values directly
@@ -69,18 +69,18 @@ module.exports = { main }
 
 ## Parameter Types
 
-| Type | Description | Properties |
-|------|-------------|------------|
-| `slider` | Range slider with live preview | `min`, `max`, `step`, `live` |
-| `number` | Numeric input with optional range | `min`, `max`, `step` |
-| `int` | Integer input | `min`, `max`, `step` |
-| `color` | Color picker with palette | `palette` (array of hex colors) |
-| `choice` | Dropdown select | `values`, `captions` |
-| `radio` | Radio button group | `values`, `captions` |
-| `checkbox` | Boolean toggle | - |
-| `text` | Text input | `size`, `maxLength`, `placeholder` |
-| `date` | Date picker | `min`, `max` |
-| `email`, `url`, `password` | Specialized text inputs | `size`, `maxLength`, `placeholder` |
+| Type | Description | Properties | Default Step |
+|------|-------------|------------|--------------|
+| `slider` | Range slider with live preview | `min`, `max`, `step`, `live` | 0.1 |
+| `number` | Numeric spinbox with optional range | `min`, `max`, `step` | 0.1 |
+| `int` | Integer spinbox | `min`, `max`, `step` | 1 |
+| `color` | Color picker with palette | `palette` (array of hex colors) | - |
+| `choice` | Dropdown select | `values`, `captions` | - |
+| `radio` | Radio button group | `values`, `captions` | - |
+| `checkbox` | Boolean toggle | - | - |
+| `text` | Text input | `size`, `maxLength`, `placeholder` | - |
+| `date` | Date picker | `min`, `max` | - |
+| `email`, `url`, `password` | Specialized text inputs | `size`, `maxLength`, `placeholder` | - |
 
 ## Defining Parameters
 
@@ -88,8 +88,8 @@ Parameters can be defined in two ways:
 
 **Simple value (type inferred):**
 ```javascript
-params.count = 5           // inferred as 'int'
-params.scale = 1.5         // inferred as 'number'
+params.count = 5           // inferred as 'int', step=1
+params.scale = 1.5         // inferred as 'number', step=0.1
 params.enabled = true      // inferred as 'checkbox'
 params.name = 'default'    // inferred as 'text'
 ```
@@ -102,10 +102,28 @@ params.radius = {
   min: 1,
   max: 20,
   step: 0.5,
-  caption: 'Radius',
+  label: 'Radius',
   live: true  // update while dragging
 }
 ```
+
+## Definition Object Properties
+
+| Property | Description |
+|----------|-------------|
+| `type` | Parameter type (see table above) |
+| `default` | Default value |
+| `label` | Display label in the UI |
+| `min` | Minimum value (numeric types, date) |
+| `max` | Maximum value (numeric types, date) |
+| `step` | Increment value (numeric types) - defaults to 1 for int, 0.1 for number/slider |
+| `values` | Array of selectable values (choice, radio) |
+| `captions` | Display labels for values (choice, radio) |
+| `placeholder` | Placeholder text (text inputs) |
+| `size` | Input width in characters (text inputs) |
+| `maxLength` | Maximum characters allowed (text inputs) |
+| `live` | Update in real-time while dragging (slider) |
+| `palette` | Array of hex colors for quick selection (color) |
 
 ## Class Linking
 
@@ -145,12 +163,12 @@ params.left._offset = -halfWidth  // Computed value, hidden
 
 ## Backwards Compatibility
 
-The traditional `getParameterDefinitions()` approach continues to work:
+The traditional `getParameterDefinitions()` approach continues to work. Legacy scripts are automatically detected and promoted to work with the proxy system:
 
 ```javascript
 const getParameterDefinitions = () => [
-  { name: 'radius', type: 'number', initial: 5, min: 1, max: 20, caption: 'Radius' },
-  { name: 'height', type: 'number', initial: 10, min: 1, max: 50, caption: 'Height' },
+  { name: 'radius', type: 'float', initial: 5, min: 1, max: 20, caption: 'Radius' },
+  { name: 'height', type: 'slider', initial: 10, min: 1, max: 50, caption: 'Height' },
 ]
 
 const main = (params) => {
@@ -160,7 +178,10 @@ const main = (params) => {
 module.exports = { main, getParameterDefinitions }
 ```
 
-Both approaches can coexist in the same codebase.
+Legacy type mappings:
+- `float` → `number`
+- `caption` → `label`
+- `slider`, `radio`, `choice` types are preserved for proper UI rendering
 
 ## Package Structure
 
