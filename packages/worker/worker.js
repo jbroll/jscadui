@@ -1,6 +1,7 @@
 import { JscadToCommon } from '@jscadui/format-jscad'
 import { messageProxy, withTransferable } from '@jscadui/postmessage'
 import { clearFileCache, jscadClearTempCache, readFileWeb, require, requireCache, resolveUrl } from '@jscadui/require'
+import { createParamsProxy, createProxyState, buildParamTree, toParamDefinitions, extractDefaults as extractProxyDefaults } from '@jscadui/params-proxy'
 
 import { exportStlText } from './src/exportStlText.js'
 import { combineParameterDefinitions, getParameterDefinitionsFromSource } from './src/getParameterDefinitionsFromSource.js'
@@ -27,9 +28,10 @@ import { extractPathInfo, readAsArrayBuffer, readAsText } from '../fs-provider/f
 
  @typedef InitOptions
  @prop {string} [baseURI] - to resolve initial relative path
- @prop {Array<Alias>} [alias] - 
- @prop {Object.<string,string>} [bundles] - bundle alias {name:path} 
+ @prop {Array<Alias>} [alias] -
+ @prop {Object.<string,string>} [bundles] - bundle alias {name:path}
  @prop {boolean} [userInstances] called useInstances at other places
+ @prop {boolean} [useParamsProxy] - use params proxy for hierarchical parameter discovery
 
 
 @typedef JscadWorker
@@ -63,8 +65,17 @@ let globalBase = location.origin
 /** @type {boolean | undefined } */
 let userInstances
 
+/** @type {boolean | undefined } */
+let useParamsProxy
+
 /** @type {ImportData | undefined} */
 let importData
+
+// Params proxy state - persists across jscadMain calls
+/** @type {Set<string>} */
+let userInteracted = new Set()
+/** @type {Object} */
+let currentUiValues = {}
 
 /**
  * @template T
@@ -102,6 +113,7 @@ export const jscadInit = options => {
   })
   console.log('init alias', alias, 'bundles',bundles)
   userInstances = options.userInstances
+  useParamsProxy = options.useParamsProxy
 }
 /**
  * @param {import('../fs-provider/fs-provider.js').FSFileEntry | Blob} file 
@@ -116,11 +128,20 @@ async function readFileFile(file, {bin=false}={}){
 /** @type {import('@jscadui/format-common').JscadMainResultRaw[]} */
 let solids = []
 
+/** @type {import('@jscadui/params-proxy').ProxyState | null} */
+let lastProxyState = null
+
 /**
- * @param {{params?:import('@jscadui/format-common').UserParameters,skipLog?:boolean}} options
+ * @param {{params?:import('@jscadui/format-common').UserParameters,skipLog?:boolean,userInteractedPaths?:string[]}} options
  * @returns {Promise<import('@jscadui/format-common').JscadMainResult>}
  */
-export async function jscadMain({ params, skipLog } = {}) {
+export async function jscadMain({ params, skipLog, userInteractedPaths } = {}) {
+  // Track which params the user has interacted with
+  if (userInteractedPaths) {
+    userInteractedPaths.forEach(p => userInteracted.add(p))
+  }
+
+  // Handle file params
   params = {...params}
   for(let p in params){
     if(params[p] instanceof File && importData){
@@ -129,20 +150,50 @@ export async function jscadMain({ params, skipLog } = {}) {
       params[p] = importData.deserialize(info, content)
     }
   }
-  if (!skipLog) console.log('jscadMain with params', params)
+
+  // Store UI values for proxy
+  if (useParamsProxy) {
+    currentUiValues = params
+  }
+
+  if (!skipLog) console.log('jscadMain with params', params, useParamsProxy ? '(proxy mode)' : '')
   /** @type {import('@jscadui/format-common').JscadTransferable []} */
   const transferable = []
 
   if (!main) throw new Error('no main function exported')
 
   let time = performance.now()
-  solids = flatten(await main(params || {}))
+
+  // Run main with either proxy or plain params
+  let proxyState = null
+  if (useParamsProxy) {
+    proxyState = createProxyState(currentUiValues, userInteracted)
+    const proxyParams = createParamsProxy(proxyState)
+    solids = flatten(await main(proxyParams))
+    lastProxyState = proxyState
+  } else {
+    solids = flatten(await main(params || {}))
+  }
+
   const mainTime = performance.now() - time
 
   time = performance.now()
   JscadToCommon.clearCache()
   const entities = JscadToCommon.prepare(solids, transferable, userInstances).all
-  return withTransferable({entities, mainTime, convertTime: performance.now() - time}, transferable)
+
+  const result = { entities, mainTime, convertTime: performance.now() - time }
+
+  // Include proxy state info in result
+  if (proxyState) {
+    result.proxyState = {
+      discovered: proxyState.discovered,
+      types: Object.fromEntries(proxyState.types),
+      classes: Object.fromEntries(proxyState.classes),
+      tree: buildParamTree(proxyState.discovered, proxyState.types, proxyState.classes)
+    }
+  }
+
+  return withTransferable(result, transferable)
 }
 
 // https://stackoverflow.com/questions/52086611/regex-for-matching-js-import-statements
@@ -150,16 +201,21 @@ const importReg = /import(?:(?:(?:[ \n\t]+([^ *\n\t\{\},]+)[ \n\t]*(?:,|[ \n\t]+
 const exportReg = /export.*from/
 
 /**
- * @param {{script:string,url?:string,base?:string,root?:string}} param0 
+ * @param {{script:string,url?:string,base?:string,root?:string}} param0
  * @returns {Promise<import('@jscadui/format-common').JscadScriptResultWithParams>}
  */
 const jscadScript = async ({ script, url='jscad.js', base=globalBase, root=base }) => {
-  console.log('run script with base:', base)
+  console.log('run script with base:', base, useParamsProxy ? '(proxy mode)' : '')
+
+  // Reset proxy state for new script
+  userInteracted = new Set()
+  currentUiValues = {}
+
   if(!script) script = readFileWeb(resolveUrl(url, base, root).url)
 
   const shouldTransform = url.endsWith('.ts') || script.includes('import') && (importReg.test(script) || exportReg.test(script))
   let def = []
-  
+
   try{
     scriptModule = require({url,script}, shouldTransform ? transformFunc : undefined, readFileWeb, base, root, importData)
   }catch(e){
@@ -169,17 +225,35 @@ const jscadScript = async ({ script, url='jscad.js', base=globalBase, root=base 
     // if error is not SyntaxError or if transform func does not find syntax err (very unlikely)
     throw e
   }
-  const fromSource = getParameterDefinitionsFromSource(script)
-  def = combineParameterDefinitions(fromSource, await scriptModule.getParameterDefinitions?.())
+
   main = scriptModule.main
   // if the main function is the default export
   if(!main && typeof scriptModule == 'function') main = scriptModule
-  let params = extractDefaults(def)
-  const out = await jscadMain({ params })
-  return {
-    def,
-    params,
-    ...out,
+
+  let params = {}
+  if (useParamsProxy) {
+    // In proxy mode, run main to discover params, then extract defaults
+    const out = await jscadMain({ params: {} })
+    if (out.proxyState) {
+      def = toParamDefinitions(out.proxyState.discovered)
+      params = extractProxyDefaults(out.proxyState.discovered)
+    }
+    return {
+      def,
+      params,
+      ...out,
+    }
+  } else {
+    // Traditional mode: use getParameterDefinitions
+    const fromSource = getParameterDefinitionsFromSource(script)
+    def = combineParameterDefinitions(fromSource, await scriptModule.getParameterDefinitions?.())
+    params = extractDefaults(def)
+    const out = await jscadMain({ params })
+    return {
+      def,
+      params,
+      ...out,
+    }
   }
 }
 

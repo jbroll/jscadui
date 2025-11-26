@@ -23,7 +23,8 @@
   "dependencies": {
     "@jscadui/format-common": "*",
     "@jscadui/postmessage": "*",
-    "@jscadui/require": "*"
+    "@jscadui/require": "*",
+    "@jscadui/params-proxy": "*"
   },
   "devDependencies": {
     "@trivago/prettier-plugin-sort-imports": "^6.0.2",
