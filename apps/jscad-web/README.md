@@ -1,6 +1,6 @@
 # JSCAD web app
 
-This is the JSCAD web application hosted at https://jscad.app
+This is the JSCAD web application hosted at https://jscad.rkroll.com
 
 If you want to discuss jscad or jscadui, please join us on discord: https://discord.gg/6PB7qZ4HC7
 
