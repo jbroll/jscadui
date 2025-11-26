@@ -11,7 +11,7 @@ Join us on Discord: https://discord.gg/6PB7qZ4HC7
 
 # jscad.app
 
-[apps/jscad-web](apps/jscad-web) powers [jscad.app](https://jscad.app), an improved version of [openjscad.xyz](https://openjscad.xyz).
+[apps/jscad-web](apps/jscad-web) powers [jscad.rkroll.com](https://jscad.rkroll.com), an improved version of [openjscad.xyz](https://openjscad.xyz).
 
 Features:
 - Run remote scripts with imports
