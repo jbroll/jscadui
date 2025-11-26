@@ -19,6 +19,7 @@ import { createInput as createInputComponent } from './inputs.js'
  * @property {(paramPath: string, value: unknown) => void} onChange - Called when a value changes
  * @property {(partPath: string, newClass: string, mode: ClassChangeMode) => void} [onClassChange] - Called when a class changes
  * @property {boolean} [showHidden=false] - Whether to show hidden params
+ * @property {boolean} [startCollapsed=true] - Whether sub-levels start collapsed
  */
 
 /**
@@ -27,7 +28,7 @@ import { createInput as createInputComponent } from './inputs.js'
  * @returns {{update: (options: Partial<ParamsTreeOptions>) => void, destroy: () => void}}
  */
 export const createParamsTree = (options) => {
-  let { target, tree, values, types, classes, codeClasses, onChange, onClassChange, showHidden = false } = options
+  let { target, tree, values, types, classes, codeClasses, onChange, onClassChange, showHidden = false, startCollapsed = true } = options
 
   // Convert to Maps if plain objects
   let typesMap = toMap(types)
@@ -36,6 +37,19 @@ export const createParamsTree = (options) => {
 
   // Track collapsed state
   const collapsed = new Set()
+
+  // Helper to collect all node paths for collapsing
+  const collectAllPaths = (node) => {
+    if (node.path) collapsed.add(node.path)
+    for (const child of Object.values(node.children)) {
+      collectAllPaths(child)
+    }
+  }
+
+  // Initialize collapsed state - collapse all sub-levels by default
+  if (startCollapsed && tree) {
+    collectAllPaths(tree)
+  }
 
   const render = () => {
     target.innerHTML = ''
