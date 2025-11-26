@@ -158,15 +158,6 @@ export async function jscadMain({ params, skipLog, userInteractedPaths } = {}) {
     currentUiValues = params
   }
 
-  if (!skipLog) {
-    console.log('jscadMain with params', params, useParamsProxy ? '(proxy mode)' : '')
-    if (useParamsProxy) {
-      console.log('  userInteracted paths:', [...userInteracted])
-      // Debug: check if specific tireColor paths are in params
-      const tireColorPaths = Object.keys(params).filter(k => k.includes('tireColor'))
-      console.log('  tireColor params:', tireColorPaths.map(k => ({ path: k, value: params[k] })))
-    }
-  }
   /** @type {import('@jscadui/format-common').JscadTransferable []} */
   const transferable = []
 
@@ -254,7 +245,6 @@ const jscadScript = async ({ script, url='jscad.js', base=globalBase, root=base 
     // This allows legacy scripts to work with the params proxy system
     const legacyDefs = await scriptModule.getParameterDefinitions?.()
     if (legacyDefs && legacyDefs.length > 0) {
-      console.log('Converting legacy getParameterDefinitions to proxy format:', legacyDefs.length, 'definitions')
       legacyProxyDefs = convertLegacyDefs(legacyDefs)
     }
 

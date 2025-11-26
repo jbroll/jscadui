@@ -295,10 +295,7 @@ let modelUpdatePending = false
  * @param {unknown} value
  */
 const handleTreeParamChange = (paramPath, value) => {
-  console.log('handleTreeParamChange:', paramPath, '=', value)
   const linkedPaths = paramsCtrl.setParam(paramPath, value)
-  console.log('  linkedPaths:', linkedPaths)
-  console.log('  params after setParam:', { ...paramsCtrl.params })
   if (linkedPaths.length === 0) return
 
   // Update linked inputs in DOM directly (don't re-render whole tree)
@@ -407,9 +404,7 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
     const result = await workerApi.jscadScript({ script, url, base, root })
 
     if (result.proxyState && useParamsProxy) {
-      console.log('Params Proxy Mode - discovered params:', result.proxyState.discovered.length)
       paramsCtrl.initFromResult(result)
-      console.log('Code-defined class values:', paramsCtrl.codeClassValues)
 
       // Setup UI
       const paramsHeader = byId('paramsHeader')

@@ -41,17 +41,8 @@ const wheel = (params) => {
   // Number of spokes (only relevant for spoked styles)
   params.spokeCount = { type: 'int', default: 5, min: 3, max: 12, label: 'Spoke Count' }
 
-  // Debug: log actual values being used
   const tireColorValue = params.tireColor
   const parsedTireColor = hexToColor(tireColorValue)
-  console.log('wheel params:', {
-    path: params._path,
-    tireColor: tireColorValue,
-    parsedTireColor: parsedTireColor,
-    spokeStyle: params.spokeStyle,
-    hubColor: params.hubColor,
-    radius: params.radius
-  })
 
   const tire = colorize(
     parsedTireColor,
