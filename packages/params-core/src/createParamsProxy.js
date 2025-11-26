@@ -220,6 +220,10 @@ export const createParamsProxy = (state, path = '') => {
       const propStr = String(prop)
       const fullPath = path ? `${path}.${propStr}` : propStr
 
+      // Special properties - return from state maps
+      if (propStr === '_type') return state.types.get(path)
+      if (propStr === '_class') return state.classes.get(path)
+
       // Discover on first access
       if (!discoveredPaths.has(fullPath)) {
         discoveredPaths.add(fullPath)

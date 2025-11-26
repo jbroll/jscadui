@@ -248,10 +248,12 @@ const main = (params) => {
   params.groundClearance = { type: 'slider', default: 2.5, min: 1, max: 6, step: 0.25, label: 'Ground Clearance' }
 
   // Link front wheels together and rear wheels together by default
-  params.front.left._class = 'front-wheels'
-  params.front.right._class = 'front-wheels'
-  params.rear.left._class = 'rear-wheels'
-  params.rear.right._class = 'rear-wheels'
+  // Use _class from parent (if set) to differentiate between car instances
+  const prefix = params._class ? `${params._class}-` : ''
+  params.front.left._class = `${prefix}front-wheels`
+  params.front.right._class = `${prefix}front-wheels`
+  params.rear.left._class = `${prefix}rear-wheels`
+  params.rear.right._class = `${prefix}rear-wheels`
 
   const halfWheelbase = params.wheelbase / 2
 
