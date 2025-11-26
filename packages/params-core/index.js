@@ -30,6 +30,7 @@ export {
   convertLegacyDefs,
   extractLegacyDefaults,
   wrapLegacyModule,
+  injectLegacyDefs,
 
   // Utilities
   toMap,
