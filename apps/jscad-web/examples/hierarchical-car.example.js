@@ -247,38 +247,11 @@ const main = (params) => {
   params.wheelbase = { type: 'slider', default: 14, min: 8, max: 25, step: 0.5, label: 'Wheelbase' }
   params.groundClearance = { type: 'slider', default: 2.5, min: 1, max: 6, step: 0.25, label: 'Ground Clearance' }
 
-  // Preset configurations
-  params.preset = {
-    type: 'choice',
-    default: 'custom',
-    values: ['custom', 'sports', 'offroad', 'classic'],
-    captions: ['Custom', 'Sports Car', 'Off-Road', 'Classic'],
-    label: 'Quick Preset'
-  }
-
-  // Quality setting
-  params.quality = {
-    type: 'radio',
-    default: 'medium',
-    values: ['low', 'medium', 'high'],
-    captions: ['Fast (Low)', 'Balanced', 'Quality (Slow)'],
-    label: 'Render Quality'
-  }
-
   // Link front wheels together and rear wheels together by default
   params.front.left._class = 'front-wheels'
   params.front.right._class = 'front-wheels'
   params.rear.left._class = 'rear-wheels'
   params.rear.right._class = 'rear-wheels'
-
-  // Apply presets (this demonstrates how presets could modify defaults)
-  if (params.preset === 'sports') {
-    // Sports car typically has lower clearance, wider track
-    if (params.groundClearance > 2) params.groundClearance = 1.5
-  } else if (params.preset === 'offroad') {
-    // Off-road has higher clearance
-    if (params.groundClearance < 4) params.groundClearance = 4.5
-  }
 
   const halfWheelbase = params.wheelbase / 2
 
