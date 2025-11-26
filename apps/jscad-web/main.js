@@ -26,7 +26,7 @@ import { createParamsTree, paramsTreeStyles, inputStyles } from '@jscadui/params
 import { createParamsController } from '@jscadui/params-controller'
 import { messageProxy } from '@jscadui/postmessage'
 
-import defaultCode from './examples/hierarchical-car.example.js'
+import defaultCode from './examples/two-cars.example.js'
 import { addV1Shim } from './src/addV1Shim.js'
 import * as editor from './src/editor.js'
 import * as engine from './src/engine.js'
