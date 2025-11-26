@@ -1,0 +1,21 @@
+{
+  "type": "module",
+  "sideEffects": false,
+  "name": "@jscadui/params-proxy",
+  "version": "0.1.0",
+  "description": "Auto-discovering parameter proxy for hierarchical JSCAD parts",
+  "main": "index.js",
+  "module": "./index.js",
+  "files": [
+    "index.js",
+    "src"
+  ],
+  "scripts": {
+    "test": "vitest",
+    "coverage": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "vitest": "0.24.5"
+  },
+  "license": "MIT"
+}

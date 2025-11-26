@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Params Tree Demo</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 900px;
+      margin: 40px auto;
+      padding: 0 20px;
+      background: #f5f5f5;
+      color: #333;
+    }
+    h1 { color: #08f; margin-bottom: 8px; }
+    .subtitle { color: #666; margin-bottom: 20px; }
+
+    .controls {
+      background: #fff;
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      display: flex;
+      gap: 16px;
+      align-items: center;
+    }
+    .controls label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+    }
+    .controls button {
+      padding: 6px 12px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background: #fff;
+      cursor: pointer;
+    }
+    .controls button:hover {
+      background: #f0f0f0;
+    }
+
+    .tree-container {
+      background: #fff;
+      padding: 16px;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+
+    .output {
+      background: #1a1a2e;
+      color: #eee;
+      padding: 16px;
+      border-radius: 8px;
+      font-family: 'Monaco', 'Menlo', monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+      max-height: 300px;
+      overflow: auto;
+    }
+
+    /* Tree styles */
+    .params-tree-node {
+      font-size: 13px;
+    }
+    .params-tree-header {
+      user-select: none;
+      border-radius: 4px;
+      padding: 4px !important;
+    }
+    .params-tree-header:hover {
+      background: rgba(0,100,255,0.05);
+    }
+    .params-tree-param input[type="number"],
+    .params-tree-param input[type="text"],
+    .params-tree-param select {
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-family: inherit;
+      font-size: inherit;
+    }
+    .params-tree-param input[type="number"]:focus,
+    .params-tree-param input[type="text"]:focus,
+    .params-tree-param select:focus {
+      outline: none;
+      border-color: #08f;
+      box-shadow: 0 0 0 2px rgba(0,100,255,0.1);
+    }
+  </style>
+</head>
+<body>
+  <h1>Params Tree View</h1>
+  <p class="subtitle">Hierarchical parameter editor with class-based linking</p>
+
+  <div class="controls">
+    <label>
+      <input type="checkbox" id="showHidden">
+      Show hidden params
+    </label>
+    <button id="expandAll">Expand All</button>
+    <button id="collapseAll">Collapse All</button>
+  </div>
+
+  <div id="tree" class="tree-container"></div>
+
+  <h3>State</h3>
+  <div id="output" class="output"></div>
+
+  <script type="module">
+    import {
+      createParamsProxy,
+      createProxyState,
+      buildParamTree,
+      getLinkedParamPaths,
+    } from '../src/createParamsProxy.js'
+    import { createParamsTree } from '../src/ParamsTree.js'
+
+    // Simulated JSCAD parts with _class support
+    const wheel = (params) => {
+      params._type = 'Wheel'
+      params.radius = { default: 5, min: 1, max: 20, step: 0.5 }
+      params.width = { default: 2, min: 0.5, max: 10 }
+      params.spokes = { default: 5, min: 3, max: 12 }
+      console.log(`Wheel at offset ${params._offset}`)
+      return { type: 'cylinder', radius: params.radius, height: params.width }
+    }
+
+    const axle = (params) => {
+      params._type = 'Axle'
+      params.length = { default: 20, min: 5, max: 50 }
+      params.diameter = { default: 1, min: 0.5, max: 3 }
+
+      // Computed hidden values
+      params.left._offset = -params.length / 2
+      params.right._offset = params.length / 2
+
+      return [
+        { type: 'cylinder', radius: params.diameter / 2, height: params.length },
+        wheel(params.left),
+        wheel(params.right)
+      ]
+    }
+
+    const main = (params) => {
+      params._type = 'Car'
+      params.wheelbase = { default: 40, min: 20, max: 80 }
+      params.color = { default: 'red' }
+
+      // Link front wheels together, rear wheels together
+      params.front.left._class = 'front-wheels'
+      params.front.right._class = 'front-wheels'
+      params.rear.left._class = 'rear-wheels'
+      params.rear.right._class = 'rear-wheels'
+
+      return [
+        axle(params.front),
+        axle(params.rear)
+      ]
+    }
+
+    // App state
+    let uiValues = {}
+    let userInteracted = new Set()
+    let state, tree, treeView
+
+    function runModel() {
+      state = createProxyState(uiValues, userInteracted)
+      const params = createParamsProxy(state)
+      main(params)
+      tree = buildParamTree(state.discovered, state.types, state.classes)
+      return tree
+    }
+
+    function handleChange(paramPath, value) {
+      // Get all linked param paths
+      const linkedPaths = getLinkedParamPaths(state.types, state.classes, paramPath)
+
+      // Update all linked values
+      for (const path of linkedPaths) {
+        uiValues[path] = value
+        userInteracted.add(path)
+      }
+
+      // Re-run model to get updated computed values
+      runModel()
+
+      // Update tree view
+      treeView.update({ tree, values: uiValues, types: state.types, classes: state.classes })
+
+      // Update debug output
+      renderOutput()
+    }
+
+    function handleClassChange(partPath, newClass) {
+      // Update the _class value for this part
+      const classParamPath = `${partPath}._class`
+      uiValues[classParamPath] = newClass
+      userInteracted.add(classParamPath)
+
+      // Re-run model to update state
+      runModel()
+
+      // Update tree view
+      treeView.update({ tree, values: uiValues, types: state.types, classes: state.classes })
+
+      // Update debug output
+      renderOutput()
+    }
+
+    function renderOutput() {
+      document.getElementById('output').textContent = JSON.stringify({
+        discoveredCount: state.discovered.length,
+        types: Object.fromEntries(state.types),
+        classes: Object.fromEntries(state.classes),
+        uiValues,
+        userInteracted: [...userInteracted]
+      }, null, 2)
+    }
+
+    // Initial run
+    runModel()
+
+    // Create tree view
+    treeView = createParamsTree({
+      target: document.getElementById('tree'),
+      tree,
+      values: uiValues,
+      types: state.types,
+      classes: state.classes,
+      onChange: handleChange,
+      onClassChange: handleClassChange,
+      showHidden: false
+    })
+
+    // Controls
+    document.getElementById('showHidden').onchange = (e) => {
+      treeView.setShowHidden(e.target.checked)
+    }
+
+    document.getElementById('expandAll').onclick = () => treeView.expandAll()
+    document.getElementById('collapseAll').onclick = () => treeView.collapseAll()
+
+    // Initial output
+    renderOutput()
+  </script>
+</body>
+</html>
