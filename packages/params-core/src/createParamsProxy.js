@@ -723,6 +723,29 @@ export const extractLegacyDefaults = (legacyDefs, prefix = '') => {
  * @param {Function} [module.getParameterDefinitions] - Legacy parameter definitions function
  * @returns {Function} - Wrapped function that accepts a params proxy
  */
+/**
+ * Inject legacy parameter definitions into a params proxy.
+ * This assigns each converted definition to the proxy, triggering
+ * the proxy's set handler to register the params for discovery.
+ *
+ * @param {Object} params - The params proxy to inject into
+ * @param {Object} proxyDefs - Converted definitions from convertLegacyDefs
+ */
+export const injectLegacyDefs = (params, proxyDefs) => {
+  if (!params || !proxyDefs) return
+
+  // Check if params is actually a proxy by looking for the marker
+  const isProxy = params._isParamsProxy === true
+
+  for (const [name, def] of Object.entries(proxyDefs)) {
+    if (isProxy) {
+      // Assign the full definition object to trigger proxy's set handler
+      // This registers the param with type, min, max, caption, etc.
+      params[name] = def
+    }
+  }
+}
+
 export const wrapLegacyModule = (module) => {
   const { main, getParameterDefinitions } = module
 
@@ -746,28 +769,11 @@ export const wrapLegacyModule = (module) => {
       proxyDefs = convertLegacyDefs(legacyDefs)
     }
 
-    // If params is a proxy, merge legacy defs into it
-    // Check if it's a proxy by looking for the special symbol or by checking if it tracks accesses
-    // For now, we'll just ensure defaults are available
+    // Inject legacy defs into the params proxy to register them for discovery
+    injectLegacyDefs(params, proxyDefs)
 
-    // Create a params object that has legacy defaults for any missing values
-    const paramsWithDefaults = new Proxy(params || {}, {
-      get(target, prop) {
-        if (prop in target) {
-          return target[prop]
-        }
-        // Return legacy default if available
-        if (proxyDefs && prop in proxyDefs) {
-          const def = proxyDefs[prop]
-          // Access through proxy to trigger recording
-          target[prop] = def
-          return def
-        }
-        return undefined
-      }
-    })
-
-    return main(paramsWithDefaults)
+    // Now call main - params proxy already has the defs registered
+    return main(params)
   }
 
   // Expose the legacy definitions for inspection

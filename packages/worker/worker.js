@@ -1,7 +1,7 @@
 import { JscadToCommon } from '@jscadui/format-jscad'
 import { messageProxy, withTransferable } from '@jscadui/postmessage'
 import { clearFileCache, jscadClearTempCache, readFileWeb, require, requireCache, resolveUrl } from '@jscadui/require'
-import { createParamsProxy, createProxyState, buildParamTree, toParamDefinitions, extractDefaults as extractProxyDefaults } from '@jscadui/params-core'
+import { createParamsProxy, createProxyState, buildParamTree, toParamDefinitions, extractDefaults as extractProxyDefaults, convertLegacyDefs, injectLegacyDefs } from '@jscadui/params-core'
 
 import { exportStlText } from './src/exportStlText.js'
 import { combineParameterDefinitions, getParameterDefinitionsFromSource } from './src/getParameterDefinitionsFromSource.js'
@@ -75,6 +75,8 @@ let importData
 let userInteracted = new Set()
 /** @type {Object} */
 let currentUiValues = {}
+/** @type {Object | null} */
+let legacyProxyDefs = null
 
 /**
  * @template T
@@ -176,6 +178,13 @@ export async function jscadMain({ params, skipLog, userInteractedPaths } = {}) {
   if (useParamsProxy) {
     proxyState = createProxyState(currentUiValues, userInteracted)
     const proxyParams = createParamsProxy(proxyState)
+
+    // Inject legacy parameter definitions if the script has getParameterDefinitions
+    // This promotes legacy scripts to work with the params proxy system
+    if (legacyProxyDefs) {
+      injectLegacyDefs(proxyParams, legacyProxyDefs)
+    }
+
     solids = flatten(await main(proxyParams))
     lastProxyState = proxyState
   } else {
@@ -217,6 +226,7 @@ const jscadScript = async ({ script, url='jscad.js', base=globalBase, root=base 
   // Reset proxy state for new script
   userInteracted = new Set()
   currentUiValues = {}
+  legacyProxyDefs = null
 
   if(!script) script = readFileWeb(resolveUrl(url, base, root).url)
 
@@ -239,6 +249,14 @@ const jscadScript = async ({ script, url='jscad.js', base=globalBase, root=base 
 
   let params = {}
   if (useParamsProxy) {
+    // Check if script has legacy getParameterDefinitions and convert them
+    // This allows legacy scripts to work with the params proxy system
+    const legacyDefs = await scriptModule.getParameterDefinitions?.()
+    if (legacyDefs && legacyDefs.length > 0) {
+      console.log('Converting legacy getParameterDefinitions to proxy format:', legacyDefs.length, 'definitions')
+      legacyProxyDefs = convertLegacyDefs(legacyDefs)
+    }
+
     // In proxy mode, run main to discover params, then extract defaults
     const out = await jscadMain({ params: {} })
     if (out.proxyState) {

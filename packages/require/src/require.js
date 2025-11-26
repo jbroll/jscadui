@@ -12,6 +12,7 @@
 
 import { extractPathInfo } from '../../fs-provider/fs-provider'
 import { MODULE_BASE, getExtension, resolveUrl } from './resolveUrl'
+import { wrapLegacyModule } from '../../params-core/src/createParamsProxy.js'
 
 export { resolveUrl } from './resolveUrl'
 
@@ -125,11 +126,20 @@ export const require = (urlOrSource, transform, readFile, base, root, importData
       const module = requireModule(url, resolvedUrl, source, requireFunc)
       module.local = isRelativeFile
       exports = module.exports
-      // import jscad from "@jscad/modeling"; 
-      // will be effectively transformed to 
+      // import jscad from "@jscad/modeling";
+      // will be effectively transformed to
       // const jscad = require('@jscad/modeling').default
       // we need to plug-in default if missing
       if (!('default' in exports)) exports.default = exports
+
+      // Auto-wrap legacy modules that have getParameterDefinitions
+      // This promotes them to work with the params proxy system
+      if (typeof exports.main === 'function' && typeof exports.getParameterDefinitions === 'function') {
+        const wrappedMain = wrapLegacyModule(exports)
+        exports.main = wrappedMain
+        // Keep getParameterDefinitions for inspection but mark as wrapped
+        exports._legacyWrapped = true
+      }
     }
   }
 
