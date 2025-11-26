@@ -149,7 +149,7 @@ export const createParamsTree = (options) => {
     // Label
     const label = document.createElement('label')
     label.className = 'params-tree-label'
-    label.textContent = param.name
+    label.textContent = param.label || param.name
     if (param.hidden) {
       label.classList.add('params-tree-label--hidden')
     }
