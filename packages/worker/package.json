@@ -23,7 +23,8 @@
   "dependencies": {
     "@jscadui/postmessage": "*",
     "@jscadui/require": "*",
-    "@jscadui/format-common": "*"
+    "@jscadui/format-common": "*",
+    "@jscadui/params-proxy": "*"
   },
   "devDependencies": {
     "esbuild": "^0.16.7",
