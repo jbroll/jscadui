@@ -24,7 +24,7 @@
     "@jscadui/postmessage": "*",
     "@jscadui/require": "*",
     "@jscadui/format-common": "*",
-    "@jscadui/params-proxy": "*"
+    "@jscadui/params-core": "*"
   },
   "devDependencies": {
     "esbuild": "^0.16.7",
