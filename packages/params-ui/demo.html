@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Params UI Demo - All Input Types</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      margin: 0;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    h1 {
+      margin: 0 0 20px;
+      font-size: 24px;
+      color: #333;
+    }
+    h2 {
+      margin: 30px 0 15px;
+      font-size: 18px;
+      color: #555;
+      border-bottom: 1px solid #ddd;
+      padding-bottom: 8px;
+    }
+    .demo-section {
+      background: #fff;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .input-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 12px;
+      padding: 8px 0;
+    }
+    .input-row label {
+      min-width: 140px;
+      font-weight: 500;
+      color: #444;
+    }
+    .input-row .description {
+      color: #888;
+      font-size: 0.85em;
+      margin-left: auto;
+    }
+    #params-tree-container {
+      background: #fff;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    #output {
+      margin-top: 20px;
+      padding: 15px;
+      background: #282c34;
+      color: #abb2bf;
+      border-radius: 6px;
+      font-family: 'Monaco', 'Menlo', monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Params UI Demo</h1>
+
+    <h2>Individual Input Components</h2>
+    <div class="demo-section" id="inputs-demo"></div>
+
+    <h2>Full Parameter Tree</h2>
+    <div id="params-tree-container"></div>
+
+    <h2>Current Values</h2>
+    <div id="output"></div>
+  </div>
+
+  <script type="module">
+    import { createInput, inputStyles } from './src/inputs.js'
+    import { createParamsTree, paramsTreeStyles } from './src/ParamsTree.js'
+    import { createParamsProxy, buildParamTree } from '../params-core/index.js'
+
+    // Inject styles
+    const style = document.createElement('style')
+    style.textContent = inputStyles + paramsTreeStyles
+    document.head.appendChild(style)
+
+    // Track all values for display
+    const values = {}
+    const updateOutput = () => {
+      document.getElementById('output').textContent = JSON.stringify(values, null, 2)
+    }
+
+    // --- Individual Input Components Demo ---
+    const inputsDemo = document.getElementById('inputs-demo')
+
+    const inputConfigs = [
+      {
+        param: { path: 'enabled', name: 'enabled', type: 'checkbox' },
+        value: true,
+        description: 'type: checkbox'
+      },
+      {
+        param: { path: 'count', name: 'count', type: 'int', min: 0, max: 100 },
+        value: 5,
+        description: 'type: int (with min/max)'
+      },
+      {
+        param: { path: 'size', name: 'size', type: 'number', min: 0.1, max: 10, step: 0.1 },
+        value: 2.5,
+        description: 'type: number (with step)'
+      },
+      {
+        param: { path: 'opacity', name: 'opacity', type: 'slider', min: 0, max: 100, step: 1 },
+        value: 75,
+        description: 'type: slider (live updates)'
+      },
+      {
+        param: { path: 'brightness', name: 'brightness', type: 'slider', min: 0, max: 100, live: false },
+        value: 50,
+        description: 'type: slider (live: false)'
+      },
+      {
+        param: { path: 'color', name: 'color', type: 'color' },
+        value: '#3498db',
+        description: 'type: color'
+      },
+      {
+        param: { path: 'shape', name: 'shape', type: 'choice', values: ['circle', 'square', 'triangle'], captions: ['Circle', 'Square', 'Triangle'] },
+        value: 'square',
+        description: 'type: choice (dropdown)'
+      },
+      {
+        param: { path: 'alignment', name: 'alignment', type: 'radio', values: ['left', 'center', 'right'], captions: ['Left', 'Center', 'Right'] },
+        value: 'center',
+        description: 'type: radio'
+      },
+      {
+        param: { path: 'name', name: 'name', type: 'text', placeholder: 'Enter name...' },
+        value: 'My Model',
+        description: 'type: text'
+      },
+      {
+        param: { path: 'email', name: 'email', type: 'email', placeholder: 'user@example.com' },
+        value: '',
+        description: 'type: email'
+      },
+      {
+        param: { path: 'website', name: 'website', type: 'url', placeholder: 'https://...' },
+        value: '',
+        description: 'type: url'
+      },
+      {
+        param: { path: 'startDate', name: 'startDate', type: 'date' },
+        value: '2024-01-15',
+        description: 'type: date'
+      }
+    ]
+
+    for (const config of inputConfigs) {
+      values[config.param.path] = config.value
+
+      const row = document.createElement('div')
+      row.className = 'input-row'
+
+      const label = document.createElement('label')
+      label.textContent = config.param.name
+      row.appendChild(label)
+
+      const input = createInput({
+        param: config.param,
+        value: config.value,
+        onChange: (val) => {
+          values[config.param.path] = val
+          updateOutput()
+        }
+      })
+      row.appendChild(input)
+
+      const desc = document.createElement('span')
+      desc.className = 'description'
+      desc.textContent = config.description
+      row.appendChild(desc)
+
+      inputsDemo.appendChild(row)
+    }
+
+    // --- Full Parameter Tree Demo ---
+    // Simulate a JSCAD model with hierarchical parts
+    const defs = {
+      resolution: { type: 'int', initial: 32, min: 8, max: 128, caption: 'Resolution' },
+      showWireframe: { type: 'checkbox', initial: false, caption: 'Show Wireframe' },
+      material: {
+        type: 'choice',
+        initial: 'metal',
+        values: ['plastic', 'metal', 'wood', 'glass'],
+        captions: ['Plastic', 'Metal', 'Wood', 'Glass']
+      },
+      baseColor: { type: 'color', initial: '#2ecc71', caption: 'Base Color' },
+      roughness: { type: 'slider', min: 0, max: 100, initial: 30, caption: 'Roughness' }
+    }
+
+    // Create proxy to discover hierarchical params
+    const { proxy, extractParams, getProxyState } = createParamsProxy(defs)
+
+    // Simulate accessing part parameters (like a real model would)
+    const body = proxy.$part('body', 'chassis')
+    body.width = 100
+    body.height = 50
+    body.depth = 30
+    body.color = '#e74c3c'
+
+    const wheel1 = proxy.$part('wheel1', 'wheel')
+    wheel1.radius = 15
+    wheel1.thickness = 5
+    wheel1.color = '#34495e'
+
+    const wheel2 = proxy.$part('wheel2', 'wheel')
+    wheel2.radius = 15
+    wheel2.thickness = 5
+    wheel2.color = '#34495e'
+
+    const axle = proxy.$part('axle', 'axle')
+    axle.length = 80
+    axle.diameter = 3
+    axle.material = 'steel'
+
+    // Extract discovered parameters
+    const params = extractParams()
+    const proxyState = getProxyState()
+
+    // Build tree
+    const tree = buildParamTree(params.definitions)
+
+    // Create initial values object
+    const treeValues = {}
+    for (const def of params.definitions) {
+      treeValues[def.path] = def.default
+    }
+
+    // Create the tree UI
+    const paramsTree = createParamsTree({
+      target: document.getElementById('params-tree-container'),
+      tree,
+      values: treeValues,
+      types: proxyState.types,
+      classes: proxyState.classes,
+      onChange: (path, value) => {
+        treeValues[path] = value
+        console.log('Changed:', path, '=', value)
+        // In a real app, you'd trigger model rebuild here
+      },
+      onClassChange: (partPath, newClass, mode) => {
+        console.log('Class change:', partPath, '->', newClass, '(mode:', mode + ')')
+      }
+    })
+
+    // Initial output
+    updateOutput()
+  </script>
+</body>
+</html>
