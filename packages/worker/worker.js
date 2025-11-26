@@ -196,7 +196,7 @@ export async function jscadMain({ params, skipLog, userInteractedPaths } = {}) {
       discovered: proxyState.discovered,
       types: Object.fromEntries(proxyState.types),
       classes: Object.fromEntries(proxyState.classes),
-      tree: buildParamTree(proxyState.discovered, proxyState.types, proxyState.classes)
+      tree: buildParamTree(proxyState.discovered, proxyState.types, proxyState.classes),
     }
   }
 

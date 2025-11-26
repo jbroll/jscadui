@@ -297,7 +297,7 @@ export const createParamsProxy = (state, path = '') => {
         }
       }
 
-      // If user has interacted with this value, don't update the default
+      // If user has interacted with this value, don't update the runtime default
       if (userInteracted.has(fullPath)) {
         return true
       }
