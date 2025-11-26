@@ -19,15 +19,15 @@ const wheel = (params) => {
   params._type = 'Wheel'
 
   // Slider for radius with live preview
-  params.radius = { type: 'slider', default: 3, min: 1, max: 8, step: 0.5, caption: 'Tire Radius' }
-  params.width = { type: 'slider', default: 1.5, min: 0.5, max: 4, step: 0.25, caption: 'Tire Width' }
+  params.radius = { type: 'slider', default: 3, min: 1, max: 8, step: 0.5, label: 'Tire Radius' }
+  params.width = { type: 'slider', default: 1.5, min: 0.5, max: 4, step: 0.25, label: 'Tire Width' }
 
   // Color picker for tire
-  params.tireColor = { type: 'color', default: '#333333', caption: 'Tire Color' }
+  params.tireColor = { type: 'color', default: '#333333', label: 'Tire Color' }
 
   // Hub options
-  params.hubRadius = { type: 'slider', default: 1.2, min: 0.5, max: 3, step: 0.1, caption: 'Hub Radius' }
-  params.hubColor = { type: 'color', default: '#c0c0c0', caption: 'Hub Color' }
+  params.hubRadius = { type: 'slider', default: 1.2, min: 0.5, max: 3, step: 0.1, label: 'Hub Radius' }
+  params.hubColor = { type: 'color', default: '#c0c0c0', label: 'Hub Color' }
 
   // Dropdown for spoke style
   params.spokeStyle = {
@@ -35,11 +35,11 @@ const wheel = (params) => {
     default: 'solid',
     values: ['solid', 'spoked', 'sport', 'classic'],
     captions: ['Solid Disc', '5-Spoke', 'Sport Mesh', 'Classic Wire'],
-    caption: 'Wheel Style'
+    label: 'Wheel Style'
   }
 
   // Number of spokes (only relevant for spoked styles)
-  params.spokeCount = { type: 'int', default: 5, min: 3, max: 12, caption: 'Spoke Count' }
+  params.spokeCount = { type: 'int', default: 5, min: 3, max: 12, label: 'Spoke Count' }
 
   // Debug: log actual values being used
   const tireColorValue = params.tireColor
@@ -86,12 +86,12 @@ const wheel = (params) => {
 const axle = (params) => {
   params._type = 'Axle'
 
-  params.width = { type: 'slider', default: 12, min: 6, max: 20, step: 0.5, caption: 'Track Width' }
-  params.rodRadius = { type: 'number', default: 0.3, min: 0.1, max: 1, step: 0.05, caption: 'Rod Radius' }
-  params.rodColor = { type: 'color', default: '#666666', caption: 'Rod Color' }
+  params.width = { type: 'slider', default: 12, min: 6, max: 20, step: 0.5, label: 'Track Width' }
+  params.rodRadius = { type: 'number', default: 0.3, min: 0.1, max: 1, step: 0.05, label: 'Rod Radius' }
+  params.rodColor = { type: 'color', default: '#666666', label: 'Rod Color' }
 
   // Checkbox for showing the axle rod
-  params.showRod = { type: 'checkbox', default: true, caption: 'Show Axle Rod' }
+  params.showRod = { type: 'checkbox', default: true, label: 'Show Axle Rod' }
 
   // Computed offsets for child wheels (hidden params)
   const halfWidth = params.width / 2
@@ -119,12 +119,12 @@ const body = (params) => {
   params._type = 'Body'
 
   // Main dimensions with sliders
-  params.length = { type: 'slider', default: 20, min: 10, max: 40, step: 1, caption: 'Length' }
-  params.width = { type: 'slider', default: 8, min: 4, max: 15, step: 0.5, caption: 'Width' }
-  params.height = { type: 'slider', default: 3.5, min: 2, max: 8, step: 0.5, caption: 'Height' }
+  params.length = { type: 'slider', default: 20, min: 10, max: 40, step: 1, label: 'Length' }
+  params.width = { type: 'slider', default: 8, min: 4, max: 15, step: 0.5, label: 'Width' }
+  params.height = { type: 'slider', default: 3.5, min: 2, max: 8, step: 0.5, label: 'Height' }
 
   // Color picker for body
-  params.color = { type: 'color', default: '#e74c3c', caption: 'Body Color' }
+  params.color = { type: 'color', default: '#e74c3c', label: 'Body Color' }
 
   // Body style dropdown
   params.style = {
@@ -132,15 +132,15 @@ const body = (params) => {
     default: 'sedan',
     values: ['sedan', 'coupe', 'suv', 'truck'],
     captions: ['Sedan', 'Coupe', 'SUV', 'Pickup Truck'],
-    caption: 'Body Style'
+    label: 'Body Style'
   }
 
   // Cabin parameters
   params.cabin._type = 'Cabin'
-  params.cabin.length = { type: 'slider', default: 8, min: 4, max: 15, step: 0.5, caption: 'Cabin Length' }
-  params.cabin.height = { type: 'slider', default: 2.5, min: 1, max: 5, step: 0.25, caption: 'Cabin Height' }
-  params.cabin.color = { type: 'color', default: '#3498db', caption: 'Window Tint' }
-  params.cabin.tintOpacity = { type: 'slider', default: 70, min: 0, max: 100, step: 5, caption: 'Tint Opacity %' }
+  params.cabin.length = { type: 'slider', default: 8, min: 4, max: 15, step: 0.5, label: 'Cabin Length' }
+  params.cabin.height = { type: 'slider', default: 2.5, min: 1, max: 5, step: 0.25, label: 'Cabin Height' }
+  params.cabin.color = { type: 'color', default: '#3498db', label: 'Window Tint' }
+  params.cabin.tintOpacity = { type: 'slider', default: 70, min: 0, max: 100, step: 5, label: 'Tint Opacity %' }
 
   // Headlights
   params.headlights._type = 'Headlights'
@@ -149,10 +149,10 @@ const body = (params) => {
     default: 'round',
     values: ['round', 'rectangular', 'modern'],
     captions: ['Round Classic', 'Rectangular', 'Modern LED'],
-    caption: 'Headlight Style'
+    label: 'Headlight Style'
   }
-  params.headlights.color = { type: 'color', default: '#ffffcc', caption: 'Light Color' }
-  params.headlights.size = { type: 'slider', default: 0.8, min: 0.3, max: 1.5, step: 0.1, caption: 'Size' }
+  params.headlights.color = { type: 'color', default: '#ffffcc', label: 'Light Color' }
+  params.headlights.size = { type: 'slider', default: 0.8, min: 0.3, max: 1.5, step: 0.1, label: 'Size' }
 
   const bodyColor = hexToColor(params.color)
 
@@ -213,17 +213,17 @@ const body = (params) => {
 const spoiler = (params) => {
   params._type = 'Spoiler'
 
-  params.enabled = { type: 'checkbox', default: false, caption: 'Add Spoiler' }
-  params.width = { type: 'slider', default: 6, min: 3, max: 10, step: 0.5, caption: 'Width' }
-  params.height = { type: 'slider', default: 1.5, min: 0.5, max: 3, step: 0.25, caption: 'Height' }
-  params.angle = { type: 'slider', default: 15, min: 0, max: 45, step: 5, caption: 'Angle (degrees)' }
-  params.color = { type: 'color', default: '#2c3e50', caption: 'Color' }
+  params.enabled = { type: 'checkbox', default: false, label: 'Add Spoiler' }
+  params.width = { type: 'slider', default: 6, min: 3, max: 10, step: 0.5, label: 'Width' }
+  params.height = { type: 'slider', default: 1.5, min: 0.5, max: 3, step: 0.25, label: 'Height' }
+  params.angle = { type: 'slider', default: 15, min: 0, max: 45, step: 5, label: 'Angle (degrees)' }
+  params.color = { type: 'color', default: '#2c3e50', label: 'Color' }
   params.style = {
     type: 'choice',
     default: 'wing',
     values: ['wing', 'lip', 'ducktail'],
     captions: ['GT Wing', 'Lip Spoiler', 'Ducktail'],
-    caption: 'Style'
+    label: 'Style'
   }
 
   if (!params.enabled) return []
@@ -253,8 +253,8 @@ const main = (params) => {
   params._type = 'Car'
 
   // Top-level car parameters
-  params.wheelbase = { type: 'slider', default: 14, min: 8, max: 25, step: 0.5, caption: 'Wheelbase' }
-  params.groundClearance = { type: 'slider', default: 2.5, min: 1, max: 6, step: 0.25, caption: 'Ground Clearance' }
+  params.wheelbase = { type: 'slider', default: 14, min: 8, max: 25, step: 0.5, label: 'Wheelbase' }
+  params.groundClearance = { type: 'slider', default: 2.5, min: 1, max: 6, step: 0.25, label: 'Ground Clearance' }
 
   // Preset configurations
   params.preset = {
@@ -262,7 +262,7 @@ const main = (params) => {
     default: 'custom',
     values: ['custom', 'sports', 'offroad', 'classic'],
     captions: ['Custom', 'Sports Car', 'Off-Road', 'Classic'],
-    caption: 'Quick Preset'
+    label: 'Quick Preset'
   }
 
   // Quality setting
@@ -271,7 +271,7 @@ const main = (params) => {
     default: 'medium',
     values: ['low', 'medium', 'high'],
     captions: ['Fast (Low)', 'Balanced', 'Quality (Slow)'],
-    caption: 'Render Quality'
+    label: 'Render Quality'
   }
 
   // Link front wheels together and rear wheels together by default
