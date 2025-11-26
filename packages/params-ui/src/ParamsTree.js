@@ -3,20 +3,15 @@
  * Renders hierarchical params with collapsible nodes, spinners, and class linking
  */
 
-import { getClassesForType } from './createParamsProxy.js'
+import { getClassesForType, toMap } from '@jscadui/params-core'
+import { createInput as createInputComponent } from './inputs.js'
 
-/**
- * @typedef {'unlink'|'move_group'|'join'|'join_group'} ClassChangeMode
- * - 'unlink': Move just this part to a new class (keeps values)
- * - 'move_group': Move all parts in current class to a new class (keeps values)
- * - 'join': Move just this part to an existing class (adopts target values)
- * - 'join_group': Move all parts in current class to an existing class (adopts target values)
- */
+/** @typedef {import('@jscadui/params-core').ClassChangeMode} ClassChangeMode */
 
 /**
  * @typedef {Object} ParamsTreeOptions
  * @property {HTMLElement} target - Container element
- * @property {import('./createParamsProxy.js').PartNode} tree - Parameter tree
+ * @property {import('@jscadui/params-core').PartNode} tree - Parameter tree
  * @property {Object} values - Current parameter values (flat, dot-notation keys)
  * @property {Map<string, string>|Object} types - Part types
  * @property {Map<string, string>|Object} classes - Part classes (current effective classes)
@@ -35,9 +30,9 @@ export const createParamsTree = (options) => {
   let { target, tree, values, types, classes, codeClasses, onChange, onClassChange, showHidden = false } = options
 
   // Convert to Maps if plain objects
-  let typesMap = types instanceof Map ? types : new Map(Object.entries(types || {}))
-  let classesMap = classes instanceof Map ? classes : new Map(Object.entries(classes || {}))
-  let codeClassesMap = codeClasses instanceof Map ? codeClasses : new Map(Object.entries(codeClasses || {}))
+  let typesMap = toMap(types)
+  let classesMap = toMap(classes)
+  let codeClassesMap = toMap(codeClasses)
 
   // Track collapsed state
   const collapsed = new Set()
@@ -48,14 +43,14 @@ export const createParamsTree = (options) => {
   }
 
   /**
-   * @param {import('./createParamsProxy.js').PartNode} node
+   * @param {import('@jscadui/params-core').PartNode} node
    * @param {number} depth
    * @returns {HTMLElement}
    */
   const renderNode = (node, depth) => {
     const div = document.createElement('div')
     div.className = 'params-tree-node'
-    div.style.marginLeft = depth > 0 ? '16px' : '0'
+    if (depth > 0) div.classList.add('params-tree-node--nested')
 
     const hasChildren = Object.keys(node.children).length > 0
     const hasParams = node.params.filter(p => showHidden || !p.hidden).length > 0
@@ -65,14 +60,12 @@ export const createParamsTree = (options) => {
     if (node.path) {
       const header = document.createElement('div')
       header.className = 'params-tree-header'
-      header.style.cssText = 'display:flex;align-items:center;gap:4px;padding:2px 0;cursor:pointer;'
 
       // Collapse toggle
       if (hasChildren || hasParams) {
         const toggle = document.createElement('span')
         toggle.className = 'params-tree-toggle'
         toggle.textContent = isCollapsed ? '▶' : '▼'
-        toggle.style.cssText = 'width:12px;font-size:10px;color:#888;'
         toggle.onclick = (e) => {
           e.stopPropagation()
           if (isCollapsed) {
@@ -85,7 +78,7 @@ export const createParamsTree = (options) => {
         header.appendChild(toggle)
       } else {
         const spacer = document.createElement('span')
-        spacer.style.width = '12px'
+        spacer.className = 'params-tree-spacer'
         header.appendChild(spacer)
       }
 
@@ -93,7 +86,6 @@ export const createParamsTree = (options) => {
       const name = document.createElement('span')
       name.className = 'params-tree-name'
       name.textContent = node.name
-      name.style.cssText = 'font-weight:500;'
       header.appendChild(name)
 
       // Type badge
@@ -101,7 +93,6 @@ export const createParamsTree = (options) => {
         const type = document.createElement('span')
         type.className = 'params-tree-type'
         type.textContent = `(${node.type})`
-        type.style.cssText = 'font-size:0.85em;color:#666;margin-left:4px;'
         header.appendChild(type)
       }
 
@@ -110,7 +101,6 @@ export const createParamsTree = (options) => {
         const cls = document.createElement('span')
         cls.className = 'params-tree-class'
         cls.textContent = `[${node.partClass}]`
-        cls.style.cssText = 'font-size:0.8em;color:#08f;margin-left:4px;'
         header.appendChild(cls)
       }
 
@@ -149,121 +139,60 @@ export const createParamsTree = (options) => {
   }
 
   /**
-   * @param {import('./createParamsProxy.js').ParamDefinition} param
+   * @param {import('@jscadui/params-core').ParamDefinition} param
    * @returns {HTMLElement}
    */
   const renderParam = (param) => {
     const row = document.createElement('div')
     row.className = 'params-tree-param'
-    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:2px 0;margin-left:16px;'
 
     // Label
     const label = document.createElement('label')
+    label.className = 'params-tree-label'
     label.textContent = param.name
-    label.style.cssText = 'min-width:80px;font-size:0.9em;color:#666;'
     if (param.hidden) {
-      label.style.fontStyle = 'italic'
-      label.style.color = '#999'
+      label.classList.add('params-tree-label--hidden')
     }
     row.appendChild(label)
 
     // Input based on type
     const value = values[param.path] ?? param.default
     const input = createInput(param, value)
+    // Store param path for external value updates (e.g., class linking)
+    input.dataset.paramPath = param.path
     row.appendChild(input)
 
     return row
   }
 
   /**
-   * @param {import('./createParamsProxy.js').ParamDefinition} param
+   * @param {import('@jscadui/params-core').ParamDefinition} param
    * @param {unknown} value
    * @returns {HTMLElement}
    */
   const createInput = (param, value) => {
-    const { type, min, max, step, values: choiceValues, captions } = param
-
     // Special handling for _class - show combobox with available classes for this type
     if (param.name === '_class') {
       return createClassInput(param, value)
     }
 
-    if (type === 'checkbox') {
-      const input = document.createElement('input')
-      input.type = 'checkbox'
-      input.checked = !!value
-      input.onchange = () => onChange(param.path, input.checked)
-      return input
-    }
-
-    if (type === 'choice' && choiceValues) {
-      const select = document.createElement('select')
-      select.style.cssText = 'padding:2px 4px;'
-      for (let i = 0; i < choiceValues.length; i++) {
-        const opt = document.createElement('option')
-        opt.value = choiceValues[i]
-        opt.textContent = captions?.[i] || choiceValues[i]
-        if (choiceValues[i] === value) opt.selected = true
-        select.appendChild(opt)
-      }
-      select.onchange = () => onChange(param.path, select.value)
-      return select
-    }
-
-    if (type === 'number' || type === 'int') {
-      const container = document.createElement('span')
-      container.style.cssText = 'display:flex;align-items:center;gap:2px;'
-
-      const input = document.createElement('input')
-      input.type = 'number'
-      input.value = String(value)
-      input.dataset.paramPath = param.path // For targeted updates
-      input.style.cssText = 'width:70px;padding:2px 4px;text-align:right;'
-      if (min !== undefined) input.min = String(min)
-      if (max !== undefined) input.max = String(max)
-      if (step !== undefined) input.step = String(step)
-      else if (type === 'int') input.step = '1'
-
-      // Use 'input' event for immediate response to spinner clicks
-      // 'change' only fires on blur or Enter
-      input.oninput = () => {
-        const val = type === 'int' ? parseInt(input.value) : parseFloat(input.value)
-        if (!isNaN(val)) {
-          onChange(param.path, val)
-        }
-      }
-
-      container.appendChild(input)
-
-      // Show range if min/max defined
-      if (min !== undefined && max !== undefined) {
-        const range = document.createElement('span')
-        range.style.cssText = 'font-size:0.75em;color:#999;'
-        range.textContent = `[${min}-${max}]`
-        container.appendChild(range)
-      }
-
-      return container
-    }
-
-    // Default: text input
-    const input = document.createElement('input')
-    input.type = 'text'
-    input.value = String(value ?? '')
-    input.style.cssText = 'width:120px;padding:2px 4px;'
-    input.onchange = () => onChange(param.path, input.value)
-    return input
+    // Use the input factory for all other parameter types
+    return createInputComponent({
+      param,
+      value,
+      onChange: (val) => onChange(param.path, val)
+    })
   }
 
   /**
    * Create a class editor with dropdown menu and action buttons
-   * @param {import('./createParamsProxy.js').ParamDefinition} param
+   * @param {import('@jscadui/params-core').ParamDefinition} param
    * @param {unknown} value
    * @returns {HTMLElement}
    */
   const createClassInput = (param, value) => {
     const container = document.createElement('span')
-    container.style.cssText = 'display:inline-block;position:relative;'
+    container.className = 'params-tree-class-container'
 
     const partPath = param.parent
     const partType = typesMap.get(partPath)
@@ -284,43 +213,38 @@ export const createParamsTree = (options) => {
     // Current class display / toggle button
     const toggleBtn = document.createElement('button')
     toggleBtn.type = 'button'
+    toggleBtn.className = 'params-tree-class-toggle'
     toggleBtn.textContent = currentValue || '(no class)'
-    toggleBtn.style.cssText = 'padding:2px 8px;min-width:100px;text-align:left;cursor:pointer;background:#fff;border:1px solid #ccc;border-radius:3px;font-family:inherit;font-size:inherit;'
 
-    // Dropdown menu (hidden by default) - right-aligned to stay within panel
+    // Dropdown menu (hidden by default)
     const menu = document.createElement('div')
-    menu.style.cssText = `
-      display:none;position:absolute;top:100%;right:0;z-index:1000;
-      background:#fff;border:1px solid #ccc;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,0.15);
-      width:200px;padding:8px 0;margin-top:2px;box-sizing:border-box;
-      font-family:inherit;font-size:13px;
-    `
+    menu.className = 'params-tree-class-menu'
 
     // Track selected class (existing or new)
     let selectedClass = currentValue
 
     // --- Class list section ---
     const classListLabel = document.createElement('div')
+    classListLabel.className = 'params-tree-menu-label'
     classListLabel.textContent = 'Select class:'
-    classListLabel.style.cssText = 'padding:4px 12px;font-size:11px;color:#666;'
     menu.appendChild(classListLabel)
 
     const classListContainer = document.createElement('div')
-    classListContainer.style.cssText = 'max-height:150px;overflow-y:auto;'
+    classListContainer.className = 'params-tree-class-list'
 
     // Radio buttons for each available class
     for (const cls of availableClasses) {
       const label = document.createElement('label')
-      label.style.cssText = 'display:block;padding:4px 12px;cursor:pointer;'
-      label.onmouseenter = () => label.style.background = '#f0f0f0'
-      label.onmouseleave = () => label.style.background = ''
+      label.className = 'params-tree-radio-label'
+      label.onmouseenter = () => label.classList.add('params-tree-radio-label--hover')
+      label.onmouseleave = () => label.classList.remove('params-tree-radio-label--hover')
 
       const radio = document.createElement('input')
       radio.type = 'radio'
       radio.name = `class-${partPath}`
       radio.value = cls
       radio.checked = cls === currentValue
-      radio.style.marginRight = '8px'
+      radio.className = 'params-tree-radio'
       radio.onchange = () => { selectedClass = cls }
 
       label.appendChild(radio)
@@ -331,20 +255,21 @@ export const createParamsTree = (options) => {
 
     // --- New class input section ---
     const newClassContainer = document.createElement('div')
-    newClassContainer.style.cssText = 'padding:4px 12px;border-top:1px solid #eee;margin-top:4px;box-sizing:border-box;'
+    newClassContainer.className = 'params-tree-new-class'
 
     const newClassLabel = document.createElement('label')
-    newClassLabel.style.cssText = 'display:flex;align-items:center;gap:8px;width:100%;'
+    newClassLabel.className = 'params-tree-new-class-label'
 
     const newClassRadio = document.createElement('input')
     newClassRadio.type = 'radio'
     newClassRadio.name = `class-${partPath}`
     newClassRadio.value = '__new__'
+    newClassRadio.className = 'params-tree-radio'
 
     const newClassInput = document.createElement('input')
     newClassInput.type = 'text'
     newClassInput.placeholder = 'new class name'
-    newClassInput.style.cssText = 'flex:1;min-width:0;padding:2px 4px;border:1px solid #ccc;border-radius:2px;box-sizing:border-box;font-family:inherit;font-size:inherit;'
+    newClassInput.className = 'params-tree-new-class-input'
     newClassInput.onfocus = () => { newClassRadio.checked = true }
     newClassInput.oninput = () => { selectedClass = newClassInput.value.trim() }
 
@@ -355,19 +280,19 @@ export const createParamsTree = (options) => {
 
     // --- Action buttons section ---
     const actionsContainer = document.createElement('div')
-    actionsContainer.style.cssText = 'padding:8px 12px;border-top:1px solid #eee;margin-top:4px;display:flex;gap:8px;box-sizing:border-box;'
+    actionsContainer.className = 'params-tree-actions'
 
     const setPartBtn = document.createElement('button')
     setPartBtn.type = 'button'
+    setPartBtn.className = 'params-tree-btn params-tree-btn--part'
     setPartBtn.textContent = 'Set Part'
     setPartBtn.title = 'Change class for this part only'
-    setPartBtn.style.cssText = 'flex:1 1 0;min-width:0;padding:4px 8px;cursor:pointer;background:#e8f4fc;border:1px solid #08f;border-radius:3px;font-family:inherit;font-size:inherit;position:relative;z-index:10;'
 
     const setGroupBtn = document.createElement('button')
     setGroupBtn.type = 'button'
+    setGroupBtn.className = 'params-tree-btn params-tree-btn--group'
     setGroupBtn.textContent = 'Set Group'
     setGroupBtn.title = 'Change class for all parts in current group'
-    setGroupBtn.style.cssText = 'flex:1 1 0;min-width:0;padding:4px 8px;cursor:pointer;background:#e8fcf4;border:1px solid #0a0;border-radius:3px;font-family:inherit;font-size:inherit;position:relative;z-index:10;'
 
     setPartBtn.addEventListener('click', (e) => {
       e.stopPropagation()
@@ -405,7 +330,7 @@ export const createParamsTree = (options) => {
     const openMenu = () => {
       if (isOpen) return
       isOpen = true
-      menu.style.display = 'block'
+      menu.classList.add('params-tree-class-menu--open')
       selectedClass = currentValue
       // Reset radio selection
       const radios = menu.querySelectorAll('input[type="radio"]')
@@ -416,7 +341,7 @@ export const createParamsTree = (options) => {
     const closeMenu = () => {
       if (!isOpen) return
       isOpen = false
-      menu.style.display = 'none'
+      menu.classList.remove('params-tree-class-menu--open')
     }
 
     toggleBtn.onclick = (e) => {
@@ -469,15 +394,15 @@ export const createParamsTree = (options) => {
       if (newOptions.showHidden !== undefined) showHidden = newOptions.showHidden
       if (newOptions.types !== undefined) {
         types = newOptions.types
-        typesMap = types instanceof Map ? types : new Map(Object.entries(types || {}))
+        typesMap = toMap(types)
       }
       if (newOptions.classes !== undefined) {
         classes = newOptions.classes
-        classesMap = classes instanceof Map ? classes : new Map(Object.entries(classes || {}))
+        classesMap = toMap(classes)
       }
       if (newOptions.codeClasses !== undefined) {
         codeClasses = newOptions.codeClasses
-        codeClassesMap = codeClasses instanceof Map ? codeClasses : new Map(Object.entries(codeClasses || {}))
+        codeClassesMap = toMap(codeClasses)
       }
       render()
     },
@@ -506,35 +431,212 @@ export const createParamsTree = (options) => {
 }
 
 /**
- * Basic CSS styles for the params tree
- * Can be injected or used as reference for custom styling
+ * CSS styles for the params tree component
+ * Inject into document head or use as reference for custom styling
  */
 export const paramsTreeStyles = `
+/* Base node */
 .params-tree-node {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 13px;
 }
+.params-tree-node--nested {
+  margin-left: 16px;
+}
+
+/* Header row */
 .params-tree-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+  cursor: pointer;
   user-select: none;
 }
 .params-tree-header:hover {
   background: rgba(0,0,0,0.05);
 }
+
+/* Toggle arrow and spacer */
 .params-tree-toggle {
+  width: 12px;
+  font-size: 10px;
+  color: #888;
   cursor: pointer;
 }
-.params-tree-param input[type="number"],
-.params-tree-param input[type="text"],
-.params-tree-param select {
+.params-tree-spacer {
+  width: 12px;
+}
+
+/* Part name */
+.params-tree-name {
+  font-weight: 500;
+}
+
+/* Type badge */
+.params-tree-type {
+  font-size: 0.85em;
+  color: #666;
+  margin-left: 4px;
+}
+
+/* Class badge */
+.params-tree-class {
+  font-size: 0.8em;
+  color: #08f;
+  margin-left: 4px;
+}
+
+/* Parameter row */
+.params-tree-param {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+  margin-left: 16px;
+}
+
+/* Parameter label */
+.params-tree-label {
+  min-width: 80px;
+  font-size: 0.9em;
+  color: #666;
+}
+.params-tree-label--hidden {
+  font-style: italic;
+  color: #999;
+}
+
+/* Class selector container */
+.params-tree-class-container {
+  display: inline-block;
+  position: relative;
+}
+
+/* Class toggle button */
+.params-tree-class-toggle {
+  padding: 2px 8px;
+  min-width: 100px;
+  text-align: left;
+  cursor: pointer;
+  background: #fff;
   border: 1px solid #ccc;
   border-radius: 3px;
   font-family: inherit;
   font-size: inherit;
 }
-.params-tree-param input[type="number"]:focus,
-.params-tree-param input[type="text"]:focus,
-.params-tree-param select:focus {
+.params-tree-class-toggle:hover {
+  border-color: #08f;
+}
+
+/* Class dropdown menu */
+.params-tree-class-menu {
+  display: none;
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 1000;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  width: 200px;
+  padding: 8px 0;
+  margin-top: 2px;
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: 13px;
+}
+.params-tree-class-menu--open {
+  display: block;
+}
+
+/* Menu label */
+.params-tree-menu-label {
+  padding: 4px 12px;
+  font-size: 11px;
+  color: #666;
+}
+
+/* Class list */
+.params-tree-class-list {
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+/* Radio labels in class list */
+.params-tree-radio-label {
+  display: block;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+.params-tree-radio-label--hover {
+  background: #f0f0f0;
+}
+.params-tree-radio {
+  margin-right: 8px;
+}
+
+/* New class section */
+.params-tree-new-class {
+  padding: 4px 12px;
+  border-top: 1px solid #eee;
+  margin-top: 4px;
+  box-sizing: border-box;
+}
+.params-tree-new-class-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+.params-tree-new-class-input {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 4px;
+  border: 1px solid #ccc;
+  border-radius: 2px;
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: inherit;
+}
+.params-tree-new-class-input:focus {
   outline: none;
   border-color: #08f;
+}
+
+/* Action buttons */
+.params-tree-actions {
+  padding: 8px 12px;
+  border-top: 1px solid #eee;
+  margin-top: 4px;
+  display: flex;
+  gap: 8px;
+  box-sizing: border-box;
+}
+.params-tree-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-radius: 3px;
+  font-family: inherit;
+  font-size: inherit;
+  position: relative;
+  z-index: 10;
+}
+.params-tree-btn--part {
+  background: #e8f4fc;
+  border: 1px solid #08f;
+}
+.params-tree-btn--part:hover {
+  background: #d0e8f8;
+}
+.params-tree-btn--group {
+  background: #e8fcf4;
+  border: 1px solid #0a0;
+}
+.params-tree-btn--group:hover {
+  background: #d0f8e8;
 }
 `

@@ -1,7 +1,7 @@
 import { JscadToCommon } from '@jscadui/format-jscad'
 import { messageProxy, withTransferable } from '@jscadui/postmessage'
 import { clearFileCache, jscadClearTempCache, readFileWeb, require, requireCache, resolveUrl } from '@jscadui/require'
-import { createParamsProxy, createProxyState, buildParamTree, toParamDefinitions, extractDefaults as extractProxyDefaults } from '@jscadui/params-proxy'
+import { createParamsProxy, createProxyState, buildParamTree, toParamDefinitions, extractDefaults as extractProxyDefaults } from '@jscadui/params-core'
 
 import { exportStlText } from './src/exportStlText.js'
 import { combineParameterDefinitions, getParameterDefinitionsFromSource } from './src/getParameterDefinitionsFromSource.js'
@@ -127,7 +127,7 @@ async function readFileFile(file, {bin=false}={}){
 /** @type {import('@jscadui/format-common').JscadMainResultRaw[]} */
 let solids = []
 
-/** @type {import('@jscadui/params-proxy').ProxyState | null} */
+/** @type {import('@jscadui/params-core').ProxyState | null} */
 let lastProxyState = null
 
 /**
@@ -155,7 +155,15 @@ export async function jscadMain({ params, skipLog, userInteractedPaths } = {}) {
     currentUiValues = params
   }
 
-  if (!skipLog) console.log('jscadMain with params', params, useParamsProxy ? '(proxy mode)' : '')
+  if (!skipLog) {
+    console.log('jscadMain with params', params, useParamsProxy ? '(proxy mode)' : '')
+    if (useParamsProxy) {
+      console.log('  userInteracted paths:', [...userInteracted])
+      // Debug: check if specific tireColor paths are in params
+      const tireColorPaths = Object.keys(params).filter(k => k.includes('tireColor'))
+      console.log('  tireColor params:', tireColorPaths.map(k => ({ path: k, value: params[k] })))
+    }
+  }
   /** @type {import('@jscadui/format-common').JscadTransferable []} */
   const transferable = []
 

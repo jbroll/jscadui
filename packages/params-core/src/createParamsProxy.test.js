@@ -9,6 +9,11 @@ import {
   getNodeByPath,
   getParamsAtPath,
   getChildParts,
+  getClassesForType,
+  getLinkedParts,
+  getLinkedParamPaths,
+  convertLegacyDefs,
+  extractLegacyDefaults,
 } from './createParamsProxy.js'
 
 describe('createParamsProxy', () => {
@@ -512,8 +517,6 @@ describe('getClassesForType', () => {
       ['rear', 'rear-axle'],
     ])
 
-    const { getClassesForType } = require('./createParamsProxy.js')
-
     const wheelClasses = getClassesForType(types, classes, 'Wheel')
     expect(wheelClasses.sort()).toEqual(['all-wheels', 'rear-wheels'])
 
@@ -537,8 +540,6 @@ describe('getLinkedParts', () => {
       ['rear.right', 'all-wheels'],
     ])
 
-    const { getLinkedParts } = require('./createParamsProxy.js')
-
     const linked = getLinkedParts(types, classes, 'front.left')
     expect(linked.sort()).toEqual(['front.left', 'front.right', 'rear.left', 'rear.right'])
   })
@@ -546,8 +547,6 @@ describe('getLinkedParts', () => {
   it('should return only self if no class is set', () => {
     const types = new Map([['front.left', 'Wheel']])
     const classes = new Map()
-
-    const { getLinkedParts } = require('./createParamsProxy.js')
 
     const linked = getLinkedParts(types, classes, 'front.left')
     expect(linked).toEqual(['front.left'])
@@ -562,8 +561,6 @@ describe('getLinkedParts', () => {
       ['front.left', 'shared-class'],
       ['front', 'shared-class'],
     ])
-
-    const { getLinkedParts } = require('./createParamsProxy.js')
 
     const linkedFromWheel = getLinkedParts(types, classes, 'front.left')
     expect(linkedFromWheel).toEqual(['front.left'])
@@ -588,8 +585,6 @@ describe('getLinkedParamPaths', () => {
       ['rear.right', 'all-wheels'],
     ])
 
-    const { getLinkedParamPaths } = require('./createParamsProxy.js')
-
     const linkedPaths = getLinkedParamPaths(types, classes, 'front.left.radius')
     expect(linkedPaths.sort()).toEqual([
       'front.left.radius',
@@ -603,9 +598,135 @@ describe('getLinkedParamPaths', () => {
     const types = new Map()
     const classes = new Map()
 
-    const { getLinkedParamPaths } = require('./createParamsProxy.js')
-
     const linkedPaths = getLinkedParamPaths(types, classes, 'wheelbase')
     expect(linkedPaths).toEqual(['wheelbase'])
+  })
+
+  it('should not link params starting with underscore (instance-private)', () => {
+    const types = new Map([
+      ['front.left', 'Wheel'],
+      ['front.right', 'Wheel'],
+    ])
+    const classes = new Map([
+      ['front.left', 'front-wheels'],
+      ['front.right', 'front-wheels'],
+    ])
+
+    // _offset should only return itself, not linked parts
+    const linkedPaths = getLinkedParamPaths(types, classes, 'front.left._offset')
+    expect(linkedPaths).toEqual(['front.left._offset'])
+  })
+})
+
+describe('convertLegacyDefs', () => {
+  it('should convert basic legacy parameter definitions', () => {
+    const legacyDefs = [
+      { name: 'radius', type: 'number', initial: 2.0, min: 1.0, max: 10.0, step: 0.1, caption: 'Radius:' },
+      { name: 'segments', type: 'int', initial: 32, min: 3, max: 64, caption: 'Segments:' },
+      { name: 'smooth', type: 'checkbox', checked: true, caption: 'Smooth:' },
+    ]
+
+    const params = convertLegacyDefs(legacyDefs)
+
+    expect(params.radius).toEqual({
+      default: 2.0,
+      type: 'number',
+      min: 1.0,
+      max: 10.0,
+      step: 0.1,
+      caption: 'Radius:',
+    })
+
+    expect(params.segments).toEqual({
+      default: 32,
+      type: 'int',
+      min: 3,
+      max: 64,
+      caption: 'Segments:',
+    })
+
+    expect(params.smooth).toEqual({
+      default: true,
+      type: 'checkbox',
+      caption: 'Smooth:',
+    })
+  })
+
+  it('should skip group definitions', () => {
+    const legacyDefs = [
+      { name: 'group1', type: 'group', caption: 'Settings' },
+      { name: 'radius', type: 'number', initial: 5 },
+    ]
+
+    const params = convertLegacyDefs(legacyDefs)
+
+    expect(params.group1).toBeUndefined()
+    expect(params.radius).toBeDefined()
+  })
+
+  it('should normalize slider to number with min/max', () => {
+    const legacyDefs = [
+      { name: 'value', type: 'slider', initial: 50 },
+    ]
+
+    const params = convertLegacyDefs(legacyDefs)
+
+    expect(params.value.type).toBe('number')
+    expect(params.value.min).toBe(0)
+    expect(params.value.max).toBe(100)
+  })
+
+  it('should normalize radio to choice', () => {
+    const legacyDefs = [
+      { name: 'option', type: 'radio', values: ['A', 'B', 'C'], initial: 'B' },
+    ]
+
+    const params = convertLegacyDefs(legacyDefs)
+
+    expect(params.option.type).toBe('choice')
+    expect(params.option.values).toEqual(['A', 'B', 'C'])
+    expect(params.option.default).toBe('B')
+  })
+
+  it('should handle choice type with captions', () => {
+    const legacyDefs = [
+      { name: 'size', type: 'choice', values: [1, 2, 3], captions: ['Small', 'Medium', 'Large'], initial: 2 },
+    ]
+
+    const params = convertLegacyDefs(legacyDefs)
+
+    expect(params.size.values).toEqual([1, 2, 3])
+    expect(params.size.captions).toEqual(['Small', 'Medium', 'Large'])
+    expect(params.size.default).toBe(2)
+  })
+})
+
+describe('extractLegacyDefaults', () => {
+  it('should extract default values from legacy definitions', () => {
+    const legacyDefs = [
+      { name: 'radius', type: 'number', initial: 2.0 },
+      { name: 'smooth', type: 'checkbox', checked: true },
+      { name: 'label', type: 'text', initial: 'hello' },
+    ]
+
+    const defaults = extractLegacyDefaults(legacyDefs)
+
+    expect(defaults).toEqual({
+      radius: 2.0,
+      smooth: true,
+      label: 'hello',
+    })
+  })
+
+  it('should add prefix to keys when provided', () => {
+    const legacyDefs = [
+      { name: 'radius', type: 'number', initial: 3 },
+    ]
+
+    const defaults = extractLegacyDefaults(legacyDefs, 'wheel')
+
+    expect(defaults).toEqual({
+      'wheel.radius': 3,
+    })
   })
 })

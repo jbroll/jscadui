@@ -1,0 +1,21 @@
+{
+  "type": "module",
+  "sideEffects": false,
+  "name": "@jscadui/params-core",
+  "version": "0.1.0",
+  "description": "Core parameter proxy logic for hierarchical JSCAD parts - no UI dependencies",
+  "main": "index.js",
+  "module": "./index.js",
+  "files": [
+    "index.js",
+    "src"
+  ],
+  "scripts": {
+    "test": "vitest",
+    "coverage": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "vitest": "0.24.5"
+  },
+  "license": "MIT"
+}

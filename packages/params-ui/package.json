@@ -1,9 +1,9 @@
 {
   "type": "module",
   "sideEffects": false,
-  "name": "@jscadui/params-proxy",
+  "name": "@jscadui/params-ui",
   "version": "0.1.0",
-  "description": "Auto-discovering parameter proxy for hierarchical JSCAD parts",
+  "description": "UI components for parameter editing in JSCAD - tree view with class linking",
   "main": "index.js",
   "module": "./index.js",
   "files": [
@@ -14,8 +14,12 @@
     "test": "vitest",
     "coverage": "vitest run --coverage"
   },
+  "dependencies": {
+    "@jscadui/params-core": "^0.1.0"
+  },
   "devDependencies": {
-    "vitest": "0.24.5"
+    "vitest": "0.24.5",
+    "jsdom": "^22.0.0"
   },
   "license": "MIT"
 }

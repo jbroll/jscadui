@@ -1,0 +1,24 @@
+{
+  "type": "module",
+  "sideEffects": false,
+  "name": "@jscadui/params-controller",
+  "version": "0.1.0",
+  "description": "State management and class linking controller for JSCAD parameters",
+  "main": "index.js",
+  "module": "./index.js",
+  "files": [
+    "index.js",
+    "src"
+  ],
+  "dependencies": {
+    "@jscadui/params-core": "^0.1.0"
+  },
+  "devDependencies": {
+    "vitest": "0.24.5"
+  },
+  "scripts": {
+    "test": "vitest",
+    "coverage": "vitest run --coverage"
+  },
+  "license": "MIT"
+}
