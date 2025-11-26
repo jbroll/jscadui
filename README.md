@@ -1,30 +1,23 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-If you want to discuss jscad or jscadui you can also join us on discord: https://discord.gg/6PB7qZ4HC7
 
+Join us on Discord: https://discord.gg/6PB7qZ4HC7
 
-# usable bits
+# Packages
 
-Most of the things are work in progres, but some parts are pretty ready to be used
+- [@jscadui/3mf-export](./file-format/3mf-export) [![npm](https://badge.fury.io/js/@jscadui%2F3mf-export.svg)](https://www.npmjs.com/package/@jscadui%2F3mf-export) - 3MF export (also used by manifold)
+- [@jscadui/html-gizmo](./packages/html-gizmo) [![npm](https://badge.fury.io/js/@jscadui%2Fhtml-gizmo.svg)](https://www.npmjs.com/package/@jscadui%2Fhtml-gizmo) - Camera direction gizmo
+- [@jscadui/orbit](./packages/orbit) [![npm](https://badge.fury.io/js/@jscadui%2Forbit.svg)](https://www.npmjs.com/package/@jscadui%2Forbit) - Orbit controls for multiple 3D engines
+- [@jscadui/postmessage](./packages/postmessage) [![npm](https://badge.fury.io/js/@jscadui%2Fpostmessage.svg)](https://www.npmjs.com/package/@jscadui%2Fpostmessage) - postMessage utilities
 
-- [file-format/3mf-export](./file-format/3mf-export) - [![npm version](https://badge.fury.io/js/@jscadui%2F3mf-export.svg)](https://www.npmjs.com/package/@jscadui%2F3mf-export) 3mf-export (also used by manifold)
-- [packages/html-gizmo](./packages/html-gizmo) - [![npm version](https://badge.fury.io/js/@jscadui%2Fhtml-gizmo.svg)](https://www.npmjs.com/package/@jscadui%2Fhtml-gizmo) a gizmo to display current camera direction
-- [packages/orbit](./packages/orbit) - [![npm version](https://badge.fury.io/js/@jscadui%2Forbit.svg)](https://www.npmjs.com/package/@jscadui%2Forbit) orbit controls for css and multiple 3d engines, also for use in jscad
-- [packages/postmessage](./packages/postmessage) - [![npm version](https://badge.fury.io/js/@jscadui%2Fpostmessage.svg)](https://www.npmjs.com/package/@jscadui%2Fpostmessage) postMessage quality of life improvement
+# jscad.app
 
-# jscad.app prototype
-- [apps/jscad-web](apps/jscad-web) - code for  [jscad.app](https://jscad.app) . It is a nice demo and our attempt at making a an improved version of [openjscad.xyz](https://openjscad.xyz).
-- other example apps are much work in progress, you can try them out but they may or may not even work
+[apps/jscad-web](apps/jscad-web) powers [jscad.app](https://jscad.app), an improved version of [openjscad.xyz](https://openjscad.xyz).
 
-## Improvements
-Things that work better in jscad.app than openjscad.xyz
- - [x] can run remote scripts that import stuff. works on [jscad.app](https://jscad.app/#https://raw.githubusercontent.com/jscad/OpenJSCAD.org/master/packages/examples/import/STLImport/index.js) but not on [openjscad.xyz](https://openjscad.xyz/#https://raw.githubusercontent.com/jscad/OpenJSCAD.org/master/packages/examples/import/STLImport/index.js)
- - [x] can run scripts that use npm packages (pulls the deps from unkpg)
- - [x] can run es6 modules code
- - [x] can run typescript
- - [x] can run mixed typescript js+require, js+import
- - [x] worker instance is preserved, so caching optimizations are possible between parameter changes
-
-aim is also to simplify integrating worker in other projects
+Features:
+- Run remote scripts with imports
+- Use npm packages (via unpkg)
+- ES6 modules and TypeScript support
+- Worker instance preserved for caching between parameter changes
 
 # Hierarchical Parameters
 
@@ -69,32 +62,29 @@ module.exports = { main }
 
 ## Parameter Types
 
-| Type | Description | Properties | Default Step |
-|------|-------------|------------|--------------|
-| `slider` | Range slider with live preview | `min`, `max`, `step`, `live` | 0.1 |
-| `number` | Numeric spinbox with optional range | `min`, `max`, `step` | 0.1 |
-| `int` | Integer spinbox | `min`, `max`, `step` | 1 |
-| `color` | Color picker with palette | `palette` (array of hex colors) | - |
-| `choice` | Dropdown select | `values`, `captions` | - |
-| `radio` | Radio button group | `values`, `captions` | - |
-| `checkbox` | Boolean toggle | - | - |
-| `text` | Text input | `size`, `maxLength`, `placeholder` | - |
-| `date` | Date picker | `min`, `max` | - |
-| `email`, `url`, `password` | Specialized text inputs | `size`, `maxLength`, `placeholder` | - |
+| Type | Description | Default Step |
+|------|-------------|--------------|
+| `slider` | Range slider with live preview | 0.1 |
+| `number` | Numeric spinbox | 0.1 |
+| `int` | Integer spinbox | 1 |
+| `color` | Color picker | - |
+| `choice` | Dropdown select | - |
+| `radio` | Radio button group | - |
+| `checkbox` | Boolean toggle | - |
+| `text` | Text input | - |
+| `date` | Date picker | - |
 
 ## Defining Parameters
 
-Parameters can be defined in two ways:
-
 **Simple value (type inferred):**
 ```javascript
-params.count = 5           // inferred as 'int', step=1
-params.scale = 1.5         // inferred as 'number', step=0.1
-params.enabled = true      // inferred as 'checkbox'
-params.name = 'default'    // inferred as 'text'
+params.count = 5           // int, step=1
+params.scale = 1.5         // number, step=0.1
+params.enabled = true      // checkbox
+params.name = 'default'    // text
 ```
 
-**Definition object (explicit type and UI hints):**
+**Definition object:**
 ```javascript
 params.radius = {
   type: 'slider',
@@ -103,62 +93,24 @@ params.radius = {
   max: 20,
   step: 0.5,
   label: 'Radius',
-  live: true  // update while dragging
+  live: true
 }
 ```
 
-## Definition Object Properties
+**Common properties:** `type`, `default`, `label`, `min`, `max`, `step`
 
-| Property | Description |
-|----------|-------------|
-| `type` | Parameter type (see table above) |
-| `default` | Default value |
-| `label` | Display label in the UI |
-| `min` | Minimum value (numeric types, date) |
-| `max` | Maximum value (numeric types, date) |
-| `step` | Increment value (numeric types) - defaults to 1 for int, 0.1 for number/slider |
-| `values` | Array of selectable values (choice, radio) |
-| `captions` | Display labels for values (choice, radio) |
-| `placeholder` | Placeholder text (text inputs) |
-| `size` | Input width in characters (text inputs) |
-| `maxLength` | Maximum characters allowed (text inputs) |
-| `live` | Update in real-time while dragging (slider) |
-| `palette` | Array of hex colors for quick selection (color) |
+**Type-specific:** `values`/`captions` (choice, radio), `palette` (color), `placeholder`/`size`/`maxLength` (text), `live` (slider)
 
-## Class Linking
+## Special Properties
 
-Parts can be linked so that changing a parameter on one updates all parts in the same class:
+- `_type` - Labels parts in the UI tree (e.g., `params._type = 'Wheel'`)
+- `_class` - Links parts so changes propagate to all in the same class
+- Parameters starting with `_` are hidden from the UI
 
 ```javascript
-// All wheels in 'front-wheels' class stay synchronized
 params.front.left._class = 'front-wheels'
 params.front.right._class = 'front-wheels'
-
-// Rear wheels have their own class
-params.rear.left._class = 'rear-wheels'
-params.rear.right._class = 'rear-wheels'
-```
-
-When you change the tire color on `front.left`, it automatically updates `front.right` as well.
-
-## Part Types
-
-Use `_type` to label parts in the UI tree:
-
-```javascript
-const wheel = (params) => {
-  params._type = 'Wheel'  // Shows as "Wheel" in the parameter tree
-  // ...
-}
-```
-
-## Hidden Parameters
-
-Parameters starting with `_` are hidden from the UI but can be used for internal state:
-
-```javascript
-params._internalOffset = 5  // Not shown in UI
-params.left._offset = -halfWidth  // Computed value, hidden
+// Changing tire color on front.left automatically updates front.right
 ```
 
 ## Backwards Compatibility
@@ -183,52 +135,9 @@ Legacy type mappings:
 - `caption` → `label`
 - `slider`, `radio`, `choice` types are preserved for proper UI rendering
 
-## Package Structure
-
-The hierarchical params system is split into three packages:
-
-- **@jscadui/params-core** - Proxy system, type definitions, tree building, class linking logic
-- **@jscadui/params-ui** - Input components (slider, color picker, etc.) and tree view
-- **@jscadui/params-controller** - State management for params and class operations
-
 # About jscadui
 
-A jscad UI playground developed here and meant to be later contributed into jscad. This way this is not limited by jscad release cycle.
- - supports: Three.js Babylon.js regl
- - implements no-dep pure js [parameters form generator](./packages/params-form/) based on jscad parameter definitions
- - allow to be easily used within React, Angular, Vue, Solidj ... or whatever is popular at some point.
+A jscad UI playground developed here and meant to be later contributed into jscad. This way it is not limited by the jscad release cycle.
 
-## Bring more options for debugging
- - `jscadDebugger(shapes|object)` - function that can be called at any point to see intermediate results from the script
- - it will also dump it in console, but more importantly also start a parallel instance of jscad that can be used to view
-   any model provided via jscadDebugger calls
- - initial `async await` idea was abandoned as it complicates things greatly, and actual debugger in the browser can be used
-   to pause the script and to step through the code.
- - A second instance of jscad can be used to display any shapes needed to be seen while debugging (original instance can be frozen by debugger)
- - the debugger instance of jscad can also be further enhanced to inspect the 3d model
-
-## Some thoughts on how to allow fastest response
-
-- initial render may be a simple preview with progressive enhancement in background.
-- global precision should be possible so preview has lower precision
-- output precision should be configurable so when exporting, recalculation can be done and prepare more precise model in background
-- progressive enhancement may be allowed to go to the level of precision that is for export, thus reducing wait time for export
-- progressive enhancement should be stopped and restarted on script or parameter change
-
-
-## Some houghts on parallelizing background work
-
-- Use of TypedArrays where possible is preferred to allow for sending data between thread with no cost
-- it should be examined if regenerating model in the worker is fast enough, as sending TypedArray out removes access for the sender and coordinating who needs which data can be difficult.
-- consider a hybrid approach of sending typed arrays data out, to be given back, or regenerated if needed in multiple places
-- sets of boolean operations can be done in background
-- Making long running operations like booleans interruptible would be ideal.
-- calculating operation complexity in advance would be useful (based on precision that can affect the expected output size and amount of calculation)
-
-
-##  Allowing for changes to be localized instead of recalculating everything
-
-- to extent this can be automatic by marking output geometries with id so if it was already sent from worker to main thread sending can be skipped (and in the end likely also upload to GPU)
-- much more is possible if developers are taught some best practices that allow for most performance
-
-
+- Supports multiple renderers: Three.js, Babylon.js, regl
+- Can be integrated with React, Angular, Vue, Solid, or other frameworks
