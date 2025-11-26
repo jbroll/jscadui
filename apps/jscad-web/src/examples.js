@@ -1,4 +1,5 @@
 export const examples = [
+  { name: 'Hierarchical Car', source: './examples/hierarchical-car.example.js' },
   { name: 'JSCAD Logo', source: './examples/jscad.example.js' },
   { name: 'Primitive Shapes', source: './examples/primitives.example.js' },
   { name: 'Extrusions', source: './examples/extrusions.example.js' },

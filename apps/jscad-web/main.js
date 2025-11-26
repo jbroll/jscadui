@@ -17,7 +17,7 @@ import { createParamsTree, paramsTreeStyles, inputStyles } from '@jscadui/params
 import { createParamsController } from '@jscadui/params-controller'
 import { messageProxy } from '@jscadui/postmessage'
 
-import defaultCode from './examples/jscad.example.js'
+import defaultCode from './examples/hierarchical-car.example.js'
 import { addV1Shim } from './src/addV1Shim.js'
 import * as editor from './src/editor.js'
 import * as engine from './src/engine.js'
@@ -484,7 +484,7 @@ const bundles = {
   '@jscadui/params-core': toUrl('./build/bundle.params_core.js'),
 }
 
-const useParamsProxy = new URLSearchParams(location.search).has('proxy')
+const useParamsProxy = true
 await workerApi.jscadInit({ bundles, useParamsProxy })
 
 if (useParamsProxy) {
