@@ -39,6 +39,7 @@ await buildBundle(outDir + '/build', 'bundle.threejs.js', { globalName: 'THREE',
 await buildBundle(outDir + '/build', 'bundle.jscad_modeling.js', { format: 'cjs', skipExisting: dev })
 await buildBundle(outDir + '/build', 'bundle.jscad_io.js', { format:'cjs', skipExisting: dev })
 await buildBundle(outDir + '/build', 'bundle.V1_api.js', { format:'cjs', skipExisting: dev })
+await buildBundle(outDir + '/build', 'bundle.params_core.js', { format: 'cjs', skipExisting: dev })
 await buildBundle(outDir + '/build', 'bundle.jscadui.transform-babel.js', { globalName: 'jscadui_transform_babel', skipExisting: dev })
 
 /**************************** BUILD JS THAT can change and watch if in dev mode *************/

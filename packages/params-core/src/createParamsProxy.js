@@ -1,17 +1,39 @@
 /**
+ * Supported parameter types for UI rendering
+ * @typedef {'text'|'int'|'number'|'slider'|'checkbox'|'color'|'choice'|'radio'|'date'|'email'|'url'|'password'|'group'|'unknown'} ParamType
+ */
+
+/**
  * @typedef {Object} ParamDefinition
  * @property {string} path - Full dot-notation path (e.g., 'front.left.radius')
  * @property {string} name - Property name (e.g., 'radius')
  * @property {string} parent - Parent path (e.g., 'front.left')
  * @property {unknown} default - Default value
- * @property {string} type - Inferred type ('number', 'int', 'checkbox', 'text', 'choice')
+ * @property {ParamType} type - Parameter type for UI rendering
  * @property {boolean} hidden - Whether param is hidden (starts with _)
- * @property {number} [min] - Minimum value for numbers
- * @property {number} [max] - Maximum value for numbers
- * @property {number} [step] - Step value for numbers
+ *
+ * Numeric properties (int, number, slider, date)
+ * @property {number} [min] - Minimum value
+ * @property {number} [max] - Maximum value
+ * @property {number} [step] - Step/increment value
+ *
+ * Display properties
  * @property {string} [caption] - Display label
- * @property {string[]} [values] - For choice type
- * @property {string[]} [captions] - Display labels for choices
+ * @property {string} [placeholder] - Placeholder text for inputs
+ *
+ * Choice/radio properties
+ * @property {(string|number)[]} [values] - Selectable values
+ * @property {string[]} [captions] - Display labels for values
+ *
+ * Text input properties
+ * @property {number} [size] - Input width in characters
+ * @property {number} [maxLength] - Maximum characters allowed
+ *
+ * Slider/animation properties
+ * @property {boolean} [live] - Update in real-time while dragging
+ *
+ * Group properties
+ * @property {'open'|'closed'} [initialState] - Initial collapsed state for groups
  */
 
 /**
@@ -34,11 +56,29 @@
  */
 
 /**
+ * @typedef {'unlink'|'move_group'|'join'|'join_group'} ClassChangeMode
+ * - 'unlink': Move just this part to a new class (keeps values)
+ * - 'move_group': Move all parts in current class to a new class (keeps values)
+ * - 'join': Move just this part to an existing class (adopts target values)
+ * - 'join_group': Move all parts in current class to an existing class (adopts target values)
+ */
+
+/**
+ * Convert a plain object to a Map, or return the Map if already one
+ * @param {Map|Object} obj
+ * @returns {Map}
+ */
+export const toMap = (obj) => {
+  if (obj instanceof Map) return obj
+  return new Map(Object.entries(obj || {}))
+}
+
+/**
  * Infer parameter type from value
  * @param {unknown} value
  * @returns {string}
  */
-const inferType = (value) => {
+export const inferType = (value) => {
   if (typeof value === 'boolean') return 'checkbox'
   if (typeof value === 'number') return Number.isInteger(value) ? 'int' : 'number'
   if (typeof value === 'string') return 'text'
@@ -53,37 +93,63 @@ const inferType = (value) => {
  * @param {unknown} value
  * @returns {value is {default: unknown}}
  */
-const isDefinition = (value) => {
+export const isDefinition = (value) => {
   return value !== null && typeof value === 'object' && 'default' in value
 }
 
 /**
- * Extract definition properties from value
+ * Extract definition properties from value, preserving all UI hints
  * @param {unknown} value
- * @returns {{default: unknown, type: string, min?: number, max?: number, step?: number, caption?: string, values?: string[], captions?: string[]}}
+ * @returns {Partial<ParamDefinition>}
  */
-const extractDefinition = (value) => {
+export const extractDefinition = (value) => {
   if (isDefinition(value)) {
-    // Determine type: explicit > inferred from step > inferred from default
+    // Determine type: explicit > inferred from values array > inferred from step > inferred from default
     let type = value.type
     if (!type) {
+      // If values array is present, it's a choice type
+      if (Array.isArray(value.values)) {
+        type = 'choice'
+      }
       // If step is defined and not an integer, use 'number' type
-      if (typeof value.step === 'number' && !Number.isInteger(value.step)) {
+      else if (typeof value.step === 'number' && !Number.isInteger(value.step)) {
         type = 'number'
       } else {
         type = inferType(value.default)
       }
     }
-    return {
+
+    // Build result with all supported properties
+    const result = {
       default: value.default,
       type,
-      min: value.min,
-      max: value.max,
-      step: value.step,
-      caption: value.caption,
-      values: value.values,
-      captions: value.captions,
     }
+
+    // Numeric properties
+    if (value.min !== undefined) result.min = value.min
+    if (value.max !== undefined) result.max = value.max
+    if (value.step !== undefined) result.step = value.step
+
+    // Display properties
+    if (value.caption !== undefined) result.caption = value.caption
+    if (value.placeholder !== undefined) result.placeholder = value.placeholder
+
+    // Choice/radio properties
+    if (value.values !== undefined) result.values = value.values
+    if (value.captions !== undefined) result.captions = value.captions
+
+    // Text input properties
+    if (value.size !== undefined) result.size = value.size
+    if (value.maxLength !== undefined) result.maxLength = value.maxLength
+
+    // Slider/live properties
+    if (value.live !== undefined) result.live = value.live
+
+    // Group properties
+    if (value.initial === 'closed') result.initialState = 'closed'
+    else if (value.initialState !== undefined) result.initialState = value.initialState
+
+    return result
   }
   return {
     default: value,
@@ -451,6 +517,37 @@ export const getClassesForType = (types, classes, type) => {
 }
 
 /**
+ * Get all types from a classes map
+ * @param {Map<string, string>} types - Types map (path -> type)
+ * @param {Map<string, string>} classes - Classes map (path -> class)
+ * @returns {string[]} - Array of unique types that have classes
+ */
+export const getTypesFromClasses = (types, classes) => {
+  const result = new Set()
+  for (const [path] of classes) {
+    const type = types.get(path)
+    if (type) result.add(type)
+  }
+  return [...result]
+}
+
+/**
+ * Group parts by their class
+ * @param {Map<string, string>} classes - Classes map (path -> class)
+ * @returns {Map<string, string[]>} - Map from class name to array of paths
+ */
+export const groupByClass = (classes) => {
+  const result = new Map()
+  for (const [path, cls] of classes) {
+    if (!result.has(cls)) {
+      result.set(cls, [])
+    }
+    result.get(cls).push(path)
+  }
+  return result
+}
+
+/**
  * Get all paths that share the same class and type
  * @param {Map<string, string>} types - Types map (path -> type)
  * @param {Map<string, string>} classes - Classes map (path -> class)
@@ -496,4 +593,196 @@ export const getLinkedParamPaths = (types, classes, paramPath) => {
 
   // Return the same param name for each linked part
   return linkedParts.map(p => `${p}.${paramName}`)
+}
+
+/**
+ * Convert legacy getParameterDefinitions format to proxy-friendly params object
+ *
+ * Legacy format:
+ *   [
+ *     { name: 'radius', type: 'number', initial: 2.0, min: 1.0, max: 10.0, caption: 'Radius:' },
+ *     { name: 'group1', type: 'group', caption: 'Group 1' },
+ *     { name: 'checkbox', type: 'checkbox', checked: true, caption: 'Checkbox:' },
+ *   ]
+ *
+ * Proxy format (params object):
+ *   {
+ *     radius: { default: 2.0, type: 'number', min: 1.0, max: 10.0, caption: 'Radius:' },
+ *     checkbox: { default: true, type: 'checkbox', caption: 'Checkbox:' },
+ *   }
+ *
+ * @param {Array<{name: string, type?: string, initial?: unknown, checked?: boolean, min?: number, max?: number, step?: number, caption?: string, values?: unknown[], captions?: string[]}>} legacyDefs
+ * @param {string} [prefix=''] - Optional prefix for nested parts (e.g., 'front.left')
+ * @returns {Object} - Params object with definition objects
+ */
+export const convertLegacyDefs = (legacyDefs, prefix = '') => {
+  const params = {}
+
+  for (const def of legacyDefs) {
+    // Skip groups - they're UI-only and don't map to params
+    if (def.type === 'group') continue
+
+    const name = def.name
+    const path = prefix ? `${prefix}.${name}` : name
+
+    // Determine default value
+    let defaultValue = def.initial
+    if (def.type === 'checkbox') {
+      defaultValue = def.checked ?? def.initial ?? false
+    } else if (defaultValue === undefined) {
+      // Provide sensible defaults based on type
+      switch (def.type) {
+        case 'int':
+        case 'number':
+        case 'slider':
+          defaultValue = def.min ?? 0
+          break
+        case 'text':
+        case 'email':
+        case 'url':
+        case 'password':
+        case 'date':
+          defaultValue = ''
+          break
+        case 'choice':
+        case 'radio':
+          defaultValue = def.values?.[0] ?? ''
+          break
+        case 'color':
+          defaultValue = '#000000'
+          break
+        default:
+          defaultValue = ''
+      }
+    }
+
+    // Build the definition object
+    const paramDef = {
+      default: defaultValue,
+      type: def.type || inferType(defaultValue),
+    }
+
+    // Copy over optional properties
+    if (def.min !== undefined) paramDef.min = def.min
+    if (def.max !== undefined) paramDef.max = def.max
+    if (def.step !== undefined) paramDef.step = def.step
+    if (def.caption) paramDef.caption = def.caption
+    if (def.values) paramDef.values = def.values
+    if (def.captions) paramDef.captions = def.captions
+
+    // Normalize slider to number with min/max
+    if (paramDef.type === 'slider') {
+      paramDef.type = 'number'
+      if (paramDef.min === undefined) paramDef.min = 0
+      if (paramDef.max === undefined) paramDef.max = 100
+    }
+
+    // Normalize radio to choice
+    if (paramDef.type === 'radio') {
+      paramDef.type = 'choice'
+    }
+
+    params[name] = paramDef
+  }
+
+  return params
+}
+
+/**
+ * Extract default values from legacy parameter definitions
+ * @param {Array<{name: string, type?: string, initial?: unknown, checked?: boolean}>} legacyDefs
+ * @param {string} [prefix=''] - Optional prefix for nested parts
+ * @returns {Object} - Flat object with default values (dot-notation keys if prefix provided)
+ */
+export const extractLegacyDefaults = (legacyDefs, prefix = '') => {
+  const converted = convertLegacyDefs(legacyDefs)
+  const defaults = {}
+  for (const [name, def] of Object.entries(converted)) {
+    const key = prefix ? `${prefix}.${name}` : name
+    defaults[key] = def.default
+  }
+  return defaults
+}
+
+/**
+ * Wrap a legacy JSCAD module (one that exports main + getParameterDefinitions)
+ * so it works seamlessly with the params proxy system.
+ *
+ * Usage in a model:
+ *   const LegacyWheel = wrapLegacyModule(require('./legacy-wheel'))
+ *
+ *   const Car = (params) => {
+ *     return [
+ *       LegacyWheel(params.frontLeft),  // params.frontLeft gets legacy defs auto-merged
+ *       LegacyWheel(params.frontRight),
+ *     ]
+ *   }
+ *
+ * @param {Object} module - The required module with main and optionally getParameterDefinitions
+ * @param {Function} module.main - The main function
+ * @param {Function} [module.getParameterDefinitions] - Legacy parameter definitions function
+ * @returns {Function} - Wrapped function that accepts a params proxy
+ */
+export const wrapLegacyModule = (module) => {
+  const { main, getParameterDefinitions } = module
+
+  if (!main) {
+    throw new Error('wrapLegacyModule: module must export a main function')
+  }
+
+  // If no getParameterDefinitions, just return main as-is
+  if (!getParameterDefinitions) {
+    return main
+  }
+
+  // Get legacy definitions (call once and cache)
+  let legacyDefs = null
+  let proxyDefs = null
+
+  const wrappedMain = (params) => {
+    // Lazy-load definitions on first call
+    if (!legacyDefs) {
+      legacyDefs = getParameterDefinitions()
+      proxyDefs = convertLegacyDefs(legacyDefs)
+    }
+
+    // If params is a proxy, merge legacy defs into it
+    // Check if it's a proxy by looking for the special symbol or by checking if it tracks accesses
+    // For now, we'll just ensure defaults are available
+
+    // Create a params object that has legacy defaults for any missing values
+    const paramsWithDefaults = new Proxy(params || {}, {
+      get(target, prop) {
+        if (prop in target) {
+          return target[prop]
+        }
+        // Return legacy default if available
+        if (proxyDefs && prop in proxyDefs) {
+          const def = proxyDefs[prop]
+          // Access through proxy to trigger recording
+          target[prop] = def
+          return def
+        }
+        return undefined
+      }
+    })
+
+    return main(paramsWithDefaults)
+  }
+
+  // Expose the legacy definitions for inspection
+  wrappedMain.getParameterDefinitions = getParameterDefinitions
+  wrappedMain.getLegacyDefs = () => {
+    if (!legacyDefs) legacyDefs = getParameterDefinitions()
+    return legacyDefs
+  }
+  wrappedMain.getProxyDefs = () => {
+    if (!proxyDefs) {
+      if (!legacyDefs) legacyDefs = getParameterDefinitions()
+      proxyDefs = convertLegacyDefs(legacyDefs)
+    }
+    return proxyDefs
+  }
+
+  return wrappedMain
 }
