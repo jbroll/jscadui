@@ -9,6 +9,9 @@ const car = require('./examples/hierarchical-car.example.js')
 const main = (params) => {
   params._type = 'Two Cars'
 
+  params.one._class = 'car1'
+  params.two._class = 'car2'
+
   const car1 = translate([0, -12, 0], car.main(params.one))
   const car2 = translate([0, 12, 0], car.main(params.two))
 
