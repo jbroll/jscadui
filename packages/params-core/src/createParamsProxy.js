@@ -18,7 +18,7 @@
  * @property {number} [step] - Step/increment value
  *
  * Display properties
- * @property {string} [caption] - Display label
+ * @property {string} [label] - Display label
  * @property {string} [placeholder] - Placeholder text for inputs
  *
  * Choice/radio properties
@@ -119,6 +119,11 @@ export const extractDefinition = (value) => {
       }
     }
 
+    // Normalize float to number
+    if (type === 'float') {
+      type = 'number'
+    }
+
     // Build result with all supported properties
     const result = {
       default: value.default,
@@ -128,10 +133,18 @@ export const extractDefinition = (value) => {
     // Numeric properties
     if (value.min !== undefined) result.min = value.min
     if (value.max !== undefined) result.max = value.max
-    if (value.step !== undefined) result.step = value.step
 
-    // Display properties
-    if (value.caption !== undefined) result.caption = value.caption
+    // Step: use explicit value, or default based on type (int=1, number=0.1)
+    if (value.step !== undefined) {
+      result.step = value.step
+    } else if (type === 'int') {
+      result.step = 1
+    } else if (type === 'number') {
+      result.step = 0.1
+    }
+
+    // Display properties - use 'label' as the standard property name
+    if (value.label !== undefined) result.label = value.label
     if (value.placeholder !== undefined) result.placeholder = value.placeholder
 
     // Choice/radio properties
@@ -151,10 +164,22 @@ export const extractDefinition = (value) => {
 
     return result
   }
-  return {
+
+  // For plain values (not definition objects), infer type and set default step
+  const type = inferType(value)
+  const result = {
     default: value,
-    type: inferType(value),
+    type,
   }
+
+  // Set default step for numeric types
+  if (type === 'int') {
+    result.step = 1
+  } else if (type === 'number') {
+    result.step = 0.1
+  }
+
+  return result
 }
 
 /**
@@ -393,7 +418,7 @@ export const toParamDefinitions = (discovered, includeHidden = false) => {
       result.push({
         name: param.path,  // Use full path as name
         type: param.type === 'int' ? 'int' : param.type,
-        caption: param.caption || param.name,
+        label: param.label || param.name,
         initial: param.default,
         min: param.min,
         max: param.max,
@@ -634,6 +659,7 @@ export const convertLegacyDefs = (legacyDefs, prefix = '') => {
       switch (def.type) {
         case 'int':
         case 'number':
+        case 'float':
         case 'slider':
           defaultValue = def.min ?? 0
           break
@@ -666,20 +692,28 @@ export const convertLegacyDefs = (legacyDefs, prefix = '') => {
     if (def.min !== undefined) paramDef.min = def.min
     if (def.max !== undefined) paramDef.max = def.max
     if (def.step !== undefined) paramDef.step = def.step
-    if (def.caption) paramDef.caption = def.caption
+    if (def.caption) paramDef.label = def.caption
     if (def.values) paramDef.values = def.values
     if (def.captions) paramDef.captions = def.captions
 
-    // Normalize slider to number with min/max
-    if (paramDef.type === 'slider') {
+    // Normalize float to number
+    if (paramDef.type === 'float') {
       paramDef.type = 'number'
+    }
+
+    // Ensure slider has min/max defaults
+    if (paramDef.type === 'slider') {
       if (paramDef.min === undefined) paramDef.min = 0
       if (paramDef.max === undefined) paramDef.max = 100
     }
 
-    // Normalize radio to choice
-    if (paramDef.type === 'radio') {
-      paramDef.type = 'choice'
+    // Set default step for numeric types if not specified
+    if (paramDef.step === undefined) {
+      if (paramDef.type === 'int') {
+        paramDef.step = 1
+      } else if (paramDef.type === 'number' || paramDef.type === 'slider') {
+        paramDef.step = 0.1
+      }
     }
 
     params[name] = paramDef
