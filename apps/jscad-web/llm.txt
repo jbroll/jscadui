@@ -1,0 +1,85 @@
+# JSCAD Hierarchical Parameters
+
+Inline UI parameter definitions via proxy assignment on `params` object.
+
+## Type Inference
+
+```javascript
+params.count = 5           // int, step=1
+params.scale = 1.5         // number, step=0.1
+params.enabled = true      // checkbox
+params.name = 'foo'        // text
+```
+
+## Definition Object
+
+```javascript
+params.radius = {
+  type: 'slider',          // slider|number|int|color|choice|radio|checkbox|text|date|email|url|password|group
+  default: 5,
+  min: 1,
+  max: 20,
+  step: 0.5,
+  label: 'Radius',
+  live: true,              // real-time update (sliders)
+  values: ['a', 'b'],      // choice/radio options
+  captions: ['A', 'B']     // display names for values
+}
+```
+
+## Nesting
+
+Access `params.child` to create nested proxy. Pass to part functions:
+
+```javascript
+const wheel = (params) => {
+  params._type = 'Wheel'
+  params.radius = { type: 'slider', default: 3, min: 1, max: 8 }
+  return torus({ outerRadius: params.radius })
+}
+
+const axle = (params) => {
+  params._type = 'Axle'
+  params.width = { type: 'slider', default: 12, min: 6, max: 20 }
+  params.left._offset = -params.width / 2
+  params.right._offset = params.width / 2
+  return [
+    translate([0, params.left._offset, 0], wheel(params.left)),
+    translate([0, params.right._offset, 0], wheel(params.right))
+  ]
+}
+
+const main = (params) => {
+  params._type = 'Car'
+  params.wheelbase = { type: 'slider', default: 14, min: 8, max: 25 }
+  return [
+    ...axle(params.front).map(p => translate([params.wheelbase/2, 0, 0], p)),
+    ...axle(params.rear).map(p => translate([-params.wheelbase/2, 0, 0], p))
+  ]
+}
+```
+
+## Special Properties
+
+- `params._type = 'Name'` - UI section label
+- `params._class = 'group-id'` - link parts; changes propagate to parts with same `_type` and `_class`
+- `params._foo` - underscore prefix hides parameter from UI
+
+## Linking Example
+
+```javascript
+params.front.left._class = 'front-wheels'
+params.front.right._class = 'front-wheels'
+// changing front.left.radius updates front.right.radius
+```
+
+## Legacy Format
+
+```javascript
+const getParameterDefinitions = () => [
+  { name: 'radius', type: 'float', initial: 5, min: 1, max: 20, caption: 'Radius' }
+]
+module.exports = { main, getParameterDefinitions }
+```
+
+Mappings: `float`→`number`, `caption`→`label`, `initial`→`default`
