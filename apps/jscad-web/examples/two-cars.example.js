@@ -4,7 +4,7 @@
 const jscad = require('@jscad/modeling')
 const { translate } = jscad.transforms
 
-const car = require('./hierarchical-car.example.js')
+const car = require('https://jscad.rkroll.com/examples/hierarchical-car.example.js')
 
 const main = (params) => {
   params._type = 'Two Cars'
