@@ -679,7 +679,7 @@ editor.setSource(virtualTree[0].fileContent, '/index.js')
 // */
 
 if (loadDefault && !hasRemoteScript) {
-  jscadScript({ script: defaultCode })
+  jscadScript({ script: defaultCode, url: './examples/two-cars.example.js' })
 }
 
 try {
