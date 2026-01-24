@@ -51,6 +51,41 @@ export const createParamsTree = (options) => {
     collectAllPaths(tree)
   }
 
+  /**
+   * Get a string key representing tree structure (paths only, not values)
+   * Used to detect if tree structure changed vs just param values
+   */
+  const getTreePaths = (node, paths = []) => {
+    if (!node) return ''
+    if (node.path) paths.push(node.path)
+    for (const param of node.params || []) {
+      paths.push(param.path)
+    }
+    for (const child of Object.values(node.children || {})) {
+      getTreePaths(child, paths)
+    }
+    return paths.join('|')
+  }
+
+  /**
+   * Update input values in-place without re-rendering
+   * This preserves active drag state on sliders
+   */
+  const updateValuesInPlace = () => {
+    const rows = target.querySelectorAll('.params-tree-param')
+    for (const row of rows) {
+      if (typeof row.updateValue === 'function') {
+        const pathEl = row.querySelector('[data-param-path]')
+        if (pathEl) {
+          const path = pathEl.dataset.paramPath
+          if (path && path in values) {
+            row.updateValue(values[path])
+          }
+        }
+      }
+    }
+  }
+
   const render = () => {
     target.innerHTML = ''
     target.appendChild(renderNode(tree, 0))
@@ -64,6 +99,7 @@ export const createParamsTree = (options) => {
   const renderNode = (node, depth) => {
     const div = document.createElement('div')
     div.className = 'params-tree-node'
+    div.style.setProperty('--depth', depth)
     if (depth > 0) div.classList.add('params-tree-node--nested')
 
     const hasChildren = Object.keys(node.children).length > 0
@@ -75,7 +111,9 @@ export const createParamsTree = (options) => {
       const header = document.createElement('div')
       header.className = 'params-tree-header'
 
-      // Collapse toggle
+      // Indent column with toggle
+      const indent = document.createElement('span')
+      indent.className = 'params-tree-indent'
       if (hasChildren || hasParams) {
         const toggle = document.createElement('span')
         toggle.className = 'params-tree-toggle'
@@ -89,25 +127,25 @@ export const createParamsTree = (options) => {
           }
           render()
         }
-        header.appendChild(toggle)
-      } else {
-        const spacer = document.createElement('span')
-        spacer.className = 'params-tree-spacer'
-        header.appendChild(spacer)
+        indent.appendChild(toggle)
       }
+      header.appendChild(indent)
 
-      // Part name
+      // Name column (name + badges)
+      const nameCell = document.createElement('span')
+      nameCell.className = 'params-tree-name-cell'
+
       const name = document.createElement('span')
       name.className = 'params-tree-name'
       name.textContent = node.name
-      header.appendChild(name)
+      nameCell.appendChild(name)
 
       // Type badge
       if (node.type) {
         const type = document.createElement('span')
         type.className = 'params-tree-type'
         type.textContent = `(${node.type})`
-        header.appendChild(type)
+        nameCell.appendChild(type)
       }
 
       // Class badge
@@ -115,8 +153,14 @@ export const createParamsTree = (options) => {
         const cls = document.createElement('span')
         cls.className = 'params-tree-class'
         cls.textContent = `[${node.partClass}]`
-        header.appendChild(cls)
+        nameCell.appendChild(cls)
       }
+      header.appendChild(nameCell)
+
+      // Empty cells for control and value columns (header spans them)
+      const headerSpan = document.createElement('span')
+      headerSpan.className = 'params-tree-header-span'
+      header.appendChild(headerSpan)
 
       header.onclick = () => {
         if (isCollapsed) {
@@ -160,6 +204,11 @@ export const createParamsTree = (options) => {
     const row = document.createElement('div')
     row.className = 'params-tree-param'
 
+    // Indent spacer
+    const indent = document.createElement('span')
+    indent.className = 'params-tree-indent'
+    row.appendChild(indent)
+
     // Label
     const label = document.createElement('label')
     label.className = 'params-tree-label'
@@ -170,11 +219,40 @@ export const createParamsTree = (options) => {
     row.appendChild(label)
 
     // Input based on type
-    const value = values[param.path] ?? param.default
-    const input = createInput(param, value)
-    // Store param path for external value updates (e.g., class linking)
-    input.dataset.paramPath = param.path
-    row.appendChild(input)
+    const currentValue = values[param.path] ?? param.default
+    const inputResult = createInput(param, currentValue)
+
+    if (inputResult.span) {
+      // Text/radio span both columns
+      const spanCell = document.createElement('div')
+      spanCell.className = 'params-tree-input-span'
+      if (inputResult.control) {
+        inputResult.control.dataset.paramPath = param.path
+        spanCell.appendChild(inputResult.control)
+      }
+      row.appendChild(spanCell)
+    } else {
+      // Separate control and value columns
+      const controlCell = document.createElement('div')
+      controlCell.className = 'params-tree-control'
+      if (inputResult.control) {
+        controlCell.appendChild(inputResult.control)
+      }
+      row.appendChild(controlCell)
+
+      const valueCell = document.createElement('div')
+      valueCell.className = 'params-tree-value'
+      if (inputResult.value) {
+        inputResult.value.dataset.paramPath = param.path
+        valueCell.appendChild(inputResult.value)
+      }
+      row.appendChild(valueCell)
+    }
+
+    // Store updateValue method on row for external updates
+    if (inputResult.updateValue) {
+      row.updateValue = inputResult.updateValue
+    }
 
     return row
   }
@@ -182,12 +260,14 @@ export const createParamsTree = (options) => {
   /**
    * @param {import('@jscadui/params-core').ParamDefinition} param
    * @param {unknown} value
-   * @returns {HTMLElement}
+   * @returns {{control: HTMLElement|null, value: HTMLElement|null, span: boolean, updateValue?: (newValue: unknown) => void}}
    */
   const createInput = (param, value) => {
     // Special handling for _class - show combobox with available classes for this type
     if (param.name === '_class') {
-      return createClassInput(param, value)
+      const classInput = createClassInput(param, value)
+      // Class input goes in value column
+      return { control: null, value: classInput, span: false }
     }
 
     // Use the input factory for all other parameter types
@@ -400,9 +480,23 @@ export const createParamsTree = (options) => {
   return {
     /**
      * Update the tree view with new data
-     * Simple, deterministic: update state, then re-render
+     * Only re-renders when structure changes; updates values in-place otherwise
+     * This prevents breaking slider drags during model updates
      */
     update: (newOptions) => {
+      // Check if structure is changing (requires full re-render)
+      // Tree structure change = different paths, not just different param values
+      const treeStructureChanged = newOptions.tree !== undefined &&
+        getTreePaths(newOptions.tree) !== getTreePaths(tree)
+
+      const structureChanging = (
+        treeStructureChanged ||
+        newOptions.types !== undefined ||
+        newOptions.classes !== undefined ||
+        newOptions.codeClasses !== undefined ||
+        newOptions.showHidden !== undefined
+      )
+
       if (newOptions.tree !== undefined) tree = newOptions.tree
       if (newOptions.values !== undefined) values = newOptions.values
       if (newOptions.showHidden !== undefined) showHidden = newOptions.showHidden
@@ -418,7 +512,15 @@ export const createParamsTree = (options) => {
         codeClasses = newOptions.codeClasses
         codeClassesMap = toMap(codeClasses)
       }
-      render()
+
+      if (structureChanging) {
+        // Full re-render needed
+        render()
+      } else {
+        // Values-only update: update inputs in-place without re-rendering
+        // This preserves active drag state on sliders
+        updateValuesInPlace()
+      }
     },
     destroy: () => {
       target.innerHTML = ''
@@ -449,20 +551,40 @@ export const createParamsTree = (options) => {
  * Inject into document head or use as reference for custom styling
  */
 export const paramsTreeStyles = `
-/* Base node */
+/* Root node defines the grid */
 .params-tree-node {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 13px;
-}
-.params-tree-node--nested {
-  margin-left: 16px;
+  display: grid;
+  grid-template-columns:
+    [indent] auto
+    [label] minmax(80px, auto)
+    [control] 1fr
+    [value] auto;
+  align-items: center;
+  row-gap: 2px;
 }
 
-/* Header row */
+/* Nested nodes inherit grid via subgrid */
+.params-tree-node--nested {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+}
+
+/* Content container uses subgrid */
+.params-tree-content {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+}
+
+/* Header row uses subgrid */
 .params-tree-header {
-  display: flex;
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
   align-items: center;
-  gap: 4px;
   padding: 2px 0;
   cursor: pointer;
   user-select: none;
@@ -471,15 +593,28 @@ export const paramsTreeStyles = `
   background: rgba(0,0,0,0.05);
 }
 
-/* Toggle arrow and spacer */
+/* Indent column - padding based on depth */
+.params-tree-indent {
+  grid-column: indent;
+  padding-left: calc(var(--depth, 0) * 16px);
+  display: flex;
+  align-items: center;
+}
+
+/* Toggle arrow */
 .params-tree-toggle {
   width: 12px;
   font-size: 10px;
   color: #888;
   cursor: pointer;
 }
-.params-tree-spacer {
-  width: 12px;
+
+/* Name cell in header */
+.params-tree-name-cell {
+  grid-column: label;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 /* Part name */
@@ -491,34 +626,54 @@ export const paramsTreeStyles = `
 .params-tree-type {
   font-size: 0.85em;
   color: #666;
-  margin-left: 4px;
 }
 
 /* Class badge */
 .params-tree-class {
   font-size: 0.8em;
   color: #08f;
-  margin-left: 4px;
 }
 
-/* Parameter row */
+/* Header span for control+value columns */
+.params-tree-header-span {
+  grid-column: control / -1;
+}
+
+/* Parameter row uses subgrid */
 .params-tree-param {
-  display: flex;
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
   align-items: center;
-  gap: 8px;
   padding: 2px 0;
-  margin-left: 16px;
 }
 
 /* Parameter label */
 .params-tree-label {
-  min-width: 80px;
+  grid-column: label;
   font-size: 0.9em;
   color: #666;
 }
 .params-tree-label--hidden {
   font-style: italic;
   color: #999;
+}
+
+/* Control column */
+.params-tree-control {
+  grid-column: control;
+  justify-self: end;
+  padding-right: 8px;
+}
+
+/* Value column */
+.params-tree-value {
+  grid-column: value;
+}
+
+/* Spanning input (text, radio) */
+.params-tree-input-span {
+  grid-column: control / -1;
 }
 
 /* Class selector container */

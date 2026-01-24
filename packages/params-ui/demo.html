@@ -4,6 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Params UI Demo - All Input Types</title>
+  <script type="importmap">
+  {
+    "imports": {
+      "@jscadui/params-core": "../params-core/index.js"
+    }
+  }
+  </script>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -180,7 +187,7 @@
       label.textContent = config.param.name
       row.appendChild(label)
 
-      const input = createInput({
+      const inputResult = createInput({
         param: config.param,
         value: config.value,
         onChange: (val) => {
@@ -188,7 +195,9 @@
           updateOutput()
         }
       })
-      row.appendChild(input)
+      // Handle new { control, value, span } structure
+      if (inputResult.control) row.appendChild(inputResult.control)
+      if (inputResult.value) row.appendChild(inputResult.value)
 
       const desc = document.createElement('span')
       desc.className = 'description'
