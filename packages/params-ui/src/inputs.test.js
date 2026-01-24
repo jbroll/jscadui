@@ -585,6 +585,93 @@ describe('createInput factory', () => {
   })
 })
 
+describe('constrained parameter display', () => {
+  it('creates read-only display for constrained params', () => {
+    const el = createInput({
+      param: { path: 'test.shelfHeight', name: 'shelfHeight', type: 'slider', constrained: true, default: 5.85 },
+      value: 5.85,
+      onChange: vi.fn()
+    })
+
+    expect(el.className).toContain('params-input-constrained')
+    const display = el.querySelector('.params-input-constrained-value')
+    expect(display).not.toBeNull()
+    expect(display.textContent).toBe('5.85')
+  })
+
+  it('formats numbers to 2 decimal places', () => {
+    const el = createInput({
+      param: { path: 'test.value', name: 'value', type: 'number', constrained: true, default: 3.14159 },
+      value: 3.14159,
+      onChange: vi.fn()
+    })
+
+    const display = el.querySelector('.params-input-constrained-value')
+    expect(display.textContent).toBe('3.14')
+  })
+
+  it('handles integer values', () => {
+    const el = createInput({
+      param: { path: 'test.count', name: 'count', type: 'int', constrained: true, default: 42 },
+      value: 42,
+      onChange: vi.fn()
+    })
+
+    const display = el.querySelector('.params-input-constrained-value')
+    expect(display.textContent).toBe('42.00')
+  })
+
+  it('handles string values', () => {
+    const el = createInput({
+      param: { path: 'test.name', name: 'name', type: 'text', constrained: true, default: 'fixed' },
+      value: 'fixed',
+      onChange: vi.fn()
+    })
+
+    const display = el.querySelector('.params-input-constrained-value')
+    expect(display.textContent).toBe('fixed')
+  })
+
+  it('provides updateValue method for dynamic updates', () => {
+    const el = createInput({
+      param: { path: 'test.value', name: 'value', type: 'number', constrained: true, default: 5.85 },
+      value: 5.85,
+      onChange: vi.fn()
+    })
+
+    expect(el.updateValue).toBeDefined()
+    el.updateValue(9.85)
+
+    const display = el.querySelector('.params-input-constrained-value')
+    expect(display.textContent).toBe('9.85')
+  })
+
+  it('uses param.default for display, not value', () => {
+    // When constrained, param.default contains the calculated value
+    // value might be stale
+    const el = createInput({
+      param: { path: 'test.x', name: 'x', type: 'number', constrained: true, default: 10.5 },
+      value: 5.0,  // stale value
+      onChange: vi.fn()
+    })
+
+    const display = el.querySelector('.params-input-constrained-value')
+    expect(display.textContent).toBe('10.50')  // uses param.default
+  })
+
+  it('returns slider for non-constrained slider param', () => {
+    const el = createInput({
+      param: { path: 'test.x', name: 'x', type: 'slider', default: 50, min: 0, max: 100 },
+      value: 50,
+      onChange: vi.fn()
+    })
+
+    // Should be a slider, not constrained display
+    expect(el.className).toContain('params-input-slider-container')
+    expect(el.className).not.toContain('params-input-constrained')
+  })
+})
+
 describe('inputStyles', () => {
   it('exports CSS styles string', () => {
     expect(typeof inputStyles).toBe('string')
@@ -596,5 +683,10 @@ describe('inputStyles', () => {
     expect(inputStyles).toContain('.params-input-choice')
     expect(inputStyles).toContain('.params-input-radio')
     expect(inputStyles).toContain('.params-input-date')
+  })
+
+  it('includes constrained parameter styles', () => {
+    expect(inputStyles).toContain('.params-input-constrained')
+    expect(inputStyles).toContain('.params-input-constrained-value')
   })
 })
