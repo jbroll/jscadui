@@ -15,9 +15,17 @@
  */
 
 /**
+ * @typedef {Object} InputResult
+ * @property {HTMLElement|null} control - Auxiliary control element (col 3) - slider track, color swatch
+ * @property {HTMLElement|null} value - Primary input element (col 4) - number input, checkbox, dropdown
+ * @property {boolean} span - Whether the control should span both columns (for text, radio)
+ * @property {(newValue: unknown) => void} [updateValue] - Method for external value updates
+ */
+
+/**
  * Create a checkbox input
  * @param {InputOptions} options
- * @returns {HTMLElement}
+ * @returns {InputResult}
  */
 export const createCheckboxInput = ({ param, value, onChange }) => {
   const input = document.createElement('input')
@@ -25,13 +33,19 @@ export const createCheckboxInput = ({ param, value, onChange }) => {
   input.className = 'params-input params-input-checkbox'
   input.checked = !!value
   input.onchange = () => onChange(input.checked)
-  return input
+
+  return {
+    control: null,
+    value: input,
+    span: false,
+    updateValue: (newValue) => { input.checked = !!newValue }
+  }
 }
 
 /**
  * Create a number input (int or number type)
  * @param {InputOptions} options
- * @returns {HTMLElement}
+ * @returns {InputResult}
  */
 export const createNumberInput = ({ param, value, onChange }) => {
   const { type, min, max, step } = param
@@ -68,59 +82,74 @@ export const createNumberInput = ({ param, value, onChange }) => {
     container.appendChild(range)
   }
 
-  return container
+  return {
+    control: null,
+    value: container,
+    span: false,
+    updateValue: (newValue) => { input.value = String(newValue) }
+  }
 }
 
 /**
  * Create a slider input (range type)
+ * Returns slider track as control, editable number input as value
  * @param {InputOptions} options
- * @returns {HTMLElement}
+ * @returns {InputResult}
  */
 export const createSliderInput = ({ param, value, onChange }) => {
   const { min = 0, max = 100, step = 1, live = true } = param
+  const initialValue = value ?? min
 
-  const container = document.createElement('span')
-  container.className = 'params-input-slider-container'
-
-  // Range slider
+  // Range slider (control column)
   const slider = document.createElement('input')
   slider.type = 'range'
   slider.className = 'params-input params-input-slider'
-  slider.value = String(value ?? min)
+  slider.value = String(initialValue)
   slider.min = String(min)
   slider.max = String(max)
   slider.step = String(step)
 
-  // Value display
-  const display = document.createElement('span')
-  display.className = 'params-input-slider-value'
-  display.textContent = String(value ?? min)
+  // Editable number input (value column)
+  const numberInput = document.createElement('input')
+  numberInput.type = 'number'
+  numberInput.className = 'params-input params-input-slider-number'
+  numberInput.value = String(initialValue)
+  numberInput.min = String(min)
+  numberInput.max = String(max)
+  numberInput.step = String(step)
 
-  // Update display and optionally trigger onChange during drag
+  // Slider -> Number sync + onChange
   slider.oninput = () => {
-    display.textContent = slider.value
+    numberInput.value = slider.value
     if (live) {
-      const val = Number(slider.value)
+      onChange(Number(slider.value))
+    }
+  }
+  slider.onchange = () => {
+    onChange(Number(slider.value))
+  }
+
+  // Number -> Slider sync + onChange
+  numberInput.oninput = () => {
+    const val = Number(numberInput.value)
+    if (!isNaN(val)) {
+      slider.value = String(val)
       onChange(val)
     }
   }
 
-  // Always trigger onChange on change (mouse release)
-  slider.onchange = () => {
-    const val = Number(slider.value)
-    onChange(val)
-  }
-
-  container.appendChild(slider)
-  container.appendChild(display)
-
   // Method for external value updates (e.g., class linking)
-  container.updateValue = (newValue) => {
+  const updateValue = (newValue) => {
     slider.value = String(newValue)
-    display.textContent = String(newValue)
+    numberInput.value = String(newValue)
   }
 
-  return container
+  return {
+    control: slider,
+    value: numberInput,
+    span: false,
+    updateValue
+  }
 }
 
 /**
@@ -137,26 +166,23 @@ const defaultColorPalette = [
 
 /**
  * Create a color picker input with palette
+ * Returns swatch button (with panel) as control, editable hex input as value
  * @param {InputOptions} options
- * @returns {HTMLElement}
+ * @returns {InputResult}
  */
 export const createColorInput = ({ param, value, onChange }) => {
   const { palette = defaultColorPalette } = param
   const currentValue = String(value ?? '#000000')
 
-  const container = document.createElement('span')
-  container.className = 'params-input-color-container'
+  // Control container (button + panel)
+  const controlContainer = document.createElement('span')
+  controlContainer.className = 'params-input-color-control'
 
   // Main color button (shows current color)
   const colorBtn = document.createElement('button')
   colorBtn.type = 'button'
   colorBtn.className = 'params-input-color-btn'
   colorBtn.style.backgroundColor = currentValue
-
-  // Hex value display
-  const display = document.createElement('span')
-  display.className = 'params-input-color-value'
-  display.textContent = currentValue
 
   // Dropdown panel
   const panel = document.createElement('div')
@@ -205,10 +231,21 @@ export const createColorInput = ({ param, value, onChange }) => {
   customRow.appendChild(customInput)
   panel.appendChild(customRow)
 
-  // Helper to update all color UI elements
+  controlContainer.appendChild(colorBtn)
+  controlContainer.appendChild(panel)
+
+  // Editable hex input (value column)
+  const hexInput = document.createElement('input')
+  hexInput.type = 'text'
+  hexInput.className = 'params-input params-input-color-hex'
+  hexInput.value = currentValue.toUpperCase()
+  hexInput.maxLength = 7
+  hexInput.placeholder = '#000000'
+
+  // Helper to update all color UI elements (without triggering onChange)
   const updateColorUI = (color) => {
     colorBtn.style.backgroundColor = color
-    display.textContent = color.toUpperCase()
+    hexInput.value = color.toUpperCase()
     customInput.value = color
     grid.querySelectorAll('.params-input-color-swatch').forEach(s => {
       s.classList.toggle('params-input-color-swatch--selected',
@@ -219,6 +256,18 @@ export const createColorInput = ({ param, value, onChange }) => {
   const selectColor = (color) => {
     updateColorUI(color)
     onChange(color)
+  }
+
+  // Hex input -> color sync
+  hexInput.onchange = () => {
+    const hex = hexInput.value.trim()
+    // Validate hex color format
+    if (/^#[0-9A-Fa-f]{6}$/.test(hex)) {
+      selectColor(hex)
+    } else {
+      // Reset to previous valid value
+      hexInput.value = colorBtn.style.backgroundColor
+    }
   }
 
   let isOpen = false
@@ -243,7 +292,7 @@ export const createColorInput = ({ param, value, onChange }) => {
 
   // Close on click outside
   document.addEventListener('click', (e) => {
-    if (isOpen && !container.contains(e.target)) {
+    if (isOpen && !controlContainer.contains(e.target) && e.target !== hexInput) {
       closePanel()
     }
   })
@@ -255,20 +304,18 @@ export const createColorInput = ({ param, value, onChange }) => {
     }
   })
 
-  container.appendChild(colorBtn)
-  container.appendChild(display)
-  container.appendChild(panel)
-
-  // Method for external value updates (e.g., class linking) - updates UI without triggering onChange
-  container.updateValue = updateColorUI
-
-  return container
+  return {
+    control: controlContainer,
+    value: hexInput,
+    span: false,
+    updateValue: updateColorUI
+  }
 }
 
 /**
  * Create a choice (dropdown) input
  * @param {InputOptions} options
- * @returns {HTMLElement}
+ * @returns {InputResult}
  */
 export const createChoiceInput = ({ param, value, onChange }) => {
   const { values = [], captions } = param
@@ -293,18 +340,19 @@ export const createChoiceInput = ({ param, value, onChange }) => {
     onChange(originalValue !== undefined ? originalValue : selectedValue)
   }
 
-  // Method for external value updates (e.g., class linking)
-  select.updateValue = (newValue) => {
-    select.value = String(newValue)
+  return {
+    control: null,
+    value: select,
+    span: false,
+    updateValue: (newValue) => { select.value = String(newValue) }
   }
-
-  return select
 }
 
 /**
  * Create a radio button group input
+ * Spans both control and value columns
  * @param {InputOptions} options
- * @returns {HTMLElement}
+ * @returns {InputResult}
  */
 export const createRadioInput = ({ param, value, onChange }) => {
   const { values = [], captions } = param
@@ -342,21 +390,24 @@ export const createRadioInput = ({ param, value, onChange }) => {
     container.appendChild(label)
   }
 
-  // Method for external value updates (e.g., class linking)
-  container.updateValue = (newValue) => {
-    const radios = container.querySelectorAll('input[type="radio"]')
-    radios.forEach(r => {
-      r.checked = r.value === String(newValue)
-    })
+  return {
+    control: container,
+    value: null,
+    span: true,
+    updateValue: (newValue) => {
+      const radios = container.querySelectorAll('input[type="radio"]')
+      radios.forEach(r => {
+        r.checked = r.value === String(newValue)
+      })
+    }
   }
-
-  return container
 }
 
 /**
  * Create a text input (also handles email, url, password)
+ * Spans both control and value columns
  * @param {InputOptions} options
- * @returns {HTMLElement}
+ * @returns {InputResult}
  */
 export const createTextInput = ({ param, value, onChange }) => {
   const { type, size, maxLength, placeholder } = param
@@ -387,13 +438,18 @@ export const createTextInput = ({ param, value, onChange }) => {
 
   input.onchange = () => onChange(input.value)
 
-  return input
+  return {
+    control: input,
+    value: null,
+    span: true,
+    updateValue: (newValue) => { input.value = String(newValue ?? '') }
+  }
 }
 
 /**
  * Create a date input
  * @param {InputOptions} options
- * @returns {HTMLElement}
+ * @returns {InputResult}
  */
 export const createDateInput = ({ param, value, onChange }) => {
   const { min, max, placeholder } = param
@@ -409,18 +465,20 @@ export const createDateInput = ({ param, value, onChange }) => {
 
   input.onchange = () => onChange(input.value)
 
-  return input
+  return {
+    control: null,
+    value: input,
+    span: false,
+    updateValue: (newValue) => { input.value = String(newValue ?? '') }
+  }
 }
 
 /**
  * Create a read-only display for constrained parameters
  * @param {InputOptions} options
- * @returns {HTMLElement}
+ * @returns {InputResult}
  */
 const createConstrainedDisplay = ({ param }) => {
-  const container = document.createElement('span')
-  container.className = 'params-input-constrained'
-
   const display = document.createElement('span')
   display.className = 'params-input-constrained-value'
   // Always use param.default for constrained params - that's where the calculated value is stored
@@ -430,21 +488,21 @@ const createConstrainedDisplay = ({ param }) => {
   display.textContent = formatted
   display.title = 'Value set by parent assembly (read-only)'
 
-  container.appendChild(display)
-
-  // Method for external value updates
-  container.updateValue = (newValue) => {
-    const formatted = typeof newValue === 'number' ? newValue.toFixed(2) : String(newValue)
-    display.textContent = formatted
+  return {
+    control: null,
+    value: display,
+    span: false,
+    updateValue: (newValue) => {
+      const formatted = typeof newValue === 'number' ? newValue.toFixed(2) : String(newValue)
+      display.textContent = formatted
+    }
   }
-
-  return container
 }
 
 /**
  * Input factory - creates the appropriate input for a parameter type
  * @param {InputOptions} options
- * @returns {HTMLElement}
+ * @returns {InputResult}
  */
 export const createInput = (options) => {
   const { param } = options
@@ -559,16 +617,10 @@ export const inputStyles = `
   white-space: nowrap;
 }
 
-/* Slider input */
-.params-input-slider-container {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 180px;
-}
+/* Slider input (control column) */
 .params-input-slider {
-  flex: 1;
-  min-width: 100px;
+  width: 100%;
+  min-width: 80px;
   height: 6px;
   cursor: pointer;
   -webkit-appearance: none;
@@ -593,19 +645,27 @@ export const inputStyles = `
   cursor: pointer;
   border: none;
 }
-.params-input-slider-value {
-  min-width: 40px;
+
+/* Slider number input (value column) */
+.params-input-slider-number {
+  width: 70px;
+  height: 24px;
+  padding: 2px 6px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  box-sizing: border-box;
   font-size: 13px;
-  color: #555;
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
+.params-input-slider-number:focus {
+  outline: none;
+  border-color: #08f;
+}
 
-/* Color input */
-.params-input-color-container {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
+/* Color input control (swatch button + panel) */
+.params-input-color-control {
+  display: inline-block;
   position: relative;
 }
 .params-input-color-btn {
@@ -620,11 +680,22 @@ export const inputStyles = `
 .params-input-color-btn:hover {
   border-color: #08f;
 }
-.params-input-color-value {
+
+/* Color hex input (value column) */
+.params-input-color-hex {
+  width: 80px;
+  height: 24px;
+  padding: 2px 6px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  box-sizing: border-box;
   font-size: 12px;
-  color: #555;
   font-family: monospace;
   text-transform: uppercase;
+}
+.params-input-color-hex:focus {
+  outline: none;
+  border-color: #08f;
 }
 .params-input-color-panel {
   display: none;
