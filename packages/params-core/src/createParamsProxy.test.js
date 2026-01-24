@@ -14,6 +14,7 @@ import {
   getLinkedParamPaths,
   convertLegacyDefs,
   extractLegacyDefaults,
+  extractDefinition,
 } from './createParamsProxy.js'
 
 describe('createParamsProxy', () => {
@@ -727,6 +728,151 @@ describe('extractLegacyDefaults', () => {
 
     expect(defaults).toEqual({
       'wheel.radius': 3,
+    })
+  })
+})
+
+describe('constrained parameter support', () => {
+  describe('extractDefinition', () => {
+    it('should mark plain values as constrained', () => {
+      const def = extractDefinition(5)
+      expect(def.constrained).toBe(true)
+      expect(def.default).toBe(5)
+    })
+
+    it('should mark all plain value types as constrained', () => {
+      expect(extractDefinition(42).constrained).toBe(true)
+      expect(extractDefinition(3.14).constrained).toBe(true)
+      expect(extractDefinition('hello').constrained).toBe(true)
+      expect(extractDefinition(true).constrained).toBe(true)
+    })
+
+    it('should NOT mark definition objects as constrained', () => {
+      const def = extractDefinition({ default: 5, min: 0, max: 10 })
+      expect(def.constrained).toBeUndefined()
+    })
+
+    it('should NOT mark slider definitions as constrained', () => {
+      const def = extractDefinition({ type: 'slider', default: 5, min: 0, max: 10, live: true })
+      expect(def.constrained).toBeUndefined()
+    })
+  })
+
+  describe('proxy behavior with constrained values', () => {
+    let state
+    let params
+
+    beforeEach(() => {
+      state = createProxyState()
+      params = createParamsProxy(state)
+    })
+
+    it('should mark discovered param as constrained when plain value is set', () => {
+      params.shelfHeight = 5.85
+      const discovered = state.discovered.find(d => d.path === 'shelfHeight')
+      expect(discovered.constrained).toBe(true)
+    })
+
+    it('should NOT mark discovered param as constrained when definition is set', () => {
+      params.shelfHeight = { type: 'slider', default: 6, min: 0, max: 15 }
+      const discovered = state.discovered.find(d => d.path === 'shelfHeight')
+      expect(discovered.constrained).toBeUndefined()
+    })
+
+    it('should preserve constrained value when child definition tries to override', () => {
+      // Parent sets computed value (constrained)
+      params.platform.shelfHeight = 5.85
+
+      // Child model defines UI hints for same param
+      params.platform.shelfHeight = { type: 'slider', default: 6, min: 0, max: 15, label: 'Shelf Height' }
+
+      // Value should remain 5.85 (parent's computed value)
+      expect(params.platform.shelfHeight).toBe(5.85)
+
+      // But UI hints should be preserved
+      const discovered = state.discovered.find(d => d.path === 'platform.shelfHeight')
+      expect(discovered.constrained).toBe(true)
+      expect(discovered.label).toBe('Shelf Height')
+      expect(discovered.min).toBe(0)
+      expect(discovered.max).toBe(15)
+    })
+
+    it('should update constrained default when parent recalculates', () => {
+      // First run: parent calculates value
+      params.platform.shelfHeight = 5.85
+
+      // Second run: parent recalculates with new value
+      params.platform.shelfHeight = 9.85
+
+      const discovered = state.discovered.find(d => d.path === 'platform.shelfHeight')
+      expect(discovered.default).toBe(9.85)
+      expect(discovered.constrained).toBe(true)
+    })
+  })
+
+  describe('realistic assembly scenario', () => {
+    it('should handle assembly passing constrained values to child model', () => {
+      const state = createProxyState()
+      const params = createParamsProxy(state)
+
+      // Simulating vecto-arm-pivot.js pattern:
+      // 1. Assembly calculates shelfHeight from capstan parameters
+      // 2. Assembly passes calculated value to child model
+      // 3. Child model (motor-platform.js) defines UI hints
+
+      // Assembly: calculate and pass constrained value
+      const assembly = (p) => {
+        p._type = 'Assembly'
+        p.capstanRadius = { type: 'slider', default: 16, min: 10, max: 25 }
+
+        // Calculate derived value
+        const calculatedShelfHeight = p.capstanRadius - 10
+        p.platform.shelfHeight = calculatedShelfHeight  // Pass as constrained
+
+        // Call child model
+        childModel(p.platform)
+      }
+
+      // Child model: define UI hints (but value is constrained by parent)
+      const childModel = (p) => {
+        p._type = 'Motor Platform'
+        // This definition provides UI hints but shouldn't override the value
+        p.shelfHeight = { type: 'slider', default: 8, min: 0, max: 15, label: 'Shelf Height', live: true }
+        p.frameWall = { type: 'slider', default: 2.5, min: 2, max: 5, label: 'Frame Wall' }
+      }
+
+      // Run assembly
+      assembly(params)
+
+      // Check results
+      const shelfHeightParam = state.discovered.find(d => d.path === 'platform.shelfHeight')
+      expect(shelfHeightParam.constrained).toBe(true)
+      expect(shelfHeightParam.default).toBe(6)  // 16 - 10 = 6
+      expect(shelfHeightParam.label).toBe('Shelf Height')
+      expect(shelfHeightParam.min).toBe(0)
+      expect(shelfHeightParam.max).toBe(15)
+
+      // frameWall should NOT be constrained (defined by child, not passed by parent)
+      const frameWallParam = state.discovered.find(d => d.path === 'platform.frameWall')
+      expect(frameWallParam.constrained).toBeUndefined()
+      expect(frameWallParam.default).toBe(2.5)
+    })
+  })
+
+  describe('buildParamTree with constrained', () => {
+    it('should include constrained property in tree params', () => {
+      const discovered = [
+        { path: 'radius', name: 'radius', parent: '', default: 5, type: 'slider', hidden: false },
+        { path: 'shelfHeight', name: 'shelfHeight', parent: '', default: 6, type: 'slider', hidden: false, constrained: true, label: 'Shelf Height' },
+      ]
+
+      const tree = buildParamTree(discovered)
+
+      const radiusParam = tree.params.find(p => p.name === 'radius')
+      const shelfHeightParam = tree.params.find(p => p.name === 'shelfHeight')
+
+      expect(radiusParam.constrained).toBeUndefined()
+      expect(shelfHeightParam.constrained).toBe(true)
     })
   })
 })
