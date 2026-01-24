@@ -352,16 +352,16 @@ const runModelUpdate = async () => {
         JSON.stringify(oldState?.classes) !== JSON.stringify(result.proxyState.classes)
       )
 
-      if (structureChanged) {
-        const state = paramsCtrl.getState()
-        paramsTreeView?.update({
-          tree: result.proxyState.tree,
-          values: state.params,
-          types: result.proxyState.types,
-          classes: result.proxyState.classes,
-          codeClasses: state.codeClasses
-        })
-      }
+      // Always update tree to refresh constrained param defaults (calculated values)
+      // The tree contains param.default which may change when model re-runs
+      const state = paramsCtrl.getState()
+      paramsTreeView?.update({
+        tree: result.proxyState.tree,
+        values: state.params,
+        types: structureChanged ? result.proxyState.types : undefined,
+        classes: structureChanged ? result.proxyState.classes : undefined,
+        codeClasses: structureChanged ? state.codeClasses : undefined
+      })
     }
 
     handlers.entities(result, {})

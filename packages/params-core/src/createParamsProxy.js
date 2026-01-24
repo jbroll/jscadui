@@ -32,6 +32,9 @@
  * Slider/animation properties
  * @property {boolean} [live] - Update in real-time while dragging
  *
+ * Constraint properties
+ * @property {boolean} [constrained] - Value was set by parent, show as read-only
+ *
  * Group properties
  * @property {'open'|'closed'} [initialState] - Initial collapsed state for groups
  */
@@ -166,10 +169,12 @@ export const extractDefinition = (value) => {
   }
 
   // For plain values (not definition objects), infer type and set default step
+  // Mark as constrained since a specific value was passed (not a definition)
   const type = inferType(value)
   const result = {
     default: value,
     type,
+    constrained: true,  // Value was passed in, not defined as a parameter
   }
 
   // Set default step for numeric types
@@ -294,15 +299,35 @@ export const createParamsProxy = (state, path = '') => {
           ...def,
         })
       } else {
-        // Update existing discovery with new info if this is a richer definition
+        // Update existing discovery with new info
         const existing = discovered.find(d => d.path === fullPath)
-        if (existing && existing.type === 'unknown') {
-          Object.assign(existing, def)
+        if (existing) {
+          if (def.constrained) {
+            // New value is constrained (plain value passed in) - mark as constrained
+            // This overrides any previous slider definition
+            existing.constrained = true
+            existing.default = def.default
+          } else if (existing.constrained) {
+            // Existing is constrained, new is a definition - update UI hints but preserve value
+            // Copy display properties (label, min, max, step) but NOT default or constrained
+            const { default: _default, constrained: _constrained, ...uiHints } = def
+            Object.assign(existing, uiHints)
+          } else if (existing.type === 'unknown') {
+            // Not constrained and type unknown - full update
+            Object.assign(existing, def)
+          }
         }
       }
 
       // If user has interacted with this value, don't update the runtime default
       if (userInteracted.has(fullPath)) {
+        return true
+      }
+
+      // If existing is constrained and new is a definition, preserve constrained value
+      const existing = discovered.find(d => d.path === fullPath)
+      if (existing?.constrained && !def.constrained) {
+        // Definition is trying to overwrite constrained value - ignore the default
         return true
       }
 

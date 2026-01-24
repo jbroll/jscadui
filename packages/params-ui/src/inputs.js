@@ -413,13 +413,47 @@ export const createDateInput = ({ param, value, onChange }) => {
 }
 
 /**
+ * Create a read-only display for constrained parameters
+ * @param {InputOptions} options
+ * @returns {HTMLElement}
+ */
+const createConstrainedDisplay = ({ param }) => {
+  const container = document.createElement('span')
+  container.className = 'params-input-constrained'
+
+  const display = document.createElement('span')
+  display.className = 'params-input-constrained-value'
+  // Always use param.default for constrained params - that's where the calculated value is stored
+  // Format numbers to reasonable precision for display
+  const displayValue = param.default
+  const formatted = typeof displayValue === 'number' ? displayValue.toFixed(2) : String(displayValue ?? '')
+  display.textContent = formatted
+  display.title = 'Value set by parent assembly (read-only)'
+
+  container.appendChild(display)
+
+  // Method for external value updates
+  container.updateValue = (newValue) => {
+    const formatted = typeof newValue === 'number' ? newValue.toFixed(2) : String(newValue)
+    display.textContent = formatted
+  }
+
+  return container
+}
+
+/**
  * Input factory - creates the appropriate input for a parameter type
  * @param {InputOptions} options
  * @returns {HTMLElement}
  */
 export const createInput = (options) => {
   const { param } = options
-  const { type } = param
+  const { type, constrained } = param
+
+  // Constrained parameters are read-only
+  if (constrained) {
+    return createConstrainedDisplay(options)
+  }
 
   switch (type) {
     case 'checkbox':
@@ -462,6 +496,23 @@ export const inputStyles = `
   font-family: inherit;
   font-size: 13px;
   box-sizing: border-box;
+}
+
+/* Constrained (read-only) parameter display */
+.params-input-constrained {
+  display: inline-block;
+}
+
+.params-input-constrained-value {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #f0f0f0;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  font-size: 13px;
+  color: #666;
+  font-style: italic;
+  cursor: not-allowed;
 }
 
 /* Standard input height for consistency */
