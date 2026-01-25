@@ -159,9 +159,11 @@ const link = document.createElement('a')
 link.style.display = 'none'
 document.body.appendChild(link)
 function save(blob, filename) {
-  link.href = URL.createObjectURL(blob)
+  const url = URL.createObjectURL(blob)
+  link.href = url
   link.download = filename
   link.click()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
 function exportModel(format) {
