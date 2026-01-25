@@ -89,15 +89,33 @@ return function JscadBabylonViewer (el, { camera: _camera = {}, bg } = {}) {
   canvas.setAttribute('touch-action', 'none')
   el.appendChild(canvas)
 
+  let wheelHandler = null
+
   const destroy = () => {
+    // Stop render loop
+    engine?.stopRenderLoop?.()
+    // Dispose all entities
+    entities.forEach(ent => {
+      ent.material?.dispose?.()
+      ent.dispose?.()
+    })
+    entities.length = 0
+    // Dispose scene and engine
+    _scene?.dispose?.()
+    engine?.dispose?.()
+    // Remove wheel listener
+    if (wheelHandler) {
+      canvas.removeEventListener('wheel', wheelHandler)
+      wheelHandler = null
+    }
+    // Remove canvas
     el.removeChild(canvas)
   }
 
   try {
     startRenderer({ canvas, cameraPosition: _camera.position, cameraTarget: _camera.target, bg })
-    canvas.addEventListener('wheel', e => {
-      e.preventDefault()
-    })
+    wheelHandler = e => e.preventDefault()
+    canvas.addEventListener('wheel', wheelHandler)
   } catch (error) {
     destroy()
     throw error
@@ -114,7 +132,7 @@ return function JscadBabylonViewer (el, { camera: _camera = {}, bg } = {}) {
   const getViewerEnv = () => ({
     forceColors4: true,
     forceIndex: true,
-    letfHanded: true,
+    leftHanded: true,
     forceNormals: false,
     useInstances: false
   })
