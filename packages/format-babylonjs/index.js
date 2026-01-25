@@ -1,6 +1,7 @@
 export const invertIndices = indices => {
   const li = indices.length
-  const out = new Float32Array(li)
+  // Preserve the original array type (Uint16Array or Uint32Array)
+  const out = new indices.constructor(li)
   for (let i = 0; i < li; i += 3) {
     out[i] = indices[i + 2]
     out[i + 1] = indices[i + 1]
@@ -101,8 +102,8 @@ export function CommonToBabylon(Babylon) {
     let _opacity
     switch (objType) {
       case 'mesh':
-        geo.indices = invertIndices(geo.indices)
-        mesh = new Mesh(geo, scene)
+        if (geo.indices) geo.indices = invertIndices(geo.indices)
+        mesh = new Mesh('mesh', scene)
         geo.applyToMesh(mesh)
         if(material) mesh.material = material
         break
