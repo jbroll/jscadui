@@ -152,6 +152,8 @@ onMounted(async () => {
   // Initialize engine
   await engine.init().then(viewer => {
     viewState.value.setEngine(viewer);
+  }).catch(err => {
+    console.error('Failed to initialize engine:', err);
   });
 
   spinner.value = byId('spinner');
@@ -268,6 +270,8 @@ workerApi.jscadInit({
   if (loadDefault) {
     jscadScript({ script: defaultCode })
   }
+}).catch(err => {
+  console.error('Failed to initialize worker:', err)
 })
 
 </script>
