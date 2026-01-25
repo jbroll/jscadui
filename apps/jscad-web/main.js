@@ -108,7 +108,9 @@ async function initFs() {
   const getFileWrapper = (path, sw) => {
     const file = getFileContent(path, sw)
     // notify editor of active files
-    file.then(() => editor.setFiles(sw.filesToCheck))
+    file.then(() => editor.setFiles(sw.filesToCheck)).catch(err => {
+      console.error('Failed to get file content:', path, err)
+    })
     return file
   }
   let scope = document.location.pathname

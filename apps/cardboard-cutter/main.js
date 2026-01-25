@@ -116,6 +116,8 @@ function exportModel(format) {
   workerApi.jscadExportData({ format }).then(({ data }) => {
     console.log('save', fileToRun + '.stl', data)
     save(new Blob([data], { type: 'text/plain' }), fileToRun + '.stl')
+  }).catch(err => {
+    console.error('Failed to export model:', err)
   })
 }
 window.exportModel = exportModel
@@ -134,6 +136,8 @@ export const jscadScript = file => {
   workerApi.jscadScript({ url: file }).then(result => {
     console.log('result', result)
     genParams({ target: byId('paramsDiv'), params: result.def || {}, callback: paramChangeCallback })
+  }).catch(err => {
+    console.error('Failed to run jscad script:', file, err)
   })
 }
 
