@@ -20,7 +20,7 @@
     "prepublishOnly": "npm run build && npm run build-cjs"
   },
   "dependencies": {
-    "@babel/standalone": "7.20.11"
+    "@babel/standalone": "^7.26.10"
   },
   "devDependencies": {
     "@trivago/prettier-plugin-sort-imports": "~3.3.0",
