@@ -96,6 +96,50 @@ For frontend code:
 - [ ] Browser API availability
 - [ ] Node.js version requirements (if applicable)
 
+### 3.5 Sourcery AI Review
+
+Sourcery AI provides automated code review suggestions. These should be evaluated, not ignored.
+
+```bash
+# Check for Sourcery comments on the PR
+gh pr view <PR_NUMBER> --comments | grep -A 20 "sourcery-ai"
+```
+
+**For each Sourcery suggestion, evaluate:**
+
+1. **Relevance**: Does the suggestion apply to this PR's scope?
+   - If it's about code the PR is modifying → should be addressed
+   - If it's about surrounding code not being changed → may be out of scope
+
+2. **Validity**: Is the suggestion correct?
+   - API recommendations: Verify against current documentation
+   - Code simplifications: Ensure behavior is preserved
+   - Security suggestions: Take seriously, verify thoroughly
+
+3. **Scope Decision**: Should it be included in this PR?
+
+   | Suggestion Type | Include in PR? | Action |
+   |-----------------|----------------|--------|
+   | Bug fix in changed code | Yes | Fix it |
+   | Security issue anywhere | Yes | Fix it |
+   | Simplification of changed code | Yes | Apply it |
+   | Refactoring of unchanged code | No | Create separate issue/PR |
+   | Style preference | Maybe | Use judgment |
+   | Performance optimization | Maybe | If significant and low-risk |
+
+4. **Document decisions**: If rejecting a suggestion, add a comment explaining why:
+   ```bash
+   gh pr comment <PR_NUMBER> --body "Re: Sourcery suggestion X - Not including because [reason]. Created issue #Y for follow-up."
+   ```
+
+**Common Sourcery suggestion types:**
+- Code simplification (list comprehensions, early returns)
+- Unused variable/import removal
+- Type hint additions
+- Error handling improvements
+- API modernization (e.g., `Object.hasOwn` vs `hasOwnProperty`)
+- Security hardening
+
 ## Phase 4: Testing Verification
 
 ### 4.1 Automated Tests
@@ -128,9 +172,16 @@ gh pr view <PR_NUMBER> --comments
 gh pr comment <PR_NUMBER> --body "Your response"
 ```
 
+### 5.1 Human Reviewer Comments
 - [ ] All reviewer comments addressed
-- [ ] All automated review comments resolved (Sourcery, etc.)
+- [ ] Questions answered with sufficient detail
 - [ ] No unresolved conversations
+
+### 5.2 Sourcery AI Comments
+- [ ] All Sourcery suggestions reviewed (see 3.5)
+- [ ] Applicable suggestions implemented
+- [ ] Out-of-scope suggestions documented with rationale
+- [ ] Follow-up issues created for deferred improvements
 
 ## Phase 6: Merge Decision
 
@@ -138,8 +189,9 @@ gh pr comment <PR_NUMBER> --body "Your response"
 - [ ] Phase 1: All automated checks pass
 - [ ] Phase 2: Change is necessary and appropriate
 - [ ] Phase 3: Code review complete, no blocking issues
+- [ ] Phase 3.5: Sourcery AI suggestions evaluated and addressed
 - [ ] Phase 4: Testing complete (appropriate to risk level)
-- [ ] Phase 5: All comments resolved
+- [ ] Phase 5: All comments resolved (human and automated)
 
 ### Merge Strategy
 ```bash
