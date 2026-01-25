@@ -4,7 +4,16 @@
   "name": "@jscadui/fs-provider",
   "version": "0.1.0",
   "description": "fs-provider utility for worker and main window",
-  "keywords": ["postMessage","serviceworker","rpc","async","promise","worker","es6","esm"],
+  "keywords": [
+    "postMessage",
+    "serviceworker",
+    "rpc",
+    "async",
+    "promise",
+    "worker",
+    "es6",
+    "esm"
+  ],
   "main": "fs-provider.js",
   "unpkg": "cjs/fs-provider.js",
   "module": "./fs-provider.js",
@@ -22,10 +31,13 @@
     "prepublishOnly": "npm run build && npm run build-cjs"
   },
   "devDependencies": {
-    "esbuild": "^0.16.7",
+    "@trivago/prettier-plugin-sort-imports": "^6.0.2",
     "@types/node": "18.11.9",
-    "@trivago/prettier-plugin-sort-imports": "~3.3.0",
-    "vitest": "0.24.5"
+    "esbuild": "^0.27.2",
+    "vitest": "^4.0.18"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "vite": "7.3.1"
+  }
 }

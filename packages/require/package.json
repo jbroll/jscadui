@@ -29,11 +29,14 @@
   },
   "devDependencies": {
     "@jscadui/transform-babel": "*",
-    "@trivago/prettier-plugin-sort-imports": "~3.3.0",
+    "@trivago/prettier-plugin-sort-imports": "^6.0.2",
     "@types/node": "18.11.9",
-    "@vitest/browser": "^0.26.3",
-    "esbuild": "^0.16.7",
-    "vitest": "0.24.5"
+    "@vitest/browser": "^4.0.18",
+    "esbuild": "^0.27.2",
+    "vitest": "^4.0.18"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "vite": "7.3.1"
+  }
 }
