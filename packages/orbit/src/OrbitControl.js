@@ -19,6 +19,15 @@ export class OrbitControl extends OrbitState {
   /** @type {{startTime:number,stateStart:OrbitState,stateEnd:OrbitState} | undefined} */
   currentAnimation = undefined;
 
+  /** @type {number | undefined} */
+  #rafHandle = undefined
+
+  /** @type {boolean} */
+  #destroyed = false
+
+  /** @type {Array<{el: HTMLElement, type: string, handler: EventListener}>} */
+  #listeners = []
+
   /**
    * @param {HTMLElement|Array<HTMLElement>} el
    * @param {import('../cameraState.js').OrbitControlInit} options
@@ -63,19 +72,31 @@ export class OrbitControl extends OrbitState {
     }
 
     /**
-     * @param {HTMLElement} el 
+     * @param {HTMLElement} el
+     * @param {string} type
+     * @param {EventListener} handler
+     */
+    const addListener = (el, type, handler) => {
+      el.addEventListener(type, handler)
+      this.#listeners.push({ el, type, handler })
+    }
+
+    /**
+     * @param {HTMLElement} el
      */
     const doListen = el => {
-      el.addEventListener('pointerdown', e => {
+      /** @param {PointerEvent} e */
+      const onPointerDown = e => {
         theButton = e.button
         lx = e.clientX
         ly = e.clientY
         isDown = true
         pointers.set(e.pointerId, [e.clientX, e.clientY])
         if (pointers.size === 2) doubleDown = true
-      })
+      }
 
-      el.addEventListener('pointerup', e => {
+      /** @param {PointerEvent} e */
+      const onPointerUp = e => {
         isDown = false
         if (isMoving) el.releasePointerCapture(e.pointerId)
         isMoving = false
@@ -84,14 +105,16 @@ export class OrbitControl extends OrbitState {
           doubleDown = false
           lastPinch = undefined
         }
-      })
+      }
 
-      el.addEventListener('wheel', e => {
+      /** @param {WheelEvent} e */
+      const onWheel = e => {
         const dir = Math.sign(e.deltaY)
         this.zoomBy(dir * zoomRatio)
-      })
+      }
 
-      el.addEventListener('pointermove', e => {
+      /** @param {PointerEvent} e */
+      const onPointerMove = e => {
         if (!isDown) return
 
         if (!isMoving) {
@@ -131,16 +154,24 @@ export class OrbitControl extends OrbitState {
         }
         lx = e.clientX
         ly = e.clientY
-      })
+      }
+
+      addListener(el, 'pointerdown', onPointerDown)
+      addListener(el, 'pointerup', onPointerUp)
+      addListener(el, 'pointercancel', onPointerUp)
+      addListener(el, 'wheel', onWheel)
+      addListener(el, 'pointermove', onPointerMove)
     }
 
     if (el instanceof Array) el.forEach(doListen)
     else doListen(el)
 
-    requestAnimationFrame(() => this.doAnim())
+    this.#rafHandle = requestAnimationFrame(() => this.doAnim())
   }
 
   doAnim() {
+    if (this.#destroyed) return
+
     if (this.currentAnimation !== undefined) {
       const { stateStart, stateEnd, startTime } = this.currentAnimation;
       const progress = Math.min(1, (Date.now() - startTime) / this.animDuration)
@@ -152,12 +183,28 @@ export class OrbitControl extends OrbitState {
         this.stopAnim()
       }
     }
-    requestAnimationFrame(() => this.doAnim())
+    this.#rafHandle = requestAnimationFrame(() => this.doAnim())
   }
 
   stopAnim() {
     this.currentAnimation = undefined
     this.fireChange()
+  }
+
+  /**
+   * Clean up all event listeners and stop animation loop.
+   * Call this when the OrbitControl is no longer needed.
+   */
+  destroy() {
+    this.#destroyed = true
+    if (this.#rafHandle !== undefined) {
+      cancelAnimationFrame(this.#rafHandle)
+      this.#rafHandle = undefined
+    }
+    for (const { el, type, handler } of this.#listeners) {
+      el.removeEventListener(type, handler)
+    }
+    this.#listeners = []
   }
 
   /**
