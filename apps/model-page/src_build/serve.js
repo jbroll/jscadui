@@ -48,7 +48,13 @@ const handleRequest = (req) => {
  * Serve static file from the build directory
  */
 const handleStatic = async (pathname) => {
-  let filePath = path.join(process.cwd(), 'build', pathname)
+  const buildDir = path.join(process.cwd(), 'build')
+  let filePath = path.join(buildDir, pathname)
+
+  // Security: Prevent path traversal attacks
+  if (!filePath.startsWith(buildDir)) {
+    return { status: 403, content: 'forbidden' }
+  }
 
   const stats = await fs.stat(filePath).catch(() => undefined)
   if (!stats || !stats.isFile()) {
@@ -67,12 +73,53 @@ const handleStatic = async (pathname) => {
 }
 
 /**
+ * Validates that a URL is safe to fetch (no localhost, private IPs, or non-http protocols)
+ */
+const isValidRemoteUrl = (urlString) => {
+  try {
+    const parsedUrl = new URL(urlString)
+
+    // Only allow http and https protocols
+    if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+      return false
+    }
+
+    const hostname = parsedUrl.hostname.toLowerCase()
+
+    // Block localhost variations
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
+      return false
+    }
+
+    // Block private IP ranges
+    const ipParts = hostname.split('.').map(Number)
+    if (ipParts.length === 4 && ipParts.every(n => !isNaN(n) && n >= 0 && n <= 255)) {
+      if (ipParts[0] === 10) return false
+      if (ipParts[0] === 172 && ipParts[1] >= 16 && ipParts[1] <= 31) return false
+      if (ipParts[0] === 192 && ipParts[1] === 168) return false
+      if (ipParts[0] === 169 && ipParts[1] === 254) return false
+      if (ipParts[0] === 0) return false
+    }
+
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
  * Serve a remote script at a url
  */
 const handleRemote = async (parsedUrl) => {
   // parse url from query parameters
   const scriptUrl = decodeURIComponent(parsedUrl.query.url)
   if (scriptUrl) {
+    // Security: Validate URL to prevent SSRF attacks
+    if (!isValidRemoteUrl(scriptUrl)) {
+      console.warn(`blocked invalid remote url ${scriptUrl}`)
+      return { status: 400, content: 'invalid url: only public http/https URLs are allowed' }
+    }
+
     console.log(`fetching remote url ${scriptUrl}`)
     const res = await fetch(scriptUrl)
     if (res.ok) {
