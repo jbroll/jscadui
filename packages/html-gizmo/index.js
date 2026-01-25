@@ -29,8 +29,10 @@ export const names = {
  */
 export class Gizmo extends HTMLElement {
   static {
-    // auto define
-    customElements.define('jscadui-gizmo', this)
+    // auto define (guard against multiple registrations)
+    if (!customElements.get('jscadui-gizmo')) {
+      customElements.define('jscadui-gizmo', this)
+    }
   }
   /** Empty method that can be called to trigger static initializer, that will then
    * trigger customElements.define('jscadui-gizmo', this)
@@ -53,21 +55,39 @@ export class Gizmo extends HTMLElement {
     this.names = _names
   }
 
-  connectedCallback() {
-    this.#root = this.attachShadow({ mode: 'open' })
-    const first = this.#first
-    first.classList.add("cube")
-    const styleElement = document.createElement('style')
-    styleElement.innerHTML = style
+  /** @type {((e: DragEvent) => void) | null} */
+  #dragHandler = null
 
-    this.#root.append(this.#first, styleElement)
+  connectedCallback() {
+    // Only attach shadow root once (handles reconnection)
+    if (!this.#root) {
+      this.#root = this.attachShadow({ mode: 'open' })
+      const first = this.#first
+      first.classList.add("cube")
+      const styleElement = document.createElement('style')
+      styleElement.innerHTML = style
+
+      this.#root.append(this.#first, styleElement)
+    }
 
     this.setNames(this.names)
 
-    first.addEventListener('dragstart', (e) => e.preventDefault())
+    this.#dragHandler = (e) => e.preventDefault()
+    this.#first.addEventListener('dragstart', this.#dragHandler)
+  }
+
+  disconnectedCallback() {
+    if (this.#dragHandler) {
+      this.#first.removeEventListener('dragstart', this.#dragHandler)
+      this.#dragHandler = null
+    }
   }
 
   setNames(_names = names) {
+    // Clear existing sides before adding new ones
+    while (this.#first.firstChild) {
+      this.#first.removeChild(this.#first.firstChild)
+    }
     this.#first.append(
       this.#makeSide(_names, 'T', 'TNW,TN,TNE', 'TW,T,TE', 'TSW,TS,TSE'),
       this.#makeSide(_names, 'B', 'BSW,BS,BSE', 'BW,B,BE', 'BNW,BN,BNE'),
