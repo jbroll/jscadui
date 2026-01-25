@@ -110,3 +110,6 @@ dist/**
 **/.history
 **/.idea
 apps/myapp
+
+# Test snapshots
+__snapshots__
