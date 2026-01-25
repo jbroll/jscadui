@@ -163,44 +163,56 @@ export async function jscadMain({ params, skipLog, userInteractedPaths } = {}) {
   if (!main) throw new Error('no main function exported')
 
   let time = performance.now()
+  let mainTime = 0
 
-  // Run main with either proxy or plain params
-  let proxyState = null
-  if (useParamsProxy) {
-    proxyState = createProxyState(currentUiValues, userInteracted)
-    const proxyParams = createParamsProxy(proxyState)
+  try {
+    // Run main with either proxy or plain params
+    let proxyState = null
+    if (useParamsProxy) {
+      proxyState = createProxyState(currentUiValues, userInteracted)
+      const proxyParams = createParamsProxy(proxyState)
 
-    // Inject legacy parameter definitions if the script has getParameterDefinitions
-    // This promotes legacy scripts to work with the params proxy system
-    if (legacyProxyDefs) {
-      injectLegacyDefs(proxyParams, legacyProxyDefs)
+      // Inject legacy parameter definitions if the script has getParameterDefinitions
+      // This promotes legacy scripts to work with the params proxy system
+      if (legacyProxyDefs) {
+        injectLegacyDefs(proxyParams, legacyProxyDefs)
+      }
+
+      solids = flatten(await main(proxyParams))
+      lastProxyState = proxyState
+    } else {
+      solids = flatten(await main(params || {}))
     }
 
-    solids = flatten(await main(proxyParams))
-    lastProxyState = proxyState
-  } else {
-    solids = flatten(await main(params || {}))
-  }
+    mainTime = performance.now() - time
 
-  const mainTime = performance.now() - time
+    time = performance.now()
+    JscadToCommon.clearCache()
+    const entities = JscadToCommon.prepare(solids, transferable, userInstances).all
 
-  time = performance.now()
-  JscadToCommon.clearCache()
-  const entities = JscadToCommon.prepare(solids, transferable, userInstances).all
+    const result = { entities, mainTime, convertTime: performance.now() - time }
 
-  const result = { entities, mainTime, convertTime: performance.now() - time }
-
-  // Include proxy state info in result
-  if (proxyState) {
-    result.proxyState = {
-      discovered: proxyState.discovered,
-      types: Object.fromEntries(proxyState.types),
-      classes: Object.fromEntries(proxyState.classes),
-      tree: buildParamTree(proxyState.discovered, proxyState.types, proxyState.classes),
+    // Include proxy state info in result
+    if (proxyState) {
+      result.proxyState = {
+        discovered: proxyState.discovered,
+        types: Object.fromEntries(proxyState.types),
+        classes: Object.fromEntries(proxyState.classes),
+        tree: buildParamTree(proxyState.discovered, proxyState.types, proxyState.classes),
+      }
     }
-  }
 
-  return withTransferable(result, transferable)
+    return withTransferable(result, transferable)
+  } catch (error) {
+    // Clear cache on error to avoid stale state
+    JscadToCommon.clearCache()
+    // Re-throw with additional context
+    const message = error.message || String(error)
+    const wrappedError = new Error(`jscadMain failed: ${message}`)
+    wrappedError.stack = error.stack
+    wrappedError.name = error.name || 'Error'
+    throw wrappedError
+  }
 }
 
 // https://stackoverflow.com/questions/52086611/regex-for-matching-js-import-statements
