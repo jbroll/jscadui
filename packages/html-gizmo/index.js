@@ -58,6 +58,9 @@ export class Gizmo extends HTMLElement {
   /** @type {((e: DragEvent) => void) | null} */
   #dragHandler = null
 
+  /** @type {Array<() => void>} */
+  #cleanupFns = []
+
   connectedCallback() {
     // Only attach shadow root once (handles reconnection)
     if (!this.#root) {
@@ -81,9 +84,16 @@ export class Gizmo extends HTMLElement {
       this.#first.removeEventListener('dragstart', this.#dragHandler)
       this.#dragHandler = null
     }
+    // Clean up face event listeners
+    this.#cleanupFns.forEach(fn => fn())
+    this.#cleanupFns = []
   }
 
   setNames(_names = names) {
+    // Clean up event listeners before clearing children
+    this.#cleanupFns.forEach(fn => fn())
+    this.#cleanupFns = []
+
     // Clear existing sides before adding new ones
     while (this.#first.firstChild) {
       this.#first.removeChild(this.#first.firstChild)
@@ -137,13 +147,21 @@ export class Gizmo extends HTMLElement {
         const i = document.createElement('i')
         i.setAttribute('c', c)
         i.textContent = names[c] ?? ''
-        i.addEventListener('click', e => {
+        const clickHandler = (/** @type {Event} */ e) => {
           e.preventDefault()
           e.stopPropagation()
           this.onRotationRequested?.(c)
+        }
+        const overHandler = () => this.#mouseover(c, true)
+        const outHandler = () => this.#mouseover(c, false)
+        i.addEventListener('click', clickHandler)
+        i.addEventListener('pointerover', overHandler)
+        i.addEventListener('pointerout', outHandler)
+        this.#cleanupFns.push(() => {
+          i.removeEventListener('click', clickHandler)
+          i.removeEventListener('pointerover', overHandler)
+          i.removeEventListener('pointerout', outHandler)
         })
-        i.addEventListener('pointerover', (e) => this.#mouseover(c, true))
-        i.addEventListener('pointerout', (e) => this.#mouseover(c, false))
         return i
       }))
     )
