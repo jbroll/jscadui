@@ -230,6 +230,17 @@ export function RenderRegl(regl) {
     el.appendChild(canvas)
 
     const destroy = () => {
+      // Cancel pending animation frame
+      if (renderTimer) {
+        cancelAnimationFrame(renderTimer)
+        renderTimer = null
+      }
+      // Clear entities
+      entities.length = 0
+      // Destroy renderer if it has a destroy method
+      renderer?.destroy?.()
+      renderer = null
+      // Remove canvas
       el.removeChild(canvas)
     }
 
@@ -266,21 +277,23 @@ export function RenderRegl(regl) {
 
     function setScene(_scene) {
       entities.length = 0
-      const last = []
+      const transparent = []
       _scene.items.forEach(item => {
         // const group = new THREE.Group() no grouping in babylon
         item.items.forEach(obj => {
           const entity = csgConvert(obj, _scene, meshColor)
+          // Render opaque entities first, then transparent (proper transparency rendering order)
           if(entity.transparent)
-            entities.push(entity)
+            transparent.push(entity)
           else
-            last.push(entity)
+            entities.push(entity)
           // group.add(obj3d)
           // _scene.add(obj3d)
         })
         // _scene.add(group)
       })
-      last.forEach(e=>entities.push(e))
+      // Add transparent entities last so they render after opaque geometry
+      transparent.forEach(e => entities.push(e))
       updateView()
     }
     return { sendCmd, resize, destroy, state, getCamera, setCamera, setBg, setMeshColor, getViewerEnv, setScene }
