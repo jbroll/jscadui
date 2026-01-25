@@ -2,6 +2,21 @@ const GROUP_SELECTOR = 'DIV[type="group"]'
 const INPUT_SELECTOR = 'INPUT, SELECT'
 const BUTTON_SELECTOR = 'BUTTON'
 
+/**
+ * Escape HTML special characters to prevent XSS
+ * @param {string | number | boolean | null | undefined} str
+ * @returns {string}
+ */
+const escapeHtml = (str) => {
+  if (str === null || str === undefined) return ''
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
+}
+
 export const querySelector = (el, selector) => el.querySelector(selector)
 export const forQS = (el, selector, cb) => el.querySelectorAll(selector).forEach(cb)
 export const forEachInput = (el, cb) => forQS(el, INPUT_SELECTOR, cb)
@@ -33,7 +48,7 @@ export const genParams = ({
     // TODO radio similar options as choice
     checkbox: function ({ name, value }) {
       const checkedStr = value === 'checked' || value === true ? 'checked' : ''
-      return `<input type="checkbox" name="${name}" ${checkedStr}/>`
+      return `<input type="checkbox" name="${escapeHtml(name)}" ${checkedStr}/>`
     }
   }
 
@@ -44,9 +59,9 @@ export const genParams = ({
 
     for (let i = 0; i < values.length; i++) {
       const checked = value == values[i] || value == captions[i] ? 'checked' : ''
-      ret += `<label><input type="radio" _type="${type}" name="${name}" numeric="${
+      ret += `<label><input type="radio" _type="${escapeHtml(type)}" name="${escapeHtml(name)}" numeric="${
         typeof values[0] == 'number' ? '1' : '0'
-      }" value="${values[i]}" ${checked}/>${captions[i]}</label>`
+      }" value="${escapeHtml(values[i])}" ${checked}/>${escapeHtml(captions[i])}</label>`
     }
     return ret + '</div>'
   }
@@ -54,11 +69,11 @@ export const genParams = ({
   function inputChoice({ name, type, captions, value, values }) {
     if (!captions) captions = values
 
-    let ret = `<select _type="${type}" name="${name}" numeric="${typeof values[0] == 'number' ? '1' : '0'}">`
+    let ret = `<select _type="${escapeHtml(type)}" name="${escapeHtml(name)}" numeric="${typeof values[0] == 'number' ? '1' : '0'}">`
 
     for (let i = 0; i < values.length; i++) {
       const checked = value == values[i] || value == captions[i] ? 'selected' : ''
-      ret += `<option value="${values[i]}" ${checked}>${captions[i]}</option>`
+      ret += `<option value="${escapeHtml(values[i])}" ${checked}>${escapeHtml(captions[i])}</option>`
     }
     return ret + '</select>'
   }
@@ -72,13 +87,13 @@ export const genParams = ({
     let inputType = type
     if (type == 'int' || type == 'float') inputType = 'number'
     if (type == 'range' || type == 'slider') inputType = 'range'
-    let str = `<input _type="${type}" type="${inputType}" name="${name}"`
-    if (step !== undefined) str += ` step="${step}"`
-    if (min !== undefined) str += ` min="${min}"`
-    if (max !== undefined) str += ` max="${max}"`
-    if (value !== undefined) str += ` value="${value}"`
+    let str = `<input _type="${escapeHtml(type)}" type="${escapeHtml(inputType)}" name="${escapeHtml(name)}"`
+    if (step !== undefined) str += ` step="${escapeHtml(step)}"`
+    if (min !== undefined) str += ` min="${escapeHtml(min)}"`
+    if (max !== undefined) str += ` max="${escapeHtml(max)}"`
+    if (value !== undefined) str += ` value="${escapeHtml(value)}"`
     str += ` live="${live ? 1 : 0}"`
-    if (placeholder !== undefined) str += ` placeholder="${placeholder}"`
+    if (placeholder !== undefined) str += ` placeholder="${escapeHtml(placeholder)}"`
     return str + '/>'
   }
 
@@ -110,20 +125,20 @@ export const genParams = ({
     }
     def.closed = closed
 
-    html += `<div class="form-line ${fps ? 'param-anim-area':''}" type="${def.type}" closed="${closed ? 1 : 0}" `
-    if (type == 'group') html += ` name="${name}"`
+    html += `<div class="form-line ${fps ? 'param-anim-area':''}" type="${escapeHtml(def.type)}" closed="${closed ? 1 : 0}" `
+    if (type == 'group') html += ` name="${escapeHtml(name)}"`
     html += `">`
 
     // label
     html += `<label`
-    if (type == 'group') html += ` name="${name}"`
-    html += `>${caption}</label>`
+    if (type == 'group') html += ` name="${escapeHtml(name)}"`
+    html += `>${escapeHtml(caption)}</label>`
 
     // value
     let valHtml = ``
     if (type == 'slider' || type == 'range'){
-      if(fps) valHtml += `<button action="play" code="${name}">P</button>`
-      valHtml += `<input name="${name}" value="${value}" live="${live ? 1 : 0}"/>`
+      if(fps) valHtml += `<button action="play" code="${escapeHtml(name)}">P</button>`
+      valHtml += `<input name="${escapeHtml(name)}" value="${escapeHtml(value)}" live="${live ? 1 : 0}"/>`
     }
 
     //
@@ -155,7 +170,7 @@ export const genParams = ({
   html += '<div class="jscad-param-buttons"><div>'
   buttons.forEach(button => {
     const { id, name } = typeof button === 'string' ? { id: button, name: button } : button
-    html += `<button action="${id}"><b>${name}</b></button>`
+    html += `<button action="${escapeHtml(id)}"><b>${escapeHtml(name)}</b></button>`
   })
   html += '</div></div>'
 
