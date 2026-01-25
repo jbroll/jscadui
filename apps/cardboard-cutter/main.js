@@ -106,12 +106,15 @@ const handlers = {
 const link = document.createElement('a')
 link.style.display = 'none'
 document.body.appendChild(link)
+// Delay before revoking blob URL to allow download to start
+const REVOKE_DELAY_MS = 1000
+
 function save(blob, filename) {
   const url = URL.createObjectURL(blob)
   link.href = url
   link.download = filename
   link.click()
-  setTimeout(() => URL.revokeObjectURL(url), 1000)
+  setTimeout(() => URL.revokeObjectURL(url), REVOKE_DELAY_MS)
 }
 
 function exportModel(format) {
