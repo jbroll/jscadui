@@ -57,6 +57,25 @@ let scriptModule = {}
 
 globalThis.JSCAD_WORKER_ENV = {}
 
+/**
+ * Simple mutex to serialize script execution and prevent race conditions
+ * when multiple jscadScript calls are made concurrently
+ */
+let scriptLock = Promise.resolve()
+
+/**
+ * Acquire the script execution lock
+ * @returns {Promise<() => void>} Release function
+ */
+const acquireScriptLock = () => {
+  let release
+  const previousLock = scriptLock
+  scriptLock = new Promise(resolve => {
+    release = resolve
+  })
+  return previousLock.then(() => release)
+}
+
 /** @type {TransformFunction} */
 let transformFunc = x => x
 
@@ -224,63 +243,69 @@ const exportReg = /export.*from/
  * @returns {Promise<import('@jscadui/format-common').JscadScriptResultWithParams>}
  */
 const jscadScript = async ({ script, url='jscad.js', base=globalBase, root=base }) => {
-  console.log('run script with base:', base, useParamsProxy ? '(proxy mode)' : '')
+  // Acquire lock to prevent race conditions with concurrent script executions
+  const release = await acquireScriptLock()
+  try {
+    console.log('run script with base:', base, useParamsProxy ? '(proxy mode)' : '')
 
-  // Reset proxy state for new script
-  userInteracted = new Set()
-  currentUiValues = {}
-  legacyProxyDefs = null
+    // Reset proxy state for new script
+    userInteracted = new Set()
+    currentUiValues = {}
+    legacyProxyDefs = null
 
-  if(!script) script = readFileWeb(resolveUrl(url, base, root).url)
+    if(!script) script = readFileWeb(resolveUrl(url, base, root).url)
 
-  const shouldTransform = url.endsWith('.ts') || script.includes('import') && (importReg.test(script) || exportReg.test(script))
-  let def = []
+    const shouldTransform = url.endsWith('.ts') || script.includes('import') && (importReg.test(script) || exportReg.test(script))
+    let def = []
 
-  try{
-    scriptModule = require({url,script}, shouldTransform ? transformFunc : undefined, readFileWeb, base, root, importData)
-  }catch(e){
-    // with syntax error in browser we do not get nice stack trace
-    // we then try to parse the script to let transform function generate nice error with nice trace
-    if(e.name === 'SyntaxError') transformFunc(script, url)
-    // if error is not SyntaxError or if transform func does not find syntax err (very unlikely)
-    throw e
-  }
-
-  main = scriptModule.main
-  // if the main function is the default export
-  if(!main && typeof scriptModule == 'function') main = scriptModule
-
-  let params = {}
-  if (useParamsProxy) {
-    // Check if script has legacy getParameterDefinitions and convert them
-    // This allows legacy scripts to work with the params proxy system
-    const legacyDefs = await scriptModule.getParameterDefinitions?.()
-    if (legacyDefs && legacyDefs.length > 0) {
-      legacyProxyDefs = convertLegacyDefs(legacyDefs)
+    try{
+      scriptModule = require({url,script}, shouldTransform ? transformFunc : undefined, readFileWeb, base, root, importData)
+    }catch(e){
+      // with syntax error in browser we do not get nice stack trace
+      // we then try to parse the script to let transform function generate nice error with nice trace
+      if(e.name === 'SyntaxError') transformFunc(script, url)
+      // if error is not SyntaxError or if transform func does not find syntax err (very unlikely)
+      throw e
     }
 
-    // In proxy mode, run main to discover params, then extract defaults
-    const out = await jscadMain({ params: {} })
-    if (out.proxyState) {
-      def = toParamDefinitions(out.proxyState.discovered)
-      params = extractProxyDefaults(out.proxyState.discovered)
+    main = scriptModule.main
+    // if the main function is the default export
+    if(!main && typeof scriptModule == 'function') main = scriptModule
+
+    let params = {}
+    if (useParamsProxy) {
+      // Check if script has legacy getParameterDefinitions and convert them
+      // This allows legacy scripts to work with the params proxy system
+      const legacyDefs = await scriptModule.getParameterDefinitions?.()
+      if (legacyDefs && legacyDefs.length > 0) {
+        legacyProxyDefs = convertLegacyDefs(legacyDefs)
+      }
+
+      // In proxy mode, run main to discover params, then extract defaults
+      const out = await jscadMain({ params: {} })
+      if (out.proxyState) {
+        def = toParamDefinitions(out.proxyState.discovered)
+        params = extractProxyDefaults(out.proxyState.discovered)
+      }
+      return {
+        def,
+        params,
+        ...out,
+      }
+    } else {
+      // Traditional mode: use getParameterDefinitions
+      const fromSource = getParameterDefinitionsFromSource(script)
+      def = combineParameterDefinitions(fromSource, await scriptModule.getParameterDefinitions?.())
+      params = extractDefaults(def)
+      const out = await jscadMain({ params })
+      return {
+        def,
+        params,
+        ...out,
+      }
     }
-    return {
-      def,
-      params,
-      ...out,
-    }
-  } else {
-    // Traditional mode: use getParameterDefinitions
-    const fromSource = getParameterDefinitionsFromSource(script)
-    def = combineParameterDefinitions(fromSource, await scriptModule.getParameterDefinitions?.())
-    params = extractDefaults(def)
-    const out = await jscadMain({ params })
-    return {
-      def,
-      params,
-      ...out,
-    }
+  } finally {
+    release()
   }
 }
 
