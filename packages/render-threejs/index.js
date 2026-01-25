@@ -12,6 +12,7 @@ export function RenderThreejs({
   BoxGeometry,
   Vector3,
   Color, // used by both
+  Matrix4, // used by CommonToThree for transforms
   // used by CommonToThree
   MeshPhongMaterial,
   LineBasicMaterial,
@@ -48,6 +49,7 @@ export function RenderThreejs({
     LineSegments,
     Color,
     Vector3,
+    Matrix4,
   })
 
   const startRenderer = ({ canvas, cameraPosition = [180, -180, 220], cameraTarget = [0, 0, 0], bg = [1, 1, 1], lightPosition}) => {
@@ -171,6 +173,24 @@ export function RenderThreejs({
     el.appendChild(canvas)
 
     const destroy = () => {
+      // Cancel pending animation frame
+      if (renderTimer) {
+        cancelAnimationFrame(renderTimer)
+        renderTimer = null
+      }
+      // Dispose all entities
+      entities.forEach(ent => {
+        ent.geometry?.dispose?.()
+        ent.material?.dispose?.()
+      })
+      entities.length = 0
+      // Clear scene
+      groups.forEach(group => _scene?.remove(group))
+      groups.length = 0
+      // Dispose renderer
+      renderer?.dispose?.()
+      renderer = null
+      // Remove canvas
       el.removeChild(canvas)
     }
 
@@ -211,7 +231,10 @@ export function RenderThreejs({
     entities = []
     groups.length = 0
     setTimeout(()=>{
-      old.forEach(ent => ent.geometry?.dispose?.())
+      old.forEach(ent => {
+        ent.geometry?.dispose?.()
+        ent.material?.dispose?.()
+      })
     },0)
 
     let box = new Box3()
