@@ -26,7 +26,9 @@ function CSG2Vertices (csg) {
   
   let vertices = new Float32Array(vLen)
   let normals = new Float32Array(vLen)
-  let indices = vLen > 65535 ? new Uint32Array(iLen) : new Uint16Array(iLen)
+  // Use Uint32Array when vertex count exceeds 65535 (Uint16 max value)
+  // vLen is total floats (vertices * 3), so divide by 3 to get vertex count
+  let indices = vLen / 3 > 65535 ? new Uint32Array(iLen) : new Uint16Array(iLen)
   let colors
   let color
   let vertOffset = 0
@@ -127,6 +129,8 @@ const calculateNormal = (vertices) => {
   const Nz = Ax * By - Ay * Bx
 
   const len = Math.hypot(Nx, Ny, Nz)
+  // Handle degenerate polygons (collinear or coincident vertices)
+  if (len === 0) return [0, 0, 1]
   return [Nx / len, Ny / len, Nz / len]
 }
 
