@@ -142,12 +142,20 @@ export const initMessaging = (_self, handlers, { onJobCount, debug } = {}) => {
 
   _self.addEventListener?.('message', listener)
 
+  /**
+   * Clean up the message listener. Call when messaging is no longer needed.
+   */
+  const destroy = () => {
+    _self.removeEventListener?.('message', listener)
+  }
+
   return {
     sendCmd,
     sendNotify,
     sendResponse,
     sendError,
     listener,
+    destroy,
     self: _self,
     getRpcJobCount: () => reqMap.size,
   }
@@ -160,13 +168,13 @@ export const initMessaging = (_self, handlers, { onJobCount, debug } = {}) => {
  * @returns {object}
  */
 export const messageProxy = (_self, handlers, { onJobCount, debug } = {}) => {
-  const { sendCmd, sendNotify, getRpcJobCount, listener } = initMessaging(_self, handlers, { onJobCount, debug })
+  const { sendCmd, sendNotify, getRpcJobCount, listener, destroy } = initMessaging(_self, handlers, { onJobCount, debug })
   // creating error is not too expensive in our context as there will not be millions
   // methods produced, and info on how the proxy is created an when called is indispensible for debug
   let created = new Error('proxy')
 
   return new Proxy(
-    { getRpcJobCount, onmessage: listener },
+    { getRpcJobCount, onmessage: listener, destroy },
     {
       get(target, prop, receiver) {
         // then is used to recognize if object is a promise, we do not want

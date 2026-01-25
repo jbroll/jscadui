@@ -26,6 +26,18 @@ export const genParams = ({
   buttons = ['reset', 'save', 'load', 'edit', 'link'],
 }) => {
   let initialValues = {}
+  /** @type {Array<{el: Element, type: string, handler: EventListener}>} */
+  const listeners = []
+
+  /**
+   * @param {Element} el
+   * @param {string} type
+   * @param {EventListener} handler
+   */
+  const addListener = (el, type, handler) => {
+    el.addEventListener(type, handler)
+    listeners.push({ el, type, handler })
+  }
   const funcs = {
     group: () => '',
     choice: inputChoice,
@@ -204,22 +216,22 @@ export const genParams = ({
     inp.def = params.find(def=>def.name == name)
     // live value for attribute is set to 1 regardless if config used 1 or true
     let isLiveInput = inp.getAttribute('live') === '1'
-    // we lsiten to live changes to update value preview
-    // an anslo then we can trigger param event if live option is chosen
-    inp.addEventListener('input', function (evt) {
+    // we listen to live changes to update value preview
+    // and also then we can trigger param event if live option is chosen
+    addListener(inp, 'input', function () {
       applyRange(inp)
       if (isLiveInput) _callback('live', inp, name)
     })
     // regular input we only react on change
     if (!isLiveInput){
-      inp.addEventListener('change', () => _callback('change', inp, name))
+      addListener(inp, 'change', () => _callback('change', inp, name))
     }
     let button = querySelector(p,'BUTTON[action]')
     if(button && !button.clickAdded){
-      button?.addEventListener?.('click',e=>{
+      addListener(button, 'click', () => {
         startAnim(inp.def, inp.value)
       })
-      button.clickAdded = 1  
+      button.clickAdded = 1
     } 
   })
 
@@ -235,10 +247,20 @@ export const genParams = ({
   }
 
   forEachGroup(target, div => {
-    div.onclick = groupClick
+    addListener(div, 'click', groupClick)
   })
 
-  return {animStatus, setValue, setSomeValues}
+  /**
+   * Clean up all event listeners. Call when the form is removed/recreated.
+   */
+  const destroy = () => {
+    for (const { el, type, handler } of listeners) {
+      el.removeEventListener(type, handler)
+    }
+    listeners.length = 0
+  }
+
+  return {animStatus, setValue, setSomeValues, destroy}
 }
 
 export const getParams = target => {
