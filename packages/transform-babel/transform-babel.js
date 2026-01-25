@@ -13,13 +13,16 @@ export const transformDefaults = {
 
 function combineAppend(options = {}, append = {}) {
   for (let p in append) {
-    if (options[p]) {
-      if (append[p] instanceof Array) options[p] = [...options[p], ...append[p]]
-      else options[p] = { ...options[p], ...append[p] }
-    } else {
-      options[p] = append[p]
+    if (Object.hasOwn(append, p)) {
+      if (options[p]) {
+        if (append[p] instanceof Array) options[p] = [...options[p], ...append[p]]
+        else options[p] = { ...options[p], ...append[p] }
+      } else {
+        options[p] = append[p]
+      }
     }
   }
+  return options
 }
 
 function _transform(code, filename, options = {}, append = {}) {
@@ -29,12 +32,22 @@ function _transform(code, filename, options = {}, append = {}) {
     filename
   }
   combineAppend(op, append)
-  return transform(code, op)
+  try {
+    return transform(code, op)
+  } catch (error) {
+    // Add context to transform errors for better debugging
+    const message = error.message || String(error)
+    const wrappedError = new Error(`Babel transform failed for ${filename}: ${message}`)
+    wrappedError.stack = error.stack
+    wrappedError.name = error.name || 'SyntaxError'
+    throw wrappedError
+  }
 }
 
 export const transformcjs = (code, filename, options = {}, append = {}) => {
   options = { sourceMaps: 'inline', ...options }
-  combineAppend(append, { plugins: ['transform-modules-commonjs'] })
+  // Append CommonJS transform plugin
+  append = combineAppend({ ...append }, { plugins: ['transform-modules-commonjs'] })
   return _transform(code, filename, options, append)
 }
 
