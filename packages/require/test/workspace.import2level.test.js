@@ -1,10 +1,13 @@
 import { transformcjs } from '@jscadui/transform-babel'
 import { expect, it } from 'vitest'
+import { fileURLToPath } from 'url'
+import { dirname, join } from 'path'
 
 import { makeReadFileNode } from '../src/readFileNode.js'
 import { require, requireCache } from '../src/require.js'
 
-const root = 'test/workspace/import2level/'
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const root = join(__dirname, 'workspace/import2level') + '/'
 const base = 'fs:/'
 
 it('no_transform', () => {

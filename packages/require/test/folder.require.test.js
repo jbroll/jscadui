@@ -1,10 +1,13 @@
 import { expect, it } from 'vitest'
+import { fileURLToPath } from 'url'
+import { dirname, join } from 'path'
 
 import { require } from '../src/require.js'
 import { makeReadFileNode } from '../src/readFileNode.js'
 
+const __dirname = dirname(fileURLToPath(import.meta.url))
 const base = 'fs:/'
-const readFileNode = makeReadFileNode('test/folder/require/')
+const readFileNode = makeReadFileNode(join(__dirname, 'folder/require') + '/')
 
 it('no_transform', () => {
   let script = require('./index.js', null, readFileNode, base)
