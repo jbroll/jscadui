@@ -2,10 +2,10 @@
 
 This is a fork from `3mf-export` to allow it to move forward with a robust XML library.
 
-`3mf-export-comapct`
+`3mf-export-compact`
 
-- is less robust for XML (may break xml if some attribute velues are not sanitised)
-- has no dependencies
+- is less robust for XML (may break xml if some attribute values are not sanitized)
+- uses fast-xml-parser with tree-shaking for smaller bundle size
 - could be preferred by some people because of small footprint
 - I want to keep it as proud example of using arrays and join to gain nice performance.
 
