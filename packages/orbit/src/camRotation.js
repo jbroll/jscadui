@@ -6,9 +6,20 @@ export const camRotation = (out, position, target) => {
   let vec = vec3.subtract([], position, target)
   const [x, y, z] = vec
   let len = Math.hypot(x, y, z)
+
+  // Handle camera at target position (avoid division by zero)
+  if (len === 0) {
+    out.target = target
+    out.position = position
+    out.rx = 0
+    out.rz = 0
+    out.len = 0
+    return out
+  }
+
   let lenXY = hypot(x, y)
-  let rz = lenXY == 0 ? 0 : acos(x / lenXY)
-  let rx = lenXY == 0 ? 0 : acos(lenXY / len)
+  let rz = lenXY === 0 ? 0 : acos(x / lenXY)
+  let rx = lenXY === 0 ? 0 : acos(lenXY / len)
   if (z < 0) rx *= -1 // negative side is lost during sqr/sqrt hypot
   // my brain does not work right now, so I can not explain why it works with y>0 instead y<0
   // maybe one day I will realize, for now, who cares, it works
