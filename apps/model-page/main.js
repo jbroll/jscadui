@@ -102,9 +102,12 @@ const link = document.createElement('a')
 link.style.display = 'none'
 document.body.appendChild(link)
 function save(blob, filename) {
-  link.href = URL.createObjectURL(blob)
+  const url = URL.createObjectURL(blob)
+  link.href = url
   link.download = filename
   link.click()
+  // Revoke the object URL after download to prevent memory leaks
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
 export function exportModel(format) {
@@ -116,7 +119,7 @@ export function exportModel(format) {
 
 var worker = new Worker('./assets/bundle.worker.js?transpile=1')
 /** @type {JscadWorker} */
-const workerApi = globalThis.workerApi = messageProxy(worker, {}, {  })
+const workerApi = messageProxy(worker, {}, {  })
 
 const paramChangeCallback = async params => {
   console.log('params', params)
