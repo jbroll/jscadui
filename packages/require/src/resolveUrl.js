@@ -5,7 +5,25 @@ export const getExtension = (url) => {
   let arr = url.split('/')
   let file = arr[arr.length-1]
   let idx = file.lastIndexOf('.')
-  return idx == -1 ? '' : file.substring(idx+1)
+  return idx === -1 ? '' : file.substring(idx+1)
+}
+
+/**
+ * Normalize a path by resolving . and .. segments
+ * @param {string} path
+ * @returns {string}
+ */
+const normalizePath = (path) => {
+  const parts = path.split('/')
+  const result = []
+  for (const part of parts) {
+    if (part === '..') {
+      result.pop()
+    } else if (part && part !== '.') {
+      result.push(part)
+    }
+  }
+  return result.join('/')
 }
 
 const splitModuleName = (module) => {
@@ -62,8 +80,11 @@ export const resolveUrl = (url, base, root, moduleBase=MODULE_BASE) => {
         // check if url went above root
         if (!url.startsWith('fs:/root/')) throw new Error('relative url cannot go above root')
         url = url.substring(9)
+        // Defense in depth: normalize path to remove any remaining .. segments
+        url = normalizePath(url)
       } else {
-        url = url.substring(1)
+        // Normalize absolute paths from root
+        url = normalizePath(url.substring(1))
       }
       if (!getExtension(url)) url += '.js'
       // now create the full url to load the file
