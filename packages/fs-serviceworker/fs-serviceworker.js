@@ -5,7 +5,7 @@ import { messageProxy } from '@jscadui/postmessage'
 const version = 'SW7'
 const clientMap = {}
 const searchParams = new URL(location.toString()).searchParams
-let prefix = searchParams.get('prefix')
+let prefix = searchParams.get('prefix') || '/swfs/'
 let initPath = prefix + 'init'
 let debug = searchParams.get('debug')
 
@@ -37,7 +37,14 @@ const getClientWrapper = async clientId => {
 
 self.addEventListener('fetch', async event => {
   const urlPath = event.request.url
-  let path = new URL(urlPath).pathname
+  const requestUrl = new URL(urlPath)
+
+  // Security: Only handle requests from same origin
+  if (requestUrl.origin !== self.location.origin) {
+    return
+  }
+
+  let path = requestUrl.pathname
   if (path === initPath) {
     // this procedure allows tab-page-client to know it's clientId
     // that way urls in worker can have clientId in path to preperly route file requests
@@ -47,27 +54,39 @@ self.addEventListener('fetch', async event => {
   } else if (path.startsWith(prefix)) {
     path = path.substring(prefix.length)
     let idx = path.indexOf('/')
-    const clientId = path.substring(0, idx)
+    const urlClientId = path.substring(0, idx)
+
+    // Security: Validate clientId from URL matches the actual requesting client
+    // This prevents cache poisoning attacks where an attacker crafts URLs with other clientIds
+    if (event.clientId && urlClientId !== event.clientId) {
+      event.respondWith(new Response('Unauthorized: clientId mismatch', { status: 403 }))
+      return
+    }
+
     path = path.substring(idx)
     event.respondWith(
       new Promise(async (resolve, reject) => {
-        const clientWrapper = await getClientWrapper(clientId)
-        let done = false
-        setTimeout(() => {
-          if (!done) resolve(new Response('timeout for ' + path, { status: 404 }))
-        }, 1000)
+        try {
+          const clientWrapper = await getClientWrapper(urlClientId)
+          let done = false
+          setTimeout(() => {
+            if (!done) resolve(new Response('timeout for ' + path, { status: 408 }))
+          }, 1000)
 
-        const fileReq = new Request(path)
-        let rCached = await clientWrapper.cache.match(fileReq)
-        if (rCached) {
-          resolve(rCached)
-          return (done = true)
+          const fileReq = new Request(path)
+          let rCached = await clientWrapper.cache.match(fileReq)
+          if (rCached) {
+            resolve(rCached)
+            return (done = true)
+          }
+
+          let resp = await clientWrapper.api.getFile({ path: path })
+          rCached = await clientWrapper.cache.match(fileReq)
+          done = true
+          resolve(rCached || new Response(path + ' not in cache', { status: 404 }))
+        } catch (err) {
+          resolve(new Response('Cache error: ' + err.message, { status: 500 }))
         }
-
-        let resp = await clientWrapper.api.getFile({ path: path })
-        rCached = await clientWrapper.cache.match(fileReq)
-        done = true
-        resolve(rCached || new Response(path + ' not in cache', { status: rCached ? 200 : 404 }))
       }),
     )
   }
