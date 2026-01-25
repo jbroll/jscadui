@@ -194,11 +194,21 @@ gh pr comment <PR_NUMBER> --body "Your response"
 - [ ] Phase 5: All comments resolved (human and automated)
 
 ### Merge Strategy
+
+> ⚠️ **IMPORTANT: This repository only allows rebase merges.**
+>
+> Merge commits (`--merge`) and squash merges (`--squash`) are disabled in repository settings.
+
 ```bash
-gh pr merge <PR_NUMBER> --rebase
+# Correct - use rebase
+gh pr merge <PR_NUMBER> --rebase --delete-branch
+
+# These will fail:
+# gh pr merge <PR_NUMBER> --merge   # ❌ Not allowed
+# gh pr merge <PR_NUMBER> --squash  # ❌ Not allowed
 ```
 
-**Note**: Only rebase merges are allowed on this repository.
+This keeps the commit history linear and makes it easier to bisect and understand changes.
 
 ## Conflict Resolution
 

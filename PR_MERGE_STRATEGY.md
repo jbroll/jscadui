@@ -80,6 +80,23 @@ These PRs were closed as duplicates or superseded by other PRs:
 | #69 | Duplicate of #40 |
 | #71 | Duplicate of #42 |
 
+## Repository Merge Settings
+
+> ⚠️ **This repository only allows rebase merges.**
+>
+> Merge commits and squash merges are disabled in repository settings.
+
+```bash
+# Correct
+gh pr merge <PR_NUMBER> --rebase --delete-branch
+
+# Will fail
+gh pr merge <PR_NUMBER> --merge   # ❌ Merge commits not allowed
+gh pr merge <PR_NUMBER> --squash  # ❌ Squash merges not allowed
+```
+
+This keeps the commit history linear and makes it easier to bisect and understand changes.
+
 ## Merge Process Used
 
 PRs were merged in dependency order across 9 phases:
