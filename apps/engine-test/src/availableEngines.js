@@ -29,12 +29,6 @@ export const availableEngines = {
       return initTestRegl(REGL, el)
     }
   },
-  twgl:{
-    name:'TWGL',
-    src:'',
-    init: async (el,cfg)=>{
-      
-    }
-  }
+  // twgl engine removed - implementation was incomplete and caused app to hang
 }
 export const availableEnginesList = Object.keys(availableEngines)
