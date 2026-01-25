@@ -339,22 +339,26 @@ export const loadDir = async dir => {
 
 /**
  * This function is async but it is intentionally called without await
- * @param {SwHandler} sw 
+ * @param {SwHandler} sw
  */
 export const checkFiles = async sw => {
-  const now = Date.now()
-  if (now - sw.lastCheck > 300 && sw.filesToCheck.length != 0) {
-    sw.lastCheck = now
-    let filesToCheck = await Promise.all(sw.filesToCheck.map(entryCheckPromise))
-    filesToCheck = filesToCheck.filter(([entry, _file]) => entry.lastModified != entry._lastModified)
-    if (filesToCheck.length) {
-      const addToCachePromises = filesToCheck.map(([entry, file]) => addToCache(sw.cache, entry.fullPath, file))
-      const files = filesToCheck.map(([entry, _file]) => entry.fullPath)
-      await Promise.all(addToCachePromises)//All files must be added to cache
-      sw.onfileschange?.(files)
-    }
+  try {
+    const now = Date.now()
+    if (now - sw.lastCheck > 300 && sw.filesToCheck.length !== 0) {
+      sw.lastCheck = now
+      let filesToCheck = await Promise.all(sw.filesToCheck.map(entryCheckPromise))
+      filesToCheck = filesToCheck.filter(([entry, _file]) => entry.lastModified !== entry._lastModified)
+      if (filesToCheck.length) {
+        const addToCachePromises = filesToCheck.map(([entry, file]) => addToCache(sw.cache, entry.fullPath, file))
+        const files = filesToCheck.map(([entry, _file]) => entry.fullPath)
+        await Promise.all(addToCachePromises)//All files must be added to cache
+        sw.onfileschange?.(files)
+      }
 
-    // TODO clear sw cache
+      // TODO clear sw cache
+    }
+  } catch (error) {
+    console.error('Error checking files for changes:', error)
   }
   requestAnimationFrame(() => checkFiles(sw))
 }
@@ -436,6 +440,17 @@ export async function analyzeProject(sw) {
  * @param {SwHandler} sw
  * @returns {Promise<Array<WorkspaceAlias>>}
  */
+/**
+ * Sanitize a path to prevent path traversal attacks
+ * @param {string} path
+ * @returns {string}
+ */
+const sanitizePath = path => {
+  if (!path || typeof path !== 'string') return ''
+  // Remove .. segments and normalize path
+  return path.split('/').filter(p => p && p !== '.' && p !== '..').join('/')
+}
+
 const getWorkspaceAliases = async sw => {
   /** @type {Array<WorkspaceAlias>} */
   const alias = []
@@ -444,19 +459,16 @@ const getWorkspaceAliases = async sw => {
     try {
       sw.filesToCheck.push(pkgFile)
       const pack = JSON.parse(await readAsText(pkgFile))
-      // Sanitize pack.main to prevent path traversal
-      if (pack.main && !pack.main.includes('..')) sw.fileToRun = pack.main
+      if (pack.main) sw.fileToRun = sanitizePath(pack.main)
       if (pack.workspaces)
         for (const workspace of pack.workspaces) {
           const workspacePackageFile = await findFileInRoots(sw.roots, `/${workspace}/package.json`)
           let workspacePackageJson
           if (workspacePackageFile) workspacePackageJson = JSON.parse(await readAsText(workspacePackageFile))
           const name = workspacePackageJson?.name ?? workspace
-          const main = workspacePackageJson?.main ?? 'index.js'
-          // Sanitize paths to prevent path traversal
-          if (!workspace.includes('..') && !main.includes('..')) {
-            alias.push({ name, path: `/${workspace}/${main}` })
-          }
+          const main = sanitizePath(workspacePackageJson?.main ?? 'index.js')
+          const sanitizedWorkspace = sanitizePath(workspace)
+          alias.push({ name, path: `/${sanitizedWorkspace}/${main}` })
         }
     } catch (error) {
       error.message = `failed to parse package.json\n  ${error}`
