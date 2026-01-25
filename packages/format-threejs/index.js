@@ -9,6 +9,7 @@ export function CommonToThree({
   LineSegments,
   Color,
   Vector3,
+  Matrix4,
 }) {
   const flatShading = false
   const materials = {
@@ -81,7 +82,11 @@ export function CommonToThree({
         mesh = new LineSegments(geo, material)
         break
     }
-    if (transforms && !isInstanced) mesh.applyMatrix4({ elements: transforms })
+    if (transforms && !isInstanced) {
+      const matrix = new Matrix4()
+      matrix.fromArray(transforms)
+      mesh.applyMatrix4(matrix)
+    }
     return mesh
   }
 
