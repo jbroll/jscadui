@@ -47,7 +47,8 @@ export * from './src/FSEntry.js'
  * @param {string | Array<string>} path
  * @returns {Array<string>}
  */
-export const splitPath = path => (typeof path === 'string' ? path.split('/').filter(p => p && p !== '.') : path)
+// Filter out empty segments, '.' (current dir), and '..' (parent dir) to prevent path traversal
+export const splitPath = path => (typeof path === 'string' ? path.split('/').filter(p => p && p !== '.' && p !== '..') : path)
 
 /**
  * 
@@ -443,7 +444,8 @@ const getWorkspaceAliases = async sw => {
     try {
       sw.filesToCheck.push(pkgFile)
       const pack = JSON.parse(await readAsText(pkgFile))
-      if (pack.main) sw.fileToRun = pack.main
+      // Sanitize pack.main to prevent path traversal
+      if (pack.main && !pack.main.includes('..')) sw.fileToRun = pack.main
       if (pack.workspaces)
         for (const workspace of pack.workspaces) {
           const workspacePackageFile = await findFileInRoots(sw.roots, `/${workspace}/package.json`)
@@ -451,7 +453,10 @@ const getWorkspaceAliases = async sw => {
           if (workspacePackageFile) workspacePackageJson = JSON.parse(await readAsText(workspacePackageFile))
           const name = workspacePackageJson?.name ?? workspace
           const main = workspacePackageJson?.main ?? 'index.js'
-          alias.push({ name, path: `/${workspace}/${main}` })
+          // Sanitize paths to prevent path traversal
+          if (!workspace.includes('..') && !main.includes('..')) {
+            alias.push({ name, path: `/${workspace}/${main}` })
+          }
         }
     } catch (error) {
       error.message = `failed to parse package.json\n  ${error}`
