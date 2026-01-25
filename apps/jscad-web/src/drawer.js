@@ -4,6 +4,9 @@ let dragStartX = 0
 let dragStartWidth = 0
 let dragStartTime = 0
 
+/** @type {(() => void) | null} */
+let cleanupFn = null
+
 // Initialize drawer action
 // Initial open/closed state is in index.html to prevent flash of content
 export const init = () => {
@@ -12,7 +15,7 @@ export const init = () => {
 
   /**
    * Set editor width and handle open/closed state
-   * @param {number} w 
+   * @param {number} w
    */
   const setEditorWidth = (w) => {
     if (w > 0) {
@@ -23,7 +26,7 @@ export const init = () => {
     }
   }
 
-  toggle.addEventListener('click', () => {
+  const handleClick = () => {
     if (!isDragging) {
       editor.classList.add('transition') // animate
       const isClosed = editor.classList.contains('closed')
@@ -34,18 +37,18 @@ export const init = () => {
         setEditorWidth(0)
       }
     }
-  })
+  }
 
-  toggle.addEventListener('pointerdown', (e) => {
+  const handlePointerDown = (e) => {
     isMouseDown = true
     isDragging = false
     dragStartX = e.clientX
     dragStartWidth = editor.offsetWidth
     dragStartTime = e.timeStamp
     e.preventDefault()
-  })
+  }
 
-  window.addEventListener('pointermove', (e) => {
+  const handlePointerMove = (e) => {
     if (isMouseDown) {
       const delta = e.clientX - dragStartX
       // Moved more than 5 pixels, assume dragging
@@ -56,9 +59,9 @@ export const init = () => {
         setEditorWidth(width)
       }
     }
-  })
+  }
 
-  window.addEventListener('pointerup', (e) => {
+  const handlePointerUp = (e) => {
     const downTime = e.timeStamp - dragStartTime
     // Long press, assume dragging
     if (isDragging || downTime > 200) {
@@ -77,5 +80,26 @@ export const init = () => {
       }
     }
     isMouseDown = false
-  })
+  }
+
+  toggle.addEventListener('click', handleClick)
+  toggle.addEventListener('pointerdown', handlePointerDown)
+  window.addEventListener('pointermove', handlePointerMove)
+  window.addEventListener('pointerup', handlePointerUp)
+
+  // Store cleanup function
+  cleanupFn = () => {
+    toggle.removeEventListener('click', handleClick)
+    toggle.removeEventListener('pointerdown', handlePointerDown)
+    window.removeEventListener('pointermove', handlePointerMove)
+    window.removeEventListener('pointerup', handlePointerUp)
+    cleanupFn = null
+  }
+}
+
+/**
+ * Cleanup event listeners added by init()
+ */
+export const destroy = () => {
+  if (cleanupFn) cleanupFn()
 }
