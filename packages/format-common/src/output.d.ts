@@ -28,7 +28,7 @@ export interface JscadLinesEntityRaw {
     vertices: Float32Array,
 }
 
-export interface JscadLinesEntity extends JscadBaseEntity, JscadLineEntityRaw { }
+export interface JscadLinesEntity extends JscadBaseEntity, JscadLinesEntityRaw { }
 
 export interface JscadMeshEntityRaw {
     type: 'mesh',
