@@ -1,5 +1,6 @@
 import { gzipSync } from 'fflate'
 import { ExportFormats, ExportFormatMeta } from '@jscadui/format-common/src/exportFormats.js'
+import { downloadBlob } from '@jscadui/scene'
 import { str2ab } from './str2ab.js'
 import * as editor from './editor.js'
 
@@ -47,22 +48,6 @@ export const init = (newWorkerApi) => {
   })
 }
 
-/**
- * @param {Blob} blob 
- * @param {string} filename 
- */
-function sendAsDownload(blob, filename) {
-  // Dummy link for download action
-  const link = document.createElement('a')
-  const url = URL.createObjectURL(blob)
-  link.href = url
-  link.download = filename
-  link.click()
-  // Revoke the object URL after a short delay to allow the download to start
-  // This prevents memory leaks from accumulated blob URLs
-  setTimeout(() => URL.revokeObjectURL(url), 1000)
-}
-
 const exportToScriptUrl = async () => {
   if (editor.getEditorFiles().length > 1) {
     alert('Can not export multi file projects as url')
@@ -94,7 +79,7 @@ const exportAsFile = async (formatName, formatExtension = formatName) => {
     let type = 'text/plain'
     if (formatName === ExportFormats.THREE_MF) type = 'application/zip'
 
-    sendAsDownload(new Blob(data, { type }), `${exportConfig.projectName}.${formatExtension}`)
+    downloadBlob(new Blob(data, { type }), `${exportConfig.projectName}.${formatExtension}`)
   }
 }
 

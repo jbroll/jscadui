@@ -1,7 +1,7 @@
 import { Gizmo } from '@jscadui/html-gizmo'
 import { OrbitControl, OrbitState, closerAngle, getCommonRotCombined } from '@jscadui/orbit'
 import { messageProxy } from '@jscadui/postmessage'
-import { makeAxes, makeGrid } from '@jscadui/scene'
+import { makeAxes, makeGrid, downloadBlob } from '@jscadui/scene'
 import * as themes from '@jscadui/themes'
 
 import { genParams } from '../../packages/params-form/src/params'
@@ -103,24 +103,10 @@ const handlers = {
   },
 }
 
-const link = document.createElement('a')
-link.style.display = 'none'
-document.body.appendChild(link)
-// Delay before revoking blob URL to allow download to start
-const REVOKE_DELAY_MS = 1000
-
-function save(blob, filename) {
-  const url = URL.createObjectURL(blob)
-  link.href = url
-  link.download = filename
-  link.click()
-  setTimeout(() => URL.revokeObjectURL(url), REVOKE_DELAY_MS)
-}
-
 function exportModel(format) {
   workerApi.jscadExportData({ format }).then(({ data }) => {
     console.log('save', fileToRun + '.stl', data)
-    save(new Blob([data], { type: 'text/plain' }), fileToRun + '.stl')
+    downloadBlob(new Blob([data], { type: 'text/plain' }), fileToRun + '.stl')
   }).catch(err => {
     console.error('Failed to export model:', err)
   })
