@@ -16,11 +16,13 @@
   * @returns 
   */
 export const makeGrid = ({ color1 = [0, 0, 0, 0.2], color2 = [0, 0, 0.6, 0.1], size = 200 } = {}) => {
-  const lineCount = size + 1
-  const mainLineCount = Math.floor(lineCount / 10)
-  const lines1 = new Float32Array(mainLineCount * 12 + 12)
-  const lines2 = new Float32Array((lineCount - mainLineCount) * 12)
   const half = Math.floor(size / 2)
+  // Main grid lines: center cross (2 lines) + every 10th line (4 lines each via makeLine4x)
+  const mainLinesInLoop = Math.floor(half / 10)
+  const lines1 = new Float32Array((mainLinesInLoop * 4 + 2) * 6)
+  // Secondary grid lines: all other lines (4 lines each via makeLine4x)
+  const secondaryLinesInLoop = half - mainLinesInLoop
+  const lines2 = new Float32Array(secondaryLinesInLoop * 4 * 6)
 
   function makeLine4x(lines, offset, i) {
     offset = makeLine(lines, offset, i, i, half, -half)
