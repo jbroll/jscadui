@@ -29,6 +29,8 @@
       }
       initEngine(THREE, 'root', workerOptions).then(() => {
         jscadScript('./jscad/sqed/index.js')
+      }).catch(err => {
+        console.error('Failed to initialize engine:', err)
       })
     </script>
   </body>

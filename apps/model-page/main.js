@@ -111,6 +111,8 @@ export function exportModel(format) {
   workerApi.jscadExportData({ format }).then(({ data }) => {
     console.log('save', fileToRun + '.stl', data)
     save(new Blob([data], { type: 'text/plain' }), fileToRun + '.stl')
+  }).catch(err => {
+    console.error('Failed to export model:', err)
   })
 }
 

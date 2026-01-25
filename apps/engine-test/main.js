@@ -256,4 +256,6 @@ async function initFs() {
 Promise.all(useEngines.map(engine => engineState.initEngine(byId('box_' + engine), engine, ctrl))).then(() => {
   //
   console.log('engines initialized', useEngines)
+}).catch(err => {
+  console.error('Failed to initialize engines:', err)
 })
