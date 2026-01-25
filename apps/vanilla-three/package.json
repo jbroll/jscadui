@@ -12,11 +12,11 @@
     "@jscadui/render-threejs": "*",
     "@jscadui/scene": "*",
     "@jscadui/themes": "*",
-    "esbuild": "0.27.2",
     "gl-matrix": "^3.4.0"
   },
   "devDependencies": {
     "@trivago/prettier-plugin-sort-imports": "^6.0.2",
+    "esbuild": "^0.27.2",
     "vite": "^7.3.1",
     "vitest": "^4.0.18"
   }
