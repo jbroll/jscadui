@@ -11,15 +11,32 @@ const gzipPrefix = 'data:application/gzip;base64,'
  * @param {unknown} error
  */
 
+/** @type {(() => void) | null} */
+let cleanupFn = null
+
 /**
- * @param {CompileFn} compileFn 
- * @param {ErrorFn} setError 
+ * @param {CompileFn} compileFn
+ * @param {ErrorFn} setError
  * @returns {unknown}
  */
 export const init = (compileFn, setError) => {
   const load = loadFromUrl(compileFn, setError)
   window.addEventListener('hashchange', load) // on change
+
+  // Store cleanup function
+  cleanupFn = () => {
+    window.removeEventListener('hashchange', load)
+    cleanupFn = null
+  }
+
   return load() // on load
+}
+
+/**
+ * Cleanup event listeners added by init()
+ */
+export const destroy = () => {
+  if (cleanupFn) cleanupFn()
 }
 
 /**
