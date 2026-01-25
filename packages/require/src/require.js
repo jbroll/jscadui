@@ -192,11 +192,29 @@ export const clearFileCache = ({ files, root }) => {
 }
 
 /**
- * Clear project-specific cache
+ * Clear project-specific cache including dependency tracking
  */
 export const jscadClearTempCache = () => {
   requireCache.local = {}
   requireCache.alias = {}
+  // Clear dependency tracking for local files to prevent memory leaks
+  // Keep only module dependencies (entries starting with http)
+  for (const key of requireCache.knownDependencies.keys()) {
+    if (!key.startsWith('http')) {
+      requireCache.knownDependencies.delete(key)
+    }
+  }
+}
+
+/**
+ * Clear all caches including module cache
+ * Use this for long-running applications to prevent unbounded memory growth
+ */
+export const clearAllCaches = () => {
+  requireCache.local = {}
+  requireCache.alias = {}
+  requireCache.module = {}
+  requireCache.knownDependencies.clear()
 }
 
 
