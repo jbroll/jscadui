@@ -6,15 +6,18 @@ interface CSGBase {
 }
 
 export interface CSGLine extends CSGBase {
+    type: 'line',
     isClosed: boolean,
     points: [number, number][],
 }
 
 export interface CSGLineSegments extends CSGBase {
+    type: 'lineSegments',
     sides: [number, number][][],
 }
 
 export interface CSGPolygons extends CSGBase {
+    type: 'polygons',
     polygons: {
         vertices: (
             [number, number, number][]) | CSGPolygonOldVertices,
@@ -30,10 +33,12 @@ export type CSGPolygonOldVertices = {
 }[];
 
 export interface CSGOutlines extends CSGBase {
+    type: 'outlines',
     outlines: CsgContourOrOutlineValue
 }
 
 export interface CSGContours extends CSGBase {
+    type: 'contours',
     contours: CsgContourOrOutlineValue
 }
 
