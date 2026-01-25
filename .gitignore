@@ -113,3 +113,6 @@ apps/myapp
 
 # Test snapshots
 __snapshots__
+
+# Local deployment config (use deploy.conf.example as template)
+deploy.conf
