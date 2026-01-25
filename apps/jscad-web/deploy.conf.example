@@ -1,0 +1,22 @@
+# JSCAD Web Deployment Configuration
+# Copy to deploy.conf and customize for your environment
+# Deploy static SPA to your server
+
+# Required: Deployment modules to execute
+export DEPLOY_TYPES="letsencrypt apache"
+
+# Required: Basic configuration
+export APP_NAME="jscad-web"
+export DOMAIN_NAME="your-domain.com"
+export REMOTE_HOST="your-domain.com"
+export REMOTE_USER="your-username"
+
+# LetsEncrypt module configuration
+export LETSENCRYPT_EMAIL="your-email@example.com"
+
+# Apache module configuration (unified module)
+export APACHE_MODE="static"
+export APACHE_WEB_ROOT="/var/www/${APP_NAME}"
+export APACHE_SPA_MODE="yes"
+export APACHE_CACHE_STATIC="yes"
+export APACHE_SECURITY_HEADERS="yes"
