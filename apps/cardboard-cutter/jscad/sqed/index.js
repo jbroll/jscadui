@@ -127,7 +127,7 @@ const main = (params) => {
   	    eH.push(intersect(tmp[i], c2));
   	    eV.push(intersect(tmp[i], c1));
       }catch(e){
-       setTimeout(()=>{throw e},0)
+       console.error('Error processing slice', i, e)
       }
 	  }
 	  
@@ -135,7 +135,7 @@ const main = (params) => {
   	  rH = rH.map(x=> subtract(x, eV));
   	  rV = rV.map(x=> subtract(x, eH));
     }catch(e){
-     setTimeout(()=>{throw e},0)
+     console.error('Error in subtract operation', e)
     }
 
 	  // 3d
