@@ -64,7 +64,7 @@ export const initMessaging = (_self, handlers, { onJobCount, debug } = {}) => {
    * @param {Array} trans
    */
   const sendNotify = (method, params = [], trans = []) => {
-    if (debug) console.log(debug, 'sendNotify', id, method, params)
+    if (debug) console.log(debug, 'sendNotify', method, params)
     ___self.postMessage({ method, params }, fixTransfer(trans))
   }
 
@@ -87,7 +87,11 @@ export const initMessaging = (_self, handlers, { onJobCount, debug } = {}) => {
       onJobCount?.(reqMap.size)
       if (timeout) {
         setTimeout(() => {
-          reject('timeout')
+          if (reqMap.has(id)) {
+            reqMap.delete(id)
+            onJobCount?.(reqMap.size)
+            reject('timeout')
+          }
         }, timeout)
       }
     })
@@ -119,12 +123,12 @@ export const initMessaging = (_self, handlers, { onJobCount, debug } = {}) => {
       return
     }
 
-    const fn = handlers[method]
-    if (!fn) {
+    if (!Object.hasOwn(handlers, method)) {
       const msg = 'no handler for type: ' + method
       console.error(msg, e)
       throw new Error(msg)
     }
+    const fn = handlers[method]
     try {
       const out = await fn(...params)
       if (id) {
@@ -159,7 +163,7 @@ export const messageProxy = (_self, handlers, { onJobCount, debug } = {}) => {
   const { sendCmd, sendNotify, getRpcJobCount, listener } = initMessaging(_self, handlers, { onJobCount, debug })
   // creating error is not too expensive in our context as there will not be millions
   // methods produced, and info on how the proxy is created an when called is indispensible for debug
-  let crated = new Error('proxy')
+  let created = new Error('proxy')
 
   return new Proxy(
     { getRpcJobCount, onmessage: listener },
@@ -186,7 +190,7 @@ export const messageProxy = (_self, handlers, { onJobCount, debug } = {}) => {
               '\n',
               e,
               '\ncreated',
-              crated,
+              created,
               '\nmethodCreated',
               methodCreated,
             )
