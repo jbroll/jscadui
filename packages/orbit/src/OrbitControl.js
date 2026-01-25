@@ -57,9 +57,10 @@ export class OrbitControl extends OrbitState {
 
     /**
      * Calculate distance and midpoint of two pointers
-     * @returns {Pinch}
+     * @returns {Pinch | null}
      */
     const calculatePinch = () => {
+      if (pointers.size < 2) return null
       const [p1, p2] = pointers.values();
       const [x1, y1] = p1
       const [x2, y2] = p2
@@ -138,6 +139,7 @@ export class OrbitControl extends OrbitState {
         } else if (doubleDown) {
           // Pinch to zoom and pan
           const newPinch = calculatePinch()
+          if (!newPinch) return // Guard against race condition
           if (lastPinch) {
             // Pan
             const dx = lastPinch.midpoint[0] - newPinch.midpoint[0]
