@@ -31,7 +31,6 @@ export function addZUI(domElement, stage) {
     var mouse = new Two.Vector();
     var touches = {};
     var distance = 0;
-    var dragging = false;
 
     zui.addLimits(0.06, 8);
 
@@ -47,9 +46,6 @@ export function addZUI(domElement, stage) {
     function mousedown(e) {
       mouse.x = e.clientX;
       mouse.y = e.clientY;
-      var rect = shape.getBoundingClientRect();
-      dragging = mouse.x > rect.left && mouse.x < rect.right
-        && mouse.y > rect.top && mouse.y < rect.bottom;
       window.addEventListener('mousemove', mousemove, false);
       window.addEventListener('mouseup', mouseup, false);
     }
@@ -57,12 +53,7 @@ export function addZUI(domElement, stage) {
     function mousemove(e) {
       var dx = e.clientX - mouse.x;
       var dy = e.clientY - mouse.y;
-      if (dragging) {
-        shape.position.x += dx / zui.scale;
-        shape.position.y += dy / zui.scale;
-      } else {
-        zui.translateSurface(dx, dy);
-      }
+      zui.translateSurface(dx, dy);
       mouse.set(e.clientX, e.clientY);
     }
 
