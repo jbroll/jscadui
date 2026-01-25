@@ -1,5 +1,5 @@
 {
-  "type":"module",
+  "type": "module",
   "sideEffects": false,
   "name": "@jscadui/render-threejs",
   "version": "0.1.0",
@@ -21,9 +21,13 @@
     "prepublishOnly": "npm run build && npm run build-cjs"
   },
   "devDependencies": {
+    "@trivago/prettier-plugin-sort-imports": "^6.0.2",
     "@types/node": "18.11.9",
-    "@trivago/prettier-plugin-sort-imports": "~3.3.0",
-    "vitest": "0.24.5"
+    "vitest": "^4.0.18"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "esbuild": "0.27.2",
+    "vite": "7.3.1"
+  }
 }
