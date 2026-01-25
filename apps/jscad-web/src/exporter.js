@@ -57,9 +57,13 @@ export const init = (newWorkerApi) => {
 function sendAsDownload(blob, filename) {
   // Dummy link for download action
   const link = document.createElement('a')
-  link.href = URL.createObjectURL(blob)
+  const url = URL.createObjectURL(blob)
+  link.href = url
   link.download = filename
   link.click()
+  // Revoke the object URL after a short delay to allow the download to start
+  // This prevents memory leaks from accumulated blob URLs
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
 const exportToScriptUrl = async () => {
