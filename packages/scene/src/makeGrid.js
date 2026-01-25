@@ -11,11 +11,17 @@
  Opacity per line-segment is tricky and was added only in threejs 127. so splitting the grid into 2 separate set of lines
  allows to have different opacity for grid and subgrid via opacity attribute and keep rgb colors. Also this removes the need to use
  color per line, and the two set of lines can simply use color property
-  * 
-  * @param {MakeGridOptions} options 
-  * @returns 
+  *
+  * @param {MakeGridOptions} options
+  * @returns
   */
 export const makeGrid = ({ color1 = [0, 0, 0, 0.2], color2 = [0, 0, 0.6, 0.1], size = 200 } = {}) => {
+  // Validate inputs
+  if (!Number.isFinite(size) || size < 1) {
+    size = 200
+  }
+  size = Math.floor(size)
+
   const half = Math.floor(size / 2)
   // Main grid lines: center cross (2 lines) + every 10th line (4 lines each via makeLine4x)
   const mainLinesInLoop = Math.floor(half / 10)
