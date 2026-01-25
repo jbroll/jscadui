@@ -26,7 +26,10 @@ export function CommonToThree({
   materials.instance = materials.mesh // todo support instances for lines
 
   function _CSG2Three(obj, { smooth = false }) {
+    if (!obj) return null
     const { vertices, indices, normals, color, colors, isTransparent = false, opacity } = obj
+    // Validate vertices exist and have data
+    if (!vertices || vertices.length === 0) return null
     let { transforms } = obj
     const objType = obj.type || 'mesh'
 
@@ -71,6 +74,7 @@ export function CommonToThree({
         list.forEach((item, i) => {
           copyTransformToArray(item.transforms, mesh.instanceMatrix.array, i * 16)
         })
+        mesh.instanceMatrix.needsUpdate = true
         transforms = null
         break
       case 'line':
