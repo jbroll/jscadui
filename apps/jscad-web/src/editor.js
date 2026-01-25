@@ -168,7 +168,7 @@ export const setFiles = (files) => {
     editorNav.classList.remove('visible')
   } else {
     // Update spinner
-    editorFile.innerHTML = currentFile
+    editorFile.textContent = currentFile
     editorFiles.innerHTML = ''
     files.forEach((file) => {
       const item = document.createElement('li')
@@ -176,7 +176,7 @@ export const setFiles = (files) => {
       button.innerText = file.fullPath
       button.addEventListener('click', () => {
         currentFile = file.fullPath
-        editorFile.innerHTML = currentFile
+        editorFile.textContent = currentFile
         readSource(file, currentFile)
       })
       item.appendChild(button)

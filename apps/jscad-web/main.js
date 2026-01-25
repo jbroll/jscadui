@@ -1,3 +1,12 @@
+// Global error handlers - catch unhandled errors and rejections
+window.addEventListener('error', (event) => {
+  console.error('Unhandled error:', event.error)
+})
+
+window.addEventListener('unhandledrejection', (event) => {
+  console.error('Unhandled promise rejection:', event.reason)
+})
+
 import {
   addToCache,
   analyzeProject,
@@ -208,6 +217,13 @@ const onProgress = (value, note) => {
 }
 
 const worker = new Worker('./build/bundle.worker.js')
+
+// Handle worker errors that would otherwise be silent
+worker.onerror = (event) => {
+  console.error('Worker error:', event.message, event.filename, event.lineno)
+  setError(new Error(`Worker error: ${event.message}`))
+}
+
 const handlers = {
   /**
    * @param {{entities:unknown | Array<unknown>,mainTime:number,convertTime:number}} options1 
