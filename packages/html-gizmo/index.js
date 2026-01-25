@@ -61,6 +61,12 @@ export class Gizmo extends HTMLElement {
   /** @type {Array<() => void>} */
   #cleanupFns = []
 
+  /** Clean up all registered event listeners */
+  #cleanupListeners() {
+    this.#cleanupFns.forEach(fn => fn())
+    this.#cleanupFns = []
+  }
+
   connectedCallback() {
     // Only attach shadow root once (handles reconnection)
     if (!this.#root) {
@@ -84,15 +90,11 @@ export class Gizmo extends HTMLElement {
       this.#first.removeEventListener('dragstart', this.#dragHandler)
       this.#dragHandler = null
     }
-    // Clean up face event listeners
-    this.#cleanupFns.forEach(fn => fn())
-    this.#cleanupFns = []
+    this.#cleanupListeners()
   }
 
   setNames(_names = names) {
-    // Clean up event listeners before clearing children
-    this.#cleanupFns.forEach(fn => fn())
-    this.#cleanupFns = []
+    this.#cleanupListeners()
 
     // Clear existing sides before adding new ones
     while (this.#first.firstChild) {
