@@ -17,6 +17,7 @@ if(largs < 1){
 }
 
 nomFichierEntree = args[0]
+let nomFichierSortie
 if(nomFichierEntree.slice(-4).toLowerCase() != ext_obj){
   nomFichierSortie = nomFichierEntree + ext_jscad
   nomFichierEntree = nomFichierEntree + ext_obj
@@ -50,7 +51,7 @@ for(let i = 0; i < lf.length; i++){
   } else {
     var tmp = lf[i].split(/\s/);
     tmp.shift();
-    f = tmp.map(x => Number(x.replace(/\//g,''))-1);
+    const f = tmp.map(x => Number(x.replace(/\//g,''))-1);
     f.pop();
     faces.push(f);
     groupes.push(nfg);
