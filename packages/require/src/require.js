@@ -95,7 +95,12 @@ export const require = (urlOrSource, transform, readFile, base, root, importData
           if (idx != -1) {
             const idx2 = source.indexOf('\n', idx + srch.length + 1)
             const realFile = new URL(source.substring(idx + srch.length, idx2), resolvedUrl).toString()
-            resolvedUrl = base = realFile
+            // Validate that the redirect URL is still on jsdelivr.net to prevent redirect attacks
+            if (realFile.includes('jsdelivr.net') && !realFile.includes('..')) {
+              resolvedUrl = base = realFile
+            } else {
+              console.warn('Ignoring suspicious jsdelivr redirect:', realFile)
+            }
           }
         }
       } catch (e) {
