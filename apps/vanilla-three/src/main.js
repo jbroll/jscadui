@@ -24,15 +24,6 @@ viewer.setScene({
   ],
 })
 
-const h = (tag, attr, html) => {
-  const out = document.createElement(tag)
-  if (attr) {
-    for (let aName in attr) out.setAttribute(aName, attr[aName])
-  }
-  if (html) out.innerHTML = html
-  return out
-}
-
 const gizmo = new Gizmo()
 document.body.appendChild(gizmo)
 //gizmo.setSize(200)

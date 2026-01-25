@@ -7,6 +7,5 @@ export const observeResize = (el, listener)=>{
   const resizeObserver = new ResizeObserver(entries => {
     listener(entries[0])
   })
-  console.log(el)
   resizeObserver.observe(el)
 }
