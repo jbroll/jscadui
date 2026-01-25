@@ -7,6 +7,20 @@
  * @return {import('../xml-schema-3mf').Xml3mfMeshObject}
  */
 export const genObjectWithMesh = (id, vertices, indices, precision, name) => {
+  // Input validation
+  if (!vertices || !(vertices instanceof Float32Array) || vertices.length === 0) {
+    throw new Error('Invalid vertices: must be a non-empty Float32Array')
+  }
+  if (vertices.length % 3 !== 0) {
+    throw new Error(`Invalid vertices length: ${vertices.length} is not divisible by 3`)
+  }
+  if (!indices || !(indices instanceof Uint32Array) || indices.length === 0) {
+    throw new Error('Invalid indices: must be a non-empty Uint32Array')
+  }
+  if (indices.length % 3 !== 0) {
+    throw new Error(`Invalid indices length: ${indices.length} is not divisible by 3`)
+  }
+
   /** @type { import('../xml-schema-3mf').Xml3mfVertex[]} */
   const xmlVertex = []
   for (let i = 0; i < vertices.length; i += 3) {
