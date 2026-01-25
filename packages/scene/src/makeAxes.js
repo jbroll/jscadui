@@ -1,4 +1,9 @@
 export const makeAxes = (len = 100, forceColors4) =>{
+  // Validate length
+  if (!Number.isFinite(len) || len <= 0) {
+    len = 100
+  }
+
   const lines = Float32Array.of(
     0,0,0, len,0,0,
     0,0,0, 0,len,0,
