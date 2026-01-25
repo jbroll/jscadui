@@ -635,7 +635,7 @@ describe('convertLegacyDefs', () => {
       min: 1.0,
       max: 10.0,
       step: 0.1,
-      caption: 'Radius:',
+      label: 'Radius:',
     })
 
     expect(params.segments).toEqual({
@@ -643,13 +643,14 @@ describe('convertLegacyDefs', () => {
       type: 'int',
       min: 3,
       max: 64,
-      caption: 'Segments:',
+      step: 1,
+      label: 'Segments:',
     })
 
     expect(params.smooth).toEqual({
       default: true,
       type: 'checkbox',
-      caption: 'Smooth:',
+      label: 'Smooth:',
     })
   })
 
@@ -665,26 +666,27 @@ describe('convertLegacyDefs', () => {
     expect(params.radius).toBeDefined()
   })
 
-  it('should normalize slider to number with min/max', () => {
+  it('should preserve slider type with default min/max', () => {
     const legacyDefs = [
       { name: 'value', type: 'slider', initial: 50 },
     ]
 
     const params = convertLegacyDefs(legacyDefs)
 
-    expect(params.value.type).toBe('number')
+    expect(params.value.type).toBe('slider')
     expect(params.value.min).toBe(0)
     expect(params.value.max).toBe(100)
+    expect(params.value.step).toBe(0.1)
   })
 
-  it('should normalize radio to choice', () => {
+  it('should preserve radio type with values', () => {
     const legacyDefs = [
       { name: 'option', type: 'radio', values: ['A', 'B', 'C'], initial: 'B' },
     ]
 
     const params = convertLegacyDefs(legacyDefs)
 
-    expect(params.option.type).toBe('choice')
+    expect(params.option.type).toBe('radio')
     expect(params.option.values).toEqual(['A', 'B', 'C'])
     expect(params.option.default).toBe('B')
   })
