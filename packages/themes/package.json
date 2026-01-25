@@ -15,7 +15,7 @@
     "@types/node": "18.11.9",
     "tsconfig": "*",
     "typescript": "4.8.4",
-    "vitest": "0.24.5"
+    "vitest": "^2.1.9"
   },
   "license": "MIT"
 }
