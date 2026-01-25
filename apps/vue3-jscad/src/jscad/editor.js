@@ -81,7 +81,7 @@ export const setFiles = (files) => {
     editorNav.classList.remove('visible')
   } else {
     // Update spinner
-    editorFile.innerHTML = currentFile
+    editorFile.textContent = currentFile
     editorFiles.innerHTML = ''
     files.forEach((file) => {
       const item = document.createElement('li')
@@ -89,7 +89,7 @@ export const setFiles = (files) => {
       button.innerText = file.fsPath
       button.addEventListener('click', () => {
         currentFile = file.fsPath
-        editorFile.innerHTML = currentFile
+        editorFile.textContent = currentFile
         // Read FileEntry
         file.file((file) => {
           const reader = new FileReader()

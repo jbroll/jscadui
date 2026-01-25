@@ -109,7 +109,16 @@ export class ViewState {
     this.showGrid = localStorage.getItem('engine.showGrid') !== 'false'
     byId('show-grid').checked = this.showGrid
     const cameraLocation = localStorage.getItem('camera.location')
-    this.camera = cameraLocation ? JSON.parse(cameraLocation) : { position: [180, -180, 220] }
+    if (cameraLocation) {
+      try {
+        this.camera = JSON.parse(cameraLocation)
+      } catch {
+        // Corrupted localStorage data, use default
+        this.camera = { position: [180, -180, 220] }
+      }
+    } else {
+      this.camera = { position: [180, -180, 220] }
+    }
   }
 
   saveState() {
