@@ -29,8 +29,13 @@ self.addEventListener('install', event => {
 const getClientWrapper = async clientId => {
   let clientWrapper = clientMap[clientId]
   if (!clientWrapper) {
-    clientWrapper = clientMap[clientId] = { api: messageProxy(await clients.get(clientId), {}, { debug }) }
-    clientWrapper.cache = await caches.open(prefix + clientId)
+    try {
+      clientWrapper = clientMap[clientId] = { api: messageProxy(await clients.get(clientId), {}, { debug }) }
+      clientWrapper.cache = await caches.open(prefix + clientId)
+    } catch (error) {
+      console.error('Failed to create client wrapper:', error)
+      throw error
+    }
   }
   return clientWrapper
 }
@@ -65,27 +70,63 @@ self.addEventListener('fetch', async event => {
 
     path = path.substring(idx)
     event.respondWith(
-      new Promise(async (resolve, reject) => {
+      new Promise(async (resolve) => {
+        let done = false
+        const timeoutId = setTimeout(() => {
+          if (!done) {
+            done = true
+            resolve(new Response('timeout for ' + path, { status: 504 }))
+          }
+        }, 5000)
+
         try {
           const clientWrapper = await getClientWrapper(urlClientId)
-          let done = false
-          setTimeout(() => {
-            if (!done) resolve(new Response('timeout for ' + path, { status: 408 }))
-          }, 1000)
-
           const fileReq = new Request(path)
-          let rCached = await clientWrapper.cache.match(fileReq)
-          if (rCached) {
-            resolve(rCached)
-            return (done = true)
+
+          // Check cache first
+          let rCached
+          try {
+            rCached = await clientWrapper.cache.match(fileReq)
+          } catch (cacheError) {
+            console.error('Cache match error:', cacheError)
           }
 
-          let resp = await clientWrapper.api.getFile({ path: path })
-          rCached = await clientWrapper.cache.match(fileReq)
+          if (rCached) {
+            done = true
+            clearTimeout(timeoutId)
+            resolve(rCached)
+            return
+          }
+
+          // Request file from client and wait for response
+          let resp
+          try {
+            resp = await clientWrapper.api.getFile({ path: path })
+          } catch (getFileError) {
+            console.error('getFile error:', getFileError)
+            done = true
+            clearTimeout(timeoutId)
+            resolve(new Response('Failed to get file: ' + path, { status: 500 }))
+            return
+          }
+
+          // Only check cache after getFile confirms success
+          if (resp === 'ok') {
+            try {
+              rCached = await clientWrapper.cache.match(fileReq)
+            } catch (cacheError) {
+              console.error('Cache match error after getFile:', cacheError)
+            }
+          }
+
           done = true
-          resolve(rCached || new Response(path + ' not in cache', { status: 404 }))
-        } catch (err) {
-          resolve(new Response('Cache error: ' + err.message, { status: 500 }))
+          clearTimeout(timeoutId)
+          resolve(rCached || new Response(path + ' not found', { status: 404 }))
+        } catch (error) {
+          console.error('Fetch handler error:', error)
+          done = true
+          clearTimeout(timeoutId)
+          resolve(new Response('Internal error: ' + error.message, { status: 500 }))
         }
       }),
     )
