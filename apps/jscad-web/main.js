@@ -37,6 +37,7 @@ import { setError } from './src/error.js'
 import { ViewState } from './src/viewState.js'
 import { AnimRunner } from './src/animRunner.js'
 import * as welcome from './src/welcome.js'
+import * as about from './src/about.js'
 
 /**
  * @typedef {import('@jscadui/worker').UserParameters} UserParameters
@@ -645,6 +646,7 @@ editor.init(
 )
 menu.init()
 welcome.init()
+about.init()
 let hasRemoteScript
 try {
   hasRemoteScript = await remote.init(

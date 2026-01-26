@@ -1,10 +1,39 @@
 import { copyTask, parseArgs } from '@jbroll/jsx6-build'
 import { execSync } from 'child_process'
-import { existsSync, mkdirSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync } from 'fs'
 import liveServer from 'live-server'
 import {serve} from './serve.js'
 
 import { buildBundle, buildOne } from './src_build/esbuildUtil.js'
+
+// Read package.json for about page
+const pkg = JSON.parse(readFileSync('./package.json', 'utf-8'))
+const dependencies = Object.entries(pkg.dependencies || {}).map(([name, version]) => {
+  const v = String(version)
+  // Handle npm: aliases like "npm:@jbroll/jscad-modeling@2.12.8"
+  // Show the actual package name, not the alias
+  if (v.startsWith('npm:')) {
+    const actual = v.slice(4) // remove "npm:"
+    // Extract package name and version (handle scoped packages like @scope/name@version)
+    const lastAt = actual.lastIndexOf('@')
+    const pkgName = actual.slice(0, lastAt)
+    const pkgVersion = actual.slice(lastAt + 1)
+    return `<li>${pkgName} ${pkgVersion}</li>`
+  }
+  return `<li>${name} ${version}</li>`
+}).join('\n        ')
+
+/** @param {string} content */
+const injectAboutInfo = (content) => {
+  return content
+    .replace('<span id="about-version">0.0.0</span>', `<span id="about-version">${pkg.version}</span>`)
+    .replace('<ul id="about-dependencies"></ul>', `<ul id="about-dependencies">\n        ${dependencies}\n      </ul>`)
+}
+
+const htmlFilter = {
+  filter: injectAboutInfo,
+  include: ['index.html']
+}
 
 // *************** read parameters **********************
 const { dev, port = 5120, serve:serveBuild=false, skipDocs=false } = parseArgs()
@@ -26,7 +55,7 @@ mkdirSync(outDir, { recursive: true })
 
 /**************************** COPY STATIC ASSETS  *************/
 
-copyTask('static', outDir, { include: [], exclude: [], watch, filters: [] })
+copyTask('static', outDir, { include: [], exclude: [], watch, filters: [htmlFilter] })
 copyTask('examples', outDir+'/examples', { include: [], exclude: [], watch, filters: [] })
 //in dev mode dont try to sync docs, just copy the first time 
 if(!skipDocs && !(dev & existsSync(outDir + "/docs"))){

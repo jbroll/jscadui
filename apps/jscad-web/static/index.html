@@ -40,6 +40,15 @@
         </label>
       </div>
 
+      <div id="about" class="hidden">
+        <button id="about-close" class="close-button" aria-label="Close">&times;</button>
+        <h1>JSCAD</h1>
+        <p class="about-version">Version <span id="about-version">0.0.0</span></p>
+        <p>A tool for creating parametric 2D and 3D CAD designs using JavaScript code.</p>
+        <h2>Dependencies</h2>
+        <ul id="about-dependencies"></ul>
+      </div>
+
       <div class="layout" id="layout">
         <div id="root">
           <div id="viewer"></div>
@@ -102,6 +111,7 @@
             <li><a href="https://github.com/jscad/OpenJSCAD.org/issues" target="_blank">GitHub Issues (JSCAD)</a></li>
             <li><a href="https://openjscad.nodebb.com/" target="_blank">User Group</a></li>
             <li><a href="https://discord.gg/6PB7qZ4HC7" target="_blank">Discord Community</a></li>
+            <li><a href="#" id="about-link">About</a></li>
           </ul>
 
           <h2>Examples</h2>
