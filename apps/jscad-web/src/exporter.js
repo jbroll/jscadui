@@ -1,27 +1,21 @@
 import { gzipSync } from 'fflate'
-import { ExportFormats, ExportFormatMeta } from '@jscadui/format-common/src/exportFormats.js'
 import { downloadBlob } from '@jscadui/scene'
 import { str2ab } from './str2ab.js'
 import * as editor from './editor.js'
 
 /** @typedef {import('@jscadui/worker').JscadWorker} JscadWorker*/
+/** @typedef {import('@jscadui/format-common/src/exportFormats.js').ExportFormatInfo} ExportFormatInfo */
 
 /**
  * @typedef {Object} ExportFormatEntry
  * @property {string} name
  * @property {string} label
+ * @property {string} [extension]
  * @property {()=>Promise<void>} execute
  */
 
 /** @type {ExportFormatEntry[]} */
-const exportFormats = [
-  ...Object.entries(ExportFormats).map(([, formatId]) => ({
-    name: formatId,
-    label: ExportFormatMeta[formatId].label,
-    execute: () => exportAsFile(formatId, ExportFormatMeta[formatId].extension),
-  })),
-  { name: 'scriptUrl', label: 'Copy to clipboard script url', execute: () => exportToScriptUrl() },
-]
+let exportFormats = []
 
 const exportButton = /** @type {HTMLButtonElement} */ (document.getElementById('export-button'))
 const exportFormatSelect = /** @type {HTMLSelectElement} */ (document.getElementById('export-format'))
@@ -29,9 +23,33 @@ const exportFormatSelect = /** @type {HTMLSelectElement} */ (document.getElement
 /** @type {JscadWorker} */
 let workerApi
 
-/** @param {JscadWorker} newWorkerApi */
-export const init = (newWorkerApi) => {
+/**
+ * Initialize the exporter with the worker API.
+ * Dynamically fetches available export formats from the worker.
+ * @param {JscadWorker} newWorkerApi
+ */
+export const init = async (newWorkerApi) => {
   workerApi = newWorkerApi
+
+  // Fetch available formats from the worker (single source of truth)
+  let formats = []
+  if (workerApi.jscadGetExportFormats) {
+    formats = await workerApi.jscadGetExportFormats()
+  }
+
+  // Build export format entries from worker-provided formats
+  exportFormats = [
+    ...formats.map((/** @type {ExportFormatInfo} */ format) => ({
+      name: format.id,
+      label: format.label,
+      extension: format.extension,
+      execute: () => exportAsFile(format.id, format.extension),
+    })),
+    { name: 'scriptUrl', label: 'Copy to clipboard script url', execute: () => exportToScriptUrl() },
+  ]
+
+  // Clear existing options
+  exportFormatSelect.innerHTML = ''
 
   for (const format of exportFormats) {
     const option = document.createElement('option')
@@ -42,7 +60,7 @@ export const init = (newWorkerApi) => {
 
   // Bind export buttons
   exportButton.addEventListener('click', async () => {
-  // Export model in selected format    
+  // Export model in selected format
     const format = /** @type {ExportFormatEntry} */ (exportFormats.find((f) => f.name === exportFormatSelect.value))
     await format.execute()
   })

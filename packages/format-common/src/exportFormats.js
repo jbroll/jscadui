@@ -17,7 +17,43 @@ export const ExportFormats = /** @type {const} */ ({
 /** @typedef {typeof ExportFormats[keyof typeof ExportFormats]} ExportFormat */
 
 /**
+ * Serializer configuration - the single source of truth for export formats.
+ * This defines all metadata needed for both the UI menu and the worker.
+ *
+ * @typedef {Object} SerializerConfig
+ * @property {string} id - Format identifier (e.g., 'stla', 'stlb')
+ * @property {string} label - Display label for UI (e.g., 'STL (ascii)')
+ * @property {string} extension - File extension without dot (e.g., 'stl')
+ * @property {string} serializerKey - Key to look up serializer in jscad_io
+ * @property {Object} [defaultOptions] - Default options to pass to serializer
+ */
+
+/**
+ * @typedef {Object} ExportFormatInfo
+ * @property {string} id - Format identifier
+ * @property {string} label - Display label for UI
+ * @property {string} extension - File extension
+ */
+
+/**
+ * Default serializer configurations for common export formats.
+ * Apps can use this as a template or define their own configurations.
+ * @type {SerializerConfig[]}
+ */
+export const defaultSerializerConfigs = [
+  { id: 'stla', label: 'STL (ascii)', extension: 'stl', serializerKey: 'stlSerializer', defaultOptions: { binary: false } },
+  { id: 'stlb', label: 'STL (binary)', extension: 'stl', serializerKey: 'stlSerializer', defaultOptions: { binary: true } },
+  { id: 'amf', label: 'AMF', extension: 'amf', serializerKey: 'amfSerializer', defaultOptions: {} },
+  { id: 'json', label: 'JSON', extension: 'json', serializerKey: 'jsonSerializer', defaultOptions: {} },
+  { id: 'obj', label: 'OBJ', extension: 'obj', serializerKey: 'objSerializer', defaultOptions: {} },
+  { id: 'x3d', label: 'X3D', extension: 'x3d', serializerKey: 'x3dSerializer', defaultOptions: {} },
+  { id: 'svg', label: 'SVG', extension: 'svg', serializerKey: 'svgSerializer', defaultOptions: {} },
+  { id: '3mf', label: '3MF', extension: '3mf', serializerKey: 'm3fSerializer', defaultOptions: {} },
+]
+
+/**
  * Export format metadata for building UI menus.
+ * @deprecated Use defaultSerializerConfigs or fetch formats from worker via jscadGetExportFormats
  * @type {Record<ExportFormat, { label: string; extension: string }>}
  */
 export const ExportFormatMeta = {

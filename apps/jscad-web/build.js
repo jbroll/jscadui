@@ -1,4 +1,4 @@
-import { copyTask, parseArgs } from '@jsx6/build'
+import { copyTask, parseArgs } from '@jbroll/jsx6-build'
 import { execSync } from 'child_process'
 import { existsSync, mkdirSync } from 'fs'
 import liveServer from 'live-server'

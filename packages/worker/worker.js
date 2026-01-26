@@ -39,6 +39,7 @@ import { extractPathInfo, readAsArrayBuffer, readAsText } from '../fs-provider/f
 @prop {(options:ExportDataOptions)=>Promise<unknown>} jscadExportData
 @prop {(options:import('@jscadui/require').ClearFileCacheOptions)=>Promise<void>} jscadClearFileCache
 @prop {()=>Promise<void>} jscadClearTempCache
+@prop {()=>Promise<import('@jscadui/format-common/src/exportFormats.js').ExportFormatInfo[]>} [jscadGetExportFormats] - get available export formats
 
 @typedef ImportData
 @prop {(ext:string) => boolean } isBinaryExt
@@ -215,14 +216,24 @@ const handlersProxy = new Proxy(handlers, {
 })
 
 /**
- * @param {TransformFunction | undefined} transform 
+ * @typedef {Object} InitWorkerOptions
+ * @property {TransformFunction} [transform]
+ * @property {(options:ExportDataOptions)=>Promise<{data:ArrayBuffer[]}>} [jscadExportData]
+ * @property {ImportData} [importData]
+ * @property {Object.<string, Function>} [customHandlers] - Additional handlers to expose
+ */
+
+/**
+ * @param {TransformFunction | undefined} transform
  * @param {(options:ExportDataOptions)=>Promise<{data:ArrayBuffer[]}>} [jscadExportData ]
  * @param {ImportData} [_importData]
+ * @param {Object.<string, Function>} [customHandlers] - Additional handlers to expose via worker API
  */
-export const initWorker = (transform, jscadExportData, _importData) => {
+export const initWorker = (transform, jscadExportData, _importData, customHandlers) => {
   if (transform) transformFunc = transform
   if(jscadExportData) handlers.jscadExportData = jscadExportData
   importData = _importData
+  if (customHandlers) Object.assign(handlers, customHandlers)
 
   JSCAD_WORKER_ENV.client = messageProxy(self, handlersProxy)
 }

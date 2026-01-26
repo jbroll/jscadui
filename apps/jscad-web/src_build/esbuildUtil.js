@@ -1,4 +1,4 @@
-import { runEsbuild } from '@jsx6/build'
+import { runEsbuild } from '@jbroll/jsx6-build'
 // import { runEsbuild } from './runEsbuild.js'
 import * as esbuild from 'esbuild'
 import {existsSync, statSync} from 'fs'
