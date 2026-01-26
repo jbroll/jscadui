@@ -111,8 +111,11 @@ const fetchUrl = async (url) => {
     return new TextDecoder("utf-8").decode(dec)
   }
 
-  // Validate URL before fetching to prevent SSRF attacks
-  if (!isValidRemoteUrl(url)) {
+  // Allow relative URLs (same-origin, safe)
+  const isRelativeUrl = url.startsWith('./') || url.startsWith('/') || !url.includes('://')
+
+  // Validate remote URLs to prevent SSRF attacks
+  if (!isRelativeUrl && !isValidRemoteUrl(url)) {
     throw new Error('Invalid URL: only public http/https URLs are allowed')
   }
 
