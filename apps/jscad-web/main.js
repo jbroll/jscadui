@@ -475,7 +475,7 @@ try {
 } catch (e) {
   console.error(e)
 }
-exporter.init(workerApi)
+await exporter.init(workerApi)
 
 /* uncomment to test fake file tree for running scripts
 

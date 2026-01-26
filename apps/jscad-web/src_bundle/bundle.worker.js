@@ -8,24 +8,30 @@ import {currentSolids, initWorker} from '@jscadui/worker'
 import {readFileWeb, require} from '@jscadui/require'
 
 import { withTransferable } from '@jscadui/postmessage'
+import { defaultSerializerConfigs } from '@jscadui/format-common/src/exportFormats.js'
 
-const serializerMap ={
-  'stla': ['stlSerializer', {binary:false}],
-  'stlb': ['stlSerializer', {binary:true}],
-  'amf': ['amfSerializer', {}],
-  'obj': ['objSerializer', {}],
-  'x3d': ['x3dSerializer', {}],
-  '3mf': ['m3fSerializer', {}],
-  'json': ['jsonSerializer', {}],
-  'svg': ['svgSerializer', {}],
+/**
+ * Serializer configurations - the single source of truth for export formats.
+ * Derived from defaultSerializerConfigs, can be customized if needed.
+ * @type {import('@jscadui/format-common/src/exportFormats.js').SerializerConfig[]}
+ */
+const serializerConfigs = [...defaultSerializerConfigs]
+
+/**
+ * Get available export formats for UI.
+ * @returns {import('@jscadui/format-common/src/exportFormats.js').ExportFormatInfo[]}
+ */
+export const jscadGetExportFormats = () => {
+  return serializerConfigs.map(({ id, label, extension }) => ({ id, label, extension }))
 }
 
 const exportData = ({format, options={}})=>{
   const jscad_io = require('./bundle.jscad_io.js', null, readFileWeb)
   const solids = currentSolids()
-  const [key, defaults] = serializerMap[format]
-  const serializer = jscad_io[key]
-  const data = serializer.serialize({...defaults, ...options}, solids)
+  const config = serializerConfigs.find(c => c.id === format)
+  if (!config) throw new Error(`Unknown export format: ${format}`)
+  const serializer = jscad_io[config.serializerKey]
+  const data = serializer.serialize({...config.defaultOptions, ...options}, solids)
   return withTransferable({ data }, data.filter(v=>typeof v !== 'string'))
 }
 
@@ -45,4 +51,4 @@ const importData = {
   }
 }
 
-initWorker(transformcjs, exportData, importData)
+initWorker(transformcjs, exportData, importData, { jscadGetExportFormats })
