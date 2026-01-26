@@ -43,7 +43,10 @@ export function boundingBox(entities=[]){
     }
   })
   return {min:{x:minx,y:miny,z:minz}, max:{x:maxx,y:maxy,z:maxz}}
-  }catch(e){console.log('e', e)}
+  }catch(e){
+    e.message = `boundingBox calculation failed: ${e.message}`
+    throw e
+  }
 }
 
 
