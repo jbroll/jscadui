@@ -2,6 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { JscadToCommon } from './index.js'
 
+// Constants for index buffer thresholds
+// WebGL uses Uint16 for indices by default, which maxes at 65535
+// When vertex count exceeds this, we switch to Uint32
+const MAX_UINT16_VERTICES = 65535
+const TRIANGLES_TO_EXCEED_UINT16 = Math.ceil(MAX_UINT16_VERTICES / 3) + 1 // ~21846 + 1
+
 // Helper to create CSGPolygons geometry
 const createPolygons = (polygons, options = {}) => ({
   polygons,
@@ -276,11 +282,10 @@ describe('JscadToCommon', () => {
     })
 
     it('should use Uint32Array for large vertex count (>65535)', () => {
-      // Create enough polygons to exceed 65535 vertices
-      // Each triangle has 3 vertices, need > 65535 vertices
-      // 65536 / 3 ~ 21846 triangles needed
+      // Create enough polygons to exceed MAX_UINT16_VERTICES
+      // Each triangle has 3 vertices
       const polygons = []
-      for (let i = 0; i < 22000; i++) {
+      for (let i = 0; i < TRIANGLES_TO_EXCEED_UINT16; i++) {
         polygons.push(createTriangle([i, 0, 0], [i + 1, 0, 0], [i, 1, 0]))
       }
       const csg = createPolygons(polygons)
