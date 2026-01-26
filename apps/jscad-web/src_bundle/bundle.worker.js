@@ -51,4 +51,9 @@ const importData = {
   }
 }
 
-initWorker(transformcjs, exportData, importData, { jscadGetExportFormats })
+initWorker({
+  transform: transformcjs,
+  jscadExportData: exportData,
+  importData,
+  customHandlers: { jscadGetExportFormats }
+})
