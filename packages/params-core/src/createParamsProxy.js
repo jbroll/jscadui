@@ -52,6 +52,7 @@
 /**
  * @typedef {Object} ProxyState
  * @property {ParamDefinition[]} discovered - All discovered parameters
+ * @property {Set<string>} discoveredPaths - Set of discovered paths (shared across proxies for efficiency)
  * @property {Set<string>} userInteracted - Paths the user has explicitly changed
  * @property {Object} uiValues - Current UI values (flat object with dot-notation keys)
  * @property {Map<string, string>} types - Part types by path (from _type assignments)
@@ -206,10 +207,9 @@ const getByPath = (obj, path) => {
  * @returns {Proxy}
  */
 export const createParamsProxy = (state, path = '') => {
-  const { discovered, userInteracted, uiValues } = state
+  const { discovered, discoveredPaths, userInteracted, uiValues } = state
   const defaults = {}
   const children = {}
-  const discoveredPaths = new Set(discovered.map(d => d.path))
 
   const proxy = new Proxy({}, {
     get(target, prop) {
@@ -366,6 +366,7 @@ export const createParamsProxy = (state, path = '') => {
  */
 export const createProxyState = (uiValues = {}, userInteracted = new Set()) => ({
   discovered: [],
+  discoveredPaths: new Set(),  // Shared set to track discovered paths efficiently
   userInteracted,
   uiValues,
   types: new Map(),

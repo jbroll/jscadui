@@ -353,6 +353,84 @@ describe('createColorInput', () => {
     expect(colorBtn.style.backgroundColor).toBe('rgb(0, 255, 0)')
     expect(result.value.value).toBe('#00FF00')
   })
+
+  it('provides cleanup method to remove document event listeners', () => {
+    const onChange = vi.fn()
+    const result = createColorInput({
+      param: { path: 'test.color', name: 'color', type: 'color' },
+      value: '#ff0000',
+      onChange
+    })
+
+    // Verify cleanup function exists
+    expect(result.cleanup).toBeDefined()
+    expect(typeof result.cleanup).toBe('function')
+
+    // Open the panel
+    const colorBtn = result.control.querySelector('.params-input-color-btn')
+    const panel = result.control.querySelector('.params-input-color-panel')
+    colorBtn.click()
+    expect(panel.classList.contains('params-input-color-panel--open')).toBe(true)
+
+    // Call cleanup to remove event listeners
+    result.cleanup()
+
+    // After cleanup, document click should not close the panel
+    // (because the listener was removed)
+    // Simulate a click outside by dispatching an event
+    const clickEvent = new MouseEvent('click', { bubbles: true })
+    document.body.dispatchEvent(clickEvent)
+
+    // Panel should still be open because cleanup removed the listener
+    expect(panel.classList.contains('params-input-color-panel--open')).toBe(true)
+  })
+
+  it('closes panel on Escape key before cleanup', () => {
+    const onChange = vi.fn()
+    const result = createColorInput({
+      param: { path: 'test.color', name: 'color', type: 'color' },
+      value: '#ff0000',
+      onChange
+    })
+
+    // Open the panel
+    const colorBtn = result.control.querySelector('.params-input-color-btn')
+    const panel = result.control.querySelector('.params-input-color-panel')
+    colorBtn.click()
+    expect(panel.classList.contains('params-input-color-panel--open')).toBe(true)
+
+    // Press Escape to close
+    const escEvent = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })
+    document.dispatchEvent(escEvent)
+
+    // Panel should be closed
+    expect(panel.classList.contains('params-input-color-panel--open')).toBe(false)
+  })
+
+  it('Escape key does not close panel after cleanup', () => {
+    const onChange = vi.fn()
+    const result = createColorInput({
+      param: { path: 'test.color', name: 'color', type: 'color' },
+      value: '#ff0000',
+      onChange
+    })
+
+    // Open the panel
+    const colorBtn = result.control.querySelector('.params-input-color-btn')
+    const panel = result.control.querySelector('.params-input-color-panel')
+    colorBtn.click()
+    expect(panel.classList.contains('params-input-color-panel--open')).toBe(true)
+
+    // Call cleanup
+    result.cleanup()
+
+    // Press Escape - should not close because listener was removed
+    const escEvent = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })
+    document.dispatchEvent(escEvent)
+
+    // Panel should still be open
+    expect(panel.classList.contains('params-input-color-panel--open')).toBe(true)
+  })
 })
 
 describe('createChoiceInput', () => {
@@ -758,5 +836,130 @@ describe('inputStyles', () => {
   it('includes constrained parameter styles', () => {
     expect(inputStyles).toContain('.params-input-constrained')
     expect(inputStyles).toContain('.params-input-constrained-value')
+  })
+})
+
+describe('ARIA accessibility', () => {
+  it('adds aria-label to checkbox when label is provided', () => {
+    const onChange = vi.fn()
+    const result = createCheckboxInput({
+      param: { path: 'test.enabled', name: 'enabled', type: 'checkbox', label: 'Enable Feature' },
+      value: true,
+      onChange
+    })
+
+    expect(result.value.getAttribute('aria-label')).toBe('Enable Feature')
+  })
+
+  it('adds aria-valuenow/min/max to slider', () => {
+    const onChange = vi.fn()
+    const result = createSliderInput({
+      param: { path: 'test.volume', name: 'volume', type: 'slider', min: 0, max: 100, label: 'Volume' },
+      value: 50,
+      onChange
+    })
+
+    expect(result.control.getAttribute('aria-valuenow')).toBe('50')
+    expect(result.control.getAttribute('aria-valuemin')).toBe('0')
+    expect(result.control.getAttribute('aria-valuemax')).toBe('100')
+    expect(result.control.getAttribute('aria-label')).toBe('Volume')
+  })
+
+  it('updates aria-valuenow when slider value changes', () => {
+    const onChange = vi.fn()
+    const result = createSliderInput({
+      param: { path: 'test.volume', name: 'volume', type: 'slider', min: 0, max: 100 },
+      value: 50,
+      onChange
+    })
+
+    result.updateValue(75)
+    expect(result.control.getAttribute('aria-valuenow')).toBe('75')
+  })
+
+  it('adds aria-haspopup and aria-expanded to color button', () => {
+    const onChange = vi.fn()
+    const result = createColorInput({
+      param: { path: 'test.color', name: 'color', type: 'color', label: 'Background' },
+      value: '#ff0000',
+      onChange
+    })
+
+    const colorBtn = result.control.querySelector('.params-input-color-btn')
+    expect(colorBtn.getAttribute('aria-haspopup')).toBe('listbox')
+    expect(colorBtn.getAttribute('aria-expanded')).toBe('false')
+    expect(colorBtn.getAttribute('aria-label')).toBe('Background color picker')
+  })
+
+  it('updates aria-expanded when color panel opens/closes', () => {
+    const onChange = vi.fn()
+    const result = createColorInput({
+      param: { path: 'test.color', name: 'color', type: 'color' },
+      value: '#ff0000',
+      onChange
+    })
+
+    const colorBtn = result.control.querySelector('.params-input-color-btn')
+    expect(colorBtn.getAttribute('aria-expanded')).toBe('false')
+
+    colorBtn.click()
+    expect(colorBtn.getAttribute('aria-expanded')).toBe('true')
+
+    colorBtn.click()
+    expect(colorBtn.getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('adds role=listbox to color panel and role=option to swatches', () => {
+    const onChange = vi.fn()
+    const result = createColorInput({
+      param: { path: 'test.color', name: 'color', type: 'color' },
+      value: '#ff0000',
+      onChange
+    })
+
+    const panel = result.control.querySelector('.params-input-color-panel')
+    expect(panel.getAttribute('role')).toBe('listbox')
+
+    const swatches = result.control.querySelectorAll('.params-input-color-swatch')
+    swatches.forEach(swatch => {
+      expect(swatch.getAttribute('role')).toBe('option')
+      expect(swatch.getAttribute('aria-label')).not.toBeNull()
+    })
+  })
+
+  it('adds role=radiogroup to radio container', () => {
+    const onChange = vi.fn()
+    const result = createRadioInput({
+      param: { path: 'test.shape', name: 'shape', type: 'radio', values: ['a', 'b'], label: 'Shape' },
+      value: 'a',
+      onChange
+    })
+
+    expect(result.control.getAttribute('role')).toBe('radiogroup')
+    expect(result.control.getAttribute('aria-label')).toBe('Shape')
+  })
+
+  it('adds aria-label to select dropdown', () => {
+    const onChange = vi.fn()
+    const result = createChoiceInput({
+      param: { path: 'test.size', name: 'size', type: 'choice', values: ['s', 'm', 'l'], label: 'Size' },
+      value: 'm',
+      onChange
+    })
+
+    expect(result.value.getAttribute('aria-label')).toBe('Size')
+  })
+
+  it('adds aria-readonly to constrained display', () => {
+    const onChange = vi.fn()
+    const result = createInput({
+      param: { path: 'test.value', name: 'value', type: 'number', constrained: true, default: 5, label: 'Value' },
+      value: 5,
+      onChange
+    })
+
+    expect(result.value.getAttribute('role')).toBe('status')
+    expect(result.value.getAttribute('aria-readonly')).toBe('true')
+    expect(result.value.getAttribute('aria-label')).toBe('Value (read-only)')
   })
 })

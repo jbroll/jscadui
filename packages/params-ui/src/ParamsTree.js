@@ -38,6 +38,18 @@ export const createParamsTree = (options) => {
   // Track collapsed state
   const collapsed = new Set()
 
+  // Track cleanup functions for inputs with document-level event listeners
+  /** @type {Array<() => void>} */
+  let cleanupFunctions = []
+
+  /** Call all cleanup functions and clear the list */
+  const runCleanup = () => {
+    for (const cleanup of cleanupFunctions) {
+      cleanup()
+    }
+    cleanupFunctions = []
+  }
+
   // Helper to collect all node paths for collapsing
   const collectAllPaths = (node) => {
     if (node.path) collapsed.add(node.path)
@@ -87,6 +99,8 @@ export const createParamsTree = (options) => {
   }
 
   const render = () => {
+    // Clean up any existing document-level event listeners before re-rendering
+    runCleanup()
     target.innerHTML = ''
     target.appendChild(renderNode(tree, 0))
   }
@@ -260,22 +274,33 @@ export const createParamsTree = (options) => {
   /**
    * @param {import('@jscadui/params-core').ParamDefinition} param
    * @param {unknown} value
-   * @returns {{control: HTMLElement|null, value: HTMLElement|null, span: boolean, updateValue?: (newValue: unknown) => void}}
+   * @returns {{control: HTMLElement|null, value: HTMLElement|null, span: boolean, updateValue?: (newValue: unknown) => void, cleanup?: () => void}}
    */
   const createInput = (param, value) => {
     // Special handling for _class - show combobox with available classes for this type
     if (param.name === '_class') {
-      const classInput = createClassInput(param, value)
+      const classInputResult = createClassInput(param, value)
+      // Track cleanup function if provided
+      if (classInputResult.cleanup) {
+        cleanupFunctions.push(classInputResult.cleanup)
+      }
       // Class input goes in value column
-      return { control: null, value: classInput, span: false }
+      return classInputResult
     }
 
     // Use the input factory for all other parameter types
-    return createInputComponent({
+    const result = createInputComponent({
       param,
       value,
       onChange: (val) => onChange(param.path, val)
     })
+
+    // Track cleanup function if provided (e.g., color picker)
+    if (result.cleanup) {
+      cleanupFunctions.push(result.cleanup)
+    }
+
+    return result
   }
 
   /**
@@ -471,7 +496,18 @@ export const createParamsTree = (options) => {
     container.appendChild(toggleBtn)
     container.appendChild(menu)
 
-    return container
+    // Cleanup function to remove document-level event listeners
+    const cleanup = () => {
+      document.removeEventListener('click', handleClickOutside)
+      document.removeEventListener('keydown', handleKeydown)
+    }
+
+    return {
+      control: null,
+      value: container,
+      span: false,
+      cleanup
+    }
   }
 
   // Initial render
@@ -523,6 +559,7 @@ export const createParamsTree = (options) => {
       }
     },
     destroy: () => {
+      runCleanup()
       target.innerHTML = ''
     },
     setShowHidden: (show) => {

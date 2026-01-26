@@ -20,6 +20,7 @@
  * @property {HTMLElement|null} value - Primary input element (col 4) - number input, checkbox, dropdown
  * @property {boolean} span - Whether the control should span both columns (for text, radio)
  * @property {(newValue: unknown) => void} [updateValue] - Method for external value updates
+ * @property {() => void} [cleanup] - Method to remove event listeners and prevent memory leaks
  */
 
 /**
@@ -33,6 +34,11 @@ export const createCheckboxInput = ({ param, value, onChange }) => {
   input.className = 'params-input params-input-checkbox'
   input.checked = !!value
   input.onchange = () => onChange(input.checked)
+
+  // ARIA: checkbox has implicit role, add label reference
+  if (param.label) {
+    input.setAttribute('aria-label', param.label)
+  }
 
   return {
     control: null,
@@ -63,6 +69,11 @@ export const createNumberInput = ({ param, value, onChange }) => {
   if (max !== undefined) input.max = String(max)
   if (step !== undefined) input.step = String(step)
   else if (type === 'int') input.step = '1'
+
+  // ARIA: add label and value range
+  if (param.label) {
+    input.setAttribute('aria-label', param.label)
+  }
 
   // Use 'input' event for immediate response to spinner clicks
   input.oninput = () => {
@@ -109,6 +120,14 @@ export const createSliderInput = ({ param, value, onChange }) => {
   slider.max = String(max)
   slider.step = String(step)
 
+  // ARIA: slider has implicit role, add value attributes
+  slider.setAttribute('aria-valuenow', String(initialValue))
+  slider.setAttribute('aria-valuemin', String(min))
+  slider.setAttribute('aria-valuemax', String(max))
+  if (param.label) {
+    slider.setAttribute('aria-label', param.label)
+  }
+
   // Editable number input (value column)
   const numberInput = document.createElement('input')
   numberInput.type = 'number'
@@ -118,9 +137,15 @@ export const createSliderInput = ({ param, value, onChange }) => {
   numberInput.max = String(max)
   numberInput.step = String(step)
 
+  // ARIA: number input as secondary control
+  if (param.label) {
+    numberInput.setAttribute('aria-label', `${param.label} value`)
+  }
+
   // Slider -> Number sync + onChange
   slider.oninput = () => {
     numberInput.value = slider.value
+    slider.setAttribute('aria-valuenow', slider.value)
     if (live) {
       onChange(Number(slider.value))
     }
@@ -134,6 +159,7 @@ export const createSliderInput = ({ param, value, onChange }) => {
     const val = Number(numberInput.value)
     if (!isNaN(val)) {
       slider.value = String(val)
+      slider.setAttribute('aria-valuenow', String(val))
       onChange(val)
     }
   }
@@ -142,6 +168,7 @@ export const createSliderInput = ({ param, value, onChange }) => {
   const updateValue = (newValue) => {
     slider.value = String(newValue)
     numberInput.value = String(newValue)
+    slider.setAttribute('aria-valuenow', String(newValue))
   }
 
   return {
@@ -184,9 +211,16 @@ export const createColorInput = ({ param, value, onChange }) => {
   colorBtn.className = 'params-input-color-btn'
   colorBtn.style.backgroundColor = currentValue
 
+  // ARIA: color button controls a popup
+  colorBtn.setAttribute('aria-haspopup', 'listbox')
+  colorBtn.setAttribute('aria-expanded', 'false')
+  colorBtn.setAttribute('aria-label', param.label ? `${param.label} color picker` : 'Color picker')
+
   // Dropdown panel
   const panel = document.createElement('div')
   panel.className = 'params-input-color-panel'
+  panel.setAttribute('role', 'listbox')
+  panel.setAttribute('aria-label', 'Color palette')
 
   // Color palette grid
   const grid = document.createElement('div')
@@ -198,7 +232,13 @@ export const createColorInput = ({ param, value, onChange }) => {
     swatch.className = 'params-input-color-swatch'
     swatch.style.backgroundColor = color
     swatch.title = color
-    if (color.toLowerCase() === currentValue.toLowerCase()) {
+
+    // ARIA: swatch as option in listbox
+    swatch.setAttribute('role', 'option')
+    swatch.setAttribute('aria-label', color)
+    const isSelected = color.toLowerCase() === currentValue.toLowerCase()
+    swatch.setAttribute('aria-selected', String(isSelected))
+    if (isSelected) {
       swatch.classList.add('params-input-color-swatch--selected')
     }
     swatch.onclick = (e) => {
@@ -248,8 +288,9 @@ export const createColorInput = ({ param, value, onChange }) => {
     hexInput.value = color.toUpperCase()
     customInput.value = color
     grid.querySelectorAll('.params-input-color-swatch').forEach(s => {
-      s.classList.toggle('params-input-color-swatch--selected',
-        s.style.backgroundColor === color || s.title.toLowerCase() === color.toLowerCase())
+      const isSelected = s.style.backgroundColor === color || s.title.toLowerCase() === color.toLowerCase()
+      s.classList.toggle('params-input-color-swatch--selected', isSelected)
+      s.setAttribute('aria-selected', String(isSelected))
     })
   }
 
@@ -276,12 +317,14 @@ export const createColorInput = ({ param, value, onChange }) => {
     if (isOpen) return
     isOpen = true
     panel.classList.add('params-input-color-panel--open')
+    colorBtn.setAttribute('aria-expanded', 'true')
   }
 
   const closePanel = () => {
     if (!isOpen) return
     isOpen = false
     panel.classList.remove('params-input-color-panel--open')
+    colorBtn.setAttribute('aria-expanded', 'false')
   }
 
   colorBtn.onclick = (e) => {
@@ -291,24 +334,33 @@ export const createColorInput = ({ param, value, onChange }) => {
   }
 
   // Close on click outside
-  document.addEventListener('click', (e) => {
+  const handleClickOutside = (e) => {
     if (isOpen && !controlContainer.contains(e.target) && e.target !== hexInput) {
       closePanel()
     }
-  })
+  }
+  document.addEventListener('click', handleClickOutside)
 
   // Close on Escape
-  document.addEventListener('keydown', (e) => {
+  const handleKeydown = (e) => {
     if (e.key === 'Escape' && isOpen) {
       closePanel()
     }
-  })
+  }
+  document.addEventListener('keydown', handleKeydown)
+
+  // Cleanup function to remove document-level event listeners
+  const cleanup = () => {
+    document.removeEventListener('click', handleClickOutside)
+    document.removeEventListener('keydown', handleKeydown)
+  }
 
   return {
     control: controlContainer,
     value: hexInput,
     span: false,
-    updateValue: updateColorUI
+    updateValue: updateColorUI,
+    cleanup
   }
 }
 
@@ -322,6 +374,11 @@ export const createChoiceInput = ({ param, value, onChange }) => {
 
   const select = document.createElement('select')
   select.className = 'params-input params-input-choice'
+
+  // ARIA: add label reference
+  if (param.label) {
+    select.setAttribute('aria-label', param.label)
+  }
 
   for (let i = 0; i < values.length; i++) {
     const opt = document.createElement('option')
@@ -360,6 +417,12 @@ export const createRadioInput = ({ param, value, onChange }) => {
 
   const container = document.createElement('div')
   container.className = 'params-input-radio-container'
+
+  // ARIA: container as radiogroup
+  container.setAttribute('role', 'radiogroup')
+  if (param.label) {
+    container.setAttribute('aria-label', param.label)
+  }
 
   for (let i = 0; i < values.length; i++) {
     const label = document.createElement('label')
@@ -436,6 +499,11 @@ export const createTextInput = ({ param, value, onChange }) => {
   if (maxLength !== undefined) input.maxLength = maxLength
   if (placeholder !== undefined) input.placeholder = placeholder
 
+  // ARIA: add label reference
+  if (param.label) {
+    input.setAttribute('aria-label', param.label)
+  }
+
   input.onchange = () => onChange(input.value)
 
   return {
@@ -463,6 +531,11 @@ export const createDateInput = ({ param, value, onChange }) => {
   if (max !== undefined) input.max = String(max)
   if (placeholder !== undefined) input.placeholder = placeholder
 
+  // ARIA: add label reference
+  if (param.label) {
+    input.setAttribute('aria-label', param.label)
+  }
+
   input.onchange = () => onChange(input.value)
 
   return {
@@ -487,6 +560,13 @@ const createConstrainedDisplay = ({ param }) => {
   const formatted = typeof displayValue === 'number' ? displayValue.toFixed(2) : String(displayValue ?? '')
   display.textContent = formatted
   display.title = 'Value set by parent assembly (read-only)'
+
+  // ARIA: mark as readonly output
+  display.setAttribute('role', 'status')
+  display.setAttribute('aria-readonly', 'true')
+  if (param.label) {
+    display.setAttribute('aria-label', `${param.label} (read-only)`)
+  }
 
   return {
     control: null,

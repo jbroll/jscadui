@@ -878,3 +878,62 @@ describe('constrained parameter support', () => {
     })
   })
 })
+
+describe('proxy state efficiency', () => {
+  it('should share discoveredPaths set across all child proxies', () => {
+    const state = createProxyState()
+    const params = createParamsProxy(state)
+
+    // Access nested params to create child proxies
+    params.front.left.radius = 5
+    params.front.right.radius = 5
+    params.rear.left.radius = 5
+    params.rear.right.radius = 5
+
+    // All leaf paths should be in the shared discoveredPaths set
+    expect(state.discoveredPaths.has('front.left.radius')).toBe(true)
+    expect(state.discoveredPaths.has('front.right.radius')).toBe(true)
+    expect(state.discoveredPaths.has('rear.left.radius')).toBe(true)
+    expect(state.discoveredPaths.has('rear.right.radius')).toBe(true)
+
+    // Intermediate paths are tracked when child proxies are accessed
+    expect(state.discoveredPaths.has('front')).toBe(true)
+    expect(state.discoveredPaths.has('front.left')).toBe(true)
+    expect(state.discoveredPaths.has('rear')).toBe(true)
+
+    // Only leaf params (actual value assignments) go into discovered array
+    expect(state.discovered.length).toBe(4)
+  })
+
+  it('should not duplicate discovered entries when same path is set multiple times', () => {
+    const state = createProxyState()
+    const params = createParamsProxy(state)
+
+    // Set the same path multiple times
+    params.radius = 5
+    params.radius = 10
+    params.radius = 15
+
+    // Should only have one entry in discovered
+    expect(state.discovered.filter(d => d.path === 'radius').length).toBe(1)
+    expect(state.discovered.find(d => d.path === 'radius').default).toBe(15)
+  })
+
+  it('should not duplicate when child proxies access same path', () => {
+    const state = createProxyState()
+    const params = createParamsProxy(state)
+
+    // First access creates the child and sets the value
+    params.front.length = 20
+
+    // Creating another reference to the same child should not duplicate
+    const frontProxy1 = params.front
+    const frontProxy2 = params.front
+    frontProxy1.width = 10
+    frontProxy2.height = 5
+
+    // Should have exactly 3 discovered params (only the set values, not intermediate paths)
+    expect(state.discovered.length).toBe(3)
+    expect(state.discovered.map(d => d.path).sort()).toEqual(['front.height', 'front.length', 'front.width'])
+  })
+})
