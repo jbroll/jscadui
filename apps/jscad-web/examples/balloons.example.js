@@ -68,7 +68,7 @@ const createSingleBalloon = (params) => {
 
   const b = ellipsoid({
     radius: [params.bRadius, params.bRadius, params.bRadius],
-    segments: params.segments || 32
+    segments: 32
   })
   return subtract(b, t)
 }
