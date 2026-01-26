@@ -19,7 +19,7 @@
     "prepublishOnly": "npm run build && npm run build-cjs"
   },
   "peerDependencies": {
-    "@jscad/modeling": "2.12.2"
+    "@jscad/modeling": "npm:@jbroll/jscad-modeling@2.12.2"
   },
   "devDependencies": {
     "@types/node": "18.11.9",

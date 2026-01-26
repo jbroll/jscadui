@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "@jscad/io": "2.4.4",
-    "@jscad/modeling": "2.11.0",
+    "@jscad/modeling": "npm:@jbroll/jscad-modeling@2.11.0",
     "@jscad/regl-renderer": "^2.0.1",
     "@jscadui/format-babylonjs": "*",
     "@jscadui/format-jscad": "*",

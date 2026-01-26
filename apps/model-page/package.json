@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "@jscad/io": "2.4.4",
-    "@jscad/modeling": "2.11.0",
+    "@jscad/modeling": "npm:@jbroll/jscad-modeling@2.11.0",
     "@jscadui/format-jscad": "*",
     "@jscadui/format-threejs": "*",
     "@jscadui/html-gizmo": "*",
