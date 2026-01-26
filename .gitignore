@@ -116,3 +116,4 @@ __snapshots__
 
 # Local deployment config (use deploy.conf.example as template)
 deploy.conf
+.playwright-mcp/
