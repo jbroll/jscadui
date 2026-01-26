@@ -8,20 +8,22 @@ import { buildBundle, buildOne } from './src_build/esbuildUtil.js'
 
 // Read package.json for about page
 const pkg = JSON.parse(readFileSync('./package.json', 'utf-8'))
-const dependencies = Object.entries(pkg.dependencies || {}).map(([name, version]) => {
-  const v = String(version)
-  // Handle npm: aliases like "npm:@jbroll/jscad-modeling@2.12.8"
-  // Show the actual package name, not the alias
-  if (v.startsWith('npm:')) {
-    const actual = v.slice(4) // remove "npm:"
-    // Extract package name and version (handle scoped packages like @scope/name@version)
-    const lastAt = actual.lastIndexOf('@')
-    const pkgName = actual.slice(0, lastAt)
-    const pkgVersion = actual.slice(lastAt + 1)
-    return `<li>${pkgName} ${pkgVersion}</li>`
-  }
-  return `<li>${name} ${version}</li>`
-}).join('\n        ')
+const dependencies = Object.entries(pkg.dependencies || {})
+  .map(([name, version]) => {
+    const v = String(version)
+    // Handle npm: aliases like "npm:@jbroll/jscad-modeling@2.12.8"
+    // Show the actual package name, not the alias
+    if (v.startsWith('npm:')) {
+      const actual = v.slice(4) // remove "npm:"
+      // Extract package name and version (handle scoped packages like @scope/name@version)
+      const lastAt = actual.lastIndexOf('@')
+      return { name: actual.slice(0, lastAt), version: actual.slice(lastAt + 1) }
+    }
+    return { name, version }
+  })
+  .sort((a, b) => a.name.localeCompare(b.name))
+  .map(({ name, version }) => `<li>${name} ${version}</li>`)
+  .join('\n        ')
 
 /** @param {string} content */
 const injectAboutInfo = (content) => {
