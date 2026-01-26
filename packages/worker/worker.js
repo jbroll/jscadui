@@ -224,14 +224,13 @@ const handlersProxy = new Proxy(handlers, {
  */
 
 /**
- * @param {TransformFunction | undefined} transform
- * @param {(options:ExportDataOptions)=>Promise<{data:ArrayBuffer[]}>} [jscadExportData ]
- * @param {ImportData} [_importData]
- * @param {Object.<string, Function>} [customHandlers] - Additional handlers to expose via worker API
+ * Initialize the worker with optional configuration.
+ * @param {InitWorkerOptions} [options={}]
  */
-export const initWorker = (transform, jscadExportData, _importData, customHandlers) => {
+export const initWorker = (options = {}) => {
+  const { transform, jscadExportData, importData: _importData, customHandlers } = options
   if (transform) transformFunc = transform
-  if(jscadExportData) handlers.jscadExportData = jscadExportData
+  if (jscadExportData) handlers.jscadExportData = jscadExportData
   importData = _importData
   if (customHandlers) Object.assign(handlers, customHandlers)
 
