@@ -4,3 +4,6 @@
 // learn more: https://github.com/testing-library/jest-dom
 // eslint-disable-next-line import/no-extraneous-dependencies
 import '@testing-library/jest-dom'
+
+// Note: WebGL-dependent components (like Renderer) should be mocked in individual
+// test files since jsdom doesn't support WebGL. See App.test.tsx for an example.
