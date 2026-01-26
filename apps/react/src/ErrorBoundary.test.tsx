@@ -1,6 +1,6 @@
 import { render, screen, fireEvent } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { ErrorBoundary } from './ErrorBoundary'
+import { ErrorBoundary, IsRecoverablePredicate } from './ErrorBoundary'
 
 // Component that throws an error
 function ThrowError({ error }: { error: Error }): JSX.Element {
@@ -70,5 +70,70 @@ describe('ErrorBoundary', () => {
     // Open the details
     fireEvent.click(screen.getByText('Error details'))
     expect(screen.getByText('Specific error message')).toBeInTheDocument()
+  })
+
+  it('hides Try Again button for context lost errors', () => {
+    render(
+      <ErrorBoundary>
+        <ThrowError error={new Error('GPU context lost')} />
+      </ErrorBoundary>
+    )
+    expect(screen.queryByRole('button', { name: 'Try Again' })).not.toBeInTheDocument()
+  })
+
+  describe('custom isRecoverable predicate', () => {
+    it('uses custom predicate when provided', () => {
+      // Custom predicate that marks all errors as non-recoverable
+      const customPredicate: IsRecoverablePredicate = () => false
+
+      render(
+        <ErrorBoundary isRecoverable={customPredicate}>
+          <ThrowError error={new Error('Any error')} />
+        </ErrorBoundary>
+      )
+      expect(screen.queryByRole('button', { name: 'Try Again' })).not.toBeInTheDocument()
+    })
+
+    it('custom predicate can override default WebGL behavior', () => {
+      // Custom predicate that treats WebGL errors as recoverable
+      const customPredicate: IsRecoverablePredicate = () => true
+
+      render(
+        <ErrorBoundary isRecoverable={customPredicate}>
+          <ThrowError error={new Error('WebGL not supported')} />
+        </ErrorBoundary>
+      )
+      expect(screen.getByRole('button', { name: 'Try Again' })).toBeInTheDocument()
+    })
+
+    it('custom predicate receives the error object', () => {
+      const customPredicate = vi.fn().mockReturnValue(true)
+
+      render(
+        <ErrorBoundary isRecoverable={customPredicate}>
+          <ThrowError error={new Error('Custom error')} />
+        </ErrorBoundary>
+      )
+
+      expect(customPredicate).toHaveBeenCalled()
+      expect(customPredicate.mock.calls[0][0]).toBeInstanceOf(Error)
+      expect(customPredicate.mock.calls[0][0].message).toBe('Custom error')
+    })
+
+    it('custom predicate can check error name', () => {
+      const customPredicate: IsRecoverablePredicate = (error) => {
+        return error.name !== 'FatalError'
+      }
+
+      const fatalError = new Error('Something bad')
+      fatalError.name = 'FatalError'
+
+      render(
+        <ErrorBoundary isRecoverable={customPredicate}>
+          <ThrowError error={fatalError} />
+        </ErrorBoundary>
+      )
+      expect(screen.queryByRole('button', { name: 'Try Again' })).not.toBeInTheDocument()
+    })
   })
 })

@@ -1,7 +1,19 @@
 import { Component, ErrorInfo, ReactNode } from 'react'
 
+/**
+ * Predicate function to determine if an error is recoverable.
+ * @param error - The error that was caught
+ * @returns true if the error is recoverable (show retry button), false otherwise
+ */
+export type IsRecoverablePredicate = (error: Error) => boolean
+
 interface Props {
   children: ReactNode
+  /**
+   * Custom predicate to determine if an error is recoverable.
+   * If not provided, uses default logic that checks for WebGL-related errors.
+   */
+  isRecoverable?: IsRecoverablePredicate
 }
 
 interface State {
@@ -27,11 +39,35 @@ export class ErrorBoundary extends Component<Props, State> {
     this.setState({ hasError: false, error: null })
   }
 
-  /** Check if error is likely non-recoverable (e.g., missing WebGL support) */
-  isRecoverable(): boolean {
-    const message = this.state.error?.message?.toLowerCase() ?? ''
+  /**
+   * Default predicate for determining if an error is recoverable.
+   * Checks error message and name for known non-recoverable patterns.
+   */
+  static defaultIsRecoverable(error: Error): boolean {
+    const message = error.message?.toLowerCase() ?? ''
+    const name = error.name?.toLowerCase() ?? ''
+
     // WebGL support issues are typically not recoverable without browser/driver changes
-    return !message.includes('webgl')
+    if (message.includes('webgl') || name.includes('webgl')) {
+      return false
+    }
+
+    // Context lost errors are usually not recoverable
+    if (message.includes('context lost')) {
+      return false
+    }
+
+    return true
+  }
+
+  /** Check if error is likely recoverable */
+  isRecoverable(): boolean {
+    const error = this.state.error
+    if (!error) return true
+
+    // Use custom predicate if provided, otherwise use default
+    const predicate = this.props.isRecoverable ?? ErrorBoundary.defaultIsRecoverable
+    return predicate(error)
   }
 
   render() {
