@@ -35,6 +35,8 @@
   },
   "homepage": "https://github.com/hrgdavor/jscadui#readme",
   "devDependencies": {
-    "turbo": "1.6.3"
+    "turbo": "1.6.3",
+    "vite": "^7.3.1",
+    "vitest": "^4.0.18"
   }
 }
