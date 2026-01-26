@@ -44,8 +44,8 @@ export class ErrorBoundary extends Component<Props, State> {
    * Checks error message and name for known non-recoverable patterns.
    */
   static defaultIsRecoverable(error: Error): boolean {
-    const message = error.message?.toLowerCase() ?? ''
-    const name = error.name?.toLowerCase() ?? ''
+    const message = String(error.message ?? '').toLowerCase()
+    const name = String(error.name ?? '').toLowerCase()
 
     // WebGL support issues are typically not recoverable without browser/driver changes
     if (message.includes('webgl') || name.includes('webgl')) {
