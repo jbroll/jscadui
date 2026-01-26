@@ -38,17 +38,18 @@ export const ExportFormats = /** @type {const} */ ({
 /**
  * Default serializer configurations for common export formats.
  * Apps can use this as a template or define their own configurations.
+ * Uses ExportFormats constants for IDs to ensure consistency.
  * @type {SerializerConfig[]}
  */
 export const defaultSerializerConfigs = [
-  { id: 'stla', label: 'STL (ascii)', extension: 'stl', serializerKey: 'stlSerializer', defaultOptions: { binary: false } },
-  { id: 'stlb', label: 'STL (binary)', extension: 'stl', serializerKey: 'stlSerializer', defaultOptions: { binary: true } },
-  { id: 'amf', label: 'AMF', extension: 'amf', serializerKey: 'amfSerializer', defaultOptions: {} },
-  { id: 'json', label: 'JSON', extension: 'json', serializerKey: 'jsonSerializer', defaultOptions: {} },
-  { id: 'obj', label: 'OBJ', extension: 'obj', serializerKey: 'objSerializer', defaultOptions: {} },
-  { id: 'x3d', label: 'X3D', extension: 'x3d', serializerKey: 'x3dSerializer', defaultOptions: {} },
-  { id: 'svg', label: 'SVG', extension: 'svg', serializerKey: 'svgSerializer', defaultOptions: {} },
-  { id: '3mf', label: '3MF', extension: '3mf', serializerKey: 'm3fSerializer', defaultOptions: {} },
+  { id: ExportFormats.STL_ASCII, label: 'STL (ascii)', extension: 'stl', serializerKey: 'stlSerializer', defaultOptions: { binary: false } },
+  { id: ExportFormats.STL_BINARY, label: 'STL (binary)', extension: 'stl', serializerKey: 'stlSerializer', defaultOptions: { binary: true } },
+  { id: ExportFormats.AMF, label: 'AMF', extension: 'amf', serializerKey: 'amfSerializer', defaultOptions: {} },
+  { id: ExportFormats.JSON, label: 'JSON', extension: 'json', serializerKey: 'jsonSerializer', defaultOptions: {} },
+  { id: ExportFormats.OBJ, label: 'OBJ', extension: 'obj', serializerKey: 'objSerializer', defaultOptions: {} },
+  { id: ExportFormats.X3D, label: 'X3D', extension: 'x3d', serializerKey: 'x3dSerializer', defaultOptions: {} },
+  { id: ExportFormats.SVG, label: 'SVG', extension: 'svg', serializerKey: 'svgSerializer', defaultOptions: {} },
+  { id: ExportFormats.THREE_MF, label: '3MF', extension: '3mf', serializerKey: 'm3fSerializer', defaultOptions: {} },
 ]
 
 /**
