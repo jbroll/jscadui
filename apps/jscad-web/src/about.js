@@ -1,11 +1,13 @@
-const about = /** @type {HTMLDivElement}*/ (document.getElementById('about'))
-const aboutLink = /** @type {HTMLAnchorElement}*/ (document.getElementById('about-link'))
-const aboutClose = /** @type {HTMLButtonElement}*/ (document.getElementById('about-close'))
-
+/** @type {HTMLDivElement | null} */
+let about = null
 /** @type {(() => void) | null} */
 let cleanupFn = null
 
 export const init = () => {
+  about = /** @type {HTMLDivElement}*/ (document.getElementById('about'))
+  const aboutLink = /** @type {HTMLAnchorElement}*/ (document.getElementById('about-link'))
+  const aboutClose = /** @type {HTMLButtonElement}*/ (document.getElementById('about-close'))
+
   if (!about || !aboutLink) return
 
   /**
