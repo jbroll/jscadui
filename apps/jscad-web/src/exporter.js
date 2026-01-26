@@ -2,6 +2,7 @@ import { gzipSync } from 'fflate'
 import { downloadBlob } from '@jscadui/scene'
 import { str2ab } from './str2ab.js'
 import * as editor from './editor.js'
+import { ExportFormats } from '@jscadui/format-common/src/exportFormats.js'
 
 /** @typedef {import('@jscadui/worker').JscadWorker} JscadWorker*/
 /** @typedef {import('@jscadui/format-common/src/exportFormats.js').ExportFormatInfo} ExportFormatInfo */
