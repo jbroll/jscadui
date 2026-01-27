@@ -769,7 +769,7 @@ describe('constrained parameter display', () => {
       onChange: vi.fn()
     })
 
-    expect(result.value.textContent).toBe('42.00')
+    expect(result.value.textContent).toBe('42')
   })
 
   it('handles string values', () => {
@@ -804,7 +804,17 @@ describe('constrained parameter display', () => {
       onChange: vi.fn()
     })
 
-    expect(result.value.textContent).toBe('10.50')  // uses param.default
+    expect(result.value.textContent).toBe('10.5')  // uses param.default
+  })
+
+  it('formats array values with brackets and rounded numbers', () => {
+    const result = createInput({
+      param: { path: 'test.color', name: 'color', type: 'unknown', constrained: true, default: [1, 0.7058823529411765, 0.19215686274509805] },
+      value: [1, 0.7058823529411765, 0.19215686274509805],
+      onChange: vi.fn()
+    })
+
+    expect(result.value.textContent).toBe('[1, 0.71, 0.19]')
   })
 
   it('returns slider for non-constrained slider param', () => {

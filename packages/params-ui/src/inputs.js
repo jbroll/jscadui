@@ -547,6 +547,24 @@ export const createDateInput = ({ param, value, onChange }) => {
 }
 
 /**
+ * Format a value for display with reasonable precision
+ * @param {unknown} value
+ * @returns {string}
+ */
+const formatDisplayValue = (value) => {
+  if (value == null) return ''
+  if (typeof value === 'number') {
+    // Use toFixed(2) but trim trailing zeros
+    return Number(value.toFixed(2)).toString()
+  }
+  if (Array.isArray(value)) {
+    // Format each element, join with comma
+    return '[' + value.map(formatDisplayValue).join(', ') + ']'
+  }
+  return String(value)
+}
+
+/**
  * Create a read-only display for constrained parameters
  * @param {InputOptions} options
  * @returns {InputResult}
@@ -556,8 +574,7 @@ const createConstrainedDisplay = ({ param }) => {
   display.className = 'params-input-constrained-value'
   // Always use param.default for constrained params - that's where the calculated value is stored
   // Format numbers to reasonable precision for display
-  const displayValue = param.default
-  const formatted = typeof displayValue === 'number' ? displayValue.toFixed(2) : String(displayValue ?? '')
+  const formatted = formatDisplayValue(param.default)
   display.textContent = formatted
   display.title = 'Value set by parent assembly (read-only)'
 
@@ -573,8 +590,7 @@ const createConstrainedDisplay = ({ param }) => {
     value: display,
     span: false,
     updateValue: (newValue) => {
-      const formatted = typeof newValue === 'number' ? newValue.toFixed(2) : String(newValue)
-      display.textContent = formatted
+      display.textContent = formatDisplayValue(newValue)
     }
   }
 }
