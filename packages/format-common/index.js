@@ -42,6 +42,10 @@ export function boundingBox(entities=[]){
       maxz = Math.max(maxz,z)
     }
   })
+  // Return origin-centered unit box if no vertices were found
+  if (minx === undefined) {
+    return {min:{x:0,y:0,z:0}, max:{x:0,y:0,z:0}}
+  }
   return {min:{x:minx,y:miny,z:minz}, max:{x:maxx,y:maxy,z:maxz}}
   }catch(e){
     e.message = `boundingBox calculation failed: ${e.message}`

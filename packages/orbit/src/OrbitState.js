@@ -135,10 +135,16 @@ export class OrbitState {
    * @param {number} fitOffset 
    */
   fit(boxMin, boxMax, fov, aspect, fitOffset = 1.2){
+    // Guard against invalid bounding box values
+    if (!Number.isFinite(boxMin?.x) || !Number.isFinite(boxMax?.x)) {
+      return
+    }
     const sizex = boxMax.x - boxMin.x
     const sizey = boxMax.y - boxMin.y
     const sizez = boxMax.z - boxMin.z
     const maxSize = Math.max( sizex, sizey, sizez );
+    // Skip if no actual size (empty model)
+    if (maxSize === 0) return
     const fitHeightDistance = maxSize / ( 2 * Math.atan( Math.PI * fov / 360 ) );
     const fitWidthDistance = fitHeightDistance / aspect;
     const distance = fitOffset * Math.max( fitHeightDistance, fitWidthDistance );

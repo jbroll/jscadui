@@ -54,8 +54,17 @@ export class ViewState {
     this.smoothRenderInput.checked = this.smoothRender
     this.zoomToFit = localStorage.getItem('engine.zoomToFit') === 'true'
     this.zoomToFitInput.checked = this.zoomToFit
+    const defaultCamera = { position: [180, -180, 220] }
     const cameraLocation = localStorage.getItem('camera.location')
-    this.camera = cameraLocation ? JSON.parse(cameraLocation) : { position: [180, -180, 220] }
+    if (cameraLocation) {
+      const parsed = JSON.parse(cameraLocation)
+      const isValidArray = arr => Array.isArray(arr) && arr.every(v => Number.isFinite(v))
+      const positionValid = isValidArray(parsed?.position)
+      const targetValid = !parsed?.target || isValidArray(parsed.target)
+      this.camera = positionValid && targetValid ? parsed : defaultCamera
+    } else {
+      this.camera = defaultCamera
+    }
 
     this.updateTheme()
     this.updateGrid()
@@ -143,6 +152,10 @@ export class ViewState {
    * @param {ViewStateCamera} camera
    */
   saveCamera(camera) {
+    // Only save valid camera state to prevent corrupted localStorage
+    const isValidArray = arr => Array.isArray(arr) && arr.every(v => Number.isFinite(v))
+    if (!isValidArray(camera?.position)) return
+    if (camera.target && !isValidArray(camera.target)) return
     this.camera = camera
     localStorage.setItem('camera.location', JSON.stringify(camera))
   }

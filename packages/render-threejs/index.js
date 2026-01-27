@@ -152,8 +152,12 @@ export function RenderThreejs({
   }
 
   function setCamera({ position, target }) {
-    if (position) _camera.position.set(...position)
-    if (target) _camera.lookAt(...target)
+    if (position && position.every(v => Number.isFinite(v))) {
+      _camera.position.set(...position)
+    }
+    if (target && target.every(v => Number.isFinite(v))) {
+      _camera.lookAt(...target)
+    }
     updateView()
   }
 
