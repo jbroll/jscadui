@@ -231,6 +231,40 @@ worker.onerror = (event) => {
   setError(new Error(`Worker error: ${event.message}`))
 }
 
+/**
+ * Format a number with K/M suffix for large values
+ * @param {number} n
+ * @returns {string}
+ */
+function formatCount(n) {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M'
+  if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K'
+  return String(n)
+}
+
+const modelStats = byId('modelStats')
+
+/**
+ * Update the model stats display
+ * @param {number} mainTime
+ * @param {number} convertTime
+ * @param {Array<{vertices?: ArrayLike<number>, indices?: ArrayLike<number>}>} entities
+ */
+function updateModelStats(mainTime, convertTime, entities) {
+  let totalTriangles = 0
+  let totalVertices = 0
+  for (const e of entities) {
+    if (e.indices) totalTriangles += e.indices.length / 3
+    if (e.vertices) totalVertices += e.vertices.length / 3
+  }
+  modelStats.innerHTML = `
+    <span>Exec: ${mainTime?.toFixed(1) ?? '?'}ms</span>
+    <span>Convert: ${convertTime?.toFixed(1) ?? '?'}ms</span>
+    <span>${formatCount(totalTriangles)} triangles</span>
+    <span>${formatCount(totalVertices)} vertices</span>
+  `
+}
+
 const handlers = {
   /**
    * @param {{entities:unknown | Array<unknown>,mainTime:number,convertTime:number}} options1
@@ -248,6 +282,7 @@ const handlers = {
     if (!skipLog) console.log('Main execution:', mainTime?.toFixed(2), ', jscad mesh -> gl:', convertTime?.toFixed(2), entities)
     setError(undefined)
     onProgress(undefined, mainTime?.toFixed(2) + ' ms')
+    updateModelStats(mainTime, convertTime, entities)
   },
   onProgress,
 }

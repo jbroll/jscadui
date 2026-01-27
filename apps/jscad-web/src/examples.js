@@ -16,4 +16,11 @@ export const examples = [
   { name: 'Import STL', source: './examples/STLImport/index.js' },
   { name: 'Import SVG', source: './examples/SVGImport/index.js' },
   { name: 'Test SVG before Etrude', source: './examples/svg.tester.js' },
+  // Benchmarks - stress tests for CSG performance
+  { name: 'Benchmark: Menger Sponge', source: './examples/benchmark-menger.example.js' },
+  { name: 'Benchmark: Swiss Cheese', source: './examples/benchmark-swiss-cheese.example.js' },
+  { name: 'Benchmark: Thin Wall', source: './examples/benchmark-thin-wall.example.js' },
+  { name: 'Benchmark: Sphere Cloud', source: './examples/benchmark-sphere-cloud.example.js' },
+  { name: 'Benchmark: Chainmail', source: './examples/benchmark-chainmail.example.js' },
+  { name: 'Benchmark: Hull', source: './examples/benchmark-hull.example.js' },
 ]

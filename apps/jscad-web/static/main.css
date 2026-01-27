@@ -471,6 +471,26 @@ p {
   display: flex;
   flex-direction: column;
 }
+#modelStats {
+  flex-shrink: 0;
+  padding: 6px 10px;
+  font-size: 11px;
+  color: #666;
+  border-bottom: 1px solid #ddd;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+#modelStats:empty {
+  display: none;
+}
+#modelStats span {
+  white-space: nowrap;
+}
+.dark #modelStats {
+  color: #aaa;
+  border-bottom-color: #444;
+}
 #paramsHeader {
   flex-shrink: 0;
 }
