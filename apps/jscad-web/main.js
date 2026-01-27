@@ -52,7 +52,9 @@ export const byId = id => /** @type {HTMLElement} */(document.getElementById(id)
 
 /** @typedef {import('@jscadui/worker').JscadWorker} JscadWorker*/
 
-const appBase = document.baseURI
+// Use origin + '/' as base to ensure proper URL resolution
+// document.baseURI might include a path (e.g., /index.html) which breaks nested require resolution
+const appBase = location.origin + '/'
 let currentBase = appBase
 
 /**
@@ -651,9 +653,9 @@ let hasRemoteScript
 try {
   hasRemoteScript = await remote.init(
     (script, url) => {
-      url = new URL(url, appBase).toString()
-      editor.setSource(script, url)
-      jscadScript({ script, base: url })
+      const fullUrl = new URL(url, appBase).toString()
+      editor.setSource(script, fullUrl)
+      jscadScript({ script, url })  // Keep url relative for worker resolution
       welcome.dismiss()
     },
     err => {

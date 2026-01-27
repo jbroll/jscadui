@@ -69,26 +69,40 @@ export const resolveUrl = (url, base, root, moduleBase=MODULE_BASE) => {
     }
 
     if (isRelativeFile && root) {
-      // sanitize to avoid going below root, it will prevent / to go below cache baseUrl
-      // it will prevent ../../../../ to go below cache baseUrl
-      const fromRoot = root && url[0] === '/'
-      if (!fromRoot) {
-        // base relative path
-        const relativePath = base.replace(/^\//, '').replace(root, '') // strip root
-        // create url relative path
-        url = new URL(url, `fs:/root/${relativePath}`).toString()
-        // check if url went above root
-        if (!url.startsWith('fs:/root/')) throw new Error('relative url cannot go above root')
-        url = url.substring(9)
-        // Defense in depth: normalize path to remove any remaining .. segments
-        url = normalizePath(url)
-      } else {
-        // Normalize absolute paths from root
-        url = normalizePath(url.substring(1))
+      // Check if base is from a different domain than root (e.g., npm package on jsdelivr)
+      // In that case, resolve relative to base directly without root restrictions
+      const getOrigin = (s) => {
+        try { return new URL(s).origin } catch { return null }
       }
-      if (!getExtension(url)) url += '.js'
-      // now create the full url to load the file
-      url = new URL(url, root).toString()
+      const rootOrigin = getOrigin(root)
+      const baseOrigin = getOrigin(base)
+
+      if (baseOrigin && rootOrigin && baseOrigin !== rootOrigin) {
+        // Base is from a different domain (e.g., npm package), resolve relative to base
+        if (!getExtension(url)) url += '.js'
+        url = new URL(url, base).toString()
+      } else {
+        // sanitize to avoid going below root, it will prevent / to go below cache baseUrl
+        // it will prevent ../../../../ to go below cache baseUrl
+        const fromRoot = root && url[0] === '/'
+        if (!fromRoot) {
+          // base relative path
+          const relativePath = base.replace(/^\//, '').replace(root, '') // strip root
+          // create url relative path
+          url = new URL(url, `fs:/root/${relativePath}`).toString()
+          // check if url went above root
+          if (!url.startsWith('fs:/root/')) throw new Error('relative url cannot go above root')
+          url = url.substring(9)
+          // Defense in depth: normalize path to remove any remaining .. segments
+          url = normalizePath(url)
+        } else {
+          // Normalize absolute paths from root
+          url = normalizePath(url.substring(1))
+        }
+        if (!getExtension(url)) url += '.js'
+        // now create the full url to load the file
+        url = new URL(url, root).toString()
+      }
     }
   }
   return { url, isRelativeFile, isModule }

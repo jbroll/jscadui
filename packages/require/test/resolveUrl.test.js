@@ -33,3 +33,10 @@ it('http url', () => {
   expect(resolveUrl('http://localhost:5120/build/bundle.jscad_modeling.js', localBase, root).url)
     .toEqual('http://localhost:5120/build/bundle.jscad_modeling.js')
 })
+
+it('nested require with full URL base', () => {
+  // When base is a resolved full URL (from a previous require), nested requires should work correctly
+  const nestedBase = 'http://localhost:5120/swfs/5810d898-ed92-4d48-b22f-1b7d6353117a/examples/motor-fun/motor-platform.js'
+  expect(resolveUrl('./nema17.js', nestedBase, root).url)
+    .toEqual('http://localhost:5120/swfs/5810d898-ed92-4d48-b22f-1b7d6353117a/examples/motor-fun/nema17.js')
+})
