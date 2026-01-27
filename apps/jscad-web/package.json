@@ -6,7 +6,9 @@
     "start": "node build.js --dev --skipDocs",
     "start:full": "node build.js --dev",
     "build": "node build.js",
-    "serve": "node build.js --serve"
+    "serve": "node build.js --serve",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@codemirror/lang-javascript": "^6.1.9",

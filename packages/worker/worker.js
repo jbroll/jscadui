@@ -189,7 +189,11 @@ export async function jscadMain({ params, skipLog, userInteractedPaths } = {}) {
     // Run main with either proxy or plain params
     let proxyState = null
     if (useParamsProxy) {
-      proxyState = createProxyState(currentUiValues, userInteracted)
+      // Use 'flat' mode for legacy scripts (those with getParameterDefinitions)
+      // This preserves compatibility with the `params.prop || default` pattern
+      // Use 'hierarchical' mode for new scripts that use nested params
+      const mode = legacyProxyDefs ? 'flat' : 'hierarchical'
+      proxyState = createProxyState(currentUiValues, userInteracted, { mode })
       const proxyParams = createParamsProxy(proxyState)
 
       // Inject legacy parameter definitions if the script has getParameterDefinitions

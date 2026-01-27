@@ -247,7 +247,13 @@ export const createParamsProxy = (state, path = '') => {
         return defaults[propStr]
       }
 
-      // Auto-create child proxy for sub-parts
+      // In flat mode (legacy scripts), return undefined for unknown properties
+      // This preserves compatibility with the `params.prop || default` pattern
+      if (state.mode === 'flat') {
+        return undefined
+      }
+
+      // Auto-create child proxy for sub-parts (hierarchical mode)
       if (!(propStr in children)) {
         children[propStr] = createParamsProxy(state, fullPath)
       }
@@ -362,15 +368,20 @@ export const createParamsProxy = (state, path = '') => {
  * Create a fresh proxy state
  * @param {Object} [uiValues={}] - Initial UI values
  * @param {Set<string>} [userInteracted] - Paths user has interacted with
+ * @param {Object} [options={}] - Options
+ * @param {'flat'|'hierarchical'} [options.mode='hierarchical'] - Proxy mode:
+ *   - 'hierarchical': Create child proxies for unknown properties (for nested parts)
+ *   - 'flat': Return undefined for unknown properties (for legacy scripts)
  * @returns {ProxyState}
  */
-export const createProxyState = (uiValues = {}, userInteracted = new Set()) => ({
+export const createProxyState = (uiValues = {}, userInteracted = new Set(), options = {}) => ({
   discovered: [],
   discoveredPaths: new Set(),  // Shared set to track discovered paths efficiently
   userInteracted,
   uiValues,
   types: new Map(),
   classes: new Map(),
+  mode: options.mode || 'hierarchical',
 })
 
 /**
