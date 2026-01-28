@@ -18,9 +18,16 @@ export const examples = [
   { name: 'Test SVG before Etrude', source: './examples/svg.tester.js' },
   // Benchmarks - stress tests for CSG performance
   { name: 'Benchmark: Menger Sponge', source: './examples/benchmark-menger.example.js' },
+  { name: 'Benchmark: Menger Intersect', source: './examples/benchmark-menger-intersect.example.js' },
   { name: 'Benchmark: Swiss Cheese', source: './examples/benchmark-swiss-cheese.example.js' },
   { name: 'Benchmark: Thin Wall', source: './examples/benchmark-thin-wall.example.js' },
   { name: 'Benchmark: Sphere Cloud', source: './examples/benchmark-sphere-cloud.example.js' },
+  { name: 'Benchmark: Sphere Union', source: './examples/benchmark-sphere-union.example.js' },
   { name: 'Benchmark: Chainmail', source: './examples/benchmark-chainmail.example.js' },
   { name: 'Benchmark: Hull', source: './examples/benchmark-hull.example.js' },
+  { name: 'Benchmark: Hull Chain', source: './examples/benchmark-hull-chain.example.js' },
+  { name: 'Benchmark: Mounting Plate', source: './examples/benchmark-mounting-plate.example.js' },
+  { name: 'Benchmark: Expand', source: './examples/benchmark-expand.example.js' },
+  { name: 'Benchmark: Vase (Lathe)', source: './examples/benchmark-vase.example.js' },
+  { name: 'Benchmark: Minkowski Sum', source: './examples/benchmark-minkowski.example.js' },
 ]
