@@ -66,6 +66,7 @@ const toUrl = path => new URL(path, appBase).toString()
 const viewState = new ViewState()
 viewState.onRequireReRender = () => paramChangeCallback(ctrl.params)
 
+
 const gizmo = new Gizmo()
 byId('layout').append(gizmo)
 
@@ -528,15 +529,43 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
   }
 }
 
-const bundles = {
-  '@jscad/modeling': toUrl('./build/bundle.jscad_modeling.js'),
+/**
+ * Get the modeling bundle URL based on the selected engine.
+ * @returns {string}
+ */
+const getModelingBundle = () => {
+  const engine = viewState.modelingEngine
+  if (engine === 'manifold') {
+    return toUrl('./build/bundle.manifold_modeling.js')
+  }
+  return toUrl('./build/bundle.jscad_modeling.js')
+}
+
+/**
+ * Get the bundles configuration for the worker.
+ * @returns {Record<string, string>}
+ */
+const getBundles = () => ({
+  '@jscad/modeling': getModelingBundle(),
+  '@jscad/modeling-core': toUrl('./build/bundle.jscad_modeling.js'), // Internal dependency for manifold
   '@jscad/io': toUrl('./build/bundle.jscad_io.js'),
   '@jscad/csg': toUrl('./build/bundle.V1_api.js'),
   '@jscadui/params-core': toUrl('./build/bundle.params_core.js'),
-}
+})
 
 const useParamsProxy = true
-await workerApi.jscadInit({ bundles, useParamsProxy })
+await workerApi.jscadInit({ bundles: getBundles(), useParamsProxy })
+
+// Set up engine change handler (now that jscadScript and getBundles are defined)
+viewState.onModelingEngineChange = async (newEngine) => {
+  console.log('Switching modeling engine to:', newEngine)
+
+  // Reinitialize worker with new bundles
+  await workerApi.jscadInit({ bundles: getBundles(), useParamsProxy })
+
+  // Re-run current script from editor
+  editor.runScript()
+}
 
 if (useParamsProxy) {
   const style = document.createElement('style')

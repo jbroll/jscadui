@@ -273,6 +273,17 @@ const jscadScript = async ({ script, url='jscad.js', base=globalBase, root=base 
       throw e
     }
 
+    // Wait for WASM initialization if using a bundle with async init (e.g., Manifold)
+    // This ensures WASM is ready before user code runs
+    const modelingBundleUrl = requireCache.bundleAlias['@jscad/modeling']
+    if (modelingBundleUrl) {
+      // Check both local and module caches - bundles may be in either depending on URL
+      const modelingModule = requireCache.module[modelingBundleUrl] || requireCache.local[modelingBundleUrl]
+      if (modelingModule?.ready instanceof Promise) {
+        await modelingModule.ready
+      }
+    }
+
     main = scriptModule.main
     // if the main function is the default export
     if(!main && typeof scriptModule == 'function') main = scriptModule

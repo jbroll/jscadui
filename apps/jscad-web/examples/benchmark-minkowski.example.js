@@ -10,8 +10,6 @@
  * This creates a 3D cross connector (like a pipe fitting) and rounds all
  * its edges uniformly using minkowski sum with a sphere.
  *
- * NOTE: minkowskiSum is a fork-only feature (@jbroll/jscad-modeling).
- *
  * 8 segment sphere: Lite ~100ms
  * 12 segment sphere: Moderate (default) ~300ms
  * 16 segment sphere: Heavy ~800ms
@@ -20,11 +18,8 @@
 
 const jscad = require('@jscad/modeling')
 const { cuboid, sphere } = jscad.primitives
-const { union } = jscad.booleans
+const { union, minkowski } = jscad.booleans
 const { translate, rotateY } = jscad.transforms
-
-// Check if minkowski is available (fork-only feature)
-const minkowski = jscad.minkowski
 
 const main = (params) => {
   params._type = 'Minkowski'
@@ -39,11 +34,6 @@ const main = (params) => {
   const roundSegments = params.roundSegments
   const size = params.size
   const armWidth = params.armWidth
-
-  if (!minkowski || !minkowski.minkowskiSum) {
-    // Fallback message if minkowski not available
-    return cuboid({ size: [size, size/4, size/4], center: [0, 0, 0] })
-  }
 
   let baseShape
 
@@ -100,7 +90,7 @@ const main = (params) => {
   const roundingShape = sphere({ radius: roundRadius, segments: roundSegments })
 
   // Apply minkowski sum to round all edges
-  return minkowski.minkowskiSum(baseShape, roundingShape)
+  return minkowski(baseShape, roundingShape)
 }
 
 module.exports = { main }

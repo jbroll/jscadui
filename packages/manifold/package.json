@@ -1,0 +1,41 @@
+{
+  "name": "@jscadui/manifold",
+  "version": "0.1.0",
+  "description": "Manifold-based geometry operations for JSCAD - drop-in replacement for @jscad/modeling booleans",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./primitives": "./src/primitives/index.js",
+    "./booleans": "./src/booleans/index.js",
+    "./transforms": "./src/transforms/index.js",
+    "./extrusions": "./src/extrusions/index.js",
+    "./geometries": "./src/geometries/index.js",
+    "./hulls": "./src/hulls/index.js",
+    "./modifiers": "./src/modifiers/index.js",
+    "./measurements": "./src/measurements/index.js",
+    "./colors": "./src/colors/index.js",
+    "./maths": "./src/maths/index.js",
+    "./utils": "./src/utils/index.js"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "manifold-3d": "^3.0.0",
+    "@jscad/modeling": "npm:@jbroll/jscad-modeling@2.13.2"
+  },
+  "devDependencies": {
+    "vitest": "^1.0.0"
+  },
+  "keywords": [
+    "jscad",
+    "csg",
+    "manifold",
+    "boolean",
+    "3d",
+    "modeling"
+  ],
+  "license": "MIT"
+}

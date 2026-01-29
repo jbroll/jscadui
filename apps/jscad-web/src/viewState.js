@@ -28,6 +28,7 @@ export class ViewState {
   zoomToFit
   showAxis
   showGrid
+  modelingEngine
 
   themeName
 
@@ -38,6 +39,7 @@ export class ViewState {
   showGridInput = /** @type {HTMLInputElement} */ (byId('show-grid'))
   smoothRenderInput = /** @type {HTMLInputElement} */ (byId('smooth-render'))
   zoomToFitInput = /** @type {HTMLInputElement} */ (byId('zoom-to-fit'))
+  modelingEngineInput = /** @type {HTMLSelectElement} */ (byId('modeling-engine'))
 
   constructor() {
     this.themeName = localStorage.getItem('engine.theme') || 'light'
@@ -54,6 +56,8 @@ export class ViewState {
     this.smoothRenderInput.checked = this.smoothRender
     this.zoomToFit = localStorage.getItem('engine.zoomToFit') === 'true'
     this.zoomToFitInput.checked = this.zoomToFit
+    this.modelingEngine = localStorage.getItem('engine.modelingEngine') || 'jscad'
+    this.modelingEngineInput.value = this.modelingEngine
     const defaultCamera = { position: [180, -180, 220] }
     const cameraLocation = localStorage.getItem('camera.location')
     if (cameraLocation) {
@@ -83,6 +87,9 @@ export class ViewState {
     })
     this.showAxisInput.addEventListener('change', () => this.setAxes(this.showAxisInput.checked))
     this.showGridInput.addEventListener('change', () => this.setGrid(this.showGridInput.checked))
+    this.modelingEngineInput.addEventListener('change', () => {
+      this.setModelingEngine(this.modelingEngineInput.value)
+    })
   }
 
   /**
@@ -114,13 +121,22 @@ export class ViewState {
   }
 
   /**
-   * @param {boolean} zoomToFit 
+   * @param {boolean} zoomToFit
    * @param {boolean} [fireEvent]
    */
   setZoomToFit(zoomToFit, fireEvent = true) {
     this.zoomToFit = zoomToFit
     this.saveState()
     if (fireEvent) this.onRequireReRender()
+  }
+
+  /**
+   * @param {string} engine - 'jscad' or 'manifold'
+   */
+  setModelingEngine(engine) {
+    this.modelingEngine = engine
+    this.saveState()
+    this.onModelingEngineChange(engine)
   }
 
   /**
@@ -198,7 +214,11 @@ export class ViewState {
     localStorage.setItem('engine.showGrid', String(this.showGrid))
     localStorage.setItem('engine.smoothRender', String(this.smoothRender))
     localStorage.setItem('engine.zoomToFit', String(this.zoomToFit))
+    localStorage.setItem('engine.modelingEngine', this.modelingEngine)
   }
 
   onRequireReRender() { }
+
+  /** @param {string} _engine */
+  onModelingEngineChange(_engine) { }
 }

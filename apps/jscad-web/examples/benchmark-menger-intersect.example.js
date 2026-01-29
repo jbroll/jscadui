@@ -54,10 +54,12 @@ const main = (params) => {
   const centered = translate([0, 0, -height / 2], extruded)
 
   // Intersect three orthogonal copies
+  // Use tiny epsilon offsets to avoid coplanar face precision issues
+  const eps = 1e-6
   return intersect(
     centered,
-    rotateY(Math.PI / 2, centered),
-    rotateX(Math.PI / 2, centered)
+    translate([eps, 0, 0], rotateY(Math.PI / 2, centered)),
+    translate([0, eps, 0], rotateX(Math.PI / 2, centered))
   )
 }
 

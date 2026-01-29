@@ -14,7 +14,7 @@
     "@codemirror/lang-javascript": "^6.1.9",
     "@jscad/csg": "0.7.0",
     "@jscad/io": "2.4.7",
-    "@jscad/modeling": "npm:@jbroll/jscad-modeling@2.12.8",
+    "@jscad/modeling": "npm:@jbroll/jscad-modeling@2.13.2",
     "@jscadui/format-common": "*",
     "@jscadui/format-jscad": "*",
     "@jscadui/format-threejs": "*",
