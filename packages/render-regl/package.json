@@ -3,12 +3,13 @@
   "sideEffects": false,
   "name": "@jscadui/render-regl",
   "version": "0.1.0",
-  "description": "JSCAD regl renderer",
+  "description": "Self-contained JSCAD regl renderer with built-in shaders",
   "main": "index.js",
   "unpkg": "cjs/index.js",
   "module": "./index.js",
   "files": [
     "index.js",
+    "src",
     "bundle.example.js",
     "esm",
     "cjs"
@@ -16,9 +17,23 @@
   "scripts": {
     "test": "vitest",
     "coverage": "vitest run --coverage",
-    "build": "esbuild index.js --outdir=esm --bundle --sourcemap --minify --loader:.js=jsx --format=esm",
-    "build-cjs": "esbuild index.js --outdir=cjs --bundle --sourcemap --minify --loader:.js=jsx --format=cjs",
+    "build": "esbuild index.js --outdir=esm --bundle --sourcemap --minify --loader:.js=jsx --format=esm --external:regl --external:gl-mat4 --external:gl-vec3 --external:@jscadui/format-regl --external:@jscadui/scene",
+    "build-cjs": "esbuild index.js --outdir=cjs --bundle --sourcemap --minify --loader:.js=jsx --format=cjs --external:regl --external:gl-mat4 --external:gl-vec3 --external:@jscadui/format-regl --external:@jscadui/scene",
     "prepublishOnly": "npm run build && npm run build-cjs"
+  },
+  "dependencies": {
+    "@jscadui/format-regl": "*",
+    "@jscadui/scene": "*",
+    "gl-mat4": "^1.2.0",
+    "gl-vec3": "^1.1.3"
+  },
+  "peerDependencies": {
+    "regl": "^2.1.0"
+  },
+  "peerDependenciesMeta": {
+    "regl": {
+      "optional": false
+    }
   },
   "devDependencies": {
     "@trivago/prettier-plugin-sort-imports": "^6.0.2",

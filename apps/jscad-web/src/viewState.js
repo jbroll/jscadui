@@ -29,6 +29,7 @@ export class ViewState {
   showAxis
   showGrid
   modelingEngine
+  renderEngine
 
   themeName
 
@@ -40,6 +41,7 @@ export class ViewState {
   smoothRenderInput = /** @type {HTMLInputElement} */ (byId('smooth-render'))
   zoomToFitInput = /** @type {HTMLInputElement} */ (byId('zoom-to-fit'))
   modelingEngineInput = /** @type {HTMLSelectElement} */ (byId('modeling-engine'))
+  renderEngineInput = /** @type {HTMLSelectElement} */ (byId('render-engine'))
 
   constructor() {
     this.themeName = localStorage.getItem('engine.theme') || 'light'
@@ -58,6 +60,8 @@ export class ViewState {
     this.zoomToFitInput.checked = this.zoomToFit
     this.modelingEngine = localStorage.getItem('engine.modelingEngine') || 'jscad'
     this.modelingEngineInput.value = this.modelingEngine
+    this.renderEngine = localStorage.getItem('engine.renderEngine') || 'threejs'
+    this.renderEngineInput.value = this.renderEngine
     const defaultCamera = { position: [180, -180, 220] }
     const cameraLocation = localStorage.getItem('camera.location')
     if (cameraLocation) {
@@ -89,6 +93,9 @@ export class ViewState {
     this.showGridInput.addEventListener('change', () => this.setGrid(this.showGridInput.checked))
     this.modelingEngineInput.addEventListener('change', () => {
       this.setModelingEngine(this.modelingEngineInput.value)
+    })
+    this.renderEngineInput.addEventListener('change', () => {
+      this.setRenderEngine(this.renderEngineInput.value)
     })
   }
 
@@ -137,6 +144,15 @@ export class ViewState {
     this.modelingEngine = engine
     this.saveState()
     this.onModelingEngineChange(engine)
+  }
+
+  /**
+   * @param {string} engine - 'threejs' or 'regl'
+   */
+  setRenderEngine(engine) {
+    this.renderEngine = engine
+    this.saveState()
+    this.onRenderEngineChange(engine)
   }
 
   /**
@@ -215,10 +231,14 @@ export class ViewState {
     localStorage.setItem('engine.smoothRender', String(this.smoothRender))
     localStorage.setItem('engine.zoomToFit', String(this.zoomToFit))
     localStorage.setItem('engine.modelingEngine', this.modelingEngine)
+    localStorage.setItem('engine.renderEngine', this.renderEngine)
   }
 
   onRequireReRender() { }
 
   /** @param {string} _engine */
   onModelingEngineChange(_engine) { }
+
+  /** @param {string} _engine */
+  onRenderEngineChange(_engine) { }
 }

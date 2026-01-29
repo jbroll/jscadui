@@ -67,6 +67,13 @@ if(!skipDocs && !(dev & existsSync(outDir + "/docs"))){
 
 /**************************** BUILD JS that is static *************/
 await buildBundle(outDir + '/build', 'bundle.threejs.js', { globalName: 'THREE', skipExisting: dev })
+await buildBundle(outDir + '/build', 'bundle.regl.js', { globalName: 'regl', skipExisting: dev })
+// render-regl bundle needs CJS loader for gl-mat4/gl-vec3 dependencies
+await buildBundle(outDir + '/build', 'bundle.render-regl.js', {
+  globalName: 'RenderReglBundle',
+  skipExisting: dev,
+  loader: { '.js': 'js', '.jsx': 'jsx' }
+})
 
 // CJS bundles that use CommonJS modules need default js loader (not tsx)
 // The tsx loader breaks CommonJS require resolution in node_modules

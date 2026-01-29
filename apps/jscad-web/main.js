@@ -567,6 +567,16 @@ viewState.onModelingEngineChange = async (newEngine) => {
   editor.runScript()
 }
 
+viewState.onRenderEngineChange = async (newEngine) => {
+  console.log('Switching render engine to:', newEngine)
+
+  // Destroy old viewer
+  viewState.viewer?.destroy?.()
+
+  // Initialize new viewer
+  viewState.setEngine(await engine.init(newEngine))
+}
+
 if (useParamsProxy) {
   const style = document.createElement('style')
   style.textContent = paramsTreeStyles + inputStyles
@@ -654,8 +664,8 @@ const pauseAnimCallback = async (def, value) => {
   stopCurrentAnim()
 }
 
-// Initialize three engine
-viewState.setEngine(await engine.init())
+// Initialize render engine
+viewState.setEngine(await engine.init(viewState.renderEngine))
 
 /** @type {Object.<string,FileSystemFileHandle>} */
 let saveMap = {}

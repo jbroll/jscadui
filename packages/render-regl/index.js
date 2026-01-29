@@ -1,24 +1,59 @@
-// cd C:\hrg\3dp_dev\OpenJSCAD.org\packages\utils\regl-renderer\
-// esbuild src/index.js --outfile=C:/hrg/3dp_dev/OpenJSCAD.org/packages/web2/src/jscad-regl-renderer.min.js --bundle --watch --sourcemap --minify --format=iife --global-name=jscadReglRenderer
+/**
+ * Self-contained Regl renderer for JSCAD
+ * Can work standalone with built-in shaders, or use external @jscad/regl-renderer
+ */
+
 import { CommonToRegl } from '@jscadui/format-regl'
 
-export function RenderRegl(regl) {
-  const { prepareRender, drawCommands, cameras, controls } = regl
+// Internal modules
+import perspectiveCamera from './src/camera/perspective.js'
+import orbitControls from './src/controls/orbitControls.js'
+import renderDefaults from './src/renderDefaults.js'
+import renderContext from './src/renderContext.js'
+import { createDrawCommands } from './src/commands/createCommands.js'
 
+/**
+ * Create a Regl renderer
+ * @param {Object|Function} reglOrOptions - Either the regl library function, or an options object with external renderer
+ * @returns {Function} Viewer factory function
+ */
+export function RenderRegl(reglOrOptions) {
+  // Determine if we're using external @jscad/regl-renderer or standalone mode
+  const isExternalRenderer = reglOrOptions && typeof reglOrOptions === 'object' &&
+    'prepareRender' in reglOrOptions && 'drawCommands' in reglOrOptions
+
+  // External renderer mode (backward compatible)
+  let externalPrepareRender, externalDrawCommands, externalCameras, externalControls
+
+  if (isExternalRenderer) {
+    externalPrepareRender = reglOrOptions.prepareRender
+    externalDrawCommands = reglOrOptions.drawCommands
+    externalCameras = reglOrOptions.cameras
+    externalControls = reglOrOptions.controls
+  }
+
+  // Camera/control speeds
   const rotateSpeed = 0.002
   const panSpeed = 1
   const zoomSpeed = 0.08
+
+  // State variables (per-viewer closure)
   let rotateDelta = [0, 0]
   let panDelta = [0, 0]
   let zoomDelta = 0
   let updateRender = true
-  let meshColor = [1,1,1]
-  let orbitControls, renderOptions, renderer
+  let meshColor = [1, 1, 1]
+  let currentOrbitControls, renderOptions, renderer
 
   const csgConvert = CommonToRegl()
-
   const entities = []
 
+  /**
+   * Create a WebGL context with fallback chain
+   * Prefer WebGL 1 over WebGL 2 because regl's uint32 element support
+   * relies on the OES_element_index_uint extension which doesn't exist in WebGL 2
+   * (it's built into the core, but regl doesn't detect this properly)
+   */
   function createContext(canvas, contextAttributes) {
     function get(type) {
       try {
@@ -27,64 +62,140 @@ export function RenderRegl(regl) {
         return null
       }
     }
-    return get('webgl2') || get('webgl') || get('experimental-webgl') || get('webgl-experimental')
+    // Prefer WebGL 1 for proper uint32 element index extension support
+    return get('webgl') || get('experimental-webgl') || get('webgl-experimental') || get('webgl2')
   }
 
   const state = {}
-  let perspectiveCamera
+  let currentPerspectiveCamera
 
+  /**
+   * Start the renderer
+   */
   const startRenderer = ({ canvas, cameraPosition = [180, -180, 220], cameraTarget = [0, 0, 0], bg = [1, 1, 1] }) => {
-    // ********************
-    // Renderer configuration and initiation.
-    // ********************
+    // Use external or internal camera/controls
+    currentPerspectiveCamera = isExternalRenderer ? externalCameras.perspective : perspectiveCamera
+    currentOrbitControls = isExternalRenderer ? externalControls.orbit : orbitControls
 
-    perspectiveCamera = cameras.perspective
-    orbitControls = controls.orbit
     state.canvas = canvas
     canvas.style.background = 'black'
-    // prepare the camera
-    state.camera = Object.assign({}, perspectiveCamera.defaults)
+
+    // Initialize camera state
+    state.camera = Object.assign({}, currentPerspectiveCamera.defaults)
     if (cameraPosition) state.camera.position = cameraPosition
     if (cameraTarget) state.camera.target = cameraTarget
 
     resize({ width: canvas.width, height: canvas.height })
 
-    // prepare the controls
-    state.controls = orbitControls.defaults
+    // Initialize controls state
+    state.controls = Object.assign({}, currentOrbitControls.defaults)
 
+    // Create WebGL context
     const { gl, type } = createContext(canvas)
-    // prepare the renderer
-    const setupOptions = {
-      glOptions: { gl },
+    if (!gl) {
+      throw new Error('WebGL not supported')
     }
-    if (type === 'webgl') {
-      setupOptions.glOptions.optionalExtensions = ['oes_element_index_uint']
-    }
-    renderer = prepareRender(setupOptions)
 
-    // assemble the options for rendering
+    // Setup options
+    // Always request uint32 element index extension (required for large meshes)
+    // WebGL 2 has it built-in, but regl still needs to know about it
+    const setupOptions = {
+      glOptions: {
+        gl,
+        optionalExtensions: ['oes_element_index_uint']
+      }
+    }
+
+    // Create renderer
+    if (isExternalRenderer) {
+      // Use external prepareRender
+      renderer = externalPrepareRender(setupOptions)
+    } else {
+      // Use internal renderer
+      // Dynamically import regl and create renderer
+      import('regl').then(reglModule => {
+        const createRegl = reglModule.default
+        const regl = createRegl(setupOptions.glOptions)
+
+        // Create draw cache
+        const drawCache = new Map()
+        const drawCommands = createDrawCommands()
+        const contextWrapper = renderContext(regl)
+
+        // Create render function
+        renderer = (props) => {
+          props.rendering = Object.assign({}, renderDefaults, props.rendering)
+
+          contextWrapper(props, () => {
+            regl.clear({
+              color: props.rendering.background,
+              depth: 1
+            })
+
+            if (props.entities) {
+              props.entities
+                .sort((a, b) => {
+                  const aTransparent = a.visuals?.transparent ?? false
+                  const bTransparent = b.visuals?.transparent ?? false
+                  return (aTransparent === bTransparent) ? 0 : aTransparent ? 1 : -1
+                })
+                .forEach((entity) => {
+                  const { visuals } = entity
+                  const show = visuals?.show ?? true
+
+                  if (show && visuals.drawCmd && drawCommands[visuals.drawCmd]) {
+                    let drawCmd
+
+                    if (visuals.cacheId !== undefined) {
+                      drawCmd = drawCache.get(visuals.cacheId)
+                    }
+
+                    if (!drawCmd) {
+                      visuals.cacheId = drawCache.size
+                      drawCmd = drawCommands[visuals.drawCmd](regl, entity)
+                      drawCache.set(visuals.cacheId, drawCmd)
+                    }
+
+                    drawCmd({
+                      ...entity,
+                      ...visuals,
+                      camera: props.camera
+                    })
+                  }
+                })
+            }
+          })
+
+          regl.poll()
+        }
+
+        updateView()
+      }).catch(err => {
+        console.error('Failed to load regl:', err)
+        throw err
+      })
+    }
+
+    // Assemble render options
     renderOptions = {
       camera: state.camera,
       rendering: {
-        // meshColor: [0, 0.6, 1, 1],
-        background: bg,
+        background: bg
       },
-      drawCommands: {
-        drawAxis: drawCommands.drawAxis,
-        drawGrid: drawCommands.drawGrid,
-        drawLines: drawCommands.drawLines,
-        drawMesh: drawCommands.drawMesh,
-      },
-      // define the visual content
-      entities,
+      drawCommands: isExternalRenderer ? {
+        drawAxis: externalDrawCommands.drawAxis,
+        drawGrid: externalDrawCommands.drawGrid,
+        drawLines: externalDrawCommands.drawLines,
+        drawMesh: externalDrawCommands.drawMesh
+      } : {},
+      entities
     }
-    // the heart of rendering, as themes, controls, etc change
 
     updateView()
   }
 
   let renderTimer
-  const tmFunc = typeof requestAnimationFrame === 'undefined' ? setTimeout : requestAnimationFrame // eslint-disable-line
+  const tmFunc = typeof requestAnimationFrame === 'undefined' ? setTimeout : requestAnimationFrame
 
   function updateView(delay = 8) {
     if (renderTimer || !renderer) return
@@ -93,16 +204,19 @@ export function RenderRegl(regl) {
 
   const doRotatePanZoom = () => {
     if (rotateDelta[0] || rotateDelta[1]) {
-      const updated = orbitControls.rotate(
+      const updated = currentOrbitControls.rotate(
         { controls: state.controls, camera: state.camera, speed: rotateSpeed },
-        rotateDelta,
+        rotateDelta
       )
       state.controls = { ...state.controls, ...updated.controls }
       rotateDelta = [0, 0]
     }
 
     if (panDelta[0] || panDelta[1]) {
-      const updated = orbitControls.pan({ controls: state.controls, camera: state.camera, speed: panSpeed }, panDelta)
+      const updated = currentOrbitControls.pan(
+        { controls: state.controls, camera: state.camera, speed: panSpeed },
+        panDelta
+      )
       state.controls = { ...state.controls, ...updated.controls }
       panDelta = [0, 0]
       state.camera.position = updated.camera.position
@@ -110,9 +224,9 @@ export function RenderRegl(regl) {
     }
 
     if (zoomDelta) {
-      const updated = orbitControls.zoom(
+      const updated = currentOrbitControls.zoom(
         { controls: state.controls, camera: state.camera, speed: zoomSpeed },
-        zoomDelta,
+        zoomDelta
       )
       state.controls = { ...state.controls, ...updated.controls }
       zoomDelta = 0
@@ -123,15 +237,18 @@ export function RenderRegl(regl) {
     renderTimer = null
     doRotatePanZoom()
 
-    const updates = orbitControls.update({ controls: state.controls, camera: state.camera })
+    const updates = currentOrbitControls.update({ controls: state.controls, camera: state.camera })
     state.controls = { ...state.controls, ...updates.controls }
-    if (state.controls.changed) updateView(16) // for elasticity in rotate / zoom
+    if (state.controls.changed) updateView(16) // Elasticity animation
 
     state.camera.position = updates.camera.position
-    perspectiveCamera.update(state.camera)
+    currentPerspectiveCamera.update(state.camera)
     renderOptions.entities = entities
-    const time = Date.now()
-    renderer(renderOptions)
+
+    if (renderer) {
+      renderer(renderOptions)
+    }
+
     if (updateRender) {
       updateRender = ''
     }
@@ -140,8 +257,8 @@ export function RenderRegl(regl) {
   function resize({ width, height }) {
     state.canvas.width = width
     state.canvas.height = height
-    perspectiveCamera.setProjection(state.camera, state.camera, { width, height })
-    perspectiveCamera.update(state.camera, state.camera)
+    currentPerspectiveCamera.setProjection(state.camera, state.camera, { width, height })
+    currentPerspectiveCamera.update(state.camera, state.camera)
     updateView()
   }
 
@@ -150,10 +267,10 @@ export function RenderRegl(regl) {
     updateView()
   }
 
-  const setMeshColor = (color = [1, 1, 1])=>{
+  const setMeshColor = (color = [1, 1, 1]) => {
     meshColor = color
   }
-  
+
   const handlers = {
     pan: ({ dx, dy }) => {
       panDelta[0] += dx
@@ -169,7 +286,7 @@ export function RenderRegl(regl) {
     zoom: ({ dy }) => {
       zoomDelta += dy
       updateView()
-    },
+    }
   }
 
   function receiveCmd(cmd) {
@@ -184,9 +301,9 @@ export function RenderRegl(regl) {
     receiveCmd(cmd)
   }
 
+  // Pointer event handlers (currently disabled in favor of external orbit controls)
   let lastX = 0
   let lastY = 0
-
   let pointerDown = false
   let canvas
 
@@ -194,30 +311,26 @@ export function RenderRegl(regl) {
     if (!pointerDown) return
     const cmd = {
       dx: lastX - ev.pageX,
-      dy: ev.pageY - lastY,
+      dy: ev.pageY - lastY
     }
-
     const shiftKey = ev.shiftKey === true || (ev.touches && ev.touches.length > 2)
     cmd.action = shiftKey ? 'pan' : 'rotate'
     sendCmd(cmd)
-
     lastX = ev.pageX
     lastY = ev.pageY
-
     ev.preventDefault()
   }
+
   const downHandler = ev => {
     pointerDown = true
     lastX = ev.pageX
     lastY = ev.pageY
     canvas.setPointerCapture(ev.pointerId)
-    //  ev.preventDefault()
   }
 
   const upHandler = ev => {
     pointerDown = false
     canvas.releasePointerCapture(ev.pointerId)
-    //  ev.preventDefault()
   }
 
   const wheelHandler = ev => {
@@ -225,30 +338,29 @@ export function RenderRegl(regl) {
     ev.preventDefault()
   }
 
+  /**
+   * Create a viewer instance
+   */
   return function JscadReglViewer(el, { camera = {}, bg = [1, 1, 1] } = {}) {
     canvas = document.createElement('CANVAS')
     el.appendChild(canvas)
 
     const destroy = () => {
-      // Cancel pending animation frame
       if (renderTimer) {
         cancelAnimationFrame(renderTimer)
         renderTimer = null
       }
-      // Clear entities
       entities.length = 0
-      // Destroy renderer if it has a destroy method
       renderer?.destroy?.()
       renderer = null
-      // Remove canvas
       el.removeChild(canvas)
     }
 
     try {
       startRenderer({ canvas, cameraPosition: camera.position, cameraTarget: camera.target, bg })
 
-      // DISABLED orbit controle in favor of external
-      // TODO make optional
+      // Orbit controls disabled by default (use external @jscadui/orbit)
+      // Uncomment to enable built-in controls:
       // canvas.onpointermove = moveHandler
       // canvas.onpointerdown = downHandler
       // canvas.onpointerup = upHandler
@@ -272,30 +384,36 @@ export function RenderRegl(regl) {
       forceColors4: false,
       forceIndex: false,
       forceNormals: true,
-      useInstances: false,
+      useInstances: true
     })
 
     function setScene(_scene) {
       entities.length = 0
       const transparent = []
       _scene.items.forEach(item => {
-        // const group = new THREE.Group() no grouping in babylon
         item.items.forEach(obj => {
           const entity = csgConvert(obj, _scene, meshColor)
-          // Render opaque entities first, then transparent (proper transparency rendering order)
-          if(entity.transparent)
+          if (entity.transparent) {
             transparent.push(entity)
-          else
+          } else {
             entities.push(entity)
-          // group.add(obj3d)
-          // _scene.add(obj3d)
+          }
         })
-        // _scene.add(group)
       })
-      // Add transparent entities last so they render after opaque geometry
+      // Transparent entities rendered last
       transparent.forEach(e => entities.push(e))
       updateView()
     }
+
     return { sendCmd, resize, destroy, state, getCamera, setCamera, setBg, setMeshColor, getViewerEnv, setScene }
   }
 }
+
+// Also export the internal modules for direct usage
+export { perspectiveCamera, orbitControls, renderDefaults, createDrawCommands }
+
+// Export scene helpers (grid, axes)
+export { makeGrid, makeAxes, createSceneHelpers, gridColors } from './src/helpers/sceneHelpers.js'
+
+// Export bounds utilities
+export { boundingBox, computeBounds, computeEntityBounds } from './src/utils/bounds.js'

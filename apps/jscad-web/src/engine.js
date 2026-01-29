@@ -1,21 +1,45 @@
 import { RenderThreejs } from '@jscadui/render-threejs'
 
-// import * as THREE from 'three'
+// Track loaded scripts to avoid reloading
+const loadedScripts = new Set()
 
-export const init = async () => {
-  await addScript('build/bundle.threejs.js')
-  const JscadThreeViewer = RenderThreejs(THREE)
+/**
+ * Initialize the 3D viewer with the specified render engine
+ * @param {'threejs' | 'regl'} engineType
+ * @returns {Promise<object>} The viewer instance
+ */
+export const init = async (engineType = 'threejs') => {
   const el = /** @type {HTMLDivElement} */ (document.getElementById('viewer'))
-  const viewer = JscadThreeViewer(el)
 
+  let viewer
+
+  if (engineType === 'regl') {
+    // Load regl library and render-regl bundle
+    await addScript('build/bundle.regl.js')
+    await addScript('build/bundle.render-regl.js')
+    // @ts-ignore - RenderReglBundle is loaded as a global
+    const JscadReglViewer = RenderReglBundle.RenderRegl()
+    viewer = JscadReglViewer(el)
+  } else {
+    // Default to Three.js
+    await addScript('build/bundle.threejs.js')
+    const JscadThreeViewer = RenderThreejs(THREE)
+    viewer = JscadThreeViewer(el)
+  }
+
+  // Set up resize observer for future resizes
   observeResize(el, evt => viewer.resize(evt.contentRect))
+
+  // Trigger initial resize with current element dimensions
+  const rect = el.getBoundingClientRect()
+  viewer.resize({ width: rect.width, height: rect.height })
 
   return viewer
 }
 
 /**
- * @param {HTMLElement} el 
- * @param {(entry:ResizeObserverEntry)=>void} listener 
+ * @param {HTMLElement} el
+ * @param {(entry:ResizeObserverEntry)=>void} listener
  */
 const observeResize = (el, listener) => {
   // ResizeObserver is better than window resize as it can be used on any element
@@ -29,16 +53,22 @@ const observeResize = (el, listener) => {
 }
 
 /**
- * @param {string} source 
+ * @param {string} source
  * @param {boolean} [module]
  * @returns {Promise<void>}
  */
 const addScript = async (source, module = false) => {
+  // Don't reload already-loaded scripts
+  if (loadedScripts.has(source)) return
+
   return new Promise((resolve, reject) => {
     const tag = document.createElement('script')
     tag.type = module ? 'module' : 'text/javascript'
     tag.src = source
-    tag.onload = () => resolve()
+    tag.onload = () => {
+      loadedScripts.add(source)
+      resolve()
+    }
     tag.onerror = err => reject(err)
     document.head.append(tag)
   })

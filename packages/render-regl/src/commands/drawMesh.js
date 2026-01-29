@@ -1,0 +1,116 @@
+/**
+ * Draw mesh command factory
+ * Creates a regl command for rendering triangle meshes with Phong lighting
+ */
+
+import * as mat4 from 'gl-mat4'
+import { meshVert, meshFrag, vColorVert, vColorFrag } from '../shaders/mesh.js'
+import renderDefaults from '../renderDefaults.js'
+
+/**
+ * Create a draw command for a mesh entity
+ * @param {Object} regl - The regl instance
+ * @param {Object} params - Entity parameters
+ * @returns {Function} Regl draw command
+ */
+const drawMesh = (regl, params = { extras: {} }) => {
+  const defaults = {
+    useVertexColors: true,
+    dynamicCulling: true,
+    geometry: undefined,
+    color: renderDefaults.meshColor,
+    visuals: {}
+  }
+
+  const { geometry, dynamicCulling, useVertexColors, color, visuals } = Object.assign({}, defaults, params)
+
+  // Determine geometry properties
+  const hasIndices = !!(geometry.indices && geometry.indices.length > 0)
+  const hasNormals = !!(geometry.normals && geometry.normals.length > 0)
+  const transparent = 'transparent' in visuals ? visuals.transparent : false
+  const hasVertexColors = !!(useVertexColors && geometry.colors && geometry.colors.length > 0)
+  const transforms = geometry.transforms || mat4.create()
+
+  // Dynamic culling based on transform determinant (flip for mirrored geometry)
+  const flip = mat4.determinant(transforms) < 0
+  const cullFace = dynamicCulling ? (flip ? 'front' : 'back') : 'back'
+
+  // Select shaders based on vertex colors
+  const vert = hasVertexColors ? vColorVert : meshVert
+  const frag = hasVertexColors ? vColorFrag : meshFrag
+
+  // Compute inverse model matrix for normal transformation
+  const modelMatrixInv = mat4.invert(mat4.create(), transforms)
+
+  let commandParams = {
+    primitive: 'triangles',
+    vert,
+    frag,
+
+    uniforms: {
+      model: (context, props) => transforms,
+      ucolor: (context, props) => (props && props.color) ? props.color : color,
+      // Toggle between vertex colors and uniform color
+      vColorToggler: (context, props) => (props && props.useVertexColors && props.useVertexColors === true) ? 1.0 : 0.0,
+      // Normal matrix for proper lighting with transformed geometry
+      unormal: (context, props) => {
+        const modelViewMatrix = mat4.invert(mat4.create(), props.camera.view)
+        mat4.multiply(modelViewMatrix, modelMatrixInv, modelViewMatrix)
+        mat4.transpose(modelViewMatrix, modelViewMatrix)
+        return modelViewMatrix
+      }
+    },
+
+    attributes: {
+      position: regl.buffer({ usage: 'static', type: 'float', data: geometry.positions })
+    },
+
+    cull: {
+      enable: true,
+      face: cullFace
+    },
+
+    depth: {
+      enable: true,
+      mask: !transparent // Don't write to depth buffer for transparent objects
+    }
+  }
+
+  // Alpha blending for transparent objects
+  if (transparent) {
+    commandParams.blend = {
+      enable: true,
+      func: { src: 'src alpha', dst: 'one minus src alpha' }
+    }
+  }
+
+  // Set up index buffer
+  if (geometry.cells) {
+    commandParams.elements = geometry.cells
+  } else if (hasIndices) {
+    // Determine index type based on array type
+    const indexType = geometry.indices instanceof Uint32Array ? 'uint32' : 'uint16'
+    commandParams.elements = regl.elements({ usage: 'static', type: indexType, data: geometry.indices })
+  } else if (geometry.triangles) {
+    commandParams.elements = geometry.triangles
+  } else {
+    commandParams.count = geometry.positions.length / 3
+  }
+
+  // Normal attribute
+  if (hasNormals) {
+    commandParams.attributes.normal = regl.buffer({ usage: 'static', type: 'float', data: geometry.normals })
+  }
+
+  // Vertex color attribute
+  if (hasVertexColors) {
+    commandParams.attributes.color = regl.buffer({ usage: 'static', type: 'float', data: geometry.colors })
+  }
+
+  // Merge any extra params
+  commandParams = Object.assign({}, commandParams, params.extras)
+
+  return regl(commandParams)
+}
+
+export default drawMesh
