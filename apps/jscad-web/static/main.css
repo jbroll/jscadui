@@ -471,26 +471,6 @@ p {
   display: flex;
   flex-direction: column;
 }
-#modelStats {
-  flex-shrink: 0;
-  padding: 6px 10px;
-  font-size: 11px;
-  color: #666;
-  border-bottom: 1px solid #ddd;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 12px;
-}
-#modelStats:empty {
-  display: none;
-}
-#modelStats span {
-  white-space: nowrap;
-}
-.dark #modelStats {
-  color: #aaa;
-  border-bottom-color: #444;
-}
 #paramsHeader {
   flex-shrink: 0;
 }
@@ -641,21 +621,65 @@ p {
   border-top-left-radius: 4px;
 }
 
-#progress progress{
-  display: none;
-}
-#progress {
+#pipeline-stats {
   position: absolute;
   bottom: 10px;
   right: 10px;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 11px;
+  color: #555;
+  text-align: right;
+  min-width: 120px;
+}
+.dark #pipeline-stats {
+  background: rgba(40, 40, 40, 0.85);
+  border-color: #555;
+  color: #aaa;
+}
+#pipeline-stats:empty {
+  display: none;
+}
+#stats-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+#stats-content:empty {
+  display: none;
+}
+#stats-content .stat-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+#stats-content .stat-label {
+  color: #888;
+}
+.dark #stats-content .stat-label {
+  color: #777;
+}
+#stats-content .stat-value {
+  font-family: monospace;
+  font-weight: 500;
+}
+#stats-content .stat-separator {
+  border-top: 1px solid #ddd;
+  margin: 3px 0;
+}
+.dark #stats-content .stat-separator {
+  border-top-color: #555;
+}
+#progress {
+  display: none;
+  width: 100%;
+  margin-top: 6px;
   accent-color: #27c;
 }
 .dark #progress {
   accent-color: #2e96ea;
-}
-#progressText {
-  font-size: small;
-  text-align: right;
 }
 
 .above-error {

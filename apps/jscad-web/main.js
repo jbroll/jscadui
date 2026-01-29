@@ -211,17 +211,18 @@ const dragEndOrLeave = () => {
 document.body.addEventListener("dragend", dragEndOrLeave);
 document.body.addEventListener("dragleave", dragEndOrLeave);
 
+const statsContent = byId('stats-content')
+const progress = /** @type {HTMLProgressElement} */ (byId('progress'))
+
 /**
  * @param {number} [value]
- * @param {string} [note]
  */
-const onProgress = (value, note) => {
+const onProgress = (value) => {
   if (value == undefined) {
     progress.removeAttribute('value')
   } else {
     progress.value = value
   }
-  progressText.innerText = note ?? ''
 }
 
 const worker = new Worker('./build/bundle.worker.js')
@@ -243,27 +244,68 @@ function formatCount(n) {
   return String(n)
 }
 
-const modelStats = byId('modelStats')
+/**
+ * Format milliseconds for display
+ * @param {number} ms
+ * @returns {string}
+ */
+function formatMs(ms) {
+  if (ms == null) return '—'
+  if (ms >= 1000) return (ms / 1000).toFixed(2) + 's'
+  return ms.toFixed(1) + 'ms'
+}
 
 /**
- * Update the model stats display
- * @param {number} mainTime
- * @param {number} convertTime
- * @param {Array<{vertices?: ArrayLike<number>, indices?: ArrayLike<number>}>} entities
+ * Update the pipeline stats display
+ * @param {object} stats
+ * @param {number} [stats.execTime] - Script execution time
+ * @param {number} [stats.convertTime] - Geometry conversion time
+ * @param {number} [stats.renderTime] - Render time
+ * @param {number} [stats.triangles] - Total triangle count
+ * @param {number} [stats.vertices] - Total vertex count
  */
-function updateModelStats(mainTime, convertTime, entities) {
-  let totalTriangles = 0
-  let totalVertices = 0
-  for (const e of entities) {
-    if (e.indices) totalTriangles += e.indices.length / 3
-    if (e.vertices) totalVertices += e.vertices.length / 3
+function updatePipelineStats({ execTime, convertTime, renderTime, triangles, vertices }) {
+  const rows = []
+
+  // Timing section
+  if (execTime != null) {
+    rows.push(`<div class="stat-row"><span class="stat-label">Exec</span><span class="stat-value">${formatMs(execTime)}</span></div>`)
   }
-  modelStats.innerHTML = `
-    <span>Exec: ${mainTime?.toFixed(1) ?? '?'}ms</span>
-    <span>Convert: ${convertTime?.toFixed(1) ?? '?'}ms</span>
-    <span>${formatCount(totalTriangles)} triangles</span>
-    <span>${formatCount(totalVertices)} vertices</span>
-  `
+  if (convertTime != null) {
+    rows.push(`<div class="stat-row"><span class="stat-label">Convert</span><span class="stat-value">${formatMs(convertTime)}</span></div>`)
+  }
+  if (renderTime != null) {
+    rows.push(`<div class="stat-row"><span class="stat-label">Render</span><span class="stat-value">${formatMs(renderTime)}</span></div>`)
+  }
+
+  // Separator and geometry section
+  if ((triangles != null || vertices != null) && rows.length > 0) {
+    rows.push('<div class="stat-separator"></div>')
+  }
+  if (triangles != null) {
+    rows.push(`<div class="stat-row"><span class="stat-label">Triangles</span><span class="stat-value">${formatCount(triangles)}</span></div>`)
+  }
+  if (vertices != null) {
+    rows.push(`<div class="stat-row"><span class="stat-label">Vertices</span><span class="stat-value">${formatCount(vertices)}</span></div>`)
+  }
+
+  statsContent.innerHTML = rows.join('')
+}
+
+/**
+ * Count triangles and vertices from entities
+ * @param {Array<{vertices?: ArrayLike<number>, indices?: ArrayLike<number>}>} entities
+ * @returns {{triangles: number, vertices: number}}
+ */
+function countGeometry(entities) {
+  let triangles = 0
+  let vertices = 0
+  for (const e of entities) {
+    if (e.indices) triangles += e.indices.length / 3
+    if (e.vertices) vertices += e.vertices.length / 3
+  }
+  return { triangles, vertices
+  }
 }
 
 const handlers = {
@@ -273,29 +315,39 @@ const handlers = {
    */
   entities: ({ entities, mainTime, convertTime }, { skipLog } = {}) => {
     if (!(entities instanceof Array)) entities = [entities]
+
+    // Track render time
+    const renderStart = performance.now()
     viewState.setModel(entities)
+    const renderTime = performance.now() - renderStart
+
     if(viewState.zoomToFit){
       let {min,max} = boundingBox(entities)
       console.warn('min', min, 'max', max, viewState.viewer.getCamera())
       let { fov, aspect } = viewState.viewer.getCamera()
       ctrl.fit(min,max, fov,aspect,1.2)
     }
-    if (!skipLog) console.log('Main execution:', mainTime?.toFixed(2), ', jscad mesh -> gl:', convertTime?.toFixed(2), entities)
+    if (!skipLog) console.log('Main execution:', mainTime?.toFixed(2), ', convert:', convertTime?.toFixed(2), ', render:', renderTime?.toFixed(2), entities)
     setError(undefined)
-    onProgress(undefined, mainTime?.toFixed(2) + ' ms')
-    updateModelStats(mainTime, convertTime, entities)
+    onProgress(undefined)
+
+    // Update pipeline stats
+    const { triangles, vertices } = countGeometry(entities)
+    updatePipelineStats({
+      execTime: mainTime,
+      convertTime,
+      renderTime,
+      triangles,
+      vertices
+    })
   },
   onProgress,
 }
 
 const workerApi = /** @type {JscadWorker} */ (messageProxy(worker, handlers, { onJobCount: trackJobs }))
 
-const progress = /** @type {HTMLProgressElement} */ (byId('progress').querySelector('progress'))
-const progressText = byId('progressText')
-
 /**@type {NodeJS.Timeout} */
 let firstJobTimer
-
 
 /**
  * @param {number} jobs
