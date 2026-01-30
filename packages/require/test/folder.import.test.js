@@ -12,6 +12,6 @@ const base = 'fs:/'
 const readFileNode = makeReadFileNode(join(__dirname, 'folder/import') + '/')
 
 it('no_transform', () => {
-  let script = require('./index.js', transformcjs, readFileNode, base)
+  const script = require('./index.js', transformcjs, readFileNode, base)
   expect(script.main({size:11})).toEqual('cube11')
 })

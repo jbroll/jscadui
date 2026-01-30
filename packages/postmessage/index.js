@@ -1,5 +1,5 @@
 let seq = 1
-let reqMap = new Map()
+const reqMap = new Map()
 const RESPONSE = '__RESPONSE__'
 const TRANSFERABLE = Symbol.for('__transferable__')
 
@@ -32,7 +32,7 @@ export const initMessaging = (_self, handlers, { onJobCount, debug } = {}) => {
    */
   const sendResponse = (result, id) => {
     if (debug) console.log(debug, 'sendResponse', id, result)
-    let trans = result?.[TRANSFERABLE]
+    const trans = result?.[TRANSFERABLE]
     if (trans) {
       delete result[TRANSFERABLE]
     }
@@ -171,7 +171,7 @@ export const messageProxy = (_self, handlers, { onJobCount, debug } = {}) => {
   const { sendCmd, sendNotify, getRpcJobCount, listener, destroy } = initMessaging(_self, handlers, { onJobCount, debug })
   // creating error is not too expensive in our context as there will not be millions
   // methods produced, and info on how the proxy is created an when called is indispensible for debug
-  let created = new Error('proxy')
+  const created = new Error('proxy')
 
   return new Proxy(
     { getRpcJobCount, onmessage: listener, destroy },
@@ -187,7 +187,7 @@ export const messageProxy = (_self, handlers, { onJobCount, debug } = {}) => {
           })
         }
         // same as above Error for debugging
-        let methodCreated = new Error('methodCreated')
+        const methodCreated = new Error('methodCreated')
         return (target[prop] = function (...params) {
           try {
             return sendCmd(prop, params)

@@ -12,14 +12,14 @@ const base = 'fs:/'
 
 it('no_transform', () => {
   const readFileNode = makeReadFileNode(root)
-  let pack = JSON.parse(readFileNode('/package.json'))
+  const pack = JSON.parse(readFileNode('/package.json'))
   pack.workspaces?.forEach(w => {
     // todo move to utility
-    let pack = JSON.parse(readFileNode(`/${w}/package.json`))
-    let name = pack?.name || w
-    let main = pack?.main || 'index.js'
+    const pack = JSON.parse(readFileNode(`/${w}/package.json`))
+    const name = pack?.name || w
+    const main = pack?.main || 'index.js'
     requireCache.alias[name] = new URL(`./${w}/${main}`, base).toString()
   })
-  let script = require('/index.js', transformcjs, readFileNode, base)
+  const script = require('/index.js', transformcjs, readFileNode, base)
   expect(script.main({ size: 11 })).toEqual('cube11')
 })

@@ -140,7 +140,7 @@ export const setSource = (source, path = '/index.js') => {
 export async function filesChanged(files) {
   let file
   for (let i = 0; i < files.length; i++) {
-    let path = files[i]
+    const path = files[i]
     if (path == currentFile) {
       file = await getFileFn(path)
       readSource(file, currentFile)

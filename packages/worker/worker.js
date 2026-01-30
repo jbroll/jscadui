@@ -124,7 +124,7 @@ export const flatten = arr=>{
  * @param {InitOptions} options
  */
 export const jscadInit = options => {
-  let { baseURI, alias = [], bundles = {} } = options
+  const { baseURI, alias = [], bundles = {} } = options
   if (baseURI) globalBase = baseURI
 
   // Check if the modeling bundle is changing - if so, clear local cache
@@ -159,13 +159,13 @@ async function readFileFile(file, {bin=false}={}){
 let solids = []
 
 /** @type {import('@jscadui/params-core').ProxyState | null} */
-let lastProxyState = null
+let _lastProxyState = null
 
 /**
  * @param {{params?:import('@jscadui/format-common').UserParameters,skipLog?:boolean,userInteractedPaths?:string[],useGpuNormals?:boolean}} options
  * @returns {Promise<import('@jscadui/format-common').JscadMainResult>}
  */
-export async function jscadMain({ params, skipLog, userInteractedPaths, useGpuNormals } = {}) {
+export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths, useGpuNormals } = {}) {
   // Update GPU normals setting if provided (allows switching without re-running script)
   if (useGpuNormals !== undefined) {
     const modelingBundleUrl = requireCache.bundleAlias['@jscad/modeling']
@@ -184,10 +184,10 @@ export async function jscadMain({ params, skipLog, userInteractedPaths, useGpuNo
 
   // Handle file params
   params = {...params}
-  for(let p in params){
+  for(const p in params){
     if(params[p] instanceof File && importData){
       const info = extractPathInfo(params[p].name)
-      let content = await readFileFile(params[p],{bin: importData.isBinaryExt(info.ext)})
+      const content = await readFileFile(params[p],{bin: importData.isBinaryExt(info.ext)})
       params[p] = importData.deserialize(info, content)
     }
   }
@@ -227,7 +227,7 @@ export async function jscadMain({ params, skipLog, userInteractedPaths, useGpuNo
       }
 
       solids = flatten(await main(proxyParams))
-      lastProxyState = proxyState
+      _lastProxyState = proxyState
     } else {
       solids = flatten(await main(params || {}))
     }
@@ -276,7 +276,7 @@ export async function jscadMain({ params, skipLog, userInteractedPaths, useGpuNo
 }
 
 // https://stackoverflow.com/questions/52086611/regex-for-matching-js-import-statements
-const importReg = /import(?:(?:(?:[ \n\t]+([^ *\n\t\{\},]+)[ \n\t]*(?:,|[ \n\t]+))?([ \n\t]*\{(?:[ \n\t]*[^ \n\t"'\{\}]+[ \n\t]*,?)+\})?[ \n\t]*)|[ \n\t]*\*[ \n\t]*as[ \n\t]+([^ \n\t\{\}]+)[ \n\t]+)from[ \n\t]*(?:['"])([^'"\n]+)(['"])/
+const importReg = /import(?:(?:(?:[ \n\t]+([^ *\n\t{},]+)[ \n\t]*(?:,|[ \n\t]+))?([ \n\t]*\{(?:[ \n\t]*[^ \n\t"'{}]+[ \n\t]*,?)+\})?[ \n\t]*)|[ \n\t]*\*[ \n\t]*as[ \n\t]+([^ \n\t{}]+)[ \n\t]+)from[ \n\t]*(?:['"])([^'"\n]+)(['"])/
 const exportReg = /export.*from/
 
 /**
@@ -380,7 +380,7 @@ const jscadExportData = async (params) => {
   // then we would not need to clone the data
   // other option is to clone data before sending transferable
   JscadToCommon.clearCache()
-  let entities = JscadToCommon.ConvertMulti(solids, [], false)
+  const entities = JscadToCommon.ConvertMulti(solids, [], false)
 
   const arr = exportStlText(entities)
   const data = [await new Blob(arr).arrayBuffer()]
@@ -392,7 +392,7 @@ export const currentSolids = ()=>solids
 const handlers = { jscadScript, jscadInit, jscadMain, jscadClearTempCache, jscadClearFileCache:clearFileCache, jscadExportData }
 // allow main thread to call worker methods and any method from the loaded script
 const handlersProxy = new Proxy(handlers, {
-  get(target, prop, receiver) {
+  get(target, prop, _receiver) {
     return target[prop] || scriptModule[prop]
   }
 })

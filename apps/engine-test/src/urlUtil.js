@@ -46,8 +46,8 @@ export const urlReplace = (name, value) => {
  */
 export const urlReload = (name, value) => {
   if (name) urlSet(name, value)
-  let loc = location.toString()
-  let newLoc = main.toString()
+  const loc = location.toString()
+  const newLoc = main.toString()
   if (newLoc === loc) {
     location.reload()
   } else {

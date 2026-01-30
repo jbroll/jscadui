@@ -12,17 +12,17 @@ const jscad = require('@jscad/modeling')
 - red: hole
  */
 function analyzeSvg(svg) {
-  let colors = [
+  const colors = [
     [0, 1, 0],
     [1, 0, 0],
   ]
   // svg that is single path will be parsed as single geometry by jscad svg deserializer
   // svg with multiple paths will be returned as array by jacad svg deserializer
-  if (!svg instanceof Array) svg = [svg]
+  if (!(svg instanceof Array)) svg = [svg]
   return svg.map((p, i) => {
-    let solid = jscad.maths.utils.area(p.points) > 0
+    const solid = jscad.maths.utils.area(p.points) > 0
     if (!solid) {
-      let p2 = { ...p, points: Array.from(p.points).reverse() }
+      const p2 = { ...p, points: Array.from(p.points).reverse() }
       console.log('area', jscad.maths.utils.area(p.points), jscad.maths.utils.area(p2.points))
     }
     console.log('path ', i, 'is', solid ? 'solid(green)' : 'hole(red)', p)
@@ -41,7 +41,7 @@ const main = ({
   tx = 0, // trasnate X
   ty = 0, // translate Y
 }) => {
-  if (!svg instanceof Array){
+  if (!(svg instanceof Array)){
     svg = [svg]
   }else{
     // clone to avoid messing with cache
@@ -58,9 +58,9 @@ const main = ({
 
   if (toReverse.length) {
     // avoid reversing multiple times if user inputs same index more than once
-    let reversed = {}
+    const reversed = {}
     toReverse.split(',').forEach(str => {
-      let i = parseFloat(str)
+      const i = parseFloat(str)
       if (reversed[i]) return
       try {
         if (reversed[i]) return
@@ -75,7 +75,7 @@ const main = ({
       }
     })
   }
-  let analyzed = analyzeSvg(svg)
+  const analyzed = analyzeSvg(svg)
   if (extrude) {
     return jscad.extrusions.extrudeLinear({ height }, ...analyzed)
   } else {

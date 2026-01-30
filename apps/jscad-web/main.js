@@ -119,7 +119,7 @@ async function initFs() {
     })
     return file
   }
-  let scope = document.location.pathname
+  const scope = document.location.pathname
   try {
     sw = await registerServiceWorker(`bundle.fs-serviceworker.js?prefix=${scope}swfs/`, getFileWrapper, {
       scope,
@@ -183,7 +183,7 @@ async function reloadProject() {
   if (alias.length) {
     workerApi.jscadInit({ alias })
   }
-  let url = sw.fileToRun
+  const url = sw.fileToRun
   // inject jscad v1 shim, and also inject changed script to cache
   // so worker and editor have the same code
   if (sw.fileToRun?.endsWith('.jscad')) {
@@ -326,9 +326,9 @@ const handlers = {
     const renderTime = performance.now() - renderStart
 
     if(viewState.zoomToFit){
-      let {min,max} = boundingBox(entities)
+      const {min,max} = boundingBox(entities)
       console.warn('min', min, 'max', max, viewState.viewer.getCamera())
-      let { fov, aspect } = viewState.viewer.getCamera()
+      const { fov, aspect } = viewState.viewer.getCamera()
       ctrl.fit(min,max, fov,aspect,1.2)
     }
     if (!skipLog) console.log('tree:', treeTime?.toFixed(2), ', exec:', execTime?.toFixed(2), ', conv:', convTime?.toFixed(2), ', render:', renderTime?.toFixed(2), entities)
@@ -593,7 +593,7 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
       }
     } else {
       // Traditional flat params form
-      let tmp = genParams({ target: byId('paramsDiv'), params: result.def || [], callback: paramChangeCallback, pauseAnim: pauseAnimCallback, startAnim: startAnimCallback })
+      const tmp = genParams({ target: byId('paramsDiv'), params: result.def || [], callback: paramChangeCallback, pauseAnim: pauseAnimCallback, startAnim: startAnimCallback })
       setParamValues = tmp.setValue
       setAnimStatus = tmp.animStatus
       lastRunParams = result.params
@@ -770,9 +770,9 @@ const pauseAnimCallback = async (def, value) => {
 /** @type {Object.<string,FileSystemFileHandle>} */
 let saveMap = {}
 setInterval(async () => {
-  for (let p in saveMap) {
-    let handle = saveMap[p]
-    let file = await handle.getFile()
+  for (const p in saveMap) {
+    const handle = saveMap[p]
+    const file = await handle.getFile()
     if (file.lastModified > handle.lastMod) {
       handle.lastMod = file.lastModified
       await editor.filesChanged([file])
@@ -797,7 +797,7 @@ editor.init(
     }
   },
   async (script, path) => {
-    let pathArr = path.split('/')
+    const pathArr = path.split('/')
     let fileHandle = (await sw?.getFile(path))?.handle
     console.log('save file', path, fileHandle)
     if (!fileHandle) fileHandle = saveMap[path]

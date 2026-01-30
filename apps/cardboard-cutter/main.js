@@ -12,7 +12,7 @@ import { initTestThree } from './src/testThree'
 const theme = themes.light
 let fileToRun
 let sceneGrid
-let sceneAxes = makeAxes(50)
+const sceneAxes = makeAxes(50)
 let sceneEntities = []
 let viewer
 
@@ -85,7 +85,7 @@ const stopAnim = () => {
 }
 
 const doAnim = () => {
-  let percent = Math.min(1, (Date.now() - startTime) / animDuration)
+  const percent = Math.min(1, (Date.now() - startTime) / animDuration)
   const newState = stateStart.calcAnim(stateEnd, percent)
   ctrl.setRotate(newState.rx, newState.rz, newState.target, false)
   updateFromCtrl(ctrl)
@@ -93,7 +93,7 @@ const doAnim = () => {
   if (percent < 1) animTimer = requestAnimationFrame(doAnim)
 }
 
-let animDuration = 200
+const animDuration = 200
 let animTimer, stateStart, stateEnd, startTime
 
 const handlers = {

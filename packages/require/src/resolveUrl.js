@@ -2,9 +2,9 @@
 export const MODULE_BASE = 'https://cdn.jsdelivr.net/npm/'
 
 export const getExtension = (url) => {
-  let arr = url.split('/')
-  let file = arr[arr.length-1]
-  let idx = file.lastIndexOf('.')
+  const arr = url.split('/')
+  const file = arr[arr.length-1]
+  const idx = file.lastIndexOf('.')
   return idx === -1 ? '' : file.substring(idx+1)
 }
 

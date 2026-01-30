@@ -14,8 +14,8 @@ const fromXZRotationReference = (rx, rz) => {
   return mat4.multiply([], mat4.fromZRotation([], rz), mat4.fromXRotation([], rx))
 }
 
-// change -0 to 0 so test deos not fail when one gives 0 and other -0
-const fixZero = a => a.map(n => (n === -0 ? 0 : n))
+// change -0 to 0 so test does not fail when one gives 0 and other -0
+const fixZero = a => a.map(n => (Object.is(n, -0) ? 0 : n))
 
 //  Use fromXZRotationReference to test the fromXZRotation that does the same in sigle pass without creating 2 matrices and multiplaying it.
 const doTestAngle = (rx, rz) =>

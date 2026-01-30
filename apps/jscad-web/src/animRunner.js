@@ -27,15 +27,15 @@ export class AnimRunner {
 
     let { fps, min = 0, max, loop, name } = def
     if (params.fps) fps = params.fps
-    let step = 1 / fps
-    let minMaxDelta = max - min
-    let fpsMs = 1000 / fps - 1
+    const step = 1 / fps
+    const minMaxDelta = max - min
+    const fpsMs = 1000 / fps - 1
     value = parseFloat(value) + step
 
     let lastTime, now, delta, resp, paramValues, times
-    let startTime = lastTime = now = Date.now()
+    const startTime = lastTime = now = Date.now()
     let t = value
-    let i = 1;
+    const i = 1;
     let dir = loop == 'reverse' ? 1 : 0
 
 

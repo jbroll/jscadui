@@ -69,7 +69,7 @@ export function CommonToThree({
       case 'mesh':
         mesh = new Mesh(geo, material)
         break
-      case 'instance':
+      case 'instance': {
         const { list } = obj
         // Use the object's color for the instanced mesh (color is consistent across all instances
         // in the group because format-jscad groups by composite key: mesh id + color)
@@ -81,6 +81,7 @@ export function CommonToThree({
         mesh.instanceMatrix.needsUpdate = true
         transforms = null
         break
+      }
       case 'line':
         mesh = new Line(geo, material)
         break

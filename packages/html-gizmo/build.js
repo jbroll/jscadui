@@ -8,7 +8,7 @@ esbuild.buildSync({
 })
 
 let src = readFileSync('index.js').toString()
-let css = readFileSync('tmp.css').toString()
+const css = readFileSync('tmp.css').toString()
 
 src = src.replace("import style from './gizmo.css?inline'", 'const style =`' + css + '`;')
 writeFileSync('_index.js', src)

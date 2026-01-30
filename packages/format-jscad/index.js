@@ -26,11 +26,11 @@ function CSG2Vertices (csg) {
     iLen += 3 * (len - 2)
   }
   
-  let vertices = new Float32Array(vLen)
-  let normals = new Float32Array(vLen)
+  const vertices = new Float32Array(vLen)
+  const normals = new Float32Array(vLen)
   // Use Uint32Array when vertex count exceeds 65535 (Uint16 max value)
   // vLen is total floats (vertices * 3), so divide by 3 to get vertex count
-  let indices = vLen / 3 > 65535 ? new Uint32Array(iLen) : new Uint16Array(iLen)
+  const indices = vLen / 3 > 65535 ? new Uint32Array(iLen) : new Uint16Array(iLen)
   let colors
   let color
   let vertOffset = 0
@@ -39,7 +39,7 @@ function CSG2Vertices (csg) {
   let first = 0
 
   if(hasVertexColors){// v1 colors support
-    let lastColor = [1,0.5,0.5,1]
+    const lastColor = [1,0.5,0.5,1]
     // color is fore each index
     colors = new Float32Array(iLen*4)
     for (const poly of csg.polygons) {
@@ -47,7 +47,7 @@ function CSG2Vertices (csg) {
       if (!poly.vertices || poly.vertices.length < 3) continue
       color = poly.shared?.color || lastColor
       // lastColor = color
-      let count = poly.vertices.length
+      const count = poly.vertices.length
       for(var i=0; i<count-2; i++){
         colors[vertOffset++] = color[0]
         colors[vertOffset++] = color[1]

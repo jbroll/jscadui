@@ -55,9 +55,9 @@ const main = (params) => {
     arms.push(cuboid({ size: [armWidth * 0.7, armLength * 2, armWidth * 0.7] }))
     arms.push(cuboid({ size: [armWidth * 0.7, armWidth * 0.7, armLength * 2] }))
     // Add diagonal arms
-    for (let dx of [-1, 1]) {
-      for (let dy of [-1, 1]) {
-        for (let dz of [-1, 1]) {
+    for (const dx of [-1, 1]) {
+      for (const dy of [-1, 1]) {
+        for (const dz of [-1, 1]) {
           arms.push(translate(
             [dx * diag * 0.5, dy * diag * 0.5, dz * diag * 0.5],
             cuboid({ size: [armWidth * 0.5, armWidth * 0.5, armWidth * 0.5] })

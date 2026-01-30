@@ -5,9 +5,9 @@ import { messageProxy } from '@jscadui/postmessage'
 const version = 'SW7'
 const clientMap = {}
 const searchParams = new URL(location.toString()).searchParams
-let prefix = searchParams.get('prefix') || '/swfs/'
-let initPath = prefix + 'init'
-let debug = searchParams.get('debug')
+const prefix = searchParams.get('prefix') || '/swfs/'
+const initPath = prefix + 'init'
+const debug = searchParams.get('debug')
 
 self.addEventListener('activate', event => {
   event.waitUntil(clients.claim())
@@ -58,7 +58,7 @@ self.addEventListener('fetch', async event => {
     getClientWrapper(clientId)
   } else if (path.startsWith(prefix)) {
     path = path.substring(prefix.length)
-    let idx = path.indexOf('/')
+    const idx = path.indexOf('/')
     const urlClientId = path.substring(0, idx)
 
     // Security: Validate clientId from URL matches the actual requesting client
@@ -69,67 +69,54 @@ self.addEventListener('fetch', async event => {
     }
 
     path = path.substring(idx)
-    event.respondWith(
-      new Promise(async (resolve) => {
-        let done = false
-        const timeoutId = setTimeout(() => {
-          if (!done) {
-            done = true
-            resolve(new Response('timeout for ' + path, { status: 504 }))
-          }
-        }, 5000)
 
+    const fetchFile = async () => {
+      try {
+        const clientWrapper = await getClientWrapper(urlClientId)
+        const fileReq = new Request(path)
+
+        // Check cache first
+        let rCached
         try {
-          const clientWrapper = await getClientWrapper(urlClientId)
-          const fileReq = new Request(path)
+          rCached = await clientWrapper.cache.match(fileReq)
+        } catch (cacheError) {
+          console.error('Cache match error:', cacheError)
+        }
 
-          // Check cache first
-          let rCached
+        if (rCached) {
+          return rCached
+        }
+
+        // Request file from client and wait for response
+        let resp
+        try {
+          resp = await clientWrapper.api.getFile({ path: path })
+        } catch (getFileError) {
+          console.error('getFile error:', getFileError)
+          return new Response('Failed to get file: ' + path, { status: 500 })
+        }
+
+        // Only check cache after getFile confirms success
+        if (resp === 'ok') {
           try {
             rCached = await clientWrapper.cache.match(fileReq)
           } catch (cacheError) {
-            console.error('Cache match error:', cacheError)
+            console.error('Cache match error after getFile:', cacheError)
           }
-
-          if (rCached) {
-            done = true
-            clearTimeout(timeoutId)
-            resolve(rCached)
-            return
-          }
-
-          // Request file from client and wait for response
-          let resp
-          try {
-            resp = await clientWrapper.api.getFile({ path: path })
-          } catch (getFileError) {
-            console.error('getFile error:', getFileError)
-            done = true
-            clearTimeout(timeoutId)
-            resolve(new Response('Failed to get file: ' + path, { status: 500 }))
-            return
-          }
-
-          // Only check cache after getFile confirms success
-          if (resp === 'ok') {
-            try {
-              rCached = await clientWrapper.cache.match(fileReq)
-            } catch (cacheError) {
-              console.error('Cache match error after getFile:', cacheError)
-            }
-          }
-
-          done = true
-          clearTimeout(timeoutId)
-          resolve(rCached || new Response(path + ' not found', { status: 404 }))
-        } catch (error) {
-          console.error('Fetch handler error:', error)
-          done = true
-          clearTimeout(timeoutId)
-          resolve(new Response('Internal error: ' + error.message, { status: 500 }))
         }
-      }),
+
+        return rCached || new Response(path + ' not found', { status: 404 })
+      } catch (error) {
+        console.error('Fetch handler error:', error)
+        return new Response('Internal error: ' + error.message, { status: 500 })
+      }
+    }
+
+    const timeout = new Promise(resolve =>
+      setTimeout(() => resolve(new Response('timeout for ' + path, { status: 504 })), 5000)
     )
+
+    event.respondWith(Promise.race([fetchFile(), timeout]))
   }
 })
 

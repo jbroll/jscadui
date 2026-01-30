@@ -4,27 +4,27 @@
 import { to3dmodel, to3mfZipContentSimple } from './index.js'
 
 function multiply(arr, mult, func){
-  let out = new func(arr.length * mult)
+  const out = new func(arr.length * mult)
   for(let i=0; i<mult; i++){
     out.set(arr, i * arr.length)
   }
   return out
 }
 
-let verticesData = [
+const verticesData = [
   -1, -1, -1, -1, -1, 1, -1, 1, 1, -1, 1, -1, 1, -1, -1, 1, 1, -1, 1, 1, 1, 1, -1, 1, -1, -1, -1, 1, -1, -1, 1, -1, 1,
   -1, -1, 1, -1, 1, -1, -1, 1, 1, 1, 1, 1, 1, 1, -1, -1, -1, -1, -1, 1, -1, 1, 1, -1, 1, -1, -1, -1, -1, 1, 1, -1, 1, 1,
   1, 1, -1, 1, 1,
 ]
 
-let indicesData = [
+const indicesData = [
   0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7, 8, 9, 10, 8, 10, 11, 12, 13, 14, 12, 14, 15, 16, 17, 18, 16, 18, 19, 20, 21, 22,
   20, 22, 23,
 ]
 
 function oneRun(name,vertices, indices){
   
-  let start = performance.now()
+  const start = performance.now()
   const zipContents = to3dmodel({
     meshes: [{ vertices, indices, id: 1 }],
     header: { application: 'jscad.app', title: 'jscad model' }

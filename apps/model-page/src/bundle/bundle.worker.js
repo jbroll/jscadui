@@ -38,7 +38,7 @@ const importData = {
   deserialize: ({url, filename, ext}, fileContent)=>{
     try {
       const jscad_io = require('./bundle.jscad_io.js', null, readFileWeb)
-      let deserializer = jscad_io.deserializers[ext]
+      const deserializer = jscad_io.deserializers[ext]
 
       if(deserializer) return deserializer({output:'geometry', filename}, fileContent)
       throw new Error('unsupportd format in '+url)

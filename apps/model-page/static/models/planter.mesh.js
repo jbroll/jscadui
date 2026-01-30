@@ -10,7 +10,7 @@ var __export = (target, all) => {
 };
 var __copyProps = (to, from, except, desc) => {
   if (from && typeof from === "object" || typeof from === "function") {
-    for (let key of __getOwnPropNames(from))
+    for (const key of __getOwnPropNames(from))
       if (!__hasOwnProp.call(to, key) && key !== except)
         __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
   }
@@ -50,7 +50,7 @@ var loop = (counts, callback) => {
       if (counti % 2 === 0)
         starti += 0.5;
     }
-    let stopi = starti + counti;
+    const stopi = starti + counti;
     for (let i = starti; i < stopi; i += 1) {
       counters[level] = i;
       if (level === topLevel)
@@ -81,12 +81,12 @@ function toRad(d) {
 var { cuboid, cylinderElliptic, polyhedron } = import_modeling2.default.primitives;
 var { translate: translate2 } = import_modeling2.default.transforms;
 function bottomCube(options) {
-  let { wall = 0, topWall = 0, bottomWall = 0, open } = options;
+  const { wall = 0, topWall = 0, bottomWall = 0, open } = options;
   let walls = { T: topWall, B: bottomWall, N: wall, S: wall, E: wall, W: wall };
   if (options.walls)
     walls = { ...walls, ...options.walls };
   if (options.sizeIn) {
-    let [x, y, z] = options.sizeIn;
+    const [x, y, z] = options.sizeIn;
     options.size = [x + walls.W + walls.E, y + walls.S + walls.N, z + walls.B + walls.T];
   }
   options.center = dirAlign(options.align || "T", options.size, [0, 0, options.bottom || 0]);
@@ -108,7 +108,7 @@ function dirAlign(align = "T", size = [1, 1, 1], center2 = [0, 0, 0]) {
   if (!align)
     return;
   for (let i = 0; i < align.length; i++) {
-    let dir = align[i];
+    const dir = align[i];
     if (dir == "T")
       center2[2] += size[2] / 2;
     if (dir == "B")
@@ -125,10 +125,10 @@ function dirAlign(align = "T", size = [1, 1, 1], center2 = [0, 0, 0]) {
   return center2;
 }
 function dirRotateMove(options, ...elems) {
-  let dirs = options.dir || "";
+  const dirs = options.dir || "";
   let rot = [0, 0, 0];
   for (let i = 0; i < dirs.length; i++) {
-    let dir = dirs[i];
+    const dir = dirs[i];
     if (dir == "B")
       rot = [180, 0, 0];
     if (dir == "S")
@@ -171,7 +171,7 @@ var main = ({
   const cube1 = bottomCube({ size: [2, 2, h2], align: "TNE" });
   const cube2 = bottomCube({ size: [2, 8, h1], align: "TNE" });
   const cube3 = bottomCube({ size: [8, 2, h1], align: "TNE" });
-  let out = [];
+  const out = [];
   out.push(...loop([rows + 1, cols + 1], (i, j) => translate3([i * 10, j * 10, 0], cube1)));
   out.push(...loop([rows + 1, cols], (i, j) => translate3([i * 10, j * 10 + 2, 0], cube2)));
   out.push(...loop([rows, cols + 1], (i, j) => translate3([i * 10 + 2, j * 10, 0], cube3)));

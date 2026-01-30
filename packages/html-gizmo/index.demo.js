@@ -42,8 +42,8 @@ el.addEventListener('pointermove', e => {
     isMoving = true
   }
 
-  let dx = lx - e.clientX
-  let dy = ly - e.clientY
+  const dx = lx - e.clientX
+  const dy = ly - e.clientY
   rx += dy * 0.01
   rz += dx * 0.01
   rotateGizmos(rx, rz)

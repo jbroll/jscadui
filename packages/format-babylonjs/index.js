@@ -22,7 +22,7 @@ export const invertNormals = indices => {
 
 export function CommonToBabylon(Babylon) {
   const { Mesh, VertexData, LinesMesh, MeshBuilder, Vector3, Color4, Color3, VertexBuffer, Matrix, StandardMaterial } = Babylon
-  let SEQ = 0
+  const SEQ = 0
   function CSG2Babylon(obj, scene, meshColor) {
     const { vertices, indices = [], normals, color, colors, isTransparent = false, opacity } = obj
     const { transforms } = obj

@@ -159,7 +159,7 @@ export const registerServiceWorker = async (
 ) => {
   if ('serviceWorker' in navigator) {
     try {
-      let reg = await navigator.serviceWorker.getRegistration()
+      const reg = await navigator.serviceWorker.getRegistration()
       if (!reg) { // no sw register yet, go for it
         await navigator.serviceWorker.register(workerScript, { scope, })
       } else if (!navigator.serviceWorker.controller) {

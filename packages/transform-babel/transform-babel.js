@@ -12,7 +12,7 @@ export const transformDefaults = {
 }
 
 function combineAppend(options = {}, append = {}) {
-  for (let p in append) {
+  for (const p in append) {
     if (Object.hasOwn(append, p)) {
       if (options[p]) {
         if (append[p] instanceof Array) options[p] = [...options[p], ...append[p]]

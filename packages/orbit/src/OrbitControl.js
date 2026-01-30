@@ -127,8 +127,8 @@ export class OrbitControl extends OrbitState {
 
         isPan = theButton === 1 || (theButton === 0 && e.shiftKey)
         isZoom = e.ctrlKey
-        let dx = lx - e.clientX
-        let dy = ly - e.clientY
+        const dx = lx - e.clientX
+        const dy = ly - e.clientY
         pointers.set(e.pointerId, [e.clientX, e.clientY])
 
         if (isPan) {

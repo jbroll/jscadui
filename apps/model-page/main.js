@@ -14,7 +14,7 @@ import './src/main.css'
 const theme = themes.light
 let fileToRun
 let sceneGrid
-let sceneAxes = makeAxes(50)
+const sceneAxes = makeAxes(50)
 let sceneEntities = []
 let viewer
 
@@ -87,7 +87,7 @@ const stopAnim = () => {
 }
 
 const doAnim = () => {
-  let percent = Math.min(1, (Date.now() - startTime) / animDuration)
+  const percent = Math.min(1, (Date.now() - startTime) / animDuration)
   const newState = stateStart.calcAnim(stateEnd, percent)
   ctrl.setRotate(newState.rx, newState.rz, newState.target, false)
   updateFromCtrl(ctrl)
@@ -95,7 +95,7 @@ const doAnim = () => {
   if (percent < 1) animTimer = requestAnimationFrame(doAnim)
 }
 
-let animDuration = 200
+const animDuration = 200
 let animTimer, stateStart, stateEnd, startTime
 
 const link = document.createElement('a')
@@ -125,14 +125,14 @@ const workerApi = messageProxy(worker, {}, {  })
 
 const paramChangeCallback = async params => {
   console.log('params', params)
-  let result = await workerApi.jscadMain({ params })
+  const result = await workerApi.jscadMain({ params })
   console.log('result', result)
   setViewerScene(result.entities)
 }
 
 export const jscadScript = async (file, script) => {
   fileToRun = file.replace(/.*\//, '').replace(/\..*/, '')
-  let result = await workerApi.jscadScript({ url: file, script })
+  const result = await workerApi.jscadScript({ url: file, script })
   genParams({ target: byId('paramsDiv'), params: result.def || {}, callback: paramChangeCallback })
   setViewerScene(result.entities)
 }

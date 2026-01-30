@@ -1,8 +1,8 @@
 /** @type {import('./worker.interface.d.js').WorkerRpc } */
-let rpc  = {}
+const rpc  = {}
 
-let d = rpc.getData('1')
+const d = rpc.getData('1')
 
-let r1 = rpc.getRecord1('aa')
+const r1 = rpc.getRecord1('aa')
 
-let r2 = rpc.getRecord2({id:"a",name:'b'})
+const r2 = rpc.getRecord2({id:"a",name:'b'})

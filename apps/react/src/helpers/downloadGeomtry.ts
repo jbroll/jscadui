@@ -5,7 +5,7 @@ export const downloadGeometry = (geometry: Geom3) => {
   const rawData = stlSerializer.serialize({ binary: true }, geometry)
   const blob = new Blob(rawData)
   const data = window.URL.createObjectURL(blob)
-  let link = document.createElement('a')
+  const link = document.createElement('a')
   link.href = data
   link.download = `joint-3.stl`
 

@@ -24,7 +24,7 @@ const mimeTypes = {
  */
 const handleRequest = (req) => {
   const parsedUrl = url.parse(req.url, true)
-  let pathname = parsedUrl.pathname
+  const pathname = parsedUrl.pathname
 
   if (pathname === '/docs') {
     // docs redirect
@@ -48,7 +48,7 @@ const handleRequest = (req) => {
  * Serve static file from the build directory
  */
 const handleStatic = async (pathname) => {
-  let filePath = path.join(process.cwd(), 'build', pathname)
+  const filePath = path.join(process.cwd(), 'build', pathname)
 
   const stats = await fs.stat(filePath).catch(() => undefined)
   if (!stats || !stats.isFile()) {

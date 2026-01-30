@@ -40,7 +40,7 @@ export const genParams = ({
   storedValues = {},
   buttons = ['reset', 'save', 'load', 'edit', 'link'],
 }) => {
-  let initialValues = {}
+  const initialValues = {}
   /** @type {Array<{el: Element, type: string, handler: EventListener}>} */
   const listeners = []
 
@@ -128,7 +128,7 @@ export const genParams = ({
     }
 
     if (type == 'group') {
-      let ch = caption[0]
+      const ch = caption[0]
       closed = def.value == 'closed'
       if (ch === '>' || ch === '+') {
         caption = caption.substring(1).trim()
@@ -172,7 +172,7 @@ export const genParams = ({
     if(name == 'fps' && target.anims?.length && parseFloat(inp.value) <=0){
       inp.value = inp.step || '1'
     }
-    let out = getParams(target)
+    const out = getParams(target)
     if(out.fps && target.anims?.length){
       target.anims.forEach(inp=>inp.setAttribute('step', 1/out.fps))
     }
@@ -191,8 +191,8 @@ export const genParams = ({
   /** @param {"running" | ""} status */
   function animStatus(status){
     forEachInput(target, inp => {
-      let p = inp.parentNode
-      let button = querySelector(p,'BUTTON[action]')
+      const p = inp.parentNode
+      const button = querySelector(p,'BUTTON[action]')
       if(button){
         button.innerHTML = status == 'running' ? 'S' : 'P'
       }
@@ -210,7 +210,7 @@ export const genParams = ({
    */
   function setValue(v, skipUndefined){
     forEachInput(target, inp => {
-      let name = inp.getAttribute('name')
+      const name = inp.getAttribute('name')
       if(name){
         if(skipUndefined && v[name] === undefined) return
         inp.value = v[name]
@@ -220,9 +220,9 @@ export const genParams = ({
   }
   target.anims = []
   forEachInput(target, inp => {
-    let p = inp.parentNode
-    let name = inp.getAttribute('name')
-    let type = inp.getAttribute('type')
+    const p = inp.parentNode
+    const name = inp.getAttribute('name')
+    const type = inp.getAttribute('type')
     // only if there is animation and we have a fps input, and no min defined
     if(name == 'fps' && target.anims?.length && !inp.min){
       inp.min = inp.step || '1'
@@ -230,7 +230,7 @@ export const genParams = ({
     if(type == 'range') target.anims.push(inp)
     inp.def = params.find(def=>def.name == name)
     // live value for attribute is set to 1 regardless if config used 1 or true
-    let isLiveInput = inp.getAttribute('live') === '1'
+    const isLiveInput = inp.getAttribute('live') === '1'
     // we listen to live changes to update value preview
     // and also then we can trigger param event if live option is chosen
     addListener(inp, 'input', function () {
@@ -241,7 +241,7 @@ export const genParams = ({
     if (!isLiveInput){
       addListener(inp, 'change', () => _callback('change', inp, name))
     }
-    let button = querySelector(p,'BUTTON[action]')
+    const button = querySelector(p,'BUTTON[action]')
     if(button && !button.clickAdded){
       addListener(button, 'click', () => {
         startAnim(inp.def, inp.value)

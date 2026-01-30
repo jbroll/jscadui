@@ -96,7 +96,7 @@ gizmo.oncam = ({ cam }) => {
 }
 
 const sel = byId('themeSelect')
-for (let tn in themes) {
+for (const tn in themes) {
   const tmp = themes[tn]
   sel.add(new Option(tmp.name, tn))
 }
@@ -115,7 +115,7 @@ const showDrop = show => {
 document.body.ondrop = async ev => {
   try {
     ev.preventDefault()
-    let files = extractEntries(ev.dataTransfer)
+    const files = extractEntries(ev.dataTransfer)
     if (!files.length) return {}
 
     if (!sw) await initFs()
@@ -168,7 +168,7 @@ window.exportModel = exportModel
 
 const paramChangeCallback = async params => {
   console.log('params changed', params)
-  let result = await workerApi.jscadMain({ params })
+  const result = await workerApi.jscadMain({ params })
   handlers.entities(result)
 }
 

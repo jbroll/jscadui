@@ -19,9 +19,9 @@ for(let i=0; i<60; i++){
 function main({// @jscad-params
   t=0,// Animation {type:"slider", min:0, max:60, step:1, fps:1, live:true, autostart:true, loop:'restart'}
 }){
-  let date = new Date()
-  let min = date.getMinutes()
-  let sec = date.getSeconds()
+  const date = new Date()
+  const min = date.getMinutes()
+  const sec = date.getSeconds()
   return [
     rotate([0,0,-PI*(date.getHours()+((min+sec/60)/60))/6],handHour),
     rotate([0,0,-PI*(min+sec/60)/30],handMin),

@@ -3,9 +3,9 @@ import * as vec3 from 'gl-matrix/esm/vec3.js'
 const { hypot, acos } = Math
 
 export const camRotation = (out, position, target) => {
-  let vec = vec3.subtract([], position, target)
+  const vec = vec3.subtract([], position, target)
   const [x, y, z] = vec
-  let len = Math.hypot(x, y, z)
+  const len = Math.hypot(x, y, z)
 
   // Handle camera at target position (avoid division by zero)
   if (len === 0) {
@@ -17,7 +17,7 @@ export const camRotation = (out, position, target) => {
     return out
   }
 
-  let lenXY = hypot(x, y)
+  const lenXY = hypot(x, y)
   let rz = lenXY === 0 ? 0 : acos(x / lenXY)
   let rx = lenXY === 0 ? 0 : acos(lenXY / len)
   if (z < 0) rx *= -1 // negative side is lost during sqr/sqrt hypot

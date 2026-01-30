@@ -15,7 +15,7 @@ function echo(){console.warn("echo() will be deprecated in the near future: plea
 
 //https://neorama.de
 
-let res = 32;
+const res = 32;
 
 function main() {
    return union(
@@ -34,4 +34,4 @@ function main() {
 // this is footer of the JS shim, to export the main and getParameterDefinitions
 module.exports = { main }
 // some scripts will not have parameters, so we silently ignore the error line below would cause
-try{ module.exports.getParameterDefinitions = getParameterDefinitions }catch(e){}
+try{ module.exports.getParameterDefinitions = getParameterDefinitions }catch(_e){ /* intentionally empty - getParameterDefinitions may not exist */ }

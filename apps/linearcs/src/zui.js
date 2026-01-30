@@ -67,7 +67,7 @@ export  class ZUI {
       max: Infinity,
       clone: function () {
         const result = {};
-        for (let k in this) {
+        for (const k in this) {
           result[k] = this[k];
         }
         return result;

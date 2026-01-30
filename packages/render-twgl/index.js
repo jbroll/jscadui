@@ -84,7 +84,7 @@ export function RenderRegl(regl) {
   }
 
   let renderTimer
-  const tmFunc = typeof requestAnimationFrame === 'undefined' ? setTimeout : requestAnimationFrame // eslint-disable-line
+  const tmFunc = typeof requestAnimationFrame === 'undefined' ? setTimeout : requestAnimationFrame  
 
   function updateView(delay = 8) {
     if (renderTimer || !renderer) return

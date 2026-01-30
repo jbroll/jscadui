@@ -91,7 +91,7 @@ export const require = (urlOrSource, transform, readFile, base, root, importData
         if (resolvedUrl.includes('jsdelivr.net')) {
           // jsdelivr will read package.json and tell us what the main file is
           const srch = ' * Original file: '
-          let idx = source.indexOf(srch)
+          const idx = source.indexOf(srch)
           if (idx != -1) {
             const idx2 = source.indexOf('\n', idx + srch.length + 1)
             const realFile = new URL(source.substring(idx + srch.length, idx2), resolvedUrl).toString()

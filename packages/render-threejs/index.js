@@ -231,7 +231,7 @@ export function RenderThreejs({
     groups.forEach(group => {
       _scene.remove(group)
     })
-    let old = entities
+    const old = entities
     entities = []
     groups.length = 0
     setTimeout(()=>{
@@ -241,7 +241,7 @@ export function RenderThreejs({
       })
     },0)
 
-    let box = new Box3()
+    const box = new Box3()
     scene.items.forEach(item => {
       const group = new Group()
       group.jscadId = item.id
@@ -260,15 +260,15 @@ export function RenderThreejs({
       _scene.add(group)
     })
     // console.warn('box', box, _camera.position, _camera)
-    let {x,y,z} = box.max
-    let min = box.min
-    let wx = x-min.x, wy=y-min.y,wz=z-min.z
-    let boxGeom = new BoxGeometry(wx,wy,wz)
+    const {x,y,z} = box.max
+    const min = box.min
+    const wx = x-min.x, wy=y-min.y,wz=z-min.z
+    const boxGeom = new BoxGeometry(wx,wy,wz)
     // boxGeom.position.x = min.x + wx/2
     // boxGeom.position.y = min.y + wy/2
     // boxGeom.position.z = min.z + wz/2
     // console.log('BoxGeometry(wx,wy,wz)', wx,wy,wz, boxGeom)
-    let mesh = new Mesh(boxGeom, new MeshPhongMaterial({color:'#909090',opacity:0.5, transparent:true}))
+    const mesh = new Mesh(boxGeom, new MeshPhongMaterial({color:'#909090',opacity:0.5, transparent:true}))
     // mesh.position.x = min.x + wx/2
     // mesh.position.y = min.y + wy/2
     // mesh.position.z = min.z + wz/2

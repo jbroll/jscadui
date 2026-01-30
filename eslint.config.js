@@ -34,6 +34,8 @@ export default tseslint.config(
     ignores: [
       '**/build/**',
       '**/build_dev/**',
+      '**/dist/**',
+      '**/public/**',
       '**/esm/**',
       '**/cjs/**',
       '**/node_modules/**',

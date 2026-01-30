@@ -40,7 +40,7 @@ const [z,x] = (()=>{
 const pos = (c, r) => c + r * 4
 for (let r = 0; r < 4; r++) {
   for (let c = 0; c < 4; c++) {
-    let parts = []
+    const parts = []
     for (let i = 0; i < 4; i++) {
       // parts[i] = `z[${pos(c,i)}]*x[${pos(i,r)}]`
 

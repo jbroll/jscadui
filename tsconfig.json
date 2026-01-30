@@ -4,10 +4,10 @@
   "compilerOptions": {
     "noEmit": true,
     "allowJs": true,
-    "checkJs": true,
+    "checkJs": false,
     "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "nodenext"
+    "module": "ESNext",
+    "moduleResolution": "node"
   },
   "include": [
     "packages/*/src/**/*.ts",

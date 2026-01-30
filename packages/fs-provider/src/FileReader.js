@@ -25,8 +25,21 @@ export const readAsText = async f => readAs(f, 'readAsText')
  * @param {string} as 
  * @returns 
  */
-const readAs = async (f, as) =>
-  new Promise(async (resolve, reject) => {
+const readAs = async (f, as) => {
+  // Handle file system access API files
+  if ('handle' in f) {
+    try {
+      const tmp = await f.handle.getFile()
+      f.lastModified = tmp.lastModified
+      f.size = tmp.size
+      f = tmp
+    } catch (e) {
+      console.warn(as, f)
+      throw e
+    }
+  }
+
+  return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = event => resolve(event.target?.result)
     reader.onerror = error => {
@@ -34,17 +47,6 @@ const readAs = async (f, as) =>
       console.error(msg, f, error)
       reject(msg)
     }
-    try {
-      if ('handle' in f) {
-        const tmp = await f.handle.getFile()
-        f.lastModified = tmp.lastModified
-        f.size = tmp.size
-        f = tmp
-      }
-
-      reader[as](f)
-    } catch (e) {
-      console.warn(as, f)
-      throw e
-    }
+    reader[as](f)
   })
+}

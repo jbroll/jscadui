@@ -399,13 +399,13 @@ const buildOutlinesFromSides = (sides, transforms) => {
     if (usedSides.has(i)) continue
 
     const outline = []
-    let currentSide = sides[i]
+    const currentSide = sides[i]
     if (!currentSide || !currentSide[0] || !currentSide[1]) {
       usedSides.add(i)
       continue
     }
 
-    let startPoint = applyTransform(currentSide[0])
+    const startPoint = applyTransform(currentSide[0])
     outline.push(startPoint)
     usedSides.add(i)
 

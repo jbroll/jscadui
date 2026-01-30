@@ -24,7 +24,7 @@ const mimeTypes = {
  */
 const handleRequest = (req) => {
   const parsedUrl = url.parse(req.url, true)
-  let pathname = parsedUrl.pathname
+  const pathname = parsedUrl.pathname
 
   if (pathname === '/docs') {
     // docs redirect
@@ -49,7 +49,7 @@ const handleRequest = (req) => {
  */
 const handleStatic = async (pathname) => {
   const buildDir = path.join(process.cwd(), 'build')
-  let filePath = path.join(buildDir, pathname)
+  const filePath = path.join(buildDir, pathname)
 
   // Security: Prevent path traversal attacks
   if (!filePath.startsWith(buildDir)) {

@@ -19,18 +19,18 @@ const bundleDef = {
 }
 
 export const buildBundle = (outDir, bundle, {srcDir='src_bundle', ...options})=>{
-  let file = `${srcDir}/${bundle}`
-  let outfile = `${outDir}/${bundle}`
+  const file = `${srcDir}/${bundle}`
+  const outfile = `${outDir}/${bundle}`
   return runEsbuild(esbuild,{...bundleDef, ...options, skipExisting: true, entryPoints:[file], outfile})
 }
 
 export const buildOneIfNeeded = (outDir, file, options={})=>{
-  let outfile = options.outfile || `${outDir}/${file}`
+  const outfile = options.outfile || `${outDir}/${file}`
   return runEsbuild(esbuild,{...esbDef, ...options, skipExisting: true, entryPoints:[file], outfile})
 }
 
 export const buildOne = (srcDir, outDir, path, watch, options={})=>{
-  let file = `${srcDir}/${path}`
-  let outfile = options.outfile || `${outDir}/${path}`
+  const file = `${srcDir}/${path}`
+  const outfile = options.outfile || `${outDir}/${path}`
   return runEsbuild(esbuild,{...esbDef, skipExisting:false, ...options, watch, entryPoints:[file], outfile})
 }
