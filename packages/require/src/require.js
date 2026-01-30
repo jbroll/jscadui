@@ -88,18 +88,23 @@ export const require = (urlOrSource, transform, readFile, base, root, importData
       requireCache.knownDependencies.set(cacheUrl, new Set())
       try {
         source = readFile(resolvedUrl)
-        if (resolvedUrl.includes('jsdelivr.net')) {
+        if (resolvedUrl.includes('cdn.jsdelivr.net')) {
           // jsdelivr will read package.json and tell us what the main file is
           const srch = ' * Original file: '
           const idx = source.indexOf(srch)
           if (idx != -1) {
             const idx2 = source.indexOf('\n', idx + srch.length + 1)
             const realFile = new URL(source.substring(idx + srch.length, idx2), resolvedUrl).toString()
-            // Validate that the redirect URL is still on jsdelivr.net to prevent redirect attacks
-            if (realFile.includes('jsdelivr.net') && !realFile.includes('..')) {
-              resolvedUrl = base = realFile
-            } else {
-              console.warn('Ignoring suspicious jsdelivr redirect:', realFile)
+            // Validate that the redirect URL origin is exactly cdn.jsdelivr.net to prevent redirect attacks
+            try {
+              const redirectUrl = new URL(realFile)
+              if (redirectUrl.origin === 'https://cdn.jsdelivr.net' && !redirectUrl.pathname.includes('..')) {
+                resolvedUrl = base = realFile
+              } else {
+                console.warn('Ignoring suspicious jsdelivr redirect:', realFile)
+              }
+            } catch {
+              console.warn('Invalid jsdelivr redirect URL:', realFile)
             }
           }
         }

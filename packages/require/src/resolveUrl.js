@@ -10,15 +10,21 @@ export const getExtension = (url) => {
 
 /**
  * Normalize a path by resolving . and .. segments
+ * Prevents traversal above root by ignoring .. when at root level
  * @param {string} path
  * @returns {string}
  */
 const normalizePath = (path) => {
-  const parts = path.split('/')
+  // Decode URL-encoded path traversal attempts
+  const decoded = decodeURIComponent(path)
+  const parts = decoded.split('/')
   const result = []
   for (const part of parts) {
     if (part === '..') {
-      result.pop()
+      // Only pop if there are segments to remove; ignore if at root level
+      if (result.length > 0) {
+        result.pop()
+      }
     } else if (part && part !== '.') {
       result.push(part)
     }

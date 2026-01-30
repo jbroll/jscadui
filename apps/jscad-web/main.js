@@ -236,6 +236,12 @@ worker.onerror = (event) => {
   setError(new Error(`Worker error: ${event.message}`))
 }
 
+// Handle message deserialization errors
+worker.onmessageerror = (event) => {
+  console.error('Worker message error:', event)
+  setError(new Error('Failed to deserialize worker message'))
+}
+
 /**
  * Format a number with K/M suffix for large values
  * @param {number} n
@@ -269,34 +275,59 @@ function formatMs(ms) {
  * @param {number} [stats.vertices] - Total vertex count
  */
 function updatePipelineStats({ treeTime, execTime, convTime, renderTime, triangles, vertices }) {
-  const rows = []
+  // Clear existing content safely
+  statsContent.textContent = ''
+
+  // Helper to add a stat row using DOM APIs (defense in depth - no innerHTML)
+  const addStatRow = (label, value) => {
+    const row = document.createElement('div')
+    row.className = 'stat-row'
+    const labelSpan = document.createElement('span')
+    labelSpan.className = 'stat-label'
+    labelSpan.textContent = label
+    const valueSpan = document.createElement('span')
+    valueSpan.className = 'stat-value'
+    valueSpan.textContent = value
+    row.append(labelSpan, valueSpan)
+    statsContent.appendChild(row)
+  }
+
+  const addSeparator = () => {
+    const sep = document.createElement('div')
+    sep.className = 'stat-separator'
+    statsContent.appendChild(sep)
+  }
+
+  let hasTimingRows = false
 
   // Timing section - show tree time only if > 0.5ms (Manifold lazy eval)
   if (treeTime != null && treeTime > 0.5) {
-    rows.push(`<div class="stat-row"><span class="stat-label">Tree</span><span class="stat-value">${formatMs(treeTime)}</span></div>`)
+    addStatRow('Tree', formatMs(treeTime))
+    hasTimingRows = true
   }
   if (execTime != null) {
-    rows.push(`<div class="stat-row"><span class="stat-label">Exec</span><span class="stat-value">${formatMs(execTime)}</span></div>`)
+    addStatRow('Exec', formatMs(execTime))
+    hasTimingRows = true
   }
   if (convTime != null) {
-    rows.push(`<div class="stat-row"><span class="stat-label">Conv</span><span class="stat-value">${formatMs(convTime)}</span></div>`)
+    addStatRow('Conv', formatMs(convTime))
+    hasTimingRows = true
   }
   if (renderTime != null) {
-    rows.push(`<div class="stat-row"><span class="stat-label">Render</span><span class="stat-value">${formatMs(renderTime)}</span></div>`)
+    addStatRow('Render', formatMs(renderTime))
+    hasTimingRows = true
   }
 
   // Separator and geometry section
-  if ((triangles != null || vertices != null) && rows.length > 0) {
-    rows.push('<div class="stat-separator"></div>')
+  if ((triangles != null || vertices != null) && hasTimingRows) {
+    addSeparator()
   }
   if (triangles != null) {
-    rows.push(`<div class="stat-row"><span class="stat-label">Triangles</span><span class="stat-value">${formatCount(triangles)}</span></div>`)
+    addStatRow('Triangles', formatCount(triangles))
   }
   if (vertices != null) {
-    rows.push(`<div class="stat-row"><span class="stat-label">Vertices</span><span class="stat-value">${formatCount(vertices)}</span></div>`)
+    addStatRow('Vertices', formatCount(vertices))
   }
-
-  statsContent.innerHTML = rows.join('')
 }
 
 /**
@@ -714,14 +745,14 @@ const paramChangeCallback = async (params, source) => {
   }
 
   stopCurrentAnim()
-  if (!working) {
-    lastParams = null
-  } else {
+  if (working) {
     lastParams = params
     return
   }
+  lastParams = null
   working = true
   let result
+  let pendingParams = null
   try {
     const mainOptions = useParamsProxy
       ? paramsCtrl.getWorkerParams()
@@ -729,10 +760,13 @@ const paramChangeCallback = async (params, source) => {
     result = await workerApi.jscadMain(mainOptions)
     lastRunParams = params
   } finally {
+    // Capture pending params atomically before releasing lock
+    pendingParams = lastParams
+    lastParams = null
     working = false
   }
   handlers.entities(result, {})
-  if (lastParams && lastParams != params) paramChangeCallback(lastParams)
+  if (pendingParams && pendingParams !== params) paramChangeCallback(pendingParams)
 }
 
 /** @type {AnimRunner | null} */
@@ -772,7 +806,9 @@ const pauseAnimCallback = async (_def, _value) => {
 
 /** @type {Object.<string,FileSystemFileHandle>} */
 let saveMap = {}
-setInterval(async () => {
+
+// File watcher interval - poll for external file changes
+const fileWatchInterval = setInterval(async () => {
   for (const p in saveMap) {
     const handle = saveMap[p]
     const file = await handle.getFile()
@@ -783,6 +819,11 @@ setInterval(async () => {
     }
   }
 }, 500)
+
+// Clean up interval on page unload to prevent memory leaks
+window.addEventListener('beforeunload', () => {
+  if (fileWatchInterval) clearInterval(fileWatchInterval)
+})
 
 editor.init(
   defaultCode,
