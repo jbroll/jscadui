@@ -741,7 +741,11 @@ editor.init(
       await workerApi.jscadClearFileCache({ files: [path], root: sw.base })
       if (sw.fileToRun) jscadScript({ url: sw.fileToRun, base: sw.base })
     } else {
-      jscadScript({ script })
+      // Compute base directory from the path URL
+      // path may be absolute URL or relative - use appBase as fallback
+      const fullUrl = path.startsWith('http') ? path : new URL(path, appBase).toString()
+      const base = new URL('./', fullUrl).toString()
+      jscadScript({ script, url: path, base })
     }
   },
   async (script, path) => {
@@ -781,7 +785,7 @@ try {
     (script, url) => {
       const fullUrl = new URL(url, appBase).toString()
       editor.setSource(script, fullUrl)
-      jscadScript({ script, url })  // Keep url relative for worker resolution
+      jscadScript({ script, url, base: appBase })  // Explicitly pass appBase to avoid currentBase pollution
       welcome.dismiss()
     },
     err => {
@@ -827,7 +831,10 @@ editor.setSource(virtualTree[0].fileContent, '/index.js')
 // */
 
 if (loadDefault && !hasRemoteScript) {
-  jscadScript({ script: defaultCode, url: './examples/two-cars.example.js' })
+  const defaultUrl = './examples/two-cars.example.js'
+  const fullUrl = new URL(defaultUrl, appBase).toString()
+  editor.setSource(defaultCode, fullUrl)
+  jscadScript({ script: defaultCode, url: defaultUrl, base: appBase })
 }
 
 try {
