@@ -1,3 +1,14 @@
+/**
+ * JSCAD Web Application - Main Entry Point
+ *
+ * This module wires together the application components:
+ * - View/Camera controls
+ * - Worker communication
+ * - File system handling
+ * - Parameter UI
+ * - Script loading
+ */
+
 // Global error handlers - catch unhandled errors and rejections
 window.addEventListener('error', (event) => {
   console.error('Unhandled error:', event.error)
@@ -7,26 +18,14 @@ window.addEventListener('unhandledrejection', (event) => {
   console.error('Unhandled promise rejection:', event.reason)
 })
 
-import {
-  addToCache,
-  analyzeProject,
-  clearCache,
-  clearFs,
-  extractEntries,
-  fileDropped,
-  getFile,
-  getFileContent,
-  registerServiceWorker,
-} from '@jscadui/fs-provider'
+// External dependencies
 import { Gizmo } from '@jscadui/html-gizmo'
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- OrbitState used in JSDoc types
 import { OrbitControl, OrbitState } from '@jscadui/orbit'
 import { boundingBox } from '@jscadui/format-common'
 import { genParams, getParams } from '@jscadui/params'
-import { createParamsTree, paramsTreeStyles, inputStyles } from '@jscadui/params-ui'
-import { createParamsController } from '@jscadui/params-controller'
-import { messageProxy } from '@jscadui/postmessage'
 
+// Local modules
 import defaultCode from './examples/two-cars.example.js'
 import { addV1Shim } from './src/addV1Shim.js'
 import * as editor from './src/editor.js'
@@ -40,10 +39,16 @@ import { AnimRunner } from './src/animRunner.js'
 import * as welcome from './src/welcome.js'
 import * as about from './src/about.js'
 
+// Extracted modules
+import { updatePipelineStats, countGeometry, createProgressHandler } from './src/stats.js'
+import { createWorker, createJobTracker } from './src/workerSetup.js'
+import * as fileSystem from './src/fileSystem.js'
+import * as paramsUI from './src/paramsUI.js'
+
 /**
  * @typedef {import('@jscadui/worker').UserParameters} UserParameters
+ * @typedef {import('@jscadui/worker').JscadWorker} JscadWorker
  */
-
 
 /**
  * @param {string} id
@@ -51,10 +56,7 @@ import * as about from './src/about.js'
  */
 export const byId = id => /** @type {HTMLElement} */(document.getElementById(id))
 
-/** @typedef {import('@jscadui/worker').JscadWorker} JscadWorker*/
-
 // Use origin + '/' as base to ensure proper URL resolution
-// document.baseURI might include a path (e.g., /index.html) which breaks nested require resolution
 const appBase = location.origin + '/'
 let currentBase = appBase
 
@@ -64,10 +66,8 @@ let currentBase = appBase
  */
 const toUrl = path => new URL(path, appBase).toString()
 
+// ============== View & Camera Setup ==============
 const viewState = new ViewState()
-viewState.onRequireReRender = () => paramChangeCallback(ctrl.params)
-
-
 const gizmo = new Gizmo()
 byId('layout').append(gizmo)
 
@@ -77,7 +77,7 @@ let setParamValues
 /** @type {(status:"running" | "")=>void} */
 let setAnimStatus
 
-// load default model unless another model was already loaded
+// Load default model unless another model was already loaded
 let loadDefault = true
 
 const ctrl = new OrbitControl([byId('viewer')], { ...viewState.camera })
@@ -92,440 +92,205 @@ updateFromCtrl(ctrl)
 
 ctrl.onchange = (/** @type {OrbitState} */ state) => viewState.saveCamera(state)
 ctrl.oninput = (/** @type {OrbitState} */ state) => updateFromCtrl(state)
-
 gizmo.onRotationRequested = (/** @type {string} */ cam) => ctrl.animateToCommonCamera(cam)
 
-/** @type {import('@jscadui/fs-provider').SwHandler} */
-let sw
+// ============== Stats & Progress ==============
+const statsContent = byId('stats-content')
+const progress = /** @type {HTMLProgressElement} */ (byId('progress'))
+const onProgress = createProgressHandler(progress)
 
-async function resetFileRefs() {
-  editor.setFiles([])
-  saveMap = {}
-  if (sw) {
-    delete sw.fileToRun
-    await clearFs(sw)
+// ============== Params Controller ==============
+const paramsCtrl = paramsUI.initParamsController()
+const useParamsProxy = true
+
+/** @type {UserParameters} */
+let lastRunParams
+
+// ============== Worker Setup ==============
+
+/**
+ * Handle entities from worker
+ * @param {{entities:unknown | Array<unknown>,treeTime:number,execTime:number,convTime:number}} result
+ * @param {{skipLog?:boolean }} options
+ */
+const handleEntities = (result, { skipLog } = {}) => {
+  const { entities: rawEntities, treeTime, execTime, convTime } = result
+  const entities = rawEntities instanceof Array ? rawEntities : [rawEntities]
+
+  // Track render time
+  const renderStart = performance.now()
+  viewState.setModel(entities)
+  const renderTime = performance.now() - renderStart
+
+  if (viewState.zoomToFit) {
+    const { min, max } = boundingBox(entities)
+    console.warn('min', min, 'max', max, viewState.viewer.getCamera())
+    const { fov, aspect } = viewState.viewer.getCamera()
+    ctrl.fit(min, max, fov, aspect, 1.2)
   }
+
+  if (!skipLog) {
+    console.log('tree:', treeTime?.toFixed(2), ', exec:', execTime?.toFixed(2), ', conv:', convTime?.toFixed(2), ', render:', renderTime?.toFixed(2), entities)
+  }
+
+  setError(undefined)
+  onProgress(undefined)
+
+  // Update pipeline stats
+  const { triangles, vertices } = countGeometry(entities)
+  updatePipelineStats(statsContent, { treeTime, execTime, convTime, renderTime, triangles, vertices })
 }
 
-async function initFs() {
-  /**
-   * @param {string} path
-   * @param {import('@jscadui/fs-provider').SwHandler} sw
-   */
-  const getFileWrapper = (path, sw) => {
-    const file = getFileContent(path, sw)
-    // notify editor of active files
-    file.then(() => editor.setFiles(sw.filesToCheck)).catch(err => {
-      console.error('Failed to get file content:', path, err)
-    })
-    return file
-  }
-  const scope = document.location.pathname
-  try {
-    sw = await registerServiceWorker(`bundle.fs-serviceworker.js?prefix=${scope}swfs/`, getFileWrapper, {
-      scope,
-      prefix: scope + 'swfs/',
-    })
-  } catch (_e) {
-    const lastReload = localStorage.getItem('lastReload')
-    if (lastReload === null || Date.now() - parseInt(lastReload) > 3000) {
-      localStorage.setItem('lastReload', Date.now().toString())
-      //location.reload()
-    }
-  }
-  sw.defProjectName = 'jscad'
-  sw.onfileschange = files => {
-    if (files.includes('/package.json')) {
-      reloadProject()
-    } else {
-      workerApi.jscadClearFileCache({ files, root: sw.base })
-      editor.filesChanged(files)
-      if (sw.fileToRun) jscadScript({ url: sw.fileToRun, base: sw.base })
-    }
-  }
-  sw.getFile = path => getFile(path, sw)
-}
+const trackJobs = createJobTracker(progress, onProgress)
+
+const { workerApi, handlers } = createWorker({
+  onError: setError,
+  onProgress,
+  onEntities: handleEntities,
+  onJobCount: trackJobs
+})
+
+// Update handlers to use our handleEntities
+handlers.entities = handleEntities
+
+// ============== File System Setup ==============
 const dropModal = byId('dropModal')
 
-/** @type {number | NodeJS.Timeout | undefined} */
-let showDropTimer
-
-/**@param {boolean} show */
-const showDrop = show => {
-  clearTimeout(showDropTimer)
-  dropModal.style.display = show ? 'initial' : 'none'
+/** @type {import('./src/fileSystem.js').FileSystemDeps} */
+const fsDeps = {
+  onFilesChange: () => reloadProject(),
+  setEditorFiles: files => editor.setFiles(files),
+  onFilesChanged: files => editor.filesChanged(files),
+  setError,
+  onAliasFound: alias => workerApi.jscadInit({ alias }),
+  onScriptReady: (script, url) => {
+    const sw = fileSystem.getSwHandler()
+    jscadScript({ url, base: sw?.base || appBase })
+    editor.setSource(script, url)
+  },
+  setProjectName: name => { exporter.exportConfig.projectName = name },
+  addV1Shim,
+  clearFileCache: (files, root) => workerApi.jscadClearFileCache({ files, root })
 }
-
-document.body.addEventListener('drop', async ev => {
-  try {
-    ev.preventDefault()
-    if (ev.dataTransfer === null) return
-    const files = await extractEntries(ev.dataTransfer)
-    if (!files.length) return
-    await resetFileRefs()
-    if (!sw) await initFs()
-    showDrop(false)
-    await fileDropped(sw, files)
-
-    reloadProject()
-  } catch (error) {
-    setError(error)
-    console.error(error)
-  }
-})
 
 async function reloadProject() {
   workerApi.jscadClearTempCache()
-  clearCache(sw.cache)
-  saveMap = {}
-  sw.filesToCheck = []
-  const result = await analyzeProject(sw)
-  const { alias } = result
-  let { script } = result
-  exporter.exportConfig.projectName = sw.projectName
-  if (alias.length) {
-    workerApi.jscadInit({ alias })
-  }
-  const url = sw.fileToRun
-  // inject jscad v1 shim, and also inject changed script to cache
-  // so worker and editor have the same code
-  if (sw.fileToRun?.endsWith('.jscad')) {
-    script = addV1Shim(script)
-    addToCache(sw.cache, sw.fileToRun, script)
-  }
-  jscadScript({ url, base: sw.base })
-  editor.setSource(script, url)
-  editor.setFiles(sw.filesToCheck)
+  await fileSystem.reloadProject(fsDeps)
 }
 
-document.body.addEventListener("dragover", ev => {
-  ev.preventDefault()
-  showDrop(true)
+fileSystem.setupDragDrop(dropModal, async (dataTransfer) => {
+  await fileSystem.handleFileDrop(dataTransfer, fsDeps)
 })
 
+// ============== Animation ==============
+/** @type {AnimRunner | null} */
+let currentAnim
 
-const dragEndOrLeave = () => {
-  clearTimeout(showDropTimer)
-  showDropTimer = setTimeout(() => {
-    showDrop(false)
-  }, 300)
-}
-
-document.body.addEventListener("dragend", dragEndOrLeave);
-document.body.addEventListener("dragleave", dragEndOrLeave);
-
-const statsContent = byId('stats-content')
-const progress = /** @type {HTMLProgressElement} */ (byId('progress'))
-
-/**
- * @param {number} [value]
- */
-const onProgress = (value) => {
-  if (value == undefined) {
-    progress.removeAttribute('value')
-  } else {
-    progress.value = value
-  }
-}
-
-const worker = new Worker('./build/bundle.worker.js')
-
-// Handle worker errors that would otherwise be silent
-worker.onerror = (event) => {
-  console.error('Worker error:', event.message, event.filename, event.lineno)
-  setError(new Error(`Worker error: ${event.message}`))
-}
-
-// Handle message deserialization errors
-worker.onmessageerror = (event) => {
-  console.error('Worker message error:', event)
-  setError(new Error('Failed to deserialize worker message'))
+function stopCurrentAnim() {
+  if (!currentAnim) return false
+  currentAnim.pause()
+  currentAnim = null
+  setAnimStatus('')
+  return true
 }
 
 /**
- * Format a number with K/M suffix for large values
- * @param {number} n
- * @returns {string}
+ * @param {Object} def
+ * @param {string | number} value
  */
-function formatCount(n) {
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M'
-  if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K'
-  return String(n)
+const startAnimCallback = async (def, value) => {
+  if (stopCurrentAnim()) return
+  setAnimStatus('running')
+
+  const handleAnimEntities = (result, paramValues, times) => {
+    lastRunParams = paramValues
+    setParamValues(times || {}, true)
+    handlers.entities(result, { skipLog: true })
+  }
+
+  const handleEnd = () => stopCurrentAnim()
+
+  currentAnim = new AnimRunner(workerApi, { handleEntities: handleAnimEntities, handleEnd })
+  currentAnim.start(def, value, getParams(byId('paramsDiv')))
 }
 
-/**
- * Format milliseconds for display
- * @param {number} ms
- * @returns {string}
- */
-function formatMs(ms) {
-  if (ms == null) return '—'
-  if (ms >= 1000) return (ms / 1000).toFixed(2) + 's'
-  return ms.toFixed(1) + 'ms'
+const pauseAnimCallback = async (_def, _value) => {
+  stopCurrentAnim()
 }
 
-/**
- * Update the pipeline stats display
- * @param {object} stats
- * @param {number} [stats.treeTime] - Operation tree building time (Manifold lazy ops)
- * @param {number} [stats.execTime] - Manifold evaluation time (forcing lazy ops)
- * @param {number} [stats.convTime] - Geometry conversion time (getMesh + format)
- * @param {number} [stats.renderTime] - Render time
- * @param {number} [stats.triangles] - Total triangle count
- * @param {number} [stats.vertices] - Total vertex count
- */
-function updatePipelineStats({ treeTime, execTime, convTime, renderTime, triangles, vertices }) {
-  // Clear existing content safely
-  statsContent.textContent = ''
-
-  // Helper to add a stat row using DOM APIs (defense in depth - no innerHTML)
-  const addStatRow = (label, value) => {
-    const row = document.createElement('div')
-    row.className = 'stat-row'
-    const labelSpan = document.createElement('span')
-    labelSpan.className = 'stat-label'
-    labelSpan.textContent = label
-    const valueSpan = document.createElement('span')
-    valueSpan.className = 'stat-value'
-    valueSpan.textContent = value
-    row.append(labelSpan, valueSpan)
-    statsContent.appendChild(row)
-  }
-
-  const addSeparator = () => {
-    const sep = document.createElement('div')
-    sep.className = 'stat-separator'
-    statsContent.appendChild(sep)
-  }
-
-  let hasTimingRows = false
-
-  // Timing section - show tree time only if > 0.5ms (Manifold lazy eval)
-  if (treeTime != null && treeTime > 0.5) {
-    addStatRow('Tree', formatMs(treeTime))
-    hasTimingRows = true
-  }
-  if (execTime != null) {
-    addStatRow('Exec', formatMs(execTime))
-    hasTimingRows = true
-  }
-  if (convTime != null) {
-    addStatRow('Conv', formatMs(convTime))
-    hasTimingRows = true
-  }
-  if (renderTime != null) {
-    addStatRow('Render', formatMs(renderTime))
-    hasTimingRows = true
-  }
-
-  // Separator and geometry section
-  if ((triangles != null || vertices != null) && hasTimingRows) {
-    addSeparator()
-  }
-  if (triangles != null) {
-    addStatRow('Triangles', formatCount(triangles))
-  }
-  if (vertices != null) {
-    addStatRow('Vertices', formatCount(vertices))
-  }
-}
+// ============== Param Change Handling ==============
+/** @type {UserParameters | null} */
+let lastParams
 
 /**
- * Count triangles and vertices from entities
- * @param {Array<{vertices?: ArrayLike<number>, indices?: ArrayLike<number>}>} entities
- * @returns {{triangles: number, vertices: number}}
+ * @param {UserParameters} params
+ * @param {string} [source]
  */
-function countGeometry(entities) {
-  let triangles = 0
-  let vertices = 0
-  for (const e of entities) {
-    if (e.indices) triangles += e.indices.length / 3
-    if (e.vertices) vertices += e.vertices.length / 3
-  }
-  return { triangles, vertices
-  }
-}
+const paramChangeCallback = async (params, source) => {
+  if (source == 'group') return
 
-const handlers = {
-  /**
-   * @param {{entities:unknown | Array<unknown>,treeTime:number,execTime:number,convTime:number}} options1
-   * @param {{skipLog?:boolean }} options2
-   */
-  entities: ({ entities, treeTime, execTime, convTime }, { skipLog } = {}) => {
-    if (!(entities instanceof Array)) entities = [entities]
-
-    // Track render time
-    const renderStart = performance.now()
-    viewState.setModel(entities)
-    const renderTime = performance.now() - renderStart
-
-    if(viewState.zoomToFit){
-      const {min,max} = boundingBox(entities)
-      console.warn('min', min, 'max', max, viewState.viewer.getCamera())
-      const { fov, aspect } = viewState.viewer.getCamera()
-      ctrl.fit(min,max, fov,aspect,1.2)
-    }
-    if (!skipLog) console.log('tree:', treeTime?.toFixed(2), ', exec:', execTime?.toFixed(2), ', conv:', convTime?.toFixed(2), ', render:', renderTime?.toFixed(2), entities)
-    setError(undefined)
-    onProgress(undefined)
-
-    // Update pipeline stats
-    const { triangles, vertices } = countGeometry(entities)
-    updatePipelineStats({
-      treeTime,
-      execTime,
-      convTime,
-      renderTime,
-      triangles,
-      vertices
-    })
-  },
-  onProgress,
-}
-
-const workerApi = /** @type {JscadWorker} */ (messageProxy(worker, handlers, { onJobCount: trackJobs }))
-
-/**@type {NodeJS.Timeout} */
-let firstJobTimer
-
-/**
- * @param {number} jobs
- */
-function trackJobs(jobs) {
-  if (jobs === 1) {
-    // do not show progress for fast renders
-    clearTimeout(firstJobTimer)
-    firstJobTimer = setTimeout(() => {
-      onProgress()
-      progress.style.display = 'block'
-    }, 300)
-  }
-  if (jobs === 0) {
-    clearTimeout(firstJobTimer)
-    progress.style.display = 'none'
-  }
-}
-
-// ============== Params Controller ==============
-const paramsCtrl = createParamsController()
-
-/** @type {ReturnType<typeof createParamsTree> | null} */
-let paramsTreeView = null
-
-/**
- * Flag to preserve params when re-running script (e.g., modeling engine switch)
- * When true, jscadScript won't reset params - just re-runs with existing values
- */
-let preserveParamsOnScriptRun = false
-
-/** @type {number|null} */
-let modelUpdateTimer = null
-const MODEL_UPDATE_DEBOUNCE = 50
-
-/** @type {boolean} */
-let modelUpdatePending = false
-
-/**
- * Handle parameter change from tree view
- * @param {string} paramPath
- * @param {unknown} value
- */
-const handleTreeParamChange = (paramPath, value) => {
-  const linkedPaths = paramsCtrl.setParam(paramPath, value)
-  if (linkedPaths.length === 0) return
-
-  // Update linked inputs in DOM directly (don't re-render whole tree)
-  const inputs = document.querySelectorAll('[data-param-path]')
-  for (const input of inputs) {
-    const path = input.dataset.paramPath
-    if (linkedPaths.includes(path) && path !== paramPath) {
-      // Use updateValue method if available (for complex inputs like sliders, colors)
-      if (typeof input.updateValue === 'function') {
-        input.updateValue(value)
-      } else {
-        input.value = String(value)
+  // Track changed params in proxy mode
+  if (useParamsProxy && lastRunParams) {
+    for (const key in params) {
+      if (params[key] !== lastRunParams[key]) {
+        paramsCtrl.userInteracted.add(key)
       }
     }
   }
 
-  scheduleModelUpdate()
-}
-
-/**
- * Schedule a model update (debounced)
- */
-const scheduleModelUpdate = () => {
-  if (modelUpdateTimer) clearTimeout(modelUpdateTimer)
-  modelUpdatePending = true
-  modelUpdateTimer = setTimeout(() => {
-    modelUpdateTimer = null
-    runModelUpdate()
-  }, MODEL_UPDATE_DEBOUNCE)
-}
-
-/**
- * Run the model and update 3D view
- */
-const runModelUpdate = async () => {
-  if (working) {
-    modelUpdatePending = true
+  stopCurrentAnim()
+  if (paramsUI.isWorking()) {
+    lastParams = params
     return
   }
+  lastParams = null
+  paramsUI.setWorking(true)
 
-  modelUpdatePending = false
-  stopCurrentAnim()
-  working = true
-
+  let result
+  let pendingParams = null
   try {
-    const result = await workerApi.jscadMain(paramsCtrl.getWorkerParams())
-
-    if (result.proxyState) {
-      const oldState = paramsCtrl.proxyState
-      paramsCtrl.updateProxyState(result.proxyState)
-
-      const structureChanged = (
-        JSON.stringify(oldState?.types) !== JSON.stringify(result.proxyState.types) ||
-        JSON.stringify(oldState?.classes) !== JSON.stringify(result.proxyState.classes)
-      )
-
-      // Always update tree to refresh constrained param defaults (calculated values)
-      // The tree contains param.default which may change when model re-runs
-      const state = paramsCtrl.getState()
-      paramsTreeView?.update({
-        tree: result.proxyState.tree,
-        values: state.params,
-        types: structureChanged ? result.proxyState.types : undefined,
-        classes: structureChanged ? result.proxyState.classes : undefined,
-        codeClasses: structureChanged ? state.codeClasses : undefined
-      })
-    }
-
-    handlers.entities(result, {})
-  } catch (err) {
-    setError(err)
-    console.error('Model update failed:', err)
+    const mainOptions = useParamsProxy
+      ? paramsCtrl.getWorkerParams()
+      : { params }
+    result = await workerApi.jscadMain(mainOptions)
+    lastRunParams = params
   } finally {
-    working = false
-    if (modelUpdatePending) runModelUpdate()
+    // Capture pending params atomically before releasing lock
+    pendingParams = lastParams
+    lastParams = null
+    paramsUI.setWorking(false)
   }
+  handlers.entities(result, {})
+  if (pendingParams && pendingParams !== params) paramChangeCallback(pendingParams)
+}
+
+viewState.onRequireReRender = () => paramChangeCallback(ctrl.params)
+
+// ============== Script Loading ==============
+
+/**
+ * Get the modeling bundle URL based on the selected engine.
+ * @returns {string}
+ */
+const getModelingBundle = () => {
+  const engineName = viewState.modelingEngine
+  if (engineName === 'manifold') {
+    return toUrl('./build/bundle.manifold_modeling.js')
+  }
+  return toUrl('./build/bundle.jscad_modeling.js')
 }
 
 /**
- * Handle class change from tree view
- * @param {string} partPath
- * @param {string} newClass
- * @param {'unlink'|'move_group'|'join'|'join_group'} mode
+ * Get the bundles configuration for the worker.
+ * @returns {Record<string, string>}
  */
-const handleTreeClassChange = async (partPath, newClass, mode) => {
-  paramsCtrl.setClass(partPath, newClass, mode)
-
-  // Class changes run immediately (no debounce)
-  if (modelUpdateTimer) {
-    clearTimeout(modelUpdateTimer)
-    modelUpdateTimer = null
-  }
-  await runModelUpdate()
-}
+const getBundles = () => ({
+  '@jscad/modeling': getModelingBundle(),
+  '@jscad/modeling-for-manifold': toUrl('./build/bundle.jscad_modeling.js'),
+  '@jscad/io': toUrl('./build/bundle.jscad_io.js'),
+  '@jscad/csg': toUrl('./build/bundle.V1_api.js'),
+  '@jscadui/params-core': toUrl('./build/bundle.params_core.js'),
+})
 
 /** @param {{script?:string,url?:string,base?:string,root?:string}} options*/
 const jscadScript = async ({ script, url = './jscad.model.js', base = currentBase, root }) => {
@@ -533,16 +298,13 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
   loadDefault = false
 
   // Save params if preserving across engine switch
-  const savedParams = preserveParamsOnScriptRun ? { ...paramsCtrl.params } : null
-  const savedUserInteracted = preserveParamsOnScriptRun ? new Set(paramsCtrl.userInteracted) : null
-  preserveParamsOnScriptRun = false
+  const shouldPreserve = paramsUI.consumePreserveParams()
+  const savedParams = shouldPreserve ? { ...paramsCtrl.params } : null
+  const savedUserInteracted = shouldPreserve ? new Set(paramsCtrl.userInteracted) : null
 
   // Reset controller and UI
   paramsCtrl.reset()
-  if (paramsTreeView) {
-    paramsTreeView.destroy()
-    paramsTreeView = null
-  }
+  paramsUI.destroyParamsTreeView()
 
   try {
     // Query renderer capability for GPU normals support
@@ -555,36 +317,9 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
       // Setup UI
       const paramsHeader = byId('paramsHeader')
       const paramsDiv = byId('paramsDiv')
-      paramsHeader.innerHTML = ''
       paramsDiv.innerHTML = ''
 
-      // Controls header
-      const controls = document.createElement('div')
-      controls.className = 'params-tree-controls'
-      controls.style.cssText = 'display:flex;gap:12px;align-items:center;padding:4px 8px;border-bottom:1px solid #ddd;'
-
-      const showHiddenLabel = document.createElement('label')
-      showHiddenLabel.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;'
-      const showHiddenCheckbox = document.createElement('input')
-      showHiddenCheckbox.type = 'checkbox'
-      showHiddenCheckbox.id = 'showHiddenParams'
-      showHiddenLabel.appendChild(showHiddenCheckbox)
-      showHiddenLabel.appendChild(document.createTextNode('Show hidden'))
-      controls.appendChild(showHiddenLabel)
-
-      const expandBtn = document.createElement('button')
-      expandBtn.textContent = 'Expand'
-      expandBtn.style.cssText = 'font-size:11px;padding:2px 6px;cursor:pointer;'
-      expandBtn.onclick = () => paramsTreeView?.expandAll()
-      controls.appendChild(expandBtn)
-
-      const collapseBtn = document.createElement('button')
-      collapseBtn.textContent = 'Collapse'
-      collapseBtn.style.cssText = 'font-size:11px;padding:2px 6px;cursor:pointer;'
-      collapseBtn.onclick = () => paramsTreeView?.collapseAll()
-      controls.appendChild(collapseBtn)
-
-      paramsHeader.appendChild(controls)
+      const { showHiddenCheckbox } = paramsUI.buildParamsHeader(paramsHeader)
 
       // Tree container
       const treeContainer = document.createElement('div')
@@ -592,16 +327,28 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
       paramsDiv.appendChild(treeContainer)
 
       const state = paramsCtrl.getState()
-      paramsTreeView = createParamsTree({
+      const paramsTreeView = paramsUI.createParamsTreeUI({
         target: treeContainer,
-        tree: result.proxyState.tree,
-        values: state.params,
-        types: result.proxyState.types,
-        classes: result.proxyState.classes,
-        codeClasses: state.codeClasses,
-        onChange: handleTreeParamChange,
-        onClassChange: handleTreeClassChange,
-        showHidden: false
+        proxyState: result.proxyState,
+        state,
+        onChange: (paramPath, value) => {
+          paramsUI.handleTreeParamChange(paramPath, value, () => {
+            paramsUI.scheduleModelUpdate(() => paramsUI.runModelUpdate({
+              workerApi,
+              handleEntities: handlers.entities,
+              setError,
+              stopCurrentAnim
+            }))
+          })
+        },
+        onClassChange: (partPath, newClass, mode) => {
+          paramsUI.handleTreeClassChange(partPath, newClass, mode, {
+            workerApi,
+            handleEntities: handlers.entities,
+            setError,
+            stopCurrentAnim
+          })
+        }
       })
 
       showHiddenCheckbox.onchange = () => {
@@ -623,7 +370,7 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
         // Re-run model with restored params
         const restoreResult = await workerApi.jscadMain(paramsCtrl.getWorkerParams())
         handlers.entities(restoreResult)
-        return // Skip the default entities call below
+        return
       }
     } else {
       // Traditional flat params form
@@ -647,48 +394,24 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
   }
 }
 
-/**
- * Get the modeling bundle URL based on the selected engine.
- * @returns {string}
- */
-const getModelingBundle = () => {
-  const engine = viewState.modelingEngine
-  if (engine === 'manifold') {
-    return toUrl('./build/bundle.manifold_modeling.js')
-  }
-  return toUrl('./build/bundle.jscad_modeling.js')
-}
-
-/**
- * Get the bundles configuration for the worker.
- * @returns {Record<string, string>}
- */
-const getBundles = () => ({
-  '@jscad/modeling': getModelingBundle(),
-  '@jscad/modeling-for-manifold': toUrl('./build/bundle.jscad_modeling.js'), // Explicit alias for manifold's internal jscad dependency
-  '@jscad/io': toUrl('./build/bundle.jscad_io.js'),
-  '@jscad/csg': toUrl('./build/bundle.V1_api.js'),
-  '@jscadui/params-core': toUrl('./build/bundle.params_core.js'),
-})
-
-const useParamsProxy = true
+// ============== Engine Initialization ==============
 
 // Initialize render engine first so we can query its capabilities
 viewState.setEngine(await engine.init(viewState.renderEngine))
 
 await workerApi.jscadInit({ bundles: getBundles(), useParamsProxy })
 
-// Set up engine change handler (now that jscadScript and getBundles are defined)
+// Set up engine change handler
 viewState.onModelingEngineChange = async (newEngine) => {
   console.log('Switching modeling engine to:', newEngine)
 
   // Set flag to preserve params across script re-run
-  preserveParamsOnScriptRun = Object.keys(paramsCtrl.params).length > 0
+  paramsUI.setPreserveParams(Object.keys(paramsCtrl.params).length > 0)
 
   // Reinitialize worker with new bundles
   await workerApi.jscadInit({ bundles: getBundles(), useParamsProxy })
 
-  // Re-run script (required - modeling engine changed, need fresh require() of new bundle)
+  // Re-run script
   editor.runScript()
 }
 
@@ -701,150 +424,49 @@ viewState.onRenderEngineChange = async (newEngine) => {
   // Initialize new viewer
   viewState.setEngine(await engine.init(newEngine))
 
-  // Re-run main with current params to regenerate geometry for new renderer
-  // (different renderers need different geometry formats - GPU vs CPU normals)
-  // No need to update proxyState - only geometry format changes, not params
+  // Re-run main with current params to regenerate geometry
   const useGpuNormals = viewState.viewer?.supportsGpuNormals ?? false
   const mainOptions = useParamsProxy
     ? { ...paramsCtrl.getWorkerParams(), useGpuNormals }
     : { params: lastRunParams, useGpuNormals }
   const result = await workerApi.jscadMain(mainOptions)
-
-  // Just update the 3D view - params UI stays as-is since params didn't change
   handlers.entities(result)
 }
 
 if (useParamsProxy) {
-  const style = document.createElement('style')
-  style.textContent = paramsTreeStyles + inputStyles
-  document.head.appendChild(style)
+  paramsUI.injectParamsStyles()
 }
 
-/** @type {boolean} */
-let working
+// ============== File Watching ==============
+fileSystem.createFileWatcher(
+  files => editor.filesChanged(files),
+  () => editor.runScript()
+)
 
-/** @type {UserParameters | null} */
-let lastParams
-/** @type {UserParameters} */
-let lastRunParams
-
-/**
- * @param {UserParameters} params
- * @param {string} [source]
- */
-const paramChangeCallback = async (params, source) => {
-  if (source == 'group') return
-
-  // Track changed params in proxy mode
-  if (useParamsProxy && lastRunParams) {
-    for (const key in params) {
-      if (params[key] !== lastRunParams[key]) {
-        paramsCtrl.userInteracted.add(key)
-      }
-    }
-  }
-
-  stopCurrentAnim()
-  if (working) {
-    lastParams = params
-    return
-  }
-  lastParams = null
-  working = true
-  let result
-  let pendingParams = null
-  try {
-    const mainOptions = useParamsProxy
-      ? paramsCtrl.getWorkerParams()
-      : { params }
-    result = await workerApi.jscadMain(mainOptions)
-    lastRunParams = params
-  } finally {
-    // Capture pending params atomically before releasing lock
-    pendingParams = lastParams
-    lastParams = null
-    working = false
-  }
-  handlers.entities(result, {})
-  if (pendingParams && pendingParams !== params) paramChangeCallback(pendingParams)
-}
-
-/** @type {AnimRunner | null} */
-let currentAnim
-
-function stopCurrentAnim() {
-  if (!currentAnim) return false
-  currentAnim.pause()
-  currentAnim = null
-  setAnimStatus('')
-  return true
-}
-
-/**
- * @param {Object} def
- * @param {string | number} value
- */
-const startAnimCallback = async (def, value) => {
-  if (stopCurrentAnim()) return
-  setAnimStatus('running')
-
-  const handleEntities = (result, paramValues, times) => {
-    lastRunParams = paramValues
-    setParamValues(times || {}, true)
-    handlers.entities(result, { skipLog: true })
-  }
-
-  const handleEnd = () => stopCurrentAnim()
-
-  currentAnim = new AnimRunner(workerApi, { handleEntities, handleEnd })
-  currentAnim.start(def, value, getParams(byId('paramsDiv')))
-}
-
-const pauseAnimCallback = async (_def, _value) => {
-  stopCurrentAnim()
-}
-
-/** @type {Object.<string,FileSystemFileHandle>} */
-let saveMap = {}
-
-// File watcher interval - poll for external file changes
-const fileWatchInterval = setInterval(async () => {
-  for (const p in saveMap) {
-    const handle = saveMap[p]
-    const file = await handle.getFile()
-    if (file.lastModified > handle.lastMod) {
-      handle.lastMod = file.lastModified
-      await editor.filesChanged([file])
-      editor.runScript();
-    }
-  }
-}, 500)
-
-// Clean up interval on page unload to prevent memory leaks
-window.addEventListener('beforeunload', () => {
-  if (fileWatchInterval) clearInterval(fileWatchInterval)
-})
-
+// ============== Editor Initialization ==============
 editor.init(
   defaultCode,
   async (script, path) => {
-    if (sw && sw.fileToRun) {
-      await addToCache(sw.cache, path, script)
-      await workerApi.jscadClearFileCache({ files: [path], root: sw.base })
-      if (sw.fileToRun) jscadScript({ url: sw.fileToRun, base: sw.base })
+    const swHandler = fileSystem.getSwHandler()
+    if (swHandler && swHandler.fileToRun) {
+      await fileSystem.addToCacheWrapper(path, script)
+      await workerApi.jscadClearFileCache({ files: [path], root: swHandler.base })
+      if (swHandler.fileToRun) jscadScript({ url: swHandler.fileToRun, base: swHandler.base })
     } else {
-      // Compute base directory from the path URL
-      // path may be absolute URL or relative - use appBase as fallback
       const fullUrl = path.startsWith('http') ? path : new URL(path, appBase).toString()
       const base = new URL('./', fullUrl).toString()
       jscadScript({ script, url: path, base })
     }
   },
   async (script, path) => {
+    const swHandler = fileSystem.getSwHandler()
     const pathArr = path.split('/')
-    let fileHandle = (await sw?.getFile(path))?.handle
+    let fileHandle = (await swHandler?.getFile(path))?.handle
     console.log('save file', path, fileHandle)
+
+    const saveMap = fileSystem.getSaveMap()
     if (!fileHandle) fileHandle = saveMap[path]
+
     if (!fileHandle) {
       const opts = {
         suggestedName: pathArr[pathArr.length - 1],
@@ -858,26 +480,30 @@ editor.init(
       }
       fileHandle = await globalThis.showSaveFilePicker?.(opts)
     }
+
     if (fileHandle) {
       const writable = await fileHandle.createWritable()
       await writable.write(script)
       await writable.close()
-      saveMap[path] = fileHandle
+      fileSystem.setSaveMapEntry(path, fileHandle)
       fileHandle.lastMod = Date.now() + 500
     }
   },
-  path => sw?.getFile(path),
+  path => fileSystem.getSwHandler()?.getFile(path),
 )
+
+// ============== Menu & Welcome ==============
 menu.init()
 welcome.init()
 about.init()
+
 let hasRemoteScript
 try {
   hasRemoteScript = await remote.init(
     (script, url) => {
       const fullUrl = new URL(url, appBase).toString()
       editor.setSource(script, fullUrl)
-      jscadScript({ script, url, base: appBase })  // Explicitly pass appBase to avoid currentBase pollution
+      jscadScript({ script, url, base: appBase })
       welcome.dismiss()
     },
     err => {
@@ -889,39 +515,10 @@ try {
 } catch (e) {
   console.error(e)
 }
+
 await exporter.init(workerApi)
 
-/* uncomment to test fake file tree for running scripts
-
-loadDefault = false
-async function setFileTree(sw, files){
-  clearCache(sw.cache)
-  files.forEach(f=>addToCache(sw.cache, f.path, f.fileContent))
-}
-
-const virtualTree = [
-  {
-      "filename": "index.js",
-      "path": "/index.js",
-      "fileContent": "const {subtract} = require('@jscad/modeling').booleans; \n\nfunction main(){\n  const childShape = require('/component/childShape.js');\n  const childShape2 = require('/childShape2.js');\n  return subtract(childShape.main(),childShape2.main())\n}\n\nmodule.exports= {main}",
-  },
-  {
-      "path": "/component/childShape.js",
-      "filename": "childShape.js",
-      "fileContent": "const {cube} = require('@jscad/modeling').primitives; \n function main(){ return cube({size:5})}\n module.exports= {main}",
-  },
-  {
-      "path": "/childShape2.js",
-      "filename": "childShape2.js",
-      "fileContent": "const {sphere} = require('@jscad/modeling').primitives; \n function main(){ return sphere({radius:3})}\n module.exports= {main}",
-  },
-];
-if (!sw) await initFs()
-setFileTree(sw, virtualTree)
-jscadScript({ url: '/index.js', base: sw.base })
-editor.setSource(virtualTree[0].fileContent, '/index.js')
-// */
-
+// ============== Default Script ==============
 if (loadDefault && !hasRemoteScript) {
   const defaultUrl = './examples/two-cars.example.js'
   const fullUrl = new URL(defaultUrl, appBase).toString()
@@ -929,8 +526,9 @@ if (loadDefault && !hasRemoteScript) {
   jscadScript({ script: defaultCode, url: defaultUrl, base: appBase })
 }
 
+// ============== Service Worker Check ==============
 try {
-  if(!sw) await initFs()
+  if (!fileSystem.getSwHandler()) await fileSystem.initFs(fsDeps)
 } catch (err) {
   setError(err)
 }
