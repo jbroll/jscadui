@@ -15,7 +15,7 @@
     "cjs"
   ],
   "scripts": {
-    "test": "vitest",
+    "test": "vitest run",
     "coverage": "vitest run --coverage",
     "build": "esbuild index.js --outdir=esm --bundle --sourcemap --minify --loader:.js=jsx --format=esm --external:regl --external:gl-mat4 --external:gl-vec3 --external:@jscadui/format-regl --external:@jscadui/scene",
     "build-cjs": "esbuild index.js --outdir=cjs --bundle --sourcemap --minify --loader:.js=jsx --format=cjs --external:regl --external:gl-mat4 --external:gl-vec3 --external:@jscadui/format-regl --external:@jscadui/scene",

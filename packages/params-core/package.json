@@ -11,7 +11,7 @@
     "src"
   ],
   "scripts": {
-    "test": "vitest",
+    "test": "vitest run",
     "coverage": "vitest run --coverage"
   },
   "devDependencies": {

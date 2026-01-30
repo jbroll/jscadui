@@ -24,7 +24,7 @@
     "cjs"
   ],
   "scripts": {
-    "test": "vitest",
+    "test": "vitest run",
     "coverage": "vitest run --coverage",
     "build": "esbuild fs-provider.js --outdir=esm --bundle --sourcemap --minify --loader:.js=jsx --format=esm",
     "build-cjs": "esbuild fs-provider.js --outdir=cjs --bundle --sourcemap --minify --loader:.js=jsx --format=cjs",
