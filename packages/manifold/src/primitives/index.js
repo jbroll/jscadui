@@ -118,7 +118,8 @@ export const ellipsoid = (options = {}) => {
  */
 export const cylinder = (options = {}) => {
   const defaults = { height: 2, radius: 1, center: [0, 0, 0], segments: 32 }
-  let { height, radius, startRadius, endRadius, center, segments } = { ...defaults, ...options }
+  const { height, radius, center, segments } = { ...defaults, ...options }
+  let { startRadius, endRadius } = options
 
   // Handle radius variants
   if (startRadius === undefined) startRadius = radius
@@ -362,7 +363,8 @@ export const polyhedron = (options = {}) => {
  */
 export const rectangle = (options = {}) => {
   const defaults = { size: [2, 2], center: [0, 0] }
-  let { size, center } = { ...defaults, ...options }
+  let { size } = { ...defaults, ...options }
+  const { center } = { ...defaults, ...options }
 
   if (!Array.isArray(size)) size = [size, size]
 

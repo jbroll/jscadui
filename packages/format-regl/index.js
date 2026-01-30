@@ -14,7 +14,8 @@
  */
 export function CommonToRegl({ smooth = false } = {}) {
   function _CSG2Regl(obj, _scene, meshColor) {
-    let { vertices, indices = [], normals, color = meshColor, colors, isTransparent = false } = obj
+    let { vertices, indices = [], normals } = obj
+    const { color = meshColor, colors, isTransparent = false } = obj
     const { transforms } = obj
     const objType = obj.type || 'mesh'
 

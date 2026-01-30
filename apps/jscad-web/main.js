@@ -179,7 +179,9 @@ async function reloadProject() {
   clearCache(sw.cache)
   saveMap = {}
   sw.filesToCheck = []
-  let { alias, script } = await analyzeProject(sw)
+  const result = await analyzeProject(sw)
+  const { alias } = result
+  let { script } = result
   exporter.exportConfig.projectName = sw.projectName
   if (alias.length) {
     workerApi.jscadInit({ alias })

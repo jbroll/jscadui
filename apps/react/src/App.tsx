@@ -1,3 +1,4 @@
+import type { Geom3 } from '@jscad/modeling/src/geometries/types'
 import { intersect, subtract, union } from '@jscad/modeling/src/operations/booleans'
 import { scale, translate } from '@jscad/modeling/src/operations/transforms'
 import { cube, sphere } from '@jscad/modeling/src/primitives'
@@ -16,7 +17,7 @@ const shape2 = translate([0, 0, 1.5], shape)
 const shape3 = scale([3, 3, 3], shape2)
 
 function App() {
-  const [solids] = useState<any[]>([shape3])
+  const [solids] = useState<Geom3[]>([shape3])
   return (
     <div className="App">
       <h1>jscad ui</h1>

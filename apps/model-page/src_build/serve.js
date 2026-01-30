@@ -145,7 +145,8 @@ const server = http.createServer(async (req, res) => {
   } catch (err) {
     console.error('error handling request', err)
   }
-  let { status, content, contentType } = result
+  const { status, contentType } = result
+  let { content } = result
 
   // write http header
   const headers = { 'Connection': 'keep-alive' }

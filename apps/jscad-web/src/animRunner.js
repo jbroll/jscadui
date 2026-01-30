@@ -25,7 +25,8 @@ export class AnimRunner {
     this.running = true
     this.shouldPause = false
 
-    let { fps, min = 0, max, loop, name } = def
+    const { fps: _fps, min = 0, max, loop, name } = def
+    let fps = _fps
     if (params.fps) fps = params.fps
     const step = 1 / fps
     const minMaxDelta = max - min

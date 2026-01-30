@@ -28,7 +28,8 @@ import { createInput as createInputComponent } from './inputs.js'
  * @returns {{update: (options: Partial<ParamsTreeOptions>) => void, destroy: () => void}}
  */
 export const createParamsTree = (options) => {
-  let { target, tree, values, types, classes, codeClasses, onChange, onClassChange, showHidden = false, startCollapsed = true } = options
+  const { target, onChange, onClassChange, startCollapsed = true } = options
+  let { tree, values, types, classes, codeClasses, showHidden = false } = options
 
   // Convert to Maps if plain objects
   let typesMap = toMap(types)

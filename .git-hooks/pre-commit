@@ -8,8 +8,8 @@ STAGED_JS=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(js|ts|
 
 if [ -n "$STAGED_JS" ]; then
   echo "Linting staged files..."
-  # Lint errors block commit (warnings are allowed)
-  echo "$STAGED_JS" | xargs npx eslint --max-warnings=-1
+  # Lint errors and warnings block commit
+  echo "$STAGED_JS" | xargs npx eslint --max-warnings=0
 
   echo "Type checking..."
   npm run typecheck || echo "Warning: Type check had errors (non-blocking)"

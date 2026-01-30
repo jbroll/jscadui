@@ -47,7 +47,7 @@ interface RendererState {
     mouse: 'up' | 'down'
   }
   panDelta: number[]
-  render?: (content: any) => void
+  render?: (content: unknown) => void
   rotateDelta: number[]
   zoomDelta: number
 }

@@ -91,7 +91,8 @@ export const genParams = ({
   }
 
   function inputDefault(def) {
-    let { name, type, value, min, max, step, placeholder, live, fps } = def
+    const { name, type, min, max, placeholder, live } = def
+    let { value, step, fps } = def
     if(fps <= 0) fps = 1
     if(!step && fps) step = 1/fps
 
@@ -114,7 +115,8 @@ export const genParams = ({
   const missing = {}
 
   params.forEach(def => {
-    let { type, caption, name, fps, live } = def
+    const { type, name, fps, live } = def
+    let { caption } = def
 
     if (!caption) caption = name
 
