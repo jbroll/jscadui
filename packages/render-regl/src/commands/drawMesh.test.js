@@ -215,6 +215,7 @@ describe('drawMesh', () => {
       const { mockRegl } = createMockRegl()
       const geometry = {
         positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+        normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]), // Required for vertex color shaders
         colors: new Float32Array([1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 1, 1])
       }
 
