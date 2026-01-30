@@ -7,6 +7,9 @@ import * as mat4 from 'gl-mat4'
 import * as vec3 from 'gl-vec3'
 import renderDefaults from './renderDefaults.js'
 
+// Identity matrix fallback for invalid view matrices
+const IDENTITY = mat4.identity([])
+
 // Transform a direction vector by the rotation part of a 4x4 matrix
 const transformDirection = (out, dir, mat) => {
   out[0] = mat[0] * dir[0] + mat[4] * dir[1] + mat[8] * dir[2]
@@ -30,9 +33,16 @@ const renderContext = (regl, params = {}) => {
       enable: true
     },
 
-    // Global context values
+    // Global context values (computed once per scope, accessible to uniforms)
     context: {
-      lightDirection: renderDefaults.lightDirection
+      lightDirection: renderDefaults.lightDirection,
+      // Compute inverse view once per frame - regl caches context values for the scope
+      inverseView: (context, props) => {
+        const view = props.camera?.view
+        if (!view) return IDENTITY
+        const inv = mat4.invert([], view)
+        return inv || IDENTITY
+      }
     },
 
     // Global uniforms available to all nested draw commands
@@ -44,19 +54,18 @@ const renderContext = (regl, params = {}) => {
       camNear: (context, props) => props.camera.near,
       camFar: (context, props) => props.camera.far,
 
-      // Inverted view matrix (for some calculations)
-      invertedView: (context, props) => mat4.invert([], props.camera.view),
+      // Inverted view matrix - reuse cached value from context
+      invertedView: (context) => context.inverseView,
 
       // Lighting uniforms
       lightPosition: (context, props) =>
         props?.rendering?.lightPosition ?? renderDefaults.lightPosition,
 
       // Light direction follows camera (like Three.js directionalLight attached to camera)
-      // Transform view-space light direction to world space
+      // Transform view-space light direction to world space (reuses cached inverse view)
       lightDirection: (context, props) => {
         const viewSpaceLight = props?.rendering?.lightDirection ?? renderDefaults.lightDirection
-        const inverseView = mat4.invert([], props.camera.view)
-        return transformDirection([], viewSpaceLight, inverseView)
+        return transformDirection([], viewSpaceLight, context.inverseView)
       },
 
       lightView: (context) =>

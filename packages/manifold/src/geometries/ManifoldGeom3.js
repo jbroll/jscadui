@@ -4,17 +4,85 @@
  *
  * The key feature is the lazy `polygons` getter which only converts
  * to polygon format when actually needed (e.g., for rendering or export).
+ *
+ * Also implements the "common format" interface (vertices, indices, normals)
+ * for direct pass-through to renderers, bypassing polygon conversion.
  */
 
 import { manifoldToGeom3, geom3ToManifold } from '../conversions/index.js'
 
 /**
+ * Compute flat-shading normals from an indexed triangle mesh.
+ * Expands the mesh to non-indexed format with per-face normals.
+ *
+ * @param {Float32Array} srcVerts - Source vertex positions (shared/indexed)
+ * @param {Uint32Array} srcIndices - Triangle indices
+ * @returns {{ vertices: Float32Array, indices: Uint32Array, normals: Float32Array }}
+ */
+function computeMeshData(srcVerts, srcIndices) {
+  const triCount = srcIndices.length / 3
+  const vertCount = triCount * 3
+
+  const vertices = new Float32Array(vertCount * 3)
+  const normals = new Float32Array(vertCount * 3)
+  const indices = new Uint32Array(vertCount)
+
+  for (let t = 0; t < triCount; t++) {
+    const i0 = srcIndices[t * 3]
+    const i1 = srcIndices[t * 3 + 1]
+    const i2 = srcIndices[t * 3 + 2]
+
+    // Read source vertex positions
+    const v0x = srcVerts[i0 * 3], v0y = srcVerts[i0 * 3 + 1], v0z = srcVerts[i0 * 3 + 2]
+    const v1x = srcVerts[i1 * 3], v1y = srcVerts[i1 * 3 + 1], v1z = srcVerts[i1 * 3 + 2]
+    const v2x = srcVerts[i2 * 3], v2y = srcVerts[i2 * 3 + 1], v2z = srcVerts[i2 * 3 + 2]
+
+    // Write expanded vertex positions
+    const outBase = t * 9
+    vertices[outBase] = v0x; vertices[outBase + 1] = v0y; vertices[outBase + 2] = v0z
+    vertices[outBase + 3] = v1x; vertices[outBase + 4] = v1y; vertices[outBase + 5] = v1z
+    vertices[outBase + 6] = v2x; vertices[outBase + 7] = v2y; vertices[outBase + 8] = v2z
+
+    // Compute face normal via cross product
+    const ax = v1x - v0x, ay = v1y - v0y, az = v1z - v0z
+    const bx = v2x - v0x, by = v2y - v0y, bz = v2z - v0z
+    let nx = ay * bz - az * by
+    let ny = az * bx - ax * bz
+    let nz = ax * by - ay * bx
+
+    // Normalize
+    const len = Math.hypot(nx, ny, nz)
+    if (len > 0) {
+      nx /= len; ny /= len; nz /= len
+    } else {
+      // Degenerate triangle - use default normal
+      nx = 0; ny = 0; nz = 1
+    }
+
+    // Set same normal for all 3 vertices of this triangle
+    normals[outBase] = nx; normals[outBase + 1] = ny; normals[outBase + 2] = nz
+    normals[outBase + 3] = nx; normals[outBase + 4] = ny; normals[outBase + 5] = nz
+    normals[outBase + 6] = nx; normals[outBase + 7] = ny; normals[outBase + 8] = nz
+
+    // Sequential indices (since we expanded to non-indexed)
+    const idxBase = t * 3
+    indices[idxBase] = idxBase
+    indices[idxBase + 1] = idxBase + 1
+    indices[idxBase + 2] = idxBase + 2
+  }
+
+  return { vertices, indices, normals }
+}
+
+/**
  * A geometry wrapper that holds a Manifold internally.
  * Provides lazy conversion to JSCAD geom3 format.
+ * Also provides direct access to render-ready mesh data.
  */
 export class ManifoldGeom3 {
   #manifold
   #cachedPolygons = null
+  #cachedMeshData = null
   #color = null
 
   /**
@@ -29,6 +97,20 @@ export class ManifoldGeom3 {
   }
 
   /**
+   * Lazily compute and cache render-ready mesh data.
+   * Converts from Manifold's indexed format to flat-shaded format with normals.
+   *
+   * @returns {{ vertices: Float32Array, indices: Uint32Array, normals: Float32Array }}
+   */
+  #ensureMeshData() {
+    if (this.#cachedMeshData === null) {
+      const mesh = this.#manifold.getMesh()
+      this.#cachedMeshData = computeMeshData(mesh.vertProperties, mesh.triVerts)
+    }
+    return this.#cachedMeshData
+  }
+
+  /**
    * Get the underlying Manifold object.
    *
    * @returns {Object} The wrapped Manifold
@@ -37,9 +119,54 @@ export class ManifoldGeom3 {
     return this.#manifold
   }
 
+  // ========== Common Format Interface ==========
+  // These getters allow JscadToCommon to pass through directly
+  // without converting to polygon format first.
+
+  /**
+   * Geometry type for the common format.
+   * @returns {'mesh'}
+   */
+  get type() {
+    return 'mesh'
+  }
+
+  /**
+   * Get vertex positions as Float32Array.
+   * Lazily computed and cached.
+   *
+   * @returns {Float32Array} Flat array of vertex positions [x,y,z,x,y,z,...]
+   */
+  get vertices() {
+    return this.#ensureMeshData().vertices
+  }
+
+  /**
+   * Get triangle indices as Uint32Array.
+   * Lazily computed and cached.
+   *
+   * @returns {Uint32Array} Triangle indices
+   */
+  get indices() {
+    return this.#ensureMeshData().indices
+  }
+
+  /**
+   * Get vertex normals as Float32Array.
+   * Lazily computed and cached. Uses flat shading (per-face normals).
+   *
+   * @returns {Float32Array} Flat array of normals [nx,ny,nz,nx,ny,nz,...]
+   */
+  get normals() {
+    return this.#ensureMeshData().normals
+  }
+
+  // ========== Legacy JSCAD Interface ==========
+
   /**
    * Lazy getter for polygons - converts from Manifold format on first access.
-   * This is what JscadToCommon looks for.
+   * This is the legacy interface for JSCAD compatibility.
+   * Prefer using vertices/indices/normals for rendering.
    *
    * @returns {Array} Array of poly3 objects
    */

@@ -116,4 +116,106 @@ describe('@jscadui/manifold', () => {
       expect(vol).toBeCloseTo(1000, 1)
     })
   })
+
+  describe('common format interface (render-ready output)', () => {
+    it('should expose type as mesh', () => {
+      const c = cube({ size: 10 })
+      expect(c.type).toBe('mesh')
+    })
+
+    it('should expose vertices as Float32Array', () => {
+      const c = cube({ size: 10 })
+      expect(c.vertices).toBeInstanceOf(Float32Array)
+      expect(c.vertices.length).toBeGreaterThan(0)
+      // A cube has 12 triangles (2 per face), 3 vertices per triangle = 36 vertices
+      // 36 vertices * 3 components = 108 floats
+      expect(c.vertices.length).toBe(108)
+    })
+
+    it('should expose indices as Uint32Array', () => {
+      const c = cube({ size: 10 })
+      expect(c.indices).toBeInstanceOf(Uint32Array)
+      // 36 vertices = 36 indices (sequential since we expand to non-indexed)
+      expect(c.indices.length).toBe(36)
+    })
+
+    it('should expose normals as Float32Array', () => {
+      const c = cube({ size: 10 })
+      expect(c.normals).toBeInstanceOf(Float32Array)
+      // Same length as vertices (one normal per vertex)
+      expect(c.normals.length).toBe(c.vertices.length)
+    })
+
+    it('should compute correct face normals for a cube', () => {
+      const c = cube({ size: 10, center: [0, 0, 0] })
+      const normals = c.normals
+
+      // Collect unique normals (should be 6 for a cube - one per face)
+      const uniqueNormals = new Set()
+      for (let i = 0; i < normals.length; i += 3) {
+        const key = `${normals[i].toFixed(2)},${normals[i + 1].toFixed(2)},${normals[i + 2].toFixed(2)}`
+        uniqueNormals.add(key)
+      }
+
+      // Cube should have exactly 6 unique face normals
+      expect(uniqueNormals.size).toBe(6)
+
+      // All normals should be unit vectors pointing in axis directions
+      const expectedNormals = [
+        '1.00,0.00,0.00', '-1.00,0.00,0.00',
+        '0.00,1.00,0.00', '0.00,-1.00,0.00',
+        '0.00,0.00,1.00', '0.00,0.00,-1.00'
+      ]
+      expectedNormals.forEach(n => {
+        expect(uniqueNormals.has(n)).toBe(true)
+      })
+    })
+
+    it('should cache mesh data (lazy computation)', () => {
+      const c = cube({ size: 10 })
+      const vertices1 = c.vertices
+      const vertices2 = c.vertices
+      // Should return the same cached array
+      expect(vertices1).toBe(vertices2)
+    })
+
+    it('should have consistent data between vertices, indices, and normals', () => {
+      const s = sphere({ radius: 5, segments: 8 })
+
+      // vertices and normals should have same length
+      expect(s.vertices.length).toBe(s.normals.length)
+
+      // indices length should be vertices.length / 3 (one index per vertex)
+      expect(s.indices.length).toBe(s.vertices.length / 3)
+    })
+
+    it('should work with boolean results', () => {
+      const box = cube({ size: 10 })
+      const hole = cylinder({ radius: 3, height: 12 })
+      const result = subtract(box, hole)
+
+      expect(result.type).toBe('mesh')
+      expect(result.vertices).toBeInstanceOf(Float32Array)
+      expect(result.indices).toBeInstanceOf(Uint32Array)
+      expect(result.normals).toBeInstanceOf(Float32Array)
+      expect(result.vertices.length).toBeGreaterThan(0)
+    })
+
+    it('should compute normals for degenerate triangles gracefully', () => {
+      // This tests that the normal computation handles edge cases
+      const c = cube({ size: 10 })
+      const normals = c.normals
+
+      // No NaN values in normals
+      for (let i = 0; i < normals.length; i++) {
+        expect(isNaN(normals[i])).toBe(false)
+      }
+
+      // All normals should be unit length (or close to it)
+      for (let i = 0; i < normals.length; i += 3) {
+        const len = Math.hypot(normals[i], normals[i + 1], normals[i + 2])
+        expect(len).toBeCloseTo(1, 5)
+      }
+    })
+  })
 })

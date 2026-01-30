@@ -464,6 +464,47 @@ describe('JscadToCommon', () => {
       expect(result.vertices).toBe(alreadyConverted.vertices)
     })
 
+    it('should prioritize vertices getter over polygons getter (optimization path)', () => {
+      // Simulates ManifoldGeom3 which has both vertices and polygons getters
+      let polygonsAccessed = false
+      const mockManifoldGeom3 = {
+        get type() { return 'mesh' },
+        get vertices() { return new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]) },
+        get indices() { return new Uint32Array([0, 1, 2]) },
+        get normals() { return new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]) },
+        get polygons() {
+          polygonsAccessed = true
+          return [{ vertices: [[0, 0, 0], [1, 0, 0], [0, 1, 0]] }]
+        },
+      }
+
+      const result = JscadToCommon(mockManifoldGeom3, [], undefined)
+
+      expect(result.type).toBe('mesh')
+      expect(polygonsAccessed).toBe(false) // Should NOT access polygons getter
+    })
+
+    it('should extract data from getters into plain object for postMessage compatibility', () => {
+      // Class instances with getters can't be serialized via postMessage
+      // JscadToCommon should extract the data into a plain object
+      const mockManifoldGeom3 = {
+        get type() { return 'mesh' },
+        get vertices() { return new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]) },
+        get indices() { return new Uint32Array([0, 1, 2]) },
+        get normals() { return new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]) },
+      }
+
+      const result = JscadToCommon(mockManifoldGeom3, [], undefined)
+
+      // Result should be a plain object, not the original
+      expect(result).not.toBe(mockManifoldGeom3)
+      expect(result.type).toBe('mesh')
+      expect(result.vertices).toBeInstanceOf(Float32Array)
+      expect(result.indices).toBeInstanceOf(Uint32Array)
+      expect(result.normals).toBeInstanceOf(Float32Array)
+      expect(result.id).toBeDefined() // Should have an id assigned
+    })
+
     it('should prioritize points over sides when both present', () => {
       // This tests CSGLine detection when sides is also present
       const csg = {
@@ -655,7 +696,7 @@ describe('JscadToCommon', () => {
       JscadToCommon(alreadyConverted, transferable2, undefined)
 
       // Should only add to transferable once
-      expect(transferable1.length).toBe(2) // vertices and indices
+      expect(transferable1.length).toBe(3) // vertices, indices, and normals
       expect(transferable2.length).toBe(0) // second call shouldn't add again
     })
   })
@@ -671,7 +712,23 @@ describe('JscadToCommon', () => {
 
       expect(transferable).toContain(result.vertices)
       expect(transferable).toContain(result.indices)
-      // Note: normals are not added to transferable in current implementation
+      // Note: normals are not added to transferable in CSGCached path
+    })
+
+    it('should populate transferable with normals for pass-through geometry', () => {
+      const transferable = []
+      const mockManifoldGeom3 = {
+        type: 'mesh',
+        vertices: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+        indices: new Uint32Array([0, 1, 2]),
+        normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
+      }
+
+      JscadToCommon(mockManifoldGeom3, transferable, undefined)
+
+      expect(transferable).toContain(mockManifoldGeom3.vertices)
+      expect(transferable).toContain(mockManifoldGeom3.indices)
+      expect(transferable).toContain(mockManifoldGeom3.normals)
     })
 
     it('should not populate transferable when null', () => {

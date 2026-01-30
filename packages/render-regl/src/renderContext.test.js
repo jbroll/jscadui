@@ -66,8 +66,12 @@ describe('renderContext', () => {
       far: 1000
     }
 
+    // Pre-computed inverse of identity matrix (which is identity)
+    const mockInverseView = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
+
     const mockContext = {
-      lightDirection: [0.45, 0.0, 0.9] // Matches renderDefaults.lightDirection
+      lightDirection: [0.45, 0.0, 0.9], // Matches renderDefaults.lightDirection
+      inverseView: mockInverseView
     }
 
     const mockProps = {
@@ -131,7 +135,8 @@ describe('renderContext', () => {
       renderContext(regl)
 
       const config = mockCommand._config
-      const invertedView = config.uniforms.invertedView(mockContext, mockProps)
+      // invertedView uniform now returns the pre-computed value from context
+      const invertedView = config.uniforms.invertedView(mockContext)
       expect(invertedView).toBeInstanceOf(Array)
       expect(invertedView.length).toBe(16)
     })

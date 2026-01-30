@@ -296,22 +296,42 @@ export function JscadToCommon (csg, transferable, unique, options) {
   /** @type {import("@jscadui/format-common").JscadMainEntity} */
   let obj
 
-  if ('polygons' in csg) obj = CSGCached(CSG2Vertices, csg, csg.polygons, transferable, unique, options)
-  if ('sides' in csg && !('points' in csg)) obj = CSGCached(CSGSides2LineSegmentsVertices, csg, csg.sides, transferable, unique, options)
-  if ('outlines' in csg) obj = CSGCached(CSGOutlines2LineSegmentsVertices, csg.outlines, csg.outlines, transferable, unique, options)
-  if ('contours' in csg) obj = CSGCached(CSGOutlines2LineSegmentsVertices, csg.contours, csg.contours, transferable, unique, options)
-  if ('points' in csg) obj = CSGCached(CSG2LineVertices, csg, csg.points, transferable, unique, options)
-  if ('vertices' in csg) { // cover a case where the object already has the format
-    obj = csg
-    // avoid filling transferable multiple times
-    if (!JscadToCommon.cache.get(obj)) {
-      JscadToCommon.cache.set(obj, obj)
+  // Check 'vertices' FIRST - this is the fast path for objects that already have
+  // the common format (e.g., ManifoldGeom3). This avoids triggering expensive
+  // polygon conversion on objects that have both polygons and vertices getters.
+  if ('vertices' in csg) {
+    // Extract data into a plain object - class instances with getters can't be
+    // serialized through postMessage, so we need to read the values here.
+    const vertices = csg.vertices
+    const indices = csg.indices
+    const normals = csg.normals
+    const type = csg.type
+
+    // Use vertices array as cache key since the object itself may be a class instance
+    obj = JscadToCommon.cache.get(vertices)
+    if (!obj) {
+      obj = { type, vertices, indices, normals }
+      obj.id = JscadToCommon.sequence++
+      JscadToCommon.cache.set(vertices, obj)
       if (transferable) {
-        transferable.push(obj.vertices)
-        if (obj.indices) transferable.push(obj.indices)
+        transferable.push(vertices)
+        if (indices) transferable.push(indices)
+        if (normals) transferable.push(normals)
       }
     }
+    if (unique) unique.set(obj.id, obj)
+  } else if ('polygons' in csg) {
+    obj = CSGCached(CSG2Vertices, csg, csg.polygons, transferable, unique, options)
+  } else if ('sides' in csg && !('points' in csg)) {
+    obj = CSGCached(CSGSides2LineSegmentsVertices, csg, csg.sides, transferable, unique, options)
+  } else if ('outlines' in csg) {
+    obj = CSGCached(CSGOutlines2LineSegmentsVertices, csg.outlines, csg.outlines, transferable, unique, options)
+  } else if ('contours' in csg) {
+    obj = CSGCached(CSGOutlines2LineSegmentsVertices, csg.contours, csg.contours, transferable, unique, options)
+  } else if ('points' in csg) {
+    obj = CSGCached(CSG2LineVertices, csg, csg.points, transferable, unique, options)
   }
+
   if ('color' in csg || csg.transforms) obj = { ...obj }
   if(csg.color) obj.color = csg.color 
   if(csg.transforms) obj.transforms = csg.transforms

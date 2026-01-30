@@ -377,7 +377,13 @@ export function RenderRegl(reglOrOptions) {
     }
 
     function getCamera() {
-      return { position: Array.from(state.camera.position), target: state.camera.target }
+      return {
+        position: Array.from(state.camera.position),
+        target: state.camera.target,
+        // Convert fov from radians to degrees for consistency with Three.js
+        fov: state.camera.fov * (180 / Math.PI),
+        aspect: state.camera.aspect
+      }
     }
 
     const getViewerEnv = () => ({
