@@ -3,8 +3,8 @@
 
 const { cylinder, cuboid, sphere, torus } = require('@jscad/modeling').primitives
 const { translate, rotateX, rotateZ, scale } = require('@jscad/modeling').transforms
-const { union, subtract } = require('@jscad/modeling').booleans
-const { colorize, hexToRgb } = require('@jscad/modeling').colors
+const { union, subtract: _subtract } = require('@jscad/modeling').booleans
+const { colorize, hexToRgb: _hexToRgb } = require('@jscad/modeling').colors
 
 // Helper to convert hex color to RGB array
 const hexToColor = (hex) => {

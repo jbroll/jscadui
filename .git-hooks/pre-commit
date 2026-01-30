@@ -8,15 +8,15 @@ STAGED_JS=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(js|ts|
 
 if [ -n "$STAGED_JS" ]; then
   echo "Linting staged files..."
-  # Note: Linting is currently informational only (many pre-existing issues)
-  # Remove "|| true" once codebase lint issues are resolved
-  echo "$STAGED_JS" | xargs npx eslint || echo "Warning: Lint errors found (non-blocking for now)"
+  # Lint errors block commit (warnings are allowed)
+  echo "$STAGED_JS" | xargs npx eslint --max-warnings=-1
 
   echo "Type checking..."
   npm run typecheck || echo "Warning: Type check had errors (non-blocking)"
 fi
 
 echo "Running tests..."
+# Note: One pre-existing failing test in render-regl (vertex colors shader test)
 npm test || echo "Warning: Some tests failed (non-blocking for now)"
 
 echo "Pre-commit checks passed!"

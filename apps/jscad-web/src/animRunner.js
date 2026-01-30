@@ -33,9 +33,9 @@ export class AnimRunner {
     value = parseFloat(value) + step
 
     let lastTime, now, delta, resp, paramValues, times
-    const startTime = lastTime = now = Date.now()
+    const _startTime = lastTime = now = Date.now()
     let t = value
-    const i = 1;
+    const _i = 1;
     let dir = loop == 'reverse' ? 1 : 0
 
 

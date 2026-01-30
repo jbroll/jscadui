@@ -9,8 +9,8 @@
  */
 
 const jscad = require('@jscad/modeling')
-const { cuboid, cylinder } = jscad.primitives
-const { union } = jscad.booleans
+const { cuboid, cylinder: _cylinder } = jscad.primitives
+const { union: _union } = jscad.booleans
 const { colorize, hexToRgb } = jscad.colors
 const { translate, rotateX } = jscad.transforms
 
@@ -56,7 +56,7 @@ const main = (params) => {
   const bodyColor = params.bodyColor
 
   // Get wheel radius to calculate positions
-  const wheelRadius = params.frontLeft.radius ?? 3
+  const _wheelRadius = params.frontLeft.radius ?? 3
   const wheelY = bodyWidth / 2 + 0.5 // offset from center
 
   // Car body

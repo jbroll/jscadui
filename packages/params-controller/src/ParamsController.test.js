@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { createParamsController } from './ParamsController.js'
-import { createParamsProxy, createProxyState, buildParamTree, extractDefaults, getLinkedParamPaths } from '@jscadui/params-core'
+import { createParamsProxy, createProxyState, buildParamTree as _buildParamTree, extractDefaults, getLinkedParamPaths } from '@jscadui/params-core'
 
 describe('getLinkedParamPaths', () => {
   it('should link params at exact hierarchy level', () => {

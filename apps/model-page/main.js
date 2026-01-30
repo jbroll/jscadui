@@ -53,7 +53,6 @@ function setViewerCamera({ position, target, rx, rz }) {
 }
 
 const updateFromCtrl = change => {
-  const { position, target, rx, rz, len, ...rest } = change
   setViewerCamera(change)
 }
 

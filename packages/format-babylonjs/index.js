@@ -21,10 +21,10 @@ export const invertNormals = indices => {
 }
 
 export function CommonToBabylon(Babylon) {
-  const { Mesh, VertexData, LinesMesh, MeshBuilder, Vector3, Color4, Color3, VertexBuffer, Matrix, StandardMaterial } = Babylon
-  const SEQ = 0
+  const { Mesh, VertexData, LinesMesh, MeshBuilder: _MeshBuilder, Vector3: _Vector3, Color4: _Color4, Color3, VertexBuffer, Matrix, StandardMaterial } = Babylon
+  const _SEQ = 0
   function CSG2Babylon(obj, scene, meshColor) {
-    const { vertices, indices = [], normals, color, colors, isTransparent = false, opacity } = obj
+    const { vertices, indices = [], normals, color, colors, isTransparent: _isTransparent = false, opacity } = obj
     const { transforms } = obj
     const objType = obj.type || 'mesh'
 
@@ -110,8 +110,8 @@ export function CommonToBabylon(Babylon) {
       material.diffuseColor = meshColor;
     }
 
-    let myArray
-    let myColors
+    let _myArray
+    let _myColors
     let mesh
     let _opacity
     switch (objType) {

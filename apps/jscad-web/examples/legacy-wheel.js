@@ -5,7 +5,7 @@
 
 const jscad = require('@jscad/modeling')
 const { cylinder, torus } = jscad.primitives
-const { union, subtract } = jscad.booleans
+const { union: _union, subtract: _subtract } = jscad.booleans
 const { colorize } = jscad.colors
 const { translate } = jscad.transforms
 

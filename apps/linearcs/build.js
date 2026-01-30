@@ -1,16 +1,16 @@
 import { copyTask, parseArgs } from '@jsx6/build'
-import { execSync } from 'child_process'
-import { existsSync, mkdirSync } from 'fs'
+import { execSync as _execSync } from 'child_process'
+import { existsSync as _existsSync, mkdirSync } from 'fs'
 import liveServer from 'live-server'
 import {serve} from './serve.js'
 
-import { buildBundle, buildOne } from './src_build/esbuildUtil.js'
+import { buildBundle as _buildBundle, buildOne } from './src_build/esbuildUtil.js'
 
 // *************** read parameters **********************
 const { dev, port = 5131, serve:serveBuild=false} = parseArgs()
 const watch = dev
 const outDir = dev ? 'build_dev' : 'build'
-const docsDir = 'jscad/docs'
+const _docsDir = 'jscad/docs'
 
 /******************************* SETUP  *************/
 mkdirSync(outDir, { recursive: true })

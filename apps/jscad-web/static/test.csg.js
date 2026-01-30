@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars, @typescript-eslint/no-unused-expressions -- playground file with intentional imports */
 const csg = require('@jscad/csg')
 const { OpenJsCad, debug } = csg
 const {circle, square, polygon, triangle} = csg.primitives2d

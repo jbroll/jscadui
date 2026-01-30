@@ -1,4 +1,4 @@
-import Two from 'two.js'
+import _Two from 'two.js'
 import { ZUI } from './zui.js';
 
 // var two = new Two({
@@ -57,7 +57,7 @@ export function addZUI(domElement, stage) {
       mouse.set(e.clientX, e.clientY);
     }
 
-    function mouseup(e) {
+    function mouseup(_e) {
       window.removeEventListener('mousemove', mousemove, false);
       window.removeEventListener('mouseup', mouseup, false);
     }

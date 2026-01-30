@@ -39,7 +39,7 @@ describe('CommonToRegl', () => {
       expect(result.geometry.indices.length).toBe(2) // 2 vertices
     })
 
-    it('should create default normals when not provided', () => {
+    it('should not create normals for mesh when not provided (GPU computes via dFdx/dFdy)', () => {
       const converter = CommonToRegl()
       const mesh = {
         type: 'mesh',
@@ -49,8 +49,8 @@ describe('CommonToRegl', () => {
 
       const result = converter(mesh, {}, [1, 1, 1, 1])
 
-      expect(result.geometry.normals).toBeDefined()
-      expect(result.geometry.normals.length).toBe(9) // 3 vertices * 3 components
+      // Meshes without normals let the GPU compute flat normals via derivatives
+      expect(result.geometry.normals).toBeUndefined()
     })
 
     it('should preserve mesh color', () => {

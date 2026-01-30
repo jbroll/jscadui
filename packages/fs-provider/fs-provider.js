@@ -212,7 +212,7 @@ export const registerServiceWorker = async (
     })
     sw.id = id
     const cacheId = prefix + id
-    window.addEventListener('beforeunload', e => caches.delete(cacheId))
+    window.addEventListener('beforeunload', () => caches.delete(cacheId))
 
     sw.cache = await caches.open(cacheId)
     sw.defProjectName = 'project'
@@ -411,7 +411,7 @@ export async function analyzeProject(sw) {
   }
 
   const preLoad = [sw.fileToRun, '/package.json']
-  const loaded = await addPreLoadAll(sw, preLoad, true)
+  const _loaded = await addPreLoadAll(sw, preLoad, true)
 
   sw.projectName = sw.defProjectName
   if (sw.folderName) {

@@ -1,7 +1,7 @@
 import { intersect, subtract, union } from '@jscad/modeling/src/operations/booleans'
 import { scale, translate } from '@jscad/modeling/src/operations/transforms'
 import { cube, sphere } from '@jscad/modeling/src/primitives'
-import * as renderingDefaults from '@jscad/regl-renderer/types/rendering/renderDefaults'
+import type * as _renderingDefaults from '@jscad/regl-renderer/types/rendering/renderDefaults'
 import { light } from '@jscadui/themes'
 import { useState } from 'react'
 

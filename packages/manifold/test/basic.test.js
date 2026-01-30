@@ -9,7 +9,7 @@ import {
   subtract,
   intersect,
   translate,
-  rotate,
+  rotate as _rotate,
   scale,
   measureBoundingBox,
   measureVolume,

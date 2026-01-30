@@ -209,7 +209,7 @@ describe('createParamsProxy', () => {
       }
 
       // Execute
-      const result = main(params)
+      const _result = main(params)
 
       // Check discovered params (sort for consistent comparison)
       const paths = state.discovered.map(d => d.path).sort()

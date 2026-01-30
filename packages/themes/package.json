@@ -6,7 +6,7 @@
   "description": "JSCAD Themes",
   "main": "index.ts",
   "scripts": {
-    "test": "vitest",
+    "test": "echo No tests yet",
     "coverage": "vitest run --coverage",
     "build": "tsc --build"
   },

@@ -10,19 +10,19 @@
 // there is no good way in jsdoc to define classes with methods, so this dummy class will do the trick
 export class WorkerRpc{
   /**
-   * @param {string} name 
-   * @param {boolean} low 
+   * @param {string} _name
+   * @param {boolean} _low
    * @returns {Rec}
   */
- getData(name,low){}
+ getData(_name, _low){}
  /**
-  * @param {string} id 
+  * @param {string} _id
   * @returns {Rec}
  */
-getRecord1(id){}
+getRecord1(_id){}
 /**
- * @param {Rec} tpl 
+ * @param {Rec} _tpl
  * @returns {Rec}
 */
-  getRecord2(tpl){}
+  getRecord2(_tpl){}
 }

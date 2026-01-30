@@ -1,5 +1,5 @@
 const jscad = require('@jscad/modeling')
-const {ellipsoid, cuboid} = jscad.primitives
+const {ellipsoid: _ellipsoid, cuboid} = jscad.primitives
 const {rotate, translate} = jscad.transforms
 const {colorize} = jscad.colors
 
@@ -17,7 +17,7 @@ for(let i=0; i<60; i++){
 }
 // two test* inputs are used to see how layout for slider fits other inputs 
 function main({// @jscad-params
-  t=0,// Animation {type:"slider", min:0, max:60, step:1, fps:1, live:true, autostart:true, loop:'restart'}
+  t: _t=0,// Animation {type:"slider", min:0, max:60, step:1, fps:1, live:true, autostart:true, loop:'restart'}
 }){
   const date = new Date()
   const min = date.getMinutes()

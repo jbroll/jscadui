@@ -1,5 +1,5 @@
 // if not in browser
-import { Blob } from 'buffer'
+import { Blob as _Blob } from 'buffer'
 import { Zip, ZipDeflate, ZipPassThrough } from 'fflate'
 import { readFileSync, writeFileSync } from 'fs'
 
@@ -19,7 +19,7 @@ const indices = new Uint32Array([
 //#endregion
 
 const zipParts = []
-const zip = new Zip(async (err, dat, final) => {
+const zip = new Zip(async (err, dat, _final) => {
   if (!err) {
     // output of the streams
     zipParts.push(dat)
@@ -49,7 +49,7 @@ zip.end()
 /** example how to generate thumb from canvas
 * @param {HTMLCanvasElement} canvas
 */
-function canvasToPngA8(canvas) {
+function _canvasToPngA8(canvas) {
   let url = canvas.toDataURL('image/png')
   url = url.substring(url.indexOf(',') + 1)
   //Convert to utf8 Uint8Array
@@ -59,7 +59,7 @@ function canvasToPngA8(canvas) {
 /** intentionally not part of the lib, you may or may not need it in your export code 
 * @param {*} blob 
 */
-async function blobToArrayBuffer(blob) {
+async function _blobToArrayBuffer(blob) {
   if ('arrayBuffer' in blob) return await blob.arrayBuffer()
 
   return new Promise((resolve, reject) => {

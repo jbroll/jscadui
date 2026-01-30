@@ -1,7 +1,8 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
 // @ts-nocheck
 
 // if not in browser
-import { to3dmodel, to3mfZipContentSimple } from './index.js'
+import { to3dmodel, to3mfZipContentSimple as _to3mfZipContentSimple } from './index.js'
 
 function multiply(arr, mult, func){
   const out = new func(arr.length * mult)

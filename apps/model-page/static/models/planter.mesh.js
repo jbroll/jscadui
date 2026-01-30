@@ -38,7 +38,7 @@ var import_modeling3 = __toESM(require("@jscad/modeling"), 1);
 var loop = (counts, callback) => {
   if (typeof counts === "number")
     counts = [counts];
-  const counters = counts.map((x) => 0);
+  const counters = counts.map((_x) => 0);
   const topLevel = counts.length - 1;
   const ret = [];
   const loopRec = (level) => {
@@ -78,10 +78,10 @@ function toRad(d) {
 }
 
 // utils/src/bottomUtils.js
-var { cuboid, cylinderElliptic, polyhedron } = import_modeling2.default.primitives;
+var { cuboid, cylinderElliptic: _cylinderElliptic, polyhedron: _polyhedron } = import_modeling2.default.primitives;
 var { translate: translate2 } = import_modeling2.default.transforms;
 function bottomCube(options) {
-  const { wall = 0, topWall = 0, bottomWall = 0, open } = options;
+  const { wall = 0, topWall = 0, bottomWall = 0, open: _open } = options;
   let walls = { T: topWall, B: bottomWall, N: wall, S: wall, E: wall, W: wall };
   if (options.walls)
     walls = { ...walls, ...options.walls };
@@ -159,7 +159,7 @@ function dirRotateMove(options, ...elems) {
 }
 
 // index.planter.mesh.js
-var { sphere, cube } = import_modeling3.default.primitives;
+var { sphere: _sphere, cube: _cube } = import_modeling3.default.primitives;
 var { translate: translate3 } = import_modeling3.default.transforms;
 var main = ({
   // @jscad-params

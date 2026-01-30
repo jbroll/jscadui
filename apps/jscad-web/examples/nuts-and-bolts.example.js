@@ -65,7 +65,7 @@ const threads = (params) => {
 
   return extrudeFromSlices({
     numberOfSlices,
-    callback: (progress, index, base) => {
+    callback: (progress, _index, _base) => {
       // generate each slice manually
       const points = []
       for (let i = 0; i < segments; i++) {

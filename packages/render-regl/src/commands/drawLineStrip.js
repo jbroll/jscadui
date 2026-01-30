@@ -21,7 +21,7 @@ const drawLineStrip = (regl, params = {}) => {
     geometry: undefined
   }
 
-  let { geometry, color, transparent: _transparent } = Object.assign({}, defaults, params)
+  let { geometry, color, transparent } = Object.assign({}, defaults, params)
 
   // Use geometry color if specified
   if ('color' in geometry) color = geometry.color
