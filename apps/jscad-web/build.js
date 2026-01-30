@@ -65,20 +65,20 @@ if(!skipDocs && !(dev & existsSync(outDir + "/docs"))){
   copyTask(docsDir, outDir + "/docs", { include: [], exclude: [], watch:false, filters: [] })
 }
 
-/**************************** BUILD JS that is static *************/
-await buildBundle(outDir + '/build', 'bundle.threejs.js', { globalName: 'THREE', skipExisting: dev })
-await buildBundle(outDir + '/build', 'bundle.regl.js', { globalName: 'regl', skipExisting: dev })
+/**************************** BUILD JS bundles - watched in dev mode *************/
+await buildBundle(outDir + '/build', 'bundle.threejs.js', { globalName: 'THREE', watch: dev })
+await buildBundle(outDir + '/build', 'bundle.regl.js', { globalName: 'regl', watch: dev })
 // render-regl bundle needs CJS loader for gl-mat4/gl-vec3 dependencies
 await buildBundle(outDir + '/build', 'bundle.render-regl.js', {
   globalName: 'RenderReglBundle',
-  skipExisting: dev,
+  watch: dev,
   loader: { '.js': 'js', '.jsx': 'jsx' }
 })
 
 // CJS bundles that use CommonJS modules need default js loader (not tsx)
 // The tsx loader breaks CommonJS require resolution in node_modules
 const cjsLoader = { '.js': 'js', '.jsx': 'jsx' }
-await buildBundle(outDir + '/build', 'bundle.jscad_modeling.js', { format: 'cjs', skipExisting: dev, loader: cjsLoader })
+await buildBundle(outDir + '/build', 'bundle.jscad_modeling.js', { format: 'cjs', watch: dev, loader: cjsLoader })
 
 // Build manifold bundle with @jscad/modeling-core as external
 // At runtime, manifold_modeling imports from @jscad/modeling-core which maps to jscad_modeling bundle
@@ -92,10 +92,10 @@ await buildOne('src_bundle', outDir + '/build', 'bundle.manifold_modeling.js', w
 // Copy manifold WASM file to build directory (needed by manifold bundle)
 copyFileSync('../../node_modules/manifold-3d/manifold.wasm', outDir + '/build/manifold.wasm')
 
-await buildBundle(outDir + '/build', 'bundle.jscad_io.js', { format:'cjs', skipExisting: dev, loader: cjsLoader })
-await buildBundle(outDir + '/build', 'bundle.V1_api.js', { format:'cjs', skipExisting: dev, loader: cjsLoader })
-await buildBundle(outDir + '/build', 'bundle.params_core.js', { format: 'cjs', skipExisting: dev, loader: cjsLoader })
-await buildBundle(outDir + '/build', 'bundle.jscadui.transform-babel.js', { globalName: 'jscadui_transform_babel', skipExisting: dev })
+await buildBundle(outDir + '/build', 'bundle.jscad_io.js', { format:'cjs', watch: dev, loader: cjsLoader })
+await buildBundle(outDir + '/build', 'bundle.V1_api.js', { format:'cjs', watch: dev, loader: cjsLoader })
+await buildBundle(outDir + '/build', 'bundle.params_core.js', { format: 'cjs', watch: dev, loader: cjsLoader })
+await buildBundle(outDir + '/build', 'bundle.jscadui.transform-babel.js', { globalName: 'jscadui_transform_babel', watch: dev })
 
 /**************************** BUILD JS THAT can change and watch if in dev mode *************/
 await buildOne('src_bundle', outDir + '/build', 'bundle.worker.js', watch, { format: 'iife' })

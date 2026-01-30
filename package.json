@@ -1,6 +1,8 @@
 {
   "name": "jscadui",
   "version": "0.1.0",
+  "packageManager": "npm@10.9.4",
+  "type": "module",
   "description": "JS CAD UI",
   "main": "index.js",
   "workspaces": [
@@ -12,8 +14,17 @@
     "doc": "docs"
   },
   "scripts": {
-    "start": "echo This is a monorepo, that holds jsadui libraries and example apps. && echo If you want to try some apps made with jscadui go to apps folder. && echo Please read README for introduction and list of apps and info how ready or usable each is",
-    "dev": " npm run start"
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "test": "turbo test",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "validate": "npm run lint && npm run typecheck && npm run test",
+    "clean": "turbo clean && rm -rf node_modules/.cache",
+    "prepare": "./scripts/setup-hooks.sh"
   },
   "repository": {
     "type": "git",
@@ -35,7 +46,11 @@
   },
   "homepage": "https://github.com/hrgdavor/jscadui#readme",
   "devDependencies": {
-    "turbo": "1.6.3",
+    "@eslint/js": "^9.18.0",
+    "eslint": "^9.18.0",
+    "globals": "^15.14.0",
+    "turbo": "^2.3.3",
+    "typescript-eslint": "^8.20.0",
     "vite": "^7.3.1",
     "vitest": "^4.0.18"
   }
