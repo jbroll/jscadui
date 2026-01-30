@@ -121,11 +121,20 @@ export const flatten = arr=>{
 }
 
 /**
- * @param {InitOptions} options 
+ * @param {InitOptions} options
  */
 export const jscadInit = options => {
   let { baseURI, alias = [], bundles = {} } = options
   if (baseURI) globalBase = baseURI
+
+  // Check if the modeling bundle is changing - if so, clear local cache
+  // to force user scripts to be re-evaluated with the new bundle
+  const oldModelingBundle = requireCache.bundleAlias['@jscad/modeling']
+  const newModelingBundle = bundles['@jscad/modeling']
+  if (oldModelingBundle && newModelingBundle && oldModelingBundle !== newModelingBundle) {
+    console.log('Modeling bundle changed, clearing local cache')
+    jscadClearTempCache()
+  }
 
   if (bundles) Object.assign(requireCache.bundleAlias, bundles)
   // workspace aliases
@@ -153,10 +162,21 @@ let solids = []
 let lastProxyState = null
 
 /**
- * @param {{params?:import('@jscadui/format-common').UserParameters,skipLog?:boolean,userInteractedPaths?:string[]}} options
+ * @param {{params?:import('@jscadui/format-common').UserParameters,skipLog?:boolean,userInteractedPaths?:string[],useGpuNormals?:boolean}} options
  * @returns {Promise<import('@jscadui/format-common').JscadMainResult>}
  */
-export async function jscadMain({ params, skipLog, userInteractedPaths } = {}) {
+export async function jscadMain({ params, skipLog, userInteractedPaths, useGpuNormals } = {}) {
+  // Update GPU normals setting if provided (allows switching without re-running script)
+  if (useGpuNormals !== undefined) {
+    const modelingBundleUrl = requireCache.bundleAlias['@jscad/modeling']
+    if (modelingBundleUrl) {
+      const modelingModule = requireCache.module[modelingBundleUrl] || requireCache.local[modelingBundleUrl]
+      if (modelingModule?.setUseGpuNormals) {
+        modelingModule.setUseGpuNormals(useGpuNormals)
+      }
+    }
+  }
+
   // Track which params the user has interacted with
   if (userInteractedPaths) {
     userInteractedPaths.forEach(p => userInteracted.add(p))
@@ -183,10 +203,14 @@ export async function jscadMain({ params, skipLog, userInteractedPaths } = {}) {
   if (!main) throw new Error('no main function exported')
 
   let time = performance.now()
-  let mainTime = 0
+  let treeTime = 0
+  let execTime = 0
+  let convTime = 0
 
   try {
     // Run main with either proxy or plain params
+    // For Manifold: this builds the lazy operation tree (fast)
+    // For JSCAD: this does all the actual CSG work (treeTime will be 0, work is immediate)
     let proxyState = null
     if (useParamsProxy) {
       // Use 'flat' mode for legacy scripts (those with getParameterDefinitions)
@@ -208,13 +232,25 @@ export async function jscadMain({ params, skipLog, userInteractedPaths } = {}) {
       solids = flatten(await main(params || {}))
     }
 
-    mainTime = performance.now() - time
+    treeTime = performance.now() - time
 
+    // Force evaluation of lazy Manifold geometries
+    // This triggers actual CSG computation; result is cached for getMesh()
+    time = performance.now()
+    for (const solid of solids) {
+      if (solid && solid.isManifoldGeom3) {
+        solid.manifold.numTri() // Forces evaluation, caches result
+      }
+    }
+    execTime = performance.now() - time
+
+    // Convert to render format (getMesh + common format conversion)
     time = performance.now()
     JscadToCommon.clearCache()
     const entities = JscadToCommon.prepare(solids, transferable, userInstances).all
+    convTime = performance.now() - time
 
-    const result = { entities, mainTime, convertTime: performance.now() - time }
+    const result = { entities, treeTime, execTime, convTime }
 
     // Include proxy state info in result
     if (proxyState) {
@@ -244,10 +280,10 @@ const importReg = /import(?:(?:(?:[ \n\t]+([^ *\n\t\{\},]+)[ \n\t]*(?:,|[ \n\t]+
 const exportReg = /export.*from/
 
 /**
- * @param {{script:string,url?:string,base?:string,root?:string}} param0
+ * @param {{script:string,url?:string,base?:string,root?:string,useGpuNormals?:boolean}} param0
  * @returns {Promise<import('@jscadui/format-common').JscadScriptResultWithParams>}
  */
-const jscadScript = async ({ script, url='jscad.js', base=globalBase, root=base }) => {
+const jscadScript = async ({ script, url='jscad.js', base=globalBase, root=base, useGpuNormals: gpuNormals }) => {
   // Acquire lock to prevent race conditions with concurrent script executions
   const release = await acquireScriptLock()
   try {
@@ -281,6 +317,10 @@ const jscadScript = async ({ script, url='jscad.js', base=globalBase, root=base 
       const modelingModule = requireCache.module[modelingBundleUrl] || requireCache.local[modelingBundleUrl]
       if (modelingModule?.ready instanceof Promise) {
         await modelingModule.ready
+      }
+      // Configure GPU normals mode based on renderer capability
+      if (gpuNormals !== undefined && modelingModule?.setUseGpuNormals) {
+        modelingModule.setUseGpuNormals(gpuNormals)
       }
     }
 

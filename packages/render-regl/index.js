@@ -99,10 +99,11 @@ export function RenderRegl(reglOrOptions) {
     // Setup options
     // Always request uint32 element index extension (required for large meshes)
     // WebGL 2 has it built-in, but regl still needs to know about it
+    // Also request OES_standard_derivatives for dFdx/dFdy in flat shading
     const setupOptions = {
       glOptions: {
         gl,
-        optionalExtensions: ['oes_element_index_uint']
+        optionalExtensions: ['oes_element_index_uint', 'oes_standard_derivatives']
       }
     }
 

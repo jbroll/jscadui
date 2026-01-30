@@ -118,9 +118,57 @@ void main () {
 }
 `
 
+// Vertex shader for flat shading (no normal attribute - computed in fragment shader)
+export const flatVert = `
+precision mediump float;
+
+uniform mat4 model, view, projection;
+
+attribute vec3 position;
+
+varying vec4 _worldSpacePosition;
+
+void main() {
+  vec4 worldSpacePosition = model * vec4(position, 1);
+  _worldSpacePosition = worldSpacePosition;
+  gl_Position = projection * view * worldSpacePosition;
+}
+`
+
+// Fragment shader for flat shading (computes normal from screen-space derivatives)
+export const flatFrag = `
+#extension GL_OES_standard_derivatives : enable
+precision mediump float;
+
+uniform float ambientLightAmount;
+uniform float diffuseLightAmount;
+uniform vec4 ucolor;
+uniform vec3 eye;
+
+varying vec4 _worldSpacePosition;
+
+void main () {
+  // Compute flat normal from screen-space derivatives of world position
+  vec3 dx = dFdx(_worldSpacePosition.xyz);
+  vec3 dy = dFdy(_worldSpacePosition.xyz);
+  vec3 normal = normalize(cross(dx, dy));
+
+  // Compute light direction from camera position (camera-attached light)
+  vec3 lightDir = normalize(eye - _worldSpacePosition.xyz);
+
+  vec3 ambient = ambientLightAmount * ucolor.rgb;
+  float cosTheta = abs(dot(normal, lightDir));
+  vec3 diffuse = diffuseLightAmount * ucolor.rgb * cosTheta;
+
+  gl_FragColor = vec4(ambient + diffuse, ucolor.a);
+}
+`
+
 export default {
   vert: meshVert,
   frag: meshFrag,
   vColorVert,
-  vColorFrag
+  vColorFrag,
+  flatVert,
+  flatFrag
 }

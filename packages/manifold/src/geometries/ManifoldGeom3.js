@@ -80,9 +80,19 @@ function computeMeshData(srcVerts, srcIndices) {
  * Also provides direct access to render-ready mesh data.
  */
 export class ManifoldGeom3 {
+  /**
+   * When true, skip CPU normal computation and return indexed mesh directly.
+   * Only enable for renderers that support GPU-computed flat normals (e.g., Regl).
+   * Three.js requires CPU-computed normals.
+   * Saves ~170ms at 400K triangles when enabled.
+   * @type {boolean}
+   */
+  static useGpuNormals = false
+
   #manifold
   #cachedPolygons = null
   #cachedMeshData = null
+  #cachedRawMesh = null
   #color = null
 
   /**
@@ -111,6 +121,24 @@ export class ManifoldGeom3 {
   }
 
   /**
+   * Get raw indexed mesh data from Manifold (no vertex expansion, no normals).
+   * Used when useGpuNormals is enabled for GPU-computed flat shading.
+   *
+   * @returns {{ vertices: Float32Array, indices: Uint32Array }}
+   */
+  #ensureRawMesh() {
+    if (this.#cachedRawMesh === null) {
+      const mesh = this.#manifold.getMesh()
+      // vertProperties is Float32Array, triVerts is Uint32Array
+      this.#cachedRawMesh = {
+        vertices: mesh.vertProperties,
+        indices: mesh.triVerts
+      }
+    }
+    return this.#cachedRawMesh
+  }
+
+  /**
    * Get the underlying Manifold object.
    *
    * @returns {Object} The wrapped Manifold
@@ -133,31 +161,43 @@ export class ManifoldGeom3 {
 
   /**
    * Get vertex positions as Float32Array.
-   * Lazily computed and cached.
+   * When useGpuNormals is true, returns indexed (shared) vertices directly from Manifold.
+   * Otherwise, returns expanded vertices (one per triangle vertex) for flat shading.
    *
    * @returns {Float32Array} Flat array of vertex positions [x,y,z,x,y,z,...]
    */
   get vertices() {
+    if (ManifoldGeom3.useGpuNormals) {
+      return this.#ensureRawMesh().vertices
+    }
     return this.#ensureMeshData().vertices
   }
 
   /**
    * Get triangle indices as Uint32Array.
-   * Lazily computed and cached.
+   * When useGpuNormals is true, returns original indices from Manifold.
+   * Otherwise, returns sequential indices for expanded vertices.
    *
    * @returns {Uint32Array} Triangle indices
    */
   get indices() {
+    if (ManifoldGeom3.useGpuNormals) {
+      return this.#ensureRawMesh().indices
+    }
     return this.#ensureMeshData().indices
   }
 
   /**
    * Get vertex normals as Float32Array.
-   * Lazily computed and cached. Uses flat shading (per-face normals).
+   * When useGpuNormals is true, returns undefined (GPU computes flat normals via dFdx/dFdy).
+   * Otherwise, lazily computes and caches flat shading normals (per-face).
    *
-   * @returns {Float32Array} Flat array of normals [nx,ny,nz,nx,ny,nz,...]
+   * @returns {Float32Array|undefined} Flat array of normals or undefined for GPU normals
    */
   get normals() {
+    if (ManifoldGeom3.useGpuNormals) {
+      return undefined
+    }
     return this.#ensureMeshData().normals
   }
 

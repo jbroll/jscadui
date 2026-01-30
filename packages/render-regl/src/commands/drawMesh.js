@@ -4,7 +4,7 @@
  */
 
 import * as mat4 from 'gl-mat4'
-import { meshVert, meshFrag, vColorVert, vColorFrag } from '../shaders/mesh.js'
+import { meshVert, meshFrag, vColorVert, vColorFrag, flatVert, flatFrag } from '../shaders/mesh.js'
 import renderDefaults from '../renderDefaults.js'
 
 /**
@@ -35,9 +35,20 @@ const drawMesh = (regl, params = { extras: {} }) => {
   const flip = mat4.determinant(transforms) < 0
   const cullFace = dynamicCulling ? (flip ? 'front' : 'back') : 'back'
 
-  // Select shaders based on vertex colors
-  const vert = hasVertexColors ? vColorVert : meshVert
-  const frag = hasVertexColors ? vColorFrag : meshFrag
+  // Select shaders based on normals and vertex colors
+  // If no normals provided, use flat shading (compute normals in fragment shader via dFdx/dFdy)
+  let vert, frag
+  if (!hasNormals) {
+    // GPU-computed flat normals - no normal attribute needed
+    vert = flatVert
+    frag = flatFrag
+  } else if (hasVertexColors) {
+    vert = vColorVert
+    frag = vColorFrag
+  } else {
+    vert = meshVert
+    frag = meshFrag
+  }
 
   // Compute inverse model matrix for normal transformation
   const modelMatrixInv = mat4.invert(mat4.create(), transforms)

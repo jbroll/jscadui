@@ -173,6 +173,19 @@ export {
   toManifold
 } from './geometries/ManifoldGeom3.js'
 
+/**
+ * Configure GPU-computed normals mode.
+ * When enabled, ManifoldGeom3 returns indexed mesh without normals,
+ * allowing the renderer to compute flat normals in the fragment shader.
+ * This reduces CPU work, data transfer, and GPU buffer uploads.
+ *
+ * @param {boolean} enabled - Whether to enable GPU normals
+ */
+import { ManifoldGeom3 as _ManifoldGeom3 } from './geometries/ManifoldGeom3.js'
+export const setUseGpuNormals = (enabled) => {
+  _ManifoldGeom3.useGpuNormals = enabled
+}
+
 export {
   ManifoldGeom2,
   fromCrossSection,

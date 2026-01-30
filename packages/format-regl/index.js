@@ -30,13 +30,14 @@ export function CommonToRegl({ smooth = false } = {}) {
       return handleInstance(obj, visuals, meshColor)
     }
 
-    // regl requires normals even for lines - create default up-facing normals
-    if (!normals) {
+    // For meshes: if no normals, let GPU compute flat normals via dFdx/dFdy
+    // For lines: create default up-facing normals (needed for line rendering)
+    if (!normals && objType === 'lines') {
       normals = createDefaultNormals(vertices)
     }
 
-    // Apply smooth shading if enabled and we have mesh geometry
-    if (smooth && objType === 'mesh' && indices && indices.length) {
+    // Apply smooth shading if enabled and we have mesh geometry with normals
+    if (smooth && objType === 'mesh' && normals && indices && indices.length) {
       const smoothed = toCreasedNormals(vertices, indices, normals, Math.PI / 10)
       vertices = smoothed.vertices
       normals = smoothed.normals
@@ -141,6 +142,9 @@ export function CommonToRegl({ smooth = false } = {}) {
  * Create default up-facing normals for vertices
  */
 function createDefaultNormals(vertices) {
+  if (!vertices || !vertices.length) {
+    return new Float32Array(0)
+  }
   const vertCount = vertices.length / 3
   const normals = new Float32Array(vertices.length)
   for (let i = 0; i < vertCount; i++) {

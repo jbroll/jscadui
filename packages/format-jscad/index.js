@@ -253,13 +253,18 @@ JscadToCommon.prepare = (list, transferable, useInstances) => {
         extract(csg)
       } else {
         const obj = JscadToCommon(csg, transferable, map.unique)
+        // Skip null returns (e.g., empty transform wrappers)
+        if (!obj) return
         // transparency in instanced mesh is problematic
         // transparent objects need ordering,  and that breaks thing for rendering instances
         if (useInstances && obj.type === 'mesh' && obj.id && (!csg.color || csg.color.length === 3 || csg.color[3] === 1)) {
-          let old = instanceMap.get(obj.id)
+          // Create composite key from mesh id and color to ensure different colors don't share instances
+          const colorKey = csg.color ? csg.color.slice(0, 3).join(',') : 'default'
+          const instanceKey = `${obj.id}:${colorKey}`
+          let old = instanceMap.get(instanceKey)
           if (!old) {
             old = { csg, ...obj, list: [] }
-            instanceMap.set(obj.id, old)
+            instanceMap.set(instanceKey, old)
           }
           old.list.push(csg)
         } else {
@@ -292,6 +297,16 @@ JscadToCommon.prepare = (list, transferable, useInstances) => {
 export function JscadToCommon (csg, transferable, unique, options) {
   if (csg instanceof Array) return csg.map(csg2 => JscadToCommon(csg2, transferable, unique, options))
   if (typeof csg !== 'object') throw new Error('invalid jscad geometry, not an object')
+
+  // Skip plain objects that only have transforms and no actual geometry data
+  // These are empty transform wrappers that can't be rendered
+  // IMPORTANT: Only skip plain objects (constructor === Object), not class instances
+  // Class instances like ManifoldGeom3 have getters for vertices/indices/normals
+  // that won't show up in Object.keys() but are valid geometry
+  const ownKeys = Object.keys(csg)
+  if (ownKeys.length === 1 && ownKeys[0] === 'transforms' && csg.constructor === Object) {
+    return null
+  }
 
   /** @type {import("@jscadui/format-common").JscadMainEntity} */
   let obj
@@ -333,7 +348,7 @@ export function JscadToCommon (csg, transferable, unique, options) {
   }
 
   if ('color' in csg || csg.transforms) obj = { ...obj }
-  if(csg.color) obj.color = csg.color 
+  if(csg.color) obj.color = csg.color
   if(csg.transforms) obj.transforms = csg.transforms
 
   if (!obj || !obj.type) {

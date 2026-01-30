@@ -3,6 +3,9 @@ import { RenderThreejs } from '@jscadui/render-threejs'
 // Track loaded scripts to avoid reloading
 const loadedScripts = new Set()
 
+// Track current resize observer to disconnect on engine switch
+let currentResizeObserver = null
+
 /**
  * Initialize the 3D viewer with the specified render engine
  * @param {'threejs' | 'regl'} engineType
@@ -10,6 +13,12 @@ const loadedScripts = new Set()
  */
 export const init = async (engineType = 'threejs') => {
   const el = /** @type {HTMLDivElement} */ (document.getElementById('viewer'))
+
+  // Disconnect previous resize observer to avoid stale callbacks
+  if (currentResizeObserver) {
+    currentResizeObserver.disconnect()
+    currentResizeObserver = null
+  }
 
   let viewer
 
@@ -20,11 +29,15 @@ export const init = async (engineType = 'threejs') => {
     // @ts-ignore - RenderReglBundle is loaded as a global
     const JscadReglViewer = RenderReglBundle.RenderRegl()
     viewer = JscadReglViewer(el)
+    // Regl computes flat normals in fragment shader via dFdx/dFdy
+    viewer.supportsGpuNormals = true
   } else {
     // Default to Three.js
     await addScript('build/bundle.threejs.js')
     const JscadThreeViewer = RenderThreejs(THREE)
     viewer = JscadThreeViewer(el)
+    // Three.js requires CPU-computed normals
+    viewer.supportsGpuNormals = false
   }
 
   // Set up resize observer for future resizes
@@ -43,13 +56,11 @@ export const init = async (engineType = 'threejs') => {
  */
 const observeResize = (el, listener) => {
   // ResizeObserver is better than window resize as it can be used on any element
-  // this is a short/compact/simple implementation that uses a new ResizeObserver each time.
-  // which is fine probably up-to 50 of them. There is a performance hit if too many are created.
-  // for an implementation that can handle more take a look at https://github.com/hrgdavor/jsx6/tree/main/libs/dom-observer
-  const resizeObserver = new ResizeObserver(entries => {
+  // Store in module-level variable so we can disconnect on engine switch
+  currentResizeObserver = new ResizeObserver(entries => {
     listener(entries[0])
   })
-  resizeObserver.observe(el)
+  currentResizeObserver.observe(el)
 }
 
 /**

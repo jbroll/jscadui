@@ -258,21 +258,25 @@ function formatMs(ms) {
 /**
  * Update the pipeline stats display
  * @param {object} stats
- * @param {number} [stats.execTime] - Script execution time
- * @param {number} [stats.convertTime] - Geometry conversion time
+ * @param {number} [stats.treeTime] - Operation tree building time (Manifold lazy ops)
+ * @param {number} [stats.execTime] - Manifold evaluation time (forcing lazy ops)
+ * @param {number} [stats.convTime] - Geometry conversion time (getMesh + format)
  * @param {number} [stats.renderTime] - Render time
  * @param {number} [stats.triangles] - Total triangle count
  * @param {number} [stats.vertices] - Total vertex count
  */
-function updatePipelineStats({ execTime, convertTime, renderTime, triangles, vertices }) {
+function updatePipelineStats({ treeTime, execTime, convTime, renderTime, triangles, vertices }) {
   const rows = []
 
-  // Timing section
+  // Timing section - show tree time only if > 0.5ms (Manifold lazy eval)
+  if (treeTime != null && treeTime > 0.5) {
+    rows.push(`<div class="stat-row"><span class="stat-label">Tree</span><span class="stat-value">${formatMs(treeTime)}</span></div>`)
+  }
   if (execTime != null) {
     rows.push(`<div class="stat-row"><span class="stat-label">Exec</span><span class="stat-value">${formatMs(execTime)}</span></div>`)
   }
-  if (convertTime != null) {
-    rows.push(`<div class="stat-row"><span class="stat-label">Convert</span><span class="stat-value">${formatMs(convertTime)}</span></div>`)
+  if (convTime != null) {
+    rows.push(`<div class="stat-row"><span class="stat-label">Conv</span><span class="stat-value">${formatMs(convTime)}</span></div>`)
   }
   if (renderTime != null) {
     rows.push(`<div class="stat-row"><span class="stat-label">Render</span><span class="stat-value">${formatMs(renderTime)}</span></div>`)
@@ -310,10 +314,10 @@ function countGeometry(entities) {
 
 const handlers = {
   /**
-   * @param {{entities:unknown | Array<unknown>,mainTime:number,convertTime:number}} options1
+   * @param {{entities:unknown | Array<unknown>,treeTime:number,execTime:number,convTime:number}} options1
    * @param {{skipLog?:boolean }} options2
    */
-  entities: ({ entities, mainTime, convertTime }, { skipLog } = {}) => {
+  entities: ({ entities, treeTime, execTime, convTime }, { skipLog } = {}) => {
     if (!(entities instanceof Array)) entities = [entities]
 
     // Track render time
@@ -327,15 +331,16 @@ const handlers = {
       let { fov, aspect } = viewState.viewer.getCamera()
       ctrl.fit(min,max, fov,aspect,1.2)
     }
-    if (!skipLog) console.log('Main execution:', mainTime?.toFixed(2), ', convert:', convertTime?.toFixed(2), ', render:', renderTime?.toFixed(2), entities)
+    if (!skipLog) console.log('tree:', treeTime?.toFixed(2), ', exec:', execTime?.toFixed(2), ', conv:', convTime?.toFixed(2), ', render:', renderTime?.toFixed(2), entities)
     setError(undefined)
     onProgress(undefined)
 
     // Update pipeline stats
     const { triangles, vertices } = countGeometry(entities)
     updatePipelineStats({
-      execTime: mainTime,
-      convertTime,
+      treeTime,
+      execTime,
+      convTime,
       renderTime,
       triangles,
       vertices
@@ -372,6 +377,12 @@ const paramsCtrl = createParamsController()
 
 /** @type {ReturnType<typeof createParamsTree> | null} */
 let paramsTreeView = null
+
+/**
+ * Flag to preserve params when re-running script (e.g., modeling engine switch)
+ * When true, jscadScript won't reset params - just re-runs with existing values
+ */
+let preserveParamsOnScriptRun = false
 
 /** @type {number|null} */
 let modelUpdateTimer = null
@@ -484,6 +495,11 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
   currentBase = base
   loadDefault = false
 
+  // Save params if preserving across engine switch
+  const savedParams = preserveParamsOnScriptRun ? { ...paramsCtrl.params } : null
+  const savedUserInteracted = preserveParamsOnScriptRun ? new Set(paramsCtrl.userInteracted) : null
+  preserveParamsOnScriptRun = false
+
   // Reset controller and UI
   paramsCtrl.reset()
   if (paramsTreeView) {
@@ -492,7 +508,9 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
   }
 
   try {
-    const result = await workerApi.jscadScript({ script, url, base, root })
+    // Query renderer capability for GPU normals support
+    const useGpuNormals = viewState.viewer?.supportsGpuNormals ?? false
+    const result = await workerApi.jscadScript({ script, url, base, root, useGpuNormals })
 
     if (result.proxyState && useParamsProxy) {
       paramsCtrl.initFromResult(result)
@@ -559,6 +577,17 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
       }
       setAnimStatus = () => {}
       lastRunParams = state.params
+
+      // Restore params if we were preserving across engine switch
+      if (savedParams) {
+        Object.assign(paramsCtrl.params, savedParams)
+        savedUserInteracted.forEach(p => paramsCtrl.userInteracted.add(p))
+        paramsTreeView?.update({ values: paramsCtrl.params })
+        // Re-run model with restored params
+        const restoreResult = await workerApi.jscadMain(paramsCtrl.getWorkerParams())
+        handlers.entities(restoreResult)
+        return // Skip the default entities call below
+      }
     } else {
       // Traditional flat params form
       let tmp = genParams({ target: byId('paramsDiv'), params: result.def || [], callback: paramChangeCallback, pauseAnim: pauseAnimCallback, startAnim: startAnimCallback })
@@ -606,16 +635,23 @@ const getBundles = () => ({
 })
 
 const useParamsProxy = true
+
+// Initialize render engine first so we can query its capabilities
+viewState.setEngine(await engine.init(viewState.renderEngine))
+
 await workerApi.jscadInit({ bundles: getBundles(), useParamsProxy })
 
 // Set up engine change handler (now that jscadScript and getBundles are defined)
 viewState.onModelingEngineChange = async (newEngine) => {
   console.log('Switching modeling engine to:', newEngine)
 
+  // Set flag to preserve params across script re-run
+  preserveParamsOnScriptRun = Object.keys(paramsCtrl.params).length > 0
+
   // Reinitialize worker with new bundles
   await workerApi.jscadInit({ bundles: getBundles(), useParamsProxy })
 
-  // Re-run current script from editor
+  // Re-run script (required - modeling engine changed, need fresh require() of new bundle)
   editor.runScript()
 }
 
@@ -627,6 +663,18 @@ viewState.onRenderEngineChange = async (newEngine) => {
 
   // Initialize new viewer
   viewState.setEngine(await engine.init(newEngine))
+
+  // Re-run main with current params to regenerate geometry for new renderer
+  // (different renderers need different geometry formats - GPU vs CPU normals)
+  // No need to update proxyState - only geometry format changes, not params
+  const useGpuNormals = viewState.viewer?.supportsGpuNormals ?? false
+  const mainOptions = useParamsProxy
+    ? { ...paramsCtrl.getWorkerParams(), useGpuNormals }
+    : { params: lastRunParams, useGpuNormals }
+  const result = await workerApi.jscadMain(mainOptions)
+
+  // Just update the 3D view - params UI stays as-is since params didn't change
+  handlers.entities(result)
 }
 
 if (useParamsProxy) {
@@ -715,9 +763,6 @@ const startAnimCallback = async (def, value) => {
 const pauseAnimCallback = async (def, value) => {
   stopCurrentAnim()
 }
-
-// Initialize render engine
-viewState.setEngine(await engine.init(viewState.renderEngine))
 
 /** @type {Object.<string,FileSystemFileHandle>} */
 let saveMap = {}

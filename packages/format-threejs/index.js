@@ -71,7 +71,10 @@ export function CommonToThree({
         break
       case 'instance':
         const { list } = obj
-        mesh = new InstancedMesh(geo, materials.mesh.make({ color: 0x0084d1 }), list.length)
+        // Use the object's color for the instanced mesh (color is consistent across all instances
+        // in the group because format-jscad groups by composite key: mesh id + color)
+        const instanceMaterialOpts = color ? { color: _CSG2Three.makeColor(color) } : { color: 0x0084d1 }
+        mesh = new InstancedMesh(geo, materials.mesh.make(instanceMaterialOpts), list.length)
         list.forEach((item, i) => {
           copyTransformToArray(item.transforms, mesh.instanceMatrix.array, i * 16)
         })

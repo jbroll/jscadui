@@ -145,7 +145,11 @@ export class OrbitState {
     const maxSize = Math.max( sizex, sizey, sizez );
     // Skip if no actual size (empty model)
     if (maxSize === 0) return
-    const fitHeightDistance = maxSize / ( 2 * Math.atan( Math.PI * fov / 360 ) );
+    // Calculate camera distance to fit the model
+    // Formula: distance = (size/2) / tan(fov/2)
+    // halfFovRadians = fov_degrees * PI / 360 = fov_degrees * (PI/180) / 2
+    const halfFovRadians = fov * Math.PI / 360
+    const fitHeightDistance = maxSize / ( 2 * Math.tan( halfFovRadians ) );
     const fitWidthDistance = fitHeightDistance / aspect;
     const distance = fitOffset * Math.max( fitHeightDistance, fitWidthDistance );
     // look at center

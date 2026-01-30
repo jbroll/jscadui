@@ -2,10 +2,12 @@ import { ParameterDefinition } from './parameterDefinition.d.ts'
 import { Matrix4x4 } from './utils.d.ts'
 
 export interface JscadMainResult {
-    /** script run time */
-    mainTime: number,
-    /** time converting script output to gl data */
-    convertTime: number,
+    /** time building operation tree (Manifold lazy ops) */
+    treeTime: number,
+    /** time forcing Manifold evaluation (actual CSG work) */
+    execTime: number,
+    /** time converting to render format (getMesh + common format) */
+    convTime: number,
     entities: JscadMainEntity[],
 }
 
