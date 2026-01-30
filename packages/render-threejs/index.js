@@ -27,10 +27,10 @@ export function RenderThreejs({
   let _camera
   let controls
   let renderer
-  let smooth
+  let _smooth
   const SHADOW = false
-  const shouldRender = Date.now()
-  const lastRender = true
+  const _shouldRender = Date.now()
+  const _lastRender = true
   let renderTimer
   let meshColor = new Color(1, 1, 1)
 
@@ -105,8 +105,8 @@ export function RenderThreejs({
     updateView()
   }
 
-  function setSmooth(v){
-    smooth = v
+  function _setSmooth(v){
+    _smooth = v
   }
 
   function setMeshColor(bg = [1, 1, 1]) {
@@ -226,7 +226,7 @@ export function RenderThreejs({
     }
   }
 
-  function setScene(scene,{smooth, prepFit}={}) {
+  function setScene(scene,{smooth, prepFit: _prepFit}={}) {
     console.log('setScene', scene)
     groups.forEach(group => {
       _scene.remove(group)
@@ -268,7 +268,7 @@ export function RenderThreejs({
     // boxGeom.position.y = min.y + wy/2
     // boxGeom.position.z = min.z + wz/2
     // console.log('BoxGeometry(wx,wy,wz)', wx,wy,wz, boxGeom)
-    const mesh = new Mesh(boxGeom, new MeshPhongMaterial({color:'#909090',opacity:0.5, transparent:true}))
+    const _mesh = new Mesh(boxGeom, new MeshPhongMaterial({color:'#909090',opacity:0.5, transparent:true}))
     // mesh.position.x = min.x + wx/2
     // mesh.position.y = min.y + wy/2
     // mesh.position.z = min.z + wz/2
@@ -282,7 +282,7 @@ export function RenderThreejs({
 
 // example from threejs
 // https://github.com/mrdoob/three.js/pull/14526#issuecomment-497254491
-function zoomCameraToSelection( camera, controls, selection, fitOffset = 1.2 ) {
+function _zoomCameraToSelection( camera, controls, selection, fitOffset = 1.2 ) {
   const box = new THREE.Box3();
   
   for( const object of selection ) box.expandByObject( object );

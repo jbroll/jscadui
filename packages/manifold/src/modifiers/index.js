@@ -138,7 +138,7 @@ export const shell = (options, ...geometries) => {
     // Try to convert back to Manifold, fall back to JSCAD geometry if it fails
     try {
       return new ManifoldGeom3(geom3ToManifold(shelled))
-    } catch (e) {
+    } catch (_e) {
       // Shell can produce non-manifold geometry in some cases
       return shelled
     }

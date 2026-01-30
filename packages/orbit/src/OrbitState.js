@@ -174,7 +174,7 @@ export class OrbitState {
   }
 
   toJSON() {
-    const { position, ...rest } = this
+    const { position: _position, ...rest } = this
     return rest
   }
 

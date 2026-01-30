@@ -2,7 +2,7 @@ import { booleans, colors, primitives, transforms } from '@jscad/modeling'
 import { JscadToCommon } from '@jscadui/format-jscad'
 import { extractEntries, fileDropped, registerServiceWorker } from '@jscadui/fs-provider'
 import { Gizmo } from '@jscadui/html-gizmo'
-import { OrbitControl, OrbitState, closerAngle, getCommonRotCombined } from '@jscadui/orbit'
+import { OrbitControl, getCommonRotCombined } from '@jscadui/orbit'
 import { genParams } from '@jscadui/params'
 import { messageProxy } from '@jscadui/postmessage'
 import { makeAxes, makeGrid, downloadBlob } from '@jscadui/scene'
@@ -29,7 +29,7 @@ urlReplace()// use the new url with defaults applied
 const gizmo = (window.gizmo = new Gizmo())
 byId('layout').appendChild(gizmo)
 
-let projectName = 'jscad'
+let _projectName = 'jscad'
 const modelRadius = 30
 let model = [
   subtract(
@@ -79,7 +79,6 @@ function setViewerCamera({ position, target, rx, rz }) {
 
 const updateFromCtrl = change => {
   // console.log('change', change)
-  const { position, target, rx, rz, len, ...rest } = change
   setViewerCamera(change)
 }
 
@@ -101,7 +100,7 @@ for (const tn in themes) {
   sel.add(new Option(tmp.name, tn))
 }
 sel.value = 'light'
-sel.oninput = e => {
+sel.oninput = () => {
   const tmp = themes[sel.value]
   setTheme(tmp)
   setViewerScene(model)
@@ -121,8 +120,8 @@ document.body.ondrop = async ev => {
     if (!sw) await initFs()
     showDrop(false)
     workerApi.jscadClearTempCache()
-    const { alias, script } = await fileDropped(sw, files)
-    projectName = sw.projectName
+    const { alias } = await fileDropped(sw, files)
+    _projectName = sw.projectName
     if (alias.length) {
       workerApi.jscadInit({ alias })
     }
@@ -137,7 +136,7 @@ document.body.ondragover = ev => {
   ev.preventDefault()
   showDrop(true)
 }
-document.body.ondragleave = document.body.ondragend = ev => {
+document.body.ondragleave = document.body.ondragend = () => {
   clearTimeout(showDrop.timer)
   showDrop.timer = setTimeout(() => {
     showDrop(false)

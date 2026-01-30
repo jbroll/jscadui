@@ -335,7 +335,7 @@ export const geom2ToCrossSection = (geom) => {
     } else {
       outlines = null
     }
-  } catch (e) {
+  } catch (_e) {
     outlines = null
   }
 
@@ -369,7 +369,7 @@ export const geom2ToCrossSection = (geom) => {
 
   try {
     return new CrossSection(contours)
-  } catch (e) {
+  } catch (_e) {
     // CrossSection construction failed - return empty
     return new CrossSection()
   }

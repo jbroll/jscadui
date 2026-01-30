@@ -8,7 +8,7 @@ const rotateGizmos = () => {
 
 let rx = Math.PI / 4
 let rz = Math.PI * 1.8
-window.onload = e=>{
+window.onload = () => {
   const names = {T:'T',B:'B',N:'N',S:'S',E:'E',W:'W'}
   document.body.querySelectorAll('jscadui-gizmo.custom-names').forEach(gizmo => gizmo.setNames(names))
   rotateGizmos(rx, rz)

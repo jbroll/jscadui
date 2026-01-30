@@ -42,7 +42,7 @@ export const defaults = Object.assign({}, controlsState, controlsProps)
 /**
  * Update camera position based on control state (with momentum)
  */
-export const update = ({ controls, camera }, output) => {
+export const update = ({ controls, camera }, _output) => {
   const { EPS, drag } = controls
   const { position, target } = camera
   const up = controls.up ? controls.up : camera.up
@@ -206,7 +206,7 @@ export const zoomToFit = ({ controls, camera, bounds }, tightness = 1.5) => {
  * @param {Object} desiredState - State to reset to (defaults to initial defaults)
  * @returns {Object} Updated { controls, camera }
  */
-export const reset = ({ controls, camera }, desiredState = {}) => {
+export const reset = ({ controls: _controls, camera }, desiredState = {}) => {
   const defaultCamera = {
     position: [180, -180, 220],
     target: [0, 0, 0]

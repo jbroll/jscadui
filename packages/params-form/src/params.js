@@ -36,7 +36,7 @@ export const genParams = ({
   target,
   callback,
   startAnim,
-  pauseAnim,
+  pauseAnim: _pauseAnim,
   storedValues = {},
   buttons = ['reset', 'save', 'load', 'edit', 'link'],
 }) => {

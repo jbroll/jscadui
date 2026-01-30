@@ -176,7 +176,7 @@ export const messageProxy = (_self, handlers, { onJobCount, debug } = {}) => {
   return new Proxy(
     { getRpcJobCount, onmessage: listener, destroy },
     {
-      get(target, prop, receiver) {
+      get(target, prop, _receiver) {
         // then is used to recognize if object is a promise, we do not want
         // to create a them method for postMessage, it would break async functions
         // that return the proxy

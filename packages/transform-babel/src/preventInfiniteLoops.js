@@ -21,7 +21,7 @@ export const preventInfiniteLoops = ({ types: t, template }) => {
 
   return {
     visitor: {
-      'WhileStatement|ForStatement|DoWhileStatement': (path, file) => {
+      'WhileStatement|ForStatement|DoWhileStatement': (path, _file) => {
         // An iterator that is incremented with each iteration
         const iterator = path.scope.parent.generateUidIdentifier('loopIt')
         const iteratorInit = t.numericLiteral(0)

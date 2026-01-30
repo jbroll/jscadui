@@ -3,7 +3,7 @@ It is used reliably prepare code for fromXZRotation that is then cleaned manuall
 It is easy to get lost in 4x4 matrix multiplication, so it was more reliable to partialy generate it.
 */
 
-const init = `
+const _init = `
 var zs = Math.sin(rz);
 var zc = Math.cos(rz);
 var xs = Math.sin(rx);

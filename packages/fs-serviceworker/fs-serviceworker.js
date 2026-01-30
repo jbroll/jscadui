@@ -2,7 +2,7 @@ import { messageProxy } from '@jscadui/postmessage'
 
 // https://gomakethings.com/series/service-workers/
 
-const version = 'SW7'
+const _version = 'SW7'
 const clientMap = {}
 const searchParams = new URL(location.toString()).searchParams
 const prefix = searchParams.get('prefix') || '/swfs/'
@@ -13,7 +13,7 @@ self.addEventListener('activate', event => {
   event.waitUntil(clients.claim())
 })
 
-self.addEventListener('install', event => {
+self.addEventListener('install', () => {
   // https://gomakethings.com/how-to-immediately-activate-a-service-worker-with-vanilla-js/
   self.skipWaiting()
 })

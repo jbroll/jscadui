@@ -1,4 +1,4 @@
-// @ts-ignore
+// @ts-expect-error - Vite raw import
 import style from './gizmo.css.txt?raw'
 
 /**

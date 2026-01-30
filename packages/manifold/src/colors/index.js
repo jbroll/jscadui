@@ -6,7 +6,7 @@
  */
 
 import { ManifoldGeom3, isManifoldGeom3, toManifold } from '../geometries/ManifoldGeom3.js'
-import { ManifoldGeom2, isManifoldGeom2 } from '../geometries/ManifoldGeom2.js'
+import { isManifoldGeom2 } from '../geometries/ManifoldGeom2.js'
 import * as jscad from '@jscad/modeling-core'
 
 // Re-export color utility functions from JSCAD

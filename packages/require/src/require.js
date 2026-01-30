@@ -108,7 +108,7 @@ export const require = (urlOrSource, transform, readFile, base, root, importData
           try {
             resolvedUrl = resolvedUrl.replace(/\.js$/, '.ts')
             source = readFile(resolvedUrl)
-          } catch (e2) {
+          } catch (_e2) {
             console.error('failed to load fallback .ts')
             throw new Error(`failed to load module ${url}\n  ${e}`)
           }

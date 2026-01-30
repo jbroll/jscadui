@@ -3,7 +3,7 @@
 import { CommonToBabylon } from '@jscadui/format-babylonjs'
 
 export function RenderBabylon(BABYLON){
-const { GridMaterial, Engine, Scene, HemisphericLight, ArcRotateCamera, Vector3, AxesViewer, MeshBuilder, Mesh, Plane, Color3 } = BABYLON
+const { GridMaterial: _GridMaterial, Engine, Scene, HemisphericLight, ArcRotateCamera, Vector3, AxesViewer: _AxesViewer, MeshBuilder: _MeshBuilder, Mesh: _Mesh, Plane: _Plane, Color3 } = BABYLON
 const csgConvert = CommonToBabylon(BABYLON)
 
 const entities = []

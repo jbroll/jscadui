@@ -19,7 +19,7 @@ const drawLines = (regl, params = {}) => {
     geometry: undefined
   }
 
-  let { geometry, color, transparent } = Object.assign({}, defaults, params)
+  let { geometry, color, transparent: _transparent } = Object.assign({}, defaults, params)
 
   // Use geometry color if specified
   if ('color' in geometry) color = geometry.color
@@ -39,10 +39,10 @@ const drawLines = (regl, params = {}) => {
     frag,
 
     uniforms: {
-      model: (context, props) => props.model || transforms,
-      ucolor: (context, props) => (props && props.color) ? props.color : color,
+      model: (_context, props) => props.model || transforms,
+      ucolor: (_context, props) => (props && props.color) ? props.color : color,
       // For vertex color shader compatibility
-      vColorToggler: (context, props) => hasVertexColors ? 1.0 : 0.0
+      vColorToggler: (_context, _props) => hasVertexColors ? 1.0 : 0.0
     },
 
     attributes: {

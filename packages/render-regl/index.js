@@ -58,7 +58,7 @@ export function RenderRegl(reglOrOptions) {
     function get(type) {
       try {
         return { gl: canvas.getContext(type, contextAttributes), type }
-      } catch (e) {
+      } catch (_e) {
         return null
       }
     }
@@ -91,7 +91,7 @@ export function RenderRegl(reglOrOptions) {
     state.controls = Object.assign({}, currentOrbitControls.defaults)
 
     // Create WebGL context
-    const { gl, type } = createContext(canvas)
+    const { gl, type: _type } = createContext(canvas)
     if (!gl) {
       throw new Error('WebGL not supported')
     }
@@ -234,7 +234,7 @@ export function RenderRegl(reglOrOptions) {
     }
   }
 
-  const updateAndRender = timestamp => {
+  const updateAndRender = _timestamp => {
     renderTimer = null
     doRotatePanZoom()
 
@@ -308,7 +308,7 @@ export function RenderRegl(reglOrOptions) {
   let pointerDown = false
   let canvas
 
-  const moveHandler = ev => {
+  const _moveHandler = ev => {
     if (!pointerDown) return
     const cmd = {
       dx: lastX - ev.pageX,
@@ -322,19 +322,19 @@ export function RenderRegl(reglOrOptions) {
     ev.preventDefault()
   }
 
-  const downHandler = ev => {
+  const _downHandler = ev => {
     pointerDown = true
     lastX = ev.pageX
     lastY = ev.pageY
     canvas.setPointerCapture(ev.pointerId)
   }
 
-  const upHandler = ev => {
+  const _upHandler = ev => {
     pointerDown = false
     canvas.releasePointerCapture(ev.pointerId)
   }
 
-  const wheelHandler = ev => {
+  const _wheelHandler = ev => {
     sendCmd({ action: 'zoom', dy: ev.deltaY })
     ev.preventDefault()
   }

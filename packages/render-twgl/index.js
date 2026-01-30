@@ -23,7 +23,7 @@ export function RenderRegl(regl) {
     function get(type) {
       try {
         return { gl: canvas.getContext(type, contextAttributes), type }
-      } catch (e) {
+      } catch (_e) {
         return null
       }
     }
@@ -119,7 +119,7 @@ export function RenderRegl(regl) {
     }
   }
 
-  const updateAndRender = timestamp => {
+  const updateAndRender = _timestamp => {
     renderTimer = null
     doRotatePanZoom()
 
@@ -130,7 +130,7 @@ export function RenderRegl(regl) {
     state.camera.position = updates.camera.position
     perspectiveCamera.update(state.camera)
     renderOptions.entities = entities
-    const time = Date.now()
+    const _time = Date.now()
     renderer(renderOptions)
     if (updateRender) {
       updateRender = ''
@@ -190,7 +190,7 @@ export function RenderRegl(regl) {
   let pointerDown = false
   let canvas
 
-  const moveHandler = ev => {
+  const _moveHandler = ev => {
     if (!pointerDown) return
     const cmd = {
       dx: lastX - ev.pageX,
@@ -206,7 +206,7 @@ export function RenderRegl(regl) {
 
     ev.preventDefault()
   }
-  const downHandler = ev => {
+  const _downHandler = ev => {
     pointerDown = true
     lastX = ev.pageX
     lastY = ev.pageY
@@ -214,13 +214,13 @@ export function RenderRegl(regl) {
     //  ev.preventDefault()
   }
 
-  const upHandler = ev => {
+  const _upHandler = ev => {
     pointerDown = false
     canvas.releasePointerCapture(ev.pointerId)
     //  ev.preventDefault()
   }
 
-  const wheelHandler = ev => {
+  const _wheelHandler = ev => {
     sendCmd({ action: 'zoom', dy: ev.deltaY })
     ev.preventDefault()
   }

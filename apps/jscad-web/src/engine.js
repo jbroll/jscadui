@@ -26,7 +26,7 @@ export const init = async (engineType = 'threejs') => {
     // Load regl library and render-regl bundle
     await addScript('build/bundle.regl.js')
     await addScript('build/bundle.render-regl.js')
-    // @ts-ignore - RenderReglBundle is loaded as a global
+    // @ts-expect-error - RenderReglBundle is loaded as a global
     const JscadReglViewer = RenderReglBundle.RenderRegl()
     viewer = JscadReglViewer(el)
     // Regl computes flat normals in fragment shader via dFdx/dFdy

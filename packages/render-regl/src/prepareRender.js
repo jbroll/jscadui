@@ -21,7 +21,7 @@ const prepareRender = (params) => {
     defaults,
     params.glOptions,
     {
-      onDone: (err, callback) => {
+      onDone: (err, _callback) => {
         if (err) {
           throw err
         }
@@ -57,7 +57,7 @@ const prepareRender = (params) => {
     props.rendering = Object.assign({}, renderDefaults, props.rendering)
 
     // Execute within render context (sets up global uniforms)
-    contextWrapper(props, (context) => {
+    contextWrapper(props, (_context) => {
       // Clear the framebuffer
       regl.clear({
         color: props.rendering.background,

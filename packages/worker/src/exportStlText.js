@@ -15,7 +15,7 @@ export const exportStlText = (objects) => {
  * @returns 
  */
 const convertToStl = (objects, out) => {
-  objects.forEach((object, i) => {
+  objects.forEach((object, _i) => {
     convertToFacets(object, out)
   })
   return out

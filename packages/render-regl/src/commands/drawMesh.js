@@ -59,10 +59,10 @@ const drawMesh = (regl, params = { extras: {} }) => {
     frag,
 
     uniforms: {
-      model: (context, props) => transforms,
-      ucolor: (context, props) => (props && props.color) ? props.color : color,
+      model: (_context, _props) => transforms,
+      ucolor: (_context, props) => (props && props.color) ? props.color : color,
       // Toggle between vertex colors and uniform color
-      vColorToggler: (context, props) => (props && props.useVertexColors && props.useVertexColors === true) ? 1.0 : 0.0,
+      vColorToggler: (_context, props) => (props && props.useVertexColors && props.useVertexColors === true) ? 1.0 : 0.0,
       // Normal matrix for proper lighting with transformed geometry
       unormal: (context, props) => {
         const modelViewMatrix = mat4.invert(mat4.create(), props.camera.view)

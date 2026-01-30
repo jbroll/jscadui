@@ -8,7 +8,7 @@
  * - Storing/restoring code-defined class values
  */
 
-import { getLinkedParamPaths, getLinkedParts, toMap } from '@jscadui/params-core'
+import { getLinkedParamPaths, getLinkedParts } from '@jscadui/params-core'
 
 /** @typedef {import('@jscadui/params-core').ClassChangeMode} ClassChangeMode */
 /** @typedef {import('@jscadui/params-core').ProxyState} ProxyState */

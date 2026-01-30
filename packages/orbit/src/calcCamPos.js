@@ -1,5 +1,6 @@
 import * as vec3 from 'gl-matrix/esm/vec3.js'
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- OrbitState used in JSDoc
 import { OrbitState } from './OrbitState'
 import { fromXZRotation } from './fromXZRotation'
 

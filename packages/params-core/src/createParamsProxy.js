@@ -347,7 +347,7 @@ export const createParamsProxy = (state, path = '') => {
       return propStr in defaults || propStr in children
     },
 
-    ownKeys(target) {
+    ownKeys(_target) {
       return [...new Set([...Object.keys(defaults), ...Object.keys(children)])]
     },
 
@@ -689,7 +689,7 @@ export const convertLegacyDefs = (legacyDefs, prefix = '') => {
     if (def.type === 'group') continue
 
     const name = def.name
-    const path = prefix ? `${prefix}.${name}` : name
+    const _path = prefix ? `${prefix}.${name}` : name
 
     // Determine default value
     let defaultValue = def.initial

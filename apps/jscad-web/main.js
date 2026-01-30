@@ -19,6 +19,7 @@ import {
   registerServiceWorker,
 } from '@jscadui/fs-provider'
 import { Gizmo } from '@jscadui/html-gizmo'
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- OrbitState used in JSDoc types
 import { OrbitControl, OrbitState } from '@jscadui/orbit'
 import { boundingBox } from '@jscadui/format-common'
 import { genParams, getParams } from '@jscadui/params'
@@ -125,7 +126,7 @@ async function initFs() {
       scope,
       prefix: scope + 'swfs/',
     })
-  } catch (e) {
+  } catch (_e) {
     const lastReload = localStorage.getItem('lastReload')
     if (lastReload === null || Date.now() - parseInt(lastReload) > 3000) {
       localStorage.setItem('lastReload', Date.now().toString())
@@ -763,7 +764,7 @@ const startAnimCallback = async (def, value) => {
   currentAnim.start(def, value, getParams(byId('paramsDiv')))
 }
 
-const pauseAnimCallback = async (def, value) => {
+const pauseAnimCallback = async (_def, _value) => {
   stopCurrentAnim()
 }
 

@@ -8,7 +8,7 @@ import { resolve } from 'node:path'
  */
 export function makeReadFileNode(root) {
 
-  return function readFileNode(_path, { base = 'fs:/', output = 'text' }={}) {
+  return function readFileNode(_path, { base = 'fs:/', output: _output = 'text' }={}) {
     if (!base.startsWith('fs:/')) throw new Error('base path must start with: fs:/')
     try {
       if (!_path.startsWith('fs:/')) _path = new URL(_path, base).toString()
