@@ -18,6 +18,8 @@ function CSG2Vertices (csg) {
 
   let hasVertexColors// v1 colors support
   for (const poly of csg.polygons) {// v1 colors support
+    // Skip degenerate polygons (need at least 3 vertices for a triangle)
+    if (!poly.vertices || poly.vertices.length < 3) continue
     if(poly.shared?.color) hasVertexColors = true
     const len = poly.vertices.length
     vLen += len * 3
@@ -41,6 +43,8 @@ function CSG2Vertices (csg) {
     // color is fore each index
     colors = new Float32Array(iLen*4)
     for (const poly of csg.polygons) {
+      // Skip degenerate polygons (need at least 3 vertices for a triangle)
+      if (!poly.vertices || poly.vertices.length < 3) continue
       color = poly.shared?.color || lastColor
       // lastColor = color
       let count = poly.vertices.length
@@ -66,11 +70,12 @@ function CSG2Vertices (csg) {
   }
 
   /**
-   * @param {import("@jscadui/format-common").CSGPolygons['polygons'][0]['vertices']} vertices 
+   * @param {import("@jscadui/format-common").CSGPolygons['polygons'][0]['vertices']} vertices
    * @returns { [number,number,number][]}
    */
   const normalizeVertexFormat = (vertices) => {
-    if ('pos' in vertices[0]) {//converting v1 polygon with pos:{x,y,z} to number array      
+    if (!vertices || vertices.length === 0) return []
+    if ('pos' in vertices[0]) {//converting v1 polygon with pos:{x,y,z} to number array
       return (/** @type {import("@jscadui/format-common").CSGPolygonOldVertices} */ (vertices)).map(({ pos }) => {
         return [pos.x, pos.y, pos.z]
       })
@@ -81,7 +86,9 @@ function CSG2Vertices (csg) {
 
   vertOffset = 0
   for (const poly of csg.polygons) {
-    const arr = normalizeVertexFormat(poly.vertices)    
+    const arr = normalizeVertexFormat(poly.vertices)
+    // Skip degenerate polygons (need at least 3 vertices for a triangle)
+    if (arr.length < 3) continue
     const normal = calculateNormal(arr)
     const len = arr.length
     first = posOffset

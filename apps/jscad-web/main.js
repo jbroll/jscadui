@@ -467,6 +467,9 @@ const runModelUpdate = async () => {
     }
 
     handlers.entities(result, {})
+  } catch (err) {
+    setError(err)
+    console.error('Model update failed:', err)
   } finally {
     working = false
     if (modelUpdatePending) runModelUpdate()
