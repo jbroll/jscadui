@@ -6,7 +6,7 @@
  */
 
 import { getModule, getManifold, getCrossSection } from '../init.js'
-import * as jscad from '@jscad/modeling-core'
+import * as jscad from '@jscad/modeling-for-manifold'
 
 // JSCAD geom2 utilities for proper conversion
 const jscadGeom2 = jscad.geometries.geom2

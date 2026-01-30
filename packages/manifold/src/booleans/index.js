@@ -12,7 +12,7 @@
 import { getManifold, getCrossSection } from '../init.js'
 import { ManifoldGeom3, isManifoldGeom3, toManifold } from '../geometries/ManifoldGeom3.js'
 import { ManifoldGeom2, isManifoldGeom2, toCrossSection, toJscadGeom2, fromJscadGeom2 } from '../geometries/ManifoldGeom2.js'
-import * as jscad from '@jscad/modeling-core'
+import * as jscad from '@jscad/modeling-for-manifold'
 
 const jscadBooleans = jscad.booleans
 

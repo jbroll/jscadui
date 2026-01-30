@@ -10,7 +10,7 @@ import { ManifoldGeom3, toManifold } from '../geometries/ManifoldGeom3.js'
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- toCrossSection may be used later
 import { ManifoldGeom2, isManifoldGeom2, toCrossSection, toJscadGeom2 } from '../geometries/ManifoldGeom2.js'
 import { geom2ToCrossSection, geom3ToManifold } from '../conversions/index.js'
-import * as jscad from '@jscad/modeling-core'
+import * as jscad from '@jscad/modeling-for-manifold'
 
 const jscadExtrusions = jscad.extrusions
 

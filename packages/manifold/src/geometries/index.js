@@ -5,7 +5,7 @@
  */
 
 // Re-export JSCAD geometry modules from main entry point
-import * as jscad from '@jscad/modeling-core'
+import * as jscad from '@jscad/modeling-for-manifold'
 export const { geom2, geom3, path2, poly2, poly3 } = jscad.geometries
 
 // Export Manifold wrappers

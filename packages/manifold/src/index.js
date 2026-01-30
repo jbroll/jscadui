@@ -1,7 +1,7 @@
 /**
  * @jscadui/manifold - Manifold-based geometry operations for JSCAD
  *
- * Drop-in replacement for @jscad/modeling that uses Manifold for guaranteed
+ * Drop-in replacement for @jscad/modeling-for-manifold that uses Manifold for guaranteed
  * watertight, manifold geometry output.
  *
  * @example
@@ -10,7 +10,7 @@
  * // Initialize Manifold WASM module (required before any operations)
  * await init()
  *
- * // Use like @jscad/modeling
+ * // Use like @jscad/modeling-for-manifold
  * const { cube, sphere, cylinder } = primitives
  * const { union, subtract, intersect } = booleans
  *
@@ -26,7 +26,7 @@ export { init, ready, startInit, setWasmUrl, getModule, getManifold, getCrossSec
 // Geometry types
 export * as geometries from './geometries/index.js'
 
-// Operations - organized like @jscad/modeling
+// Operations - organized like @jscad/modeling-for-manifold
 export * as primitives from './primitives/index.js'
 export * as booleans from './booleans/index.js'
 export * as transforms from './transforms/index.js'

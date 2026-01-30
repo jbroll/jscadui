@@ -80,13 +80,14 @@ await buildBundle(outDir + '/build', 'bundle.render-regl.js', {
 const cjsLoader = { '.js': 'js', '.jsx': 'jsx' }
 await buildBundle(outDir + '/build', 'bundle.jscad_modeling.js', { format: 'cjs', watch: dev, loader: cjsLoader })
 
-// Build manifold bundle with @jscad/modeling-core as external
-// At runtime, manifold_modeling imports from @jscad/modeling-core which maps to jscad_modeling bundle
-// Use buildOne with watch to auto-rebuild when manifold package source changes
+// Build manifold bundle with @jscad/modeling-for-manifold as external
+// This explicit alias (defined in packages/manifold/package.json) prevents circular resolution:
+// - User requires @jscad/modeling → manifold bundle (when manifold engine selected)
+// - Manifold internally requires @jscad/modeling-for-manifold → real jscad bundle
 await buildOne('src_bundle', outDir + '/build', 'bundle.manifold_modeling.js', watch, {
   format: 'cjs',
   loader: cjsLoader,
-  external: ['module', '@jscad/modeling-core', '@jscad/modeling', '@jscad/modeling/*']
+  external: ['module', '@jscad/modeling-for-manifold']
 })
 
 // Copy manifold WASM file to build directory (needed by manifold bundle)

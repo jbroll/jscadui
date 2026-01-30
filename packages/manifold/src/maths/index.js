@@ -1,11 +1,11 @@
 /**
- * Math utilities - re-exports from @jscad/modeling/src/maths.
+ * Math utilities - re-exports from @jscad/modeling-for-manifold/src/maths.
  *
  * These are pure math operations that don't involve geometry conversion.
  */
 
 // Re-export all JSCAD math modules from main entry point
-import * as jscad from '@jscad/modeling-core'
+import * as jscad from '@jscad/modeling-for-manifold'
 export const { vec2, vec3, vec4, mat4, plane, line2, line3, utils } = jscad.maths
 
 // Common constants

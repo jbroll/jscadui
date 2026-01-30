@@ -1,7 +1,7 @@
 /**
  * Expansions module - expand and offset operations.
  *
- * This module provides the same interface as @jscad/modeling/expansions
+ * This module provides the same interface as @jscad/modeling-for-manifold/expansions
  * by re-exporting from modifiers.
  */
 

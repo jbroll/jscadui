@@ -1,11 +1,11 @@
 /**
- * Text module - re-exports from @jscad/modeling-core.
+ * Text module - re-exports from @jscad/modeling-for-manifold.
  *
  * Texts provide sets of segments for each character or text strings.
  * The segments can be used to create outlines for both 2D and 3D geometry.
  */
 
-import * as jscad from '@jscad/modeling-core'
+import * as jscad from '@jscad/modeling-for-manifold'
 
 const jscadText = jscad.text
 

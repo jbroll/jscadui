@@ -2,7 +2,7 @@
  * Manifold-native primitives.
  *
  * These create shapes directly using Manifold's API for maximum performance.
- * API is compatible with @jscad/modeling primitives.
+ * API is compatible with @jscad/modeling-for-manifold primitives.
  */
 
 import { getManifold, getCrossSection } from '../init.js'
@@ -11,7 +11,7 @@ import { ManifoldGeom2 } from '../geometries/ManifoldGeom2.js'
 import { geom3ToManifold, geom2ToCrossSection } from '../conversions/index.js'
 import { TAU } from '../maths/index.js'
 import { translateIfNonZero } from '../utils/index.js'
-import * as jscad from '@jscad/modeling-core'
+import * as jscad from '@jscad/modeling-for-manifold'
 
 const jscadPrimitives = jscad.primitives
 

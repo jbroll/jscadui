@@ -634,7 +634,7 @@ const getModelingBundle = () => {
  */
 const getBundles = () => ({
   '@jscad/modeling': getModelingBundle(),
-  '@jscad/modeling-core': toUrl('./build/bundle.jscad_modeling.js'), // Internal dependency for manifold
+  '@jscad/modeling-for-manifold': toUrl('./build/bundle.jscad_modeling.js'), // Explicit alias for manifold's internal jscad dependency
   '@jscad/io': toUrl('./build/bundle.jscad_io.js'),
   '@jscad/csg': toUrl('./build/bundle.V1_api.js'),
   '@jscadui/params-core': toUrl('./build/bundle.params_core.js'),

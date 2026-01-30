@@ -7,7 +7,7 @@
 import { isManifoldGeom3, toManifold } from '../geometries/ManifoldGeom3.js'
 import { isManifoldGeom2 } from '../geometries/ManifoldGeom2.js'
 import { manifoldToGeom3, geom2ToCrossSection } from '../conversions/index.js'
-import * as jscad from '@jscad/modeling-core'
+import * as jscad from '@jscad/modeling-for-manifold'
 
 const jscadMeasurements = jscad.measurements
 

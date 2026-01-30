@@ -1,11 +1,11 @@
 /**
  * Utility functions.
  *
- * Re-exports from @jscad/modeling/src/utils with Manifold additions.
+ * Re-exports from @jscad/modeling-for-manifold/src/utils with Manifold additions.
  */
 
 // Re-export JSCAD utilities from main entry point
-import * as jscad from '@jscad/modeling-core'
+import * as jscad from '@jscad/modeling-for-manifold'
 export const { flatten, fnNumberSort, radiusToSegments } = jscad.utils
 
 // Re-export degToRad and radToDeg from maths (JSCAD exports these from utils)

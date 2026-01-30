@@ -5,7 +5,7 @@
   "scripts": {
     "start": "node build.js --dev",
     "build": "node build.js",
-    "test": "vitest"
+    "test": "echo No tests yet"
   },
   "dependencies": {
     "@jscad/io": "2.4.4",
