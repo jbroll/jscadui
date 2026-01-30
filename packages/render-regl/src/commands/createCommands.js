@@ -5,6 +5,7 @@
 
 import drawMesh from './drawMesh.js'
 import drawLines from './drawLines.js'
+import drawLineStrip from './drawLineStrip.js'
 import drawMeshInstanced from './drawMeshInstanced.js'
 
 /**
@@ -14,6 +15,7 @@ import drawMeshInstanced from './drawMeshInstanced.js'
 export const createDrawCommands = () => ({
   drawMesh,
   drawLines,
+  drawLineStrip,
   drawMeshInstanced,
   // Grid and axis can use drawLines with appropriate geometry
   drawGrid: drawLines,

@@ -63,6 +63,18 @@ export function CommonToRegl({ smooth = false } = {}) {
         }
         break
 
+      case 'line':
+        // Continuous line strip (arc, line primitives)
+        visuals.drawCmd = 'drawLineStrip'
+        if (!normals) {
+          geometry.normals = createDefaultNormals(vertices)
+        }
+        if (color) geometry.color = color
+        if (_colors) {
+          geometry.colors = _colors
+        }
+        break
+
       case 'lines':
         visuals.drawCmd = 'drawLines'
         if (!indices || !indices.length) {
