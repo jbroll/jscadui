@@ -170,6 +170,21 @@ export function RenderRegl(reglOrOptions) {
           regl.poll()
         }
 
+        // Attach cleanup method to renderer (C1 fix - WebGL memory leak)
+        renderer.destroy = () => {
+          // Destroy all cached draw commands and their WebGL buffers
+          drawCache.forEach(cmd => {
+            if (cmd && typeof cmd.destroy === 'function') {
+              cmd.destroy()
+            }
+          })
+          drawCache.clear()
+          // Destroy the regl instance
+          if (regl && typeof regl.destroy === 'function') {
+            regl.destroy()
+          }
+        }
+
         updateView()
       }).catch(err => {
         console.error('Failed to load regl:', err)

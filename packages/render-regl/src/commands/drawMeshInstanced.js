@@ -121,5 +121,14 @@ export default function drawMeshInstanced(regl, entity) {
     commandConfig.depth.mask = false
   }
 
-  return regl(commandConfig)
+  const command = regl(commandConfig)
+
+  // Attach cleanup method to command (C1 fix - WebGL memory leak)
+  command.destroy = () => {
+    if (instanceBuffer && typeof instanceBuffer.destroy === 'function') {
+      instanceBuffer.destroy()
+    }
+  }
+
+  return command
 }

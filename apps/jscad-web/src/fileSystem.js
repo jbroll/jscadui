@@ -196,29 +196,38 @@ export function setSaveMapEntry(path, handle) {
 
 /**
  * Create file watcher interval
+ * H2 fix: Returns cleanup function instead of relying solely on beforeunload
  * @param {(files: string[]) => void} onFilesChanged
  * @param {() => void} runScript
- * @returns {NodeJS.Timeout}
+ * @returns {{ interval: NodeJS.Timeout, cleanup: () => void }}
  */
 export function createFileWatcher(onFilesChanged, runScript) {
   const interval = setInterval(async () => {
     for (const p in saveMap) {
       const handle = saveMap[p]
-      const file = await handle.getFile()
-      if (file.lastModified > handle.lastMod) {
-        handle.lastMod = file.lastModified
-        await onFilesChanged([file])
-        runScript()
+      try {
+        const file = await handle.getFile()
+        if (file.lastModified > handle.lastMod) {
+          handle.lastMod = file.lastModified
+          await onFilesChanged([file])
+          runScript()
+        }
+      } catch (err) {
+        // H3 fix: Handle errors in file watching (file may have been deleted)
+        console.warn('Error checking file:', p, err)
       }
     }
   }, 500)
 
-  // Clean up interval on page unload to prevent memory leaks
-  window.addEventListener('beforeunload', () => {
+  // Cleanup function that can be called explicitly
+  const cleanup = () => {
     clearInterval(interval)
-  })
+  }
 
-  return interval
+  // Also clean up on page unload as fallback
+  window.addEventListener('beforeunload', cleanup)
+
+  return { interval, cleanup }
 }
 
 /**

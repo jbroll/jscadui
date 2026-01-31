@@ -138,47 +138,53 @@ export const require = (urlOrSource, transform, readFile, base, root, importData
       }
     }
   }
-  if (source !== undefined) {
-    const extension = getExtension(resolvedUrl)
-    // https://cdn.jsdelivr.net/npm/@jscad/svg-serializer@2.3.13/index.js uses require to read package.json
-    if (extension === 'json') {
-      exports = JSON.parse(source)
-    } else {
-      // do not transform bundles that are already cjs ( requireCache.bundleAlias.*)
-      if (transform && !bundleAlias) source = transform(source, resolvedUrl).code
-      // construct require function relative to resolvedUrl
-      const requireFunc = newUrl => require(newUrl, transform, readFile, resolvedUrl, root, importData, moduleBase)
-      const module = requireModule(url, resolvedUrl, source, requireFunc)
-      module.local = isRelativeFile
-      exports = module.exports
-      // import jscad from "@jscad/modeling";
-      // will be effectively transformed to
-      // const jscad = require('@jscad/modeling').default
-      // we need to plug-in default if missing
-      if (!('default' in exports)) exports.default = exports
+  try {
+    if (source !== undefined) {
+      const extension = getExtension(resolvedUrl)
+      // https://cdn.jsdelivr.net/npm/@jscad/svg-serializer@2.3.13/index.js uses require to read package.json
+      if (extension === 'json') {
+        exports = JSON.parse(source)
+      } else {
+        // do not transform bundles that are already cjs ( requireCache.bundleAlias.*)
+        if (transform && !bundleAlias) source = transform(source, resolvedUrl).code
+        // construct require function relative to resolvedUrl
+        const requireFunc = newUrl => require(newUrl, transform, readFile, resolvedUrl, root, importData, moduleBase)
+        const module = requireModule(url, resolvedUrl, source, requireFunc)
+        module.local = isRelativeFile
+        exports = module.exports
+        // import jscad from "@jscad/modeling";
+        // will be effectively transformed to
+        // const jscad = require('@jscad/modeling').default
+        // we need to plug-in default if missing
+        if (!('default' in exports)) exports.default = exports
 
-      // Auto-wrap legacy modules that have getParameterDefinitions
-      // This promotes them to work with the params proxy system
-      if (typeof exports.main === 'function' && typeof exports.getParameterDefinitions === 'function') {
-        const wrappedMain = wrapLegacyModule(exports)
-        exports.main = wrappedMain
-        // Keep getParameterDefinitions for inspection but mark as wrapped
-        exports._legacyWrapped = true
+        // Auto-wrap legacy modules that have getParameterDefinitions
+        // This promotes them to work with the params proxy system
+        if (typeof exports.main === 'function' && typeof exports.getParameterDefinitions === 'function') {
+          const wrappedMain = wrapLegacyModule(exports)
+          exports.main = wrappedMain
+          // Keep getParameterDefinitions for inspection but mark as wrapped
+          exports._legacyWrapped = true
+        }
       }
     }
-  }
 
-  // Cache the module exports and mark loading complete
-  if (cache && cacheUrl) {
-    if (isRelativeFile) {
-      cache[cacheUrl] = exports
-    } else {
-      cacheModule(cacheUrl, exports) // LRU-managed module cache
+    // Cache the module exports
+    if (cache && cacheUrl) {
+      if (isRelativeFile) {
+        cache[cacheUrl] = exports
+      } else {
+        cacheModule(cacheUrl, exports) // LRU-managed module cache
+      }
     }
-    requireCache.loading.delete(cacheUrl) // Remove from loading set
-  }
 
-  return exports // require returns object exported by module
+    return exports // require returns object exported by module
+  } finally {
+    // Always remove from loading set, even on error (C3 fix)
+    if (cacheUrl) {
+      requireCache.loading.delete(cacheUrl)
+    }
+  }
 }
 
 const requireModule = (id, url, source, _require) => {

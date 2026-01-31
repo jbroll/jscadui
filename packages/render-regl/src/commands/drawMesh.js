@@ -121,7 +121,33 @@ const drawMesh = (regl, params = { extras: {} }) => {
   // Merge any extra params
   commandParams = Object.assign({}, commandParams, params.extras)
 
-  return regl(commandParams)
+  // Track created buffers for cleanup (C1 fix - WebGL memory leak)
+  const createdBuffers = []
+  if (commandParams.attributes.position) {
+    createdBuffers.push(commandParams.attributes.position)
+  }
+  if (commandParams.attributes.normal) {
+    createdBuffers.push(commandParams.attributes.normal)
+  }
+  if (commandParams.attributes.color) {
+    createdBuffers.push(commandParams.attributes.color)
+  }
+  if (commandParams.elements && typeof commandParams.elements.destroy === 'function') {
+    createdBuffers.push(commandParams.elements)
+  }
+
+  const command = regl(commandParams)
+
+  // Attach cleanup method to command
+  command.destroy = () => {
+    createdBuffers.forEach(buffer => {
+      if (buffer && typeof buffer.destroy === 'function') {
+        buffer.destroy()
+      }
+    })
+  }
+
+  return command
 }
 
 export default drawMesh

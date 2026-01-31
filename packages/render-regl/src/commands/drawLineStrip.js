@@ -83,7 +83,30 @@ const drawLineStrip = (regl, params = {}) => {
     commandParams.attributes.normal = regl.buffer({ usage: 'static', type: 'float', data: geometry.normals })
   }
 
-  return regl(commandParams)
+  // Track created buffers for cleanup (C1 fix - WebGL memory leak)
+  const createdBuffers = []
+  if (commandParams.attributes.position) {
+    createdBuffers.push(commandParams.attributes.position)
+  }
+  if (commandParams.attributes.color) {
+    createdBuffers.push(commandParams.attributes.color)
+  }
+  if (commandParams.attributes.normal) {
+    createdBuffers.push(commandParams.attributes.normal)
+  }
+
+  const command = regl(commandParams)
+
+  // Attach cleanup method to command
+  command.destroy = () => {
+    createdBuffers.forEach(buffer => {
+      if (buffer && typeof buffer.destroy === 'function') {
+        buffer.destroy()
+      }
+    })
+  }
+
+  return command
 }
 
 export default drawLineStrip
