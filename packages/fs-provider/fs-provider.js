@@ -368,7 +368,11 @@ export const checkFiles = async sw => {
     const now = Date.now()
     if (now - sw.lastCheck > 300 && sw.filesToCheck.length !== 0) {
       sw.lastCheck = now
-      let filesToCheck = await Promise.all(sw.filesToCheck.map(entryCheckPromise))
+      // L6 fix: Use Promise.allSettled so one file error doesn't stop all checking
+      const results = await Promise.allSettled(sw.filesToCheck.map(entryCheckPromise))
+      let filesToCheck = results
+        .filter(r => r.status === 'fulfilled')
+        .map(r => r.value)
       filesToCheck = filesToCheck.filter(([entry, _file]) => entry.lastModified !== entry._lastModified)
       if (filesToCheck.length) {
         const addToCachePromises = filesToCheck.map(([entry, file]) => addToCache(sw.cache, entry.fullPath, file))

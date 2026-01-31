@@ -563,4 +563,5 @@ window.addEventListener('unload', () => {
   paramsUI.destroyParamsTreeView()
   editor.destroy()
   viewState.viewer?.destroy?.()
+  ctrl.destroy() // M5 fix: Clean up OrbitControl event listeners and animation frame
 })

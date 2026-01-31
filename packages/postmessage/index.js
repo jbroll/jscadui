@@ -165,10 +165,18 @@ export const initMessaging = (_self, handlers, { onJobCount, debug } = {}) => {
   _self.addEventListener?.('message', wrappedListener)
 
   /**
-   * Clean up the message listener. Call when messaging is no longer needed.
+   * Clean up the message listener and pending requests. Call when messaging is no longer needed.
+   * M4 fix: Also clean up pending requests to prevent memory leaks
    */
   const destroy = () => {
     _self.removeEventListener?.('message', wrappedListener)
+    // M4 fix: Clean up all pending requests
+    for (const [, [, reject, timeoutId]] of reqMap.entries()) {
+      if (timeoutId) clearTimeout(timeoutId)
+      reject(new Error('Messaging destroyed with pending request'))
+    }
+    reqMap.clear()
+    onJobCount?.(0)
   }
 
   return {

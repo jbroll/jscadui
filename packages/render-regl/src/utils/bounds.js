@@ -28,10 +28,12 @@ export function boundingBox(positions) {
     max[i] = -Infinity
   }
 
+  // L7 fix: Validate that values are finite numbers to prevent NaN propagation
   if (nested) {
     for (const position of positions) {
       for (let i = 0; i < dimensions; i++) {
         const val = position[i]
+        if (!Number.isFinite(val)) continue // Skip NaN/Infinity
         if (val > max[i]) max[i] = val
         if (val < min[i]) min[i] = val
       }
@@ -40,10 +42,17 @@ export function boundingBox(positions) {
     for (let j = 0; j < positions.length; j += dimensions) {
       for (let i = 0; i < dimensions; i++) {
         const val = positions[j + i]
+        if (!Number.isFinite(val)) continue // Skip NaN/Infinity
         if (val > max[i]) max[i] = val
         if (val < min[i]) min[i] = val
       }
     }
+  }
+
+  // L7 fix: If all values were invalid, return safe defaults
+  for (let i = 0; i < dimensions; i++) {
+    if (min[i] === Infinity) min[i] = 0
+    if (max[i] === -Infinity) max[i] = 0
   }
 
   return [min, max]

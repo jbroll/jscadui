@@ -127,8 +127,9 @@ const calculateNormal = (vertices) => {
   const Nz = Ax * By - Ay * Bx
 
   const len = Math.hypot(Nx, Ny, Nz)
-  // Handle degenerate polygons (collinear or coincident vertices)
-  if (len === 0) return [0, 0, 1]
+  // L8 fix: Use epsilon threshold to handle near-degenerate polygons
+  // that could cause very large or NaN values from division
+  if (len < 1e-10) return [0, 0, 1]
   return [Nx / len, Ny / len, Nz / len]
 }
 

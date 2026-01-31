@@ -48,7 +48,14 @@ const handleRequest = (req) => {
  * Serve static file from the build directory
  */
 const handleStatic = async (pathname) => {
-  const filePath = path.join(process.cwd(), 'build', pathname)
+  // M2 fix: Resolve paths and verify they stay within build directory
+  const buildDir = path.resolve(process.cwd(), 'build')
+  const filePath = path.resolve(buildDir, pathname.replace(/^\/+/, ''))
+
+  // Prevent path traversal attacks
+  if (!filePath.startsWith(buildDir + path.sep) && filePath !== buildDir) {
+    return { status: 403, content: 'forbidden' }
+  }
 
   const stats = await fs.stat(filePath).catch(() => undefined)
   if (!stats || !stats.isFile()) {
@@ -68,6 +75,7 @@ const handleStatic = async (pathname) => {
 
 /**
  * Validates that a URL is safe to fetch (no localhost, private IPs, or non-http protocols)
+ * M3 fix: Synced with client-side validation in remote.js including IPv6 checks
  */
 const isValidRemoteUrl = (urlString) => {
   try {
@@ -85,6 +93,47 @@ const isValidRemoteUrl = (urlString) => {
       return false
     }
 
+    // M3 fix: Block IPv6 private/local addresses (synced from remote.js H9 fix)
+    // Remove brackets from IPv6 addresses for parsing
+    const cleanHostname = hostname.startsWith('[') ? hostname.slice(1, -1) : hostname
+
+    if (cleanHostname.includes(':')) {
+      // This is an IPv6 address
+      const lowerV6 = cleanHostname.toLowerCase()
+
+      // Block loopback (::1)
+      if (lowerV6 === '::1') return false
+
+      // Block link-local (fe80::/10)
+      if (lowerV6.startsWith('fe8') || lowerV6.startsWith('fe9') ||
+          lowerV6.startsWith('fea') || lowerV6.startsWith('feb')) return false
+
+      // Block unique local addresses (fc00::/7 = fc00:: and fd00::)
+      if (lowerV6.startsWith('fc') || lowerV6.startsWith('fd')) return false
+
+      // Block IPv4-mapped IPv6 addresses (::ffff:x.x.x.x)
+      if (lowerV6.startsWith('::ffff:') || lowerV6.includes(':ffff:')) {
+        // Extract the IPv4 part and validate it
+        const ipv4Match = lowerV6.match(/::ffff:(\d+\.\d+\.\d+\.\d+)$/i) ||
+                          lowerV6.match(/:ffff:(\d+\.\d+\.\d+\.\d+)$/i)
+        if (ipv4Match) {
+          // Re-validate the IPv4 portion
+          const ipv4 = ipv4Match[1]
+          if (!isValidRemoteUrl(`http://${ipv4}/`)) return false
+        } else {
+          // Can't parse the IPv4 part, block to be safe
+          return false
+        }
+      }
+
+      // Block site-local (deprecated but still check) fec0::/10
+      if (lowerV6.startsWith('fec') || lowerV6.startsWith('fed') ||
+          lowerV6.startsWith('fee') || lowerV6.startsWith('fef')) return false
+
+      // Block unspecified address (::)
+      if (lowerV6 === '::' || lowerV6 === '0:0:0:0:0:0:0:0') return false
+    }
+
     // Block private IP ranges
     const ipParts = hostname.split('.').map(Number)
     if (ipParts.length === 4 && ipParts.every(n => !isNaN(n) && n >= 0 && n <= 255)) {
@@ -93,6 +142,7 @@ const isValidRemoteUrl = (urlString) => {
       if (ipParts[0] === 192 && ipParts[1] === 168) return false // 192.168.0.0/16
       if (ipParts[0] === 169 && ipParts[1] === 254) return false // 169.254.0.0/16 (link-local)
       if (ipParts[0] === 0) return false // 0.0.0.0/8
+      if (ipParts[0] === 127) return false // 127.0.0.0/8 loopback
     }
 
     return true

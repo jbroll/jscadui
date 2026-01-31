@@ -6,6 +6,30 @@
 
 const STORAGE_KEY = 'jscad-trusted-sources'
 
+// M1 fix: Maximum regex pattern length to prevent excessive backtracking
+const MAX_PATTERN_LENGTH = 200
+
+/**
+ * M1 fix: Validate regex pattern to prevent ReDoS attacks.
+ * Blocks patterns with nested quantifiers that can cause catastrophic backtracking.
+ * @param {string} pattern
+ * @returns {boolean}
+ */
+function isSafeRegexPattern(pattern) {
+  // Limit pattern length
+  if (pattern.length > MAX_PATTERN_LENGTH) return false
+
+  // Block nested quantifiers like (a+)+, (a*)+, (a+)*, (a*)*, etc.
+  // These patterns can cause exponential backtracking
+  if (/(\([^)]*[+*][^)]*\))[+*]/.test(pattern)) return false
+
+  // Block overlapping alternatives with quantifiers like (a|a)+
+  // Simplified check - block repeated .* or .+ patterns
+  if (/(\.\*){2,}|(\.\+){2,}/.test(pattern)) return false
+
+  return true
+}
+
 /**
  * @typedef {object} TrustRule
  * @property {string} domain - Domain to match (e.g., "gist.githubusercontent.com")
@@ -100,6 +124,11 @@ export function isTrusted(urlString) {
     for (const rule of rules) {
       if (url.hostname === rule.domain || url.hostname.endsWith('.' + rule.domain)) {
         try {
+          // M1 fix: Validate regex pattern before use to prevent ReDoS
+          if (!isSafeRegexPattern(rule.pathPattern)) {
+            console.warn('Skipping unsafe regex pattern:', rule.pathPattern)
+            continue
+          }
           const pathRegex = new RegExp(rule.pathPattern)
           if (pathRegex.test(url.pathname)) {
             return true

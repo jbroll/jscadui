@@ -41,8 +41,15 @@ const readAs = async (f, as) => {
 
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
-    reader.onload = event => resolve(event.target?.result)
+    // L3 fix: Clear handlers after completion to help garbage collection
+    reader.onload = event => {
+      reader.onload = null
+      reader.onerror = null
+      resolve(event.target?.result)
+    }
     reader.onerror = error => {
+      reader.onload = null
+      reader.onerror = null
       const msg = 'error reading ' + f.name
       console.error(msg, f, error)
       reject(new Error(msg))
