@@ -65,6 +65,25 @@ globalThis.JSCAD_WORKER_ENV = {}
 let scriptLock = Promise.resolve()
 
 /**
+ * C6 fix: Reset script lock on catastrophic errors
+ * This prevents one bad script from permanently deadlocking the worker
+ */
+const resetScriptLock = () => {
+  scriptLock = Promise.resolve()
+}
+
+// Global error handlers to reset lock on uncaught errors
+self.addEventListener('error', (event) => {
+  console.error('Worker uncaught error:', event.error)
+  resetScriptLock()
+})
+
+self.addEventListener('unhandledrejection', (event) => {
+  console.error('Worker unhandled rejection:', event.reason)
+  resetScriptLock()
+})
+
+/**
  * Timeout in ms to wait for script lock before giving up
  * Default: 30 seconds. Set to 0 to disable timeout.
  */
@@ -136,6 +155,8 @@ let userInteracted = new Set()
 let currentUiValues = {}
 /** @type {Object | null} */
 let legacyProxyDefs = null
+/** @type {boolean} */
+let hasJscadParamsComment = false
 
 /**
  * @template T
@@ -264,10 +285,11 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
     // For JSCAD: this does all the actual CSG work (treeTime will be 0, work is immediate)
     let proxyState = null
     if (useParamsProxy) {
-      // Use 'flat' mode for legacy scripts (those with getParameterDefinitions)
-      // This preserves compatibility with the `params.prop || default` pattern
-      // Use 'hierarchical' mode for new scripts that use nested params
-      const mode = legacyProxyDefs ? 'flat' : 'hierarchical'
+      // Determine params mode:
+      // - 'flat' for scripts with getParameterDefinitions or @jscad-params comments
+      // - 'hierarchical' for scripts using nested parts system
+      const useFlatMode = legacyProxyDefs || hasJscadParamsComment
+      const mode = useFlatMode ? 'flat' : 'hierarchical'
       proxyState = createProxyState(currentUiValues, userInteracted, { mode })
       const proxyParams = createParamsProxy(proxyState)
 
@@ -344,8 +366,12 @@ const jscadScript = async ({ script, url='jscad.js', base=globalBase, root=base,
     userInteracted = new Set()
     currentUiValues = {}
     legacyProxyDefs = null
+    hasJscadParamsComment = false
 
     if(!script) script = readFileWeb(resolveUrl(url, base, root).url)
+
+    // Detect @jscad-params style scripts (flat params with inline comments)
+    hasJscadParamsComment = script.includes('@jscad-params')
 
     const shouldTransform = url.endsWith('.ts') || script.includes('import') && (importReg.test(script) || exportReg.test(script))
     let def = []
