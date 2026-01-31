@@ -228,8 +228,18 @@ function toCreasedNormals(vertices, indices, _normals, creaseAngle = Math.PI / 3
   const newNormals = new Float32Array(indices.length * 3)
 
   // Expand indexed vertices to non-indexed
+  const maxValidIndex = Math.floor(vertices.length / 3) - 1
   for (let i = 0; i < indices.length; i++) {
     const idx = indices[i]
+    // H4 fix: Validate index is within bounds to prevent NaN from out-of-bounds access
+    if (idx < 0 || idx > maxValidIndex) {
+      console.error(`Invalid vertex index ${idx} (max valid: ${maxValidIndex}) at position ${i}`)
+      // Use origin point as fallback for invalid indices
+      newVertices[i * 3] = 0
+      newVertices[i * 3 + 1] = 0
+      newVertices[i * 3 + 2] = 0
+      continue
+    }
     newVertices[i * 3] = vertices[idx * 3]
     newVertices[i * 3 + 1] = vertices[idx * 3 + 1]
     newVertices[i * 3 + 2] = vertices[idx * 3 + 2]
