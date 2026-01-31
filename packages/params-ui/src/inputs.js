@@ -76,6 +76,9 @@ export const createNumberInput = ({ param, value, onChange }) => {
   }
 
   // Use 'input' event for immediate response to spinner clicks
+  // Note: oninput fires on every keystroke and spinner click, providing continuous
+  // validation. Combined with HTML5 min/max attributes on the input element,
+  // this ensures values are properly constrained. No separate blur handler needed.
   input.oninput = () => {
     let val = type === 'int' ? parseInt(input.value) : parseFloat(input.value)
     if (!isNaN(val)) {
@@ -299,6 +302,9 @@ export const createColorInput = ({ param, value, onChange }) => {
     })
   }
 
+  // Note: selectColor() is only called with validated hex values from hexInput.onchange
+  // (which validates format) or pre-defined swatch/palette colors. No additional
+  // validation needed here - all callers provide safe color values.
   const selectColor = (color) => {
     updateColorUI(color)
     onChange(color)
