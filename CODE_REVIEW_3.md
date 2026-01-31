@@ -22,7 +22,7 @@ This review used multiple specialized code review agents to analyze security, co
 ### M1. ReDoS Risk in Trusted Sources Regex
 
 **File:** `apps/jscad-web/src/trustedSources.js:103`
-**Status:** Open
+**Status:** FIXED (34ffb09)
 
 User-controlled regex patterns from localStorage are compiled and executed without validation. A malicious user could craft a pathological regex pattern that causes catastrophic backtracking.
 
@@ -50,7 +50,7 @@ const isSafeRegex = (pattern) => {
 ### M2. Path Traversal in Development Server
 
 **File:** `apps/jscad-web/serve.js:51`
-**Status:** Open
+**Status:** FIXED (34ffb09)
 
 The development server uses `path.join` to construct file paths without validating the result stays within the build directory.
 
@@ -74,7 +74,7 @@ if (!filePath.startsWith(buildDir + path.sep)) {
 ### M3. Missing IPv6 SSRF Validation in Server-Side
 
 **File:** `apps/jscad-web/serve.js:72-101`
-**Status:** Open
+**Status:** FIXED (34ffb09)
 
 The server-side `isValidRemoteUrl` function lacks the comprehensive IPv6 validation present in the client-side version (`remote.js` H9 fix).
 
@@ -95,7 +95,7 @@ if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') 
 ### M4. Memory Leak in postmessage destroy()
 
 **File:** `packages/postmessage/index.js:170-172`
-**Status:** Open
+**Status:** FIXED (34ffb09)
 
 The `destroy()` method removes the event listener but does not clean up pending requests in `reqMap`. Pending requests, their timeouts, and promise callbacks remain in memory.
 
@@ -124,7 +124,7 @@ const destroy = () => {
 ### M5. OrbitControl Not Destroyed in Apps
 
 **File:** `apps/jscad-web/main.js:558-566`
-**Status:** Open
+**Status:** FIXED (34ffb09)
 
 OrbitControl instances are created (line 85) but never destroyed. The cleanup handler destroys menu, remote, welcome, about, editor, and viewer, but NOT the `ctrl` OrbitControl instance.
 
@@ -152,7 +152,7 @@ window.addEventListener('unload', () => {
 ### L1. Prototype Pollution Risk in saveMap
 
 **File:** `apps/jscad-web/src/fileSystem.js:195`
-**Status:** Open
+**Status:** Open (low risk - requires user to name file `__proto__`)
 
 User-controlled file paths are used as object keys without validation. Paths like `__proto__` could potentially pollute object prototypes.
 
@@ -176,7 +176,7 @@ When `acquireScriptLock` times out, the timed-out script continues executing (Ja
 ### L3. FileReader Error Handler Memory Pattern
 
 **File:** `packages/fs-provider/src/FileReader.js:42-52`
-**Status:** Open
+**Status:** FIXED (34ffb09)
 
 When FileReader errors occur, the reader object and event handlers remain in closure scope until garbage collection.
 
@@ -205,7 +205,7 @@ reader.onerror = error => {
 ### L5. Race Condition in checkFiles
 
 **File:** `packages/fs-provider/fs-provider.js:366-390`
-**Status:** Open
+**Status:** Open (design limitation - low impact)
 
 The file checking function can have race conditions if `sw.filesToCheck` is modified during async operations by `clearFs()` or `fileDropped()`.
 
@@ -216,7 +216,7 @@ The file checking function can have race conditions if `sw.filesToCheck` is modi
 ### L6. checkFiles Uses Promise.all (Single Failure Stops All)
 
 **File:** `packages/fs-provider/fs-provider.js:371`
-**Status:** Open
+**Status:** FIXED (34ffb09)
 
 If any single file check throws (e.g., permission denied), `Promise.all` rejects and no files get checked.
 
@@ -227,7 +227,7 @@ If any single file check throws (e.g., permission denied), `Promise.all` rejects
 ### L7. NaN Propagation in Bounds Calculation
 
 **File:** `packages/render-regl/src/utils/bounds.js:33-46`
-**Status:** Open
+**Status:** FIXED (34ffb09)
 
 `boundingBox()` doesn't validate that position values are finite numbers. NaN or Infinity values propagate through min/max comparisons, breaking camera/rendering.
 
@@ -238,7 +238,7 @@ If any single file check throws (e.g., permission denied), `Promise.all` rejects
 ### L8. Near-Zero Division in Normal Calculation
 
 **File:** `packages/format-jscad/index.js:129-132`
-**Status:** Open
+**Status:** FIXED (34ffb09)
 
 The code checks `len === 0` but doesn't handle near-zero values that could produce very large or NaN results.
 
