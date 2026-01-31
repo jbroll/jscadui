@@ -488,12 +488,14 @@ const getWorkspaceAliases = async sw => {
       if (pack.main) sw.fileToRun = sanitizePath(pack.main)
       if (pack.workspaces)
         for (const workspace of pack.workspaces) {
-          const workspacePackageFile = await findFileInRoots(sw.roots, `/${workspace}/package.json`)
+          // H10 fix: Sanitize workspace path early to prevent path traversal
+          const sanitizedWorkspace = sanitizePath(workspace)
+          if (!sanitizedWorkspace) continue // Skip invalid workspace paths
+          const workspacePackageFile = await findFileInRoots(sw.roots, `/${sanitizedWorkspace}/package.json`)
           let workspacePackageJson
           if (workspacePackageFile) workspacePackageJson = JSON.parse(await readAsText(workspacePackageFile))
-          const name = workspacePackageJson?.name ?? workspace
+          const name = workspacePackageJson?.name ?? sanitizedWorkspace
           const main = sanitizePath(workspacePackageJson?.main ?? 'index.js')
-          const sanitizedWorkspace = sanitizePath(workspace)
           alias.push({ name, path: `/${sanitizedWorkspace}/${main}` })
         }
     } catch (error) {
