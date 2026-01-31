@@ -3,6 +3,10 @@
  * @typedef {'text'|'int'|'number'|'slider'|'checkbox'|'color'|'choice'|'radio'|'date'|'email'|'url'|'password'|'group'|'unknown'} ParamType
  */
 
+// L15 fix: Named constants for default step values
+const DEFAULT_INT_STEP = 1
+const DEFAULT_NUMBER_STEP = 0.1
+
 /**
  * @typedef {Object} ParamDefinition
  * @property {string} path - Full dot-notation path (e.g., 'front.left.radius')
@@ -139,13 +143,13 @@ export const extractDefinition = (value) => {
     if (value.min !== undefined) result.min = value.min
     if (value.max !== undefined) result.max = value.max
 
-    // Step: use explicit value, or default based on type (int=1, number=0.1)
+    // Step: use explicit value, or default based on type
     if (value.step !== undefined) {
       result.step = value.step
     } else if (type === 'int') {
-      result.step = 1
+      result.step = DEFAULT_INT_STEP
     } else if (type === 'number') {
-      result.step = 0.1
+      result.step = DEFAULT_NUMBER_STEP
     }
 
     // Display properties - use 'label' as the standard property name
@@ -181,9 +185,9 @@ export const extractDefinition = (value) => {
 
   // Set default step for numeric types
   if (type === 'int') {
-    result.step = 1
+    result.step = DEFAULT_INT_STEP
   } else if (type === 'number') {
-    result.step = 0.1
+    result.step = DEFAULT_NUMBER_STEP
   }
 
   return result

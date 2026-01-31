@@ -29,8 +29,12 @@ export function CommonToThree({
   function _CSG2Three(obj, { smooth = false }) {
     if (!obj) return null
     const { vertices, indices, normals, color, colors, isTransparent = false, opacity } = obj
-    // Validate vertices exist and have data
+    // L12 fix: Validate vertices exist, have data, and are a typed array
     if (!vertices || vertices.length === 0) return null
+    if (!(vertices instanceof Float32Array || vertices instanceof Float64Array || ArrayBuffer.isView(vertices))) {
+      console.error('vertices must be a TypedArray', typeof vertices)
+      return null
+    }
     let { transforms } = obj
     const objType = obj.type || 'mesh'
 

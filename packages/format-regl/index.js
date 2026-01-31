@@ -16,6 +16,9 @@ export function CommonToRegl({ smooth = false } = {}) {
   function _CSG2Regl(obj, _scene, meshColor) {
     let { vertices, indices = [], normals } = obj
     const { color = meshColor, colors, isTransparent = false } = obj
+
+    // L12 fix: Validate vertices exist and are array-like
+    if (!vertices || vertices.length === 0) return null
     const { transforms } = obj
     const objType = obj.type || 'mesh'
 

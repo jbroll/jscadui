@@ -3,6 +3,10 @@ const reqMap = new Map()
 const RESPONSE = '__RESPONSE__'
 const TRANSFERABLE = Symbol.for('__transferable__')
 
+// H11 fix: Default timeout prevents memory leak from unbounded reqMap growth
+// 5 minutes is generous but prevents infinite hanging requests
+const DEFAULT_TIMEOUT = 5 * 60 * 1000
+
 /**
  * @template T
  * @param {T & {}} params 
@@ -85,15 +89,16 @@ export const initMessaging = (_self, handlers, { onJobCount, debug } = {}) => {
     const out = new Promise((resolve, reject) => {
       reqMap.set(id, [resolve, reject])
       onJobCount?.(reqMap.size)
-      if (timeout) {
-        setTimeout(() => {
-          if (reqMap.has(id)) {
-            reqMap.delete(id)
-            onJobCount?.(reqMap.size)
-            reject('timeout')
-          }
-        }, timeout)
-      }
+      // H11 fix: Always use a timeout (default or provided) to prevent memory leak
+      // from requests that never receive responses
+      const effectiveTimeout = timeout ?? DEFAULT_TIMEOUT
+      setTimeout(() => {
+        if (reqMap.has(id)) {
+          reqMap.delete(id)
+          onJobCount?.(reqMap.size)
+          reject(new Error(`RPC timeout for ${method} after ${effectiveTimeout}ms`))
+        }
+      }, effectiveTimeout)
     })
     return out
   }

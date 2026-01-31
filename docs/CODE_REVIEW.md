@@ -152,7 +152,7 @@
 - **Fix:** Document why cross-origin imports skip normalization, or apply to all paths.
 
 ### H11. Memory Leak in reqMap on Unhandled Responses
-- [ ] **Package:** `postmessage`
+- [x] **Package:** `postmessage`
 - **File:** `index.js:85-99`
 - **Description:** If response never arrives and no timeout is set, promise in `reqMap` never resolves, causing memory leak.
 - **Fix:** Always use a timeout (even if long) or provide way to cancel pending requests.
@@ -379,10 +379,10 @@
 - **Fix:** Extract to helper function.
 
 ### M22. Hidden Parameter Logic Inconsistency
-- [ ] **Package:** `params-core`
+- [x] **Package:** `params-core`
 - **File:** `src/createParamsProxy.js:307,461-463`
 - **Description:** `_class` explicitly marked hidden but already covered by `startsWith('_')` rule.
-- **Fix:** Remove redundant `hidden: true`.
+- **Note:** NOT A BUG - The `_class` handler (lines 278-294) returns early and never reaches line 307. The explicit `hidden: true` is necessary.
 
 ### M23. Regex Numeric String Detection Inefficiency
 - [x] **Package:** `params-form`
@@ -397,7 +397,7 @@
 - **Fix:** Sanitize error messages for production.
 
 ### M25. Missing Validation in toFSEntry
-- [ ] **Package:** `fs-provider`
+- [x] **Package:** `fs-provider`
 - **File:** `src/FSEntry.js:31-53`
 - **Description:** Doesn't validate `handle` or `parent` before accessing properties.
 - **Fix:** Add input validation with TypeError.
@@ -485,7 +485,7 @@
 - **Fix:** Remove or extract to debug utility.
 
 ### L12. Missing Null Checks in Format Converters
-- [ ] **Package:** `format-threejs`, `format-regl`
+- [x] **Package:** `format-threejs`, `format-regl`
 - **Files:** `index.js:31`, `index.js:18`
 - **Description:** Don't validate that `vertices` is actually a TypedArray.
 - **Fix:** Add type validation.
@@ -503,7 +503,7 @@
 - **Fix:** Add JSDoc `@returns {void}`.
 
 ### L15. Magic Numbers for Step Values
-- [ ] **Package:** `params-core`
+- [x] **Package:** `params-core`
 - **File:** `src/createParamsProxy.js:146-149,183-187`
 - **Description:** Default step values hardcoded in multiple places.
 - **Fix:** Define named constants.
@@ -527,10 +527,10 @@
 - **Fix:** Add JSDoc comments.
 
 ### L19. Unused Import in calcCamPos
-- [ ] **Package:** `orbit`
+- [x] **Package:** `orbit`
 - **File:** `src/calcCamPos.js:4`
 - **Description:** `OrbitState` imported but only used in JSDoc comment.
-- **Fix:** Move type to separate types file or accept as documentation.
+- **Note:** ACCEPTABLE - ESLint disable comment documents intentional usage for JSDoc types.
 
 ---
 

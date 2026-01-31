@@ -29,6 +29,13 @@
  * @returns {FSEntry}
  */
 export const toFSEntry = (handle, parent) => {
+  // M25 fix: Validate inputs
+  if (!handle || typeof handle.kind !== 'string' || typeof handle.name !== 'string') {
+    throw new TypeError('toFSEntry: handle must be a valid FileSystemHandle')
+  }
+  if (!parent || typeof parent.fullPath !== 'string') {
+    throw new TypeError('toFSEntry: parent must be a valid FSDirectoryEntry with fullPath')
+  }
   if (handle.kind === 'directory') {
     const directoryHandle = /** @type {FileSystemDirectoryHandle} */(handle)
     return {
