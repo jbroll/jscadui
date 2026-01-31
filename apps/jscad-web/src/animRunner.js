@@ -34,41 +34,43 @@ export class AnimRunner {
     value = parseFloat(value) + step
 
     let lastTime, now, delta, resp, paramValues, times
-    const _startTime = lastTime = now = Date.now()
+    lastTime = now = Date.now()
     let t = value
-    const _i = 1;
     let dir = loop == 'reverse' ? 1 : 0
 
+    try {
+      while (!this.shouldPause) {
+        if (t > max) {
+          while (t > max) t -= minMaxDelta
 
-    while (!this.shouldPause) {
-      if (t > max) {
-        while (t > max) t -= minMaxDelta
-
-        if (loop == 'reverse') {
-          dir *= -1
-        } else if (loop != 'restart') {
-          // end animation
-          break
+          if (loop == 'reverse') {
+            dir *= -1
+          } else if (loop != 'restart') {
+            // end animation
+            break
+          }
         }
-      }
 
-      times = { [name]: (dir == 1) ? t : max - t }
-      paramValues = { ...params, ...times }
-      resp = await this.worker.jscadMain({ params: paramValues, skipLog: true })
-      if (this.shouldPause) break
+        times = { [name]: (dir == 1) ? t : max - t }
+        paramValues = { ...params, ...times }
+        resp = await this.worker.jscadMain({ params: paramValues, skipLog: true })
+        if (this.shouldPause) break
 
-      now = Date.now()
-      delta = now - lastTime
-      if (delta < fpsMs) {
-        await waitTime(fpsMs - delta - 1)
-        if (this.shouldPause) {
-          console.log('Animation stopped between generating frame for ' + name + '=' + times[name] + ' and rendering it. Discarding the result.')
-          break
+        now = Date.now()
+        delta = now - lastTime
+        if (delta < fpsMs) {
+          await waitTime(fpsMs - delta - 1)
+          if (this.shouldPause) {
+            console.log('Animation stopped between generating frame for ' + name + '=' + times[name] + ' and rendering it. Discarding the result.')
+            break
+          }
         }
+        lastTime = Date.now()
+        t += step
+        this.options?.handleEntities?.(resp, paramValues, times)
       }
-      lastTime = Date.now()
-      t += step
-      this.options?.handleEntities?.(resp, paramValues, times)
+    } catch (err) {
+      console.error('Animation error:', err)
     }
     this.options?.handleEnd?.()
   }

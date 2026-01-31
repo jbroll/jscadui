@@ -45,7 +45,7 @@ const readAs = async (f, as) => {
     reader.onerror = error => {
       const msg = 'error reading ' + f.name
       console.error(msg, f, error)
-      reject(msg)
+      reject(new Error(msg))
     }
     reader[as](f)
   })

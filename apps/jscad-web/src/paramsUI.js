@@ -196,11 +196,14 @@ export function handleTreeParamChange(paramPath, value, onScheduleUpdate) {
   const linkedPaths = paramsCtrl.setParam(paramPath, value)
   if (linkedPaths.length === 0) return
 
+  // Use Set for O(1) lookups instead of O(n) array.includes()
+  const linkedPathsSet = new Set(linkedPaths)
+
   // Update linked inputs in DOM directly (don't re-render whole tree)
   const inputs = document.querySelectorAll('[data-param-path]')
   for (const input of inputs) {
     const path = input.dataset.paramPath
-    if (linkedPaths.includes(path) && path !== paramPath) {
+    if (linkedPathsSet.has(path) && path !== paramPath) {
       // Use updateValue method if available (for complex inputs like sliders, colors)
       if (typeof input.updateValue === 'function') {
         input.updateValue(value)

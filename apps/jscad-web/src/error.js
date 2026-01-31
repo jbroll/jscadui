@@ -7,7 +7,9 @@ const errorMessage = document.getElementById('error-message')
  */
 export const setError = error => {
   if (error) {
-    const name = (error.name || 'Error') + ': '
+    // Type-safe access to error properties
+    const isErrorLike = error && typeof error === 'object'
+    const name = (isErrorLike && 'name' in error ? error.name : 'Error') + ': '
     errorName.innerText = name
     const message = formatStacktrace(error)
     errorMessage.innerText = message
@@ -21,13 +23,19 @@ export const setError = error => {
  * Extracts the stacktrace for an error thrown from inside an eval function.
  * Returns the stacktrace as a string for just the code running inside eval.
  *
- * @param {Error} error
+ * @param {unknown} error
  * @returns {string} - stacktrace for code inside eval
  */
 const formatStacktrace = (error) => {
+  // Handle non-object errors
+  if (!error || typeof error !== 'object') {
+    return String(error)
+  }
+
   // error.stack is not standard but works on chrome and firefox
-  const stack = error.stack
-  if (!stack) return error.toString()
+  const stack = 'stack' in error ? error.stack : undefined
+  const message = 'message' in error ? error.message : String(error)
+  if (!stack) return message || String(error)
 
   // chrome stacktrace (script error, syntax error):
   //  ReferenceError: gggggg is not defined
@@ -40,6 +48,6 @@ const formatStacktrace = (error) => {
     .split('\n')
     .filter(line => !line.includes('bundle.worker.js'))
 
-  if (!stack.includes(error.message)) cleaned.unshift(error.message)
+  if (message && !stack.includes(message)) cleaned.unshift(message)
   return cleaned.join('\n')
 }

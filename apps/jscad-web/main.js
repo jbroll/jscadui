@@ -150,9 +150,6 @@ const { workerApi, handlers } = createWorker({
   onJobCount: trackJobs
 })
 
-// Update handlers to use our handleEntities
-handlers.entities = handleEntities
-
 // ============== File System Setup ==============
 const dropModal = byId('dropModal')
 
@@ -227,7 +224,7 @@ let lastParams
  * @param {string} [source]
  */
 const paramChangeCallback = async (params, source) => {
-  if (source == 'group') return
+  if (source === 'group') return
 
   // Track changed params in proxy mode
   if (useParamsProxy && lastRunParams) {
@@ -536,10 +533,9 @@ try {
 if ('serviceWorker' in navigator && !navigator.serviceWorker.controller) {
   const lastReload = localStorage.getItem('lastReload')
   if (lastReload === null || Date.now() - parseInt(lastReload) > 3000) {
-    setError('cannot start service worker, reloading')
     localStorage.setItem('lastReload', Date.now().toString())
+    setError('cannot start service worker, reloading')
   } else {
-    console.error('cannot start service worker, reload required')
+    setError('cannot start service worker, reload required')
   }
-  setError('cannot start service worker, reload required')
 }

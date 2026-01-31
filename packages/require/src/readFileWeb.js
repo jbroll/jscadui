@@ -12,9 +12,11 @@ export const readFileWeb = (path, {base = '', output='text'}={}) => {
   }
   
   req.send()
-  if (req.status && req.status === 404) {
+  if (req.status === 0) {
+    throw new Error(`network error fetching ${path}`)
+  } else if (req.status === 404) {
     throw new Error(`file not found ${path}`)
-  } else if (req.status && req.status !== 200) {
+  } else if (req.status !== 200) {
     throw new Error(`failed to fetch file ${path} ${req.status} ${req.statusText}`)
   }
 

@@ -25,7 +25,8 @@ async function handleFromEntry(entry)
             try {
               yield await handleFromEntry(e)
             }
-            catch {
+            catch (err) {
+              console.warn('Safari file handle error for entry:', e?.name, err)
               continue
             }
           }

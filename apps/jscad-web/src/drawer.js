@@ -1,3 +1,7 @@
+// Thresholds for drag detection
+const DRAG_THRESHOLD_PX = 5
+const LONG_PRESS_MS = 200
+
 let isMouseDown = false
 let isDragging = false
 let dragStartX = 0
@@ -51,8 +55,8 @@ export const init = () => {
   const handlePointerMove = (e) => {
     if (isMouseDown) {
       const delta = e.clientX - dragStartX
-      // Moved more than 5 pixels, assume dragging
-      if (isDragging || Math.abs(delta) > 5) {
+      // Moved more than threshold, assume dragging
+      if (isDragging || Math.abs(delta) > DRAG_THRESHOLD_PX) {
         isDragging = true
         editor.classList.remove('transition') // no animation when dragging
         const width = Math.max(0, dragStartWidth - delta)
@@ -64,7 +68,7 @@ export const init = () => {
   const handlePointerUp = (e) => {
     const downTime = e.timeStamp - dragStartTime
     // Long press, assume dragging
-    if (isDragging || downTime > 200) {
+    if (isDragging || downTime > LONG_PRESS_MS) {
       // Prevent click
       isDragging = true
       // Save width

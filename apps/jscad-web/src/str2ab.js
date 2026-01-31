@@ -3,10 +3,10 @@
  * @returns {Uint8Array}
  */
 export function str2ab(str) {
-  var arrBuff = new ArrayBuffer(str.length);
-  var bytes = new Uint8Array(arrBuff);
-  for (var iii = 0; iii < str.length; iii++) {
-    bytes[iii] = str.charCodeAt(iii);
+  const arrBuff = new ArrayBuffer(str.length);
+  const bytes = new Uint8Array(arrBuff);
+  for (let i = 0; i < str.length; i++) {
+    bytes[i] = str.charCodeAt(i);
   }
   return bytes;
 }

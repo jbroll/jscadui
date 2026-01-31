@@ -172,6 +172,7 @@ export const registerServiceWorker = async (
       }
     } catch (error) {
       console.error(`service worker registration failed with ${error}`)
+      throw error
     }
 
     // this code handle app first load, when the serviceWorker is still activating
@@ -372,7 +373,7 @@ export async function fileDropped(sw, files) {
   sw.filesToCheck.length = 0
   const candidates = ['index.js', 'index.ts']
   sw.fileToRun = candidates[0]
-  clearFs(sw)
+  await clearFs(sw)
   /** @type {Array<FSEntry>}*/
   let rootFiles = []
   if (files.length === 1) {
