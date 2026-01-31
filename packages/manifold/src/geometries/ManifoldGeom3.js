@@ -290,6 +290,11 @@ export class ManifoldGeom3 {
   /**
    * Clone this geometry.
    *
+   * Note: This shares the underlying Manifold object reference, which is safe because
+   * Manifold objects are immutable - all operations (subtract, union, transform, etc.)
+   * return NEW Manifold objects rather than mutating in place. This is the same
+   * pattern used by JSCAD's geom3.clone().
+   *
    * @returns {ManifoldGeom3} A new ManifoldGeom3 with copied data
    */
   clone() {
