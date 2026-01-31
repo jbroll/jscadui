@@ -252,13 +252,13 @@ export const createParamsProxy = (state, path = '') => {
         return defaults[propStr]
       }
 
-      // In flat mode (legacy scripts), return undefined for unknown properties
-      // This preserves compatibility with the `params.prop || default` pattern
+      // In flat mode, return undefined for unknown properties
+      // This supports destructuring defaults: const { radius = 5 } = params
       if (state.mode === 'flat') {
         return undefined
       }
 
-      // Auto-create child proxy for sub-parts (hierarchical mode)
+      // In hierarchical mode, create child proxies for nested parts
       if (!(propStr in children)) {
         children[propStr] = createParamsProxy(state, fullPath)
       }
