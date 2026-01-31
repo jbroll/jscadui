@@ -11,7 +11,8 @@ export const forEachButton = (el, cb) => forQS(el, BUTTON_SELECTOR, cb)
 const numeric = { number: 1, float: 1, int: 1, range: 1, slider: 1 }
 
 // M23 fix: Pre-compile regex to avoid creating it on every loop iteration
-const NUMERIC_STRING_REGEX = /^(\d+|\d+\.\d+)$/
+// L12 fix: Support negative numbers
+const NUMERIC_STRING_REGEX = /^-?(\d+|\d+\.\d+)$/
 
 /**
  * Escape HTML special characters to prevent XSS attacks.

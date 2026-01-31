@@ -5,7 +5,11 @@
  * @returns {import('gl-matrix').mat4}
  */
 export const fromXZRotation = (rx, rz) => {
-  // L6 fix: Removed commented-out dead code, changed var to const
+  // L10 fix: Validate inputs to prevent NaN propagation through matrix calculations
+  if (!Number.isFinite(rx) || !Number.isFinite(rz)) {
+    // Return identity matrix for invalid inputs
+    return [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
+  }
   const zs = Math.sin(rz)
   const zc = Math.cos(rz)
   const xs = Math.sin(rx)

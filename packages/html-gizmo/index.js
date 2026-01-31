@@ -99,6 +99,14 @@ export class Gizmo extends HTMLElement {
   }
 
   setNames(_names = names) {
+    // L11 fix: Store names for deferred setup if not yet connected to DOM
+    // This prevents event listener leaks when setNames is called before connectedCallback
+    this.#names = _names
+    if (!this.#root) {
+      // Will be applied when connectedCallback runs
+      return
+    }
+
     this.#cleanupListeners()
 
     // Clear existing sides before adding new ones

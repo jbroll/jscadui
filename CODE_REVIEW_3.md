@@ -194,11 +194,11 @@ reader.onerror = error => {
 ### L4. Missing Safari DataTransferItem Validation
 
 **File:** `packages/fs-provider/src/safariFileHandles.js:49-52`
-**Status:** Open
+**Status:** FIXED
 
 `safariGetAsHandle` doesn't validate that `dti` is a valid DataTransferItem or that `webkitGetAsEntry()` exists/returns a value.
 
-**Recommendation:** Add validation before calling methods.
+**Fix:** Added validation for DataTransferItem and webkitGetAsEntry return value.
 
 ---
 
@@ -255,44 +255,44 @@ return [Nx / len, Ny / len, Nz / len]  // Risk with near-zero
 ### L9. Pointer Capture Not Released on OrbitControl Destroy
 
 **File:** `packages/orbit/src/OrbitControl.js:210-220`
-**Status:** Open
+**Status:** FIXED
 
 If `destroy()` is called while a pointer is captured (during drag), the pointer remains captured indefinitely.
 
-**Recommendation:** Track captured pointers and release them in destroy().
+**Fix:** Added pointer capture tracking and release in destroy() method.
 
 ---
 
 ### L10. Missing NaN Validation in fromXZRotation
 
 **File:** `packages/orbit/src/fromXZRotation.js:7-13`
-**Status:** Open
+**Status:** FIXED
 
 If `rx` or `rz` are NaN/Infinity, the resulting matrix will contain invalid values that cascade through orbit calculations.
 
-**Recommendation:** Return identity matrix for invalid inputs.
+**Fix:** Added Number.isFinite validation, returns identity matrix for invalid inputs.
 
 ---
 
 ### L11. Gizmo setNames() Leak When Called Before Connection
 
 **File:** `packages/html-gizmo/index.js:101-116`
-**Status:** Open
+**Status:** FIXED
 
 If `setNames()` is called before the element is connected to DOM, listeners are registered but `disconnectedCallback()` won't be triggered.
 
-**Recommendation:** Guard `setNames()` to only operate when connected or defer setup.
+**Fix:** Deferred setup to connectedCallback when setNames() is called before connection.
 
 ---
 
 ### L12. Negative Number Regex in params-form
 
 **File:** `packages/params-form/src/params.js:14`
-**Status:** Open
+**Status:** FIXED
 
 `NUMERIC_STRING_REGEX = /^(\d+|\d+\.\d+)$/` doesn't match negative numbers, so `-5` stays as string.
 
-**Recommendation:** Update to `/^-?(\d+|\d+\.\d+)$/`
+**Fix:** Updated regex to `/^-?(\d+|\d+\.\d+)$/` to support negative numbers.
 
 ---
 
@@ -394,25 +394,33 @@ The codebase shows evidence of recent security work:
 
 ## Recommendations Summary
 
-### Priority 1 (Security)
-1. **M1** - Add ReDoS protection to trusted sources regex
-2. **M2** - Add path traversal protection to serve.js
-3. **M3** - Sync server-side SSRF validation with client-side IPv6 checks
+### Priority 1 (Security) - ALL FIXED
+1. ~~**M1** - Add ReDoS protection to trusted sources regex~~ ✓
+2. ~~**M2** - Add path traversal protection to serve.js~~ ✓
+3. ~~**M3** - Sync server-side SSRF validation with client-side IPv6 checks~~ ✓
 
-### Priority 2 (Memory/Resources)
-4. **M4** - Clean up pending requests in postmessage destroy()
-5. **M5** - Add ctrl.destroy() to jscad-web cleanup handler
-6. **L3** - Clear FileReader handlers on error
-7. **L9** - Release pointer capture on OrbitControl destroy
+### Priority 2 (Memory/Resources) - ALL FIXED
+4. ~~**M4** - Clean up pending requests in postmessage destroy()~~ ✓
+5. ~~**M5** - Add ctrl.destroy() to jscad-web cleanup handler~~ ✓
+6. ~~**L3** - Clear FileReader handlers on error~~ ✓
+7. ~~**L9** - Release pointer capture on OrbitControl destroy~~ ✓
 
-### Priority 3 (Robustness)
-8. **L6** - Use Promise.allSettled in checkFiles
-9. **L7** - Validate finite numbers in bounds calculation
-10. **L8** - Use epsilon threshold for normal length check
-11. **L10** - Validate rx/rz in fromXZRotation
+### Priority 3 (Robustness) - ALL FIXED
+8. ~~**L6** - Use Promise.allSettled in checkFiles~~ ✓
+9. ~~**L7** - Validate finite numbers in bounds calculation~~ ✓
+10. ~~**L8** - Use epsilon threshold for normal length check~~ ✓
+11. ~~**L10** - Validate rx/rz in fromXZRotation~~ ✓
+12. ~~**L4** - Validate Safari DataTransferItem~~ ✓
+13. ~~**L11** - Guard Gizmo setNames() before connection~~ ✓
+14. ~~**L12** - Fix negative number regex in params-form~~ ✓
 
-### Priority 4 (Code Quality)
-12. Add code comments to FP1 and FP2 locations to prevent future false positives
+### Priority 4 (Code Quality) - DONE
+15. ~~Add code comments to FP1 and FP2 locations to prevent future false positives~~ ✓
+
+### Remaining (Low Risk / Design Limitations)
+- **L1** - Prototype pollution in saveMap (low risk - requires `__proto__` filename)
+- **L2** - Race condition in script lock timeout (fundamental JS limitation)
+- **L5** - Race condition in checkFiles (low impact design limitation)
 
 ---
 

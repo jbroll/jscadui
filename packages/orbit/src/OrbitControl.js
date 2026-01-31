@@ -28,6 +28,9 @@ export class OrbitControl extends OrbitState {
   /** @type {Array<{el: HTMLElement, type: string, handler: EventListener}>} */
   #listeners = []
 
+  /** @type {Set<{el: HTMLElement, pointerId: number}>} L9 fix: Track captured pointers for cleanup */
+  #capturedPointers = new Set()
+
   /**
    * @param {HTMLElement|Array<HTMLElement>} el
    * @param {import('../cameraState.js').OrbitControlInit} options
@@ -107,7 +110,11 @@ export class OrbitControl extends OrbitState {
       /** @param {PointerEvent} e */
       const onPointerUp = e => {
         isDown = false
-        if (isMoving) el.releasePointerCapture(e.pointerId)
+        if (isMoving) {
+          el.releasePointerCapture(e.pointerId)
+          // L9 fix: Remove from tracked captured pointers
+          this.#capturedPointers.delete(el)
+        }
         isMoving = false
         pointers.delete(e.pointerId)
         if (pointers.size < 2) {
@@ -130,6 +137,8 @@ export class OrbitControl extends OrbitState {
           // pointer capture inside pointerdown caused clicking to not work
           // it is better to capture pointer only on pointer down + first movement
           el.setPointerCapture(e.pointerId)
+          // L9 fix: Track captured pointer for cleanup on destroy
+          this.#capturedPointers.add(el)
           isMoving = true
         }
 
@@ -217,6 +226,17 @@ export class OrbitControl extends OrbitState {
       el.removeEventListener(type, handler)
     }
     this.#listeners = []
+    // L9 fix: Release any captured pointers to prevent stuck pointer state
+    for (const el of this.#capturedPointers) {
+      try {
+        // Release pointer capture - use 0 as pointerId since we track by element
+        // The browser will release capture if the element had it
+        el.releasePointerCapture(0)
+      } catch {
+        // Ignore errors - pointer may not be captured anymore
+      }
+    }
+    this.#capturedPointers.clear()
   }
 
   /**

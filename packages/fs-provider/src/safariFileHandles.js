@@ -48,6 +48,14 @@ async function handleFromEntry(entry)
  */
 export async function safariGetAsHandle(dti)
 {
-  return handleFromEntry(dti.webkitGetAsEntry())
+  // L4 fix: Validate DataTransferItem before accessing webkitGetAsEntry
+  if (!dti || typeof dti.webkitGetAsEntry !== 'function') {
+    throw new TypeError('Invalid DataTransferItem: webkitGetAsEntry not available')
+  }
+  const entry = dti.webkitGetAsEntry()
+  if (!entry) {
+    throw new Error('Failed to get entry from DataTransferItem')
+  }
+  return handleFromEntry(entry)
 }
 
