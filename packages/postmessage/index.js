@@ -94,18 +94,20 @@ export const initMessaging = (_self, handlers, { onJobCount, debug } = {}) => {
     ___self.postMessage({ method, params, id }, fixTransfer(transferable))
 
     const out = new Promise((resolve, reject) => {
-      reqMap.set(id, [resolve, reject])
-      onJobCount?.(reqMap.size)
       // H11 fix: Always use a timeout (default or provided) to prevent memory leak
       // from requests that never receive responses
       const effectiveTimeout = timeout ?? DEFAULT_TIMEOUT
-      setTimeout(() => {
+      // H2 fix: Store timeout ID so it can be cleared when response arrives
+      const timeoutId = setTimeout(() => {
         if (reqMap.has(id)) {
           reqMap.delete(id)
           onJobCount?.(reqMap.size)
           reject(new Error(`RPC timeout for ${method} after ${effectiveTimeout}ms`))
         }
       }, effectiveTimeout)
+      // Store resolve, reject, and timeoutId for cleanup
+      reqMap.set(id, [resolve, reject, timeoutId])
+      onJobCount?.(reqMap.size)
     })
     return out
   }
@@ -120,7 +122,9 @@ export const initMessaging = (_self, handlers, { onJobCount, debug } = {}) => {
       reqMap.delete(id)
       onJobCount?.(reqMap.size)
 
-      const [resolve, reject] = p
+      const [resolve, reject, timeoutId] = p
+      // H2 fix: Clear timeout when response arrives to prevent memory leak
+      if (timeoutId) clearTimeout(timeoutId)
       if (error) {
         // restore stacktrace
         // if(typeof error === 'string')
@@ -152,13 +156,19 @@ export const initMessaging = (_self, handlers, { onJobCount, debug } = {}) => {
     }
   }
 
-  _self.addEventListener?.('message', listener)
+  // H1 fix: Wrap async listener to catch unhandled rejections
+  const wrappedListener = (e) => {
+    listener(e).catch(err => {
+      console.error('Unhandled error in message listener:', err)
+    })
+  }
+  _self.addEventListener?.('message', wrappedListener)
 
   /**
    * Clean up the message listener. Call when messaging is no longer needed.
    */
   const destroy = () => {
-    _self.removeEventListener?.('message', listener)
+    _self.removeEventListener?.('message', wrappedListener)
   }
 
   return {
