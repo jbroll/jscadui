@@ -21,21 +21,21 @@
 ## Critical Issues
 
 ### C1. Memory Leak - WebGL Buffers Not Disposed in render-regl
-- [ ] **Package:** `render-regl`
+- [x] **Package:** `render-regl`
 - **Files:** `src/commands/drawMesh.js:76-119`, `drawLines.js:50-89`, `drawLineStrip.js:51-84`, `drawMeshInstanced.js:26-29`
 - **Description:** WebGL buffer resources created with `regl.buffer()` and `regl.elements()` are never disposed. Commands are cached in `drawCache` but there's no cleanup mechanism. Over time, the cache grows unbounded and underlying WebGL buffers are never freed.
 - **Impact:** Progressive memory leak causing browser crashes or severe performance degradation for long-running sessions.
 - **Fix:** Store buffer references, implement `dispose()` method, clear cache and dispose all WebGL resources on viewer destroy.
 
 ### C2. Incorrect Loop Bounds - Skips First Two Vertices in Bounding Box
-- [ ] **Package:** `format-common`
+- [x] **Package:** `format-common`
 - **File:** `index.js:26`
 - **Description:** The bounding box calculation loop starts at `i=5` instead of `i=3`, skipping the second vertex.
 - **Impact:** Bounding boxes incorrectly calculated for all geometries, causing camera positioning and viewport fitting issues.
 - **Fix:** Change `for(let i=5;` to `for(let i=3;`
 
 ### C3. Circular Dependency Detection Not Cleared on Error
-- [ ] **Package:** `require`
+- [x] **Package:** `require`
 - **File:** `src/require.js:97-138`
 - **Description:** If an error occurs during module loading, `requireCache.loading.delete(cacheUrl)` cleanup at line 178 is never reached. This leaves the URL in the loading set permanently.
 - **Impact:** Once a module fails to load, it can never be retried, even if the error was transient.
@@ -49,13 +49,13 @@
 - **Fix:** Document limitation prominently, implement CSP restrictions, add sandboxing/permission system, implement subresource integrity checks.
 
 ### C5. Race Condition in Animation Runner
-- [ ] **Package:** `jscad-web`
+- [x] **Package:** `jscad-web`
 - **File:** `src/animRunner.js:24-76`
 - **Description:** The `running` flag is set to `true` but `pause()` doesn't set it to `false`. If `pause()` is called immediately after `start()`, the animation might not properly stop.
 - **Fix:** Add `this.running = false` in `pause()` method.
 
 ### C6. Missing Cleanup for Animation Timer
-- [ ] **Package:** `jscad-web`
+- [x] **Package:** `jscad-web`
 - **File:** `src/animRunner.js:42-76`
 - **Description:** Animation uses `waitTime()` with `setTimeout` but doesn't track or clear timeouts when paused.
 - **Impact:** Timeout remains active after pause, causing unexpected behavior.
@@ -68,14 +68,14 @@
 - **Fix:** Either reload immediately or propagate the error properly.
 
 ### C8. Memory Leak - requestAnimationFrame Loop Not Stopped
-- [ ] **Package:** `fs-provider`
+- [x] **Package:** `fs-provider`
 - **File:** `fs-provider.js:362`
 - **Description:** The `checkFiles` function creates an infinite `requestAnimationFrame` loop that never stops, even when the service worker is destroyed.
 - **Impact:** Memory leak, unnecessary CPU cycles, function continues after `clearFs()`.
 - **Fix:** Add cancellation mechanism with `cancelAnimationFrame`.
 
 ### C9. Potential Path Traversal in File Resolution
-- [ ] **Package:** `fs-provider`
+- [x] **Package:** `fs-provider`
 - **File:** `fs-provider.js:50,293`
 - **Description:** While `splitPath()` filters `..` and `.` segments, array paths bypass this validation in `findFileInRoots`.
 - **Impact:** Potential directory traversal if attacker can pass pre-split arrays.
@@ -92,37 +92,37 @@
 ## High Severity Issues
 
 ### H1. Unsafe innerHTML Usage in Trusted Sources UI
-- [ ] **Package:** `jscad-web`
+- [x] **Package:** `jscad-web`
 - **File:** `src/trustedSourcesUI.js:31-54,130-149`
 - **Description:** Uses `innerHTML` for rendering. While `escapeHtml()` is used, defense-in-depth suggests avoiding innerHTML entirely for user content.
 - **Fix:** Use `textContent` or DOM methods throughout.
 
 ### H2. Memory Leak in File Watcher
-- [ ] **Package:** `jscad-web`
+- [x] **Package:** `jscad-web`
 - **File:** `src/fileSystem.js:203-222`
 - **Description:** File watcher interval cleanup only works on full page unload. If file system is reinitialized, interval continues.
 - **Fix:** Return cleanup function instead of relying on `beforeunload`.
 
 ### H3. Unhandled Promise Rejection in Editor
-- [ ] **Package:** `jscad-web`
+- [x] **Package:** `jscad-web`
 - **File:** `src/editor.js:140-151`
 - **Description:** `filesChanged` is async but doesn't catch errors from `getFileFn()` or `readAsText()`.
 - **Fix:** Wrap in try-catch with proper error logging.
 
 ### H4. Type Coercion Bug in Comparison
-- [ ] **Package:** `jscad-web`
+- [x] **Package:** `jscad-web`
 - **File:** `src/editor.js:144`
 - **Description:** Using loose equality (`==`) to compare path strings with file objects that have `.name` property.
 - **Fix:** Use strict equality (`===`).
 
 ### H5. Race Condition in Model Update
-- [ ] **Package:** `jscad-web`
+- [x] **Package:** `jscad-web`
 - **File:** `src/paramsUI.js:171-214`
 - **Description:** `runModelUpdate` has race condition - if called while working, `modelUpdatePending` is set but recursive call doesn't pass `deps` parameter correctly.
 - **Fix:** Store pending deps and use them in recursive call.
 
 ### H6. Potential Division by Zero
-- [ ] **Package:** `jscad-web`
+- [x] **Package:** `jscad-web`
 - **File:** `src/animRunner.js:28-34`
 - **Description:** If `fps` is 0 or negative, division by zero occurs.
 - **Fix:** Add validation: `if (!fps || fps <= 0) throw new Error('Animation fps must be positive')`
@@ -201,31 +201,31 @@
 - **Fix:** Add more robust state validation and recovery.
 
 ### H19. Infinite Loop Risk in normalizeAngle
-- [ ] **Package:** `orbit`
+- [x] **Package:** `orbit`
 - **File:** `src/normalizeAngle.js:9-13`
 - **Description:** `while` loops without guards - `Infinity`, `-Infinity`, or `NaN` creates infinite loop.
 - **Fix:** Add validation: `if (!Number.isFinite(a)) return 0`
 
 ### H20. Missing Input Validation in makeGrid
-- [ ] **Package:** `scene`
+- [x] **Package:** `scene`
 - **File:** `src/makeGrid.js:18`
 - **Description:** Validates `size` but not `color1` and `color2` arrays.
 - **Fix:** Add color array validation with defaults.
 
 ### H21. Missing Error Boundary in Promise.race Timeout
-- [ ] **Package:** `fs-serviceworker`
+- [x] **Package:** `fs-serviceworker`
 - **File:** `fs-serviceworker.js:115-119`
 - **Description:** Timeout Promise always resolves, errors in `fetchFile()` after timeout are silently ignored.
 - **Fix:** Add error handling to log issues even when timeout wins.
 
 ### H22. Color Swatch Comparison Bug
-- [ ] **Package:** `params-ui`
+- [x] **Package:** `params-ui`
 - **File:** `src/inputs.js:290-294`
 - **Description:** Compares `style.backgroundColor` (rgb format) with hex strings - always fails.
 - **Fix:** Compare using `title` attribute only, or normalize both to hex.
 
 ### H23. Value Validation Missing in Number Input
-- [ ] **Package:** `params-ui`
+- [x] **Package:** `params-ui`
 - **File:** `src/inputs.js:79-84`
 - **Description:** Number input's `oninput` handler doesn't validate against min/max constraints.
 - **Fix:** Add constraint validation before calling `onChange`.
@@ -253,25 +253,25 @@
 ## Medium Severity Issues
 
 ### M1. Missing Null Check in Editor
-- [ ] **Package:** `jscad-web`
+- [x] **Package:** `jscad-web`
 - **File:** `src/editor.js:109-114`
 - **Description:** `document.getElementById` can return null but code assumes elements exist.
 - **Fix:** Add null checks before adding event listeners.
 
 ### M2. Inconsistent Error Handling in Remote Loading
-- [ ] **Package:** `jscad-web`
+- [x] **Package:** `jscad-web`
 - **File:** `src/remote.js:62-86`
 - **Description:** Returns `true` on success but only logs errors instead of returning `false`.
 - **Fix:** Return `false` on error for consistent API.
 
 ### M3. Unsafe parseInt Without Radix
-- [ ] **Package:** `jscad-web`
+- [x] **Package:** `jscad-web`
 - **File:** `src/drawer.js:39`
 - **Description:** `parseInt` without radix parameter can lead to unexpected behavior.
 - **Fix:** Add radix parameter: `parseInt(..., 10)`
 
 ### M4. Memory Leak - Event Listener Not Removed
-- [ ] **Package:** `jscad-web`
+- [x] **Package:** `jscad-web`
 - **File:** `src/trustedSourcesUI.js:88-96`
 - **Description:** Keydown event listener for Escape only removed on Escape, not on Cancel/Allow buttons.
 - **Fix:** Add cleanup to all exit paths.
@@ -289,7 +289,7 @@
 - **Fix:** Use consistent patterns throughout.
 
 ### M7. Potential NaN from Invalid Input
-- [ ] **Package:** `jscad-web`
+- [x] **Package:** `jscad-web`
 - **File:** `src/animRunner.js:34`
 - **Description:** `parseFloat(value)` can return NaN which propagates through calculations.
 - **Fix:** Check for NaN and reset to min value.
@@ -301,7 +301,7 @@
 - **Fix:** Enhance validation or rely on server-side proxy.
 
 ### M9. Floating Promise in Main.js
-- [ ] **Package:** `jscad-web`
+- [x] **Package:** `jscad-web`
 - **File:** `main.js:177`
 - **Description:** `reloadProject()` is async but called without await, errors aren't caught.
 - **Fix:** Add `.catch(err => setError(err))`.
@@ -419,13 +419,13 @@
 ## Low Severity Issues
 
 ### L1. Dead Code - Unused Variable
-- [ ] **Package:** `jscad-web`
+- [x] **Package:** `jscad-web`
 - **File:** `src/addV1Shim.js:8`
 - **Description:** `debug` destructured but never used.
 - **Fix:** Remove from destructuring.
 
 ### L2. Console.warn Instead of Console.log
-- [ ] **Package:** `jscad-web`
+- [x] **Package:** `jscad-web`
 - **File:** `main.js:129`
 - **Description:** Bounding box coordinates logged with `console.warn` instead of `console.log`.
 - **Fix:** Use appropriate log level.
@@ -449,7 +449,7 @@
 - **Fix:** Document that callers should not use transferable objects after sending.
 
 ### L6. Commented-Out Dead Code
-- [ ] **Package:** `orbit`
+- [x] **Package:** `orbit`
 - **File:** `src/fromXZRotation.js:13-30`
 - **Description:** Large block of commented-out code duplicating active code.
 - **Fix:** Delete lines 13-30.
@@ -467,7 +467,7 @@
 - **Fix:** Consider making `names` private with getter.
 
 ### L9. Unnecessary Variable Declarations
-- [ ] **Package:** `fs-provider`
+- [x] **Package:** `fs-provider`
 - **File:** `fs-provider.js:272`
 - **Description:** Uses `var` instead of `const`/`let`.
 - **Fix:** Use `let` instead.
