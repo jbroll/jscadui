@@ -68,6 +68,9 @@ export function RenderRegl(reglOrOptions) {
 
   const state = {}
   let currentPerspectiveCamera
+  // C4 fix: Track initialization state for async regl loading
+  let initPromise = null
+  let initialized = false
 
   /**
    * Start the renderer
@@ -111,10 +114,12 @@ export function RenderRegl(reglOrOptions) {
     if (isExternalRenderer) {
       // Use external prepareRender
       renderer = externalPrepareRender(setupOptions)
+      initialized = true
     } else {
       // Use internal renderer
       // Dynamically import regl and create renderer
-      import('regl').then(reglModule => {
+      // C4 fix: Store promise for waiting on initialization
+      initPromise = import('regl').then(reglModule => {
         const createRegl = reglModule.default
         const regl = createRegl(setupOptions.glOptions)
 
@@ -185,6 +190,18 @@ export function RenderRegl(reglOrOptions) {
           }
         }
 
+        // C3 fix: Add method to clear draw cache when scene changes
+        renderer.clearCache = () => {
+          drawCache.forEach(cmd => {
+            if (cmd && typeof cmd.destroy === 'function') {
+              cmd.destroy()
+            }
+          })
+          drawCache.clear()
+        }
+
+        // C4 fix: Mark as initialized
+        initialized = true
         updateView()
       }).catch(err => {
         console.error('Failed to load regl:', err)
@@ -218,7 +235,13 @@ export function RenderRegl(reglOrOptions) {
   const tmFunc = typeof requestAnimationFrame === 'undefined' ? setTimeout : requestAnimationFrame
 
   function updateView(delay = 8) {
-    if (renderTimer || !renderer) return
+    if (renderTimer) return
+    // C4 fix: If not initialized yet, wait for init to complete then update
+    if (!initialized && initPromise) {
+      initPromise.then(() => updateView(delay))
+      return
+    }
+    if (!renderer) return
     renderTimer = tmFunc(updateAndRender, delay)
   }
 
@@ -414,6 +437,8 @@ export function RenderRegl(reglOrOptions) {
     })
 
     function setScene(_scene) {
+      // C3 fix: Clear draw cache to free old WebGL buffers before loading new scene
+      renderer?.clearCache?.()
       entities.length = 0
       const transparent = []
       _scene.items.forEach(item => {

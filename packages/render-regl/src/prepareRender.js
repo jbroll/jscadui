@@ -105,13 +105,33 @@ const prepareRender = (params) => {
     })
   }
 
-  // Return the render function
-  return function render(data) {
+  // Create render function
+  const render = function render(data) {
     // Poll for resize and other events
     regl.poll()
     // Execute render
     command(data)
   }
+
+  // C3 fix: Add method to clear draw cache when scene changes
+  render.clearCache = () => {
+    drawCache.forEach(cmd => {
+      if (cmd && typeof cmd.destroy === 'function') {
+        cmd.destroy()
+      }
+    })
+    drawCache.clear()
+  }
+
+  // C3 fix: Add destroy method
+  render.destroy = () => {
+    render.clearCache()
+    if (regl && typeof regl.destroy === 'function') {
+      regl.destroy()
+    }
+  }
+
+  return render
 }
 
 export default prepareRender
