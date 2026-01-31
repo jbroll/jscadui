@@ -135,12 +135,21 @@ export const createParamsTree = (options) => {
         toggle.textContent = isCollapsed ? '▶' : '▼'
         toggle.onclick = (e) => {
           e.stopPropagation()
-          if (isCollapsed) {
+          const wasCollapsed = collapsed.has(node.path)
+          if (wasCollapsed) {
             collapsed.delete(node.path)
           } else {
             collapsed.add(node.path)
           }
-          render()
+          // Incremental update: toggle visibility without full re-render
+          const content = div.querySelector(':scope > .params-tree-content')
+          if (content) {
+            content.classList.toggle('params-tree-content--collapsed', !wasCollapsed)
+            toggle.textContent = wasCollapsed ? '▼' : '▶'
+          } else {
+            // Content doesn't exist yet (was initially collapsed), need full render
+            render()
+          }
         }
         indent.appendChild(toggle)
       }
@@ -189,10 +198,13 @@ export const createParamsTree = (options) => {
       div.appendChild(header)
     }
 
-    // Content (params and children)
-    if (!isCollapsed || !node.path) {
+    // Content (params and children) - always render, use CSS for collapse
+    if (hasChildren || hasParams || !node.path) {
       const content = document.createElement('div')
       content.className = 'params-tree-content'
+      if (isCollapsed && node.path) {
+        content.classList.add('params-tree-content--collapsed')
+      }
 
       // Params
       for (const param of node.params) {
@@ -615,6 +627,9 @@ export const paramsTreeStyles = `
   display: grid;
   grid-template-columns: subgrid;
   grid-column: 1 / -1;
+}
+.params-tree-content--collapsed {
+  display: none;
 }
 
 /* Header row uses subgrid */

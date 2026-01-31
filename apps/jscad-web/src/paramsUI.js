@@ -7,6 +7,33 @@ import { createParamsTree, paramsTreeStyles, inputStyles } from '@jscadui/params
 import { createParamsController } from '@jscadui/params-controller'
 
 /**
+ * Efficiently compare two Maps or Map-like objects for equality.
+ * Avoids JSON.stringify overhead for structural comparison.
+ * @param {Map|Object|undefined} a
+ * @param {Map|Object|undefined} b
+ * @returns {boolean} True if equal
+ */
+const mapsEqual = (a, b) => {
+  if (a === b) return true
+  if (!a || !b) return a === b
+
+  // Handle Maps or plain objects
+  const aIsMap = a instanceof Map
+  const bIsMap = b instanceof Map
+  const aEntries = aIsMap ? Array.from(a.entries()) : Object.entries(a)
+  const bSize = bIsMap ? b.size : Object.keys(b).length
+
+  if (aEntries.length !== bSize) return false
+
+  // Check each entry exists in b with same value
+  for (const [key, value] of aEntries) {
+    const bValue = bIsMap ? b.get(key) : b[key]
+    if (bValue !== value) return false
+  }
+  return true
+}
+
+/**
  * @typedef {import('@jscadui/worker').JscadWorker} JscadWorker
  */
 
@@ -161,8 +188,8 @@ export async function runModelUpdate(deps) {
       paramsCtrl.updateProxyState(result.proxyState)
 
       const structureChanged = (
-        JSON.stringify(oldState?.types) !== JSON.stringify(result.proxyState.types) ||
-        JSON.stringify(oldState?.classes) !== JSON.stringify(result.proxyState.classes)
+        !mapsEqual(oldState?.types, result.proxyState.types) ||
+        !mapsEqual(oldState?.classes, result.proxyState.classes)
       )
 
       // Always update tree to refresh constrained param defaults (calculated values)

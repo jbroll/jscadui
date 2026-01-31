@@ -485,10 +485,9 @@ describe('Cache Operations', () => {
   })
 
   describe('clearFs', () => {
-    it('resets sw.roots, sw.libRoots, and clears cache', async () => {
+    it('resets sw.roots and clears cache', async () => {
       const sw = {
         roots: [['file1'], ['file2']],
-        libRoots: ['lib1'],
         cache: mockCache,
       }
       mockCache.keys.mockResolvedValue([])
@@ -496,7 +495,6 @@ describe('Cache Operations', () => {
       await clearFs(sw)
 
       expect(sw.roots).toEqual([])
-      expect(sw.libRoots).toEqual([])
       expect(mockCache.keys).toHaveBeenCalled()
     })
   })

@@ -45,6 +45,7 @@ import { updatePipelineStats, countGeometry, createProgressHandler } from './src
 import { createWorker, createJobTracker } from './src/workerSetup.js'
 import * as fileSystem from './src/fileSystem.js'
 import * as paramsUI from './src/paramsUI.js'
+import { shouldAllowReload } from './src/reloadDetection.js'
 
 /**
  * @typedef {import('@jscadui/worker').UserParameters} UserParameters
@@ -543,9 +544,7 @@ try {
 }
 
 if ('serviceWorker' in navigator && !navigator.serviceWorker.controller) {
-  const lastReload = localStorage.getItem('lastReload')
-  if (lastReload === null || Date.now() - parseInt(lastReload) > 3000) {
-    localStorage.setItem('lastReload', Date.now().toString())
+  if (shouldAllowReload()) {
     setError('cannot start service worker, reloading')
   } else {
     setError('cannot start service worker, reload required')

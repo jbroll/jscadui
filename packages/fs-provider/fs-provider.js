@@ -22,7 +22,6 @@ import { safariGetAsHandle } from './src/safariFileHandles.js'
  * @prop {unknown} api
  * @prop {Cache} cache
  * @prop {OnFilesChangeHandler} onfileschange
- * @prop {Array<undefined>} libRoots This is never used. TODO Remove
  * @prop {(path:string)=>Promise<FSFileEntry | undefined>} getFile
  * 
  * @callback OnFilesChangeHandler
@@ -189,7 +188,7 @@ export const registerServiceWorker = async (
     }
 
     /** @type {SwHandler} */
-    const sw = { roots: [], libRoots: [] }
+    const sw = { roots: [] }
     sw.api = messageProxy(navigator.serviceWorker, {
       getFile: async ({ path }) => {
         const file = await _getFile(path, sw)
@@ -233,7 +232,6 @@ export const registerServiceWorker = async (
  */
 export const clearFs = async sw => {
   sw.roots = []
-  sw.libRoots = []
   await clearCache(sw.cache)
 }
 

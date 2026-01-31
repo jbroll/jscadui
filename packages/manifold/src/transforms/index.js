@@ -348,7 +348,7 @@ export const transform = (matrix, ...geometries) => {
 // ============================================================================
 
 /**
- * Center geometry at origin.
+ * Center geometry at origin using native Manifold bounding box when possible.
  *
  * @param {Object} options - Options
  * @param {Array} [options.axes=[true,true,true]] - Which axes to center
@@ -357,10 +357,30 @@ export const transform = (matrix, ...geometries) => {
  * @returns {Object|Array} Centered geometry/geometries
  */
 export const center = (options, ...geometries) => {
-  // Use JSCAD's implementation which handles options properly
   const geoms = geometries.flat(Infinity).filter(g => g != null)
+  if (geoms.length === 0) return []
 
-  // Separate path2 objects from other geometries
+  const axes = options?.axes ?? [true, true, true]
+  const relativeTo = options?.relativeTo ?? [0, 0, 0]
+
+  // Fast path: all ManifoldGeom3 objects - use native bbox
+  const allManifold = geoms.every(g => isManifoldGeom3(g))
+  if (allManifold) {
+    const results = geoms.map(g => {
+      const [[minX, minY, minZ], [maxX, maxY, maxZ]] = g.boundingBox()
+      const offset = [
+        axes[0] ? relativeTo[0] - (minX + maxX) / 2 : 0,
+        axes[1] ? relativeTo[1] - (minY + maxY) / 2 : 0,
+        axes[2] ? relativeTo[2] - (minZ + maxZ) / 2 : 0
+      ]
+      const result = new ManifoldGeom3(g.manifold.translate(offset))
+      if (g.color) result.color = g.color
+      return result
+    })
+    return results.length === 1 ? results[0] : results
+  }
+
+  // Slow path: mixed geometries - use JSCAD's implementation
   const path2Indices = []
   const jscadGeoms = geoms.map((g, i) => {
     if (g.points !== undefined && g.sides === undefined) {
@@ -373,12 +393,8 @@ export const center = (options, ...geometries) => {
   const centered = jscadTransforms.center(options, ...jscadGeoms)
   const centeredArray = Array.isArray(centered) ? centered : [centered]
   const results = centeredArray.map((g, i) => {
-    // path2 objects are already handled by JSCAD - return as-is
-    if (path2Indices.includes(i)) {
-      return g
-    }
+    if (path2Indices.includes(i)) return g
     const result = new ManifoldGeom3(geom3ToManifold(g))
-    // Preserve color from original geometry
     if (isManifoldGeom3(geoms[i]) && geoms[i].color) result.color = geoms[i].color
     return result
   })
@@ -411,16 +427,69 @@ export const centerY = (...geometries) => center({ axes: [false, true, false] },
 export const centerZ = (...geometries) => center({ axes: [false, false, true] }, ...geometries)
 
 /**
- * Align geometries relative to each other.
+ * Align geometries relative to each other using native Manifold bounding box when possible.
  *
  * @param {Object} options - Alignment options
+ * @param {Array} [options.modes=['center','center','min']] - Alignment mode per axis: 'center', 'min', 'max', 'none'
+ * @param {Array} [options.relativeTo=null] - Reference point [x,y,z] or null for group bounds
+ * @param {boolean} [options.grouped=false] - If true, align group as unit; if false, align each individually
  * @param {...Object} geometries - Geometries to align
  * @returns {Object|Array} Aligned geometry/geometries
  */
 export const align = (options, ...geometries) => {
   const geoms = geometries.flat(Infinity).filter(g => g != null)
+  if (geoms.length === 0) return []
 
-  // Separate path2 objects from other geometries
+  const modes = options?.modes ?? ['center', 'center', 'min']
+  const relativeTo = options?.relativeTo ?? null
+
+  // Fast path: all ManifoldGeom3 objects with individual alignment - use native bbox
+  // Note: grouped=true falls through to JSCAD for correct group-as-unit alignment
+  const allManifold = geoms.every(g => isManifoldGeom3(g)) && !options?.grouped
+  if (allManifold) {
+    // Calculate reference bounds (either from relativeTo or from group bounds)
+    let refBounds
+    if (relativeTo) {
+      refBounds = [[relativeTo[0], relativeTo[1], relativeTo[2]], [relativeTo[0], relativeTo[1], relativeTo[2]]]
+    } else {
+      // Calculate combined bounds of all geometries
+      const allBounds = geoms.map(g => g.boundingBox())
+      refBounds = [
+        [Math.min(...allBounds.map(b => b[0][0])), Math.min(...allBounds.map(b => b[0][1])), Math.min(...allBounds.map(b => b[0][2]))],
+        [Math.max(...allBounds.map(b => b[1][0])), Math.max(...allBounds.map(b => b[1][1])), Math.max(...allBounds.map(b => b[1][2]))]
+      ]
+    }
+
+    const getTarget = (mode, axis) => {
+      if (mode === 'none') return null
+      if (mode === 'min') return refBounds[0][axis]
+      if (mode === 'max') return refBounds[1][axis]
+      return (refBounds[0][axis] + refBounds[1][axis]) / 2 // center
+    }
+
+    const results = geoms.map(g => {
+      const [[minX, minY, minZ], [maxX, maxY, maxZ]] = g.boundingBox()
+      const bounds = [[minX, minY, minZ], [maxX, maxY, maxZ]]
+      const offset = [0, 0, 0]
+
+      for (let axis = 0; axis < 3; axis++) {
+        const mode = modes[axis] ?? 'none'
+        const target = getTarget(mode, axis)
+        if (target === null) continue
+
+        if (mode === 'min') offset[axis] = target - bounds[0][axis]
+        else if (mode === 'max') offset[axis] = target - bounds[1][axis]
+        else offset[axis] = target - (bounds[0][axis] + bounds[1][axis]) / 2 // center
+      }
+
+      const result = new ManifoldGeom3(g.manifold.translate(offset))
+      if (g.color) result.color = g.color
+      return result
+    })
+    return results.length === 1 ? results[0] : results
+  }
+
+  // Slow path: mixed geometries - use JSCAD's implementation
   const path2Indices = []
   const jscadGeoms = geoms.map((g, i) => {
     if (g.points !== undefined && g.sides === undefined) {
@@ -433,12 +502,8 @@ export const align = (options, ...geometries) => {
   const aligned = jscadTransforms.align(options, ...jscadGeoms)
   const alignedArray = Array.isArray(aligned) ? aligned : [aligned]
   const results = alignedArray.map((g, i) => {
-    // path2 objects are already handled by JSCAD - return as-is
-    if (path2Indices.includes(i)) {
-      return g
-    }
+    if (path2Indices.includes(i)) return g
     const result = new ManifoldGeom3(geom3ToManifold(g))
-    // Preserve color from original geometry
     if (isManifoldGeom3(geoms[i]) && geoms[i].color) result.color = geoms[i].color
     return result
   })

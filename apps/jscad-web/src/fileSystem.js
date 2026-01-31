@@ -14,6 +14,7 @@ import {
   getFileContent,
   registerServiceWorker,
 } from '@jscadui/fs-provider'
+import { shouldAllowReload } from './reloadDetection.js'
 
 /**
  * @typedef {import('@jscadui/fs-provider').SwHandler} SwHandler
@@ -77,11 +78,11 @@ export async function initFs(deps) {
       scope,
       prefix: scope + 'swfs/',
     })
-  } catch (_e) {
-    const lastReload = localStorage.getItem('lastReload')
-    if (lastReload === null || Date.now() - parseInt(lastReload) > 3000) {
-      localStorage.setItem('lastReload', Date.now().toString())
-    }
+  } catch (err) {
+    // Service worker registration failed - let main.js handle the reload/error display
+    // Just track that we tried so main.js can make the reload decision
+    shouldAllowReload()
+    console.error('Service worker registration failed:', err)
   }
 
   if (sw) {
