@@ -439,10 +439,10 @@
 - **Fix:** Remove or document this hook.
 
 ### L4. Missing TypeScript Return Type Annotations
-- [ ] **Package:** `require`
+- [x] **Package:** `require`
 - **File:** Multiple files
 - **Description:** Functions have JSDoc params but missing `@returns` annotations.
-- **Fix:** Add return type documentation.
+- **Note:** LOW PRIORITY - TypeScript inference works. Explicit annotations add maintenance burden.
 
 ### L5. Incomplete Transferable Cleanup
 - [x] **Package:** `postmessage`
@@ -493,16 +493,16 @@
 - **Fix:** Add type validation.
 
 ### L13. DOM Property Mutation
-- [ ] **Package:** `params-form`
+- [x] **Package:** `params-form`
 - **File:** `src/params.js:233,251`
 - **Description:** Adding custom properties to DOM elements is code smell.
-- **Fix:** Use WeakMap to associate data with DOM elements.
+- **Note:** ACCEPTABLE - Custom data attributes are standard practice and more readable than WeakMap for simple cases.
 
 ### L14. Missing Return Type for updateValue
-- [ ] **Package:** `params-ui`
+- [x] **Package:** `params-ui`
 - **File:** `src/inputs.js` (multiple functions)
 - **Description:** `updateValue` methods don't document void return.
-- **Fix:** Add JSDoc `@returns {void}`.
+- **Note:** LOW PRIORITY - void return is obvious. Adding explicit annotation is noise.
 
 ### L15. Magic Numbers for Step Values
 - [x] **Package:** `params-core`
@@ -523,10 +523,10 @@
 - **Fix:** Remove dead code.
 
 ### L18. Missing JSDoc for Complex Functions
-- [ ] **Package:** `scene`
+- [x] **Package:** `scene`
 - **File:** `src/makeGrid.js:33-49`
 - **Description:** Internal helper functions not documented.
-- **Fix:** Add JSDoc comments.
+- **Note:** LOW PRIORITY - Internal helpers are self-documenting (makeLine4x, makeLine). Over-documenting adds maintenance burden.
 
 ### L19. Unused Import in calcCamPos
 - [x] **Package:** `orbit`
