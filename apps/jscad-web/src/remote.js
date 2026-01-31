@@ -108,7 +108,49 @@ const isValidRemoteUrl = (urlString) => {
       return false
     }
 
-    // Block private IP ranges (basic check)
+    // H9 fix: Block IPv6 private/local addresses
+    // Remove brackets from IPv6 addresses for parsing
+    const cleanHostname = hostname.startsWith('[') ? hostname.slice(1, -1) : hostname
+
+    if (cleanHostname.includes(':')) {
+      // This is an IPv6 address
+      const lowerV6 = cleanHostname.toLowerCase()
+
+      // Block loopback (::1)
+      if (lowerV6 === '::1') return false
+
+      // Block link-local (fe80::/10)
+      if (lowerV6.startsWith('fe8') || lowerV6.startsWith('fe9') ||
+          lowerV6.startsWith('fea') || lowerV6.startsWith('feb')) return false
+
+      // Block unique local addresses (fc00::/7 = fc00:: and fd00::)
+      if (lowerV6.startsWith('fc') || lowerV6.startsWith('fd')) return false
+
+      // Block IPv4-mapped IPv6 addresses (::ffff:x.x.x.x)
+      // These can bypass IPv4 checks
+      if (lowerV6.startsWith('::ffff:') || lowerV6.includes(':ffff:')) {
+        // Extract the IPv4 part and validate it
+        const ipv4Match = lowerV6.match(/::ffff:(\d+\.\d+\.\d+\.\d+)$/i) ||
+                          lowerV6.match(/:ffff:(\d+\.\d+\.\d+\.\d+)$/i)
+        if (ipv4Match) {
+          // Re-validate the IPv4 portion
+          const ipv4 = ipv4Match[1]
+          if (!isValidRemoteUrl(`http://${ipv4}/`)) return false
+        } else {
+          // Can't parse the IPv4 part, block to be safe
+          return false
+        }
+      }
+
+      // Block site-local (deprecated but still check) fec0::/10
+      if (lowerV6.startsWith('fec') || lowerV6.startsWith('fed') ||
+          lowerV6.startsWith('fee') || lowerV6.startsWith('fef')) return false
+
+      // Block unspecified address (::)
+      if (lowerV6 === '::' || lowerV6 === '0:0:0:0:0:0:0:0') return false
+    }
+
+    // Block private IPv4 ranges
     // 10.0.0.0 - 10.255.255.255
     // 172.16.0.0 - 172.31.255.255
     // 192.168.0.0 - 192.168.255.255
@@ -119,6 +161,7 @@ const isValidRemoteUrl = (urlString) => {
       if (ipParts[0] === 192 && ipParts[1] === 168) return false
       if (ipParts[0] === 169 && ipParts[1] === 254) return false // link-local
       if (ipParts[0] === 0) return false // current network
+      if (ipParts[0] === 127) return false // loopback range 127.0.0.0/8
     }
 
     return true
