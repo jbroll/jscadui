@@ -85,15 +85,22 @@ describe('SECURITY: splitPath - Path Traversal Prevention', () => {
     })
   })
 
-  describe('handles array input (passthrough)', () => {
-    it('returns array input unchanged', () => {
+  describe('handles array input (with filtering)', () => {
+    it('returns filtered array for safe input', () => {
       const input = ['a', 'b', 'c']
-      expect(splitPath(input)).toBe(input)
+      expect(splitPath(input)).toStrictEqual(['a', 'b', 'c'])
     })
 
-    it('returns empty array unchanged', () => {
+    it('returns empty array for empty input', () => {
       const input = []
-      expect(splitPath(input)).toBe(input)
+      expect(splitPath(input)).toStrictEqual([])
+    })
+
+    // C9 fix: Array input is now also filtered for security
+    it('filters dangerous segments from array input', () => {
+      expect(splitPath(['a', '..', 'b'])).toStrictEqual(['a', 'b'])
+      expect(splitPath(['..', '..', 'etc', 'passwd'])).toStrictEqual(['etc', 'passwd'])
+      expect(splitPath(['.', 'a', '.', 'b'])).toStrictEqual(['a', 'b'])
     })
   })
 })

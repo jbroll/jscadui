@@ -46,8 +46,17 @@ export * from './src/FSEntry.js'
  * @param {string | Array<string>} path
  * @returns {Array<string>}
  */
-// Filter out empty segments, '.' (current dir), and '..' (parent dir) to prevent path traversal
-export const splitPath = path => (typeof path === 'string' ? path.split('/').filter(p => p && p !== '.' && p !== '..') : path)
+/**
+ * Split path into segments, filtering dangerous components
+ * C9 fix: Validate both string and array paths to prevent path traversal
+ * @param {string | Array<string>} path
+ * @returns {Array<string>}
+ */
+export const splitPath = path => {
+  const segments = typeof path === 'string' ? path.split('/') : path
+  // Filter out empty segments, '.' (current dir), and '..' (parent dir) to prevent path traversal
+  return segments.filter(p => p && p !== '.' && p !== '..')
+}
 
 /**
  * 
@@ -231,6 +240,7 @@ export const registerServiceWorker = async (
  * @param {SwHandler} sw 
  */
 export const clearFs = async sw => {
+  stopCheckFiles(sw) // C8 fix: Stop the file checking loop when clearing FS
   sw.roots = []
   await clearCache(sw.cache)
 }
@@ -337,7 +347,20 @@ export const loadDir = async dir => {
 }
 
 /**
+ * Stop the file checking loop
+ * C8 fix: Add cancellation mechanism for the requestAnimationFrame loop
+ * @param {SwHandler} sw
+ */
+export const stopCheckFiles = sw => {
+  if (sw._checkFilesRafId) {
+    cancelAnimationFrame(sw._checkFilesRafId)
+    sw._checkFilesRafId = undefined
+  }
+}
+
+/**
  * This function is async but it is intentionally called without await
+ * C8 fix: Track rAF ID for cancellation
  * @param {SwHandler} sw
  */
 export const checkFiles = async sw => {
@@ -359,7 +382,8 @@ export const checkFiles = async sw => {
   } catch (error) {
     console.error('Error checking files for changes:', error)
   }
-  requestAnimationFrame(() => checkFiles(sw))
+  // Store the rAF ID so it can be cancelled
+  sw._checkFilesRafId = requestAnimationFrame(() => checkFiles(sw))
 }
 
 /**

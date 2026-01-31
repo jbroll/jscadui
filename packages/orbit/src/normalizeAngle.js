@@ -3,10 +3,12 @@ const TAU = PI * 2
 
 /**
  * Bring angle into range [0...TAU]
+ * H19 fix: Return 0 for non-finite values to prevent infinite loops
  * @param {number} a - (Radians) angle that might need correcting
  * @returns {number}
  */
 export const normalizeAngle = a => {
+  if (!Number.isFinite(a)) return 0
   while (a < 0) a += TAU
   while (a > TAU) a -= TAU
   return a
