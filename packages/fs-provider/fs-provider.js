@@ -279,7 +279,7 @@ export const extractEntries = async dt => {
     // If dropped items aren't files or directories, reject them
     // Directories also have kind === 'file'
     if (item.kind === 'file') {
-      var handle
+      let handle  // L9 fix: Use let instead of var
       try {
         handle = await item.getAsFileSystemHandle()
       }

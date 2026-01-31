@@ -17,13 +17,10 @@ export function boundingBox(entities=[]){
   entities.forEach(({vertices, transforms})=>{
     if(!vertices) return
     let x, y, z, vt
-    if(minx === undefined){
-      vt = transforms ? transform([], vertices, transforms) : vertices
-      minx = maxx = vt[0]
-      miny = maxy = vt[1]
-      minz = maxz = vt[2]
-    }
-    for(let i=5; i<vertices.length; i+=3){
+    // C2 fix: Changed i=5 to i=2 to process ALL vertices including vertex 0
+    // The old code only processed vertex 0 of the first entity (via initialization)
+    // but skipped vertex 0 of subsequent entities
+    for(let i=2; i<vertices.length; i+=3){
       if(transforms){
         vt = transform([], [vertices[i-2], vertices[i-1],vertices[i]], transforms)
         x = vt[0]
@@ -34,12 +31,18 @@ export function boundingBox(entities=[]){
         y = vertices[i-1]
         z = vertices[i]
       }
-      minx = Math.min(minx,x)
-      miny = Math.min(miny,y)
-      minz = Math.min(minz,z)
-      maxx = Math.max(maxx,x)
-      maxy = Math.max(maxy,y)
-      maxz = Math.max(maxz,z)
+      if(minx === undefined){
+        minx = maxx = x
+        miny = maxy = y
+        minz = maxz = z
+      }else{
+        minx = Math.min(minx,x)
+        miny = Math.min(miny,y)
+        minz = Math.min(minz,z)
+        maxx = Math.max(maxx,x)
+        maxy = Math.max(maxy,y)
+        maxz = Math.max(maxz,z)
+      }
     }
   })
   // Return origin-centered unit box if no vertices were found

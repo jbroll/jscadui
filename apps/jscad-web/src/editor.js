@@ -106,12 +106,19 @@ export const init = (defaultCode, fn, _saveFn, _getFileFn) => {
   drawer.init()
 
   // Make editor hint clickable
-  document.getElementById('editor-hint').addEventListener('click', () => {
-    compile(view.state.doc.toString(), currentFile)
-  })
-  document.getElementById('editor-hint2').addEventListener('click', () => {
-    save(view.state.doc.toString(), currentFile)
-  })
+  // M1 fix: Add null checks for optional DOM elements
+  const editorHint = document.getElementById('editor-hint')
+  const editorHint2 = document.getElementById('editor-hint2')
+  if (editorHint) {
+    editorHint.addEventListener('click', () => {
+      compile(view.state.doc.toString(), currentFile)
+    })
+  }
+  if (editorHint2) {
+    editorHint2.addEventListener('click', () => {
+      save(view.state.doc.toString(), currentFile)
+    })
+  }
 
   // Setup file selector
   editorFile.addEventListener('click', () => {

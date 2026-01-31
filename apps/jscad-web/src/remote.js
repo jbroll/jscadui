@@ -81,8 +81,10 @@ export const loadFromUrl = (compileFn, setError) => async () => {
       return true
     } catch (err) {
       setError(err)
+      return false  // M2 fix: Return false on error for consistent API
     }
   }
+  return false  // M2 fix: Return false when no URL
 }
 
 /**
