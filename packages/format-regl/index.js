@@ -123,12 +123,13 @@ export function CommonToRegl({ smooth = false } = {}) {
     list.forEach((item, i) => {
       const offset = i * 16
       const transforms = item.transforms
-      if (transforms) {
+      // H16 fix: Validate transform matrix has exactly 16 elements, fallback to identity
+      if (transforms && transforms.length >= 16) {
         for (let j = 0; j < 16; j++) {
           instanceMatrices[offset + j] = transforms[j]
         }
       } else {
-        // Identity matrix
+        // Identity matrix (used when transforms missing or invalid)
         instanceMatrices[offset + 0] = 1
         instanceMatrices[offset + 5] = 1
         instanceMatrices[offset + 10] = 1

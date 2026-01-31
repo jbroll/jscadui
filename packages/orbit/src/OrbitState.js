@@ -7,6 +7,12 @@ import { fromXZRotation } from './fromXZRotation.js'
 
 const { PI } = Math
 
+// L7 fix: Named constants for rotation bounds
+// Minimum rx angle (small epsilon to avoid gimbal lock at 0)
+const RX_MIN = 1.0e-10
+// Maximum rx angle (PI = 180 degrees, looking straight down)
+const RX_MAX = PI
+
 /** Orbit state can be created in 2 ways
  *
  * 1) {target, rx, rz, len}
@@ -102,8 +108,9 @@ export class OrbitState {
 
   rotateBy(rx = 0, rz = 0) {
     this.rx += rx
-    if (this.rx < 0) this.rx = 1.0e-10
-    if (this.rx > PI) this.rx = PI
+    // L7 fix: Use named constants for rotation bounds
+    if (this.rx < 0) this.rx = RX_MIN
+    if (this.rx > RX_MAX) this.rx = RX_MAX
     this.rz += rz
     this.position = calcCamPos(this)
     this.fireChange()

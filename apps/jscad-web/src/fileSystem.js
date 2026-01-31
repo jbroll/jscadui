@@ -79,10 +79,11 @@ export async function initFs(deps) {
       prefix: scope + 'swfs/',
     })
   } catch (err) {
-    // Service worker registration failed - let main.js handle the reload/error display
-    // Just track that we tried so main.js can make the reload decision
+    // C7 fix: Service worker registration failed - track reload attempt and propagate error
+    // shouldAllowReload() tracks that we tried, then re-throw for caller to handle
     shouldAllowReload()
     console.error('Service worker registration failed:', err)
+    throw err
   }
 
   if (sw) {

@@ -383,7 +383,10 @@ export const checkFiles = async sw => {
     console.error('Error checking files for changes:', error)
   }
   // Store the rAF ID so it can be cancelled
-  sw._checkFilesRafId = requestAnimationFrame(() => checkFiles(sw))
+  // H26 fix: Catch unhandled promise rejections in recursive call
+  sw._checkFilesRafId = requestAnimationFrame(() => checkFiles(sw).catch(err => {
+    console.error('Unhandled error in file change detection:', err)
+  }))
 }
 
 /**

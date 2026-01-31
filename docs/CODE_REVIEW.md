@@ -62,7 +62,7 @@
 - **Fix:** Track timeout ID and clear it in pause method.
 
 ### C7. Service Worker Registration Failure Handling
-- [ ] **Package:** `jscad-web`
+- [x] **Package:** `jscad-web`
 - **File:** `src/fileSystem.js:76-86`
 - **Description:** When service worker registration fails, `shouldAllowReload()` is called but doesn't actually reload, leaving the app in a broken state.
 - **Fix:** Either reload immediately or propagate the error properly.
@@ -177,13 +177,13 @@
 - **Fix:** Compute proper inverse transpose of model-view matrix.
 
 ### H15. Race Condition in render-regl Async Initialization
-- [ ] **Package:** `render-regl`
+- [x] **Package:** `render-regl`
 - **File:** `index.js:117-177`
 - **Description:** `updateView()` called before dynamic import completes, `renderer` is null so first render does nothing.
 - **Fix:** Move initial `updateView()` inside `.then()` callback.
 
 ### H16. Missing Validation for Instance List
-- [ ] **Package:** `format-regl`
+- [x] **Package:** `format-regl`
 - **File:** `index.js:99-148`
 - **Description:** Doesn't validate that instance list items have valid transform matrices (16 elements).
 - **Fix:** Add matrix size validation with fallback to identity.
@@ -237,13 +237,13 @@
 - **Fix:** Add try-catch around cleanup registration.
 
 ### H25. Missing Error Handling in jscadMain Params Processing
-- [ ] **Package:** `worker`
+- [x] **Package:** `worker`
 - **File:** `worker.js:224-231`
 - **Description:** File parameter deserialization can fail without meaningful error message.
 - **Fix:** Wrap in try-catch with context about which parameter failed.
 
 ### H26. Unhandled Promise Rejection in checkFiles
-- [ ] **Package:** `fs-provider`
+- [x] **Package:** `fs-provider`
 - **File:** `fs-provider.js:343-363`
 - **Description:** Errors in recursive `requestAnimationFrame` call are unhandled rejections.
 - **Fix:** Wrap recursive call in try-catch.
@@ -319,7 +319,7 @@
 - **Fix:** Clear or limit size periodically.
 
 ### M12. extractDefaults Doesn't Validate Choice Type
-- [ ] **Package:** `worker`
+- [x] **Package:** `worker`
 - **File:** `src/extractDefaults.js:8-23`
 - **Description:** If choice parameter's default value not in `values`, invalid default is kept.
 - **Fix:** Always fall back to `values[0]` or throw error.
@@ -455,7 +455,7 @@
 - **Fix:** Delete lines 13-30.
 
 ### L7. Magic Numbers Without Constants
-- [ ] **Package:** `orbit`
+- [x] **Package:** `orbit`
 - **File:** `src/OrbitState.js:105,106`
 - **Description:** rx bounds use magic numbers without explanation.
 - **Fix:** Add named constants with comments.

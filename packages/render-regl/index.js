@@ -207,7 +207,11 @@ export function RenderRegl(reglOrOptions) {
       entities
     }
 
-    updateView()
+    // H15 fix: Only call updateView here for external renderer
+    // Internal renderer calls updateView inside the dynamic import .then() callback
+    if (isExternalRenderer) {
+      updateView()
+    }
   }
 
   let renderTimer

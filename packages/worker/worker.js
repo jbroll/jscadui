@@ -221,12 +221,17 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
   }
 
   // Handle file params
+  // H25 fix: Wrap in try-catch with context about which parameter failed
   params = {...params}
   for(const p in params){
     if(params[p] instanceof File && importData){
-      const info = extractPathInfo(params[p].name)
-      const content = await readFileFile(params[p],{bin: importData.isBinaryExt(info.ext)})
-      params[p] = importData.deserialize(info, content)
+      try {
+        const info = extractPathInfo(params[p].name)
+        const content = await readFileFile(params[p],{bin: importData.isBinaryExt(info.ext)})
+        params[p] = importData.deserialize(info, content)
+      } catch (err) {
+        throw new Error(`Failed to deserialize file parameter "${p}": ${err.message}`)
+      }
     }
   }
 
