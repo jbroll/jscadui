@@ -45,7 +45,7 @@ import { updatePipelineStats, countGeometry, createProgressHandler } from './src
 import { createWorker, createJobTracker } from './src/workerSetup.js'
 import * as fileSystem from './src/fileSystem.js'
 import * as paramsUI from './src/paramsUI.js'
-import { shouldAllowReload } from './src/reloadDetection.js'
+import { shouldAllowReload, clearReloadTimestamp } from './src/reloadDetection.js'
 
 /**
  * @typedef {import('@jscadui/worker').UserParameters} UserParameters
@@ -539,6 +539,8 @@ if (loadDefault && !hasRemoteScript) {
 // ============== Service Worker Check ==============
 try {
   if (!fileSystem.getSwHandler()) await fileSystem.initFs(fsDeps)
+  // C2 fix: Clear reload retry count on successful initialization
+  clearReloadTimestamp()
 } catch (err) {
   setError(err)
 }
