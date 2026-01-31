@@ -417,6 +417,8 @@ const jscadScript = async ({ script, url='jscad.js', base=globalBase, root=base,
  * @returns {Promise<{data:ArrayBuffer[]}>}
  */
 const jscadExportData = async (params) => {
+  // L3 fix: Document hook - self.exportData can be set externally to override default export behavior
+  // Set self.exportData = async (params) => ({data: ArrayBuffer[]}) to customize export
   if(self.exportData) return self.exportData(params)
 
   // todo check if it is ok to give back transferables after webgl has used the buffers

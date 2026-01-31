@@ -488,7 +488,6 @@ export const createParamsTree = (options) => {
         closeMenu()
       }
     }
-    document.addEventListener('click', handleClickOutside)
 
     // Close on Escape
     const handleKeydown = (e) => {
@@ -496,18 +495,6 @@ export const createParamsTree = (options) => {
         closeMenu()
       }
     }
-    document.addEventListener('keydown', handleKeydown)
-
-    // Enter in new class input triggers Set Part
-    newClassInput.onkeydown = (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault()
-        setPartBtn.click()
-      }
-    }
-
-    container.appendChild(toggleBtn)
-    container.appendChild(menu)
 
     // Cleanup function to remove document-level event listeners
     const cleanup = () => {
@@ -515,11 +502,32 @@ export const createParamsTree = (options) => {
       document.removeEventListener('keydown', handleKeydown)
     }
 
-    return {
-      control: null,
-      value: container,
-      span: false,
-      cleanup
+    // H24 fix: Add event listeners with cleanup on error to prevent leaks
+    document.addEventListener('click', handleClickOutside)
+    document.addEventListener('keydown', handleKeydown)
+
+    try {
+      // Enter in new class input triggers Set Part
+      newClassInput.onkeydown = (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault()
+          setPartBtn.click()
+        }
+      }
+
+      container.appendChild(toggleBtn)
+      container.appendChild(menu)
+
+      return {
+        control: null,
+        value: container,
+        span: false,
+        cleanup
+      }
+    } catch (err) {
+      // If an error occurs after listeners are added, clean them up
+      cleanup()
+      throw err
     }
   }
 

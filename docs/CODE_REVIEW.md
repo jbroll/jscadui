@@ -231,7 +231,7 @@
 - **Fix:** Add constraint validation before calling `onChange`.
 
 ### H24. Missing Cleanup Tracking for Class Input
-- [ ] **Package:** `params-ui`
+- [x] **Package:** `params-ui`
 - **File:** `src/ParamsTree.js:486-516`
 - **Description:** Document-level event listeners added but if error occurs before cleanup registration, listeners leak.
 - **Fix:** Add try-catch around cleanup registration.
@@ -431,7 +431,7 @@
 - **Fix:** Use appropriate log level.
 
 ### L3. Dead Code: exportData Reference
-- [ ] **Package:** `worker`
+- [x] **Package:** `worker`
 - **File:** `worker.js:415`
 - **Description:** `self.exportData` checked but never set or documented.
 - **Fix:** Remove or document this hook.
@@ -473,7 +473,7 @@
 - **Fix:** Use `let` instead.
 
 ### L10. Hardcoded Timeout Value
-- [ ] **Package:** `scene`
+- [x] **Package:** `scene`
 - **File:** `downloadBlob.js:7`
 - **Description:** 1000ms timeout hardcoded, may not be enough for large files.
 - **Fix:** Make configurable with default.
