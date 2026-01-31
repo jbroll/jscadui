@@ -13,11 +13,15 @@ export class AnimRunner {
     this.options = options
     /** @type {number | null} */
     this.currentTimeout = null
+    /** @type {number} C1 fix: Generation counter to detect stale results */
+    this.generation = 0
   }
 
   pause() {
     this.shouldPause = true
     this.running = false // C5 fix: also set running to false
+    // C1 fix: increment generation to invalidate in-flight worker responses
+    this.generation++
     // C6 fix: clear any pending timeout
     if (this.currentTimeout !== null) {
       clearTimeout(this.currentTimeout)
@@ -32,6 +36,8 @@ export class AnimRunner {
   async start(def, value, params) {
     this.running = true
     this.shouldPause = false
+    // C1 fix: Capture current generation at start
+    const startGeneration = this.generation
 
     const { fps: _fps, min = 0, max, loop, name } = def
     let fps = _fps
@@ -71,6 +77,11 @@ export class AnimRunner {
         times = { [name]: (dir == 1) ? t : max - t }
         paramValues = { ...params, ...times }
         resp = await this.worker.jscadMain({ params: paramValues, skipLog: true })
+        // C1 fix: Check if animation was stopped while worker was running
+        if (this.generation !== startGeneration) {
+          console.log(`Animation stopped (generation ${startGeneration} -> ${this.generation}), discarding result`)
+          break
+        }
         if (this.shouldPause) break
 
         now = Date.now()
