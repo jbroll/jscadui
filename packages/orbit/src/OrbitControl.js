@@ -92,6 +92,14 @@ export class OrbitControl extends OrbitState {
         lx = e.clientX
         ly = e.clientY
         isDown = true
+        // H18 fix: Validate pointer state - clear stale pointers if Map grows too large
+        // This handles missed pointerup/pointercancel events
+        if (pointers.size >= 2 && !pointers.has(e.pointerId)) {
+          // More than 2 pointers shouldn't normally happen, reset state
+          pointers.clear()
+          doubleDown = false
+          lastPinch = undefined
+        }
         pointers.set(e.pointerId, [e.clientX, e.clientY])
         if (pointers.size === 2) doubleDown = true
       }
@@ -161,6 +169,8 @@ export class OrbitControl extends OrbitState {
       addListener(el, 'pointerdown', onPointerDown)
       addListener(el, 'pointerup', onPointerUp)
       addListener(el, 'pointercancel', onPointerUp)
+      // H18 fix: Also handle lostpointercapture to catch edge cases
+      addListener(el, 'lostpointercapture', onPointerUp)
       addListener(el, 'wheel', onWheel)
       addListener(el, 'pointermove', onPointerMove)
     }

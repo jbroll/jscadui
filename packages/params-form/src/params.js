@@ -10,6 +10,9 @@ export const forEachButton = (el, cb) => forQS(el, BUTTON_SELECTOR, cb)
 
 const numeric = { number: 1, float: 1, int: 1, range: 1, slider: 1 }
 
+// M23 fix: Pre-compile regex to avoid creating it on every loop iteration
+const NUMERIC_STRING_REGEX = /^(\d+|\d+\.\d+)$/
+
 /**
  * Escape HTML special characters to prevent XSS attacks.
  * @param {unknown} str - Value to escape (will be converted to string)
@@ -91,10 +94,11 @@ export const genParams = ({
   }
 
   function inputDefault(def) {
-    const { name, type, min, max, placeholder, live } = def
-    let { value, step, fps } = def
-    if(fps <= 0) fps = 1
-    if(!step && fps) step = 1/fps
+    const { name, type, min, max, placeholder, live, fps } = def
+    let { value, step } = def
+    // L16 fix: Use separate variable for sanitized fps value
+    const safeFps = fps <= 0 ? 1 : fps
+    if(!step && safeFps) step = 1/safeFps
 
     if (value === null || value === undefined) value = numeric[type] ? 0 : ''
     let inputType = type
@@ -160,9 +164,10 @@ export const genParams = ({
     //
     html += valHtml
 
-    const inputFunc = funcs[type] || inputDefault
-    if (inputFunc) html += inputFunc(def)
+    // L17 fix: Check for missing type before applying default fallback
+    const inputFunc = funcs[type]
     if (!inputFunc) missing[type] = 1
+    html += (inputFunc || inputDefault)(def)
 
     html += '</div>\n'
   })
@@ -300,7 +305,8 @@ export const getParams = target => {
 
     if (numeric[elem.getAttribute('type')] || elem.getAttribute('numeric') == '1') {
       value = parseFloat(String(value || 0))
-    } else if (value && typeof value === 'string' && /^(\d+|\d+\.\d+)$/.test(value.trim())) {
+    } else if (value && typeof value === 'string' && NUMERIC_STRING_REGEX.test(value.trim())) {
+      // M23 fix: Use pre-compiled regex
       value = parseFloat(String(value || 0))
     }
     if (elem.type == 'radio' && !elem.checked) return // skip if not checked radio button

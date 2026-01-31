@@ -125,11 +125,12 @@ export const init = (defaultCode, fn, _saveFn, _getFileFn) => {
     editorNav.classList.toggle('open')
   })
   // Close file selector on click outside
-  document.addEventListener('click', (e) => {
+  documentClickHandler = (e) => {
     if (!editorFile.contains(e.target)) {
       editorNav.classList.remove('open')
     }
-  })
+  }
+  document.addEventListener('click', documentClickHandler)
 }
 
 /** @returns {string} */
@@ -174,6 +175,9 @@ export const getEditorFiles = () => editorFilesArr
 /**
  * @param {FSFileEntry[]} files
  */
+// Track document-level click handler for cleanup
+let documentClickHandler
+
 export const setFiles = (files) => {
   const editorFiles = document.getElementById('editor-files')
   editorFilesArr = files
@@ -197,4 +201,19 @@ export const setFiles = (files) => {
     })
     editorNav.classList.add('visible')
   }
+}
+
+/**
+ * Cleanup editor resources
+ */
+export const destroy = () => {
+  if (view) {
+    view.destroy()
+    view = undefined
+  }
+  if (documentClickHandler) {
+    document.removeEventListener('click', documentClickHandler)
+    documentClickHandler = undefined
+  }
+  drawer.destroy?.()
 }

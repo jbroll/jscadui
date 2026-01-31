@@ -151,7 +151,10 @@ void main () {
   // Compute flat normal from screen-space derivatives of world position
   vec3 dx = dFdx(_worldSpacePosition.xyz);
   vec3 dy = dFdy(_worldSpacePosition.xyz);
-  vec3 normal = normalize(cross(dx, dy));
+  vec3 crossProduct = cross(dx, dy);
+  // H17 fix: Handle degenerate triangles where cross product is zero
+  float len = length(crossProduct);
+  vec3 normal = len > 0.0001 ? crossProduct / len : vec3(0.0, 0.0, 1.0);
 
   // Compute light direction from camera position (camera-attached light)
   vec3 lightDir = normalize(eye - _worldSpacePosition.xyz);

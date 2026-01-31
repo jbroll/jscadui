@@ -189,13 +189,13 @@
 - **Fix:** Add matrix size validation with fallback to identity.
 
 ### H17. Potential Division by Zero in flatFrag Shader
-- [ ] **Package:** `render-regl`
+- [x] **Package:** `render-regl`
 - **File:** `src/shaders/mesh.js:160`
 - **Description:** Flat shading doesn't handle zero-length vectors from degenerate triangles.
 - **Fix:** Add length check or fallback normal.
 
 ### H18. Race Condition in Pointer Tracking
-- [ ] **Package:** `orbit`
+- [x] **Package:** `orbit`
 - **File:** `src/OrbitControl.js:52-153`
 - **Description:** `pointers` Map can get out of sync if `pointercancel`/`pointerup` events are missed.
 - **Fix:** Add more robust state validation and recovery.
@@ -385,7 +385,7 @@
 - **Fix:** Remove redundant `hidden: true`.
 
 ### M23. Regex Numeric String Detection Inefficiency
-- [ ] **Package:** `params-form`
+- [x] **Package:** `params-form`
 - **File:** `src/params.js:303`
 - **Description:** Regex compiled on every loop iteration.
 - **Fix:** Compile regex once outside function.
@@ -509,13 +509,13 @@
 - **Fix:** Define named constants.
 
 ### L16. Unclear Variable Naming
-- [ ] **Package:** `params-form`
+- [x] **Package:** `params-form`
 - **File:** `src/params.js:96-97`
 - **Description:** `fps` variable modified in place, unclear naming.
 - **Fix:** Use separate variable: `const safeFps = fps <= 0 ? 1 : fps`
 
 ### L17. Unclear Error Handling for Missing Input Functions
-- [ ] **Package:** `params-form`
+- [x] **Package:** `params-form`
 - **File:** `src/params.js:163-171`
 - **Description:** Dead code - `if (!inputFunc)` check is unreachable due to `|| inputDefault`.
 - **Fix:** Remove dead code.
