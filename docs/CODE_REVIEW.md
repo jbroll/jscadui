@@ -461,7 +461,7 @@
 - **Fix:** Add named constants with comments.
 
 ### L8. Inconsistent Naming Convention
-- [ ] **Package:** `html-gizmo`
+- [x] **Package:** `html-gizmo`
 - **File:** `index.js:43,59`
 - **Description:** Mix of private field naming conventions.
 - **Fix:** Consider making `names` private with getter.
@@ -479,7 +479,7 @@
 - **Fix:** Make configurable with default.
 
 ### L11. Commented-Out Debug Code
-- [ ] **Package:** `render-threejs`
+- [x] **Package:** `render-threejs`
 - **File:** `index.js:262-277`
 - **Description:** Commented-out bounding box visualization code.
 - **Fix:** Remove or extract to debug utility.

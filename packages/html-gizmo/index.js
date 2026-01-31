@@ -45,14 +45,19 @@ export class Gizmo extends HTMLElement {
   /** @type {HTMLElement} */
   #first = document.createElement('div')
 
-  names
+  // L8 fix: Made names private for consistency with other private fields
+  /** @type {Record<string, string>} */
+  #names
+
+  /** Get the current names mapping */
+  get names() { return this.#names }
 
   /** @type {((rotation:string)=>void) | undefined} */
   onRotationRequested
 
   constructor(_names = names) {
     super()
-    this.names = _names
+    this.#names = _names
   }
 
   /** @type {((e: DragEvent) => void) | null} */
