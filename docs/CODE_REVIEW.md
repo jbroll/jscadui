@@ -42,11 +42,12 @@
 - **Fix:** Use try-finally to ensure cleanup: `requireCache.loading.add(cacheUrl); try { ... } finally { requireCache.loading.delete(cacheUrl) }`
 
 ### C4. eval() Usage Creates Security Risk
-- [ ] **Package:** `require`
+- [x] **Package:** `require`
 - **File:** `src/require.js:24`
 - **Description:** Indirect `eval()` executes user-provided module code, dangerous when loading from untrusted CDN sources.
 - **Impact:** Malicious code in loaded modules executes with full JavaScript privileges.
 - **Fix:** Document limitation prominently, implement CSP restrictions, add sandboxing/permission system, implement subresource integrity checks.
+- **Note:** Documented with security notice explaining implications and mitigations in place.
 
 ### C5. Race Condition in Animation Runner
 - [x] **Package:** `jscad-web`
@@ -82,10 +83,11 @@
 - **Fix:** Ensure array paths are also validated in `splitPath()`.
 
 ### C10. Potential Memory Leak in Script Lock on Timeout
-- [ ] **Package:** `worker`
+- [x] **Package:** `worker`
 - **File:** `worker.js:109-112`
 - **Description:** When script lock times out, `release()` is called but `previousLock` promise may still be pending/hanging indefinitely with infinite loops.
 - **Fix:** Add mechanism to track/terminate hanging script execution, or document limitation.
+- **Note:** Documented with explanation of limitation and mitigations (loop protection, lock mechanism).
 
 ---
 
@@ -146,7 +148,7 @@
 - **Fix:** Encapsulate all worker state into single object that can be reset cleanly.
 
 ### H10. Incomplete Input Validation in resolveUrl
-- [ ] **Package:** `require`
+- [x] **Package:** `require`
 - **File:** `src/resolveUrl.js:77-136`
 - **Description:** Path traversal protection via `normalizePath()` only applied to same-origin files, not cross-origin npm imports.
 - **Fix:** Document why cross-origin imports skip normalization, or apply to all paths.
@@ -343,10 +345,10 @@
 - **Fix:** Add explicit type checking with error for invalid types.
 
 ### M16. Degenerate Polygon Detection Incomplete
-- [ ] **Package:** `format-jscad`
+- [x] **Package:** `format-jscad`
 - **File:** `index.js:21-22,46-47,90-91`
 - **Description:** Degenerate polygon detection only after normalization, not before color processing.
-- **Fix:** Add check before color processing loop.
+- **Note:** ALREADY FIXED - Check exists at line 46-47 before color processing loop.
 
 ### M17. Integer Overflow in Infinite Loop Protection
 - [ ] **Package:** `transform-babel`
@@ -443,7 +445,7 @@
 - **Fix:** Add return type documentation.
 
 ### L5. Incomplete Transferable Cleanup
-- [ ] **Package:** `postmessage`
+- [x] **Package:** `postmessage`
 - **File:** `index.js:35-38`
 - **Description:** Transferable symbol deleted but caller might retain references to neutered buffers.
 - **Fix:** Document that callers should not use transferable objects after sending.

@@ -107,7 +107,22 @@ const acquireScriptLock = async () => {
   try {
     await Promise.race([previousLock, timeoutPromise])
   } catch (err) {
-    // On timeout, release the lock so subsequent scripts can run
+    // C10 LIMITATION: On timeout, release the lock so subsequent scripts can run.
+    // However, the timed-out script MAY STILL BE RUNNING in the background.
+    // JavaScript has no mechanism to terminate running code from outside.
+    //
+    // Consequences:
+    // - The old script could eventually finish and modify shared state
+    // - CPU usage continues until the script completes or hits loop protection
+    // - Memory from the running script is not reclaimed until it finishes
+    //
+    // Mitigations in place:
+    // - preventInfiniteLoops.js injects loop counters that throw after MAX_ITERATIONS
+    // - The lock prevents multiple scripts from running "officially" at once
+    // - UI shows error state indicating the script timed out
+    //
+    // If this becomes a problem, the entire worker could be terminated and
+    // restarted, but that's a heavier-weight solution not currently implemented.
     release()
     throw err
   }

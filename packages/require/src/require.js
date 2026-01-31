@@ -21,6 +21,22 @@ export { resolveUrl } from './resolveUrl'
 // we need eval to do the same without prefix
 // https://esbuild.github.io/content-types/#direct-eval
 // to be nice to bundlers we need indirect eval
+//
+// C4 SECURITY NOTICE: This eval executes arbitrary JavaScript from loaded modules.
+// Security implications:
+// - Code from npm packages (via CDN) runs with full JavaScript privileges
+// - Malicious packages could access global scope, make network requests, etc.
+// - The trusted sources permission system (trustedSources.js) controls which
+//   remote URLs can be loaded, but does NOT sandbox executed code
+//
+// Mitigations in place:
+// - Trusted sources permission system prompts before loading untrusted URLs
+// - This code runs in a Web Worker, isolated from the main thread's DOM
+// - CSP headers on the hosting page can restrict network access
+//
+// NOT implemented (would require significant architecture changes):
+// - Subresource integrity (SRI) for npm packages - CDNs would need to support it
+// - Sandboxed iframe execution - would break the geometry calculation flow
 export const runModule = globalThis.eval('(require, exports, module, source)=>eval(source)')
 
 /**

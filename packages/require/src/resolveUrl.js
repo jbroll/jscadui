@@ -105,7 +105,12 @@ export const resolveUrl = (url, base, root, moduleBase=MODULE_BASE) => {
       const baseOrigin = getOrigin(base)
 
       if (baseOrigin && rootOrigin && baseOrigin !== rootOrigin) {
-        // Base is from a different domain (e.g., npm package), resolve relative to base
+        // H10 doc: Cross-origin imports (e.g., npm packages on CDN) intentionally skip
+        // path normalization. This is safe because:
+        // 1. CDN packages are served from their own isolated origin
+        // 2. Path traversal within a CDN package only navigates within that package's tree
+        // 3. The CDN itself enforces access controls on its content
+        // 4. User's local files (at rootOrigin) cannot be accessed from a different origin
         if (!getExtension(url)) url += '.js'
         url = new URL(url, base).toString()
       } else {

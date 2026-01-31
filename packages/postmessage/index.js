@@ -8,9 +8,16 @@ const TRANSFERABLE = Symbol.for('__transferable__')
 const DEFAULT_TIMEOUT = 5 * 60 * 1000
 
 /**
+ * Mark objects for transfer via postMessage (zero-copy for TypedArrays).
+ *
+ * L5 doc: IMPORTANT - After calling postMessage with transferable objects,
+ * those objects become "neutered" (detached) and can no longer be accessed
+ * by the sender. Callers should not retain references to transferred buffers
+ * or attempt to use them after sending.
+ *
  * @template T
- * @param {T & {}} params 
- * @param {unknown} trans 
+ * @param {T & {}} params
+ * @param {unknown} trans - Array of transferable objects (ArrayBuffer, TypedArray, etc.)
  * @returns T
  */
 export const withTransferable = (params, trans) => {
