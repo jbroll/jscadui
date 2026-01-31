@@ -36,12 +36,12 @@ describe('extractDefaults', () => {
     expect(extractDefaults(defs)).toEqual({ size: 'm' })
   })
 
-  it('keeps invalid choice default if not in values or captions', () => {
-    // Note: extractDefaults doesn't validate against values when default is set
+  it('falls back to first value when choice default is not in values or captions', () => {
+    // M12 fix: extractDefaults now validates and falls back to values[0] for invalid defaults
     const defs = [
       { name: 'size', type: 'choice', values: ['small', 'medium', 'large'], default: 'invalid' }
     ]
-    expect(extractDefaults(defs)).toEqual({ size: 'invalid' })
+    expect(extractDefaults(defs)).toEqual({ size: 'small' })
   })
 
   it('falls back to first value when no default is set', () => {

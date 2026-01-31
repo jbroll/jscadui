@@ -114,7 +114,8 @@ export function updatePipelineStats(statsContent, { treeTime, execTime, convTime
  */
 export function createProgressHandler(progress) {
   return (value) => {
-    if (value == undefined) {
+    // M6 fix: Use consistent nullish check pattern (== null catches both null and undefined)
+    if (value == null) {
       progress.removeAttribute('value')
     } else {
       progress.value = value

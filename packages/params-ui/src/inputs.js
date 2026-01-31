@@ -389,7 +389,11 @@ export const createChoiceInput = ({ param, value, onChange }) => {
     const opt = document.createElement('option')
     opt.value = String(values[i])
     opt.textContent = captions?.[i] ?? String(values[i])
-    if (values[i] === value || String(values[i]) === String(value)) {
+    // M27 fix: Handle null/undefined/NaN safely in comparison
+    const valItem = values[i]
+    const isMatch = valItem === value ||
+      (valItem != null && value != null && String(valItem) === String(value))
+    if (isMatch) {
       opt.selected = true
     }
     select.appendChild(opt)
@@ -438,7 +442,11 @@ export const createRadioInput = ({ param, value, onChange }) => {
     radio.className = 'params-input params-input-radio'
     radio.name = radioName
     radio.value = String(values[i])
-    if (values[i] === value || String(values[i]) === String(value)) {
+    // M27 fix: Handle null/undefined/NaN safely in comparison
+    const valItem = values[i]
+    const isMatch = valItem === value ||
+      (valItem != null && value != null && String(valItem) === String(value))
+    if (isMatch) {
       radio.checked = true
     }
 

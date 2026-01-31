@@ -283,7 +283,7 @@
 - **Fix:** Extract to shared utility function.
 
 ### M6. Inconsistent Nullish Checks
-- [ ] **Package:** `jscad-web`
+- [x] **Package:** `jscad-web`
 - **File:** `src/stats.js:22-26,81-96`
 - **Description:** Mixing `== null` and `!= null` checks inconsistently.
 - **Fix:** Use consistent patterns throughout.
@@ -313,7 +313,7 @@
 - **Fix:** Add timeout/complexity limits or use simple glob patterns.
 
 ### M11. Unbounded Growth of userInteracted Set
-- [ ] **Package:** `worker`
+- [x] **Package:** `worker`
 - **File:** `worker.js:219-221`
 - **Description:** `userInteracted` set never cleared except in `jscadScript()`, accumulates across `jscadMain()` calls.
 - **Fix:** Clear or limit size periodically.
@@ -331,7 +331,7 @@
 - **Fix:** Apply consistently to all user-provided paths.
 
 ### M14. Unused Variables Throughout
-- [ ] **Package:** `render-threejs`
+- [x] **Package:** `render-threejs`
 - **Files:** `index.js:31-33,95`
 - **Description:** `SHADOW`, `_shouldRender`, `_lastRender`, `tmFunc` variables declared but never used.
 - **Fix:** Remove unused code or add TODO comments.
@@ -409,7 +409,7 @@
 - **Fix:** Store as Maps consistently.
 
 ### M27. Unsafe Type Coercion in Choice/Radio Inputs
-- [ ] **Package:** `params-ui`
+- [x] **Package:** `params-ui`
 - **File:** `src/inputs.js:387-388,436-437`
 - **Description:** String comparison can fail for null, undefined, or NaN values.
 - **Fix:** Use more robust comparison handling edge cases.

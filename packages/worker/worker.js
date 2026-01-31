@@ -216,8 +216,15 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
   }
 
   // Track which params the user has interacted with
+  // M11 fix: Limit set size to prevent unbounded growth
+  const MAX_INTERACTED_PATHS = 1000
   if (userInteractedPaths) {
     userInteractedPaths.forEach(p => userInteracted.add(p))
+    // Clear oldest entries if set grows too large
+    if (userInteracted.size > MAX_INTERACTED_PATHS) {
+      const toKeep = [...userInteracted].slice(-MAX_INTERACTED_PATHS)
+      userInteracted = new Set(toKeep)
+    }
   }
 
   // Handle file params

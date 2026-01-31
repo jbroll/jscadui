@@ -28,9 +28,7 @@ export function RenderThreejs({
   let controls
   let renderer
   let _smooth
-  const SHADOW = false
-  const _shouldRender = Date.now()
-  const _lastRender = true
+  // M14 fix: Remove unused variables SHADOW, _shouldRender, _lastRender
   let renderTimer
   let meshColor = new Color(1, 1, 1)
 
@@ -71,13 +69,7 @@ export function RenderThreejs({
     if(lightPosition) _scene.add(hemiLight)
 
     const directionalLight = new DirectionalLight(0xeeeef4, 0.7)
-    directionalLight.castShadow = SHADOW
-    if (SHADOW) {
-      directionalLight.shadow.camera.top = 180
-      directionalLight.shadow.camera.bottom = -100
-      directionalLight.shadow.camera.left = -120
-      directionalLight.shadow.camera.right = 120
-    }
+    // M14 fix: Shadows were always disabled (SHADOW was false), removed dead code
     if(lightPosition){
       directionalLight.position.set(...lightPosition)
       _scene.add(directionalLight)
