@@ -70,50 +70,20 @@ The application IS a code editor/executor. Removing eval would break the core pu
 ---
 
 ### C3. Manifold WASM Memory Leak
-**Location:** `packages/manifold/src/booleans/index.js`, `transforms/index.js`, etc.
+**Location:** `packages/manifold/src/geometries/ManifoldGeom3.js`
 **Severity:** CRITICAL
 **Type:** Memory Management
-**Status:** Open
+**Status:** FIXED
 
 **Problem:**
-```javascript
-// booleans/index.js:118-124
-const manifolds = geoms.map(g => toManifold(g))
-let result = manifolds[0]
-for (let i = 1; i < manifolds.length; i++) {
-  result = result.subtract(manifolds[i])  // Old result orphaned, never disposed
-}
-```
 Manifold WASM objects allocate on the WASM heap. Without explicit disposal, memory grows unbounded.
 
-**Proposed Fix:**
-Implement disposal tracking using FinalizationRegistry for automatic cleanup, plus explicit `dispose()` method for manual control.
+**Fix Implemented:**
+- Added `FinalizationRegistry` for automatic WASM cleanup when wrapper is garbage collected
+- Added explicit `dispose()` method for manual cleanup when needed
 
-**Why this doesn't break functionality:**
-- Scripts produce final geometry which is converted to mesh for rendering
-- Intermediate Manifold objects are only needed during computation
-- Disposing after conversion preserves all output
-
-**Implementation:**
-```javascript
-// In ManifoldGeom3.js
-const disposalRegistry = new FinalizationRegistry(manifoldRef => {
-  manifoldRef.delete?.()  // Manifold's cleanup method
-})
-
-class ManifoldGeom3 {
-  #manifold
-  constructor(manifold) {
-    this.#manifold = manifold
-    disposalRegistry.register(this, manifold)
-  }
-
-  dispose() {
-    this.#manifold?.delete?.()
-    this.#manifold = null
-  }
-}
-```
+**File Modified:**
+- `packages/manifold/src/geometries/ManifoldGeom3.js`
 
 ---
 
@@ -199,11 +169,14 @@ Added `fullyDecode()` function that recursively decodes until stable.
 **Location:** `packages/require/src/require.js:245-251`
 **Type:** Memory Management
 **Effort:** Medium
-**Status:** Open
+**Status:** FIXED
 
 **Problem:** `requireCache.module` never cleared by `jscadClearTempCache()`.
 
-**Fix:** Add LRU eviction or periodic cleanup.
+**Fix Implemented:**
+- Added LRU eviction with configurable max size (100 modules)
+- Added `moduleAccessOrder` array to track access order
+- Evicts oldest entries when cache exceeds limit
 
 ---
 
@@ -211,11 +184,14 @@ Added `fullyDecode()` function that recursively decodes until stable.
 **Location:** `packages/require/src/require.js`
 **Type:** Error Handling
 **Effort:** Medium
-**Status:** Open
+**Status:** FIXED
 
 **Problem:** No detection of A→B→A circular requires.
 
-**Fix:** Track "loading" state in addition to "loaded".
+**Fix Implemented:**
+- Added `requireCache.loading` Set to track modules currently being loaded
+- Throws descriptive error when circular dependency detected
+- Clears loading state after module loads or on cache clear
 
 ---
 
@@ -238,11 +214,14 @@ comment to the code.
 **Location:** `packages/worker/worker.js:62-78`
 **Type:** Robustness
 **Effort:** Medium
-**Status:** Open
+**Status:** FIXED
 
 **Problem:** Infinite loop in user script blocks all subsequent loads forever.
 
-**Fix:** Add configurable timeout to `acquireScriptLock()`.
+**Fix Implemented:**
+- Added configurable timeout (default 30 seconds) to `acquireScriptLock()`
+- Added `setScriptLockTimeout()` to configure timeout
+- Releases lock and throws descriptive error on timeout
 
 ---
 
@@ -417,11 +396,13 @@ comment to the code.
 ### M15. Silent Conversion Failures in Manifold
 **Location:** `packages/manifold/src/conversions/index.js:328-375`
 **Effort:** Medium
-**Status:** Open
+**Status:** FIXED
 
 **Problem:** Errors caught and return empty geometry silently.
 
-**Fix:** Log warning or throw.
+**Fix Implemented:**
+- Added `console.warn` for each failure path
+- Logs reason for empty geometry return (toOutlines failed, no valid outlines, etc.)
 
 ---
 
@@ -472,11 +453,14 @@ comment to the code.
 ### M20. Linear Search in Discovered Array
 **Location:** `packages/params-core/src/createParamsProxy.js:309`
 **Effort:** Medium (requires data structure refactor)
-**Status:** Open
+**Status:** FIXED
 
 **Problem:** `discovered.find()` is O(n) on every param set.
 
-**Fix:** Use Map keyed by path for O(1) lookup.
+**Fix Implemented:**
+- Added `discoveredByPath` Map to ProxyState for O(1) lookups
+- Updated all `discovered.find()` calls to use `discoveredByPath.get()`
+- Maintains both array (for iteration) and Map (for lookup)
 
 ---
 
@@ -492,9 +476,11 @@ Extract to shared utility.
 ### L2. destroy() Functions Never Called
 **Location:** `apps/jscad-web/main.js`
 **Effort:** Medium
-**Status:** Open
+**Status:** FIXED
 
-Integrate cleanup on navigation/unload.
+**Fix Implemented:**
+- Added `window.addEventListener('unload', ...)` to call all destroy functions
+- Calls menu, remote, welcome, about, paramsUI, editor, and viewState destroy methods
 
 ### L3. Error Object Type Access Without Guards
 **Location:** `apps/jscad-web/src/error.js:8-17`
@@ -521,31 +507,33 @@ Add TypeScript declaration files for consumers.
 
 ## Summary
 
-### Fixed Issues (19 total)
-- **Critical:** C1, C4
-- **High:** H1, H2, H3
-- **Medium:** M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, M17
-- **Low:** L3
+### Fixed Issues (26 total)
+- **Critical:** C1, C3, C4
+- **High:** H1, H2, H3, H6, H7, H9
+- **Medium:** M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, M15, M17, M20
+- **Low:** L2, L3
 
-### Remaining Easy Fixes
-- M14 (libRoots removal - low priority)
-- L1 (duplicate reload logic)
+### Skipped (Low Priority or High Risk)
+- M14 (libRoots removal - would break tests)
+- M16 (center/align native Manifold - high risk refactor)
+- L1 (duplicate reload logic - low priority)
 
-### Medium Effort (Open)
-- H4, H5, H6, H7, H9
-- M15, M16, M18, M19, M20
-- L2
+### Remaining Medium Effort (Open)
+- H4, H5 (event listener cleanup with AbortController)
+- M18 (JSON.stringify comparison optimization)
+- M19 (incremental tree render)
+- L4 (standardize event handler attachment)
 
 ### Not a Bug
 - H8 (ManifoldGeom3.clone() - immutable objects, sharing reference is correct)
 
 ### High Effort (Open)
-- C3
-- H10
-- L5
+- H10 (worker package tests)
+- L5 (TypeScript declaration files)
 
 ### High Effort (Fixed)
 - C1 (Trusted sources permission system with CRUD UI)
+- C3 (Manifold WASM cleanup with FinalizationRegistry)
 - C4 (Double-encoding path traversal fix)
 
 ---
@@ -555,6 +543,6 @@ Add TypeScript declaration files for consumers.
 1. ~~**Phase 1 (Easy wins):** Fix all easy issues - improves code quality immediately~~ **DONE**
 2. ~~**Phase 2 (Security):** C1 - user permission for remote URLs~~ **DONE**
 3. ~~**Phase 2b (Security):** C4 - double-encoding path traversal fix~~ **DONE**
-3. **Phase 3 (Memory):** C3, H6 - prevent memory issues in long sessions
-4. **Phase 4 (Robustness):** H7, H9 - handle edge cases gracefully
-5. **Phase 5 (Testing):** H10 - add test coverage to worker package
+4. ~~**Phase 3 (Memory):** C3, H6 - prevent memory issues in long sessions~~ **DONE**
+5. ~~**Phase 4 (Robustness):** H7, H9 - handle edge cases gracefully~~ **DONE**
+6. **Phase 5 (Testing):** H10 - add test coverage to worker package

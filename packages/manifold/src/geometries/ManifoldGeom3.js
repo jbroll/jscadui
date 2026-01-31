@@ -75,9 +75,28 @@ function computeMeshData(srcVerts, srcIndices) {
 }
 
 /**
+ * FinalizationRegistry for automatic WASM cleanup.
+ * When a ManifoldGeom3 wrapper is garbage collected, this ensures
+ * the underlying Manifold WASM object is also freed.
+ */
+const disposalRegistry = new FinalizationRegistry((manifoldRef) => {
+  // Check if manifold has delete method (WASM binding cleanup)
+  if (manifoldRef && typeof manifoldRef.delete === 'function') {
+    try {
+      manifoldRef.delete()
+    } catch {
+      // Manifold may already be deleted or invalid, ignore
+    }
+  }
+})
+
+/**
  * A geometry wrapper that holds a Manifold internally.
  * Provides lazy conversion to JSCAD geom3 format.
  * Also provides direct access to render-ready mesh data.
+ *
+ * Memory management: Uses FinalizationRegistry to automatically
+ * clean up WASM memory when the wrapper is garbage collected.
  */
 export class ManifoldGeom3 {
   /**
@@ -104,6 +123,9 @@ export class ManifoldGeom3 {
     this.#manifold = manifold
     // Identity transform - actual transform is in Manifold
     this.transforms = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
+
+    // Register for automatic WASM cleanup on garbage collection
+    disposalRegistry.register(this, manifold)
   }
 
   /**
@@ -285,6 +307,28 @@ export class ManifoldGeom3 {
    */
   genus() {
     return this.#manifold.genus()
+  }
+
+  /**
+   * Explicitly dispose of the underlying Manifold WASM object.
+   * Call this when you're done with a geometry to immediately free WASM memory.
+   * The FinalizationRegistry will also clean up automatically on garbage collection,
+   * but explicit disposal is more predictable for memory-intensive operations.
+   */
+  dispose() {
+    if (this.#manifold) {
+      // Unregister from FinalizationRegistry since we're disposing manually
+      disposalRegistry.unregister(this)
+      try {
+        this.#manifold.delete?.()
+      } catch {
+        // Manifold may already be deleted, ignore
+      }
+      this.#manifold = null
+      this.#cachedPolygons = null
+      this.#cachedMeshData = null
+      this.#cachedRawMesh = null
+    }
   }
 
   /**

@@ -65,16 +65,54 @@ globalThis.JSCAD_WORKER_ENV = {}
 let scriptLock = Promise.resolve()
 
 /**
+ * Timeout in ms to wait for script lock before giving up
+ * Default: 30 seconds. Set to 0 to disable timeout.
+ */
+let scriptLockTimeout = 30000
+
+/**
+ * Configure the script lock timeout
+ * @param {number} ms - Timeout in milliseconds (0 to disable)
+ */
+export const setScriptLockTimeout = (ms) => {
+  scriptLockTimeout = ms
+}
+
+/**
  * Acquire the script execution lock
  * @returns {Promise<() => void>} Release function
+ * @throws {Error} If timeout waiting for previous script to complete
  */
-const acquireScriptLock = () => {
+const acquireScriptLock = async () => {
   let release
   const previousLock = scriptLock
   scriptLock = new Promise(resolve => {
     release = resolve
   })
-  return previousLock.then(() => release)
+
+  // If no timeout, wait indefinitely
+  if (scriptLockTimeout === 0) {
+    await previousLock
+    return release
+  }
+
+  // Race against timeout
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => reject(new Error(
+      `Script lock timeout: previous script did not complete within ${scriptLockTimeout}ms. ` +
+      'This may indicate an infinite loop in user code.'
+    )), scriptLockTimeout)
+  })
+
+  try {
+    await Promise.race([previousLock, timeoutPromise])
+  } catch (err) {
+    // On timeout, release the lock so subsequent scripts can run
+    release()
+    throw err
+  }
+
+  return release
 }
 
 /** @type {TransformFunction} */

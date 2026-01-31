@@ -81,10 +81,25 @@ export const require = (urlOrSource, transform, readFile, base, root, importData
 
     cache = requireCache[isRelativeFile ? 'local' : 'module']
     exports = cache[cacheUrl] // get from cache
+    // Update LRU access order for module cache hits
+    if (exports && !isRelativeFile) {
+      const order = requireCache.moduleAccessOrder
+      const idx = order.indexOf(cacheUrl)
+      if (idx !== -1) {
+        order.splice(idx, 1)
+        order.push(cacheUrl)
+      }
+    }
     if (!exports) {
       // not cached
 
-      //Clear the known dependencies of the old version this module      
+      // Check for circular dependency
+      if (requireCache.loading.has(cacheUrl)) {
+        throw new Error(`Circular dependency detected: ${url} is already being loaded`)
+      }
+      requireCache.loading.add(cacheUrl)
+
+      //Clear the known dependencies of the old version this module
       requireCache.knownDependencies.set(cacheUrl, new Set())
       try {
         source = readFile(resolvedUrl)
@@ -153,7 +168,15 @@ export const require = (urlOrSource, transform, readFile, base, root, importData
     }
   }
 
-  if (cache && cacheUrl) cache[cacheUrl] = exports // cache obj exported by module
+  // Cache the module exports and mark loading complete
+  if (cache && cacheUrl) {
+    if (isRelativeFile) {
+      cache[cacheUrl] = exports
+    } else {
+      cacheModule(cacheUrl, exports) // LRU-managed module cache
+    }
+    requireCache.loading.delete(cacheUrl) // Remove from loading set
+  }
 
   return exports // require returns object exported by module
 }
@@ -212,6 +235,7 @@ export const clearFileCache = ({ files, root }) => {
 export const jscadClearTempCache = () => {
   requireCache.local = {}
   requireCache.alias = {}
+  requireCache.loading.clear() // Clear loading state for new script runs
   // Clear dependency tracking for local files to prevent memory leaks
   // Keep only module dependencies (entries starting with http)
   for (const key of requireCache.knownDependencies.keys()) {
@@ -229,7 +253,35 @@ export const clearAllCaches = () => {
   requireCache.local = {}
   requireCache.alias = {}
   requireCache.module = {}
+  requireCache.moduleAccessOrder = []
   requireCache.knownDependencies.clear()
+  requireCache.loading.clear()
+}
+
+/**
+ * Maximum number of modules to keep in cache (LRU eviction)
+ */
+const MAX_MODULE_CACHE_SIZE = 100
+
+/**
+ * Add module to cache with LRU tracking
+ * @param {string} url
+ * @param {Object} exports
+ */
+const cacheModule = (url, exports) => {
+  // Update access order for LRU
+  const order = requireCache.moduleAccessOrder
+  const idx = order.indexOf(url)
+  if (idx !== -1) order.splice(idx, 1)
+  order.push(url)
+
+  // Evict oldest entries if over limit
+  while (order.length > MAX_MODULE_CACHE_SIZE) {
+    const oldest = order.shift()
+    delete requireCache.module[oldest]
+  }
+
+  requireCache.module[url] = exports
 }
 
 
@@ -248,4 +300,6 @@ export const requireCache = {
   module: {},
   bundleAlias: {},
   knownDependencies: new Map(),
+  moduleAccessOrder: [], // LRU tracking for module cache
+  loading: new Set(), // Track modules currently being loaded (for circular dependency detection)
 }

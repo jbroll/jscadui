@@ -335,7 +335,8 @@ export const geom2ToCrossSection = (geom) => {
     } else {
       outlines = null
     }
-  } catch (_e) {
+  } catch (e) {
+    console.warn('geom2ToCrossSection: toOutlines failed:', e.message)
     outlines = null
   }
 
@@ -350,6 +351,7 @@ export const geom2ToCrossSection = (geom) => {
   }
 
   if (!outlines || outlines.length === 0) {
+    console.warn('geom2ToCrossSection: no valid outlines found, returning empty CrossSection')
     return new CrossSection()
   }
 
@@ -364,13 +366,14 @@ export const geom2ToCrossSection = (geom) => {
     .filter(contour => contour.length >= 3)
 
   if (contours.length === 0) {
+    console.warn('geom2ToCrossSection: no valid contours after filtering, returning empty CrossSection')
     return new CrossSection()
   }
 
   try {
     return new CrossSection(contours)
-  } catch (_e) {
-    // CrossSection construction failed - return empty
+  } catch (e) {
+    console.warn('geom2ToCrossSection: CrossSection construction failed:', e.message)
     return new CrossSection()
   }
 }

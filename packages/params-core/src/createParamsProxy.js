@@ -53,6 +53,7 @@
  * @typedef {Object} ProxyState
  * @property {ParamDefinition[]} discovered - All discovered parameters
  * @property {Set<string>} discoveredPaths - Set of discovered paths (shared across proxies for efficiency)
+ * @property {Map<string, ParamDefinition>} discoveredByPath - O(1) lookup by path
  * @property {Set<string>} userInteracted - Paths the user has explicitly changed
  * @property {Object} uiValues - Current UI values (flat object with dot-notation keys)
  * @property {Map<string, string>} types - Part types by path (from _type assignments)
@@ -207,7 +208,7 @@ const getByPath = (obj, path) => {
  * @returns {Proxy}
  */
 export const createParamsProxy = (state, path = '') => {
-  const { discovered, discoveredPaths, userInteracted, uiValues } = state
+  const { discovered, discoveredPaths, discoveredByPath, userInteracted, uiValues } = state
   const defaults = {}
   const children = {}
 
@@ -279,14 +280,16 @@ export const createParamsProxy = (state, path = '') => {
         // Register as hidden param for UI editing
         if (!discoveredPaths.has(fullPath)) {
           discoveredPaths.add(fullPath)
-          discovered.push({
+          const entry = {
             path: fullPath,
             name: propStr,
             parent: path,
             hidden: true,
             default: value,
             type: 'text',
-          })
+          }
+          discovered.push(entry)
+          discoveredByPath.set(fullPath, entry)
         }
         return true
       }
@@ -297,16 +300,18 @@ export const createParamsProxy = (state, path = '') => {
       // Register for UI discovery (always, even if user has interacted)
       if (!discoveredPaths.has(fullPath)) {
         discoveredPaths.add(fullPath)
-        discovered.push({
+        const entry = {
           path: fullPath,
           name: propStr,
           parent: path,
           hidden: propStr.startsWith('_'),
           ...def,
-        })
+        }
+        discovered.push(entry)
+        discoveredByPath.set(fullPath, entry)
       } else {
-        // Update existing discovery with new info
-        const existing = discovered.find(d => d.path === fullPath)
+        // Update existing discovery with new info (O(1) lookup)
+        const existing = discoveredByPath.get(fullPath)
         if (existing) {
           if (def.constrained) {
             // New value is constrained (plain value passed in) - mark as constrained
@@ -331,7 +336,7 @@ export const createParamsProxy = (state, path = '') => {
       }
 
       // If existing is constrained and new is a definition, preserve constrained value
-      const existing = discovered.find(d => d.path === fullPath)
+      const existing = discoveredByPath.get(fullPath)
       if (existing?.constrained && !def.constrained) {
         // Definition is trying to overwrite constrained value - ignore the default
         return true
@@ -377,6 +382,7 @@ export const createParamsProxy = (state, path = '') => {
 export const createProxyState = (uiValues = {}, userInteracted = new Set(), options = {}) => ({
   discovered: [],
   discoveredPaths: new Set(),  // Shared set to track discovered paths efficiently
+  discoveredByPath: new Map(),  // O(1) lookup by path
   userInteracted,
   uiValues,
   types: new Map(),

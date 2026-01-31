@@ -551,3 +551,15 @@ if ('serviceWorker' in navigator && !navigator.serviceWorker.controller) {
     setError('cannot start service worker, reload required')
   }
 }
+
+// ============== Cleanup on Page Unload ==============
+// Call destroy functions to clean up event listeners and resources
+window.addEventListener('unload', () => {
+  menu.destroy()
+  remote.destroy()
+  welcome.destroy()
+  about.destroy()
+  paramsUI.destroyParamsTreeView()
+  editor.destroy()
+  viewState.viewer?.destroy?.()
+})
