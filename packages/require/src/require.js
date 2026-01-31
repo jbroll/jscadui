@@ -100,42 +100,50 @@ export const require = (urlOrSource, transform, readFile, base, root, importData
       }
       requireCache.loading.add(cacheUrl)
 
-      //Clear the known dependencies of the old version this module
-      requireCache.knownDependencies.set(cacheUrl, new Set())
+      // H8 fix: Wrap the entire loading block in try-finally to ensure loading set cleanup
+      // even if errors occur during readFile or other operations
       try {
-        source = readFile(resolvedUrl)
-        if (resolvedUrl.includes('cdn.jsdelivr.net')) {
-          // jsdelivr will read package.json and tell us what the main file is
-          const srch = ' * Original file: '
-          const idx = source.indexOf(srch)
-          if (idx != -1) {
-            const idx2 = source.indexOf('\n', idx + srch.length + 1)
-            const realFile = new URL(source.substring(idx + srch.length, idx2), resolvedUrl).toString()
-            // Validate that the redirect URL origin is exactly cdn.jsdelivr.net to prevent redirect attacks
-            try {
-              const redirectUrl = new URL(realFile)
-              if (redirectUrl.origin === 'https://cdn.jsdelivr.net' && !redirectUrl.pathname.includes('..')) {
-                resolvedUrl = base = realFile
-              } else {
-                console.warn('Ignoring suspicious jsdelivr redirect:', realFile)
+        //Clear the known dependencies of the old version this module
+        requireCache.knownDependencies.set(cacheUrl, new Set())
+        try {
+          source = readFile(resolvedUrl)
+          if (resolvedUrl.includes('cdn.jsdelivr.net')) {
+            // jsdelivr will read package.json and tell us what the main file is
+            const srch = ' * Original file: '
+            const idx = source.indexOf(srch)
+            if (idx != -1) {
+              const idx2 = source.indexOf('\n', idx + srch.length + 1)
+              const realFile = new URL(source.substring(idx + srch.length, idx2), resolvedUrl).toString()
+              // Validate that the redirect URL origin is exactly cdn.jsdelivr.net to prevent redirect attacks
+              try {
+                const redirectUrl = new URL(realFile)
+                if (redirectUrl.origin === 'https://cdn.jsdelivr.net' && !redirectUrl.pathname.includes('..')) {
+                  resolvedUrl = base = realFile
+                } else {
+                  console.warn('Ignoring suspicious jsdelivr redirect:', realFile)
+                }
+              } catch {
+                console.warn('Invalid jsdelivr redirect URL:', realFile)
               }
-            } catch {
-              console.warn('Invalid jsdelivr redirect URL:', realFile)
             }
           }
-        }
-      } catch (e) {
-        if (resolvedUrl.endsWith('.js')) {
-          try {
-            resolvedUrl = resolvedUrl.replace(/\.js$/, '.ts')
-            source = readFile(resolvedUrl)
-          } catch (_e2) {
-            console.error('failed to load fallback .ts')
+        } catch (e) {
+          if (resolvedUrl.endsWith('.js')) {
+            try {
+              resolvedUrl = resolvedUrl.replace(/\.js$/, '.ts')
+              source = readFile(resolvedUrl)
+            } catch (_e2) {
+              console.error('failed to load fallback .ts')
+              throw new Error(`failed to load module ${url}\n  ${e}`)
+            }
+          } else {
             throw new Error(`failed to load module ${url}\n  ${e}`)
           }
-        } else {
-          throw new Error(`failed to load module ${url}\n  ${e}`)
         }
+      } catch (loadError) {
+        // H8 fix: Clean up loading set on error during the loading phase
+        requireCache.loading.delete(cacheUrl)
+        throw loadError
       }
     }
   }
