@@ -77,8 +77,11 @@ export const createNumberInput = ({ param, value, onChange }) => {
 
   // Use 'input' event for immediate response to spinner clicks
   input.oninput = () => {
-    const val = type === 'int' ? parseInt(input.value) : parseFloat(input.value)
+    let val = type === 'int' ? parseInt(input.value) : parseFloat(input.value)
     if (!isNaN(val)) {
+      // H23 fix: Validate against min/max constraints
+      if (min !== undefined && val < min) val = min
+      if (max !== undefined && val > max) val = max
       onChange(val)
     }
   }
@@ -288,7 +291,9 @@ export const createColorInput = ({ param, value, onChange }) => {
     hexInput.value = color.toUpperCase()
     customInput.value = color
     grid.querySelectorAll('.params-input-color-swatch').forEach(s => {
-      const isSelected = s.style.backgroundColor === color || s.title.toLowerCase() === color.toLowerCase()
+      // H22 fix: Use title attribute only for comparison
+      // style.backgroundColor returns rgb format while color is hex, so direct comparison fails
+      const isSelected = s.title.toLowerCase() === color.toLowerCase()
       s.classList.toggle('params-input-color-swatch--selected', isSelected)
       s.setAttribute('aria-selected', String(isSelected))
     })

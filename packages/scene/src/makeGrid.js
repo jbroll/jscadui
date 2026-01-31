@@ -22,6 +22,17 @@ export const makeGrid = ({ color1 = [0, 0, 0, 0.2], color2 = [0, 0, 0.6, 0.1], s
   }
   size = Math.floor(size)
 
+  // H20 fix: Validate color arrays - must be arrays with at least 3 numeric elements
+  const validateColor = (c, defaultColor) => {
+    if (!Array.isArray(c) || c.length < 3) return defaultColor
+    for (let i = 0; i < Math.min(c.length, 4); i++) {
+      if (typeof c[i] !== 'number' || !Number.isFinite(c[i])) return defaultColor
+    }
+    return c
+  }
+  color1 = validateColor(color1, [0, 0, 0, 0.2])
+  color2 = validateColor(color2, [0, 0, 0.6, 0.1])
+
   const half = Math.floor(size / 2)
   // Main grid lines: center cross (2 lines) + every 10th line (4 lines each via makeLine4x)
   const mainLinesInLoop = Math.floor(half / 10)

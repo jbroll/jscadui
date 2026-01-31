@@ -112,11 +112,24 @@ self.addEventListener('fetch', async event => {
       }
     }
 
+    // H21 fix: Track timeout and log errors that occur after timeout
+    let timedOut = false
     const timeout = new Promise(resolve =>
-      setTimeout(() => resolve(new Response('timeout for ' + path, { status: 504 })), 5000)
+      setTimeout(() => {
+        timedOut = true
+        resolve(new Response('timeout for ' + path, { status: 504 }))
+      }, 5000)
     )
 
-    event.respondWith(Promise.race([fetchFile(), timeout]))
+    // Wrap fetchFile to handle post-timeout errors
+    const fetchWithErrorLogging = fetchFile().catch(err => {
+      if (timedOut) {
+        console.error('Error after timeout for', path, ':', err)
+      }
+      return new Response('Error fetching ' + path, { status: 500 })
+    })
+
+    event.respondWith(Promise.race([fetchWithErrorLogging, timeout]))
   }
 })
 

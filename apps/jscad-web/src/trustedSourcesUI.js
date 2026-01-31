@@ -26,43 +26,87 @@ export function showPermissionDialog(url) {
       return
     }
 
+    // H1 fix: Build dialog using DOM methods instead of innerHTML
     const overlay = document.createElement('div')
     overlay.className = 'trust-dialog-overlay'
-    overlay.innerHTML = `
-      <div class="trust-dialog">
-        <h3>Load script from untrusted source?</h3>
-        <p class="trust-url">${escapeHtml(url)}</p>
-        <div class="trust-options">
-          <label>
-            <input type="radio" name="trust-option" value="allow_once" checked>
-            Load once (don't remember)
-          </label>
-          <label>
-            <input type="radio" name="trust-option" value="trust_url">
-            Trust this exact URL
-          </label>
-          <label>
-            <input type="radio" name="trust-option" value="trust_domain">
-            Trust all scripts from <strong>${escapeHtml(parsed.domain)}</strong>
-          </label>
-        </div>
-        <div class="trust-buttons">
-          <button class="trust-cancel">Cancel</button>
-          <button class="trust-allow">Allow</button>
-        </div>
-      </div>
-    `
+
+    const dialog = document.createElement('div')
+    dialog.className = 'trust-dialog'
+
+    const h3 = document.createElement('h3')
+    h3.textContent = 'Load script from untrusted source?'
+    dialog.appendChild(h3)
+
+    const urlP = document.createElement('p')
+    urlP.className = 'trust-url'
+    urlP.textContent = url
+    dialog.appendChild(urlP)
+
+    const optionsDiv = document.createElement('div')
+    optionsDiv.className = 'trust-options'
+
+    const options = [
+      { value: 'allow_once', text: 'Load once (don\'t remember)', checked: true },
+      { value: 'trust_url', text: 'Trust this exact URL', checked: false },
+      { value: 'trust_domain', text: `Trust all scripts from `, domain: parsed.domain, checked: false }
+    ]
+
+    options.forEach(opt => {
+      const label = document.createElement('label')
+      const input = document.createElement('input')
+      input.type = 'radio'
+      input.name = 'trust-option'
+      input.value = opt.value
+      input.checked = opt.checked
+      label.appendChild(input)
+      if (opt.domain) {
+        label.appendChild(document.createTextNode(opt.text))
+        const strong = document.createElement('strong')
+        strong.textContent = opt.domain
+        label.appendChild(strong)
+      } else {
+        label.appendChild(document.createTextNode(opt.text))
+      }
+      optionsDiv.appendChild(label)
+    })
+    dialog.appendChild(optionsDiv)
+
+    const buttonsDiv = document.createElement('div')
+    buttonsDiv.className = 'trust-buttons'
+
+    const cancelBtn = document.createElement('button')
+    cancelBtn.className = 'trust-cancel'
+    cancelBtn.textContent = 'Cancel'
+
+    const allowBtn = document.createElement('button')
+    allowBtn.className = 'trust-allow'
+    allowBtn.textContent = 'Allow'
+
+    buttonsDiv.appendChild(cancelBtn)
+    buttonsDiv.appendChild(allowBtn)
+    dialog.appendChild(buttonsDiv)
+
+    overlay.appendChild(dialog)
+
+    // M4 fix: Store listener reference for cleanup from all exit paths
+    const onKeydown = e => {
+      if (e.key === 'Escape') {
+        cleanup()
+        resolve('cancel')
+      }
+    }
 
     const cleanup = () => {
+      document.removeEventListener('keydown', onKeydown)
       overlay.remove()
     }
 
-    overlay.querySelector('.trust-cancel').onclick = () => {
+    cancelBtn.onclick = () => {
       cleanup()
       resolve('cancel')
     }
 
-    overlay.querySelector('.trust-allow').onclick = () => {
+    allowBtn.onclick = () => {
       const selected = overlay.querySelector('input[name="trust-option"]:checked')
       const value = selected?.value || 'allow_once'
       cleanup()
@@ -85,150 +129,197 @@ export function showPermissionDialog(url) {
       }
     }
 
-    // Close on Escape
-    const onKeydown = e => {
-      if (e.key === 'Escape') {
-        cleanup()
-        resolve('cancel')
-        document.removeEventListener('keydown', onKeydown)
-      }
-    }
     document.addEventListener('keydown', onKeydown)
-
     document.body.appendChild(overlay)
   })
 }
 
 /**
  * Show CRUD dialog for managing trusted sources
+ * H1 fix: Refactored to use DOM methods instead of innerHTML for user content
  */
 export function showTrustedSourcesDialog() {
   const overlay = document.createElement('div')
   overlay.className = 'trust-dialog-overlay'
 
-  const renderRules = () => {
-    const rules = loadRules()
-    const rulesHtml = rules.length === 0
-      ? '<p class="no-rules">No trusted sources configured. URLs will prompt for permission.</p>'
-      : rules.map(rule => `
-          <div class="trust-rule" data-id="${rule.id}">
-            <div class="rule-info">
-              <span class="rule-domain">${escapeHtml(rule.domain)}</span>
-              <span class="rule-path">${escapeHtml(rule.pathPattern)}</span>
-            </div>
-            <div class="rule-actions">
-              <button class="rule-edit" title="Edit">Edit</button>
-              <button class="rule-delete" title="Delete">Delete</button>
-            </div>
-          </div>
-        `).join('')
+  // M4 fix: Store listener for cleanup from all exit paths
+  const onKeydown = e => {
+    if (e.key === 'Escape') {
+      cleanup()
+    }
+  }
 
-    return rulesHtml
+  const cleanup = () => {
+    document.removeEventListener('keydown', onKeydown)
+    overlay.remove()
+  }
+
+  const createRuleElement = (rule) => {
+    const ruleEl = document.createElement('div')
+    ruleEl.className = 'trust-rule'
+    ruleEl.dataset.id = rule.id
+
+    const ruleInfo = document.createElement('div')
+    ruleInfo.className = 'rule-info'
+
+    const domainSpan = document.createElement('span')
+    domainSpan.className = 'rule-domain'
+    domainSpan.textContent = rule.domain
+
+    const pathSpan = document.createElement('span')
+    pathSpan.className = 'rule-path'
+    pathSpan.textContent = rule.pathPattern
+
+    ruleInfo.appendChild(domainSpan)
+    ruleInfo.appendChild(pathSpan)
+
+    const actionsDiv = document.createElement('div')
+    actionsDiv.className = 'rule-actions'
+
+    const editBtn = document.createElement('button')
+    editBtn.className = 'rule-edit'
+    editBtn.title = 'Edit'
+    editBtn.textContent = 'Edit'
+    editBtn.onclick = () => enterEditMode(ruleEl, rule)
+
+    const deleteBtn = document.createElement('button')
+    deleteBtn.className = 'rule-delete'
+    deleteBtn.title = 'Delete'
+    deleteBtn.textContent = 'Delete'
+    deleteBtn.onclick = () => {
+      deleteRule(rule.id)
+      render()
+    }
+
+    actionsDiv.appendChild(editBtn)
+    actionsDiv.appendChild(deleteBtn)
+
+    ruleEl.appendChild(ruleInfo)
+    ruleEl.appendChild(actionsDiv)
+
+    return ruleEl
+  }
+
+  const enterEditMode = (ruleEl, rule) => {
+    ruleEl.innerHTML = ''
+
+    const domainInput = document.createElement('input')
+    domainInput.type = 'text'
+    domainInput.className = 'edit-domain'
+    domainInput.value = rule.domain
+
+    const pathInput = document.createElement('input')
+    pathInput.type = 'text'
+    pathInput.className = 'edit-path'
+    pathInput.value = rule.pathPattern
+
+    const saveBtn = document.createElement('button')
+    saveBtn.className = 'edit-save'
+    saveBtn.textContent = 'Save'
+    saveBtn.onclick = () => {
+      const newDomain = domainInput.value.trim()
+      const newPath = pathInput.value.trim()
+      if (newDomain) {
+        updateRule(rule.id, newDomain, newPath || '.*')
+      }
+      render()
+    }
+
+    const cancelBtn = document.createElement('button')
+    cancelBtn.className = 'edit-cancel'
+    cancelBtn.textContent = 'Cancel'
+    cancelBtn.onclick = () => render()
+
+    ruleEl.appendChild(domainInput)
+    ruleEl.appendChild(pathInput)
+    ruleEl.appendChild(saveBtn)
+    ruleEl.appendChild(cancelBtn)
   }
 
   const render = () => {
-    overlay.innerHTML = `
-      <div class="trust-dialog trust-dialog-wide">
-        <h3>Trusted Sources</h3>
-        <p class="trust-description">
-          Scripts from trusted sources load without prompting.
-          Use domain and path regex patterns to control access.
-        </p>
-        <div class="trust-rules-list">
-          ${renderRules()}
-        </div>
-        <div class="trust-add-form">
-          <input type="text" class="add-domain" placeholder="Domain (e.g., example.com)">
-          <input type="text" class="add-path" placeholder="Path regex (e.g., .* or /models/.*\\.js$)">
-          <button class="add-rule">Add Rule</button>
-        </div>
-        <div class="trust-buttons">
-          <button class="trust-close">Close</button>
-        </div>
-      </div>
-    `
+    overlay.innerHTML = ''
 
-    // Bind events
-    overlay.querySelector('.trust-close').onclick = () => overlay.remove()
+    const dialog = document.createElement('div')
+    dialog.className = 'trust-dialog trust-dialog-wide'
 
-    overlay.querySelector('.add-rule').onclick = () => {
-      const domainInput = overlay.querySelector('.add-domain')
-      const pathInput = overlay.querySelector('.add-path')
-      const domain = domainInput.value.trim()
-      const path = pathInput.value.trim() || '.*'
+    const h3 = document.createElement('h3')
+    h3.textContent = 'Trusted Sources'
+    dialog.appendChild(h3)
 
+    const descP = document.createElement('p')
+    descP.className = 'trust-description'
+    descP.textContent = 'Scripts from trusted sources load without prompting. Use domain and path regex patterns to control access.'
+    dialog.appendChild(descP)
+
+    const rulesList = document.createElement('div')
+    rulesList.className = 'trust-rules-list'
+
+    const rules = loadRules()
+    if (rules.length === 0) {
+      const noRules = document.createElement('p')
+      noRules.className = 'no-rules'
+      noRules.textContent = 'No trusted sources configured. URLs will prompt for permission.'
+      rulesList.appendChild(noRules)
+    } else {
+      rules.forEach(rule => {
+        rulesList.appendChild(createRuleElement(rule))
+      })
+    }
+    dialog.appendChild(rulesList)
+
+    const addForm = document.createElement('div')
+    addForm.className = 'trust-add-form'
+
+    const addDomainInput = document.createElement('input')
+    addDomainInput.type = 'text'
+    addDomainInput.className = 'add-domain'
+    addDomainInput.placeholder = 'Domain (e.g., example.com)'
+
+    const addPathInput = document.createElement('input')
+    addPathInput.type = 'text'
+    addPathInput.className = 'add-path'
+    addPathInput.placeholder = 'Path regex (e.g., .* or /models/.*\\.js$)'
+
+    const addBtn = document.createElement('button')
+    addBtn.className = 'add-rule'
+    addBtn.textContent = 'Add Rule'
+    addBtn.onclick = () => {
+      const domain = addDomainInput.value.trim()
+      const path = addPathInput.value.trim() || '.*'
       if (domain) {
         addRule(domain, path)
         render()
       }
     }
 
-    // Edit and delete buttons
-    overlay.querySelectorAll('.rule-edit').forEach(btn => {
-      btn.onclick = () => {
-        const ruleEl = btn.closest('.trust-rule')
-        const id = ruleEl.dataset.id
-        const rules = loadRules()
-        const rule = rules.find(r => r.id === id)
-        if (!rule) return
+    addForm.appendChild(addDomainInput)
+    addForm.appendChild(addPathInput)
+    addForm.appendChild(addBtn)
+    dialog.appendChild(addForm)
 
-        ruleEl.innerHTML = `
-          <input type="text" class="edit-domain" value="${escapeHtml(rule.domain)}">
-          <input type="text" class="edit-path" value="${escapeHtml(rule.pathPattern)}">
-          <button class="edit-save">Save</button>
-          <button class="edit-cancel">Cancel</button>
-        `
+    const buttonsDiv = document.createElement('div')
+    buttonsDiv.className = 'trust-buttons'
 
-        ruleEl.querySelector('.edit-save').onclick = () => {
-          const newDomain = ruleEl.querySelector('.edit-domain').value.trim()
-          const newPath = ruleEl.querySelector('.edit-path').value.trim()
-          if (newDomain) {
-            updateRule(id, newDomain, newPath || '.*')
-          }
-          render()
-        }
+    const closeBtn = document.createElement('button')
+    closeBtn.className = 'trust-close'
+    closeBtn.textContent = 'Close'
+    closeBtn.onclick = () => cleanup()
 
-        ruleEl.querySelector('.edit-cancel').onclick = () => render()
-      }
-    })
+    buttonsDiv.appendChild(closeBtn)
+    dialog.appendChild(buttonsDiv)
 
-    overlay.querySelectorAll('.rule-delete').forEach(btn => {
-      btn.onclick = () => {
-        const id = btn.closest('.trust-rule').dataset.id
-        deleteRule(id)
-        render()
-      }
-    })
+    overlay.appendChild(dialog)
   }
 
   render()
 
   // Close on overlay click
   overlay.onclick = e => {
-    if (e.target === overlay) overlay.remove()
+    if (e.target === overlay) cleanup()
   }
 
-  // Close on Escape
-  const onKeydown = e => {
-    if (e.key === 'Escape') {
-      overlay.remove()
-      document.removeEventListener('keydown', onKeydown)
-    }
-  }
   document.addEventListener('keydown', onKeydown)
-
   document.body.appendChild(overlay)
-}
-
-/**
- * Escape HTML to prevent XSS
- * @param {string} str
- * @returns {string}
- */
-function escapeHtml(str) {
-  const div = document.createElement('div')
-  div.textContent = str
-  return div.innerHTML
 }
 
 /**

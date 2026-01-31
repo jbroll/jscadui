@@ -58,6 +58,9 @@ const MODEL_UPDATE_DEBOUNCE = 50
 /** @type {boolean} */
 let modelUpdatePending = false
 
+/** @type {ParamsUIDeps|null} H5 fix: Store pending deps for recursive call */
+let pendingDeps = null
+
 /** @type {boolean} */
 let working = false
 
@@ -171,12 +174,15 @@ export function clearModelUpdateTimer() {
 export async function runModelUpdate(deps) {
   const { workerApi, handleEntities, setError, stopCurrentAnim } = deps
 
+  // H5 fix: Store deps for pending update to use the most recent deps
   if (working) {
     modelUpdatePending = true
+    pendingDeps = deps
     return
   }
 
   modelUpdatePending = false
+  pendingDeps = null
   stopCurrentAnim()
   working = true
 
@@ -209,7 +215,12 @@ export async function runModelUpdate(deps) {
     console.error('Model update failed:', err)
   } finally {
     working = false
-    if (modelUpdatePending) runModelUpdate(deps)
+    // H5 fix: Use stored pendingDeps if available, otherwise fall back to current deps
+    if (modelUpdatePending) {
+      const depsToUse = pendingDeps || deps
+      pendingDeps = null
+      runModelUpdate(depsToUse)
+    }
   }
 }
 
