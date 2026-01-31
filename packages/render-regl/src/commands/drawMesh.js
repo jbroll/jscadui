@@ -63,12 +63,12 @@ const drawMesh = (regl, params = { extras: {} }) => {
       ucolor: (_context, props) => (props && props.color) ? props.color : color,
       // Toggle between vertex colors and uniform color
       vColorToggler: (_context, props) => (props && props.useVertexColors && props.useVertexColors === true) ? 1.0 : 0.0,
-      // Normal matrix for proper lighting with transformed geometry
+      // Normal matrix = transpose(inverse(modelView)) = transpose(inverse(model) * inverse(view))
       unormal: (context, props) => {
-        const modelViewMatrix = mat4.invert(mat4.create(), props.camera.view)
-        mat4.multiply(modelViewMatrix, modelMatrixInv, modelViewMatrix)
-        mat4.transpose(modelViewMatrix, modelViewMatrix)
-        return modelViewMatrix
+        const inverseView = mat4.invert(mat4.create(), props.camera.view)
+        const inverseModelView = mat4.multiply(mat4.create(), modelMatrixInv, inverseView)
+        const normalMatrix = mat4.transpose(mat4.create(), inverseModelView)
+        return normalMatrix
       }
     },
 

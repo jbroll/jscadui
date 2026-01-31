@@ -175,7 +175,7 @@
 - [x] **Package:** `render-regl`
 - **File:** `src/commands/drawMesh.js:67-72`
 - **Description:** Normal matrix calculation is incorrect - inverts view matrix but should be inverse transpose of model-view matrix.
-- **Note:** NOT A BUG - Code computes transpose(inverse(model) * inverse(view)) = transpose(inverse(view * model)) which IS the correct normal matrix. Variable naming is confusing but math is correct.
+- **Fix:** Math was correct but variable names were confusing. Renamed variables to `inverseView`, `inverseModelView`, `normalMatrix` for clarity.
 
 ### H15. Race Condition in render-regl Async Initialization
 - [x] **Package:** `render-regl`
