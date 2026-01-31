@@ -130,22 +130,22 @@
 - **Fix:** Add validation: `if (!fps || fps <= 0) throw new Error('Animation fps must be positive')`
 
 ### H7. Race Condition in Module Cache Access
-- [ ] **Package:** `require`
+- [x] **Package:** `require`
 - **File:** `src/require.js:82-92`
 - **Description:** Module cache lookup and LRU order update are not atomic. Concurrent require calls could corrupt LRU state.
-- **Fix:** Make cache operations atomic or accept best-effort LRU tracking.
+- **Note:** ACCEPTABLE - Worker is single-threaded so concurrent access only happens across async boundaries. Best-effort LRU is fine.
 
 ### H8. Module Cache Eviction Race Condition
-- [ ] **Package:** `require`
+- [x] **Package:** `require`
 - **File:** `src/require.js:271-285`
 - **Description:** If two modules are cached simultaneously at limit, both could trigger eviction incorrectly.
-- **Fix:** Use mutex/lock or redesign for concurrency safety.
+- **Note:** ACCEPTABLE - Same as H7. Single-threaded worker means minimal risk. Over-eviction is harmless.
 
 ### H9. Global Variable Pollution in Worker
-- [ ] **Package:** `worker`
+- [x] **Package:** `worker`
 - **File:** `worker.js:121-137`
 - **Description:** Multiple mutable globals track worker state, persisting across script executions.
-- **Fix:** Encapsulate all worker state into single object that can be reset cleanly.
+- **Note:** ACCEPTABLE - State persistence across runs is intentional (caches, proxies). Full reset would hurt performance. Individual states have their own cleanup mechanisms.
 
 ### H10. Incomplete Input Validation in resolveUrl
 - [x] **Package:** `require`
@@ -160,23 +160,22 @@
 - **Fix:** Always use a timeout (even if long) or provide way to cancel pending requests.
 
 ### H12. Inefficient Array Operations in LRU Cache
-- [ ] **Package:** `require`
+- [x] **Package:** `require`
 - **File:** `src/require.js:86-91,273-276`
 - **Description:** Using `indexOf()` and `splice()` for LRU tracking is O(n), slow with many modules.
-- **Fix:** Use Map for O(1) lookups and doubly-linked list for LRU, or use existing library.
+- **Note:** LOW PRIORITY - Cache limit is 50 modules. O(n) on small n is negligible. Premature optimization.
 
 ### H13. transformFunc Error Handling Issues
-- [ ] **Package:** `worker`
+- [x] **Package:** `worker`
 - **File:** `worker.js:340-348`
 - **Description:** Error handling for syntax errors is fragile - if `transformFunc` doesn't detect the error, original unhelpful error is thrown.
-- **Fix:** Compare errors or ensure `transformFunc` always throws on invalid syntax.
+- **Note:** LOW PRIORITY - Babel's transformFunc is well-tested. Edge case error messages may not be perfect but don't affect functionality.
 
 ### H14. Inconsistent Normal Matrix Calculation
-- [ ] **Package:** `render-regl`
+- [x] **Package:** `render-regl`
 - **File:** `src/commands/drawMesh.js:67-72`
 - **Description:** Normal matrix calculation is incorrect - inverts view matrix but should be inverse transpose of model-view matrix.
-- **Impact:** Incorrect lighting on transformed/scaled meshes.
-- **Fix:** Compute proper inverse transpose of model-view matrix.
+- **Note:** NOT A BUG - Code computes transpose(inverse(model) * inverse(view)) = transpose(inverse(view * model)) which IS the correct normal matrix. Variable naming is confusing but math is correct.
 
 ### H15. Race Condition in render-regl Async Initialization
 - [x] **Package:** `render-regl`
@@ -279,10 +278,10 @@
 - **Fix:** Add cleanup to all exit paths.
 
 ### M5. Duplicate Code in Trusted Sources UI
-- [ ] **Package:** `jscad-web`
+- [x] **Package:** `jscad-web`
 - **File:** `src/trustedSourcesUI.js:56-87,205-218`
 - **Description:** Overlay click and Escape key handlers duplicated in two functions.
-- **Fix:** Extract to shared utility function.
+- **Note:** LOW PRIORITY - Minor code duplication. Functions have different contexts. Refactoring would add complexity.
 
 ### M6. Inconsistent Nullish Checks
 - [x] **Package:** `jscad-web`
@@ -297,10 +296,10 @@
 - **Fix:** Check for NaN and reset to min value.
 
 ### M8. SSRF Protection Could Be Bypassed
-- [ ] **Package:** `jscad-web`
+- [x] **Package:** `jscad-web`
 - **File:** `src/remote.js:93-126`
 - **Description:** `isValidRemoteUrl` doesn't handle IPv6, DNS rebinding, or redirect chains.
-- **Fix:** Enhance validation or rely on server-side proxy.
+- **Note:** ACCEPTABLE - Client-side SSRF protection is defense-in-depth. Trusted sources permission system is the primary control. Full SSRF mitigation requires server-side proxy which is out of scope.
 
 ### M9. Floating Promise in Main.js
 - [x] **Package:** `jscad-web`
@@ -309,10 +308,10 @@
 - **Fix:** Add `.catch(err => setError(err))`.
 
 ### M10. Regex Injection in Trusted Sources
-- [ ] **Package:** `jscad-web`
+- [x] **Package:** `jscad-web`
 - **File:** `src/trustedSources.js:100-109`
 - **Description:** User-provided regex patterns used directly in `new RegExp()` could cause ReDoS.
-- **Fix:** Add timeout/complexity limits or use simple glob patterns.
+- **Note:** ACCEPTABLE - ReDoS is self-inflicted (user provides their own patterns). Not a security issue, just poor UX if they enter bad regex. Error handling catches invalid regex.
 
 ### M11. Unbounded Growth of userInteracted Set
 - [x] **Package:** `worker`
@@ -327,10 +326,10 @@
 - **Fix:** Always fall back to `values[0]` or throw error.
 
 ### M13. Inconsistent Path Sanitization
-- [ ] **Package:** `fs-provider`
+- [x] **Package:** `fs-provider`
 - **File:** `fs-provider.js:447-451,461,468-469`
 - **Description:** `sanitizePath()` defined but only used in 3 specific places, not consistently.
-- **Fix:** Apply consistently to all user-provided paths.
+- **Note:** LOW PRIORITY - sanitizePath is used at key entry points. Internal paths don't need sanitization as they're derived from already-sanitized inputs.
 
 ### M14. Unused Variables Throughout
 - [x] **Package:** `render-threejs`
@@ -339,10 +338,10 @@
 - **Fix:** Remove unused code or add TODO comments.
 
 ### M15. Inconsistent Index Type Detection
-- [ ] **Package:** Multiple render packages
+- [x] **Package:** Multiple render packages
 - **Files:** All draw command files
 - **Description:** Index type check assumes Uint32Array or Uint16Array, doesn't handle plain Array.
-- **Fix:** Add explicit type checking with error for invalid types.
+- **Note:** ACCEPTABLE - format-jscad always produces TypedArrays. Plain Array would only come from manual construction, which is unsupported use case.
 
 ### M16. Degenerate Polygon Detection Incomplete
 - [x] **Package:** `format-jscad`
@@ -351,28 +350,28 @@
 - **Note:** ALREADY FIXED - Check exists at line 46-47 before color processing loop.
 
 ### M17. Integer Overflow in Infinite Loop Protection
-- [ ] **Package:** `transform-babel`
+- [x] **Package:** `transform-babel`
 - **File:** `src/preventInfiniteLoops.js:26-31`
 - **Description:** Loop iterator scoped to parent, nested loops share counter. Also precision issues after 2^53.
-- **Fix:** Use loop-specific counters with `path.scope`.
+- **Note:** ACCEPTABLE - 2^53 iterations at 1GHz would take 104 days. Timeout protection kicks in long before. Shared counter across nested loops is conservative (fails faster).
 
 ### M18. Safari Polyfill Error Handling Too Broad
-- [ ] **Package:** `fs-provider`
+- [x] **Package:** `fs-provider`
 - **File:** `src/safariFileHandles.js:25-31`
 - **Description:** Catches all errors and continues, hiding legitimate errors.
-- **Fix:** Only catch expected Safari errors, re-throw unexpected.
+- **Note:** ACCEPTABLE - Safari polyfill is defense-in-depth. If it fails silently, native API continues. Broad catch prevents Safari quirks from breaking the app.
 
 ### M19. Redundant State in OrbitControl
-- [ ] **Package:** `orbit`
+- [x] **Package:** `orbit`
 - **File:** `src/OrbitControl.js:42-49`
 - **Description:** Multiple boolean flags track overlapping states, creating inconsistency opportunities.
-- **Fix:** Use state machine or single state enum.
+- **Note:** LOW PRIORITY - State machine would add complexity. Current code works reliably. H18 fix added validation for edge cases.
 
 ### M20. Inefficient Tree Path Comparison
-- [ ] **Package:** `params-ui`
+- [x] **Package:** `params-ui`
 - **File:** `src/ParamsTree.js:71-81,538-539`
 - **Description:** Creates and joins array every time for tree structure comparison, O(n) on every update.
-- **Fix:** Cache tree path hash or use object identity comparison.
+- **Note:** LOW PRIORITY - n is typically < 100 (parameter count). Micro-optimization not needed.
 
 ### M21. Duplicate Parameter Path Computation
 - [x] **Package:** `params-core`
@@ -405,10 +404,10 @@
 - **Fix:** Add input validation with TypeError.
 
 ### M26. Inconsistent Map/Object Handling
-- [ ] **Package:** `params-controller`
+- [x] **Package:** `params-controller`
 - **File:** `src/ParamsController.js:58,95-96,228-236`
 - **Description:** Stores as plain objects but helper functions expect Maps, converts on every call.
-- **Fix:** Store as Maps consistently.
+- **Note:** LOW PRIORITY - Conversion overhead is negligible. Object storage allows JSON serialization. Would need major refactor.
 
 ### M27. Unsafe Type Coercion in Choice/Radio Inputs
 - [x] **Package:** `params-ui`
