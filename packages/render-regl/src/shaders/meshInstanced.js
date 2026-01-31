@@ -42,14 +42,23 @@ void main() {
   gl_Position = projection * view * worldPos;
 
   // Transform normal by instance matrix (ignoring translation)
+  // H5 note: This only works correctly for uniform scaling and rotation.
+  // For non-uniform scaling, normals would need transpose(inverse(mat3(instanceModel)))
+  // which is expensive in GLSL. Most CAD models use uniform scaling.
   mat3 normalMatrix = mat3(instanceModel);
   vNormal = normalize(normalMatrix * normal);
 
   // Light direction (camera-attached light)
   vLightDir = normalize(lightDirection);
 
-  // View direction for specular
-  vec3 cameraPos = -view[3].xyz * mat3(view);
+  // H5 fix: Correct camera position extraction from view matrix
+  // View matrix transforms world->eye, so camera pos = -transpose(R) * t
+  // where R = mat3(view) and t = view[3].xyz
+  vec3 cameraPos = -vec3(
+    dot(view[0].xyz, view[3].xyz),
+    dot(view[1].xyz, view[3].xyz),
+    dot(view[2].xyz, view[3].xyz)
+  );
   vViewDir = normalize(cameraPos - worldPos.xyz);
 }
 `
@@ -130,13 +139,18 @@ void main() {
   vec4 worldPos = instanceModel * vec4(position, 1.0);
   gl_Position = projection * view * worldPos;
 
-  // Transform normal
+  // Transform normal (H5 note: only correct for uniform scaling)
   mat3 normalMatrix = mat3(instanceModel);
   vNormal = normalize(normalMatrix * normal);
 
   // Light and view directions
   vLightDir = normalize(lightDirection);
-  vec3 cameraPos = -view[3].xyz * mat3(view);
+  // H5 fix: Correct camera position extraction
+  vec3 cameraPos = -vec3(
+    dot(view[0].xyz, view[3].xyz),
+    dot(view[1].xyz, view[3].xyz),
+    dot(view[2].xyz, view[3].xyz)
+  );
   vViewDir = normalize(cameraPos - worldPos.xyz);
 
   // Pass through vertex color

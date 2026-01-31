@@ -12,6 +12,25 @@ import {
 import renderDefaults from '../renderDefaults.js'
 
 /**
+ * Create default up-facing normals for vertices
+ * @param {Float32Array} positions - Vertex positions
+ * @returns {Float32Array} Default normals (0, 0, 1) for each vertex
+ */
+function createDefaultNormals(positions) {
+  if (!positions || !positions.length) {
+    return new Float32Array(0)
+  }
+  const vertCount = positions.length / 3
+  const normals = new Float32Array(positions.length)
+  for (let i = 0; i < vertCount; i++) {
+    normals[i * 3] = 0
+    normals[i * 3 + 1] = 0
+    normals[i * 3 + 2] = 1
+  }
+  return normals
+}
+
+/**
  * Create an instanced mesh draw command
  * @param {Object} regl - Regl instance
  * @param {Object} entity - Entity with geometry, visuals, instanceMatrices, instanceCount
@@ -20,6 +39,9 @@ import renderDefaults from '../renderDefaults.js'
 export default function drawMeshInstanced(regl, entity) {
   const { geometry, visuals, instanceMatrices, instanceCount } = entity
   const hasVertexColors = visuals.useVertexColors && geometry.colors
+
+  // H7 fix: Validate normals exist, create default if missing
+  const normals = geometry.normals || createDefaultNormals(geometry.positions)
 
   // Create instance matrix buffer
   // Each matrix is 16 floats, we pass as 4 vec4 attributes
@@ -31,7 +53,7 @@ export default function drawMeshInstanced(regl, entity) {
   // Build attributes object
   const attributes = {
     position: geometry.positions,
-    normal: geometry.normals,
+    normal: normals, // H7 fix: Use validated normals
     // Instance matrix columns with divisor=1 (one per instance)
     instanceMatrix0: {
       buffer: instanceBuffer,
