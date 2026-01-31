@@ -457,6 +457,21 @@ p {
   cursor: pointer;
   user-select: none;
 }
+.menu-link-btn {
+  background: none;
+  border: none;
+  color: #08d;
+  cursor: pointer;
+  font-size: inherit;
+  padding: 0;
+  text-align: left;
+}
+.menu-link-btn:hover {
+  text-decoration: underline;
+}
+.dark .menu-link-btn {
+  color: #4af;
+}
 
 #model-options {
   background: rgba(255, 255, 255, 0.5);

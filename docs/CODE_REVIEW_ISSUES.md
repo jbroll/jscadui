@@ -10,60 +10,34 @@ This document catalogs issues found during deep code review of `apps/jscad-web` 
 **Location:** `apps/jscad-web/src/remote.js:48-59`
 **Severity:** CRITICAL
 **Type:** Security
-**Status:** Open
+**Status:** FIXED
 
 **Problem:**
-```javascript
-const url = window.location.hash.substring(1)
-if (url) {
-  const script = await fetchUrl(url)
-  compileFn(script, url)  // Executes arbitrary code
-}
-```
 Any public URL in the hash fragment is fetched and executed as JavaScript. An attacker can craft a link like `https://jscad.app/#https://evil.com/malicious.js` and share it.
 
-**Proposed Fix:**
-Implement a user-permission model with no default trusted domains. User must explicitly approve each new domain/path pattern before scripts are loaded.
+**Fix Implemented:**
+User-permission model with no default trusted domains. User must explicitly approve each new domain/path pattern before scripts are loaded.
 
-**Why this doesn't break functionality:**
-- Users loading local files: Unaffected (uses File System API, not URL hash)
-- Users loading from URL: Prompted once per domain/pattern, can save to trusted list
-- Power users can pre-configure trusted patterns in settings
+**Files Added:**
+- `apps/jscad-web/src/trustedSources.js` - Rule storage/matching logic
+- `apps/jscad-web/src/trustedSourcesUI.js` - Permission dialog and CRUD settings UI
+- `apps/jscad-web/src/trustedSources.test.js` - 24 unit tests
 
-**Implementation:**
+**Files Modified:**
+- `apps/jscad-web/src/remote.js` - Trust check before fetching
+- `apps/jscad-web/main.js` - Wire up UI and inject styles
+- `apps/jscad-web/static/index.html` - "Trusted Sources..." menu button
+- `apps/jscad-web/static/main.css` - Menu button styling
 
-1. **Permission Dialog** - When loading from untrusted URL:
-```
-┌─────────────────────────────────────────────────────┐
-│  Load script from untrusted source?                 │
-│                                                     │
-│  https://example.com/models/gear.js                 │
-│                                                     │
-│  ☐ Trust all scripts from example.com               │
-│  ☐ Trust scripts matching: /models/.*\.js$          │
-│                                                     │
-│  [Cancel]                    [Load Once]  [Allow]   │
-└─────────────────────────────────────────────────────┘
-```
-
-2. **Storage Structure** (localStorage):
-```javascript
-{
-  "rules": [
-    { "domain": "gist.githubusercontent.com", "pathPattern": ".*" },
-    { "domain": "example.com", "pathPattern": "/models/.*\\.js$" }
-  ]
-}
-```
-
-3. **CRUD Settings Dialog** - In options dropdown menu:
-   - List all saved rules with domain and path pattern
-   - Add new rule (domain input + path regex input)
-   - Edit existing rules
-   - Delete rules
-   - Test URL against rules
-
-4. **No default trusted domains** - Even github/gist require explicit user approval
+**How it works:**
+1. When loading a remote URL, checks if it matches any trusted rule
+2. If not trusted, shows permission dialog with options:
+   - Load once (no rule saved)
+   - Trust this exact URL (saves exact path rule)
+   - Trust all from domain (saves domain-wide rule)
+   - Cancel (don't load)
+3. CRUD dialog in Options menu for managing saved rules
+4. No default trusted domains - even github/gist require explicit approval
 
 ---
 
@@ -147,42 +121,17 @@ class ManifoldGeom3 {
 **Location:** `packages/require/src/resolveUrl.js:17-33`
 **Severity:** CRITICAL
 **Type:** Security
-**Status:** Open
+**Status:** FIXED
 
 **Problem:**
-```javascript
-const normalizePath = (path) => {
-  const decoded = decodeURIComponent(path)  // Single decode
-  // ...check for '..'
-}
-```
+Single `decodeURIComponent` didn't catch double-encoded path traversal attempts.
 Attack: `%252e%252e` → decodes to `%2e%2e` → NOT caught as `..`
 
-**Proposed Fix:**
-Decode recursively until stable, or use allowlist approach.
+**Fix Implemented:**
+Added `fullyDecode()` function that recursively decodes until stable.
 
-**Why this doesn't break functionality:**
-- Normal paths don't contain encoded characters
-- Legitimate double-encoded paths are extremely rare
-- The check prevents malicious traversal without affecting normal operation
-
-**Implementation:**
-```javascript
-const fullyDecode = (path) => {
-  let decoded = path
-  let prev
-  do {
-    prev = decoded
-    try { decoded = decodeURIComponent(decoded) } catch { break }
-  } while (decoded !== prev)
-  return decoded
-}
-
-const normalizePath = (path) => {
-  const decoded = fullyDecode(path)
-  // ...rest of function
-}
-```
+**File Modified:**
+- `packages/require/src/resolveUrl.js` - Added `fullyDecode()` helper, updated `normalizePath()` to use it
 
 ---
 
@@ -572,7 +521,8 @@ Add TypeScript declaration files for consumers.
 
 ## Summary
 
-### Fixed Issues (17 total)
+### Fixed Issues (19 total)
+- **Critical:** C1, C4
 - **High:** H1, H2, H3
 - **Medium:** M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, M17
 - **Low:** L3
@@ -590,16 +540,21 @@ Add TypeScript declaration files for consumers.
 - H8 (ManifoldGeom3.clone() - immutable objects, sharing reference is correct)
 
 ### High Effort (Open)
-- C1, C3, C4
+- C3
 - H10
 - L5
+
+### High Effort (Fixed)
+- C1 (Trusted sources permission system with CRUD UI)
+- C4 (Double-encoding path traversal fix)
 
 ---
 
 ## Implementation Priority
 
 1. ~~**Phase 1 (Easy wins):** Fix all easy issues - improves code quality immediately~~ **DONE**
-2. **Phase 2 (Security):** C1, C4 - critical security hardening
+2. ~~**Phase 2 (Security):** C1 - user permission for remote URLs~~ **DONE**
+3. ~~**Phase 2b (Security):** C4 - double-encoding path traversal fix~~ **DONE**
 3. **Phase 3 (Memory):** C3, H6 - prevent memory issues in long sessions
 4. **Phase 4 (Robustness):** H7, H9 - handle edge cases gracefully
 5. **Phase 5 (Testing):** H10 - add test coverage to worker package

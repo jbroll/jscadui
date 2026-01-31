@@ -38,6 +38,7 @@ import { ViewState } from './src/viewState.js'
 import { AnimRunner } from './src/animRunner.js'
 import * as welcome from './src/welcome.js'
 import * as about from './src/about.js'
+import { showTrustedSourcesDialog, trustedSourcesStyles } from './src/trustedSourcesUI.js'
 
 // Extracted modules
 import { updatePipelineStats, countGeometry, createProgressHandler } from './src/stats.js'
@@ -493,6 +494,17 @@ editor.init(
 menu.init()
 welcome.init()
 about.init()
+
+// Trusted Sources dialog
+const trustedSourcesBtn = byId('trusted-sources-btn')
+if (trustedSourcesBtn) {
+  trustedSourcesBtn.addEventListener('click', showTrustedSourcesDialog)
+}
+
+// Inject trusted sources dialog styles
+const trustedStyles = document.createElement('style')
+trustedStyles.textContent = trustedSourcesStyles
+document.head.appendChild(trustedStyles)
 
 let hasRemoteScript
 try {

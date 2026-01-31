@@ -9,14 +9,35 @@ export const getExtension = (url) => {
 }
 
 /**
+ * Recursively decode URL-encoded strings until stable.
+ * Prevents double-encoding bypasses like %252e%252e -> %2e%2e -> ..
+ * @param {string} path
+ * @returns {string}
+ */
+const fullyDecode = (path) => {
+  let decoded = path
+  let prev
+  do {
+    prev = decoded
+    try {
+      decoded = decodeURIComponent(decoded)
+    } catch {
+      // Invalid encoding, stop decoding
+      break
+    }
+  } while (decoded !== prev)
+  return decoded
+}
+
+/**
  * Normalize a path by resolving . and .. segments
  * Prevents traversal above root by ignoring .. when at root level
  * @param {string} path
  * @returns {string}
  */
 const normalizePath = (path) => {
-  // Decode URL-encoded path traversal attempts
-  const decoded = decodeURIComponent(path)
+  // Decode URL-encoded path traversal attempts (handles double-encoding)
+  const decoded = fullyDecode(path)
   const parts = decoded.split('/')
   const result = []
   for (const part of parts) {

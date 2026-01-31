@@ -1,4 +1,6 @@
 import * as fflate from 'fflate'
+import { isTrusted } from './trustedSources.js'
+import { showPermissionDialog } from './trustedSourcesUI.js'
 
 const gzipPrefix = 'data:application/gzip;base64,'
 
@@ -40,14 +42,38 @@ export const destroy = () => {
 }
 
 /**
- * Handles a url passed in the anchor string 
- * @param {CompileFn} compileFn 
- * @param {ErrorFn} setError 
+ * Check if URL needs trust verification (remote URLs only)
+ * @param {string} url
+ * @returns {boolean}
+ */
+const needsTrustCheck = (url) => {
+  // Gzip data URLs are user-provided content, don't need trust check
+  if (url.startsWith(gzipPrefix)) return false
+  // Relative URLs are same-origin (safe)
+  if (url.startsWith('./') || url.startsWith('/') || !url.includes('://')) return false
+  return true
+}
+
+/**
+ * Handles a url passed in the anchor string
+ * @param {CompileFn} compileFn
+ * @param {ErrorFn} setError
  */
 export const loadFromUrl = (compileFn, setError) => async () => {
   const url = window.location.hash.substring(1)
   if (url) {
     console.log('fetching script', url)
+
+    // Check trust for remote URLs
+    if (needsTrustCheck(url) && !isTrusted(url)) {
+      const result = await showPermissionDialog(url)
+      if (result === 'cancel') {
+        console.log('User cancelled loading untrusted URL')
+        return false
+      }
+      // If user chose trust_url or trust_domain, rule was already saved by dialog
+    }
+
     // load from /remote
     try {
       const script = await fetchUrl(url)
