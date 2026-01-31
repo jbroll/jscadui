@@ -138,15 +138,21 @@ export const setSource = (source, path = '/index.js') => {
 }
 
 export async function filesChanged(files) {
-  let file
-  for (let i = 0; i < files.length; i++) {
-    const path = files[i]
-    if (path == currentFile) {
-      file = await getFileFn(path)
-      readSource(file, currentFile)
-    } else if (path.name === currentFile) {
-      setSource(await readAsText(path), currentFile)
+  // H3 fix: Add error handling for async operations
+  try {
+    let file
+    for (let i = 0; i < files.length; i++) {
+      const path = files[i]
+      // H4 fix: Use strict equality
+      if (path === currentFile) {
+        file = await getFileFn(path)
+        await readSource(file, currentFile)
+      } else if (path.name === currentFile) {
+        setSource(await readAsText(path), currentFile)
+      }
     }
+  } catch (err) {
+    console.error('Failed to handle file changes:', err)
   }
 }
 

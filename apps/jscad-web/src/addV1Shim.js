@@ -5,7 +5,7 @@ export function addV1Shim(script) {
   if (script.includes('JS V1 SHIM HEADER')) return script
 
   return `const csg = require('@jscad/csg')
-const { OpenJsCad, debug } = csg
+const { OpenJsCad } = csg
 const {circle, square, polygon, triangle} = csg.primitives2d
 const {cube, sphere, cylinder, geodesicSphere, torus, polyhedron} = csg.primitives3d
 const {union, difference, intersection} = csg.booleanOps

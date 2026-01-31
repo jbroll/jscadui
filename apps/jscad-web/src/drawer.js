@@ -36,7 +36,7 @@ export const init = () => {
       const isClosed = editor.classList.contains('closed')
       localStorage.setItem('editor.closed', String(!isClosed))
       if (isClosed) {
-        setEditorWidth(parseInt(localStorage.getItem('editor.width') ?? "400"))
+        setEditorWidth(parseInt(localStorage.getItem('editor.width') ?? "400", 10))
       } else {
         setEditorWidth(0)
       }

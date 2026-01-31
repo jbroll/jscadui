@@ -126,7 +126,7 @@ const handleEntities = (result, { skipLog } = {}) => {
 
   if (viewState.zoomToFit) {
     const { min, max } = boundingBox(entities)
-    console.warn('min', min, 'max', max, viewState.viewer.getCamera())
+    console.log('Bounding box - min:', min, 'max:', max, 'camera:', viewState.viewer.getCamera())
     const { fov, aspect } = viewState.viewer.getCamera()
     ctrl.fit(min, max, fov, aspect, 1.2)
   }
@@ -157,7 +157,7 @@ const dropModal = byId('dropModal')
 
 /** @type {import('./src/fileSystem.js').FileSystemDeps} */
 const fsDeps = {
-  onFilesChange: () => reloadProject(),
+  onFilesChange: () => reloadProject().catch(err => setError(err)), // M9 fix: Handle floating promise
   setEditorFiles: files => editor.setFiles(files),
   onFilesChanged: files => editor.filesChanged(files),
   setError,
