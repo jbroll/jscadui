@@ -375,10 +375,10 @@
 - **Fix:** Cache tree path hash or use object identity comparison.
 
 ### M21. Duplicate Parameter Path Computation
-- [ ] **Package:** `params-core`
+- [x] **Package:** `params-core`
 - **File:** `src/createParamsProxy.js:226-227,267-268`
 - **Description:** `fullPath` computed twice in both get and set handlers.
-- **Fix:** Extract to helper function.
+- **Note:** ACCEPTABLE - Minimal duplication (1 line each). Extracting would add complexity without meaningful benefit.
 
 ### M22. Hidden Parameter Logic Inconsistency
 - [x] **Package:** `params-core`
@@ -393,10 +393,10 @@
 - **Fix:** Compile regex once outside function.
 
 ### M24. Weak Error Messages Leak Implementation Details
-- [ ] **Package:** `fs-provider`
+- [x] **Package:** `fs-provider`
 - **File:** `src/FileReader.js:37,46`
 - **Description:** Error messages expose internal file details.
-- **Fix:** Sanitize error messages for production.
+- **Note:** ACCEPTABLE - JSCAD is a developer tool. File names in errors help users debug their scripts.
 
 ### M25. Missing Validation in toFSEntry
 - [x] **Package:** `fs-provider`
