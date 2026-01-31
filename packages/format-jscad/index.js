@@ -40,31 +40,22 @@ function CSG2Vertices (csg) {
 
   if(hasVertexColors){// v1 colors support
     const lastColor = [1,0.5,0.5,1]
-    // color is fore each index
-    colors = new Float32Array(iLen*4)
+    // H6 fix: colors should be per-vertex (matching vertices array), not per-index
+    // vLen is vertex count * 3 floats, so we need vLen/3 colors * 4 components
+    const vertexCount = vLen / 3
+    colors = new Float32Array(vertexCount * 4)
+    let colorOffset = 0
     for (const poly of csg.polygons) {
       // Skip degenerate polygons (need at least 3 vertices for a triangle)
       if (!poly.vertices || poly.vertices.length < 3) continue
       color = poly.shared?.color || lastColor
-      // lastColor = color
       const count = poly.vertices.length
-      for(var i=0; i<count-2; i++){
-        colors[vertOffset++] = color[0]
-        colors[vertOffset++] = color[1]
-        colors[vertOffset++] = color[2]
-        colors[vertOffset++] = color[3] ?? 1
-
-        colors[vertOffset++] = color[0]
-        colors[vertOffset++] = color[1]
-        colors[vertOffset++] = color[2]
-        colors[vertOffset++] = color[3] ?? 1
-
-        colors[vertOffset++] = color[0]
-        colors[vertOffset++] = color[1]
-        colors[vertOffset++] = color[2]
-        colors[vertOffset++] = color[3] ?? 1
-
-        // colors[vertOffset++] = color[3] || 1
+      // Write one color per vertex in this polygon
+      for(let i = 0; i < count; i++){
+        colors[colorOffset++] = color[0]
+        colors[colorOffset++] = color[1]
+        colors[colorOffset++] = color[2]
+        colors[colorOffset++] = color[3] ?? 1
       }
   	}
   }
