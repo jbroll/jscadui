@@ -28,8 +28,8 @@ export class OrbitControl extends OrbitState {
   /** @type {Array<{el: HTMLElement, type: string, handler: EventListener}>} */
   #listeners = []
 
-  /** @type {Set<{el: HTMLElement, pointerId: number}>} L9 fix: Track captured pointers for cleanup */
-  #capturedPointers = new Set()
+  /** @type {Map<number, HTMLElement>} I6 fix: Track captured pointers by ID for proper cleanup */
+  #capturedPointers = new Map()
 
   /**
    * @param {HTMLElement|Array<HTMLElement>} el
@@ -112,8 +112,8 @@ export class OrbitControl extends OrbitState {
         isDown = false
         if (isMoving) {
           el.releasePointerCapture(e.pointerId)
-          // L9 fix: Remove from tracked captured pointers
-          this.#capturedPointers.delete(el)
+          // I6 fix: Remove from tracked captured pointers by ID
+          this.#capturedPointers.delete(e.pointerId)
         }
         isMoving = false
         pointers.delete(e.pointerId)
@@ -137,8 +137,8 @@ export class OrbitControl extends OrbitState {
           // pointer capture inside pointerdown caused clicking to not work
           // it is better to capture pointer only on pointer down + first movement
           el.setPointerCapture(e.pointerId)
-          // L9 fix: Track captured pointer for cleanup on destroy
-          this.#capturedPointers.add(el)
+          // I6 fix: Track captured pointer by ID for proper cleanup on destroy
+          this.#capturedPointers.set(e.pointerId, el)
           isMoving = true
         }
 
@@ -226,12 +226,10 @@ export class OrbitControl extends OrbitState {
       el.removeEventListener(type, handler)
     }
     this.#listeners = []
-    // L9 fix: Release any captured pointers to prevent stuck pointer state
-    for (const el of this.#capturedPointers) {
+    // I6 fix: Release any captured pointers with their correct IDs
+    for (const [pointerId, el] of this.#capturedPointers) {
       try {
-        // Release pointer capture - use 0 as pointerId since we track by element
-        // The browser will release capture if the element had it
-        el.releasePointerCapture(0)
+        el.releasePointerCapture(pointerId)
       } catch {
         // Ignore errors - pointer may not be captured anymore
       }

@@ -30,6 +30,8 @@ export function RenderThreejs({
   let _smooth
   // M14 fix: Remove unused variables SHADOW, _shouldRender, _lastRender
   let renderTimer
+  // I12 fix: Track disposal timeout to clear on destroy
+  let disposalTimer
   let meshColor = new Color(1, 1, 1)
 
   let entities = []
@@ -174,6 +176,11 @@ export function RenderThreejs({
         cancelAnimationFrame(renderTimer)
         renderTimer = null
       }
+      // I12 fix: Cancel any pending disposal to prevent accessing disposed resources
+      if (disposalTimer) {
+        clearTimeout(disposalTimer)
+        disposalTimer = null
+      }
       // Dispose all entities
       entities.forEach(ent => {
         ent.geometry?.dispose?.()
@@ -226,7 +233,9 @@ export function RenderThreejs({
     const old = entities
     entities = []
     groups.length = 0
-    setTimeout(()=>{
+    // I12 fix: Track disposal timeout to allow cancellation on destroy
+    disposalTimer = setTimeout(()=>{
+      disposalTimer = null
       old.forEach(ent => {
         ent.geometry?.dispose?.()
         ent.material?.dispose?.()

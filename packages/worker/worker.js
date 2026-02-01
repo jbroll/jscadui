@@ -73,14 +73,18 @@ const resetScriptLock = () => {
 }
 
 // Global error handlers to reset lock on uncaught errors
+// M6 fix: Also clear geometry state to free memory after catastrophic errors
+// Note: clearWorkerState is defined later after variable declarations
 self.addEventListener('error', (event) => {
   console.error('Worker uncaught error:', event.error)
   resetScriptLock()
+  clearWorkerState?.()
 })
 
 self.addEventListener('unhandledrejection', (event) => {
   console.error('Worker unhandled rejection:', event.reason)
   resetScriptLock()
+  clearWorkerState?.()
 })
 
 /**
@@ -158,6 +162,10 @@ let legacyProxyDefs = null
 /** @type {boolean} */
 let hasJscadParamsComment = false
 
+// I1 fix: Generation counter to detect stale scripts after timeout
+// Increments each time jscadScript is called, used to abort timed-out scripts
+let scriptGeneration = 0
+
 /**
  * @template T
  * @param {T | T[]} arr 
@@ -220,6 +228,15 @@ let solids = []
 
 /** @type {import('@jscadui/params-core').ProxyState | null} */
 let _lastProxyState = null
+
+/**
+ * M6 fix: Clear worker state after catastrophic errors to free memory
+ * Called from global error handlers defined earlier
+ */
+const clearWorkerState = () => {
+  solids = []
+  _lastProxyState = null
+}
 
 /**
  * @param {{params?:import('@jscadui/format-common').UserParameters,skipLog?:boolean,userInteractedPaths?:string[],useGpuNormals?:boolean}} options
@@ -333,6 +350,15 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
         classes: Object.fromEntries(proxyState.classes),
         tree: buildParamTree(proxyState.discovered, proxyState.types, proxyState.classes),
       }
+
+      // I2 fix: Prune stale paths from userInteracted to prevent memory leak
+      // Only keep paths that exist in the current parameter structure
+      const discoveredSet = new Set(proxyState.discovered)
+      for (const path of userInteracted) {
+        if (!discoveredSet.has(path)) {
+          userInteracted.delete(path)
+        }
+      }
     }
 
     return withTransferable(result, transferable)
@@ -357,9 +383,18 @@ const exportReg = /export.*from/
  * @returns {Promise<import('@jscadui/format-common').JscadScriptResultWithParams>}
  */
 const jscadScript = async ({ script, url='jscad.js', base=globalBase, root=base, useGpuNormals: gpuNormals }) => {
+  // I1 fix: Increment generation to invalidate any timed-out scripts still running
+  const myGeneration = ++scriptGeneration
+
   // Acquire lock to prevent race conditions with concurrent script executions
   const release = await acquireScriptLock()
   try {
+    // I1 fix: Check if we're still the current generation after acquiring lock
+    // A timeout may have released the lock and allowed another script to start
+    if (myGeneration !== scriptGeneration) {
+      throw new Error('Script execution superseded by newer script')
+    }
+
     console.log('run script with base:', base, useParamsProxy ? '(proxy mode)' : '')
 
     // Reset proxy state for new script
@@ -377,7 +412,12 @@ const jscadScript = async ({ script, url='jscad.js', base=globalBase, root=base,
     let def = []
 
     try{
-      scriptModule = require({url,script}, shouldTransform ? transformFunc : undefined, readFileWeb, base, root, importData)
+      const loadedModule = require({url,script}, shouldTransform ? transformFunc : undefined, readFileWeb, base, root, importData)
+      // I1 fix: Check generation before setting shared state
+      if (myGeneration !== scriptGeneration) {
+        throw new Error('Script execution superseded by newer script during module load')
+      }
+      scriptModule = loadedModule
     }catch(e){
       // with syntax error in browser we do not get nice stack trace
       // we then try to parse the script to let transform function generate nice error with nice trace

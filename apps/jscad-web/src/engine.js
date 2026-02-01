@@ -64,6 +64,13 @@ const observeResize = (el, listener) => {
 }
 
 /**
+ * Load a script dynamically by adding a <script> tag to the document.
+ *
+ * SECURITY NOTE (FALSE POSITIVE): This function loads scripts from hardcoded
+ * build paths (e.g., 'build/bundle.threejs.js'). The source URLs are NOT
+ * user-controlled - they are determined by the engineType parameter which
+ * only accepts 'threejs' or 'regl' values.
+ *
  * @param {string} source
  * @param {boolean} [module]
  * @returns {Promise<void>}

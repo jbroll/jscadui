@@ -44,9 +44,14 @@ export const createParamsTree = (options) => {
   let cleanupFunctions = []
 
   /** Call all cleanup functions and clear the list */
+  // I11 fix: Handle errors in individual cleanup functions to prevent one failure from blocking others
   const runCleanup = () => {
     for (const cleanup of cleanupFunctions) {
-      cleanup()
+      try {
+        cleanup()
+      } catch (err) {
+        console.error('Cleanup error:', err)
+      }
     }
     cleanupFunctions = []
   }

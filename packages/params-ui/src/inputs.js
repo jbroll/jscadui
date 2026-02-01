@@ -350,7 +350,6 @@ export const createColorInput = ({ param, value, onChange }) => {
       closePanel()
     }
   }
-  document.addEventListener('click', handleClickOutside)
 
   // Close on Escape
   const handleKeydown = (e) => {
@@ -358,7 +357,6 @@ export const createColorInput = ({ param, value, onChange }) => {
       closePanel()
     }
   }
-  document.addEventListener('keydown', handleKeydown)
 
   // Cleanup function to remove document-level event listeners
   const cleanup = () => {
@@ -366,12 +364,22 @@ export const createColorInput = ({ param, value, onChange }) => {
     document.removeEventListener('keydown', handleKeydown)
   }
 
-  return {
-    control: controlContainer,
-    value: hexInput,
-    span: false,
-    updateValue: updateColorUI,
-    cleanup
+  // I10 fix: Add document listeners with try-catch protection to prevent leaks
+  // if an error occurs after listeners are added but before cleanup is registered
+  try {
+    document.addEventListener('click', handleClickOutside)
+    document.addEventListener('keydown', handleKeydown)
+
+    return {
+      control: controlContainer,
+      value: hexInput,
+      span: false,
+      updateValue: updateColorUI,
+      cleanup
+    }
+  } catch (err) {
+    cleanup()
+    throw err
   }
 }
 

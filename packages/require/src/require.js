@@ -21,7 +21,10 @@ export { resolveUrl } from './resolveUrl'
 // we need eval to do the same without prefix
 // https://esbuild.github.io/content-types/#direct-eval
 // to be nice to bundlers we need indirect eval
-// NOTE: This evaluates arbitrary code from loaded modules
+//
+// SECURITY NOTE (FALSE POSITIVE): Intentional code execution - JSCAD is a script playground.
+// User scripts run in an isolated Worker context. This eval is fundamental to the app's
+// purpose of executing user-provided CAD modeling scripts. This is by design.
 export const runModule = globalThis.eval('(require, exports, module, source)=>eval(source)')
 
 /**
@@ -294,6 +297,8 @@ const cacheModule = (url, exports) => {
   while (order.length > MAX_MODULE_CACHE_SIZE) {
     const oldest = order.shift()
     delete requireCache.module[oldest]
+    // I4 fix: Also clean up knownDependencies when module is evicted to prevent unbounded growth
+    requireCache.knownDependencies.delete(oldest)
   }
 
   requireCache.module[url] = exports

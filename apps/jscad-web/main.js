@@ -145,7 +145,8 @@ const handleEntities = (result, { skipLog } = {}) => {
 
 const trackJobs = createJobTracker(progress, onProgress)
 
-const { workerApi, handlers } = createWorker({
+// I9 fix: Keep worker reference for termination on unload
+const { worker, workerApi, handlers } = createWorker({
   onError: setError,
   onProgress,
   onEntities: handleEntities,
@@ -218,7 +219,13 @@ const pauseAnimCallback = async (_def, _value) => {
 }
 
 // ============== Param Change Handling ==============
-/** @type {UserParameters | null} */
+/**
+ * I7 note: This stores only the most recent pending params, not a queue.
+ * This is intentional - when dragging a slider rapidly, we only want to
+ * process the final value where the user stopped, not every intermediate value.
+ * This prevents excessive re-renders and provides better UX.
+ * @type {UserParameters | null}
+ */
 let lastParams
 
 /**
@@ -239,6 +246,7 @@ const paramChangeCallback = async (params, source) => {
 
   stopCurrentAnim()
   if (paramsUI.isWorking()) {
+    // I7 note: Overwrites previous pending - intentionally keeps only the latest
     lastParams = params
     return
   }
@@ -437,7 +445,8 @@ if (useParamsProxy) {
 }
 
 // ============== File Watching ==============
-fileSystem.createFileWatcher(
+// I8 fix: Store fileWatcher reference for explicit cleanup (fallback beforeunload also exists)
+const fileWatcher = fileSystem.createFileWatcher(
   files => editor.filesChanged(files),
   () => editor.runScript()
 )
@@ -564,4 +573,6 @@ window.addEventListener('unload', () => {
   editor.destroy()
   viewState.viewer?.destroy?.()
   ctrl.destroy() // M5 fix: Clean up OrbitControl event listeners and animation frame
+  worker.terminate() // I9 fix: Terminate worker on page unload
+  fileWatcher.cleanup() // I8 fix: Explicit cleanup (complements internal beforeunload fallback)
 })

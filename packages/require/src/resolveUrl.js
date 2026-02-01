@@ -17,12 +17,20 @@ export const getExtension = (url) => {
 const fullyDecode = (path) => {
   let decoded = path
   let prev
+  // M1 fix: Add iteration limit to prevent performance issues with deeply nested encodings
+  const MAX_DECODE_ITERATIONS = 10
+  let iterations = 0
   do {
     prev = decoded
     try {
       decoded = decodeURIComponent(decoded)
     } catch {
       // Invalid encoding, stop decoding
+      break
+    }
+    iterations++
+    if (iterations >= MAX_DECODE_ITERATIONS) {
+      console.warn('fullyDecode: max iterations reached, possible malicious input')
       break
     }
   } while (decoded !== prev)
@@ -75,9 +83,26 @@ const splitModuleName = (module) => {
  * @returns the resolved module url
  */
 export const resolveUrl = (url, base, root, moduleBase=MODULE_BASE) => {
+  // I5 fix: Validate URL parameters early to prevent confusing errors later
+  const validateUrlParam = (param, name) => {
+    if (param && typeof param === 'string' && param.length > 0) {
+      try {
+        // For relative paths starting with /, just check they're string
+        if (param.startsWith('/')) return
+        // For URLs, validate they can be parsed
+        new URL(param)
+      } catch {
+        // Not a valid URL and not a relative path - could cause issues
+        console.warn(`resolveUrl: ${name} parameter "${param}" is not a valid URL`)
+      }
+    }
+  }
+  validateUrlParam(base, 'base')
+  validateUrlParam(root, 'root')
+
   let isRelativeFile = false
   let isModule = false
-  
+
   if (!/^(http:|https:|fs:|file:)/.test(url)) {
     // npm modules cannot start with . or /
     if (!/^\.?\.?\//.test(url)) {
