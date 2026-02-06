@@ -30,5 +30,5 @@ export const examples = [
   { name: 'Benchmark: Expand', source: './examples/benchmark-expand.example.js' },
   { name: 'Benchmark: Vase (Lathe)', source: './examples/benchmark-vase.example.js' },
   { name: 'Benchmark: Minkowski Sum', source: './examples/benchmark-minkowski.example.js' },
-  { name: 'Benchmark: Minkowski Torus', source: './examples/benchmark-minkowski-torus.example.js' },
+  { name: 'Benchmark: Minkowski Frame', source: './examples/benchmark-minkowski-frame.example.js' },
 ]
