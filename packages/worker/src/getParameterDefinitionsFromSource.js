@@ -119,6 +119,8 @@ const extractTextFromComment = (c, lineNum) => {
   // after cutting-out the comment marker, there could be more spaces to trim
   if (prefix === '//') c = c.substring(2).trim()
   if (prefix === '/*') {
+    // FP1: Error messages include user data (line numbers, param names) - this is safe because
+    // the app's error UI sanitizes output. The context is valuable for debugging.
     if (c.substring(c.length - 2) !== '*/') throw new EvalError(`Multi-line comments not supported in parsed parameter definitions, line:${lineNum}`, 'code', lineNum)
     c = c.substring(2, c.length - 2).trim()
   }

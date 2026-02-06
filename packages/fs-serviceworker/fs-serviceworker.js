@@ -118,6 +118,8 @@ self.addEventListener('fetch', async event => {
       }
     }
 
+    // FP4: Path is passed to getFile() without explicit traversal check here, but
+    // splitPath() in fs-provider already filters '..' segments. Defense in depth.
     path = path.substring(idx)
 
     // C5 fix: Track timeout state for early exit
@@ -200,6 +202,9 @@ self.addEventListener('fetch', async event => {
 })
 
 self.addEventListener('message', async event => {
+  // C5 fix: Also trigger cleanup on message events, not just fetch
+  cleanupDisconnectedClients().catch(() => {})
+
   if (event.data?.type == 'CLAIM_CLIENTS') { // handling hard refresh
     await self.clients.claim();
     event.ports[0].postMessage(true)

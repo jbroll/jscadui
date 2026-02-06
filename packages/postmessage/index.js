@@ -43,6 +43,8 @@ export const initMessaging = (_self, handlers, { onJobCount, debug } = {}) => {
    */
   const sendResponse = (result, id) => {
     if (debug) console.log(debug, 'sendResponse', id, result)
+    // FP3: Transferable symbol deleted before postMessage is safe - result objects
+    // are not reused after sending, and the error is re-thrown to terminate the operation.
     const trans = result?.[TRANSFERABLE]
     if (trans) {
       delete result[TRANSFERABLE]

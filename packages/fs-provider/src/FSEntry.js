@@ -46,7 +46,8 @@ export const toFSEntry = (handle, parent) => {
       isDirectory: true,
       isFile: false,
     }
-  } else {
+  } else if (handle.kind === 'file') {
+    // H7 fix: Explicitly check for 'file' kind instead of fallthrough
     const fileHandle = /** @type {FileSystemFileHandle} */(handle)
     return {
       handle: fileHandle,
@@ -56,6 +57,8 @@ export const toFSEntry = (handle, parent) => {
       isDirectory: false,
       isFile: true,
     }
+  } else {
+    throw new TypeError(`toFSEntry: unsupported handle kind: ${handle.kind}`)
   }
 }
 

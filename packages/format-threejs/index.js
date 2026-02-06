@@ -30,9 +30,10 @@ export function CommonToThree({
     if (!obj) return null
     const { vertices, indices, normals, color, colors, isTransparent = false, opacity } = obj
     // L12 fix: Validate vertices exist, have data, and are a typed array
+    // H6 fix: Only accept Float32Array/Float64Array - ArrayBuffer.isView was too permissive
     if (!vertices || vertices.length === 0) return null
-    if (!(vertices instanceof Float32Array || vertices instanceof Float64Array || ArrayBuffer.isView(vertices))) {
-      console.error('vertices must be a TypedArray', typeof vertices)
+    if (!(vertices instanceof Float32Array || vertices instanceof Float64Array)) {
+      console.error('vertices must be Float32Array or Float64Array', vertices.constructor?.name)
       return null
     }
     let { transforms } = obj

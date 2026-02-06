@@ -98,6 +98,8 @@ export const require = (urlOrSource, transform, readFile, base, root, importData
       // not cached
 
       // Check for circular dependency
+      // FP5: Check-then-add to loading set is safe - JavaScript is single-threaded within
+      // a worker context. Async/await boundaries don't create true concurrency here.
       if (requireCache.loading.has(cacheUrl)) {
         throw new Error(`Circular dependency detected: ${url} is already being loaded`)
       }
@@ -116,22 +118,31 @@ export const require = (urlOrSource, transform, readFile, base, root, importData
             const idx = source.indexOf(srch)
             if (idx != -1) {
               const idx2 = source.indexOf('\n', idx + srch.length + 1)
-              const realFile = new URL(source.substring(idx + srch.length, idx2), resolvedUrl).toString()
-              // Validate that the redirect URL origin is exactly cdn.jsdelivr.net to prevent redirect attacks
-              try {
-                const redirectUrl = new URL(realFile)
-                if (redirectUrl.origin === 'https://cdn.jsdelivr.net' && !redirectUrl.pathname.includes('..')) {
-                  resolvedUrl = base = realFile
-                } else {
-                  console.warn('Ignoring suspicious jsdelivr redirect:', realFile)
+              const rawRedirect = source.substring(idx + srch.length, idx2)
+              // C4 fix: Check for path traversal in raw string BEFORE URL parsing
+              // URL constructor normalizes paths, making post-parse checks ineffective
+              if (rawRedirect.includes('..') || rawRedirect.includes('%2e%2e') || rawRedirect.includes('%2E%2E')) {
+                console.warn('Ignoring jsdelivr redirect with path traversal:', rawRedirect)
+              } else {
+                const realFile = new URL(rawRedirect, resolvedUrl).toString()
+                // Validate that the redirect URL origin is exactly cdn.jsdelivr.net to prevent redirect attacks
+                try {
+                  const redirectUrl = new URL(realFile)
+                  if (redirectUrl.origin === 'https://cdn.jsdelivr.net') {
+                    resolvedUrl = base = realFile
+                  } else {
+                    console.warn('Ignoring suspicious jsdelivr redirect:', realFile)
+                  }
+                } catch {
+                  console.warn('Invalid jsdelivr redirect URL:', realFile)
                 }
-              } catch {
-                console.warn('Invalid jsdelivr redirect URL:', realFile)
               }
             }
           }
         } catch (e) {
-          if (resolvedUrl.endsWith('.js')) {
+          // L3 fix: Only try .ts fallback for 404/not-found errors, not other failures
+          const isNotFound = e.message?.includes('not found') || e.message?.includes('404')
+          if (resolvedUrl.endsWith('.js') && isNotFound) {
             try {
               resolvedUrl = resolvedUrl.replace(/\.js$/, '.ts')
               source = readFile(resolvedUrl)
@@ -278,8 +289,9 @@ export const clearAllCaches = () => {
 
 /**
  * Maximum number of modules to keep in cache (LRU eviction)
+ * M4 fix: Reduced from 100 to 50 to limit memory usage with large CAD libraries
  */
-const MAX_MODULE_CACHE_SIZE = 100
+const MAX_MODULE_CACHE_SIZE = 50
 
 /**
  * Add module to cache with LRU tracking
@@ -314,11 +326,12 @@ const cacheModule = (url, exports) => {
  * knownDependencies:Map.<string,Set<string>>
  * }}
  */
+// C3 fix: Use Object.create(null) to prevent prototype pollution via __proto__ or constructor
 export const requireCache = {
-  local: {},
-  alias: {},
-  module: {},
-  bundleAlias: {},
+  local: Object.create(null),
+  alias: Object.create(null),
+  module: Object.create(null),
+  bundleAlias: Object.create(null),
   knownDependencies: new Map(),
   moduleAccessOrder: [], // LRU tracking for module cache
   loading: new Set(), // Track modules currently being loaded (for circular dependency detection)

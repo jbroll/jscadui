@@ -83,8 +83,15 @@ export const createNumberInput = ({ param, value, onChange }) => {
     let val = type === 'int' ? parseInt(input.value) : parseFloat(input.value)
     if (!isNaN(val)) {
       // H23 fix: Validate against min/max constraints
-      if (min !== undefined && val < min) val = min
-      if (max !== undefined && val > max) val = max
+      // H1 fix: Also update input.value to keep UI in sync with clamped value
+      if (min !== undefined && val < min) {
+        val = min
+        input.value = String(min)
+      }
+      if (max !== undefined && val > max) {
+        val = max
+        input.value = String(max)
+      }
       onChange(val)
     }
   }
@@ -436,7 +443,9 @@ export const createChoiceInput = ({ param, value, onChange }) => {
  */
 export const createRadioInput = ({ param, value, onChange }) => {
   const { values = [], captions } = param
-  const radioName = `radio-${param.path}-${Date.now()}`
+  // H2 fix: Sanitize path to prevent XSS via malicious path content
+  const sanitizedPath = param.path.replace(/[^a-zA-Z0-9._-]/g, '_')
+  const radioName = `radio-${sanitizedPath}-${Date.now()}`
 
   const container = document.createElement('div')
   container.className = 'params-input-radio-container'

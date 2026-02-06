@@ -73,6 +73,8 @@ export const createParamsController = () => {
    * @returns {Object}
    */
   const extractPartValues = (partPath, paramValues) => {
+    // H5 fix: Guard against null/undefined paramValues
+    if (!paramValues) return {}
     const prefix = partPath + '.'
     const values = {}
 

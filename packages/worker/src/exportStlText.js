@@ -38,6 +38,8 @@ const convertToFacets = (polygon, out) => {
   const {vertices, indices, normals} = polygon
 
   // I3 fix: Validate array sizes to prevent silent data corruption
+  // FP2: Validation logs but doesn't throw - this is intentional for graceful degradation.
+  // Invalid data results in malformed STL, but throwing would break exports entirely.
   const maxIndex = indices.length - 2
   if (normals.length < maxIndex) {
     console.error(`Invalid mesh: normals.length=${normals.length} < required=${maxIndex}`)

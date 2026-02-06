@@ -368,8 +368,11 @@ export const checkFiles = async sw => {
     const now = Date.now()
     if (now - sw.lastCheck > 300 && sw.filesToCheck.length !== 0) {
       sw.lastCheck = now
+      // H8 fix: Snapshot the array before async operations to prevent race conditions
+      // if fileDropped() clears filesToCheck during the await
+      const filesToCheckSnapshot = [...sw.filesToCheck]
       // L6 fix: Use Promise.allSettled so one file error doesn't stop all checking
-      const results = await Promise.allSettled(sw.filesToCheck.map(entryCheckPromise))
+      const results = await Promise.allSettled(filesToCheckSnapshot.map(entryCheckPromise))
       let filesToCheck = results
         .filter(r => r.status === 'fulfilled')
         .map(r => r.value)

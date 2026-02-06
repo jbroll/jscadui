@@ -201,7 +201,8 @@ export function showTrustedSourcesDialog() {
   }
 
   const enterEditMode = (ruleEl, rule) => {
-    ruleEl.innerHTML = ''
+    // L1 fix: Use textContent for consistency with other DOM manipulation in this file
+    ruleEl.textContent = ''
 
     const domainInput = document.createElement('input')
     domainInput.type = 'text'

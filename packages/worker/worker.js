@@ -365,6 +365,7 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
   } catch (error) {
     // Clear cache on error to avoid stale state
     JscadToCommon.clearCache()
+    clearWorkerState() // M1 fix: Also clear solids array on error to free memory
     // Re-throw with additional context
     const message = error.message || String(error)
     const wrappedError = new Error(`jscadMain failed: ${message}`)
@@ -402,6 +403,7 @@ const jscadScript = async ({ script, url='jscad.js', base=globalBase, root=base,
     currentUiValues = {}
     legacyProxyDefs = null
     hasJscadParamsComment = false
+    solids = [] // C2 fix: Clear solids array to prevent memory leak on script reload
 
     if(!script) script = readFileWeb(resolveUrl(url, base, root).url)
 
@@ -439,6 +441,11 @@ const jscadScript = async ({ script, url='jscad.js', base=globalBase, root=base,
       if (gpuNormals !== undefined && modelingModule?.setUseGpuNormals) {
         modelingModule.setUseGpuNormals(gpuNormals)
       }
+    }
+
+    // C1 fix: Check generation after async WASM init to prevent stale script from corrupting main
+    if (myGeneration !== scriptGeneration) {
+      throw new Error('Script execution superseded during WASM initialization')
     }
 
     main = scriptModule.main

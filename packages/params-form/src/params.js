@@ -183,7 +183,9 @@ export const genParams = ({
   if (missingKeys.length) console.log('missing param impl', missingKeys)
 
   function _callback(source = 'change', inp, name) {
-    if(name == 'fps' && target.anims?.length && parseFloat(inp.value) <=0){
+    // H4 fix: Also check for NaN, not just <= 0
+    const fpsValue = parseFloat(inp.value)
+    if(name == 'fps' && target.anims?.length && (isNaN(fpsValue) || fpsValue <= 0)){
       inp.value = inp.step || '1'
     }
     const out = getParams(target)
