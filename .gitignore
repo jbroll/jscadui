@@ -106,7 +106,9 @@ dist
 # Turbo
 .turbo
 build/**
+build_dev/**
 dist/**
+**/esm/
 **/.history
 **/.idea
 apps/myapp
