@@ -1,7 +1,5 @@
 import { runEsbuild } from '@jbroll/jsx6-build'
-// import { runEsbuild } from './runEsbuild.js'
 import * as esbuild from 'esbuild'
-import {existsSync, statSync} from 'fs'
 
 export const esbDef = {
   jsxFactory: 'h',
@@ -13,7 +11,6 @@ export const esbDef = {
   },
   bundle: true,
   minify: true,
-  skipExisting: true,
   sourcemap: true,
 }
 
@@ -22,27 +19,14 @@ const bundleDef = {
   format: 'iife',
 }
 
-export const buildBundle = (outDir, bundle, {srcDir='src_bundle', skipExisting = true, ...options})=>{
+export const buildBundle = (outDir, bundle, {srcDir='src_bundle', ...options})=>{
   const file = `${srcDir}/${bundle}`
   const outfile = `${outDir}/${bundle}`
-  if(skipExisting && existsSync(outfile) && lastMod(file) > lastMod(outfile)){
-    skipExisting = false
-  }
-  return runEsbuild(esbuild,{...bundleDef, ...options, skipExisting, entryPoints:[file], outfile})
-}
-
-export const buildOneIfNeeded = (outDir, file, options={})=>{
-  const outfile = options.outfile || `${outDir}/${file}`
-  return runEsbuild(esbuild,{...esbDef, ...options, skipExisting: true, entryPoints:[file], outfile})
+  return runEsbuild(esbuild,{...bundleDef, ...options, entryPoints:[file], outfile})
 }
 
 export const buildOne = (srcDir, outDir, path, watch, options={})=>{
   const file = `${srcDir}/${path}`
   const outfile = options.outfile || `${outDir}/${path}`
-  return runEsbuild(esbuild,{...esbDef, skipExisting:false, ...options, watch, entryPoints:[file], outfile})
-}
-
-function lastMod(path){
-  const stat = statSync(path)
-  return stat.mtimeMs
+  return runEsbuild(esbuild,{...esbDef, ...options, watch, entryPoints:[file], outfile})
 }

@@ -19,12 +19,11 @@ mkdirSync(outDir, { recursive: true })
 copyTask('static', outDir, { include: [], exclude: [], watch, filters: [] })
 
 /**************************** BUILD JS that is static *************/
-await buildBundle(assetDir, 'bundle.threejs.js', { globalName: 'THREE', skipExisting: isDev })
-await buildBundle(assetDir, 'bundle.jscad_modeling.js', { format: 'cjs', skipExisting: isDev })
-await buildBundle(assetDir, 'bundle.jscad_io.js', { format: 'cjs', skipExisting: isDev })
+await buildBundle(assetDir, 'bundle.threejs.js', { globalName: 'THREE' })
+await buildBundle(assetDir, 'bundle.jscad_modeling.js', { format: 'cjs' })
+await buildBundle(assetDir, 'bundle.jscad_io.js', { format: 'cjs' })
 await buildBundle(assetDir, 'bundle.jscadui.transform-babel.js', {
   globalName: 'jscadui_transform_babel',
-  skipExisting: isDev,
 })
 
 /**************************** BUILD JS THAT can change and watch if in dev mode *************/
