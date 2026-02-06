@@ -137,7 +137,8 @@ function emitPrimitive(node: IRPrimitive, _ctx: EmitContext): string {
       if (r1 === r2) {
         result = `cylinder({ height: ${height}, radius: ${r1}, segments: ${segments} })`
       } else {
-        result = `cylinderElliptic({ height: ${height}, startRadius: [${r1}, ${r1}], endRadius: [${r2}, ${r2}], segments: ${segments} })`
+        // Use cylinder with startRadius/endRadius for cones
+        result = `cylinder({ height: ${height}, startRadius: ${r1}, endRadius: ${r2}, segments: ${segments} })`
       }
 
       if (!center) {
@@ -192,15 +193,18 @@ function emitTransform(node: IRTransform, ctx: EmitContext, level: number): stri
         const angles = params.angles as number[]
         let result = child
 
-        // Apply rotations in Z, Y, X order (reverse of OpenSCAD)
-        if (angles[2] !== 0) {
-          result = `rotateZ(${formatAngle(angles[2])}, ${result})`
+        // OpenSCAD applies rotations in X, Y, Z order
+        // In function nesting, inner functions execute first
+        // So we nest in reverse order: X(Y(Z(child))) executes as Z, Y, X
+        // We want X, Y, Z execution order, so we nest as Z(Y(X(child)))
+        if (angles[0] !== 0) {
+          result = `rotateX(${formatAngle(angles[0])}, ${result})`
         }
         if (angles[1] !== 0) {
           result = `rotateY(${formatAngle(angles[1])}, ${result})`
         }
-        if (angles[0] !== 0) {
-          result = `rotateX(${formatAngle(angles[0])}, ${result})`
+        if (angles[2] !== 0) {
+          result = `rotateZ(${formatAngle(angles[2])}, ${result})`
         }
         return result
       }
@@ -459,11 +463,8 @@ function collectImports(node: IRNode, used: {
           used.primitives.add('sphere')
           break
         case 'cylinder':
-          if (prim.params.radius1 === prim.params.radius2) {
-            used.primitives.add('cylinder')
-          } else {
-            used.primitives.add('cylinderElliptic')
-          }
+          // cylinder handles both equal radii and cones (startRadius/endRadius)
+          used.primitives.add('cylinder')
           if (!prim.params.center) {
             used.transforms.add('translate')
           }

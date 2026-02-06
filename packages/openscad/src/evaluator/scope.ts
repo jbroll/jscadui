@@ -130,11 +130,48 @@ export function defineFunction(scope: Scope, name: string, def: IRFunctionDef): 
 
 /**
  * Get $fn value for current scope (used for curve resolution)
+ * This is the simple version that returns the default when $fn is not set.
  */
 export function getSegments(scope: Scope): number {
   const fn = lookupVariable(scope, '$fn')
   if (typeof fn === 'number' && fn > 0) {
-    return fn
+    return Math.max(fn, 3)
   }
-  return 32 // default
+  // Default when $fn not specified - use 32 as fallback
+  // (for cases where radius isn't known)
+  return 32
+}
+
+/**
+ * Calculate segments for a circle/sphere/cylinder based on OpenSCAD's formula.
+ *
+ * OpenSCAD uses: ceil(max(min(360/$fa, 2*PI*r/$fs), 5))
+ * where $fa=12 (min angle) and $fs=2 (min segment size) are defaults.
+ *
+ * See: https://en.wikibooks.org/wiki/OpenSCAD_User_Manual/Other_Language_Features
+ */
+export function getSegmentsForRadius(scope: Scope, radius: number): number {
+  // If $fn is explicitly set, use it (minimum 3)
+  const fn = lookupVariable(scope, '$fn')
+  if (typeof fn === 'number' && fn > 0) {
+    return Math.max(Math.round(fn), 3)
+  }
+
+  // Get $fa and $fs with OpenSCAD defaults
+  const faVal = lookupVariable(scope, '$fa')
+  const fsVal = lookupVariable(scope, '$fs')
+  const fa = typeof faVal === 'number' && faVal > 0 ? faVal : 12  // default 12 degrees
+  const fs = typeof fsVal === 'number' && fsVal > 0 ? fsVal : 2   // default 2mm
+
+  // Very small radius - minimum 3 segments
+  if (radius < 0.001) {
+    return 3
+  }
+
+  // OpenSCAD formula: ceil(max(min(360/fa, 2*PI*r/fs), 5))
+  const segmentsFromAngle = 360 / fa                    // max segments from angle
+  const segmentsFromSize = (2 * Math.PI * radius) / fs  // segments from size
+  const computed = Math.min(segmentsFromAngle, segmentsFromSize)
+
+  return Math.ceil(Math.max(computed, 5))  // minimum 5 segments
 }

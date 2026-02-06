@@ -4,7 +4,7 @@
 
 import type { IRNode, IRValue, IRPrimitive, IRTransform, IRBoolean, IRHull, IRMinkowski } from '../ir/types.js'
 import type { Scope } from './scope.js'
-import { getSegments } from './scope.js'
+import { getSegments, getSegmentsForRadius } from './scope.js'
 
 // Argument helper types
 interface BuiltinArgs {
@@ -109,7 +109,12 @@ builtins.set('sphere', (args, _children, scope) => {
   const r = getNumberArg(args, 'r', 0, 1)
   const d = getArg(args, 'd', -1, undefined)
   const radius = d !== undefined && typeof d === 'number' ? d / 2 : r
-  const segments = getNumberArg(args, '$fn', -1, getSegments(scope))
+
+  // Use explicit $fn if provided, otherwise calculate from radius using OpenSCAD formula
+  const explicitFn = getArg(args, '$fn', -1, undefined)
+  const segments = typeof explicitFn === 'number' && explicitFn > 0
+    ? Math.max(Math.round(explicitFn), 3)
+    : getSegmentsForRadius(scope, radius)
 
   const node: IRPrimitive = {
     type: 'primitive',
@@ -122,14 +127,20 @@ builtins.set('sphere', (args, _children, scope) => {
 // cylinder(h, r) or cylinder(h, r1, r2) or cylinder(h, d, d1, d2)
 builtins.set('cylinder', (args, _children, scope) => {
   const h = getNumberArg(args, 'h', 0, 1)
-  const r = getNumberArg(args, 'r', 1, 1)
-  const r1 = getArg(args, 'r1', -1, undefined)
-  const r2 = getArg(args, 'r2', -1, undefined)
+
+  // OpenSCAD cylinder has two forms:
+  // cylinder(h, r) - 2 positional args, same radius top and bottom
+  // cylinder(h, r1, r2) - 3 positional args, r1=bottom, r2=top
+  // When 3+ positional args, position 1 is r1 and position 2 is r2
+  const hasThreePositionalArgs = args.positional.length >= 3
+
+  const r = hasThreePositionalArgs ? 1 : getNumberArg(args, 'r', 1, 1)
+  const r1 = getArg(args, 'r1', hasThreePositionalArgs ? 1 : -1, undefined)
+  const r2 = getArg(args, 'r2', hasThreePositionalArgs ? 2 : -1, undefined)
   const d = getArg(args, 'd', -1, undefined)
   const d1 = getArg(args, 'd1', -1, undefined)
   const d2 = getArg(args, 'd2', -1, undefined)
   const center = getBoolArg(args, 'center', -1, false)
-  const segments = getNumberArg(args, '$fn', -1, getSegments(scope))
 
   // Determine radii
   let radius1: number
@@ -154,6 +165,13 @@ builtins.set('cylinder', (args, _children, scope) => {
   } else {
     radius2 = r
   }
+
+  // Use explicit $fn if provided, otherwise calculate from larger radius
+  const explicitFn = getArg(args, '$fn', -1, undefined)
+  const maxRadius = Math.max(radius1, radius2)
+  const segments = typeof explicitFn === 'number' && explicitFn > 0
+    ? Math.max(Math.round(explicitFn), 3)
+    : getSegmentsForRadius(scope, maxRadius)
 
   const node: IRPrimitive = {
     type: 'primitive',
@@ -193,7 +211,12 @@ builtins.set('circle', (args, _children, scope) => {
   const r = getNumberArg(args, 'r', 0, 1)
   const d = getArg(args, 'd', -1, undefined)
   const radius = d !== undefined && typeof d === 'number' ? d / 2 : r
-  const segments = getNumberArg(args, '$fn', -1, getSegments(scope))
+
+  // Use explicit $fn if provided, otherwise calculate from radius
+  const explicitFn = getArg(args, '$fn', -1, undefined)
+  const segments = typeof explicitFn === 'number' && explicitFn > 0
+    ? Math.max(Math.round(explicitFn), 3)
+    : getSegmentsForRadius(scope, radius)
 
   const node: IRPrimitive = {
     type: 'primitive',

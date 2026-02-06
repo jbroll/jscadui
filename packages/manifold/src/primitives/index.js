@@ -11,7 +11,10 @@ import { ManifoldGeom2 } from '../geometries/ManifoldGeom2.js'
 import { geom3ToManifold, geom2ToCrossSection } from '../conversions/index.js'
 import { TAU } from '../maths/index.js'
 import { translateIfNonZero } from '../utils/index.js'
-import * as jscad from '@jscad/modeling-for-manifold'
+import * as jscadModule from '@jscad/modeling-for-manifold'
+
+// Handle both ESM default export (Node.js) and bundled named exports (vitest/bundler)
+const jscad = jscadModule.default || jscadModule
 
 const jscadPrimitives = jscad.primitives
 
@@ -124,6 +127,11 @@ export const cylinder = (options = {}) => {
   // Handle radius variants
   if (startRadius === undefined) startRadius = radius
   if (endRadius === undefined) endRadius = radius
+
+  // Manifold doesn't support zero radius - use small epsilon for cones
+  const EPS = 1e-6
+  if (startRadius === 0) startRadius = EPS
+  if (endRadius === 0) endRadius = EPS
 
   const Manifold = getManifold()
   // Manifold.cylinder(height, radiusLow, radiusHigh=-1, circularSegments=0, center=false)

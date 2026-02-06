@@ -8,7 +8,10 @@
   "module": "./esm/index.js",
   "types": "./esm/index.d.ts",
   "bin": {
-    "scad2jscad": "./bin/scad2jscad.js"
+    "scad2jscad": "./bin/scad2jscad.js",
+    "run-jscad": "./bin/run-jscad.js",
+    "compare-stl": "./bin/compare-stl.js",
+    "test-harness": "./bin/test-harness.js"
   },
   "exports": {
     ".": {
@@ -28,7 +31,9 @@
     "build": "tsc"
   },
   "dependencies": {
-    "openscad-parser": "^0.6.3"
+    "openscad-parser": "^0.6.3",
+    "@jscadui/manifold": "file:../manifold",
+    "@jscad/modeling-for-manifold": "file:/home/john/pkg/OpenJSCAD.org/packages/modeling"
   },
   "devDependencies": {
     "@jscad/modeling": "^2.12.2",
