@@ -4,8 +4,8 @@
 
 **Test Results (2024-02):**
 - Built-in corpus: 19/19 passing (100%) with `--fn 48`
-- OpenSCAD-Snippet library: 75/110 passing (68.2%) at 0.99 Jaccard threshold
-- 25 transpiler errors, 10 geometry mismatches, 5 OpenSCAD-side failures
+- OpenSCAD-Snippet library: 77/110 passing (70.0%) at 0.99 Jaccard threshold
+- 23 transpiler errors, 10 geometry mismatches, 5 OpenSCAD-side failures
 
 ## Architecture
 
@@ -22,6 +22,7 @@ Key files:
 ## Recently Fixed
 
 ### Completed in this session:
+- **Minkowski operation** - Transpile `minkowski()` to JSCAD/Manifold (fixes Mech_Piece models)
 - **Polygon winding order** - Auto-detect and normalize CCW winding for Manifold (fixes Stairs models)
 - **For loops** - `for (i = [0:10]) body` → `union(..._range(0, 10).map(i => body))`
 - **Nested modules** - Modules inside modules hoisted as local functions
@@ -103,7 +104,6 @@ const regular_polygon = (n, r) => {
 **Impact:** Various models
 
 **Not yet supported:**
-- `minkowski()` operation (2 models)
 - `$preview` special variable (4 models)
 - `$t` animation variable (1 model)
 - `echo()` for debugging (1 model)
@@ -120,12 +120,11 @@ const regular_polygon = (n, r) => {
 
 ### Phase 1: High Impact (fixes ~5 models)
 1. Add `regular_polygon` built-in (3+ models)
-2. Add missing special variables: `$preview`, `$t` (~4 models)
+2. Add missing special variables: `$preview`, `$t` (~5 models)
 
 ### Phase 2: Medium Impact (fixes ~5 models)
 3. Add missing math functions (rands, norm, cross)
-4. Add `minkowski` operation
-5. Fix remaining transpiler syntax errors
+4. Fix remaining transpiler syntax errors
 
 ### Phase 3: Low Priority
 6. Add children() support
