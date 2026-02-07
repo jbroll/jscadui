@@ -4,8 +4,8 @@
 
 **Test Results (2024-02):**
 - Built-in corpus: 19/19 passing (100%) with `--fn 48`
-- OpenSCAD-Snippet library: 77/110 passing (70.0%) at 0.99 Jaccard threshold
-- 23 transpiler errors, 10 geometry mismatches, 5 OpenSCAD-side failures
+- OpenSCAD-Snippet library: 79/110 passing (71.8%) at 0.99 Jaccard threshold
+- 19 transpiler errors, 12 geometry mismatches, 5 OpenSCAD-side failures
 
 ## Architecture
 
@@ -22,6 +22,7 @@ Key files:
 ## Recently Fixed
 
 ### Completed in this session:
+- **Regular polygon primitive** - `regular_polygon(n, r)` using `circle({ radius, segments })` (fixes Weights_01, Tree_01)
 - **Minkowski operation** - Transpile `minkowski()` to JSCAD/Manifold (fixes Mech_Piece models)
 - **Polygon winding order** - Auto-detect and normalize CCW winding for Manifold (fixes Stairs models)
 - **For loops** - `for (i = [0:10]) body` → `union(..._range(0, 10).map(i => body))`
@@ -36,34 +37,7 @@ Key files:
 
 ## Open Issues
 
-### 1. Missing `regular_polygon` Module
-**Impact:** 3+ models (Tree_01, Weights_01, etc.)
-
-**Problem:** OpenSCAD has a built-in `regular_polygon` or models define it themselves. The transpiler doesn't recognize it as a built-in.
-
-**Error:** `polygon requires at least 3 points`
-
-**Solution:** Add `regular_polygon` as a built-in module:
-```javascript
-// regular_polygon(n, r) - n-sided polygon with circumradius r
-const regular_polygon = (n, r) => {
-  const points = []
-  for (let i = 0; i < n; i++) {
-    const angle = (2 * Math.PI * i) / n - Math.PI / 2
-    points.push([r * Math.cos(angle), r * Math.sin(angle)])
-  }
-  return polygon({ points })
-}
-```
-
-**Files to modify:**
-- `src/transpiler/transpile.ts` - Add to built-in modules
-
----
-
----
-
-### 3. Missing Math Functions
+### 1. Missing Math Functions
 **Impact:** Some models use uncommon OpenSCAD functions
 
 **Already implemented:** sin, cos, tan, asin, acos, atan, atan2, abs, floor, ceil, round, sqrt, pow, exp, log, ln, min, max, len, concat
@@ -80,7 +54,7 @@ const regular_polygon = (n, r) => {
 
 ---
 
-### 4. Geometry Precision Differences
+### 2. Geometry Precision Differences
 **Impact:** 12 models fail threshold (0.93-0.98 Jaccard)
 
 **Examples:**
@@ -100,7 +74,7 @@ const regular_polygon = (n, r) => {
 
 ---
 
-### 5. Unsupported Constructs
+### 3. Unsupported Constructs
 **Impact:** Various models
 
 **Not yet supported:**
@@ -119,17 +93,16 @@ const regular_polygon = (n, r) => {
 ## Implementation Priority
 
 ### Phase 1: High Impact (fixes ~5 models)
-1. Add `regular_polygon` built-in (3+ models)
-2. Add missing special variables: `$preview`, `$t` (~5 models)
+1. Add missing special variables: `$preview`, `$t` (~5 models)
 
 ### Phase 2: Medium Impact (fixes ~5 models)
-3. Add missing math functions (rands, norm, cross)
-4. Fix remaining transpiler syntax errors
+2. Add missing math functions (rands, norm, cross)
+3. Fix remaining transpiler syntax errors
 
 ### Phase 3: Low Priority
-6. Add children() support
-7. Improve error messages
-8. Add text() support (complex - needs font system)
+4. Add children() support
+5. Improve error messages
+6. Add text() support (complex - needs font system)
 
 ## Running Tests
 
