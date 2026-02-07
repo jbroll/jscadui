@@ -858,6 +858,7 @@ function transpileBuiltinPrimitive(name: string, argsArray: Array<{name: string 
 
     case 'sphere':
       ctx.usedPrimitives.add('sphere')
+      ctx.usedPrimitives.add('polyhedron')  // _sphere uses polyhedron internally
       return `_sphere({ ${argsStr} })`
 
     case 'cylinder':
@@ -1187,11 +1188,45 @@ const _cylinder = ({ h, r, r1, r2, d, d1, d2, center = false, $fn = 0, $fa, $fs 
   }
 
   if (ctx.usedPrimitives.has('sphere')) {
+    // OpenSCAD-style sphere: rings at (180 * (i + 0.5)) / numRings, no pole vertices
+    // This matches OpenSCAD's exact tessellation algorithm
     imports.push(`
 const _sphere = ({ r, d, $fn = 0, $fa, $fs }) => {
   const radius = r ?? (d ? d/2 : 1)
-  const segments = _getSegments(radius, $fn, $fa, $fs)
-  return sphere({ radius, segments })
+  const fn = _getSegments(radius, $fn, $fa, $fs)
+  const numRings = Math.floor((fn + 1) / 2)
+  const points = []
+  const faces = []
+
+  // Generate ring vertices (no poles - matches OpenSCAD)
+  for (let i = 0; i < numRings; i++) {
+    const phi = (180 * (i + 0.5)) / numRings * Math.PI / 180
+    const z = radius * Math.cos(phi)
+    const ringR = radius * Math.sin(phi)
+    for (let j = 0; j < fn; j++) {
+      const theta = 2 * Math.PI * j / fn
+      points.push([ringR * Math.cos(theta), ringR * Math.sin(theta), z])
+    }
+  }
+
+  // Top cap: triangulate first ring as polygon
+  for (let j = 1; j < fn - 1; j++) faces.push([0, j, j + 1])
+
+  // Body: quads between adjacent rings
+  for (let i = 0; i < numRings - 1; i++) {
+    const ring = i * fn, nextRing = (i + 1) * fn
+    for (let j = 0; j < fn; j++) {
+      const next = (j + 1) % fn
+      faces.push([ring + j, nextRing + j, ring + next])
+      faces.push([ring + next, nextRing + j, nextRing + next])
+    }
+  }
+
+  // Bottom cap: triangulate last ring as polygon
+  const lastRing = (numRings - 1) * fn
+  for (let j = 1; j < fn - 1; j++) faces.push([lastRing, lastRing + j + 1, lastRing + j])
+
+  return polyhedron({ points, faces, orientation: 'outward' })
 }`)
   }
 
