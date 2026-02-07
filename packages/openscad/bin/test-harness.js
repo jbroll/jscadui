@@ -14,7 +14,7 @@
  *   test-harness --corpus                       Test built-in corpus
  */
 
-import { writeFileSync, readdirSync, existsSync, mkdirSync, rmSync, copyFileSync } from 'node:fs'
+import { readFileSync, readdirSync, existsSync, mkdirSync, rmSync, copyFileSync } from 'node:fs'
 import { resolve, basename, dirname, join } from 'node:path'
 import { execSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
@@ -37,6 +37,8 @@ Usage:
 Options:
   --dir <path>            Directory to scan for .scad files (can be repeated)
   --threshold <n>         Minimum Jaccard for pass (default: 0.99)
+  --fn <n>                Set global $fn for both OpenSCAD and transpiler
+                          Higher values give better match (try --fn 48)
   --openscad <path>       Path to OpenSCAD binary (default: openscad)
   --keep-temp             Keep temporary files for debugging
   --verbose               Print detailed output
@@ -50,8 +52,8 @@ Output:
 
 Examples:
   test-harness model.scad                         Test single model
+  test-harness --corpus --fn 48                   Test corpus with high resolution
   test-harness --dir ./examples --verbose         Test directory
-  test-harness --dir ./tests --dir ./examples     Test multiple directories
   test-harness model.scad --openscad /opt/openscad/openscad
 `)
 }
@@ -68,6 +70,7 @@ function parseArgs(args) {
     json: false,
     help: false,
     version: false,
+    fn: 0,  // Global $fn override (0 = use defaults)
   }
 
   let i = 0
@@ -95,6 +98,9 @@ function parseArgs(args) {
     } else if (arg === '--openscad') {
       i++
       options.openscad = args[i]
+    } else if (arg === '--fn') {
+      i++
+      options.fn = parseInt(args[i], 10)
     } else if (!arg.startsWith('-')) {
       options.files.push(arg)
     } else {
@@ -123,12 +129,18 @@ function checkOpenscad(openscadPath) {
 /**
  * Run OpenSCAD to generate STL
  */
-function runOpenscad(scadPath, stlPath, openscadPath, verbose) {
+function runOpenscad(scadPath, stlPath, openscadPath, verbose, fn = 0) {
   const args = [
     '--backend=manifold',
     '-o', stlPath,
-    scadPath
   ]
+
+  // Add $fn override if specified (quote to prevent shell expansion)
+  if (fn > 0) {
+    args.push('-D', `"\\$fn=${fn}"`)
+  }
+
+  args.push(scadPath)
 
   if (verbose) {
     console.error(`  Running: ${openscadPath} ${args.join(' ')}`)
@@ -147,39 +159,20 @@ function runOpenscad(scadPath, stlPath, openscadPath, verbose) {
 }
 
 /**
- * Translate OpenSCAD to JSCAD
+ * Run OpenSCAD file through transpiler + JSCAD with Manifold backend
+ * run-jscad.js now handles .scad files directly (transpile + execute in-memory)
  */
-function translateToJscad(scadPath, jsPath, verbose) {
-  const scad2jscadPath = join(__dirname, 'scad2jscad.js')
-
-  if (verbose) {
-    console.error(`  Translating: ${scadPath}`)
-  }
-
-  try {
-    const jscadCode = execSync(`node ${scad2jscadPath} "${scadPath}"`, {
-      encoding: 'utf8',
-      timeout: 30000
-    })
-    writeFileSync(jsPath, jscadCode)
-    return { success: true }
-  } catch (err) {
-    return { success: false, error: err.message }
-  }
-}
-
-/**
- * Run JSCAD with Manifold backend
- */
-function runJscad(jsPath, stlPath, verbose) {
+function runJscad(scadPath, stlPath, verbose, fn = 0) {
   const runJscadPath = join(__dirname, 'run-jscad.js')
 
   if (verbose) {
-    console.error(`  Running JSCAD: ${jsPath}`)
+    console.error(`  Transpiling and running: ${scadPath}`)
   }
 
+  const fnArg = fn > 0 ? ` --fn ${fn}` : ''
+
   try {
-    execSync(`node ${runJscadPath} "${jsPath}" -o "${stlPath}"`, {
+    execSync(`node ${runJscadPath} "${scadPath}" -o "${stlPath}"${fnArg}`, {
       encoding: 'utf8',
       stdio: verbose ? 'inherit' : 'pipe',
       timeout: 60000
@@ -219,6 +212,36 @@ function compareStl(refStl, genStl, verbose) {
 }
 
 /**
+ * Find and copy dependencies (use/include statements) to temp dir
+ */
+function copyDependencies(scadPath, tempDir, verbose) {
+  const sourceDir = dirname(scadPath)
+  const content = readFileSync(scadPath, 'utf8')
+
+  // Match use <file> and include <file> statements
+  const useRegex = /(?:use|include)\s*<([^>]+)>/g
+  let match
+
+  while ((match = useRegex.exec(content)) !== null) {
+    const depPath = match[1]
+    const sourcePath = join(sourceDir, depPath)
+    const destPath = join(tempDir, depPath)
+
+    if (existsSync(sourcePath)) {
+      // Create parent directory if needed
+      mkdirSync(dirname(destPath), { recursive: true })
+      copyFileSync(sourcePath, destPath)
+      if (verbose) {
+        console.error(`  Copied dependency: ${depPath}`)
+      }
+
+      // Recursively copy dependencies of this file
+      copyDependencies(sourcePath, tempDir, verbose)
+    }
+  }
+}
+
+/**
  * Test a single OpenSCAD file
  */
 async function testFile(scadPath, options) {
@@ -232,15 +255,16 @@ async function testFile(scadPath, options) {
   const tempScad = join(tempDir, 'input.scad')
   copyFileSync(scadPath, tempScad)
 
+  // Copy any dependencies (use/include statements)
+  copyDependencies(scadPath, tempDir, options.verbose)
+
   const refStl = join(tempDir, 'reference.stl')
-  const jsPath = join(tempDir, 'model.js')
   const genStl = join(tempDir, 'generated.stl')
 
   const result = {
     name,
     path: scadPath,
     openscad: null,
-    translate: null,
     jscad: null,
     compare: null,
     jaccard: null,
@@ -254,35 +278,25 @@ async function testFile(scadPath, options) {
       console.error(`\nTesting: ${name}`)
       console.error(`  Step 1: Running OpenSCAD...`)
     }
-    result.openscad = runOpenscad(tempScad, refStl, options.openscad, options.verbose)
+    result.openscad = runOpenscad(tempScad, refStl, options.openscad, options.verbose, options.fn)
     if (!result.openscad.success) {
       result.error = `OpenSCAD failed: ${result.openscad.error}`
       return result
     }
 
-    // Step 2: Translate to JSCAD
+    // Step 2: Transpile and run with JSCAD (in-memory)
     if (options.verbose) {
-      console.error(`  Step 2: Translating to JSCAD...`)
+      console.error(`  Step 2: Transpiling and running with JSCAD...`)
     }
-    result.translate = translateToJscad(scadPath, jsPath, options.verbose)
-    if (!result.translate.success) {
-      result.error = `Translation failed: ${result.translate.error}`
-      return result
-    }
-
-    // Step 3: Run JSCAD
-    if (options.verbose) {
-      console.error(`  Step 3: Running JSCAD with Manifold...`)
-    }
-    result.jscad = runJscad(jsPath, genStl, options.verbose)
+    result.jscad = runJscad(scadPath, genStl, options.verbose, options.fn)
     if (!result.jscad.success) {
       result.error = `JSCAD failed: ${result.jscad.error}`
       return result
     }
 
-    // Step 4: Compare STLs
+    // Step 3: Compare STLs
     if (options.verbose) {
-      console.error(`  Step 4: Comparing STLs...`)
+      console.error(`  Step 3: Comparing STLs...`)
     }
     result.compare = compareStl(refStl, genStl, options.verbose)
     if (!result.compare.success) {

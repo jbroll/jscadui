@@ -1,18 +1,20 @@
 #!/usr/bin/env node
 
 /**
- * CLI tool for running JSCAD code with Manifold backend and exporting to STL
+ * CLI tool for running OpenSCAD or JSCAD code with Manifold backend and exporting to STL
  *
  * Usage:
- *   run-jscad input.js -o output.stl
- *   cat input.js | run-jscad -o output.stl
- *   run-jscad input.js --volume    # Just print volume (for comparison)
+ *   run-jscad input.scad -o output.stl   # Transpile and run OpenSCAD
+ *   run-jscad input.js -o output.stl     # Run JSCAD directly
+ *   run-jscad input.scad --volume        # Just print volume (for comparison)
  */
 
-import { readFileSync, writeFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { readFileSync, writeFileSync, existsSync } from 'node:fs'
+import { resolve, basename } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { parse } from '../esm/parser/parse.js'
+import { transpile } from '../esm/transpiler/transpile.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -21,11 +23,11 @@ const VERSION = '0.1.0'
 
 function printHelp() {
   console.log(`
-run-jscad - Run JSCAD code with Manifold backend
+run-jscad - Run OpenSCAD or JSCAD code with Manifold backend
 
 Usage:
-  run-jscad <input.js> [options]
-  cat input.js | run-jscad [options]
+  run-jscad <input.scad> [options]    Transpile and run OpenSCAD
+  run-jscad <input.js> [options]      Run JSCAD directly
 
 Options:
   -o, --output <file>     Write STL output to file
@@ -36,9 +38,9 @@ Options:
   -v, --version           Show version
 
 Examples:
-  run-jscad model.js -o model.stl        Run and export to STL
-  run-jscad model.js --volume            Print volume for comparison
-  cat model.js | run-jscad -o out.stl    Pipe mode
+  run-jscad model.scad -o model.stl      Transpile and export to STL
+  run-jscad model.js -o model.stl        Run JSCAD and export to STL
+  run-jscad model.scad --volume          Print volume for comparison
 `)
 }
 
@@ -51,6 +53,7 @@ function parseArgs(args) {
     meshStats: false,
     help: false,
     version: false,
+    fn: 0,  // Global $fn override
   }
 
   let i = 0
@@ -70,6 +73,9 @@ function parseArgs(args) {
     } else if (arg === '-o' || arg === '--output') {
       i++
       options.output = args[i]
+    } else if (arg === '--fn') {
+      i++
+      options.fn = parseInt(args[i], 10)
     } else if (!arg.startsWith('-')) {
       options.input = arg
     } else {
@@ -209,6 +215,8 @@ async function createRuntime() {
     },
     colors: {
       colorize: colors.colorize,
+      cssColors: colors.cssColors,
+      colorNameToRgb: colors.colorNameToRgb,
     },
     maths: {
       mat4: {
@@ -245,6 +253,50 @@ async function createRuntime() {
   }
 }
 
+/**
+ * File resolver for use statements in OpenSCAD
+ * Resolves relative to the directory containing the current file
+ */
+function createFileResolver(fileDir) {
+  return function fileResolver(filename, fromFile) {
+    const baseDir = fromFile ? dirname(resolve(fileDir, fromFile)) : fileDir
+    const targetPath = resolve(baseDir, filename)
+
+    if (existsSync(targetPath)) {
+      return readFileSync(targetPath, 'utf8')
+    }
+
+    console.error(`Warning: Could not resolve ${filename} from ${fromFile || 'main file'}`)
+    return undefined
+  }
+}
+
+/**
+ * Transpile OpenSCAD source and return code + in-memory module cache
+ */
+function transpileScad(source, fileName, fileDir, fn = 0) {
+  const { ast, errors } = parse(source)
+
+  if (errors.length > 0) {
+    throw new Error(`Parse errors: ${JSON.stringify(errors)}`)
+  }
+
+  const result = transpile(ast, {
+    fileResolver: createFileResolver(fileDir),
+    currentFile: fileName,
+    fn: fn,
+  })
+
+  // Build in-memory module cache from transpiled files
+  const moduleCache = new Map()
+  for (const [name, file] of result.files) {
+    const jsName = './' + name.replace(/\.scad$/, '.js')
+    moduleCache.set(jsName, file.code)
+  }
+
+  return { code: result.code, moduleCache }
+}
+
 async function main() {
   const args = process.argv.slice(2)
   const options = parseArgs(args)
@@ -261,8 +313,12 @@ async function main() {
 
   // Read input
   let source
+  let inputPath
+  let isScad = false
+
   if (options.input) {
-    const inputPath = resolve(options.input)
+    inputPath = resolve(options.input)
+    isScad = options.input.endsWith('.scad')
     try {
       source = readFileSync(inputPath, 'utf8')
     } catch (err) {
@@ -281,37 +337,50 @@ async function main() {
     // Create runtime with Manifold backend
     const jscadModeling = await createRuntime()
 
-    // Create a module-like environment that matches what the emitter generates
-    // The emitter generates CommonJS code: const { cube } = require('@jscad/modeling').primitives
-    const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor
+    // If it's a .scad file, transpile it first
+    let jsCode
+    let moduleCache = new Map()
 
-    // Wrap the source to capture exports and provide the runtime
-    // We simulate require('@jscad/modeling') returning our runtime
-    const wrappedSource = `
-      const require = (moduleName) => {
-        if (moduleName === '@jscad/modeling') {
-          return jscadModeling
-        }
-        throw new Error('Module not found: ' + moduleName)
+    if (isScad) {
+      const fileDir = dirname(inputPath)
+      const fileName = basename(inputPath)
+      const transpiled = transpileScad(source, fileName, fileDir, options.fn)
+      jsCode = transpiled.code
+      moduleCache = transpiled.moduleCache
+    } else {
+      jsCode = source
+    }
+
+    // Custom require that serves transpiled files from in-memory cache
+    function customRequire(path) {
+      if (path === '@jscad/modeling') {
+        return jscadModeling
       }
-
-      const module = { exports: {} }
-      const exports = module.exports
-
-      ${source}
-
-      // Call main() if it exists
-      if (typeof module.exports.main === 'function') {
-        return module.exports.main()
+      // Check if it's a transpiled dependency
+      if (moduleCache.has(path)) {
+        const code = moduleCache.get(path)
+        const exports = {}
+        const moduleObj = { exports }
+        const fn = new Function('require', 'module', 'exports', code)
+        fn(customRequire, moduleObj, exports)
+        return moduleObj.exports
       }
-      if (typeof main === 'function') {
-        return main()
-      }
-      return null
-    `
+      throw new Error('Module not found: ' + path)
+    }
 
-    const fn = new AsyncFunction('jscadModeling', wrappedSource)
-    const result = await fn(jscadModeling)
+    // Evaluate the code with our custom require
+    const exports = {}
+    const moduleObj = { exports }
+    const fn = new Function('require', 'module', 'exports', jsCode)
+    fn(customRequire, moduleObj, exports)
+
+    // Call main() if it exists
+    let result
+    if (typeof moduleObj.exports.main === 'function') {
+      result = moduleObj.exports.main()
+    } else {
+      result = null
+    }
 
     if (!result) {
       console.error('No geometry returned from main()')

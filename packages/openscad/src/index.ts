@@ -16,6 +16,9 @@ export { evaluate, type EvaluateOptions, type FileResolver } from './evaluator/e
 // Emitter
 export { emit, type EmitOptions } from './emitter/emit.js'
 
+// Transpiler (AST-to-JS with module exports)
+export { transpile, type TranspileOptions, type TranspileResult, type UseImport } from './transpiler/transpile.js'
+
 // IR types
 export type {
   IRNode,
