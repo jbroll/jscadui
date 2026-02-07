@@ -4,8 +4,8 @@
 
 **Test Results (2024-02):**
 - Built-in corpus: 19/19 passing (100%) with `--fn 48`
-- OpenSCAD-Snippet library: 70/110 passing (63.6%) at 0.99 Jaccard threshold
-- 28 transpiler errors, 12 geometry mismatches, 5 OpenSCAD-side failures
+- OpenSCAD-Snippet library: 75/110 passing (68.2%) at 0.99 Jaccard threshold
+- 25 transpiler errors, 10 geometry mismatches, 5 OpenSCAD-side failures
 
 ## Architecture
 
@@ -22,6 +22,7 @@ Key files:
 ## Recently Fixed
 
 ### Completed in this session:
+- **Polygon winding order** - Auto-detect and normalize CCW winding for Manifold (fixes Stairs models)
 - **For loops** - `for (i = [0:10]) body` → `union(..._range(0, 10).map(i => body))`
 - **Nested modules** - Modules inside modules hoisted as local functions
 - **Local variables** - `x = 5;` inside modules → `const x = 5`
@@ -34,28 +35,7 @@ Key files:
 
 ## Open Issues
 
-### 1. Polygon Winding Order (Manifold Backend Issue)
-**Impact:** ~5 models generate empty geometry (Stairs_02, Stairs_03, etc.)
-
-**Problem:** Manifold's polygon primitive expects counterclockwise winding order. Some OpenSCAD files use clockwise points, resulting in empty extrusions.
-
-**Example:**
-```openscad
-polygon(points=[[0,0],[5,2],[5,0]]);  // clockwise - fails
-polygon(points=[[0,0],[5,0],[5,2]]);  // counterclockwise - works
-```
-
-**Solution options:**
-1. Fix in Manifold package: auto-detect and normalize winding
-2. Fix in transpiler: calculate signed area and reverse if negative
-3. Document as known limitation
-
-**Files to modify:**
-- `packages/manifold/src/primitives/index.js` - `polygon()` function
-
----
-
-### 2. Missing `regular_polygon` Module
+### 1. Missing `regular_polygon` Module
 **Impact:** 3+ models (Tree_01, Weights_01, etc.)
 
 **Problem:** OpenSCAD has a built-in `regular_polygon` or models define it themselves. The transpiler doesn't recognize it as a built-in.
@@ -80,23 +60,9 @@ const regular_polygon = (n, r) => {
 
 ---
 
-### 3. Arc/Rotate Extrude Issues
-**Impact:** Arc_01, Arc_02 have ~0.33 Jaccard
-
-**Problem:** Models using `rotate_extrude(angle=...)` with partial angles have significant geometry differences.
-
-**Investigation needed:**
-- Verify angle parameter is applied correctly
-- Check starting position matches OpenSCAD
-- Verify segment calculation for partial arcs
-
-**Files to check:**
-- `src/transpiler/transpile.ts` - `_rotateExtrude` helper
-- `packages/manifold/src/extrusions/index.js`
-
 ---
 
-### 4. Missing Math Functions
+### 3. Missing Math Functions
 **Impact:** Some models use uncommon OpenSCAD functions
 
 **Already implemented:** sin, cos, tan, asin, acos, atan, atan2, abs, floor, ceil, round, sqrt, pow, exp, log, ln, min, max, len, concat
@@ -113,7 +79,7 @@ const regular_polygon = (n, r) => {
 
 ---
 
-### 5. Geometry Precision Differences
+### 4. Geometry Precision Differences
 **Impact:** 12 models fail threshold (0.93-0.98 Jaccard)
 
 **Examples:**
@@ -133,34 +99,38 @@ const regular_polygon = (n, r) => {
 
 ---
 
-### 6. Unsupported Constructs
+### 5. Unsupported Constructs
 **Impact:** Various models
 
 **Not yet supported:**
+- `minkowski()` operation (2 models)
+- `$preview` special variable (4 models)
+- `$t` animation variable (1 model)
+- `echo()` for debugging (1 model)
 - `text()` module (requires font rendering)
 - `import()` for STL/OFF files
 - `surface()` for heightmaps
 - `children()` for module children access
 - `$children` special variable
 - Complex list comprehensions with multiple variables
-- `echo()` for debugging
 
 ---
 
 ## Implementation Priority
 
-### Phase 1: High Impact (fixes ~10 models)
-1. Fix polygon winding order in Manifold
-2. Add `regular_polygon` built-in
+### Phase 1: High Impact (fixes ~5 models)
+1. Add `regular_polygon` built-in (3+ models)
+2. Add missing special variables: `$preview`, `$t` (~4 models)
 
 ### Phase 2: Medium Impact (fixes ~5 models)
-3. Debug rotate_extrude partial angle issues
-4. Add missing math functions (rands, norm, cross)
+3. Add missing math functions (rands, norm, cross)
+4. Add `minkowski` operation
+5. Fix remaining transpiler syntax errors
 
 ### Phase 3: Low Priority
-5. Add children() support
-6. Improve error messages
-7. Add text() support (complex - needs font system)
+6. Add children() support
+7. Improve error messages
+8. Add text() support (complex - needs font system)
 
 ## Running Tests
 
