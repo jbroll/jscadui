@@ -396,16 +396,25 @@ async function main() {
   const results = []
   let passed = 0
   let failed = 0
-  let errors = 0
+  let translatorErrors = 0
+  let openscadErrors = 0
 
   for (const file of files) {
     const result = await testFile(file, options)
     results.push(result)
 
     if (result.error) {
-      errors++
-      if (!options.json) {
-        console.log(`${result.name}: ERROR - ${result.error}`)
+      // Separate OpenSCAD-side failures (not our translator's fault)
+      if (result.error.startsWith('OpenSCAD failed:')) {
+        openscadErrors++
+        if (!options.json) {
+          console.log(`${result.name}: SKIPPED - ${result.error}`)
+        }
+      } else {
+        translatorErrors++
+        if (!options.json) {
+          console.log(`${result.name}: ERROR - ${result.error}`)
+        }
       }
     } else if (result.pass) {
       passed++
@@ -420,21 +429,29 @@ async function main() {
     }
   }
 
+  // Calculate stats excluding OpenSCAD-side failures
+  const tested = files.length - openscadErrors
+  const passRate = tested > 0 ? ((passed / tested) * 100).toFixed(1) : '0.0'
+
   // Output summary
   if (options.json) {
     console.log(JSON.stringify({
-      summary: { total: files.length, passed, failed, errors },
+      summary: { total: files.length, tested, passed, failed, translatorErrors, openscadErrors },
       threshold: options.threshold,
+      passRate: `${passRate}%`,
       results
     }, null, 2))
   } else {
     console.log()
-    console.log(`Summary: ${passed} passed, ${failed} failed, ${errors} errors out of ${files.length} total`)
+    console.log(`Summary: ${passed} passed, ${failed} failed, ${translatorErrors} errors out of ${tested} tested (${passRate}%)`)
+    if (openscadErrors > 0) {
+      console.log(`Skipped: ${openscadErrors} (OpenSCAD-side failures)`)
+    }
     console.log(`Threshold: ${options.threshold}`)
   }
 
-  // Exit with error if any failures
-  process.exit(failed + errors > 0 ? 1 : 0)
+  // Exit with error if any translator failures (not OpenSCAD-side failures)
+  process.exit(failed + translatorErrors > 0 ? 1 : 0)
 }
 
 main().catch((err) => {

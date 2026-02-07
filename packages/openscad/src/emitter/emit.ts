@@ -300,6 +300,7 @@ function emitExtrusion(node: { operation: string; params: Record<string, any>; c
 
   if (operation === 'linear_extrude') {
     const height = params.height as number
+    const center = params.center as boolean
     const twist = params.twist as number
     const slices = params.slices as number
     const scale = params.scale
@@ -314,7 +315,15 @@ function emitExtrusion(node: { operation: string; params: Record<string, any>; c
       // For now, just emit height
     }
 
-    return `extrudeLinear({ ${options.join(', ')} }, ${child})`
+    let result = `extrudeLinear({ ${options.join(', ')} }, ${child})`
+
+    // JSCAD extrudeLinear always extrudes from z=0 upward
+    // OpenSCAD center=true centers on XY plane (z from -height/2 to +height/2)
+    if (center) {
+      result = `translate([0, 0, ${-height / 2}], ${result})`
+    }
+
+    return result
   }
 
   if (operation === 'rotate_extrude') {
@@ -553,6 +562,10 @@ function collectImports(node: IRNode, used: {
       const ext = node as any
       if (ext.operation === 'linear_extrude') {
         used.extrusions.add('extrudeLinear')
+        // center=true requires translate to center on XY plane
+        if (ext.params?.center) {
+          used.transforms.add('translate')
+        }
       } else if (ext.operation === 'rotate_extrude') {
         used.extrusions.add('extrudeRotate')
       }

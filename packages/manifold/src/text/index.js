@@ -5,7 +5,10 @@
  * The segments can be used to create outlines for both 2D and 3D geometry.
  */
 
-import * as jscad from '@jscad/modeling-for-manifold'
+import * as jscadModule from '@jscad/modeling-for-manifold'
+
+// Handle both ESM default export (Node.js) and bundled named exports (vitest/bundler)
+const jscad = jscadModule.default || jscadModule
 
 const jscadText = jscad.text
 

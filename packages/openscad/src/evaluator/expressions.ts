@@ -397,6 +397,16 @@ function evaluateBuiltinFunction(
       return Math.min(...(evalArgs() as number[]))
     case 'max':
       return Math.max(...(evalArgs() as number[]))
+    case 'rands': {
+      // rands(min, max, count, seed?) - generate array of random numbers
+      const [min, max, count] = evalArgs() as number[]
+      // Note: seed parameter is ignored (would require seeded PRNG)
+      const result: number[] = []
+      for (let i = 0; i < count; i++) {
+        result.push(min + Math.random() * (max - min))
+      }
+      return result
+    }
 
     // Vector/array functions
     case 'len': {

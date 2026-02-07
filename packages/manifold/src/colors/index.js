@@ -7,7 +7,10 @@
 
 import { ManifoldGeom3, isManifoldGeom3, toManifold } from '../geometries/ManifoldGeom3.js'
 import { isManifoldGeom2 } from '../geometries/ManifoldGeom2.js'
-import * as jscad from '@jscad/modeling-for-manifold'
+import * as jscadModule from '@jscad/modeling-for-manifold'
+
+// Handle both ESM default export (Node.js) and bundled named exports (vitest/bundler)
+const jscad = jscadModule.default || jscadModule
 
 // Re-export color utility functions from JSCAD
 export const { hexToRgb, hslToRgb, hsvToRgb, rgbToHex, rgbToHsl, rgbToHsv, colorNameToRgb, cssColors } = jscad.colors

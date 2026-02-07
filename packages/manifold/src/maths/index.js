@@ -5,7 +5,10 @@
  */
 
 // Re-export all JSCAD math modules from main entry point
-import * as jscad from '@jscad/modeling-for-manifold'
+import * as jscadModule from '@jscad/modeling-for-manifold'
+
+// Handle both ESM default export (Node.js) and bundled named exports (vitest/bundler)
+const jscad = jscadModule.default || jscadModule
 export const { vec2, vec3, vec4, mat4, plane, line2, line3, utils } = jscad.maths
 
 // Common constants

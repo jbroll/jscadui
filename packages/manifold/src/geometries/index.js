@@ -5,7 +5,10 @@
  */
 
 // Re-export JSCAD geometry modules from main entry point
-import * as jscad from '@jscad/modeling-for-manifold'
+import * as jscadModule from '@jscad/modeling-for-manifold'
+
+// Handle both ESM default export (Node.js) and bundled named exports (vitest/bundler)
+const jscad = jscadModule.default || jscadModule
 export const { geom2, geom3, path2, poly2, poly3 } = jscad.geometries
 
 // Export Manifold wrappers
