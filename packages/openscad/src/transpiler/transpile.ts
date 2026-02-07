@@ -738,13 +738,6 @@ function transpileUnaryOp(op: number): string {
 function transpileFunctionCall(callee: string, args: string, ctx: TranspileContext): string {
   // Built-in math functions that map directly to Math.*
   const mathFuncs: Record<string, string> = {
-    sin: 'Math.sin',
-    cos: 'Math.cos',
-    tan: 'Math.tan',
-    asin: 'Math.asin',
-    acos: 'Math.acos',
-    atan: 'Math.atan',
-    atan2: 'Math.atan2',
     abs: 'Math.abs',
     floor: 'Math.floor',
     ceil: 'Math.ceil',
@@ -761,6 +754,23 @@ function transpileFunctionCall(callee: string, args: string, ctx: TranspileConte
 
   if (mathFuncs[callee]) {
     return `${mathFuncs[callee]}(${args})`
+  }
+
+  // Trig functions - OpenSCAD uses degrees, JavaScript uses radians
+  const toRad = 'Math.PI/180'
+  const toDeg = '180/Math.PI'
+  const trigFuncs: Record<string, string> = {
+    sin: `Math.sin((${args})*${toRad})`,
+    cos: `Math.cos((${args})*${toRad})`,
+    tan: `Math.tan((${args})*${toRad})`,
+    asin: `Math.asin(${args})*${toDeg}`,
+    acos: `Math.acos(${args})*${toDeg}`,
+    atan: `Math.atan(${args})*${toDeg}`,
+    atan2: `Math.atan2(${args})*${toDeg}`,
+  }
+
+  if (trigFuncs[callee]) {
+    return trigFuncs[callee]
   }
 
   // len() -> .length
