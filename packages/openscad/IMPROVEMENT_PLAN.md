@@ -5,7 +5,7 @@
 **Test Results (2024-02):**
 - Built-in corpus: 19/19 passing (100%) with `--fn 48`
 - OpenSCAD-Snippet library: 82/110 passing (74.5%) at 0.99 Jaccard threshold
-- 14 transpiler errors, 14 geometry mismatches, 5 OpenSCAD-side failures
+- 13 transpiler errors, 15 geometry mismatches, 5 OpenSCAD-side failures
 
 ## Architecture
 
@@ -22,6 +22,7 @@ Key files:
 ## Recently Fixed
 
 ### Completed in this session:
+- **Math functions** - Added `sign`, `norm`, `cross`, `lookup`, `rands` (fixes Bricks.scad transpiler error)
 - **Special variables $preview, $t** - `$preview` returns false, `$t` returns 0 (fixes Ring, Pipe_00)
 - **Regular polygon primitive** - `regular_polygon(n, r)` using `circle({ radius, segments })` (fixes Weights_01, Tree_01)
 - **Minkowski operation** - Transpile `minkowski()` to JSCAD/Manifold (fixes Mech_Piece models)
@@ -38,24 +39,7 @@ Key files:
 
 ## Open Issues
 
-### 1. Missing Math Functions
-**Impact:** Some models use uncommon OpenSCAD functions
-
-**Already implemented:** sin, cos, tan, asin, acos, atan, atan2, abs, floor, ceil, round, sqrt, pow, exp, log, ln, min, max, len, concat
-
-**Missing:**
-- `rands(min, max, count, seed?)` - Random number array
-- `norm(v)` - Vector length
-- `cross(v1, v2)` - Cross product
-- `lookup(val, table)` - Table interpolation
-- `sign(x)` - Sign of number
-
-**Files to modify:**
-- `src/transpiler/transpile.ts` - `transpileFunctionCall()`
-
----
-
-### 2. Geometry Precision Differences
+### 1. Geometry Precision Differences
 **Impact:** 12 models fail threshold (0.93-0.98 Jaccard)
 
 **Examples:**
@@ -75,7 +59,7 @@ Key files:
 
 ---
 
-### 3. Unsupported Constructs
+### 2. Unsupported Constructs
 **Impact:** Various models
 
 **Not yet supported:**
@@ -91,11 +75,11 @@ Key files:
 
 ## Implementation Priority
 
-### Phase 1: High Impact (fixes ~5 models)
+### Phase 1: High Impact
 1. ~~Add missing special variables: `$preview`, `$t`~~ ✓ Done
+2. ~~Add missing math functions (rands, norm, cross, lookup, sign)~~ ✓ Done
 
-### Phase 2: Medium Impact (fixes ~5 models)
-2. Add missing math functions (rands, norm, cross)
+### Phase 2: Medium Impact
 3. Fix remaining transpiler syntax errors
 
 ### Phase 3: Low Priority
