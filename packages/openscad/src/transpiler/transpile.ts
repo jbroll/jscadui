@@ -80,6 +80,8 @@ interface TranspileContext {
   transpiledFiles: Map<string, TranspiledFile>
   // Track files currently being processed (for cycle detection)
   processingFiles: Set<string>
+  // Inherited special variables from parent scopes (for $fn, $fa, $fs propagation)
+  inheritedSpecialVars: { $fn?: string; $fa?: string; $fs?: string }
 }
 
 const defaultOptions = {
@@ -118,6 +120,7 @@ export function transpile(
     indentLevel: 0,
     transpiledFiles: sharedCache || new Map(),
     processingFiles: new Set(),
+    inheritedSpecialVars: {},
   }
 
   // Mark current file as processing (for cycle detection)
@@ -520,11 +523,28 @@ function transpileModuleInstantiation(stmt: any, ctx: TranspileContext): string 
 
   const argsArray = transpileArgsArray(stmt.args, ctx)
 
-  // Handle children
+  // Extract special vars from args - OpenSCAD's $fn, $fa, $fs are dynamically scoped
+  // and inherited by all children, regardless of which module they're attached to
+  const savedSpecialVars = ctx.inheritedSpecialVars
+  const newSpecialVars = { ...ctx.inheritedSpecialVars }
+  let hasSpecialVars = false
+  for (const arg of argsArray) {
+    if (arg.name === '$fn') { newSpecialVars.$fn = arg.value; hasSpecialVars = true }
+    if (arg.name === '$fa') { newSpecialVars.$fa = arg.value; hasSpecialVars = true }
+    if (arg.name === '$fs') { newSpecialVars.$fs = arg.value; hasSpecialVars = true }
+  }
+  if (hasSpecialVars) {
+    ctx.inheritedSpecialVars = newSpecialVars
+  }
+
+  // Handle children (now with inherited special vars in context)
   let childCode: string | null = null
   if (stmt.child) {
     childCode = transpileStatement(stmt.child, ctx)
   }
+
+  // Restore special vars after processing children
+  ctx.inheritedSpecialVars = savedSpecialVars
 
   // Check if it's a built-in primitive/transform/boolean
   if (isBuiltinPrimitive(name)) {
@@ -847,6 +867,22 @@ function transpileBuiltinPrimitive(name: string, argsArray: Array<{name: string 
     }
     return arg.value
   })
+
+  // For primitives that use segments, inject inherited special vars if not already set
+  const usesSegments = ['sphere', 'cylinder', 'circle', 'regular_polygon'].includes(name)
+  if (usesSegments) {
+    const hasVar = (varName: string) => argsArray.some(a => a.name === varName)
+    if (ctx.inheritedSpecialVars.$fn && !hasVar('$fn')) {
+      namedArgs.push(`$fn: ${ctx.inheritedSpecialVars.$fn}`)
+    }
+    if (ctx.inheritedSpecialVars.$fa && !hasVar('$fa')) {
+      namedArgs.push(`$fa: ${ctx.inheritedSpecialVars.$fa}`)
+    }
+    if (ctx.inheritedSpecialVars.$fs && !hasVar('$fs')) {
+      namedArgs.push(`$fs: ${ctx.inheritedSpecialVars.$fs}`)
+    }
+  }
+
   const argsStr = namedArgs.join(', ')
 
   switch (name) {
@@ -1287,8 +1323,10 @@ const _linearExtrude = ({ height, center = false, twist = 0, slices = 1 }, geo) 
   if (ctx.usedExtrusions.has('extrudeRotate')) {
     imports.push(`
 const _rotateExtrude = ({ angle = 360, $fn = 0, $fa = 12 }, geo) => {
-  // Use explicit $fn, then global default, then calculated from $fa
-  const segments = $fn > 0 ? $fn : (_globalFn > 0 ? _globalFn : Math.ceil(360 / $fa))
+  // Calculate full-circle segments from $fn or $fa
+  const fullCircleSegments = $fn > 0 ? $fn : (_globalFn > 0 ? _globalFn : Math.ceil(360 / $fa))
+  // Scale segments proportionally to the angle (OpenSCAD behavior)
+  const segments = Math.max(1, Math.round(fullCircleSegments * angle / 360))
   const opts = { segments }
   if (angle !== 360) { opts.angle = angle * Math.PI / 180 }
   return extrudeRotate(opts, geo)
