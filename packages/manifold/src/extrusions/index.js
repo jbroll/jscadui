@@ -94,7 +94,15 @@ export const extrudeRotate = (options, ...geometries) => {
     }
 
     // Use Manifold's native revolve
-    const section = isManifoldGeom2(geom) ? geom.crossSection : geom2ToCrossSection(geom)
+    let section = isManifoldGeom2(geom) ? geom.crossSection : geom2ToCrossSection(geom)
+
+    // Manifold's revolve() requires X > 0 (rotates around Y-axis, only uses positive X side)
+    // If profile is entirely on negative X side, mirror it first
+    const bounds = section.bounds()
+    if (bounds.max[0] <= 0) {
+      // Mirror across Y-axis (negate X values) to make X positive
+      section = section.mirror([1, 0])
+    }
 
     // Convert angle from radians to degrees
     const angleDegrees = angle * (180 / Math.PI)

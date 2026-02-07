@@ -150,6 +150,7 @@ export function transpile(
   // Second pass: transpile statements
   const bodyParts: string[] = []
   const geometryParts: string[] = []
+  const topLevelAssignments: { name: string, value: any }[] = []
 
   for (const stmt of ast.statements) {
     const stmtType = stmt.constructor.name
@@ -160,6 +161,10 @@ export function transpile(
       bodyParts.push(transpileFunctionDeclaration(stmt as any, ctx))
     } else if (stmtType === 'UseStmt' || stmtType === 'IncludeStmt') {
       // Already collected in first pass
+    } else if (stmtType === 'AssignmentNode') {
+      // Top-level variable assignment
+      const s = stmt as any
+      topLevelAssignments.push({ name: s.name, value: s.value })
     } else {
       // File-scope geometry/statements
       const code = transpileStatement(stmt, ctx)
@@ -208,11 +213,21 @@ export function transpile(
   }
 
   // Main function with file-scope geometry
-  if (geometryParts.length > 0) {
-    const mainBody = geometryParts.length === 1
-      ? geometryParts[0]
-      : `union(\n${geometryParts.map(p => `  ${p}`).join(',\n')}\n)`
-    parts.push(`const main = () => {\n  return ${mainBody}\n}`)
+  if (geometryParts.length > 0 || topLevelAssignments.length > 0) {
+    const assignmentLines = topLevelAssignments.map(a =>
+      `  const ${a.name} = ${transpileExpression(a.value, ctx)}`
+    )
+    const mainBody = geometryParts.length === 0
+      ? 'undefined'
+      : geometryParts.length === 1
+        ? geometryParts[0]
+        : `union(\n${geometryParts.map(p => `    ${p}`).join(',\n')}\n  )`
+
+    if (assignmentLines.length > 0) {
+      parts.push(`const main = () => {\n${assignmentLines.join('\n')}\n  return ${mainBody}\n}`)
+    } else {
+      parts.push(`const main = () => {\n  return ${mainBody}\n}`)
+    }
     parts.push('')
   } else {
     // Empty main if no geometry
@@ -353,58 +368,44 @@ function extractModuleBody(stmt: Statement, _ctx: TranspileContext): {
 }
 
 /**
+ * Recursively build the body of a module function, handling nested modules at any depth
+ */
+function buildModuleBody(moduleStmt: any, ctx: TranspileContext, indent: string = '  '): string[] {
+  const { nestedModules, assignments, geometryStmts } = extractModuleBody(moduleStmt, ctx)
+  const bodyParts: string[] = []
+
+  // Recursively process nested module definitions
+  for (const m of nestedModules) {
+    const nestedParams = transpileParamsList(m.definitionArgs, ctx)
+    const nestedBodyParts = buildModuleBody(m.stmt, ctx, indent + '  ')
+    bodyParts.push(`${indent}const ${m.name} = (${nestedParams}) => {\n${nestedBodyParts.join('\n')}\n${indent}}`)
+  }
+
+  // Local variable assignments
+  for (const a of assignments) {
+    bodyParts.push(`${indent}const ${a.name} = ${transpileExpression(a.value, ctx)}`)
+  }
+
+  // Geometry expression (return statement)
+  const geomParts = geometryStmts.map(g => transpileStatement(g, ctx)).filter(Boolean) as string[]
+  const returnExpr = geomParts.length === 0 ? 'undefined' :
+    geomParts.length === 1 ? geomParts[0] :
+    `union(\n${indent}  ${geomParts.join(',\n' + indent + '  ')}\n${indent})`
+  if (geomParts.length > 1) ctx.usedBooleans.add('union')
+
+  bodyParts.push(`${indent}return ${returnExpr}`)
+
+  return bodyParts
+}
+
+/**
  * Transpile a module declaration to JavaScript function
  * Uses regular parameters (not destructured) for easier positional args
  */
 function transpileModuleDeclaration(stmt: any, ctx: TranspileContext): string {
   const name = stmt.name
   const params = transpileParamsList(stmt.definitionArgs, ctx)
-
-  // Extract nested modules, assignments, and geometry from the body
-  const { nestedModules, assignments, geometryStmts } = extractModuleBody(stmt.stmt, ctx)
-
-  // Build function body parts
-  const bodyParts: string[] = []
-
-  // Nested module definitions
-  for (const m of nestedModules) {
-    const nestedParams = transpileParamsList(m.definitionArgs, ctx)
-    const nestedResult = extractModuleBody(m.stmt, ctx)
-    let nestedBody: string
-    if (nestedResult.assignments.length > 0) {
-      const nestedAssigns = nestedResult.assignments.map(a =>
-        `    const ${a.name} = ${transpileExpression(a.value, ctx)}`
-      ).join('\n')
-      const nestedGeom = nestedResult.geometryStmts.map(g => transpileStatement(g, ctx)).filter(Boolean)
-      const nestedReturn = nestedGeom.length === 0 ? 'undefined' :
-        nestedGeom.length === 1 ? nestedGeom[0] :
-        `union(\n      ${nestedGeom.join(',\n      ')}\n    )`
-      if (nestedGeom.length > 1) ctx.usedBooleans.add('union')
-      nestedBody = `{\n${nestedAssigns}\n    return ${nestedReturn}\n  }`
-    } else {
-      const nestedGeom = nestedResult.geometryStmts.map(g => transpileStatement(g, ctx)).filter(Boolean)
-      const nestedReturn = nestedGeom.length === 0 ? 'undefined' :
-        nestedGeom.length === 1 ? nestedGeom[0] :
-        `union(\n      ${nestedGeom.join(',\n      ')}\n    )`
-      if (nestedGeom.length > 1) ctx.usedBooleans.add('union')
-      nestedBody = `{\n    return ${nestedReturn}\n  }`
-    }
-    bodyParts.push(`  const ${m.name} = (${nestedParams}) => ${nestedBody}`)
-  }
-
-  // Local variable assignments
-  for (const a of assignments) {
-    bodyParts.push(`  const ${a.name} = ${transpileExpression(a.value, ctx)}`)
-  }
-
-  // Geometry expression
-  const geomParts = geometryStmts.map(g => transpileStatement(g, ctx)).filter(Boolean) as string[]
-  const returnExpr = geomParts.length === 0 ? 'undefined' :
-    geomParts.length === 1 ? geomParts[0] :
-    `union(\n    ${geomParts.join(',\n    ')}\n  )`
-  if (geomParts.length > 1) ctx.usedBooleans.add('union')
-
-  bodyParts.push(`  return ${returnExpr}`)
+  const bodyParts = buildModuleBody(stmt.stmt, ctx)
 
   return `const ${name} = (${params}) => {\n${bodyParts.join('\n')}\n}`
 }
@@ -509,6 +510,12 @@ function transpileModuleInstantiation(stmt: any, ctx: TranspileContext): string 
   // Special handling for 'for' loops (parsed as ModuleInstantiationStmt)
   if (name === 'for') {
     return transpileForLoop(stmt, ctx)
+  }
+
+  // echo() for debugging - outputs to console but returns undefined (no geometry)
+  if (name === 'echo') {
+    const args = stmt.args.map((a: any) => transpileExpression(a.value, ctx)).join(', ')
+    return `(console.log(${args}), undefined)`
   }
 
   const argsArray = transpileArgsArray(stmt.args, ctx)
@@ -773,6 +780,11 @@ function transpileFunctionCall(callee: string, args: string, ctx: TranspileConte
     return `_${callee}(${args})`
   }
 
+  // echo() for debugging - map to console.log
+  if (callee === 'echo') {
+    return `console.log(${args})`
+  }
+
   // User-defined function call
   return `${callee}(${args})`
 }
@@ -896,12 +908,21 @@ function transpileBuiltinTransform(name: string, argsArray: Array<{name: string 
 function transpileBuiltinBoolean(name: string, child: Statement | null, ctx: TranspileContext): string {
   // Extract children from BlockStmt for boolean operations
   let childCodes: string[] = []
+  const assignments: { name: string, value: any }[] = []
 
   if (child) {
     const childType = child.constructor.name
     if (childType === 'BlockStmt') {
       const children = (child as any).children as Statement[]
-      childCodes = children.map(c => transpileStatement(c, ctx)).filter(Boolean) as string[]
+      for (const c of children) {
+        const cType = c.constructor.name
+        if (cType === 'AssignmentNode') {
+          assignments.push({ name: (c as any).name, value: (c as any).value })
+        } else if (cType !== 'NoopStmt') {
+          const code = transpileStatement(c, ctx)
+          if (code) childCodes.push(code)
+        }
+      }
     } else {
       const code = transpileStatement(child, ctx)
       if (code) childCodes = [code]
@@ -914,26 +935,41 @@ function transpileBuiltinBoolean(name: string, child: Statement | null, ctx: Tra
 
   const args = childCodes.join(',\n  ')
 
+  // Build the boolean operation
+  let boolOp: string
+
   switch (name) {
     case 'union':
       ctx.usedBooleans.add('union')
-      return `union(\n  ${args}\n)`
+      boolOp = `union(\n  ${args}\n)`
+      break
 
     case 'difference':
       ctx.usedBooleans.add('subtract')
-      return `subtract(\n  ${args}\n)`
+      boolOp = `subtract(\n  ${args}\n)`
+      break
 
     case 'intersection':
       ctx.usedBooleans.add('intersect')
-      return `intersect(\n  ${args}\n)`
+      boolOp = `intersect(\n  ${args}\n)`
+      break
 
     case 'minkowski':
       ctx.usedBooleans.add('minkowski')
-      return `minkowski(\n  ${args}\n)`
+      boolOp = `minkowski(\n  ${args}\n)`
+      break
 
     default:
       return `/* unknown boolean: ${name} */`
   }
+
+  // If there are assignments, wrap in IIFE
+  if (assignments.length > 0) {
+    const assignStrs = assignments.map(a => `const ${a.name} = ${transpileExpression(a.value, ctx)}`)
+    return `(() => { ${assignStrs.join('; ')}; return ${boolOp} })()`
+  }
+
+  return boolOp
 }
 
 function transpileBuiltinHull(child: Statement | null, ctx: TranspileContext): string {
@@ -988,6 +1024,7 @@ function transpileBuiltinExtrusion(name: string, argsArray: Array<{name: string 
   switch (name) {
     case 'linear_extrude':
       ctx.usedExtrusions.add('extrudeLinear')
+      ctx.usedTransforms.add('translate')  // _linearExtrude helper uses translate for center
       return `_linearExtrude({ ${args} }, ${childCode})`
 
     case 'rotate_extrude':
