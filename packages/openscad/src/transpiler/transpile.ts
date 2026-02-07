@@ -617,6 +617,11 @@ function transpileExpression(expr: Expression, ctx: TranspileContext): string {
 
     case 'VectorExpr': {
       const children = (expr as any).children as Expression[]
+      // List comprehension: [for (i = range) expr] has single LcForExpr child
+      // LcForExpr already returns an array via .map(), so don't double-wrap
+      if (children.length === 1 && children[0].constructor.name === 'LcForExpr') {
+        return transpileExpression(children[0], ctx)
+      }
       return `[${children.map(c => transpileExpression(c, ctx)).join(', ')}]`
     }
 
@@ -1154,10 +1159,10 @@ const _getSegments = (radius, $fn, $fa = 12, $fs = 2) => {
   if ($fn > 0) return $fn
   // Global $fn is used as default when not explicitly set
   if (_globalFn > 0) return _globalFn
-  if (radius < 0.001) return 12
+  if (radius < 0.001) return 5
   const fromAngle = 360 / $fa
   const fromSize = (2 * Math.PI * radius) / $fs
-  return Math.ceil(Math.max(Math.min(fromAngle, fromSize), 12))
+  return Math.ceil(Math.max(Math.min(fromAngle, fromSize), 5))
 }`)
 
   // Primitive wrappers that handle OpenSCAD semantics
