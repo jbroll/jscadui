@@ -310,15 +310,101 @@ function collectDeclarations(stmt: Statement, ctx: TranspileContext): void {
 }
 
 /**
+ * Extract nested modules, assignments, and geometry statements from a module body
+ */
+function extractModuleBody(stmt: Statement, _ctx: TranspileContext): {
+  nestedModules: any[],
+  assignments: { name: string, value: any }[],
+  geometryStmts: Statement[]
+} {
+  const nestedModules: any[] = []
+  const assignments: { name: string, value: any }[] = []
+  const geometryStmts: Statement[] = []
+
+  if (!stmt) {
+    return { nestedModules, assignments, geometryStmts }
+  }
+
+  const stmtType = stmt.constructor.name
+
+  if (stmtType === 'BlockStmt') {
+    const block = stmt as any
+
+    for (const child of block.children) {
+      const childType = child.constructor.name
+      if (childType === 'ModuleDeclarationStmt') {
+        nestedModules.push(child)
+      } else if (childType === 'AssignmentNode') {
+        assignments.push({ name: child.name, value: child.value })
+      } else if (childType !== 'NoopStmt') {
+        geometryStmts.push(child)
+      }
+    }
+  } else if (stmtType === 'AssignmentNode') {
+    const s = stmt as any
+    assignments.push({ name: s.name, value: s.value })
+  } else if (stmtType !== 'NoopStmt') {
+    geometryStmts.push(stmt)
+  }
+
+  return { nestedModules, assignments, geometryStmts }
+}
+
+/**
  * Transpile a module declaration to JavaScript function
  * Uses regular parameters (not destructured) for easier positional args
  */
 function transpileModuleDeclaration(stmt: any, ctx: TranspileContext): string {
   const name = stmt.name
   const params = transpileParamsList(stmt.definitionArgs, ctx)
-  const body = transpileStatement(stmt.stmt, ctx)
 
-  return `const ${name} = (${params}) => {\n  return ${body || 'undefined'}\n}`
+  // Extract nested modules, assignments, and geometry from the body
+  const { nestedModules, assignments, geometryStmts } = extractModuleBody(stmt.stmt, ctx)
+
+  // Build function body parts
+  const bodyParts: string[] = []
+
+  // Nested module definitions
+  for (const m of nestedModules) {
+    const nestedParams = transpileParamsList(m.definitionArgs, ctx)
+    const nestedResult = extractModuleBody(m.stmt, ctx)
+    let nestedBody: string
+    if (nestedResult.assignments.length > 0) {
+      const nestedAssigns = nestedResult.assignments.map(a =>
+        `    const ${a.name} = ${transpileExpression(a.value, ctx)}`
+      ).join('\n')
+      const nestedGeom = nestedResult.geometryStmts.map(g => transpileStatement(g, ctx)).filter(Boolean)
+      const nestedReturn = nestedGeom.length === 0 ? 'undefined' :
+        nestedGeom.length === 1 ? nestedGeom[0] :
+        `union(\n      ${nestedGeom.join(',\n      ')}\n    )`
+      if (nestedGeom.length > 1) ctx.usedBooleans.add('union')
+      nestedBody = `{\n${nestedAssigns}\n    return ${nestedReturn}\n  }`
+    } else {
+      const nestedGeom = nestedResult.geometryStmts.map(g => transpileStatement(g, ctx)).filter(Boolean)
+      const nestedReturn = nestedGeom.length === 0 ? 'undefined' :
+        nestedGeom.length === 1 ? nestedGeom[0] :
+        `union(\n      ${nestedGeom.join(',\n      ')}\n    )`
+      if (nestedGeom.length > 1) ctx.usedBooleans.add('union')
+      nestedBody = `{\n    return ${nestedReturn}\n  }`
+    }
+    bodyParts.push(`  const ${m.name} = (${nestedParams}) => ${nestedBody}`)
+  }
+
+  // Local variable assignments
+  for (const a of assignments) {
+    bodyParts.push(`  const ${a.name} = ${transpileExpression(a.value, ctx)}`)
+  }
+
+  // Geometry expression
+  const geomParts = geometryStmts.map(g => transpileStatement(g, ctx)).filter(Boolean) as string[]
+  const returnExpr = geomParts.length === 0 ? 'undefined' :
+    geomParts.length === 1 ? geomParts[0] :
+    `union(\n    ${geomParts.join(',\n    ')}\n  )`
+  if (geomParts.length > 1) ctx.usedBooleans.add('union')
+
+  bodyParts.push(`  return ${returnExpr}`)
+
+  return `const ${name} = (${params}) => {\n${bodyParts.join('\n')}\n}`
 }
 
 /**
@@ -361,9 +447,36 @@ function transpileStatement(stmt: Statement, ctx: TranspileContext): string | nu
       return transpileModuleInstantiation(stmt as any, ctx)
 
     case 'BlockStmt': {
-      const children = (stmt as any).children as Statement[]
-      const parts = children.map(c => transpileStatement(c, ctx)).filter(Boolean) as string[]
-      if (parts.length === 0) return null
+      const block = stmt as any
+      // Extract assignments and geometry from the block
+      const assignments: { name: string, value: any }[] = []
+      const geometryStmts: Statement[] = []
+
+      for (const child of block.children) {
+        const childType = child.constructor.name
+        if (childType === 'AssignmentNode') {
+          assignments.push({ name: child.name, value: child.value })
+        } else if (childType !== 'NoopStmt') {
+          geometryStmts.push(child)
+        }
+      }
+
+      const parts = geometryStmts.map(c => transpileStatement(c, ctx)).filter(Boolean) as string[]
+      if (parts.length === 0 && assignments.length === 0) return null
+
+      // If there are assignments, we need to create an IIFE to scope them
+      if (assignments.length > 0) {
+        const assignStrs = assignments.map(a => `const ${a.name} = ${transpileExpression(a.value, ctx)}`)
+        if (parts.length === 0) {
+          return `(() => { ${assignStrs.join('; ')}; return undefined })()`
+        }
+        if (parts.length === 1) {
+          return `(() => { ${assignStrs.join('; ')}; return ${parts[0]} })()`
+        }
+        ctx.usedBooleans.add('union')
+        return `(() => { ${assignStrs.join('; ')}; return union(\n    ${parts.join(',\n    ')}\n  ) })()`
+      }
+
       if (parts.length === 1) return parts[0]
       ctx.usedBooleans.add('union')
       return `union(\n${parts.map(p => `  ${p}`).join(',\n')}\n)`
@@ -390,8 +503,13 @@ function transpileStatement(stmt: Statement, ctx: TranspileContext): string | nu
  */
 function transpileModuleInstantiation(stmt: any, ctx: TranspileContext): string {
   const name = stmt.name
+
+  // Special handling for 'for' loops (parsed as ModuleInstantiationStmt)
+  if (name === 'for') {
+    return transpileForLoop(stmt, ctx)
+  }
+
   const argsArray = transpileArgsArray(stmt.args, ctx)
-  const args = transpileArgsToObject(argsArray)
 
   // Handle children
   let childCode: string | null = null
@@ -414,7 +532,7 @@ function transpileModuleInstantiation(stmt: any, ctx: TranspileContext): string 
   }
 
   if (isBuiltinExtrusion(name)) {
-    return transpileBuiltinExtrusion(name, args, childCode, ctx)
+    return transpileBuiltinExtrusion(name, argsArray, childCode, ctx)
   }
 
   // Special modules
@@ -818,8 +936,29 @@ function transpileBuiltinHull(child: Statement | null, ctx: TranspileContext): s
   return `hull(\n  ${args}\n)`
 }
 
-function transpileBuiltinExtrusion(name: string, args: string, child: string | null, ctx: TranspileContext): string {
+// Positional parameter names for extrusions
+const extrusionParams: Record<string, string[]> = {
+  linear_extrude: ['height', 'center', 'twist', 'slices'],
+  rotate_extrude: ['angle', 'convexity'],
+}
+
+function transpileBuiltinExtrusion(name: string, argsArray: Array<{name: string | null, value: string}>, child: string | null, ctx: TranspileContext): string {
   const childCode = child || 'undefined'
+
+  // Map positional args to named args using parameter definitions
+  const paramNames = extrusionParams[name] || []
+  const namedArgs = argsArray.map((arg, i) => {
+    if (arg.name) {
+      return `${arg.name}: ${arg.value}`
+    }
+    // Use positional param name if available
+    const paramName = paramNames[i]
+    if (paramName) {
+      return `${paramName}: ${arg.value}`
+    }
+    return arg.value
+  })
+  const args = namedArgs.join(', ')
 
   switch (name) {
     case 'linear_extrude':
@@ -833,6 +972,34 @@ function transpileBuiltinExtrusion(name: string, args: string, child: string | n
     default:
       return `/* unknown extrusion: ${name} */`
   }
+}
+
+/**
+ * Transpile a for loop to a union of mapped geometries
+ * for (i = [0:10]) { cube(i); } becomes:
+ * union(..._range(0, 10).map(i => cube(i)))
+ */
+function transpileForLoop(stmt: any, ctx: TranspileContext): string {
+  const args = stmt.args
+  if (!args || args.length === 0) {
+    return '/* empty for loop */'
+  }
+
+  // Handle single loop variable (most common case)
+  // for (i = [start:end]) body
+  // for (i = [start:step:end]) body
+  // for (i = vector) body
+  const arg = args[0]
+  const varName = arg.name
+  const rangeOrVector = transpileExpression(arg.value, ctx)
+
+  // Transpile the body
+  const body = transpileStatement(stmt.child, ctx) || 'undefined'
+
+  // If we have multiple children, they're already unioned by transpileStatement
+  // The result is: union(...range.map(varName => body))
+  ctx.usedBooleans.add('union')
+  return `union(...${rangeOrVector}.map(${varName} => ${body}))`
 }
 
 function getModuleName(filename: string): string {
