@@ -459,6 +459,40 @@ export const ellipse = (options = {}) => {
 }
 
 /**
+ * Calculate the signed area of a 2D polygon.
+ * Positive = counterclockwise, Negative = clockwise.
+ *
+ * @param {Array} points - Array of [x, y] points
+ * @returns {number} Signed area
+ */
+const signedArea = (points) => {
+  let area = 0
+  for (let i = 0; i < points.length; i++) {
+    const j = (i + 1) % points.length
+    area += points[i][0] * points[j][1]
+    area -= points[j][0] * points[i][1]
+  }
+  return area / 2
+}
+
+/**
+ * Ensure polygon points are in counterclockwise order.
+ * Manifold's CrossSection requires CCW winding for outer contours.
+ *
+ * @param {Array} points - Array of [x, y] points
+ * @param {boolean} [shouldBeCCW=true] - true for outer contour, false for holes
+ * @returns {Array} Points in correct winding order
+ */
+const normalizeWinding = (points, shouldBeCCW = true) => {
+  const area = signedArea(points)
+  const isCCW = area > 0
+  if (isCCW !== shouldBeCCW) {
+    return [...points].reverse()
+  }
+  return points
+}
+
+/**
  * Create a polygon from points.
  *
  * @param {Object} options - Options
@@ -476,12 +510,18 @@ export const polygon = (options = {}) => {
   const CrossSection = getCrossSection()
 
   if (!paths || paths.length === 0) {
-    // Simple polygon - single contour
-    return new ManifoldGeom2(new CrossSection([points]))
+    // Simple polygon - single contour, ensure CCW winding
+    const normalizedPoints = normalizeWinding(points, true)
+    return new ManifoldGeom2(new CrossSection([normalizedPoints]))
   }
 
   // Multiple paths (outer + holes)
-  const contours = paths.map(path => path.map(i => points[i]))
+  // First path is outer contour (CCW), remaining are holes (CW)
+  const contours = paths.map((path, idx) => {
+    const contourPoints = path.map(i => points[i])
+    // Outer contour should be CCW, holes should be CW
+    return normalizeWinding(contourPoints, idx === 0)
+  })
   return new ManifoldGeom2(new CrossSection(contours))
 }
 
