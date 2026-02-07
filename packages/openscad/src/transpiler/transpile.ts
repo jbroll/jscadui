@@ -1200,13 +1200,18 @@ const _getSegments = (radius, $fn, $fa = 12, $fs = 2) => {
   const fromAngle = 360 / $fa
   const fromSize = (2 * Math.PI * radius) / $fs
   return Math.ceil(Math.max(Math.min(fromAngle, fromSize), 5))
-}`)
+}
+
+// Validate numeric arguments - OpenSCAD silently ignores invalid values
+// Returns undefined for invalid input so fallback chain works; use _num(x) ?? default
+const _num = v => typeof v === 'number' && !isNaN(v) ? v : undefined`)
 
   // Primitive wrappers that handle OpenSCAD semantics
   if (ctx.usedPrimitives.has('cube') || ctx.usedPrimitives.has('cuboid')) {
     imports.push(`
 const _cube = ({ size, center = false }) => {
-  const s = Array.isArray(size) ? size : [size, size, size]
+  // size can be number or [x,y,z] array - validate each component
+  const s = Array.isArray(size) ? size.map(v => _num(v) ?? 1) : [_num(size) ?? 1, _num(size) ?? 1, _num(size) ?? 1]
   const geo = s[0] === s[1] && s[1] === s[2] ? cube({ size: s[0] }) : cuboid({ size: s })
   return center ? geo : translate([s[0]/2, s[1]/2, s[2]/2], geo)
 }`)
@@ -1215,11 +1220,13 @@ const _cube = ({ size, center = false }) => {
   if (ctx.usedPrimitives.has('cylinder')) {
     imports.push(`
 const _cylinder = ({ h, r, r1, r2, d, d1, d2, center = false, $fn = 0, $fa, $fs }) => {
-  const radius1 = r1 ?? (d1 ? d1/2 : (r ?? (d ? d/2 : 1)))
-  const radius2 = r2 ?? (d2 ? d2/2 : (r ?? (d ? d/2 : 1)))
+  const height = _num(h, 1)
+  const rr = _num(r), dd = _num(d), rr1 = _num(r1), rr2 = _num(r2), dd1 = _num(d1), dd2 = _num(d2)
+  const radius1 = rr1 ?? (dd1 ? dd1/2 : (rr ?? (dd ? dd/2 : 1)))
+  const radius2 = rr2 ?? (dd2 ? dd2/2 : (rr ?? (dd ? dd/2 : 1)))
   const segments = _getSegments(Math.max(radius1, radius2), $fn, $fa, $fs)
-  const geo = cylinder({ height: h, startRadius: radius1, endRadius: radius2, segments })
-  return center ? geo : translate([0, 0, h/2], geo)
+  const geo = cylinder({ height, startRadius: radius1, endRadius: radius2, segments })
+  return center ? geo : translate([0, 0, height/2], geo)
 }`)
   }
 
@@ -1228,7 +1235,8 @@ const _cylinder = ({ h, r, r1, r2, d, d1, d2, center = false, $fn = 0, $fa, $fs 
     // This matches OpenSCAD's exact tessellation algorithm
     imports.push(`
 const _sphere = ({ r, d, $fn = 0, $fa, $fs }) => {
-  const radius = r ?? (d ? d/2 : 1)
+  const rr = _num(r), dd = _num(d)
+  const radius = rr ?? (dd ? dd/2 : 1)
   const fn = _getSegments(radius, $fn, $fa, $fs)
   const numRings = Math.floor((fn + 1) / 2)
   const points = []
@@ -1269,7 +1277,8 @@ const _sphere = ({ r, d, $fn = 0, $fa, $fs }) => {
   if (ctx.usedPrimitives.has('circle')) {
     imports.push(`
 const _circle = ({ r, d, $fn = 0, $fa, $fs }) => {
-  const radius = r ?? (d ? d/2 : 1)
+  const rr = _num(r), dd = _num(d)
+  const radius = rr ?? (dd ? dd/2 : 1)
   const segments = _getSegments(radius, $fn, $fa, $fs)
   return circle({ radius, segments })
 }`)
@@ -1278,7 +1287,7 @@ const _circle = ({ r, d, $fn = 0, $fa, $fs }) => {
   if (ctx.usedPrimitives.has('rectangle')) {
     imports.push(`
 const _square = ({ size, center = false }) => {
-  const s = Array.isArray(size) ? size : [size, size]
+  const s = Array.isArray(size) ? size.map(v => _num(v) ?? 1) : [_num(size) ?? 1, _num(size) ?? 1]
   const geo = rectangle({ size: s })
   return center ? geo : translate([s[0]/2, s[1]/2], geo)
 }`)
@@ -1289,8 +1298,9 @@ const _square = ({ size, center = false }) => {
 const _regular_polygon = ({ order = 6, n, r = 1, $fn = 0 }) => {
   // n is an alias for order (number of sides)
   // Use circle with segments to create regular polygon - matches OpenSCAD's approach
-  const sides = n ?? order
-  return circle({ radius: r, segments: sides })
+  const sides = _num(n) ?? _num(order) ?? 6
+  const radius = _num(r) ?? 1
+  return circle({ radius, segments: sides })
 }`)
   }
 
@@ -1311,9 +1321,15 @@ const _rotate = (angles, geo) => {
   // Linear extrude helper
   if (ctx.usedExtrusions.has('extrudeLinear')) {
     imports.push(`
-const _linearExtrude = ({ height, center = false, twist = 0, slices = 1 }, geo) => {
+const _linearExtrude = ({ height, center = false, twist = 0, slices = 1, scale = 1 }, geo) => {
   const opts = { height }
   if (twist !== 0) { opts.twistAngle = twist * Math.PI / 180; opts.twistSteps = Math.ceil(slices) }
+  // Handle scale - can be single value or [x, y] array
+  if (scale !== 1) {
+    opts.scale = Array.isArray(scale) ? scale : [scale, scale]
+    // When scaling, need more slices for smooth result
+    if (!opts.twistSteps || opts.twistSteps < 2) opts.twistSteps = 1
+  }
   const result = extrudeLinear(opts, geo)
   return center ? translate([0, 0, -height/2], result) : result
 }`)
@@ -1325,8 +1341,8 @@ const _linearExtrude = ({ height, center = false, twist = 0, slices = 1 }, geo) 
 const _rotateExtrude = ({ angle = 360, $fn = 0, $fa = 12 }, geo) => {
   // Calculate full-circle segments from $fn or $fa
   const fullCircleSegments = $fn > 0 ? $fn : (_globalFn > 0 ? _globalFn : Math.ceil(360 / $fa))
-  // Scale segments proportionally to the angle (OpenSCAD behavior)
-  const segments = Math.max(1, Math.round(fullCircleSegments * angle / 360))
+  // Scale segments proportionally to the angle (OpenSCAD uses ceil, not round)
+  const segments = Math.max(1, Math.ceil(fullCircleSegments * angle / 360))
   const opts = { segments }
   if (angle !== 360) { opts.angle = angle * Math.PI / 180 }
   return extrudeRotate(opts, geo)

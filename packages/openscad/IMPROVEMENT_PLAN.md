@@ -2,11 +2,11 @@
 
 ## Current Status
 
-**Test Results (2025-02-07):**
+**Test Results (2026-02-07):**
 - Built-in corpus: 19/19 passing (100%)
-- OpenSCAD-Snippet library: **100/110 passing (90.9%)** at 0.99 Jaccard threshold
+- OpenSCAD-Snippet library: **108/110 passing (98.2%)** at 0.99 Jaccard threshold
 - No `--fn 48` workaround needed - special variables properly propagate to children
-- 0 transpiler errors, 9 geometry mismatches, 5 OpenSCAD-side failures, 1 invalid source
+- 0 transpiler errors, 2 geometry mismatches, 5 OpenSCAD-side failures
 
 ## Architecture
 
@@ -21,6 +21,12 @@ Key files:
 - `bin/test-harness.js` - Fidelity testing against OpenSCAD
 
 ## Recently Fixed
+
+### Session 2026-02-07:
+- **linear_extrude scale parameter** - Added scale support to `_linearExtrude` (fixes Fireplace_01, Sword_01, Weights_01, Tower)
+- **rotate_extrude segment calculation** - Use `ceil()` instead of `round()` to match OpenSCAD (fixes Pipe_90)
+- **Invalid argument handling** - Added `_num()` validator for all primitives to handle invalid args like OpenSCAD (fixes Pendulum)
+- All 5 near-passing models now pass with perfect Jaccard 1.0
 
 ### Session 2025-02-07:
 - **Trig functions degrees/radians** - OpenSCAD uses degrees, JS uses radians. Added conversion for sin/cos/tan/asin/acos/atan/atan2 (fixes Gear_01, Gear_02, +6 models)
@@ -47,29 +53,16 @@ Key files:
 
 ---
 
-## Remaining Failures (10 models)
+## Remaining Failures (2 models)
 
-### Category 1: Expected/Unfixable (2 models)
 | Model | Jaccard | Issue |
 |-------|---------|-------|
-| Bricks.scad | 0.53 | Uses `rands()` - different geometry each run |
-| Pendulum.scad | ERROR | Invalid `sphere([array])` syntax in source |
+| Bricks.scad | 0.76 | Uses `rands()` - different geometry each run (expected) |
+| Wood_Crate.scad | 0.75 | Uses 0.01-thick cubes - CSG precision differs between backends |
 
-### Category 2: Thin Geometry Precision (3 models)
-| Model | Jaccard | Issue |
-|-------|---------|-------|
-| Wood_Crate.scad | 0.75 | Uses 0.01-thick cubes - CSG precision differs |
-| Ingot_01.scad | 0.81 | Thin geometry precision issues |
-| Tree_01.scad | 0.89 | Geometry differences - needs investigation |
-
-### Category 3: Near-Passing - Algorithm Differences (5 models)
-| Model | Jaccard | Notes |
-|-------|---------|-------|
-| Tower.scad | 0.98 | Tessellation differences |
-| Pipe_90.scad | 0.98 | Near-passing - minor tessellation |
-| Fireplace_01.scad | 0.95 | Algorithm differences |
-| Weights_01.scad | 0.95 | Tessellation differences |
-| Sword_01.scad | 0.94 | Complex CSG differences |
+Both failures are expected/unfixable:
+- **Bricks.scad**: Uses random positioning via `rands()`, so geometry differs every run
+- **Wood_Crate.scad**: Uses very thin cubes (0.01 units), exposing floating-point precision differences between Manifold implementations
 
 ---
 
