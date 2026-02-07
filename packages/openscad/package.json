@@ -33,7 +33,7 @@
     "test:fidelity": "node bin/test-harness.js --dir ${OPENSCAD_SNIPPET:-$HOME/src/OpenSCAD-Snippet}/Asset_SCAD"
   },
   "dependencies": {
-    "openscad-parser": "^0.6.3",
+    "openscad-parser": "file:/home/john/src/openscad-parser",
     "@jscadui/manifold": "file:../manifold",
     "@jscad/modeling-for-manifold": "file:/home/john/pkg/OpenJSCAD.org/packages/modeling"
   },

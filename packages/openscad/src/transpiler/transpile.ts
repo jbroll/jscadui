@@ -17,6 +17,24 @@
 import type { ScadFile, Statement, Expression } from 'openscad-parser'
 import { parse } from '../parser/parse.js'
 
+// JavaScript reserved words that need to be renamed
+const JS_RESERVED = new Set([
+  'break', 'case', 'catch', 'continue', 'debugger', 'default', 'delete', 'do',
+  'else', 'finally', 'for', 'function', 'if', 'in', 'instanceof', 'new',
+  'return', 'switch', 'this', 'throw', 'try', 'typeof', 'var', 'void', 'while',
+  'with', 'class', 'const', 'enum', 'export', 'extends', 'import', 'super',
+  'implements', 'interface', 'let', 'package', 'private', 'protected', 'public',
+  'static', 'yield', 'await', 'async', 'null', 'true', 'false', 'undefined', 'NaN', 'Infinity'
+])
+
+/**
+ * Ensure an identifier is safe for JavaScript
+ * Renames reserved words by prefixing with underscore
+ */
+function safeIdentifier(name: string): string {
+  return JS_RESERVED.has(name) ? `_${name}` : name
+}
+
 /**
  * File resolver for use statements
  * Returns the file content, or undefined if not found
@@ -49,10 +67,12 @@ export interface TranspileResult {
 export interface TranspiledFile {
   code: string
   exports: string[]
+  functionExports: string[]  // Functions (not modules) - can be called directly
 }
 
 export interface UseImport {
   filename: string
+  resolvedPath: string  // Full path from root (for require statements)
   symbols: string[]  // Symbols imported from this file
 }
 
@@ -69,11 +89,17 @@ interface TranspileContext {
   usedMaths: boolean
   // Track use statements with their discovered symbols
   useImports: UseImport[]
+  // Track include statements (import all symbols including variables)
+  includeImports: UseImport[]
   // Track module/function definitions for export (local definitions)
   moduleNames: string[]
   functionNames: string[]
+  // Track top-level variable assignments for export
+  variableNames: string[]
   // Track all available symbols (local + imported)
   availableSymbols: Set<string>
+  // Track imported function names (not modules) - these don't use curried pattern
+  importedFunctions: Set<string>
   // Current indentation level
   indentLevel: number
   // Cache of transpiled files (shared across recursive calls)
@@ -114,9 +140,12 @@ export function transpile(
     usedHulls: false,
     usedMaths: false,
     useImports: [],
+    includeImports: [],
     moduleNames: [],
     functionNames: [],
+    variableNames: [],
     availableSymbols: new Set(),
+    importedFunctions: new Set(),
     indentLevel: 0,
     transpiledFiles: sharedCache || new Map(),
     processingFiles: new Set(),
@@ -141,12 +170,44 @@ export function transpile(
     ctx.availableSymbols.add(name)
   }
 
+  // Compute directory of current file for resolving relative paths
+  const currentFileDir = ctx.options.currentFile
+    ? ctx.options.currentFile.replace(/[^/\\]*$/, '')  // Get directory part
+    : ''
+
   // Process use statements: transpile dependencies and discover their exports
   for (const useImport of ctx.useImports) {
+    // Compute resolved path relative to root
+    useImport.resolvedPath = currentFileDir + useImport.filename
     const symbols = transpileAndCacheDependency(useImport.filename, ctx)
     useImport.symbols = symbols
     for (const sym of symbols) {
       ctx.availableSymbols.add(sym)
+    }
+    // Track which imported symbols are functions (not modules)
+    const cachedFile = ctx.transpiledFiles.get(useImport.resolvedPath)
+    if (cachedFile?.functionExports) {
+      for (const fn of cachedFile.functionExports) {
+        ctx.importedFunctions.add(fn)
+      }
+    }
+  }
+
+  // Process include statements: transpile dependencies and import ALL exports (including variables)
+  for (const includeImport of ctx.includeImports) {
+    // Compute resolved path relative to root
+    includeImport.resolvedPath = currentFileDir + includeImport.filename
+    const symbols = transpileAndCacheDependency(includeImport.filename, ctx)
+    includeImport.symbols = symbols
+    for (const sym of symbols) {
+      ctx.availableSymbols.add(sym)
+    }
+    // Track which imported symbols are functions (not modules)
+    const cachedFile = ctx.transpiledFiles.get(includeImport.resolvedPath)
+    if (cachedFile?.functionExports) {
+      for (const fn of cachedFile.functionExports) {
+        ctx.importedFunctions.add(fn)
+      }
     }
   }
 
@@ -155,10 +216,21 @@ export function transpile(
   const geometryParts: string[] = []
   const topLevelAssignments: { name: string, value: any }[] = []
 
+  // Track which names have both module and function versions
+  // In OpenSCAD, you can have both `module foo()` and `function foo()` with the same name
+  // In JavaScript, we can only have one - prefer the function version since it's more flexible
+  const functionNameSet = new Set(ctx.functionNames)
+
   for (const stmt of ast.statements) {
     const stmtType = stmt.constructor.name
 
     if (stmtType === 'ModuleDeclarationStmt') {
+      const moduleName = safeIdentifier((stmt as any).name)
+      // Skip module if a function with the same name exists
+      if (functionNameSet.has(moduleName)) {
+        // Module with same name as function - skip (function version will be used)
+        continue
+      }
       bodyParts.push(transpileModuleDeclaration(stmt as any, ctx))
     } else if (stmtType === 'FunctionDeclarationStmt') {
       bodyParts.push(transpileFunctionDeclaration(stmt as any, ctx))
@@ -194,15 +266,32 @@ export function transpile(
     }
   }
 
-  // Use imports (require statements for .scad files)
+  // Use imports (require statements for .scad files - modules/functions only)
   if (ctx.useImports.length > 0) {
     for (const imp of ctx.useImports) {
-      const jsPath = imp.filename.replace(/\.scad$/, '.js')
+      // Use resolvedPath for require to get absolute path from root
+      const jsPath = imp.resolvedPath.replace(/\.scad$/, '.js')
       if (imp.symbols.length > 0) {
         // Destructuring import with discovered symbols
         parts.push(`const { ${imp.symbols.join(', ')} } = require('./${jsPath}')`)
       } else {
         // Fallback: import entire module (no file resolver or empty file)
+        parts.push(`const ${getModuleName(imp.filename)} = require('./${jsPath}')`)
+      }
+    }
+    parts.push('')
+  }
+
+  // Include imports (require statements for .scad files - everything including variables)
+  if (ctx.includeImports.length > 0) {
+    for (const imp of ctx.includeImports) {
+      // Use resolvedPath for require to get absolute path from root
+      const jsPath = imp.resolvedPath.replace(/\.scad$/, '.js')
+      if (imp.symbols.length > 0) {
+        // Destructuring import with all discovered symbols including variables
+        parts.push(`const { ${imp.symbols.join(', ')} } = require('./${jsPath}')`)
+      } else {
+        // Fallback: import entire module
         parts.push(`const ${getModuleName(imp.filename)} = require('./${jsPath}')`)
       }
     }
@@ -215,22 +304,21 @@ export function transpile(
     parts.push('')
   }
 
-  // Main function with file-scope geometry
-  if (geometryParts.length > 0 || topLevelAssignments.length > 0) {
+  // Top-level variable assignments (must be at module scope for export)
+  if (topLevelAssignments.length > 0) {
     const assignmentLines = topLevelAssignments.map(a =>
-      `  const ${a.name} = ${transpileExpression(a.value, ctx)}`
+      `const ${safeIdentifier(a.name)} = ${transpileExpression(a.value, ctx)}`
     )
-    const mainBody = geometryParts.length === 0
-      ? 'undefined'
-      : geometryParts.length === 1
-        ? geometryParts[0]
-        : `union(\n${geometryParts.map(p => `    ${p}`).join(',\n')}\n  )`
+    parts.push(assignmentLines.join('\n'))
+    parts.push('')
+  }
 
-    if (assignmentLines.length > 0) {
-      parts.push(`const main = () => {\n${assignmentLines.join('\n')}\n  return ${mainBody}\n}`)
-    } else {
-      parts.push(`const main = () => {\n  return ${mainBody}\n}`)
-    }
+  // Main function with file-scope geometry
+  if (geometryParts.length > 0) {
+    const mainBody = geometryParts.length === 1
+      ? geometryParts[0]
+      : `union(\n${geometryParts.map(p => `    ${p}`).join(',\n')}\n  )`
+    parts.push(`const main = () => {\n  return ${mainBody}\n}`)
     parts.push('')
   } else {
     // Empty main if no geometry
@@ -238,8 +326,10 @@ export function transpile(
     parts.push('')
   }
 
-  // Exports
-  const allExports = [...ctx.moduleNames, ...ctx.functionNames, 'main']
+  // Exports (modules, functions, and top-level variables)
+  // Filter out module names that have a corresponding function (we skip those modules)
+  const moduleExports = ctx.moduleNames.filter(name => !functionNameSet.has(name))
+  const allExports = [...moduleExports, ...ctx.functionNames, ...ctx.variableNames, 'main']
   parts.push(`module.exports = { ${allExports.join(', ')} }`)
 
   const code = parts.join('\n')
@@ -249,6 +339,7 @@ export function transpile(
     ctx.transpiledFiles.set(opts.currentFile, {
       code,
       exports: allExports.filter(e => e !== 'main'),
+      functionExports: ctx.functionNames.filter(e => e !== 'main'),
     })
   }
 
@@ -271,14 +362,21 @@ function transpileAndCacheDependency(filename: string, ctx: TranspileContext): s
     return []
   }
 
-  // Check cache first
-  const cached = ctx.transpiledFiles.get(filename)
+  // Compute the resolved path relative to the current file's directory
+  // This is important for nested dependencies to resolve their own imports correctly
+  const currentFileDir = ctx.options.currentFile
+    ? ctx.options.currentFile.replace(/[^/\\]*$/, '')  // Get directory part
+    : ''
+  const resolvedFilename = currentFileDir + filename
+
+  // Check cache first (using resolved path)
+  const cached = ctx.transpiledFiles.get(resolvedFilename)
   if (cached) {
     return cached.exports
   }
 
-  // Detect cycles
-  if (ctx.processingFiles.has(filename)) {
+  // Detect cycles (using resolved path)
+  if (ctx.processingFiles.has(resolvedFilename)) {
     // Circular dependency - return empty (file is being processed)
     return []
   }
@@ -296,16 +394,22 @@ function transpileAndCacheDependency(filename: string, ctx: TranspileContext): s
   }
 
   // Recursively transpile this file (sharing the cache)
+  // Use resolved path as currentFile so nested dependencies resolve correctly
   const result = transpile(ast, {
     ...ctx.options,
-    currentFile: filename,
+    currentFile: resolvedFilename,
   }, ctx.transpiledFiles)
 
-  // Cache the result
-  ctx.transpiledFiles.set(filename, {
-    code: result.code,
-    exports: result.exports.filter(e => e !== 'main'),  // Don't export 'main' from dependencies
-  })
+  // Cache the result (using resolved path)
+  const cachedFile = ctx.transpiledFiles.get(resolvedFilename)
+  if (!cachedFile) {
+    // File should have been cached during transpile, but add safety check
+    ctx.transpiledFiles.set(resolvedFilename, {
+      code: result.code,
+      exports: result.exports.filter(e => e !== 'main'),
+      functionExports: [],  // This shouldn't happen, file was already cached
+    })
+  }
 
   // Return exports (excluding 'main')
   return result.exports.filter(e => e !== 'main')
@@ -318,14 +422,25 @@ function collectDeclarations(stmt: Statement, ctx: TranspileContext): void {
   const stmtType = stmt.constructor.name
 
   if (stmtType === 'ModuleDeclarationStmt') {
-    ctx.moduleNames.push((stmt as any).name)
+    ctx.moduleNames.push(safeIdentifier((stmt as any).name))
   } else if (stmtType === 'FunctionDeclarationStmt') {
-    ctx.functionNames.push((stmt as any).name)
+    ctx.functionNames.push(safeIdentifier((stmt as any).name))
   } else if (stmtType === 'UseStmt') {
     ctx.useImports.push({
       filename: (stmt as any).filename,
+      resolvedPath: '',  // Will be computed during processing
       symbols: [],
     })
+  } else if (stmtType === 'IncludeStmt') {
+    // Include imports everything including variables/constants
+    ctx.includeImports.push({
+      filename: (stmt as any).filename,
+      resolvedPath: '',  // Will be computed during processing
+      symbols: [],
+    })
+  } else if (stmtType === 'AssignmentNode') {
+    // Track top-level variable assignments for export
+    ctx.variableNames.push(safeIdentifier((stmt as any).name))
   }
 }
 
@@ -372,21 +487,36 @@ function extractModuleBody(stmt: Statement, _ctx: TranspileContext): {
 
 /**
  * Recursively build the body of a module function, handling nested modules at any depth
+ * @param paramNames - Set of parameter names from the parent function (to detect shadowing)
  */
-function buildModuleBody(moduleStmt: any, ctx: TranspileContext, indent: string = '  '): string[] {
+function buildModuleBody(moduleStmt: any, ctx: TranspileContext, indent: string = '  ', paramNames: Set<string> = new Set()): string[] {
   const { nestedModules, assignments, geometryStmts } = extractModuleBody(moduleStmt, ctx)
   const bodyParts: string[] = []
+  // Track declared variables to detect reassignments
+  const declaredVars = new Set<string>(paramNames)
 
   // Recursively process nested module definitions
   for (const m of nestedModules) {
     const nestedParams = transpileParamsList(m.definitionArgs, ctx)
-    const nestedBodyParts = buildModuleBody(m.stmt, ctx, indent + '  ')
-    bodyParts.push(`${indent}const ${m.name} = (${nestedParams}) => {\n${nestedBodyParts.join('\n')}\n${indent}}`)
+    const nestedParamNames = new Set<string>((m.definitionArgs || []).map((a: any) => a.name))
+    const nestedBodyParts = buildModuleBody(m.stmt, ctx, indent + '  ', nestedParamNames)
+    // Curried: (params) => (_children) => body
+    bodyParts.push(`${indent}const ${m.name} = (${nestedParams}) => (_children = []) => {\n${nestedBodyParts.join('\n')}\n${indent}}`)
+    declaredVars.add(m.name)
   }
 
   // Local variable assignments
+  // If a variable shadows a parameter or previous declaration, don't use 'const'
+  // This handles OpenSCAD's pattern of reassigning parameters: cp = is_scalar(cp) ? ... : cp
   for (const a of assignments) {
-    bodyParts.push(`${indent}const ${a.name} = ${transpileExpression(a.value, ctx)}`)
+    if (declaredVars.has(a.name)) {
+      // Reassignment - don't use const
+      bodyParts.push(`${indent}${a.name} = ${transpileExpression(a.value, ctx)}`)
+    } else {
+      // New variable - use const and track it
+      bodyParts.push(`${indent}const ${a.name} = ${transpileExpression(a.value, ctx)}`)
+      declaredVars.add(a.name)
+    }
   }
 
   // Geometry expression (return statement)
@@ -403,21 +533,27 @@ function buildModuleBody(moduleStmt: any, ctx: TranspileContext, indent: string 
 
 /**
  * Transpile a module declaration to JavaScript function
- * Uses regular parameters (not destructured) for easier positional args
+ * Uses curried function: outer takes OpenSCAD params, inner takes children
+ * This allows calling with defaults while still passing children:
+ *   module(arg1, arg2)([child1, child2])  - explicit args
+ *   module()([child1, child2])            - default args
  */
 function transpileModuleDeclaration(stmt: any, ctx: TranspileContext): string {
-  const name = stmt.name
+  const name = safeIdentifier(stmt.name)
   const params = transpileParamsList(stmt.definitionArgs, ctx)
-  const bodyParts = buildModuleBody(stmt.stmt, ctx)
+  // Extract parameter names to detect shadowing assignments
+  const paramNames = new Set<string>((stmt.definitionArgs || []).map((a: any) => a.name))
+  const bodyParts = buildModuleBody(stmt.stmt, ctx, '  ', paramNames)
 
-  return `const ${name} = (${params}) => {\n${bodyParts.join('\n')}\n}`
+  // Curried: (params) => (_children) => body
+  return `const ${name} = (${params}) => (_children = []) => {\n${bodyParts.join('\n')}\n}`
 }
 
 /**
  * Transpile a function declaration
  */
 function transpileFunctionDeclaration(stmt: any, ctx: TranspileContext): string {
-  const name = stmt.name
+  const name = safeIdentifier(stmt.name)
   const params = transpileParamsList(stmt.definitionArgs, ctx)
   const body = transpileExpression(stmt.expr, ctx)
 
@@ -505,6 +641,32 @@ function transpileStatement(stmt: Statement, ctx: TranspileContext): string | nu
 }
 
 /**
+ * Collect children as an array of transpiled expressions
+ * Used for passing children to user-defined modules
+ */
+function collectChildrenAsArray(child: Statement | null, ctx: TranspileContext): string[] {
+  if (!child) return []
+
+  const childType = child.constructor.name
+
+  if (childType === 'BlockStmt') {
+    const children = (child as any).children as Statement[]
+    const result: string[] = []
+    for (const c of children) {
+      const cType = c.constructor.name
+      if (cType !== 'NoopStmt' && cType !== 'AssignmentNode') {
+        const code = transpileStatement(c, ctx)
+        if (code) result.push(code)
+      }
+    }
+    return result
+  }
+
+  const code = transpileStatement(child, ctx)
+  return code ? [code] : []
+}
+
+/**
  * Transpile a module instantiation (e.g., cube(10), translate([1,2,3]) child)
  */
 function transpileModuleInstantiation(stmt: any, ctx: TranspileContext): string {
@@ -579,14 +741,75 @@ function transpileModuleInstantiation(stmt: any, ctx: TranspileContext): string 
     return transpileBuiltinHull(stmt.child, ctx)
   }
 
+  // children() - access children passed to this module
+  if (name === 'children') {
+    // children() with no args returns all children as union
+    // children(n) returns the nth child
+    // children([indices...]) returns union of specified children
+    if (argsArray.length === 0) {
+      // All children: union of _children array
+      ctx.usedBooleans.add('union')
+      return `(_children.length === 0 ? undefined : _children.length === 1 ? _children[0] : union(..._children))`
+    } else {
+      // Indexed access - check if argument is a vector (array of indices) or simple index
+      const arg = stmt.args[0]
+      const argType = arg.value.constructor.name
+
+      if (argType === 'VectorExpr') {
+        // Array of indices: children([0, 2, 3]) → union children at those indices
+        const indices = (arg.value as any).children.map((c: any) => transpileExpression(c, ctx))
+        ctx.usedBooleans.add('union')
+        return `union(${indices.map((i: string) => `_children[${i}]`).join(', ')})`
+      } else {
+        // Simple index: children(0) or children(i) → single child access
+        const indexExpr = argsArray[0].value
+        return `_children[${indexExpr}]`
+      }
+    }
+  }
+
   // User-defined module/function - direct call (late binding)
   // Symbol is available if it's local or imported via use
+  // Curried pattern: module(args)(children)
   const positionalArgs = argsArray.map(a => a.value).join(', ')
 
   // Just emit a direct call - the symbol should be available from:
   // - Local module/function definitions
   // - Destructured imports from use statements
-  return `${name}(${positionalArgs})`
+
+  // If there are children, collect them as an array and pass via curried call
+  if (childCode && childCode !== 'undefined') {
+    const childrenArray = collectChildrenAsArray(stmt.child, ctx)
+    if (childrenArray.length > 0) {
+      const childrenArg = `[${childrenArray.join(', ')}]`
+      // Curried call: module(args)(children)
+      return `${name}(${positionalArgs})(${childrenArg})`
+    }
+  }
+
+  // Determine if this is a function call vs module instantiation
+  // Functions: called directly, return values
+  // Modules: curried pattern, module(args)(children) returns geometry
+  //
+  // We know it's a function if:
+  // - It's in our local functionNames list (and not overridden by a module)
+  // - It's in our importedFunctions set (tracked from dependency's functionExports)
+  const isLocalFunction = ctx.functionNames.includes(name)
+  const isLocalModule = ctx.moduleNames.includes(name)
+  const isImportedFunction = ctx.importedFunctions.has(name)
+
+  if (isLocalFunction && !isLocalModule) {
+    // Pure local function call - no currying
+    return `${name}(${positionalArgs})`
+  }
+
+  if (isImportedFunction) {
+    // Imported function - no currying needed
+    return `${name}(${positionalArgs})`
+  }
+
+  // Module call with no children: use curried pattern with empty array
+  return `${name}(${positionalArgs})()`
 }
 
 /**
@@ -616,6 +839,18 @@ function transpileArgsToObject(args: Array<{name: string | null, value: string}>
   return parts.join(', ')
 }
 
+/**
+ * Check if an expression contains LcIfExpr (used to determine if filtering is needed)
+ */
+function containsIfExpr(expr: any): boolean {
+  if (!expr) return false
+  const exprType = expr.constructor?.name
+  if (exprType === 'LcIfExpr') return true
+  // Check nested expr in LcLetExpr
+  if (exprType === 'LcLetExpr' && expr.expr) return containsIfExpr(expr.expr)
+  return false
+}
+
 
 /**
  * Transpile an expression
@@ -632,7 +867,9 @@ function transpileExpression(expr: Expression, ctx: TranspileContext): string {
       // Handle special variables
       if (name === '$preview') return 'false'  // Always render as full quality
       if (name === '$t') return '0'  // Animation time defaults to 0
-      return name
+      if (name === '$children') return '_children.length'  // Number of children passed to module
+      // Ensure the identifier is safe for JavaScript
+      return safeIdentifier(name)
     }
 
     case 'VectorExpr': {
@@ -649,6 +886,15 @@ function transpileExpression(expr: Expression, ctx: TranspileContext): string {
       const e = expr as any
       const left = transpileExpression(e.left, ctx)
       const right = transpileExpression(e.right, ctx)
+      // Handle equality operators specially - need deep comparison for arrays
+      if (e.operation === 23) { // EqualEqual
+        ctx.usedHelpers.add('eq')
+        return `_eq(${left}, ${right})`
+      }
+      if (e.operation === 25) { // BangEqual
+        ctx.usedHelpers.add('eq')
+        return `!_eq(${left}, ${right})`
+      }
       const op = transpileBinaryOp(e.operation)
       return `(${left} ${op} ${right})`
     }
@@ -705,12 +951,81 @@ function transpileExpression(expr: Expression, ctx: TranspileContext): string {
       const args = e.args as any[]
       const innerExpr = transpileExpression(e.expr, ctx)
 
+      // Check if inner expression contains LcIfExpr (needs filtering)
+      const needsFilter = containsIfExpr(e.expr)
+
       if (args.length === 1) {
         const varName = args[0].name
         const range = transpileExpression(args[0].value, ctx)
-        return `${range}.map(${varName} => ${innerExpr})`
+        const mapExpr = `${range}.map(${varName} => ${innerExpr})`
+        return needsFilter ? `${mapExpr}.filter(x => x !== undefined)` : mapExpr
       }
       return `/* complex for comprehension */`
+    }
+
+    case 'LcIfExpr': {
+      // Conditional in list comprehension: [for (i = range) if (cond) expr]
+      // Returns undefined when condition is false, to be filtered out by LcForExpr
+      const e = expr as any
+      const cond = transpileExpression(e.cond, ctx)
+      const body = transpileExpression(e.ifExpr, ctx)
+      // If there's an else branch, use it; otherwise return undefined
+      if (e.elseExpr) {
+        const elsePart = transpileExpression(e.elseExpr, ctx)
+        return `(${cond} ? ${body} : ${elsePart})`
+      }
+      return `(${cond} ? ${body} : undefined)`
+    }
+
+    case 'LetExpr': {
+      // let(x = 1, y = 2) expr -> (() => { const x = 1; const y = 2; return expr })()
+      const e = expr as any
+      const bindings = (e.args as any[]).map((a: any) => {
+        const name = safeIdentifier(a.name)
+        const value = transpileExpression(a.value, ctx)
+        return `const ${name} = ${value}`
+      })
+      const body = transpileExpression(e.expr, ctx)
+      return `(() => { ${bindings.join('; ')}; return ${body} })()`
+    }
+
+    case 'LcLetExpr': {
+      // let inside list comprehension: [for (i = range) let(x = i*2) x]
+      // Transpile to a block that defines the bindings and returns the body
+      const e = expr as any
+      const bindings = (e.args as any[]).map((a: any) => {
+        const name = safeIdentifier(a.name)
+        const value = transpileExpression(a.value, ctx)
+        return `const ${name} = ${value}`
+      })
+      const body = transpileExpression(e.expr, ctx)
+      // This is used inside .map(), so we need to return a block
+      return `{ ${bindings.join('; ')}; return ${body} }`
+    }
+
+    case 'EchoExpr': {
+      // echo(x) expr -> logs x and returns expr (or x if no expr follows)
+      // In JavaScript: (console.log(x), expr) or just (console.log(x), x)
+      const e = expr as any
+      const args = (e.args as any[]).map((a: any) => {
+        if (a.name) {
+          return `"${a.name}=", ${transpileExpression(a.value, ctx)}`
+        }
+        return transpileExpression(a.value, ctx)
+      }).join(', ')
+      const innerExpr = transpileExpression(e.expr, ctx)
+      return `(console.log(${args}), ${innerExpr})`
+    }
+
+    case 'AssertExpr': {
+      // assert(cond, msg) expr -> checks condition, returns expr (or undef if no expr)
+      // In JavaScript: we use console.assert which doesn't throw, then return expr
+      const e = expr as any
+      const args = e.args as any[]
+      const condition = args.length > 0 ? transpileExpression(args[0].value, ctx) : 'true'
+      const message = args.length > 1 ? transpileExpression(args[1].value, ctx) : '"Assertion failed"'
+      const innerExpr = transpileExpression(e.expr, ctx)
+      return `(console.assert(${condition}, ${message}), ${innerExpr})`
     }
 
     default:
@@ -733,6 +1048,8 @@ function transpileLiteral(value: any): string {
 
 function transpileBinaryOp(op: number): string {
   // TokenType enum numeric values
+  // Note: 23 (EqualEqual) and 25 (BangEqual) are handled specially in transpileExpression
+  // because they need deep comparison for arrays
   const opMap: Record<number, string> = {
     28: '+',   // Plus
     29: '-',   // Minus
@@ -743,8 +1060,8 @@ function transpileBinaryOp(op: number): string {
     21: '<=',  // LessEqual
     20: '>',   // Greater
     22: '>=',  // GreaterEqual
-    23: '===', // EqualEqual
-    25: '!==', // BangEqual
+    23: '===', // EqualEqual (but see special handling)
+    25: '!==', // BangEqual (but see special handling)
     26: '&&',  // AND
     27: '||',  // OR
   }
@@ -801,6 +1118,36 @@ function transpileFunctionCall(callee: string, args: string, ctx: TranspileConte
   // len() -> .length
   if (callee === 'len') {
     return `(${args}).length`
+  }
+
+  // is_undef() -> value === undefined
+  if (callee === 'is_undef') {
+    return `((${args}) === undefined)`
+  }
+
+  // is_def() -> value !== undefined  (BOSL compatibility)
+  if (callee === 'is_def') {
+    return `((${args}) !== undefined)`
+  }
+
+  // is_list() -> Array.isArray()
+  if (callee === 'is_list') {
+    return `Array.isArray(${args})`
+  }
+
+  // is_num() -> typeof === 'number'
+  if (callee === 'is_num') {
+    return `(typeof (${args}) === 'number' && !isNaN(${args}))`
+  }
+
+  // is_str() -> typeof === 'string'
+  if (callee === 'is_str') {
+    return `(typeof (${args}) === 'string')`
+  }
+
+  // is_bool() -> typeof === 'boolean'
+  if (callee === 'is_bool') {
+    return `(typeof (${args}) === 'boolean')`
   }
 
   // concat() -> [..., ...]
@@ -942,6 +1289,12 @@ function transpileBuiltinTransform(name: string, argsArray: Array<{name: string 
       ctx.usedTransforms.add('rotateX')
       ctx.usedTransforms.add('rotateY')
       ctx.usedTransforms.add('rotateZ')
+      // If args contains named params (has ':'), wrap in {} for axis-angle rotation
+      // Also need 'transform' for the matrix rotation
+      if (args.includes(':')) {
+        ctx.usedTransforms.add('transform')
+        return `_rotate({ ${args} }, ${childCode})`
+      }
       return `_rotate(${args}, ${childCode})`
 
     case 'scale':
@@ -1153,6 +1506,10 @@ function buildJscadImports(ctx: TranspileContext): string[] {
   imports.push('')
   imports.push('// OpenSCAD compatibility helpers')
   imports.push('const _range = (start, end, step = 1) => { const r = []; for (let i = start; i <= end; i += step) r.push(i); return r }')
+  // String functions - always needed since they're commonly used
+  imports.push('const str = (...args) => args.map(a => a === undefined ? "undef" : a === null ? "undef" : String(a)).join("")')
+  imports.push('const version_num = () => 20210100')  // Pretend to be OpenSCAD 2021.01
+  imports.push('const search = (match, string, num_returns = 1, idx) => { /* stub */ return [[]] }')  // Stub for search function
 
   // Math helper functions
   if (ctx.usedHelpers.has('norm')) {
@@ -1182,6 +1539,18 @@ function buildJscadImports(ctx: TranspileContext): string[] {
   const rand = () => { s |= 0; s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296 }
   for (let i = 0; i < count; i++) r.push(min + rand() * (max - min))
   return r
+}`)
+  }
+  // Deep equality comparison for OpenSCAD's == and != operators
+  if (ctx.usedHelpers.has('eq')) {
+    imports.push(`const _eq = (a, b) => {
+  if (a === b) return true
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false
+    for (let i = 0; i < a.length; i++) if (!_eq(a[i], b[i])) return false
+    return true
+  }
+  return false
 }`)
   }
 
@@ -1307,9 +1676,28 @@ const _regular_polygon = ({ order = 6, n, r = 1, $fn = 0 }) => {
   // Rotation helper for Euler angles
   if (ctx.usedTransforms.has('rotateX') || ctx.usedTransforms.has('rotateY') || ctx.usedTransforms.has('rotateZ')) {
     imports.push(`
-const _rotate = (angles, geo) => {
-  const a = Array.isArray(angles) ? angles : [0, 0, angles]
+const _rotate = (params, geo) => {
   const toRad = d => d * Math.PI / 180
+  // Handle axis-angle rotation: rotate(a=angle, v=[x,y,z])
+  if (params && typeof params === 'object' && !Array.isArray(params) && params.v !== undefined) {
+    const angle = toRad(params.a || 0)
+    const [x, y, z] = params.v
+    // Rodrigues' rotation formula via mat4
+    const len = Math.sqrt(x*x + y*y + z*z)
+    if (len < 0.0001) return geo
+    const nx = x/len, ny = y/len, nz = z/len
+    const c = Math.cos(angle), s = Math.sin(angle), t = 1 - c
+    // Build rotation matrix and apply
+    const m = [
+      t*nx*nx + c,    t*nx*ny - s*nz, t*nx*nz + s*ny, 0,
+      t*nx*ny + s*nz, t*ny*ny + c,    t*ny*nz - s*nx, 0,
+      t*nx*nz - s*ny, t*ny*nz + s*nx, t*nz*nz + c,    0,
+      0, 0, 0, 1
+    ]
+    return transform(m, geo)
+  }
+  // Handle Euler angles: rotate([x, y, z]) or rotate(z)
+  const a = Array.isArray(params) ? params : [0, 0, params]
   let result = geo
   if (a[0] !== 0) result = rotateX(toRad(a[0]), result)
   if (a[1] !== 0) result = rotateY(toRad(a[1]), result)

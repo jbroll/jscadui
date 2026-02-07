@@ -255,16 +255,71 @@ async function createRuntime() {
 }
 
 /**
+ * Get OpenSCAD library paths
+ * Follows OpenSCAD's convention: ~/.local/share/OpenSCAD/libraries on Linux
+ */
+function getLibraryPaths() {
+  const paths = []
+  const home = process.env.HOME || process.env.USERPROFILE
+  if (home) {
+    // Linux/Mac: ~/.local/share/OpenSCAD/libraries
+    paths.push(join(home, '.local', 'share', 'OpenSCAD', 'libraries'))
+    // Alternative: ~/Documents/OpenSCAD/libraries
+    paths.push(join(home, 'Documents', 'OpenSCAD', 'libraries'))
+  }
+  // Allow OPENSCADPATH environment variable
+  if (process.env.OPENSCADPATH) {
+    paths.push(...process.env.OPENSCADPATH.split(':'))
+  }
+  return paths
+}
+
+/**
  * File resolver for use statements in OpenSCAD
- * Resolves relative to the directory containing the current file
+ * Resolves relative to the directory containing the current file,
+ * then checks OpenSCAD library paths for packages like BOSL
+ *
+ * Tracks the actual resolved paths so that nested dependencies (like BOSL/math.scad
+ * included by BOSL/transforms.scad) resolve correctly from the library path.
  */
 function createFileResolver(fileDir) {
+  const libraryPaths = getLibraryPaths()
+  // Map logical path -> actual filesystem path for files resolved from library
+  const resolvedPaths = new Map()
+
   return function fileResolver(filename, fromFile) {
-    const baseDir = fromFile ? dirname(resolve(fileDir, fromFile)) : fileDir
+    // If fromFile was resolved from a library path, use that path for resolution
+    let baseDir
+    if (fromFile && resolvedPaths.has(fromFile)) {
+      baseDir = dirname(resolvedPaths.get(fromFile))
+    } else {
+      baseDir = fromFile ? dirname(resolve(fileDir, fromFile)) : fileDir
+    }
     const targetPath = resolve(baseDir, filename)
 
+    // First check relative to current file (or its library location)
     if (existsSync(targetPath)) {
+      // Track the actual path for this logical name
+      resolvedPaths.set(filename, targetPath)
+      // For nested files from libraries, preserve the library-relative path
+      if (fromFile && resolvedPaths.has(fromFile)) {
+        const libBase = libraryPaths.find(lp => resolvedPaths.get(fromFile).startsWith(lp))
+        if (libBase) {
+          const relPath = targetPath.substring(libBase.length + 1)
+          resolvedPaths.set(relPath, targetPath)
+        }
+      }
       return readFileSync(targetPath, 'utf8')
+    }
+
+    // Then check library paths
+    for (const libPath of libraryPaths) {
+      const libTargetPath = resolve(libPath, filename)
+      if (existsSync(libTargetPath)) {
+        // Track both the requested filename and the full library-relative path
+        resolvedPaths.set(filename, libTargetPath)
+        return readFileSync(libTargetPath, 'utf8')
+      }
     }
 
     console.error(`Warning: Could not resolve ${filename} from ${fromFile || 'main file'}`)
