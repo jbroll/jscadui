@@ -772,7 +772,7 @@ function isBuiltinTransform(name: string): boolean {
 }
 
 function isBuiltinBoolean(name: string): boolean {
-  return ['union', 'difference', 'intersection'].includes(name)
+  return ['union', 'difference', 'intersection', 'minkowski'].includes(name)
 }
 
 function isBuiltinExtrusion(name: string): boolean {
@@ -905,6 +905,10 @@ function transpileBuiltinBoolean(name: string, child: Statement | null, ctx: Tra
     case 'intersection':
       ctx.usedBooleans.add('intersect')
       return `intersect(\n  ${args}\n)`
+
+    case 'minkowski':
+      ctx.usedBooleans.add('minkowski')
+      return `minkowski(\n  ${args}\n)`
 
     default:
       return `/* unknown boolean: ${name} */`

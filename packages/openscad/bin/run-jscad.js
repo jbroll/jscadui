@@ -185,6 +185,7 @@ async function createRuntime() {
       union: manifold.booleans.union,
       subtract: manifold.booleans.subtract,
       intersect: manifold.booleans.intersect,
+      minkowski: manifold.booleans.minkowski,
     },
     transforms: {
       translate: transforms.translate,
