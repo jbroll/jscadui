@@ -105,12 +105,27 @@ Key files:
 
 ## Running Tests
 
+### NPM Scripts (Recommended)
+
 ```bash
-# Test built-in corpus (should be 100% with --fn 48)
+# Test built-in corpus (should be 100%)
+npm run test:corpus
+
+# Test OpenSCAD-Snippet library (default: ~/src/OpenSCAD-Snippet)
+npm run test:fidelity
+
+# Use custom location for OpenSCAD-Snippet
+OPENSCAD_SNIPPET=/path/to/OpenSCAD-Snippet npm run test:fidelity
+```
+
+### Direct CLI Usage
+
+```bash
+# Test built-in corpus
 node bin/test-harness.js --corpus --fn 48
 
-# Test OpenSCAD-Snippet library
-node bin/test-harness.js --dir /path/to/OpenSCAD-Snippet/Asset_SCAD
+# Test specific directory
+node bin/test-harness.js --dir /path/to/models --fn 48
 
 # Test specific file with debug output
 node bin/test-harness.js model.scad --verbose --keep-temp
@@ -121,5 +136,7 @@ node bin/transpile-file.js model.scad
 
 ## Test Model Locations
 
-- Built-in corpus: `test/corpus/`
-- OpenSCAD-Snippet: https://github.com/AngeloNicoli/OpenSCAD-Snippet
+- **Built-in corpus:** `test/corpus/` (checked into repo)
+- **OpenSCAD-Snippet:** Clone from https://github.com/AngeloNicoli/OpenSCAD-Snippet
+  - Default location: `~/src/OpenSCAD-Snippet`
+  - Set `OPENSCAD_SNIPPET` env var for custom location
