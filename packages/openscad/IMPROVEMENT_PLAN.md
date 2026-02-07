@@ -3,9 +3,10 @@
 ## Current Status
 
 **Test Results (2025-02-07):**
-- Built-in corpus: 19/19 passing (100%) with `--fn 48`
-- OpenSCAD-Snippet library: 99/110 passing (90.0%) at 0.99 Jaccard threshold
-- 0 transpiler errors, 11 geometry mismatches, 5 OpenSCAD-side failures
+- Built-in corpus: 19/19 passing (100%)
+- OpenSCAD-Snippet library: **100/110 passing (90.9%)** at 0.99 Jaccard threshold
+- No `--fn 48` workaround needed - special variables properly propagate to children
+- 0 transpiler errors, 9 geometry mismatches, 5 OpenSCAD-side failures, 1 invalid source
 
 ## Architecture
 
@@ -46,13 +47,13 @@ Key files:
 
 ---
 
-## Remaining Failures (11 models)
+## Remaining Failures (10 models)
 
 ### Category 1: Expected/Unfixable (2 models)
 | Model | Jaccard | Issue |
 |-------|---------|-------|
-| Bricks.scad | 0.64 | Uses `rands()` - different geometry each run |
-| Pendulum.scad | 0.30 | Invalid `sphere([array])` syntax in source |
+| Bricks.scad | 0.53 | Uses `rands()` - different geometry each run |
+| Pendulum.scad | ERROR | Invalid `sphere([array])` syntax in source |
 
 ### Category 2: Thin Geometry Precision (3 models)
 | Model | Jaccard | Issue |
@@ -61,15 +62,14 @@ Key files:
 | Ingot_01.scad | 0.81 | Thin geometry precision issues |
 | Tree_01.scad | 0.89 | Geometry differences - needs investigation |
 
-### Category 3: Near-Passing - Algorithm Differences (6 models)
+### Category 3: Near-Passing - Algorithm Differences (5 models)
 | Model | Jaccard | Notes |
 |-------|---------|-------|
 | Tower.scad | 0.98 | Tessellation differences |
+| Pipe_90.scad | 0.98 | Near-passing - minor tessellation |
 | Fireplace_01.scad | 0.95 | Algorithm differences |
 | Weights_01.scad | 0.95 | Tessellation differences |
-| Pipe_90.scad | 0.94 | Curved surface tessellation |
 | Sword_01.scad | 0.94 | Complex CSG differences |
-| Pipe_45.scad | 0.93 | Curved surface tessellation |
 
 ---
 
