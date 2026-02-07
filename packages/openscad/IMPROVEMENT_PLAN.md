@@ -149,12 +149,13 @@ const angles = _range(0, 5).map(i => i*60)    // Correct: [0, 60, 120, ...]
 | rotate_extrude | ✅ Yes | Same segment interpretation |
 | linear_extrude | ✅ Yes | Same behavior |
 
-### Why `--fn 48` Helps
+### `--fn 48` Workaround No Longer Needed
 
-Using `--fn 48` forces both OpenSCAD and our transpiler to use 48 segments for all curved primitives, which:
-1. Overrides the minimum segment difference (5 vs 12 becomes moot)
-2. Makes sphere differences proportionally smaller (at higher segment counts, different algorithms converge)
-3. Produces more similar volumes even with different tessellation
+All tessellation issues have been fixed:
+1. ✅ Minimum segments now match OpenSCAD (5)
+2. ✅ Sphere tessellation matches OpenSCAD exactly
+3. ✅ Special variables (`$fn`, `$fa`, `$fs`) properly propagate to children
+4. ✅ `rotate_extrude` scales segments proportionally to angle
 
 ---
 
@@ -211,10 +212,10 @@ OPENSCAD_SNIPPET=/path/to/OpenSCAD-Snippet npm run test:fidelity
 
 ```bash
 # Test built-in corpus
-node bin/test-harness.js --corpus --fn 48
+node bin/test-harness.js --corpus
 
 # Test specific directory
-node bin/test-harness.js --dir /path/to/models --fn 48
+node bin/test-harness.js --dir /path/to/models
 
 # Test specific file with debug output
 node bin/test-harness.js model.scad --verbose --keep-temp

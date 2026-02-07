@@ -29,8 +29,8 @@
     "coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit",
     "build": "tsc",
-    "test:corpus": "node bin/test-harness.js --corpus --fn 48",
-    "test:fidelity": "node bin/test-harness.js --dir ${OPENSCAD_SNIPPET:-$HOME/src/OpenSCAD-Snippet}/Asset_SCAD --fn 48"
+    "test:corpus": "node bin/test-harness.js --corpus",
+    "test:fidelity": "node bin/test-harness.js --dir ${OPENSCAD_SNIPPET:-$HOME/src/OpenSCAD-Snippet}/Asset_SCAD"
   },
   "dependencies": {
     "openscad-parser": "^0.6.3",

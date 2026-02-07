@@ -38,7 +38,6 @@ Options:
   --dir <path>            Directory to scan for .scad files (can be repeated)
   --threshold <n>         Minimum Jaccard for pass (default: 0.99)
   --fn <n>                Set global $fn for both OpenSCAD and transpiler
-                          Higher values give better match (try --fn 48)
   --openscad <path>       Path to OpenSCAD binary (default: openscad)
   --keep-temp             Keep temporary files for debugging
   --verbose               Print detailed output
@@ -52,7 +51,7 @@ Output:
 
 Examples:
   test-harness model.scad                         Test single model
-  test-harness --corpus --fn 48                   Test corpus with high resolution
+  test-harness --corpus                           Test built-in corpus
   test-harness --dir ./examples --verbose         Test directory
   test-harness model.scad --openscad /opt/openscad/openscad
 `)
