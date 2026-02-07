@@ -598,8 +598,13 @@ function transpileExpression(expr: Expression, ctx: TranspileContext): string {
     case 'LiteralExpr':
       return transpileLiteral((expr as any).value)
 
-    case 'LookupExpr':
-      return (expr as any).name
+    case 'LookupExpr': {
+      const name = (expr as any).name
+      // Handle special variables
+      if (name === '$preview') return 'false'  // Always render as full quality
+      if (name === '$t') return '0'  // Animation time defaults to 0
+      return name
+    }
 
     case 'VectorExpr': {
       const children = (expr as any).children as Expression[]

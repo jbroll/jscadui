@@ -4,8 +4,8 @@
 
 **Test Results (2024-02):**
 - Built-in corpus: 19/19 passing (100%) with `--fn 48`
-- OpenSCAD-Snippet library: 79/110 passing (71.8%) at 0.99 Jaccard threshold
-- 19 transpiler errors, 12 geometry mismatches, 5 OpenSCAD-side failures
+- OpenSCAD-Snippet library: 82/110 passing (74.5%) at 0.99 Jaccard threshold
+- 14 transpiler errors, 14 geometry mismatches, 5 OpenSCAD-side failures
 
 ## Architecture
 
@@ -22,6 +22,7 @@ Key files:
 ## Recently Fixed
 
 ### Completed in this session:
+- **Special variables $preview, $t** - `$preview` returns false, `$t` returns 0 (fixes Ring, Pipe_00)
 - **Regular polygon primitive** - `regular_polygon(n, r)` using `circle({ radius, segments })` (fixes Weights_01, Tree_01)
 - **Minkowski operation** - Transpile `minkowski()` to JSCAD/Manifold (fixes Mech_Piece models)
 - **Polygon winding order** - Auto-detect and normalize CCW winding for Manifold (fixes Stairs models)
@@ -78,8 +79,6 @@ Key files:
 **Impact:** Various models
 
 **Not yet supported:**
-- `$preview` special variable (4 models)
-- `$t` animation variable (1 model)
 - `echo()` for debugging (1 model)
 - `text()` module (requires font rendering)
 - `import()` for STL/OFF files
@@ -93,7 +92,7 @@ Key files:
 ## Implementation Priority
 
 ### Phase 1: High Impact (fixes ~5 models)
-1. Add missing special variables: `$preview`, `$t` (~5 models)
+1. ~~Add missing special variables: `$preview`, `$t`~~ ✓ Done
 
 ### Phase 2: Medium Impact (fixes ~5 models)
 2. Add missing math functions (rands, norm, cross)
