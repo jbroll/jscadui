@@ -1,128 +1,184 @@
 # OpenSCAD Translator Improvement Plan
 
-Based on testing 133 models (18 corpus + 115 OpenSCAD-Snippet), with 93 passing (70%) at 0.98 Jaccard threshold.
+## Current Status
 
-## Issue Categories
+**Test Results (2024-02):**
+- Built-in corpus: 19/19 passing (100%) with `--fn 48`
+- OpenSCAD-Snippet library: 70/110 passing (63.6%) at 0.99 Jaccard threshold
+- 28 transpiler errors, 12 geometry mismatches, 5 OpenSCAD-side failures
 
-### 1. Missing `center` Parameter for `linear_extrude` (HIGH PRIORITY)
-**Impact:** ~10% of failures (e.g., Beam_C.scad, Beam_Angular.scad)
+## Architecture
 
-**Problem:** OpenSCAD's `linear_extrude(height=10, center=true)` centers the extrusion on the XY plane (z from -5 to +5). JSCAD's `extrudeLinear` always extrudes upward from z=0.
+The translator uses a **transpile-to-JavaScript** approach:
+1. Parse OpenSCAD with `openscad-parser`
+2. Transpile AST to JavaScript that uses `@jscad/modeling` API
+3. Execute with Manifold backend for CSG operations
 
-**Solution:** When `center=true`, wrap the result in `translate([0, 0, -height/2], ...)`:
-```javascript
-// Current output:
-extrudeLinear({ height: 10 }, polygon(...))
+Key files:
+- `src/transpiler/transpile.ts` - Main transpiler
+- `bin/run-jscad.js` - CLI executor with integrated transpiler
+- `bin/test-harness.js` - Fidelity testing against OpenSCAD
 
-// Fixed output for center=true:
-translate([0, 0, -5], extrudeLinear({ height: 10 }, polygon(...)))
-```
+## Recently Fixed
 
-**Files to modify:**
-- `src/emitter/emit.ts`: Update `emitExtrusion()` to check params.center
+### Completed in this session:
+- **For loops** - `for (i = [0:10]) body` → `union(..._range(0, 10).map(i => body))`
+- **Nested modules** - Modules inside modules hoisted as local functions
+- **Local variables** - `x = 5;` inside modules → `const x = 5`
+- **Scoped variables** - Variables in nested blocks use IIFE for proper scoping
+- **Positional extrusion params** - `linear_extrude(2)` → `{ height: 2 }`
+- **Hull children** - Pass children as separate args, not wrapped in union
+- **Global $fn** - `--fn` option for both OpenSCAD and transpiler
 
 ---
 
-### 2. Missing `rands()` Function (LOW PRIORITY)
-**Impact:** 1 model (Bricks.scad)
+## Open Issues
 
-**Already implemented:** cos, sin, tan, acos, asin, atan, atan2, abs, floor, ceil, round, sqrt, pow, exp, ln, log, min, max, len, str, chr, ord, concat, norm, cross, search
+### 1. Polygon Winding Order (Manifold Backend Issue)
+**Impact:** ~5 models generate empty geometry (Stairs_02, Stairs_03, etc.)
 
-**Missing:**
-- `rands(min, max, count, seed?)` - generate array of random numbers
+**Problem:** Manifold's polygon primitive expects counterclockwise winding order. Some OpenSCAD files use clockwise points, resulting in empty extrusions.
 
-**Solution:**
+**Example:**
+```openscad
+polygon(points=[[0,0],[5,2],[5,0]]);  // clockwise - fails
+polygon(points=[[0,0],[5,0],[5,2]]);  // counterclockwise - works
+```
+
+**Solution options:**
+1. Fix in Manifold package: auto-detect and normalize winding
+2. Fix in transpiler: calculate signed area and reverse if negative
+3. Document as known limitation
+
+**Files to modify:**
+- `packages/manifold/src/primitives/index.js` - `polygon()` function
+
+---
+
+### 2. Missing `regular_polygon` Module
+**Impact:** 3+ models (Tree_01, Weights_01, etc.)
+
+**Problem:** OpenSCAD has a built-in `regular_polygon` or models define it themselves. The transpiler doesn't recognize it as a built-in.
+
+**Error:** `polygon requires at least 3 points`
+
+**Solution:** Add `regular_polygon` as a built-in module:
 ```javascript
-case 'rands': {
-  const [min, max, count, seed] = evalArgs() as number[]
-  const result: number[] = []
-  for (let i = 0; i < count; i++) {
-    result.push(min + Math.random() * (max - min))
+// regular_polygon(n, r) - n-sided polygon with circumradius r
+const regular_polygon = (n, r) => {
+  const points = []
+  for (let i = 0; i < n; i++) {
+    const angle = (2 * Math.PI * i) / n - Math.PI / 2
+    points.push([r * Math.cos(angle), r * Math.sin(angle)])
   }
-  return result
+  return polygon({ points })
 }
 ```
 
 **Files to modify:**
-- `src/evaluator/expressions.ts`
+- `src/transpiler/transpile.ts` - Add to built-in modules
 
 ---
 
-### 3. Arc/Rotate Extrude Partial Angle (MEDIUM PRIORITY)
+### 3. Arc/Rotate Extrude Issues
 **Impact:** Arc_01, Arc_02 have ~0.33 Jaccard
 
-**Problem:** Models using `rotate_extrude(angle=...)` with partial angles may have tessellation or positioning differences.
+**Problem:** Models using `rotate_extrude(angle=...)` with partial angles have significant geometry differences.
 
-**Investigation needed:** Check if:
-- Angle is being applied correctly
-- Starting position matches OpenSCAD
-- Segment calculation is correct for partial arcs
+**Investigation needed:**
+- Verify angle parameter is applied correctly
+- Check starting position matches OpenSCAD
+- Verify segment calculation for partial arcs
 
 **Files to check:**
-- `src/emitter/emit.ts`: `rotate_extrude` handling
-- Manifold's `extrudeRotate` implementation
+- `src/transpiler/transpile.ts` - `_rotateExtrude` helper
+- `packages/manifold/src/extrusions/index.js`
 
 ---
 
-### 4. Empty STL Generation (MEDIUM PRIORITY)
-**Impact:** 5 comparison errors (Fence_01, Shaft_01, Shaft_02, Stairs_02, Stairs_03)
+### 4. Missing Math Functions
+**Impact:** Some models use uncommon OpenSCAD functions
 
-**Problem:** Generated STL files are empty (just header/footer).
+**Already implemented:** sin, cos, tan, asin, acos, atan, atan2, abs, floor, ceil, round, sqrt, pow, exp, log, ln, min, max, len, concat
+
+**Missing:**
+- `rands(min, max, count, seed?)` - Random number array
+- `norm(v)` - Vector length
+- `cross(v1, v2)` - Cross product
+- `lookup(val, table)` - Table interpolation
+- `sign(x)` - Sign of number
+
+**Files to modify:**
+- `src/transpiler/transpile.ts` - `transpileFunctionCall()`
+
+---
+
+### 5. Geometry Precision Differences
+**Impact:** 12 models fail threshold (0.93-0.98 Jaccard)
+
+**Examples:**
+- Wood_Crate.scad: 0.75 Jaccard
+- Walking_Stick.scad: 0.96 Jaccard
+- Sword_01.scad: 0.94 Jaccard
 
 **Possible causes:**
-1. JSCAD throws during execution but error isn't propagated
-2. Geometry is invalid (non-manifold, self-intersecting)
-3. Transform creates degenerate geometry
+1. Different tessellation algorithms between Manifold and OpenSCAD
+2. Floating point precision differences
+3. Different handling of edge cases (thin walls, etc.)
 
-**Solution:**
-- Add error logging in `run-jscad.js`
-- Check for empty geometry before export
-- Add verbose mode to show JSCAD errors
+**Solutions:**
+- Use `--fn 48` or higher for better tessellation match
+- Some models may never match exactly due to algorithm differences
+- Consider lowering threshold for specific models
 
 ---
 
-### 5. OpenSCAD-side Failures (LOW PRIORITY)
-**Impact:** 4 models fail in OpenSCAD itself
+### 6. Unsupported Constructs
+**Impact:** Various models
 
-**Failing models:**
-- Coin_02.scad - references undefined module `Coin_01`
-- Letter_A.scad - likely uses `text()` which needs fonts
-- Mech_Piece_03.scad, Mech_Piece_04.scad - unknown issues
-- Screw.scad - possibly uses unsupported features
-
-**Solution:** These are issues with the test models, not our translator. Skip or fix the models.
+**Not yet supported:**
+- `text()` module (requires font rendering)
+- `import()` for STL/OFF files
+- `surface()` for heightmaps
+- `children()` for module children access
+- `$children` special variable
+- Complex list comprehensions with multiple variables
+- `echo()` for debugging
 
 ---
 
 ## Implementation Priority
 
-### Phase 1: Quick Wins (1-2 hours)
-1. Fix `linear_extrude` center parameter
-2. Add basic math functions (cos, sin, abs, min, max)
+### Phase 1: High Impact (fixes ~10 models)
+1. Fix polygon winding order in Manifold
+2. Add `regular_polygon` built-in
 
-### Phase 2: Core Functions (2-4 hours)
-3. Add remaining math functions
-4. Add `rands()` function
-5. Improve error logging in test harness
+### Phase 2: Medium Impact (fixes ~5 models)
+3. Debug rotate_extrude partial angle issues
+4. Add missing math functions (rands, norm, cross)
 
-### Phase 3: Investigation (2-4 hours)
-6. Debug rotate_extrude partial angle issues
-7. Debug empty STL generation
-8. Add more test coverage
-
-## Expected Improvement
-
-After Phase 1+2, expect to reach ~80-85% pass rate (up from 70%).
+### Phase 3: Low Priority
+5. Add children() support
+6. Improve error messages
+7. Add text() support (complex - needs font system)
 
 ## Running Tests
 
 ```bash
-# Test built-in corpus
-node bin/test-harness.js --corpus --threshold 0.98
+# Test built-in corpus (should be 100% with --fn 48)
+node bin/test-harness.js --corpus --fn 48
 
-# Test external models
-node bin/test-harness.js --dir /path/to/models --threshold 0.98
+# Test OpenSCAD-Snippet library
+node bin/test-harness.js --dir /path/to/OpenSCAD-Snippet/Asset_SCAD
 
-# Test specific file with debug
+# Test specific file with debug output
 node bin/test-harness.js model.scad --verbose --keep-temp
+
+# See transpiled JavaScript
+node bin/transpile-file.js model.scad
 ```
+
+## Test Model Locations
+
+- Built-in corpus: `test/corpus/`
+- OpenSCAD-Snippet: https://github.com/AngeloNicoli/OpenSCAD-Snippet
