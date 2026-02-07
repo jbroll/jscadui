@@ -764,7 +764,7 @@ function transpileFunctionCall(callee: string, args: string, _ctx: TranspileCont
 
 // Built-in checks
 function isBuiltinPrimitive(name: string): boolean {
-  return ['cube', 'sphere', 'cylinder', 'polyhedron', 'square', 'circle', 'polygon'].includes(name)
+  return ['cube', 'sphere', 'cylinder', 'polyhedron', 'square', 'circle', 'polygon', 'regular_polygon'].includes(name)
 }
 
 function isBuiltinTransform(name: string): boolean {
@@ -788,6 +788,7 @@ const primitiveParams: Record<string, string[]> = {
   square: ['size', 'center'],
   circle: ['r', 'd'],
   polygon: ['points', 'paths'],
+  regular_polygon: ['order', 'r'],  // n-sided polygon with circumradius r
 }
 
 function transpileBuiltinPrimitive(name: string, argsArray: Array<{name: string | null, value: string}>, ctx: TranspileContext): string {
@@ -834,6 +835,11 @@ function transpileBuiltinPrimitive(name: string, argsArray: Array<{name: string 
     case 'polygon':
       ctx.usedPrimitives.add('polygon')
       return `polygon({ ${argsStr} })`
+
+    case 'regular_polygon':
+      ctx.usedPrimitives.add('regular_polygon')
+      ctx.usedPrimitives.add('circle')  // Uses circle internally
+      return `_regular_polygon({ ${argsStr} })`
 
     default:
       return `/* unknown primitive: ${name} */`
@@ -1106,6 +1112,16 @@ const _square = ({ size, center = false }) => {
   const s = Array.isArray(size) ? size : [size, size]
   const geo = rectangle({ size: s })
   return center ? geo : translate([s[0]/2, s[1]/2], geo)
+}`)
+  }
+
+  if (ctx.usedPrimitives.has('regular_polygon')) {
+    imports.push(`
+const _regular_polygon = ({ order = 6, n, r = 1, $fn = 0 }) => {
+  // n is an alias for order (number of sides)
+  // Use circle with segments to create regular polygon - matches OpenSCAD's approach
+  const sides = n ?? order
+  return circle({ radius: r, segments: sides })
 }`)
   }
 
