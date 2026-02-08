@@ -30,6 +30,8 @@
     "typecheck": "tsc --noEmit",
     "build": "tsc",
     "test:corpus": "node bin/test-harness.js --corpus",
+    "test:bosl": "node bin/test-harness.js --dir test/corpus/bosl",
+    "test:all": "npm run build && npm run test && npm run test:corpus && npm run test:bosl",
     "test:fidelity": "node bin/test-harness.js --dir ${OPENSCAD_SNIPPET:-$HOME/src/OpenSCAD-Snippet}/Asset_SCAD"
   },
   "dependencies": {
