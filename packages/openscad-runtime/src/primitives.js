@@ -7,7 +7,7 @@ import { _num } from './math.js'
 import { _getSegments } from './segments.js'
 
 // JSCAD primitives and transforms - injected at init time
-let cube, cuboid, cylinder, circle, rectangle, polygon, polyhedron, translate, union
+let cube, cuboid, cylinder, circle, rectangle, polygon, polyhedron, translate, union, subtract, intersect, hull, minkowski
 
 export const initPrimitives = (jscad) => {
   cube = jscad.primitives.cube
@@ -19,6 +19,10 @@ export const initPrimitives = (jscad) => {
   polyhedron = jscad.primitives.polyhedron
   translate = jscad.transforms.translate
   union = jscad.booleans.union
+  subtract = jscad.booleans.subtract
+  intersect = jscad.booleans.intersect
+  hull = jscad.hulls.hull
+  minkowski = jscad.booleans.minkowski
 }
 
 export const _cube = ({ size, center = false }) => {
@@ -115,3 +119,42 @@ export const _safeUnion = (parts) => {
 
 // Re-export direct JSCAD primitives for passthrough
 export const getPolygon = () => polygon
+
+// Polygon wrapper - passes through to JSCAD polygon
+export const _polygon = ({ points, paths }) => {
+  if (paths && paths.length > 0) {
+    return polygon({ points, paths })
+  }
+  return polygon({ points })
+}
+
+// Hull wrapper - passes through to JSCAD hull
+export const _hull = (...args) => hull(...args)
+
+// Boolean wrappers - these filter undefined values and call JSCAD booleans
+export const _union = (...args) => {
+  const valid = args.filter(a => a !== undefined && a !== null)
+  if (valid.length === 0) return undefined
+  if (valid.length === 1) return valid[0]
+  return union(...valid)
+}
+
+export const _subtract = (...args) => {
+  const valid = args.filter(a => a !== undefined && a !== null)
+  if (valid.length === 0) return undefined
+  if (valid.length === 1) return valid[0]
+  return subtract(...valid)
+}
+
+export const _intersect = (...args) => {
+  const valid = args.filter(a => a !== undefined && a !== null)
+  if (valid.length === 0) return undefined
+  if (valid.length === 1) return valid[0]
+  return intersect(...valid)
+}
+
+export const _minkowski = (...args) => {
+  const valid = args.filter(a => a !== undefined && a !== null)
+  if (valid.length < 2) return valid[0] || undefined
+  return minkowski(...valid)
+}

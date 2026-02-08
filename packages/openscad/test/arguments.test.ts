@@ -116,8 +116,8 @@ describe('reorderNamedArgs', () => {
         function add(x, y) = x + y;
         result = add(y=2, x=1);
       `)
-      // Function should be defined
-      expect(code).toContain('const add =')
+      // Function should be defined (now uses function declaration for hoisting)
+      expect(code).toContain('function add(')
       // Result should call the function
       expect(code).toContain('add(')
     })
@@ -133,7 +133,7 @@ describe('reorderNamedArgs', () => {
 
     it('reorders cylinder arguments', () => {
       const code = getModuleCall('cylinder(r=5, h=10, center=true);')
-      expect(code).toContain('_cylinder')
+      expect(code).toContain('j$.cylinder')
       expect(code).toContain('10')  // h
       expect(code).toContain('5')   // r
     })
@@ -141,7 +141,7 @@ describe('reorderNamedArgs', () => {
     it('reorders sphere arguments', () => {
       const code = getModuleCall('sphere(d=20);')
       // d parameter is handled by _sphere helper
-      expect(code).toContain('_sphere')
+      expect(code).toContain('j$.sphere')
       // Diameter is passed to helper which divides by 2
       expect(code).toContain('20')
     })
@@ -167,7 +167,7 @@ describe('reorderNamedArgs', () => {
 
     it('handles special variable arguments ($fn, $fa, $fs)', () => {
       const code = getModuleCall('sphere(r=10, $fn=32);')
-      expect(code).toContain('_sphere')
+      expect(code).toContain('j$.sphere')
       expect(code).toContain('10')
     })
   })

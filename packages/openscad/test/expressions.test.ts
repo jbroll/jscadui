@@ -61,40 +61,40 @@ describe('transpileExpression', () => {
   describe('range expressions', () => {
     it('handles simple range [start:end]', () => {
       const code = transpileExpr('x = [0:10];')
-      expect(code).toContain('_range(0, 10, 1)')
+      expect(code).toContain('j$.range(0, 10, 1)')
     })
 
     it('handles range with step [start:step:end]', () => {
       const code = transpileExpr('x = [0:2:10];')
-      expect(code).toContain('_range(0, 10, 2)')
+      expect(code).toContain('j$.range(0, 10, 2)')
     })
 
     it('handles negative step', () => {
       const code = transpileExpr('x = [10:-1:0];')
       // Negative literals are preserved
-      expect(code).toContain('_range(10, 0, -1)')
+      expect(code).toContain('j$.range(10, 0, -1)')
     })
   })
 
   describe('arithmetic operators', () => {
-    it('handles addition with _vadd for vector support', () => {
+    it('handles addition with j$.vadd for vector support', () => {
       const code = transpileExpr('x = a + b;')
-      expect(code).toContain('_vadd(a, b)')
+      expect(code).toContain('j$.vadd(a, b)')
     })
 
-    it('handles subtraction with _vsub', () => {
+    it('handles subtraction with j$.vsub', () => {
       const code = transpileExpr('x = a - b;')
-      expect(code).toContain('_vsub(a, b)')
+      expect(code).toContain('j$.vsub(a, b)')
     })
 
-    it('handles multiplication with _vmul', () => {
+    it('handles multiplication with j$.vmul', () => {
       const code = transpileExpr('x = a * b;')
-      expect(code).toContain('_vmul(a, b)')
+      expect(code).toContain('j$.vmul(a, b)')
     })
 
-    it('handles division with _vdiv', () => {
+    it('handles division with j$.vdiv', () => {
       const code = transpileExpr('x = a / b;')
-      expect(code).toContain('_vdiv(a, b)')
+      expect(code).toContain('j$.vdiv(a, b)')
     })
 
     it('handles modulo', () => {
@@ -106,12 +106,12 @@ describe('transpileExpression', () => {
   describe('comparison operators', () => {
     it('handles equality with deep comparison', () => {
       const code = transpileExpr('x = a == b;')
-      expect(code).toContain('_eq(a, b)')
+      expect(code).toContain('j$.eq(a, b)')
     })
 
     it('handles inequality with deep comparison', () => {
       const code = transpileExpr('x = a != b;')
-      expect(code).toContain('!_eq(a, b)')
+      expect(code).toContain('!j$.eq(a, b)')
     })
 
     it('handles less than', () => {
@@ -215,14 +215,14 @@ describe('transpileExpression', () => {
   describe('list comprehensions', () => {
     it('handles simple for comprehension', () => {
       const code = transpileExpr('x = [for (i = [0:3]) i * 2];')
-      expect(code).toContain('_range(0, 3, 1)')
+      expect(code).toContain('j$.range(0, 3, 1)')
       // Uses map for simple list comprehension
       expect(code).toContain('.map')
     })
 
     it('handles for with if filter', () => {
       const code = transpileExpr('x = [for (i = [0:5]) if (i > 2) i];')
-      expect(code).toContain('_range(0, 5, 1)')
+      expect(code).toContain('j$.range(0, 5, 1)')
       // Uses map and filter for conditional comprehension
       expect(code).toContain('.map')
       expect(code).toContain('.filter')

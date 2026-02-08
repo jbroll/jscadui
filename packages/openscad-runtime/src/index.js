@@ -1,53 +1,115 @@
 /**
  * OpenSCAD Runtime Library
  *
- * Runtime helpers for OpenSCAD to JSCAD transpilation.
- * Call initRuntime(jscad) before using primitives, transforms, or extrusions.
+ * All runtime helpers accessible via j$ namespace.
+ * Usage: const j$ = require('@jscadui/openscad-runtime')
+ *        j$.init(jscad)
+ *        j$.cube({size: 10})
  */
 
-// Math helpers - no JSCAD dependencies
-export { PI, _range, _min, _max, _num, str, version_num, search, _norm, _cross, _lookup, _rands } from './math.js'
-
-// Vector operations - no JSCAD dependencies
-export { _eq, _vadd, _vsub, _vmul, _vdiv, _vneg } from './vector.js'
-
-// Segment calculation
-export { _globalFn, setGlobalFn, _getSegments } from './segments.js'
-
-// Primitives (require init)
-export { initPrimitives, _cube, _cylinder, _sphere, _circle, _square, _regular_polygon, _polyhedron, _safeUnion, getPolygon } from './primitives.js'
-
-// Transforms (require init)
-export { initTransforms, _rotate, _multmatrix } from './transforms.js'
-
-// Extrusions (require init)
-export { initExtrusions, _linearExtrude, _rotateExtrude } from './extrusions.js'
-
-// Color (requires init)
-export { initColor, _color } from './color.js'
-
-// Import init functions for initRuntime
-import { initPrimitives as _initPrimitives } from './primitives.js'
-import { initTransforms as _initTransforms } from './transforms.js'
-import { initExtrusions as _initExtrusions } from './extrusions.js'
-import { initColor as _initColor } from './color.js'
-import { setGlobalFn as _setGlobalFn } from './segments.js'
+import { PI, _range, _min, _max, _num, str, version_num, search, _norm, _cross, _lookup, _rands, is_vector } from './math.js'
+import { _eq, _vadd, _vsub, _vmul, _vdiv, _vneg } from './vector.js'
+import { _getSegments, setGlobalFn } from './segments.js'
+import { initPrimitives, _cube, _cylinder, _sphere, _circle, _square, _regular_polygon, _polyhedron, _safeUnion, _hull, _union, _subtract, _intersect, _minkowski, _polygon } from './primitives.js'
+import { initTransforms, _translate, _rotate, _scale, _mirror, _multmatrix } from './transforms.js'
+import { initExtrusions, _linearExtrude, _rotateExtrude } from './extrusions.js'
+import { initColor, _color } from './color.js'
 
 /**
- * Initialize all JSCAD-dependent helpers.
- * Call this with the jscad object before using any primitives, transforms, or extrusions.
- *
- * @param {object} jscad - The @jscad/modeling module or compatible runtime
- * @param {object} options - Options like { globalFn: 32 }
+ * The j$ namespace - contains all OpenSCAD runtime helpers.
+ * Use j$.functionName() in transpiled code.
+ * Since $ is illegal in OpenSCAD identifiers, this can never conflict with user code.
  */
-export const initRuntime = (jscad, options = {}) => {
-  _initPrimitives(jscad)
-  _initTransforms(jscad)
-  _initExtrusions(jscad)
-  _initColor(jscad)
+const j$ = {
+  // Math helpers (no JSCAD dependency)
+  PI,
+  range: _range,
+  min: _min,
+  max: _max,
+  num: _num,
+  str,
+  version_num,
+  search,
+  norm: _norm,
+  cross: _cross,
+  lookup: _lookup,
+  rands: _rands,
+  is_vector,
 
-  // Set global $fn if provided
-  if (options.globalFn !== undefined) {
-    _setGlobalFn(options.globalFn)
+  // Vector operations (no JSCAD dependency)
+  eq: _eq,
+  vadd: _vadd,
+  vsub: _vsub,
+  vmul: _vmul,
+  vdiv: _vdiv,
+  vneg: _vneg,
+
+  // Primitives (populated after init)
+  cube: _cube,
+  cylinder: _cylinder,
+  sphere: _sphere,
+  circle: _circle,
+  square: _square,
+  regular_polygon: _regular_polygon,
+  polyhedron: _polyhedron,
+  safeUnion: _safeUnion,
+  hull: _hull,
+
+  // Booleans (wrappers that filter undefined values)
+  union: _union,
+  subtract: _subtract,
+  intersect: _intersect,
+  minkowski: _minkowski,
+
+  // Additional primitives
+  polygon: _polygon,
+
+  // Transforms (populated after init)
+  translate: _translate,
+  rotate: _rotate,
+  scale: _scale,
+  mirror: _mirror,
+  multmatrix: _multmatrix,
+
+  // Extrusions (populated after init)
+  linearExtrude: _linearExtrude,
+  rotateExtrude: _rotateExtrude,
+
+  // Color (populated after init)
+  color: _color,
+
+  // Direct JSCAD access (populated after init)
+  jscad: null,
+
+  /**
+   * Initialize the runtime with JSCAD.
+   * Must be called before using geometry functions.
+   */
+  init(jscad, options = {}) {
+    this.jscad = jscad
+    initPrimitives(jscad)
+    initTransforms(jscad)
+    initExtrusions(jscad)
+    initColor(jscad)
+    if (options.globalFn !== undefined) {
+      setGlobalFn(options.globalFn)
+    }
   }
 }
+
+export default j$
+
+// Also export as named for CommonJS compatibility
+export { j$ }
+
+// Keep legacy exports for backwards compatibility during transition
+export { PI, _range, _min, _max, _num, str, version_num, search, _norm, _cross, _lookup, _rands, is_vector } from './math.js'
+export { _eq, _vadd, _vsub, _vmul, _vdiv, _vneg } from './vector.js'
+export { _getSegments, setGlobalFn } from './segments.js'
+export { initPrimitives, _cube, _cylinder, _sphere, _circle, _square, _regular_polygon, _polyhedron, _safeUnion, _hull, _union, _subtract, _intersect, _minkowski, _polygon } from './primitives.js'
+export { initTransforms, _translate, _rotate, _scale, _mirror, _multmatrix } from './transforms.js'
+export { initExtrusions, _linearExtrude, _rotateExtrude } from './extrusions.js'
+export { initColor, _color } from './color.js'
+
+// Legacy initRuntime
+export const initRuntime = (jscad, options = {}) => j$.init(jscad, options)

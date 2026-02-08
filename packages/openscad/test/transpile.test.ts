@@ -101,7 +101,7 @@ describe('transpile primitives', () => {
     const source = 'cube([10, 20, 30], center=true);'
     const result = transpile(parse(source).ast, { includeHeader: false })
 
-    expect(result.code).toContain('_cube')
+    expect(result.code).toContain('j$.cube')
     expect(result.code).toContain('[10, 20, 30]')
     expect(result.code).toContain('true')
   })
@@ -110,7 +110,7 @@ describe('transpile primitives', () => {
     const source = 'sphere(r=15);'
     const result = transpile(parse(source).ast, { includeHeader: false })
 
-    expect(result.code).toContain('_sphere')
+    expect(result.code).toContain('j$.sphere')
     expect(result.code).toContain('15')
   })
 
@@ -118,7 +118,7 @@ describe('transpile primitives', () => {
     const source = 'cylinder(h=20, r=5);'
     const result = transpile(parse(source).ast, { includeHeader: false })
 
-    expect(result.code).toContain('_cylinder')
+    expect(result.code).toContain('j$.cylinder')
     expect(result.code).toContain('20')
     expect(result.code).toContain('5')
   })
@@ -137,7 +137,7 @@ describe('transpile transforms', () => {
     const source = 'rotate([45, 0, 0]) cube(5);'
     const result = transpile(parse(source).ast, { includeHeader: false })
 
-    expect(result.code).toContain('_rotate')
+    expect(result.code).toContain('j$.rotate')
     expect(result.code).toContain('[45, 0, 0]')
   })
 
@@ -188,7 +188,7 @@ describe('transpile extrusions', () => {
     const source = 'linear_extrude(height=10) circle(r=5);'
     const result = transpile(parse(source).ast, { includeHeader: false })
 
-    expect(result.code).toContain('_linearExtrude')
+    expect(result.code).toContain('j$.linearExtrude')
     expect(result.code).toContain('10')
   })
 
@@ -196,6 +196,6 @@ describe('transpile extrusions', () => {
     const source = 'rotate_extrude() translate([10, 0, 0]) circle(r=2);'
     const result = transpile(parse(source).ast, { includeHeader: false })
 
-    expect(result.code).toContain('_rotateExtrude')
+    expect(result.code).toContain('j$.rotateExtrude')
   })
 })

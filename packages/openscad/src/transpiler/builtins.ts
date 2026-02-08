@@ -98,39 +98,39 @@ export function transpileBuiltinPrimitive(
       ctx.usedPrimitives.add('cube')
       ctx.usedPrimitives.add('cuboid')
       ctx.usedTransforms.add('translate')
-      return `_cube({ ${argsStr} })`
+      return `j$.cube({ ${argsStr} })`
 
     case 'sphere':
       ctx.usedPrimitives.add('sphere')
       ctx.usedPrimitives.add('polyhedron')  // _sphere uses polyhedron internally
-      return `_sphere({ ${argsStr} })`
+      return `j$.sphere({ ${argsStr} })`
 
     case 'cylinder':
       ctx.usedPrimitives.add('cylinder')
       ctx.usedTransforms.add('translate')
-      return `_cylinder({ ${argsStr} })`
+      return `j$.cylinder({ ${argsStr} })`
 
     case 'square':
       ctx.usedPrimitives.add('rectangle')
       ctx.usedTransforms.add('translate')
-      return `_square({ ${argsStr} })`
+      return `j$.square({ ${argsStr} })`
 
     case 'circle':
       ctx.usedPrimitives.add('circle')
-      return `_circle({ ${argsStr} })`
+      return `j$.circle({ ${argsStr} })`
 
     case 'polygon':
       ctx.usedPrimitives.add('polygon')
-      return `polygon({ ${argsStr} })`
+      return `j$.polygon({ ${argsStr} })`
 
     case 'regular_polygon':
       ctx.usedPrimitives.add('regular_polygon')
       ctx.usedPrimitives.add('circle')  // Uses circle internally
-      return `_regular_polygon({ ${argsStr} })`
+      return `j$.regular_polygon({ ${argsStr} })`
 
     case 'polyhedron':
       ctx.usedPrimitives.add('polyhedron')
-      return `_polyhedron({ ${argsStr} })`
+      return `j$.polyhedron({ ${argsStr} })`
 
     default:
       return `/* unknown primitive: ${name} */`
@@ -150,30 +150,40 @@ export function transpileBuiltinTransform(
   const filteredArgs = argsArray.filter(a => !a.name || !a.name.startsWith('$'))
   const args = transpileArgsToObject(filteredArgs)
 
-  switch (name) {
-    case 'translate':
-      ctx.usedTransforms.add('translate')
-      return `translate(${args}, ${childCode})`
+  // Handle underscore-prefixed versions (BOSL2 builtins.scad wrappers)
+  const baseName = name.startsWith('_') ? name.slice(1) : name
+
+  // Helper to get the primary value from args (handles both named and positional)
+  const getArgValue = (argName: string) => {
+    const arg = filteredArgs.find(a => a.name === argName || !a.name)
+    return arg?.value
+  }
+
+  switch (baseName) {
+    case 'translate': {
+      // translate(v) or translate([x,y,z])
+      const v = getArgValue('v') || '[0, 0, 0]'
+      return `j$.translate(${v}, ${childCode})`
+    }
 
     case 'rotate':
-      ctx.usedTransforms.add('rotateX')
-      ctx.usedTransforms.add('rotateY')
-      ctx.usedTransforms.add('rotateZ')
       // If args contains named params (has ':'), wrap in {} for axis-angle rotation
-      // Also need 'transform' for the matrix rotation
       if (args.includes(':')) {
-        ctx.usedTransforms.add('transform')
-        return `_rotate({ ${args} }, ${childCode})`
+        return `j$.rotate({ ${args} }, ${childCode})`
       }
-      return `_rotate(${args}, ${childCode})`
+      return `j$.rotate(${args}, ${childCode})`
 
-    case 'scale':
-      ctx.usedTransforms.add('scale')
-      return `scale(${args}, ${childCode})`
+    case 'scale': {
+      // scale(v) where v is scalar or vector
+      const v = getArgValue('v') || '1'
+      return `j$.scale(${v}, ${childCode})`
+    }
 
-    case 'mirror':
-      ctx.usedTransforms.add('mirror')
-      return `mirror({ normal: ${args} }, ${childCode})`
+    case 'mirror': {
+      // mirror(v) where v is the normal vector
+      const v = getArgValue('v') || '[1, 0, 0]'
+      return `j$.mirror(${v}, ${childCode})`
+    }
 
     case 'multmatrix': {
       // multmatrix(m) applies a 4x4 transformation matrix
@@ -181,7 +191,7 @@ export function transpileBuiltinTransform(
       ctx.usedTransforms.add('transform')
       ctx.usedHelpers.add('multmatrix')
       const matrixArg = argsArray.find(a => a.name === 'm' || !a.name)?.value || '[[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]'
-      return `_multmatrix(${matrixArg}, ${childCode})`
+      return `j$.multmatrix(${matrixArg}, ${childCode})`
     }
 
     default:
@@ -216,11 +226,11 @@ export function transpileBuiltinExtrusion(
     case 'linear_extrude':
       ctx.usedExtrusions.add('extrudeLinear')
       ctx.usedTransforms.add('translate')  // _linearExtrude helper uses translate for center
-      return `_linearExtrude({ ${args} }, ${childCode})`
+      return `j$.linearExtrude({ ${args} }, ${childCode})`
 
     case 'rotate_extrude':
       ctx.usedExtrusions.add('extrudeRotate')
-      return `_rotateExtrude({ ${args} }, ${childCode})`
+      return `j$.rotateExtrude({ ${args} }, ${childCode})`
 
     default:
       return `/* unknown extrusion: ${name} */`

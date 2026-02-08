@@ -3,13 +3,44 @@
  */
 
 // JSCAD transforms - injected at init time
-let rotateX, rotateY, rotateZ, transform
+let translate, rotateX, rotateY, rotateZ, scale, mirror, transform
 
 export const initTransforms = (jscad) => {
+  translate = jscad.transforms.translate
   rotateX = jscad.transforms.rotateX
   rotateY = jscad.transforms.rotateY
   rotateZ = jscad.transforms.rotateZ
+  scale = jscad.transforms.scale
+  mirror = jscad.transforms.mirror
   transform = jscad.transforms.transform
+}
+
+// Translate helper
+export const _translate = (v, geo) => {
+  if (geo === undefined) return geo
+  // v can be [x,y] or [x,y,z] or an object with v property
+  const vec = (v && typeof v === 'object' && !Array.isArray(v)) ? v.v : v
+  const [x = 0, y = 0, z = 0] = Array.isArray(vec) ? vec : [0, 0, 0]
+  return translate([x, y, z], geo)
+}
+
+// Scale helper
+export const _scale = (v, geo) => {
+  if (geo === undefined) return geo
+  // v can be a number (uniform), [x,y] or [x,y,z] or an object with v property
+  const val = (v && typeof v === 'object' && !Array.isArray(v)) ? v.v : v
+  if (typeof val === 'number') {
+    return scale([val, val, val], geo)
+  }
+  const [x = 1, y = 1, z = 1] = Array.isArray(val) ? val : [1, 1, 1]
+  return scale([x, y, z], geo)
+}
+
+// Mirror helper
+export const _mirror = (v, geo) => {
+  if (geo === undefined) return geo
+  // v is the normal vector [x, y, z]
+  return mirror({ normal: v }, geo)
 }
 
 // Rotation helper for Euler angles

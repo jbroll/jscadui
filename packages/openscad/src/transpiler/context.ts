@@ -73,11 +73,32 @@ export interface TranspileResult {
   errors: TranspileError[]
 }
 
+/**
+ * Bundled parts from a file - used when inlining includes
+ * Functions use `function` declarations for hoisting
+ */
+export interface BundledParts {
+  functions: string[]      // Function declarations (hoisted)
+  modules: string[]        // Module declarations
+  constants: string[]      // Constant assignments
+  usedPrimitives: Set<string>
+  usedTransforms: Set<string>
+  usedBooleans: Set<string>
+  usedExtrusions: Set<string>
+  usedHelpers: Set<string>
+  usedColors: boolean
+  usedHulls: boolean
+  usedMaths: boolean
+  usedMinMax: boolean
+}
+
 export interface TranspiledFile {
   code: string
   exports: string[]
   functionExports: string[]  // Functions (not modules) - can be called directly
+  moduleExports: string[]    // Modules - must be called with curried pattern
   paramLists: Map<string, string[]>  // Module/function name -> parameter names
+  bundledParts?: BundledParts  // Parts for inlining when included
 }
 
 export interface UseImport {
@@ -113,6 +134,10 @@ export interface TranspileContext {
   availableSymbols: Set<string>
   // Track imported function names (not modules) - these don't use curried pattern
   importedFunctions: Set<string>
+  // Track imported module names (from includes) - these use curried pattern
+  importedModules: Set<string>
+  // Track names that have both module and function versions (use __fn suffix for function)
+  dualDefinedNames: Set<string>
   // Current indentation level
   indentLevel: number
   // Cache of transpiled files (shared across recursive calls)
@@ -162,6 +187,8 @@ export function createContext(
     variableNames: [],
     availableSymbols: new Set(),
     importedFunctions: new Set(),
+    importedModules: new Set(),
+    dualDefinedNames: new Set(),
     indentLevel: 0,
     transpiledFiles: sharedCache || new Map(),
     processingFiles: new Set(),

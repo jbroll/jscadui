@@ -61,3 +61,11 @@ export const _rands = (min, max, count, seed) => {
   for (let i = 0; i < count; i++) r.push(min + rand() * (max - min))
   return r
 }
+
+// Type checking functions (OpenSCAD built-ins)
+export const is_vector = (v, len) => {
+  if (!Array.isArray(v)) return false
+  if (!v.every(x => typeof x === 'number')) return false
+  if (len !== undefined && v.length !== len) return false
+  return true
+}

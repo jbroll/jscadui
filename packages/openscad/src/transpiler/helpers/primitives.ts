@@ -122,16 +122,8 @@ const _polyhedron = ({ points, faces, triangles, convexity }) => {
 }`)
   }
 
-  // Safe union that filters out undefined values (from assertions, etc.)
-  if (ctx.usedHelpers.has('safeUnion')) {
-    imports.push(`
-const _safeUnion = (parts) => {
-  const valid = parts.filter(p => p !== undefined && p !== null)
-  if (valid.length === 0) return undefined
-  if (valid.length === 1) return valid[0]
-  return union(...valid)
-}`)
-  }
+  // safeUnion is now available via j$.safeUnion from the runtime
+  // No need to generate inline helper
 
   return imports
 }

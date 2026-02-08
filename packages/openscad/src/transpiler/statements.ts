@@ -95,13 +95,13 @@ export function transpileStatement(stmt: Statement, ctx: TranspileContext): stri
       }
       ctx.usedBooleans.add('union')
       ctx.usedHelpers.add('safeUnion')
-      return `(() => { ${assignStrs.join('; ')}; return _safeUnion([\n    ${parts.join(',\n    ')}\n  ]) })()`
+      return `(() => { ${assignStrs.join('; ')}; return j$.safeUnion([\n    ${parts.join(',\n    ')}\n  ]) })()`
     }
 
     if (parts.length === 1) return parts[0]
     ctx.usedBooleans.add('union')
     ctx.usedHelpers.add('safeUnion')
-    return `_safeUnion([\n${parts.map(p => `  ${p}`).join(',\n')}\n])`
+    return `j$.safeUnion([\n${parts.map(p => `  ${p}`).join(',\n')}\n])`
   }
 
   if (isIfElseStatement(stmt)) {
@@ -164,6 +164,19 @@ function transpileModuleInstantiation(stmt: ModuleInstantiationStmt, ctx: Transp
     return `(console.log(${args}), undefined)`
   }
 
+  // assert(condition, message?) - check condition and throw if false
+  // In OpenSCAD, `assert(cond, msg) statement;` is valid - statement is child of assert
+  if (name === 'assert') {
+    const condition = stmt.args.length > 0 ? transpileExpression(stmt.args[0].value!, ctx) : 'true'
+    const message = stmt.args.length > 1 ? transpileExpression(stmt.args[1].value!, ctx) : '"Assertion failed"'
+    // If assert has a child statement, execute it after the assertion
+    if (stmt.child) {
+      const childCode = transpileStatement(stmt.child, ctx)
+      return `(console.assert(${condition}, ${message}), ${childCode || 'undefined'})`
+    }
+    return `(console.assert(${condition}, ${message}), undefined)`
+  }
+
   const argsArray = transpileArgsArray(stmt.args, ctx)
 
   // Extract special vars from args - OpenSCAD's $fn, $fa, $fs are dynamically scoped
@@ -214,7 +227,7 @@ function transpileModuleInstantiation(stmt: ModuleInstantiationStmt, ctx: Transp
     // When only 1 arg to color, alpha is undefined
     const colorValue = argsArray[0]?.value || '"gray"'
     const alphaValue = argsArray[1]?.value || 'undefined'
-    return `_color(${colorValue}, ${alphaValue}, ${childCode || 'undefined'})`
+    return `j$.color(${colorValue}, ${alphaValue}, ${childCode || 'undefined'})`
   }
 
   if (name === 'hull') {
@@ -229,8 +242,7 @@ function transpileModuleInstantiation(stmt: ModuleInstantiationStmt, ctx: Transp
     // children([indices...]) returns union of specified children
     if (argsArray.length === 0) {
       // All children: union of _children array
-      ctx.usedBooleans.add('union')
-      return `(_children.length === 0 ? undefined : _children.length === 1 ? _children[0] : union(..._children))`
+      return `(_children.length === 0 ? undefined : _children.length === 1 ? _children[0] : j$.union(..._children))`
     } else {
       // Indexed access - check if argument is a vector (array of indices) or simple index
       const arg = stmt.args[0]
@@ -239,8 +251,7 @@ function transpileModuleInstantiation(stmt: ModuleInstantiationStmt, ctx: Transp
       if (argValue && isVectorExpr(argValue)) {
         // Array of indices: children([0, 2, 3]) → union children at those indices
         const indices = argValue.children.map(c => transpileExpression(c, ctx))
-        ctx.usedBooleans.add('union')
-        return `union(${indices.map(i => `_children[${i}]`).join(', ')})`
+        return `j$.union(${indices.map(i => `_children[${i}]`).join(', ')})`
       } else {
         // Simple index: children(0) or children(i) → single child access
         const indexExpr = argsArray[0].value
@@ -280,14 +291,15 @@ function transpileModuleInstantiation(stmt: ModuleInstantiationStmt, ctx: Transp
   const isLocalFunction = ctx.functionNames.includes(name)
   const isLocalModule = ctx.moduleNames.includes(name)
   const isImportedFunction = ctx.importedFunctions.has(name)
+  const isImportedModule = ctx.importedModules.has(name)
 
   if (isLocalFunction && !isLocalModule) {
     // Pure local function call - no currying
     return `${name}(${positionalArgs})`
   }
 
-  if (isImportedFunction) {
-    // Imported function - no currying needed
+  if (isImportedFunction && !isImportedModule) {
+    // Imported function (not a module) - no currying needed
     return `${name}(${positionalArgs})`
   }
 
@@ -335,28 +347,24 @@ function transpileBuiltinBoolean(name: string, child: Statement | null, ctx: Tra
 
   const args = childCodes.join(',\n  ')
 
-  // Build the boolean operation
+  // Build the boolean operation - use j$ namespace to avoid conflicts with user-defined modules
   let boolOp: string
 
   switch (name) {
     case 'union':
-      ctx.usedBooleans.add('union')
-      boolOp = `union(\n  ${args}\n)`
+      boolOp = `j$.union(\n  ${args}\n)`
       break
 
     case 'difference':
-      ctx.usedBooleans.add('subtract')
-      boolOp = `subtract(\n  ${args}\n)`
+      boolOp = `j$.subtract(\n  ${args}\n)`
       break
 
     case 'intersection':
-      ctx.usedBooleans.add('intersect')
-      boolOp = `intersect(\n  ${args}\n)`
+      boolOp = `j$.intersect(\n  ${args}\n)`
       break
 
     case 'minkowski':
-      ctx.usedBooleans.add('minkowski')
-      boolOp = `minkowski(\n  ${args}\n)`
+      boolOp = `j$.minkowski(\n  ${args}\n)`
       break
 
     default:
@@ -395,7 +403,8 @@ function transpileBuiltinHull(child: Statement | null, ctx: TranspileContext): s
 
   ctx.usedHulls = true
   const args = childCodes.join(',\n  ')
-  return `hull(\n  ${args}\n)`
+  // Use runtime helper to avoid conflict with user-defined hull functions
+  return `j$.hull(\n  ${args}\n)`
 }
 
 /**
@@ -419,8 +428,7 @@ function transpileForLoop(stmt: ModuleInstantiationStmt, ctx: TranspileContext):
   if (args.length === 1) {
     const varName = args[0].name
     const rangeOrVector = transpileExpression(args[0].value!, ctx)
-    ctx.usedBooleans.add('union')
-    return `union(...${rangeOrVector}.map(${varName} => ${body}))`
+    return `j$.union(...${rangeOrVector}.map(${varName} => ${body}))`
   }
 
   // Multiple loop variables: for (i = [0:3], axis = [0:2]) { body }
@@ -433,18 +441,24 @@ function transpileForLoop(stmt: ModuleInstantiationStmt, ctx: TranspileContext):
     const method = i === args.length - 1 ? 'map' : 'flatMap'
     result = `${rangeOrVector}.${method}(${varName} => ${result})`
   }
-  ctx.usedBooleans.add('union')
-  return `union(...${result})`
+  return `j$.union(...${result})`
 }
 
 /**
  * Transpile parameter list with defaults - regular function style
+ * Handles duplicate parameter names by keeping only the last occurrence
+ * (OpenSCAD allows this; JavaScript strict mode doesn't)
  */
 export function transpileParamsList(args: AssignmentNode[], ctx: TranspileContext): string {
   if (args.length === 0) return ''
 
-  const params = args.map(arg => {
-    const name = arg.name
+  // Deduplicate: keep last occurrence of each parameter name
+  const seenNames = new Map<string, number>()
+  args.forEach((arg, i) => seenNames.set(arg.name, i))
+  const uniqueArgs = args.filter((arg, i) => seenNames.get(arg.name) === i)
+
+  const params = uniqueArgs.map(arg => {
+    const name = safeIdentifier(arg.name)
     if (arg.value) {
       const defaultVal = transpileExpression(arg.value, ctx)
       return `${name} = ${defaultVal}`
@@ -537,11 +551,12 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
   }
 
   // Geometry expression (return statement)
+  // Use j$.safeUnion to filter out undefined values from side-effect statements like assert
   const geomParts = geometryStmts.map(g => transpileStatement(g, ctx)).filter(Boolean) as string[]
   const returnExpr = geomParts.length === 0 ? 'undefined' :
     geomParts.length === 1 ? geomParts[0] :
-    `union(\n${indent}  ${geomParts.join(',\n' + indent + '  ')}\n${indent})`
-  if (geomParts.length > 1) ctx.usedBooleans.add('union')
+    `j$.safeUnion([\n${indent}  ${geomParts.join(',\n' + indent + '  ')}\n${indent}])`
+  if (geomParts.length > 1) ctx.usedHelpers.add('safeUnion')
 
   bodyParts.push(`${indent}return ${returnExpr}`)
 
@@ -569,10 +584,11 @@ export function transpileModuleDeclaration(stmt: ModuleDeclarationStmt, ctx: Tra
 /**
  * Transpile a function declaration
  */
-export function transpileFunctionDeclaration(stmt: FunctionDeclarationStmt, ctx: TranspileContext): string {
-  const name = safeIdentifier(stmt.name)
+export function transpileFunctionDeclaration(stmt: FunctionDeclarationStmt, ctx: TranspileContext, nameOverride?: string): string {
+  const name = nameOverride || safeIdentifier(stmt.name)
   const params = transpileParamsList(stmt.definitionArgs, ctx)
   const body = transpileExpression(stmt.expr, ctx)
 
-  return `const ${name} = (${params}) => ${body}`
+  // Use function declaration (not arrow) for hoisting - critical for include bundling
+  return `function ${name}(${params}) { return ${body}; }`
 }

@@ -30,7 +30,9 @@ import type {
   GroupingExpr,
   MemberLookupExpr,
   LcForExpr,
+  LcForCExpr,
   LcIfExpr,
+  LcEachExpr,
   LetExpr,
   LcLetExpr,
   EchoExpr,
@@ -62,7 +64,9 @@ export type {
   GroupingExpr,
   MemberLookupExpr,
   LcForExpr,
+  LcForCExpr,
   LcIfExpr,
+  LcEachExpr,
   LetExpr,
   LcLetExpr,
   EchoExpr,
@@ -316,7 +320,26 @@ export function isMemberLookupExpr(expr: Expression): expr is MemberLookupExpr {
  */
 export function isLcForExpr(expr: Expression): expr is LcForExpr {
   if (!expr || typeof expr !== 'object') return false
+  // Must have args, expr, and forKeyword token
+  // Must NOT have incrArgs (which distinguishes it from LcForCExpr)
   return 'args' in expr &&
+         'expr' in expr &&
+         !('incrArgs' in expr) &&
+         'tokens' in expr &&
+         expr.tokens !== null &&
+         typeof expr.tokens === 'object' &&
+         'forKeyword' in (expr.tokens as object)
+}
+
+/**
+ * Check if expression is an LcForCExpr (C-style for loop: for(init; cond; incr))
+ * Unique properties: args, incrArgs, cond, expr
+ */
+export function isLcForCExpr(expr: Expression): expr is LcForCExpr {
+  if (!expr || typeof expr !== 'object') return false
+  return 'args' in expr &&
+         'incrArgs' in expr &&
+         'cond' in expr &&
          'expr' in expr &&
          'tokens' in expr &&
          expr.tokens !== null &&
@@ -336,6 +359,19 @@ export function isLcIfExpr(expr: Expression): expr is LcIfExpr {
          expr.tokens !== null &&
          typeof expr.tokens === 'object' &&
          'ifKeyword' in (expr.tokens as object)
+}
+
+/**
+ * Check if expression is an LcEachExpr (each x in list comprehension)
+ * Unique property: tokens.eachKeyword
+ */
+export function isLcEachExpr(expr: Expression): expr is LcEachExpr {
+  if (!expr || typeof expr !== 'object') return false
+  return 'expr' in expr &&
+         'tokens' in expr &&
+         expr.tokens !== null &&
+         typeof expr.tokens === 'object' &&
+         'eachKeyword' in (expr.tokens as object)
 }
 
 /**
@@ -455,4 +491,46 @@ export function getNodeTypeName(node: unknown): string {
 
   // Fallback to constructor.name
   return (node as object).constructor?.name || 'Unknown'
+}
+
+/**
+ * Check if an expression contains any function calls (recursively)
+ * Used to detect if a top-level constant needs lazy evaluation
+ */
+export function containsFunctionCall(expr: Expression | null | undefined): boolean {
+  if (!expr || typeof expr !== 'object') return false
+
+  // Direct function call
+  if (isFunctionCallExpr(expr)) return true
+
+  // Check nested expressions
+  if (isBinaryOpExpr(expr)) {
+    return containsFunctionCall(expr.left) || containsFunctionCall(expr.right)
+  }
+  if (isUnaryOpExpr(expr)) {
+    return containsFunctionCall(expr.right)
+  }
+  if (isTernaryExpr(expr)) {
+    return containsFunctionCall(expr.cond) ||
+           containsFunctionCall(expr.ifExpr) ||
+           containsFunctionCall(expr.elseExpr)
+  }
+  if (isGroupingExpr(expr)) {
+    return containsFunctionCall(expr.inner)
+  }
+  if (isArrayLookupExpr(expr)) {
+    return containsFunctionCall(expr.array) || containsFunctionCall(expr.index)
+  }
+  if (isMemberLookupExpr(expr)) {
+    return containsFunctionCall(expr.expr)
+  }
+  if (isVectorExpr(expr)) {
+    return (expr.children as Expression[]).some(containsFunctionCall)
+  }
+  if (isLetExpr(expr)) {
+    const hasCallInArgs = expr.args.some(a => containsFunctionCall((a as AssignmentNode).value))
+    return hasCallInArgs || containsFunctionCall(expr.expr)
+  }
+
+  return false
 }

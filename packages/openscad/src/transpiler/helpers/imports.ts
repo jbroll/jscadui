@@ -60,7 +60,7 @@ export function buildJscadRequires(ctx: TranspileContext): string[] {
     imports.push(`const { colorize, cssColors } = require('@jscad/modeling').colors`)
   }
 
-  if (ctx.usedHulls) {
+  if (ctx.usedHulls && !ctx.availableSymbols.has('hull')) {
     imports.push(`const { hull } = require('@jscad/modeling').hulls`)
   }
 
