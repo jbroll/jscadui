@@ -102,7 +102,8 @@ export interface TranspiledFile {
   exports: string[]
   functionExports: string[]  // Functions (not modules) - can be called directly
   moduleExports: string[]    // Modules - must be called with curried pattern
-  paramLists: Map<string, string[]>  // Module/function name -> parameter names
+  paramLists: Map<string, string[]>  // Module name -> parameter names
+  functionParamLists?: Map<string, string[]>  // Function name -> parameter names (may differ from module)
   dualDefinedNames?: Set<string>  // Names that have both module and function versions
   bundledParts?: BundledParts  // Parts for inlining when included
 }
@@ -134,6 +135,8 @@ export interface TranspileContext {
   functionNames: string[]
   // Track module/function parameter lists (for named argument reordering)
   moduleParamLists: Map<string, string[]>
+  // Track function parameter lists separately (functions may have different params than modules)
+  functionParamLists: Map<string, string[]>
   // Track top-level variable assignments for export
   variableNames: string[]
   // Track all available symbols (local + imported)
@@ -207,6 +210,7 @@ export function createContext(
     moduleNames: [],
     functionNames: [],
     moduleParamLists,
+    functionParamLists: new Map(),
     variableNames: [],
     availableSymbols: new Set(),
     importedFunctions: new Set(),
