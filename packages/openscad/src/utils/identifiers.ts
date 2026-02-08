@@ -35,8 +35,10 @@ export function replaceIdentifier(
   replacement: string
 ): string {
   const escaped = original.replace(/\$/g, '\\$')
+  // Exclude identifiers preceded by a dot (property/method access)
+  // to avoid replacing .map with .map$17 when user variable is named 'map'
   return code.replace(
-    new RegExp(`(?<![a-zA-Z0-9_$])${escaped}(?![a-zA-Z0-9_])`, 'g'),
+    new RegExp(`(?<![a-zA-Z0-9_$\\.])${escaped}(?![a-zA-Z0-9_])`, 'g'),
     replacement
   )
 }

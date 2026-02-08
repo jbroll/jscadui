@@ -365,14 +365,14 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
 
   if (isAssertExpr(expr)) {
     // assert(cond, msg) expr -> checks condition, returns expr (or undef if no expr)
-    // In JavaScript: we use console.assert which doesn't throw, then return expr
+    // j$.assert throws if condition is false, matching OpenSCAD behavior
     const assertExpr = expr as AssertExpr
     const args = assertExpr.args
     const condition = args.length > 0 ? transpileExpression(args[0].value!, ctx) : 'true'
     const message = args.length > 1 ? transpileExpression(args[1].value!, ctx) : '"Assertion failed"'
     // expr may be undefined when assert is at the end of a chain
     const innerExpr = assertExpr.expr ? transpileExpression(assertExpr.expr, ctx) : 'undefined'
-    return `(console.assert(${condition}, ${message}), ${innerExpr})`
+    return `(j$.assert(${condition}, ${message}), ${innerExpr})`
   }
 
   // Handle function declaration as expression (local/anonymous functions)

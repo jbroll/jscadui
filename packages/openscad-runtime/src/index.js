@@ -48,8 +48,25 @@ const j$ = {
    * Ensure value is iterable with .map() - converts strings to char arrays
    * OpenSCAD: for (c = "hello") iterates over characters
    * JavaScript: strings don't have .map(), so we convert to array
+   * Also handles undefined/null by returning empty array (defensive)
    */
-  iter: (x) => typeof x === 'string' ? [...x] : x,
+  iter: (x) => {
+    if (x == null) return []  // undefined or null
+    if (typeof x === 'string') return [...x]
+    return x
+  },
+
+  /**
+   * OpenSCAD assert - throws if condition is false, returns undefined if true
+   * Unlike console.assert, this actually halts execution on failure
+   */
+  assert: (condition, message) => {
+    if (!condition) {
+      const msg = message != null ? String(message) : 'Assertion failed'
+      console.assert(false, msg)  // Also log for consistency
+      throw new Error(`Assertion failed: ${msg}`)
+    }
+  },
 
   // Primitives (populated after init)
   cube: _cube,
