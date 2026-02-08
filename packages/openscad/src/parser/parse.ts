@@ -3,8 +3,7 @@
  */
 
 import { CodeFile, ParsingHelper, ScadFile, ErrorCollector } from 'openscad-parser'
-import { parseError } from '../utils/errors.js'
-import type { SourceLocation } from '../ir/types.js'
+import { parseError, type SourceLocation } from '../utils/errors.js'
 
 export interface ParseResult {
   ast: ScadFile
@@ -30,9 +29,11 @@ export function parse(source: string, filename = 'input.scad'): ParseResult {
 
   if (errorCollector.hasErrors()) {
     for (const error of errorCollector.errors) {
-      const loc = (error as any).codeLocation
+      // openscad-parser doesn't export error types, so we need to cast
+      const err = error as { codeLocation?: { line: number; col: number }; message?: string }
+      const loc = err.codeLocation
       errors.push({
-        message: (error as any).message || 'Parse error',
+        message: err.message || 'Parse error',
         location: loc
           ? {
               start: { line: loc.line, column: loc.col },

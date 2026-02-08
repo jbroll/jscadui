@@ -2,7 +2,11 @@
  * Error types for OpenSCAD translation
  */
 
-import type { SourceLocation } from '../ir/types.js'
+// Source location for error reporting
+export interface SourceLocation {
+  start: { line: number; column: number }
+  end: { line: number; column: number }
+}
 
 export enum ErrorCode {
   PARSE_ERROR = 'PARSE_ERROR',
