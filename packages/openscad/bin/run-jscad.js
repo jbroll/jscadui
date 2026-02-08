@@ -159,6 +159,10 @@ async function createRuntime() {
   const hulls = await import(hullsPath)
   const colors = await import(colorsPath)
 
+  // Import geometries module for geom2 (needed by _linearExtrude with scale/twist)
+  const geometriesPath = join(__dirname, '..', '..', 'manifold', 'src', 'geometries', 'index.js')
+  const geometries = await import(geometriesPath)
+
   // Build the runtime that matches @jscad/modeling API
   // The emitter generates code like: cube({ size: 10 })
   return {
@@ -209,6 +213,13 @@ async function createRuntime() {
     extrusions: {
       extrudeLinear: extrusions.extrudeLinear,
       extrudeRotate: extrusions.extrudeRotate,
+      extrudeFromSlices: extrusions.extrudeFromSlices,
+      slice: extrusions.slice,  // Keep for compatibility
+      _jscadSlice: extrusions.slice,  // Renamed to avoid conflict with OpenSCAD's slice()
+    },
+    geometries: {
+      geom2: geometries.geom2,
+      geom3: geometries.geom3,
     },
     hulls: {
       hull: hulls.hull,
@@ -245,6 +256,37 @@ async function createRuntime() {
           out[13] = 0
           out[14] = 0
           out[15] = 1
+          return out
+        },
+        translate: (out, m, v) => {
+          const [x, y, z] = v
+          out[0] = m[0]; out[1] = m[1]; out[2] = m[2]; out[3] = m[3]
+          out[4] = m[4]; out[5] = m[5]; out[6] = m[6]; out[7] = m[7]
+          out[8] = m[8]; out[9] = m[9]; out[10] = m[10]; out[11] = m[11]
+          out[12] = m[0] * x + m[4] * y + m[8] * z + m[12]
+          out[13] = m[1] * x + m[5] * y + m[9] * z + m[13]
+          out[14] = m[2] * x + m[6] * y + m[10] * z + m[14]
+          out[15] = m[3] * x + m[7] * y + m[11] * z + m[15]
+          return out
+        },
+        rotateZ: (out, m, angle) => {
+          const s = Math.sin(angle), c = Math.cos(angle)
+          const a00 = m[0], a01 = m[1], a02 = m[2], a03 = m[3]
+          const a10 = m[4], a11 = m[5], a12 = m[6], a13 = m[7]
+          out[0] = a00 * c + a10 * s; out[1] = a01 * c + a11 * s
+          out[2] = a02 * c + a12 * s; out[3] = a03 * c + a13 * s
+          out[4] = a10 * c - a00 * s; out[5] = a11 * c - a01 * s
+          out[6] = a12 * c - a02 * s; out[7] = a13 * c - a03 * s
+          out[8] = m[8]; out[9] = m[9]; out[10] = m[10]; out[11] = m[11]
+          out[12] = m[12]; out[13] = m[13]; out[14] = m[14]; out[15] = m[15]
+          return out
+        },
+        scale: (out, m, v) => {
+          const [x, y, z] = v
+          out[0] = m[0] * x; out[1] = m[1] * x; out[2] = m[2] * x; out[3] = m[3] * x
+          out[4] = m[4] * y; out[5] = m[5] * y; out[6] = m[6] * y; out[7] = m[7] * y
+          out[8] = m[8] * z; out[9] = m[9] * z; out[10] = m[10] * z; out[11] = m[11] * z
+          out[12] = m[12]; out[13] = m[13]; out[14] = m[14]; out[15] = m[15]
           return out
         },
       },
@@ -403,12 +445,21 @@ async function main() {
       const transpiled = transpileScad(source, fileName, fileDir, options.fn)
       jsCode = transpiled.code
       moduleCache = transpiled.moduleCache
+      if (process.env.DEBUG_TRANSPILE) {
+        console.error('=== MAIN FILE ===')
+        console.error(jsCode)
+        for (const [name, code] of moduleCache) {
+          console.error(`=== ${name} ===`)
+          console.error(code)
+        }
+      }
     } else {
       jsCode = source
     }
 
     // Custom require that serves transpiled files from in-memory cache
     function customRequire(path) {
+      // console.error('[DEBUG customRequire]', path)
       if (path === '@jscad/modeling') {
         return jscadModeling
       }
@@ -421,12 +472,24 @@ async function main() {
         fn(customRequire, moduleObj, exports)
         return moduleObj.exports
       }
+      // Also try with .scad -> .js replacement for files in lib/
+      const jsPath = path.replace(/\.scad$/, '.js')
+      if (moduleCache.has(jsPath)) {
+        const code = moduleCache.get(jsPath)
+        const exports = {}
+        const moduleObj = { exports }
+        const fn = new Function('require', 'module', 'exports', code)
+        fn(customRequire, moduleObj, exports)
+        return moduleObj.exports
+      }
       throw new Error('Module not found: ' + path)
     }
 
     // Evaluate the code with our custom require
     const exports = {}
     const moduleObj = { exports }
+
+    // Evaluate the code with our custom require
     const fn = new Function('require', 'module', 'exports', jsCode)
     fn(customRequire, moduleObj, exports)
 

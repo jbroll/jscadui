@@ -1,0 +1,3 @@
+[submodule "packages/openscad/test/corpus/bosl/lib"]
+	path = packages/openscad/test/corpus/bosl/lib
+	url = https://github.com/revarbat/BOSL.git
