@@ -63,9 +63,20 @@ export const _rands = (min, max, count, seed) => {
 }
 
 // Type checking functions (OpenSCAD built-ins)
-export const is_vector = (v, len) => {
-  if (!Array.isArray(v)) return false
-  if (!v.every(x => typeof x === 'number')) return false
-  if (len !== undefined && v.length !== len) return false
+// Extended signature to match BOSL2: is_vector(v, length, zero, all_nonzero=false, eps=EPSILON)
+// - length: optional required vector length
+// - zero: if defined, checks if vector norm is (approximately) zero
+// - all_nonzero: if true, requires all elements to be non-zero
+// - eps: epsilon for zero comparison (default 1e-9)
+export const is_vector = (v, length, zero, all_nonzero = false, eps = 1e-9) => {
+  if (!Array.isArray(v) || v.length === 0) return false
+  if (!v.every(x => typeof x === 'number' && isFinite(x))) return false
+  if (length !== undefined && v.length !== length) return false
+  if (zero !== undefined) {
+    const n = Math.sqrt(v.reduce((sum, x) => sum + x * x, 0))
+    // zero=true means we expect norm < eps, zero=false means norm >= eps
+    if ((n >= eps) !== !zero) return false
+  }
+  if (all_nonzero && !v.every(x => x !== 0)) return false
   return true
 }

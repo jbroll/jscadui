@@ -597,6 +597,11 @@ export function transpileFunctionCall(callee: string, args: string, _ctx: Transp
     return `(typeof (${args}) === 'boolean')`
   }
 
+  // is_function() -> typeof === 'function' (OpenSCAD 2021.01+)
+  if (callee === 'is_function') {
+    return `(typeof (${args}) === 'function')`
+  }
+
   // concat() -> [..., ...]
   if (callee === 'concat') {
     return `[].concat(${args})`
