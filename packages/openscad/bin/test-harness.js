@@ -471,22 +471,26 @@ async function main() {
       // Separate OpenSCAD-side failures (not our translator's fault)
       if (result.error.startsWith('OpenSCAD failed:')) {
         openscadErrors++
-        if (!options.json) {
+        // Only show OpenSCAD failures in verbose mode
+        if (options.verbose && !options.json) {
           console.log(`${result.name}: SKIPPED - ${result.error}`)
         }
       } else {
         translatorErrors++
+        // Always show translator errors (they indicate bugs)
         if (!options.json) {
           console.log(`${result.name}: ERROR - ${result.error}`)
         }
       }
     } else if (result.pass) {
       passed++
-      if (!options.json) {
+      // Only show passing tests in verbose mode
+      if (options.verbose && !options.json) {
         console.log(`${result.name}: PASS (Jaccard: ${result.jaccard.toFixed(4)})`)
       }
     } else {
       failed++
+      // Always show failed tests
       if (!options.json) {
         console.log(`${result.name}: FAIL (Jaccard: ${result.jaccard.toFixed(4)})`)
       }
