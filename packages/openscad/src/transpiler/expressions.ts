@@ -437,7 +437,8 @@ export function reorderNamedArgs(
   ctx: TranspileContext
 ): string {
   // Get parameter list for this module/function
-  const paramList = ctx.moduleParamLists.get(name)
+  // Check moduleParamLists first, then functionParamLists (for pure functions without module version)
+  const paramList = ctx.moduleParamLists.get(name) || ctx.functionParamLists.get(name)
 
   // If we don't have parameter info, or no named args, fall back to positional order
   const hasNamedArgs = argsArray.some(a => a.name !== null)

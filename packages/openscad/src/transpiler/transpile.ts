@@ -85,6 +85,10 @@ export function transpile(
   // Compute directory of current file for resolving relative paths
   const currentFileDir = getFileDir(ctx.options.currentFile)
 
+  // Pre-pass: collect all function/module signatures from include files recursively
+  // This ensures all signatures are available before any transpilation (OpenSCAD hoists all defs)
+  collectSignaturesFromIncludes(ctx)
+
   // Process use statements: transpile dependencies and discover their exports
   for (const useImport of ctx.useImports) {
     // Compute resolved path relative to root
@@ -418,6 +422,88 @@ export function transpile(
 }
 
 /**
+ * Pre-pass: Recursively collect all function/module signatures from include files
+ * This ensures all signatures are available before any transpilation happens
+ * (needed because include order in OpenSCAD doesn't matter - all defs are hoisted)
+ */
+function collectSignaturesFromIncludes(
+  ctx: TranspileContext,
+  visitedFiles: Set<string> = new Set()
+): void {
+  const fileResolver = ctx.options.fileResolver
+  if (!fileResolver) return
+
+  const currentFileDir = getFileDir(ctx.options.currentFile)
+
+  // Process all include imports
+  for (const includeImport of ctx.includeImports) {
+    const resolvedPath = currentFileDir + includeImport.filename
+    if (visitedFiles.has(resolvedPath)) continue
+    visitedFiles.add(resolvedPath)
+
+    // Read and parse the file (caching the AST for later use)
+    const source = fileResolver(includeImport.filename, ctx.options.currentFile)
+    if (!source) continue
+
+    const { ast, errors } = parse(source)
+    if (errors.length > 0) continue
+
+    // Cache the parsed AST so transpileAndCacheDependency can reuse it
+    ctx.parsedFiles.set(resolvedPath, ast)
+
+    // Collect signatures from this file
+    for (const stmt of ast.statements) {
+      if (isModuleDeclaration(stmt)) {
+        const name = safeIdentifier(stmt.name)
+        const params = (stmt.definitionArgs || []).map((a: AssignmentNode) => a.name)
+        if (!ctx.moduleParamLists.has(name)) {
+          ctx.moduleParamLists.set(name, params)
+        }
+      } else if (isFunctionDeclaration(stmt)) {
+        const name = safeIdentifier(stmt.name)
+        const params = (stmt.definitionArgs || []).map((a: AssignmentNode) => a.name)
+        if (!ctx.functionParamLists.has(name)) {
+          ctx.functionParamLists.set(name, params)
+        }
+        // Also add to moduleParamLists for consistency
+        if (!ctx.moduleParamLists.has(name)) {
+          ctx.moduleParamLists.set(name, params)
+        }
+      }
+    }
+
+    // Recursively collect from nested includes
+    const nestedCtx: TranspileContext = {
+      ...ctx,
+      options: { ...ctx.options, currentFile: resolvedPath },
+      includeImports: [],
+    }
+    for (const stmt of ast.statements) {
+      if (isIncludeStmt(stmt)) {
+        nestedCtx.includeImports.push({
+          filename: stmt.filename,
+          resolvedPath: '',
+          symbols: [],
+        })
+      }
+    }
+    collectSignaturesFromIncludes(nestedCtx, visitedFiles)
+
+    // Copy collected signatures back to main context
+    for (const [name, params] of nestedCtx.moduleParamLists) {
+      if (!ctx.moduleParamLists.has(name)) {
+        ctx.moduleParamLists.set(name, params)
+      }
+    }
+    for (const [name, params] of nestedCtx.functionParamLists) {
+      if (!ctx.functionParamLists.has(name)) {
+        ctx.functionParamLists.set(name, params)
+      }
+    }
+  }
+}
+
+/**
  * Transpile a dependency file and cache the result
  * Returns the exported symbol names
  */
@@ -450,26 +536,32 @@ function transpileAndCacheDependency(filename: string, ctx: TranspileContext): s
     return []
   }
 
-  // Resolve and read the file
-  const source = fileResolver(filename, ctx.options.currentFile)
-  if (!source) {
-    ctx.errors.push({
-      code: ErrorCode.FILE_NOT_FOUND,
-      message: `Cannot resolve file: ${filename}`,
-      file: ctx.options.currentFile,
-    })
-    return []
-  }
+  // Check if AST is already cached from signature pre-pass
+  let ast = ctx.parsedFiles.get(resolvedFilename)
 
-  // Parse the file
-  const { ast, errors } = parse(source)
-  if (errors.length > 0) {
-    ctx.errors.push({
-      code: ErrorCode.PARSE_ERROR,
-      message: `Parse error in ${filename}: ${errors.map(e => e.message || String(e)).join(', ')}`,
-      file: resolvedFilename,
-    })
-    return []
+  if (!ast) {
+    // Not cached - resolve and read the file
+    const source = fileResolver(filename, ctx.options.currentFile)
+    if (!source) {
+      ctx.errors.push({
+        code: ErrorCode.FILE_NOT_FOUND,
+        message: `Cannot resolve file: ${filename}`,
+        file: ctx.options.currentFile,
+      })
+      return []
+    }
+
+    // Parse the file
+    const { ast: parsedAst, errors } = parse(source)
+    if (errors.length > 0) {
+      ctx.errors.push({
+        code: ErrorCode.PARSE_ERROR,
+        message: `Parse error in ${filename}: ${errors.map(e => e.message || String(e)).join(', ')}`,
+        file: resolvedFilename,
+      })
+      return []
+    }
+    ast = parsedAst
   }
 
   // Recursively transpile this file (sharing the cache)
@@ -479,6 +571,7 @@ function transpileAndCacheDependency(filename: string, ctx: TranspileContext): s
     ...ctx.options,
     currentFile: resolvedFilename,
     initialParamLists: ctx.moduleParamLists,
+    initialFunctionParamLists: ctx.functionParamLists,
     initialDualDefinedNames: ctx.dualDefinedNames,
   }, ctx.transpiledFiles)
 

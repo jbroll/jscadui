@@ -1,6 +1,7 @@
 /**
  * Transpiler context types and interfaces
  */
+import type { ScadFile } from 'openscad-parser'
 
 /**
  * File resolver for use statements
@@ -61,6 +62,8 @@ export interface TranspileOptions {
   fn?: number
   // Initial parameter lists (inherited from parent context for include chains)
   initialParamLists?: Map<string, string[]>
+  // Initial function parameter lists (inherited from parent context for include chains)
+  initialFunctionParamLists?: Map<string, string[]>
   // Initial dual-defined names (inherited from parent context)
   initialDualDefinedNames?: Set<string>
 }
@@ -151,6 +154,8 @@ export interface TranspileContext {
   indentLevel: number
   // Cache of transpiled files (shared across recursive calls)
   transpiledFiles: Map<string, TranspiledFile>
+  // Cache of parsed ASTs (to avoid re-parsing in multi-pass transpilation)
+  parsedFiles: Map<string, ScadFile>
   // Track files currently being processed (for cycle detection)
   processingFiles: Set<string>
   // Inherited special variables from parent scopes (for $fn, $fa, $fs propagation)
@@ -186,6 +191,14 @@ export function createContext(
     }
   }
 
+  // Initialize functionParamLists from initial values if provided (for include chains)
+  const functionParamLists = new Map<string, string[]>()
+  if (options.initialFunctionParamLists) {
+    for (const [name, params] of options.initialFunctionParamLists) {
+      functionParamLists.set(name, params)
+    }
+  }
+
   // Initialize dualDefinedNames from initial values if provided
   const dualDefinedNames = new Set<string>()
   if (options.initialDualDefinedNames) {
@@ -210,7 +223,7 @@ export function createContext(
     moduleNames: [],
     functionNames: [],
     moduleParamLists,
-    functionParamLists: new Map(),
+    functionParamLists,
     variableNames: [],
     availableSymbols: new Set(),
     importedFunctions: new Set(),
@@ -218,6 +231,7 @@ export function createContext(
     dualDefinedNames,
     indentLevel: 0,
     transpiledFiles: sharedCache || new Map(),
+    parsedFiles: new Map(),
     processingFiles: new Set(),
     inheritedSpecialVars: {},
     letCounter: 1,
