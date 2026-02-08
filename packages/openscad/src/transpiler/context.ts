@@ -81,6 +81,7 @@ export interface BundledParts {
   functions: string[]      // Function declarations (hoisted)
   modules: string[]        // Module declarations
   constants: string[]      // Constant assignments
+  useImports: UseImport[]  // Use imports to propagate when this file is included
   usedPrimitives: Set<string>
   usedTransforms: Set<string>
   usedBooleans: Set<string>

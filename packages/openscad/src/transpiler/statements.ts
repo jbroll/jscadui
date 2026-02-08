@@ -158,6 +158,12 @@ function transpileModuleInstantiation(stmt: ModuleInstantiationStmt, ctx: Transp
     return transpileForLoop(stmt, ctx)
   }
 
+  // Special handling for 'let' module - creates local bindings for children
+  // let(x=5, y=10) { children } → ((x, y) => children)(5, 10)
+  if (name === 'let') {
+    return transpileLetModule(stmt, ctx)
+  }
+
   // echo() for debugging - outputs to console but returns undefined (no geometry)
   if (name === 'echo') {
     const args = stmt.args.map(a => transpileExpression(a.value!, ctx)).join(', ')
@@ -264,6 +270,9 @@ function transpileModuleInstantiation(stmt: ModuleInstantiationStmt, ctx: Transp
   // Symbol is available if it's local or imported via use
   // Curried pattern: module(args)(children)
 
+  // Apply safeIdentifier to handle reserved keywords (like 'let')
+  const safeName = safeIdentifier(name)
+
   // Reorder named arguments to match parameter definition order
   const positionalArgs = reorderNamedArgs(name, argsArray, ctx)
 
@@ -277,7 +286,7 @@ function transpileModuleInstantiation(stmt: ModuleInstantiationStmt, ctx: Transp
     if (childrenArray.length > 0) {
       const childrenArg = `[${childrenArray.join(', ')}]`
       // Curried call: module(args)(children)
-      return `${name}(${positionalArgs})(${childrenArg})`
+      return `${safeName}(${positionalArgs})(${childrenArg})`
     }
   }
 
@@ -288,6 +297,7 @@ function transpileModuleInstantiation(stmt: ModuleInstantiationStmt, ctx: Transp
   // We know it's a function if:
   // - It's in our local functionNames list (and not overridden by a module)
   // - It's in our importedFunctions set (tracked from dependency's functionExports)
+  // Note: Use original name for lookups since context stores original names, not safe names
   const isLocalFunction = ctx.functionNames.includes(name)
   const isLocalModule = ctx.moduleNames.includes(name)
   const isImportedFunction = ctx.importedFunctions.has(name)
@@ -295,16 +305,16 @@ function transpileModuleInstantiation(stmt: ModuleInstantiationStmt, ctx: Transp
 
   if (isLocalFunction && !isLocalModule) {
     // Pure local function call - no currying
-    return `${name}(${positionalArgs})`
+    return `${safeName}(${positionalArgs})`
   }
 
   if (isImportedFunction && !isImportedModule) {
     // Imported function (not a module) - no currying needed
-    return `${name}(${positionalArgs})`
+    return `${safeName}(${positionalArgs})`
   }
 
   // Module call with no children: use curried pattern with empty array
-  return `${name}(${positionalArgs})()`
+  return `${safeName}(${positionalArgs})()`
 }
 
 /**
@@ -442,6 +452,30 @@ function transpileForLoop(stmt: ModuleInstantiationStmt, ctx: TranspileContext):
     result = `${rangeOrVector}.${method}(${varName} => ${result})`
   }
   return `j$.union(...${result})`
+}
+
+/**
+ * Transpile 'let' as a module instantiation (not expression)
+ * let(x=5, y=10) { children } creates local bindings for the children scope
+ *
+ * Transpiles to an IIFE: ((x, y) => children)(5, 10)
+ */
+function transpileLetModule(stmt: ModuleInstantiationStmt, ctx: TranspileContext): string {
+  const args = stmt.args
+  if (!args || args.length === 0) {
+    // let() with no bindings - just transpile the children
+    return stmt.child ? transpileStatement(stmt.child, ctx) || 'undefined' : 'undefined'
+  }
+
+  // Transpile the body (children)
+  const body = stmt.child ? transpileStatement(stmt.child, ctx) || 'undefined' : 'undefined'
+
+  // Build parameter list and argument list
+  const paramNames = args.map(a => safeIdentifier(a.name))
+  const argValues = args.map(a => transpileExpression(a.value!, ctx))
+
+  // Create IIFE: ((x, y) => body)(val1, val2)
+  return `((${paramNames.join(', ')}) => ${body})(${argValues.join(', ')})`
 }
 
 /**

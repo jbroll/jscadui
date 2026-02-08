@@ -130,6 +130,29 @@ export function transpile(
       bundledFunctions.push(...parts.functions)
       bundledModules.push(...parts.modules)
       bundledConstants.push(...parts.constants)
+      // Propagate use imports from included files
+      // This implements OpenSCAD semantics: when A includes B, B's use imports become available in A
+      if (parts.useImports) {
+        for (const useImp of parts.useImports) {
+          // Add to useImports if not already present (by resolved path)
+          if (!ctx.useImports.some(u => u.resolvedPath === useImp.resolvedPath)) {
+            ctx.useImports.push(useImp)
+            // Also add symbols to available symbols
+            for (const sym of useImp.symbols) {
+              ctx.availableSymbols.add(sym)
+            }
+            // Track function/module exports from the propagated use import
+            const usedFile = ctx.transpiledFiles.get(useImp.resolvedPath)
+            if (usedFile?.functionExports) {
+              for (const fn of usedFile.functionExports) {
+                ctx.importedFunctions.add(fn)
+              }
+            }
+            // Note: modules from use imports are still treated as functions (no currying)
+            // because use() only imports functions/modules, not the module call semantics
+          }
+        }
+      }
       // Merge JSCAD usage flags
       for (const p of parts.usedPrimitives) ctx.usedPrimitives.add(p)
       for (const t of parts.usedTransforms) ctx.usedTransforms.add(t)
@@ -312,6 +335,9 @@ export function transpile(
     functions: [...bundledFunctions, ...localFunctions],
     modules: [...bundledModules, ...localModules],
     constants: [...localConstants, ...bundledConstants],
+    // Include use imports so they propagate when this file is included
+    // This implements OpenSCAD semantics: when A includes B, B's use imports become available in A
+    useImports: [...ctx.useImports],
     usedPrimitives: new Set(ctx.usedPrimitives),
     usedTransforms: new Set(ctx.usedTransforms),
     usedBooleans: new Set(ctx.usedBooleans),
