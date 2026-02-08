@@ -8,6 +8,44 @@
  */
 export type FileResolver = (filename: string, fromFile?: string) => string | undefined
 
+/**
+ * Warning codes for transpiler warnings
+ */
+export enum WarningCode {
+  UNSUPPORTED_STATEMENT = 'UNSUPPORTED_STATEMENT',
+  UNSUPPORTED_EXPRESSION = 'UNSUPPORTED_EXPRESSION',
+  UNKNOWN_BUILTIN = 'UNKNOWN_BUILTIN',
+  DEPRECATED_SYNTAX = 'DEPRECATED_SYNTAX',
+}
+
+/**
+ * Error codes for transpiler errors
+ */
+export enum ErrorCode {
+  FILE_NOT_FOUND = 'FILE_NOT_FOUND',
+  PARSE_ERROR = 'PARSE_ERROR',
+  CIRCULAR_DEPENDENCY = 'CIRCULAR_DEPENDENCY',
+}
+
+/**
+ * A warning generated during transpilation
+ */
+export interface TranspileWarning {
+  code: WarningCode
+  message: string
+  file?: string
+  // TODO: Add location info when source mapping is implemented
+}
+
+/**
+ * An error generated during transpilation
+ */
+export interface TranspileError {
+  code: ErrorCode
+  message: string
+  file?: string
+}
+
 export interface TranspileOptions {
   // Include require() header for JSCAD primitives
   includeHeader?: boolean
@@ -29,6 +67,10 @@ export interface TranspileResult {
   imports: UseImport[]  // Files imported via use
   // All transpiled files (main + dependencies)
   files: Map<string, TranspiledFile>
+  // Warnings generated during transpilation
+  warnings: TranspileWarning[]
+  // Errors generated during transpilation (non-fatal)
+  errors: TranspileError[]
 }
 
 export interface TranspiledFile {
@@ -81,6 +123,10 @@ export interface TranspileContext {
   inheritedSpecialVars: { $fn?: string; $fa?: string; $fs?: string }
   // Counter for unique let binding suffixes (to avoid shadowing issues)
   letCounter: number
+  // Warnings generated during transpilation
+  warnings: TranspileWarning[]
+  // Errors generated during transpilation (non-fatal)
+  errors: TranspileError[]
 }
 
 export const defaultOptions = {
@@ -121,5 +167,7 @@ export function createContext(
     processingFiles: new Set(),
     inheritedSpecialVars: {},
     letCounter: 1,
+    warnings: [],
+    errors: [],
   }
 }

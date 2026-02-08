@@ -16,7 +16,15 @@ import {
   TranspileResult,
   TranspiledFile,
   createContext,
+  ErrorCode,
 } from './context.js'
+import {
+  isModuleDeclaration,
+  isFunctionDeclaration,
+  isUseStmt,
+  isIncludeStmt,
+  isAssignmentNode,
+} from './ast-types.js'
 import { transpileExpression } from './expressions.js'
 import {
   transpileStatement,
@@ -26,7 +34,16 @@ import {
 import { getModuleName } from './builtins.js'
 
 // Re-export types for public API
-export type { FileResolver, TranspileOptions, TranspileResult, TranspiledFile, UseImport } from './context.js'
+export type {
+  FileResolver,
+  TranspileOptions,
+  TranspileResult,
+  TranspiledFile,
+  UseImport,
+  TranspileWarning,
+  TranspileError,
+} from './context.js'
+export { WarningCode, ErrorCode } from './context.js'
 
 /**
  * Transpile OpenSCAD AST to JavaScript
@@ -122,24 +139,21 @@ export function transpile(
   const functionNameSet = new Set(ctx.functionNames)
 
   for (const stmt of ast.statements) {
-    const stmtType = stmt.constructor.name
-
-    if (stmtType === 'ModuleDeclarationStmt') {
-      const moduleName = safeIdentifier((stmt as any).name)
+    if (isModuleDeclaration(stmt)) {
+      const moduleName = safeIdentifier(stmt.name)
       // Skip module if a function with the same name exists
       if (functionNameSet.has(moduleName)) {
         // Module with same name as function - skip (function version will be used)
         continue
       }
-      bodyParts.push(transpileModuleDeclaration(stmt as any, ctx))
-    } else if (stmtType === 'FunctionDeclarationStmt') {
-      bodyParts.push(transpileFunctionDeclaration(stmt as any, ctx))
-    } else if (stmtType === 'UseStmt' || stmtType === 'IncludeStmt') {
+      bodyParts.push(transpileModuleDeclaration(stmt, ctx))
+    } else if (isFunctionDeclaration(stmt)) {
+      bodyParts.push(transpileFunctionDeclaration(stmt, ctx))
+    } else if (isUseStmt(stmt) || isIncludeStmt(stmt)) {
       // Already collected in first pass
-    } else if (stmtType === 'AssignmentNode') {
+    } else if (isAssignmentNode(stmt)) {
       // Top-level variable assignment
-      const s = stmt as any
-      topLevelAssignments.push({ name: s.name, value: s.value })
+      topLevelAssignments.push({ name: stmt.name, value: stmt.value })
     } else {
       // File-scope geometry/statements
       const code = transpileStatement(stmt, ctx)
@@ -265,6 +279,8 @@ export function transpile(
     exports: allExports,
     imports: ctx.useImports,
     files: ctx.transpiledFiles,
+    warnings: ctx.warnings,
+    errors: ctx.errors,
   }
 }
 
@@ -292,19 +308,34 @@ function transpileAndCacheDependency(filename: string, ctx: TranspileContext): s
 
   // Detect cycles (using resolved path)
   if (ctx.processingFiles.has(resolvedFilename)) {
-    // Circular dependency - return empty (file is being processed)
+    // Circular dependency - record error but don't fail
+    ctx.errors.push({
+      code: ErrorCode.CIRCULAR_DEPENDENCY,
+      message: `Circular dependency detected: ${resolvedFilename}`,
+      file: ctx.options.currentFile,
+    })
     return []
   }
 
   // Resolve and read the file
   const source = fileResolver(filename, ctx.options.currentFile)
   if (!source) {
+    ctx.errors.push({
+      code: ErrorCode.FILE_NOT_FOUND,
+      message: `Cannot resolve file: ${filename}`,
+      file: ctx.options.currentFile,
+    })
     return []
   }
 
   // Parse the file
   const { ast, errors } = parse(source)
   if (errors.length > 0) {
+    ctx.errors.push({
+      code: ErrorCode.PARSE_ERROR,
+      message: `Parse error in ${filename}: ${errors.map(e => e.message || String(e)).join(', ')}`,
+      file: resolvedFilename,
+    })
     return []
   }
 
@@ -335,36 +366,34 @@ function transpileAndCacheDependency(filename: string, ctx: TranspileContext): s
  * First pass: collect declarations
  */
 function collectDeclarations(stmt: Statement, ctx: TranspileContext): void {
-  const stmtType = stmt.constructor.name
-
-  if (stmtType === 'ModuleDeclarationStmt') {
-    const name = safeIdentifier((stmt as any).name)
+  if (isModuleDeclaration(stmt)) {
+    const name = safeIdentifier(stmt.name)
     ctx.moduleNames.push(name)
     // Capture parameter names for named argument reordering
-    const params = ((stmt as any).definitionArgs || []).map((a: any) => a.name)
+    const params = (stmt.definitionArgs || []).map((a: any) => a.name)
     ctx.moduleParamLists.set(name, params)
-  } else if (stmtType === 'FunctionDeclarationStmt') {
-    const name = safeIdentifier((stmt as any).name)
+  } else if (isFunctionDeclaration(stmt)) {
+    const name = safeIdentifier(stmt.name)
     ctx.functionNames.push(name)
     // Capture parameter names for named argument reordering
-    const params = ((stmt as any).definitionArgs || []).map((a: any) => a.name)
+    const params = (stmt.definitionArgs || []).map((a: any) => a.name)
     ctx.moduleParamLists.set(name, params)
-  } else if (stmtType === 'UseStmt') {
+  } else if (isUseStmt(stmt)) {
     ctx.useImports.push({
-      filename: (stmt as any).filename,
+      filename: stmt.filename,
       resolvedPath: '',  // Will be computed during processing
       symbols: [],
     })
-  } else if (stmtType === 'IncludeStmt') {
+  } else if (isIncludeStmt(stmt)) {
     // Include imports everything including variables/constants
     ctx.includeImports.push({
-      filename: (stmt as any).filename,
+      filename: stmt.filename,
       resolvedPath: '',  // Will be computed during processing
       symbols: [],
     })
-  } else if (stmtType === 'AssignmentNode') {
+  } else if (isAssignmentNode(stmt)) {
     // Track top-level variable assignments for export
-    ctx.variableNames.push(safeIdentifier((stmt as any).name))
+    ctx.variableNames.push(safeIdentifier(stmt.name))
   }
 }
 

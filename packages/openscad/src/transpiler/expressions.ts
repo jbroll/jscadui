@@ -5,18 +5,38 @@
 
 import type { Expression } from 'openscad-parser'
 import type { TranspileContext } from './context.js'
+import { WarningCode } from './context.js'
 import { safeIdentifier, replaceIdentifier } from '../utils/identifiers.js'
 import { TokenType } from '../utils/tokens.js'
+import {
+  isLiteralExpr,
+  isLookupExpr,
+  isVectorExpr,
+  isBinaryOpExpr,
+  isUnaryOpExpr,
+  isTernaryExpr,
+  isArrayLookupExpr,
+  isFunctionCallExpr,
+  isRangeExpr,
+  isGroupingExpr,
+  isMemberLookupExpr,
+  isLcForExpr,
+  isLcIfExpr,
+  isLetExpr,
+  isLcLetExpr,
+  isEchoExpr,
+  isAssertExpr,
+  getNodeTypeName,
+} from './ast-types.js'
 
 /**
  * Check if an expression contains LcIfExpr (used to determine if filtering is needed)
  */
 export function containsIfExpr(expr: any): boolean {
   if (!expr) return false
-  const exprType = expr.constructor?.name
-  if (exprType === 'LcIfExpr') return true
-  // Check nested expr in LcLetExpr
-  if (exprType === 'LcLetExpr' && expr.expr) return containsIfExpr(expr.expr)
+  if (isLcIfExpr(expr)) return true
+  // Check nested expr in LcLetExpr or LetExpr
+  if ((isLetExpr(expr) || isLcLetExpr(expr)) && expr.expr) return containsIfExpr(expr.expr)
   return false
 }
 
@@ -24,242 +44,250 @@ export function containsIfExpr(expr: any): boolean {
  * Transpile an expression
  */
 export function transpileExpression(expr: Expression, ctx: TranspileContext): string {
-  const exprType = expr.constructor.name
-
-  switch (exprType) {
-    case 'LiteralExpr':
-      return transpileLiteral((expr as any).value)
-
-    case 'LookupExpr': {
-      const name = (expr as any).name
-      // Handle special variables
-      if (name === '$preview') return 'false'  // Always render as full quality
-      if (name === '$t') return '0'  // Animation time defaults to 0
-      if (name === '$children') return '_children.length'  // Number of children passed to module
-      // Ensure the identifier is safe for JavaScript
-      return safeIdentifier(name)
-    }
-
-    case 'VectorExpr': {
-      const children = (expr as any).children as Expression[]
-      // List comprehension: [for (i = range) expr] has single LcForExpr child
-      // LcForExpr already returns an array via .map(), so don't double-wrap
-      if (children.length === 1 && children[0].constructor.name === 'LcForExpr') {
-        return transpileExpression(children[0], ctx)
-      }
-      return `[${children.map(c => transpileExpression(c, ctx)).join(', ')}]`
-    }
-
-    case 'BinaryOpExpr': {
-      const e = expr as any
-      const left = transpileExpression(e.left, ctx)
-      const right = transpileExpression(e.right, ctx)
-      // Handle equality operators specially - need deep comparison for arrays
-      if (e.operation === TokenType.EqualEqual) {
-        ctx.usedHelpers.add('eq')
-        return `_eq(${left}, ${right})`
-      }
-      if (e.operation === TokenType.BangEqual) {
-        ctx.usedHelpers.add('eq')
-        return `!_eq(${left}, ${right})`
-      }
-      // Handle arithmetic operators with vector support
-      if (e.operation === TokenType.Plus) {
-        ctx.usedHelpers.add('vadd')
-        return `_vadd(${left}, ${right})`
-      }
-      if (e.operation === TokenType.Minus) {
-        ctx.usedHelpers.add('vsub')
-        return `_vsub(${left}, ${right})`
-      }
-      if (e.operation === TokenType.Star) {
-        ctx.usedHelpers.add('vmul')
-        return `_vmul(${left}, ${right})`
-      }
-      if (e.operation === TokenType.Slash) {
-        ctx.usedHelpers.add('vdiv')
-        return `_vdiv(${left}, ${right})`
-      }
-      const op = transpileBinaryOp(e.operation)
-      return `(${left} ${op} ${right})`
-    }
-
-    case 'UnaryOpExpr': {
-      const e = expr as any
-      const right = transpileExpression(e.right, ctx)
-      const op = transpileUnaryOp(e.operation)
-      // Unary minus on vectors needs special handling (negate each element)
-      // But for literal numbers, we can use regular negation
-      const rightType = e.right?.constructor?.name
-      if (op === '-' && rightType !== 'LiteralExpr') {
-        ctx.usedHelpers.add('vneg')
-        return `_vneg(${right})`
-      }
-      return `${op}${right}`
-    }
-
-    case 'TernaryExpr': {
-      const e = expr as any
-      const cond = transpileExpression(e.cond, ctx)
-      const ifExpr = transpileExpression(e.ifExpr, ctx)
-      const elseExpr = transpileExpression(e.elseExpr, ctx)
-      return `(${cond} ? ${ifExpr} : ${elseExpr})`
-    }
-
-    case 'ArrayLookupExpr': {
-      const e = expr as any
-      const array = transpileExpression(e.array, ctx)
-      const index = transpileExpression(e.index, ctx)
-      return `${array}[${index}]`
-    }
-
-    case 'FunctionCallExpr': {
-      const e = expr as any
-      const callee = transpileExpression(e.callee, ctx)
-      const args = e.args.map((a: any) => transpileExpression(a.value, ctx)).join(', ')
-      return transpileFunctionCall(callee, args, ctx)
-    }
-
-    case 'RangeExpr': {
-      const e = expr as any
-      const begin = transpileExpression(e.begin, ctx)
-      const end = transpileExpression(e.end, ctx)
-      const step = e.step ? transpileExpression(e.step, ctx) : '1'
-      return `_range(${begin}, ${end}, ${step})`
-    }
-
-    case 'GroupingExpr':
-      return `(${transpileExpression((expr as any).inner, ctx)})`
-
-    case 'MemberLookupExpr': {
-      const e = expr as any
-      const obj = transpileExpression(e.expr, ctx)
-      // OpenSCAD vector accessor notation: v.x, v.y, v.z -> v[0], v[1], v[2]
-      const member = e.member
-      if (member === 'x') return `${obj}[0]`
-      if (member === 'y') return `${obj}[1]`
-      if (member === 'z') return `${obj}[2]`
-      return `${obj}.${member}`
-    }
-
-    case 'LcForExpr': {
-      // List comprehension: [for (i = [0:10]) i * 2]
-      const e = expr as any
-      const args = e.args as any[]
-      const innerExpr = transpileExpression(e.expr, ctx)
-
-      // Check if inner expression contains LcIfExpr (needs filtering)
-      const needsFilter = containsIfExpr(e.expr)
-
-      if (args.length === 1) {
-        const varName = args[0].name
-        const range = transpileExpression(args[0].value, ctx)
-        const mapExpr = `${range}.map(${varName} => ${innerExpr})`
-        return needsFilter ? `${mapExpr}.filter(x => x !== undefined)` : mapExpr
-      }
-      // Multiple loop variables: for (i = [0:3], j = [0:2]) becomes nested flatMap/map
-      // Each outer loop uses flatMap to flatten the nested arrays, innermost uses map
-      let result = innerExpr
-      for (let i = args.length - 1; i >= 0; i--) {
-        const varName = args[i].name
-        const range = transpileExpression(args[i].value, ctx)
-        const method = i === 0 ? 'flatMap' : (i === args.length - 1 ? 'map' : 'flatMap')
-        result = `${range}.${method}(${varName} => ${result})`
-      }
-      return needsFilter ? `${result}.filter(x => x !== undefined)` : result
-    }
-
-    case 'LcIfExpr': {
-      // Conditional in list comprehension: [for (i = range) if (cond) expr]
-      // Returns undefined when condition is false, to be filtered out by LcForExpr
-      const e = expr as any
-      const cond = transpileExpression(e.cond, ctx)
-      const body = transpileExpression(e.ifExpr, ctx)
-      // If there's an else branch, use it; otherwise return undefined
-      if (e.elseExpr) {
-        const elsePart = transpileExpression(e.elseExpr, ctx)
-        return `(${cond} ? ${body} : ${elsePart})`
-      }
-      return `(${cond} ? ${body} : undefined)`
-    }
-
-    case 'LetExpr': {
-      // let(x = 1, y = 2) expr -> (() => { const x$1 = 1; const y$1 = 2; return expr })()
-      // Use unique suffix for bindings to avoid temporal dead zone when shadowing
-      const e = expr as any
-      const suffix = `$${ctx.letCounter || 1}`
-      ctx.letCounter = (ctx.letCounter || 1) + 1
-
-      // Build mapping from original names to suffixed names
-      const nameMap = new Map<string, string>()
-      const bindings: string[] = []
-
-      for (const a of e.args as any[]) {
-        const origName = safeIdentifier(a.name)
-        const newName = `${origName}${suffix}`
-        nameMap.set(origName, newName)
-        // Transpile value (references to earlier bindings will be renamed by substituteNames)
-        let value = transpileExpression(a.value, ctx)
-        // Replace references to previously defined let bindings
-        for (const [orig, renamed] of nameMap) {
-          if (orig !== origName) {
-            value = replaceIdentifier(value, orig, renamed)
-          }
-        }
-        bindings.push(`const ${newName} = ${value}`)
-      }
-
-      // Transpile body and substitute all let binding names
-      let body = transpileExpression(e.expr, ctx)
-      for (const [orig, renamed] of nameMap) {
-        body = replaceIdentifier(body, orig, renamed)
-      }
-
-      return `(() => { ${bindings.join('; ')}; return ${body} })()`
-    }
-
-    case 'LcLetExpr': {
-      // let inside list comprehension: [for (i = range) let(x = i*2) x]
-      // Transpile to a block that defines the bindings and returns the body
-      const e = expr as any
-      const bindings = (e.args as any[]).map((a: any) => {
-        const name = safeIdentifier(a.name)
-        const value = transpileExpression(a.value, ctx)
-        return `const ${name} = ${value}`
-      })
-      const body = transpileExpression(e.expr, ctx)
-      // This is used inside .map(), so we need to return a block
-      return `{ ${bindings.join('; ')}; return ${body} }`
-    }
-
-    case 'EchoExpr': {
-      // echo(x) expr -> logs x and returns expr (or x if no expr follows)
-      // In JavaScript: (console.log(x), expr) or just (console.log(x), x)
-      const e = expr as any
-      const args = (e.args as any[]).map((a: any) => {
-        if (a.name) {
-          return `"${a.name}=", ${transpileExpression(a.value, ctx)}`
-        }
-        return transpileExpression(a.value, ctx)
-      }).join(', ')
-      const innerExpr = transpileExpression(e.expr, ctx)
-      return `(console.log(${args}), ${innerExpr})`
-    }
-
-    case 'AssertExpr': {
-      // assert(cond, msg) expr -> checks condition, returns expr (or undef if no expr)
-      // In JavaScript: we use console.assert which doesn't throw, then return expr
-      const e = expr as any
-      const args = e.args as any[]
-      const condition = args.length > 0 ? transpileExpression(args[0].value, ctx) : 'true'
-      const message = args.length > 1 ? transpileExpression(args[1].value, ctx) : '"Assertion failed"'
-      const innerExpr = transpileExpression(e.expr, ctx)
-      return `(console.assert(${condition}, ${message}), ${innerExpr})`
-    }
-
-    default:
-      return `/* unsupported expr: ${exprType} */`
+  if (isLiteralExpr(expr)) {
+    return transpileLiteral(expr.value)
   }
+
+  if (isLookupExpr(expr)) {
+    const name = expr.name
+    // Handle special variables
+    if (name === '$preview') return 'false'  // Always render as full quality
+    if (name === '$t') return '0'  // Animation time defaults to 0
+    if (name === '$children') return '_children.length'  // Number of children passed to module
+    // Ensure the identifier is safe for JavaScript
+    return safeIdentifier(name)
+  }
+
+  if (isVectorExpr(expr)) {
+    const children = expr.children
+    // List comprehension: [for (i = range) expr] has single LcForExpr child
+    // LcForExpr already returns an array via .map(), so don't double-wrap
+    if (children.length === 1 && isLcForExpr(children[0])) {
+      return transpileExpression(children[0], ctx)
+    }
+    return `[${children.map(c => transpileExpression(c, ctx)).join(', ')}]`
+  }
+
+  if (isBinaryOpExpr(expr)) {
+    const left = transpileExpression(expr.left, ctx)
+    const right = transpileExpression(expr.right, ctx)
+    // Handle equality operators specially - need deep comparison for arrays
+    if (expr.operation === TokenType.EqualEqual) {
+      ctx.usedHelpers.add('eq')
+      return `_eq(${left}, ${right})`
+    }
+    if (expr.operation === TokenType.BangEqual) {
+      ctx.usedHelpers.add('eq')
+      return `!_eq(${left}, ${right})`
+    }
+    // Handle arithmetic operators with vector support
+    if (expr.operation === TokenType.Plus) {
+      ctx.usedHelpers.add('vadd')
+      return `_vadd(${left}, ${right})`
+    }
+    if (expr.operation === TokenType.Minus) {
+      ctx.usedHelpers.add('vsub')
+      return `_vsub(${left}, ${right})`
+    }
+    if (expr.operation === TokenType.Star) {
+      ctx.usedHelpers.add('vmul')
+      return `_vmul(${left}, ${right})`
+    }
+    if (expr.operation === TokenType.Slash) {
+      ctx.usedHelpers.add('vdiv')
+      return `_vdiv(${left}, ${right})`
+    }
+    const op = transpileBinaryOp(expr.operation)
+    return `(${left} ${op} ${right})`
+  }
+
+  if (isUnaryOpExpr(expr)) {
+    const right = transpileExpression(expr.right, ctx)
+    const op = transpileUnaryOp(expr.operation)
+    // Unary minus on vectors needs special handling (negate each element)
+    // But for literal numbers, we can use regular negation
+    if (op === '-' && !isLiteralExpr(expr.right)) {
+      ctx.usedHelpers.add('vneg')
+      return `_vneg(${right})`
+    }
+    return `${op}${right}`
+  }
+
+  if (isTernaryExpr(expr)) {
+    const cond = transpileExpression(expr.cond, ctx)
+    const ifExpr = transpileExpression(expr.ifExpr, ctx)
+    const elseExpr = transpileExpression(expr.elseExpr, ctx)
+    return `(${cond} ? ${ifExpr} : ${elseExpr})`
+  }
+
+  if (isArrayLookupExpr(expr)) {
+    const array = transpileExpression(expr.array, ctx)
+    const index = transpileExpression(expr.index, ctx)
+    return `${array}[${index}]`
+  }
+
+  if (isFunctionCallExpr(expr)) {
+    const callee = transpileExpression(expr.callee, ctx)
+    const args = expr.args.map((a: any) => transpileExpression(a.value, ctx)).join(', ')
+    return transpileFunctionCall(callee, args, ctx)
+  }
+
+  if (isRangeExpr(expr)) {
+    const begin = transpileExpression(expr.begin, ctx)
+    const end = transpileExpression(expr.end, ctx)
+    const step = expr.step ? transpileExpression(expr.step, ctx) : '1'
+    return `_range(${begin}, ${end}, ${step})`
+  }
+
+  if (isGroupingExpr(expr)) {
+    return `(${transpileExpression(expr.inner, ctx)})`
+  }
+
+  if (isMemberLookupExpr(expr)) {
+    const obj = transpileExpression(expr.expr, ctx)
+    // OpenSCAD vector accessor notation: v.x, v.y, v.z -> v[0], v[1], v[2]
+    const member = expr.member
+    if (member === 'x') return `${obj}[0]`
+    if (member === 'y') return `${obj}[1]`
+    if (member === 'z') return `${obj}[2]`
+    return `${obj}.${member}`
+  }
+
+  if (isLcForExpr(expr)) {
+    // List comprehension: [for (i = [0:10]) i * 2]
+    const args = expr.args as any[]
+    const innerExpr = transpileExpression(expr.expr, ctx)
+
+    // Check if inner expression contains LcIfExpr (needs filtering)
+    const needsFilter = containsIfExpr(expr.expr)
+
+    if (args.length === 1) {
+      const varName = args[0].name
+      const range = transpileExpression(args[0].value, ctx)
+      const mapExpr = `${range}.map(${varName} => ${innerExpr})`
+      return needsFilter ? `${mapExpr}.filter(x => x !== undefined)` : mapExpr
+    }
+    // Multiple loop variables: for (i = [0:3], j = [0:2]) becomes nested flatMap/map
+    // Each outer loop uses flatMap to flatten the nested arrays, innermost uses map
+    let result = innerExpr
+    for (let i = args.length - 1; i >= 0; i--) {
+      const varName = args[i].name
+      const range = transpileExpression(args[i].value, ctx)
+      const method = i === 0 ? 'flatMap' : (i === args.length - 1 ? 'map' : 'flatMap')
+      result = `${range}.${method}(${varName} => ${result})`
+    }
+    return needsFilter ? `${result}.filter(x => x !== undefined)` : result
+  }
+
+  if (isLcIfExpr(expr)) {
+    // Conditional in list comprehension: [for (i = range) if (cond) expr]
+    // Returns undefined when condition is false, to be filtered out by LcForExpr
+    const cond = transpileExpression(expr.cond, ctx)
+    const body = transpileExpression(expr.ifExpr, ctx)
+    // If there's an else branch, use it; otherwise return undefined
+    if (expr.elseExpr) {
+      const elsePart = transpileExpression(expr.elseExpr, ctx)
+      return `(${cond} ? ${body} : ${elsePart})`
+    }
+    return `(${cond} ? ${body} : undefined)`
+  }
+
+  if (isLetExpr(expr)) {
+    // let(x = 1, y = 2) expr -> (() => { const x$1 = 1; const y$1 = 2; return expr })()
+    // Use unique suffix for bindings to avoid temporal dead zone when shadowing
+    const suffix = `$${ctx.letCounter || 1}`
+    ctx.letCounter = (ctx.letCounter || 1) + 1
+
+    // Build mapping from original names to suffixed names
+    const nameMap = new Map<string, string>()
+    const bindings: string[] = []
+
+    for (const a of expr.args as any[]) {
+      const origName = safeIdentifier(a.name)
+      const newName = `${origName}${suffix}`
+      nameMap.set(origName, newName)
+      // Transpile value (references to earlier bindings will be renamed by substituteNames)
+      let value = transpileExpression(a.value, ctx)
+      // Replace references to previously defined let bindings
+      for (const [orig, renamed] of nameMap) {
+        if (orig !== origName) {
+          value = replaceIdentifier(value, orig, renamed)
+        }
+      }
+      bindings.push(`const ${newName} = ${value}`)
+    }
+
+    // Transpile body and substitute all let binding names
+    let body = transpileExpression(expr.expr, ctx)
+    for (const [orig, renamed] of nameMap) {
+      body = replaceIdentifier(body, orig, renamed)
+    }
+
+    return `(() => { ${bindings.join('; ')}; return ${body} })()`
+  }
+
+  if (isLcLetExpr(expr)) {
+    // List comprehension let: [for (x = range) let(a = 1) expr]
+    // Handled the same way as LetExpr - create IIFE with bindings
+    const suffix = `$${ctx.letCounter || 1}`
+    ctx.letCounter = (ctx.letCounter || 1) + 1
+
+    const nameMap = new Map<string, string>()
+    const bindings: string[] = []
+
+    for (const a of expr.args as any[]) {
+      const origName = safeIdentifier(a.name)
+      const newName = `${origName}${suffix}`
+      nameMap.set(origName, newName)
+      let value = transpileExpression(a.value, ctx)
+      for (const [orig, renamed] of nameMap) {
+        if (orig !== origName) {
+          value = replaceIdentifier(value, orig, renamed)
+        }
+      }
+      bindings.push(`const ${newName} = ${value}`)
+    }
+
+    let body = transpileExpression(expr.expr, ctx)
+    for (const [orig, renamed] of nameMap) {
+      body = replaceIdentifier(body, orig, renamed)
+    }
+
+    return `(() => { ${bindings.join('; ')}; return ${body} })()`
+  }
+
+  if (isEchoExpr(expr)) {
+    // echo(x) expr -> logs x and returns expr (or x if no expr follows)
+    // In JavaScript: (console.log(x), expr) or just (console.log(x), x)
+    const args = (expr.args as any[]).map((a: any) => {
+      if (a.name) {
+        return `"${a.name}=", ${transpileExpression(a.value, ctx)}`
+      }
+      return transpileExpression(a.value, ctx)
+    }).join(', ')
+    const innerExpr = transpileExpression(expr.expr, ctx)
+    return `(console.log(${args}), ${innerExpr})`
+  }
+
+  if (isAssertExpr(expr)) {
+    // assert(cond, msg) expr -> checks condition, returns expr (or undef if no expr)
+    // In JavaScript: we use console.assert which doesn't throw, then return expr
+    const args = expr.args as any[]
+    const condition = args.length > 0 ? transpileExpression(args[0].value, ctx) : 'true'
+    const message = args.length > 1 ? transpileExpression(args[1].value, ctx) : '"Assertion failed"'
+    // expr may be undefined when assert is at the end of a chain
+    const innerExpr = expr.expr ? transpileExpression(expr.expr, ctx) : 'undefined'
+    return `(console.assert(${condition}, ${message}), ${innerExpr})`
+  }
+
+  // Unsupported expression - add warning
+  const exprType = getNodeTypeName(expr)
+  ctx.warnings.push({
+    code: WarningCode.UNSUPPORTED_EXPRESSION,
+    message: `Unsupported expression type: ${exprType}`,
+    file: ctx.options.currentFile,
+  })
+  return `/* unsupported expr: ${exprType} */`
 }
 
 export function transpileLiteral(value: any): string {

@@ -5,6 +5,7 @@
 
 import type { Statement } from 'openscad-parser'
 import type { TranspileContext } from './context.js'
+import { WarningCode } from './context.js'
 import { safeIdentifier, replaceIdentifier } from '../utils/identifiers.js'
 import { transpileExpression, reorderNamedArgs } from './expressions.js'
 import {
@@ -16,94 +17,106 @@ import {
   transpileBuiltinTransform,
   transpileBuiltinExtrusion,
 } from './builtins.js'
+import {
+  isModuleInstantiation,
+  isBlockStmt,
+  isIfElseStatement,
+  isNoopStmt,
+  isAssignmentNode,
+  isModuleDeclaration,
+  isFunctionDeclaration,
+  isVectorExpr,
+  getNodeTypeName,
+} from './ast-types.js'
 
 /**
  * Transpile a statement
  */
 export function transpileStatement(stmt: Statement, ctx: TranspileContext): string | null {
-  const stmtType = stmt.constructor.name
+  if (isModuleInstantiation(stmt)) {
+    return transpileModuleInstantiation(stmt as any, ctx)
+  }
 
-  switch (stmtType) {
-    case 'ModuleInstantiationStmt':
-      return transpileModuleInstantiation(stmt as any, ctx)
+  if (isBlockStmt(stmt)) {
+    // Extract assignments and geometry from the block
+    const assignments: { name: string, value: any }[] = []
+    const geometryStmts: Statement[] = []
 
-    case 'BlockStmt': {
-      const block = stmt as any
-      // Extract assignments and geometry from the block
-      const assignments: { name: string, value: any }[] = []
-      const geometryStmts: Statement[] = []
-
-      for (const child of block.children) {
-        const childType = child.constructor.name
-        if (childType === 'AssignmentNode') {
-          assignments.push({ name: child.name, value: child.value })
-        } else if (childType !== 'NoopStmt') {
-          geometryStmts.push(child)
-        }
+    for (const child of stmt.children) {
+      if (isAssignmentNode(child)) {
+        assignments.push({ name: child.name, value: child.value })
+      } else if (!isNoopStmt(child as Statement)) {
+        geometryStmts.push(child as Statement)
       }
+    }
 
-      // Transpile geometry statements first
-      let parts = geometryStmts.map(c => transpileStatement(c, ctx)).filter(Boolean) as string[]
-      if (parts.length === 0 && assignments.length === 0) return null
+    // Transpile geometry statements first
+    let parts = geometryStmts.map(c => transpileStatement(c, ctx)).filter(Boolean) as string[]
+    if (parts.length === 0 && assignments.length === 0) return null
 
-      // If there are assignments, we need to create an IIFE to scope them
-      // Use suffixed names to avoid temporal dead zone when shadowing parameters
-      if (assignments.length > 0) {
-        const suffix = `$${ctx.letCounter++}`
-        const nameMap = new Map<string, string>()
-        const assignStrs: string[] = []
+    // If there are assignments, we need to create an IIFE to scope them
+    // Use suffixed names to avoid temporal dead zone when shadowing parameters
+    if (assignments.length > 0) {
+      const suffix = `$${ctx.letCounter++}`
+      const nameMap = new Map<string, string>()
+      const assignStrs: string[] = []
 
-        for (const a of assignments) {
-          const origName = safeIdentifier(a.name)
-          const newName = `${origName}${suffix}`
-          nameMap.set(origName, newName)
-          // Transpile value - references to outer scope will work correctly
-          let value = transpileExpression(a.value, ctx)
-          // Replace references to previously defined assignments in this block
-          for (const [orig, renamed] of nameMap) {
-            if (orig !== origName) {
-              value = replaceIdentifier(value, orig, renamed)
-            }
-          }
-          assignStrs.push(`const ${newName} = ${value}`)
-        }
-
-        // Update references in geometry parts
+      for (const a of assignments) {
+        const origName = safeIdentifier(a.name)
+        const newName = `${origName}${suffix}`
+        nameMap.set(origName, newName)
+        // Transpile value - references to outer scope will work correctly
+        let value = transpileExpression(a.value, ctx)
+        // Replace references to previously defined assignments in this block
         for (const [orig, renamed] of nameMap) {
-          parts = parts.map(p => replaceIdentifier(p, orig, renamed))
+          if (orig !== origName) {
+            value = replaceIdentifier(value, orig, renamed)
+          }
         }
-
-        if (parts.length === 0) {
-          return `(() => { ${assignStrs.join('; ')}; return undefined })()`
-        }
-        if (parts.length === 1) {
-          return `(() => { ${assignStrs.join('; ')}; return ${parts[0]} })()`
-        }
-        ctx.usedBooleans.add('union')
-        ctx.usedHelpers.add('safeUnion')
-        return `(() => { ${assignStrs.join('; ')}; return _safeUnion([\n    ${parts.join(',\n    ')}\n  ]) })()`
+        assignStrs.push(`const ${newName} = ${value}`)
       }
 
-      if (parts.length === 1) return parts[0]
+      // Update references in geometry parts
+      for (const [orig, renamed] of nameMap) {
+        parts = parts.map(p => replaceIdentifier(p, orig, renamed))
+      }
+
+      if (parts.length === 0) {
+        return `(() => { ${assignStrs.join('; ')}; return undefined })()`
+      }
+      if (parts.length === 1) {
+        return `(() => { ${assignStrs.join('; ')}; return ${parts[0]} })()`
+      }
       ctx.usedBooleans.add('union')
       ctx.usedHelpers.add('safeUnion')
-      return `_safeUnion([\n${parts.map(p => `  ${p}`).join(',\n')}\n])`
+      return `(() => { ${assignStrs.join('; ')}; return _safeUnion([\n    ${parts.join(',\n    ')}\n  ]) })()`
     }
 
-    case 'IfElseStatement': {
-      const s = stmt as any
-      const cond = transpileExpression(s.cond, ctx)
-      const thenPart = transpileStatement(s.thenBranch, ctx) || 'undefined'
-      const elsePart = s.elseBranch ? transpileStatement(s.elseBranch, ctx) : 'undefined'
-      return `(${cond}) ? (${thenPart}) : (${elsePart})`
-    }
-
-    case 'NoopStmt':
-      return null
-
-    default:
-      return `/* unsupported statement: ${stmtType} */`
+    if (parts.length === 1) return parts[0]
+    ctx.usedBooleans.add('union')
+    ctx.usedHelpers.add('safeUnion')
+    return `_safeUnion([\n${parts.map(p => `  ${p}`).join(',\n')}\n])`
   }
+
+  if (isIfElseStatement(stmt)) {
+    const cond = transpileExpression(stmt.cond, ctx)
+    const thenPart = transpileStatement(stmt.thenBranch, ctx) || 'undefined'
+    const elsePart = stmt.elseBranch ? transpileStatement(stmt.elseBranch, ctx) : 'undefined'
+    return `(${cond}) ? (${thenPart}) : (${elsePart})`
+  }
+
+  if (isNoopStmt(stmt)) {
+    return null
+  }
+
+  // Unsupported statement - add warning
+  const stmtType = getNodeTypeName(stmt)
+  ctx.warnings.push({
+    code: WarningCode.UNSUPPORTED_STATEMENT,
+    message: `Unsupported statement type: ${stmtType}`,
+    file: ctx.options.currentFile,
+  })
+  return `/* unsupported statement: ${stmtType} */`
 }
 
 /**
@@ -113,15 +126,11 @@ export function transpileStatement(stmt: Statement, ctx: TranspileContext): stri
 export function collectChildrenAsArray(child: Statement | null, ctx: TranspileContext): string[] {
   if (!child) return []
 
-  const childType = child.constructor.name
-
-  if (childType === 'BlockStmt') {
-    const children = (child as any).children as Statement[]
+  if (isBlockStmt(child)) {
     const result: string[] = []
-    for (const c of children) {
-      const cType = c.constructor.name
-      if (cType !== 'NoopStmt' && cType !== 'AssignmentNode') {
-        const code = transpileStatement(c, ctx)
+    for (const c of child.children) {
+      if (!isNoopStmt(c as Statement) && !isAssignmentNode(c)) {
+        const code = transpileStatement(c as Statement, ctx)
         if (code) result.push(code)
       }
     }
@@ -219,11 +228,10 @@ function transpileModuleInstantiation(stmt: any, ctx: TranspileContext): string 
     } else {
       // Indexed access - check if argument is a vector (array of indices) or simple index
       const arg = stmt.args[0]
-      const argType = arg.value.constructor.name
 
-      if (argType === 'VectorExpr') {
+      if (isVectorExpr(arg.value)) {
         // Array of indices: children([0, 2, 3]) → union children at those indices
-        const indices = (arg.value as any).children.map((c: any) => transpileExpression(c, ctx))
+        const indices = arg.value.children.map((c: any) => transpileExpression(c, ctx))
         ctx.usedBooleans.add('union')
         return `union(${indices.map((i: string) => `_children[${i}]`).join(', ')})`
       } else {
@@ -299,15 +307,12 @@ function transpileBuiltinBoolean(name: string, child: Statement | null, ctx: Tra
   const assignments: { name: string, value: any }[] = []
 
   if (child) {
-    const childType = child.constructor.name
-    if (childType === 'BlockStmt') {
-      const children = (child as any).children as Statement[]
-      for (const c of children) {
-        const cType = c.constructor.name
-        if (cType === 'AssignmentNode') {
-          assignments.push({ name: (c as any).name, value: (c as any).value })
-        } else if (cType !== 'NoopStmt') {
-          const code = transpileStatement(c, ctx)
+    if (isBlockStmt(child)) {
+      for (const c of child.children) {
+        if (isAssignmentNode(c)) {
+          assignments.push({ name: c.name, value: c.value })
+        } else if (!isNoopStmt(c as Statement)) {
+          const code = transpileStatement(c as Statement, ctx)
           if (code) childCodes.push(code)
         }
       }
@@ -369,10 +374,8 @@ function transpileBuiltinHull(child: Statement | null, ctx: TranspileContext): s
   let childCodes: string[] = []
 
   if (child) {
-    const childType = child.constructor.name
-    if (childType === 'BlockStmt') {
-      const children = (child as any).children as Statement[]
-      childCodes = children.map(c => transpileStatement(c, ctx)).filter(Boolean) as string[]
+    if (isBlockStmt(child)) {
+      childCodes = child.children.map(c => transpileStatement(c as Statement, ctx)).filter(Boolean) as string[]
     } else {
       const code = transpileStatement(child, ctx)
       if (code) childCodes = [code]
@@ -463,27 +466,21 @@ export function extractModuleBody(stmt: Statement, _ctx: TranspileContext): {
     return { nestedModules, nestedFunctions, assignments, geometryStmts }
   }
 
-  const stmtType = stmt.constructor.name
-
-  if (stmtType === 'BlockStmt') {
-    const block = stmt as any
-
-    for (const child of block.children) {
-      const childType = child.constructor.name
-      if (childType === 'ModuleDeclarationStmt') {
+  if (isBlockStmt(stmt)) {
+    for (const child of stmt.children) {
+      if (isModuleDeclaration(child as Statement)) {
         nestedModules.push(child)
-      } else if (childType === 'FunctionDeclarationStmt') {
+      } else if (isFunctionDeclaration(child as Statement)) {
         nestedFunctions.push(child)
-      } else if (childType === 'AssignmentNode') {
+      } else if (isAssignmentNode(child)) {
         assignments.push({ name: child.name, value: child.value })
-      } else if (childType !== 'NoopStmt') {
-        geometryStmts.push(child)
+      } else if (!isNoopStmt(child as Statement)) {
+        geometryStmts.push(child as Statement)
       }
     }
-  } else if (stmtType === 'AssignmentNode') {
-    const s = stmt as any
-    assignments.push({ name: s.name, value: s.value })
-  } else if (stmtType !== 'NoopStmt') {
+  } else if (isAssignmentNode(stmt)) {
+    assignments.push({ name: stmt.name, value: stmt.value })
+  } else if (!isNoopStmt(stmt)) {
     geometryStmts.push(stmt)
   }
 
