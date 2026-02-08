@@ -101,13 +101,13 @@ export const _vmul = (a, b) => {
   return result
 }
 
-// Vector/scalar division - element-wise for vectors, scalar div
+// Vector/scalar division - element-wise for vectors, scalar div (recursive for nested arrays)
 export const _vdiv = (a, b) => {
-  if (Array.isArray(a) && Array.isArray(b)) return a.map((v, i) => v / (b[i] ?? 1))
-  if (Array.isArray(a)) return a.map(v => v / b)
-  if (Array.isArray(b)) return b.map(v => a / v)
+  if (Array.isArray(a) && Array.isArray(b)) return a.map((v, i) => _vdiv(v, b[i] ?? 1))
+  if (Array.isArray(a)) return a.map(v => _vdiv(v, b))
+  if (Array.isArray(b)) return b.map(v => _vdiv(a, v))
   return a / b
 }
 
-// Vector/scalar negation - element-wise for vectors, scalar negation
-export const _vneg = (v) => Array.isArray(v) ? v.map(x => -x) : -v
+// Vector/scalar negation - element-wise for vectors, scalar negation (recursive for nested arrays)
+export const _vneg = (v) => Array.isArray(v) ? v.map(x => _vneg(x)) : -v
