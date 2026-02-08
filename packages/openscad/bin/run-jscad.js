@@ -457,11 +457,18 @@ async function main() {
       jsCode = source
     }
 
+    // Dynamically import the openscad-runtime package
+    const runtimePath = join(__dirname, '..', '..', 'openscad-runtime', 'src', 'index.js')
+    const openscadRuntime = await import(runtimePath)
+
     // Custom require that serves transpiled files from in-memory cache
     function customRequire(path) {
       // console.error('[DEBUG customRequire]', path)
       if (path === '@jscad/modeling') {
         return jscadModeling
+      }
+      if (path === '@jscadui/openscad-runtime') {
+        return openscadRuntime
       }
       // Check if it's a transpiled dependency
       if (moduleCache.has(path)) {

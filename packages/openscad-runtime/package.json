@@ -1,0 +1,17 @@
+{
+  "type": "module",
+  "name": "@jscadui/openscad-runtime",
+  "version": "0.1.0",
+  "description": "Runtime helpers for OpenSCAD to JSCAD transpilation",
+  "main": "./src/index.js",
+  "module": "./src/index.js",
+  "exports": {
+    ".": {
+      "import": "./src/index.js"
+    }
+  },
+  "files": [
+    "src"
+  ],
+  "license": "MIT"
+}

@@ -179,6 +179,7 @@ export function transpileBuiltinTransform(
       // multmatrix(m) applies a 4x4 transformation matrix
       // The 'm' parameter is the matrix
       ctx.usedTransforms.add('transform')
+      ctx.usedHelpers.add('multmatrix')
       const matrixArg = argsArray.find(a => a.name === 'm' || !a.name)?.value || '[[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]'
       return `_multmatrix(${matrixArg}, ${childCode})`
     }

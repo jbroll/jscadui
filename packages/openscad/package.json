@@ -33,6 +33,7 @@
   "dependencies": {
     "openscad-parser": "file:/home/john/src/openscad-parser",
     "@jscadui/manifold": "file:../manifold",
+    "@jscadui/openscad-runtime": "file:../openscad-runtime",
     "@jscad/modeling-for-manifold": "file:/home/john/pkg/OpenJSCAD.org/packages/modeling"
   },
   "devDependencies": {
