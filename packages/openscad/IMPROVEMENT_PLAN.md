@@ -5,6 +5,7 @@
 **Test Results (2026-02-07):**
 - Built-in corpus: 19/19 passing (100%)
 - OpenSCAD-Snippet library: **108/110 passing (98.2%)** at 0.99 Jaccard threshold
+- **BOSL library examples: 119/119 passing (100%)**
 - No `--fn 48` workaround needed - special variables properly propagate to children
 - 0 transpiler errors, 2 geometry mismatches, 5 OpenSCAD-side failures
 
@@ -22,7 +23,21 @@ Key files:
 
 ## Recently Fixed
 
-### Session 2026-02-07:
+### Session 2026-02-07 (BOSL Phase 5 paths.scad):
+- **linear_extrude twist/scale** - Uses `extrudeFromSlices` with proper twist direction (OpenSCAD clockwise, JSCAD counter-clockwise - now negated)
+- **Edge subdivision for twist** - Polygon edges are subdivided before twisting for smoother results (matches OpenSCAD's `segments` parameter)
+- **min/max with arrays** - `max([1,2,3])` now correctly returns 3 (JavaScript `Math.max([1,2,3])` returns NaN)
+- **slice naming conflict** - JSCAD's `slice` import renamed to `_jscadSlice` to avoid conflict with OpenSCAD's `slice()` function
+- All 119 BOSL library tests now pass with Jaccard ≥ 0.99
+
+### Session 2026-02-07 (children() support):
+- **children() module** - Full support for `children()`, `children(n)`, and `children([indices])` in user modules
+- **$children variable** - Returns count of children passed to a module
+- **Curried module pattern** - Modules now use curried functions to support default parameters with children
+- **BOSL-style examples** - 16 new test cases demonstrating transform wrappers, distributors, and utility modules
+- All BOSL examples pass with Jaccard 1.0
+
+### Session 2026-02-07 (earlier):
 - **linear_extrude scale parameter** - Added scale support to `_linearExtrude` (fixes Fireplace_01, Sword_01, Weights_01, Tower)
 - **rotate_extrude segment calculation** - Use `ceil()` instead of `round()` to match OpenSCAD (fixes Pipe_90)
 - **Invalid argument handling** - Added `_num()` validator for all primitives to handle invalid args like OpenSCAD (fixes Pendulum)
@@ -158,9 +173,8 @@ All tessellation issues have been fixed:
 - `text()` module (requires font rendering)
 - `import()` for STL/OFF files
 - `surface()` for heightmaps
-- `children()` for module children access
-- `$children` special variable
-- Complex list comprehensions with multiple variables
+- `offset()` for 2D operations
+- `projection()` for 2D from 3D
 
 ---
 
@@ -181,10 +195,23 @@ All tessellation issues have been fixed:
 3. ~~Implement OpenSCAD-style sphere tessellation using polyhedron~~ ✓ (fixes Abacus.scad)
 
 **Feature Work:**
-1. Add `children()` support for module children access
-2. Improve thin geometry handling
-3. Add `text()` support (complex - needs font system)
-4. Add `import()` for external files
+1. ~~Add `children()` support for module children access~~ ✓
+2. ~~Add `$children` special variable~~ ✓
+3. ~~Add `multmatrix()` for skew transforms~~ ✓
+4. Improve thin geometry handling
+5. Add `text()` support (complex - needs font system)
+6. Add `import()` for external files
+
+**Refactoring (Technical Debt):**
+1. **Runtime module**: Move helper functions (`_cube`, `_cylinder`, `_rotate`, etc.) to a separate runtime module instead of inlining them in every transpiled file. This would:
+   - Reduce transpiled file size
+   - Make helpers easier to maintain and test
+   - Avoid namespace conflicts with user-defined modules
+
+**BOSL Library Examples:**
+- **119 BOSL library tests** created and passing (100%)
+- Phases complete: transforms, shapes, masks, threading, paths
+- See `test/corpus/bosl/BOSL_PLAN.md` for full breakdown
 
 ## Running Tests
 
