@@ -9,70 +9,51 @@
  * 3. Comparing the two outputs using Jaccard similarity
  *
  * Usage:
- *   test-harness model.scad                     Test single file
- *   test-harness --dir examples/                Test all .scad files
- *   test-harness --corpus                       Test built-in corpus
+ *   test-harness dir1 dir2 ...           Test all .scad files in directories
+ *   test-harness --skip-file skip.txt    Skip files listed in skip.txt
  */
 
 import { readFileSync, readdirSync, existsSync, mkdirSync, rmSync, copyFileSync } from 'node:fs'
-import { resolve, basename, dirname, join } from 'node:path'
-import { execSync } from 'node:child_process'
+import { resolve, basename, dirname, join, relative } from 'node:path'
+import { execSync, exec } from 'node:child_process'
+import { promisify } from 'node:util'
 import { fileURLToPath } from 'node:url'
-import { homedir } from 'node:os'
+import { homedir, cpus } from 'node:os'
+
+const execAsync = promisify(exec)
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
-const VERSION = '0.1.0'
+const VERSION = '0.2.0'
+const DEFAULT_CONCURRENCY = Math.max(1, cpus().length - 1)
 
-function printHelp() {
-  console.log(`
-test-harness - OpenSCAD translator fidelity testing
-
-Usage:
-  test-harness <model.scad> [options]     Test single file
-  test-harness --dir <path> [options]     Test all .scad files in directory
-  test-harness --corpus [options]         Test built-in corpus
-
-Options:
-  --dir <path>            Directory to scan for .scad files (can be repeated)
-  --skip <names>          Comma-separated list of filenames to skip
-  --skip-file <path>      File containing filenames to skip (one per line)
-  --threshold <n>         Minimum Jaccard for pass (default: 0.99)
-  --fn <n>                Set global $fn for both OpenSCAD and transpiler
-  --openscad <path>       Path to OpenSCAD binary (default: openscad)
-  --keep-temp             Keep temporary files for debugging
-  --verbose               Print detailed output
-  --json                  Output results as JSON
-  -h, --help              Show this help
-  -v, --version           Show version
-
-Output:
-  For each file, prints: filename, Jaccard, PASS/FAIL
-  Summary statistics at end.
-
-Examples:
-  test-harness model.scad                         Test single model
-  test-harness --corpus                           Test built-in corpus
-  test-harness --dir ./examples --verbose         Test directory
-  test-harness model.scad --openscad /opt/openscad/openscad
-`)
+/**
+ * Check if a path matches any skip pattern.
+ * Patterns: exact match, filename only, or glob with * wildcards.
+ */
+function matchesSkipPattern(relativePath, patterns) {
+  for (const pattern of patterns) {
+    // Simple glob: convert * to regex .*
+    const regex = new RegExp('^' + pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$')
+    if (regex.test(relativePath) || regex.test(basename(relativePath))) {
+      return true
+    }
+  }
+  return false
 }
 
 function parseArgs(args) {
   const options = {
-    files: [],
     dirs: [],
-    skip: new Set(),  // Filenames to skip
-    corpus: false,
+    skipPatterns: [],  // Patterns to match against relative paths
     threshold: 0.99,
     openscad: 'openscad',
     keepTemp: false,
     verbose: false,
     json: false,
-    help: false,
-    version: false,
-    fn: 0,  // Global $fn override (0 = use defaults)
+    fn: 0,
+    concurrency: DEFAULT_CONCURRENCY,
   }
 
   let i = 0
@@ -80,52 +61,52 @@ function parseArgs(args) {
     const arg = args[i]
 
     if (arg === '-h' || arg === '--help') {
-      options.help = true
-    } else if (arg === '-v' || arg === '--version') {
-      options.version = true
+      console.log(`
+test-harness - OpenSCAD translator fidelity testing (v${VERSION})
+
+Usage:
+  test-harness <dir1> [dir2] ... [options]
+
+Options:
+  --skip-file <path>      File containing filenames to skip (one per line)
+  --threshold <n>         Minimum Jaccard for pass (default: 0.99)
+  --fn <n>                Set global $fn for both OpenSCAD and transpiler
+  --openscad <path>       Path to OpenSCAD binary (default: openscad)
+  --concurrency <n>       Number of parallel tests (default: ${DEFAULT_CONCURRENCY})
+  --keep-temp             Keep temporary files for debugging
+  --verbose               Print detailed output
+  --json                  Output results as JSON
+  -h, --help              Show this help
+`)
+      process.exit(0)
     } else if (arg === '--verbose') {
       options.verbose = true
     } else if (arg === '--json') {
       options.json = true
     } else if (arg === '--keep-temp') {
       options.keepTemp = true
-    } else if (arg === '--corpus') {
-      options.corpus = true
-    } else if (arg === '--dir') {
-      i++
-      options.dirs.push(args[i])
     } else if (arg === '--threshold') {
-      i++
-      options.threshold = parseFloat(args[i])
+      options.threshold = parseFloat(args[++i])
     } else if (arg === '--openscad') {
-      i++
-      options.openscad = args[i]
+      options.openscad = args[++i]
     } else if (arg === '--fn') {
-      i++
-      options.fn = parseInt(args[i], 10)
-    } else if (arg === '--skip') {
-      i++
-      // Comma-separated list of filenames to skip
-      for (const name of args[i].split(',')) {
-        options.skip.add(name.trim())
-      }
+      options.fn = parseInt(args[++i], 10)
+    } else if (arg === '--concurrency') {
+      options.concurrency = parseInt(args[++i], 10)
     } else if (arg === '--skip-file') {
-      i++
-      // Read skip list from file (one filename per line)
       try {
-        const content = readFileSync(args[i], 'utf8')
+        const content = readFileSync(args[++i], 'utf8')
         for (const line of content.split('\n')) {
-          const name = line.trim()
-          // Skip empty lines and comments
-          if (name && !name.startsWith('#')) {
-            options.skip.add(name)
+          const pattern = line.trim()
+          if (pattern && !pattern.startsWith('#')) {
+            options.skipPatterns.push(pattern)
           }
         }
       } catch (_err) {
         console.error(`Warning: Could not read skip file: ${args[i]}`)
       }
     } else if (!arg.startsWith('-')) {
-      options.files.push(arg)
+      options.dirs.push(arg)
     } else {
       console.error(`Unknown option: ${arg}`)
       process.exit(1)
@@ -136,372 +117,217 @@ function parseArgs(args) {
   return options
 }
 
-/**
- * Check if OpenSCAD is available and has Manifold backend
- */
 function checkOpenscad(openscadPath) {
   try {
     const version = execSync(`${openscadPath} --version 2>&1`, { encoding: 'utf8' })
-    const hasManifold = version.includes('manifold') || version.includes('Manifold')
-    return { available: true, version: version.trim(), hasManifold }
+    return { available: true, version: version.trim() }
   } catch {
-    return { available: false, version: null, hasManifold: false }
+    return { available: false }
   }
 }
 
-/**
- * Run OpenSCAD to generate STL
- */
-function runOpenscad(scadPath, stlPath, openscadPath, verbose, fn = 0) {
-  const args = [
-    '--backend=manifold',
-    '-o', stlPath,
-  ]
-
-  // Add $fn override if specified (quote to prevent shell expansion)
-  if (fn > 0) {
-    args.push('-D', `"\\$fn=${fn}"`)
-  }
-
+async function runOpenscad(scadPath, stlPath, openscadPath, fn = 0) {
+  const args = ['--backend=manifold', '-o', stlPath]
+  if (fn > 0) args.push('-D', `"\\$fn=${fn}"`)
   args.push(scadPath)
 
-  if (verbose) {
-    console.error(`  Running: ${openscadPath} ${args.join(' ')}`)
-  }
-
   try {
-    execSync(`${openscadPath} ${args.join(' ')}`, {
-      encoding: 'utf8',
-      stdio: verbose ? 'inherit' : 'pipe',
-      timeout: 60000  // 60 second timeout
-    })
+    await execAsync(`${openscadPath} ${args.join(' ')}`, { timeout: 60000 })
     return { success: true }
   } catch (err) {
     return { success: false, error: err.message }
   }
 }
 
-/**
- * Run OpenSCAD file through transpiler + JSCAD with Manifold backend
- * run-jscad.js now handles .scad files directly (transpile + execute in-memory)
- */
-function runJscad(scadPath, stlPath, verbose, fn = 0) {
+async function runJscad(scadPath, stlPath, fn = 0) {
   const runJscadPath = join(__dirname, 'run-jscad.js')
-
-  if (verbose) {
-    console.error(`  Transpiling and running: ${scadPath}`)
-  }
-
   const fnArg = fn > 0 ? ` --fn ${fn}` : ''
 
   try {
-    execSync(`node ${runJscadPath} "${scadPath}" -o "${stlPath}"${fnArg}`, {
-      encoding: 'utf8',
-      stdio: verbose ? 'inherit' : 'pipe',
-      timeout: 60000
-    })
+    await execAsync(`node ${runJscadPath} "${scadPath}" -o "${stlPath}"${fnArg}`, { timeout: 60000 })
     return { success: true }
   } catch (err) {
     return { success: false, error: err.message }
   }
 }
 
-/**
- * Compare two STL files
- */
-function compareStl(refStl, genStl, verbose) {
+async function compareStl(refStl, genStl) {
   const compareStlPath = join(__dirname, 'compare-stl.js')
 
   try {
-    const output = execSync(
-      `node ${compareStlPath} "${refStl}" "${genStl}" ${verbose ? '--verbose' : ''}`,
-      { encoding: 'utf8', timeout: 120000 }
-    )
-
-    // Parse Jaccard from output
-    const match = output.match(/Jaccard:\s*([\d.]+)/)
-    if (match) {
-      return { success: true, jaccard: parseFloat(match[1]) }
-    }
+    const { stdout } = await execAsync(`node ${compareStlPath} "${refStl}" "${genStl}"`, { timeout: 120000 })
+    const match = stdout.match(/Jaccard:\s*([\d.]+)/)
+    if (match) return { success: true, jaccard: parseFloat(match[1]) }
     return { success: false, error: 'Could not parse Jaccard' }
   } catch (err) {
-    // Try to extract Jaccard even from failed run
     const match = err.stdout?.match(/Jaccard:\s*([\d.]+)/)
-    if (match) {
-      return { success: true, jaccard: parseFloat(match[1]) }
-    }
+    if (match) return { success: true, jaccard: parseFloat(match[1]) }
     return { success: false, error: err.message }
   }
 }
 
-/**
- * Find and copy dependencies (use/include statements) to temp dir
- *
- * @param scadPath - Absolute path to the source file being processed
- * @param tempDir - Base temp directory
- * @param verbose - Whether to print debug output
- * @param visited - Set of already-visited files to avoid circular dependencies
- * @param tempRelativeDir - Directory within tempDir where the current file lives
- *                          (e.g., 'lib/' when processing lib/transforms.scad)
- */
-function copyDependencies(scadPath, tempDir, verbose, visited = new Set(), tempRelativeDir = '') {
-  // Avoid infinite recursion from circular dependencies
+function copyDependencies(scadPath, tempDir, visited = new Set(), tempRelativeDir = '') {
   const resolvedPath = resolve(scadPath)
   if (visited.has(resolvedPath)) return
   visited.add(resolvedPath)
 
   const sourceDir = dirname(scadPath)
   const content = readFileSync(scadPath, 'utf8')
-
-  // Match use <file> and include <file> statements
   const useRegex = /(?:use|include)\s*<([^>]+)>/g
   let match
 
   while ((match = useRegex.exec(content)) !== null) {
     const depPath = match[1]
     const sourcePath = join(sourceDir, depPath)
-    // Destination is relative to where this file is in the temp directory
     const destPath = join(tempDir, tempRelativeDir, depPath)
 
     if (existsSync(sourcePath)) {
-      // Create parent directory if needed
       mkdirSync(dirname(destPath), { recursive: true })
       copyFileSync(sourcePath, destPath)
-      if (verbose) {
-        console.error(`  Copied dependency: ${join(tempRelativeDir, depPath)}`)
-      }
-
-      // Recursively copy dependencies of this file
-      // The new relative dir is where this dependency ends up in the temp directory
       const newRelativeDir = join(tempRelativeDir, dirname(depPath))
-      copyDependencies(sourcePath, tempDir, verbose, visited, newRelativeDir)
+      copyDependencies(sourcePath, tempDir, visited, newRelativeDir)
     }
   }
 }
 
-/**
- * Test a single OpenSCAD file
- */
 async function testFile(scadPath, options) {
   const name = basename(scadPath)
-  // Use home directory for temp files (Flatpak OpenSCAD can't access /tmp)
   const tempDir = join(homedir(), '.cache', 'scad-test', `${Date.now()}-${Math.random().toString(36).slice(2)}`)
 
   mkdirSync(tempDir, { recursive: true })
 
-  // Copy input file to temp dir (Flatpak OpenSCAD can only access $HOME)
   const tempScad = join(tempDir, 'input.scad')
   copyFileSync(scadPath, tempScad)
-
-  // Copy any dependencies (use/include statements)
-  copyDependencies(scadPath, tempDir, options.verbose)
+  copyDependencies(scadPath, tempDir)
 
   const refStl = join(tempDir, 'reference.stl')
   const genStl = join(tempDir, 'generated.stl')
 
-  const result = {
-    name,
-    path: scadPath,
-    openscad: null,
-    jscad: null,
-    compare: null,
-    jaccard: null,
-    pass: false,
-    error: null
-  }
+  const result = { name, path: scadPath, jaccard: null, pass: false, error: null }
 
   try {
-    // Step 1: Run OpenSCAD
-    if (options.verbose) {
-      console.error(`\nTesting: ${name}`)
-      console.error(`  Step 1: Running OpenSCAD...`)
-    }
-    result.openscad = runOpenscad(tempScad, refStl, options.openscad, options.verbose, options.fn)
-    if (!result.openscad.success) {
-      result.error = `OpenSCAD failed: ${result.openscad.error}`
+    const openscadResult = await runOpenscad(tempScad, refStl, options.openscad, options.fn)
+    if (!openscadResult.success) {
+      result.error = `OpenSCAD: ${openscadResult.error}`
       return result
     }
 
-    // Step 2: Transpile and run with JSCAD (in-memory)
-    if (options.verbose) {
-      console.error(`  Step 2: Transpiling and running with JSCAD...`)
-    }
-    result.jscad = runJscad(scadPath, genStl, options.verbose, options.fn)
-    if (!result.jscad.success) {
-      result.error = `JSCAD failed: ${result.jscad.error}`
+    const jscadResult = await runJscad(scadPath, genStl, options.fn)
+    if (!jscadResult.success) {
+      result.error = `JSCAD: ${jscadResult.error}`
       return result
     }
 
-    // Step 3: Compare STLs
-    if (options.verbose) {
-      console.error(`  Step 3: Comparing STLs...`)
-    }
-    result.compare = compareStl(refStl, genStl, options.verbose)
-    if (!result.compare.success) {
-      result.error = `Comparison failed: ${result.compare.error}`
+    const compareResult = await compareStl(refStl, genStl)
+    if (!compareResult.success) {
+      result.error = `Compare: ${compareResult.error}`
       return result
     }
 
-    result.jaccard = result.compare.jaccard
+    result.jaccard = compareResult.jaccard
     result.pass = result.jaccard >= options.threshold
-
   } finally {
-    // Cleanup temp files unless --keep-temp
     if (!options.keepTemp) {
-      try {
-        rmSync(tempDir, { recursive: true })
-      } catch {
-        // Ignore cleanup errors
-      }
-    } else if (options.verbose) {
-      console.error(`  Temp files: ${tempDir}`)
+      try { rmSync(tempDir, { recursive: true }) } catch { /* ignore cleanup errors */ }
     }
   }
 
   return result
 }
 
-/**
- * Get list of test files
- */
-function getTestFiles(options) {
+function getTestFiles(dirs) {
   const files = []
-
-  if (options.files.length > 0) {
-    for (const file of options.files) {
-      files.push(resolve(file))
-    }
-  }
-
-  // Process all directories
-  for (const dir of options.dirs) {
+  for (const dir of dirs) {
     const dirPath = resolve(dir)
     if (!existsSync(dirPath)) {
       console.error(`Warning: Directory not found: ${dirPath}`)
       continue
     }
-    const entries = readdirSync(dirPath)
-    for (const entry of entries) {
+    for (const entry of readdirSync(dirPath)) {
       if (entry.endsWith('.scad')) {
         files.push(join(dirPath, entry))
       }
     }
   }
-
-  if (options.corpus) {
-    // Built-in corpus - look for examples in the package
-    const corpusDir = join(__dirname, '..', 'test', 'corpus')
-    if (existsSync(corpusDir)) {
-      const entries = readdirSync(corpusDir)
-      for (const entry of entries) {
-        if (entry.endsWith('.scad')) {
-          files.push(join(corpusDir, entry))
-        }
-      }
-    }
-  }
-
   return files
 }
 
+async function runWithConcurrency(tasks, concurrency) {
+  const results = []
+  let index = 0
+
+  async function worker() {
+    while (index < tasks.length) {
+      const currentIndex = index++
+      results[currentIndex] = await tasks[currentIndex]()
+    }
+  }
+
+  await Promise.all(Array(Math.min(concurrency, tasks.length)).fill(null).map(worker))
+  return results
+}
+
 async function main() {
-  const args = process.argv.slice(2)
-  const options = parseArgs(args)
+  const options = parseArgs(process.argv.slice(2))
 
-  if (options.help) {
-    printHelp()
-    process.exit(0)
+  if (options.dirs.length === 0) {
+    console.error('Usage: test-harness <dir1> [dir2] ... [options]')
+    console.error('Use -h for help.')
+    process.exit(1)
   }
 
-  if (options.version) {
-    console.log(`test-harness v${VERSION}`)
-    process.exit(0)
-  }
-
-  // Check OpenSCAD availability
   const openscadInfo = checkOpenscad(options.openscad)
   if (!openscadInfo.available) {
     console.error(`Error: OpenSCAD not found at '${options.openscad}'`)
-    console.error('Install OpenSCAD or specify path with --openscad')
     process.exit(1)
   }
 
-  if (options.verbose) {
-    console.error(`OpenSCAD: ${openscadInfo.version}`)
-    if (!openscadInfo.hasManifold) {
-      console.error('Warning: Manifold backend may not be available')
-    }
-  }
-
-  // Get files to test
-  const files = getTestFiles(options)
+  const files = getTestFiles(options.dirs)
   if (files.length === 0) {
-    console.error('No test files specified. Use -h for help.')
+    console.error('No .scad files found in specified directories.')
     process.exit(1)
   }
 
+  // Filter out skipped files (match against relative path from cwd)
+  const cwd = process.cwd()
+  const filesToTest = files.filter(f => !matchesSkipPattern(relative(cwd, f), options.skipPatterns))
+  const skipped = files.length - filesToTest.length
+
   if (options.verbose) {
-    console.error(`Testing ${files.length} file(s)...`)
+    console.error(`Testing ${filesToTest.length} files with ${options.concurrency} workers...`)
   }
 
-  // Run tests
-  const results = []
-  let passed = 0
-  let failed = 0
-  let translatorErrors = 0
-  let openscadErrors = 0
-  let skipped = 0
+  // Create tasks
+  const tasks = filesToTest.map(file => () => testFile(file, options))
 
-  for (const file of files) {
-    const name = basename(file)
+  // Run with concurrency
+  const results = await runWithConcurrency(tasks, options.concurrency)
 
-    // Check if file should be skipped
-    if (options.skip.has(name)) {
-      skipped++
-      if (options.verbose) {
-        console.log(`${name}: SKIPPED (in skip list)`)
-      }
-      continue
-    }
+  // Tally results
+  let passed = 0, failed = 0, translatorErrors = 0, openscadErrors = 0
 
-    const result = await testFile(file, options)
-    results.push(result)
-
+  for (const result of results) {
     if (result.error) {
-      // Separate OpenSCAD-side failures (not our translator's fault)
-      if (result.error.startsWith('OpenSCAD failed:')) {
+      if (result.error.startsWith('OpenSCAD:')) {
         openscadErrors++
-        // Only show OpenSCAD failures in verbose mode
-        if (options.verbose && !options.json) {
-          console.log(`${result.name}: SKIPPED - ${result.error}`)
-        }
       } else {
         translatorErrors++
-        // Always show translator errors (they indicate bugs)
-        if (!options.json) {
-          console.log(`${result.name}: ERROR - ${result.error}`)
-        }
+        if (!options.json) console.log(`${result.name}: ERROR - ${result.error}`)
       }
     } else if (result.pass) {
       passed++
-      // Only show passing tests in verbose mode
       if (options.verbose && !options.json) {
-        console.log(`${result.name}: PASS (Jaccard: ${result.jaccard.toFixed(4)})`)
+        console.log(`${result.name}: PASS (${result.jaccard.toFixed(4)})`)
       }
     } else {
       failed++
-      // Always show failed tests
-      if (!options.json) {
-        console.log(`${result.name}: FAIL (Jaccard: ${result.jaccard.toFixed(4)})`)
-      }
+      if (!options.json) console.log(`${result.name}: FAIL (${result.jaccard.toFixed(4)})`)
     }
   }
 
-  // Calculate stats excluding OpenSCAD-side failures and skip list
-  const tested = files.length - openscadErrors - skipped
+  const tested = filesToTest.length - openscadErrors
   const passRate = tested > 0 ? ((passed / tested) * 100).toFixed(1) : '0.0'
 
-  // Output summary
   if (options.json) {
     console.log(JSON.stringify({
       summary: { total: files.length, tested, passed, failed, translatorErrors, openscadErrors, skipped },
@@ -510,18 +336,16 @@ async function main() {
       results
     }, null, 2))
   } else {
-    console.log()
-    console.log(`Summary: ${passed} passed, ${failed} failed, ${translatorErrors} errors out of ${tested} tested (${passRate}%)`)
+    console.log(`\nSummary: ${passed} passed, ${failed} failed, ${translatorErrors} errors out of ${tested} tested (${passRate}%)`)
     if (openscadErrors > 0 || skipped > 0) {
-      const skipReasons = []
-      if (openscadErrors > 0) skipReasons.push(`${openscadErrors} OpenSCAD failures`)
-      if (skipped > 0) skipReasons.push(`${skipped} in skip list`)
-      console.log(`Skipped: ${skipReasons.join(', ')}`)
+      const reasons = []
+      if (openscadErrors > 0) reasons.push(`${openscadErrors} OpenSCAD failures`)
+      if (skipped > 0) reasons.push(`${skipped} in skip list`)
+      console.log(`Skipped: ${reasons.join(', ')}`)
     }
     console.log(`Threshold: ${options.threshold}`)
   }
 
-  // Exit with error if any translator failures (not OpenSCAD-side failures)
   process.exit(failed + translatorErrors > 0 ? 1 : 0)
 }
 
