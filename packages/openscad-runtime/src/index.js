@@ -44,6 +44,13 @@ const j$ = {
   vdiv: _vdiv,
   vneg: _vneg,
 
+  /**
+   * Ensure value is iterable with .map() - converts strings to char arrays
+   * OpenSCAD: for (c = "hello") iterates over characters
+   * JavaScript: strings don't have .map(), so we convert to array
+   */
+  iter: (x) => typeof x === 'string' ? [...x] : x,
+
   // Primitives (populated after init)
   cube: _cube,
   cylinder: _cylinder,

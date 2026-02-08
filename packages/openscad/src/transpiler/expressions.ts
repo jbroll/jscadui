@@ -205,7 +205,8 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
       const range = transpileExpression(args[0].value!, ctx)
       // Use flatMap when 'each' is used, otherwise map
       const method = needsFlatMap ? 'flatMap' : 'map'
-      const mapExpr = `${range}.${method}(${varName} => ${innerExpr})`
+      // Wrap range with j$.iter() to handle strings (OpenSCAD: for (c = "str") iterates chars)
+      const mapExpr = `j$.iter(${range}).${method}(${varName} => ${innerExpr})`
       return needsFilter ? `${mapExpr}.filter(x => x !== undefined)` : mapExpr
     }
     // Multiple loop variables: for (i = [0:3], j = [0:2]) becomes nested flatMap/map
@@ -217,7 +218,8 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
       const range = transpileExpression(args[i].value!, ctx)
       const isInnermost = i === args.length - 1
       const method = isInnermost ? (needsFlatMap ? 'flatMap' : 'map') : 'flatMap'
-      result = `${range}.${method}(${varName} => ${result})`
+      // Wrap range with j$.iter() to handle strings (OpenSCAD: for (c = "str") iterates chars)
+      result = `j$.iter(${range}).${method}(${varName} => ${result})`
     }
     return needsFilter ? `${result}.filter(x => x !== undefined)` : result
   }
