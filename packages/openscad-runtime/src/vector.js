@@ -31,10 +31,18 @@ export const _vsub = (a, b) => {
 
 // Vector/scalar multiplication - dot product for vectors, element-wise for scalar
 // OpenSCAD: vector * vector = dot product (scalar), scalar * vector = element-wise (vector)
+// For nested arrays (matrices), recursively apply multiplication
 export const _vmul = (a, b) => {
-  if (Array.isArray(a) && Array.isArray(b)) return a.reduce((sum, v, i) => sum + v * (b[i] ?? 0), 0)
-  if (Array.isArray(a)) return a.map(v => v * b)
-  if (Array.isArray(b)) return b.map(v => a * v)
+  if (Array.isArray(a) && Array.isArray(b)) {
+    // Both arrays: dot product if 1D vectors, recursive element-wise if matrices
+    // Check if inner elements are arrays (matrix case)
+    if (a.length > 0 && Array.isArray(a[0])) {
+      return a.map((row, i) => _vmul(row, b[i] ?? 0))
+    }
+    return a.reduce((sum, v, i) => sum + v * (b[i] ?? 0), 0)
+  }
+  if (Array.isArray(a)) return a.map(v => Array.isArray(v) ? _vmul(v, b) : v * b)
+  if (Array.isArray(b)) return b.map(v => Array.isArray(v) ? _vmul(a, v) : a * v)
   return a * b
 }
 
