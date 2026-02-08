@@ -1,9 +1,15 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Statement transpilation
  */
 
-import type { Statement } from 'openscad-parser'
+import type {
+  Statement,
+  Expression,
+  AssignmentNode,
+  ModuleInstantiationStmt,
+  ModuleDeclarationStmt,
+  FunctionDeclarationStmt,
+} from 'openscad-parser'
 import type { TranspileContext } from './context.js'
 import { WarningCode } from './context.js'
 import { safeIdentifier, replaceIdentifier } from '../utils/identifiers.js'
@@ -34,12 +40,12 @@ import {
  */
 export function transpileStatement(stmt: Statement, ctx: TranspileContext): string | null {
   if (isModuleInstantiation(stmt)) {
-    return transpileModuleInstantiation(stmt as any, ctx)
+    return transpileModuleInstantiation(stmt as ModuleInstantiationStmt, ctx)
   }
 
   if (isBlockStmt(stmt)) {
     // Extract assignments and geometry from the block
-    const assignments: { name: string, value: any }[] = []
+    const assignments: { name: string, value: Expression | null }[] = []
     const geometryStmts: Statement[] = []
 
     for (const child of stmt.children) {
@@ -66,7 +72,7 @@ export function transpileStatement(stmt: Statement, ctx: TranspileContext): stri
         const newName = `${origName}${suffix}`
         nameMap.set(origName, newName)
         // Transpile value - references to outer scope will work correctly
-        let value = transpileExpression(a.value, ctx)
+        let value = transpileExpression(a.value!, ctx)
         // Replace references to previously defined assignments in this block
         for (const [orig, renamed] of nameMap) {
           if (orig !== origName) {
@@ -144,7 +150,7 @@ export function collectChildrenAsArray(child: Statement | null, ctx: TranspileCo
 /**
  * Transpile a module instantiation (e.g., cube(10), translate([1,2,3]) child)
  */
-function transpileModuleInstantiation(stmt: any, ctx: TranspileContext): string {
+function transpileModuleInstantiation(stmt: ModuleInstantiationStmt, ctx: TranspileContext): string {
   const name = stmt.name
 
   // Special handling for 'for' loops (parsed as ModuleInstantiationStmt)
@@ -154,7 +160,7 @@ function transpileModuleInstantiation(stmt: any, ctx: TranspileContext): string 
 
   // echo() for debugging - outputs to console but returns undefined (no geometry)
   if (name === 'echo') {
-    const args = stmt.args.map((a: any) => transpileExpression(a.value, ctx)).join(', ')
+    const args = stmt.args.map(a => transpileExpression(a.value!, ctx)).join(', ')
     return `(console.log(${args}), undefined)`
   }
 
@@ -228,12 +234,13 @@ function transpileModuleInstantiation(stmt: any, ctx: TranspileContext): string 
     } else {
       // Indexed access - check if argument is a vector (array of indices) or simple index
       const arg = stmt.args[0]
+      const argValue = arg.value
 
-      if (isVectorExpr(arg.value)) {
+      if (argValue && isVectorExpr(argValue)) {
         // Array of indices: children([0, 2, 3]) → union children at those indices
-        const indices = arg.value.children.map((c: any) => transpileExpression(c, ctx))
+        const indices = argValue.children.map(c => transpileExpression(c, ctx))
         ctx.usedBooleans.add('union')
-        return `union(${indices.map((i: string) => `_children[${i}]`).join(', ')})`
+        return `union(${indices.map(i => `_children[${i}]`).join(', ')})`
       } else {
         // Simple index: children(0) or children(i) → single child access
         const indexExpr = argsArray[0].value
@@ -291,10 +298,10 @@ function transpileModuleInstantiation(stmt: any, ctx: TranspileContext): string 
 /**
  * Transpile arguments list - returns array of {name, value} pairs
  */
-function transpileArgsArray(args: any[], ctx: TranspileContext): Array<{name: string | null, value: string}> {
-  return args.map((arg: any) => ({
+function transpileArgsArray(args: AssignmentNode[], ctx: TranspileContext): Array<{name: string | null, value: string}> {
+  return args.map(arg => ({
     name: arg.name || null,
-    value: transpileExpression(arg.value, ctx)
+    value: transpileExpression(arg.value!, ctx)
   }))
 }
 
@@ -304,7 +311,7 @@ function transpileArgsArray(args: any[], ctx: TranspileContext): Array<{name: st
 function transpileBuiltinBoolean(name: string, child: Statement | null, ctx: TranspileContext): string {
   // Extract children from BlockStmt for boolean operations
   let childCodes: string[] = []
-  const assignments: { name: string, value: any }[] = []
+  const assignments: { name: string, value: Expression | null }[] = []
 
   if (child) {
     if (isBlockStmt(child)) {
@@ -358,7 +365,7 @@ function transpileBuiltinBoolean(name: string, child: Statement | null, ctx: Tra
 
   // If there are assignments, wrap in IIFE
   if (assignments.length > 0) {
-    const assignStrs = assignments.map(a => `const ${a.name} = ${transpileExpression(a.value, ctx)}`)
+    const assignStrs = assignments.map(a => `const ${a.name} = ${transpileExpression(a.value!, ctx)}`)
     return `(() => { ${assignStrs.join('; ')}; return ${boolOp} })()`
   }
 
@@ -399,19 +406,19 @@ function transpileBuiltinHull(child: Statement | null, ctx: TranspileContext): s
  * for (i = [0:3], axis = [0:2]) { body } becomes:
  * union(..._range(0, 3).flatMap(i => _range(0, 2).map(axis => body)))
  */
-function transpileForLoop(stmt: any, ctx: TranspileContext): string {
+function transpileForLoop(stmt: ModuleInstantiationStmt, ctx: TranspileContext): string {
   const args = stmt.args
   if (!args || args.length === 0) {
     return '/* empty for loop */'
   }
 
   // Transpile the body
-  const body = transpileStatement(stmt.child, ctx) || 'undefined'
+  const body = stmt.child ? transpileStatement(stmt.child, ctx) || 'undefined' : 'undefined'
 
   // Handle single loop variable (most common case)
   if (args.length === 1) {
     const varName = args[0].name
-    const rangeOrVector = transpileExpression(args[0].value, ctx)
+    const rangeOrVector = transpileExpression(args[0].value!, ctx)
     ctx.usedBooleans.add('union')
     return `union(...${rangeOrVector}.map(${varName} => ${body}))`
   }
@@ -421,7 +428,7 @@ function transpileForLoop(stmt: any, ctx: TranspileContext): string {
   let result = body
   for (let i = args.length - 1; i >= 0; i--) {
     const varName = args[i].name
-    const rangeOrVector = transpileExpression(args[i].value, ctx)
+    const rangeOrVector = transpileExpression(args[i].value!, ctx)
     // Last variable uses map, all others use flatMap to flatten
     const method = i === args.length - 1 ? 'map' : 'flatMap'
     result = `${rangeOrVector}.${method}(${varName} => ${result})`
@@ -433,10 +440,10 @@ function transpileForLoop(stmt: any, ctx: TranspileContext): string {
 /**
  * Transpile parameter list with defaults - regular function style
  */
-export function transpileParamsList(args: any[], ctx: TranspileContext): string {
+export function transpileParamsList(args: AssignmentNode[], ctx: TranspileContext): string {
   if (args.length === 0) return ''
 
-  const params = args.map((arg: any) => {
+  const params = args.map(arg => {
     const name = arg.name
     if (arg.value) {
       const defaultVal = transpileExpression(arg.value, ctx)
@@ -452,14 +459,14 @@ export function transpileParamsList(args: any[], ctx: TranspileContext): string 
  * Extract nested modules, assignments, and geometry statements from a module body
  */
 export function extractModuleBody(stmt: Statement, _ctx: TranspileContext): {
-  nestedModules: any[],
-  nestedFunctions: any[],
-  assignments: { name: string, value: any }[],
+  nestedModules: ModuleDeclarationStmt[],
+  nestedFunctions: FunctionDeclarationStmt[],
+  assignments: { name: string, value: Expression | null }[],
   geometryStmts: Statement[]
 } {
-  const nestedModules: any[] = []
-  const nestedFunctions: any[] = []
-  const assignments: { name: string, value: any }[] = []
+  const nestedModules: ModuleDeclarationStmt[] = []
+  const nestedFunctions: FunctionDeclarationStmt[] = []
+  const assignments: { name: string, value: Expression | null }[] = []
   const geometryStmts: Statement[] = []
 
   if (!stmt) {
@@ -469,9 +476,9 @@ export function extractModuleBody(stmt: Statement, _ctx: TranspileContext): {
   if (isBlockStmt(stmt)) {
     for (const child of stmt.children) {
       if (isModuleDeclaration(child as Statement)) {
-        nestedModules.push(child)
+        nestedModules.push(child as ModuleDeclarationStmt)
       } else if (isFunctionDeclaration(child as Statement)) {
-        nestedFunctions.push(child)
+        nestedFunctions.push(child as FunctionDeclarationStmt)
       } else if (isAssignmentNode(child)) {
         assignments.push({ name: child.name, value: child.value })
       } else if (!isNoopStmt(child as Statement)) {
@@ -491,7 +498,7 @@ export function extractModuleBody(stmt: Statement, _ctx: TranspileContext): {
  * Recursively build the body of a module function, handling nested modules at any depth
  * @param paramNames - Set of parameter names from the parent function (to detect shadowing)
  */
-export function buildModuleBody(moduleStmt: any, ctx: TranspileContext, indent: string = '  ', paramNames: Set<string> = new Set()): string[] {
+export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, indent: string = '  ', paramNames: Set<string> = new Set()): string[] {
   const { nestedModules, nestedFunctions, assignments, geometryStmts } = extractModuleBody(moduleStmt, ctx)
   const bodyParts: string[] = []
   // Track declared variables to detect reassignments
@@ -508,7 +515,7 @@ export function buildModuleBody(moduleStmt: any, ctx: TranspileContext, indent: 
   // Recursively process nested module definitions
   for (const m of nestedModules) {
     const nestedParams = transpileParamsList(m.definitionArgs, ctx)
-    const nestedParamNames = new Set<string>((m.definitionArgs || []).map((a: any) => a.name))
+    const nestedParamNames = new Set<string>(m.definitionArgs.map(a => a.name))
     const nestedBodyParts = buildModuleBody(m.stmt, ctx, indent + '  ', nestedParamNames)
     // Curried: (params) => (_children) => body
     bodyParts.push(`${indent}const ${m.name} = (${nestedParams}) => (_children = []) => {\n${nestedBodyParts.join('\n')}\n${indent}}`)
@@ -521,10 +528,10 @@ export function buildModuleBody(moduleStmt: any, ctx: TranspileContext, indent: 
   for (const a of assignments) {
     if (declaredVars.has(a.name)) {
       // Reassignment - don't use const
-      bodyParts.push(`${indent}${a.name} = ${transpileExpression(a.value, ctx)}`)
+      bodyParts.push(`${indent}${a.name} = ${transpileExpression(a.value!, ctx)}`)
     } else {
       // New variable - use const and track it
-      bodyParts.push(`${indent}const ${a.name} = ${transpileExpression(a.value, ctx)}`)
+      bodyParts.push(`${indent}const ${a.name} = ${transpileExpression(a.value!, ctx)}`)
       declaredVars.add(a.name)
     }
   }
@@ -548,11 +555,11 @@ export function buildModuleBody(moduleStmt: any, ctx: TranspileContext, indent: 
  *   module(arg1, arg2)([child1, child2])  - explicit args
  *   module()([child1, child2])            - default args
  */
-export function transpileModuleDeclaration(stmt: any, ctx: TranspileContext): string {
+export function transpileModuleDeclaration(stmt: ModuleDeclarationStmt, ctx: TranspileContext): string {
   const name = safeIdentifier(stmt.name)
   const params = transpileParamsList(stmt.definitionArgs, ctx)
   // Extract parameter names to detect shadowing assignments
-  const paramNames = new Set<string>((stmt.definitionArgs || []).map((a: any) => a.name))
+  const paramNames = new Set<string>(stmt.definitionArgs.map(a => a.name))
   const bodyParts = buildModuleBody(stmt.stmt, ctx, '  ', paramNames)
 
   // Curried: (params) => (_children) => body
@@ -562,7 +569,7 @@ export function transpileModuleDeclaration(stmt: any, ctx: TranspileContext): st
 /**
  * Transpile a function declaration
  */
-export function transpileFunctionDeclaration(stmt: any, ctx: TranspileContext): string {
+export function transpileFunctionDeclaration(stmt: FunctionDeclarationStmt, ctx: TranspileContext): string {
   const name = safeIdentifier(stmt.name)
   const params = transpileParamsList(stmt.definitionArgs, ctx)
   const body = transpileExpression(stmt.expr, ctx)

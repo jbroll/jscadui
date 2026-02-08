@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * OpenSCAD to JavaScript Transpiler
  *
@@ -7,7 +6,12 @@
  * that call each other at runtime.
  */
 
-import type { ScadFile, Statement } from 'openscad-parser'
+import type {
+  ScadFile,
+  Statement,
+  Expression,
+  AssignmentNode,
+} from 'openscad-parser'
 import { parse } from '../parser/parse.js'
 import { safeIdentifier, getFileDir } from '../utils/identifiers.js'
 import {
@@ -132,7 +136,7 @@ export function transpile(
   // Second pass: transpile statements
   const bodyParts: string[] = []
   const geometryParts: string[] = []
-  const topLevelAssignments: { name: string, value: any }[] = []
+  const topLevelAssignments: { name: string, value: Expression | null }[] = []
 
   // Track which names have both module and function versions
   // In OpenSCAD, you can have both `module foo()` and `function foo()` with the same name
@@ -173,7 +177,7 @@ export function transpile(
   const assignmentLines: string[] = []
   if (topLevelAssignments.length > 0) {
     for (const a of topLevelAssignments) {
-      assignmentLines.push(`const ${safeIdentifier(a.name)} = ${transpileExpression(a.value, ctx)}`)
+      assignmentLines.push(`const ${safeIdentifier(a.name)} = ${transpileExpression(a.value!, ctx)}`)
     }
   }
 
@@ -371,13 +375,13 @@ function collectDeclarations(stmt: Statement, ctx: TranspileContext): void {
     const name = safeIdentifier(stmt.name)
     ctx.moduleNames.push(name)
     // Capture parameter names for named argument reordering
-    const params = (stmt.definitionArgs || []).map((a: any) => a.name)
+    const params = (stmt.definitionArgs || []).map((a: AssignmentNode) => a.name)
     ctx.moduleParamLists.set(name, params)
   } else if (isFunctionDeclaration(stmt)) {
     const name = safeIdentifier(stmt.name)
     ctx.functionNames.push(name)
     // Capture parameter names for named argument reordering
-    const params = (stmt.definitionArgs || []).map((a: any) => a.name)
+    const params = (stmt.definitionArgs || []).map((a: AssignmentNode) => a.name)
     ctx.moduleParamLists.set(name, params)
   } else if (isUseStmt(stmt)) {
     ctx.useImports.push({

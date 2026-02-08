@@ -1,9 +1,16 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Expression transpilation
  */
 
-import type { Expression } from 'openscad-parser'
+import type {
+  Expression,
+  FunctionCallExpr,
+  LcForExpr,
+  LetExpr,
+  LcLetExpr,
+  EchoExpr,
+  AssertExpr,
+} from 'openscad-parser'
 import type { TranspileContext } from './context.js'
 import { WarningCode } from './context.js'
 import { safeIdentifier, replaceIdentifier } from '../utils/identifiers.js'
@@ -32,7 +39,7 @@ import {
 /**
  * Check if an expression contains LcIfExpr (used to determine if filtering is needed)
  */
-export function containsIfExpr(expr: any): boolean {
+export function containsIfExpr(expr: Expression | null): boolean {
   if (!expr) return false
   if (isLcIfExpr(expr)) return true
   // Check nested expr in LcLetExpr or LetExpr
@@ -45,7 +52,7 @@ export function containsIfExpr(expr: any): boolean {
  */
 export function transpileExpression(expr: Expression, ctx: TranspileContext): string {
   if (isLiteralExpr(expr)) {
-    return transpileLiteral(expr.value)
+    return transpileLiteral(expr.value as string | number | boolean | null)
   }
 
   if (isLookupExpr(expr)) {
@@ -127,8 +134,9 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
   }
 
   if (isFunctionCallExpr(expr)) {
-    const callee = transpileExpression(expr.callee, ctx)
-    const args = expr.args.map((a: any) => transpileExpression(a.value, ctx)).join(', ')
+    const fnExpr = expr as FunctionCallExpr
+    const callee = transpileExpression(fnExpr.callee, ctx)
+    const args = fnExpr.args.map(a => transpileExpression(a.value!, ctx)).join(', ')
     return transpileFunctionCall(callee, args, ctx)
   }
 
@@ -155,15 +163,16 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
 
   if (isLcForExpr(expr)) {
     // List comprehension: [for (i = [0:10]) i * 2]
-    const args = expr.args as any[]
-    const innerExpr = transpileExpression(expr.expr, ctx)
+    const forExpr = expr as LcForExpr
+    const args = forExpr.args
+    const innerExpr = transpileExpression(forExpr.expr, ctx)
 
     // Check if inner expression contains LcIfExpr (needs filtering)
-    const needsFilter = containsIfExpr(expr.expr)
+    const needsFilter = containsIfExpr(forExpr.expr)
 
     if (args.length === 1) {
       const varName = args[0].name
-      const range = transpileExpression(args[0].value, ctx)
+      const range = transpileExpression(args[0].value!, ctx)
       const mapExpr = `${range}.map(${varName} => ${innerExpr})`
       return needsFilter ? `${mapExpr}.filter(x => x !== undefined)` : mapExpr
     }
@@ -172,7 +181,7 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
     let result = innerExpr
     for (let i = args.length - 1; i >= 0; i--) {
       const varName = args[i].name
-      const range = transpileExpression(args[i].value, ctx)
+      const range = transpileExpression(args[i].value!, ctx)
       const method = i === 0 ? 'flatMap' : (i === args.length - 1 ? 'map' : 'flatMap')
       result = `${range}.${method}(${varName} => ${result})`
     }
@@ -195,6 +204,7 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
   if (isLetExpr(expr)) {
     // let(x = 1, y = 2) expr -> (() => { const x$1 = 1; const y$1 = 2; return expr })()
     // Use unique suffix for bindings to avoid temporal dead zone when shadowing
+    const letExpr = expr as LetExpr
     const suffix = `$${ctx.letCounter || 1}`
     ctx.letCounter = (ctx.letCounter || 1) + 1
 
@@ -202,12 +212,12 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
     const nameMap = new Map<string, string>()
     const bindings: string[] = []
 
-    for (const a of expr.args as any[]) {
+    for (const a of letExpr.args) {
       const origName = safeIdentifier(a.name)
       const newName = `${origName}${suffix}`
       nameMap.set(origName, newName)
       // Transpile value (references to earlier bindings will be renamed by substituteNames)
-      let value = transpileExpression(a.value, ctx)
+      let value = transpileExpression(a.value!, ctx)
       // Replace references to previously defined let bindings
       for (const [orig, renamed] of nameMap) {
         if (orig !== origName) {
@@ -218,7 +228,7 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
     }
 
     // Transpile body and substitute all let binding names
-    let body = transpileExpression(expr.expr, ctx)
+    let body = transpileExpression(letExpr.expr, ctx)
     for (const [orig, renamed] of nameMap) {
       body = replaceIdentifier(body, orig, renamed)
     }
@@ -229,17 +239,18 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
   if (isLcLetExpr(expr)) {
     // List comprehension let: [for (x = range) let(a = 1) expr]
     // Handled the same way as LetExpr - create IIFE with bindings
+    const lcLetExpr = expr as LcLetExpr
     const suffix = `$${ctx.letCounter || 1}`
     ctx.letCounter = (ctx.letCounter || 1) + 1
 
     const nameMap = new Map<string, string>()
     const bindings: string[] = []
 
-    for (const a of expr.args as any[]) {
+    for (const a of lcLetExpr.args) {
       const origName = safeIdentifier(a.name)
       const newName = `${origName}${suffix}`
       nameMap.set(origName, newName)
-      let value = transpileExpression(a.value, ctx)
+      let value = transpileExpression(a.value!, ctx)
       for (const [orig, renamed] of nameMap) {
         if (orig !== origName) {
           value = replaceIdentifier(value, orig, renamed)
@@ -248,7 +259,7 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
       bindings.push(`const ${newName} = ${value}`)
     }
 
-    let body = transpileExpression(expr.expr, ctx)
+    let body = transpileExpression(lcLetExpr.expr, ctx)
     for (const [orig, renamed] of nameMap) {
       body = replaceIdentifier(body, orig, renamed)
     }
@@ -259,24 +270,26 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
   if (isEchoExpr(expr)) {
     // echo(x) expr -> logs x and returns expr (or x if no expr follows)
     // In JavaScript: (console.log(x), expr) or just (console.log(x), x)
-    const args = (expr.args as any[]).map((a: any) => {
+    const echoExpr = expr as EchoExpr
+    const args = echoExpr.args.map(a => {
       if (a.name) {
-        return `"${a.name}=", ${transpileExpression(a.value, ctx)}`
+        return `"${a.name}=", ${transpileExpression(a.value!, ctx)}`
       }
-      return transpileExpression(a.value, ctx)
+      return transpileExpression(a.value!, ctx)
     }).join(', ')
-    const innerExpr = transpileExpression(expr.expr, ctx)
+    const innerExpr = transpileExpression(echoExpr.expr, ctx)
     return `(console.log(${args}), ${innerExpr})`
   }
 
   if (isAssertExpr(expr)) {
     // assert(cond, msg) expr -> checks condition, returns expr (or undef if no expr)
     // In JavaScript: we use console.assert which doesn't throw, then return expr
-    const args = expr.args as any[]
-    const condition = args.length > 0 ? transpileExpression(args[0].value, ctx) : 'true'
-    const message = args.length > 1 ? transpileExpression(args[1].value, ctx) : '"Assertion failed"'
+    const assertExpr = expr as AssertExpr
+    const args = assertExpr.args
+    const condition = args.length > 0 ? transpileExpression(args[0].value!, ctx) : 'true'
+    const message = args.length > 1 ? transpileExpression(args[1].value!, ctx) : '"Assertion failed"'
     // expr may be undefined when assert is at the end of a chain
-    const innerExpr = expr.expr ? transpileExpression(expr.expr, ctx) : 'undefined'
+    const innerExpr = assertExpr.expr ? transpileExpression(assertExpr.expr, ctx) : 'undefined'
     return `(console.assert(${condition}, ${message}), ${innerExpr})`
   }
 
@@ -290,7 +303,7 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
   return `/* unsupported expr: ${exprType} */`
 }
 
-export function transpileLiteral(value: any): string {
+export function transpileLiteral(value: string | number | boolean | null | undefined): string {
   if (typeof value === 'string') {
     return JSON.stringify(value)
   }

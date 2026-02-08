@@ -24,15 +24,11 @@
     "bin"
   ],
   "scripts": {
-    "test": "vitest run",
+    "build": "tsc",
+    "test": "npm run build && vitest run && node bin/test-harness.js --corpus && node bin/test-harness.js --dir test/corpus/bosl && node bin/test-harness.js --dir test/corpus/snippet/Asset_SCAD --skip-file test/corpus/snippet-skip.txt",
     "test:watch": "vitest",
     "coverage": "vitest run --coverage",
-    "typecheck": "tsc --noEmit",
-    "build": "tsc",
-    "test:corpus": "node bin/test-harness.js --corpus",
-    "test:bosl": "node bin/test-harness.js --dir test/corpus/bosl",
-    "test:snippet": "node bin/test-harness.js --dir test/corpus/snippet/Asset_SCAD --skip-file test/corpus/snippet-skip.txt",
-    "test:all": "npm run build && npm run test && npm run test:corpus && npm run test:bosl && npm run test:snippet"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "openscad-parser": "file:/home/john/src/openscad-parser",
