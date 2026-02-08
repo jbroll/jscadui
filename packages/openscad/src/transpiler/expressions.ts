@@ -160,11 +160,21 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
   if (isFunctionCallExpr(expr)) {
     const fnExpr = expr as FunctionCallExpr
     let callee = transpileExpression(fnExpr.callee, ctx)
+
+    // Build args array with name+value pairs (like statements.ts does for modules)
+    const argsArray = fnExpr.args.map(a => ({
+      name: a.name || null,
+      value: transpileExpression(a.value!, ctx)
+    }))
+
     // If this name has both module and function versions, use __fn suffix for function calls
     if (ctx.dualDefinedNames.has(callee)) {
       callee = `${callee}__fn`
     }
-    const args = fnExpr.args.map(a => transpileExpression(a.value!, ctx)).join(', ')
+
+    // Reorder named arguments to match parameter definition order
+    const args = reorderNamedArgs(callee, argsArray, ctx)
+
     return transpileFunctionCall(callee, args, ctx)
   }
 

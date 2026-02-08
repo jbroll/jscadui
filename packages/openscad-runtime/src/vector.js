@@ -29,21 +29,76 @@ export const _vsub = (a, b) => {
   return a - b
 }
 
-// Vector/scalar multiplication - dot product for vectors, element-wise for scalar
-// OpenSCAD: vector * vector = dot product (scalar), scalar * vector = element-wise (vector)
-// For nested arrays (matrices), recursively apply multiplication
+// Vector/scalar multiplication - follows OpenSCAD semantics:
+// - scalar * scalar -> scalar
+// - scalar * vector -> element-wise (vector)
+// - vector * scalar -> element-wise (vector)
+// - vector * vector -> dot product (scalar)
+// - matrix * vector -> matrix-vector multiplication (vector)
+// - matrix * matrix -> matrix-matrix multiplication (matrix)
 export const _vmul = (a, b) => {
-  if (Array.isArray(a) && Array.isArray(b)) {
-    // Both arrays: dot product if 1D vectors, recursive element-wise if matrices
-    // Check if inner elements are arrays (matrix case)
-    if (a.length > 0 && Array.isArray(a[0])) {
-      return a.map((row, i) => _vmul(row, b[i] ?? 0))
-    }
+  const aIsArray = Array.isArray(a)
+  const bIsArray = Array.isArray(b)
+
+  // Neither is array: scalar multiplication
+  if (!aIsArray && !bIsArray) {
+    return a * b
+  }
+
+  // Only one is array: element-wise scalar multiplication
+  if (!aIsArray) {
+    return b.map(v => Array.isArray(v) ? _vmul(a, v) : a * v)
+  }
+  if (!bIsArray) {
+    return a.map(v => Array.isArray(v) ? _vmul(v, b) : v * b)
+  }
+
+  // Both are arrays
+  const aIsMatrix = a.length > 0 && Array.isArray(a[0])
+  const bIsMatrix = b.length > 0 && Array.isArray(b[0])
+
+  // vector * vector -> dot product
+  if (!aIsMatrix && !bIsMatrix) {
     return a.reduce((sum, v, i) => sum + v * (b[i] ?? 0), 0)
   }
-  if (Array.isArray(a)) return a.map(v => Array.isArray(v) ? _vmul(v, b) : v * b)
-  if (Array.isArray(b)) return b.map(v => Array.isArray(v) ? _vmul(a, v) : a * v)
-  return a * b
+
+  // matrix * vector -> matrix-vector multiplication
+  if (aIsMatrix && !bIsMatrix) {
+    return a.map(row => _vmul(row, b))
+  }
+
+  // vector * matrix -> vector-matrix multiplication (row vector * matrix)
+  if (!aIsMatrix && bIsMatrix) {
+    // Treat a as a row vector, multiply with columns of b
+    const cols = b[0].length
+    const result = []
+    for (let j = 0; j < cols; j++) {
+      let sum = 0
+      for (let i = 0; i < a.length; i++) {
+        sum += a[i] * (b[i]?.[j] ?? 0)
+      }
+      result.push(sum)
+    }
+    return result
+  }
+
+  // matrix * matrix -> proper matrix multiplication
+  const rows = a.length
+  const cols = b[0].length
+  const inner = b.length
+  const result = []
+  for (let i = 0; i < rows; i++) {
+    const row = []
+    for (let j = 0; j < cols; j++) {
+      let sum = 0
+      for (let k = 0; k < inner; k++) {
+        sum += (a[i][k] ?? 0) * (b[k]?.[j] ?? 0)
+      }
+      row.push(sum)
+    }
+    result.push(row)
+  }
+  return result
 }
 
 // Vector/scalar division - element-wise for vectors, scalar div

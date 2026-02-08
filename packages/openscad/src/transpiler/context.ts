@@ -59,6 +59,10 @@ export interface TranspileOptions {
   currentFile?: string
   // Global $fn override (0 = use OpenSCAD's formula)
   fn?: number
+  // Initial parameter lists (inherited from parent context for include chains)
+  initialParamLists?: Map<string, string[]>
+  // Initial dual-defined names (inherited from parent context)
+  initialDualDefinedNames?: Set<string>
 }
 
 export interface TranspileResult {
@@ -99,6 +103,7 @@ export interface TranspiledFile {
   functionExports: string[]  // Functions (not modules) - can be called directly
   moduleExports: string[]    // Modules - must be called with curried pattern
   paramLists: Map<string, string[]>  // Module/function name -> parameter names
+  dualDefinedNames?: Set<string>  // Names that have both module and function versions
   bundledParts?: BundledParts  // Parts for inlining when included
 }
 
@@ -169,6 +174,23 @@ export function createContext(
   sharedCache?: Map<string, TranspiledFile>
 ): TranspileContext {
   const opts = { ...defaultOptions, ...options }
+
+  // Initialize paramLists from initial values if provided (for include chains)
+  const moduleParamLists = new Map<string, string[]>()
+  if (options.initialParamLists) {
+    for (const [name, params] of options.initialParamLists) {
+      moduleParamLists.set(name, params)
+    }
+  }
+
+  // Initialize dualDefinedNames from initial values if provided
+  const dualDefinedNames = new Set<string>()
+  if (options.initialDualDefinedNames) {
+    for (const name of options.initialDualDefinedNames) {
+      dualDefinedNames.add(name)
+    }
+  }
+
   return {
     options: opts,
     usedPrimitives: new Set(),
@@ -184,12 +206,12 @@ export function createContext(
     includeImports: [],
     moduleNames: [],
     functionNames: [],
-    moduleParamLists: new Map(),
+    moduleParamLists,
     variableNames: [],
     availableSymbols: new Set(),
     importedFunctions: new Set(),
     importedModules: new Set(),
-    dualDefinedNames: new Set(),
+    dualDefinedNames,
     indentLevel: 0,
     transpiledFiles: sharedCache || new Map(),
     processingFiles: new Set(),

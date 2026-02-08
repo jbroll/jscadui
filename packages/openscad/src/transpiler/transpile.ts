@@ -107,6 +107,17 @@ export function transpile(
         ctx.moduleParamLists.set(name, params)
       }
     }
+    // Merge dual-defined names from imported modules
+    if (cachedFile?.dualDefinedNames) {
+      for (const name of cachedFile.dualDefinedNames) {
+        ctx.dualDefinedNames.add(name)
+        // Also register __fn variant in paramLists
+        const params = ctx.moduleParamLists.get(name)
+        if (params) {
+          ctx.moduleParamLists.set(`${name}__fn`, params)
+        }
+      }
+    }
   }
 
   // Process include statements: transpile dependencies and BUNDLE their content (not require)
@@ -182,6 +193,17 @@ export function transpile(
         ctx.moduleParamLists.set(name, params)
       }
     }
+    // Merge dual-defined names from imported modules
+    if (cachedFile?.dualDefinedNames) {
+      for (const name of cachedFile.dualDefinedNames) {
+        ctx.dualDefinedNames.add(name)
+        // Also register __fn variant in paramLists
+        const params = ctx.moduleParamLists.get(name)
+        if (params) {
+          ctx.moduleParamLists.set(`${name}__fn`, params)
+        }
+      }
+    }
   }
 
   // Second pass: transpile statements into separate categories
@@ -203,6 +225,14 @@ export function transpile(
     if (moduleNameSet.has(name)) {
       dualDefinedNames.add(name)
       ctx.dualDefinedNames.add(name)
+    }
+  }
+
+  // Register __fn variants in paramLists so reorderNamedArgs can find them for function calls
+  for (const name of dualDefinedNames) {
+    const params = ctx.moduleParamLists.get(name)
+    if (params) {
+      ctx.moduleParamLists.set(`${name}__fn`, params)
     }
   }
 
@@ -357,6 +387,7 @@ export function transpile(
       functionExports: ctx.functionNames.filter(e => e !== 'main'),
       moduleExports: ctx.moduleNames.filter(e => e !== 'main'),
       paramLists: new Map(ctx.moduleParamLists),
+      dualDefinedNames: new Set(dualDefinedNames),
       bundledParts,
     })
   }
@@ -428,9 +459,12 @@ function transpileAndCacheDependency(filename: string, ctx: TranspileContext): s
 
   // Recursively transpile this file (sharing the cache)
   // Use resolved path as currentFile so nested dependencies resolve correctly
+  // Pass current paramLists and dualDefinedNames so sibling includes can resolve calls
   const result = transpile(ast, {
     ...ctx.options,
     currentFile: resolvedFilename,
+    initialParamLists: ctx.moduleParamLists,
+    initialDualDefinedNames: ctx.dualDefinedNames,
   }, ctx.transpiledFiles)
 
   // Cache the result (using resolved path)
@@ -443,6 +477,7 @@ function transpileAndCacheDependency(filename: string, ctx: TranspileContext): s
       functionExports: [],  // This shouldn't happen, file was already cached
       moduleExports: [],
       paramLists: new Map(),
+      dualDefinedNames: new Set(),
     })
   }
 
