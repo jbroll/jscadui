@@ -1,3 +1,6 @@
 [submodule "packages/openscad/test/corpus/bosl/lib"]
 	path = packages/openscad/test/corpus/bosl/lib
 	url = https://github.com/revarbat/BOSL.git
+[submodule "packages/openscad/test/corpus/snippet"]
+	path = packages/openscad/test/corpus/snippet
+	url = https://github.com/AngeloNicoli/OpenSCAD-Snippet.git

@@ -31,8 +31,8 @@
     "build": "tsc",
     "test:corpus": "node bin/test-harness.js --corpus",
     "test:bosl": "node bin/test-harness.js --dir test/corpus/bosl",
-    "test:all": "npm run build && npm run test && npm run test:corpus && npm run test:bosl",
-    "test:fidelity": "node bin/test-harness.js --dir ${OPENSCAD_SNIPPET:-$HOME/src/OpenSCAD-Snippet}/Asset_SCAD"
+    "test:snippet": "node bin/test-harness.js --dir test/corpus/snippet/Asset_SCAD --skip-file test/corpus/snippet-skip.txt",
+    "test:all": "npm run build && npm run test && npm run test:corpus && npm run test:bosl && npm run test:snippet"
   },
   "dependencies": {
     "openscad-parser": "file:/home/john/src/openscad-parser",

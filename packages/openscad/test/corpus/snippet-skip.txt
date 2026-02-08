@@ -1,0 +1,8 @@
+# Files to skip in OpenSCAD-Snippet corpus tests
+# One filename per line, comments start with #
+
+# Uses rands() - produces different random values each run
+Bricks.scad
+
+# TODO: investigate geometry difference (Jaccard 0.7459)
+Wood_Crate.scad

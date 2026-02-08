@@ -36,6 +36,8 @@ Usage:
 
 Options:
   --dir <path>            Directory to scan for .scad files (can be repeated)
+  --skip <names>          Comma-separated list of filenames to skip
+  --skip-file <path>      File containing filenames to skip (one per line)
   --threshold <n>         Minimum Jaccard for pass (default: 0.99)
   --fn <n>                Set global $fn for both OpenSCAD and transpiler
   --openscad <path>       Path to OpenSCAD binary (default: openscad)
@@ -61,6 +63,7 @@ function parseArgs(args) {
   const options = {
     files: [],
     dirs: [],
+    skip: new Set(),  // Filenames to skip
     corpus: false,
     threshold: 0.99,
     openscad: 'openscad',
@@ -100,6 +103,27 @@ function parseArgs(args) {
     } else if (arg === '--fn') {
       i++
       options.fn = parseInt(args[i], 10)
+    } else if (arg === '--skip') {
+      i++
+      // Comma-separated list of filenames to skip
+      for (const name of args[i].split(',')) {
+        options.skip.add(name.trim())
+      }
+    } else if (arg === '--skip-file') {
+      i++
+      // Read skip list from file (one filename per line)
+      try {
+        const content = readFileSync(args[i], 'utf8')
+        for (const line of content.split('\n')) {
+          const name = line.trim()
+          // Skip empty lines and comments
+          if (name && !name.startsWith('#')) {
+            options.skip.add(name)
+          }
+        }
+      } catch (_err) {
+        console.error(`Warning: Could not read skip file: ${args[i]}`)
+      }
     } else if (!arg.startsWith('-')) {
       options.files.push(arg)
     } else {
@@ -212,8 +236,20 @@ function compareStl(refStl, genStl, verbose) {
 
 /**
  * Find and copy dependencies (use/include statements) to temp dir
+ *
+ * @param scadPath - Absolute path to the source file being processed
+ * @param tempDir - Base temp directory
+ * @param verbose - Whether to print debug output
+ * @param visited - Set of already-visited files to avoid circular dependencies
+ * @param tempRelativeDir - Directory within tempDir where the current file lives
+ *                          (e.g., 'lib/' when processing lib/transforms.scad)
  */
-function copyDependencies(scadPath, tempDir, verbose) {
+function copyDependencies(scadPath, tempDir, verbose, visited = new Set(), tempRelativeDir = '') {
+  // Avoid infinite recursion from circular dependencies
+  const resolvedPath = resolve(scadPath)
+  if (visited.has(resolvedPath)) return
+  visited.add(resolvedPath)
+
   const sourceDir = dirname(scadPath)
   const content = readFileSync(scadPath, 'utf8')
 
@@ -224,18 +260,21 @@ function copyDependencies(scadPath, tempDir, verbose) {
   while ((match = useRegex.exec(content)) !== null) {
     const depPath = match[1]
     const sourcePath = join(sourceDir, depPath)
-    const destPath = join(tempDir, depPath)
+    // Destination is relative to where this file is in the temp directory
+    const destPath = join(tempDir, tempRelativeDir, depPath)
 
     if (existsSync(sourcePath)) {
       // Create parent directory if needed
       mkdirSync(dirname(destPath), { recursive: true })
       copyFileSync(sourcePath, destPath)
       if (verbose) {
-        console.error(`  Copied dependency: ${depPath}`)
+        console.error(`  Copied dependency: ${join(tempRelativeDir, depPath)}`)
       }
 
       // Recursively copy dependencies of this file
-      copyDependencies(sourcePath, tempDir, verbose)
+      // The new relative dir is where this dependency ends up in the temp directory
+      const newRelativeDir = join(tempRelativeDir, dirname(depPath))
+      copyDependencies(sourcePath, tempDir, verbose, visited, newRelativeDir)
     }
   }
 }
@@ -411,8 +450,20 @@ async function main() {
   let failed = 0
   let translatorErrors = 0
   let openscadErrors = 0
+  let skipped = 0
 
   for (const file of files) {
+    const name = basename(file)
+
+    // Check if file should be skipped
+    if (options.skip.has(name)) {
+      skipped++
+      if (options.verbose) {
+        console.log(`${name}: SKIPPED (in skip list)`)
+      }
+      continue
+    }
+
     const result = await testFile(file, options)
     results.push(result)
 
@@ -442,14 +493,14 @@ async function main() {
     }
   }
 
-  // Calculate stats excluding OpenSCAD-side failures
-  const tested = files.length - openscadErrors
+  // Calculate stats excluding OpenSCAD-side failures and skip list
+  const tested = files.length - openscadErrors - skipped
   const passRate = tested > 0 ? ((passed / tested) * 100).toFixed(1) : '0.0'
 
   // Output summary
   if (options.json) {
     console.log(JSON.stringify({
-      summary: { total: files.length, tested, passed, failed, translatorErrors, openscadErrors },
+      summary: { total: files.length, tested, passed, failed, translatorErrors, openscadErrors, skipped },
       threshold: options.threshold,
       passRate: `${passRate}%`,
       results
@@ -457,8 +508,11 @@ async function main() {
   } else {
     console.log()
     console.log(`Summary: ${passed} passed, ${failed} failed, ${translatorErrors} errors out of ${tested} tested (${passRate}%)`)
-    if (openscadErrors > 0) {
-      console.log(`Skipped: ${openscadErrors} (OpenSCAD-side failures)`)
+    if (openscadErrors > 0 || skipped > 0) {
+      const skipReasons = []
+      if (openscadErrors > 0) skipReasons.push(`${openscadErrors} OpenSCAD failures`)
+      if (skipped > 0) skipReasons.push(`${skipped} in skip list`)
+      console.log(`Skipped: ${skipReasons.join(', ')}`)
     }
     console.log(`Threshold: ${options.threshold}`)
   }
