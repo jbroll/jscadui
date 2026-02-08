@@ -16,24 +16,9 @@
 
 import type { ScadFile, Statement, Expression } from 'openscad-parser'
 import { parse } from '../parser/parse.js'
+import { safeIdentifier, replaceIdentifier, getFileDir } from '../utils/identifiers.js'
+import { TokenType } from '../utils/tokens.js'
 
-// JavaScript reserved words that need to be renamed
-const JS_RESERVED = new Set([
-  'break', 'case', 'catch', 'continue', 'debugger', 'default', 'delete', 'do',
-  'else', 'finally', 'for', 'function', 'if', 'in', 'instanceof', 'new',
-  'return', 'switch', 'this', 'throw', 'try', 'typeof', 'var', 'void', 'while',
-  'with', 'class', 'const', 'enum', 'export', 'extends', 'import', 'super',
-  'implements', 'interface', 'let', 'package', 'private', 'protected', 'public',
-  'static', 'yield', 'await', 'async', 'null', 'true', 'false', 'undefined', 'NaN', 'Infinity'
-])
-
-/**
- * Ensure an identifier is safe for JavaScript
- * Renames reserved words by prefixing with underscore
- */
-function safeIdentifier(name: string): string {
-  return JS_RESERVED.has(name) ? `_${name}` : name
-}
 
 /**
  * File resolver for use statements
@@ -180,9 +165,7 @@ export function transpile(
   }
 
   // Compute directory of current file for resolving relative paths
-  const currentFileDir = ctx.options.currentFile
-    ? ctx.options.currentFile.replace(/[^/\\]*$/, '')  // Get directory part
-    : ''
+  const currentFileDir = getFileDir(ctx.options.currentFile)
 
   // Process use statements: transpile dependencies and discover their exports
   for (const useImport of ctx.useImports) {
@@ -402,9 +385,7 @@ function transpileAndCacheDependency(filename: string, ctx: TranspileContext): s
 
   // Compute the resolved path relative to the current file's directory
   // This is important for nested dependencies to resolve their own imports correctly
-  const currentFileDir = ctx.options.currentFile
-    ? ctx.options.currentFile.replace(/[^/\\]*$/, '')  // Get directory part
-    : ''
+  const currentFileDir = getFileDir(ctx.options.currentFile)
   const resolvedFilename = currentFileDir + filename
 
   // Check cache first (using resolved path)
@@ -680,22 +661,17 @@ function transpileStatement(stmt: Statement, ctx: TranspileContext): string | nu
           // Transpile value - references to outer scope will work correctly
           let value = transpileExpression(a.value, ctx)
           // Replace references to previously defined assignments in this block
-          // Use lookahead/lookbehind that works with $-prefixed variables
           for (const [orig, renamed] of nameMap) {
             if (orig !== origName) {
-              // Escape $ for regex and use boundaries that work for special vars
-              const escaped = orig.replace(/\$/g, '\\$')
-              value = value.replace(new RegExp(`(?<![a-zA-Z0-9_$])${escaped}(?![a-zA-Z0-9_])`, 'g'), renamed)
+              value = replaceIdentifier(value, orig, renamed)
             }
           }
           assignStrs.push(`const ${newName} = ${value}`)
         }
 
         // Update references in geometry parts
-        // Use lookahead/lookbehind that works with $-prefixed variables
         for (const [orig, renamed] of nameMap) {
-          const escaped = orig.replace(/\$/g, '\\$')
-          parts = parts.map(p => p.replace(new RegExp(`(?<![a-zA-Z0-9_$])${escaped}(?![a-zA-Z0-9_])`, 'g'), renamed))
+          parts = parts.map(p => replaceIdentifier(p, orig, renamed))
         }
 
         if (parts.length === 0) {
@@ -980,28 +956,28 @@ function transpileExpression(expr: Expression, ctx: TranspileContext): string {
       const left = transpileExpression(e.left, ctx)
       const right = transpileExpression(e.right, ctx)
       // Handle equality operators specially - need deep comparison for arrays
-      if (e.operation === 23) { // EqualEqual
+      if (e.operation === TokenType.EqualEqual) {
         ctx.usedHelpers.add('eq')
         return `_eq(${left}, ${right})`
       }
-      if (e.operation === 25) { // BangEqual
+      if (e.operation === TokenType.BangEqual) {
         ctx.usedHelpers.add('eq')
         return `!_eq(${left}, ${right})`
       }
       // Handle arithmetic operators with vector support
-      if (e.operation === 28) { // Plus - vector addition
+      if (e.operation === TokenType.Plus) {
         ctx.usedHelpers.add('vadd')
         return `_vadd(${left}, ${right})`
       }
-      if (e.operation === 29) { // Minus - vector subtraction
+      if (e.operation === TokenType.Minus) {
         ctx.usedHelpers.add('vsub')
         return `_vsub(${left}, ${right})`
       }
-      if (e.operation === 30) { // Star - vector/scalar multiplication
+      if (e.operation === TokenType.Star) {
         ctx.usedHelpers.add('vmul')
         return `_vmul(${left}, ${right})`
       }
-      if (e.operation === 31) { // Slash - vector/scalar division
+      if (e.operation === TokenType.Slash) {
         ctx.usedHelpers.add('vdiv')
         return `_vdiv(${left}, ${right})`
       }
@@ -1126,22 +1102,18 @@ function transpileExpression(expr: Expression, ctx: TranspileContext): string {
         // Transpile value (references to earlier bindings will be renamed by substituteNames)
         let value = transpileExpression(a.value, ctx)
         // Replace references to previously defined let bindings
-        // Use lookahead/lookbehind that works with $-prefixed variables
         for (const [orig, renamed] of nameMap) {
           if (orig !== origName) {
-            const escaped = orig.replace(/\$/g, '\\$')
-            value = value.replace(new RegExp(`(?<![a-zA-Z0-9_$])${escaped}(?![a-zA-Z0-9_])`, 'g'), renamed)
+            value = replaceIdentifier(value, orig, renamed)
           }
         }
         bindings.push(`const ${newName} = ${value}`)
       }
 
       // Transpile body and substitute all let binding names
-      // Use lookahead/lookbehind that works with $-prefixed variables
       let body = transpileExpression(e.expr, ctx)
       for (const [orig, renamed] of nameMap) {
-        const escaped = orig.replace(/\$/g, '\\$')
-        body = body.replace(new RegExp(`(?<![a-zA-Z0-9_$])${escaped}(?![a-zA-Z0-9_])`, 'g'), renamed)
+        body = replaceIdentifier(body, orig, renamed)
       }
 
       return `(() => { ${bindings.join('; ')}; return ${body} })()`
@@ -1265,32 +1237,31 @@ function reorderNamedArgs(
 }
 
 function transpileBinaryOp(op: number): string {
-  // TokenType enum numeric values
-  // Note: 23 (EqualEqual) and 25 (BangEqual) are handled specially in transpileExpression
+  // Note: EqualEqual and BangEqual are handled specially in transpileExpression
   // because they need deep comparison for arrays
   const opMap: Record<number, string> = {
-    28: '+',   // Plus
-    29: '-',   // Minus
-    30: '*',   // Star
-    31: '/',   // Slash
-    32: '%',   // Percent
-    19: '<',   // Less
-    21: '<=',  // LessEqual
-    20: '>',   // Greater
-    22: '>=',  // GreaterEqual
-    23: '===', // EqualEqual (but see special handling)
-    25: '!==', // BangEqual (but see special handling)
-    26: '&&',  // AND
-    27: '||',  // OR
+    [TokenType.Plus]: '+',
+    [TokenType.Minus]: '-',
+    [TokenType.Star]: '*',
+    [TokenType.Slash]: '/',
+    [TokenType.Percent]: '%',
+    [TokenType.Less]: '<',
+    [TokenType.LessEqual]: '<=',
+    [TokenType.Greater]: '>',
+    [TokenType.GreaterEqual]: '>=',
+    [TokenType.EqualEqual]: '===',  // (see special handling)
+    [TokenType.BangEqual]: '!==',   // (see special handling)
+    [TokenType.AND]: '&&',
+    [TokenType.OR]: '||',
   }
   return opMap[op] || String(op)
 }
 
 function transpileUnaryOp(op: number): string {
   const opMap: Record<number, string> = {
-    18: '!',  // Bang
-    29: '-',  // Minus
-    28: '+',  // Plus
+    [TokenType.Bang]: '!',
+    [TokenType.Minus]: '-',
+    [TokenType.Plus]: '+',
   }
   return opMap[op] || String(op)
 }
