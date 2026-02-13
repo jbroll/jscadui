@@ -577,17 +577,18 @@ export function reorderNamedArgs(
   const moduleParams = ctx.moduleParamLists.get(name)
   const functionParams = ctx.functionParamLists.get(name)
 
-  // Choose the best parameter list:
-  // 1. If preferFunction and function params exist, use function params
-  // 2. Otherwise prefer the longer list (functions often have more params than modules)
-  // 3. Fall back to whichever exists
+  // Choose the best parameter list based on call context:
+  // - preferFunction=true (function call): prefer function params
+  // - preferFunction=false (module instantiation): prefer module params
+  // IMPORTANT: Module and function definitions can have different parameter orders
+  // (e.g., BOSL2's prismoid module has xang/yang before rounding, but the function has them at the end)
+  // We must respect the call context to get the correct parameter order.
   let paramList: string[] | undefined
-  if (preferFunction && functionParams) {
-    paramList = functionParams
-  } else if (moduleParams && functionParams) {
-    // Both exist - use the longer one since it's more complete
-    paramList = functionParams.length >= moduleParams.length ? functionParams : moduleParams
+  if (preferFunction) {
+    // Function call context - prefer function params, fall back to module params
+    paramList = functionParams || moduleParams
   } else {
+    // Module instantiation context - prefer module params, fall back to function params
     paramList = moduleParams || functionParams
   }
 
