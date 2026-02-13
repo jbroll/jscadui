@@ -69,6 +69,24 @@ export function isEachExpr(expr: Expression | null): boolean {
 }
 
 /**
+ * Check if an expression is or directly contains a nested for expression
+ * In OpenSCAD: [for (i=...) for (j=...) expr] produces a flat list, not nested arrays
+ * This function detects such nested for expressions through let/if wrappers
+ */
+function containsNestedForExpr(expr: Expression | null): boolean {
+  if (!expr) return false
+  // Direct nested for
+  if (isLcForExpr(expr) || isLcForCExpr(expr)) return true
+  // Check nested expr in LcLetExpr or LetExpr
+  if ((isLetExpr(expr) || isLcLetExpr(expr)) && expr.expr) return containsNestedForExpr(expr.expr)
+  // Check inside LcIfExpr (both branches may contain for)
+  if (isLcIfExpr(expr)) {
+    return containsNestedForExpr(expr.ifExpr) || (expr.elseExpr ? containsNestedForExpr(expr.elseExpr) : false)
+  }
+  return false
+}
+
+/**
  * Transpile an expression
  */
 export function transpileExpression(expr: Expression, ctx: TranspileContext): string {
@@ -265,12 +283,24 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
     // List comprehension: [for (i = [0:10]) i * 2]
     const forExpr = expr as LcForExpr
     const args = forExpr.args
+
+    // Build scope for loop variables - they shadow any outer variables with the same name
+    // The loop variables are used directly as arrow function parameters (no renaming needed)
+    const loopScope = new Map<string, string>()
+    for (const arg of args) {
+      loopScope.set(arg.name, arg.name)
+    }
+
+    // Push scope so inner expression sees loop variables with their original names
+    pushScope(ctx, loopScope)
     const innerExpr = transpileExpression(forExpr.expr, ctx)
+    popScope(ctx)
 
     // Check if inner expression contains LcIfExpr (needs filtering)
     const needsFilter = containsIfExpr(forExpr.expr)
-    // Check if inner expression uses 'each' (needs flatMap for flattening)
-    const needsFlatMap = isEachExpr(forExpr.expr)
+    // Check if inner expression uses 'each' or contains nested 'for' (needs flatMap for flattening)
+    // In OpenSCAD: [for (i=...) for (j=...) expr] produces a flat list, not nested arrays
+    const needsFlatMap = isEachExpr(forExpr.expr) || containsNestedForExpr(forExpr.expr)
 
     if (args.length === 1) {
       const varName = args[0].name
