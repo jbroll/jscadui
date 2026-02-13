@@ -23,6 +23,7 @@ export function safeIdentifier(name: string): string {
 /**
  * Replace all occurrences of an identifier in code with a new name.
  * Uses word boundaries that handle OpenSCAD's $-prefixed special variables.
+ * Skips matches inside string literals to avoid corrupting error messages.
  *
  * @param code - The code string to modify
  * @param original - The original identifier to replace
@@ -35,17 +36,39 @@ export function replaceIdentifier(
   replacement: string
 ): string {
   const escaped = original.replace(/\$/g, '\\$')
-  // Exclude identifiers:
-  // 1. Preceded by an identifier character (part of a larger identifier)
-  // 2. Preceded by an identifier character followed by a dot (property access like obj.name)
-  // 3. Immediately followed by a colon (object key like `{ name: value }`)
+  // Pattern to match identifiers with proper word boundaries:
+  // 1. Not preceded by an identifier character (part of a larger identifier)
+  // 2. Not preceded by an identifier character followed by a dot (property access like obj.name)
+  // 3. Not immediately followed by a colon (object key like `{ name: value }`)
   //    This distinguishes from ternary operator where there's a space: `cond ? x : y`
   // But allow spread operators: ...name should be replaced
   // Note: $ is a valid JS identifier character, so include it in both lookbehind and lookahead
-  return code.replace(
-    new RegExp(`(?<![a-zA-Z0-9_$])(?<![a-zA-Z0-9_$]\\.)${escaped}(?![a-zA-Z0-9_$])(?!:)`, 'g'),
-    replacement
+  const identifierPattern = new RegExp(
+    `(?<![a-zA-Z0-9_$])(?<![a-zA-Z0-9_$]\\.)${escaped}(?![a-zA-Z0-9_$])(?!:)`,
+    'g'
   )
+
+  // Split code into string literals and code segments to avoid replacing inside strings
+  // This regex matches single-quoted, double-quoted, and template strings
+  const stringPattern = /"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`/g
+
+  let result = ''
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+
+  while ((match = stringPattern.exec(code)) !== null) {
+    // Process code segment before this string
+    const codeSegment = code.slice(lastIndex, match.index)
+    result += codeSegment.replace(identifierPattern, replacement)
+    // Add the string literal unchanged
+    result += match[0]
+    lastIndex = match.index + match[0].length
+  }
+
+  // Process remaining code after the last string
+  result += code.slice(lastIndex).replace(identifierPattern, replacement)
+
+  return result
 }
 
 /**
