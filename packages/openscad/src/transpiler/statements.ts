@@ -11,8 +11,8 @@ import type {
   FunctionDeclarationStmt,
 } from 'openscad-parser'
 import type { TranspileContext } from './context.js'
-import { WarningCode } from './context.js'
-import { safeIdentifier, replaceIdentifier } from '../utils/identifiers.js'
+import { WarningCode, pushScope, popScope } from './context.js'
+import { safeIdentifier } from '../utils/identifiers.js'
 import { transpileExpression, reorderNamedArgs } from './expressions.js'
 import {
   isBuiltinPrimitive,
@@ -57,35 +57,30 @@ export function transpileStatement(stmt: Statement, ctx: TranspileContext): stri
     }
 
     // Transpile geometry statements first
-    let parts = geometryStmts.map(c => transpileStatement(c, ctx)).filter(Boolean) as string[]
-    if (parts.length === 0 && assignments.length === 0) return null
-
     // If there are assignments, we need to create an IIFE to scope them
     // Use suffixed names to avoid temporal dead zone when shadowing parameters
     if (assignments.length > 0) {
       const suffix = `$${ctx.letCounter++}`
-      const nameMap = new Map<string, string>()
       const assignStrs: string[] = []
+
+      // Use incremental scope: each assignment value sees only earlier assignments
+      const incrementalScope = new Map<string, string>()
+      pushScope(ctx, incrementalScope)
 
       for (const a of assignments) {
         const origName = safeIdentifier(a.name)
         const newName = `${origName}${suffix}`
-        nameMap.set(origName, newName)
-        // Transpile value - references to outer scope will work correctly
-        let value = transpileExpression(a.value!, ctx)
-        // Replace references to previously defined assignments in this block
-        for (const [orig, renamed] of nameMap) {
-          if (orig !== origName) {
-            value = replaceIdentifier(value, orig, renamed)
-          }
-        }
+        // Transpile value - scope lookup will find earlier assignments automatically
+        const value = transpileExpression(a.value!, ctx)
         assignStrs.push(`const ${newName} = ${value}`)
+        // Add this assignment to scope for subsequent assignments and geometry
+        incrementalScope.set(origName, newName)
       }
 
-      // Update references in geometry parts
-      for (const [orig, renamed] of nameMap) {
-        parts = parts.map(p => replaceIdentifier(p, orig, renamed))
-      }
+      // Transpile geometry statements with full scope
+      const parts = geometryStmts.map(c => transpileStatement(c, ctx)).filter(Boolean) as string[]
+
+      popScope(ctx)
 
       if (parts.length === 0) {
         return `(() => { ${assignStrs.join('; ')}; return undefined })()`
@@ -97,6 +92,9 @@ export function transpileStatement(stmt: Statement, ctx: TranspileContext): stri
       ctx.usedHelpers.add('safeUnion')
       return `(() => { ${assignStrs.join('; ')}; return j$.safeUnion([\n    ${parts.join(',\n    ')}\n  ]) })()`
     }
+
+    const parts = geometryStmts.map(c => transpileStatement(c, ctx)).filter(Boolean) as string[]
+    if (parts.length === 0) return null
 
     if (parts.length === 1) return parts[0]
     ctx.usedBooleans.add('union')
@@ -208,21 +206,29 @@ function transpileModuleInstantiation(stmt: ModuleInstantiationStmt, ctx: Transp
   // Restore special vars after processing children
   ctx.inheritedSpecialVars = savedSpecialVars
 
+  // Check if there's a user-defined module that should override builtins
+  // This allows BOSL2's square(anchor=...) to override the builtin square
+  // Check local definitions, direct imports, and modules from includes
+  const hasUserDefinedModule = ctx.moduleNames.includes(name) ||
+    ctx.importedModules.has(name) ||
+    ctx.includedModuleNames.has(name)
+
   // Check if it's a built-in primitive/transform/boolean
-  if (isBuiltinPrimitive(name)) {
+  // ONLY use builtins if there's no user-defined module with the same name
+  if (!hasUserDefinedModule && isBuiltinPrimitive(name)) {
     return transpileBuiltinPrimitive(name, argsArray, ctx)
   }
 
-  if (isBuiltinTransform(name)) {
+  if (!hasUserDefinedModule && isBuiltinTransform(name)) {
     return transpileBuiltinTransform(name, argsArray, childCode, ctx)
   }
 
-  if (isBuiltinBoolean(name)) {
+  if (!hasUserDefinedModule && isBuiltinBoolean(name)) {
     // Boolean ops need children passed directly, not as union
     return transpileBuiltinBoolean(name, stmt.child, ctx)
   }
 
-  if (isBuiltinExtrusion(name)) {
+  if (!hasUserDefinedModule && isBuiltinExtrusion(name)) {
     return transpileBuiltinExtrusion(name, argsArray, childCode, ctx)
   }
 
@@ -285,36 +291,39 @@ function transpileModuleInstantiation(stmt: ModuleInstantiationStmt, ctx: Transp
     const childrenArray = collectChildrenAsArray(stmt.child, ctx)
     if (childrenArray.length > 0) {
       const childrenArg = `[${childrenArray.join(', ')}]`
-      // Curried call: module(args)(children)
-      return `${safeName}(${positionalArgs})(${childrenArg})`
+      // Curried call: module_$m(args)(children)
+      return `${safeName}_$m(${positionalArgs})(${childrenArg})`
     }
   }
 
+  // Check if this is a LOCAL variable (no suffix needed)
+  // Local variables include: let bindings, function params, local assignments
+  const isLocalVariable = ctx.localFunctionBindings.has(safeName)
+  if (isLocalVariable) {
+    // Local variable - call directly without any suffix
+    return `${safeName}(${positionalArgs})`
+  }
+
   // Determine if this is a function call vs module instantiation
-  // Functions: called directly, return values
-  // Modules: curried pattern, module(args)(children) returns geometry
-  //
-  // We know it's a function if:
-  // - It's in our local functionNames list (and not overridden by a module)
-  // - It's in our importedFunctions set (tracked from dependency's functionExports)
-  // Note: Use original name for lookups since context stores original names, not safe names
+  // Functions: called directly with _$f suffix, return values
+  // Modules: curried pattern with _$m suffix, module(args)(children) returns geometry
   const isLocalFunction = ctx.functionNames.includes(name)
   const isLocalModule = ctx.moduleNames.includes(name)
   const isImportedFunction = ctx.importedFunctions.has(name)
   const isImportedModule = ctx.importedModules.has(name)
 
   if (isLocalFunction && !isLocalModule) {
-    // Pure local function call - no currying
-    return `${safeName}(${positionalArgs})`
+    // Global function - use _$f suffix
+    return `${safeName}_$f(${positionalArgs})`
   }
 
   if (isImportedFunction && !isImportedModule) {
-    // Imported function (not a module) - no currying needed
-    return `${safeName}(${positionalArgs})`
+    // Imported function - use _$f suffix
+    return `${safeName}_$f(${positionalArgs})`
   }
 
-  // Module call with no children: use curried pattern with empty array
-  return `${safeName}(${positionalArgs})()`
+  // Module call with no children: use curried pattern with _$m suffix
+  return `${safeName}_$m(${positionalArgs})()`
 }
 
 /**
@@ -551,9 +560,16 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
   const bodyParts: string[] = []
   // Track declared variables to detect reassignments
   const declaredVars = new Set<string>(paramNames)
+  // Track local variable names for function call resolution (avoid _$f suffix for local vars)
+  const localVarNames: string[] = []
 
   // Process nested function definitions (these must come first so they can be used)
   for (const f of nestedFunctions) {
+    // Track as local function binding BEFORE transpiling body (for recursive calls)
+    const varName = safeIdentifier(f.name)
+    ctx.localFunctionBindings.set(varName, varName)
+    localVarNames.push(varName)
+
     const funcParams = transpileParamsList(f.definitionArgs, ctx)
     const funcBody = transpileExpression(f.expr, ctx)
     bodyParts.push(`${indent}const ${f.name} = (${funcParams}) => ${funcBody}`)
@@ -562,6 +578,11 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
 
   // Recursively process nested module definitions
   for (const m of nestedModules) {
+    // Track as local function binding BEFORE transpiling body (for recursive calls)
+    const varName = safeIdentifier(m.name)
+    ctx.localFunctionBindings.set(varName, varName)
+    localVarNames.push(varName)
+
     const nestedParams = transpileParamsList(m.definitionArgs, ctx)
     const nestedParamNames = new Set<string>(m.definitionArgs.map(a => a.name))
     const nestedBodyParts = buildModuleBody(m.stmt, ctx, indent + '  ', nestedParamNames)
@@ -573,8 +594,48 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
   // Local variable assignments
   // If a variable shadows a parameter or previous declaration, don't use 'const'
   // This handles OpenSCAD's pattern of reassigning parameters: cp = is_scalar(cp) ? ... : cp
+  // Special variables ($fn, $fa, $fs, etc.) are declared with 'let' at top level
+  // OpenSCAD special variables and BOSL2 attachment variables
+  // These need special handling to avoid temporal dead zone when reassigned
+  const specialVars = new Set([
+    '$fn', '$fa', '$fs', '$t', '$vpr', '$vpt', '$vpd', '$vpf', '$preview',
+    // BOSL2 attachment system variables
+    '$transform', '$parent_anchor', '$parent_spin', '$parent_orient',
+    '$parent_geom', '$parent_size', '$parent_parts', '$attach_to',
+    '$attach_anchor', '$attach_alignment', '$attach_inside',
+    '$tags', '$tag', '$save_tag', '$tag_prefix', '$overlap',
+    '$color', '$save_color', '$anchor_override',
+    '$edge_angle', '$edge_length', '$tags_shown', '$tags_hidden',
+    '$ghost_this', '$ghost', '$ghosting', '$highlight_this', '$highlight'
+  ])
+
   for (const a of assignments) {
-    if (declaredVars.has(a.name)) {
+    // Track as local binding BEFORE transpiling (for recursive function calls)
+    const varName = safeIdentifier(a.name)
+    ctx.localFunctionBindings.set(varName, varName)
+    localVarNames.push(varName)
+
+    const isSpecialVar = specialVars.has(a.name)
+
+    if (isSpecialVar) {
+      // Special variables are pre-declared with 'let' at module top level
+      // When self-referencing (e.g., $fn = _default(rounding_fn, $fn)),
+      // we need to capture the old value to avoid temporal dead zone
+      const valueExpr = transpileExpression(a.value!, ctx)
+      // Check if the expression contains a reference to the same variable
+      // Use word boundary check to avoid false positives
+      const selfRefPattern = new RegExp(`\\b\\${a.name}\\b`)
+      if (selfRefPattern.test(valueExpr)) {
+        // Capture old value first, then reassign
+        bodyParts.push(`${indent}const _saved${a.name} = ${a.name}`)
+        // Replace all references to the variable with the saved version
+        const fixedExpr = valueExpr.replace(new RegExp(`\\b\\${a.name}\\b`, 'g'), `_saved${a.name}`)
+        bodyParts.push(`${indent}${a.name} = ${fixedExpr}`)
+      } else {
+        // No self-reference, simple reassignment
+        bodyParts.push(`${indent}${a.name} = ${valueExpr}`)
+      }
+    } else if (declaredVars.has(a.name)) {
       // Reassignment - don't use const
       bodyParts.push(`${indent}${a.name} = ${transpileExpression(a.value!, ctx)}`)
     } else {
@@ -594,6 +655,11 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
 
   bodyParts.push(`${indent}return ${returnExpr}`)
 
+  // Clean up local bindings (they're scoped to this module body)
+  for (const name of localVarNames) {
+    ctx.localFunctionBindings.delete(name)
+  }
+
   return bodyParts
 }
 
@@ -612,7 +678,8 @@ export function transpileModuleDeclaration(stmt: ModuleDeclarationStmt, ctx: Tra
   const bodyParts = buildModuleBody(stmt.stmt, ctx, '  ', paramNames)
 
   // Curried: (params) => (_children) => body
-  return `const ${name} = (${params}) => (_children = []) => {\n${bodyParts.join('\n')}\n}`
+  // Use _$m suffix for modules to separate from function namespace
+  return `const ${name}_$m = (${params}) => (_children = []) => {\n${bodyParts.join('\n')}\n}`
 }
 
 /**
@@ -624,5 +691,6 @@ export function transpileFunctionDeclaration(stmt: FunctionDeclarationStmt, ctx:
   const body = transpileExpression(stmt.expr, ctx)
 
   // Use function declaration (not arrow) for hoisting - critical for include bundling
-  return `function ${name}(${params}) { return ${body}; }`
+  // Use _$f suffix for functions to separate from module namespace
+  return `function ${name}_$f(${params}) { return ${body}; }`
 }

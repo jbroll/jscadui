@@ -93,7 +93,7 @@ export function transpile(
   for (const useImport of ctx.useImports) {
     // Compute resolved path relative to root
     useImport.resolvedPath = currentFileDir + useImport.filename
-    const symbols = transpileAndCacheDependency(useImport.filename, ctx)
+    const symbols = transpileAndCacheDependency(useImport.filename, ctx, false /* use */)
     useImport.symbols = symbols
     for (const sym of symbols) {
       ctx.availableSymbols.add(sym)
@@ -139,7 +139,7 @@ export function transpile(
   for (const includeImport of ctx.includeImports) {
     // Compute resolved path relative to root
     includeImport.resolvedPath = currentFileDir + includeImport.filename
-    const symbols = transpileAndCacheDependency(includeImport.filename, ctx)
+    const symbols = transpileAndCacheDependency(includeImport.filename, ctx, true /* include */)
     includeImport.symbols = symbols
     for (const sym of symbols) {
       ctx.availableSymbols.add(sym)
@@ -259,18 +259,33 @@ export function transpile(
       // Always generate module (even if function with same name exists)
       localModules.push(transpileModuleDeclaration(stmt, ctx))
     } else if (isFunctionDeclaration(stmt)) {
-      const funcName = safeIdentifier(stmt.name)
-      // If both module and function exist, rename function to name__fn
-      if (dualDefinedNames.has(funcName)) {
-        localFunctions.push(transpileFunctionDeclaration(stmt, ctx, `${funcName}__fn`))
-      } else {
-        localFunctions.push(transpileFunctionDeclaration(stmt, ctx))
-      }
+      // Functions always get _$f suffix, modules get _$m suffix
+      // This eliminates the need for __fn renaming since namespaces don't conflict
+      localFunctions.push(transpileFunctionDeclaration(stmt, ctx))
     } else if (isUseStmt(stmt) || isIncludeStmt(stmt)) {
       // Already collected in first pass
     } else if (isAssignmentNode(stmt)) {
       // Top-level variable assignment
-      localConstants.push(`const ${safeIdentifier(stmt.name)} = ${transpileExpression(stmt.value!, ctx)}`)
+      // Special variables ($fn, $fa, $fs, etc.) are already declared with 'let' at the top
+      // via buildJscadImports, so we just reassign them instead of declaring new const
+      const specialVars = new Set([
+        '$fn', '$fa', '$fs', '$t', '$vpr', '$vpt', '$vpd', '$vpf', '$preview',
+        // BOSL2 attachment system variables
+        '$transform', '$parent_anchor', '$parent_spin', '$parent_orient',
+        '$parent_geom', '$parent_size', '$parent_parts', '$attach_to',
+        '$attach_anchor', '$attach_alignment', '$attach_inside',
+        '$tags', '$tag', '$save_tag', '$tag_prefix', '$overlap',
+        '$color', '$save_color', '$anchor_override',
+        '$edge_angle', '$edge_length', '$tags_shown', '$tags_hidden',
+        '$ghost_this', '$ghost', '$ghosting', '$highlight_this', '$highlight'
+      ])
+      const varName = safeIdentifier(stmt.name)
+      const value = transpileExpression(stmt.value!, ctx)
+      if (specialVars.has(stmt.name)) {
+        localConstants.push(`${varName} = ${value}`)
+      } else {
+        localConstants.push(`const ${varName} = ${value}`)
+      }
     } else {
       // File-scope geometry/statements
       const code = transpileStatement(stmt, ctx)
@@ -336,19 +351,30 @@ export function transpile(
     parts.push('')
   }
 
+  // LIBRARY CONSTANTS (bundled from includes) - BEFORE MODULES
+  // These are constants like CENTER, UP, DOWN from library files
+  // They MUST come before modules because modules may reference them in default parameters
+  // e.g., trapezoid(..., anchor = CENTER) requires CENTER to be defined first
+  if (bundledConstants.length > 0) {
+    parts.push(bundledConstants.join('\n'))
+    parts.push('')
+  }
+
   // ALL MODULE DEFINITIONS (bundled from includes + local)
+  // These come after library constants so that default parameters work correctly
   const allModules = [...bundledModules, ...localModules]
   if (allModules.length > 0) {
     parts.push(allModules.join('\n\n'))
     parts.push('')
   }
 
-  // ALL CONSTANT ASSIGNMENTS (local first, then bundled from includes)
-  // Local constants come first because in OpenSCAD, definitions before includes are evaluated first
-  // e.g., _BOSL2_STD = true; must be defined before included files check is_undef(_BOSL2_STD)
-  const allConstants = [...localConstants, ...bundledConstants]
-  if (allConstants.length > 0) {
-    parts.push(allConstants.join('\n'))
+  // LOCAL CONSTANT ASSIGNMENTS (from the main file being transpiled)
+  // These come AFTER modules because user code may call modules
+  // e.g., path = trapezoid(15, 30, 15) requires trapezoid to be defined first
+  // Local constants that are just value assignments (like _BOSL2_STD = true) are fine here
+  // because they don't call any modules
+  if (localConstants.length > 0) {
+    parts.push(localConstants.join('\n'))
     parts.push('')
   }
 
@@ -366,12 +392,15 @@ export function transpile(
   }
 
   // Exports (modules, functions, and top-level variables)
-  // Filter out module names that have a corresponding function (we skip those modules)
-  const moduleExportNames = ctx.moduleNames.filter(name => !functionNameSet.has(name))
+  // Use _$m suffix for modules and _$f suffix for functions (namespace separation)
+  // Both modules and functions are exported - no filtering needed since suffixes prevent collision
+  const moduleExportNames = ctx.moduleNames.map(name => `${name}_$m`)
+  const functionExportNames = ctx.functionNames.map(name => `${name}_$f`)
   // Include re-exports symbols from included files (include statement = re-export all)
+  // These already have the correct suffixes from the source file
   const includeReExports = ctx.includeImports.flatMap(imp => imp.symbols)
-  // All exports
-  const allExports = [...new Set([...moduleExportNames, ...ctx.functionNames, ...ctx.variableNames, ...includeReExports, 'main'])]
+  // All exports - main is special (no suffix)
+  const allExports = [...new Set([...moduleExportNames, ...functionExportNames, ...ctx.variableNames, ...includeReExports, 'main'])]
   parts.push(`module.exports = { ${allExports.join(', ')} }`)
 
   const code = parts.join('\n')
@@ -402,11 +431,13 @@ export function transpile(
     ctx.transpiledFiles.set(ctx.options.currentFile, {
       code,
       exports: allExports.filter(e => e !== 'main'),
+      // Keep original names (without _$f/_$m suffix) for lookup purposes
+      // The suffix is added when generating the actual call
       functionExports: ctx.functionNames.filter(e => e !== 'main'),
       moduleExports: ctx.moduleNames.filter(e => e !== 'main'),
       paramLists: new Map(ctx.moduleParamLists),
       functionParamLists: new Map(ctx.functionParamLists),
-      dualDefinedNames: new Set(dualDefinedNames),
+      dualDefinedNames: new Set(ctx.dualDefinedNames),  // Include inherited dual-defined names from includes
       bundledParts,
     })
   }
@@ -452,15 +483,23 @@ function collectSignaturesFromIncludes(
     ctx.parsedFiles.set(resolvedPath, ast)
 
     // Collect signatures from this file
+    // Track module and function names to detect dual-defined names
+    const fileModuleNames = new Set<string>()
+    const fileFunctionNames = new Set<string>()
+
     for (const stmt of ast.statements) {
       if (isModuleDeclaration(stmt)) {
         const name = safeIdentifier(stmt.name)
+        fileModuleNames.add(name)
+        // Track this module name globally (for builtin override detection)
+        ctx.includedModuleNames.add(name)
         const params = (stmt.definitionArgs || []).map((a: AssignmentNode) => a.name)
         if (!ctx.moduleParamLists.has(name)) {
           ctx.moduleParamLists.set(name, params)
         }
       } else if (isFunctionDeclaration(stmt)) {
         const name = safeIdentifier(stmt.name)
+        fileFunctionNames.add(name)
         const params = (stmt.definitionArgs || []).map((a: AssignmentNode) => a.name)
         if (!ctx.functionParamLists.has(name)) {
           ctx.functionParamLists.set(name, params)
@@ -468,6 +507,19 @@ function collectSignaturesFromIncludes(
         // Also add to moduleParamLists for consistency
         if (!ctx.moduleParamLists.has(name)) {
           ctx.moduleParamLists.set(name, params)
+        }
+      }
+    }
+
+    // Detect dual-defined names (both module and function with same name)
+    // and add to context so function calls use __fn suffix
+    for (const name of fileFunctionNames) {
+      if (fileModuleNames.has(name)) {
+        ctx.dualDefinedNames.add(name)
+        // Register __fn variant in paramLists so reorderNamedArgs can find it
+        const params = ctx.functionParamLists.get(name) || ctx.moduleParamLists.get(name)
+        if (params) {
+          ctx.moduleParamLists.set(`${name}__fn`, params)
         }
       }
     }
@@ -500,14 +552,26 @@ function collectSignaturesFromIncludes(
         ctx.functionParamLists.set(name, params)
       }
     }
+    // Copy dual-defined names from nested includes
+    for (const name of nestedCtx.dualDefinedNames) {
+      ctx.dualDefinedNames.add(name)
+      // Also register __fn variant
+      const params = ctx.functionParamLists.get(name) || ctx.moduleParamLists.get(name)
+      if (params && !ctx.moduleParamLists.has(`${name}__fn`)) {
+        ctx.moduleParamLists.set(`${name}__fn`, params)
+      }
+    }
   }
 }
 
 /**
  * Transpile a dependency file and cache the result
  * Returns the exported symbol names
+ * @param isInclude - true for include statements, false for use statements
+ *   Include files get access to includedModuleNames (bundled together)
+ *   Use files don't (they run in separate scope via require)
  */
-function transpileAndCacheDependency(filename: string, ctx: TranspileContext): string[] {
+function transpileAndCacheDependency(filename: string, ctx: TranspileContext, isInclude: boolean = false): string[] {
   const fileResolver = ctx.options.fileResolver
   if (!fileResolver) {
     // No file resolver - can't process dependencies
@@ -566,13 +630,17 @@ function transpileAndCacheDependency(filename: string, ctx: TranspileContext): s
 
   // Recursively transpile this file (sharing the cache)
   // Use resolved path as currentFile so nested dependencies resolve correctly
-  // Pass current paramLists and dualDefinedNames so sibling includes can resolve calls
+  // Pass current paramLists, dualDefinedNames, and importedFunctions so sibling includes can resolve calls
+  // For include files, pass includedModuleNames because those are bundled together
+  // For use files, don't pass them because they run in separate scope via require()
   const result = transpile(ast, {
     ...ctx.options,
     currentFile: resolvedFilename,
     initialParamLists: ctx.moduleParamLists,
     initialFunctionParamLists: ctx.functionParamLists,
     initialDualDefinedNames: ctx.dualDefinedNames,
+    initialImportedFunctions: ctx.importedFunctions,
+    initialIncludedModuleNames: isInclude ? ctx.includedModuleNames : undefined,
   }, ctx.transpiledFiles)
 
   // Cache the result (using resolved path)

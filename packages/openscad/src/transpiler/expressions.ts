@@ -14,8 +14,8 @@ import type {
   AssignmentNode,
 } from 'openscad-parser'
 import type { TranspileContext } from './context.js'
-import { WarningCode } from './context.js'
-import { safeIdentifier, replaceIdentifier } from '../utils/identifiers.js'
+import { WarningCode, pushScope, popScope, lookupBinding } from './context.js'
+import { safeIdentifier } from '../utils/identifiers.js'
 import { TokenType } from '../utils/tokens.js'
 import {
   isLiteralExpr,
@@ -85,9 +85,16 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
     if (name === '$parent_modules') return '0'  // Module nesting depth (stub: always top-level)
     // Constants from j$ namespace
     if (name === 'PI') return 'j$.PI'
+    const safeName = safeIdentifier(name)
+    // Check if this variable has been renamed in an enclosing scope (let/for bindings)
+    // This must happen FIRST to handle shadowing - a let variable should shadow
+    // any outer local function binding with the same name
+    const scopedName = lookupBinding(ctx, safeName)
+    if (scopedName !== undefined) {
+      return scopedName
+    }
     // Ensure the identifier is safe for JavaScript
-    // No parameter shadowing handling needed - functions use _$f suffix
-    return safeIdentifier(name)
+    return safeName
   }
 
   if (isVectorExpr(expr)) {
@@ -296,33 +303,33 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
     const suffix = `$${ctx.letCounter || 1}`
     ctx.letCounter = (ctx.letCounter || 1) + 1
 
-    // Initial assignments
+    // Build scope with all loop variables
+    const loopScope = new Map<string, string>()
+    for (const a of forCExpr.args) {
+      const origName = safeIdentifier(a.name)
+      loopScope.set(origName, `${origName}${suffix}`)
+    }
+
+    // Initial assignments (values don't see loop variables yet)
     const inits = forCExpr.args.map(a =>
       `let ${safeIdentifier(a.name)}${suffix} = ${transpileExpression(a.value!, ctx)}`
     ).join('; ')
 
-    // Condition - replace variable names with suffixed versions
-    let cond = transpileExpression(forCExpr.cond, ctx)
-    for (const a of forCExpr.args) {
-      cond = replaceIdentifier(cond, safeIdentifier(a.name), `${safeIdentifier(a.name)}${suffix}`)
-    }
+    // Push scope for condition, body, and increment
+    pushScope(ctx, loopScope)
 
-    // Body expression - replace variable names
-    let body = transpileExpression(forCExpr.expr, ctx)
-    for (const a of forCExpr.args) {
-      body = replaceIdentifier(body, safeIdentifier(a.name), `${safeIdentifier(a.name)}${suffix}`)
-    }
+    // Condition
+    const cond = transpileExpression(forCExpr.cond, ctx)
 
-    // Increment assignments - replace variable names and create tuple update
-    const incrParts = forCExpr.incrArgs.map(a => {
-      let val = transpileExpression(a.value!, ctx)
-      for (const arg of forCExpr.args) {
-        val = replaceIdentifier(val, safeIdentifier(arg.name), `${safeIdentifier(arg.name)}${suffix}`)
-      }
-      return val
-    })
+    // Body expression
+    const body = transpileExpression(forCExpr.expr, ctx)
+
+    // Increment assignments
+    const incrParts = forCExpr.incrArgs.map(a => transpileExpression(a.value!, ctx))
     const incrVars = forCExpr.incrArgs.map(a => `${safeIdentifier(a.name)}${suffix}`).join(', ')
     const incrUpdate = `[${incrVars}] = [${incrParts.join(', ')}]`
+
+    popScope(ctx)
 
     return `(() => { const _result${suffix} = []; ${inits}; while (${cond}) { _result${suffix}.push(${body}); ${incrUpdate}; } return _result${suffix}; })()`
   }
@@ -360,6 +367,10 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
     const bindings: string[] = []
     const functionBindings: string[] = []  // Track which bindings are functions (for cleanup)
 
+    // Use incremental scope: each binding value sees only earlier bindings
+    const incrementalScope = new Map<string, string>()
+    pushScope(ctx, incrementalScope)
+
     for (let i = 0; i < letExpr.args.length; i++) {
       const a = letExpr.args[i]
       const origName = safeIdentifier(a.name)
@@ -372,33 +383,25 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
         functionBindings.push(origName)
         // Register function binding IMMEDIATELY so subsequent bindings can call it
         ctx.localFunctionBindings.set(origName, newName)
+        // Also add to scope for self-reference
+        incrementalScope.set(origName, newName)
       }
 
-      // Transpile value
-      let value = transpileExpression(a.value!, ctx)
-
-      // Replace references to EARLIER let bindings (already defined in JS scope)
-      // Plus include self-reference if this is a function literal (functions can reference themselves)
-      for (let j = 0; j < letExpr.args.length; j++) {
-        const otherName = safeIdentifier(letExpr.args[j].name)
-        const otherRenamed = nameMap.get(otherName)
-        if (otherRenamed) {
-          // Only replace if: (1) it's an earlier binding, or (2) it's the current binding AND it's a function
-          if (j < i || (j === i && isFuncLiteral)) {
-            value = replaceIdentifier(value, otherName, otherRenamed)
-          }
-        }
-      }
+      // Transpile value - scope lookup will find earlier bindings automatically
+      const value = transpileExpression(a.value!, ctx)
       bindings.push(`const ${newName} = ${value}`)
+
+      // Add this binding to scope for subsequent bindings
+      if (!isFuncLiteral) {
+        incrementalScope.set(origName, newName)
+      }
     }
 
-    // Transpile body and substitute all let binding names
-    let body = transpileExpression(letExpr.expr, ctx)
-    for (const [orig, renamed] of nameMap) {
-      body = replaceIdentifier(body, orig, renamed)
-    }
+    // Transpile body - all bindings are now in scope
+    const body = transpileExpression(letExpr.expr, ctx)
 
-    // Remove function bindings from context after processing
+    // Pop scope and clean up function bindings
+    popScope(ctx)
     for (const origName of functionBindings) {
       ctx.localFunctionBindings.delete(origName)
     }
@@ -418,6 +421,10 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
     const bindings: string[] = []
     const functionBindings: string[] = []  // Track which bindings are functions
 
+    // Use incremental scope: each binding value sees only earlier bindings
+    const incrementalScope = new Map<string, string>()
+    pushScope(ctx, incrementalScope)
+
     for (let i = 0; i < lcLetExpr.args.length; i++) {
       const a = lcLetExpr.args[i]
       const origName = safeIdentifier(a.name)
@@ -430,37 +437,25 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
         functionBindings.push(origName)
         // Register function binding IMMEDIATELY so subsequent bindings can call it
         ctx.localFunctionBindings.set(origName, newName)
+        // Also add to scope for self-reference
+        incrementalScope.set(origName, newName)
       }
 
-      // Transpile value
-      let value = transpileExpression(a.value!, ctx)
-
-      // Replace references to EARLIER let bindings (already defined in JS scope)
-      // Plus include self-reference if this is a function literal (functions can reference themselves)
-      for (let j = 0; j < lcLetExpr.args.length; j++) {
-        const otherName = safeIdentifier(lcLetExpr.args[j].name)
-        const otherRenamed = nameMap.get(otherName)
-        if (otherRenamed) {
-          // Only replace if: (1) it's an earlier binding, or (2) it's the current binding AND it's a function
-          if (j < i || (j === i && isFuncLiteral)) {
-            value = replaceIdentifier(value, otherName, otherRenamed)
-          }
-        }
-      }
+      // Transpile value - scope lookup will find earlier bindings automatically
+      const value = transpileExpression(a.value!, ctx)
       bindings.push(`const ${newName} = ${value}`)
+
+      // Add this binding to scope for subsequent bindings
+      if (!isFuncLiteral) {
+        incrementalScope.set(origName, newName)
+      }
     }
 
-    // Register function bindings in context so function calls use the renamed version
-    for (const origName of functionBindings) {
-      ctx.localFunctionBindings.set(origName, nameMap.get(origName)!)
-    }
+    // Transpile body - all bindings are now in scope
+    const body = transpileExpression(lcLetExpr.expr, ctx)
 
-    let body = transpileExpression(lcLetExpr.expr, ctx)
-    for (const [orig, renamed] of nameMap) {
-      body = replaceIdentifier(body, orig, renamed)
-    }
-
-    // Remove function bindings from context after processing
+    // Pop scope and clean up function bindings
+    popScope(ctx)
     for (const origName of functionBindings) {
       ctx.localFunctionBindings.delete(origName)
     }

@@ -66,6 +66,10 @@ export interface TranspileOptions {
   initialFunctionParamLists?: Map<string, string[]>
   // Initial dual-defined names (inherited from parent context)
   initialDualDefinedNames?: Set<string>
+  // Initial imported functions (inherited from parent context for parameter shadowing detection)
+  initialImportedFunctions?: Set<string>
+  // Initial included module names (inherited from parent context for builtin override detection)
+  initialIncludedModuleNames?: Set<string>
 }
 
 export interface TranspileResult {
@@ -148,8 +152,14 @@ export interface TranspileContext {
   importedFunctions: Set<string>
   // Track imported module names (from includes) - these use curried pattern
   importedModules: Set<string>
+  // Track module names from all includes (for builtin override detection)
+  // This is populated during the pre-pass and shared across all nested transpilations
+  includedModuleNames: Set<string>
   // Track names that have both module and function versions (use __fn suffix for function)
   dualDefinedNames: Set<string>
+  // Track parameters that shadow function names (for current function scope)
+  // Maps original name -> renamed version (e.g., "reverse" -> "_param_reverse")
+  shadowedParameters: Map<string, string>
   // Current indentation level
   indentLevel: number
   // Cache of transpiled files (shared across recursive calls)
@@ -162,6 +172,13 @@ export interface TranspileContext {
   inheritedSpecialVars: { $fn?: string; $fa?: string; $fs?: string }
   // Counter for unique let binding suffixes (to avoid shadowing issues)
   letCounter: number
+  // Local let bindings that are functions (maps original name -> renamed suffixed name)
+  // When calling these, use the renamed name directly without _$f suffix
+  localFunctionBindings: Map<string, string>
+  // Scope stack for variable bindings (maps original name -> renamed name)
+  // Each entry is a scope level; innermost scope is last
+  // This is used for proper lexical scoping of let/for bindings
+  scopeBindings: Map<string, string>[]
   // Warnings generated during transpilation
   warnings: TranspileWarning[]
   // Errors generated during transpilation (non-fatal)
@@ -207,6 +224,22 @@ export function createContext(
     }
   }
 
+  // Initialize importedFunctions from initial values if provided (for parameter shadowing detection)
+  const importedFunctions = new Set<string>()
+  if (options.initialImportedFunctions) {
+    for (const name of options.initialImportedFunctions) {
+      importedFunctions.add(name)
+    }
+  }
+
+  // Initialize includedModuleNames from initial values if provided (for builtin override detection)
+  const includedModuleNames = new Set<string>()
+  if (options.initialIncludedModuleNames) {
+    for (const name of options.initialIncludedModuleNames) {
+      includedModuleNames.add(name)
+    }
+  }
+
   return {
     options: opts,
     usedPrimitives: new Set(),
@@ -226,16 +259,56 @@ export function createContext(
     functionParamLists,
     variableNames: [],
     availableSymbols: new Set(),
-    importedFunctions: new Set(),
+    importedFunctions,
     importedModules: new Set(),
+    includedModuleNames,
     dualDefinedNames,
+    shadowedParameters: new Map(),
     indentLevel: 0,
     transpiledFiles: sharedCache || new Map(),
     parsedFiles: new Map(),
     processingFiles: new Set(),
     inheritedSpecialVars: {},
     letCounter: 1,
+    localFunctionBindings: new Map(),
+    scopeBindings: [],
     warnings: [],
     errors: [],
   }
+}
+
+/**
+ * Push a new scope level with variable bindings
+ * @param ctx - The transpile context
+ * @param bindings - Map of original name -> renamed name
+ */
+export function pushScope(ctx: TranspileContext, bindings: Map<string, string>): void {
+  ctx.scopeBindings.push(bindings)
+}
+
+/**
+ * Pop the innermost scope level
+ * @param ctx - The transpile context
+ */
+export function popScope(ctx: TranspileContext): void {
+  ctx.scopeBindings.pop()
+}
+
+/**
+ * Look up a variable binding in the current scope stack
+ * Returns the renamed version if found, undefined otherwise
+ * Searches from innermost to outermost scope
+ * @param ctx - The transpile context
+ * @param name - The original variable name
+ * @returns The renamed variable name, or undefined if not in scope
+ */
+export function lookupBinding(ctx: TranspileContext, name: string): string | undefined {
+  // Search from innermost (last) to outermost (first) scope
+  for (let i = ctx.scopeBindings.length - 1; i >= 0; i--) {
+    const binding = ctx.scopeBindings[i].get(name)
+    if (binding !== undefined) {
+      return binding
+    }
+  }
+  return undefined
 }
