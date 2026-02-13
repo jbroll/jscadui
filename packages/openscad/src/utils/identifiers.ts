@@ -35,10 +35,15 @@ export function replaceIdentifier(
   replacement: string
 ): string {
   const escaped = original.replace(/\$/g, '\\$')
-  // Exclude identifiers preceded by a dot (property/method access)
-  // to avoid replacing .map with .map$17 when user variable is named 'map'
+  // Exclude identifiers:
+  // 1. Preceded by an identifier character (part of a larger identifier)
+  // 2. Preceded by an identifier character followed by a dot (property access like obj.name)
+  // 3. Immediately followed by a colon (object key like `{ name: value }`)
+  //    This distinguishes from ternary operator where there's a space: `cond ? x : y`
+  // But allow spread operators: ...name should be replaced
+  // Note: $ is a valid JS identifier character, so include it in both lookbehind and lookahead
   return code.replace(
-    new RegExp(`(?<![a-zA-Z0-9_$\\.])${escaped}(?![a-zA-Z0-9_])`, 'g'),
+    new RegExp(`(?<![a-zA-Z0-9_$])(?<![a-zA-Z0-9_$]\\.)${escaped}(?![a-zA-Z0-9_$])(?!:)`, 'g'),
     replacement
   )
 }

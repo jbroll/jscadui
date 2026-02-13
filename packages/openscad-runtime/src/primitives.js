@@ -106,7 +106,9 @@ export const _regular_polygon = ({ order = 6, n, r = 1, $fn: _$fn = 0 }) => {
 export const _polyhedron = ({ points, faces, triangles, convexity: _convexity }) => {
   // OpenSCAD and JSCAD use opposite winding orders for faces
   const faceList = faces || triangles || []
-  const reversedFaces = faceList.map(f => [...f].reverse())
+  // Filter out any invalid faces (undefined or non-array elements)
+  const validFaces = faceList.filter(f => Array.isArray(f))
+  const reversedFaces = validFaces.map(f => [...f].reverse())
   return polyhedron({ points, faces: reversedFaces, orientation: 'outward' })
 }
 

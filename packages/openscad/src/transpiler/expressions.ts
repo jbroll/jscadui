@@ -86,6 +86,7 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
     // Constants from j$ namespace
     if (name === 'PI') return 'j$.PI'
     // Ensure the identifier is safe for JavaScript
+    // No parameter shadowing handling needed - functions use _$f suffix
     return safeIdentifier(name)
   }
 
@@ -96,7 +97,37 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
     if (children.length === 1 && isLcForExpr(children[0])) {
       return transpileExpression(children[0], ctx)
     }
-    return `[${children.map(c => transpileExpression(c, ctx)).join(', ')}]`
+    // List comprehension with let: [let(a=1) for (i = range) expr] has single LcLetExpr child
+    // The LcLetExpr wraps an LcForExpr, so we need to unwrap
+    if (children.length === 1 && isLcLetExpr(children[0])) {
+      return transpileExpression(children[0], ctx)
+    }
+    // Handle 'each' keyword, for comprehensions, and conditionals in list literals
+    // - 'each' keyword: [0, each arr] -> [0, ...arr] (flattens its argument)
+    // - 'for' comprehension: [0, for (i=r) i, 1] -> [0, ...r.map(i=>i), 1]
+    //   When a for comprehension is mixed with other elements, it needs to be spread
+    //   because the for generates an array, and we want the elements flattened
+    // - 'if' conditional: [0, if(cond) val, 1] -> [0, cond?val:undefined, 1].filter(x=>x!==undefined)
+    //   Conditionals produce undefined when false, which must be filtered out
+    const hasConditionals = children.some(c => isLcIfExpr(c))
+    const parts = children.map(c => {
+      if (isLcEachExpr(c)) {
+        // Spread the inner expression
+        return `...${transpileExpression(c.expr, ctx)}`
+      }
+      if (isLcForExpr(c)) {
+        // For comprehensions inside mixed vectors need to be spread
+        // [a, for(x=arr) f(x), b] -> [a, ...arr.map(x => f(x)), b]
+        return `...${transpileExpression(c, ctx)}`
+      }
+      return transpileExpression(c, ctx)
+    })
+    // If there are conditionals (LcIfExpr), filter out undefined values
+    // OpenSCAD: [if(cond) x] produces [] when cond is false, not [undefined]
+    if (hasConditionals) {
+      return `[${parts.join(', ')}].filter(x => x !== undefined)`
+    }
+    return `[${parts.join(', ')}]`
   }
 
   if (isBinaryOpExpr(expr)) {
@@ -154,12 +185,13 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
   if (isArrayLookupExpr(expr)) {
     const array = transpileExpression(expr.array, ctx)
     const index = transpileExpression(expr.index, ctx)
-    return `${array}[${index}]`
+    // Use optional chaining to handle undefined arrays gracefully (OpenSCAD returns undef)
+    return `${array}?.[${index}]`
   }
 
   if (isFunctionCallExpr(expr)) {
     const fnExpr = expr as FunctionCallExpr
-    let callee = transpileExpression(fnExpr.callee, ctx)
+    const callee = transpileExpression(fnExpr.callee, ctx)
 
     // Build args array with name+value pairs (like statements.ts does for modules)
     const argsArray = fnExpr.args.map(a => ({
@@ -167,15 +199,38 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
       value: transpileExpression(a.value!, ctx)
     }))
 
-    // If this name has both module and function versions, use __fn suffix for function calls
-    if (ctx.dualDefinedNames.has(callee)) {
-      callee = `${callee}__fn`
+    // Separate special variables ($fn, $fa, $fs, etc.) from regular args
+    // Special variables use dynamic scoping in OpenSCAD
+    const specialVars: Array<{name: string, value: string}> = []
+    const regularArgs: Array<{name: string | null, value: string}> = []
+
+    for (const arg of argsArray) {
+      if (arg.name && arg.name.startsWith('$')) {
+        specialVars.push({ name: arg.name, value: arg.value })
+      } else {
+        regularArgs.push(arg)
+      }
     }
 
     // Reorder named arguments to match parameter definition order
-    const args = reorderNamedArgs(callee, argsArray, ctx)
+    // Note: function calls use _$f suffix which is added in transpileFunctionCall
+    // preferFunction=true because this is a function call (uses return value)
+    const args = reorderNamedArgs(callee, regularArgs, ctx, true)
 
-    return transpileFunctionCall(callee, args, ctx)
+    const callExpr = transpileFunctionCall(callee, args, ctx)
+
+    // If special variables were passed, wrap in dynamic scoping context
+    // OpenSCAD special vars ($fn, $fa, $fs, etc.) use dynamic scoping
+    if (specialVars.length > 0) {
+      // Generate save/set/call/restore code for each special variable
+      // Example: (() => { const _$fn = $fn; $fn = 6; try { return expr; } finally { $fn = _$fn; } })()
+      const saves = specialVars.map(sv => `const _${sv.name} = ${sv.name}`).join('; ')
+      const sets = specialVars.map(sv => `${sv.name} = ${sv.value}`).join('; ')
+      const restores = specialVars.map(sv => `${sv.name} = _${sv.name}`).join('; ')
+      return `(() => { ${saves}; ${sets}; try { return ${callExpr}; } finally { ${restores}; } })()`
+    }
+
+    return callExpr
   }
 
   if (isRangeExpr(expr)) {
@@ -303,17 +358,35 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
     // Build mapping from original names to suffixed names
     const nameMap = new Map<string, string>()
     const bindings: string[] = []
+    const functionBindings: string[] = []  // Track which bindings are functions (for cleanup)
 
-    for (const a of letExpr.args) {
+    for (let i = 0; i < letExpr.args.length; i++) {
+      const a = letExpr.args[i]
       const origName = safeIdentifier(a.name)
       const newName = `${origName}${suffix}`
       nameMap.set(origName, newName)
-      // Transpile value (references to earlier bindings will be renamed by substituteNames)
+
+      // Check if this is a function literal (for recursive self-reference support)
+      const isFuncLiteral = a.value && isFunctionDeclaration(a.value as unknown as import('openscad-parser').Statement)
+      if (isFuncLiteral) {
+        functionBindings.push(origName)
+        // Register function binding IMMEDIATELY so subsequent bindings can call it
+        ctx.localFunctionBindings.set(origName, newName)
+      }
+
+      // Transpile value
       let value = transpileExpression(a.value!, ctx)
-      // Replace references to previously defined let bindings
-      for (const [orig, renamed] of nameMap) {
-        if (orig !== origName) {
-          value = replaceIdentifier(value, orig, renamed)
+
+      // Replace references to EARLIER let bindings (already defined in JS scope)
+      // Plus include self-reference if this is a function literal (functions can reference themselves)
+      for (let j = 0; j < letExpr.args.length; j++) {
+        const otherName = safeIdentifier(letExpr.args[j].name)
+        const otherRenamed = nameMap.get(otherName)
+        if (otherRenamed) {
+          // Only replace if: (1) it's an earlier binding, or (2) it's the current binding AND it's a function
+          if (j < i || (j === i && isFuncLiteral)) {
+            value = replaceIdentifier(value, otherName, otherRenamed)
+          }
         }
       }
       bindings.push(`const ${newName} = ${value}`)
@@ -323,6 +396,11 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
     let body = transpileExpression(letExpr.expr, ctx)
     for (const [orig, renamed] of nameMap) {
       body = replaceIdentifier(body, orig, renamed)
+    }
+
+    // Remove function bindings from context after processing
+    for (const origName of functionBindings) {
+      ctx.localFunctionBindings.delete(origName)
     }
 
     return `(() => { ${bindings.join('; ')}; return ${body} })()`
@@ -335,25 +413,56 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
     const suffix = `$${ctx.letCounter || 1}`
     ctx.letCounter = (ctx.letCounter || 1) + 1
 
+    // Build mapping from original names to suffixed names
     const nameMap = new Map<string, string>()
     const bindings: string[] = []
+    const functionBindings: string[] = []  // Track which bindings are functions
 
-    for (const a of lcLetExpr.args) {
+    for (let i = 0; i < lcLetExpr.args.length; i++) {
+      const a = lcLetExpr.args[i]
       const origName = safeIdentifier(a.name)
       const newName = `${origName}${suffix}`
       nameMap.set(origName, newName)
+
+      // Check if this is a function literal (for recursive self-reference support)
+      const isFuncLiteral = a.value && isFunctionDeclaration(a.value as unknown as import('openscad-parser').Statement)
+      if (isFuncLiteral) {
+        functionBindings.push(origName)
+        // Register function binding IMMEDIATELY so subsequent bindings can call it
+        ctx.localFunctionBindings.set(origName, newName)
+      }
+
+      // Transpile value
       let value = transpileExpression(a.value!, ctx)
-      for (const [orig, renamed] of nameMap) {
-        if (orig !== origName) {
-          value = replaceIdentifier(value, orig, renamed)
+
+      // Replace references to EARLIER let bindings (already defined in JS scope)
+      // Plus include self-reference if this is a function literal (functions can reference themselves)
+      for (let j = 0; j < lcLetExpr.args.length; j++) {
+        const otherName = safeIdentifier(lcLetExpr.args[j].name)
+        const otherRenamed = nameMap.get(otherName)
+        if (otherRenamed) {
+          // Only replace if: (1) it's an earlier binding, or (2) it's the current binding AND it's a function
+          if (j < i || (j === i && isFuncLiteral)) {
+            value = replaceIdentifier(value, otherName, otherRenamed)
+          }
         }
       }
       bindings.push(`const ${newName} = ${value}`)
     }
 
+    // Register function bindings in context so function calls use the renamed version
+    for (const origName of functionBindings) {
+      ctx.localFunctionBindings.set(origName, nameMap.get(origName)!)
+    }
+
     let body = transpileExpression(lcLetExpr.expr, ctx)
     for (const [orig, renamed] of nameMap) {
       body = replaceIdentifier(body, orig, renamed)
+    }
+
+    // Remove function bindings from context after processing
+    for (const origName of functionBindings) {
+      ctx.localFunctionBindings.delete(origName)
     }
 
     return `(() => { ${bindings.join('; ')}; return ${body} })()`
@@ -434,11 +543,28 @@ export function transpileLiteral(value: string | number | boolean | null | undef
 export function reorderNamedArgs(
   name: string,
   argsArray: Array<{name: string | null, value: string}>,
-  ctx: TranspileContext
+  ctx: TranspileContext,
+  preferFunction = false
 ): string {
   // Get parameter list for this module/function
-  // Check moduleParamLists first, then functionParamLists (for pure functions without module version)
-  const paramList = ctx.moduleParamLists.get(name) || ctx.functionParamLists.get(name)
+  // preferFunction=true means this is a function call context (uses return value)
+  // In that case, prefer functionParamLists since functions often have extra params (like p in rot)
+  const moduleParams = ctx.moduleParamLists.get(name)
+  const functionParams = ctx.functionParamLists.get(name)
+
+  // Choose the best parameter list:
+  // 1. If preferFunction and function params exist, use function params
+  // 2. Otherwise prefer the longer list (functions often have more params than modules)
+  // 3. Fall back to whichever exists
+  let paramList: string[] | undefined
+  if (preferFunction && functionParams) {
+    paramList = functionParams
+  } else if (moduleParams && functionParams) {
+    // Both exist - use the longer one since it's more complete
+    paramList = functionParams.length >= moduleParams.length ? functionParams : moduleParams
+  } else {
+    paramList = moduleParams || functionParams
+  }
 
   // If we don't have parameter info, or no named args, fall back to positional order
   const hasNamedArgs = argsArray.some(a => a.name !== null)
@@ -514,7 +640,7 @@ export function transpileUnaryOp(op: number): string {
   return opMap[op] || String(op)
 }
 
-export function transpileFunctionCall(callee: string, args: string, _ctx: TranspileContext): string {
+export function transpileFunctionCall(callee: string, args: string, ctx: TranspileContext): string {
   // Built-in math functions that map directly to Math.*
   const mathFuncs: Record<string, string> = {
     abs: 'Math.abs',
@@ -609,7 +735,7 @@ export function transpileFunctionCall(callee: string, args: string, _ctx: Transp
   }
 
   // Helper functions from j$ runtime
-  const helperFuncs = ['norm', 'cross', 'lookup', 'rands', 'search', 'version_num', 'str']
+  const helperFuncs = ['norm', 'cross', 'lookup', 'rands', 'search', 'version_num', 'str', 'chr', 'ord']
   if (helperFuncs.includes(callee)) {
     return `j$.${callee}(${args})`
   }
@@ -619,6 +745,20 @@ export function transpileFunctionCall(callee: string, args: string, _ctx: Transp
     return `console.log(${args})`
   }
 
-  // User-defined function call
+  // Check if this is a local function binding (from a let expression)
+  // If so, use the renamed version directly without _$f suffix
+  const localBinding = ctx.localFunctionBindings.get(callee)
+  if (localBinding) {
+    return `${localBinding}(${args})`
+  }
+
+  // User-defined function call - use _$f suffix for namespace separation
+  // Only add suffix for simple identifiers (named function calls)
+  // Don't add for complex expressions like array[0](args) or obj.method(args)
+  const isSimpleIdentifier = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(callee)
+  if (isSimpleIdentifier) {
+    return `${callee}_$f(${args})`
+  }
+  // Complex expression (array access, member access, etc.) - call directly
   return `${callee}(${args})`
 }

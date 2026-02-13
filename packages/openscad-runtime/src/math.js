@@ -6,7 +6,12 @@ export const PI = Math.PI
 
 export const _range = (start, end, step = 1) => {
   const r = []
-  for (let i = start; i <= end; i += step) r.push(i)
+  if (step > 0) {
+    for (let i = start; i <= end; i += step) r.push(i)
+  } else if (step < 0) {
+    for (let i = start; i >= end; i += step) r.push(i)
+  }
+  // step === 0 returns empty array (avoid infinite loop)
   return r
 }
 
@@ -16,7 +21,66 @@ export const str = (...args) => args.map(a =>
 
 export const version_num = () => 20210100
 
-export const search = (_match, _string, _num_returns = 1, _idx) => [[]]
+/**
+ * OpenSCAD search function
+ * search(match_values, source, num_returns=1, index_col_num)
+ * Returns list of lists - for each match_value, a list of indices where it was found
+ *
+ * @param {*} _match - value or array of values to search for
+ * @param {*} _source - string or array to search in
+ * @param {number} _num_returns - 0 for all matches, N for up to N matches (default 1)
+ * @param {number} _idx - when source is a table (list of lists), compare against this column
+ */
+export const search = (_match, _source, _num_returns = 1, _idx) => {
+  // Track if input was scalar (affects return format)
+  const wasScalar = !Array.isArray(_match)
+  // Normalize match to array for processing
+  const matches = wasScalar ? [_match] : _match
+  const source = _source
+
+  // Helper to search for a single value
+  const searchOne = (m) => {
+    const results = []
+
+    // Handle string source (search for characters)
+    if (typeof source === 'string') {
+      const char = String(m)
+      for (let i = 0; i < source.length; i++) {
+        if (source[i] === char) {
+          results.push(i)
+          if (_num_returns !== 0 && results.length >= _num_returns) break
+        }
+      }
+      return results
+    }
+
+    // Handle array source
+    if (Array.isArray(source)) {
+      for (let i = 0; i < source.length; i++) {
+        // Get the value to compare
+        const val = _idx !== undefined && Array.isArray(source[i]) ? source[i][_idx] : source[i]
+        // Deep equality check for arrays, strict equality for primitives
+        const isMatch = Array.isArray(m) && Array.isArray(val)
+          ? JSON.stringify(m) === JSON.stringify(val)
+          : m === val
+        if (isMatch) {
+          results.push(i)
+          if (_num_returns !== 0 && results.length >= _num_returns) break
+        }
+      }
+      return results
+    }
+
+    // Default: empty results
+    return results
+  }
+
+  // If input was scalar, return flat list; otherwise return list of lists
+  if (wasScalar) {
+    return searchOne(matches[0])
+  }
+  return matches.map(m => searchOne(m))
+}
 
 // min/max that handle array arguments (OpenSCAD: max([1,2,3]) returns 3)
 export const _min = (...args) =>
@@ -60,6 +124,28 @@ export const _rands = (min, max, count, seed) => {
   }
   for (let i = 0; i < count; i++) r.push(min + rand() * (max - min))
   return r
+}
+
+/**
+ * Convert character code(s) to string
+ * chr(65) -> "A"
+ * chr([72, 101, 108, 108, 111]) -> "Hello"
+ */
+export const chr = (code) => {
+  if (Array.isArray(code)) {
+    return code.map(c => String.fromCodePoint(c)).join('')
+  }
+  return String.fromCodePoint(code)
+}
+
+/**
+ * Convert character to its code point
+ * ord("A") -> 65
+ * Only returns the code of the first character
+ */
+export const ord = (char) => {
+  if (typeof char !== 'string' || char.length === 0) return undefined
+  return char.codePointAt(0)
 }
 
 // Type checking functions (OpenSCAD built-ins)
