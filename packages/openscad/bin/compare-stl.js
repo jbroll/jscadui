@@ -123,6 +123,11 @@ function parseAsciiStl(content) {
 function parseBinaryStl(buffer) {
   const triangles = []
 
+  // Binary STL needs at least 84 bytes (80 header + 4 count)
+  if (buffer.length < 84) {
+    throw new Error(`STL file too short for binary format: ${buffer.length} bytes`)
+  }
+
   // Skip 80-byte header
   let offset = 80
 

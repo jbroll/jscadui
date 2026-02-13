@@ -74,7 +74,7 @@ describe('transpile exports', () => {
     `
     const result = transpile(parse(source).ast)
 
-    expect(result.exports).toContain('myModule')
+    expect(result.exports).toContain('myModule_$m')
   })
 
   it('exports function definitions', () => {
@@ -83,7 +83,7 @@ describe('transpile exports', () => {
     `
     const result = transpile(parse(source).ast)
 
-    expect(result.exports).toContain('myFunc')
+    expect(result.exports).toContain('myFunc_$f')
   })
 
   it('exports top-level variables', () => {

@@ -162,12 +162,14 @@ describe('transpileExpression', () => {
   describe('array access', () => {
     it('handles array indexing', () => {
       const code = transpileExpr('x = arr[0];')
-      expect(code).toContain('arr[0]')
+      // Uses optional chaining to handle undefined arrays gracefully (like OpenSCAD)
+      expect(code).toContain('arr?.[0]')
     })
 
     it('handles nested array access', () => {
       const code = transpileExpr('x = arr[0][1];')
-      expect(code).toContain('arr[0][1]')
+      // Uses optional chaining to handle undefined arrays gracefully (like OpenSCAD)
+      expect(code).toContain('arr?.[0]?.[1]')
     })
   })
 

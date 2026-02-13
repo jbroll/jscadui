@@ -453,6 +453,11 @@ async function main() {
           console.error(code)
         }
       }
+      // Allow loading patched code from a file for debugging
+      if (process.env.DEBUG_PATCH_FILE) {
+        jsCode = readFileSync(process.env.DEBUG_PATCH_FILE, 'utf8')
+        console.error('Loaded patched code from:', process.env.DEBUG_PATCH_FILE)
+      }
     } else {
       jsCode = source
     }
@@ -495,8 +500,6 @@ async function main() {
     // Evaluate the code with our custom require
     const exports = {}
     const moduleObj = { exports }
-
-    // Evaluate the code with our custom require
     const fn = new Function('require', 'module', 'exports', jsCode)
     fn(customRequire, moduleObj, exports)
 

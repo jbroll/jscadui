@@ -20,7 +20,7 @@ describe('reorderNamedArgs', () => {
         module foo(a, b, c) { cube(a); }
         foo(1, 2, 3);
       `)
-      expect(code).toContain('foo(1, 2, 3)')
+      expect(code).toContain('foo_$m(1, 2, 3)')
     })
 
     it('handles single positional argument', () => {
@@ -28,7 +28,7 @@ describe('reorderNamedArgs', () => {
         module foo(a) { cube(a); }
         foo(42);
       `)
-      expect(code).toContain('foo(42)')
+      expect(code).toContain('foo_$m(42)')
     })
   })
 
@@ -39,7 +39,7 @@ describe('reorderNamedArgs', () => {
         foo(c=3, a=1, b=2);
       `)
       // Should reorder to (a, b, c) order
-      expect(code).toContain('foo(1, 2, 3)')
+      expect(code).toContain('foo_$m(1, 2, 3)')
     })
 
     it('handles partial named arguments', () => {
@@ -48,7 +48,7 @@ describe('reorderNamedArgs', () => {
         foo(c=3, a=1);
       `)
       // b should be undefined
-      expect(code).toContain('foo(1, undefined, 3)')
+      expect(code).toContain('foo_$m(1, undefined, 3)')
     })
 
     it('handles single named argument', () => {
@@ -56,7 +56,7 @@ describe('reorderNamedArgs', () => {
         module foo(a, b, c) { cube(a); }
         foo(b=42);
       `)
-      expect(code).toContain('foo(undefined, 42)')
+      expect(code).toContain('foo_$m(undefined, 42)')
     })
   })
 
@@ -67,7 +67,7 @@ describe('reorderNamedArgs', () => {
         foo(1, c=3);
       `)
       // First positional fills 'a', named fills 'c'
-      expect(code).toContain('foo(1, undefined, 3)')
+      expect(code).toContain('foo_$m(1, undefined, 3)')
     })
 
     it('handles named then positional', () => {
@@ -76,7 +76,7 @@ describe('reorderNamedArgs', () => {
         foo(b=2, 1, 3);
       `)
       // b=2 is named, 1 fills 'a', 3 fills 'c'
-      expect(code).toContain('foo(1, 2, 3)')
+      expect(code).toContain('foo_$m(1, 2, 3)')
     })
 
     it('handles interleaved named and positional', () => {
@@ -86,7 +86,7 @@ describe('reorderNamedArgs', () => {
       `)
       // 1 fills 'a', c=3 is named, 2 fills 'b' (skipped), then 'd'
       // Wait, 2 should fill 'b' not 'd' because b wasn't named yet
-      expect(code).toContain('foo(1, 2, 3)')
+      expect(code).toContain('foo_$m(1, 2, 3)')
     })
   })
 
@@ -97,8 +97,8 @@ describe('reorderNamedArgs', () => {
         foo(a=1);
       `)
       // Should not have trailing undefineds
-      expect(code).toContain('foo(1)')
-      expect(code).not.toContain('foo(1, undefined, undefined)')
+      expect(code).toContain('foo_$m(1)')
+      expect(code).not.toContain('foo_$m(1, undefined, undefined)')
     })
 
     it('keeps intermediate undefined values', () => {
@@ -106,7 +106,7 @@ describe('reorderNamedArgs', () => {
         module foo(a, b, c) { cube(a); }
         foo(a=1, c=3);
       `)
-      expect(code).toContain('foo(1, undefined, 3)')
+      expect(code).toContain('foo_$m(1, undefined, 3)')
     })
   })
 
@@ -116,10 +116,10 @@ describe('reorderNamedArgs', () => {
         function add(x, y) = x + y;
         result = add(y=2, x=1);
       `)
-      // Function should be defined (now uses function declaration for hoisting)
-      expect(code).toContain('function add(')
-      // Result should call the function
-      expect(code).toContain('add(')
+      // Function should be defined with _$f suffix (namespace separation)
+      expect(code).toContain('function add_$f(')
+      // Result should call the function with _$f suffix
+      expect(code).toContain('add_$f(')
     })
   })
 
@@ -153,7 +153,7 @@ describe('reorderNamedArgs', () => {
         module foo() { cube(1); }
         foo();
       `)
-      expect(code).toContain('foo()')
+      expect(code).toContain('foo_$m()')
     })
 
     it('handles default values in module definition', () => {
@@ -162,7 +162,7 @@ describe('reorderNamedArgs', () => {
         foo(c=10);
       `)
       // Only c is overridden
-      expect(code).toContain('foo(undefined, undefined, 10)')
+      expect(code).toContain('foo_$m(undefined, undefined, 10)')
     })
 
     it('handles special variable arguments ($fn, $fa, $fs)', () => {
