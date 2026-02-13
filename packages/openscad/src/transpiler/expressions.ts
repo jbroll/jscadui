@@ -740,11 +740,21 @@ export function transpileFunctionCall(callee: string, args: string, ctx: Transpi
     return `console.log(${args})`
   }
 
-  // Check if this is a local function binding (from a let expression)
-  // If so, use the renamed version directly without _$f suffix
+  // Check if this is a local variable binding (from a let/for expression)
+  // Local variables should never get _$f suffix, only global functions do
+  // Check by: 1) original name in localFunctionBindings, or
+  //           2) callee is a renamed value in any scope binding
   const localBinding = ctx.localFunctionBindings.get(callee)
   if (localBinding) {
     return `${localBinding}(${args})`
+  }
+  // Check if callee is a renamed local variable (exists as a value in scopeBindings)
+  for (const scope of ctx.scopeBindings) {
+    for (const renamedName of scope.values()) {
+      if (callee === renamedName) {
+        return `${callee}(${args})`
+      }
+    }
   }
 
   // User-defined function call - use _$f suffix for namespace separation
