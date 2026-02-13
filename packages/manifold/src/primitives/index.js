@@ -504,7 +504,7 @@ export const polygon = (options = {}) => {
   const { points, paths } = options
 
   if (!points || points.length < 3) {
-    throw new Error('polygon requires at least 3 points')
+    throw new Error(`polygon requires at least 3 points, got: ${JSON.stringify(points)}`)
   }
 
   const CrossSection = getCrossSection()

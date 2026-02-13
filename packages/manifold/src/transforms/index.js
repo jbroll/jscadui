@@ -309,33 +309,32 @@ export const transform = (matrix, ...geometries) => {
     }
     if (isManifoldGeom2(geom) || (geom.sides !== undefined)) {
       const section = toCrossSection(geom)
-      // For 2D, extract 2D transform from 4x4 matrix
-      // [m0 m4 m8  m12]   [m0 m2 tx]
-      // [m1 m5 m9  m13] → [m1 m3 ty]
-      // [m2 m6 m10 m14]   [0  0  1 ]
-      // [m3 m7 m11 m15]
-      const mat2d = [
-        [matrix[0], matrix[4], matrix[12]],
-        [matrix[1], matrix[5], matrix[13]]
+      // For 2D, extract 3x3 affine transform from 4x4 matrix
+      // Input 4x4 column-major: [m00, m10, m20, m30, m01, m11, m21, m31, m02, m12, m22, m32, tx, ty, tz, 1]
+      // Output Mat3 column-major for CrossSection.transform():
+      // [m00, m10, 0, m01, m11, 0, tx, ty, 1]
+      const mat3 = [
+        matrix[0] ?? 1, matrix[1] ?? 0, 0,    // column 0: x basis
+        matrix[4] ?? 0, matrix[5] ?? 1, 0,    // column 1: y basis
+        matrix[12] ?? 0, matrix[13] ?? 0, 1   // column 2: translation
       ]
-      const transformed = section.transform(mat2d)
+      const transformed = section.transform(mat3)
       const result = new ManifoldGeom2(transformed)
       // Preserve color
       if (isManifoldGeom2(geom) && geom.color) result.color = geom.color
       return result
     } else {
       const manifold = toManifold(geom)
-      // Manifold expects 4x3 matrix (column-major, no perspective row)
-      // [m0 m4 m8  m12]
-      // [m1 m5 m9  m13]
-      // [m2 m6 m10 m14]
-      const mat4x3 = [
-        [matrix[0], matrix[1], matrix[2]],
-        [matrix[4], matrix[5], matrix[6]],
-        [matrix[8], matrix[9], matrix[10]],
-        [matrix[12], matrix[13], matrix[14]]
+      // Manifold expects a full 16-element column-major matrix
+      // Our input is already in this format: [m00, m10, m20, m30, m01, m11, m21, m31, ...]
+      // Just ensure we have all 16 elements (fill with identity if shorter)
+      const mat16 = matrix.length >= 16 ? matrix : [
+        matrix[0] ?? 1, matrix[1] ?? 0, matrix[2] ?? 0, matrix[3] ?? 0,
+        matrix[4] ?? 0, matrix[5] ?? 1, matrix[6] ?? 0, matrix[7] ?? 0,
+        matrix[8] ?? 0, matrix[9] ?? 0, matrix[10] ?? 1, matrix[11] ?? 0,
+        matrix[12] ?? 0, matrix[13] ?? 0, matrix[14] ?? 0, matrix[15] ?? 1
       ]
-      const transformed = manifold.transform(mat4x3)
+      const transformed = manifold.transform(mat16)
       const result = new ManifoldGeom3(transformed)
       // Preserve color
       if (isManifoldGeom3(geom) && geom.color) result.color = geom.color
