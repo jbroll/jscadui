@@ -677,9 +677,34 @@ export function transpileModuleDeclaration(stmt: ModuleDeclarationStmt, ctx: Tra
   const paramNames = new Set<string>(stmt.definitionArgs.map(a => a.name))
   const bodyParts = buildModuleBody(stmt.stmt, ctx, '  ', paramNames)
 
+  // Build preamble to convert EXPLICIT_UNDEF params to undefined
+  const preamble = buildUndefConversionPreamble(stmt.definitionArgs)
+  const preambleLine = preamble ? `  ${preamble}\n` : ''
+
   // Curried: (params) => (_children) => body
   // Use _$m suffix for modules to separate from function namespace
-  return `const ${name}_$m = (${params}) => (_children = []) => {\n${bodyParts.join('\n')}\n}`
+  return `const ${name}_$m = (${params}) => (_children = []) => {\n${preambleLine}${bodyParts.join('\n')}\n}`
+}
+
+/**
+ * Build preamble to convert j$.EXPLICIT_UNDEF parameters back to undefined.
+ * This is needed because we use EXPLICIT_UNDEF to bypass JavaScript's default parameter
+ * behavior, but once inside the function, we need real undefined for proper semantics.
+ */
+function buildUndefConversionPreamble(args: AssignmentNode[]): string {
+  if (args.length === 0) return ''
+
+  // Deduplicate: keep last occurrence of each parameter name (matching transpileParamsList)
+  const seenNames = new Map<string, number>()
+  args.forEach((arg, i) => seenNames.set(arg.name, i))
+  const uniqueArgs = args.filter((arg, i) => seenNames.get(arg.name) === i)
+
+  const conversions = uniqueArgs.map(arg => {
+    const name = safeIdentifier(arg.name)
+    return `if (${name} === j$.EXPLICIT_UNDEF) ${name} = undefined`
+  })
+
+  return conversions.join('; ') + (conversions.length > 0 ? '; ' : '')
 }
 
 /**
@@ -690,7 +715,10 @@ export function transpileFunctionDeclaration(stmt: FunctionDeclarationStmt, ctx:
   const params = transpileParamsList(stmt.definitionArgs, ctx)
   const body = transpileExpression(stmt.expr, ctx)
 
+  // Build preamble to convert EXPLICIT_UNDEF params to undefined
+  const preamble = buildUndefConversionPreamble(stmt.definitionArgs)
+
   // Use function declaration (not arrow) for hoisting - critical for include bundling
   // Use _$f suffix for functions to separate from module namespace
-  return `function ${name}_$f(${params}) { return ${body}; }`
+  return `function ${name}_$f(${params}) { ${preamble}return ${body}; }`
 }

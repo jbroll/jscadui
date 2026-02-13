@@ -16,11 +16,21 @@ import { initExtrusions, _linearExtrude, _rotateExtrude } from './extrusions.js'
 import { initColor, _color } from './color.js'
 
 /**
+ * Sentinel for explicit undef passed as argument.
+ * In OpenSCAD, `undef` can be passed explicitly to override a function's default value.
+ * In JavaScript, passing `undefined` triggers the default parameter behavior.
+ * To distinguish "caller passed undef" from "caller omitted argument", we use this sentinel.
+ */
+const EXPLICIT_UNDEF = Symbol('explicit_undef')
+
+/**
  * The j$ namespace - contains all OpenSCAD runtime helpers.
  * Use j$.functionName() in transpiled code.
  * Since $ is illegal in OpenSCAD identifiers, this can never conflict with user code.
  */
 const j$ = {
+  // Sentinel for explicit undef
+  EXPLICIT_UNDEF,
   // Math helpers (no JSCAD dependency)
   PI,
   range: _range,
@@ -39,7 +49,12 @@ const j$ = {
   ord,
 
   // Vector operations (no JSCAD dependency)
-  eq: _eq,
+  // Wrap _eq to handle EXPLICIT_UNDEF - convert it to undefined for comparison
+  eq: (a, b) => {
+    if (a === EXPLICIT_UNDEF) a = undefined
+    if (b === EXPLICIT_UNDEF) b = undefined
+    return _eq(a, b)
+  },
   vadd: _vadd,
   vsub: _vsub,
   vmul: _vmul,
@@ -62,10 +77,16 @@ const j$ = {
    * OpenSCAD assert - throws if condition is false, returns undefined if true
    * Unlike console.assert, this actually halts execution on failure
    */
-  assert: (condition, message) => {
+  assert: (condition, message, ...debugArgs) => {
     if (!condition) {
       const msg = message != null ? String(message) : 'Assertion failed'
-      console.assert(false, msg)  // Also log for consistency
+      console.error('ASSERT FAILED:', msg)
+      if (debugArgs.length > 0) {
+        console.error('Debug args:', debugArgs)
+      }
+      // Print stack trace to stderr
+      const stack = new Error().stack
+      console.error('Stack:', stack.split('\n').slice(1, 5).join('\n'))
       throw new Error(`Assertion failed: ${msg}`)
     }
   },

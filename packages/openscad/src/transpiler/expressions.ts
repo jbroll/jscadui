@@ -599,11 +599,14 @@ export function reorderNamedArgs(
 
   // Build a map of named arguments
   const namedArgMap = new Map<string, string>()
+  // Track which parameters were explicitly provided (not just filled with undefined)
+  const explicitlyProvided = new Set<string>()
   let positionalIndex = 0
 
   for (const arg of argsArray) {
     if (arg.name) {
       namedArgMap.set(arg.name, arg.value)
+      explicitlyProvided.add(arg.name)
     } else {
       // Track positional args by their index in the parameter list
       while (positionalIndex < paramList.length && namedArgMap.has(paramList[positionalIndex])) {
@@ -611,6 +614,7 @@ export function reorderNamedArgs(
       }
       if (positionalIndex < paramList.length) {
         namedArgMap.set(paramList[positionalIndex], arg.value)
+        explicitlyProvided.add(paramList[positionalIndex])
         positionalIndex++
       }
     }
@@ -618,17 +622,31 @@ export function reorderNamedArgs(
 
   // Build reordered argument list
   const result: string[] = []
+  const wasExplicit: boolean[] = []
   for (const paramName of paramList) {
     if (namedArgMap.has(paramName)) {
-      result.push(namedArgMap.get(paramName)!)
+      let value = namedArgMap.get(paramName)!
+      const isExplicit = explicitlyProvided.has(paramName)
+      // If caller explicitly passed 'undefined' (from 'undef' literal), use the EXPLICIT_UNDEF sentinel.
+      // This prevents JavaScript's default parameter behavior from overriding the caller's intent.
+      // j$.EXPLICIT_UNDEF is a Symbol that won't trigger defaults and is treated as undefined in comparisons.
+      if (value === 'undefined' && isExplicit) {
+        value = 'j$.EXPLICIT_UNDEF'
+      }
+      result.push(value)
+      wasExplicit.push(isExplicit)
     } else {
       result.push('undefined')
+      wasExplicit.push(false)
     }
   }
 
-  // Trim trailing undefined values
-  while (result.length > 0 && result[result.length - 1] === 'undefined') {
+  // Trim trailing undefined values, but only if they weren't explicitly provided
+  // This is important for cases like `foo(x=undef)` where undef should override the default
+  // Note: j$.EXPLICIT_UNDEF values are always explicit, so they won't be trimmed
+  while (result.length > 0 && result[result.length - 1] === 'undefined' && !wasExplicit[result.length - 1]) {
     result.pop()
+    wasExplicit.pop()
   }
 
   return result.join(', ')
@@ -713,15 +731,16 @@ export function transpileFunctionCall(callee: string, args: string, ctx: Transpi
     return `(${args}).length`
   }
 
-  // is_undef() -> typeof value === 'undefined'
+  // is_undef() -> typeof value === 'undefined' OR value is j$.EXPLICIT_UNDEF
   // Using typeof prevents ReferenceError when checking undefined variables (like BOSL2 flags)
+  // We also check for j$.EXPLICIT_UNDEF because that sentinel represents explicit undef passed as argument
   if (callee === 'is_undef') {
-    return `(typeof (${args}) === 'undefined')`
+    return `((typeof (${args}) === 'undefined') || (${args}) === j$.EXPLICIT_UNDEF)`
   }
 
-  // is_def() -> typeof value !== 'undefined'  (BOSL compatibility)
+  // is_def() -> typeof value !== 'undefined' AND value is not j$.EXPLICIT_UNDEF  (BOSL compatibility)
   if (callee === 'is_def') {
-    return `(typeof (${args}) !== 'undefined')`
+    return `((typeof (${args}) !== 'undefined') && (${args}) !== j$.EXPLICIT_UNDEF)`
   }
 
   // is_list() -> Array.isArray()
