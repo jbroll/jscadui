@@ -38,6 +38,20 @@ import {
 import { getModuleName } from './builtins.js'
 import { buildJscadImports } from './helpers/index.js'
 
+/**
+ * Deduplicate parameter names, keeping the LAST occurrence of each name.
+ * This matches how transpileParamsList handles duplicates in function definitions.
+ * OpenSCAD allows duplicate parameter names (e.g., `module foo(r, d, r)`),
+ * but JavaScript doesn't, so we keep only the last occurrence.
+ */
+function deduplicateParamNames(args: AssignmentNode[]): string[] {
+  const seenNames = new Map<string, number>()
+  args.forEach((arg, i) => seenNames.set(arg.name, i))
+  return args
+    .filter((arg, i) => seenNames.get(arg.name) === i)
+    .map(a => a.name)
+}
+
 // Re-export types for public API
 export type {
   FileResolver,
@@ -493,21 +507,21 @@ function collectSignaturesFromIncludes(
         fileModuleNames.add(name)
         // Track this module name globally (for builtin override detection)
         ctx.includedModuleNames.add(name)
-        const params = (stmt.definitionArgs || []).map((a: AssignmentNode) => a.name)
-        if (!ctx.moduleParamLists.has(name)) {
-          ctx.moduleParamLists.set(name, params)
-        }
+        // Deduplicate params to match how transpileParamsList handles the definition
+        const params = deduplicateParamNames(stmt.definitionArgs || [])
+        // Always set module params - module definition takes precedence over function definition
+        // for moduleParamLists since that's used for module calls (name_$m)
+        ctx.moduleParamLists.set(name, params)
       } else if (isFunctionDeclaration(stmt)) {
         const name = safeIdentifier(stmt.name)
         fileFunctionNames.add(name)
-        const params = (stmt.definitionArgs || []).map((a: AssignmentNode) => a.name)
+        // Deduplicate params to match how transpileParamsList handles the definition
+        const params = deduplicateParamNames(stmt.definitionArgs || [])
         if (!ctx.functionParamLists.has(name)) {
           ctx.functionParamLists.set(name, params)
         }
-        // Also add to moduleParamLists for consistency
-        if (!ctx.moduleParamLists.has(name)) {
-          ctx.moduleParamLists.set(name, params)
-        }
+        // Don't add to moduleParamLists - keep namespaces separate
+        // reorderNamedArgs already has fallback: moduleParams || functionParams
       }
     }
 
@@ -670,19 +684,19 @@ function collectDeclarations(stmt: Statement, ctx: TranspileContext): void {
     const name = safeIdentifier(stmt.name)
     ctx.moduleNames.push(name)
     // Capture parameter names for named argument reordering
-    const params = (stmt.definitionArgs || []).map((a: AssignmentNode) => a.name)
+    // Deduplicate params to match how transpileParamsList handles the definition
+    const params = deduplicateParamNames(stmt.definitionArgs || [])
     ctx.moduleParamLists.set(name, params)
   } else if (isFunctionDeclaration(stmt)) {
     const name = safeIdentifier(stmt.name)
     ctx.functionNames.push(name)
     // Capture parameter names for named argument reordering
-    // Use functionParamLists to keep separate from module params (functions may have more params)
-    const params = (stmt.definitionArgs || []).map((a: AssignmentNode) => a.name)
+    // Use functionParamLists to keep separate from module params
+    // Deduplicate params to match how transpileParamsList handles the definition
+    const params = deduplicateParamNames(stmt.definitionArgs || [])
     ctx.functionParamLists.set(name, params)
-    // Also set in moduleParamLists for backward compatibility if module doesn't exist
-    if (!ctx.moduleParamLists.has(name)) {
-      ctx.moduleParamLists.set(name, params)
-    }
+    // Don't add to moduleParamLists - keep namespaces separate
+    // reorderNamedArgs already has fallback: moduleParams || functionParams
   } else if (isUseStmt(stmt)) {
     ctx.useImports.push({
       filename: stmt.filename,
