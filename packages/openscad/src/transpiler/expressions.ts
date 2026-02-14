@@ -119,7 +119,8 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
     const children = expr.children
     // List comprehension: [for (i = range) expr] has single LcForExpr child
     // LcForExpr already returns an array via .map(), so don't double-wrap
-    if (children.length === 1 && isLcForExpr(children[0])) {
+    // Also handle C-style for loops (LcForCExpr) which return an array via IIFE
+    if (children.length === 1 && (isLcForExpr(children[0]) || isLcForCExpr(children[0]))) {
       return transpileExpression(children[0], ctx)
     }
     // List comprehension with let: [let(a=1) for (i = range) expr] has single LcLetExpr child
@@ -142,9 +143,10 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
         // Spread the inner expression
         return `...${transpileExpression(c.expr, ctx)}`
       }
-      if (isLcForExpr(c)) {
+      if (isLcForExpr(c) || isLcForCExpr(c)) {
         // For comprehensions inside mixed vectors need to be spread
         // [a, for(x=arr) f(x), b] -> [a, ...arr.map(x => f(x)), b]
+        // Also handles C-style for loops (LcForCExpr)
         return `...${transpileExpression(c, ctx)}`
       }
       // Check if this is an LcIfExpr containing a for-loop or 'each'
@@ -367,20 +369,42 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
     const suffix = `$${ctx.letCounter || 1}`
     ctx.letCounter = (ctx.letCounter || 1) + 1
 
-    // Build scope with all loop variables
+    // Build scope incrementally - each initializer can see previous variables
+    // This is important for patterns like: for (i=0, x=f(i), y=f(x); ...)
     const loopScope = new Map<string, string>()
-    for (const a of forCExpr.args) {
-      const origName = safeIdentifier(a.name)
-      loopScope.set(origName, `${origName}${suffix}`)
-    }
-
-    // Initial assignments (values don't see loop variables yet)
-    const inits = forCExpr.args.map(a =>
-      `let ${safeIdentifier(a.name)}${suffix} = ${transpileExpression(a.value!, ctx)}`
-    ).join('; ')
-
-    // Push scope for condition, body, and increment
     pushScope(ctx, loopScope)
+
+    // Initial assignments - each value is transpiled with current scope,
+    // then the variable is added to scope for subsequent initializers
+    const initParts: string[] = []
+    for (const a of forCExpr.args) {
+      // Transpile value BEFORE adding this var to scope (it shouldn't see itself)
+      const value = transpileExpression(a.value!, ctx)
+      const origName = safeIdentifier(a.name)
+      const suffixedName = `${origName}${suffix}`
+      initParts.push(`let ${suffixedName} = ${value}`)
+      // Now add to scope so subsequent initializers can reference it
+      loopScope.set(origName, suffixedName)
+    }
+    const inits = initParts.join('; ')
+
+    // Scope already pushed above for condition, body, and increment
+
+    // Add increment-only variables to scope BEFORE transpiling condition/body/incr
+    // Increment section may have new variables not in init (e.g., v1, c1, etc.)
+    // and they reference each other (c1 = v1*v1), so all need to be in scope
+    // Also collect increment-only vars to declare them
+    const incrOnlyVars: string[] = []
+    for (const a of forCExpr.incrArgs) {
+      const origName = safeIdentifier(a.name)
+      if (!loopScope.has(origName)) {
+        const suffixedName = `${origName}${suffix}`
+        loopScope.set(origName, suffixedName)
+        incrOnlyVars.push(suffixedName)
+      }
+    }
+    // Declare increment-only variables (they'll be assigned in the while loop)
+    const incrOnlyDecl = incrOnlyVars.length > 0 ? `let ${incrOnlyVars.join(', ')};` : ''
 
     // Condition
     const cond = transpileExpression(forCExpr.cond, ctx)
@@ -388,14 +412,14 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
     // Body expression
     const body = transpileExpression(forCExpr.expr, ctx)
 
-    // Increment assignments
+    // Increment assignments (all vars already in scope)
     const incrParts = forCExpr.incrArgs.map(a => transpileExpression(a.value!, ctx))
     const incrVars = forCExpr.incrArgs.map(a => `${safeIdentifier(a.name)}${suffix}`).join(', ')
     const incrUpdate = `[${incrVars}] = [${incrParts.join(', ')}]`
 
     popScope(ctx)
 
-    return `(() => { const _result${suffix} = []; ${inits}; while (${cond}) { _result${suffix}.push(${body}); ${incrUpdate}; } return _result${suffix}; })()`
+    return `(() => { const _result${suffix} = []; ${inits}; ${incrOnlyDecl} while (${cond}) { _result${suffix}.push(${body}); ${incrUpdate}; } return _result${suffix}; })()`
   }
 
   if (isLcIfExpr(expr)) {
