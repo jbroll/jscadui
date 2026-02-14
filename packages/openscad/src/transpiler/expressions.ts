@@ -89,6 +89,30 @@ export function isEachExpr(expr: Expression | null): boolean {
 }
 
 /**
+ * Check if an expression directly produces an array when evaluated
+ * Unlike isEachExpr/containsNestedForExpr, this does NOT recurse into LcIfExpr branches
+ * because a conditional itself doesn't produce an array - only specific branches do
+ * This is used to determine if a specific branch needs array wrapping in spread context
+ */
+function directlyProducesArray(expr: Expression | null): boolean {
+  if (!expr) return false
+  // Direct array-producing expressions
+  if (isLcEachExpr(expr)) return true
+  if (isLcForExpr(expr) || isLcForCExpr(expr)) return true
+  // Check through let wrappers
+  if ((isLetExpr(expr) || isLcLetExpr(expr)) && expr.expr) return directlyProducesArray(expr.expr)
+  // For LcIfExpr, check if BOTH branches produce arrays (then the whole conditional does)
+  // If only some branches produce arrays, the conditional doesn't reliably produce arrays
+  if (isLcIfExpr(expr)) {
+    const ifProduces = directlyProducesArray(expr.ifExpr)
+    const elseProduces = expr.elseExpr ? directlyProducesArray(expr.elseExpr) : false
+    // Only return true if ALL branches produce arrays, or if it's an if-only (no else) and if produces
+    return ifProduces && (expr.elseExpr ? elseProduces : true)
+  }
+  return false
+}
+
+/**
  * Check if an expression is or directly contains a nested for expression
  * In OpenSCAD: [for (i=...) for (j=...) expr] produces a flat list, not nested arrays
  * This function detects such nested for expressions through let/if wrappers
@@ -177,16 +201,40 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
         // Check if the body contains a for-loop or 'each' that produces an array
         const ifProducesArray = containsNestedForExpr(ifExpr.ifExpr) || isEachExpr(ifExpr.ifExpr)
         if (ifProducesArray) {
-          const cond = transpileExpression(ifExpr.cond, ctx)
-          const body = transpileExpression(ifExpr.ifExpr, ctx)
-          const elseProducesArray = ifExpr.elseExpr &&
-            (containsNestedForExpr(ifExpr.elseExpr) || isEachExpr(ifExpr.elseExpr))
-          if (elseProducesArray) {
-            const elsePart = transpileExpression(ifExpr.elseExpr!, ctx)
-            return `...(${cond} ? ${body} : ${elsePart})`
+          // Transpile the conditional for spread context, handling nested if/else chains
+          const transpileForSpread = (ifEx: { cond: Expression, ifExpr: Expression, elseExpr?: Expression | null }): string => {
+            const cond = transpileExpression(ifEx.cond, ctx)
+            const body = transpileExpression(ifEx.ifExpr, ctx)
+            if (!ifEx.elseExpr) {
+              // No else - use empty array when false
+              return `(${cond} ? ${body} : [])`
+            }
+            // Check if else DIRECTLY produces array (not through nested conditionals)
+            const elseDirectlyProducesArray = directlyProducesArray(ifEx.elseExpr)
+            if (elseDirectlyProducesArray) {
+              // Else directly produces array (each/for) - use it directly
+              const elsePart = transpileExpression(ifEx.elseExpr, ctx)
+              return `(${cond} ? ${body} : ${elsePart})`
+            } else if (isLcIfExpr(ifEx.elseExpr)) {
+              // Else is a nested conditional - recursively handle it
+              const nestedIf = ifEx.elseExpr as { cond: Expression, ifExpr: Expression, elseExpr?: Expression | null }
+              const nestedProducesArray = containsNestedForExpr(nestedIf.ifExpr) || isEachExpr(nestedIf.ifExpr)
+              if (nestedProducesArray) {
+                // Nested if also produces array - recurse
+                const elsePart = transpileForSpread(nestedIf)
+                return `(${cond} ? ${body} : ${elsePart})`
+              } else {
+                // Nested if doesn't produce array - wrap the whole else
+                const elsePart = transpileExpression(ifEx.elseExpr, ctx)
+                return `(${cond} ? ${body} : [${elsePart}])`
+              }
+            } else {
+              // else is a single value - wrap it in array
+              const elsePart = transpileExpression(ifEx.elseExpr, ctx)
+              return `(${cond} ? ${body} : [${elsePart}])`
+            }
           }
-          // No else or else without for-loop/each - use empty array when false
-          return `...(${cond} ? ${body} : [])`
+          return `...${transpileForSpread(ifExpr)}`
         }
       }
       return transpileExpression(c, ctx)

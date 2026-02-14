@@ -13,7 +13,7 @@ import type {
 import type { TranspileContext } from './context.js'
 import { WarningCode, pushScope, popScope } from './context.js'
 import { safeIdentifier } from '../utils/identifiers.js'
-import { transpileExpression, reorderNamedArgs } from './expressions.js'
+import { transpileExpression, reorderNamedArgs, isFunctionLiteralExpr } from './expressions.js'
 import {
   isBuiltinPrimitive,
   isBuiltinTransform,
@@ -691,13 +691,20 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
   const modifiedSpecialVars: string[] = []
 
   for (const a of assignments) {
-    // Track as local binding AFTER transpiling the value expression
-    // This ensures that `path2d = path2d(path)` calls the global `path2d_$f` function,
-    // not the local variable being assigned (which would cause a TDZ error).
-    // Note: This differs from function definitions which add to localFunctionBindings
-    // BEFORE transpiling to support recursion.
     const varName = safeIdentifier(a.name)
     const isSpecialVar = specialVars.has(a.name)
+
+    // Check if this assignment is a function literal (for recursive self-reference support)
+    // Function literals need binding registered BEFORE transpiling so recursive calls work
+    // Non-function values need binding registered AFTER transpiling to avoid TDZ errors
+    // (e.g., `path2d = path2d(path)` should call the global path2d_$f function)
+    const isFuncLiteral = a.value && isFunctionLiteralExpr(a.value)
+
+    if (isFuncLiteral) {
+      // Register function binding BEFORE transpiling for recursion support
+      ctx.localFunctionBindings.set(varName, varName)
+      localVarNames.push(varName)
+    }
 
     if (isSpecialVar) {
       // Track that this special var is modified (for save/restore wrapping)
@@ -730,10 +737,13 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
       declaredVars.add(a.name)
     }
 
-    // NOW add to localFunctionBindings (after transpiling the value)
-    // This allows the variable to be called as a local function in subsequent code
-    ctx.localFunctionBindings.set(varName, varName)
-    localVarNames.push(varName)
+    // For non-function values, register binding AFTER transpiling
+    // This avoids TDZ errors like `path2d = path2d(path)` where the RHS call
+    // should resolve to the global function, not the local variable
+    if (!isFuncLiteral) {
+      ctx.localFunctionBindings.set(varName, varName)
+      localVarNames.push(varName)
+    }
   }
 
   // Geometry expression (return statement)
