@@ -43,6 +43,26 @@ import {
 import type { LcForCExpr } from './ast-types.js'
 
 /**
+ * Check if an expression evaluates to a function value
+ * This includes:
+ * - Direct function declarations: function(x) x*2
+ * - Ternary expressions where both branches are functions: cond ? function(x) ... : function(y) ...
+ * Used to track local function bindings in let expressions
+ */
+export function isFunctionLiteralExpr(expr: Expression | null): boolean {
+  if (!expr) return false
+  // Direct function declaration
+  if (isFunctionDeclaration(expr as unknown as import('openscad-parser').Statement)) return true
+  // Ternary where both branches are functions
+  if (isTernaryExpr(expr)) {
+    return isFunctionLiteralExpr(expr.ifExpr) && isFunctionLiteralExpr(expr.elseExpr)
+  }
+  // Grouping expression - check inner (uses 'inner' property, not 'expr')
+  if (isGroupingExpr(expr)) return isFunctionLiteralExpr((expr as { inner: Expression }).inner)
+  return false
+}
+
+/**
  * Check if an expression contains LcIfExpr (used to determine if filtering is needed)
  */
 export function containsIfExpr(expr: Expression | null): boolean {
@@ -412,10 +432,18 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
     // Body expression
     const body = transpileExpression(forCExpr.expr, ctx)
 
-    // Increment assignments (all vars already in scope)
-    const incrParts = forCExpr.incrArgs.map(a => transpileExpression(a.value!, ctx))
-    const incrVars = forCExpr.incrArgs.map(a => `${safeIdentifier(a.name)}${suffix}`).join(', ')
-    const incrUpdate = `[${incrVars}] = [${incrParts.join(', ')}]`
+    // Increment assignments - MUST be sequential, not parallel!
+    // In OpenSCAD, later increment expressions can use earlier variables' new values:
+    // e.g., "v1 = path[i+1]-path[i], c1 = v1*v1" - c1 uses the NEW v1
+    // Using destructuring like [v1, c1] = [expr1, expr2] would evaluate expr2
+    // with the OLD v1, which is wrong.
+    const incrParts: string[] = []
+    for (const a of forCExpr.incrArgs) {
+      const value = transpileExpression(a.value!, ctx)
+      const varName = `${safeIdentifier(a.name)}${suffix}`
+      incrParts.push(`${varName} = ${value}`)
+    }
+    const incrUpdate = incrParts.join('; ')
 
     popScope(ctx)
 
@@ -466,7 +494,8 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
       nameMap.set(origName, newName)
 
       // Check if this is a function literal (for recursive self-reference support)
-      const isFuncLiteral = a.value && isFunctionDeclaration(a.value as unknown as import('openscad-parser').Statement)
+      // This includes direct function declarations and ternary expressions returning functions
+      const isFuncLiteral = a.value && isFunctionLiteralExpr(a.value)
       if (isFuncLiteral) {
         functionBindings.push(origName)
         // Register function binding IMMEDIATELY so subsequent bindings can call it
@@ -520,7 +549,8 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
       nameMap.set(origName, newName)
 
       // Check if this is a function literal (for recursive self-reference support)
-      const isFuncLiteral = a.value && isFunctionDeclaration(a.value as unknown as import('openscad-parser').Statement)
+      // This includes direct function declarations and ternary expressions returning functions
+      const isFuncLiteral = a.value && isFunctionLiteralExpr(a.value)
       if (isFuncLiteral) {
         functionBindings.push(origName)
         // Register function binding IMMEDIATELY so subsequent bindings can call it
@@ -850,19 +880,13 @@ export function transpileFunctionCall(callee: string, args: string, ctx: Transpi
 
   // Check if this is a local variable binding (from a let/for expression)
   // Local variables should never get _$f suffix, only global functions do
-  // Check by: 1) original name in localFunctionBindings, or
-  //           2) callee is a renamed value in any scope binding
+  // Check by: 1) original name in localFunctionBindings
+  // Note: We only use localFunctionBindings here, not scopeBindings, because
+  // a let binding like `scale = [1,2]` should NOT intercept calls to `scale()` function
+  // Only bindings explicitly detected as functions should be used for function calls
   const localBinding = ctx.localFunctionBindings.get(callee)
   if (localBinding) {
     return `${localBinding}(${args})`
-  }
-  // Check if callee is a renamed local variable (exists as a value in scopeBindings)
-  for (const scope of ctx.scopeBindings) {
-    for (const renamedName of scope.values()) {
-      if (callee === renamedName) {
-        return `${callee}(${args})`
-      }
-    }
   }
 
   // User-defined function call - use _$f suffix for namespace separation
