@@ -149,6 +149,12 @@ export function transpile(
   const bundledFunctions: string[] = []
   const bundledModules: string[] = []
   const bundledConstants: string[] = []
+  // Track which declarations have already been bundled to avoid duplicates
+  // OpenSCAD allows multiple includes of the same file (last value wins for variables)
+  // but JavaScript const doesn't allow redeclaration, so we deduplicate
+  const bundledFunctionNames = new Set<string>()
+  const bundledModuleNames = new Set<string>()
+  const bundledConstantNames = new Set<string>()
 
   for (const includeImport of ctx.includeImports) {
     // Compute resolved path relative to root
@@ -162,9 +168,33 @@ export function transpile(
     const cachedFile = ctx.transpiledFiles.get(includeImport.resolvedPath)
     if (cachedFile?.bundledParts) {
       const parts = cachedFile.bundledParts
-      bundledFunctions.push(...parts.functions)
-      bundledModules.push(...parts.modules)
-      bundledConstants.push(...parts.constants)
+      // Deduplicate functions by name (extract name from "function foo_$f(...)")
+      for (const fn of parts.functions) {
+        const match = fn.match(/^function\s+(\w+)/)
+        const name = match?.[1]
+        if (!name || !bundledFunctionNames.has(name)) {
+          if (name) bundledFunctionNames.add(name)
+          bundledFunctions.push(fn)
+        }
+      }
+      // Deduplicate modules by name (extract name from "const foo_$m = ...")
+      for (const mod of parts.modules) {
+        const match = mod.match(/^const\s+(\w+)/)
+        const name = match?.[1]
+        if (!name || !bundledModuleNames.has(name)) {
+          if (name) bundledModuleNames.add(name)
+          bundledModules.push(mod)
+        }
+      }
+      // Deduplicate constants by name (extract name from "const foo = ...")
+      for (const c of parts.constants) {
+        const match = c.match(/^const\s+(\w+)/)
+        const name = match?.[1]
+        if (!name || !bundledConstantNames.has(name)) {
+          if (name) bundledConstantNames.add(name)
+          bundledConstants.push(c)
+        }
+      }
       // Propagate use imports from included files
       // This implements OpenSCAD semantics: when A includes B, B's use imports become available in A
       if (parts.useImports) {

@@ -830,8 +830,8 @@ export function transpileFunctionCall(callee: string, args: string, ctx: Transpi
     sqrt: 'Math.sqrt',
     pow: 'Math.pow',
     exp: 'Math.exp',
-    log: 'Math.log',
-    ln: 'Math.log',
+    log: 'Math.log10',  // OpenSCAD log() is base 10
+    ln: 'Math.log',     // OpenSCAD ln() is natural log (base e)
     // min/max handled specially below to support array arguments
     sign: 'Math.sign',
   }
