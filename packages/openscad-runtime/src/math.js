@@ -58,7 +58,12 @@ export const search = (_match, _source, _num_returns = 1, _idx) => {
     if (Array.isArray(source)) {
       for (let i = 0; i < source.length; i++) {
         // Get the value to compare
-        const val = _idx !== undefined && Array.isArray(source[i]) ? source[i][_idx] : source[i]
+        // OpenSCAD defaults to column 0 when searching tables (list of lists)
+        // BUT only when searching for scalar values, not when searching for arrays
+        // When m is an array, compare full source elements (vectors/lists)
+        const useColumnIdx = !Array.isArray(m) && _idx === undefined && Array.isArray(source[i])
+        const effectiveIdx = _idx !== undefined ? _idx : (useColumnIdx ? 0 : undefined)
+        const val = effectiveIdx !== undefined && Array.isArray(source[i]) ? source[i][effectiveIdx] : source[i]
         // Deep equality check for arrays, strict equality for primitives
         const isMatch = Array.isArray(m) && Array.isArray(val)
           ? JSON.stringify(m) === JSON.stringify(val)
@@ -94,11 +99,20 @@ export const _num = v => typeof v === 'number' && !isNaN(v) ? v : undefined
 
 export const _norm = (v) => Math.sqrt(v.reduce((sum, x) => sum + x * x, 0))
 
-export const _cross = (a, b) => [
-  a[1] * b[2] - a[2] * b[1],
-  a[2] * b[0] - a[0] * b[2],
-  a[0] * b[1] - a[1] * b[0]
-]
+export const _cross = (a, b) => {
+  // OpenSCAD cross() behavior:
+  // - For 2D vectors: returns scalar (z-component of 3D cross product)
+  // - For 3D vectors: returns 3D vector
+  if (a.length === 2 && b.length === 2) {
+    return a[0] * b[1] - a[1] * b[0]
+  }
+  // 3D cross product
+  return [
+    a[1] * b[2] - a[2] * b[1],
+    a[2] * b[0] - a[0] * b[2],
+    a[0] * b[1] - a[1] * b[0]
+  ]
+}
 
 export const _lookup = (val, table) => {
   if (table.length === 0) return 0
@@ -165,4 +179,52 @@ export const is_vector = (v, length, zero, all_nonzero = false, eps = 1e-9) => {
   }
   if (all_nonzero && !v.every(x => x !== 0)) return false
   return true
+}
+
+/**
+ * Creates a pattern from a list where all values become 0 but structure is preserved.
+ * OpenSCAD: _list_pattern([1, [2,3]]) => [0, [0,0]]
+ */
+export const _list_pattern = (list) => {
+  if (!Array.isArray(list)) return 0
+  return list.map(entry => Array.isArray(entry) ? _list_pattern(entry) : 0)
+}
+
+/**
+ * Zero out a value while preserving structure.
+ * OpenSCAD's 0*x behavior: 0*5=0, 0*[1,2]=[0,0], 0*[[1,2],[3,4]]=[[0,0],[0,0]]
+ */
+const zeroOut = (x) => {
+  if (typeof x === 'number') return 0
+  if (!Array.isArray(x)) return 0
+  return x.map(zeroOut)
+}
+
+/**
+ * Check if two patterns (zeroed structures) are equal
+ */
+const patternsEqual = (a, b) => {
+  if (a === b) return true
+  if (!Array.isArray(a) || !Array.isArray(b)) return a === b
+  if (a.length !== b.length) return false
+  return a.every((val, i) => patternsEqual(val, b[i]))
+}
+
+/**
+ * Checks if all list elements have a consistent structure (same pattern).
+ * OpenSCAD: is_consistent([[1,2], [3,4], [5,6]]) => true (all 2-element arrays)
+ * OpenSCAD: is_consistent([[1,2], [3,4,5]]) => false (different lengths)
+ *
+ * @param {Array} list - The list to check
+ * @param {*} pattern - Optional pattern to check against
+ */
+export const is_consistent = (list, pattern) => {
+  if (!Array.isArray(list)) return false
+  if (list.length === 0) return true
+
+  // Get the reference pattern
+  const refPattern = pattern !== undefined ? _list_pattern(pattern) : _list_pattern(list[0])
+
+  // Check all elements match the pattern
+  return list.every(entry => patternsEqual(zeroOut(entry), refPattern))
 }

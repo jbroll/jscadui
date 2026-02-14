@@ -134,6 +134,8 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
     //   because the for generates an array, and we want the elements flattened
     // - 'if' conditional: [0, if(cond) val, 1] -> [0, cond?val:undefined, 1].filter(x=>x!==undefined)
     //   Conditionals produce undefined when false, which must be filtered out
+    // - 'if' with for inside: [if(cond) for(...) expr] -> [...(cond ? forResult : [])]
+    //   When the conditional body is a for-loop, the result is an array that needs spreading
     const hasConditionals = children.some(c => isLcIfExpr(c))
     const parts = children.map(c => {
       if (isLcEachExpr(c)) {
@@ -145,10 +147,31 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
         // [a, for(x=arr) f(x), b] -> [a, ...arr.map(x => f(x)), b]
         return `...${transpileExpression(c, ctx)}`
       }
+      // Check if this is an LcIfExpr containing a for-loop or 'each'
+      // [if(cond) for(...) expr] -> [...(cond ? forResult : [])]
+      // [if(cond) each arr] -> [...(cond ? arr : [])]
+      if (isLcIfExpr(c)) {
+        const ifExpr = c as { cond: Expression, ifExpr: Expression, elseExpr?: Expression | null }
+        // Check if the body contains a for-loop or 'each' that produces an array
+        const ifProducesArray = containsNestedForExpr(ifExpr.ifExpr) || isEachExpr(ifExpr.ifExpr)
+        if (ifProducesArray) {
+          const cond = transpileExpression(ifExpr.cond, ctx)
+          const body = transpileExpression(ifExpr.ifExpr, ctx)
+          const elseProducesArray = ifExpr.elseExpr &&
+            (containsNestedForExpr(ifExpr.elseExpr) || isEachExpr(ifExpr.elseExpr))
+          if (elseProducesArray) {
+            const elsePart = transpileExpression(ifExpr.elseExpr!, ctx)
+            return `...(${cond} ? ${body} : ${elsePart})`
+          }
+          // No else or else without for-loop/each - use empty array when false
+          return `...(${cond} ? ${body} : [])`
+        }
+      }
       return transpileExpression(c, ctx)
     })
     // If there are conditionals (LcIfExpr), filter out undefined values
     // OpenSCAD: [if(cond) x] produces [] when cond is false, not [undefined]
+    // Note: conditionals with for-loops are already spread, so they don't produce undefined
     if (hasConditionals) {
       return `[${parts.join(', ')}].filter(x => x !== undefined)`
     }
@@ -216,7 +239,18 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
 
   if (isFunctionCallExpr(expr)) {
     const fnExpr = expr as FunctionCallExpr
-    const callee = transpileExpression(fnExpr.callee, ctx)
+    // OpenSCAD has separate namespaces for functions and variables.
+    // When calling rot(...), it calls the FUNCTION rot(), not a parameter named rot.
+    // For simple identifiers, use the original name without scope lookup.
+    // For complex expressions (array[0](...), obj.method(...)), transpile normally.
+    let callee: string
+    if (isLookupExpr(fnExpr.callee)) {
+      // Simple identifier - use original name (function namespace)
+      callee = safeIdentifier(fnExpr.callee.name)
+    } else {
+      // Complex expression - transpile normally
+      callee = transpileExpression(fnExpr.callee, ctx)
+    }
 
     // Build args array with name+value pairs (like statements.ts does for modules)
     const argsArray = fnExpr.args.map(a => ({
