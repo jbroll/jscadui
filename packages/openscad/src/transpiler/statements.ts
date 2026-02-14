@@ -691,11 +691,12 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
   const modifiedSpecialVars: string[] = []
 
   for (const a of assignments) {
-    // Track as local binding BEFORE transpiling (for recursive function calls)
+    // Track as local binding AFTER transpiling the value expression
+    // This ensures that `path2d = path2d(path)` calls the global `path2d_$f` function,
+    // not the local variable being assigned (which would cause a TDZ error).
+    // Note: This differs from function definitions which add to localFunctionBindings
+    // BEFORE transpiling to support recursion.
     const varName = safeIdentifier(a.name)
-    ctx.localFunctionBindings.set(varName, varName)
-    localVarNames.push(varName)
-
     const isSpecialVar = specialVars.has(a.name)
 
     if (isSpecialVar) {
@@ -728,6 +729,11 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
       bodyParts.push(`${indent}const ${a.name} = ${transpileExpression(a.value!, ctx)}`)
       declaredVars.add(a.name)
     }
+
+    // NOW add to localFunctionBindings (after transpiling the value)
+    // This allows the variable to be called as a local function in subsequent code
+    ctx.localFunctionBindings.set(varName, varName)
+    localVarNames.push(varName)
   }
 
   // Geometry expression (return statement)
