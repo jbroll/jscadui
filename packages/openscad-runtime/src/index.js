@@ -7,7 +7,7 @@
  *        j$.cube({size: 10})
  */
 
-import { PI, _range, _min, _max, _num, str, version_num, search, _norm, _cross, _lookup, _rands, is_vector, chr, ord } from './math.js'
+import { PI, _range, _min, _max, _num, str, version_num, search, _norm, _cross, _lookup, _rands, is_vector, chr, ord, is_consistent, _list_pattern } from './math.js'
 import { _eq, _vadd, _vsub, _vmul, _vdiv, _vneg } from './vector.js'
 import { _getSegments, setGlobalFn } from './segments.js'
 import { initPrimitives, _cube, _cylinder, _sphere, _circle, _square, _regular_polygon, _polyhedron, _safeUnion, _hull, _union, _subtract, _intersect, _minkowski, _polygon } from './primitives.js'
@@ -47,6 +47,8 @@ const j$ = {
   is_vector,
   chr,
   ord,
+  is_consistent,
+  _list_pattern,
 
   // Vector operations (no JSCAD dependency)
   // Wrap _eq to handle EXPLICIT_UNDEF - convert it to undefined for comparison
@@ -80,13 +82,14 @@ const j$ = {
   assert: (condition, message, ...debugArgs) => {
     if (!condition) {
       const msg = message != null ? String(message) : 'Assertion failed'
-      console.error('ASSERT FAILED:', msg)
+      const err = new Error()
+      const callSite = err.stack.split('\n')[2]  // Get the caller
+      console.error('ASSERT FAILED at', callSite)
+      console.error('  Message:', msg)
+      console.error('  Condition was:', condition)
       if (debugArgs.length > 0) {
-        console.error('Debug args:', debugArgs)
+        console.error('  Debug args:', debugArgs)
       }
-      // Print stack trace to stderr
-      const stack = new Error().stack
-      console.error('Stack:', stack.split('\n').slice(1, 5).join('\n'))
       throw new Error(`Assertion failed: ${msg}`)
     }
   },
@@ -150,7 +153,7 @@ export default j$
 export { j$ }
 
 // Keep legacy exports for backwards compatibility during transition
-export { PI, _range, _min, _max, _num, str, version_num, search, _norm, _cross, _lookup, _rands, is_vector, chr, ord } from './math.js'
+export { PI, _range, _min, _max, _num, str, version_num, search, _norm, _cross, _lookup, _rands, is_vector, chr, ord, is_consistent, _list_pattern } from './math.js'
 export { _eq, _vadd, _vsub, _vmul, _vdiv, _vneg } from './vector.js'
 export { _getSegments, setGlobalFn } from './segments.js'
 export { initPrimitives, _cube, _cylinder, _sphere, _circle, _square, _regular_polygon, _polyhedron, _safeUnion, _hull, _union, _subtract, _intersect, _minkowski, _polygon } from './primitives.js'

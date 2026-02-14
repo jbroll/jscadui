@@ -37,7 +37,7 @@ export function buildJscadImports(ctx: TranspileContext): string[] {
   const bosl2Vars = [
     '$transform', '$parent_anchor', '$parent_spin', '$parent_orient',
     '$parent_geom', '$parent_size', '$parent_parts', '$attach_to',
-    '$attach_anchor', '$attach_alignment', '$attach_inside',
+    '$attach_anchor', '$attach_alignment', '$attach_inside', '$anchor_inside',
     '$tags', '$tag', '$save_tag', '$tag_prefix', '$overlap',
     '$color', '$save_color', '$anchor_override',
     '$edge_angle', '$edge_length', '$tags_shown', '$tags_hidden',

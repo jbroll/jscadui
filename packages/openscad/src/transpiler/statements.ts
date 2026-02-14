@@ -56,12 +56,30 @@ export function transpileStatement(stmt: Statement, ctx: TranspileContext): stri
       }
     }
 
+    // Special variables that should be assigned globally (not locally scoped)
+    // These use dynamic scoping in OpenSCAD - children inherit parent's values
+    const blockSpecialVars = new Set([
+      '$fn', '$fa', '$fs', '$t', '$vpr', '$vpt', '$vpd', '$vpf', '$preview',
+      // BOSL2 attachment system variables
+      '$transform', '$parent_anchor', '$parent_spin', '$parent_orient',
+      '$parent_geom', '$parent_size', '$parent_parts', '$attach_to',
+      '$attach_anchor', '$attach_alignment', '$attach_inside',
+      '$tags', '$tag', '$save_tag', '$tag_prefix', '$overlap',
+      '$color', '$save_color', '$anchor_override',
+      '$edge_angle', '$edge_length', '$tags_shown', '$tags_hidden',
+      '$ghost_this', '$ghost', '$ghosting', '$highlight_this', '$highlight',
+      '$anchor_inside'
+    ])
+
     // Transpile geometry statements first
     // If there are assignments, we need to create an IIFE to scope them
     // Use suffixed names to avoid temporal dead zone when shadowing parameters
+    // EXCEPT for special variables which should be assigned globally
     if (assignments.length > 0) {
       const suffix = `$${ctx.letCounter++}`
       const assignStrs: string[] = []
+      const specialSaves: string[] = []
+      const specialRestores: string[] = []
 
       // Use incremental scope: each assignment value sees only earlier assignments
       const incrementalScope = new Map<string, string>()
@@ -69,18 +87,44 @@ export function transpileStatement(stmt: Statement, ctx: TranspileContext): stri
 
       for (const a of assignments) {
         const origName = safeIdentifier(a.name)
-        const newName = `${origName}${suffix}`
-        // Transpile value - scope lookup will find earlier assignments automatically
-        const value = transpileExpression(a.value!, ctx)
-        assignStrs.push(`const ${newName} = ${value}`)
-        // Add this assignment to scope for subsequent assignments and geometry
-        incrementalScope.set(origName, newName)
+        const isSpecial = blockSpecialVars.has(a.name)
+
+        if (isSpecial) {
+          // Special variable - save, set, and restore for dynamic scoping
+          // This allows children to see the new value, but restores after block
+          const savedName = `_saved_${origName.replace(/\$/g, '_')}${suffix}`
+          const value = transpileExpression(a.value!, ctx)
+          specialSaves.push(`const ${savedName} = ${origName}`)
+          assignStrs.push(`${origName} = ${value}`)
+          specialRestores.push(`${origName} = ${savedName}`)
+          // Don't add to incrementalScope - use the global
+        } else {
+          // Regular variable - use suffixed local scope
+          const newName = `${origName}${suffix}`
+          // Transpile value - scope lookup will find earlier assignments automatically
+          const value = transpileExpression(a.value!, ctx)
+          assignStrs.push(`const ${newName} = ${value}`)
+          // Add this assignment to scope for subsequent assignments and geometry
+          incrementalScope.set(origName, newName)
+        }
       }
 
       // Transpile geometry statements with full scope
       const parts = geometryStmts.map(c => transpileStatement(c, ctx)).filter(Boolean) as string[]
 
       popScope(ctx)
+
+      // If we have special vars, we need try/finally to ensure restoration
+      if (specialSaves.length > 0) {
+        const allSaves = [...specialSaves, ...assignStrs.filter(s => s.startsWith('const '))].join('; ')
+        const allSets = assignStrs.filter(s => !s.startsWith('const ')).join('; ')
+        const allRestores = specialRestores.join('; ')
+        const geometryExpr = parts.length === 0 ? 'undefined'
+          : parts.length === 1 ? parts[0]
+          : (ctx.usedBooleans.add('union'), ctx.usedHelpers.add('safeUnion'), `j$.safeUnion([${parts.join(', ')}])`)
+
+        return `(() => { ${allSaves}; ${allSets}; try { return ${geometryExpr}; } finally { ${allRestores}; } })()`
+      }
 
       if (parts.length === 0) {
         return `(() => { ${assignStrs.join('; ')}; return undefined })()`
@@ -124,25 +168,48 @@ export function transpileStatement(stmt: Statement, ctx: TranspileContext): stri
 }
 
 /**
- * Collect children as an array of transpiled expressions
- * Used for passing children to user-defined modules
+ * Collect children as an array of thunks (lazy expressions)
+ * Used for passing children to user-defined modules.
+ *
+ * Children are wrapped in thunks (() => expr) to defer their evaluation
+ * until children() is called inside the parent module. This ensures
+ * special variables like $parent_geom are set before children execute.
+ * (OpenSCAD's dynamic scoping semantics)
+ *
+ * When a block has assignments (especially special variables), we keep the
+ * block as a single thunk that includes the assignments. This preserves
+ * OpenSCAD's behavior where `multmatrix(m) { $parent_geom = geom; children(); }`
+ * sets $parent_geom before evaluating children().
  */
 export function collectChildrenAsArray(child: Statement | null, ctx: TranspileContext): string[] {
   if (!child) return []
 
   if (isBlockStmt(child)) {
+    // Check if the block has any assignments (including special variable assignments)
+    const hasAssignments = child.children.some(c => isAssignmentNode(c))
+
+    if (hasAssignments) {
+      // Block has assignments - transpile as a single block (IIFE) to preserve
+      // the assignment context for special variables like $parent_geom
+      const code = transpileStatement(child, ctx)
+      return code ? [`() => ${code}`] : []
+    }
+
+    // No assignments - collect individual statements as separate thunks
     const result: string[] = []
     for (const c of child.children) {
-      if (!isNoopStmt(c as Statement) && !isAssignmentNode(c)) {
+      if (!isNoopStmt(c as Statement)) {
         const code = transpileStatement(c as Statement, ctx)
-        if (code) result.push(code)
+        // Wrap in thunk for lazy evaluation
+        if (code) result.push(`() => ${code}`)
       }
     }
     return result
   }
 
   const code = transpileStatement(child, ctx)
-  return code ? [code] : []
+  // Wrap in thunk for lazy evaluation
+  return code ? [`() => ${code}`] : []
 }
 
 /**
@@ -248,26 +315,28 @@ function transpileModuleInstantiation(stmt: ModuleInstantiationStmt, ctx: Transp
   }
 
   // children() - access children passed to this module
+  // Children are passed as thunks (lazy functions) to ensure proper scoping
+  // of special variables like $parent_geom. We call the thunks here.
   if (name === 'children') {
     // children() with no args returns all children as union
     // children(n) returns the nth child
     // children([indices...]) returns union of specified children
     if (argsArray.length === 0) {
-      // All children: union of _children array
-      return `(_children.length === 0 ? undefined : _children.length === 1 ? _children[0] : j$.union(..._children))`
+      // All children: union of _children array (call each thunk)
+      return `(_children.length === 0 ? undefined : _children.length === 1 ? _children[0]() : j$.union(..._children.map(_c => _c())))`
     } else {
       // Indexed access - check if argument is a vector (array of indices) or simple index
       const arg = stmt.args[0]
       const argValue = arg.value
 
       if (argValue && isVectorExpr(argValue)) {
-        // Array of indices: children([0, 2, 3]) → union children at those indices
+        // Array of indices: children([0, 2, 3]) → union children at those indices (call thunks)
         const indices = argValue.children.map(c => transpileExpression(c, ctx))
-        return `j$.union(${indices.map(i => `_children[${i}]`).join(', ')})`
+        return `j$.union(${indices.map(i => `_children[${i}]()`).join(', ')})`
       } else {
-        // Simple index: children(0) or children(i) → single child access
+        // Simple index: children(0) or children(i) → single child access (call thunk)
         const indexExpr = argsArray[0].value
-        return `_children[${indexExpr}]`
+        return `_children[${indexExpr}]()`
       }
     }
   }
@@ -286,6 +355,23 @@ function transpileModuleInstantiation(stmt: ModuleInstantiationStmt, ctx: Transp
   // - Local module/function definitions
   // - Destructured imports from use statements
 
+  // Check if this is a LOCAL variable FIRST (no suffix needed)
+  // Local variables include: let bindings, function params, local assignments
+  // This must be checked BEFORE handling children to avoid adding _$m suffix
+  const isLocalVariable = ctx.localFunctionBindings.has(safeName)
+  if (isLocalVariable) {
+    // Local variable - call directly without any suffix
+    // If there are children, pass them via curried call (local modules are curried)
+    if (childCode && childCode !== 'undefined') {
+      const childrenArray = collectChildrenAsArray(stmt.child, ctx)
+      if (childrenArray.length > 0) {
+        const childrenArg = `[${childrenArray.join(', ')}]`
+        return `${safeName}(${positionalArgs})(${childrenArg})`
+      }
+    }
+    return `${safeName}(${positionalArgs})`
+  }
+
   // If there are children, collect them as an array and pass via curried call
   if (childCode && childCode !== 'undefined') {
     const childrenArray = collectChildrenAsArray(stmt.child, ctx)
@@ -294,14 +380,6 @@ function transpileModuleInstantiation(stmt: ModuleInstantiationStmt, ctx: Transp
       // Curried call: module_$m(args)(children)
       return `${safeName}_$m(${positionalArgs})(${childrenArg})`
     }
-  }
-
-  // Check if this is a LOCAL variable (no suffix needed)
-  // Local variables include: let bindings, function params, local assignments
-  const isLocalVariable = ctx.localFunctionBindings.has(safeName)
-  if (isLocalVariable) {
-    // Local variable - call directly without any suffix
-    return `${safeName}(${positionalArgs})`
   }
 
   // Determine if this is a function call vs module instantiation
@@ -609,6 +687,9 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
     '$ghost_this', '$ghost', '$ghosting', '$highlight_this', '$highlight'
   ])
 
+  // Track which special variables are modified so we can restore them
+  const modifiedSpecialVars: string[] = []
+
   for (const a of assignments) {
     // Track as local binding BEFORE transpiling (for recursive function calls)
     const varName = safeIdentifier(a.name)
@@ -618,16 +699,20 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
     const isSpecialVar = specialVars.has(a.name)
 
     if (isSpecialVar) {
+      // Track that this special var is modified (for save/restore wrapping)
+      if (!modifiedSpecialVars.includes(a.name)) {
+        modifiedSpecialVars.push(a.name)
+        // Save the original value BEFORE any modifications
+        bodyParts.push(`${indent}const _saved${a.name} = ${a.name}`)
+      }
       // Special variables are pre-declared with 'let' at module top level
       // When self-referencing (e.g., $fn = _default(rounding_fn, $fn)),
-      // we need to capture the old value to avoid temporal dead zone
+      // we need to use the saved value to avoid temporal dead zone
       const valueExpr = transpileExpression(a.value!, ctx)
       // Check if the expression contains a reference to the same variable
       // Use word boundary check to avoid false positives
       const selfRefPattern = new RegExp(`\\b\\${a.name}\\b`)
       if (selfRefPattern.test(valueExpr)) {
-        // Capture old value first, then reassign
-        bodyParts.push(`${indent}const _saved${a.name} = ${a.name}`)
         // Replace all references to the variable with the saved version
         const fixedExpr = valueExpr.replace(new RegExp(`\\b\\${a.name}\\b`, 'g'), `_saved${a.name}`)
         bodyParts.push(`${indent}${a.name} = ${fixedExpr}`)
@@ -653,7 +738,15 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
     `j$.safeUnion([\n${indent}  ${geomParts.join(',\n' + indent + '  ')}\n${indent}])`
   if (geomParts.length > 1) ctx.usedHelpers.add('safeUnion')
 
-  bodyParts.push(`${indent}return ${returnExpr}`)
+  // If special variables were modified, wrap return in try/finally to restore them
+  // This implements dynamic scoping: children see the modified values, but they're
+  // restored after the module returns so siblings/parents see the original values
+  if (modifiedSpecialVars.length > 0) {
+    const restores = modifiedSpecialVars.map(name => `${name} = _saved${name}`).join('; ')
+    bodyParts.push(`${indent}try { return ${returnExpr}; } finally { ${restores}; }`)
+  } else {
+    bodyParts.push(`${indent}return ${returnExpr}`)
+  }
 
   // Clean up local bindings (they're scoped to this module body)
   for (const name of localVarNames) {

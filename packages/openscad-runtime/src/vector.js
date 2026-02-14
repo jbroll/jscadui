@@ -14,7 +14,11 @@ export const _eq = (a, b) => {
 }
 
 // Vector addition - works with scalars and arrays (recursive for nested arrays)
+// Guards against undefined to prevent NaN propagation
 export const _vadd = (a, b) => {
+  if (a === undefined && b === undefined) return 0
+  if (a === undefined) return b
+  if (b === undefined) return a
   if (Array.isArray(a) && Array.isArray(b)) return a.map((v, i) => _vadd(v, b[i] ?? 0))
   if (Array.isArray(a)) return a.map(v => _vadd(v, b))
   if (Array.isArray(b)) return b.map(v => _vadd(a, v))
@@ -22,7 +26,11 @@ export const _vadd = (a, b) => {
 }
 
 // Vector subtraction - works with scalars and arrays (recursive for nested arrays)
+// Guards against undefined to prevent NaN propagation
 export const _vsub = (a, b) => {
+  if (a === undefined && b === undefined) return 0
+  if (a === undefined) return Array.isArray(b) ? b.map(x => -x) : -b
+  if (b === undefined) return a
   if (Array.isArray(a) && Array.isArray(b)) return a.map((v, i) => _vsub(v, b[i] ?? 0))
   if (Array.isArray(a)) return a.map(v => _vsub(v, b))
   if (Array.isArray(b)) return b.map(v => _vsub(a, v))
@@ -36,7 +44,11 @@ export const _vsub = (a, b) => {
 // - vector * vector -> dot product (scalar)
 // - matrix * vector -> matrix-vector multiplication (vector)
 // - matrix * matrix -> matrix-matrix multiplication (matrix)
+// Guards against undefined to prevent NaN propagation
 export const _vmul = (a, b) => {
+  // Return 0 for undefined operands (multiplicative identity for missing values)
+  if (a === undefined || b === undefined) return 0
+
   const aIsArray = Array.isArray(a)
   const bIsArray = Array.isArray(b)
 
@@ -102,7 +114,11 @@ export const _vmul = (a, b) => {
 }
 
 // Vector/scalar division - element-wise for vectors, scalar div (recursive for nested arrays)
+// Guards against undefined to prevent NaN propagation
 export const _vdiv = (a, b) => {
+  if (a === undefined && b === undefined) return 0
+  if (a === undefined) return 0  // 0 / b = 0
+  if (b === undefined) return a  // a / 1 = a (treat undefined as identity)
   if (Array.isArray(a) && Array.isArray(b)) return a.map((v, i) => _vdiv(v, b[i] ?? 1))
   if (Array.isArray(a)) return a.map(v => _vdiv(v, b))
   if (Array.isArray(b)) return b.map(v => _vdiv(a, v))
