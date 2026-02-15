@@ -35,6 +35,7 @@ import {
   getNodeTypeName,
 } from './ast-types.js'
 import { isStackSpecialVar } from './specialVars.js'
+import { deduplicateArgs } from './utils.js'
 
 /**
  * Transpile a statement
@@ -626,10 +627,7 @@ function transpileLetModule(stmt: ModuleInstantiationStmt, ctx: TranspileContext
 export function transpileParamsList(args: AssignmentNode[], ctx: TranspileContext): string {
   if (args.length === 0) return ''
 
-  // Deduplicate: keep last occurrence of each parameter name
-  const seenNames = new Map<string, number>()
-  args.forEach((arg, i) => seenNames.set(arg.name, i))
-  const uniqueArgs = args.filter((arg, i) => seenNames.get(arg.name) === i)
+  const uniqueArgs = deduplicateArgs(args)
 
   const params = uniqueArgs.map(arg => {
     const name = safeIdentifier(arg.name)
@@ -658,10 +656,7 @@ export function transpileParamsList(args: AssignmentNode[], ctx: TranspileContex
  *   if ($$sv['$fn'] !== undefined) j$.setSpecialVar('$fn', $$sv['$fn']);
  */
 function buildOptionsDestructuring(args: AssignmentNode[], ctx: TranspileContext): string[] {
-  // Deduplicate: keep last occurrence of each parameter name
-  const seenNames = new Map<string, number>()
-  args.forEach((arg, i) => seenNames.set(arg.name, i))
-  const uniqueArgs = args.filter((arg, i) => seenNames.get(arg.name) === i)
+  const uniqueArgs = deduplicateArgs(args)
 
   const lines: string[] = []
 
@@ -917,10 +912,7 @@ ${bodyParts.join('\n')}
 function buildUndefConversionPreamble(args: AssignmentNode[]): string {
   if (args.length === 0) return ''
 
-  // Deduplicate: keep last occurrence of each parameter name (matching transpileParamsList)
-  const seenNames = new Map<string, number>()
-  args.forEach((arg, i) => seenNames.set(arg.name, i))
-  const uniqueArgs = args.filter((arg, i) => seenNames.get(arg.name) === i)
+  const uniqueArgs = deduplicateArgs(args)
 
   const conversions = uniqueArgs.map(arg => {
     const name = safeIdentifier(arg.name)

@@ -9,7 +9,6 @@
 import type {
   ScadFile,
   Statement,
-  AssignmentNode,
 } from 'openscad-parser'
 import { parse } from '../parser/parse.js'
 import { safeIdentifier, getFileDir } from '../utils/identifiers.js'
@@ -38,20 +37,7 @@ import {
 import { getModuleName } from './builtins.js'
 import { buildJscadImports } from './helpers/index.js'
 import { isStackSpecialVar } from './specialVars.js'
-
-/**
- * Deduplicate parameter names, keeping the LAST occurrence of each name.
- * This matches how transpileParamsList handles duplicates in function definitions.
- * OpenSCAD allows duplicate parameter names (e.g., `module foo(r, d, r)`),
- * but JavaScript doesn't, so we keep only the last occurrence.
- */
-function deduplicateParamNames(args: AssignmentNode[]): string[] {
-  const seenNames = new Map<string, number>()
-  args.forEach((arg, i) => seenNames.set(arg.name, i))
-  return args
-    .filter((arg, i) => seenNames.get(arg.name) === i)
-    .map(a => a.name)
-}
+import { deduplicateParamNames } from './utils.js'
 
 // Re-export types for public API
 export type {
