@@ -148,6 +148,7 @@ function transpileLetBindings(
 
 /**
  * Check if an expression contains LcIfExpr (used to determine if filtering is needed)
+ * Note: This does NOT recurse into LcIfExpr branches - it's looking FOR the LcIfExpr itself.
  */
 export function containsIfExpr(expr: Expression | null): boolean {
   if (!expr) return false
@@ -158,18 +159,33 @@ export function containsIfExpr(expr: Expression | null): boolean {
 }
 
 /**
+ * Generic walker for list comprehension expressions.
+ * Recurses through Let expressions and checks both branches of If expressions (OR logic).
+ * Used by isEachExpr and containsNestedForExpr which share identical traversal structure.
+ */
+function containsComprehensionExpr(
+  expr: Expression | null,
+  predicate: (e: Expression) => boolean
+): boolean {
+  if (!expr) return false
+  if (predicate(expr)) return true
+  // Check nested expr in LcLetExpr or LetExpr
+  if ((isLetExpr(expr) || isLcLetExpr(expr)) && expr.expr) {
+    return containsComprehensionExpr(expr.expr, predicate)
+  }
+  // Check inside LcIfExpr (either branch may contain the target)
+  if (isLcIfExpr(expr)) {
+    return containsComprehensionExpr(expr.ifExpr, predicate) ||
+           (expr.elseExpr ? containsComprehensionExpr(expr.elseExpr, predicate) : false)
+  }
+  return false
+}
+
+/**
  * Check if an expression is or directly contains LcEachExpr (needs flatMap instead of map)
  */
 export function isEachExpr(expr: Expression | null): boolean {
-  if (!expr) return false
-  if (isLcEachExpr(expr)) return true
-  // Check nested expr in LcLetExpr or LetExpr
-  if ((isLetExpr(expr) || isLcLetExpr(expr)) && expr.expr) return isEachExpr(expr.expr)
-  // Check inside LcIfExpr
-  if (isLcIfExpr(expr)) {
-    return isEachExpr(expr.ifExpr) || (expr.elseExpr ? isEachExpr(expr.elseExpr) : false)
-  }
-  return false
+  return containsComprehensionExpr(expr, isLcEachExpr)
 }
 
 /**
@@ -202,16 +218,7 @@ function directlyProducesArray(expr: Expression | null): boolean {
  * This function detects such nested for expressions through let/if wrappers
  */
 function containsNestedForExpr(expr: Expression | null): boolean {
-  if (!expr) return false
-  // Direct nested for
-  if (isLcForExpr(expr) || isLcForCExpr(expr)) return true
-  // Check nested expr in LcLetExpr or LetExpr
-  if ((isLetExpr(expr) || isLcLetExpr(expr)) && expr.expr) return containsNestedForExpr(expr.expr)
-  // Check inside LcIfExpr (both branches may contain for)
-  if (isLcIfExpr(expr)) {
-    return containsNestedForExpr(expr.ifExpr) || (expr.elseExpr ? containsNestedForExpr(expr.elseExpr) : false)
-  }
-  return false
+  return containsComprehensionExpr(expr, e => isLcForExpr(e) || isLcForCExpr(e))
 }
 
 /**
