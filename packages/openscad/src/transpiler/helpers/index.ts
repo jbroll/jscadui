@@ -22,32 +22,9 @@ export function buildJscadImports(ctx: TranspileContext): string[] {
   const globalFn = ctx.options.fn || 0
   imports.push(`j$.init(jscad, { globalFn: ${globalFn} })`)
 
-  // Special variable defaults (needed for BOSL library functions)
-  // Use 'let' so modules can reassign them without temporal dead zone issues
-  const specialVarDefaults: string[] = []
-  if (!ctx.variableNames.includes('$fn')) specialVarDefaults.push('$fn = 0')
-  if (!ctx.variableNames.includes('$fa')) specialVarDefaults.push('$fa = 12')
-  if (!ctx.variableNames.includes('$fs')) specialVarDefaults.push('$fs = 2')
-  if (specialVarDefaults.length > 0) {
-    imports.push(`let ${specialVarDefaults.join(', ')}`)
-  }
-
-  // BOSL2 attachment system variables (undefined by default, set by attach system)
-  // These must be declared with 'let' at top level so modules can reassign them
-  const bosl2Vars = [
-    '$transform', '$parent_anchor', '$parent_spin', '$parent_orient',
-    '$parent_geom', '$parent_size', '$parent_parts', '$attach_to',
-    '$attach_anchor', '$attach_alignment', '$attach_inside', '$anchor_inside',
-    '$tags', '$tag', '$save_tag', '$tag_prefix', '$overlap',
-    '$color', '$save_color', '$anchor_override',
-    '$edge_angle', '$edge_length', '$tags_shown', '$tags_hidden',
-    '$ghost_this', '$ghost', '$ghosting', '$highlight_this', '$highlight'
-  ]
-  // Only declare variables that aren't already assigned in the code
-  const bosl2Defaults = bosl2Vars.filter(v => !ctx.variableNames.includes(v))
-  if (bosl2Defaults.length > 0) {
-    imports.push(`let ${bosl2Defaults.join(', ')}`)
-  }
+  // Special variables ($fn, $fa, $fs, BOSL2 attachment vars, etc.) are now handled
+  // by the stack-based dynamic scoping system in the runtime.
+  // No local variable declarations needed - reads go through j$.getSpecialVar().
 
   return imports
 }

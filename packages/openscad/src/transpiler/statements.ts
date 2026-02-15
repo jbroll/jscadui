@@ -34,6 +34,7 @@ import {
   isVectorExpr,
   getNodeTypeName,
 } from './ast-types.js'
+import { isStackSpecialVar } from './specialVars.js'
 
 /**
  * Transpile a statement
@@ -56,25 +57,10 @@ export function transpileStatement(stmt: Statement, ctx: TranspileContext): stri
       }
     }
 
-    // Special variables that should be assigned globally (not locally scoped)
-    // These use dynamic scoping in OpenSCAD - children inherit parent's values
-    const blockSpecialVars = new Set([
-      '$fn', '$fa', '$fs', '$t', '$vpr', '$vpt', '$vpd', '$vpf', '$preview',
-      // BOSL2 attachment system variables
-      '$transform', '$parent_anchor', '$parent_spin', '$parent_orient',
-      '$parent_geom', '$parent_size', '$parent_parts', '$attach_to',
-      '$attach_anchor', '$attach_alignment', '$attach_inside',
-      '$tags', '$tag', '$save_tag', '$tag_prefix', '$overlap',
-      '$color', '$save_color', '$anchor_override',
-      '$edge_angle', '$edge_length', '$tags_shown', '$tags_hidden',
-      '$ghost_this', '$ghost', '$ghosting', '$highlight_this', '$highlight',
-      '$anchor_inside'
-    ])
-
     // Transpile geometry statements first
     // If there are assignments, we need to create an IIFE to scope them
     // Use suffixed names to avoid temporal dead zone when shadowing parameters
-    // EXCEPT for special variables which should be assigned globally
+    // Special variables use stack-based dynamic scoping via isStackSpecialVar()
     if (assignments.length > 0) {
       const suffix = `$${ctx.letCounter++}`
       const assignStrs: string[] = []
@@ -87,16 +73,17 @@ export function transpileStatement(stmt: Statement, ctx: TranspileContext): stri
 
       for (const a of assignments) {
         const origName = safeIdentifier(a.name)
-        const isSpecial = blockSpecialVars.has(a.name)
+        const isSpecial = isStackSpecialVar(a.name)
 
         if (isSpecial) {
           // Special variable - save, set, and restore for dynamic scoping
           // This allows children to see the new value, but restores after block
+          // Use stack-based getSpecialVar/setSpecialVar instead of bare variable references
           const savedName = `_saved_${origName.replace(/\$/g, '_')}${suffix}`
           const value = transpileExpression(a.value!, ctx)
-          specialSaves.push(`const ${savedName} = ${origName}`)
-          assignStrs.push(`${origName} = ${value}`)
-          specialRestores.push(`${origName} = ${savedName}`)
+          specialSaves.push(`const ${savedName} = j$.getSpecialVar('${a.name}')`)
+          assignStrs.push(`j$.setSpecialVar('${a.name}', ${value})`)
+          specialRestores.push(`j$.setSpecialVar('${a.name}', ${savedName})`)
           // Don't add to incrementalScope - use the global
         } else {
           // Regular variable - use suffixed local scope
@@ -250,28 +237,11 @@ function transpileModuleInstantiation(stmt: ModuleInstantiationStmt, ctx: Transp
 
   const argsArray = transpileArgsArray(stmt.args, ctx)
 
-  // Extract special vars from args - OpenSCAD's $fn, $fa, $fs are dynamically scoped
-  // and inherited by all children, regardless of which module they're attached to
-  const savedSpecialVars = ctx.inheritedSpecialVars
-  const newSpecialVars = { ...ctx.inheritedSpecialVars }
-  let hasSpecialVars = false
-  for (const arg of argsArray) {
-    if (arg.name === '$fn') { newSpecialVars.$fn = arg.value; hasSpecialVars = true }
-    if (arg.name === '$fa') { newSpecialVars.$fa = arg.value; hasSpecialVars = true }
-    if (arg.name === '$fs') { newSpecialVars.$fs = arg.value; hasSpecialVars = true }
-  }
-  if (hasSpecialVars) {
-    ctx.inheritedSpecialVars = newSpecialVars
-  }
-
-  // Handle children (now with inherited special vars in context)
+  // Handle children
   let childCode: string | null = null
   if (stmt.child) {
     childCode = transpileStatement(stmt.child, ctx)
   }
-
-  // Restore special vars after processing children
-  ctx.inheritedSpecialVars = savedSpecialVars
 
   // Check if there's a user-defined module that should override builtins
   // This allows BOSL2's square(anchor=...) to override the builtin square
@@ -467,6 +437,8 @@ function transpileArgsAsOptions(
     }
   }
 
+  // Note: inherited special vars are handled by the stack - no need to inject here
+
   return `{ ${entries.join(', ')} }`
 }
 
@@ -574,8 +546,21 @@ function transpileForLoop(stmt: ModuleInstantiationStmt, ctx: TranspileContext):
     return '/* empty for loop */'
   }
 
-  // Transpile the body
+  // Build scope for loop variables - they shadow any outer variables with the same name
+  // The loop variables are used directly as arrow function parameters (no renaming needed)
+  const loopScope = new Map<string, string>()
+  for (const arg of args) {
+    loopScope.set(arg.name, arg.name)
+  }
+
+  // Push scope so body sees loop variables with their original names
+  pushScope(ctx, loopScope)
+
+  // Transpile the body with loop variables in scope
   const body = stmt.child ? transpileStatement(stmt.child, ctx) || 'undefined' : 'undefined'
+
+  // Pop the scope
+  popScope(ctx)
 
   // Handle single loop variable (most common case)
   if (args.length === 1) {
@@ -610,8 +595,20 @@ function transpileLetModule(stmt: ModuleInstantiationStmt, ctx: TranspileContext
     return stmt.child ? transpileStatement(stmt.child, ctx) || 'undefined' : 'undefined'
   }
 
-  // Transpile the body (children)
+  // Build scope for let bindings - they shadow any outer variables with the same name
+  const letScope = new Map<string, string>()
+  for (const arg of args) {
+    letScope.set(arg.name, safeIdentifier(arg.name))
+  }
+
+  // Push scope so body sees let bindings
+  pushScope(ctx, letScope)
+
+  // Transpile the body (children) with let bindings in scope
   const body = stmt.child ? transpileStatement(stmt.child, ctx) || 'undefined' : 'undefined'
+
+  // Pop the scope
+  popScope(ctx)
 
   // Build parameter list and argument list
   const paramNames = args.map(a => safeIdentifier(a.name))
@@ -650,14 +647,15 @@ export function transpileParamsList(args: AssignmentNode[], ctx: TranspileContex
  * Build destructuring and default assignments for options-object style module parameters.
  * Returns lines to be inserted at the start of the module body.
  *
+ * Uses stack-based dynamic scoping for special variables ($fn, $fa, $fs, etc.)
+ * - Special vars from options are set on the scope stack
+ * - pushScope() is called before this, popScope() after body (in transpileModuleDeclaration)
+ *
  * Example output for module(a, b=5, c):
- *   let { a, b, c, $fn: _$fn, $fa: _$fa, $fs: _$fs } = _opts;
+ *   let { a, b, c, ...$$sv } = _opts;
  *   if (a === j$.EXPLICIT_UNDEF) a = undefined;
  *   b = b !== undefined && b !== j$.EXPLICIT_UNDEF ? b : 5;
- *   if (c === j$.EXPLICIT_UNDEF) c = undefined;
- *   if (_$fn !== undefined) $fn = _$fn;
- *   if (_$fa !== undefined) $fa = _$fa;
- *   if (_$fs !== undefined) $fs = _$fs;
+ *   if ($$sv['$fn'] !== undefined) j$.setSpecialVar('$fn', $$sv['$fn']);
  */
 function buildOptionsDestructuring(args: AssignmentNode[], ctx: TranspileContext): string[] {
   // Deduplicate: keep last occurrence of each parameter name
@@ -665,34 +663,38 @@ function buildOptionsDestructuring(args: AssignmentNode[], ctx: TranspileContext
   args.forEach((arg, i) => seenNames.set(arg.name, i))
   const uniqueArgs = args.filter((arg, i) => seenNames.get(arg.name) === i)
 
-  if (uniqueArgs.length === 0) {
-    // Still destructure special vars even if no params
-    return [
-      `  const { '$fn': _$fn, '$fa': _$fa, '$fs': _$fs } = _opts;`,
-      `  if (_$fn !== undefined) $fn = _$fn;`,
-      `  if (_$fa !== undefined) $fa = _$fa;`,
-      `  if (_$fs !== undefined) $fs = _$fs;`
-    ]
-  }
-
   const lines: string[] = []
 
-  // Build destructuring pattern
-  const destructureNames = uniqueArgs.map(arg => {
-    const name = safeIdentifier(arg.name)
-    // Handle special vars that start with $ - need to be renamed
-    if (arg.name.startsWith('$')) {
-      return `'${arg.name}': ${name}`
-    }
-    return name
-  })
-  // Always include special resolution vars
-  destructureNames.push(`'$fn': _$fn`, `'$fa': _$fa`, `'$fs': _$fs`)
+  // Categorize parameters:
+  // - regularArgs: no $ prefix - normal local variables
+  // - systemSpecialArgs: $ prefix AND in stack whitelist (e.g., $fn, $fa, $fs) - use setSpecialVar()
+  // - userDollarArgs: $ prefix but NOT in whitelist (e.g., $fn2, $idx) - user-defined local variables
+  const regularArgs = uniqueArgs.filter(arg => !arg.name.startsWith('$'))
+  const dollarArgs = uniqueArgs.filter(arg => arg.name.startsWith('$'))
+  const systemSpecialArgs = dollarArgs.filter(arg => isStackSpecialVar(arg.name))
+  const userDollarArgs = dollarArgs.filter(arg => !isStackSpecialVar(arg.name))
 
-  lines.push(`  let { ${destructureNames.join(', ')} } = _opts;`)
+  // Build destructuring pattern for regular args and user-defined $vars, with rest for special vars
+  const localVarArgs = [...regularArgs, ...userDollarArgs]
+  if (localVarArgs.length > 0) {
+    // For user $vars, we need quoted keys: { 'a': a, '$fn2': $fn2 }
+    // But safeIdentifier converts $ to _ so we need to handle this specially
+    const destructureParts = localVarArgs.map(arg => {
+      if (arg.name.startsWith('$')) {
+        // User-defined $var: need quoted key and renamed local var
+        const safeName = safeIdentifier(arg.name) // $fn2 -> _fn2
+        return `'${arg.name}': ${safeName}`
+      }
+      return safeIdentifier(arg.name)
+    })
+    lines.push(`  let { ${destructureParts.join(', ')}, ...$$sv } = _opts;`)
+  } else {
+    // No local args - just capture all special vars
+    lines.push(`  const $$sv = _opts;`)
+  }
 
-  // Apply EXPLICIT_UNDEF conversions and defaults
-  for (const arg of uniqueArgs) {
+  // Apply EXPLICIT_UNDEF conversions and defaults for all local variable args
+  for (const arg of localVarArgs) {
     const name = safeIdentifier(arg.name)
     if (arg.value) {
       // Has default value
@@ -704,10 +706,28 @@ function buildOptionsDestructuring(args: AssignmentNode[], ctx: TranspileContext
     }
   }
 
-  // Apply special variables if provided
-  lines.push(`  if (_$fn !== undefined) $fn = _$fn;`)
-  lines.push(`  if (_$fa !== undefined) $fa = _$fa;`)
-  lines.push(`  if (_$fs !== undefined) $fs = _$fs;`)
+  // Handle system special variable parameters (e.g., $fn as a declared param with default)
+  // No local variables needed - reads go through j$.getSpecialVar(), writes go through j$.setSpecialVar()
+  for (const arg of systemSpecialArgs) {
+    const varName = arg.name // e.g., '$fn'
+    if (arg.value) {
+      // Has default value: set on stack with fallback to default
+      const defaultVal = transpileExpression(arg.value, ctx)
+      lines.push(`  j$.setSpecialVar('${varName}', $$sv['${varName}'] !== undefined ? $$sv['${varName}'] : ${defaultVal});`)
+    } else {
+      // No default: set on stack only if provided
+      lines.push(`  if ($$sv['${varName}'] !== undefined) j$.setSpecialVar('${varName}', $$sv['${varName}']);`)
+    }
+  }
+
+  // Set common special vars on the stack if provided (even if not declared params)
+  // These are the most commonly inherited: $fn, $fa, $fs
+  const commonSpecialVars = ['$fn', '$fa', '$fs']
+  for (const varName of commonSpecialVars) {
+    // Skip if already handled as a declared param
+    if (systemSpecialArgs.some(a => a.name === varName)) continue
+    lines.push(`  if ($$sv['${varName}'] !== undefined) j$.setSpecialVar('${varName}', $$sv['${varName}']);`)
+  }
 
   return lines
 }
@@ -794,27 +814,11 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
   // Local variable assignments
   // If a variable shadows a parameter or previous declaration, don't use 'const'
   // This handles OpenSCAD's pattern of reassigning parameters: cp = is_scalar(cp) ? ... : cp
-  // Special variables ($fn, $fa, $fs, etc.) are declared with 'let' at top level
-  // OpenSCAD special variables and BOSL2 attachment variables
-  // These need special handling to avoid temporal dead zone when reassigned
-  const specialVars = new Set([
-    '$fn', '$fa', '$fs', '$t', '$vpr', '$vpt', '$vpd', '$vpf', '$preview',
-    // BOSL2 attachment system variables
-    '$transform', '$parent_anchor', '$parent_spin', '$parent_orient',
-    '$parent_geom', '$parent_size', '$parent_parts', '$attach_to',
-    '$attach_anchor', '$attach_alignment', '$attach_inside',
-    '$tags', '$tag', '$save_tag', '$tag_prefix', '$overlap',
-    '$color', '$save_color', '$anchor_override',
-    '$edge_angle', '$edge_length', '$tags_shown', '$tags_hidden',
-    '$ghost_this', '$ghost', '$ghosting', '$highlight_this', '$highlight'
-  ])
-
-  // Track which special variables are modified so we can restore them
-  const modifiedSpecialVars: string[] = []
+  // Special variables use stack-based dynamic scoping via isStackSpecialVar()
 
   for (const a of assignments) {
     const varName = safeIdentifier(a.name)
-    const isSpecialVar = specialVars.has(a.name)
+    const isSpecialVar = isStackSpecialVar(a.name)
 
     // Check if this assignment is a function literal (for recursive self-reference support)
     // Function literals need binding registered BEFORE transpiling so recursive calls work
@@ -829,27 +833,10 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
     }
 
     if (isSpecialVar) {
-      // Track that this special var is modified (for save/restore wrapping)
-      if (!modifiedSpecialVars.includes(a.name)) {
-        modifiedSpecialVars.push(a.name)
-        // Save the original value BEFORE any modifications
-        bodyParts.push(`${indent}const _saved${a.name} = ${a.name}`)
-      }
-      // Special variables are pre-declared with 'let' at module top level
-      // When self-referencing (e.g., $fn = _default(rounding_fn, $fn)),
-      // we need to use the saved value to avoid temporal dead zone
+      // Special variables use stack-based dynamic scoping
+      // Reads go through j$.getSpecialVar(), writes go through j$.setSpecialVar()
       const valueExpr = transpileExpression(a.value!, ctx)
-      // Check if the expression contains a reference to the same variable
-      // Use word boundary check to avoid false positives
-      const selfRefPattern = new RegExp(`\\b\\${a.name}\\b`)
-      if (selfRefPattern.test(valueExpr)) {
-        // Replace all references to the variable with the saved version
-        const fixedExpr = valueExpr.replace(new RegExp(`\\b\\${a.name}\\b`, 'g'), `_saved${a.name}`)
-        bodyParts.push(`${indent}${a.name} = ${fixedExpr}`)
-      } else {
-        // No self-reference, simple reassignment
-        bodyParts.push(`${indent}${a.name} = ${valueExpr}`)
-      }
+      bodyParts.push(`${indent}j$.setSpecialVar('${a.name}', ${valueExpr});`)
     } else if (declaredVars.has(a.name)) {
       // Reassignment - don't use const
       bodyParts.push(`${indent}${a.name} = ${transpileExpression(a.value!, ctx)}`)
@@ -876,15 +863,8 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
     `j$.safeUnion([\n${indent}  ${geomParts.join(',\n' + indent + '  ')}\n${indent}])`
   if (geomParts.length > 1) ctx.usedHelpers.add('safeUnion')
 
-  // If special variables were modified, wrap return in try/finally to restore them
-  // This implements dynamic scoping: children see the modified values, but they're
-  // restored after the module returns so siblings/parents see the original values
-  if (modifiedSpecialVars.length > 0) {
-    const restores = modifiedSpecialVars.map(name => `${name} = _saved${name}`).join('; ')
-    bodyParts.push(`${indent}try { return ${returnExpr}; } finally { ${restores}; }`)
-  } else {
-    bodyParts.push(`${indent}return ${returnExpr}`)
-  }
+  // Special variable scoping is handled by pushScope/popScope in the module wrapper
+  bodyParts.push(`${indent}return ${returnExpr}`)
 
   // Clean up local bindings (they're scoped to this module body)
   for (const name of localVarNames) {
@@ -908,14 +888,25 @@ export function transpileModuleDeclaration(stmt: ModuleDeclarationStmt, ctx: Tra
   const name = safeIdentifier(stmt.name)
   // Extract parameter names to detect shadowing assignments
   const paramNames = new Set<string>(stmt.definitionArgs.map(a => a.name))
-  const bodyParts = buildModuleBody(stmt.stmt, ctx, '  ', paramNames)
+  const bodyParts = buildModuleBody(stmt.stmt, ctx, '    ', paramNames)
 
   // Build options destructuring preamble
   const optionsPreamble = buildOptionsDestructuring(stmt.definitionArgs, ctx)
+  // Indent preamble for try block
+  const indentedPreamble = optionsPreamble.map(line => '  ' + line)
 
   // Curried: (_opts) => (_children) => body
   // Use _$m suffix for modules to separate from function namespace
-  return `const ${name}_$m = (_opts = {}) => (_children = []) => {\n${optionsPreamble.join('\n')}\n${bodyParts.join('\n')}\n}`
+  // Wrap in pushScope/try/finally/popScope for special var dynamic scoping
+  return `const ${name}_$m = (_opts = {}) => (_children = []) => {
+  j$.pushScope();
+  try {
+${indentedPreamble.join('\n')}
+${bodyParts.join('\n')}
+  } finally {
+    j$.popScope();
+  }
+}`
 }
 
 /**

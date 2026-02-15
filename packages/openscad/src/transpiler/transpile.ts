@@ -37,6 +37,7 @@ import {
 } from './statements.js'
 import { getModuleName } from './builtins.js'
 import { buildJscadImports } from './helpers/index.js'
+import { isStackSpecialVar } from './specialVars.js'
 
 /**
  * Deduplicate parameter names, keeping the LAST occurrence of each name.
@@ -314,24 +315,13 @@ export function transpile(
       // Already collected in first pass
     } else if (isAssignmentNode(stmt)) {
       // Top-level variable assignment
-      // Special variables ($fn, $fa, $fs, etc.) are already declared with 'let' at the top
-      // via buildJscadImports, so we just reassign them instead of declaring new const
-      const specialVars = new Set([
-        '$fn', '$fa', '$fs', '$t', '$vpr', '$vpt', '$vpd', '$vpf', '$preview',
-        // BOSL2 attachment system variables
-        '$transform', '$parent_anchor', '$parent_spin', '$parent_orient',
-        '$parent_geom', '$parent_size', '$parent_parts', '$attach_to',
-        '$attach_anchor', '$attach_alignment', '$attach_inside',
-        '$tags', '$tag', '$save_tag', '$tag_prefix', '$overlap',
-        '$color', '$save_color', '$anchor_override',
-        '$edge_angle', '$edge_length', '$tags_shown', '$tags_hidden',
-        '$ghost_this', '$ghost', '$ghosting', '$highlight_this', '$highlight'
-      ])
-      const varName = safeIdentifier(stmt.name)
+      // Special variables use stack-based dynamic scoping via setSpecialVar
+      // Regular variables become const declarations
       const value = transpileExpression(stmt.value!, ctx)
-      if (specialVars.has(stmt.name)) {
-        localConstants.push(`${varName} = ${value}`)
+      if (isStackSpecialVar(stmt.name)) {
+        localConstants.push(`j$.setSpecialVar('${stmt.name}', ${value})`)
       } else {
+        const varName = safeIdentifier(stmt.name)
         localConstants.push(`const ${varName} = ${value}`)
       }
     } else {
@@ -763,6 +753,9 @@ function collectDeclarations(stmt: Statement, ctx: TranspileContext): void {
     })
   } else if (isAssignmentNode(stmt)) {
     // Track top-level variable assignments for export
-    ctx.variableNames.push(safeIdentifier(stmt.name))
+    // Don't export special variables - they're set via setSpecialVar and don't exist as JS variables
+    if (!isStackSpecialVar(stmt.name)) {
+      ctx.variableNames.push(safeIdentifier(stmt.name))
+    }
   }
 }

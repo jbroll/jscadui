@@ -7,13 +7,24 @@
  *        j$.cube({size: 10})
  */
 
-import { PI, _range, _min, _max, _num, str, version_num, search, _norm, _cross, _lookup, _rands, is_vector, chr, ord, is_consistent, _list_pattern } from './math.js'
+import { PI, _range, _min, _max, _num, str, version_num, search, _norm, _cross, _lookup, _rands, is_vector, chr, ord, is_consistent, _list_pattern, reverse } from './math.js'
 import { _eq, _vadd, _vsub, _vmul, _vdiv, _vneg } from './vector.js'
 import { _getSegments, setGlobalFn } from './segments.js'
 import { initPrimitives, _cube, _cylinder, _sphere, _circle, _square, _regular_polygon, _polyhedron, _safeUnion, _hull, _union, _subtract, _intersect, _minkowski, _polygon } from './primitives.js'
 import { initTransforms, _translate, _rotate, _scale, _mirror, _multmatrix } from './transforms.js'
 import { initExtrusions, _linearExtrude, _rotateExtrude } from './extrusions.js'
 import { initColor, _color } from './color.js'
+import {
+  pushScope, popScope, resetScope,
+  getSpecialVar, setSpecialVar,
+  $fn, $fa, $fs, set$fn, set$fa, set$fs,
+  $t, $preview, set$t, set$preview,
+  $vpr, $vpt, $vpd, $vpf, set$vpr, set$vpt, set$vpd, set$vpf,
+  $parent_anchor, $parent_spin, $parent_orient, $parent_geom, $parent_size,
+  $transform, $attach_to, $attach_anchor, $anchor, $anchor_inside,
+  set$parent_anchor, set$parent_spin, set$parent_orient, set$parent_geom, set$parent_size,
+  set$transform, set$attach_to, set$attach_anchor, set$anchor, set$anchor_inside
+} from './specialVars.js'
 
 /**
  * Sentinel for explicit undef passed as argument.
@@ -49,6 +60,7 @@ const j$ = {
   ord,
   is_consistent,
   _list_pattern,
+  reverse,
 
   // Vector operations (no JSCAD dependency)
   // Wrap _eq to handle EXPLICIT_UNDEF - convert it to undefined for comparison
@@ -73,6 +85,19 @@ const j$ = {
     if (x == null) return []  // undefined or null
     if (typeof x === 'string') return [...x]
     return x
+  },
+
+  /**
+   * OpenSCAD truthiness - different from JavaScript for arrays
+   * In OpenSCAD: empty arrays [], empty strings "", 0, false, and undef are falsy
+   * In JavaScript: empty arrays [] are truthy
+   * This function returns true if the value is "truthy" in OpenSCAD semantics
+   */
+  isTruthy: (x) => {
+    if (x === undefined || x === null || x === false) return false
+    if (x === 0 || x === '') return false
+    if (Array.isArray(x) && x.length === 0) return false
+    return true
   },
 
   /**
@@ -128,6 +153,27 @@ const j$ = {
   // Color (populated after init)
   color: _color,
 
+  // Special variables - stack-based dynamic scoping
+  pushScope,
+  popScope,
+  resetScope,
+  getSpecialVar,
+  setSpecialVar,
+  // Resolution vars
+  $fn, $fa, $fs,
+  set$fn, set$fa, set$fs,
+  // Animation/preview vars
+  $t, $preview,
+  set$t, set$preview,
+  // Viewport vars
+  $vpr, $vpt, $vpd, $vpf,
+  set$vpr, set$vpt, set$vpd, set$vpf,
+  // BOSL2 attachment vars
+  $parent_anchor, $parent_spin, $parent_orient, $parent_geom, $parent_size,
+  $transform, $attach_to, $attach_anchor, $anchor, $anchor_inside,
+  set$parent_anchor, set$parent_spin, set$parent_orient, set$parent_geom, set$parent_size,
+  set$transform, set$attach_to, set$attach_anchor, set$anchor, set$anchor_inside,
+
   // Direct JSCAD access (populated after init)
   jscad: null,
 
@@ -153,7 +199,7 @@ export default j$
 export { j$ }
 
 // Keep legacy exports for backwards compatibility during transition
-export { PI, _range, _min, _max, _num, str, version_num, search, _norm, _cross, _lookup, _rands, is_vector, chr, ord, is_consistent, _list_pattern } from './math.js'
+export { PI, _range, _min, _max, _num, str, version_num, search, _norm, _cross, _lookup, _rands, is_vector, chr, ord, is_consistent, _list_pattern, reverse } from './math.js'
 export { _eq, _vadd, _vsub, _vmul, _vdiv, _vneg } from './vector.js'
 export { _getSegments, setGlobalFn } from './segments.js'
 export { initPrimitives, _cube, _cylinder, _sphere, _circle, _square, _regular_polygon, _polyhedron, _safeUnion, _hull, _union, _subtract, _intersect, _minkowski, _polygon } from './primitives.js'

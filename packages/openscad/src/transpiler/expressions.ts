@@ -16,6 +16,7 @@ import type {
 import type { TranspileContext } from './context.js'
 import { WarningCode, pushScope, popScope, lookupBinding } from './context.js'
 import { safeIdentifier } from '../utils/identifiers.js'
+import { isStackSpecialVar } from './specialVars.js'
 import { TokenType } from '../utils/tokens.js'
 import {
   isLiteralExpr,
@@ -47,6 +48,9 @@ import type { LcForCExpr } from './ast-types.js'
  * This includes:
  * - Direct function declarations: function(x) x*2
  * - Ternary expressions where both branches are functions: cond ? function(x) ... : function(y) ...
+ * - Ternary expressions with is_function/is_func condition: is_func(x) ? x : ...
+ * - Let expressions with function-valued body: let(a=1) function(x) x*2
+ * - Assert expressions with function-valued body: assert(...) function(x) x*2
  * Used to track local function bindings in let expressions
  */
 export function isFunctionLiteralExpr(expr: Expression | null): boolean {
@@ -55,10 +59,33 @@ export function isFunctionLiteralExpr(expr: Expression | null): boolean {
   if (isFunctionDeclaration(expr as unknown as import('openscad-parser').Statement)) return true
   // Ternary where both branches are functions
   if (isTernaryExpr(expr)) {
-    return isFunctionLiteralExpr(expr.ifExpr) && isFunctionLiteralExpr(expr.elseExpr)
+    // Check if both branches are functions
+    if (isFunctionLiteralExpr(expr.ifExpr) && isFunctionLiteralExpr(expr.elseExpr)) {
+      return true
+    }
+    // Check if condition is is_function() or is_func() call
+    // This pattern (is_func(x) ? x : table[i][1]) always returns a function
+    if (isFunctionCallExpr(expr.cond)) {
+      const fnExpr = expr.cond as import('openscad-parser').FunctionCallExpr
+      if (isLookupExpr(fnExpr.callee)) {
+        const callee = fnExpr.callee.name
+        if (callee === 'is_function' || callee === 'is_func') {
+          return true
+        }
+      }
+    }
+    return false
   }
   // Grouping expression - check inner (uses 'inner' property, not 'expr')
   if (isGroupingExpr(expr)) return isFunctionLiteralExpr((expr as { inner: Expression }).inner)
+  // Let expression - check if body is function-valued
+  if (isLetExpr(expr) || isLcLetExpr(expr)) {
+    return isFunctionLiteralExpr(expr.expr)
+  }
+  // Assert expression - check if the result expression is function-valued
+  if (isAssertExpr(expr)) {
+    return isFunctionLiteralExpr((expr as import('openscad-parser').AssertExpr).expr)
+  }
   return false
 }
 
@@ -140,22 +167,30 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
 
   if (isLookupExpr(expr)) {
     const name = expr.name
-    // Handle special variables
+    // Handle special constant variables
     if (name === '$preview') return 'false'  // Always render as full quality
     if (name === '$t') return '0'  // Animation time defaults to 0
     if (name === '$children') return '_children.length'  // Number of children passed to module
     if (name === '$parent_modules') return '0'  // Module nesting depth (stub: always top-level)
     // Constants from j$ namespace
     if (name === 'PI') return 'j$.PI'
+
     const safeName = safeIdentifier(name)
+
     // Check if this variable has been renamed in an enclosing scope (let/for bindings)
-    // This must happen FIRST to handle shadowing - a let variable should shadow
-    // any outer local function binding with the same name
+    // This must happen FIRST to handle shadowing - a local variable should shadow
+    // any special variable from the stack
     const scopedName = lookupBinding(ctx, safeName)
     if (scopedName !== undefined) {
       return scopedName
     }
-    // Ensure the identifier is safe for JavaScript
+
+    // For special variables that aren't locally bound, use stack-based dynamic scoping
+    if (isStackSpecialVar(name)) {
+      return `j$.getSpecialVar('${name}')`
+    }
+
+    // Regular identifier - ensure it's safe for JavaScript
     return safeName
   }
 
@@ -290,6 +325,12 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
       ctx.usedHelpers.add('vneg')
       return `j$.vneg(${right})`
     }
+    // Logical NOT needs OpenSCAD truthiness semantics
+    // In OpenSCAD, empty arrays [] are falsy, but in JavaScript they're truthy
+    if (op === '!') {
+      ctx.usedHelpers.add('isTruthy')
+      return `!j$.isTruthy(${right})`
+    }
     return `${op}${right}`
   }
 
@@ -349,14 +390,12 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
     const callExpr = transpileFunctionCall(callee, args, ctx)
 
     // If special variables were passed, wrap in dynamic scoping context
-    // OpenSCAD special vars ($fn, $fa, $fs, etc.) use dynamic scoping
+    // OpenSCAD special vars ($fn, $fa, $fs, etc.) use stack-based dynamic scoping
     if (specialVars.length > 0) {
-      // Generate save/set/call/restore code for each special variable
-      // Example: (() => { const _$fn = $fn; $fn = 6; try { return expr; } finally { $fn = _$fn; } })()
-      const saves = specialVars.map(sv => `const _${sv.name} = ${sv.name}`).join('; ')
-      const sets = specialVars.map(sv => `${sv.name} = ${sv.value}`).join('; ')
-      const restores = specialVars.map(sv => `${sv.name} = _${sv.name}`).join('; ')
-      return `(() => { ${saves}; ${sets}; try { return ${callExpr}; } finally { ${restores}; } })()`
+      // Generate pushScope/setSpecialVar/call/popScope code
+      // Example: (() => { j$.pushScope(); j$.setSpecialVar('$fn', 6); try { return expr; } finally { j$.popScope(); } })()
+      const sets = specialVars.map(sv => `j$.setSpecialVar('${sv.name}', ${sv.value})`).join('; ')
+      return `(() => { j$.pushScope(); ${sets}; try { return ${callExpr}; } finally { j$.popScope(); } })()`
     }
 
     return callExpr
@@ -916,7 +955,7 @@ export function transpileFunctionCall(callee: string, args: string, ctx: Transpi
   }
 
   // Helper functions from j$ runtime
-  const helperFuncs = ['norm', 'cross', 'lookup', 'rands', 'search', 'version_num', 'str', 'chr', 'ord']
+  const helperFuncs = ['norm', 'cross', 'lookup', 'rands', 'search', 'version_num', 'str', 'chr', 'ord', 'reverse']
   if (helperFuncs.includes(callee)) {
     return `j$.${callee}(${args})`
   }
@@ -926,12 +965,11 @@ export function transpileFunctionCall(callee: string, args: string, ctx: Transpi
     return `console.log(${args})`
   }
 
-  // Check if this is a local variable binding (from a let/for expression)
-  // Local variables should never get _$f suffix, only global functions do
-  // Check by: 1) original name in localFunctionBindings
-  // Note: We only use localFunctionBindings here, not scopeBindings, because
-  // a let binding like `scale = [1,2]` should NOT intercept calls to `scale()` function
-  // Only bindings explicitly detected as functions should be used for function calls
+  // Check if this is a local function binding (from a let/for expression)
+  // In OpenSCAD, variables and functions have SEPARATE namespaces
+  // e.g., let(scale = [1,2,3]) scale(cube(1)) - scale is a variable, scale() is a function
+  // We only intercept if we're SURE the binding is a function value
+  // This is tracked via localFunctionBindings (detected via isFunctionLiteralExpr)
   const localBinding = ctx.localFunctionBindings.get(callee)
   if (localBinding) {
     return `${localBinding}(${args})`
