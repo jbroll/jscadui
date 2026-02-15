@@ -72,9 +72,11 @@ describe('Syntax & Declarations', () => {
 
     it('defines module with default parameters', () => {
       const code = transpileCode('module box(x=1, y=2, z=3) { cube([x,y,z]); }')
-      expect(code).toContain('x = 1')
-      expect(code).toContain('y = 2')
-      expect(code).toContain('z = 3')
+      // With options object pattern, defaults are applied via: x = x !== undefined ... ? x : 1
+      expect(code).toContain('x !== undefined')
+      expect(code).toContain(': 1;')
+      expect(code).toContain(': 2;')
+      expect(code).toContain(': 3;')
     })
   })
 
@@ -189,7 +191,8 @@ describe('Operators', () => {
     })
 
     it('handles ! (logical NOT)', () => {
-      expect(transpileCode('x = !a;')).toContain('!a')
+      // Uses j$.isTruthy for OpenSCAD semantics (empty arrays are falsy)
+      expect(transpileCode('x = !a;')).toContain('!j$.isTruthy(a)')
     })
   })
 })

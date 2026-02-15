@@ -282,20 +282,24 @@ function transpileModuleInstantiation(stmt: ModuleInstantiationStmt, ctx: Transp
 
   // Check if it's a built-in primitive/transform/boolean
   // ONLY use builtins if there's no user-defined module with the same name
-  if (!hasUserDefinedModule && isBuiltinPrimitive(name)) {
+  // EXCEPTION: Underscore-prefixed builtins (like _multmatrix, _translate) ALWAYS
+  // use the builtin handler - these are BOSL2's way of calling real builtins
+  const isUnderscorePrefixed = name.startsWith('_')
+
+  if ((!hasUserDefinedModule || isUnderscorePrefixed) && isBuiltinPrimitive(name)) {
     return transpileBuiltinPrimitive(name, argsArray, ctx)
   }
 
-  if (!hasUserDefinedModule && isBuiltinTransform(name)) {
+  if ((!hasUserDefinedModule || isUnderscorePrefixed) && isBuiltinTransform(name)) {
     return transpileBuiltinTransform(name, argsArray, childCode, ctx)
   }
 
-  if (!hasUserDefinedModule && isBuiltinBoolean(name)) {
+  if ((!hasUserDefinedModule || isUnderscorePrefixed) && isBuiltinBoolean(name)) {
     // Boolean ops need children passed directly, not as union
     return transpileBuiltinBoolean(name, stmt.child, ctx)
   }
 
-  if (!hasUserDefinedModule && isBuiltinExtrusion(name)) {
+  if ((!hasUserDefinedModule || isUnderscorePrefixed) && isBuiltinExtrusion(name)) {
     return transpileBuiltinExtrusion(name, argsArray, childCode, ctx)
   }
 
@@ -323,7 +327,8 @@ function transpileModuleInstantiation(stmt: ModuleInstantiationStmt, ctx: Transp
     // children([indices...]) returns union of specified children
     if (argsArray.length === 0) {
       // All children: union of _children array (call each thunk)
-      return `(_children.length === 0 ? undefined : _children.length === 1 ? _children[0]() : j$.union(..._children.map(_c => _c())))`
+      // Use safeUnion to handle cases where some children return undefined (e.g., conditional geometry)
+      return `(_children.length === 0 ? undefined : _children.length === 1 ? _children[0]() : j$.safeUnion(_children.map(_c => _c())))`
     } else {
       // Indexed access - check if argument is a vector (array of indices) or simple index
       const arg = stmt.args[0]
@@ -331,8 +336,9 @@ function transpileModuleInstantiation(stmt: ModuleInstantiationStmt, ctx: Transp
 
       if (argValue && isVectorExpr(argValue)) {
         // Array of indices: children([0, 2, 3]) → union children at those indices (call thunks)
+        // Use safeUnion to handle cases where some children return undefined
         const indices = argValue.children.map(c => transpileExpression(c, ctx))
-        return `j$.union(${indices.map(i => `_children[${i}]()`).join(', ')})`
+        return `j$.safeUnion([${indices.map(i => `_children[${i}]()`).join(', ')}])`
       } else {
         // Simple index: children(0) or children(i) → single child access (call thunk)
         const indexExpr = argsArray[0].value
@@ -343,13 +349,16 @@ function transpileModuleInstantiation(stmt: ModuleInstantiationStmt, ctx: Transp
 
   // User-defined module/function - direct call (late binding)
   // Symbol is available if it's local or imported via use
-  // Curried pattern: module(args)(children)
+  // Curried pattern: module({ options })(children)
 
   // Apply safeIdentifier to handle reserved keywords (like 'let')
   const safeName = safeIdentifier(name)
 
-  // Reorder named arguments to match parameter definition order
+  // Build arguments in both formats:
+  // - positionalArgs: for function calls (backward compat)
+  // - optionsArgs: for module calls (new pattern)
   const positionalArgs = reorderNamedArgs(name, argsArray, ctx)
+  const optionsArgs = transpileArgsAsOptions(name, argsArray, ctx)
 
   // Just emit a direct call - the symbol should be available from:
   // - Local module/function definitions
@@ -366,10 +375,10 @@ function transpileModuleInstantiation(stmt: ModuleInstantiationStmt, ctx: Transp
       const childrenArray = collectChildrenAsArray(stmt.child, ctx)
       if (childrenArray.length > 0) {
         const childrenArg = `[${childrenArray.join(', ')}]`
-        return `${safeName}(${positionalArgs})(${childrenArg})`
+        return `${safeName}(${optionsArgs})(${childrenArg})`
       }
     }
-    return `${safeName}(${positionalArgs})`
+    return `${safeName}(${optionsArgs})`
   }
 
   // If there are children, collect them as an array and pass via curried call
@@ -377,8 +386,8 @@ function transpileModuleInstantiation(stmt: ModuleInstantiationStmt, ctx: Transp
     const childrenArray = collectChildrenAsArray(stmt.child, ctx)
     if (childrenArray.length > 0) {
       const childrenArg = `[${childrenArray.join(', ')}]`
-      // Curried call: module_$m(args)(children)
-      return `${safeName}_$m(${positionalArgs})(${childrenArg})`
+      // Curried call: module_$m({ options })(children)
+      return `${safeName}_$m(${optionsArgs})(${childrenArg})`
     }
   }
 
@@ -389,19 +398,22 @@ function transpileModuleInstantiation(stmt: ModuleInstantiationStmt, ctx: Transp
   const isLocalModule = ctx.moduleNames.includes(name)
   const isImportedFunction = ctx.importedFunctions.has(name)
   const isImportedModule = ctx.importedModules.has(name)
+  const isIncludedFunction = ctx.includedFunctionNames.has(name)
+  const isIncludedModule = ctx.includedModuleNames.has(name)
 
-  if (isLocalFunction && !isLocalModule) {
-    // Global function - use _$f suffix
+  // Check if this symbol is a module from ANY source
+  const isKnownModule = isLocalModule || isImportedModule || isIncludedModule
+  // Check if this symbol is a function from ANY source
+  const isKnownFunction = isLocalFunction || isImportedFunction || isIncludedFunction
+
+  // Only use _$f suffix if it's EXCLUSIVELY a function (not also a module from any source)
+  // Functions still use positional args for backward compatibility
+  if (isKnownFunction && !isKnownModule) {
     return `${safeName}_$f(${positionalArgs})`
   }
 
-  if (isImportedFunction && !isImportedModule) {
-    // Imported function - use _$f suffix
-    return `${safeName}_$f(${positionalArgs})`
-  }
-
-  // Module call with no children: use curried pattern with _$m suffix
-  return `${safeName}_$m(${positionalArgs})()`
+  // Module call with no children: use curried pattern with _$m suffix and options object
+  return `${safeName}_$m(${optionsArgs})()`
 }
 
 /**
@@ -412,6 +424,60 @@ function transpileArgsArray(args: AssignmentNode[], ctx: TranspileContext): Arra
     name: arg.name || null,
     value: transpileExpression(arg.value!, ctx)
   }))
+}
+
+/**
+ * Transpile arguments as an options object: { name1: value1, name2: value2 }
+ * This is the new calling convention for modules.
+ *
+ * For positional arguments without names, we map them to parameter names if available.
+ * Special variables ($fn, $fa, $fs) are included in the options object.
+ */
+function transpileArgsAsOptions(
+  name: string,
+  argsArray: Array<{name: string | null, value: string}>,
+  ctx: TranspileContext
+): string {
+  if (argsArray.length === 0) return '{}'
+
+  // Get parameter list to map positional args to names
+  const moduleParams = ctx.moduleParamLists.get(name)
+  const functionParams = ctx.functionParamLists.get(name)
+  const paramList = moduleParams || functionParams || []
+
+  const entries: string[] = []
+  let positionalIndex = 0
+  const usedNames = new Set<string>()
+
+  for (const arg of argsArray) {
+    if (arg.name) {
+      // Named argument - use directly
+      const safeName = safeIdentifier(arg.name)
+      // Special variables need to be quoted if they start with $
+      const key = arg.name.startsWith('$') ? `'${arg.name}'` : safeName
+      entries.push(`${key}: ${arg.value}`)
+      usedNames.add(arg.name)
+    } else {
+      // Positional argument - map to parameter name
+      while (positionalIndex < paramList.length && usedNames.has(paramList[positionalIndex])) {
+        positionalIndex++
+      }
+      if (positionalIndex < paramList.length) {
+        const paramName = paramList[positionalIndex]
+        const safeName = safeIdentifier(paramName)
+        const key = paramName.startsWith('$') ? `'${paramName}'` : safeName
+        entries.push(`${key}: ${arg.value}`)
+        usedNames.add(paramName)
+        positionalIndex++
+      } else {
+        // No param name available, use index as fallback (shouldn't happen often)
+        entries.push(`_arg${positionalIndex}: ${arg.value}`)
+        positionalIndex++
+      }
+    }
+  }
+
+  return `{ ${entries.join(', ')} }`
 }
 
 /**
@@ -588,6 +654,72 @@ export function transpileParamsList(args: AssignmentNode[], ctx: TranspileContex
   })
 
   return params.join(', ')
+}
+
+/**
+ * Build destructuring and default assignments for options-object style module parameters.
+ * Returns lines to be inserted at the start of the module body.
+ *
+ * Example output for module(a, b=5, c):
+ *   let { a, b, c, $fn: _$fn, $fa: _$fa, $fs: _$fs } = _opts;
+ *   if (a === j$.EXPLICIT_UNDEF) a = undefined;
+ *   b = b !== undefined && b !== j$.EXPLICIT_UNDEF ? b : 5;
+ *   if (c === j$.EXPLICIT_UNDEF) c = undefined;
+ *   if (_$fn !== undefined) $fn = _$fn;
+ *   if (_$fa !== undefined) $fa = _$fa;
+ *   if (_$fs !== undefined) $fs = _$fs;
+ */
+function buildOptionsDestructuring(args: AssignmentNode[], ctx: TranspileContext): string[] {
+  // Deduplicate: keep last occurrence of each parameter name
+  const seenNames = new Map<string, number>()
+  args.forEach((arg, i) => seenNames.set(arg.name, i))
+  const uniqueArgs = args.filter((arg, i) => seenNames.get(arg.name) === i)
+
+  if (uniqueArgs.length === 0) {
+    // Still destructure special vars even if no params
+    return [
+      `  const { '$fn': _$fn, '$fa': _$fa, '$fs': _$fs } = _opts;`,
+      `  if (_$fn !== undefined) $fn = _$fn;`,
+      `  if (_$fa !== undefined) $fa = _$fa;`,
+      `  if (_$fs !== undefined) $fs = _$fs;`
+    ]
+  }
+
+  const lines: string[] = []
+
+  // Build destructuring pattern
+  const destructureNames = uniqueArgs.map(arg => {
+    const name = safeIdentifier(arg.name)
+    // Handle special vars that start with $ - need to be renamed
+    if (arg.name.startsWith('$')) {
+      return `'${arg.name}': ${name}`
+    }
+    return name
+  })
+  // Always include special resolution vars
+  destructureNames.push(`'$fn': _$fn`, `'$fa': _$fa`, `'$fs': _$fs`)
+
+  lines.push(`  let { ${destructureNames.join(', ')} } = _opts;`)
+
+  // Apply EXPLICIT_UNDEF conversions and defaults
+  for (const arg of uniqueArgs) {
+    const name = safeIdentifier(arg.name)
+    if (arg.value) {
+      // Has default value
+      const defaultVal = transpileExpression(arg.value, ctx)
+      lines.push(`  ${name} = ${name} !== undefined && ${name} !== j$.EXPLICIT_UNDEF ? ${name} : ${defaultVal};`)
+    } else {
+      // No default - just convert EXPLICIT_UNDEF to undefined
+      lines.push(`  if (${name} === j$.EXPLICIT_UNDEF) ${name} = undefined;`)
+    }
+  }
+
+  // Apply special variables if provided
+  lines.push(`  if (_$fn !== undefined) $fn = _$fn;`)
+  lines.push(`  if (_$fa !== undefined) $fa = _$fa;`)
+  lines.push(`  if (_$fs !== undefined) $fs = _$fs;`)
+
+  return lines
 }
 
 /**
@@ -774,25 +906,26 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
 
 /**
  * Transpile a module declaration to JavaScript function
- * Uses curried function: outer takes OpenSCAD params, inner takes children
- * This allows calling with defaults while still passing children:
- *   module(arg1, arg2)([child1, child2])  - explicit args
- *   module()([child1, child2])            - default args
+ * Uses curried function with options object pattern:
+ *   module_$m({ param1: value1, param2: value2, $fn: 32 })([children])
+ *
+ * The options object pattern:
+ * - Makes transpiled output more readable
+ * - Properly passes special variables ($fn, $fa, $fs)
+ * - Eliminates complex positional argument reordering
  */
 export function transpileModuleDeclaration(stmt: ModuleDeclarationStmt, ctx: TranspileContext): string {
   const name = safeIdentifier(stmt.name)
-  const params = transpileParamsList(stmt.definitionArgs, ctx)
   // Extract parameter names to detect shadowing assignments
   const paramNames = new Set<string>(stmt.definitionArgs.map(a => a.name))
   const bodyParts = buildModuleBody(stmt.stmt, ctx, '  ', paramNames)
 
-  // Build preamble to convert EXPLICIT_UNDEF params to undefined
-  const preamble = buildUndefConversionPreamble(stmt.definitionArgs)
-  const preambleLine = preamble ? `  ${preamble}\n` : ''
+  // Build options destructuring preamble
+  const optionsPreamble = buildOptionsDestructuring(stmt.definitionArgs, ctx)
 
-  // Curried: (params) => (_children) => body
+  // Curried: (_opts) => (_children) => body
   // Use _$m suffix for modules to separate from function namespace
-  return `const ${name}_$m = (${params}) => (_children = []) => {\n${preambleLine}${bodyParts.join('\n')}\n}`
+  return `const ${name}_$m = (_opts = {}) => (_children = []) => {\n${optionsPreamble.join('\n')}\n${bodyParts.join('\n')}\n}`
 }
 
 /**

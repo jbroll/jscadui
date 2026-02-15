@@ -3,24 +3,25 @@ import { parse } from '../src/parser/parse.js'
 import { transpile } from '../src/transpiler/transpile.js'
 
 /**
- * Tests for named argument reordering
- * OpenSCAD allows mixing positional and named arguments in any order
+ * Tests for module argument handling
+ * Modules use options object pattern: module_$m({ param: value })
  */
 
-describe('reorderNamedArgs', () => {
+describe('module arguments (options object pattern)', () => {
   // Helper to get the generated code for a module call
   function getModuleCall(scadCode: string): string {
     const result = transpile(parse(scadCode).ast, { includeHeader: false })
     return result.code.trim()
   }
 
-  describe('positional arguments only', () => {
-    it('keeps positional arguments in order', () => {
+  describe('positional arguments', () => {
+    it('maps positional arguments to parameter names', () => {
       const code = getModuleCall(`
         module foo(a, b, c) { cube(a); }
         foo(1, 2, 3);
       `)
-      expect(code).toContain('foo_$m(1, 2, 3)')
+      // Now uses options object with parameter names
+      expect(code).toContain('foo_$m({ a: 1, b: 2, c: 3 })')
     })
 
     it('handles single positional argument', () => {
@@ -28,18 +29,20 @@ describe('reorderNamedArgs', () => {
         module foo(a) { cube(a); }
         foo(42);
       `)
-      expect(code).toContain('foo_$m(42)')
+      expect(code).toContain('foo_$m({ a: 42 })')
     })
   })
 
-  describe('named arguments only', () => {
-    it('reorders named arguments to match definition', () => {
+  describe('named arguments', () => {
+    it('preserves named arguments in options object', () => {
       const code = getModuleCall(`
         module foo(a, b, c) { cube(a); }
         foo(c=3, a=1, b=2);
       `)
-      // Should reorder to (a, b, c) order
-      expect(code).toContain('foo_$m(1, 2, 3)')
+      // Named args are in the options object (order preserved from call)
+      expect(code).toContain('c: 3')
+      expect(code).toContain('a: 1')
+      expect(code).toContain('b: 2')
     })
 
     it('handles partial named arguments', () => {
@@ -47,8 +50,10 @@ describe('reorderNamedArgs', () => {
         module foo(a, b, c) { cube(a); }
         foo(c=3, a=1);
       `)
-      // b should be undefined
-      expect(code).toContain('foo_$m(1, undefined, 3)')
+      // Only provided args are in options
+      expect(code).toContain('c: 3')
+      expect(code).toContain('a: 1')
+      expect(code).not.toContain('b:')
     })
 
     it('handles single named argument', () => {
@@ -56,7 +61,7 @@ describe('reorderNamedArgs', () => {
         module foo(a, b, c) { cube(a); }
         foo(b=42);
       `)
-      expect(code).toContain('foo_$m(undefined, 42)')
+      expect(code).toContain('foo_$m({ b: 42 })')
     })
   })
 
@@ -66,8 +71,9 @@ describe('reorderNamedArgs', () => {
         module foo(a, b, c) { cube(a); }
         foo(1, c=3);
       `)
-      // First positional fills 'a', named fills 'c'
-      expect(code).toContain('foo_$m(1, undefined, 3)')
+      // First positional maps to 'a', named 'c' is explicit
+      expect(code).toContain('a: 1')
+      expect(code).toContain('c: 3')
     })
 
     it('handles named then positional', () => {
@@ -75,8 +81,10 @@ describe('reorderNamedArgs', () => {
         module foo(a, b, c) { cube(a); }
         foo(b=2, 1, 3);
       `)
-      // b=2 is named, 1 fills 'a', 3 fills 'c'
-      expect(code).toContain('foo_$m(1, 2, 3)')
+      // b=2 is named, positionals fill remaining slots
+      expect(code).toContain('b: 2')
+      expect(code).toContain('a: 1')
+      expect(code).toContain('c: 3')
     })
 
     it('handles interleaved named and positional', () => {
@@ -84,29 +92,34 @@ describe('reorderNamedArgs', () => {
         module foo(a, b, c, d) { cube(a); }
         foo(1, c=3, 2);
       `)
-      // 1 fills 'a', c=3 is named, 2 fills 'b' (skipped), then 'd'
-      // Wait, 2 should fill 'b' not 'd' because b wasn't named yet
-      expect(code).toContain('foo_$m(1, 2, 3)')
+      // 1 fills 'a', c=3 is named, 2 fills 'b'
+      expect(code).toContain('a: 1')
+      expect(code).toContain('c: 3')
+      expect(code).toContain('b: 2')
     })
   })
 
-  describe('trailing undefined trimming', () => {
-    it('trims trailing undefined values', () => {
+  describe('options object only includes provided args', () => {
+    it('only includes arguments that were provided', () => {
       const code = getModuleCall(`
         module foo(a, b, c) { cube(a); }
         foo(a=1);
       `)
-      // Should not have trailing undefineds
-      expect(code).toContain('foo_$m(1)')
-      expect(code).not.toContain('foo_$m(1, undefined, undefined)')
+      // Options object only has 'a', not 'b' or 'c'
+      expect(code).toContain('foo_$m({ a: 1 })')
+      // The call itself doesn't have b: or c:
+      expect(code).not.toContain('b:')
+      expect(code).not.toContain('c:')
     })
 
-    it('keeps intermediate undefined values', () => {
+    it('handles sparse argument list', () => {
       const code = getModuleCall(`
         module foo(a, b, c) { cube(a); }
         foo(a=1, c=3);
       `)
-      expect(code).toContain('foo_$m(1, undefined, 3)')
+      expect(code).toContain('a: 1')
+      expect(code).toContain('c: 3')
+      expect(code).not.toContain('b:')
     })
   })
 
@@ -153,7 +166,8 @@ describe('reorderNamedArgs', () => {
         module foo() { cube(1); }
         foo();
       `)
-      expect(code).toContain('foo_$m()')
+      // Empty options object for no args
+      expect(code).toContain('foo_$m({})')
     })
 
     it('handles default values in module definition', () => {
@@ -161,8 +175,8 @@ describe('reorderNamedArgs', () => {
         module foo(a=1, b=2, c=3) { cube(a); }
         foo(c=10);
       `)
-      // Only c is overridden
-      expect(code).toContain('foo_$m(undefined, undefined, 10)')
+      // Only c is provided in options object
+      expect(code).toContain('foo_$m({ c: 10 })')
     })
 
     it('handles special variable arguments ($fn, $fa, $fs)', () => {

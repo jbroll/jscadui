@@ -5,20 +5,25 @@
 import type { TranspileContext } from './context.js'
 
 // Built-in type checks
+// All functions also match underscore-prefixed versions (BOSL2 builtins.scad wrappers)
 export function isBuiltinPrimitive(name: string): boolean {
-  return ['cube', 'sphere', 'cylinder', 'polyhedron', 'square', 'circle', 'polygon', 'regular_polygon'].includes(name)
+  const baseName = name.startsWith('_') ? name.slice(1) : name
+  return ['cube', 'sphere', 'cylinder', 'polyhedron', 'square', 'circle', 'polygon', 'regular_polygon'].includes(baseName)
 }
 
 export function isBuiltinTransform(name: string): boolean {
-  return ['translate', 'rotate', 'scale', 'mirror', 'multmatrix'].includes(name)
+  const baseName = name.startsWith('_') ? name.slice(1) : name
+  return ['translate', 'rotate', 'scale', 'mirror', 'multmatrix'].includes(baseName)
 }
 
 export function isBuiltinBoolean(name: string): boolean {
-  return ['union', 'difference', 'intersection', 'minkowski'].includes(name)
+  const baseName = name.startsWith('_') ? name.slice(1) : name
+  return ['union', 'difference', 'intersection', 'minkowski'].includes(baseName)
 }
 
 export function isBuiltinExtrusion(name: string): boolean {
-  return ['linear_extrude', 'rotate_extrude'].includes(name)
+  const baseName = name.startsWith('_') ? name.slice(1) : name
+  return ['linear_extrude', 'rotate_extrude'].includes(baseName)
 }
 
 // Positional parameter names for built-in primitives
@@ -62,8 +67,10 @@ export function transpileBuiltinPrimitive(
   argsArray: Array<{name: string | null, value: string}>,
   ctx: TranspileContext
 ): string {
+  // Handle underscore-prefixed versions (BOSL2 builtins.scad wrappers)
+  const baseName = name.startsWith('_') ? name.slice(1) : name
   // Map positional args to named args using parameter definitions
-  const paramNames = primitiveParams[name] || []
+  const paramNames = primitiveParams[baseName] || []
   const namedArgs = argsArray.map((arg, i) => {
     if (arg.name) {
       return `${arg.name}: ${arg.value}`
@@ -77,7 +84,7 @@ export function transpileBuiltinPrimitive(
   })
 
   // For primitives that use segments, inject inherited special vars if not already set
-  const usesSegments = ['sphere', 'cylinder', 'circle', 'regular_polygon'].includes(name)
+  const usesSegments = ['sphere', 'cylinder', 'circle', 'regular_polygon'].includes(baseName)
   if (usesSegments) {
     const hasVar = (varName: string) => argsArray.some(a => a.name === varName)
     if (ctx.inheritedSpecialVars.$fn && !hasVar('$fn')) {
@@ -93,7 +100,7 @@ export function transpileBuiltinPrimitive(
 
   const argsStr = namedArgs.join(', ')
 
-  switch (name) {
+  switch (baseName) {
     case 'cube':
       ctx.usedPrimitives.add('cube')
       ctx.usedPrimitives.add('cuboid')
@@ -133,7 +140,7 @@ export function transpileBuiltinPrimitive(
       return `j$.polyhedron({ ${argsStr} })`
 
     default:
-      return `/* unknown primitive: ${name} */`
+      return `/* unknown primitive: ${baseName} */`
   }
 }
 
@@ -205,10 +212,12 @@ export function transpileBuiltinExtrusion(
   child: string | null,
   ctx: TranspileContext
 ): string {
+  // Handle underscore-prefixed versions (BOSL2 builtins.scad wrappers)
+  const baseName = name.startsWith('_') ? name.slice(1) : name
   const childCode = child || 'undefined'
 
   // Map positional args to named args using parameter definitions
-  const paramNames = extrusionParams[name] || []
+  const paramNames = extrusionParams[baseName] || []
   const namedArgs = argsArray.map((arg, i) => {
     if (arg.name) {
       return `${arg.name}: ${arg.value}`
@@ -222,7 +231,7 @@ export function transpileBuiltinExtrusion(
   })
   const args = namedArgs.join(', ')
 
-  switch (name) {
+  switch (baseName) {
     case 'linear_extrude':
       ctx.usedExtrusions.add('extrudeLinear')
       ctx.usedTransforms.add('translate')  // _linearExtrude helper uses translate for center
@@ -233,7 +242,7 @@ export function transpileBuiltinExtrusion(
       return `j$.rotateExtrude({ ${args} }, ${childCode})`
 
     default:
-      return `/* unknown extrusion: ${name} */`
+      return `/* unknown extrusion: ${baseName} */`
   }
 }
 
