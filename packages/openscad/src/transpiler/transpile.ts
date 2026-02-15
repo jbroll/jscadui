@@ -512,10 +512,24 @@ function collectSignaturesFromIncludes(
 
     // Read and parse the file (caching the AST for later use)
     const source = fileResolver(includeImport.filename, ctx.options.currentFile)
-    if (!source) continue
+    if (!source) {
+      ctx.errors.push({
+        code: ErrorCode.FILE_NOT_FOUND,
+        message: `Cannot resolve include file: ${includeImport.filename}`,
+        file: ctx.options.currentFile,
+      })
+      continue
+    }
 
     const { ast, errors } = parse(source)
-    if (errors.length > 0) continue
+    if (errors.length > 0) {
+      ctx.errors.push({
+        code: ErrorCode.PARSE_ERROR,
+        message: `Parse error in include file: ${includeImport.filename}`,
+        file: ctx.options.currentFile,
+      })
+      continue
+    }
 
     // Cache the parsed AST so transpileAndCacheDependency can reuse it
     ctx.parsedFiles.set(resolvedPath, ast)
