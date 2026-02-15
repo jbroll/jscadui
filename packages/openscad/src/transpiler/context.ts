@@ -257,6 +257,19 @@ export function createContext(
     }
   }
 
+  // Initialize SymbolTable with initial params
+  const symbols = new SymbolTable()
+  if (options.initialParamLists) {
+    for (const [name, params] of options.initialParamLists) {
+      symbols.registerParams(name, 'module', params)
+    }
+  }
+  if (options.initialFunctionParamLists) {
+    for (const [name, params] of options.initialFunctionParamLists) {
+      symbols.registerParams(name, 'function', params)
+    }
+  }
+
   return {
     options: opts,
     usedPrimitives: new Set(),
@@ -283,7 +296,7 @@ export function createContext(
     includedModuleNames,
     includedFunctionNames,
     dualDefinedNames,
-    symbols: new SymbolTable(),
+    symbols,
     indentLevel: 0,
     transpiledFiles: sharedCache || new Map(),
     parsedFiles: new Map(),

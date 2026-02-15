@@ -401,10 +401,8 @@ function transpileArgsAsOptions(
 ): string {
   if (argsArray.length === 0) return '{}'
 
-  // Get parameter list to map positional args to names
-  const moduleParams = ctx.moduleParamLists.get(name)
-  const functionParams = ctx.functionParamLists.get(name)
-  const paramList = moduleParams || functionParams || []
+  // Get parameter list to map positional args to names (from SymbolTable)
+  const paramList = ctx.symbols.getParams(name, 'module') || ctx.symbols.getParams(name, 'function') || []
 
   const entries: string[] = []
   let positionalIndex = 0

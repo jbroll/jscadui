@@ -725,25 +725,20 @@ export function reorderNamedArgs(
   ctx: TranspileContext,
   preferFunction = false
 ): string {
-  // Get parameter list for this module/function
+  // Get parameter list for this module/function from SymbolTable
   // preferFunction=true means this is a function call context (uses return value)
-  // In that case, prefer functionParamLists since functions often have extra params (like p in rot)
-  const moduleParams = ctx.moduleParamLists.get(name)
-  const functionParams = ctx.functionParamLists.get(name)
-
-  // Choose the best parameter list based on call context:
-  // - preferFunction=true (function call): prefer function params
-  // - preferFunction=false (module instantiation): prefer module params
+  // In that case, prefer function params since functions often have extra params (like p in rot)
+  //
   // IMPORTANT: Module and function definitions can have different parameter orders
   // (e.g., BOSL2's prismoid module has xang/yang before rounding, but the function has them at the end)
   // We must respect the call context to get the correct parameter order.
   let paramList: string[] | undefined
   if (preferFunction) {
     // Function call context - prefer function params, fall back to module params
-    paramList = functionParams || moduleParams
+    paramList = ctx.symbols.getParams(name, 'function') || ctx.symbols.getParams(name, 'module')
   } else {
     // Module instantiation context - prefer module params, fall back to function params
-    paramList = moduleParams || functionParams
+    paramList = ctx.symbols.getParams(name, 'module') || ctx.symbols.getParams(name, 'function')
   }
 
   // If we don't have parameter info, or no named args, fall back to positional order

@@ -52,6 +52,14 @@ export class SymbolTable {
   private functionVersions = new Map<string, SymbolInfo>()
 
   /**
+   * Param-only storage for cases where params are needed for argument reordering
+   * but the symbol isn't defined in the main table (e.g., USE imports add params
+   * for modules but don't define them as modules since they use require() semantics)
+   */
+  private moduleParams = new Map<string, string[]>()
+  private functionParams = new Map<string, string[]>()
+
+  /**
    * Define a symbol in the table
    *
    * If a name already exists with a different kind, marks it as dual-defined
@@ -173,15 +181,45 @@ export class SymbolTable {
   }
 
   /**
-   * Get parameter list for a symbol
+   * Get parameter list for a symbol.
+   *
+   * Checks in order:
+   * 1. Defined symbols (from define() calls)
+   * 2. Param-only storage (from registerParams() calls)
    */
   getParams(name: string, preferKind?: 'module' | 'function'): string[] | undefined {
+    // First check defined symbols
     const info = this.lookup(name, preferKind)
-    return info?.params
+    if (info?.params) return info.params
+
+    // Fall back to param-only storage
+    if (preferKind === 'function') {
+      return this.functionParams.get(name)
+    } else if (preferKind === 'module') {
+      return this.moduleParams.get(name)
+    }
+
+    // No preference - try module first, then function (matches old Map query order)
+    return this.moduleParams.get(name) || this.functionParams.get(name)
   }
 
   /**
-   * Set parameter list for a symbol
+   * Register params for a symbol without fully defining it.
+   *
+   * Use this when params are needed for argument reordering but the symbol
+   * shouldn't be treated as that kind for suffix determination purposes.
+   * Example: USE imports add module params but use require() semantics.
+   */
+  registerParams(name: string, kind: 'module' | 'function', params: string[]): void {
+    if (kind === 'module') {
+      this.moduleParams.set(name, params)
+    } else {
+      this.functionParams.set(name, params)
+    }
+  }
+
+  /**
+   * Set parameter list for a defined symbol
    */
   setParams(name: string, params: string[], kind?: 'module' | 'function'): void {
     if (this.dualDefined.has(name) && kind === 'function') {
@@ -211,6 +249,13 @@ export class SymbolTable {
     for (const [name, info] of this.functionVersions) {
       copy.functionVersions.set(name, { ...info, params: info.params ? [...info.params] : undefined })
     }
+    // Copy param-only storage
+    for (const [name, params] of this.moduleParams) {
+      copy.moduleParams.set(name, [...params])
+    }
+    for (const [name, params] of this.functionParams) {
+      copy.functionParams.set(name, [...params])
+    }
     return copy
   }
 
@@ -227,6 +272,17 @@ export class SymbolTable {
       if (funcInfo && !this.functionVersions.has(name)) {
         this.dualDefined.add(name)
         this.functionVersions.set(name, { ...funcInfo, params: funcInfo.params ? [...funcInfo.params] : undefined })
+      }
+    }
+    // Merge param-only storage
+    for (const [name, params] of other.moduleParams) {
+      if (!this.moduleParams.has(name)) {
+        this.moduleParams.set(name, [...params])
+      }
+    }
+    for (const [name, params] of other.functionParams) {
+      if (!this.functionParams.has(name)) {
+        this.functionParams.set(name, [...params])
       }
     }
   }
