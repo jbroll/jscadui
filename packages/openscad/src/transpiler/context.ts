@@ -70,6 +70,8 @@ export interface TranspileOptions {
   initialImportedFunctions?: Set<string>
   // Initial included module names (inherited from parent context for builtin override detection)
   initialIncludedModuleNames?: Set<string>
+  // Initial included function names (inherited from parent context for suffix selection)
+  initialIncludedFunctionNames?: Set<string>
 }
 
 export interface TranspileResult {
@@ -148,6 +150,12 @@ export interface TranspileContext {
   variableNames: string[]
   // Track all available symbols (local + imported)
   availableSymbols: Set<string>
+  // Unified module tracking - all modules available from any source
+  // Used for suffix selection and builtin override detection
+  availableModules: Set<string>
+  // Unified function tracking - all functions available from any source
+  // Used for suffix selection
+  availableFunctions: Set<string>
   // Track imported function names (not modules) - these don't use curried pattern
   importedFunctions: Set<string>
   // Track imported module names (from includes) - these use curried pattern
@@ -155,6 +163,9 @@ export interface TranspileContext {
   // Track module names from all includes (for builtin override detection)
   // This is populated during the pre-pass and shared across all nested transpilations
   includedModuleNames: Set<string>
+  // Track function names from all includes (for suffix selection)
+  // Functions in included files should use _$f suffix, not _$m
+  includedFunctionNames: Set<string>
   // Track names that have both module and function versions (use __fn suffix for function)
   dualDefinedNames: Set<string>
   // Track parameters that shadow function names (for current function scope)
@@ -240,6 +251,14 @@ export function createContext(
     }
   }
 
+  // Initialize includedFunctionNames from initial values if provided
+  const includedFunctionNames = new Set<string>()
+  if (options.initialIncludedFunctionNames) {
+    for (const name of options.initialIncludedFunctionNames) {
+      includedFunctionNames.add(name)
+    }
+  }
+
   return {
     options: opts,
     usedPrimitives: new Set(),
@@ -259,9 +278,12 @@ export function createContext(
     functionParamLists,
     variableNames: [],
     availableSymbols: new Set(),
+    availableModules: new Set(includedModuleNames),  // Start with included modules
+    availableFunctions: new Set(includedFunctionNames),  // Start with included functions
     importedFunctions,
     importedModules: new Set(),
     includedModuleNames,
+    includedFunctionNames,
     dualDefinedNames,
     shadowedParameters: new Map(),
     indentLevel: 0,

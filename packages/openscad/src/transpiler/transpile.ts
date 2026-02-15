@@ -117,6 +117,7 @@ export function transpile(
     if (cachedFile?.functionExports) {
       for (const fn of cachedFile.functionExports) {
         ctx.importedFunctions.add(fn)
+        ctx.availableFunctions.add(fn)
       }
     }
     // Merge parameter lists from imported modules for named argument reordering
@@ -211,6 +212,7 @@ export function transpile(
             if (usedFile?.functionExports) {
               for (const fn of usedFile.functionExports) {
                 ctx.importedFunctions.add(fn)
+                ctx.availableFunctions.add(fn)
               }
             }
             // Note: modules from use imports are still treated as functions (no currying)
@@ -233,12 +235,14 @@ export function transpile(
     if (cachedFile?.functionExports) {
       for (const fn of cachedFile.functionExports) {
         ctx.importedFunctions.add(fn)
+        ctx.availableFunctions.add(fn)
       }
     }
     // Track which imported symbols are modules (need curried call pattern)
     if (cachedFile?.moduleExports) {
       for (const mod of cachedFile.moduleExports) {
         ctx.importedModules.add(mod)
+        ctx.availableModules.add(mod)
       }
     }
     // Merge parameter lists from imported modules for named argument reordering
@@ -537,6 +541,7 @@ function collectSignaturesFromIncludes(
         fileModuleNames.add(name)
         // Track this module name globally (for builtin override detection)
         ctx.includedModuleNames.add(name)
+        ctx.availableModules.add(name)
         // Deduplicate params to match how transpileParamsList handles the definition
         const params = deduplicateParamNames(stmt.definitionArgs || [])
         // Always set module params - module definition takes precedence over function definition
@@ -545,6 +550,9 @@ function collectSignaturesFromIncludes(
       } else if (isFunctionDeclaration(stmt)) {
         const name = safeIdentifier(stmt.name)
         fileFunctionNames.add(name)
+        // Track this function name globally (for suffix selection)
+        ctx.includedFunctionNames.add(name)
+        ctx.availableFunctions.add(name)
         // Deduplicate params to match how transpileParamsList handles the definition
         const params = deduplicateParamNames(stmt.definitionArgs || [])
         if (!ctx.functionParamLists.has(name)) {
@@ -604,6 +612,16 @@ function collectSignaturesFromIncludes(
       if (params && !ctx.moduleParamLists.has(`${name}__fn`)) {
         ctx.moduleParamLists.set(`${name}__fn`, params)
       }
+    }
+    // Copy included function names from nested includes
+    for (const name of nestedCtx.includedFunctionNames) {
+      ctx.includedFunctionNames.add(name)
+      ctx.availableFunctions.add(name)
+    }
+    // Copy included module names from nested includes
+    for (const name of nestedCtx.includedModuleNames) {
+      ctx.includedModuleNames.add(name)
+      ctx.availableModules.add(name)
     }
   }
 }
@@ -685,6 +703,7 @@ function transpileAndCacheDependency(filename: string, ctx: TranspileContext, is
     initialDualDefinedNames: ctx.dualDefinedNames,
     initialImportedFunctions: ctx.importedFunctions,
     initialIncludedModuleNames: isInclude ? ctx.includedModuleNames : undefined,
+    initialIncludedFunctionNames: isInclude ? ctx.includedFunctionNames : undefined,
   }, ctx.transpiledFiles)
 
   // Cache the result (using resolved path)
@@ -713,6 +732,7 @@ function collectDeclarations(stmt: Statement, ctx: TranspileContext): void {
   if (isModuleDeclaration(stmt)) {
     const name = safeIdentifier(stmt.name)
     ctx.moduleNames.push(name)
+    ctx.availableModules.add(name)
     // Capture parameter names for named argument reordering
     // Deduplicate params to match how transpileParamsList handles the definition
     const params = deduplicateParamNames(stmt.definitionArgs || [])
@@ -720,6 +740,7 @@ function collectDeclarations(stmt: Statement, ctx: TranspileContext): void {
   } else if (isFunctionDeclaration(stmt)) {
     const name = safeIdentifier(stmt.name)
     ctx.functionNames.push(name)
+    ctx.availableFunctions.add(name)
     // Capture parameter names for named argument reordering
     // Use functionParamLists to keep separate from module params
     // Deduplicate params to match how transpileParamsList handles the definition

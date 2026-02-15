@@ -275,10 +275,8 @@ function transpileModuleInstantiation(stmt: ModuleInstantiationStmt, ctx: Transp
 
   // Check if there's a user-defined module that should override builtins
   // This allows BOSL2's square(anchor=...) to override the builtin square
-  // Check local definitions, direct imports, and modules from includes
-  const hasUserDefinedModule = ctx.moduleNames.includes(name) ||
-    ctx.importedModules.has(name) ||
-    ctx.includedModuleNames.has(name)
+  // Uses unified availableModules set (includes local, imported, and included modules)
+  const hasUserDefinedModule = ctx.availableModules.has(name)
 
   // Check if it's a built-in primitive/transform/boolean
   // ONLY use builtins if there's no user-defined module with the same name
@@ -394,17 +392,9 @@ function transpileModuleInstantiation(stmt: ModuleInstantiationStmt, ctx: Transp
   // Determine if this is a function call vs module instantiation
   // Functions: called directly with _$f suffix, return values
   // Modules: curried pattern with _$m suffix, module(args)(children) returns geometry
-  const isLocalFunction = ctx.functionNames.includes(name)
-  const isLocalModule = ctx.moduleNames.includes(name)
-  const isImportedFunction = ctx.importedFunctions.has(name)
-  const isImportedModule = ctx.importedModules.has(name)
-  const isIncludedFunction = ctx.includedFunctionNames.has(name)
-  const isIncludedModule = ctx.includedModuleNames.has(name)
-
-  // Check if this symbol is a module from ANY source
-  const isKnownModule = isLocalModule || isImportedModule || isIncludedModule
-  // Check if this symbol is a function from ANY source
-  const isKnownFunction = isLocalFunction || isImportedFunction || isIncludedFunction
+  // Uses unified availableModules/availableFunctions sets
+  const isKnownModule = ctx.availableModules.has(name)
+  const isKnownFunction = ctx.availableFunctions.has(name)
 
   // Only use _$f suffix if it's EXCLUSIVELY a function (not also a module from any source)
   // Functions still use positional args for backward compatibility
