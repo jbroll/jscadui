@@ -147,8 +147,25 @@ describe('transpileExpression', () => {
     })
 
     it('handles logical NOT', () => {
+      // Uses j$.isTruthy for OpenSCAD semantics (empty arrays are falsy)
       const code = transpileExpr('x = !a;')
-      expect(code).toContain('!a')
+      expect(code).toContain('!j$.isTruthy(a)')
+    })
+
+    // TODO: These tests document the EXPECTED behavior with proper OpenSCAD truthiness.
+    // They will FAIL until we implement Phase 2.2 of the refactoring plan.
+    it.skip('handles logical AND with OpenSCAD truthiness', () => {
+      // OpenSCAD: a && b should evaluate 'a' with OpenSCAD truthiness
+      // If a is falsy (including empty array), return a; otherwise return b
+      const code = transpileExpr('x = a && b;')
+      expect(code).toContain('j$.isTruthy(a)')
+    })
+
+    it.skip('handles logical OR with OpenSCAD truthiness', () => {
+      // OpenSCAD: a || b should evaluate 'a' with OpenSCAD truthiness
+      // If a is truthy, return a; otherwise return b
+      const code = transpileExpr('x = a || b;')
+      expect(code).toContain('j$.isTruthy(a)')
     })
   })
 
@@ -156,6 +173,15 @@ describe('transpileExpression', () => {
     it('handles ternary operator', () => {
       const code = transpileExpr('x = a ? b : c;')
       expect(code).toContain('(a ? b : c)')
+    })
+
+    // TODO: This test documents the EXPECTED behavior with proper OpenSCAD truthiness.
+    // It will FAIL until we implement Phase 2.1 of the refactoring plan.
+    it.skip('handles ternary with OpenSCAD truthiness', () => {
+      // OpenSCAD: a ? b : c should evaluate 'a' with OpenSCAD truthiness
+      // Empty arrays should be falsy (unlike JavaScript)
+      const code = transpileExpr('x = a ? b : c;')
+      expect(code).toContain('j$.isTruthy(a)')
     })
   })
 
