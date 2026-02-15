@@ -136,36 +136,26 @@ describe('transpileExpression', () => {
   })
 
   describe('logical operators', () => {
-    it('handles logical AND', () => {
-      const code = transpileExpr('x = a && b;')
-      expect(code).toContain('(a && b)')
-    })
-
-    it('handles logical OR', () => {
-      const code = transpileExpr('x = a || b;')
-      expect(code).toContain('(a || b)')
-    })
-
-    it('handles logical NOT', () => {
-      // Uses j$.isTruthy for OpenSCAD semantics (empty arrays are falsy)
-      const code = transpileExpr('x = !a;')
-      expect(code).toContain('!j$.isTruthy(a)')
-    })
-
-    // TODO: These tests document the EXPECTED behavior with proper OpenSCAD truthiness.
-    // They will FAIL until we implement Phase 2.2 of the refactoring plan.
-    it.skip('handles logical AND with OpenSCAD truthiness', () => {
+    it('handles logical AND with OpenSCAD truthiness', () => {
       // OpenSCAD: a && b should evaluate 'a' with OpenSCAD truthiness
       // If a is falsy (including empty array), return a; otherwise return b
       const code = transpileExpr('x = a && b;')
       expect(code).toContain('j$.isTruthy(a)')
+      expect(code).toContain('? b : a')
     })
 
-    it.skip('handles logical OR with OpenSCAD truthiness', () => {
+    it('handles logical OR with OpenSCAD truthiness', () => {
       // OpenSCAD: a || b should evaluate 'a' with OpenSCAD truthiness
       // If a is truthy, return a; otherwise return b
       const code = transpileExpr('x = a || b;')
       expect(code).toContain('j$.isTruthy(a)')
+      expect(code).toContain('? a : b')
+    })
+
+    it('handles logical NOT with OpenSCAD truthiness', () => {
+      // Uses j$.isTruthy for OpenSCAD semantics (empty arrays are falsy)
+      const code = transpileExpr('x = !a;')
+      expect(code).toContain('!j$.isTruthy(a)')
     })
   })
 

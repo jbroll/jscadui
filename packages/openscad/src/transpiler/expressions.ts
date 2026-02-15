@@ -312,6 +312,18 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
       ctx.usedHelpers.add('vdiv')
       return `j$.vdiv(${left}, ${right})`
     }
+    // Handle logical operators with OpenSCAD truthiness
+    // In OpenSCAD, empty arrays are falsy (unlike JavaScript)
+    if (expr.operation === TokenType.AND) {
+      ctx.usedHelpers.add('isTruthy')
+      // a && b: if a is truthy, return b; otherwise return a
+      return `(j$.isTruthy(${left}) ? ${right} : ${left})`
+    }
+    if (expr.operation === TokenType.OR) {
+      ctx.usedHelpers.add('isTruthy')
+      // a || b: if a is truthy, return a; otherwise return b
+      return `(j$.isTruthy(${left}) ? ${left} : ${right})`
+    }
     const op = transpileBinaryOp(expr.operation)
     return `(${left} ${op} ${right})`
   }
