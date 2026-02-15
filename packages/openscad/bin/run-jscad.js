@@ -33,14 +33,16 @@ Options:
   -o, --output <file>     Write STL output to file
   --volume                Print volume of the geometry
   --bbox                  Print bounding box
-  --mesh-stats           Print mesh statistics (vertices, triangles)
+  --mesh-stats            Print mesh statistics (vertices, triangles)
+  --source-comments       Include source line comments in transpiled code
   -h, --help              Show this help
   -v, --version           Show version
 
 Examples:
-  run-jscad model.scad -o model.stl      Transpile and export to STL
-  run-jscad model.js -o model.stl        Run JSCAD and export to STL
-  run-jscad model.scad --volume          Print volume for comparison
+  run-jscad model.scad -o model.stl             Transpile and export to STL
+  run-jscad model.js -o model.stl               Run JSCAD and export to STL
+  run-jscad model.scad --volume                 Print volume for comparison
+  run-jscad model.scad --source-comments        Transpile with line comments
 `)
 }
 
@@ -51,6 +53,7 @@ function parseArgs(args) {
     volume: false,
     bbox: false,
     meshStats: false,
+    sourceComments: false,
     help: false,
     version: false,
     fn: 0,  // Global $fn override
@@ -70,6 +73,8 @@ function parseArgs(args) {
       options.bbox = true
     } else if (arg === '--mesh-stats') {
       options.meshStats = true
+    } else if (arg === '--source-comments') {
+      options.sourceComments = true
     } else if (arg === '-o' || arg === '--output') {
       i++
       options.output = args[i]
@@ -372,7 +377,7 @@ function createFileResolver(fileDir) {
 /**
  * Transpile OpenSCAD source and return code + in-memory module cache
  */
-function transpileScad(source, fileName, fileDir, fn = 0) {
+function transpileScad(source, fileName, fileDir, fn = 0, sourceComments = false) {
   const { ast, errors } = parse(source)
 
   if (errors.length > 0) {
@@ -383,6 +388,7 @@ function transpileScad(source, fileName, fileDir, fn = 0) {
     fileResolver: createFileResolver(fileDir),
     currentFile: fileName,
     fn: fn,
+    includeSourceComments: sourceComments,
   })
 
   // Build in-memory module cache from transpiled files
@@ -442,7 +448,7 @@ async function main() {
     if (isScad) {
       const fileDir = dirname(inputPath)
       const fileName = basename(inputPath)
-      const transpiled = transpileScad(source, fileName, fileDir, options.fn)
+      const transpiled = transpileScad(source, fileName, fileDir, options.fn, options.sourceComments)
       jsCode = transpiled.code
       moduleCache = transpiled.moduleCache
       if (process.env.DEBUG_TRANSPILE) {

@@ -4,9 +4,10 @@
  * Transpile a single .scad file using the new transpiler
  *
  * Usage:
- *   transpile-file.js <file.scad>        - Transpile and print JavaScript
- *   transpile-file.js <file.scad> --run  - Transpile and execute (uses in-memory require)
- *   transpile-file.js <file.scad> --info - Show exports, imports, and all transpiled files
+ *   transpile-file.js <file.scad>                  - Transpile and print JavaScript
+ *   transpile-file.js <file.scad> --run            - Transpile and execute (uses in-memory require)
+ *   transpile-file.js <file.scad> --info           - Show exports, imports, and all transpiled files
+ *   transpile-file.js <file.scad> --source-comments - Include source line comments for debugging
  */
 
 import { readFileSync, existsSync } from 'node:fs'
@@ -18,13 +19,15 @@ const args = process.argv.slice(2)
 const file = args.find(a => !a.startsWith('--'))
 const runMode = args.includes('--run')
 const infoMode = args.includes('--info')
+const sourceComments = args.includes('--source-comments')
 
 if (!file) {
-  console.error('Usage: transpile-file.js <file.scad> [--run] [--info]')
+  console.error('Usage: transpile-file.js <file.scad> [--run] [--info] [--source-comments]')
   console.error('')
   console.error('Options:')
-  console.error('  --run   Transpile and execute (multi-file supported via in-memory require)')
-  console.error('  --info  Show exports, imports, and all transpiled files')
+  console.error('  --run              Transpile and execute (multi-file supported via in-memory require)')
+  console.error('  --info             Show exports, imports, and all transpiled files')
+  console.error('  --source-comments  Include source line comments for debugging (e.g., // line 42 in foo.scad)')
   process.exit(1)
 }
 
@@ -66,6 +69,7 @@ function fileResolver(filename, fromFile) {
 const result = transpile(ast, {
   fileResolver,
   currentFile: fileName,
+  includeSourceComments: sourceComments,
 })
 
 if (infoMode) {
