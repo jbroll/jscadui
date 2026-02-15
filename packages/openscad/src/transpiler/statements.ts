@@ -246,8 +246,8 @@ function transpileModuleInstantiation(stmt: ModuleInstantiationStmt, ctx: Transp
 
   // Check if there's a user-defined module that should override builtins
   // This allows BOSL2's square(anchor=...) to override the builtin square
-  // Uses unified availableModules set (includes local, imported, and included modules)
-  const hasUserDefinedModule = ctx.availableModules.has(name)
+  // Uses SymbolTable to check modules from all sources (local, imported, included)
+  const hasUserDefinedModule = ctx.symbols.isKind(name, 'module')
 
   // Check if it's a built-in primitive/transform/boolean
   // ONLY use builtins if there's no user-defined module with the same name
@@ -363,9 +363,9 @@ function transpileModuleInstantiation(stmt: ModuleInstantiationStmt, ctx: Transp
   // Determine if this is a function call vs module instantiation
   // Functions: called directly with _$f suffix, return values
   // Modules: curried pattern with _$m suffix, module(args)(children) returns geometry
-  // Uses unified availableModules/availableFunctions sets
-  const isKnownModule = ctx.availableModules.has(name)
-  const isKnownFunction = ctx.availableFunctions.has(name)
+  // Uses SymbolTable to check modules/functions from all sources
+  const isKnownModule = ctx.symbols.isKind(name, 'module')
+  const isKnownFunction = ctx.symbols.isKind(name, 'function')
 
   // Only use _$f suffix if it's EXCLUSIVELY a function (not also a module from any source)
   // Functions still use positional args for backward compatibility

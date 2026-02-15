@@ -111,19 +111,19 @@ export function transpile(
       }
     }
     // Merge parameter lists from imported modules for named argument reordering
+    // NOTE: Do NOT add to SymbolTable as 'module' here - USE imports are accessed
+    // via require() and use the _$f suffix, not the curried _$m pattern
     if (cachedFile?.paramLists) {
       for (const [name, params] of cachedFile.paramLists) {
         ctx.moduleParamLists.set(name, params)
-        // Also populate SymbolTable
-        ctx.symbols.define(name, { kind: 'module', source: 'imported', params })
       }
     }
     // Merge function parameter lists (functions may have more params than modules)
+    // NOTE: SymbolTable is already populated from functionExports above (lines 104-111)
+    // Only merge param lists here, don't re-add to SymbolTable
     if (cachedFile?.functionParamLists) {
       for (const [name, params] of cachedFile.functionParamLists) {
         ctx.functionParamLists.set(name, params)
-        // Update SymbolTable with function params (may create dual-defined)
-        ctx.symbols.define(name, { kind: 'function', source: 'imported', params })
       }
     }
     // Merge dual-defined names from imported modules
