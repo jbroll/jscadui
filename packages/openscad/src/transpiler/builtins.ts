@@ -4,25 +4,33 @@
 
 import type { TranspileContext } from './context.js'
 
+/**
+ * Strip underscore prefix from module names.
+ * BOSL2 uses underscore-prefixed wrappers (e.g., _cube) that delegate to OpenSCAD builtins.
+ */
+function stripUnderscorePrefix(name: string): string {
+  return name.startsWith('_') ? name.slice(1) : name
+}
+
 // Built-in type checks
 // All functions also match underscore-prefixed versions (BOSL2 builtins.scad wrappers)
 export function isBuiltinPrimitive(name: string): boolean {
-  const baseName = name.startsWith('_') ? name.slice(1) : name
+  const baseName = stripUnderscorePrefix(name)
   return ['cube', 'sphere', 'cylinder', 'polyhedron', 'square', 'circle', 'polygon', 'regular_polygon'].includes(baseName)
 }
 
 export function isBuiltinTransform(name: string): boolean {
-  const baseName = name.startsWith('_') ? name.slice(1) : name
+  const baseName = stripUnderscorePrefix(name)
   return ['translate', 'rotate', 'scale', 'mirror', 'multmatrix'].includes(baseName)
 }
 
 export function isBuiltinBoolean(name: string): boolean {
-  const baseName = name.startsWith('_') ? name.slice(1) : name
+  const baseName = stripUnderscorePrefix(name)
   return ['union', 'difference', 'intersection', 'minkowski'].includes(baseName)
 }
 
 export function isBuiltinExtrusion(name: string): boolean {
-  const baseName = name.startsWith('_') ? name.slice(1) : name
+  const baseName = stripUnderscorePrefix(name)
   return ['linear_extrude', 'rotate_extrude'].includes(baseName)
 }
 
@@ -68,7 +76,7 @@ export function transpileBuiltinPrimitive(
   ctx: TranspileContext
 ): string {
   // Handle underscore-prefixed versions (BOSL2 builtins.scad wrappers)
-  const baseName = name.startsWith('_') ? name.slice(1) : name
+  const baseName = stripUnderscorePrefix(name)
   // Map positional args to named args using parameter definitions
   const paramNames = primitiveParams[baseName] || []
   const namedArgs = argsArray.map((arg, i) => {
@@ -83,20 +91,8 @@ export function transpileBuiltinPrimitive(
     return arg.value
   })
 
-  // For primitives that use segments, inject inherited special vars if not already set
-  const usesSegments = ['sphere', 'cylinder', 'circle', 'regular_polygon'].includes(baseName)
-  if (usesSegments) {
-    const hasVar = (varName: string) => argsArray.some(a => a.name === varName)
-    if (ctx.inheritedSpecialVars.$fn && !hasVar('$fn')) {
-      namedArgs.push(`$fn: ${ctx.inheritedSpecialVars.$fn}`)
-    }
-    if (ctx.inheritedSpecialVars.$fa && !hasVar('$fa')) {
-      namedArgs.push(`$fa: ${ctx.inheritedSpecialVars.$fa}`)
-    }
-    if (ctx.inheritedSpecialVars.$fs && !hasVar('$fs')) {
-      namedArgs.push(`$fs: ${ctx.inheritedSpecialVars.$fs}`)
-    }
-  }
+  // Note: special vars ($fn, $fa, $fs) are read from the runtime stack by primitives
+  // No need to inject them here - the stack-based dynamic scoping handles propagation
 
   const argsStr = namedArgs.join(', ')
 
@@ -152,13 +148,13 @@ export function transpileBuiltinTransform(
 ): string {
   const childCode = child || 'undefined'
 
-  // Filter out $-prefixed special variables (like $fn, $fa, $fs)
-  // These are scoped variables in OpenSCAD, not transform arguments
+  // Extract special variables (like $fn, $fa, $fs) - these are scoped variables
+  const specialVarArgs = argsArray.filter(a => a.name && a.name.startsWith('$'))
   const filteredArgs = argsArray.filter(a => !a.name || !a.name.startsWith('$'))
   const args = transpileArgsToObject(filteredArgs)
 
   // Handle underscore-prefixed versions (BOSL2 builtins.scad wrappers)
-  const baseName = name.startsWith('_') ? name.slice(1) : name
+  const baseName = stripUnderscorePrefix(name)
 
   // Helper to get the primary value from args (handles both named and positional)
   const getArgValue = (argName: string) => {
@@ -166,30 +162,40 @@ export function transpileBuiltinTransform(
     return arg?.value
   }
 
+  // Helper to wrap transform code with special var scope if needed
+  const wrapWithSpecialVars = (transformCode: string): string => {
+    if (specialVarArgs.length === 0) {
+      return transformCode
+    }
+    // Wrap in IIFE with pushScope/try/finally/popScope
+    const setVars = specialVarArgs.map(a => `j$.setSpecialVar('${a.name}', ${a.value})`).join('; ')
+    return `(() => { j$.pushScope(); ${setVars}; try { return ${transformCode}; } finally { j$.popScope(); } })()`
+  }
+
   switch (baseName) {
     case 'translate': {
       // translate(v) or translate([x,y,z])
       const v = getArgValue('v') || '[0, 0, 0]'
-      return `j$.translate(${v}, ${childCode})`
+      return wrapWithSpecialVars(`j$.translate(${v}, ${childCode})`)
     }
 
     case 'rotate':
       // If args contains named params (has ':'), wrap in {} for axis-angle rotation
       if (args.includes(':')) {
-        return `j$.rotate({ ${args} }, ${childCode})`
+        return wrapWithSpecialVars(`j$.rotate({ ${args} }, ${childCode})`)
       }
-      return `j$.rotate(${args}, ${childCode})`
+      return wrapWithSpecialVars(`j$.rotate(${args}, ${childCode})`)
 
     case 'scale': {
       // scale(v) where v is scalar or vector
       const v = getArgValue('v') || '1'
-      return `j$.scale(${v}, ${childCode})`
+      return wrapWithSpecialVars(`j$.scale(${v}, ${childCode})`)
     }
 
     case 'mirror': {
       // mirror(v) where v is the normal vector
       const v = getArgValue('v') || '[1, 0, 0]'
-      return `j$.mirror(${v}, ${childCode})`
+      return wrapWithSpecialVars(`j$.mirror(${v}, ${childCode})`)
     }
 
     case 'multmatrix': {
@@ -198,7 +204,7 @@ export function transpileBuiltinTransform(
       ctx.usedTransforms.add('transform')
       ctx.usedHelpers.add('multmatrix')
       const matrixArg = argsArray.find(a => a.name === 'm' || !a.name)?.value || '[[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]'
-      return `j$.multmatrix(${matrixArg}, ${childCode})`
+      return wrapWithSpecialVars(`j$.multmatrix(${matrixArg}, ${childCode})`)
     }
 
     default:
@@ -213,7 +219,7 @@ export function transpileBuiltinExtrusion(
   ctx: TranspileContext
 ): string {
   // Handle underscore-prefixed versions (BOSL2 builtins.scad wrappers)
-  const baseName = name.startsWith('_') ? name.slice(1) : name
+  const baseName = stripUnderscorePrefix(name)
   const childCode = child || 'undefined'
 
   // Map positional args to named args using parameter definitions
