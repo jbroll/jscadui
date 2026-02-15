@@ -52,45 +52,31 @@ export type {
 export { WarningCode, ErrorCode } from './context.js'
 
 /**
- * Transpile OpenSCAD AST to JavaScript
- *
- * @param ast - Parsed OpenSCAD AST
- * @param options - Transpile options including fileResolver for multi-file support
- * @param sharedCache - Optional shared cache for recursive transpilation
+ * Result of processing include statements
  */
-export function transpile(
-  ast: ScadFile,
-  options: TranspileOptions = {},
-  sharedCache?: Map<string, TranspiledFile>
-): TranspileResult {
-  const ctx = createContext(options, sharedCache)
+interface BundledContent {
+  functions: string[]
+  modules: string[]
+  constants: string[]
+  functionNames: Set<string>
+  moduleNames: Set<string>
+  constantNames: Set<string>
+}
 
-  // Mark current file as processing (for cycle detection)
-  if (ctx.options.currentFile) {
-    ctx.processingFiles.add(ctx.options.currentFile)
-  }
+/**
+ * Result of transpiling all statements
+ */
+interface TranspiledStatements {
+  localFunctions: string[]
+  localModules: string[]
+  localConstants: string[]
+  geometryParts: string[]
+}
 
-  // First pass: collect module/function names and use statements
-  for (const stmt of ast.statements) {
-    collectDeclarations(stmt, ctx)
-  }
-
-  // Add local definitions to available symbols
-  for (const name of ctx.moduleNames) {
-    ctx.availableSymbols.add(name)
-  }
-  for (const name of ctx.functionNames) {
-    ctx.availableSymbols.add(name)
-  }
-
-  // Compute directory of current file for resolving relative paths
-  const currentFileDir = getFileDir(ctx.options.currentFile)
-
-  // Pre-pass: collect all function/module signatures from include files recursively
-  // This ensures all signatures are available before any transpilation (OpenSCAD hoists all defs)
-  collectSignaturesFromIncludes(ctx)
-
-  // Process use statements: transpile dependencies and discover their exports
+/**
+ * Process use statements: transpile dependencies and discover their exports
+ */
+function processUseStatements(ctx: TranspileContext, currentFileDir: string): void {
   for (const useImport of ctx.useImports) {
     // Compute resolved path relative to root
     useImport.resolvedPath = currentFileDir + useImport.filename
@@ -120,7 +106,7 @@ export function transpile(
       }
     }
     // Merge function parameter lists (functions may have more params than modules)
-    // NOTE: SymbolTable is already populated from functionExports above (lines 104-111)
+    // NOTE: SymbolTable is already populated from functionExports above
     // Only merge param lists here, don't re-add to SymbolTable
     if (cachedFile?.functionParamLists) {
       for (const [name, params] of cachedFile.functionParamLists) {
@@ -142,15 +128,17 @@ export function transpile(
       }
     }
   }
+}
 
-  // Process include statements: transpile dependencies and BUNDLE their content (not require)
-  // This matches OpenSCAD's include semantics - everything is merged into one scope
+/**
+ * Process include statements: transpile dependencies and BUNDLE their content
+ * This matches OpenSCAD's include semantics - everything is merged into one scope
+ */
+function processIncludeStatements(ctx: TranspileContext, currentFileDir: string): BundledContent {
   const bundledFunctions: string[] = []
   const bundledModules: string[] = []
   const bundledConstants: string[] = []
   // Track which declarations have already been bundled to avoid duplicates
-  // OpenSCAD allows multiple includes of the same file (last value wins for variables)
-  // but JavaScript const doesn't allow redeclaration, so we deduplicate
   const bundledFunctionNames = new Set<string>()
   const bundledModuleNames = new Set<string>()
   const bundledConstantNames = new Set<string>()
@@ -195,118 +183,139 @@ export function transpile(
         }
       }
       // Propagate use imports from included files
-      // This implements OpenSCAD semantics: when A includes B, B's use imports become available in A
-      if (parts.useImports) {
-        for (const useImp of parts.useImports) {
-          // Add to useImports if not already present (by resolved path)
-          if (!ctx.useImports.some(u => u.resolvedPath === useImp.resolvedPath)) {
-            ctx.useImports.push(useImp)
-            // Also add symbols to available symbols
-            for (const sym of useImp.symbols) {
-              ctx.availableSymbols.add(sym)
-            }
-            // Track function/module exports from the propagated use import
-            const usedFile = ctx.transpiledFiles.get(useImp.resolvedPath)
-            if (usedFile?.functionExports) {
-              for (const fn of usedFile.functionExports) {
-                ctx.importedFunctions.add(fn)
-                ctx.availableFunctions.add(fn)
-                // Also populate SymbolTable
-                const params = usedFile.functionParamLists?.get(fn)
-                ctx.symbols.define(fn, { kind: 'function', source: 'imported', params })
-              }
-            }
-            // Note: modules from use imports are still treated as functions (no currying)
-            // because use() only imports functions/modules, not the module call semantics
-          }
-        }
-      }
+      propagateUseImportsFromInclude(ctx, parts)
       // Merge JSCAD usage flags
-      for (const p of parts.usedPrimitives) ctx.usedPrimitives.add(p)
-      for (const t of parts.usedTransforms) ctx.usedTransforms.add(t)
-      for (const b of parts.usedBooleans) ctx.usedBooleans.add(b)
-      for (const e of parts.usedExtrusions) ctx.usedExtrusions.add(e)
-      for (const h of parts.usedHelpers) ctx.usedHelpers.add(h)
-      if (parts.usedColors) ctx.usedColors = true
-      if (parts.usedHulls) ctx.usedHulls = true
-      if (parts.usedMaths) ctx.usedMaths = true
-      if (parts.usedMinMax) ctx.usedMinMax = true
+      mergeJscadUsageFlags(ctx, parts)
     }
-    // Track which imported symbols are functions (not modules)
-    if (cachedFile?.functionExports) {
-      for (const fn of cachedFile.functionExports) {
-        ctx.importedFunctions.add(fn)
-        ctx.availableFunctions.add(fn)
-        // Also populate SymbolTable
-        const params = cachedFile.functionParamLists?.get(fn)
-        ctx.symbols.define(fn, { kind: 'function', source: 'imported', params })
+    // Track imported functions and modules from this include
+    mergeImportedSymbols(ctx, cachedFile)
+  }
+
+  return {
+    functions: bundledFunctions,
+    modules: bundledModules,
+    constants: bundledConstants,
+    functionNames: bundledFunctionNames,
+    moduleNames: bundledModuleNames,
+    constantNames: bundledConstantNames,
+  }
+}
+
+/**
+ * Propagate use imports from included files to parent context
+ */
+function propagateUseImportsFromInclude(ctx: TranspileContext, parts: BundledParts): void {
+  if (!parts.useImports) return
+
+  for (const useImp of parts.useImports) {
+    // Add to useImports if not already present (by resolved path)
+    if (!ctx.useImports.some(u => u.resolvedPath === useImp.resolvedPath)) {
+      ctx.useImports.push(useImp)
+      // Also add symbols to available symbols
+      for (const sym of useImp.symbols) {
+        ctx.availableSymbols.add(sym)
       }
-    }
-    // Track which imported symbols are modules (need curried call pattern)
-    if (cachedFile?.moduleExports) {
-      for (const mod of cachedFile.moduleExports) {
-        ctx.importedModules.add(mod)
-        ctx.availableModules.add(mod)
-        // Also populate SymbolTable
-        const params = cachedFile.paramLists?.get(mod)
-        ctx.symbols.define(mod, { kind: 'module', source: 'imported', params })
-      }
-    }
-    // Merge parameter lists from imported modules for named argument reordering
-    // Note: SymbolTable.define() calls above already include params
-    if (cachedFile?.paramLists) {
-      for (const [name, params] of cachedFile.paramLists) {
-        ctx.moduleParamLists.set(name, params)
-        ctx.symbols.registerParams(name, 'module', params)
-      }
-    }
-    // Merge function parameter lists (functions may have more params than modules)
-    if (cachedFile?.functionParamLists) {
-      for (const [name, params] of cachedFile.functionParamLists) {
-        ctx.functionParamLists.set(name, params)
-        ctx.symbols.registerParams(name, 'function', params)
-      }
-    }
-    // Merge dual-defined names from imported modules
-    if (cachedFile?.dualDefinedNames) {
-      for (const name of cachedFile.dualDefinedNames) {
-        ctx.dualDefinedNames.add(name)
-        // Register __fn variant using function params (may have more params than module)
-        const params = ctx.symbols.getParams(name, 'function') || ctx.symbols.getParams(name, 'module')
-        if (params) {
-          ctx.moduleParamLists.set(`${name}__fn`, params)
-          ctx.symbols.registerParams(`${name}__fn`, 'module', params)
+      // Track function/module exports from the propagated use import
+      const usedFile = ctx.transpiledFiles.get(useImp.resolvedPath)
+      if (usedFile?.functionExports) {
+        for (const fn of usedFile.functionExports) {
+          ctx.importedFunctions.add(fn)
+          ctx.availableFunctions.add(fn)
+          const params = usedFile.functionParamLists?.get(fn)
+          ctx.symbols.define(fn, { kind: 'function', source: 'imported', params })
         }
       }
     }
   }
+}
 
-  // Second pass: transpile statements into separate categories
-  // Functions and modules go to bodyParts, constants to assignmentLines
+/**
+ * Merge JSCAD usage flags from bundled parts
+ */
+function mergeJscadUsageFlags(ctx: TranspileContext, parts: BundledParts): void {
+  for (const p of parts.usedPrimitives) ctx.usedPrimitives.add(p)
+  for (const t of parts.usedTransforms) ctx.usedTransforms.add(t)
+  for (const b of parts.usedBooleans) ctx.usedBooleans.add(b)
+  for (const e of parts.usedExtrusions) ctx.usedExtrusions.add(e)
+  for (const h of parts.usedHelpers) ctx.usedHelpers.add(h)
+  if (parts.usedColors) ctx.usedColors = true
+  if (parts.usedHulls) ctx.usedHulls = true
+  if (parts.usedMaths) ctx.usedMaths = true
+  if (parts.usedMinMax) ctx.usedMinMax = true
+}
+
+/**
+ * Merge imported symbols from a cached file
+ */
+function mergeImportedSymbols(ctx: TranspileContext, cachedFile: TranspiledFile | undefined): void {
+  if (!cachedFile) return
+
+  // Track which imported symbols are functions (not modules)
+  if (cachedFile.functionExports) {
+    for (const fn of cachedFile.functionExports) {
+      ctx.importedFunctions.add(fn)
+      ctx.availableFunctions.add(fn)
+      const params = cachedFile.functionParamLists?.get(fn)
+      ctx.symbols.define(fn, { kind: 'function', source: 'imported', params })
+    }
+  }
+  // Track which imported symbols are modules (need curried call pattern)
+  if (cachedFile.moduleExports) {
+    for (const mod of cachedFile.moduleExports) {
+      ctx.importedModules.add(mod)
+      ctx.availableModules.add(mod)
+      const params = cachedFile.paramLists?.get(mod)
+      ctx.symbols.define(mod, { kind: 'module', source: 'imported', params })
+    }
+  }
+  // Merge parameter lists
+  if (cachedFile.paramLists) {
+    for (const [name, params] of cachedFile.paramLists) {
+      ctx.moduleParamLists.set(name, params)
+      ctx.symbols.registerParams(name, 'module', params)
+    }
+  }
+  if (cachedFile.functionParamLists) {
+    for (const [name, params] of cachedFile.functionParamLists) {
+      ctx.functionParamLists.set(name, params)
+      ctx.symbols.registerParams(name, 'function', params)
+    }
+  }
+  // Merge dual-defined names
+  if (cachedFile.dualDefinedNames) {
+    for (const name of cachedFile.dualDefinedNames) {
+      ctx.dualDefinedNames.add(name)
+      const params = ctx.symbols.getParams(name, 'function') || ctx.symbols.getParams(name, 'module')
+      if (params) {
+        ctx.moduleParamLists.set(`${name}__fn`, params)
+        ctx.symbols.registerParams(`${name}__fn`, 'module', params)
+      }
+    }
+  }
+}
+
+/**
+ * Second pass: transpile statements into separate categories
+ */
+function transpileAllStatements(ast: ScadFile, ctx: TranspileContext): TranspiledStatements {
   const localFunctions: string[] = []
   const localModules: string[] = []
   const localConstants: string[] = []
   const geometryParts: string[] = []
 
   // Track which names have both module and function versions
-  // In OpenSCAD, you can have both `module foo()` and `function foo()` with the same name
-  // In JavaScript, we generate both: module as `name`, function as `name__fn`
   const functionNameSet = new Set(ctx.functionNames)
   const moduleNameSet = new Set(ctx.moduleNames)
 
   // Track dual-defined names (both module and function) for expression transpilation
-  const dualDefinedNames = new Set<string>()
   for (const name of functionNameSet) {
     if (moduleNameSet.has(name)) {
-      dualDefinedNames.add(name)
       ctx.dualDefinedNames.add(name)
     }
   }
 
-  // Register __fn variants in paramLists so reorderNamedArgs can find them for function calls
-  // Use functionParamLists if available (functions may have more params than modules)
-  for (const name of dualDefinedNames) {
-    // Prefer function params (may have more params like p=_NO_ARG)
+  // Register __fn variants in paramLists so reorderNamedArgs can find them
+  for (const name of ctx.dualDefinedNames) {
     const params = ctx.symbols.getParams(name, 'function') || ctx.symbols.getParams(name, 'module')
     if (params) {
       ctx.moduleParamLists.set(`${name}__fn`, params)
@@ -316,18 +325,13 @@ export function transpile(
 
   for (const stmt of ast.statements) {
     if (isModuleDeclaration(stmt)) {
-      // Always generate module (even if function with same name exists)
       localModules.push(transpileModuleDeclaration(stmt, ctx))
     } else if (isFunctionDeclaration(stmt)) {
-      // Functions always get _$f suffix, modules get _$m suffix
-      // This eliminates the need for __fn renaming since namespaces don't conflict
       localFunctions.push(transpileFunctionDeclaration(stmt, ctx))
     } else if (isUseStmt(stmt) || isIncludeStmt(stmt)) {
       // Already collected in first pass
     } else if (isAssignmentNode(stmt)) {
       // Top-level variable assignment
-      // Special variables use stack-based dynamic scoping via setSpecialVar
-      // Regular variables become const declarations
       const value = transpileExpression(stmt.value!, ctx)
       if (isStackSpecialVar(stmt.name)) {
         localConstants.push(`j$.setSpecialVar('${stmt.name}', ${value})`)
@@ -344,16 +348,20 @@ export function transpile(
     }
   }
 
-  // Check if we need safeUnion for file-scope geometry (before building imports)
-  // safeUnion filters out undefined values from side-effect statements
-  if (geometryParts.length > 1) {
-    ctx.usedHelpers.add('safeUnion')
-  }
+  return { localFunctions, localModules, localConstants, geometryParts }
+}
 
-  // Build the output
+/**
+ * Build the output code string
+ */
+function buildOutputCode(
+  ctx: TranspileContext,
+  bundled: BundledContent,
+  transpiled: TranspiledStatements
+): { code: string; allExports: string[] } {
   const parts: string[] = []
 
-  // Header with JSCAD imports (includes helpers used by all bundled content)
+  // Header with JSCAD imports
   if (ctx.options.includeHeader) {
     const imports = buildJscadImports(ctx)
     if (imports.length > 0) {
@@ -362,8 +370,7 @@ export function transpile(
     }
   }
 
-  // Track imported symbols to avoid duplicates (re-exports can cause this)
-  // Pre-populate with symbols from bundled includes so we don't re-import them via use
+  // Track imported symbols to avoid duplicates
   const importedSymbols = new Set<string>()
   for (const includeImport of ctx.includeImports) {
     for (const sym of includeImport.symbols) {
@@ -371,20 +378,15 @@ export function transpile(
     }
   }
 
-  // Use imports (require statements for .scad files - modules/functions only)
-  // These stay as require() - 'use' only imports functions/modules, not top-level code
+  // Use imports (require statements for .scad files)
   if (ctx.useImports.length > 0) {
     for (const imp of ctx.useImports) {
-      // Use resolvedPath for require to get absolute path from root
       const jsPath = imp.resolvedPath.replace(/\.scad$/, '.js')
-      // Filter out already-imported symbols
       const newSymbols = imp.symbols.filter(s => !importedSymbols.has(s))
       for (const s of newSymbols) importedSymbols.add(s)
       if (newSymbols.length > 0) {
-        // Destructuring import with discovered symbols
         parts.push(`const { ${newSymbols.join(', ')} } = require('./${jsPath}')`)
       } else if (imp.symbols.length === 0) {
-        // Fallback: import entire module (no file resolver or empty file)
         parts.push(`const ${getModuleName(imp.filename)} = require('./${jsPath}')`)
       }
     }
@@ -392,77 +394,65 @@ export function transpile(
   }
 
   // ALL FUNCTION DEFINITIONS FIRST (bundled from includes + local)
-  // Functions use 'function' declarations which are hoisted in JavaScript
-  // This allows forward references to work (e.g., constants calling functions defined later)
-  const allFunctions = [...bundledFunctions, ...localFunctions]
+  const allFunctions = [...bundled.functions, ...transpiled.localFunctions]
   if (allFunctions.length > 0) {
     parts.push(allFunctions.join('\n\n'))
     parts.push('')
   }
 
   // LIBRARY CONSTANTS (bundled from includes) - BEFORE MODULES
-  // These are constants like CENTER, UP, DOWN from library files
-  // They MUST come before modules because modules may reference them in default parameters
-  // e.g., trapezoid(..., anchor = CENTER) requires CENTER to be defined first
-  if (bundledConstants.length > 0) {
-    parts.push(bundledConstants.join('\n'))
+  if (bundled.constants.length > 0) {
+    parts.push(bundled.constants.join('\n'))
     parts.push('')
   }
 
   // ALL MODULE DEFINITIONS (bundled from includes + local)
-  // These come after library constants so that default parameters work correctly
-  const allModules = [...bundledModules, ...localModules]
+  const allModules = [...bundled.modules, ...transpiled.localModules]
   if (allModules.length > 0) {
     parts.push(allModules.join('\n\n'))
     parts.push('')
   }
 
-  // LOCAL CONSTANT ASSIGNMENTS (from the main file being transpiled)
-  // These come AFTER modules because user code may call modules
-  // e.g., path = trapezoid(15, 30, 15) requires trapezoid to be defined first
-  // Local constants that are just value assignments (like _BOSL2_STD = true) are fine here
-  // because they don't call any modules
-  if (localConstants.length > 0) {
-    parts.push(localConstants.join('\n'))
+  // LOCAL CONSTANT ASSIGNMENTS
+  if (transpiled.localConstants.length > 0) {
+    parts.push(transpiled.localConstants.join('\n'))
     parts.push('')
   }
 
   // Main function with file-scope geometry
-  if (geometryParts.length > 0) {
-    const mainBody = geometryParts.length === 1
-      ? geometryParts[0]
-      : `j$.safeUnion([\n${geometryParts.map(p => `    ${p}`).join(',\n')}\n  ])`
+  if (transpiled.geometryParts.length > 0) {
+    const mainBody = transpiled.geometryParts.length === 1
+      ? transpiled.geometryParts[0]
+      : `j$.safeUnion([\n${transpiled.geometryParts.map(p => `    ${p}`).join(',\n')}\n  ])`
     parts.push(`const main = () => {\n  return ${mainBody}\n}`)
     parts.push('')
   } else {
-    // Empty main if no geometry
     parts.push(`const main = () => undefined`)
     parts.push('')
   }
 
-  // Exports (modules, functions, and top-level variables)
-  // Use _$m suffix for modules and _$f suffix for functions (namespace separation)
-  // Both modules and functions are exported - no filtering needed since suffixes prevent collision
+  // Exports
   const moduleExportNames = ctx.moduleNames.map(name => `${name}_$m`)
   const functionExportNames = ctx.functionNames.map(name => `${name}_$f`)
-  // Include re-exports symbols from included files (include statement = re-export all)
-  // These already have the correct suffixes from the source file
   const includeReExports = ctx.includeImports.flatMap(imp => imp.symbols)
-  // All exports - main is special (no suffix)
   const allExports = [...new Set([...moduleExportNames, ...functionExportNames, ...ctx.variableNames, ...includeReExports, 'main'])]
   parts.push(`module.exports = { ${allExports.join(', ')} }`)
 
-  const code = parts.join('\n')
+  return { code: parts.join('\n'), allExports }
+}
 
-  // Create bundled parts for this file (used when this file is included by others)
-  // Include both local definitions and anything bundled from includes
-  // Order matters: local first, then bundled (matching output order)
-  const bundledParts: BundledParts = {
-    functions: [...bundledFunctions, ...localFunctions],
-    modules: [...bundledModules, ...localModules],
-    constants: [...localConstants, ...bundledConstants],
-    // Include use imports so they propagate when this file is included
-    // This implements OpenSCAD semantics: when A includes B, B's use imports become available in A
+/**
+ * Create bundled parts for caching (used when this file is included by others)
+ */
+function createBundledParts(
+  ctx: TranspileContext,
+  bundled: BundledContent,
+  transpiled: TranspiledStatements
+): BundledParts {
+  return {
+    functions: [...bundled.functions, ...transpiled.localFunctions],
+    modules: [...bundled.modules, ...transpiled.localModules],
+    constants: [...transpiled.localConstants, ...bundled.constants],
     useImports: [...ctx.useImports],
     usedPrimitives: new Set(ctx.usedPrimitives),
     usedTransforms: new Set(ctx.usedTransforms),
@@ -474,19 +464,76 @@ export function transpile(
     usedMaths: ctx.usedMaths,
     usedMinMax: ctx.usedMinMax,
   }
+}
+
+/**
+ * Transpile OpenSCAD AST to JavaScript
+ *
+ * @param ast - Parsed OpenSCAD AST
+ * @param options - Transpile options including fileResolver for multi-file support
+ * @param sharedCache - Optional shared cache for recursive transpilation
+ */
+export function transpile(
+  ast: ScadFile,
+  options: TranspileOptions = {},
+  sharedCache?: Map<string, TranspiledFile>
+): TranspileResult {
+  const ctx = createContext(options, sharedCache)
+
+  // Mark current file as processing (for cycle detection)
+  if (ctx.options.currentFile) {
+    ctx.processingFiles.add(ctx.options.currentFile)
+  }
+
+  // First pass: collect module/function names and use statements
+  for (const stmt of ast.statements) {
+    collectDeclarations(stmt, ctx)
+  }
+
+  // Add local definitions to available symbols
+  for (const name of ctx.moduleNames) {
+    ctx.availableSymbols.add(name)
+  }
+  for (const name of ctx.functionNames) {
+    ctx.availableSymbols.add(name)
+  }
+
+  // Compute directory of current file for resolving relative paths
+  const currentFileDir = getFileDir(ctx.options.currentFile)
+
+  // Pre-pass: collect all function/module signatures from include files recursively
+  collectSignaturesFromIncludes(ctx)
+
+  // Process use statements: transpile dependencies and discover exports
+  processUseStatements(ctx, currentFileDir)
+
+  // Process include statements: transpile dependencies and bundle content
+  const bundled = processIncludeStatements(ctx, currentFileDir)
+
+  // Second pass: transpile statements into separate categories
+  const transpiled = transpileAllStatements(ast, ctx)
+
+  // Check if we need safeUnion for file-scope geometry
+  if (transpiled.geometryParts.length > 1) {
+    ctx.usedHelpers.add('safeUnion')
+  }
+
+  // Build the output code
+  const { code, allExports } = buildOutputCode(ctx, bundled, transpiled)
+
+  // Create bundled parts for caching
+  const bundledParts = createBundledParts(ctx, bundled, transpiled)
 
   // Add this file to the cache if it has a name
   if (ctx.options.currentFile) {
     ctx.transpiledFiles.set(ctx.options.currentFile, {
       code,
       exports: allExports.filter(e => e !== 'main'),
-      // Keep original names (without _$f/_$m suffix) for lookup purposes
-      // The suffix is added when generating the actual call
       functionExports: ctx.functionNames.filter(e => e !== 'main'),
       moduleExports: ctx.moduleNames.filter(e => e !== 'main'),
       paramLists: new Map(ctx.moduleParamLists),
       functionParamLists: new Map(ctx.functionParamLists),
-      dualDefinedNames: new Set(ctx.dualDefinedNames),  // Include inherited dual-defined names from includes
+      dualDefinedNames: new Set(ctx.dualDefinedNames),
       bundledParts,
     })
   }
