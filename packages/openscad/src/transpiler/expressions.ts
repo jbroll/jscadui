@@ -338,7 +338,9 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
     const cond = transpileExpression(expr.cond, ctx)
     const ifExpr = transpileExpression(expr.ifExpr, ctx)
     const elseExpr = transpileExpression(expr.elseExpr, ctx)
-    return `(${cond} ? ${ifExpr} : ${elseExpr})`
+    // Use j$.isTruthy() for OpenSCAD semantics (empty arrays are falsy)
+    ctx.usedHelpers.add('isTruthy')
+    return `(j$.isTruthy(${cond}) ? ${ifExpr} : ${elseExpr})`
   }
 
   if (isArrayLookupExpr(expr)) {

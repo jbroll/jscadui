@@ -170,14 +170,7 @@ describe('transpileExpression', () => {
   })
 
   describe('ternary expressions', () => {
-    it('handles ternary operator', () => {
-      const code = transpileExpr('x = a ? b : c;')
-      expect(code).toContain('(a ? b : c)')
-    })
-
-    // TODO: This test documents the EXPECTED behavior with proper OpenSCAD truthiness.
-    // It will FAIL until we implement Phase 2.1 of the refactoring plan.
-    it.skip('handles ternary with OpenSCAD truthiness', () => {
+    it('handles ternary operator with OpenSCAD truthiness', () => {
       // OpenSCAD: a ? b : c should evaluate 'a' with OpenSCAD truthiness
       // Empty arrays should be falsy (unlike JavaScript)
       const code = transpileExpr('x = a ? b : c;')

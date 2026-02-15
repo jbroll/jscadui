@@ -33,14 +33,18 @@ describe('Syntax & Declarations', () => {
   })
 
   describe('Conditional Operator (Ternary)', () => {
-    it('handles basic ternary', () => {
+    it('handles basic ternary with OpenSCAD truthiness', () => {
       const code = transpileCode('x = cond ? 1 : 2;')
-      expect(code).toContain('(cond ? 1 : 2)')
+      // Uses j$.isTruthy() for OpenSCAD semantics (empty arrays are falsy)
+      expect(code).toContain('j$.isTruthy(cond)')
+      expect(code).toContain('? 1 : 2)')
     })
 
-    it('handles nested ternary', () => {
+    it('handles nested ternary with OpenSCAD truthiness', () => {
       const code = transpileCode('x = a ? 1 : b ? 2 : 3;')
-      expect(code).toContain('(a ? 1 : (b ? 2 : 3))')
+      // Both conditions are wrapped with isTruthy
+      expect(code).toContain('j$.isTruthy(a)')
+      expect(code).toContain('j$.isTruthy(b)')
     })
   })
 
