@@ -2,6 +2,7 @@
  * Transpiler context types and interfaces
  */
 import type { ScadFile } from 'openscad-parser'
+import { SymbolTable } from './symbolTable.js'
 
 /**
  * File resolver for use statements
@@ -168,6 +169,8 @@ export interface TranspileContext {
   includedFunctionNames: Set<string>
   // Track names that have both module and function versions (use __fn suffix for function)
   dualDefinedNames: Set<string>
+  // Unified symbol table (consolidates the above Sets - migration in progress)
+  symbols: SymbolTable
   // Current indentation level
   indentLevel: number
   // Cache of transpiled files (shared across recursive calls)
@@ -280,6 +283,7 @@ export function createContext(
     includedModuleNames,
     includedFunctionNames,
     dualDefinedNames,
+    symbols: new SymbolTable(),
     indentLevel: 0,
     transpiledFiles: sharedCache || new Map(),
     parsedFiles: new Map(),
