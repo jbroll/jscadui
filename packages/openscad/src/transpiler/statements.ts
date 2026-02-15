@@ -201,124 +201,96 @@ export function collectChildrenAsArray(child: Statement | null, ctx: TranspileCo
 }
 
 /**
- * Transpile a module instantiation (e.g., cube(10), translate([1,2,3]) child)
+ * Transpile echo() module - outputs to console but returns undefined (no geometry)
  */
-function transpileModuleInstantiation(stmt: ModuleInstantiationStmt, ctx: TranspileContext): string {
-  const name = stmt.name
+function transpileEchoModule(
+  stmt: ModuleInstantiationStmt,
+  ctx: TranspileContext
+): string {
+  const args = stmt.args.map(a => transpileExpression(a.value!, ctx)).join(', ')
+  return `(console.log(${args}), undefined)`
+}
 
-  // Special handling for 'for' loops (parsed as ModuleInstantiationStmt)
-  if (name === 'for') {
-    return transpileForLoop(stmt, ctx)
-  }
-
-  // Special handling for 'let' module - creates local bindings for children
-  // let(x=5, y=10) { children } → ((x, y) => children)(5, 10)
-  if (name === 'let') {
-    return transpileLetModule(stmt, ctx)
-  }
-
-  // echo() for debugging - outputs to console but returns undefined (no geometry)
-  if (name === 'echo') {
-    const args = stmt.args.map(a => transpileExpression(a.value!, ctx)).join(', ')
-    return `(console.log(${args}), undefined)`
-  }
-
-  // assert(condition, message?) - check condition and throw if false
-  // In OpenSCAD, `assert(cond, msg) statement;` is valid - statement is child of assert
-  if (name === 'assert') {
-    const condition = stmt.args.length > 0 ? transpileExpression(stmt.args[0].value!, ctx) : 'true'
-    const message = stmt.args.length > 1 ? transpileExpression(stmt.args[1].value!, ctx) : '"Assertion failed"'
-    // If assert has a child statement, execute it after the assertion
-    if (stmt.child) {
-      const childCode = transpileStatement(stmt.child, ctx)
-      return `(console.assert(${condition}, ${message}), ${childCode || 'undefined'})`
-    }
-    return `(console.assert(${condition}, ${message}), undefined)`
-  }
-
-  const argsArray = transpileArgsArray(stmt.args, ctx)
-
-  // Handle children
-  let childCode: string | null = null
+/**
+ * Transpile assert() module - check condition and throw if false
+ * In OpenSCAD, `assert(cond, msg) statement;` is valid - statement is child of assert
+ */
+function transpileAssertModule(
+  stmt: ModuleInstantiationStmt,
+  ctx: TranspileContext
+): string {
+  const condition = stmt.args.length > 0 ? transpileExpression(stmt.args[0].value!, ctx) : 'true'
+  const message = stmt.args.length > 1 ? transpileExpression(stmt.args[1].value!, ctx) : '"Assertion failed"'
+  // If assert has a child statement, execute it after the assertion
   if (stmt.child) {
-    childCode = transpileStatement(stmt.child, ctx)
+    const childCode = transpileStatement(stmt.child, ctx)
+    return `(console.assert(${condition}, ${message}), ${childCode || 'undefined'})`
   }
+  return `(console.assert(${condition}, ${message}), undefined)`
+}
 
-  // Check if there's a user-defined module that should override builtins
-  // This allows BOSL2's square(anchor=...) to override the builtin square
-  // Uses SymbolTable to check modules from all sources (local, imported, included)
-  const hasUserDefinedModule = ctx.symbols.isKind(name, 'module')
+/**
+ * Transpile color() module - wraps children with color transform
+ */
+function transpileColorModule(
+  argsArray: Array<{name: string | null, value: string}>,
+  childCode: string | null,
+  ctx: TranspileContext
+): string {
+  ctx.usedColors = true
+  // color takes (colorName, alpha?) or ([r,g,b], alpha?)
+  // When only 1 arg to color, alpha is undefined
+  const colorValue = argsArray[0]?.value || '"gray"'
+  const alphaValue = argsArray[1]?.value || 'undefined'
+  return `j$.color(${colorValue}, ${alphaValue}, ${childCode || 'undefined'})`
+}
 
-  // Check if it's a built-in primitive/transform/boolean
-  // ONLY use builtins if there's no user-defined module with the same name
-  // EXCEPTION: Underscore-prefixed builtins (like _multmatrix, _translate) ALWAYS
-  // use the builtin handler - these are BOSL2's way of calling real builtins
-  const isUnderscorePrefixed = name.startsWith('_')
+/**
+ * Transpile children() module - access children passed to current module
+ * Children are passed as thunks (lazy functions) to ensure proper scoping
+ * of special variables like $parent_geom. We call the thunks here.
+ */
+function transpileChildrenModule(
+  stmt: ModuleInstantiationStmt,
+  argsArray: Array<{name: string | null, value: string}>,
+  ctx: TranspileContext
+): string {
+  // children() with no args returns all children as union
+  // children(n) returns the nth child
+  // children([indices...]) returns union of specified children
+  if (argsArray.length === 0) {
+    // All children: union of _children array (call each thunk)
+    // Use safeUnion to handle cases where some children return undefined (e.g., conditional geometry)
+    return `(_children.length === 0 ? undefined : _children.length === 1 ? _children[0]() : j$.safeUnion(_children.map(_c => _c())))`
+  } else {
+    // Indexed access - check if argument is a vector (array of indices) or simple index
+    const arg = stmt.args[0]
+    const argValue = arg.value
 
-  if ((!hasUserDefinedModule || isUnderscorePrefixed) && isBuiltinPrimitive(name)) {
-    return transpileBuiltinPrimitive(name, argsArray, ctx)
-  }
-
-  if ((!hasUserDefinedModule || isUnderscorePrefixed) && isBuiltinTransform(name)) {
-    return transpileBuiltinTransform(name, argsArray, childCode, ctx)
-  }
-
-  if ((!hasUserDefinedModule || isUnderscorePrefixed) && isBuiltinBoolean(name)) {
-    // Boolean ops need children passed directly, not as union
-    return transpileBuiltinBoolean(name, stmt.child, ctx)
-  }
-
-  if ((!hasUserDefinedModule || isUnderscorePrefixed) && isBuiltinExtrusion(name)) {
-    return transpileBuiltinExtrusion(name, argsArray, childCode, ctx)
-  }
-
-  // Special modules
-  if (name === 'color') {
-    ctx.usedColors = true
-    // color takes (colorName, alpha?) or ([r,g,b], alpha?)
-    // When only 1 arg to color, alpha is undefined
-    const colorValue = argsArray[0]?.value || '"gray"'
-    const alphaValue = argsArray[1]?.value || 'undefined'
-    return `j$.color(${colorValue}, ${alphaValue}, ${childCode || 'undefined'})`
-  }
-
-  if (name === 'hull') {
-    // Hull needs children passed as separate args, not wrapped in union
-    return transpileBuiltinHull(stmt.child, ctx)
-  }
-
-  // children() - access children passed to this module
-  // Children are passed as thunks (lazy functions) to ensure proper scoping
-  // of special variables like $parent_geom. We call the thunks here.
-  if (name === 'children') {
-    // children() with no args returns all children as union
-    // children(n) returns the nth child
-    // children([indices...]) returns union of specified children
-    if (argsArray.length === 0) {
-      // All children: union of _children array (call each thunk)
-      // Use safeUnion to handle cases where some children return undefined (e.g., conditional geometry)
-      return `(_children.length === 0 ? undefined : _children.length === 1 ? _children[0]() : j$.safeUnion(_children.map(_c => _c())))`
+    if (argValue && isVectorExpr(argValue)) {
+      // Array of indices: children([0, 2, 3]) → union children at those indices (call thunks)
+      // Use safeUnion to handle cases where some children return undefined
+      const indices = argValue.children.map(c => transpileExpression(c, ctx))
+      return `j$.safeUnion([${indices.map(i => `_children[${i}]()`).join(', ')}])`
     } else {
-      // Indexed access - check if argument is a vector (array of indices) or simple index
-      const arg = stmt.args[0]
-      const argValue = arg.value
-
-      if (argValue && isVectorExpr(argValue)) {
-        // Array of indices: children([0, 2, 3]) → union children at those indices (call thunks)
-        // Use safeUnion to handle cases where some children return undefined
-        const indices = argValue.children.map(c => transpileExpression(c, ctx))
-        return `j$.safeUnion([${indices.map(i => `_children[${i}]()`).join(', ')}])`
-      } else {
-        // Simple index: children(0) or children(i) → single child access (call thunk)
-        const indexExpr = argsArray[0].value
-        return `_children[${indexExpr}]()`
-      }
+      // Simple index: children(0) or children(i) → single child access (call thunk)
+      const indexExpr = argsArray[0].value
+      return `_children[${indexExpr}]()`
     }
   }
+}
 
-  // User-defined module/function - direct call (late binding)
-  // Symbol is available if it's local or imported via use
-  // Curried pattern: module({ options })(children)
+/**
+ * Transpile a user-defined module or function call
+ * Handles suffix selection (_$m vs _$f), local variables, and children passing
+ */
+function transpileUserDefinedCall(
+  stmt: ModuleInstantiationStmt,
+  argsArray: Array<{name: string | null, value: string}>,
+  childCode: string | null,
+  ctx: TranspileContext
+): string {
+  const name = stmt.name
 
   // Apply safeIdentifier to handle reserved keywords (like 'let')
   const safeName = safeIdentifier(name)
@@ -328,10 +300,6 @@ function transpileModuleInstantiation(stmt: ModuleInstantiationStmt, ctx: Transp
   // - optionsArgs: for module calls (new pattern)
   const positionalArgs = reorderNamedArgs(name, argsArray, ctx)
   const optionsArgs = transpileArgsAsOptions(name, argsArray, ctx)
-
-  // Just emit a direct call - the symbol should be available from:
-  // - Local module/function definitions
-  // - Destructured imports from use statements
 
   // Check if this is a LOCAL variable FIRST (no suffix needed)
   // Local variables include: let bindings, function params, local assignments
@@ -375,6 +343,72 @@ function transpileModuleInstantiation(stmt: ModuleInstantiationStmt, ctx: Transp
 
   // Module call with no children: use curried pattern with _$m suffix and options object
   return `${safeName}_$m(${optionsArgs})()`
+}
+
+/**
+ * Dispatch to builtin handlers if applicable
+ * Returns the transpiled code if it's a builtin, or null if not
+ */
+function tryDispatchBuiltin(
+  name: string,
+  argsArray: Array<{name: string | null, value: string}>,
+  childCode: string | null,
+  stmt: ModuleInstantiationStmt,
+  hasUserDefinedModule: boolean,
+  ctx: TranspileContext
+): string | null {
+  // Underscore-prefixed builtins (like _multmatrix, _translate) ALWAYS
+  // use the builtin handler - these are BOSL2's way of calling real builtins
+  const isUnderscorePrefixed = name.startsWith('_')
+
+  if ((!hasUserDefinedModule || isUnderscorePrefixed) && isBuiltinPrimitive(name)) {
+    return transpileBuiltinPrimitive(name, argsArray, ctx)
+  }
+
+  if ((!hasUserDefinedModule || isUnderscorePrefixed) && isBuiltinTransform(name)) {
+    return transpileBuiltinTransform(name, argsArray, childCode, ctx)
+  }
+
+  if ((!hasUserDefinedModule || isUnderscorePrefixed) && isBuiltinBoolean(name)) {
+    // Boolean ops need children passed directly, not as union
+    return transpileBuiltinBoolean(name, stmt.child, ctx)
+  }
+
+  if ((!hasUserDefinedModule || isUnderscorePrefixed) && isBuiltinExtrusion(name)) {
+    return transpileBuiltinExtrusion(name, argsArray, childCode, ctx)
+  }
+
+  return null
+}
+
+/**
+ * Transpile a module instantiation (e.g., cube(10), translate([1,2,3]) child)
+ */
+function transpileModuleInstantiation(stmt: ModuleInstantiationStmt, ctx: TranspileContext): string {
+  const name = stmt.name
+
+  // Special modules that don't follow the normal pattern
+  if (name === 'for') return transpileForLoop(stmt, ctx)
+  if (name === 'let') return transpileLetModule(stmt, ctx)
+  if (name === 'echo') return transpileEchoModule(stmt, ctx)
+  if (name === 'assert') return transpileAssertModule(stmt, ctx)
+
+  // Prepare common data needed by most handlers
+  const argsArray = transpileArgsArray(stmt.args, ctx)
+  const childCode = stmt.child ? transpileStatement(stmt.child, ctx) : null
+  const hasUserDefinedModule = ctx.symbols.isKind(name, 'module')
+
+  // Try builtin dispatch (primitives, transforms, booleans, extrusions)
+  const builtinResult = tryDispatchBuiltin(name, argsArray, childCode, stmt, hasUserDefinedModule, ctx)
+  if (builtinResult !== null) return builtinResult
+
+  // Special modules
+  if (name === 'color') return transpileColorModule(argsArray, childCode, ctx)
+  if (name === 'hull') return transpileBuiltinHull(stmt.child, ctx)
+  if (name === 'children') return transpileChildrenModule(stmt, argsArray, ctx)
+
+  // User-defined module/function call
+  return transpileUserDefinedCall(stmt, argsArray, childCode, ctx)
 }
 
 /**
