@@ -224,260 +224,436 @@ function containsNestedForExpr(expr: Expression | null): boolean {
 /**
  * Transpile an expression
  */
-export function transpileExpression(expr: Expression, ctx: TranspileContext): string {
-  if (isLiteralExpr(expr)) {
-    return transpileLiteral(expr.value as string | number | boolean | null)
+/**
+ * Transpile vector expressions: [a, b, c] or [for (i=r) expr] etc.
+ * Handles list comprehensions, 'each' spreading, and conditionals.
+ */
+function transpileVectorExpr(
+  children: Expression[],
+  ctx: TranspileContext
+): string {
+  // List comprehension: [for (i = range) expr] has single LcForExpr child
+  // LcForExpr already returns an array via .map(), so don't double-wrap
+  // Also handle C-style for loops (LcForCExpr) which return an array via IIFE
+  if (children.length === 1 && (isLcForExpr(children[0]) || isLcForCExpr(children[0]))) {
+    return transpileExpression(children[0], ctx)
+  }
+  // List comprehension with let: [let(a=1) for (i = range) expr] has single LcLetExpr child
+  // The LcLetExpr wraps an LcForExpr, so we need to unwrap
+  if (children.length === 1 && isLcLetExpr(children[0])) {
+    return transpileExpression(children[0], ctx)
   }
 
-  if (isLookupExpr(expr)) {
-    const name = expr.name
-    // Handle special constant variables
-    if (name === '$preview') return 'false'  // Always render as full quality
-    if (name === '$t') return '0'  // Animation time defaults to 0
-    if (name === '$children') return '_children.length'  // Number of children passed to module
-    if (name === '$parent_modules') return '0'  // Module nesting depth (stub: always top-level)
-    // Constants from j$ namespace
-    if (name === 'PI') return 'j$.PI'
-
-    const safeName = safeIdentifier(name)
-
-    // Check if this variable has been renamed in an enclosing scope (let/for bindings)
-    // This must happen FIRST to handle shadowing - a local variable should shadow
-    // any special variable from the stack
-    const scopedName = lookupBinding(ctx, safeName)
-    if (scopedName !== undefined) {
-      return scopedName
+  // Handle 'each' keyword, for comprehensions, and conditionals in list literals
+  // - 'each' keyword: [0, each arr] -> [0, ...arr] (flattens its argument)
+  // - 'for' comprehension: [0, for (i=r) i, 1] -> [0, ...r.map(i=>i), 1]
+  //   When a for comprehension is mixed with other elements, it needs to be spread
+  //   because the for generates an array, and we want the elements flattened
+  // - 'if' conditional: [0, if(cond) val, 1] -> [0, cond?val:undefined, 1].filter(x=>x!==undefined)
+  //   Conditionals produce undefined when false, which must be filtered out
+  // - 'if' with for inside: [if(cond) for(...) expr] -> [...(cond ? forResult : [])]
+  //   When the conditional body is a for-loop, the result is an array that needs spreading
+  const hasConditionals = children.some(c => isLcIfExpr(c))
+  const parts = children.map(c => {
+    if (isLcEachExpr(c)) {
+      // Spread the inner expression
+      return `...${transpileExpression(c.expr, ctx)}`
     }
-
-    // For special variables that aren't locally bound, use stack-based dynamic scoping
-    if (isStackSpecialVar(name)) {
-      return `j$.getSpecialVar('${name}')`
+    if (isLcForExpr(c) || isLcForCExpr(c)) {
+      // For comprehensions inside mixed vectors need to be spread
+      // [a, for(x=arr) f(x), b] -> [a, ...arr.map(x => f(x)), b]
+      // Also handles C-style for loops (LcForCExpr)
+      return `...${transpileExpression(c, ctx)}`
     }
-
-    // Regular identifier - ensure it's safe for JavaScript
-    return safeName
-  }
-
-  if (isVectorExpr(expr)) {
-    const children = expr.children
-    // List comprehension: [for (i = range) expr] has single LcForExpr child
-    // LcForExpr already returns an array via .map(), so don't double-wrap
-    // Also handle C-style for loops (LcForCExpr) which return an array via IIFE
-    if (children.length === 1 && (isLcForExpr(children[0]) || isLcForCExpr(children[0]))) {
-      return transpileExpression(children[0], ctx)
-    }
-    // List comprehension with let: [let(a=1) for (i = range) expr] has single LcLetExpr child
-    // The LcLetExpr wraps an LcForExpr, so we need to unwrap
-    if (children.length === 1 && isLcLetExpr(children[0])) {
-      return transpileExpression(children[0], ctx)
-    }
-    // Handle 'each' keyword, for comprehensions, and conditionals in list literals
-    // - 'each' keyword: [0, each arr] -> [0, ...arr] (flattens its argument)
-    // - 'for' comprehension: [0, for (i=r) i, 1] -> [0, ...r.map(i=>i), 1]
-    //   When a for comprehension is mixed with other elements, it needs to be spread
-    //   because the for generates an array, and we want the elements flattened
-    // - 'if' conditional: [0, if(cond) val, 1] -> [0, cond?val:undefined, 1].filter(x=>x!==undefined)
-    //   Conditionals produce undefined when false, which must be filtered out
-    // - 'if' with for inside: [if(cond) for(...) expr] -> [...(cond ? forResult : [])]
-    //   When the conditional body is a for-loop, the result is an array that needs spreading
-    const hasConditionals = children.some(c => isLcIfExpr(c))
-    const parts = children.map(c => {
-      if (isLcEachExpr(c)) {
-        // Spread the inner expression
-        return `...${transpileExpression(c.expr, ctx)}`
+    // Check if this is an LcIfExpr containing a for-loop or 'each'
+    // [if(cond) for(...) expr] -> [...(cond ? forResult : [])]
+    // [if(cond) each arr] -> [...(cond ? arr : [])]
+    if (isLcIfExpr(c)) {
+      const ifExpr = c as { cond: Expression, ifExpr: Expression, elseExpr?: Expression | null }
+      // Check if the body contains a for-loop or 'each' that produces an array
+      const ifProducesArray = containsNestedForExpr(ifExpr.ifExpr) || isEachExpr(ifExpr.ifExpr)
+      if (ifProducesArray) {
+        return `...${transpileConditionalForSpread(ifExpr, ctx)}`
       }
-      if (isLcForExpr(c) || isLcForCExpr(c)) {
-        // For comprehensions inside mixed vectors need to be spread
-        // [a, for(x=arr) f(x), b] -> [a, ...arr.map(x => f(x)), b]
-        // Also handles C-style for loops (LcForCExpr)
-        return `...${transpileExpression(c, ctx)}`
-      }
-      // Check if this is an LcIfExpr containing a for-loop or 'each'
-      // [if(cond) for(...) expr] -> [...(cond ? forResult : [])]
-      // [if(cond) each arr] -> [...(cond ? arr : [])]
-      if (isLcIfExpr(c)) {
-        const ifExpr = c as { cond: Expression, ifExpr: Expression, elseExpr?: Expression | null }
-        // Check if the body contains a for-loop or 'each' that produces an array
-        const ifProducesArray = containsNestedForExpr(ifExpr.ifExpr) || isEachExpr(ifExpr.ifExpr)
-        if (ifProducesArray) {
-          // Transpile the conditional for spread context, handling nested if/else chains
-          const transpileForSpread = (ifEx: { cond: Expression, ifExpr: Expression, elseExpr?: Expression | null }): string => {
-            const cond = transpileExpression(ifEx.cond, ctx)
-            const body = transpileExpression(ifEx.ifExpr, ctx)
-            if (!ifEx.elseExpr) {
-              // No else - use empty array when false
-              return `(${cond} ? ${body} : [])`
-            }
-            // Check if else DIRECTLY produces array (not through nested conditionals)
-            const elseDirectlyProducesArray = directlyProducesArray(ifEx.elseExpr)
-            if (elseDirectlyProducesArray) {
-              // Else directly produces array (each/for) - use it directly
-              const elsePart = transpileExpression(ifEx.elseExpr, ctx)
-              return `(${cond} ? ${body} : ${elsePart})`
-            } else if (isLcIfExpr(ifEx.elseExpr)) {
-              // Else is a nested conditional - recursively handle it
-              const nestedIf = ifEx.elseExpr as { cond: Expression, ifExpr: Expression, elseExpr?: Expression | null }
-              const nestedProducesArray = containsNestedForExpr(nestedIf.ifExpr) || isEachExpr(nestedIf.ifExpr)
-              if (nestedProducesArray) {
-                // Nested if also produces array - recurse
-                const elsePart = transpileForSpread(nestedIf)
-                return `(${cond} ? ${body} : ${elsePart})`
-              } else {
-                // Nested if doesn't produce array - wrap the whole else
-                const elsePart = transpileExpression(ifEx.elseExpr, ctx)
-                return `(${cond} ? ${body} : [${elsePart}])`
-              }
-            } else {
-              // else is a single value - wrap it in array
-              const elsePart = transpileExpression(ifEx.elseExpr, ctx)
-              return `(${cond} ? ${body} : [${elsePart}])`
-            }
-          }
-          return `...${transpileForSpread(ifExpr)}`
-        }
-      }
-      return transpileExpression(c, ctx)
-    })
-    // If there are conditionals (LcIfExpr), filter out undefined values
-    // OpenSCAD: [if(cond) x] produces [] when cond is false, not [undefined]
-    // Note: conditionals with for-loops are already spread, so they don't produce undefined
-    if (hasConditionals) {
-      return `[${parts.join(', ')}].filter(x => x !== undefined)`
     }
-    return `[${parts.join(', ')}]`
-  }
+    return transpileExpression(c, ctx)
+  })
 
-  if (isBinaryOpExpr(expr)) {
-    const left = transpileExpression(expr.left, ctx)
-    const right = transpileExpression(expr.right, ctx)
-    // Handle equality operators specially - need deep comparison for arrays
-    if (expr.operation === TokenType.EqualEqual) {
-      ctx.usedHelpers.add('eq')
-      return `j$.eq(${left}, ${right})`
-    }
-    if (expr.operation === TokenType.BangEqual) {
-      ctx.usedHelpers.add('eq')
-      return `!j$.eq(${left}, ${right})`
-    }
-    // Handle arithmetic operators with vector support
-    if (expr.operation === TokenType.Plus) {
-      ctx.usedHelpers.add('vadd')
-      return `j$.vadd(${left}, ${right})`
-    }
-    if (expr.operation === TokenType.Minus) {
-      ctx.usedHelpers.add('vsub')
-      return `j$.vsub(${left}, ${right})`
-    }
-    if (expr.operation === TokenType.Star) {
-      ctx.usedHelpers.add('vmul')
-      return `j$.vmul(${left}, ${right})`
-    }
-    if (expr.operation === TokenType.Slash) {
-      ctx.usedHelpers.add('vdiv')
-      return `j$.vdiv(${left}, ${right})`
-    }
-    // Handle logical operators with OpenSCAD truthiness
-    // In OpenSCAD, empty arrays are falsy (unlike JavaScript)
-    if (expr.operation === TokenType.AND) {
-      ctx.usedHelpers.add('isTruthy')
-      // a && b: if a is truthy, return b; otherwise return a
-      return `(j$.isTruthy(${left}) ? ${right} : ${left})`
-    }
-    if (expr.operation === TokenType.OR) {
-      ctx.usedHelpers.add('isTruthy')
-      // a || b: if a is truthy, return a; otherwise return b
-      return `(j$.isTruthy(${left}) ? ${left} : ${right})`
-    }
-    const op = transpileBinaryOp(expr.operation)
-    return `(${left} ${op} ${right})`
+  // If there are conditionals (LcIfExpr), filter out undefined values
+  // OpenSCAD: [if(cond) x] produces [] when cond is false, not [undefined]
+  // Note: conditionals with for-loops are already spread, so they don't produce undefined
+  if (hasConditionals) {
+    return `[${parts.join(', ')}].filter(x => x !== undefined)`
   }
+  return `[${parts.join(', ')}]`
+}
 
-  if (isUnaryOpExpr(expr)) {
-    const right = transpileExpression(expr.right, ctx)
-    const op = transpileUnaryOp(expr.operation)
-    // Unary minus on vectors needs special handling (negate each element)
-    // But for literal numbers, we can use regular negation
-    if (op === '-' && !isLiteralExpr(expr.right)) {
-      ctx.usedHelpers.add('vneg')
-      return `j$.vneg(${right})`
-    }
-    // Logical NOT needs OpenSCAD truthiness semantics
-    // In OpenSCAD, empty arrays [] are falsy, but in JavaScript they're truthy
-    if (op === '!') {
-      ctx.usedHelpers.add('isTruthy')
-      return `!j$.isTruthy(${right})`
-    }
-    return `${op}${right}`
+/**
+ * Transpile a conditional expression for spread context in vectors.
+ * Handles nested if/else chains where branches produce arrays.
+ */
+function transpileConditionalForSpread(
+  ifEx: { cond: Expression, ifExpr: Expression, elseExpr?: Expression | null },
+  ctx: TranspileContext
+): string {
+  const cond = transpileExpression(ifEx.cond, ctx)
+  const body = transpileExpression(ifEx.ifExpr, ctx)
+  if (!ifEx.elseExpr) {
+    // No else - use empty array when false
+    return `(${cond} ? ${body} : [])`
   }
-
-  if (isTernaryExpr(expr)) {
-    const cond = transpileExpression(expr.cond, ctx)
-    const ifExpr = transpileExpression(expr.ifExpr, ctx)
-    const elseExpr = transpileExpression(expr.elseExpr, ctx)
-    // Use j$.isTruthy() for OpenSCAD semantics (empty arrays are falsy)
-    ctx.usedHelpers.add('isTruthy')
-    return `(j$.isTruthy(${cond}) ? ${ifExpr} : ${elseExpr})`
-  }
-
-  if (isArrayLookupExpr(expr)) {
-    const array = transpileExpression(expr.array, ctx)
-    const index = transpileExpression(expr.index, ctx)
-    // Use optional chaining to handle undefined arrays gracefully (OpenSCAD returns undef)
-    return `${array}?.[${index}]`
-  }
-
-  if (isFunctionCallExpr(expr)) {
-    const fnExpr = expr as FunctionCallExpr
-    // OpenSCAD has separate namespaces for functions and variables.
-    // When calling rot(...), it calls the FUNCTION rot(), not a parameter named rot.
-    // For simple identifiers, use the original name without scope lookup.
-    // For complex expressions (array[0](...), obj.method(...)), transpile normally.
-    let callee: string
-    if (isLookupExpr(fnExpr.callee)) {
-      // Simple identifier - use original name (function namespace)
-      callee = safeIdentifier(fnExpr.callee.name)
+  // Check if else DIRECTLY produces array (not through nested conditionals)
+  const elseDirectlyProducesArray = directlyProducesArray(ifEx.elseExpr)
+  if (elseDirectlyProducesArray) {
+    // Else directly produces array (each/for) - use it directly
+    const elsePart = transpileExpression(ifEx.elseExpr, ctx)
+    return `(${cond} ? ${body} : ${elsePart})`
+  } else if (isLcIfExpr(ifEx.elseExpr)) {
+    // Else is a nested conditional - recursively handle it
+    const nestedIf = ifEx.elseExpr as { cond: Expression, ifExpr: Expression, elseExpr?: Expression | null }
+    const nestedProducesArray = containsNestedForExpr(nestedIf.ifExpr) || isEachExpr(nestedIf.ifExpr)
+    if (nestedProducesArray) {
+      // Nested if also produces array - recurse
+      const elsePart = transpileConditionalForSpread(nestedIf, ctx)
+      return `(${cond} ? ${body} : ${elsePart})`
     } else {
-      // Complex expression - transpile normally
-      callee = transpileExpression(fnExpr.callee, ctx)
+      // Nested if doesn't produce array - wrap the whole else
+      const elsePart = transpileExpression(ifEx.elseExpr, ctx)
+      return `(${cond} ? ${body} : [${elsePart}])`
     }
-
-    // Build args array with name+value pairs (like statements.ts does for modules)
-    const argsArray = fnExpr.args.map(a => ({
-      name: a.name || null,
-      value: transpileExpression(a.value!, ctx)
-    }))
-
-    // Separate special variables ($fn, $fa, $fs, etc.) from regular args
-    // Special variables use dynamic scoping in OpenSCAD
-    const specialVars: Array<{name: string, value: string}> = []
-    const regularArgs: Array<{name: string | null, value: string}> = []
-
-    for (const arg of argsArray) {
-      if (arg.name && arg.name.startsWith('$')) {
-        specialVars.push({ name: arg.name, value: arg.value })
-      } else {
-        regularArgs.push(arg)
-      }
-    }
-
-    // Reorder named arguments to match parameter definition order
-    // Note: function calls use _$f suffix which is added in transpileFunctionCall
-    // preferFunction=true because this is a function call (uses return value)
-    const args = reorderNamedArgs(callee, regularArgs, ctx, true)
-
-    const callExpr = transpileFunctionCall(callee, args, ctx)
-
-    // If special variables were passed, wrap in dynamic scoping context
-    // OpenSCAD special vars ($fn, $fa, $fs, etc.) use stack-based dynamic scoping
-    if (specialVars.length > 0) {
-      // Generate pushScope/setSpecialVar/call/popScope code
-      // Example: (() => { j$.pushScope(); j$.setSpecialVar('$fn', 6); try { return expr; } finally { j$.popScope(); } })()
-      const sets = specialVars.map(sv => `j$.setSpecialVar('${sv.name}', ${sv.value})`).join('; ')
-      return `(() => { j$.pushScope(); ${sets}; try { return ${callExpr}; } finally { j$.popScope(); } })()`
-    }
-
-    return callExpr
+  } else {
+    // else is a single value - wrap it in array
+    const elsePart = transpileExpression(ifEx.elseExpr, ctx)
+    return `(${cond} ? ${body} : [${elsePart}])`
   }
+}
+
+/**
+ * Transpile variable lookup expression.
+ */
+function transpileLookupExpr(expr: { name: string }, ctx: TranspileContext): string {
+  const name = expr.name
+  // Handle special constant variables
+  if (name === '$preview') return 'false'  // Always render as full quality
+  if (name === '$t') return '0'  // Animation time defaults to 0
+  if (name === '$children') return '_children.length'  // Number of children passed to module
+  if (name === '$parent_modules') return '0'  // Module nesting depth (stub: always top-level)
+  // Constants from j$ namespace
+  if (name === 'PI') return 'j$.PI'
+
+  const safeName = safeIdentifier(name)
+
+  // Check if this variable has been renamed in an enclosing scope (let/for bindings)
+  // This must happen FIRST to handle shadowing - a local variable should shadow
+  // any special variable from the stack
+  const scopedName = lookupBinding(ctx, safeName)
+  if (scopedName !== undefined) {
+    return scopedName
+  }
+
+  // For special variables that aren't locally bound, use stack-based dynamic scoping
+  if (isStackSpecialVar(name)) {
+    return `j$.getSpecialVar('${name}')`
+  }
+
+  // Regular identifier - ensure it's safe for JavaScript
+  return safeName
+}
+
+/**
+ * Transpile binary operation expression (a + b, a == b, etc.)
+ */
+function transpileBinaryOpExpr(
+  expr: { left: Expression, right: Expression, operation: number },
+  ctx: TranspileContext
+): string {
+  const left = transpileExpression(expr.left, ctx)
+  const right = transpileExpression(expr.right, ctx)
+
+  // Handle equality operators specially - need deep comparison for arrays
+  if (expr.operation === TokenType.EqualEqual) {
+    ctx.usedHelpers.add('eq')
+    return `j$.eq(${left}, ${right})`
+  }
+  if (expr.operation === TokenType.BangEqual) {
+    ctx.usedHelpers.add('eq')
+    return `!j$.eq(${left}, ${right})`
+  }
+
+  // Handle arithmetic operators with vector support
+  if (expr.operation === TokenType.Plus) {
+    ctx.usedHelpers.add('vadd')
+    return `j$.vadd(${left}, ${right})`
+  }
+  if (expr.operation === TokenType.Minus) {
+    ctx.usedHelpers.add('vsub')
+    return `j$.vsub(${left}, ${right})`
+  }
+  if (expr.operation === TokenType.Star) {
+    ctx.usedHelpers.add('vmul')
+    return `j$.vmul(${left}, ${right})`
+  }
+  if (expr.operation === TokenType.Slash) {
+    ctx.usedHelpers.add('vdiv')
+    return `j$.vdiv(${left}, ${right})`
+  }
+
+  // Handle logical operators with OpenSCAD truthiness
+  // In OpenSCAD, empty arrays are falsy (unlike JavaScript)
+  if (expr.operation === TokenType.AND) {
+    ctx.usedHelpers.add('isTruthy')
+    // a && b: if a is truthy, return b; otherwise return a
+    return `(j$.isTruthy(${left}) ? ${right} : ${left})`
+  }
+  if (expr.operation === TokenType.OR) {
+    ctx.usedHelpers.add('isTruthy')
+    // a || b: if a is truthy, return a; otherwise return b
+    return `(j$.isTruthy(${left}) ? ${left} : ${right})`
+  }
+
+  const op = transpileBinaryOp(expr.operation)
+  return `(${left} ${op} ${right})`
+}
+
+/**
+ * Transpile unary operation expression (-x, !x)
+ */
+function transpileUnaryOpExpr(
+  expr: { right: Expression, operation: number },
+  ctx: TranspileContext
+): string {
+  const right = transpileExpression(expr.right, ctx)
+  const op = transpileUnaryOp(expr.operation)
+
+  // Unary minus on vectors needs special handling (negate each element)
+  // But for literal numbers, we can use regular negation
+  if (op === '-' && !isLiteralExpr(expr.right)) {
+    ctx.usedHelpers.add('vneg')
+    return `j$.vneg(${right})`
+  }
+
+  // Logical NOT needs OpenSCAD truthiness semantics
+  // In OpenSCAD, empty arrays [] are falsy, but in JavaScript they're truthy
+  if (op === '!') {
+    ctx.usedHelpers.add('isTruthy')
+    return `!j$.isTruthy(${right})`
+  }
+
+  return `${op}${right}`
+}
+
+/**
+ * Transpile ternary expression (cond ? a : b)
+ */
+function transpileTernaryExpr(
+  expr: { cond: Expression, ifExpr: Expression, elseExpr: Expression },
+  ctx: TranspileContext
+): string {
+  const cond = transpileExpression(expr.cond, ctx)
+  const ifExpr = transpileExpression(expr.ifExpr, ctx)
+  const elseExpr = transpileExpression(expr.elseExpr, ctx)
+  // Use j$.isTruthy() for OpenSCAD semantics (empty arrays are falsy)
+  ctx.usedHelpers.add('isTruthy')
+  return `(j$.isTruthy(${cond}) ? ${ifExpr} : ${elseExpr})`
+}
+
+/**
+ * Transpile array lookup expression (arr[idx])
+ */
+function transpileArrayLookupExpr(
+  expr: { array: Expression, index: Expression },
+  ctx: TranspileContext
+): string {
+  const array = transpileExpression(expr.array, ctx)
+  const index = transpileExpression(expr.index, ctx)
+  // Use optional chaining to handle undefined arrays gracefully (OpenSCAD returns undef)
+  return `${array}?.[${index}]`
+}
+
+/**
+ * Transpile function call expression: fn(args)
+ */
+function transpileFunctionCallExprHandler(
+  fnExpr: FunctionCallExpr,
+  ctx: TranspileContext
+): string {
+  // OpenSCAD has separate namespaces for functions and variables.
+  // When calling rot(...), it calls the FUNCTION rot(), not a parameter named rot.
+  // For simple identifiers, use the original name without scope lookup.
+  // For complex expressions (array[0](...), obj.method(...)), transpile normally.
+  let callee: string
+  if (isLookupExpr(fnExpr.callee)) {
+    // Simple identifier - use original name (function namespace)
+    callee = safeIdentifier(fnExpr.callee.name)
+  } else {
+    // Complex expression - transpile normally
+    callee = transpileExpression(fnExpr.callee, ctx)
+  }
+
+  // Build args array with name+value pairs (like statements.ts does for modules)
+  const argsArray = fnExpr.args.map(a => ({
+    name: a.name || null,
+    value: transpileExpression(a.value!, ctx)
+  }))
+
+  // Separate special variables ($fn, $fa, $fs, etc.) from regular args
+  // Special variables use dynamic scoping in OpenSCAD
+  const specialVars: Array<{name: string, value: string}> = []
+  const regularArgs: Array<{name: string | null, value: string}> = []
+
+  for (const arg of argsArray) {
+    if (arg.name && arg.name.startsWith('$')) {
+      specialVars.push({ name: arg.name, value: arg.value })
+    } else {
+      regularArgs.push(arg)
+    }
+  }
+
+  // Reorder named arguments to match parameter definition order
+  // Note: function calls use _$f suffix which is added in transpileFunctionCall
+  // preferFunction=true because this is a function call (uses return value)
+  const args = reorderNamedArgs(callee, regularArgs, ctx, true)
+
+  const callExpr = transpileFunctionCall(callee, args, ctx)
+
+  // If special variables were passed, wrap in dynamic scoping context
+  // OpenSCAD special vars ($fn, $fa, $fs, etc.) use stack-based dynamic scoping
+  if (specialVars.length > 0) {
+    // Generate pushScope/setSpecialVar/call/popScope code
+    const sets = specialVars.map(sv => `j$.setSpecialVar('${sv.name}', ${sv.value})`).join('; ')
+    return `(() => { j$.pushScope(); ${sets}; try { return ${callExpr}; } finally { j$.popScope(); } })()`
+  }
+
+  return callExpr
+}
+
+/**
+ * Transpile list comprehension for-loop: [for (i = range) expr]
+ */
+function transpileLcForExprHandler(
+  forExpr: LcForExpr,
+  ctx: TranspileContext
+): string {
+  const args = forExpr.args
+
+  // Build scope for loop variables - they shadow any outer variables with the same name
+  // The loop variables are used directly as arrow function parameters (no renaming needed)
+  const loopScope = new Map<string, string>()
+  for (const arg of args) {
+    loopScope.set(arg.name, arg.name)
+  }
+
+  // Push scope so inner expression sees loop variables with their original names
+  pushScope(ctx, loopScope)
+  const innerExpr = transpileExpression(forExpr.expr, ctx)
+  popScope(ctx)
+
+  // Check if inner expression contains LcIfExpr (needs filtering)
+  const needsFilter = containsIfExpr(forExpr.expr)
+  // Check if inner expression uses 'each' or contains nested 'for' (needs flatMap for flattening)
+  // In OpenSCAD: [for (i=...) for (j=...) expr] produces a flat list, not nested arrays
+  const needsFlatMap = isEachExpr(forExpr.expr) || containsNestedForExpr(forExpr.expr)
+
+  if (args.length === 1) {
+    const varName = args[0].name
+    const range = transpileExpression(args[0].value!, ctx)
+    // Use flatMap when 'each' is used, otherwise map
+    const method = needsFlatMap ? 'flatMap' : 'map'
+    // Wrap range with j$.iter() to handle strings (OpenSCAD: for (c = "str") iterates chars)
+    const mapExpr = `j$.iter(${range}).${method}(${varName} => ${innerExpr})`
+    return needsFilter ? `${mapExpr}.filter(x => x !== undefined)` : mapExpr
+  }
+
+  // Multiple loop variables: for (i = [0:3], j = [0:2]) becomes nested flatMap/map
+  // Each outer loop uses flatMap to flatten the nested arrays, innermost uses map
+  // If 'each' is used, innermost also uses flatMap
+  let result = innerExpr
+  for (let i = args.length - 1; i >= 0; i--) {
+    const varName = args[i].name
+    const range = transpileExpression(args[i].value!, ctx)
+    const isInnermost = i === args.length - 1
+    const method = isInnermost ? (needsFlatMap ? 'flatMap' : 'map') : 'flatMap'
+    // Wrap range with j$.iter() to handle strings (OpenSCAD: for (c = "str") iterates chars)
+    result = `j$.iter(${range}).${method}(${varName} => ${result})`
+  }
+  return needsFilter ? `${result}.filter(x => x !== undefined)` : result
+}
+
+/**
+ * Transpile C-style for loop: [for (c = 1, i = 0; i <= n; c = c*(...), i = i+1) c]
+ */
+function transpileLcForCExprHandler(
+  forCExpr: LcForCExpr,
+  ctx: TranspileContext
+): string {
+  const suffix = `$${ctx.letCounter || 1}`
+  ctx.letCounter = (ctx.letCounter || 1) + 1
+
+  // Build scope incrementally - each initializer can see previous variables
+  // This is important for patterns like: for (i=0, x=f(i), y=f(x); ...)
+  const loopScope = new Map<string, string>()
+  pushScope(ctx, loopScope)
+
+  // Initial assignments - each value is transpiled with current scope,
+  // then the variable is added to scope for subsequent initializers
+  const initParts: string[] = []
+  for (const a of forCExpr.args) {
+    // Transpile value BEFORE adding this var to scope (it shouldn't see itself)
+    const value = transpileExpression(a.value!, ctx)
+    const origName = safeIdentifier(a.name)
+    const suffixedName = `${origName}${suffix}`
+    initParts.push(`let ${suffixedName} = ${value}`)
+    // Now add to scope so subsequent initializers can reference it
+    loopScope.set(origName, suffixedName)
+  }
+  const inits = initParts.join('; ')
+
+  // Add increment-only variables to scope BEFORE transpiling condition/body/incr
+  // Increment section may have new variables not in init (e.g., v1, c1, etc.)
+  // and they reference each other (c1 = v1*v1), so all need to be in scope
+  const incrOnlyVars: string[] = []
+  for (const a of forCExpr.incrArgs) {
+    const origName = safeIdentifier(a.name)
+    if (!loopScope.has(origName)) {
+      const suffixedName = `${origName}${suffix}`
+      loopScope.set(origName, suffixedName)
+      incrOnlyVars.push(suffixedName)
+    }
+  }
+  // Declare increment-only variables (they'll be assigned in the while loop)
+  const incrOnlyDecl = incrOnlyVars.length > 0 ? `let ${incrOnlyVars.join(', ')};` : ''
+
+  // Condition
+  const cond = transpileExpression(forCExpr.cond, ctx)
+
+  // Body expression
+  const body = transpileExpression(forCExpr.expr, ctx)
+
+  // Increment assignments - MUST be sequential, not parallel!
+  // In OpenSCAD, later increment expressions can use earlier variables' new values
+  const incrParts: string[] = []
+  for (const a of forCExpr.incrArgs) {
+    const value = transpileExpression(a.value!, ctx)
+    const varName = `${safeIdentifier(a.name)}${suffix}`
+    incrParts.push(`${varName} = ${value}`)
+  }
+  const incrUpdate = incrParts.join('; ')
+
+  popScope(ctx)
+
+  return `(() => { const _result${suffix} = []; ${inits}; ${incrOnlyDecl} while (${cond}) { _result${suffix}.push(${body}); ${incrUpdate}; } return _result${suffix}; })()`
+}
+
+export function transpileExpression(expr: Expression, ctx: TranspileContext): string {
+  if (isLiteralExpr(expr)) return transpileLiteral(expr.value as string | number | boolean | null)
+  if (isLookupExpr(expr)) return transpileLookupExpr(expr, ctx)
+  if (isVectorExpr(expr)) return transpileVectorExpr(expr.children, ctx)
+  if (isBinaryOpExpr(expr)) return transpileBinaryOpExpr(expr, ctx)
+  if (isUnaryOpExpr(expr)) return transpileUnaryOpExpr(expr, ctx)
+  if (isTernaryExpr(expr)) return transpileTernaryExpr(expr, ctx)
+  if (isArrayLookupExpr(expr)) return transpileArrayLookupExpr(expr, ctx)
+
+  if (isFunctionCallExpr(expr)) return transpileFunctionCallExprHandler(expr as FunctionCallExpr, ctx)
 
   if (isRangeExpr(expr)) {
     const begin = transpileExpression(expr.begin, ctx)
@@ -486,13 +662,10 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
     return `j$.range(${begin}, ${end}, ${step})`
   }
 
-  if (isGroupingExpr(expr)) {
-    return `(${transpileExpression(expr.inner, ctx)})`
-  }
+  if (isGroupingExpr(expr)) return `(${transpileExpression(expr.inner, ctx)})`
 
   if (isMemberLookupExpr(expr)) {
     const obj = transpileExpression(expr.expr, ctx)
-    // OpenSCAD vector accessor notation: v.x, v.y, v.z -> v[0], v[1], v[2]
     const member = expr.member
     if (member === 'x') return `${obj}[0]`
     if (member === 'y') return `${obj}[1]`
@@ -500,120 +673,8 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
     return `${obj}.${member}`
   }
 
-  if (isLcForExpr(expr)) {
-    // List comprehension: [for (i = [0:10]) i * 2]
-    const forExpr = expr as LcForExpr
-    const args = forExpr.args
-
-    // Build scope for loop variables - they shadow any outer variables with the same name
-    // The loop variables are used directly as arrow function parameters (no renaming needed)
-    const loopScope = new Map<string, string>()
-    for (const arg of args) {
-      loopScope.set(arg.name, arg.name)
-    }
-
-    // Push scope so inner expression sees loop variables with their original names
-    pushScope(ctx, loopScope)
-    const innerExpr = transpileExpression(forExpr.expr, ctx)
-    popScope(ctx)
-
-    // Check if inner expression contains LcIfExpr (needs filtering)
-    const needsFilter = containsIfExpr(forExpr.expr)
-    // Check if inner expression uses 'each' or contains nested 'for' (needs flatMap for flattening)
-    // In OpenSCAD: [for (i=...) for (j=...) expr] produces a flat list, not nested arrays
-    const needsFlatMap = isEachExpr(forExpr.expr) || containsNestedForExpr(forExpr.expr)
-
-    if (args.length === 1) {
-      const varName = args[0].name
-      const range = transpileExpression(args[0].value!, ctx)
-      // Use flatMap when 'each' is used, otherwise map
-      const method = needsFlatMap ? 'flatMap' : 'map'
-      // Wrap range with j$.iter() to handle strings (OpenSCAD: for (c = "str") iterates chars)
-      const mapExpr = `j$.iter(${range}).${method}(${varName} => ${innerExpr})`
-      return needsFilter ? `${mapExpr}.filter(x => x !== undefined)` : mapExpr
-    }
-    // Multiple loop variables: for (i = [0:3], j = [0:2]) becomes nested flatMap/map
-    // Each outer loop uses flatMap to flatten the nested arrays, innermost uses map
-    // If 'each' is used, innermost also uses flatMap
-    let result = innerExpr
-    for (let i = args.length - 1; i >= 0; i--) {
-      const varName = args[i].name
-      const range = transpileExpression(args[i].value!, ctx)
-      const isInnermost = i === args.length - 1
-      const method = isInnermost ? (needsFlatMap ? 'flatMap' : 'map') : 'flatMap'
-      // Wrap range with j$.iter() to handle strings (OpenSCAD: for (c = "str") iterates chars)
-      result = `j$.iter(${range}).${method}(${varName} => ${result})`
-    }
-    return needsFilter ? `${result}.filter(x => x !== undefined)` : result
-  }
-
-  if (isLcForCExpr(expr)) {
-    // C-style for loop: [for (c = 1, i = 0; i <= n; c = c*(...), i = i+1) c]
-    // Transpile to an IIFE with a while loop
-    const forCExpr = expr as LcForCExpr
-    const suffix = `$${ctx.letCounter || 1}`
-    ctx.letCounter = (ctx.letCounter || 1) + 1
-
-    // Build scope incrementally - each initializer can see previous variables
-    // This is important for patterns like: for (i=0, x=f(i), y=f(x); ...)
-    const loopScope = new Map<string, string>()
-    pushScope(ctx, loopScope)
-
-    // Initial assignments - each value is transpiled with current scope,
-    // then the variable is added to scope for subsequent initializers
-    const initParts: string[] = []
-    for (const a of forCExpr.args) {
-      // Transpile value BEFORE adding this var to scope (it shouldn't see itself)
-      const value = transpileExpression(a.value!, ctx)
-      const origName = safeIdentifier(a.name)
-      const suffixedName = `${origName}${suffix}`
-      initParts.push(`let ${suffixedName} = ${value}`)
-      // Now add to scope so subsequent initializers can reference it
-      loopScope.set(origName, suffixedName)
-    }
-    const inits = initParts.join('; ')
-
-    // Scope already pushed above for condition, body, and increment
-
-    // Add increment-only variables to scope BEFORE transpiling condition/body/incr
-    // Increment section may have new variables not in init (e.g., v1, c1, etc.)
-    // and they reference each other (c1 = v1*v1), so all need to be in scope
-    // Also collect increment-only vars to declare them
-    const incrOnlyVars: string[] = []
-    for (const a of forCExpr.incrArgs) {
-      const origName = safeIdentifier(a.name)
-      if (!loopScope.has(origName)) {
-        const suffixedName = `${origName}${suffix}`
-        loopScope.set(origName, suffixedName)
-        incrOnlyVars.push(suffixedName)
-      }
-    }
-    // Declare increment-only variables (they'll be assigned in the while loop)
-    const incrOnlyDecl = incrOnlyVars.length > 0 ? `let ${incrOnlyVars.join(', ')};` : ''
-
-    // Condition
-    const cond = transpileExpression(forCExpr.cond, ctx)
-
-    // Body expression
-    const body = transpileExpression(forCExpr.expr, ctx)
-
-    // Increment assignments - MUST be sequential, not parallel!
-    // In OpenSCAD, later increment expressions can use earlier variables' new values:
-    // e.g., "v1 = path[i+1]-path[i], c1 = v1*v1" - c1 uses the NEW v1
-    // Using destructuring like [v1, c1] = [expr1, expr2] would evaluate expr2
-    // with the OLD v1, which is wrong.
-    const incrParts: string[] = []
-    for (const a of forCExpr.incrArgs) {
-      const value = transpileExpression(a.value!, ctx)
-      const varName = `${safeIdentifier(a.name)}${suffix}`
-      incrParts.push(`${varName} = ${value}`)
-    }
-    const incrUpdate = incrParts.join('; ')
-
-    popScope(ctx)
-
-    return `(() => { const _result${suffix} = []; ${inits}; ${incrOnlyDecl} while (${cond}) { _result${suffix}.push(${body}); ${incrUpdate}; } return _result${suffix}; })()`
-  }
+  if (isLcForExpr(expr)) return transpileLcForExprHandler(expr as LcForExpr, ctx)
+  if (isLcForCExpr(expr)) return transpileLcForCExprHandler(expr as LcForCExpr, ctx)
 
   if (isLcIfExpr(expr)) {
     // Conditional in list comprehension: [for (i = range) if (cond) expr]
