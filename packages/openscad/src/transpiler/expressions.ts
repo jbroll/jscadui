@@ -90,6 +90,63 @@ export function isFunctionLiteralExpr(expr: Expression | null): boolean {
 }
 
 /**
+ * Helper to transpile let bindings (used by both LetExpr and LcLetExpr)
+ * Creates an IIFE with const bindings and returns the body expression result
+ */
+function transpileLetBindings(
+  args: readonly { name: string; value: Expression | null }[],
+  bodyExpr: Expression,
+  ctx: TranspileContext
+): string {
+  const suffix = `$${ctx.letCounter || 1}`
+  ctx.letCounter = (ctx.letCounter || 1) + 1
+
+  const bindings: string[] = []
+  const functionBindings: string[] = []  // Track which bindings are functions (for cleanup)
+
+  // Use incremental scope: each binding value sees only earlier bindings
+  const incrementalScope = new Map<string, string>()
+  pushScope(ctx, incrementalScope)
+
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i]
+    const origName = safeIdentifier(a.name)
+    const newName = `${origName}${suffix}`
+
+    // Check if this is a function literal (for recursive self-reference support)
+    // This includes direct function declarations and ternary expressions returning functions
+    const isFuncLiteral = a.value && isFunctionLiteralExpr(a.value)
+    if (isFuncLiteral) {
+      functionBindings.push(origName)
+      // Register function binding IMMEDIATELY so subsequent bindings can call it
+      ctx.localFunctionBindings.set(origName, newName)
+      // Also add to scope for self-reference
+      incrementalScope.set(origName, newName)
+    }
+
+    // Transpile value - scope lookup will find earlier bindings automatically
+    const value = transpileExpression(a.value!, ctx)
+    bindings.push(`const ${newName} = ${value}`)
+
+    // Add this binding to scope for subsequent bindings
+    if (!isFuncLiteral) {
+      incrementalScope.set(origName, newName)
+    }
+  }
+
+  // Transpile body - all bindings are now in scope
+  const body = transpileExpression(bodyExpr, ctx)
+
+  // Pop scope and clean up function bindings
+  popScope(ctx)
+  for (const origName of functionBindings) {
+    ctx.localFunctionBindings.delete(origName)
+  }
+
+  return `(() => { ${bindings.join('; ')}; return ${body} })()`
+}
+
+/**
  * Check if an expression contains LcIfExpr (used to determine if filtering is needed)
  */
 export function containsIfExpr(expr: Expression | null): boolean {
@@ -574,106 +631,13 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
 
   if (isLetExpr(expr)) {
     // let(x = 1, y = 2) expr -> (() => { const x$1 = 1; const y$1 = 2; return expr })()
-    // Use unique suffix for bindings to avoid temporal dead zone when shadowing
-    const letExpr = expr as LetExpr
-    const suffix = `$${ctx.letCounter || 1}`
-    ctx.letCounter = (ctx.letCounter || 1) + 1
-
-    const bindings: string[] = []
-    const functionBindings: string[] = []  // Track which bindings are functions (for cleanup)
-
-    // Use incremental scope: each binding value sees only earlier bindings
-    const incrementalScope = new Map<string, string>()
-    pushScope(ctx, incrementalScope)
-
-    for (let i = 0; i < letExpr.args.length; i++) {
-      const a = letExpr.args[i]
-      const origName = safeIdentifier(a.name)
-      const newName = `${origName}${suffix}`
-
-      // Check if this is a function literal (for recursive self-reference support)
-      // This includes direct function declarations and ternary expressions returning functions
-      const isFuncLiteral = a.value && isFunctionLiteralExpr(a.value)
-      if (isFuncLiteral) {
-        functionBindings.push(origName)
-        // Register function binding IMMEDIATELY so subsequent bindings can call it
-        ctx.localFunctionBindings.set(origName, newName)
-        // Also add to scope for self-reference
-        incrementalScope.set(origName, newName)
-      }
-
-      // Transpile value - scope lookup will find earlier bindings automatically
-      const value = transpileExpression(a.value!, ctx)
-      bindings.push(`const ${newName} = ${value}`)
-
-      // Add this binding to scope for subsequent bindings
-      if (!isFuncLiteral) {
-        incrementalScope.set(origName, newName)
-      }
-    }
-
-    // Transpile body - all bindings are now in scope
-    const body = transpileExpression(letExpr.expr, ctx)
-
-    // Pop scope and clean up function bindings
-    popScope(ctx)
-    for (const origName of functionBindings) {
-      ctx.localFunctionBindings.delete(origName)
-    }
-
-    return `(() => { ${bindings.join('; ')}; return ${body} })()`
+    return transpileLetBindings((expr as LetExpr).args, (expr as LetExpr).expr, ctx)
   }
 
   if (isLcLetExpr(expr)) {
     // List comprehension let: [for (x = range) let(a = 1) expr]
     // Handled the same way as LetExpr - create IIFE with bindings
-    const lcLetExpr = expr as LcLetExpr
-    const suffix = `$${ctx.letCounter || 1}`
-    ctx.letCounter = (ctx.letCounter || 1) + 1
-
-    const bindings: string[] = []
-    const functionBindings: string[] = []  // Track which bindings are functions
-
-    // Use incremental scope: each binding value sees only earlier bindings
-    const incrementalScope = new Map<string, string>()
-    pushScope(ctx, incrementalScope)
-
-    for (let i = 0; i < lcLetExpr.args.length; i++) {
-      const a = lcLetExpr.args[i]
-      const origName = safeIdentifier(a.name)
-      const newName = `${origName}${suffix}`
-
-      // Check if this is a function literal (for recursive self-reference support)
-      // This includes direct function declarations and ternary expressions returning functions
-      const isFuncLiteral = a.value && isFunctionLiteralExpr(a.value)
-      if (isFuncLiteral) {
-        functionBindings.push(origName)
-        // Register function binding IMMEDIATELY so subsequent bindings can call it
-        ctx.localFunctionBindings.set(origName, newName)
-        // Also add to scope for self-reference
-        incrementalScope.set(origName, newName)
-      }
-
-      // Transpile value - scope lookup will find earlier bindings automatically
-      const value = transpileExpression(a.value!, ctx)
-      bindings.push(`const ${newName} = ${value}`)
-
-      // Add this binding to scope for subsequent bindings
-      if (!isFuncLiteral) {
-        incrementalScope.set(origName, newName)
-      }
-    }
-
-    // Transpile body - all bindings are now in scope
-    const body = transpileExpression(lcLetExpr.expr, ctx)
-
-    // Pop scope and clean up function bindings
-    popScope(ctx)
-    for (const origName of functionBindings) {
-      ctx.localFunctionBindings.delete(origName)
-    }
-
-    return `(() => { ${bindings.join('; ')}; return ${body} })()`
+    return transpileLetBindings((expr as LcLetExpr).args, (expr as LcLetExpr).expr, ctx)
   }
 
   if (isEchoExpr(expr)) {
