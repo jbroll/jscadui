@@ -14,6 +14,7 @@ import type { TranspileContext } from './context.js'
 import { WarningCode, pushScope, popScope } from './context.js'
 import { safeIdentifier } from '../utils/identifiers.js'
 import { transpileExpression, reorderNamedArgs, isFunctionLiteralExpr } from './expressions.js'
+import { getLocation } from '../parser/parse.js'
 import {
   isBuiltinPrimitive,
   isBuiltinTransform,
@@ -38,11 +39,29 @@ import { isStackSpecialVar } from './specialVars.js'
 import { deduplicateArgs } from './utils.js'
 
 /**
+ * Generate a source line comment if source comments are enabled
+ */
+function sourceComment(node: Statement | ModuleDeclarationStmt | FunctionDeclarationStmt, ctx: TranspileContext): string {
+  if (!ctx.options.includeSourceComments) return ''
+
+  const loc = getLocation(node)
+  if (!loc) return ''
+
+  const filename = ctx.options.currentFile || 'input.scad'
+  const shortFilename = filename.split('/').pop() || filename
+  // Parser uses 0-indexed lines, but users expect 1-indexed
+  return `// line ${loc.start.line + 1} in ${shortFilename}\n`
+}
+
+/**
  * Transpile a statement
  */
 export function transpileStatement(stmt: Statement, ctx: TranspileContext): string | null {
+  const comment = sourceComment(stmt, ctx)
+
   if (isModuleInstantiation(stmt)) {
-    return transpileModuleInstantiation(stmt as ModuleInstantiationStmt, ctx)
+    const code = transpileModuleInstantiation(stmt as ModuleInstantiationStmt, ctx)
+    return comment ? `${comment}${code}` : code
   }
 
   if (isBlockStmt(stmt)) {
@@ -138,7 +157,8 @@ export function transpileStatement(stmt: Statement, ctx: TranspileContext): stri
     const cond = transpileExpression(stmt.cond, ctx)
     const thenPart = transpileStatement(stmt.thenBranch, ctx) || 'undefined'
     const elsePart = stmt.elseBranch ? transpileStatement(stmt.elseBranch, ctx) : 'undefined'
-    return `(${cond}) ? (${thenPart}) : (${elsePart})`
+    const code = `(${cond}) ? (${thenPart}) : (${elsePart})`
+    return comment ? `${comment}${code}` : code
   }
 
   if (isNoopStmt(stmt)) {
@@ -925,7 +945,8 @@ export function transpileModuleDeclaration(stmt: ModuleDeclarationStmt, ctx: Tra
   // Curried: (_opts) => (_children) => body
   // Use _$m suffix for modules to separate from function namespace
   // Wrap in pushScope/try/finally/popScope for special var dynamic scoping
-  return `const ${name}_$m = (_opts = {}) => (_children = []) => {
+  const comment = sourceComment(stmt, ctx)
+  return `${comment}const ${name}_$m = (_opts = {}) => (_children = []) => {
   j$.pushScope();
   try {
 ${indentedPreamble.join('\n')}
@@ -967,5 +988,6 @@ export function transpileFunctionDeclaration(stmt: FunctionDeclarationStmt, ctx:
 
   // Use function declaration (not arrow) for hoisting - critical for include bundling
   // Use _$f suffix for functions to separate from module namespace
-  return `function ${name}_$f(${params}) { ${preamble}return ${body}; }`
+  const comment = sourceComment(stmt, ctx)
+  return `${comment}function ${name}_$f(${params}) { ${preamble}return ${body}; }`
 }

@@ -518,7 +518,13 @@ export const polygon = (options = {}) => {
   // Multiple paths (outer + holes)
   // First path is outer contour (CCW), remaining are holes (CW)
   const contours = paths.map((path, idx) => {
-    const contourPoints = path.map(i => points[i])
+    // Check if path elements are indices (numbers) or coordinates (arrays)
+    // Standard OpenSCAD: paths=[[0,1,2]] - indices into points array
+    // BOSL2 regions: paths=[[[0,0],[1,0],[1,1]]] - direct coordinate arrays
+    const isIndices = typeof path[0] === 'number'
+    const contourPoints = isIndices
+      ? path.map(i => points[i])  // indices into points array
+      : path  // direct coordinate arrays
     // Outer contour should be CCW, holes should be CW
     return normalizeWinding(contourPoints, idx === 0)
   })

@@ -113,10 +113,12 @@ export const _polyhedron = ({ points, faces, triangles, convexity: _convexity })
 }
 
 export const _safeUnion = (parts) => {
-  const valid = parts.filter(p => p !== undefined && p !== null)
-  if (valid.length === 0) return undefined
-  if (valid.length === 1) return valid[0]
-  return union(...valid)
+  // Flatten nested arrays and filter out undefined/null values
+  // This handles cases where children return empty arrays or nested undefined values
+  const flattened = parts.flat(Infinity).filter(p => p !== undefined && p !== null)
+  if (flattened.length === 0) return undefined
+  if (flattened.length === 1) return flattened[0]
+  return union(...flattened)
 }
 
 // Re-export direct JSCAD primitives for passthrough

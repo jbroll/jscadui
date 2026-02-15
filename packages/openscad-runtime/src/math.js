@@ -99,6 +99,9 @@ export const _num = v => typeof v === 'number' && !isNaN(v) ? v : undefined
 
 export const _norm = (v) => Math.sqrt(v.reduce((sum, x) => sum + x * x, 0))
 
+// OpenSCAD reverse() - reverses a list
+export const reverse = (arr) => Array.isArray(arr) ? [...arr].reverse() : arr
+
 export const _cross = (a, b) => {
   // OpenSCAD cross() behavior:
   // - For 2D vectors: returns scalar (z-component of 3D cross product)

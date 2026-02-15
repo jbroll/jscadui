@@ -48,7 +48,16 @@ export const _rotate = (params, geo) => {
   const toRad = d => d * Math.PI / 180
   // Handle object form: rotate(a=angle, v=[x,y,z]) or rotate(a=angle)
   if (params && typeof params === 'object' && !Array.isArray(params)) {
-    const angle = toRad(params.a || 0)
+    const a = params.a
+    // If a is an array (Euler angles), handle like rotate([x, y, z])
+    if (Array.isArray(a)) {
+      let result = geo
+      if (a[0] !== 0) result = rotateX(toRad(a[0]), result)
+      if (a[1] !== 0) result = rotateY(toRad(a[1]), result)
+      if (a[2] !== 0) result = rotateZ(toRad(a[2]), result)
+      return result
+    }
+    const angle = toRad(a || 0)
     if (params.v !== undefined) {
       // Axis-angle rotation with explicit axis
       const [x, y, z] = params.v

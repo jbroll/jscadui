@@ -500,7 +500,16 @@ async function main() {
     // Evaluate the code with our custom require
     const exports = {}
     const moduleObj = { exports }
-    const fn = new Function('require', 'module', 'exports', jsCode)
+    // Debug: save transpiled code and patch for logging
+    const fs = await import('fs')
+    fs.writeFileSync('/tmp/transpiled-debug.js', jsCode)
+
+    // Add logging to is_vnf_$f (now disabled - keep for debugging)
+    const patchedCode = jsCode;
+
+    // Debug logging disabled
+
+    const fn = new Function('require', 'module', 'exports', patchedCode)
     fn(customRequire, moduleObj, exports)
 
     // Call main() if it exists

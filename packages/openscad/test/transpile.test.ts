@@ -63,6 +63,52 @@ describe('transpile with options', () => {
     // fn value should appear in the helper
     expect(result.code).toContain('24')
   })
+
+  it('includes source line comments when enabled', () => {
+    const source = `module foo() {
+  cube(10);
+}
+
+function bar(x) = x * 2;
+
+foo();
+translate([5, 0, 0]) cube(5);
+`
+    const result = transpile(parse(source).ast, { includeHeader: false, includeSourceComments: true })
+
+    // Should have line comments for module declaration
+    expect(result.code).toContain('// line 1 in input.scad')
+    // Should have line comment for function declaration
+    expect(result.code).toContain('// line 5 in input.scad')
+    // Should have line comment for module call
+    expect(result.code).toContain('// line 7 in input.scad')
+    // Should have line comment for transform
+    expect(result.code).toContain('// line 8 in input.scad')
+  })
+
+  it('excludes source line comments when disabled', () => {
+    const source = `module foo() {
+  cube(10);
+}
+foo();
+`
+    const result = transpile(parse(source).ast, { includeHeader: false, includeSourceComments: false })
+
+    // Should not have any line comments
+    expect(result.code).not.toContain('// line')
+  })
+
+  it('excludes source line comments by default', () => {
+    const source = `module foo() {
+  cube(10);
+}
+foo();
+`
+    const result = transpile(parse(source).ast, { includeHeader: false })
+
+    // Should not have any line comments by default
+    expect(result.code).not.toContain('// line')
+  })
 })
 
 describe('transpile exports', () => {

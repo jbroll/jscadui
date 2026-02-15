@@ -61,6 +61,8 @@ export interface TranspileOptions {
   currentFile?: string
   // Global $fn override (0 = use OpenSCAD's formula)
   fn?: number
+  // Include source line comments for debugging (e.g., // line 42 in foo.scad)
+  includeSourceComments?: boolean
   // Initial parameter lists (inherited from parent context for include chains)
   initialParamLists?: Map<string, string[]>
   // Initial function parameter lists (inherited from parent context for include chains)
