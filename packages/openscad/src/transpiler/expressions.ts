@@ -565,8 +565,6 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
     const suffix = `$${ctx.letCounter || 1}`
     ctx.letCounter = (ctx.letCounter || 1) + 1
 
-    // Build mapping from original names to suffixed names
-    const nameMap = new Map<string, string>()
     const bindings: string[] = []
     const functionBindings: string[] = []  // Track which bindings are functions (for cleanup)
 
@@ -578,7 +576,6 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
       const a = letExpr.args[i]
       const origName = safeIdentifier(a.name)
       const newName = `${origName}${suffix}`
-      nameMap.set(origName, newName)
 
       // Check if this is a function literal (for recursive self-reference support)
       // This includes direct function declarations and ternary expressions returning functions
@@ -620,8 +617,6 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
     const suffix = `$${ctx.letCounter || 1}`
     ctx.letCounter = (ctx.letCounter || 1) + 1
 
-    // Build mapping from original names to suffixed names
-    const nameMap = new Map<string, string>()
     const bindings: string[] = []
     const functionBindings: string[] = []  // Track which bindings are functions
 
@@ -633,7 +628,6 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
       const a = lcLetExpr.args[i]
       const origName = safeIdentifier(a.name)
       const newName = `${origName}${suffix}`
-      nameMap.set(origName, newName)
 
       // Check if this is a function literal (for recursive self-reference support)
       // This includes direct function declarations and ternary expressions returning functions
