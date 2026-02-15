@@ -168,9 +168,6 @@ export interface TranspileContext {
   includedFunctionNames: Set<string>
   // Track names that have both module and function versions (use __fn suffix for function)
   dualDefinedNames: Set<string>
-  // Track parameters that shadow function names (for current function scope)
-  // Maps original name -> renamed version (e.g., "reverse" -> "_param_reverse")
-  shadowedParameters: Map<string, string>
   // Current indentation level
   indentLevel: number
   // Cache of transpiled files (shared across recursive calls)
@@ -179,8 +176,6 @@ export interface TranspileContext {
   parsedFiles: Map<string, ScadFile>
   // Track files currently being processed (for cycle detection)
   processingFiles: Set<string>
-  // Inherited special variables from parent scopes (for $fn, $fa, $fs propagation)
-  inheritedSpecialVars: { $fn?: string; $fa?: string; $fs?: string }
   // Counter for unique let binding suffixes (to avoid shadowing issues)
   letCounter: number
   // Local let bindings that are functions (maps original name -> renamed suffixed name)
@@ -285,12 +280,10 @@ export function createContext(
     includedModuleNames,
     includedFunctionNames,
     dualDefinedNames,
-    shadowedParameters: new Map(),
     indentLevel: 0,
     transpiledFiles: sharedCache || new Map(),
     parsedFiles: new Map(),
     processingFiles: new Set(),
-    inheritedSpecialVars: {},
     letCounter: 1,
     localFunctionBindings: new Map(),
     scopeBindings: [],
