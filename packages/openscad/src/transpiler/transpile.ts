@@ -680,24 +680,28 @@ function collectSignaturesFromIncludes(
     collectSignaturesFromIncludes(nestedCtx, visitedFiles)
 
     // Copy collected signatures back to main context
-    for (const [name, params] of nestedCtx.moduleParamLists) {
-      if (!ctx.moduleParamLists.has(name)) {
+    // Read from SymbolTable instead of legacy maps
+    for (const name of nestedCtx.symbols.getByKind('module')) {
+      const params = nestedCtx.symbols.getParams(name, 'module')
+      if (params && !ctx.symbols.getParams(name, 'module')) {
         ctx.moduleParamLists.set(name, params)
         ctx.symbols.registerParams(name, 'module', params)
       }
     }
-    for (const [name, params] of nestedCtx.functionParamLists) {
-      if (!ctx.functionParamLists.has(name)) {
+    for (const name of nestedCtx.symbols.getByKind('function')) {
+      const params = nestedCtx.symbols.getParams(name, 'function')
+      if (params && !ctx.symbols.getParams(name, 'function')) {
         ctx.functionParamLists.set(name, params)
         ctx.symbols.registerParams(name, 'function', params)
       }
     }
     // Copy dual-defined names from nested includes
-    for (const name of nestedCtx.dualDefinedNames) {
+    // Read from SymbolTable instead of legacy set
+    for (const name of nestedCtx.symbols.getDualDefined()) {
       ctx.dualDefinedNames.add(name)
       // Also register __fn variant
       const params = ctx.symbols.getParams(name, 'function') || ctx.symbols.getParams(name, 'module')
-      if (params && !ctx.moduleParamLists.has(`${name}__fn`)) {
+      if (params && !ctx.symbols.getParams(`${name}__fn`, 'module')) {
         ctx.moduleParamLists.set(`${name}__fn`, params)
         ctx.symbols.registerParams(`${name}__fn`, 'module', params)
       }
