@@ -303,15 +303,11 @@ function transpileAllStatements(ast: ScadFile, ctx: TranspileContext): Transpile
   const localConstants: string[] = []
   const geometryParts: string[] = []
 
-  // Track which names have both module and function versions
-  const functionNameSet = new Set(ctx.functionNames)
-  const moduleNameSet = new Set(ctx.moduleNames)
-
   // Track dual-defined names (both module and function) for expression transpilation
-  for (const name of functionNameSet) {
-    if (moduleNameSet.has(name)) {
-      ctx.dualDefinedNames.add(name)
-    }
+  // SymbolTable already tracks this, but we need to populate the legacy dualDefinedNames set
+  // for code that hasn't been migrated yet
+  for (const name of ctx.symbols.getDualDefined()) {
+    ctx.dualDefinedNames.add(name)
   }
 
   // Register __fn variants in paramLists so reorderNamedArgs can find them
@@ -431,9 +427,14 @@ function buildOutputCode(
     parts.push('')
   }
 
-  // Exports
-  const moduleExportNames = ctx.moduleNames.map(name => `${name}_$m`)
-  const functionExportNames = ctx.functionNames.map(name => `${name}_$f`)
+  // Exports - use SymbolTable as source of truth
+  // Export only local symbols (defined in this file), not imported (from USE) or included (bundled from INCLUDE)
+  const moduleExportNames = ctx.symbols.getByKind('module')
+    .filter(name => ctx.symbols.isFromSource(name, 'local'))
+    .map(name => `${name}_$m`)
+  const functionExportNames = ctx.symbols.getByKind('function')
+    .filter(name => ctx.symbols.isFromSource(name, 'local'))
+    .map(name => `${name}_$f`)
   const includeReExports = ctx.includeImports.flatMap(imp => imp.symbols)
   const allExports = [...new Set([...moduleExportNames, ...functionExportNames, ...ctx.variableNames, ...includeReExports, 'main'])]
   parts.push(`module.exports = { ${allExports.join(', ')} }`)
@@ -490,12 +491,16 @@ export function transpile(
     collectDeclarations(stmt, ctx)
   }
 
-  // Add local definitions to available symbols
-  for (const name of ctx.moduleNames) {
-    ctx.availableSymbols.add(name)
+  // Add local definitions to available symbols (use SymbolTable as source of truth)
+  for (const name of ctx.symbols.getByKind('module')) {
+    if (ctx.symbols.isFromSource(name, 'local')) {
+      ctx.availableSymbols.add(name)
+    }
   }
-  for (const name of ctx.functionNames) {
-    ctx.availableSymbols.add(name)
+  for (const name of ctx.symbols.getByKind('function')) {
+    if (ctx.symbols.isFromSource(name, 'local')) {
+      ctx.availableSymbols.add(name)
+    }
   }
 
   // Compute directory of current file for resolving relative paths
@@ -526,14 +531,28 @@ export function transpile(
 
   // Add this file to the cache if it has a name
   if (ctx.options.currentFile) {
+    // Build param lists from SymbolTable
+    const moduleParamLists = new Map<string, string[]>()
+    for (const name of ctx.symbols.getByKind('module')) {
+      const params = ctx.symbols.getParams(name, 'module')
+      if (params) moduleParamLists.set(name, params)
+    }
+    const functionParamLists = new Map<string, string[]>()
+    for (const name of ctx.symbols.getByKind('function')) {
+      const params = ctx.symbols.getParams(name, 'function')
+      if (params) functionParamLists.set(name, params)
+    }
+
     ctx.transpiledFiles.set(ctx.options.currentFile, {
       code,
-      exports: allExports.filter(e => e !== 'main'),
-      functionExports: ctx.functionNames.filter(e => e !== 'main'),
-      moduleExports: ctx.moduleNames.filter(e => e !== 'main'),
-      paramLists: new Map(ctx.moduleParamLists),
-      functionParamLists: new Map(ctx.functionParamLists),
-      dualDefinedNames: new Set(ctx.dualDefinedNames),
+      exports: allExports.filter((e: string) => e !== 'main'),
+      functionExports: ctx.symbols.getByKind('function')
+        .filter(name => ctx.symbols.isFromSource(name, 'local') && name !== 'main'),
+      moduleExports: ctx.symbols.getByKind('module')
+        .filter(name => ctx.symbols.isFromSource(name, 'local') && name !== 'main'),
+      paramLists: moduleParamLists,
+      functionParamLists: functionParamLists,
+      dualDefinedNames: new Set(ctx.symbols.getDualDefined()),
       bundledParts,
     })
   }
