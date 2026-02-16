@@ -37,7 +37,7 @@ import {
   isVectorExpr,
   getNodeTypeName,
 } from './ast-types.js'
-import { isStackSpecialVar, commonInheritedVars } from './specialVars.js'
+import { isStackSpecialVar } from './specialVars.js'
 import { deduplicateArgs, mapArgsToParams } from './utils.js'
 
 /**
@@ -761,67 +761,39 @@ function buildLocalVarConversions(
   return lines
 }
 
-/**
- * Build stack updates for system special variables declared as parameters.
- */
-function buildDeclaredStackUpdates(
-  categories: ParameterCategories,
-  ctx: TranspileContext
-): string[] {
-  const lines: string[] = []
-
-  for (const arg of categories.stackSpecial) {
-    const varName = arg.name
-    if (arg.value) {
-      const defaultVal = transpileExpression(arg.value, ctx)
-      lines.push(`  j$.setSpecialVar('${varName}', $$sv['${varName}'] !== undefined ? $$sv['${varName}'] : ${defaultVal});`)
-    } else {
-      lines.push(`  if ($$sv['${varName}'] !== undefined) j$.setSpecialVar('${varName}', $$sv['${varName}']);`)
-    }
-  }
-
-  return lines
-}
-
-/**
- * Build stack updates for common inherited special variables not declared as parameters.
- * These variables ($fn, $fa, $fs) are automatically inherited even when not explicit.
- */
-function buildInheritedStackUpdates(categories: ParameterCategories): string[] {
-  const lines: string[] = []
-
-  for (const varName of commonInheritedVars) {
-    if (categories.stackSpecial.some(a => a.name === varName)) continue
-    lines.push(`  if ($$sv['${varName}'] !== undefined) j$.setSpecialVar('${varName}', $$sv['${varName}']);`)
-  }
-
-  return lines
-}
+// Note: buildDeclaredStackUpdates and buildInheritedStackUpdates were removed
+// Special variables are now passed directly to j$.withScope() in transpileModuleDeclaration()
 
 /**
  * Build destructuring and default assignments for options-object style module parameters.
- * Returns lines to be inserted at the start of the module body.
+ * Returns lines to be inserted at the start of the module body, plus a flag indicating
+ * if special variables need scoping.
  *
- * Uses stack-based dynamic scoping for special variables ($fn, $fa, $fs, etc.)
- * - Special vars from options are set on the scope stack
- * - pushScope() is called before this, popScope() after body (in transpileModuleDeclaration)
+ * With explicit scoping, special vars are passed directly to j$.withScope() instead of
+ * using pushScope/setSpecialVar/popScope pattern.
  *
  * Example output for module(a, b=5, c):
  *   let { a, b, c, ...$$sv } = _opts;
  *   if (a === j$.EXPLICIT_UNDEF) a = undefined;
  *   b = b !== undefined && b !== j$.EXPLICIT_UNDEF ? b : 5;
- *   if ($$sv['$fn'] !== undefined) j$.setSpecialVar('$fn', $$sv['$fn']);
+ *   // $$sv will be passed to j$.withScope() if hasSpecialVars is true
  */
-function buildOptionsDestructuring(args: AssignmentNode[], ctx: TranspileContext): string[] {
+function buildOptionsDestructuring(args: AssignmentNode[], ctx: TranspileContext): { lines: string[], hasSpecialVars: boolean } {
   const uniqueArgs = deduplicateArgs(args)
   const categories = categorizeParameters(uniqueArgs)
 
-  return [
+  // We always use withScope($$sv) to pass through any special variables that
+  // the caller might provide, even if not declared as parameters. This maintains
+  // OpenSCAD semantics where special vars are implicitly passed to all modules.
+  // Example: foo(x=20, $fn=32) passes $fn even if foo doesn't declare it
+  const hasSpecialVars = true
+
+  const lines = [
     ...buildDestructurePattern(categories, ctx),
     ...buildLocalVarConversions(categories, ctx),
-    ...buildDeclaredStackUpdates(categories, ctx),
-    ...buildInheritedStackUpdates(categories),
   ]
+
+  return { lines, hasSpecialVars }
 }
 
 /**
@@ -955,7 +927,7 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
     `j$.safeUnion([\n${indent}  ${geomParts.join(',\n' + indent + '  ')}\n${indent}])`
   if (geomParts.length > 1) ctx.codeGen.usedHelpers.add('safeUnion')
 
-  // Special variable scoping is handled by pushScope/popScope in the module wrapper
+  // Special variable scoping is handled by j$.withScope() in the module wrapper (if special vars exist)
   bodyParts.push(`${indent}return ${returnExpr}`)
 
   // Clean up local bindings (they're scoped to this module body)
@@ -983,23 +955,29 @@ export function transpileModuleDeclaration(stmt: ModuleDeclarationStmt, ctx: Tra
   const bodyParts = buildModuleBody(stmt.stmt, ctx, '    ', paramNames)
 
   // Build options destructuring preamble
-  const optionsPreamble = buildOptionsDestructuring(stmt.definitionArgs, ctx)
-  // Indent preamble for try block
-  const indentedPreamble = optionsPreamble.map(line => '  ' + line)
+  const { lines: optionsPreamble, hasSpecialVars } = buildOptionsDestructuring(stmt.definitionArgs, ctx)
 
-  // Curried: (_opts) => (_children) => body
-  // Use _$m suffix for modules to separate from function namespace
-  // Wrap in pushScope/try/finally/popScope for special var dynamic scoping
   const comment = sourceComment(stmt, ctx)
-  const code = `${comment}const ${name}_$m = (_opts = {}) => (_children = []) => {
-  j$.pushScope();
-  try {
+
+  let code: string
+  if (hasSpecialVars) {
+    // Wrap body in j$.withScope() for special variable scoping
+    // Indent preamble for withScope callback
+    const indentedPreamble = optionsPreamble.map(line => '  ' + line)
+    code = `${comment}const ${name}_$m = (_opts = {}) => (_children = []) => {
+${indentedPreamble.join('\n')}
+  return j$.withScope($$sv, () => {
+${bodyParts.join('\n')}
+  });
+}`
+  } else {
+    // No special variables - simpler code without scope wrapper
+    const indentedPreamble = optionsPreamble.map(line => '  ' + line)
+    code = `${comment}const ${name}_$m = (_opts = {}) => (_children = []) => {
 ${indentedPreamble.join('\n')}
 ${bodyParts.join('\n')}
-  } finally {
-    j$.popScope();
-  }
 }`
+  }
 
   // Track this declaration for AST-based bundling
   const paramNamesArray = stmt.definitionArgs.map(arg => arg.name)
