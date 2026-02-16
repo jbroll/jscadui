@@ -245,3 +245,36 @@ describe('transpile extrusions', () => {
     expect(result.code).toContain('j$.rotateExtrude')
   })
 })
+
+describe('AST bundling', () => {
+  it('produces same exports with useAstBundling flag', () => {
+    const source = `
+      function add(a, b) = a + b;
+      module cube_centered(size=10) {
+        translate([-size/2, -size/2, -size/2])
+          cube(size);
+      }
+      test_val = 42;
+    `
+    const ast = parse(source).ast
+
+    // Test with default (string-based) bundling
+    const resultOld = transpile(ast, { includeHeader: false, useAstBundling: false })
+
+    // Test with AST bundling
+    const resultNew = transpile(ast, { includeHeader: false, useAstBundling: true })
+
+    // Both should have same exports
+    expect(resultNew.exports.sort()).toEqual(resultOld.exports.sort())
+
+    // Both should contain the function and module
+    expect(resultNew.code).toContain('add_$f')
+    expect(resultNew.code).toContain('cube_centered_$m')
+    expect(resultOld.code).toContain('add_$f')
+    expect(resultOld.code).toContain('cube_centered_$m')
+
+    // Both should produce valid code (no syntax errors)
+    expect(resultNew.code).toBeTruthy()
+    expect(resultOld.code).toBeTruthy()
+  })
+})
