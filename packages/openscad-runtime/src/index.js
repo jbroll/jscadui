@@ -159,6 +159,28 @@ const j$ = {
   resetScope,
   getSpecialVar,
   setSpecialVar,
+  /**
+   * Execute a function with a temporary scope of special variables.
+   * Automatically handles pushScope/setSpecialVar/popScope with proper cleanup.
+   *
+   * @param {Object} vars - Object mapping variable names to values (e.g., { '$fn': 32 })
+   * @param {Function} fn - Function to execute within the scope
+   * @returns {*} The return value of the function
+   *
+   * @example
+   * j$.withScope({ '$fn': 32, '$fa': 2 }, () => j$.sphere({ r: 10 }))
+   */
+  withScope(vars, fn) {
+    pushScope()
+    for (const [name, value] of Object.entries(vars)) {
+      setSpecialVar(name, value)
+    }
+    try {
+      return fn()
+    } finally {
+      popScope()
+    }
+  },
   // Resolution vars
   $fn, $fa, $fs,
   set$fn, set$fa, set$fs,

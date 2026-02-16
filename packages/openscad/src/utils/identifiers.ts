@@ -13,6 +13,14 @@ const JS_RESERVED = new Set([
 ])
 
 /**
+ * Check if a string is a valid JavaScript identifier
+ * (letters, digits, underscore, dollar sign; can't start with digit)
+ */
+export function isValidIdentifier(name: string): boolean {
+  return /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(name)
+}
+
+/**
  * Ensure an identifier is safe for JavaScript
  * Renames reserved words by prefixing with underscore
  */
@@ -81,4 +89,16 @@ export function replaceIdentifier(
 export function getFileDir(filePath: string | undefined): string {
   if (!filePath) return ''
   return filePath.replace(/[^/\\]*$/, '')
+}
+
+/**
+ * Get the filename portion of a file path (basename).
+ * Handles both forward and backslash separators.
+ *
+ * @param filePath - The file path (optional, defaults to 'input.scad')
+ * @returns The filename portion (last component after slash)
+ */
+export function getShortFilename(filePath: string | undefined): string {
+  if (!filePath) return 'input.scad'
+  return filePath.split(/[/\\]/).pop() || filePath
 }

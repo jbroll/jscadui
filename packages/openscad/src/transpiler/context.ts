@@ -75,10 +75,6 @@ export interface TranspileOptions {
   initialDualDefinedNames?: Set<string>
   // Initial imported functions (inherited from parent context for parameter shadowing detection)
   initialImportedFunctions?: Set<string>
-  // Initial included module names (inherited from parent context for builtin override detection)
-  initialIncludedModuleNames?: Set<string>
-  // Initial included function names (inherited from parent context for suffix selection)
-  initialIncludedFunctionNames?: Set<string>
 }
 
 export interface TranspileResult {
@@ -148,14 +144,6 @@ export interface TranspileContext {
   includeImports: UseImport[]
   // Track top-level variable assignments for export
   variableNames: string[]
-  // Track all available symbols (local + imported)
-  availableSymbols: Set<string>
-  // Track module names from all includes (for builtin override detection)
-  // This is populated during the pre-pass and shared across all nested transpilations
-  includedModuleNames: Set<string>
-  // Track function names from all includes (for suffix selection)
-  // Functions in included files should use _$f suffix, not _$m
-  includedFunctionNames: Set<string>
   // Unified symbol table - single source of truth for symbols and params
   symbols: SymbolTable
   // Current indentation level
@@ -187,11 +175,6 @@ export function createContext(
 ): TranspileContext {
   const opts = { ...defaultOptions, ...options }
 
-  // Initialize from initial values if provided (for include chains)
-  // Use Set/Map constructors to copy initial values
-  const includedModuleNames = new Set(options.initialIncludedModuleNames || [])
-  const includedFunctionNames = new Set(options.initialIncludedFunctionNames || [])
-
   // Initialize SymbolTable with initial params
   const symbols = new SymbolTable()
   if (options.initialParamLists) {
@@ -215,9 +198,6 @@ export function createContext(
     useImports: [],
     includeImports: [],
     variableNames: [],
-    availableSymbols: new Set(),
-    includedModuleNames,
-    includedFunctionNames,
     symbols,
     indentLevel: 0,
     transpiledFiles: sharedCache || new Map(),

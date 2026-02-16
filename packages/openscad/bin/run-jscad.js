@@ -30,19 +30,24 @@ Usage:
   run-jscad <input.js> [options]      Run JSCAD directly
 
 Options:
-  -o, --output <file>     Write STL output to file
-  --volume                Print volume of the geometry
-  --bbox                  Print bounding box
-  --mesh-stats            Print mesh statistics (vertices, triangles)
-  --source-comments       Include source line comments in transpiled code
-  -h, --help              Show this help
-  -v, --version           Show version
+  -o, --output <file>       Write STL output to file
+  --volume                  Print volume of the geometry
+  --bbox                    Print bounding box
+  --mesh-stats              Print mesh statistics (vertices, triangles)
+  --source-comments         Include source line comments in transpiled code
+  --lib-path <path>         Add OpenSCAD library search path (can be repeated)
+  --debug-transpile         Print transpiled JavaScript to stderr
+  --patch-file <file>       Load patched transpiled code from file (debug)
+  -h, --help                Show this help
+  -v, --version             Show version
 
 Examples:
-  run-jscad model.scad -o model.stl             Transpile and export to STL
-  run-jscad model.js -o model.stl               Run JSCAD and export to STL
-  run-jscad model.scad --volume                 Print volume for comparison
-  run-jscad model.scad --source-comments        Transpile with line comments
+  run-jscad model.scad -o model.stl                    Transpile and export to STL
+  run-jscad model.js -o model.stl                      Run JSCAD and export to STL
+  run-jscad model.scad --volume                        Print volume for comparison
+  run-jscad model.scad --source-comments               Transpile with line comments
+  run-jscad model.scad --lib-path ~/mylibs --lib-path /usr/share/openscad
+  run-jscad model.scad --debug-transpile               Show transpiled code
 `)
 }
 
@@ -54,6 +59,9 @@ function parseArgs(args) {
     bbox: false,
     meshStats: false,
     sourceComments: false,
+    libPaths: [],
+    debugTranspile: false,
+    patchFile: null,
     help: false,
     version: false,
     fn: 0,  // Global $fn override
@@ -75,12 +83,20 @@ function parseArgs(args) {
       options.meshStats = true
     } else if (arg === '--source-comments') {
       options.sourceComments = true
+    } else if (arg === '--debug-transpile') {
+      options.debugTranspile = true
     } else if (arg === '-o' || arg === '--output') {
       i++
       options.output = args[i]
     } else if (arg === '--fn') {
       i++
       options.fn = parseInt(args[i], 10)
+    } else if (arg === '--lib-path') {
+      i++
+      options.libPaths.push(args[i])
+    } else if (arg === '--patch-file') {
+      i++
+      options.patchFile = args[i]
     } else if (!arg.startsWith('-')) {
       options.input = arg
     } else {
@@ -304,8 +320,10 @@ async function createRuntime() {
 /**
  * Get OpenSCAD library paths
  * Follows OpenSCAD's convention: ~/.local/share/OpenSCAD/libraries on Linux
+ *
+ * @param {string[]} customPaths - Additional library paths from --lib-path options
  */
-function getLibraryPaths() {
+function getLibraryPaths(customPaths = []) {
   const paths = []
   const home = process.env.HOME || process.env.USERPROFILE
   if (home) {
@@ -314,10 +332,8 @@ function getLibraryPaths() {
     // Alternative: ~/Documents/OpenSCAD/libraries
     paths.push(join(home, 'Documents', 'OpenSCAD', 'libraries'))
   }
-  // Allow OPENSCADPATH environment variable
-  if (process.env.OPENSCADPATH) {
-    paths.push(...process.env.OPENSCADPATH.split(':'))
-  }
+  // Add custom library paths from CLI options
+  paths.push(...customPaths)
   return paths
 }
 
@@ -329,8 +345,8 @@ function getLibraryPaths() {
  * Tracks the actual resolved paths so that nested dependencies (like BOSL/math.scad
  * included by BOSL/transforms.scad) resolve correctly from the library path.
  */
-function createFileResolver(fileDir) {
-  const libraryPaths = getLibraryPaths()
+function createFileResolver(fileDir, customLibPaths = []) {
+  const libraryPaths = getLibraryPaths(customLibPaths)
   // Map logical path -> actual filesystem path for files resolved from library
   const resolvedPaths = new Map()
 
@@ -377,7 +393,7 @@ function createFileResolver(fileDir) {
 /**
  * Transpile OpenSCAD source and return code + in-memory module cache
  */
-function transpileScad(source, fileName, fileDir, fn = 0, sourceComments = false) {
+function transpileScad(source, fileName, fileDir, fn = 0, sourceComments = false, customLibPaths = []) {
   const { ast, errors } = parse(source)
 
   if (errors.length > 0) {
@@ -385,7 +401,7 @@ function transpileScad(source, fileName, fileDir, fn = 0, sourceComments = false
   }
 
   const result = transpile(ast, {
-    fileResolver: createFileResolver(fileDir),
+    fileResolver: createFileResolver(fileDir, customLibPaths),
     currentFile: fileName,
     fn: fn,
     includeSourceComments: sourceComments,
@@ -448,10 +464,10 @@ async function main() {
     if (isScad) {
       const fileDir = dirname(inputPath)
       const fileName = basename(inputPath)
-      const transpiled = transpileScad(source, fileName, fileDir, options.fn, options.sourceComments)
+      const transpiled = transpileScad(source, fileName, fileDir, options.fn, options.sourceComments, options.libPaths)
       jsCode = transpiled.code
       moduleCache = transpiled.moduleCache
-      if (process.env.DEBUG_TRANSPILE) {
+      if (options.debugTranspile) {
         console.error('=== MAIN FILE ===')
         console.error(jsCode)
         for (const [name, code] of moduleCache) {
@@ -460,9 +476,9 @@ async function main() {
         }
       }
       // Allow loading patched code from a file for debugging
-      if (process.env.DEBUG_PATCH_FILE) {
-        jsCode = readFileSync(process.env.DEBUG_PATCH_FILE, 'utf8')
-        console.error('Loaded patched code from:', process.env.DEBUG_PATCH_FILE)
+      if (options.patchFile) {
+        jsCode = readFileSync(options.patchFile, 'utf8')
+        console.error('Loaded patched code from:', options.patchFile)
       }
     } else {
       jsCode = source

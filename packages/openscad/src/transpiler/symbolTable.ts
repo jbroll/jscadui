@@ -1,12 +1,8 @@
 /**
  * Unified symbol table for tracking module, function, and variable definitions.
  *
- * This consolidates the multiple overlapping Sets in TranspileContext:
- * - moduleNames, functionNames, variableNames (local definitions)
- * - availableModules, availableFunctions, availableSymbols (all sources)
- * - importedFunctions, importedModules (from use statements)
- * - includedModuleNames, includedFunctionNames (from include statements)
- * - dualDefinedNames (both module and function with same name)
+ * Single source of truth for all symbol information, consolidating what were previously
+ * multiple overlapping Sets and Maps scattered across TranspileContext.
  *
  * Design principles:
  * 1. Single source of truth for each symbol
@@ -36,20 +32,39 @@ export interface SymbolInfo {
 }
 
 /**
+ * Information about a dual-defined symbol (both module and function)
+ */
+export interface DualSymbolInfo {
+  isDual: true
+  module: SymbolInfo
+  function: SymbolInfo
+}
+
+/**
+ * Internal storage type - either a single symbol or dual symbol
+ */
+type StoredSymbol = SymbolInfo | DualSymbolInfo
+
+/**
+ * Type guard to check if a symbol is dual-defined
+ */
+function isDualSymbol(symbol: StoredSymbol): symbol is DualSymbolInfo {
+  return 'isDual' in symbol && symbol.isDual === true
+}
+
+/**
  * Unified symbol table for tracking definitions during transpilation.
  *
  * Handles the case where a name can have both a module AND function version
  * (common in BOSL2 where many modules also have function forms).
+ *
+ * Internal storage uses a union type (StoredSymbol) that can represent
+ * either a single-kind symbol or a dual-defined symbol, eliminating the
+ * need for separate storage structures and swap logic.
  */
 export class SymbolTable {
-  /** Primary symbol storage - for names that are ONLY one kind */
-  private symbols = new Map<string, SymbolInfo>()
-
-  /** Names that have both module and function versions */
-  private dualDefined = new Set<string>()
-
-  /** Secondary storage for the function version when a name is dual-defined */
-  private functionVersions = new Map<string, SymbolInfo>()
+  /** Symbol storage - single Map for both regular and dual-defined symbols */
+  private symbols = new Map<string, StoredSymbol>()
 
   /**
    * Param-only storage for cases where params are needed for argument reordering
@@ -69,24 +84,35 @@ export class SymbolTable {
     const existing = this.symbols.get(name)
 
     if (existing) {
-      // Check if this creates a dual-defined name (module + function)
-      if (existing.kind !== info.kind) {
-        if (
-          (existing.kind === 'module' && info.kind === 'function') ||
-          (existing.kind === 'function' && info.kind === 'module')
-        ) {
-          this.dualDefined.add(name)
-          // Store function version separately
-          if (info.kind === 'function') {
-            this.functionVersions.set(name, info)
-          } else {
-            // Existing is function, new is module - swap storage
-            this.functionVersions.set(name, existing)
-            this.symbols.set(name, info)
-          }
+      // If already dual-defined, update the appropriate version
+      if (isDualSymbol(existing)) {
+        if (info.kind === 'module') {
+          existing.module = info
+          return
+        } else if (info.kind === 'function') {
+          existing.function = info
           return
         }
-        // Different incompatible kinds - replace (variables can be shadowed)
+        // Variable kind falls through to replace the whole entry below
+      } else {
+        // Single-kind symbol exists
+        // Check if this creates a dual-defined name (module + function)
+        if (existing.kind !== info.kind) {
+          if (
+            (existing.kind === 'module' && info.kind === 'function') ||
+            (existing.kind === 'function' && info.kind === 'module')
+          ) {
+            // Create dual-defined entry - no swap logic needed!
+            const dual: DualSymbolInfo = {
+              isDual: true,
+              module: existing.kind === 'module' ? existing : info,
+              function: existing.kind === 'function' ? existing : info,
+            }
+            this.symbols.set(name, dual)
+            return
+          }
+          // Different incompatible kinds - replace (variables can be shadowed)
+        }
       }
     }
 
@@ -100,10 +126,15 @@ export class SymbolTable {
    * @param preferKind - For dual-defined names, which kind to return
    */
   lookup(name: string, preferKind?: 'module' | 'function'): SymbolInfo | undefined {
-    if (this.dualDefined.has(name) && preferKind === 'function') {
-      return this.functionVersions.get(name)
+    const stored = this.symbols.get(name)
+    if (!stored) return undefined
+
+    if (isDualSymbol(stored)) {
+      // For dual-defined, return the preferred kind (default to module)
+      return preferKind === 'function' ? stored.function : stored.module
     }
-    return this.symbols.get(name)
+
+    return stored
   }
 
   /**
@@ -117,26 +148,38 @@ export class SymbolTable {
    * Check if a name is dual-defined (has both module and function versions)
    */
   isDualDefined(name: string): boolean {
-    return this.dualDefined.has(name)
+    const stored = this.symbols.get(name)
+    return stored ? isDualSymbol(stored) : false
   }
 
   /**
    * Check if a name is defined as a specific kind
    */
   isKind(name: string, kind: SymbolKind): boolean {
-    const info = this.symbols.get(name)
-    if (info?.kind === kind) return true
-    // Also check function versions for dual-defined names
-    if (kind === 'function' && this.functionVersions.has(name)) return true
-    return false
+    const stored = this.symbols.get(name)
+    if (!stored) return false
+
+    if (isDualSymbol(stored)) {
+      // Check if either version matches
+      return stored.module.kind === kind || stored.function.kind === kind
+    }
+
+    return stored.kind === kind
   }
 
   /**
    * Check if a name came from a specific source
    */
   isFromSource(name: string, source: SymbolSource): boolean {
-    const info = this.symbols.get(name)
-    return info?.source === source
+    const stored = this.symbols.get(name)
+    if (!stored) return false
+
+    if (isDualSymbol(stored)) {
+      // For dual-defined, check module version's source
+      return stored.module.source === source
+    }
+
+    return stored.source === source
   }
 
   /**
@@ -144,17 +187,14 @@ export class SymbolTable {
    */
   getByKind(kind: SymbolKind): string[] {
     const result: string[] = []
-    for (const [name, info] of this.symbols) {
-      if (info.kind === kind) {
-        result.push(name)
-      }
-    }
-    // Add function versions for dual-defined names
-    if (kind === 'function') {
-      for (const name of this.functionVersions.keys()) {
-        if (!result.includes(name)) {
+    for (const [name, stored] of this.symbols) {
+      if (isDualSymbol(stored)) {
+        // For dual-defined, check if either version matches
+        if (stored.module.kind === kind || stored.function.kind === kind) {
           result.push(name)
         }
+      } else if (stored.kind === kind) {
+        result.push(name)
       }
     }
     return result
@@ -165,8 +205,13 @@ export class SymbolTable {
    */
   getBySource(source: SymbolSource): string[] {
     const result: string[] = []
-    for (const [name, info] of this.symbols) {
-      if (info.source === source) {
+    for (const [name, stored] of this.symbols) {
+      if (isDualSymbol(stored)) {
+        // For dual-defined, check module version's source
+        if (stored.module.source === source) {
+          result.push(name)
+        }
+      } else if (stored.source === source) {
         result.push(name)
       }
     }
@@ -177,7 +222,13 @@ export class SymbolTable {
    * Get all dual-defined names
    */
   getDualDefined(): string[] {
-    return Array.from(this.dualDefined)
+    const result: string[] = []
+    for (const [name, stored] of this.symbols) {
+      if (isDualSymbol(stored)) {
+        result.push(name)
+      }
+    }
+    return result
   }
 
   /**
@@ -222,16 +273,19 @@ export class SymbolTable {
    * Set parameter list for a defined symbol
    */
   setParams(name: string, params: string[], kind?: 'module' | 'function'): void {
-    if (this.dualDefined.has(name) && kind === 'function') {
-      const info = this.functionVersions.get(name)
-      if (info) {
-        info.params = params
+    const stored = this.symbols.get(name)
+    if (!stored) return
+
+    if (isDualSymbol(stored)) {
+      // For dual-defined, update the specified kind
+      if (kind === 'function') {
+        stored.function.params = params
+      } else {
+        stored.module.params = params
       }
     } else {
-      const info = this.symbols.get(name)
-      if (info) {
-        info.params = params
-      }
+      // Single-kind symbol
+      stored.params = params
     }
   }
 
@@ -240,14 +294,19 @@ export class SymbolTable {
    */
   clone(): SymbolTable {
     const copy = new SymbolTable()
-    for (const [name, info] of this.symbols) {
-      copy.symbols.set(name, { ...info, params: info.params ? [...info.params] : undefined })
-    }
-    for (const name of this.dualDefined) {
-      copy.dualDefined.add(name)
-    }
-    for (const [name, info] of this.functionVersions) {
-      copy.functionVersions.set(name, { ...info, params: info.params ? [...info.params] : undefined })
+    for (const [name, stored] of this.symbols) {
+      if (isDualSymbol(stored)) {
+        // Deep copy dual symbol
+        const dualCopy: DualSymbolInfo = {
+          isDual: true,
+          module: { ...stored.module, params: stored.module.params ? [...stored.module.params] : undefined },
+          function: { ...stored.function, params: stored.function.params ? [...stored.function.params] : undefined },
+        }
+        copy.symbols.set(name, dualCopy)
+      } else {
+        // Deep copy single symbol
+        copy.symbols.set(name, { ...stored, params: stored.params ? [...stored.params] : undefined })
+      }
     }
     // Copy param-only storage
     for (const [name, params] of this.moduleParams) {
@@ -263,15 +322,14 @@ export class SymbolTable {
    * Merge symbols from another table (for imports/includes)
    */
   merge(other: SymbolTable): void {
-    for (const [name, info] of other.symbols) {
-      this.define(name, { ...info, params: info.params ? [...info.params] : undefined })
-    }
-    // Handle dual-defined from other table
-    for (const name of other.dualDefined) {
-      const funcInfo = other.functionVersions.get(name)
-      if (funcInfo && !this.functionVersions.has(name)) {
-        this.dualDefined.add(name)
-        this.functionVersions.set(name, { ...funcInfo, params: funcInfo.params ? [...funcInfo.params] : undefined })
+    for (const [name, stored] of other.symbols) {
+      if (isDualSymbol(stored)) {
+        // Define both module and function versions
+        this.define(name, { ...stored.module, params: stored.module.params ? [...stored.module.params] : undefined })
+        this.define(name, { ...stored.function, params: stored.function.params ? [...stored.function.params] : undefined })
+      } else {
+        // Define single symbol
+        this.define(name, { ...stored, params: stored.params ? [...stored.params] : undefined })
       }
     }
     // Merge param-only storage

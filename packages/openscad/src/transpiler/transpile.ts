@@ -82,11 +82,8 @@ function processUseStatements(ctx: TranspileContext, currentFileDir: string): vo
   for (const useImport of ctx.useImports) {
     // Compute resolved path relative to root
     useImport.resolvedPath = currentFileDir + useImport.filename
-    const symbols = transpileAndCacheDependency(useImport.filename, ctx, false /* use */)
+    const symbols = transpileAndCacheDependency(useImport.filename, ctx)
     useImport.symbols = symbols
-    for (const sym of symbols) {
-      ctx.availableSymbols.add(sym)
-    }
     // Import symbols from the cached file
     // NOTE: use imports don't define modules in SymbolTable (accessed via require())
     const cachedFile = ctx.transpiledFiles.get(useImport.resolvedPath)
@@ -110,11 +107,8 @@ function processIncludeStatements(ctx: TranspileContext, currentFileDir: string)
   for (const includeImport of ctx.includeImports) {
     // Compute resolved path relative to root
     includeImport.resolvedPath = currentFileDir + includeImport.filename
-    const symbols = transpileAndCacheDependency(includeImport.filename, ctx, true /* include */)
+    const symbols = transpileAndCacheDependency(includeImport.filename, ctx)
     includeImport.symbols = symbols
-    for (const sym of symbols) {
-      ctx.availableSymbols.add(sym)
-    }
     // Get bundled parts for inlining
     const cachedFile = ctx.transpiledFiles.get(includeImport.resolvedPath)
     if (cachedFile?.bundledParts) {
@@ -172,10 +166,6 @@ function propagateUseImportsFromInclude(ctx: TranspileContext, parts: BundledPar
     // Add to useImports if not already present (by resolved path)
     if (!ctx.useImports.some(u => u.resolvedPath === useImp.resolvedPath)) {
       ctx.useImports.push(useImp)
-      // Also add symbols to available symbols
-      for (const sym of useImp.symbols) {
-        ctx.availableSymbols.add(sym)
-      }
       // Import symbols from the propagated use import
       const usedFile = ctx.transpiledFiles.get(useImp.resolvedPath)
       importSymbolsFromFile(usedFile, ctx, {
@@ -444,17 +434,7 @@ export function transpile(
     collectDeclarations(stmt, ctx)
   }
 
-  // Add local definitions to available symbols (use SymbolTable as source of truth)
-  for (const name of ctx.symbols.getByKind('module')) {
-    if (ctx.symbols.isFromSource(name, 'local')) {
-      ctx.availableSymbols.add(name)
-    }
-  }
-  for (const name of ctx.symbols.getByKind('function')) {
-    if (ctx.symbols.isFromSource(name, 'local')) {
-      ctx.availableSymbols.add(name)
-    }
-  }
+  // Local definitions are tracked in SymbolTable - no need to maintain a separate Set
 
   // Compute directory of current file for resolving relative paths
   const currentFileDir = getFileDir(ctx.options.currentFile)
@@ -575,20 +555,16 @@ function collectSignaturesFromIncludes(
       if (isModuleDeclaration(stmt)) {
         const name = safeIdentifier(stmt.name)
         fileModuleNames.add(name)
-        // Track this module name globally (for builtin override detection)
-        ctx.includedModuleNames.add(name)
         // Deduplicate params to match how transpileParamsList handles the definition
         const params = deduplicateParamNames(stmt.definitionArgs || [])
-        // SymbolTable stores params when defining symbols
+        // SymbolTable tracks included symbols via source field
         ctx.symbols.define(name, { kind: 'module', source: 'included', params })
       } else if (isFunctionDeclaration(stmt)) {
         const name = safeIdentifier(stmt.name)
         fileFunctionNames.add(name)
-        // Track this function name globally (for suffix selection)
-        ctx.includedFunctionNames.add(name)
         // Deduplicate params to match how transpileParamsList handles the definition
         const params = deduplicateParamNames(stmt.definitionArgs || [])
-        // SymbolTable stores params when defining symbols
+        // SymbolTable tracks included symbols via source field
         ctx.symbols.define(name, { kind: 'function', source: 'included', params })
       }
     }
@@ -628,18 +604,7 @@ function collectSignaturesFromIncludes(
         ctx.symbols.registerParams(name, 'function', params)
       }
     }
-    // Copy dual-defined names from nested includes
-    // The SymbolTable.merge() already handles dual-defined names correctly
-    // No additional registration needed
-    // Copy included function names from nested includes
-    for (const name of nestedCtx.includedFunctionNames) {
-      ctx.includedFunctionNames.add(name)
-    }
-    // Copy included module names from nested includes
-    for (const name of nestedCtx.includedModuleNames) {
-      ctx.includedModuleNames.add(name)
-    }
-    // Merge SymbolTable from nested context
+    // Merge SymbolTable from nested context (handles dual-defined names and included symbols)
     ctx.symbols.merge(nestedCtx.symbols)
   }
 }
@@ -647,11 +612,8 @@ function collectSignaturesFromIncludes(
 /**
  * Transpile a dependency file and cache the result
  * Returns the exported symbol names
- * @param isInclude - true for include statements, false for use statements
- *   Include files get access to includedModuleNames (bundled together)
- *   Use files don't (they run in separate scope via require)
  */
-function transpileAndCacheDependency(filename: string, ctx: TranspileContext, isInclude: boolean = false): string[] {
+function transpileAndCacheDependency(filename: string, ctx: TranspileContext): string[] {
   const fileResolver = ctx.options.fileResolver
   if (!fileResolver) {
     // No file resolver - can't process dependencies
@@ -711,8 +673,6 @@ function transpileAndCacheDependency(filename: string, ctx: TranspileContext, is
   // Recursively transpile this file (sharing the cache)
   // Use resolved path as currentFile so nested dependencies resolve correctly
   // Pass current paramLists, dualDefinedNames, and importedFunctions so sibling includes can resolve calls
-  // For include files, pass includedModuleNames because those are bundled together
-  // For use files, don't pass them because they run in separate scope via require()
 
   // Build param lists and sets from SymbolTable to pass to nested context
   const moduleParamLists = new Map<string, string[]>()
@@ -740,8 +700,6 @@ function transpileAndCacheDependency(filename: string, ctx: TranspileContext, is
     initialFunctionParamLists: functionParamLists,
     initialDualDefinedNames: new Set(ctx.symbols.getDualDefined()),
     initialImportedFunctions: importedFunctions,
-    initialIncludedModuleNames: isInclude ? ctx.includedModuleNames : undefined,
-    initialIncludedFunctionNames: isInclude ? ctx.includedFunctionNames : undefined,
   }, ctx.transpiledFiles)
 
   // Cache the result (using resolved path)

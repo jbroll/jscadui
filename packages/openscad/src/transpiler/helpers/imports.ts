@@ -13,7 +13,7 @@ export function buildJscadRequires(ctx: TranspileContext): string[] {
   // Filter out JSCAD names that conflict with user-defined modules/functions
   // e.g., BOSL defines its own 'cuboid' module, so we don't import JSCAD's cuboid
   const filterConflicts = (names: Set<string>) =>
-    Array.from(names).filter(n => !ctx.availableSymbols.has(n))
+    Array.from(names).filter(n => !ctx.symbols.isDefined(n))
 
   const prims = filterConflicts(ctx.codeGen.usedPrimitives)
   if (prims.length > 0) {
@@ -24,7 +24,7 @@ export function buildJscadRequires(ctx: TranspileContext): string[] {
   // e.g., _cube uses cuboid internally even if user defines their own cuboid module
   const internalPrims: string[] = []
   if (ctx.codeGen.usedPrimitives.has('cube') || ctx.codeGen.usedPrimitives.has('cuboid')) {
-    if (ctx.availableSymbols.has('cuboid') && !prims.includes('cuboid')) {
+    if (ctx.symbols.isDefined('cuboid') && !prims.includes('cuboid')) {
       internalPrims.push('cuboid: __cuboid')
     }
   }
@@ -60,7 +60,7 @@ export function buildJscadRequires(ctx: TranspileContext): string[] {
     imports.push(`const { colorize, cssColors } = require('@jscad/modeling').colors`)
   }
 
-  if (ctx.codeGen.usedHulls && !ctx.availableSymbols.has('hull')) {
+  if (ctx.codeGen.usedHulls && !ctx.symbols.isDefined('hull')) {
     imports.push(`const { hull } = require('@jscad/modeling').hulls`)
   }
 

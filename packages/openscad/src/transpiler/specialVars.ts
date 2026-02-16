@@ -45,6 +45,12 @@ export const stackSpecialVars = new Set([
 ])
 
 /**
+ * Common special variables that are automatically inherited in modules
+ * even when not explicitly declared as parameters
+ */
+export const commonInheritedVars = ['$fn', '$fa', '$fs']
+
+/**
  * Check if a variable name is a known stack-based special variable
  */
 export function isStackSpecialVar(name: string): boolean {
