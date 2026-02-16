@@ -1,7 +1,12 @@
-# A1: Split Context into Focused Managers - Detailed Plan
+# A1: Split Context into Focused Managers - Detailed Plan (UPDATED: Middle Ground)
 
 ## Goal
-Transform TranspileContext from a 30+ field "god object" into focused manager classes with clear ownership and responsibilities.
+Extract the two most complex concerns (code generation tracking and scope management) into focused manager classes. Keep simple fields (imports, cache) as direct context fields.
+
+## Rationale for Middle Ground
+- **CodeGenState** and **ScopeManager** are genuinely complex with multiple related fields and methods
+- **ImportTracker** and **FileCacheManager** would be overkill - just simple maps
+- Get ~70% of the benefit with ~40% of the work
 
 ## Success Criteria
 - All 246 unit tests pass after each step
@@ -208,496 +213,328 @@ export class ScopeManager {
 
 **Test**: Build and run tests (should pass - file not used yet)
 
----
-
-### Step 1.3: Create ImportTracker
-**Goal**: Extract use/include import tracking
-
-**Create**: `src/transpiler/managers/ImportTracker.ts`
-```typescript
-import type { UseImport } from '../context.js'
-
-/**
- * Tracks use and include imports during transpilation.
- */
-export class ImportTracker {
-  /** Use imports (imported symbols accessed via require()) */
-  readonly useImports: UseImport[] = []
-
-  /** Include imports (symbols merged into current namespace) */
-  readonly includeImports: UseImport[] = []
-
-  /** Top-level variable assignments for export */
-  readonly variableNames: string[] = []
-
-  /** All available symbols (local + imported) */
-  readonly availableSymbols = new Set<string>()
-
-  /** Module names from all includes (for builtin override detection) */
-  readonly includedModuleNames = new Set<string>()
-
-  /** Function names from all includes (for suffix selection) */
-  readonly includedFunctionNames = new Set<string>()
-
-  /**
-   * Register a use import
-   */
-  addUseImport(imp: UseImport): void {
-    this.useImports.push(imp)
-  }
-
-  /**
-   * Register an include import
-   */
-  addIncludeImport(imp: UseImport): void {
-    this.includeImports.push(imp)
-  }
-
-  /**
-   * Add a top-level variable
-   */
-  addVariable(name: string): void {
-    this.variableNames.push(name)
-  }
-
-  /**
-   * Mark a symbol as available
-   */
-  addAvailableSymbol(name: string): void {
-    this.availableSymbols.add(name)
-  }
-
-  /**
-   * Mark a module as included
-   */
-  addIncludedModule(name: string): void {
-    this.includedModuleNames.add(name)
-  }
-
-  /**
-   * Mark a function as included
-   */
-  addIncludedFunction(name: string): void {
-    this.includedFunctionNames.add(name)
-  }
-
-  /**
-   * Merge imports from another tracker (for nested includes)
-   */
-  mergeFrom(other: ImportTracker): void {
-    this.useImports.push(...other.useImports)
-    this.includeImports.push(...other.includeImports)
-    this.variableNames.push(...other.variableNames)
-    for (const s of other.availableSymbols) this.availableSymbols.add(s)
-    for (const m of other.includedModuleNames) this.includedModuleNames.add(m)
-    for (const f of other.includedFunctionNames) this.includedFunctionNames.add(f)
-  }
-
-  /**
-   * Create a copy for nested contexts
-   */
-  clone(): ImportTracker {
-    const copy = new ImportTracker()
-    copy.useImports.push(...this.useImports)
-    copy.includeImports.push(...this.includeImports)
-    copy.variableNames.push(...this.variableNames)
-    for (const s of this.availableSymbols) copy.availableSymbols.add(s)
-    for (const m of this.includedModuleNames) copy.includedModuleNames.add(m)
-    for (const f of this.includedFunctionNames) copy.includedFunctionNames.add(f)
-    return copy
-  }
-}
-```
-
-**Test**: Build and run tests (should pass - file not used yet)
+✅ **DONE** - Both managers created and committed!
 
 ---
 
-### Step 1.4: Create FileCacheManager
-**Goal**: Extract file caching and cycle detection
+## Phase 2: Add Managers to Context (Low Risk)
 
-**Create**: `src/transpiler/managers/FileCacheManager.ts`
-```typescript
-import type { ScadFile } from 'openscad-parser'
-import type { TranspiledFile } from '../context.js'
+### Step 2.1: Add managers to TranspileContext
 
-/**
- * Manages caching of parsed ASTs and transpiled files.
- * Shared across recursive transpilation calls.
- */
-export class FileCacheManager {
-  /** Cache of transpiled files */
-  private transpiled = new Map<string, TranspiledFile>()
-
-  /** Cache of parsed ASTs */
-  private parsed = new Map<string, ScadFile>()
-
-  /** Files currently being processed (for cycle detection) */
-  private processing = new Set<string>()
-
-  /**
-   * Check if a file is cached
-   */
-  hasTranspiledFile(path: string): boolean {
-    return this.transpiled.has(path)
-  }
-
-  /**
-   * Get a cached transpiled file
-   */
-  getTranspiledFile(path: string): TranspiledFile | undefined {
-    return this.transpiled.get(path)
-  }
-
-  /**
-   * Cache a transpiled file
-   */
-  setTranspiledFile(path: string, file: TranspiledFile): void {
-    this.transpiled.set(path, file)
-  }
-
-  /**
-   * Check if an AST is cached
-   */
-  hasParsedFile(path: string): boolean {
-    return this.parsed.has(path)
-  }
-
-  /**
-   * Get a cached AST
-   */
-  getParsedFile(path: string): ScadFile | undefined {
-    return this.parsed.get(path)
-  }
-
-  /**
-   * Cache a parsed AST
-   */
-  setParsedFile(path: string, ast: ScadFile): void {
-    this.parsed.set(path, ast)
-  }
-
-  /**
-   * Mark a file as being processed
-   */
-  startProcessing(path: string): void {
-    this.processing.add(path)
-  }
-
-  /**
-   * Mark a file as done processing
-   */
-  endProcessing(path: string): void {
-    this.processing.delete(path)
-  }
-
-  /**
-   * Check if a file is currently being processed (cycle detection)
-   */
-  isProcessing(path: string): boolean {
-    return this.processing.has(path)
-  }
-
-  /**
-   * Get all cached file paths (for debugging)
-   */
-  getCachedPaths(): string[] {
-    return Array.from(this.transpiled.keys())
-  }
-}
-```
-
-**Test**: Build and run tests (should pass - file not used yet)
-
----
-
-## Phase 2: Add Managers to Context (Medium Risk)
-
-### Step 2.1: Add codeGen manager to context
-**Goal**: Add CodeGenState instance alongside existing fields
+**Goal**: Add CodeGenState and ScopeManager instances to context
 
 **Edit**: `src/transpiler/context.ts`
+
+Add imports and manager fields:
 ```typescript
 import { CodeGenState } from './managers/CodeGenState.js'
-
-export interface TranspileContext {
-  // NEW: Code generation tracking
-  codeGen: CodeGenState
-
-  // OLD: Keep existing fields for now
-  usedPrimitives: Set<string>
-  usedTransforms: Set<string>
-  // ... rest of existing fields ...
-}
-
-export function createContext(options: TranspileOptions, cache?: Map<string, TranspiledFile>): TranspileContext {
-  const codeGen = new CodeGenState()
-
-  return {
-    // NEW
-    codeGen,
-
-    // OLD: Initialize as before, but point to codeGen internals
-    usedPrimitives: codeGen.usedPrimitives,
-    usedTransforms: codeGen.usedTransforms,
-    usedBooleans: codeGen.usedBooleans,
-    usedExtrusions: codeGen.usedExtrusions,
-    usedHelpers: codeGen.usedHelpers,
-    // ... rest of initialization ...
-  }
-}
-```
-
-**Why this works**: The old fields (`usedPrimitives`, etc.) now point to the same Set instances as `codeGen.usedPrimitives`. All existing code continues to work via the old fields, but we can start migrating to use `ctx.codeGen`.
-
-**Test**: Build and run all tests (should pass - no behavior change)
-
----
-
-### Step 2.2: Add scopes manager to context
-**Goal**: Add ScopeManager instance alongside existing fields
-
-**Edit**: `src/transpiler/context.ts`
-```typescript
 import { ScopeManager } from './managers/ScopeManager.js'
 
-export interface TranspileContext {
-  // NEW
-  codeGen: CodeGenState
-  scopes: ScopeManager
-
-  // OLD: Keep for compatibility
-  letCounter: number
-  localFunctionBindings: Map<string, string>
-  scopeBindings: Map<string, string>[]
-}
-
-export function createContext(...): TranspileContext {
-  const codeGen = new CodeGenState()
-  const scopes = new ScopeManager()
-
-  return {
-    codeGen,
-    scopes,
-
-    // OLD: Point to scopes internals (use getters/setters)
-    get letCounter() { return scopes['counter'] },
-    set letCounter(v: number) { scopes['counter'] = v },
-    localFunctionBindings: scopes['functionBindings'],
-    scopeBindings: scopes['scopeStack'],
-    // ...
-  }
+export class TranspileContext {
+  // NEW: Manager instances
+  readonly codeGen = new CodeGenState()
+  readonly scopes = new ScopeManager()
+  
+  // Keep existing fields for now (will remove in Phase 4)
+  readonly usedPrimitives = new Set<string>()
+  readonly usedTransforms = new Set<string>()
+  // ... etc ...
+  
+  scopeBindings: Map<string, string>[] = []
+  localFunctionBindings = new Map<string, string>()
+  letCounter = 1
+  // ... etc ...
 }
 ```
 
-**Test**: Build and run all tests
-
----
-
-### Step 2.3: Add imports manager to context
-**Edit**: `src/transpiler/context.ts` - add ImportTracker
-
-**Test**: Build and run all tests
-
----
-
-### Step 2.4: Add fileCache manager to context
-**Edit**: `src/transpiler/context.ts` - add FileCacheManager
-
-**Test**: Build and run all tests
-
----
-
-## Phase 3: Migrate Call Sites (High Risk - Do One Manager at a Time)
-
-### Step 3.1: Migrate codeGen call sites
-**Goal**: Change `ctx.usedPrimitives.add(...)` to `ctx.codeGen.usedPrimitives.add(...)`
-
-**Strategy**: Use search-replace with verification
-```bash
-# Find all uses
-grep -r "ctx.usedPrimitives" src/transpiler/
-grep -r "ctx.usedTransforms" src/transpiler/
-# ... for each field
-```
-
-**Files to update** (estimate ~15 files):
-- `builtins.ts` - primitives, transforms, extrusions
-- `helpers/index.ts` - helper function generation
-- `statements.ts` - color(), hull(), etc.
-- `expressions.ts` - math helpers
-
-**For each file**:
-1. Replace `ctx.usedPrimitives` with `ctx.codeGen.usedPrimitives`
-2. Build
-3. Run tests
-4. If fail, revert and debug
-5. If pass, commit
-
-**Test**: After all codeGen migrations, run full test suite
-
----
-
-### Step 3.2: Migrate scopes call sites
-**Goal**: Use `ctx.scopes` methods instead of direct field access
-
-**Strategy**: Replace direct manipulation with method calls
+Update `cloneForNested()` to clone managers:
 ```typescript
-// BEFORE
-const suffix = `$${ctx.letCounter++}`
-
-// AFTER
-const suffix = ctx.scopes.generateSuffix()
-
-// BEFORE
-ctx.scopeBindings.push(new Map(...))
-// ... later ...
-ctx.scopeBindings.pop()
-
-// AFTER
-ctx.scopes.pushScope(new Map(...))
-// ... later ...
-ctx.scopes.popScope()
+cloneForNested(): TranspileContext {
+  const nested = new TranspileContext(this.options, this.symbols, this.filepath)
+  
+  // Clone managers
+  nested.codeGen = this.codeGen.clone()
+  nested.scopes = this.scopes.clone()
+  
+  // ... rest of cloning ...
+  return nested
+}
 ```
 
-**Files to update** (estimate ~8 files):
-- `scoping.ts` - already has helpers, adapt them
-- `expressions.ts` - let expressions, for loops
-- `statements.ts` - function/module bodies
+**Test**: Build and run tests (should pass - managers present but not used yet)
 
-**Test**: After all scopes migrations, run full test suite
+**Commit**: `refactor(openscad): A1 Phase 2 - add managers to context`
 
 ---
 
-### Step 3.3: Migrate imports call sites
-**Similar pattern**
+## Phase 3: Migrate Call Sites (Medium Risk)
 
-**Test**: After all imports migrations, run full test suite
+**Goal**: Change all code to use `ctx.codeGen.*` and `ctx.scopes.*` instead of direct fields
+
+### Step 3.1: Migrate CodeGenState call sites
+
+**Files to update** (~15 files):
+- `src/transpiler/builtins.ts`
+- `src/transpiler/helpers/index.ts`
+- `src/transpiler/statements.ts`
+- `src/transpiler/expressions.ts`
+- `src/transpiler/modules.ts`
+- `src/transpiler/functions.ts`
+- And others that reference `usedPrimitives`, `usedTransforms`, etc.
+
+**Pattern**:
+```typescript
+// Before
+ctx.usedPrimitives.add('cube')
+ctx.usedColors = true
+
+// After
+ctx.codeGen.usedPrimitives.add('cube')
+ctx.codeGen.usedColors = true
+```
+
+**Strategy**:
+1. Use find/replace in your editor to replace patterns
+2. Build after each file change
+3. Run tests after every 2-3 files
+
+**Commit after**: `refactor(openscad): A1 Phase 3.1 - migrate codeGen call sites`
 
 ---
 
-### Step 3.4: Migrate fileCache call sites
-**Similar pattern**
+### Step 3.2: Migrate ScopeManager call sites
 
-**Test**: After all fileCache migrations, run full test suite
+**Files to update** (~8 files):
+- `src/transpiler/statements.ts` (let expressions, for loops)
+- `src/transpiler/expressions.ts` (identifier lookups)
+- `src/transpiler/helpers/index.ts` (scope operations)
+- And others that reference `scopeBindings`, `localFunctionBindings`, `letCounter`
+
+**Pattern**:
+```typescript
+// Before
+const suffix = `$${ctx.letCounter++}`
+ctx.scopeBindings.push(bindings)
+const renamed = ctx.localFunctionBindings.get(name)
+
+// After
+const suffix = ctx.scopes.generateSuffix()
+ctx.scopes.pushScope(bindings)
+const renamed = ctx.scopes.lookupFunctionBinding(name)
+```
+
+**Strategy**:
+1. Update one type of operation at a time (suffix generation, then scope stack, then bindings)
+2. Build and test after each change
+3. Be extra careful with scope stack operations
+
+**Commit after**: `refactor(openscad): A1 Phase 3.2 - migrate scopes call sites`
 
 ---
 
 ## Phase 4: Remove Old Fields (Low Risk)
 
-### Step 4.1: Remove codeGen compatibility fields
-**Goal**: Delete `usedPrimitives`, `usedTransforms`, etc. from TranspileContext
+**Goal**: Delete the old redundant fields from TranspileContext
+
+### Step 4.1: Remove old CodeGenState fields
 
 **Edit**: `src/transpiler/context.ts`
+
+Remove these fields:
 ```typescript
-export interface TranspileContext {
-  codeGen: CodeGenState
-  scopes: ScopeManager
-  imports: ImportTracker
-  fileCache: FileCacheManager
-
-  // DELETED: usedPrimitives, usedTransforms, etc.
-
-  options: TranspileOptions & ...
-  symbols: SymbolTable
-  indentLevel: number
-  warnings: TranspileWarning[]
-  errors: TranspileError[]
-}
+// DELETE THESE:
+readonly usedPrimitives = new Set<string>()
+readonly usedTransforms = new Set<string>()
+readonly usedBooleans = new Set<string>()
+readonly usedExtrusions = new Set<string>()
+readonly usedHelpers = new Set<string>()
+usedColors = false
+usedHulls = false
+usedMaths = false
+usedMinMax = false
 ```
 
-**Test**: Build (should fail if any missed migrations), fix, then run tests
+**Test**: Build - should get TypeScript errors if you missed any call sites in Phase 3
+
+**Commit**: `refactor(openscad): A1 Phase 4.1 - remove old codeGen fields`
 
 ---
 
-### Step 4.2: Remove scopes compatibility fields
-**Similar pattern**
+### Step 4.2: Remove old ScopeManager fields
 
----
+**Edit**: `src/transpiler/context.ts`
 
-### Step 4.3: Remove imports compatibility fields
-**Similar pattern**
+Remove these fields:
+```typescript
+// DELETE THESE:
+scopeBindings: Map<string, string>[] = []
+localFunctionBindings = new Map<string, string>()
+letCounter = 1
+```
 
----
+**Test**: Build - should get TypeScript errors if you missed any call sites
 
-### Step 4.4: Remove fileCache compatibility fields
-**Similar pattern**
+**Commit**: `refactor(openscad): A1 Phase 4.2 - remove old scope fields`
 
 ---
 
 ## Phase 5: Add Manager Tests (Low Risk)
 
+**Goal**: Add unit tests for the two manager classes
+
 ### Step 5.1: Test CodeGenState
+
 **Create**: `test/managers/CodeGenState.test.ts`
-- Test clone()
-- Test mergeFrom()
-- Test that sets are properly shared
+
+```typescript
+import { describe, it, expect } from 'vitest'
+import { CodeGenState } from '../../src/transpiler/managers/CodeGenState.js'
+
+describe('CodeGenState', () => {
+  it('should track primitives', () => {
+    const state = new CodeGenState()
+    state.usedPrimitives.add('cube')
+    state.usedPrimitives.add('sphere')
+    expect(state.usedPrimitives.has('cube')).toBe(true)
+    expect(state.usedPrimitives.size).toBe(2)
+  })
+
+  it('should clone correctly', () => {
+    const state = new CodeGenState()
+    state.usedPrimitives.add('cube')
+    state.usedColors = true
+    
+    const copy = state.clone()
+    expect(copy.usedPrimitives.has('cube')).toBe(true)
+    expect(copy.usedColors).toBe(true)
+    
+    // Verify deep copy
+    copy.usedPrimitives.add('sphere')
+    expect(state.usedPrimitives.has('sphere')).toBe(false)
+  })
+
+  it('should merge from another state', () => {
+    const state1 = new CodeGenState()
+    state1.usedPrimitives.add('cube')
+    
+    const state2 = new CodeGenState()
+    state2.usedPrimitives.add('sphere')
+    state2.usedColors = true
+    
+    state1.mergeFrom(state2)
+    expect(state1.usedPrimitives.has('cube')).toBe(true)
+    expect(state1.usedPrimitives.has('sphere')).toBe(true)
+    expect(state1.usedColors).toBe(true)
+  })
+})
+```
+
+**Test**: `npx vitest run test/managers/CodeGenState.test.ts`
+
+**Commit**: `test(openscad): A1 Phase 5.1 - add CodeGenState tests`
 
 ---
 
 ### Step 5.2: Test ScopeManager
+
 **Create**: `test/managers/ScopeManager.test.ts`
-- Test scope push/pop
-- Test variable lookup
-- Test function binding registration
-- Test suffix generation
+
+```typescript
+import { describe, it, expect } from 'vitest'
+import { ScopeManager } from '../../src/transpiler/managers/ScopeManager.js'
+
+describe('ScopeManager', () => {
+  it('should generate unique suffixes', () => {
+    const mgr = new ScopeManager()
+    expect(mgr.generateSuffix()).toBe('$1')
+    expect(mgr.generateSuffix()).toBe('$2')
+    expect(mgr.generateSuffix()).toBe('$3')
+  })
+
+  it('should manage scope stack', () => {
+    const mgr = new ScopeManager()
+    expect(mgr.scopeDepth).toBe(0)
+    
+    mgr.pushScope(new Map([['x', 'x$1']]))
+    expect(mgr.scopeDepth).toBe(1)
+    expect(mgr.lookupBinding('x')).toBe('x$1')
+    
+    mgr.pushScope(new Map([['y', 'y$2']]))
+    expect(mgr.scopeDepth).toBe(2)
+    expect(mgr.lookupBinding('y')).toBe('y$2')
+    expect(mgr.lookupBinding('x')).toBe('x$1') // still accessible
+    
+    mgr.popScope()
+    expect(mgr.scopeDepth).toBe(1)
+    expect(mgr.lookupBinding('y')).toBeUndefined()
+    expect(mgr.lookupBinding('x')).toBe('x$1')
+  })
+
+  it('should shadow bindings correctly', () => {
+    const mgr = new ScopeManager()
+    mgr.pushScope(new Map([['x', 'x$1']]))
+    mgr.pushScope(new Map([['x', 'x$2']])) // shadow
+    
+    expect(mgr.lookupBinding('x')).toBe('x$2') // inner wins
+    
+    mgr.popScope()
+    expect(mgr.lookupBinding('x')).toBe('x$1') // outer restored
+  })
+
+  it('should manage function bindings', () => {
+    const mgr = new ScopeManager()
+    mgr.registerFunctionBinding('foo', 'foo$1')
+    expect(mgr.lookupFunctionBinding('foo')).toBe('foo$1')
+    
+    mgr.unregisterFunctionBinding('foo')
+    expect(mgr.lookupFunctionBinding('foo')).toBeUndefined()
+  })
+
+  it('should clone correctly', () => {
+    const mgr = new ScopeManager()
+    mgr.pushScope(new Map([['x', 'x$1']]))
+    mgr.registerFunctionBinding('foo', 'foo$2')
+    
+    const copy = mgr.clone()
+    expect(copy.scopeDepth).toBe(1)
+    expect(copy.lookupBinding('x')).toBe('x$1')
+    expect(copy.lookupFunctionBinding('foo')).toBe('foo$2')
+    
+    // Verify deep copy
+    copy.pushScope(new Map([['y', 'y$3']]))
+    expect(mgr.scopeDepth).toBe(1)
+    expect(copy.scopeDepth).toBe(2)
+  })
+})
+```
+
+**Test**: `npx vitest run test/managers/ScopeManager.test.ts`
+
+**Commit**: `test(openscad): A1 Phase 5.2 - add ScopeManager tests`
 
 ---
 
-### Step 5.3: Test ImportTracker
-**Similar**
+## Summary
 
----
+**What we're doing**:
+- Creating 2 manager classes (CodeGenState, ScopeManager) for complex concerns
+- Keeping simple fields (imports, cache) as direct context fields
+- ~5 phases, ~10 steps total
 
-### Step 5.4: Test FileCacheManager
-**Similar**
+**What we're NOT doing** (decided as overkill):
+- ImportTracker manager
+- FileCacheManager manager
 
----
+**Time estimate**: 1-2 days instead of 2-3 days
 
-## Verification Strategy
+**Phases**:
+1. ✅ Create managers (DONE)
+2. ⏳ Add to context
+3. ⏳ Migrate call sites
+4. ⏳ Remove old fields
+5. ⏳ Add tests
 
-After each step:
-1. `npm run build` - must pass
-2. `npx vitest run` - all 246 unit tests must pass
-3. `node bin/test-harness.js test/corpus test/corpus/bosl test/corpus/bosl2` - 246/281 must pass
-
-After each phase:
-1. Full test suite
-2. Git commit with descriptive message
-3. Optional: Test on a few complex BOSL2 files manually
-
----
-
-## Rollback Strategy
-
-- Each step is committed separately
-- If a step breaks tests, `git revert HEAD` and debug
-- Can abandon phase and return to previous state
-- All changes are internal - no API changes
-
----
-
-## Estimated Timeline
-
-- Phase 1 (Create managers): 2-3 hours
-- Phase 2 (Add to context): 1-2 hours
-- Phase 3 (Migrate call sites): 8-12 hours (biggest risk)
-- Phase 4 (Remove old fields): 1-2 hours
-- Phase 5 (Add tests): 2-3 hours
-
-**Total: 2-3 days of careful work**
-
----
-
-## Success Metrics
-
-**Before:**
-- 1 interface with 30+ fields
-- Unclear ownership of mutations
-- Hard to test state changes in isolation
-
-**After:**
-- 4 focused manager classes
-- Clear ownership (CodeGenState owns usage tracking)
-- Each manager independently testable
-- Same test pass rate (246 unit, 246/281 corpus)
+**Testing after each step**:
+```bash
+npm run build && npx vitest run
+```

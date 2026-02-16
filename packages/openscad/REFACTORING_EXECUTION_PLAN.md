@@ -26,18 +26,20 @@ Both are broken into small, testable increments with tests after each step.
 
 ---
 
-## A1: Split Context into Focused Managers
+## A1: Split Context into Focused Managers (UPDATED: Middle Ground)
 
 **Files**: `REFACTORING_A1_PLAN.md`
 
-**Time**: 2-3 days
+**Time**: 1-2 days (reduced from 2-3 days)
+
+**Approach**: Create 2 managers (CodeGenState, ScopeManager) for complex concerns. Skip ImportTracker and FileCacheManager (overkill for simple maps).
 
 **Phases**:
-1. Create manager classes (2-3 hours) ✅ Low risk
-2. Add to context alongside old fields (1-2 hours) ✅ Low risk
-3. Migrate call sites (8-12 hours) ⚠️ High risk - most time here
-4. Remove old fields (1-2 hours) ✅ Low risk
-5. Add manager tests (2-3 hours) ✅ Low risk
+1. Create manager classes (1-2 hours) ✅ DONE - Low risk
+2. Add to context alongside old fields (30 min) ✅ Low risk
+3. Migrate call sites (4-6 hours) ⚠️ Medium risk - reduced scope
+4. Remove old fields (30 min) ✅ Low risk
+5. Add manager tests (1-2 hours) ✅ Low risk
 
 **Risk Profile**:
 - Phases 1-2: Almost zero risk (just additions)
@@ -231,33 +233,22 @@ git checkout -b hierarchical-params origin/hierarchical-params
 
 ## Progress Tracking
 
-### A1: Split Context into Focused Managers
+### A1: Split Context into Focused Managers (Middle Ground)
 
-- [ ] Phase 1: Create manager classes
-  - [ ] 1.1 CodeGenState
-  - [ ] 1.2 ScopeManager
-  - [ ] 1.3 ImportTracker
-  - [ ] 1.4 FileCacheManager
+- [x] Phase 1: Create manager classes
+  - [x] 1.1 CodeGenState
+  - [x] 1.2 ScopeManager
 - [ ] Phase 2: Add to context
-  - [ ] 2.1 CodeGenState
-  - [ ] 2.2 ScopeManager
-  - [ ] 2.3 ImportTracker
-  - [ ] 2.4 FileCacheManager
+  - [ ] 2.1 Add CodeGenState and ScopeManager to TranspileContext
 - [ ] Phase 3: Migrate call sites
   - [ ] 3.1 CodeGenState (~15 files)
   - [ ] 3.2 ScopeManager (~8 files)
-  - [ ] 3.3 ImportTracker (~6 files)
-  - [ ] 3.4 FileCacheManager (~4 files)
 - [ ] Phase 4: Remove old fields
-  - [ ] 4.1 CodeGenState
-  - [ ] 4.2 ScopeManager
-  - [ ] 4.3 ImportTracker
-  - [ ] 4.4 FileCacheManager
+  - [ ] 4.1 Remove old CodeGenState fields
+  - [ ] 4.2 Remove old ScopeManager fields
 - [ ] Phase 5: Add tests
   - [ ] 5.1 CodeGenState tests
   - [ ] 5.2 ScopeManager tests
-  - [ ] 5.3 ImportTracker tests
-  - [ ] 5.4 FileCacheManager tests
 
 ### A2: Use AST for Bundling
 
