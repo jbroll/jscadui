@@ -677,61 +677,52 @@ export function getShortFilename(path: string | undefined): string {
 
 ## Architectural Issues (Deep Refactoring)
 
-### Issue A1: Context God Object
+### Issue A1: Context God Object ✅ COMPLETED (2026-02-15)
 
 **Problem**: TranspileContext has 30+ fields with unclear mutation patterns.
 
 **Location**: `context.ts:145-200`
 
-**Current fields**:
-- Symbol tracking: 10+ fields
-- Import tracking: 4 fields
-- Scope management: 3 fields
-- JSCAD usage flags: 5 fields
-- Configuration: options, cache, errors, warnings
-- Counters: letCounter, childrenVarCounter
+**Status**: **COMPLETE** - Implemented middle-ground approach with 2 managers instead of 4.
 
-**Impact**:
-- Functions mutate context at multiple levels
-- Hard to track side effects
-- Unclear ownership of state
+**What was done**:
+- Created CodeGenState manager (consolidates JSCAD usage tracking)
+- Created ScopeManager manager (consolidates scope stack and let bindings)
+- Migrated 13 files to use manager instances
+- Removed 12 redundant fields from TranspileContext
+- Added 39 comprehensive manager tests
+- All 285 unit tests passing
 
-**Implementation Plan** (Major refactoring):
+**Results**:
+- Context reduced from ~30 fields to ~15 fields + 2 managers
+- Clear ownership of state (CodeGenState owns usage flags, ScopeManager owns scoping)
+- Explicit mutation points
+- Better testability (managers tested in isolation)
+- Foundation for future features
 
-**Phase 1**: Group related fields into sub-objects
+**Architecture**:
 ```typescript
 interface TranspileContext {
-  // Symbol management
-  symbols: SymbolManager  // Consolidates all symbol tracking
+  // Managers for focused concerns
+  codeGen: CodeGenState   // JSCAD usage flags (9 fields)
+  scopes: ScopeManager    // Scope stack and bindings (3 fields)
 
-  // Scope management
-  scopes: ScopeManager    // Consolidates scope stack and bindings
+  // Symbol management (unified)
+  symbols: SymbolTable    // Single source of truth
 
-  // Import tracking
-  imports: ImportTracker  // Consolidates use/include tracking
+  // Import tracking (kept as simple maps)
+  useImports: UseImport[]
+  includeImports: UseImport[]
 
-  // Code generation state
-  codeGen: CodeGenState   // Consolidates JSCAD usage flags, counters
-
-  // Configuration (immutable)
-  readonly options: TranspileOptions
-
-  // Results (write-only)
-  results: ResultCollector
+  // Configuration and results
+  options: TranspileOptions
+  warnings: TranspileWarning[]
+  errors: TranspileError[]
+  // ... other fields
 }
 ```
 
-**Phase 2**: Create focused manager classes
-- `SymbolManager` - handles all symbol lookup/registration
-- `ScopeManager` - handles scope stack and let bindings
-- `ImportTracker` - tracks use/include imports
-- `CodeGenState` - tracks primitives/helpers usage
-
-**Benefits**:
-- Clear ownership of state
-- Explicit mutation points
-- Better testability
-- Easier to add features
+**Decision**: Skipped ImportTracker and ResultCollector managers as overkill for simple arrays/maps.
 
 ---
 

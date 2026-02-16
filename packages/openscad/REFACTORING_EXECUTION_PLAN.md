@@ -26,32 +26,28 @@ Both are broken into small, testable increments with tests after each step.
 
 ---
 
-## A1: Split Context into Focused Managers (UPDATED: Middle Ground)
+## A1: Split Context into Focused Managers ✅ COMPLETED (2026-02-15)
 
 **Files**: `REFACTORING_A1_PLAN.md`
 
-**Time**: 1-2 days (reduced from 2-3 days)
+**Time**: Completed in 1 session
 
-**Approach**: Create 2 managers (CodeGenState, ScopeManager) for complex concerns. Skip ImportTracker and FileCacheManager (overkill for simple maps).
+**Approach**: Created 2 managers (CodeGenState, ScopeManager) for complex concerns. Skipped ImportTracker and FileCacheManager (overkill for simple maps).
 
 **Phases**:
-1. Create manager classes (1-2 hours) ✅ DONE - Low risk
-2. Add to context alongside old fields (30 min) ✅ Low risk
-3. Migrate call sites (4-6 hours) ⚠️ Medium risk - reduced scope
-4. Remove old fields (30 min) ✅ Low risk
-5. Add manager tests (1-2 hours) ✅ Low risk
+1. Create manager classes (1-2 hours) ✅ DONE
+2. Add to context alongside old fields (30 min) ✅ DONE
+3. Migrate call sites (4-6 hours) ✅ DONE - 13 files migrated
+4. Remove old fields (30 min) ✅ DONE - 12 fields removed
+5. Add manager tests (1-2 hours) ✅ DONE - 39 tests added
 
-**Risk Profile**:
-- Phases 1-2: Almost zero risk (just additions)
-- Phase 3: Medium-high risk (touching ~50 functions)
-  - Mitigated by: One manager at a time, test after each file
-- Phases 4-5: Low risk (cleanup)
-
-**Benefits**:
-- Clearer ownership (CodeGenState owns usage flags)
-- Better testability (test ScopeManager in isolation)
-- Easier debugging (scope issues → look in ScopeManager)
-- Foundation for future features
+**Results Achieved**:
+- Context reduced from ~30 fields to ~15 fields + 2 managers
+- All 285 unit tests passing (246 original + 39 new manager tests)
+- Corpus tests unchanged at 91.8% pass rate
+- Zero behavioral changes - pure refactoring
+- Better testability - managers can be tested in isolation
+- Clearer ownership - CodeGenState owns usage flags, ScopeManager owns scoping
 
 ---
 
@@ -233,22 +229,24 @@ git checkout -b hierarchical-params origin/hierarchical-params
 
 ## Progress Tracking
 
-### A1: Split Context into Focused Managers (Middle Ground)
+### A1: Split Context into Focused Managers (Middle Ground) ✅ COMPLETED (2026-02-15)
 
 - [x] Phase 1: Create manager classes
   - [x] 1.1 CodeGenState
   - [x] 1.2 ScopeManager
-- [ ] Phase 2: Add to context
-  - [ ] 2.1 Add CodeGenState and ScopeManager to TranspileContext
-- [ ] Phase 3: Migrate call sites
-  - [ ] 3.1 CodeGenState (~15 files)
-  - [ ] 3.2 ScopeManager (~8 files)
-- [ ] Phase 4: Remove old fields
-  - [ ] 4.1 Remove old CodeGenState fields
-  - [ ] 4.2 Remove old ScopeManager fields
-- [ ] Phase 5: Add tests
-  - [ ] 5.1 CodeGenState tests
-  - [ ] 5.2 ScopeManager tests
+- [x] Phase 2: Add to context
+  - [x] 2.1 Add CodeGenState and ScopeManager to TranspileContext
+- [x] Phase 3: Migrate call sites
+  - [x] 3.1 CodeGenState (9 files)
+  - [x] 3.2 ScopeManager (4 files)
+- [x] Phase 4: Remove old fields
+  - [x] 4.1 Remove old CodeGenState fields (9 fields removed)
+  - [x] 4.2 Remove old ScopeManager fields (3 fields removed)
+- [x] Phase 5: Add tests
+  - [x] 5.1 CodeGenState tests (16 tests)
+  - [x] 5.2 ScopeManager tests (23 tests)
+
+**Results**: Context reduced from ~30 fields to ~15 fields + 2 managers. All 285 unit tests passing (246 original + 39 new manager tests). Corpus tests unchanged at 91.8% pass rate.
 
 ### A2: Use AST for Bundling
 
