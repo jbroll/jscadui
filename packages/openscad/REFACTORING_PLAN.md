@@ -475,7 +475,7 @@ function buildOptionsDestructuring(args, ctx) {
 
 ---
 
-### Issue M4: Let/For Expression Handling Duplication
+### Issue M4: Let/For Expression Handling Duplication ✅ COMPLETE (2026-02-16)
 
 **Problem**: Let binding logic appears in 4 places with similar patterns:
 
@@ -486,18 +486,26 @@ function buildOptionsDestructuring(args, ctx) {
 - `statements.ts:596-672` (transpileForLoop - module version)
 
 **Duplicated patterns**:
-- `suffix = $${counter++}` naming
-- Scope push/pop
-- Binding registration in `localFunctionBindings`
-- Cleanup of bindings
+- ~~`suffix = $${counter++}` naming~~ ✅ Now using `generateScopeSuffix()`
+- ~~Scope push/pop~~ ✅ Now using `withScope()`
+- ~~Binding registration in `localFunctionBindings`~~ ✅ Utility created, used where appropriate
+- ~~Cleanup of bindings~~ ✅ `withFunctionBindings()` utility for simple cases
 
-**Implementation Plan**:
+**Resolution**:
 
-**Phase**: Extract shared let/for logic
-- **Step 1**: Create `scoping.ts` module
-- **Step 2**: Extract `createLetScope(bindings, ctx)` utility
-- **Step 3**: Extract `createForScope(iterables, ctx)` utility
-- **Step 4**: Replace 4 implementations with utility calls
+**Status**: **COMPLETE** - Utilities extracted and in use
+
+Utilities created in `scoping.ts`:
+- `generateScopeSuffix()` - Unique scope suffix generation (used in all 4 locations)
+- `withScope()` - Automatic scope push/pop with try/finally (used in all 4 locations)
+- `withFunctionBindings()` - Automatic binding registration/cleanup (used where applicable)
+- `withScopeAndBindings()` - Combined scope and binding management
+
+**Note**: Two locations still have manual binding cleanup for complex cases:
+- `transpileLetBindings()` - Incremental binding registration (each binding sees previous ones)
+- `buildModuleBody()` - Conditional registration (before/after based on function literal detection)
+
+These cases don't fit the simple utility pattern and manual management is appropriate.
 
 ---
 
@@ -946,8 +954,8 @@ These issues arise from fundamental differences between OpenSCAD and JavaScript 
 1. [x] **H1**: Extract common symbol merge logic (5 functions → 1 utility) - **COMPLETE** ✅
 2. [x] **H4**: Merge argument reordering functions (2 functions → 1 parameterized) - **COMPLETE** ✅
 3. [x] **H3**: Unify builtin dispatch (2 dispatchers → 1 unified) - **COMPLETE** ✅
-4. [ ] **M4**: Extract shared let/for logic (4 implementations → shared utilities) - **IN PROGRESS**
-5. [ ] **M1**: Extract comprehension handlers (100-line function → organized handlers)
+4. [x] **M4**: Extract shared let/for logic (4 implementations → shared utilities) - **COMPLETE** ✅
+5. [ ] **M1**: Extract comprehension handlers (100-line function → organized handlers) - **IN PROGRESS**
 
 **Estimated impact**: ~300 lines of duplication eliminated
 
