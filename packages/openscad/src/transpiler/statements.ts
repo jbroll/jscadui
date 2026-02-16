@@ -956,18 +956,6 @@ export function transpileModuleDeclaration(stmt: ModuleDeclarationStmt, ctx: Tra
   const paramNames = new Set<string>(stmt.definitionArgs.map(a => a.name))
   const bodyParts = buildModuleBody(stmt.stmt, ctx, '    ', paramNames)
 
-  // Track this declaration for AST-based bundling
-  const paramNamesArray = stmt.definitionArgs.map(arg => arg.name)
-  ctx.declarations.addModule(
-    `${name}_$m`,
-    stmt,
-    paramNamesArray,
-    {
-      file: ctx.options.currentFile || 'input.scad',
-      kind: 'local',
-    }
-  )
-
   // Build options destructuring preamble
   const optionsPreamble = buildOptionsDestructuring(stmt.definitionArgs, ctx)
   // Indent preamble for try block
@@ -977,7 +965,7 @@ export function transpileModuleDeclaration(stmt: ModuleDeclarationStmt, ctx: Tra
   // Use _$m suffix for modules to separate from function namespace
   // Wrap in pushScope/try/finally/popScope for special var dynamic scoping
   const comment = sourceComment(stmt, ctx)
-  return `${comment}const ${name}_$m = (_opts = {}) => (_children = []) => {
+  const code = `${comment}const ${name}_$m = (_opts = {}) => (_children = []) => {
   j$.pushScope();
   try {
 ${indentedPreamble.join('\n')}
@@ -986,6 +974,21 @@ ${bodyParts.join('\n')}
     j$.popScope();
   }
 }`
+
+  // Track this declaration for AST-based bundling
+  const paramNamesArray = stmt.definitionArgs.map(arg => arg.name)
+  ctx.declarations.addModule(
+    `${name}_$m`,
+    code,
+    stmt,
+    paramNamesArray,
+    {
+      file: ctx.options.currentFile || 'input.scad',
+      kind: 'local',
+    }
+  )
+
+  return code
 }
 
 /**
@@ -1014,10 +1017,19 @@ export function transpileFunctionDeclaration(stmt: FunctionDeclarationStmt, ctx:
   const params = transpileParamsList(stmt.definitionArgs, ctx)
   const body = transpileExpression(stmt.expr, ctx)
 
+  // Build preamble to convert EXPLICIT_UNDEF params to undefined
+  const preamble = buildUndefConversionPreamble(stmt.definitionArgs)
+
+  // Use function declaration (not arrow) for hoisting - critical for include bundling
+  // Use _$f suffix for functions to separate from module namespace
+  const comment = sourceComment(stmt, ctx)
+  const code = `${comment}function ${name}_$f(${params}) { ${preamble}return ${body}; }`
+
   // Track this declaration for AST-based bundling
   const paramNames = stmt.definitionArgs.map(arg => arg.name)
   ctx.declarations.addFunction(
     `${name}_$f`,
+    code,
     stmt,
     paramNames,
     {
@@ -1026,11 +1038,5 @@ export function transpileFunctionDeclaration(stmt: FunctionDeclarationStmt, ctx:
     }
   )
 
-  // Build preamble to convert EXPLICIT_UNDEF params to undefined
-  const preamble = buildUndefConversionPreamble(stmt.definitionArgs)
-
-  // Use function declaration (not arrow) for hoisting - critical for include bundling
-  // Use _$f suffix for functions to separate from module namespace
-  const comment = sourceComment(stmt, ctx)
-  return `${comment}function ${name}_$f(${params}) { ${preamble}return ${body}; }`
+  return code
 }

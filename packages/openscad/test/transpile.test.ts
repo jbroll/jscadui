@@ -246,8 +246,8 @@ describe('transpile extrusions', () => {
   })
 })
 
-describe('AST bundling', () => {
-  it('produces same exports with useAstBundling flag', () => {
+describe('bundling', () => {
+  it('bundles functions, modules, and constants correctly', () => {
     const source = `
       function add(a, b) = a + b;
       module cube_centered(size=10) {
@@ -257,24 +257,20 @@ describe('AST bundling', () => {
       test_val = 42;
     `
     const ast = parse(source).ast
+    const result = transpile(ast, { includeHeader: false })
 
-    // Test with default (string-based) bundling
-    const resultOld = transpile(ast, { includeHeader: false, useAstBundling: false })
+    // Should export function, module, and constant
+    expect(result.exports).toContain('add_$f')
+    expect(result.exports).toContain('cube_centered_$m')
+    expect(result.exports).toContain('test_val')
 
-    // Test with AST bundling
-    const resultNew = transpile(ast, { includeHeader: false, useAstBundling: true })
+    // Should contain the declarations in generated code
+    expect(result.code).toContain('function add_$f')
+    expect(result.code).toContain('const cube_centered_$m')
+    expect(result.code).toContain('const test_val')
 
-    // Both should have same exports
-    expect(resultNew.exports.sort()).toEqual(resultOld.exports.sort())
-
-    // Both should contain the function and module
-    expect(resultNew.code).toContain('add_$f')
-    expect(resultNew.code).toContain('cube_centered_$m')
-    expect(resultOld.code).toContain('add_$f')
-    expect(resultOld.code).toContain('cube_centered_$m')
-
-    // Both should produce valid code (no syntax errors)
-    expect(resultNew.code).toBeTruthy()
-    expect(resultOld.code).toBeTruthy()
+    // Should produce valid code
+    expect(result.code).toBeTruthy()
+    expect(result.code.length).toBeGreaterThan(0)
   })
 })

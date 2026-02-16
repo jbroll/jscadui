@@ -37,9 +37,8 @@ import {
 import { getModuleName } from './builtins.js'
 import { buildJscadImports } from './helpers/index.js'
 import { isStackSpecialVar } from './specialVars.js'
-import { deduplicateParamNames, mergeSetInto, extractNamesFromCode, importSymbolsFromFile } from './utils.js'
+import { deduplicateParamNames, mergeSetInto, importSymbolsFromFile } from './utils.js'
 import { mergeDeclarations, splitDeclarationsByKind } from './bundling/mergeDeclarations.js'
-import { transpileDeclarations } from './bundling/transpileDeclaration.js'
 import type { Declaration } from './managers/DeclarationTracker.js'
 
 // Re-export types for public API
@@ -234,10 +233,35 @@ function transpileAllStatements(ast: ScadFile, ctx: TranspileContext): Transpile
       // Top-level variable assignment
       const value = transpileExpression(stmt.value!, ctx)
       if (isStackSpecialVar(stmt.name)) {
-        localConstants.push(`j$.setSpecialVar('${stmt.name}', ${value})`)
+        const code = `j$.setSpecialVar('${stmt.name}', ${value})`
+        localConstants.push(code)
+
+        // Track special variable assignments for AST-based bundling
+        // Use the variable name (without $ prefix) as the key for deduplication
+        ctx.declarations.addConstant(
+          stmt.name,  // Keep the $ prefix for uniqueness
+          code,
+          stmt,
+          {
+            file: ctx.options.currentFile || 'input.scad',
+            kind: 'local',
+          }
+        )
       } else {
         const varName = safeIdentifier(stmt.name)
-        localConstants.push(`const ${varName} = ${value}`)
+        const code = `const ${varName} = ${value}`
+        localConstants.push(code)
+
+        // Track this declaration for AST-based bundling
+        ctx.declarations.addConstant(
+          varName,
+          code,
+          stmt,
+          {
+            file: ctx.options.currentFile || 'input.scad',
+            kind: 'local',
+          }
+        )
       }
     } else {
       // File-scope geometry/statements
@@ -348,41 +372,9 @@ function buildOutputCode(
 
 /**
  * Create bundled parts for caching (used when this file is included by others)
+ * Uses AST-based bundling to avoid fragile regex-based name extraction
  */
-function createBundledParts(
-  ctx: TranspileContext,
-  bundled: BundledContent,
-  transpiled: TranspiledStatements
-): BundledParts {
-  const functions = [...bundled.functions, ...transpiled.localFunctions]
-  const modules = [...bundled.modules, ...transpiled.localModules]
-  const constants = [...transpiled.localConstants, ...bundled.constants]
-
-  return {
-    functions,
-    functionNames: extractNamesFromCode(functions, /^function\s+(\w+)/),
-    modules,
-    moduleNames: extractNamesFromCode(modules, /^const\s+(\w+)/),
-    constants,
-    constantNames: extractNamesFromCode(constants, /^const\s+(\w+)/),
-    useImports: [...ctx.useImports],
-    usedPrimitives: new Set(ctx.codeGen.usedPrimitives),
-    usedTransforms: new Set(ctx.codeGen.usedTransforms),
-    usedBooleans: new Set(ctx.codeGen.usedBooleans),
-    usedExtrusions: new Set(ctx.codeGen.usedExtrusions),
-    usedHelpers: new Set(ctx.codeGen.usedHelpers),
-    usedColors: ctx.codeGen.usedColors,
-    usedHulls: ctx.codeGen.usedHulls,
-    usedMaths: ctx.codeGen.usedMaths,
-    usedMinMax: ctx.codeGen.usedMinMax,
-  }
-}
-
-/**
- * Create bundled parts using AST-based bundling (experimental)
- * This generates code from Declaration AST nodes instead of string manipulation
- */
-function createBundledPartsFromAst(ctx: TranspileContext): BundledParts {
+function createBundledParts(ctx: TranspileContext): BundledParts {
   // Collect all local declarations
   const localDeclarations = ctx.declarations.getAll()
 
@@ -402,15 +394,11 @@ function createBundledPartsFromAst(ctx: TranspileContext): BundledParts {
   const { functions: funcDecls, modules: modDecls, constants: constDecls } =
     splitDeclarationsByKind(allDeclarations)
 
-  // Transpile declarations to code
-  // Create a temporary context for transpilation (to avoid polluting the main context)
-  const tempCtx = createContext(ctx.options)
-  // Copy over the symbol table so names are resolved correctly
-  tempCtx.symbols = ctx.symbols
-
-  const functions = funcDecls.map(d => transpileDeclarations([d], tempCtx))
-  const modules = modDecls.map(d => transpileDeclarations([d], tempCtx))
-  const constants = constDecls.map(d => transpileDeclarations([d], tempCtx))
+  // Use the already-generated code stored in Declaration objects
+  // This preserves the context in which they were generated (including included constants)
+  const functions = funcDecls.map(d => d.code)
+  const modules = modDecls.map(d => d.code)
+  const constants = constDecls.map(d => d.code)
 
   return {
     functions,
@@ -492,10 +480,8 @@ export function transpile(
   const { code, allExports } = buildOutputCode(ctx, bundled, transpiled)
 
   // Create bundled parts for caching
-  // Use AST-based bundling if enabled (experimental), otherwise use string-based
-  const bundledParts = ctx.options.useAstBundling
-    ? createBundledPartsFromAst(ctx)
-    : createBundledParts(ctx, bundled, transpiled)
+  // Create bundled parts using AST-based bundling
+  const bundledParts = createBundledParts(ctx)
 
   // Add this file to the cache if it has a name
   if (ctx.options.currentFile) {
@@ -813,16 +799,7 @@ function collectDeclarations(stmt: Statement, ctx: TranspileContext): void {
     if (!isStackSpecialVar(stmt.name)) {
       const safeName = safeIdentifier(stmt.name)
       ctx.variableNames.push(safeName)
-
-      // Track this declaration for AST-based bundling
-      ctx.declarations.addConstant(
-        safeName,
-        stmt,
-        {
-          file: ctx.options.currentFile || 'input.scad',
-          kind: 'local',
-        }
-      )
+      // Note: Declaration tracking happens during main transpilation when code is generated
     }
   }
 }

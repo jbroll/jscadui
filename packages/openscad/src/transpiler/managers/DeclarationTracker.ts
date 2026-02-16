@@ -19,7 +19,7 @@ export interface DeclarationSource {
 
 /**
  * Represents a declaration that can be bundled.
- * Stores the original AST node instead of just generated code.
+ * Stores both the original AST node and the generated JavaScript code.
  */
 export interface Declaration {
   /** The exported name (with suffix like _$f or _$m) */
@@ -28,8 +28,11 @@ export interface Declaration {
   /** What kind of declaration */
   kind: DeclarationKind
 
-  /** The original AST node */
+  /** The original AST node (for potential future use) */
   ast: Statement
+
+  /** The generated JavaScript code */
+  code: string
 
   /** Parameter names (for functions/modules) */
   params?: string[]
@@ -51,12 +54,14 @@ export class DeclarationTracker {
   /**
    * Add a function declaration
    * @param name - The suffixed name (e.g., 'foo_$f')
+   * @param code - The generated JavaScript code
    * @param ast - The original FunctionDeclarationStmt AST node
    * @param params - Parameter names
    * @param source - Source file information
    */
   addFunction(
     name: string,
+    code: string,
     ast: FunctionDeclarationStmt,
     params: string[],
     source: DeclarationSource
@@ -67,6 +72,7 @@ export class DeclarationTracker {
     this.declarations.set(name, {
       name,
       kind: 'function',
+      code,
       ast,
       params,
       source,
@@ -76,12 +82,14 @@ export class DeclarationTracker {
   /**
    * Add a module declaration
    * @param name - The suffixed name (e.g., 'foo_$m')
+   * @param code - The generated JavaScript code
    * @param ast - The original ModuleDeclarationStmt AST node
    * @param params - Parameter names
    * @param source - Source file information
    */
   addModule(
     name: string,
+    code: string,
     ast: ModuleDeclarationStmt,
     params: string[],
     source: DeclarationSource
@@ -91,6 +99,7 @@ export class DeclarationTracker {
     this.declarations.set(name, {
       name,
       kind: 'module',
+      code,
       ast,
       params,
       source,
@@ -100,11 +109,13 @@ export class DeclarationTracker {
   /**
    * Add a constant declaration (top-level assignment)
    * @param name - The variable name
+   * @param code - The generated JavaScript code
    * @param ast - The original Assignment statement
    * @param source - Source file information
    */
   addConstant(
     name: string,
+    code: string,
     ast: Statement,
     source: DeclarationSource
   ): void {
@@ -113,6 +124,7 @@ export class DeclarationTracker {
     this.declarations.set(name, {
       name,
       kind: 'constant',
+      code,
       ast,
       source,
     })

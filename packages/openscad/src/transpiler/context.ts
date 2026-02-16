@@ -78,8 +78,6 @@ export interface TranspileOptions {
   initialIncludedModuleNames?: Set<string>
   // Initial included function names (inherited from parent context for suffix selection)
   initialIncludedFunctionNames?: Set<string>
-  // Use AST-based bundling (instead of string-based) - experimental
-  useAstBundling?: boolean
 }
 
 export interface TranspileResult {
