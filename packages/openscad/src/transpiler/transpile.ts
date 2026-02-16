@@ -38,6 +38,9 @@ import { getModuleName } from './builtins.js'
 import { buildJscadImports } from './helpers/index.js'
 import { isStackSpecialVar } from './specialVars.js'
 import { deduplicateParamNames, mergeSetInto, extractNamesFromCode, importSymbolsFromFile } from './utils.js'
+import { mergeDeclarations, splitDeclarationsByKind } from './bundling/mergeDeclarations.js'
+import { transpileDeclarations } from './bundling/transpileDeclaration.js'
+import type { Declaration } from './managers/DeclarationTracker.js'
 
 // Re-export types for public API
 export type {
@@ -376,6 +379,60 @@ function createBundledParts(
 }
 
 /**
+ * Create bundled parts using AST-based bundling (experimental)
+ * This generates code from Declaration AST nodes instead of string manipulation
+ */
+function createBundledPartsFromAst(ctx: TranspileContext): BundledParts {
+  // Collect all local declarations
+  const localDeclarations = ctx.declarations.getAll()
+
+  // Collect declarations from includes
+  const includeDeclarations: Declaration[] = []
+  for (const inc of ctx.includeImports) {
+    const file = ctx.transpiledFiles.get(inc.resolvedPath)
+    if (file?.declarations) {
+      includeDeclarations.push(...file.declarations)
+    }
+  }
+
+  // Merge and deduplicate (local declarations come first, so they win)
+  const allDeclarations = mergeDeclarations([localDeclarations, includeDeclarations])
+
+  // Split by kind
+  const { functions: funcDecls, modules: modDecls, constants: constDecls } =
+    splitDeclarationsByKind(allDeclarations)
+
+  // Transpile declarations to code
+  // Create a temporary context for transpilation (to avoid polluting the main context)
+  const tempCtx = createContext(ctx.options)
+  // Copy over the symbol table so names are resolved correctly
+  tempCtx.symbols = ctx.symbols
+
+  const functions = funcDecls.map(d => transpileDeclarations([d], tempCtx))
+  const modules = modDecls.map(d => transpileDeclarations([d], tempCtx))
+  const constants = constDecls.map(d => transpileDeclarations([d], tempCtx))
+
+  return {
+    functions,
+    functionNames: funcDecls.map(d => d.name),
+    modules,
+    moduleNames: modDecls.map(d => d.name),
+    constants,
+    constantNames: constDecls.map(d => d.name),
+    useImports: [...ctx.useImports],
+    usedPrimitives: new Set(ctx.codeGen.usedPrimitives),
+    usedTransforms: new Set(ctx.codeGen.usedTransforms),
+    usedBooleans: new Set(ctx.codeGen.usedBooleans),
+    usedExtrusions: new Set(ctx.codeGen.usedExtrusions),
+    usedHelpers: new Set(ctx.codeGen.usedHelpers),
+    usedColors: ctx.codeGen.usedColors,
+    usedHulls: ctx.codeGen.usedHulls,
+    usedMaths: ctx.codeGen.usedMaths,
+    usedMinMax: ctx.codeGen.usedMinMax,
+  }
+}
+
+/**
  * Transpile OpenSCAD AST to JavaScript
  *
  * @param ast - Parsed OpenSCAD AST
@@ -435,7 +492,10 @@ export function transpile(
   const { code, allExports } = buildOutputCode(ctx, bundled, transpiled)
 
   // Create bundled parts for caching
-  const bundledParts = createBundledParts(ctx, bundled, transpiled)
+  // Use AST-based bundling if enabled (experimental), otherwise use string-based
+  const bundledParts = ctx.options.useAstBundling
+    ? createBundledPartsFromAst(ctx)
+    : createBundledParts(ctx, bundled, transpiled)
 
   // Add this file to the cache if it has a name
   if (ctx.options.currentFile) {
