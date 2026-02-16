@@ -343,16 +343,17 @@ function transpileUserDefinedCall(
   const isLocalVariable = ctx.scopes.lookupFunctionBinding(safeName)
   if (isLocalVariable) {
     // Local variable - call directly without any suffix
+    // Nested modules use positional parameters, not object destructuring
     // If there are children, pass them via curried call (local modules are curried)
     if (childCode && childCode !== 'undefined') {
       const childrenArray = collectChildrenAsArray(stmt.child, ctx)
       if (childrenArray.length > 0) {
         const childrenArg = `[${childrenArray.join(', ')}]`
-        return `${safeName}(${optionsArgs})(${childrenArg})`
+        return `${safeName}(${positionalArgs})(${childrenArg})`
       }
     }
-    // Local nested modules use curried pattern: module(opts)() even without children
-    return `${safeName}(${optionsArgs})()`
+    // Local nested modules use curried pattern with positional args: module(arg1, arg2)()
+    return `${safeName}(${positionalArgs})()`
   }
 
   // If there are children, collect them as an array and pass via curried call
