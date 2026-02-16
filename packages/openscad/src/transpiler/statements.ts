@@ -956,6 +956,18 @@ export function transpileModuleDeclaration(stmt: ModuleDeclarationStmt, ctx: Tra
   const paramNames = new Set<string>(stmt.definitionArgs.map(a => a.name))
   const bodyParts = buildModuleBody(stmt.stmt, ctx, '    ', paramNames)
 
+  // Track this declaration for AST-based bundling
+  const paramNamesArray = stmt.definitionArgs.map(arg => arg.name)
+  ctx.declarations.addModule(
+    `${name}_$m`,
+    stmt,
+    paramNamesArray,
+    {
+      file: ctx.options.currentFile || 'input.scad',
+      kind: 'local',
+    }
+  )
+
   // Build options destructuring preamble
   const optionsPreamble = buildOptionsDestructuring(stmt.definitionArgs, ctx)
   // Indent preamble for try block
@@ -1001,6 +1013,18 @@ export function transpileFunctionDeclaration(stmt: FunctionDeclarationStmt, ctx:
   const name = nameOverride || safeIdentifier(stmt.name)
   const params = transpileParamsList(stmt.definitionArgs, ctx)
   const body = transpileExpression(stmt.expr, ctx)
+
+  // Track this declaration for AST-based bundling
+  const paramNames = stmt.definitionArgs.map(arg => arg.name)
+  ctx.declarations.addFunction(
+    `${name}_$f`,
+    stmt,
+    paramNames,
+    {
+      file: ctx.options.currentFile || 'input.scad',
+      kind: 'local',
+    }
+  )
 
   // Build preamble to convert EXPLICIT_UNDEF params to undefined
   const preamble = buildUndefConversionPreamble(stmt.definitionArgs)
