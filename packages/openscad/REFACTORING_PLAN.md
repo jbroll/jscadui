@@ -943,9 +943,9 @@ These issues arise from fundamental differences between OpenSCAD and JavaScript 
 **Goal**: Eliminate remaining copy-paste logic
 
 **Priority order**:
-1. [ ] **H1**: Extract common symbol merge logic (5 functions → 1 utility)
-2. [ ] **H4**: Merge argument reordering functions (2 functions → 1 parameterized)
-3. [ ] **H3**: Unify builtin dispatch (2 dispatchers → 1 unified)
+1. [x] **H1**: Extract common symbol merge logic (5 functions → 1 utility) - **COMPLETE** ✅
+2. [x] **H4**: Merge argument reordering functions (2 functions → 1 parameterized) - **COMPLETE** ✅
+3. [ ] **H3**: Unify builtin dispatch (2 dispatchers → 1 unified) - **IN PROGRESS**
 4. [ ] **M4**: Extract shared let/for logic (4 implementations → shared utilities)
 5. [ ] **M1**: Extract comprehension handlers (100-line function → organized handlers)
 

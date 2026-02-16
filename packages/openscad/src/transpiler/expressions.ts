@@ -48,6 +48,7 @@ import {
   getNodeTypeName,
 } from './ast-types.js'
 import { mapArgsToParams } from './utils.js'
+import { shouldUseBuiltin } from './builtins.js'
 import type { LcForCExpr } from './ast-types.js'
 
 /**
@@ -663,6 +664,9 @@ export function transpileUnaryOp(op: number): string {
 }
 
 export function transpileFunctionCall(callee: string, args: string, ctx: TranspileContext): string {
+  // Check if we should use builtin (respects user overrides and underscore-prefix)
+  const useBuiltin = shouldUseBuiltin(callee, 'function', ctx)
+
   // Built-in math functions that map directly to Math.*
   const mathFuncs: Record<string, string> = {
     abs: 'Math.abs',
@@ -678,93 +682,97 @@ export function transpileFunctionCall(callee: string, args: string, ctx: Transpi
     sign: 'Math.sign',
   }
 
-  if (mathFuncs[callee]) {
+  if (useBuiltin && mathFuncs[callee]) {
     return `${mathFuncs[callee]}(${args})`
   }
 
   // min/max need special handling - in OpenSCAD, max([1,2,3]) returns 3
   // In JavaScript, Math.max([1,2,3]) returns NaN, need to spread array
-  if (callee === 'min' || callee === 'max') {
+  if (useBuiltin && (callee === 'min' || callee === 'max')) {
     return `j$.${callee}(${args})`
   }
 
   // Trig functions - OpenSCAD uses degrees, JavaScript uses radians
-  const toRad = 'Math.PI/180'
-  const toDeg = '180/Math.PI'
-  const trigFuncs: Record<string, string> = {
-    sin: `Math.sin((${args})*${toRad})`,
-    cos: `Math.cos((${args})*${toRad})`,
-    tan: `Math.tan((${args})*${toRad})`,
-    asin: `Math.asin(${args})*${toDeg}`,
-    acos: `Math.acos(${args})*${toDeg}`,
-    atan: `Math.atan(${args})*${toDeg}`,
-    atan2: `Math.atan2(${args})*${toDeg}`,
-  }
+  if (useBuiltin) {
+    const toRad = 'Math.PI/180'
+    const toDeg = '180/Math.PI'
+    const trigFuncs: Record<string, string> = {
+      sin: `Math.sin((${args})*${toRad})`,
+      cos: `Math.cos((${args})*${toRad})`,
+      tan: `Math.tan((${args})*${toRad})`,
+      asin: `Math.asin(${args})*${toDeg}`,
+      acos: `Math.acos(${args})*${toDeg}`,
+      atan: `Math.atan(${args})*${toDeg}`,
+      atan2: `Math.atan2(${args})*${toDeg}`,
+    }
 
-  if (trigFuncs[callee]) {
-    return trigFuncs[callee]
+    if (trigFuncs[callee]) {
+      return trigFuncs[callee]
+    }
   }
 
   // len() -> .length
-  if (callee === 'len') {
+  if (useBuiltin && callee === 'len') {
     return `(${args}).length`
   }
 
   // is_undef() -> typeof value === 'undefined' OR value is j$.EXPLICIT_UNDEF
   // Using typeof prevents ReferenceError when checking undefined variables (like BOSL2 flags)
   // We also check for j$.EXPLICIT_UNDEF because that sentinel represents explicit undef passed as argument
-  if (callee === 'is_undef') {
+  if (useBuiltin && callee === 'is_undef') {
     return `((typeof (${args}) === 'undefined') || (${args}) === j$.EXPLICIT_UNDEF)`
   }
 
   // is_def() -> typeof value !== 'undefined' AND value is not j$.EXPLICIT_UNDEF  (BOSL compatibility)
-  if (callee === 'is_def') {
+  if (useBuiltin && callee === 'is_def') {
     return `((typeof (${args}) !== 'undefined') && (${args}) !== j$.EXPLICIT_UNDEF)`
   }
 
   // is_list() -> Array.isArray()
-  if (callee === 'is_list') {
+  if (useBuiltin && callee === 'is_list') {
     return `Array.isArray(${args})`
   }
 
   // is_num() -> typeof === 'number'
-  if (callee === 'is_num') {
+  if (useBuiltin && callee === 'is_num') {
     return `(typeof (${args}) === 'number' && !isNaN(${args}))`
   }
 
   // is_str() / is_string() -> typeof === 'string'
-  if (callee === 'is_str' || callee === 'is_string') {
+  if (useBuiltin && (callee === 'is_str' || callee === 'is_string')) {
     return `(typeof (${args}) === 'string')`
   }
 
   // is_vector() -> runtime helper (handles optional length parameter)
-  if (callee === 'is_vector') {
+  if (useBuiltin && callee === 'is_vector') {
     return `j$.is_vector(${args})`
   }
 
   // is_bool() -> typeof === 'boolean'
-  if (callee === 'is_bool') {
+  if (useBuiltin && callee === 'is_bool') {
     return `(typeof (${args}) === 'boolean')`
   }
 
   // is_function() -> typeof === 'function' (OpenSCAD 2021.01+)
-  if (callee === 'is_function') {
+  if (useBuiltin && callee === 'is_function') {
     return `(typeof (${args}) === 'function')`
   }
 
   // concat() -> [..., ...]
-  if (callee === 'concat') {
+  if (useBuiltin && callee === 'concat') {
     return `[].concat(${args})`
   }
 
   // Helper functions from j$ runtime
-  const helperFuncs = ['norm', 'cross', 'lookup', 'rands', 'search', 'version_num', 'str', 'chr', 'ord', 'reverse']
-  if (helperFuncs.includes(callee)) {
-    return `j$.${callee}(${args})`
+  if (useBuiltin) {
+    const helperFuncs = ['norm', 'cross', 'lookup', 'rands', 'search', 'version_num', 'str', 'chr', 'ord', 'reverse']
+    if (helperFuncs.includes(callee)) {
+      return `j$.${callee}(${args})`
+    }
   }
 
   // echo() for debugging - map to console.log
-  if (callee === 'echo') {
+  if (useBuiltin && callee === 'echo') {
     return `console.log(${args})`
   }
 
