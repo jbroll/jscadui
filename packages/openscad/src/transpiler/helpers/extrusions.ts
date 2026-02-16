@@ -11,7 +11,7 @@ export function buildExtrusionHelpers(ctx: TranspileContext): string[] {
   const imports: string[] = []
 
   // Linear extrude helper - uses extrudeFromSlices when scale is used (extrudeLinear ignores scale)
-  if (ctx.usedExtrusions.has('extrudeLinear')) {
+  if (ctx.codeGen.usedExtrusions.has('extrudeLinear')) {
     imports.push(`
 const _linearExtrude = ({ height, center = false, twist = 0, slices, scale = 1, segments, $fn = 0 }, geo) => {
   // Normalize scale to [x, y] array
@@ -85,7 +85,7 @@ const _linearExtrude = ({ height, center = false, twist = 0, slices, scale = 1, 
   }
 
   // Rotate extrude helper - uses 360/$fa = 30 segments by default
-  if (ctx.usedExtrusions.has('extrudeRotate')) {
+  if (ctx.codeGen.usedExtrusions.has('extrudeRotate')) {
     imports.push(`
 const _rotateExtrude = ({ angle = 360, $fn = 0, $fa = 12 }, geo) => {
   // Calculate full-circle segments from $fn or $fa

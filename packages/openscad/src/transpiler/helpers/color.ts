@@ -10,7 +10,7 @@ import type { TranspileContext } from '../context.js'
 export function buildColorHelpers(ctx: TranspileContext): string[] {
   const imports: string[] = []
 
-  if (ctx.usedColors) {
+  if (ctx.codeGen.usedColors) {
     imports.push(`
 const _color = (color, alpha, geo) => {
   let rgba

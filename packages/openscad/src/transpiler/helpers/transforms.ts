@@ -11,7 +11,7 @@ export function buildTransformHelpers(ctx: TranspileContext): string[] {
   const imports: string[] = []
 
   // Rotation helper for Euler angles
-  if (ctx.usedTransforms.has('rotateX') || ctx.usedTransforms.has('rotateY') || ctx.usedTransforms.has('rotateZ')) {
+  if (ctx.codeGen.usedTransforms.has('rotateX') || ctx.codeGen.usedTransforms.has('rotateY') || ctx.codeGen.usedTransforms.has('rotateZ')) {
     imports.push(`
 const _rotate = (params, geo) => {
   const toRad = d => d * Math.PI / 180
@@ -49,7 +49,7 @@ const _rotate = (params, geo) => {
   }
 
   // Multmatrix helper - applies a 4x4 transformation matrix
-  if (ctx.usedTransforms.has('transform')) {
+  if (ctx.codeGen.usedTransforms.has('transform')) {
     imports.push(`
 const _multmatrix = (m, geo) => {
   // OpenSCAD multmatrix uses row-major 4x4 or 4x3 matrix

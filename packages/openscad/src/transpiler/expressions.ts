@@ -211,41 +211,41 @@ function transpileBinaryOpExpr(
 
   // Handle equality operators specially - need deep comparison for arrays
   if (expr.operation === TokenType.EqualEqual) {
-    ctx.usedHelpers.add('eq')
+    ctx.codeGen.usedHelpers.add('eq')
     return `j$.eq(${left}, ${right})`
   }
   if (expr.operation === TokenType.BangEqual) {
-    ctx.usedHelpers.add('eq')
+    ctx.codeGen.usedHelpers.add('eq')
     return `!j$.eq(${left}, ${right})`
   }
 
   // Handle arithmetic operators with vector support
   if (expr.operation === TokenType.Plus) {
-    ctx.usedHelpers.add('vadd')
+    ctx.codeGen.usedHelpers.add('vadd')
     return `j$.vadd(${left}, ${right})`
   }
   if (expr.operation === TokenType.Minus) {
-    ctx.usedHelpers.add('vsub')
+    ctx.codeGen.usedHelpers.add('vsub')
     return `j$.vsub(${left}, ${right})`
   }
   if (expr.operation === TokenType.Star) {
-    ctx.usedHelpers.add('vmul')
+    ctx.codeGen.usedHelpers.add('vmul')
     return `j$.vmul(${left}, ${right})`
   }
   if (expr.operation === TokenType.Slash) {
-    ctx.usedHelpers.add('vdiv')
+    ctx.codeGen.usedHelpers.add('vdiv')
     return `j$.vdiv(${left}, ${right})`
   }
 
   // Handle logical operators with OpenSCAD truthiness
   // In OpenSCAD, empty arrays are falsy (unlike JavaScript)
   if (expr.operation === TokenType.AND) {
-    ctx.usedHelpers.add('isTruthy')
+    ctx.codeGen.usedHelpers.add('isTruthy')
     // a && b: if a is truthy, return b; otherwise return a
     return `(j$.isTruthy(${left}) ? ${right} : ${left})`
   }
   if (expr.operation === TokenType.OR) {
-    ctx.usedHelpers.add('isTruthy')
+    ctx.codeGen.usedHelpers.add('isTruthy')
     // a || b: if a is truthy, return a; otherwise return b
     return `(j$.isTruthy(${left}) ? ${left} : ${right})`
   }
@@ -267,14 +267,14 @@ function transpileUnaryOpExpr(
   // Unary minus on vectors needs special handling (negate each element)
   // But for literal numbers, we can use regular negation
   if (op === '-' && !isLiteralExpr(expr.right)) {
-    ctx.usedHelpers.add('vneg')
+    ctx.codeGen.usedHelpers.add('vneg')
     return `j$.vneg(${right})`
   }
 
   // Logical NOT needs OpenSCAD truthiness semantics
   // In OpenSCAD, empty arrays [] are falsy, but in JavaScript they're truthy
   if (op === '!') {
-    ctx.usedHelpers.add('isTruthy')
+    ctx.codeGen.usedHelpers.add('isTruthy')
     return `!j$.isTruthy(${right})`
   }
 
@@ -292,7 +292,7 @@ function transpileTernaryExpr(
   const ifExpr = transpileExpression(expr.ifExpr, ctx)
   const elseExpr = transpileExpression(expr.elseExpr, ctx)
   // Use j$.isTruthy() for OpenSCAD semantics (empty arrays are falsy)
-  ctx.usedHelpers.add('isTruthy')
+  ctx.codeGen.usedHelpers.add('isTruthy')
   return `(j$.isTruthy(${cond}) ? ${ifExpr} : ${elseExpr})`
 }
 

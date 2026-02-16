@@ -130,7 +130,7 @@ export function transpileStatement(stmt: Statement, ctx: TranspileContext): stri
         const allRestores = specialRestores.join('; ')
         const geometryExpr = parts.length === 0 ? 'undefined'
           : parts.length === 1 ? parts[0]
-          : (ctx.usedBooleans.add('union'), ctx.usedHelpers.add('safeUnion'), `j$.safeUnion([${parts.join(', ')}])`)
+          : (ctx.codeGen.usedBooleans.add('union'), ctx.codeGen.usedHelpers.add('safeUnion'), `j$.safeUnion([${parts.join(', ')}])`)
 
         return `(() => { ${allSaves}; ${allSets}; try { return ${geometryExpr}; } finally { ${allRestores}; } })()`
       }
@@ -141,8 +141,8 @@ export function transpileStatement(stmt: Statement, ctx: TranspileContext): stri
       if (parts.length === 1) {
         return `(() => { ${assignStrs.join('; ')}; return ${parts[0]} })()`
       }
-      ctx.usedBooleans.add('union')
-      ctx.usedHelpers.add('safeUnion')
+      ctx.codeGen.usedBooleans.add('union')
+      ctx.codeGen.usedHelpers.add('safeUnion')
       return `(() => { ${assignStrs.join('; ')}; return j$.safeUnion([\n    ${parts.join(',\n    ')}\n  ]) })()`
     }
 
@@ -150,8 +150,8 @@ export function transpileStatement(stmt: Statement, ctx: TranspileContext): stri
     if (parts.length === 0) return null
 
     if (parts.length === 1) return parts[0]
-    ctx.usedBooleans.add('union')
-    ctx.usedHelpers.add('safeUnion')
+    ctx.codeGen.usedBooleans.add('union')
+    ctx.codeGen.usedHelpers.add('safeUnion')
     return `j$.safeUnion([\n${parts.map(p => `  ${p}`).join(',\n')}\n])`
   }
 
@@ -259,7 +259,7 @@ function transpileColorModule(
   childCode: string | null,
   ctx: TranspileContext
 ): string {
-  ctx.usedColors = true
+  ctx.codeGen.usedColors = true
   // color takes (colorName, alpha?) or ([r,g,b], alpha?)
   // When only 1 arg to color, alpha is undefined
   const colorValue = argsArray[0]?.value || '"gray"'
@@ -545,7 +545,7 @@ function transpileBuiltinHull(child: Statement | null, ctx: TranspileContext): s
     return 'undefined'
   }
 
-  ctx.usedHulls = true
+  ctx.codeGen.usedHulls = true
   const args = childCodes.join(',\n  ')
   // Use runtime helper to avoid conflict with user-defined hull functions
   return `j$.hull(\n  ${args}\n)`
@@ -927,7 +927,7 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
   const returnExpr = geomParts.length === 0 ? 'undefined' :
     geomParts.length === 1 ? geomParts[0] :
     `j$.safeUnion([\n${indent}  ${geomParts.join(',\n' + indent + '  ')}\n${indent}])`
-  if (geomParts.length > 1) ctx.usedHelpers.add('safeUnion')
+  if (geomParts.length > 1) ctx.codeGen.usedHelpers.add('safeUnion')
 
   // Special variable scoping is handled by pushScope/popScope in the module wrapper
   bodyParts.push(`${indent}return ${returnExpr}`)

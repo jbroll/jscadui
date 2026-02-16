@@ -188,15 +188,15 @@ function propagateUseImportsFromInclude(ctx: TranspileContext, parts: BundledPar
  * Merge JSCAD usage flags from bundled parts
  */
 function mergeJscadUsageFlags(ctx: TranspileContext, parts: BundledParts): void {
-  mergeSetInto(ctx.usedPrimitives, parts.usedPrimitives)
-  mergeSetInto(ctx.usedTransforms, parts.usedTransforms)
-  mergeSetInto(ctx.usedBooleans, parts.usedBooleans)
-  mergeSetInto(ctx.usedExtrusions, parts.usedExtrusions)
-  mergeSetInto(ctx.usedHelpers, parts.usedHelpers)
-  if (parts.usedColors) ctx.usedColors = true
-  if (parts.usedHulls) ctx.usedHulls = true
-  if (parts.usedMaths) ctx.usedMaths = true
-  if (parts.usedMinMax) ctx.usedMinMax = true
+  mergeSetInto(ctx.codeGen.usedPrimitives, parts.usedPrimitives)
+  mergeSetInto(ctx.codeGen.usedTransforms, parts.usedTransforms)
+  mergeSetInto(ctx.codeGen.usedBooleans, parts.usedBooleans)
+  mergeSetInto(ctx.codeGen.usedExtrusions, parts.usedExtrusions)
+  mergeSetInto(ctx.codeGen.usedHelpers, parts.usedHelpers)
+  if (parts.usedColors) ctx.codeGen.usedColors = true
+  if (parts.usedHulls) ctx.codeGen.usedHulls = true
+  if (parts.usedMaths) ctx.codeGen.usedMaths = true
+  if (parts.usedMinMax) ctx.codeGen.usedMinMax = true
 }
 
 /**
@@ -363,15 +363,15 @@ function createBundledParts(
     constants,
     constantNames: extractNamesFromCode(constants, /^const\s+(\w+)/),
     useImports: [...ctx.useImports],
-    usedPrimitives: new Set(ctx.usedPrimitives),
-    usedTransforms: new Set(ctx.usedTransforms),
-    usedBooleans: new Set(ctx.usedBooleans),
-    usedExtrusions: new Set(ctx.usedExtrusions),
-    usedHelpers: new Set(ctx.usedHelpers),
-    usedColors: ctx.usedColors,
-    usedHulls: ctx.usedHulls,
-    usedMaths: ctx.usedMaths,
-    usedMinMax: ctx.usedMinMax,
+    usedPrimitives: new Set(ctx.codeGen.usedPrimitives),
+    usedTransforms: new Set(ctx.codeGen.usedTransforms),
+    usedBooleans: new Set(ctx.codeGen.usedBooleans),
+    usedExtrusions: new Set(ctx.codeGen.usedExtrusions),
+    usedHelpers: new Set(ctx.codeGen.usedHelpers),
+    usedColors: ctx.codeGen.usedColors,
+    usedHulls: ctx.codeGen.usedHulls,
+    usedMaths: ctx.codeGen.usedMaths,
+    usedMinMax: ctx.codeGen.usedMinMax,
   }
 }
 
@@ -428,7 +428,7 @@ export function transpile(
 
   // Check if we need safeUnion for file-scope geometry
   if (transpiled.geometryParts.length > 1) {
-    ctx.usedHelpers.add('safeUnion')
+    ctx.codeGen.usedHelpers.add('safeUnion')
   }
 
   // Build the output code
