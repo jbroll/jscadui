@@ -37,7 +37,7 @@ import {
 import { getModuleName } from './builtins.js'
 import { buildJscadImports } from './helpers/index.js'
 import { isStackSpecialVar } from './specialVars.js'
-import { deduplicateParamNames, mergeSetInto, registerDualDefinedVariant, extractNamesFromCode, importSymbolsFromFile } from './utils.js'
+import { deduplicateParamNames, mergeSetInto, extractNamesFromCode, importSymbolsFromFile } from './utils.js'
 
 // Re-export types for public API
 export type {
@@ -179,7 +179,6 @@ function propagateUseImportsFromInclude(ctx: TranspileContext, parts: BundledPar
       importSymbolsFromFile(usedFile, ctx, {
         defineModules: false,
         registerParams: false,
-        registerDualDefined: false,
       })
     }
   }
@@ -218,11 +217,8 @@ function transpileAllStatements(ast: ScadFile, ctx: TranspileContext): Transpile
   const localConstants: string[] = []
   const geometryParts: string[] = []
 
-  // Register __fn variants so reorderNamedArgs can find them
-  // Read directly from SymbolTable instead of legacy set
-  for (const name of ctx.symbols.getDualDefined()) {
-    registerDualDefinedVariant(name, ctx.symbols)
-  }
+  // Dual-defined names are already tracked in SymbolTable
+  // No need to register __fn variants - getParams() uses preferKind instead
 
   for (const stmt of ast.statements) {
     if (isModuleDeclaration(stmt)) {
@@ -551,13 +547,8 @@ function collectSignaturesFromIncludes(
     }
 
     // Detect dual-defined names (both module and function with same name)
-    // and add to context so function calls use __fn suffix
-    for (const name of fileFunctionNames) {
-      if (fileModuleNames.has(name)) {
-        // Register __fn variant in SymbolTable so reorderNamedArgs can find it
-        registerDualDefinedVariant(name, ctx.symbols)
-      }
-    }
+    // The SymbolTable already tracks dual-defined names when define() is called
+    // No additional registration needed
 
     // Recursively collect from nested includes
     const nestedCtx: TranspileContext = {
@@ -591,11 +582,8 @@ function collectSignaturesFromIncludes(
       }
     }
     // Copy dual-defined names from nested includes
-    // Read from SymbolTable instead of legacy set
-    for (const name of nestedCtx.symbols.getDualDefined()) {
-      // Also register __fn variant (skip if already exists)
-      registerDualDefinedVariant(name, ctx.symbols, true)
-    }
+    // The SymbolTable.merge() already handles dual-defined names correctly
+    // No additional registration needed
     // Copy included function names from nested includes
     for (const name of nestedCtx.includedFunctionNames) {
       ctx.includedFunctionNames.add(name)

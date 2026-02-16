@@ -42,30 +42,6 @@ export function mergeSetInto<T>(target: Set<T>, source: Iterable<T>): void {
   for (const item of source) target.add(item)
 }
 
-/**
- * Register a dual-defined __fn variant for a symbol.
- * Dual-defined symbols have both module and function definitions.
- * The __fn suffix is used when calling the function version.
- *
- * @param name - The base symbol name
- * @param symbols - The symbol table to register in
- * @param skipIfExists - Skip registration if __fn variant already exists
- */
-export function registerDualDefinedVariant(
-  name: string,
-  symbols: { getParams(name: string, type: 'module' | 'function'): string[] | undefined; registerParams(name: string, type: 'module' | 'function', params: string[]): void },
-  skipIfExists = false
-): void {
-  // Get params from function version first (may have more params), fallback to module
-  const params = symbols.getParams(name, 'function') || symbols.getParams(name, 'module')
-  if (!params) return
-
-  // Check if __fn variant already exists (for skipIfExists mode)
-  if (skipIfExists && symbols.getParams(`${name}__fn`, 'module')) return
-
-  // Register __fn variant so reorderNamedArgs can find it
-  symbols.registerParams(`${name}__fn`, 'module', params)
-}
 
 /**
  * Extract names from code strings using a regex pattern.
@@ -102,7 +78,6 @@ export function extractNamesFromCode(codeStrings: string[], pattern: RegExp): st
  * @param options - Configuration for what to import
  *   - defineModules: Whether to define modules in SymbolTable (default: true). Set to false for use imports.
  *   - registerParams: Whether to register parameter lists (default: true). Set to false if already registered.
- *   - registerDualDefined: Whether to register dual-defined __fn variants (default: true).
  */
 export function importSymbolsFromFile(
   cachedFile: TranspiledFile | undefined,
@@ -110,7 +85,6 @@ export function importSymbolsFromFile(
   options?: {
     defineModules?: boolean
     registerParams?: boolean
-    registerDualDefined?: boolean
   }
 ): void {
   if (!cachedFile) return
@@ -118,7 +92,6 @@ export function importSymbolsFromFile(
   const opts = {
     defineModules: true,
     registerParams: true,
-    registerDualDefined: true,
     ...options,
   }
 
@@ -152,12 +125,8 @@ export function importSymbolsFromFile(
     }
   }
 
-  // Register dual-defined __fn variants
-  if (opts.registerDualDefined && cachedFile.dualDefinedNames) {
-    for (const name of cachedFile.dualDefinedNames) {
-      registerDualDefinedVariant(name, ctx.symbols)
-    }
-  }
+  // Dual-defined names are already tracked in SymbolTable via define() calls
+  // No additional registration needed
 }
 
 /**
