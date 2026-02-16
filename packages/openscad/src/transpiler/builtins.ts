@@ -244,7 +244,20 @@ export function transpileBuiltinExtrusion(
 ): string {
   // Handle underscore-prefixed versions (BOSL2 builtins.scad wrappers)
   const baseName = stripUnderscorePrefix(name)
-  const childCode = child || 'undefined'
+  let childCode = child || 'undefined'
+
+  // Extract special variables from args that should be inherited by children
+  // In OpenSCAD, extrusions like rotate_extrude($fn=30) set special variables
+  // that are visible to child geometries
+  const specialVars = argsArray.filter(arg =>
+    arg.name && ['$fn', '$fa', '$fs'].includes(arg.name)
+  )
+
+  // If there are special variables, wrap child in a scope so it inherits them
+  if (specialVars.length > 0 && child) {
+    const svObj = specialVars.map(sv => `${sv.name}: ${sv.value}`).join(', ')
+    childCode = `j$.withScope({ ${svObj} }, () => ${childCode})`
+  }
 
   // Map positional args to named args using parameter definitions
   const paramNames = extrusionParams[baseName] || []
