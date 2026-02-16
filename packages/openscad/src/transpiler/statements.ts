@@ -351,7 +351,8 @@ function transpileUserDefinedCall(
         return `${safeName}(${optionsArgs})(${childrenArg})`
       }
     }
-    return `${safeName}(${optionsArgs})`
+    // Local nested modules use curried pattern: module(opts)() even without children
+    return `${safeName}(${optionsArgs})()`
   }
 
   // If there are children, collect them as an array and pass via curried call
