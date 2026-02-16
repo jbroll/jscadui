@@ -11,7 +11,8 @@ import type {
   FunctionDeclarationStmt,
 } from 'openscad-parser'
 import type { TranspileContext } from './context.js'
-import { WarningCode, pushScope, popScope } from './context.js'
+import { WarningCode } from './context.js'
+import { generateScopeSuffix, withScope } from './scoping.js'
 import { safeIdentifier } from '../utils/identifiers.js'
 import { transpileExpression, reorderNamedArgs, isFunctionLiteralExpr } from './expressions.js'
 import { getLocation } from '../parser/parse.js'
@@ -83,44 +84,44 @@ export function transpileStatement(stmt: Statement, ctx: TranspileContext): stri
     // Use suffixed names to avoid temporal dead zone when shadowing parameters
     // Special variables use stack-based dynamic scoping via isStackSpecialVar()
     if (assignments.length > 0) {
-      const suffix = `$${ctx.letCounter++}`
+      const suffix = generateScopeSuffix(ctx)
       const assignStrs: string[] = []
       const specialSaves: string[] = []
       const specialRestores: string[] = []
 
       // Use incremental scope: each assignment value sees only earlier assignments
       const incrementalScope = new Map<string, string>()
-      pushScope(ctx, incrementalScope)
 
-      for (const a of assignments) {
-        const origName = safeIdentifier(a.name)
-        const isSpecial = isStackSpecialVar(a.name)
+      // Build assignments and transpile geometry with scope
+      const parts = withScope(ctx, incrementalScope, () => {
+        for (const a of assignments) {
+          const origName = safeIdentifier(a.name)
+          const isSpecial = isStackSpecialVar(a.name)
 
-        if (isSpecial) {
-          // Special variable - save, set, and restore for dynamic scoping
-          // This allows children to see the new value, but restores after block
-          // Use stack-based getSpecialVar/setSpecialVar instead of bare variable references
-          const savedName = `_saved_${origName.replace(/\$/g, '_')}${suffix}`
-          const value = transpileExpression(a.value!, ctx)
-          specialSaves.push(`const ${savedName} = j$.getSpecialVar('${a.name}')`)
-          assignStrs.push(`j$.setSpecialVar('${a.name}', ${value})`)
-          specialRestores.push(`j$.setSpecialVar('${a.name}', ${savedName})`)
-          // Don't add to incrementalScope - use the global
-        } else {
-          // Regular variable - use suffixed local scope
-          const newName = `${origName}${suffix}`
-          // Transpile value - scope lookup will find earlier assignments automatically
-          const value = transpileExpression(a.value!, ctx)
-          assignStrs.push(`const ${newName} = ${value}`)
-          // Add this assignment to scope for subsequent assignments and geometry
-          incrementalScope.set(origName, newName)
+          if (isSpecial) {
+            // Special variable - save, set, and restore for dynamic scoping
+            // This allows children to see the new value, but restores after block
+            // Use stack-based getSpecialVar/setSpecialVar instead of bare variable references
+            const savedName = `_saved_${origName.replace(/\$/g, '_')}${suffix}`
+            const value = transpileExpression(a.value!, ctx)
+            specialSaves.push(`const ${savedName} = j$.getSpecialVar('${a.name}')`)
+            assignStrs.push(`j$.setSpecialVar('${a.name}', ${value})`)
+            specialRestores.push(`j$.setSpecialVar('${a.name}', ${savedName})`)
+            // Don't add to incrementalScope - use the global
+          } else {
+            // Regular variable - use suffixed local scope
+            const newName = `${origName}${suffix}`
+            // Transpile value - scope lookup will find earlier assignments automatically
+            const value = transpileExpression(a.value!, ctx)
+            assignStrs.push(`const ${newName} = ${value}`)
+            // Add this assignment to scope for subsequent assignments and geometry
+            incrementalScope.set(origName, newName)
+          }
         }
-      }
 
-      // Transpile geometry statements with full scope
-      const parts = geometryStmts.map(c => transpileStatement(c, ctx)).filter(Boolean) as string[]
-
-      popScope(ctx)
+        // Transpile geometry statements with full scope
+        return geometryStmts.map(c => transpileStatement(c, ctx)).filter(Boolean) as string[]
+      })
 
       // If we have special vars, we need try/finally to ensure restoration
       if (specialSaves.length > 0) {
@@ -571,14 +572,10 @@ function transpileForLoop(stmt: ModuleInstantiationStmt, ctx: TranspileContext):
     loopScope.set(arg.name, arg.name)
   }
 
-  // Push scope so body sees loop variables with their original names
-  pushScope(ctx, loopScope)
-
   // Transpile the body with loop variables in scope
-  const body = stmt.child ? transpileStatement(stmt.child, ctx) || 'undefined' : 'undefined'
-
-  // Pop the scope
-  popScope(ctx)
+  const body = withScope(ctx, loopScope, () =>
+    stmt.child ? transpileStatement(stmt.child, ctx) || 'undefined' : 'undefined'
+  )
 
   // Handle single loop variable (most common case)
   if (args.length === 1) {
@@ -619,14 +616,10 @@ function transpileLetModule(stmt: ModuleInstantiationStmt, ctx: TranspileContext
     letScope.set(arg.name, safeIdentifier(arg.name))
   }
 
-  // Push scope so body sees let bindings
-  pushScope(ctx, letScope)
-
   // Transpile the body (children) with let bindings in scope
-  const body = stmt.child ? transpileStatement(stmt.child, ctx) || 'undefined' : 'undefined'
-
-  // Pop the scope
-  popScope(ctx)
+  const body = withScope(ctx, letScope, () =>
+    stmt.child ? transpileStatement(stmt.child, ctx) || 'undefined' : 'undefined'
+  )
 
   // Build parameter list and argument list
   const paramNames = args.map(a => safeIdentifier(a.name))

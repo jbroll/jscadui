@@ -14,10 +14,11 @@ import type {
   AssignmentNode,
 } from 'openscad-parser'
 import type { TranspileContext } from './context.js'
-import { WarningCode, pushScope, popScope, lookupBinding } from './context.js'
+import { WarningCode, lookupBinding } from './context.js'
 import { safeIdentifier } from '../utils/identifiers.js'
 import { isStackSpecialVar } from './specialVars.js'
 import { TokenType } from '../utils/tokens.js'
+import { generateScopeSuffix, withScope } from './scoping.js'
 import {
   isLiteralExpr,
   isLookupExpr,
@@ -99,48 +100,50 @@ function transpileLetBindings(
   bodyExpr: Expression,
   ctx: TranspileContext
 ): string {
-  const suffix = `$${ctx.letCounter || 1}`
-  ctx.letCounter = (ctx.letCounter || 1) + 1
+  const suffix = generateScopeSuffix(ctx)
 
   const bindings: string[] = []
-  const functionBindings: string[] = []  // Track which bindings are functions (for cleanup)
+  const functionBindingPairs: Array<[string, string]> = []  // Track function bindings for cleanup
 
   // Use incremental scope: each binding value sees only earlier bindings
   const incrementalScope = new Map<string, string>()
-  pushScope(ctx, incrementalScope)
 
-  for (let i = 0; i < args.length; i++) {
-    const a = args[i]
-    const origName = safeIdentifier(a.name)
-    const newName = `${origName}${suffix}`
+  // Build bindings and transpile body with scope
+  // Note: We manually manage function bindings because they're added incrementally
+  const body = withScope(ctx, incrementalScope, () => {
+    for (let i = 0; i < args.length; i++) {
+      const a = args[i]
+      const origName = safeIdentifier(a.name)
+      const newName = `${origName}${suffix}`
 
-    // Check if this is a function literal (for recursive self-reference support)
-    // This includes direct function declarations and ternary expressions returning functions
-    const isFuncLiteral = a.value && isFunctionLiteralExpr(a.value)
-    if (isFuncLiteral) {
-      functionBindings.push(origName)
-      // Register function binding IMMEDIATELY so subsequent bindings can call it
-      ctx.localFunctionBindings.set(origName, newName)
-      // Also add to scope for self-reference
-      incrementalScope.set(origName, newName)
+      // Check if this is a function literal (for recursive self-reference support)
+      // This includes direct function declarations and ternary expressions returning functions
+      const isFuncLiteral = a.value && isFunctionLiteralExpr(a.value)
+      if (isFuncLiteral) {
+        // Track for cleanup
+        functionBindingPairs.push([origName, newName])
+        // Register function binding IMMEDIATELY so subsequent bindings can call it
+        ctx.localFunctionBindings.set(origName, newName)
+        // Also add to scope for self-reference
+        incrementalScope.set(origName, newName)
+      }
+
+      // Transpile value - scope lookup will find earlier bindings automatically
+      const value = transpileExpression(a.value!, ctx)
+      bindings.push(`const ${newName} = ${value}`)
+
+      // Add this binding to scope for subsequent bindings
+      if (!isFuncLiteral) {
+        incrementalScope.set(origName, newName)
+      }
     }
 
-    // Transpile value - scope lookup will find earlier bindings automatically
-    const value = transpileExpression(a.value!, ctx)
-    bindings.push(`const ${newName} = ${value}`)
+    // Transpile body - all bindings are now in scope
+    return transpileExpression(bodyExpr, ctx)
+  })
 
-    // Add this binding to scope for subsequent bindings
-    if (!isFuncLiteral) {
-      incrementalScope.set(origName, newName)
-    }
-  }
-
-  // Transpile body - all bindings are now in scope
-  const body = transpileExpression(bodyExpr, ctx)
-
-  // Pop scope and clean up function bindings
-  popScope(ctx)
-  for (const origName of functionBindings) {
+  // Clean up function bindings
+  for (const [origName] of functionBindingPairs) {
     ctx.localFunctionBindings.delete(origName)
   }
 
@@ -544,10 +547,8 @@ function transpileLcForExprHandler(
     loopScope.set(arg.name, arg.name)
   }
 
-  // Push scope so inner expression sees loop variables with their original names
-  pushScope(ctx, loopScope)
-  const innerExpr = transpileExpression(forExpr.expr, ctx)
-  popScope(ctx)
+  // Transpile inner expression with loop variables in scope
+  const innerExpr = withScope(ctx, loopScope, () => transpileExpression(forExpr.expr, ctx))
 
   // Check if inner expression contains LcIfExpr (needs filtering)
   const needsFilter = containsIfExpr(forExpr.expr)
@@ -587,60 +588,61 @@ function transpileLcForCExprHandler(
   forCExpr: LcForCExpr,
   ctx: TranspileContext
 ): string {
-  const suffix = `$${ctx.letCounter || 1}`
-  ctx.letCounter = (ctx.letCounter || 1) + 1
+  const suffix = generateScopeSuffix(ctx)
 
   // Build scope incrementally - each initializer can see previous variables
   // This is important for patterns like: for (i=0, x=f(i), y=f(x); ...)
   const loopScope = new Map<string, string>()
-  pushScope(ctx, loopScope)
 
-  // Initial assignments - each value is transpiled with current scope,
-  // then the variable is added to scope for subsequent initializers
-  const initParts: string[] = []
-  for (const a of forCExpr.args) {
-    // Transpile value BEFORE adding this var to scope (it shouldn't see itself)
-    const value = transpileExpression(a.value!, ctx)
-    const origName = safeIdentifier(a.name)
-    const suffixedName = `${origName}${suffix}`
-    initParts.push(`let ${suffixedName} = ${value}`)
-    // Now add to scope so subsequent initializers can reference it
-    loopScope.set(origName, suffixedName)
-  }
-  const inits = initParts.join('; ')
-
-  // Add increment-only variables to scope BEFORE transpiling condition/body/incr
-  // Increment section may have new variables not in init (e.g., v1, c1, etc.)
-  // and they reference each other (c1 = v1*v1), so all need to be in scope
-  const incrOnlyVars: string[] = []
-  for (const a of forCExpr.incrArgs) {
-    const origName = safeIdentifier(a.name)
-    if (!loopScope.has(origName)) {
+  // Build scope and transpile with scope active throughout
+  const { inits, incrOnlyDecl, cond, body, incrUpdate } = withScope(ctx, loopScope, () => {
+    // Initial assignments - each value is transpiled with current scope,
+    // then the variable is added to scope for subsequent initializers
+    const initParts: string[] = []
+    for (const a of forCExpr.args) {
+      // Transpile value BEFORE adding this var to scope (it shouldn't see itself)
+      const value = transpileExpression(a.value!, ctx)
+      const origName = safeIdentifier(a.name)
       const suffixedName = `${origName}${suffix}`
+      initParts.push(`let ${suffixedName} = ${value}`)
+      // Now add to scope so subsequent initializers can reference it
       loopScope.set(origName, suffixedName)
-      incrOnlyVars.push(suffixedName)
     }
-  }
-  // Declare increment-only variables (they'll be assigned in the while loop)
-  const incrOnlyDecl = incrOnlyVars.length > 0 ? `let ${incrOnlyVars.join(', ')};` : ''
+    const inits = initParts.join('; ')
 
-  // Condition
-  const cond = transpileExpression(forCExpr.cond, ctx)
+    // Add increment-only variables to scope BEFORE transpiling condition/body/incr
+    // Increment section may have new variables not in init (e.g., v1, c1, etc.)
+    // and they reference each other (c1 = v1*v1), so all need to be in scope
+    const incrOnlyVars: string[] = []
+    for (const a of forCExpr.incrArgs) {
+      const origName = safeIdentifier(a.name)
+      if (!loopScope.has(origName)) {
+        const suffixedName = `${origName}${suffix}`
+        loopScope.set(origName, suffixedName)
+        incrOnlyVars.push(suffixedName)
+      }
+    }
+    // Declare increment-only variables (they'll be assigned in the while loop)
+    const incrOnlyDecl = incrOnlyVars.length > 0 ? `let ${incrOnlyVars.join(', ')};` : ''
 
-  // Body expression
-  const body = transpileExpression(forCExpr.expr, ctx)
+    // Condition
+    const cond = transpileExpression(forCExpr.cond, ctx)
 
-  // Increment assignments - MUST be sequential, not parallel!
-  // In OpenSCAD, later increment expressions can use earlier variables' new values
-  const incrParts: string[] = []
-  for (const a of forCExpr.incrArgs) {
-    const value = transpileExpression(a.value!, ctx)
-    const varName = `${safeIdentifier(a.name)}${suffix}`
-    incrParts.push(`${varName} = ${value}`)
-  }
-  const incrUpdate = incrParts.join('; ')
+    // Body expression
+    const body = transpileExpression(forCExpr.expr, ctx)
 
-  popScope(ctx)
+    // Increment assignments - MUST be sequential, not parallel!
+    // In OpenSCAD, later increment expressions can use earlier variables' new values
+    const incrParts: string[] = []
+    for (const a of forCExpr.incrArgs) {
+      const value = transpileExpression(a.value!, ctx)
+      const varName = `${safeIdentifier(a.name)}${suffix}`
+      incrParts.push(`${varName} = ${value}`)
+    }
+    const incrUpdate = incrParts.join('; ')
+
+    return { inits, incrOnlyDecl, cond, body, incrUpdate }
+  })
 
   return `(() => { const _result${suffix} = []; ${inits}; ${incrOnlyDecl} while (${cond}) { _result${suffix}.push(${body}); ${incrUpdate}; } return _result${suffix}; })()`
 }
