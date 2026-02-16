@@ -137,16 +137,6 @@ export interface TranspileContext {
   // Managers for focused concerns
   codeGen: CodeGenState
   scopes: ScopeManager
-  // Track what JSCAD primitives/functions are used
-  usedPrimitives: Set<string>
-  usedTransforms: Set<string>
-  usedBooleans: Set<string>
-  usedExtrusions: Set<string>
-  usedHelpers: Set<string>  // Math helper functions (norm, cross, lookup, rands)
-  usedColors: boolean
-  usedHulls: boolean
-  usedMaths: boolean
-  usedMinMax: boolean
   // Track use statements with their discovered symbols
   useImports: UseImport[]
   // Track include statements (import all symbols including variables)
@@ -171,15 +161,6 @@ export interface TranspileContext {
   parsedFiles: Map<string, ScadFile>
   // Track files currently being processed (for cycle detection)
   processingFiles: Set<string>
-  // Counter for unique let binding suffixes (to avoid shadowing issues)
-  letCounter: number
-  // Local let bindings that are functions (maps original name -> renamed suffixed name)
-  // When calling these, use the renamed name directly without _$f suffix
-  localFunctionBindings: Map<string, string>
-  // Scope stack for variable bindings (maps original name -> renamed name)
-  // Each entry is a scope level; innermost scope is last
-  // This is used for proper lexical scoping of let/for bindings
-  scopeBindings: Map<string, string>[]
   // Warnings generated during transpilation
   warnings: TranspileWarning[]
   // Errors generated during transpilation (non-fatal)
@@ -224,16 +205,7 @@ export function createContext(
     // Initialize managers
     codeGen: new CodeGenState(),
     scopes: new ScopeManager(),
-    // Keep old fields for now (will remove in Phase 4)
-    usedPrimitives: new Set(),
-    usedTransforms: new Set(),
-    usedBooleans: new Set(),
-    usedExtrusions: new Set(),
-    usedHelpers: new Set(),
-    usedColors: false,
-    usedHulls: false,
-    usedMaths: false,
-    usedMinMax: false,
+    // Context state
     useImports: [],
     includeImports: [],
     variableNames: [],
@@ -245,9 +217,6 @@ export function createContext(
     transpiledFiles: sharedCache || new Map(),
     parsedFiles: new Map(),
     processingFiles: new Set(),
-    letCounter: 1,
-    localFunctionBindings: new Map(),
-    scopeBindings: [],
     warnings: [],
     errors: [],
   }
