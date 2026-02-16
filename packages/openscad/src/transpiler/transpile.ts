@@ -462,6 +462,7 @@ export function transpile(
       functionParamLists: functionParamLists,
       dualDefinedNames: new Set(ctx.symbols.getDualDefined()),
       bundledParts,
+      declarations: ctx.declarations.getAll(),
     })
   }
 
@@ -709,6 +710,7 @@ function transpileAndCacheDependency(filename: string, ctx: TranspileContext, is
       paramLists: new Map(),
       functionParamLists: new Map(),
       dualDefinedNames: new Set(),
+      declarations: [],  // This shouldn't happen, file was already cached
     })
   }
 
