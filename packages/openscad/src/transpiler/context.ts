@@ -5,6 +5,7 @@ import type { ScadFile } from 'openscad-parser'
 import { SymbolTable } from './symbolTable.js'
 import { CodeGenState } from './managers/CodeGenState.js'
 import { ScopeManager } from './managers/ScopeManager.js'
+import { DeclarationTracker, type Declaration } from './managers/DeclarationTracker.js'
 
 /**
  * File resolver for use statements
@@ -124,6 +125,8 @@ export interface TranspiledFile {
   functionParamLists?: Map<string, string[]>  // Function name -> parameter names (may differ from module)
   dualDefinedNames?: Set<string>  // Names that have both module and function versions
   bundledParts?: BundledParts  // Parts for inlining when included
+  // AST-level declarations (for robust bundling)
+  declarations?: Declaration[]
 }
 
 export interface UseImport {
@@ -137,6 +140,7 @@ export interface TranspileContext {
   // Managers for focused concerns
   codeGen: CodeGenState
   scopes: ScopeManager
+  declarations: DeclarationTracker
   // Track use statements with their discovered symbols
   useImports: UseImport[]
   // Track include statements (import all symbols including variables)
@@ -205,6 +209,7 @@ export function createContext(
     // Initialize managers
     codeGen: new CodeGenState(),
     scopes: new ScopeManager(),
+    declarations: new DeclarationTracker(),
     // Context state
     useImports: [],
     includeImports: [],
