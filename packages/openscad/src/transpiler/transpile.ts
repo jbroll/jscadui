@@ -89,9 +89,7 @@ function processUseStatements(ctx: TranspileContext, currentFileDir: string): vo
     const cachedFile = ctx.transpiledFiles.get(useImport.resolvedPath)
     if (cachedFile?.functionExports) {
       for (const fn of cachedFile.functionExports) {
-        ctx.importedFunctions.add(fn)
-        ctx.availableFunctions.add(fn)
-        // Also populate SymbolTable
+        // Populate SymbolTable - single source of truth
         const params = cachedFile.functionParamLists?.get(fn)
         ctx.symbols.define(fn, { kind: 'function', source: 'imported', params })
       }
@@ -101,7 +99,6 @@ function processUseStatements(ctx: TranspileContext, currentFileDir: string): vo
     // via require() and use the _$f suffix, not the curried _$m pattern
     if (cachedFile?.paramLists) {
       for (const [name, params] of cachedFile.paramLists) {
-        ctx.moduleParamLists.set(name, params)
         ctx.symbols.registerParams(name, 'module', params)
       }
     }
@@ -110,18 +107,15 @@ function processUseStatements(ctx: TranspileContext, currentFileDir: string): vo
     // Only merge param lists here, don't re-add to SymbolTable
     if (cachedFile?.functionParamLists) {
       for (const [name, params] of cachedFile.functionParamLists) {
-        ctx.functionParamLists.set(name, params)
         ctx.symbols.registerParams(name, 'function', params)
       }
     }
     // Merge dual-defined names from imported modules
     if (cachedFile?.dualDefinedNames) {
       for (const name of cachedFile.dualDefinedNames) {
-        ctx.dualDefinedNames.add(name)
         // Register __fn variant using function params (may have more params than module)
         const params = ctx.symbols.getParams(name, 'function') || ctx.symbols.getParams(name, 'module')
         if (params) {
-          ctx.moduleParamLists.set(`${name}__fn`, params)
           ctx.symbols.registerParams(`${name}__fn`, 'module', params)
         }
         // Note: SymbolTable.define() already handles dual-defined names automatically
@@ -219,8 +213,6 @@ function propagateUseImportsFromInclude(ctx: TranspileContext, parts: BundledPar
       const usedFile = ctx.transpiledFiles.get(useImp.resolvedPath)
       if (usedFile?.functionExports) {
         for (const fn of usedFile.functionExports) {
-          ctx.importedFunctions.add(fn)
-          ctx.availableFunctions.add(fn)
           const params = usedFile.functionParamLists?.get(fn)
           ctx.symbols.define(fn, { kind: 'function', source: 'imported', params })
         }
@@ -253,8 +245,6 @@ function mergeImportedSymbols(ctx: TranspileContext, cachedFile: TranspiledFile 
   // Track which imported symbols are functions (not modules)
   if (cachedFile.functionExports) {
     for (const fn of cachedFile.functionExports) {
-      ctx.importedFunctions.add(fn)
-      ctx.availableFunctions.add(fn)
       const params = cachedFile.functionParamLists?.get(fn)
       ctx.symbols.define(fn, { kind: 'function', source: 'imported', params })
     }
@@ -262,8 +252,6 @@ function mergeImportedSymbols(ctx: TranspileContext, cachedFile: TranspiledFile 
   // Track which imported symbols are modules (need curried call pattern)
   if (cachedFile.moduleExports) {
     for (const mod of cachedFile.moduleExports) {
-      ctx.importedModules.add(mod)
-      ctx.availableModules.add(mod)
       const params = cachedFile.paramLists?.get(mod)
       ctx.symbols.define(mod, { kind: 'module', source: 'imported', params })
     }
@@ -271,23 +259,19 @@ function mergeImportedSymbols(ctx: TranspileContext, cachedFile: TranspiledFile 
   // Merge parameter lists
   if (cachedFile.paramLists) {
     for (const [name, params] of cachedFile.paramLists) {
-      ctx.moduleParamLists.set(name, params)
       ctx.symbols.registerParams(name, 'module', params)
     }
   }
   if (cachedFile.functionParamLists) {
     for (const [name, params] of cachedFile.functionParamLists) {
-      ctx.functionParamLists.set(name, params)
       ctx.symbols.registerParams(name, 'function', params)
     }
   }
   // Merge dual-defined names
   if (cachedFile.dualDefinedNames) {
     for (const name of cachedFile.dualDefinedNames) {
-      ctx.dualDefinedNames.add(name)
       const params = ctx.symbols.getParams(name, 'function') || ctx.symbols.getParams(name, 'module')
       if (params) {
-        ctx.moduleParamLists.set(`${name}__fn`, params)
         ctx.symbols.registerParams(`${name}__fn`, 'module', params)
       }
     }
@@ -306,10 +290,8 @@ function transpileAllStatements(ast: ScadFile, ctx: TranspileContext): Transpile
   // Register __fn variants so reorderNamedArgs can find them
   // Read directly from SymbolTable instead of legacy set
   for (const name of ctx.symbols.getDualDefined()) {
-    ctx.dualDefinedNames.add(name)
     const params = ctx.symbols.getParams(name, 'function') || ctx.symbols.getParams(name, 'module')
     if (params) {
-      ctx.moduleParamLists.set(`${name}__fn`, params)
       ctx.symbols.registerParams(`${name}__fn`, 'module', params)
     }
   }
@@ -617,29 +599,18 @@ function collectSignaturesFromIncludes(
         fileModuleNames.add(name)
         // Track this module name globally (for builtin override detection)
         ctx.includedModuleNames.add(name)
-        ctx.availableModules.add(name)
         // Deduplicate params to match how transpileParamsList handles the definition
         const params = deduplicateParamNames(stmt.definitionArgs || [])
-        // Always set module params - module definition takes precedence over function definition
-        // for moduleParamLists since that's used for module calls (name_$m)
-        ctx.moduleParamLists.set(name, params)
-        // Also populate SymbolTable
+        // SymbolTable stores params when defining symbols
         ctx.symbols.define(name, { kind: 'module', source: 'included', params })
       } else if (isFunctionDeclaration(stmt)) {
         const name = safeIdentifier(stmt.name)
         fileFunctionNames.add(name)
         // Track this function name globally (for suffix selection)
         ctx.includedFunctionNames.add(name)
-        ctx.availableFunctions.add(name)
         // Deduplicate params to match how transpileParamsList handles the definition
         const params = deduplicateParamNames(stmt.definitionArgs || [])
-        // Check SymbolTable instead of legacy map
-        if (!ctx.symbols.getParams(name, 'function')) {
-          ctx.functionParamLists.set(name, params)
-        }
-        // Don't add to moduleParamLists - keep namespaces separate
-        // reorderNamedArgs already has fallback: moduleParams || functionParams
-        // Also populate SymbolTable
+        // SymbolTable stores params when defining symbols
         ctx.symbols.define(name, { kind: 'function', source: 'included', params })
       }
     }
@@ -648,11 +619,9 @@ function collectSignaturesFromIncludes(
     // and add to context so function calls use __fn suffix
     for (const name of fileFunctionNames) {
       if (fileModuleNames.has(name)) {
-        ctx.dualDefinedNames.add(name)
-        // Register __fn variant in paramLists so reorderNamedArgs can find it
+        // Register __fn variant in SymbolTable so reorderNamedArgs can find it
         const params = ctx.symbols.getParams(name, 'function') || ctx.symbols.getParams(name, 'module')
         if (params) {
-          ctx.moduleParamLists.set(`${name}__fn`, params)
           ctx.symbols.registerParams(`${name}__fn`, 'module', params)
         }
       }
@@ -680,37 +649,31 @@ function collectSignaturesFromIncludes(
     for (const name of nestedCtx.symbols.getByKind('module')) {
       const params = nestedCtx.symbols.getParams(name, 'module')
       if (params && !ctx.symbols.getParams(name, 'module')) {
-        ctx.moduleParamLists.set(name, params)
         ctx.symbols.registerParams(name, 'module', params)
       }
     }
     for (const name of nestedCtx.symbols.getByKind('function')) {
       const params = nestedCtx.symbols.getParams(name, 'function')
       if (params && !ctx.symbols.getParams(name, 'function')) {
-        ctx.functionParamLists.set(name, params)
         ctx.symbols.registerParams(name, 'function', params)
       }
     }
     // Copy dual-defined names from nested includes
     // Read from SymbolTable instead of legacy set
     for (const name of nestedCtx.symbols.getDualDefined()) {
-      ctx.dualDefinedNames.add(name)
       // Also register __fn variant
       const params = ctx.symbols.getParams(name, 'function') || ctx.symbols.getParams(name, 'module')
       if (params && !ctx.symbols.getParams(`${name}__fn`, 'module')) {
-        ctx.moduleParamLists.set(`${name}__fn`, params)
         ctx.symbols.registerParams(`${name}__fn`, 'module', params)
       }
     }
     // Copy included function names from nested includes
     for (const name of nestedCtx.includedFunctionNames) {
       ctx.includedFunctionNames.add(name)
-      ctx.availableFunctions.add(name)
     }
     // Copy included module names from nested includes
     for (const name of nestedCtx.includedModuleNames) {
       ctx.includedModuleNames.add(name)
-      ctx.availableModules.add(name)
     }
     // Merge SymbolTable from nested context
     ctx.symbols.merge(nestedCtx.symbols)
@@ -842,26 +805,15 @@ function transpileAndCacheDependency(filename: string, ctx: TranspileContext, is
 function collectDeclarations(stmt: Statement, ctx: TranspileContext): void {
   if (isModuleDeclaration(stmt)) {
     const name = safeIdentifier(stmt.name)
-    ctx.moduleNames.push(name)
-    ctx.availableModules.add(name)
-    // Capture parameter names for named argument reordering
     // Deduplicate params to match how transpileParamsList handles the definition
     const params = deduplicateParamNames(stmt.definitionArgs || [])
-    ctx.moduleParamLists.set(name, params)
-    // Also populate SymbolTable
+    // SymbolTable is the single source of truth for symbols and params
     ctx.symbols.define(name, { kind: 'module', source: 'local', params })
   } else if (isFunctionDeclaration(stmt)) {
     const name = safeIdentifier(stmt.name)
-    ctx.functionNames.push(name)
-    ctx.availableFunctions.add(name)
-    // Capture parameter names for named argument reordering
-    // Use functionParamLists to keep separate from module params
     // Deduplicate params to match how transpileParamsList handles the definition
     const params = deduplicateParamNames(stmt.definitionArgs || [])
-    ctx.functionParamLists.set(name, params)
-    // Don't add to moduleParamLists - keep namespaces separate
-    // reorderNamedArgs already has fallback: moduleParams || functionParams
-    // Also populate SymbolTable
+    // SymbolTable is the single source of truth for symbols and params
     ctx.symbols.define(name, { kind: 'function', source: 'local', params })
   } else if (isUseStmt(stmt)) {
     ctx.useImports.push({
