@@ -37,7 +37,7 @@ import {
 import { getModuleName } from './builtins.js'
 import { buildJscadImports } from './helpers/index.js'
 import { isStackSpecialVar } from './specialVars.js'
-import { deduplicateParamNames, mergeSetInto } from './utils.js'
+import { deduplicateParamNames, mergeSetInto, registerDualDefinedVariant } from './utils.js'
 
 // Re-export types for public API
 export type {
@@ -114,10 +114,7 @@ function processUseStatements(ctx: TranspileContext, currentFileDir: string): vo
     if (cachedFile?.dualDefinedNames) {
       for (const name of cachedFile.dualDefinedNames) {
         // Register __fn variant using function params (may have more params than module)
-        const params = ctx.symbols.getParams(name, 'function') || ctx.symbols.getParams(name, 'module')
-        if (params) {
-          ctx.symbols.registerParams(`${name}__fn`, 'module', params)
-        }
+        registerDualDefinedVariant(name, ctx.symbols)
         // Note: SymbolTable.define() already handles dual-defined names automatically
       }
     }
@@ -270,10 +267,7 @@ function mergeImportedSymbols(ctx: TranspileContext, cachedFile: TranspiledFile 
   // Merge dual-defined names
   if (cachedFile.dualDefinedNames) {
     for (const name of cachedFile.dualDefinedNames) {
-      const params = ctx.symbols.getParams(name, 'function') || ctx.symbols.getParams(name, 'module')
-      if (params) {
-        ctx.symbols.registerParams(`${name}__fn`, 'module', params)
-      }
+      registerDualDefinedVariant(name, ctx.symbols)
     }
   }
 }
@@ -290,10 +284,7 @@ function transpileAllStatements(ast: ScadFile, ctx: TranspileContext): Transpile
   // Register __fn variants so reorderNamedArgs can find them
   // Read directly from SymbolTable instead of legacy set
   for (const name of ctx.symbols.getDualDefined()) {
-    const params = ctx.symbols.getParams(name, 'function') || ctx.symbols.getParams(name, 'module')
-    if (params) {
-      ctx.symbols.registerParams(`${name}__fn`, 'module', params)
-    }
+    registerDualDefinedVariant(name, ctx.symbols)
   }
 
   for (const stmt of ast.statements) {
@@ -620,10 +611,7 @@ function collectSignaturesFromIncludes(
     for (const name of fileFunctionNames) {
       if (fileModuleNames.has(name)) {
         // Register __fn variant in SymbolTable so reorderNamedArgs can find it
-        const params = ctx.symbols.getParams(name, 'function') || ctx.symbols.getParams(name, 'module')
-        if (params) {
-          ctx.symbols.registerParams(`${name}__fn`, 'module', params)
-        }
+        registerDualDefinedVariant(name, ctx.symbols)
       }
     }
 
@@ -661,11 +649,8 @@ function collectSignaturesFromIncludes(
     // Copy dual-defined names from nested includes
     // Read from SymbolTable instead of legacy set
     for (const name of nestedCtx.symbols.getDualDefined()) {
-      // Also register __fn variant
-      const params = ctx.symbols.getParams(name, 'function') || ctx.symbols.getParams(name, 'module')
-      if (params && !ctx.symbols.getParams(`${name}__fn`, 'module')) {
-        ctx.symbols.registerParams(`${name}__fn`, 'module', params)
-      }
+      // Also register __fn variant (skip if already exists)
+      registerDualDefinedVariant(name, ctx.symbols, true)
     }
     // Copy included function names from nested includes
     for (const name of nestedCtx.includedFunctionNames) {

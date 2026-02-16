@@ -39,3 +39,28 @@ export function deduplicateParamNames(args: readonly AssignmentNode[]): string[]
 export function mergeSetInto<T>(target: Set<T>, source: Iterable<T>): void {
   for (const item of source) target.add(item)
 }
+
+/**
+ * Register a dual-defined __fn variant for a symbol.
+ * Dual-defined symbols have both module and function definitions.
+ * The __fn suffix is used when calling the function version.
+ *
+ * @param name - The base symbol name
+ * @param symbols - The symbol table to register in
+ * @param skipIfExists - Skip registration if __fn variant already exists
+ */
+export function registerDualDefinedVariant(
+  name: string,
+  symbols: { getParams(name: string, type: 'module' | 'function'): string[] | undefined; registerParams(name: string, type: 'module' | 'function', params: string[]): void },
+  skipIfExists = false
+): void {
+  // Get params from function version first (may have more params), fallback to module
+  const params = symbols.getParams(name, 'function') || symbols.getParams(name, 'module')
+  if (!params) return
+
+  // Check if __fn variant already exists (for skipIfExists mode)
+  if (skipIfExists && symbols.getParams(`${name}__fn`, 'module')) return
+
+  // Register __fn variant so reorderNamedArgs can find it
+  symbols.registerParams(`${name}__fn`, 'module', params)
+}
