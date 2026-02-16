@@ -749,7 +749,18 @@ function collectDeclarations(stmt: Statement, ctx: TranspileContext): void {
     // Track top-level variable assignments for export
     // Don't export special variables - they're set via setSpecialVar and don't exist as JS variables
     if (!isStackSpecialVar(stmt.name)) {
-      ctx.variableNames.push(safeIdentifier(stmt.name))
+      const safeName = safeIdentifier(stmt.name)
+      ctx.variableNames.push(safeName)
+
+      // Track this declaration for AST-based bundling
+      ctx.declarations.addConstant(
+        safeName,
+        stmt,
+        {
+          file: ctx.options.currentFile || 'input.scad',
+          kind: 'local',
+        }
+      )
     }
   }
 }
