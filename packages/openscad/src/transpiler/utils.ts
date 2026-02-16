@@ -64,3 +64,25 @@ export function registerDualDefinedVariant(
   // Register __fn variant so reorderNamedArgs can find it
   symbols.registerParams(`${name}__fn`, 'module', params)
 }
+
+/**
+ * Extract names from code strings using a regex pattern.
+ * Used to extract function/module/constant names from generated code at creation time.
+ *
+ * @param codeStrings - Array of code strings
+ * @param pattern - Regex pattern with first capture group as the name
+ * @returns Array of extracted names (parallel to input array)
+ *
+ * @example
+ * ```typescript
+ * const functions = ['function foo_$f() {}', 'function bar_$f() {}']
+ * const names = extractNamesFromCode(functions, /^function\s+(\w+)/)
+ * // Returns: ['foo_$f', 'bar_$f']
+ * ```
+ */
+export function extractNamesFromCode(codeStrings: string[], pattern: RegExp): string[] {
+  return codeStrings.map(code => {
+    const match = code.match(pattern)
+    return match?.[1] || ''
+  })
+}

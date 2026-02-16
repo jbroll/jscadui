@@ -92,11 +92,15 @@ export interface TranspileResult {
 /**
  * Bundled parts from a file - used when inlining includes
  * Functions use `function` declarations for hoisting
+ * Names arrays are parallel to code arrays (same index = same item)
  */
 export interface BundledParts {
   functions: string[]      // Function declarations (hoisted)
+  functionNames: string[]  // Names extracted at generation time (parallel to functions array)
   modules: string[]        // Module declarations
+  moduleNames: string[]    // Names extracted at generation time (parallel to modules array)
   constants: string[]      // Constant assignments
+  constantNames: string[]  // Names extracted at generation time (parallel to constants array)
   useImports: UseImport[]  // Use imports to propagate when this file is included
   usedPrimitives: Set<string>
   usedTransforms: Set<string>
@@ -192,53 +196,10 @@ export function createContext(
 ): TranspileContext {
   const opts = { ...defaultOptions, ...options }
 
-  // Initialize paramLists from initial values if provided (for include chains)
-  const moduleParamLists = new Map<string, string[]>()
-  if (options.initialParamLists) {
-    for (const [name, params] of options.initialParamLists) {
-      moduleParamLists.set(name, params)
-    }
-  }
-
-  // Initialize functionParamLists from initial values if provided (for include chains)
-  const functionParamLists = new Map<string, string[]>()
-  if (options.initialFunctionParamLists) {
-    for (const [name, params] of options.initialFunctionParamLists) {
-      functionParamLists.set(name, params)
-    }
-  }
-
-  // Initialize dualDefinedNames from initial values if provided
-  const dualDefinedNames = new Set<string>()
-  if (options.initialDualDefinedNames) {
-    for (const name of options.initialDualDefinedNames) {
-      dualDefinedNames.add(name)
-    }
-  }
-
-  // Initialize importedFunctions from initial values if provided (for parameter shadowing detection)
-  const importedFunctions = new Set<string>()
-  if (options.initialImportedFunctions) {
-    for (const name of options.initialImportedFunctions) {
-      importedFunctions.add(name)
-    }
-  }
-
-  // Initialize includedModuleNames from initial values if provided (for builtin override detection)
-  const includedModuleNames = new Set<string>()
-  if (options.initialIncludedModuleNames) {
-    for (const name of options.initialIncludedModuleNames) {
-      includedModuleNames.add(name)
-    }
-  }
-
-  // Initialize includedFunctionNames from initial values if provided
-  const includedFunctionNames = new Set<string>()
-  if (options.initialIncludedFunctionNames) {
-    for (const name of options.initialIncludedFunctionNames) {
-      includedFunctionNames.add(name)
-    }
-  }
+  // Initialize from initial values if provided (for include chains)
+  // Use Set/Map constructors to copy initial values
+  const includedModuleNames = new Set(options.initialIncludedModuleNames || [])
+  const includedFunctionNames = new Set(options.initialIncludedFunctionNames || [])
 
   // Initialize SymbolTable with initial params
   const symbols = new SymbolTable()

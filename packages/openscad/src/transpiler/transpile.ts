@@ -37,7 +37,7 @@ import {
 import { getModuleName } from './builtins.js'
 import { buildJscadImports } from './helpers/index.js'
 import { isStackSpecialVar } from './specialVars.js'
-import { deduplicateParamNames, mergeSetInto, registerDualDefinedVariant } from './utils.js'
+import { deduplicateParamNames, mergeSetInto, registerDualDefinedVariant, extractNamesFromCode } from './utils.js'
 
 // Re-export types for public API
 export type {
@@ -146,31 +146,28 @@ function processIncludeStatements(ctx: TranspileContext, currentFileDir: string)
     const cachedFile = ctx.transpiledFiles.get(includeImport.resolvedPath)
     if (cachedFile?.bundledParts) {
       const parts = cachedFile.bundledParts
-      // Deduplicate functions by name (extract name from "function foo_$f(...)")
-      for (const fn of parts.functions) {
-        const match = fn.match(/^function\s+(\w+)/)
-        const name = match?.[1]
+      // Deduplicate functions by name (using pre-extracted names)
+      for (let i = 0; i < parts.functions.length; i++) {
+        const name = parts.functionNames[i]
         if (!name || !bundledFunctionNames.has(name)) {
           if (name) bundledFunctionNames.add(name)
-          bundledFunctions.push(fn)
+          bundledFunctions.push(parts.functions[i])
         }
       }
-      // Deduplicate modules by name (extract name from "const foo_$m = ...")
-      for (const mod of parts.modules) {
-        const match = mod.match(/^const\s+(\w+)/)
-        const name = match?.[1]
+      // Deduplicate modules by name (using pre-extracted names)
+      for (let i = 0; i < parts.modules.length; i++) {
+        const name = parts.moduleNames[i]
         if (!name || !bundledModuleNames.has(name)) {
           if (name) bundledModuleNames.add(name)
-          bundledModules.push(mod)
+          bundledModules.push(parts.modules[i])
         }
       }
-      // Deduplicate constants by name (extract name from "const foo = ...")
-      for (const c of parts.constants) {
-        const match = c.match(/^const\s+(\w+)/)
-        const name = match?.[1]
+      // Deduplicate constants by name (using pre-extracted names)
+      for (let i = 0; i < parts.constants.length; i++) {
+        const name = parts.constantNames[i]
         if (!name || !bundledConstantNames.has(name)) {
           if (name) bundledConstantNames.add(name)
-          bundledConstants.push(c)
+          bundledConstants.push(parts.constants[i])
         }
       }
       // Propagate use imports from included files
@@ -418,10 +415,17 @@ function createBundledParts(
   bundled: BundledContent,
   transpiled: TranspiledStatements
 ): BundledParts {
+  const functions = [...bundled.functions, ...transpiled.localFunctions]
+  const modules = [...bundled.modules, ...transpiled.localModules]
+  const constants = [...transpiled.localConstants, ...bundled.constants]
+
   return {
-    functions: [...bundled.functions, ...transpiled.localFunctions],
-    modules: [...bundled.modules, ...transpiled.localModules],
-    constants: [...transpiled.localConstants, ...bundled.constants],
+    functions,
+    functionNames: extractNamesFromCode(functions, /^function\s+(\w+)/),
+    modules,
+    moduleNames: extractNamesFromCode(modules, /^const\s+(\w+)/),
+    constants,
+    constantNames: extractNamesFromCode(constants, /^const\s+(\w+)/),
     useImports: [...ctx.useImports],
     usedPrimitives: new Set(ctx.usedPrimitives),
     usedTransforms: new Set(ctx.usedTransforms),
