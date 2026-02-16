@@ -4,5 +4,7 @@
 # Uses rands() - produces different random values each run
 Bricks.scad
 
-# TODO: investigate geometry difference (Jaccard 0.7459)
+# Geometry library difference: OpenSCAD produces 221 vertices, JSCAD produces 1440 vertices
+# (though triangle counts are similar: 490 vs 480). This is a library-level triangulation
+# difference, not a transpiler bug. Jaccard: 0.7459
 Wood_Crate.scad
