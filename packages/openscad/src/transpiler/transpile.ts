@@ -303,15 +303,10 @@ function transpileAllStatements(ast: ScadFile, ctx: TranspileContext): Transpile
   const localConstants: string[] = []
   const geometryParts: string[] = []
 
-  // Track dual-defined names (both module and function) for expression transpilation
-  // SymbolTable already tracks this, but we need to populate the legacy dualDefinedNames set
-  // for code that hasn't been migrated yet
+  // Register __fn variants so reorderNamedArgs can find them
+  // Read directly from SymbolTable instead of legacy set
   for (const name of ctx.symbols.getDualDefined()) {
     ctx.dualDefinedNames.add(name)
-  }
-
-  // Register __fn variants in paramLists so reorderNamedArgs can find them
-  for (const name of ctx.dualDefinedNames) {
     const params = ctx.symbols.getParams(name, 'function') || ctx.symbols.getParams(name, 'module')
     if (params) {
       ctx.moduleParamLists.set(`${name}__fn`, params)
@@ -638,7 +633,8 @@ function collectSignaturesFromIncludes(
         ctx.availableFunctions.add(name)
         // Deduplicate params to match how transpileParamsList handles the definition
         const params = deduplicateParamNames(stmt.definitionArgs || [])
-        if (!ctx.functionParamLists.has(name)) {
+        // Check SymbolTable instead of legacy map
+        if (!ctx.symbols.getParams(name, 'function')) {
           ctx.functionParamLists.set(name, params)
         }
         // Don't add to moduleParamLists - keep namespaces separate
@@ -790,13 +786,33 @@ function transpileAndCacheDependency(filename: string, ctx: TranspileContext, is
   // Pass current paramLists, dualDefinedNames, and importedFunctions so sibling includes can resolve calls
   // For include files, pass includedModuleNames because those are bundled together
   // For use files, don't pass them because they run in separate scope via require()
+
+  // Build param lists and sets from SymbolTable to pass to nested context
+  const moduleParamLists = new Map<string, string[]>()
+  for (const name of ctx.symbols.getByKind('module')) {
+    const params = ctx.symbols.getParams(name, 'module')
+    if (params) moduleParamLists.set(name, params)
+  }
+  const functionParamLists = new Map<string, string[]>()
+  for (const name of ctx.symbols.getByKind('function')) {
+    const params = ctx.symbols.getParams(name, 'function')
+    if (params) functionParamLists.set(name, params)
+  }
+  // Build importedFunctions set from SymbolTable
+  const importedFunctions = new Set<string>()
+  for (const name of ctx.symbols.getByKind('function')) {
+    if (ctx.symbols.isFromSource(name, 'imported')) {
+      importedFunctions.add(name)
+    }
+  }
+
   const result = transpile(ast, {
     ...ctx.options,
     currentFile: resolvedFilename,
-    initialParamLists: ctx.moduleParamLists,
-    initialFunctionParamLists: ctx.functionParamLists,
-    initialDualDefinedNames: ctx.dualDefinedNames,
-    initialImportedFunctions: ctx.importedFunctions,
+    initialParamLists: moduleParamLists,
+    initialFunctionParamLists: functionParamLists,
+    initialDualDefinedNames: new Set(ctx.symbols.getDualDefined()),
+    initialImportedFunctions: importedFunctions,
     initialIncludedModuleNames: isInclude ? ctx.includedModuleNames : undefined,
     initialIncludedFunctionNames: isInclude ? ctx.includedFunctionNames : undefined,
   }, ctx.transpiledFiles)
