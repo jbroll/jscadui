@@ -15,7 +15,7 @@ import type {
 } from 'openscad-parser'
 import type { TranspileContext } from './context.js'
 import { WarningCode, lookupBinding } from './context.js'
-import { safeIdentifier } from '../utils/identifiers.js'
+import { safeIdentifier, isValidIdentifier } from '../utils/identifiers.js'
 import { isStackSpecialVar } from './specialVars.js'
 import { TokenType } from '../utils/tokens.js'
 import { generateScopeSuffix, withScope } from './scoping.js'
@@ -351,17 +351,17 @@ function transpileFunctionCallExprHandler(
 
   // Reorder named arguments to match parameter definition order
   // Note: function calls use _$f suffix which is added in transpileFunctionCall
-  // preferFunction=true because this is a function call (uses return value)
-  const args = reorderNamedArgs(callee, regularArgs, ctx, true)
+  // kind='function' because this is a function call (uses return value)
+  const args = reorderNamedArgs(callee, regularArgs, ctx, 'function')
 
   const callExpr = transpileFunctionCall(callee, args, ctx)
 
   // If special variables were passed, wrap in dynamic scoping context
   // OpenSCAD special vars ($fn, $fa, $fs, etc.) use stack-based dynamic scoping
   if (specialVars.length > 0) {
-    // Generate pushScope/setSpecialVar/call/popScope code
-    const sets = specialVars.map(sv => `j$.setSpecialVar('${sv.name}', ${sv.value})`).join('; ')
-    return `(() => { j$.pushScope(); ${sets}; try { return ${callExpr}; } finally { j$.popScope(); } })()`
+    // Generate withScope call with special variables object
+    const vars = specialVars.map(sv => `'${sv.name}': ${sv.value}`).join(', ')
+    return `j$.withScope({ ${vars} }, () => ${callExpr})`
   }
 
   return callExpr
@@ -627,9 +627,9 @@ export function reorderNamedArgs(
   name: string,
   argsArray: Array<{name: string | null, value: string}>,
   ctx: TranspileContext,
-  preferFunction = false
+  kind: 'module' | 'function' = 'function'
 ): string {
-  return mapArgsToParams(name, argsArray, ctx, 'positional', preferFunction)
+  return mapArgsToParams(name, argsArray, ctx, 'positional', kind)
 }
 
 export function transpileBinaryOp(op: number): string {
@@ -789,8 +789,7 @@ export function transpileFunctionCall(callee: string, args: string, ctx: Transpi
   // User-defined function call - use _$f suffix for namespace separation
   // Only add suffix for simple identifiers (named function calls)
   // Don't add for complex expressions like array[0](args) or obj.method(args)
-  const isSimpleIdentifier = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(callee)
-  if (isSimpleIdentifier) {
+  if (isValidIdentifier(callee)) {
     return `${callee}_$f(${args})`
   }
   // Complex expression (array access, member access, etc.) - call directly

@@ -334,7 +334,7 @@ function transpileUserDefinedCall(
   // Build arguments in both formats:
   // - positionalArgs: for function calls (backward compat)
   // - optionsArgs: for module calls (new pattern)
-  const positionalArgs = reorderNamedArgs(name, argsArray, ctx)
+  const positionalArgs = reorderNamedArgs(name, argsArray, ctx, 'function')
   const optionsArgs = transpileArgsAsOptions(name, argsArray, ctx)
 
   // Check if this is a LOCAL variable FIRST (no suffix needed)
@@ -472,7 +472,7 @@ function transpileArgsAsOptions(
   argsArray: Array<{name: string | null, value: string}>,
   ctx: TranspileContext
 ): string {
-  return mapArgsToParams(name, argsArray, ctx, 'object')
+  return mapArgsToParams(name, argsArray, ctx, 'object', 'module')
 }
 
 /**

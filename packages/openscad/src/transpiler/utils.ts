@@ -136,6 +136,125 @@ export function importSymbolsFromFile(
 }
 
 /**
+ * Resolve arguments to parameters, returning a Map of parameter names to values.
+ * This is a pure function that handles OpenSCAD's argument resolution semantics:
+ * - Named arguments can appear in any order
+ * - Positional arguments fill parameters left-to-right, skipping already-used names
+ * - Returns a Map for further processing (formatting, validation, etc.)
+ *
+ * @param paramList - Expected parameter names (from function/module signature)
+ * @param argsArray - Arguments from the call site
+ * @returns Map of parameter names to values, and Set of explicitly provided params
+ */
+function resolveArguments(
+  paramList: string[],
+  argsArray: Array<{name: string | null, value: string}>
+): { resolved: Map<string, string>, explicit: Set<string> } {
+  const resolved = new Map<string, string>()
+  const explicit = new Set<string>()
+  const usedNames = new Set<string>()
+  let positionalIndex = 0
+
+  for (const arg of argsArray) {
+    if (arg.name) {
+      // Named argument
+      resolved.set(arg.name, arg.value)
+      explicit.add(arg.name)
+      usedNames.add(arg.name)
+    } else {
+      // Positional argument - skip already-used parameters
+      while (positionalIndex < paramList.length && usedNames.has(paramList[positionalIndex])) {
+        positionalIndex++
+      }
+      if (positionalIndex < paramList.length) {
+        const paramName = paramList[positionalIndex]
+        resolved.set(paramName, arg.value)
+        explicit.add(paramName)
+        usedNames.add(paramName)
+        positionalIndex++
+      }
+      // Extra positional args beyond paramList are silently dropped
+    }
+  }
+
+  return { resolved, explicit }
+}
+
+/**
+ * Format resolved arguments as positional argument list: "a, b, c"
+ * Trims trailing undefined values that weren't explicitly provided.
+ *
+ * @param resolved - Map of parameter names to values
+ * @param explicit - Set of parameters that were explicitly provided
+ * @param paramList - Expected parameter names (determines order)
+ * @returns Comma-separated positional arguments
+ */
+function formatAsPositional(
+  resolved: Map<string, string>,
+  explicit: Set<string>,
+  paramList: string[]
+): string {
+  const result: string[] = []
+  const wasExplicit: boolean[] = []
+
+  for (const paramName of paramList) {
+    if (resolved.has(paramName)) {
+      let value = resolved.get(paramName)!
+      const isExplicit = explicit.has(paramName)
+      // If caller explicitly passed 'undefined' (from 'undef' literal), use the EXPLICIT_UNDEF sentinel.
+      // This prevents JavaScript's default parameter behavior from overriding the caller's intent.
+      if (value === 'undefined' && isExplicit) {
+        value = 'j$.EXPLICIT_UNDEF'
+      }
+      result.push(value)
+      wasExplicit.push(isExplicit)
+    } else {
+      result.push('undefined')
+      wasExplicit.push(false)
+    }
+  }
+
+  // Trim trailing undefined values (not explicitly provided)
+  while (result.length > 0 && result[result.length - 1] === 'undefined' && !wasExplicit[result.length - 1]) {
+    result.pop()
+    wasExplicit.pop()
+  }
+
+  return result.join(', ')
+}
+
+/**
+ * Format resolved arguments as object literal: "{ x: a, y: b }"
+ * Only includes parameters that were actually provided.
+ *
+ * @param resolved - Map of parameter names to values
+ * @param ctx - Transpile context (for warnings)
+ * @returns Object literal string
+ */
+function formatAsObject(
+  resolved: Map<string, string>,
+  ctx: TranspileContext
+): string {
+  const entries: string[] = []
+
+  for (const [paramName, value] of resolved) {
+    // Check for dangerous property names that could cause prototype pollution
+    if (DANGEROUS_KEYS.has(paramName)) {
+      ctx.warnings.push({
+        code: WarningCode.DANGEROUS_PARAMETER_NAME,
+        message: `Parameter name '${paramName}' is reserved and will be skipped to prevent prototype pollution`,
+        file: ctx.options.currentFile
+      })
+      continue
+    }
+    const key = paramName.startsWith('$') ? `'${paramName}'` : safeIdentifier(paramName)
+    entries.push(`${key}: ${value}`)
+  }
+
+  return `{ ${entries.join(', ')} }`
+}
+
+/**
  * Map arguments to parameters and format as positional args or object literal.
  * Consolidates the logic from reorderNamedArgs (expressions.ts) and transpileArgsAsOptions (statements.ts).
  *
@@ -143,7 +262,7 @@ export function importSymbolsFromFile(
  * @param argsArray - Array of arguments with optional names
  * @param ctx - The transpile context
  * @param format - Output format: 'positional' for "a, b, c" or 'object' for "{ x: a, y: b }"
- * @param preferFunction - For positional format, whether to prefer function params over module params
+ * @param kind - Symbol kind for parameter lookup: 'function' or 'module' (default: 'module')
  * @returns Formatted argument string
  */
 export function mapArgsToParams(
@@ -151,20 +270,16 @@ export function mapArgsToParams(
   argsArray: Array<{name: string | null, value: string}>,
   ctx: TranspileContext,
   format: 'positional' | 'object',
-  preferFunction = false
+  kind: 'module' | 'function' = 'module'
 ): string {
   // Handle empty args for object format
   if (format === 'object' && argsArray.length === 0) return '{}'
 
   // Get parameter list from SymbolTable
-  let paramList: string[] | undefined
-  if (preferFunction) {
-    // Function call context - prefer function params, fall back to module params
-    paramList = ctx.symbols.getParams(name, 'function') || ctx.symbols.getParams(name, 'module')
-  } else {
-    // Module instantiation context - prefer module params, fall back to function params
-    paramList = ctx.symbols.getParams(name, 'module') || ctx.symbols.getParams(name, 'function')
-  }
+  // For dual-defined symbols, prefer the specified kind, fallback to the other
+  const paramList = kind === 'function'
+    ? ctx.symbols.getParams(name, 'function') || ctx.symbols.getParams(name, 'module')
+    : ctx.symbols.getParams(name, 'module') || ctx.symbols.getParams(name, 'function')
 
   // If no param list (or empty param list), use simple positional order or _argN fallback
   const hasNamedArgs = argsArray.some(a => a.name !== null)
@@ -194,81 +309,13 @@ export function mapArgsToParams(
     return argsArray.map(a => a.value).join(', ')
   }
 
-  // Map arguments to parameters
-  const namedArgMap = new Map<string, string>()
-  const explicitlyProvided = new Set<string>()
-  const usedNames = new Set<string>()
-  let positionalIndex = 0
+  // Resolve arguments to parameters
+  const { resolved, explicit } = resolveArguments(paramList, argsArray)
 
-  for (const arg of argsArray) {
-    if (arg.name) {
-      // Named argument
-      namedArgMap.set(arg.name, arg.value)
-      explicitlyProvided.add(arg.name)
-      usedNames.add(arg.name)
-    } else {
-      // Positional argument - skip already-used parameters
-      while (positionalIndex < paramList.length && usedNames.has(paramList[positionalIndex])) {
-        positionalIndex++
-      }
-      if (positionalIndex < paramList.length) {
-        const paramName = paramList[positionalIndex]
-        namedArgMap.set(paramName, arg.value)
-        explicitlyProvided.add(paramName)
-        usedNames.add(paramName)
-        positionalIndex++
-      }
-      // Note: for object format with extra positional args beyond paramList,
-      // they're silently dropped (same behavior as transpileArgsAsOptions)
-    }
-  }
-
-  // Format output
+  // Format output based on requested format
   if (format === 'object') {
-    // Object literal format: only include provided parameters
-    const entries: string[] = []
-    for (const [paramName, value] of namedArgMap) {
-      // Check for dangerous property names that could cause prototype pollution
-      if (DANGEROUS_KEYS.has(paramName)) {
-        ctx.warnings.push({
-          code: WarningCode.DANGEROUS_PARAMETER_NAME,
-          message: `Parameter name '${paramName}' is reserved and will be skipped to prevent prototype pollution`,
-          file: ctx.options.currentFile
-        })
-        continue
-      }
-      const key = paramName.startsWith('$') ? `'${paramName}'` : safeIdentifier(paramName)
-      entries.push(`${key}: ${value}`)
-    }
-    return `{ ${entries.join(', ')} }`
+    return formatAsObject(resolved, ctx)
   } else {
-    // Positional format: fill complete parameter list with undefined for missing params
-    const result: string[] = []
-    const wasExplicit: boolean[] = []
-
-    for (const paramName of paramList) {
-      if (namedArgMap.has(paramName)) {
-        let value = namedArgMap.get(paramName)!
-        const isExplicit = explicitlyProvided.has(paramName)
-        // If caller explicitly passed 'undefined' (from 'undef' literal), use the EXPLICIT_UNDEF sentinel.
-        // This prevents JavaScript's default parameter behavior from overriding the caller's intent.
-        if (value === 'undefined' && isExplicit) {
-          value = 'j$.EXPLICIT_UNDEF'
-        }
-        result.push(value)
-        wasExplicit.push(isExplicit)
-      } else {
-        result.push('undefined')
-        wasExplicit.push(false)
-      }
-    }
-
-    // Trim trailing undefined values (not explicitly provided)
-    while (result.length > 0 && result[result.length - 1] === 'undefined' && !wasExplicit[result.length - 1]) {
-      result.pop()
-      wasExplicit.pop()
-    }
-
-    return result.join(', ')
+    return formatAsPositional(resolved, explicit, paramList)
   }
 }
