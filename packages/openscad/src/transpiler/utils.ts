@@ -28,3 +28,14 @@ export function deduplicateArgs(args: readonly AssignmentNode[]): AssignmentNode
 export function deduplicateParamNames(args: readonly AssignmentNode[]): string[] {
   return deduplicateArgs(args).map(a => a.name)
 }
+
+/**
+ * Merge all elements from source into target Set.
+ * Replaces verbose for-loop pattern for Set merging.
+ *
+ * @param target - The Set to merge into
+ * @param source - The iterable to merge from
+ */
+export function mergeSetInto<T>(target: Set<T>, source: Iterable<T>): void {
+  for (const item of source) target.add(item)
+}

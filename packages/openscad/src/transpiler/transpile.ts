@@ -37,7 +37,7 @@ import {
 import { getModuleName } from './builtins.js'
 import { buildJscadImports } from './helpers/index.js'
 import { isStackSpecialVar } from './specialVars.js'
-import { deduplicateParamNames } from './utils.js'
+import { deduplicateParamNames, mergeSetInto } from './utils.js'
 
 // Re-export types for public API
 export type {
@@ -225,11 +225,11 @@ function propagateUseImportsFromInclude(ctx: TranspileContext, parts: BundledPar
  * Merge JSCAD usage flags from bundled parts
  */
 function mergeJscadUsageFlags(ctx: TranspileContext, parts: BundledParts): void {
-  for (const p of parts.usedPrimitives) ctx.usedPrimitives.add(p)
-  for (const t of parts.usedTransforms) ctx.usedTransforms.add(t)
-  for (const b of parts.usedBooleans) ctx.usedBooleans.add(b)
-  for (const e of parts.usedExtrusions) ctx.usedExtrusions.add(e)
-  for (const h of parts.usedHelpers) ctx.usedHelpers.add(h)
+  mergeSetInto(ctx.usedPrimitives, parts.usedPrimitives)
+  mergeSetInto(ctx.usedTransforms, parts.usedTransforms)
+  mergeSetInto(ctx.usedBooleans, parts.usedBooleans)
+  mergeSetInto(ctx.usedExtrusions, parts.usedExtrusions)
+  mergeSetInto(ctx.usedHelpers, parts.usedHelpers)
   if (parts.usedColors) ctx.usedColors = true
   if (parts.usedHulls) ctx.usedHulls = true
   if (parts.usedMaths) ctx.usedMaths = true
