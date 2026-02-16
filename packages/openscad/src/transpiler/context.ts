@@ -3,6 +3,8 @@
  */
 import type { ScadFile } from 'openscad-parser'
 import { SymbolTable } from './symbolTable.js'
+import { CodeGenState } from './managers/CodeGenState.js'
+import { ScopeManager } from './managers/ScopeManager.js'
 
 /**
  * File resolver for use statements
@@ -132,6 +134,9 @@ export interface UseImport {
 
 export interface TranspileContext {
   options: TranspileOptions & { includeHeader: boolean; format: boolean; indent: string }
+  // Managers for focused concerns
+  codeGen: CodeGenState
+  scopes: ScopeManager
   // Track what JSCAD primitives/functions are used
   usedPrimitives: Set<string>
   usedTransforms: Set<string>
@@ -216,6 +221,10 @@ export function createContext(
 
   return {
     options: opts,
+    // Initialize managers
+    codeGen: new CodeGenState(),
+    scopes: new ScopeManager(),
+    // Keep old fields for now (will remove in Phase 4)
     usedPrimitives: new Set(),
     usedTransforms: new Set(),
     usedBooleans: new Set(),
