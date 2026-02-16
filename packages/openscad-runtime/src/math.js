@@ -129,17 +129,48 @@ export const _lookup = (val, table) => {
   return table[table.length - 1][1]
 }
 
-export const _rands = (min, max, count, seed) => {
-  const r = []
-  let s = seed !== undefined ? seed : Math.random() * 2147483647 | 0
-  const rand = () => {
-    s |= 0
-    s = s + 0x6D2B79F5 | 0
-    let t = Math.imul(s ^ s >>> 15, 1 | s)
-    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t
-    return ((t ^ t >>> 14) >>> 0) / 4294967296
+// Mersenne Twister MT19937 implementation
+// Matches OpenSCAD's boost::mt19937 PRNG
+class MT19937 {
+  constructor(seed = 0) {
+    this.mt = new Uint32Array(624)
+    this.index = 624
+    this.mt[0] = seed >>> 0
+    for (let i = 1; i < 624; i++) {
+      const s = this.mt[i - 1] ^ (this.mt[i - 1] >>> 30)
+      this.mt[i] = (((((s & 0xffff0000) >>> 16) * 1812433253) << 16) + (s & 0x0000ffff) * 1812433253 + i) >>> 0
+    }
   }
-  for (let i = 0; i < count; i++) r.push(min + rand() * (max - min))
+
+  next() {
+    if (this.index >= 624) {
+      for (let i = 0; i < 624; i++) {
+        const y = (this.mt[i] & 0x80000000) + (this.mt[(i + 1) % 624] & 0x7fffffff)
+        this.mt[i] = this.mt[(i + 397) % 624] ^ (y >>> 1)
+        if (y % 2 !== 0) this.mt[i] ^= 0x9908b0df
+      }
+      this.index = 0
+    }
+    let y = this.mt[this.index++]
+    y ^= y >>> 11
+    y ^= (y << 7) & 0x9d2c5680
+    y ^= (y << 15) & 0xefc60000
+    y ^= y >>> 18
+    return y >>> 0
+  }
+
+  random() {
+    return this.next() / 0x100000000
+  }
+}
+
+export const _rands = (min, max, count, seed) => {
+  // OpenSCAD uses MT19937 with default seed 0
+  const rng = new MT19937(seed !== undefined ? seed : 0)
+  const r = []
+  for (let i = 0; i < count; i++) {
+    r.push(min + rng.random() * (max - min))
+  }
   return r
 }
 
