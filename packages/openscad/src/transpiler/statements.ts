@@ -326,7 +326,7 @@ function transpileUserDefinedCall(
   // Check if this is a LOCAL variable FIRST (no suffix needed)
   // Local variables include: let bindings, function params, local assignments
   // This must be checked BEFORE handling children to avoid adding _$m suffix
-  const isLocalVariable = ctx.localFunctionBindings.has(safeName)
+  const isLocalVariable = ctx.scopes.lookupFunctionBinding(safeName)
   if (isLocalVariable) {
     // Local variable - call directly without any suffix
     // If there are children, pass them via curried call (local modules are curried)
@@ -853,7 +853,7 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
   for (const f of nestedFunctions) {
     // Track as local function binding BEFORE transpiling body (for recursive calls)
     const varName = safeIdentifier(f.name)
-    ctx.localFunctionBindings.set(varName, varName)
+    ctx.scopes.registerFunctionBinding(varName, varName)
     localVarNames.push(varName)
 
     const funcParams = transpileParamsList(f.definitionArgs, ctx)
@@ -866,7 +866,7 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
   for (const m of nestedModules) {
     // Track as local function binding BEFORE transpiling body (for recursive calls)
     const varName = safeIdentifier(m.name)
-    ctx.localFunctionBindings.set(varName, varName)
+    ctx.scopes.registerFunctionBinding(varName, varName)
     localVarNames.push(varName)
 
     const nestedParams = transpileParamsList(m.definitionArgs, ctx)
@@ -894,7 +894,7 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
 
     if (isFuncLiteral) {
       // Register function binding BEFORE transpiling for recursion support
-      ctx.localFunctionBindings.set(varName, varName)
+      ctx.scopes.registerFunctionBinding(varName, varName)
       localVarNames.push(varName)
     }
 
@@ -916,7 +916,7 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
     // This avoids TDZ errors like `path2d = path2d(path)` where the RHS call
     // should resolve to the global function, not the local variable
     if (!isFuncLiteral) {
-      ctx.localFunctionBindings.set(varName, varName)
+      ctx.scopes.registerFunctionBinding(varName, varName)
       localVarNames.push(varName)
     }
   }
@@ -934,7 +934,7 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
 
   // Clean up local bindings (they're scoped to this module body)
   for (const name of localVarNames) {
-    ctx.localFunctionBindings.delete(name)
+    ctx.scopes.unregisterFunctionBinding(name)
   }
 
   return bodyParts

@@ -128,7 +128,7 @@ function transpileLetBindings(
         // Track for cleanup
         functionBindingPairs.push([origName, newName])
         // Register function binding IMMEDIATELY so subsequent bindings can call it
-        ctx.localFunctionBindings.set(origName, newName)
+        ctx.scopes.registerFunctionBinding(origName, newName)
         // Also add to scope for self-reference
         incrementalScope.set(origName, newName)
       }
@@ -149,7 +149,7 @@ function transpileLetBindings(
 
   // Clean up function bindings
   for (const [origName] of functionBindingPairs) {
-    ctx.localFunctionBindings.delete(origName)
+    ctx.scopes.unregisterFunctionBinding(origName)
   }
 
   return `(() => { ${bindings.join('; ')}; return ${body} })()`
@@ -773,7 +773,7 @@ export function transpileFunctionCall(callee: string, args: string, ctx: Transpi
   // e.g., let(scale = [1,2,3]) scale(cube(1)) - scale is a variable, scale() is a function
   // We only intercept if we're SURE the binding is a function value
   // This is tracked via localFunctionBindings (detected via isFunctionLiteralExpr)
-  const localBinding = ctx.localFunctionBindings.get(callee)
+  const localBinding = ctx.scopes.lookupFunctionBinding(callee)
   if (localBinding) {
     return `${localBinding}(${args})`
   }

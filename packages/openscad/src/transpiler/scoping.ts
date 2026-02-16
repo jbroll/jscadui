@@ -12,9 +12,7 @@ import { pushScope, popScope } from './context.js'
  * @returns A suffix like "$1", "$2", etc.
  */
 export function generateScopeSuffix(ctx: TranspileContext): string {
-  const suffix = `$${ctx.letCounter || 1}`
-  ctx.letCounter = (ctx.letCounter || 1) + 1
-  return suffix
+  return ctx.scopes.generateSuffix()
 }
 
 /**
@@ -56,7 +54,7 @@ export function withFunctionBindings<T>(
 ): T {
   // Register all function bindings
   for (const [origName, suffixedName] of functionNames) {
-    ctx.localFunctionBindings.set(origName, suffixedName)
+    ctx.scopes.registerFunctionBinding(origName, suffixedName)
   }
 
   try {
@@ -64,7 +62,7 @@ export function withFunctionBindings<T>(
   } finally {
     // Clean up all function bindings
     for (const [origName] of functionNames) {
-      ctx.localFunctionBindings.delete(origName)
+      ctx.scopes.unregisterFunctionBinding(origName)
     }
   }
 }

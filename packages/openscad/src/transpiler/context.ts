@@ -259,7 +259,7 @@ export function createContext(
  * @param bindings - Map of original name -> renamed name
  */
 export function pushScope(ctx: TranspileContext, bindings: Map<string, string>): void {
-  ctx.scopeBindings.push(bindings)
+  ctx.scopes.pushScope(bindings)
 }
 
 /**
@@ -267,7 +267,7 @@ export function pushScope(ctx: TranspileContext, bindings: Map<string, string>):
  * @param ctx - The transpile context
  */
 export function popScope(ctx: TranspileContext): void {
-  ctx.scopeBindings.pop()
+  ctx.scopes.popScope()
 }
 
 /**
@@ -279,12 +279,5 @@ export function popScope(ctx: TranspileContext): void {
  * @returns The renamed variable name, or undefined if not in scope
  */
 export function lookupBinding(ctx: TranspileContext, name: string): string | undefined {
-  // Search from innermost (last) to outermost (first) scope
-  for (let i = ctx.scopeBindings.length - 1; i >= 0; i--) {
-    const binding = ctx.scopeBindings[i].get(name)
-    if (binding !== undefined) {
-      return binding
-    }
-  }
-  return undefined
+  return ctx.scopes.lookupBinding(name)
 }
