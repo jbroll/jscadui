@@ -2,6 +2,7 @@
  * Transpiler utility functions
  */
 import type { AssignmentNode } from 'openscad-parser'
+import type { TranspiledFile, TranspileContext } from './context.js'
 
 /**
  * Deduplicate parameters, keeping the LAST occurrence of each name.
@@ -85,4 +86,75 @@ export function extractNamesFromCode(codeStrings: string[], pattern: RegExp): st
     const match = code.match(pattern)
     return match?.[1] || ''
   })
+}
+
+/**
+ * Import symbols from a cached transpiled file into the context.
+ * Handles the common pattern of importing function/module exports, registering parameter lists,
+ * and handling dual-defined names.
+ *
+ * This consolidates the duplicated logic from processUseStatements, propagateUseImportsFromInclude,
+ * and mergeImportedSymbols.
+ *
+ * @param cachedFile - The transpiled file to import symbols from
+ * @param ctx - The transpile context to import symbols into
+ * @param options - Configuration for what to import
+ *   - defineModules: Whether to define modules in SymbolTable (default: true). Set to false for use imports.
+ *   - registerParams: Whether to register parameter lists (default: true). Set to false if already registered.
+ *   - registerDualDefined: Whether to register dual-defined __fn variants (default: true).
+ */
+export function importSymbolsFromFile(
+  cachedFile: TranspiledFile | undefined,
+  ctx: TranspileContext,
+  options?: {
+    defineModules?: boolean
+    registerParams?: boolean
+    registerDualDefined?: boolean
+  }
+): void {
+  if (!cachedFile) return
+
+  const opts = {
+    defineModules: true,
+    registerParams: true,
+    registerDualDefined: true,
+    ...options,
+  }
+
+  // Import function exports (always imported regardless of use vs include)
+  if (cachedFile.functionExports) {
+    for (const fn of cachedFile.functionExports) {
+      const params = cachedFile.functionParamLists?.get(fn)
+      ctx.symbols.define(fn, { kind: 'function', source: 'imported', params })
+    }
+  }
+
+  // Import module exports (only for include - use files are accessed via require())
+  if (opts.defineModules && cachedFile.moduleExports) {
+    for (const mod of cachedFile.moduleExports) {
+      const params = cachedFile.paramLists?.get(mod)
+      ctx.symbols.define(mod, { kind: 'module', source: 'imported', params })
+    }
+  }
+
+  // Register parameter lists for named argument reordering
+  if (opts.registerParams) {
+    if (cachedFile.paramLists) {
+      for (const [name, params] of cachedFile.paramLists) {
+        ctx.symbols.registerParams(name, 'module', params)
+      }
+    }
+    if (cachedFile.functionParamLists) {
+      for (const [name, params] of cachedFile.functionParamLists) {
+        ctx.symbols.registerParams(name, 'function', params)
+      }
+    }
+  }
+
+  // Register dual-defined __fn variants
+  if (opts.registerDualDefined && cachedFile.dualDefinedNames) {
+    for (const name of cachedFile.dualDefinedNames) {
+      registerDualDefinedVariant(name, ctx.symbols)
+    }
+  }
 }

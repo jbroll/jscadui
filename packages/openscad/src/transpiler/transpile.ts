@@ -37,7 +37,7 @@ import {
 import { getModuleName } from './builtins.js'
 import { buildJscadImports } from './helpers/index.js'
 import { isStackSpecialVar } from './specialVars.js'
-import { deduplicateParamNames, mergeSetInto, registerDualDefinedVariant, extractNamesFromCode } from './utils.js'
+import { deduplicateParamNames, mergeSetInto, registerDualDefinedVariant, extractNamesFromCode, importSymbolsFromFile } from './utils.js'
 
 // Re-export types for public API
 export type {
@@ -85,39 +85,10 @@ function processUseStatements(ctx: TranspileContext, currentFileDir: string): vo
     for (const sym of symbols) {
       ctx.availableSymbols.add(sym)
     }
-    // Track which imported symbols are functions (not modules)
+    // Import symbols from the cached file
+    // NOTE: use imports don't define modules in SymbolTable (accessed via require())
     const cachedFile = ctx.transpiledFiles.get(useImport.resolvedPath)
-    if (cachedFile?.functionExports) {
-      for (const fn of cachedFile.functionExports) {
-        // Populate SymbolTable - single source of truth
-        const params = cachedFile.functionParamLists?.get(fn)
-        ctx.symbols.define(fn, { kind: 'function', source: 'imported', params })
-      }
-    }
-    // Merge parameter lists from imported modules for named argument reordering
-    // NOTE: Do NOT add to SymbolTable as 'module' here - USE imports are accessed
-    // via require() and use the _$f suffix, not the curried _$m pattern
-    if (cachedFile?.paramLists) {
-      for (const [name, params] of cachedFile.paramLists) {
-        ctx.symbols.registerParams(name, 'module', params)
-      }
-    }
-    // Merge function parameter lists (functions may have more params than modules)
-    // NOTE: SymbolTable is already populated from functionExports above
-    // Only merge param lists here, don't re-add to SymbolTable
-    if (cachedFile?.functionParamLists) {
-      for (const [name, params] of cachedFile.functionParamLists) {
-        ctx.symbols.registerParams(name, 'function', params)
-      }
-    }
-    // Merge dual-defined names from imported modules
-    if (cachedFile?.dualDefinedNames) {
-      for (const name of cachedFile.dualDefinedNames) {
-        // Register __fn variant using function params (may have more params than module)
-        registerDualDefinedVariant(name, ctx.symbols)
-        // Note: SymbolTable.define() already handles dual-defined names automatically
-      }
-    }
+    importSymbolsFromFile(cachedFile, ctx, { defineModules: false })
   }
 }
 
@@ -203,14 +174,13 @@ function propagateUseImportsFromInclude(ctx: TranspileContext, parts: BundledPar
       for (const sym of useImp.symbols) {
         ctx.availableSymbols.add(sym)
       }
-      // Track function/module exports from the propagated use import
+      // Import symbols from the propagated use import
       const usedFile = ctx.transpiledFiles.get(useImp.resolvedPath)
-      if (usedFile?.functionExports) {
-        for (const fn of usedFile.functionExports) {
-          const params = usedFile.functionParamLists?.get(fn)
-          ctx.symbols.define(fn, { kind: 'function', source: 'imported', params })
-        }
-      }
+      importSymbolsFromFile(usedFile, ctx, {
+        defineModules: false,
+        registerParams: false,
+        registerDualDefined: false,
+      })
     }
   }
 }
@@ -232,41 +202,11 @@ function mergeJscadUsageFlags(ctx: TranspileContext, parts: BundledParts): void 
 
 /**
  * Merge imported symbols from a cached file
+ * Used for include statements which import both functions and modules
  */
 function mergeImportedSymbols(ctx: TranspileContext, cachedFile: TranspiledFile | undefined): void {
-  if (!cachedFile) return
-
-  // Track which imported symbols are functions (not modules)
-  if (cachedFile.functionExports) {
-    for (const fn of cachedFile.functionExports) {
-      const params = cachedFile.functionParamLists?.get(fn)
-      ctx.symbols.define(fn, { kind: 'function', source: 'imported', params })
-    }
-  }
-  // Track which imported symbols are modules (need curried call pattern)
-  if (cachedFile.moduleExports) {
-    for (const mod of cachedFile.moduleExports) {
-      const params = cachedFile.paramLists?.get(mod)
-      ctx.symbols.define(mod, { kind: 'module', source: 'imported', params })
-    }
-  }
-  // Merge parameter lists
-  if (cachedFile.paramLists) {
-    for (const [name, params] of cachedFile.paramLists) {
-      ctx.symbols.registerParams(name, 'module', params)
-    }
-  }
-  if (cachedFile.functionParamLists) {
-    for (const [name, params] of cachedFile.functionParamLists) {
-      ctx.symbols.registerParams(name, 'function', params)
-    }
-  }
-  // Merge dual-defined names
-  if (cachedFile.dualDefinedNames) {
-    for (const name of cachedFile.dualDefinedNames) {
-      registerDualDefinedVariant(name, ctx.symbols)
-    }
-  }
+  // Import all symbols with default options (import everything)
+  importSymbolsFromFile(cachedFile, ctx)
 }
 
 /**
