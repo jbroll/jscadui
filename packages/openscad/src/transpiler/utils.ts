@@ -3,7 +3,13 @@
  */
 import type { AssignmentNode } from 'openscad-parser'
 import type { TranspiledFile, TranspileContext } from './context.js'
+import { WarningCode } from './context.js'
 import { safeIdentifier } from '../utils/identifiers.js'
+
+/**
+ * Set of dangerous property names that could cause prototype pollution
+ */
+const DANGEROUS_KEYS = new Set(['__proto__', 'constructor', 'prototype'])
 
 /**
  * Deduplicate parameters, keeping the LAST occurrence of each name.
@@ -222,6 +228,15 @@ export function mapArgsToParams(
     // Object literal format: only include provided parameters
     const entries: string[] = []
     for (const [paramName, value] of namedArgMap) {
+      // Check for dangerous property names that could cause prototype pollution
+      if (DANGEROUS_KEYS.has(paramName)) {
+        ctx.warnings.push({
+          code: WarningCode.DANGEROUS_PARAMETER_NAME,
+          message: `Parameter name '${paramName}' is reserved and will be skipped to prevent prototype pollution`,
+          file: ctx.options.currentFile
+        })
+        continue
+      }
       const key = paramName.startsWith('$') ? `'${paramName}'` : safeIdentifier(paramName)
       entries.push(`${key}: ${value}`)
     }

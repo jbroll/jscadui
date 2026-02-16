@@ -13,7 +13,7 @@ import type {
 import type { TranspileContext } from './context.js'
 import { WarningCode } from './context.js'
 import { generateScopeSuffix, withScope } from './scoping.js'
-import { safeIdentifier } from '../utils/identifiers.js'
+import { safeIdentifier, getShortFilename } from '../utils/identifiers.js'
 import { transpileExpression, reorderNamedArgs, isFunctionLiteralExpr } from './expressions.js'
 import { getLocation } from '../parser/parse.js'
 import {
@@ -37,8 +37,13 @@ import {
   isVectorExpr,
   getNodeTypeName,
 } from './ast-types.js'
-import { isStackSpecialVar } from './specialVars.js'
+import { isStackSpecialVar, commonInheritedVars } from './specialVars.js'
 import { deduplicateArgs, mapArgsToParams } from './utils.js'
+
+/**
+ * Set of dangerous property names that could cause prototype pollution
+ */
+const DANGEROUS_KEYS = new Set(['__proto__', 'constructor', 'prototype'])
 
 /**
  * Generate a source line comment if source comments are enabled
@@ -49,8 +54,7 @@ function sourceComment(node: Statement | ModuleDeclarationStmt | FunctionDeclara
   const loc = getLocation(node)
   if (!loc) return ''
 
-  const filename = ctx.options.currentFile || 'input.scad'
-  const shortFilename = filename.split('/').pop() || filename
+  const shortFilename = getShortFilename(ctx.options.currentFile)
   // Parser uses 0-indexed lines, but users expect 1-indexed
   return `// line ${loc.start.line + 1} in ${shortFilename}\n`
 }
@@ -262,8 +266,17 @@ function transpileColorModule(
   ctx.codeGen.usedColors = true
   // color takes (colorName, alpha?) or ([r,g,b], alpha?)
   // When only 1 arg to color, alpha is undefined
-  const colorValue = argsArray[0]?.value || '"gray"'
-  const alphaValue = argsArray[1]?.value || 'undefined'
+  // Find color arg: named 'c' or first positional
+  const colorArg = argsArray.find(a => a.name === 'c') || argsArray.find(a => !a.name)
+  // Find alpha arg: named 'alpha' or second positional
+  const alphaArg = argsArray.find(a => a.name === 'alpha') ||
+    (() => {
+      // Get second positional arg (skip first positional which is color)
+      const positionalArgs = argsArray.filter(a => !a.name)
+      return positionalArgs.length > 1 ? positionalArgs[1] : undefined
+    })()
+  const colorValue = colorArg?.value || '"gray"'
+  const alphaValue = alphaArg?.value || 'undefined'
   return `j$.color(${colorValue}, ${alphaValue}, ${childCode || 'undefined'})`
 }
 
@@ -296,7 +309,8 @@ function transpileChildrenModule(
       return `j$.safeUnion([${indices.map(i => `_children[${i}]()`).join(', ')}])`
     } else {
       // Simple index: children(0) or children(i) → single child access (call thunk)
-      const indexExpr = argsArray[0].value
+      const indexArg = argsArray.find(a => a.name === 'index' || !a.name)
+      const indexExpr = indexArg?.value || '0'
       return `_children[${indexExpr}]()`
     }
   }
@@ -693,15 +707,28 @@ function categorizeParameters(args: AssignmentNode[]): ParameterCategories {
 /**
  * Build destructuring pattern for local variables (regular + user $vars).
  */
-function buildDestructurePattern(categories: ParameterCategories): string[] {
+function buildDestructurePattern(categories: ParameterCategories, ctx: TranspileContext): string[] {
   const { localVars } = categories
 
-  if (localVars.length === 0) {
+  // Filter out dangerous parameter names and emit warnings
+  const safeLocalVars = localVars.filter(arg => {
+    if (DANGEROUS_KEYS.has(arg.name)) {
+      ctx.warnings.push({
+        code: WarningCode.DANGEROUS_PARAMETER_NAME,
+        message: `Parameter name '${arg.name}' is reserved and will be skipped to prevent prototype pollution`,
+        file: ctx.options.currentFile
+      })
+      return false
+    }
+    return true
+  })
+
+  if (safeLocalVars.length === 0) {
     return ['  const $$sv = _opts;']
   }
 
   // Build destructuring with quoted keys for user $vars
-  const destructureParts = localVars.map(arg => {
+  const destructureParts = safeLocalVars.map(arg => {
     if (arg.name.startsWith('$')) {
       const safeName = safeIdentifier(arg.name)
       return `'${arg.name}': ${safeName}`
@@ -762,7 +789,6 @@ function buildDeclaredStackUpdates(
  */
 function buildInheritedStackUpdates(categories: ParameterCategories): string[] {
   const lines: string[] = []
-  const commonInheritedVars = ['$fn', '$fa', '$fs']
 
   for (const varName of commonInheritedVars) {
     if (categories.stackSpecial.some(a => a.name === varName)) continue
@@ -791,7 +817,7 @@ function buildOptionsDestructuring(args: AssignmentNode[], ctx: TranspileContext
   const categories = categorizeParameters(uniqueArgs)
 
   return [
-    ...buildDestructurePattern(categories),
+    ...buildDestructurePattern(categories, ctx),
     ...buildLocalVarConversions(categories, ctx),
     ...buildDeclaredStackUpdates(categories, ctx),
     ...buildInheritedStackUpdates(categories),

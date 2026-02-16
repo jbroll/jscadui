@@ -3,6 +3,7 @@
  */
 
 import type { TranspileContext } from './context.js'
+import { WarningCode } from './context.js'
 
 /**
  * Strip underscore prefix from module names.
@@ -70,16 +71,17 @@ export function transpileArgsToObject(args: Array<{name: string | null, value: s
   return parts.join(', ')
 }
 
-export function transpileBuiltinPrimitive(
-  name: string,
+/**
+ * Map positional arguments to named parameters using parameter definitions
+ * @param argsArray - Arguments from the call site
+ * @param paramNames - Expected parameter names for this builtin
+ * @returns Array of strings in format "name: value" or just "value"
+ */
+function mapPositionalArgsToNamed(
   argsArray: Array<{name: string | null, value: string}>,
-  ctx: TranspileContext
-): string {
-  // Handle underscore-prefixed versions (BOSL2 builtins.scad wrappers)
-  const baseName = stripUnderscorePrefix(name)
-  // Map positional args to named args using parameter definitions
-  const paramNames = primitiveParams[baseName] || []
-  const namedArgs = argsArray.map((arg, i) => {
+  paramNames: string[]
+): string[] {
+  return argsArray.map((arg, i) => {
     if (arg.name) {
       return `${arg.name}: ${arg.value}`
     }
@@ -90,6 +92,18 @@ export function transpileBuiltinPrimitive(
     }
     return arg.value
   })
+}
+
+export function transpileBuiltinPrimitive(
+  name: string,
+  argsArray: Array<{name: string | null, value: string}>,
+  ctx: TranspileContext
+): string {
+  // Handle underscore-prefixed versions (BOSL2 builtins.scad wrappers)
+  const baseName = stripUnderscorePrefix(name)
+  // Map positional args to named args using parameter definitions
+  const paramNames = primitiveParams[baseName] || []
+  const namedArgs = mapPositionalArgsToNamed(argsArray, paramNames)
 
   // Note: special vars ($fn, $fa, $fs) are read from the runtime stack by primitives
   // No need to inject them here - the stack-based dynamic scoping handles propagation
@@ -136,6 +150,11 @@ export function transpileBuiltinPrimitive(
       return `j$.polyhedron({ ${argsStr} })`
 
     default:
+      ctx.warnings.push({
+        code: WarningCode.UNKNOWN_BUILTIN,
+        message: `Unknown primitive: ${baseName}`,
+        file: ctx.options.currentFile
+      })
       return `/* unknown primitive: ${baseName} */`
   }
 }
@@ -167,9 +186,9 @@ export function transpileBuiltinTransform(
     if (specialVarArgs.length === 0) {
       return transformCode
     }
-    // Wrap in IIFE with pushScope/try/finally/popScope
-    const setVars = specialVarArgs.map(a => `j$.setSpecialVar('${a.name}', ${a.value})`).join('; ')
-    return `(() => { j$.pushScope(); ${setVars}; try { return ${transformCode}; } finally { j$.popScope(); } })()`
+    // Wrap with j$.withScope for special variables
+    const vars = specialVarArgs.map(a => `'${a.name}': ${a.value}`).join(', ')
+    return `j$.withScope({ ${vars} }, () => ${transformCode})`
   }
 
   switch (baseName) {
@@ -208,6 +227,11 @@ export function transpileBuiltinTransform(
     }
 
     default:
+      ctx.warnings.push({
+        code: WarningCode.UNKNOWN_BUILTIN,
+        message: `Unknown transform: ${name}`,
+        file: ctx.options.currentFile
+      })
       return `/* unknown transform: ${name} */`
   }
 }
@@ -224,17 +248,7 @@ export function transpileBuiltinExtrusion(
 
   // Map positional args to named args using parameter definitions
   const paramNames = extrusionParams[baseName] || []
-  const namedArgs = argsArray.map((arg, i) => {
-    if (arg.name) {
-      return `${arg.name}: ${arg.value}`
-    }
-    // Use positional param name if available
-    const paramName = paramNames[i]
-    if (paramName) {
-      return `${paramName}: ${arg.value}`
-    }
-    return arg.value
-  })
+  const namedArgs = mapPositionalArgsToNamed(argsArray, paramNames)
   const args = namedArgs.join(', ')
 
   switch (baseName) {
@@ -248,6 +262,11 @@ export function transpileBuiltinExtrusion(
       return `j$.rotateExtrude({ ${args} }, ${childCode})`
 
     default:
+      ctx.warnings.push({
+        code: WarningCode.UNKNOWN_BUILTIN,
+        message: `Unknown extrusion: ${baseName}`,
+        file: ctx.options.currentFile
+      })
       return `/* unknown extrusion: ${baseName} */`
   }
 }
