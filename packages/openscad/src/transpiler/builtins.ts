@@ -253,6 +253,35 @@ export function transpileBuiltinExtrusion(
 }
 
 /**
+ * Determine whether to use builtin handling for a name.
+ *
+ * Handles the underscore-prefix override mechanism (BOSL2 feature):
+ * - Names starting with _ (like _cube, _translate) ALWAYS use builtin
+ * - Otherwise, use builtin only if there's no user-defined symbol
+ *
+ * @param name - The symbol name to check
+ * @param kind - Whether this is a module or function context
+ * @param ctx - The transpile context
+ * @returns true if builtin handling should be used
+ */
+export function shouldUseBuiltin(
+  name: string,
+  kind: 'module' | 'function',
+  ctx: TranspileContext
+): boolean {
+  // Underscore-prefixed names ALWAYS use builtin (BOSL2 override mechanism)
+  if (name.startsWith('_')) {
+    return true
+  }
+
+  // Check if user has defined this symbol
+  const hasUserDefined = ctx.symbols.isKind(name, kind)
+
+  // Use builtin only if user hasn't overridden it
+  return !hasUserDefined
+}
+
+/**
  * Convert filename to valid JS identifier
  * e.g., "hardware.scad" -> "hardware"
  */

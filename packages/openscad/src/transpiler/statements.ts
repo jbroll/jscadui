@@ -23,6 +23,7 @@ import {
   transpileBuiltinPrimitive,
   transpileBuiltinTransform,
   transpileBuiltinExtrusion,
+  shouldUseBuiltin,
 } from './builtins.js'
 import {
   isModuleInstantiation,
@@ -374,27 +375,26 @@ function tryDispatchBuiltin(
   argsArray: Array<{name: string | null, value: string}>,
   childCode: string | null,
   stmt: ModuleInstantiationStmt,
-  hasUserDefinedModule: boolean,
+  _hasUserDefinedModule: boolean,  // Kept for API compatibility but unused
   ctx: TranspileContext
 ): string | null {
-  // Underscore-prefixed builtins (like _multmatrix, _translate) ALWAYS
-  // use the builtin handler - these are BOSL2's way of calling real builtins
-  const isUnderscorePrefixed = name.startsWith('_')
+  // Use centralized shouldUseBuiltin logic (handles underscore-prefix and user overrides)
+  const useBuiltin = shouldUseBuiltin(name, 'module', ctx)
 
-  if ((!hasUserDefinedModule || isUnderscorePrefixed) && isBuiltinPrimitive(name)) {
+  if (useBuiltin && isBuiltinPrimitive(name)) {
     return transpileBuiltinPrimitive(name, argsArray, ctx)
   }
 
-  if ((!hasUserDefinedModule || isUnderscorePrefixed) && isBuiltinTransform(name)) {
+  if (useBuiltin && isBuiltinTransform(name)) {
     return transpileBuiltinTransform(name, argsArray, childCode, ctx)
   }
 
-  if ((!hasUserDefinedModule || isUnderscorePrefixed) && isBuiltinBoolean(name)) {
+  if (useBuiltin && isBuiltinBoolean(name)) {
     // Boolean ops need children passed directly, not as union
     return transpileBuiltinBoolean(name, stmt.child, ctx)
   }
 
-  if ((!hasUserDefinedModule || isUnderscorePrefixed) && isBuiltinExtrusion(name)) {
+  if (useBuiltin && isBuiltinExtrusion(name)) {
     return transpileBuiltinExtrusion(name, argsArray, childCode, ctx)
   }
 
