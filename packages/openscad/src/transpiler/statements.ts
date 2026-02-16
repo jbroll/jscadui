@@ -652,6 +652,127 @@ export function transpileParamsList(args: AssignmentNode[], ctx: TranspileContex
 }
 
 /**
+ * Categorize module parameters into distinct types.
+ *
+ * Categories:
+ * - regular: Normal parameters without $ prefix (e.g., a, size, center)
+ * - userDollar: User-defined $ variables not in stack whitelist (e.g., $idx, $fn2)
+ * - stackSpecial: System $ variables in stack whitelist (e.g., $fn, $fa, $fs)
+ * - localVars: Combined regular + userDollar for convenience
+ */
+interface ParameterCategories {
+  regular: AssignmentNode[]
+  userDollar: AssignmentNode[]
+  stackSpecial: AssignmentNode[]
+  localVars: AssignmentNode[]
+}
+
+function categorizeParameters(args: AssignmentNode[]): ParameterCategories {
+  const regular: AssignmentNode[] = []
+  const userDollar: AssignmentNode[] = []
+  const stackSpecial: AssignmentNode[] = []
+
+  for (const arg of args) {
+    if (!arg.name.startsWith('$')) {
+      regular.push(arg)
+    } else if (isStackSpecialVar(arg.name)) {
+      stackSpecial.push(arg)
+    } else {
+      userDollar.push(arg)
+    }
+  }
+
+  return {
+    regular,
+    userDollar,
+    stackSpecial,
+    localVars: [...regular, ...userDollar],
+  }
+}
+
+/**
+ * Build destructuring pattern for local variables (regular + user $vars).
+ */
+function buildDestructurePattern(categories: ParameterCategories): string[] {
+  const { localVars } = categories
+
+  if (localVars.length === 0) {
+    return ['  const $$sv = _opts;']
+  }
+
+  // Build destructuring with quoted keys for user $vars
+  const destructureParts = localVars.map(arg => {
+    if (arg.name.startsWith('$')) {
+      const safeName = safeIdentifier(arg.name)
+      return `'${arg.name}': ${safeName}`
+    }
+    return safeIdentifier(arg.name)
+  })
+
+  return [`  let { ${destructureParts.join(', ')}, ...$$sv } = _opts;`]
+}
+
+/**
+ * Build EXPLICIT_UNDEF conversions and default value assignments.
+ */
+function buildLocalVarConversions(
+  categories: ParameterCategories,
+  ctx: TranspileContext
+): string[] {
+  const lines: string[] = []
+
+  for (const arg of categories.localVars) {
+    const name = safeIdentifier(arg.name)
+    if (arg.value) {
+      const defaultVal = transpileExpression(arg.value, ctx)
+      lines.push(`  ${name} = ${name} !== undefined && ${name} !== j$.EXPLICIT_UNDEF ? ${name} : ${defaultVal};`)
+    } else {
+      lines.push(`  if (${name} === j$.EXPLICIT_UNDEF) ${name} = undefined;`)
+    }
+  }
+
+  return lines
+}
+
+/**
+ * Build stack updates for system special variables declared as parameters.
+ */
+function buildDeclaredStackUpdates(
+  categories: ParameterCategories,
+  ctx: TranspileContext
+): string[] {
+  const lines: string[] = []
+
+  for (const arg of categories.stackSpecial) {
+    const varName = arg.name
+    if (arg.value) {
+      const defaultVal = transpileExpression(arg.value, ctx)
+      lines.push(`  j$.setSpecialVar('${varName}', $$sv['${varName}'] !== undefined ? $$sv['${varName}'] : ${defaultVal});`)
+    } else {
+      lines.push(`  if ($$sv['${varName}'] !== undefined) j$.setSpecialVar('${varName}', $$sv['${varName}']);`)
+    }
+  }
+
+  return lines
+}
+
+/**
+ * Build stack updates for common inherited special variables not declared as parameters.
+ * These variables ($fn, $fa, $fs) are automatically inherited even when not explicit.
+ */
+function buildInheritedStackUpdates(categories: ParameterCategories): string[] {
+  const lines: string[] = []
+  const commonInheritedVars = ['$fn', '$fa', '$fs']
+
+  for (const varName of commonInheritedVars) {
+    if (categories.stackSpecial.some(a => a.name === varName)) continue
+    lines.push(`  if ($$sv['${varName}'] !== undefined) j$.setSpecialVar('${varName}', $$sv['${varName}']);`)
+  }
+
+  return lines
+}
+
+/**
  * Build destructuring and default assignments for options-object style module parameters.
  * Returns lines to be inserted at the start of the module body.
  *
@@ -667,74 +788,14 @@ export function transpileParamsList(args: AssignmentNode[], ctx: TranspileContex
  */
 function buildOptionsDestructuring(args: AssignmentNode[], ctx: TranspileContext): string[] {
   const uniqueArgs = deduplicateArgs(args)
+  const categories = categorizeParameters(uniqueArgs)
 
-  const lines: string[] = []
-
-  // Categorize parameters:
-  // - regularArgs: no $ prefix - normal local variables
-  // - systemSpecialArgs: $ prefix AND in stack whitelist (e.g., $fn, $fa, $fs) - use setSpecialVar()
-  // - userDollarArgs: $ prefix but NOT in whitelist (e.g., $fn2, $idx) - user-defined local variables
-  const regularArgs = uniqueArgs.filter(arg => !arg.name.startsWith('$'))
-  const dollarArgs = uniqueArgs.filter(arg => arg.name.startsWith('$'))
-  const systemSpecialArgs = dollarArgs.filter(arg => isStackSpecialVar(arg.name))
-  const userDollarArgs = dollarArgs.filter(arg => !isStackSpecialVar(arg.name))
-
-  // Build destructuring pattern for regular args and user-defined $vars, with rest for special vars
-  const localVarArgs = [...regularArgs, ...userDollarArgs]
-  if (localVarArgs.length > 0) {
-    // For user $vars, we need quoted keys: { 'a': a, '$fn2': $fn2 }
-    // But safeIdentifier converts $ to _ so we need to handle this specially
-    const destructureParts = localVarArgs.map(arg => {
-      if (arg.name.startsWith('$')) {
-        // User-defined $var: need quoted key and renamed local var
-        const safeName = safeIdentifier(arg.name) // $fn2 -> _fn2
-        return `'${arg.name}': ${safeName}`
-      }
-      return safeIdentifier(arg.name)
-    })
-    lines.push(`  let { ${destructureParts.join(', ')}, ...$$sv } = _opts;`)
-  } else {
-    // No local args - just capture all special vars
-    lines.push(`  const $$sv = _opts;`)
-  }
-
-  // Apply EXPLICIT_UNDEF conversions and defaults for all local variable args
-  for (const arg of localVarArgs) {
-    const name = safeIdentifier(arg.name)
-    if (arg.value) {
-      // Has default value
-      const defaultVal = transpileExpression(arg.value, ctx)
-      lines.push(`  ${name} = ${name} !== undefined && ${name} !== j$.EXPLICIT_UNDEF ? ${name} : ${defaultVal};`)
-    } else {
-      // No default - just convert EXPLICIT_UNDEF to undefined
-      lines.push(`  if (${name} === j$.EXPLICIT_UNDEF) ${name} = undefined;`)
-    }
-  }
-
-  // Handle system special variable parameters (e.g., $fn as a declared param with default)
-  // No local variables needed - reads go through j$.getSpecialVar(), writes go through j$.setSpecialVar()
-  for (const arg of systemSpecialArgs) {
-    const varName = arg.name // e.g., '$fn'
-    if (arg.value) {
-      // Has default value: set on stack with fallback to default
-      const defaultVal = transpileExpression(arg.value, ctx)
-      lines.push(`  j$.setSpecialVar('${varName}', $$sv['${varName}'] !== undefined ? $$sv['${varName}'] : ${defaultVal});`)
-    } else {
-      // No default: set on stack only if provided
-      lines.push(`  if ($$sv['${varName}'] !== undefined) j$.setSpecialVar('${varName}', $$sv['${varName}']);`)
-    }
-  }
-
-  // Set common special vars on the stack if provided (even if not declared params)
-  // These are the most commonly inherited: $fn, $fa, $fs
-  const commonSpecialVars = ['$fn', '$fa', '$fs']
-  for (const varName of commonSpecialVars) {
-    // Skip if already handled as a declared param
-    if (systemSpecialArgs.some(a => a.name === varName)) continue
-    lines.push(`  if ($$sv['${varName}'] !== undefined) j$.setSpecialVar('${varName}', $$sv['${varName}']);`)
-  }
-
-  return lines
+  return [
+    ...buildDestructurePattern(categories),
+    ...buildLocalVarConversions(categories, ctx),
+    ...buildDeclaredStackUpdates(categories, ctx),
+    ...buildInheritedStackUpdates(categories),
+  ]
 }
 
 /**
