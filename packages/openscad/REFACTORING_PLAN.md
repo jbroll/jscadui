@@ -1,7 +1,7 @@
 # OpenSCAD Transpiler Refactoring Plan
 
 **Date:** 2026-02-15
-**Status:** Analysis Complete - Implementation Pending
+**Status:** Phase 1 Complete ✅ - Phase 2 Ready to Start
 
 This document provides a comprehensive analysis of code quality issues, architectural problems, and opportunities for improvement in the OpenSCAD transpiler. It is organized by severity and includes specific implementation plans.
 
@@ -9,16 +9,16 @@ This document provides a comprehensive analysis of code quality issues, architec
 
 ## Executive Summary
 
-**UPDATED 2026-02-15**: SymbolTable migration is already significantly complete. SymbolTable is designed as the single source of truth and provides complete APIs for symbol/parameter tracking. Legacy fields (`moduleNames`, `functionNames`, `availableModules`, `availableFunctions`, `importedFunctions`, `moduleParamLists`, `functionParamLists`, `dualDefinedNames`) are still present but SymbolTable has all necessary data and methods to replace them.
+**UPDATED 2026-02-15**: ✅ **Phase 1 Complete** - SymbolTable migration finished successfully! All legacy symbol tracking fields have been removed. SymbolTable is now the single source of truth for all symbol and parameter tracking.
 
-The transpiler has evolved organically and now suffers from:
-- **Redundant data structures**: Legacy sets/maps/arrays that duplicate SymbolTable data
+The transpiler has evolved organically and still suffers from:
+- ~~**Redundant data structures**: Legacy sets/maps/arrays that duplicate SymbolTable data~~ ✅ **FIXED**
 - **Copy-paste code**: 40+ instances of duplicated logic
 - **Missing abstractions**: Common patterns repeated inline
-- **Complex state management**: Context object with 30+ mutable fields
+- **Complex state management**: Context object with 30+ mutable fields (reduced from original count)
 - **Semantic impedance**: OpenSCAD features fighting JavaScript's design
 
-**Current focus**: Complete SymbolTable migration by removing legacy tracking fields.
+**Current focus**: Move to Phase 2 (Quick Wins) - eliminate duplicate code with minimal risk.
 
 **Impact**: Maintenance burden, bug risk from sync failures, difficulty adding features.
 
@@ -859,39 +859,45 @@ These issues arise from fundamental differences between OpenSCAD and JavaScript 
 
 **UPDATED**: SymbolTable migration takes priority as the foundation is already in place.
 
-### Phase 1: Complete SymbolTable Migration (IN PROGRESS - 1 week)
+### Phase 1: Complete SymbolTable Migration ✅ COMPLETED (2026-02-15)
 
 **Goal**: Remove all redundant symbol tracking, make SymbolTable the single source of truth
 
-**Status**: SymbolTable migration actively in progress (2026-02-15).
+**Status**: **COMPLETE** - Migration finished successfully on 2026-02-15.
 
 **Completed**:
-- [x] **Step 1.1**: Replaced all `ctx.moduleParamLists.set()` with `ctx.symbols.registerParams()`
-- [x] **Step 1.2**: Replaced all `ctx.functionParamLists.set()` with `ctx.symbols.registerParams()`
-- [x] **Step 1.3**: Replaced `ctx.moduleNames`/`ctx.functionNames` with `ctx.symbols.getByKind()` in buildOutputCode
-- [x] **Step 1.4**: Removed all `ctx.availableModules.add()`/`ctx.availableFunctions.add()` calls
-- [x] **Step 1.5**: Replaced `ctx.dualDefinedNames` loops with `ctx.symbols.getDualDefined()`
-- [x] **Step 1.6**: Removed `moduleParamLists`, `functionParamLists`, `dualDefinedNames` from TranspileContext interface
-- [x] **Step 1.7**: Removed `moduleNames`, `functionNames`, `availableModules`, `availableFunctions`, `importedModules` from TranspileContext interface
+- [x] **Step 1.1**: Migrated all READ operations from legacy fields to SymbolTable
+- [x] **Step 1.2**: Removed all WRITE operations to legacy param tracking fields (commit 75d13d7)
+- [x] **Step 1.3**: Removed 9 legacy field definitions from TranspileContext (commit 15ff4e1)
+- [x] **Step 1.4**: Removed all `ctx.moduleParamLists.set()` / `ctx.functionParamLists.set()` calls
+- [x] **Step 1.5**: Removed all `ctx.availableModules.add()` / `ctx.availableFunctions.add()` calls
+- [x] **Step 1.6**: Removed all `ctx.dualDefinedNames.add()` / `ctx.importedFunctions.add()` calls
+- [x] **Step 1.7**: Updated all export logic to use `ctx.symbols.getByKind()` with `isFromSource()` filtering
 - [x] **Step 1.8**: Removed legacy field initialization from createContext()
-- [x] **Step 1.9**: Added `initialSymbols` option to TranspileOptions (replaces initialParamLists, etc.)
-- [x] **Step 1.10**: Updated createContext() to use `initialSymbols.clone()` pattern
+- [x] **Step 1.9**: All TypeScript compilation passes (no errors)
+- [x] **Step 1.10**: All 246 unit tests pass
+- [x] **Step 1.11**: BOSL2 corpus baseline maintained (108/143 passing)
 
-**Remaining**:
-- [ ] **Step 1.11**: Fix TypeScript compilation errors (9 errors)
-- [ ] **Step 1.12**: Update TranspiledFile interface to store SymbolTable
-- [ ] **Step 1.13**: Update TranspiledFile caching to use SymbolTable (lines 506-515 in transpile.ts)
-- [ ] **Step 1.14**: Update createBundledParts to use SymbolTable (lines 471-475)
-- [ ] **Step 1.15**: Update cache reading code to work with SymbolTable
-- [ ] **Step 1.16**: Run full test suite → **VERIFY NO REGRESSIONS**
-- [ ] **Step 1.17**: Run corpus tests → **VERIFY GEOMETRY UNCHANGED**
-- [ ] **Step 1.18**: Commit changes if all tests pass
+**Fields Removed from TranspileContext**:
+- `moduleNames: string[]`
+- `functionNames: string[]`
+- `moduleParamLists: Map<string, string[]>`
+- `functionParamLists: Map<string, string[]>`
+- `availableModules: Set<string>`
+- `availableFunctions: Set<string>`
+- `importedModules: Set<string>`
+- `importedFunctions: Set<string>`
+- `dualDefinedNames: Set<string>`
 
-**Current Status**: 9 TypeScript errors remaining, all related to TranspiledFile caching. Core transpilation logic has been successfully migrated to use SymbolTable exclusively.
+**Fields Retained** (still needed for specific purposes):
+- `includedModuleNames` - Global tracking for builtin override detection
+- `includedFunctionNames` - Global tracking for suffix selection
+- `variableNames` - Top-level variable exports
+- `symbols: SymbolTable` - Single source of truth
 
-**BLOCKER**: Cannot run tests until TypeScript compilation errors are fixed. Must complete steps 1.11-1.15 first.
+**Actual Impact**: ~76 lines removed, 17+ manual sync points eliminated, single source of truth established
 
-**Estimated impact**: ~200 lines removed, 17 manual sync points eliminated, single source of truth established
+**Note**: TranspiledFile interface still uses Maps/Sets for serialization (cache format), but these are built from SymbolTable when caching and used to populate SymbolTable when reading cache.
 
 ---
 
