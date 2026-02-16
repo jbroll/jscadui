@@ -41,6 +41,7 @@ import {
   isFunctionDeclaration,
   getNodeTypeName,
 } from './ast-types.js'
+import { mapArgsToParams } from './utils.js'
 import type { LcForCExpr } from './ast-types.js'
 
 /**
@@ -780,87 +781,17 @@ export function transpileLiteral(value: string | number | boolean | null | undef
  * This handles OpenSCAD's named parameter syntax: module(n=3, spacing=10)
  * which should map to spread(p1, p2, spacing, l, n) correctly.
  */
+/**
+ * Reorder named arguments to match parameter list.
+ * Wrapper around mapArgsToParams for positional format.
+ */
 export function reorderNamedArgs(
   name: string,
   argsArray: Array<{name: string | null, value: string}>,
   ctx: TranspileContext,
   preferFunction = false
 ): string {
-  // Get parameter list for this module/function from SymbolTable
-  // preferFunction=true means this is a function call context (uses return value)
-  // In that case, prefer function params since functions often have extra params (like p in rot)
-  //
-  // IMPORTANT: Module and function definitions can have different parameter orders
-  // (e.g., BOSL2's prismoid module has xang/yang before rounding, but the function has them at the end)
-  // We must respect the call context to get the correct parameter order.
-  let paramList: string[] | undefined
-  if (preferFunction) {
-    // Function call context - prefer function params, fall back to module params
-    paramList = ctx.symbols.getParams(name, 'function') || ctx.symbols.getParams(name, 'module')
-  } else {
-    // Module instantiation context - prefer module params, fall back to function params
-    paramList = ctx.symbols.getParams(name, 'module') || ctx.symbols.getParams(name, 'function')
-  }
-
-  // If we don't have parameter info, or no named args, fall back to positional order
-  const hasNamedArgs = argsArray.some(a => a.name !== null)
-  if (!paramList || !hasNamedArgs) {
-    return argsArray.map(a => a.value).join(', ')
-  }
-
-  // Build a map of named arguments
-  const namedArgMap = new Map<string, string>()
-  // Track which parameters were explicitly provided (not just filled with undefined)
-  const explicitlyProvided = new Set<string>()
-  let positionalIndex = 0
-
-  for (const arg of argsArray) {
-    if (arg.name) {
-      namedArgMap.set(arg.name, arg.value)
-      explicitlyProvided.add(arg.name)
-    } else {
-      // Track positional args by their index in the parameter list
-      while (positionalIndex < paramList.length && namedArgMap.has(paramList[positionalIndex])) {
-        positionalIndex++
-      }
-      if (positionalIndex < paramList.length) {
-        namedArgMap.set(paramList[positionalIndex], arg.value)
-        explicitlyProvided.add(paramList[positionalIndex])
-        positionalIndex++
-      }
-    }
-  }
-
-  // Build reordered argument list
-  const result: string[] = []
-  const wasExplicit: boolean[] = []
-  for (const paramName of paramList) {
-    if (namedArgMap.has(paramName)) {
-      let value = namedArgMap.get(paramName)!
-      const isExplicit = explicitlyProvided.has(paramName)
-      // If caller explicitly passed 'undefined' (from 'undef' literal), use the EXPLICIT_UNDEF sentinel.
-      // This prevents JavaScript's default parameter behavior from overriding the caller's intent.
-      // j$.EXPLICIT_UNDEF is a Symbol that won't trigger defaults and is treated as undefined in comparisons.
-      if (value === 'undefined' && isExplicit) {
-        value = 'j$.EXPLICIT_UNDEF'
-      }
-      result.push(value)
-      wasExplicit.push(isExplicit)
-    } else {
-      result.push('undefined')
-      wasExplicit.push(false)
-    }
-  }
-
-  // Trim trailing undefined values, but only if they weren't explicitly provided
-  // This is important for cases like `foo(x=undef)` where undef should override the default
-  // Note: j$.EXPLICIT_UNDEF values are always explicit, so they won't be trimmed
-  while (result.length > 0 && result[result.length - 1] === 'undefined' && !wasExplicit[result.length - 1]) {
-    result.pop()
-    wasExplicit.pop()
-  }
-
-  return result.join(', ')
+  return mapArgsToParams(name, argsArray, ctx, 'positional', preferFunction)
 }
 
 export function transpileBinaryOp(op: number): string {

@@ -36,7 +36,7 @@ import {
   getNodeTypeName,
 } from './ast-types.js'
 import { isStackSpecialVar } from './specialVars.js'
-import { deduplicateArgs } from './utils.js'
+import { deduplicateArgs, mapArgsToParams } from './utils.js'
 
 /**
  * Generate a source line comment if source comments are enabled
@@ -448,51 +448,16 @@ function transpileArgsArray(args: AssignmentNode[], ctx: TranspileContext): Arra
  * For positional arguments without names, we map them to parameter names if available.
  * Special variables ($fn, $fa, $fs) are included in the options object.
  */
+/**
+ * Transpile arguments as an object literal for module instantiation.
+ * Wrapper around mapArgsToParams for object format.
+ */
 function transpileArgsAsOptions(
   name: string,
   argsArray: Array<{name: string | null, value: string}>,
   ctx: TranspileContext
 ): string {
-  if (argsArray.length === 0) return '{}'
-
-  // Get parameter list to map positional args to names (from SymbolTable)
-  const paramList = ctx.symbols.getParams(name, 'module') || ctx.symbols.getParams(name, 'function') || []
-
-  const entries: string[] = []
-  let positionalIndex = 0
-  const usedNames = new Set<string>()
-
-  for (const arg of argsArray) {
-    if (arg.name) {
-      // Named argument - use directly
-      const safeName = safeIdentifier(arg.name)
-      // Special variables need to be quoted if they start with $
-      const key = arg.name.startsWith('$') ? `'${arg.name}'` : safeName
-      entries.push(`${key}: ${arg.value}`)
-      usedNames.add(arg.name)
-    } else {
-      // Positional argument - map to parameter name
-      while (positionalIndex < paramList.length && usedNames.has(paramList[positionalIndex])) {
-        positionalIndex++
-      }
-      if (positionalIndex < paramList.length) {
-        const paramName = paramList[positionalIndex]
-        const safeName = safeIdentifier(paramName)
-        const key = paramName.startsWith('$') ? `'${paramName}'` : safeName
-        entries.push(`${key}: ${arg.value}`)
-        usedNames.add(paramName)
-        positionalIndex++
-      } else {
-        // No param name available, use index as fallback (shouldn't happen often)
-        entries.push(`_arg${positionalIndex}: ${arg.value}`)
-        positionalIndex++
-      }
-    }
-  }
-
-  // Note: inherited special vars are handled by the stack - no need to inject here
-
-  return `{ ${entries.join(', ')} }`
+  return mapArgsToParams(name, argsArray, ctx, 'object')
 }
 
 /**
