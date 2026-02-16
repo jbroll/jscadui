@@ -164,12 +164,20 @@ class MT19937 {
   }
 }
 
+// Global RNG instance - OpenSCAD 2021.01+ maintains state between rands() calls
+// "Allow initial seeds to stick between rands calls"
+let _globalRng = new MT19937(0)
+
 export const _rands = (min, max, count, seed) => {
-  // OpenSCAD uses MT19937 with default seed 0
-  const rng = new MT19937(seed !== undefined ? seed : 0)
+  // If seed is provided, reinitialize the global RNG
+  // Otherwise, continue from previous state (OpenSCAD behavior since 2021.01)
+  if (seed !== undefined) {
+    _globalRng = new MT19937(seed)
+  }
+
   const r = []
   for (let i = 0; i < count; i++) {
-    r.push(min + rng.random() * (max - min))
+    r.push(min + _globalRng.random() * (max - min))
   }
   return r
 }

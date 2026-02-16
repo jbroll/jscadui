@@ -1,8 +1,9 @@
 # Files to skip in corpus tests
 # One filename per line, comments start with #
 
-# Uses rands() - OpenSCAD uses MT19937 PRNG, we use MT19937 but output doesn't match exactly
-# (possibly due to differences in uniform_real distribution). Jaccard: 0.72
+# Uses rands() - We implement MT19937 with global state persistence matching OpenSCAD 2021.01+
+# Output is deterministic but geometry doesn't match exactly (Jaccard: 0.6458), possibly due to
+# differences in uniform_real distribution or MT19937 initialization details.
 Bricks.scad
 
 # Geometry library difference: OpenSCAD produces 221 vertices, JSCAD produces 1440 vertices
