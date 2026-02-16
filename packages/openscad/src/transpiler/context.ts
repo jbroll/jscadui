@@ -142,36 +142,17 @@ export interface TranspileContext {
   useImports: UseImport[]
   // Track include statements (import all symbols including variables)
   includeImports: UseImport[]
-  // Track module/function definitions for export (local definitions)
-  moduleNames: string[]
-  functionNames: string[]
-  // Track module/function parameter lists (for named argument reordering)
-  moduleParamLists: Map<string, string[]>
-  // Track function parameter lists separately (functions may have different params than modules)
-  functionParamLists: Map<string, string[]>
   // Track top-level variable assignments for export
   variableNames: string[]
   // Track all available symbols (local + imported)
   availableSymbols: Set<string>
-  // Unified module tracking - all modules available from any source
-  // Used for suffix selection and builtin override detection
-  availableModules: Set<string>
-  // Unified function tracking - all functions available from any source
-  // Used for suffix selection
-  availableFunctions: Set<string>
-  // Track imported function names (not modules) - these don't use curried pattern
-  importedFunctions: Set<string>
-  // Track imported module names (from includes) - these use curried pattern
-  importedModules: Set<string>
   // Track module names from all includes (for builtin override detection)
   // This is populated during the pre-pass and shared across all nested transpilations
   includedModuleNames: Set<string>
   // Track function names from all includes (for suffix selection)
   // Functions in included files should use _$f suffix, not _$m
   includedFunctionNames: Set<string>
-  // Track names that have both module and function versions (use __fn suffix for function)
-  dualDefinedNames: Set<string>
-  // Unified symbol table (consolidates the above Sets - migration in progress)
+  // Unified symbol table - single source of truth for symbols and params
   symbols: SymbolTable
   // Current indentation level
   indentLevel: number
@@ -285,19 +266,10 @@ export function createContext(
     usedMinMax: false,
     useImports: [],
     includeImports: [],
-    moduleNames: [],
-    functionNames: [],
-    moduleParamLists,
-    functionParamLists,
     variableNames: [],
     availableSymbols: new Set(),
-    availableModules: new Set(includedModuleNames),  // Start with included modules
-    availableFunctions: new Set(includedFunctionNames),  // Start with included functions
-    importedFunctions,
-    importedModules: new Set(),
     includedModuleNames,
     includedFunctionNames,
-    dualDefinedNames,
     symbols,
     indentLevel: 0,
     transpiledFiles: sharedCache || new Map(),
