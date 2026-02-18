@@ -97,6 +97,15 @@ await buildBundle(outDir + '/build', 'bundle.jscad_io.js', { format:'cjs', watch
 await buildBundle(outDir + '/build', 'bundle.V1_api.js', { format:'cjs', watch: dev, loader: cjsLoader })
 await buildBundle(outDir + '/build', 'bundle.params_core.js', { format: 'cjs', watch: dev, loader: cjsLoader })
 await buildBundle(outDir + '/build', 'bundle.jscadui.transform-babel.js', { globalName: 'jscadui_transform_babel', watch: dev })
+// openscad-parser imports 'fs'/'path'/'os' for Node-side file loading
+// (CodeFile.load, PreludeUtil, SolutionManager) which are never called in
+// browser context.  Mark them external so esbuild omits them entirely rather
+// than bundling stubs.
+await buildBundle(outDir + '/build', 'bundle.openscad.js', {
+  globalName: 'jscadui_openscad',
+  watch: dev,
+  external: ['fs', 'path', 'os'],
+})
 
 /**************************** BUILD JS THAT can change and watch if in dev mode *************/
 await buildOne('src_bundle', outDir + '/build', 'bundle.worker.js', watch, { format: 'iife' })

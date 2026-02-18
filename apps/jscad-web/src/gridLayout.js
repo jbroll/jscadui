@@ -79,5 +79,7 @@ function main(params) {
   }
   return all
 }
+
+module.exports = { main }
 `
 }

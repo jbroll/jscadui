@@ -8,6 +8,7 @@
     "build": "node build.js",
     "serve": "node build.js --serve",
     "test": "vitest run",
+    "test:e2e": "playwright test",
     "test:watch": "vitest",
     "lint": "eslint src src_bundle src_build",
     "typecheck": "tsc --noEmit"
@@ -23,6 +24,7 @@
     "@jscadui/fs-provider": "*",
     "@jscadui/fs-serviceworker": "*",
     "@jscadui/html-gizmo": "*",
+    "@jscadui/openscad": "*",
     "@jscadui/orbit": "^0.1.0",
     "@jscadui/params": "*",
     "@jscadui/params-controller": "*",
@@ -42,6 +44,7 @@
   },
   "devDependencies": {
     "@jbroll/jsx6-build": "^0.3.0",
+    "@playwright/test": "^1.58.2",
     "@trivago/prettier-plugin-sort-imports": "^6.0.2",
     "@vitest/browser": "^4.0.18",
     "esbuild": "^0.27.2",

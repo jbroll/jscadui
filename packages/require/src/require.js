@@ -16,6 +16,20 @@ import { wrapLegacyModule } from '../../params-core/src/createParamsProxy.js'
 
 export { resolveUrl } from './resolveUrl'
 
+/**
+ * Pluggable source handlers for non-standard file types.
+ *
+ * Map from lowercase extension (without dot) to a handler function:
+ *   (source: string, url: string, readFile: Function) => string
+ *
+ * The handler receives the raw source text and must return JavaScript source
+ * ready for eval(). The url is the fully-resolved URL of the file.
+ *
+ * Register before the first require() call:
+ *   requireHandlers.set('scad', (source, url, readFile) => transpileToJs(source, url, readFile))
+ */
+export const requireHandlers = new Map()
+
 // initially new Function was used to pass parameters: require, exports, module
 // new Functions screws with sourcemaps as it adds a prefix to the source
 // we need eval to do the same without prefix
@@ -70,8 +84,9 @@ export const require = (urlOrSource, transform, readFile, base, root, importData
     const resolved = resolveUrl(aliasedUrl, base, root, moduleBase)
     const resolvedStr = resolved.url.toString()
     const urlComponents = resolvedStr.split('/')
-    // no file ext is usually module from CDN
-    const isJs = !urlComponents[urlComponents.length - 1].includes('.') || resolvedStr.endsWith('.ts') || resolvedStr.endsWith('.js')
+    const resolvedExt = getExtension(resolvedStr)
+    // no file ext is usually module from CDN; registered handlers are also treated as JS-like
+    const isJs = !urlComponents[urlComponents.length - 1].includes('.') || resolvedStr.endsWith('.ts') || resolvedStr.endsWith('.js') || requireHandlers.has(resolvedExt)
     if (!isJs && importData) {
       const info = extractPathInfo(resolvedStr)
       const content = readFile(resolvedStr, { output: importData.isBinaryExt(info.ext) })
@@ -168,8 +183,14 @@ export const require = (urlOrSource, transform, readFile, base, root, importData
       if (extension === 'json') {
         exports = JSON.parse(source)
       } else {
-        // do not transform bundles that are already cjs ( requireCache.bundleAlias.*)
-        if (transform && !bundleAlias) source = transform(source, resolvedUrl).code
+        // Check for a registered extension handler (e.g. '.scad' → JavaScript)
+        const extHandler = requireHandlers.get(extension)
+        if (extHandler) {
+          source = extHandler(source, resolvedUrl, readFile)
+        } else if (transform && !bundleAlias) {
+          // do not transform bundles that are already cjs ( requireCache.bundleAlias.*)
+          source = transform(source, resolvedUrl).code
+        }
         // construct require function relative to resolvedUrl
         const requireFunc = newUrl => require(newUrl, transform, readFile, resolvedUrl, root, importData, moduleBase)
         const module = requireModule(url, resolvedUrl, source, requireFunc)
