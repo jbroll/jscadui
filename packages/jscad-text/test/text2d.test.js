@@ -240,3 +240,28 @@ describe('FontMap', () => {
     expect(fonts).toContain('My Custom Font')
   })
 })
+
+describe('text2d TTF geometry correctness', () => {
+  it('TTF text is above baseline (Y-up convention)', () => {
+    // Verify opentype.js Y-down screen coords are converted to JSCAD Y-up.
+    // 'A' at size=10 with valign='baseline' should sit above y=0.
+    const a = text2d('A', { size: 10, font: OPEN_SANS_TTF, valign: 'baseline' })
+    const [min, max] = jscad.measurements.measureBoundingBox(a)
+    // Top of 'A' should be clearly above baseline
+    expect(max[1]).toBeGreaterThan(5)
+    // Bottom of 'A' should be at or just below baseline (Open Sans 'A' has no descender)
+    expect(min[1]).toBeGreaterThan(-2)
+  })
+
+  it('TTF "O" has a hole (inner ring present)', () => {
+    // 'O' has two contours: outer oval and inner oval (hole).
+    // 'I' has a single rectangular contour (no hole).
+    // So toSides('O') should return more edges than toSides('I').
+    const o = text2d('O', { size: 20, font: OPEN_SANS_TTF })
+    const letter_i = text2d('I', { size: 20, font: OPEN_SANS_TTF })
+    const sidesO = jscad.geometries.geom2.toSides(o).length
+    const sidesI = jscad.geometries.geom2.toSides(letter_i).length
+    // 'O' outer ring + inner hole should produce significantly more sides than 'I'
+    expect(sidesO).toBeGreaterThan(sidesI)
+  })
+})

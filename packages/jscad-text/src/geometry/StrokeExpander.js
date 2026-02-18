@@ -31,8 +31,8 @@ function expandPolyline(points, halfWidth, segments) {
       corners: 'round',
       segments,
     }, path)
-  } catch {
-    // Some degenerate polylines fail - skip them silently
+  } catch (err) {
+    console.warn('jscad-text: failed to expand stroke polyline:', err.message)
     return null
   }
 }

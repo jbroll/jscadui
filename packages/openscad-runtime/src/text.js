@@ -2,7 +2,12 @@
  * OpenSCAD text() primitive runtime implementation.
  *
  * Bridges OpenSCAD's text() builtin to @jscadui/jscad-text.
- * Returns geom2 synchronously (Hershey default) or throws if TTF font not pre-loaded.
+ * Returns geom2 synchronously for all font sources:
+ *   - Hershey (default): built-in, no I/O
+ *   - TTF file path (Node.js): opentype.loadSync() → readFileSync
+ *   - TTF URL (browser Web Worker): sync XMLHttpRequest
+ *   - ArrayBuffer/Uint8Array: parsed directly
+ *   - TTF HTTP URL in Node.js: pre-load with await fontLoader.load(url) first
  */
 
 import { _getSegments } from './segments.js'
@@ -33,7 +38,7 @@ export const _text = ({
   $fa,
   $fs,
 } = {}) => {
-  if (!text) return undefined
+  if (!text) return null
 
   const fn = $fn ?? _getSegments(size / 2, $fn, $fa, $fs)
 

@@ -265,33 +265,49 @@ export class TTFFont {
   /** @param {import('opentype.js').Font} otFont */
   constructor(otFont) {
     this._font = otFont
-    // Cache parsed glyph contour data keyed by "char:steps"
+    // Cache parsed glyph contour data keyed by "char:steps" in font units.
+    // Size is NOT part of the key — cached contours are in font units and
+    // scaled at retrieval time. This prevents unbounded cache growth when
+    // size varies (e.g. parametric models).
     this._contourCache = new Map()
   }
 
   /**
    * Get glyph contours for a single character.
    *
+   * Contours are cached in font units (at size = unitsPerEm) and scaled
+   * to the requested size on each call. The tessellation step count is part
+   * of the cache key because it affects the shape of Bézier approximations.
+   *
    * @param {string} char
-   * @param {number} size - desired output size (cap height in user units)
+   * @param {number} size - desired output size in user units
    * @param {number} steps - Bézier tessellation steps
    * @returns {{ contours: Array<Array<[number,number]>>, advanceWidth: number }}
    */
   getGlyph(char, size, steps) {
     const font = this._font
     const scale = size / font.unitsPerEm
-    const key = `${char}:${steps}:${size}`
-    if (this._contourCache.has(key)) return this._contourCache.get(key)
+    const key = `${char}:${steps}`
 
-    const glyph = font.charToGlyph(char)
-    if (!glyph) return { contours: [], advanceWidth: 0 }
+    let cached = this._contourCache.get(key)
+    if (!cached) {
+      const glyph = font.charToGlyph(char)
+      if (!glyph) return { contours: [], advanceWidth: 0 }
 
-    const path = glyph.getPath(0, 0, size)
-    const contours = pathToContours(path, steps, 1)  // path already scaled by getPath
-    const advanceWidth = (glyph.advanceWidth ?? 0) * scale
-    const result = { contours, advanceWidth }
-    this._contourCache.set(key, result)
-    return result
+      // Parse at unitsPerEm so cached coords are in font units (scale=1).
+      // opentype.js getPath uses screen coordinates (Y increases downward).
+      // Negate y to convert to JSCAD's Y-up convention so contours are
+      // stored in Y-up font units and scale correctly at retrieval time.
+      const path = glyph.getPath(0, 0, font.unitsPerEm)
+      const contoursScreen = pathToContours(path, steps, 1)
+      const contours = contoursScreen.map(c => c.map(([x, y]) => [x, -y]))
+      cached = { contours, advanceWidth: glyph.advanceWidth ?? 0 }
+      this._contourCache.set(key, cached)
+    }
+
+    // Scale from font units to requested size
+    const scaledContours = cached.contours.map(c => c.map(([x, y]) => [x * scale, y * scale]))
+    return { contours: scaledContours, advanceWidth: cached.advanceWidth * scale }
   }
 
   /**
