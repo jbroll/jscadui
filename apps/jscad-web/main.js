@@ -39,6 +39,7 @@ import { AnimRunner } from './src/animRunner.js'
 import * as welcome from './src/welcome.js'
 import * as about from './src/about.js'
 import { showTrustedSourcesDialog, trustedSourcesStyles } from './src/trustedSourcesUI.js'
+import { showDemoBrowser, demoBrowserStyles } from './src/demoBrowser.js'
 
 // Extracted modules
 import { updatePipelineStats, countGeometry, createProgressHandler } from './src/stats.js'
@@ -501,7 +502,21 @@ editor.init(
 )
 
 // ============== Menu & Welcome ==============
-menu.init()
+menu.init({
+  onBrowseDemos: () => showDemoBrowser({
+    baseUrl: new URL('./examples/', appBase).toString(),
+    onLoad: (script, url) => {
+      editor.setSource(script, url)
+      jscadScript({ script, url, base: new URL('./', new URL(url, appBase)).toString() })
+      welcome.dismiss()
+    },
+    onLoadAll: (script, url) => {
+      editor.setSource(script, url)
+      jscadScript({ script, url, base: new URL('./examples/', appBase).toString() })
+      welcome.dismiss()
+    },
+  })
+})
 welcome.init()
 about.init()
 
@@ -511,9 +526,9 @@ if (trustedSourcesBtn) {
   trustedSourcesBtn.addEventListener('click', showTrustedSourcesDialog)
 }
 
-// Inject trusted sources dialog styles
+// Inject dialog styles
 const trustedStyles = document.createElement('style')
-trustedStyles.textContent = trustedSourcesStyles
+trustedStyles.textContent = trustedSourcesStyles + '\n' + demoBrowserStyles
 document.head.appendChild(trustedStyles)
 
 let hasRemoteScript

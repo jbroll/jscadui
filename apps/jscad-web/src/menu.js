@@ -1,11 +1,17 @@
-import { examples } from './examples.js'
-
 const menu = /** @type {HTMLElement} */ (document.getElementById('menu'))
 
 /** @type {(() => void) | null} */
 let cleanupFn = null
 
-export const init = () => {
+/**
+ * @callback OnBrowseDemos
+ */
+
+/**
+ * @param {object} opts
+ * @param {OnBrowseDemos} [opts.onBrowseDemos] - called when user clicks "Browse Demos…"
+ */
+export const init = ({ onBrowseDemos } = {}) => {
   const button = /** @type {HTMLElement} */ (document.getElementById('menu-button'))
   const content = /** @type {HTMLElement} */ (document.getElementById('menu-content'))
 
@@ -30,19 +36,20 @@ export const init = () => {
   window.addEventListener('dragstart', handleDismiss)
   window.addEventListener('dragover', handleDismiss)
 
-  // Add examples to menu
+  // Add "Browse Demos…" button in place of the old static examples list
   const exampleDiv = /** @type {HTMLElement} */ (document.getElementById('examples'))
-  examples.forEach(({ name, source }) => {
-    const a = document.createElement('a')
-    a.innerText = name
-    a.addEventListener('click', async () => {
-      console.log(`load example ${name} from ${source}`)
-      document.location.hash = '#' + source
+  if (exampleDiv && onBrowseDemos) {
+    const browseBtn = document.createElement('button')
+    browseBtn.className = 'menu-link-btn'
+    browseBtn.textContent = 'Browse Demos…'
+    browseBtn.addEventListener('click', () => {
+      dismiss()
+      onBrowseDemos()
     })
     const li = document.createElement('li')
-    li.appendChild(a)
+    li.appendChild(browseBtn)
     exampleDiv.appendChild(li)
-  })
+  }
 
   // Store cleanup function
   cleanupFn = () => {
