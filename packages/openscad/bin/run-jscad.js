@@ -176,12 +176,14 @@ async function createRuntime() {
   const colorsPath = join(__dirname, '..', '..', 'manifold', 'src', 'colors', 'index.js')
 
   const expansionsPath = join(__dirname, '..', '..', 'manifold', 'src', 'expansions', 'index.js')
+  const textPath = join(__dirname, '..', '..', 'manifold', 'src', 'text', 'index.js')
 
   const transforms = await import(transformsPath)
   const extrusions = await import(extrusionsPath)
   const hulls = await import(hullsPath)
   const colors = await import(colorsPath)
   const expansions = await import(expansionsPath)
+  const textModule = await import(textPath)
 
   // Import geometries module for geom2 (needed by _linearExtrude with scale/twist)
   const geometriesPath = join(__dirname, '..', '..', 'manifold', 'src', 'geometries', 'index.js')
@@ -244,6 +246,7 @@ async function createRuntime() {
     geometries: {
       geom2: geometries.geom2,
       geom3: geometries.geom3,
+      path2: geometries.path2,
     },
     hulls: {
       hull: hulls.hull,
@@ -257,6 +260,10 @@ async function createRuntime() {
     expansions: {
       offset: expansions.offset,
       expand: expansions.expand,
+    },
+    text: {
+      vectorChar: textModule.vectorChar,
+      vectorText: textModule.vectorText,
     },
     maths: {
       mat4: {
@@ -541,10 +548,10 @@ async function main() {
     const fn = new Function('require', 'module', 'exports', patchedCode)
     fn(customRequire, moduleObj, exports)
 
-    // Call main() if it exists
+    // Call main() if it exists - handle both sync and async main()
     let result
     if (typeof moduleObj.exports.main === 'function') {
-      result = moduleObj.exports.main()
+      result = await Promise.resolve(moduleObj.exports.main())
     } else {
       result = null
     }

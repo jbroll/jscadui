@@ -17,7 +17,7 @@ function stripUnderscorePrefix(name: string): string {
 // All functions also match underscore-prefixed versions (BOSL2 builtins.scad wrappers)
 export function isBuiltinPrimitive(name: string): boolean {
   const baseName = stripUnderscorePrefix(name)
-  return ['cube', 'sphere', 'cylinder', 'polyhedron', 'square', 'circle', 'polygon', 'regular_polygon'].includes(baseName)
+  return ['cube', 'sphere', 'cylinder', 'polyhedron', 'square', 'circle', 'polygon', 'regular_polygon', 'text'].includes(baseName)
 }
 
 export function isBuiltinTransform(name: string): boolean {
@@ -46,6 +46,7 @@ const primitiveParams: Record<string, string[]> = {
   polygon: ['points', 'paths'],
   polyhedron: ['points', 'faces', 'convexity'],
   regular_polygon: ['order', 'r'],  // n-sided polygon with circumradius r
+  text: ['text', 'size', 'font', 'halign', 'valign', 'spacing', 'direction', 'language', 'script'],
 }
 
 // Positional parameter names for extrusions
@@ -148,6 +149,9 @@ export function transpileBuiltinPrimitive(
     case 'polyhedron':
       ctx.codeGen.usedPrimitives.add('polyhedron')
       return `j$.polyhedron({ ${argsStr} })`
+
+    case 'text':
+      return `j$.text({ ${argsStr} })`
 
     default:
       ctx.warnings.push({

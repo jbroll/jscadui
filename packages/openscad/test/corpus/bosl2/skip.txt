@@ -11,7 +11,9 @@
 # at a specific time and cannot be reproduced deterministically.
 650-hull-points.scad
 
-# Requires text() support: text_$m is not defined.
-# OpenSCAD's text() module uses FreeType font rendering to create 2D geometry.
-# Implementing this would require font file access and glyph outline extraction.
+# Geometry mismatch: cylindrical_extrude() wraps text() in a cylindrical shell.
+# Our Hershey font produces different glyph shapes than OpenSCAD's built-in fonts,
+# causing low similarity (0.07). The script runs without errors; the mismatch is
+# a known font rendering difference, not a transpiler or runtime bug.
 939-miscellaneous-ex.scad
+

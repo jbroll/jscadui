@@ -239,16 +239,16 @@ function transpileBinaryOpExpr(
   }
 
   // Handle logical operators with OpenSCAD truthiness
-  // In OpenSCAD, empty arrays are falsy (unlike JavaScript)
+  // In OpenSCAD, && and || return true/false (not the last-evaluated value).
+  // Using native JS && / || avoids duplicating the left-operand expression,
+  // which would cause O(2^n) growth for chained operators.
   if (expr.operation === TokenType.AND) {
     ctx.codeGen.usedHelpers.add('isTruthy')
-    // a && b: if a is truthy, return b; otherwise return a
-    return `(j$.isTruthy(${left}) ? ${right} : ${left})`
+    return `(j$.isTruthy(${left}) && j$.isTruthy(${right}))`
   }
   if (expr.operation === TokenType.OR) {
     ctx.codeGen.usedHelpers.add('isTruthy')
-    // a || b: if a is truthy, return a; otherwise return b
-    return `(j$.isTruthy(${left}) ? ${left} : ${right})`
+    return `(j$.isTruthy(${left}) || j$.isTruthy(${right}))`
   }
 
   const op = transpileBinaryOp(expr.operation)

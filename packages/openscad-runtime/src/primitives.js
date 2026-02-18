@@ -139,10 +139,24 @@ export const _polyhedron = ({ points, faces, triangles, convexity: _convexity })
 export const _safeUnion = (parts) => {
   // Flatten nested arrays and filter out undefined/null values
   // This handles cases where children return empty arrays or nested undefined values
-  const flattened = parts.flat(Infinity).filter(p => p !== undefined && p !== null)
-  if (flattened.length === 0) return undefined
-  if (flattened.length === 1) return flattened[0]
-  return union(...flattened)
+  const flattened = parts.flat(Infinity)
+
+  // Check if any element is a Promise (async children thunks, e.g. from text())
+  const hasPromise = flattened.some(p => p instanceof Promise || (p && typeof p.then === 'function'))
+  if (hasPromise) {
+    // Resolve all Promises then union
+    return Promise.all(flattened.map(p => Promise.resolve(p))).then(resolved => {
+      const valid = resolved.filter(p => p !== undefined && p !== null)
+      if (valid.length === 0) return undefined
+      if (valid.length === 1) return valid[0]
+      return union(...valid)
+    })
+  }
+
+  const valid = flattened.filter(p => p !== undefined && p !== null)
+  if (valid.length === 0) return undefined
+  if (valid.length === 1) return valid[0]
+  return union(...valid)
 }
 
 // Re-export direct JSCAD primitives for passthrough

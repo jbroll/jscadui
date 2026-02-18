@@ -14,6 +14,7 @@ import { initPrimitives, _cube, _cylinder, _sphere, _circle, _square, _regular_p
 import { initTransforms, _translate, _rotate, _scale, _mirror, _multmatrix } from './transforms.js'
 import { initExtrusions, _linearExtrude, _rotateExtrude } from './extrusions.js'
 import { initColor, _color } from './color.js'
+import { initText, _text } from './text.js'
 import {
   pushScope, popScope, resetScope,
   getSpecialVar, setSpecialVar,
@@ -157,6 +158,9 @@ const j$ = {
   // Color (populated after init)
   color: _color,
 
+  // Text primitive (async - returns Promise<geom2>)
+  text: _text,
+
   /**
    * OpenSCAD offset() - offsets a 2D shape outward (positive) or inward (negative)
    * r=val -> round corners (uses expansions.offset with corners='round')
@@ -227,6 +231,7 @@ const j$ = {
     initTransforms(jscad)
     initExtrusions(jscad)
     initColor(jscad)
+    initText(jscad)
     if (options.globalFn !== undefined) {
       setGlobalFn(options.globalFn)
     }
@@ -246,6 +251,7 @@ export { initPrimitives, _cube, _cylinder, _sphere, _circle, _square, _regular_p
 export { initTransforms, _translate, _rotate, _scale, _mirror, _multmatrix } from './transforms.js'
 export { initExtrusions, _linearExtrude, _rotateExtrude } from './extrusions.js'
 export { initColor, _color } from './color.js'
+export { initText, _text } from './text.js'
 
 // Legacy initRuntime
 export const initRuntime = (jscad, options = {}) => j$.init(jscad, options)

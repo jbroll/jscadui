@@ -187,17 +187,19 @@ describe('Operators', () => {
 
   describe('Logical Operators', () => {
     it('handles && (logical AND) with OpenSCAD truthiness', () => {
-      // a && b: if a is truthy, return b; otherwise return a
+      // OpenSCAD: && returns true/false; both operands wrapped in isTruthy
       const code = transpileCode('x = a && b;')
       expect(code).toContain('j$.isTruthy(a)')
-      expect(code).toContain('? b : a')
+      expect(code).toContain('j$.isTruthy(b)')
+      expect(code).toContain('&&')
     })
 
     it('handles || (logical OR) with OpenSCAD truthiness', () => {
-      // a || b: if a is truthy, return a; otherwise return b
+      // OpenSCAD: || returns true/false; both operands wrapped in isTruthy
       const code = transpileCode('x = a || b;')
       expect(code).toContain('j$.isTruthy(a)')
-      expect(code).toContain('? a : b')
+      expect(code).toContain('j$.isTruthy(b)')
+      expect(code).toContain('||')
     })
 
     it('handles ! (logical NOT) with OpenSCAD truthiness', () => {

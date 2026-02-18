@@ -137,19 +137,21 @@ describe('transpileExpression', () => {
 
   describe('logical operators', () => {
     it('handles logical AND with OpenSCAD truthiness', () => {
-      // OpenSCAD: a && b should evaluate 'a' with OpenSCAD truthiness
-      // If a is falsy (including empty array), return a; otherwise return b
+      // OpenSCAD: && returns true/false; both operands wrapped in isTruthy
+      // Using native && avoids O(2^n) expression duplication for chained ops
       const code = transpileExpr('x = a && b;')
       expect(code).toContain('j$.isTruthy(a)')
-      expect(code).toContain('? b : a')
+      expect(code).toContain('j$.isTruthy(b)')
+      expect(code).toContain('&&')
     })
 
     it('handles logical OR with OpenSCAD truthiness', () => {
-      // OpenSCAD: a || b should evaluate 'a' with OpenSCAD truthiness
-      // If a is truthy, return a; otherwise return b
+      // OpenSCAD: || returns true/false; both operands wrapped in isTruthy
+      // Using native || avoids O(2^n) expression duplication for chained ops
       const code = transpileExpr('x = a || b;')
       expect(code).toContain('j$.isTruthy(a)')
-      expect(code).toContain('? a : b')
+      expect(code).toContain('j$.isTruthy(b)')
+      expect(code).toContain('||')
     })
 
     it('handles logical NOT with OpenSCAD truthiness', () => {

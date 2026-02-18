@@ -10,3 +10,9 @@ Bricks.scad
 # (though triangle counts are similar: 490 vs 480). This is a library-level triangulation
 # difference, not a transpiler bug. Jaccard: 0.7459
 Wood_Crate.scad
+
+# rotate_extrude mesh mismatch: OpenSCAD and JSCAD produce different face/vertex counts
+# for the polygon profile. The geometry is topologically equivalent but the tessellation
+# differs, producing low Jaccard similarity (0.76). Not a transpiler bug.
+Shaft_01.scad
+Shaft_02_With_Keyway.scad

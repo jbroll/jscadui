@@ -198,6 +198,12 @@ export function transpileStatement(stmt: Statement, ctx: TranspileContext): stri
 export function collectChildrenAsArray(child: Statement | null, ctx: TranspileContext): string[] {
   if (!child) return []
 
+  // Helper: wrap code in a thunk, using async if the code contains await
+  const makeThunk = (code: string) => {
+    const asyncKw = code.includes('await ') ? 'async ' : ''
+    return `${asyncKw}() => ${code}`
+  }
+
   if (isBlockStmt(child)) {
     // Check if the block has any assignments (including special variable assignments)
     const hasAssignments = child.children.some(c => isAssignmentNode(c))
@@ -206,7 +212,7 @@ export function collectChildrenAsArray(child: Statement | null, ctx: TranspileCo
       // Block has assignments - transpile as a single block (IIFE) to preserve
       // the assignment context for special variables like $parent_geom
       const code = transpileStatement(child, ctx)
-      return code ? [`() => ${code}`] : []
+      return code ? [makeThunk(code)] : []
     }
 
     // No assignments - collect individual statements as separate thunks
@@ -215,7 +221,7 @@ export function collectChildrenAsArray(child: Statement | null, ctx: TranspileCo
       if (!isNoopStmt(c as Statement)) {
         const code = transpileStatement(c as Statement, ctx)
         // Wrap in thunk for lazy evaluation
-        if (code) result.push(`() => ${code}`)
+        if (code) result.push(makeThunk(code))
       }
     }
     return result
@@ -223,7 +229,7 @@ export function collectChildrenAsArray(child: Statement | null, ctx: TranspileCo
 
   const code = transpileStatement(child, ctx)
   // Wrap in thunk for lazy evaluation
-  return code ? [`() => ${code}`] : []
+  return code ? [makeThunk(code)] : []
 }
 
 /**
@@ -984,21 +990,25 @@ export function transpileModuleDeclaration(stmt: ModuleDeclarationStmt, ctx: Tra
 
   const comment = sourceComment(stmt, ctx)
 
+  // If the body contains async calls (e.g. text()), the inner lambda must be async
+  const bodyStr = bodyParts.join('\n')
+  const innerAsync = bodyStr.includes('await ') ? 'async ' : ''
+
   let code: string
   if (hasSpecialVars) {
     // Wrap body in j$.withScope() for special variable scoping
     // Indent preamble for withScope callback
     const indentedPreamble = optionsPreamble.map(line => '  ' + line)
-    code = `${comment}const ${name}_$m = (_opts = {}) => (_children = []) => {
+    code = `${comment}const ${name}_$m = (_opts = {}) => ${innerAsync}(_children = []) => {
 ${indentedPreamble.join('\n')}
-  return j$.withScope($$sv, () => {
+  return j$.withScope($$sv, ${innerAsync}() => {
 ${bodyParts.join('\n')}
   });
 }`
   } else {
     // No special variables - simpler code without scope wrapper
     const indentedPreamble = optionsPreamble.map(line => '  ' + line)
-    code = `${comment}const ${name}_$m = (_opts = {}) => (_children = []) => {
+    code = `${comment}const ${name}_$m = (_opts = {}) => ${innerAsync}(_children = []) => {
 ${indentedPreamble.join('\n')}
 ${bodyParts.join('\n')}
 }`

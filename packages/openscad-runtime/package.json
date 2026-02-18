@@ -13,5 +13,8 @@
   "files": [
     "src"
   ],
+  "dependencies": {
+    "@jscadui/jscad-text": "file:../jscad-text"
+  },
   "license": "MIT"
 }
