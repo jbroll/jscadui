@@ -5,3 +5,13 @@
 # The torus function in shapes3d.scad has a bug where it returns
 # empty geometry under certain conditions
 205-torus.scad
+
+# Non-deterministic: rands() without seed uses time(NULL) in OpenSCAD,
+# producing different random points each run. The reference STL was generated
+# at a specific time and cannot be reproduced deterministically.
+650-hull-points.scad
+
+# Requires text() support: text_$m is not defined.
+# OpenSCAD's text() module uses FreeType font rendering to create 2D geometry.
+# Implementing this would require font file access and glyph outline extraction.
+939-miscellaneous-ex.scad

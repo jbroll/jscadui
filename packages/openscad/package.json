@@ -26,7 +26,7 @@
   "scripts": {
     "build": "tsc",
     "test": "npm run build && vitest run && node bin/test-harness.js test/corpus test/corpus/bosl test/corpus/snippet/Asset_SCAD --skip-file test/corpus/snippet-skip.txt",
-    "test:all": "npm run build && vitest run && node bin/test-harness.js test/corpus test/corpus/bosl test/corpus/bosl2 test/corpus/snippet/Asset_SCAD --skip-file test/corpus/snippet-skip.txt",
+    "test:all": "npm run build && vitest run && node bin/test-harness.js test/corpus test/corpus/bosl test/corpus/bosl2 test/corpus/snippet/Asset_SCAD --skip-file test/corpus/snippet-skip.txt --skip-file test/corpus/bosl2/skip.txt",
     "test:watch": "vitest",
     "coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit"

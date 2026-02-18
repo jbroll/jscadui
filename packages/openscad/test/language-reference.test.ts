@@ -690,18 +690,17 @@ describe('Mathematical Functions', () => {
   describe('Trigonometric', () => {
     it('handles sin (degrees)', () => {
       const code = transpileCode('x = sin(90);')
-      expect(code).toContain('Math.sin')
-      expect(code).toContain('Math.PI')
+      expect(code).toContain('sinDeg')
     })
 
     it('handles cos (degrees)', () => {
       const code = transpileCode('x = cos(0);')
-      expect(code).toContain('Math.cos')
+      expect(code).toContain('cosDeg')
     })
 
     it('handles tan (degrees)', () => {
       const code = transpileCode('x = tan(45);')
-      expect(code).toContain('Math.tan')
+      expect(code).toContain('tanDeg')
     })
 
     it('handles asin (returns degrees)', () => {

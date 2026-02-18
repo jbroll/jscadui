@@ -185,11 +185,10 @@ describe('transpileExpression', () => {
   describe('function calls', () => {
     it('handles trig functions with degree conversion', () => {
       const sinCode = transpileExpr('x = sin(45);')
-      expect(sinCode).toContain('Math.sin')
-      expect(sinCode).toContain('Math.PI')
+      expect(sinCode).toContain('sinDeg')
 
       const cosCode = transpileExpr('x = cos(45);')
-      expect(cosCode).toContain('Math.cos')
+      expect(cosCode).toContain('cosDeg')
     })
 
     it('handles math functions', () => {
