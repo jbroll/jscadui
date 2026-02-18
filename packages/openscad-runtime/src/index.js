@@ -7,7 +7,7 @@
  *        j$.cube({size: 10})
  */
 
-import { PI, _range, _min, _max, _num, str, version_num, search, _norm, _cross, _lookup, _rands, is_vector, chr, ord, is_consistent, _list_pattern, reverse } from './math.js'
+import { PI, _range, _min, _max, _num, str, version_num, search, _norm, _cross, _lookup, _rands, _resetRng, is_vector, chr, ord, is_consistent, _list_pattern, reverse, _sinDeg, _cosDeg, _tanDeg } from './math.js'
 import { _eq, _vadd, _vsub, _vmul, _vdiv, _vneg } from './vector.js'
 import { _getSegments, setGlobalFn } from './segments.js'
 import { initPrimitives, _cube, _cylinder, _sphere, _circle, _square, _regular_polygon, _polyhedron, _safeUnion, _hull, _union, _subtract, _intersect, _minkowski, _polygon } from './primitives.js'
@@ -55,12 +55,16 @@ const j$ = {
   cross: _cross,
   lookup: _lookup,
   rands: _rands,
+  resetRng: _resetRng,
   is_vector,
   chr,
   ord,
   is_consistent,
   _list_pattern,
   reverse,
+  sinDeg: _sinDeg,
+  cosDeg: _cosDeg,
+  tanDeg: _tanDeg,
 
   // Vector operations (no JSCAD dependency)
   // Wrap _eq to handle EXPLICIT_UNDEF - convert it to undefined for comparison
@@ -152,6 +156,20 @@ const j$ = {
 
   // Color (populated after init)
   color: _color,
+
+  /**
+   * OpenSCAD offset() - offsets a 2D shape outward (positive) or inward (negative)
+   * r=val -> round corners (uses expansions.offset with corners='round')
+   * delta=val -> sharp corners (corners='sharp')
+   * delta=val, chamfer=true -> chamfered corners (corners='chamfer')
+   */
+  offset({ r, delta, chamfer = false } = {}, child) {
+    const amount = r !== undefined ? r : (delta !== undefined ? delta : 0)
+    const corners = r !== undefined ? 'round' : (chamfer ? 'chamfer' : 'sharp')
+    if (!child) return undefined
+    const jscad = j$.jscad
+    return jscad.expansions.offset({ delta: amount, corners }, child)
+  },
 
   // Special variables - stack-based dynamic scoping
   pushScope,

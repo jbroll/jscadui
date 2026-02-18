@@ -334,7 +334,7 @@ function transpileUserDefinedCall(
   // Build arguments in both formats:
   // - positionalArgs: for function calls (backward compat)
   // - optionsArgs: for module calls (new pattern)
-  const positionalArgs = reorderNamedArgs(name, argsArray, ctx, 'function')
+  const { args: positionalArgs } = reorderNamedArgs(name, argsArray, ctx, 'function')
   const optionsArgs = transpileArgsAsOptions(name, argsArray, ctx)
 
   // Check if this is a LOCAL variable FIRST (no suffix needed)
@@ -424,6 +424,15 @@ function tryDispatchBuiltin(
 function transpileModuleInstantiation(stmt: ModuleInstantiationStmt, ctx: TranspileContext): string {
   const name = stmt.name
 
+  // Handle OpenSCAD modifier characters:
+  // % (tagBackground): ghost display - geometry excluded from output
+  // * (tagDisabled): disabled - geometry excluded from output
+  // # (tagHighlight): highlight display - geometry included (display-only difference)
+  // ! (tagRoot): show only this subtree - geometry included
+  if (stmt.tagBackground || stmt.tagDisabled) {
+    return 'undefined'
+  }
+
   // Special modules that don't follow the normal pattern
   if (name === 'for') return transpileForLoop(stmt, ctx)
   if (name === 'let') return transpileLetModule(stmt, ctx)
@@ -443,6 +452,20 @@ function transpileModuleInstantiation(stmt: ModuleInstantiationStmt, ctx: Transp
   if (name === 'color') return transpileColorModule(argsArray, childCode, ctx)
   if (name === 'hull') return transpileBuiltinHull(stmt.child, ctx)
   if (name === 'children') return transpileChildrenModule(stmt, argsArray, ctx)
+  // offset() builtin - 2D path expansion. Only use builtin if user hasn't defined a MODULE named offset.
+  // (BOSL2 defines offset as a function, not a module, so module calls still use the builtin.)
+  if (name === 'offset' && shouldUseBuiltin('offset', 'module', ctx)) {
+    // OpenSCAD offset() signature: offset(r, delta, chamfer=false)
+    // Map positional args to their named equivalents to generate valid JS
+    const offsetParamNames = ['r', 'delta', 'chamfer']
+    let positionalIdx = 0
+    const argsStr = argsArray.map(a => {
+      if (a.name) return `${a.name}: ${a.value}`
+      const paramName = offsetParamNames[positionalIdx++] || `_arg${positionalIdx - 1}`
+      return `${paramName}: ${a.value}`
+    }).join(', ')
+    return `j$.offset({ ${argsStr} }, ${childCode || 'undefined'})`
+  }
 
   // User-defined module/function call
   return transpileUserDefinedCall(stmt, argsArray, childCode, ctx)
@@ -1017,19 +1040,62 @@ function buildUndefConversionPreamble(args: AssignmentNode[]): string {
 
 /**
  * Transpile a function declaration
+ *
+ * Generates TWO versions of each function:
+ * 1. foo_$f(...) - positional parameters (backward compatible)
+ * 2. foo_$f$obj({...}) - object parameters (for named argument calls)
+ *
+ * This avoids runtime detection which breaks with valid positional calls like foo({a:1}, 2)
  */
 export function transpileFunctionDeclaration(stmt: FunctionDeclarationStmt, ctx: TranspileContext, nameOverride?: string): string {
   const name = nameOverride || safeIdentifier(stmt.name)
-  const params = transpileParamsList(stmt.definitionArgs, ctx)
   const body = transpileExpression(stmt.expr, ctx)
-
-  // Build preamble to convert EXPLICIT_UNDEF params to undefined
-  const preamble = buildUndefConversionPreamble(stmt.definitionArgs)
-
-  // Use function declaration (not arrow) for hoisting - critical for include bundling
-  // Use _$f suffix for functions to separate from module namespace
   const comment = sourceComment(stmt, ctx)
-  const code = `${comment}function ${name}_$f(${params}) { ${preamble}return ${body}; }`
+
+  if (stmt.definitionArgs.length === 0) {
+    // No parameters - simple function (no object version needed)
+    const code = `${comment}function ${name}_$f() { return ${body}; }`
+    ctx.declarations.addFunction(
+      `${name}_$f`,
+      code,
+      stmt,
+      [],
+      {
+        file: ctx.options.currentFile || 'input.scad',
+        kind: 'local',
+      }
+    )
+    return code
+  }
+
+  const uniqueArgs = deduplicateArgs(stmt.definitionArgs)
+
+  // Generate positional version (existing behavior)
+  const positionalParams = transpileParamsList(uniqueArgs, ctx)
+  const positionalPreamble = buildUndefConversionPreamble(uniqueArgs)
+
+  const positionalCode = `${comment}function ${name}_$f(${positionalParams}) { ${positionalPreamble}return ${body}; }`
+
+  // Generate object version for named argument calls
+  const objectDestructure = uniqueArgs.map(arg => {
+    const paramName = safeIdentifier(arg.name)
+    if (arg.value) {
+      const defaultVal = transpileExpression(arg.value, ctx)
+      return `${paramName} = ${defaultVal}`
+    }
+    return paramName
+  }).join(', ')
+
+  const undefConversions = uniqueArgs.map(arg => {
+    const paramName = safeIdentifier(arg.name)
+    return `if (${paramName} === j$.EXPLICIT_UNDEF) ${paramName} = undefined;`
+  }).join(' ')
+  const objPreamble = undefConversions ? undefConversions + ' ' : ''
+
+  const objectCode = `function ${name}_$f$obj(_opts = {}) { let { ${objectDestructure} } = _opts; ${objPreamble}return ${body}; }`
+
+  // Combine both versions
+  const code = `${positionalCode}\n${objectCode}`
 
   // Track this declaration for AST-based bundling
   const paramNames = stmt.definitionArgs.map(arg => arg.name)

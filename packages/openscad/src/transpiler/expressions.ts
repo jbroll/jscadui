@@ -352,9 +352,9 @@ function transpileFunctionCallExprHandler(
   // Reorder named arguments to match parameter definition order
   // Note: function calls use _$f suffix which is added in transpileFunctionCall
   // kind='function' because this is a function call (uses return value)
-  const args = reorderNamedArgs(callee, regularArgs, ctx, 'function')
+  const { args, format } = reorderNamedArgs(callee, regularArgs, ctx, 'function')
 
-  const callExpr = transpileFunctionCall(callee, args, ctx)
+  const callExpr = transpileFunctionCall(callee, args, ctx, format)
 
   // If special variables were passed, wrap in dynamic scoping context
   // OpenSCAD special vars ($fn, $fa, $fs, etc.) use stack-based dynamic scoping
@@ -628,8 +628,19 @@ export function reorderNamedArgs(
   argsArray: Array<{name: string | null, value: string}>,
   ctx: TranspileContext,
   kind: 'module' | 'function' = 'function'
-): string {
-  return mapArgsToParams(name, argsArray, ctx, 'positional', kind)
+): { args: string, format: 'object' | 'positional' } {
+  // Only use object format for user-defined functions (not builtins)
+  // Builtins like j$.is_vector, Math.abs etc. don't support object parameters
+  const isUserDefined = !shouldUseBuiltin(name, kind, ctx)
+
+  // If any argument is named AND it's a user-defined function, use object format
+  // This is critical for OpenSCAD's mixed positional/named parameter semantics:
+  // func(a, b=2, d=4) should skip parameter c, not pass undefined which bypasses JS defaults
+  const hasNamedArgs = argsArray.some(arg => arg.name !== null)
+  const format = (hasNamedArgs && isUserDefined) ? 'object' : 'positional'
+
+  const args = mapArgsToParams(name, argsArray, ctx, format, kind)
+  return { args, format }
 }
 
 export function transpileBinaryOp(op: number): string {
@@ -663,7 +674,12 @@ export function transpileUnaryOp(op: number): string {
   return opMap[op] || String(op)
 }
 
-export function transpileFunctionCall(callee: string, args: string, ctx: TranspileContext): string {
+export function transpileFunctionCall(
+  callee: string,
+  args: string,
+  ctx: TranspileContext,
+  argsFormat: 'object' | 'positional' = 'positional'
+): string {
   // Check if we should use builtin (respects user overrides and underscore-prefix)
   const useBuiltin = shouldUseBuiltin(callee, 'function', ctx)
 
@@ -693,13 +709,14 @@ export function transpileFunctionCall(callee: string, args: string, ctx: Transpi
   }
 
   // Trig functions - OpenSCAD uses degrees, JavaScript uses radians
+  // sin/cos/tan use exact runtime helpers that return exact 0/1/-1 for multiples
+  // of 90°, matching OpenSCAD's CGAL behavior (e.g. sin(180) === 0 exactly).
   if (useBuiltin) {
-    const toRad = 'Math.PI/180'
     const toDeg = '180/Math.PI'
     const trigFuncs: Record<string, string> = {
-      sin: `Math.sin((${args})*${toRad})`,
-      cos: `Math.cos((${args})*${toRad})`,
-      tan: `Math.tan((${args})*${toRad})`,
+      sin: `j$.sinDeg(${args})`,
+      cos: `j$.cosDeg(${args})`,
+      tan: `j$.tanDeg(${args})`,
       asin: `Math.asin(${args})*${toDeg}`,
       acos: `Math.acos(${args})*${toDeg}`,
       atan: `Math.atan(${args})*${toDeg}`,
@@ -787,10 +804,12 @@ export function transpileFunctionCall(callee: string, args: string, ctx: Transpi
   }
 
   // User-defined function call - use _$f suffix for namespace separation
+  // Use _$f$obj suffix when calling with object parameters (named arguments)
   // Only add suffix for simple identifiers (named function calls)
   // Don't add for complex expressions like array[0](args) or obj.method(args)
   if (isValidIdentifier(callee)) {
-    return `${callee}_$f(${args})`
+    const suffix = argsFormat === 'object' ? '_$f$obj' : '_$f'
+    return `${callee}${suffix}(${args})`
   }
   // Complex expression (array access, member access, etc.) - call directly
   return `${callee}(${args})`

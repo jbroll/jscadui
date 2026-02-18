@@ -363,12 +363,17 @@ function buildOutputCode(
 /**
  * Create bundled parts for caching (used when this file is included by others)
  * Uses AST-based bundling to avoid fragile regex-based name extraction
+ *
+ * Returns both the bundledParts and allDeclarations (local + transitive from includes).
+ * The allDeclarations must be stored in the cached TranspiledFile so that grandparent
+ * files can recursively collect declarations from the full include chain.
  */
-function createBundledParts(ctx: TranspileContext): BundledParts {
+function createBundledParts(ctx: TranspileContext): { bundledParts: BundledParts; allDeclarations: Declaration[] } {
   // Collect all local declarations
   const localDeclarations = ctx.declarations.getAll()
 
-  // Collect declarations from includes
+  // Collect declarations from includes (which themselves include transitive declarations
+  // because we store allDeclarations in the cached TranspiledFile)
   const includeDeclarations: Declaration[] = []
   for (const inc of ctx.includeImports) {
     const file = ctx.transpiledFiles.get(inc.resolvedPath)
@@ -390,7 +395,7 @@ function createBundledParts(ctx: TranspileContext): BundledParts {
   const modules = modDecls.map(d => d.code)
   const constants = constDecls.map(d => d.code)
 
-  return {
+  const bundledParts: BundledParts = {
     functions,
     functionNames: funcDecls.map(d => d.name),
     modules,
@@ -408,6 +413,8 @@ function createBundledParts(ctx: TranspileContext): BundledParts {
     usedMaths: ctx.codeGen.usedMaths,
     usedMinMax: ctx.codeGen.usedMinMax,
   }
+
+  return { bundledParts, allDeclarations }
 }
 
 /**
@@ -461,7 +468,8 @@ export function transpile(
 
   // Create bundled parts for caching
   // Create bundled parts using AST-based bundling
-  const bundledParts = createBundledParts(ctx)
+  // allDeclarations includes local + transitive includes (for recursive bundling)
+  const { bundledParts, allDeclarations } = createBundledParts(ctx)
 
   // Add this file to the cache if it has a name
   if (ctx.options.currentFile) {
@@ -488,7 +496,9 @@ export function transpile(
       functionParamLists: functionParamLists,
       dualDefinedNames: new Set(ctx.symbols.getDualDefined()),
       bundledParts,
-      declarations: ctx.declarations.getAll(),
+      // Store allDeclarations (local + transitive from includes) so that grandparent files
+      // can recursively collect the full include chain in createBundledParts
+      declarations: allDeclarations,
     })
   }
 

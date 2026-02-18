@@ -4,6 +4,32 @@
 
 export const PI = Math.PI
 
+// Exact degree-based trig functions - return exact values for multiples of 90°
+// This matches OpenSCAD's CGAL behavior where sin(180°) === 0 exactly.
+// Without this, sin(720°) returns ~-2.4e-16 in JavaScript, breaking formulas
+// like squircle_radius_fg that rely on s2a === 0 for the exact-zero branch.
+export const _sinDeg = (a) => {
+  const n = ((a % 360) + 360) % 360
+  if (n === 0 || n === 180) return 0
+  if (n === 90) return 1
+  if (n === 270) return -1
+  return Math.sin(a * Math.PI / 180)
+}
+
+export const _cosDeg = (a) => {
+  const n = ((a % 360) + 360) % 360
+  if (n === 90 || n === 270) return 0
+  if (n === 0) return 1
+  if (n === 180) return -1
+  return Math.cos(a * Math.PI / 180)
+}
+
+export const _tanDeg = (a) => {
+  const n = ((a % 360) + 360) % 360
+  if (n === 0 || n === 180) return 0
+  return Math.tan(a * Math.PI / 180)
+}
+
 export const _range = (start, end, step = 1) => {
   const r = []
   if (step > 0) {
@@ -119,14 +145,21 @@ export const _cross = (a, b) => {
 
 export const _lookup = (val, table) => {
   if (table.length === 0) return 0
-  if (val <= table[0][0]) return table[0][1]
-  for (let i = 1; i < table.length; i++) {
-    if (val <= table[i][0]) {
-      const t = (val - table[i-1][0]) / (table[i][0] - table[i-1][0])
-      return table[i-1][1] + t * (table[i][1] - table[i-1][1])
+  // OpenSCAD sorts the table by x-value before interpolation, so we do the same.
+  // This ensures correct results when the table is in non-ascending order
+  // (e.g. BOSL2's involute_rlup which is created via mirror([-1,1]) and has
+  // decreasing x-values).
+  const sorted = table[0][0] <= table[table.length-1][0]
+    ? table
+    : [...table].sort((a, b) => a[0] - b[0])
+  if (val <= sorted[0][0]) return sorted[0][1]
+  for (let i = 1; i < sorted.length; i++) {
+    if (val <= sorted[i][0]) {
+      const t = (val - sorted[i-1][0]) / (sorted[i][0] - sorted[i-1][0])
+      return sorted[i-1][1] + t * (sorted[i][1] - sorted[i-1][1])
     }
   }
-  return table[table.length - 1][1]
+  return sorted[sorted.length - 1][1]
 }
 
 // Mersenne Twister MT19937 implementation
@@ -167,6 +200,10 @@ class MT19937 {
 // Global RNG instance - OpenSCAD 2021.01+ maintains state between rands() calls
 // "Allow initial seeds to stick between rands calls"
 let _globalRng = new MT19937(0)
+
+export const _resetRng = (seed = 0) => {
+  _globalRng = new MT19937(seed)
+}
 
 export const _rands = (min, max, count, seed) => {
   // If seed is provided, reinitialize the global RNG

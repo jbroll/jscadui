@@ -206,7 +206,10 @@ export const geom3ToManifold = (geom) => {
     }
 
     // Use string key for vertex deduplication
-    const key = `${x.toFixed(9)},${y.toFixed(9)},${z.toFixed(9)}`
+    // Normalize near-zero values to exactly 0 to avoid issues with -0 and trig residuals
+    // (e.g., sin(π) ≈ 1.22e-16 is geometrically 0 but would produce a different key)
+    const nz = (v) => Math.abs(v) < 1e-9 ? 0 : v
+    const key = `${nz(x).toFixed(9)},${nz(y).toFixed(9)},${nz(z).toFixed(9)}`
     if (vertexMap.has(key)) {
       return vertexMap.get(key)
     }
@@ -240,7 +243,10 @@ export const geom3ToManifold = (geom) => {
       for (let i = 1; i < polyVertices.length - 1; i++) {
         const v1 = getVertexIndex(polyVertices[i])
         const v2 = getVertexIndex(polyVertices[i + 1])
-        triVerts.push(v0, v1, v2)
+        // Skip degenerate triangles (zero area - two or more identical vertices)
+        if (v0 !== v1 && v1 !== v2 && v0 !== v2) {
+          triVerts.push(v0, v1, v2)
+        }
       }
     } else {
       // Ear-clipping triangulation for non-convex polygons
@@ -249,7 +255,10 @@ export const geom3ToManifold = (geom) => {
         const v0 = getVertexIndex(polyVertices[localIndices[i]])
         const v1 = getVertexIndex(polyVertices[localIndices[i + 1]])
         const v2 = getVertexIndex(polyVertices[localIndices[i + 2]])
-        triVerts.push(v0, v1, v2)
+        // Skip degenerate triangles
+        if (v0 !== v1 && v1 !== v2 && v0 !== v2) {
+          triVerts.push(v0, v1, v2)
+        }
       }
     }
   }

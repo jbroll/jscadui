@@ -209,7 +209,28 @@ async function trianglesToManifold(triangles, Manifold, Module) {
     triVerts: new Uint32Array(indices)
   })
 
-  return Manifold.ofMesh(mesh)
+  const manifold = Manifold.ofMesh(mesh)
+
+  // Auto-orient: ensure positive volume (outward-facing normals) for consistent comparison.
+  // OpenSCAD and JSCAD may produce STLs with opposite winding conventions depending on
+  // the geometry type (primitives vs VNF-based polyhedra). Normalizing to positive
+  // volume allows Jaccard similarity to work correctly regardless of winding convention.
+  if (manifold.volume() < 0) {
+    const flippedIndices = new Uint32Array(indices.length)
+    for (let i = 0; i < indices.length; i += 3) {
+      flippedIndices[i] = indices[i]
+      flippedIndices[i + 1] = indices[i + 2]
+      flippedIndices[i + 2] = indices[i + 1]
+    }
+    const flippedMesh = new Module.Mesh({
+      numProp: 3,
+      vertProperties: new Float32Array(vertices),
+      triVerts: flippedIndices
+    })
+    return Manifold.ofMesh(flippedMesh)
+  }
+
+  return manifold
 }
 
 async function main() {

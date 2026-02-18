@@ -175,10 +175,13 @@ async function createRuntime() {
   const hullsPath = join(__dirname, '..', '..', 'manifold', 'src', 'hulls', 'index.js')
   const colorsPath = join(__dirname, '..', '..', 'manifold', 'src', 'colors', 'index.js')
 
+  const expansionsPath = join(__dirname, '..', '..', 'manifold', 'src', 'expansions', 'index.js')
+
   const transforms = await import(transformsPath)
   const extrusions = await import(extrusionsPath)
   const hulls = await import(hullsPath)
   const colors = await import(colorsPath)
+  const expansions = await import(expansionsPath)
 
   // Import geometries module for geom2 (needed by _linearExtrude with scale/twist)
   const geometriesPath = join(__dirname, '..', '..', 'manifold', 'src', 'geometries', 'index.js')
@@ -250,6 +253,10 @@ async function createRuntime() {
       colorize: colors.colorize,
       cssColors: colors.cssColors,
       colorNameToRgb: colors.colorNameToRgb,
+    },
+    expansions: {
+      offset: expansions.offset,
+      expand: expansions.expand,
     },
     maths: {
       mat4: {

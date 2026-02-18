@@ -180,11 +180,15 @@ export function createContext(
   if (options.initialParamLists) {
     for (const [name, params] of options.initialParamLists) {
       symbols.registerParams(name, 'module', params)
+      // Also define in symbol table so isKind() works for shouldUseBuiltin() detection
+      symbols.define(name, { kind: 'module', source: 'imported', params })
     }
   }
   if (options.initialFunctionParamLists) {
     for (const [name, params] of options.initialFunctionParamLists) {
       symbols.registerParams(name, 'function', params)
+      // Also define in symbol table so isKind() works for shouldUseBuiltin() detection
+      symbols.define(name, { kind: 'function', source: 'imported', params })
     }
   }
 

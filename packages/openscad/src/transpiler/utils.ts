@@ -248,7 +248,11 @@ function formatAsObject(
       continue
     }
     const key = paramName.startsWith('$') ? `'${paramName}'` : safeIdentifier(paramName)
-    entries.push(`${key}: ${value}`)
+    // Convert explicit undefined to EXPLICIT_UNDEF sentinel to distinguish from "not provided".
+    // Without this, { dflt: undefined } in JS destructuring triggers the default value,
+    // so passing undef explicitly would be indistinguishable from omitting the argument.
+    const actualValue = value === 'undefined' ? 'j$.EXPLICIT_UNDEF' : value
+    entries.push(`${key}: ${actualValue}`)
   }
 
   return `{ ${entries.join(', ')} }`

@@ -2,16 +2,17 @@
  * Extrusion helpers for OpenSCAD compatibility
  */
 
-import { _globalFn } from './segments.js'
+import { _globalFn, _getSegments } from './segments.js'
 
 // JSCAD extrusions and utilities - injected at init time
-let extrudeLinear, extrudeRotate, extrudeFromSlices, translate, geom2, slice, mat4
+let extrudeLinear, extrudeRotate, extrudeFromSlices, translate, mirror, geom2, slice, mat4
 
 export const initExtrusions = (jscad) => {
   extrudeLinear = jscad.extrusions.extrudeLinear
   extrudeRotate = jscad.extrusions.extrudeRotate
   extrudeFromSlices = jscad.extrusions.extrudeFromSlices
   translate = jscad.transforms.translate
+  mirror = jscad.transforms.mirror
   geom2 = jscad.geometries.geom2
   // slice is under extrusions in the Manifold runtime, but under geometries in standard JSCAD
   slice = jscad.extrusions?.slice || jscad.geometries?.slice
@@ -20,8 +21,13 @@ export const initExtrusions = (jscad) => {
 
 // Linear extrude helper - uses extrudeFromSlices when scale is used
 export const _linearExtrude = ({ height, center = false, twist = 0, slices, scale = 1, segments, $fn = 0 }, geo) => {
+  // Return undefined for empty/missing geometry to avoid degenerate extrusions
+  if (!geo || geom2.toSides(geo).length === 0) return undefined
   // Normalize scale to [x, y] array
-  const scaleArr = Array.isArray(scale) ? scale : [scale, scale]
+  // Clamp near-zero scale values to avoid degenerate zero-area polygons in extrudeFromSlices
+  const rawScaleArr = Array.isArray(scale) ? scale : [scale, scale]
+  const SCALE_MIN = 0.001
+  const scaleArr = rawScaleArr.map(s => (Math.abs(s) < SCALE_MIN ? (s < 0 ? -SCALE_MIN : SCALE_MIN) : s))
   const needsScale = scaleArr[0] !== 1 || scaleArr[1] !== 1
 
   // Calculate number of steps (slices along Z axis)
@@ -86,10 +92,31 @@ export const _linearExtrude = ({ height, center = false, twist = 0, slices, scal
 }
 
 // Rotate extrude helper
-export const _rotateExtrude = ({ angle = 360, $fn = 0, $fa = 12 }, geo) => {
-  const fullCircleSegments = $fn > 0 ? $fn : (_globalFn > 0 ? _globalFn : Math.ceil(360 / $fa))
-  const segments = Math.max(1, Math.ceil(fullCircleSegments * angle / 360))
+export const _rotateExtrude = ({ angle = 360, $fn, $fa, $fs } = {}, geo) => {
+  // Return undefined for empty/missing geometry to avoid degenerate extrusions
+  // that break subsequent boolean operations
+  const sides = geom2.toSides(geo)
+  if (!geo || sides.length === 0) return undefined
+  const absAngle = Math.abs(angle)
+
+  // Compute max X (outer radius) of the 2D profile for segment calculation.
+  // OpenSCAD uses the profile radius in: numFragments = max(5, ceil(min(360/$fa, 2π*r/$fs)))
+  let maxX = 0
+  for (const [p0, p1] of sides) {
+    if (p0[0] > maxX) maxX = p0[0]
+    if (p1[0] > maxX) maxX = p1[0]
+  }
+
+  // _getSegments handles priority: explicit $fn arg > scope $fn > globalFn > $fa/$fs formula
+  // Using undefined defaults so scope stack values are used when not explicitly set
+  const fullCircleSegments = _getSegments(maxX, $fn, $fa, $fs)
+  // Use abs(angle) for segment count; minimum 3 (JSCAD requirement)
+  const segments = Math.max(3, Math.ceil(fullCircleSegments * absAngle / 360))
   const opts = { segments }
-  if (angle !== 360) { opts.angle = angle * Math.PI / 180 }
-  return extrudeRotate(opts, geo)
+  if (absAngle !== 360) { opts.angle = absAngle * Math.PI / 180 }
+  const result = extrudeRotate(opts, geo)
+  // Negative angle = clockwise rotation. Achieved by mirroring about XZ plane (negate Y).
+  // This is mathematically equivalent: rotate_extrude(-θ, S) = mirror_xz(rotate_extrude(+θ, S))
+  // JSCAD's mirror() reverses polygon winding, preserving correct outward normals.
+  return angle < 0 ? mirror({ normal: [0, 1, 0] }, result) : result
 }
