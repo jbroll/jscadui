@@ -1,23 +1,20 @@
 /**
- * demoBrowser - dynamic demo browser dialog.
+ * demoBrowser - non-modal demo browser side panel.
  *
- * Reads Apache mod_autoindex directory listings to build a navigable tree.
- * Each directory node lazy-loads its contents on first expand.
+ * Reads Apache mod_autoindex directory listings to build a navigable hierarchy.
+ * Shows one directory level at a time with breadcrumb navigation (walking menu).
  *
- * Tree structure per directory:
- *   [ALL (N files)]   ← only shown when there are immediate file children
- *   ▶ subdir/
- *   ▶ subdir2/
- *   ─────────────────
- *   file1.js
- *   file2.scad
+ * Directories containing only a single index file (index.js / index.scad) and
+ * no subdirectories are treated as leaf items (loaded directly, not navigated into).
  *
  * Interactions:
- *   Click file        → close dialog, call loadFile(url)
- *   Click [ALL]       → close dialog, call loadAll(fileUrls)
- *   Click dir arrow   → expand/collapse (lazy-fetch on first open)
- *   Click ×           → close dialog
- *   Escape            → close dialog
+ *   Click file        → call loadFile(url), panel stays open
+ *   Click [ALL]       → call loadAll(fileUrls), panel stays open
+ *   Click dir         → navigate into directory (drill-down)
+ *   Click breadcrumb  → navigate back to that level
+ *   Click ×           → close panel
+ *   Escape            → close panel
+ *   Browse Demos (2nd click) → toggle close
  */
 
 import { fetchDirectoryListing } from './directoryParser.js'
@@ -28,43 +25,43 @@ import { buildAllScript } from './gridLayout.js'
 // ──────────────────────────────────────────────────────────────────
 
 export const demoBrowserStyles = `
-.demo-overlay {
+.demo-panel {
   position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,.5);
-  z-index: 1000;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding-top: 5vh;
-}
-
-.demo-dialog {
-  background: var(--bg, #1e1e2e);
-  color: var(--fg, #cdd6f4);
-  border: 1px solid var(--border, #45475a);
-  border-radius: 8px;
-  width: min(520px, 95vw);
-  max-height: 80vh;
+  top: 44px;
+  left: 10px;
+  z-index: 2500;
+  background: #f8f8f8;
+  color: #111;
+  border: 1px solid #888;
+  box-shadow: 2px 4px 12px rgba(0,0,0,.25);
+  width: 280px;
+  max-height: calc(100vh - 60px);
   display: flex;
   flex-direction: column;
-  box-shadow: 0 8px 32px rgba(0,0,0,.4);
   font-family: inherit;
   font-size: 14px;
+  border-radius: 0 4px 4px 0;
+}
+.dark .demo-panel {
+  background: #444;
+  color: #ddd;
+  border-color: #555;
+  box-shadow: 2px 4px 12px rgba(0,0,0,.5);
 }
 
-.demo-dialog-header {
+.demo-panel-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border, #45475a);
+  padding: 6px 10px;
+  border-bottom: 1px solid #888;
   flex-shrink: 0;
 }
+.dark .demo-panel-header { border-bottom-color: #555; }
 
-.demo-dialog-header h3 {
+.demo-panel-header h3 {
   margin: 0;
-  font-size: 16px;
+  font-size: 13px;
   font-weight: 600;
 }
 
@@ -73,68 +70,64 @@ export const demoBrowserStyles = `
   border: none;
   cursor: pointer;
   color: inherit;
-  font-size: 18px;
+  font-size: 16px;
   line-height: 1;
-  padding: 2px 6px;
-  border-radius: 4px;
+  padding: 1px 5px;
+  border-radius: 3px;
   opacity: .7;
 }
-.demo-close-btn:hover { opacity: 1; background: rgba(255,255,255,.1); }
+.demo-close-btn:hover { opacity: 1; background: rgba(128,128,128,.15); }
 
-.demo-tree {
+/* ── breadcrumb ── */
+.demo-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 4px 10px;
+  border-bottom: 1px solid #ddd;
+  font-size: 12px;
+  flex-shrink: 0;
+  min-height: 26px;
+  gap: 1px;
+}
+.dark .demo-breadcrumb { border-bottom-color: #555; }
+
+.demo-crumb {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #08d;
+  padding: 1px 3px;
+  border-radius: 3px;
+  font-size: 12px;
+  font: inherit;
+  white-space: nowrap;
+}
+.demo-crumb:hover { text-decoration: underline; }
+.dark .demo-crumb { color: #4af; }
+
+.demo-crumb-current {
+  padding: 1px 3px;
+  font-size: 12px;
+  opacity: .7;
+  white-space: nowrap;
+}
+
+.demo-crumb-sep {
+  opacity: .4;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+/* ── content list ── */
+.demo-content {
   overflow-y: auto;
   flex: 1;
-  padding: 8px 0;
+  padding: 4px 0;
 }
 
-/* ── directory node ── */
-.demo-dir {
-  user-select: none;
-}
-
-.demo-dir-header {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 12px;
-  cursor: pointer;
-  border-radius: 4px;
-  margin: 1px 6px;
-}
-.demo-dir-header:hover { background: rgba(255,255,255,.07); }
-
-.demo-dir-arrow {
-  display: inline-block;
-  width: 14px;
-  text-align: center;
-  transition: transform .15s;
-  font-size: 11px;
-  opacity: .7;
-}
-.demo-dir.open > .demo-dir-header .demo-dir-arrow { transform: rotate(90deg); }
-
-.demo-dir-name {
-  font-weight: 500;
-  opacity: .85;
-}
-
-/* ── children container ── */
-.demo-dir-children {
-  padding-left: 18px;
-  display: none;
-}
-.demo-dir.open > .demo-dir-children { display: block; }
-
-/* ── loading spinner ── */
-.demo-loading {
-  padding: 6px 12px;
-  opacity: .5;
-  font-style: italic;
-  font-size: 12px;
-}
-
-/* ── ALL entry ── */
-.demo-all-btn {
+.demo-nav-dir,
+.demo-nav-file {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -146,58 +139,55 @@ export const demoBrowserStyles = `
   font: inherit;
   text-align: left;
   padding: 4px 12px;
-  border-radius: 4px;
-  margin: 1px 6px;
-  font-weight: 600;
-  font-size: 13px;
-  color: var(--accent, #89b4fa);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.demo-all-btn:hover { background: rgba(137,180,250,.12); }
+.demo-nav-dir:hover,
+.demo-nav-file:hover { background: rgba(128,128,128,.12); }
 
-.demo-divider {
-  border: none;
-  border-top: 1px solid var(--border, #45475a);
-  margin: 4px 12px;
-}
+.demo-nav-dir::before { content: '▶'; font-size: 10px; opacity: .55; flex-shrink: 0; }
+.demo-nav-dir { font-weight: 500; }
 
-/* ── file entry ── */
-.demo-file-btn {
-  display: block;
+/* ── ALL entry ── */
+.demo-all-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   width: 100%;
   background: none;
   border: none;
   cursor: pointer;
-  color: inherit;
+  color: #08d;
   font: inherit;
   text-align: left;
-  padding: 3px 12px;
-  border-radius: 4px;
-  margin: 1px 6px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.demo-file-btn:hover { background: rgba(255,255,255,.07); }
-.demo-file-btn.scad { opacity: .85; }
-
-/* ── error message ── */
-.demo-error {
-  padding: 12px 16px;
-  color: var(--error, #f38ba8);
+  padding: 4px 12px;
+  font-weight: 600;
   font-size: 13px;
 }
+.demo-all-btn:hover { background: rgba(128,128,128,.12); }
+.dark .demo-all-btn { color: #4af; }
 
-/* ── status bar ── */
-.demo-status {
-  padding: 6px 16px;
-  font-size: 12px;
-  opacity: .6;
-  border-top: 1px solid var(--border, #45475a);
-  flex-shrink: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.demo-divider {
+  border: none;
+  border-top: 1px solid #ddd;
+  margin: 4px 0;
 }
+.dark .demo-divider { border-top-color: #555; }
+
+.demo-loading {
+  padding: 8px 12px;
+  opacity: .6;
+  font-style: italic;
+  font-size: 12px;
+}
+
+.demo-error {
+  padding: 8px 12px;
+  color: #c00;
+  font-size: 12px;
+}
+.dark .demo-error { color: #f88; }
 `
 
 // ──────────────────────────────────────────────────────────────────
@@ -207,13 +197,25 @@ export const demoBrowserStyles = `
 /** @type {Map<string, {dirs: string[], files: string[]}>} */
 const listingCache = new Map()
 
+/** @type {HTMLElement|null} */
+let panel = null
+
+/** @type {string} */
+let rootUrl = ''
+
+/** @type {string} */
+let currentUrl = ''
+
+/** @type {(url:string)=>void} */
+let fileCallback = null
+
+/** @type {(urls:string[])=>void} */
+let allCallback = null
+
 // ──────────────────────────────────────────────────────────────────
 // Directory listing (with cache)
 // ──────────────────────────────────────────────────────────────────
 
-/**
- * @param {string} url - directory URL (e.g. '/examples/')
- */
 async function loadDirectory(url) {
   if (listingCache.has(url)) return listingCache.get(url)
   const result = await fetchDirectoryListing(url)
@@ -240,107 +242,191 @@ function el(tag, attrs = {}, ...children) {
 }
 
 // ──────────────────────────────────────────────────────────────────
-// Tree builder
+// Index-only directory detection
 // ──────────────────────────────────────────────────────────────────
 
 /**
- * Build the tree node for one directory.
+ * Returns the index file URL if the directory is index-only, else null.
+ * Index-only = no subdirs, exactly one file named index.js or index.scad.
  *
- * @param {string} dirUrl       - full URL for this directory
- * @param {string} label        - display name
- * @param {(url:string)=>void} onFile   - called when user selects a file
- * @param {(urls:string[])=>void} onAll - called when user selects ALL
- * @param {HTMLElement} statusEl - status bar element for path display
- * @param {boolean} [expanded=false]
- * @returns {HTMLElement}
+ * @param {string} dirUrl
+ * @returns {Promise<string|null>}
  */
-function buildDirNode(dirUrl, label, onFile, onAll, statusEl, expanded = false) {
-  const node = el('div', { className: 'demo-dir' + (expanded ? ' open' : '') })
-
-  const arrow = el('span', { className: 'demo-dir-arrow' }, '▶')
-  const nameSpan = el('span', { className: 'demo-dir-name' }, label + '/')
-
-  const header = el('div', { className: 'demo-dir-header' }, arrow, nameSpan)
-  const children = el('div', { className: 'demo-dir-children' })
-  let loaded = false
-
-  const populate = async () => {
-    children.innerHTML = ''
-    const loading = el('div', { className: 'demo-loading' }, 'Loading…')
-    children.appendChild(loading)
-
-    try {
-      const { dirs, files } = await loadDirectory(dirUrl)
-      children.innerHTML = ''
-
-      // ALL button – only when there are immediate file children
-      if (files.length > 0) {
-        const allBtn = el('button', {
-          className: 'demo-all-btn',
-          title: `Load all ${files.length} file${files.length !== 1 ? 's' : ''} in a grid`,
-          onclick: () => {
-            const urls = files.map(f => dirUrl + f)
-            onAll(urls)
-          }
-        }, `★ ALL (${files.length} file${files.length !== 1 ? 's' : ''})`)
-        children.appendChild(allBtn)
+async function getIndexOnlyUrl(dirUrl) {
+  try {
+    const { dirs, files } = await loadDirectory(dirUrl)
+    if (dirs.length === 0 && files.length === 1) {
+      const f = files[0]
+      if (f === 'index.js' || f === 'index.scad') {
+        return dirUrl + f
       }
-
-      // Subdirectory nodes (dirs first)
-      if (dirs.length > 0) {
-        if (files.length > 0) children.appendChild(el('hr', { className: 'demo-divider' }))
-        for (const d of dirs) {
-          const subUrl = dirUrl + d + '/'
-          children.appendChild(buildDirNode(subUrl, d, onFile, onAll, statusEl))
-        }
-      }
-
-      // File entries
-      if (files.length > 0) {
-        if (dirs.length > 0) children.appendChild(el('hr', { className: 'demo-divider' }))
-        for (const f of files) {
-          const fileUrl = dirUrl + f
-          const ext = f.endsWith('.scad') ? 'scad' : ''
-          const btn = el('button', {
-            className: 'demo-file-btn' + (ext ? ' ' + ext : ''),
-            title: fileUrl,
-            onclick: () => onFile(fileUrl),
-          }, f)
-          children.appendChild(btn)
-        }
-      }
-
-      if (dirs.length === 0 && files.length === 0) {
-        children.appendChild(el('div', { className: 'demo-loading' }, 'No demos found'))
-      }
-    } catch (err) {
-      children.innerHTML = ''
-      children.appendChild(el('div', { className: 'demo-error' }, `Error: ${err.message}`))
     }
+  } catch (_) { /* ignore */ }
+  return null
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Breadcrumb builder
+// ──────────────────────────────────────────────────────────────────
+
+/**
+ * Given rootUrl and currentUrl, build the breadcrumb DOM.
+ * Segments between root and current are clickable links.
+ * Final segment is plain text (current location).
+ */
+function buildBreadcrumb(rootU, currentU) {
+  const container = el('div', { className: 'demo-breadcrumb' })
+
+  // Strip rootUrl prefix from currentUrl to get relative path segments
+  const rel = currentU.startsWith(rootU) ? currentU.slice(rootU.length) : currentU
+  const parts = rel ? rel.replace(/\/$/, '').split('/') : []
+
+  // Root crumb
+  const rootLabel = rootU.replace(/\/$/, '').split('/').pop() || 'examples'
+  if (parts.length === 0) {
+    // we are at root - show as plain text
+    container.appendChild(el('span', { className: 'demo-crumb-current' }, rootLabel + '/'))
+  } else {
+    const rootCrumb = el('button', {
+      className: 'demo-crumb',
+      title: rootU,
+      onclick: () => navigate(rootU),
+    }, rootLabel + '/')
+    container.appendChild(rootCrumb)
   }
 
-  header.addEventListener('click', async () => {
-    const opening = !node.classList.contains('open')
-    node.classList.toggle('open', opening)
-    if (opening && !loaded) {
-      loaded = true
-      await populate()
+  // Intermediate + final segments
+  parts.forEach((part, i) => {
+    container.appendChild(el('span', { className: 'demo-crumb-sep' }, '›'))
+    const segUrl = rootU + parts.slice(0, i + 1).join('/') + '/'
+    if (i === parts.length - 1) {
+      // Current (final) segment - plain text
+      container.appendChild(el('span', { className: 'demo-crumb-current' }, part + '/'))
+    } else {
+      const crumb = el('button', {
+        className: 'demo-crumb',
+        title: segUrl,
+        onclick: () => navigate(segUrl),
+      }, part + '/')
+      container.appendChild(crumb)
     }
-    statusEl.textContent = dirUrl
   })
 
-  header.addEventListener('mouseenter', () => { statusEl.textContent = dirUrl })
+  return container
+}
 
-  node.appendChild(header)
-  node.appendChild(children)
+// ──────────────────────────────────────────────────────────────────
+// Content renderer
+// ──────────────────────────────────────────────────────────────────
 
-  // Auto-expand and load root directory immediately
-  if (expanded) {
-    loaded = true
-    populate()
+/**
+ * Navigate to dirUrl: fetch contents and update panel content area + breadcrumb.
+ */
+async function navigate(dirUrl) {
+  if (!panel) return
+  currentUrl = dirUrl
+
+  // Update breadcrumb
+  const oldCrumb = panel.querySelector('.demo-breadcrumb')
+  const newCrumb = buildBreadcrumb(rootUrl, currentUrl)
+  if (oldCrumb) oldCrumb.replaceWith(newCrumb)
+
+  const content = panel.querySelector('.demo-content')
+  content.innerHTML = ''
+  content.appendChild(el('div', { className: 'demo-loading' }, 'Loading…'))
+
+  try {
+    const { dirs, files } = await loadDirectory(dirUrl)
+    if (!panel) return
+    content.innerHTML = ''
+
+    // Pre-check which dirs are index-only (in parallel)
+    const dirIndexUrls = await Promise.all(
+      dirs.map(d => getIndexOnlyUrl(dirUrl + d + '/'))
+    )
+    if (!panel) return
+
+    const indexOnlyDirs = new Set()
+    const indexOnlyFileUrls = {}
+    dirs.forEach((d, i) => {
+      if (dirIndexUrls[i] != null) {
+        indexOnlyDirs.add(d)
+        indexOnlyFileUrls[d] = dirIndexUrls[i]
+      }
+    })
+
+    // Separate regular dirs from index-only dirs
+    const regularDirs = dirs.filter(d => !indexOnlyDirs.has(d))
+    // index-only dirs rendered as files
+    const leafDirs = dirs.filter(d => indexOnlyDirs.has(d))
+    // All files (real + leaf dirs treated as files), sorted by name for consistent NN- ordering
+    const allFiles = [
+      ...leafDirs.map(d => ({ name: d, url: indexOnlyFileUrls[d], isLeafDir: true })),
+      ...files.map(f => ({ name: f, url: dirUrl + f, isLeafDir: false })),
+    ].sort((a, b) => a.name.localeCompare(b.name))
+
+    // ALL button – only when there are file-like entries
+    if (allFiles.length > 0) {
+      const allUrls = allFiles.map(f => f.url)
+      const count = allFiles.length
+      const allBtn = el('button', {
+        className: 'demo-all-btn',
+        title: `Load all ${count} file${count !== 1 ? 's' : ''} in a grid`,
+        onclick: () => allCallback(allUrls),
+      }, `★ ALL (${count} file${count !== 1 ? 's' : ''})`)
+      content.appendChild(allBtn)
+    }
+
+    // Regular directory entries (navigable)
+    if (regularDirs.length > 0) {
+      if (allFiles.length > 0) content.appendChild(el('hr', { className: 'demo-divider' }))
+      for (const d of regularDirs) {
+        const subUrl = dirUrl + d + '/'
+        const btn = el('button', {
+          className: 'demo-nav-dir',
+          title: subUrl,
+          onclick: () => navigate(subUrl),
+        }, d + '/')
+        content.appendChild(btn)
+      }
+    }
+
+    // File-like entries (real files + leaf dirs)
+    if (allFiles.length > 0) {
+      if (regularDirs.length > 0) content.appendChild(el('hr', { className: 'demo-divider' }))
+      for (const { name, url, isLeafDir } of allFiles) {
+        const displayName = isLeafDir ? name + '/' : name
+        const btn = el('button', {
+          className: 'demo-nav-file',
+          title: url,
+          onclick: () => fileCallback(url),
+        }, displayName)
+        content.appendChild(btn)
+      }
+    }
+
+    if (regularDirs.length === 0 && allFiles.length === 0) {
+      content.appendChild(el('div', { className: 'demo-loading' }, 'No demos found'))
+    }
+  } catch (err) {
+    content.innerHTML = ''
+    content.appendChild(el('div', { className: 'demo-error' }, `Error: ${err.message}`))
   }
+}
 
-  return node
+// ──────────────────────────────────────────────────────────────────
+// Panel lifecycle
+// ──────────────────────────────────────────────────────────────────
+
+function closePanel() {
+  if (!panel) return
+  panel.remove()
+  panel = null
+  document.removeEventListener('keydown', onKey)
+}
+
+function onKey(e) {
+  if (e.key === 'Escape') closePanel()
 }
 
 // ──────────────────────────────────────────────────────────────────
@@ -348,7 +434,7 @@ function buildDirNode(dirUrl, label, onFile, onAll, statusEl, expanded = false) 
 // ──────────────────────────────────────────────────────────────────
 
 /**
- * Show the demo browser dialog.
+ * Show (or toggle) the demo browser panel.
  *
  * @param {object} opts
  * @param {string}   opts.baseUrl  - Root URL for demos, e.g. '/examples/'
@@ -356,46 +442,19 @@ function buildDirNode(dirUrl, label, onFile, onAll, statusEl, expanded = false) 
  *   Called with the script text and URL when a single file is selected.
  * @param {(script:string, url:string) => void} opts.onLoadAll
  *   Called with a combined script and synthetic URL when ALL is selected.
- *   Callers may treat this the same as onLoad.
  */
 export function showDemoBrowser({ baseUrl, onLoad, onLoadAll }) {
-  // Ensure baseUrl ends with /
-  const rootUrl = baseUrl.endsWith('/') ? baseUrl : baseUrl + '/'
+  // Toggle: if already open, close it
+  if (panel) {
+    closePanel()
+    return
+  }
 
-  const overlay = el('div', { className: 'demo-overlay' })
-  const dialog = el('div', { className: 'demo-dialog' })
+  rootUrl = baseUrl.endsWith('/') ? baseUrl : baseUrl + '/'
+  currentUrl = rootUrl
 
-  // ── header ──
-  const closeBtn = el('button', { className: 'demo-close-btn', title: 'Close', 'aria-label': 'Close' }, '×')
-  const header = el('div', { className: 'demo-dialog-header' },
-    el('h3', {}, 'Browse Demos'),
-    closeBtn,
-  )
-
-  // ── tree ──
-  const tree = el('div', { className: 'demo-tree' })
-
-  // ── status bar ──
-  const status = el('div', { className: 'demo-status' }, rootUrl)
-
-  dialog.appendChild(header)
-  dialog.appendChild(tree)
-  dialog.appendChild(status)
-  overlay.appendChild(dialog)
-  document.body.appendChild(overlay)
-
-  // ── close logic ──
-  const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey) }
-
-  closeBtn.addEventListener('click', close)
-  overlay.addEventListener('click', e => { if (e.target === overlay) close() })
-
-  const onKey = (e) => { if (e.key === 'Escape') close() }
-  document.addEventListener('keydown', onKey)
-
-  // ── callbacks ──
-  const onFile = async (fileUrl) => {
-    close()
+  // ── file callback ──
+  fileCallback = async (fileUrl) => {
     try {
       const res = await fetch(fileUrl)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -406,16 +465,34 @@ export function showDemoBrowser({ baseUrl, onLoad, onLoadAll }) {
     }
   }
 
-  const onAll = async (fileUrls) => {
-    close()
-    // Fetch each file to warm the browser cache, then build combined script
-    // The combined script uses require() which also fetches from cache
+  // ── all callback ──
+  allCallback = (fileUrls) => {
     const script = buildAllScript(fileUrls)
-    const syntheticUrl = rootUrl + '__all__.js'
+    const syntheticUrl = currentUrl + '__all__.js'
     onLoadAll(script, syntheticUrl)
   }
 
-  // ── build initial tree ──
-  const rootNode = buildDirNode(rootUrl, rootUrl.replace(/\/$/, '').split('/').pop() || 'examples', onFile, onAll, status, /* expanded= */ true)
-  tree.appendChild(rootNode)
+  // ── build panel ──
+  panel = el('div', { className: 'demo-panel' })
+
+  const closeBtn = el('button', { className: 'demo-close-btn', title: 'Close', 'aria-label': 'Close' }, '×')
+  closeBtn.addEventListener('click', closePanel)
+
+  const header = el('div', { className: 'demo-panel-header' },
+    el('h3', {}, 'Browse Demos'),
+    closeBtn,
+  )
+
+  const breadcrumb = buildBreadcrumb(rootUrl, currentUrl)
+  const content = el('div', { className: 'demo-content' })
+
+  panel.appendChild(header)
+  panel.appendChild(breadcrumb)
+  panel.appendChild(content)
+  document.body.appendChild(panel)
+
+  document.addEventListener('keydown', onKey)
+
+  // Load root directory
+  navigate(rootUrl)
 }

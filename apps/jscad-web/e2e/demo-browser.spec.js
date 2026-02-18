@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { dismissWelcome, waitForRender, assertNoError } from './helpers.js'
 
-test.describe('Demo browser dialog', () => {
+test.describe('Demo browser panel', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/')
     await dismissWelcome(page)
@@ -10,41 +10,41 @@ test.describe('Demo browser dialog', () => {
     await page.locator('#menu-content').getByText('Browse Demos').click()
   })
 
-  test('dialog opens with title "Browse Demos"', async ({ page }) => {
-    await expect(page.locator('.demo-dialog')).toBeVisible()
-    await expect(page.locator('.demo-dialog')).toContainText('Browse Demos')
+  test('panel opens with title "Browse Demos"', async ({ page }) => {
+    await expect(page.locator('.demo-panel')).toBeVisible()
+    await expect(page.locator('.demo-panel')).toContainText('Browse Demos')
   })
 
-  test('close button (×) dismisses the dialog', async ({ page }) => {
+  test('close button (×) dismisses the panel', async ({ page }) => {
     await page.locator('.demo-close-btn').click()
-    await expect(page.locator('.demo-dialog')).not.toBeVisible()
+    await expect(page.locator('.demo-panel')).not.toBeVisible()
   })
 
-  test('Escape key dismisses the dialog', async ({ page }) => {
+  test('Escape key dismisses the panel', async ({ page }) => {
     await page.keyboard.press('Escape')
-    await expect(page.locator('.demo-dialog')).not.toBeVisible()
+    await expect(page.locator('.demo-panel')).not.toBeVisible()
   })
 
-  test('clicking the overlay background dismisses the dialog', async ({ page }) => {
-    // Click outside the dialog box but inside the overlay
-    await page.locator('.demo-overlay').click({ position: { x: 5, y: 5 } })
-    await expect(page.locator('.demo-dialog')).not.toBeVisible()
+  test('clicking Browse Demos again toggles the panel closed', async ({ page }) => {
+    await page.locator('#menu-button').click()
+    await page.locator('#menu-content').getByText('Browse Demos').click()
+    await expect(page.locator('.demo-panel')).not.toBeVisible()
   })
 
-  test('examples directory loads and shows file entries', async ({ page }) => {
-    // The root dir auto-expands; wait for at least one file or dir entry
-    const fileBtn = page.locator('.demo-file-btn').first()
-    await expect(fileBtn).toBeVisible({ timeout: 10_000 })
+  test('examples directory loads and shows entries', async ({ page }) => {
+    // The root dir auto-loads; wait for at least one file or dir entry
+    const entry = page.locator('.demo-nav-file, .demo-nav-dir').first()
+    await expect(entry).toBeVisible({ timeout: 10_000 })
   })
 
-  test('clicking a file loads it and closes the dialog', async ({ page }) => {
+  test('clicking a file loads it and keeps panel open', async ({ page }) => {
     // Wait for files to load
-    const fileBtn = page.locator('.demo-file-btn').first()
+    const fileBtn = page.locator('.demo-nav-file').first()
     await expect(fileBtn).toBeVisible({ timeout: 10_000 })
     await fileBtn.click()
 
-    // Dialog should close
-    await expect(page.locator('.demo-dialog')).not.toBeVisible()
+    // Panel should remain open
+    await expect(page.locator('.demo-panel')).toBeVisible()
     // Model should render
     await waitForRender(page)
     await assertNoError(page)
@@ -62,13 +62,43 @@ test.describe('Demo browser dialog', () => {
     await expect(allBtn).toContainText(/ALL \(\d+ files?\)/)
   })
 
-  test('clicking "ALL" loads all files in a grid and closes the dialog', async ({ page }) => {
+  test('clicking "ALL" loads all files in a grid and keeps panel open', async ({ page }) => {
     const allBtn = page.locator('.demo-all-btn').first()
     await expect(allBtn).toBeVisible({ timeout: 10_000 })
     await allBtn.click()
 
-    await expect(page.locator('.demo-dialog')).not.toBeVisible()
+    // Panel should remain open
+    await expect(page.locator('.demo-panel')).toBeVisible()
     await waitForRender(page, 30_000)
     await assertNoError(page)
+  })
+
+  test('clicking a directory navigates into it and updates breadcrumb', async ({ page }) => {
+    const dirBtn = page.locator('.demo-nav-dir').first()
+    await expect(dirBtn).toBeVisible({ timeout: 10_000 })
+    const dirName = (await dirBtn.textContent()).replace('/', '').trim()
+    await dirBtn.click()
+
+    // Breadcrumb should now show root and the dir name
+    await expect(page.locator('.demo-breadcrumb')).toContainText(dirName)
+    // Should show some entries (files or dirs)
+    const entry = page.locator('.demo-nav-file, .demo-nav-dir').first()
+    await expect(entry).toBeVisible({ timeout: 10_000 })
+  })
+
+  test('breadcrumb root link navigates back to root', async ({ page }) => {
+    // Navigate into first dir
+    const dirBtn = page.locator('.demo-nav-dir').first()
+    await expect(dirBtn).toBeVisible({ timeout: 10_000 })
+    await dirBtn.click()
+
+    // Click root breadcrumb to go back
+    const rootCrumb = page.locator('.demo-crumb').first()
+    await expect(rootCrumb).toBeVisible({ timeout: 5_000 })
+    await rootCrumb.click()
+
+    // Should be back at root - breadcrumb shows only current (no clickable crumbs)
+    await expect(page.locator('.demo-crumb')).toHaveCount(0)
+    await expect(page.locator('.demo-crumb-current')).toBeVisible()
   })
 })

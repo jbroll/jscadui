@@ -26,7 +26,7 @@ import { boundingBox } from '@jscadui/format-common'
 import { genParams, getParams } from '@jscadui/params'
 
 // Local modules
-import defaultCode from './examples/two-cars.example.js'
+import defaultCode from './examples/01-two-cars.example.js'
 import { addV1Shim } from './src/addV1Shim.js'
 import * as editor from './src/editor.js'
 import * as engine from './src/engine.js'
@@ -127,9 +127,8 @@ const handleEntities = (result, { skipLog } = {}) => {
 
   if (viewState.zoomToFit) {
     const { min, max } = boundingBox(entities)
-    console.log('Bounding box - min:', min, 'max:', max, 'camera:', viewState.viewer.getCamera())
     const { fov, aspect } = viewState.viewer.getCamera()
-    ctrl.fit(min, max, fov, aspect, 1.2)
+    ctrl.fit(min, max, fov, aspect, 1 / 0.6)  // model fills ~60% of viewport
   }
 
   if (!skipLog) {
@@ -554,7 +553,7 @@ await exporter.init(workerApi)
 
 // ============== Default Script ==============
 if (loadDefault && !hasRemoteScript) {
-  const defaultUrl = './examples/two-cars.example.js'
+  const defaultUrl = './examples/01-two-cars.example.js'
   const fullUrl = new URL(defaultUrl, appBase).toString()
   editor.setSource(defaultCode, fullUrl)
   jscadScript({ script: defaultCode, url: defaultUrl, base: appBase })
