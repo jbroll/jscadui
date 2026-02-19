@@ -467,7 +467,7 @@ export function showDemoBrowser({ baseUrl, onLoad, onLoadAll }) {
 
   // ── all callback ──
   allCallback = (fileUrls) => {
-    const script = buildAllScript(fileUrls)
+    const script = buildAllScript(fileUrls, 60, currentUrl)
     const syntheticUrl = currentUrl + '__all__.js'
     onLoadAll(script, syntheticUrl)
   }
