@@ -97,14 +97,62 @@ await buildBundle(outDir + '/build', 'bundle.jscad_io.js', { format:'cjs', watch
 await buildBundle(outDir + '/build', 'bundle.V1_api.js', { format:'cjs', watch: dev, loader: cjsLoader })
 await buildBundle(outDir + '/build', 'bundle.params_core.js', { format: 'cjs', watch: dev, loader: cjsLoader })
 await buildBundle(outDir + '/build', 'bundle.jscadui.transform-babel.js', { globalName: 'jscadui_transform_babel', watch: dev })
-// openscad-parser imports 'fs'/'path'/'os' for Node-side file loading
-// (CodeFile.load, PreludeUtil, SolutionManager) which are never called in
-// browser context.  Mark them external so esbuild omits them entirely rather
-// than bundling stubs.
+// openscad-parser barrel-exports Node-only classes (PreludeUtil, CodeFile,
+// IncludeResolver) whose files have top-level require("fs"/"path"/"os").
+// We never call those code paths in the browser, but the require() at module
+// init still runs.  Provide safe no-op stubs so the bundle loads without
+// throwing "Dynamic require of 'fs' is not supported".
+const nodeBuiltinStubPlugin = {
+  name: 'node-builtin-stubs',
+  setup(build) {
+    const filter = /^(fs|path|os|fs\/promises)$/
+    build.onResolve({ filter }, args => ({ path: args.path, namespace: 'node-shim' }))
+    build.onLoad({ filter: /.*/, namespace: 'node-shim' }, args => {
+      const stubs = {
+        fs: `
+          exports.readFileSync = () => ''
+          exports.writeFileSync = () => {}
+          exports.existsSync = () => false
+          exports.mkdirSync = () => {}
+          exports.readdirSync = () => []
+          exports.promises = {
+            readFile: async () => '',
+            writeFile: async () => {},
+            readdir: async () => [],
+            mkdir: async () => {},
+          }
+        `,
+        'fs/promises': `
+          exports.readFile = async () => ''
+          exports.writeFile = async () => {}
+          exports.readdir = async () => []
+          exports.mkdir = async () => {}
+        `,
+        path: `
+          exports.join = (...p) => p.filter(Boolean).join('/')
+          exports.basename = (p, ext) => { const b = (p || '').replace(/.*\\//, ''); return ext ? b.replace(ext, '') : b }
+          exports.dirname = p => (p || '').replace(/\\/[^\\/]*$/, '') || '.'
+          exports.resolve = (...p) => p.filter(Boolean).join('/')
+          exports.isAbsolute = p => (p || '').startsWith('/')
+          exports.extname = p => ((p || '').match(/\\.[^.]*$/) || [''])[0]
+          exports.sep = '/'
+          exports.default = exports
+        `,
+        os: `
+          exports.tmpdir = () => '/tmp'
+          exports.homedir = () => '/'
+          exports.cpus = () => [{}]
+          exports.platform = () => 'browser'
+        `,
+      }
+      return { contents: stubs[args.path] || 'exports.default = {}', loader: 'js' }
+    })
+  },
+}
 await buildBundle(outDir + '/build', 'bundle.openscad.js', {
   globalName: 'jscadui_openscad',
   watch: dev,
-  external: ['fs', 'path', 'os'],
+  plugins: [nodeBuiltinStubPlugin],
 })
 
 /**************************** BUILD JS THAT can change and watch if in dev mode *************/
