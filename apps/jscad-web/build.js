@@ -105,9 +105,11 @@ await buildBundle(outDir + '/build', 'bundle.jscadui.transform-babel.js', { glob
 const nodeBuiltinStubPlugin = {
   name: 'node-builtin-stubs',
   setup(build) {
-    const filter = /^(fs|path|os|fs\/promises)$/
+    const filter = /^(node:)?(fs|path|os|fs\/promises)$/
     build.onResolve({ filter }, args => ({ path: args.path, namespace: 'node-shim' }))
     build.onLoad({ filter: /.*/, namespace: 'node-shim' }, args => {
+      // Strip node: prefix if present
+      const moduleName = args.path.replace(/^node:/, '')
       const stubs = {
         fs: `
           exports.readFileSync = () => ''
@@ -145,13 +147,19 @@ const nodeBuiltinStubPlugin = {
           exports.platform = () => 'browser'
         `,
       }
-      return { contents: stubs[args.path] || 'exports.default = {}', loader: 'js' }
+      return { contents: stubs[moduleName] || 'exports.default = {}', loader: 'js' }
     })
   },
 }
 await buildBundle(outDir + '/build', 'bundle.openscad.js', {
   globalName: 'jscadui_openscad',
   watch: dev,
+  plugins: [nodeBuiltinStubPlugin],
+})
+await buildBundle(outDir + '/build', 'bundle.openscad-runtime.js', {
+  format: 'cjs',
+  watch: dev,
+  loader: cjsLoader,
   plugins: [nodeBuiltinStubPlugin],
 })
 

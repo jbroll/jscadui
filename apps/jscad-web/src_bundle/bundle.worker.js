@@ -5,7 +5,12 @@ const {transformcjs} = jscadui_transform_babel
 // import {transformcjs} from '@jscadui/transform-babel'
 
 import {currentSolids, initWorker} from '@jscadui/worker'
-import {readFileWeb, require, requireHandlers} from '@jscadui/require'
+import {readFileWeb, require, requireHandlers, requireCache} from '@jscadui/require'
+
+// Register bundleAlias for openscad-runtime so transpiled .scad code can require it
+// bundleAlias skips transformation (the bundle is already CJS)
+// Must use absolute URL to avoid relative path resolution issues
+requireCache.bundleAlias['@jscadui/openscad-runtime'] = new URL('/build/bundle.openscad-runtime.js', self.location.origin).href
 
 // ── OpenSCAD (.scad) handler ──────────────────────────────────────────────
 // Lazily loads the openscad transpiler bundle on first use (652 K, not needed
