@@ -47,6 +47,7 @@ function parseArgs(args) {
   const options = {
     dirs: [],
     skipPatterns: [],  // Patterns to match against relative paths
+    matchPatterns: [],  // --match: only include files matching these patterns
     threshold: 0.99,
     openscad: 'openscad',
     keepTemp: false,
@@ -67,8 +68,13 @@ test-harness - OpenSCAD translator fidelity testing (v${VERSION})
 Usage:
   test-harness <dir1> [dir2] ... [options]
 
+  Directories are scanned recursively for .scad files.
+
 Options:
-  --skip-file <path>      File containing filenames to skip (one per line)
+  --skip-file <path>      File containing filenames/patterns to skip (one per line)
+  --match <glob>          Only run files matching this glob pattern (repeatable)
+                          Examples: --match "*/01-basics/*"
+                                    --match "*/bosl/*" --match "*/bosl2/*"
   --threshold <n>         Minimum Jaccard for pass (default: 0.99)
   --fn <n>                Set global $fn for both OpenSCAD and transpiler
   --openscad <path>       Path to OpenSCAD binary (default: openscad)
@@ -105,6 +111,8 @@ Options:
       } catch (_err) {
         console.error(`Warning: Could not read skip file: ${args[i]}`)
       }
+    } else if (arg === '--match') {
+      options.matchPatterns.push(args[++i])
     } else if (!arg.startsWith('-')) {
       options.dirs.push(arg)
     } else {
@@ -235,7 +243,47 @@ async function testFile(scadPath, options) {
   return result
 }
 
-function getTestFiles(dirs) {
+/**
+ * Convert a glob pattern (supporting * and **) to a RegExp.
+ * * matches any path segment characters except /
+ * ** matches any sequence of characters including /
+ */
+function globToRegex(pattern) {
+  // Split on ** first, then handle * within each segment
+  const parts = pattern.split('**')
+  const regexStr = parts
+    .map(part =>
+      part.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '[^/]*')
+    )
+    .join('.*')
+  return new RegExp(regexStr)
+}
+
+function matchesPatterns(filePath, patterns) {
+  if (patterns.length === 0) return true
+  // Normalise to forward slashes for consistent matching
+  const normalised = filePath.replace(/\\/g, '/')
+  return patterns.some(p => {
+    const rx = globToRegex(p)
+    return rx.test(normalised) || rx.test(basename(normalised))
+  })
+}
+
+function collectScadFiles(dirPath, files) {
+  for (const entry of readdirSync(dirPath, { withFileTypes: true })) {
+    const full = join(dirPath, entry.name)
+    if (entry.isDirectory()) {
+      // Skip hidden dirs and known non-test dirs (images, build artifacts)
+      if (!entry.name.startsWith('.') && entry.name !== 'Image') {
+        collectScadFiles(full, files)
+      }
+    } else if (entry.name.endsWith('.scad')) {
+      files.push(full)
+    }
+  }
+}
+
+function getTestFiles(dirs, matchPatterns = []) {
   const files = []
   for (const dir of dirs) {
     const dirPath = resolve(dir)
@@ -243,11 +291,10 @@ function getTestFiles(dirs) {
       console.error(`Warning: Directory not found: ${dirPath}`)
       continue
     }
-    for (const entry of readdirSync(dirPath)) {
-      if (entry.endsWith('.scad')) {
-        files.push(join(dirPath, entry))
-      }
-    }
+    collectScadFiles(dirPath, files)
+  }
+  if (matchPatterns.length > 0) {
+    return files.filter(f => matchesPatterns(f, matchPatterns))
   }
   return files
 }
@@ -282,9 +329,12 @@ async function main() {
     process.exit(1)
   }
 
-  const files = getTestFiles(options.dirs)
+  const files = getTestFiles(options.dirs, options.matchPatterns)
   if (files.length === 0) {
     console.error('No .scad files found in specified directories.')
+    if (options.matchPatterns.length > 0) {
+      console.error(`  (--match filters active: ${options.matchPatterns.join(', ')})`)
+    }
     process.exit(1)
   }
 
