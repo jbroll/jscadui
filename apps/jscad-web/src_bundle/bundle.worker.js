@@ -37,7 +37,11 @@ requireHandlers.set('scad', (source, url, readFile) => {
   const fileDir = url.replace(/\/[^/]*$/, '/')
   const fileResolver = (filename, fromFile) => {
     const base = fromFile ? fromFile.replace(/\/[^/]*$/, '/') : fileDir
-    const resolvedUrl = new URL(filename, base).toString()
+    // Ensure base is a full URL (handle both full URLs and paths)
+    const baseUrl = base.startsWith('http://') || base.startsWith('https://')
+      ? base
+      : new URL(base, self.location.origin).href
+    const resolvedUrl = new URL(filename, baseUrl).toString()
     try {
       return readFile(resolvedUrl)
     } catch {

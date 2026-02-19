@@ -295,13 +295,15 @@ function buildOutputCode(
   // Use imports (require statements for .scad files)
   if (ctx.useImports.length > 0) {
     for (const imp of ctx.useImports) {
-      const jsPath = imp.resolvedPath.replace(/\.scad$/, '.js')
+      // Keep the .scad extension - the worker's require handler will transpile it
+      // Use the original filename (not resolvedPath) for relative require() paths
+      const scadPath = imp.filename
       const newSymbols = imp.symbols.filter(s => !importedSymbols.has(s))
       for (const s of newSymbols) importedSymbols.add(s)
       if (newSymbols.length > 0) {
-        parts.push(`const { ${newSymbols.join(', ')} } = require('./${jsPath}')`)
+        parts.push(`const { ${newSymbols.join(', ')} } = require('./${scadPath}')`)
       } else if (imp.symbols.length === 0) {
-        parts.push(`const ${getModuleName(imp.filename)} = require('./${jsPath}')`)
+        parts.push(`const ${getModuleName(imp.filename)} = require('./${scadPath}')`)
       }
     }
     parts.push('')
