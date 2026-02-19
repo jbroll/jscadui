@@ -6,6 +6,7 @@
  *
  * Usage (inside worker):
  *   importScripts('./bundle.openscad.js')
- *   const { parse, transpile } = jscadui_openscad
+ *   const { parse, transpile, j$ } = jscadui_openscad
  */
 export { parse, transpile } from '@jscadui/openscad'
+export { j$ } from '@jscadui/openscad-runtime'
