@@ -23,14 +23,6 @@ function getOpenscad() {
   return _openscad
 }
 
-// OpenSCAD library search paths (similar to OPENSCADPATH)
-// These directories are searched when resolving library includes
-const OPENSCAD_LIBRARY_PATHS = [
-  './examples/openscad/bosl/lib/',
-  './examples/openscad/bosl2/lib/',
-  './examples/openscad/snippets/lib/',
-]
-
 requireHandlers.set('scad', (source, url, _readFile) => {
   const { parse, transpile } = getOpenscad()
 
@@ -39,6 +31,31 @@ requireHandlers.set('scad', (source, url, _readFile) => {
   if (errors.length > 0) {
     // Log parse errors but still attempt transpilation (parser is lenient)
     for (const err of errors) console.warn(`OpenSCAD parse warning in ${url}:`, err.message)
+  }
+
+  // Dynamically extract library directory from the context path
+  // Example: "./examples/openscad/bosl2/01-core/file.scad" → prioritize bosl2/lib
+  const getLibraryPaths = (contextUrl) => {
+    const allPaths = [
+      './examples/openscad/bosl/lib/',
+      './examples/openscad/bosl2/lib/',
+      './examples/openscad/snippets/lib/',
+    ]
+
+    // Extract library name from path like "/openscad/{library}/..."
+    const match = contextUrl.match(/\/openscad\/([^/]+)\//)
+    if (match && match[1]) {
+      const library = match[1]
+      const libraryPath = `./examples/openscad/${library}/lib/`
+
+      // Put the matching library first, then others
+      return [
+        libraryPath,
+        ...allPaths.filter(p => p !== libraryPath)
+      ]
+    }
+
+    return allPaths
   }
 
   // Resolve use/include paths relative to the current file
@@ -65,9 +82,13 @@ requireHandlers.set('scad', (source, url, _readFile) => {
     // Normalize path: remove leading ./ if present
     const normalizedFilename = filename.replace(/^\.\//, '')
 
+    // Get library paths based on context (prioritize the correct library)
+    const contextFile = fromFile || url
+    const libraryPaths = getLibraryPaths(contextFile)
+
     // If not found, search in library paths (similar to OPENSCADPATH)
     // This handles both files starting with lib/ and bare filenames when included from lib/ files
-    for (const libPath of OPENSCAD_LIBRARY_PATHS) {
+    for (const libPath of libraryPaths) {
       // If filename starts with lib/, search for it directly in library paths
       // Otherwise, search for lib/filename in library paths
       const searchFilename = normalizedFilename.startsWith('lib/')

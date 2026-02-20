@@ -161,13 +161,37 @@ export const require = (urlOrSource, transform, readFile, base, root, importData
           // For .scad files, try library path searching before giving up
           if (resolvedUrl.endsWith('.scad') && isNotFound) {
             const filename = url.split('/').pop()
-            const OPENSCAD_LIBRARY_PATHS = [
-              './examples/openscad/bosl/lib/',
-              './examples/openscad/bosl2/lib/',
-              './examples/openscad/snippets/lib/',
-            ]
+
+            // Dynamically extract library directory from the base path
+            // Example: "./examples/openscad/bosl2/01-core/file.scad" → "bosl2"
+            const getLibraryPaths = (basePath) => {
+              const allPaths = [
+                './examples/openscad/bosl/lib/',
+                './examples/openscad/bosl2/lib/',
+                './examples/openscad/snippets/lib/',
+              ]
+
+              if (!basePath) return allPaths
+
+              // Extract library name from path like "/examples/openscad/{library}/..."
+              const match = basePath.match(/\/openscad\/([^/]+)\//)
+              if (match && match[1]) {
+                const library = match[1]
+                const libraryPath = `./examples/openscad/${library}/lib/`
+
+                // Put the matching library first, then others
+                return [
+                  libraryPath,
+                  ...allPaths.filter(p => p !== libraryPath)
+                ]
+              }
+
+              return allPaths
+            }
+
+            const libraryPaths = getLibraryPaths(base)
             let found = false
-            for (const libPath of OPENSCAD_LIBRARY_PATHS) {
+            for (const libPath of libraryPaths) {
               try {
                 const testUrl = new URL(libPath + filename, self.location.origin).toString()
                 source = readFile(testUrl)
