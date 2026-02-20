@@ -2,10 +2,10 @@
   "batchName": "04-misc",
   "category": "snippet",
   "description": "Uncategorized",
-  "fileRange": "1-29",
-  "totalFiles": 29,
+  "fileRange": "1-28",
+  "totalFiles": 28,
   "sourceDir": "test/corpus/snippet",
-  "generatedAt": "2026-02-20T00:17:01.349Z",
+  "generatedAt": "2026-02-20T02:15:01.421Z",
   "files": [
     {
       "name": "Street_03.scad",
@@ -156,12 +156,6 @@
       "originalPath": "test/corpus/snippet/Asset_SCAD/x.scad",
       "size": 124,
       "lastModified": "2026-02-08T04:02:07.896Z"
-    },
-    {
-      "name": "Import_Library.scad",
-      "originalPath": "test/corpus/snippet/Import_Library.scad",
-      "size": 2289,
-      "lastModified": "2026-02-08T04:02:07.930Z"
     },
     {
       "name": "Scene_City_Street.scad",

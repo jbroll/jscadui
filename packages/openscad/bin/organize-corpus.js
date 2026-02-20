@@ -13,7 +13,7 @@
  *   --force            Overwrite existing batch directories
  */
 
-import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, existsSync, cpSync } from 'fs'
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, existsSync, cpSync, rmSync } from 'fs'
 import { join, relative, dirname } from 'path'
 import { fileURLToPath } from 'url'
 
@@ -44,10 +44,23 @@ try {
 }
 
 /**
- * Find all .scad files in a directory, excluding specified patterns
+ * Find all .scad files in a directory, excluding specified patterns and skip.txt entries
  */
 function findScadFiles(dir, excludePatterns = []) {
   const files = []
+
+  // Read skip.txt if it exists
+  const skipFile = join(dir, 'skip.txt')
+  const skipList = new Set()
+  if (existsSync(skipFile)) {
+    const skipContent = readFileSync(skipFile, 'utf8')
+    for (const line of skipContent.split('\n')) {
+      const trimmed = line.trim()
+      if (trimmed && !trimmed.startsWith('#')) {
+        skipList.add(trimmed)
+      }
+    }
+  }
 
   function scan(currentDir) {
     const entries = readdirSync(currentDir)
@@ -65,6 +78,11 @@ function findScadFiles(dir, excludePatterns = []) {
       if (stat.isDirectory()) {
         scan(fullPath)
       } else if (entry.endsWith('.scad')) {
+        // Skip if in skip.txt
+        if (skipList.has(entry)) {
+          continue
+        }
+
         files.push({
           path: fullPath,
           relativePath,
@@ -133,9 +151,15 @@ function organizeCategoryByNumbering(category, config, files) {
 function createBatch(category, batchName, batch, sourceDir, targetDir) {
   const batchDir = join(targetDir, category, batchName)
 
-  if (existsSync(batchDir) && !options.force) {
-    console.log(`  ⚠️  Batch directory already exists: ${batchDir} (use --force to overwrite)`)
-    return false
+  if (existsSync(batchDir)) {
+    if (!options.force) {
+      console.log(`  ⚠️  Batch directory already exists: ${batchDir} (use --force to overwrite)`)
+      return false
+    }
+    // Remove existing directory when --force is used
+    if (!options.dryRun) {
+      rmSync(batchDir, { recursive: true, force: true })
+    }
   }
 
   if (!options.dryRun) {
@@ -204,11 +228,26 @@ function processCategory(categoryName) {
     return
   }
 
-  // Find all .scad files (excluding lib/ and other patterns)
+  // Find all .scad files (excluding lib/, skip.txt, and other patterns)
   const excludePatterns = sourceInfo.exclude || []
   const files = findScadFiles(sourceDir, excludePatterns)
 
-  console.log(`  Found ${files.length} .scad files (expected: ${sourceInfo.fileCount})`)
+  // Count skipped files
+  const skipFile = join(sourceDir, 'skip.txt')
+  let skippedCount = 0
+  if (existsSync(skipFile)) {
+    const skipContent = readFileSync(skipFile, 'utf8')
+    skippedCount = skipContent.split('\n').filter(line => {
+      const trimmed = line.trim()
+      return trimmed && !trimmed.startsWith('#')
+    }).length
+  }
+
+  if (skippedCount > 0) {
+    console.log(`  Found ${files.length} .scad files (expected: ${sourceInfo.fileCount}, skipped: ${skippedCount})`)
+  } else {
+    console.log(`  Found ${files.length} .scad files (expected: ${sourceInfo.fileCount})`)
+  }
 
   if (files.length === 0) {
     console.log(`  ⚠️  No files found, skipping`)
