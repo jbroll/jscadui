@@ -506,7 +506,7 @@ menu.init({
     baseUrl: new URL('./examples/', appBase).toString(),
     onLoad: (script, url) => {
       editor.setSource(script, url)
-      jscadScript({ script, url, base: new URL('./', new URL(url, appBase)).toString() })
+      jscadScript({ script, url, base: new URL('./', new URL(url, appBase)).toString(), root: appBase })
       welcome.dismiss()
     },
   })
