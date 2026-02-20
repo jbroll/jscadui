@@ -9,7 +9,6 @@
  *
  * Interactions:
  *   Click file        → call loadFile(url), panel stays open
- *   Click [ALL]       → call loadAll(fileUrls), panel stays open
  *   Click dir         → navigate into directory (drill-down)
  *   Click breadcrumb  → navigate back to that level
  *   Click ×           → close panel
@@ -18,7 +17,6 @@
  */
 
 import { fetchDirectoryListing } from './directoryParser.js'
-import { buildAllScript } from './gridLayout.js'
 
 // ──────────────────────────────────────────────────────────────────
 // CSS
@@ -209,8 +207,6 @@ let currentUrl = ''
 /** @type {(url:string)=>void} */
 let fileCallback = null
 
-/** @type {(urls:string[])=>void} */
-let allCallback = null
 
 // ──────────────────────────────────────────────────────────────────
 // Directory listing (with cache)
@@ -365,17 +361,7 @@ async function navigate(dirUrl) {
       ...files.map(f => ({ name: f, url: dirUrl + f, isLeafDir: false })),
     ].sort((a, b) => a.name.localeCompare(b.name))
 
-    // ALL button – only when there are file-like entries
-    if (allFiles.length > 0) {
-      const allUrls = allFiles.map(f => f.url)
-      const count = allFiles.length
-      const allBtn = el('button', {
-        className: 'demo-all-btn',
-        title: `Load all ${count} file${count !== 1 ? 's' : ''} in a grid`,
-        onclick: () => allCallback(allUrls),
-      }, `★ ALL (${count} file${count !== 1 ? 's' : ''})`)
-      content.appendChild(allBtn)
-    }
+    // Removed dynamic ALL button – use on-disk ALL.js files instead
 
     // Regular directory entries (navigable)
     if (regularDirs.length > 0) {
@@ -440,10 +426,8 @@ function onKey(e) {
  * @param {string}   opts.baseUrl  - Root URL for demos, e.g. '/examples/'
  * @param {(script:string, url:string) => void} opts.onLoad
  *   Called with the script text and URL when a single file is selected.
- * @param {(script:string, url:string) => void} opts.onLoadAll
- *   Called with a combined script and synthetic URL when ALL is selected.
  */
-export function showDemoBrowser({ baseUrl, onLoad, onLoadAll }) {
+export function showDemoBrowser({ baseUrl, onLoad }) {
   // Toggle: if already open, close it
   if (panel) {
     closePanel()
@@ -465,12 +449,6 @@ export function showDemoBrowser({ baseUrl, onLoad, onLoadAll }) {
     }
   }
 
-  // ── all callback ──
-  allCallback = (fileUrls) => {
-    const script = buildAllScript(fileUrls, 60, currentUrl)
-    const syntheticUrl = currentUrl + '__all__.js'
-    onLoadAll(script, syntheticUrl)
-  }
 
   // ── build panel ──
   panel = el('div', { className: 'demo-panel' })
