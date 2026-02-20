@@ -49,12 +49,7 @@
         {"name": "01-core", "description": "Core transforms (100-series)", "fileRange": "100-129"},
         {"name": "02-shapes-3d", "description": "3D shapes (200-series)", "fileRange": "200-229"},
         {"name": "03-shapes-2d", "description": "2D shapes (250-series)", "fileRange": "250-279"},
-        {"name": "04-attachments", "description": "Attachment system (300-series)", "fileRange": "300-329"},
-        {"name": "05-rounding", "description": "Rounding and masks (400-series)", "fileRange": "400-429"},
-        {"name": "06-paths", "description": "Path operations (500-series)", "fileRange": "500-529"},
-        {"name": "07-beziers", "description": "Bezier curves (550-series)", "fileRange": "550-579"},
-        {"name": "08-threading", "description": "Threaded parts (600-series)", "fileRange": "600-629"},
-        {"name": "09-misc", "description": "Miscellaneous", "fileRange": "630-700"}
+        {"name": "04-advanced", "description": "Advanced features: attachments, rounding, paths, beziers, threading", "fileRange": "300-700"}
       ]
     },
     "snippet": {
