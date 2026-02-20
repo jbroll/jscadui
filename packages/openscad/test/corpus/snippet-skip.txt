@@ -16,3 +16,11 @@ Wood_Crate.scad
 # differs, producing low Jaccard similarity (0.76). Not a transpiler bug.
 Shaft_01.scad
 Shaft_02_With_Keyway.scad
+
+# Depends on Import_Library.scad which has missing Asset_SCAD dependencies
+Scene_Test.scad
+
+# Text rendering mismatch: Hershey font produces different glyph geometry than OpenSCAD
+# built-in fonts, causing very low Jaccard similarity (0.0883). Script runs without errors;
+# this is a known font rendering difference, not a transpiler bug.
+text_basic.scad

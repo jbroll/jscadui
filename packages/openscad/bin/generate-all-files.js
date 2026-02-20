@@ -16,10 +16,17 @@
  * Options:
  *   --dry-run         Show what would be done without making changes
  *   --no-rename       Generate ALL.js but don't rename files (keep numeric prefixes)
+ *   --no-clean        Don't remove existing ALL.js files before generating
  *   --examples-dir    Path to examples directory (default: apps/jscad-web/examples)
+ *
+ * Configuration:
+ *   Reads generator.config.json from examples directory for:
+ *   - preservePrefixDirs: directories to keep numeric prefixes
+ *   - cleanBeforeGenerate: whether to clean old ALL.js files
+ *   - gridSettings: spacing and cellSizeRatio for grid layout
  */
 
-import { writeFileSync, readdirSync, renameSync, existsSync, unlinkSync } from 'fs'
+import { writeFileSync, readFileSync, readdirSync, renameSync, existsSync, unlinkSync } from 'fs'
 import { join, basename, dirname, relative } from 'path'
 import { fileURLToPath } from 'url'
 
@@ -31,6 +38,7 @@ const args = process.argv.slice(2)
 const options = {
   dryRun: args.includes('--dry-run'),
   noRename: args.includes('--no-rename'),
+  noClean: args.includes('--no-clean'),
   examplesDir: null
 }
 
@@ -43,13 +51,32 @@ if (examplesDirIdx !== -1 && args[examplesDirIdx + 1]) {
 }
 
 /**
- * Directories where numeric prefixes should be preserved for ordering
- * Paths are relative to examples root
+ * Load configuration from generator.config.json if it exists
  */
-const PRESERVE_PREFIX_DIRS = [
-  '', // Root examples directory (top-level .example.js files)
-  'benchmarks' // Benchmarks directory
-]
+function loadConfig(examplesDir) {
+  const configPath = join(examplesDir, 'generator.config.json')
+  if (existsSync(configPath)) {
+    try {
+      const content = readFileSync(configPath, 'utf8')
+      return JSON.parse(content)
+    } catch (err) {
+      console.warn(`Warning: Could not parse ${configPath}: ${err.message}`)
+    }
+  }
+
+  // Default configuration
+  return {
+    preservePrefixDirs: ['', 'benchmarks'],
+    cleanBeforeGenerate: true,
+    gridSettings: {
+      spacing: 60,
+      cellSizeRatio: 0.85
+    }
+  }
+}
+
+// Load configuration
+const config = loadConfig(options.examplesDir)
 
 /**
  * Find all model files in a directory (non-recursive)
@@ -112,8 +139,8 @@ function getLibPath(dir, examplesRoot) {
  */
 function generateAllFile(dir, items, examplesRoot) {
   const libPath = getLibPath(dir, examplesRoot)
-  const spacing = 60
-  const cellSize = spacing * 0.85
+  const spacing = config.gridSettings.spacing
+  const cellSize = spacing * config.gridSettings.cellSizeRatio
 
   const itemsJson = JSON.stringify(items, null, 2)
 
@@ -187,7 +214,7 @@ module.exports = { main }
  */
 function shouldPreservePrefix(dir, examplesRoot) {
   const relPath = relative(examplesRoot, dir)
-  return PRESERVE_PREFIX_DIRS.includes(relPath)
+  return config.preservePrefixDirs.includes(relPath)
 }
 
 /**
@@ -322,6 +349,40 @@ function processDirectory(dir, examplesRoot, depth = 0) {
 }
 
 /**
+ * Recursively clean ALL.js files from directory tree
+ */
+function cleanAllFiles(dir, depth = 0) {
+  if (!existsSync(dir)) return 0
+
+  let cleaned = 0
+  try {
+    const entries = readdirSync(dir, { withFileTypes: true })
+
+    // Clean ALL.js in current directory
+    const allPath = join(dir, 'ALL.js')
+    if (existsSync(allPath)) {
+      if (options.dryRun) {
+        console.log(`  [DRY RUN] Would remove ${allPath}`)
+      } else {
+        unlinkSync(allPath)
+        if (depth === 0) console.log(`  Removed old ALL.js files...`)
+      }
+      cleaned++
+    }
+
+    // Recurse into subdirectories
+    const subdirs = entries.filter(e => e.isDirectory() && !e.name.startsWith('.') && e.name !== 'lib')
+    for (const subdir of subdirs) {
+      cleaned += cleanAllFiles(join(dir, subdir.name), depth + 1)
+    }
+  } catch (err) {
+    console.warn(`Warning: Could not clean ${dir}: ${err.message}`)
+  }
+
+  return cleaned
+}
+
+/**
  * Main execution
  */
 function main() {
@@ -334,13 +395,25 @@ function main() {
   if (options.noRename) {
     console.log('\n*** NO RENAME - Files will keep numeric prefixes ***\n')
   }
+  if (options.noClean) {
+    console.log('\n*** NO CLEAN - Existing ALL.js files will not be removed ***\n')
+  }
 
   if (!existsSync(options.examplesDir)) {
     console.error(`Error: Examples directory not found: ${options.examplesDir}`)
     process.exit(1)
   }
 
-  console.log(`Scanning: ${options.examplesDir}\n`)
+  console.log(`Scanning: ${options.examplesDir}`)
+  console.log(`Config: preservePrefixDirs = ${JSON.stringify(config.preservePrefixDirs)}\n`)
+
+  // Clean old ALL.js files before generating new ones
+  if (config.cleanBeforeGenerate && !options.noClean) {
+    const cleaned = cleanAllFiles(options.examplesDir)
+    if (cleaned > 0 && !options.dryRun) {
+      console.log(`  Cleaned ${cleaned} old ALL.js files\n`)
+    }
+  }
 
   const stats = processDirectory(options.examplesDir, options.examplesDir)
 

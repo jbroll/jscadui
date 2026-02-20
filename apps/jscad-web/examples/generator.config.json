@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Configuration for generate-all-files.js script",
+  "preservePrefixDirs": [
+    "",
+    "benchmarks"
+  ],
+  "cleanBeforeGenerate": true,
+  "gridSettings": {
+    "spacing": 60,
+    "cellSizeRatio": 0.85
+  }
+}

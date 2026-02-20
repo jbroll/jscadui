@@ -6,7 +6,7 @@ import { parse } from '../src/parser/parse.js'
 import { transpile } from '../src/transpiler/transpile.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const corpusDir = join(__dirname, 'corpus')
+const corpusDir = join(__dirname, 'corpus', 'basics')
 
 /**
  * Snapshot tests for full transpilation
@@ -14,7 +14,7 @@ const corpusDir = join(__dirname, 'corpus')
  */
 
 describe('transpile corpus', () => {
-  // Get all .scad files in corpus root (not BOSL subdirectory)
+  // Get all .scad files in corpus/basics subdirectory
   const corpusFiles = readdirSync(corpusDir)
     .filter(f => f.endsWith('.scad'))
     .sort()
