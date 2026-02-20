@@ -26,7 +26,7 @@ import { boundingBox } from '@jscadui/format-common'
 import { genParams, getParams } from '@jscadui/params'
 
 // Local modules
-import defaultCode from './examples/01-two-cars.example.js'
+import defaultCode from './examples/jscad/01-two-cars.example.js'
 import { addV1Shim } from './src/addV1Shim.js'
 import * as editor from './src/editor.js'
 import * as engine from './src/engine.js'
@@ -548,7 +548,7 @@ await exporter.init(workerApi)
 
 // ============== Default Script ==============
 if (loadDefault && !hasRemoteScript) {
-  const defaultUrl = './examples/01-two-cars.example.js'
+  const defaultUrl = './examples/jscad/01-two-cars.example.js'
   const fullUrl = new URL(defaultUrl, appBase).toString()
   editor.setSource(defaultCode, fullUrl)
   jscadScript({ script: defaultCode, url: defaultUrl, base: appBase })

@@ -2,8 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Configuration for generate-all-files.js script",
   "preservePrefixDirs": [
-    "",
-    "benchmarks"
+    "jscad"
   ],
   "cleanBeforeGenerate": true,
   "gridSettings": {

@@ -1,6 +1,6 @@
 import { copyTask, parseArgs } from '@jbroll/jsx6-build'
 import { execSync } from 'child_process'
-import { existsSync, mkdirSync, readFileSync, copyFileSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, copyFileSync, rmSync } from 'fs'
 import liveServer from 'live-server'
 import {serve} from './serve.js'
 
@@ -58,6 +58,11 @@ mkdirSync(outDir, { recursive: true })
 /**************************** COPY STATIC ASSETS  *************/
 
 copyTask('static', outDir, { include: [], exclude: [], watch, filters: [htmlFilter] })
+
+// Clean examples directory before copying to prevent orphaned files
+if (existsSync(outDir + '/examples')) {
+  rmSync(outDir + '/examples', { recursive: true, force: true })
+}
 copyTask('examples', outDir+'/examples', { include: [], exclude: [], watch, filters: [] })
 //in dev mode dont try to sync docs, just copy the first time 
 if(!skipDocs && !(dev & existsSync(outDir + "/docs"))){

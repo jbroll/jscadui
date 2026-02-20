@@ -1,23 +1,12 @@
 "use strict"
 // Auto-generated ALL script – loads each model under its own params namespace,
 // normalises it to the grid cell size, and positions it in a grid.
+const jscad = require('@jscad/modeling')
+const { translate } = jscad.transforms
 const { gridPosition, normalizeAndPlace, urlToPartName } = require('./lib/grid-utils.js')
 
 const items = [
-  "./01-two-cars.example.js",
-  "./02-hierarchical-car.example.js",
-  "./03-jscad.example.js",
-  "./04-primitives.example.js",
-  "./05-extrusions.example.js",
-  "./06-hulls.example.js",
-  "./07-gear.example.js",
-  "./08-nuts-and-bolts.example.js",
-  "./09-text.example.js",
-  "./10-slicer.example.js",
-  "./11-balloons.example.js",
-  "./12-parameters.example.js",
-  "./13-multipart.example.js",
-  "./benchmarks/ALL.js",
+  "./jscad/ALL.js",
   "./openscad/ALL.js"
 ]
 const spacing = 60
@@ -49,7 +38,12 @@ const main = (params) => {
       const fn = (mod && mod.main) || (typeof mod === 'function' ? mod : null)
       if (typeof fn === 'function') {
         const geoms = [].concat(fn(params[name]))
-        all.push(...normalizeAndPlace(geoms, x, y, cellSize))
+        // Nested ALL.js files are already laid out - just translate, don't rescale
+        if (url.endsWith('/ALL.js')) {
+          all.push(...geoms.map(g => translate([x, y, 0], g)))
+        } else {
+          all.push(...normalizeAndPlace(geoms, x, y, cellSize))
+        }
       }
     } catch (err) {
       console.error('ALL: failed to load', url, err.message)

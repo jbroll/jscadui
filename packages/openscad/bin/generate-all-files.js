@@ -147,6 +147,8 @@ function generateAllFile(dir, items, examplesRoot) {
   const content = `"use strict"
 // Auto-generated ALL script – loads each model under its own params namespace,
 // normalises it to the grid cell size, and positions it in a grid.
+const jscad = require('@jscad/modeling')
+const { translate } = jscad.transforms
 const { gridPosition, normalizeAndPlace, urlToPartName } = require('${libPath}')
 
 const items = ${itemsJson}
@@ -179,7 +181,12 @@ const main = (params) => {
       const fn = (mod && mod.main) || (typeof mod === 'function' ? mod : null)
       if (typeof fn === 'function') {
         const geoms = [].concat(fn(params[name]))
-        all.push(...normalizeAndPlace(geoms, x, y, cellSize))
+        // Nested ALL.js files are already laid out - just translate, don't rescale
+        if (url.endsWith('/ALL.js')) {
+          all.push(...geoms.map(g => translate([x, y, 0], g)))
+        } else {
+          all.push(...normalizeAndPlace(geoms, x, y, cellSize))
+        }
       }
     } catch (err) {
       console.error('ALL: failed to load', url, err.message)
@@ -259,7 +266,9 @@ function processDirectory(dir, examplesRoot, depth = 0) {
 
   try {
     const entries = readdirSync(dir, { withFileTypes: true })
-    const subdirs = entries.filter(e => e.isDirectory() && !e.name.startsWith('.') && e.name !== 'lib')
+    const subdirs = entries
+      .filter(e => e.isDirectory() && !e.name.startsWith('.') && e.name !== 'lib')
+      .sort((a, b) => a.name.localeCompare(b.name))
     const modelFiles = findModelFiles(dir)
 
     console.log(`${indent}${basename(dir)}/`)
