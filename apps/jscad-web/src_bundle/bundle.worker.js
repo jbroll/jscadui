@@ -61,26 +61,30 @@ requireHandlers.set('scad', (source, url, _readFile) => {
   // Resolve use/include paths relative to the current file
   const fileDir = url.replace(/\/[^/]*$/, '/')
   const fileResolver = (filename, fromFile) => {
-    const base = fromFile ? fromFile.replace(/\/[^/]*$/, '/') : fileDir
-    // Ensure base is a full URL (handle both full URLs and paths)
-    const baseUrl = base.startsWith('http://') || base.startsWith('https://')
-      ? base
-      : new URL(base, self.location.origin).href
-
-    // Try relative to current file first
-    const resolvedUrl = new URL(filename, baseUrl).toString()
-    try {
-      // Use readFileWeb directly to avoid triggering the .scad handler recursively
-      const content = readFileWeb(resolvedUrl)
-      if (content !== undefined) {
-        return content
-      }
-    } catch (_e) {
-      // Not found, try library paths
-    }
-
     // Normalize path: remove leading ./ if present
     const normalizedFilename = filename.replace(/^\.\//, '')
+
+    // For library paths (starting with lib/), skip relative resolution and go directly to library search
+    // This avoids 404s like /examples/openscad/bosl2/06-paths/lib/vectors.scad
+    if (!normalizedFilename.startsWith('lib/')) {
+      const base = fromFile ? fromFile.replace(/\/[^/]*$/, '/') : fileDir
+      // Ensure base is a full URL (handle both full URLs and paths)
+      const baseUrl = base.startsWith('http://') || base.startsWith('https://')
+        ? base
+        : new URL(base, self.location.origin).href
+
+      // Try relative to current file first (for non-library includes)
+      const resolvedUrl = new URL(filename, baseUrl).toString()
+      try {
+        // Use readFileWeb directly to avoid triggering the .scad handler recursively
+        const content = readFileWeb(resolvedUrl)
+        if (content !== undefined) {
+          return content
+        }
+      } catch (_e) {
+        // Not found, try library paths
+      }
+    }
 
     // Get library paths based on context (prioritize the correct library)
     const contextFile = fromFile || url

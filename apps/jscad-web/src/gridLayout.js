@@ -104,7 +104,8 @@ const main = (params) => {
         all.push(...normalizeAndPlace(geoms, x, y, cellSize))
       }
     } catch (err) {
-      console.warn('demoBrowser: failed to load', url, err.message)
+      console.error('demoBrowser: failed to load', url, err.message)
+      throw new Error(\`Failed to load \${url}: \${err.message}\`)
     }
   })
   return all
