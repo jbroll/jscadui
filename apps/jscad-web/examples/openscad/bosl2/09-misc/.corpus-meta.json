@@ -5,7 +5,7 @@
   "fileRange": "630-700",
   "totalFiles": 2,
   "sourceDir": "test/corpus/bosl2",
-  "generatedAt": "2026-02-19T23:57:53.755Z",
+  "generatedAt": "2026-02-20T00:17:01.317Z",
   "files": [
     {
       "name": "650-hull-points.scad",

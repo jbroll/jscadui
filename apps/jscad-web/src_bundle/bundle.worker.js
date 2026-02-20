@@ -23,7 +23,15 @@ function getOpenscad() {
   return _openscad
 }
 
-requireHandlers.set('scad', (source, url, readFile) => {
+// OpenSCAD library search paths (similar to OPENSCADPATH)
+// These directories are searched when resolving library includes
+const OPENSCAD_LIBRARY_PATHS = [
+  './examples/openscad/bosl/lib/',
+  './examples/openscad/bosl2/lib/',
+  './examples/openscad/snippets/lib/',
+]
+
+requireHandlers.set('scad', (source, url, _readFile) => {
   const { parse, transpile } = getOpenscad()
 
   // Parse to AST (always succeeds; errors are collected but non-fatal)
@@ -41,12 +49,43 @@ requireHandlers.set('scad', (source, url, readFile) => {
     const baseUrl = base.startsWith('http://') || base.startsWith('https://')
       ? base
       : new URL(base, self.location.origin).href
+
+    // Try relative to current file first
     const resolvedUrl = new URL(filename, baseUrl).toString()
     try {
-      return readFile(resolvedUrl)
-    } catch {
-      return undefined
+      // Use readFileWeb directly to avoid triggering the .scad handler recursively
+      const content = readFileWeb(resolvedUrl)
+      if (content !== undefined) {
+        return content
+      }
+    } catch (_e) {
+      // Not found, try library paths
     }
+
+    // Normalize path: remove leading ./ if present
+    const normalizedFilename = filename.replace(/^\.\//, '')
+
+    // If not found, search in library paths (similar to OPENSCADPATH)
+    // This handles both files starting with lib/ and bare filenames when included from lib/ files
+    for (const libPath of OPENSCAD_LIBRARY_PATHS) {
+      // If filename starts with lib/, search for it directly in library paths
+      // Otherwise, search for lib/filename in library paths
+      const searchFilename = normalizedFilename.startsWith('lib/')
+        ? normalizedFilename.substring(4)  // Remove 'lib/' prefix
+        : normalizedFilename
+
+      const testUrl = new URL(libPath + searchFilename, self.location.origin).toString()
+      try {
+        const content = readFileWeb(testUrl)
+        if (content !== undefined) {
+          return content
+        }
+      } catch (_e) {
+        // Continue searching other library paths
+      }
+    }
+
+    return undefined
   }
 
   const result = transpile(ast, {
@@ -54,6 +93,21 @@ requireHandlers.set('scad', (source, url, readFile) => {
     currentFile: url,
     includeHeader: true,
   })
+
+  // Check for transpilation errors (especially file resolution failures)
+  if (result.errors && result.errors.length > 0) {
+    const criticalErrors = result.errors.filter(e =>
+      e.code === 'FILE_NOT_FOUND' || e.code === 'PARSE_ERROR'
+    )
+    if (criticalErrors.length > 0) {
+      const errorMessages = criticalErrors.map(e => e.message).join('; ')
+      throw new Error(`OpenSCAD transpilation failed: ${errorMessages}`)
+    }
+    // Log non-critical errors as warnings
+    for (const err of result.errors) {
+      console.warn(`OpenSCAD transpile warning in ${url}:`, err.message)
+    }
+  }
 
   return result.code
 })
@@ -108,3 +162,7 @@ initWorker({
   importData,
   customHandlers: { jscadGetExportFormats }
 })
+ 
+ 
+// rebuild trigger
+ 

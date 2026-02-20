@@ -13,7 +13,7 @@
  *   --force            Overwrite existing batch directories
  */
 
-import { readFileSync, writeFileSync, mkdirSync, copyFileSync, readdirSync, statSync, existsSync } from 'fs'
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, existsSync, cpSync } from 'fs'
 import { join, relative, dirname } from 'path'
 import { fileURLToPath } from 'url'
 
@@ -144,14 +144,14 @@ function createBatch(category, batchName, batch, sourceDir, targetDir) {
 
   console.log(`  📁 Creating batch: ${category}/${batchName} (${batch.files.length} files)`)
 
-  // Copy files
+  // Copy files as-is (no modifications)
   for (const file of batch.files) {
     const targetPath = join(batchDir, file.name)
 
     if (options.dryRun) {
       console.log(`     📄 ${file.name}`)
     } else {
-      copyFileSync(file.path, targetPath)
+      cpSync(file.path, targetPath)
     }
   }
 
@@ -217,6 +217,19 @@ function processCategory(categoryName) {
 
   // Organize into batches
   const batches = organizeCategoryByNumbering(categoryName, categoryConfig, files)
+
+  // Copy shared lib directory (once per category)
+  const sourceLinkDir = join(sourceDir, 'lib')
+  if (existsSync(sourceLinkDir)) {
+    const categoryDir = join(EXAMPLES_DIR, categoryName)
+    const targetLibDir = join(categoryDir, 'lib')
+
+    if (!options.dryRun) {
+      mkdirSync(categoryDir, { recursive: true })
+      cpSync(sourceLinkDir, targetLibDir, { recursive: true })
+    }
+    console.log(`  📚 Copied shared lib/ directory`)
+  }
 
   // Create batch directories and copy files
   let created = 0
