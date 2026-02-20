@@ -1,0 +1,155 @@
+{
+  "batchName": "02-shapes",
+  "category": "bosl",
+  "description": "Basic and advanced shape primitives",
+  "fileRange": "031-060",
+  "totalFiles": 24,
+  "sourceDir": "test/corpus/bosl",
+  "generatedAt": "2026-02-19T23:57:53.733Z",
+  "files": [
+    {
+      "name": "121-bosl-zspread.scad",
+      "originalPath": "test/corpus/bosl/121-bosl-zspread.scad",
+      "size": 82,
+      "lastModified": "2026-02-07T15:38:57.654Z"
+    },
+    {
+      "name": "122-bosl-distribute.scad",
+      "originalPath": "test/corpus/bosl/122-bosl-distribute.scad",
+      "size": 121,
+      "lastModified": "2026-02-07T15:38:57.887Z"
+    },
+    {
+      "name": "123-bosl-xdistribute.scad",
+      "originalPath": "test/corpus/bosl/123-bosl-xdistribute.scad",
+      "size": 110,
+      "lastModified": "2026-02-07T15:38:58.106Z"
+    },
+    {
+      "name": "124-bosl-ydistribute.scad",
+      "originalPath": "test/corpus/bosl/124-bosl-ydistribute.scad",
+      "size": 110,
+      "lastModified": "2026-02-07T15:38:58.334Z"
+    },
+    {
+      "name": "125-bosl-zdistribute.scad",
+      "originalPath": "test/corpus/bosl/125-bosl-zdistribute.scad",
+      "size": 110,
+      "lastModified": "2026-02-07T15:38:58.568Z"
+    },
+    {
+      "name": "126-bosl-grid2d.scad",
+      "originalPath": "test/corpus/bosl/126-bosl-grid2d.scad",
+      "size": 100,
+      "lastModified": "2026-02-07T15:39:06.376Z"
+    },
+    {
+      "name": "127-bosl-grid3d.scad",
+      "originalPath": "test/corpus/bosl/127-bosl-grid3d.scad",
+      "size": 94,
+      "lastModified": "2026-02-07T15:39:06.594Z"
+    },
+    {
+      "name": "128-bosl-rot-copies.scad",
+      "originalPath": "test/corpus/bosl/128-bosl-rot-copies.scad",
+      "size": 101,
+      "lastModified": "2026-02-07T15:39:06.816Z"
+    },
+    {
+      "name": "129-bosl-xrot-copies.scad",
+      "originalPath": "test/corpus/bosl/129-bosl-xrot-copies.scad",
+      "size": 102,
+      "lastModified": "2026-02-07T15:39:07.040Z"
+    },
+    {
+      "name": "130-bosl-yrot-copies.scad",
+      "originalPath": "test/corpus/bosl/130-bosl-yrot-copies.scad",
+      "size": 102,
+      "lastModified": "2026-02-07T15:39:07.273Z"
+    },
+    {
+      "name": "131-bosl-zrot-copies.scad",
+      "originalPath": "test/corpus/bosl/131-bosl-zrot-copies.scad",
+      "size": 102,
+      "lastModified": "2026-02-07T15:39:15.266Z"
+    },
+    {
+      "name": "132-bosl-xring.scad",
+      "originalPath": "test/corpus/bosl/132-bosl-xring.scad",
+      "size": 82,
+      "lastModified": "2026-02-07T15:39:15.489Z"
+    },
+    {
+      "name": "133-bosl-yring.scad",
+      "originalPath": "test/corpus/bosl/133-bosl-yring.scad",
+      "size": 82,
+      "lastModified": "2026-02-07T15:39:15.706Z"
+    },
+    {
+      "name": "134-bosl-zring.scad",
+      "originalPath": "test/corpus/bosl/134-bosl-zring.scad",
+      "size": 82,
+      "lastModified": "2026-02-07T15:39:15.933Z"
+    },
+    {
+      "name": "135-bosl-arc-of.scad",
+      "originalPath": "test/corpus/bosl/135-bosl-arc-of.scad",
+      "size": 97,
+      "lastModified": "2026-02-07T15:39:16.170Z"
+    },
+    {
+      "name": "136-bosl-mirror-copy.scad",
+      "originalPath": "test/corpus/bosl/136-bosl-mirror-copy.scad",
+      "size": 105,
+      "lastModified": "2026-02-07T15:39:25.513Z"
+    },
+    {
+      "name": "137-bosl-xflip-copy.scad",
+      "originalPath": "test/corpus/bosl/137-bosl-xflip-copy.scad",
+      "size": 97,
+      "lastModified": "2026-02-07T15:39:25.740Z"
+    },
+    {
+      "name": "138-bosl-yflip-copy.scad",
+      "originalPath": "test/corpus/bosl/138-bosl-yflip-copy.scad",
+      "size": 97,
+      "lastModified": "2026-02-07T15:39:25.960Z"
+    },
+    {
+      "name": "139-bosl-zflip-copy.scad",
+      "originalPath": "test/corpus/bosl/139-bosl-zflip-copy.scad",
+      "size": 97,
+      "lastModified": "2026-02-07T15:39:26.192Z"
+    },
+    {
+      "name": "140-bosl-half-of.scad",
+      "originalPath": "test/corpus/bosl/140-bosl-half-of.scad",
+      "size": 96,
+      "lastModified": "2026-02-07T15:39:26.435Z"
+    },
+    {
+      "name": "141-bosl-top-half.scad",
+      "originalPath": "test/corpus/bosl/141-bosl-top-half.scad",
+      "size": 90,
+      "lastModified": "2026-02-07T15:39:33.955Z"
+    },
+    {
+      "name": "142-bosl-bottom-half.scad",
+      "originalPath": "test/corpus/bosl/142-bosl-bottom-half.scad",
+      "size": 93,
+      "lastModified": "2026-02-07T15:39:34.170Z"
+    },
+    {
+      "name": "143-bosl-left-half.scad",
+      "originalPath": "test/corpus/bosl/143-bosl-left-half.scad",
+      "size": 91,
+      "lastModified": "2026-02-07T15:39:34.386Z"
+    },
+    {
+      "name": "144-bosl-right-half.scad",
+      "originalPath": "test/corpus/bosl/144-bosl-right-half.scad",
+      "size": 92,
+      "lastModified": "2026-02-07T15:39:34.615Z"
+    }
+  ]
+}

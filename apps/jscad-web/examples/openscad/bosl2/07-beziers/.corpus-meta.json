@@ -1,0 +1,23 @@
+{
+  "batchName": "07-beziers",
+  "category": "bosl2",
+  "description": "Bezier curves (550-series)",
+  "fileRange": "550-579",
+  "totalFiles": 2,
+  "sourceDir": "test/corpus/bosl2",
+  "generatedAt": "2026-02-19T23:57:53.755Z",
+  "files": [
+    {
+      "name": "550-bezier-curve.scad",
+      "originalPath": "test/corpus/bosl2/550-bezier-curve.scad",
+      "size": 165,
+      "lastModified": "2026-02-12T23:27:50.638Z"
+    },
+    {
+      "name": "551-bezier-sweep.scad",
+      "originalPath": "test/corpus/bosl2/551-bezier-sweep.scad",
+      "size": 148,
+      "lastModified": "2026-02-12T23:27:51.090Z"
+    }
+  ]
+}

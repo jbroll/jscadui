@@ -1,0 +1,69 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2026-02-19",
+  "description": "OpenSCAD test corpus metadata and provenance tracking",
+  "sources": {
+    "bosl": {
+      "repository": "https://github.com/revarbat/BOSL",
+      "commit": "master",
+      "branch": "master",
+      "importDate": "2026-01-15",
+      "fileCount": 146,
+      "notes": "BOSL v1 library - stable release, comprehensive shape and transform library",
+      "exclude": ["lib/"]
+    },
+    "bosl2": {
+      "repository": "https://github.com/BelfrySCAD/BOSL2",
+      "commit": "master",
+      "branch": "master",
+      "importDate": "2026-02-08",
+      "fileCount": 263,
+      "notes": "BOSL2 library - next generation with attachment system. Partial compatibility.",
+      "exclude": ["lib/"]
+    },
+    "snippet": {
+      "repository": "multiple",
+      "sources": [
+        {"name": "Asset_SCAD", "url": "https://github.com/GillesBouissac/agentscad"},
+        {"name": "Animation_SCAD", "url": "https://www.thingiverse.com/"},
+        {"name": "Image", "url": "https://github.com/openscad/list-comprehension-demos"}
+      ],
+      "importDate": "2026-01-20",
+      "fileCount": 122,
+      "notes": "Community snippets from various sources demonstrating different techniques",
+      "exclude": []
+    }
+  },
+  "categories": {
+    "bosl": {
+      "batches": [
+        {"name": "01-transforms", "description": "Transform operations: move, rot, scale, mirror", "fileRange": "001-030"},
+        {"name": "02-shapes", "description": "Basic and advanced shape primitives", "fileRange": "031-060"},
+        {"name": "03-advanced", "description": "Complex geometry operations", "fileRange": "061-090"},
+        {"name": "04-utilities", "description": "Helper functions and utilities", "fileRange": "091-120"},
+        {"name": "05-misc", "description": "Miscellaneous examples", "fileRange": "121-146"}
+      ]
+    },
+    "bosl2": {
+      "batches": [
+        {"name": "01-core", "description": "Core transforms (100-series)", "fileRange": "100-129"},
+        {"name": "02-shapes-3d", "description": "3D shapes (200-series)", "fileRange": "200-229"},
+        {"name": "03-shapes-2d", "description": "2D shapes (250-series)", "fileRange": "250-279"},
+        {"name": "04-attachments", "description": "Attachment system (300-series)", "fileRange": "300-329"},
+        {"name": "05-rounding", "description": "Rounding and masks (400-series)", "fileRange": "400-429"},
+        {"name": "06-paths", "description": "Path operations (500-series)", "fileRange": "500-529"},
+        {"name": "07-beziers", "description": "Bezier curves (550-series)", "fileRange": "550-579"},
+        {"name": "08-threading", "description": "Threaded parts (600-series)", "fileRange": "600-629"},
+        {"name": "09-misc", "description": "Miscellaneous", "fileRange": "630-700"}
+      ]
+    },
+    "snippet": {
+      "batches": [
+        {"name": "01-basic", "description": "Simple demonstrations", "maxFiles": 30},
+        {"name": "02-intermediate", "description": "Medium complexity", "maxFiles": 30},
+        {"name": "03-advanced", "description": "Complex examples", "maxFiles": 30},
+        {"name": "04-misc", "description": "Uncategorized", "maxFiles": 32}
+      ]
+    }
+  }
+}

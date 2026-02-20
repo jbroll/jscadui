@@ -1,0 +1,185 @@
+{
+  "batchName": "04-misc",
+  "category": "snippet",
+  "description": "Uncategorized",
+  "fileRange": "1-29",
+  "totalFiles": 29,
+  "sourceDir": "test/corpus/snippet",
+  "generatedAt": "2026-02-19T23:57:53.770Z",
+  "files": [
+    {
+      "name": "Street_03.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Street_03.scad",
+      "size": 1303,
+      "lastModified": "2026-02-08T04:02:07.895Z"
+    },
+    {
+      "name": "Street_04.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Street_04.scad",
+      "size": 1737,
+      "lastModified": "2026-02-08T04:02:07.895Z"
+    },
+    {
+      "name": "Street_05.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Street_05.scad",
+      "size": 1675,
+      "lastModified": "2026-02-08T04:02:07.895Z"
+    },
+    {
+      "name": "Street_06.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Street_06.scad",
+      "size": 1302,
+      "lastModified": "2026-02-08T04:02:07.895Z"
+    },
+    {
+      "name": "Sword_01.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Sword_01.scad",
+      "size": 1778,
+      "lastModified": "2026-02-08T04:02:07.895Z"
+    },
+    {
+      "name": "Table_01.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Table_01.scad",
+      "size": 1944,
+      "lastModified": "2026-02-08T04:02:07.895Z"
+    },
+    {
+      "name": "Table_02.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Table_02.scad",
+      "size": 1861,
+      "lastModified": "2026-02-08T04:02:07.895Z"
+    },
+    {
+      "name": "Table_03.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Table_03.scad",
+      "size": 2079,
+      "lastModified": "2026-02-08T04:02:07.895Z"
+    },
+    {
+      "name": "Table_Small_01.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Table_Small_01.scad",
+      "size": 1887,
+      "lastModified": "2026-02-08T04:02:07.896Z"
+    },
+    {
+      "name": "Tootbrush.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Tootbrush.scad",
+      "size": 1261,
+      "lastModified": "2026-02-08T04:02:07.896Z"
+    },
+    {
+      "name": "Tower.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Tower.scad",
+      "size": 2059,
+      "lastModified": "2026-02-08T04:02:07.896Z"
+    },
+    {
+      "name": "Traffic_Light.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Traffic_Light.scad",
+      "size": 1739,
+      "lastModified": "2026-02-08T04:02:07.896Z"
+    },
+    {
+      "name": "Transistor.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Transistor.scad",
+      "size": 1416,
+      "lastModified": "2026-02-08T04:02:07.896Z"
+    },
+    {
+      "name": "Tree_01.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Tree_01.scad",
+      "size": 927,
+      "lastModified": "2026-02-08T04:02:07.896Z"
+    },
+    {
+      "name": "Vent_Grid.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Vent_Grid.scad",
+      "size": 1453,
+      "lastModified": "2026-02-08T04:02:07.896Z"
+    },
+    {
+      "name": "Walking_Stick.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Walking_Stick.scad",
+      "size": 1980,
+      "lastModified": "2026-02-08T04:02:07.896Z"
+    },
+    {
+      "name": "Wall_01.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Wall_01.scad",
+      "size": 1539,
+      "lastModified": "2026-02-08T04:02:07.896Z"
+    },
+    {
+      "name": "Wall_02.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Wall_02.scad",
+      "size": 1852,
+      "lastModified": "2026-02-08T04:02:07.896Z"
+    },
+    {
+      "name": "Wall_03.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Wall_03.scad",
+      "size": 2300,
+      "lastModified": "2026-02-08T04:02:07.896Z"
+    },
+    {
+      "name": "Wall_04.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Wall_04.scad",
+      "size": 1729,
+      "lastModified": "2026-02-08T04:02:07.896Z"
+    },
+    {
+      "name": "Washer.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Washer.scad",
+      "size": 1293,
+      "lastModified": "2026-02-08T04:02:07.896Z"
+    },
+    {
+      "name": "Weights_01.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Weights_01.scad",
+      "size": 1840,
+      "lastModified": "2026-02-08T04:02:07.896Z"
+    },
+    {
+      "name": "Window_01.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Window_01.scad",
+      "size": 2018,
+      "lastModified": "2026-02-08T04:02:07.896Z"
+    },
+    {
+      "name": "Wood_Crate.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Wood_Crate.scad",
+      "size": 3074,
+      "lastModified": "2026-02-08T04:02:07.896Z"
+    },
+    {
+      "name": "x.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/x.scad",
+      "size": 124,
+      "lastModified": "2026-02-08T04:02:07.896Z"
+    },
+    {
+      "name": "Import_Library.scad",
+      "originalPath": "test/corpus/snippet/Import_Library.scad",
+      "size": 2289,
+      "lastModified": "2026-02-08T04:02:07.930Z"
+    },
+    {
+      "name": "Scene_City_Street.scad",
+      "originalPath": "test/corpus/snippet/Scene_City_Street.scad",
+      "size": 351,
+      "lastModified": "2026-02-08T04:02:07.931Z"
+    },
+    {
+      "name": "Scene_House.scad",
+      "originalPath": "test/corpus/snippet/Scene_House.scad",
+      "size": 648,
+      "lastModified": "2026-02-08T04:02:07.931Z"
+    },
+    {
+      "name": "Scene_Test.scad",
+      "originalPath": "test/corpus/snippet/Scene_Test.scad",
+      "size": 73,
+      "lastModified": "2026-02-08T04:02:07.931Z"
+    }
+  ]
+}

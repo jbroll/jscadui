@@ -69,6 +69,9 @@ export async function fetchDirectoryListing(url) {
     // Skip empty names or names that still contain slashes (nested paths)
     if (!clean || clean.includes('/')) continue
 
+    // Skip library directories (lib) - they're dependencies, not examples
+    if (clean === 'lib') continue
+
     if (hasTrailingSlash) {
       dirs.push(clean)
     } else if (isExecutable(clean)) {

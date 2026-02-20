@@ -1,0 +1,155 @@
+{
+  "batchName": "03-advanced",
+  "category": "bosl",
+  "description": "Complex geometry operations",
+  "fileRange": "061-090",
+  "totalFiles": 24,
+  "sourceDir": "test/corpus/bosl",
+  "generatedAt": "2026-02-19T23:57:53.736Z",
+  "files": [
+    {
+      "name": "145-bosl-front-half.scad",
+      "originalPath": "test/corpus/bosl/145-bosl-front-half.scad",
+      "size": 92,
+      "lastModified": "2026-02-07T15:39:34.856Z"
+    },
+    {
+      "name": "146-bosl-back-half.scad",
+      "originalPath": "test/corpus/bosl/146-bosl-back-half.scad",
+      "size": 91,
+      "lastModified": "2026-02-07T15:39:45.779Z"
+    },
+    {
+      "name": "147-bosl-chain-hull.scad",
+      "originalPath": "test/corpus/bosl/147-bosl-chain-hull.scad",
+      "size": 208,
+      "lastModified": "2026-02-07T15:39:45.884Z"
+    },
+    {
+      "name": "148-bosl-place-copies.scad",
+      "originalPath": "test/corpus/bosl/148-bosl-place-copies.scad",
+      "size": 109,
+      "lastModified": "2026-02-07T15:39:45.987Z"
+    },
+    {
+      "name": "149-bosl-translate-copies.scad",
+      "originalPath": "test/corpus/bosl/149-bosl-translate-copies.scad",
+      "size": 113,
+      "lastModified": "2026-02-07T15:39:46.085Z"
+    },
+    {
+      "name": "150-bosl-line-of.scad",
+      "originalPath": "test/corpus/bosl/150-bosl-line-of.scad",
+      "size": 104,
+      "lastModified": "2026-02-07T15:39:46.205Z"
+    },
+    {
+      "name": "20-up-transform.scad",
+      "originalPath": "test/corpus/bosl/20-up-transform.scad",
+      "size": 117,
+      "lastModified": "2026-02-07T14:45:05.691Z"
+    },
+    {
+      "name": "200-bosl-cuboid.scad",
+      "originalPath": "test/corpus/bosl/200-bosl-cuboid.scad",
+      "size": 125,
+      "lastModified": "2026-02-07T20:52:50.621Z"
+    },
+    {
+      "name": "201-directional-cubes.scad",
+      "originalPath": "test/corpus/bosl/201-directional-cubes.scad",
+      "size": 470,
+      "lastModified": "2026-02-07T21:19:13.580Z"
+    },
+    {
+      "name": "202-chamfcube.scad",
+      "originalPath": "test/corpus/bosl/202-chamfcube.scad",
+      "size": 139,
+      "lastModified": "2026-02-07T21:19:17.836Z"
+    },
+    {
+      "name": "203-rcube.scad",
+      "originalPath": "test/corpus/bosl/203-rcube.scad",
+      "size": 132,
+      "lastModified": "2026-02-07T21:19:21.253Z"
+    },
+    {
+      "name": "204-prismoid.scad",
+      "originalPath": "test/corpus/bosl/204-prismoid.scad",
+      "size": 146,
+      "lastModified": "2026-02-07T21:19:26.315Z"
+    },
+    {
+      "name": "205-right-triangle.scad",
+      "originalPath": "test/corpus/bosl/205-right-triangle.scad",
+      "size": 136,
+      "lastModified": "2026-02-07T21:19:29.677Z"
+    },
+    {
+      "name": "206-cyl.scad",
+      "originalPath": "test/corpus/bosl/206-cyl.scad",
+      "size": 144,
+      "lastModified": "2026-02-07T21:19:33.801Z"
+    },
+    {
+      "name": "207-oriented-cyls.scad",
+      "originalPath": "test/corpus/bosl/207-oriented-cyls.scad",
+      "size": 222,
+      "lastModified": "2026-02-07T21:19:38.174Z"
+    },
+    {
+      "name": "208-tube.scad",
+      "originalPath": "test/corpus/bosl/208-tube.scad",
+      "size": 114,
+      "lastModified": "2026-02-07T21:19:41.645Z"
+    },
+    {
+      "name": "209-torus.scad",
+      "originalPath": "test/corpus/bosl/209-torus.scad",
+      "size": 104,
+      "lastModified": "2026-02-07T21:19:45.029Z"
+    },
+    {
+      "name": "21-left-right.scad",
+      "originalPath": "test/corpus/bosl/21-left-right.scad",
+      "size": 199,
+      "lastModified": "2026-02-07T14:45:09.341Z"
+    },
+    {
+      "name": "210-teardrop.scad",
+      "originalPath": "test/corpus/bosl/210-teardrop.scad",
+      "size": 128,
+      "lastModified": "2026-02-07T21:19:48.310Z"
+    },
+    {
+      "name": "211-onion.scad",
+      "originalPath": "test/corpus/bosl/211-onion.scad",
+      "size": 112,
+      "lastModified": "2026-02-07T21:19:51.576Z"
+    },
+    {
+      "name": "212-pie-slice.scad",
+      "originalPath": "test/corpus/bosl/212-pie-slice.scad",
+      "size": 128,
+      "lastModified": "2026-02-07T21:19:55.727Z"
+    },
+    {
+      "name": "213-slot.scad",
+      "originalPath": "test/corpus/bosl/213-slot.scad",
+      "size": 132,
+      "lastModified": "2026-02-07T21:19:59.374Z"
+    },
+    {
+      "name": "214-arced-slot.scad",
+      "originalPath": "test/corpus/bosl/214-arced-slot.scad",
+      "size": 133,
+      "lastModified": "2026-02-07T21:20:04.176Z"
+    },
+    {
+      "name": "215-interior-fillet.scad",
+      "originalPath": "test/corpus/bosl/215-interior-fillet.scad",
+      "size": 132,
+      "lastModified": "2026-02-07T21:20:07.923Z"
+    }
+  ]
+}

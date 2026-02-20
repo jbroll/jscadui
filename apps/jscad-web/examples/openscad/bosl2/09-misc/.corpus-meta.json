@@ -1,0 +1,23 @@
+{
+  "batchName": "09-misc",
+  "category": "bosl2",
+  "description": "Miscellaneous",
+  "fileRange": "630-700",
+  "totalFiles": 2,
+  "sourceDir": "test/corpus/bosl2",
+  "generatedAt": "2026-02-19T23:57:53.755Z",
+  "files": [
+    {
+      "name": "650-hull-points.scad",
+      "originalPath": "test/corpus/bosl2/650-hull-points.scad",
+      "size": 153,
+      "lastModified": "2026-02-12T23:27:52.456Z"
+    },
+    {
+      "name": "700-cuboid-rounding.scad",
+      "originalPath": "test/corpus/bosl2/700-cuboid-rounding.scad",
+      "size": 91,
+      "lastModified": "2026-02-12T23:27:52.954Z"
+    }
+  ]
+}

@@ -57,10 +57,14 @@ export function buildAllScript(fileUrls, spacing = 60, dirUrl = '') {
   // Models fill 85 % of the cell; the remaining 15 % acts as gutters.
   const cellSize = spacing * 0.85
 
-  // For OpenSCAD subdirectories, use relative path to lib/grid-utils.js
-  // For root examples, inline the helper functions
-  const isOpenScadSubdir = dirUrl.includes('/openscad/') && !dirUrl.endsWith('/openscad/')
-  const libPath = isOpenScadSubdir ? '../lib/grid-utils.js' : './lib/grid-utils.js'
+  // Calculate relative path to examples/lib/grid-utils.js based on directory depth
+  // examples/ → ./lib/grid-utils.js
+  // examples/benchmarks/ → ../lib/grid-utils.js
+  // examples/openscad/01-basics/ → ../../lib/grid-utils.js
+  const pathSegments = dirUrl.replace(/^\//, '').split('/').filter(Boolean)
+  const examplesIndex = pathSegments.indexOf('examples')
+  const depth = examplesIndex >= 0 ? pathSegments.length - examplesIndex - 1 : 0
+  const libPath = depth === 0 ? './lib/grid-utils.js' : '../'.repeat(depth) + 'lib/grid-utils.js'
 
   return `"use strict"
 // Auto-generated ALL script – loads each model under its own params namespace,

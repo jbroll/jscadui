@@ -1,0 +1,41 @@
+{
+  "batchName": "05-rounding",
+  "category": "bosl2",
+  "description": "Rounding and masks (400-series)",
+  "fileRange": "400-429",
+  "totalFiles": 5,
+  "sourceDir": "test/corpus/bosl2",
+  "generatedAt": "2026-02-19T23:57:53.754Z",
+  "files": [
+    {
+      "name": "400-linear-sweep.scad",
+      "originalPath": "test/corpus/bosl2/400-linear-sweep.scad",
+      "size": 100,
+      "lastModified": "2026-02-12T23:27:09.717Z"
+    },
+    {
+      "name": "401-rotate-sweep.scad",
+      "originalPath": "test/corpus/bosl2/401-rotate-sweep.scad",
+      "size": 123,
+      "lastModified": "2026-02-12T23:27:09.917Z"
+    },
+    {
+      "name": "402-skin.scad",
+      "originalPath": "test/corpus/bosl2/402-skin.scad",
+      "size": 152,
+      "lastModified": "2026-02-12T23:27:10.160Z"
+    },
+    {
+      "name": "403-path-sweep.scad",
+      "originalPath": "test/corpus/bosl2/403-path-sweep.scad",
+      "size": 132,
+      "lastModified": "2026-02-12T23:27:22.811Z"
+    },
+    {
+      "name": "404-spiral-sweep.scad",
+      "originalPath": "test/corpus/bosl2/404-spiral-sweep.scad",
+      "size": 99,
+      "lastModified": "2026-02-12T23:27:23.083Z"
+    }
+  ]
+}

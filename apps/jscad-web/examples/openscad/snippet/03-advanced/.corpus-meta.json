@@ -1,0 +1,197 @@
+{
+  "batchName": "03-advanced",
+  "category": "snippet",
+  "description": "Complex examples",
+  "fileRange": "1-31",
+  "totalFiles": 31,
+  "sourceDir": "test/corpus/snippet",
+  "generatedAt": "2026-02-19T23:57:53.768Z",
+  "files": [
+    {
+      "name": "Letter_A.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Letter_A.scad",
+      "size": 13,
+      "lastModified": "2026-02-16T17:29:14.433Z"
+    },
+    {
+      "name": "Lever_Handle.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Lever_Handle.scad",
+      "size": 1638,
+      "lastModified": "2026-02-08T04:02:07.894Z"
+    },
+    {
+      "name": "Mallet.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Mallet.scad",
+      "size": 1465,
+      "lastModified": "2026-02-16T17:13:54.860Z"
+    },
+    {
+      "name": "Mech_Piece_01.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Mech_Piece_01.scad",
+      "size": 1916,
+      "lastModified": "2026-02-08T04:02:07.894Z"
+    },
+    {
+      "name": "Mech_Piece_02.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Mech_Piece_02.scad",
+      "size": 1804,
+      "lastModified": "2026-02-08T04:02:07.894Z"
+    },
+    {
+      "name": "Mech_Piece_03.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Mech_Piece_03.scad",
+      "size": 1696,
+      "lastModified": "2026-02-16T17:14:44.390Z"
+    },
+    {
+      "name": "Mech_Piece_04.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Mech_Piece_04.scad",
+      "size": 1538,
+      "lastModified": "2026-02-16T17:29:30.983Z"
+    },
+    {
+      "name": "Notebook.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Notebook.scad",
+      "size": 1583,
+      "lastModified": "2026-02-08T04:02:07.894Z"
+    },
+    {
+      "name": "Nut_LQ.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Nut_LQ.scad",
+      "size": 1543,
+      "lastModified": "2026-02-08T04:02:07.894Z"
+    },
+    {
+      "name": "Pendulum.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Pendulum.scad",
+      "size": 238,
+      "lastModified": "2026-02-16T17:14:11.664Z"
+    },
+    {
+      "name": "Pipe_00.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Pipe_00.scad",
+      "size": 1387,
+      "lastModified": "2026-02-08T04:02:07.895Z"
+    },
+    {
+      "name": "Pipe_45.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Pipe_45.scad",
+      "size": 1858,
+      "lastModified": "2026-02-08T04:02:07.895Z"
+    },
+    {
+      "name": "Pipe_90.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Pipe_90.scad",
+      "size": 1810,
+      "lastModified": "2026-02-08T04:02:07.895Z"
+    },
+    {
+      "name": "Resistor.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Resistor.scad",
+      "size": 2469,
+      "lastModified": "2026-02-08T04:02:07.895Z"
+    },
+    {
+      "name": "Ring.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Ring.scad",
+      "size": 1784,
+      "lastModified": "2026-02-08T04:02:07.895Z"
+    },
+    {
+      "name": "Rod_01.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Rod_01.scad",
+      "size": 2055,
+      "lastModified": "2026-02-08T04:02:07.895Z"
+    },
+    {
+      "name": "Roll_Holder.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Roll_Holder.scad",
+      "size": 316,
+      "lastModified": "2026-02-08T04:02:07.895Z"
+    },
+    {
+      "name": "Sauce_Bottle.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Sauce_Bottle.scad",
+      "size": 1769,
+      "lastModified": "2026-02-08T04:02:07.895Z"
+    },
+    {
+      "name": "Screw.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Screw.scad",
+      "size": 1488,
+      "lastModified": "2026-02-16T17:14:24.804Z"
+    },
+    {
+      "name": "Shaft_01.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Shaft_01.scad",
+      "size": 1324,
+      "lastModified": "2026-02-08T04:02:07.895Z"
+    },
+    {
+      "name": "Shaft_02_With_Keyway.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Shaft_02_With_Keyway.scad",
+      "size": 1771,
+      "lastModified": "2026-02-08T04:02:07.895Z"
+    },
+    {
+      "name": "Sign_01.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Sign_01.scad",
+      "size": 475,
+      "lastModified": "2026-02-08T04:02:07.895Z"
+    },
+    {
+      "name": "Sign_02.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Sign_02.scad",
+      "size": 564,
+      "lastModified": "2026-02-08T04:02:07.895Z"
+    },
+    {
+      "name": "Sign_03.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Sign_03.scad",
+      "size": 418,
+      "lastModified": "2026-02-08T04:02:07.895Z"
+    },
+    {
+      "name": "Soda_Cup_01.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Soda_Cup_01.scad",
+      "size": 1716,
+      "lastModified": "2026-02-08T04:02:07.895Z"
+    },
+    {
+      "name": "Sofa.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Sofa.scad",
+      "size": 1727,
+      "lastModified": "2026-02-08T04:02:07.895Z"
+    },
+    {
+      "name": "Stairs_01.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Stairs_01.scad",
+      "size": 1392,
+      "lastModified": "2026-02-08T04:02:07.895Z"
+    },
+    {
+      "name": "Stairs_02.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Stairs_02.scad",
+      "size": 1863,
+      "lastModified": "2026-02-08T04:02:07.895Z"
+    },
+    {
+      "name": "Stairs_03.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Stairs_03.scad",
+      "size": 2358,
+      "lastModified": "2026-02-08T04:02:07.895Z"
+    },
+    {
+      "name": "Street_01.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Street_01.scad",
+      "size": 1194,
+      "lastModified": "2026-02-08T04:02:07.895Z"
+    },
+    {
+      "name": "Street_02.scad",
+      "originalPath": "test/corpus/snippet/Asset_SCAD/Street_02.scad",
+      "size": 1703,
+      "lastModified": "2026-02-08T04:02:07.895Z"
+    }
+  ]
+}
