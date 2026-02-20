@@ -25,7 +25,7 @@
   ],
   "scripts": {
     "build": "tsc",
-    "test": "npm run build && vitest run && node bin/test-harness.js test/corpus --skip-file test/corpus/snippet-skip.txt --skip-file test/corpus/bosl2/skip.txt",
+    "test": "npm run build && vitest run && node bin/test-harness.js test/corpus --skip-file test/corpus/snippet-skip.txt --skip-file test/corpus/bosl2/skip.txt && node bin/test-harness.js ../../apps/jscad-web/examples/openscad",
     "test:basics": "node bin/test-harness.js ../../apps/jscad-web/examples/openscad/01-basics",
     "test:examples": "node bin/test-harness.js ../../apps/jscad-web/examples/openscad",
     "test:watch": "vitest",
