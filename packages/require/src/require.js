@@ -157,7 +157,31 @@ export const require = (urlOrSource, transform, readFile, base, root, importData
         } catch (e) {
           // L3 fix: Only try .ts fallback for 404/not-found errors, not other failures
           const isNotFound = e.message?.includes('not found') || e.message?.includes('404')
-          if (resolvedUrl.endsWith('.js') && isNotFound) {
+
+          // For .scad files, try library path searching before giving up
+          if (resolvedUrl.endsWith('.scad') && isNotFound) {
+            const filename = url.split('/').pop()
+            const OPENSCAD_LIBRARY_PATHS = [
+              './examples/openscad/bosl/lib/',
+              './examples/openscad/bosl2/lib/',
+              './examples/openscad/snippets/lib/',
+            ]
+            let found = false
+            for (const libPath of OPENSCAD_LIBRARY_PATHS) {
+              try {
+                const testUrl = new URL(libPath + filename, self.location.origin).toString()
+                source = readFile(testUrl)
+                resolvedUrl = testUrl
+                found = true
+                break
+              } catch (_libError) {
+                // Continue searching
+              }
+            }
+            if (!found) {
+              throw new Error(`failed to load module ${url}\n  ${e}`)
+            }
+          } else if (resolvedUrl.endsWith('.js') && isNotFound) {
             try {
               resolvedUrl = resolvedUrl.replace(/\.js$/, '.ts')
               source = readFile(resolvedUrl)
@@ -191,25 +215,25 @@ export const require = (urlOrSource, transform, readFile, base, root, importData
           // do not transform bundles that are already cjs ( requireCache.bundleAlias.*)
           source = transform(source, resolvedUrl).code
         }
-        // construct require function relative to resolvedUrl
-        const requireFunc = newUrl => require(newUrl, transform, readFile, resolvedUrl, root, importData, moduleBase)
-        const module = requireModule(url, resolvedUrl, source, requireFunc)
-        module.local = isRelativeFile
-        exports = module.exports
-        // import jscad from "@jscad/modeling";
-        // will be effectively transformed to
-        // const jscad = require('@jscad/modeling').default
-        // we need to plug-in default if missing
-        if (!('default' in exports)) exports.default = exports
+      }
+      // construct require function relative to resolvedUrl
+      const requireFunc = newUrl => require(newUrl, transform, readFile, resolvedUrl, root, importData, moduleBase)
+      const module = requireModule(url, resolvedUrl, source, requireFunc)
+      module.local = isRelativeFile
+      exports = module.exports
+      // import jscad from "@jscad/modeling";
+      // will be effectively transformed to
+      // const jscad = require('@jscad/modeling').default
+      // we need to plug-in default if missing
+      if (!('default' in exports)) exports.default = exports
 
-        // Auto-wrap legacy modules that have getParameterDefinitions
-        // This promotes them to work with the params proxy system
-        if (typeof exports.main === 'function' && typeof exports.getParameterDefinitions === 'function') {
-          const wrappedMain = wrapLegacyModule(exports)
-          exports.main = wrappedMain
-          // Keep getParameterDefinitions for inspection but mark as wrapped
-          exports._legacyWrapped = true
-        }
+      // Auto-wrap legacy modules that have getParameterDefinitions
+      // This promotes them to work with the params proxy system
+      if (typeof exports.main === 'function' && typeof exports.getParameterDefinitions === 'function') {
+        const wrappedMain = wrapLegacyModule(exports)
+        exports.main = wrappedMain
+        // Keep getParameterDefinitions for inspection but mark as wrapped
+        exports._legacyWrapped = true
       }
     }
 
