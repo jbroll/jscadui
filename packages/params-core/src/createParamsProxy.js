@@ -854,11 +854,31 @@ export const wrapLegacyModule = (module) => {
       proxyDefs = convertLegacyDefs(legacyDefs)
     }
 
-    // Inject legacy defs into the params proxy to register them for discovery
-    injectLegacyDefs(params, proxyDefs)
+    // Extract any values from incoming params (could be proxy or plain object)
+    const incomingValues = {}
+    if (params && typeof params === 'object') {
+      for (const [name] of Object.entries(proxyDefs)) {
+        const val = params[name]
+        // Skip child proxies - hierarchical mode creates these for unknown properties
+        if (val !== undefined && val._isParamsProxy !== true) {
+          incomingValues[name] = val
+        }
+      }
+    }
 
-    // Now call main - params proxy already has the defs registered
-    return main(params)
+    // Create isolated hierarchical state and inject legacy definitions
+    const isolatedState = createProxyState({}, new Set(), { mode: 'hierarchical' })
+    const isolatedParams = createParamsProxy(isolatedState)
+
+    // Inject the legacy parameter definitions into the isolated proxy
+    injectLegacyDefs(isolatedParams, proxyDefs)
+
+    // Override with any incoming values (though they should all be child proxies and skipped)
+    for (const [name, value] of Object.entries(incomingValues)) {
+      isolatedParams[name] = value
+    }
+
+    return main(isolatedParams)
   }
 
   // Expose the legacy definitions for inspection

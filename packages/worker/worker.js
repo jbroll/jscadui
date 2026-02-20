@@ -159,8 +159,6 @@ let userInteracted = new Set()
 let currentUiValues = {}
 /** @type {Object | null} */
 let legacyProxyDefs = null
-/** @type {boolean} */
-let hasJscadParamsComment = false
 
 // I1 fix: Generation counter to detect stale scripts after timeout
 // Increments each time jscadScript is called, used to abort timed-out scripts
@@ -303,10 +301,9 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
     let proxyState = null
     if (useParamsProxy) {
       // Determine params mode:
-      // - 'flat' for scripts with getParameterDefinitions or @jscad-params comments
+      // - 'flat' for scripts with getParameterDefinitions (legacy modules)
       // - 'hierarchical' for scripts using nested parts system
-      const useFlatMode = legacyProxyDefs || hasJscadParamsComment
-      const mode = useFlatMode ? 'flat' : 'hierarchical'
+      const mode = legacyProxyDefs ? 'flat' : 'hierarchical'
       proxyState = createProxyState(currentUiValues, userInteracted, { mode })
       const proxyParams = createParamsProxy(proxyState)
 
@@ -402,13 +399,9 @@ const jscadScript = async ({ script, url='jscad.js', base=globalBase, root=base,
     userInteracted = new Set()
     currentUiValues = {}
     legacyProxyDefs = null
-    hasJscadParamsComment = false
     solids = [] // C2 fix: Clear solids array to prevent memory leak on script reload
 
     if(!script) script = readFileWeb(resolveUrl(url, base, root).url)
-
-    // Detect @jscad-params style scripts (flat params with inline comments)
-    hasJscadParamsComment = script.includes('@jscad-params')
 
     const shouldTransform = url.endsWith('.ts') || script.includes('import') && (importReg.test(script) || exportReg.test(script))
     let def = []
