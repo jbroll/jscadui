@@ -177,6 +177,7 @@ async function createRuntime() {
 
   const expansionsPath = join(__dirname, '..', '..', 'manifold', 'src', 'expansions', 'index.js')
   const textPath = join(__dirname, '..', '..', 'manifold', 'src', 'text', 'index.js')
+  const measurementsPath = join(__dirname, '..', '..', 'manifold', 'src', 'measurements', 'index.js')
 
   const transforms = await import(transformsPath)
   const extrusions = await import(extrusionsPath)
@@ -184,6 +185,7 @@ async function createRuntime() {
   const colors = await import(colorsPath)
   const expansions = await import(expansionsPath)
   const textModule = await import(textPath)
+  const measurements = await import(measurementsPath)
 
   // Import geometries module for geom2 (needed by _linearExtrude with scale/twist)
   const geometriesPath = join(__dirname, '..', '..', 'manifold', 'src', 'geometries', 'index.js')
@@ -200,6 +202,7 @@ async function createRuntime() {
       cylinderElliptic: manifold.primitives.cylinderElliptic,
       circle: manifold.primitives.circle,
       rectangle: manifold.primitives.rectangle,
+      square: manifold.primitives.square,
       polygon: manifold.primitives.polygon,
       polyhedron: manifold.primitives.polyhedron,
       torus: manifold.primitives.torus,
@@ -264,6 +267,17 @@ async function createRuntime() {
     text: {
       vectorChar: textModule.vectorChar,
       vectorText: textModule.vectorText,
+    },
+    measurements: {
+      measureBoundingBox: measurements.measureBoundingBox,
+      measureVolume: measurements.measureVolume,
+      measureArea: measurements.measureArea,
+      measureCenter: measurements.measureCenter,
+      measureDimensions: measurements.measureDimensions,
+      measureIsEmpty: measurements.measureIsEmpty,
+      measureAggregateBoundingBox: measurements.measureAggregateBoundingBox,
+      measureBoundingSphere: measurements.measureBoundingSphere,
+      measureEpsilon: measurements.measureEpsilon,
     },
     maths: {
       mat4: {
@@ -498,29 +512,85 @@ async function main() {
     }
 
     // Custom require that serves transpiled files from in-memory cache
-    function customRequire(path) {
-      if (path === '@jscad/modeling') {
-        return jscadModeling
-      }
-      if (path === '@jscadui/openscad-runtime') {
-        return openscadRuntime
-      }
+    // and loads regular .js files from filesystem
+    function makeRequire(currentFileDir) {
+      return function customRequire(path) {
+        if (path === '@jscad/modeling') {
+          return jscadModeling
+        }
+        if (path === '@jscadui/openscad-runtime') {
+          return openscadRuntime
+        }
 
-      // The transpiler generates require() paths with .scad extension
-      // Convert to .js to look up in the moduleCache
-      const jsPath = path.replace(/\.scad$/, '.js')
+        // The transpiler generates require() paths with .scad extension
+        // Convert to .js to look up in the moduleCache
+        const jsPath = path.replace(/\.scad$/, '.js')
 
-      if (moduleCache.has(jsPath)) {
-        const code = moduleCache.get(jsPath)
-        const exports = {}
-        const moduleObj = { exports }
-        const fn = new Function('require', 'module', 'exports', code)
-        fn(customRequire, moduleObj, exports)
-        return moduleObj.exports
+        if (moduleCache.has(jsPath)) {
+          const code = moduleCache.get(jsPath)
+          const exports = {}
+          const moduleObj = { exports }
+          // Use the same directory context for cached modules
+          const fn = new Function('require', 'module', 'exports', code)
+          fn(customRequire, moduleObj, exports)
+          return moduleObj.exports
+        }
+
+        // Try to load .scad files from the filesystem (transpile on demand)
+        if (path.endsWith('.scad')) {
+          try {
+            const resolvedPath = resolve(currentFileDir, path)
+            if (existsSync(resolvedPath)) {
+              const scadSource = readFileSync(resolvedPath, 'utf8')
+              const fileDir = dirname(resolvedPath)
+              const transpiled = transpileScad(scadSource, resolvedPath, fileDir, options.fn, false, options.libPaths)
+
+              // Add transpiled dependencies to moduleCache for this run
+              for (const [name, code] of transpiled.moduleCache) {
+                if (!moduleCache.has(name)) {
+                  moduleCache.set(name, code)
+                }
+              }
+
+              const exports = {}
+              const moduleObj = { exports }
+              const newFileDir = dirname(resolvedPath)
+              const nestedRequire = makeRequire(newFileDir)
+              const fn = new Function('require', 'module', 'exports', transpiled.code)
+              fn(nestedRequire, moduleObj, exports)
+              return moduleObj.exports
+            }
+          } catch (_err) {
+            // Fall through to error below
+          }
+        }
+
+        // Try to load regular .js files from the filesystem
+        if (path.endsWith('.js') || path.startsWith('./') || path.startsWith('../')) {
+          try {
+            const resolvedPath = resolve(currentFileDir, path)
+            if (existsSync(resolvedPath)) {
+              const code = readFileSync(resolvedPath, 'utf8')
+              const exports = {}
+              const moduleObj = { exports }
+              // Create a new require function for the loaded file with its directory
+              const newFileDir = dirname(resolvedPath)
+              const nestedRequire = makeRequire(newFileDir)
+              const fn = new Function('require', 'module', 'exports', code)
+              fn(nestedRequire, moduleObj, exports)
+              return moduleObj.exports
+            }
+          } catch (_err) {
+            // Fall through to error below
+          }
+        }
+
+        throw new Error('Module not found: ' + path)
       }
-
-      throw new Error('Module not found: ' + path)
     }
+
+    const mainFileDir = dirname(inputPath)
+    const customRequire = makeRequire(mainFileDir)
 
     // Evaluate the code with our custom require
     const exports = {}
@@ -540,7 +610,30 @@ async function main() {
     // Call main() if it exists - handle both sync and async main()
     let result
     if (typeof moduleObj.exports.main === 'function') {
-      result = await Promise.resolve(moduleObj.exports.main())
+      // Create a simple params proxy that handles inline parameter definitions
+      // When code does: params.foo = {type: 'slider', default: 5, ...}
+      // Reading params.foo should return the value (5), not the definition
+      const paramsData = {}
+      const params = new Proxy(paramsData, {
+        set(target, prop, value) {
+          // If setting a parameter definition object, store the value
+          if (value && typeof value === 'object' && 'default' in value) {
+            target[prop] = value.default
+          } else {
+            target[prop] = value
+          }
+          return true
+        },
+        get(target, prop) {
+          // For nested params (params[name] = params[name] ?? {}), create nested proxy
+          if (!(prop in target)) {
+            target[prop] = new Proxy({}, this)
+          }
+          return target[prop]
+        }
+      })
+
+      result = await Promise.resolve(moduleObj.exports.main(params))
     } else {
       result = null
     }
