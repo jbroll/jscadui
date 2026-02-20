@@ -4,20 +4,20 @@
 const { gridPosition, normalizeAndPlace, urlToPartName } = require('../lib/grid-utils.js')
 
 const items = [
-  "./menger.example.js",
-  "./menger-intersect.example.js",
-  "./swiss-cheese.example.js",
-  "./thin-wall.example.js",
-  "./sphere-cloud.example.js",
-  "./sphere-union.example.js",
-  "./chainmail.example.js",
-  "./hull.example.js",
-  "./hull-chain.example.js",
-  "./mounting-plate.example.js",
-  "./expand.example.js",
-  "./vase.example.js",
-  "./minkowski.example.js",
-  "./minkowski-frame.example.js"
+  "./01-menger.example.js",
+  "./02-menger-intersect.example.js",
+  "./03-swiss-cheese.example.js",
+  "./04-thin-wall.example.js",
+  "./05-sphere-cloud.example.js",
+  "./06-sphere-union.example.js",
+  "./07-chainmail.example.js",
+  "./08-hull.example.js",
+  "./09-hull-chain.example.js",
+  "./10-mounting-plate.example.js",
+  "./11-expand.example.js",
+  "./12-vase.example.js",
+  "./13-minkowski.example.js",
+  "./14-minkowski-frame.example.js"
 ]
 const spacing = 60
 const cellSize = 51

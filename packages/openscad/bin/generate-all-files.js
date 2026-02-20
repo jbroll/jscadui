@@ -7,6 +7,8 @@
  * - Generates ALL.js for ANY directory containing models (.js or .scad files)
  * - Treats directories with single index.js/index.scad as leaf model files
  * - Parent directories aggregate subdirectory ALL.js files and direct model files
+ * - Preserves numeric prefixes for top-level examples and benchmarks (for directory ordering)
+ * - Removes numeric prefixes for OpenSCAD examples (not needed)
  *
  * Usage:
  *   node bin/generate-all-files.js [options]
@@ -39,6 +41,15 @@ if (examplesDirIdx !== -1 && args[examplesDirIdx + 1]) {
 } else {
   options.examplesDir = join(__dirname, '..', '..', '..', 'apps', 'jscad-web', 'examples')
 }
+
+/**
+ * Directories where numeric prefixes should be preserved for ordering
+ * Paths are relative to examples root
+ */
+const PRESERVE_PREFIX_DIRS = [
+  '', // Root examples directory (top-level .example.js files)
+  'benchmarks' // Benchmarks directory
+]
 
 /**
  * Find all model files in a directory (non-recursive)
@@ -172,9 +183,22 @@ module.exports = { main }
 }
 
 /**
- * Rename files to remove numeric prefixes
+ * Check if a directory should preserve numeric prefixes
  */
-function renameFilesInDirectory(dir, files) {
+function shouldPreservePrefix(dir, examplesRoot) {
+  const relPath = relative(examplesRoot, dir)
+  return PRESERVE_PREFIX_DIRS.includes(relPath)
+}
+
+/**
+ * Rename files to remove numeric prefixes (only if not in preserve list)
+ */
+function renameFilesInDirectory(dir, files, examplesRoot) {
+  // Don't rename files in directories where we want to preserve ordering
+  if (shouldPreservePrefix(dir, examplesRoot)) {
+    return 0
+  }
+
   let renamed = 0
   for (const file of files) {
     const newName = removePrefix(file)
@@ -226,6 +250,7 @@ function processDirectory(dir, examplesRoot, depth = 0) {
 
     // Collect items for this directory's ALL.js
     const items = []
+    const preservePrefix = shouldPreservePrefix(dir, examplesRoot)
 
     // Add direct model files (excluding index-only directories' content)
     for (const file of modelFiles) {
@@ -233,7 +258,9 @@ function processDirectory(dir, examplesRoot, depth = 0) {
       if ((file === 'index.js' || file === 'index.scad') && isIndexOnlyDirectory(dir)) {
         continue
       }
-      items.push('./' + (options.noRename ? file : removePrefix(file)))
+      // Preserve prefix if in preserve list, otherwise remove it
+      const filename = (options.noRename || preservePrefix) ? file : removePrefix(file)
+      items.push('./' + filename)
     }
 
     // Add subdirectories that have models
@@ -257,18 +284,20 @@ function processDirectory(dir, examplesRoot, depth = 0) {
       stats.dirs++
 
       // Rename direct model files first (before generating ALL.js)
+      // Only rename if not in preserve list
       if (!options.noRename && modelFiles.length > 0) {
-        const renamed = renameFilesInDirectory(dir, modelFiles)
+        const renamed = renameFilesInDirectory(dir, modelFiles, examplesRoot)
         stats.renamed += renamed
       }
 
       // Regenerate items list after potential rename
       const finalItems = []
+      const preservePrefix = shouldPreservePrefix(dir, examplesRoot)
       for (const file of modelFiles) {
         if ((file === 'index.js' || file === 'index.scad') && isIndexOnlyDirectory(dir)) {
           continue
         }
-        const finalName = options.noRename ? file : removePrefix(file)
+        const finalName = (options.noRename || preservePrefix) ? file : removePrefix(file)
         finalItems.push('./' + finalName)
       }
       for (const subdir of subdirResults) {
