@@ -3,9 +3,9 @@
   "category": "bosl2",
   "description": "Advanced features: attachments, rounding, paths, beziers, threading",
   "fileRange": "300-700",
-  "totalFiles": 27,
+  "totalFiles": 26,
   "sourceDir": "test/corpus/bosl2",
-  "generatedAt": "2026-02-20T02:12:10.592Z",
+  "generatedAt": "2026-02-20T02:23:29.795Z",
   "files": [
     {
       "name": "300-stroke.scad",
@@ -16,8 +16,8 @@
     {
       "name": "301-arc-3d.scad",
       "originalPath": "test/corpus/bosl2/301-arc-3d.scad",
-      "size": 102,
-      "lastModified": "2026-02-12T23:26:57.494Z"
+      "size": 93,
+      "lastModified": "2026-02-20T02:23:11.888Z"
     },
     {
       "name": "302-dashed-stroke.scad",
@@ -156,12 +156,6 @@
       "originalPath": "test/corpus/bosl2/601-vnf-vertex-array.scad",
       "size": 183,
       "lastModified": "2026-02-12T23:27:51.960Z"
-    },
-    {
-      "name": "650-hull-points.scad",
-      "originalPath": "test/corpus/bosl2/650-hull-points.scad",
-      "size": 153,
-      "lastModified": "2026-02-12T23:27:52.456Z"
     },
     {
       "name": "700-cuboid-rounding.scad",
