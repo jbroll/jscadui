@@ -7,7 +7,7 @@
  *        j$.cube({size: 10})
  */
 
-import { PI, _range, _min, _max, _num, str, version_num, search, _norm, _cross, _lookup, _rands, _resetRng, is_vector, chr, ord, is_consistent, _list_pattern, reverse, _sinDeg, _cosDeg, _tanDeg } from './math.js'
+import { PI, _range, _min, _max, _num, str, version_num, parent_module, search, _norm, _cross, _lookup, _rands, _resetRng, is_vector, chr, ord, is_consistent, _list_pattern, reverse, _sinDeg, _cosDeg, _tanDeg } from './math.js'
 import { _eq, _vadd, _vsub, _vmul, _vdiv, _vneg } from './vector.js'
 import { _getSegments, setGlobalFn } from './segments.js'
 import { initPrimitives, _cube, _cylinder, _sphere, _circle, _square, _regular_polygon, _polyhedron, _safeUnion, _hull, _union, _subtract, _intersect, _minkowski, _polygon } from './primitives.js'
@@ -51,6 +51,7 @@ const j$ = {
   num: _num,
   str,
   version_num,
+  parent_module,
   search,
   norm: _norm,
   cross: _cross,
@@ -244,7 +245,7 @@ export default j$
 export { j$ }
 
 // Keep legacy exports for backwards compatibility during transition
-export { PI, _range, _min, _max, _num, str, version_num, search, _norm, _cross, _lookup, _rands, is_vector, chr, ord, is_consistent, _list_pattern, reverse } from './math.js'
+export { PI, _range, _min, _max, _num, str, version_num, parent_module, search, _norm, _cross, _lookup, _rands, is_vector, chr, ord, is_consistent, _list_pattern, reverse } from './math.js'
 export { _eq, _vadd, _vsub, _vmul, _vdiv, _vneg } from './vector.js'
 export { _getSegments, setGlobalFn } from './segments.js'
 export { initPrimitives, _cube, _cylinder, _sphere, _circle, _square, _regular_polygon, _polyhedron, _safeUnion, _hull, _union, _subtract, _intersect, _minkowski, _polygon } from './primitives.js'

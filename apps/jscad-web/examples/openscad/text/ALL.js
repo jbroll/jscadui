@@ -1,10 +1,9 @@
 "use strict"
 // Auto-generated ALL script – loads each model under its own params namespace,
 // normalises it to the grid cell size, and positions it in a grid.
-const { gridPosition, normalizeAndPlace, urlToPartName } = require('../lib/grid-utils.js')
+const { gridPosition, normalizeAndPlace, urlToPartName } = require('../../lib/grid-utils.js')
 
 const items = [
-  "./text_basic.scad",
   "./text-2d.scad",
   "./text-direction.scad",
   "./text-extrude-height.scad",
@@ -14,7 +13,8 @@ const items = [
   "./text-multiline.scad",
   "./text-sizes.scad",
   "./text-spacing.scad",
-  "./text-valign.scad"
+  "./text-valign.scad",
+  "./text_basic.scad"
 ]
 const spacing = 60
 const cellSize = 51

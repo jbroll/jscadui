@@ -48,6 +48,14 @@ export const str = (...args) => args.map(a =>
 export const version_num = () => 20210100
 
 /**
+ * OpenSCAD parent_module function
+ * Returns the name of the calling module (for introspection/debugging)
+ * In OpenSCAD: parent_module(n) returns name of module n levels up the call stack
+ * Since we don't have real module context, return placeholder
+ */
+export const parent_module = (n = 0) => `<module-${n}>`
+
+/**
  * OpenSCAD search function
  * search(match_values, source, num_returns=1, index_col_num)
  * Returns list of lists - for each match_value, a list of indices where it was found

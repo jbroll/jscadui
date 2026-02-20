@@ -782,7 +782,7 @@ export function transpileFunctionCall(
 
   // Helper functions from j$ runtime
   if (useBuiltin) {
-    const helperFuncs = ['norm', 'cross', 'lookup', 'rands', 'search', 'version_num', 'str', 'chr', 'ord', 'reverse']
+    const helperFuncs = ['norm', 'cross', 'lookup', 'rands', 'search', 'version_num', 'parent_module', 'str', 'chr', 'ord', 'reverse']
     if (helperFuncs.includes(callee)) {
       return `j$.${callee}(${args})`
     }

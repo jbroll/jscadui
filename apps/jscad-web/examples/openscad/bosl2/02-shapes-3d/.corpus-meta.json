@@ -3,9 +3,9 @@
   "category": "bosl2",
   "description": "3D shapes (200-series)",
   "fileRange": "200-229",
-  "totalFiles": 16,
+  "totalFiles": 15,
   "sourceDir": "test/corpus/bosl2",
-  "generatedAt": "2026-02-20T02:12:10.587Z",
+  "generatedAt": "2026-02-20T13:00:44.196Z",
   "files": [
     {
       "name": "200-cuboid.scad",
@@ -36,12 +36,6 @@
       "originalPath": "test/corpus/bosl2/204-tube.scad",
       "size": 81,
       "lastModified": "2026-02-08T13:57:31.772Z"
-    },
-    {
-      "name": "205-torus.scad",
-      "originalPath": "test/corpus/bosl2/205-torus.scad",
-      "size": 82,
-      "lastModified": "2026-02-08T13:57:31.966Z"
     },
     {
       "name": "206-wedge.scad",

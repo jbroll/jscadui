@@ -10,7 +10,7 @@
  */
 
 import { readFileSync, writeFileSync, existsSync } from 'node:fs'
-import { resolve, basename } from 'node:path'
+import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { parse } from '../esm/parser/parse.js'
@@ -353,49 +353,35 @@ function getLibraryPaths(customPaths = []) {
 
 /**
  * File resolver for use statements in OpenSCAD
- * Resolves relative to the directory containing the current file,
- * then checks OpenSCAD library paths for packages like BOSL
+ * Simple resolution order:
+ * 1. Try relative to current file (or base directory)
+ * 2. Try in library paths (OPENSCADPATH-like behavior)
  *
- * Tracks the actual resolved paths so that nested dependencies (like BOSL/math.scad
- * included by BOSL/transforms.scad) resolve correctly from the library path.
+ * No special casing - filesystem checks are cheap in Node.js
  */
 function createFileResolver(fileDir, customLibPaths = []) {
   const libraryPaths = getLibraryPaths(customLibPaths)
-  // Map logical path -> actual filesystem path for files resolved from library
-  const resolvedPaths = new Map()
 
   return function fileResolver(filename, fromFile) {
-    // If fromFile was resolved from a library path, use that path for resolution
-    let baseDir
-    if (fromFile && resolvedPaths.has(fromFile)) {
-      baseDir = dirname(resolvedPaths.get(fromFile))
-    } else {
-      baseDir = fromFile ? dirname(resolve(fileDir, fromFile)) : fileDir
-    }
-    const targetPath = resolve(baseDir, filename)
+    // Try relative to current file first
+    const baseDir = fromFile ? dirname(fromFile) : fileDir
+    const relativePath = resolve(baseDir, filename)
 
-    // First check relative to current file (or its library location)
-    if (existsSync(targetPath)) {
-      // Track the actual path for this logical name
-      resolvedPaths.set(filename, targetPath)
-      // For nested files from libraries, preserve the library-relative path
-      if (fromFile && resolvedPaths.has(fromFile)) {
-        const libBase = libraryPaths.find(lp => resolvedPaths.get(fromFile).startsWith(lp))
-        if (libBase) {
-          const relPath = targetPath.substring(libBase.length + 1)
-          resolvedPaths.set(relPath, targetPath)
-        }
+    if (existsSync(relativePath)) {
+      return {
+        path: relativePath,  // Use full filesystem path
+        content: readFileSync(relativePath, 'utf8')
       }
-      return readFileSync(targetPath, 'utf8')
     }
 
-    // Then check library paths
+    // Try each library path
     for (const libPath of libraryPaths) {
       const libTargetPath = resolve(libPath, filename)
       if (existsSync(libTargetPath)) {
-        // Track both the requested filename and the full library-relative path
-        resolvedPaths.set(filename, libTargetPath)
-        return readFileSync(libTargetPath, 'utf8')
+        return {
+          path: libTargetPath,  // Use full filesystem path
+          content: readFileSync(libTargetPath, 'utf8')
+        }
       }
     }
 
@@ -422,6 +408,7 @@ function transpileScad(source, fileName, fileDir, fn = 0, sourceComments = false
   })
 
   // Build in-memory module cache from transpiled files
+  // Keys are paths like 'lib/std.scad', convert to './lib/std.js' for require()
   const moduleCache = new Map()
   for (const [name, file] of result.files) {
     const jsName = './' + name.replace(/\.scad$/, '.js')
@@ -477,7 +464,7 @@ async function main() {
 
     if (isScad) {
       const fileDir = dirname(inputPath)
-      const fileName = basename(inputPath)
+      const fileName = inputPath  // Use full filesystem path
       const transpiled = transpileScad(source, fileName, fileDir, options.fn, options.sourceComments, options.libPaths)
       jsCode = transpiled.code
       moduleCache = transpiled.moduleCache
@@ -502,26 +489,27 @@ async function main() {
     const runtimePath = join(__dirname, '..', '..', 'openscad-runtime', 'src', 'index.js')
     const openscadRuntime = await import(runtimePath)
 
+    // Create the jscadui_openscad global that the transpiled code expects
+    // This mirrors the bundle structure from bundle.openscad.js
+    global.jscadui_openscad = {
+      parse,
+      transpile,
+      j$: openscadRuntime.j$
+    }
+
     // Custom require that serves transpiled files from in-memory cache
     function customRequire(path) {
-      // console.error('[DEBUG customRequire]', path)
       if (path === '@jscad/modeling') {
         return jscadModeling
       }
       if (path === '@jscadui/openscad-runtime') {
         return openscadRuntime
       }
-      // Check if it's a transpiled dependency
-      if (moduleCache.has(path)) {
-        const code = moduleCache.get(path)
-        const exports = {}
-        const moduleObj = { exports }
-        const fn = new Function('require', 'module', 'exports', code)
-        fn(customRequire, moduleObj, exports)
-        return moduleObj.exports
-      }
-      // Also try with .scad -> .js replacement for files in lib/
+
+      // The transpiler generates require() paths with .scad extension
+      // Convert to .js to look up in the moduleCache
       const jsPath = path.replace(/\.scad$/, '.js')
+
       if (moduleCache.has(jsPath)) {
         const code = moduleCache.get(jsPath)
         const exports = {}
@@ -530,6 +518,7 @@ async function main() {
         fn(customRequire, moduleObj, exports)
         return moduleObj.exports
       }
+
       throw new Error('Module not found: ' + path)
     }
 

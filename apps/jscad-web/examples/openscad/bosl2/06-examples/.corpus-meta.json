@@ -1,0 +1,455 @@
+{
+  "batchName": "06-examples",
+  "category": "bosl2",
+  "description": "Library examples and demonstrations (900-series)",
+  "fileRange": "900-999",
+  "totalFiles": 74,
+  "sourceDir": "test/corpus/bosl2",
+  "generatedAt": "2026-02-20T13:00:44.220Z",
+  "files": [
+    {
+      "name": "900-attachments-ex.scad",
+      "originalPath": "test/corpus/bosl2/900-attachments-ex.scad",
+      "size": 277,
+      "lastModified": "2026-02-14T12:12:56.670Z"
+    },
+    {
+      "name": "901-attachments-ex.scad",
+      "originalPath": "test/corpus/bosl2/901-attachments-ex.scad",
+      "size": 288,
+      "lastModified": "2026-02-14T12:12:56.670Z"
+    },
+    {
+      "name": "902-ball_bearings-ex.scad",
+      "originalPath": "test/corpus/bosl2/902-ball_bearings-ex.scad",
+      "size": 171,
+      "lastModified": "2026-02-14T12:12:56.671Z"
+    },
+    {
+      "name": "903-ball_bearings-ex.scad",
+      "originalPath": "test/corpus/bosl2/903-ball_bearings-ex.scad",
+      "size": 173,
+      "lastModified": "2026-02-14T12:12:56.671Z"
+    },
+    {
+      "name": "904-bottlecaps-ex.scad",
+      "originalPath": "test/corpus/bosl2/904-bottlecaps-ex.scad",
+      "size": 152,
+      "lastModified": "2026-02-14T12:12:56.671Z"
+    },
+    {
+      "name": "905-bottlecaps-ex.scad",
+      "originalPath": "test/corpus/bosl2/905-bottlecaps-ex.scad",
+      "size": 206,
+      "lastModified": "2026-02-14T12:12:56.671Z"
+    },
+    {
+      "name": "906-color-ex.scad",
+      "originalPath": "test/corpus/bosl2/906-color-ex.scad",
+      "size": 176,
+      "lastModified": "2026-02-14T12:12:56.671Z"
+    },
+    {
+      "name": "907-color-ex.scad",
+      "originalPath": "test/corpus/bosl2/907-color-ex.scad",
+      "size": 168,
+      "lastModified": "2026-02-14T12:12:56.672Z"
+    },
+    {
+      "name": "908-comparisons-ex.scad",
+      "originalPath": "test/corpus/bosl2/908-comparisons-ex.scad",
+      "size": 217,
+      "lastModified": "2026-02-14T12:12:56.672Z"
+    },
+    {
+      "name": "909-constants-ex.scad",
+      "originalPath": "test/corpus/bosl2/909-constants-ex.scad",
+      "size": 140,
+      "lastModified": "2026-02-14T12:12:56.672Z"
+    },
+    {
+      "name": "910-constants-ex.scad",
+      "originalPath": "test/corpus/bosl2/910-constants-ex.scad",
+      "size": 154,
+      "lastModified": "2026-02-14T12:12:56.672Z"
+    },
+    {
+      "name": "911-cubetruss-ex.scad",
+      "originalPath": "test/corpus/bosl2/911-cubetruss-ex.scad",
+      "size": 186,
+      "lastModified": "2026-02-14T12:12:56.673Z"
+    },
+    {
+      "name": "912-cubetruss-ex.scad",
+      "originalPath": "test/corpus/bosl2/912-cubetruss-ex.scad",
+      "size": 261,
+      "lastModified": "2026-02-14T12:12:56.673Z"
+    },
+    {
+      "name": "913-distributors-ex.scad",
+      "originalPath": "test/corpus/bosl2/913-distributors-ex.scad",
+      "size": 145,
+      "lastModified": "2026-02-14T12:12:56.673Z"
+    },
+    {
+      "name": "914-distributors-ex.scad",
+      "originalPath": "test/corpus/bosl2/914-distributors-ex.scad",
+      "size": 145,
+      "lastModified": "2026-02-14T12:12:56.673Z"
+    },
+    {
+      "name": "915-drawing-ex.scad",
+      "originalPath": "test/corpus/bosl2/915-drawing-ex.scad",
+      "size": 174,
+      "lastModified": "2026-02-14T12:12:56.673Z"
+    },
+    {
+      "name": "916-drawing-ex.scad",
+      "originalPath": "test/corpus/bosl2/916-drawing-ex.scad",
+      "size": 208,
+      "lastModified": "2026-02-14T12:12:56.673Z"
+    },
+    {
+      "name": "917-fnliterals-ex.scad",
+      "originalPath": "test/corpus/bosl2/917-fnliterals-ex.scad",
+      "size": 190,
+      "lastModified": "2026-02-14T12:12:56.673Z"
+    },
+    {
+      "name": "918-gears-ex.scad",
+      "originalPath": "test/corpus/bosl2/918-gears-ex.scad",
+      "size": 205,
+      "lastModified": "2026-02-14T12:12:56.673Z"
+    },
+    {
+      "name": "919-gears-ex.scad",
+      "originalPath": "test/corpus/bosl2/919-gears-ex.scad",
+      "size": 200,
+      "lastModified": "2026-02-14T12:12:56.673Z"
+    },
+    {
+      "name": "920-geometry-ex.scad",
+      "originalPath": "test/corpus/bosl2/920-geometry-ex.scad",
+      "size": 213,
+      "lastModified": "2026-02-14T12:12:56.673Z"
+    },
+    {
+      "name": "921-geometry-ex.scad",
+      "originalPath": "test/corpus/bosl2/921-geometry-ex.scad",
+      "size": 203,
+      "lastModified": "2026-02-14T12:12:56.674Z"
+    },
+    {
+      "name": "922-hinges-ex.scad",
+      "originalPath": "test/corpus/bosl2/922-hinges-ex.scad",
+      "size": 190,
+      "lastModified": "2026-02-14T12:12:56.674Z"
+    },
+    {
+      "name": "923-hinges-ex.scad",
+      "originalPath": "test/corpus/bosl2/923-hinges-ex.scad",
+      "size": 167,
+      "lastModified": "2026-02-14T12:12:56.674Z"
+    },
+    {
+      "name": "924-hooks-ex.scad",
+      "originalPath": "test/corpus/bosl2/924-hooks-ex.scad",
+      "size": 159,
+      "lastModified": "2026-02-14T12:12:56.674Z"
+    },
+    {
+      "name": "925-hooks-ex.scad",
+      "originalPath": "test/corpus/bosl2/925-hooks-ex.scad",
+      "size": 232,
+      "lastModified": "2026-02-14T12:12:56.674Z"
+    },
+    {
+      "name": "926-joiners-ex.scad",
+      "originalPath": "test/corpus/bosl2/926-joiners-ex.scad",
+      "size": 156,
+      "lastModified": "2026-02-14T12:12:56.674Z"
+    },
+    {
+      "name": "927-joiners-ex.scad",
+      "originalPath": "test/corpus/bosl2/927-joiners-ex.scad",
+      "size": 146,
+      "lastModified": "2026-02-14T12:12:56.674Z"
+    },
+    {
+      "name": "928-linalg-ex.scad",
+      "originalPath": "test/corpus/bosl2/928-linalg-ex.scad",
+      "size": 208,
+      "lastModified": "2026-02-14T12:12:56.674Z"
+    },
+    {
+      "name": "929-linear_bearings-ex.scad",
+      "originalPath": "test/corpus/bosl2/929-linear_bearings-ex.scad",
+      "size": 230,
+      "lastModified": "2026-02-14T12:12:56.674Z"
+    },
+    {
+      "name": "930-linear_bearings-ex.scad",
+      "originalPath": "test/corpus/bosl2/930-linear_bearings-ex.scad",
+      "size": 191,
+      "lastModified": "2026-02-14T12:12:56.674Z"
+    },
+    {
+      "name": "931-lists-ex.scad",
+      "originalPath": "test/corpus/bosl2/931-lists-ex.scad",
+      "size": 146,
+      "lastModified": "2026-02-14T12:12:56.674Z"
+    },
+    {
+      "name": "932-masks-ex.scad",
+      "originalPath": "test/corpus/bosl2/932-masks-ex.scad",
+      "size": 151,
+      "lastModified": "2026-02-14T12:12:56.674Z"
+    },
+    {
+      "name": "933-masks-ex.scad",
+      "originalPath": "test/corpus/bosl2/933-masks-ex.scad",
+      "size": 220,
+      "lastModified": "2026-02-14T12:12:56.674Z"
+    },
+    {
+      "name": "934-math-ex.scad",
+      "originalPath": "test/corpus/bosl2/934-math-ex.scad",
+      "size": 185,
+      "lastModified": "2026-02-14T12:12:56.674Z"
+    },
+    {
+      "name": "935-math-ex.scad",
+      "originalPath": "test/corpus/bosl2/935-math-ex.scad",
+      "size": 186,
+      "lastModified": "2026-02-14T12:12:56.675Z"
+    },
+    {
+      "name": "936-metric_screws-ex.scad",
+      "originalPath": "test/corpus/bosl2/936-metric_screws-ex.scad",
+      "size": 310,
+      "lastModified": "2026-02-14T12:12:56.675Z"
+    },
+    {
+      "name": "937-metric_screws-ex.scad",
+      "originalPath": "test/corpus/bosl2/937-metric_screws-ex.scad",
+      "size": 201,
+      "lastModified": "2026-02-14T12:12:56.675Z"
+    },
+    {
+      "name": "938-miscellaneous-ex.scad",
+      "originalPath": "test/corpus/bosl2/938-miscellaneous-ex.scad",
+      "size": 219,
+      "lastModified": "2026-02-14T12:12:56.675Z"
+    },
+    {
+      "name": "940-modular_hose-ex.scad",
+      "originalPath": "test/corpus/bosl2/940-modular_hose-ex.scad",
+      "size": 255,
+      "lastModified": "2026-02-14T12:12:56.675Z"
+    },
+    {
+      "name": "941-modular_hose-ex.scad",
+      "originalPath": "test/corpus/bosl2/941-modular_hose-ex.scad",
+      "size": 255,
+      "lastModified": "2026-02-14T12:12:56.675Z"
+    },
+    {
+      "name": "942-nema_steppers-ex.scad",
+      "originalPath": "test/corpus/bosl2/942-nema_steppers-ex.scad",
+      "size": 273,
+      "lastModified": "2026-02-14T12:12:56.675Z"
+    },
+    {
+      "name": "943-partitions-ex.scad",
+      "originalPath": "test/corpus/bosl2/943-partitions-ex.scad",
+      "size": 256,
+      "lastModified": "2026-02-14T12:12:56.675Z"
+    },
+    {
+      "name": "944-partitions-ex.scad",
+      "originalPath": "test/corpus/bosl2/944-partitions-ex.scad",
+      "size": 197,
+      "lastModified": "2026-02-14T12:12:56.675Z"
+    },
+    {
+      "name": "945-polyhedra-ex.scad",
+      "originalPath": "test/corpus/bosl2/945-polyhedra-ex.scad",
+      "size": 223,
+      "lastModified": "2026-02-14T12:12:56.675Z"
+    },
+    {
+      "name": "946-polyhedra-ex.scad",
+      "originalPath": "test/corpus/bosl2/946-polyhedra-ex.scad",
+      "size": 224,
+      "lastModified": "2026-02-14T12:12:56.675Z"
+    },
+    {
+      "name": "947-rounding-ex.scad",
+      "originalPath": "test/corpus/bosl2/947-rounding-ex.scad",
+      "size": 352,
+      "lastModified": "2026-02-14T12:12:56.675Z"
+    },
+    {
+      "name": "948-rounding-ex.scad",
+      "originalPath": "test/corpus/bosl2/948-rounding-ex.scad",
+      "size": 296,
+      "lastModified": "2026-02-14T12:12:56.675Z"
+    },
+    {
+      "name": "949-screw_drive-ex.scad",
+      "originalPath": "test/corpus/bosl2/949-screw_drive-ex.scad",
+      "size": 183,
+      "lastModified": "2026-02-14T12:12:56.675Z"
+    },
+    {
+      "name": "950-screw_drive-ex.scad",
+      "originalPath": "test/corpus/bosl2/950-screw_drive-ex.scad",
+      "size": 172,
+      "lastModified": "2026-02-14T12:12:56.676Z"
+    },
+    {
+      "name": "951-screws-ex.scad",
+      "originalPath": "test/corpus/bosl2/951-screws-ex.scad",
+      "size": 195,
+      "lastModified": "2026-02-14T12:12:56.676Z"
+    },
+    {
+      "name": "952-screws-ex.scad",
+      "originalPath": "test/corpus/bosl2/952-screws-ex.scad",
+      "size": 204,
+      "lastModified": "2026-02-14T12:12:56.676Z"
+    },
+    {
+      "name": "953-shapes2d-ex.scad",
+      "originalPath": "test/corpus/bosl2/953-shapes2d-ex.scad",
+      "size": 283,
+      "lastModified": "2026-02-14T12:12:56.676Z"
+    },
+    {
+      "name": "954-shapes3d-ex.scad",
+      "originalPath": "test/corpus/bosl2/954-shapes3d-ex.scad",
+      "size": 129,
+      "lastModified": "2026-02-14T12:12:56.676Z"
+    },
+    {
+      "name": "955-shapes3d-ex.scad",
+      "originalPath": "test/corpus/bosl2/955-shapes3d-ex.scad",
+      "size": 142,
+      "lastModified": "2026-02-14T12:12:56.676Z"
+    },
+    {
+      "name": "956-skin-ex.scad",
+      "originalPath": "test/corpus/bosl2/956-skin-ex.scad",
+      "size": 176,
+      "lastModified": "2026-02-14T12:12:56.676Z"
+    },
+    {
+      "name": "957-skin-ex.scad",
+      "originalPath": "test/corpus/bosl2/957-skin-ex.scad",
+      "size": 271,
+      "lastModified": "2026-02-14T12:12:56.676Z"
+    },
+    {
+      "name": "958-sliders-ex.scad",
+      "originalPath": "test/corpus/bosl2/958-sliders-ex.scad",
+      "size": 174,
+      "lastModified": "2026-02-14T12:12:56.676Z"
+    },
+    {
+      "name": "959-sliders-ex.scad",
+      "originalPath": "test/corpus/bosl2/959-sliders-ex.scad",
+      "size": 155,
+      "lastModified": "2026-02-14T12:12:56.676Z"
+    },
+    {
+      "name": "960-strings-ex.scad",
+      "originalPath": "test/corpus/bosl2/960-strings-ex.scad",
+      "size": 183,
+      "lastModified": "2026-02-14T12:12:56.676Z"
+    },
+    {
+      "name": "961-strings-ex.scad",
+      "originalPath": "test/corpus/bosl2/961-strings-ex.scad",
+      "size": 230,
+      "lastModified": "2026-02-14T12:12:56.676Z"
+    },
+    {
+      "name": "962-threading-ex.scad",
+      "originalPath": "test/corpus/bosl2/962-threading-ex.scad",
+      "size": 264,
+      "lastModified": "2026-02-14T12:12:56.676Z"
+    },
+    {
+      "name": "963-threading-ex.scad",
+      "originalPath": "test/corpus/bosl2/963-threading-ex.scad",
+      "size": 437,
+      "lastModified": "2026-02-14T12:12:56.676Z"
+    },
+    {
+      "name": "964-transforms-ex.scad",
+      "originalPath": "test/corpus/bosl2/964-transforms-ex.scad",
+      "size": 144,
+      "lastModified": "2026-02-14T12:12:56.676Z"
+    },
+    {
+      "name": "965-transforms-ex.scad",
+      "originalPath": "test/corpus/bosl2/965-transforms-ex.scad",
+      "size": 144,
+      "lastModified": "2026-02-14T12:12:56.677Z"
+    },
+    {
+      "name": "966-tripod_mounts-ex.scad",
+      "originalPath": "test/corpus/bosl2/966-tripod_mounts-ex.scad",
+      "size": 208,
+      "lastModified": "2026-02-14T12:12:56.677Z"
+    },
+    {
+      "name": "967-utility-ex.scad",
+      "originalPath": "test/corpus/bosl2/967-utility-ex.scad",
+      "size": 212,
+      "lastModified": "2026-02-14T12:12:56.677Z"
+    },
+    {
+      "name": "968-utility-ex.scad",
+      "originalPath": "test/corpus/bosl2/968-utility-ex.scad",
+      "size": 182,
+      "lastModified": "2026-02-14T12:12:56.677Z"
+    },
+    {
+      "name": "969-vectors-ex.scad",
+      "originalPath": "test/corpus/bosl2/969-vectors-ex.scad",
+      "size": 154,
+      "lastModified": "2026-02-14T12:12:56.677Z"
+    },
+    {
+      "name": "970-vectors-ex.scad",
+      "originalPath": "test/corpus/bosl2/970-vectors-ex.scad",
+      "size": 154,
+      "lastModified": "2026-02-14T12:12:56.677Z"
+    },
+    {
+      "name": "971-vnf-ex.scad",
+      "originalPath": "test/corpus/bosl2/971-vnf-ex.scad",
+      "size": 188,
+      "lastModified": "2026-02-14T12:12:56.677Z"
+    },
+    {
+      "name": "972-walls-ex.scad",
+      "originalPath": "test/corpus/bosl2/972-walls-ex.scad",
+      "size": 184,
+      "lastModified": "2026-02-14T12:12:56.677Z"
+    },
+    {
+      "name": "973-walls-ex.scad",
+      "originalPath": "test/corpus/bosl2/973-walls-ex.scad",
+      "size": 193,
+      "lastModified": "2026-02-14T12:12:56.677Z"
+    },
+    {
+      "name": "974-wiring-ex.scad",
+      "originalPath": "test/corpus/bosl2/974-wiring-ex.scad",
+      "size": 230,
+      "lastModified": "2026-02-14T12:12:56.677Z"
+    }
+  ]
+}

@@ -9,9 +9,10 @@ import { DeclarationTracker, type Declaration } from './managers/DeclarationTrac
 
 /**
  * File resolver for use statements
- * Returns the file content, or undefined if not found
+ * Returns the resolved path and file content, or undefined if not found
+ * Path must be absolute starting with "/" (e.g., "/examples/openscad/bosl2/lib/std.scad")
  */
-export type FileResolver = (filename: string, fromFile?: string) => string | undefined
+export type FileResolver = (filename: string, fromFile?: string) => {path: string, content: string} | undefined
 
 /**
  * Warning codes for transpiler warnings

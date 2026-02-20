@@ -1,11 +1,11 @@
 {
   "batchName": "04-advanced",
   "category": "bosl2",
-  "description": "Advanced features: attachments, rounding, paths, beziers, threading",
-  "fileRange": "300-700",
-  "totalFiles": 26,
+  "description": "Advanced features: attachments, rounding, paths, beziers, threading (300-series)",
+  "fileRange": "300-699",
+  "totalFiles": 25,
   "sourceDir": "test/corpus/bosl2",
-  "generatedAt": "2026-02-20T02:23:29.795Z",
+  "generatedAt": "2026-02-20T13:00:44.208Z",
   "files": [
     {
       "name": "300-stroke.scad",
@@ -156,12 +156,6 @@
       "originalPath": "test/corpus/bosl2/601-vnf-vertex-array.scad",
       "size": 183,
       "lastModified": "2026-02-12T23:27:51.960Z"
-    },
-    {
-      "name": "700-cuboid-rounding.scad",
-      "originalPath": "test/corpus/bosl2/700-cuboid-rounding.scad",
-      "size": 91,
-      "lastModified": "2026-02-12T23:27:52.954Z"
     }
   ]
 }

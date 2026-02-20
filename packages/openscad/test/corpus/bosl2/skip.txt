@@ -4,16 +4,16 @@
 # BOSL2 bug: torus() produces empty geometry in real OpenSCAD
 # The torus function in shapes3d.scad has a bug where it returns
 # empty geometry under certain conditions
-205-torus.scad
+torus.scad
 
 # Non-deterministic: rands() without seed uses time(NULL) in OpenSCAD,
 # producing different random points each run. The reference STL was generated
 # at a specific time and cannot be reproduced deterministically.
-650-hull-points.scad
+hull-points.scad
 
 # Geometry mismatch: cylindrical_extrude() wraps text() in a cylindrical shell.
 # Our Hershey font produces different glyph shapes than OpenSCAD's built-in fonts,
 # causing low similarity (0.07). The script runs without errors; the mismatch is
 # a known font rendering difference, not a transpiler or runtime bug.
-939-miscellaneous-ex.scad
+miscellaneous-ex.scad
 

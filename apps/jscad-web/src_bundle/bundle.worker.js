@@ -23,7 +23,20 @@ function getOpenscad() {
   return _openscad
 }
 
+// Cache for failed URL fetches (to avoid repeated 404s)
+// Map: URL -> timestamp of failure
+const failureCache = new Map()
+const FAILURE_CACHE_TTL = 60000 // 60 seconds
+
+// Cache for transpiled .scad files (to avoid re-transpiling dependencies)
+// Map: absolute path -> transpiled JavaScript source
+const transpiledCache = new Map()
+
 requireHandlers.set('scad', (source, url, _readFile) => {
+  // Check if this file was already transpiled as a dependency
+  if (transpiledCache.has(url)) {
+    return transpiledCache.get(url)
+  }
   const { parse, transpile } = getOpenscad()
 
   // Parse to AST (always succeeds; errors are collected but non-fatal)
@@ -33,80 +46,73 @@ requireHandlers.set('scad', (source, url, _readFile) => {
     for (const err of errors) console.warn(`OpenSCAD parse warning in ${url}:`, err.message)
   }
 
-  // Dynamically extract library directory from the context path
-  // Example: "./examples/openscad/bosl2/01-core/file.scad" → prioritize bosl2/lib
-  const getLibraryPaths = (contextUrl) => {
-    const allPaths = [
-      './examples/openscad/bosl/lib/',
-      './examples/openscad/bosl2/lib/',
-      './examples/openscad/snippets/lib/',
-    ]
+  // Extract library directory from context path
+  // Example: "./examples/openscad/bosl2/01-core/file.scad" → "./examples/openscad/bosl2"
+  const getLibraryDir = (contextUrl) => {
+    const match = contextUrl.match(/(.*\/openscad\/[^/]+)(?:\/|$)/)
+    return match ? match[1] : null
+  }
 
-    // Extract library name from path like "/openscad/{library}/..."
-    const match = contextUrl.match(/\/openscad\/([^/]+)\//)
-    if (match && match[1]) {
-      const library = match[1]
-      const libraryPath = `./examples/openscad/${library}/lib/`
-
-      // Put the matching library first, then others
-      return [
-        libraryPath,
-        ...allPaths.filter(p => p !== libraryPath)
-      ]
+  // Try to fetch a URL, using failure cache to avoid repeated 404s
+  const tryFetch = (testUrl) => {
+    // Check failure cache
+    const failTime = failureCache.get(testUrl)
+    if (failTime && (Date.now() - failTime) < FAILURE_CACHE_TTL) {
+      return undefined  // Recently failed, skip
     }
 
-    return allPaths
+    try {
+      const content = readFileWeb(testUrl)
+      if (content !== undefined) {
+        // Success - remove from failure cache if it was there
+        failureCache.delete(testUrl)
+        return content
+      }
+    } catch (_e) {
+      // Mark as failed
+      failureCache.set(testUrl, Date.now())
+    }
+    return undefined
+  }
+
+  /**
+   * Convert URL to absolute path (strip origin, keep path starting with "/")
+   */
+  const urlToPath = (url) => {
+    const parsed = new URL(url, self.location.origin)
+    return parsed.pathname
   }
 
   // Resolve use/include paths relative to the current file
   const fileDir = url.replace(/\/[^/]*$/, '/')
   const fileResolver = (filename, fromFile) => {
-    // Normalize path: remove leading ./ if present
-    const normalizedFilename = filename.replace(/^\.\//, '')
+    // Try relative to current file first
+    const base = fromFile ? fromFile.replace(/\/[^/]*$/, '/') : fileDir
+    const baseUrl = base.startsWith('http://') || base.startsWith('https://')
+      ? base
+      : new URL(base, self.location.origin).href
 
-    // For library paths (starting with lib/), skip relative resolution and go directly to library search
-    // This avoids 404s like /examples/openscad/bosl2/06-paths/lib/vectors.scad
-    if (!normalizedFilename.startsWith('lib/')) {
-      const base = fromFile ? fromFile.replace(/\/[^/]*$/, '/') : fileDir
-      // Ensure base is a full URL (handle both full URLs and paths)
-      const baseUrl = base.startsWith('http://') || base.startsWith('https://')
-        ? base
-        : new URL(base, self.location.origin).href
-
-      // Try relative to current file first (for non-library includes)
-      const resolvedUrl = new URL(filename, baseUrl).toString()
-      try {
-        // Use readFileWeb directly to avoid triggering the .scad handler recursively
-        const content = readFileWeb(resolvedUrl)
-        if (content !== undefined) {
-          return content
-        }
-      } catch (_e) {
-        // Not found, try library paths
+    const resolvedUrl = new URL(filename, baseUrl).toString()
+    const content = tryFetch(resolvedUrl)
+    if (content !== undefined) {
+      return {
+        path: urlToPath(resolvedUrl),
+        content
       }
     }
 
-    // Get library paths based on context (prioritize the correct library)
+    // Try library directory (OPENSCADPATH-like behavior)
+    // Extract library from context file (e.g., /examples/openscad/bosl2/...)
     const contextFile = fromFile || url
-    const libraryPaths = getLibraryPaths(contextFile)
-
-    // If not found, search in library paths (similar to OPENSCADPATH)
-    // This handles both files starting with lib/ and bare filenames when included from lib/ files
-    for (const libPath of libraryPaths) {
-      // If filename starts with lib/, search for it directly in library paths
-      // Otherwise, search for lib/filename in library paths
-      const searchFilename = normalizedFilename.startsWith('lib/')
-        ? normalizedFilename.substring(4)  // Remove 'lib/' prefix
-        : normalizedFilename
-
-      const testUrl = new URL(libPath + searchFilename, self.location.origin).toString()
-      try {
-        const content = readFileWeb(testUrl)
-        if (content !== undefined) {
-          return content
+    const libDir = getLibraryDir(contextFile)
+    if (libDir) {
+      const libUrl = new URL(`${libDir}/${filename}`, self.location.origin).toString()
+      const libContent = tryFetch(libUrl)
+      if (libContent !== undefined) {
+        return {
+          path: urlToPath(libUrl),
+          content: libContent
         }
-      } catch (_e) {
-        // Continue searching other library paths
       }
     }
 
@@ -131,6 +137,13 @@ requireHandlers.set('scad', (source, url, _readFile) => {
     // Log non-critical errors as warnings
     for (const err of result.errors) {
       console.warn(`OpenSCAD transpile warning in ${url}:`, err.message)
+    }
+  }
+
+  // Cache transpiled dependency files (lazy execution - they'll be executed when actually required)
+  if (result.files && result.files.size > 0) {
+    for (const [filePath, fileData] of result.files) {
+      transpiledCache.set(filePath, fileData.code)
     }
   }
 

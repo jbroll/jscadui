@@ -134,25 +134,63 @@ function checkOpenscad(openscadPath) {
   }
 }
 
-async function runOpenscad(scadPath, stlPath, openscadPath, fn = 0) {
+async function runOpenscad(scadPath, stlPath, openscadPath, fn = 0, originalPath = null) {
   const args = ['--backend=manifold', '-o', stlPath]
   if (fn > 0) args.push('-D', `"\\$fn=${fn}"`)
   args.push(scadPath)
 
+  // Set OPENSCADPATH to the library directory if detected
+  // Use originalPath if provided (for temp files that were copied)
+  const pathForLibDetection = originalPath || scadPath
+  const libDir = detectLibraryDir(pathForLibDetection)
+  const env = libDir ? { ...process.env, OPENSCADPATH: resolve(libDir) } : process.env
+
   try {
-    await execAsync(`${openscadPath} ${args.join(' ')}`, { timeout: 60000 })
+    await execAsync(`${openscadPath} ${args.join(' ')}`, { timeout: 60000, env })
     return { success: true }
   } catch (err) {
     return { success: false, error: err.message }
   }
 }
 
+/**
+ * Detect library directory from file path
+ * Examples:
+ *   examples/openscad/bosl2/01-core/file.scad → examples/openscad/bosl2
+ *   test/corpus/bosl2/file.scad → test/corpus/bosl2
+ *   test/corpus/bosl2/lib/examples/file.scad → test/corpus/bosl2
+ */
+function detectLibraryDir(scadPath) {
+  // Try examples/openscad/{library}/ pattern first
+  let match = scadPath.match(/(.*\/openscad\/[^/]+)(?:\/|$)/)
+  if (match) return match[1]
+
+  // Try test/corpus/{library}/ pattern (handles files in subdirs like lib/examples/)
+  match = scadPath.match(/(.*\/corpus\/[^/]+)(?:\/|$)/)
+  if (match) return match[1]
+
+  // Check if parent or ancestor directory contains lib/
+  let dir = dirname(scadPath)
+  for (let i = 0; i < 3; i++) {  // Check up to 3 levels up
+    if (existsSync(join(dir, 'lib'))) return dir
+    const parent = dirname(dir)
+    if (parent === dir) break  // Reached root
+    dir = parent
+  }
+
+  return null
+}
+
 async function runJscad(scadPath, stlPath, fn = 0) {
   const runJscadPath = join(__dirname, 'run-jscad.js')
   const fnArg = fn > 0 ? ` --fn ${fn}` : ''
 
+  // Auto-detect library directory (for OPENSCADPATH-like behavior)
+  const libDir = detectLibraryDir(scadPath)
+  const libPathArg = libDir ? ` --lib-path "${resolve(libDir)}"` : ''
+
   try {
-    await execAsync(`node ${runJscadPath} "${scadPath}" -o "${stlPath}"${fnArg}`, { timeout: 60000 })
+    await execAsync(`node ${runJscadPath} "${scadPath}" -o "${stlPath}"${fnArg}${libPathArg}`, { timeout: 60000 })
     return { success: true }
   } catch (err) {
     return { success: false, error: err.message }
@@ -214,7 +252,8 @@ async function testFile(scadPath, options) {
   const result = { name, path: scadPath, jaccard: null, pass: false, error: null }
 
   try {
-    const openscadResult = await runOpenscad(tempScad, refStl, options.openscad, options.fn)
+    // Pass original scadPath for library detection (tempScad is in temp dir)
+    const openscadResult = await runOpenscad(tempScad, refStl, options.openscad, options.fn, scadPath)
     if (!openscadResult.success) {
       result.error = `OpenSCAD: ${openscadResult.error}`
       return result

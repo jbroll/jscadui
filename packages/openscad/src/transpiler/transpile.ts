@@ -11,7 +11,7 @@ import type {
   Statement,
 } from 'openscad-parser'
 import { parse } from '../parser/parse.js'
-import { safeIdentifier, getFileDir } from '../utils/identifiers.js'
+import { safeIdentifier } from '../utils/identifiers.js'
 import {
   TranspileContext,
   TranspileOptions,
@@ -78,12 +78,12 @@ interface TranspiledStatements {
 /**
  * Process use statements: transpile dependencies and discover their exports
  */
-function processUseStatements(ctx: TranspileContext, currentFileDir: string): void {
+function processUseStatements(ctx: TranspileContext): void {
   for (const useImport of ctx.useImports) {
-    // Compute resolved path relative to root
-    useImport.resolvedPath = currentFileDir + useImport.filename
-    const symbols = transpileAndCacheDependency(useImport.filename, ctx)
-    useImport.symbols = symbols
+    // Transpile the dependency and get the resolved path from fileResolver
+    const result = transpileAndCacheDependency(useImport.filename, ctx)
+    useImport.resolvedPath = result.resolvedPath
+    useImport.symbols = result.symbols
     // Import symbols from the cached file
     // NOTE: use imports don't define modules in SymbolTable (accessed via require())
     const cachedFile = ctx.transpiledFiles.get(useImport.resolvedPath)
@@ -95,7 +95,7 @@ function processUseStatements(ctx: TranspileContext, currentFileDir: string): vo
  * Process include statements: transpile dependencies and BUNDLE their content
  * This matches OpenSCAD's include semantics - everything is merged into one scope
  */
-function processIncludeStatements(ctx: TranspileContext, currentFileDir: string): BundledContent {
+function processIncludeStatements(ctx: TranspileContext): BundledContent {
   const bundledFunctions: string[] = []
   const bundledModules: string[] = []
   const bundledConstants: string[] = []
@@ -105,10 +105,10 @@ function processIncludeStatements(ctx: TranspileContext, currentFileDir: string)
   const bundledConstantNames = new Set<string>()
 
   for (const includeImport of ctx.includeImports) {
-    // Compute resolved path relative to root
-    includeImport.resolvedPath = currentFileDir + includeImport.filename
-    const symbols = transpileAndCacheDependency(includeImport.filename, ctx)
-    includeImport.symbols = symbols
+    // Transpile the dependency and get the resolved path from fileResolver
+    const result = transpileAndCacheDependency(includeImport.filename, ctx)
+    includeImport.resolvedPath = result.resolvedPath
+    includeImport.symbols = result.symbols
     // Get bundled parts for inlining
     const cachedFile = ctx.transpiledFiles.get(includeImport.resolvedPath)
     if (cachedFile?.bundledParts) {
@@ -295,9 +295,11 @@ function buildOutputCode(
   // Use imports (require statements for .scad files)
   if (ctx.useImports.length > 0) {
     for (const imp of ctx.useImports) {
-      // Keep the .scad extension - the worker's require handler will transpile it
-      // Use the original filename (not resolvedPath) for relative require() paths
-      const scadPath = imp.filename
+      // Use resolvedPath to generate correct require() paths
+      // This is especially important for use imports propagated from included files
+      // where imp.filename is relative to the included file, but we need the path
+      // relative to the current file (which is what resolvedPath provides)
+      const scadPath = imp.resolvedPath
       const newSymbols = imp.symbols.filter(s => !importedSymbols.has(s))
       for (const s of newSymbols) importedSymbols.add(s)
       if (newSymbols.length > 0) {
@@ -445,17 +447,14 @@ export function transpile(
 
   // Local definitions are tracked in SymbolTable - no need to maintain a separate Set
 
-  // Compute directory of current file for resolving relative paths
-  const currentFileDir = getFileDir(ctx.options.currentFile)
-
   // Pre-pass: collect all function/module signatures from include files recursively
   collectSignaturesFromIncludes(ctx)
 
   // Process use statements: transpile dependencies and discover exports
-  processUseStatements(ctx, currentFileDir)
+  processUseStatements(ctx)
 
   // Process include statements: transpile dependencies and bundle content
-  const bundled = processIncludeStatements(ctx, currentFileDir)
+  const bundled = processIncludeStatements(ctx)
 
   // Second pass: transpile statements into separate categories
   const transpiled = transpileAllStatements(ast, ctx)
@@ -526,17 +525,11 @@ function collectSignaturesFromIncludes(
   const fileResolver = ctx.options.fileResolver
   if (!fileResolver) return
 
-  const currentFileDir = getFileDir(ctx.options.currentFile)
-
   // Process all include imports
   for (const includeImport of ctx.includeImports) {
-    const resolvedPath = currentFileDir + includeImport.filename
-    if (visitedFiles.has(resolvedPath)) continue
-    visitedFiles.add(resolvedPath)
-
     // Read and parse the file (caching the AST for later use)
-    const source = fileResolver(includeImport.filename, ctx.options.currentFile)
-    if (!source) {
+    const resolved = fileResolver(includeImport.filename, ctx.options.currentFile)
+    if (!resolved) {
       ctx.errors.push({
         code: ErrorCode.FILE_NOT_FOUND,
         message: `Cannot resolve include file: ${includeImport.filename}`,
@@ -545,7 +538,11 @@ function collectSignaturesFromIncludes(
       continue
     }
 
-    const { ast, errors } = parse(source)
+    const resolvedPath = resolved.path
+    if (visitedFiles.has(resolvedPath)) continue
+    visitedFiles.add(resolvedPath)
+
+    const { ast, errors } = parse(resolved.content)
     if (errors.length > 0) {
       ctx.errors.push({
         code: ErrorCode.PARSE_ERROR,
@@ -623,24 +620,32 @@ function collectSignaturesFromIncludes(
 
 /**
  * Transpile a dependency file and cache the result
- * Returns the exported symbol names
+ * Returns the resolved path and exported symbol names
  */
-function transpileAndCacheDependency(filename: string, ctx: TranspileContext): string[] {
+function transpileAndCacheDependency(filename: string, ctx: TranspileContext): {resolvedPath: string, symbols: string[]} {
   const fileResolver = ctx.options.fileResolver
   if (!fileResolver) {
     // No file resolver - can't process dependencies
-    return []
+    return {resolvedPath: '', symbols: []}
   }
 
-  // Compute the resolved path relative to the current file's directory
-  // This is important for nested dependencies to resolve their own imports correctly
-  const currentFileDir = getFileDir(ctx.options.currentFile)
-  const resolvedFilename = currentFileDir + filename
+  // Resolve the file to get its absolute path and content
+  const resolved = fileResolver(filename, ctx.options.currentFile)
+  if (!resolved) {
+    ctx.errors.push({
+      code: ErrorCode.FILE_NOT_FOUND,
+      message: `Cannot resolve file: ${filename}`,
+      file: ctx.options.currentFile,
+    })
+    return {resolvedPath: '', symbols: []}
+  }
+
+  const resolvedFilename = resolved.path
 
   // Check cache first (using resolved path)
   const cached = ctx.transpiledFiles.get(resolvedFilename)
   if (cached) {
-    return cached.exports
+    return {resolvedPath: resolvedFilename, symbols: cached.exports}
   }
 
   // Detect cycles (using resolved path)
@@ -651,33 +656,22 @@ function transpileAndCacheDependency(filename: string, ctx: TranspileContext): s
       message: `Circular dependency detected: ${resolvedFilename}`,
       file: ctx.options.currentFile,
     })
-    return []
+    return {resolvedPath: resolvedFilename, symbols: []}
   }
 
   // Check if AST is already cached from signature pre-pass
   let ast = ctx.parsedFiles.get(resolvedFilename)
 
   if (!ast) {
-    // Not cached - resolve and read the file
-    const source = fileResolver(filename, ctx.options.currentFile)
-    if (!source) {
-      ctx.errors.push({
-        code: ErrorCode.FILE_NOT_FOUND,
-        message: `Cannot resolve file: ${filename}`,
-        file: ctx.options.currentFile,
-      })
-      return []
-    }
-
     // Parse the file
-    const { ast: parsedAst, errors } = parse(source)
+    const { ast: parsedAst, errors } = parse(resolved.content)
     if (errors.length > 0) {
       ctx.errors.push({
         code: ErrorCode.PARSE_ERROR,
         message: `Parse error in ${filename}: ${errors.map(e => e.message || String(e)).join(', ')}`,
         file: resolvedFilename,
       })
-      return []
+      return {resolvedPath: resolvedFilename, symbols: []}
     }
     ast = parsedAst
   }
@@ -730,8 +724,11 @@ function transpileAndCacheDependency(filename: string, ctx: TranspileContext): s
     })
   }
 
-  // Return exports (excluding 'main')
-  return result.exports.filter(e => e !== 'main')
+  // Return resolved path and exports (excluding 'main')
+  return {
+    resolvedPath: resolvedFilename,
+    symbols: result.exports.filter(e => e !== 'main')
+  }
 }
 
 /**
