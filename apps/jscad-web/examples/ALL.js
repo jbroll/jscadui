@@ -17,7 +17,6 @@ const items = [
   "./11-balloons.example.js",
   "./12-parameters.example.js",
   "./13-multipart.example.js",
-  "./17-svg-tester.js",
   "./benchmarks/ALL.js",
   "./openscad/ALL.js"
 ]
