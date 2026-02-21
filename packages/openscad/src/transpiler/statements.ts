@@ -1107,11 +1107,6 @@ export function transpileFunctionDeclaration(stmt: FunctionDeclarationStmt, ctx:
   // Combine both versions
   const code = `${positionalCode}\n${objectCode}`
 
-  // Debug: Log when Cpi is transpiled
-  if (name === 'Cpi') {
-    console.log('[DEBUG] Transpiling Cpi function, code includes both variants:', code.includes('_$f$obj'))
-  }
-
   // Track this declaration for AST-based bundling
   const paramNames = stmt.definitionArgs.map(arg => arg.name)
   ctx.declarations.addFunction(

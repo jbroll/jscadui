@@ -376,7 +376,14 @@ function buildOutputCode(
     .map(name => `${name}_$m`)
   const functionExportNames = ctx.symbols.getByKind('function')
     .filter(name => ctx.symbols.isFromSource(name, 'local'))
-    .flatMap(name => [`${name}_$f`, `${name}_$f$obj`])
+    .flatMap(name => {
+      // Check if this function has parameters by looking it up in declarations
+      const decl = ctx.declarations.get(name + '_$f')
+      const hasParams = decl && decl.params && decl.params.length > 0
+
+      // Only export _$f$obj variant if function has parameters
+      return hasParams ? [`${name}_$f`, `${name}_$f$obj`] : [`${name}_$f`]
+    })
   // Filter out optimized includes (which were moved to useImports and will be imported via require())
   // useImportPaths is already declared above
   const includeReExports = ctx.includeImports
