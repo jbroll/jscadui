@@ -79,17 +79,54 @@ function loadConfig(examplesDir) {
 const config = loadConfig(options.examplesDir)
 
 /**
+ * Read skip.txt file from a directory and return a Set of files to skip
+ */
+function loadSkipList(dir) {
+  const skipFile = join(dir, 'skip.txt')
+  const skipList = new Set()
+
+  if (existsSync(skipFile)) {
+    try {
+      const skipContent = readFileSync(skipFile, 'utf8')
+      for (const line of skipContent.split('\n')) {
+        const trimmed = line.trim()
+        if (trimmed && !trimmed.startsWith('#')) {
+          skipList.add(trimmed)
+        }
+      }
+    } catch (err) {
+      console.warn(`Warning: Could not read ${skipFile}: ${err.message}`)
+    }
+  }
+
+  return skipList
+}
+
+/**
  * Find all model files in a directory (non-recursive)
  * Includes .scad, .js (but not ALL.js, index.js in certain cases)
+ * Excludes files listed in skip.txt
  */
 function findModelFiles(dir) {
   if (!existsSync(dir)) return []
+
+  // Load skip list from current directory or nearest parent with skip.txt
+  let skipList = loadSkipList(dir)
+
+  // Also check parent directory for skip.txt (for nested directories)
+  const parentDir = dirname(dir)
+  if (parentDir !== dir && existsSync(join(parentDir, 'skip.txt'))) {
+    const parentSkipList = loadSkipList(parentDir)
+    skipList = new Set([...skipList, ...parentSkipList])
+  }
 
   try {
     return readdirSync(dir)
       .filter(f => {
         if (f.startsWith('.')) return false
         if (f === 'ALL.js' || f === 'ALL.scad' || f === '__all__.scad') return false
+        if (f === 'skip.txt') return false
+        if (skipList.has(f)) return false  // Skip files in skip.txt
         return f.endsWith('.scad') || f.endsWith('.js')
       })
       .sort()

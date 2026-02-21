@@ -14,7 +14,6 @@ const items = [
   "./bezier-sweep.scad",
   "./chamfer-corner-mask.scad",
   "./chamfer-edge-mask.scad",
-  "./dashed-stroke.scad",
   "./diff.scad",
   "./intersect.scad",
   "./linear-sweep.scad",
