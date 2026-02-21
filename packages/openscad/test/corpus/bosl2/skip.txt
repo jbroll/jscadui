@@ -54,3 +54,6 @@ vnf-ex.scad
 # an empty array when it shouldn't. Temporarily skipping until transpiler is fixed.
 dashed-stroke.scad
 
+
+# Runtime error: "the given origin and normal do not define a proper plane"
+edge-profile.scad

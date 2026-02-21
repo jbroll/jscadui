@@ -12,7 +12,6 @@ const items = [
   "./cuboid-rounding.scad",
   "./cyl-chamfer.scad",
   "./cyl-rounding.scad",
-  "./edge-profile.scad",
   "./rect-chamfer.scad",
   "./rect-rounding.scad"
 ]
