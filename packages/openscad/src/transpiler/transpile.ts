@@ -111,6 +111,20 @@ function processIncludeStatements(ctx: TranspileContext): BundledContent {
     includeImport.symbols = result.symbols
     // Get bundled parts for inlining
     const cachedFile = ctx.transpiledFiles.get(includeImport.resolvedPath)
+
+    // Phase 1 optimization: If file contains only pure functions/modules, treat as 'use' instead
+    if (cachedFile?.canOptimizeInclude) {
+      // Move to useImports so it generates require() statement instead of bundling
+      ctx.useImports.push(includeImport)
+
+      // Still need to import symbols for symbol table (for type checking and call resolution)
+      importSymbolsFromFile(cachedFile, ctx, { defineModules: false })
+
+      // Skip bundling for this file
+      continue
+    }
+
+    // Original bundling logic for non-optimizable files
     if (cachedFile?.bundledParts) {
       const parts = cachedFile.bundledParts
       // Deduplicate functions by name (using pre-extracted names)
@@ -257,6 +271,8 @@ function transpileAllStatements(ast: ScadFile, ctx: TranspileContext): Transpile
       // File-scope geometry/statements
       const code = transpileStatement(stmt, ctx)
       if (code) {
+        // Mark that this file has top-level geometry (for include optimization)
+        ctx.codeGen.hasTopLevelGeometry = true
         geometryParts.push(code)
       }
     }
@@ -285,10 +301,14 @@ function buildOutputCode(
   }
 
   // Track imported symbols to avoid duplicates
+  // Only track symbols from non-optimized includes (optimized ones are in useImports)
   const importedSymbols = new Set<string>()
+  const useImportPaths = new Set(ctx.useImports.map(imp => imp.resolvedPath))
   for (const includeImport of ctx.includeImports) {
-    for (const sym of includeImport.symbols) {
-      importedSymbols.add(sym)
+    if (!useImportPaths.has(includeImport.resolvedPath)) {
+      for (const sym of includeImport.symbols) {
+        importedSymbols.add(sym)
+      }
     }
   }
 
@@ -298,7 +318,8 @@ function buildOutputCode(
       // Use resolvedPath to generate correct require() paths
       // resolvedPath is an absolute path starting with "/" (e.g., "/examples/openscad/bosl2/lib/std.scad")
       // The require system handles absolute paths by resolving them from the root URL
-      const scadPath = imp.resolvedPath
+      // Fallback to filename if resolvedPath is empty (when no fileResolver)
+      const scadPath = imp.resolvedPath || imp.filename
       const newSymbols = imp.symbols.filter(s => !importedSymbols.has(s))
       for (const s of newSymbols) importedSymbols.add(s)
       if (newSymbols.length > 0) {
@@ -355,12 +376,25 @@ function buildOutputCode(
     .map(name => `${name}_$m`)
   const functionExportNames = ctx.symbols.getByKind('function')
     .filter(name => ctx.symbols.isFromSource(name, 'local'))
-    .map(name => `${name}_$f`)
-  const includeReExports = ctx.includeImports.flatMap(imp => imp.symbols)
+    .flatMap(name => [`${name}_$f`, `${name}_$f$obj`])
+  // Filter out optimized includes (which were moved to useImports and will be imported via require())
+  // useImportPaths is already declared above
+  const includeReExports = ctx.includeImports
+    .filter(imp => !useImportPaths.has(imp.resolvedPath))
+    .flatMap(imp => imp.symbols)
   const allExports = [...new Set([...moduleExportNames, ...functionExportNames, ...ctx.variableNames, ...includeReExports, 'main'])]
   parts.push(`module.exports = { ${allExports.join(', ')} }`)
 
   return { code: parts.join('\n'), allExports }
+}
+
+/**
+ * Optimization info for include statement handling
+ */
+interface OptimizationInfo {
+  canOptimizeInclude: boolean
+  hasVariables: boolean
+  hasTopLevelGeometry: boolean
 }
 
 /**
@@ -371,7 +405,7 @@ function buildOutputCode(
  * The allDeclarations must be stored in the cached TranspiledFile so that grandparent
  * files can recursively collect declarations from the full include chain.
  */
-function createBundledParts(ctx: TranspileContext): { bundledParts: BundledParts; allDeclarations: Declaration[] } {
+function createBundledParts(ctx: TranspileContext): { bundledParts: BundledParts; allDeclarations: Declaration[]; optimizationInfo: OptimizationInfo } {
   // Collect all local declarations
   const localDeclarations = ctx.declarations.getAll()
 
@@ -417,7 +451,19 @@ function createBundledParts(ctx: TranspileContext): { bundledParts: BundledParts
     usedMinMax: ctx.codeGen.usedMinMax,
   }
 
-  return { bundledParts, allDeclarations }
+  // Phase 1 optimization: Detect if this file can use require() instead of bundling
+  // A file can be optimized if it contains ONLY functions/modules (no variables, no top-level geometry)
+  const hasVariables = constDecls.length > 0
+  const hasTopLevelGeometry = ctx.codeGen.hasTopLevelGeometry
+  const canOptimizeInclude = !hasVariables && !hasTopLevelGeometry
+
+  const optimizationInfo: OptimizationInfo = {
+    canOptimizeInclude,
+    hasVariables,
+    hasTopLevelGeometry,
+  }
+
+  return { bundledParts, allDeclarations, optimizationInfo }
 }
 
 /**
@@ -469,7 +515,7 @@ export function transpile(
   // Create bundled parts for caching
   // Create bundled parts using AST-based bundling
   // allDeclarations includes local + transitive includes (for recursive bundling)
-  const { bundledParts, allDeclarations } = createBundledParts(ctx)
+  const { bundledParts, allDeclarations, optimizationInfo } = createBundledParts(ctx)
 
   // Add this file to the cache if it has a name
   if (ctx.options.currentFile) {
@@ -499,6 +545,10 @@ export function transpile(
       // Store allDeclarations (local + transitive from includes) so that grandparent files
       // can recursively collect the full include chain in createBundledParts
       declarations: allDeclarations,
+      // Store optimization flags for include statement handling
+      canOptimizeInclude: optimizationInfo.canOptimizeInclude,
+      hasTopLevelGeometry: optimizationInfo.hasTopLevelGeometry,
+      hasVariables: optimizationInfo.hasVariables,
     })
   }
 
