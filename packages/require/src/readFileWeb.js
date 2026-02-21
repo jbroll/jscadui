@@ -3,7 +3,16 @@
 
 export const readFileWeb = (path, {base = '', output='text'}={}) => {
   const req = new XMLHttpRequest()
-  req.open('GET', base ? new URL(path, base) : path, 0) // sync
+  // If path is already an absolute URL, ignore base parameter
+  const isAbsoluteUrl = path.startsWith('http://') || path.startsWith('https://')
+  let finalUrl = (base && !isAbsoluteUrl) ? new URL(path, base).href : path
+
+  // CRITICAL FIX: Always resolve the URL against the worker's actual location origin
+  // to prevent XHR from resolving it relative to the sourceURL context (which changes
+  // based on what script is currently being evaluated with //# sourceURL directives)
+  finalUrl = new URL(finalUrl, self.location.origin).href
+
+  req.open('GET', finalUrl, 0) // sync
 
   if(output !== 'text'){
     // this hack was hard to find, and we can not use fetch because we need sync request

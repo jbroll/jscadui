@@ -154,7 +154,14 @@ export const resolveUrl = (url, base, root, moduleBase=MODULE_BASE) => {
           url = normalizePath(url)
         } else {
           // Normalize absolute paths from root
+          // For absolute paths (starting with /), resolve against the origin not root
+          // root may be a subdirectory like http://127.0.0.1:5120/examples/jscad/
+          // but /examples/lib/file.js should resolve to http://127.0.0.1:5120/examples/lib/file.js
+          const origin = new URL(root).origin
           url = normalizePath(url.substring(1))
+          if (!getExtension(url)) url += '.js'
+          url = new URL(url, origin + '/').toString()
+          return { url, isRelativeFile, isModule }
         }
         if (!getExtension(url)) url += '.js'
         // now create the full url to load the file
