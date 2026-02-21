@@ -17,3 +17,34 @@ hull-points.scad
 # a known font rendering difference, not a transpiler or runtime bug.
 miscellaneous-ex.scad
 
+# BOSL2 bug: interior_fillet() wrapper has incorrect parameter order when calling fillet()
+# The deprecated interior_fillet() passes positional args to fillet(), but parameter order
+# doesn't match (overlap→r1, d→excess, etc.), causing "Must define exactly one of l,length,h"
+# assertion failure. Fails in real OpenSCAD too. Use fillet() directly instead.
+interior-fillet.scad
+
+# BOSL2 bug: egg() test has invalid parameters
+# egg(length=30, r1=8, r2=5) fails because side radius R must be larger than length/2 (15),
+# but r1=8 and r2=5 are both less than 15. Fails in real OpenSCAD with:
+# "Assertion '(R > (length / 2))' failed: Side radius R must be larger than length/2"
+egg.scad
+
+# BOSL2 test issue: oval() module doesn't exist in BOSL2
+# The test calls oval() but this module is not defined in BOSL2 std.scad
+# OpenSCAD output: "WARNING: Ignoring unknown module 'oval'"
+# Should use ellipse() instead
+oval.scad
+
+# Function test files - these test library functions, not geometry modules
+# They produce empty geometry and are not meant for visual examples
+comparisons-ex.scad
+fnliterals-ex.scad
+hooks-ex.scad
+linalg-ex.scad
+lists-ex.scad
+math-ex.scad
+strings-ex.scad
+utility-ex.scad
+vectors-ex.scad
+vnf-ex.scad
+

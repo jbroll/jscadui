@@ -7,3 +7,6 @@ jscad
 deploy
 bin
 .tmp
+
+# Unused metadata files (no longer generated)
+.corpus-meta.json

@@ -86,7 +86,9 @@ Track source repository and update information:
 
 ### 2. Batch Metadata (per batch directory)
 
-Each batch directory contains a `.corpus-meta.json`:
+**Note:** This feature was planned but not implemented. `.corpus-meta.json` files are no longer generated as they were never used by any code.
+
+~~Each batch directory contains a `.corpus-meta.json`:~~
 
 ```json
 {
@@ -125,10 +127,10 @@ Organizes corpus files into batches:
 1. Read `test/corpus/manifest.json` for provenance
 2. For each corpus category:
    - List all .scad files (sorted)
+   - Exclude files listed in `skip.txt`
    - Group into batches of 25-30 files
    - Create batch directories with numbered prefixes
-   - Copy files with metadata
-   - Generate `.corpus-meta.json` for each batch
+   - Copy files to examples directory
 
 ### Script 2: `bin/update-corpus.js`
 

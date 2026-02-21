@@ -13,7 +13,7 @@
  *   --force            Overwrite existing batch directories
  */
 
-import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, existsSync, cpSync, rmSync } from 'fs'
+import { readFileSync, mkdirSync, readdirSync, statSync, existsSync, cpSync, rmSync } from 'fs'
 import { join, relative, dirname } from 'path'
 import { fileURLToPath } from 'url'
 
@@ -177,28 +177,6 @@ function createBatch(category, batchName, batch, sourceDir, targetDir) {
     } else {
       cpSync(file.path, targetPath)
     }
-  }
-
-  // Create metadata file
-  const metadata = {
-    batchName,
-    category,
-    description: batch.description,
-    fileRange: batch.fileRange || `1-${batch.files.length}`,
-    totalFiles: batch.files.length,
-    sourceDir: relative(join(__dirname, '..'), sourceDir),
-    generatedAt: new Date().toISOString(),
-    files: batch.files.map(f => ({
-      name: f.name,
-      originalPath: relative(join(__dirname, '..'), f.path),
-      size: f.size,
-      lastModified: f.modified
-    }))
-  }
-
-  const metaPath = join(batchDir, '.corpus-meta.json')
-  if (!options.dryRun) {
-    writeFileSync(metaPath, JSON.stringify(metadata, null, 2))
   }
 
   return true
