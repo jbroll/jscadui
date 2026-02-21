@@ -37,8 +37,7 @@ const items = [
   "./Chalkboard_02.scad",
   "./Circular_Blade.scad",
   "./Gear_02.scad",
-  "./Mechanism_01.scad",
-  "./Spawing_Cube.scad"
+  "./Mechanism_01.scad"
 ]
 const spacing = 60
 const cellSize = 51
