@@ -8,6 +8,9 @@
 const { gridPosition, normalizeAndPlace, urlToPartName } = require('../../../lib/grid-utils.js')
 
 const items = [
+  "./Scene_City_Street.scad",
+  "./Scene_House.scad",
+  "./Scene_Test.scad",
   "./Street_03.scad",
   "./Street_04.scad",
   "./Street_05.scad",

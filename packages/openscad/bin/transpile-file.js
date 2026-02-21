@@ -52,6 +52,7 @@ if (errors.length > 0) {
 /**
  * File resolver for use statements
  * Resolves relative to the directory containing the current file
+ * Returns {path: string, content: string} where path is an absolute path starting with "/"
  */
 function fileResolver(filename, fromFile) {
   // Resolve relative to the source file's directory
@@ -59,7 +60,13 @@ function fileResolver(filename, fromFile) {
   const targetPath = resolve(baseDir, filename)
 
   if (existsSync(targetPath)) {
-    return readFileSync(targetPath, 'utf8')
+    const content = readFileSync(targetPath, 'utf8')
+    // Convert to absolute path starting with "/" (remove drive letter on Windows)
+    const absPath = targetPath.replace(/^[A-Z]:/i, '').replace(/\\/g, '/')
+    return {
+      path: absPath,
+      content
+    }
   }
 
   console.error(`Warning: Could not resolve ${filename} from ${fromFile || fileName}`)

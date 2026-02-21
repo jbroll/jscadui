@@ -296,16 +296,15 @@ function buildOutputCode(
   if (ctx.useImports.length > 0) {
     for (const imp of ctx.useImports) {
       // Use resolvedPath to generate correct require() paths
-      // This is especially important for use imports propagated from included files
-      // where imp.filename is relative to the included file, but we need the path
-      // relative to the current file (which is what resolvedPath provides)
+      // resolvedPath is an absolute path starting with "/" (e.g., "/examples/openscad/bosl2/lib/std.scad")
+      // The require system handles absolute paths by resolving them from the root URL
       const scadPath = imp.resolvedPath
       const newSymbols = imp.symbols.filter(s => !importedSymbols.has(s))
       for (const s of newSymbols) importedSymbols.add(s)
       if (newSymbols.length > 0) {
-        parts.push(`const { ${newSymbols.join(', ')} } = require('./${scadPath}')`)
+        parts.push(`const { ${newSymbols.join(', ')} } = require('${scadPath}')`)
       } else if (imp.symbols.length === 0) {
-        parts.push(`const ${getModuleName(imp.filename)} = require('./${scadPath}')`)
+        parts.push(`const ${getModuleName(imp.filename)} = require('${scadPath}')`)
       }
     }
     parts.push('')

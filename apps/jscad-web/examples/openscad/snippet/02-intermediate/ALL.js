@@ -9,6 +9,7 @@ const { gridPosition, normalizeAndPlace, urlToPartName } = require('../../../lib
 
 const items = [
   "./Coin_01.scad",
+  "./Coin_02.scad",
   "./Cone_01.scad",
   "./Crystal.scad",
   "./Cup_01.scad",
