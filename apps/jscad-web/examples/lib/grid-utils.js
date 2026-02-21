@@ -46,9 +46,38 @@ function gridPosition(index, total, spacing = 60) {
 function normalizeAndPlace(geoms, gx, gy, cellSize) {
   if (geoms.length === 0) return []
 
-  const [[x0, y0, z0], [x1, y1, z1]] = measureAggregateBoundingBox(...geoms)
-  const maxSize = Math.max(x1 - x0, y1 - y0, z1 - z0)
-  if (maxSize === 0) return []
+  // Get bounding box - handle both single bbox and array of bboxes
+  const rawBbox = measureAggregateBoundingBox(...geoms)
+
+  let x0, y0, z0, x1, y1, z1
+
+  // Check if we got an array of bboxes (multiple geometries) or a single bbox
+  if (Array.isArray(rawBbox[0]) && Array.isArray(rawBbox[0][0])) {
+    // Multiple bboxes returned - compute aggregate manually
+    x0 = Infinity; y0 = Infinity; z0 = Infinity
+    x1 = -Infinity; y1 = -Infinity; z1 = -Infinity
+
+    for (const [[minX, minY, minZ], [maxX, maxY, maxZ]] of rawBbox) {
+      x0 = Math.min(x0, minX)
+      y0 = Math.min(y0, minY)
+      z0 = Math.min(z0, minZ)
+      x1 = Math.max(x1, maxX)
+      y1 = Math.max(y1, maxY)
+      z1 = Math.max(z1, maxZ)
+    }
+  } else {
+    // Single bbox - use directly
+    [[x0, y0, z0], [x1, y1, z1]] = rawBbox
+  }
+
+  const width = x1 - x0
+  const height = y1 - y0
+  const depth = z1 - z0
+  const maxSize = Math.max(width, height, depth)
+
+  if (maxSize === 0 || !isFinite(maxSize)) {
+    return []
+  }
 
   const s = cellSize / maxSize
 
