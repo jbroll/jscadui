@@ -386,15 +386,10 @@ function buildOutputCode(
     })
   // Filter out optimized includes (which were moved to useImports and will be imported via require())
   // useImportPaths is already declared above
+  // Re-export symbols from ALL includes (both bundled and optimized)
+  // Optimized includes use require() but still need their symbols re-exported
   const includeReExports = ctx.includeImports
-    .filter(imp => !useImportPaths.has(imp.resolvedPath))
-    .flatMap(imp =>
-      imp.symbols.flatMap(symbol => {
-        // Symbols from cached files already include both variants (_$f and _$f$obj)
-        // Just pass them through without modification
-        return [symbol]
-      })
-    )
+    .flatMap(imp => imp.symbols)
   const allExports = [...new Set([...moduleExportNames, ...functionExportNames, ...ctx.variableNames, ...includeReExports, 'main'])]
   parts.push(`module.exports = { ${allExports.join(', ')} }`)
 
