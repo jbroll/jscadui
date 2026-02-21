@@ -5,7 +5,7 @@ const {transformcjs} = jscadui_transform_babel
 // import {transformcjs} from '@jscadui/transform-babel'
 
 import {currentSolids, initWorker} from '@jscadui/worker'
-import {readFileWeb, require, requireHandlers} from '@jscadui/require'
+import {readFileWeb, require, requireHandlers, jscadClearTempCache} from '@jscadui/require'
 
 // ── OpenSCAD (.scad) handler ──────────────────────────────────────────────
 // Lazily loads the openscad transpiler bundle on first use (652 K, not needed
@@ -31,6 +31,12 @@ const FAILURE_CACHE_TTL = 60000 // 60 seconds
 // Cache for transpiled .scad files (to avoid re-transpiling dependencies)
 // Map: absolute path -> transpiled JavaScript source
 const transpiledCache = new Map()
+
+// Export a function to clear the transpiled cache
+// This should be called when the transpiler is updated or when clearing temp cache
+export const clearTranspiledCache = () => {
+  transpiledCache.clear()
+}
 
 requireHandlers.set('scad', (source, url, _readFile) => {
   // Check if this file was already transpiled as a dependency
@@ -194,11 +200,21 @@ const importData = {
   }
 }
 
+// Hook into jscadClearTempCache to also clear transpiled .scad cache
+// Create a local wrapper that clears both the require cache and .scad transpilation cache
+const clearAllCaches = () => {
+  jscadClearTempCache()  // Clear require module cache
+  clearTranspiledCache()  // Clear .scad transpilation cache
+}
+
 initWorker({
   transform: transformcjs,
   jscadExportData: exportData,
   importData,
-  customHandlers: { jscadGetExportFormats }
+  customHandlers: {
+    jscadGetExportFormats,
+    jscadClearTempCache: clearAllCaches  // Register wrapper as the RPC handler
+  }
 })
  
  

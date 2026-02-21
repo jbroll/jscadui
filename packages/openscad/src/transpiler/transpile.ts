@@ -381,7 +381,13 @@ function buildOutputCode(
   // useImportPaths is already declared above
   const includeReExports = ctx.includeImports
     .filter(imp => !useImportPaths.has(imp.resolvedPath))
-    .flatMap(imp => imp.symbols)
+    .flatMap(imp =>
+      imp.symbols.flatMap(symbol => {
+        // Symbols from cached files already include both variants (_$f and _$f$obj)
+        // Just pass them through without modification
+        return [symbol]
+      })
+    )
   const allExports = [...new Set([...moduleExportNames, ...functionExportNames, ...ctx.variableNames, ...includeReExports, 'main'])]
   parts.push(`module.exports = { ${allExports.join(', ')} }`)
 
