@@ -105,7 +105,7 @@ dist
 
 # Turbo
 .turbo
-build/**
+**/build/**
 build_dev/**
 dist/**
 **/esm/
@@ -119,3 +119,8 @@ __snapshots__
 # Local deployment config (use deploy.conf.example as template)
 deploy.conf
 .playwright-mcp/
+
+# Root-level debug screenshots and temporary files
+/*.png
+/*.md.tmp
+/all-js-*.md
