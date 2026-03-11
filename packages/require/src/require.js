@@ -11,8 +11,10 @@
 */
 
 import { extractPathInfo } from '../../fs-provider/fs-provider'
-import { MODULE_BASE, getExtension, resolveUrl } from './resolveUrl'
+import { MODULE_BASE, getExtension } from './resolveUrl'
 import { wrapLegacyModule } from '../../params-core/src/createParamsProxy.js'
+import { cacheManager } from './caching/cacheManager.js'
+import { moduleResolver } from './resolution/moduleResolver.js'
 
 export { resolveUrl } from './resolveUrl'
 
@@ -64,7 +66,6 @@ export const require = (urlOrSource, transform, readFile, base, root, importData
   /** @type {string} */
   let url
   let isRelativeFile
-  let cache
   let cacheUrl
   let bundleAlias
   if (typeof urlOrSource === 'string') {//Only the URL is given
@@ -78,10 +79,9 @@ export const require = (urlOrSource, transform, readFile, base, root, importData
   let resolvedUrl = url
 
   if (source === undefined) {
-    bundleAlias = requireCache.bundleAlias[url]
-    const aliasedUrl = bundleAlias ?? requireCache.alias[url] ?? url
+    bundleAlias = cacheManager.getBundleAlias(url)
 
-    const resolved = resolveUrl(aliasedUrl, base, root, moduleBase)
+    const resolved = moduleResolver.resolve(url, base, root, moduleBase)
     const resolvedStr = resolved.url.toString()
     const urlComponents = resolvedStr.split('/')
     const resolvedExt = getExtension(resolvedStr)
@@ -96,35 +96,26 @@ export const require = (urlOrSource, transform, readFile, base, root, importData
     isRelativeFile = resolved.isRelativeFile
     resolvedUrl = resolved.url
     cacheUrl = resolved.url
-    requireCache.knownDependencies.get(base)?.add(cacheUrl)//Mark this module as a dependency of the base module
+    cacheManager.trackDependency(base, cacheUrl) // Mark this module as a dependency of the base module
 
-    cache = requireCache[isRelativeFile ? 'local' : 'module']
-    exports = cache[cacheUrl] // get from cache
-    // Update LRU access order for module cache hits
-    if (exports && !isRelativeFile) {
-      const order = requireCache.moduleAccessOrder
-      const idx = order.indexOf(cacheUrl)
-      if (idx !== -1) {
-        order.splice(idx, 1)
-        order.push(cacheUrl)
-      }
-    }
+    exports = cacheManager.get(cacheUrl, isRelativeFile) // get from cache (O(1) LRU update)
+
     if (!exports) {
       // not cached
 
       // Check for circular dependency
       // FP5: Check-then-add to loading set is safe - JavaScript is single-threaded within
       // a worker context. Async/await boundaries don't create true concurrency here.
-      if (requireCache.loading.has(cacheUrl)) {
+      if (cacheManager.isLoading(cacheUrl)) {
         throw new Error(`Circular dependency detected: ${url} is already being loaded`)
       }
-      requireCache.loading.add(cacheUrl)
+      cacheManager.markLoading(cacheUrl)
 
       // H8 fix: Wrap the entire loading block in try-finally to ensure loading set cleanup
       // even if errors occur during readFile or other operations
       try {
         //Clear the known dependencies of the old version this module
-        requireCache.knownDependencies.set(cacheUrl, new Set())
+        cacheManager.clearDependencies(cacheUrl)
         try {
           source = readFile(resolvedUrl)
           if (resolvedUrl.includes('cdn.jsdelivr.net')) {
@@ -156,7 +147,8 @@ export const require = (urlOrSource, transform, readFile, base, root, importData
           }
         } catch (e) {
           // L3 fix: Only try .ts fallback for 404/not-found errors, not other failures
-          const isNotFound = e.message?.includes('not found') || e.message?.includes('404')
+          // Note: Node.js ENOENT errors say "no such file or directory", not "not found"
+          const isNotFound = e.message?.includes('not found') || e.message?.includes('404') || e.message?.includes('no such file')
 
           // For .scad files, try library path searching before giving up
           if (resolvedUrl.endsWith('.scad') && isNotFound) {
@@ -219,7 +211,7 @@ export const require = (urlOrSource, transform, readFile, base, root, importData
         }
       } catch (loadError) {
         // H8 fix: Clean up loading set on error during the loading phase
-        requireCache.loading.delete(cacheUrl)
+        cacheManager.unmarkLoading(cacheUrl)
         throw loadError
       }
     }
@@ -262,19 +254,15 @@ export const require = (urlOrSource, transform, readFile, base, root, importData
     }
 
     // Cache the module exports
-    if (cache && cacheUrl) {
-      if (isRelativeFile) {
-        cache[cacheUrl] = exports
-      } else {
-        cacheModule(cacheUrl, exports) // LRU-managed module cache
-      }
+    if (cacheUrl) {
+      cacheManager.set(cacheUrl, exports, isRelativeFile) // O(1) LRU-managed cache
     }
 
     return exports // require returns object exported by module
   } finally {
     // Always remove from loading set, even on error (C3 fix)
     if (cacheUrl) {
-      requireCache.loading.delete(cacheUrl)
+      cacheManager.unmarkLoading(cacheUrl)
     }
   }
 }
@@ -304,43 +292,14 @@ const requireModule = (id, url, source, _require) => {
  * @param {ClearFileCacheOptions} obj
  */
 export const clearFileCache = ({ files, root }) => {
-  const cache = requireCache.local
-
-  /**
-   * @param {string} url 
-   */
-  const clearDependencies = (url) => {
-    delete cache[url]
-    const dependents = [...requireCache.knownDependencies.entries()].filter(([_, value]) => value.has(url))
-    for (const [dependency, _] of dependents) {
-      clearDependencies(dependency)
-    }
-  }
-
-  for (const file of files) {
-    delete cache[file]
-    if (root !== undefined) {
-      const path = file.startsWith("/") ? `.${file}` : file
-      const url = new URL(path, root)
-      clearDependencies(url.toString())
-    }
-  }
+  cacheManager.clearFileCache(files, root)
 }
 
 /**
  * Clear project-specific cache including dependency tracking
  */
 export const jscadClearTempCache = () => {
-  requireCache.local = {}
-  requireCache.alias = {}
-  requireCache.loading.clear() // Clear loading state for new script runs
-  // Clear dependency tracking for local files to prevent memory leaks
-  // Keep only module dependencies (entries starting with http)
-  for (const key of requireCache.knownDependencies.keys()) {
-    if (!key.startsWith('http')) {
-      requireCache.knownDependencies.delete(key)
-    }
-  }
+  cacheManager.clearTempCache()
 }
 
 /**
@@ -348,60 +307,11 @@ export const jscadClearTempCache = () => {
  * Use this for long-running applications to prevent unbounded memory growth
  */
 export const clearAllCaches = () => {
-  requireCache.local = {}
-  requireCache.alias = {}
-  requireCache.module = {}
-  requireCache.moduleAccessOrder = []
-  requireCache.knownDependencies.clear()
-  requireCache.loading.clear()
+  cacheManager.clearAllCaches()
 }
 
 /**
- * Maximum number of modules to keep in cache (LRU eviction)
- * M4 fix: Reduced from 100 to 50 to limit memory usage with large CAD libraries
+ * Legacy requireCache object for backward compatibility
+ * @deprecated Use cacheManager methods directly
  */
-const MAX_MODULE_CACHE_SIZE = 50
-
-/**
- * Add module to cache with LRU tracking
- * @param {string} url
- * @param {Object} exports
- */
-const cacheModule = (url, exports) => {
-  // Update access order for LRU
-  const order = requireCache.moduleAccessOrder
-  const idx = order.indexOf(url)
-  if (idx !== -1) order.splice(idx, 1)
-  order.push(url)
-
-  // Evict oldest entries if over limit
-  while (order.length > MAX_MODULE_CACHE_SIZE) {
-    const oldest = order.shift()
-    delete requireCache.module[oldest]
-    // I4 fix: Also clean up knownDependencies when module is evicted to prevent unbounded growth
-    requireCache.knownDependencies.delete(oldest)
-  }
-
-  requireCache.module[url] = exports
-}
-
-
-/**
- * @type {{
- * local:Object.<string,Object>
- * alias:Object.<string,string>
- * module:Object.<string,Object>
- * bundleAlias:Object.<string,string>
- * knownDependencies:Map.<string,Set<string>>
- * }}
- */
-// C3 fix: Use Object.create(null) to prevent prototype pollution via __proto__ or constructor
-export const requireCache = {
-  local: Object.create(null),
-  alias: Object.create(null),
-  module: Object.create(null),
-  bundleAlias: Object.create(null),
-  knownDependencies: new Map(),
-  moduleAccessOrder: [], // LRU tracking for module cache
-  loading: new Set(), // Track modules currently being loaded (for circular dependency detection)
-}
+export const requireCache = cacheManager.getLegacyCacheObjects()

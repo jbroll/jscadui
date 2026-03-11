@@ -40,6 +40,7 @@ import { isStackSpecialVar } from './specialVars.js'
 import { deduplicateParamNames, mergeSetInto, importSymbolsFromFile } from './utils.js'
 import { mergeDeclarations, splitDeclarationsByKind } from './bundling/mergeDeclarations.js'
 import type { Declaration } from './managers/DeclarationTracker.js'
+import { processDependency } from './dependencies/dependencyProcessor.js'
 
 // Re-export types for public API
 export type {
@@ -81,7 +82,7 @@ interface TranspiledStatements {
 function processUseStatements(ctx: TranspileContext): void {
   for (const useImport of ctx.useImports) {
     // Transpile the dependency and get the resolved path from fileResolver
-    const result = transpileAndCacheDependency(useImport.filename, ctx)
+    const result = processDependency(useImport.filename, ctx)
     useImport.resolvedPath = result.resolvedPath
     useImport.symbols = result.symbols
     // Import symbols from the cached file
@@ -106,7 +107,7 @@ function processIncludeStatements(ctx: TranspileContext): BundledContent {
 
   for (const includeImport of ctx.includeImports) {
     // Transpile the dependency and get the resolved path from fileResolver
-    const result = transpileAndCacheDependency(includeImport.filename, ctx)
+    const result = processDependency(includeImport.filename, ctx)
     includeImport.resolvedPath = result.resolvedPath
     includeImport.symbols = result.symbols
     // Get bundled parts for inlining
@@ -609,7 +610,7 @@ function collectSignaturesFromIncludes(
       continue
     }
 
-    // Cache the parsed AST so transpileAndCacheDependency can reuse it
+    // Cache the parsed AST so processDependency can reuse it
     ctx.parsedFiles.set(resolvedPath, ast)
 
     // Collect signatures from this file
@@ -675,118 +676,6 @@ function collectSignaturesFromIncludes(
   }
 }
 
-/**
- * Transpile a dependency file and cache the result
- * Returns the resolved path and exported symbol names
- */
-function transpileAndCacheDependency(filename: string, ctx: TranspileContext): {resolvedPath: string, symbols: string[]} {
-  const fileResolver = ctx.options.fileResolver
-  if (!fileResolver) {
-    // No file resolver - can't process dependencies
-    return {resolvedPath: '', symbols: []}
-  }
-
-  // Resolve the file to get its absolute path and content
-  const resolved = fileResolver(filename, ctx.options.currentFile)
-  if (!resolved) {
-    ctx.errors.push({
-      code: ErrorCode.FILE_NOT_FOUND,
-      message: `Cannot resolve file: ${filename}`,
-      file: ctx.options.currentFile,
-    })
-    return {resolvedPath: '', symbols: []}
-  }
-
-  const resolvedFilename = resolved.path
-
-  // Check cache first (using resolved path)
-  const cached = ctx.transpiledFiles.get(resolvedFilename)
-  if (cached) {
-    return {resolvedPath: resolvedFilename, symbols: cached.exports}
-  }
-
-  // Detect cycles (using resolved path)
-  if (ctx.processingFiles.has(resolvedFilename)) {
-    // Circular dependency - record error but don't fail
-    ctx.errors.push({
-      code: ErrorCode.CIRCULAR_DEPENDENCY,
-      message: `Circular dependency detected: ${resolvedFilename}`,
-      file: ctx.options.currentFile,
-    })
-    return {resolvedPath: resolvedFilename, symbols: []}
-  }
-
-  // Check if AST is already cached from signature pre-pass
-  let ast = ctx.parsedFiles.get(resolvedFilename)
-
-  if (!ast) {
-    // Parse the file
-    const { ast: parsedAst, errors } = parse(resolved.content)
-    if (errors.length > 0) {
-      ctx.errors.push({
-        code: ErrorCode.PARSE_ERROR,
-        message: `Parse error in ${filename}: ${errors.map(e => e.message || String(e)).join(', ')}`,
-        file: resolvedFilename,
-      })
-      return {resolvedPath: resolvedFilename, symbols: []}
-    }
-    ast = parsedAst
-  }
-
-  // Recursively transpile this file (sharing the cache)
-  // Use resolved path as currentFile so nested dependencies resolve correctly
-  // Pass current paramLists, dualDefinedNames, and importedFunctions so sibling includes can resolve calls
-
-  // Build param lists and sets from SymbolTable to pass to nested context
-  const moduleParamLists = new Map<string, string[]>()
-  for (const name of ctx.symbols.getByKind('module')) {
-    const params = ctx.symbols.getParams(name, 'module')
-    if (params) moduleParamLists.set(name, params)
-  }
-  const functionParamLists = new Map<string, string[]>()
-  for (const name of ctx.symbols.getByKind('function')) {
-    const params = ctx.symbols.getParams(name, 'function')
-    if (params) functionParamLists.set(name, params)
-  }
-  // Build importedFunctions set from SymbolTable
-  const importedFunctions = new Set<string>()
-  for (const name of ctx.symbols.getByKind('function')) {
-    if (ctx.symbols.isFromSource(name, 'imported')) {
-      importedFunctions.add(name)
-    }
-  }
-
-  const result = transpile(ast, {
-    ...ctx.options,
-    currentFile: resolvedFilename,
-    initialParamLists: moduleParamLists,
-    initialFunctionParamLists: functionParamLists,
-    initialDualDefinedNames: new Set(ctx.symbols.getDualDefined()),
-    initialImportedFunctions: importedFunctions,
-  }, ctx.transpiledFiles)
-
-  // Cache the result (using resolved path)
-  const cachedFile = ctx.transpiledFiles.get(resolvedFilename)
-  if (!cachedFile) {
-    // File should have been cached during transpile, but add safety check
-    ctx.transpiledFiles.set(resolvedFilename, {
-      code: result.code,
-      exports: result.exports.filter(e => e !== 'main'),
-      functionExports: [],  // This shouldn't happen, file was already cached
-      moduleExports: [],
-      paramLists: new Map(),
-      functionParamLists: new Map(),
-      dualDefinedNames: new Set(),
-      declarations: [],  // This shouldn't happen, file was already cached
-    })
-  }
-
-  // Return resolved path and exports (excluding 'main')
-  return {
-    resolvedPath: resolvedFilename,
-    symbols: result.exports.filter(e => e !== 'main')
-  }
-}
 
 /**
  * First pass: collect declarations

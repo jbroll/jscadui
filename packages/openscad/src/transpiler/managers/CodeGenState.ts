@@ -13,6 +13,7 @@ export class CodeGenState {
   usedHulls = false
   usedMaths = false
   usedMinMax = false
+  hasTopLevelGeometry = false  // Track if file has top-level geometry (for include optimization)
 
   /**
    * Create a deep copy for nested contexts
@@ -28,6 +29,7 @@ export class CodeGenState {
     copy.usedHulls = this.usedHulls
     copy.usedMaths = this.usedMaths
     copy.usedMinMax = this.usedMinMax
+    copy.hasTopLevelGeometry = this.hasTopLevelGeometry
     return copy
   }
 
@@ -44,5 +46,6 @@ export class CodeGenState {
     this.usedHulls = this.usedHulls || other.usedHulls
     this.usedMaths = this.usedMaths || other.usedMaths
     this.usedMinMax = this.usedMinMax || other.usedMinMax
+    this.hasTopLevelGeometry = this.hasTopLevelGeometry || other.hasTopLevelGeometry
   }
 }

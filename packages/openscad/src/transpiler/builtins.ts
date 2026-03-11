@@ -13,26 +13,28 @@ function stripUnderscorePrefix(name: string): string {
   return name.startsWith('_') ? name.slice(1) : name
 }
 
-// Built-in type checks
+// Built-in type checks — use Sets for O(1) lookup instead of O(n) array .includes()
 // All functions also match underscore-prefixed versions (BOSL2 builtins.scad wrappers)
+const BUILTIN_PRIMITIVES = new Set(['cube', 'sphere', 'cylinder', 'polyhedron', 'square', 'circle', 'polygon', 'regular_polygon', 'text'])
+const BUILTIN_TRANSFORMS = new Set(['translate', 'rotate', 'scale', 'mirror', 'multmatrix'])
+const BUILTIN_BOOLEANS   = new Set(['union', 'difference', 'intersection', 'minkowski'])
+const BUILTIN_EXTRUSIONS = new Set(['linear_extrude', 'rotate_extrude'])
+const SPECIAL_VARS       = new Set(['$fn', '$fa', '$fs'])
+
 export function isBuiltinPrimitive(name: string): boolean {
-  const baseName = stripUnderscorePrefix(name)
-  return ['cube', 'sphere', 'cylinder', 'polyhedron', 'square', 'circle', 'polygon', 'regular_polygon', 'text'].includes(baseName)
+  return BUILTIN_PRIMITIVES.has(stripUnderscorePrefix(name))
 }
 
 export function isBuiltinTransform(name: string): boolean {
-  const baseName = stripUnderscorePrefix(name)
-  return ['translate', 'rotate', 'scale', 'mirror', 'multmatrix'].includes(baseName)
+  return BUILTIN_TRANSFORMS.has(stripUnderscorePrefix(name))
 }
 
 export function isBuiltinBoolean(name: string): boolean {
-  const baseName = stripUnderscorePrefix(name)
-  return ['union', 'difference', 'intersection', 'minkowski'].includes(baseName)
+  return BUILTIN_BOOLEANS.has(stripUnderscorePrefix(name))
 }
 
 export function isBuiltinExtrusion(name: string): boolean {
-  const baseName = stripUnderscorePrefix(name)
-  return ['linear_extrude', 'rotate_extrude'].includes(baseName)
+  return BUILTIN_EXTRUSIONS.has(stripUnderscorePrefix(name))
 }
 
 // Positional parameter names for built-in primitives
@@ -254,7 +256,7 @@ export function transpileBuiltinExtrusion(
   // In OpenSCAD, extrusions like rotate_extrude($fn=30) set special variables
   // that are visible to child geometries
   const specialVars = argsArray.filter(arg =>
-    arg.name && ['$fn', '$fa', '$fs'].includes(arg.name)
+    arg.name && SPECIAL_VARS.has(arg.name)
   )
 
   // If there are special variables, wrap child in a scope so it inherits them

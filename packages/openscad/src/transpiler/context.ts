@@ -125,6 +125,10 @@ export interface TranspiledFile {
   bundledParts?: BundledParts  // Parts for inlining when included
   // AST-level declarations (for robust bundling)
   declarations?: Declaration[]
+  // Include optimization flags (Phase 1)
+  canOptimizeInclude?: boolean  // True if safe to use require() instead of bundling
+  hasTopLevelGeometry?: boolean  // True if file has top-level geometry statements
+  hasVariables?: boolean  // True if file has top-level variables
 }
 
 export interface UseImport {
