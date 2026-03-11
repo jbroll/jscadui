@@ -85,16 +85,14 @@ describe('buildAllScript', () => {
     expect(typeof buildAllScript([])).toBe('string')
   })
 
-  it('contains function main(params)', () => {
-    expect(buildAllScript(['/a.js'])).toContain('function main(params)')
+  it('contains const main arrow function', () => {
+    expect(buildAllScript(['/a.js'])).toContain('const main = (params) =>')
   })
 
-  it("contains require('@jscad/modeling')", () => {
-    expect(buildAllScript(['/a.js'])).toContain("require('@jscad/modeling')")
-  })
-
-  it('contains translate import', () => {
-    expect(buildAllScript(['/a.js'])).toContain('translate')
+  it("contains require for grid-utils with absolute path", () => {
+    expect(buildAllScript(['/a.js'])).toContain("'/examples/lib/grid-utils.js'")
+    expect(buildAllScript(['/a.js'])).toContain('gridPosition')
+    expect(buildAllScript(['/a.js'])).toContain('normalizeAndPlace')
   })
 
   it('embeds each URL in the output', () => {
@@ -103,32 +101,32 @@ describe('buildAllScript', () => {
     expect(script).toContain('/examples/b.scad')
   })
 
-  it('single file produces x:0, y:0 translate origin', () => {
+  it('uses dynamic gridPosition calculation', () => {
     const script = buildAllScript(['/a.js'], 60)
-    expect(script).toContain('"x": 0')
-    expect(script).toContain('"y": 0')
+    expect(script).toContain('gridPosition(i, items.length, spacing)')
   })
 
-  it('two files produce symmetric x positions', () => {
-    // cols=2, xOff=spacing/2 → x values are -spacing/2 and +spacing/2
+  it('passes spacing parameter to grid calculation', () => {
     const script = buildAllScript(['/a.js', '/b.js'], 100)
-    expect(script).toContain('-50')
-    expect(script).toContain('50')
+    expect(script).toContain('const spacing = 100')
   })
 
   it('handles empty file list without errors', () => {
     const script = buildAllScript([])
-    expect(script).toContain('function main(params)')
-    expect(script).not.toContain('undefined')
+    expect(script).toContain('const main = (params) =>')
+    // Script should be valid JavaScript (no syntax errors from undefined variables)
+    expect(() => new Function(script)).not.toThrow()
   })
 
-  it('wraps each model in try/catch', () => {
+  it('wraps each model in try/catch and logs warnings on error', () => {
     expect(buildAllScript(['/a.js'])).toContain('try {')
+    expect(buildAllScript(['/a.js'])).toContain('console.warn')
     expect(buildAllScript(['/a.js'])).toContain('} catch (err)')
   })
 
-  it('calls fn(params) for each model', () => {
-    expect(buildAllScript(['/a.js'])).toContain('fn(params)')
+  it('calls models with child proxy params', () => {
+    const script = buildAllScript(['/a.js'])
+    expect(script).toContain('fn(params[name])')
   })
 
   it('exports main via module.exports', () => {
