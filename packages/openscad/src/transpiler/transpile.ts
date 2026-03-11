@@ -655,24 +655,9 @@ function collectSignaturesFromIncludes(
         })
       }
     }
+    // nestedCtx is a shallow copy of ctx, so nestedCtx.symbols === ctx.symbols.
+    // All define() calls in the recursive pass land directly in ctx.symbols — no merge needed.
     collectSignaturesFromIncludes(nestedCtx, visitedFiles)
-
-    // Copy collected signatures back to main context
-    // Read from SymbolTable instead of legacy maps
-    for (const name of nestedCtx.symbols.getByKind('module')) {
-      const params = nestedCtx.symbols.getParams(name, 'module')
-      if (params && !ctx.symbols.getParams(name, 'module')) {
-        ctx.symbols.registerParams(name, 'module', params)
-      }
-    }
-    for (const name of nestedCtx.symbols.getByKind('function')) {
-      const params = nestedCtx.symbols.getParams(name, 'function')
-      if (params && !ctx.symbols.getParams(name, 'function')) {
-        ctx.symbols.registerParams(name, 'function', params)
-      }
-    }
-    // Merge SymbolTable from nested context (handles dual-defined names and included symbols)
-    ctx.symbols.merge(nestedCtx.symbols)
   }
 }
 
