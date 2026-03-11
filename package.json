@@ -16,7 +16,11 @@
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
-    "test": "turbo test",
+    "test": "node scripts/test-all.js",
+    "test:unit": "turbo test --concurrency=8",
+    "test:examples": "npm test -w apps/jscad-web",
+    "test:openscad": "npm test -w packages/openscad",
+    "test:e2e": "npm run test:e2e -w apps/jscad-web",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc --noEmit",

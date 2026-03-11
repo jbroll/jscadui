@@ -157,10 +157,17 @@ export const resolveUrl = (url, base, root, moduleBase=MODULE_BASE) => {
           // For absolute paths (starting with /), resolve against the origin not root
           // root may be a subdirectory like http://127.0.0.1:5120/examples/jscad/
           // but /examples/lib/file.js should resolve to http://127.0.0.1:5120/examples/lib/file.js
-          const origin = new URL(root).origin
+          const rootUrl = new URL(root)
+          const origin = rootUrl.origin
           url = normalizePath(url.substring(1))
           if (!getExtension(url)) url += '.js'
-          url = new URL(url, origin + '/').toString()
+          // Handle special schemes like 'fs:' that don't have a traditional origin
+          if (origin === 'null' || !origin) {
+            // For fs: and similar schemes, resolve against the scheme + protocol
+            url = new URL(url, rootUrl.protocol + '//').toString()
+          } else {
+            url = new URL(url, origin + '/').toString()
+          }
           return { url, isRelativeFile, isModule }
         }
         if (!getExtension(url)) url += '.js'
