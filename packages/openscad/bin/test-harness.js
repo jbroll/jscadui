@@ -26,7 +26,7 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
 const VERSION = '0.2.0'
-const DEFAULT_CONCURRENCY = Math.min(8, Math.max(1, cpus().length - 1))
+const DEFAULT_CONCURRENCY = Math.min(4, Math.max(1, cpus().length - 1))
 
 /**
  * Check if a path matches any skip pattern.
@@ -78,7 +78,7 @@ Options:
   --threshold <n>         Minimum Jaccard for pass (default: 0.99)
   --fn <n>                Set global $fn for both OpenSCAD and transpiler
   --openscad <path>       Path to OpenSCAD binary (default: openscad)
-  --concurrency <n>       Number of parallel tests (default: ${DEFAULT_CONCURRENCY})
+  --concurrency <n>       Number of parallel tests (default: ${DEFAULT_CONCURRENCY}, max 4)
   --keep-temp             Keep temporary files for debugging
   --verbose               Print detailed output
   --json                  Output results as JSON
