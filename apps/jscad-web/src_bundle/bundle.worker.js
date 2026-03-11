@@ -5,7 +5,7 @@ const {transformcjs} = jscadui_transform_babel
 // import {transformcjs} from '@jscadui/transform-babel'
 
 import {currentSolids, initWorker} from '@jscadui/worker'
-import {readFileWeb, require, requireHandlers, jscadClearTempCache} from '@jscadui/require'
+import {readFileWeb, require, requireHandlers, jscadClearTempCache, clearFileCache} from '@jscadui/require'
 
 // ── OpenSCAD (.scad) handler ──────────────────────────────────────────────
 // Lazily loads the openscad transpiler bundle on first use (652 K, not needed
@@ -28,20 +28,39 @@ function getOpenscad() {
 const failureCache = new Map()
 const FAILURE_CACHE_TTL = 60000 // 60 seconds
 
-// Cache for transpiled .scad files (to avoid re-transpiling dependencies)
-// Map: absolute path -> transpiled JavaScript source
+// Cache for transpiled .scad files (to avoid re-transpiling on module cache misses)
+// Map: absolute path (e.g. /examples/openscad/bosl2/foo.scad) -> transpiled JS source
 const transpiledCache = new Map()
+
+// Worker-level transpiler shared cache: persists TranspiledFile objects across jscadScript
+// calls so the transpiler can skip re-processing unchanged dependencies.
+// Map: absolute path -> TranspiledFile (as produced by the openscad transpiler)
+const workerSharedCache = new Map()
+
+// Normalise a URL or path to an absolute path for use as a cache key.
+// e.g. "http://localhost:3000/examples/openscad/bosl2/foo.scad" → "/examples/openscad/bosl2/foo.scad"
+const toCachePath = (urlOrPath) => {
+  try {
+    return new URL(urlOrPath, self.location.origin).pathname
+  } catch {
+    return urlOrPath
+  }
+}
 
 // Export a function to clear the transpiled cache
 // This should be called when the transpiler is updated or when clearing temp cache
 export const clearTranspiledCache = () => {
   transpiledCache.clear()
+  workerSharedCache.clear()
 }
 
 requireHandlers.set('scad', (source, url, _readFile) => {
-  // Check if this file was already transpiled as a dependency
-  if (transpiledCache.has(url)) {
-    return transpiledCache.get(url)
+  // Normalise to path for consistent cache keys
+  const urlPath = toCachePath(url)
+
+  // Return cached transpiled code if available (avoids full re-transpile)
+  if (transpiledCache.has(urlPath)) {
+    return transpiledCache.get(urlPath)
   }
   const { parse, transpile } = getOpenscad()
 
@@ -127,9 +146,9 @@ requireHandlers.set('scad', (source, url, _readFile) => {
 
   const result = transpile(ast, {
     fileResolver,
-    currentFile: url,
+    currentFile: urlPath,
     includeHeader: true,
-  })
+  }, workerSharedCache)
 
   // Check for transpilation errors (especially file resolution failures)
   if (result.errors && result.errors.length > 0) {
@@ -146,12 +165,16 @@ requireHandlers.set('scad', (source, url, _readFile) => {
     }
   }
 
-  // Cache transpiled dependency files (lazy execution - they'll be executed when actually required)
+  // Cache transpiled code for all files produced by this transpilation.
+  // Keys are already absolute paths (from fileResolver's urlToPath).
   if (result.files && result.files.size > 0) {
     for (const [filePath, fileData] of result.files) {
       transpiledCache.set(filePath, fileData.code)
     }
   }
+
+  // Cache the main file's transpiled code too
+  transpiledCache.set(urlPath, result.code)
 
   return result.code
 })
@@ -204,7 +227,18 @@ const importData = {
 // Create a local wrapper that clears both the require cache and .scad transpilation cache
 const clearAllCaches = () => {
   jscadClearTempCache()  // Clear require module cache
-  clearTranspiledCache()  // Clear .scad transpilation cache
+  clearTranspiledCache()  // Clear .scad transpilation + sharedCache
+}
+
+// Hook into jscadClearFileCache to also evict changed files from transpile caches.
+// Without this, edits to .scad files would serve stale transpiled code.
+const clearFileCacheWithTranspiled = ({ files, root }) => {
+  clearFileCache({ files, root })
+  for (const file of files) {
+    const filePath = toCachePath(file)
+    transpiledCache.delete(filePath)
+    workerSharedCache.delete(filePath)
+  }
 }
 
 initWorker({
@@ -213,7 +247,8 @@ initWorker({
   importData,
   customHandlers: {
     jscadGetExportFormats,
-    jscadClearTempCache: clearAllCaches  // Register wrapper as the RPC handler
+    jscadClearTempCache: clearAllCaches,          // Clears all caches including transpile
+    jscadClearFileCache: clearFileCacheWithTranspiled,  // Evicts specific changed files
   }
 })
  
