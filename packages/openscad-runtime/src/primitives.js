@@ -108,6 +108,11 @@ export const _polyhedron = ({ points, faces, triangles, convexity: _convexity })
   // Filter out any invalid faces (undefined or non-array elements)
   const validFaces = faceList.filter(f => Array.isArray(f))
 
+  // OpenSCAD silently promotes 2D points to 3D by adding Z=0
+  const points3d = points && points[0] && points[0].length === 2
+    ? points.map(p => [p[0], p[1], 0])
+    : points
+
   // Determine winding convention by computing signed volume (divergence theorem).
   // Outward-pointing normals → positive signed volume; inward → negative.
   // OpenSCAD's polyhedron accepts either winding convention, but JSCAD needs outward normals.
@@ -116,10 +121,10 @@ export const _polyhedron = ({ points, faces, triangles, convexity: _convexity })
   // - direct vnf_vertex_array with increasing angles → outward normals
   let signedVol = 0
   for (const face of validFaces) {
-    const p0 = points[face[0]]
+    const p0 = points3d[face[0]]
     for (let i = 1; i < face.length - 1; i++) {
-      const p1 = points[face[i]]
-      const p2 = points[face[i + 1]]
+      const p1 = points3d[face[i]]
+      const p2 = points3d[face[i + 1]]
       // Contribution: p0 · (p1 × p2) for divergence theorem
       signedVol += p0[0] * (p1[1] * p2[2] - p2[1] * p1[2])
                + p0[1] * (p1[2] * p2[0] - p2[2] * p1[0])
@@ -133,7 +138,7 @@ export const _polyhedron = ({ points, faces, triangles, convexity: _convexity })
     ? validFaces.map(f => [...f].reverse())
     : validFaces
 
-  return polyhedron({ points, faces: finalFaces, orientation: 'outward' })
+  return polyhedron({ points: points3d, faces: finalFaces, orientation: 'outward' })
 }
 
 export const _safeUnion = (parts) => {

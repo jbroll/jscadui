@@ -26,7 +26,7 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
 const VERSION = '0.2.0'
-const DEFAULT_CONCURRENCY = Math.max(1, cpus().length - 1)
+const DEFAULT_CONCURRENCY = Math.min(8, Math.max(1, cpus().length - 1))
 
 /**
  * Check if a path matches any skip pattern.
@@ -161,12 +161,13 @@ async function runOpenscad(scadPath, stlPath, openscadPath, fn = 0, originalPath
  *   test/corpus/bosl2/lib/examples/file.scad → test/corpus/bosl2
  */
 function detectLibraryDir(scadPath) {
-  // Try examples/openscad/{library}/ pattern first
-  let match = scadPath.match(/(.*\/openscad\/[^/]+)(?:\/|$)/)
+  // Try test/corpus/{library}/ pattern first (more specific — must come before openscad pattern
+  // since corpus paths contain "openscad" in the package dir and would match incorrectly)
+  let match = scadPath.match(/(.*\/corpus\/[^/]+)(?:\/|$)/)
   if (match) return match[1]
 
-  // Try test/corpus/{library}/ pattern (handles files in subdirs like lib/examples/)
-  match = scadPath.match(/(.*\/corpus\/[^/]+)(?:\/|$)/)
+  // Try examples/openscad/{library}/ pattern
+  match = scadPath.match(/(.*\/examples\/openscad\/[^/]+)(?:\/|$)/)
   if (match) return match[1]
 
   // Check if parent or ancestor directory contains lib/
@@ -312,14 +313,70 @@ function collectScadFiles(dirPath, files) {
   for (const entry of readdirSync(dirPath, { withFileTypes: true })) {
     const full = join(dirPath, entry.name)
     if (entry.isDirectory()) {
-      // Skip hidden dirs and known non-test dirs (images, build artifacts)
-      if (!entry.name.startsWith('.') && entry.name !== 'Image') {
+      // Skip hidden dirs and lib/ directories (library source, not runnable examples)
+      if (!entry.name.startsWith('.') && entry.name !== 'lib') {
         collectScadFiles(full, files)
       }
     } else if (entry.name.endsWith('.scad')) {
       files.push(full)
     }
   }
+}
+
+/**
+ * Auto-discover skip.txt files within the given directories and their subdirectories.
+ * Each skip.txt in a directory adds its patterns scoped to that directory
+ * (patterns match against the basename of files under that directory).
+ */
+function discoverSkipPatterns(dirs) {
+  const dirSkips = []  // [{dir, patterns}]
+
+  function walk(dirPath) {
+    const skipFile = join(dirPath, 'skip.txt')
+    if (existsSync(skipFile)) {
+      try {
+        const content = readFileSync(skipFile, 'utf8')
+        const patterns = []
+        for (const line of content.split('\n')) {
+          const pattern = line.trim()
+          if (pattern && !pattern.startsWith('#')) {
+            patterns.push(pattern)
+          }
+        }
+        if (patterns.length > 0) {
+          dirSkips.push({ dir: resolve(dirPath), patterns })
+        }
+      } catch { /* ignore unreadable skip files */ }
+    }
+    for (const entry of readdirSync(dirPath, { withFileTypes: true })) {
+      if (entry.isDirectory() && !entry.name.startsWith('.')) {
+        walk(join(dirPath, entry.name))
+      }
+    }
+  }
+
+  for (const dir of dirs) {
+    if (existsSync(resolve(dir))) walk(resolve(dir))
+  }
+  return dirSkips
+}
+
+/**
+ * Check if a file should be skipped based on directory-scoped skip patterns.
+ */
+function isSkippedByDirPatterns(filePath, dirSkips) {
+  const resolvedFile = resolve(filePath)
+  for (const { dir, patterns } of dirSkips) {
+    // Only apply patterns from a skip.txt to files under that directory
+    if (!resolvedFile.startsWith(dir + '/') && resolvedFile !== dir) continue
+    for (const pattern of patterns) {
+      const regex = new RegExp('^' + pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$')
+      if (regex.test(basename(resolvedFile)) || regex.test(relative(dir, resolvedFile))) {
+        return true
+      }
+    }
+  }
+  return false
 }
 
 function getTestFiles(dirs, matchPatterns = []) {
@@ -377,9 +434,15 @@ async function main() {
     process.exit(1)
   }
 
-  // Filter out skipped files (match against relative path from cwd)
+  // Auto-discover skip.txt files from the tested directories (directory-scoped patterns)
+  const dirSkips = discoverSkipPatterns(options.dirs)
+
+  // Filter out skipped files: explicit --skip-file patterns OR auto-discovered skip.txt patterns
   const cwd = process.cwd()
-  const filesToTest = files.filter(f => !matchesSkipPattern(relative(cwd, f), options.skipPatterns))
+  const filesToTest = files.filter(f =>
+    !matchesSkipPattern(relative(cwd, f), options.skipPatterns) &&
+    !isSkippedByDirPatterns(f, dirSkips)
+  )
   const skipped = files.length - filesToTest.length
 
   if (options.verbose) {

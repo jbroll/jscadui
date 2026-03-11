@@ -25,9 +25,13 @@
   ],
   "scripts": {
     "build": "tsc",
-    "test": "npm run build && vitest run && node bin/test-harness.js test/corpus --skip-file test/corpus/snippet-skip.txt --skip-file test/corpus/bosl2/skip.txt && node bin/test-harness.js ../../apps/jscad-web/examples/openscad",
+    "test": "npm run build && npm run test:unit && npm run test:comparison",
+    "test:unit": "vitest run",
+    "test:comparison": "node bin/test-harness.js ../../apps/jscad-web/examples/openscad",
+    "test:bosl": "node bin/test-harness.js ../../apps/jscad-web/examples/openscad/bosl",
+    "test:bosl2": "node bin/test-harness.js ../../apps/jscad-web/examples/openscad/bosl2",
+    "test:snippet": "node bin/test-harness.js ../../apps/jscad-web/examples/openscad/snippet",
     "test:basics": "node bin/test-harness.js ../../apps/jscad-web/examples/openscad/01-basics",
-    "test:examples": "node bin/test-harness.js ../../apps/jscad-web/examples/openscad",
     "test:watch": "vitest",
     "coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit"

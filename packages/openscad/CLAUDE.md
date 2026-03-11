@@ -2,7 +2,7 @@
 
 ## Critical Understanding
 
-**All runtime errors are transpiler bugs.** The test corpus consists of OpenSCAD files that run correctly in OpenSCAD itself. If the transpiled JavaScript produces a runtime error (ReferenceError, TypeError, assertion failure, etc.), the bug is in the transpiler, not the source code.
+**All runtime errors are transpiler bugs.** The test examples consist of OpenSCAD files that run correctly in OpenSCAD itself. If the transpiled JavaScript produces a runtime error (ReferenceError, TypeError, assertion failure, etc.), the bug is in the transpiler, not the source code.
 
 When debugging test failures:
 1. The OpenSCAD source is known-good - it runs in OpenSCAD
@@ -15,14 +15,14 @@ When debugging test failures:
 # Unit tests
 npx vitest run
 
-# Main corpus (should be 100%)
-node bin/test-harness.js test/corpus
+# All examples (comprehensive)
+npm test
 
-# BOSL v1 library tests (should be 100%)
-node bin/test-harness.js test/corpus/bosl
+# BOSL v1 library examples (should be 100%)
+node bin/test-harness.js ../../apps/jscad-web/examples/openscad/bosl
 
-# BOSL2 library tests (target: improve pass rate)
-node bin/test-harness.js test/corpus/bosl2
+# BOSL2 library examples (target: improve pass rate)
+node bin/test-harness.js ../../apps/jscad-web/examples/openscad/bosl2
 ```
 
 ## Architecture Overview

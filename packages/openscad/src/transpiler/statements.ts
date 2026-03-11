@@ -160,6 +160,10 @@ export function transpileStatement(stmt: Statement, ctx: TranspileContext): stri
   }
 
   if (isIfElseStatement(stmt)) {
+    // % (tagBackground) and * (tagDisabled) modifiers on if/else exclude the entire block
+    if (stmt.tagBackground || stmt.tagDisabled) {
+      return 'undefined'
+    }
     const cond = transpileExpression(stmt.cond, ctx)
     const thenPart = transpileStatement(stmt.thenBranch, ctx) || 'undefined'
     const elsePart = stmt.elseBranch ? transpileStatement(stmt.elseBranch, ctx) : 'undefined'
