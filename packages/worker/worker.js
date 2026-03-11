@@ -7,6 +7,7 @@ import { exportStlText } from './src/exportStlText.js'
 import { combineParameterDefinitions, getParameterDefinitionsFromSource } from './src/getParameterDefinitionsFromSource.js'
 import { extractDefaults } from './src/extractDefaults.js'
 import { extractPathInfo, readAsArrayBuffer, readAsText } from '../fs-provider/fs-provider.js'
+import { workerState } from './src/state/workerState.js'
 
 /**
 @typedef Alias
@@ -50,12 +51,6 @@ import { extractPathInfo, readAsArrayBuffer, readAsText } from '../fs-provider/f
 @typedef {(script:string,url:string)=>string} TransformFunction
 */
 
-/** @type {import('@jscadui/format-common').JscadMainFunctionRaw | undefined} */
-let main
-
-/** @type {import('@jscadui/format-common').JscadModule} */
-let scriptModule = {}
-
 globalThis.JSCAD_WORKER_ENV = {}
 
 /**
@@ -78,13 +73,13 @@ const resetScriptLock = () => {
 self.addEventListener('error', (event) => {
   console.error('Worker uncaught error:', event.error)
   resetScriptLock()
-  clearWorkerState?.()
+  workerState.clearGeometry()
 })
 
 self.addEventListener('unhandledrejection', (event) => {
   console.error('Worker unhandled rejection:', event.reason)
   resetScriptLock()
-  clearWorkerState?.()
+  workerState.clearGeometry()
 })
 
 /**
@@ -139,30 +134,8 @@ const acquireScriptLock = async () => {
   return release
 }
 
-/** @type {TransformFunction} */
-let transformFunc = x => x
-
-let globalBase = location.origin
-/** @type {boolean | undefined } */
-let userInstances
-
-/** @type {boolean | undefined } */
-let useParamsProxy
-
-/** @type {ImportData | undefined} */
-let importData
-
-// Params proxy state - persists across jscadMain calls
-/** @type {Set<string>} */
-let userInteracted = new Set()
-/** @type {Object} */
-let currentUiValues = {}
-/** @type {Object | null} */
-let legacyProxyDefs = null
-
-// I1 fix: Generation counter to detect stale scripts after timeout
-// Increments each time jscadScript is called, used to abort timed-out scripts
-let scriptGeneration = 0
+// All worker state is now managed by the workerState singleton
+// See src/state/workerState.js for the consolidated state object
 
 /**
  * @template T
@@ -191,7 +164,7 @@ export const flatten = arr=>{
  */
 export const jscadInit = options => {
   const { baseURI, alias = [], bundles = {} } = options
-  if (baseURI) globalBase = baseURI
+  if (baseURI) workerState.globalBase = baseURI
 
   // Check if the modeling bundle is changing - if so, clear local cache
   // to force user scripts to be re-evaluated with the new bundle
@@ -208,8 +181,8 @@ export const jscadInit = options => {
     requireCache.alias[name] = path
   })
   console.log('init alias', alias, 'bundles',bundles)
-  userInstances = options.userInstances
-  useParamsProxy = options.useParamsProxy
+  workerState.userInstances = options.userInstances
+  workerState.useParamsProxy = options.useParamsProxy
 }
 /**
  * @param {import('../fs-provider/fs-provider.js').FSFileEntry | Blob} file 
@@ -221,20 +194,6 @@ async function readFileFile(file, {bin=false}={}){
   else return readAsText(file)
 }
 
-/** @type {import('@jscadui/format-common').JscadMainResultRaw[]} */
-let solids = []
-
-/** @type {import('@jscadui/params-core').ProxyState | null} */
-let _lastProxyState = null
-
-/**
- * M6 fix: Clear worker state after catastrophic errors to free memory
- * Called from global error handlers defined earlier
- */
-const clearWorkerState = () => {
-  solids = []
-  _lastProxyState = null
-}
 
 /**
  * @param {{params?:import('@jscadui/format-common').UserParameters,skipLog?:boolean,userInteractedPaths?:string[],useGpuNormals?:boolean}} options
@@ -256,11 +215,11 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
   // M11 fix: Limit set size to prevent unbounded growth
   const MAX_INTERACTED_PATHS = 1000
   if (userInteractedPaths) {
-    userInteractedPaths.forEach(p => userInteracted.add(p))
+    userInteractedPaths.forEach(p => workerState.userInteracted.add(p))
     // Clear oldest entries if set grows too large
-    if (userInteracted.size > MAX_INTERACTED_PATHS) {
-      const toKeep = [...userInteracted].slice(-MAX_INTERACTED_PATHS)
-      userInteracted = new Set(toKeep)
+    if (workerState.userInteracted.size > MAX_INTERACTED_PATHS) {
+      const toKeep = [...workerState.userInteracted].slice(-MAX_INTERACTED_PATHS)
+      workerState.userInteracted = new Set(toKeep)
     }
   }
 
@@ -280,14 +239,15 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
   }
 
   // Store UI values for proxy
-  if (useParamsProxy) {
-    currentUiValues = params
+  if (workerState.useParamsProxy) {
+    console.log('[STORE] Storing currentUiValues:', params)
+    workerState.currentUiValues = params
   }
 
   /** @type {import('@jscadui/format-common').JscadTransferable []} */
   const transferable = []
 
-  if (!main) throw new Error('no main function exported')
+  if (!workerState.main) throw new Error('no main function exported')
 
   let time = performance.now()
   let treeTime = 0
@@ -299,24 +259,32 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
     // For Manifold: this builds the lazy operation tree (fast)
     // For JSCAD: this does all the actual CSG work (treeTime will be 0, work is immediate)
     let proxyState = null
-    if (useParamsProxy) {
-      // Determine params mode:
-      // - 'flat' for scripts with getParameterDefinitions (legacy modules)
-      // - 'hierarchical' for scripts using nested parts system
-      const mode = legacyProxyDefs ? 'flat' : 'hierarchical'
-      proxyState = createProxyState(currentUiValues, userInteracted, { mode })
-      const proxyParams = createParamsProxy(proxyState)
+    if (workerState.useParamsProxy) {
+      if (workerState.legacyProxyDefs) {
+        // Legacy scripts with getParameterDefinitions need ISOLATED state
+        // to prevent parameter pollution between examples in ALL.js
+        // Filter userInteracted to only defined params
+        const definedParams = new Set(Object.keys(workerState.legacyProxyDefs))
+        const filteredInteracted = new Set([...workerState.userInteracted].filter(path => definedParams.has(path)))
 
-      // Inject legacy parameter definitions if the script has getParameterDefinitions
-      // This promotes legacy scripts to work with the params proxy system
-      if (legacyProxyDefs) {
-        injectLegacyDefs(proxyParams, legacyProxyDefs)
+        // Create isolated hierarchical state (NOT shared with any parent)
+        proxyState = createProxyState(workerState.currentUiValues, filteredInteracted, { mode: 'hierarchical' })
+        const proxyParams = createParamsProxy(proxyState)
+
+        // Inject legacy defs and seal the proxy
+        injectLegacyDefs(proxyParams, workerState.legacyProxyDefs)
+
+        workerState.solids = flatten(await workerState.main(proxyParams))
+      } else {
+        // New hierarchical param system - shared state for nested parts
+        proxyState = createProxyState(workerState.currentUiValues, workerState.userInteracted, { mode: 'hierarchical' })
+        const proxyParams = createParamsProxy(proxyState)
+
+        workerState.solids = flatten(await workerState.main(proxyParams))
       }
-
-      solids = flatten(await main(proxyParams))
-      _lastProxyState = proxyState
+      workerState._lastProxyState = proxyState
     } else {
-      solids = flatten(await main(params || {}))
+      workerState.solids = flatten(await workerState.main(params || {}))
     }
 
     treeTime = performance.now() - time
@@ -324,7 +292,7 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
     // Force evaluation of lazy Manifold geometries
     // This triggers actual CSG computation; result is cached for getMesh()
     time = performance.now()
-    for (const solid of solids) {
+    for (const solid of workerState.solids) {
       if (solid && solid.isManifoldGeom3) {
         solid.manifold.numTri() // Forces evaluation, caches result
       }
@@ -334,7 +302,7 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
     // Convert to render format (getMesh + common format conversion)
     time = performance.now()
     JscadToCommon.clearCache()
-    const entities = JscadToCommon.prepare(solids, transferable, userInstances).all
+    const entities = JscadToCommon.prepare(workerState.solids, transferable, workerState.userInstances).all
     convTime = performance.now() - time
 
     const result = { entities, treeTime, execTime, convTime }
@@ -351,9 +319,9 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
       // I2 fix: Prune stale paths from userInteracted to prevent memory leak
       // Only keep paths that exist in the current parameter structure
       const discoveredSet = new Set(proxyState.discovered)
-      for (const path of userInteracted) {
+      for (const path of workerState.userInteracted) {
         if (!discoveredSet.has(path)) {
-          userInteracted.delete(path)
+          workerState.userInteracted.delete(path)
         }
       }
     }
@@ -362,7 +330,7 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
   } catch (error) {
     // Clear cache on error to avoid stale state
     JscadToCommon.clearCache()
-    clearWorkerState() // M1 fix: Also clear solids array on error to free memory
+    workerState.clearGeometry() // M1 fix: Also clear solids array on error to free memory
     // Re-throw with additional context
     const message = error.message || String(error)
     const wrappedError = new Error(`jscadMain failed: ${message}`)
@@ -380,26 +348,26 @@ const exportReg = /export.*from/
  * @param {{script:string,url?:string,base?:string,root?:string,useGpuNormals?:boolean}} param0
  * @returns {Promise<import('@jscadui/format-common').JscadScriptResultWithParams>}
  */
-const jscadScript = async ({ script, url='jscad.js', base=globalBase, root=base, useGpuNormals: gpuNormals }) => {
+const jscadScript = async ({ script, url='jscad.js', base=workerState.globalBase, root=base, useGpuNormals: gpuNormals }) => {
   // I1 fix: Increment generation to invalidate any timed-out scripts still running
-  const myGeneration = ++scriptGeneration
+  const myGeneration = workerState.nextGeneration()
 
   // Acquire lock to prevent race conditions with concurrent script executions
   const release = await acquireScriptLock()
   try {
     // I1 fix: Check if we're still the current generation after acquiring lock
     // A timeout may have released the lock and allowed another script to start
-    if (myGeneration !== scriptGeneration) {
+    if (myGeneration !== workerState.getGeneration()) {
       throw new Error('Script execution superseded by newer script')
     }
 
-    console.log('run script with base:', base, useParamsProxy ? '(proxy mode)' : '')
+    console.log('run script with base:', base, workerState.useParamsProxy ? '(proxy mode)' : '')
 
     // Reset proxy state for new script
-    userInteracted = new Set()
-    currentUiValues = {}
-    legacyProxyDefs = null
-    solids = [] // C2 fix: Clear solids array to prevent memory leak on script reload
+    workerState.userInteracted = new Set()
+    workerState.currentUiValues = {}
+    workerState.legacyProxyDefs = null
+    workerState.solids = [] // C2 fix: Clear solids array to prevent memory leak on script reload
 
     if(!script) script = readFileWeb(resolveUrl(url, base, root).url)
 
@@ -407,16 +375,16 @@ const jscadScript = async ({ script, url='jscad.js', base=globalBase, root=base,
     let def = []
 
     try{
-      const loadedModule = require({url,script}, shouldTransform ? transformFunc : undefined, readFileWeb, base, root, importData)
+      const loadedModule = require({url,script}, shouldTransform ? workerState.transformFunc : undefined, readFileWeb, base, root, workerState.importData)
       // I1 fix: Check generation before setting shared state
-      if (myGeneration !== scriptGeneration) {
+      if (myGeneration !== workerState.getGeneration()) {
         throw new Error('Script execution superseded by newer script during module load')
       }
-      scriptModule = loadedModule
+      workerState.scriptModule = loadedModule
     }catch(e){
       // with syntax error in browser we do not get nice stack trace
       // we then try to parse the script to let transform function generate nice error with nice trace
-      if(e.name === 'SyntaxError') transformFunc(script, url)
+      if(e.name === 'SyntaxError') workerState.transformFunc(script, url)
       // if error is not SyntaxError or if transform func does not find syntax err (very unlikely)
       throw e
     }
@@ -437,21 +405,21 @@ const jscadScript = async ({ script, url='jscad.js', base=globalBase, root=base,
     }
 
     // C1 fix: Check generation after async WASM init to prevent stale script from corrupting main
-    if (myGeneration !== scriptGeneration) {
+    if (myGeneration !== workerState.getGeneration()) {
       throw new Error('Script execution superseded during WASM initialization')
     }
 
-    main = scriptModule.main
+    workerState.main = workerState.scriptModule.main
     // if the main function is the default export
-    if(!main && typeof scriptModule == 'function') main = scriptModule
+    if(!workerState.main && typeof workerState.scriptModule == 'function') workerState.main = workerState.scriptModule
 
     let params = {}
-    if (useParamsProxy) {
+    if (workerState.useParamsProxy) {
       // Check if script has legacy getParameterDefinitions and convert them
       // This allows legacy scripts to work with the params proxy system
-      const legacyDefs = await scriptModule.getParameterDefinitions?.()
+      const legacyDefs = await workerState.scriptModule.getParameterDefinitions?.()
       if (legacyDefs && legacyDefs.length > 0) {
-        legacyProxyDefs = convertLegacyDefs(legacyDefs)
+        workerState.legacyProxyDefs = convertLegacyDefs(legacyDefs)
       }
 
       // In proxy mode, run main to discover params, then extract defaults
@@ -499,20 +467,20 @@ const jscadExportData = async (params) => {
   // then we would not need to clone the data
   // other option is to clone data before sending transferable
   JscadToCommon.clearCache()
-  const entities = JscadToCommon.ConvertMulti(solids, [], false)
+  const entities = JscadToCommon.ConvertMulti(workerState.solids, [], false)
 
   const arr = exportStlText(entities)
   const data = [await new Blob(arr).arrayBuffer()]
   return withTransferable({ data }, data)
 }
 
-export const currentSolids = ()=>solids
+export const currentSolids = () => workerState.solids
 
 const handlers = { jscadScript, jscadInit, jscadMain, jscadClearTempCache, jscadClearFileCache:clearFileCache, jscadExportData }
 // allow main thread to call worker methods and any method from the loaded script
 const handlersProxy = new Proxy(handlers, {
   get(target, prop, _receiver) {
-    return target[prop] || scriptModule[prop]
+    return target[prop] || workerState.scriptModule[prop]
   }
 })
 
@@ -530,9 +498,9 @@ const handlersProxy = new Proxy(handlers, {
  */
 export const initWorker = (options = {}) => {
   const { transform, jscadExportData, importData: _importData, customHandlers } = options
-  if (transform) transformFunc = transform
+  if (transform) workerState.transformFunc = transform
   if (jscadExportData) handlers.jscadExportData = jscadExportData
-  importData = _importData
+  workerState.importData = _importData
   if (customHandlers) Object.assign(handlers, customHandlers)
 
   JSCAD_WORKER_ENV.client = messageProxy(self, handlersProxy)
