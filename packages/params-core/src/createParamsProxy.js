@@ -215,6 +215,7 @@ export const createParamsProxy = (state, path = '') => {
   const { discovered, discoveredPaths, discoveredByPath, userInteracted, uiValues } = state
   const defaults = {}
   const children = {}
+  let sealed = false  // Per-proxy sealed flag
 
   const proxy = new Proxy({}, {
     get(target, prop) {
@@ -223,6 +224,8 @@ export const createParamsProxy = (state, path = '') => {
       if (prop === '_state') return state
       if (prop === '_defaults') return defaults
       if (prop === '_isParamsProxy') return true
+      if (prop === '_sealed') return sealed
+      if (prop === '_seal') return () => { sealed = true }
 
       // Symbol handling (for console.log, etc.)
       if (typeof prop === 'symbol') return undefined
@@ -244,7 +247,9 @@ export const createParamsProxy = (state, path = '') => {
       // UI value takes precedence (if user interacted)
       if (userInteracted.has(fullPath)) {
         const uiVal = getByPath(uiValues, fullPath)
-        if (uiVal !== undefined) return uiVal
+        if (uiVal !== undefined) {
+          return uiVal
+        }
       }
 
       // Return code-set value
@@ -252,13 +257,14 @@ export const createParamsProxy = (state, path = '') => {
         return defaults[propStr]
       }
 
-      // In flat mode, return undefined for unknown properties
+      // Sealed proxies return undefined for unknown properties
       // This supports destructuring defaults: const { radius = 5 } = params
-      if (state.mode === 'flat') {
+      // Sealed proxies are used for legacy scripts after injectLegacyDefs
+      if (sealed) {
         return undefined
       }
 
-      // In hierarchical mode, create child proxies for nested parts
+      // In hierarchical mode (not sealed), create child proxies for nested parts
       if (!(propStr in children)) {
         children[propStr] = createParamsProxy(state, fullPath)
       }
@@ -378,9 +384,8 @@ export const createParamsProxy = (state, path = '') => {
  * @param {Object} [uiValues={}] - Initial UI values
  * @param {Set<string>} [userInteracted] - Paths user has interacted with
  * @param {Object} [options={}] - Options
- * @param {'flat'|'hierarchical'} [options.mode='hierarchical'] - Proxy mode:
- *   - 'hierarchical': Create child proxies for unknown properties (for nested parts)
- *   - 'flat': Return undefined for unknown properties (for legacy scripts)
+ * @param {Object} [options] - Options for proxy state
+ * @param {'hierarchical'} [options.mode='hierarchical'] - Proxy mode (hierarchical creates child proxies for nested parts)
  * @returns {ProxyState}
  */
 export const createProxyState = (uiValues = {}, userInteracted = new Set(), options = {}) => ({
@@ -828,6 +833,12 @@ export const injectLegacyDefs = (params, proxyDefs) => {
       // This registers the param with type, min, max, caption, etc.
       params[name] = def
     }
+  }
+
+  // Seal THIS specific proxy after injecting legacy defs
+  // This prevents child proxy creation for undefined properties
+  if (isProxy && params._seal) {
+    params._seal()
   }
 }
 

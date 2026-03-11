@@ -7,7 +7,7 @@ import { dismissWelcome, waitForRender, assertNoError } from './helpers.js'
  */
 test.describe('Parameter panel', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/#./examples/balloons.example.js')
+    await page.goto('/#./examples/jscad/11-balloons.example.js')
     await dismissWelcome(page)
     await waitForRender(page, 30_000)
     await assertNoError(page)
@@ -54,7 +54,7 @@ test.describe('Parameter panel', () => {
 test.describe('Parameter panel – inline (params-proxy) style', () => {
   test.beforeEach(async ({ page }) => {
     // The hierarchical-car example uses the params-proxy inline parameter style
-    await page.goto('/#./examples/hierarchical-car.example.js')
+    await page.goto('/#./examples/jscad/02-hierarchical-car.example.js')
     await dismissWelcome(page)
     await waitForRender(page, 30_000)
   })
