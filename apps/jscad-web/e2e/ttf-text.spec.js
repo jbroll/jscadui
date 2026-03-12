@@ -7,6 +7,9 @@ import { dismissWelcome, waitForRender, assertNoError, sampleCanvasCentre } from
  * changing font/text parameters re-renders the model correctly.
  */
 test.describe('TTF text example', () => {
+  // CDN font downloads can take 10-30s on first run; override the global 30s timeout
+  test.setTimeout(120_000)
+
   test.beforeEach(async ({ page }) => {
     await page.goto('/#./examples/jscad/14-ttf-text.example.js')
     await dismissWelcome(page)
