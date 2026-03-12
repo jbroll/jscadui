@@ -6,8 +6,3 @@
 # OpenSCAD's implementation, so the generated hull/sphere positions don't match.
 # The file runs without error but geometry differs due to rands() output differences.
 test_convex_hull.scad
-
-# text3d() uses linear_extrude(text()) which creates non-manifold geometry
-# when extruding Hershey font character paths. Known limitation of Hershey font
-# path rendering - OpenSCAD uses different (TrueType) font outlines.
-orientations.scad

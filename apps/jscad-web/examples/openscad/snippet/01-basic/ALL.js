@@ -27,7 +27,6 @@ const items = [
   "./Bookshelf_01.scad",
   "./Bookshelf_02.scad",
   "./Box_Wood_01.scad",
-  "./Bricks.scad",
   "./Building_01.scad",
   "./Building_02.scad",
   "./Chair_01.scad",

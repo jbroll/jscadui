@@ -198,7 +198,10 @@ describe('text2d (TTF mode - synchronous, file path)', () => {
 
 describe('FontMap', () => {
   it('STATIC_FONT_MAP contains Liberation Sans', () => {
-    expect(STATIC_FONT_MAP['Liberation Sans']).toMatch(/arimo.*Regular\.ttf$/i)
+    // Node.js: bundled LiberationSans-Regular.ttf; Browser: CDN URL
+    const value = STATIC_FONT_MAP['Liberation Sans']
+    expect(typeof value).toBe('string')
+    expect(value).toMatch(/LiberationSans-Regular\.ttf$/i)
   })
 
   it('resolveFont passes through URLs unchanged', () => {

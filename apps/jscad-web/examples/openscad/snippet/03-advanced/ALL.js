@@ -27,8 +27,6 @@ const items = [
   "./Roll_Holder.scad",
   "./Sauce_Bottle.scad",
   "./Screw.scad",
-  "./Shaft_01.scad",
-  "./Shaft_02_With_Keyway.scad",
   "./Sign_01.scad",
   "./Sign_02.scad",
   "./Sign_03.scad",

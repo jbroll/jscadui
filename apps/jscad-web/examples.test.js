@@ -2,7 +2,7 @@
  * Test that all example files can be loaded and executed without errors.
  * This catches regressions like broken parameter defaults, missing imports, etc.
  */
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeAll } from 'vitest'
 import { readFileSync, readdirSync } from 'fs'
 import { join, dirname, resolve } from 'path'
 import { fileURLToPath } from 'url'
@@ -30,9 +30,11 @@ if (!engineFilter || engineFilter === 'jscad') {
 }
 
 if (!engineFilter || engineFilter === 'manifold') {
+  const manifold = await import('@jscadui/manifold')
   engines.push({
     name: '@jscadui/manifold',
-    module: nodeRequire('@jscadui/manifold'),
+    module: manifold,
+    init: manifold.init,
   })
 }
 
@@ -40,9 +42,10 @@ if (!engineFilter || engineFilter === 'manifold') {
 const moduleCache = new Map()
 
 /**
- * Create a mock require function that provides the specified engine and supports relative paths
+ * Create a mock require function that provides the specified engine and supports relative paths.
+ * engineName is used as the cache key discriminator (not the module object itself).
  */
-const createMockRequire = (basePath, engineModule) => {
+const createMockRequire = (basePath, engineModule, engineName) => {
   return (moduleName) => {
     if (moduleName === '@jscad/modeling') {
       return engineModule
@@ -54,11 +57,11 @@ const createMockRequire = (basePath, engineModule) => {
     // Handle relative requires
     if (moduleName.startsWith('./') || moduleName.startsWith('../')) {
       const fullPath = resolve(dirname(basePath), moduleName)
-      const cacheKey = `${fullPath}:${engineModule}`
+      const cacheKey = `${fullPath}:${engineName}`
       if (moduleCache.has(cacheKey)) {
         return moduleCache.get(cacheKey)
       }
-      const mod = loadExample(fullPath, engineModule)
+      const mod = loadExample(fullPath, engineModule, engineName)
       moduleCache.set(cacheKey, mod)
       return mod
     }
@@ -69,9 +72,9 @@ const createMockRequire = (basePath, engineModule) => {
 /**
  * Execute a CommonJS example script and return the exports
  */
-const loadExample = (filePath, engineModule) => {
+const loadExample = (filePath, engineModule, engineName) => {
   const source = readFileSync(filePath, 'utf-8')
-  const mockRequire = createMockRequire(filePath, engineModule)
+  const mockRequire = createMockRequire(filePath, engineModule, engineName)
   const exports = {}
   const module = { exports }
 
@@ -89,6 +92,15 @@ const exampleFiles = readdirSync(examplesDir, { recursive: true })
   .map(f => join(examplesDir, f))
 
 describe('Example files', () => {
+  // Initialize engines that require async setup (e.g. Manifold WASM)
+  beforeAll(async () => {
+    for (const engine of engines) {
+      if (engine.init) {
+        await engine.init()
+      }
+    }
+  })
+
   // Test with each engine
   describe.each(engines.map(e => [e.name, e.module]))(
     'Engine: %s',
@@ -99,7 +111,7 @@ describe('Example files', () => {
           it('should load without errors', () => {
             // Clear cache for fresh load
             moduleCache.clear()
-            const mod = loadExample(filePath, engineModule)
+            const mod = loadExample(filePath, engineModule, engineName)
             expect(mod).toBeDefined()
             expect(typeof mod.main).toBe('function')
           })
@@ -107,7 +119,7 @@ describe('Example files', () => {
           it('should execute main() with params proxy', () => {
             // Clear cache for fresh load
             moduleCache.clear()
-            const mod = loadExample(filePath, engineModule)
+            const mod = loadExample(filePath, engineModule, engineName)
 
             // Check if this is a legacy script (has getParameterDefinitions)
             const isLegacy = typeof mod.getParameterDefinitions === 'function'

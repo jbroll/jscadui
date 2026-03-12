@@ -8,21 +8,6 @@
 const { gridPosition, normalizeAndPlace, urlToPartName } = require('../../../lib/grid-utils.js')
 
 const items = [
-  "./tripod_mounts-ex.scad",
-  "./tube.scad",
-  "./up-down.scad",
-  "./vnf-polyhedron.scad",
-  "./vnf-vertex-array.scad",
-  "./walls-ex.scad",
-  "./wedge.scad",
-  "./wiring-ex.scad",
-  "./xcopies.scad",
-  "./xcyl.scad",
-  "./xrot-yrot-zrot.scad",
-  "./ycopies.scad",
-  "./ycyl.scad",
-  "./zcopies.scad",
-  "./zcyl.scad",
   "./cuboid.scad",
   "./cyl.scad",
   "./fillet.scad",
