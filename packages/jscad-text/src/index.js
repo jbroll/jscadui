@@ -198,10 +198,21 @@ function renderHershey(text, { size, halign, valign, spacing, $fn, strokeWidth: 
  *   - ArrayBuffer/Uint8Array: parsed immediately (bytes already in memory)
  *   - Node.js HTTP URL: throws — pre-load with `await fontLoader.load(url)` first
  */
-function renderTTF(text, { size, font, halign, valign, spacing, $fn }) {
+function renderTTF(text, { size, font, halign, valign, spacing }) {
   const ttfFont = defaultLoader.loadSync(font)
 
-  const layout = ttfFont.layoutText(text, { size, spacing, halign, $fn })
+  // OpenSCAD text(size=...) uses FreeType at 100 DPI with point-based sizing
+  // (1 point = 1/72 inch, 100 DPI → 1 point = 100/72 coordinate units).
+  // Empirically verified: H glyph at size=10 renders to max Y=9.555 in OpenSCAD
+  // (= sCapHeight * 10 * 100/72 / unitsPerEm = 1409 * 13.889 / 2048 = 9.555).
+  const scaledSize = size * (100 / 72)
+
+  // Bézier tessellation: 4 steps per segment matches FreeType's adaptive subdivision
+  // quality for typical text sizes (5–50 units). The geometric $fn (computed for
+  // circle arcs) does not apply to font curve tessellation.
+  const fnBezier = 4
+
+  const layout = ttfFont.layoutText(text, { size: scaledSize, spacing, halign, $fn: fnBezier })
   const { lines, capHeight, descender, lineSpacing } = layout
 
   const yOffset = computeValignOffset(valign, {
@@ -218,4 +229,4 @@ function renderTTF(text, { size, font, halign, valign, spacing, $fn }) {
 export { defaultLoader as fontLoader } from './fonts/TTFLoader.js'
 export { TTFFont, TTFLoader, isClockwise } from './fonts/TTFLoader.js'
 export { computeValignOffset } from './layout/Alignment.js'
-export { resolveFont, registerFonts, listFonts, loadSystemFonts, STATIC_FONT_MAP } from './fonts/FontMap.js'
+export { resolveFont, registerFonts, registerNodeFont, listFonts, loadSystemFonts, STATIC_FONT_MAP } from './fonts/FontMap.js'

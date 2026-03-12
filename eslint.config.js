@@ -39,7 +39,7 @@ export default tseslint.config(
       '**/esm/**',
       '**/cjs/**',
       '**/node_modules/**',
-      '**/jscad/**',
+      'apps/jscad-web/jscad/**',
       '**/*.min.js',
       '**/docs/**',
     ],

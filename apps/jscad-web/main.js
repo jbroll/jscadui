@@ -297,6 +297,7 @@ const getBundles = () => ({
   '@jscad/io': toUrl('./build/bundle.jscad_io.js'),
   '@jscad/csg': toUrl('./build/bundle.V1_api.js'),
   '@jscadui/params-core': toUrl('./build/bundle.params_core.js'),
+  '@jscadui/jscad-text': toUrl('./build/bundle.jscad_text.js'),
 })
 
 /** @param {{script?:string,url?:string,base?:string,root?:string}} options*/

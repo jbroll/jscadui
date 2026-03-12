@@ -12,6 +12,7 @@ export const examples = [
   { name: 'Balloons', source: './examples/jscad/11-balloons.example.js' },
   { name: 'Parameter Types', source: './examples/jscad/12-parameters.example.js' },
   { name: 'Multipart project', source: './examples/jscad/13-multipart.example.js' },
+  { name: 'TTF Text', source: './examples/jscad/14-ttf-text.example.js' },
   { name: 'Import AMF', source: './examples/jscad/14-AMFImport/index.js' },
   { name: 'Import STL', source: './examples/jscad/15-STLImport/index.js' },
   { name: 'Import SVG', source: './examples/jscad/16-SVGImport/index.js' },

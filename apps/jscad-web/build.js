@@ -161,6 +161,12 @@ await buildBundle(outDir + '/build', 'bundle.openscad.js', {
   watch: dev,
   plugins: [nodeBuiltinStubPlugin],
 })
+await buildBundle(outDir + '/build', 'bundle.jscad_text.js', {
+  format: 'cjs',
+  watch: dev,
+  loader: cjsLoader,
+  plugins: [nodeBuiltinStubPlugin],
+})
 
 /**************************** BUILD JS THAT can change and watch if in dev mode *************/
 await buildOne('src_bundle', outDir + '/build', 'bundle.worker.js', watch, { format: 'iife' })

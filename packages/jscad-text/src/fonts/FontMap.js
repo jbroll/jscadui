@@ -12,7 +12,7 @@
  *   await loadSystemFonts()
  *
  *   // Resolve by name or pass-through URL
- *   const source = resolveFont('Liberation Sans')   // → CDN URL string
+ *   const source = resolveFont('Liberation Sans')   // → file path (Node.js) or CDN URL (browser)
  *   const source = resolveFont('https://...')       // → same URL (pass-through)
  *   // Returns: string URL, string file path, or FontData (Local Font Access)
  *
@@ -22,39 +22,73 @@
  */
 
 /**
- * Static CDN map: OpenSCAD font name → TTF URL (jsDelivr-hosted Google Fonts).
+ * In Node.js, Liberation Sans is resolved from the bundled TTF (same font OpenSCAD ships).
+ * In browser, the actual Liberation Sans is fetched from jsDelivr (sync XHR in Web Workers).
  *
- * Arimo/Tinos/Cousine are metrically compatible with Liberation Sans/Serif/Mono
- * and are included in OpenSCAD's font set under those names.
- *
- * jsDelivr GitHub CDN provides stable TTF URLs from the google/fonts repository.
+ * We use import.meta.url + URL constructor to build the absolute path portably.
+ * In browser, XMLHttpRequest is defined (even in Web Workers); in Node.js it is not.
+ */
+const LIBERATION_SANS_SOURCE =
+  typeof XMLHttpRequest !== 'undefined'
+    // Browser (Web Worker): actual Liberation Sans via jsDelivr npm CDN
+    ? 'https://cdn.jsdelivr.net/npm/@typopro/dtp-liberation@3.7.5/TypoPRO-LiberationSans-Regular.ttf'
+    // Node.js: use the bundled Liberation Sans that OpenSCAD ships (file:// URL → path)
+    : new URL('./data/LiberationSans-Regular.ttf', import.meta.url).pathname
+
+/**
+ * jsDelivr npm CDN for the actual Liberation fonts (not substitutes).
+ * @typopro/dtp-liberation bundles the Liberation font family as TTF files.
+ * These are the same fonts OpenSCAD ships, ensuring geometry compatibility.
+ */
+const LIB = 'https://cdn.jsdelivr.net/npm/@typopro/dtp-liberation@3.7.5/TypoPRO'
+
+/**
+ * jsDelivr GitHub CDN for Google Fonts repository.
  */
 const BASE = 'https://cdn.jsdelivr.net/gh/google/fonts@main'
 
 export const STATIC_FONT_MAP = {
-  // Liberation Sans family (OpenSCAD's default font)
-  // Arimo is metrically identical to Liberation Sans
-  'Liberation Sans':                   `${BASE}/apache/arimo/static/Arimo-Regular.ttf`,
-  'Liberation Sans:style=Bold':        `${BASE}/apache/arimo/static/Arimo-Bold.ttf`,
-  'Liberation Sans:style=Italic':      `${BASE}/apache/arimo/static/Arimo-Italic.ttf`,
-  'Liberation Sans:style=Bold Italic': `${BASE}/apache/arimo/static/Arimo-BoldItalic.ttf`,
+  // ── OpenSCAD standard fonts (bundled in every OpenSCAD installation) ──────
+  //
+  // Liberation Sans — OpenSCAD's default font (font="" or font="Liberation Sans")
+  // Node.js: bundled LiberationSans-Regular.ttf (exact OpenSCAD file)
+  // Browser: actual Liberation Sans via jsDelivr
+  'Liberation Sans':                   LIBERATION_SANS_SOURCE,
+  'Liberation Sans:style=Bold':        `${LIB}-LiberationSans-Bold.ttf`,
+  'Liberation Sans:style=Italic':      `${LIB}-LiberationSans-Italic.ttf`,
+  'Liberation Sans:style=Bold Italic': `${LIB}-LiberationSans-BoldItalic.ttf`,
 
-  // Liberation Serif (Tinos is metrically compatible)
-  'Liberation Serif':                   `${BASE}/apache/tinos/static/Tinos-Regular.ttf`,
-  'Liberation Serif:style=Bold':        `${BASE}/apache/tinos/static/Tinos-Bold.ttf`,
-  'Liberation Serif:style=Italic':      `${BASE}/apache/tinos/static/Tinos-Italic.ttf`,
-  'Liberation Serif:style=Bold Italic': `${BASE}/apache/tinos/static/Tinos-BoldItalic.ttf`,
+  // Liberation Serif
+  'Liberation Serif':                   `${LIB}-LiberationSerif-Regular.ttf`,
+  'Liberation Serif:style=Bold':        `${LIB}-LiberationSerif-Bold.ttf`,
+  'Liberation Serif:style=Italic':      `${LIB}-LiberationSerif-Italic.ttf`,
+  'Liberation Serif:style=Bold Italic': `${LIB}-LiberationSerif-BoldItalic.ttf`,
 
-  // Liberation Mono (Cousine is metrically compatible)
-  'Liberation Mono':                   `${BASE}/apache/cousine/Cousine-Regular.ttf`,
-  'Liberation Mono:style=Bold':        `${BASE}/apache/cousine/Cousine-Bold.ttf`,
-  'Liberation Mono:style=Italic':      `${BASE}/apache/cousine/Cousine-Italic.ttf`,
-  'Liberation Mono:style=Bold Italic': `${BASE}/apache/cousine/Cousine-BoldItalic.ttf`,
+  // Liberation Mono
+  'Liberation Mono':                   `${LIB}-LiberationMono-Regular.ttf`,
+  'Liberation Mono:style=Bold':        `${LIB}-LiberationMono-Bold.ttf`,
+  'Liberation Mono:style=Italic':      `${LIB}-LiberationMono-Italic.ttf`,
+  'Liberation Mono:style=Bold Italic': `${LIB}-LiberationMono-BoldItalic.ttf`,
 
-  // Noto Sans (also shipped with OpenSCAD)
-  'Noto Sans':              `${BASE}/ofl/notosans/NotoSans-Regular.ttf`,
-  'Noto Sans:style=Bold':   `${BASE}/ofl/notosans/NotoSans-Bold.ttf`,
-  'Noto Sans:style=Italic': `${BASE}/ofl/notosans/NotoSans-Italic.ttf`,
+  // Generic font family aliases — OpenSCAD's fontconfig maps these to Liberation
+  'sans-serif':                   LIBERATION_SANS_SOURCE,
+  'sans-serif:style=Bold':        `${LIB}-LiberationSans-Bold.ttf`,
+  'sans-serif:style=Italic':      `${LIB}-LiberationSans-Italic.ttf`,
+  'sans-serif:style=Bold Italic': `${LIB}-LiberationSans-BoldItalic.ttf`,
+  'serif':                   `${LIB}-LiberationSerif-Regular.ttf`,
+  'serif:style=Bold':        `${LIB}-LiberationSerif-Bold.ttf`,
+  'serif:style=Italic':      `${LIB}-LiberationSerif-Italic.ttf`,
+  'serif:style=Bold Italic': `${LIB}-LiberationSerif-BoldItalic.ttf`,
+  'monospace':                   `${LIB}-LiberationMono-Regular.ttf`,
+  'monospace:style=Bold':        `${LIB}-LiberationMono-Bold.ttf`,
+  'monospace:style=Italic':      `${LIB}-LiberationMono-Italic.ttf`,
+  'monospace:style=Bold Italic': `${LIB}-LiberationMono-BoldItalic.ttf`,
+
+  // ── Noto Sans — common on Linux systems with OpenSCAD ────────────────────
+  'Noto Sans':                   `${BASE}/ofl/notosans/NotoSans-Regular.ttf`,
+  'Noto Sans:style=Bold':        `${BASE}/ofl/notosans/NotoSans-Bold.ttf`,
+  'Noto Sans:style=Italic':      `${BASE}/ofl/notosans/NotoSans-Italic.ttf`,
+  'Noto Sans:style=Bold Italic': `${BASE}/ofl/notosans/NotoSans-BoldItalic.ttf`,
 
   // Common Google Fonts
   'Roboto':              `${BASE}/apache/roboto/static/Roboto-Regular.ttf`,
@@ -97,6 +131,26 @@ export const STATIC_FONT_MAP = {
 const runtimeMap = new Map(Object.entries(STATIC_FONT_MAP))
 
 /**
+ * Node.js font cache: maps CDN URLs to local file paths.
+ * Populated by ensureLiberationFonts() from fontCache.js.
+ * Allows synchronous TTF loading in Node.js without bundling font files.
+ *
+ * @type {Map<string, string>}
+ */
+const nodeFontCache = new Map()
+
+/**
+ * Register a local file path as a cached version of a CDN URL.
+ * Called by ensureLiberationFonts() after downloading fonts to the local cache.
+ *
+ * @param {string} url - CDN URL (e.g. "https://cdn.jsdelivr.net/npm/...")
+ * @param {string} localPath - local file path (e.g. "/home/user/.cache/jscadui/fonts/...")
+ */
+export function registerNodeFont(url, localPath) {
+  nodeFontCache.set(url, localPath)
+}
+
+/**
  * Determine if a string looks like a URL or file path (pass-through, no lookup needed).
  *
  * @param {string} s
@@ -125,10 +179,23 @@ export function resolveFont(nameOrUrl) {
   if (!nameOrUrl) throw new Error('Font name or URL is required')
 
   // Pass-through: URLs and file paths are used directly
-  if (isDirectSource(nameOrUrl)) return nameOrUrl
+  if (isDirectSource(nameOrUrl)) {
+    // In Node.js, redirect CDN URLs to local cache when available
+    if (typeof XMLHttpRequest === 'undefined' && nodeFontCache.has(nameOrUrl)) {
+      return nodeFontCache.get(nameOrUrl)
+    }
+    return nameOrUrl
+  }
 
   // Look up in the combined runtime map
-  if (runtimeMap.has(nameOrUrl)) return runtimeMap.get(nameOrUrl)
+  if (runtimeMap.has(nameOrUrl)) {
+    const source = runtimeMap.get(nameOrUrl)
+    // In Node.js, redirect CDN URLs to local cache when available
+    if (typeof XMLHttpRequest === 'undefined' && typeof source === 'string' && nodeFontCache.has(source)) {
+      return nodeFontCache.get(source)
+    }
+    return source
+  }
 
   // Build a helpful error message
   const available = [...runtimeMap.keys()].filter(k => !k.includes(':')).sort()

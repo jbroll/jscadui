@@ -15,6 +15,12 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { parse } from '../esm/parser/parse.js'
 import { transpile } from '../esm/transpiler/transpile.js'
+import { registerCachedFonts } from '../../jscad-text/src/fonts/fontCache.js'
+
+// Register any Liberation fonts already in the local cache (~/.cache/jscadui/fonts/).
+// This is synchronous and fast — no download happens here.
+// To populate the cache, run: node packages/openscad/bin/download-fonts.js
+registerCachedFonts()
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
