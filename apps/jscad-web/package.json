@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "node build.js --dev --skipDocs",
+    "sync-examples": "cp -r examples/. build_dev/examples/",
     "dev:full": "node build.js --dev",
     "build": "node build.js",
     "serve": "node build.js --serve",

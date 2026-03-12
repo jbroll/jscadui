@@ -188,6 +188,7 @@ export const require = (urlOrSource, transform, readFile, base, root, importData
                 const testUrl = new URL(libPath + filename, self.location.origin).toString()
                 source = readFile(testUrl)
                 resolvedUrl = testUrl
+                cacheUrl = resolvedUrl  // update cacheKey to match where file was actually found
                 found = true
                 break
               } catch (_libError) {

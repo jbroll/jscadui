@@ -26,6 +26,7 @@
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "generate-all": "node packages/openscad/bin/generate-all-files.js --no-rename && npm run sync-examples -w apps/jscad-web",
     "validate": "npm run lint && npm run typecheck && npm run test",
     "clean": "turbo clean && rm -rf node_modules/.cache",
     "prepare": "./scripts/setup-hooks.sh"

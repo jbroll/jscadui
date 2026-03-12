@@ -865,26 +865,30 @@ export const wrapLegacyModule = (module) => {
       proxyDefs = convertLegacyDefs(legacyDefs)
     }
 
-    // Extract any values from incoming params (could be proxy or plain object)
+    // If params is a proxy (e.g. child proxy from ALL.js), inject legacy defs INTO it so
+    // the worker's state can discover them and expose them in the UI.  This seals the proxy,
+    // turning child-proxy reads into concrete default/user values.
+    if (params?._isParamsProxy === true) {
+      injectLegacyDefs(params, proxyDefs)
+    }
+
+    // Extract actual values: defaults or UI-overridden values from the (now sealed) proxy
     const incomingValues = {}
     if (params && typeof params === 'object') {
       for (const [name] of Object.entries(proxyDefs)) {
         const val = params[name]
-        // Skip child proxies - hierarchical mode creates these for unknown properties
-        if (val !== undefined && val._isParamsProxy !== true) {
+        // After sealing, unknown props return undefined; child proxies are gone
+        if (val !== undefined && val?._isParamsProxy !== true) {
           incomingValues[name] = val
         }
       }
     }
 
-    // Create isolated hierarchical state and inject legacy definitions
+    // Run main with an isolated proxy so computed values (e.g. bRadius, bColor) don't
+    // pollute the shared state and show up as spurious UI params.
     const isolatedState = createProxyState({}, new Set(), { mode: 'hierarchical' })
     const isolatedParams = createParamsProxy(isolatedState)
-
-    // Inject the legacy parameter definitions into the isolated proxy
     injectLegacyDefs(isolatedParams, proxyDefs)
-
-    // Override with any incoming values (though they should all be child proxies and skipped)
     for (const [name, value] of Object.entries(incomingValues)) {
       isolatedParams[name] = value
     }

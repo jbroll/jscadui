@@ -232,12 +232,25 @@ const clearAllCaches = () => {
 
 // Hook into jscadClearFileCache to also evict changed files from transpile caches.
 // Without this, edits to .scad files would serve stale transpiled code.
+//
+// We clear the ENTIRE transpiledCache (not just the changed files) because the
+// transpiler inlines include'd files into their parents. Clearing only B.scad's
+// entry leaves A.scad's cached output (which embeds B.scad's old definitions)
+// intact, so edits to B.scad would have no effect on A.scad until a full reload.
+// workerSharedCache entries for unchanged files are retained since they hold
+// TranspiledFile objects used for incremental retranspilation.
 const clearFileCacheWithTranspiled = ({ files, root }) => {
   clearFileCache({ files, root })
+  const hasScad = files.some(f => toCachePath(f).endsWith('.scad'))
+  if (hasScad) {
+    transpiledCache.clear()  // full clear: any parent may embed the changed file
+  } else {
+    for (const file of files) {
+      transpiledCache.delete(toCachePath(file))
+    }
+  }
   for (const file of files) {
-    const filePath = toCachePath(file)
-    transpiledCache.delete(filePath)
-    workerSharedCache.delete(filePath)
+    workerSharedCache.delete(toCachePath(file))
   }
 }
 

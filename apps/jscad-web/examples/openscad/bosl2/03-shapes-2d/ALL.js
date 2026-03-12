@@ -58,7 +58,7 @@ const main = (params) => {
       if (typeof fn === 'function') {
         // For hierarchical models: pass child proxy
         // For legacy models: wrapLegacyModule detects child proxy and creates isolated state
-        const geoms = [].concat(fn(params[name]))
+        const geoms = [].concat(fn(params[name])).flat()
         all.push(...normalizeAndPlace(geoms, x, y, cellSize))
       }
     } catch (err) {

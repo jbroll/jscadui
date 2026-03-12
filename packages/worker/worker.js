@@ -300,8 +300,10 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
     execTime = performance.now() - time
 
     // Convert to render format (getMesh + common format conversion)
+    // 2.3: No clearCache() here — WeakMap evicts stale entries automatically on GC,
+    // and stable IDs across renders improve instance detection grouping.
+    // Cache is only cleared on error (below) to ensure clean state after failures.
     time = performance.now()
-    JscadToCommon.clearCache()
     const entities = JscadToCommon.prepare(workerState.solids, transferable, workerState.userInstances).all
     convTime = performance.now() - time
 

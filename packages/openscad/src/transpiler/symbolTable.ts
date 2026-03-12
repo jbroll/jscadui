@@ -75,12 +75,24 @@ export class SymbolTable {
   private functionParams = new Map<string, string[]>()
 
   /**
+   * Lazy caches for getByKind() and getDualDefined().
+   * Invalidated on every define() call; rebuilt on first query after invalidation.
+   * Reduces repeated O(N) symbol-map scans to a single O(N) build + O(1) lookups.
+   */
+  private kindCache: Map<SymbolKind, string[]> | null = null
+  private dualCache: string[] | null = null
+
+  /**
    * Define a symbol in the table
    *
    * If a name already exists with a different kind, marks it as dual-defined
    * and stores both versions.
    */
   define(name: string, info: SymbolInfo): void {
+    // Invalidate lazy caches on any mutation
+    this.kindCache = null
+    this.dualCache = null
+
     const existing = this.symbols.get(name)
 
     if (existing) {
@@ -183,21 +195,26 @@ export class SymbolTable {
   }
 
   /**
-   * Get all symbols of a specific kind
+   * Get all symbols of a specific kind.
+   * Uses a lazy cache: built once on first call after any define(), O(1) on subsequent calls.
    */
   getByKind(kind: SymbolKind): string[] {
-    const result: string[] = []
-    for (const [name, stored] of this.symbols) {
-      if (isDualSymbol(stored)) {
-        // For dual-defined, check if either version matches
-        if (stored.module.kind === kind || stored.function.kind === kind) {
-          result.push(name)
+    if (!this.kindCache) {
+      this.kindCache = new Map<SymbolKind, string[]>([
+        ['module', []],
+        ['function', []],
+        ['variable', []],
+      ])
+      for (const [name, stored] of this.symbols) {
+        if (isDualSymbol(stored)) {
+          this.kindCache.get('module')!.push(name)
+          this.kindCache.get('function')!.push(name)
+        } else {
+          this.kindCache.get(stored.kind)!.push(name)
         }
-      } else if (stored.kind === kind) {
-        result.push(name)
       }
     }
-    return result
+    return this.kindCache.get(kind) ?? []
   }
 
   /**
@@ -219,16 +236,19 @@ export class SymbolTable {
   }
 
   /**
-   * Get all dual-defined names
+   * Get all dual-defined names.
+   * Uses a lazy cache: built once on first call after any define(), O(1) on subsequent calls.
    */
   getDualDefined(): string[] {
-    const result: string[] = []
-    for (const [name, stored] of this.symbols) {
-      if (isDualSymbol(stored)) {
-        result.push(name)
+    if (!this.dualCache) {
+      this.dualCache = []
+      for (const [name, stored] of this.symbols) {
+        if (isDualSymbol(stored)) {
+          this.dualCache.push(name)
+        }
       }
     }
-    return result
+    return this.dualCache
   }
 
   /**
