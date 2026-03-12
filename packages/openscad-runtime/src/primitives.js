@@ -167,10 +167,45 @@ export const _safeUnion = (parts) => {
 // Re-export direct JSCAD primitives for passthrough
 export const getPolygon = () => polygon
 
-// Polygon wrapper - passes through to JSCAD polygon
+/**
+ * Compute the signed area of a polygon (shoelace formula).
+ * Positive = CCW, Negative = CW.
+ */
+const _signedArea = (pts) => {
+  let area = 0
+  for (let i = 0, n = pts.length; i < n; i++) {
+    const j = (i + 1) % n
+    area += pts[i][0] * pts[j][1]
+    area -= pts[j][0] * pts[i][1]
+  }
+  return area / 2
+}
+
+/**
+ * Polygon wrapper - normalizes winding order for JSCAD compatibility.
+ *
+ * OpenSCAD accepts polygons in any winding order; JSCAD requires CCW for solid
+ * outer boundaries and CW for holes. Without normalization, CW outer paths
+ * produce inverted normals when extruded (inside-out geometry).
+ */
 export const _polygon = ({ points, paths }) => {
   if (paths && paths.length > 0) {
-    return polygon({ points, paths })
+    // First path = outer boundary (must be CCW); remaining paths = holes (must be CW).
+    const normalizedPaths = paths.map((path, idx) => {
+      const pathPts = path.map(i => points[i])
+      const area = _signedArea(pathPts)
+      const shouldBeCCW = idx === 0
+      if ((shouldBeCCW && area < 0) || (!shouldBeCCW && area > 0)) {
+        return [...path].reverse()
+      }
+      return path
+    })
+    return polygon({ points, paths: normalizedPaths })
+  }
+  // Single boundary: ensure CCW (positive area) so extrudeLinear produces correct normals.
+  const area = _signedArea(points)
+  if (area < 0) {
+    return polygon({ points: [...points].reverse() })
   }
   return polygon({ points })
 }
