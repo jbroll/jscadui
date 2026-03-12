@@ -602,6 +602,23 @@ function collectSignaturesFromIncludes(
     if (visitedFiles.has(resolvedPath)) continue
     visitedFiles.add(resolvedPath)
 
+    // Fast-path: if this file is already fully transpiled (in workerSharedCache / transpiledFiles),
+    // extract its symbols from the cached paramLists instead of re-fetching and re-parsing
+    // all of its includes. This prevents the need to resolve transitive dependencies (like
+    // math.scad, geometry.scad, etc. from std.scad) when they're already known.
+    const cachedFile = ctx.transpiledFiles.get(resolvedPath)
+    if (cachedFile && cachedFile.paramLists) {
+      for (const [name, params] of cachedFile.paramLists) {
+        ctx.symbols.define(name, { kind: 'module', source: 'included', params })
+      }
+      if (cachedFile.functionParamLists) {
+        for (const [name, params] of cachedFile.functionParamLists) {
+          ctx.symbols.define(name, { kind: 'function', source: 'included', params })
+        }
+      }
+      continue  // skip re-fetching and re-traversing all transitive includes
+    }
+
     // Check AST cache before parsing (shared across recursive transpile calls)
     let ast = ctx.parsedFiles.get(resolvedPath)
     if (!ast) {
