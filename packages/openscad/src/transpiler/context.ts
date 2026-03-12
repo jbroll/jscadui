@@ -176,7 +176,8 @@ export const defaultOptions = {
  */
 export function createContext(
   options: TranspileOptions,
-  sharedCache?: Map<string, TranspiledFile>
+  sharedCache?: Map<string, TranspiledFile>,
+  sharedParsedFiles?: Map<string, ScadFile>
 ): TranspileContext {
   const opts = { ...defaultOptions, ...options }
 
@@ -210,7 +211,7 @@ export function createContext(
     symbols,
     indentLevel: 0,
     transpiledFiles: sharedCache || new Map(),
-    parsedFiles: new Map(),
+    parsedFiles: sharedParsedFiles || new Map(),
     processingFiles: new Set(),
     warnings: [],
     errors: [],

@@ -480,14 +480,16 @@ function createBundledParts(ctx: TranspileContext): { bundledParts: BundledParts
  *
  * @param ast - Parsed OpenSCAD AST
  * @param options - Transpile options including fileResolver for multi-file support
- * @param sharedCache - Optional shared cache for recursive transpilation
+ * @param sharedCache - Optional shared cache for recursive transpilation (TranspiledFile objects)
+ * @param sharedParsedFiles - Optional shared AST cache for recursive transpilation (avoids re-parsing)
  */
 export function transpile(
   ast: ScadFile,
   options: TranspileOptions = {},
-  sharedCache?: Map<string, TranspiledFile>
+  sharedCache?: Map<string, TranspiledFile>,
+  sharedParsedFiles?: Map<string, ScadFile>
 ): TranspileResult {
-  const ctx = createContext(options, sharedCache)
+  const ctx = createContext(options, sharedCache, sharedParsedFiles)
 
   // Mark current file as processing (for cycle detection)
   if (ctx.options.currentFile) {
@@ -600,45 +602,39 @@ function collectSignaturesFromIncludes(
     if (visitedFiles.has(resolvedPath)) continue
     visitedFiles.add(resolvedPath)
 
-    const { ast, errors } = parse(resolved.content)
-    if (errors.length > 0) {
-      ctx.errors.push({
-        code: ErrorCode.PARSE_ERROR,
-        message: `Parse error in include file: ${includeImport.filename}`,
-        file: ctx.options.currentFile,
-      })
-      continue
+    // Check AST cache before parsing (shared across recursive transpile calls)
+    let ast = ctx.parsedFiles.get(resolvedPath)
+    if (!ast) {
+      const { ast: parsedAst, errors } = parse(resolved.content)
+      if (errors.length > 0) {
+        ctx.errors.push({
+          code: ErrorCode.PARSE_ERROR,
+          message: `Parse error in include file: ${includeImport.filename}`,
+          file: ctx.options.currentFile,
+        })
+        continue
+      }
+      ast = parsedAst
+      // Cache the parsed AST so processDependency and sibling transpile calls can reuse it
+      ctx.parsedFiles.set(resolvedPath, ast)
     }
 
-    // Cache the parsed AST so processDependency can reuse it
-    ctx.parsedFiles.set(resolvedPath, ast)
-
     // Collect signatures from this file
-    // Track module and function names to detect dual-defined names
-    const fileModuleNames = new Set<string>()
-    const fileFunctionNames = new Set<string>()
-
     for (const stmt of ast.statements) {
       if (isModuleDeclaration(stmt)) {
         const name = safeIdentifier(stmt.name)
-        fileModuleNames.add(name)
         // Deduplicate params to match how transpileParamsList handles the definition
         const params = deduplicateParamNames(stmt.definitionArgs || [])
         // SymbolTable tracks included symbols via source field
         ctx.symbols.define(name, { kind: 'module', source: 'included', params })
       } else if (isFunctionDeclaration(stmt)) {
         const name = safeIdentifier(stmt.name)
-        fileFunctionNames.add(name)
         // Deduplicate params to match how transpileParamsList handles the definition
         const params = deduplicateParamNames(stmt.definitionArgs || [])
         // SymbolTable tracks included symbols via source field
         ctx.symbols.define(name, { kind: 'function', source: 'included', params })
       }
     }
-
-    // Detect dual-defined names (both module and function with same name)
-    // The SymbolTable already tracks dual-defined names when define() is called
-    // No additional registration needed
 
     // Recursively collect from nested includes
     const nestedCtx: TranspileContext = {

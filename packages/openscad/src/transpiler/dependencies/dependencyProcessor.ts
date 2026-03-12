@@ -121,7 +121,7 @@ export function processDependency(filename: string, ctx: TranspileContext): Depe
     initialFunctionParamLists: functionParamLists,
     initialDualDefinedNames: new Set(ctx.symbols.getDualDefined()),
     initialImportedFunctions: importedFunctions,
-  }, ctx.transpiledFiles)
+  }, ctx.transpiledFiles, ctx.parsedFiles)
 
   // Cache the result (using resolved path)
   const cachedFile = ctx.transpiledFiles.get(resolvedFilename)
