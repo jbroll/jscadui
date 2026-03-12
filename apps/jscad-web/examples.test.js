@@ -13,6 +13,7 @@ const nodeRequire = createRequire(import.meta.url)
 
 // Import params-core for proxy mode (how the app runs all examples)
 const { createParamsProxy, createProxyState, wrapLegacyModule } = nodeRequire('@jscadui/params-core')
+const jscadText = await import('@jscadui/jscad-text')
 
 // Determine which engine(s) to test
 // ENGINE=jscad - Test only @jscad/modeling
@@ -45,6 +46,10 @@ const createMockRequire = (basePath, engineModule) => {
   return (moduleName) => {
     if (moduleName === '@jscad/modeling') {
       return engineModule
+    }
+    if (moduleName === '@jscadui/jscad-text') {
+      jscadText.init(engineModule)
+      return jscadText
     }
     // Handle relative requires
     if (moduleName.startsWith('./') || moduleName.startsWith('../')) {
