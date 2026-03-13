@@ -99,7 +99,11 @@ export function isFunctionLiteralExpr(expr: Expression | null): boolean {
 
 /**
  * Helper to transpile let bindings (used by both LetExpr and LcLetExpr)
- * Creates an IIFE with const bindings and returns the body expression result
+ * Creates an IIFE with const bindings and returns the body expression result.
+ *
+ * Special variable bindings ($attach_to, $fn, etc.) use j$.withScope() for
+ * dynamic scoping, since they must be readable via j$.getSpecialVar() not just
+ * as local JS variables.
  */
 function transpileLetBindings(
   args: readonly { name: string; value: Expression | null }[],
@@ -110,6 +114,8 @@ function transpileLetBindings(
 
   const bindings: string[] = []
   const functionBindingPairs: Array<[string, string]> = []  // Track function bindings for cleanup
+  // Special variable bindings: name -> transpiled value string
+  const specialVarBindings: Array<[string, string]> = []
 
   // Use incremental scope: each binding value sees only earlier bindings
   const incrementalScope = new Map<string, string>()
@@ -120,6 +126,20 @@ function transpileLetBindings(
     for (let i = 0; i < args.length; i++) {
       const a = args[i]
       const origName = safeIdentifier(a.name)
+
+      // Special variables ($attach_to, $fn, etc.) must use dynamic scoping via
+      // j$.withScope so that j$.getSpecialVar() sees the overridden value.
+      // A local `const` binding would only affect lexical JS scope, not the
+      // dynamic scope stack that getSpecialVar reads from.
+      if (a.name.startsWith('$')) {
+        const value = transpileExpression(a.value!, ctx)
+        specialVarBindings.push([a.name, value])
+        // Do NOT add to incrementalScope: subsequent let bindings that reference
+        // this special var will still use j$.getSpecialVar (correct behavior),
+        // and the body will see the overridden value via withScope.
+        continue
+      }
+
       const newName = `${origName}${suffix}`
 
       // Check if this is a function literal (for recursive self-reference support)
@@ -153,7 +173,21 @@ function transpileLetBindings(
     ctx.scopes.unregisterFunctionBinding(origName)
   }
 
-  return `(() => { ${bindings.join('; ')}; return ${body} })()`
+  // Wrap body in j$.withScope if there are any special variable bindings
+  let bodyExprCode: string
+  if (specialVarBindings.length > 0) {
+    const scopeObj = specialVarBindings.map(([name, val]) => `'${name}': ${val}`).join(', ')
+    bodyExprCode = `j$.withScope({ ${scopeObj} }, () => ${body})`
+  } else {
+    bodyExprCode = body
+  }
+
+  if (bindings.length === 0) {
+    // No regular bindings - no need for IIFE (unless we still need to wrap)
+    return specialVarBindings.length > 0 ? bodyExprCode : body
+  }
+
+  return `(() => { ${bindings.join('; ')}; return ${bodyExprCode} })()`
 }
 
 /**
