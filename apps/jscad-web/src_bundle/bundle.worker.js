@@ -35,6 +35,17 @@ const transpiledCache = new Map()
 // Worker-level transpiler shared cache: persists TranspiledFile objects across jscadScript
 // calls so the transpiler can skip re-processing unchanged dependencies.
 // Map: absolute path -> TranspiledFile (as produced by the openscad transpiler)
+//
+// NOTE: This cache is session-scoped (cleared on page reload / worker restart).
+// Within a session, HTTP-served include files (e.g. BOSL2 library files) are assumed
+// static — if a library file changes on the server mid-session the fast-path in
+// collectSignaturesFromIncludes will serve the stale transpiled version without
+// re-fetching. A page reload is the correct fix for now.
+//
+// TODO: In the future, consider storing Last-Modified / ETag alongside each cache
+// entry and doing a conditional HTTP request (If-Modified-Since / If-None-Match)
+// before trusting the fast-path, to support mid-session library updates without
+// requiring a full page reload.
 const workerSharedCache = new Map()
 
 // Normalise a URL or path to an absolute path for use as a cache key.

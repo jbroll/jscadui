@@ -14,6 +14,9 @@
     "doc": "docs"
   },
   "scripts": {
+    "fetch-deps": "node scripts/fetch-deps.js",
+    "fetch-deps:update": "node scripts/fetch-deps.js --update",
+    "fetch-deps:missing": "node scripts/fetch-deps.js --if-missing",
     "dev": "turbo dev",
     "build": "turbo build",
     "test": "node scripts/test-all.js",

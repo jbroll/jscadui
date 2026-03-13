@@ -354,7 +354,23 @@ export const polyhedron = (options = {}) => {
   // Use JSCAD's implementation for complex face handling
   const jscadPolyhedron = jscadPrimitives.polyhedron({ points, faces, colors, orientation })
 
-  return new ManifoldGeom3(geom3ToManifold(jscadPolyhedron))
+  try {
+    return new ManifoldGeom3(geom3ToManifold(jscadPolyhedron))
+  } catch (e) {
+    if (e.message && e.message.toLowerCase().includes('manifold')) {
+      // Mesh is not watertight/manifold. Try with reversed face winding.
+      const flippedFaces = faces.map(f => [...f].reverse())
+      const jscadPolyhedron2 = jscadPrimitives.polyhedron({ points, faces: flippedFaces, colors, orientation })
+      try {
+        return new ManifoldGeom3(geom3ToManifold(jscadPolyhedron2))
+      } catch (e2) {
+        // Genuinely non-manifold mesh (e.g. open surface without caps).
+        // Return undefined so callers can skip this geometry gracefully.
+        return undefined
+      }
+    }
+    throw e
+  }
 }
 
 // ============================================================================

@@ -23,7 +23,7 @@ describe('Syntax & Declarations', () => {
   describe('Variable Assignment', () => {
     it('assigns simple values', () => {
       // 'var' is a reserved word in JS, so it gets prefixed with _
-      expect(transpileCode('x = 42;')).toContain('const x = 42')
+      expect(transpileCode('x = 42;')).toContain('var x = 42')
     })
 
     it('assigns expressions', () => {
@@ -52,7 +52,7 @@ describe('Syntax & Declarations', () => {
     it('handles function literal assignment', () => {
       const code = transpileCode('f = function(x) x * 2;')
       // Function literals transpile to arrow functions
-      expect(code).toContain('const f = (x) =>')
+      expect(code).toContain('var f = (x) =>')
     })
 
     it('handles function literal with multiple params', () => {

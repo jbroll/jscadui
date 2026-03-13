@@ -15,46 +15,46 @@ describe('transpileExpression', () => {
 
   describe('literals', () => {
     it('handles numeric literals', () => {
-      expect(transpileExpr('x = 42;')).toContain('const x = 42')
+      expect(transpileExpr('x = 42;')).toContain('var x = 42')
     })
 
     it('handles floating point literals', () => {
-      expect(transpileExpr('x = 3.14;')).toContain('const x = 3.14')
+      expect(transpileExpr('x = 3.14;')).toContain('var x = 3.14')
     })
 
     it('handles negative numbers', () => {
       // Unary minus on literals uses regular negation
-      expect(transpileExpr('x = -5;')).toContain('const x = -5')
+      expect(transpileExpr('x = -5;')).toContain('var x = -5')
     })
 
     it('handles string literals', () => {
-      expect(transpileExpr('x = "hello";')).toContain('const x = "hello"')
+      expect(transpileExpr('x = "hello";')).toContain('var x = "hello"')
     })
 
     it('handles boolean true', () => {
-      expect(transpileExpr('x = true;')).toContain('const x = true')
+      expect(transpileExpr('x = true;')).toContain('var x = true')
     })
 
     it('handles boolean false', () => {
-      expect(transpileExpr('x = false;')).toContain('const x = false')
+      expect(transpileExpr('x = false;')).toContain('var x = false')
     })
 
     it('handles undef', () => {
-      expect(transpileExpr('x = undef;')).toContain('const x = undefined')
+      expect(transpileExpr('x = undef;')).toContain('var x = undefined')
     })
   })
 
   describe('vector literals', () => {
     it('handles simple vector', () => {
-      expect(transpileExpr('x = [1, 2, 3];')).toContain('const x = [1, 2, 3]')
+      expect(transpileExpr('x = [1, 2, 3];')).toContain('var x = [1, 2, 3]')
     })
 
     it('handles nested vectors', () => {
-      expect(transpileExpr('x = [[1, 2], [3, 4]];')).toContain('const x = [[1, 2], [3, 4]]')
+      expect(transpileExpr('x = [[1, 2], [3, 4]];')).toContain('var x = [[1, 2], [3, 4]]')
     })
 
     it('handles empty vector', () => {
-      expect(transpileExpr('x = [];')).toContain('const x = []')
+      expect(transpileExpr('x = [];')).toContain('var x = []')
     })
   })
 

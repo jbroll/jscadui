@@ -86,11 +86,14 @@ const earClipTriangulate = (vertices3D) => {
   // Project to 2D for triangulation
   const vertices2D = projectTo2D(vertices3D)
 
-  // Ensure consistent winding (counter-clockwise)
+  // Determine winding WITHOUT reversing indices.
+  // Reversing indices changes which boundary edges appear in the triangulation,
+  // causing non-manifold edges when triangulated caps are adjacent to side faces
+  // that share edges in a specific direction.
   const area = signedArea2D(vertices2D)
+  const ccw = area >= 0  // true = CCW polygon, false = CW polygon
   const indices = []
   for (let i = 0; i < n; i++) indices.push(i)
-  if (area < 0) indices.reverse()
 
   const triangles = []
   const remaining = [...indices]
@@ -109,9 +112,10 @@ const earClipTriangulate = (vertices3D) => {
       const b = vertices2D[curr]
       const c = vertices2D[next]
 
-      // Check if this is a convex vertex (ear candidate)
+      // Check if this is a convex vertex (ear candidate).
+      // For CCW polygon: convex = cross > 0. For CW polygon: convex = cross < 0.
       const cross = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
-      if (cross <= 0) continue // Reflex vertex, not an ear
+      if (ccw ? cross <= 0 : cross >= 0) continue // Reflex vertex, not an ear
 
       // Check if any other vertex is inside this triangle
       let hasPointInside = false

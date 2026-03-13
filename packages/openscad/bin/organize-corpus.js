@@ -99,9 +99,10 @@ function findScadFiles(dir, excludePatterns = []) {
 }
 
 /**
- * Organize files into batches based on manifest configuration
+ * Organize files into batches based on manifest configuration.
+ * Files are distributed evenly across batches in sorted order.
  */
-function organizeCategoryByNumbering(category, config, files) {
+function organizeCategoryByNumbering(_category, config, files) {
   const batches = {}
 
   for (const batchConfig of config.batches) {
@@ -111,36 +112,14 @@ function organizeCategoryByNumbering(category, config, files) {
     }
   }
 
-  // For numbered files (bosl2), use file range
-  if (category === 'bosl2') {
-    for (const file of files) {
-      // Extract number from filename (e.g., "205-sphere.scad" -> 205)
-      const match = file.name.match(/^(\d+)/)
-      if (!match) continue
+  const batchNames = config.batches.map(b => b.name)
+  const filesPerBatch = Math.ceil(files.length / batchNames.length)
 
-      const fileNum = parseInt(match[1])
-
-      // Find which batch this file belongs to
-      for (const batchConfig of config.batches) {
-        const [start, end] = batchConfig.fileRange.split('-').map(n => parseInt(n))
-        if (fileNum >= start && fileNum <= end) {
-          batches[batchConfig.name].files.push(file)
-          break
-        }
-      }
-    }
-  }
-  // For other categories, distribute evenly
-  else {
-    const batchNames = config.batches.map(b => b.name)
-    const filesPerBatch = Math.ceil(files.length / batchNames.length)
-
-    files.forEach((file, index) => {
-      const batchIndex = Math.floor(index / filesPerBatch)
-      const batchName = batchNames[Math.min(batchIndex, batchNames.length - 1)]
-      batches[batchName].files.push(file)
-    })
-  }
+  files.forEach((file, index) => {
+    const batchIndex = Math.floor(index / filesPerBatch)
+    const batchName = batchNames[Math.min(batchIndex, batchNames.length - 1)]
+    batches[batchName].files.push(file)
+  })
 
   return batches
 }
@@ -148,7 +127,7 @@ function organizeCategoryByNumbering(category, config, files) {
 /**
  * Create batch directory and copy files
  */
-function createBatch(category, batchName, batch, sourceDir, targetDir) {
+function createBatch(category, batchName, batch, targetDir) {
   const batchDir = join(targetDir, category, batchName)
 
   if (existsSync(batchDir)) {
@@ -258,7 +237,7 @@ function processCategory(categoryName) {
       continue
     }
 
-    const success = createBatch(categoryName, batchName, batch, sourceDir, EXAMPLES_DIR)
+    const success = createBatch(categoryName, batchName, batch, EXAMPLES_DIR)
     if (success) {
       created++
     } else {

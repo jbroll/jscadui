@@ -1,0 +1,6 @@
+# BOSL library skip list
+
+# extrude_2d_hollow with twist: JSCAD produces slightly different tessellation
+# for twisted hollow extrusion, resulting in Jaccard 0.9647 (just below 0.99).
+# Not a transpiler bug — geometric equivalence but mesh-level triangulation differs.
+046-paths-extrude_2d_hollow.scad

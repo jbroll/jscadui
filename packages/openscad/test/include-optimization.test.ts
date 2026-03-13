@@ -135,7 +135,7 @@ describe('include optimization - Phase 1', () => {
 
       // Should bundle, not use require()
       expect(result.code).not.toContain("require('/lib.scad')")
-      expect(result.code).toContain('const PI = 3.14159')
+      expect(result.code).toContain('var PI = 3.14159')
 
       // Verify lib.scad is NOT optimizable
       const libFile = result.files.get('/lib.scad')
@@ -168,8 +168,8 @@ describe('include optimization - Phase 1', () => {
       })
 
       // Should bundle
-      expect(result.code).toContain('const PI = 3.14159')
-      expect(result.code).toContain('const INCH = 25.4')
+      expect(result.code).toContain('var PI = 3.14159')
+      expect(result.code).toContain('var INCH = 25.4')
 
       const libFile = result.files.get('/lib.scad')
       expect(libFile?.canOptimizeInclude).toBe(false)
@@ -315,7 +315,7 @@ describe('include optimization - Phase 1', () => {
       expect(result.code).toContain("require('/pure.scad')")
 
       // constants.scad should be bundled (has variables)
-      expect(result.code).toContain('const PI = 3.14159')
+      expect(result.code).toContain('var PI = 3.14159')
 
       // Verify optimization flags
       expect(result.files.get('/pure.scad')?.canOptimizeInclude).toBe(true)

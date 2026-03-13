@@ -23,8 +23,8 @@ const compile = (code, path) => {
 }
 
 export const init = (defaultCode, fn) => {
-  let editorNav = document.getElementById('editor-nav')
-  let editorFile = document.getElementById('editor-file')
+  const editorNav = document.getElementById('editor-nav')
+  const editorFile = document.getElementById('editor-file')
   compileFn = fn
   // Initialize codemirror
   const editorDiv = document.getElementById('editor-container')

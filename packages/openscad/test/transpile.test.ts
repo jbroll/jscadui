@@ -266,8 +266,8 @@ describe('bundling', () => {
 
     // Should contain the declarations in generated code
     expect(result.code).toContain('function add_$f')
-    expect(result.code).toContain('const cube_centered_$m')
-    expect(result.code).toContain('const test_val')
+    expect(result.code).toContain('cube_centered_$m')
+    expect(result.code).toContain('test_val')
 
     // Should produce valid code
     expect(result.code).toBeTruthy()

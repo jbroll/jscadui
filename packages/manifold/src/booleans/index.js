@@ -33,8 +33,9 @@ export const union = (...geometries) => {
   // Flatten if passed as array
   const geoms = geometries.flat(Infinity).filter(g => g != null)
 
+  // Empty union = no geometry (valid in OpenSCAD semantics)
   if (geoms.length === 0) {
-    throw new Error('union requires at least one geometry')
+    return undefined
   }
 
   // Separate 2D and 3D geometries
@@ -103,7 +104,7 @@ export const subtract = (...geometries) => {
   const geoms = geometries.flat(Infinity).filter(g => g != null)
 
   if (geoms.length === 0) {
-    throw new Error('subtract requires at least one geometry')
+    return undefined
   }
 
   if (geoms.length === 1) {
@@ -164,7 +165,7 @@ export const intersect = (...geometries) => {
   const geoms = geometries.flat(Infinity).filter(g => g != null)
 
   if (geoms.length === 0) {
-    throw new Error('intersect requires at least one geometry')
+    return undefined
   }
 
   // Check if 2D

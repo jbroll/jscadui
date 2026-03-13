@@ -16,11 +16,11 @@ const setPoints = (points, p, i) => {
 function CSG2Vertices (csg) {
   let vLen = 0; let iLen = 0
 
+  // Filter degenerate polygons once upfront (M3 fix: validate array + minimum 3 vertices)
+  const polygons = csg.polygons.filter(poly => Array.isArray(poly.vertices) && poly.vertices.length >= 3)
+
   let hasVertexColors// v1 colors support
-  for (const poly of csg.polygons) {// v1 colors support
-    // Skip degenerate polygons (need at least 3 vertices for a triangle)
-    // M3 fix: Also validate vertices is actually an array
-    if (!Array.isArray(poly.vertices) || poly.vertices.length < 3) continue
+  for (const poly of polygons) {// v1 colors support
     if(poly.shared?.color) hasVertexColors = true
     const len = poly.vertices.length
     vLen += len * 3
@@ -46,10 +46,7 @@ function CSG2Vertices (csg) {
     const vertexCount = vLen / 3
     colors = new Float32Array(vertexCount * 4)
     let colorOffset = 0
-    for (const poly of csg.polygons) {
-      // Skip degenerate polygons (need at least 3 vertices for a triangle)
-      // M3 fix: Also validate vertices is actually an array
-      if (!Array.isArray(poly.vertices) || poly.vertices.length < 3) continue
+    for (const poly of polygons) {
       color = poly.shared?.color || lastColor
       const count = poly.vertices.length
       // Write one color per vertex in this polygon
@@ -78,12 +75,8 @@ function CSG2Vertices (csg) {
   }
 
   vertOffset = 0
-  for (const poly of csg.polygons) {
-    // M3 fix: Validate vertices is an array before normalizing
-    if (!Array.isArray(poly.vertices) || poly.vertices.length < 3) continue
+  for (const poly of polygons) {
     const arr = normalizeVertexFormat(poly.vertices)
-    // Skip degenerate polygons (need at least 3 vertices for a triangle)
-    if (arr.length < 3) continue
     const normal = calculateNormal(arr)
     const len = arr.length
     first = posOffset
@@ -130,7 +123,7 @@ const calculateNormal = (vertices) => {
   const Ny = Az * Bx - Ax * Bz
   const Nz = Ax * By - Ay * Bx
 
-  const len = Math.hypot(Nx, Ny, Nz)
+  const len = Math.sqrt(Nx*Nx + Ny*Ny + Nz*Nz)
   // L8 fix: Use epsilon threshold to handle near-degenerate polygons
   // that could cause very large or NaN values from division
   // M2 fix: Use more conservative epsilon (1e-9) to prevent precision issues in WebGL

@@ -169,29 +169,34 @@ for (const libFile of libFiles) {
 
 console.log(`Found ${allExamples.length} simple examples from ${libFiles.length} libraries`)
 
-// Group by library and take first few from each
-const byLib = new Map()
+// Deduplicate: one example per unique function/module name per lib file.
+// This ensures broad coverage across all library modules without redundancy.
+const seen = new Set()
+const dedupedExamples = []
 for (const ex of allExamples) {
-  if (!byLib.has(ex.lib)) byLib.set(ex.lib, [])
-  byLib.get(ex.lib).push(ex)
-}
-
-// Generate test files, starting from 900 series
-let testNum = 900
-const generated = []
-
-for (const [lib, examples] of byLib) {
-  // Take up to 2 examples per library
-  const toGenerate = examples.slice(0, 2)
-  for (const ex of toGenerate) {
-    const filename = `${testNum}-${lib.replace('.scad', '')}-ex.scad`
-    const content = generateTestFile(ex, testNum)
-    const outPath = join(OUT_DIR, filename)
-    writeFileSync(outPath, content)
-    generated.push({ num: testNum, lib, file: filename })
-    console.log(`Generated: ${filename}`)
-    testNum++
+  const funcName = ex.code.trim().match(/^\s*(\w+)\s*[(\[]/)?.[1] || 'unknown'
+  const key = `${ex.lib}:${funcName}`
+  if (!seen.has(key)) {
+    seen.add(key)
+    dedupedExamples.push(ex)
   }
 }
+console.log(`After dedup (1 per function per lib): ${dedupedExamples.length} examples`)
 
-console.log(`\nGenerated ${generated.length} test files (900-${testNum - 1})`)
+// Generate test files, starting from 001 series
+let testNum = 1
+const generated = []
+
+for (const ex of dedupedExamples) {
+  const funcName = ex.code.trim().match(/^\s*(\w+)\s*[(\[]/)?.[1] || 'unknown'
+  const num = String(testNum).padStart(3, '0')
+  const libBase = ex.lib.replace('.scad', '')
+  const filename = `${num}-${libBase}-${funcName}.scad`
+  const content = generateTestFile(ex, testNum)
+  writeFileSync(join(OUT_DIR, filename), content)
+  generated.push({ num: testNum, lib: ex.lib, file: filename })
+  console.log(`Generated: ${filename}`)
+  testNum++
+}
+
+console.log(`\nGenerated ${generated.length} test files (001-${String(testNum - 1).padStart(3, '0')})`)

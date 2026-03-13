@@ -19,7 +19,7 @@ const { degToRad } = utils
 console.log('jscadio', jscadio)
 
 const getParameterDefinitions = () => {
-  let params = [
+  const params = [
     {name: 'g1', caption: 'Lignes', type: 'group'},
   ]
   for(let i=0; i<10; i++) {
@@ -66,10 +66,10 @@ const main = (params) => {
   cache.__key = params.v
 
   //let vol = center({}, rotateY(degToRad(180), rotateX(degToRad(90), vv)))
-  let vol = center({}, scale([sc,sc,sc], rotateX(degToRad(90), vv)))
+  const vol = center({}, scale([sc,sc,sc], rotateX(degToRad(90), vv)))
   
   let r = [], rH = [], rV = []
-  let bV = measureBoundingBox(vol)
+  const bV = measureBoundingBox(vol)
 
   // Recup parametres
   const pv = Object.keys(params)
@@ -116,12 +116,12 @@ const main = (params) => {
 	  var eS = [], eH = [], eV = [];
 	  for(let i=0; i< tmp.length; i++){
       try{
-  	    let p = tmp[i];
-  	    let b = measureBoundingBox(p), 
+  	    const p = tmp[i];
+  	    const b = measureBoundingBox(p), 
   	        d = vec3.subtract(b[1], b[0]);
-  	    let c1 = translate([b[0][0], b[0][1] + ep/2, b[0][2]], 
+  	    const c1 = translate([b[0][0], b[0][1] + ep/2, b[0][2]], 
   	          cuboid({size: [d[0], d[1]*2, d[2]]}));
-  	    let c2 = translate([b[0][0] + ep/2, b[0][1], b[1][2]], 
+  	    const c2 = translate([b[0][0] + ep/2, b[0][1], b[1][2]], 
   	          cuboid({size: [d[0]*2, d[1], d[2]]}));
   	    //r.push(c2,c1)
   	    eH.push(intersect(tmp[i], c2));
@@ -147,12 +147,12 @@ const main = (params) => {
 	  
 	  var dk = Math.max(fV, fH) +1
 	  for(let ih = 0; ih < rH.length; ih++){
-	    let b = measureBoundingBox(rH[ih]);
+	    const b = measureBoundingBox(rH[ih]);
 	    r.push(translate([dk *ih, dk/2], union(vol2surf(rH[ih], 'x', b[0][0]))))
 	    //r.push(translateX(dk *ih, vol2surf(rH[ih], 'x', b[0][0])))
 	  }
 	  for(let iv = 0; iv < rV.length; iv++){
-	    let b = measureBoundingBox(rV[iv]);
+	    const b = measureBoundingBox(rV[iv]);
 	    r.push(translate([dk *iv, -dk], union(vol2surf(rV[iv], 'y', b[0][1]))))
 	    //r.push(translate([dk *iv, -dk], vol2surf(rV[iv], 'y', b[0][1])))
 	  }
@@ -234,12 +234,12 @@ function scission3d  (geom){
 }
 function vol2surf(vol, axe, orig = 0){ // axe = 'x' | 'y' | 'z'
 // retourne la surface formee par le volume avec l'axe z (à 0)
-let S = [];
+const S = [];
 let X, Y, Z;
 
 for(let n = 0; n < vol.polygons.length; n++){
-  let pts = [];
-  let P = vol.polygons[n];
+  const pts = [];
+  const P = vol.polygons[n];
   let ok = true;
   switch(axe){
     case 'x':
@@ -253,7 +253,7 @@ for(let n = 0; n < vol.polygons.length; n++){
       break;
   }
   for(let i=0; (i < P.vertices.length) && ok; i++){
-    let pt = P.vertices[i];
+    const pt = P.vertices[i];
     if(Math.abs(pt[Z] - orig)< 0.05){
       pts.push([pt[X], pt[Y]]);
     } else {
