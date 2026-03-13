@@ -1,9 +1,5 @@
 # BOSL2 library skip list
 
-# BOSL2 logo: uses bevel_gear, path_sweep, cubetruss_corner, screw/nut modules
-# that are not fully implemented. Jaccard 0.0685.
-BOSL2logo.scad
-
 # attachments.scad: uses cuboid with rounding/chamfer and prismoid attachment
 # chains. The attachment positioning differs from OpenSCAD in complex ways.
 # Jaccard 0.6520.
@@ -17,12 +13,3 @@ attachments.scad
 test_circle.scad
 test_xor.scad
 
-# Geometry mismatches in BOSL2 joiners/masks/modular_hose modules.
-# These produce correct shapes but JSCAD's Manifold triangulation differs
-# from OpenSCAD's at boundary edges, resulting in Jaccard < 0.99.
-046-drawing-stroke.scad
-064-joiners-snap_pin.scad
-065-joiners-xcopies.scad
-066-joiners-snap_pin_socket.scad
-080-masks-rounding_hole_mask.scad
-092-modular_hose-modular_hose.scad

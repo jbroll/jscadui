@@ -209,14 +209,47 @@ export function collectChildrenAsArray(child: Statement | null, ctx: TranspileCo
   }
 
   if (isBlockStmt(child)) {
-    // Check if the block has any assignments (including special variable assignments)
-    const hasAssignments = child.children.some(c => isAssignmentNode(c))
+    const assignments = child.children.filter(c => isAssignmentNode(c)) as AssignmentNode[]
+    const hasSpecialAssignments = assignments.some(a => isStackSpecialVar(a.name))
 
-    if (hasAssignments) {
-      // Block has assignments - transpile as a single block (IIFE) to preserve
-      // the assignment context for special variables like $parent_geom
+    if (hasSpecialAssignments) {
+      // Block has special variable assignments ($fn, $fa, etc.) - must transpile as a
+      // single block (IIFE) to preserve dynamic scoping via the special var stack
       const code = transpileStatement(child, ctx)
       return code ? [makeThunk(code)] : []
+    }
+
+    if (assignments.length > 0) {
+      // Block has regular (non-special) variable assignments.
+      // Hoist them into an IIFE that returns the children ARRAY so that module
+      // callers (e.g. xdistribute) still see each child as a separate entry.
+      // This preserves variable scope without collapsing children into one thunk.
+      const suffix = generateScopeSuffix(ctx)
+      const assignStrs: string[] = []
+      const incrementalScope = new Map<string, string>()
+
+      const thunks = withScope(ctx, incrementalScope, () => {
+        for (const a of assignments) {
+          const origName = safeIdentifier(a.name)
+          const newName = `${origName}${suffix}`
+          const value = transpileExpression(a.value!, ctx)
+          assignStrs.push(`const ${newName} = ${value}`)
+          incrementalScope.set(origName, newName)
+        }
+
+        const result: string[] = []
+        for (const c of child.children) {
+          if (!isAssignmentNode(c) && !isNoopStmt(c as Statement)) {
+            const code = transpileStatement(c as Statement, ctx)
+            if (code) result.push(makeThunk(code))
+          }
+        }
+        return result
+      })
+
+      if (thunks.length === 0) return []
+      // Return children as a spread from an IIFE: [...(() => { const x=1; return [thunk1, thunk2] })()]
+      return [`...(() => { ${assignStrs.join('; ')}; return [${thunks.join(', ')}] })()`]
     }
 
     // No assignments - collect individual statements as separate thunks
