@@ -198,6 +198,27 @@ function renderHershey(text, { size, halign, valign, spacing, $fn, strokeWidth: 
  *   - ArrayBuffer/Uint8Array: parsed immediately (bytes already in memory)
  *   - Node.js HTTP URL: throws — pre-load with `await fontLoader.load(url)` first
  */
+/**
+ * Compute actual Y bounds from laid-out glyph lines.
+ * OpenSCAD uses actual glyph extents (not typographic metrics) for valign.
+ */
+function computeActualYBounds(lines) {
+  let minY = Infinity, maxY = -Infinity
+  for (const line of lines) {
+    for (const glyph of line.glyphs) {
+      const lineY = glyph.y
+      for (const contour of glyph.contours) {
+        for (const pt of contour) {
+          const y = pt[1] + lineY
+          if (y < minY) minY = y
+          if (y > maxY) maxY = y
+        }
+      }
+    }
+  }
+  return { minY: isFinite(minY) ? minY : 0, maxY: isFinite(maxY) ? maxY : 0 }
+}
+
 function renderTTF(text, { size, font, halign, valign, spacing }) {
   const ttfFont = defaultLoader.loadSync(font)
 
@@ -213,11 +234,14 @@ function renderTTF(text, { size, font, halign, valign, spacing }) {
   const fnBezier = 4
 
   const layout = ttfFont.layoutText(text, { size: scaledSize, spacing, halign, $fn: fnBezier })
-  const { lines, capHeight, descender, lineSpacing } = layout
+  const { lines, lineSpacing } = layout
 
+  // Use actual glyph Y extents for valign — OpenSCAD uses real glyph bounds,
+  // not typographic metrics (capHeight/descender), for top/center/bottom alignment.
+  const { minY, maxY } = computeActualYBounds(lines)
   const yOffset = computeValignOffset(valign, {
-    capHeight,
-    descender,
+    capHeight: maxY,
+    descender: -minY,  // descender as positive depth below baseline
     totalLines: lines.length,
     lineSpacing,
   })

@@ -480,7 +480,11 @@ function transpileLcForCExprHandler(
     return { inits, incrOnlyDecl, cond, body, incrUpdate }
   })
 
-  return `(() => { const _result${suffix} = []; ${inits}; ${incrOnlyDecl} while (${cond}) { _result${suffix}.push(${body}); ${incrUpdate}; } return _result${suffix}; })()`
+  // If body is a conditional (LcIfExpr without else), it produces undefined for non-matching
+  // iterations. Filter those out so [for (a=x, i=1; ...; ...) if (cond) a][0] works correctly.
+  const needsFilter = containsIfExpr(forCExpr.expr)
+  const resultExpr = needsFilter ? `_result${suffix}.filter(x => x !== undefined)` : `_result${suffix}`
+  return `(() => { const _result${suffix} = []; ${inits}; ${incrOnlyDecl} while (${cond}) { _result${suffix}.push(${body}); ${incrUpdate}; } return ${resultExpr}; })()`
 }
 
 export function transpileExpression(expr: Expression, ctx: TranspileContext): string {

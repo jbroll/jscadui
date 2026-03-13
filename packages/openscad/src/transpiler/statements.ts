@@ -460,6 +460,8 @@ function transpileModuleInstantiation(stmt: ModuleInstantiationStmt, ctx: Transp
 
   // Special modules
   if (name === 'color') return transpileColorModule(argsArray, childCode, ctx)
+  // render() forces CGAL rendering in OpenSCAD; in JSCAD we just pass children through
+  if (name === 'render') return childCode || 'undefined'
   if (name === 'hull') return transpileBuiltinHull(stmt.child, ctx)
   if (name === 'children') return transpileChildrenModule(stmt, argsArray, ctx)
   // offset() builtin - 2D path expansion. Only use builtin if user hasn't defined a MODULE named offset.
@@ -650,7 +652,9 @@ function transpileForLoop(stmt: ModuleInstantiationStmt, ctx: TranspileContext):
  * Transpile 'let' as a module instantiation (not expression)
  * let(x=5, y=10) { children } creates local bindings for the children scope
  *
- * Transpiles to an IIFE: ((x, y) => children)(5, 10)
+ * Regular variables: IIFE parameters — ((x, y) => body)(val1, val2)
+ * Special variables ($ghost_this, $fn, etc.): save/set/restore via j$.setSpecialVar()
+ * because child modules read special vars through j$.getSpecialVar(), not JS scope.
  */
 function transpileLetModule(stmt: ModuleInstantiationStmt, ctx: TranspileContext): string {
   const args = stmt.args
@@ -659,23 +663,54 @@ function transpileLetModule(stmt: ModuleInstantiationStmt, ctx: TranspileContext
     return stmt.child ? transpileStatement(stmt.child, ctx) || 'undefined' : 'undefined'
   }
 
+  // Separate special vars from regular vars
+  const specialArgs = args.filter(a => isStackSpecialVar(a.name))
+  const regularArgs = args.filter(a => !isStackSpecialVar(a.name))
+
   // Build scope for let bindings - they shadow any outer variables with the same name
   const letScope = new Map<string, string>()
-  for (const arg of args) {
+  for (const arg of regularArgs) {
     letScope.set(arg.name, safeIdentifier(arg.name))
   }
+  // Special vars are NOT added to letScope — they're read via j$.getSpecialVar by child modules
 
   // Transpile the body (children) with let bindings in scope
   const body = withScope(ctx, letScope, () =>
     stmt.child ? transpileStatement(stmt.child, ctx) || 'undefined' : 'undefined'
   )
 
-  // Build parameter list and argument list
-  const paramNames = args.map(a => safeIdentifier(a.name))
-  const argValues = args.map(a => transpileExpression(a.value!, ctx))
+  // If no special args, use simple IIFE for regular args only
+  if (specialArgs.length === 0) {
+    if (regularArgs.length === 0) return body
+    const paramNames = regularArgs.map(a => safeIdentifier(a.name))
+    const argValues = regularArgs.map(a => transpileExpression(a.value!, ctx))
+    return `((${paramNames.join(', ')}) => ${body})(${argValues.join(', ')})`
+  }
 
-  // Create IIFE: ((x, y) => body)(val1, val2)
-  return `((${paramNames.join(', ')}) => ${body})(${argValues.join(', ')})`
+  // Special vars need save/set/restore so child modules see updated values via j$.getSpecialVar
+  const suffix = generateScopeSuffix(ctx)
+  const saves: string[] = []
+  const sets: string[] = []
+  const restores: string[] = []
+  for (const a of specialArgs) {
+    const savedName = `_sv${suffix}_${safeIdentifier(a.name).replace(/\$/g, '_')}`
+    const value = transpileExpression(a.value!, ctx)
+    saves.push(`const ${savedName} = j$.getSpecialVar('${a.name}')`)
+    sets.push(`j$.setSpecialVar('${a.name}', ${value})`)
+    restores.push(`j$.setSpecialVar('${a.name}', ${savedName})`)
+  }
+
+  // Wrap body in IIFE for regular vars if any
+  let innerBody: string
+  if (regularArgs.length === 0) {
+    innerBody = body
+  } else {
+    const paramNames = regularArgs.map(a => safeIdentifier(a.name))
+    const argValues = regularArgs.map(a => transpileExpression(a.value!, ctx))
+    innerBody = `((${paramNames.join(', ')}) => ${body})(${argValues.join(', ')})`
+  }
+
+  return `(() => { ${saves.join('; ')}; ${sets.join('; ')}; try { return ${innerBody}; } finally { ${restores.join('; ')}; } })()`
 }
 
 /**
@@ -826,9 +861,28 @@ function buildOptionsDestructuring(args: AssignmentNode[], ctx: TranspileContext
   const lines = [
     ...buildDestructurePattern(categories, ctx),
     ...buildLocalVarConversions(categories, ctx),
+    ...buildStackSpecialDefaults(categories, ctx),
   ]
 
   return { lines, hasSpecialVars }
+}
+
+/**
+ * For stackSpecial parameters with default values (e.g., $fn=12 in anchor_arrow),
+ * apply the default to $$sv if the caller didn't provide the value.
+ *
+ * This ensures OpenSCAD semantics: `module foo($fn=12)` shadows the ambient $fn
+ * even when called without explicit $fn argument.
+ */
+function buildStackSpecialDefaults(categories: ParameterCategories, ctx: TranspileContext): string[] {
+  const lines: string[] = []
+  for (const arg of categories.stackSpecial) {
+    if (arg.value) {
+      const defaultVal = transpileExpression(arg.value, ctx)
+      lines.push(`  if (!('${arg.name}' in $$sv)) $$sv = { ...$$sv, '${arg.name}': ${defaultVal} };`)
+    }
+  }
+  return lines
 }
 
 /**
@@ -1003,7 +1057,7 @@ export function transpileModuleDeclaration(stmt: ModuleDeclarationStmt, ctx: Tra
     // Wrap body in j$.withScope() for special variable scoping
     // Indent preamble for withScope callback
     const indentedPreamble = optionsPreamble.map(line => '  ' + line)
-    code = `${comment}const ${name}_$m = (_opts = {}) => ${innerAsync}(_children = []) => {
+    code = `${comment}var ${name}_$m = (_opts = {}) => ${innerAsync}(_children = []) => {
 ${indentedPreamble.join('\n')}
   return j$.withScope($$sv, ${innerAsync}() => {
 ${bodyParts.join('\n')}
@@ -1012,7 +1066,7 @@ ${bodyParts.join('\n')}
   } else {
     // No special variables - simpler code without scope wrapper
     const indentedPreamble = optionsPreamble.map(line => '  ' + line)
-    code = `${comment}const ${name}_$m = (_opts = {}) => ${innerAsync}(_children = []) => {
+    code = `${comment}var ${name}_$m = (_opts = {}) => ${innerAsync}(_children = []) => {
 ${indentedPreamble.join('\n')}
 ${bodyParts.join('\n')}
 }`
@@ -1063,8 +1117,18 @@ function buildUndefConversionPreamble(args: AssignmentNode[]): string {
  */
 export function transpileFunctionDeclaration(stmt: FunctionDeclarationStmt, ctx: TranspileContext, nameOverride?: string): string {
   const name = nameOverride || safeIdentifier(stmt.name)
-  const body = transpileExpression(stmt.expr, ctx)
   const comment = sourceComment(stmt, ctx)
+  // Register parameters as function bindings when there is no known user-defined or
+  // built-in function with the same name. This allows function-literal parameters
+  // (e.g., `func` in `_all_func(l, func)`) to be called directly as `func(x)` without
+  // the _$f suffix. Parameters that share a name with a real function (e.g., `reverse`)
+  // must NOT be registered — calling `reverse(arr)` should still resolve to `reverse_$f`.
+  const paramBindings = stmt.definitionArgs
+    .map(a => safeIdentifier(a.name))
+    .filter(p => !ctx.symbols.isKind(p, 'function'))
+  for (const p of paramBindings) ctx.scopes.registerFunctionBinding(p, p)
+  const body = transpileExpression(stmt.expr, ctx)
+  for (const p of paramBindings) ctx.scopes.unregisterFunctionBinding(p)
 
   if (stmt.definitionArgs.length === 0) {
     // No parameters - simple function (no object version needed)

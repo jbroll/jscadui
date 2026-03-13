@@ -128,7 +128,7 @@ async function readStdin() {
  * @param {Object} geometry - ManifoldGeom3 or similar with vertices/indices/normals
  * @returns {string} STL text content
  */
-function exportStl(geometry) {
+export function exportStl(geometry) {
   const vertices = geometry.vertices
   const indices = geometry.indices
   const normals = geometry.normals
@@ -167,7 +167,7 @@ function exportStl(geometry) {
  * Create a JSCAD runtime environment with Manifold backend
  * This provides the same API as @jscad/modeling
  */
-async function createRuntime() {
+export async function createRuntime() {
   // Dynamically import the Manifold package
   const manifoldPath = join(__dirname, '..', '..', 'manifold', 'src', 'index.js')
   const manifold = await import(manifoldPath)
@@ -379,7 +379,7 @@ function getLibraryPaths(customPaths = []) {
  *
  * No special casing - filesystem checks are cheap in Node.js
  */
-function createFileResolver(fileDir, customLibPaths = []) {
+export function createFileResolver(fileDir, customLibPaths = []) {
   const libraryPaths = getLibraryPaths(customLibPaths)
 
   return function fileResolver(filename, fromFile) {
@@ -412,8 +412,10 @@ function createFileResolver(fileDir, customLibPaths = []) {
 
 /**
  * Transpile OpenSCAD source and return code + in-memory module cache
+ * @param {Map} [sharedCache] - Optional shared transpiler cache (Map<path, TranspiledFile>)
+ *   for reuse across multiple transpile calls in the same process.
  */
-function transpileScad(source, fileName, fileDir, fn = 0, sourceComments = false, customLibPaths = []) {
+export function transpileScad(source, fileName, fileDir, fn = 0, sourceComments = false, customLibPaths = [], sharedCache = undefined) {
   const { ast, errors } = parse(source)
 
   if (errors.length > 0) {
@@ -425,17 +427,196 @@ function transpileScad(source, fileName, fileDir, fn = 0, sourceComments = false
     currentFile: fileName,
     fn: fn,
     includeSourceComments: sourceComments,
-  })
+  }, sharedCache)
 
-  // Build in-memory module cache from transpiled files
-  // Keys are paths like 'lib/std.scad', convert to './lib/std.js' for require()
+  // Build in-memory module cache from transpiled files.
+  // Keys are absolute paths (from fileResolver) — match what require() passes.
   const moduleCache = new Map()
   for (const [name, file] of result.files) {
-    const jsName = './' + name.replace(/\.scad$/, '.js')
-    moduleCache.set(jsName, file.code)
+    moduleCache.set(name.replace(/\.scad$/, '.js'), file.code)
   }
 
   return { code: result.code, moduleCache }
+}
+
+// ── Module-level runtime cache ─────────────────────────────────────────────
+// These are initialized once per process and shared across all in-process calls.
+
+let _manifoldRuntime = null
+let _manifoldModule = null
+let _openscadRuntime = null
+
+async function _getManifoldRuntime() {
+  if (!_manifoldRuntime) _manifoldRuntime = await createRuntime()
+  return _manifoldRuntime
+}
+
+/** Return the raw initialized Manifold module (for STL comparison). */
+export async function getManifoldModule() {
+  if (!_manifoldModule) {
+    const manifoldPath = join(__dirname, '..', '..', 'manifold', 'src', 'index.js')
+    _manifoldModule = await import(manifoldPath)
+    await _manifoldModule.init()
+  }
+  return _manifoldModule
+}
+
+async function _getOpenscadRuntime() {
+  if (!_openscadRuntime) {
+    const runtimePath = join(__dirname, '..', '..', 'openscad-runtime', 'src', 'index.js')
+    _openscadRuntime = await import(runtimePath)
+  }
+  return _openscadRuntime
+}
+
+// ── Shared require factory ─────────────────────────────────────────────────
+// Extracted from main() so it can be reused by runScadToStl.
+
+function createMakeRequire(jscadModeling, openscadRuntime, moduleCache, fn, libPaths, sharedCache) {
+  function makeRequire(currentFileDir) {
+    return function customRequire(path) {
+      if (path === '@jscad/modeling') return jscadModeling
+      if (path === '@jscadui/openscad-runtime') return openscadRuntime
+
+      // The transpiler generates require() paths with .scad extension
+      // Convert to .js to look up in the moduleCache
+      const jsPath = path.replace(/\.scad$/, '.js')
+
+      if (moduleCache.has(jsPath)) {
+        const code = moduleCache.get(jsPath)
+        const exports = {}
+        const moduleObj = { exports }
+        const modFn = new Function('require', 'module', 'exports', code)
+        modFn(customRequire, moduleObj, exports)
+        return moduleObj.exports
+      }
+
+      // Try to load .scad files from the filesystem (transpile on demand)
+      if (path.endsWith('.scad')) {
+        try {
+          const resolvedPath = resolve(currentFileDir, path)
+          if (existsSync(resolvedPath)) {
+            const scadSource = readFileSync(resolvedPath, 'utf8')
+            const fileDir = dirname(resolvedPath)
+            const transpiled = transpileScad(scadSource, resolvedPath, fileDir, fn, false, libPaths, sharedCache)
+
+            // Add transpiled dependencies to moduleCache for this run
+            for (const [name, code] of transpiled.moduleCache) {
+              if (!moduleCache.has(name)) moduleCache.set(name, code)
+            }
+
+            const exports = {}
+            const moduleObj = { exports }
+            const newFileDir = dirname(resolvedPath)
+            const nestedRequire = makeRequire(newFileDir)
+            const modFn = new Function('require', 'module', 'exports', transpiled.code)
+            modFn(nestedRequire, moduleObj, exports)
+            return moduleObj.exports
+          }
+        } catch (_err) {
+          throw new Error(`Module not found: ${path} (${_err.message})`)
+        }
+      }
+
+      // Try to load regular .js files from the filesystem
+      if (path.endsWith('.js') || path.startsWith('./') || path.startsWith('../')) {
+        try {
+          const resolvedPath = resolve(currentFileDir, path)
+          if (existsSync(resolvedPath)) {
+            const code = readFileSync(resolvedPath, 'utf8')
+            const exports = {}
+            const moduleObj = { exports }
+            const newFileDir = dirname(resolvedPath)
+            const nestedRequire = makeRequire(newFileDir)
+            const modFn = new Function('require', 'module', 'exports', code)
+            modFn(nestedRequire, moduleObj, exports)
+            return moduleObj.exports
+          }
+        } catch (_err) {
+          // Fall through to error below
+        }
+      }
+
+      throw new Error('Module not found: ' + path)
+    }
+  }
+  return makeRequire
+}
+
+// ── Shared params proxy factory ────────────────────────────────────────────
+
+function createParamsProxy() {
+  const paramsData = {}
+  return new Proxy(paramsData, {
+    set(target, prop, value) {
+      // If setting a parameter definition object, store the default value
+      if (value && typeof value === 'object' && 'default' in value) {
+        target[prop] = value.default
+      } else {
+        target[prop] = value
+      }
+      return true
+    },
+    get(target, prop) {
+      if (!(prop in target)) {
+        target[prop] = new Proxy({}, this)
+      }
+      return target[prop]
+    }
+  })
+}
+
+// ── In-process execution (for test-harness) ────────────────────────────────
+
+/**
+ * Transpile and run a .scad file in-process, writing the result to stlPath.
+ * Uses module-level cached runtimes (Manifold WASM + openscad-runtime).
+ *
+ * @param {string} scadPath - Path to the .scad source file
+ * @param {string} stlPath - Output STL file path
+ * @param {number} fn - Global $fn override (0 = use OpenSCAD formula)
+ * @param {string[]} libPaths - Additional library search paths
+ * @param {Map} [sharedCache] - Shared transpiler cache (avoids re-transpiling shared libs)
+ */
+export async function runScadToStl(scadPath, stlPath, fn, libPaths, sharedCache) {
+  const inputPath = resolve(scadPath)
+  const fileDir = dirname(inputPath)
+  const source = readFileSync(inputPath, 'utf8')
+
+  const { code: jsCode, moduleCache } = transpileScad(source, inputPath, fileDir, fn, false, libPaths, sharedCache)
+
+  const jscadModeling = await _getManifoldRuntime()
+  const openscadRuntime = await _getOpenscadRuntime()
+
+  global.jscadui_openscad = { parse, transpile, j$: openscadRuntime.j$ }
+
+  const makeRequire = createMakeRequire(jscadModeling, openscadRuntime, moduleCache, fn, libPaths, sharedCache)
+  const customRequire = makeRequire(fileDir)
+
+  const exports = {}
+  const moduleObj = { exports }
+  const modFn = new Function('require', 'module', 'exports', jsCode)
+  modFn(customRequire, moduleObj, exports)
+
+  if (typeof moduleObj.exports.main !== 'function') {
+    throw new Error('No main() function found in ' + scadPath)
+  }
+
+  const params = createParamsProxy()
+  const result = await Promise.resolve(moduleObj.exports.main(params))
+
+  // Null/undefined result = all geometry was ghost (% modifier) → write empty STL
+  if (!result || (Array.isArray(result) && result.length === 0)) {
+    writeFileSync(stlPath, 'solid JSCAD\nendsolid JSCAD\n')
+    return
+  }
+
+  const geometry = Array.isArray(result) ? jscadModeling.booleans.union(result) : result
+  if (!geometry) {
+    writeFileSync(stlPath, 'solid JSCAD\nendsolid JSCAD\n')
+    return
+  }
+  writeFileSync(stlPath, exportStl(geometry))
 }
 
 async function main() {
@@ -517,128 +698,20 @@ async function main() {
       j$: openscadRuntime.j$
     }
 
-    // Custom require that serves transpiled files from in-memory cache
-    // and loads regular .js files from filesystem
-    function makeRequire(currentFileDir) {
-      return function customRequire(path) {
-        if (path === '@jscad/modeling') {
-          return jscadModeling
-        }
-        if (path === '@jscadui/openscad-runtime') {
-          return openscadRuntime
-        }
-
-        // The transpiler generates require() paths with .scad extension
-        // Convert to .js to look up in the moduleCache
-        const jsPath = path.replace(/\.scad$/, '.js')
-
-        if (moduleCache.has(jsPath)) {
-          const code = moduleCache.get(jsPath)
-          const exports = {}
-          const moduleObj = { exports }
-          // Use the same directory context for cached modules
-          const fn = new Function('require', 'module', 'exports', code)
-          fn(customRequire, moduleObj, exports)
-          return moduleObj.exports
-        }
-
-        // Try to load .scad files from the filesystem (transpile on demand)
-        if (path.endsWith('.scad')) {
-          try {
-            const resolvedPath = resolve(currentFileDir, path)
-            if (existsSync(resolvedPath)) {
-              const scadSource = readFileSync(resolvedPath, 'utf8')
-              const fileDir = dirname(resolvedPath)
-              const transpiled = transpileScad(scadSource, resolvedPath, fileDir, options.fn, false, options.libPaths)
-
-              // Add transpiled dependencies to moduleCache for this run
-              for (const [name, code] of transpiled.moduleCache) {
-                if (!moduleCache.has(name)) {
-                  moduleCache.set(name, code)
-                }
-              }
-
-              const exports = {}
-              const moduleObj = { exports }
-              const newFileDir = dirname(resolvedPath)
-              const nestedRequire = makeRequire(newFileDir)
-              const fn = new Function('require', 'module', 'exports', transpiled.code)
-              fn(nestedRequire, moduleObj, exports)
-              return moduleObj.exports
-            }
-          } catch (_err) {
-            // Fall through to error below
-          }
-        }
-
-        // Try to load regular .js files from the filesystem
-        if (path.endsWith('.js') || path.startsWith('./') || path.startsWith('../')) {
-          try {
-            const resolvedPath = resolve(currentFileDir, path)
-            if (existsSync(resolvedPath)) {
-              const code = readFileSync(resolvedPath, 'utf8')
-              const exports = {}
-              const moduleObj = { exports }
-              // Create a new require function for the loaded file with its directory
-              const newFileDir = dirname(resolvedPath)
-              const nestedRequire = makeRequire(newFileDir)
-              const fn = new Function('require', 'module', 'exports', code)
-              fn(nestedRequire, moduleObj, exports)
-              return moduleObj.exports
-            }
-          } catch (_err) {
-            // Fall through to error below
-          }
-        }
-
-        throw new Error('Module not found: ' + path)
-      }
-    }
-
     const mainFileDir = dirname(inputPath)
+    const makeRequire = createMakeRequire(jscadModeling, openscadRuntime, moduleCache, options.fn, options.libPaths, undefined)
     const customRequire = makeRequire(mainFileDir)
 
     // Evaluate the code with our custom require
     const exports = {}
     const moduleObj = { exports }
-    // Debug: save transpiled code and patch for logging
-    const fs = await import('fs')
-    fs.writeFileSync('/tmp/transpiled-debug.js', jsCode)
-
-    // Add logging to is_vnf_$f (now disabled - keep for debugging)
-    const patchedCode = jsCode;
-
-    // Debug logging disabled
-
-    const fn = new Function('require', 'module', 'exports', patchedCode)
-    fn(customRequire, moduleObj, exports)
+    const modFn = new Function('require', 'module', 'exports', jsCode)
+    modFn(customRequire, moduleObj, exports)
 
     // Call main() if it exists - handle both sync and async main()
     let result
     if (typeof moduleObj.exports.main === 'function') {
-      // Create a simple params proxy that handles inline parameter definitions
-      // When code does: params.foo = {type: 'slider', default: 5, ...}
-      // Reading params.foo should return the value (5), not the definition
-      const paramsData = {}
-      const params = new Proxy(paramsData, {
-        set(target, prop, value) {
-          // If setting a parameter definition object, store the value
-          if (value && typeof value === 'object' && 'default' in value) {
-            target[prop] = value.default
-          } else {
-            target[prop] = value
-          }
-          return true
-        },
-        get(target, prop) {
-          // For nested params (params[name] = params[name] ?? {}), create nested proxy
-          if (!(prop in target)) {
-            target[prop] = new Proxy({}, this)
-          }
-          return target[prop]
-        }
-      })
-
+      const params = createParamsProxy()
       result = await Promise.resolve(moduleObj.exports.main(params))
     } else {
       result = null
@@ -691,7 +764,10 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error(err)
-  process.exit(1)
-})
+// Only run as CLI when invoked directly (not when imported as a module)
+if (resolve(process.argv[1] || '') === resolve(__filename)) {
+  main().catch((err) => {
+    console.error(err)
+    process.exit(1)
+  })
+}

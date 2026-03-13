@@ -17,13 +17,18 @@ import { readFileSync, readdirSync, existsSync, mkdirSync, rmSync, copyFileSync 
 import { resolve, basename, dirname, join, relative } from 'node:path'
 import { execSync, exec } from 'node:child_process'
 import { promisify } from 'node:util'
-import { fileURLToPath } from 'node:url'
 import { homedir, cpus } from 'node:os'
+import { fileURLToPath } from 'node:url'
+import { runScadToStl } from './run-jscad.js'
 
 const execAsync = promisify(exec)
-
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
+
+// Shared transpiler cache — persists across all test files in this run.
+// After the first BOSL2 file fully transpiles std.scad and its 30+ deps,
+// subsequent files use the fast-path (paramLists lookup only, no re-fetching).
+const sharedTranspilerCache = new Map()
 
 const VERSION = '0.2.0'
 const DEFAULT_CONCURRENCY = Math.min(4, Math.max(1, cpus().length - 1))
@@ -183,33 +188,37 @@ function detectLibraryDir(scadPath) {
 }
 
 async function runJscad(scadPath, stlPath, fn = 0) {
-  const runJscadPath = join(__dirname, 'run-jscad.js')
-  const fnArg = fn > 0 ? ` --fn ${fn}` : ''
-
-  // Auto-detect library directory (for OPENSCADPATH-like behavior)
   const libDir = detectLibraryDir(scadPath)
-  const libPathArg = libDir ? ` --lib-path "${resolve(libDir)}"` : ''
+  const libPaths = libDir ? [resolve(libDir)] : []
 
   try {
-    await execAsync(`node ${runJscadPath} "${scadPath}" -o "${stlPath}"${fnArg}${libPathArg}`, { timeout: 60000 })
+    await runScadToStl(scadPath, stlPath, fn, libPaths, sharedTranspilerCache)
     return { success: true }
   } catch (err) {
-    return { success: false, error: err.message }
+    return { success: false, error: err.message || String(err) }
   }
 }
 
 async function compareStl(refStl, genStl) {
-  const compareStlPath = join(__dirname, 'compare-stl.js')
-
+  // Run each comparison in a subprocess to give each test a fresh WASM instance.
+  // This prevents WASM heap exhaustion when many large meshes are processed sequentially.
+  const compareScript = join(__dirname, 'compare-stl.js')
   try {
-    const { stdout } = await execAsync(`node ${compareStlPath} "${refStl}" "${genStl}"`, { timeout: 120000 })
+    const { stdout } = await execAsync(
+      `node ${compareScript} ${refStl} ${genStl}`,
+      { maxBuffer: 1024 * 1024 }
+    )
+    // compare-stl.js outputs "Jaccard: X.XXXXXX" to stdout
+    const match = stdout.match(/Jaccard:\s*([\d.]+)/)
+    if (!match) throw new Error(`Unexpected output: ${stdout}`)
+    const jaccard = parseFloat(match[1])
+    return { success: true, jaccard }
+  } catch (err) {
+    // exec rejects on non-zero exit (fail = exit 1), but stdout still has Jaccard
+    const stdout = err.stdout || ''
     const match = stdout.match(/Jaccard:\s*([\d.]+)/)
     if (match) return { success: true, jaccard: parseFloat(match[1]) }
-    return { success: false, error: 'Could not parse Jaccard' }
-  } catch (err) {
-    const match = err.stdout?.match(/Jaccard:\s*([\d.]+)/)
-    if (match) return { success: true, jaccard: parseFloat(match[1]) }
-    return { success: false, error: err.message }
+    return { success: false, error: err.message || String(err) }
   }
 }
 

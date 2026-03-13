@@ -165,7 +165,8 @@ function parseStl(filePath) {
   if (header === 'solid') {
     // Could be ASCII, but check if it's actually binary with "solid" in header
     const content = buffer.toString('utf8')
-    if (content.includes('facet normal')) {
+    // Detect ASCII by presence of "facet normal" OR "endsolid" (handles empty ASCII STL)
+    if (content.includes('facet normal') || content.includes('endsolid')) {
       return parseAsciiStl(content)
     }
   }
@@ -231,6 +232,43 @@ async function trianglesToManifold(triangles, Manifold, Module) {
   }
 
   return manifold
+}
+
+/**
+ * Compute Jaccard similarity between two STL files in-process.
+ * @param {string} refStlPath - Reference STL file path
+ * @param {string} genStlPath - Generated STL file path
+ * @param {object} manifoldModule - Already-initialized Manifold module (from getManifoldModule())
+ * @returns {number} Jaccard similarity (0–1)
+ */
+export async function computeJaccard(refStlPath, genStlPath, manifoldModule) {
+  const Manifold = manifoldModule.getManifold()
+  const Module = manifoldModule.getModule()
+
+  const refTriangles = parseStl(resolve(refStlPath))
+  const genTriangles = parseStl(resolve(genStlPath))
+
+  // Both empty = perfect match (e.g., all geometry was % ghost modifier)
+  if (refTriangles.length === 0 && genTriangles.length === 0) return 1.0
+  // One empty, one not = no overlap
+  if (refTriangles.length === 0 || genTriangles.length === 0) return 0.0
+
+  const refManifold = await trianglesToManifold(refTriangles, Manifold, Module)
+  const genManifold = await trianglesToManifold(genTriangles, Manifold, Module)
+
+  const intersection = Manifold.intersection([refManifold, genManifold])
+  const union = Manifold.union([refManifold, genManifold])
+
+  const unionVolume = union.volume()
+  const jaccard = unionVolume > 0 ? intersection.volume() / unionVolume : 0
+
+  // Free WASM memory to prevent heap exhaustion across many test runs
+  try { refManifold.delete() } catch (_e) { /* ignore WASM delete errors */ }
+  try { genManifold.delete() } catch (_e) { /* ignore WASM delete errors */ }
+  try { intersection.delete() } catch (_e) { /* ignore WASM delete errors */ }
+  try { union.delete() } catch (_e) { /* ignore WASM delete errors */ }
+
+  return jaccard
 }
 
 async function main() {
@@ -330,7 +368,10 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error(err)
-  process.exit(1)
-})
+// Only run as CLI when invoked directly (not when imported as a module)
+if (resolve(process.argv[1] || '') === resolve(__filename)) {
+  main().catch((err) => {
+    console.error(err)
+    process.exit(1)
+  })
+}

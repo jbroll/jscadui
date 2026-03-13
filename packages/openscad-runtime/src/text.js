@@ -23,13 +23,15 @@ export const initText = (jscadRef) => {
 /**
  * OpenSCAD text() runtime function (synchronous).
  *
- * Uses Hershey simplex font by default (sync, no network required).
- * For TTF fonts, pre-load via: await fontLoader.load(url)
+ * Defaults to Liberation Sans (the same TrueType font OpenSCAD uses) for correct
+ * geometric output. The font is loaded synchronously:
+ *   - Node.js: bundled LiberationSans-Regular.ttf (file path, always works)
+ *   - Browser Web Worker: sync XHR to CDN URL (explicitly allowed in workers)
  */
 export const _text = ({
   text = '',
   size = 10,
-  font,
+  font = 'Liberation Sans',
   halign = 'left',
   valign = 'baseline',
   spacing = 1,

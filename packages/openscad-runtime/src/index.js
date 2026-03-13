@@ -10,7 +10,7 @@
 import { PI, _range, _min, _max, _num, str, version_num, parent_module, search, _norm, _cross, _lookup, _rands, _resetRng, is_vector, chr, ord, is_consistent, _list_pattern, reverse, _sinDeg, _cosDeg, _tanDeg } from './math.js'
 import { _eq, _vadd, _vsub, _vmul, _vdiv, _vneg } from './vector.js'
 import { _getSegments, setGlobalFn } from './segments.js'
-import { initPrimitives, _cube, _cylinder, _sphere, _circle, _square, _regular_polygon, _polyhedron, _safeUnion, _hull, _union, _subtract, _intersect, _minkowski, _polygon } from './primitives.js'
+import { initPrimitives, _cube, _cylinder, _sphere, _circle, _square, _regular_polygon, _polyhedron, _safeUnion, _hull, _union, _subtract, _intersect, _minkowski, _polygon, _region } from './primitives.js'
 import { initTransforms, _translate, _rotate, _scale, _mirror, _multmatrix } from './transforms.js'
 import { initExtrusions, _linearExtrude, _rotateExtrude } from './extrusions.js'
 import { initColor, _color } from './color.js'
@@ -90,6 +90,7 @@ const j$ = {
   iter: (x) => {
     if (x == null) return []  // undefined or null
     if (typeof x === 'string') return [...x]
+    if (typeof x === 'number') return [x]  // scalar → single-iteration (OpenSCAD: for(i=n) runs once)
     return x
   },
 
@@ -144,6 +145,7 @@ const j$ = {
 
   // Additional primitives
   polygon: _polygon,
+  region: _region,
 
   // Transforms (populated after init)
   translate: _translate,
@@ -248,7 +250,7 @@ export { j$ }
 export { PI, _range, _min, _max, _num, str, version_num, parent_module, search, _norm, _cross, _lookup, _rands, is_vector, chr, ord, is_consistent, _list_pattern, reverse } from './math.js'
 export { _eq, _vadd, _vsub, _vmul, _vdiv, _vneg } from './vector.js'
 export { _getSegments, setGlobalFn } from './segments.js'
-export { initPrimitives, _cube, _cylinder, _sphere, _circle, _square, _regular_polygon, _polyhedron, _safeUnion, _hull, _union, _subtract, _intersect, _minkowski, _polygon } from './primitives.js'
+export { initPrimitives, _cube, _cylinder, _sphere, _circle, _square, _regular_polygon, _polyhedron, _safeUnion, _hull, _union, _subtract, _intersect, _minkowski, _polygon, _region } from './primitives.js'
 export { initTransforms, _translate, _rotate, _scale, _mirror, _multmatrix } from './transforms.js'
 export { initExtrusions, _linearExtrude, _rotateExtrude } from './extrusions.js'
 export { initColor, _color } from './color.js'

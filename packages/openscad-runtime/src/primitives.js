@@ -36,8 +36,8 @@ export const _cube = ({ size, center = false }) => {
 export const _cylinder = ({ h, r, r1, r2, d, d1, d2, center = false, $fn = 0, $fa, $fs }) => {
   const height = _num(h) ?? 1
   const rr = _num(r), dd = _num(d), rr1 = _num(r1), rr2 = _num(r2), dd1 = _num(d1), dd2 = _num(d2)
-  const radius1 = rr1 ?? (dd1 ? dd1/2 : (rr ?? (dd ? dd/2 : 1)))
-  const radius2 = rr2 ?? (dd2 ? dd2/2 : (rr ?? (dd ? dd/2 : 1)))
+  const radius1 = rr1 ?? (dd1 != null ? dd1/2 : (rr ?? (dd != null ? dd/2 : 1)))
+  const radius2 = rr2 ?? (dd2 != null ? dd2/2 : (rr ?? (dd != null ? dd/2 : 1)))
   const segments = _getSegments(Math.max(radius1, radius2), $fn, $fa, $fs)
   const geo = cylinder({ height, startRadius: radius1, endRadius: radius2, segments })
   return center ? geo : translate([0, 0, height/2], geo)
@@ -182,25 +182,144 @@ const _signedArea = (pts) => {
 }
 
 /**
+ * Point-in-polygon test using ray casting.
+ * Returns true if point [px, py] is inside the polygon defined by pts.
+ */
+const _pointInPolygon = (px, py, pts) => {
+  let inside = false
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const xi = pts[i][0], yi = pts[i][1]
+    const xj = pts[j][0], yj = pts[j][1]
+    if (((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi) + xi)) {
+      inside = !inside
+    }
+  }
+  return inside
+}
+
+/**
+ * Compute centroid of polygon.
+ */
+const _centroid = (pts) => {
+  let cx = 0, cy = 0
+  for (const p of pts) { cx += p[0]; cy += p[1] }
+  return [cx / pts.length, cy / pts.length]
+}
+
+/**
+ * Build 2D geometry from an array of path-data objects using the even-odd fill rule.
+ *
+ * OpenSCAD's polygon() and region() both use even-odd fill:
+ * - Depth-0 paths (outermost): solid
+ * - Depth-1 paths (inside one outer): holes
+ * - Depth-2 paths (inside a hole): solid again (re-inclusion)
+ * - etc.
+ *
+ * Implements this by finding each path's immediate parent (smallest containing path)
+ * to build a containment tree, then recursively applying:
+ *   node geometry = polygon(node) - union(children) + union(grandchildren subtrees)
+ *
+ * @param {Array<{pts: number[][], area: number, centroid: number[]}>} pathData
+ * @returns {geom2 | undefined}
+ */
+const _buildEvenOddGeom = (pathData) => {
+  if (pathData.length === 0) return undefined
+
+  if (pathData.length === 1) {
+    const { pts, area } = pathData[0]
+    const ccwPts = area < 0 ? [...pts].reverse() : pts
+    try { return polygon({ points: ccwPts }) } catch (_e) { return undefined }
+  }
+
+  // Find immediate parent for each path:
+  // immediate parent = smallest-area path that contains this path's centroid.
+  // Process in descending area order so containers are discovered before contained.
+  const sortedIdx = pathData.map((_, i) => i)
+    .sort((a, b) => Math.abs(pathData[b].area) - Math.abs(pathData[a].area))
+
+  const immediateParent = new Array(pathData.length).fill(-1)
+  for (let ii = 1; ii < sortedIdx.length; ii++) {
+    const i = sortedIdx[ii]
+    let bestParent = -1
+    let bestArea = Infinity
+    for (let jj = 0; jj < ii; jj++) {
+      const j = sortedIdx[jj]
+      if (!_pointInPolygon(pathData[i].centroid[0], pathData[i].centroid[1], pathData[j].pts)) continue
+      if (Math.abs(pathData[j].area) < bestArea) {
+        bestArea = Math.abs(pathData[j].area)
+        bestParent = j
+      }
+    }
+    immediateParent[i] = bestParent
+  }
+
+  const makePolygon = (pts) => {
+    const area = _signedArea(pts)
+    const ccwPts = area < 0 ? [...pts].reverse() : pts
+    try { return polygon({ points: ccwPts }) } catch (_e) { return undefined }
+  }
+
+  // Recursively build even-odd geometry for a subtree:
+  // - This node is solid
+  // - Direct children are holes (subtracted)
+  // - Grandchildren are islands (unioned back)
+  const buildSubtree = (idx) => {
+    let geom = makePolygon(pathData[idx].pts)
+    if (!geom) return undefined
+
+    const children = pathData.map((_, i) => i).filter(i => immediateParent[i] === idx)
+    if (children.length === 0) return geom
+
+    const childPolygons = children.map(c => makePolygon(pathData[c].pts)).filter(Boolean)
+    if (childPolygons.length > 0) {
+      const holeUnion = childPolygons.length === 1 ? childPolygons[0] : union(...childPolygons)
+      geom = subtract(geom, holeUnion)
+    }
+
+    // Add back grandchildren subtrees (even-odd re-inclusion)
+    for (const child of children) {
+      const grandchildren = pathData.map((_, i) => i).filter(i => immediateParent[i] === child)
+      for (const gc of grandchildren) {
+        const gcGeom = buildSubtree(gc)
+        if (gcGeom) geom = union(geom, gcGeom)
+      }
+    }
+
+    return geom
+  }
+
+  const roots = pathData.map((_, i) => i).filter(i => immediateParent[i] === -1)
+  if (roots.length === 0) return undefined
+
+  const rootGeoms = roots.map(buildSubtree).filter(Boolean)
+  if (rootGeoms.length === 0) return undefined
+  if (rootGeoms.length === 1) return rootGeoms[0]
+  return union(...rootGeoms)
+}
+
+/**
  * Polygon wrapper - normalizes winding order for JSCAD compatibility.
  *
  * OpenSCAD accepts polygons in any winding order; JSCAD requires CCW for solid
- * outer boundaries and CW for holes. Without normalization, CW outer paths
- * produce inverted normals when extruded (inside-out geometry).
+ * outer boundaries and CW for holes. For multiple paths, applies the even-odd
+ * fill rule using a containment tree (see _buildEvenOddGeom).
  */
 export const _polygon = ({ points, paths }) => {
   if (paths && paths.length > 0) {
-    // First path = outer boundary (must be CCW); remaining paths = holes (must be CW).
-    const normalizedPaths = paths.map((path, idx) => {
-      const pathPts = path.map(i => points[i])
+    if (paths.length === 1) {
+      // Single path: ensure CCW
+      const pathPts = paths[0].map(i => points[i])
       const area = _signedArea(pathPts)
-      const shouldBeCCW = idx === 0
-      if ((shouldBeCCW && area < 0) || (!shouldBeCCW && area > 0)) {
-        return [...path].reverse()
-      }
-      return path
+      if (area < 0) return polygon({ points, paths: [[...paths[0]].reverse()] })
+      return polygon({ points, paths })
+    }
+
+    // Build path data and delegate to even-odd containment tree
+    const pathData = paths.map(path => {
+      const pts = path.map(i => points[i])
+      return { pts, area: _signedArea(pts), centroid: _centroid(pts) }
     })
-    return polygon({ points, paths: normalizedPaths })
+    return _buildEvenOddGeom(pathData)
   }
   // Single boundary: ensure CCW (positive area) so extrudeLinear produces correct normals.
   const area = _signedArea(points)
@@ -208,6 +327,23 @@ export const _polygon = ({ points, paths }) => {
     return polygon({ points: [...points].reverse() })
   }
   return polygon({ points })
+}
+
+/**
+ * Region module - creates 2D geometry from a BOSL2 region (list of polygon paths).
+ * Each path is a list of 2D [x,y] points forming a closed contour.
+ * Applies the even-odd fill rule via _buildEvenOddGeom.
+ */
+export const _region = ({ r } = {}) => {
+  if (!r || !Array.isArray(r) || r.length === 0) return undefined
+  const validPaths = r.filter(p => Array.isArray(p) && p.length >= 3)
+  if (validPaths.length === 0) return undefined
+  const pathData = validPaths.map(pts => ({
+    pts,
+    area: _signedArea(pts),
+    centroid: _centroid(pts),
+  }))
+  return _buildEvenOddGeom(pathData)
 }
 
 // Hull wrapper - passes through to JSCAD hull

@@ -15,7 +15,7 @@ function stripUnderscorePrefix(name: string): string {
 
 // Built-in type checks — use Sets for O(1) lookup instead of O(n) array .includes()
 // All functions also match underscore-prefixed versions (BOSL2 builtins.scad wrappers)
-const BUILTIN_PRIMITIVES = new Set(['cube', 'sphere', 'cylinder', 'polyhedron', 'square', 'circle', 'polygon', 'regular_polygon', 'text'])
+const BUILTIN_PRIMITIVES = new Set(['cube', 'sphere', 'cylinder', 'polyhedron', 'square', 'circle', 'polygon', 'regular_polygon', 'text', 'region'])
 const BUILTIN_TRANSFORMS = new Set(['translate', 'rotate', 'scale', 'mirror', 'multmatrix'])
 const BUILTIN_BOOLEANS   = new Set(['union', 'difference', 'intersection', 'minkowski'])
 const BUILTIN_EXTRUSIONS = new Set(['linear_extrude', 'rotate_extrude'])
@@ -49,6 +49,7 @@ const primitiveParams: Record<string, string[]> = {
   polyhedron: ['points', 'faces', 'convexity'],
   regular_polygon: ['order', 'r'],  // n-sided polygon with circumradius r
   text: ['text', 'size', 'font', 'halign', 'valign', 'spacing', 'direction', 'language', 'script'],
+  region: ['r'],
 }
 
 // Positional parameter names for extrusions
@@ -154,6 +155,10 @@ export function transpileBuiltinPrimitive(
 
     case 'text':
       return `j$.text({ ${argsStr} })`
+
+    case 'region':
+      ctx.codeGen.usedPrimitives.add('region')
+      return `j$.region({ ${argsStr} })`
 
     default:
       ctx.warnings.push({

@@ -70,6 +70,21 @@ export const STATIC_FONT_MAP = {
   'Liberation Mono:style=Italic':      `${LIB}-LiberationMono-Italic.ttf`,
   'Liberation Mono:style=Bold Italic': `${LIB}-LiberationMono-BoldItalic.ttf`,
 
+  // Common proprietary font aliases — mapped to metric-compatible open equivalents
+  // Helvetica/Arial → Liberation Sans (same metrics, ensures correct character spacing)
+  'Helvetica':                   LIBERATION_SANS_SOURCE,
+  'Helvetica:style=Bold':        `${LIB}-LiberationSans-Bold.ttf`,
+  'Helvetica:style=Italic':      `${LIB}-LiberationSans-Italic.ttf`,
+  'Helvetica:style=Bold Italic': `${LIB}-LiberationSans-BoldItalic.ttf`,
+  'Arial':                       LIBERATION_SANS_SOURCE,
+  'Arial:style=Bold':            `${LIB}-LiberationSans-Bold.ttf`,
+  'Arial:style=Italic':          `${LIB}-LiberationSans-Italic.ttf`,
+  'Arial:style=Bold Italic':     `${LIB}-LiberationSans-BoldItalic.ttf`,
+  'Times New Roman':             `${LIB}-LiberationSerif-Regular.ttf`,
+  'Times':                       `${LIB}-LiberationSerif-Regular.ttf`,
+  'Courier':                     `${LIB}-LiberationMono-Regular.ttf`,
+  'Courier New':                 `${LIB}-LiberationMono-Regular.ttf`,
+
   // Generic font family aliases — OpenSCAD's fontconfig maps these to Liberation
   'sans-serif':                   LIBERATION_SANS_SOURCE,
   'sans-serif:style=Bold':        `${LIB}-LiberationSans-Bold.ttf`,

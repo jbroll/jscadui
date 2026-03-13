@@ -44,8 +44,8 @@ function signedArea(contour) {
 /**
  * Convert a set of contours (from one glyph at one position) to a geom2.
  *
- * Outer contours and holes are combined into a single polygon with multiple
- * paths via JSCAD's polygon({ points, paths }) API.
+ * Handles glyphs with multiple outer contours (e.g. 'i': dot + stroke) and
+ * inner holes (e.g. 'O': outer circle + inner cutout).
  *
  * @param {Array<Array<[number,number]>>} contours - closed contour arrays (Y-up)
  * @param {number} x - glyph x offset
@@ -72,31 +72,85 @@ function contoursToGeom2(contours, x, y) {
   }
   const flipAll = largestIsCW
 
-  const allPoints = []
-  const paths = []
-
-  for (const contour of validContours) {
-    const startIdx = allPoints.length
-    const pts = flipAll ? [...contour].reverse() : contour
-    for (const [px, py] of pts) {
-      allPoints.push([px + x, py + y])
+  // Process each contour: apply flip, strip duplicate close, translate, classify.
+  // After flip: outer contours are CCW (area < 0 in our CW-positive formula).
+  //             holes are CW (area > 0).
+  const processed = validContours.map(contour => {
+    const origArea = signedArea(contour)
+    let pts = flipAll ? [...contour].reverse() : contour
+    // Strip duplicate closing point
+    const first = pts[0], last = pts[pts.length - 1]
+    if (pts.length > 1 && first[0] === last[0] && first[1] === last[1]) {
+      pts = pts.slice(0, -1)
     }
-    const path = []
-    for (let i = startIdx; i < allPoints.length; i++) path.push(i)
-    paths.push(path)
+    const translated = pts.map(([px, py]) => [px + x, py + y])
+    // Holes have positive original area when flipAll (originally CW-outer → flipped → CCW outer,
+    // originally CCW-hole → flipped → CW hole). For CFF (flipAll=false): holes already CW (area>0).
+    const isHole = flipAll ? origArea < 0 : origArea > 0
+    return { pts: translated, isHole }
+  })
+
+  const outers = processed.filter(c => !c.isHole)
+  const holes = processed.filter(c => c.isHole)
+
+  if (outers.length === 0) return null
+
+  // Build polygon(s): each outer contour with its contained holes.
+  // Multiple outer contours (e.g. 'i': dot + stroke) are unioned.
+  const makeOuterPolygon = (outer, innerHoles) => {
+    if (innerHoles.length === 0) {
+      return jscad.primitives.polygon({ points: outer.pts })
+    }
+    // Use polygon paths: first path = outer (CCW), remaining = holes (CW).
+    // The JSCAD/Manifold polygon treats path[0] as outer and path[1+] as holes.
+    const allPts = [...outer.pts, ...innerHoles.flatMap(h => h.pts)]
+    const outerPath = outer.pts.map((_, i) => i)
+    let offset = outer.pts.length
+    const holePaths = innerHoles.map(h => {
+      const p = h.pts.map((_, i) => offset + i)
+      offset += h.pts.length
+      return p
+    })
+    return jscad.primitives.polygon({ points: allPts, paths: [outerPath, ...holePaths] })
   }
 
-  if (allPoints.length < 3) return null
-
-  try {
-    if (paths.length === 1) {
-      return jscad.primitives.polygon({ points: allPoints })
+  // Simple case: single outer + holes → one polygon call
+  if (outers.length === 1) {
+    try {
+      return makeOuterPolygon(outers[0], holes)
+    } catch (err) {
+      console.warn('jscad-text: failed to create polygon for glyph contour:', err.message)
+      return null
     }
-    return jscad.primitives.polygon({ points: allPoints, paths })
-  } catch (err) {
-    console.warn('jscad-text: failed to create polygon for glyph contour:', err.message)
-    return null
   }
+
+  // Multiple outer contours: assign holes to their containing outer, then union.
+  const results = []
+  for (const outer of outers) {
+    const myHoles = holes.filter(hole => {
+      // Check if hole's first point is inside the outer contour
+      const [hx, hy] = hole.pts[0]
+      let inside = false
+      const pts = outer.pts
+      for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+        if ((pts[i][1] > hy) !== (pts[j][1] > hy) &&
+            hx < (pts[j][0] - pts[i][0]) * (hy - pts[i][1]) / (pts[j][1] - pts[i][1]) + pts[i][0]) {
+          inside = !inside
+        }
+      }
+      return inside
+    })
+    try {
+      const geom = makeOuterPolygon(outer, myHoles)
+      if (geom) results.push(geom)
+    } catch (err) {
+      console.warn('jscad-text: failed to create polygon for glyph contour:', err.message)
+    }
+  }
+
+  if (results.length === 0) return null
+  if (results.length === 1) return results[0]
+  return jscad.booleans.union(...results)
 }
 
 /**

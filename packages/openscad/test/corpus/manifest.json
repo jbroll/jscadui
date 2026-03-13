@@ -7,18 +7,18 @@
       "repository": "https://github.com/revarbat/BOSL",
       "commit": "master",
       "branch": "master",
-      "importDate": "2026-01-15",
-      "fileCount": 146,
-      "notes": "BOSL v1 library - stable release, comprehensive shape and transform library",
+      "importDate": "2026-03-12",
+      "fileCount": 113,
+      "notes": "BOSL v1 library - examples extracted from inline // Example: blocks + 2 upstream showcase files",
       "exclude": ["lib/"]
     },
     "bosl2": {
       "repository": "https://github.com/BelfrySCAD/BOSL2",
       "commit": "master",
       "branch": "master",
-      "importDate": "2026-02-08",
-      "fileCount": 263,
-      "notes": "BOSL2 library - next generation with attachment system. Partial compatibility.",
+      "importDate": "2026-03-12",
+      "fileCount": 178,
+      "notes": "BOSL2 library - examples extracted from inline // Example: blocks + 9 upstream showcase files",
       "exclude": ["lib/"]
     },
     "snippet": {
@@ -37,21 +37,20 @@
   "categories": {
     "bosl": {
       "batches": [
-        {"name": "01-transforms", "description": "Transform operations: move, rot, scale, mirror", "fileRange": "001-030"},
-        {"name": "02-shapes", "description": "Basic and advanced shape primitives", "fileRange": "031-060"},
-        {"name": "03-advanced", "description": "Complex geometry operations", "fileRange": "061-090"},
-        {"name": "04-utilities", "description": "Helper functions and utilities", "fileRange": "091-120"},
-        {"name": "05-misc", "description": "Miscellaneous examples", "fileRange": "121-146"}
+        {"name": "01-part1", "description": "BOSL v1 examples part 1"},
+        {"name": "02-part2", "description": "BOSL v1 examples part 2"},
+        {"name": "03-part3", "description": "BOSL v1 examples part 3"},
+        {"name": "04-part4", "description": "BOSL v1 examples part 4"},
+        {"name": "05-part5", "description": "BOSL v1 examples part 5"}
       ]
     },
     "bosl2": {
       "batches": [
-        {"name": "01-core", "description": "Core transforms (100-series)", "fileRange": "100-129"},
-        {"name": "02-shapes-3d", "description": "3D shapes (200-series)", "fileRange": "200-229"},
-        {"name": "03-shapes-2d", "description": "2D shapes (250-series)", "fileRange": "250-279"},
-        {"name": "04-advanced", "description": "Advanced features: attachments, rounding, paths, beziers, threading (300-series)", "fileRange": "300-699"},
-        {"name": "05-rounding-chamfer", "description": "Rounding and chamfering operations (700-series)", "fileRange": "700-799"},
-        {"name": "06-examples", "description": "Library examples and demonstrations (900-series)", "fileRange": "900-999"}
+        {"name": "01-part1", "description": "BOSL2 examples part 1"},
+        {"name": "02-part2", "description": "BOSL2 examples part 2"},
+        {"name": "03-part3", "description": "BOSL2 examples part 3"},
+        {"name": "04-part4", "description": "BOSL2 examples part 4"},
+        {"name": "05-part5", "description": "BOSL2 examples part 5"}
       ]
     },
     "snippet": {

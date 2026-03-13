@@ -254,7 +254,7 @@ function transpileAllStatements(ast: ScadFile, ctx: TranspileContext): Transpile
         )
       } else {
         const varName = safeIdentifier(stmt.name)
-        const code = `const ${varName} = ${value}`
+        const code = `var ${varName} = ${value}`
         localConstants.push(code)
 
         // Track this declaration for AST-based bundling
@@ -324,9 +324,9 @@ function buildOutputCode(
       const newSymbols = imp.symbols.filter(s => !importedSymbols.has(s))
       for (const s of newSymbols) importedSymbols.add(s)
       if (newSymbols.length > 0) {
-        parts.push(`const { ${newSymbols.join(', ')} } = require('${scadPath}')`)
+        parts.push(`var { ${newSymbols.join(', ')} } = require('${scadPath}')`)
       } else if (imp.symbols.length === 0) {
-        parts.push(`const ${getModuleName(imp.filename)} = require('${scadPath}')`)
+        parts.push(`var ${getModuleName(imp.filename)} = require('${scadPath}')`)
       }
     }
     parts.push('')
