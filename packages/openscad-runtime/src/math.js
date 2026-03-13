@@ -153,13 +153,12 @@ export const _cross = (a, b) => {
 
 export const _lookup = (val, table) => {
   if (table.length === 0) return 0
-  // OpenSCAD sorts the table by x-value before interpolation, so we do the same.
-  // This ensures correct results when the table is in non-ascending order
-  // (e.g. BOSL2's involute_rlup which is created via mirror([-1,1]) and has
-  // decreasing x-values).
-  const sorted = table[0][0] <= table[table.length-1][0]
-    ? table
-    : [...table].sort((a, b) => a[0] - b[0])
+  // OpenSCAD always sorts the table by x-value before interpolation.
+  // We must do the same: a table can appear ordered (first[0] < last[0]) but
+  // still be non-monotonic internally (e.g. BOSL2 worm rack_profile, where
+  // xcopies produces per-tooth segments each in decreasing x order, then jumps
+  // up for the next tooth — causing wrong lookup results if we skip the sort).
+  const sorted = [...table].sort((a, b) => a[0] - b[0])
   if (val <= sorted[0][0]) return sorted[0][1]
   for (let i = 1; i < sorted.length; i++) {
     if (val <= sorted[i][0]) {

@@ -1,9 +1,5 @@
 # BOSL2 library skip list
 
-# Worm gear: JSCAD produces different gear tooth tessellation from BOSL2's
-# worm() module. Jaccard 0.6184 — mesh topology differs, not a transpiler bug.
-051-gears-worm.scad
-
 # hex_panel() with circular clip region: JSCAD and OpenSCAD differ in how the
 # hexagonal grid is clipped to the circle boundary. Jaccard 0.5642.
 164-walls-hex_panel.scad
