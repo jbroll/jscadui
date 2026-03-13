@@ -590,10 +590,14 @@ export async function runScadToStl(scadPath, stlPath, fn, libPaths, sharedCache)
   const jscadModeling = await _getManifoldRuntime()
   const openscadRuntime = await _getOpenscadRuntime()
 
+  // Initialize the shared module-level bindings in the runtime (primitives, transforms, etc.)
+  // This is safe to call multiple times — it's idempotent and only sets module-level refs.
+  openscadRuntime.j$.init(jscadModeling)
+
   // Create a fresh j$ instance with its own scope stack for this execution.
   // This allows concurrent runs without a mutex — each run has isolated state.
   const j$Instance = createJ$Instance()
-  j$Instance.jscad = jscadModeling  // point to the shared (already-inited) jscad binding
+  j$Instance.jscad = jscadModeling
   if (fn > 0) setGlobalFn(fn)
 
   const makeRequire = createMakeRequire(jscadModeling, openscadRuntime, moduleCache, fn, libPaths, sharedCache, j$Instance)
@@ -696,23 +700,22 @@ async function main() {
     const runtimePath = join(__dirname, '..', '..', 'openscad-runtime', 'src', 'index.js')
     const openscadRuntime = await import(runtimePath)
 
-    // Create the jscadui_openscad global that the transpiled code expects
-    // This mirrors the bundle structure from bundle.openscad.js
-    global.jscadui_openscad = {
-      parse,
-      transpile,
-      j$: openscadRuntime.j$
-    }
+    // Initialize module-level runtime bindings (primitives, transforms, etc.)
+    openscadRuntime.j$.init(jscadModeling)
+
+    const j$Instance = createJ$Instance()
+    j$Instance.jscad = jscadModeling
+    if (options.fn > 0) setGlobalFn(options.fn)
 
     const mainFileDir = dirname(inputPath)
-    const makeRequire = createMakeRequire(jscadModeling, openscadRuntime, moduleCache, options.fn, options.libPaths, undefined)
+    const makeRequire = createMakeRequire(jscadModeling, openscadRuntime, moduleCache, options.fn, options.libPaths, undefined, j$Instance)
     const customRequire = makeRequire(mainFileDir)
 
     // Evaluate the code with our custom require
     const exports = {}
     const moduleObj = { exports }
-    const modFn = new Function('require', 'module', 'exports', jsCode)
-    modFn(customRequire, moduleObj, exports)
+    const modFn = new Function('require', 'module', 'exports', 'j$', jsCode)
+    modFn(customRequire, moduleObj, exports, j$Instance)
 
     // Call main() if it exists - handle both sync and async main()
     let result
