@@ -11,7 +11,8 @@
     "scad2jscad": "./bin/scad2jscad.js",
     "run-jscad": "./bin/run-jscad.js",
     "compare-stl": "./bin/compare-stl.js",
-    "test-harness": "./bin/test-harness.js"
+    "test-harness": "./bin/test-harness.js",
+    "test-parallel": "./bin/test-parallel.js"
   },
   "exports": {
     ".": {
@@ -27,7 +28,7 @@
     "build": "tsc",
     "test": "npm run build && npm run test:unit && npm run test:comparison",
     "test:unit": "vitest run",
-    "test:comparison": "node bin/test-harness.js ../../apps/jscad-web/examples/openscad",
+    "test:comparison": "node bin/test-parallel.js ../../apps/jscad-web/examples/openscad",
     "test:bosl": "node bin/test-harness.js ../../apps/jscad-web/examples/openscad/bosl",
     "test:bosl2": "node bin/test-harness.js ../../apps/jscad-web/examples/openscad/bosl2",
     "test:snippet": "node bin/test-harness.js ../../apps/jscad-web/examples/openscad/snippet",

@@ -13,9 +13,10 @@
  *   test-harness --skip-file skip.txt    Skip files listed in skip.txt
  */
 
-import { readFileSync, readdirSync, existsSync, mkdirSync, rmSync, copyFileSync } from 'node:fs'
+import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, rmSync, copyFileSync } from 'node:fs'
 import { resolve, basename, dirname, join, relative } from 'node:path'
 import { execSync, exec } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { promisify } from 'node:util'
 import { homedir, cpus } from 'node:os'
 import { fileURLToPath } from 'node:url'
@@ -24,6 +25,159 @@ import { runScadToStl } from './run-jscad.js'
 const execAsync = promisify(exec)
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
+
+// ── OpenSCAD STL cache ────────────────────────────────────────────────────
+// Caches reference STLs in .deps-cache/openscad-stl/ to skip flatpak re-renders.
+// Cache validity is per-library: invalidated when the library's lib/ dir changes.
+
+const REPO_ROOT = join(__dirname, '..', '..', '..')
+const STL_CACHE_ROOT = join(REPO_ROOT, '.deps-cache', 'openscad-stl')
+
+/** Hash all .scad files in a directory tree (sorted, deterministic). */
+function hashDirectory(dir) {
+  const hash = createHash('sha256')
+  function walk(d) {
+    const entries = readdirSync(d, { withFileTypes: true })
+      .sort((a, b) => a.name.localeCompare(b.name))
+    for (const e of entries) {
+      const full = join(d, e.name)
+      if (e.isDirectory()) walk(full)
+      else if (e.name.endsWith('.scad')) hash.update(readFileSync(full))
+    }
+  }
+  walk(dir)
+  return hash.digest('hex').slice(0, 16)
+}
+
+/** Extract library name from a scad path (.../examples/openscad/<lib>/...). */
+function getLibraryName(scadPath) {
+  const m = scadPath.match(/[/\\]examples[/\\]openscad[/\\]([^/\\]+)/)
+  return m ? m[1] : null
+}
+
+/** Stable cache path for a given source file and $fn value. */
+function stlCachePath(originalScadPath, fn, libName) {
+  const marker = `examples/openscad/${libName}/`
+  const idx = originalScadPath.replace(/\\/g, '/').indexOf(marker)
+  if (idx < 0) return null
+  const rel = originalScadPath.slice(idx + marker.length)
+  const suffix = fn > 0 ? `.fn${fn}.stl` : '.stl'
+  return join(STL_CACHE_ROOT, libName, rel + suffix)
+}
+
+function failedCachePath(originalScadPath, fn, libName) {
+  const p = stlCachePath(originalScadPath, fn, libName)
+  return p ? p.replace(/\.stl$/, '.failed') : null
+}
+
+/**
+ * Manages the OpenSCAD STL cache for a single test run.
+ * Libraries are validated lazily on first access.
+ *
+ * Each library gets its own hash file (.deps-cache/openscad-stl/<lib>/.hash)
+ * so parallel test runners don't race on a shared meta file.
+ */
+class StlCache {
+  constructor() {
+    this._validated = {}     // libName → boolean
+    this._hits = 0
+    this._misses = 0
+    this._failedHits = 0
+    this._dirtyLibs = new Set()  // libs whose hash file needs writing
+    this._hashes = {}        // libName → computed hash
+  }
+
+  _hashFilePath(libName) {
+    return join(STL_CACHE_ROOT, libName, '.hash')
+  }
+
+  _readStoredHash(libName) {
+    const p = this._hashFilePath(libName)
+    return existsSync(p) ? readFileSync(p, 'utf8').trim() : null
+  }
+
+  /** Validate a library's cache (compute hash, compare, invalidate if changed). */
+  _validate(libName, originalScadPath) {
+    if (libName in this._validated) return this._validated[libName]
+
+    // Find the library root from the scad path
+    const marker = `examples/openscad/${libName}`
+    const norm = originalScadPath.replace(/\\/g, '/')
+    const idx = norm.indexOf(marker)
+    if (idx < 0) { this._validated[libName] = false; return false }
+    const libRoot = originalScadPath.slice(0, idx + marker.length)
+
+    // Hash lib/ dir if it exists, else hash the library root itself
+    const libDir = join(libRoot, 'lib')
+    const hashTarget = existsSync(libDir) ? libDir : libRoot
+    const hash = hashDirectory(hashTarget)
+    this._hashes[libName] = hash
+    this._dirtyLibs.add(libName)
+
+    const stored = this._readStoredHash(libName)
+    if (stored !== hash) {
+      // Library changed — purge its cached STLs (but keep the dir for new cache)
+      const libCacheDir = join(STL_CACHE_ROOT, libName)
+      if (existsSync(libCacheDir)) {
+        rmSync(libCacheDir, { recursive: true })
+        process.stderr.write(`[stl-cache] invalidated ${libName} (lib changed)\n`)
+      }
+    }
+    this._validated[libName] = true
+    return true
+  }
+
+  /**
+   * Check the cache for a source file.
+   * Returns null (miss), { failed: true } (known failure), or { stlPath } (hit).
+   */
+  check(originalScadPath, fn) {
+    const libName = getLibraryName(originalScadPath)
+    if (!libName || !this._validate(libName, originalScadPath)) return null
+
+    const failed = failedCachePath(originalScadPath, fn, libName)
+    if (failed && existsSync(failed)) { this._failedHits++; return { failed: true } }
+
+    const cached = stlCachePath(originalScadPath, fn, libName)
+    if (cached && existsSync(cached)) { this._hits++; return { stlPath: cached } }
+
+    this._misses++
+    return null
+  }
+
+  /** Save a successful render to cache. */
+  saveHit(originalScadPath, generatedStlPath, fn) {
+    const libName = getLibraryName(originalScadPath)
+    if (!libName) return
+    const dest = stlCachePath(originalScadPath, fn, libName)
+    if (!dest) return
+    mkdirSync(dirname(dest), { recursive: true })
+    copyFileSync(generatedStlPath, dest)
+  }
+
+  /** Save a failed render sentinel to cache. */
+  saveFailed(originalScadPath, fn, errorMsg) {
+    const libName = getLibraryName(originalScadPath)
+    if (!libName) return
+    const dest = failedCachePath(originalScadPath, fn, libName)
+    if (!dest) return
+    mkdirSync(dirname(dest), { recursive: true })
+    writeFileSync(dest, errorMsg || 'failed')
+  }
+
+  /** Persist per-library hash files. Safe to call from parallel processes. */
+  flush() {
+    for (const libName of this._dirtyLibs) {
+      const hashFile = this._hashFilePath(libName)
+      mkdirSync(dirname(hashFile), { recursive: true })
+      writeFileSync(hashFile, this._hashes[libName])
+    }
+  }
+
+  stats() {
+    return { hits: this._hits, misses: this._misses, failedHits: this._failedHits }
+  }
+}
 
 // Shared transpiler cache — persists across all test files in this run.
 // After the first BOSL2 file fully transpiles std.scad and its 30+ deps,
@@ -72,6 +226,8 @@ function parseArgs(args) {
     json: false,
     fn: 0,
     concurrency: DEFAULT_CONCURRENCY,
+    noStlCache: false,
+    stlCache: null,    // populated in main() after parsing
   }
 
   let i = 0
@@ -96,6 +252,7 @@ Options:
   --fn <n>                Set global $fn for both OpenSCAD and transpiler
   --openscad <path>       Path to OpenSCAD binary (default: openscad)
   --concurrency <n>       Number of parallel tests (default: ${DEFAULT_CONCURRENCY}, max 4)
+  --no-stl-cache          Disable OpenSCAD STL cache (always re-render)
   --keep-temp             Keep temporary files for debugging
   --verbose               Print detailed output
   --json                  Output results as JSON
@@ -116,6 +273,8 @@ Options:
       options.fn = parseInt(args[++i], 10)
     } else if (arg === '--concurrency') {
       options.concurrency = parseInt(args[++i], 10)
+    } else if (arg === '--no-stl-cache') {
+      options.noStlCache = true
     } else if (arg === '--skip-file') {
       try {
         const content = readFileSync(args[++i], 'utf8')
@@ -151,21 +310,32 @@ function checkOpenscad(openscadPath) {
   }
 }
 
-async function runOpenscad(scadPath, stlPath, openscadPath, fn = 0, originalPath = null) {
+async function runOpenscad(scadPath, stlPath, openscadPath, fn = 0, originalPath = null, stlCache = null) {
+  const pathForLibDetection = originalPath || scadPath
+
+  // Check STL cache before invoking flatpak
+  if (stlCache) {
+    const cached = stlCache.check(pathForLibDetection, fn)
+    if (cached) {
+      if (cached.failed) return { success: false, error: 'OpenSCAD render failed (cached)', cached: true }
+      copyFileSync(cached.stlPath, stlPath)
+      return { success: true, cached: true }
+    }
+  }
+
   const args = ['--backend=manifold', '-o', stlPath]
   if (fn > 0) args.push('-D', `"\\$fn=${fn}"`)
   args.push(scadPath)
 
-  // Set OPENSCADPATH to the library directory if detected
-  // Use originalPath if provided (for temp files that were copied)
-  const pathForLibDetection = originalPath || scadPath
   const libDir = detectLibraryDir(pathForLibDetection)
   const env = libDir ? { ...process.env, OPENSCADPATH: resolve(libDir) } : process.env
 
   try {
     await execAsync(`${openscadPath} ${args.join(' ')}`, { timeout: 60000, env })
+    stlCache?.saveHit(pathForLibDetection, stlPath, fn)
     return { success: true }
   } catch (err) {
+    stlCache?.saveFailed(pathForLibDetection, fn, err.message)
     return { success: false, error: err.message }
   }
 }
@@ -277,7 +447,7 @@ async function testFile(scadPath, options) {
 
   try {
     // Pass original scadPath for library detection (tempScad is in temp dir)
-    const openscadResult = await runOpenscad(tempScad, refStl, options.openscad, options.fn, scadPath)
+    const openscadResult = await runOpenscad(tempScad, refStl, options.openscad, options.fn, scadPath, options.stlCache)
     if (!openscadResult.success) {
       result.error = `OpenSCAD: ${openscadResult.error}`
       return result
@@ -448,6 +618,11 @@ async function main() {
     process.exit(1)
   }
 
+  // Init STL cache (skip if disabled or running with custom $fn)
+  if (!options.noStlCache) {
+    options.stlCache = new StlCache()
+  }
+
   const files = getTestFiles(options.dirs, options.matchPatterns)
   if (files.length === 0) {
     console.error('No .scad files found in specified directories.')
@@ -502,6 +677,16 @@ async function main() {
 
   const tested = filesToTest.length - openscadErrors
   const passRate = tested > 0 ? ((passed / tested) * 100).toFixed(1) : '0.0'
+
+  // Flush STL cache and report stats
+  if (options.stlCache) {
+    options.stlCache.flush()
+    const { hits, misses, failedHits } = options.stlCache.stats()
+    if (!options.json && (hits + misses + failedHits > 0)) {
+      const total = hits + misses + failedHits
+      console.log(`STL cache: ${hits} hits, ${misses} misses, ${failedHits} known failures (${Math.round(hits / total * 100)}% hit rate)`)
+    }
+  }
 
   if (options.json) {
     console.log(JSON.stringify({
