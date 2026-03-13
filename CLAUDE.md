@@ -4,65 +4,47 @@ This file provides guidance to Claude Code when working with this repository.
 
 ## Project Overview
 
-jscadui is a JSCAD UI playground — libraries and apps for building 3D CAD interfaces. The main production app is [jscad.app](https://jscad.app) at `apps/jscad-web`. See `README.md` for full details.
+jscadui is a JSCAD UI playground — libraries and apps for building 3D CAD interfaces.
+Main production app: [jscad.app](https://jscad.app) at `apps/jscad-web`. See `README.md`.
 
-## Browser Support
-
-**Targets modern browsers only.** Uses ES2022+ features (`Object.hasOwn`, private class fields `#field`, etc.) without polyfills. Do not add compatibility shims.
+**Targets modern browsers only.** Uses ES2022+ features without polyfills. No compat shims.
 
 ## Repository Structure
 
 npm workspaces monorepo: `packages/*` (libraries), `apps/*` (applications), `file-format/*` (exporters).
 
-See `README.md` for the full package list and architecture overview.
-
 ## Common Commands
 
 ```bash
-# From monorepo root
 npm run dev        # All dev servers (turbo)
 npm run build      # Build all packages
-npm run test       # Run all tests
+npm run test       # All tests (unit + examples + OpenSCAD comparison)
 npm run validate   # lint + typecheck + test
-
-# jscad-web app
-cd apps/jscad-web
-npm run start      # Dev server
-
-# Individual packages
-cd packages/<name>
-npm test           # vitest
 ```
 
-## OpenSCAD Testing
+## Testing
 
+See `TESTING.md` for full test structure, commands, and coverage details.
+See `packages/openscad/CLAUDE.md` for OpenSCAD transpiler guidance.
+
+OpenSCAD quick reference:
 ```bash
 cd packages/openscad
-
-# Unit tests
-npx vitest run
-
-# Full comparison suite (all examples)
-npm run test:comparison
-
-# Individual library subsets
-npm run test:bosl
-npm run test:bosl2
-npm run test:snippet
-npm run test:basics
+npx vitest run              # Unit tests
+npm run test:comparison     # Full comparison suite
+npm run test:bosl           # BOSL v1 only
+npm run test:bosl2          # BOSL2 only
 ```
 
-Skip files (`skip.txt`) in each library directory are auto-discovered — no flags needed.
-To skip a file, add it to `apps/jscad-web/examples/openscad/{library}/skip.txt`.
-
-**Always test against `apps/jscad-web/examples/`** — these are the vetted production examples.
-
-See `packages/openscad/CLAUDE.md` for transpiler-specific guidance.
+Skip files auto-discovered from `skip.txt` in each example directory.
 
 ## PR Workflow
 
-Rebase merges only — merge commits and squash merges are disabled.
-
+Rebase merges only:
 ```bash
 gh pr merge <PR_NUMBER> --rebase --delete-branch
 ```
+
+## Refactoring / Future Work
+
+See `REFACTORING-PLAN.md` for remaining structural refactoring TODO items.
