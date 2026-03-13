@@ -28,6 +28,18 @@ const __dirname = dirname(__filename)
 // Shared transpiler cache — persists across all test files in this run.
 // After the first BOSL2 file fully transpiles std.scad and its 30+ deps,
 // subsequent files use the fast-path (paramLists lookup only, no re-fetching).
+
+// Mutex for in-process JSCAD execution.
+// The openscad runtime uses a module-level scope stack (specialVars.js).
+// Concurrent in-process executions corrupt each other's scope state.
+// We serialize JSCAD runs with a simple promise-based queue.
+let _jscadMutexQueue = Promise.resolve()
+function withJscadMutex(fn) {
+  const result = _jscadMutexQueue.then(fn)
+  // Advance the queue even if fn rejects (so subsequent callers aren't blocked)
+  _jscadMutexQueue = result.catch(() => {})
+  return result
+}
 const sharedTranspilerCache = new Map()
 
 const VERSION = '0.2.0'
@@ -192,7 +204,9 @@ async function runJscad(scadPath, stlPath, fn = 0) {
   const libPaths = libDir ? [resolve(libDir)] : []
 
   try {
-    await runScadToStl(scadPath, stlPath, fn, libPaths, sharedTranspilerCache)
+    // Serialize JSCAD execution to prevent scope stack corruption.
+    // The openscad runtime uses module-level mutable state; concurrent runs corrupt it.
+    await withJscadMutex(() => runScadToStl(scadPath, stlPath, fn, libPaths, sharedTranspilerCache))
     return { success: true }
   } catch (err) {
     return { success: false, error: err.message || String(err) }

@@ -590,6 +590,12 @@ export async function runScadToStl(scadPath, stlPath, fn, libPaths, sharedCache)
 
   global.jscadui_openscad = { parse, transpile, j$: openscadRuntime.j$ }
 
+  // Reset scope before each execution.
+  // Top-level special variable assignments (e.g. `$fn = 36;`) call j$.setSpecialVar at
+  // module load time and persist across sequential test runs via the shared runtime singleton.
+  // Resetting here ensures each test starts with a clean scope (default $fn=0, etc.).
+  openscadRuntime.j$.resetScope()
+
   const makeRequire = createMakeRequire(jscadModeling, openscadRuntime, moduleCache, fn, libPaths, sharedCache)
   const customRequire = makeRequire(fileDir)
 
