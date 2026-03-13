@@ -16,6 +16,8 @@ import { dirname, join } from 'node:path'
 import { parse } from '../esm/parser/parse.js'
 import { transpile } from '../esm/transpiler/transpile.js'
 import { registerCachedFonts } from '../../jscad-text/src/fonts/fontCache.js'
+import { createJ$Instance } from '../../openscad-runtime/src/index.js'
+import { setGlobalFn } from '../../openscad-runtime/src/segments.js'
 
 // Register any Liberation fonts already in the local cache (~/.cache/jscadui/fonts/).
 // This is synchronous and fast — no download happens here.
@@ -472,7 +474,7 @@ async function _getOpenscadRuntime() {
 // ── Shared require factory ─────────────────────────────────────────────────
 // Extracted from main() so it can be reused by runScadToStl.
 
-function createMakeRequire(jscadModeling, openscadRuntime, moduleCache, fn, libPaths, sharedCache) {
+function createMakeRequire(jscadModeling, openscadRuntime, moduleCache, fn, libPaths, sharedCache, j$Instance) {
   function makeRequire(currentFileDir) {
     return function customRequire(path) {
       if (path === '@jscad/modeling') return jscadModeling
@@ -486,8 +488,8 @@ function createMakeRequire(jscadModeling, openscadRuntime, moduleCache, fn, libP
         const code = moduleCache.get(jsPath)
         const exports = {}
         const moduleObj = { exports }
-        const modFn = new Function('require', 'module', 'exports', code)
-        modFn(customRequire, moduleObj, exports)
+        const modFn = new Function('require', 'module', 'exports', 'j$', code)
+        modFn(customRequire, moduleObj, exports, j$Instance)
         return moduleObj.exports
       }
 
@@ -509,8 +511,8 @@ function createMakeRequire(jscadModeling, openscadRuntime, moduleCache, fn, libP
             const moduleObj = { exports }
             const newFileDir = dirname(resolvedPath)
             const nestedRequire = makeRequire(newFileDir)
-            const modFn = new Function('require', 'module', 'exports', transpiled.code)
-            modFn(nestedRequire, moduleObj, exports)
+            const modFn = new Function('require', 'module', 'exports', 'j$', transpiled.code)
+            modFn(nestedRequire, moduleObj, exports, j$Instance)
             return moduleObj.exports
           }
         } catch (_err) {
@@ -528,8 +530,8 @@ function createMakeRequire(jscadModeling, openscadRuntime, moduleCache, fn, libP
             const moduleObj = { exports }
             const newFileDir = dirname(resolvedPath)
             const nestedRequire = makeRequire(newFileDir)
-            const modFn = new Function('require', 'module', 'exports', code)
-            modFn(nestedRequire, moduleObj, exports)
+            const modFn = new Function('require', 'module', 'exports', 'j$', code)
+            modFn(nestedRequire, moduleObj, exports, j$Instance)
             return moduleObj.exports
           }
         } catch (_err) {
@@ -588,21 +590,19 @@ export async function runScadToStl(scadPath, stlPath, fn, libPaths, sharedCache)
   const jscadModeling = await _getManifoldRuntime()
   const openscadRuntime = await _getOpenscadRuntime()
 
-  global.jscadui_openscad = { parse, transpile, j$: openscadRuntime.j$ }
+  // Create a fresh j$ instance with its own scope stack for this execution.
+  // This allows concurrent runs without a mutex — each run has isolated state.
+  const j$Instance = createJ$Instance()
+  j$Instance.jscad = jscadModeling  // point to the shared (already-inited) jscad binding
+  if (fn > 0) setGlobalFn(fn)
 
-  // Reset scope before each execution.
-  // Top-level special variable assignments (e.g. `$fn = 36;`) call j$.setSpecialVar at
-  // module load time and persist across sequential test runs via the shared runtime singleton.
-  // Resetting here ensures each test starts with a clean scope (default $fn=0, etc.).
-  openscadRuntime.j$.resetScope()
-
-  const makeRequire = createMakeRequire(jscadModeling, openscadRuntime, moduleCache, fn, libPaths, sharedCache)
+  const makeRequire = createMakeRequire(jscadModeling, openscadRuntime, moduleCache, fn, libPaths, sharedCache, j$Instance)
   const customRequire = makeRequire(fileDir)
 
   const exports = {}
   const moduleObj = { exports }
-  const modFn = new Function('require', 'module', 'exports', jsCode)
-  modFn(customRequire, moduleObj, exports)
+  const modFn = new Function('require', 'module', 'exports', 'j$', jsCode)
+  modFn(customRequire, moduleObj, exports, j$Instance)
 
   if (typeof moduleObj.exports.main !== 'function') {
     throw new Error('No main() function found in ' + scadPath)

@@ -15,17 +15,7 @@ import { initTransforms, _translate, _rotate, _scale, _mirror, _multmatrix } fro
 import { initExtrusions, _linearExtrude, _rotateExtrude } from './extrusions.js'
 import { initColor, _color } from './color.js'
 import { initText, _text } from './text.js'
-import {
-  pushScope, popScope, resetScope,
-  getSpecialVar, setSpecialVar,
-  $fn, $fa, $fs, set$fn, set$fa, set$fs,
-  $t, $preview, set$t, set$preview,
-  $vpr, $vpt, $vpd, $vpf, set$vpr, set$vpt, set$vpd, set$vpf,
-  $parent_anchor, $parent_spin, $parent_orient, $parent_geom, $parent_size,
-  $transform, $attach_to, $attach_anchor, $anchor, $anchor_inside,
-  set$parent_anchor, set$parent_spin, set$parent_orient, set$parent_geom, set$parent_size,
-  set$transform, set$attach_to, set$attach_anchor, set$anchor, set$anchor_inside
-} from './specialVars.js'
+import { DEFAULT_SPECIAL_VARS } from './specialVars.js'
 
 /**
  * Sentinel for explicit undef passed as argument.
@@ -126,14 +116,26 @@ const j$ = {
     }
   },
 
-  // Primitives (populated after init)
-  cube: _cube,
-  cylinder: _cylinder,
-  sphere: _sphere,
-  circle: _circle,
-  square: _square,
-  regular_polygon: _regular_polygon,
-  polyhedron: _polyhedron,
+  // Primitives — resolve $fn/$fa/$fs from scope before calling through
+  cube(args) { return _cube(args) },
+  cylinder(args) {
+    const $fn = this.getSpecialVar('$fn'), $fa = this.getSpecialVar('$fa'), $fs = this.getSpecialVar('$fs')
+    return _cylinder({ $fn, $fa, $fs, ...args })
+  },
+  sphere(args) {
+    const $fn = this.getSpecialVar('$fn'), $fa = this.getSpecialVar('$fa'), $fs = this.getSpecialVar('$fs')
+    return _sphere({ $fn, $fa, $fs, ...args })
+  },
+  circle(args) {
+    const $fn = this.getSpecialVar('$fn'), $fa = this.getSpecialVar('$fa'), $fs = this.getSpecialVar('$fs')
+    return _circle({ $fn, $fa, $fs, ...args })
+  },
+  square(args) { return _square(args) },
+  regular_polygon(args) {
+    const $fn = this.getSpecialVar('$fn'), $fa = this.getSpecialVar('$fa'), $fs = this.getSpecialVar('$fs')
+    return _regular_polygon({ $fn, $fa, $fs, ...args })
+  },
+  polyhedron(args) { return _polyhedron(args) },
   safeUnion: _safeUnion,
   hull: _hull,
 
@@ -178,48 +180,32 @@ const j$ = {
     return jscad.expansions.offset({ delta: amount, corners }, child)
   },
 
-  // Special variables - stack-based dynamic scoping
-  pushScope,
-  popScope,
-  resetScope,
-  getSpecialVar,
-  setSpecialVar,
-  /**
-   * Execute a function with a temporary scope of special variables.
-   * Automatically handles pushScope/setSpecialVar/popScope with proper cleanup.
-   *
-   * @param {Object} vars - Object mapping variable names to values (e.g., { '$fn': 32 })
-   * @param {Function} fn - Function to execute within the scope
-   * @returns {*} The return value of the function
-   *
-   * @example
-   * j$.withScope({ '$fn': 32, '$fa': 2 }, () => j$.sphere({ r: 10 }))
-   */
-  withScope(vars, fn) {
-    pushScope()
-    for (const [name, value] of Object.entries(vars)) {
-      setSpecialVar(name, value)
+  // ── Special variable scope stack (instance state) ─────────────────────────
+  // Each j$ instance has its own _scopeStack so concurrent executions are isolated.
+  // createJ$Instance() creates a fresh instance via Object.create(j$) with a new stack.
+  _scopeStack: [{ ...DEFAULT_SPECIAL_VARS }],
+
+  getSpecialVar(name) {
+    const stack = this._scopeStack
+    for (let i = stack.length - 1; i >= 0; i--) {
+      if (name in stack[i]) return stack[i][name]
     }
-    try {
-      return fn()
-    } finally {
-      popScope()
-    }
+    return undefined
   },
-  // Resolution vars
-  $fn, $fa, $fs,
-  set$fn, set$fa, set$fs,
-  // Animation/preview vars
-  $t, $preview,
-  set$t, set$preview,
-  // Viewport vars
-  $vpr, $vpt, $vpd, $vpf,
-  set$vpr, set$vpt, set$vpd, set$vpf,
-  // BOSL2 attachment vars
-  $parent_anchor, $parent_spin, $parent_orient, $parent_geom, $parent_size,
-  $transform, $attach_to, $attach_anchor, $anchor, $anchor_inside,
-  set$parent_anchor, set$parent_spin, set$parent_orient, set$parent_geom, set$parent_size,
-  set$transform, set$attach_to, set$attach_anchor, set$anchor, set$anchor_inside,
+  setSpecialVar(name, value) {
+    const stack = this._scopeStack
+    if (stack.length > 0) stack[stack.length - 1][name] = value
+  },
+  pushScope(initialVars = {}) { this._scopeStack.push({ ...initialVars }) },
+  popScope() { if (this._scopeStack.length > 1) this._scopeStack.pop() },
+  resetScope() { this._scopeStack.length = 1; this._scopeStack[0] = { ...DEFAULT_SPECIAL_VARS } },
+
+  withScope(vars, fn) {
+    this.pushScope()
+    for (const [name, value] of Object.entries(vars)) this.setSpecialVar(name, value)
+    try { return fn() } finally { this.popScope() }
+  },
+
 
   // Direct JSCAD access (populated after init)
   jscad: null,
@@ -246,6 +232,18 @@ export default j$
 // Also export as named for CommonJS compatibility
 export { j$ }
 
+/**
+ * Create a fresh j$ instance with its own scope stack.
+ * The new instance inherits all methods and initialized state from the j$ prototype
+ * via Object.create, so init() does not need to be called again.
+ * Use this to get an isolated runtime for each concurrent execution.
+ */
+export function createJ$Instance() {
+  const inst = Object.create(j$)
+  inst._scopeStack = [{ ...DEFAULT_SPECIAL_VARS }]
+  return inst
+}
+
 // Keep legacy exports for backwards compatibility during transition
 export { PI, _range, _min, _max, _num, str, version_num, parent_module, search, _norm, _cross, _lookup, _rands, is_vector, chr, ord, is_consistent, _list_pattern, reverse } from './math.js'
 export { _eq, _vadd, _vsub, _vmul, _vdiv, _vneg } from './vector.js'
@@ -255,6 +253,7 @@ export { initTransforms, _translate, _rotate, _scale, _mirror, _multmatrix } fro
 export { initExtrusions, _linearExtrude, _rotateExtrude } from './extrusions.js'
 export { initColor, _color } from './color.js'
 export { initText, _text } from './text.js'
+export { DEFAULT_SPECIAL_VARS } from './specialVars.js'
 
 // Legacy initRuntime
 export const initRuntime = (jscad, options = {}) => j$.init(jscad, options)

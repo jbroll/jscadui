@@ -11,17 +11,12 @@ import type { TranspileContext } from '../context.js'
 /**
  * Build the j$ runtime import and initialization
  */
-export function buildJscadImports(ctx: TranspileContext): string[] {
+export function buildJscadImports(_ctx: TranspileContext): string[] {
   const imports: string[] = []
 
-  // Import jscad and the j$ runtime from the OpenSCAD bundle global
-  // (bundle.openscad.js is lazy-loaded via importScripts and exposes jscadui_openscad)
+  // j$ is passed as a parameter by the executor (run-jscad.js / bundle worker).
+  // jscad is required for helpers that call jscad API directly (imports.ts).
   imports.push(`const jscad = require('@jscad/modeling')`)
-  imports.push(`const { j$ } = jscadui_openscad`)
-
-  // Initialize the runtime with JSCAD
-  const globalFn = ctx.options.fn || 0
-  imports.push(`j$.init(jscad, { globalFn: ${globalFn} })`)
 
   // Special variables ($fn, $fa, $fs, BOSL2 attachment vars, etc.) are now handled
   // by the stack-based dynamic scoping system in the runtime.
