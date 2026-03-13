@@ -1,9 +1,5 @@
 # BOSL2 library skip list
 
-# hex_panel() with circular clip region: JSCAD and OpenSCAD differ in how the
-# hexagonal grid is clipped to the circle boundary. Jaccard 0.5642.
-164-walls-hex_panel.scad
-
 # BOSL2 logo: uses bevel_gear, path_sweep, cubetruss_corner, screw/nut modules
 # that are not fully implemented. Jaccard 0.0685.
 BOSL2logo.scad

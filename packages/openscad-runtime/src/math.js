@@ -13,6 +13,9 @@ export const _sinDeg = (a) => {
   if (n === 0 || n === 180) return 0
   if (n === 90) return 1
   if (n === 270) return -1
+  // cos(60°) = sin(30°) = 0.5 exactly — JS Math.sin returns 0.4999... or 0.5000...0001
+  if (n === 30 || n === 150) return 0.5
+  if (n === 210 || n === 330) return -0.5
   return Math.sin(a * Math.PI / 180)
 }
 
@@ -21,6 +24,9 @@ export const _cosDeg = (a) => {
   if (n === 90 || n === 270) return 0
   if (n === 0) return 1
   if (n === 180) return -1
+  // cos(60°) = 0.5 exactly — JS Math.cos returns 0.5000...0001 due to float representation of PI/3
+  if (n === 60 || n === 300) return 0.5
+  if (n === 120 || n === 240) return -0.5
   return Math.cos(a * Math.PI / 180)
 }
 
