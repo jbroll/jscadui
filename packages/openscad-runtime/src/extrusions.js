@@ -85,11 +85,12 @@ export const _linearExtrude = ({ height, center = false, twist = 0, slices, scal
       }}, baseGeo)
     }
 
-    // For multi-outline geometries (shapes with holes), extrudeFromSlices inflates
-    // volume when applied to the combined outline set. Instead, extrude each outline
+    // For multi-outline geometries (shapes with holes) extruded with twist, extrudeFromSlices
+    // inflates volume when applied to the combined outline set. Instead, extrude each outline
     // separately and subtract holes from the outer solid.
+    // Scale-only multi-outline extrusions work fine with whole-geo extrudeFromSlices.
     const outlines = geom2.toOutlines(geo)
-    if (outlines.length > 1) {
+    if (outlines.length > 1 && twist !== 0) {
       // Compute signed area to determine winding (positive = CCW = outer, negative = CW = hole)
       const signedArea = (outline) => {
         let a = 0
