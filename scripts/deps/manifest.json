@@ -143,15 +143,8 @@
         {
           "srcDir": ".",
           "destDir": "apps/jscad-web/examples/openscad/nopscadlib/NopSCADlib",
-          "include": ["**/*.scad"],
-          "exclude": ["tests/**", "examples/**"],
-          "skipFiles": []
-        },
-        {
-          "srcDir": "tests",
-          "destDir": "apps/jscad-web/examples/openscad/nopscadlib/01-tests",
-          "include": ["*.scad"],
-          "exclude": [],
+          "include": ["*.scad", "**/*.scad"],
+          "exclude": ["examples/**"],
           "skipFiles": []
         }
       ],

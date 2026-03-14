@@ -33,7 +33,7 @@
     "test:bosl2": "node bin/test-harness.js ../../apps/jscad-web/examples/openscad/bosl2",
     "test:snippet": "node bin/test-harness.js ../../apps/jscad-web/examples/openscad/snippet",
     "test:basics": "node bin/test-harness.js ../../apps/jscad-web/examples/openscad/01-basics",
-    "test:nopscadlib": "node bin/test-harness.js ../../apps/jscad-web/examples/openscad/nopscadlib",
+    "test:nopscadlib": "node bin/test-harness.js ../../apps/jscad-web/examples/openscad/nopscadlib/NopSCADlib/tests",
     "test:watch": "vitest",
     "coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit"

@@ -210,8 +210,10 @@ export function transpileBuiltinTransform(
     }
 
     case 'rotate':
-      // If args contains named params (has ':'), wrap in {} for axis-angle rotation
-      if (args.includes(':')) {
+      // If args contains named params, wrap in {} for axis-angle rotation.
+      // Check the original filteredArgs (not the stringified form) to avoid
+      // false positives from ':' inside ternary expressions like (a ? b : c).
+      if (filteredArgs.some(a => a.name)) {
         return wrapWithSpecialVars(`j$.rotate({ ${args} }, ${childCode})`)
       }
       return wrapWithSpecialVars(`j$.rotate(${args}, ${childCode})`)
