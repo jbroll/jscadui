@@ -22,6 +22,7 @@ export {
 export {
   ManifoldGeom2,
   fromCrossSection,
+  fromJscadGeom2,
   isManifoldGeom2,
   toCrossSection
 } from './ManifoldGeom2.js'

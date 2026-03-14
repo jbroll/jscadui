@@ -206,7 +206,11 @@ class MT19937 {
   }
 
   random() {
-    return this.next() / 0x100000000
+    // C++11 generate_canonical<double,53>: consumes 2 x 32-bit values for full 53-bit precision
+    // Matches OpenSCAD's std::uniform_real_distribution<double> with std::mt19937
+    const v0 = this.next()
+    const v1 = this.next()
+    return v0 * (1.0 / 4294967296.0) * (1.0 / 4294967296.0) + v1 * (1.0 / 4294967296.0)
   }
 }
 

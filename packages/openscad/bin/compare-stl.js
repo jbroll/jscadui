@@ -175,47 +175,39 @@ function parseStl(filePath) {
 }
 
 /**
- * Convert triangles to Manifold mesh with vertex deduplication
+ * Build one Manifold mesh from a flat triangle array, with deduplication.
+ * Auto-orients to positive volume.
  */
-async function trianglesToManifold(triangles, Manifold, Module) {
-  // Build vertex and index arrays with deduplication
+function buildManifold(triangles, Manifold, Module) {
   const vertices = []
   const indices = []
   const vertexMap = new Map()
 
   const getVertexIndex = (x, y, z) => {
-    // Use string key for deduplication (rounded to avoid floating point issues)
     const key = `${x.toFixed(9)},${y.toFixed(9)},${z.toFixed(9)}`
-    if (vertexMap.has(key)) {
-      return vertexMap.get(key)
-    }
+    if (vertexMap.has(key)) return vertexMap.get(key)
     const index = vertices.length / 3
     vertices.push(x, y, z)
     vertexMap.set(key, index)
     return index
   }
 
-  // Process each triangle
   for (const tri of triangles) {
-    const i0 = getVertexIndex(tri[0], tri[1], tri[2])
-    const i1 = getVertexIndex(tri[3], tri[4], tri[5])
-    const i2 = getVertexIndex(tri[6], tri[7], tri[8])
-    indices.push(i0, i1, i2)
+    indices.push(
+      getVertexIndex(tri[0], tri[1], tri[2]),
+      getVertexIndex(tri[3], tri[4], tri[5]),
+      getVertexIndex(tri[6], tri[7], tri[8])
+    )
   }
 
-  // Create Manifold mesh
   const mesh = new Module.Mesh({
     numProp: 3,
     vertProperties: new Float32Array(vertices),
     triVerts: new Uint32Array(indices)
   })
-
   const manifold = Manifold.ofMesh(mesh)
 
-  // Auto-orient: ensure positive volume (outward-facing normals) for consistent comparison.
-  // OpenSCAD and JSCAD may produce STLs with opposite winding conventions depending on
-  // the geometry type (primitives vs VNF-based polyhedra). Normalizing to positive
-  // volume allows Jaccard similarity to work correctly regardless of winding convention.
+  // Auto-orient: ensure positive volume (outward-facing normals).
   if (manifold.volume() < 0) {
     const flippedIndices = new Uint32Array(indices.length)
     for (let i = 0; i < indices.length; i += 3) {
@@ -230,8 +222,136 @@ async function trianglesToManifold(triangles, Manifold, Module) {
     })
     return Manifold.ofMesh(flippedMesh)
   }
-
   return manifold
+}
+
+/**
+ * Split triangles into connected components using oriented edge matching.
+ *
+ * OpenSCAD exports one triangle set per color() group without CSG-unioning
+ * across groups. Bodies that touch share edges with valence 4. Manifold cannot
+ * correctly process these non-manifold meshes.
+ *
+ * Key insight: triangles from the SAME body traverse a shared edge in OPPOSITE
+ * directions (a→b and b→a — consistent manifold winding). Triangles from
+ * DIFFERENT bodies traverse the shared edge in the SAME direction (both a→b or
+ * both b→a), because their outward normals oppose each other at the boundary.
+ *
+ * BFS only follows edges where the two triangles have opposite traversal order
+ * (same-body, manifold-consistent). This keeps each body intact while naturally
+ * separating bodies at their touching boundaries.
+ */
+function splitIntoComponents(triangles) {
+  const n = triangles.length
+  if (n === 0) return []
+
+  const vertKey = (x, y, z) => `${x.toFixed(6)},${y.toFixed(6)},${z.toFixed(6)}`
+
+  // Build DIRECTED edge → triangle map.
+  // Key: "a|b" (directed a→b). Value: triangle index.
+  // Same-body neighbors: triangle with directed edge "a|b" connects to the
+  // triangle with reverse edge "b|a". Different-body pairs both have "a|b".
+  const dirEdgeToTri = new Map()
+
+  for (let i = 0; i < n; i++) {
+    const tri = triangles[i]
+    const vk = [
+      vertKey(tri[0], tri[1], tri[2]),
+      vertKey(tri[3], tri[4], tri[5]),
+      vertKey(tri[6], tri[7], tri[8]),
+    ]
+    for (const [a, b] of [[vk[0], vk[1]], [vk[1], vk[2]], [vk[2], vk[0]]]) {
+      const k = `${a}|${b}`
+      if (!dirEdgeToTri.has(k)) dirEdgeToTri.set(k, [])
+      dirEdgeToTri.get(k).push(i)
+    }
+  }
+
+  // Check if any oriented edge has >1 triangle (fast path for clean meshes)
+  let hasDuplicates = false
+  for (const tris of dirEdgeToTri.values()) {
+    if (tris.length > 1) { hasDuplicates = true; break }
+  }
+  if (!hasDuplicates) return [triangles]
+
+  // BFS — traverse to the triangle that has the REVERSE directed edge (b→a).
+  // This is always the same-body manifold neighbor.
+  // Triangles sharing same-directed edges (a→b + a→b) are different bodies.
+  const component = new Int32Array(n).fill(-1)
+  let numComponents = 0
+
+  for (let start = 0; start < n; start++) {
+    if (component[start] !== -1) continue
+    const id = numComponents++
+    const queue = [start]
+    component[start] = id
+    for (let qi = 0; qi < queue.length; qi++) {
+      const ti = queue[qi]
+      const tri = triangles[ti]
+      const vk = [
+        vertKey(tri[0], tri[1], tri[2]),
+        vertKey(tri[3], tri[4], tri[5]),
+        vertKey(tri[6], tri[7], tri[8]),
+      ]
+      for (const [a, b] of [[vk[0], vk[1]], [vk[1], vk[2]], [vk[2], vk[0]]]) {
+        // The same-body neighbor has the reverse edge b→a
+        const reverseKey = `${b}|${a}`
+        const neighbors = dirEdgeToTri.get(reverseKey)
+        if (!neighbors) continue
+        for (const neighbor of neighbors) {
+          if (component[neighbor] === -1) {
+            component[neighbor] = id
+            queue.push(neighbor)
+          }
+        }
+      }
+    }
+  }
+
+  if (numComponents === 1) return [triangles]
+
+  const result = Array.from({ length: numComponents }, () => [])
+  for (let i = 0; i < n; i++) result[component[i]].push(triangles[i])
+  return result
+}
+
+/**
+ * Convert triangles to Manifold mesh.
+ * If the STL contains multiple bodies separated by non-manifold edges
+ * (e.g. OpenSCAD color() groups concatenated without CSG union), splits them
+ * into components and unions them to get the correct single solid.
+ * Falls back to building a single Manifold if any component is invalid.
+ */
+async function trianglesToManifold(triangles, Manifold, Module) {
+  const components = splitIntoComponents(triangles)
+
+  if (components.length === 1) {
+    return buildManifold(triangles, Manifold, Module)
+  }
+
+  // Try multi-body: build one Manifold per component, then union.
+  // If any component is not a valid closed mesh, fall back to single Manifold.
+  const manifolds = []
+  let fallback = false
+  for (const c of components) {
+    try {
+      const m = buildManifold(c, Manifold, Module)
+      if (m.volume() === 0) { fallback = true; break }
+      manifolds.push(m)
+    } catch (_e) {
+      fallback = true
+      break
+    }
+  }
+
+  if (fallback) {
+    for (const m of manifolds) { try { m.delete() } catch (_e) { /* ignore */ } }
+    return buildManifold(triangles, Manifold, Module)
+  }
+
+  const result = Manifold.union(manifolds)
+  for (const m of manifolds) { try { m.delete() } catch (_e) { /* ignore */ } }
+  return result
 }
 
 /**

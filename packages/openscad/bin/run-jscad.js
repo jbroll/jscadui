@@ -258,6 +258,7 @@ export async function createRuntime() {
       geom2: geometries.geom2,
       geom3: geometries.geom3,
       path2: geometries.path2,
+      fromJscadGeom2: geometries.fromJscadGeom2,
     },
     hulls: {
       hull: hulls.hull,
