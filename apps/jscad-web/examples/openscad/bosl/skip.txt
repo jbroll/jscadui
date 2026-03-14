@@ -1,6 +1,2 @@
 # BOSL library skip list
 
-# fillet_hole_mask: rotate_extrude on multi-outline 2D geometry (square minus circle)
-# produces Jaccard 0.9689. JSCAD's handling of multi-outline profiles in rotate_extrude
-# differs from OpenSCAD's CGAL-based ring triangulation. Pre-existing issue.
-020-masks-fillet_hole_mask.scad
