@@ -5,7 +5,7 @@
 import { _globalFn, _getSegments } from './segments.js'
 
 // JSCAD extrusions and utilities - injected at init time
-let extrudeLinear, extrudeRotate, extrudeFromSlices, translate, mirror, geom2, slice, mat4
+let extrudeLinear, extrudeRotate, extrudeFromSlices, translate, mirror, geom2, slice, mat4, subtract
 
 export const initExtrusions = (jscad) => {
   extrudeLinear = jscad.extrusions.extrudeLinear
@@ -17,6 +17,7 @@ export const initExtrusions = (jscad) => {
   // slice is under extrusions in the Manifold runtime, but under geometries in standard JSCAD
   slice = jscad.extrusions?.slice || jscad.geometries?.slice
   mat4 = jscad.maths.mat4
+  subtract = jscad.booleans.subtract
 }
 
 // Linear extrude helper - uses extrudeFromSlices when scale is used
@@ -47,43 +48,105 @@ export const _linearExtrude = ({ height, center = false, twist = 0, slices, scal
     // Use extrudeFromSlices for scale/twist support
     // Negate twist: OpenSCAD uses clockwise, JSCAD uses counter-clockwise
     const twistRad = -twist * Math.PI / 180
-    let sides = geom2.toSides(geo)
 
-    // Subdivide edges for smoother twist
-    if (twist !== 0) {
-      const segsPerEdge = segments !== undefined ? Math.max(1, segments) : Math.max(1, Math.ceil(Math.abs(twist) / 30))
-      if (segsPerEdge > 1) {
-        const subdividedSides = []
-        for (const [p0, p1] of sides) {
-          for (let i = 0; i < segsPerEdge; i++) {
-            const t0 = i / segsPerEdge
-            const t1 = (i + 1) / segsPerEdge
-            const start = [p0[0] + (p1[0] - p0[0]) * t0, p0[1] + (p1[1] - p0[1]) * t0]
-            const end = [p0[0] + (p1[0] - p0[0]) * t1, p0[1] + (p1[1] - p0[1]) * t1]
-            subdividedSides.push([start, end])
+    // Extrude one outline (CCW array of [x,y] points) as a 3D solid
+    const extrudeOneSolid = (outline) => {
+      let sides = outline.map((p, i) => [p, outline[(i + 1) % outline.length]])
+
+      // For multi-outline rings, OpenSCAD's CDT triangulation adds edge splits before extrusion.
+      // The CDT splits each N-sided polygon edge into (N-1) segments to ensure valid ring triangulation.
+      // This replicates OpenSCAD's behavior where the ring cap mesh drives the side-face vertex count.
+      if (twist !== 0) {
+        const segsPerEdge = segments !== undefined ? Math.max(1, segments) : Math.max(1, outline.length - 1)
+        if (segsPerEdge > 1) {
+          const subdividedSides = []
+          for (const [p0, p1] of sides) {
+            for (let i = 0; i < segsPerEdge; i++) {
+              const t0 = i / segsPerEdge
+              const t1 = (i + 1) / segsPerEdge
+              subdividedSides.push([
+                [p0[0] + (p1[0] - p0[0]) * t0, p0[1] + (p1[1] - p0[1]) * t0],
+                [p0[0] + (p1[0] - p0[0]) * t1, p0[1] + (p1[1] - p0[1]) * t1]
+              ])
+            }
           }
+          sides = subdividedSides
         }
-        sides = subdividedSides
       }
+
+      const baseSlice = slice.fromSides(sides)
+      const baseGeo = geom2.create(sides)
+      return extrudeFromSlices({ numberOfSlices: steps + 1, callback: (progress) => {
+        const m = mat4.create()
+        mat4.translate(m, m, [0, 0, height * progress])
+        mat4.rotateZ(m, m, twistRad * progress)
+        mat4.scale(m, m, [1 + (scaleArr[0] - 1) * progress, 1 + (scaleArr[1] - 1) * progress, 1])
+        return slice.transform(m, baseSlice)
+      }}, baseGeo)
     }
 
-    const baseSlice = slice.fromSides(sides)
+    // For multi-outline geometries (shapes with holes), extrudeFromSlices inflates
+    // volume when applied to the combined outline set. Instead, extrude each outline
+    // separately and subtract holes from the outer solid.
+    const outlines = geom2.toOutlines(geo)
+    if (outlines.length > 1) {
+      // Compute signed area to determine winding (positive = CCW = outer, negative = CW = hole)
+      const signedArea = (outline) => {
+        let a = 0
+        for (let i = 0; i < outline.length; i++) {
+          const p0 = outline[i], p1 = outline[(i + 1) % outline.length]
+          a += p0[0] * p1[1] - p1[0] * p0[1]
+        }
+        return a
+      }
+      let solid = null
+      for (const outline of outlines) {
+        const area = signedArea(outline)
+        if (area > 0) {
+          // CCW = outer: extrude and combine (union) with other outers
+          const extruded = extrudeOneSolid(outline)
+          solid = solid ? subtract(solid, extruded) : extruded  // first outer becomes base; additional outers would need union but rare
+        } else {
+          // CW = inner hole: reverse to CCW, extrude, then subtract
+          const reversed = outline.slice().reverse()
+          const extruded = extrudeOneSolid(reversed)
+          if (solid) solid = subtract(solid, extruded)
+        }
+      }
+      result = solid
+    } else {
+      // Single outline: use all sides together (original approach)
+      let sides = geom2.toSides(geo)
 
-    const callback = (progress, _index, _base) => {
-      const angle = twistRad * progress
-      const sx = 1 + (scaleArr[0] - 1) * progress
-      const sy = 1 + (scaleArr[1] - 1) * progress
-      const z = height * progress
+      // OpenSCAD does not subdivide edges for single-outline twisted extrusions.
+      // Only subdivide when caller explicitly provides a segments count.
+      if (twist !== 0 && segments !== undefined) {
+        const segsPerEdge = Math.max(1, segments)
+        if (segsPerEdge > 1) {
+          const subdividedSides = []
+          for (const [p0, p1] of sides) {
+            for (let i = 0; i < segsPerEdge; i++) {
+              const t0 = i / segsPerEdge
+              const t1 = (i + 1) / segsPerEdge
+              subdividedSides.push([
+                [p0[0] + (p1[0] - p0[0]) * t0, p0[1] + (p1[1] - p0[1]) * t0],
+                [p0[0] + (p1[0] - p0[0]) * t1, p0[1] + (p1[1] - p0[1]) * t1]
+              ])
+            }
+          }
+          sides = subdividedSides
+        }
+      }
 
-      const m = mat4.create()
-      mat4.translate(m, m, [0, 0, z])
-      mat4.rotateZ(m, m, angle)
-      mat4.scale(m, m, [sx, sy, 1])
-
-      return slice.transform(m, baseSlice)
+      const baseSlice = slice.fromSides(sides)
+      result = extrudeFromSlices({ numberOfSlices: steps + 1, callback: (progress) => {
+        const m = mat4.create()
+        mat4.translate(m, m, [0, 0, height * progress])
+        mat4.rotateZ(m, m, twistRad * progress)
+        mat4.scale(m, m, [1 + (scaleArr[0] - 1) * progress, 1 + (scaleArr[1] - 1) * progress, 1])
+        return slice.transform(m, baseSlice)
+      }}, geo)
     }
-
-    result = extrudeFromSlices({ numberOfSlices: steps + 1, callback }, geo)
   } else {
     result = extrudeLinear({ height }, geo)
   }
@@ -101,10 +164,12 @@ export const _rotateExtrude = ({ angle = 360, $fn, $fa, $fs } = {}, geo) => {
 
   // Compute max X (outer radius) of the 2D profile for segment calculation.
   // OpenSCAD uses the profile radius in: numFragments = max(5, ceil(min(360/$fa, 2π*r/$fs)))
+  // Use absolute X values: negative-X profiles (e.g. after rotate([0,0,90])) are reflected
+  // to positive X by extrudeRotate, so the effective radius is |X|.
   let maxX = 0
   for (const [p0, p1] of sides) {
-    if (p0[0] > maxX) maxX = p0[0]
-    if (p1[0] > maxX) maxX = p1[0]
+    if (Math.abs(p0[0]) > maxX) maxX = Math.abs(p0[0])
+    if (Math.abs(p1[0]) > maxX) maxX = Math.abs(p1[0])
   }
 
   // _getSegments handles priority: explicit $fn arg > scope $fn > globalFn > $fa/$fs formula
