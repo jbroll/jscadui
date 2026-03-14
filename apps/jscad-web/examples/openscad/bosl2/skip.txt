@@ -1,9 +1,1 @@
 # BOSL2 library skip list
-
-# test_circle / test_xor: region path clipping at boundaries produces slightly
-# different mesh due to floating-point boundary precision in BOSL2's
-# _filter_region_parts(). Both shapes have correct volume but boundary differs.
-# Jaccard: test_circle 0.9630, test_xor 0.9774. Confirmed unfixable without
-# significant work in region path intersection logic.
-test_circle.scad
-test_xor.scad
