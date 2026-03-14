@@ -133,6 +133,31 @@
       "patches": []
     },
     {
+      "name": "nopscadlib",
+      "description": "NopSCADlib library source files and component test files",
+      "url": "https://github.com/nophead/NopSCADlib.git",
+      "ref": "master",
+      "commit": null,
+      "license": "GPL-3.0",
+      "mappings": [
+        {
+          "srcDir": ".",
+          "destDir": "apps/jscad-web/examples/openscad/nopscadlib/NopSCADlib",
+          "include": ["**/*.scad"],
+          "exclude": ["tests/**", "examples/**"],
+          "skipFiles": []
+        },
+        {
+          "srcDir": "tests",
+          "destDir": "apps/jscad-web/examples/openscad/nopscadlib/01-tests",
+          "include": ["*.scad"],
+          "exclude": [],
+          "skipFiles": []
+        }
+      ],
+      "patches": []
+    },
+    {
       "name": "snippet",
       "description": "OpenSCAD community code snippets (AngeloNicoli/OpenSCAD-Snippet)",
       "url": "https://github.com/AngeloNicoli/OpenSCAD-Snippet.git",
