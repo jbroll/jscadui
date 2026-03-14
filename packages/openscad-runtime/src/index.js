@@ -156,9 +156,15 @@ const j$ = {
   mirror: _mirror,
   multmatrix: _multmatrix,
 
-  // Extrusions (populated after init)
-  linearExtrude: _linearExtrude,
-  rotateExtrude: _rotateExtrude,
+  // Extrusions — resolve $fn/$fa/$fs from scope before calling through
+  linearExtrude(args, geo) {
+    const $fn = this.getSpecialVar('$fn'), $fa = this.getSpecialVar('$fa'), $fs = this.getSpecialVar('$fs')
+    return _linearExtrude({ $fn, $fa, $fs, ...args }, geo)
+  },
+  rotateExtrude(args, geo) {
+    const $fn = this.getSpecialVar('$fn'), $fa = this.getSpecialVar('$fa'), $fs = this.getSpecialVar('$fs')
+    return _rotateExtrude({ $fn, $fa, $fs, ...args }, geo)
+  },
 
   // Color (populated after init)
   color: _color,
