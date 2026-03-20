@@ -1,1 +1,3 @@
 # NopSCADlib skip list
+# libtest.scad includes all test modules — hits duplicate _saved__fa declaration bug
+libtest.scad

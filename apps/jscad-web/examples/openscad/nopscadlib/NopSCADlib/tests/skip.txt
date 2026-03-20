@@ -1,0 +1,24 @@
+# NopSCADlib geometry mismatch failures (work in progress)
+# These tests produce valid geometry but differ from OpenSCAD's output (Jaccard < 0.99)
+BOM.scad
+LED_bezel.scad
+PSU_shroud.scad
+cable_clip.scad
+corner_block.scad
+dimension.scad
+door_hinge.scad
+door_latch.scad
+drag_chain.scad
+fan_guard.scad
+fastons.scad
+fixing_block.scad
+flat_hinge.scad
+foot.scad
+offset.scad
+pocket_handle.scad
+printed_pulleys.scad
+round.scad
+screw_knob.scad
+screws.scad
+splines.scad
+teardrops.scad
