@@ -230,7 +230,11 @@ function transpileLookupExpr(expr: { name: string }, ctx: TranspileContext): str
     return `j$.getSpecialVar('${name}')`
   }
 
-  // Regular identifier - ensure it's safe for JavaScript
+  // Regular identifier - track as potential free variable ref if not locally bound.
+  // Used by canOptimizeInclude to detect files that reference ambient include-scope variables.
+  if (!ctx.currentLocalBindings.has(safeName)) {
+    ctx.potentialFreeVarRefs.add(safeName)
+  }
   return safeName
 }
 
@@ -847,6 +851,13 @@ export function transpileFunctionCall(
   // Don't add for complex expressions like array[0](args) or obj.method(args)
   if (isValidIdentifier(callee)) {
     const suffix = argsFormat === 'object' ? '_$f$obj' : '_$f'
+    // Track as potential free function ref if not in current local bindings.
+    // Note: we intentionally do NOT check ctx.symbols.isDefined() here — 'inherited' symbols
+    // (passed from the parent context for named-arg reordering) must still be tracked so that
+    // canOptimizeInclude correctly detects files that reference ambient include-scope functions.
+    if (!ctx.currentLocalBindings.has(callee)) {
+      ctx.potentialFreeVarRefs.add(callee)
+    }
     return `${callee}${suffix}(${args})`
   }
   // Complex expression (array access, member access, etc.) - call directly

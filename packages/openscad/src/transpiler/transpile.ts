@@ -181,11 +181,13 @@ function propagateUseImportsFromInclude(ctx: TranspileContext, parts: BundledPar
     // Add to useImports if not already present (by resolved path)
     if (!ctx.useImports.some(u => u.resolvedPath === useImp.resolvedPath)) {
       ctx.useImports.push(useImp)
-      // Import symbols from the propagated use import
+      // Import symbols from the propagated use import.
+      // registerParams must be true so that param lists are available for named-arg
+      // reordering at call sites in this file (e.g., rounded_square calls from global.scad).
       const usedFile = ctx.transpiledFiles.get(useImp.resolvedPath)
       importSymbolsFromFile(usedFile, ctx, {
         defineModules: false,
-        registerParams: false,
+        registerParams: true,
       })
     }
   }
@@ -462,9 +464,30 @@ function createBundledParts(ctx: TranspileContext): { bundledParts: BundledParts
 
   // Phase 1 optimization: Detect if this file can use require() instead of bundling
   // A file can be optimized if it contains ONLY functions/modules (no variables, no top-level geometry)
+  // AND has no free variable references (identifiers that come from ambient include-scope).
   const hasVariables = constDecls.length > 0
   const hasTopLevelGeometry = ctx.codeGen.hasTopLevelGeometry
-  const canOptimizeInclude = !hasVariables && !hasTopLevelGeometry
+
+  // Build the set of names defined within this file (modules, functions, constants)
+  // plus all their parameter names, to distinguish them from truly free variable refs.
+  const localDefinedNames = new Set<string>([
+    ...constDecls.map(d => d.name),
+    ...funcDecls.map(d => d.name.replace(/_\$f(?:\$obj)?$/, '')),
+    ...modDecls.map(d => d.name.replace(/_\$m$/, '')),
+    // All param names from all declarations (to avoid false positives from param references)
+    ...allDeclarations.flatMap(d => d.params || []),
+  ])
+  // Check if any identifier that fell through tracking is truly external:
+  // a name is a free variable ref if it's not locally defined AND its only symbol-table
+  // entry is 'inherited' (passed from the parent context) or it's not defined at all.
+  // Symbols that are 'local', 'included', or 'imported' (via explicit use/include) are fine.
+  const hasFreeVarRefs = allDeclarations.some(d => d.source.kind === 'local') &&
+    [...ctx.potentialFreeVarRefs].some(name =>
+      !localDefinedNames.has(name) &&
+      (ctx.symbols.isFromSource(name, 'inherited') || !ctx.symbols.isDefined(name))
+    )
+
+  const canOptimizeInclude = !hasVariables && !hasTopLevelGeometry && !hasFreeVarRefs
 
   const optimizationInfo: OptimizationInfo = {
     canOptimizeInclude,

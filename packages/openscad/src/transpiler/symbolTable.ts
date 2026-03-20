@@ -18,8 +18,12 @@ export type SymbolKind = 'module' | 'function' | 'variable'
 
 /**
  * Where the symbol came from
+ * - 'local': defined in the current file
+ * - 'imported': explicitly imported via use <...>
+ * - 'included': explicitly included via include <...>
+ * - 'inherited': passed from parent context for named-arg reordering (NOT explicitly imported)
  */
-export type SymbolSource = 'local' | 'imported' | 'included'
+export type SymbolSource = 'local' | 'imported' | 'included' | 'inherited'
 
 /**
  * Information about a tracked symbol

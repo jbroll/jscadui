@@ -405,6 +405,12 @@ function transpileUserDefinedCall(
     if (childrenArray.length > 0) {
       const childrenArg = `[${childrenArray.join(', ')}]`
       // Curried call: module_$m({ options })(children)
+      // Track as potential free ref if not locally bound.
+      // Note: we intentionally do NOT check ctx.symbols.isDefined() here — 'inherited' symbols
+      // must still be tracked so that canOptimizeInclude detects ambient include-scope refs.
+      if (!ctx.scopes.lookupFunctionBinding(safeName)) {
+        ctx.potentialFreeVarRefs.add(safeName)
+      }
       return `${safeName}_$m(${optionsArgs})(${childrenArg})`
     }
   }
@@ -415,6 +421,13 @@ function transpileUserDefinedCall(
   // Uses SymbolTable to check modules/functions from all sources
   const isKnownModule = ctx.symbols.isKind(name, 'module')
   const isKnownFunction = ctx.symbols.isKind(name, 'function')
+
+  // Track as potential free ref if not locally bound.
+  // Note: we intentionally do NOT check ctx.symbols.isDefined() here — 'inherited' symbols
+  // must still be tracked so that canOptimizeInclude detects ambient include-scope refs.
+  if (!ctx.scopes.lookupFunctionBinding(safeName)) {
+    ctx.potentialFreeVarRefs.add(safeName)
+  }
 
   // Only use _$f suffix if it's EXCLUSIVELY a function (not also a module from any source)
   // Functions still use positional args for backward compatibility
@@ -969,15 +982,30 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
   // Track local variable names for function call resolution (avoid _$f suffix for local vars)
   const localVarNames: string[] = []
 
+  // Save outer currentLocalBindings and add this scope's params.
+  // (transpileModuleDeclaration already added them for top-level modules; adding again is idempotent.)
+  // This ensures the body expressions see params as locally bound, not free vars.
+  const savedLocalBindings = ctx.currentLocalBindings
+  ctx.currentLocalBindings = new Set(ctx.currentLocalBindings)
+  for (const p of paramNames) ctx.currentLocalBindings.add(safeIdentifier(p))
+
   // Process nested function definitions (these must come first so they can be used)
   for (const f of nestedFunctions) {
     // Track as local function binding BEFORE transpiling body (for recursive calls)
     const varName = safeIdentifier(f.name)
     ctx.scopes.registerFunctionBinding(varName, varName)
     localVarNames.push(varName)
+    ctx.currentLocalBindings.add(varName)
 
+    // Transpile nested function: add its params before transpiling BOTH defaults and body
+    // (defaults can reference earlier params, e.g., function foo(x, y = x + 1))
+    const savedForFunc = ctx.currentLocalBindings
+    ctx.currentLocalBindings = new Set(ctx.currentLocalBindings)
+    for (const a of f.definitionArgs) ctx.currentLocalBindings.add(safeIdentifier(a.name))
     const funcParams = transpileParamsList(f.definitionArgs, ctx)
     const funcBody = transpileExpression(f.expr, ctx)
+    ctx.currentLocalBindings = savedForFunc
+
     bodyParts.push(`${indent}const ${f.name} = (${funcParams}) => ${funcBody}`)
     declaredVars.add(f.name)
   }
@@ -988,7 +1016,10 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
     const varName = safeIdentifier(m.name)
     ctx.scopes.registerFunctionBinding(varName, varName)
     localVarNames.push(varName)
+    ctx.currentLocalBindings.add(varName)
 
+    // Nested module defaults are transpiled in the outer scope (current currentLocalBindings).
+    // The recursive buildModuleBody call will handle adding the nested module's own params.
     const nestedParams = transpileParamsList(m.definitionArgs, ctx)
     const nestedParamNames = new Set<string>(m.definitionArgs.map(a => a.name))
     const nestedBodyParts = buildModuleBody(m.stmt, ctx, indent + '  ', nestedParamNames)
@@ -1030,6 +1061,7 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
       // New variable - use const and track it
       bodyParts.push(`${indent}const ${a.name} = ${transpileExpression(a.value!, ctx)}`)
       declaredVars.add(a.name)
+      ctx.currentLocalBindings.add(varName)  // track for free-var detection
     }
 
     // For non-function values, register binding AFTER transpiling
@@ -1057,6 +1089,9 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
     ctx.scopes.unregisterFunctionBinding(name)
   }
 
+  // Restore currentLocalBindings to outer scope
+  ctx.currentLocalBindings = savedLocalBindings
+
   return bodyParts
 }
 
@@ -1074,10 +1109,21 @@ export function transpileModuleDeclaration(stmt: ModuleDeclarationStmt, ctx: Tra
   const name = safeIdentifier(stmt.name)
   // Extract parameter names to detect shadowing assignments
   const paramNames = new Set<string>(stmt.definitionArgs.map(a => a.name))
+
+  // Add params to currentLocalBindings before transpiling body AND default values.
+  // This prevents params from being falsely flagged as free variable references.
+  // Both buildModuleBody and buildOptionsDestructuring transpile expressions that may
+  // reference these params (e.g., cross-param defaults like `module foo(x, y = x + 1)`).
+  const savedLocalBindings = ctx.currentLocalBindings
+  ctx.currentLocalBindings = new Set(ctx.currentLocalBindings)
+  for (const a of stmt.definitionArgs) ctx.currentLocalBindings.add(safeIdentifier(a.name))
+
   const bodyParts = buildModuleBody(stmt.stmt, ctx, '    ', paramNames)
 
   // Build options destructuring preamble
   const { lines: optionsPreamble, hasSpecialVars } = buildOptionsDestructuring(stmt.definitionArgs, ctx)
+
+  ctx.currentLocalBindings = savedLocalBindings
 
   const comment = sourceComment(stmt, ctx)
 
@@ -1160,10 +1206,17 @@ export function transpileFunctionDeclaration(stmt: FunctionDeclarationStmt, ctx:
     .map(a => safeIdentifier(a.name))
     .filter(p => !ctx.symbols.isKind(p, 'function'))
   for (const p of paramBindings) ctx.scopes.registerFunctionBinding(p, p)
+
+  // Add params to currentLocalBindings for free-var detection (covers both body and defaults)
+  const savedLocalBindings = ctx.currentLocalBindings
+  ctx.currentLocalBindings = new Set(ctx.currentLocalBindings)
+  for (const a of stmt.definitionArgs) ctx.currentLocalBindings.add(safeIdentifier(a.name))
+
   const body = transpileExpression(stmt.expr, ctx)
   for (const p of paramBindings) ctx.scopes.unregisterFunctionBinding(p)
 
   if (stmt.definitionArgs.length === 0) {
+    ctx.currentLocalBindings = savedLocalBindings
     // No parameters - simple function (no object version needed)
     const code = `${comment}function ${name}_$f() { return ${body}; }`
     ctx.declarations.addFunction(
@@ -1182,6 +1235,7 @@ export function transpileFunctionDeclaration(stmt: FunctionDeclarationStmt, ctx:
   const uniqueArgs = deduplicateArgs(stmt.definitionArgs)
 
   // Generate positional version (existing behavior)
+  // Params are still in currentLocalBindings so cross-param defaults (e.g., y = x + 1) work
   const positionalParams = transpileParamsList(uniqueArgs, ctx)
   const positionalPreamble = buildUndefConversionPreamble(uniqueArgs)
 
@@ -1196,6 +1250,8 @@ export function transpileFunctionDeclaration(stmt: FunctionDeclarationStmt, ctx:
     }
     return paramName
   }).join(', ')
+
+  ctx.currentLocalBindings = savedLocalBindings
 
   const undefConversions = uniqueArgs.map(arg => {
     const paramName = safeIdentifier(arg.name)

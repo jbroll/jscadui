@@ -163,6 +163,12 @@ export interface TranspileContext {
   warnings: TranspileWarning[]
   // Errors generated during transpilation (non-fatal)
   errors: TranspileError[]
+  // Free variable reference tracking for canOptimizeInclude detection
+  // Set of identifier names that fall through transpileLookupExpr without being locally bound
+  potentialFreeVarRefs: Set<string>
+  // Current set of locally-bound names (module/function params + local vars)
+  // Used to avoid false positives when tracking potentialFreeVarRefs
+  currentLocalBindings: Set<string>
 }
 
 export const defaultOptions = {
@@ -186,15 +192,16 @@ export function createContext(
   if (options.initialParamLists) {
     for (const [name, params] of options.initialParamLists) {
       symbols.registerParams(name, 'module', params)
-      // Also define in symbol table so isKind() works for shouldUseBuiltin() detection
-      symbols.define(name, { kind: 'module', source: 'imported', params })
+      // Use 'inherited' source so we can distinguish from explicitly use'd symbols.
+      // This is important for canOptimizeInclude free-var detection in createBundledParts.
+      symbols.define(name, { kind: 'module', source: 'inherited', params })
     }
   }
   if (options.initialFunctionParamLists) {
     for (const [name, params] of options.initialFunctionParamLists) {
       symbols.registerParams(name, 'function', params)
-      // Also define in symbol table so isKind() works for shouldUseBuiltin() detection
-      symbols.define(name, { kind: 'function', source: 'imported', params })
+      // Use 'inherited' source so we can distinguish from explicitly use'd symbols.
+      symbols.define(name, { kind: 'function', source: 'inherited', params })
     }
   }
 
@@ -215,6 +222,8 @@ export function createContext(
     processingFiles: new Set(),
     warnings: [],
     errors: [],
+    potentialFreeVarRefs: new Set(),
+    currentLocalBindings: new Set(),
   }
 }
 
