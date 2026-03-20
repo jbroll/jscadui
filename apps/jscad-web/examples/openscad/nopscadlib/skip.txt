@@ -1,3 +1,11 @@
 # NopSCADlib skip list
+# Library source dirs — not standalone test files
+NopSCADlib/vitamins/
+NopSCADlib/printed/
+NopSCADlib/utils/
+NopSCADlib/hardware/
+NopSCADlib/core.scad
+NopSCADlib/global_defs.scad
+NopSCADlib/lib.scad
 # libtest.scad includes all test modules — hits duplicate _saved__fa declaration bug
-libtest.scad
+NopSCADlib/libtest.scad

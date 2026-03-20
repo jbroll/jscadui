@@ -493,8 +493,8 @@ function collectScadFiles(dirPath, files) {
   for (const entry of readdirSync(dirPath, { withFileTypes: true })) {
     const full = join(dirPath, entry.name)
     if (entry.isDirectory()) {
-      // Skip hidden dirs and lib/ directories (library source, not runnable examples)
-      if (!entry.name.startsWith('.') && entry.name !== 'lib') {
+      // Skip hidden dirs only; lib/ exclusion is handled via skip.txt patterns
+      if (!entry.name.startsWith('.')) {
         collectScadFiles(full, files)
       }
     } else if (entry.name.endsWith('.scad')) {
@@ -549,7 +549,9 @@ function isSkippedByDirPatterns(filePath, dirSkips) {
   for (const { dir, patterns } of dirSkips) {
     // Only apply patterns from a skip.txt to files under that directory
     if (!resolvedFile.startsWith(dir + '/') && resolvedFile !== dir) continue
-    for (const pattern of patterns) {
+    for (const p of patterns) {
+      // Trailing slash is a directory shorthand: "lib/" skips all files under lib/
+      const pattern = p.endsWith('/') ? p + '*' : p
       const regex = new RegExp('^' + pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$')
       if (regex.test(basename(resolvedFile)) || regex.test(relative(dir, resolvedFile))) {
         return true
