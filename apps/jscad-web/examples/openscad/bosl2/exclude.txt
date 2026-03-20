@@ -1,0 +1,2 @@
+# BOSL2 library source — not standalone test files
+lib/

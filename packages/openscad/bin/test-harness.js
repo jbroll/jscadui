@@ -504,18 +504,18 @@ function collectScadFiles(dirPath, files) {
 }
 
 /**
- * Auto-discover skip.txt files within the given directories and their subdirectories.
- * Each skip.txt in a directory adds its patterns scoped to that directory
- * (patterns match against the basename of files under that directory).
+ * Auto-discover named pattern files (skip.txt or exclude.txt) within directories.
+ * Each file adds its patterns scoped to the directory it lives in.
+ * Patterns support * wildcards and trailing / as a directory shorthand.
  */
-function discoverSkipPatterns(dirs) {
-  const dirSkips = []  // [{dir, patterns}]
+function discoverDirPatterns(dirs, filename) {
+  const dirPatterns = []  // [{dir, patterns}]
 
   function walk(dirPath) {
-    const skipFile = join(dirPath, 'skip.txt')
-    if (existsSync(skipFile)) {
+    const patternFile = join(dirPath, filename)
+    if (existsSync(patternFile)) {
       try {
-        const content = readFileSync(skipFile, 'utf8')
+        const content = readFileSync(patternFile, 'utf8')
         const patterns = []
         for (const line of content.split('\n')) {
           const pattern = line.trim()
@@ -524,9 +524,9 @@ function discoverSkipPatterns(dirs) {
           }
         }
         if (patterns.length > 0) {
-          dirSkips.push({ dir: resolve(dirPath), patterns })
+          dirPatterns.push({ dir: resolve(dirPath), patterns })
         }
-      } catch { /* ignore unreadable skip files */ }
+      } catch { /* ignore unreadable files */ }
     }
     for (const entry of readdirSync(dirPath, { withFileTypes: true })) {
       if (entry.isDirectory() && !entry.name.startsWith('.')) {
@@ -538,8 +538,12 @@ function discoverSkipPatterns(dirs) {
   for (const dir of dirs) {
     if (existsSync(resolve(dir))) walk(resolve(dir))
   }
-  return dirSkips
+  return dirPatterns
 }
+
+/** Convenience wrappers */
+const discoverSkipPatterns = dirs => discoverDirPatterns(dirs, 'skip.txt')
+const discoverExcludePatterns = dirs => discoverDirPatterns(dirs, 'exclude.txt')
 
 /**
  * Check if a file should be skipped based on directory-scoped skip patterns.
@@ -571,10 +575,17 @@ function getTestFiles(dirs, matchPatterns = []) {
     }
     collectScadFiles(dirPath, files)
   }
+
+  // Apply exclude.txt patterns — silently remove structural/library files before any counting
+  const dirExcludes = discoverExcludePatterns(dirs)
+  const included = dirExcludes.length > 0
+    ? files.filter(f => !isSkippedByDirPatterns(f, dirExcludes))
+    : files
+
   if (matchPatterns.length > 0) {
-    return files.filter(f => matchesPatterns(f, matchPatterns))
+    return included.filter(f => matchesPatterns(f, matchPatterns))
   }
-  return files
+  return included
 }
 
 async function runWithConcurrency(tasks, concurrency) {
@@ -689,7 +700,7 @@ async function main() {
     if (openscadErrors > 0 || skipped > 0) {
       const reasons = []
       if (openscadErrors > 0) reasons.push(`${openscadErrors} OpenSCAD failures`)
-      if (skipped > 0) reasons.push(`${skipped} in skip list`)
+      if (skipped > 0) reasons.push(`${skipped} in skip list (WIP)`)
       console.log(`Skipped: ${reasons.join(', ')}`)
     }
     console.log(`Threshold: ${options.threshold}`)

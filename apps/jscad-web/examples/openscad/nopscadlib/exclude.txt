@@ -1,0 +1,7 @@
+# NopSCADlib library source — not standalone test files
+NopSCADlib/vitamins/
+NopSCADlib/printed/
+NopSCADlib/utils/
+NopSCADlib/core.scad
+NopSCADlib/global_defs.scad
+NopSCADlib/lib.scad

@@ -1,2 +1,1 @@
 # BOSL2 library skip list
-lib/
