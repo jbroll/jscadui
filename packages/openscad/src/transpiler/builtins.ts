@@ -16,7 +16,7 @@ function stripUnderscorePrefix(name: string): string {
 // Built-in type checks — use Sets for O(1) lookup instead of O(n) array .includes()
 // All functions also match underscore-prefixed versions (BOSL2 builtins.scad wrappers)
 const BUILTIN_PRIMITIVES = new Set(['cube', 'sphere', 'cylinder', 'polyhedron', 'square', 'circle', 'polygon', 'regular_polygon', 'text', 'region'])
-const BUILTIN_TRANSFORMS = new Set(['translate', 'rotate', 'scale', 'mirror', 'multmatrix'])
+const BUILTIN_TRANSFORMS = new Set(['translate', 'rotate', 'scale', 'mirror', 'multmatrix', 'resize'])
 const BUILTIN_BOOLEANS   = new Set(['union', 'difference', 'intersection', 'minkowski'])
 const BUILTIN_EXTRUSIONS = new Set(['linear_extrude', 'rotate_extrude'])
 const SPECIAL_VARS       = new Set(['$fn', '$fa', '$fs'])
@@ -237,6 +237,13 @@ export function transpileBuiltinTransform(
       ctx.codeGen.usedHelpers.add('multmatrix')
       const matrixArg = argsArray.find(a => a.name === 'm' || !a.name)?.value || '[[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]'
       return wrapWithSpecialVars(`j$.multmatrix(${matrixArg}, ${childCode})`)
+    }
+
+    case 'resize': {
+      // resize(newsize) scales geometry to fit target dimensions
+      // newsize[i] = 0 means keep that axis unchanged
+      const newsize = getArgValue('newsize') || '[0, 0, 0]'
+      return wrapWithSpecialVars(`j$.resize(${newsize}, ${childCode})`)
     }
 
     default:

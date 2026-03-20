@@ -674,22 +674,33 @@ function transpileForLoop(stmt: ModuleInstantiationStmt, ctx: TranspileContext):
     stmt.child ? transpileStatement(stmt.child, ctx) || 'undefined' : 'undefined'
   )
 
+  // Helper: wrap a loop iteration with j$.withScope for $-prefixed variables.
+  // In OpenSCAD, $-prefixed for variables have dynamic scoping — children can access
+  // them via j$.getSpecialVar(). Non-$-prefixed variables use normal lexical scoping.
+  const wrapLoopVar = (varName: string, inner: string): string => {
+    if (varName.startsWith('$')) {
+      return `j$.withScope({'${varName}': ${varName}}, () => ${inner})`
+    }
+    return inner
+  }
+
   // Handle single loop variable (most common case)
   if (args.length === 1) {
     const varName = args[0].name
     const rangeOrVector = transpileExpression(args[0].value!, ctx)
-    return `j$.union(...${rangeOrVector}.map(${varName} => ${body}))`
+    return `j$.union(...j$.iter(${rangeOrVector}).map(${varName} => ${wrapLoopVar(varName, body)}))`
   }
 
   // Multiple loop variables: for (i = [0:3], axis = [0:2]) { body }
   // Build nested flatMap/map: first vars use flatMap, last uses map
+  // j$.iter() ensures scalar values are wrapped in an array for proper iteration
   let result = body
   for (let i = args.length - 1; i >= 0; i--) {
     const varName = args[i].name
     const rangeOrVector = transpileExpression(args[i].value!, ctx)
     // Last variable uses map, all others use flatMap to flatten
     const method = i === args.length - 1 ? 'map' : 'flatMap'
-    result = `${rangeOrVector}.${method}(${varName} => ${result})`
+    result = `j$.iter(${rangeOrVector}).${method}(${varName} => ${wrapLoopVar(varName, result)})`
   }
   return `j$.union(...${result})`
 }

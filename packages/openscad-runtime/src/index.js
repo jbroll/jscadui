@@ -11,7 +11,7 @@ import { PI, _range, _min, _max, _num, str, version_num, parent_module, search, 
 import { _eq, _vadd, _vsub, _vmul, _vdiv, _vneg } from './vector.js'
 import { _getSegments, setGlobalFn } from './segments.js'
 import { initPrimitives, _cube, _cylinder, _sphere, _circle, _square, _regular_polygon, _polyhedron, _safeUnion, _hull, _union, _subtract, _intersect, _minkowski, _polygon, _region } from './primitives.js'
-import { initTransforms, _translate, _rotate, _scale, _mirror, _multmatrix } from './transforms.js'
+import { initTransforms, _translate, _rotate, _scale, _mirror, _multmatrix, _resize } from './transforms.js'
 import { initExtrusions, _linearExtrude, _rotateExtrude } from './extrusions.js'
 import { initColor, _color } from './color.js'
 import { initText, _text } from './text.js'
@@ -155,6 +155,7 @@ const j$ = {
   scale: _scale,
   mirror: _mirror,
   multmatrix: _multmatrix,
+  resize: _resize,
 
   // Extrusions — resolve $fn/$fa/$fs from scope before calling through
   linearExtrude(args, geo) {
@@ -255,7 +256,7 @@ export { PI, _range, _min, _max, _num, str, version_num, parent_module, search, 
 export { _eq, _vadd, _vsub, _vmul, _vdiv, _vneg } from './vector.js'
 export { _getSegments, setGlobalFn } from './segments.js'
 export { initPrimitives, _cube, _cylinder, _sphere, _circle, _square, _regular_polygon, _polyhedron, _safeUnion, _hull, _union, _subtract, _intersect, _minkowski, _polygon, _region } from './primitives.js'
-export { initTransforms, _translate, _rotate, _scale, _mirror, _multmatrix } from './transforms.js'
+export { initTransforms, _translate, _rotate, _scale, _mirror, _multmatrix, _resize } from './transforms.js'
 export { initExtrusions, _linearExtrude, _rotateExtrude } from './extrusions.js'
 export { initColor, _color } from './color.js'
 export { initText, _text } from './text.js'

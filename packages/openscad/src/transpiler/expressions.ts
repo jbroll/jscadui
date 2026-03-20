@@ -16,7 +16,6 @@ import type {
 import type { TranspileContext } from './context.js'
 import { WarningCode, lookupBinding } from './context.js'
 import { safeIdentifier, isValidIdentifier } from '../utils/identifiers.js'
-import { isStackSpecialVar } from './specialVars.js'
 import { TokenType } from '../utils/tokens.js'
 import { generateScopeSuffix, withScope } from './scoping.js'
 import {
@@ -225,8 +224,10 @@ function transpileLookupExpr(expr: { name: string }, ctx: TranspileContext): str
     return scopedName
   }
 
-  // For special variables that aren't locally bound, use stack-based dynamic scoping
-  if (isStackSpecialVar(name)) {
+  // For special variables that aren't locally bound, use stack-based dynamic scoping.
+  // In OpenSCAD, ALL $-prefixed variables have dynamic scoping — not just the known ones.
+  // This handles user-defined special variables like $z, $layer_height used in NopSCADlib.
+  if (name.startsWith('$')) {
     return `j$.getSpecialVar('${name}')`
   }
 

@@ -3,7 +3,7 @@
  */
 
 // JSCAD transforms - injected at init time
-let translate, rotateX, rotateY, rotateZ, scale, mirror, transform
+let translate, rotateX, rotateY, rotateZ, scale, mirror, transform, measureBoundingBox
 
 export const initTransforms = (jscad) => {
   translate = jscad.transforms.translate
@@ -13,6 +13,7 @@ export const initTransforms = (jscad) => {
   scale = jscad.transforms.scale
   mirror = jscad.transforms.mirror
   transform = jscad.transforms.transform
+  measureBoundingBox = jscad.measurements.measureBoundingBox
 }
 
 // Translate helper
@@ -85,6 +86,20 @@ export const _rotate = (params, geo) => {
   if (a[1] !== 0) result = rotateY(toRad(a[1]), result)
   if (a[2] !== 0) result = rotateZ(toRad(a[2]), result)
   return result
+}
+
+// Resize helper - scales geometry to fit target dimensions
+// newsize[i] = 0 means keep that axis unchanged
+export const _resize = (newsize, geo) => {
+  if (geo === undefined) return geo
+  const bounds = measureBoundingBox(geo)
+  const curSize = [
+    bounds[1][0] - bounds[0][0],
+    bounds[1][1] - bounds[0][1],
+    bounds[1][2] - bounds[0][2],
+  ]
+  const factors = newsize.map((s, i) => (s > 0 && curSize[i] > 0) ? s / curSize[i] : 1)
+  return scale(factors, geo)
 }
 
 // Multmatrix helper - applies a 4x4 transformation matrix

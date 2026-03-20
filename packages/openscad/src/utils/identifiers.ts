@@ -22,10 +22,13 @@ export function isValidIdentifier(name: string): boolean {
 
 /**
  * Ensure an identifier is safe for JavaScript
- * Renames reserved words by prefixing with underscore
+ * Renames reserved words and digit-starting names by prefixing with underscore
  */
 export function safeIdentifier(name: string): string {
-  return JS_RESERVED.has(name) ? `_${name}` : name
+  if (JS_RESERVED.has(name)) return `_${name}`
+  // JavaScript identifiers cannot start with a digit; prefix with underscore
+  if (name.length > 0 && name[0] >= '0' && name[0] <= '9') return `_${name}`
+  return name
 }
 
 /**
