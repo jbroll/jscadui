@@ -418,7 +418,7 @@ export function createFileResolver(fileDir, customLibPaths = []) {
  * @param {Map} [sharedCache] - Optional shared transpiler cache (Map<path, TranspiledFile>)
  *   for reuse across multiple transpile calls in the same process.
  */
-export function transpileScad(source, fileName, fileDir, fn = 0, sourceComments = false, customLibPaths = [], sharedCache = undefined) {
+export function transpileScad(source, fileName, fileDir, fn = 0, sourceComments = false, customLibPaths = [], sharedCache = undefined, preview = false) {
   const { ast, errors } = parse(source)
 
   if (errors.length > 0) {
@@ -430,6 +430,7 @@ export function transpileScad(source, fileName, fileDir, fn = 0, sourceComments 
     currentFile: fileName,
     fn: fn,
     includeSourceComments: sourceComments,
+    preview: preview,
   }, sharedCache)
 
   // Build in-memory module cache from transpiled files.
@@ -475,7 +476,12 @@ async function _getOpenscadRuntime() {
 // ── Shared require factory ─────────────────────────────────────────────────
 // Extracted from main() so it can be reused by runScadToStl.
 
-function createMakeRequire(jscadModeling, openscadRuntime, moduleCache, fn, libPaths, sharedCache, j$Instance) {
+function createMakeRequire(jscadModeling, openscadRuntime, moduleCache, fn, libPaths, sharedCache, j$Instance, preview = false) {
+  // Execution cache: stores the exports object for each loaded module.
+  // Populated BEFORE execution starts so mutual dependencies get the partial
+  // exports object (CommonJS-style circular dependency handling).
+  const reqCache = new Map()
+
   function makeRequire(currentFileDir) {
     return function customRequire(path) {
       if (path === '@jscad/modeling') return jscadModeling
@@ -485,12 +491,19 @@ function createMakeRequire(jscadModeling, openscadRuntime, moduleCache, fn, libP
       // Convert to .js to look up in the moduleCache
       const jsPath = path.replace(/\.scad$/, '.js')
 
+      // Return cached exports if already loaded (also breaks circular dependency loops)
+      if (reqCache.has(jsPath)) return reqCache.get(jsPath)
+
       if (moduleCache.has(jsPath)) {
         const code = moduleCache.get(jsPath)
         const exports = {}
         const moduleObj = { exports }
+        // Register in cache BEFORE executing to break circular dependency loops
+        reqCache.set(jsPath, exports)
         const modFn = new Function('require', 'module', 'exports', 'j$', code)
         modFn(customRequire, moduleObj, exports, j$Instance)
+        // Update cache entry to final exports object
+        reqCache.set(jsPath, moduleObj.exports)
         return moduleObj.exports
       }
 
@@ -501,7 +514,7 @@ function createMakeRequire(jscadModeling, openscadRuntime, moduleCache, fn, libP
           if (existsSync(resolvedPath)) {
             const scadSource = readFileSync(resolvedPath, 'utf8')
             const fileDir = dirname(resolvedPath)
-            const transpiled = transpileScad(scadSource, resolvedPath, fileDir, fn, false, libPaths, sharedCache)
+            const transpiled = transpileScad(scadSource, resolvedPath, fileDir, fn, false, libPaths, sharedCache, preview)
 
             // Add transpiled dependencies to moduleCache for this run
             for (const [name, code] of transpiled.moduleCache) {
@@ -510,10 +523,13 @@ function createMakeRequire(jscadModeling, openscadRuntime, moduleCache, fn, libP
 
             const exports = {}
             const moduleObj = { exports }
+            const jsPath2 = resolvedPath.replace(/\.scad$/, '.js')
+            reqCache.set(jsPath2, exports)
             const newFileDir = dirname(resolvedPath)
             const nestedRequire = makeRequire(newFileDir)
             const modFn = new Function('require', 'module', 'exports', 'j$', transpiled.code)
             modFn(nestedRequire, moduleObj, exports, j$Instance)
+            reqCache.set(jsPath2, moduleObj.exports)
             return moduleObj.exports
           }
         } catch (_err) {
@@ -580,13 +596,14 @@ function createParamsProxy() {
  * @param {number} fn - Global $fn override (0 = use OpenSCAD formula)
  * @param {string[]} libPaths - Additional library search paths
  * @param {Map} [sharedCache] - Shared transpiler cache (avoids re-transpiling shared libs)
+ * @param {boolean} [preview] - Set $preview=true (simulates F5 preview mode)
  */
-export async function runScadToStl(scadPath, stlPath, fn, libPaths, sharedCache) {
+export async function runScadToStl(scadPath, stlPath, fn, libPaths, sharedCache, preview = false) {
   const inputPath = resolve(scadPath)
   const fileDir = dirname(inputPath)
   const source = readFileSync(inputPath, 'utf8')
 
-  const { code: jsCode, moduleCache } = transpileScad(source, inputPath, fileDir, fn, false, libPaths, sharedCache)
+  const { code: jsCode, moduleCache } = transpileScad(source, inputPath, fileDir, fn, false, libPaths, sharedCache, preview)
 
   const jscadModeling = await _getManifoldRuntime()
   const openscadRuntime = await _getOpenscadRuntime()
@@ -601,7 +618,7 @@ export async function runScadToStl(scadPath, stlPath, fn, libPaths, sharedCache)
   j$Instance.jscad = jscadModeling
   if (fn > 0) setGlobalFn(fn)
 
-  const makeRequire = createMakeRequire(jscadModeling, openscadRuntime, moduleCache, fn, libPaths, sharedCache, j$Instance)
+  const makeRequire = createMakeRequire(jscadModeling, openscadRuntime, moduleCache, fn, libPaths, sharedCache, j$Instance, preview)
   const customRequire = makeRequire(fileDir)
 
   const exports = {}

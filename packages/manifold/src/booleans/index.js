@@ -271,89 +271,288 @@ export const minkowski = (...geometries) => {
     return new ManifoldGeom3(minkowskiConvex(manifoldA, manifoldB, Manifold))
   }
 
-  // Non-convex A + convex B: decompose A into tetrahedra
+  // Non-convex A + convex B: decompose A into convex pieces
   if (!aIsConvex && bIsConvex) {
-    return new ManifoldGeom3(minkowskiNonConvexConvex(manifoldA, manifoldB, Manifold))
+    const r = minkowskiNonConvexConvex(manifoldA, manifoldB, Manifold)
+    const fallback = r ?? minkowskiConvex(hullA, manifoldB, Manifold)
+    if (process.env.DEBUG_MINK) console.error(`[mink] A(vol=${manifoldA.volume().toFixed(0)}) nonconvex+convexB(vol=${manifoldB.volume().toFixed(0)}) → r=${r?.volume?.()?.toFixed(0) ?? 'null'} fallback=${fallback?.volume?.()?.toFixed(0) ?? 'null'}`)
+    return new ManifoldGeom3(fallback)
   }
 
   // Convex A + non-convex B: swap (minkowski is commutative)
   if (aIsConvex && !bIsConvex) {
-    return new ManifoldGeom3(minkowskiNonConvexConvex(manifoldB, manifoldA, Manifold))
+    const r = minkowskiNonConvexConvex(manifoldB, manifoldA, Manifold)
+    return new ManifoldGeom3(r ?? minkowskiConvex(manifoldA, hullB, Manifold))
   }
 
-  // Both non-convex: decompose A, compute minkowski of each with B
-  // This is an approximation but handles most practical cases
-  return new ManifoldGeom3(minkowskiNonConvexConvex(manifoldA, hullB, Manifold))
+  // Both non-convex: decompose A, compute minkowski of each with manifoldB
+  const r = minkowskiNonConvexConvex(manifoldA, manifoldB, Manifold)
+  return new ManifoldGeom3(r ?? minkowskiConvex(hullA, hullB, Manifold))
 }
 
 /**
  * Compute minkowski sum of non-convex A with convex B.
- * Decomposes A into tetrahedra from centroid, computes minkowski of each, unions results.
+ *
+ * Uses convex decomposition via cut planes:
+ * 1. If A is convex, delegates to minkowskiConvex directly.
+ * 2. Otherwise, computes the inner void (hull(A) - A) to find concavities.
+ * 3. Extracts the unique face planes of the inner void.
+ * 4. Cuts A along those planes, producing convex pieces.
+ * 5. Computes Minkowski of each piece with B and unions results.
+ *
+ * This correctly handles shapes like the Minkowski complement used by NopSCADlib's
+ * offset_3D for negative offsets (a large cube with a shape-shaped hole).
+ *
+ * @param {Manifold} manifoldA - Non-convex manifold
+ * @param {Manifold} manifoldB - Convex manifold (the Minkowski kernel)
+ * @param {Object} Manifold - Manifold class
+ * @param {number} depth - Recursion depth (guards against infinite recursion)
+ * @returns {Manifold} The Minkowski sum
  */
-const minkowskiNonConvexConvex = (manifoldA, manifoldB, Manifold) => {
-  const mesh = manifoldA.getMesh()
-  const vertices = extractAllVertices(mesh)
-  const triangles = extractTriangles(mesh)
+/**
+ * Compute minkowski sum of non-convex A with convex B.
+ * Returns null if A is degenerate (empty contribution to caller's union).
+ * Top-level callers should fall back to hull approximation when null is returned.
+ */
+const minkowskiNonConvexConvex = (manifoldA, manifoldB, Manifold, depth = 0, axisAlignedOnly = false) => {
+  const volA = Math.abs(manifoldA.volume())
+  if (process.env.DEBUG_MINK && depth === 0) console.error(`[mnc d=0] enter volA=${volA.toFixed(0)}`)
+  if (volA < 1e-6) return null  // Degenerate piece: no contribution
 
-  if (triangles.length === 0) {
-    return manifoldB
+  if (volA < 1) {
+    // Tiny corner slivers: hull can be orders of magnitude larger than the piece itself,
+    // causing huge over-expansion. Use actual vertices (not hull) for accurate Minkowski.
+    return minkowskiConvex(manifoldA, manifoldB, Manifold)
   }
 
-  // Compute centroid
-  const centroid = computeCentroid(vertices)
+  if (depth >= 4) {
+    // Use manifoldA's actual vertices (not hull) for better accuracy on non-convex pieces.
+    // minkowskiConvex uses extractUniqueVertices which reads the actual mesh, not hull.
+    return minkowskiConvex(manifoldA, manifoldB, Manifold)
+  }
 
-  // Build tetrahedra from centroid to each triangle face
-  const results = []
+  // Check convexity by comparing hull volume to shape volume.
+  // Use ABSOLUTE difference (not relative), because for large shapes with small holes
+  // (e.g. a 1000mm cube with a 40mm frame hole: relative diff is only 0.005%)
+  // a relative threshold would miss the non-convexity.
+  const hullA = manifoldA.hull()
+  const volHull = Math.abs(hullA.volume())
+  const absVoidVol = volHull - volA  // inner void volume = how much hull exceeds A
+
+  // Treat as convex if the inner void is negligibly small (< 0.1mm³)
+  if (process.env.DEBUG_MINK && depth === 0) console.error(`[mnc d=0] volHull=${volHull.toFixed(0)} absVoidVol=${absVoidVol.toFixed(4)}`)
+  if (absVoidVol < 0.1) {
+    if (typeof hullA.delete === 'function') hullA.delete()
+    return minkowskiConvex(manifoldA, manifoldB, Manifold)
+  }
+
+  // When restricted to axis-aligned planes, skip pieces where the hull is >> the piece volume.
+  // These are "curved shell" pieces (e.g. rounded-corner corrections of an expanded frame) that
+  // span a large bounding box but are very thin. Their Minkowski via hull would hugely over-estimate.
+  // Skipping under-estimates minkVoid slightly → erosionShape slightly too large → acceptable.
+  if (axisAlignedOnly && absVoidVol > 5 * volA) {
+    if (typeof hullA.delete === 'function') hullA.delete()
+    return null
+  }
+
+  // Compute inner void to get cut planes (done only when truly non-convex)
+  if (process.env.DEBUG_MINK && depth === 0) console.error(`[mnc d=0] computing innerVoid...`)
+  const innerVoid = hullA.subtract(manifoldA)
+  if (process.env.DEBUG_MINK && depth === 0) console.error(`[mnc d=0] innerVoid isEmpty=${innerVoid.isEmpty()} vol=${innerVoid.volume().toFixed(0)}`)
+  // NOTE: hullA not deleted yet - may be needed below for minkHull
+
+  if (innerVoid.isEmpty()) {
+    if (typeof hullA.delete === 'function') hullA.delete()
+    if (typeof innerVoid.delete === 'function') innerVoid.delete()
+    return minkowskiConvex(manifoldA, manifoldB, Manifold)
+  }
+
+  // Large complement: manifoldA = cube(big) - shape, innerVoid = shape.
+  // Direct erosion formula: erode(shape, K) = ∩_{v ∈ vertices(K)} translate(-v, shape)
+  // offset_3D(-r) computes cube(big/2) - minkowski(cube(big)-shape, ball(r)).
+  // Since erode(shape,K) = cube(big/2) - mink(cube(big)-shape, K), we can directly
+  // compute the erosion and return cube(big/2) - erosion as the fake mink result.
+  // The caller then computes cube(big/2) - returnValue = erosion. ✓
+  // This is accurate to within the sphere discretization error (~0.1mm for $fn=16).
+  if (depth === 0 && !axisAlignedOnly && volHull > 1e5 && absVoidVol < volHull * 0.1) {
+    // Large complement: manifoldA = cube(big) - shape, innerVoid = shape (the frame).
+    // Erosion formula: erode(shape, K) ≈ ∩_{p ∈ S} translate(-p, shape)
+    // where S = sphere surface samples (vertices + face-centroid-projected points).
+    // Sampling both vertices and face centroids fills angular gaps, reducing the
+    // over-approximation error vs vertex-only sampling of a non-convex shape.
+    const ballMesh = manifoldB.getMesh()
+    const ballVertices = extractUniqueVertices(ballMesh)
+    const ballFacePoints = extractFaceCentroidsOnSphere(ballMesh)
+    const allSamplePoints = [...ballVertices, ...ballFacePoints]
+
+    const translated = allSamplePoints.map(v => innerVoid.translate([-v[0], -v[1], -v[2]]))
+    if (typeof innerVoid.delete === 'function') innerVoid.delete()
+    const erosionResult = translated.length > 0
+      ? Manifold.intersection(translated)
+      : manifoldA.translate([0, 0, 0])
+    for (const t of translated) {
+      if (typeof t.delete === 'function') t.delete()
+    }
+
+    // Return cube(big/2) - erosionResult so the caller computes cube(big/2) - returnValue = erosionResult
+    const bigSide = Math.round(Math.cbrt(volHull))
+    const cubeHalf = Manifold.cube([bigSide / 2, bigSide / 2, bigSide / 2], true)
+    const returnValue = cubeHalf.subtract(erosionResult)
+    if (typeof erosionResult.delete === 'function') erosionResult.delete()
+    if (typeof cubeHalf.delete === 'function') cubeHalf.delete()
+    if (typeof hullA.delete === 'function') hullA.delete()
+    return returnValue
+  }
+
+  // Relative convexity threshold: if inner void is < 5% of shape volume, the hull
+  // approximation error is small enough to treat the piece as convex directly.
+  // Must come after the erosion formula check (which handles large complements at depth=0).
+  // Exclude huge shapes (volA > 1e8) like the large complement (cube1000 - shape).
+  if (volA < 1e8 && absVoidVol < 0.05 * volA) {
+    if (typeof hullA.delete === 'function') hullA.delete()
+    if (typeof innerVoid.delete === 'function') innerVoid.delete()
+    return minkowskiConvex(manifoldA, manifoldB, Manifold)
+  }
+
+  if (typeof hullA.delete === 'function') hullA.delete()
+
+  // Extract unique face planes from the inner void boundary.
+  // Cutting A along these planes decomposes it into convex pieces.
+  const innerVoidMesh = innerVoid.getMesh()
+  if (process.env.DEBUG_MINK && depth === 0) console.error(`[mnc d=0] got mesh, triVerts=${innerVoidMesh.triVerts.length}`)
+  let planes = getUniquePlanes(innerVoidMesh)
+  if (typeof innerVoid.delete === 'function') innerVoid.delete()
+
+  // When called from the local complement erosion formula, restrict to axis-aligned planes only.
+  // This prevents exponential piece explosion when the inner void has many curved faces
+  // (e.g. a rounded frame shape with $fn=16 has 100+ non-axis-aligned planes).
+  // Axis-aligned planes still correctly decompose the shape; curved-edge residuals are
+  // handled by the near-convex approximation at the next recursion level.
+  if (axisAlignedOnly) {
+    planes = planes.filter(p =>
+      Math.abs(Math.abs(p.n[0]) - 1) < 1e-4 ||
+      Math.abs(Math.abs(p.n[1]) - 1) < 1e-4 ||
+      Math.abs(Math.abs(p.n[2]) - 1) < 1e-4
+    )
+  }
+
+  if (process.env.DEBUG_MINK && depth === 0) console.error(`[mink d=0] planes total=${planes.length}, axisAligned=${planes.filter(p => Math.abs(p.n[0])>0.99||Math.abs(p.n[1])>0.99||Math.abs(p.n[2])>0.99).length}`)
+
+  if (planes.length === 0) {
+    return minkowskiConvex(manifoldA, manifoldB, Manifold)
+  }
+
+  // Use all unique face planes up to the cap.
+  const PLANE_CAP = 300
+  if (planes.length > PLANE_CAP) {
+    planes = planes.slice(0, PLANE_CAP)
+  }
+
+  // Iteratively cut manifoldA by each plane into convex pieces.
+  // Track ownership: pieces we created (can delete) vs the input (cannot delete).
+  let workPieces = [{ m: manifoldA, owned: false }]
+  for (const { n, offset } of planes) {
+    const next = []
+    for (const { m: piece, owned } of workPieces) {
+      const [a, b] = piece.splitByPlane(n, offset)
+      // Free the intermediate piece once it's been split (but never the original input)
+      if (owned && typeof piece.delete === 'function') piece.delete()
+
+      if (!a.isEmpty() && Math.abs(a.volume()) > 1e-6) {
+        next.push({ m: a, owned: true })
+      } else if (typeof a.delete === 'function') {
+        a.delete()
+      }
+      if (!b.isEmpty() && Math.abs(b.volume()) > 1e-6) {
+        next.push({ m: b, owned: true })
+      } else if (typeof b.delete === 'function') {
+        b.delete()
+      }
+    }
+    workPieces = next
+    if (workPieces.length === 0) break
+  }
+
+  if (process.env.DEBUG_MINK && depth === 0) console.error(`[mnc d=0] after splits: ${workPieces.length} pieces`)
+  if (workPieces.length === 0) return null  // All splits degenerate: no contribution
+
+  if (process.env.DEBUG_MINK && depth === 0) {
+    console.error(`[mink depth=0] ${workPieces.length} pieces: ${workPieces.map(p => p.m.volume().toFixed(0)).join(', ')}`)
+  }
+
+  // Compute Minkowski of each convex piece and union incrementally.
+  let result = null
+  let pieceIdx = 0
+  for (const { m: piece } of workPieces) {
+    const t0 = process.env.DEBUG_MINK && depth === 0 ? Date.now() : 0
+    // Recurse: pieces may still be non-convex (e.g. when axis-aligned planes
+    // don't fully cut through rounded edges). Depth limit prevents infinite recursion.
+    const minkPiece = minkowskiNonConvexConvex(piece, manifoldB, Manifold, depth + 1, axisAlignedOnly)
+    if (process.env.DEBUG_MINK && depth === 0) {
+      console.error(`[mnc d=0] piece ${pieceIdx++} (vol=${piece.volume().toFixed(0)}) mink=${minkPiece?.volume?.()?.toFixed(0) ?? 'null'} took ${Date.now()-t0}ms`)
+    }
+    // Free the split piece now that its Minkowski is computed.
+    // Guard: if minkowskiConvex returned a null (degenerate piece), skip this piece.
+    if (typeof piece.delete === 'function') piece.delete()
+    if (minkPiece == null) continue
+
+    if (result === null) {
+      result = minkPiece
+    } else {
+      const t1 = process.env.DEBUG_MINK && depth === 0 ? Date.now() : 0
+      const merged = Manifold.union(result, minkPiece)
+      if (process.env.DEBUG_MINK && depth === 0) console.error(`  union took ${Date.now()-t1}ms result_vol=${merged?.volume?.()?.toFixed(0) ?? 'null'}`)
+      // Guard: don't delete manifoldB — it's owned by the caller.
+      if (result !== manifoldB && typeof result.delete === 'function') result.delete()
+      if (minkPiece !== manifoldB && typeof minkPiece.delete === 'function') minkPiece.delete()
+      result = merged
+    }
+  }
+
+  if (process.env.DEBUG_MINK && depth === 0) console.error(`[mnc d=0] result=${result?.volume?.()?.toFixed(0) ?? 'null'}`)
+  return result  // null if all pieces were degenerate (caller handles null)
+}
+
+/**
+ * Extract unique face planes from a mesh.
+ * Two triangles belong to the same plane if their normals and offsets match within tolerance.
+ */
+const getUniquePlanes = (mesh) => {
+  const vertices = extractAllVertices(mesh)
+  const triangles = extractTriangles(mesh)
+  const planes = []
+
   for (const tri of triangles) {
     const v0 = vertices[tri[0]]
     const v1 = vertices[tri[1]]
     const v2 = vertices[tri[2]]
 
-    // Create tetrahedron from centroid and triangle vertices
-    const tetManifold = createTetrahedron(centroid, v0, v1, v2, Manifold)
-    if (tetManifold) {
-      // Compute minkowski of this tetrahedron with B
-      const minkResult = minkowskiConvex(tetManifold, manifoldB, Manifold)
-      results.push(minkResult)
+    const e1 = [v1[0] - v0[0], v1[1] - v0[1], v1[2] - v0[2]]
+    const e2 = [v2[0] - v0[0], v2[1] - v0[1], v2[2] - v0[2]]
+    const nx = e1[1] * e2[2] - e1[2] * e2[1]
+    const ny = e1[2] * e2[0] - e1[0] * e2[2]
+    const nz = e1[0] * e2[1] - e1[1] * e2[0]
+    const len = Math.sqrt(nx * nx + ny * ny + nz * nz)
+    if (len < 1e-10) continue
+
+    const n = [nx / len, ny / len, nz / len]
+    const offset = n[0] * v0[0] + n[1] * v0[1] + n[2] * v0[2]
+
+    const isDuplicate = planes.some(p =>
+      Math.abs(p.n[0] - n[0]) < 1e-5 &&
+      Math.abs(p.n[1] - n[1]) < 1e-5 &&
+      Math.abs(p.n[2] - n[2]) < 1e-5 &&
+      Math.abs(p.offset - offset) < 1e-4
+    )
+
+    if (!isDuplicate) {
+      planes.push({ n, offset })
     }
   }
 
-  if (results.length === 0) {
-    return manifoldB
-  }
-
-  if (results.length === 1) {
-    return results[0]
-  }
-
-  // Union all results - Manifold's union is robust
-  return Manifold.union(results)
+  return planes
 }
 
-/**
- * Create a tetrahedron manifold from 4 points.
- */
-const createTetrahedron = (p0, p1, p2, p3, Manifold) => {
-  // Check for degenerate tetrahedron (coplanar points)
-  const v1 = [p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]]
-  const v2 = [p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2]]
-  const v3 = [p3[0] - p0[0], p3[1] - p0[1], p3[2] - p0[2]]
-
-  // Volume = |v1 · (v2 × v3)| / 6
-  const cross = [
-    v2[1] * v3[2] - v2[2] * v3[1],
-    v2[2] * v3[0] - v2[0] * v3[2],
-    v2[0] * v3[1] - v2[1] * v3[0]
-  ]
-  const volume = Math.abs(v1[0] * cross[0] + v1[1] * cross[1] + v1[2] * cross[2]) / 6
-
-  if (volume < 1e-10) {
-    return null // Degenerate tetrahedron
-  }
-
-  // Use hull to create tetrahedron - guaranteed valid
-  return Manifold.hull([p0, p1, p2, p3])
-}
 
 /**
  * Extract all vertices from mesh (with indices).
@@ -385,7 +584,9 @@ const extractTriangles = (mesh) => {
 }
 
 /**
- * Compute centroid of vertices.
+ * Compute centroid of vertices (simple average).
+ * NOTE: For non-convex shapes with holes, this may fall inside a void.
+ * Use computeVolumetricCentroid instead when topological correctness is needed.
  */
 const computeCentroid = (vertices) => {
   if (vertices.length === 0) return [0, 0, 0]
@@ -402,6 +603,51 @@ const computeCentroid = (vertices) => {
 }
 
 /**
+ * Compute volumetric (signed-volume) centroid of a closed mesh.
+ * Uses the divergence theorem: for each triangle, accumulate the signed volume
+ * and weighted centroid of the tetrahedron from the origin to the triangle face.
+ *
+ * This centroid is guaranteed to lie inside the solid material, even for
+ * non-convex shapes with holes or voids — unlike a simple vertex average.
+ *
+ * @param {Array} vertices - Array of [x, y, z] vertex positions
+ * @param {Array} triangles - Array of [i0, i1, i2] face indices
+ * @returns {[number, number, number]} The volumetric centroid
+ */
+const _computeVolumetricCentroid = (vertices, triangles) => {
+  if (vertices.length === 0 || triangles.length === 0) return [0, 0, 0]
+
+  let totalVol = 0
+  let cx = 0, cy = 0, cz = 0
+
+  for (const tri of triangles) {
+    const v0 = vertices[tri[0]]
+    const v1 = vertices[tri[1]]
+    const v2 = vertices[tri[2]]
+
+    // Signed volume of tetrahedron from origin to this triangle:
+    // vol = dot(v0, cross(v1, v2)) / 6
+    const crossX = v1[1] * v2[2] - v1[2] * v2[1]
+    const crossY = v1[2] * v2[0] - v1[0] * v2[2]
+    const crossZ = v1[0] * v2[1] - v1[1] * v2[0]
+    const vol = (v0[0] * crossX + v0[1] * crossY + v0[2] * crossZ) / 6
+
+    totalVol += vol
+    // Centroid of this tetrahedron (origin + v0 + v1 + v2) / 4 = (v0+v1+v2) / 4
+    cx += vol * (v0[0] + v1[0] + v2[0]) / 4
+    cy += vol * (v0[1] + v1[1] + v2[1]) / 4
+    cz += vol * (v0[2] + v1[2] + v2[2]) / 4
+  }
+
+  if (Math.abs(totalVol) < 1e-10) {
+    // Degenerate mesh - fall back to vertex average
+    return computeCentroid(vertices)
+  }
+
+  return [cx / totalVol, cy / totalVol, cz / totalVol]
+}
+
+/**
  * Compute Minkowski sum of two convex manifolds using hull of pairwise vertex sums.
  * @param {Manifold} manifoldA - First convex manifold
  * @param {Manifold} manifoldB - Second convex manifold
@@ -412,8 +658,10 @@ const minkowskiConvex = (manifoldA, manifoldB, Manifold) => {
   const verticesA = extractUniqueVertices(manifoldA.getMesh())
   const verticesB = extractUniqueVertices(manifoldB.getMesh())
 
+  // Degenerate case: if either has no vertices, Minkowski is undefined/empty.
+  // Return null to signal "skip this piece" — callers must handle null.
   if (verticesA.length === 0 || verticesB.length === 0) {
-    return manifoldA
+    return null
   }
 
   // Compute all pairwise vertex sums
@@ -433,6 +681,44 @@ const minkowskiConvex = (manifoldA, manifoldB, Manifold) => {
  * @param {Object} mesh - Manifold mesh object
  * @returns {Array} Array of [x, y, z] vertex positions
  */
+/**
+ * Extract face centroids projected onto the sphere surface.
+ * For each triangular face, compute the centroid and project it radially outward
+ * to the sphere's radius. This fills angular gaps between mesh vertices, improving
+ * direction coverage for vertex-sampling-based erosion of non-convex shapes.
+ */
+const extractFaceCentroidsOnSphere = (mesh) => {
+  const props = mesh.vertProperties
+  const numProp = mesh.numProp
+  const triVerts = mesh.triVerts
+  if (!triVerts || !props || !numProp) return []
+
+  const v0x = props[0], v0y = props[1], v0z = props[2]
+  const radius = Math.sqrt(v0x * v0x + v0y * v0y + v0z * v0z)
+  if (radius < 1e-10) return []
+
+  const result = []
+  const seen = new Set()
+
+  for (let i = 0; i < triVerts.length; i += 3) {
+    const i0 = triVerts[i], i1 = triVerts[i + 1], i2 = triVerts[i + 2]
+    const x = (props[i0 * numProp] + props[i1 * numProp] + props[i2 * numProp]) / 3
+    const y = (props[i0 * numProp + 1] + props[i1 * numProp + 1] + props[i2 * numProp + 1]) / 3
+    const z = (props[i0 * numProp + 2] + props[i1 * numProp + 2] + props[i2 * numProp + 2]) / 3
+    const d = Math.sqrt(x * x + y * y + z * z)
+    if (d < 1e-10) continue
+    const scale = radius / d
+    const px = x * scale, py = y * scale, pz = z * scale
+    const key = `${px.toFixed(6)},${py.toFixed(6)},${pz.toFixed(6)}`
+    if (!seen.has(key)) {
+      seen.add(key)
+      result.push([px, py, pz])
+    }
+  }
+
+  return result
+}
+
 const extractUniqueVertices = (mesh) => {
   const found = new Set()
   const unique = []

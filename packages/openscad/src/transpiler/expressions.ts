@@ -22,6 +22,7 @@ import {
   transpileVectorExpr,
   isEachExpr,
   containsNestedForExpr,
+  directlyProducesArray,
 } from './comprehensions.js'
 import {
   isLiteralExpr,
@@ -207,7 +208,7 @@ export function containsIfExpr(expr: Expression | null): boolean {
 function transpileLookupExpr(expr: { name: string }, ctx: TranspileContext): string {
   const name = expr.name
   // Handle special constant variables
-  if (name === '$preview') return 'false'  // Always render as full quality
+  if (name === '$preview') return ctx.options.preview ? 'true' : 'false'
   if (name === '$t') return '0'  // Animation time defaults to 0
   if (name === '$children') return '_children.length'  // Number of children passed to module
   if (name === '$parent_modules') return '0'  // Module nesting depth (stub: always top-level)
@@ -422,14 +423,20 @@ function transpileLcForExprHandler(
     loopScope.set(arg.name, arg.name)
   }
 
-  // Transpile inner expression with loop variables in scope
-  const innerExpr = withScope(ctx, loopScope, () => transpileExpression(forExpr.expr, ctx))
-
   // Check if inner expression contains LcIfExpr (needs filtering)
   const needsFilter = containsIfExpr(forExpr.expr)
   // Check if inner expression uses 'each' or contains nested 'for' (needs flatMap for flattening)
   // In OpenSCAD: [for (i=...) for (j=...) expr] produces a flat list, not nested arrays
   const needsFlatMap = isEachExpr(forExpr.expr) || containsNestedForExpr(forExpr.expr)
+
+  // Set inFlatMapContext so LcIfExpr knows to wrap non-array branches to prevent flattening
+  const savedFlatMapContext = ctx.inFlatMapContext
+  if (needsFlatMap) ctx.inFlatMapContext = true
+
+  // Transpile inner expression with loop variables in scope
+  const innerExpr = withScope(ctx, loopScope, () => transpileExpression(forExpr.expr, ctx))
+
+  ctx.inFlatMapContext = savedFlatMapContext
 
   if (args.length === 1) {
     const varName = args[0].name
@@ -562,13 +569,28 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
     // Conditional in list comprehension: [for (i = range) if (cond) expr]
     // Returns undefined when condition is false, to be filtered out by LcForExpr
     const cond = transpileExpression(expr.cond, ctx)
-    const body = transpileExpression(expr.ifExpr, ctx)
+    ctx.codeGen.usedHelpers.add('isTruthy')
+    const boolCond = `j$.isTruthy(${cond})`
     // If there's an else branch, use it; otherwise return undefined
     if (expr.elseExpr) {
+      // In flatMap context: if the else branch directly produces an array (each/for),
+      // the if-branch must be wrapped in [...] to prevent flatMap from flattening it.
+      // e.g. if(cond) [x,y] else each [list] → flatMap sees [x,y] and flattens to x,y
+      // Fix: cond ? [[x,y]] : list → flatMap produces [x,y] as intended
+      if (ctx.inFlatMapContext && directlyProducesArray(expr.elseExpr)) {
+        // Temporarily clear flatMapContext so nested if branches aren't double-wrapped
+        ctx.inFlatMapContext = false
+        const body = transpileExpression(expr.ifExpr, ctx)
+        ctx.inFlatMapContext = true
+        const elsePart = transpileExpression(expr.elseExpr, ctx)
+        return `(${boolCond} ? [${body}] : ${elsePart})`
+      }
+      const body = transpileExpression(expr.ifExpr, ctx)
       const elsePart = transpileExpression(expr.elseExpr, ctx)
-      return `(${cond} ? ${body} : ${elsePart})`
+      return `(${boolCond} ? ${body} : ${elsePart})`
     }
-    return `(${cond} ? ${body} : undefined)`
+    const body = transpileExpression(expr.ifExpr, ctx)
+    return `(${boolCond} ? ${body} : undefined)`
   }
 
   if (isLcEachExpr(expr)) {

@@ -47,10 +47,13 @@ export const offset = (options, ...geometries) => {
     // Use Manifold's native offset
     const section = isManifoldGeom2(geom) ? geom.crossSection : toCrossSection(geom)
 
-    // Manifold offset takes delta, joinType (0=square, 1=round, 2=miter), miterLimit, circularSegments
-    let joinType = 1 // round
-    if (corners === 'edge' || corners === 'square') joinType = 0
-    else if (corners === 'chamfer' || corners === 'miter') joinType = 2
+    // Manifold offset takes delta, joinType (string: 'Round', 'Miter', 'Square', 'Bevel'), miterLimit, circularSegments
+    // Note: CrossSection.offset() uses joinTypeToInt() internally and expects string joinType names
+    let joinType = 'Round'
+    if (corners === 'edge' || corners === 'square') joinType = 'Miter'
+    else if (corners === 'chamfer') joinType = 'Bevel'
+    else if (corners === 'miter') joinType = 'Miter'
+    else if (corners === 'sharp') joinType = 'Miter'
 
     const offsetted = section.offset(delta, joinType, 2.0, segments)
     return new ManifoldGeom2(offsetted)
@@ -94,9 +97,10 @@ export const expand = (options, ...geometries) => {
       const defaults = { delta: 1, corners: 'edge', segments: 16 }
       const { delta, corners, segments } = { ...defaults, ...options }
 
-      let joinType = 0 // edge/square
-      if (corners === 'round') joinType = 1
-      else if (corners === 'chamfer' || corners === 'miter') joinType = 2
+      let joinType = 'Miter' // edge/square
+      if (corners === 'round') joinType = 'Round'
+      else if (corners === 'chamfer') joinType = 'Bevel'
+      else if (corners === 'miter') joinType = 'Miter'
 
       const offsetted = geom.crossSection.offset(delta, joinType, 2.0, segments)
       return new ManifoldGeom2(offsetted)

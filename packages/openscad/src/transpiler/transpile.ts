@@ -36,9 +36,9 @@ import {
 } from './statements.js'
 import { getModuleName } from './builtins.js'
 import { buildJscadImports } from './helpers/index.js'
-import { isStackSpecialVar } from './specialVars.js'
+// isStackSpecialVar no longer used - all $-prefixed vars use dynamic scoping universally
 import { deduplicateParamNames, mergeSetInto, importSymbolsFromFile } from './utils.js'
-import { mergeDeclarations, splitDeclarationsByKind } from './bundling/mergeDeclarations.js'
+import { splitDeclarationsByKind } from './bundling/mergeDeclarations.js'
 import type { Declaration } from './managers/DeclarationTracker.js'
 import { processDependency } from './dependencies/dependencyProcessor.js'
 
@@ -85,6 +85,7 @@ function processUseStatements(ctx: TranspileContext): void {
     const result = processDependency(useImport.filename, ctx)
     useImport.resolvedPath = result.resolvedPath
     useImport.symbols = result.symbols
+    useImport.isCyclic = result.isCyclic
     // Import symbols from the cached file
     // NOTE: use imports don't define modules in SymbolTable (accessed via require())
     const cachedFile = ctx.transpiledFiles.get(useImport.resolvedPath)
@@ -239,7 +240,10 @@ function transpileAllStatements(ast: ScadFile, ctx: TranspileContext): Transpile
     } else if (isAssignmentNode(stmt)) {
       // Top-level variable assignment
       const value = transpileExpression(stmt.value!, ctx)
-      if (isStackSpecialVar(stmt.name)) {
+      // In OpenSCAD, ALL $-prefixed variables use dynamic scoping.
+      // User-defined vars like $explode, $child_assembly, etc. must be in the
+      // scope stack so that j$.getSpecialVar() can find them in child modules.
+      if (stmt.name.startsWith('$')) {
         const code = `j$.setSpecialVar('${stmt.name}', ${value})`
         localConstants.push(code)
 
@@ -316,7 +320,16 @@ function buildOutputCode(
   }
 
   // Use imports (require statements for .scad files)
+  // We always use lazy namespace access (const _ns = require(...); var f = (...a) => _ns.f?.(...a))
+  // instead of destructuring (var { f } = require(...)).
+  //
+  // Reason: mutual-dependency cycles (A uses B, B uses A) cause destructuring to capture
+  // `undefined` when the cycle placeholder is returned — but by the time functions are
+  // actually *called* (at render time, after all modules load), the namespace object has
+  // been populated via Object.assign. Lazy access through the namespace therefore always
+  // sees the real exports regardless of module evaluation order or shared-cache reuse.
   if (ctx.useImports.length > 0) {
+    let nsIdx = 0
     for (const imp of ctx.useImports) {
       // Use resolvedPath to generate correct require() paths
       // resolvedPath is an absolute path starting with "/" (e.g., "/examples/openscad/bosl2/lib/std.scad")
@@ -326,7 +339,11 @@ function buildOutputCode(
       const newSymbols = imp.symbols.filter(s => !importedSymbols.has(s))
       for (const s of newSymbols) importedSymbols.add(s)
       if (newSymbols.length > 0) {
-        parts.push(`var { ${newSymbols.join(', ')} } = require('${scadPath}')`)
+        const nsVar = `_ns${nsIdx++}`
+        parts.push(`const ${nsVar} = require('${scadPath}')`)
+        for (const sym of newSymbols) {
+          parts.push(`var ${sym} = (...a) => ${nsVar}.${sym}?.(...a)`)
+        }
       } else if (imp.symbols.length === 0) {
         parts.push(`var ${getModuleName(imp.filename)} = require('${scadPath}')`)
       }
@@ -378,7 +395,7 @@ function buildOutputCode(
     .filter(name => ctx.symbols.isFromSource(name, 'local'))
     .map(name => `${name}_$m`)
   const functionExportNames = ctx.symbols.getByKind('function')
-    .filter(name => ctx.symbols.isFromSource(name, 'local'))
+    .filter(name => ctx.symbols.isFromSource(name, 'local', 'function'))
     .flatMap(name => {
       // Check if this function has parameters by looking it up in declarations
       const decl = ctx.declarations.get(name + '_$f')
@@ -394,7 +411,10 @@ function buildOutputCode(
   const includeReExports = ctx.includeImports
     .flatMap(imp => imp.symbols)
   const allExports = [...new Set([...moduleExportNames, ...functionExportNames, ...ctx.variableNames, ...includeReExports, 'main'])]
-  parts.push(`module.exports = { ${allExports.join(', ')} }`)
+  // Use Object.assign to mutate the pre-registered exports object in-place.
+  // This ensures cyclic requires (where the caller got an empty {} placeholder)
+  // will see the real exports once the module finishes loading.
+  parts.push(`Object.assign(exports, { ${allExports.join(', ')} })`)
 
   return { code: parts.join('\n'), allExports }
 }
@@ -430,8 +450,23 @@ function createBundledParts(ctx: TranspileContext): { bundledParts: BundledParts
     }
   }
 
-  // Merge and deduplicate (local declarations come first, so they win)
-  const allDeclarations = mergeDeclarations([localDeclarations, includeDeclarations])
+  // Merge with dependency-correct ordering: include declarations first so that
+  // transitive dependencies (e.g. M4_washer from washers.scad) are emitted before
+  // the constants that reference them (e.g. M4_cap_screw from screws.scad).
+  // Local declarations override same-named includes and appear at the end.
+  // This matches OpenSCAD semantics where `include <file>` inlines the file content
+  // at that point, so included constants are available when local ones are initialized.
+  const declMap = new Map<string, Declaration>()
+  // Include declarations first (transitive deps already in correct order recursively)
+  for (const d of includeDeclarations) {
+    if (!declMap.has(d.name)) declMap.set(d.name, d)
+  }
+  // Local declarations override any included ones with same name; appear at end
+  for (const d of localDeclarations) {
+    declMap.delete(d.name) // remove include version so local is appended at end
+    declMap.set(d.name, d)
+  }
+  const allDeclarations = Array.from(declMap.values())
 
   // Split by kind
   const { functions: funcDecls, modules: modDecls, constants: constDecls } =
@@ -553,14 +588,18 @@ export function transpile(
 
   // Add this file to the cache if it has a name
   if (ctx.options.currentFile) {
-    // Build param lists from SymbolTable
+    // Build param lists from SymbolTable.
+    // Use getAllWithParams() (not just getByKind()) so that symbols only
+    // registered via registerParams() (e.g. transitive use imports) are also
+    // propagated to callers — without this, named-arg reordering breaks for
+    // modules that arrive via include->use->include chains.
     const moduleParamLists = new Map<string, string[]>()
-    for (const name of ctx.symbols.getByKind('module')) {
+    for (const name of ctx.symbols.getAllWithParams('module')) {
       const params = ctx.symbols.getParams(name, 'module')
       if (params) moduleParamLists.set(name, params)
     }
     const functionParamLists = new Map<string, string[]>()
-    for (const name of ctx.symbols.getByKind('function')) {
+    for (const name of ctx.symbols.getAllWithParams('function')) {
       const params = ctx.symbols.getParams(name, 'function')
       if (params) functionParamLists.set(name, params)
     }
@@ -569,7 +608,7 @@ export function transpile(
       code,
       exports: allExports.filter((e: string) => e !== 'main'),
       functionExports: ctx.symbols.getByKind('function')
-        .filter(name => ctx.symbols.isFromSource(name, 'local') && name !== 'main'),
+        .filter(name => ctx.symbols.isFromSource(name, 'local', 'function') && name !== 'main'),
       moduleExports: ctx.symbols.getByKind('module')
         .filter(name => ctx.symbols.isFromSource(name, 'local') && name !== 'main'),
       paramLists: moduleParamLists,
@@ -730,7 +769,8 @@ function collectDeclarations(stmt: Statement, ctx: TranspileContext): void {
   } else if (isAssignmentNode(stmt)) {
     // Track top-level variable assignments for export
     // Don't export special variables - they're set via setSpecialVar and don't exist as JS variables
-    if (!isStackSpecialVar(stmt.name)) {
+    // All $-prefixed variables use setSpecialVar and don't exist as JS variables
+    if (!stmt.name.startsWith('$')) {
       const safeName = safeIdentifier(stmt.name)
       ctx.variableNames.push(safeName)
       // Note: Declaration tracking happens during main transpilation when code is generated

@@ -40,6 +40,8 @@ export const _scale = (v, geo) => {
 // Mirror helper
 export const _mirror = (v, geo) => {
   if (geo === undefined) return geo
+  // Handle zero normal vector: OpenSCAD treats mirror([0,0,0]) and mirror([0,0]) as identity
+  if (Array.isArray(v) && v[0] === 0 && v[1] === 0 && (v[2] === 0 || v[2] === undefined)) return geo
   // v is the normal vector [x, y, z]
   return mirror({ normal: v }, geo)
 }

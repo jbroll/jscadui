@@ -117,6 +117,17 @@ export function importSymbolsFromFile(
     }
   }
 
+  // For dual-defined names in use files, also register the module version.
+  // When a use'd file defines both a module and function with the same name
+  // (e.g., NopSCADlib's rounded_polygon), the caller needs to know it's ALSO a module
+  // so transpileUserDefinedCall chooses _$m when called in a module position.
+  if (!opts.defineModules && cachedFile.dualDefinedNames) {
+    for (const name of cachedFile.dualDefinedNames) {
+      const params = cachedFile.paramLists?.get(name)
+      ctx.symbols.define(name, { kind: 'module', source: 'imported', params })
+    }
+  }
+
   // Register parameter lists for named argument reordering
   if (opts.registerParams) {
     if (cachedFile.paramLists) {
@@ -280,10 +291,12 @@ export function mapArgsToParams(
   if (format === 'object' && argsArray.length === 0) return '{}'
 
   // Get parameter list from SymbolTable
-  // For dual-defined symbols, prefer the specified kind, fallback to the other
+  // Use safeIdentifier(name) because the symbol table stores safe names (e.g., _2screw_block)
+  // but callers may pass the original AST name (e.g., 2screw_block).
+  const safeName = safeIdentifier(name)
   const paramList = kind === 'function'
-    ? ctx.symbols.getParams(name, 'function') || ctx.symbols.getParams(name, 'module')
-    : ctx.symbols.getParams(name, 'module') || ctx.symbols.getParams(name, 'function')
+    ? ctx.symbols.getParams(safeName, 'function') || ctx.symbols.getParams(safeName, 'module')
+    : ctx.symbols.getParams(safeName, 'module') || ctx.symbols.getParams(safeName, 'function')
 
   // If no param list (or empty param list), use simple positional order or _argN fallback
   const hasNamedArgs = argsArray.some(a => a.name !== null)

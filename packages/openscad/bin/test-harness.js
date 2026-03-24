@@ -56,17 +56,17 @@ function getLibraryName(scadPath) {
 }
 
 /** Stable cache path for a given source file and $fn value. */
-function stlCachePath(originalScadPath, fn, libName) {
+function stlCachePath(originalScadPath, fn, libName, preview = false) {
   const marker = `examples/openscad/${libName}/`
   const idx = originalScadPath.replace(/\\/g, '/').indexOf(marker)
   if (idx < 0) return null
   const rel = originalScadPath.slice(idx + marker.length)
-  const suffix = fn > 0 ? `.fn${fn}.stl` : '.stl'
+  const suffix = (fn > 0 ? `.fn${fn}` : '') + (preview ? '.preview' : '') + '.stl'
   return join(STL_CACHE_ROOT, libName, rel + suffix)
 }
 
-function failedCachePath(originalScadPath, fn, libName) {
-  const p = stlCachePath(originalScadPath, fn, libName)
+function failedCachePath(originalScadPath, fn, libName, preview = false) {
+  const p = stlCachePath(originalScadPath, fn, libName, preview)
   return p ? p.replace(/\.stl$/, '.failed') : null
 }
 
@@ -131,14 +131,14 @@ class StlCache {
    * Check the cache for a source file.
    * Returns null (miss), { failed: true } (known failure), or { stlPath } (hit).
    */
-  check(originalScadPath, fn) {
+  check(originalScadPath, fn, preview = false) {
     const libName = getLibraryName(originalScadPath)
     if (!libName || !this._validate(libName, originalScadPath)) return null
 
-    const failed = failedCachePath(originalScadPath, fn, libName)
+    const failed = failedCachePath(originalScadPath, fn, libName, preview)
     if (failed && existsSync(failed)) { this._failedHits++; return { failed: true } }
 
-    const cached = stlCachePath(originalScadPath, fn, libName)
+    const cached = stlCachePath(originalScadPath, fn, libName, preview)
     if (cached && existsSync(cached)) { this._hits++; return { stlPath: cached } }
 
     this._misses++
@@ -146,20 +146,20 @@ class StlCache {
   }
 
   /** Save a successful render to cache. */
-  saveHit(originalScadPath, generatedStlPath, fn) {
+  saveHit(originalScadPath, generatedStlPath, fn, preview = false) {
     const libName = getLibraryName(originalScadPath)
     if (!libName) return
-    const dest = stlCachePath(originalScadPath, fn, libName)
+    const dest = stlCachePath(originalScadPath, fn, libName, preview)
     if (!dest) return
     mkdirSync(dirname(dest), { recursive: true })
     copyFileSync(generatedStlPath, dest)
   }
 
   /** Save a failed render sentinel to cache. */
-  saveFailed(originalScadPath, fn, errorMsg) {
+  saveFailed(originalScadPath, fn, errorMsg, preview = false) {
     const libName = getLibraryName(originalScadPath)
     if (!libName) return
-    const dest = failedCachePath(originalScadPath, fn, libName)
+    const dest = failedCachePath(originalScadPath, fn, libName, preview)
     if (!dest) return
     mkdirSync(dirname(dest), { recursive: true })
     writeFileSync(dest, errorMsg || 'failed')
@@ -217,6 +217,7 @@ function parseArgs(args) {
     concurrency: DEFAULT_CONCURRENCY,
     noStlCache: false,
     stlCache: null,    // populated in main() after parsing
+    preview: false,
   }
 
   let i = 0
@@ -234,6 +235,7 @@ Usage:
 
 Options:
   --skip-file <path>      File containing filenames/patterns to skip (one per line)
+  --no-dir-skips          Ignore auto-discovered skip.txt files in test directories
   --match <glob>          Only run files matching this glob pattern (repeatable)
                           Examples: --match "*/01-basics/*"
                                     --match "*/bosl/*" --match "*/bosl2/*"
@@ -242,6 +244,7 @@ Options:
   --openscad <path>       Path to OpenSCAD binary (default: openscad)
   --concurrency <n>       Number of parallel tests (default: ${DEFAULT_CONCURRENCY}, max 4)
   --no-stl-cache          Disable OpenSCAD STL cache (always re-render)
+  --preview               Set $preview=true for both OpenSCAD and transpiler
   --keep-temp             Keep temporary files for debugging
   --verbose               Print detailed output
   --json                  Output results as JSON
@@ -264,6 +267,10 @@ Options:
       options.concurrency = parseInt(args[++i], 10)
     } else if (arg === '--no-stl-cache') {
       options.noStlCache = true
+    } else if (arg === '--preview') {
+      options.preview = true
+    } else if (arg === '--no-dir-skips') {
+      options.noDirSkips = true
     } else if (arg === '--skip-file') {
       try {
         const content = readFileSync(args[++i], 'utf8')
@@ -299,12 +306,12 @@ function checkOpenscad(openscadPath) {
   }
 }
 
-async function runOpenscad(scadPath, stlPath, openscadPath, fn = 0, originalPath = null, stlCache = null) {
+async function runOpenscad(scadPath, stlPath, openscadPath, fn = 0, originalPath = null, stlCache = null, preview = false) {
   const pathForLibDetection = originalPath || scadPath
 
   // Check STL cache before invoking flatpak
   if (stlCache) {
-    const cached = stlCache.check(pathForLibDetection, fn)
+    const cached = stlCache.check(pathForLibDetection, fn, preview)
     if (cached) {
       if (cached.failed) return { success: false, error: 'OpenSCAD render failed (cached)', cached: true }
       copyFileSync(cached.stlPath, stlPath)
@@ -314,6 +321,7 @@ async function runOpenscad(scadPath, stlPath, openscadPath, fn = 0, originalPath
 
   const args = ['--backend=manifold', '-o', stlPath]
   if (fn > 0) args.push('-D', `"\\$fn=${fn}"`)
+  if (preview) args.push('-D', '"\\$preview=true"')
   args.push(scadPath)
 
   const libDir = detectLibraryDir(pathForLibDetection)
@@ -321,10 +329,10 @@ async function runOpenscad(scadPath, stlPath, openscadPath, fn = 0, originalPath
 
   try {
     await execAsync(`${openscadPath} ${args.join(' ')}`, { timeout: 60000, env })
-    stlCache?.saveHit(pathForLibDetection, stlPath, fn)
+    stlCache?.saveHit(pathForLibDetection, stlPath, fn, preview)
     return { success: true }
   } catch (err) {
-    stlCache?.saveFailed(pathForLibDetection, fn, err.message)
+    stlCache?.saveFailed(pathForLibDetection, fn, err.message, preview)
     return { success: false, error: err.message }
   }
 }
@@ -358,12 +366,12 @@ function detectLibraryDir(scadPath) {
   return null
 }
 
-async function runJscad(scadPath, stlPath, fn = 0) {
+async function runJscad(scadPath, stlPath, fn = 0, preview = false) {
   const libDir = detectLibraryDir(scadPath)
   const libPaths = libDir ? [resolve(libDir)] : []
 
   try {
-    await runScadToStl(scadPath, stlPath, fn, libPaths, sharedTranspilerCache)
+    await runScadToStl(scadPath, stlPath, fn, libPaths, sharedTranspilerCache, preview)
     return { success: true }
   } catch (err) {
     return { success: false, error: err.message || String(err) }
@@ -434,13 +442,13 @@ async function testFile(scadPath, options) {
 
   try {
     // Pass original scadPath for library detection (tempScad is in temp dir)
-    const openscadResult = await runOpenscad(tempScad, refStl, options.openscad, options.fn, scadPath, options.stlCache)
+    const openscadResult = await runOpenscad(tempScad, refStl, options.openscad, options.fn, scadPath, options.stlCache, options.preview)
     if (!openscadResult.success) {
       result.error = `OpenSCAD: ${openscadResult.error}`
       return result
     }
 
-    const jscadResult = await runJscad(scadPath, genStl, options.fn)
+    const jscadResult = await runJscad(scadPath, genStl, options.fn, options.preview)
     if (!jscadResult.success) {
       result.error = `JSCAD: ${jscadResult.error}`
       return result
@@ -633,7 +641,7 @@ async function main() {
   }
 
   // Auto-discover skip.txt files from the tested directories (directory-scoped patterns)
-  const dirSkips = discoverSkipPatterns(options.dirs)
+  const dirSkips = options.noDirSkips ? [] : discoverSkipPatterns(options.dirs)
 
   // Filter out skipped files: explicit --skip-file patterns OR auto-discovered skip.txt patterns
   const cwd = process.cwd()

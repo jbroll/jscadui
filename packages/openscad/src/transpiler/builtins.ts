@@ -216,6 +216,11 @@ export function transpileBuiltinTransform(
       if (filteredArgs.some(a => a.name)) {
         return wrapWithSpecialVars(`j$.rotate({ ${args} }, ${childCode})`)
       }
+      // Two positional args: rotate(a, v) → axis-angle form { a, v }
+      // Without this, the child would be passed as the 3rd arg and ignored.
+      if (filteredArgs.length === 2) {
+        return wrapWithSpecialVars(`j$.rotate({ a: ${filteredArgs[0].value}, v: ${filteredArgs[1].value} }, ${childCode})`)
+      }
       return wrapWithSpecialVars(`j$.rotate(${args}, ${childCode})`)
 
     case 'scale': {

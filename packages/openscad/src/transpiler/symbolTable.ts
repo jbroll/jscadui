@@ -57,6 +57,27 @@ function isDualSymbol(symbol: StoredSymbol): symbol is DualSymbolInfo {
 }
 
 /**
+ * Source priority for symbol definitions.
+ * Higher number = higher priority.
+ * 'local' always wins over 'included', 'imported', 'inherited'.
+ */
+const SOURCE_PRIORITY: Record<SymbolSource, number> = {
+  local: 4,
+  included: 3,
+  imported: 2,
+  inherited: 1,
+}
+
+/**
+ * Returns true if newSource should replace existingSource.
+ * Only replaces if new priority >= existing priority
+ * (equal priority allows parameter updates for the same source level).
+ */
+function shouldUpdateSource(existingSource: SymbolSource, newSource: SymbolSource): boolean {
+  return SOURCE_PRIORITY[newSource] >= SOURCE_PRIORITY[existingSource]
+}
+
+/**
  * Unified symbol table for tracking definitions during transpilation.
  *
  * Handles the case where a name can have both a module AND function version
@@ -103,10 +124,16 @@ export class SymbolTable {
       // If already dual-defined, update the appropriate version
       if (isDualSymbol(existing)) {
         if (info.kind === 'module') {
-          existing.module = info
+          // Only update if new source has equal or higher priority
+          if (shouldUpdateSource(existing.module.source, info.source)) {
+            existing.module = info
+          }
           return
         } else if (info.kind === 'function') {
-          existing.function = info
+          // Only update if new source has equal or higher priority
+          if (shouldUpdateSource(existing.function.source, info.source)) {
+            existing.function = info
+          }
           return
         }
         // Variable kind falls through to replace the whole entry below
@@ -128,6 +155,11 @@ export class SymbolTable {
             return
           }
           // Different incompatible kinds - replace (variables can be shadowed)
+        } else {
+          // Same kind: only update if new source has equal or higher priority
+          if (!shouldUpdateSource(existing.source, info.source)) {
+            return
+          }
         }
       }
     }
@@ -185,13 +217,15 @@ export class SymbolTable {
 
   /**
    * Check if a name came from a specific source
+   * For dual-defined symbols, `kind` selects which version to check.
+   * If `kind` is omitted, defaults to checking the module version.
    */
-  isFromSource(name: string, source: SymbolSource): boolean {
+  isFromSource(name: string, source: SymbolSource, kind?: 'module' | 'function'): boolean {
     const stored = this.symbols.get(name)
     if (!stored) return false
 
     if (isDualSymbol(stored)) {
-      // For dual-defined, check module version's source
+      if (kind === 'function') return stored.function.source === source
       return stored.module.source === source
     }
 
@@ -291,6 +325,28 @@ export class SymbolTable {
     } else {
       this.functionParams.set(name, params)
     }
+  }
+
+  /**
+   * Get all names that have params registered for a kind.
+   * Includes both fully-defined symbols (via define()) and
+   * params-only registrations (via registerParams()).
+   * Used when building paramLists for TranspiledFile to ensure
+   * transitively-imported params are propagated to callers.
+   */
+  getAllWithParams(kind: 'module' | 'function'): string[] {
+    const result = new Set<string>()
+    // Add symbols with explicit define() + params
+    for (const name of this.getByKind(kind)) {
+      const params = this.getParams(name, kind)
+      if (params) result.add(name)
+    }
+    // Add params-only registrations
+    const paramStore = kind === 'module' ? this.moduleParams : this.functionParams
+    for (const name of paramStore.keys()) {
+      result.add(name)
+    }
+    return [...result]
   }
 
   /**

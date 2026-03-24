@@ -5,5 +5,6 @@
 export const DEFAULT_SPECIAL_VARS = {
   '$fn': 0,   // 0 means use $fa/$fs
   '$fa': 12,  // degrees
-  '$fs': 2    // mm
+  '$fs': 2,   // mm
+  '$manifold': true,  // signal NopSCADlib to use manifold-safe values (e.g. big=1e3 not inf)
 }

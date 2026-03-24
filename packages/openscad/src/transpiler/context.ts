@@ -66,6 +66,8 @@ export interface TranspileOptions {
   currentFile?: string
   // Global $fn override (0 = use OpenSCAD's formula)
   fn?: number
+  // Set $preview to true (simulates F5 preview mode; some files gate content on this)
+  preview?: boolean
   // Include source line comments for debugging (e.g., // line 42 in foo.scad)
   includeSourceComments?: boolean
   // Initial parameter lists (inherited from parent context for include chains)
@@ -129,12 +131,15 @@ export interface TranspiledFile {
   canOptimizeInclude?: boolean  // True if safe to use require() instead of bundling
   hasTopLevelGeometry?: boolean  // True if file has top-level geometry statements
   hasVariables?: boolean  // True if file has top-level variables
+  // Sentinel for in-progress transpilation (for mutual-dependency cycle detection)
+  isPlaceholder?: boolean
 }
 
 export interface UseImport {
   filename: string
   resolvedPath: string  // Full path from root (for require statements)
   symbols: string[]  // Symbols imported from this file
+  isCyclic?: boolean  // True when this import participates in a mutual dependency cycle
 }
 
 export interface TranspileContext {
@@ -169,6 +174,10 @@ export interface TranspileContext {
   // Current set of locally-bound names (module/function params + local vars)
   // Used to avoid false positives when tracking potentialFreeVarRefs
   currentLocalBindings: Set<string>
+  // Whether we're inside a flatMap context (list comprehension with 'each').
+  // When true, LcIfExpr branches that are NOT 'each' must be wrapped in [...] to
+  // prevent flatMap from flattening array-typed values (e.g., polygon points [x,y]).
+  inFlatMapContext: boolean
 }
 
 export const defaultOptions = {
@@ -224,6 +233,7 @@ export function createContext(
     errors: [],
     potentialFreeVarRefs: new Set(),
     currentLocalBindings: new Set(),
+    inFlatMapContext: false,
   }
 }
 

@@ -184,7 +184,12 @@ const j$ = {
     const corners = r !== undefined ? 'round' : (chamfer ? 'chamfer' : 'sharp')
     if (!child) return undefined
     const jscad = j$.jscad
-    return jscad.expansions.offset({ delta: amount, corners }, child)
+    // For round corners, use $fn/$fa/$fs segment count (same as circle/cylinder)
+    const _fn = this.getSpecialVar('$fn'), _fa = this.getSpecialVar('$fa'), _fs = this.getSpecialVar('$fs')
+    const segments = corners === 'round'
+      ? _getSegments(Math.abs(amount), _fn, _fa, _fs)
+      : undefined
+    return jscad.expansions.offset({ delta: amount, corners, ...(segments !== undefined ? { segments } : {}) }, child)
   },
 
   // ── Special variable scope stack (instance state) ─────────────────────────

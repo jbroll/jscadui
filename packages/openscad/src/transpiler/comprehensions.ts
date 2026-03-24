@@ -88,17 +88,19 @@ export function transpileConditionalForSpread(
   ctx: TranspileContext
 ): string {
   const cond = transpileExpression(ifEx.cond, ctx)
+  ctx.codeGen.usedHelpers.add('isTruthy')
+  const boolCond = `j$.isTruthy(${cond})`
   const body = transpileExpression(ifEx.ifExpr, ctx)
   if (!ifEx.elseExpr) {
     // No else - use empty array when false
-    return `(${cond} ? ${body} : [])`
+    return `(${boolCond} ? ${body} : [])`
   }
   // Check if else DIRECTLY produces array (not through nested conditionals)
   const elseDirectlyProducesArray = directlyProducesArray(ifEx.elseExpr)
   if (elseDirectlyProducesArray) {
     // Else directly produces array (each/for) - use it directly
     const elsePart = transpileExpression(ifEx.elseExpr, ctx)
-    return `(${cond} ? ${body} : ${elsePart})`
+    return `(${boolCond} ? ${body} : ${elsePart})`
   } else if (isLcIfExpr(ifEx.elseExpr)) {
     // Else is a nested conditional - recursively handle it
     const nestedIf = ifEx.elseExpr as { cond: Expression, ifExpr: Expression, elseExpr?: Expression | null }
@@ -106,16 +108,16 @@ export function transpileConditionalForSpread(
     if (nestedProducesArray) {
       // Nested if also produces array - recurse
       const elsePart = transpileConditionalForSpread(nestedIf, ctx)
-      return `(${cond} ? ${body} : ${elsePart})`
+      return `(${boolCond} ? ${body} : ${elsePart})`
     } else {
       // Nested if doesn't produce array - wrap the whole else
       const elsePart = transpileExpression(ifEx.elseExpr, ctx)
-      return `(${cond} ? ${body} : [${elsePart}])`
+      return `(${boolCond} ? ${body} : [${elsePart}])`
     }
   } else {
     // else is a single value - wrap it in array
     const elsePart = transpileExpression(ifEx.elseExpr, ctx)
-    return `(${cond} ? ${body} : [${elsePart}])`
+    return `(${boolCond} ? ${body} : [${elsePart}])`
   }
 }
 

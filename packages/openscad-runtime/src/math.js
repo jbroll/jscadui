@@ -47,9 +47,29 @@ export const _range = (start, end, step = 1) => {
   return r
 }
 
-export const str = (...args) => args.map(a =>
-  a === undefined ? "undef" : a === null ? "undef" : String(a)
-).join("")
+// Format a number like OpenSCAD's str(): 6 significant digits, C printf %g style
+const _strNum = (x) => {
+  if (!Number.isFinite(x)) return String(x)
+  if (x === 0) return '0'
+  const s = x.toPrecision(6)
+  if (s.includes('e')) {
+    // Exponential notation: strip trailing zeros in mantissa, normalize exponent
+    return s.replace(/\.?0+(e)/, '$1').replace(/e([+-])0*(\d+)/, (_, sign, digits) => 'e' + sign + digits)
+  }
+  // Fixed notation: strip trailing decimal zeros
+  if (s.includes('.')) return s.replace(/\.?0+$/, '')
+  return s
+}
+
+const _strVal = (a) => {
+  if (a === undefined || a === null) return 'undef'
+  if (typeof a === 'number') return _strNum(a)
+  if (typeof a === 'boolean') return a ? 'true' : 'false'
+  if (Array.isArray(a)) return '[' + a.map(_strVal).join(', ') + ']'
+  return String(a)
+}
+
+export const str = (...args) => args.map(_strVal).join("")
 
 export const version_num = () => 20210100
 

@@ -36,8 +36,9 @@ import {
   isFunctionDeclaration,
   isVectorExpr,
   getNodeTypeName,
+  isLookupExpr,
 } from './ast-types.js'
-import { isStackSpecialVar } from './specialVars.js'
+// isStackSpecialVar no longer used - all $-prefixed vars use dynamic scoping universally
 import { deduplicateArgs, mapArgsToParams } from './utils.js'
 
 /**
@@ -96,11 +97,15 @@ export function transpileStatement(stmt: Statement, ctx: TranspileContext): stri
       // Use incremental scope: each assignment value sees only earlier assignments
       const incrementalScope = new Map<string, string>()
 
+      // Track which special vars have been saved in this block (to avoid duplicate const)
+      const savedSpecialVars = new Set<string>()
+
       // Build assignments and transpile geometry with scope
       const parts = withScope(ctx, incrementalScope, () => {
         for (const a of assignments) {
           const origName = safeIdentifier(a.name)
-          const isSpecial = isStackSpecialVar(a.name)
+          // In OpenSCAD, ALL $-prefixed variables use dynamic scoping
+          const isSpecial = a.name.startsWith('$')
 
           if (isSpecial) {
             // Special variable - save, set, and restore for dynamic scoping
@@ -108,9 +113,13 @@ export function transpileStatement(stmt: Statement, ctx: TranspileContext): stri
             // Use stack-based getSpecialVar/setSpecialVar instead of bare variable references
             const savedName = `_saved_${origName.replace(/\$/g, '_')}${suffix}`
             const value = transpileExpression(a.value!, ctx)
-            specialSaves.push(`const ${savedName} = j$.getSpecialVar('${a.name}')`)
+            // Only save/restore once per special var (handles duplicate assignments like $fa=a; $fa=b)
+            if (!savedSpecialVars.has(a.name)) {
+              savedSpecialVars.add(a.name)
+              specialSaves.push(`const ${savedName} = j$.getSpecialVar('${a.name}')`)
+              specialRestores.push(`j$.setSpecialVar('${a.name}', ${savedName})`)
+            }
             assignStrs.push(`j$.setSpecialVar('${a.name}', ${value})`)
-            specialRestores.push(`j$.setSpecialVar('${a.name}', ${savedName})`)
             // Don't add to incrementalScope - use the global
           } else {
             // Regular variable - use suffixed local scope
@@ -167,7 +176,8 @@ export function transpileStatement(stmt: Statement, ctx: TranspileContext): stri
     const cond = transpileExpression(stmt.cond, ctx)
     const thenPart = transpileStatement(stmt.thenBranch, ctx) || 'undefined'
     const elsePart = stmt.elseBranch ? transpileStatement(stmt.elseBranch, ctx) : 'undefined'
-    const code = `(${cond}) ? (${thenPart}) : (${elsePart})`
+    ctx.codeGen.usedHelpers.add('isTruthy')
+    const code = `(j$.isTruthy(${cond})) ? (${thenPart}) : (${elsePart})`
     return comment ? `${comment}${code}` : code
   }
 
@@ -210,7 +220,7 @@ export function collectChildrenAsArray(child: Statement | null, ctx: TranspileCo
 
   if (isBlockStmt(child)) {
     const assignments = child.children.filter(c => isAssignmentNode(c)) as AssignmentNode[]
-    const hasSpecialAssignments = assignments.some(a => isStackSpecialVar(a.name))
+    const hasSpecialAssignments = assignments.some(a => a.name.startsWith('$'))
 
     if (hasSpecialAssignments) {
       // Block has special variable assignments ($fn, $fa, etc.) - must transpile as a
@@ -383,20 +393,23 @@ function transpileUserDefinedCall(
   // Check if this is a LOCAL variable FIRST (no suffix needed)
   // Local variables include: let bindings, function params, local assignments
   // This must be checked BEFORE handling children to avoid adding _$m suffix
-  const isLocalVariable = ctx.scopes.lookupFunctionBinding(safeName)
-  if (isLocalVariable) {
-    // Local variable - call directly without any suffix
+  const localBinding = ctx.scopes.lookupFunctionBinding(safeName)
+  if (localBinding) {
+    // Local variable - call directly using the registered binding name.
+    // Usually localBinding === safeName, but when a nested module has the same name as a
+    // variable (e.g., `module stack()` and `stack = ...`), the module gets a `_$m` suffix
+    // so localBinding may be `stack_$m` while safeName is `stack`.
     // Nested modules use positional parameters, not object destructuring
     // If there are children, pass them via curried call (local modules are curried)
     if (childCode && childCode !== 'undefined') {
       const childrenArray = collectChildrenAsArray(stmt.child, ctx)
       if (childrenArray.length > 0) {
         const childrenArg = `[${childrenArray.join(', ')}]`
-        return `${safeName}(${positionalArgs})(${childrenArg})`
+        return `${localBinding}(${positionalArgs})(${childrenArg})`
       }
     }
     // Local nested modules use curried pattern with positional args: module(arg1, arg2)()
-    return `${safeName}(${positionalArgs})()`
+    return `${localBinding}(${positionalArgs})()`
   }
 
   // If there are children, collect them as an array and pass via curried call
@@ -508,7 +521,17 @@ function transpileModuleInstantiation(stmt: ModuleInstantiationStmt, ctx: Transp
   if (name === 'color') return transpileColorModule(argsArray, childCode, ctx)
   // render() forces CGAL rendering in OpenSCAD; in JSCAD we just pass children through
   if (name === 'render') return childCode || 'undefined'
-  if (name === 'hull') return transpileBuiltinHull(stmt.child, ctx)
+  if (name === 'hull') {
+    const specialVarArgs = argsArray.filter(a => a.name && a.name.startsWith('$'))
+    const hullCode = transpileBuiltinHull(stmt.child, ctx)
+    if (specialVarArgs.length === 0) return hullCode
+    // Wrap hull with special var scoping so children (e.g. sphere) see the right $fn/$fa/$fs
+    const suffix = generateScopeSuffix(ctx)
+    const saves = specialVarArgs.map(a => `const _sv${suffix}_${a.name!.replace(/\$/g, '_')} = j$.getSpecialVar('${a.name}')`)
+    const sets = specialVarArgs.map(a => `j$.setSpecialVar('${a.name}', ${a.value})`)
+    const restores = specialVarArgs.map(a => `j$.setSpecialVar('${a.name}', _sv${suffix}_${a.name!.replace(/\$/g, '_')})`)
+    return `(() => { ${saves.join('; ')}; ${sets.join('; ')}; try { return ${hullCode}; } finally { ${restores.join('; ')}; } })()`
+  }
   if (name === 'children') return transpileChildrenModule(stmt, argsArray, ctx)
   // offset() builtin - 2D path expansion. Only use builtin if user hasn't defined a MODULE named offset.
   // (BOSL2 defines offset as a function, not a module, so module calls still use the builtin.)
@@ -631,7 +654,39 @@ function transpileBuiltinHull(child: Statement | null, ctx: TranspileContext): s
 
   if (child) {
     if (isBlockStmt(child)) {
-      childCodes = child.children.map(c => transpileStatement(c as Statement, ctx)).filter(Boolean) as string[]
+      const assignments = child.children.filter(c => isAssignmentNode(c)) as AssignmentNode[]
+
+      if (assignments.length > 0) {
+        // Block has local variable assignments — use IIFE with spread so that hull receives
+        // separate geometry objects (hull(a,b) == hull(union(a,b)) but preserves intent).
+        const suffix = generateScopeSuffix(ctx)
+        const assignStrs: string[] = []
+        const incrementalScope = new Map<string, string>()
+
+        const geomCodes = withScope(ctx, incrementalScope, () => {
+          for (const a of assignments) {
+            const origName = safeIdentifier(a.name)
+            const newName = `${origName}${suffix}`
+            const value = transpileExpression(a.value!, ctx)
+            assignStrs.push(`const ${newName} = ${value}`)
+            incrementalScope.set(origName, newName)
+          }
+          return child.children
+            .filter(c => !isAssignmentNode(c) && !isNoopStmt(c as Statement))
+            .map(c => transpileStatement(c as Statement, ctx))
+            .filter(Boolean) as string[]
+        })
+
+        if (geomCodes.length === 0) return 'undefined'
+        ctx.codeGen.usedHulls = true
+        return `j$.hull(\n  ...(() => { ${assignStrs.join('; ')}; return [${geomCodes.join(', ')}] })()\n)`
+      }
+
+      // No assignments — collect geometry children, skipping unsupported ones
+      childCodes = child.children
+        .filter(c => !isAssignmentNode(c) && !isNoopStmt(c as Statement))
+        .map(c => transpileStatement(c as Statement, ctx))
+        .filter(Boolean) as string[]
     } else {
       const code = transpileStatement(child, ctx)
       if (code) childCodes = [code]
@@ -720,9 +775,10 @@ function transpileLetModule(stmt: ModuleInstantiationStmt, ctx: TranspileContext
     return stmt.child ? transpileStatement(stmt.child, ctx) || 'undefined' : 'undefined'
   }
 
-  // Separate special vars from regular vars
-  const specialArgs = args.filter(a => isStackSpecialVar(a.name))
-  const regularArgs = args.filter(a => !isStackSpecialVar(a.name))
+  // Separate special vars from regular vars.
+  // In OpenSCAD, ALL $-prefixed variables use dynamic scoping — not just the known ones.
+  const specialArgs = args.filter(a => a.name.startsWith('$'))
+  const regularArgs = args.filter(a => !a.name.startsWith('$'))
 
   // Build scope for let bindings - they shadow any outer variables with the same name
   const letScope = new Map<string, string>()
@@ -736,12 +792,27 @@ function transpileLetModule(stmt: ModuleInstantiationStmt, ctx: TranspileContext
     stmt.child ? transpileStatement(stmt.child, ctx) || 'undefined' : 'undefined'
   )
 
-  // If no special args, use simple IIFE for regular args only
+  // Build chained IIFEs for sequential let bindings so each binding can reference previous ones.
+  // e.g., let(l = leds[$i], b = f(l)) => (l => (b => body)(f(l)))(leds[$i])
+  // This is necessary because argument evaluation in a multi-param call happens before binding,
+  // which would make `b = f(l)` reference the outer `l` instead of the just-bound `l`.
+  function wrapChainedLetIIFE(args: AssignmentNode[], innerBody: string, evalCtx: TranspileContext): string {
+    if (args.length === 0) return innerBody
+    // Build from right to left: innermost binding wraps the body, outermost wraps all
+    let result = innerBody
+    for (let i = args.length - 1; i >= 0; i--) {
+      const a = args[i]
+      const paramName = safeIdentifier(a.name)
+      const argValue = transpileExpression(a.value!, evalCtx)
+      result = `(${paramName} => ${result})(${argValue})`
+    }
+    return result
+  }
+
+  // If no special args, use chained IIFEs for regular args only
   if (specialArgs.length === 0) {
     if (regularArgs.length === 0) return body
-    const paramNames = regularArgs.map(a => safeIdentifier(a.name))
-    const argValues = regularArgs.map(a => transpileExpression(a.value!, ctx))
-    return `((${paramNames.join(', ')}) => ${body})(${argValues.join(', ')})`
+    return wrapChainedLetIIFE(regularArgs, body, ctx)
   }
 
   // Special vars need save/set/restore so child modules see updated values via j$.getSpecialVar
@@ -757,14 +828,12 @@ function transpileLetModule(stmt: ModuleInstantiationStmt, ctx: TranspileContext
     restores.push(`j$.setSpecialVar('${a.name}', ${savedName})`)
   }
 
-  // Wrap body in IIFE for regular vars if any
+  // Wrap body in chained IIFEs for regular vars if any
   let innerBody: string
   if (regularArgs.length === 0) {
     innerBody = body
   } else {
-    const paramNames = regularArgs.map(a => safeIdentifier(a.name))
-    const argValues = regularArgs.map(a => transpileExpression(a.value!, ctx))
-    innerBody = `((${paramNames.join(', ')}) => ${body})(${argValues.join(', ')})`
+    innerBody = wrapChainedLetIIFE(regularArgs, body, ctx)
   }
 
   return `(() => { ${saves.join('; ')}; ${sets.join('; ')}; try { return ${innerBody}; } finally { ${restores.join('; ')}; } })()`
@@ -816,10 +885,9 @@ function categorizeParameters(args: AssignmentNode[]): ParameterCategories {
   for (const arg of args) {
     if (!arg.name.startsWith('$')) {
       regular.push(arg)
-    } else if (isStackSpecialVar(arg.name)) {
-      stackSpecial.push(arg)
     } else {
-      userDollar.push(arg)
+      // In OpenSCAD, ALL $-prefixed parameters use dynamic scoping
+      stackSpecial.push(arg)
     }
   }
 
@@ -868,12 +936,25 @@ function buildDestructurePattern(categories: ParameterCategories, ctx: Transpile
 
 /**
  * Build EXPLICIT_UNDEF conversions and default value assignments.
+ * Also adds _argN positional fallbacks for when callers didn't know param names.
  */
 function buildLocalVarConversions(
   categories: ParameterCategories,
   ctx: TranspileContext
 ): string[] {
   const lines: string[] = []
+
+  // _argN positional fallback: when caller used _arg0/_arg1/... (didn't know param names),
+  // map them to named params before applying defaults.
+  // This happens when a module is called cross-file and the transpiler lacked its param list.
+  if (categories.localVars.length > 0) {
+    lines.push(`  if ('_arg0' in _opts) {`)
+    for (let i = 0; i < categories.localVars.length; i++) {
+      const name = safeIdentifier(categories.localVars[i].name)
+      lines.push(`    if (${name} === undefined) ${name} = _opts._arg${i};`)
+    }
+    lines.push(`  }`)
+  }
 
   for (const arg of categories.localVars) {
     const name = safeIdentifier(arg.name)
@@ -1017,7 +1098,7 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
     const funcBody = transpileExpression(f.expr, ctx)
     ctx.currentLocalBindings = savedForFunc
 
-    bodyParts.push(`${indent}const ${f.name} = (${funcParams}) => ${funcBody}`)
+    bodyParts.push(`${indent}const ${varName} = (${funcParams}) => ${funcBody}`)
     declaredVars.add(f.name)
   }
 
@@ -1025,9 +1106,16 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
   for (const m of nestedModules) {
     // Track as local function binding BEFORE transpiling body (for recursive calls)
     const varName = safeIdentifier(m.name)
-    ctx.scopes.registerFunctionBinding(varName, varName)
+    // If a variable assignment or parameter in the same scope has the same name, use _$m suffix
+    // to avoid a `const colour` conflict: nested module `colour` vs parameter/variable `colour`.
+    // In OpenSCAD, module and variable namespaces are separate, so they coexist.
+    const hasVarConflict = assignments.some(a => safeIdentifier(a.name) === varName) ||
+      [...paramNames].some(p => safeIdentifier(p) === varName)
+    const moduleVarName = hasVarConflict ? varName + '_$m' : varName
+    ctx.scopes.registerFunctionBinding(varName, moduleVarName)
     localVarNames.push(varName)
     ctx.currentLocalBindings.add(varName)
+    if (hasVarConflict) ctx.currentLocalBindings.add(moduleVarName)
 
     // Nested module defaults are transpiled in the outer scope (current currentLocalBindings).
     // The recursive buildModuleBody call will handle adding the nested module's own params.
@@ -1035,8 +1123,10 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
     const nestedParamNames = new Set<string>(m.definitionArgs.map(a => a.name))
     const nestedBodyParts = buildModuleBody(m.stmt, ctx, indent + '  ', nestedParamNames)
     // Curried: (params) => (_children) => body
-    bodyParts.push(`${indent}const ${m.name} = (${nestedParams}) => (_children = []) => {\n${nestedBodyParts.join('\n')}\n${indent}}`)
-    declaredVars.add(m.name)
+    bodyParts.push(`${indent}const ${moduleVarName} = (${nestedParams}) => (_children = []) => {\n${nestedBodyParts.join('\n')}\n${indent}}`)
+    // Only add to declaredVars using the actual JS name (with suffix if conflict exists).
+    // If there's a var conflict, don't add m.name so the variable gets a fresh const declaration.
+    declaredVars.add(hasVarConflict ? m.name + '_$m' : m.name)
   }
 
   // Local variable assignments
@@ -1046,7 +1136,8 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
 
   for (const a of assignments) {
     const varName = safeIdentifier(a.name)
-    const isSpecialVar = isStackSpecialVar(a.name)
+    // In OpenSCAD, ALL $-prefixed variables use dynamic scoping
+    const isSpecialVar = a.name.startsWith('$')
 
     // Check if this assignment is a function literal (for recursive self-reference support)
     // Function literals need binding registered BEFORE transpiling so recursive calls work
@@ -1067,20 +1158,29 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
       bodyParts.push(`${indent}j$.setSpecialVar('${a.name}', ${valueExpr});`)
     } else if (declaredVars.has(a.name)) {
       // Reassignment - don't use const
-      bodyParts.push(`${indent}${a.name} = ${transpileExpression(a.value!, ctx)}`)
+      bodyParts.push(`${indent}${varName} = ${transpileExpression(a.value!, ctx)}`)
     } else {
       // New variable - use const and track it
-      bodyParts.push(`${indent}const ${a.name} = ${transpileExpression(a.value!, ctx)}`)
+      bodyParts.push(`${indent}const ${varName} = ${transpileExpression(a.value!, ctx)}`)
       declaredVars.add(a.name)
       ctx.currentLocalBindings.add(varName)  // track for free-var detection
     }
 
     // For non-function values, register binding AFTER transpiling
     // This avoids TDZ errors like `path2d = path2d(path)` where the RHS call
-    // should resolve to the global function, not the local variable
+    // should resolve to the global function, not the local variable.
+    // Do NOT register as function binding if this variable shadows a known module/function:
+    // in OpenSCAD, variable and module namespaces are SEPARATE, so a local variable `washer`
+    // does not shadow the `washer()` module — `washer(x)` should still call the module.
+    // We check both defined symbols (include/inherited) and param-only storage (use imports).
     if (!isFuncLiteral) {
-      ctx.scopes.registerFunctionBinding(varName, varName)
-      localVarNames.push(varName)
+      const isKnownModuleOrFunc = ctx.symbols.isKind(varName, 'module')
+        || ctx.symbols.isKind(varName, 'function')
+        || ctx.symbols.getParams(varName, 'module') !== undefined
+      if (!isKnownModuleOrFunc) {
+        ctx.scopes.registerFunctionBinding(varName, varName)
+        localVarNames.push(varName)
+      }
     }
   }
 
@@ -1183,14 +1283,15 @@ ${bodyParts.join('\n')}
  * This is needed because we use EXPLICIT_UNDEF to bypass JavaScript's default parameter
  * behavior, but once inside the function, we need real undefined for proper semantics.
  */
-function buildUndefConversionPreamble(args: AssignmentNode[]): string {
+function buildUndefConversionPreamble(args: AssignmentNode[], selfRefRenames?: Map<string, string>): string {
   if (args.length === 0) return ''
 
   const uniqueArgs = deduplicateArgs(args)
 
   const conversions = uniqueArgs.map(arg => {
     const name = safeIdentifier(arg.name)
-    return `if (${name} === j$.EXPLICIT_UNDEF) ${name} = undefined`
+    const renamed = selfRefRenames?.get(name) ?? name
+    return `if (${renamed} === j$.EXPLICIT_UNDEF) ${renamed} = undefined`
   })
 
   return conversions.join('; ') + (conversions.length > 0 ? '; ' : '')
@@ -1245,16 +1346,54 @@ export function transpileFunctionDeclaration(stmt: FunctionDeclarationStmt, ctx:
 
   const uniqueArgs = deduplicateArgs(stmt.definitionArgs)
 
-  // Generate positional version (existing behavior)
-  // Params are still in currentLocalBindings so cross-param defaults (e.g., y = x + 1) work
-  const positionalParams = transpileParamsList(uniqueArgs, ctx)
-  const positionalPreamble = buildUndefConversionPreamble(uniqueArgs)
+  // Detect self-referencing defaults: `function f(x = x)` where the default is the same
+  // identifier as the parameter. In JavaScript this causes TDZ. Fix by renaming the parameter
+  // in the JS signature and using a scope mapping so body references use the renamed version.
+  // Example: `function f(screw = screw)` becomes `function f(screw$p = screw) { ... }`
+  // where the body's `screw` is mapped to `screw$p` via withScope.
+  const suffix = generateScopeSuffix(ctx)
+  const selfRefRenames = new Map<string, string>()  // original → renamed (e.g., 'screw' → 'screw$1')
+  for (const arg of uniqueArgs) {
+    const paramName = safeIdentifier(arg.name)
+    if (arg.value && isLookupExpr(arg.value) && safeIdentifier(arg.value.name) === paramName) {
+      selfRefRenames.set(paramName, `${paramName}${suffix}`)
+    }
+  }
 
-  const positionalCode = `${comment}function ${name}_$f(${positionalParams}) { ${positionalPreamble}return ${body}; }`
+  // Re-generate body with self-referencing params renamed (so they don't shadow the outer vars)
+  const finalBody = selfRefRenames.size > 0
+    ? withScope(ctx, selfRefRenames, () => transpileExpression(stmt.expr, ctx))
+    : body
+
+  // Generate positional version (existing behavior)
+  // Build params with renamed self-referencing defaults
+  const positionalParams = uniqueArgs.map(arg => {
+    const paramName = safeIdentifier(arg.name)
+    const renamedParam = selfRefRenames.get(paramName)
+    if (renamedParam) {
+      // Self-referencing default: rename param, use outer var as default
+      // e.g., `screw$1 = screw` accesses outer 'screw' without TDZ
+      return `${renamedParam} = ${paramName}`
+    }
+    if (arg.value) {
+      const defaultVal = transpileExpression(arg.value, ctx)
+      return `${paramName} = ${defaultVal}`
+    }
+    return paramName
+  }).join(', ')
+
+  const positionalPreamble = buildUndefConversionPreamble(uniqueArgs, selfRefRenames)
+
+  const positionalCode = `${comment}function ${name}_$f(${positionalParams}) { ${positionalPreamble}return ${finalBody}; }`
 
   // Generate object version for named argument calls
   const objectDestructure = uniqueArgs.map(arg => {
     const paramName = safeIdentifier(arg.name)
+    const renamedParam = selfRefRenames.get(paramName)
+    if (renamedParam) {
+      // Self-referencing: use renamed param with outer var as default
+      return `${renamedParam} = ${paramName}`
+    }
     if (arg.value) {
       const defaultVal = transpileExpression(arg.value, ctx)
       return `${paramName} = ${defaultVal}`
@@ -1266,11 +1405,12 @@ export function transpileFunctionDeclaration(stmt: FunctionDeclarationStmt, ctx:
 
   const undefConversions = uniqueArgs.map(arg => {
     const paramName = safeIdentifier(arg.name)
-    return `if (${paramName} === j$.EXPLICIT_UNDEF) ${paramName} = undefined;`
+    const renamedParam = selfRefRenames.get(paramName) ?? paramName
+    return `if (${renamedParam} === j$.EXPLICIT_UNDEF) ${renamedParam} = undefined;`
   }).join(' ')
   const objPreamble = undefConversions ? undefConversions + ' ' : ''
 
-  const objectCode = `function ${name}_$f$obj(_opts = {}) { let { ${objectDestructure} } = _opts; ${objPreamble}return ${body}; }`
+  const objectCode = `function ${name}_$f$obj(_opts = {}) { let { ${objectDestructure} } = _opts; ${objPreamble}return ${finalBody}; }`
 
   // Combine both versions
   const code = `${positionalCode}\n${objectCode}`

@@ -102,9 +102,32 @@ export const rotate = (angles, ...geometries) => {
     }
     if (isManifoldGeom2(geom) || (geom.sides !== undefined)) {
       const section = toCrossSection(geom)
-      // 2D rotation - only z angle matters
-      const angle = Array.isArray(angles) ? (angles[2] || angles[0] || 0) : angles
-      const rotated = section.rotate(toDeg(angle))
+      let rotated
+      if (Array.isArray(angles)) {
+        const rx = angles[0] || 0
+        const ry = angles[1] || 0
+        const rz = angles[2] || 0
+        if (rx === 0 && ry === 0) {
+          // Pure Z rotation
+          rotated = section.rotate(toDeg(rz))
+        } else {
+          // 3D rotation projected to 2D plane (M = Rx * Ry * Rz applied to z=0 points)
+          // x' = cos(ry)*cos(rz)*x + (sin(rx)*sin(ry)*cos(rz) - cos(rx)*sin(rz))*y
+          // y' = cos(ry)*sin(rz)*x + (sin(rx)*sin(ry)*sin(rz) + cos(rx)*cos(rz))*y
+          const cos_rx = Math.cos(rx), sin_rx = Math.sin(rx)
+          const cos_ry = Math.cos(ry), sin_ry = Math.sin(ry)
+          const cos_rz = Math.cos(rz), sin_rz = Math.sin(rz)
+          const m00 = cos_ry * cos_rz
+          const m01 = sin_rx * sin_ry * cos_rz - cos_rx * sin_rz
+          const m10 = cos_ry * sin_rz
+          const m11 = sin_rx * sin_ry * sin_rz + cos_rx * cos_rz
+          // CrossSection.transform() takes column-major 3x3: [m00, m10, 0, m01, m11, 0, tx, ty, 1]
+          rotated = section.transform([m00, m10, 0, m01, m11, 0, 0, 0, 1])
+        }
+      } else {
+        // Scalar angle - Z rotation (in radians)
+        rotated = section.rotate(toDeg(angles))
+      }
       const result = new ManifoldGeom2(rotated)
       // Preserve color
       if (isManifoldGeom2(geom) && geom.color) result.color = geom.color
