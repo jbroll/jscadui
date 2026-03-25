@@ -1085,9 +1085,16 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
   for (const f of nestedFunctions) {
     // Track as local function binding BEFORE transpiling body (for recursive calls)
     const varName = safeIdentifier(f.name)
-    ctx.scopes.registerFunctionBinding(varName, varName)
+    // If a variable assignment or parameter in the same scope has the same name, use _$f suffix
+    // to avoid a `const sex` conflict: nested function `sex` vs variable `sex`.
+    // In OpenSCAD, function and variable namespaces are separate, so they coexist.
+    const hasVarConflict = assignments.some(a => safeIdentifier(a.name) === varName) ||
+      [...paramNames].some(p => safeIdentifier(p) === varName)
+    const funcVarName = hasVarConflict ? varName + '_$f' : varName
+    ctx.scopes.registerFunctionBinding(varName, funcVarName)
     localVarNames.push(varName)
     ctx.currentLocalBindings.add(varName)
+    if (hasVarConflict) ctx.currentLocalBindings.add(funcVarName)
 
     // Transpile nested function: add its params before transpiling BOTH defaults and body
     // (defaults can reference earlier params, e.g., function foo(x, y = x + 1))
@@ -1098,8 +1105,9 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
     const funcBody = transpileExpression(f.expr, ctx)
     ctx.currentLocalBindings = savedForFunc
 
-    bodyParts.push(`${indent}const ${varName} = (${funcParams}) => ${funcBody}`)
-    declaredVars.add(f.name)
+    bodyParts.push(`${indent}const ${funcVarName} = (${funcParams}) => ${funcBody}`)
+    // Only add the actual JS name to declaredVars so the variable gets a fresh const declaration.
+    declaredVars.add(hasVarConflict ? f.name + '_$f' : f.name)
   }
 
   // Recursively process nested module definitions
@@ -1173,11 +1181,18 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
     // in OpenSCAD, variable and module namespaces are SEPARATE, so a local variable `washer`
     // does not shadow the `washer()` module — `washer(x)` should still call the module.
     // We check both defined symbols (include/inherited) and param-only storage (use imports).
+    // Also, if a nested module was renamed to varName_$m due to hasVarConflict, don't override
+    // that binding — the module's rename should take precedence for call resolution.
     if (!isFuncLiteral) {
       const isKnownModuleOrFunc = ctx.symbols.isKind(varName, 'module')
         || ctx.symbols.isKind(varName, 'function')
         || ctx.symbols.getParams(varName, 'module') !== undefined
-      if (!isKnownModuleOrFunc) {
+      const existingBinding = ctx.scopes.lookupFunctionBinding(varName)
+      const hasRenamedModuleBinding = existingBinding !== undefined && existingBinding !== varName
+      // If an outer scope already registered the same binding, don't re-register or schedule
+      // cleanup — that would destroy the outer scope's binding when this scope exits.
+      const isOuterScopeBinding = existingBinding !== undefined && existingBinding === varName
+      if (!isKnownModuleOrFunc && !hasRenamedModuleBinding && !isOuterScopeBinding) {
         ctx.scopes.registerFunctionBinding(varName, varName)
         localVarNames.push(varName)
       }

@@ -80,7 +80,7 @@ const j$ = {
   iter: (x) => {
     if (x == null) return []  // undefined or null
     if (typeof x === 'string') return [...x]
-    if (typeof x === 'number') return [x]  // scalar → single-iteration (OpenSCAD: for(i=n) runs once)
+    if (typeof x === 'number' || typeof x === 'boolean') return [x]  // scalar/bool → single-iteration
     return x
   },
 
