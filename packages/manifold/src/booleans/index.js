@@ -48,13 +48,14 @@ export const union = (...geometries) => {
   // Convert all to Manifold objects
   const manifolds = geoms.map(g => toManifold(g))
 
-  if (manifolds.length === 1) {
-    return new ManifoldGeom3(manifolds[0])
-  }
+  // Filter out empty manifolds — Manifold.union() with any empty manifold returns empty
+  const nonEmpty = manifolds.filter(m => !m.isEmpty())
+  if (nonEmpty.length === 0) return undefined
+  if (nonEmpty.length === 1) return new ManifoldGeom3(nonEmpty[0])
 
   // Use Manifold's batch union for efficiency
   const Manifold = getManifold()
-  const result = Manifold.union(manifolds)
+  const result = Manifold.union(nonEmpty)
 
   return new ManifoldGeom3(result)
 }
