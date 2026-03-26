@@ -371,9 +371,11 @@ function transpileFunctionCallExprHandler(
   }
 
   // Build args array with name+value pairs (like statements.ts does for modules)
+  // Use transpileCallArg so explicit undef → j$.EXPLICIT_UNDEF (prevents JS default params
+  // from silently replacing undef with the default value, e.g. param(6, undef) → 0 instead of undef)
   const argsArray = fnExpr.args.map(a => ({
     name: a.name || null,
-    value: transpileExpression(a.value!, ctx)
+    value: transpileCallArg(a.value!, ctx)
   }))
 
   // Separate special variables ($fn, $fa, $fs, etc.) from regular args
@@ -677,6 +679,22 @@ export function transpileLiteral(value: string | number | boolean | null | undef
     return String(value)
   }
   return 'undefined'
+}
+
+/**
+ * Transpile an expression that appears as an explicit call argument.
+ * Translates `undef` literals to `j$.EXPLICIT_UNDEF` so that functions with
+ * JavaScript default parameters (`param(n, _default = 0)`) can distinguish
+ * "caller explicitly passed undef" from "caller omitted the argument entirely".
+ *
+ * Without this, `f(undef)` → `f(undefined)` triggers JS default, silently
+ * replacing `undef` with the default value (e.g. 0 instead of undef).
+ */
+export function transpileCallArg(expr: Expression, ctx: TranspileContext): string {
+  if (isLiteralExpr(expr) && (expr as unknown as { value: unknown }).value === null) {
+    return 'j$.EXPLICIT_UNDEF'
+  }
+  return transpileExpression(expr, ctx)
 }
 
 /**

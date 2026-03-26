@@ -80,8 +80,8 @@ result = test(1, undef, 3);
     // Should use positional version (no named args)
     expect(result.code).toContain('test_$f(')
 
-    // undef in expression context becomes undefined (not EXPLICIT_UNDEF)
-    expect(result.code).toMatch(/test_\$f\(1,\s*undefined,\s*3\)/)
+    // undef as explicit call arg becomes EXPLICIT_UNDEF so JS default params don't silently apply
+    expect(result.code).toMatch(/test_\$f\(1,\s*j\$\.EXPLICIT_UNDEF,\s*3\)/)
 
     // Function should convert EXPLICIT_UNDEF back to undefined (for other cases)
     expect(result.code).toMatch(/if \(b === j\$\.EXPLICIT_UNDEF\) b = undefined/)

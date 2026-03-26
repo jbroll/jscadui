@@ -14,7 +14,7 @@ import type { TranspileContext } from './context.js'
 import { WarningCode } from './context.js'
 import { generateScopeSuffix, withScope } from './scoping.js'
 import { safeIdentifier, getShortFilename } from '../utils/identifiers.js'
-import { transpileExpression, reorderNamedArgs, isFunctionLiteralExpr } from './expressions.js'
+import { transpileExpression, transpileCallArg, reorderNamedArgs, isFunctionLiteralExpr } from './expressions.js'
 import { getLocation } from '../parser/parse.js'
 import {
   isBuiltinPrimitive,
@@ -521,6 +521,11 @@ function transpileModuleInstantiation(stmt: ModuleInstantiationStmt, ctx: Transp
   if (name === 'color') return transpileColorModule(argsArray, childCode, ctx)
   // render() forces CGAL rendering in OpenSCAD; in JSCAD we just pass children through
   if (name === 'render') return childCode || 'undefined'
+  // import() loads external STL/DXF/SVG files — not supported, return undefined
+  if (name === 'import') {
+    ctx.warnings.push({ code: WarningCode.UNKNOWN_BUILTIN, message: 'import() is not supported', file: ctx.options.currentFile })
+    return 'undefined'
+  }
   if (name === 'hull') {
     const specialVarArgs = argsArray.filter(a => a.name && a.name.startsWith('$'))
     const hullCode = transpileBuiltinHull(stmt.child, ctx)
@@ -558,7 +563,7 @@ function transpileModuleInstantiation(stmt: ModuleInstantiationStmt, ctx: Transp
 function transpileArgsArray(args: AssignmentNode[], ctx: TranspileContext): Array<{name: string | null, value: string}> {
   return args.map(arg => ({
     name: arg.name || null,
-    value: transpileExpression(arg.value!, ctx)
+    value: transpileCallArg(arg.value!, ctx)
   }))
 }
 
