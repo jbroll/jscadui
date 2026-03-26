@@ -177,6 +177,7 @@ export function processDependency(filename: string, ctx: TranspileContext, curre
     initialFunctionParamLists: functionParamLists,
     initialDualDefinedNames: new Set(ctx.symbols.getDualDefined()),
     initialImportedFunctions: importedFunctions,
+    initialLazyVarNames: ctx.lazyVarNames,
   }, ctx.transpiledFiles, ctx.parsedFiles)
 
   // Cache the result (using resolved path)

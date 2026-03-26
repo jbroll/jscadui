@@ -78,6 +78,8 @@ export interface TranspileOptions {
   initialDualDefinedNames?: Set<string>
   // Initial imported functions (inherited from parent context for parameter shadowing detection)
   initialImportedFunctions?: Set<string>
+  // Initial lazy var names (inherited from parent context so module bodies call them as functions)
+  initialLazyVarNames?: Set<string>
 }
 
 export interface TranspileResult {
@@ -114,6 +116,8 @@ export interface BundledParts {
   usedHulls: boolean
   usedMaths: boolean
   usedMinMax: boolean
+  // Variables that are lazy thunks (reference $special vars, so must be called as show_threads())
+  lazyVarNames?: Set<string>
 }
 
 export interface TranspiledFile {
@@ -178,6 +182,9 @@ export interface TranspileContext {
   // When true, LcIfExpr branches that are NOT 'each' must be wrapped in [...] to
   // prevent flatMap from flattening array-typed values (e.g., polygon points [x,y]).
   inFlatMapContext: boolean
+  // Names of top-level variables that are lazy thunks (because their value expression
+  // references a $special variable). These must be called as foo() not accessed as foo.
+  lazyVarNames: Set<string>
 }
 
 export const defaultOptions = {
@@ -234,6 +241,7 @@ export function createContext(
     potentialFreeVarRefs: new Set(),
     currentLocalBindings: new Set(),
     inFlatMapContext: false,
+    lazyVarNames: options.initialLazyVarNames ? new Set(options.initialLazyVarNames) : new Set(),
   }
 }
 

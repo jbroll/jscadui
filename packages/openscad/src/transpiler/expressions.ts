@@ -237,6 +237,13 @@ function transpileLookupExpr(expr: { name: string }, ctx: TranspileContext): str
   if (!ctx.currentLocalBindings.has(safeName)) {
     ctx.potentialFreeVarRefs.add(safeName)
   }
+
+  // If this is a lazy variable (defined as a thunk because it references $special vars),
+  // call it as a function to get the current dynamic value.
+  if (ctx.lazyVarNames.has(safeName)) {
+    return `${safeName}()`
+  }
+
   return safeName
 }
 

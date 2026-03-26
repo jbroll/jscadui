@@ -193,6 +193,10 @@ function processIncludeStatements(ctx: TranspileContext): BundledContent {
       propagateUseImportsFromInclude(ctx, parts)
       // Merge JSCAD usage flags
       mergeJscadUsageFlags(ctx, parts)
+      // Propagate lazy var names so module bodies in this file call them as functions
+      if (parts.lazyVarNames) {
+        for (const name of parts.lazyVarNames) ctx.lazyVarNames.add(name)
+      }
     }
     // Track imported functions and modules from this include
     mergeImportedSymbols(ctx, cachedFile)
@@ -296,7 +300,17 @@ function transpileAllStatements(ast: ScadFile, ctx: TranspileContext): Transpile
         )
       } else {
         const varName = safeIdentifier(stmt.name)
-        const code = `var ${varName} = ${value}`
+        // In OpenSCAD, top-level variable expressions are lazy — they re-evaluate
+        // $special variables in the current dynamic context. If the transpiled
+        // value references j$.getSpecialVar(), wrap it in a thunk so module
+        // bodies see the correct dynamic value (e.g. show_threads referencing $show_threads).
+        let code: string
+        if (value.includes('j$.getSpecialVar(')) {
+          code = `var ${varName} = () => ${value}`
+          ctx.lazyVarNames.add(varName)
+        } else {
+          code = `var ${varName} = ${value}`
+        }
         localConstants.push(code)
 
         // Track this declaration for AST-based bundling
@@ -531,6 +545,7 @@ function createBundledParts(ctx: TranspileContext): { bundledParts: BundledParts
     usedHulls: ctx.codeGen.usedHulls,
     usedMaths: ctx.codeGen.usedMaths,
     usedMinMax: ctx.codeGen.usedMinMax,
+    lazyVarNames: ctx.lazyVarNames.size > 0 ? new Set(ctx.lazyVarNames) : undefined,
   }
 
   // Phase 1 optimization: Detect if this file can use require() instead of bundling
