@@ -122,7 +122,43 @@ function processIncludeStatements(ctx: TranspileContext): BundledContent {
       // Still need to import symbols for symbol table (for type checking and call resolution)
       importSymbolsFromFile(cachedFile, ctx, { defineModules: false })
 
+      // Also propagate transitive use imports from the optimized include.
+      // e.g., if hot_ends.scad uses hot_end.scad and we include hot_ends.scad,
+      // jhead.js needs a require() for hot_end.scad too so its functions are available.
+      if (cachedFile.bundledParts) {
+        propagateUseImportsFromInclude(ctx, cachedFile.bundledParts)
+      }
+
       // Skip bundling for this file
+      continue
+    }
+
+    // Cyclic include: placeholder in cache means the file is currently being transpiled.
+    // We can't bundle its content, but we can still extract its `use` statements from
+    // the AST so that transitive use dependencies are available in the current file.
+    // e.g., jhead.scad includes hot_ends.scad (cyclic), hot_ends.scad uses hot_end.scad
+    // → jhead.scad still needs hot_end.scad in its useImports so it can call hot_end funcs
+    if (result.isCyclic) {
+      const cyclicAst = ctx.parsedFiles.get(includeImport.resolvedPath)
+      if (cyclicAst && ctx.options.fileResolver) {
+        for (const stmt of cyclicAst.statements) {
+          if (isUseStmt(stmt)) {
+            const useResult = processDependency(stmt.filename, ctx, includeImport.resolvedPath)
+            if (useResult.resolvedPath && !ctx.useImports.some(u => u.resolvedPath === useResult.resolvedPath)) {
+              const useImp = {
+                filename: stmt.filename,
+                resolvedPath: useResult.resolvedPath,
+                symbols: useResult.symbols,
+                isCyclic: useResult.isCyclic,
+              }
+              ctx.useImports.push(useImp)
+              const usedFile = ctx.transpiledFiles.get(useImp.resolvedPath)
+              importSymbolsFromFile(usedFile, ctx, { defineModules: false, registerParams: true })
+            }
+          }
+        }
+      }
+      mergeImportedSymbols(ctx, cachedFile)
       continue
     }
 

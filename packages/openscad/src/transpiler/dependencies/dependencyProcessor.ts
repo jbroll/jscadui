@@ -56,7 +56,7 @@ export interface DependencyResult {
  * @param ctx - The current transpilation context
  * @returns The resolved path and exported symbol names
  */
-export function processDependency(filename: string, ctx: TranspileContext): DependencyResult {
+export function processDependency(filename: string, ctx: TranspileContext, currentFileOverride?: string): DependencyResult {
   const fileResolver = ctx.options.fileResolver
   if (!fileResolver) {
     // No file resolver - can't process dependencies
@@ -64,7 +64,7 @@ export function processDependency(filename: string, ctx: TranspileContext): Depe
   }
 
   // Resolve the file to get its absolute path and content
-  const resolved = fileResolver(filename, ctx.options.currentFile)
+  const resolved = fileResolver(filename, currentFileOverride ?? ctx.options.currentFile)
   if (!resolved) {
     ctx.errors.push({
       code: ErrorCode.FILE_NOT_FOUND,

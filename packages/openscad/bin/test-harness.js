@@ -611,8 +611,29 @@ async function runWithConcurrency(tasks, concurrency) {
   return results
 }
 
+/**
+ * Load per-library config.json from the test directory (first dir arg).
+ * Returns parsed config or {} if not found.
+ */
+function loadDirConfig(dirs) {
+  const firstDir = dirs[0]
+  if (!firstDir) return {}
+  const configPath = join(resolve(firstDir), 'config.json')
+  if (!existsSync(configPath)) return {}
+  try {
+    return JSON.parse(readFileSync(configPath, 'utf8'))
+  } catch {
+    return {}
+  }
+}
+
 async function main() {
   const options = parseArgs(process.argv.slice(2))
+  const dirConfig = loadDirConfig(options.dirs)
+
+  // Apply per-directory config defaults (CLI args override config)
+  if (dirConfig.preview && !process.argv.includes('--preview')) options.preview = true
+  if (dirConfig.threshold !== undefined && !process.argv.includes('--threshold')) options.threshold = dirConfig.threshold
 
   if (options.dirs.length === 0) {
     console.error('Usage: test-harness <dir1> [dir2] ... [options]')

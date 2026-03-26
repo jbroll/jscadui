@@ -73,6 +73,7 @@ function parseArgs(args) {
     help: false,
     version: false,
     fn: 0,  // Global $fn override
+    preview: false,
   }
 
   let i = 0
@@ -93,6 +94,8 @@ function parseArgs(args) {
       options.sourceComments = true
     } else if (arg === '--debug-transpile') {
       options.debugTranspile = true
+    } else if (arg === '--preview') {
+      options.preview = true
     } else if (arg === '-o' || arg === '--output') {
       i++
       options.output = args[i]
@@ -501,7 +504,11 @@ function createMakeRequire(jscadModeling, openscadRuntime, moduleCache, fn, libP
         // Register in cache BEFORE executing to break circular dependency loops
         reqCache.set(jsPath, exports)
         const modFn = new Function('require', 'module', 'exports', 'j$', code)
-        modFn(customRequire, moduleObj, exports, j$Instance)
+        try {
+          modFn(customRequire, moduleObj, exports, j$Instance)
+        } catch (e) {
+          console.error(`ERROR loading module ${jsPath}: ${e.message}`)
+        }
         // Update cache entry to final exports object
         reqCache.set(jsPath, moduleObj.exports)
         return moduleObj.exports
@@ -694,7 +701,7 @@ async function main() {
     if (isScad) {
       const fileDir = dirname(inputPath)
       const fileName = inputPath  // Use full filesystem path
-      const transpiled = transpileScad(source, fileName, fileDir, options.fn, options.sourceComments, options.libPaths)
+      const transpiled = transpileScad(source, fileName, fileDir, options.fn, options.sourceComments, options.libPaths, undefined, options.preview)
       jsCode = transpiled.code
       moduleCache = transpiled.moduleCache
       if (options.debugTranspile) {
@@ -726,7 +733,7 @@ async function main() {
     if (options.fn > 0) setGlobalFn(options.fn)
 
     const mainFileDir = dirname(inputPath)
-    const makeRequire = createMakeRequire(jscadModeling, openscadRuntime, moduleCache, options.fn, options.libPaths, undefined, j$Instance)
+    const makeRequire = createMakeRequire(jscadModeling, openscadRuntime, moduleCache, options.fn, options.libPaths, undefined, j$Instance, options.preview)
     const customRequire = makeRequire(mainFileDir)
 
     // Evaluate the code with our custom require
@@ -739,7 +746,13 @@ async function main() {
     let result
     if (typeof moduleObj.exports.main === 'function') {
       const params = createParamsProxy()
-      result = await Promise.resolve(moduleObj.exports.main(params))
+      try {
+        result = await Promise.resolve(moduleObj.exports.main(params))
+      } catch (mainErr) {
+        console.error('main() threw:', mainErr.message)
+        console.error(mainErr.stack)
+        process.exit(1)
+      }
     } else {
       result = null
     }
@@ -750,6 +763,19 @@ async function main() {
     }
 
     // Handle array of geometries (union them)
+    if (options.debugTranspile) {
+      console.error('DEBUG result type:', typeof result, Array.isArray(result) ? 'array len=' + result.length : '', result?.constructor?.name)
+      if (Array.isArray(result)) console.error('DEBUG result[0]:', typeof result[0], result[0]?.constructor?.name)
+      // Try to get vertex count for Manifold geometry
+      try {
+        if (result && result.manifold) {
+          const verts = result.manifold.numVert?.() ?? result.manifold.vertProperties?.length
+          console.error('DEBUG manifold numVert:', verts)
+        } else if (result && result.vertices) {
+          console.error('DEBUG vertices count:', result.vertices.length)
+        }
+      } catch (e) { console.error('DEBUG geometry probe error:', e.message) }
+    }
     const geometry = Array.isArray(result)
       ? jscadModeling.booleans.union(result)
       : result

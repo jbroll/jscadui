@@ -50,14 +50,21 @@ export const _text = ({
     textInitDone = true
   }
 
-  return text2d({
-    text,
-    size,
-    font,
-    halign,
-    valign,
-    spacing,
-    direction,
-    $fn: fn,
-  })
+  try {
+    return text2d({
+      text,
+      size,
+      font,
+      halign,
+      valign,
+      spacing,
+      direction,
+      $fn: fn,
+    })
+  } catch (e) {
+    // Font not available (missing system font, custom font, etc.) — return null
+    // so callers can treat it as empty geometry rather than crashing
+    console.warn(`text(): font not available: ${e.message}`)
+    return null
+  }
 }

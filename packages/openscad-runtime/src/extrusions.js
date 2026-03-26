@@ -23,7 +23,15 @@ export const initExtrusions = (jscad) => {
 // Linear extrude helper - uses extrudeFromSlices when scale is used
 export const _linearExtrude = ({ height, center = false, twist = 0, slices, scale = 1, segments, $fn = 0 }, geo) => {
   // Return undefined for empty/missing geometry to avoid degenerate extrusions
-  if (!geo || geom2.toSides(geo).length === 0) return undefined
+  if (!geo) return undefined
+  // ManifoldGeom2 has 'crossSection' but not 'outlines' — delegate directly to extrudeLinear
+  // which handles CrossSection natively (including twist and scale via CrossSection.extrude).
+  if (geo.outlines === undefined && geo.crossSection !== undefined) {
+    const result = extrudeLinear({ height, twistAngle: twist * Math.PI / 180, scale }, geo)
+    return center ? translate([0, 0, -height / 2], result) : result
+  }
+  // Only check toSides for standard JSCAD geom2 (has 'outlines' property).
+  if (geo.outlines !== undefined && geom2.toSides(geo).length === 0) return undefined
   // Normalize scale to [x, y] array
   // Clamp near-zero scale values to avoid degenerate zero-area polygons in extrudeFromSlices
   const rawScaleArr = Array.isArray(scale) ? scale : [scale, scale]
@@ -159,8 +167,10 @@ export const _linearExtrude = ({ height, center = false, twist = 0, slices, scal
 export const _rotateExtrude = ({ angle = 360, $fn, $fa, $fs } = {}, geo) => {
   // Return undefined for empty/missing geometry to avoid degenerate extrusions
   // that break subsequent boolean operations
-  const sides = geom2.toSides(geo)
-  if (!geo || sides.length === 0) return undefined
+  if (!geo) return undefined
+  // Only call toSides for standard JSCAD geom2; ManifoldGeom2 has 'crossSection' not 'outlines'
+  const sides = geo.outlines !== undefined ? geom2.toSides(geo) : []
+  if (sides.length === 0 && geo.outlines !== undefined) return undefined
   const absAngle = Math.abs(angle)
 
   // Compute max X (outer radius) of the 2D profile for segment calculation.
