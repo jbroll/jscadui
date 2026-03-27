@@ -91,14 +91,14 @@ function isSimpleExample(example) {
   if (joined.match(/^\s*\w+\s*=/)) return false
 
   // Must start with a module call
-  if (!joined.match(/^\s*\w+\s*[(\[]/)) return false
+  if (!joined.match(/^\s*\w+\s*[([]/) ) return false
 
   return true
 }
 
-function generateTestFile(example, testNum) {
+function generateTestFile(example, _testNum) {
   const libFile = example.lib
-  const funcName = example.code.trim().match(/^\s*(\w+)\s*[(\[]/)?.[1] || 'unknown'
+  const funcName = example.code.trim().match(/^\s*(\w+)\s*[([]/ )?.[1] || 'unknown'
   const comment = example.name ? ` - ${example.name}` : ''
 
   // Strip #-prefixed debug lines from the actual output
@@ -143,7 +143,7 @@ console.log(`Found ${allExamples.length} simple examples from ${libFiles.length}
 const seen = new Set()
 const dedupedExamples = []
 for (const ex of allExamples) {
-  const funcName = ex.code.trim().match(/^\s*(\w+)\s*[(\[]/)?.[1] || 'unknown'
+  const funcName = ex.code.trim().match(/^\s*(\w+)\s*[([]/ )?.[1] || 'unknown'
   const key = `${ex.lib}:${funcName}`
   if (!seen.has(key)) {
     seen.add(key)
@@ -157,7 +157,7 @@ let testNum = 1
 const generated = []
 
 for (const ex of dedupedExamples) {
-  const funcName = ex.code.trim().match(/^\s*(\w+)\s*[(\[]/)?.[1] || 'unknown'
+  const funcName = ex.code.trim().match(/^\s*(\w+)\s*[([]/ )?.[1] || 'unknown'
   const num = String(testNum).padStart(3, '0')
   const libBase = ex.lib.replace('.scad', '')
   const filename = `${num}-${libBase}-${funcName}.scad`

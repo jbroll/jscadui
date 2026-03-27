@@ -175,7 +175,7 @@ export function transpileStatement(stmt: Statement, ctx: TranspileContext): stri
     }
     const cond = transpileExpression(stmt.cond, ctx)
     const thenPart = transpileStatement(stmt.thenBranch, ctx) || 'undefined'
-    const elsePart = stmt.elseBranch ? transpileStatement(stmt.elseBranch, ctx) : 'undefined'
+    const elsePart = stmt.elseBranch ? transpileStatement(stmt.elseBranch, ctx) : 'j$.NO_CHILD'
     ctx.codeGen.usedHelpers.add('isTruthy')
     const code = `(j$.isTruthy(${cond})) ? (${thenPart}) : (${elsePart})`
     return comment ? `${comment}${code}` : code
@@ -906,8 +906,11 @@ function categorizeParameters(args: AssignmentNode[]): ParameterCategories {
 
 /**
  * Build destructuring pattern for local variables (regular + user $vars).
+ * selfRefAliases: params whose default is the same identifier (e.g. `screw = screw`).
+ * These are renamed in the destructure (e.g. `screw: _screw_alias$1`) so the outer
+ * variable remains accessible (no TDZ) for use as the fallback default.
  */
-function buildDestructurePattern(categories: ParameterCategories, ctx: TranspileContext): string[] {
+function buildDestructurePattern(categories: ParameterCategories, ctx: TranspileContext, selfRefAliases: Map<string, string> = new Map()): string[] {
   const { localVars } = categories
 
   // Filter out dangerous parameter names and emit warnings
@@ -927,13 +930,19 @@ function buildDestructurePattern(categories: ParameterCategories, ctx: Transpile
     return ['  const $$sv = _opts;']
   }
 
-  // Build destructuring with quoted keys for user $vars
+  // Build destructuring with quoted keys for user $vars, and renamed keys for self-ref params
   const destructureParts = safeLocalVars.map(arg => {
     if (arg.name.startsWith('$')) {
       const safeName = safeIdentifier(arg.name)
       return `'${arg.name}': ${safeName}`
     }
-    return safeIdentifier(arg.name)
+    const safeName = safeIdentifier(arg.name)
+    const alias = selfRefAliases.get(safeName)
+    if (alias) {
+      // Rename in destructure: `screw: _screw_alias$1` so outer 'screw' stays accessible
+      return `${safeName}: ${alias}`
+    }
+    return safeName
   })
 
   return [`  let { ${destructureParts.join(', ')}, ...$$sv } = _opts;`]
@@ -945,25 +954,36 @@ function buildDestructurePattern(categories: ParameterCategories, ctx: Transpile
  */
 function buildLocalVarConversions(
   categories: ParameterCategories,
-  ctx: TranspileContext
+  ctx: TranspileContext,
+  selfRefAliases: Map<string, string> = new Map()
 ): string[] {
   const lines: string[] = []
 
   // _argN positional fallback: when caller used _arg0/_arg1/... (didn't know param names),
   // map them to named params before applying defaults.
   // This happens when a module is called cross-file and the transpiler lacked its param list.
+  // Self-referencing params are renamed in destructuring, so use the alias name here.
   if (categories.localVars.length > 0) {
     lines.push(`  if ('_arg0' in _opts) {`)
     for (let i = 0; i < categories.localVars.length; i++) {
       const name = safeIdentifier(categories.localVars[i].name)
-      lines.push(`    if (${name} === undefined) ${name} = _opts._arg${i};`)
+      const alias = selfRefAliases.get(name)
+      const varName = alias ?? name
+      lines.push(`    if (${varName} === undefined) ${varName} = _opts._arg${i};`)
     }
     lines.push(`  }`)
   }
 
   for (const arg of categories.localVars) {
     const name = safeIdentifier(arg.name)
-    if (arg.value) {
+    const alias = selfRefAliases.get(name)
+    if (alias) {
+      // Self-referencing default (e.g., `module foo(screw = screw)`): the param was renamed
+      // to 'alias' in the destructuring, so the outer 'name' (outer var) is still accessible.
+      // Apply default: if alias is undefined/EXPLICIT_UNDEF, fall back to the outer var 'name'.
+      lines.push(`  if (${alias} === j$.EXPLICIT_UNDEF) ${alias} = undefined;`)
+      lines.push(`  if (${alias} === undefined) ${alias} = ${name};`)
+    } else if (arg.value) {
       const defaultVal = transpileExpression(arg.value, ctx)
       lines.push(`  ${name} = ${name} !== undefined && ${name} !== j$.EXPLICIT_UNDEF ? ${name} : ${defaultVal};`)
     } else {
@@ -991,7 +1011,7 @@ function buildLocalVarConversions(
  *   b = b !== undefined && b !== j$.EXPLICIT_UNDEF ? b : 5;
  *   // $$sv will be passed to j$.withScope() if hasSpecialVars is true
  */
-function buildOptionsDestructuring(args: AssignmentNode[], ctx: TranspileContext): { lines: string[], hasSpecialVars: boolean } {
+function buildOptionsDestructuring(args: AssignmentNode[], ctx: TranspileContext, selfRefAliases: Map<string, string> = new Map()): { lines: string[], hasSpecialVars: boolean } {
   const uniqueArgs = deduplicateArgs(args)
   const categories = categorizeParameters(uniqueArgs)
 
@@ -1002,8 +1022,8 @@ function buildOptionsDestructuring(args: AssignmentNode[], ctx: TranspileContext
   const hasSpecialVars = true
 
   const lines = [
-    ...buildDestructurePattern(categories, ctx),
-    ...buildLocalVarConversions(categories, ctx),
+    ...buildDestructurePattern(categories, ctx, selfRefAliases),
+    ...buildLocalVarConversions(categories, ctx, selfRefAliases),
     ...buildStackSpecialDefaults(categories, ctx),
   ]
 
@@ -1241,6 +1261,20 @@ export function transpileModuleDeclaration(stmt: ModuleDeclarationStmt, ctx: Tra
   // Extract parameter names to detect shadowing assignments
   const paramNames = new Set<string>(stmt.definitionArgs.map(a => a.name))
 
+  // Detect self-referencing defaults: `module foo(screw = screw)` where the default
+  // expression is the same identifier as the parameter. The `let { screw }` destructuring
+  // would shadow the outer 'screw', making the default unavailable. Fix: rename the param
+  // in the destructuring (screw → alias) and use the alias throughout the module body.
+  const selfRefSuffix = generateScopeSuffix(ctx)
+  const selfRefAliases = new Map<string, string>()  // original → alias
+  for (const arg of stmt.definitionArgs) {
+    if (arg.name.startsWith('$')) continue  // $-vars don't destructure the same way
+    const paramName = safeIdentifier(arg.name)
+    if (arg.value && isLookupExpr(arg.value) && safeIdentifier(arg.value.name) === paramName) {
+      selfRefAliases.set(paramName, `_${paramName}_param${selfRefSuffix}`)
+    }
+  }
+
   // Add params to currentLocalBindings before transpiling body AND default values.
   // This prevents params from being falsely flagged as free variable references.
   // Both buildModuleBody and buildOptionsDestructuring transpile expressions that may
@@ -1249,10 +1283,14 @@ export function transpileModuleDeclaration(stmt: ModuleDeclarationStmt, ctx: Tra
   ctx.currentLocalBindings = new Set(ctx.currentLocalBindings)
   for (const a of stmt.definitionArgs) ctx.currentLocalBindings.add(safeIdentifier(a.name))
 
-  const bodyParts = buildModuleBody(stmt.stmt, ctx, '    ', paramNames)
+  // Build body with self-referencing params mapped to their aliases in scope
+  // This ensures body references (e.g., 'screw') use the alias ('_screw_param$17')
+  const bodyParts = selfRefAliases.size > 0
+    ? withScope(ctx, selfRefAliases, () => buildModuleBody(stmt.stmt, ctx, '    ', paramNames))
+    : buildModuleBody(stmt.stmt, ctx, '    ', paramNames)
 
   // Build options destructuring preamble
-  const { lines: optionsPreamble, hasSpecialVars } = buildOptionsDestructuring(stmt.definitionArgs, ctx)
+  const { lines: optionsPreamble, hasSpecialVars } = buildOptionsDestructuring(stmt.definitionArgs, ctx, selfRefAliases)
 
   ctx.currentLocalBindings = savedLocalBindings
 

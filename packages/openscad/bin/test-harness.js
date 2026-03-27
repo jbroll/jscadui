@@ -18,9 +18,8 @@ import { resolve, basename, dirname, join, relative } from 'node:path'
 import { execSync, exec } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { promisify } from 'node:util'
-import { homedir, cpus } from 'node:os'
+import { homedir, cpus, totalmem } from 'node:os'
 import { fileURLToPath } from 'node:url'
-import { runScadToStl } from './run-jscad.js'
 
 const execAsync = promisify(exec)
 const __filename = fileURLToPath(import.meta.url)
@@ -179,14 +178,11 @@ class StlCache {
   }
 }
 
-// Shared transpiler cache — persists across all test files in this run.
-// After the first BOSL2 file fully transpiles std.scad and its 30+ deps,
-// subsequent files use the fast-path (paramLists lookup only, no re-fetching).
-
-const sharedTranspilerCache = new Map()
-
 const VERSION = '0.2.0'
-const DEFAULT_CONCURRENCY = Math.min(4, Math.max(1, cpus().length - 1))
+// Limit by CPU count AND available memory (each JSCAD subprocess uses ~3GB).
+// This prevents OOM on laptops when running the full comparison suite locally.
+const MEM_PER_WORKER = 3e9
+const DEFAULT_CONCURRENCY = Math.min(4, Math.max(1, cpus().length - 1), Math.max(1, Math.floor(totalmem() / MEM_PER_WORKER)))
 
 /**
  * Check if a path matches any skip pattern.
@@ -368,13 +364,17 @@ function detectLibraryDir(scadPath) {
 
 async function runJscad(scadPath, stlPath, fn = 0, preview = false) {
   const libDir = detectLibraryDir(scadPath)
-  const libPaths = libDir ? [resolve(libDir)] : []
-
+  const runJscadScript = join(__dirname, 'run-jscad.js')
+  const args = [runJscadScript, JSON.stringify(scadPath), '-o', JSON.stringify(stlPath)]
+  if (fn > 0) args.push('--fn', fn)
+  if (preview) args.push('--preview')
+  if (libDir) args.push('--lib-path', JSON.stringify(resolve(libDir)))
   try {
-    await runScadToStl(scadPath, stlPath, fn, libPaths, sharedTranspilerCache, preview)
+    await execAsync(`node ${args.join(' ')}`, { timeout: 120000, maxBuffer: 2 * 1024 * 1024 })
     return { success: true }
   } catch (err) {
-    return { success: false, error: err.message || String(err) }
+    const msg = err.stderr ? err.stderr.split('\n').filter(l => l.trim()).pop() || err.message : err.message
+    return { success: false, error: msg }
   }
 }
 

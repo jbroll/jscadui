@@ -30,11 +30,12 @@ See `packages/openscad/CLAUDE.md` for OpenSCAD transpiler guidance.
 OpenSCAD quick reference:
 ```bash
 cd packages/openscad
-npx vitest run              # Unit tests
-npm run test:comparison     # Full comparison suite
-npm run test:bosl           # BOSL v1 only
-npm run test:bosl2          # BOSL2 only
+npx vitest run              # Unit tests (local, fast)
+npm test                    # Full suite via CI on gpu (memory-intensive — do not run locally)
+npm run test:bosl           # Single suite, local (for debugging)
+npm run test:bosl2          # Single suite, local (for debugging)
 ```
+See `packages/openscad/CLAUDE.md` for the full testing strategy.
 
 Skip files auto-discovered from `skip.txt` in each example directory.
 

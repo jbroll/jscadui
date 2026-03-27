@@ -3,6 +3,7 @@
  */
 
 import { _globalFn, _getSegments } from './segments.js'
+import { NO_CHILD } from './primitives.js'
 
 // JSCAD extrusions and utilities - injected at init time
 let extrudeLinear, extrudeRotate, extrudeFromSlices, translate, mirror, geom2, slice, mat4, subtract
@@ -22,6 +23,8 @@ export const initExtrusions = (jscad) => {
 
 // Linear extrude helper - uses extrudeFromSlices when scale is used
 export const _linearExtrude = ({ height, center = false, twist = 0, slices, scale = 1, segments, $fn = 0 }, geo) => {
+  // Propagate absent child (NO_CHILD = conditional branch not taken)
+  if (geo === NO_CHILD) return NO_CHILD
   // Return undefined for empty/missing geometry to avoid degenerate extrusions
   if (!geo) return undefined
   // ManifoldGeom2 has 'crossSection' but not 'outlines' — delegate directly to extrudeLinear
@@ -165,6 +168,8 @@ export const _linearExtrude = ({ height, center = false, twist = 0, slices, scal
 
 // Rotate extrude helper
 export const _rotateExtrude = ({ angle = 360, $fn, $fa, $fs } = {}, geo) => {
+  // Propagate absent child (NO_CHILD = conditional branch not taken)
+  if (geo === NO_CHILD) return NO_CHILD
   // Return undefined for empty/missing geometry to avoid degenerate extrusions
   // that break subsequent boolean operations
   if (!geo) return undefined

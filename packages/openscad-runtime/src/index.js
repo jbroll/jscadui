@@ -10,7 +10,7 @@
 import { PI, _range, _min, _max, _num, str, version_num, parent_module, search, _norm, _cross, _lookup, _rands, _resetRng, is_vector, chr, ord, is_consistent, _list_pattern, reverse, _sinDeg, _cosDeg, _tanDeg } from './math.js'
 import { _eq, _vadd, _vsub, _vmul, _vdiv, _vneg } from './vector.js'
 import { _getSegments, setGlobalFn } from './segments.js'
-import { initPrimitives, _cube, _cylinder, _sphere, _circle, _square, _regular_polygon, _polyhedron, _safeUnion, _hull, _union, _subtract, _intersect, _minkowski, _polygon, _region } from './primitives.js'
+import { NO_CHILD as _NO_CHILD, initPrimitives, _cube, _cylinder, _sphere, _circle, _square, _regular_polygon, _polyhedron, _safeUnion, _hull, _union, _subtract, _intersect, _minkowski, _polygon, _region } from './primitives.js'
 import { initTransforms, _translate, _rotate, _scale, _mirror, _multmatrix, _resize } from './transforms.js'
 import { initExtrusions, _linearExtrude, _rotateExtrude } from './extrusions.js'
 import { initColor, _color } from './color.js'
@@ -33,6 +33,8 @@ const EXPLICIT_UNDEF = Symbol('explicit_undef')
 const j$ = {
   // Sentinel for explicit undef
   EXPLICIT_UNDEF,
+  // Sentinel for absent child (conditional not taken, vs undefined=empty geometry)
+  NO_CHILD: _NO_CHILD,
   // Math helpers (no JSCAD dependency)
   PI,
   range: _range,
@@ -180,6 +182,7 @@ const j$ = {
    * delta=val, chamfer=true -> chamfered corners (corners='chamfer')
    */
   offset({ r, delta, chamfer = false } = {}, child) {
+    if (child === _NO_CHILD) return _NO_CHILD
     const amount = r !== undefined ? r : (delta !== undefined ? delta : 0)
     const corners = r !== undefined ? 'round' : (chamfer ? 'chamfer' : 'sharp')
     if (!child) return undefined

@@ -174,7 +174,7 @@ console.log(`Found ${allExamples.length} simple examples from ${libFiles.length}
 const seen = new Set()
 const dedupedExamples = []
 for (const ex of allExamples) {
-  const funcName = ex.code.trim().match(/^\s*(\w+)\s*[(\[]/)?.[1] || 'unknown'
+  const funcName = ex.code.trim().match(/^\s*(\w+)\s*[([]/ )?.[1] || 'unknown'
   const key = `${ex.lib}:${funcName}`
   if (!seen.has(key)) {
     seen.add(key)
@@ -188,7 +188,7 @@ let testNum = 1
 const generated = []
 
 for (const ex of dedupedExamples) {
-  const funcName = ex.code.trim().match(/^\s*(\w+)\s*[(\[]/)?.[1] || 'unknown'
+  const funcName = ex.code.trim().match(/^\s*(\w+)\s*[([]/ )?.[1] || 'unknown'
   const num = String(testNum).padStart(3, '0')
   const libBase = ex.lib.replace('.scad', '')
   const filename = `${num}-${libBase}-${funcName}.scad`

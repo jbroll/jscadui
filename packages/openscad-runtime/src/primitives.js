@@ -6,6 +6,14 @@
 import { _num } from './math.js'
 import { _getSegments } from './segments.js'
 
+/**
+ * Sentinel for "no child produced by a conditional branch".
+ * `if(cond) child` with cond=false and no else branch emits j$.NO_CHILD.
+ * Distinct from undefined (which means "module/geometry produced nothing").
+ * In intersection: NO_CHILD is absent (skipped); undefined makes intersection empty.
+ */
+export const NO_CHILD = Symbol('no_child')
+
 // JSCAD primitives and transforms - injected at init time
 let cube, cuboid, cylinder, circle, rectangle, polygon, polyhedron, translate, union, subtract, intersect, hull, minkowski
 
@@ -141,8 +149,10 @@ export const _polyhedron = ({ points, faces, triangles, convexity: _convexity })
   return polyhedron({ points: points3d, faces: finalFaces, orientation: 'outward' })
 }
 
+const _isAbsent = (p) => p === undefined || p === null || p === NO_CHILD
+
 export const _safeUnion = (parts) => {
-  // Flatten nested arrays and filter out undefined/null values
+  // Flatten nested arrays and filter out undefined/null/NO_CHILD values
   // This handles cases where children return empty arrays or nested undefined values
   const flattened = parts.flat(Infinity)
 
@@ -151,14 +161,14 @@ export const _safeUnion = (parts) => {
   if (hasPromise) {
     // Resolve all Promises then union
     return Promise.all(flattened.map(p => Promise.resolve(p))).then(resolved => {
-      const valid = resolved.filter(p => p !== undefined && p !== null)
+      const valid = resolved.filter(p => !_isAbsent(p))
       if (valid.length === 0) return undefined
       if (valid.length === 1) return valid[0]
       return union(...valid)
     })
   }
 
-  const valid = flattened.filter(p => p !== undefined && p !== null)
+  const valid = flattened.filter(p => !_isAbsent(p))
   if (valid.length === 0) return undefined
   if (valid.length === 1) return valid[0]
   return union(...valid)
@@ -349,26 +359,31 @@ export const _region = ({ r } = {}) => {
 // Hull wrapper - passes through to JSCAD hull
 export const _hull = (...args) => hull(...args)
 
-// Boolean wrappers - these filter undefined values and call JSCAD booleans
+// Boolean wrappers - these filter absent/undefined values and call JSCAD booleans
+// NO_CHILD = conditional branch not taken (absent) → always filtered out
+// undefined/null = module/geometry produced nothing (empty geometry)
 export const _union = (...args) => {
-  const valid = args.filter(a => a !== undefined && a !== null)
+  const valid = args.filter(a => !_isAbsent(a))
   if (valid.length === 0) return undefined
   if (valid.length === 1) return valid[0]
   return union(...valid)
 }
 
 export const _subtract = (...args) => {
-  const valid = args.filter(a => a !== undefined && a !== null)
+  const valid = args.filter(a => !_isAbsent(a))
   if (valid.length === 0) return undefined
   if (valid.length === 1) return valid[0]
   return subtract(...valid)
 }
 
 export const _intersect = (...args) => {
-  const valid = args.filter(a => a !== undefined && a !== null)
-  if (valid.length === 0) return undefined
-  if (valid.length === 1) return valid[0]
-  return intersect(...valid)
+  // NO_CHILD (conditional branch not taken) → absent, skip
+  // undefined/null (module returned empty geometry) → intersection is empty
+  const withoutAbsent = args.filter(a => a !== NO_CHILD)
+  if (withoutAbsent.some(a => a === undefined || a === null)) return undefined
+  if (withoutAbsent.length === 0) return undefined
+  if (withoutAbsent.length === 1) return withoutAbsent[0]
+  return intersect(...withoutAbsent)
 }
 
 export const _minkowski = (...args) => {

@@ -2,6 +2,8 @@
  * Transform helpers for OpenSCAD compatibility
  */
 
+import { NO_CHILD } from './primitives.js'
+
 // JSCAD transforms - injected at init time
 let translate, rotateX, rotateY, rotateZ, scale, mirror, transform, measureBoundingBox
 
@@ -18,6 +20,7 @@ export const initTransforms = (jscad) => {
 
 // Translate helper
 export const _translate = (v, geo) => {
+  if (geo === NO_CHILD) return NO_CHILD
   if (geo === undefined) return geo
   // v can be [x,y] or [x,y,z] or an object with v property
   const vec = (v && typeof v === 'object' && !Array.isArray(v)) ? v.v : v
@@ -27,6 +30,7 @@ export const _translate = (v, geo) => {
 
 // Scale helper
 export const _scale = (v, geo) => {
+  if (geo === NO_CHILD) return NO_CHILD
   if (geo === undefined) return geo
   // v can be a number (uniform), [x,y] or [x,y,z] or an object with v property
   const val = (v && typeof v === 'object' && !Array.isArray(v)) ? v.v : v
@@ -39,6 +43,7 @@ export const _scale = (v, geo) => {
 
 // Mirror helper
 export const _mirror = (v, geo) => {
+  if (geo === NO_CHILD) return NO_CHILD
   if (geo === undefined) return geo
   // Handle zero normal vector: OpenSCAD treats mirror([0,0,0]) and mirror([0,0]) as identity
   if (Array.isArray(v) && v[0] === 0 && v[1] === 0 && (v[2] === 0 || v[2] === undefined)) return geo
@@ -48,6 +53,7 @@ export const _mirror = (v, geo) => {
 
 // Rotation helper for Euler angles
 export const _rotate = (params, geo) => {
+  if (geo === NO_CHILD) return NO_CHILD
   const toRad = d => d * Math.PI / 180
   // Handle object form: rotate(a=angle, v=[x,y,z]) or rotate(a=angle)
   if (params && typeof params === 'object' && !Array.isArray(params)) {
@@ -93,6 +99,7 @@ export const _rotate = (params, geo) => {
 // Resize helper - scales geometry to fit target dimensions
 // newsize[i] = 0 means keep that axis unchanged
 export const _resize = (newsize, geo) => {
+  if (geo === NO_CHILD) return NO_CHILD
   if (geo === undefined) return geo
   const bounds = measureBoundingBox(geo)
   const curSize = [
@@ -106,6 +113,7 @@ export const _resize = (newsize, geo) => {
 
 // Multmatrix helper - applies a 4x4 transformation matrix
 export const _multmatrix = (m, geo) => {
+  if (geo === NO_CHILD) return NO_CHILD
   // OpenSCAD multmatrix uses row-major 4x4 or 4x3 matrix
   // JSCAD transform uses column-major flat array [m00,m10,m20,m30,m01,m11,...]
   const flat = []

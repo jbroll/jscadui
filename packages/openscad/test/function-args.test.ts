@@ -102,3 +102,28 @@ result = empty();
     expect(result.code).toMatch(/empty_\$f\(\s*\)/)
   })
 })
+
+describe('Module self-referencing parameter defaults', () => {
+  it('should handle module(screw = screw) default pattern without TDZ', () => {
+    // This pattern appears in NopSCADlib: the default for 'screw' references the outer variable 'screw'.
+    // The `let { screw }` destructuring shadows the outer 'screw', causing TDZ errors in naive approach.
+    // Fix: rename the param in destructuring (screw: _screw_param$N) so outer 'screw' stays accessible.
+    const code = `
+screw = "M3";
+module foo(type, screw = screw) {
+  x = screw;
+}
+foo(type = "test");
+`
+    const { ast } = parse(code)
+    const result = transpile(ast)
+    // Verify the generated code uses an alias for the self-referencing param
+    expect(result.code).toContain('_screw_param')
+    // Verify the outer 'screw' is used as the fallback default (no TDZ)
+    expect(result.code).toMatch(/_screw_param.+ === undefined.*\bscrew\b/)
+    // Verify the alias appears in the destructuring pattern
+    expect(result.code).toMatch(/screw:\s*_screw_param/)
+    // Verify there's no naive self-reference `screw = ... ? screw : screw`
+    expect(result.code).not.toMatch(/screw\s*=\s*screw\b.*\?\s*screw\s*:\s*screw/)
+  })
+})

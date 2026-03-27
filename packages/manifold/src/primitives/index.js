@@ -363,7 +363,7 @@ export const polyhedron = (options = {}) => {
       const jscadPolyhedron2 = jscadPrimitives.polyhedron({ points, faces: flippedFaces, colors, orientation })
       try {
         return new ManifoldGeom3(geom3ToManifold(jscadPolyhedron2))
-      } catch (e2) {
+      } catch (_e2) {
         // Genuinely non-manifold mesh (e.g. open surface without caps).
         // Return undefined so callers can skip this geometry gracefully.
         return undefined

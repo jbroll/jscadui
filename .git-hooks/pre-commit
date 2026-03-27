@@ -3,20 +3,25 @@ set -e
 
 echo "Running pre-commit checks..."
 
-# Get staged JS/TS files
+# Build the openscad package (ensures transpiler JS is up to date)
+echo "Building..."
+npm run build --workspace=@jscadui/openscad
+
+# Lint only staged JS/TS files
 STAGED_JS=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(js|ts|jsx|tsx)$' || true)
 
 if [ -n "$STAGED_JS" ]; then
   echo "Linting staged files..."
-  # Lint errors and warnings block commit
   echo "$STAGED_JS" | xargs npx eslint --max-warnings=0
-
-  echo "Type checking..."
-  npm run typecheck || echo "Warning: Type check had errors (non-blocking)"
 fi
 
-echo "Running tests..."
-# Note: One pre-existing failing test in render-regl (vertex colors shader test)
-npm test || echo "Warning: Some tests failed (non-blocking for now)"
+# Type check
+echo "Type checking..."
+npm run typecheck
 
-echo "Pre-commit checks passed!"
+# Run unit tests only (fast, local)
+# Full comparison suite runs via CI (npm test) — too slow for pre-commit.
+echo "Running unit tests..."
+npm run test:unit --workspace=@jscadui/openscad
+
+echo "All pre-commit checks passed!"

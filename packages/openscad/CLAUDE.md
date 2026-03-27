@@ -9,20 +9,32 @@ When debugging test failures:
 2. Runtime errors mean the transpiler generated incorrect JavaScript
 3. Shape mismatches mean the transpiler's geometric output differs from OpenSCAD's
 
-## Test Commands
+## Testing Strategy
 
+The full comparison suite (bosl, bosl2, nopscadlib, snippet, 01-basics, text) runs OpenSCAD and renders hundreds of STL files. This requires several GB of RAM and takes several minutes — **it runs on gpu via simple-ci, not locally**.
+
+**Use remote CI for full suite validation:**
 ```bash
-# Unit tests
-npx vitest run
+npm test          # rsyncs to gpu, runs full suite, streams log to stdout when done
+                  # progress dots on stderr while waiting; exits 0/1 for pass/fail
+```
 
-# All examples (comprehensive)
-npm test
+**Use local commands for debugging individual models:**
+```bash
+npx vitest run                                                      # unit tests (fast, local)
+node bin/test-harness.js ../../apps/jscad-web/examples/openscad/bosl/some_module.scad
+node bin/test-harness.js ../../apps/jscad-web/examples/openscad/bosl   # one suite
+node bin/test-harness.js ../../apps/jscad-web/examples/openscad/bosl2  # one suite
+npm run test:local   # all suites locally (only if gpu unavailable — slow, memory-intensive)
+```
 
-# BOSL v1 library examples (should be 100%)
-node bin/test-harness.js ../../apps/jscad-web/examples/openscad/bosl
+The workflow is: iterate locally on individual failing models using `test-harness.js`, then run `npm test` to confirm nothing else regressed.
 
-# BOSL2 library examples (target: improve pass rate)
-node bin/test-harness.js ../../apps/jscad-web/examples/openscad/bosl2
+**Known permanent failure:** nopscadlib passes ~7% (pre-existing transpiler gaps, not regressions).
+
+To watch CI progress in real time:
+```bash
+ssh gpu 'tail -f ~/ci-logs/$(ls -t ~/ci-logs/*.log | head -1)'
 ```
 
 ## Architecture Overview
