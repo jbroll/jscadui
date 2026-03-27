@@ -30,7 +30,14 @@ export const _linearExtrude = ({ height, center = false, twist = 0, slices, scal
   // ManifoldGeom2 has 'crossSection' but not 'outlines' — delegate directly to extrudeLinear
   // which handles CrossSection natively (including twist and scale via CrossSection.extrude).
   if (geo.outlines === undefined && geo.crossSection !== undefined) {
-    const result = extrudeLinear({ height, twistAngle: twist * Math.PI / 180, scale }, geo)
+    // Compute twist steps to match OpenSCAD subdivision
+    let twistSteps
+    if (twist !== 0) {
+      twistSteps = slices !== undefined
+        ? Math.max(1, Math.ceil(slices))
+        : ($fn > 0 ? $fn : Math.max(1, Math.ceil(Math.abs(twist) / 6)))
+    }
+    const result = extrudeLinear({ height, twistAngle: twist * Math.PI / 180, twistSteps, scale }, geo)
     return center ? translate([0, 0, -height / 2], result) : result
   }
   // Only check toSides for standard JSCAD geom2 (has 'outlines' property).

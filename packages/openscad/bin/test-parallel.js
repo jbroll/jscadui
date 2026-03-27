@@ -74,10 +74,11 @@ if (subdirs.length === 0) {
 }
 
 const names = subdirs.map(d => basename(d))
-console.log(`Running ${subdirs.length} suites in parallel: ${names.join(', ')}\n`)
+console.log(`Running ${subdirs.length} suites sequentially: ${names.join(', ')}\n`)
 
-// Spawn one test-harness process per subdirectory
-const promises = subdirs.map(dir => {
+// Run one test-harness process per subdirectory, sequentially.
+// Each suite gets the full CPU/memory budget for its workers.
+function runSuite(dir) {
   const name = basename(dir)
   const child = spawn(process.execPath, [HARNESS, dir, ...extraArgs], {
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -96,9 +97,12 @@ const promises = subdirs.map(dir => {
       res({ name, code: code ?? 1 })
     })
   })
-})
+}
 
-const results = await Promise.all(promises)
+const results = []
+for (const dir of subdirs) {
+  results.push(await runSuite(dir))
+}
 
 // Print combined summary
 console.log('\n── Suite results ───────────────────────────────────────────')

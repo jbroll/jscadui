@@ -19,7 +19,10 @@ export const _vadd = (a, b) => {
   if (a === undefined && b === undefined) return 0
   if (a === undefined) return b
   if (b === undefined) return a
-  if (Array.isArray(a) && Array.isArray(b)) return a.map((v, i) => _vadd(v, b[i] ?? 0))
+  if (Array.isArray(a) && Array.isArray(b)) {
+    const len = Math.min(a.length, b.length)
+    return Array.from({length: len}, (_, i) => _vadd(a[i], b[i]))
+  }
   if (Array.isArray(a)) return a.map(v => _vadd(v, b))
   if (Array.isArray(b)) return b.map(v => _vadd(a, v))
   return a + b
@@ -31,7 +34,10 @@ export const _vsub = (a, b) => {
   if (a === undefined && b === undefined) return 0
   if (a === undefined) return Array.isArray(b) ? b.map(x => -x) : -b
   if (b === undefined) return a
-  if (Array.isArray(a) && Array.isArray(b)) return a.map((v, i) => _vsub(v, b[i] ?? 0))
+  if (Array.isArray(a) && Array.isArray(b)) {
+    const len = Math.min(a.length, b.length)
+    return Array.from({length: len}, (_, i) => _vsub(a[i], b[i]))
+  }
   if (Array.isArray(a)) return a.map(v => _vsub(v, b))
   if (Array.isArray(b)) return b.map(v => _vsub(a, v))
   return a - b
@@ -69,9 +75,12 @@ export const _vmul = (a, b) => {
   const aIsMatrix = a.length > 0 && Array.isArray(a[0])
   const bIsMatrix = b.length > 0 && Array.isArray(b[0])
 
-  // vector * vector -> dot product
+  // vector * vector -> dot product (truncate to shorter length)
   if (!aIsMatrix && !bIsMatrix) {
-    return a.reduce((sum, v, i) => sum + v * (b[i] ?? 0), 0)
+    const len = Math.min(a.length, b.length)
+    let sum = 0
+    for (let i = 0; i < len; i++) sum += a[i] * b[i]
+    return sum
   }
 
   // matrix * vector -> matrix-vector multiplication
@@ -119,7 +128,10 @@ export const _vdiv = (a, b) => {
   if (a === undefined && b === undefined) return 0
   if (a === undefined) return 0  // 0 / b = 0
   if (b === undefined) return a  // a / 1 = a (treat undefined as identity)
-  if (Array.isArray(a) && Array.isArray(b)) return a.map((v, i) => _vdiv(v, b[i] ?? 1))
+  if (Array.isArray(a) && Array.isArray(b)) {
+    const len = Math.min(a.length, b.length)
+    return Array.from({length: len}, (_, i) => _vdiv(a[i], b[i]))
+  }
   if (Array.isArray(a)) return a.map(v => _vdiv(v, b))
   if (Array.isArray(b)) return b.map(v => _vdiv(a, v))
   return a / b

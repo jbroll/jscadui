@@ -5,6 +5,7 @@ import type { AssignmentNode } from 'openscad-parser'
 import type { TranspiledFile, TranspileContext } from './context.js'
 import { WarningCode } from './context.js'
 import { safeIdentifier } from '../utils/identifiers.js'
+import { isBuiltinPrimitive, isBuiltinTransform, isBuiltinBoolean, isBuiltinExtrusion } from './builtins.js'
 
 /**
  * Set of dangerous property names that could cause prototype pollution
@@ -125,6 +126,25 @@ export function importSymbolsFromFile(
     for (const name of cachedFile.dualDefinedNames) {
       const params = cachedFile.paramLists?.get(name)
       ctx.symbols.define(name, { kind: 'module', source: 'imported', params })
+    }
+  }
+
+  // When not defining all modules (use/optimized include), still register modules
+  // that shadow builtins. Without this, shouldUseBuiltin() emits j$.sphere() even
+  // when a user-defined sphere_$m exists (e.g., NopSCADlib's custom sphere module).
+  // Check the full exports list because modules from transitive includes
+  // (e.g., global.scad includes sphere.scad) appear in exports but not moduleExports.
+  if (!opts.defineModules && cachedFile.exports) {
+    const isBuiltinName = (n: string) =>
+      isBuiltinPrimitive(n) || isBuiltinTransform(n) || isBuiltinBoolean(n) || isBuiltinExtrusion(n)
+    for (const sym of cachedFile.exports) {
+      if (sym.endsWith('_$m')) {
+        const modName = sym.slice(0, -3)  // strip _$m suffix
+        if (isBuiltinName(modName)) {
+          const params = cachedFile.paramLists?.get(modName)
+          ctx.symbols.define(modName, { kind: 'module', source: 'imported', params })
+        }
+      }
     }
   }
 

@@ -182,7 +182,7 @@ const VERSION = '0.2.0'
 // Limit by CPU count AND available memory (each JSCAD subprocess uses ~3GB).
 // This prevents OOM on laptops when running the full comparison suite locally.
 const MEM_PER_WORKER = 3e9
-const DEFAULT_CONCURRENCY = Math.min(4, Math.max(1, cpus().length - 1), Math.max(1, Math.floor(totalmem() / MEM_PER_WORKER)))
+const DEFAULT_CONCURRENCY = Math.min(Math.max(1, cpus().length - 1), Math.max(1, Math.floor(totalmem() / MEM_PER_WORKER)))
 
 /**
  * Check if a path matches any skip pattern.
@@ -238,7 +238,7 @@ Options:
   --threshold <n>         Minimum Jaccard for pass (default: 0.99)
   --fn <n>                Set global $fn for both OpenSCAD and transpiler
   --openscad <path>       Path to OpenSCAD binary (default: openscad)
-  --concurrency <n>       Number of parallel tests (default: ${DEFAULT_CONCURRENCY}, max 4)
+  --concurrency <n>       Number of parallel tests (default: ${DEFAULT_CONCURRENCY})
   --no-stl-cache          Disable OpenSCAD STL cache (always re-render)
   --preview               Set $preview=true for both OpenSCAD and transpiler
   --keep-temp             Keep temporary files for debugging

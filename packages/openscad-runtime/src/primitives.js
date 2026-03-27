@@ -356,8 +356,8 @@ export const _region = ({ r } = {}) => {
   return _buildEvenOddGeom(pathData)
 }
 
-// Hull wrapper - passes through to JSCAD hull
-export const _hull = (...args) => hull(...args)
+// Hull wrapper - filter NO_CHILD (conditional branch not taken) before passing to JSCAD hull
+export const _hull = (...args) => hull(...args.filter(a => a !== NO_CHILD))
 
 // Boolean wrappers - these filter absent/undefined values and call JSCAD booleans
 // NO_CHILD = conditional branch not taken (absent) → always filtered out
@@ -387,7 +387,7 @@ export const _intersect = (...args) => {
 }
 
 export const _minkowski = (...args) => {
-  const valid = args.filter(a => a !== undefined && a !== null)
+  const valid = args.filter(a => a !== undefined && a !== null && a !== NO_CHILD)
   if (valid.length < 2) return valid[0] || undefined
   return minkowski(...valid)
 }
