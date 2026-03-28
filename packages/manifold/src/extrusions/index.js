@@ -34,8 +34,8 @@ const hasJscadSource = (geom) => isManifoldGeom2(geom) && geom.hasJscadSource
  * @returns {Object|Array} Extruded 3D geometry/geometries
  */
 export const extrudeLinear = (options, ...geometries) => {
-  const defaults = { height: 1, twistAngle: 0, twistSteps: 1, scale: [1, 1] }
-  const { height, twistAngle, twistSteps, scale } = { ...defaults, ...options }
+  const defaults = { height: 1, twistAngle: 0, twistSteps: 1, scale: [1, 1], $fa: 12, $fs: 2 }
+  const { height, twistAngle, twistSteps, scale, $fa, $fs } = { ...defaults, ...options }
 
   const geoms = geometries.flat(Infinity).filter(g => g != null)
 
@@ -64,8 +64,13 @@ export const extrudeLinear = (options, ...geometries) => {
     if (twistDegrees !== 0 && nDivisions > 0) {
       const polys = section.toPolygons()
       const totalVerts = polys.reduce((s, p) => s + p.length, 0)
-      // Target ~16 subdivisions per edge for low-vertex shapes, fewer for complex ones
-      const targetPerEdge = Math.max(1, Math.ceil(16 / Math.max(1, Math.sqrt(totalVerts / 4))))
+      // OpenSCAD formula: segsPerEdge = max(1, floor(circleFrags / polygonEdges))
+      // circleFrags uses $fa/$fs (not $fn) with the polygon's estimated circumradius.
+      const circumR = totalVerts > 0
+        ? Math.max(...polys.flatMap(poly => poly.map(([x, y]) => Math.sqrt(x * x + y * y))))
+        : 1
+      const circleFrags = Math.max(5, Math.ceil(Math.min(360 / $fa, 2 * Math.PI * circumR / $fs)))
+      const targetPerEdge = Math.max(1, Math.floor(circleFrags / Math.max(1, totalVerts)))
       if (targetPerEdge > 1) {
         const CrossSection = getCrossSection()
         const subdivided = polys.map(poly => {

@@ -50,7 +50,7 @@ export const _linearExtrude = ({ height, center = false, twist = 0, slices, scal
           : Math.max(1, Math.ceil(Math.abs(twist) * _getSegments(1, $fn, $fa, $fs) / 360))
       }
       // Negate twist: OpenSCAD twist convention is opposite to Manifold's
-      const result = extrudeLinear({ height, twistAngle: -twist * Math.PI / 180, twistSteps, scale }, geo)
+      const result = extrudeLinear({ height, twistAngle: -twist * Math.PI / 180, twistSteps, scale, $fa, $fs }, geo)
       return center ? translate([0, 0, -height / 2], result) : result
     }
   }
@@ -131,16 +131,16 @@ export const _linearExtrude = ({ height, center = false, twist = 0, slices, scal
       }
       // Classify outlines: positive area = CCW outer, negative area = CW inner hole
       const classified = outlines.map(o => ({ outline: o, area: signedArea(o) }))
-      const hasHoles = classified.some(c => c.area < 0)
 
-      // segsPerEdge: ring topology (outer+holes) uses total_verts - num_outlines to match
-      // OpenSCAD's CDT mesh density. Disconnected outlines (all outer) use per-outline length.
-      const totalOutlineVerts = outlines.reduce((s, o) => s + o.length, 0)
+      // OpenSCAD formula: segsPerEdge = max(1, floor(circleSegs / maxEdgesPerPoly))
+      // circleSegs uses $fa/$fs (NOT $fn) with the polygon's estimated circumradius.
+      // This matches OpenSCAD's CDT pre-subdivision for twisted multi-contour extrusions.
+      const maxEdges = Math.max(...outlines.map(o => o.length))
+      const circumR = Math.max(...outlines.flatMap(o => o.map(p => Math.sqrt(p[0] * p[0] + p[1] * p[1]))))
+      const circleSegs = _getSegments(circumR, 0, $fa, $fs)
       const segsPerEdge = segments !== undefined
         ? Math.max(1, segments)
-        : hasHoles
-          ? Math.max(1, totalOutlineVerts - outlines.length)
-          : Math.max(1, Math.max(...outlines.map(o => o.length)) - 1)
+        : Math.max(1, Math.floor(circleSegs / maxEdges))
 
       let solid = null
       for (const { outline, area } of classified) {

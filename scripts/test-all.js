@@ -224,7 +224,7 @@ function printSummary() {
 async function runAllTests() {
   console.log(`${colors.bright}Running comprehensive test suite...${colors.reset}`)
 
-  // 1. Unit tests (all packages via turbo)
+  // 1. Unit tests (all packages via turbo, excluding openscad — handled separately in step 3)
   results.unit = execTest('npm run test:unit', 'Unit Tests (all packages)')
 
   // 2. JSCAD example execution tests

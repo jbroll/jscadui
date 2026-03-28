@@ -20,7 +20,7 @@
     "dev": "turbo dev",
     "build": "turbo build",
     "test": "node scripts/test-all.js",
-    "test:unit": "turbo test --concurrency=8",
+    "test:unit": "turbo test --filter=!@jscadui/openscad --concurrency=8",
     "test:examples": "npm test -w apps/jscad-web",
     "test:openscad": "npm test -w packages/openscad",
     "test:e2e": "npm run test:e2e -w apps/jscad-web",
