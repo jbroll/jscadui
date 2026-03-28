@@ -178,13 +178,13 @@ function parseStl(filePath) {
  * Build one Manifold mesh from a flat triangle array, with deduplication.
  * Auto-orients to positive volume.
  */
-function buildManifold(triangles, Manifold, Module) {
+function buildManifold(triangles, Manifold, Module, precision = 9) {
   const vertices = []
   const indices = []
   const vertexMap = new Map()
 
   const getVertexIndex = (x, y, z) => {
-    const key = `${x.toFixed(9)},${y.toFixed(9)},${z.toFixed(9)}`
+    const key = `${x.toFixed(precision)},${y.toFixed(precision)},${z.toFixed(precision)}`
     if (vertexMap.has(key)) return vertexMap.get(key)
     const index = vertices.length / 3
     vertices.push(x, y, z)
@@ -320,33 +320,56 @@ function splitIntoComponents(triangles) {
  * If the STL contains multiple bodies separated by non-manifold edges
  * (e.g. OpenSCAD color() groups concatenated without CSG union), splits them
  * into components and unions them to get the correct single solid.
- * Falls back to building a single Manifold if any component is invalid.
+ *
+ * Strategy:
+ * 1. Try full mesh first at precision=9 — handles single-manifold bodies and
+ *    our own Manifold STL exports (which may have float32 vertex duplicates
+ *    that splitIntoComponents incorrectly treats as multiple bodies).
+ * 2. If full mesh fails, split into components and union them.
+ *    This handles OpenSCAD multi-body STLs (e.g. color() groups).
  */
 async function trianglesToManifold(triangles, Manifold, Module) {
+  // Try the full mesh as a single manifold first.
+  // Our Manifold-generated STLs can have float32 degenerate vertices that cause
+  // splitIntoComponents to split them incorrectly, leading to wrong union volume.
+  try {
+    const m = buildManifold(triangles, Manifold, Module, 9)
+    if (m.volume() > 0) return m
+  } catch (_e) { /* fall through to splitting */ }
+
   const components = splitIntoComponents(triangles)
 
   if (components.length === 1) {
-    return buildManifold(triangles, Manifold, Module)
-  }
-
-  // Try multi-body: build one Manifold per component, then union.
-  // If any component is not a valid closed mesh, fall back to single Manifold.
-  const manifolds = []
-  let fallback = false
-  for (const c of components) {
-    try {
-      const m = buildManifold(c, Manifold, Module)
-      if (m.volume() === 0) { fallback = true; break }
-      manifolds.push(m)
-    } catch (_e) {
-      fallback = true
-      break
+    // Single component but precision=9 failed; try lower precisions.
+    for (const prec of [6, 5, 4]) {
+      try {
+        const m = buildManifold(triangles, Manifold, Module, prec)
+        if (m.volume() > 0) return m
+      } catch (_e) { /* try lower precision */ }
     }
+    throw new Error('Not manifold')
   }
 
-  if (fallback) {
-    for (const m of manifolds) { try { m.delete() } catch (_e) { /* ignore */ } }
-    return buildManifold(triangles, Manifold, Module)
+  // Multi-body path: build one Manifold per component, then union.
+  // If a component fails at high precision, retry with lower precision.
+  // Skip components that fail at all precisions rather than failing entirely.
+  const manifolds = []
+  for (const c of components) {
+    let m = null
+    for (const prec of [9, 6, 5]) {
+      try {
+        m = buildManifold(c, Manifold, Module, prec)
+        if (m.volume() === 0) { m = null; continue }
+        break
+      } catch (_e) {
+        m = null
+      }
+    }
+    if (m !== null) manifolds.push(m)
+  }
+
+  if (manifolds.length === 0) {
+    throw new Error('Not manifold')
   }
 
   const result = Manifold.union(manifolds)
