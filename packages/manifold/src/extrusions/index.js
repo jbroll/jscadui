@@ -5,7 +5,7 @@
  */
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- used for future reference
-import { getModule, getCrossSection } from '../init.js'
+import { getModule } from '../init.js'
 import { ManifoldGeom3, toManifold } from '../geometries/ManifoldGeom3.js'
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- toCrossSection may be used later
 import { ManifoldGeom2, isManifoldGeom2, toCrossSection, toJscadGeom2 } from '../geometries/ManifoldGeom2.js'
@@ -34,8 +34,8 @@ const hasJscadSource = (geom) => isManifoldGeom2(geom) && geom.hasJscadSource
  * @returns {Object|Array} Extruded 3D geometry/geometries
  */
 export const extrudeLinear = (options, ...geometries) => {
-  const defaults = { height: 1, twistAngle: 0, twistSteps: 1, scale: [1, 1], $fa: 12, $fs: 2 }
-  const { height, twistAngle, twistSteps, scale, $fa, $fs } = { ...defaults, ...options }
+  const defaults = { height: 1, twistAngle: 0, twistSteps: 1, scale: [1, 1] }
+  const { height, twistAngle, twistSteps, scale } = { ...defaults, ...options }
 
   const geoms = geometries.flat(Infinity).filter(g => g != null)
 
@@ -48,7 +48,7 @@ export const extrudeLinear = (options, ...geometries) => {
     }
 
     // Use Manifold's native extrusion for CrossSection-sourced geometries
-    let section = isManifoldGeom2(geom) ? geom.crossSection : geom2ToCrossSection(geom)
+    const section = isManifoldGeom2(geom) ? geom.crossSection : geom2ToCrossSection(geom)
 
     // Convert twist angle from radians to degrees
     const twistDegrees = twistAngle * (180 / Math.PI)
@@ -56,37 +56,6 @@ export const extrudeLinear = (options, ...geometries) => {
     // Manifold extrude signature: extrude(height, nDivisions=0, twistDegrees=0, scaleTop=[1,1], center=false)
     const scaleTop = Array.isArray(scale) ? scale : [scale, scale]
     const nDivisions = twistAngle !== 0 ? twistSteps : 0
-
-    // When twisting, pre-subdivide cross-section edges to match OpenSCAD accuracy.
-    // Manifold only subdivides along Z; OpenSCAD also subdivides polygon edges,
-    // producing more accurate ruled surfaces between twist layers.
-    // Low-vertex cross-sections (rectangles) need subdivision; high-vertex ones (circles) don't.
-    if (twistDegrees !== 0 && nDivisions > 0) {
-      const polys = section.toPolygons()
-      const totalVerts = polys.reduce((s, p) => s + p.length, 0)
-      // OpenSCAD formula: segsPerEdge = max(1, floor(circleFrags / polygonEdges))
-      // circleFrags uses $fa/$fs (not $fn) with the polygon's estimated circumradius.
-      const circumR = totalVerts > 0
-        ? Math.max(...polys.flatMap(poly => poly.map(([x, y]) => Math.sqrt(x * x + y * y))))
-        : 1
-      const circleFrags = Math.max(5, Math.ceil(Math.min(360 / $fa, 2 * Math.PI * circumR / $fs)))
-      const targetPerEdge = Math.max(1, Math.floor(circleFrags / Math.max(1, totalVerts)))
-      if (targetPerEdge > 1) {
-        const CrossSection = getCrossSection()
-        const subdivided = polys.map(poly => {
-          const result = []
-          for (let i = 0; i < poly.length; i++) {
-            const p0 = poly[i], p1 = poly[(i + 1) % poly.length]
-            for (let j = 0; j < targetPerEdge; j++) {
-              const t = j / targetPerEdge
-              result.push([p0[0] + (p1[0] - p0[0]) * t, p0[1] + (p1[1] - p0[1]) * t])
-            }
-          }
-          return result
-        })
-        section = new CrossSection(subdivided)
-      }
-    }
 
     const extruded = section.extrude(height, nDivisions, twistDegrees, scaleTop, false)
 
