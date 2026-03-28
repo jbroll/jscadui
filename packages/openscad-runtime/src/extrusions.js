@@ -22,23 +22,36 @@ export const initExtrusions = (jscad) => {
 }
 
 // Linear extrude helper - uses extrudeFromSlices when scale is used
-export const _linearExtrude = ({ height, center = false, twist = 0, slices, scale = 1, segments, $fn = 0 }, geo) => {
+export const _linearExtrude = ({ height, center = false, twist = 0, slices, scale = 1, segments, $fn = 0, $fa = 12, $fs = 2 }, geo) => {
   // Propagate absent child (NO_CHILD = conditional branch not taken)
   if (geo === NO_CHILD) return NO_CHILD
   // Return undefined for empty/missing geometry to avoid degenerate extrusions
   if (!geo) return undefined
-  // ManifoldGeom2 has 'crossSection' but not 'outlines' — delegate directly to extrudeLinear
-  // which handles CrossSection natively (including twist and scale via CrossSection.extrude).
-  if (geo.outlines === undefined && geo.crossSection !== undefined) {
-    // Compute twist steps to match OpenSCAD subdivision
-    let twistSteps
+  // ManifoldGeom2 has 'crossSection' — delegate directly to Manifold's native extrudeLinear.
+  // For twist with multi-outline (shapes with holes), fall through to JSCAD extrudeFromSlices
+  // which handles hole subtraction more accurately for twisted extrusions.
+  if (geo.crossSection !== undefined) {
+    // Check for multi-outline + twist: fall through to JSCAD path for better accuracy
+    let hasMultipleContours = false
     if (twist !== 0) {
-      twistSteps = slices !== undefined
-        ? Math.max(1, Math.ceil(slices))
-        : ($fn > 0 ? $fn : Math.max(1, Math.ceil(Math.abs(twist) / 6)))
+      try {
+        const cs = geo.crossSection
+        if (cs && typeof cs.toPolygons === 'function') {
+          hasMultipleContours = cs.toPolygons().length > 1
+        }
+      } catch (_) { /* fall through to Manifold path */ }
     }
-    const result = extrudeLinear({ height, twistAngle: twist * Math.PI / 180, twistSteps, scale }, geo)
-    return center ? translate([0, 0, -height / 2], result) : result
+    if (!hasMultipleContours) {
+      let twistSteps
+      if (twist !== 0) {
+        twistSteps = slices !== undefined
+          ? Math.max(1, Math.ceil(slices))
+          : Math.max(1, Math.ceil(Math.abs(twist) * _getSegments(1, $fn, $fa, $fs) / 360))
+      }
+      // Negate twist: OpenSCAD twist convention is opposite to Manifold's
+      const result = extrudeLinear({ height, twistAngle: -twist * Math.PI / 180, twistSteps, scale }, geo)
+      return center ? translate([0, 0, -height / 2], result) : result
+    }
   }
   // Only check toSides for standard JSCAD geom2 (has 'outlines' property).
   if (geo.outlines !== undefined && geom2.toSides(geo).length === 0) return undefined
@@ -54,7 +67,7 @@ export const _linearExtrude = ({ height, center = false, twist = 0, slices, scal
   if (slices !== undefined) {
     steps = Math.max(1, Math.ceil(slices))
   } else if (twist !== 0) {
-    steps = $fn > 0 ? $fn : Math.max(1, Math.ceil(Math.abs(twist) / 6))
+    steps = Math.max(1, Math.ceil(Math.abs(twist) * _getSegments(1, $fn, $fa, $fs) / 360))
   } else if (needsScale) {
     steps = 16
   } else {
@@ -68,14 +81,11 @@ export const _linearExtrude = ({ height, center = false, twist = 0, slices, scal
     const twistRad = -twist * Math.PI / 180
 
     // Extrude one outline (CCW array of [x,y] points) as a 3D solid
-    const extrudeOneSolid = (outline) => {
+    const extrudeOneSolid = (outline, segsPerEdge) => {
       let sides = outline.map((p, i) => [p, outline[(i + 1) % outline.length]])
 
       // For multi-outline rings, OpenSCAD's CDT triangulation adds edge splits before extrusion.
-      // The CDT splits each N-sided polygon edge into (N-1) segments to ensure valid ring triangulation.
-      // This replicates OpenSCAD's behavior where the ring cap mesh drives the side-face vertex count.
-      if (twist !== 0) {
-        const segsPerEdge = segments !== undefined ? Math.max(1, segments) : Math.max(1, outline.length - 1)
+      if (twist !== 0 && segsPerEdge !== undefined) {
         if (segsPerEdge > 1) {
           const subdividedSides = []
           for (const [p0, p1] of sides) {
@@ -118,17 +128,21 @@ export const _linearExtrude = ({ height, center = false, twist = 0, slices, scal
         }
         return a
       }
+      // OpenSCAD CDT for multi-outline cross-sections uses total_vertices - num_outlines as segsPerEdge.
+      // This drives the side-face vertex density to match OpenSCAD's ring triangulation mesh.
+      const totalOutlineVerts = outlines.reduce((s, o) => s + o.length, 0)
+      const segsPerEdge = segments !== undefined ? Math.max(1, segments) : Math.max(1, totalOutlineVerts - outlines.length)
       let solid = null
       for (const outline of outlines) {
         const area = signedArea(outline)
         if (area > 0) {
           // CCW = outer: extrude and combine (union) with other outers
-          const extruded = extrudeOneSolid(outline)
+          const extruded = extrudeOneSolid(outline, segsPerEdge)
           solid = solid ? subtract(solid, extruded) : extruded  // first outer becomes base; additional outers would need union but rare
         } else {
           // CW = inner hole: reverse to CCW, extrude, then subtract
           const reversed = outline.slice().reverse()
-          const extruded = extrudeOneSolid(reversed)
+          const extruded = extrudeOneSolid(reversed, segsPerEdge)
           if (solid) solid = subtract(solid, extruded)
         }
       }

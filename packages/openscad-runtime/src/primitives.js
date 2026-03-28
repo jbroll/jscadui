@@ -93,6 +93,10 @@ export const _sphere = ({ r, d, $fn = 0, $fa, $fs }) => {
 export const _circle = ({ r, d, $fn = 0, $fa, $fs }) => {
   const rr = _num(r), dd = _num(d)
   const radius = rr ?? (dd ? dd/2 : 1)
+  // OpenSCAD circle(r=0) creates a degenerate point used in hull() to anchor corners.
+  // JSCAD circle(radius=0) returns empty geometry (no sides), losing the hull anchor.
+  // Return a tiny centered square so hull() treats it as a point at origin.
+  if (radius <= 0) return rectangle({ size: [0.0001, 0.0001] })
   const segments = _getSegments(radius, $fn, $fa, $fs)
   return circle({ radius, segments })
 }

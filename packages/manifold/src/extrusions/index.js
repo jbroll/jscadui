@@ -5,7 +5,7 @@
  */
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- used for future reference
-import { getModule } from '../init.js'
+import { getModule, getCrossSection } from '../init.js'
 import { ManifoldGeom3, toManifold } from '../geometries/ManifoldGeom3.js'
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- toCrossSection may be used later
 import { ManifoldGeom2, isManifoldGeom2, toCrossSection, toJscadGeom2 } from '../geometries/ManifoldGeom2.js'
@@ -48,7 +48,7 @@ export const extrudeLinear = (options, ...geometries) => {
     }
 
     // Use Manifold's native extrusion for CrossSection-sourced geometries
-    const section = isManifoldGeom2(geom) ? geom.crossSection : geom2ToCrossSection(geom)
+    let section = isManifoldGeom2(geom) ? geom.crossSection : geom2ToCrossSection(geom)
 
     // Convert twist angle from radians to degrees
     const twistDegrees = twistAngle * (180 / Math.PI)
@@ -56,6 +56,32 @@ export const extrudeLinear = (options, ...geometries) => {
     // Manifold extrude signature: extrude(height, nDivisions=0, twistDegrees=0, scaleTop=[1,1], center=false)
     const scaleTop = Array.isArray(scale) ? scale : [scale, scale]
     const nDivisions = twistAngle !== 0 ? twistSteps : 0
+
+    // When twisting, pre-subdivide cross-section edges to match OpenSCAD accuracy.
+    // Manifold only subdivides along Z; OpenSCAD also subdivides polygon edges,
+    // producing more accurate ruled surfaces between twist layers.
+    // Low-vertex cross-sections (rectangles) need subdivision; high-vertex ones (circles) don't.
+    if (twistDegrees !== 0 && nDivisions > 0) {
+      const polys = section.toPolygons()
+      const totalVerts = polys.reduce((s, p) => s + p.length, 0)
+      // Target ~16 subdivisions per edge for low-vertex shapes, fewer for complex ones
+      const targetPerEdge = Math.max(1, Math.ceil(16 / Math.max(1, Math.sqrt(totalVerts / 4))))
+      if (targetPerEdge > 1) {
+        const CrossSection = getCrossSection()
+        const subdivided = polys.map(poly => {
+          const result = []
+          for (let i = 0; i < poly.length; i++) {
+            const p0 = poly[i], p1 = poly[(i + 1) % poly.length]
+            for (let j = 0; j < targetPerEdge; j++) {
+              const t = j / targetPerEdge
+              result.push([p0[0] + (p1[0] - p0[0]) * t, p0[1] + (p1[1] - p0[1]) * t])
+            }
+          }
+          return result
+        })
+        section = new CrossSection(subdivided)
+      }
+    }
 
     const extruded = section.extrude(height, nDivisions, twistDegrees, scaleTop, false)
 

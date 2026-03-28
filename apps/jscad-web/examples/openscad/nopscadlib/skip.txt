@@ -1,5 +1,3 @@
 # NopSCADlib skip list
 # libtest.scad includes all test modules — hits duplicate _saved__fa declaration bug
 NopSCADlib/libtest.scad
-# LED_bezel: polygon phase difference in poly_ring path3 (squeezed_wall) — Jaccard 0.9765 WIP
-NopSCADlib/tests/LED_bezel.scad

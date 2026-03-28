@@ -11,31 +11,36 @@ When debugging test failures:
 
 ## Testing Strategy
 
-The full comparison suite (bosl, bosl2, nopscadlib, snippet, 01-basics, text) runs OpenSCAD and renders hundreds of STL files. This requires several GB of RAM and takes several minutes — **it runs on gpu via simple-ci, not locally**.
+> **CRITICAL: Never run the full test suite locally.** The full comparison suite requires OpenSCAD binary, several GB of RAM, and takes many minutes. It will OOM or time out on a dev machine. **Always use `npm test` which runs on the remote GPU via simple-ci.**
 
-**Use remote CI for full suite validation:**
+**ONLY valid workflow:**
+1. Debug individual failing models locally with `run-jscad.js` + `compare-stl.js`
+2. Run unit tests locally with `npx vitest run`
+3. Push fixes and run `npm test` on GPU for full suite validation
+
 ```bash
+# ✅ CORRECT — runs on GPU via simple-ci:
 npm test          # rsyncs to gpu, runs full suite, streams log to stdout when done
                   # progress dots on stderr while waiting; exits 0/1 for pass/fail
-```
 
-**Use local commands for debugging individual models:**
-```bash
+# ✅ OK locally — single file or single suite:
 npx vitest run                                                      # unit tests (fast, local)
-node bin/test-harness.js ../../apps/jscad-web/examples/openscad/bosl/some_module.scad
-node bin/test-harness.js ../../apps/jscad-web/examples/openscad/bosl   # one suite
-node bin/test-harness.js ../../apps/jscad-web/examples/openscad/bosl2  # one suite
-npm run test:local   # all suites locally (only if gpu unavailable — slow, memory-intensive)
+node bin/run-jscad.js path/to/file.scad -o /tmp/out.stl            # transpile+render one file
+node bin/compare-stl.js ref.stl /tmp/out.stl                       # compare one file
+node bin/test-harness.js path/to/one/file.scad                     # compare one file end-to-end
+
+# ❌ DO NOT RUN LOCALLY — too slow/heavy:
+node bin/test-harness.js ../../apps/jscad-web/examples/openscad/bosl     # entire suite
+node bin/test-harness.js ../../apps/jscad-web/examples/openscad/nopscadlib
+npm run test:local
 ```
 
-The workflow is: iterate locally on individual failing models using `test-harness.js`, then run `npm test` to confirm nothing else regressed.
-
-**Known permanent failure:** nopscadlib passes ~7% (pre-existing transpiler gaps, not regressions).
-
-To watch CI progress in real time:
+To watch GPU CI progress in real time:
 ```bash
 ssh gpu 'tail -f ~/ci-logs/$(ls -t ~/ci-logs/*.log | head -1)'
 ```
+
+**Known permanent failure:** nopscadlib passes ~7% (pre-existing transpiler gaps, not regressions).
 
 ## Architecture Overview
 
