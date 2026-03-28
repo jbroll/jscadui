@@ -401,29 +401,6 @@ async function compareStl(refStl, genStl) {
   }
 }
 
-function copyDependencies(scadPath, tempDir, visited = new Set(), tempRelativeDir = '') {
-  const resolvedPath = resolve(scadPath)
-  if (visited.has(resolvedPath)) return
-  visited.add(resolvedPath)
-
-  const sourceDir = dirname(scadPath)
-  const content = readFileSync(scadPath, 'utf8')
-  const useRegex = /(?:use|include)\s*<([^>]+)>/g
-  let match
-
-  while ((match = useRegex.exec(content)) !== null) {
-    const depPath = match[1]
-    const sourcePath = join(sourceDir, depPath)
-    const destPath = join(tempDir, tempRelativeDir, depPath)
-
-    if (existsSync(sourcePath)) {
-      mkdirSync(dirname(destPath), { recursive: true })
-      copyFileSync(sourcePath, destPath)
-      const newRelativeDir = join(tempRelativeDir, dirname(depPath))
-      copyDependencies(sourcePath, tempDir, visited, newRelativeDir)
-    }
-  }
-}
 
 async function testFile(scadPath, options) {
   const name = basename(scadPath)
@@ -431,18 +408,18 @@ async function testFile(scadPath, options) {
 
   mkdirSync(tempDir, { recursive: true })
 
-  const tempScad = join(tempDir, 'input.scad')
-  copyFileSync(scadPath, tempScad)
-  copyDependencies(scadPath, tempDir)
-
   const refStl = join(tempDir, 'reference.stl')
   const genStl = join(tempDir, 'generated.stl')
 
   const result = { name, path: scadPath, jaccard: null, pass: false, error: null }
 
   try {
-    // Pass original scadPath for library detection (tempScad is in temp dir)
-    const openscadResult = await runOpenscad(tempScad, refStl, options.openscad, options.fn, scadPath, options.stlCache, options.preview)
+    // Use the original scadPath directly — OpenSCAD resolves includes relative to the
+    // source file's directory, so no temp copy or copyDependencies needed.
+    // Passing a temp copy caused a race condition: includes with `..` paths escaped
+    // the temp dir into a shared parent, allowing concurrent workers to overwrite
+    // the same dependency files while OpenSCAD was reading them.
+    const openscadResult = await runOpenscad(scadPath, refStl, options.openscad, options.fn, null, options.stlCache, options.preview)
     if (!openscadResult.success) {
       result.error = `OpenSCAD: ${openscadResult.error}`
       return result
