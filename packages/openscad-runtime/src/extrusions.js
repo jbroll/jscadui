@@ -6,7 +6,7 @@ import { _globalFn, _getSegments } from './segments.js'
 import { NO_CHILD } from './primitives.js'
 
 // JSCAD extrusions and utilities - injected at init time
-let extrudeLinear, extrudeRotate, extrudeFromSlices, translate, mirror, geom2, slice, mat4, subtract
+let extrudeLinear, extrudeRotate, extrudeFromSlices, translate, mirror, geom2, slice, mat4, subtract, union
 
 export const initExtrusions = (jscad) => {
   extrudeLinear = jscad.extrusions.extrudeLinear
@@ -19,6 +19,7 @@ export const initExtrusions = (jscad) => {
   slice = jscad.extrusions?.slice || jscad.geometries?.slice
   mat4 = jscad.maths.mat4
   subtract = jscad.booleans.subtract
+  union = jscad.booleans.union
 }
 
 // Linear extrude helper - uses extrudeFromSlices when scale is used
@@ -128,17 +129,25 @@ export const _linearExtrude = ({ height, center = false, twist = 0, slices, scal
         }
         return a
       }
-      // OpenSCAD CDT for multi-outline cross-sections uses total_vertices - num_outlines as segsPerEdge.
-      // This drives the side-face vertex density to match OpenSCAD's ring triangulation mesh.
+      // Classify outlines: positive area = CCW outer, negative area = CW inner hole
+      const classified = outlines.map(o => ({ outline: o, area: signedArea(o) }))
+      const hasHoles = classified.some(c => c.area < 0)
+
+      // segsPerEdge: ring topology (outer+holes) uses total_verts - num_outlines to match
+      // OpenSCAD's CDT mesh density. Disconnected outlines (all outer) use per-outline length.
       const totalOutlineVerts = outlines.reduce((s, o) => s + o.length, 0)
-      const segsPerEdge = segments !== undefined ? Math.max(1, segments) : Math.max(1, totalOutlineVerts - outlines.length)
+      const segsPerEdge = segments !== undefined
+        ? Math.max(1, segments)
+        : hasHoles
+          ? Math.max(1, totalOutlineVerts - outlines.length)
+          : Math.max(1, Math.max(...outlines.map(o => o.length)) - 1)
+
       let solid = null
-      for (const outline of outlines) {
-        const area = signedArea(outline)
+      for (const { outline, area } of classified) {
         if (area > 0) {
-          // CCW = outer: extrude and combine (union) with other outers
+          // CCW = outer: extrude and union with other outers
           const extruded = extrudeOneSolid(outline, segsPerEdge)
-          solid = solid ? subtract(solid, extruded) : extruded  // first outer becomes base; additional outers would need union but rare
+          solid = solid ? union(solid, extruded) : extruded
         } else {
           // CW = inner hole: reverse to CCW, extrude, then subtract
           const reversed = outline.slice().reverse()
