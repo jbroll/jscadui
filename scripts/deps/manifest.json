@@ -7,7 +7,7 @@
       "description": "BOSL v1 library source files",
       "url": "https://github.com/revarbat/BOSL.git",
       "ref": "master",
-      "commit": null,
+      "commit": "4ce427a8a38786e5f74b728c1e33d9fe7d4904d2",
       "license": "LGPL-2.1",
       "mappings": [
         {
@@ -27,16 +27,8 @@
       ],
       "patches": [
         {
-          "file": "packages/openscad/test/corpus/bosl/bezier_patches.scad",
-          "description": "Rewrite BOSL/ include paths to local lib/",
-          "replace": "BOSL/",
-          "with": "lib/"
-        },
-        {
-          "file": "packages/openscad/test/corpus/bosl/orientations.scad",
-          "description": "Rewrite BOSL/ include paths to local lib/",
-          "replace": "BOSL/",
-          "with": "lib/"
+          "patchFile": "scripts/deps/patches/bosl-lib-fix-includes.patch",
+          "description": "Rewrite BOSL/ include paths to local lib/"
         }
       ]
     },
@@ -45,7 +37,7 @@
       "description": "BOSL2 library source files",
       "url": "https://github.com/BelfrySCAD/BOSL2.git",
       "ref": "master",
-      "commit": null,
+      "commit": "68bae2d7e0675c2923af7e012bd39f1931fea09d",
       "license": "BSD-2-Clause",
       "mappings": [
         {
@@ -65,52 +57,8 @@
       ],
       "patches": [
         {
-          "file": "packages/openscad/test/corpus/bosl2/BOSL2logo.scad",
-          "description": "Rewrite BOSL2/ include paths to local lib/",
-          "replace": "BOSL2/",
-          "with": "lib/"
-        },
-        {
-          "file": "packages/openscad/test/corpus/bosl2/attachments.scad",
-          "description": "Rewrite BOSL2/ include paths to local lib/",
-          "replace": "BOSL2/",
-          "with": "lib/"
-        },
-        {
-          "file": "packages/openscad/test/corpus/bosl2/boolean_geometry.scad",
-          "description": "Rewrite BOSL2/ include paths to local lib/",
-          "replace": "BOSL2/",
-          "with": "lib/"
-        },
-        {
-          "file": "packages/openscad/test/corpus/bosl2/fractal_tree.scad",
-          "description": "Rewrite BOSL2/ include paths to local lib/",
-          "replace": "BOSL2/",
-          "with": "lib/"
-        },
-        {
-          "file": "packages/openscad/test/corpus/bosl2/lsystems.scad",
-          "description": "Rewrite BOSL2/ include paths to local lib/",
-          "replace": "BOSL2/",
-          "with": "lib/"
-        },
-        {
-          "file": "packages/openscad/test/corpus/bosl2/orientations.scad",
-          "description": "Rewrite BOSL2/ include paths to local lib/",
-          "replace": "BOSL2/",
-          "with": "lib/"
-        },
-        {
-          "file": "packages/openscad/test/corpus/bosl2/spherical_patch.scad",
-          "description": "Rewrite BOSL2/ include paths to local lib/",
-          "replace": "BOSL2/",
-          "with": "lib/"
-        },
-        {
-          "file": "packages/openscad/test/corpus/bosl2/spring_handle.scad",
-          "description": "Rewrite BOSL2/ include paths to local lib/",
-          "replace": "BOSL2/",
-          "with": "lib/"
+          "patchFile": "scripts/deps/patches/bosl2-lib-fix-includes.patch",
+          "description": "Rewrite BOSL2/ include paths to local lib/"
         }
       ]
     },
@@ -121,7 +69,12 @@
       "script": "packages/openscad/bin/extract-bosl1-examples.js",
       "cwd": "packages/openscad",
       "requires": ["bosl-lib"],
-      "patches": []
+      "patches": [
+        {
+          "patchFile": "scripts/deps/patches/bosl-corpus-joiners-shapes-dep.patch",
+          "description": "Add explicit shapes.scad dep — example uses cuboid() which joiners.scad imports transitively"
+        }
+      ]
     },
     {
       "name": "bosl2-corpus",
@@ -137,7 +90,7 @@
       "description": "NopSCADlib library source files and component test files",
       "url": "https://github.com/nophead/NopSCADlib.git",
       "ref": "master",
-      "commit": null,
+      "commit": "c9baa0ed0faa23e849141c3d8c6728545d6af910",
       "license": "GPL-3.0",
       "mappings": [
         {
@@ -155,7 +108,7 @@
       "description": "OpenSCAD community code snippets (AngeloNicoli/OpenSCAD-Snippet)",
       "url": "https://github.com/AngeloNicoli/OpenSCAD-Snippet.git",
       "ref": "main",
-      "commit": null,
+      "commit": "a718aaf84821dc229353257359cf940f7dbd90da",
       "license": "mixed",
       "mappings": [
         {
@@ -187,7 +140,12 @@
           "skipFiles": []
         }
       ],
-      "patches": []
+      "patches": [
+        {
+          "patchFile": "scripts/deps/patches/snippet-bricks-seed-rands.patch",
+          "description": "Seed rands() calls in Bricks.scad for deterministic output across test runs"
+        }
+      ]
     }
   ],
   "organize": {

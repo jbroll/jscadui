@@ -5,7 +5,7 @@
  * Reads scripts/deps/manifest.json.  For each dep it:
  *   1. Clones the upstream git repo to a local cache (.deps-cache/<name>/)
  *   2. For each mapping: copies files from srcDir → destDir inside the dest tree
- *   3. Applies any declared text-replacement patches
+ *   3. Applies unified-diff patch files
  *
  * Generated deps (no URL) run a script instead of a git clone.
  * After all deps are fetched, organize-corpus.js is run to build the examples dir.
@@ -109,21 +109,42 @@ function fileWanted(relPath, fileName, include, exclude, skipFiles) {
 // git helpers
 // ---------------------------------------------------------------------------
 function cloneOrFetch(dep, cacheDir) {
+  const pinned = dep.commit || null
+
   if (existsSync(cacheDir)) {
     if (!UPDATE) {
+      if (pinned) {
+        const current = headSHA(cacheDir)
+        if (current !== pinned) {
+          console.warn(`  warn: cache is at ${current.slice(0, 8)}, manifest pins ${pinned.slice(0, 8)}`)
+          console.warn(`  run npm run fetch-deps:update to re-checkout pinned commit`)
+        }
+      }
       console.log(`  cache hit: ${cacheDir}`)
       return
     }
-    console.log(`  fetching updates…`)
-    exec(`git -C ${q(cacheDir)} fetch --depth=1 origin ${q(dep.ref)}`)
-    exec(`git -C ${q(cacheDir)} checkout FETCH_HEAD`)
+    console.log(`  updating…`)
+    if (pinned) {
+      exec(`git -C ${q(cacheDir)} fetch origin`)
+      exec(`git -C ${q(cacheDir)} checkout ${q(pinned)}`)
+    } else {
+      exec(`git -C ${q(cacheDir)} fetch --depth=1 origin ${q(dep.ref)}`)
+      exec(`git -C ${q(cacheDir)} checkout FETCH_HEAD`)
+    }
   } else {
-    console.log(`  cloning ${dep.url} @ ${dep.ref}…`)
     ensureDir(CACHE_DIR)
-    exec(
-      `git clone --filter=blob:none --depth=1 ` +
-      `--branch ${q(dep.ref)} ${q(dep.url)} ${q(cacheDir)}`
-    )
+    if (pinned) {
+      console.log(`  cloning ${dep.url} (pinned @ ${pinned.slice(0, 8)})…`)
+      // blobless clone (no depth) so we can checkout a specific commit
+      exec(`git clone --filter=blob:none ${q(dep.url)} ${q(cacheDir)}`)
+      exec(`git -C ${q(cacheDir)} checkout ${q(pinned)}`)
+    } else {
+      console.log(`  cloning ${dep.url} @ ${dep.ref}…`)
+      exec(
+        `git clone --filter=blob:none --depth=1 ` +
+        `--branch ${q(dep.ref)} ${q(dep.url)} ${q(cacheDir)}`
+      )
+    }
   }
 }
 
@@ -207,23 +228,29 @@ function applyMapping(cacheDir, mapping) {
 // ---------------------------------------------------------------------------
 function applyPatches(patches) {
   for (const patch of patches ?? []) {
-    const absPath = join(ROOT, patch.file)
-
-    if (!existsSync(absPath)) {
-      console.warn(`  warn: patch target not found: ${patch.file}`)
+    const patchFile = join(ROOT, patch.patchFile)
+    if (!existsSync(patchFile)) {
+      console.warn(`  warn: patch file not found: ${patch.patchFile}`)
       continue
     }
-
-    const original = readFileSync(absPath, 'utf8')
-    if (!original.includes(patch.replace)) {
-      console.log(`  patch already applied (or not applicable): ${patch.file}`)
+    const desc = patch.description ? ` — ${patch.description}` : ''
+    console.log(`  patch${desc}`)
+    if (DRY_RUN) {
+      console.log(`    [dry] patch --forward --no-backup-if-mismatch -p1 -i ${patch.patchFile}`)
       continue
     }
-
-    const patched = original.split(patch.replace).join(patch.with)
-    console.log(`  patch ${patch.file}`)
-    console.log(`        "${patch.replace}"  →  "${patch.with}"`)
-    if (!DRY_RUN) writeFileSync(absPath, patched, 'utf8')
+    const result = spawnSync(
+      'patch',
+      ['--forward', '--no-backup-if-mismatch', '-p1', '-i', patchFile],
+      { cwd: ROOT, encoding: 'utf8', stdio: 'pipe' }
+    )
+    if (result.status === 0) continue
+    const out = (result.stdout || '') + (result.stderr || '')
+    if (out.includes('Skipping patch')) {
+      console.log('    already applied')
+      continue
+    }
+    throw new Error(`patch failed (${patch.patchFile}):\n${out}`)
   }
 }
 

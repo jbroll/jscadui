@@ -1,0 +1,70 @@
+--- a/packages/openscad/test/corpus/bosl2/BOSL2logo.scad
++++ b/packages/openscad/test/corpus/bosl2/BOSL2logo.scad
+@@ -1,7 +1,7 @@
+-include <BOSL2/std.scad>
+-include <BOSL2/gears.scad>
+-include <BOSL2/screws.scad>
+-include <BOSL2/cubetruss.scad>
++include <lib/std.scad>
++include <lib/gears.scad>
++include <lib/screws.scad>
++include <lib/cubetruss.scad>
+ 
+ $fa=1;
+ $fs=1;
+--- a/packages/openscad/test/corpus/bosl2/attachments.scad
++++ b/packages/openscad/test/corpus/bosl2/attachments.scad
+@@ -1,4 +1,4 @@
+-include <BOSL2/std.scad>
++include <lib/std.scad>
+ 
+ 
+ $fn=32;
+--- a/packages/openscad/test/corpus/bosl2/boolean_geometry.scad
++++ b/packages/openscad/test/corpus/bosl2/boolean_geometry.scad
+@@ -1,4 +1,4 @@
+-include <BOSL2/std.scad>
++include <lib/std.scad>
+ 
+ $fn = 36;
+ 
+--- a/packages/openscad/test/corpus/bosl2/fractal_tree.scad
++++ b/packages/openscad/test/corpus/bosl2/fractal_tree.scad
+@@ -1,4 +1,4 @@
+-include <BOSL2/std.scad>
++include <lib/std.scad>
+ module tree(l=1500, sc=0.7, depth=10)
+     recolor("lightgray")
+     cylinder(h=l, d1=l/5, d2=l/5*sc)
+--- a/packages/openscad/test/corpus/bosl2/lsystems.scad
++++ b/packages/openscad/test/corpus/bosl2/lsystems.scad
+@@ -1,4 +1,4 @@
+-include <BOSL2/std.scad>
++include <lib/std.scad>
+ 
+ function _lsystem_recurse(s, rules, lev) =
+     lev<=0? s : _lsystem_recurse([
+--- a/packages/openscad/test/corpus/bosl2/orientations.scad
++++ b/packages/openscad/test/corpus/bosl2/orientations.scad
+@@ -1,4 +1,4 @@
+-include <BOSL2/std.scad>
++include <lib/std.scad>
+ 
+ // Shows all the orientations on cubes in their correct rotations.
+ 
+--- a/packages/openscad/test/corpus/bosl2/spherical_patch.scad
++++ b/packages/openscad/test/corpus/bosl2/spherical_patch.scad
+@@ -1,4 +1,4 @@
+-include <BOSL2/std.scad>
++include <lib/std.scad>
+ 
+ // Makes a pseudo-sphere from a rectangular patch and its mirror.
+ s = 50/sqrt(2);
+--- a/packages/openscad/test/corpus/bosl2/spring_handle.scad
++++ b/packages/openscad/test/corpus/bosl2/spring_handle.scad
+@@ -1,4 +1,4 @@
+-include <BOSL2/std.scad>
++include <lib/std.scad>
+ 
+ $fn = 45;
+ wire_d = 2;

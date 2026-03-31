@@ -1,0 +1,16 @@
+--- a/packages/openscad/test/corpus/snippet/Asset_SCAD/Bricks.scad
++++ b/packages/openscad/test/corpus/snippet/Asset_SCAD/Bricks.scad
+@@ -1,10 +1,10 @@
+ module Bricks(){
+     colors = ["#cb6b6b","#dd7d7d","#9e3333","#842020"];
+ 
+-    single_rand = rands(5,10,1)[0];
+-    single_rand2 = rands(5,10,1)[0];
++    single_rand = rands(5,10,1,42)[0];
++    single_rand2 = rands(5,10,1,43)[0];
+ 
+-    index_color = rands(0,3,1)[0]; // get a single number
++    index_color = rands(0,3,1,44)[0]; // get a single number
+ 
+     color(colors[index_color])
+     linear_extrude(height = 3){

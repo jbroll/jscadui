@@ -1,0 +1,10 @@
+--- a/packages/openscad/test/corpus/bosl/009-joiners-joiner.scad
++++ b/packages/openscad/test/corpus/bosl/009-joiners-joiner.scad
+@@ -2,6 +2,7 @@
+ // Extracted from BOSL library examples
+ include <lib/constants.scad>
+ use <lib/joiners.scad>
++use <lib/shapes.scad>
+ 
+ joiner(screwsize=3, orient=ORIENT_X);
+ joiner(w=10, l=10, h=40, orient=ORIENT_X) cuboid([10, 10*2, 40], align=V_LEFT, $fn=32);
