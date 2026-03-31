@@ -538,11 +538,20 @@ function isSkippedByDirPatterns(filePath, dirSkips) {
   for (const { dir, patterns } of dirSkips) {
     // Only apply patterns from a skip.txt to files under that directory
     if (!resolvedFile.startsWith(dir + '/') && resolvedFile !== dir) continue
+    const relPath = relative(dir, resolvedFile)
     for (const p of patterns) {
+      // Leading / means "anchored to this directory": match only against relative path,
+      // and * does not cross directory boundaries (matches [^/]* not .*)
+      const anchored = p.startsWith('/')
+      const rawPattern = anchored ? p.slice(1) : p
       // Trailing slash is a directory shorthand: "lib/" skips all files under lib/
-      const pattern = p.endsWith('/') ? p + '*' : p
-      const regex = new RegExp('^' + pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$')
-      if (regex.test(basename(resolvedFile)) || regex.test(relative(dir, resolvedFile))) {
+      const pattern = rawPattern.endsWith('/') ? rawPattern + '*' : rawPattern
+      const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&')
+      const regexStr = anchored
+        ? escaped.replace(/\*\*/g, '.*').replace(/(?<!\*)\*(?!\*)/g, '[^/]*')
+        : escaped.replace(/\*/g, '.*')
+      const regex = new RegExp('^' + regexStr + '$')
+      if (anchored ? regex.test(relPath) : (regex.test(basename(resolvedFile)) || regex.test(relPath))) {
         return true
       }
     }

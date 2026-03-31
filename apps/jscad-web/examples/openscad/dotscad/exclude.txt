@@ -1,8 +1,8 @@
 # dotSCAD library source files — not standalone test files
 # Only examples/ contains runnable test models
 
-# Root-level lib files (from src/)
-*.scad
+# Root-level lib files (from src/) — anchored /: matches only at this dir's root
+/*.scad
 
 # Library subdirectories (from src/)
 __comm__/
