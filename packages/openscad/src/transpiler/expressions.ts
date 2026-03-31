@@ -57,18 +57,25 @@ import type { LcForCExpr } from './ast-types.js'
  * - Direct function declarations: function(x) x*2
  * - Ternary expressions where both branches are functions: cond ? function(x) ... : function(y) ...
  * - Ternary expressions with is_function/is_func condition: is_func(x) ? x : ...
+ * - Identifier lookups referencing a known function (when ctx is provided)
  * - Let expressions with function-valued body: let(a=1) function(x) x*2
  * - Assert expressions with function-valued body: assert(...) function(x) x*2
  * Used to track local function bindings in let expressions
  */
-export function isFunctionLiteralExpr(expr: Expression | null): boolean {
+export function isFunctionLiteralExpr(expr: Expression | null, ctx?: TranspileContext): boolean {
   if (!expr) return false
   // Direct function declaration
   if (isFunctionDeclaration(expr as unknown as import('openscad-parser').Statement)) return true
+  // Identifier lookup for a known function (e.g. let binding assigned a function reference)
+  if (ctx && isLookupExpr(expr)) {
+    const name = (expr as { name: string }).name
+    if (ctx.scopes.lookupFunctionBinding(name) !== undefined) return true
+    if (ctx.symbols.isKind(name, 'function')) return true
+  }
   // Ternary where both branches are functions
   if (isTernaryExpr(expr)) {
     // Check if both branches are functions
-    if (isFunctionLiteralExpr(expr.ifExpr) && isFunctionLiteralExpr(expr.elseExpr)) {
+    if (isFunctionLiteralExpr(expr.ifExpr, ctx) && isFunctionLiteralExpr(expr.elseExpr, ctx)) {
       return true
     }
     // Check if condition is is_function() or is_func() call
@@ -85,14 +92,14 @@ export function isFunctionLiteralExpr(expr: Expression | null): boolean {
     return false
   }
   // Grouping expression - check inner (uses 'inner' property, not 'expr')
-  if (isGroupingExpr(expr)) return isFunctionLiteralExpr((expr as { inner: Expression }).inner)
+  if (isGroupingExpr(expr)) return isFunctionLiteralExpr((expr as { inner: Expression }).inner, ctx)
   // Let expression - check if body is function-valued
   if (isLetExpr(expr) || isLcLetExpr(expr)) {
-    return isFunctionLiteralExpr(expr.expr)
+    return isFunctionLiteralExpr(expr.expr, ctx)
   }
   // Assert expression - check if the result expression is function-valued
   if (isAssertExpr(expr)) {
-    return isFunctionLiteralExpr((expr as import('openscad-parser').AssertExpr).expr)
+    return isFunctionLiteralExpr((expr as import('openscad-parser').AssertExpr).expr, ctx)
   }
   return false
 }
@@ -143,8 +150,9 @@ function transpileLetBindings(
       const newName = `${origName}${suffix}`
 
       // Check if this is a function literal (for recursive self-reference support)
-      // This includes direct function declarations and ternary expressions returning functions
-      const isFuncLiteral = a.value && isFunctionLiteralExpr(a.value)
+      // This includes direct function declarations, ternary expressions returning functions,
+      // and identifier lookups referencing known functions (e.g. cond ? fn1 : fn2)
+      const isFuncLiteral = a.value && isFunctionLiteralExpr(a.value, ctx)
       if (isFuncLiteral) {
         // Track for cleanup
         functionBindingPairs.push([origName, newName])
@@ -242,6 +250,13 @@ function transpileLookupExpr(expr: { name: string }, ctx: TranspileContext): str
   // call it as a function to get the current dynamic value.
   if (ctx.lazyVarNames.has(safeName)) {
     return `${safeName}()`
+  }
+
+  // If this is a global function used as a VALUE (not a call — calls go through
+  // transpileFunctionCallExprHandler which adds _$f itself), use the _$f name.
+  // This handles patterns like: let(fn = my_func) fn(x) or (cond ? fn_a : fn_b)(x)
+  if (!ctx.currentLocalBindings.has(safeName) && ctx.symbols.isKind(safeName, 'function')) {
+    return `${safeName}_$f`
   }
 
   return safeName

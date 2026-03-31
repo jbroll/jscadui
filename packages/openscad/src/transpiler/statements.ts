@@ -1107,8 +1107,9 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
   for (const p of paramNames) ctx.currentLocalBindings.add(safeIdentifier(p))
 
   // Process nested function definitions (these must come first so they can be used)
+  // First pass: register ALL function names so mutual/forward references within this scope work.
+  const funcVarNames = new Map<string, string>()
   for (const f of nestedFunctions) {
-    // Track as local function binding BEFORE transpiling body (for recursive calls)
     const varName = safeIdentifier(f.name)
     // If a variable assignment or parameter in the same scope has the same name, use _$f suffix
     // to avoid a `const sex` conflict: nested function `sex` vs variable `sex`.
@@ -1116,11 +1117,15 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
     const hasVarConflict = assignments.some(a => safeIdentifier(a.name) === varName) ||
       [...paramNames].some(p => safeIdentifier(p) === varName)
     const funcVarName = hasVarConflict ? varName + '_$f' : varName
+    funcVarNames.set(f.name, funcVarName)
     ctx.scopes.registerFunctionBinding(varName, funcVarName)
     localVarNames.push(varName)
     ctx.currentLocalBindings.add(varName)
     if (hasVarConflict) ctx.currentLocalBindings.add(funcVarName)
-
+  }
+  // Second pass: transpile each function body (all sibling names are now registered)
+  for (const f of nestedFunctions) {
+    const funcVarName = funcVarNames.get(f.name)!
     // Transpile nested function: add its params before transpiling BOTH defaults and body
     // (defaults can reference earlier params, e.g., function foo(x, y = x + 1))
     const savedForFunc = ctx.currentLocalBindings
@@ -1132,6 +1137,7 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
 
     bodyParts.push(`${indent}const ${funcVarName} = (${funcParams}) => ${funcBody}`)
     // Only add the actual JS name to declaredVars so the variable gets a fresh const declaration.
+    const hasVarConflict = funcVarName !== safeIdentifier(f.name)
     declaredVars.add(hasVarConflict ? f.name + '_$f' : f.name)
   }
 
