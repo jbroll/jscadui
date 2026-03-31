@@ -908,6 +908,15 @@ export function transpileFunctionCall(
     return `${localBinding}(${args})`
   }
 
+  // If the callee is a locally-bound name (function parameter) but NOT a known global
+  // function, call it directly — it's a parameter holding a function value.
+  // In OpenSCAD, calling a function-valued variable is valid: find_index(lt, fn) where
+  // fn is called as fn(x) inside the body. Since function namespace takes precedence,
+  // only skip _$f when there's no global function with this name.
+  if (ctx.currentLocalBindings.has(callee) && !ctx.symbols.isKind(callee, 'function')) {
+    return `${callee}(${args})`
+  }
+
   // User-defined function call - use _$f suffix for namespace separation
   // Use _$f$obj suffix when calling with object parameters (named arguments)
   // Only add suffix for simple identifiers (named function calls)
