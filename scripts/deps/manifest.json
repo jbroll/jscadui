@@ -104,6 +104,31 @@
       "patches": []
     },
     {
+      "name": "dotscad",
+      "description": "dotSCAD OpenSCAD utility library (JustinSDK/dotSCAD)",
+      "url": "https://github.com/JustinSDK/dotSCAD.git",
+      "ref": "master",
+      "commit": "bb33edfd75cba0edbb7971606a077b9c69d0b7d2",
+      "license": "LGPL-3.0",
+      "mappings": [
+        {
+          "srcDir": "src",
+          "destDir": "apps/jscad-web/examples/openscad/dotscad",
+          "include": ["*.scad", "**/*.scad"],
+          "exclude": [],
+          "skipFiles": []
+        },
+        {
+          "srcDir": "examples",
+          "destDir": "apps/jscad-web/examples/openscad/dotscad/examples",
+          "include": ["*.scad", "**/*.scad"],
+          "exclude": [],
+          "skipFiles": []
+        }
+      ],
+      "patches": []
+    },
+    {
       "name": "snippet",
       "description": "OpenSCAD community code snippets (AngeloNicoli/OpenSCAD-Snippet)",
       "url": "https://github.com/AngeloNicoli/OpenSCAD-Snippet.git",

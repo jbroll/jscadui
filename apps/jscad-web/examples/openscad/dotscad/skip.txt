@@ -1,0 +1,2 @@
+# dotSCAD skip list — add filenames (relative to examples/) of known failures
+# Format: one filename per line, # for comments

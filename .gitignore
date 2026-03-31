@@ -126,6 +126,11 @@ apps/jscad-web/examples/openscad/snippet/**
 !apps/jscad-web/examples/openscad/bosl2/exclude.txt
 !apps/jscad-web/examples/openscad/snippet/skip.txt
 
+# dotSCAD — fetched directly into examples/ (no corpus step)
+apps/jscad-web/examples/openscad/dotscad/**
+!apps/jscad-web/examples/openscad/dotscad/skip.txt
+!apps/jscad-web/examples/openscad/dotscad/exclude.txt
+
 # Turbo
 .turbo
 **/build/**

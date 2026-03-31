@@ -1,0 +1,23 @@
+# dotSCAD library source files — not standalone test files
+# Only examples/ contains runnable test models
+
+# Root-level lib files (from src/)
+*.scad
+
+# Library subdirectories (from src/)
+__comm__/
+_impl/
+experimental/
+matrix/
+maze/
+noise/
+part/
+polyhedra/
+pp/
+ptf/
+surface/
+triangle/
+turtle/
+util/
+voronoi/
+voxel/
