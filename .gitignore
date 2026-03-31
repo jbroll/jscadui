@@ -126,10 +126,26 @@ apps/jscad-web/examples/openscad/snippet/**
 !apps/jscad-web/examples/openscad/bosl2/exclude.txt
 !apps/jscad-web/examples/openscad/snippet/skip.txt
 
-# dotSCAD — fetched directly into examples/ (no corpus step)
-apps/jscad-web/examples/openscad/dotscad/**
-!apps/jscad-web/examples/openscad/dotscad/skip.txt
-!apps/jscad-web/examples/openscad/dotscad/exclude.txt
+# dotSCAD — lib files are fetched by fetch-deps, examples are tracked
+# Root-level lib .scad files (from src/)
+apps/jscad-web/examples/openscad/dotscad/*.scad
+# Library subdirectories (from src/)
+apps/jscad-web/examples/openscad/dotscad/__comm__/
+apps/jscad-web/examples/openscad/dotscad/_impl/
+apps/jscad-web/examples/openscad/dotscad/experimental/
+apps/jscad-web/examples/openscad/dotscad/matrix/
+apps/jscad-web/examples/openscad/dotscad/maze/
+apps/jscad-web/examples/openscad/dotscad/noise/
+apps/jscad-web/examples/openscad/dotscad/part/
+apps/jscad-web/examples/openscad/dotscad/polyhedra/
+apps/jscad-web/examples/openscad/dotscad/pp/
+apps/jscad-web/examples/openscad/dotscad/ptf/
+apps/jscad-web/examples/openscad/dotscad/surface/
+apps/jscad-web/examples/openscad/dotscad/triangle/
+apps/jscad-web/examples/openscad/dotscad/turtle/
+apps/jscad-web/examples/openscad/dotscad/util/
+apps/jscad-web/examples/openscad/dotscad/voronoi/
+apps/jscad-web/examples/openscad/dotscad/voxel/
 
 # Turbo
 .turbo
