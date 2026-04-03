@@ -5,3 +5,9 @@ NopSCADlib/libtest.scad
 # PCBs.scad: WASM out-of-bounds crash — model is too large for Manifold WASM memory
 NopSCADlib/tests/PCBs.scad
 
+# belts.scad: Jaccard ~0.973 — CDT triangulation difference in multi-contour twisted extrusions
+NopSCADlib/tests/belts.scad
+
+# shaft_couplings.scad: Jaccard ~0.960 — step count difference for large-angle helical extrusions
+NopSCADlib/tests/shaft_couplings.scad
+

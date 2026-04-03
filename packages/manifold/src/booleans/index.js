@@ -83,8 +83,9 @@ const union2D = (geometries) => {
   }
 
   // Otherwise use Manifold's CrossSection for robust booleans
-  const sections = geometries.map(g => toCrossSection(g))
+  const sections = geometries.map(g => toCrossSection(g)).filter(s => s != null)
 
+  if (sections.length === 0) return undefined
   if (sections.length === 1) {
     return new ManifoldGeom2(sections[0])
   }
@@ -146,8 +147,9 @@ const subtract2D = (geometries) => {
   }
 
   // Otherwise use Manifold's CrossSection for robust booleans
-  const sections = geometries.map(g => toCrossSection(g))
+  const sections = geometries.map(g => toCrossSection(g)).filter(s => s != null)
 
+  if (sections.length === 0) return undefined
   let result = sections[0]
   for (let i = 1; i < sections.length; i++) {
     result = result.subtract(sections[i])
@@ -205,8 +207,9 @@ const intersect2D = (geometries) => {
   }
 
   // Otherwise use Manifold's CrossSection for robust booleans
-  const sections = geometries.map(g => toCrossSection(g))
+  const sections = geometries.map(g => toCrossSection(g)).filter(s => s != null)
 
+  if (sections.length === 0) return undefined
   if (sections.length === 1) {
     return new ManifoldGeom2(sections[0])
   }

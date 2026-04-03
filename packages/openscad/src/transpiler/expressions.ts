@@ -69,8 +69,14 @@ export function isFunctionLiteralExpr(expr: Expression | null, ctx?: TranspileCo
   // Identifier lookup for a known function (e.g. let binding assigned a function reference)
   if (ctx && isLookupExpr(expr)) {
     const name = (expr as { name: string }).name
-    if (ctx.scopes.lookupFunctionBinding(name) !== undefined) return true
-    if (ctx.symbols.isKind(name, 'function')) return true
+    const binding = ctx.scopes.lookupFunctionBinding(name)
+    // Only treat as function-valued if the binding actually renames the variable
+    // (e.g. `center` → `center$3`). Identity bindings (name → name) come from
+    // parameter scope and do NOT mean the parameter holds a function value.
+    // Without this guard, `let(center = ...)` inside a function with a `center`
+    // parameter triggers TDZ: the binding is registered before `const center$N`
+    // is initialized.
+    if (binding !== undefined && binding !== name) return true
   }
   // Ternary where both branches are functions
   if (isTernaryExpr(expr)) {
@@ -250,13 +256,6 @@ function transpileLookupExpr(expr: { name: string }, ctx: TranspileContext): str
   // call it as a function to get the current dynamic value.
   if (ctx.lazyVarNames.has(safeName)) {
     return `${safeName}()`
-  }
-
-  // If this is a global function used as a VALUE (not a call — calls go through
-  // transpileFunctionCallExprHandler which adds _$f itself), use the _$f name.
-  // This handles patterns like: let(fn = my_func) fn(x) or (cond ? fn_a : fn_b)(x)
-  if (!ctx.currentLocalBindings.has(safeName) && ctx.symbols.isKind(safeName, 'function')) {
-    return `${safeName}_$f`
   }
 
   return safeName

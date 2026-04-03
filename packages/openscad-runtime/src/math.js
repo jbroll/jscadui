@@ -157,7 +157,10 @@ export const _max = (...args) =>
 // Validate numeric arguments - OpenSCAD silently ignores invalid values
 export const _num = v => typeof v === 'number' && !isNaN(v) ? v : undefined
 
-export const _norm = (v) => Math.sqrt(v.reduce((sum, x) => sum + x * x, 0))
+export const _norm = (v) => {
+  if (!Array.isArray(v)) return undefined
+  return Math.sqrt(v.reduce((sum, x) => sum + x * x, 0))
+}
 
 // OpenSCAD reverse() - reverses a list
 export const reverse = (arr) => Array.isArray(arr) ? [...arr].reverse() : arr

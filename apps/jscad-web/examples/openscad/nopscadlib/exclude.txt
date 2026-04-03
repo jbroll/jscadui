@@ -5,3 +5,8 @@ NopSCADlib/utils/
 NopSCADlib/core.scad
 NopSCADlib/global_defs.scad
 NopSCADlib/lib.scad
+# Debug/scratch files — not part of NopSCADlib test suite
+sc5x8_test.scad
+sc6x8_noprev.scad
+sc6x8_test.scad
+test_circle4n.scad

@@ -116,14 +116,20 @@ export const _regular_polygon = ({ order = 6, n, r = 1, $fn: _$fn = 0 }) => {
 }
 
 export const _polyhedron = ({ points, faces, triangles, convexity: _convexity }) => {
+  if (!points || !Array.isArray(points) || points.length === 0) return undefined
   const faceList = faces || triangles || []
   // Filter out any invalid faces (undefined or non-array elements)
   const validFaces = faceList.filter(f => Array.isArray(f))
+  if (validFaces.length === 0) return undefined
+
+  // Filter out invalid points (undefined, null, non-array) — replace with [0,0,0]
+  // to preserve face indexing
+  const cleanPoints = points.map(p => Array.isArray(p) ? p : [0, 0, 0])
 
   // OpenSCAD silently promotes 2D points to 3D by adding Z=0
-  const points3d = points && points[0] && points[0].length === 2
-    ? points.map(p => [p[0], p[1], 0])
-    : points
+  const points3d = cleanPoints[0] && cleanPoints[0].length === 2
+    ? cleanPoints.map(p => [p[0], p[1], 0])
+    : cleanPoints
 
   // Determine winding convention by computing signed volume (divergence theorem).
   // Outward-pointing normals → positive signed volume; inward → negative.
@@ -150,7 +156,12 @@ export const _polyhedron = ({ points, faces, triangles, convexity: _convexity })
     ? validFaces.map(f => [...f].reverse())
     : validFaces
 
-  return polyhedron({ points: points3d, faces: finalFaces, orientation: 'outward' })
+  try {
+    return polyhedron({ points: points3d, faces: finalFaces, orientation: 'outward' })
+  } catch (_e) {
+    // OpenSCAD silently ignores polyhedron errors in preview mode
+    return undefined
+  }
 }
 
 const _isAbsent = (p) => p === undefined || p === null || p === NO_CHILD
