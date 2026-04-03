@@ -431,6 +431,31 @@ function transpileFunctionCallExprHandler(
 }
 
 /**
+ * Check if an AssignmentNode name represents a tuple-destructured variable.
+ * Tuple names are encoded by the parser as "(a, b, ...)" strings.
+ */
+function isTupleName(name: string): boolean {
+  return name.startsWith('(') && name.endsWith(')')
+}
+
+/**
+ * Parse individual variable names from a tuple-encoded name string.
+ * "(a, b)" -> ["a", "b"]
+ */
+function parseTupleNames(name: string): string[] {
+  return name.slice(1, -1).split(',').map(s => s.trim())
+}
+
+/**
+ * Convert a tuple-encoded name to a JS destructuring pattern.
+ * "(a, b)" -> "[a, b]"
+ */
+function tupleToDestructuring(name: string): string {
+  const names = parseTupleNames(name)
+  return `[${names.join(', ')}]`
+}
+
+/**
  * Transpile list comprehension for-loop: [for (i = range) expr]
  */
 function transpileLcForExprHandler(
@@ -441,9 +466,14 @@ function transpileLcForExprHandler(
 
   // Build scope for loop variables - they shadow any outer variables with the same name
   // The loop variables are used directly as arrow function parameters (no renaming needed)
+  // For tuple-destructured variables like "(a, b)", add each individual name to scope
   const loopScope = new Map<string, string>()
   for (const arg of args) {
-    loopScope.set(arg.name, arg.name)
+    if (isTupleName(arg.name)) {
+      for (const n of parseTupleNames(arg.name)) loopScope.set(n, n)
+    } else {
+      loopScope.set(arg.name, arg.name)
+    }
   }
 
   // Check if inner expression contains LcIfExpr (needs filtering)
@@ -462,7 +492,8 @@ function transpileLcForExprHandler(
   ctx.inFlatMapContext = savedFlatMapContext
 
   if (args.length === 1) {
-    const varName = args[0].name
+    // For tuple-destructured variables: (a, b) => [a, b] destructuring pattern
+    const varName = isTupleName(args[0].name) ? tupleToDestructuring(args[0].name) : args[0].name
     const range = transpileExpression(args[0].value!, ctx)
     // Use flatMap when 'each' is used, otherwise map
     const method = needsFlatMap ? 'flatMap' : 'map'
@@ -476,7 +507,7 @@ function transpileLcForExprHandler(
   // If 'each' is used, innermost also uses flatMap
   let result = innerExpr
   for (let i = args.length - 1; i >= 0; i--) {
-    const varName = args[i].name
+    const varName = isTupleName(args[i].name) ? tupleToDestructuring(args[i].name) : args[i].name
     const range = transpileExpression(args[i].value!, ctx)
     const isInnermost = i === args.length - 1
     const method = isInnermost ? (needsFlatMap ? 'flatMap' : 'map') : 'flatMap'

@@ -722,11 +722,23 @@ function transpileForLoop(stmt: ModuleInstantiationStmt, ctx: TranspileContext):
     return '/* empty for loop */'
   }
 
+  // Helper: check if a name is a tuple pattern "(a, b)"
+  const isTuple = (name: string) => name.startsWith('(') && name.endsWith(')')
+  // Helper: parse tuple names "(a, b)" -> ["a", "b"]
+  const parseTupleNames = (name: string) => name.slice(1, -1).split(',').map(s => s.trim())
+  // Helper: convert tuple to JS destructuring "(a, b)" -> "[a, b]"
+  const tupleToJS = (name: string) => `[${parseTupleNames(name).join(', ')}]`
+
   // Build scope for loop variables - they shadow any outer variables with the same name
   // The loop variables are used directly as arrow function parameters (no renaming needed)
+  // For tuple-destructured variables, add each individual name
   const loopScope = new Map<string, string>()
   for (const arg of args) {
-    loopScope.set(arg.name, arg.name)
+    if (isTuple(arg.name)) {
+      for (const n of parseTupleNames(arg.name)) loopScope.set(n, n)
+    } else {
+      loopScope.set(arg.name, arg.name)
+    }
   }
 
   // Transpile the body with loop variables in scope
@@ -746,7 +758,7 @@ function transpileForLoop(stmt: ModuleInstantiationStmt, ctx: TranspileContext):
 
   // Handle single loop variable (most common case)
   if (args.length === 1) {
-    const varName = args[0].name
+    const varName = isTuple(args[0].name) ? tupleToJS(args[0].name) : args[0].name
     const rangeOrVector = transpileExpression(args[0].value!, ctx)
     return `j$.union(...j$.iter(${rangeOrVector}).map(${varName} => ${wrapLoopVar(varName, body)}))`
   }
@@ -756,7 +768,7 @@ function transpileForLoop(stmt: ModuleInstantiationStmt, ctx: TranspileContext):
   // j$.iter() ensures scalar values are wrapped in an array for proper iteration
   let result = body
   for (let i = args.length - 1; i >= 0; i--) {
-    const varName = args[i].name
+    const varName = isTuple(args[i].name) ? tupleToJS(args[i].name) : args[i].name
     const rangeOrVector = transpileExpression(args[i].value!, ctx)
     // Last variable uses map, all others use flatMap to flatten
     const method = i === args.length - 1 ? 'map' : 'flatMap'

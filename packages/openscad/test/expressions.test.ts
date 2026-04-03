@@ -239,5 +239,12 @@ describe('transpileExpression', () => {
       expect(code).toContain('.map')
       expect(code).toContain('.filter')
     })
+
+    it('handles tuple-destructured for variables', () => {
+      const code = transpileExpr('x = [for ((a, b) = [[1,2],[3,4]]) a + b];')
+      // Should use JS array destructuring [a, b] in the map callback
+      expect(code).toContain('.map([a, b] =>')
+      expect(code).toContain('j$.vadd(a, b)')
+    })
   })
 })
