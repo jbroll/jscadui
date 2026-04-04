@@ -1513,20 +1513,16 @@ export function transpileFunctionDeclaration(stmt: FunctionDeclarationStmt, ctx:
 
   ctx.currentLocalBindings = savedLocalBindings
 
-  const undefConversions = uniqueArgs.map(arg => {
-    const paramName = safeIdentifier(arg.name)
-    const renamedParam = selfRefRenames.get(paramName) ?? paramName
-    return `if (${renamedParam} === j$.EXPLICIT_UNDEF) ${renamedParam} = undefined;`
-  }).join(' ')
-  const objPreamble = undefConversions ? undefConversions + ' ' : ''
-
   // Generate object version as a thin delegation wrapper to _$f.
   // This avoids duplicating the entire function body (which can be large).
+  // No EXPLICIT_UNDEF preamble needed here — _$f handles it.
+  // If we converted EXPLICIT_UNDEF→undefined before delegating, _$f's JS default
+  // would fire, which is wrong when the caller explicitly passed undef.
   const delegateArgs = uniqueArgs.map(arg => {
     const paramName = safeIdentifier(arg.name)
     return selfRefRenames.get(paramName) ?? paramName
   }).join(', ')
-  const objectCode = `function ${name}_$f$obj(_opts = {}) { let { ${objectDestructure} } = _opts; ${objPreamble}return ${name}_$f(${delegateArgs}); }`
+  const objectCode = `function ${name}_$f$obj(_opts = {}) { let { ${objectDestructure} } = _opts; return ${name}_$f(${delegateArgs}); }`
 
   // Combine both versions
   const code = `${positionalCode}\n${objectCode}`
