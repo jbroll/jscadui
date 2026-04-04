@@ -210,8 +210,8 @@ foo(type = "test");
     const result = transpile(ast)
     // Verify the generated code uses an alias for the self-referencing param
     expect(result.code).toContain('_screw_param')
-    // Verify the outer 'screw' is used as the fallback default (no TDZ)
-    expect(result.code).toMatch(/_screw_param.+ === undefined.*\bscrew\b/)
+    // Verify the outer 'screw' is used as the fallback default via resolveParams
+    expect(result.code).toMatch(/resolveParams\(.*_screw_param.*\[.*screw\]/)
     // Verify the alias appears in the destructuring pattern
     expect(result.code).toMatch(/screw:\s*_screw_param/)
     // Verify there's no naive self-reference `screw = ... ? screw : screw`

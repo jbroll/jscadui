@@ -76,11 +76,9 @@ describe('Syntax & Declarations', () => {
 
     it('defines module with default parameters', () => {
       const code = transpileCode('module box(x=1, y=2, z=3) { cube([x,y,z]); }')
-      // With options object pattern, defaults are applied via: x = x !== undefined ... ? x : 1
-      expect(code).toContain('x !== undefined')
-      expect(code).toContain(': 1;')
-      expect(code).toContain(': 2;')
-      expect(code).toContain(': 3;')
+      // Defaults are applied via resolveParams helper
+      expect(code).toContain('j$.resolveParams(')
+      expect(code).toMatch(/resolveParams\(\[x, y, z\], \[1, 2, 3\]\)/)
     })
   })
 
