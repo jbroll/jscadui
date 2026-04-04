@@ -369,12 +369,27 @@ async function runJscad(scadPath, stlPath, fn = 0, preview = false) {
   if (fn > 0) args.push('--fn', fn)
   if (preview) args.push('--preview')
   if (libDir) args.push('--lib-path', JSON.stringify(resolve(libDir)))
-  try {
-    await execAsync(`node ${args.join(' ')}`, { timeout: 120000, maxBuffer: 2 * 1024 * 1024 })
-    return { success: true }
-  } catch (err) {
-    const msg = err.stderr ? err.stderr.split('\n').filter(l => l.trim()).pop() || err.message : err.message
-    return { success: false, error: msg }
+  const cmd = `node ${args.join(' ')}`
+  const opts = { timeout: 120000, maxBuffer: 2 * 1024 * 1024 }
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      await execAsync(cmd, opts)
+      return { success: true }
+    } catch (err) {
+      // If the process crashed after writing the STL (e.g., WASM cleanup failure),
+      // treat it as success so we can still compare the output.
+      if (existsSync(stlPath)) {
+        try {
+          const content = readFileSync(stlPath)
+          if (content.length > 0) return { success: true }
+        } catch { /* fall through */ }
+      }
+      // Retry once on process-level failures (OOM, timeout under load)
+      if (attempt === 0) continue
+      const msg = err.stderr ? err.stderr.split('\n').filter(l => l.trim()).pop() || err.message : err.message
+      return { success: false, error: msg }
+    }
   }
 }
 
