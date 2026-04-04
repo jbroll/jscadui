@@ -1520,20 +1520,13 @@ export function transpileFunctionDeclaration(stmt: FunctionDeclarationStmt, ctx:
   }).join(' ')
   const objPreamble = undefConversions ? undefConversions + ' ' : ''
 
-  let objectCode: string
-  if (tailRecursive) {
-    const paramDefaults = new Map<string, string>()
-    for (const arg of uniqueArgs) {
-      const pName = safeIdentifier(arg.name)
-      if (arg.value) {
-        paramDefaults.set(pName, transpileExpression(arg.value, ctx))
-      }
-    }
-    const reassign = buildBounceReassignment(safeParamNames, paramDefaults)
-    objectCode = `function ${name}_$f$obj(_opts = {}) { let { ${objectDestructure} } = _opts; ${objPreamble}while (true) { const _r = ${finalBody}; if (!_r || !_r.__bounce__) return _r; ${reassign}; } }`
-  } else {
-    objectCode = `function ${name}_$f$obj(_opts = {}) { let { ${objectDestructure} } = _opts; ${objPreamble}return ${finalBody}; }`
-  }
+  // Generate object version as a thin delegation wrapper to _$f.
+  // This avoids duplicating the entire function body (which can be large).
+  const delegateArgs = uniqueArgs.map(arg => {
+    const paramName = safeIdentifier(arg.name)
+    return selfRefRenames.get(paramName) ?? paramName
+  }).join(', ')
+  const objectCode = `function ${name}_$f$obj(_opts = {}) { let { ${objectDestructure} } = _opts; ${objPreamble}return ${name}_$f(${delegateArgs}); }`
 
   // Combine both versions
   const code = `${positionalCode}\n${objectCode}`
