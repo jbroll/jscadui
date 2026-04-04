@@ -2,6 +2,7 @@
  * Expression transpilation
  */
 
+import { emitBounce, isTailCallMarked } from './tailCall.js'
 import type {
   Expression,
   FunctionCallExpr,
@@ -378,6 +379,13 @@ function transpileFunctionCallExprHandler(
   fnExpr: FunctionCallExpr,
   ctx: TranspileContext
 ): string {
+  // Tail-call optimization: if this call was marked as a tail-position self-call,
+  // emit a bounce object instead of the actual function call.
+  // The bounce is caught by the while-loop trampoline in the enclosing function.
+  if (isTailCallMarked(fnExpr) && ctx._tailCallParamNames) {
+    return emitBounce(ctx._tailCallParamNames, fnExpr, (expr: Expression) => transpileExpression(expr, ctx))
+  }
+
   // OpenSCAD has separate namespaces for functions and variables.
   // When calling rot(...), it calls the FUNCTION rot(), not a parameter named rot.
   // For simple identifiers, use the original name without scope lookup.

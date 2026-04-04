@@ -185,6 +185,9 @@ export interface TranspileContext {
   // Names of top-level variables that are lazy thunks (because their value expression
   // references a $special variable). These must be called as foo() not accessed as foo.
   lazyVarNames: Set<string>
+  // When set, tail-position self-calls emit bounce objects instead of function calls.
+  // Contains the safe parameter names for the function being trampolined.
+  _tailCallParamNames?: string[]
 }
 
 export const defaultOptions = {

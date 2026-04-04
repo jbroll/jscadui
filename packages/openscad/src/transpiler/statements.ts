@@ -15,6 +15,7 @@ import { WarningCode } from './context.js'
 import { generateScopeSuffix, withScope } from './scoping.js'
 import { safeIdentifier, getShortFilename } from '../utils/identifiers.js'
 import { transpileExpression, transpileCallArg, reorderNamedArgs, isFunctionLiteralExpr } from './expressions.js'
+import { markTailCalls, clearTailCallMarks, buildBounceReassignment } from './tailCall.js'
 import { getLocation } from '../parser/parse.js'
 import {
   isBuiltinPrimitive,
@@ -1437,9 +1438,27 @@ export function transpileFunctionDeclaration(stmt: FunctionDeclarationStmt, ctx:
   }
 
   // Re-generate body with self-referencing params renamed (so they don't shadow the outer vars)
-  const finalBody = selfRefRenames.size > 0
+  let finalBody = selfRefRenames.size > 0
     ? withScope(ctx, selfRefRenames, () => transpileExpression(stmt.expr, ctx))
     : body
+
+  // ── Tail-call optimization ─────────────────────────────────────────────────
+  // Detect self-recursive calls in tail position. If found, re-transpile the body
+  // with tail calls replaced by bounce objects, and wrap both variants with a while loop.
+  // Skip for functions with self-referencing defaults (complex renaming interaction).
+  const safeParamNames = uniqueArgs.map(a => safeIdentifier(a.name))
+  const tailRecursive = selfRefRenames.size === 0 && markTailCalls(stmt.name, stmt.expr)
+
+  if (tailRecursive) {
+    // Re-transpile body with tail calls emitting bounce objects
+    const savedTailCallParams = ctx._tailCallParamNames
+    ctx._tailCallParamNames = safeParamNames
+    finalBody = transpileExpression(stmt.expr, ctx)
+    ctx._tailCallParamNames = savedTailCallParams
+
+    // Clean up AST marks
+    clearTailCallMarks()
+  }
 
   // Generate positional version (existing behavior)
   // Build params with renamed self-referencing defaults
@@ -1460,7 +1479,22 @@ export function transpileFunctionDeclaration(stmt: FunctionDeclarationStmt, ctx:
 
   const positionalPreamble = buildUndefConversionPreamble(uniqueArgs, selfRefRenames)
 
-  const positionalCode = `${comment}function ${name}_$f(${positionalParams}) { ${positionalPreamble}return ${finalBody}; }`
+  let positionalCode: string
+  if (tailRecursive) {
+    // Build destructuring reassignment for bounce continuation:
+    // ({n, r, angle = undefined, wedge = false} = _r.args)
+    const paramDefaults = new Map<string, string>()
+    for (const arg of uniqueArgs) {
+      const pName = safeIdentifier(arg.name)
+      if (arg.value) {
+        paramDefaults.set(pName, transpileExpression(arg.value, ctx))
+      }
+    }
+    const reassign = buildBounceReassignment(safeParamNames, paramDefaults)
+    positionalCode = `${comment}function ${name}_$f(${positionalParams}) { ${positionalPreamble}while (true) { const _r = ${finalBody}; if (!_r || !_r.__bounce__) return _r; ${reassign}; } }`
+  } else {
+    positionalCode = `${comment}function ${name}_$f(${positionalParams}) { ${positionalPreamble}return ${finalBody}; }`
+  }
 
   // Generate object version for named argument calls
   const objectDestructure = uniqueArgs.map(arg => {
@@ -1486,7 +1520,20 @@ export function transpileFunctionDeclaration(stmt: FunctionDeclarationStmt, ctx:
   }).join(' ')
   const objPreamble = undefConversions ? undefConversions + ' ' : ''
 
-  const objectCode = `function ${name}_$f$obj(_opts = {}) { let { ${objectDestructure} } = _opts; ${objPreamble}return ${finalBody}; }`
+  let objectCode: string
+  if (tailRecursive) {
+    const paramDefaults = new Map<string, string>()
+    for (const arg of uniqueArgs) {
+      const pName = safeIdentifier(arg.name)
+      if (arg.value) {
+        paramDefaults.set(pName, transpileExpression(arg.value, ctx))
+      }
+    }
+    const reassign = buildBounceReassignment(safeParamNames, paramDefaults)
+    objectCode = `function ${name}_$f$obj(_opts = {}) { let { ${objectDestructure} } = _opts; ${objPreamble}while (true) { const _r = ${finalBody}; if (!_r || !_r.__bounce__) return _r; ${reassign}; } }`
+  } else {
+    objectCode = `function ${name}_$f$obj(_opts = {}) { let { ${objectDestructure} } = _opts; ${objPreamble}return ${finalBody}; }`
+  }
 
   // Combine both versions
   const code = `${positionalCode}\n${objectCode}`
