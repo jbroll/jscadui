@@ -16,7 +16,7 @@ When debugging test failures:
 **ONLY valid workflow:**
 1. Debug individual failing models locally with `run-jscad.js` + `compare-stl.js`
 2. Run unit tests locally with `npx vitest run`
-3. Push fixes and run `npm test` on GPU for full suite validation
+3. Run full baseline via `npm test` (uses simple-ci to run on GPU)
 
 ```bash
 # ✅ CORRECT — runs on GPU via simple-ci:
@@ -35,10 +35,12 @@ node bin/test-harness.js ../../apps/jscad-web/examples/openscad/nopscadlib
 npm run test:local
 ```
 
-To watch GPU CI progress in real time:
-```bash
-ssh gpu 'tail -f ~/ci-logs/$(ls -t ~/ci-logs/*.log | head -1)'
-```
+> **NEVER work around CI.** `npm test` is the only sanctioned way to run the full comparison
+> suite. Do not manually rsync to the GPU, do not SSH in and run test-harness by hand, do not
+> improvise alternate CI paths. If `npm test` fails due to infrastructure (connection refused,
+> host unreachable, simple-ci errors), **stop and investigate the CI issue first** or raise it
+> with the user. A broken CI pipeline is a higher priority than any feature work — fix CI
+> before proceeding with transpiler changes.
 
 ## Development Methodology
 
@@ -50,7 +52,9 @@ ssh gpu 'tail -f ~/ci-logs/$(ls -t ~/ci-logs/*.log | head -1)'
 4. **Commit only after GPU verification passes** — never stack unverified changes
 5. **If a regression appears, fix it immediately** before moving on
 
-Never combine multiple transpiler changes into one commit. If GPU CI is unreachable, do not commit transpiler changes — wait until you can verify.
+Never combine multiple transpiler changes into one commit. If `npm test` is failing due to
+infrastructure problems, **do not commit transpiler changes** — fix CI first or raise the
+issue with the user.
 
 **Baseline documentation** (`MODEL_COMPARISON_BASELINE.md`) is the source of truth:
 - Any deviation from 100% on baseline suites is a regression that must be fixed
