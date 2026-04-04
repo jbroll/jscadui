@@ -1,6 +1,6 @@
 # Model Comparison Baseline
 
-Verified 2026-04-03 — commit `7f3cb64` on `hierarchical-params` (tail-call trampolining).
+Verified 2026-04-04 — commit `19cf725` on `hierarchical-params` (output optimization: resolveUndef, applyPositionalArgs, resolveParams, withScope fast path).
 
 Similarity threshold: **0.99** (Jaccard index on vertex-deduplicated STL meshes).
 
@@ -14,7 +14,7 @@ Similarity threshold: **0.99** (Jaccard index on vertex-deduplicated STL meshes)
 | NopSCADlib |   149 |       4 |             1 |         4 |    144 |    144 |      0 |      0 | **100%**  |
 | snippet    |   122 |       0 |            10 |         2 |    110 |    110 |      0 |      0 | **100%**  |
 | text       |    11 |       0 |             9 |         0 |      2 |      2 |      0 |      0 | **100%**  |
-| dotSCAD    |   212 |       0 |            29 |         0 |    183 |     66 |     62 |     55 | 36.1%     |
+| dotSCAD    |   212 |       0 |            29 |         0 |    183 |     67 |     61 |     55 | 36.6%     |
 
 **Baseline suites** (01-basics, BOSL, BOSL2, NopSCADlib, snippet, text): any failure is a regression.
 
