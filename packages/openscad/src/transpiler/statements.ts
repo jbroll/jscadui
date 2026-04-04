@@ -1460,8 +1460,9 @@ export function transpileFunctionDeclaration(stmt: FunctionDeclarationStmt, ctx:
     clearTailCallMarks()
   }
 
-  // Build parameter list with defaults — used for both _$f signature and _$f$obj destructuring
-  const paramList = uniqueArgs.map(arg => {
+  // Generate positional version (existing behavior)
+  // Build params with renamed self-referencing defaults
+  const positionalParams = uniqueArgs.map(arg => {
     const paramName = safeIdentifier(arg.name)
     const renamedParam = selfRefRenames.get(paramName)
     if (renamedParam) {
@@ -1490,23 +1491,49 @@ export function transpileFunctionDeclaration(stmt: FunctionDeclarationStmt, ctx:
       }
     }
     const reassign = buildBounceReassignment(safeParamNames, paramDefaults)
-    positionalCode = `${comment}function ${name}_$f(${paramList}) { ${positionalPreamble}while (true) { const _r = ${finalBody}; if (!_r || !_r.__bounce__) return _r; ${reassign}; } }`
+    positionalCode = `${comment}function ${name}_$f(${positionalParams}) { ${positionalPreamble}while (true) { const _r = ${finalBody}; if (!_r || !_r.__bounce__) return _r; ${reassign}; } }`
   } else {
-    positionalCode = `${comment}function ${name}_$f(${paramList}) { ${positionalPreamble}return ${finalBody}; }`
+    positionalCode = `${comment}function ${name}_$f(${positionalParams}) { ${positionalPreamble}return ${finalBody}; }`
   }
+
+  // Generate object version for named argument calls
+  const objectDestructure = uniqueArgs.map(arg => {
+    const paramName = safeIdentifier(arg.name)
+    const renamedParam = selfRefRenames.get(paramName)
+    if (renamedParam) {
+      // Self-referencing: use renamed param with outer var as default
+      return `${renamedParam} = ${paramName}`
+    }
+    if (arg.value) {
+      const defaultVal = transpileExpression(arg.value, ctx)
+      return `${paramName} = ${defaultVal}`
+    }
+    return paramName
+  }).join(', ')
 
   ctx.currentLocalBindings = savedLocalBindings
 
-  // Generate object version as a thin delegation wrapper to _$f.
-  // This avoids duplicating the entire function body (which can be large).
-  // No EXPLICIT_UNDEF preamble needed here — _$f handles it.
-  // If we converted EXPLICIT_UNDEF→undefined before delegating, _$f's JS default
-  // would fire, which is wrong when the caller explicitly passed undef.
-  const delegateArgs = uniqueArgs.map(arg => {
+  const undefConversions = uniqueArgs.map(arg => {
     const paramName = safeIdentifier(arg.name)
-    return selfRefRenames.get(paramName) ?? paramName
-  }).join(', ')
-  const objectCode = `function ${name}_$f$obj(_opts = {}) { let { ${paramList} } = _opts; return ${name}_$f(${delegateArgs}); }`
+    const renamedParam = selfRefRenames.get(paramName) ?? paramName
+    return `if (${renamedParam} === j$.EXPLICIT_UNDEF) ${renamedParam} = undefined;`
+  }).join(' ')
+  const objPreamble = undefConversions ? undefConversions + ' ' : ''
+
+  let objectCode: string
+  if (tailRecursive) {
+    const paramDefaults = new Map<string, string>()
+    for (const arg of uniqueArgs) {
+      const pName = safeIdentifier(arg.name)
+      if (arg.value) {
+        paramDefaults.set(pName, transpileExpression(arg.value, ctx))
+      }
+    }
+    const reassign = buildBounceReassignment(safeParamNames, paramDefaults)
+    objectCode = `function ${name}_$f$obj(_opts = {}) { let { ${objectDestructure} } = _opts; ${objPreamble}while (true) { const _r = ${finalBody}; if (!_r || !_r.__bounce__) return _r; ${reassign}; } }`
+  } else {
+    objectCode = `function ${name}_$f$obj(_opts = {}) { let { ${objectDestructure} } = _opts; ${objPreamble}return ${finalBody}; }`
+  }
 
   // Combine both versions
   const code = `${positionalCode}\n${objectCode}`

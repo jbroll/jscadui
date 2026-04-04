@@ -73,17 +73,6 @@ describe('_$f$obj named argument handling', () => {
     // The call with named args should use the $obj variant
     expect(code).toContain('_$f$obj')
   })
-
-  it('_$f$obj delegates to _$f without EXPLICIT_UNDEF preamble', () => {
-    const code = transpileCode('function f(a, b=5) = [a, b];')
-    const objBody = code.slice(code.indexOf('function f_$f$obj('))
-    // _$f$obj should delegate to _$f, not have its own body
-    expect(objBody).toContain('return f_$f(')
-    // EXPLICIT_UNDEF conversion should NOT be in _$f$obj — _$f handles it.
-    // If _$f$obj converted EXPLICIT_UNDEF→undefined before delegating,
-    // _$f's JS default parameter would fire, which is wrong for explicit undef.
-    expect(objBody).not.toContain('EXPLICIT_UNDEF')
-  })
 })
 
 describe('special variable scope propagation', () => {
