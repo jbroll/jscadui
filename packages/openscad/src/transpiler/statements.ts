@@ -1496,44 +1496,24 @@ export function transpileFunctionDeclaration(stmt: FunctionDeclarationStmt, ctx:
     positionalCode = `${comment}function ${name}_$f(${positionalParams}) { ${positionalPreamble}return ${finalBody}; }`
   }
 
-  // Generate object version for named argument calls
-  const objectDestructure = uniqueArgs.map(arg => {
+  // Generate object version as thin delegation wrapper.
+  // Destructure WITHOUT defaults so that missing args stay undefined (triggering
+  // JS default params in _$f), while EXPLICIT_UNDEF passes through for _$f's preamble.
+  const objectDestructureNames = uniqueArgs.map(arg => {
     const paramName = safeIdentifier(arg.name)
     const renamedParam = selfRefRenames.get(paramName)
-    if (renamedParam) {
-      // Self-referencing: use renamed param with outer var as default
-      return `${renamedParam} = ${paramName}`
-    }
-    if (arg.value) {
-      const defaultVal = transpileExpression(arg.value, ctx)
-      return `${paramName} = ${defaultVal}`
-    }
-    return paramName
+    return renamedParam ?? paramName
+  }).join(', ')
+
+  // Build delegation call: _$f(a, b, c) using the (possibly renamed) param names
+  const delegationArgs = uniqueArgs.map(arg => {
+    const paramName = safeIdentifier(arg.name)
+    return selfRefRenames.get(paramName) ?? paramName
   }).join(', ')
 
   ctx.currentLocalBindings = savedLocalBindings
 
-  const undefConversions = uniqueArgs.map(arg => {
-    const paramName = safeIdentifier(arg.name)
-    const renamedParam = selfRefRenames.get(paramName) ?? paramName
-    return `if (${renamedParam} === j$.EXPLICIT_UNDEF) ${renamedParam} = undefined;`
-  }).join(' ')
-  const objPreamble = undefConversions ? undefConversions + ' ' : ''
-
-  let objectCode: string
-  if (tailRecursive) {
-    const paramDefaults = new Map<string, string>()
-    for (const arg of uniqueArgs) {
-      const pName = safeIdentifier(arg.name)
-      if (arg.value) {
-        paramDefaults.set(pName, transpileExpression(arg.value, ctx))
-      }
-    }
-    const reassign = buildBounceReassignment(safeParamNames, paramDefaults)
-    objectCode = `function ${name}_$f$obj(_opts = {}) { let { ${objectDestructure} } = _opts; ${objPreamble}while (true) { const _r = ${finalBody}; if (!_r || !_r.__bounce__) return _r; ${reassign}; } }`
-  } else {
-    objectCode = `function ${name}_$f$obj(_opts = {}) { let { ${objectDestructure} } = _opts; ${objPreamble}return ${finalBody}; }`
-  }
+  const objectCode = `function ${name}_$f$obj(_opts = {}) { let { ${objectDestructureNames} } = _opts; return ${name}_$f(${delegationArgs}); }`
 
   // Combine both versions
   const code = `${positionalCode}\n${objectCode}`

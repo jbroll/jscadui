@@ -111,8 +111,8 @@ describe('tail-call trampoline', () => {
     })
   })
 
-  describe('both variants trampolined', () => {
-    it('both _$f and _$f$obj get while-loop wrapper', () => {
+  describe('_$f$obj delegation', () => {
+    it('_$f has while-loop, _$f$obj delegates to _$f', () => {
       const code = transpileCode(`
         function sum_r(n, acc=0) = n <= 0 ? acc : sum_r(n - 1, acc + n);
       `)
@@ -125,13 +125,13 @@ describe('tail-call trampoline', () => {
       const fBody = code.slice(fIdx, objIdx)
       const objBody = code.slice(objIdx)
 
-      // Both should have while loops
+      // _$f should have the while-loop trampoline
       expect(fBody).toContain('while (true)')
-      expect(objBody).toContain('while (true)')
-
-      // Both should have bounce checks
       expect(fBody).toContain('__bounce__')
-      expect(objBody).toContain('__bounce__')
+
+      // _$f$obj should delegate to _$f (no duplicated trampoline)
+      expect(objBody).toContain('return sum_r_$f(')
+      expect(objBody).not.toContain('while (true)')
     })
   })
 

@@ -55,11 +55,13 @@ describe('function hoisting', () => {
 })
 
 describe('_$f$obj named argument handling', () => {
-  it('generates correct destructuring for object variant', () => {
+  it('generates delegation wrapper for object variant', () => {
     const code = transpileCode('function arc(n, r, angle, cp, points, wedge=false) = n;')
-    // The $obj variant must destructure ALL parameters with correct defaults
+    // The $obj variant destructures WITHOUT defaults and delegates to _$f
     expect(code).toContain('_$f$obj')
-    expect(code).toMatch(/let\s*\{.*n.*,.*r.*,.*angle.*,.*cp.*,.*points.*,.*wedge\s*=\s*false.*\}\s*=\s*_opts/)
+    expect(code).toMatch(/let\s*\{.*n.*,.*r.*,.*angle.*,.*cp.*,.*points.*,.*wedge.*\}\s*=\s*_opts/)
+    // Should delegate to the positional variant
+    expect(code).toMatch(/return arc_\$f\(/)
   })
 
   it('partial named args do not corrupt other parameters', () => {

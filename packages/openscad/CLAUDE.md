@@ -40,7 +40,22 @@ To watch GPU CI progress in real time:
 ssh gpu 'tail -f ~/ci-logs/$(ls -t ~/ci-logs/*.log | head -1)'
 ```
 
-**Known permanent failure:** nopscadlib passes ~7% (pre-existing transpiler gaps, not regressions).
+## Development Methodology
+
+**One change, one test, one commit.** Transpiler changes are high-risk because regressions are hard to diagnose after the fact. Follow this workflow strictly:
+
+1. **Make one small, focused change** — a single logical modification to the transpiler
+2. **Run unit tests locally** — `npx vitest run` must pass (fast, seconds)
+3. **Run full baseline on GPU** — `npm test` must show all 6 suites at 100%
+4. **Commit only after GPU verification passes** — never stack unverified changes
+5. **If a regression appears, fix it immediately** before moving on
+
+Never combine multiple transpiler changes into one commit. If GPU CI is unreachable, do not commit transpiler changes — wait until you can verify.
+
+**Baseline documentation** (`MODEL_COMPARISON_BASELINE.md`) is the source of truth:
+- Any deviation from 100% on baseline suites is a regression that must be fixed
+- When improvements are made (new models passing, new suites added), update the baseline document
+- The baseline can only improve — never document regressions as the new baseline
 
 ## Architecture Overview
 

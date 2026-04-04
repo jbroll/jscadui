@@ -66,8 +66,8 @@ result = add(5, z=30);
     // Check that only x and z are passed, y is omitted (will get default)
     expect(result.code).toMatch(/add_\$f\$obj\(\s*\{\s*x:\s*5.*z:\s*30\s*\}\s*\)/)
 
-    // The object destructuring should have y = 10 default
-    expect(result.code).toMatch(/\{\s*x.*y\s*=\s*10.*z\s*=\s*20\s*\}/)
+    // The _$f$obj delegates to _$f which has the defaults in its parameter list
+    expect(result.code).toMatch(/return add_\$f\(/)
   })
 
   it('should handle undef in positional version', () => {
@@ -100,6 +100,97 @@ result = empty();
 
     // Should call the function without arguments
     expect(result.code).toMatch(/empty_\$f\(\s*\)/)
+  })
+})
+
+describe('_$f$obj delegation calling conventions', () => {
+  function transpileCode(scadCode: string): string {
+    return transpile(parse(scadCode).ast, { includeHeader: false }).code
+  }
+
+  it('_$f$obj destructures without defaults and delegates to _$f', () => {
+    const code = transpileCode('function f(a, b=5, c=10) = a + b + c;')
+    // _$f$obj should destructure without defaults
+    expect(code).toMatch(/function f_\$f\$obj\(_opts = \{\}\) \{ let \{ a, b, c \} = _opts; return f_\$f\(a, b, c\); \}/)
+    // _$f should have the defaults
+    expect(code).toMatch(/function f_\$f\(a, b = 5, c = 10\)/)
+  })
+
+  it('missing args become undefined, triggering JS default params', () => {
+    // When calling f(x=1), y is not in _opts, so destructured y=undefined.
+    // Delegating f_$f(1, undefined) makes JS default b=5 fire. Correct!
+    const code = transpileCode(`
+      function f(x, y=5) = x + y;
+      result = f(x=1);
+    `)
+    // The call uses $obj
+    expect(code).toContain('f_$f$obj(')
+    // $obj delegates without defaults
+    expect(code).toMatch(/let \{ x, y \} = _opts; return f_\$f\(x, y\)/)
+  })
+
+  it('EXPLICIT_UNDEF passes through to _$f preamble', () => {
+    // Calling f(1, undef) should pass EXPLICIT_UNDEF to _$f.
+    // The _$f preamble converts it to real undefined.
+    // Crucially, JS default b=5 does NOT fire because EXPLICIT_UNDEF !== undefined.
+    const code = transpileCode(`
+      function f(a, b=5) = [a, b];
+      result = f(1, undef);
+    `)
+    // Positional call uses _$f directly
+    expect(code).toMatch(/f_\$f\(1, j\$\.EXPLICIT_UNDEF\)/)
+    // _$f has preamble to convert EXPLICIT_UNDEF
+    expect(code).toContain('if (b === j$.EXPLICIT_UNDEF) b = undefined')
+  })
+
+  it('named EXPLICIT_UNDEF through delegation preserves semantics', () => {
+    // f(a=1, b=undef) goes through _$f$obj → _$f(1, EXPLICIT_UNDEF)
+    const code = transpileCode(`
+      function f(a, b=5) = [a, b];
+      result = f(a=1, b=undef);
+    `)
+    // Named call uses $obj
+    expect(code).toContain('f_$f$obj(')
+    // $obj delegates, passing EXPLICIT_UNDEF through
+    expect(code).toMatch(/let \{ a, b \} = _opts; return f_\$f\(a, b\)/)
+  })
+
+  it('self-referencing defaults in delegation use renamed params', () => {
+    // function f(screw = screw) has a renamed param to avoid TDZ
+    const code = transpileCode(`
+      screw = "M3";
+      function f(screw = screw) = screw;
+    `)
+    // _$f$obj should destructure using the renamed param and delegate
+    expect(code).toContain('_$f$obj')
+    expect(code).toMatch(/return f_\$f\(/)
+  })
+
+  it('all-positional calls bypass _$f$obj entirely', () => {
+    const code = transpileCode(`
+      function f(a, b=5, c=10) = a + b + c;
+      result = f(1, 2, 3);
+    `)
+    // Direct positional call
+    expect(code).toMatch(/f_\$f\(1, 2, 3\)/)
+    // Should NOT go through $obj for this call
+    expect(code).not.toMatch(/f_\$f\$obj\(\s*\{\s*a:\s*1/)
+  })
+
+  it('no-param functions skip _$f$obj entirely', () => {
+    const code = transpileCode('function f() = 42;')
+    expect(code).toContain('function f_$f()')
+    expect(code).not.toContain('_$f$obj')
+  })
+
+  it('tail-recursive _$f$obj delegates instead of duplicating trampoline', () => {
+    const code = transpileCode(`
+      function sum(n, acc=0) = n <= 0 ? acc : sum(n - 1, acc + n);
+    `)
+    // _$f has the trampoline
+    expect(code).toMatch(/function sum_\$f\(.*while \(true\)/)
+    // _$f$obj just delegates
+    expect(code).toMatch(/function sum_\$f\$obj\(_opts = \{\}\) \{ let \{ n, acc \} = _opts; return sum_\$f\(n, acc\); \}/)
   })
 })
 
