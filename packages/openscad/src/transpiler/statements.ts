@@ -1460,9 +1460,8 @@ export function transpileFunctionDeclaration(stmt: FunctionDeclarationStmt, ctx:
     clearTailCallMarks()
   }
 
-  // Generate positional version (existing behavior)
-  // Build params with renamed self-referencing defaults
-  const positionalParams = uniqueArgs.map(arg => {
+  // Build parameter list with defaults — used for both _$f signature and _$f$obj destructuring
+  const paramList = uniqueArgs.map(arg => {
     const paramName = safeIdentifier(arg.name)
     const renamedParam = selfRefRenames.get(paramName)
     if (renamedParam) {
@@ -1491,25 +1490,10 @@ export function transpileFunctionDeclaration(stmt: FunctionDeclarationStmt, ctx:
       }
     }
     const reassign = buildBounceReassignment(safeParamNames, paramDefaults)
-    positionalCode = `${comment}function ${name}_$f(${positionalParams}) { ${positionalPreamble}while (true) { const _r = ${finalBody}; if (!_r || !_r.__bounce__) return _r; ${reassign}; } }`
+    positionalCode = `${comment}function ${name}_$f(${paramList}) { ${positionalPreamble}while (true) { const _r = ${finalBody}; if (!_r || !_r.__bounce__) return _r; ${reassign}; } }`
   } else {
-    positionalCode = `${comment}function ${name}_$f(${positionalParams}) { ${positionalPreamble}return ${finalBody}; }`
+    positionalCode = `${comment}function ${name}_$f(${paramList}) { ${positionalPreamble}return ${finalBody}; }`
   }
-
-  // Generate object version for named argument calls
-  const objectDestructure = uniqueArgs.map(arg => {
-    const paramName = safeIdentifier(arg.name)
-    const renamedParam = selfRefRenames.get(paramName)
-    if (renamedParam) {
-      // Self-referencing: use renamed param with outer var as default
-      return `${renamedParam} = ${paramName}`
-    }
-    if (arg.value) {
-      const defaultVal = transpileExpression(arg.value, ctx)
-      return `${paramName} = ${defaultVal}`
-    }
-    return paramName
-  }).join(', ')
 
   ctx.currentLocalBindings = savedLocalBindings
 
@@ -1522,7 +1506,7 @@ export function transpileFunctionDeclaration(stmt: FunctionDeclarationStmt, ctx:
     const paramName = safeIdentifier(arg.name)
     return selfRefRenames.get(paramName) ?? paramName
   }).join(', ')
-  const objectCode = `function ${name}_$f$obj(_opts = {}) { let { ${objectDestructure} } = _opts; return ${name}_$f(${delegateArgs}); }`
+  const objectCode = `function ${name}_$f$obj(_opts = {}) { let { ${paramList} } = _opts; return ${name}_$f(${delegateArgs}); }`
 
   // Combine both versions
   const code = `${positionalCode}\n${objectCode}`
