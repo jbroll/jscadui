@@ -33,6 +33,9 @@ const EXPLICIT_UNDEF = Symbol('explicit_undef')
 const j$ = {
   // Sentinel for explicit undef
   EXPLICIT_UNDEF,
+  // Convert EXPLICIT_UNDEF to real undefined in function preambles.
+  // Replaces per-param `if (x === EXPLICIT_UNDEF) x = undefined` with a single call.
+  resolveUndef: (...args) => args.map(a => a === EXPLICIT_UNDEF ? undefined : a),
   // Sentinel for absent child (conditional not taken, vs undefined=empty geometry)
   NO_CHILD: _NO_CHILD,
   // Math helpers (no JSCAD dependency)

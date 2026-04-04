@@ -1364,14 +1364,12 @@ function buildUndefConversionPreamble(args: AssignmentNode[], selfRefRenames?: M
   if (args.length === 0) return ''
 
   const uniqueArgs = deduplicateArgs(args)
-
-  const conversions = uniqueArgs.map(arg => {
+  const names = uniqueArgs.map(arg => {
     const name = safeIdentifier(arg.name)
-    const renamed = selfRefRenames?.get(name) ?? name
-    return `if (${renamed} === j$.EXPLICIT_UNDEF) ${renamed} = undefined`
+    return selfRefRenames?.get(name) ?? name
   })
 
-  return conversions.join('; ') + (conversions.length > 0 ? '; ' : '')
+  return `[${names.join(', ')}] = j$.resolveUndef(${names.join(', ')}); `
 }
 
 /**
