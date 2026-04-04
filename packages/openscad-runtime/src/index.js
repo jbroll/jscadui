@@ -36,6 +36,18 @@ const j$ = {
   // Convert EXPLICIT_UNDEF to real undefined in function preambles.
   // Replaces per-param `if (x === EXPLICIT_UNDEF) x = undefined` with a single call.
   resolveUndef: (...args) => args.map(a => a === EXPLICIT_UNDEF ? undefined : a),
+  // Map _arg0/_arg1/... positional args to named params in module preambles.
+  // Replaces per-param `if (x === undefined) x = _opts._argN` with a single call.
+  applyPositionalArgs: (_opts, vals) => {
+    if (!('_arg0' in _opts)) return vals
+    return vals.map((v, i) => v === undefined ? _opts[`_arg${i}`] : v)
+  },
+  // Resolve EXPLICIT_UNDEF and apply default values for module parameters.
+  // Replaces per-param `x = x !== undefined && x !== EXPLICIT_UNDEF ? x : default` with a single call.
+  // For each param: if defined and not EXPLICIT_UNDEF, keep it; otherwise use the default.
+  resolveParams: (vals, defaults) => vals.map((v, i) =>
+    (v !== undefined && v !== EXPLICIT_UNDEF) ? v : defaults[i]
+  ),
   // Sentinel for absent child (conditional not taken, vs undefined=empty geometry)
   NO_CHILD: _NO_CHILD,
   // Math helpers (no JSCAD dependency)

@@ -975,33 +975,34 @@ function buildLocalVarConversions(
   // _argN positional fallback: when caller used _arg0/_arg1/... (didn't know param names),
   // map them to named params before applying defaults.
   // This happens when a module is called cross-file and the transpiler lacked its param list.
-  // Self-referencing params are renamed in destructuring, so use the alias name here.
   if (categories.localVars.length > 0) {
-    lines.push(`  if ('_arg0' in _opts) {`)
-    for (let i = 0; i < categories.localVars.length; i++) {
-      const name = safeIdentifier(categories.localVars[i].name)
-      const alias = selfRefAliases.get(name)
-      const varName = alias ?? name
-      lines.push(`    if (${varName} === undefined) ${varName} = _opts._arg${i};`)
-    }
-    lines.push(`  }`)
+    const varNames = categories.localVars.map(arg => {
+      const name = safeIdentifier(arg.name)
+      return selfRefAliases.get(name) ?? name
+    })
+    lines.push(`  [${varNames.join(', ')}] = j$.applyPositionalArgs(_opts, [${varNames.join(', ')}]);`)
   }
 
-  for (const arg of categories.localVars) {
-    const name = safeIdentifier(arg.name)
-    const alias = selfRefAliases.get(name)
-    if (alias) {
-      // Self-referencing default (e.g., `module foo(screw = screw)`): the param was renamed
-      // to 'alias' in the destructuring, so the outer 'name' (outer var) is still accessible.
-      // Apply default: if alias is undefined/EXPLICIT_UNDEF, fall back to the outer var 'name'.
-      lines.push(`  if (${alias} === j$.EXPLICIT_UNDEF) ${alias} = undefined;`)
-      lines.push(`  if (${alias} === undefined) ${alias} = ${name};`)
-    } else if (arg.value) {
-      const defaultVal = transpileExpression(arg.value, ctx)
-      lines.push(`  ${name} = ${name} !== undefined && ${name} !== j$.EXPLICIT_UNDEF ? ${name} : ${defaultVal};`)
-    } else {
-      lines.push(`  if (${name} === j$.EXPLICIT_UNDEF) ${name} = undefined;`)
+  // Resolve EXPLICIT_UNDEF and apply defaults in a single call.
+  // For each param: if defined and not EXPLICIT_UNDEF, keep it; otherwise use the default.
+  // Self-referencing params use the outer variable as default (alias → name fallback).
+  if (categories.localVars.length > 0) {
+    const varNames: string[] = []
+    const defaults: string[] = []
+    for (const arg of categories.localVars) {
+      const name = safeIdentifier(arg.name)
+      const alias = selfRefAliases.get(name)
+      varNames.push(alias ?? name)
+      if (alias) {
+        // Self-referencing: default is the outer variable (still accessible because param was renamed)
+        defaults.push(name)
+      } else if (arg.value) {
+        defaults.push(transpileExpression(arg.value, ctx))
+      } else {
+        defaults.push('undefined')
+      }
     }
+    lines.push(`  [${varNames.join(', ')}] = j$.resolveParams([${varNames.join(', ')}], [${defaults.join(', ')}]);`)
   }
 
   return lines

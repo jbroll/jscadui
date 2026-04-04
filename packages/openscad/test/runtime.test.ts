@@ -71,6 +71,79 @@ describe('isTruthy', () => {
   })
 })
 
+describe('applyPositionalArgs', () => {
+  it('returns vals unchanged when _arg0 is not in _opts', () => {
+    const result = j$.applyPositionalArgs({ x: 1 }, [1, undefined, 3])
+    expect(result).toEqual([1, undefined, 3])
+  })
+
+  it('maps _argN to undefined vals when _arg0 is present', () => {
+    const _opts = { _arg0: 10, _arg1: 20, _arg2: 30 } as Record<string, unknown>
+    const result = j$.applyPositionalArgs(_opts, [undefined, undefined, undefined])
+    expect(result).toEqual([10, 20, 30])
+  })
+
+  it('preserves already-defined vals (named args take priority)', () => {
+    const _opts = { _arg0: 10, _arg1: 20, x: 99 } as Record<string, unknown>
+    // x was destructured as 99 from _opts.x, so vals[0]=99 (not undefined)
+    const result = j$.applyPositionalArgs(_opts, [99, undefined])
+    expect(result).toEqual([99, 20])
+  })
+
+  it('handles partial positional args', () => {
+    const _opts = { _arg0: 10 } as Record<string, unknown>
+    const result = j$.applyPositionalArgs(_opts, [undefined, undefined, undefined])
+    // _arg1 and _arg2 don't exist, so undefined stays undefined
+    expect(result).toEqual([10, undefined, undefined])
+  })
+})
+
+describe('resolveParams', () => {
+  it('keeps defined values, ignoring defaults', () => {
+    const result = j$.resolveParams([10, 'hello', true], [1, 'default', false])
+    expect(result).toEqual([10, 'hello', true])
+  })
+
+  it('applies defaults for undefined values', () => {
+    const result = j$.resolveParams([undefined, undefined], [5, 'default'])
+    expect(result).toEqual([5, 'default'])
+  })
+
+  it('applies defaults for EXPLICIT_UNDEF values', () => {
+    const result = j$.resolveParams([j$.EXPLICIT_UNDEF, 10], [5, 99])
+    expect(result).toEqual([5, 10])
+  })
+
+  it('uses undefined default for params without defaults', () => {
+    const result = j$.resolveParams([undefined, j$.EXPLICIT_UNDEF], [undefined, undefined])
+    expect(result).toEqual([undefined, undefined])
+  })
+
+  it('handles self-referencing defaults (outer variable reference)', () => {
+    // Simulates: module foo(screw = screw) where outer screw = "M3"
+    const outerScrew = 'M3'
+    const result = j$.resolveParams([undefined], [outerScrew])
+    expect(result).toEqual(['M3'])
+  })
+
+  it('mixed: some provided, some defaulted', () => {
+    const result = j$.resolveParams([42, undefined, j$.EXPLICIT_UNDEF], [0, 'fallback', false])
+    expect(result).toEqual([42, 'fallback', false])
+  })
+})
+
+describe('resolveUndef', () => {
+  it('converts EXPLICIT_UNDEF to undefined', () => {
+    const result = j$.resolveUndef(1, j$.EXPLICIT_UNDEF, 3)
+    expect(result).toEqual([1, undefined, 3])
+  })
+
+  it('leaves other values unchanged', () => {
+    const result = j$.resolveUndef(1, 'hello', undefined, null)
+    expect(result).toEqual([1, 'hello', undefined, null])
+  })
+})
+
 describe('OpenSCAD semantics with isTruthy', () => {
   // These tests verify the expected behavior when isTruthy is used in conditionals
 

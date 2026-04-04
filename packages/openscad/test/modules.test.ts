@@ -46,6 +46,71 @@ describe('module declaration', () => {
   })
 })
 
+describe('module parameter preamble', () => {
+  it('uses applyPositionalArgs for positional fallback', () => {
+    const code = transpileCode(`
+      module box(size=10, center=false) {
+        cube(size, center=center);
+      }
+    `)
+    // Should use single applyPositionalArgs call instead of per-param _argN checks
+    expect(code).toContain('j$.applyPositionalArgs(_opts,')
+    expect(code).not.toContain("'_arg0' in _opts")
+  })
+
+  it('applyPositionalArgs includes self-ref aliases', () => {
+    const code = transpileCode(`
+      screw = "M3";
+      module foo(type, screw = screw) {
+        echo(type, screw);
+      }
+    `)
+    // Self-referencing param 'screw' gets renamed; applyPositionalArgs uses the alias
+    expect(code).toContain('j$.applyPositionalArgs(_opts,')
+    expect(code).toMatch(/applyPositionalArgs\(_opts, \[type, _screw_param/)
+  })
+
+  it('no applyPositionalArgs for zero-param modules', () => {
+    const code = transpileCode(`
+      module thing() { cube(5); }
+    `)
+    expect(code).not.toContain('applyPositionalArgs')
+  })
+
+  it('uses resolveParams for EXPLICIT_UNDEF + defaults', () => {
+    const code = transpileCode(`
+      module box(size=10, center=false) {
+        cube(size, center=center);
+      }
+    `)
+    // Should use single resolveParams call instead of per-param EXPLICIT_UNDEF checks
+    expect(code).toContain('j$.resolveParams(')
+    expect(code).toMatch(/resolveParams\(\[size, center\], \[10, false\]\)/)
+    expect(code).not.toContain('EXPLICIT_UNDEF')
+  })
+
+  it('resolveParams handles no-default params', () => {
+    const code = transpileCode(`
+      module draw(type, length, nylon=false) {
+        cube(length);
+      }
+    `)
+    expect(code).toMatch(/resolveParams\(\[type, length, nylon\], \[undefined, undefined, false\]\)/)
+  })
+
+  it('resolveParams handles self-referencing defaults', () => {
+    const code = transpileCode(`
+      screw = "M3";
+      module foo(type, screw = screw) {
+        echo(screw);
+      }
+    `)
+    // Self-ref param uses outer variable as default
+    expect(code).toContain('j$.resolveParams(')
+    expect(code).toMatch(/resolveParams\(\[type, _screw_param.*\], \[undefined, screw\]\)/)
+  })
+})
+
 describe('module instantiation', () => {
   it('passes named args correctly', () => {
     const code = transpileCode(`
