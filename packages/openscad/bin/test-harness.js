@@ -490,6 +490,11 @@ function matchesPatterns(filePath, patterns) {
 }
 
 function collectScadFiles(dirPath, files) {
+  // Accept a single .scad file directly
+  if (dirPath.endsWith('.scad')) {
+    files.push(dirPath)
+    return
+  }
   for (const entry of readdirSync(dirPath, { withFileTypes: true })) {
     const full = join(dirPath, entry.name)
     if (entry.isDirectory()) {
@@ -536,7 +541,8 @@ function discoverDirPatterns(dirs, filename) {
   }
 
   for (const dir of dirs) {
-    if (existsSync(resolve(dir))) walk(resolve(dir))
+    const abs = resolve(dir)
+    if (existsSync(abs) && !abs.endsWith('.scad')) walk(abs)
   }
   return dirPatterns
 }
@@ -672,6 +678,18 @@ async function main() {
     !isSkippedByDirPatterns(f, dirSkips)
   )
   const skipped = files.length - filesToTest.length
+
+  // Guard: refuse multi-file runs outside CI — they lock up the dev machine.
+  // Single-model runs (1 file) are always OK for local debugging.
+  // CI is detected by the worktree path used by simple-ci.
+  const isCI = __dirname.includes('ci-worktrees') || !!process.env.CI
+  if (filesToTest.length > 1 && !isCI) {
+    console.error(`\nError: refusing to run ${filesToTest.length} models locally.`)
+    console.error('Library-sized runs lock up the dev machine — use CI instead.')
+    console.error('\n  Single model:  node bin/test-harness.js path/to/model.scad')
+    console.error('  Full suite:    cd packages/openscad && npm test\n')
+    process.exit(1)
+  }
 
   if (options.verbose) {
     console.error(`Testing ${filesToTest.length} files with ${options.concurrency} workers...`)
