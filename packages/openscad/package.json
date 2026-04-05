@@ -28,7 +28,7 @@
     "build": "tsc",
     "test": "npm run test:ci",
     "test:local": "npm run build && npm run test:unit && npm run test:comparison",
-    "test:ci": "cd ../.. && JOB=$(../simple-ci/sci push jscadui/packages/openscad/test:local) && ../simple-ci/sci wait \"$JOB\"",
+    "test:ci": "cd ../.. && JOB=$(../simple-ci/sci push jscadui/test) && ../simple-ci/sci wait \"$JOB\"",
     "test:unit": "vitest run",
     "test:comparison": "node bin/test-parallel.js ../../apps/jscad-web/examples/openscad",
     "test:bosl": "node bin/test-harness.js ../../apps/jscad-web/examples/openscad/bosl",

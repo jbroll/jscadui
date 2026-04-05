@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+WORKTREE="$(cd "$(dirname "$0")/.." && pwd)"
+
+cd "$WORKTREE"
+npm install
+
+cd "$WORKTREE/packages/openscad"
+npm install
+npm run test:local
