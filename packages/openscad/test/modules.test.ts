@@ -178,6 +178,68 @@ describe('nested modules', () => {
   })
 })
 
+describe('nested module forward references', () => {
+  it('sibling nested module called before definition uses local binding', () => {
+    // module head() calls eyebrow() at lines before module eyebrow() is defined.
+    // Both are siblings inside module owl(). Without two-pass registration,
+    // eyebrow() inside head() emits eyebrow_$m({})() (global lookup) instead of eyebrow()().
+    const code = transpileCode(`
+      module owl() {
+        module head() {
+          eyebrow();
+        }
+        module eyebrow() {
+          cube(1);
+        }
+        head();
+        eyebrow();
+      }
+    `)
+    // eyebrow should be a local const, not a global _$m reference
+    expect(code).toMatch(/const eyebrow\b/)
+    // calls to eyebrow inside head() should use the local binding, not eyebrow_$m
+    expect(code).not.toContain('eyebrow_$m')
+  })
+
+  it('mutually referencing nested modules both resolve locally', () => {
+    const code = transpileCode(`
+      module parent() {
+        module a() { b(); }
+        module b() { cube(1); }
+        a();
+      }
+    `)
+    expect(code).toMatch(/const a\b/)
+    expect(code).toMatch(/const b\b/)
+    expect(code).not.toContain('a_$m')
+    expect(code).not.toContain('b_$m')
+  })
+
+  it('same-named nested module at deeper scope does not clobber outer binding', () => {
+    // module outer() has module fern_ball() (outer).
+    // Inside outer's fern_ball, there is ALSO a module fern_ball() (inner).
+    // The inner one shadows within its scope, but the outer binding must be
+    // restored after the inner scope exits.
+    // At lines 93-95 of fidget_ball_fern_leaf.scad, the OUTER fern_ball is called.
+    const code = transpileCode(`
+      module outer() {
+        module fern_ball(r) {
+          module inner_module() { cube(1); }
+          module fern_ball() { inner_module(); }
+          fern_ball();
+        }
+        fern_ball(10);
+        fern_ball(20);
+      }
+    `)
+    // The outer calls fern_ball(10) and fern_ball(20) should resolve to the LOCAL fern_ball
+    // (local nested module), not the global fern_ball_$m.
+    expect(code).not.toContain('fern_ball_$m')
+    // There should be a local const fern_ball definition
+    expect(code).toMatch(/const fern_ball\b/)
+  })
+})
+
 describe('children() handling', () => {
   it('children(i) accesses specific child', () => {
     const code = transpileCode(`

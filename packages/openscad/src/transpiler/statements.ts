@@ -505,6 +505,7 @@ function transpileModuleInstantiation(stmt: ModuleInstantiationStmt, ctx: Transp
 
   // Special modules that don't follow the normal pattern
   if (name === 'for') return transpileForLoop(stmt, ctx)
+  if (name === 'intersection_for') return transpileIntersectionForLoop(stmt, ctx)
   if (name === 'let') return transpileLetModule(stmt, ctx)
   if (name === 'echo') return transpileEchoModule(stmt, ctx)
   if (name === 'assert') return transpileAssertModule(stmt, ctx)
@@ -776,6 +777,49 @@ function transpileForLoop(stmt: ModuleInstantiationStmt, ctx: TranspileContext):
     result = `j$.iter(${rangeOrVector}).${method}(${varName} => ${wrapLoopVar(varName, result)})`
   }
   return `j$.union(...${result})`
+}
+
+/**
+ * Transpile 'intersection_for' — like for but intersects bodies instead of unioning.
+ * intersection_for(i = [1:n]) { body } ≡ intersection() { for (i = [1:n]) { body } }
+ */
+function transpileIntersectionForLoop(stmt: ModuleInstantiationStmt, ctx: TranspileContext): string {
+  const args = stmt.args
+  if (!args || args.length === 0) {
+    return '/* empty intersection_for loop */'
+  }
+
+  const isTuple = (name: string) => name.startsWith('(') && name.endsWith(')')
+  const parseTupleNames = (name: string) => name.slice(1, -1).split(',').map(s => s.trim())
+  const tupleToJS = (name: string) => `[${parseTupleNames(name).join(', ')}]`
+
+  const loopScope = new Map<string, string>()
+  for (const arg of args) {
+    if (isTuple(arg.name)) {
+      for (const n of parseTupleNames(arg.name)) loopScope.set(n, n)
+    } else {
+      loopScope.set(arg.name, arg.name)
+    }
+  }
+
+  const body = withScope(ctx, loopScope, () =>
+    stmt.child ? transpileStatement(stmt.child, ctx) || 'undefined' : 'undefined'
+  )
+
+  if (args.length === 1) {
+    const varName = isTuple(args[0].name) ? tupleToJS(args[0].name) : args[0].name
+    const rangeOrVector = transpileExpression(args[0].value!, ctx)
+    return `j$.intersect(...j$.iter(${rangeOrVector}).map(${varName} => ${body}))`
+  }
+
+  let result = body
+  for (let i = args.length - 1; i >= 0; i--) {
+    const varName = isTuple(args[i].name) ? tupleToJS(args[i].name) : args[i].name
+    const rangeOrVector = transpileExpression(args[i].value!, ctx)
+    const method = i === args.length - 1 ? 'map' : 'flatMap'
+    result = `j$.iter(${rangeOrVector}).${method}(${varName} => ${result})`
+  }
+  return `j$.intersect(...${result})`
 }
 
 /**
@@ -1110,8 +1154,10 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
   const bodyParts: string[] = []
   // Track declared variables to detect reassignments
   const declaredVars = new Set<string>(paramNames)
-  // Track local variable names for function call resolution (avoid _$f suffix for local vars)
-  const localVarNames: string[] = []
+
+  // Snapshot function bindings on entry so nested scopes can shadow outer bindings
+  // without permanently losing them. Restored on exit instead of manual cleanup.
+  const bindingsSnapshot = ctx.scopes.snapshotFunctionBindings()
 
   // Save outer currentLocalBindings and add this scope's params.
   // (transpileModuleDeclaration already added them for top-level modules; adding again is idempotent.)
@@ -1144,7 +1190,6 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
     const funcVarName = hasVarConflict ? varName + '_$f' : varName
     funcVarNames.set(f.name, funcVarName)
     ctx.scopes.registerFunctionBinding(varName, funcVarName)
-    localVarNames.push(varName)
     ctx.currentLocalBindings.add(varName)
     if (hasVarConflict) ctx.currentLocalBindings.add(funcVarName)
   }
@@ -1166,9 +1211,11 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
     declaredVars.add(hasVarConflict ? f.name + '_$f' : f.name)
   }
 
-  // Recursively process nested module definitions
+  // Recursively process nested module definitions — two-pass like nested functions.
+  // Pass 1: register ALL names so that forward/mutual references between sibling nested
+  // modules resolve correctly (e.g., module head() calling module eyebrow() defined later).
+  const moduleVarNames = new Map<string, string>()
   for (const m of nestedModules) {
-    // Track as local function binding BEFORE transpiling body (for recursive calls)
     const varName = safeIdentifier(m.name)
     // If a variable assignment or parameter in the same scope has the same name, use _$m suffix
     // to avoid a `const colour` conflict: nested module `colour` vs parameter/variable `colour`.
@@ -1176,11 +1223,16 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
     const hasVarConflict = assignments.some(a => safeIdentifier(a.name) === varName) ||
       [...paramNames].some(p => safeIdentifier(p) === varName)
     const moduleVarName = hasVarConflict ? varName + '_$m' : varName
+    moduleVarNames.set(m.name, moduleVarName)
     ctx.scopes.registerFunctionBinding(varName, moduleVarName)
-    localVarNames.push(varName)
     ctx.currentLocalBindings.add(varName)
     if (hasVarConflict) ctx.currentLocalBindings.add(moduleVarName)
-
+  }
+  // Pass 2: transpile each nested module body (all sibling names are now registered).
+  for (const m of nestedModules) {
+    const moduleVarName = moduleVarNames.get(m.name)!
+    const varName = safeIdentifier(m.name)
+    const hasVarConflict = moduleVarName !== varName
     // Nested module defaults are transpiled in the outer scope (current currentLocalBindings).
     // The recursive buildModuleBody call will handle adding the nested module's own params.
     const nestedParams = transpileParamsList(m.definitionArgs, ctx)
@@ -1213,7 +1265,6 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
       // Register function binding BEFORE transpiling for recursion support
       // Mark as function literal so isFunctionLiteralExpr can recognize references to it
       ctx.scopes.registerFunctionBinding(varName, varName, true)
-      localVarNames.push(varName)
     }
 
     if (isSpecialVar) {
@@ -1246,12 +1297,8 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
         || ctx.symbols.getParams(varName, 'module') !== undefined
       const existingBinding = ctx.scopes.lookupFunctionBinding(varName)
       const hasRenamedModuleBinding = existingBinding !== undefined && existingBinding !== varName
-      // If an outer scope already registered the same binding, don't re-register or schedule
-      // cleanup — that would destroy the outer scope's binding when this scope exits.
-      const isOuterScopeBinding = existingBinding !== undefined && existingBinding === varName
-      if (!isKnownModuleOrFunc && !hasRenamedModuleBinding && !isOuterScopeBinding) {
+      if (!isKnownModuleOrFunc && !hasRenamedModuleBinding) {
         ctx.scopes.registerFunctionBinding(varName, varName)
-        localVarNames.push(varName)
       }
     }
   }
@@ -1267,10 +1314,10 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
   // Special variable scoping is handled by j$.withScope() in the module wrapper (if special vars exist)
   bodyParts.push(`${indent}return ${returnExpr}`)
 
-  // Clean up local bindings (they're scoped to this module body)
-  for (const name of localVarNames) {
-    ctx.scopes.unregisterFunctionBinding(name)
-  }
+  // Restore function bindings to the pre-entry snapshot.
+  // This cleans up all local registrations AND restores any outer-scope bindings
+  // that were shadowed by same-name nested modules/functions (e.g., fern_ball inside fern_ball).
+  ctx.scopes.restoreFunctionBindings(bindingsSnapshot)
 
   // Restore currentLocalBindings to outer scope
   ctx.currentLocalBindings = savedLocalBindings
@@ -1405,6 +1452,7 @@ export function transpileFunctionDeclaration(stmt: FunctionDeclarationStmt, ctx:
   const paramBindings = stmt.definitionArgs
     .map(a => safeIdentifier(a.name))
     .filter(p => !ctx.symbols.isKind(p, 'function'))
+  const paramBindingsSnapshot = ctx.scopes.snapshotFunctionBindings()
   for (const p of paramBindings) ctx.scopes.registerFunctionBinding(p, p)
 
   // Add params to currentLocalBindings for free-var detection (covers both body and defaults)
@@ -1413,7 +1461,7 @@ export function transpileFunctionDeclaration(stmt: FunctionDeclarationStmt, ctx:
   for (const a of stmt.definitionArgs) ctx.currentLocalBindings.add(safeIdentifier(a.name))
 
   const body = transpileExpression(stmt.expr, ctx)
-  for (const p of paramBindings) ctx.scopes.unregisterFunctionBinding(p)
+  ctx.scopes.restoreFunctionBindings(paramBindingsSnapshot)
 
   if (stmt.definitionArgs.length === 0) {
     ctx.currentLocalBindings = savedLocalBindings

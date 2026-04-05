@@ -81,6 +81,28 @@ export class ScopeManager {
   }
 
   /**
+   * Snapshot the current function bindings for save/restore.
+   * Use this when entering a nested scope that may shadow outer bindings.
+   */
+  snapshotFunctionBindings(): Map<string, string> {
+    return new Map(this.functionBindings)
+  }
+
+  /**
+   * Restore function bindings from a snapshot.
+   * Use this when leaving a nested scope to undo local registrations
+   * and restore any outer bindings that were shadowed.
+   */
+  restoreFunctionBindings(snapshot: Map<string, string>): void {
+    this.functionBindings = snapshot
+    // Rebuild functionLiteralNames to match restored bindings
+    // (only names in the snapshot can be function literals)
+    for (const name of [...this.functionLiteralNames]) {
+      if (!snapshot.has(name)) this.functionLiteralNames.delete(name)
+    }
+  }
+
+  /**
    * Get current scope depth (for debugging)
    */
   get scopeDepth(): number {
