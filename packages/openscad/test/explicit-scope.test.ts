@@ -19,12 +19,10 @@ describe('explicit special variable scoping', () => {
     // Should use j$.withScope()
     expect(result.code).toContain('j$.withScope')
     expect(result.code).toContain('return j$.withScope($$sv, () => {')
-    
+
     // Should NOT use pushScope/popScope
     expect(result.code).not.toContain('j$.pushScope')
     expect(result.code).not.toContain('j$.popScope')
-    expect(result.code).not.toContain('try {')
-    expect(result.code).not.toContain('finally {')
   })
 
   it('should use withScope even for modules without declared special vars', () => {
@@ -40,12 +38,6 @@ describe('explicit special variable scoping', () => {
     // Should use withScope to pass through any special vars from caller
     // Example: test_without(size=20, $fn=32) should pass $fn through even though not declared
     expect(result.code).toContain('j$.withScope($$sv, () => {')
-
-    // Should NOT use old pushScope/popScope pattern
-    expect(result.code).not.toContain('j$.pushScope')
-    expect(result.code).not.toContain('j$.popScope')
-    expect(result.code).not.toContain('try {')
-    expect(result.code).not.toContain('finally {')
   })
 
   it('should handle modules with declared special var parameters', () => {

@@ -1120,6 +1120,17 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
   ctx.currentLocalBindings = new Set(ctx.currentLocalBindings)
   for (const p of paramNames) ctx.currentLocalBindings.add(safeIdentifier(p))
 
+  // Pre-register function-valued variable assignments as known function literals.
+  // This must happen BEFORE nested function transpilation so that function bodies
+  // can recognize forward-referenced function-valued variables (e.g., `_dedup` uses
+  // `_dedup_add_some` which is defined later in the same scope as a function literal).
+  for (const a of assignments) {
+    if (a.value && isFunctionLiteralExpr(a.value)) {
+      const varName = safeIdentifier(a.name)
+      ctx.scopes.registerFunctionBinding(varName, varName, true)
+    }
+  }
+
   // Process nested function definitions (these must come first so they can be used)
   // First pass: register ALL function names so mutual/forward references within this scope work.
   const funcVarNames = new Map<string, string>()
@@ -1200,7 +1211,8 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
 
     if (isFuncLiteral) {
       // Register function binding BEFORE transpiling for recursion support
-      ctx.scopes.registerFunctionBinding(varName, varName)
+      // Mark as function literal so isFunctionLiteralExpr can recognize references to it
+      ctx.scopes.registerFunctionBinding(varName, varName, true)
       localVarNames.push(varName)
     }
 

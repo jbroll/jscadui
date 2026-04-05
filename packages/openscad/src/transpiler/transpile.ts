@@ -28,7 +28,7 @@ import {
   isIncludeStmt,
   isAssignmentNode,
 } from './ast-types.js'
-import { transpileExpression } from './expressions.js'
+import { transpileExpression, isFunctionLiteralExpr } from './expressions.js'
 import {
   transpileStatement,
   transpileModuleDeclaration,
@@ -269,6 +269,19 @@ function transpileAllStatements(ast: ScadFile, ctx: TranspileContext): Transpile
 
   // Dual-defined names are already tracked in SymbolTable
   // No need to register __fn variants - getParams() uses preferKind instead
+
+  // Pre-register function-valued variable assignments as known function literals.
+  // This enables function bodies (transpiled before assignments) to recognize
+  // forward-referenced function-valued variables in let bindings.
+  // Example: function _dedup uses _dedup_add_some = function(...) defined later.
+  for (const stmt of ast.statements) {
+    if (isAssignmentNode(stmt) && !stmt.name.startsWith('$') && stmt.value) {
+      if (isFunctionLiteralExpr(stmt.value)) {
+        const varName = safeIdentifier(stmt.name)
+        ctx.scopes.registerFunctionBinding(varName, varName, true)
+      }
+    }
+  }
 
   for (const stmt of ast.statements) {
     if (isModuleDeclaration(stmt)) {

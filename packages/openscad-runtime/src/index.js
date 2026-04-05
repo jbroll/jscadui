@@ -239,6 +239,19 @@ const j$ = {
     try { return fn() } finally { this.popScope() }
   },
 
+  // Inline scope management — eliminates closure overhead for module bodies.
+  // Returns true if scope was pushed (caller must call exitScope in finally block).
+  enterScope(vars) {
+    const entries = Object.entries(vars)
+    if (entries.length === 0) return false
+    this.pushScope()
+    for (const [name, value] of entries) this.setSpecialVar(name, value)
+    return true
+  },
+  exitScope(pushed) {
+    if (pushed) this.popScope()
+  },
+
 
   // Direct JSCAD access (populated after init)
   jscad: null,

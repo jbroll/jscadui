@@ -8,6 +8,9 @@ export class ScopeManager {
   /** Let-bound functions (maps original name -> renamed suffixed name) */
   private functionBindings = new Map<string, string>()
 
+  /** Names explicitly assigned a function literal value (for isFunctionLiteralExpr checks) */
+  private functionLiteralNames = new Set<string>()
+
   /** Counter for unique let binding suffixes */
   private counter = 1
 
@@ -47,9 +50,11 @@ export class ScopeManager {
 
   /**
    * Register a let-bound function
+   * @param isFunctionLiteral - true if the binding is explicitly a function literal value
    */
-  registerFunctionBinding(originalName: string, renamedName: string): void {
+  registerFunctionBinding(originalName: string, renamedName: string, isFunctionLiteral = false): void {
     this.functionBindings.set(originalName, renamedName)
+    if (isFunctionLiteral) this.functionLiteralNames.add(originalName)
   }
 
   /**
@@ -67,6 +72,15 @@ export class ScopeManager {
   }
 
   /**
+   * Check if a name is known to hold a function literal value.
+   * Unlike lookupFunctionBinding, this is definitive — identity bindings
+   * from parameters are not included.
+   */
+  isKnownFunctionLiteral(name: string): boolean {
+    return this.functionLiteralNames.has(name)
+  }
+
+  /**
    * Get current scope depth (for debugging)
    */
   get scopeDepth(): number {
@@ -80,6 +94,7 @@ export class ScopeManager {
     const copy = new ScopeManager()
     copy.scopeStack = this.scopeStack.map(scope => new Map(scope))
     copy.functionBindings = new Map(this.functionBindings)
+    copy.functionLiteralNames = new Set(this.functionLiteralNames)
     copy.counter = this.counter
     return copy
   }

@@ -71,13 +71,14 @@ export function isFunctionLiteralExpr(expr: Expression | null, ctx?: TranspileCo
   if (ctx && isLookupExpr(expr)) {
     const name = (expr as { name: string }).name
     const binding = ctx.scopes.lookupFunctionBinding(name)
-    // Only treat as function-valued if the binding actually renames the variable
-    // (e.g. `center` → `center$3`). Identity bindings (name → name) come from
-    // parameter scope and do NOT mean the parameter holds a function value.
-    // Without this guard, `let(center = ...)` inside a function with a `center`
-    // parameter triggers TDZ: the binding is registered before `const center$N`
-    // is initialized.
+    // For renamed bindings (e.g. `center` → `center$3`), the rename proves
+    // it's a let-bound function, not a parameter.
     if (binding !== undefined && binding !== name) return true
+    // For identity bindings (name → name), only treat as function-valued if the
+    // ScopeManager explicitly recorded it as a function literal assignment.
+    // This distinguishes `_dedup_add_some = function(...)` (known function literal)
+    // from parameter-scope bindings like `center` which are NOT function-valued.
+    if (ctx.scopes.isKnownFunctionLiteral(name)) return true
   }
   // Ternary where both branches are functions
   if (isTernaryExpr(expr)) {
@@ -164,7 +165,8 @@ function transpileLetBindings(
         // Track for cleanup
         functionBindingPairs.push([origName, newName])
         // Register function binding IMMEDIATELY so subsequent bindings can call it
-        ctx.scopes.registerFunctionBinding(origName, newName)
+        // Mark as function literal so isFunctionLiteralExpr can recognize references
+        ctx.scopes.registerFunctionBinding(origName, newName, true)
         // Also add to scope for self-reference
         incrementalScope.set(origName, newName)
       }
@@ -705,6 +707,18 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
   // In JavaScript: (x) => x * 2
   if (isFunctionDeclaration(expr as unknown as import('openscad-parser').Statement)) {
     const funcDecl = expr as unknown as FunctionDeclarationStmt
+    // Add parameters to currentLocalBindings and register as function bindings
+    // so that function-valued parameters (e.g. `hash` in dedup) are called directly
+    // without the _$f suffix. Save and restore state to avoid leaking.
+    const savedLocalBindings = ctx.currentLocalBindings
+    ctx.currentLocalBindings = new Set(ctx.currentLocalBindings)
+    const paramBindings = (funcDecl.definitionArgs || [])
+      .map((a: AssignmentNode) => safeIdentifier(a.name))
+      .filter((p: string) => !ctx.symbols.isKind(p, 'function'))
+    for (const p of paramBindings) {
+      ctx.currentLocalBindings.add(p)
+      ctx.scopes.registerFunctionBinding(p, p)
+    }
     const params = (funcDecl.definitionArgs || [])
       .map((a: AssignmentNode) => {
         const name = safeIdentifier(a.name)
@@ -715,6 +729,9 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
       })
       .join(', ')
     const body = transpileExpression(funcDecl.expr, ctx)
+    // Restore state
+    for (const p of paramBindings) ctx.scopes.unregisterFunctionBinding(p)
+    ctx.currentLocalBindings = savedLocalBindings
     return `(${params}) => ${body}`
   }
 

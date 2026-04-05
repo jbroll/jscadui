@@ -140,6 +140,56 @@ describe('let binding scoping', () => {
     const uniqueSuffixes = new Set(suffixes)
     expect(uniqueSuffixes.size).toBeGreaterThanOrEqual(2)
   })
+
+  it('function-valued variables referenced in ternary let bindings use let suffix, not _$f', () => {
+    // Pattern from dotSCAD dedup: function-valued variables assigned later in the same scope
+    // are referenced in a ternary inside a let binding. The let binding should be called
+    // as a local variable (with $N suffix), not as a global function (with _$f suffix).
+    const code = transpileCode(`
+      function _dedup(elems, eq) =
+        let(
+          _my_handler = is_undef(eq) ? _handler_search : _handler_some
+        )
+        _my_handler(elems);
+
+      _handler_some = function(elems) elems;
+      _handler_search = function(elems) elems;
+    `)
+    // _my_handler should be called as _my_handler$N (let binding), not _my_handler_$f
+    expect(code).toMatch(/_my_handler\$\d+\(/)
+    expect(code).not.toContain('_my_handler_$f')
+  })
+
+  it('function-valued variables forward-referenced from nested functions are recognized', () => {
+    // Same pattern but verifying the ternary branches are recognized as functions
+    const code = transpileCode(`
+      function use_fn(eq) =
+        let(fn = eq ? handler_a : handler_b)
+        fn(42);
+      handler_a = function(x) x + 1;
+      handler_b = function(x) x - 1;
+    `)
+    // fn should be called as fn$N, not fn_$f
+    expect(code).toMatch(/fn\$\d+\(42\)/)
+    expect(code).not.toContain('fn_$f(42)')
+  })
+
+  it('anonymous function parameters are called directly, not with _$f suffix', () => {
+    // Pattern from dotSCAD _dedup_impl: anonymous functions receive function-valued
+    // parameters (e.g. `hash`) which are called inside the body. The parameter should
+    // be called directly as `hash(elem)`, not `hash_$f(elem)`.
+    const code = transpileCode(`
+      my_func = function(items, callback, hash)
+        let(idx = hash(items[0]))
+        callback(items, idx);
+    `)
+    // callback and hash should be called directly (they're parameters)
+    expect(code).not.toContain('hash_$f(')
+    expect(code).not.toContain('callback_$f(')
+    // Should call them directly
+    expect(code).toContain('hash(')
+    expect(code).toContain('callback(')
+  })
 })
 
 describe('for-loop scoping', () => {
