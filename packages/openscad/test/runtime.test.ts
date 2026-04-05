@@ -228,6 +228,29 @@ describe('withScope isolation', () => {
   })
 })
 
+describe('hull empty/absent children guard', () => {
+  it('returns undefined when all children are undefined', () => {
+    // OpenSCAD hull() with no valid geometry produces nothing; JSCAD hull() throws.
+    const result = j$.hull(undefined, undefined)
+    expect(result).toBeUndefined()
+  })
+
+  it('returns undefined when all children are null', () => {
+    const result = j$.hull(null, null)
+    expect(result).toBeUndefined()
+  })
+
+  it('returns undefined when all children are NO_CHILD', () => {
+    const result = j$.hull(j$.NO_CHILD, j$.NO_CHILD)
+    expect(result).toBeUndefined()
+  })
+
+  it('returns undefined for mixed absent values', () => {
+    const result = j$.hull(undefined, j$.NO_CHILD, null)
+    expect(result).toBeUndefined()
+  })
+})
+
 describe('polygon degenerate input guard', () => {
   it('returns undefined for empty points array instead of throwing', () => {
     // OpenSCAD silently ignores degenerate polygons. In JSCAD, polygon([]) used to throw

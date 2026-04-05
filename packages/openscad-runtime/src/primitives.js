@@ -373,8 +373,14 @@ export const _region = ({ r } = {}) => {
   return _buildEvenOddGeom(pathData)
 }
 
-// Hull wrapper - filter NO_CHILD (conditional branch not taken) before passing to JSCAD hull
-export const _hull = (...args) => hull(...args.filter(a => a !== NO_CHILD))
+// Hull wrapper - filter absent/null/undefined geometry.
+// OpenSCAD hull() with no valid children produces nothing; JSCAD throws.
+export const _hull = (...args) => {
+  const valid = args.filter(a => !_isAbsent(a))
+  if (valid.length === 0) return undefined
+  if (valid.length === 1) return valid[0]
+  return hull(...valid)
+}
 
 // Boolean wrappers - these filter absent/undefined values and call JSCAD booleans
 // NO_CHILD = conditional branch not taken (absent) → always filtered out
