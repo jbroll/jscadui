@@ -231,11 +231,11 @@ const j$ = {
   resetScope() { this._scopeStack.length = 1; this._scopeStack[0] = { ...DEFAULT_SPECIAL_VARS } },
 
   withScope(vars, fn) {
-    // Fast path: skip scope push/pop when no special vars to set
-    const entries = Object.entries(vars)
-    if (entries.length === 0) return fn()
+    // Always push/pop a scope frame, even when vars is empty.
+    // An empty scope frame provides isolation: special var modifications
+    // inside the callback don't leak to sibling scopes.
     this.pushScope()
-    for (const [name, value] of entries) this.setSpecialVar(name, value)
+    for (const [name, value] of Object.entries(vars)) this.setSpecialVar(name, value)
     try { return fn() } finally { this.popScope() }
   },
 
