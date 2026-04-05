@@ -190,3 +190,40 @@ describe('OpenSCAD semantics with isTruthy', () => {
     })
   })
 })
+
+describe('withScope isolation', () => {
+  it('empty withScope still isolates special var modifications', () => {
+    // An empty-vars withScope MUST still push/pop a scope frame.
+    // Without this, $fn modifications inside a module body leak to siblings,
+    // causing geometry mismatches (5 BOSL2 + 10 NopSCADlib regressions).
+    j$.resetScope()
+    const original = j$.getSpecialVar('$fn')
+
+    j$.withScope({}, () => {
+      j$.setSpecialVar('$fn', 999)
+      expect(j$.getSpecialVar('$fn')).toBe(999)
+    })
+
+    // After withScope returns, $fn must be restored to original value
+    expect(j$.getSpecialVar('$fn')).toBe(original)
+  })
+
+  it('nested withScope scopes do not leak', () => {
+    j$.resetScope()
+    const original = j$.getSpecialVar('$fn')
+
+    j$.withScope({ $fn: 32 }, () => {
+      expect(j$.getSpecialVar('$fn')).toBe(32)
+
+      j$.withScope({}, () => {
+        j$.setSpecialVar('$fn', 64)
+        expect(j$.getSpecialVar('$fn')).toBe(64)
+      })
+
+      // Inner modification should not leak to this scope
+      expect(j$.getSpecialVar('$fn')).toBe(32)
+    })
+
+    expect(j$.getSpecialVar('$fn')).toBe(original)
+  })
+})
