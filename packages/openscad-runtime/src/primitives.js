@@ -330,6 +330,8 @@ const _buildEvenOddGeom = (pathData) => {
  * fill rule using a containment tree (see _buildEvenOddGeom).
  */
 export const _polygon = ({ points, paths }) => {
+  // OpenSCAD silently ignores degenerate polygons; don't throw.
+  if (!points || points.length < 3) return undefined
   if (paths && paths.length > 0) {
     if (paths.length === 1) {
       // Single path: ensure CCW

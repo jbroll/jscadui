@@ -227,3 +227,17 @@ describe('withScope isolation', () => {
     expect(j$.getSpecialVar('$fn')).toBe(original)
   })
 })
+
+describe('polygon degenerate input guard', () => {
+  it('returns undefined for empty points array instead of throwing', () => {
+    // OpenSCAD silently ignores degenerate polygons. In JSCAD, polygon([]) used to throw
+    // "polygon requires at least 3 points, got: []". Now we guard and return undefined.
+    const result = j$.polygon({ points: [] as number[][], paths: undefined })
+    expect(result).toBeUndefined()
+  })
+
+  it('returns undefined for fewer than 3 points', () => {
+    const result = j$.polygon({ points: [[0, 0], [1, 1]] as number[][], paths: undefined })
+    expect(result).toBeUndefined()
+  })
+})

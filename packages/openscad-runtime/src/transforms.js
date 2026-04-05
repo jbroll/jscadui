@@ -21,7 +21,7 @@ export const initTransforms = (jscad) => {
 // Translate helper
 export const _translate = (v, geo) => {
   if (geo === NO_CHILD) return NO_CHILD
-  if (geo === undefined) return geo
+  if (geo == null) return undefined
   // v can be [x,y] or [x,y,z] or an object with v property
   const vec = (v && typeof v === 'object' && !Array.isArray(v)) ? v.v : v
   const [x = 0, y = 0, z = 0] = Array.isArray(vec) ? vec : [0, 0, 0]
@@ -31,7 +31,7 @@ export const _translate = (v, geo) => {
 // Scale helper
 export const _scale = (v, geo) => {
   if (geo === NO_CHILD) return NO_CHILD
-  if (geo === undefined) return geo
+  if (geo == null) return undefined
   // v can be a number (uniform), [x,y] or [x,y,z] or an object with v property
   const val = (v && typeof v === 'object' && !Array.isArray(v)) ? v.v : v
   if (typeof val === 'number') {
@@ -44,7 +44,7 @@ export const _scale = (v, geo) => {
 // Mirror helper
 export const _mirror = (v, geo) => {
   if (geo === NO_CHILD) return NO_CHILD
-  if (geo === undefined) return geo
+  if (geo == null) return undefined
   // Handle zero normal vector: OpenSCAD treats mirror([0,0,0]) and mirror([0,0]) as identity
   if (Array.isArray(v) && v[0] === 0 && v[1] === 0 && (v[2] === 0 || v[2] === undefined)) return geo
   // v is the normal vector [x, y, z]
@@ -100,7 +100,7 @@ export const _rotate = (params, geo) => {
 // newsize[i] = 0 means keep that axis unchanged
 export const _resize = (newsize, geo) => {
   if (geo === NO_CHILD) return NO_CHILD
-  if (geo === undefined) return geo
+  if (geo == null) return undefined
   const bounds = measureBoundingBox(geo)
   const curSize = [
     bounds[1][0] - bounds[0][0],
