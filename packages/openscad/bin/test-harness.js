@@ -26,11 +26,11 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
 // ── OpenSCAD STL cache ────────────────────────────────────────────────────
-// Caches reference STLs in .deps-cache/openscad-stl/ to skip flatpak re-renders.
+// Caches reference STLs to skip flatpak re-renders.
 // Cache validity is per-library: invalidated when the library's lib/ dir changes.
+// Stored in ~/.cache/jscadui/openscad-stl/ so it persists across CI worktrees.
 
-const REPO_ROOT = join(__dirname, '..', '..', '..')
-const STL_CACHE_ROOT = join(REPO_ROOT, '.deps-cache', 'openscad-stl')
+const STL_CACHE_ROOT = join(homedir(), '.cache', 'jscadui', 'openscad-stl')
 
 /** Hash all .scad files in a directory tree (sorted, deterministic). */
 function hashDirectory(dir) {
