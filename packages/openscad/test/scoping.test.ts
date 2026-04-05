@@ -174,6 +174,23 @@ describe('let binding scoping', () => {
     expect(code).not.toContain('fn_$f(42)')
   })
 
+  it('ternary with assert fallback is recognized as function-valued', () => {
+    // Pattern from dotSCAD worley noise: ternary chain ending in assert()
+    // The assert branch throws (dead path), so the ternary is function-valued.
+    const code = transpileCode(`
+      function pick_fn(dist) =
+        let(
+          noise = dist == "a" ? function(p) p :
+                  dist == "b" ? function(p) p * 2 :
+                  assert(false, "unknown")
+        )
+        noise(42);
+    `)
+    // noise should be called as noise$N (let binding), not noise_$f
+    expect(code).toMatch(/noise\$\d+\(42\)/)
+    expect(code).not.toContain('noise_$f')
+  })
+
   it('anonymous function parameters are called directly, not with _$f suffix', () => {
     // Pattern from dotSCAD _dedup_impl: anonymous functions receive function-valued
     // parameters (e.g. `hash`) which are called inside the body. The parameter should

@@ -82,10 +82,17 @@ export function isFunctionLiteralExpr(expr: Expression | null, ctx?: TranspileCo
   }
   // Ternary where both branches are functions
   if (isTernaryExpr(expr)) {
+    const ifIsFunc = isFunctionLiteralExpr(expr.ifExpr, ctx)
+    const elseIsFunc = isFunctionLiteralExpr(expr.elseExpr, ctx)
     // Check if both branches are functions
-    if (isFunctionLiteralExpr(expr.ifExpr, ctx) && isFunctionLiteralExpr(expr.elseExpr, ctx)) {
+    if (ifIsFunc && elseIsFunc) {
       return true
     }
+    // If one branch is a function and the other is an assert (which throws on failure
+    // and returns undef on success), the ternary is effectively function-valued.
+    // Pattern: `cond ? function(...) ... : assert("error")`
+    if (ifIsFunc && isAssertExpr(expr.elseExpr)) return true
+    if (elseIsFunc && isAssertExpr(expr.ifExpr)) return true
     // Check if condition is is_function() or is_func() call
     // This pattern (is_func(x) ? x : table[i][1]) always returns a function
     if (isFunctionCallExpr(expr.cond)) {
