@@ -375,10 +375,12 @@ export const _region = ({ r } = {}) => {
 
 // Hull wrapper - filter absent/null/undefined geometry.
 // OpenSCAD hull() with no valid children produces nothing; JSCAD throws.
+// NOTE: Do NOT short-circuit for valid.length === 1. OpenSCAD hull() computes the
+// convex hull even of a single (non-convex) child; returning it directly would skip
+// that convexification and break models like BOSL cyl() with fillets.
 export const _hull = (...args) => {
   const valid = args.filter(a => !_isAbsent(a))
   if (valid.length === 0) return undefined
-  if (valid.length === 1) return valid[0]
   return hull(...valid)
 }
 
