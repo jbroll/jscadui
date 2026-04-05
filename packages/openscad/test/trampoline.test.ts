@@ -149,3 +149,29 @@ describe('tail-call trampoline', () => {
     })
   })
 })
+
+describe('local function TCO in modules', () => {
+  it('trampolines self-tail-recursive local functions inside modules', () => {
+    const code = transpileCode(`
+      module m() {
+        function _helper(acc, i=0) = i >= 100 ? acc : _helper(acc + i, i + 1);
+        echo(_helper(0));
+      }
+    `)
+    // Local _helper should get a while-loop trampoline
+    expect(code).toContain('while (true)')
+    expect(code).toContain('__bounce__')
+  })
+
+  it('does NOT trampoline non-tail local functions', () => {
+    const code = transpileCode(`
+      module m() {
+        function factorial(n) = n <= 1 ? 1 : n * factorial(n - 1);
+        echo(factorial(5));
+      }
+    `)
+    // Non-tail recursion should not get trampoline
+    expect(code).not.toContain('while (true)')
+    expect(code).not.toContain('__bounce__')
+  })
+})

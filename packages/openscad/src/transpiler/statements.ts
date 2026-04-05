@@ -1202,10 +1202,33 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
     ctx.currentLocalBindings = new Set(ctx.currentLocalBindings)
     for (const a of f.definitionArgs) ctx.currentLocalBindings.add(safeIdentifier(a.name))
     const funcParams = transpileParamsList(f.definitionArgs, ctx)
-    const funcBody = transpileExpression(f.expr, ctx)
+    const safeParamNames = f.definitionArgs.map(a => safeIdentifier(a.name))
+
+    // Apply TCO to self-tail-recursive local functions (same mechanism as top-level functions).
+    // Without this, deeply recursive functions like _de_pairs or _travel overflow the JS stack.
+    const isTailRecursive = f.definitionArgs.length > 0 && markTailCalls(f.name, f.expr)
+
+    let funcCode: string
+    if (isTailRecursive) {
+      const savedTailCallParams = ctx._tailCallParamNames
+      ctx._tailCallParamNames = safeParamNames
+      const bouncedBody = transpileExpression(f.expr, ctx)
+      ctx._tailCallParamNames = savedTailCallParams
+      clearTailCallMarks()
+      const paramDefaults = new Map<string, string>()
+      for (const arg of f.definitionArgs) {
+        const pName = safeIdentifier(arg.name)
+        if (arg.value) paramDefaults.set(pName, transpileExpression(arg.value, ctx))
+      }
+      const reassign = buildBounceReassignment(safeParamNames, paramDefaults)
+      funcCode = `${indent}const ${funcVarName} = (${funcParams}) => { while (true) { const _r = ${bouncedBody}; if (!_r || !_r.__bounce__) return _r; ${reassign}; } }`
+    } else {
+      const funcBody = transpileExpression(f.expr, ctx)
+      funcCode = `${indent}const ${funcVarName} = (${funcParams}) => ${funcBody}`
+    }
     ctx.currentLocalBindings = savedForFunc
 
-    bodyParts.push(`${indent}const ${funcVarName} = (${funcParams}) => ${funcBody}`)
+    bodyParts.push(funcCode)
     // Only add the actual JS name to declaredVars so the variable gets a fresh const declaration.
     const hasVarConflict = funcVarName !== safeIdentifier(f.name)
     declaredVars.add(hasVarConflict ? f.name + '_$f' : f.name)
