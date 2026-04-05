@@ -444,18 +444,18 @@ describe('Lists & Indexing', () => {
 
   it('handles dot notation for vectors (x, y, z)', () => {
     const code = transpileCode('x = vec.x;')
-    // .x/.y/.z access first/second/third element
-    expect(code).toContain('vec[0]')
+    // .x/.y/.z access first/second/third element; optional chaining so undef.x = undef
+    expect(code).toContain('vec?.[0]')
   })
 
   it('handles dot notation y', () => {
     const code = transpileCode('x = vec.y;')
-    expect(code).toContain('vec[1]')
+    expect(code).toContain('vec?.[1]')
   })
 
   it('handles dot notation z', () => {
     const code = transpileCode('x = vec.z;')
-    expect(code).toContain('vec[2]')
+    expect(code).toContain('vec?.[2]')
   })
 })
 
@@ -523,9 +523,13 @@ describe('Flow Control', () => {
   })
 
   describe('intersection_for', () => {
-    it('generates intersection_for', () => {
+    it('generates intersection_for as j$.intersection of iterated bodies', () => {
       const code = transpileCode('intersection_for(i = [0:3]) rotate([0, 0, i*45]) cube(10);')
-      expect(code).toContain('intersect')
+      // Must use j$.intersection, not intersection_for_$m (which would be a bug)
+      expect(code).toContain('j$.intersect(')
+      expect(code).not.toContain('intersection_for_$m')
+      // Loop variable must appear in the map callback
+      expect(code).toContain('j$.iter(')
     })
   })
 

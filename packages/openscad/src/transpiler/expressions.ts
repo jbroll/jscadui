@@ -627,10 +627,12 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
   if (isMemberLookupExpr(expr)) {
     const obj = transpileExpression(expr.expr, ctx)
     const member = expr.member
-    if (member === 'x') return `${obj}[0]`
-    if (member === 'y') return `${obj}[1]`
-    if (member === 'z') return `${obj}[2]`
-    return `${obj}.${member}`
+    // Use optional chaining so undef.x returns undef (matching OpenSCAD semantics)
+    // rather than throwing TypeError: Cannot read properties of undefined
+    if (member === 'x') return `${obj}?.[0]`
+    if (member === 'y') return `${obj}?.[1]`
+    if (member === 'z') return `${obj}?.[2]`
+    return `${obj}?.${member}`
   }
 
   if (isLcForExpr(expr)) return transpileLcForExprHandler(expr as LcForExpr, ctx)
