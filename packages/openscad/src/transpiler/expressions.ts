@@ -895,9 +895,10 @@ export function transpileFunctionCall(
     }
   }
 
-  // len() -> .length
+  // len() -> ?.length (optional chaining so len(undef) returns undefined, not a TypeError)
+  // In OpenSCAD, len(undef) == undef; in JS, undefined.length throws.
   if (useBuiltin && callee === 'len') {
-    return `(${args}).length`
+    return `(${args})?.length`
   }
 
   // is_undef() -> typeof value === 'undefined' OR value is j$.EXPLICIT_UNDEF

@@ -741,7 +741,15 @@ describe('Mathematical Functions', () => {
   describe('List/Vector Operations', () => {
     it('handles len', () => {
       const code = transpileCode('x = len([1,2,3]);')
-      expect(code).toContain('.length')
+      expect(code).toContain('?.length')
+    })
+
+    it('len uses optional chaining so len(undef) returns undef, not TypeError', () => {
+      // In OpenSCAD, len(undef) == undef. In JS, undefined.length throws.
+      // Must use ?. to avoid TypeError in patterns like: let(n=hashmap_get(...)) len(n)
+      const code = transpileCode('x = len([1,2,3]);')
+      expect(code).toContain('?.length')
+      expect(code).not.toMatch(/\)\s*\.length/)
     })
 
     it('handles concat', () => {
