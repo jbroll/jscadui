@@ -1,6 +1,6 @@
 # Model Comparison Baseline
 
-Verified 2026-04-05 — commit `d2ae780` on `hierarchical-params` (function-valued variable recognition, withScope isolation fix).
+Verified 2026-04-05 — commit `1b5bf50` on `hierarchical-params` (assert-ternary fix, scope-binding callee fix).
 
 Similarity threshold: **0.99** (Jaccard index on vertex-deduplicated STL meshes).
 
@@ -11,10 +11,10 @@ Similarity threshold: **0.99** (Jaccard index on vertex-deduplicated STL meshes)
 | 01-basics  |    20 |       0 |             1 |         0 |     19 |     19 |      0 |      0 | **100%**  |
 | BOSL v1    |   113 |       0 |            13 |         0 |    100 |    100 |      0 |      0 | **100%**  |
 | BOSL2      |   178 |       0 |            25 |         0 |    153 |    153 |      0 |      0 | **100%**  |
-| NopSCADlib |   149 |       4 |             3 |         4 |    142 |    142 |      0 |      0 | **100%**  |
-| snippet    |   122 |       0 |            11 |         2 |    109 |    109 |      0 |      0 | **100%**  |
+| NopSCADlib |   149 |       4 |             7 |         4 |    138 |    138 |      0 |      0 | **100%**  |
+| snippet    |   122 |       0 |            10 |         2 |    110 |    110 |      0 |      0 | **100%**  |
 | text       |    11 |       0 |             9 |         0 |      2 |      2 |      0 |      0 | **100%**  |
-| dotSCAD    |   212 |       0 |            30 |         0 |    182 |     72 |     69 |     41 | 39.6%     |
+| dotSCAD    |   212 |       0 |            35 |         0 |    177 |     71 |     73 |     33 | 40.1%     |
 
 **Baseline suites** (01-basics, BOSL, BOSL2, NopSCADlib, snippet, text): any failure is a regression.
 
