@@ -979,6 +979,17 @@ export function transpileFunctionCall(
     return `${callee}(${args})`
   }
 
+  // If the callee is a let-bound variable (has a scope binding) and there's no
+  // global function with this name, call the let-bound variable directly.
+  // Pattern: let(fn = cond ? handler_a : handler_b) fn(x)
+  // where handler_a/handler_b are function-valued parameters.
+  // In OpenSCAD, if no global function named 'fn' exists, fn(...) MUST be
+  // calling the local variable, which holds a function value.
+  const scopeBinding = ctx.scopes.lookupBinding(callee)
+  if (scopeBinding && !ctx.symbols.isKind(callee, 'function')) {
+    return `${scopeBinding}(${args})`
+  }
+
   // User-defined function call - use _$f suffix for namespace separation
   // Use _$f$obj suffix when calling with object parameters (named arguments)
   // Only add suffix for simple identifiers (named function calls)

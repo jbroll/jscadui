@@ -191,6 +191,19 @@ describe('let binding scoping', () => {
     expect(code).not.toContain('noise_$f')
   })
 
+  it('let-bound variable from parameter ternary is called directly via scope binding', () => {
+    // Pattern from dotSCAD sf_splines: let binding assigned from ternary of
+    // function-valued parameters. The let-bound variable is called as a function.
+    const code = transpileCode(`
+      function process(data, fn_a, fn_b) =
+        let(chosen_fn = is_undef(fn_b) ? fn_a : fn_b)
+        chosen_fn(data);
+    `)
+    // chosen_fn should be called via scope binding (chosen_fn$N), not chosen_fn_$f
+    expect(code).toMatch(/chosen_fn\$\d+\(/)
+    expect(code).not.toContain('chosen_fn_$f')
+  })
+
   it('anonymous function parameters are called directly, not with _$f suffix', () => {
     // Pattern from dotSCAD _dedup_impl: anonymous functions receive function-valued
     // parameters (e.g. `hash`) which are called inside the body. The parameter should
