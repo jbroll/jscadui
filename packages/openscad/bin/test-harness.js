@@ -681,11 +681,13 @@ async function main() {
 
   // Guard: refuse multi-file runs outside CI — they lock up the dev machine.
   // Single-model runs (1 file) are always OK for local debugging.
-  // CI is detected by the worktree path used by simple-ci.
-  const isCI = __dirname.includes('ci-worktrees') || !!process.env.CI
+  // CI is detected ONLY by JSCADUI_CI=1 (set explicitly by ci/test).
+  // Do NOT use path heuristics or generic CI env vars — they can be accidentally true
+  // when running interactively on the GPU inside a worktree directory.
+  const isCI = process.env.JSCADUI_CI === '1'
   if (filesToTest.length > 1 && !isCI) {
     console.error(`\nError: refusing to run ${filesToTest.length} models locally.`)
-    console.error('Library-sized runs lock up the dev machine — use CI instead.')
+    console.error('Multi-model runs lock up the dev machine — use CI instead.')
     console.error('\n  Single model:  node bin/test-harness.js path/to/model.scad')
     console.error('  Full suite:    cd packages/openscad && npm test\n')
     process.exit(1)

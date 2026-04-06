@@ -8,4 +8,5 @@ npm install
 
 cd "$WORKTREE/packages/openscad"
 npm install
+export JSCADUI_CI=1
 npm run test:local
