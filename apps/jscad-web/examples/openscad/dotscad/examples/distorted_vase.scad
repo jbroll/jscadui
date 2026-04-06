@@ -21,7 +21,7 @@ epsilon = 0.000001;
 distorted_vase(beginning_radius, thickness, fn, amplitude, curve_step, smoothness, perlin, epsilon);
 
 module distorted_vase(beginning_radius, thickness, fn, amplitude,curve_step, smoothness, perlin, epsilon) {
-	seed = rand() * 1000;
+	seed = 42;
 	section = shape_circle(radius = beginning_radius, $fn = fn);
 	pt = [beginning_radius, 0, 0];
 

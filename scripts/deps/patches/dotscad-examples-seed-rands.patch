@@ -157,3 +157,25 @@
 +    indices = rands(0, len(pts) - 1, num_of_pts - 4, 42);
 
      last_section_i = len(sections) - 1;
+--- a/apps/jscad-web/examples/openscad/dotscad/examples/distorted_vase.scad
++++ b/apps/jscad-web/examples/openscad/dotscad/examples/distorted_vase.scad
+@@ -21,7 +21,7 @@ epsilon = 0.000001;
+ distorted_vase(beginning_radius, thickness, fn, amplitude, curve_step, smoothness, perlin, epsilon);
+ 
+ module distorted_vase(beginning_radius, thickness, fn, amplitude,curve_step, smoothness, perlin, epsilon) {
+-	seed = rand() * 1000;
++	seed = 42;
+ 	section = shape_circle(radius = beginning_radius, $fn = fn);
+ 	pt = [beginning_radius, 0, 0];
+ 
+--- a/apps/jscad-web/examples/openscad/dotscad/examples/perlin_noise_cylinder.scad
++++ b/apps/jscad-web/examples/openscad/dotscad/examples/perlin_noise_cylinder.scad
+@@ -20,7 +20,7 @@ module perlin_noise_cylinder(radius, height, thickness_scale, step) {
+             ]
+     ];
+ 
+-    seed = rand(0, 256);
++    seed = rand(0, 256, 42);
+     leng_row = len(surface_inside[0]);
+     surface_outside = [
+             for(ri = [0:len(surface_inside) - 1])

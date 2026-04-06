@@ -140,6 +140,10 @@
           "description": "Default seed to 0 in vrn2_cells_space — makes Voronoi space models deterministic"
         },
         {
+          "patchFile": "scripts/deps/patches/dotscad-noise-seed-fallback.patch",
+          "description": "Default seed to 0 in nz_perlin*s/nz_worley*s — makes noise models deterministic"
+        },
+        {
           "patchFile": "scripts/deps/patches/dotscad-examples-seed-rands.patch",
           "description": "Seed rands() in example files for deterministic output"
         }

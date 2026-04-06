@@ -20,7 +20,7 @@ module perlin_noise_cylinder(radius, height, thickness_scale, step) {
             ]
     ];
 
-    seed = rand(0, 256);
+    seed = rand(0, 256, 42);
     leng_row = len(surface_inside[0]);
     surface_outside = [
             for(ri = [0:len(surface_inside) - 1])
