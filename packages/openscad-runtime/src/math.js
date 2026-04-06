@@ -118,10 +118,10 @@ export const search = (_match, _source, _num_returns = 1, _idx) => {
     if (Array.isArray(source)) {
       for (let i = 0; i < source.length; i++) {
         // Get the value to compare
-        // OpenSCAD defaults to column 0 when searching tables (list of lists)
-        // BUT only when searching for scalar values, not when searching for arrays
-        // When m is an array, compare full source elements (vectors/lists)
-        const useColumnIdx = !Array.isArray(m) && _idx === undefined && Array.isArray(source[i])
+        // OpenSCAD defaults to column 0 when searching tables (list of lists).
+        // This applies regardless of whether m is scalar or array.
+        // e.g. search([[key]], [[[key], val], ...]) finds via col0=[key] == [key]
+        const useColumnIdx = _idx === undefined && Array.isArray(source[i])
         const effectiveIdx = _idx !== undefined ? _idx : (useColumnIdx ? 0 : undefined)
         const val = effectiveIdx !== undefined && Array.isArray(source[i]) ? source[i][effectiveIdx] : source[i]
         // Deep equality check for arrays, strict equality for primitives
