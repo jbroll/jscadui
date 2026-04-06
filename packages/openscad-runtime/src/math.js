@@ -148,18 +148,11 @@ export const search = (_match, _source, _num_returns = 1, _idx) => {
   }
 
   // If input was scalar, return flat list; otherwise return list of lists.
-  // Special case: single-element list behaves like the scalar/flat case when found,
-  // but returns [[]] (not []) when not found — this matches OpenSCAD semantics which
-  // allow _find_eq to do search([target], lt)[0] and get a scalar index, while
-  // contains() uses search([elem], lt) != [[]] for membership testing.
+  // For list needle (including single-element), returns [[k]] when found, [[]] when not found.
+  // This matches OpenSCAD semantics. hashmap_del's `loop_var != search_result[0]` works
+  // because _eq handles number == [number] coercion (matching OpenSCAD's implicit behavior).
   if (wasScalar) {
     return searchOne(matches[0])
-  }
-  if (matches.length === 1) {
-    const result = searchOne(matches[0])
-    // Found: return flat [k] so callers can do result[0] to get scalar index
-    // Not found: return [[]] so "result != [[]]" is false (contains returns false)
-    return result.length > 0 ? result : [[]]
   }
   return matches.map(m => searchOne(m))
 }

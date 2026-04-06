@@ -251,6 +251,25 @@ describe('hull empty/absent children guard', () => {
   })
 })
 
+describe('eq scalar vs 1-element list coercion', () => {
+  // OpenSCAD _find_eq returns [k] (1-element list) from search([x], list)[0].
+  // hashmap_del does `loop_var != [k]` which needs to be false for the target index.
+  // _eq handles number == [number] to replicate OpenSCAD's implicit index unwrap.
+  it('number equals 1-element number list', () => {
+    expect(j$.eq(0, [0])).toBe(true)
+    expect(j$.eq(3, [3])).toBe(true)
+    expect(j$.eq([0], 0)).toBe(true)
+  })
+  it('number does not equal different 1-element list', () => {
+    expect(j$.eq(0, [1])).toBe(false)
+    expect(j$.eq(1, [0])).toBe(false)
+  })
+  it('number does not equal multi-element list', () => {
+    expect(j$.eq(0, [0, 1])).toBe(false)
+    expect(j$.eq(0, [])).toBe(false)
+  })
+})
+
 describe('search function', () => {
   it('finds scalar in flat list', () => {
     expect(j$.search(5, [1, 2, 5, 3])).toEqual([2])
@@ -263,18 +282,18 @@ describe('search function', () => {
   it('finds scalar in column 0 of table (scalar keys)', () => {
     const table = [[1, 'a'], [5, 'b'], [3, 'c']]
     expect(j$.search(5, table)).toEqual([1])
-    // Single-element list: found → flat [k] (not [[k]]) so _find_eq can do result[0]
-    expect(j$.search([5], table)).toEqual([1])
+    // List needle always returns list of lists: [[k]] when found
+    expect(j$.search([5], table)).toEqual([[1]])
   })
 
   it('finds array key in column 0 of table (array keys) — hashmap_get pattern', () => {
     // This is the critical case: bucket = [[[key], val], ...]
     // OpenSCAD: search uses column 0 by default, so column 0 = [key]
     // Compare [key] with [key] → deep equal → found
-    // Single-element list: found → flat [k]; not found → [[]] (for contains() != [[]] check)
+    // List needle returns [[k]] when found, [[]] when not found
     const bucket: [number[], string][] = [[[2, 3, 1, 2016], 'circ_val_a'], [[0, 1, 3, 34], 'circ_val_b']]
-    expect(j$.search([[2, 3, 1, 2016]], bucket)).toEqual([0])
-    expect(j$.search([[0, 1, 3, 34]], bucket)).toEqual([1])
+    expect(j$.search([[2, 3, 1, 2016]], bucket)).toEqual([[0]])
+    expect(j$.search([[0, 1, 3, 34]], bucket)).toEqual([[1]])
     expect(j$.search([[9, 9, 9, 9]], bucket)).toEqual([[]])
   })
 
@@ -282,11 +301,11 @@ describe('search function', () => {
     // When needle is array and source[i][0] is a scalar (not array), OpenSCAD compares
     // the needle against the FULL source element (not column 0).
     // This is needed for contains(badTriangles, t) in dotSCAD's Delaunay triangulation.
-    // Single-element list: found → flat [k]; not found → [[]]
+    // List needle returns list of lists: [[k]] when found, [[]] when not found
     const vectors = [[1, 2], [3, 4], [5, 6]]
     // [3,4] vs [1,2]: no; [3,4] vs [3,4]: found at index 1
-    expect(j$.search([[3, 4]], vectors)).toEqual([1])
-    // [9,9] not in list → [[]] (so contains() returns false)
+    expect(j$.search([[3, 4]], vectors)).toEqual([[1]])
+    // [9,9] not in list → [[]] (so contains() returns false via _eq([[[]],[[]]]))
     expect(j$.search([[9, 9]], vectors)).toEqual([[]])
   })
 

@@ -3,8 +3,15 @@
  */
 
 // Deep equality comparison for OpenSCAD's == and != operators
+// Special case: number == [number] and [number] == number
+// OpenSCAD search() with a list needle returns [[k]] (list of lists). When _find_eq
+// returns this as [k] and hashmap_del does `loop_var != [k]`, JavaScript's reference
+// comparison would make != always true. This coercion matches OpenSCAD's behavior
+// where indexing with a 1-element list is treated as indexing with the scalar.
 export const _eq = (a, b) => {
   if (a === b) return true
+  if (typeof a === 'number' && Array.isArray(b) && b.length === 1 && typeof b[0] === 'number') return a === b[0]
+  if (typeof b === 'number' && Array.isArray(a) && a.length === 1 && typeof a[0] === 'number') return a[0] === b
   if (Array.isArray(a) && Array.isArray(b)) {
     if (a.length !== b.length) return false
     for (let i = 0; i < a.length; i++) if (!_eq(a[i], b[i])) return false
