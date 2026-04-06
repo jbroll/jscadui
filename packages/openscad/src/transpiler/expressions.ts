@@ -646,17 +646,28 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
     const boolCond = `j$.isTruthy(${cond})`
     // If there's an else branch, use it; otherwise return undefined
     if (expr.elseExpr) {
-      // In flatMap context: if the else branch directly produces an array (each/for),
-      // the if-branch must be wrapped in [...] to prevent flatMap from flattening it.
-      // e.g. if(cond) [x,y] else each [list] → flatMap sees [x,y] and flattens to x,y
-      // Fix: cond ? [[x,y]] : list → flatMap produces [x,y] as intended
-      if (ctx.inFlatMapContext && directlyProducesArray(expr.elseExpr)) {
-        // Temporarily clear flatMapContext so nested if branches aren't double-wrapped
+      // In flatMap context: if one branch directly produces an array (each/for) and the
+      // other doesn't, the non-array branch must be wrapped in [...] so flatMap doesn't
+      // spread it as individual elements.
+      // Case A: else produces array, if doesn't → wrap if-branch
+      //   e.g. if(cond) [x,y] else each [list] → cond ? [[x,y]] : list
+      // Case B: if produces array (each/for), else doesn't → wrap else-branch
+      //   e.g. if(cond) each [f1,f2] else [x,y,z] → cond ? [f1,f2] : [[x,y,z]]
+      if (ctx.inFlatMapContext && directlyProducesArray(expr.elseExpr) && !directlyProducesArray(expr.ifExpr)) {
+        // Case A: Temporarily clear flatMapContext so nested if branches aren't double-wrapped
         ctx.inFlatMapContext = false
         const body = transpileExpression(expr.ifExpr, ctx)
         ctx.inFlatMapContext = true
         const elsePart = transpileExpression(expr.elseExpr, ctx)
         return `(${boolCond} ? [${body}] : ${elsePart})`
+      }
+      if (ctx.inFlatMapContext && directlyProducesArray(expr.ifExpr) && !directlyProducesArray(expr.elseExpr)) {
+        // Case B: if-branch uses each/for; wrap else-branch so flatMap doesn't spread it
+        const body = transpileExpression(expr.ifExpr, ctx)
+        ctx.inFlatMapContext = false
+        const elsePart = transpileExpression(expr.elseExpr, ctx)
+        ctx.inFlatMapContext = true
+        return `(${boolCond} ? ${body} : [${elsePart}])`
       }
       const body = transpileExpression(expr.ifExpr, ctx)
       const elsePart = transpileExpression(expr.elseExpr, ctx)

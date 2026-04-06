@@ -246,5 +246,26 @@ describe('transpileExpression', () => {
       expect(code).toContain('.map([a, b] =>')
       expect(code).toContain('j$.vadd(a, b)')
     })
+
+    it('wraps else-branch when if-branch uses each (Case B)', () => {
+      // if(cond) each [[f1],[f2]] else [a,b,c]
+      // The else branch [a,b,c] must be wrapped in [...] to prevent flatMap from spreading it.
+      // Without the fix: flatMap sees [a,b,c] and spreads to individual elements.
+      // With the fix: flatMap sees [[a,b,c]] and keeps it as a single face [a,b,c].
+      const code = transpileExpr('x = [for (i = [0:2]) if (i != 2) each [[i,1],[i,2]] else [i,99]];')
+      // The else branch should be wrapped: : [[i,99]])
+      expect(code).toContain('.flatMap(')
+      // else branch wrapping: the else returns [i,99] which must appear as [[i,99]] for flatMap
+      expect(code).toMatch(/\[\s*\[.*99.*\]\s*\]/)
+    })
+
+    it('wraps if-branch when else-branch uses each (Case A)', () => {
+      // if(cond) [x,y] else each [list]
+      // The if-branch [x,y] must be wrapped in [...] to prevent flatMap from spreading it.
+      const code = transpileExpr('x = [for (i = [0:2]) if (i == 2) [i,99] else each [[i,1],[i,2]]];')
+      expect(code).toContain('.flatMap(')
+      // if branch should be wrapped: ? [[i,99]] :
+      expect(code).toMatch(/\[\s*\[.*99.*\]\s*\]/)
+    })
   })
 })
