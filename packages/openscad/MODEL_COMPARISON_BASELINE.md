@@ -1,6 +1,6 @@
 # Model Comparison Baseline
 
-Verified 2026-04-05 — commit `0acdb92` on `hierarchical-params` (nested module forward refs, optional chaining, polygon/transform guards).
+Verified 2026-04-06 — commit `0f54a06` on `hierarchical-params` (float index truncation, JSCADUI_CI guard, dotSCAD skip list for 43 non-deterministic models).
 
 Similarity threshold: **0.99** (Jaccard index on vertex-deduplicated STL meshes).
 
@@ -14,7 +14,7 @@ Similarity threshold: **0.99** (Jaccard index on vertex-deduplicated STL meshes)
 | NopSCADlib |   149 |       4 |             1 |         4 |    144 |    144 |      0 |      0 | **100%**  |
 | snippet    |   122 |       0 |            10 |         2 |    110 |    110 |      0 |      0 | **100%**  |
 | text       |    11 |       0 |             9 |         0 |      2 |      2 |      0 |      0 | **100%**  |
-| dotSCAD    |   212 |       0 |            34 |         0 |    178 |     73 |     87 |     18 | 41.0%     |
+| dotSCAD    |   212 |       0 |            24 |        43 |    145 |     77 |     59 |      9 | 53.1%     |
 
 **Baseline suites** (01-basics, BOSL, BOSL2, NopSCADlib, snippet, text): any failure is a regression.
 
@@ -54,3 +54,7 @@ Excludes remove library source directories and non-test files from discovery.
 - **BOSL / BOSL2**: `lib/` (library source)
 - **NopSCADlib**: `NopSCADlib/vitamins/`, `NopSCADlib/printed/`, `NopSCADlib/utils/`, core files, debug `.scad` files
 - **dotSCAD**: `__comm__/`, `_impl/`, and 15 internal module directories
+
+### dotSCAD (43 skipped)
+
+Non-deterministic models using unseeded `rands()` (time-seeded in OpenSCAD). Geometry changes each run, so they can never reliably reach 0.99 similarity against a cached reference STL. See `skip.txt` for full list: 34 maze models + 9 other random-geometry models.
