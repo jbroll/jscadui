@@ -126,7 +126,16 @@
           "skipFiles": []
         }
       ],
-      "patches": []
+      "patches": [
+        {
+          "patchFile": "scripts/deps/patches/dotscad-maze-rand-dirs-seed.patch",
+          "description": "Use position-based seed in rand_dirs — makes all maze models deterministic"
+        },
+        {
+          "patchFile": "scripts/deps/patches/dotscad-tile-truchet-seed.patch",
+          "description": "Use position-based seed in tile_truchet — makes all truchet tile models deterministic"
+        }
+      ]
     },
     {
       "name": "snippet",

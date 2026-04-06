@@ -7,41 +7,8 @@
 # generated once, but our transpiler (and any re-run of OpenSCAD) would
 # generate different geometry. These models can never reliably reach 0.99.
 
-# Unseeded maze models (34/36 maze models — island_maze and maze_yinyan use explicit seeds)
-examples/maze/cube_maze.scad
-examples/maze/cylinder_maze.scad
-examples/maze/devil_maze.scad
-examples/maze/euler_maze.scad
-examples/maze/giant_maze.scad
-examples/maze/gyro_maze.scad
-examples/maze/heart2heart_maze.scad
-examples/maze/heart_maze.scad
-examples/maze/maze3d.scad
-examples/maze/maze3d_mickey.scad
-examples/maze/maze3d_sphere.scad
-examples/maze/maze_city.scad
-examples/maze/maze_masking.scad
-examples/maze/maze_maze.scad
-examples/maze/maze_tower.scad
-examples/maze/maze_vase.scad
-examples/maze/mobius_maze.scad
-examples/maze/noisy_circle_maze.scad
-examples/maze/pyramid_hex_maze.scad
-examples/maze/pyramid_maze.scad
-examples/maze/random_scala.scad
-examples/maze/regular_polygon_maze.scad
-examples/maze/rock_theta_maze.scad
-examples/maze/senbon_torii.scad
-examples/maze/sphere_maze.scad
-examples/maze/spiral_maze.scad
-examples/maze/square_maze.scad
-examples/maze/step_pyramid_maze.scad
-examples/maze/stereographic_hex_maze.scad
-examples/maze/stereographic_square_maze.scad
-examples/maze/theta_maze.scad
-examples/maze/torus_knot_maze.scad
-examples/maze/torus_maze.scad
-examples/maze/twisted_maze.scad
+# Maze models: all now deterministic via position-based seeding in rand_dirs.
+# island_maze and maze_yinyan have explicit seeds but fail due to transpiler bug — kept in test suite.
 
 # Other unseeded-rands models — geometry depends on time-seeded RNG
 examples/worley_noise_ball.scad
