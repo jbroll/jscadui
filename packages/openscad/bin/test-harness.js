@@ -369,6 +369,7 @@ async function runJscad(scadPath, stlPath, fn = 0, preview = false) {
   if (fn > 0) args.push('--fn', fn)
   if (preview) args.push('--preview')
   if (libDir) args.push('--lib-path', JSON.stringify(resolve(libDir)))
+  args.push('--timeout', '0')  // harness manages timeout via execAsync; disable internal guard
   const cmd = `node --stack-size=65536 ${args.join(' ')}`
   const opts = { timeout: 120000, maxBuffer: 2 * 1024 * 1024 }
 
