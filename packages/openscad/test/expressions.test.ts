@@ -182,6 +182,13 @@ describe('transpileExpression', () => {
       // Uses optional chaining to handle undefined arrays gracefully (like OpenSCAD)
       expect(code).toContain('arr?.[0]?.[1]')
     })
+
+    it('truncates float index to integer (OpenSCAD behavior)', () => {
+      // OpenSCAD: arr[1.7] == arr[1] (truncated, not undefined)
+      // Variable index must use Math.trunc so floats are truncated like OpenSCAD
+      const code = transpileExpr('x = arr[i];')
+      expect(code).toContain('Math.trunc(i)')
+    })
   })
 
   describe('function calls', () => {

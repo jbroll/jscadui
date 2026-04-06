@@ -377,8 +377,12 @@ function transpileArrayLookupExpr(
 ): string {
   const array = transpileExpression(expr.array, ctx)
   const index = transpileExpression(expr.index, ctx)
+  // OpenSCAD truncates float indices to integers (e.g. arr[1.7] == arr[1])
+  // Use Math.trunc for non-literal indices; skip for integer literals (0, 1, 2 ...) as an optimization
+  const isIntLiteral = /^-?\d+$/.test(index)
+  const safeIdx = isIntLiteral ? index : `Math.trunc(${index})`
   // Use optional chaining to handle undefined arrays gracefully (OpenSCAD returns undef)
-  return `${array}?.[${index}]`
+  return `${array}?.[${safeIdx}]`
 }
 
 /**
