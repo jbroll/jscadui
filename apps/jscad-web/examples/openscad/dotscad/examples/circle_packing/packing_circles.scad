@@ -7,8 +7,8 @@ point_numbers = 100;
     
 points = [
     for(i = [0:point_numbers - 1])
-    [rand(0, size.x), rand(0, size.y)]
-]; 
+    [rand(0, size.x, i * 2), rand(0, size.y, i * 2 + 1)]
+];
 
 circles = circle_packing(points, min_radius);
 mr = max([for(c = circles) c[1]]);

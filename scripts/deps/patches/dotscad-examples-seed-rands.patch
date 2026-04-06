@@ -1,3 +1,16 @@
+--- a/apps/jscad-web/examples/openscad/dotscad/examples/circle_packing/packing_circles.scad	2026-03-31 10:23:54.000000000 -0400
++++ b/apps/jscad-web/examples/openscad/dotscad/examples/circle_packing/packing_circles.scad	2026-04-06 13:30:00.000000000 -0400
+@@ -7,8 +7,8 @@ point_numbers = 100;
+     
+ points = [
+     for(i = [0:point_numbers - 1])
+-    [rand(0, size.x), rand(0, size.y)]
+-]; 
++    [rand(0, size.x, i * 2), rand(0, size.y, i * 2 + 1)]
++];
+ 
+ circles = circle_packing(points, min_radius);
+ mr = max([for(c = circles) c[1]]);
 --- a/apps/jscad-web/examples/openscad/dotscad/examples/worley_noise_ball.scad	2026-03-31 10:23:54.037609865 -0400
 +++ b/apps/jscad-web/examples/openscad/dotscad/examples/worley_noise_ball.scad	2026-04-06 09:44:49.642720716 -0400
 @@ -7,7 +7,7 @@
