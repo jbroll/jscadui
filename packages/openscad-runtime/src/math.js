@@ -118,11 +118,18 @@ export const search = (_match, _source, _num_returns = 1, _idx) => {
     if (Array.isArray(source)) {
       for (let i = 0; i < source.length; i++) {
         // Get the value to compare
-        // OpenSCAD defaults to column 0 when searching tables (list of lists).
-        // This applies regardless of whether m is scalar or array.
-        // e.g. search([[key]], [[[key], val], ...]) finds via col0=[key] == [key]
-        const useColumnIdx = _idx === undefined && Array.isArray(source[i])
-        const effectiveIdx = _idx !== undefined ? _idx : (useColumnIdx ? 0 : undefined)
+        // OpenSCAD column-0 semantics:
+        //   - scalar needle + array source[i]: always use col 0 (traditional table lookup)
+        //   - array needle + array source[i]:  use col 0 ONLY when col 0 is itself an array
+        //     (e.g. bucket=[[key,val],...] where key is an array → compare needle vs col0=key)
+        //     otherwise compare needle against full source[i]
+        //     (e.g. badTriangles=[tri,...] where tri=[a,b,c,h] → compare needle vs full tri)
+        const useColumnIdx = Array.isArray(source[i]) && (
+          _idx !== undefined ||
+          !Array.isArray(m) ||
+          Array.isArray(source[i][0])
+        )
+        const effectiveIdx = useColumnIdx ? (_idx !== undefined ? _idx : 0) : undefined
         const val = effectiveIdx !== undefined && Array.isArray(source[i]) ? source[i][effectiveIdx] : source[i]
         // Deep equality check for arrays, strict equality for primitives
         const isMatch = Array.isArray(m) && Array.isArray(val)
@@ -140,9 +147,19 @@ export const search = (_match, _source, _num_returns = 1, _idx) => {
     return results
   }
 
-  // If input was scalar, return flat list; otherwise return list of lists
+  // If input was scalar, return flat list; otherwise return list of lists.
+  // Special case: single-element list behaves like the scalar/flat case when found,
+  // but returns [[]] (not []) when not found — this matches OpenSCAD semantics which
+  // allow _find_eq to do search([target], lt)[0] and get a scalar index, while
+  // contains() uses search([elem], lt) != [[]] for membership testing.
   if (wasScalar) {
     return searchOne(matches[0])
+  }
+  if (matches.length === 1) {
+    const result = searchOne(matches[0])
+    // Found: return flat [k] so callers can do result[0] to get scalar index
+    // Not found: return [[]] so "result != [[]]" is false (contains returns false)
+    return result.length > 0 ? result : [[]]
   }
   return matches.map(m => searchOne(m))
 }
