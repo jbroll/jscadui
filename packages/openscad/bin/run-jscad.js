@@ -46,6 +46,7 @@ Options:
   --lib-path <path>         Add OpenSCAD library search path (can be repeated)
   --debug-transpile         Print transpiled JavaScript to stderr
   --patch-file <file>       Load patched transpiled code from file (debug)
+  --timeout <seconds>       Kill process after N seconds (default: 30, 0 = no limit)
   -h, --help                Show this help
   -v, --version             Show version
 
@@ -74,6 +75,7 @@ function parseArgs(args) {
     version: false,
     fn: 0,  // Global $fn override
     preview: false,
+    timeout: 30,  // seconds; 0 = no timeout
   }
 
   let i = 0
@@ -105,6 +107,9 @@ function parseArgs(args) {
     } else if (arg === '--lib-path') {
       i++
       options.libPaths.push(args[i])
+    } else if (arg === '--timeout') {
+      i++
+      options.timeout = parseInt(args[i], 10)
     } else if (arg === '--patch-file') {
       i++
       options.patchFile = args[i]
@@ -819,6 +824,18 @@ async function main() {
 
 // Only run as CLI when invoked directly (not when imported as a module)
 if (resolve(process.argv[1] || '') === resolve(__filename)) {
+  const options = parseArgs(process.argv.slice(2))
+  const timeoutSecs = options.timeout ?? 30
+  if (timeoutSecs > 0) {
+    // Hard timeout: kill the process if it runs longer than the limit.
+    // Prevents infinite-looping models from hanging indefinitely and exhausting swap.
+    const timer = setTimeout(() => {
+      process.stderr.write(`run-jscad: timeout after ${timeoutSecs}s — killing process\n`)
+      process.exit(2)
+    }, timeoutSecs * 1000)
+    timer.unref() // Don't prevent clean exit if main() finishes normally
+  }
+
   main().catch((err) => {
     console.error(err)
     process.exit(1)
