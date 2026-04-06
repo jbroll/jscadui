@@ -4,6 +4,14 @@
 
 import { NO_CHILD } from './primitives.js'
 
+// Filter null/undefined/NO_CHILD from geometry arrays before passing to JSCAD.
+// OpenSCAD silently ignores absent children; JSCAD throws on null array elements.
+const filterGeo = (geo) => {
+  if (!Array.isArray(geo)) return geo
+  const filtered = geo.filter(g => g != null && g !== NO_CHILD)
+  return filtered.length === 0 ? undefined : filtered
+}
+
 // JSCAD transforms - injected at init time
 let translate, rotateX, rotateY, rotateZ, scale, mirror, transform, measureBoundingBox
 
@@ -21,39 +29,45 @@ export const initTransforms = (jscad) => {
 // Translate helper
 export const _translate = (v, geo) => {
   if (geo === NO_CHILD) return NO_CHILD
-  if (geo == null) return undefined
+  const g = filterGeo(geo)
+  if (g == null) return undefined
   // v can be [x,y] or [x,y,z] or an object with v property
   const vec = (v && typeof v === 'object' && !Array.isArray(v)) ? v.v : v
   const [x = 0, y = 0, z = 0] = Array.isArray(vec) ? vec : [0, 0, 0]
-  return translate([x, y, z], geo)
+  return translate([x, y, z], g)
 }
 
 // Scale helper
 export const _scale = (v, geo) => {
   if (geo === NO_CHILD) return NO_CHILD
-  if (geo == null) return undefined
+  const g = filterGeo(geo)
+  if (g == null) return undefined
   // v can be a number (uniform), [x,y] or [x,y,z] or an object with v property
   const val = (v && typeof v === 'object' && !Array.isArray(v)) ? v.v : v
   if (typeof val === 'number') {
-    return scale([val, val, val], geo)
+    return scale([val, val, val], g)
   }
   const [x = 1, y = 1, z = 1] = Array.isArray(val) ? val : [1, 1, 1]
-  return scale([x, y, z], geo)
+  return scale([x, y, z], g)
 }
 
 // Mirror helper
 export const _mirror = (v, geo) => {
   if (geo === NO_CHILD) return NO_CHILD
-  if (geo == null) return undefined
+  const g = filterGeo(geo)
+  if (g == null) return undefined
   // Handle zero normal vector: OpenSCAD treats mirror([0,0,0]) and mirror([0,0]) as identity
-  if (Array.isArray(v) && v[0] === 0 && v[1] === 0 && (v[2] === 0 || v[2] === undefined)) return geo
+  if (Array.isArray(v) && v[0] === 0 && v[1] === 0 && (v[2] === 0 || v[2] === undefined)) return g
   // v is the normal vector [x, y, z]
-  return mirror({ normal: v }, geo)
+  return mirror({ normal: v }, g)
 }
 
 // Rotation helper for Euler angles
 export const _rotate = (params, geo) => {
   if (geo === NO_CHILD) return NO_CHILD
+  const g = filterGeo(geo)
+  if (g == null) return undefined
+  geo = g
   const toRad = d => d * Math.PI / 180
   // Handle object form: rotate(a=angle, v=[x,y,z]) or rotate(a=angle)
   if (params && typeof params === 'object' && !Array.isArray(params)) {
@@ -100,7 +114,9 @@ export const _rotate = (params, geo) => {
 // newsize[i] = 0 means keep that axis unchanged
 export const _resize = (newsize, geo) => {
   if (geo === NO_CHILD) return NO_CHILD
-  if (geo == null) return undefined
+  const g = filterGeo(geo)
+  if (g == null) return undefined
+  geo = g
   const bounds = measureBoundingBox(geo)
   const curSize = [
     bounds[1][0] - bounds[0][0],
@@ -114,6 +130,9 @@ export const _resize = (newsize, geo) => {
 // Multmatrix helper - applies a 4x4 transformation matrix
 export const _multmatrix = (m, geo) => {
   if (geo === NO_CHILD) return NO_CHILD
+  const g = filterGeo(geo)
+  if (g == null) return undefined
+  geo = g
   // OpenSCAD multmatrix uses row-major 4x4 or 4x3 matrix
   // JSCAD transform uses column-major flat array [m00,m10,m20,m30,m01,m11,...]
   const flat = []
