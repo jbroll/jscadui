@@ -10,7 +10,7 @@ line_width = 1;
 fn = 12;
 
 module hypnotic_squares(x_grids, y_grids, grid_size, final_size, line_width) {
-    function random() = rands(0, 1, 1)[0];
+    function random() = rands(0, 1, 1, 42)[0];
 
     dirs = [-1, 0, 1];
     max_steps = ceil((grid_size - final_size) / (line_width * 2));
@@ -42,8 +42,8 @@ module hypnotic_squares(x_grids, y_grids, grid_size, final_size, line_width) {
         }
     }
 
-    rand_lt = [for(x = [0:x_grids - 1]) 
-                  [for(y = [0:y_grids - 1]) rands(0, 1, 2)]
+    rand_lt = [for(x = [0:x_grids - 1])
+                  [for(y = [0:y_grids - 1]) rands(0, 1, 2, x * y_grids + y)]
               ];
               
     module grids() {

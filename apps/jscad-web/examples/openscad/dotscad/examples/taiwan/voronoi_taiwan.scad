@@ -8,8 +8,8 @@ module voronoi_taiwan() {
     taiwan = shape_taiwan(120, distance = 1); 
 
     n = 40;
-    xs = rands(-15, 15, n);
-    ys = rands(-30, 40, n);
+    xs = rands(-15, 15, n, 42);
+    ys = rands(-30, 40, n, 43);
     pts = [
         for(i = [0:n - 1]) 
             let(p = [xs[i], ys[i]]) 
@@ -21,7 +21,7 @@ module voronoi_taiwan() {
         
     cells = tri_delaunay(all, ret = "VORONOI_CELLS");
     for(i = [0:len(cells) - 1]) {
-        color(rands(0, 1, 3))
+        color(rands(0, 1, 3, i))
         translate(all[i])    
         linear_extrude(2, scale = 0.8)
         translate(-all[i])

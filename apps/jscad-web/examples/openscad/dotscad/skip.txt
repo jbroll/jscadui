@@ -10,14 +10,8 @@
 # Maze models: all now deterministic via position-based seeding in rand_dirs.
 # island_maze and maze_yinyan have explicit seeds but fail due to transpiler bug — kept in test suite.
 
-# Other unseeded-rands models — geometry depends on time-seeded RNG
-examples/worley_noise_ball.scad
-examples/hypnotic_squares.scad
-examples/voronoi/voronoi_bracelet.scad
-examples/voronoi/voronoi_taiwan.scad
-examples/voronoi/worley_vase.scad
+# Unseeded-rands models still needing deterministic patches
+# (complex: multiple rand() calls, loops without indices, etc.)
 examples/tiles/random_town_square.scad
-examples/tiles/magic_apartment.scad
 examples/tiles/penrose_basket.scad
-examples/hollow_out/hollow_out_cylinder.scad
 examples/voronoi/ruyi_pineapple.scad

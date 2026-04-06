@@ -19,7 +19,7 @@ module magic_apartment(width, rows, columns, floors, up_down_rand, people) {
 			for(y = [0:rows])
 			[
 				for(x = [0:columns]) 
-				let(rs = rands(0, 1, 3))
+				let(rs = rands(0, 1, 3, z * 10000 + y * 100 + x))
 				[round(rs[0]), round(rs[1]), round(rs[2])]
 			]
 		]

@@ -22,7 +22,7 @@ epsilon = 0.0000001;
 worley_vase(beginning_radius, height, thickness, fn, amplitude, curve_step, sample_scale, grid_w, dist, bottom, epsilon);
 
 module worley_vase(beginning_radius, height, thickness, fn, amplitude,curve_step, sample_scale, grid_w, dist, bottom, epsilon) {
-    seed = rand() * 1000;
+    seed = rand(0, 1, 42) * 1000;
 	section = shape_circle(radius = beginning_radius, $fn = fn);
 	pt = [beginning_radius, 0, 0];
     h_s = height / 140;

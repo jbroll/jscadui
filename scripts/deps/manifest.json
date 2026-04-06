@@ -134,6 +134,10 @@
         {
           "patchFile": "scripts/deps/patches/dotscad-tile-truchet-seed.patch",
           "description": "Use position-based seed in tile_truchet — makes all truchet tile models deterministic"
+        },
+        {
+          "patchFile": "scripts/deps/patches/dotscad-examples-seed-rands.patch",
+          "description": "Seed rands() in 6 example files for deterministic output"
         }
       ]
     },

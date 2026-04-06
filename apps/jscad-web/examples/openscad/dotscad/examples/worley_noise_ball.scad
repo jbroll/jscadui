@@ -7,7 +7,7 @@ tile_w = 10;
 dist = "euclidean"; // [euclidean, manhattan, chebyshev, "border"] 
 noise_style = "CELL_R";    // [CELL_R, NOISE]
 noise_factor = 1;
-seed = rands(0, 255, 1)[0];
+seed = rands(0, 255, 1, 42)[0];
 
 module worley_noise_ball() {
     theta_tau_lt = [ 

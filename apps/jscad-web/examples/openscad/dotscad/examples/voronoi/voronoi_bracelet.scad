@@ -16,8 +16,8 @@ module voronoi_bracelet(r, height, thickness, n, frags, offset_r, region_type) {
     x = 2 * PI * r - thickness;
     y = height;
 
-    xs = rands(0, x, n);
-    ys = rands(0, y, n);
+    xs = rands(0, x, n, 42);
+    ys = rands(0, y, n, 43);
 
     points = [for(i = [0: len(xs) - 1]) [xs[i], ys[i]]];
         

@@ -9,8 +9,8 @@ line_diameter = 1;
 radius = 15;
 fn = 12;
 
-xs = rands(0, size[0], pt_nums);
-ys = rands(0, size[1], pt_nums);
+xs = rands(0, size[0], pt_nums, 42);
+ys = rands(0, size[1], pt_nums, 43);
 half_fn = fn / 2;
 dx = size[0] / fn;
 dy = size[1] / half_fn;

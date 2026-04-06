@@ -1,0 +1,103 @@
+--- a/apps/jscad-web/examples/openscad/dotscad/examples/worley_noise_ball.scad	2026-03-31 10:23:54.037609865 -0400
++++ b/apps/jscad-web/examples/openscad/dotscad/examples/worley_noise_ball.scad	2026-04-06 09:44:49.642720716 -0400
+@@ -7,7 +7,7 @@
+ dist = "euclidean"; // [euclidean, manhattan, chebyshev, "border"] 
+ noise_style = "CELL_R";    // [CELL_R, NOISE]
+ noise_factor = 1;
+-seed = rands(0, 255, 1)[0];
++seed = rands(0, 255, 1, 42)[0];
+ 
+ module worley_noise_ball() {
+     theta_tau_lt = [ 
+--- a/apps/jscad-web/examples/openscad/dotscad/examples/hollow_out/hollow_out_cylinder.scad	2026-03-31 10:23:54.020609632 -0400
++++ b/apps/jscad-web/examples/openscad/dotscad/examples/hollow_out/hollow_out_cylinder.scad	2026-04-06 09:44:53.271771304 -0400
+@@ -9,8 +9,8 @@
+ radius = 15;
+ fn = 12;
+ 
+-xs = rands(0, size[0], pt_nums);
+-ys = rands(0, size[1], pt_nums);
++xs = rands(0, size[0], pt_nums, 42);
++ys = rands(0, size[1], pt_nums, 43);
+ half_fn = fn / 2;
+ dx = size[0] / fn;
+ dy = size[1] / half_fn;
+--- a/apps/jscad-web/examples/openscad/dotscad/examples/voronoi/voronoi_bracelet.scad	2026-03-31 10:23:54.037199842 -0400
++++ b/apps/jscad-web/examples/openscad/dotscad/examples/voronoi/voronoi_bracelet.scad	2026-04-06 09:44:56.359814350 -0400
+@@ -16,8 +16,8 @@
+     x = 2 * PI * r - thickness;
+     y = height;
+ 
+-    xs = rands(0, x, n);
+-    ys = rands(0, y, n);
++    xs = rands(0, x, n, 42);
++    ys = rands(0, y, n, 43);
+ 
+     points = [for(i = [0: len(xs) - 1]) [xs[i], ys[i]]];
+         
+--- a/apps/jscad-web/examples/openscad/dotscad/examples/voronoi/worley_vase.scad	2026-03-31 10:23:54.037609865 -0400
++++ b/apps/jscad-web/examples/openscad/dotscad/examples/voronoi/worley_vase.scad	2026-04-06 09:44:59.414856936 -0400
+@@ -22,7 +22,7 @@
+ worley_vase(beginning_radius, height, thickness, fn, amplitude, curve_step, sample_scale, grid_w, dist, bottom, epsilon);
+ 
+ module worley_vase(beginning_radius, height, thickness, fn, amplitude,curve_step, sample_scale, grid_w, dist, bottom, epsilon) {
+-    seed = rand() * 1000;
++    seed = rand(0, 1, 42) * 1000;
+ 	section = shape_circle(radius = beginning_radius, $fn = fn);
+ 	pt = [beginning_radius, 0, 0];
+     h_s = height / 140;
+--- a/apps/jscad-web/examples/openscad/dotscad/examples/tiles/magic_apartment.scad	2026-03-31 10:23:54.034987367 -0400
++++ b/apps/jscad-web/examples/openscad/dotscad/examples/tiles/magic_apartment.scad	2026-04-06 09:45:03.000906924 -0400
+@@ -19,7 +19,7 @@
+ 			for(y = [0:rows])
+ 			[
+ 				for(x = [0:columns]) 
+-				let(rs = rands(0, 1, 3))
++				let(rs = rands(0, 1, 3, z * 10000 + y * 100 + x))
+ 				[round(rs[0]), round(rs[1]), round(rs[2])]
+ 			]
+ 		]
+--- a/apps/jscad-web/examples/openscad/dotscad/examples/hypnotic_squares.scad	2026-03-31 10:23:54.021728589 -0400
++++ b/apps/jscad-web/examples/openscad/dotscad/examples/hypnotic_squares.scad	2026-04-06 09:45:11.449024687 -0400
+@@ -10,7 +10,7 @@
+ fn = 12;
+ 
+ module hypnotic_squares(x_grids, y_grids, grid_size, final_size, line_width) {
+-    function random() = rands(0, 1, 1)[0];
++    function random() = rands(0, 1, 1, 42)[0];
+ 
+     dirs = [-1, 0, 1];
+     max_steps = ceil((grid_size - final_size) / (line_width * 2));
+@@ -42,8 +42,8 @@
+         }
+     }
+ 
+-    rand_lt = [for(x = [0:x_grids - 1]) 
+-                  [for(y = [0:y_grids - 1]) rands(0, 1, 2)]
++    rand_lt = [for(x = [0:x_grids - 1])
++                  [for(y = [0:y_grids - 1]) rands(0, 1, 2, x * y_grids + y)]
+               ];
+               
+     module grids() {
+--- a/apps/jscad-web/examples/openscad/dotscad/examples/taiwan/voronoi_taiwan.scad	2026-03-31 10:23:54.033609810 -0400
++++ b/apps/jscad-web/examples/openscad/dotscad/examples/taiwan/voronoi_taiwan.scad	2026-04-06 09:53:45.327193949 -0400
+@@ -8,8 +8,8 @@
+     taiwan = shape_taiwan(120, distance = 1); 
+ 
+     n = 40;
+-    xs = rands(-15, 15, n);
+-    ys = rands(-30, 40, n);
++    xs = rands(-15, 15, n, 42);
++    ys = rands(-30, 40, n, 43);
+     pts = [
+         for(i = [0:n - 1]) 
+             let(p = [xs[i], ys[i]]) 
+@@ -21,7 +21,7 @@
+         
+     cells = tri_delaunay(all, ret = "VORONOI_CELLS");
+     for(i = [0:len(cells) - 1]) {
+-        color(rands(0, 1, 3))
++        color(rands(0, 1, 3, i))
+         translate(all[i])    
+         linear_extrude(2, scale = 0.8)
+         translate(-all[i])
