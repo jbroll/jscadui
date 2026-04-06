@@ -144,6 +144,18 @@
           "description": "Default seed to 0 in nz_perlin*s/nz_worley*s — makes noise models deterministic"
         },
         {
+          "patchFile": "scripts/deps/patches/dotscad-hollow-out-sweep-seed.patch",
+          "description": "Use i=0 in rand_tris — makes hollow_out_sweep triangulation deterministic"
+        },
+        {
+          "patchFile": "scripts/deps/patches/dotscad-pp-vrn-space-seed.patch",
+          "description": "Default seed to 0 in pp_poisson/pp_disk/pp_sphere/vrn2_space/vrn3_space — deterministic output"
+        },
+        {
+          "patchFile": "scripts/deps/patches/dotscad-remaining-lib-seed.patch",
+          "description": "Default seed to 0 in circle_packing/perlin_sphere/lsystem_comm/shuffle/choose — deterministic output"
+        },
+        {
           "patchFile": "scripts/deps/patches/dotscad-examples-seed-rands.patch",
           "description": "Seed rands() in example files for deterministic output"
         }

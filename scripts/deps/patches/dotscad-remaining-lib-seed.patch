@@ -1,0 +1,76 @@
+--- a/apps/jscad-web/examples/openscad/dotscad/experimental/circle_packing.scad
++++ b/apps/jscad-web/examples/openscad/dotscad/experimental/circle_packing.scad
+@@ -11,7 +11,7 @@
+ 
+ $fn = 24;
+ min_r = 1;
+-points = [for(i = [0:100]) rands(-100, 100, 2)]; 
++points = [for(i = [0:100]) rands(-100, 100, 2, i)];
+ 
+ for(c = circle_packing(points, min_r)) {
+     translate(c[0])
+--- a/apps/jscad-web/examples/openscad/dotscad/experimental/circle_packing2.scad
++++ b/apps/jscad-web/examples/openscad/dotscad/experimental/circle_packing2.scad
+@@ -24,7 +24,7 @@
+     
+ $fn = 24;
+ density = 4;
+-points = [for(i = [0:100]) rands(-100, 100, 2)]; 
++points = [for(i = [0:100]) rands(-100, 100, 2, i)];
+ 
+ 
+ for(c = circle_packing2(points, density)) {
+--- a/apps/jscad-web/examples/openscad/dotscad/experimental/circle_packing3.scad
++++ b/apps/jscad-web/examples/openscad/dotscad/experimental/circle_packing3.scad
+@@ -19,7 +19,7 @@
+ $fn = 24;
+ density = 2;
+ min_r = 1;
+-points = [for(i = [0:100]) rands(-100, 100, 2)]; 
++points = [for(i = [0:100]) rands(-100, 100, 2, i)];
+ 
+ 
+ for(c = circle_packing3(points, density, min_r)) {
+--- a/apps/jscad-web/examples/openscad/dotscad/experimental/perlin_sphere.scad
++++ b/apps/jscad-web/examples/openscad/dotscad/experimental/perlin_sphere.scad
+@@ -14,7 +14,7 @@
+ 	points = points_faces[0];
+ 	faces = points_faces[1];
+ 
+-	sd = is_undef(seed) ? floor(rand(0, 256)) : seed % 256;
++	sd = is_undef(seed) ? 0 : seed % 256;
+     noisy_points = [
+ 		for(p = points) 
+ 		p * (radius + _pnoise3(p.x * period, p.y * period, p.z * period, sd) * amplitude)
+--- a/apps/jscad-web/examples/openscad/dotscad/turtle/_impl/_lsystem_comm.scad
++++ b/apps/jscad-web/examples/openscad/dotscad/turtle/_impl/_lsystem_comm.scad
+@@ -44,7 +44,7 @@
+ 
+ function _derive(base, rules, n, rule_prs, seed) =
+     let(
+-        sd = is_undef(seed) ? rand(0, 1, seed) * 1000 : seed,
++        sd = is_undef(seed) ? 0 : seed,
+         derive = is_undef(rule_prs) ? function(base) _derive1(base, rules) : function(base) _derive1_p(base, rules, rule_prs, sd),
+         bs = [
+             for(i = 0, b = derive(base); i < n; i = i + 1, b = i != n ? derive(b) : undef)
+--- a/apps/jscad-web/examples/openscad/dotscad/util/shuffle.scad
++++ b/apps/jscad-web/examples/openscad/dotscad/util/shuffle.scad
+@@ -13,6 +13,6 @@
+ function shuffle(lt, seed) = 
+     let(
+         leng = len(lt),
+-        indices = [for(i = is_undef(seed) ? rands(0, leng, leng) : rands(0, leng, leng, seed)) floor(i)]
++        indices = [for(i = rands(0, leng, leng, is_undef(seed) ? 0 : seed)) floor(i)]
+     )
+     _shuffle(lt, indices, leng);
+\ No newline at end of file
+--- a/apps/jscad-web/examples/openscad/dotscad/util/choose.scad
++++ b/apps/jscad-web/examples/openscad/dotscad/util/choose.scad
+@@ -9,5 +9,5 @@
+ **/
+ 
+ function choose(choices, seed) =
+-    let(c = is_undef(seed) ? rands(0, len(choices) - 1, 1) : rands(0, len(choices) - 1, 1, seed)) 
++    let(c = rands(0, len(choices) - 1, 1, is_undef(seed) ? 0 : seed))
+     choices[round(c[0])];
+\ No newline at end of file

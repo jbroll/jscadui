@@ -1,0 +1,70 @@
+--- a/apps/jscad-web/examples/openscad/dotscad/voronoi/vrn2_space.scad
++++ b/apps/jscad-web/examples/openscad/dotscad/voronoi/vrn2_space.scad
+@@ -38,7 +38,7 @@
+         }
+     }    
+     
+-    sd = is_undef(seed) ? rands(0, 255, 1)[0] : seed; 
++    sd = is_undef(seed) ? 0 : seed;
+ 
+     gw = size[0] / grid_w;
+     gh = size[1] / grid_w;
+--- a/apps/jscad-web/examples/openscad/dotscad/voronoi/vrn3_space.scad
++++ b/apps/jscad-web/examples/openscad/dotscad/voronoi/vrn3_space.scad
+@@ -36,7 +36,7 @@
+         }
+     }    
+     
+-    sd = is_undef(seed) ? rands(0, 255, 1)[0] : seed; 
++    sd = is_undef(seed) ? 0 : seed;
+ 
+     gw = [1, grid_w, grid_w ^ 2];
+     // 27-nearest-neighbor cells
+--- a/apps/jscad-web/examples/openscad/dotscad/pp/pp_poisson2.scad
++++ b/apps/jscad-web/examples/openscad/dotscad/pp/pp_poisson2.scad
+@@ -12,7 +12,7 @@
+ 
+ function pp_poisson2(size, r, start = undef, k = 30, seed = undef, history = false) =
+     let(
+-        sd = is_undef(seed) ? floor(rands(0, 1000, 1)[0]) : seed,
++        sd = is_undef(seed) ? 0 : seed,
+         s = _pp_poisson(sampling(size, r, start, k, sd), sd),
+         samples = [
+             for(row = sampling_grid(s), sample = row)
+--- a/apps/jscad-web/examples/openscad/dotscad/pp/pp_poisson3.scad
++++ b/apps/jscad-web/examples/openscad/dotscad/pp/pp_poisson3.scad
+@@ -12,7 +12,7 @@
+ 
+ function pp_poisson3(size, r, start = undef, k = 30, seed = undef, history = false) =
+     let(
+-        sd = is_undef(seed) ? floor(rands(0, 1000, 1)[0]) : seed,
++        sd = is_undef(seed) ? 0 : seed,
+         s = _pp_poisson(sampling(size, r, start, k, sd), sd),
+         samples = [
+             for(layer = sampling_grid(s), row = layer, sample = row)
+--- a/apps/jscad-web/examples/openscad/dotscad/pp/pp_disk.scad
++++ b/apps/jscad-web/examples/openscad/dotscad/pp/pp_disk.scad
+@@ -12,8 +12,8 @@
+ function pp_disk(radius, value_count, seed = undef) =
+     let(
+ 	    seed_undef = is_undef(seed),
+ 		n = value_count * 2,
+-	    theta = seed_undef ? rands(0, 360, n) : rands(0, 360, n, seed),
+-		k = radius ^ 2 * (seed_undef ? rands(0, 1, n) : rands(0, 1, n, seed))
++	    theta = rands(0, 360, n, seed_undef ? 0 : seed),
++		k = radius ^ 2 * rands(0, 1, n, seed_undef ? 0 : seed)
+ 	)
+ 	[
+ 	    for(i = [0:value_count - 1])
+ 		[cos(theta[i]), sin(theta[i])] * sqrt(k[i])
+--- a/apps/jscad-web/examples/openscad/dotscad/pp/pp_sphere.scad
++++ b/apps/jscad-web/examples/openscad/dotscad/pp/pp_sphere.scad
+@@ -11,7 +11,7 @@
+ use <../util/degrees.scad>
+ 
+ function pp_sphere(radius, value_count, seed = undef) =
+-    let(r_nums = is_undef(seed) ? rands(0, 1, value_count * 2) :  rands(0, 1, value_count * 2, seed))
++    let(r_nums = rands(0, 1, value_count * 2, is_undef(seed) ? 0 : seed))
+ 	[
+ 		for(i = [0:value_count - 1])
+ 		let(

@@ -1,0 +1,11 @@
+--- a/apps/jscad-web/examples/openscad/dotscad/experimental/hollow_out_sweep.scad
++++ b/apps/jscad-web/examples/openscad/dotscad/experimental/hollow_out_sweep.scad
+@@ -23,7 +23,7 @@
+         
+     function rand_tris(rect) =
+         let(
+-            i = ceil(rand() * 10) % 2
++            i = 0
+         )
+         i == 0 ?
+             [[rect[0], rect[1], rect[2]], [rect[0], rect[2], rect[3]]] :
