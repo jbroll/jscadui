@@ -82,22 +82,65 @@
 --- a/apps/jscad-web/examples/openscad/dotscad/examples/taiwan/voronoi_taiwan.scad	2026-03-31 10:23:54.033609810 -0400
 +++ b/apps/jscad-web/examples/openscad/dotscad/examples/taiwan/voronoi_taiwan.scad	2026-04-06 09:53:45.327193949 -0400
 @@ -8,8 +8,8 @@
-     taiwan = shape_taiwan(120, distance = 1); 
- 
+     taiwan = shape_taiwan(120, distance = 1);
+
      n = 40;
 -    xs = rands(-15, 15, n);
 -    ys = rands(-30, 40, n);
 +    xs = rands(-15, 15, n, 42);
 +    ys = rands(-30, 40, n, 43);
      pts = [
-         for(i = [0:n - 1]) 
-             let(p = [xs[i], ys[i]]) 
+         for(i = [0:n - 1])
+             let(p = [xs[i], ys[i]])
 @@ -21,7 +21,7 @@
-         
+
      cells = tri_delaunay(all, ret = "VORONOI_CELLS");
      for(i = [0:len(cells) - 1]) {
 -        color(rands(0, 1, 3))
 +        color(rands(0, 1, 3, i))
-         translate(all[i])    
+         translate(all[i])
          linear_extrude(2, scale = 0.8)
          translate(-all[i])
+--- a/apps/jscad-web/examples/openscad/dotscad/examples/maze/devil_maze.scad	2026-03-31 10:23:54.000000000 -0400
++++ b/apps/jscad-web/examples/openscad/dotscad/examples/maze/devil_maze.scad	2026-04-06 09:26:50.963722686 -0400
+@@ -75,7 +75,7 @@ module devil_maze() {
+     ];
+
+     cells = vrn2_cells_space([r, r] * 2 + [1, 1], 1);
+-    seed = rands(0, 1000, 1)[0];
++    seed = rands(0, 1000, 1, 42)[0];
+     for(cell = cells) {
+         cell_pt = cell[0];
+         cell_poly = cell[1];
+--- a/apps/jscad-web/examples/openscad/dotscad/examples/maze/giant_maze.scad	2026-03-31 10:23:54.000000000 -0400
++++ b/apps/jscad-web/examples/openscad/dotscad/examples/maze/giant_maze.scad	2026-04-06 09:26:50.963722686 -0400
+@@ -54,7 +54,7 @@ module giant_maze() {
+     ];
+
+     cells = vrn2_cells_space([len(m[0]), len(m)], 1);
+-    seed = rands(0, 1000, 1)[0];
++    seed = rands(0, 1000, 1, 42)[0];
+     for(cell = cells) {
+         cell_pt = cell[0];
+         cell_poly = cell[1];
+--- a/apps/jscad-web/examples/openscad/dotscad/examples/maze/maze_city.scad	2026-03-31 10:23:54.000000000 -0400
++++ b/apps/jscad-web/examples/openscad/dotscad/examples/maze/maze_city.scad	2026-04-06 09:26:50.963722686 -0400
+@@ -13,7 +13,7 @@ maze_city(rows, columns, skyscraper_prs);
+ module maze_city(rows, columns, skyscraper_prs) {
+     mask = [for(r = [0:rows - 1])
+ 	    [for(c = [0:columns - 1])
+-		rand() < skyscraper_prs ? 0 : 1]
++		rand(0, 1, r * columns + c) < skyscraper_prs ? 0 : 1]
+ 	];
+
+     cells = mz_square(rows, columns, [0, 0], init_cells = mz_square_initialize(rows, columns, mask));
+--- a/apps/jscad-web/examples/openscad/dotscad/examples/voronoi/voronoi_vase.scad	2026-03-31 10:23:54.000000000 -0400
++++ b/apps/jscad-web/examples/openscad/dotscad/examples/voronoi/voronoi_vase.scad	2026-04-06 09:26:50.963722686 -0400
+@@ -33,7 +33,7 @@ module voronoi_vase(r, h, thickness, num_of_pts, fn, profile_step) {
+     ];
+
+     pts =  [for(sect = sections) each sect];
+-    indices = rands(0, len(pts) - 1, num_of_pts - 4);
++    indices = rands(0, len(pts) - 1, num_of_pts - 4, 42);
+
+     last_section_i = len(sections) - 1;

@@ -13,7 +13,7 @@ maze_city(rows, columns, skyscraper_prs);
 module maze_city(rows, columns, skyscraper_prs) {
     mask = [for(r = [0:rows - 1])
 	    [for(c = [0:columns - 1])
-		rand() < skyscraper_prs ? 0 : 1]
+		rand(0, 1, r * columns + c) < skyscraper_prs ? 0 : 1]
 	];
 
     cells = mz_square(rows, columns, [0, 0], init_cells = mz_square_initialize(rows, columns, mask));

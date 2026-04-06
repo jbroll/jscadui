@@ -1,0 +1,10 @@
+--- a/apps/jscad-web/examples/openscad/dotscad/voronoi/vrn2_cells_space.scad	2026-03-31 10:23:54.000000000 -0400
++++ b/apps/jscad-web/examples/openscad/dotscad/voronoi/vrn2_cells_space.scad	2026-04-06 09:26:50.963722686 -0400
+@@ -15,7 +15,7 @@ use <../shape_square.scad>
+ function vrn2_cells_space(size, grid_w, seed) =
+     let(
+-        sd = is_undef(seed) ? rands(0, 255, 1)[0] : seed,
++        sd = is_undef(seed) ? 0 : seed,
+         region_size = grid_w * 3,
+         half_region_size = region_size * 0.5,
+         shape = shape_square(grid_w * 3),

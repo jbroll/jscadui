@@ -75,7 +75,7 @@ module devil_maze() {
     ];
 
     cells = vrn2_cells_space([r, r] * 2 + [1, 1], 1);
-    seed = rands(0, 1000, 1)[0];
+    seed = rands(0, 1000, 1, 42)[0];
     for(cell = cells) {
         cell_pt = cell[0];
         cell_poly = cell[1];

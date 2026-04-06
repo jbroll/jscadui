@@ -54,7 +54,7 @@ module giant_maze() {
     ];
 
     cells = vrn2_cells_space([len(m[0]), len(m)], 1);
-    seed = rands(0, 1000, 1)[0];
+    seed = rands(0, 1000, 1, 42)[0];
     for(cell = cells) {
         cell_pt = cell[0];
         cell_poly = cell[1];

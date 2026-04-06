@@ -136,8 +136,12 @@
           "description": "Use position-based seed in tile_truchet — makes all truchet tile models deterministic"
         },
         {
+          "patchFile": "scripts/deps/patches/dotscad-vrn2-cells-space-seed.patch",
+          "description": "Default seed to 0 in vrn2_cells_space — makes Voronoi space models deterministic"
+        },
+        {
           "patchFile": "scripts/deps/patches/dotscad-examples-seed-rands.patch",
-          "description": "Seed rands() in 6 example files for deterministic output"
+          "description": "Seed rands() in example files for deterministic output"
         }
       ]
     },

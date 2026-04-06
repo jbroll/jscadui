@@ -33,7 +33,7 @@ module voronoi_vase(r, h, thickness, num_of_pts, fn, profile_step) {
     ];
 
     pts =  [for(sect = sections) each sect];
-    indices = rands(0, len(pts) - 1, num_of_pts - 4);
+    indices = rands(0, len(pts) - 1, num_of_pts - 4, 42);
 
     last_section_i = len(sections) - 1;
     half_fn = fn * 0.5;
