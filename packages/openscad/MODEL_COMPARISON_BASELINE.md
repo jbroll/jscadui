@@ -1,6 +1,6 @@
 # Model Comparison Baseline
 
-Verified 2026-04-07 — commit `ab864b5` on `hierarchical-params` (each-if flatMap context fixes, inFlatMapContext propagation isolation).
+Verified 2026-04-07 — commit `6060e596` on `hierarchical-params` (font pre-download in ci/test so text() works on GPU).
 
 Similarity threshold: **0.99** (Jaccard index on vertex-deduplicated STL meshes).
 
@@ -14,7 +14,7 @@ Similarity threshold: **0.99** (Jaccard index on vertex-deduplicated STL meshes)
 | NopSCADlib |   149 |       4 |             1 |         4 |    144 |    144 |      0 |      0 | **100%**  |
 | snippet    |   122 |       0 |            10 |         2 |    110 |    110 |      0 |      0 | **100%**  |
 | text       |    11 |       0 |             9 |         0 |      2 |      2 |      0 |      0 | **100%**  |
-| dotSCAD    |   212 |       0 |            28 |        22 |    162 |    127 |     35 |      0 | **78.4%** |
+| dotSCAD    |   212 |       0 |            28 |        22 |    162 |    130 |     32 |      0 | **80.2%** |
 
 **Baseline suites** (01-basics, BOSL, BOSL2, NopSCADlib, snippet, text): any failure is a regression.
 
