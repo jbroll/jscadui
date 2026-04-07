@@ -314,6 +314,25 @@ describe('search function', () => {
   })
 })
 
+describe('min/max with vectors', () => {
+  it('returns component-wise min of vector array', () => {
+    expect(j$.min([[1, 2], [3, 0]])).toEqual([1, 0])
+    expect(j$.min([[5, 3, 8], [1, 9, 2]])).toEqual([1, 3, 2])
+  })
+
+  it('returns scalar min for flat number array', () => {
+    expect(j$.min([5, 3, 8])).toBe(3)
+  })
+
+  it('returns component-wise max of vector array', () => {
+    expect(j$.max([[1, 2], [3, 0]])).toEqual([3, 2])
+  })
+
+  it('returns scalar max for flat number array', () => {
+    expect(j$.max([5, 3, 8])).toBe(8)
+  })
+})
+
 describe('polygon degenerate input guard', () => {
   it('returns undefined for empty points array instead of throwing', () => {
     // OpenSCAD silently ignores degenerate polygons. In JSCAD, polygon([]) used to throw

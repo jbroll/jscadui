@@ -158,11 +158,48 @@ export const search = (_match, _source, _num_returns = 1, _idx) => {
 }
 
 // min/max that handle array arguments (OpenSCAD: max([1,2,3]) returns 3)
-export const _min = (...args) =>
-  args.length === 1 && Array.isArray(args[0]) ? Math.min(...args[0]) : Math.min(...args)
+// Also handles arrays of vectors: min([[1,2],[3,0]]) = [1,0] (component-wise)
+export const _min = (...args) => {
+  if (args.length === 1 && Array.isArray(args[0])) {
+    const arr = args[0]
+    if (arr.length === 0) return undefined
+    if (Array.isArray(arr[0])) {
+      // Component-wise min of vectors
+      const len = arr[0].length
+      const result = new Array(len)
+      for (let j = 0; j < len; j++) result[j] = arr[0][j]
+      for (let i = 1; i < arr.length; i++) {
+        for (let j = 0; j < len; j++) {
+          if (arr[i][j] < result[j]) result[j] = arr[i][j]
+        }
+      }
+      return result
+    }
+    return Math.min(...arr)
+  }
+  return Math.min(...args)
+}
 
-export const _max = (...args) =>
-  args.length === 1 && Array.isArray(args[0]) ? Math.max(...args[0]) : Math.max(...args)
+export const _max = (...args) => {
+  if (args.length === 1 && Array.isArray(args[0])) {
+    const arr = args[0]
+    if (arr.length === 0) return undefined
+    if (Array.isArray(arr[0])) {
+      // Component-wise max of vectors
+      const len = arr[0].length
+      const result = new Array(len)
+      for (let j = 0; j < len; j++) result[j] = arr[0][j]
+      for (let i = 1; i < arr.length; i++) {
+        for (let j = 0; j < len; j++) {
+          if (arr[i][j] > result[j]) result[j] = arr[i][j]
+        }
+      }
+      return result
+    }
+    return Math.max(...arr)
+  }
+  return Math.max(...args)
+}
 
 // Validate numeric arguments - OpenSCAD silently ignores invalid values
 export const _num = v => typeof v === 'number' && !isNaN(v) ? v : undefined
