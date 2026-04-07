@@ -16,8 +16,8 @@ examples/tiles/random_town_square.scad
 examples/tiles/penrose_basket.scad
 examples/voronoi/ruyi_pineapple.scad
 examples/crystal_cluster.scad
-examples/differential/differential_line_growth.scad
-examples/differential/differential_line_growth_bowl.scad
+examples/differential_line_growth.scad
+examples/differential_line_growth_bowl.scad
 examples/turtle/tree.scad
 examples/voronoi/ripple_vase.scad
 examples/taiwan/chair_score.scad
@@ -30,6 +30,8 @@ examples/tiles/2_edge_wang_tiles_basic.scad
 examples/tiles/tube_box.scad
 # hollow_out_holder uses hollow_out_square which calls rand() without seed
 examples/hollow_out/hollow_out_holder.scad
+# rock_theta_maze: rock() module uses unseeded rands() for rock shape generation
+examples/maze/rock_theta_maze.scad
 
 # Missing dependency: shape_glued2circles.scad not included in dotSCAD repo
 examples/spiral/spring_dog.scad

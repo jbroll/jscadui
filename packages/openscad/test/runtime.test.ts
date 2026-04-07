@@ -368,6 +368,37 @@ describe('min/max with vectors', () => {
   })
 })
 
+describe('rands MT19937 output', () => {
+  // Verify rands() produces stable values with our MT19937 implementation.
+  // Uses LLVM libc++ generate_canonical formula: (g0 + g1*2^32) / 2^64 = g0/2^64 + g1/2^32
+  // where g1 (second MT output) is the dominant term. This matches OpenSCAD on macOS/clang.
+  // Note: GCC libstdc++ uses g0/2^32 + g1/2^64 (first value dominant) — different results.
+
+  it('rands(0, 10, 1, 42) produces stable value', () => {
+    j$.resetRng()
+    const result = j$.rands(0, 10, 1, 42)
+    expect(result[0]).toBeCloseTo(7.96542984287846, 5)
+  })
+
+  it('rands(0, 256, 1, 51) produces stable value (Perlin noise seed)', () => {
+    j$.resetRng()
+    const result = j$.rands(0, 256, 1, 51)
+    expect(result[0]).toBeCloseTo(83.74035988305398, 5)
+  })
+
+  it('rands(0, 23, 1, 15) produces stable value (maze seed)', () => {
+    j$.resetRng()
+    const result = j$.rands(0, 23, 1, 15)
+    expect(result[0]).toBeCloseTo(18.712350373743757, 5)
+  })
+
+  it('round(rands(0, 23, 1, 15)[0]) gives stable direction index', () => {
+    j$.resetRng()
+    const result = j$.rands(0, 23, 1, 15)
+    expect(Math.round(result[0])).toBe(19)
+  })
+})
+
 describe('polygon degenerate input guard', () => {
   it('returns undefined for empty points array instead of throwing', () => {
     // OpenSCAD silently ignores degenerate polygons. In JSCAD, polygon([]) used to throw
