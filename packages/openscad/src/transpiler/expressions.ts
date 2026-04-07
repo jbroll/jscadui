@@ -614,9 +614,10 @@ function transpileLcForCExprHandler(
   const needsFilter = containsIfExpr(forCExpr.expr)
   const resultExpr = needsFilter ? `_result${suffix}.filter(x => x !== undefined)` : `_result${suffix}`
 
-  // If body contains 'each', the expression evaluates to an array that must be spread
-  // into the result (not pushed as a single element). Mirrors flatMap in regular for loops.
-  const needsSpread = containsEachExpr(forCExpr.expr)
+  // If body contains 'each' OR is a nested for comprehension, the expression evaluates to
+  // an array that must be spread into the result (not pushed as a single element).
+  // In OpenSCAD: [for(i=0;i<h;i=i+1) for(pt=c) expr] produces a FLAT list.
+  const needsSpread = containsEachExpr(forCExpr.expr) || containsNestedForExpr(forCExpr.expr)
   const pushStmt = needsSpread
     ? `_result${suffix}.push(...(${body}))`
     : `_result${suffix}.push(${body})`

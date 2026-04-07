@@ -287,5 +287,14 @@ describe('transpileExpression', () => {
       const code = transpileExpr('x = [for(i=0; i<3; i=i+1) let(a=i) each [a, a+1]];')
       expect(code).toContain('push(...')
     })
+
+    it('C-style for with nested range-for body: flattens into result', () => {
+      // [for(i=0; i<h; i=i+1) for(pt=c) [each pt, i]] produces FLAT list of elements.
+      // Bug: without fix, each inner for result was pushed as a single array element,
+      // giving [[[p0,i], [p1,i]], [[p0,i+1], [p1,i+1]]] instead of [[p0,i],[p1,i],...]
+      const code = transpileExpr('x = [for(i=0; i<3; i=i+1) for(pt=[1,2]) pt];')
+      // Should spread inner for result: _result.push(...body)
+      expect(code).toContain('push(...')
+    })
   })
 })
