@@ -15,3 +15,10 @@
 examples/tiles/random_town_square.scad
 examples/tiles/penrose_basket.scad
 examples/voronoi/ruyi_pineapple.scad
+examples/crystal_cluster.scad
+
+# Missing dependency: shape_glued2circles.scad not included in dotSCAD repo
+examples/spiral/spring_dog.scad
+
+# OOM: model geometry is extremely complex and exhausts available memory
+examples/fidget_ball_fern_leaf.scad
