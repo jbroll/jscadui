@@ -1,6 +1,6 @@
 # Model Comparison Baseline
 
-Verified 2026-04-07 — commit `d970879` on `hierarchical-params` (rands() float seed fix via Python _Py_HashDouble).
+Verified 2026-04-07 — commit `44d00a5` on `hierarchical-params` (nested module builtin shadowing fix — vrn2_from region).
 
 Similarity threshold: **0.99** (Jaccard index on vertex-deduplicated STL meshes).
 
@@ -14,7 +14,7 @@ Similarity threshold: **0.99** (Jaccard index on vertex-deduplicated STL meshes)
 | NopSCADlib |   149 |       4 |             1 |         4 |    144 |    144 |      0 |      0 | **100%**  |
 | snippet    |   122 |       0 |            10 |         2 |    110 |    110 |      0 |      0 | **100%**  |
 | text       |    11 |       0 |             9 |         0 |      2 |      2 |      0 |      0 | **100%**  |
-| dotSCAD    |   212 |       0 |            28 |        22 |    162 |    140 |     22 |      0 | **86.4%** |
+| dotSCAD    |   212 |       0 |            28 |        22 |    162 |    142 |     20 |      0 | **87.7%** |
 
 **Baseline suites** (01-basics, BOSL, BOSL2, NopSCADlib, snippet, text): any failure is a regression.
 
