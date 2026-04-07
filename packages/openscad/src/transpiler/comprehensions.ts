@@ -202,10 +202,23 @@ export function transpileVectorExpr(
   children: Expression[],
   ctx: TranspileContext
 ): string {
+  // Reset inFlatMapContext when entering a vector literal.
+  // inFlatMapContext should only affect the TOP-LEVEL expression of a for body.
+  // Inside a nested vector like `each [a, if(cond) b]`, the `if(cond) b` item
+  // should return undefined (filter-based), not [] (flatMap-based).
+  // The for handler will re-set inFlatMapContext if it produces a nested for/each.
+  const savedFlatMapContext = ctx.inFlatMapContext
+  ctx.inFlatMapContext = false
+
   // Try pure comprehension first
   const pureResult = handlePureComprehension(children, ctx)
-  if (pureResult !== null) return pureResult
+  if (pureResult !== null) {
+    ctx.inFlatMapContext = savedFlatMapContext
+    return pureResult
+  }
 
   // Handle mixed vectors (default case)
-  return handleMixedVector(children, ctx)
+  const result = handleMixedVector(children, ctx)
+  ctx.inFlatMapContext = savedFlatMapContext
+  return result
 }

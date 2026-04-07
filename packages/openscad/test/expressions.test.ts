@@ -321,5 +321,17 @@ describe('transpileExpression', () => {
       expect(code).toContain(': []')
       expect(code).not.toContain(': undefined')
     })
+
+    it('if (no else) inside each vector uses undefined (filter-based), not []', () => {
+      // [for(i=[0:2]) each [i, if(i>0) i*2]] should produce [0, 1, 2, 2, 4]
+      // The if(i>0) is inside the vector [i, if(i>0) i*2], NOT the direct for body.
+      // Regression: if inFlatMapContext propagates into the vector, if returns []
+      // instead of undefined, breaking the filter. e.g. i=0 gives [0, []] instead of [0].
+      const code = transpileExpr('x = [for(i=[0:2]) each [i, if(i>0) i*2]];')
+      // Must use flatMap (each triggers flatMap)
+      expect(code).toContain('.flatMap(')
+      // The if inside the vector uses filter (undefined), NOT [] (which would break filter)
+      expect(code).toContain('filter(x => x !== undefined)')
+    })
   })
 })
