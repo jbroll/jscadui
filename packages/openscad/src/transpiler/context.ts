@@ -178,6 +178,11 @@ export interface TranspileContext {
   // Current set of locally-bound names (module/function params + local vars)
   // Used to avoid false positives when tracking potentialFreeVarRefs
   currentLocalBindings: Set<string>
+  // Names of nested modules defined in the current scope.
+  // Unlike currentLocalBindings (which includes variables and params), this set
+  // contains ONLY locally-defined module names. Used by shouldUseBuiltin() to
+  // detect when a nested module shadows a same-named builtin (e.g. module region inside vrn2_from).
+  localNestedModuleNames: Set<string>
   // Whether we're inside a flatMap context (list comprehension with 'each').
   // When true, LcIfExpr branches that are NOT 'each' must be wrapped in [...] to
   // prevent flatMap from flattening array-typed values (e.g., polygon points [x,y]).
@@ -243,6 +248,7 @@ export function createContext(
     errors: [],
     potentialFreeVarRefs: new Set(),
     currentLocalBindings: new Set(),
+    localNestedModuleNames: new Set(),
     inFlatMapContext: false,
     lazyVarNames: options.initialLazyVarNames ? new Set(options.initialLazyVarNames) : new Set(),
   }

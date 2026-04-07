@@ -1166,6 +1166,10 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
   ctx.currentLocalBindings = new Set(ctx.currentLocalBindings)
   for (const p of paramNames) ctx.currentLocalBindings.add(safeIdentifier(p))
 
+  // Save outer localNestedModuleNames (will be restored on exit).
+  const savedLocalNestedModuleNames = ctx.localNestedModuleNames
+  ctx.localNestedModuleNames = new Set(ctx.localNestedModuleNames)
+
   // Pre-register function-valued variable assignments as known function literals.
   // This must happen BEFORE nested function transpilation so that function bodies
   // can recognize forward-referenced function-valued variables (e.g., `_dedup` uses
@@ -1249,6 +1253,7 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
     moduleVarNames.set(m.name, moduleVarName)
     ctx.scopes.registerFunctionBinding(varName, moduleVarName)
     ctx.currentLocalBindings.add(varName)
+    ctx.localNestedModuleNames.add(varName)  // track for shouldUseBuiltin
     if (hasVarConflict) ctx.currentLocalBindings.add(moduleVarName)
   }
   // Pass 2: transpile each nested module body (all sibling names are now registered).
@@ -1342,8 +1347,9 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
   // that were shadowed by same-name nested modules/functions (e.g., fern_ball inside fern_ball).
   ctx.scopes.restoreFunctionBindings(bindingsSnapshot)
 
-  // Restore currentLocalBindings to outer scope
+  // Restore currentLocalBindings and localNestedModuleNames to outer scope
   ctx.currentLocalBindings = savedLocalBindings
+  ctx.localNestedModuleNames = savedLocalNestedModuleNames
 
   return bodyParts
 }

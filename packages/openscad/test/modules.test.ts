@@ -240,6 +240,84 @@ describe('nested module forward references', () => {
   })
 })
 
+describe('nested module shadows builtin name', () => {
+  it('nested module named "region" uses local binding, not j$.region builtin', () => {
+    // vrn2_from.scad defines a nested module named `region` inside vrn2_from.
+    // A sibling module `offseted_region` calls `region(pt) children()`.
+    // Bug: shouldUseBuiltin('region') returns true because ctx.symbols doesn't
+    // include the locally-defined nested module, emitting j$.region({r: pt}) instead.
+    const code = transpileCode(`
+      module vrn2_from(points) {
+        module region(pt) {
+          intersection_for(p = points) {
+            translate(p) children();
+          }
+        }
+        module offseted_region(pt) {
+          region(pt)
+            square(10, center = true);
+        }
+        for(p = points) {
+          offseted_region(p)
+            square(10, center = true);
+        }
+      }
+      vrn2_from([[1,2],[3,4]]);
+    `)
+    // The local nested module `region` should be called as a local function,
+    // NOT as j$.region (the jscad region primitive)
+    expect(code).not.toContain('j$.region')
+    // The local region should be used
+    expect(code).toMatch(/const region\b/)
+    // offseted_region should call region(pt)(...) not j$.region({...})
+    expect(code).toMatch(/region\s*\(/)
+  })
+
+  it('nested module named "square" uses local binding, not j$.square builtin', () => {
+    // Same pattern: local nested module shadows a builtin primitive
+    const code = transpileCode(`
+      module outer() {
+        module square(s) {
+          circle(s);
+        }
+        square(5);
+      }
+      outer();
+    `)
+    // Should call the local square, not j$.square
+    expect(code).toMatch(/const square\b/)
+    // The square() call inside outer should NOT become j$.square
+    // Instead it should be the local function
+    expect(code).not.toMatch(/j\$\.square\(\s*\{\s*size:\s*5/)
+  })
+
+  it('nested module called with named args uses positional format (not object)', () => {
+    // Regression: shouldUseBuiltin was checked with kind='function' in reorderNamedArgs,
+    // causing xtcyl(l=m, r=r) to produce {l:m, r:r} object format instead of positional.
+    // Local nested modules use positional call convention, not options objects.
+    const code = transpileCode(`
+      module cuboid(size, rounding) {
+        module xtcyl(l, r) {
+          cylinder(l=l, r=r);
+        }
+        module corner_shape(corner) {
+          m = 0.01;
+          r = rounding;
+          xtcyl(l=m, r=r);
+        }
+        corner_shape([1,1,1]);
+      }
+      cuboid([10,10,10], rounding=1);
+    `)
+    // xtcyl is a local nested module — must be called with positional args (m, r), NOT {l:m, r:r}
+    // If it uses object format, the local const xtcyl = (l, r) => ... receives wrong types
+    expect(code).toMatch(/const xtcyl\b/)
+    // The call should be positional: xtcyl(m, r)() or xtcyl(0.01, r)()
+    // NOT: xtcyl({ l: m, r: r })() which would pass an object as first param
+    expect(code).not.toMatch(/xtcyl\(\s*\{/)
+  })
+})
+
 describe('children() handling', () => {
   it('children(i) accesses specific child', () => {
     const code = transpileCode(`

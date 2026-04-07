@@ -331,11 +331,25 @@ export function shouldUseBuiltin(
     return true
   }
 
-  // Check if user has defined this symbol
-  const hasUserDefined = ctx.symbols.isKind(name, kind)
+  // Check if user has defined this symbol globally (via include/use)
+  if (ctx.symbols.isKind(name, kind)) return false
 
-  // Use builtin only if user hasn't overridden it
-  return !hasUserDefined
+  // Check if there's a locally-defined nested module with this name.
+  // Only applies to module dispatch (kind === 'module'), NOT function dispatch.
+  // In OpenSCAD, module and function namespaces are separate, so a nested module
+  // shadows the same-named builtin MODULE but NOT a same-named builtin function.
+  // More importantly: reorderNamedArgs calls shouldUseBuiltin with kind='function'
+  // to decide whether to use object or positional format for named-arg calls.
+  // If we returned false there, xtcyl(l=m, r=r) would become {l:m, r:r} object
+  // format — but local nested modules use positional call convention, breaking them.
+  // e.g. vrn2_from.scad defines nested module `region` inside vrn2_from which
+  // must shadow the j$.region builtin when called as a module inside sibling modules.
+  // We use localNestedModuleNames (not currentLocalBindings) because the latter
+  // includes variables and parameters — local variable `polygon` must NOT prevent
+  // the builtin polygon() from being used (OpenSCAD namespaces are separate).
+  if (kind === 'module' && ctx.localNestedModuleNames.has(name)) return false
+
+  return true
 }
 
 /**
