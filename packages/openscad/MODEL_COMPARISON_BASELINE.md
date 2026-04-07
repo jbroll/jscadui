@@ -1,6 +1,6 @@
 # Model Comparison Baseline
 
-Verified 2026-04-06 — commit `4484e0e` on `hierarchical-params` (seeding patches for 40 dotSCAD models, CI guard in test-harness, run-jscad 30s timeout).
+Verified 2026-04-07 — commit `ab864b5` on `hierarchical-params` (each-if flatMap context fixes, inFlatMapContext propagation isolation).
 
 Similarity threshold: **0.99** (Jaccard index on vertex-deduplicated STL meshes).
 
@@ -14,7 +14,7 @@ Similarity threshold: **0.99** (Jaccard index on vertex-deduplicated STL meshes)
 | NopSCADlib |   149 |       4 |             1 |         4 |    144 |    144 |      0 |      0 | **100%**  |
 | snippet    |   122 |       0 |            10 |         2 |    110 |    110 |      0 |      0 | **100%**  |
 | text       |    11 |       0 |             9 |         0 |      2 |      2 |      0 |      0 | **100%**  |
-| dotSCAD    |   212 |       0 |            28 |         3 |    181 |    112 |     58 |     11 | 61.9%     |
+| dotSCAD    |   212 |       0 |            28 |        22 |    162 |    127 |     35 |      0 | **78.4%** |
 
 **Baseline suites** (01-basics, BOSL, BOSL2, NopSCADlib, snippet, text): any failure is a regression.
 
@@ -55,12 +55,9 @@ Excludes remove library source directories and non-test files from discovery.
 - **NopSCADlib**: `NopSCADlib/vitamins/`, `NopSCADlib/printed/`, `NopSCADlib/utils/`, core files, debug `.scad` files
 - **dotSCAD**: `__comm__/`, `_impl/`, and 15 internal module directories
 
-### dotSCAD (3 skipped)
+### dotSCAD (22 skipped)
 
-Previously 43 models were skipped as non-deterministic. 40 of those were made deterministic via seeding patches in `scripts/deps/patches/dotscad-*.patch`. The remaining 3 have complex unseeded `rands()` patterns not yet patched:
+See `apps/jscad-web/examples/openscad/dotscad/skip.txt` for the full annotated list.
+Categories: unseeded `rands()` (non-deterministic geometry), missing dependency, OOM, timeout, non-manifold reference STL.
 
-| Model | Reason |
-|-------|--------|
-| `examples/tiles/random_town_square.scad` | Multiple unseeded rand() calls, complex loop structure |
-| `examples/tiles/penrose_basket.scad` | Multiple unseeded rand() calls, complex loop structure |
-| `examples/voronoi/ruyi_pineapple.scad` | Multiple unseeded rand() calls |
+Previously 43 models were skipped as non-deterministic. 40 of those were made deterministic via seeding patches in `scripts/deps/patches/dotscad-*.patch`. The remaining non-deterministic and other problematic models are in skip.txt.
