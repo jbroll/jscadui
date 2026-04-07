@@ -1,6 +1,6 @@
 # Model Comparison Baseline
 
-Verified 2026-04-07 — commit `2027117` on `hierarchical-params` (mirror fix + SD_Card_Taiwan skip).
+Verified 2026-04-07 — commit `33ac7f5` on `hierarchical-params` (j$.SKIP fixes: LcIfExpr + handleMixedVector).
 
 Similarity threshold: **0.99** (Jaccard index on vertex-deduplicated STL meshes).
 
@@ -14,7 +14,7 @@ Similarity threshold: **0.99** (Jaccard index on vertex-deduplicated STL meshes)
 | NopSCADlib |   149 |       4 |             1 |         4 |    144 |    144 |      0 |      0 | **100%**  |
 | snippet    |   122 |       0 |            10 |         2 |    110 |    110 |      0 |      0 | **100%**  |
 | text       |    11 |       0 |             9 |         0 |      2 |      2 |      0 |      0 | **100%**  |
-| dotSCAD    |   212 |       0 |            28 |        24 |    160 |    142 |     18 |      0 | **88.8%** |
+| dotSCAD    |   212 |       0 |            28 |        24 |    160 |    143 |     17 |      0 | **89.4%** |
 
 **Baseline suites** (01-basics, BOSL, BOSL2, NopSCADlib, snippet, text): any failure is a regression.
 

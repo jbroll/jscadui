@@ -155,8 +155,8 @@ export function handleMixedVector(
   // - 'for' comprehension: [0, for (i=r) i, 1] -> [0, ...r.map(i=>i), 1]
   //   When a for comprehension is mixed with other elements, it needs to be spread
   //   because the for generates an array, and we want the elements flattened
-  // - 'if' conditional: [0, if(cond) val, 1] -> [0, cond?val:undefined, 1].filter(x=>x!==undefined)
-  //   Conditionals produce undefined when false, which must be filtered out
+  // - 'if' conditional: [0, if(cond) val, 1] -> [0, cond?val:j$.SKIP, 1].filter(x=>x!==j$.SKIP)
+  //   Conditionals produce j$.SKIP when false, which must be filtered out
   // - 'if' with for inside: [if(cond) for(...) expr] -> [...(cond ? forResult : [])]
   //   When the conditional body is a for-loop, the result is an array that needs spreading
   const hasConditionals = children.some(c => isLcIfExpr(c))
