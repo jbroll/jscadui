@@ -333,5 +333,16 @@ describe('transpileExpression', () => {
       // The if inside the vector uses filter (undefined), NOT [] (which would break filter)
       expect(code).toContain('filter(x => x !== undefined)')
     })
+
+    it('if (no else) in inner of nested for uses undefined (filter-based), not []', () => {
+      // [for(i=[0:1]) for(j=[0:3]) if(j<2) j] should produce [0,1,0,1]
+      // The outer for sets inFlatMapContext=true (nested for) but the inner for
+      // uses map+filter, so if(j<2) j must return undefined (not []) for the filter.
+      // Regression (BOSL2 boolean_geometry): outer inFlatMapContext=true propagated to
+      // inner body, causing if() to return [] which wasn't filtered, breaking min_index.
+      const code = transpileExpr('x = [for(i=[0:1]) for(j=[0:3]) if(j<2) j];')
+      // Inner for uses map (not flatMap), and filter removes undefined
+      expect(code).toContain('filter(x => x !== undefined)')
+    })
   })
 })

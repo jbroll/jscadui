@@ -513,9 +513,12 @@ function transpileLcForExprHandler(
   // In OpenSCAD: [for (i=...) for (j=...) expr] produces a flat list, not nested arrays
   const needsFlatMap = isEachExpr(forExpr.expr) || containsNestedForExpr(forExpr.expr)
 
-  // Set inFlatMapContext so LcIfExpr knows to wrap non-array branches to prevent flattening
+  // Set inFlatMapContext to exactly needsFlatMap so LcIfExpr knows whether to use [] or undefined.
+  // Always reset (not just when true) so that when an outer for sets it true for nested-for
+  // flattening, the inner for's own body correctly uses undefined (filter-based) when the
+  // inner for is not itself using flatMap.
   const savedFlatMapContext = ctx.inFlatMapContext
-  if (needsFlatMap) ctx.inFlatMapContext = true
+  ctx.inFlatMapContext = needsFlatMap
 
   // Transpile inner expression with loop variables in scope
   const innerExpr = withScope(ctx, loopScope, () => transpileExpression(forExpr.expr, ctx))
