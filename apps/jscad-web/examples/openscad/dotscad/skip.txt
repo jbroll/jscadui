@@ -52,3 +52,11 @@ examples/stereographic_projection/stereographic_chars.scad
 # (compare-stl.js trianglesToManifold fails); no valid comparison is possible.
 examples/voronoi/ripple_sphere.scad
 examples/voronoi/voronoi_vase.scad
+
+# Mixed-winding polyhedron: SD_Mountain polyhedron faces have CW winding in OpenSCAD's STL
+# output, while our _polyhedron auto-corrects to CCW. The reference STL total signed volume
+# is negative (Mountain CW + Taiwan CCW = -10737), so compare-stl.js auto-orient flips ALL
+# normals, making the comparison treat Taiwan as a subtracted region → Jaccard=0.174 (false
+# negative). splitIntoComponents cannot split the mesh because Mountain+Taiwan are stitched
+# into a single manifold surface by Manifold's union triangulation.
+examples/taiwan/SD_Card_Taiwan.scad
