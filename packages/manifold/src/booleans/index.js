@@ -247,6 +247,33 @@ export const scission = (geometry) => {
  * @param {...Object} geometries - Two geom3 geometries to sum
  * @returns {ManifoldGeom3} The Minkowski sum
  */
+/**
+ * 2D Minkowski sum using vertex-union method.
+ *
+ * For each vertex v of shape B, translate A by v and union all copies.
+ * This correctly implements minkowski(A, B) for 2D polygons.
+ *
+ * @param {CrossSection} csA - first shape as CrossSection
+ * @param {CrossSection} csB - second shape as CrossSection
+ * @returns {ManifoldGeom2}
+ */
+function minkowski2D(csA, csB) {
+  const polygonsB = csB.toPolygons()
+  if (!polygonsB || polygonsB.length === 0) return new ManifoldGeom2(csA)
+
+  // Use vertices of the outer contour of B
+  const vertices = polygonsB[0]
+  if (!vertices || vertices.length === 0) return new ManifoldGeom2(csA)
+
+  // Union of A translated to each vertex of B
+  let result = csA.translate([vertices[0][0], vertices[0][1]])
+  for (let i = 1; i < vertices.length; i++) {
+    const translated = csA.translate([vertices[i][0], vertices[i][1]])
+    result = result.add(translated)
+  }
+  return new ManifoldGeom2(result)
+}
+
 export const minkowski = (...geometries) => {
   const geoms = geometries.flat(Infinity).filter(g => g != null)
 
@@ -256,6 +283,19 @@ export const minkowski = (...geometries) => {
 
   if (geoms.length > 2) {
     throw new Error('minkowski currently supports exactly two geometries')
+  }
+
+  // 2D minkowski: if either input is 2D (geom2 or ManifoldGeom2, or JSCAD geom2 with sides)
+  const is2D = (g) => isManifoldGeom2(g) || (g.sides !== undefined)
+  if (is2D(geoms[0]) || is2D(geoms[1])) {
+    try {
+      const csA = toCrossSection(geoms[0])
+      const csB = toCrossSection(geoms[1])
+      return minkowski2D(csA, csB)
+    } catch (e) {
+      console.warn('minkowski: 2D operation failed, returning null:', e.message)
+      return null
+    }
   }
 
   // Convert both inputs to Manifold

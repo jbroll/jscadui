@@ -42,6 +42,7 @@ export const translate = (offset, ...geometries) => {
       return result
     } else {
       const manifold = toManifold(geom)
+      if (manifold == null) return null
       const translated = manifold.translate([offset[0] || 0, offset[1] || 0, offset[2] || 0])
       const result = new ManifoldGeom3(translated)
       // Preserve color
@@ -50,7 +51,7 @@ export const translate = (offset, ...geometries) => {
       }
       return result
     }
-  })
+  }).filter(r => r != null)
 
   return results.length === 1 ? results[0] : results
 }
@@ -134,6 +135,7 @@ export const rotate = (angles, ...geometries) => {
       return result
     } else {
       const manifold = toManifold(geom)
+      if (manifold == null) return null
       // Apply rotations in X, Y, Z order (Euler angles)
       const rx = toDeg(angles[0] || 0)
       const ry = toDeg(angles[1] || 0)
@@ -146,7 +148,7 @@ export const rotate = (angles, ...geometries) => {
       }
       return result
     }
-  })
+  }).filter(r => r != null)
 
   return results.length === 1 ? results[0] : results
 }
@@ -203,13 +205,14 @@ export const scale = (factors, ...geometries) => {
       return result
     } else {
       const manifold = toManifold(geom)
+      if (manifold == null) return null
       const scaled = manifold.scale([f[0] || 1, f[1] || 1, f[2] || 1])
       const result = new ManifoldGeom3(scaled)
       // Preserve color
       if (isManifoldGeom3(geom) && geom.color) result.color = geom.color
       return result
     }
-  })
+  }).filter(r => r != null)
 
   return results.length === 1 ? results[0] : results
 }
@@ -271,6 +274,7 @@ export const mirror = (options, ...geometries) => {
       return result
     } else {
       const manifold = toManifold(geom)
+      if (manifold == null) return null
       // Manifold mirror takes a normal vector
       let mirrored
       // If origin is not [0,0,0], we need to translate first, mirror, then translate back
@@ -286,7 +290,7 @@ export const mirror = (options, ...geometries) => {
       if (isManifoldGeom3(geom) && geom.color) result.color = geom.color
       return result
     }
-  })
+  }).filter(r => r != null)
 
   return results.length === 1 ? results[0] : results
 }
@@ -348,6 +352,7 @@ export const transform = (matrix, ...geometries) => {
       return result
     } else {
       const manifold = toManifold(geom)
+      if (manifold == null) return null
       // Manifold expects a full 16-element column-major matrix
       // Our input is already in this format: [m00, m10, m20, m30, m01, m11, m21, m31, ...]
       // Just ensure we have all 16 elements (fill with identity if shorter)
@@ -363,7 +368,7 @@ export const transform = (matrix, ...geometries) => {
       if (isManifoldGeom3(geom) && geom.color) result.color = geom.color
       return result
     }
-  })
+  }).filter(r => r != null)
 
   return results.length === 1 ? results[0] : results
 }
