@@ -197,8 +197,11 @@ const j$ = {
   // Color (populated after init)
   color: _color,
 
-  // Text primitive (async - returns Promise<geom2>)
-  text: _text,
+  // Text primitive — resolves $fn/$fa/$fs from scope like other segment-aware primitives
+  text(args) {
+    const $fn = this.getSpecialVar('$fn'), $fa = this.getSpecialVar('$fa'), $fs = this.getSpecialVar('$fs')
+    return _text({ $fn, $fa, $fs, ...args })
+  },
 
   /**
    * OpenSCAD offset() - offsets a 2D shape outward (positive) or inward (negative)

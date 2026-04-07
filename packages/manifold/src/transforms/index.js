@@ -263,10 +263,13 @@ export const mirror = (options, ...geometries) => {
       return jscadTransforms.mirror(options, geom)
     }
     if (isManifoldGeom2(geom) || (geom.sides !== undefined)) {
-      const section = toCrossSection(geom)
-      // For 2D, mirror across line defined by normal (use x, y components)
       const nx = normal[0] || 0
       const ny = normal[1] || 0
+      // If the normal has no x/y component (e.g. [0,0,1]), mirror is a no-op for 2D geometry
+      // (reflecting through z=0 plane leaves z=0 points unchanged)
+      if (nx === 0 && ny === 0) return geom
+      const section = toCrossSection(geom)
+      // For 2D, mirror across line defined by normal (use x, y components)
       const mirrored = section.mirror([nx, ny])
       const result = new ManifoldGeom2(mirrored)
       // Preserve color

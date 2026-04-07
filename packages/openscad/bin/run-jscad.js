@@ -16,6 +16,7 @@ import { dirname, join } from 'node:path'
 import { parse } from '../esm/parser/parse.js'
 import { transpile } from '../esm/transpiler/transpile.js'
 import { registerCachedFonts } from '../../jscad-text/src/fonts/fontCache.js'
+import { loadSystemFonts } from '../../jscad-text/src/fonts/FontMap.js'
 import { createJ$Instance } from '../../openscad-runtime/src/index.js'
 import { setGlobalFn } from '../../openscad-runtime/src/segments.js'
 
@@ -23,6 +24,10 @@ import { setGlobalFn } from '../../openscad-runtime/src/segments.js'
 // This is synchronous and fast — no download happens here.
 // To populate the cache, run: node packages/openscad/bin/download-fonts.js
 registerCachedFonts()
+
+// Discover system fonts via fc-list so our font resolution matches OpenSCAD's fontconfig.
+// The promise is awaited in runScadToStl/main before any text rendering.
+const _systemFontsReady = loadSystemFonts()
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -611,6 +616,9 @@ function createParamsProxy() {
  * @param {boolean} [preview] - Set $preview=true (simulates F5 preview mode)
  */
 export async function runScadToStl(scadPath, stlPath, fn, libPaths, sharedCache, preview = false) {
+  // Ensure system fonts are loaded before any text rendering (fc-list, runs once per process)
+  await _systemFontsReady
+
   const inputPath = resolve(scadPath)
   const fileDir = dirname(inputPath)
   const source = readFileSync(inputPath, 'utf8')
@@ -660,6 +668,8 @@ export async function runScadToStl(scadPath, stlPath, fn, libPaths, sharedCache,
 }
 
 async function main() {
+  await _systemFontsReady
+
   const args = process.argv.slice(2)
   const options = parseArgs(args)
 

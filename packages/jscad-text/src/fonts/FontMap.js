@@ -236,7 +236,7 @@ export function resolveFont(nameOrUrl) {
     return nameOrUrl
   }
 
-  // Look up in the combined runtime map
+  // Look up in the combined runtime map (static entries + system fonts from loadSystemFonts)
   if (runtimeMap.has(nameOrUrl)) {
     const source = runtimeMap.get(nameOrUrl)
     // In Node.js, redirect CDN URLs to local cache when available
@@ -254,6 +254,7 @@ export function resolveFont(nameOrUrl) {
     `Use loadSystemFonts() to add system-installed fonts, or provide a URL/path directly.`
   )
 }
+
 
 /**
  * Add or override entries in the runtime font map.
@@ -336,7 +337,8 @@ async function _loadBrowserFonts() {
 
 /**
  * Load fonts from `fc-list` on Linux/Mac (Node.js only).
- * Registered fonts are file:// URLs pointing to the font files.
+ * Registers all installed system fonts so they are available by family name.
+ * Uninstalled font aliases (e.g. "Arial Black") fall through to the static map.
  */
 async function _loadNodeFonts() {
   try {
@@ -344,7 +346,7 @@ async function _loadNodeFonts() {
     const { promisify } = await import('node:util')
     const execAsync = promisify(exec)
 
-    // fc-list format: "Family Name:style=Style\t/path/to/font.ttf"
+    // Phase 1: enumerate installed fonts via fc-list
     const { stdout } = await execAsync(
       'fc-list --format "%{family}:%{style}\\t%{file}\\n"',
       { timeout: 5000 }
@@ -362,19 +364,21 @@ async function _loadNodeFonts() {
       const families = rawFamily.split(',').map(f => f.trim()).filter(Boolean)
       const style = rawStyle?.replace(/^style=/, '').trim() || 'Regular'
 
-      const fileUrl = file.startsWith('/') ? `file://${file}` : file
+      // Store bare path (no file:// prefix) — TTFLoader.js uses opentype.loadSync() for paths
+      const fontPath = file
 
       for (const family of families) {
-        // Bare family → first encountered style (typically Regular wins due to sort order)
-        if (!runtimeMap.has(family)) runtimeMap.set(family, fileUrl)
+        // Always override static map: fontconfig is the authority in Node.js, matching OpenSCAD.
+        runtimeMap.set(family, fontPath)
 
         // Qualified key e.g. "DejaVu Sans:style=Bold"
         if (style !== 'Regular') {
           const styleKey = `${family}:style=${style}`
-          if (!runtimeMap.has(styleKey)) runtimeMap.set(styleKey, fileUrl)
+          runtimeMap.set(styleKey, fontPath)
         }
       }
     }
+
   } catch {
     // fc-list not installed or failed - silently ignore
   }

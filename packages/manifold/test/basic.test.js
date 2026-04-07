@@ -11,9 +11,13 @@ import {
   translate,
   rotate as _rotate,
   scale,
+  mirror,
   measureBoundingBox,
   measureVolume,
-  isManifoldGeom3
+  isManifoldGeom3,
+  rectangle,
+  extrudeLinear,
+  isManifoldGeom2
 } from '../src/index.js'
 
 describe('@jscadui/manifold', () => {
@@ -216,6 +220,35 @@ describe('@jscadui/manifold', () => {
         const len = Math.hypot(normals[i], normals[i + 1], normals[i + 2])
         expect(len).toBeCloseTo(1, 5)
       }
+    })
+  })
+
+  describe('mirror on 2D geometry', () => {
+    it('mirror([0,0,1]) on geom2 is identity (no-op for z-only normal)', () => {
+      // Regression test: mirror({normal:[0,0,1]}) on a 2D shape previously
+      // called section.mirror([0,0]) with zero vector, returning empty geometry.
+      // OpenSCAD treats mirror([0,0,1]) on 2D as a no-op since z-flip doesn't
+      // affect points in the z=0 plane.
+      const sq = rectangle({ size: [50, 40] })
+      const mirrored = mirror({ normal: [0, 0, 1] }, sq)
+      expect(isManifoldGeom2(mirrored)).toBe(true)
+      // Must not be empty — should have same area as original
+      const extOriginal = extrudeLinear({ height: 1 }, sq)
+      const extMirrored = extrudeLinear({ height: 1 }, mirrored)
+      expect(measureVolume(extOriginal)).toBeCloseTo(50 * 40 * 1, 0)
+      expect(measureVolume(extMirrored)).toBeCloseTo(50 * 40 * 1, 0)
+    })
+
+    it('mirror([0,0,1]) geom2 produces valid geometry usable in boolean ops', () => {
+      // After the fix, mirror([0,0,1]) on 2D should return non-empty geometry
+      // that can be used in union/intersect/difference operations.
+      const sq = rectangle({ size: [50, 40] })
+      const mirrored = mirror({ normal: [0, 0, 1] }, sq)
+      const extA = extrudeLinear({ height: 1 }, rectangle({ size: [100, 100] }))
+      const extB = extrudeLinear({ height: 10 }, mirrored)
+      const result = intersect(extA, extB)
+      expect(isManifoldGeom3(result)).toBe(true)
+      expect(measureVolume(result)).toBeGreaterThan(0)
     })
   })
 })
