@@ -274,5 +274,18 @@ describe('transpileExpression', () => {
       // if branch should be wrapped: ? [[i,99]] :
       expect(code).toMatch(/\[\s*\[.*99.*\]\s*\]/)
     })
+
+    it('C-style for with each body: spreads elements instead of nesting', () => {
+      // [for(i=0; i<3; i=i+1) each [i, i+1]] should produce [0,1, 1,2, 2,3] not [[0,1],[1,2],[2,3]]
+      const code = transpileExpr('x = [for(i=0; i<3; i=i+1) each [i, i+1]];')
+      // Should spread each result: _result.push(...body)
+      expect(code).toContain('push(...')
+    })
+
+    it('C-style for with let+each body: spreads through let wrapper', () => {
+      // Pattern from dotSCAD _corners: [for(i=0;i<n;i=i+1) let(a=pts[i]) each condition?arr1:arr2]
+      const code = transpileExpr('x = [for(i=0; i<3; i=i+1) let(a=i) each [a, a+1]];')
+      expect(code).toContain('push(...')
+    })
   })
 })

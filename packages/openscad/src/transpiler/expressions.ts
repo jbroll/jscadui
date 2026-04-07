@@ -226,6 +226,14 @@ export function containsIfExpr(expr: Expression | null): boolean {
   return false
 }
 
+/** Check whether a list-comprehension body expression contains 'each' (possibly nested in let). */
+function containsEachExpr(expr: Expression | null): boolean {
+  if (!expr) return false
+  if (isLcEachExpr(expr)) return true
+  if ((isLetExpr(expr) || isLcLetExpr(expr)) && expr.expr) return containsEachExpr(expr.expr)
+  return false
+}
+
 /**
  * Transpile variable lookup expression.
  */
@@ -605,7 +613,15 @@ function transpileLcForCExprHandler(
   // iterations. Filter those out so [for (a=x, i=1; ...; ...) if (cond) a][0] works correctly.
   const needsFilter = containsIfExpr(forCExpr.expr)
   const resultExpr = needsFilter ? `_result${suffix}.filter(x => x !== undefined)` : `_result${suffix}`
-  return `(() => { const _result${suffix} = []; ${inits}; ${incrOnlyDecl} while (${cond}) { _result${suffix}.push(${body}); ${incrUpdate}; } return ${resultExpr}; })()`
+
+  // If body contains 'each', the expression evaluates to an array that must be spread
+  // into the result (not pushed as a single element). Mirrors flatMap in regular for loops.
+  const needsSpread = containsEachExpr(forCExpr.expr)
+  const pushStmt = needsSpread
+    ? `_result${suffix}.push(...(${body}))`
+    : `_result${suffix}.push(${body})`
+
+  return `(() => { const _result${suffix} = []; ${inits}; ${incrOnlyDecl} while (${cond}) { ${pushStmt}; ${incrUpdate}; } return ${resultExpr}; })()`
 }
 
 export function transpileExpression(expr: Expression, ctx: TranspileContext): string {
