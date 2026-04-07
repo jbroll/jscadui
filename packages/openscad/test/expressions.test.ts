@@ -56,6 +56,24 @@ describe('transpileExpression', () => {
     it('handles empty vector', () => {
       expect(transpileExpr('x = [];')).toContain('var x = []')
     })
+
+    it('conditional element in array literal uses j$.SKIP sentinel', () => {
+      // [a, if(cond) b] → [..., (cond ? b : j$.SKIP)].filter(x => x !== j$.SKIP)
+      // This ensures [a, if(false) undef] → [a] not [a, undefined]
+      const code = transpileExpr('x = [1, if(true) 2];')
+      expect(code).toContain('j$.SKIP')
+      expect(code).toContain('filter(x => x !== j$.SKIP)')
+    })
+
+    it('conditional element in array with undef: undef survives j$.SKIP filter', () => {
+      // [if(true) undef] should produce [undef] not [].
+      // With filter(x => x !== undefined), both SKIP and undef were wrongly removed.
+      // With filter(x => x !== j$.SKIP), only SKIP is removed; undef passes through.
+      const code = transpileExpr('x = [if(true) undef, if(false) 2];')
+      expect(code).toContain('j$.SKIP')
+      expect(code).toContain('filter(x => x !== j$.SKIP)')
+      expect(code).not.toContain('filter(x => x !== undefined)')
+    })
   })
 
   describe('range expressions', () => {
@@ -322,16 +340,16 @@ describe('transpileExpression', () => {
       expect(code).not.toContain(': undefined')
     })
 
-    it('if (no else) inside each vector uses undefined (filter-based), not []', () => {
+    it('if (no else) inside each vector uses j$.SKIP (filter-based), not []', () => {
       // [for(i=[0:2]) each [i, if(i>0) i*2]] should produce [0, 1, 2, 2, 4]
       // The if(i>0) is inside the vector [i, if(i>0) i*2], NOT the direct for body.
       // Regression: if inFlatMapContext propagates into the vector, if returns []
-      // instead of undefined, breaking the filter. e.g. i=0 gives [0, []] instead of [0].
+      // instead of j$.SKIP, breaking the filter. e.g. i=0 gives [0, []] instead of [0].
       const code = transpileExpr('x = [for(i=[0:2]) each [i, if(i>0) i*2]];')
       // Must use flatMap (each triggers flatMap)
       expect(code).toContain('.flatMap(')
-      // The if inside the vector uses filter (undefined), NOT [] (which would break filter)
-      expect(code).toContain('filter(x => x !== undefined)')
+      // The if inside the vector uses j$.SKIP filter, NOT [] (which would break filter)
+      expect(code).toContain('filter(x => x !== j$.SKIP)')
     })
 
     it('if (no else) in inner of nested for uses undefined (filter-based), not []', () => {

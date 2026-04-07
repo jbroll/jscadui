@@ -185,11 +185,13 @@ export function handleMixedVector(
     return transpileExpression(c, ctx)
   })
 
-  // If there are conditionals (LcIfExpr), filter out undefined values
+  // If there are conditionals (LcIfExpr), filter out j$.SKIP sentinels
   // OpenSCAD: [if(cond) x] produces [] when cond is false, not [undefined]
-  // Note: conditionals with for-loops are already spread, so they don't produce undefined
+  // Note: conditionals with for-loops are already spread, so they don't produce j$.SKIP.
+  // Using j$.SKIP (not undefined) lets OpenSCAD undef values survive the filter —
+  // e.g. [if(true) undef, if(false) x] should produce [undef], not [].
   if (hasConditionals) {
-    return `[${parts.join(', ')}].filter(x => x !== undefined)`
+    return `[${parts.join(', ')}].filter(x => x !== j$.SKIP)`
   }
   return `[${parts.join(', ')}]`
 }
