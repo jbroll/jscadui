@@ -297,5 +297,29 @@ describe('transpileExpression', () => {
       // Should spread inner for result: _result.push(...body)
       expect(code).toContain('push(...')
     })
+
+    it('range-for with each if (no else): uses [] in flatMap context, not undefined', () => {
+      // [for(i=[0:2]) each if(i==1) [10,11]] should produce [10, 11]
+      // Bug: without fix, the no-else LcIfExpr returned undefined in flatMap context,
+      // causing flatMap to yield [undefined, 10, 11, undefined] instead of [10, 11]
+      const code = transpileExpr('x = [for(i=[0:2]) each if(i==1) [10,11]];')
+      // Must use flatMap (each triggers flatMap)
+      expect(code).toContain('.flatMap(')
+      // The no-else branch must return [] (not undefined) so flatMap spreads nothing
+      expect(code).toContain(': []')
+      expect(code).not.toContain(': undefined')
+    })
+
+    it('C-style for with each if (no else): uses push(...[]) not push(...undefined)', () => {
+      // [for(i=0;i<4;i=i+1) each if(i==1) [10,11]] should produce [10, 11]
+      // Bug: without fix, needsSpread was computed before inFlatMapContext was set,
+      // so LcIfExpr returned undefined in the body. Then push(...undefined) threw TypeError.
+      const code = transpileExpr('x = [for(i=0;i<4;i=i+1) each if(i==1) [10,11]];')
+      // Must use push(...) (each in C-style for triggers spread)
+      expect(code).toContain('push(...')
+      // The no-else branch must return [] (not undefined) so push(...[]) is a no-op
+      expect(code).toContain(': []')
+      expect(code).not.toContain(': undefined')
+    })
   })
 })

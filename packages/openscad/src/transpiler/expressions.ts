@@ -561,6 +561,12 @@ function transpileLcForCExprHandler(
   // This is important for patterns like: for (i=0, x=f(i), y=f(x); ...)
   const loopScope = new Map<string, string>()
 
+  // Compute needsSpread early (before body transpilation) so we can set inFlatMapContext,
+  // which lets LcIfExpr return [] instead of undefined in spread context.
+  const needsSpread = containsEachExpr(forCExpr.expr) || containsNestedForExpr(forCExpr.expr)
+  const savedFlatMapContext = ctx.inFlatMapContext
+  if (needsSpread) ctx.inFlatMapContext = true
+
   // Build scope and transpile with scope active throughout
   const { inits, incrOnlyDecl, cond, body, incrUpdate } = withScope(ctx, loopScope, () => {
     // Initial assignments - each value is transpiled with current scope,
@@ -611,15 +617,14 @@ function transpileLcForCExprHandler(
     return { inits, incrOnlyDecl, cond, body, incrUpdate }
   })
 
+  ctx.inFlatMapContext = savedFlatMapContext
+
   // If body is a conditional (LcIfExpr without else), it produces undefined for non-matching
   // iterations. Filter those out so [for (a=x, i=1; ...; ...) if (cond) a][0] works correctly.
   const needsFilter = containsIfExpr(forCExpr.expr)
   const resultExpr = needsFilter ? `_result${suffix}.filter(x => x !== undefined)` : `_result${suffix}`
 
-  // If body contains 'each' OR is a nested for comprehension, the expression evaluates to
-  // an array that must be spread into the result (not pushed as a single element).
-  // In OpenSCAD: [for(i=0;i<h;i=i+1) for(pt=c) expr] produces a FLAT list.
-  const needsSpread = containsEachExpr(forCExpr.expr) || containsNestedForExpr(forCExpr.expr)
+  // needsSpread was computed early (before body transpilation) — used here for pushStmt.
   const pushStmt = needsSpread
     ? `_result${suffix}.push(...(${body}))`
     : `_result${suffix}.push(${body})`
@@ -697,7 +702,11 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
       return `(${boolCond} ? ${body} : ${elsePart})`
     }
     const body = transpileExpression(expr.ifExpr, ctx)
-    return `(${boolCond} ? ${body} : undefined)`
+    // In flatMap/spread context (each/nested-for), return [] so flatMap spreads nothing.
+    // In map context, return undefined so .filter(x => x !== undefined) removes it.
+    return ctx.inFlatMapContext
+      ? `(${boolCond} ? ${body} : [])`
+      : `(${boolCond} ? ${body} : undefined)`
   }
 
   if (isLcEachExpr(expr)) {
