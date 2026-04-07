@@ -80,6 +80,28 @@ export const STATIC_FONT_MAP = {
   'Arial:style=Bold':            `${LIB}-LiberationSans-Bold.ttf`,
   'Arial:style=Italic':          `${LIB}-LiberationSans-Italic.ttf`,
   'Arial:style=Bold Italic':     `${LIB}-LiberationSans-BoldItalic.ttf`,
+  // Arial Black — heavy-weight sans-serif; OpenSCAD's fontconfig on most Linux systems
+  // resolves this to Liberation Sans Regular (verified: identical STL output on CI)
+  'Arial Black':                 LIBERATION_SANS_SOURCE,
+  // Other common Windows sans-serif fonts not present on minimal Linux installs
+  'Tahoma':                      LIBERATION_SANS_SOURCE,
+  'Tahoma:style=Bold':           `${LIB}-LiberationSans-Bold.ttf`,
+  'Verdana':                     LIBERATION_SANS_SOURCE,
+  'Verdana:style=Bold':          `${LIB}-LiberationSans-Bold.ttf`,
+  'Verdana:style=Italic':        `${LIB}-LiberationSans-Italic.ttf`,
+  'Trebuchet MS':                LIBERATION_SANS_SOURCE,
+  'Trebuchet MS:style=Bold':     `${LIB}-LiberationSans-Bold.ttf`,
+  'Trebuchet MS:style=Italic':   `${LIB}-LiberationSans-Italic.ttf`,
+  'Calibri':                     LIBERATION_SANS_SOURCE,
+  'Calibri:style=Bold':          `${LIB}-LiberationSans-Bold.ttf`,
+  'Calibri:style=Italic':        `${LIB}-LiberationSans-Italic.ttf`,
+  'Impact':                      `${LIB}-LiberationSans-Bold.ttf`,
+  // Windows serif fonts → Liberation Serif
+  'Georgia':                     `${LIB}-LiberationSerif-Regular.ttf`,
+  'Georgia:style=Bold':          `${LIB}-LiberationSerif-Bold.ttf`,
+  'Georgia:style=Italic':        `${LIB}-LiberationSerif-Italic.ttf`,
+  'Palatino Linotype':           `${LIB}-LiberationSerif-Regular.ttf`,
+  'Palatino Linotype:style=Bold': `${LIB}-LiberationSerif-Bold.ttf`,
   'Times New Roman':                 `${LIB}-LiberationSerif-Regular.ttf`,
   'Times New Roman:style=Bold':      `${LIB}-LiberationSerif-Bold.ttf`,
   'Times New Roman:style=Italic':    `${LIB}-LiberationSerif-Italic.ttf`,
