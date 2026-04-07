@@ -533,7 +533,7 @@ function transpileLcForExprHandler(
     const method = needsFlatMap ? 'flatMap' : 'map'
     // Wrap range with j$.iter() to handle strings (OpenSCAD: for (c = "str") iterates chars)
     const mapExpr = `j$.iter(${range}).${method}(${varName} => ${innerExpr})`
-    return needsFilter ? `${mapExpr}.filter(x => x !== undefined)` : mapExpr
+    return needsFilter ? `${mapExpr}.filter(x => x !== j$.SKIP)` : mapExpr
   }
 
   // Multiple loop variables: for (i = [0:3], j = [0:2]) becomes nested flatMap/map
@@ -548,7 +548,7 @@ function transpileLcForExprHandler(
     // Wrap range with j$.iter() to handle strings (OpenSCAD: for (c = "str") iterates chars)
     result = `j$.iter(${range}).${method}(${varName} => ${result})`
   }
-  return needsFilter ? `${result}.filter(x => x !== undefined)` : result
+  return needsFilter ? `${result}.filter(x => x !== j$.SKIP)` : result
 }
 
 /**
@@ -627,7 +627,7 @@ function transpileLcForCExprHandler(
   // If body is a conditional (LcIfExpr without else), it produces undefined for non-matching
   // iterations. Filter those out so [for (a=x, i=1; ...; ...) if (cond) a][0] works correctly.
   const needsFilter = containsIfExpr(forCExpr.expr)
-  const resultExpr = needsFilter ? `_result${suffix}.filter(x => x !== undefined)` : `_result${suffix}`
+  const resultExpr = needsFilter ? `_result${suffix}.filter(x => x !== j$.SKIP)` : `_result${suffix}`
 
   // needsSpread was computed early (before body transpilation) — used here for pushStmt.
   const pushStmt = needsSpread
@@ -673,7 +673,7 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
 
   if (isLcIfExpr(expr)) {
     // Conditional in list comprehension: [for (i = range) if (cond) expr]
-    // Returns undefined when condition is false, to be filtered out by LcForExpr
+    // Returns j$.SKIP when condition is false, to be filtered out by LcForExpr
     const cond = transpileExpression(expr.cond, ctx)
     ctx.codeGen.usedHelpers.add('isTruthy')
     const boolCond = `j$.isTruthy(${cond})`
@@ -708,10 +708,12 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
     }
     const body = transpileExpression(expr.ifExpr, ctx)
     // In flatMap/spread context (each/nested-for), return [] so flatMap spreads nothing.
-    // In map context, return undefined so .filter(x => x !== undefined) removes it.
+    // In map context, return j$.SKIP so .filter(x => x !== j$.SKIP) removes it.
+    // Using j$.SKIP (not undefined) lets OpenSCAD undef values pass through the filter —
+    // e.g. [for (...) if (cond) undef] should produce a list of undefs, not an empty list.
     return ctx.inFlatMapContext
       ? `(${boolCond} ? ${body} : [])`
-      : `(${boolCond} ? ${body} : undefined)`
+      : `(${boolCond} ? ${body} : j$.SKIP)`
   }
 
   if (isLcEachExpr(expr)) {

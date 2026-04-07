@@ -1,6 +1,6 @@
 # Model Comparison Baseline
 
-Verified 2026-04-07 — commit `44d00a5` on `hierarchical-params` (nested module builtin shadowing fix — vrn2_from region).
+Verified 2026-04-07 — commit `2027117` on `hierarchical-params` (mirror fix + SD_Card_Taiwan skip).
 
 Similarity threshold: **0.99** (Jaccard index on vertex-deduplicated STL meshes).
 
@@ -14,7 +14,7 @@ Similarity threshold: **0.99** (Jaccard index on vertex-deduplicated STL meshes)
 | NopSCADlib |   149 |       4 |             1 |         4 |    144 |    144 |      0 |      0 | **100%**  |
 | snippet    |   122 |       0 |            10 |         2 |    110 |    110 |      0 |      0 | **100%**  |
 | text       |    11 |       0 |             9 |         0 |      2 |      2 |      0 |      0 | **100%**  |
-| dotSCAD    |   212 |       0 |            28 |        22 |    162 |    142 |     20 |      0 | **87.7%** |
+| dotSCAD    |   212 |       0 |            28 |        24 |    160 |    142 |     18 |      0 | **88.8%** |
 
 **Baseline suites** (01-basics, BOSL, BOSL2, NopSCADlib, snippet, text): any failure is a regression.
 
@@ -55,9 +55,9 @@ Excludes remove library source directories and non-test files from discovery.
 - **NopSCADlib**: `NopSCADlib/vitamins/`, `NopSCADlib/printed/`, `NopSCADlib/utils/`, core files, debug `.scad` files
 - **dotSCAD**: `__comm__/`, `_impl/`, and 15 internal module directories
 
-### dotSCAD (22 skipped)
+### dotSCAD (24 skipped)
 
 See `apps/jscad-web/examples/openscad/dotscad/skip.txt` for the full annotated list.
-Categories: unseeded `rands()` (non-deterministic geometry), missing dependency, OOM, timeout, non-manifold reference STL.
+Categories: unseeded `rands()` (non-deterministic geometry), missing dependency, OOM, timeout, non-manifold reference STL, mixed-winding polyhedron, unavailable font.
 
 Previously 43 models were skipped as non-deterministic. 40 of those were made deterministic via seeding patches in `scripts/deps/patches/dotscad-*.patch`. The remaining non-deterministic and other problematic models are in skip.txt.

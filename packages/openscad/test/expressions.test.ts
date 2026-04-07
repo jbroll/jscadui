@@ -341,8 +341,8 @@ describe('transpileExpression', () => {
       // Regression (BOSL2 boolean_geometry): outer inFlatMapContext=true propagated to
       // inner body, causing if() to return [] which wasn't filtered, breaking min_index.
       const code = transpileExpr('x = [for(i=[0:1]) for(j=[0:3]) if(j<2) j];')
-      // Inner for uses map (not flatMap), and filter removes undefined
-      expect(code).toContain('filter(x => x !== undefined)')
+      // Inner for uses map (not flatMap), and filter removes j$.SKIP sentinels
+      expect(code).toContain('filter(x => x !== j$.SKIP)')
     })
 
     it('if (no else) in inner C-style for (nested under range-for) uses undefined', () => {
@@ -350,8 +350,18 @@ describe('transpileExpression', () => {
       // Outer range-for sets inFlatMapContext=true (nested C-style for), but the
       // C-style for uses push+filter, so body if(j<2) j must return undefined.
       const code = transpileExpr('x = [for(i=[0:1]) for(j=0;j<3;j=j+1) if(j<2) j];')
-      // C-style for uses filter to remove undefined non-matching items
-      expect(code).toContain('filter(x => x !== undefined)')
+      // C-style for uses filter to remove j$.SKIP sentinels
+      expect(code).toContain('filter(x => x !== j$.SKIP)')
+    })
+
+    it('for-if with undef value: j$.SKIP not undefined as false-branch sentinel', () => {
+      // [for (...) if (cond) undef] should produce a list of undefs (one per true cond),
+      // not an empty list. The false-branch sentinel j$.SKIP is distinct from undefined,
+      // so undef values (JavaScript undefined) are kept in the result.
+      const code = transpileExpr('x = [for (i = [0:3]) if (i > 1) undef];')
+      // false branch must use j$.SKIP, not undefined (to distinguish from undef value)
+      expect(code).toContain('j$.SKIP')
+      expect(code).toContain('filter(x => x !== j$.SKIP)')
     })
   })
 })

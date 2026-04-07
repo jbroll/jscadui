@@ -26,6 +26,14 @@ import { DEFAULT_SPECIAL_VARS } from './specialVars.js'
 const EXPLICIT_UNDEF = Symbol('explicit_undef')
 
 /**
+ * Sentinel for skipped elements in list comprehensions.
+ * [for (x = range) if (cond) value] uses this to mark elements where cond is false,
+ * so they can be filtered out. Using a distinct symbol (instead of undefined) lets
+ * OpenSCAD undef values (JavaScript undefined) pass through the filter correctly.
+ */
+const SKIP = Symbol('skip_element')
+
+/**
  * The j$ namespace - contains all OpenSCAD runtime helpers.
  * Use j$.functionName() in transpiled code.
  * Since $ is illegal in OpenSCAD identifiers, this can never conflict with user code.
@@ -33,6 +41,8 @@ const EXPLICIT_UNDEF = Symbol('explicit_undef')
 const j$ = {
   // Sentinel for explicit undef
   EXPLICIT_UNDEF,
+  // Sentinel for skipped elements in list comprehensions (cond was false)
+  SKIP,
   // Convert EXPLICIT_UNDEF to real undefined in function preambles.
   // Replaces per-param `if (x === EXPLICIT_UNDEF) x = undefined` with a single call.
   resolveUndef: (...args) => args.map(a => a === EXPLICIT_UNDEF ? undefined : a),
