@@ -344,5 +344,14 @@ describe('transpileExpression', () => {
       // Inner for uses map (not flatMap), and filter removes undefined
       expect(code).toContain('filter(x => x !== undefined)')
     })
+
+    it('if (no else) in inner C-style for (nested under range-for) uses undefined', () => {
+      // [for(i=[0:1]) for(j=0;j<3;j=j+1) if(j<2) j] should produce [0,1,0,1]
+      // Outer range-for sets inFlatMapContext=true (nested C-style for), but the
+      // C-style for uses push+filter, so body if(j<2) j must return undefined.
+      const code = transpileExpr('x = [for(i=[0:1]) for(j=0;j<3;j=j+1) if(j<2) j];')
+      // C-style for uses filter to remove undefined non-matching items
+      expect(code).toContain('filter(x => x !== undefined)')
+    })
   })
 })

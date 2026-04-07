@@ -566,9 +566,11 @@ function transpileLcForCExprHandler(
 
   // Compute needsSpread early (before body transpilation) so we can set inFlatMapContext,
   // which lets LcIfExpr return [] instead of undefined in spread context.
+  // Always set to exactly needsSpread so that when an outer for sets inFlatMapContext=true,
+  // the inner C-style for's body correctly uses undefined (not []) when not spreading.
   const needsSpread = containsEachExpr(forCExpr.expr) || containsNestedForExpr(forCExpr.expr)
   const savedFlatMapContext = ctx.inFlatMapContext
-  if (needsSpread) ctx.inFlatMapContext = true
+  ctx.inFlatMapContext = needsSpread
 
   // Build scope and transpile with scope active throughout
   const { inits, incrOnlyDecl, cond, body, incrUpdate } = withScope(ctx, loopScope, () => {
