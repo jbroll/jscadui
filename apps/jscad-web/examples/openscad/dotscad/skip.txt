@@ -43,6 +43,11 @@ examples/fidget_ball_fern_leaf.scad
 examples/spiral/climbing_rose.scad
 examples/stereographic_projection/stereographic_foliage_scroll.scad
 
+# Font not available: these models use fonts that are not available in the JSCAD runtime.
+# The rendered text geometry differs because a fallback font is used instead.
+# stereographic_chars uses "Webdings" — a Windows symbol font not in JSCAD runtime.
+examples/stereographic_projection/stereographic_chars.scad
+
 # Non-manifold reference STL: OpenSCAD produces non-manifold geometry for these models
 # (compare-stl.js trianglesToManifold fails); no valid comparison is possible.
 examples/voronoi/ripple_sphere.scad
