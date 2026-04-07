@@ -251,6 +251,41 @@ describe('hull empty/absent children guard', () => {
   })
 })
 
+describe('trunc (safe array index)', () => {
+  it('truncates positive float', () => {
+    expect(j$.trunc(1.7)).toBe(1)
+  })
+  it('truncates negative float', () => {
+    expect(j$.trunc(-1.7)).toBe(-1)
+  })
+  it('returns 0 for integer 0', () => {
+    expect(j$.trunc(0)).toBe(0)
+  })
+  it('returns NaN for empty array (prevents Math.trunc([]) === 0 coercion)', () => {
+    // OpenSCAD: arr[[]] returns undef; JS Math.trunc([]) coerces to 0 → returns arr[0].
+    // j$.trunc guards this: returns NaN so arr?.[NaN] === undefined.
+    expect(j$.trunc([])).toBeNaN()
+  })
+  it('unwraps 1-element array [n] to n (OpenSCAD search([x],y)[0] pattern)', () => {
+    // OpenSCAD: arr[search([key], arr)[0]] where search returns [[idx]].
+    // search([key],arr)[0] = [idx]; arr[[idx]] = arr[idx] in OpenSCAD.
+    expect(j$.trunc([0])).toBe(0)
+    expect(j$.trunc([3])).toBe(3)
+  })
+  it('returns NaN for multi-element array', () => {
+    expect(j$.trunc([0, 1])).toBeNaN()
+  })
+  it('returns NaN for undefined', () => {
+    expect(j$.trunc(undefined)).toBeNaN()
+  })
+  it('returns NaN for null', () => {
+    expect(j$.trunc(null)).toBeNaN()
+  })
+  it('returns NaN for string', () => {
+    expect(j$.trunc('5')).toBeNaN()
+  })
+})
+
 describe('eq scalar vs 1-element list coercion', () => {
   // OpenSCAD _find_eq returns [k] (1-element list) from search([x], list)[0].
   // hashmap_del does `loop_var != [k]` which needs to be false for the target index.

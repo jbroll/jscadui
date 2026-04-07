@@ -185,9 +185,10 @@ describe('transpileExpression', () => {
 
     it('truncates float index to integer (OpenSCAD behavior)', () => {
       // OpenSCAD: arr[1.7] == arr[1] (truncated, not undefined)
-      // Variable index must use Math.trunc so floats are truncated like OpenSCAD
+      // Non-literal indices use j$.trunc which also guards against non-number coercion.
+      // Math.trunc([]) === 0 in JS, but j$.trunc([]) === NaN → arr?.[NaN] === undefined.
       const code = transpileExpr('x = arr[i];')
-      expect(code).toContain('Math.trunc(i)')
+      expect(code).toContain('j$.trunc(i)')
     })
   })
 
