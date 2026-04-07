@@ -245,8 +245,50 @@ export const _lookup = (val, table) => {
   return sorted[sorted.length - 1][1]
 }
 
+/**
+ * Hash a floating-point seed value to a uint32 — matches OpenSCAD's hash_floating_point().
+ * OpenSCAD uses Python's _Py_HashDouble algorithm (src/geometry/linalg.cc) to convert
+ * float seeds to uint32 before seeding std::mt19937. This ensures integers map to themselves
+ * (hash(1.0)=1, hash(2.0)=2) while non-integer floats produce stable, distinct seeds.
+ * @param {number} v
+ * @returns {number} int32 hash value (cast to uint32 via >>> 0 before use as seed)
+ */
+function _hashFloatingPoint(v) {
+  const PyHASH_BITS = 31
+  const PyHASH_MODULUS = 0x7FFFFFFF  // 2^31 - 1
+  if (!isFinite(v)) {
+    if (v === Infinity) return 314159
+    if (v === -Infinity) return -314159
+    return 0
+  }
+  // frexp: decompose v into mantissa m in [0.5, 1.0) and exponent e (v = m * 2^e)
+  let e = 0
+  let m = Math.abs(v)
+  if (m !== 0) {
+    const log2 = Math.floor(Math.log2(m))
+    e = log2 + 1
+    m = m / Math.pow(2, e)
+  }
+  const sign = v < 0 ? -1 : 1
+  // Process mantissa 28 bits at a time, accumulating into x mod PyHASH_MODULUS
+  let x = 0
+  while (m !== 0) {
+    x = ((x << 28) & PyHASH_MODULUS) | (x >>> (PyHASH_BITS - 28))
+    m *= 268435456.0  // 2^28
+    e -= 28
+    const y = Math.floor(m)
+    m -= y
+    x += y
+    if (x >= PyHASH_MODULUS) x -= PyHASH_MODULUS
+  }
+  // Adjust for the exponent (reduce e modulo PyHASH_BITS)
+  e = e >= 0 ? e % PyHASH_BITS : PyHASH_BITS - 1 - ((-1 - e) % PyHASH_BITS)
+  x = ((x << e) & PyHASH_MODULUS) | (x >>> (PyHASH_BITS - e))
+  return (x * sign) | 0  // return as int32
+}
+
 // Mersenne Twister MT19937 implementation
-// Matches OpenSCAD's boost::mt19937 PRNG
+// Matches OpenSCAD's std::mt19937 PRNG
 class MT19937 {
   constructor(seed = 0) {
     this.mt = new Uint32Array(624)
@@ -296,7 +338,9 @@ export const _rands = (min, max, count, seed) => {
   // If seed is provided, reinitialize the global RNG
   // Otherwise, continue from previous state (OpenSCAD behavior since 2021.01)
   if (seed !== undefined) {
-    _globalRng = new MT19937(seed)
+    // OpenSCAD converts float seeds via Python's _Py_HashDouble before seeding mt19937.
+    // This ensures hash(1.0)=1, hash(2.0)=2, but hash(1.5)≠hash(1.0).
+    _globalRng = new MT19937(_hashFloatingPoint(seed) >>> 0)
   }
 
   const r = []

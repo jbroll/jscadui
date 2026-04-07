@@ -370,9 +370,7 @@ describe('min/max with vectors', () => {
 
 describe('rands MT19937 output', () => {
   // Verify rands() produces stable values with our MT19937 implementation.
-  // Uses LLVM libc++ generate_canonical formula: (g0 + g1*2^32) / 2^64 = g0/2^64 + g1/2^32
-  // where g1 (second MT output) is the dominant term. This matches OpenSCAD on macOS/clang.
-  // Note: GCC libstdc++ uses g0/2^32 + g1/2^64 (first value dominant) — different results.
+  // Uses generate_canonical formula: g0/2^64 + g1/2^32 (matches libstdc++ and libc++).
 
   it('rands(0, 10, 1, 42) produces stable value', () => {
     j$.resetRng()
@@ -396,6 +394,48 @@ describe('rands MT19937 output', () => {
     j$.resetRng()
     const result = j$.rands(0, 23, 1, 15)
     expect(Math.round(result[0])).toBe(19)
+  })
+})
+
+describe('rands float seed (Python hash conversion)', () => {
+  // OpenSCAD converts float seeds via Python's _Py_HashDouble before seeding mt19937.
+  // hash(1.0)=1, hash(2.0)=2 (integers map to themselves), but hash(1.5)≠hash(1.0).
+  // Reference values verified against OpenSCAD 2026.01.24.
+
+  it('integer .0 seeds are unchanged: rands(0,1,1,1.0) same as seed=1', () => {
+    j$.resetRng()
+    expect(j$.rands(0, 1, 1, 1.0)[0]).toBeCloseTo(0.997185, 5)
+  })
+
+  it('rands(0,1,1,1.5) uses hash seed (not truncation to 1)', () => {
+    j$.resetRng()
+    const result = j$.rands(0, 1, 3, 1.5)
+    expect(result[0]).toBeCloseTo(0.776800, 5)  // OpenSCAD: 0.7768
+    expect(result[1]).toBeCloseTo(0.024931, 5)  // OpenSCAD: 0.0249309
+    expect(result[2]).toBeCloseTo(0.348639, 5)  // OpenSCAD: 0.348639
+  })
+
+  it('rands(0,1,2,2.5) uses hash seed', () => {
+    j$.resetRng()
+    const result = j$.rands(0, 1, 2, 2.5)
+    expect(result[0]).toBeCloseTo(0.932255, 5)  // OpenSCAD: 0.932255
+    expect(result[1]).toBeCloseTo(0.167864, 5)  // OpenSCAD: 0.167864
+  })
+
+  it('rands(0,1,1,0.5) uses hash seed', () => {
+    j$.resetRng()
+    expect(j$.rands(0, 1, 1, 0.5)[0]).toBeCloseTo(0.421193, 5)  // OpenSCAD: 0.421193
+  })
+
+  it('rands(0,256,1,115.14753...) matches OpenSCAD Perlin noise seed', () => {
+    j$.resetRng()
+    // This seed appears in dotSCAD nz_perlin2 — the fix enables island_maze etc.
+    expect(j$.rands(0, 256, 1, 115.14753815281719)[0]).toBeCloseTo(103.639, 3)
+  })
+
+  it('negative float seeds work correctly', () => {
+    j$.resetRng()
+    expect(j$.rands(0, 1, 1, -1.5)[0]).toBeCloseTo(0.284617, 5)  // OpenSCAD: 0.284617
   })
 })
 
