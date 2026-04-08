@@ -209,6 +209,42 @@ describe('include optimization - Phase 1', () => {
       expect(libFile?.hasVariables).toBe(false)
       expect(libFile?.hasTopLevelGeometry).toBe(true)
     })
+
+    it('does not bundle top-level geometry from included file (geometry stays in included file only)', () => {
+      // OpenSCAD `include` semantics: top-level geometry in the included file
+      // runs at the include site. However, the transpiler does NOT currently bundle
+      // included geometry into the parent's main() — the included file's code is inlined
+      // but the top-level geometry from the included file is NOT propagated.
+      // This is a known limitation; hardware_test.scad fails for this reason.
+      const libSource = `
+        function twice(x) = x * 2;
+        cube(10);  // Top-level geometry in included file
+      `
+      const mainSource = `
+        include <lib.scad>
+        sphere(twice(5));
+      `
+
+      const fileResolver: FileResolver = (filename) => {
+        if (filename === 'lib.scad') {
+          return { path: '/lib.scad', content: libSource }
+        }
+        return undefined
+      }
+
+      const { ast } = parse(mainSource)
+      const result = transpile(ast, {
+        currentFile: '/main.scad',
+        fileResolver,
+      })
+
+      // The main file's geometry (sphere) IS in main()
+      expect(result.code).toContain('main')
+      // lib.scad should be marked as NOT optimizable (has top-level geometry)
+      const libFile = result.files.get('/lib.scad')
+      expect(libFile?.canOptimizeInclude).toBe(false)
+      expect(libFile?.hasTopLevelGeometry).toBe(true)
+    })
   })
 
   describe('transitive optimization', () => {
