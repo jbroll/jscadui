@@ -1,7 +1,7 @@
 # Model Comparison Baseline
 
-Verified 2026-04-07 — commit `33ac7f5` on `hierarchical-params` (j$.SKIP fixes: LcIfExpr + handleMixedVector).
-MCAD suite added 2026-04-08 — 12/14 examples pass locally (GPU verification pending).
+Verified 2026-04-08 — commit `6ab37c1` on `hierarchical-params` ($-var let binding: wrap subsequent bindings + body in withScope).
+MCAD suite GPU-verified 2026-04-08 — 12/14 examples pass.
 
 Similarity threshold: **0.99** (Jaccard index on vertex-deduplicated STL meshes).
 
@@ -15,7 +15,7 @@ Similarity threshold: **0.99** (Jaccard index on vertex-deduplicated STL meshes)
 | NopSCADlib |   149 |       4 |             1 |         4 |    144 |    144 |      0 |      0 | **100%**  |
 | snippet    |   122 |       0 |            10 |         2 |    110 |    110 |      0 |      0 | **100%**  |
 | text       |    11 |       0 |             9 |         0 |      2 |      2 |      0 |      0 | **100%**  |
-| dotSCAD    |   212 |       0 |            28 |        24 |    160 |    143 |     17 |      0 | **89.4%** |
+| dotSCAD    |   212 |       0 |            28 |        24 |    160 |    146 |     14 |      0 | **91.3%** |
 | MCAD       |    15 |       0 |             0 |         1 |     14 |     12 |      2 |      0 | **85.7%** |
 
 **Baseline suites** (01-basics, BOSL, BOSL2, NopSCADlib, snippet, text): any failure is a regression.
@@ -77,3 +77,22 @@ See `apps/jscad-web/examples/openscad/dotscad/skip.txt` for the full annotated l
 Categories: unseeded `rands()` (non-deterministic geometry), missing dependency, OOM, timeout, non-manifold reference STL, mixed-winding polyhedron, unavailable font.
 
 Previously 43 models were skipped as non-deterministic. 40 of those were made deterministic via seeding patches in `scripts/deps/patches/dotscad-*.patch`. The remaining non-deterministic and other problematic models are in skip.txt.
+
+### dotSCAD (14 known failures — geometry mismatches)
+
+| Model | Jaccard | Notes |
+|-------|---------|-------|
+| `voronoi_sphere.scad` | ~0.27 | Complex polyhedron topology difference (sweep + polyline_join) |
+| `text_box.scad` | ~0.87 | Text rendering + box_extrude geometry difference |
+| `trefoil_klein_bottle.scad` | ~0.81 | path_extrude geometry difference |
+| `bunny_frame.scad` | ~0.94 | Near-miss — CDT triangulation difference |
+| `emoticon_moai.scad` | ~0.95 | Near-miss — CDT triangulation difference |
+| `TaiwaneseBlackBear.scad` | ~0.96 | Near-miss — CDT triangulation difference |
+| `hollow_out_torus.scad` | ~0.96 | Near-miss — CDT triangulation difference |
+| `dragon_head.scad` | ~0.98 | Near-miss — CDT triangulation difference |
+| `fourier_vase.scad` | ~0.98 | Near-miss — CDT triangulation difference |
+| `chrome_dino.scad` | ~0.98 | Near-miss — CDT triangulation difference |
+| `delaunay_fibonacci.scad` | ~0.98 | Near-miss — CDT triangulation difference |
+| `floor_stand_text.scad` | ~0.98 | Near-miss — text geometry difference |
+| `voronoi_holder.scad` | ~0.99 | Near-miss — CDT triangulation difference |
+| `penrose_crystallization.scad` | ~0.99 | Near-miss — CDT triangulation difference |
