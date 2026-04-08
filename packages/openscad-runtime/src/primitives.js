@@ -46,6 +46,8 @@ export const _cylinder = ({ h, r, r1, r2, d, d1, d2, center = false, $fn = 0, $f
   const rr = _num(r), dd = _num(d), rr1 = _num(r1), rr2 = _num(r2), dd1 = _num(d1), dd2 = _num(d2)
   const radius1 = rr1 ?? (dd1 != null ? dd1/2 : (rr ?? (dd != null ? dd/2 : 1)))
   const radius2 = rr2 ?? (dd2 != null ? dd2/2 : (rr ?? (dd != null ? dd/2 : 1)))
+  // OpenSCAD: cylinder with negative radius is empty geometry
+  if (radius1 < 0 || radius2 < 0 || isNaN(radius1) || isNaN(radius2)) return undefined
   const segments = _getSegments(Math.max(radius1, radius2), $fn, $fa, $fs)
   const geo = cylinder({ height, startRadius: radius1, endRadius: radius2, segments })
   return center ? geo : translate([0, 0, height/2], geo)
@@ -54,6 +56,8 @@ export const _cylinder = ({ h, r, r1, r2, d, d1, d2, center = false, $fn = 0, $f
 export const _sphere = ({ r, d, $fn = 0, $fa, $fs }) => {
   const rr = _num(r), dd = _num(d)
   const radius = rr ?? (dd ? dd/2 : 1)
+  // OpenSCAD: sphere with negative radius is empty geometry
+  if (radius < 0 || isNaN(radius)) return undefined
   const fn = _getSegments(radius, $fn, $fa, $fs)
   const numRings = Math.floor((fn + 1) / 2)
   const points = []

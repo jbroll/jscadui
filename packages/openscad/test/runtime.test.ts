@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 
 // Import the runtime directly for unit testing
 import j$ from '@jscadui/openscad-runtime'
+import { _cylinder, _sphere } from '@jscadui/openscad-runtime'
 
 /**
  * Unit tests for OpenSCAD runtime helpers
@@ -450,5 +451,32 @@ describe('polygon degenerate input guard', () => {
   it('returns undefined for fewer than 3 points', () => {
     const result = j$.polygon({ points: [[0, 0], [1, 1]] as number[][], paths: undefined })
     expect(result).toBeUndefined()
+  })
+})
+
+describe('cylinder negative/NaN radius guard', () => {
+  // OpenSCAD: cylinder with negative radius produces empty geometry.
+  // JSCAD's cylinder() with negative radius creates malformed geometry that breaks
+  // boolean operations — we return undefined instead so _subtract() ignores it.
+
+  it('returns undefined for negative r', () => {
+    expect(_cylinder({ r: -5, h: 10 })).toBeUndefined()
+  })
+
+  it('returns undefined for negative r1', () => {
+    expect(_cylinder({ r1: -1, r2: 5, h: 10 })).toBeUndefined()
+  })
+
+  it('returns undefined for negative r2', () => {
+    expect(_cylinder({ r1: 5, r2: -1, h: 10 })).toBeUndefined()
+  })
+
+})
+
+describe('sphere negative radius guard', () => {
+  // OpenSCAD: sphere with negative radius produces empty geometry.
+
+  it('returns undefined for negative r', () => {
+    expect(_sphere({ r: -3 })).toBeUndefined()
   })
 })
