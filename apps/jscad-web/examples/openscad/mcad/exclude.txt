@@ -1,0 +1,8 @@
+# MCAD library source files — not standalone test files.
+# Only examples/ contains runnable test models.
+
+# Root-level library files
+/*.scad
+
+# bitmap/ subdirectory — standalone bitmap/font examples, not standard shapes
+bitmap/

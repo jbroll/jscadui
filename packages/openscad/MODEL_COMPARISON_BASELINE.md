@@ -1,6 +1,7 @@
 # Model Comparison Baseline
 
 Verified 2026-04-07 — commit `33ac7f5` on `hierarchical-params` (j$.SKIP fixes: LcIfExpr + handleMixedVector).
+MCAD suite added 2026-04-08 — 12/14 examples pass locally (GPU verification pending).
 
 Similarity threshold: **0.99** (Jaccard index on vertex-deduplicated STL meshes).
 
@@ -15,10 +16,11 @@ Similarity threshold: **0.99** (Jaccard index on vertex-deduplicated STL meshes)
 | snippet    |   122 |       0 |            10 |         2 |    110 |    110 |      0 |      0 | **100%**  |
 | text       |    11 |       0 |             9 |         0 |      2 |      2 |      0 |      0 | **100%**  |
 | dotSCAD    |   212 |       0 |            28 |        24 |    160 |    143 |     17 |      0 | **89.4%** |
+| MCAD       |    15 |       0 |             0 |         1 |     14 |     12 |      2 |      0 | **85.7%** |
 
 **Baseline suites** (01-basics, BOSL, BOSL2, NopSCADlib, snippet, text): any failure is a regression.
 
-**dotSCAD**: new suite, no pass-rate baseline yet. Failures are not regressions.
+**dotSCAD**, **MCAD**: new suites, no pass-rate baseline. Failures are not regressions.
 
 ## Column definitions
 
@@ -54,6 +56,20 @@ Excludes remove library source directories and non-test files from discovery.
 - **BOSL / BOSL2**: `lib/` (library source)
 - **NopSCADlib**: `NopSCADlib/vitamins/`, `NopSCADlib/printed/`, `NopSCADlib/utils/`, core files, debug `.scad` files
 - **dotSCAD**: `__comm__/`, `_impl/`, and 15 internal module directories
+- **MCAD**: `/*.scad` (root library files), `bitmap/` (bitmap utilities — not standard shape tests)
+
+### MCAD (1 skipped)
+
+| Model | Reason |
+|-------|--------|
+| `teardrop_test.scad` | Uses `projection()` built-in — not yet implemented in transpiler |
+
+### MCAD (2 known failures — geometry mismatches)
+
+| Model | Jaccard | Notes |
+|-------|---------|-------|
+| `hardware_test.scad` | ~0.91 | Geometry difference in rod/screw assembly |
+| `involute_gear.scad` | ~0.83 | Involute gear tooth profile difference |
 
 ### dotSCAD (24 skipped)
 

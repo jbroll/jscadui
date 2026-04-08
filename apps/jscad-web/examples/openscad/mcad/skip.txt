@@ -1,0 +1,4 @@
+# MCAD skip list — models with known non-transpiler issues
+
+# projection() built-in not yet implemented
+examples/teardrop_test.scad

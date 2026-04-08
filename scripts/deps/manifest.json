@@ -162,6 +162,36 @@
       ]
     },
     {
+      "name": "mcad",
+      "description": "MCAD — classic OpenSCAD community library for common mechanical parts",
+      "url": "https://github.com/openscad/MCAD.git",
+      "ref": "master",
+      "commit": "bd0a7ba3f042bfbced5ca1894b236cea08904e26",
+      "license": "LGPL-2.1",
+      "mappings": [
+        {
+          "srcDir": ".",
+          "destDir": "apps/jscad-web/examples/openscad/mcad",
+          "include": ["*.scad"],
+          "exclude": [],
+          "skipFiles": []
+        },
+        {
+          "srcDir": "bitmap",
+          "destDir": "apps/jscad-web/examples/openscad/mcad/bitmap",
+          "include": ["*.scad"],
+          "exclude": [],
+          "skipFiles": []
+        }
+      ],
+      "patches": [
+        {
+          "patchFile": "scripts/deps/patches/mcad-fix-includes.patch",
+          "description": "Fix linear_bearing.scad MCAD/ prefixed include paths to relative paths"
+        }
+      ]
+    },
+    {
       "name": "snippet",
       "description": "OpenSCAD community code snippets (AngeloNicoli/OpenSCAD-Snippet)",
       "url": "https://github.com/AngeloNicoli/OpenSCAD-Snippet.git",

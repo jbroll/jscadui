@@ -1,0 +1,12 @@
+--- a/apps/jscad-web/examples/openscad/mcad/linear_bearing.scad
++++ b/apps/jscad-web/examples/openscad/mcad/linear_bearing.scad
+@@ -1,6 +1,6 @@
+ //By Glen Chung, 2013.
+ //Dual licenced under Creative Commons Attribution-Share Alike 3.0 and LGPL2 or later
+ 
+-include <MCAD/units.scad>
+-include <MCAD/materials.scad>
++include <units.scad>
++include <materials.scad>
+ 
+ LINEAR_BEARING_dr = 0;  //Inscribed circle
