@@ -248,6 +248,20 @@ describe('transpileExpression', () => {
       const code = transpileExpr('x = let(a = 1, b = 2) a + b;')
       expect(code).toContain('const')
     })
+
+    it('let binding of $fn: subsequent bindings + body wrapped in withScope', () => {
+      // let($fn = 20, n = $fn / 4) — all code after $fn= must run inside j$.withScope
+      // so that functions called within subsequent bindings see $fn=20 via getSpecialVar
+      const code = transpileExpr('x = let(fn = 8, $fn = fn + 4, n = $fn / 4 + 1) n;')
+      // The body and subsequent bindings must be wrapped in withScope
+      expect(code).toContain('withScope')
+      expect(code).toContain("'$fn'")
+      // The withScope comes BEFORE the `n` binding (not just around the body)
+      const wsIdx = code.indexOf('withScope')
+      const nIdx = code.lastIndexOf('const n')
+      expect(wsIdx).toBeGreaterThan(0)
+      expect(nIdx).toBeGreaterThan(wsIdx)  // n is declared inside the withScope
+    })
   })
 
   describe('list comprehensions', () => {

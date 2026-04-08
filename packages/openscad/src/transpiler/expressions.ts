@@ -135,31 +135,37 @@ function transpileLetBindings(
   const suffix = generateScopeSuffix(ctx)
 
   const bindings: string[] = []
-  const functionBindingPairs: Array<[string, string]> = []  // Track function bindings for cleanup
-  // Special variable bindings: name -> transpiled value string
-  const specialVarBindings: Array<[string, string]> = []
+  const functionBindingPairs: Array<[string, string]> = []
 
   // Use incremental scope: each binding value sees only earlier bindings
   const incrementalScope = new Map<string, string>()
 
-  // Build bindings and transpile body with scope
-  // Note: We manually manage function bindings because they're added incrementally
-  const body = withScope(ctx, incrementalScope, () => {
+  // Build bindings and transpile body with scope.
+  // When a $-prefixed special variable is encountered, ALL subsequent bindings
+  // and the body are wrapped in j$.withScope so that j$.getSpecialVar() returns
+  // the newly-assigned value for any function calls made within those bindings.
+  //
+  // Example: let($fn = 20, n = $fn / 4, circle = shape_circle(n))
+  //   shape_circle calls __frags() which calls j$.getSpecialVar('$fn').
+  //   Without withScope, __frags sees the outer $fn, not 20.
+  //   With withScope wrapping from the $fn binding onward, __frags sees 20.
+  const result = withScope(ctx, incrementalScope, () => {
     for (let i = 0; i < args.length; i++) {
       const a = args[i]
       const origName = safeIdentifier(a.name)
 
-      // Special variables ($attach_to, $fn, etc.) must use dynamic scoping via
-      // j$.withScope so that j$.getSpecialVar() sees the overridden value.
-      // A local `const` binding would only affect lexical JS scope, not the
-      // dynamic scope stack that getSpecialVar reads from.
+      // Special variable ($fn, $fa, $fs, etc.): must update the dynamic scope stack
+      // so that any function called within subsequent let bindings or the body sees
+      // the new value via j$.getSpecialVar(). We achieve this by:
+      //   1. Computing the value expression within the current scope
+      //   2. Recursively processing remaining bindings + body inside j$.withScope
+      // The recursive call runs while the current incrementalScope is still pushed,
+      // so earlier (before-$var) bindings remain visible to the remaining args.
       if (a.name.startsWith('$')) {
         const value = transpileExpression(a.value!, ctx)
-        specialVarBindings.push([a.name, value])
-        // Do NOT add to incrementalScope: subsequent let bindings that reference
-        // this special var will still use j$.getSpecialVar (correct behavior),
-        // and the body will see the overridden value via withScope.
-        continue
+        const remaining = args.slice(i + 1)
+        const inner = transpileLetBindings(remaining, bodyExpr, ctx)
+        return `j$.withScope({ '${a.name}': ${value} }, () => ${inner})`
       }
 
       const newName = `${origName}${suffix}`
@@ -188,7 +194,7 @@ function transpileLetBindings(
       }
     }
 
-    // Transpile body - all bindings are now in scope
+    // No special vars encountered — transpile body directly
     return transpileExpression(bodyExpr, ctx)
   })
 
@@ -197,21 +203,8 @@ function transpileLetBindings(
     ctx.scopes.unregisterFunctionBinding(origName)
   }
 
-  // Wrap body in j$.withScope if there are any special variable bindings
-  let bodyExprCode: string
-  if (specialVarBindings.length > 0) {
-    const scopeObj = specialVarBindings.map(([name, val]) => `'${name}': ${val}`).join(', ')
-    bodyExprCode = `j$.withScope({ ${scopeObj} }, () => ${body})`
-  } else {
-    bodyExprCode = body
-  }
-
-  if (bindings.length === 0) {
-    // No regular bindings - no need for IIFE (unless we still need to wrap)
-    return specialVarBindings.length > 0 ? bodyExprCode : body
-  }
-
-  return `(() => { ${bindings.join('; ')}; return ${bodyExprCode} })()`
+  if (bindings.length === 0) return result
+  return `(() => { ${bindings.join('; ')}; return ${result} })()`
 }
 
 /**
