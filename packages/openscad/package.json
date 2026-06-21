@@ -18,7 +18,8 @@
     ".": {
       "types": "./esm/index.d.ts",
       "import": "./esm/index.js"
-    }
+    },
+    "./run": "./bin/run-jscad.js"
   },
   "files": [
     "esm",

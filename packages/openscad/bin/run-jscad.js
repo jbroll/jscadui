@@ -605,6 +605,48 @@ function createParamsProxy() {
 // ── In-process execution (for test-harness) ────────────────────────────────
 
 /**
+ * Initialize the shared runtimes (Manifold WASM + openscad-runtime + j$.init).
+ * Memoized via module-level caches — safe to call multiple times.
+ * @returns {Promise<{ jscadModeling, openscadRuntime }>}
+ */
+export async function initScadRuntime() {
+  await _systemFontsReady
+  const jscadModeling = await _getManifoldRuntime()
+  const openscadRuntime = await _getOpenscadRuntime()
+  openscadRuntime.j$.init(jscadModeling)
+  return { jscadModeling, openscadRuntime }
+}
+
+/**
+ * Synchronously transpile and evaluate a .scad file, returning the Manifold solid.
+ * Must be called after initScadRuntime() has resolved.
+ *
+ * @param {string} scadPath - Path to the .scad source file
+ * @param {{ jscadModeling, openscadRuntime }} ctx - Runtime context from initScadRuntime()
+ * @param {{ fn?: number, libPaths?: string[], sharedCache?: Map }} [opts]
+ * @returns {Object|null} Manifold solid, or null for empty geometry
+ */
+export function evalScadSolidSync(scadPath, ctx, { fn = 0, libPaths = [], sharedCache } = {}) {
+  const { jscadModeling, openscadRuntime } = ctx
+  const inputPath = resolve(scadPath)
+  const fileDir = dirname(inputPath)
+  const source = readFileSync(inputPath, 'utf8')
+  const { code, moduleCache } = transpileScad(source, inputPath, fileDir, fn, false, libPaths, sharedCache, false)
+  const j$Instance = createJ$Instance()
+  j$Instance.jscad = jscadModeling
+  if (fn > 0) setGlobalFn(fn)
+  const customRequire = createMakeRequire(jscadModeling, openscadRuntime, moduleCache, fn, libPaths, sharedCache, j$Instance, false)(fileDir)
+  const moduleObj = { exports: {} }
+  new Function('require', 'module', 'exports', 'j$', code)(customRequire, moduleObj, moduleObj.exports, j$Instance)
+  if (typeof moduleObj.exports.main !== 'function') throw new Error('No main() function in ' + scadPath)
+  const result = moduleObj.exports.main(createParamsProxy())
+  if (!result || (Array.isArray(result) && result.length === 0)) return null
+  return Array.isArray(result) ? jscadModeling.booleans.union(result) : result
+}
+
+export { manifoldToGeom3 } from '../../manifold/src/conversions/index.js'
+
+/**
  * Transpile and run a .scad file in-process, writing the result to stlPath.
  * Uses module-level cached runtimes (Manifold WASM + openscad-runtime).
  *
@@ -615,56 +657,10 @@ function createParamsProxy() {
  * @param {Map} [sharedCache] - Shared transpiler cache (avoids re-transpiling shared libs)
  * @param {boolean} [preview] - Set $preview=true (simulates F5 preview mode)
  */
-export async function runScadToStl(scadPath, stlPath, fn, libPaths, sharedCache, preview = false) {
-  // Ensure system fonts are loaded before any text rendering (fc-list, runs once per process)
-  await _systemFontsReady
-
-  const inputPath = resolve(scadPath)
-  const fileDir = dirname(inputPath)
-  const source = readFileSync(inputPath, 'utf8')
-
-  const { code: jsCode, moduleCache } = transpileScad(source, inputPath, fileDir, fn, false, libPaths, sharedCache, preview)
-
-  const jscadModeling = await _getManifoldRuntime()
-  const openscadRuntime = await _getOpenscadRuntime()
-
-  // Initialize the shared module-level bindings in the runtime (primitives, transforms, etc.)
-  // This is safe to call multiple times — it's idempotent and only sets module-level refs.
-  openscadRuntime.j$.init(jscadModeling)
-
-  // Create a fresh j$ instance with its own scope stack for this execution.
-  // This allows concurrent runs without a mutex — each run has isolated state.
-  const j$Instance = createJ$Instance()
-  j$Instance.jscad = jscadModeling
-  if (fn > 0) setGlobalFn(fn)
-
-  const makeRequire = createMakeRequire(jscadModeling, openscadRuntime, moduleCache, fn, libPaths, sharedCache, j$Instance, preview)
-  const customRequire = makeRequire(fileDir)
-
-  const exports = {}
-  const moduleObj = { exports }
-  const modFn = new Function('require', 'module', 'exports', 'j$', jsCode)
-  modFn(customRequire, moduleObj, exports, j$Instance)
-
-  if (typeof moduleObj.exports.main !== 'function') {
-    throw new Error('No main() function found in ' + scadPath)
-  }
-
-  const params = createParamsProxy()
-  const result = await Promise.resolve(moduleObj.exports.main(params))
-
-  // Null/undefined result = all geometry was ghost (% modifier) → write empty STL
-  if (!result || (Array.isArray(result) && result.length === 0)) {
-    writeFileSync(stlPath, 'solid JSCAD\nendsolid JSCAD\n')
-    return
-  }
-
-  const geometry = Array.isArray(result) ? jscadModeling.booleans.union(result) : result
-  if (!geometry) {
-    writeFileSync(stlPath, 'solid JSCAD\nendsolid JSCAD\n')
-    return
-  }
-  writeFileSync(stlPath, exportStl(geometry))
+export async function runScadToStl(scadPath, stlPath, fn, libPaths, sharedCache, _preview = false) {
+  const ctx = await initScadRuntime()
+  const geometry = evalScadSolidSync(scadPath, ctx, { fn, libPaths, sharedCache })
+  writeFileSync(stlPath, geometry ? exportStl(geometry) : 'solid JSCAD\nendsolid JSCAD\n')
 }
 
 async function main() {
