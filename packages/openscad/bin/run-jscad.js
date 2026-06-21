@@ -626,16 +626,16 @@ export async function initScadRuntime() {
  * @param {{ fn?: number, libPaths?: string[], sharedCache?: Map }} [opts]
  * @returns {Object|null} Manifold solid, or null for empty geometry
  */
-export function evalScadSolidSync(scadPath, ctx, { fn = 0, libPaths = [], sharedCache } = {}) {
+export function evalScadSolidSync(scadPath, ctx, { fn = 0, libPaths = [], sharedCache, preview = false } = {}) {
   const { jscadModeling, openscadRuntime } = ctx
   const inputPath = resolve(scadPath)
   const fileDir = dirname(inputPath)
   const source = readFileSync(inputPath, 'utf8')
-  const { code, moduleCache } = transpileScad(source, inputPath, fileDir, fn, false, libPaths, sharedCache, false)
+  const { code, moduleCache } = transpileScad(source, inputPath, fileDir, fn, false, libPaths, sharedCache, preview)
   const j$Instance = createJ$Instance()
   j$Instance.jscad = jscadModeling
   if (fn > 0) setGlobalFn(fn)
-  const customRequire = createMakeRequire(jscadModeling, openscadRuntime, moduleCache, fn, libPaths, sharedCache, j$Instance, false)(fileDir)
+  const customRequire = createMakeRequire(jscadModeling, openscadRuntime, moduleCache, fn, libPaths, sharedCache, j$Instance, preview)(fileDir)
   const moduleObj = { exports: {} }
   new Function('require', 'module', 'exports', 'j$', code)(customRequire, moduleObj, moduleObj.exports, j$Instance)
   if (typeof moduleObj.exports.main !== 'function') throw new Error('No main() function in ' + scadPath)
@@ -657,9 +657,9 @@ export { manifoldToGeom3 } from '../../manifold/src/conversions/index.js'
  * @param {Map} [sharedCache] - Shared transpiler cache (avoids re-transpiling shared libs)
  * @param {boolean} [preview] - Set $preview=true (simulates F5 preview mode)
  */
-export async function runScadToStl(scadPath, stlPath, fn, libPaths, sharedCache, _preview = false) {
+export async function runScadToStl(scadPath, stlPath, fn, libPaths, sharedCache, preview = false) {
   const ctx = await initScadRuntime()
-  const geometry = evalScadSolidSync(scadPath, ctx, { fn, libPaths, sharedCache })
+  const geometry = evalScadSolidSync(scadPath, ctx, { fn, libPaths, sharedCache, preview })
   writeFileSync(stlPath, geometry ? exportStl(geometry) : 'solid JSCAD\nendsolid JSCAD\n')
 }
 

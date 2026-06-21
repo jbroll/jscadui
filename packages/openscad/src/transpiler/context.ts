@@ -118,6 +118,10 @@ export interface BundledParts {
   usedMinMax: boolean
   // Variables that are lazy thunks (reference $special vars, so must be called as show_threads())
   lazyVarNames?: Set<string>
+  // Top-level geometry statements from the included file itself (NOT transitive).
+  // OpenSCAD `include` semantics: top-level geometry in the included file runs at the include site.
+  // Only the file's own direct geometry is stored here; transitive sub-include geometry is ignored.
+  geometryStatements?: string[]
 }
 
 export interface TranspiledFile {

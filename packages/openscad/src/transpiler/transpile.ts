@@ -64,6 +64,7 @@ interface BundledContent {
   functionNames: Set<string>
   moduleNames: Set<string>
   constantNames: Set<string>
+  geometryStatements: string[]  // Top-level geometry from directly included files
 }
 
 /**
@@ -101,6 +102,7 @@ function processIncludeStatements(ctx: TranspileContext): BundledContent {
   const bundledFunctions: string[] = []
   const bundledModules: string[] = []
   const bundledConstants: string[] = []
+  const bundledGeometry: string[] = []
   // Track which declarations have already been bundled to avoid duplicates
   const bundledFunctionNames = new Set<string>()
   const bundledModuleNames = new Set<string>()
@@ -197,6 +199,12 @@ function processIncludeStatements(ctx: TranspileContext): BundledContent {
       if (parts.lazyVarNames) {
         for (const name of parts.lazyVarNames) ctx.lazyVarNames.add(name)
       }
+      // Collect top-level geometry from this included file (OpenSCAD include semantics:
+      // top-level geometry in the directly included file runs at the include site).
+      // Only the file's own direct geometry is collected — NOT transitive sub-includes.
+      if (parts.geometryStatements) {
+        bundledGeometry.push(...parts.geometryStatements)
+      }
     }
     // Track imported functions and modules from this include
     mergeImportedSymbols(ctx, cachedFile)
@@ -209,6 +217,7 @@ function processIncludeStatements(ctx: TranspileContext): BundledContent {
     functionNames: bundledFunctionNames,
     moduleNames: bundledModuleNames,
     constantNames: bundledConstantNames,
+    geometryStatements: bundledGeometry,
   }
 }
 
@@ -440,11 +449,14 @@ function buildOutputCode(
     parts.push('')
   }
 
-  // Main function with file-scope geometry
-  if (transpiled.geometryParts.length > 0) {
-    const mainBody = transpiled.geometryParts.length === 1
-      ? transpiled.geometryParts[0]
-      : `j$.safeUnion([\n${transpiled.geometryParts.map(p => `    ${p}`).join(',\n')}\n  ])`
+  // Main function with file-scope geometry:
+  // bundled.geometryStatements = top-level geometry from directly included files
+  // transpiled.geometryParts = top-level geometry defined in this file itself
+  const allGeometry = [...bundled.geometryStatements, ...transpiled.geometryParts]
+  if (allGeometry.length > 0) {
+    const mainBody = allGeometry.length === 1
+      ? allGeometry[0]
+      : `j$.safeUnion([\n${allGeometry.map(p => `    ${p}`).join(',\n')}\n  ])`
     parts.push(`const main = () => {\n  return ${mainBody}\n}`)
     parts.push('')
   } else {
@@ -499,7 +511,7 @@ interface OptimizationInfo {
  * The allDeclarations must be stored in the cached TranspiledFile so that grandparent
  * files can recursively collect declarations from the full include chain.
  */
-function createBundledParts(ctx: TranspileContext): { bundledParts: BundledParts; allDeclarations: Declaration[]; optimizationInfo: OptimizationInfo } {
+function createBundledParts(ctx: TranspileContext, localGeometryParts: string[]): { bundledParts: BundledParts; allDeclarations: Declaration[]; optimizationInfo: OptimizationInfo } {
   // Collect all local declarations
   const localDeclarations = ctx.declarations.getAll()
 
@@ -559,6 +571,10 @@ function createBundledParts(ctx: TranspileContext): { bundledParts: BundledParts
     usedMaths: ctx.codeGen.usedMaths,
     usedMinMax: ctx.codeGen.usedMinMax,
     lazyVarNames: ctx.lazyVarNames.size > 0 ? new Set(ctx.lazyVarNames) : undefined,
+    // Store ONLY this file's own direct top-level geometry.
+    // Do NOT collect transitive geometry from sub-includes — that caused BOSL2 regression.
+    // Callers (processIncludeStatements) will collect this and pass it to buildOutputCode.
+    geometryStatements: localGeometryParts.length > 0 ? [...localGeometryParts] : undefined,
   }
 
   // Phase 1 optimization: Detect if this file can use require() instead of bundling
@@ -637,8 +653,9 @@ export function transpile(
   // Second pass: transpile statements into separate categories
   const transpiled = transpileAllStatements(ast, ctx)
 
-  // Check if we need safeUnion for file-scope geometry
-  if (transpiled.geometryParts.length > 1) {
+  // Check if we need safeUnion for file-scope geometry (both bundled and local)
+  const totalGeometryCount = bundled.geometryStatements.length + transpiled.geometryParts.length
+  if (totalGeometryCount > 1) {
     ctx.codeGen.usedHelpers.add('safeUnion')
   }
 
@@ -648,7 +665,8 @@ export function transpile(
   // Create bundled parts for caching
   // Create bundled parts using AST-based bundling
   // allDeclarations includes local + transitive includes (for recursive bundling)
-  const { bundledParts, allDeclarations, optimizationInfo } = createBundledParts(ctx)
+  // Pass localGeometryParts so only THIS file's own geometry is stored (not transitive)
+  const { bundledParts, allDeclarations, optimizationInfo } = createBundledParts(ctx, transpiled.geometryParts)
 
   // Add this file to the cache if it has a name
   if (ctx.options.currentFile) {

@@ -413,6 +413,27 @@ function transpileUserDefinedCall(
     return `${localBinding}(${positionalArgs})()`
   }
 
+  // Determine if this is a function call vs module instantiation
+  // Functions: called directly with _$f suffix, return values
+  // Modules: curried pattern with _$m suffix, module(args)(children) returns geometry
+  // Uses SymbolTable to check modules/functions from all sources
+  const isKnownModule = ctx.symbols.isKind(name, 'module')
+  const isKnownFunction = ctx.symbols.isKind(name, 'function')
+
+  // If module/function is not known at all (not in symbol table, not a local binding),
+  // return empty string — OpenSCAD treats calls to undefined modules as no-ops (warnings).
+  // Returning '' is falsy so it gets filtered by `if (code)` in transpileAllStatements.
+  // BUT: only do this if there are no imports at all — if the file has any use/include
+  // statements, the module may be available at runtime even if not in the symbol table.
+  // For example, canOptimizeInclude converts included files to use imports but registers
+  // modules with defineModules:false, so they won't appear in the symbol table.
+  if (!isKnownModule && !isKnownFunction) {
+    const hasAnyImports = ctx.useImports.length > 0 || ctx.includeImports.length > 0
+    if (!hasAnyImports) {
+      return ''
+    }
+  }
+
   // If there are children, collect them as an array and pass via curried call
   if (childCode && childCode !== 'undefined') {
     const childrenArray = collectChildrenAsArray(stmt.child, ctx)
@@ -428,13 +449,6 @@ function transpileUserDefinedCall(
       return `${safeName}_$m(${optionsArgs})(${childrenArg})`
     }
   }
-
-  // Determine if this is a function call vs module instantiation
-  // Functions: called directly with _$f suffix, return values
-  // Modules: curried pattern with _$m suffix, module(args)(children) returns geometry
-  // Uses SymbolTable to check modules/functions from all sources
-  const isKnownModule = ctx.symbols.isKind(name, 'module')
-  const isKnownFunction = ctx.symbols.isKind(name, 'function')
 
   // Track as potential free ref if not locally bound.
   // Note: we intentionally do NOT check ctx.symbols.isDefined() here — 'inherited' symbols
