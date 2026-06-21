@@ -169,6 +169,25 @@ describe('output code quality', () => {
   })
 })
 
+describe('underscore-prefixed builtin overrides (BOSL2)', () => {
+  // Regression: BOSL2's attachable() calls `_color($color) ...`. `_color` is the
+  // underscore-prefixed builtin override (builtins.scad, brought in via `use` in
+  // sibling files, so it is NOT in attachable's symbol table). `color` is dispatched
+  // by exact name and is absent from the BUILTIN_* sets, so `_color` used to fall
+  // through to `undefined`, dropping the shape — which broke essentially the entire
+  // BOSL2 corpus (every attachable shape passes through `_color`).
+  it('_color dispatches to j$.color and does not drop its child', () => {
+    const code = transpileCode(`module t() _color($color) cube(2);\nt();`)
+    expect(code).toContain('j$.color(')
+    expect(code).not.toMatch(/return undefined/)
+  })
+
+  it('plain color still dispatches to j$.color', () => {
+    const code = transpileCode(`color("red") cube(2);`)
+    expect(code).toContain('j$.color(')
+  })
+})
+
 /** Count occurrences of a character in a string */
 function countChar(s: string, ch: string): number {
   // Skip characters inside string literals

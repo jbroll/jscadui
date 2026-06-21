@@ -26,6 +26,7 @@ import {
   transpileBuiltinTransform,
   transpileBuiltinExtrusion,
   shouldUseBuiltin,
+  stripUnderscorePrefix,
 } from './builtins.js'
 import {
   isModuleInstantiation,
@@ -534,7 +535,14 @@ function transpileModuleInstantiation(stmt: ModuleInstantiationStmt, ctx: Transp
   if (builtinResult !== null) return builtinResult
 
   // Special modules
-  if (name === 'color') return transpileColorModule(argsArray, childCode, ctx)
+  // `color` is not in the BUILTIN_* sets; it's dispatched here by exact name.
+  // BOSL2 calls the underscore-prefixed builtin override `_color` (from builtins.scad,
+  // brought in via `use` in sibling files but not in attachments.scad), so it isn't
+  // in the symbol table when transpiling attachable(). Per the `_`-prefix convention
+  // (underscore names always map to the builtin), route `_color` to the color handler
+  // too — otherwise it falls through to `undefined` and every BOSL2 attachable shape
+  // loses its geometry.
+  if (stripUnderscorePrefix(name) === 'color') return transpileColorModule(argsArray, childCode, ctx)
   // render() forces CGAL rendering in OpenSCAD; in JSCAD we just pass children through
   if (name === 'render') return childCode || 'undefined'
   // import() loads external STL/DXF/SVG files — not supported, return undefined

@@ -9,7 +9,7 @@ import { WarningCode } from './context.js'
  * Strip underscore prefix from module names.
  * BOSL2 uses underscore-prefixed wrappers (e.g., _cube) that delegate to OpenSCAD builtins.
  */
-function stripUnderscorePrefix(name: string): string {
+export function stripUnderscorePrefix(name: string): string {
   return name.startsWith('_') ? name.slice(1) : name
 }
 
