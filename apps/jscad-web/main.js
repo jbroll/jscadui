@@ -47,6 +47,7 @@ import { createWorker, createJobTracker } from './src/workerSetup.js'
 import * as fileSystem from './src/fileSystem.js'
 import * as paramsUI from './src/paramsUI.js'
 import { shouldAllowReload, clearReloadTimestamp } from './src/reloadDetection.js'
+import { installStudioBridge } from './src/studioBridge.js'
 
 /**
  * @typedef {import('@jscadui/worker').UserParameters} UserParameters
@@ -193,6 +194,18 @@ function stopCurrentAnim() {
   setAnimStatus('')
   return true
 }
+
+// ============== Studio Bridge ==============
+installStudioBridge({
+  paramsCtrl,
+  getParams: () => paramsCtrl.getState().params,
+  runModel: () => paramsUI.runModelUpdate({
+    workerApi,
+    handleEntities: handlers.entities,
+    setError,
+    stopCurrentAnim,
+  }),
+})
 
 /**
  * @param {Object} def
