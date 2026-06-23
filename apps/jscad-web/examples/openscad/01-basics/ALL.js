@@ -59,8 +59,8 @@ const main = (params) => {
         all.push(...normalizeAndPlace(geoms, x, y, cellSize))
       }
     } catch (err) {
-      // Resilient grid: one bad model must not break the whole grid. Skip it.
-      console.error('ALL: skipped', url, err.message)
+      console.error('ALL: failed to load', url, err.message)
+      throw new Error(`Failed to load ${url}: ${err.message}`)
     }
   })
   return all
