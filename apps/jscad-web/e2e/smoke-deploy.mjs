@@ -56,18 +56,25 @@ try {
   check('uses manifest.json (no directory listing)', usedManifest && !listing403,
     listing403 ? `unexpected ${listing403.status} ${listing403.url}` : (usedManifest ? '' : 'manifest.json not fetched'))
 
-  // 2. Models render — a plain one, and one with an include (resolution must
-  //    survive the SPA host returning index.html for the missing relative path).
-  for (const [path, name] of [
-    ['/examples/openscad/01-basics/cube.scad', 'cube.scad'],
-    ['/examples/openscad/mcad/examples/hardware_test.scad', 'hardware_test.scad (include resolution)'],
+  // 2. Models/grids render. Each in its OWN fresh context (a fresh worker, like
+  //    opening the app and clicking one item): a plain model, an include-heavy
+  //    model (resolution must survive the SPA host returning index.html for the
+  //    missing relative path), and a grid (many models with shared includes in
+  //    one worker — exercises per-grid-item state isolation).
+  for (const [path, name, timeout] of [
+    ['/examples/openscad/01-basics/cube.scad', 'cube.scad', 30000],
+    ['/examples/openscad/mcad/examples/hardware_test.scad', 'hardware_test.scad (include resolution)', 30000],
+    ['/examples/openscad/mcad/ALL.js', 'mcad/ALL.js (grid)', 90000],
   ]) {
-    await page.goto(url + '/#' + path, { waitUntil: 'domcontentloaded', timeout: 30000 })
-    try { await page.locator('#welcome-dismiss').click({ timeout: 3000 }) } catch { /* ignore */ }
-    await page.locator('#progress').waitFor({ state: 'hidden', timeout: 30000 }).catch(() => {})
-    const errVisible = await page.locator('#error-bar').isVisible().catch(() => false)
+    const ctx = await browser.newContext()
+    const pg = await ctx.newPage()
+    await pg.goto(url + '/#' + path, { waitUntil: 'domcontentloaded', timeout: 30000 })
+    try { await pg.locator('#welcome-dismiss').click({ timeout: 3000 }) } catch { /* ignore */ }
+    await pg.locator('#progress').waitFor({ state: 'hidden', timeout }).catch(() => {})
+    const errVisible = await pg.locator('#error-bar').isVisible().catch(() => false)
     check(`${name} renders`, !errVisible,
-      errVisible ? (await page.locator('#error-bar').textContent().catch(() => '') || '').replace(/\s+/g, ' ').trim().slice(0, 140) : '')
+      errVisible ? (await pg.locator('#error-bar').textContent().catch(() => '') || '').replace(/\s+/g, ' ').trim().slice(0, 140) : '')
+    await ctx.close()
   }
 } catch (e) {
   check('smoke run completed', false, String(e).split('\n')[0].slice(0, 160))
