@@ -75,6 +75,14 @@ export const clearTranspiledCache = () => {
   workerSharedCache.clear()
 }
 
+// Reset per-grid-item state so models loaded together in an ALL.js grid don't
+// contaminate each other via the shared worker: the singleton j$ special-var
+// scope stack ($fn etc.) and the transpiler's include cache.
+self.__resetScadGridItem = () => {
+  try { if (self.j$ && self.j$.resetScope) self.j$.resetScope() } catch { /* ignore */ }
+  clearTranspiledCache()
+}
+
 requireHandlers.set('scad', (source, url, _readFile) => {
   // Normalise to path for consistent cache keys
   const urlPath = toCachePath(url)
