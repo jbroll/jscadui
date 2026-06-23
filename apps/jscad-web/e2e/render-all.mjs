@@ -46,7 +46,7 @@ const EXAMPLES_ROOT = join(APP_ROOT, 'examples')
 function parseArgs(argv) {
   const o = {
     dirs: [], jscad: false, limit: 0, concurrency: 4, timeout: 30_000,
-    server: 'http://localhost:5120', skip: true, engine: '',
+    server: 'http://localhost:5120', skip: true, engine: '', grids: false,
     out: join(__dirname, 'render-report.json'), headed: false,
   }
   for (let i = 0; i < argv.length; i++) {
@@ -58,6 +58,7 @@ function parseArgs(argv) {
     else if (a === '--timeout') o.timeout = Number(argv[++i])
     else if (a === '--server') o.server = argv[++i]
     else if (a === '--engine') o.engine = argv[++i]
+    else if (a === '--grids') o.grids = true
     else if (a === '--no-skip') o.skip = false
     else if (a === '--out') o.out = argv[++i]
     else if (a === '--headed') o.headed = true
@@ -134,9 +135,13 @@ function collectFiles(opts) {
     if (!existsSync(absDir)) { console.warn(`skip missing dir: ${d}`); continue }
     // Each immediate library subdir gets its own skip.txt scope; also the dir itself.
     for (const f of walk(absDir)) {
-      if (!exts.includes(f.slice(f.lastIndexOf('.')))) continue
-      if (basename(f) === 'ALL.js') continue
-      if (opts.skip && isExcluded(f)) continue
+      if (opts.grids) {
+        if (basename(f) !== 'ALL.js') continue
+      } else {
+        if (!exts.includes(f.slice(f.lastIndexOf('.')))) continue
+        if (basename(f) === 'ALL.js') continue
+        if (opts.skip && isExcluded(f)) continue
+      }
       const relFromExamples = relative(EXAMPLES_ROOT, f)
       out.push({ url: '/examples/' + relFromExamples, rel: relFromExamples })
     }
