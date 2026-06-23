@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# Browser render smoke test for all examples, run on the CI/GPU host.
+#
+#   sci push jscadui/render
+#
+# Starts the dev server, then drives a headless (bundled-chromium) browser
+# through the real render pipeline for every example via
+# apps/jscad-web/e2e/render-all.mjs. Honors skip.txt. Fails if any example
+# shows the error bar / times out.
+#
+# Scope/concurrency: edit RENDER_ARGS below (sci push runs this verbatim).
+set -uo pipefail
+
+WORKTREE="$(cd "$(dirname "$0")/.." && pwd)"
+APP="$WORKTREE/apps/jscad-web"
+RENDER_ARGS="${RENDER_ARGS:---dir openscad/01-basics --dir openscad/bosl --dir openscad/bosl2 --dir openscad/mcad --dir openscad/snippet --dir openscad/text --concurrency 6 --timeout 30000}"
+
+cd "$WORKTREE"
+npm install
+# Build workspace packages so the web bundle can resolve @jscadui/* esm outputs.
+npm run build
+( cd "$APP" && npx playwright install chromium )
+
+# ── start dev server in background ──
+cd "$APP"
+node build.js --dev --skipDocs > /tmp/jscad-dev.log 2>&1 &
+DEV_PID=$!
+cleanup() { kill "$DEV_PID" 2>/dev/null; wait "$DEV_PID" 2>/dev/null; }
+trap cleanup EXIT
+
+# ── wait until the server serves a real example file (build finished) ──
+echo "Waiting for dev server + example build…"
+for i in $(seq 1 120); do
+  code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:5120/examples/openscad/01-basics/cube.scad || true)
+  [ "$code" = "200" ] && { echo "ready after ${i}s"; break; }
+  sleep 1
+done
+if [ "$code" != "200" ]; then
+  echo "✖ dev server never served examples; tail of dev log:"; tail -40 /tmp/jscad-dev.log
+  exit 2
+fi
+
+# ── run the render sweep ──
+echo "Running: node e2e/render-all.mjs $RENDER_ARGS"
+node e2e/render-all.mjs $RENDER_ARGS
+RC=$?
+echo "render-all exit code: $RC"
+exit $RC

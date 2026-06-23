@@ -168,3 +168,4 @@ deploy.conf
 /*.png
 /*.md.tmp
 /all-js-*.md
+apps/jscad-web/e2e/render-report.json
