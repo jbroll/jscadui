@@ -317,6 +317,7 @@ export function createJ$Instance() {
 export { PI, _range, _min, _max, _num, str, version_num, parent_module, search, _norm, _cross, _lookup, _rands, is_vector, chr, ord, is_consistent, _list_pattern, reverse } from './math.js'
 export { _eq, _vadd, _vsub, _vmul, _vdiv, _vneg } from './vector.js'
 export { _getSegments, setGlobalFn } from './segments.js'
+export { _resetRng } from './math.js'
 export { initPrimitives, _cube, _cylinder, _sphere, _circle, _square, _regular_polygon, _polyhedron, _safeUnion, _hull, _union, _subtract, _intersect, _minkowski, _polygon, _region } from './primitives.js'
 export { initTransforms, _translate, _rotate, _scale, _mirror, _multmatrix, _resize } from './transforms.js'
 export { initExtrusions, _linearExtrude, _rotateExtrude } from './extrusions.js'

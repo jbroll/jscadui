@@ -76,10 +76,15 @@ export const clearTranspiledCache = () => {
 }
 
 // Reset per-grid-item state so models loaded together in an ALL.js grid don't
-// contaminate each other via the shared worker: the singleton j$ special-var
-// scope stack ($fn etc.) and the transpiler's include cache.
+// contaminate each other via the shared worker. Each model must start as if in
+// a fresh worker — but WITHOUT re-loading the modeling/WASM bundle. So clear all
+// scad-level state: runtime globals (j$ scope, $fn, RNG), the transpiler caches,
+// and the .scad module cache (jscadClearTempCache keeps the bundle/WASM cache).
 self.__resetScadGridItem = () => {
-  try { if (self.j$ && self.j$.resetScope) self.j$.resetScope() } catch { /* ignore */ }
+  try {
+    if (self.j$ && self.j$.resetScope) self.j$.resetScope()
+    if (_openscad) { _openscad.setGlobalFn(0); _openscad._resetRng() }
+  } catch { /* ignore */ }
   clearTranspiledCache()
 }
 

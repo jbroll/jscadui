@@ -9,4 +9,4 @@
  *   const { parse, transpile, j$ } = jscadui_openscad
  */
 export { parse, transpile } from '@jscadui/openscad'
-export { j$ } from '@jscadui/openscad-runtime'
+export { j$, setGlobalFn, _resetRng } from '@jscadui/openscad-runtime'
