@@ -204,10 +204,9 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
   if (useGpuNormals !== undefined) {
     const modelingBundleUrl = requireCache.bundleAlias['@jscad/modeling']
     if (modelingBundleUrl) {
-      const modelingModule = requireCache.module[modelingBundleUrl] || requireCache.local[modelingBundleUrl]
-      if (modelingModule?.setUseGpuNormals) {
-        modelingModule.setUseGpuNormals(useGpuNormals)
-      }
+      let modelingModule
+      try { modelingModule = require(modelingBundleUrl, null, readFileWeb) } catch { /* ignore */ }
+      if (modelingModule?.setUseGpuNormals) modelingModule.setUseGpuNormals(useGpuNormals)
     }
   }
 
@@ -395,15 +394,12 @@ const jscadScript = async ({ script, url='jscad.js', base=workerState.globalBase
     // This ensures WASM is ready before user code runs
     const modelingBundleUrl = requireCache.bundleAlias['@jscad/modeling']
     if (modelingBundleUrl) {
-      // Check both local and module caches - bundles may be in either depending on URL
-      const modelingModule = requireCache.module[modelingBundleUrl] || requireCache.local[modelingBundleUrl]
-      if (modelingModule?.ready instanceof Promise) {
-        await modelingModule.ready
-      }
-      // Configure GPU normals mode based on renderer capability
-      if (gpuNormals !== undefined && modelingModule?.setUseGpuNormals) {
-        modelingModule.setUseGpuNormals(gpuNormals)
-      }
+      // require() returns the live cached bundle; requireCache.module is a no-op getter,
+      // so the old lookup skipped this await → "Manifold WASM not initialized" on cold loads.
+      let modelingModule
+      try { modelingModule = require(modelingBundleUrl, null, readFileWeb) } catch { /* ignore */ }
+      if (modelingModule?.ready instanceof Promise) await modelingModule.ready
+      if (gpuNormals !== undefined && modelingModule?.setUseGpuNormals) modelingModule.setUseGpuNormals(gpuNormals)
     }
 
     // C1 fix: Check generation after async WASM init to prevent stale script from corrupting main
