@@ -14,6 +14,8 @@ import { ManifoldGeom3, isManifoldGeom3, toManifold } from '../geometries/Manifo
 import { ManifoldGeom2, isManifoldGeom2, toCrossSection, toJscadGeom2, fromJscadGeom2 } from '../geometries/ManifoldGeom2.js'
 import * as jscadModule from '@jscad/modeling-for-manifold'
 
+const DEBUG_MINK = typeof process !== 'undefined' && process.env?.DEBUG_MINK
+
 // Handle both ESM default export (Node.js) and bundled named exports (vitest/bundler)
 const jscad = jscadModule.default || jscadModule
 
@@ -319,7 +321,7 @@ export const minkowski = (...geometries) => {
   if (!aIsConvex && bIsConvex) {
     const r = minkowskiNonConvexConvex(manifoldA, manifoldB, Manifold)
     const fallback = r ?? minkowskiConvex(hullA, manifoldB, Manifold)
-    if (process.env.DEBUG_MINK) console.error(`[mink] A(vol=${manifoldA.volume().toFixed(0)}) nonconvex+convexB(vol=${manifoldB.volume().toFixed(0)}) → r=${r?.volume?.()?.toFixed(0) ?? 'null'} fallback=${fallback?.volume?.()?.toFixed(0) ?? 'null'}`)
+    if (DEBUG_MINK) console.error(`[mink] A(vol=${manifoldA.volume().toFixed(0)}) nonconvex+convexB(vol=${manifoldB.volume().toFixed(0)}) → r=${r?.volume?.()?.toFixed(0) ?? 'null'} fallback=${fallback?.volume?.()?.toFixed(0) ?? 'null'}`)
     return new ManifoldGeom3(fallback)
   }
 
@@ -360,7 +362,7 @@ export const minkowski = (...geometries) => {
  */
 const minkowskiNonConvexConvex = (manifoldA, manifoldB, Manifold, depth = 0, axisAlignedOnly = false) => {
   const volA = Math.abs(manifoldA.volume())
-  if (process.env.DEBUG_MINK && depth === 0) console.error(`[mnc d=0] enter volA=${volA.toFixed(0)}`)
+  if (DEBUG_MINK && depth === 0) console.error(`[mnc d=0] enter volA=${volA.toFixed(0)}`)
   if (volA < 1e-6) return null  // Degenerate piece: no contribution
 
   if (volA < 1) {
@@ -384,7 +386,7 @@ const minkowskiNonConvexConvex = (manifoldA, manifoldB, Manifold, depth = 0, axi
   const absVoidVol = volHull - volA  // inner void volume = how much hull exceeds A
 
   // Treat as convex if the inner void is negligibly small (< 0.1mm³)
-  if (process.env.DEBUG_MINK && depth === 0) console.error(`[mnc d=0] volHull=${volHull.toFixed(0)} absVoidVol=${absVoidVol.toFixed(4)}`)
+  if (DEBUG_MINK && depth === 0) console.error(`[mnc d=0] volHull=${volHull.toFixed(0)} absVoidVol=${absVoidVol.toFixed(4)}`)
   if (absVoidVol < 0.1) {
     if (typeof hullA.delete === 'function') hullA.delete()
     return minkowskiConvex(manifoldA, manifoldB, Manifold)
@@ -400,9 +402,9 @@ const minkowskiNonConvexConvex = (manifoldA, manifoldB, Manifold, depth = 0, axi
   }
 
   // Compute inner void to get cut planes (done only when truly non-convex)
-  if (process.env.DEBUG_MINK && depth === 0) console.error(`[mnc d=0] computing innerVoid...`)
+  if (DEBUG_MINK && depth === 0) console.error(`[mnc d=0] computing innerVoid...`)
   const innerVoid = hullA.subtract(manifoldA)
-  if (process.env.DEBUG_MINK && depth === 0) console.error(`[mnc d=0] innerVoid isEmpty=${innerVoid.isEmpty()} vol=${innerVoid.volume().toFixed(0)}`)
+  if (DEBUG_MINK && depth === 0) console.error(`[mnc d=0] innerVoid isEmpty=${innerVoid.isEmpty()} vol=${innerVoid.volume().toFixed(0)}`)
   // NOTE: hullA not deleted yet - may be needed below for minkHull
 
   if (innerVoid.isEmpty()) {
@@ -463,7 +465,7 @@ const minkowskiNonConvexConvex = (manifoldA, manifoldB, Manifold, depth = 0, axi
   // Extract unique face planes from the inner void boundary.
   // Cutting A along these planes decomposes it into convex pieces.
   const innerVoidMesh = innerVoid.getMesh()
-  if (process.env.DEBUG_MINK && depth === 0) console.error(`[mnc d=0] got mesh, triVerts=${innerVoidMesh.triVerts.length}`)
+  if (DEBUG_MINK && depth === 0) console.error(`[mnc d=0] got mesh, triVerts=${innerVoidMesh.triVerts.length}`)
   let planes = getUniquePlanes(innerVoidMesh)
   if (typeof innerVoid.delete === 'function') innerVoid.delete()
 
@@ -480,7 +482,7 @@ const minkowskiNonConvexConvex = (manifoldA, manifoldB, Manifold, depth = 0, axi
     )
   }
 
-  if (process.env.DEBUG_MINK && depth === 0) console.error(`[mink d=0] planes total=${planes.length}, axisAligned=${planes.filter(p => Math.abs(p.n[0])>0.99||Math.abs(p.n[1])>0.99||Math.abs(p.n[2])>0.99).length}`)
+  if (DEBUG_MINK && depth === 0) console.error(`[mink d=0] planes total=${planes.length}, axisAligned=${planes.filter(p => Math.abs(p.n[0])>0.99||Math.abs(p.n[1])>0.99||Math.abs(p.n[2])>0.99).length}`)
 
   if (planes.length === 0) {
     return minkowskiConvex(manifoldA, manifoldB, Manifold)
@@ -517,10 +519,10 @@ const minkowskiNonConvexConvex = (manifoldA, manifoldB, Manifold, depth = 0, axi
     if (workPieces.length === 0) break
   }
 
-  if (process.env.DEBUG_MINK && depth === 0) console.error(`[mnc d=0] after splits: ${workPieces.length} pieces`)
+  if (DEBUG_MINK && depth === 0) console.error(`[mnc d=0] after splits: ${workPieces.length} pieces`)
   if (workPieces.length === 0) return null  // All splits degenerate: no contribution
 
-  if (process.env.DEBUG_MINK && depth === 0) {
+  if (DEBUG_MINK && depth === 0) {
     console.error(`[mink depth=0] ${workPieces.length} pieces: ${workPieces.map(p => p.m.volume().toFixed(0)).join(', ')}`)
   }
 
@@ -528,11 +530,11 @@ const minkowskiNonConvexConvex = (manifoldA, manifoldB, Manifold, depth = 0, axi
   let result = null
   let pieceIdx = 0
   for (const { m: piece } of workPieces) {
-    const t0 = process.env.DEBUG_MINK && depth === 0 ? Date.now() : 0
+    const t0 = DEBUG_MINK && depth === 0 ? Date.now() : 0
     // Recurse: pieces may still be non-convex (e.g. when axis-aligned planes
     // don't fully cut through rounded edges). Depth limit prevents infinite recursion.
     const minkPiece = minkowskiNonConvexConvex(piece, manifoldB, Manifold, depth + 1, axisAlignedOnly)
-    if (process.env.DEBUG_MINK && depth === 0) {
+    if (DEBUG_MINK && depth === 0) {
       console.error(`[mnc d=0] piece ${pieceIdx++} (vol=${piece.volume().toFixed(0)}) mink=${minkPiece?.volume?.()?.toFixed(0) ?? 'null'} took ${Date.now()-t0}ms`)
     }
     // Free the split piece now that its Minkowski is computed.
@@ -543,9 +545,9 @@ const minkowskiNonConvexConvex = (manifoldA, manifoldB, Manifold, depth = 0, axi
     if (result === null) {
       result = minkPiece
     } else {
-      const t1 = process.env.DEBUG_MINK && depth === 0 ? Date.now() : 0
+      const t1 = DEBUG_MINK && depth === 0 ? Date.now() : 0
       const merged = Manifold.union(result, minkPiece)
-      if (process.env.DEBUG_MINK && depth === 0) console.error(`  union took ${Date.now()-t1}ms result_vol=${merged?.volume?.()?.toFixed(0) ?? 'null'}`)
+      if (DEBUG_MINK && depth === 0) console.error(`  union took ${Date.now()-t1}ms result_vol=${merged?.volume?.()?.toFixed(0) ?? 'null'}`)
       // Guard: don't delete manifoldB — it's owned by the caller.
       if (result !== manifoldB && typeof result.delete === 'function') result.delete()
       if (minkPiece !== manifoldB && typeof minkPiece.delete === 'function') minkPiece.delete()
@@ -553,7 +555,7 @@ const minkowskiNonConvexConvex = (manifoldA, manifoldB, Manifold, depth = 0, axi
     }
   }
 
-  if (process.env.DEBUG_MINK && depth === 0) console.error(`[mnc d=0] result=${result?.volume?.()?.toFixed(0) ?? 'null'}`)
+  if (DEBUG_MINK && depth === 0) console.error(`[mnc d=0] result=${result?.volume?.()?.toFixed(0) ?? 'null'}`)
   return result  // null if all pieces were degenerate (caller handles null)
 }
 
