@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, copyFileSync, rmSync } from 'fs'
 import liveServer from 'live-server'
 import {serve} from './serve.js'
 import { genExamplesManifest } from './src_build/genExamplesManifest.js'
+import { hashAssets } from './src_build/hashAssets.js'
 
 import { buildBundle, buildOne } from './src_build/esbuildUtil.js'
 
@@ -184,6 +185,9 @@ const loader = {
   '.jsx': 'tsx',
 }
 await buildOne('.', outDir, 'main.js', watch, { format: 'esm', loader })
+
+// Content-hash entry assets in production so 1-year-cached bundles bust on change.
+if (!dev) hashAssets(outDir)
 
 
 /**************************** LIVE SERVER if in dev mode *************/
