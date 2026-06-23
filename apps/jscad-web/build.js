@@ -3,6 +3,7 @@ import { execSync } from 'child_process'
 import { existsSync, mkdirSync, readFileSync, copyFileSync, rmSync } from 'fs'
 import liveServer from 'live-server'
 import {serve} from './serve.js'
+import { genExamplesManifest } from './src_build/genExamplesManifest.js'
 
 import { buildBundle, buildOne } from './src_build/esbuildUtil.js'
 
@@ -64,6 +65,8 @@ if (existsSync(outDir + '/examples')) {
   rmSync(outDir + '/examples', { recursive: true, force: true })
 }
 copyTask('examples', outDir+'/examples', { include: [], exclude: [], watch, filters: [] })
+// Static manifest so the demo browser works without server directory autoindex.
+genExamplesManifest('examples', outDir + '/examples/manifest.json')
 //in dev mode dont try to sync docs, just copy the first time 
 if(!skipDocs && !(dev & existsSync(outDir + "/docs"))){
   // this task is heavy

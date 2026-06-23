@@ -37,6 +37,7 @@ import { chromium } from '@playwright/test'
 import { readdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { join, relative, basename, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { isExcluded } from '../src_build/exampleExclusions.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const APP_ROOT = join(__dirname, '..')
@@ -69,51 +70,6 @@ function parseArgs(argv) {
   return o
 }
 
-// ── exclude.txt / skip.txt handling (mirrors the ALL.js generator) ───────────
-function loadPatternFile(dir, name) {
-  const f = join(dir, name)
-  if (!existsSync(f)) return []
-  return readFileSync(f, 'utf8').split('\n')
-    .map(l => l.trim()).filter(l => l && !l.startsWith('#'))
-}
-
-// exclude.txt: anchored to dir, trailing '/' = subtree, '*' does not cross '/'.
-function matchesExclude(rel, patterns) {
-  for (const raw of patterns) {
-    let p = raw.startsWith('/') ? raw.slice(1) : raw
-    const dirOnly = p.endsWith('/')
-    if (dirOnly) p = p.slice(0, -1)
-    const rx = new RegExp('^' + p.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '[^/]*') + (dirOnly ? '(/.*)?$' : '$'))
-    if (rx.test(rel)) return true
-  }
-  return false
-}
-
-// skip.txt: matched against the relative path or basename.
-function matchesSkip(rel, patterns) {
-  const base = basename(rel)
-  for (const raw of patterns) {
-    const rx = new RegExp('^' + raw.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$')
-    if (rx.test(rel) || rx.test(base)) return true
-  }
-  return false
-}
-
-/** True if any exclude.txt/skip.txt from an ancestor dir excludes this file. */
-function isExcluded(absFile) {
-  let dir = dirname(absFile)
-  while (dir.length >= EXAMPLES_ROOT.length) {
-    const exclude = loadPatternFile(dir, 'exclude.txt')
-    const skip = loadPatternFile(dir, 'skip.txt')
-    if (exclude.length || skip.length) {
-      const rel = relative(dir, absFile)
-      if (matchesExclude(rel, exclude) || matchesSkip(rel, skip)) return true
-    }
-    if (dir === EXAMPLES_ROOT) break
-    dir = dirname(dir)
-  }
-  return false
-}
 
 // ── enumerate example files ──────────────────────────────────────────────────
 function walk(dir, acc = []) {
@@ -140,7 +96,7 @@ function collectFiles(opts) {
       } else {
         if (!exts.includes(f.slice(f.lastIndexOf('.')))) continue
         if (basename(f) === 'ALL.js') continue
-        if (opts.skip && isExcluded(f)) continue
+        if (opts.skip && isExcluded(f, EXAMPLES_ROOT)) continue
       }
       const relFromExamples = relative(EXAMPLES_ROOT, f)
       out.push({ url: '/examples/' + relFromExamples, rel: relFromExamples })

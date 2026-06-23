@@ -212,9 +212,30 @@ let fileCallback = null
 // Directory listing (with cache)
 // ──────────────────────────────────────────────────────────────────
 
+/** @type {Promise<Record<string,{dirs:string[],files:string[]}>|null>|null} */
+let manifestPromise = null
+
+// Prefer the static manifest.json (works on any host); fall back to a live
+// directory listing (dev servers with autoindex). Prod Apache has autoindex
+// off, so the manifest is what makes Browse Demos work there.
+function getManifest() {
+  if (!manifestPromise) {
+    manifestPromise = fetch(rootUrl + 'manifest.json')
+      .then(r => (r.ok ? r.json() : null))
+      .catch(() => null)
+  }
+  return manifestPromise
+}
+
 async function loadDirectory(url) {
   if (listingCache.has(url)) return listingCache.get(url)
-  const result = await fetchDirectoryListing(url)
+  const manifest = await getManifest()
+  let result
+  if (manifest) {
+    result = manifest[new URL(url, location.href).pathname] || { dirs: [], files: [] }
+  } else {
+    result = await fetchDirectoryListing(url)
+  }
   listingCache.set(url, result)
   return result
 }
