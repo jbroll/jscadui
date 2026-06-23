@@ -56,13 +56,19 @@ try {
   check('uses manifest.json (no directory listing)', usedManifest && !listing403,
     listing403 ? `unexpected ${listing403.status} ${listing403.url}` : (usedManifest ? '' : 'manifest.json not fetched'))
 
-  // 2. App boots + a known model renders.
-  await page.goto(url + '/#/examples/openscad/01-basics/cube.scad', { waitUntil: 'domcontentloaded', timeout: 30000 })
-  try { await page.locator('#welcome-dismiss').click({ timeout: 3000 }) } catch { /* ignore */ }
-  await page.locator('#progress').waitFor({ state: 'hidden', timeout: 30000 }).catch(() => {})
-  const errVisible = await page.locator('#error-bar').isVisible().catch(() => false)
-  check('cube.scad renders (no error bar)', !errVisible,
-    errVisible ? (await page.locator('#error-bar').textContent().catch(() => '') || '').replace(/\s+/g, ' ').trim().slice(0, 140) : '')
+  // 2. Models render — a plain one, and one with an include (resolution must
+  //    survive the SPA host returning index.html for the missing relative path).
+  for (const [path, name] of [
+    ['/examples/openscad/01-basics/cube.scad', 'cube.scad'],
+    ['/examples/openscad/mcad/examples/hardware_test.scad', 'hardware_test.scad (include resolution)'],
+  ]) {
+    await page.goto(url + '/#' + path, { waitUntil: 'domcontentloaded', timeout: 30000 })
+    try { await page.locator('#welcome-dismiss').click({ timeout: 3000 }) } catch { /* ignore */ }
+    await page.locator('#progress').waitFor({ state: 'hidden', timeout: 30000 }).catch(() => {})
+    const errVisible = await page.locator('#error-bar').isVisible().catch(() => false)
+    check(`${name} renders`, !errVisible,
+      errVisible ? (await page.locator('#error-bar').textContent().catch(() => '') || '').replace(/\s+/g, ' ').trim().slice(0, 140) : '')
+  }
 } catch (e) {
   check('smoke run completed', false, String(e).split('\n')[0].slice(0, 160))
 }

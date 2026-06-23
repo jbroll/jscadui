@@ -33,6 +33,11 @@ function getOpenscad() {
 const failureCache = new Map()
 const FAILURE_CACHE_TTL = 60000 // 60 seconds
 
+// A SPA host serves index.html (200) for missing paths; .scad/.js never start
+// with an HTML doctype, so this reliably detects that fallback.
+const isSpaFallback = (content) =>
+  typeof content === 'string' && /^\uFEFF?\s*<(?:!doctype html|html[\s>])/i.test(content)
+
 // Cache for transpiled .scad files (to avoid re-transpiling on module cache misses)
 // Map: absolute path (e.g. /examples/openscad/bosl2/foo.scad) -> transpiled JS source
 const transpiledCache = new Map()
@@ -104,11 +109,14 @@ requireHandlers.set('scad', (source, url, _readFile) => {
 
     try {
       const content = readFileWeb(testUrl)
-      if (content !== undefined) {
+      // A prod SPA server returns index.html (200) for missing files; reject it
+      // as not-found so include/use resolution falls through to the library path.
+      if (content !== undefined && !isSpaFallback(content)) {
         // Success - remove from failure cache if it was there
         failureCache.delete(testUrl)
         return content
       }
+      failureCache.set(testUrl, Date.now())
     } catch (_e) {
       // Mark as failed
       failureCache.set(testUrl, Date.now())
