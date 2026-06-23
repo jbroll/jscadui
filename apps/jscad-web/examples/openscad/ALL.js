@@ -11,6 +11,9 @@ const items = [
   "./01-basics/ALL.js",
   "./bosl/ALL.js",
   "./bosl2/ALL.js",
+  "./dotscad/ALL.js",
+  "./mcad/ALL.js",
+  "./nopscadlib/ALL.js",
   "./snippet/ALL.js",
   "./text/ALL.js"
 ]

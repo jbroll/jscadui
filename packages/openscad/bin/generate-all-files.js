@@ -78,28 +78,44 @@ function loadConfig(examplesDir) {
 // Load configuration
 const config = loadConfig(options.examplesDir)
 
+function loadPatternFile(dir, name) {
+  const file = join(dir, name)
+  if (!existsSync(file)) return []
+  return readFileSync(file, 'utf8').split('\n')
+    .map(l => l.trim()).filter(l => l && !l.startsWith('#'))
+}
+
 /**
- * Read skip.txt file from a directory and return a Set of files to skip
+ * Build an exclusion scope for a directory from its exclude.txt (non-model
+ * files/dirs) and skip.txt (problematic models). Patterns are relative to dir.
  */
-function loadSkipList(dir) {
-  const skipFile = join(dir, 'skip.txt')
-  const skipList = new Set()
+function makeScope(dir) {
+  const exclude = loadPatternFile(dir, 'exclude.txt')
+  const skip = loadPatternFile(dir, 'skip.txt')
+  return (exclude.length || skip.length) ? { baseDir: dir, exclude, skip } : null
+}
 
-  if (existsSync(skipFile)) {
-    try {
-      const skipContent = readFileSync(skipFile, 'utf8')
-      for (const line of skipContent.split('\n')) {
-        const trimmed = line.trim()
-        if (trimmed && !trimmed.startsWith('#')) {
-          skipList.add(trimmed)
-        }
-      }
-    } catch (err) {
-      console.warn(`Warning: Could not read ${skipFile}: ${err.message}`)
-    }
+// exclude.txt: trailing '/' = directory subtree, leading '/' = root-anchored,
+// '*' does not cross '/'. Always anchored to the scope baseDir.
+function matchesExclude(relPath, patterns) {
+  for (const raw of patterns) {
+    let p = raw.startsWith('/') ? raw.slice(1) : raw
+    const dirOnly = p.endsWith('/')
+    if (dirOnly) p = p.slice(0, -1)
+    const rx = new RegExp('^' + p.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '[^/]*') + (dirOnly ? '(/.*)?$' : '$'))
+    if (rx.test(relPath)) return true
   }
+  return false
+}
 
-  return skipList
+// skip.txt: matched against the relative path or basename (mirrors test-harness).
+function matchesSkip(relPath, patterns) {
+  const base = basename(relPath)
+  for (const raw of patterns) {
+    const rx = new RegExp('^' + raw.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$')
+    if (rx.test(relPath) || rx.test(base)) return true
+  }
+  return false
 }
 
 /**
@@ -109,24 +125,11 @@ function loadSkipList(dir) {
  */
 function findModelFiles(dir) {
   if (!existsSync(dir)) return []
-
-  // Load skip list from current directory or nearest parent with skip.txt
-  let skipList = loadSkipList(dir)
-
-  // Also check parent directory for skip.txt (for nested directories)
-  const parentDir = dirname(dir)
-  if (parentDir !== dir && existsSync(join(parentDir, 'skip.txt'))) {
-    const parentSkipList = loadSkipList(parentDir)
-    skipList = new Set([...skipList, ...parentSkipList])
-  }
-
   try {
     return readdirSync(dir)
       .filter(f => {
         if (f.startsWith('.')) return false
         if (f === 'ALL.js' || f === 'ALL.scad' || f === '__all__.scad') return false
-        if (f === 'skip.txt') return false
-        if (skipList.has(f)) return false  // Skip files in skip.txt
         return f.endsWith('.scad') || f.endsWith('.js')
       })
       .sort()
@@ -288,11 +291,19 @@ function renameFilesInDirectory(dir, files, examplesRoot) {
 /**
  * Process directory manifest-driven: generate ALL.js for any directory with models
  */
-function processDirectory(dir, examplesRoot, depth = 0) {
+function processDirectory(dir, examplesRoot, depth = 0, scopes = []) {
   if (!existsSync(dir)) {
     console.warn(`Warning: Directory not found: ${dir}`)
     return { dirs: 0, files: 0, renamed: 0, hasModels: false }
   }
+
+  // exclude.txt / skip.txt at this dir add a scope applied to its whole subtree.
+  const own = makeScope(dir)
+  if (own) scopes = [...scopes, own]
+  const excluded = (p) => scopes.some(s => {
+    const rel = relative(s.baseDir, p)
+    return matchesExclude(rel, s.exclude) || matchesSkip(rel, s.skip)
+  })
 
   const indent = '  '.repeat(depth)
   const stats = { dirs: 0, files: 0, renamed: 0, hasModels: false }
@@ -300,9 +311,9 @@ function processDirectory(dir, examplesRoot, depth = 0) {
   try {
     const entries = readdirSync(dir, { withFileTypes: true })
     const subdirs = entries
-      .filter(e => e.isDirectory() && !e.name.startsWith('.') && e.name !== 'lib')
+      .filter(e => e.isDirectory() && !e.name.startsWith('.') && e.name !== 'lib' && !excluded(join(dir, e.name)))
       .sort((a, b) => a.name.localeCompare(b.name))
-    const modelFiles = findModelFiles(dir)
+    const modelFiles = findModelFiles(dir).filter(f => !excluded(join(dir, f)))
 
     console.log(`${indent}${basename(dir)}/`)
 
@@ -310,7 +321,7 @@ function processDirectory(dir, examplesRoot, depth = 0) {
     const subdirResults = []
     for (const subdir of subdirs) {
       const subdirPath = join(dir, subdir.name)
-      const result = processDirectory(subdirPath, examplesRoot, depth + 1)
+      const result = processDirectory(subdirPath, examplesRoot, depth + 1, scopes)
       subdirResults.push({ name: subdir.name, path: subdirPath, ...result })
       stats.dirs += result.dirs
       stats.files += result.files
