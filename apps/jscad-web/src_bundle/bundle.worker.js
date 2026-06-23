@@ -19,6 +19,11 @@ function getOpenscad() {
   if (!_openscad) {
     importScripts('./bundle.openscad.js')
     _openscad = jscadui_openscad
+    // Transpiled .scad reads a global j$; browser runs modules via eval() in global
+    // scope, so j$ must be a worker global (Node passes it as a Function param instead).
+    const jscad = require('@jscad/modeling', null, readFileWeb)
+    _openscad.j$.init(jscad)
+    self.j$ = _openscad.j$
   }
   return _openscad
 }
