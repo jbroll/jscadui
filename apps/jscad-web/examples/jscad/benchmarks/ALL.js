@@ -45,9 +45,6 @@ const main = (params) => {
         nameSeen[name] = 1
       }
 
-      // Isolate each model from the previous one's shared-worker state
-      // ($fn scope, transpiler include cache) so grid neighbours don't collide.
-      if (typeof __resetScadGridItem === 'function') __resetScadGridItem()
       const mod = require(url)
       const fn = (mod && mod.main) || (typeof mod === 'function' ? mod : null)
       if (typeof fn === 'function') {

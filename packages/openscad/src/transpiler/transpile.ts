@@ -621,6 +621,33 @@ function createBundledParts(ctx: TranspileContext, localGeometryParts: string[])
  * @param sharedCache - Optional shared cache for recursive transpilation (TranspiledFile objects)
  * @param sharedParsedFiles - Optional shared AST cache for recursive transpilation (avoids re-parsing)
  */
+/**
+ * .scad legally allows calling modules/functions that are never defined (OpenSCAD
+ * warns and renders nothing). The generated .js must stay valid: declare a no-op
+ * for any module (`foo_$m`) / function (`foo_$f`) symbol that is referenced bare
+ * but never defined or imported, so the call renders nothing instead of throwing
+ * ReferenceError. This is deterministic — it depends only on this file's output,
+ * not on what else has been transpiled.
+ */
+function declareMissingSymbols(code: string): string {
+  const referenced = new Set<string>()
+  // Bare references only (skip property access like `_ns.foo_$m`).
+  for (const m of code.matchAll(/(?<![.\w$])\w+_\$[mf](?![\w$])/g)) referenced.add(m[0])
+  if (referenced.size === 0) return code
+  const stubs: string[] = []
+  for (const name of referenced) {
+    const esc = name.replace(/\$/g, '\\$')
+    const declared =
+      new RegExp(`(?:\\bvar\\b|\\bconst\\b|\\blet\\b|\\bfunction\\b)\\s+${esc}(?![\\w$])`).test(code) ||
+      new RegExp(`[{,]\\s*${esc}\\s*[,}]`).test(code)  // destructured from require()
+    if (!declared) {
+      // Module calls are curried: foo_$m(args)(children). Undefined → no geometry.
+      stubs.push(name.endsWith('_$m') ? `var ${name} = () => () => undefined` : `var ${name} = () => undefined`)
+    }
+  }
+  return stubs.length ? stubs.join('\n') + '\n' + code : code
+}
+
 export function transpile(
   ast: ScadFile,
   options: TranspileOptions = {},
@@ -660,7 +687,9 @@ export function transpile(
   }
 
   // Build the output code
-  const { code, allExports } = buildOutputCode(ctx, bundled, transpiled)
+  const built = buildOutputCode(ctx, bundled, transpiled)
+  const code = declareMissingSymbols(built.code)
+  const allExports = built.allExports
 
   // Create bundled parts for caching
   // Create bundled parts using AST-based bundling
