@@ -4,10 +4,10 @@ import { join, dirname } from 'path'
 import jscad from '@jscad/modeling'
 import { init, text2d, text2dAsync, resolveFont, registerFonts, listFonts, STATIC_FONT_MAP } from '../src/index.js'
 
-// A TTF font available in the repo (no network needed)
+// A TTF font from the sibling OpenJSCAD.org checkout (no network needed)
 const OPEN_SANS_TTF = join(
   dirname(fileURLToPath(import.meta.url)),
-  '../../../apps/jscad-web/jscad/packages/desktop/assets/fonts/Open_Sans/OpenSans-Regular.ttf'
+  '../../../../OpenJSCAD.org/packages/desktop/assets/fonts/Open_Sans/OpenSans-Regular.ttf'
 )
 
 beforeAll(() => {

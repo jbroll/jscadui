@@ -53,8 +53,14 @@
     "url": "https://github.com/hrgdavor/jscadui/issues"
   },
   "homepage": "https://github.com/hrgdavor/jscadui#readme",
+  "overrides": {
+    "@jscad/modeling": "$@jscad/modeling",
+    "@jscad/modeling-for-manifold": "$@jscad/modeling-for-manifold"
+  },
   "devDependencies": {
     "@eslint/js": "^9.18.0",
+    "@jscad/modeling": "file:../OpenJSCAD.org/packages/modeling",
+    "@jscad/modeling-for-manifold": "file:../OpenJSCAD.org/packages/modeling",
     "eslint": "^9.18.0",
     "globals": "^15.14.0",
     "turbo": "^2.3.3",

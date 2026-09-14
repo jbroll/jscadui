@@ -39,7 +39,6 @@ export default tseslint.config(
       '**/esm/**',
       '**/cjs/**',
       '**/node_modules/**',
-      'apps/jscad-web/jscad/**',
       'apps/cardboard-cutter/jscad/**',
       'apps/vue3-jscad/src/jscad/**',
       '**/*.min.js',

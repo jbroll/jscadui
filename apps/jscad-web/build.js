@@ -21,6 +21,10 @@ const dependencies = Object.entries(pkg.dependencies || {})
       const lastAt = actual.lastIndexOf('@')
       return { name: actual.slice(0, lastAt), version: actual.slice(lastAt + 1) }
     }
+    if (v.startsWith('file:')) {
+      const linked = JSON.parse(readFileSync(v.slice(5) + '/package.json', 'utf-8'))
+      return { name: linked.name, version: linked.version }
+    }
     return { name, version }
   })
   .sort((a, b) => a.name.localeCompare(b.name))
@@ -43,15 +47,16 @@ const htmlFilter = {
 const { dev, port = 5120, serve:serveBuild=false, skipDocs=false } = parseArgs()
 const watch = dev
 const outDir = dev ? 'build_dev' : 'build'
-const docsDir = 'jscad/docs'
-// if docs dir does not exist, then clone jscad and run `npm run docs` to generate it
-if (!skipDocs &&!existsSync(docsDir)) {
-  console.log('generating docs')
-  if (!existsSync('jscad')) {
-    // TODO: faster to fetch https://github.com/jscad/OpenJSCAD.org/archive/refs/heads/master.zip
-    execSync('git clone https://github.com/jscad/OpenJSCAD.org jscad')
+// Docs come from the sibling OpenJSCAD.org checkout that also provides @jscad/modeling.
+const jscadDir = '../../../OpenJSCAD.org'
+const docsDir = jscadDir + '/docs'
+if (!skipDocs && !existsSync(docsDir)) {
+  if (!existsSync(jscadDir + '/package.json')) {
+    throw new Error(`no OpenJSCAD.org checkout at ${jscadDir}; clone it beside jscadui or pass --skipDocs`)
   }
-  execSync('cd jscad && npm install && npm run docs')
+  console.log('generating docs in ' + jscadDir)
+  if (!existsSync(jscadDir + '/node_modules/jsdoc')) execSync('npm install', { cwd: jscadDir, stdio: 'inherit' })
+  execSync('npm run docs', { cwd: jscadDir, stdio: 'inherit' })
 }
 
 /******************************* SETUP  *************/
