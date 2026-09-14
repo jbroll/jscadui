@@ -22,6 +22,11 @@ export const initExtrusions = (jscad) => {
   union = jscad.booleans.union
 }
 
+// Sides of a native v2 geom2 ({ sides }) or a ManifoldGeom2 (sides/outlines getters), transforms
+// applied; undefined for anything else. Moving to v3 geom2 ({ outlines }) only changes this function.
+const profileSides = (geo) =>
+  geo.sides !== undefined || geo.outlines !== undefined ? geom2.toSides(geo) : undefined
+
 // Linear extrude helper - uses extrudeFromSlices when scale is used
 export const _linearExtrude = ({ height, center = false, twist = 0, slices, scale = 1, segments, $fn = 0, $fa = 12, $fs = 2 }, geo) => {
   // Propagate absent child (NO_CHILD = conditional branch not taken)
@@ -54,8 +59,7 @@ export const _linearExtrude = ({ height, center = false, twist = 0, slices, scal
       return center ? translate([0, 0, -height / 2], result) : result
     }
   }
-  // Only check toSides for standard JSCAD geom2 (has 'outlines' property).
-  if (geo.outlines !== undefined && geom2.toSides(geo).length === 0) return undefined
+  if (profileSides(geo)?.length === 0) return undefined
   // Normalize scale to [x, y] array
   // Clamp near-zero scale values to avoid degenerate zero-area polygons in extrudeFromSlices
   const rawScaleArr = Array.isArray(scale) ? scale : [scale, scale]
@@ -158,7 +162,7 @@ export const _linearExtrude = ({ height, center = false, twist = 0, slices, scal
       result = solid
     } else {
       // Single outline: use all sides together (original approach)
-      let sides = geom2.toSides(geo)
+      let sides = profileSides(geo)
 
       // OpenSCAD does not subdivide edges for single-outline twisted extrusions.
       // Only subdivide when caller explicitly provides a segments count.
@@ -203,9 +207,8 @@ export const _rotateExtrude = ({ angle = 360, $fn, $fa, $fs } = {}, geo) => {
   // Return undefined for empty/missing geometry to avoid degenerate extrusions
   // that break subsequent boolean operations
   if (!geo) return undefined
-  // Only call toSides for standard JSCAD geom2; ManifoldGeom2 has 'crossSection' not 'outlines'
-  const sides = geo.outlines !== undefined ? geom2.toSides(geo) : []
-  if (sides.length === 0 && geo.outlines !== undefined) return undefined
+  const sides = profileSides(geo)
+  if (sides?.length === 0) return undefined
   const absAngle = Math.abs(angle)
 
   // Compute max X (outer radius) of the 2D profile for segment calculation.
@@ -213,7 +216,7 @@ export const _rotateExtrude = ({ angle = 360, $fn, $fa, $fs } = {}, geo) => {
   // Use absolute X values: negative-X profiles (e.g. after rotate([0,0,90])) are reflected
   // to positive X by extrudeRotate, so the effective radius is |X|.
   let maxX = 0
-  for (const [p0, p1] of sides) {
+  for (const [p0, p1] of sides ?? []) {
     if (Math.abs(p0[0]) > maxX) maxX = Math.abs(p0[0])
     if (Math.abs(p1[0]) > maxX) maxX = Math.abs(p1[0])
   }
