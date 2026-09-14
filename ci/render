@@ -13,12 +13,17 @@ set -uo pipefail
 
 WORKTREE="$(cd "$(dirname "$0")/.." && pwd)"
 APP="$WORKTREE/apps/jscad-web"
-RENDER_ARGS="${RENDER_ARGS:---dir openscad/01-basics --dir openscad/bosl --dir openscad/bosl2 --dir openscad/mcad --dir openscad/snippet --dir openscad/text --concurrency 6 --timeout 30000}"
+RENDER_ARGS="${RENDER_ARGS:---dir openscad --concurrency 6 --timeout 30000}"
 
 cd "$WORKTREE"
 npm install
 # Build workspace packages so the web bundle can resolve @jscadui/* esm outputs.
-npm run build
+# --continue: an unrelated package (e.g. engine-test) failing must not abort the
+# openscad build the web bundle depends on.
+npm run build -- --continue || echo "build had failures (continuing — checking esm below)"
+if [ ! -f packages/openscad/esm/index.js ]; then
+  echo "✖ packages/openscad/esm not built"; exit 2
+fi
 ( cd "$APP" && npx playwright install chromium )
 
 # ── start dev server in background ──
