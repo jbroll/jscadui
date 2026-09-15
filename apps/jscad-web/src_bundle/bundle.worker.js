@@ -205,6 +205,7 @@ requireHandlers.set('scad', (source, url, _readFile) => {
 
 import { withTransferable } from '@jscadui/postmessage'
 import { defaultSerializerConfigs } from '@jscadui/format-common/src/exportFormats.js'
+import { loadJscadIo } from './loadJscadIo.js'
 
 /**
  * Serializer configurations - the single source of truth for export formats.
@@ -222,7 +223,7 @@ export const jscadGetExportFormats = () => {
 }
 
 const exportData = ({format, options={}})=>{
-  const jscad_io = require('@jscad/io', null, readFileWeb)
+  const jscad_io = loadJscadIo(require, readFileWeb)
   const solids = currentSolids()
   const config = serializerConfigs.find(c => c.id === format)
   if (!config) throw new Error(`Unknown export format: ${format}`)
@@ -235,7 +236,7 @@ const importData = {
   isBinaryExt: ext=>ext === 'stl',
   deserialize: ({url, filename, ext}, fileContent)=>{
     try {
-      const jscad_io = require('@jscad/io', null, readFileWeb)
+      const jscad_io = loadJscadIo(require, readFileWeb)
       const deserializer = jscad_io.deserializers[ext]
 
       if(deserializer) return deserializer({output:'geometry', filename}, fileContent)
