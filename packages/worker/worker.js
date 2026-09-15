@@ -203,7 +203,9 @@ async function readFileFile(file, {bin=false}={}){
 export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths, useGpuNormals } = {}) {
   // Update GPU normals setting if provided (allows switching without re-running script)
   if (useGpuNormals !== undefined) {
-    const modelingBundleUrl = requireCache.bundleAlias['@jscad/modeling']
+    // See the comment in jscadScript: @jscad/modeling-for-anchors is the alias that
+    // resolves to the bundle carrying setUseGpuNormals, not @jscad/modeling.
+    const modelingBundleUrl = requireCache.bundleAlias['@jscad/modeling-for-anchors']
     if (modelingBundleUrl) {
       let modelingModule
       try { modelingModule = require(modelingBundleUrl, null, readFileWeb) } catch { /* ignore */ }
@@ -350,7 +352,7 @@ const exportReg = /export.*from/
  * @param {{script:string,url?:string,base?:string,root?:string,useGpuNormals?:boolean}} param0
  * @returns {Promise<import('@jscadui/format-common').JscadScriptResultWithParams>}
  */
-const jscadScript = async ({ script, url='jscad.js', base=workerState.globalBase, root=base, useGpuNormals: gpuNormals }) => {
+export const jscadScript = async ({ script, url='jscad.js', base=workerState.globalBase, root=base, useGpuNormals: gpuNormals }) => {
   // I1 fix: Increment generation to invalidate any timed-out scripts still running
   const myGeneration = workerState.nextGeneration()
 
@@ -391,9 +393,12 @@ const jscadScript = async ({ script, url='jscad.js', base=workerState.globalBase
       throw e
     }
 
-    // Wait for WASM initialization if using a bundle with async init (e.g., Manifold)
-    // This ensures WASM is ready before user code runs
-    const modelingBundleUrl = requireCache.bundleAlias['@jscad/modeling']
+    // Wait for WASM initialization if using a bundle with async init (e.g., Manifold).
+    // @jscad/modeling always resolves to the jscad-anchors wrapper, which keeps one
+    // URL across engines and does not re-export `.ready`/`setUseGpuNormals` from the
+    // underlying bundle. @jscad/modeling-for-anchors is the one that actually varies
+    // by engine and needs WASM init.
+    const modelingBundleUrl = requireCache.bundleAlias['@jscad/modeling-for-anchors']
     if (modelingBundleUrl) {
       // require() returns the live cached bundle; requireCache.module is a no-op getter,
       // so the old lookup skipped this await → "Manifold WASM not initialized" on cold loads.
