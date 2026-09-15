@@ -1,6 +1,6 @@
 import { JscadToCommon } from '@jscadui/format-jscad'
 import { messageProxy, withTransferable } from '@jscadui/postmessage'
-import { clearFileCache, jscadClearTempCache, readFileWeb, require, requireCache, resolveUrl } from '@jscadui/require'
+import { clearAllCaches, clearFileCache, jscadClearTempCache, readFileWeb, require, requireCache, resolveUrl } from '@jscadui/require'
 import { createParamsProxy, createProxyState, buildParamTree, toParamDefinitions, extractDefaults as extractProxyDefaults, convertLegacyDefs, injectLegacyDefs } from '@jscadui/params-core'
 
 import { exportStlText } from './src/exportStlText.js'
@@ -166,13 +166,14 @@ export const jscadInit = options => {
   const { baseURI, alias = [], bundles = {} } = options
   if (baseURI) workerState.globalBase = baseURI
 
-  // Check if the modeling bundle is changing - if so, clear local cache
-  // to force user scripts to be re-evaluated with the new bundle
-  const oldModelingBundle = requireCache.bundleAlias['@jscad/modeling']
-  const newModelingBundle = bundles['@jscad/modeling']
-  if (oldModelingBundle && newModelingBundle && oldModelingBundle !== newModelingBundle) {
-    console.log('Modeling bundle changed, clearing local cache')
-    jscadClearTempCache()
+  // The anchors build keeps one URL across engines, so cached CDN modules still hold the old engine.
+  const modelingChanged = ['@jscad/modeling', '@jscad/modeling-for-anchors'].some(name => {
+    const old = requireCache.bundleAlias[name]
+    return old && bundles[name] && old !== bundles[name]
+  })
+  if (modelingChanged) {
+    console.log('Modeling bundle changed, clearing module cache')
+    clearAllCaches()
   }
 
   if (bundles) Object.assign(requireCache.bundleAlias, bundles)

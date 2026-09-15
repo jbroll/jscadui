@@ -40,6 +40,7 @@ import * as welcome from './src/welcome.js'
 import * as about from './src/about.js'
 import { showTrustedSourcesDialog, trustedSourcesStyles } from './src/trustedSourcesUI.js'
 import { showDemoBrowser, demoBrowserStyles } from './src/demoBrowser.js'
+import { getBundles } from './bundles.js'
 
 // Extracted modules
 import { updatePipelineStats, countGeometry, createProgressHandler } from './src/stats.js'
@@ -288,30 +289,8 @@ viewState.onRequireReRender = () => paramChangeCallback(ctrl.params)
 
 // ============== Script Loading ==============
 
-/**
- * Get the modeling bundle URL based on the selected engine.
- * @returns {string}
- */
-const getModelingBundle = () => {
-  const engineName = viewState.modelingEngine
-  if (engineName === 'manifold') {
-    return toUrl('./build/bundle.manifold_modeling.js')
-  }
-  return toUrl('./build/bundle.jscad_modeling.js')
-}
-
-/**
- * Get the bundles configuration for the worker.
- * @returns {Record<string, string>}
- */
-const getBundles = () => ({
-  '@jscad/modeling': getModelingBundle(),
-  '@jscad/modeling-for-manifold': toUrl('./build/bundle.jscad_modeling.js'),
-  '@jscad/io': toUrl('./build/bundle.jscad_io.js'),
-  '@jscad/csg': toUrl('./build/bundle.V1_api.js'),
-  '@jscadui/params-core': toUrl('./build/bundle.params_core.js'),
-  '@jscadui/jscad-text': toUrl('./build/bundle.jscad_text.js'),
-})
+const workerBundles = () =>
+  getBundles({ engine: viewState.modelingEngine, toUrl, overrides: window.jscadModuleOverrides ?? {} })
 
 /** @param {{script?:string,url?:string,base?:string,root?:string}} options*/
 const jscadScript = async ({ script, url = './jscad.model.js', base = currentBase, root }) => {
@@ -420,7 +399,7 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
 // Initialize render engine first so we can query its capabilities
 viewState.setEngine(await engine.init(viewState.renderEngine))
 
-await workerApi.jscadInit({ bundles: getBundles(), useParamsProxy })
+await workerApi.jscadInit({ bundles: workerBundles(), useParamsProxy })
 
 // Set up engine change handler
 viewState.onModelingEngineChange = async (newEngine) => {
@@ -430,7 +409,7 @@ viewState.onModelingEngineChange = async (newEngine) => {
   paramsUI.setPreserveParams(Object.keys(paramsCtrl.params).length > 0)
 
   // Reinitialize worker with new bundles
-  await workerApi.jscadInit({ bundles: getBundles(), useParamsProxy })
+  await workerApi.jscadInit({ bundles: workerBundles(), useParamsProxy })
 
   // Re-run script
   editor.runScript()

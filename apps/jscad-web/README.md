@@ -46,18 +46,23 @@ do not have `package.json` then jscad.app will try following.
 - FOLDER_NAME.js
 - FOLDER_NAME.ts
 
-jscad.app does not read node_modules for now, but loads dependencies from jsdelivr, and some modules may be bundled with jscad.app to avoid going to jsdelivr:
+jscad.app does not read node_modules for now, but loads dependencies from jsdelivr, and some modules may be bundled with jscad.app to avoid going to jsdelivr. `@jscad/modeling` itself is loaded through the `@jbroll/jscad-anchors` CDN build, which wraps the engine's own modeling bundle (`@jscad/modeling-for-anchors`) and re-exports it plus `anchors`:
 
 ```js
 const bundles = {
   // local bundled alias for common libs.
-  '@jscad/modeling': toUrl('./build/bundle.jscad_modeling.js'),
+  '@jscad/modeling': 'https://cdn.jsdelivr.net/npm/@jbroll/jscad-anchors@0/dist/jscad-anchors.cjs',
+  '@jbroll/jscad-anchors': 'https://cdn.jsdelivr.net/npm/@jbroll/jscad-anchors@0/dist/jscad-anchors.cjs',
+  '@jscad/modeling-for-anchors': toUrl('./build/bundle.jscad_modeling.js'), // or bundle.manifold_modeling.js
+  '@jscad/modeling-for-manifold': toUrl('./build/bundle.jscad_modeling.js'),
   '@jscad/io': toUrl('./build/bundle.jscad_io.js'),
   '@jscad/csg': toUrl('./build/bundle.V1_api.js'),
 }
 ```
 
-*you can see which exactly in [main.js](main.js) in case this readme is out of sync with source*
+See [bundles.js](bundles.js) for the exact mapping, including the params-core and jscad-text bundles.
+
+Set `window.jscadModuleOverrides` before `main.js` runs to replace any of these URLs (for example with a local package build served by a studio). An override for `@jbroll/jscad-anchors` also replaces `@jscad/modeling`, since both names point at the same anchors build.
 
 ## Deployment
 
