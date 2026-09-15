@@ -85,8 +85,9 @@ export const require = (urlOrSource, transform, readFile, base, root, importData
     const resolvedStr = resolved.url.toString()
     const urlComponents = resolvedStr.split('/')
     const resolvedExt = getExtension(resolvedStr)
-    // no file ext is usually module from CDN; registered handlers are also treated as JS-like
-    const isJs = !urlComponents[urlComponents.length - 1].includes('.') || resolvedStr.endsWith('.ts') || resolvedStr.endsWith('.js') || requireHandlers.has(resolvedExt)
+    // no file ext is usually module from CDN; registered handlers are also treated as JS-like;
+    // a bundle alias (e.g. a local .cjs package build) is always JS regardless of its extension
+    const isJs = !!bundleAlias || !urlComponents[urlComponents.length - 1].includes('.') || resolvedStr.endsWith('.ts') || resolvedStr.endsWith('.js') || requireHandlers.has(resolvedExt)
     if (!isJs && importData) {
       const info = extractPathInfo(resolvedStr)
       const content = readFile(resolvedStr, { output: importData.isBinaryExt(info.ext) })
