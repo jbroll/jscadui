@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 
-import { require as jscadRequire, requireCache, jscadClearTempCache } from '../src/require.js'
+import { require as jscadRequire, requireCache, clearAllCaches } from '../src/require.js'
 import { moduleResolver } from '../src/resolution/moduleResolver.js'
 import { makeReadFileNode } from '../src/readFileNode.js'
 
@@ -11,9 +11,7 @@ const base = 'fs:/'
 const readFile = makeReadFileNode(join(__dirname, 'solo') + '/')
 
 function resetCaches() {
-  jscadClearTempCache()
-  requireCache.module = Object.create(null)
-  requireCache.moduleAccessOrder = []
+  clearAllCaches()
   moduleResolver.clearCache()
 }
 
