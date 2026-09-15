@@ -222,7 +222,7 @@ export const jscadGetExportFormats = () => {
 }
 
 const exportData = ({format, options={}})=>{
-  const jscad_io = require('./bundle.jscad_io.js', null, readFileWeb)
+  const jscad_io = require('@jscad/io', null, readFileWeb)
   const solids = currentSolids()
   const config = serializerConfigs.find(c => c.id === format)
   if (!config) throw new Error(`Unknown export format: ${format}`)
@@ -235,7 +235,7 @@ const importData = {
   isBinaryExt: ext=>ext === 'stl',
   deserialize: ({url, filename, ext}, fileContent)=>{
     try {
-      const jscad_io = require('./bundle.jscad_io.js', null, readFileWeb)
+      const jscad_io = require('@jscad/io', null, readFileWeb)
       const deserializer = jscad_io.deserializers[ext]
 
       if(deserializer) return deserializer({output:'geometry', filename}, fileContent)
