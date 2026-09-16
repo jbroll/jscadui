@@ -6,6 +6,8 @@ const ALLOWED_ORIGIN = __ALLOWED_ORIGIN__
 
 const BUNDLE_BASE = new URL('./build/', location.href).href
 
+const DEFAULT_TIMEOUT_MS = 30000
+
 // A sandboxed frame has an opaque origin, so new Worker(url) throws and the
 // worker must come from a blob that importScripts the real bundle. Relative
 // importScripts fail inside a blob worker, so the bundle base is baked in.
@@ -13,14 +15,20 @@ const workerSource =
   `self.__BUNDLE_BASE__ = ${JSON.stringify(BUNDLE_BASE)}\n` +
   `importScripts(${JSON.stringify(BUNDLE_BASE + 'bundle.worker.js')})`
 
-const worker = new Worker(URL.createObjectURL(new Blob([workerSource], { type: 'application/javascript' })))
-const workerApi = messageProxy(worker, {})
+// The worker is recreated after a timeout killed the previous one.
+const createWorker = () => {
+  const worker = new Worker(URL.createObjectURL(new Blob([workerSource], { type: 'application/javascript' })))
+  return { worker, workerApi: messageProxy(worker, {}) }
+}
+
+let { worker, workerApi } = createWorker()
 
 const workerBundles = () => ({
   '@jscad/modeling': BUNDLE_BASE + 'bundle.jscad_modeling.js',
   '@jscad/modeling-for-anchors': BUNDLE_BASE + 'bundle.jscad_modeling.js',
   '@jscad/modeling-for-manifold': BUNDLE_BASE + 'bundle.jscad_modeling.js',
   '@jscad/io': BUNDLE_BASE + 'bundle.jscad_io.js',
+  '@jscadui/model-tools': BUNDLE_BASE + 'bundle.model-tools.js',
   '@jscadui/params-core': BUNDLE_BASE + 'bundle.params_core.js',
   '@jscadui/jscad-text': BUNDLE_BASE + 'bundle.jscad_text.js',
 })
@@ -66,16 +74,52 @@ const commands = {
     })
     return { result: { entities: result.entities }, transfer: collectBuffers(result) }
   },
+  async measure({ options }) {
+    return { result: await workerApi.jscadMeasure({ options }) }
+  },
+  async check({ bed, options }) {
+    return { result: await workerApi.jscadCheck({ bed, options }) }
+  },
+  async export({ format, options }) {
+    const { data = [] } = await workerApi.jscadExportData({ format, options })
+    return {
+      result: { data },
+      transfer: data.map((v) => (ArrayBuffer.isView(v) ? v.buffer : v)).filter((v) => v instanceof ArrayBuffer),
+    }
+  },
 }
 
 window.addEventListener('message', async (event) => {
   if (event.origin !== ALLOWED_ORIGIN) return
-  const { id, command, payload } = event.data
+  const { id, command, payload = {} } = event.data
   if (!id || !commands[command]) return
+  // A timed-out command may have left the worker stuck; the next command gets
+  // a fresh one.
+  if (!worker) ({ worker, workerApi } = createWorker())
+  const { timeoutMs = DEFAULT_TIMEOUT_MS } = payload
+  let timer
   try {
-    const { result, transfer } = await commands[command](payload)
+    const work = commands[command](payload)
+    // The race may already have answered a timeout; swallow the late rejection.
+    work.catch(() => {})
+    const { result, transfer } = await Promise.race([
+      work,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => {
+          const error = new Error(`command ${command} timed out after ${timeoutMs} ms`)
+          error.name = 'TimeoutError'
+          reject(error)
+        }, timeoutMs)
+      }),
+    ])
+    clearTimeout(timer)
     event.source.postMessage({ id, ok: true, result }, ALLOWED_ORIGIN, transfer)
   } catch (error) {
+    clearTimeout(timer)
+    if (error.name === 'TimeoutError') {
+      worker.terminate()
+      worker = null
+    }
     event.source.postMessage(
       { id, ok: false, error: { message: error.message, name: error.name, stack: error.stack } },
       ALLOWED_ORIGIN,

@@ -6,8 +6,10 @@ importScripts(bundleBase + 'bundle.jscadui.transform-babel.js')
 
 const { transformcjs } = jscadui_transform_babel
 
-import { initWorker } from '@jscadui/worker'
+import { initWorker, currentSolids } from '@jscadui/worker'
 import { readFileWeb, require, requireHandlers, jscadClearTempCache, clearFileCache } from '@jscadui/require'
+import { withTransferable } from '@jscadui/postmessage'
+import { defaultSerializerConfigs } from '@jscadui/format-common/src/exportFormats.js'
 
 // The project file map the frame's load command carries. readFileWeb (which the
 // loader uses for every read) is replaced at build time by readFileFrame.js,
@@ -140,9 +142,41 @@ requireHandlers.set('scad', (source, url, _readFile) => {
   return result.code
 })
 
+// ── measure, check and export ─────────────────────────────────────────────
+// jscadMain flattens the model's return into solids, so one solid is a single
+// geometry and more are a scene array — the CLI's classification rule, kept so
+// frame output stays identical to jscad-work.
+const currentGeometry = () => {
+  const solids = currentSolids()
+  return solids.length === 1 ? solids[0] : solids
+}
+
+// Loaded lazily through the '@jscadui/model-tools' bundle alias, which resolves
+// @jscad/modeling to the modeling bundle alias already in the worker.
+let _modelTools = null
+const modelTools = () => {
+  if (!_modelTools) _modelTools = require('@jscadui/model-tools', null, readFileWeb)
+  return _modelTools
+}
+
+const jscadMeasure = ({ options = {} }) => modelTools().measure(currentGeometry(), options)
+
+const jscadCheck = ({ bed, options = {} }) => modelTools().check(currentGeometry(), { ...options, bed })
+
+const jscadExportData = ({ format, options = {} }) => {
+  const jscadIo = require('@jscad/io', null, readFileWeb)
+  const config = defaultSerializerConfigs.find((c) => c.id === format)
+  if (!config) throw new Error(`Unknown export format: ${format}`)
+  const data = jscadIo[config.serializerKey].serialize({ ...config.defaultOptions, ...options }, currentSolids())
+  return withTransferable({ data }, data.filter((v) => typeof v !== 'string'))
+}
+
 initWorker({
   transform: transformcjs,
+  jscadExportData,
   customHandlers: {
+    jscadMeasure,
+    jscadCheck,
     jscadSetFiles,
     jscadClearTempCache: () => {
       jscadClearTempCache()

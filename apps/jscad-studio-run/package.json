@@ -16,6 +16,7 @@
     "@jscadui/format-common": "*",
     "@jscadui/jscad-text": "*",
     "@jscadui/manifold": "*",
+    "@jscadui/model-tools": "*",
     "@jscadui/openscad": "*",
     "@jscadui/openscad-runtime": "*",
     "@jscadui/params-core": "*",

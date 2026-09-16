@@ -145,3 +145,99 @@ test('localStorage and IndexedDB throw inside the opaque frame', async ({ page }
   })
   expect(idbRes.ok).toBe(false)
 })
+
+const CUBE = project(
+  `const { cube } = require('@jscad/modeling').primitives\n` +
+  `const main = () => cube({ size: 10 })\n` +
+  `module.exports = { main }\n`,
+)
+
+test('measure returns the model measurements', async ({ page }) => {
+  await page.goto(HOST)
+  const load = await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
+    id: 8,
+    command: 'load',
+    payload: CUBE,
+  })
+  expect(load.ok).toBe(true)
+
+  const res = await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
+    id: 9,
+    command: 'measure',
+    payload: {},
+  })
+  expect(res.ok).toBe(true)
+  expect(res.result.dimensions).toEqual([10, 10, 10])
+  expect(res.result.volume).toBeCloseTo(1000, 3)
+})
+
+test('check reports solidity and bed fit', async ({ page }) => {
+  await page.goto(HOST)
+  await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
+    id: 10,
+    command: 'load',
+    payload: CUBE,
+  })
+
+  const res = await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
+    id: 11,
+    command: 'check',
+    payload: { bed: [100, 100, 100] },
+  })
+  expect(res.ok).toBe(true)
+  expect(res.result.watertight).toBe(true)
+  expect(res.result.manifold).toBe(true)
+  expect(res.result.fitsBed).toBe(true)
+})
+
+test('export returns binary STL as transferred ArrayBuffers', async ({ page }) => {
+  await page.goto(HOST)
+  await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
+    id: 12,
+    command: 'load',
+    payload: CUBE,
+  })
+
+  // Inspect inside the page: an ArrayBuffer arrives back as a Buffer in Node,
+  // so the instanceof check must run on the browser side of the boundary.
+  const res = await page.evaluate(
+    ({ id, command, payload }) =>
+      window.send(id, command, payload).then((r) => ({
+        ok: r.ok,
+        error: r.error,
+        dataIsArray: Array.isArray(r.result?.data),
+        allBuffers: (r.result?.data ?? []).every((v) => v instanceof ArrayBuffer),
+        bytes: (r.result?.data ?? []).reduce((n, v) => n + v.byteLength, 0),
+      })),
+    { id: 13, command: 'export', payload: { format: 'stlb' } },
+  )
+  expect(res.ok).toBe(true)
+  expect(res.dataIsArray).toBe(true)
+  expect(res.allBuffers).toBe(true)
+  expect(res.bytes).toBeGreaterThan(0)
+})
+
+test('a command over timeoutMs kills the worker and the next load starts fresh', async ({ page }) => {
+  await page.goto(HOST)
+  const hang = await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
+    id: 14,
+    command: 'load',
+    payload: {
+      ...project(
+        `const main = () => { while (true) {} }\n` +
+        `module.exports = { main }\n`,
+      ),
+      timeoutMs: 500,
+    },
+  })
+  expect(hang.ok).toBe(false)
+  expect(hang.error.name).toBe('TimeoutError')
+
+  const load = await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
+    id: 15,
+    command: 'load',
+    payload: CUBE,
+  })
+  expect(load.ok).toBe(true)
+  expect(load.result.entities.length).toBe(1)
+})

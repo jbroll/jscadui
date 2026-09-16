@@ -51,6 +51,14 @@ await buildOne('src_bundle', outDir + '/build', 'bundle.manifold_modeling.js', w
 copyFileSync('../../node_modules/manifold-3d/manifold.wasm', outDir + '/build/manifold.wasm')
 
 await buildBundle(outDir + '/build', 'bundle.jscad_io.js', { format: 'cjs', watch: dev, loader: cjsLoader })
+// measure/check bundle: modeling stays external so the runtime require routes
+// it to the modeling bundle alias, keeping one shared copy in the worker.
+await buildBundle(outDir + '/build', 'bundle.model-tools.js', {
+  format: 'cjs',
+  watch: dev,
+  loader: cjsLoader,
+  external: ['@jscad/modeling'],
+})
 await buildBundle(outDir + '/build', 'bundle.params_core.js', { format: 'cjs', watch: dev, loader: cjsLoader })
 await buildBundle(outDir + '/build', 'bundle.jscadui.transform-babel.js', { globalName: 'jscadui_transform_babel', watch: dev })
 
