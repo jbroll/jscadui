@@ -33,7 +33,7 @@ const fixTransfer = trans => (trans ? trans.map(a => a.buffer || a) : [])
  * @param {*} handlers - object where key if method name, and value ih handler
  * @returns
  */
-export const initMessaging = (_self, handlers, { onJobCount, debug } = {}) => {
+export const initMessaging = (_self, handlers, { onJobCount, debug, allowedOrigin } = {}) => {
   // on service worker, postMessage is on the controller
   const ___self = _self.postMessage ? _self : _self.controller
 
@@ -115,6 +115,8 @@ export const initMessaging = (_self, handlers, { onJobCount, debug } = {}) => {
   }
 
   const listener = async e => {
+    // Cross-origin senders must not reach handlers when an allowed origin is configured
+    if (allowedOrigin && e.origin !== allowedOrigin) return
     const { method, params, id, error } = e.data
     if (debug) console.log(debug, 'received', id, method, params, ...(error ? ['error:', error] : []))
     if (id && method === RESPONSE) {
@@ -199,8 +201,12 @@ export const initMessaging = (_self, handlers, { onJobCount, debug } = {}) => {
  * @param {*} handlers
  * @returns {object}
  */
-export const messageProxy = (_self, handlers, { onJobCount, debug } = {}) => {
-  const { sendCmd, sendNotify, getRpcJobCount, listener, destroy } = initMessaging(_self, handlers, { onJobCount, debug })
+export const messageProxy = (_self, handlers, { onJobCount, debug, allowedOrigin } = {}) => {
+  const { sendCmd, sendNotify, getRpcJobCount, listener, destroy } = initMessaging(_self, handlers, {
+    onJobCount,
+    debug,
+    allowedOrigin,
+  })
   // creating error is not too expensive in our context as there will not be millions
   // methods produced, and info on how the proxy is created an when called is indispensible for debug
   const created = new Error('proxy')
