@@ -10,6 +10,10 @@
   "dependencies": {
     "@jbroll/rowboat-auth": "file:../../../../rowboat/packages/auth",
     "@jbroll/rowboat-auth-betterauth": "file:../../../../rowboat/packages/auth-betterauth",
+    "@jbroll/rowboat-auth-shared": "file:../../../../rowboat/packages/auth-shared",
+    "@jbroll/rowboat-backend": "file:../../../../rowboat/packages/backend",
+    "@jbroll/rowboat-identity-shared": "file:../../../../rowboat/packages/identity-shared",
+    "better-auth": "1.5.6",
     "better-sqlite3": "^12.4.1",
     "express": "^5.2.1"
   },
