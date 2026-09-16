@@ -28,6 +28,13 @@ fi
 #   --rsync-path='sudo -n -u s-ci rsync' \
 #   /home/john/src/OpenJSCAD.org/packages/modeling/ \
 #   gpu:/data/john/ci-worktrees/OpenJSCAD.org/packages/modeling/
+# The @jbroll/rowboat-* file: deps resolve to a manual source mirror at
+# /data/john/ci-worktrees/rowboat (s-ci owned, installed and built there).
+# Re-sync after local rowboat changes with:
+# rsync -az --exclude node_modules --exclude .git -e "ssh -o BatchMode=yes" \
+#   --rsync-path='sudo -n -u s-ci rsync' \
+#   /home/john/src/rowboat/ \
+#   gpu:/data/john/ci-worktrees/rowboat/
 cd "$APP"
 npx vitest run
 npx playwright test

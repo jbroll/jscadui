@@ -4,6 +4,7 @@ import { createProvider, type Provider, type ProviderConfig } from '../providers
 import { runTurn, type Conversation } from './loop.js'
 
 interface PendingToolCall {
+  author: string | null
   resolve(value: string): void
 }
 
@@ -101,7 +102,7 @@ export function mountAgentRoutes(app: Express, options: AgentRouteOptions = {}):
           new Promise<string>((resolve) => {
             const callId = randomUUID()
             turnCallIds.add(callId)
-            pending.set(callId, { resolve })
+            pending.set(callId, { author, resolve })
             send('tool_request', { callId, name, input })
           }),
         onText: (text) => send('text', { text }),
@@ -133,6 +134,12 @@ export function mountAgentRoutes(app: Express, options: AgentRouteOptions = {}):
     const entry = pending.get(callId)
     if (!entry) {
       res.status(404).json({ error: 'unknown tool call' })
+      return
+    }
+    // A tool call belongs to the author whose turn requested it; another
+    // author resolving it could inject forged results into their turn.
+    if (entry.author !== author) {
+      res.status(403).json({ error: 'tool call belongs to another session' })
       return
     }
     pending.delete(callId)

@@ -85,7 +85,7 @@ describe('cloud storage on rowboat', () => {
     expect(project.files).toEqual({ 'main.js': MAIN, 'lib/teeth.js': 'export const n = 12' })
   })
 
-  it('serves the same project from a fresh store after a server sync', async () => {
+  it('serves the same project from a fresh store on the same device after a server sync', async () => {
     const writer = storage()
     await writer.writeFiles('p2', { 'main.js': MAIN }, { message: 'synced', name: 'P2', entry: 'main.js' })
     await writer.sync()

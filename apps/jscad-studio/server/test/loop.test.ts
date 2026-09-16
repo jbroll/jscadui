@@ -339,6 +339,45 @@ describe('chat routes', () => {
     expect(res.status).toBe(404)
   })
 
+  it('answers 403 when another author resolves a pending tool call', async () => {
+    const provider = roundsProvider([
+      [
+        { type: 'tool_use', id: 'tool_1', name: 'measure', input: { target: 'part1' } },
+        { type: 'done', stopReason: 'tool_use' },
+      ],
+      [
+        { type: 'text', text: 'measured' },
+        { type: 'done', stopReason: 'end_turn' },
+      ],
+    ])
+    let author = 'u1'
+    const app = express()
+    app.use(express.json())
+    mountAgentRoutes(app, { createProvider: () => provider, getAuthor: () => author })
+    const port = listen(app)
+
+    const stream = startChat(port, '/api/chat/proj1', {
+      message: 'measure it',
+      provider: PROVIDER_BODY,
+    })
+    const toolRequest = JSON.parse(await stream.waitForEvent('tool_request'))
+
+    author = 'u2'
+    const forbidden = await postJson(port, `/api/chat/proj1/tool/${toolRequest.callId}`, {
+      result: 1,
+    })
+    expect(forbidden.status).toBe(403)
+
+    // The rejected attempt must not consume the call: the owning author resolves it.
+    author = 'u1'
+    const ok = await postJson(port, `/api/chat/proj1/tool/${toolRequest.callId}`, {
+      result: { volume: 42 },
+    })
+    expect(ok.status).toBe(200)
+    await stream.closed
+    expect(stream.frames.map((f) => f.event)).toEqual(['tool_request', 'text', 'done'])
+  })
+
   it('rejects a second turn while one is running', async () => {
     const hanging: Provider = {
       send() {
