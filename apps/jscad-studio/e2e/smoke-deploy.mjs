@@ -12,7 +12,14 @@ import { chromium } from '@playwright/test'
 
 const APP_URL = process.env.APP_URL
 if (!APP_URL) throw new Error('APP_URL is required (deploy-full.sh sets it)')
-const RUN_URL = APP_URL.replace('jscad-studio', 'run.jscad-studio')
+// RUN_URL overrides; otherwise the run host is the app host with the first
+// label suffixed: jscad.rkroll.com -> jscad-run.rkroll.com,
+// jscad-studio.rkroll.com -> run.jscad-studio.rkroll.com.
+const RUN_URL =
+  process.env.RUN_URL ??
+  (APP_URL.includes('jscad-studio')
+    ? APP_URL.replace('jscad-studio', 'run.jscad-studio')
+    : APP_URL.replace('jscad.', 'jscad-run.'))
 
 const results = []
 const check = (name, ok, detail = '') => {

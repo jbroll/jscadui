@@ -13,10 +13,11 @@
 set -e
 source "$DEPLOY_HOME/lib/common.sh"
 
-APP_ORIGIN="https://jscad-studio.rkroll.com"
+APP_ORIGIN="https://jscad.rkroll.com"
 case "$DOMAIN_NAME" in
   run.jscad-studio-test.rkroll.com) APP_ORIGIN="https://jscad-studio-test.rkroll.com" ;;
   run.jscad-studio.rkroll.com) APP_ORIGIN="https://jscad-studio.rkroll.com" ;;
+  jscad-run.rkroll.com) APP_ORIGIN="https://jscad.rkroll.com" ;;
 esac
 RUN_ORIGIN="https://$DOMAIN_NAME"
 VHOST="/etc/apache2/sites-available/${APP_NAME}.conf"

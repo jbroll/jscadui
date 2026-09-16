@@ -29,11 +29,11 @@ DEPLOY_SH="../../deploy.sh/deploy.sh"
 
 if [[ "$ENV" == "prod" ]]; then
     export APP_PORT="${APP_PORT:-3001}"
-    export DOMAIN_NAME="jscad-studio.rkroll.com"
-    export REMOTE_HOST="jscad-studio.rkroll.com"
-    export RUN_DOMAIN_NAME="run.jscad-studio.rkroll.com"
-    export RUN_REMOTE_HOST="run.jscad-studio.rkroll.com"
-    export APP_URL="https://jscad-studio.rkroll.com"
+    export DOMAIN_NAME="jscad.rkroll.com"
+    export REMOTE_HOST="jscad.rkroll.com"
+    export RUN_DOMAIN_NAME="jscad-run.rkroll.com"
+    export RUN_REMOTE_HOST="jscad-run.rkroll.com"
+    export APP_URL="https://jscad.rkroll.com"
 else
     export APP_PORT="${APP_PORT:-3002}"
     export DOMAIN_NAME="jscad-studio-test.rkroll.com"
