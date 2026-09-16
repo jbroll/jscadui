@@ -29,6 +29,11 @@
     "**/cjs/**",
     "**/jscad/**",
     "**/*.test.js",
-    "**/*.test.ts"
+    "**/*.test.ts",
+    // The studio's storage pulls in @jbroll/rowboat-schema -> zod 4 types,
+    // which need TS 5; the root gate runs TS 4.9. The studio app is JS
+    // (esbuild) and its server typechecks with its own TS 5.7 toolchain.
+    "apps/jscad-studio/src/storage",
+    "apps/jscad-studio/shared"
   ]
 }

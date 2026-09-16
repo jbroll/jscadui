@@ -7,24 +7,52 @@ interface PendingToolCall {
   resolve(value: string): void
 }
 
+// Conversations live behind a store seam. The durable per-user store is the
+// rowboat `conversations` table, owned by the browser storage layer and synced
+// by it; the default keeps the in-memory behavior until a server-side rowboat
+// sync client exists to back the seam.
+export interface ConversationStore {
+  load(key: string): Conversation | undefined
+  save(key: string, conversation: Conversation): void
+}
+
 export interface AgentRouteOptions {
   /** Test seam: lets a fake provider stand in for a real one without any network. */
   createProvider?: (config: ProviderConfig) => Provider
+  /** Resolves the acting user from the session; a null answer rejects with 401. */
+  getAuthor?: (req: Request) => string | null | Promise<string | null>
+  conversationStore?: ConversationStore
 }
 
 // The chat transport. A turn streams SSE events (text, tool_request, done, error) to the browser;
 // the browser executes the tool and POSTs the result back to /tool/:callId, which resolves the
-// promise the loop is awaiting. Conversations and pending tool calls live in memory here; Task 10
-// moves them into per-user storage.
+// promise the loop is awaiting. Conversations and pending tool calls are keyed per author so one
+// user's turns never see another's.
 export function mountAgentRoutes(app: Express, options: AgentRouteOptions = {}): void {
   const makeProvider = options.createProvider ?? createProvider
+  const getAuthor = options.getAuthor
   const conversations = new Map<string, Conversation>()
+  const store: ConversationStore = options.conversationStore ?? {
+    load: (key) => conversations.get(key),
+    save: (key, conversation) => {
+      conversations.set(key, conversation)
+    },
+  }
   const activeTurns = new Set<string>()
   const pending = new Map<string, PendingToolCall>()
 
+  const authorFor = async (req: Request): Promise<string | null> =>
+    getAuthor ? await getAuthor(req) : null
+
   app.post('/api/chat/:projectId', async (req: Request, res: Response) => {
     const { projectId } = req.params as Record<string, string>
-    if (activeTurns.has(projectId)) {
+    const author = await authorFor(req)
+    if (getAuthor && author === null) {
+      res.status(401).json({ error: 'unauthorized' })
+      return
+    }
+    const key = author ? `${author}:${projectId}` : projectId
+    if (activeTurns.has(key)) {
       res.status(409).json({ error: 'a turn is already running for this project' })
       return
     }
@@ -59,8 +87,8 @@ export function mountAgentRoutes(app: Express, options: AgentRouteOptions = {}):
     res.on('close', () => ac.abort())
 
     const turnCallIds = new Set<string>()
-    activeTurns.add(projectId)
-    const prior = conversations.get(projectId)
+    activeTurns.add(key)
+    const prior = store.load(key)
     const conversation: Conversation = {
       messages: [...(prior?.messages ?? []), { role: 'user', content: message }],
     }
@@ -79,7 +107,7 @@ export function mountAgentRoutes(app: Express, options: AgentRouteOptions = {}):
         onText: (text) => send('text', { text }),
         signal: ac.signal,
       })
-      conversations.set(projectId, next)
+      store.save(key, next)
       send('done', {})
       res.end()
     } catch (err) {
@@ -89,13 +117,18 @@ export function mountAgentRoutes(app: Express, options: AgentRouteOptions = {}):
         res.end()
       }
     } finally {
-      activeTurns.delete(projectId)
+      activeTurns.delete(key)
       // Never-answered calls must not linger: a late browser POST then gets a 404.
       for (const callId of turnCallIds) pending.delete(callId)
     }
   })
 
-  app.post('/api/chat/:projectId/tool/:callId', (req: Request, res: Response) => {
+  app.post('/api/chat/:projectId/tool/:callId', async (req: Request, res: Response) => {
+    const author = await authorFor(req)
+    if (getAuthor && author === null) {
+      res.status(401).json({ error: 'unauthorized' })
+      return
+    }
     const { callId } = req.params as Record<string, string>
     const entry = pending.get(callId)
     if (!entry) {

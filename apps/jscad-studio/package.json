@@ -13,6 +13,8 @@
   },
   "dependencies": {
     "@codemirror/lang-javascript": "^6.1.9",
+    "@jbroll/rowboat-client": "file:../../../rowboat/packages/client",
+    "@jbroll/rowboat-schema": "file:../../../rowboat/packages/schema",
     "@jscadui/format-common": "*",
     "@jscadui/html-gizmo": "*",
     "@jscadui/orbit": "^0.1.0",
@@ -22,14 +24,18 @@
     "@jscadui/render-threejs": "*",
     "@jscadui/scene": "*",
     "codemirror": "^6.0.1",
+    "dexie": "4.4.4",
+    "fflate": "0.8.1",
     "gl-matrix": "^3.4.0",
     "regl": "^2.1.0",
-    "three": "^0.147.0"
+    "three": "^0.147.0",
+    "zod": "4.4.3"
   },
   "devDependencies": {
     "@jbroll/jsx6-build": "^0.3.0",
     "@playwright/test": "^1.58.2",
     "esbuild": "^0.27.2",
+    "fake-indexeddb": "^6.0.0",
     "live-server": "^1.2.0",
     "vitest": "^4.0.18"
   }

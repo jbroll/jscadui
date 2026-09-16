@@ -5,7 +5,7 @@ import request from 'supertest'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Provider, ProviderEvent, ProviderMessage } from '../src/providers/types.js'
 import { runTurn, type Conversation } from '../src/agent/loop.js'
-import { mountAgentRoutes } from '../src/agent/routes.js'
+import { mountAgentRoutes, type ConversationStore } from '../src/agent/routes.js'
 
 // Fake provider driving the loop with recorded event rounds — one round per send() call, so a
 // tool result appends a message and the next send() returns the next round.
@@ -359,5 +359,67 @@ describe('chat routes', () => {
     })
     expect(res.status).toBe(409)
     stream.req.destroy()
+  })
+
+  it('answers 401 when no session resolves the author', async () => {
+    const app = express()
+    app.use(express.json())
+    mountAgentRoutes(app, { createProvider: () => roundsProvider([[]]), getAuthor: () => null })
+    const res = await request(app)
+      .post('/api/chat/proj1')
+      .send({ message: 'hi', provider: PROVIDER_BODY })
+    expect(res.status).toBe(401)
+    const tool = await request(app).post('/api/chat/proj1/tool/nope').send({ result: 1 })
+    expect(tool.status).toBe(401)
+  })
+
+  it('keeps conversations in the conversation store, per author and project', async () => {
+    const saved = new Map<string, Conversation>()
+    const store: ConversationStore = {
+      load: vi.fn((key: string) => saved.get(key)),
+      save: vi.fn((key: string, conversation: Conversation) => {
+        saved.set(key, conversation)
+      }),
+    }
+    const provider = roundsProvider([
+      [
+        { type: 'text', text: 'first answer' },
+        { type: 'done', stopReason: 'end_turn' },
+      ],
+      [
+        { type: 'text', text: 'second answer' },
+        { type: 'done', stopReason: 'end_turn' },
+      ],
+    ])
+    const app = express()
+    app.use(express.json())
+    mountAgentRoutes(app, {
+      createProvider: () => provider,
+      getAuthor: () => 'u1',
+      conversationStore: store,
+    })
+    const port = listen(app)
+
+    const first = startChat(port, '/api/chat/proj1', { message: 'q1', provider: PROVIDER_BODY })
+    await first.closed
+    expect(store.save).toHaveBeenCalledWith(
+      'u1:proj1',
+      expect.objectContaining({
+        messages: [
+          { role: 'user', content: 'q1' },
+          { role: 'assistant', content: 'first answer', toolCalls: [] },
+        ],
+      }),
+    )
+
+    const second = startChat(port, '/api/chat/proj1', { message: 'q2', provider: PROVIDER_BODY })
+    await second.closed
+    expect(store.load).toHaveBeenCalledWith('u1:proj1')
+    // The second turn started from the stored conversation, not a fresh one.
+    expect(provider.sent[1]).toEqual([
+      { role: 'user', content: 'q1' },
+      { role: 'assistant', content: 'first answer', toolCalls: [] },
+      { role: 'user', content: 'q2' },
+    ])
   })
 })

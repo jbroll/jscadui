@@ -80,7 +80,10 @@ export async function createServer(config: ServerConfig): Promise<StudioServer> 
 
   app.use(express.json());
 
-  mountAgentRoutes(app);
+  // Agent turns are scoped to the session user: no session, no turn. The
+  // conversation store stays the in-memory default until a server-side rowboat
+  // sync client backs the schema's conversations table (see agent/routes.ts).
+  mountAgentRoutes(app, { getAuthor: identity.provider.resolveAuthor });
 
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
