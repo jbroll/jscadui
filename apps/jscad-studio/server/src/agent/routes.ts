@@ -94,6 +94,9 @@ export function mountAgentRoutes(app: Express, options: AgentRouteOptions = {}):
       messages: [...(prior?.messages ?? []), { role: 'user', content: message }],
     }
     try {
+      // The provider config carries the user's key: it is used here,
+      // transiently, to build this turn's provider, and never stored in the
+      // conversation, never logged, never sent anywhere but the provider API.
       const provider = makeProvider(providerConfig)
       const next = await runTurn({
         conversation,

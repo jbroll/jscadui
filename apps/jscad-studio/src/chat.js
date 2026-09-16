@@ -1,13 +1,21 @@
 // The chat panel drives the agent loop: it POSTs the user's message, streams
 // the SSE turn the server returns, executes each tool request in the browser,
 // and POSTs the result back to resolve the loop's pending call.
+import { createKeyStore } from './keys.js'
+
 const PROVIDER_STORAGE_KEY = 'jscad-studio.provider'
 
-// The provider config carries the user's key to the server per request. Key
-// custody (Task 13) replaces this placeholder; the key never enters the frame.
+// Non-secret provider selection (kind, model, baseUrl) lives in localStorage;
+// the key itself lives in custody and is attached per request. It never enters
+// the frame: tool inputs originate from the server, not from here.
+const keyStore = createKeyStore()
+
 const getProviderConfig = () => {
   const stored = localStorage.getItem(PROVIDER_STORAGE_KEY)
-  return stored ? JSON.parse(stored) : null
+  if (!stored) return null
+  const key = keyStore.get()
+  if (!key) return null
+  return { ...JSON.parse(stored), apiKey: key }
 }
 
 /** @param {string} tag @param {string} className @param {string} [text] */

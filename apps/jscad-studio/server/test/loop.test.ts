@@ -461,4 +461,31 @@ describe('chat routes', () => {
       { role: 'user', content: 'q2' },
     ])
   })
+
+  it('never persists the provider key in the stored conversation', async () => {
+    const saved = new Map<string, Conversation>()
+    const provider = roundsProvider([
+      [
+        { type: 'text', text: 'answer' },
+        { type: 'done', stopReason: 'end_turn' },
+      ],
+    ])
+    const app = express()
+    app.use(express.json())
+    mountAgentRoutes(app, {
+      createProvider: () => provider,
+      getAuthor: () => 'u1',
+      conversationStore: {
+        load: (key: string) => saved.get(key),
+        save: (key: string, conversation: Conversation) => {
+          saved.set(key, conversation)
+        },
+      },
+    })
+    const port = listen(app)
+    const stream = startChat(port, '/api/chat/proj1', { message: 'q', provider: PROVIDER_BODY })
+    await stream.closed
+    expect(saved.size).toBe(1)
+    expect(JSON.stringify([...saved.values()])).not.toContain('sk-test')
+  })
 })
