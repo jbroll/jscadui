@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <title>test host</title>
+  </head>
+  <body>
+    <iframe id="frame" src="http://localhost:5121/" sandbox="allow-scripts" hidden></iframe>
+    <script>
+      const frame = document.getElementById('frame')
+      const ready = new Promise(resolve => frame.addEventListener('load', resolve, { once: true }))
+      window.send = (id, command, payload) => ready.then(() => new Promise(resolve => {
+        const onMsg = (e) => {
+          if (e.data && e.data.id === id) {
+            window.removeEventListener('message', onMsg)
+            resolve(e.data)
+          }
+        }
+        window.addEventListener('message', onMsg)
+        frame.contentWindow.postMessage({ id, command, payload }, '*')
+      }))
+    </script>
+  </body>
+</html>

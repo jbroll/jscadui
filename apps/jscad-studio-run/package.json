@@ -1,0 +1,34 @@
+{
+  "name": "@jscadui/jscad-studio-run",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "node build.js --dev",
+    "build": "node build.js",
+    "serve": "node build.js --serve",
+    "test": "vitest run",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@jscad/io": "2.4.7",
+    "@jscad/modeling": "file:../../../OpenJSCAD.org/packages/modeling",
+    "@jscadui/format-common": "*",
+    "@jscadui/jscad-text": "*",
+    "@jscadui/manifold": "*",
+    "@jscadui/openscad": "*",
+    "@jscadui/openscad-runtime": "*",
+    "@jscadui/params-core": "*",
+    "@jscadui/postmessage": "*",
+    "@jscadui/require": "*",
+    "@jscadui/transform-babel": "*",
+    "@jscadui/worker": "*"
+  },
+  "devDependencies": {
+    "@jbroll/jsx6-build": "^0.3.0",
+    "@playwright/test": "^1.58.2",
+    "esbuild": "^0.27.2",
+    "live-server": "^1.2.0",
+    "vitest": "^4.0.18"
+  }
+}

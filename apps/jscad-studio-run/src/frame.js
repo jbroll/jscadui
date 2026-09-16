@@ -1,0 +1,84 @@
+import { messageProxy } from '@jscadui/postmessage'
+import { PROJECT_BASE } from './fileMap.js'
+
+// Injected by esbuild at build time (see build.js).
+const ALLOWED_ORIGIN = __ALLOWED_ORIGIN__
+
+const BUNDLE_BASE = new URL('./build/', location.href).href
+
+// A sandboxed frame has an opaque origin, so new Worker(url) throws and the
+// worker must come from a blob that importScripts the real bundle. Relative
+// importScripts fail inside a blob worker, so the bundle base is baked in.
+const workerSource =
+  `self.__BUNDLE_BASE__ = ${JSON.stringify(BUNDLE_BASE)}\n` +
+  `importScripts(${JSON.stringify(BUNDLE_BASE + 'bundle.worker.js')})`
+
+const worker = new Worker(URL.createObjectURL(new Blob([workerSource], { type: 'application/javascript' })))
+const workerApi = messageProxy(worker, {})
+
+const workerBundles = () => ({
+  '@jscad/modeling': BUNDLE_BASE + 'bundle.jscad_modeling.js',
+  '@jscad/modeling-for-anchors': BUNDLE_BASE + 'bundle.jscad_modeling.js',
+  '@jscad/modeling-for-manifold': BUNDLE_BASE + 'bundle.jscad_modeling.js',
+  '@jscad/io': BUNDLE_BASE + 'bundle.jscad_io.js',
+  '@jscadui/params-core': BUNDLE_BASE + 'bundle.params_core.js',
+  '@jscadui/jscad-text': BUNDLE_BASE + 'bundle.jscad_text.js',
+})
+
+// Collect the ArrayBuffers behind every typed array in a result so they can
+// cross to the app zero-copy. The worker already transferred them once.
+const collectBuffers = (value, out = [], seen = new Set()) => {
+  if (value === null || typeof value !== 'object') return out
+  if (seen.has(value)) return out
+  seen.add(value)
+  if (ArrayBuffer.isView(value)) {
+    if (!seen.has(value.buffer)) {
+      seen.add(value.buffer)
+      out.push(value.buffer)
+    }
+    return out
+  }
+  for (const v of Object.values(value)) collectBuffers(v, out, seen)
+  return out
+}
+
+const commands = {
+  async load({ files, entry }) {
+    await workerApi.jscadInit({ bundles: workerBundles(), useParamsProxy: true })
+    await workerApi.jscadSetFiles({ files })
+    const result = await workerApi.jscadScript({
+      script: files[entry],
+      url: PROJECT_BASE + entry,
+      base: PROJECT_BASE,
+      root: PROJECT_BASE,
+    })
+    return {
+      result: { params: result.params, entities: result.entities, proxyState: result.proxyState },
+      transfer: collectBuffers(result),
+    }
+  },
+  async params({ values }) {
+    const result = await workerApi.jscadMain({
+      params: values,
+      // The proxy only returns a value the user has interacted with; every
+      // value the app sends is one the user changed.
+      userInteractedPaths: Object.keys(values),
+    })
+    return { result: { entities: result.entities }, transfer: collectBuffers(result) }
+  },
+}
+
+window.addEventListener('message', async (event) => {
+  if (event.origin !== ALLOWED_ORIGIN) return
+  const { id, command, payload } = event.data
+  if (!id || !commands[command]) return
+  try {
+    const { result, transfer } = await commands[command](payload)
+    event.source.postMessage({ id, ok: true, result }, ALLOWED_ORIGIN, transfer)
+  } catch (error) {
+    event.source.postMessage(
+      { id, ok: false, error: { message: error.message, name: error.name, stack: error.stack } },
+      ALLOWED_ORIGIN,
+    )
+  }
+})

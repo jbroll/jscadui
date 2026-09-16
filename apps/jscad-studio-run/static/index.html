@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <!--
+      CSP names the run origin explicitly: this page is a sandboxed frame with
+      an opaque origin, where CSP 'self' matches nothing. frame-ancestors is
+      ignored in a meta tag and is enforced by the deploy vhost header instead.
+    -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src __RUN_ORIGIN__ https://cdn.jsdelivr.net blob: 'unsafe-eval'; connect-src __RUN_ORIGIN__ https://cdn.jsdelivr.net; worker-src blob: __RUN_ORIGIN__; frame-ancestors __APP_ORIGIN__">
+    <title>jscad studio compute frame</title>
+  </head>
+  <body>
+    <script type="module" src="./frame.js"></script>
+  </body>
+</html>

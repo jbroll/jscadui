@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <title>wrong origin sender</title>
+  </head>
+  <body>
+    <iframe id="frame" src="http://localhost:5121/" sandbox="allow-scripts" hidden></iframe>
+    <script>
+      const frame = document.getElementById('frame')
+      window.received = []
+      window.addEventListener('message', e => window.received.push(e.data))
+      const ready = new Promise(resolve => frame.addEventListener('load', resolve, { once: true }))
+      window.send = (id, command, payload) => ready.then(() => {
+        frame.contentWindow.postMessage({ id, command, payload }, '*')
+      })
+    </script>
+  </body>
+</html>
