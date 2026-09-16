@@ -171,6 +171,23 @@ test('measure returns the model measurements', async ({ page }) => {
   expect(res.result.volume).toBeCloseTo(1000, 3)
 })
 
+test('a null payload is treated as an empty one', async ({ page }) => {
+  await page.goto(HOST)
+  await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
+    id: 16,
+    command: 'load',
+    payload: CUBE,
+  })
+
+  const res = await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
+    id: 17,
+    command: 'measure',
+    payload: null,
+  })
+  expect(res.ok).toBe(true)
+  expect(res.result.dimensions).toEqual([10, 10, 10])
+})
+
 test('check reports solidity and bed fit', async ({ page }) => {
   await page.goto(HOST)
   await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {

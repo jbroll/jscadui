@@ -91,7 +91,8 @@ const commands = {
 
 window.addEventListener('message', async (event) => {
   if (event.origin !== ALLOWED_ORIGIN) return
-  const { id, command, payload = {} } = event.data
+  const { id, command } = event.data
+  const payload = event.data.payload ?? {}
   if (!id || !commands[command]) return
   // A timed-out command may have left the worker stuck; the next command gets
   // a fresh one.
