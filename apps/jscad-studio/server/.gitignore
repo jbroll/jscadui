@@ -1,0 +1,6 @@
+# Local-only: production secrets deployed by the express_app module, tenant
+# scratch carrying management keys. Never commit.
+secrets.env
+secrets-*.env
+.env.tenant.*
+rowboat-tenant.*.json
