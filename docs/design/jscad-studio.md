@@ -157,7 +157,15 @@ Rules:
 - A model that does not finish inside a timeout is cancelled by terminating the
   worker, and the frame reports the timeout.
 - The frame accepts messages only from the app origin, checked against
-  `event.origin`.
+  `event.origin`. `@jscadui/postmessage` has no such check today
+  (`packages/postmessage/index.js:167`), so one is added, either as an option
+  there or in the frame's own handler.
+- The frame resolves a project's files from the file map the `load` command
+  carries, through a `readFile` it passes into `require`. It does not use
+  `@jscadui/fs-provider`'s service worker, which is same-origin to the app and
+  unreachable from here, and a sandboxed frame with an opaque origin cannot
+  register a service worker at all. Bare package names still resolve to the CDN
+  over the loader's existing synchronous fetch.
 - Its CSP allows scripts from itself and the package CDN, `connect-src` the
   package CDN only, and `frame-ancestors` the app origin. A
   `Permissions-Policy` header turns off camera, microphone, geolocation, USB and
@@ -267,7 +275,15 @@ be exported or imported as a zip. There is no proprietary document format.
 
 1. **Cloud (default).** Files as blobs in rowboat's object store, with metadata
    in the user's database. Every `writeModel` and every editor save writes a
-   version row and a blob, and the UI shows the list and a diff.
+   version row and a blob, and the UI shows the list and a diff. In rowboat's
+   own terms: projects, files and versions are tables in a schema compiled with
+   `@jbroll/rowboat-schema`, the tenant is created out of band with
+   `rowboat-cli provision-tenant`, and the browser syncs through
+   `@jbroll/rowboat-client` with a short-lived JWT the app mints, as checklist
+   does. Blobs use rowboat's file routes (`POST <base>/upload`,
+   `POST <base>/:hash/sign`, `GET <base>/:hash`), whose read authorization is
+   default-deny until the schema declares media tables and the mount is given
+   them. Declaring those tables is part of this mode, not an afterthought.
 2. **Linked local folder.** `showDirectoryPicker()` gives the app a handle to a
    real directory, stored in IndexedDB so it reconnects on later visits, with the
    permission re-granted per session. The app reads and writes the user's own
@@ -286,8 +302,10 @@ be exported or imported as a zip. There is no proprietary document format.
    follow behind the same interface.
 
 When a folder or a repository is linked, that is the source of truth and the
-app's version rows are a cache. Files never reach the compute frame in any mode;
-it receives source text and returns data.
+app's version rows are a cache. What never reaches the compute frame is storage
+access: no session, no directory handle, no repository token. A project's file
+contents do cross, because a model's `require` of a sibling file has to resolve
+inside the frame.
 
 Also stored per user, in every mode: conversations per project, so a session
 resumes where it stopped, and settings, meaning provider choice, model id, and
@@ -314,8 +332,14 @@ Following checklist's split, with one addition, the second origin:
   `.rkroll.com`, so it is not sent to the run host or to any other site on the
   domain. The sandboxed frame has an opaque origin and would not send it anyway;
   this is the second lock on the same door.
-- `deploy.conf` with `DEPLOY_TYPES="letsencrypt apache_proxy node_app"` for the
-  app host, and a static entry for the run host.
+- Three `deploy.conf` files, in the vocabulary checklist actually uses: the app
+  front end with `DEPLOY_TYPES="letsencrypt apache"`, `APACHE_MODE="hybrid"`,
+  `APACHE_PROXY_RULES="/api:${APP_PORT}:/api"` and `APACHE_SPA_MODE="yes"`; the
+  API with `DEPLOY_TYPES="express_app"`; and the run host with
+  `DEPLOY_TYPES="letsencrypt apache"` serving static files only.
+- A driver script in checklist's shape deploys the front end, then the API, then
+  checks `https://jscad-studio.rkroll.com/api/health` and prints the service
+  journal on failure.
 - Both bundles are built from jscadui, as `jscad-work` builds it today: the
   renderer into the app bundle, the worker and loader into the frame.
 
