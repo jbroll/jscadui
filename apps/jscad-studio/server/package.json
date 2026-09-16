@@ -13,6 +13,7 @@
     "@jbroll/rowboat-auth-shared": "file:../../../../rowboat/packages/auth-shared",
     "@jbroll/rowboat-backend": "file:../../../../rowboat/packages/backend",
     "@jbroll/rowboat-identity-shared": "file:../../../../rowboat/packages/identity-shared",
+    "@jbroll/rowboat-shared": "file:../../../../rowboat/packages/shared",
     "better-auth": "1.5.6",
     "better-sqlite3": "^12.4.1",
     "express": "^5.2.1"
