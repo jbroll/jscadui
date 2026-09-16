@@ -3,6 +3,7 @@ import { remoteGroupBackend } from '@jbroll/rowboat-auth';
 import { createIdentity, type Identity } from '@jbroll/rowboat-auth-betterauth';
 import Database from 'better-sqlite3';
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
+import { mountAgentRoutes } from './agent/routes.js';
 import { configFromEnv, type ServerConfig } from './config.js';
 
 export type { ServerConfig } from './config.js';
@@ -78,6 +79,8 @@ export async function createServer(config: ServerConfig): Promise<StudioServer> 
   identity.mountAuthRoutes(app, { groupBackend });
 
   app.use(express.json());
+
+  mountAgentRoutes(app);
 
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
