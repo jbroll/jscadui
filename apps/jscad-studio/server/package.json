@@ -1,0 +1,23 @@
+{
+  "name": "@jscadui/jscad-studio-server",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@jbroll/rowboat-auth": "file:../../../../rowboat/packages/auth",
+    "@jbroll/rowboat-auth-betterauth": "file:../../../../rowboat/packages/auth-betterauth",
+    "better-sqlite3": "^12.4.1",
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/express": "^5.0.5",
+    "@types/node": "^22.10.5",
+    "@types/supertest": "^6.0.3",
+    "supertest": "^7.1.4",
+    "typescript": "^5.7.3"
+  }
+}
