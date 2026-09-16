@@ -25,7 +25,7 @@ if [[ "$ENV" != "prod" && "$ENV" != "test" ]]; then
     exit 1
 fi
 
-DEPLOY_SH="../../deploy.sh/deploy.sh"
+DEPLOY_SH="../../../deploy.sh/deploy.sh"
 
 if [[ "$ENV" == "prod" ]]; then
     export APP_PORT="${APP_PORT:-3006}"
@@ -55,7 +55,7 @@ echo ""
 
 echo "[2/4] Deploying API..."
 cd server
-"../../../deploy.sh/deploy.sh" "$MODE" .
+"../../../../deploy.sh/deploy.sh" "$MODE" .
 cd ..
 echo "✓ API deployed"
 echo ""
@@ -63,7 +63,7 @@ echo ""
 echo "[3/4] Deploying Run Host..."
 cd ../jscad-studio-run
 DOMAIN_NAME="$RUN_DOMAIN_NAME" REMOTE_HOST="$RUN_REMOTE_HOST" \
-    "../../deploy.sh/deploy.sh" "$MODE" .
+    "../../../deploy.sh/deploy.sh" "$MODE" .
 cd ../jscad-studio
 echo "✓ Run host deployed"
 echo ""
