@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Studio app tests, run on the CI host via simple-ci.
+#
+#   sci push jscadui/studio
+#
+# Runs apps/jscad-studio vitest and the Playwright smoke suite, which builds
+# both the app and the compute frame (apps/jscad-studio-run) and serves them
+# on the fixed ports 5121/5122. Browser suites stall a dev laptop, so they
+# never run locally — use `npm run test:ci`.
+set -euo pipefail
+
+WORKTREE="$(cd "$(dirname "$0")/.." && pwd)"
+APP="$WORKTREE/apps/jscad-studio"
+
+cd "$WORKTREE"
+npm install
+# Build workspace packages so the app's bundles can resolve @jscadui/* esm outputs.
+npm run build -- --continue || echo "build had failures (continuing — checking esm below)"
+if [ ! -f packages/openscad/esm/index.js ]; then
+  echo "✖ packages/openscad/esm not built"; exit 2
+fi
+( cd "$APP" && npx playwright install chromium )
+
+# @jscad/modeling resolves to a manual mirror at
+# /data/john/ci-worktrees/OpenJSCAD.org (s-ci owned; the GPU has no sibling
+# checkout). Re-sync after local modeling changes with:
+# rsync -az --delete --exclude node_modules -e "ssh -o BatchMode=yes" \
+#   --rsync-path='sudo -n -u s-ci rsync' \
+#   /home/john/src/OpenJSCAD.org/packages/modeling/ \
+#   gpu:/data/john/ci-worktrees/OpenJSCAD.org/packages/modeling/
+cd "$APP"
+npx vitest run
+npx playwright test
