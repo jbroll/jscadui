@@ -13,6 +13,10 @@ export interface ServerConfig {
   rowboatDatabaseId: string;
   /** Origin of the hosted rowboat that serves this tenant's data plane and group API. */
   rowboatUrl: string;
+  /** GitHub App for connected-repository storage; absent until the app is installed. */
+  githubAppId?: string;
+  githubAppPrivateKey?: string;
+  githubAppSlug?: string;
 }
 
 export function configFromEnv(): ServerConfig {
@@ -73,5 +77,11 @@ export function configFromEnv(): ServerConfig {
     providers,
     rowboatDatabaseId,
     rowboatUrl,
+    ...(process.env.GITHUB_APP_ID ? { githubAppId: process.env.GITHUB_APP_ID } : {}),
+    // Private keys travel with literal \n in env files; restore real newlines.
+    ...(process.env.GITHUB_APP_PRIVATE_KEY
+      ? { githubAppPrivateKey: process.env.GITHUB_APP_PRIVATE_KEY.replace(/\\n/g, '\n') }
+      : {}),
+    ...(process.env.GITHUB_APP_SLUG ? { githubAppSlug: process.env.GITHUB_APP_SLUG } : {}),
   };
 }
