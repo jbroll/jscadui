@@ -1,0 +1,36 @@
+{
+  "name": "@jscadui/jscad-studio",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "node build.js --dev",
+    "build": "node build.js",
+    "serve": "node build.js --serve",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:ci": "cd ../.. && JOB=$(../simple-ci/sci push jscadui/studio) && ../simple-ci/sci wait \"$JOB\""
+  },
+  "dependencies": {
+    "@codemirror/lang-javascript": "^6.1.9",
+    "@jscadui/format-common": "*",
+    "@jscadui/html-gizmo": "*",
+    "@jscadui/orbit": "^0.1.0",
+    "@jscadui/params-controller": "*",
+    "@jscadui/params-ui": "*",
+    "@jscadui/render-regl": "*",
+    "@jscadui/render-threejs": "*",
+    "@jscadui/scene": "*",
+    "codemirror": "^6.0.1",
+    "gl-matrix": "^3.4.0",
+    "regl": "^2.1.0",
+    "three": "^0.147.0"
+  },
+  "devDependencies": {
+    "@jbroll/jsx6-build": "^0.3.0",
+    "@playwright/test": "^1.58.2",
+    "esbuild": "^0.27.2",
+    "live-server": "^1.2.0",
+    "vitest": "^4.0.18"
+  }
+}

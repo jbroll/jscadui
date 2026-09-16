@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <link rel="icon" type="image/png" href="./favicon.png">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="main.css">
+    <title>JSCAD Studio</title>
+  </head>
+  <body>
+    <div class="container">
+      <div class="layout" id="layout">
+        <div id="root">
+          <div id="viewer"></div>
+        </div>
+
+        <div id="overlay">
+          <div class="above-error">
+            <div id="pipeline-stats">
+              <div id="stats-content"></div>
+              <progress id="progress" title="Processing..."></progress>
+            </div>
+
+            <div id="model-options">
+              <div id="paramsHeader"></div>
+              <div id="paramsDiv"></div>
+            </div>
+          </div>
+
+          <div id="error-bar">
+            <label id="error-name">Error:</label>
+            <span id="error-message"></span>
+          </div>
+        </div>
+      </div>
+
+      <div id="editor">
+        <div id="editor-drawer">
+          <nav id="editor-nav">
+            <button id="editor-file"></button>
+            <ul id="editor-files"></ul>
+          </nav>
+          <div id="editor-container"></div>
+          <a id="editor-hint">Shift-enter to update</a>
+          <a id="editor-hint2">CTRL+S to save and update</a>
+        </div>
+        <div id="editor-toggle"></div>
+      </div>
+
+      <div id="menu">
+        <button id="menu-button">JSCAD Studio</button>
+        <div id="menu-content">
+          <h2>Options</h2>
+          <ul>
+            <li><label for="dark-mode">Dark Mode</label><input type="checkbox" id="dark-mode"></li>
+            <li><label for="show-axis">Show Axis</label><input type="checkbox" id="show-axis" checked></li>
+            <li><label for="show-grid">Show Grid</label><input type="checkbox" id="show-grid" checked></li>
+            <li><label for="smooth-render">Smooth Render</label><input type="checkbox" id="smooth-render" checked></li>
+            <li><label for="zoom-to-fit">Zoom To Fit</label><input type="checkbox" id="zoom-to-fit" checked></li>
+            <li>
+              <label for="render-engine">Render Engine</label>
+              <select id="render-engine">
+                <option value="threejs">Three.js</option>
+                <option value="regl">Regl</option>
+              </select>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Model code only ever runs in this sandboxed frame on the run origin;
+         the app receives plain data back by postMessage. -->
+    <iframe id="frame" src="__RUN_ORIGIN__/" sandbox="allow-scripts" hidden></iframe>
+
+    <script>
+      // The frame's message listener must exist before the first command; this
+      // load-event promise bridges parse time and main.js evaluation.
+      window.__frameReady = new Promise(resolve =>
+        document.getElementById('frame').addEventListener('load', resolve, { once: true }))
+    </script>
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>
