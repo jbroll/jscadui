@@ -47,7 +47,7 @@ export async function createServer(config: ServerConfig): Promise<StudioServer> 
   const identity = createIdentity({
     db,
     authSecret: config.authSecret,
-    baseUrl: config.frontendUrl,
+    baseUrl: `${config.frontendUrl}/api/auth`,
     // Short-lived per-user tokens for the hosted-rowboat data plane. iss/aud must match what
     // provisioning registered for this database, or every sync 401s with no other symptom.
     jwt: {
