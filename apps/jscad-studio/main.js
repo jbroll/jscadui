@@ -23,6 +23,8 @@ import * as paramsUI from './src/paramsUI.js'
 import { updatePipelineStats, countGeometry, createProgressHandler } from './src/stats.js'
 import { frameClient } from './src/frameClient.js'
 import { capGeometry, DEFAULT_CAPS } from './src/caps.js'
+import { handleToolRequest } from './src/toolBridge.js'
+import { initChat } from './src/chat.js'
 
 // Injected by esbuild at build time (see build.js).
 const RUN_ORIGIN = __RUN_ORIGIN__
@@ -194,8 +196,11 @@ const jscadScript = async ({ script, url = 'main.js' }) => {
 
     loadedOnce = true
     handleEntities(result)
+    // The tool bridge answers eval with the frame result.
+    return res
   } catch (err) {
     setError(err)
+    return { ok: false, error: { message: err.message, name: err.name } }
   }
 }
 
@@ -218,16 +223,18 @@ viewState.onRenderEngineChange = async (newEngine) => {
 paramsUI.injectParamsStyles()
 
 // ============== Editor Initialization ==============
-// The save path is a placeholder until the storage layer lands (Task 9).
+// The save path is a placeholder until the storage layer lands (Task 10).
+const saveModel = async (script, path) => {
+  console.log('save', path, script.length)
+}
+
 editor.init(
   DEFAULT_CODE,
   async (script, path) => {
     // The path is the file-map key the frame's load resolves; keep it relative.
     jscadScript({ script, url: path })
   },
-  async (script, path) => {
-    console.log('save', path, script.length)
-  },
+  saveModel,
   () => undefined,
 )
 
@@ -239,6 +246,38 @@ if (loadDefault) {
   editor.setSource(DEFAULT_CODE, 'main.js')
   jscadScript({ script: DEFAULT_CODE, url: 'main.js' })
 }
+
+// ============== Chat & Tool Bridge ==============
+// The bridge's view of the frame: eval goes through the editor's compile path
+// so the agent's model renders and the editor shows the source it wrote.
+const bridgeFrame = {
+  ...frameApi,
+  load: async ({ files, entry }) => {
+    const script = files?.[entry]
+    if (typeof script === 'string') {
+      editor.setSource(script, entry)
+      return jscadScript({ script, url: entry })
+    }
+    return frameApi.load({ files, entry })
+  },
+}
+
+// The viewer side of the view tool: set the camera, let the scheduled render
+// draw, then read the canvas back as a PNG data URL.
+const chatViewer = {
+  getCamera: () => viewState.viewer?.getCamera?.() ?? viewState.camera,
+  setCamera: (camera) => viewState.setCamera(camera),
+  capture: async () => {
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+    const canvas = byId('viewer').querySelector('canvas')
+    return canvas.toDataURL('image/png')
+  },
+}
+
+initChat({
+  container: byId('chat'),
+  requestTool: (name, input) => handleToolRequest(name, input, { frame: bridgeFrame, viewer: chatViewer, save: saveModel }),
+})
 
 // ============== Cleanup on Page Unload ==============
 window.addEventListener('unload', () => {

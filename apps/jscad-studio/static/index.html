@@ -5,6 +5,99 @@
     <link rel="icon" type="image/png" href="./favicon.png">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="main.css">
+    <style>
+      #chat {
+        width: 360px;
+        max-width: calc(100vw - 80px);
+        display: flex;
+        flex-direction: column;
+        border-left: 1px solid #ccc;
+        background-color: #f8f8f8;
+      }
+      .dark #chat {
+        background-color: #333;
+        border-left-color: #555;
+      }
+      #chat-header {
+        padding: 8px 10px;
+        font-weight: bold;
+        border-bottom: 1px solid #ccc;
+      }
+      .dark #chat-header {
+        border-bottom-color: #555;
+      }
+      #chat-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .chat-msg {
+        padding: 6px 8px;
+        border-radius: 6px;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .chat-msg.user {
+        align-self: flex-end;
+        background-color: #ddeeff;
+      }
+      .chat-msg.assistant {
+        align-self: flex-start;
+        background-color: #e8e8e8;
+      }
+      .chat-msg.error {
+        align-self: stretch;
+        background-color: #fdd;
+        color: #a33;
+      }
+      .dark .chat-msg.user { background-color: #234; color: #cde; }
+      .dark .chat-msg.assistant { background-color: #444; color: #ddd; }
+      .dark .chat-msg.error { background-color: #633; color: #fbb; }
+      .chat-tool {
+        align-self: stretch;
+        border: 1px solid #bbb;
+        border-radius: 4px;
+        background-color: #fff;
+        font-family: monospace;
+        font-size: 10pt;
+      }
+      .dark .chat-tool {
+        background-color: #222;
+        border-color: #666;
+        color: #bbb;
+      }
+      .chat-tool-name {
+        cursor: pointer;
+        padding: 4px 8px;
+      }
+      .chat-tool-input,
+      .chat-tool-result {
+        margin: 0;
+        padding: 4px 8px;
+        border-top: 1px solid #ddd;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .dark .chat-tool-input,
+      .dark .chat-tool-result {
+        border-top-color: #555;
+      }
+      #chat-form {
+        display: flex;
+        gap: 6px;
+        padding: 8px;
+        border-top: 1px solid #ccc;
+      }
+      .dark #chat-form {
+        border-top-color: #555;
+      }
+      #chat-input {
+        flex: 1;
+      }
+    </style>
     <title>JSCAD Studio</title>
   </head>
   <body>
@@ -46,6 +139,8 @@
         </div>
         <div id="editor-toggle"></div>
       </div>
+
+      <div id="chat"></div>
 
       <div id="menu">
         <button id="menu-button">JSCAD Studio</button>
