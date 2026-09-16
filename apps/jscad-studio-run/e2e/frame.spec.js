@@ -1,7 +1,8 @@
 import { test, expect } from '@playwright/test'
 
 const HOST = 'http://localhost:5122/host.html'
-const WRONG = 'http://localhost:5121/wrong.html'
+const RUN = 'http://localhost:5121'
+const MARKER = `${RUN}/__mark`
 
 const project = (mainSource) => ({ files: { 'main.js': mainSource }, entry: 'main.js' })
 
@@ -19,6 +20,13 @@ const SIBLING_PROJECT = {
   },
   entry: 'main.js',
 }
+
+// The model's only effect is a request to the run origin, which the test server
+// counts, so a command that ran is observable even though its reply is dropped.
+const MARKER_PROJECT = project(
+  `const main = async () => { await fetch('${MARKER}'); return [] }\n` +
+  `module.exports = { main }\n`,
+)
 
 test('load resolves a sibling require and returns geometry', async ({ page }) => {
   await page.goto(HOST)
@@ -75,12 +83,28 @@ test('a model error is answered as ok:false with the message', async ({ page }) 
   expect(res.error.message).toContain('boom from model')
 })
 
-test('a wrong-origin sender is never answered', async ({ page }) => {
-  await page.goto(WRONG)
-  await page.evaluate((payload) => window.send(99, 'load', payload), SIBLING_PROJECT)
+test('a wrong-origin sender is never answered and cannot run a command', async ({ page, request }) => {
+  await request.get(`${RUN}/__mark-reset`)
+  await page.goto(HOST)
+  await page.evaluate(() => window.frameReady)
+  const attacker = page.frames().find((f) => f.url().includes(':5123'))
+  await attacker.evaluate((payload) => window.send(99, 'load', payload), MARKER_PROJECT)
   await page.waitForTimeout(1500)
-  const received = await page.evaluate(() => window.received)
-  expect(received).toEqual([])
+  expect(await attacker.evaluate(() => window.received)).toEqual([])
+
+  const readCount = async () => (await (await request.get(`${RUN}/__mark-count`)).json()).count
+  let count = await readCount()
+  const deadline = Date.now() + 5000
+  while (count === 0 && Date.now() < deadline) {
+    await page.waitForTimeout(250)
+    count = await readCount()
+  }
+  expect(count).toBe(0)
+})
+
+test('the frame document sends frame-ancestors for the app origin', async ({ request }) => {
+  const res = await request.get(`${RUN}/`)
+  expect(res.headers()['content-security-policy']).toContain('frame-ancestors http://localhost:5122')
 })
 
 test('model fetch against the app origin API fails', async ({ page }) => {

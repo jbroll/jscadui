@@ -5,15 +5,14 @@
     <title>wrong origin sender</title>
   </head>
   <body>
-    <iframe id="frame" src="http://localhost:5121/" sandbox="allow-scripts" hidden></iframe>
     <script>
-      const frame = document.getElementById('frame')
       window.received = []
       window.addEventListener('message', e => window.received.push(e.data))
-      const ready = new Promise(resolve => frame.addEventListener('load', resolve, { once: true }))
-      window.send = (id, command, payload) => ready.then(() => {
-        frame.contentWindow.postMessage({ id, command, payload }, '*')
-      })
+      // frame-ancestors forbids this origin from embedding the frame, so it is
+      // reached through the host's frame collection, as a third-party widget would.
+      window.send = (id, command, payload) => {
+        parent.frames[0].postMessage({ id, command, payload }, '*')
+      }
     </script>
   </body>
 </html>

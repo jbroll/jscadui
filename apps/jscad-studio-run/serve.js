@@ -11,9 +11,8 @@ const mimeTypes = {
 }
 
 // The sandboxed frame is cross-origin to its own host, so module scripts and
-// the worker's bundle XHRs need CORS. Permissions-Policy is header-only; the
-// CSP lives in the page's meta tag, frame-ancestors via the deploy vhost.
-const headers = {
+// the worker's bundle XHRs need CORS. The page meta carries the rest of the CSP.
+const baseHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), usb=(), serial=()',
 }
@@ -42,28 +41,32 @@ const handleRequest = async (req) => {
   return handleStatic(pathname)
 }
 
-const server = http.createServer(async (req, res) => {
-  let result = { status: 500, content: 'internal server error' }
-  try {
-    result = await handleRequest(req)
-  } catch (err) {
-    console.error('error handling request', err)
-  }
-  const { status, contentType } = result
-  const { content } = result
-  const outHeaders = { ...headers }
-  if (contentType) outHeaders['Content-Type'] = contentType
-  res.writeHead(status, outHeaders)
-  res.end(content)
-  const line = `${new Date().toISOString()} ${status} ${req.method} ${req.url} ${content.length}`
-  if (status < 400) {
-    console.log(line)
-  } else {
-    console.log(`\x1b[31m${line}\x1b[0m`)
-  }
-})
-
-export const serve = (port) => {
+export const serve = (port, appOrigin) => {
+  // frame-ancestors is ignored in a meta tag, so it must be a header. The
+  // deploy vhost sets the same one in production.
+  const headers = appOrigin
+    ? { ...baseHeaders, 'Content-Security-Policy': `frame-ancestors ${appOrigin}` }
+    : baseHeaders
+  const server = http.createServer(async (req, res) => {
+    let result = { status: 500, content: 'internal server error' }
+    try {
+      result = await handleRequest(req)
+    } catch (err) {
+      console.error('error handling request', err)
+    }
+    const { status, contentType } = result
+    const { content } = result
+    const outHeaders = { ...headers }
+    if (contentType) outHeaders['Content-Type'] = contentType
+    res.writeHead(status, outHeaders)
+    res.end(content)
+    const line = `${new Date().toISOString()} ${status} ${req.method} ${req.url} ${content.length}`
+    if (status < 400) {
+      console.log(line)
+    } else {
+      console.log(`\x1b[31m${line}\x1b[0m`)
+    }
+  })
   server.listen(port, () => {
     console.log(`jscad-studio-run on http://localhost:${port}`)
   })

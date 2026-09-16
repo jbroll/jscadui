@@ -148,5 +148,5 @@ if (!dev) hashAssets(outDir)
 if (dev) {
   liveServer.start({ root: outDir, port, open: false })
 } else if (serveBuild) {
-  serve(port)
+  serve(port, appOrigin)
 }

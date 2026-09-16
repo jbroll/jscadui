@@ -6,9 +6,11 @@
   </head>
   <body>
     <iframe id="frame" src="http://localhost:5121/" sandbox="allow-scripts" hidden></iframe>
+    <iframe id="attacker" src="http://localhost:5123/wrong.html" hidden></iframe>
     <script>
       const frame = document.getElementById('frame')
       const ready = new Promise(resolve => frame.addEventListener('load', resolve, { once: true }))
+      window.frameReady = ready
       window.send = (id, command, payload) => ready.then(() => new Promise(resolve => {
         const onMsg = (e) => {
           if (e.data && e.data.id === id) {
