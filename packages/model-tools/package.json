@@ -1,0 +1,22 @@
+{
+  "name": "@jscadui/model-tools",
+  "version": "0.1.0",
+  "description": "Browser-safe measure and check for JSCAD geometry",
+  "type": "module",
+  "main": "index.js",
+  "files": [
+    "index.js",
+    "src"
+  ],
+  "scripts": {
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "@jscad/modeling": ">=2.12.0 <3"
+  },
+  "devDependencies": {
+    "@jscad/modeling": "file:../../../OpenJSCAD.org/packages/modeling",
+    "vitest": "^4.0.18"
+  },
+  "license": "MIT"
+}
