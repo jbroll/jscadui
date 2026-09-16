@@ -1,27 +1,8 @@
+import { ssePayloads } from './types.js'
 import type { Provider, ProviderConfig, ProviderMessage, ToolDefinition } from './types.js'
 
 const DEFAULT_BASE_URL = 'https://api.anthropic.com'
 const API_VERSION = '2023-06-01'
-
-// Yields every `data:` payload of an SSE stream; `event:` names and blank separators are noise.
-async function* ssePayloads(body: ReadableStream<Uint8Array> | null): AsyncGenerator<string> {
-  if (!body) return
-  const reader = body.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ''
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    buffer += decoder.decode(value, { stream: true })
-    let newline: number
-    while ((newline = buffer.indexOf('\n')) !== -1) {
-      const line = buffer.slice(0, newline)
-      buffer = buffer.slice(newline + 1)
-      if (line.startsWith('data:')) yield line.slice(5).trim()
-    }
-  }
-  if (buffer.startsWith('data:')) yield buffer.slice(5).trim()
-}
 
 function toAnthropicMessage(message: ProviderMessage) {
   if (message.role === 'tool') {

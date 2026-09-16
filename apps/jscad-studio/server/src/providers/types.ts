@@ -1,6 +1,26 @@
 import { anthropicProvider } from './anthropic.js'
 import { openaiProvider } from './openaiCompatible.js'
 
+// Yields every `data:` payload of an SSE stream; `event:` names and blank separators are noise.
+export async function* ssePayloads(body: ReadableStream<Uint8Array> | null): AsyncGenerator<string> {
+  if (!body) return
+  const reader = body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    let newline: number
+    while ((newline = buffer.indexOf('\n')) !== -1) {
+      const line = buffer.slice(0, newline)
+      buffer = buffer.slice(newline + 1)
+      if (line.startsWith('data:')) yield line.slice(5).trim()
+    }
+  }
+  if (buffer.startsWith('data:')) yield buffer.slice(5).trim()
+}
+
 export type ProviderKind = 'anthropic' | 'openai'
 
 export interface ToolCall {
