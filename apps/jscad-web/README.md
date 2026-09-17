@@ -76,6 +76,33 @@ Account setup lives in the drawer above the chat:
 
 Tests: `npx vitest run test/aiChat.test.js` for the chat turn, `npx playwright test e2e/ai-chat.spec.js` for the full turn against a stub relay with real local measurements.
 
+## Storage
+
+Model files are local-first with per-project version history (`src/storage/`).
+Every editor compile and `writeModel` save records a version row plus file
+hashes, in both modes:
+
+- `local` mode (default) keeps bytes in the service-worker FS and file
+  handles, as before. Anonymous users are local-only.
+- `rowboat` mode stores bytes as blobs through rowboat file routes, with
+  projects, files, versions and conversations in rowboat tables compiled from
+  `src/storage/schema.js`. Sign-in starts the interval sync loop with a
+  short-lived JWT from the studio API's `GET /api/sync-token` (15m expiry).
+- Mixed projects merge at load time: each manifest path names exactly one
+  backend, and unlisted sibling requires resolve local-first, then rowboat.
+- Chat conversations persist per project and resume on revisit.
+- Any project exports or imports as a zip (`exportZip`/`importZip`).
+
+`src/storage/manifest.js` is generated from `schema.js`; regenerate with
+`node scripts/gen-manifest.js` after editing the schema (a parity test fails
+on drift). `main.js` imports the storage leaves directly, never the index,
+because the index re-exports zod-typed schema the root TS 4.9 gate cannot
+parse (see root `tsconfig.json`).
+
+Tests: `npx vitest run test/storage-` covers the interface contract, the
+rowboat backend against a recorded sync transcript, map assembly, zip round
+trip, write-through session, sync loop, and manifest parity.
+
 ## Deployment
 
 To start the production server run:
