@@ -46,13 +46,42 @@ try {
   check('no error bar', !(await page.locator('#error-bar').getAttribute('class') ?? '').includes('visible'))
   check('no page errors', errors.length === 0, errors.join('; ').slice(0, 200))
 
+  // The frame answers a model load directly: this is the round trip every
+  // other frame check depends on, with a timeout so a silent frame fails
+  // loudly instead of hanging the suite.
+  const loadResult = await page.evaluate(async () => {
+    const frame = document.querySelector('iframe')
+    const id = 9000
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => resolve({ ok: false, error: { message: 'smoke: frame load timed out' } }), 45000)
+      const onMessage = (event) => {
+        if (event.source !== frame.contentWindow || event.data?.id !== id) return
+        clearTimeout(timer)
+        window.removeEventListener('message', onMessage)
+        resolve(event.data)
+      }
+      window.addEventListener('message', onMessage)
+      frame.contentWindow.postMessage(
+        { id, command: 'load', payload: { files: { 'main.js': 'const main = () => cube({size: 10})' }, entry: 'main.js' } },
+        '*',
+      )
+    })
+  })
+  check(
+    'frame answers a model load',
+    loadResult.ok === true && (loadResult.result?.entities?.length ?? 0) > 0,
+    loadResult.ok ? `${loadResult.result.entities.length} entities` : loadResult.error?.message,
+  )
+
   const stlBytes = await page.evaluate(async () => {
     const frame = document.querySelector('iframe')
     const id = 9001
     const done = new Promise((resolve) => {
+      const timer = setTimeout(() => resolve({ ok: false }), 45000)
       const onMessage = (event) => {
         if (event.source !== frame.contentWindow) return
         if (event.data?.id !== id) return
+        clearTimeout(timer)
         window.removeEventListener('message', onMessage)
         resolve(event.data)
       }
