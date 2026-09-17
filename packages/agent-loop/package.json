@@ -1,0 +1,16 @@
+{
+  "name": "@jscadui/agent-loop",
+  "version": "0.1.0",
+  "description": "Browser-local agent loop and provider adapters for JSCAD apps",
+  "type": "module",
+  "main": "index.js",
+  "files": [
+    "index.js",
+    "src",
+    "prompt.md"
+  ],
+  "scripts": {
+    "test": "vitest run"
+  },
+  "license": "MIT"
+}
