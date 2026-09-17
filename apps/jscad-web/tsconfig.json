@@ -10,5 +10,8 @@
 "src",
     "main.js"
 ],
-  "exclude": ["node_modules", "build_dev", "build", "dist","build.js","jscad"]
+  "exclude": ["node_modules", "build_dev", "build", "dist","build.js","jscad",
+    // Vanilla JS tested by vitest; tsc here is TS 4.9 and cannot parse the
+    // zod 4 types pulled in via @jbroll/rowboat-schema (see root tsconfig).
+    "src/storage"]
 }

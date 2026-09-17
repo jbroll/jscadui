@@ -34,6 +34,9 @@
     // which need TS 5; the root gate runs TS 4.9. The studio app is JS
     // (esbuild) and its server typechecks with its own TS 5.7 toolchain.
     "apps/jscad-studio/src/storage",
-    "apps/jscad-studio/shared"
+    "apps/jscad-studio/shared",
+    // Same for jscad-web's storage: vanilla JS bundled by esbuild, tested by
+    // vitest; the root gate cannot parse the zod 4 types it imports.
+    "apps/jscad-web/src/storage"
   ]
 }
