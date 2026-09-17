@@ -102,13 +102,13 @@ export function mountRelayRoutes(app: Express, options: RelayRouteOptions): void
       res.status(500).json({ error: (err as Error).message })
       return
     }
-    const { kind } = req.params as Record<string, string>
+    const { kind } = req.params as unknown as { kind: string }
     const base = table[kind]
     if (!base) {
       res.status(404).json({ error: 'unknown provider' })
       return
     }
-    const splat = (req.params as Record<string, unknown>)['splat']
+    const { splat } = req.params as unknown as { splat?: string[] | string }
     const subPath = Array.isArray(splat) ? splat.join('/') : String(splat ?? '')
     let upstream: string
     try {
