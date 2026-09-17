@@ -1,7 +1,7 @@
 // apps/jscad-web/test/aiChat.test.js
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest'
-import { initChat } from '../src/aiChat.js'
+import { initChat, relayBaseUrl } from '../src/aiChat.js'
 
 describe('browser chat turn', () => {
   it('runs requestTool for a tool_use and appends streamed text', async () => {
@@ -55,5 +55,18 @@ describe('browser chat turn', () => {
     expect(assistants[0].textContent).toBe('I will measure')
     expect(assistants[1].textContent).toBe('the volume is 42')
     expect(tool.compareDocumentPosition(assistants[1]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+})
+describe('relay base url', () => {
+  it('builds per-kind relay paths under the default root', async () => {
+    window.localStorage.removeItem('jscad-ai.relay')
+    expect(relayBaseUrl('anthropic')).toBe('https://jscad.rkroll.com/api/relay/anthropic')
+    expect(relayBaseUrl('openai')).toBe('https://jscad.rkroll.com/api/relay/openai')
+  })
+
+  it('honors the localStorage root override', async () => {
+    window.localStorage.setItem('jscad-ai.relay', 'http://127.0.0.1:9999')
+    expect(relayBaseUrl('openai')).toBe('http://127.0.0.1:9999/api/relay/openai')
+    window.localStorage.removeItem('jscad-ai.relay')
   })
 })

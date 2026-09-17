@@ -7,8 +7,10 @@ import { createProvider, runTurn as defaultRunTurn, SYSTEM_PROMPT } from '@jscad
 const RELAY_DEFAULT = 'https://jscad.rkroll.com'
 const RELAY_OVERRIDE_KEY = 'jscad-ai.relay'
 
-export const relayBaseUrl = () =>
-  globalThis.localStorage?.getItem(RELAY_OVERRIDE_KEY) || RELAY_DEFAULT
+export const relayBaseUrl = (kind) => {
+  const root = globalThis.localStorage?.getItem(RELAY_OVERRIDE_KEY) || RELAY_DEFAULT
+  return `${root.replace(/\/+$/, '')}/api/relay/${kind}`
+}
 
 const el = (tag, className, text) => {
   const node = document.createElement(tag)
@@ -87,7 +89,7 @@ export const initChat = ({ container, requestTool, getProvider, runTurnFn = defa
     assistantEl = null
     const aborter = new AbortController()
     try {
-      const provider = createProvider({ ...selection, baseUrl: selection.baseUrl || relayBaseUrl() })
+      const provider = createProvider({ ...selection, baseUrl: selection.baseUrl || relayBaseUrl(selection.kind) })
       await runTurnFn({
         conversation: { messages: [{ role: 'system', content: SYSTEM_PROMPT }, { role: 'user', content: message }] },
         provider,
