@@ -8,7 +8,7 @@
 // With a session cookie it additionally runs one turn against a stub
 // OpenAI-compatible provider (no model key needed) and asserts a text event.
 import http from 'node:http'
-import { chromium } from '@playwright/test'
+import { chromium, expect } from '@playwright/test'
 
 const APP_URL = process.env.APP_URL
 if (!APP_URL) throw new Error('APP_URL is required (deploy-full.sh sets it)')
@@ -41,8 +41,8 @@ try {
   page.on('pageerror', (err) => errors.push(String(err)))
   await page.goto(APP_URL, { waitUntil: 'load' })
   await page.locator('#viewer canvas').waitFor({ timeout: 60000 })
-  const stats = await page.locator('#stats-content').textContent()
-  check('canvas renders default model', (stats ?? '').includes('Triangles'))
+  await expect(page.locator('#stats-content')).toContainText('Triangles', { timeout: 60000 })
+  check('canvas renders default model', true)
   check('no error bar', !(await page.locator('#error-bar').getAttribute('class') ?? '').includes('visible'))
   check('no page errors', errors.length === 0, errors.join('; ').slice(0, 200))
 
@@ -62,7 +62,19 @@ try {
       }
       window.addEventListener('message', onMessage)
       frame.contentWindow.postMessage(
-        { id, command: 'load', payload: { files: { 'main.js': 'const main = () => cube({size: 10})' }, entry: 'main.js' } },
+        {
+          id,
+          command: 'load',
+          payload: {
+            files: {
+              'main.js':
+                `const { cube } = require('@jscad/modeling').primitives\n` +
+                `const main = () => cube({ size: 10 })\n` +
+                `module.exports = { main }\n`,
+            },
+            entry: 'main.js',
+          },
+        },
         '*',
       )
     })
@@ -88,10 +100,13 @@ try {
       window.addEventListener('message', onMessage)
     })
     frame.contentWindow.postMessage(
-      { id, command: 'export', payload: { format: 'stl' } },
+      { id, command: 'export', payload: { format: 'stlb' } },
       '*',
     )
-    return done.then((res) => (res.ok ? res.result.data.byteLength : -1))
+    return done.then((res) => {
+      if (!res.ok || !Array.isArray(res.result?.data)) return -1
+      return res.result.data.reduce((n, v) => n + (v?.byteLength ?? 0), 0)
+    })
   })
   check('frame export returns STL bytes', stlBytes > 0, `${stlBytes} bytes`)
   await page.close()
