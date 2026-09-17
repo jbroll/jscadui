@@ -1,52 +1,53 @@
-// AI chat loop against a stubbed API: no provider key, no network beyond the
-// page itself. The stub emits one tool_request (measure); the tool executes
-// against the real local worker, and the spec asserts the posted result
-// carries genuine measurements — the full agent loop, end to end.
+// A stub relay speaking the provider API the browser loop calls: first POST
+// streams one measure tool call, second POST answers Done. The page points at
+// it via localStorage jscad-ai.relay, so no /api/chat server exists.
 import { test, expect } from '@playwright/test'
 import http from 'node:http'
 import { dismissWelcome, waitForRender, assertNoError } from './helpers.js'
 
-const sse = (frames) => frames.map(([event, data]) => `event: ${event}\ndata: ${JSON.stringify(data)}`).join('\n\n') + '\n\n'
+const chunk = (json) => `data: ${JSON.stringify(json)}\n\n`
 
-// A stub agent server speaking the real turn protocol with true streaming:
-// one POST opens the turn, tool results arrive on sibling POSTs, and the same
-// stream completes. The page's /api/chat requests are forwarded to it.
-const startStubServer = () =>
+const startStubRelay = () =>
   new Promise((resolve) => {
-    let toolResult = null
-    let notifyTool = null
+    const requests = []
+    const cors = {
+      'access-control-allow-origin': '*',
+      'access-control-allow-headers': 'content-type, authorization',
+      'access-control-allow-methods': 'POST, OPTIONS',
+    }
     const server = http.createServer((req, res) => {
+      if (req.method === 'OPTIONS') {
+        res.writeHead(204, cors)
+        res.end()
+        return
+      }
       let body = ''
-      req.on('data', (chunk) => (body += chunk))
-      req.on('end', async () => {
-        if (req.url === '/api/chat/local' && req.method === 'POST') {
-          res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' })
-          const send = (event, data) => res.write(sse([[event, data]]))
-          send('text', { text: 'Measuring. ' })
-          send('tool_request', { callId: 'call-1', name: 'measure', input: {} })
-          await new Promise((done) => {
-            notifyTool = done
-            setTimeout(done, 55000)
-          })
-          send('text', { text: 'Done.' })
-          send('done', {})
-          res.end()
-        } else if (req.url?.startsWith('/api/chat/local/tool/')) {
-          try {
-            toolResult = JSON.parse(body)?.result ?? null
-          } catch {
-            toolResult = null
+      req.on('data', (c) => (body += c))
+      req.on('end', () => {
+        if (req.url === '/v1/chat/completions' && req.method === 'POST') {
+          const parsed = JSON.parse(body)
+          requests.push(parsed)
+          res.writeHead(200, { ...cors, 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' })
+          if (requests.length === 1) {
+            res.write(chunk({ choices: [{ delta: { content: 'Measuring. ' } }] }))
+            res.write(chunk({ choices: [{ delta: { tool_calls: [{ index: 0, id: 'call-1', function: { name: 'measure', arguments: '' } }] } }] }))
+            res.write(chunk({ choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: '{}' } }] } }] }))
+            res.write(chunk({ choices: [{ delta: {}, finish_reason: 'tool_calls' }] }))
+            res.write('data: [DONE]\n\n')
+            res.end()
+          } else {
+            res.write(chunk({ choices: [{ delta: { content: 'Done.' } }] }))
+            res.write(chunk({ choices: [{ delta: {}, finish_reason: 'stop' }] }))
+            res.write('data: [DONE]\n\n')
+            res.end()
           }
-          notifyTool?.()
-          res.writeHead(200, { 'content-type': 'application/json' })
-          res.end('{}')
         } else {
           res.writeHead(404)
           res.end()
         }
       })
     })
-    server.listen(0, '127.0.0.1', () => resolve({ server, port: server.address().port, tool: () => toolResult }))
+    server.listen(0, '127.0.0.1', () => resolve({ server, port: server.address().port, requests }))
   })
 
 test.describe('AI chat', () => {
@@ -57,31 +58,39 @@ test.describe('AI chat', () => {
     await assertNoError(page)
   })
 
-  test('panel opens and runs a measure turn through the local worker', async ({ page }) => {
+  test('panel opens and runs a measure turn through the relay stub', async ({ page }) => {
     await page.locator('#menu-button').click()
     await page.locator('#ai-chat-btn').click()
     await expect(page.locator('#ai-chat')).toBeVisible()
 
-    // Account: model name typed, key saved in session custody.
+    await page.locator('#ai-account select').first().selectOption('openai')
+    await page.locator('#ai-account select').nth(1).selectOption('device')
     await page.locator('#ai-account input[placeholder="claude-sonnet-4-5"]').fill('stub-model')
     await page.locator('#ai-account input[placeholder="sk-..."]').fill('sk-test')
     await page.locator('#ai-account button', { hasText: 'Save key' }).click()
     await expect(page.locator('#ai-account')).toContainText('Key set.')
 
-    const stub = await startStubServer()
-    // Forward the page's API calls to the stub, preserving method and body.
-    await page.route('**/api/chat/**', (route) => {
-      const path = new URL(route.request().url()).pathname
-      route.continue({ url: `http://127.0.0.1:${stub.port}${path}` })
-    })
+    const stub = await startStubRelay()
+    await page.addInitScript((port) => {
+      window.localStorage.setItem('jscad-ai.relay', `http://127.0.0.1:${port}`)
+    }, stub.port)
+    await page.reload()
+    await dismissWelcome(page)
+    await waitForRender(page)
 
+    await page.locator('#menu-button').click()
+    await page.locator('#ai-chat-btn').click()
     await page.locator('.chat-input').fill('how big is it?')
     await page.locator('.chat-send').click()
 
-    await expect.poll(() => stub.tool() !== null, { timeout: 60_000 }).toBe(true)
-    expect(stub.tool().dimensions).toHaveLength(3)
-    expect(stub.tool().volume).toBeGreaterThan(0)
     await expect(page.locator('.chat-messages')).toContainText('Done.', { timeout: 30_000 })
+    expect(stub.requests.length).toBeGreaterThanOrEqual(2)
+    expect(stub.requests[0].model).toBe('stub-model')
+    expect(stub.requests[0].tools.map((t) => t.function.name)).toContain('measure')
+    const toolMsg = stub.requests[1].messages.find((m) => m.role === 'tool')
+    const result = JSON.parse(toolMsg.content)
+    expect(result.dimensions).toHaveLength(3)
+    expect(result.volume).toBeGreaterThan(0)
     stub.server.close()
   })
 })

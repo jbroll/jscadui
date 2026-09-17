@@ -66,7 +66,7 @@ Set `window.jscadModuleOverrides` before `main.js` runs to replace any of these 
 
 ## AI Chat
 
-The app has an agent chat drawer (AI Chat in the menu) layered on the normal editor, viewer and examples. Describe a part, and the server-side agent loop writes and measures models by calling tools that execute locally: `eval`, `params`, `measure`, `check`, `export`, `view` and `writeModel` (`src/aiBridge.js`).
+The app has an agent chat drawer (AI Chat in the menu) layered on the normal editor, viewer and examples. Describe a part, and the browser-local agent loop writes and measures models by calling tools that execute locally: `eval`, `params`, `measure`, `check`, `export`, `view` and `writeModel` (`src/aiBridge.js`). Provider HTTP goes to the relay at `https://jscad.rkroll.com`, overridable via `localStorage 'jscad-ai.relay'`.
 
 Account setup lives in the drawer above the chat:
 
@@ -74,7 +74,7 @@ Account setup lives in the drawer above the chat:
 - Pick the provider (`anthropic` or an OpenAI-compatible `baseUrl`) and model name.
 - Save the provider key with a custody mode: `session` (memory only), `device` (this browser), or `synced` (AES-GCM ciphertext only, needs a passphrase to unlock). The key travels to the API per chat request and never enters logs or the compute frame.
 
-Tests: `npx vitest run test/aiBridge.test.js` for routing, `npx playwright test e2e/ai-chat.spec.js` for the full turn against a stubbed API with real local measurements.
+Tests: `npx vitest run test/aiChat.test.js` for the chat turn, `npx playwright test e2e/ai-chat.spec.js` for the full turn against a stub relay with real local measurements.
 
 ## Deployment
 
