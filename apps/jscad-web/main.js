@@ -44,6 +44,10 @@ import { getBundles } from './bundles.js'
 
 // Extracted modules
 import { updatePipelineStats, countGeometry, createProgressHandler } from './src/stats.js'
+// Leaf imports, not ./src/storage/index.js: the index re-exports schema.js,
+// whose zod 4 types the root TS 4.9 gate cannot parse (see root tsconfig).
+import { createLocalStorage } from './src/storage/local.js'
+import { createSession } from './src/storage/session.js'
 import { createWorker, createJobTracker } from './src/workerSetup.js'
 import * as fileSystem from './src/fileSystem.js'
 import * as paramsUI from './src/paramsUI.js'
@@ -182,6 +186,13 @@ async function reloadProject() {
   workerApi.jscadClearTempCache()
   await fileSystem.reloadProject(fsDeps)
 }
+
+// Version/hash record for every editor compile and writeModel save. Local
+// mode only until the sync loop (Task 6) attaches the rowboat backend.
+const storageSession = createSession({ local: createLocalStorage(), rowboat: null, getBackend: () => 'local' })
+
+const recordEdit = (script, path) =>
+  storageSession.writeThrough('default', path, script, { message: 'edit', entry: path }).catch((err) => console.warn('storage write failed:', err))
 
 fileSystem.setupDragDrop(dropModal, async (dataTransfer) => {
   await fileSystem.handleFileDrop(dataTransfer, fsDeps)
@@ -455,10 +466,12 @@ editor.init(
     if (swHandler && swHandler.fileToRun) {
       await fileSystem.addToCacheWrapper(path, script)
       await workerApi.jscadClearFileCache({ files: [path], root: swHandler.base })
+      await recordEdit(script, path)
       if (swHandler.fileToRun) jscadScript({ url: swHandler.fileToRun, base: swHandler.base })
     } else {
       const fullUrl = path.startsWith('http') ? path : new URL(path, appBase).toString()
       const base = new URL('./', fullUrl).toString()
+      await recordEdit(script, path)
       jscadScript({ script, url: path, base })
     }
   },
@@ -491,6 +504,7 @@ editor.init(
       await writable.close()
       fileSystem.setSaveMapEntry(path, fileHandle)
       fileHandle.lastMod = Date.now() + 500
+      await recordEdit(script, path)
     }
   },
   path => fileSystem.getSwHandler()?.getFile(path),
@@ -610,6 +624,7 @@ const aiDeps = {
   },
   save: async (source, entry = './jscad.model.js') => {
     editor.setSource(source, entry)
+    await recordEdit(source, entry)
     return { ok: true, entry }
   },
 }
