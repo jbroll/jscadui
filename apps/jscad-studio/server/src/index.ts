@@ -85,13 +85,17 @@ export async function createServer(config: ServerConfig): Promise<StudioServer> 
 
   // Short-lived data-plane JWT for browser rowboat sync. Same token shape as
   // the group backend's: the rowboat audience in config binds it to one tenant.
+  // syncBase rides along so the browser needs no build-time rowboat address.
   app.get('/api/sync-token', async (req, res) => {
     const author = await identity.provider.resolveAuthor(req)
     if (!author) {
       res.status(401).json({ error: 'unauthorized' })
       return
     }
-    res.json({ token: await identity.signJWT(author) })
+    res.json({
+      token: await identity.signJWT(author),
+      syncBase: `${config.rowboatUrl}/db/${config.rowboatDatabaseId}/api/sync`,
+    })
   });
 
   // Agent turns are scoped to the session user: no session, no turn. The

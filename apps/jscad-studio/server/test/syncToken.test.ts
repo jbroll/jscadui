@@ -51,5 +51,6 @@ describe('sync token', () => {
     const res = await request(server.app).get('/api/sync-token').set('Cookie', cookie)
     expect(res.status).toBe(200)
     expect(res.body.token.split('.')).toHaveLength(3)
+    expect(res.body.syncBase).toBe('http://rowboat.test/db/db_test_tenant/api/sync')
   })
 })
