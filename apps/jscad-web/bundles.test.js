@@ -6,9 +6,9 @@ const CDN = 'https://cdn.jsdelivr.net/npm/@jbroll/jscad-anchors@0/dist/jscad-anc
 const LOCAL = 'http://127.0.0.1:9000/__studio/packages/@jbroll/jscad-anchors/dist/jscad-anchors.cjs'
 
 describe('getBundles', () => {
-  test('jscad engine: modeling is the anchors build over the jscad bundle', () => {
+  test('jscad engine: modeling is the local bundle (anchors CDN is dead)', () => {
     const b = getBundles({ engine: 'jscad', toUrl })
-    expect(b['@jscad/modeling']).toBe(CDN)
+    expect(b['@jscad/modeling']).toBe('http://viewer.test/build/bundle.jscad_modeling.js')
     expect(b['@jbroll/jscad-anchors']).toBe(CDN)
     expect(b['@jscad/modeling-for-anchors']).toBe('http://viewer.test/build/bundle.jscad_modeling.js')
     expect(b['@jscad/modeling-for-manifold']).toBe('http://viewer.test/build/bundle.jscad_modeling.js')
@@ -21,15 +21,17 @@ describe('getBundles', () => {
 
   test('manifold engine: the anchors build wraps the manifold bundle', () => {
     const b = getBundles({ engine: 'manifold', toUrl })
-    expect(b['@jscad/modeling']).toBe(CDN)
+    expect(b['@jscad/modeling']).toBe('http://viewer.test/build/bundle.jscad_modeling.js')
     expect(b['@jscad/modeling-for-anchors']).toBe('http://viewer.test/build/bundle.manifold_modeling.js')
     expect(b['@jscad/modeling-for-manifold']).toBe('http://viewer.test/build/bundle.jscad_modeling.js')
   })
 
-  test('an anchors override replaces the CDN build for both names', () => {
+  test('overrides replace single names without touching the other', () => {
     const b = getBundles({ engine: 'jscad', toUrl, overrides: { '@jbroll/jscad-anchors': LOCAL } })
-    expect(b['@jscad/modeling']).toBe(LOCAL)
     expect(b['@jbroll/jscad-anchors']).toBe(LOCAL)
+    expect(b['@jscad/modeling']).toBe('http://viewer.test/build/bundle.jscad_modeling.js')
+    const c = getBundles({ engine: 'jscad', toUrl, overrides: { '@jscad/modeling': LOCAL } })
+    expect(c['@jscad/modeling']).toBe(LOCAL)
   })
 
   test('other overrides pass through', () => {

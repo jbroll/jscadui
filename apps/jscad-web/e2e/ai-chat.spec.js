@@ -51,13 +51,6 @@ const startStubServer = () =>
 
 test.describe('AI chat', () => {
   test.beforeEach(async ({ page }) => {
-    // The default modeling alias points at a dead CDN build; route the
-    // worker at the dev server's own modeling bundle instead. Production is
-    // unaffected (its bundles resolve locally).
-    await page.addInitScript(() => {
-      const modeling = `${window.location.origin}/build/bundle.jscad_modeling.js`
-      window.jscadModuleOverrides = { '@jscad/modeling': modeling, '@jbroll/jscad-anchors': modeling }
-    })
     await page.goto('/')
     await dismissWelcome(page)
     await waitForRender(page)
