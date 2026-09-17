@@ -19,6 +19,7 @@
     "@jscad/csg": "0.7.0",
     "@jscad/io": "2.4.7",
     "@jscad/modeling": "file:../../../OpenJSCAD.org/packages/modeling",
+    "@jscadui/agent-loop": "*",
     "@jscadui/format-common": "*",
     "@jscadui/format-jscad": "*",
     "@jscadui/format-threejs": "*",

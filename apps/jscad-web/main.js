@@ -618,7 +618,6 @@ if (byId('ai-account')) initAccount(byId('ai-account'))
 if (byId('ai-chat')) {
   initChat({
     container: byId('ai-chat'),
-    projectId: 'local',
     requestTool: (name, input) => handleToolRequest(name, input, aiDeps),
     getProvider: getProviderConfig,
   })

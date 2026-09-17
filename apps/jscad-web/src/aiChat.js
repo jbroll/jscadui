@@ -1,7 +1,15 @@
-// The chat panel drives the agent loop: it POSTs the user's message, streams
-// the SSE turn the server returns, executes each tool request in the browser,
-// and POSTs the result back to resolve the loop's pending call. Provider
-// config comes from the account panel (aiAccount.js), never from here.
+// The chat panel drives the browser-local agent loop: it builds the provider
+// from the account panel, runs runTurn directly, executes each tool request
+// through requestTool, and renders streamed text. Provider HTTP targets the
+// relay, which proxies path-preserving to the provider and stores nothing.
+import { createProvider, runTurn as defaultRunTurn, SYSTEM_PROMPT } from '@jscadui/agent-loop'
+
+const RELAY_DEFAULT = 'https://jscad.rkroll.com'
+const RELAY_OVERRIDE_KEY = 'jscad-ai.relay'
+
+export const relayBaseUrl = () =>
+  globalThis.localStorage?.getItem(RELAY_OVERRIDE_KEY) || RELAY_DEFAULT
+
 const el = (tag, className, text) => {
   const node = document.createElement(tag)
   node.className = className
@@ -9,30 +17,10 @@ const el = (tag, className, text) => {
   return node
 }
 
-// Splits a streamed SSE body into complete `event:`/`data:` blocks, keeping
-// whatever trailing partial block is still arriving.
-const parseEvents = (buffer) => {
-  const events = []
-  let rest = buffer
-  let index
-  while ((index = rest.indexOf('\n\n')) !== -1) {
-    const block = rest.slice(0, index)
-    rest = rest.slice(index + 2)
-    let name = ''
-    let data = ''
-    for (const line of block.split('\n')) {
-      if (line.startsWith('event:')) name = line.slice(6).trim()
-      else if (line.startsWith('data:')) data += line.slice(5).trim()
-    }
-    if (name) events.push({ name, data })
-  }
-  return { events, rest }
-}
-
 /**
- * @param {{container:HTMLElement,projectId?:string,requestTool:Function,getProvider:Function}} options
+ * @param {{container:HTMLElement,requestTool:Function,getProvider:Function,runTurnFn?:Function}} options
  */
-export const initChat = ({ container, projectId = 'local', requestTool, getProvider }) => {
+export const initChat = ({ container, requestTool, getProvider, runTurnFn = defaultRunTurn }) => {
   const header = el('div', 'chat-header', 'AI Chat')
   const messagesEl = el('div', 'chat-messages')
   const form = el('form', 'chat-form')
@@ -71,70 +59,49 @@ export const initChat = ({ container, projectId = 'local', requestTool, getProvi
     send.disabled = value
   }
 
-  const handleEvent = async ({ name, data }) => {
-    const payload = JSON.parse(data)
-    if (name === 'text') {
-      if (!assistantEl) assistantEl = addMessage('', 'assistant')
-      assistantEl.textContent += payload.text
-      messagesEl.scrollTop = messagesEl.scrollHeight
-    } else if (name === 'tool_request') {
-      assistantEl = null
-      const { callId, name: toolName, input: toolInput } = payload
-      const resultEl = addToolLine(toolName, toolInput)
-      const result = await requestTool(toolName, toolInput)
+  // Renders the tool line, then hands the result back to the loop as JSON.
+  // Never throws: a rejection becomes an {ok:false} result so the turn
+  // always has content to feed back.
+  const handleTool = async (name, input) => {
+    const resultEl = addToolLine(name, input)
+    try {
+      const result = await requestTool(name, input)
       resultEl.textContent = JSON.stringify(result, null, 2)
-      await fetch(`/api/chat/${projectId}/tool/${callId}`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ result }),
-      })
-    } else if (name === 'done') {
-      assistantEl = null
-      setRunning(false)
-    } else if (name === 'error') {
-      assistantEl = null
-      addMessage(payload.message, 'error')
-      setRunning(false)
+      return typeof result === 'string' ? result : JSON.stringify(result ?? null)
+    } catch (err) {
+      const errorResult = { ok: false, error: { name: err.name, message: err.message } }
+      resultEl.textContent = JSON.stringify(errorResult, null, 2)
+      return JSON.stringify(errorResult)
     }
   }
 
-  const runTurn = async (message) => {
-    const provider = getProvider()
-    if (!provider) {
+  const runTurnLocal = async (message) => {
+    const selection = getProvider()
+    if (!selection) {
       addMessage('Set your model and API key in AI settings first.', 'error')
       return
     }
     setRunning(true)
     addMessage(message, 'user')
+    assistantEl = null
+    const aborter = new AbortController()
     try {
-      const res = await fetch(`/api/chat/${projectId}`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ message, provider }),
+      const provider = createProvider({ ...selection, baseUrl: selection.baseUrl || relayBaseUrl() })
+      await runTurnFn({
+        conversation: { messages: [{ role: 'system', content: SYSTEM_PROMPT }, { role: 'user', content: message }] },
+        provider,
+        requestTool: handleTool,
+        onText: (text) => {
+          if (!assistantEl) assistantEl = addMessage('', 'assistant')
+          assistantEl.textContent += text
+          messagesEl.scrollTop = messagesEl.scrollHeight
+        },
+        signal: aborter.signal,
       })
-      if (!res.ok || !res.body) {
-        const body = await res.json().catch(() => ({}))
-        addMessage(body.error ?? `chat request failed (${res.status})`, 'error')
-        return
-      }
-      const reader = res.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ''
-      for (;;) {
-        const { done, value } = await reader.read()
-        buffer += decoder.decode(value, { stream: true })
-        const { events, rest } = parseEvents(buffer)
-        buffer = rest
-        for (const event of events) await handleEvent(event)
-        if (done) break
-      }
-      if (buffer.trim()) {
-        const { events } = parseEvents(buffer + '\n\n')
-        for (const event of events) await handleEvent(event)
-      }
     } catch (err) {
       addMessage(err.message, 'error')
     } finally {
+      assistantEl = null
       setRunning(false)
     }
   }
@@ -144,6 +111,6 @@ export const initChat = ({ container, projectId = 'local', requestTool, getProvi
     const message = input.value.trim()
     if (!message || running) return
     input.value = ''
-    runTurn(message)
+    runTurnLocal(message)
   })
 }
