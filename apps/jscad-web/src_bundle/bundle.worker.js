@@ -248,6 +248,27 @@ const importData = {
   }
 }
 
+// Measure/check run worker-side against the current solids, through the
+// '@jscadui/model-tools' bundle alias (same pattern as the io bundle): the
+// alias resolves @jscad/modeling to the shared modeling bundle, and the lazy
+// require keeps model-tools out of the worker until first use.
+let _modelTools = null
+const modelTools = () => {
+  if (!_modelTools) _modelTools = require('@jscadui/model-tools', null, readFileWeb)
+  return _modelTools
+}
+
+// One solid measures as a single geometry, more as a scene array — the CLI's
+// classification rule, shared with the studio frame.
+const currentGeometry = () => {
+  const solids = currentSolids()
+  return solids.length === 1 ? solids[0] : solids
+}
+
+const jscadMeasure = ({ options = {} }) => modelTools().measure(currentGeometry(), options)
+
+const jscadCheck = ({ bed, options = {} }) => modelTools().check(currentGeometry(), { ...options, bed })
+
 // Hook into jscadClearTempCache to also clear transpiled .scad cache
 // Create a local wrapper that clears both the require cache and .scad transpilation cache
 const clearAllCaches = () => {
@@ -285,6 +306,8 @@ initWorker({
   importData,
   customHandlers: {
     jscadGetExportFormats,
+    jscadMeasure,
+    jscadCheck,
     jscadClearTempCache: clearAllCaches,          // Clears all caches including transpile
     jscadClearFileCache: clearFileCacheWithTranspiled,  // Evicts specific changed files
   }

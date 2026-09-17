@@ -13,6 +13,7 @@ describe('getBundles', () => {
     expect(b['@jscad/modeling-for-anchors']).toBe('http://viewer.test/build/bundle.jscad_modeling.js')
     expect(b['@jscad/modeling-for-manifold']).toBe('http://viewer.test/build/bundle.jscad_modeling.js')
     expect(b['@jscad/io']).toBe('http://viewer.test/build/bundle.jscad_io.js')
+    expect(b['@jscadui/model-tools']).toBe('http://viewer.test/build/bundle.model-tools.js')
     expect(b['@jscad/csg']).toBe('http://viewer.test/build/bundle.V1_api.js')
     expect(b['@jscadui/params-core']).toBe('http://viewer.test/build/bundle.params_core.js')
     expect(b['@jscadui/jscad-text']).toBe('http://viewer.test/build/bundle.jscad_text.js')

@@ -15,6 +15,7 @@ export const getBundles = ({ engine, toUrl, overrides = {} }) => {
     '@jscad/modeling-for-anchors': engine === 'manifold' ? toUrl('./build/bundle.manifold_modeling.js') : jscadModeling,
     '@jscad/modeling-for-manifold': jscadModeling,
     '@jscad/io': toUrl('./build/bundle.jscad_io.js'),
+    '@jscadui/model-tools': toUrl('./build/bundle.model-tools.js'),
     '@jscad/csg': toUrl('./build/bundle.V1_api.js'),
     '@jscadui/params-core': toUrl('./build/bundle.params_core.js'),
     '@jscadui/jscad-text': toUrl('./build/bundle.jscad_text.js'),

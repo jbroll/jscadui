@@ -49,6 +49,9 @@ import * as fileSystem from './src/fileSystem.js'
 import * as paramsUI from './src/paramsUI.js'
 import { shouldAllowReload, clearReloadTimestamp } from './src/reloadDetection.js'
 import { installStudioBridge } from './src/studioBridge.js'
+import { handleToolRequest } from './src/aiBridge.js'
+import { initChat } from './src/aiChat.js'
+import { initAccount, getProviderConfig } from './src/aiAccount.js'
 
 /**
  * @typedef {import('@jscadui/worker').UserParameters} UserParameters
@@ -563,6 +566,69 @@ if ('serviceWorker' in navigator && !navigator.serviceWorker.controller) {
     setError('cannot start service worker, reload required')
   }
 }
+
+// ============== AI Chat ==============
+// The agent loop runs server-side; the browser executes each tool request
+// against the local worker, viewer and editor, then POSTs the result back.
+const toBase64 = (buffers) => {
+  let binary = ''
+  for (const chunk of buffers) {
+    const bytes = new Uint8Array(chunk)
+    for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
+  }
+  return btoa(binary)
+}
+
+const aiDeps = {
+  evaluate: async (source, entry = './jscad.model.js') => {
+    await jscadScript({ script: source, url: entry, base: currentBase })
+    const result = await workerApi.jscadMain(paramsCtrl.getWorkerParams())
+    handleEntities(result, {})
+    const entities = result.entities instanceof Array ? result.entities : [result.entities]
+    return { entityCount: entities.length }
+  },
+  setParams: async (values) => {
+    Object.assign(paramsCtrl.params, values)
+    for (const key of Object.keys(values)) paramsCtrl.userInteracted.add(key)
+    await paramChangeCallback(paramsCtrl.params)
+    return { updated: Object.keys(values) }
+  },
+  measure: async (options) => workerApi.jscadMeasure({ options }),
+  check: async (input) => workerApi.jscadCheck({ bed: input?.bed, options: input ?? {} }),
+  exportModel: async ({ format }) => {
+    const { data } = (await workerApi.jscadExportData({ format })) || {}
+    const chunks = (data instanceof Array ? data : [data]).filter((v) => v instanceof ArrayBuffer)
+    const size = chunks.reduce((n, v) => n + v.byteLength, 0)
+    return { format, size, data: toBase64(chunks) }
+  },
+  view: async (input) => {
+    if (input?.camera) viewState.setCamera(input.camera)
+    const canvas = document.querySelector('#viewer canvas')
+    const image = canvas ? canvas.toDataURL('image/png') : null
+    if (!image) throw new Error('no rendered canvas to capture')
+    return { ok: true, image, camera: viewState.viewer.getCamera() }
+  },
+  save: async (source, entry = './jscad.model.js') => {
+    editor.setSource(source, entry)
+    return { ok: true, entry }
+  },
+}
+
+if (byId('ai-account')) initAccount(byId('ai-account'))
+if (byId('ai-chat')) {
+  initChat({
+    container: byId('ai-chat'),
+    projectId: 'local',
+    requestTool: (name, input) => handleToolRequest(name, input, aiDeps),
+    getProvider: getProviderConfig,
+  })
+}
+const aiDrawer = byId('ai-drawer')
+const toggleAi = () => aiDrawer?.classList.toggle('closed')
+byId('ai-toggle')?.addEventListener('click', toggleAi)
+byId('ai-chat-btn')?.addEventListener('click', () => {
+  aiDrawer?.classList.remove('closed')
+})
 
 // ============== Cleanup on Page Unload ==============
 // Call destroy functions to clean up event listeners and resources
