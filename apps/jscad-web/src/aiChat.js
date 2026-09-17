@@ -20,9 +20,9 @@ const el = (tag, className, text) => {
 }
 
 /**
- * @param {{container:HTMLElement,requestTool:Function,getProvider:Function,runTurnFn?:Function}} options
+ * @param {{container:HTMLElement,requestTool:Function,getProvider:Function,runTurnFn?:Function,storage?:{readConversation:Function,writeConversation:Function},projectId?:string}} options
  */
-export const initChat = ({ container, requestTool, getProvider, runTurnFn = defaultRunTurn }) => {
+export const initChat = ({ container, requestTool, getProvider, runTurnFn = defaultRunTurn, storage, projectId }) => {
   const header = el('div', 'chat-header', 'AI Chat')
   const messagesEl = el('div', 'chat-messages')
   const form = el('form', 'chat-form')
@@ -36,6 +36,24 @@ export const initChat = ({ container, requestTool, getProvider, runTurnFn = defa
 
   let running = false
   let assistantEl = null
+  let transcript = []
+
+  const persistTranscript = async () => {
+    if (!storage || !projectId) return
+    try {
+      await storage.writeConversation(projectId, transcript)
+    } catch (err) {
+      console.warn('chat persist failed:', err)
+    }
+  }
+
+  if (storage && projectId) {
+    storage.readConversation(projectId).then((resumed) => {
+      if (!resumed) return
+      transcript = resumed.messages.filter((m) => m.role === 'user' || m.role === 'assistant')
+      for (const m of transcript) addMessage(m.content, m.role === 'user' ? 'user' : 'assistant')
+    }).catch((err) => console.warn('chat resume failed:', err))
+  }
 
   const addMessage = (text, kind) => {
     const node = el('div', `chat-msg ${kind}`, text)
@@ -86,21 +104,29 @@ export const initChat = ({ container, requestTool, getProvider, runTurnFn = defa
     }
     setRunning(true)
     addMessage(message, 'user')
+    transcript = [...transcript, { role: 'user', content: message }]
+    persistTranscript()
     assistantEl = null
     const aborter = new AbortController()
     try {
       const provider = createProvider({ ...selection, baseUrl: selection.baseUrl || relayBaseUrl(selection.kind) })
+      let assistantText = ''
       await runTurnFn({
         conversation: { messages: [{ role: 'system', content: SYSTEM_PROMPT }, { role: 'user', content: message }] },
         provider,
         requestTool: handleTool,
         onText: (text) => {
+          assistantText += text
           if (!assistantEl) assistantEl = addMessage('', 'assistant')
           assistantEl.textContent += text
           messagesEl.scrollTop = messagesEl.scrollHeight
         },
         signal: aborter.signal,
       })
+      if (assistantText) {
+        transcript = [...transcript, { role: 'assistant', content: assistantText }]
+        persistTranscript()
+      }
     } catch (err) {
       addMessage(err.message, 'error')
     } finally {

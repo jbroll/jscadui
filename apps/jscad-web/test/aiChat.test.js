@@ -57,6 +57,31 @@ describe('browser chat turn', () => {
     expect(tool.compareDocumentPosition(assistants[1]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 })
+describe('stored conversation', () => {
+  it('loads a stored conversation and persists the turn', async () => {
+    document.body.innerHTML = '<div id="chat"></div>'
+    const container = document.getElementById('chat')
+    const storage = {
+      readConversation: async () => ({ messages: [{ role: 'user', content: 'old' }], updated: 1 }),
+      writeConversation: vi.fn(async () => {}),
+    }
+    initChat({
+      container,
+      requestTool: async () => '{}',
+      getProvider: () => ({ kind: 'openai', model: 'm', apiKey: 'k', baseUrl: 'https://relay.test' }),
+      runTurnFn: async ({ onText }) => { onText('hi'); return { messages: [] } },
+      storage,
+      projectId: 'p1',
+    })
+    await vi.waitFor(() => expect(container.querySelector('.chat-messages').textContent).toMatch(/old/))
+    container.querySelector('.chat-input').value = 'hello'
+    container.querySelector('.chat-form').dispatchEvent(new Event('submit', { cancelable: true }))
+    await vi.waitFor(() => expect(storage.writeConversation).toHaveBeenCalledWith('p1', expect.any(Array)))
+    const persisted = storage.writeConversation.mock.calls.at(-1)[1]
+    expect(persisted).toContainEqual({ role: 'user', content: 'hello' })
+    expect(persisted).toContainEqual({ role: 'assistant', content: 'hi' })
+  })
+})
 describe('relay base url', () => {
   it('builds per-kind relay paths under the default root', async () => {
     window.localStorage.removeItem('jscad-ai.relay')

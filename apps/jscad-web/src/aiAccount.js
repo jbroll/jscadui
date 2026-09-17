@@ -61,6 +61,8 @@ const getSession = async () => {
   }
 }
 
+export { getSession }
+
 /**
  * @param {HTMLElement} container
  */

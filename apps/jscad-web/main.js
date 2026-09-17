@@ -47,6 +47,7 @@ import { updatePipelineStats, countGeometry, createProgressHandler } from './src
 // Leaf imports, not ./src/storage/index.js: the index re-exports schema.js,
 // whose zod 4 types the root TS 4.9 gate cannot parse (see root tsconfig).
 import { createLocalStorage } from './src/storage/local.js'
+import { assembleFileMap } from './src/storage/map.js'
 import { createSession } from './src/storage/session.js'
 import { createWorker, createJobTracker } from './src/workerSetup.js'
 import * as fileSystem from './src/fileSystem.js'
@@ -55,7 +56,7 @@ import { shouldAllowReload, clearReloadTimestamp } from './src/reloadDetection.j
 import { installStudioBridge } from './src/studioBridge.js'
 import { handleToolRequest } from './src/aiBridge.js'
 import { initChat } from './src/aiChat.js'
-import { initAccount, getProviderConfig } from './src/aiAccount.js'
+import { initAccount, getProviderConfig, getSession } from './src/aiAccount.js'
 
 /**
  * @typedef {import('@jscadui/worker').UserParameters} UserParameters
@@ -188,11 +189,72 @@ async function reloadProject() {
 }
 
 // Version/hash record for every editor compile and writeModel save. Local
-// mode only until the sync loop (Task 6) attaches the rowboat backend.
-const storageSession = createSession({ local: createLocalStorage(), rowboat: null, getBackend: () => 'local' })
+// mode only until the sync loop below attaches the rowboat backend.
+const localStore = createLocalStorage()
+const storageSession = createSession({ local: localStore, rowboat: null, getBackend: () => 'local' })
 
 const recordEdit = (script, path) =>
   storageSession.writeThrough('default', path, script, { message: 'edit', entry: path }).catch((err) => console.warn('storage write failed:', err))
+
+const currentProjectId = 'default'
+
+// Lazy rowboat backend: built once a session exists, so anonymous users stay
+// local-only and never load the rowboat client. Dynamic imports keep the
+// TS 4.9 gate green (see above) and the rowboat bundle out of anonymous loads.
+let rowboatStorePromise = null
+
+const fetchSyncToken = async () => {
+  try {
+    const res = await fetch('/api/sync-token', { credentials: 'include' })
+    if (!res.ok) return null
+    const body = await res.json()
+    return body?.token ? body : null
+  } catch {
+    return null
+  }
+}
+
+const getRowboatStore = async () => {
+  if (!rowboatStorePromise) {
+    rowboatStorePromise = (async () => {
+      const user = await getSession()
+      if (!user?.id) return null
+      const info = await fetchSyncToken()
+      if (!info) return null
+      const { createRowboatStorage } = await import('./src/storage/rowboat.js')
+      return createRowboatStorage({
+        syncBase: info.syncBase,
+        identity: user.id,
+        getHeaders: async () => {
+          const refreshed = await fetchSyncToken()
+          return refreshed ? { authorization: `Bearer ${refreshed.token}` } : {}
+        },
+      })
+    })().catch((err) => {
+      console.warn('rowboat init failed:', err)
+      rowboatStorePromise = null
+      return null
+    })
+  }
+  return rowboatStorePromise
+}
+
+const getActiveStore = async () => (await getRowboatStore()) ?? localStore
+
+// Interval table sync while signed in; anonymous users never reach it.
+const initSyncLoop = async () => {
+  const store = await getRowboatStore()
+  if (!store) return
+  const { createSyncLoop } = await import('./src/storage/sync.js')
+  const loop = createSyncLoop({
+    storage: store,
+    getToken: async () => (await fetchSyncToken())?.token ?? null,
+    onError: (err) => console.warn('rowboat sync failed:', err),
+  })
+  loop.start()
+}
+
+initSyncLoop()
 
 fileSystem.setupDragDrop(dropModal, async (dataTransfer) => {
   await fileSystem.handleFileDrop(dataTransfer, fsDeps)
@@ -321,6 +383,25 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
   paramsUI.destroyParamsTreeView()
 
   try {
+    // Mixed local/rowboat models merge at load time: rowboat project files
+    // land in the worker's file cache (its require path), each manifest path
+    // naming exactly one backend. Unlisted sibling requires resolve
+    // local-first through the service worker, then this rowboat cache.
+    try {
+      const store = await getRowboatStore()
+      if (store) {
+        const project = await store.readProject(currentProjectId).catch(() => null)
+        if (project) {
+          const manifest = Object.fromEntries(Object.keys(project.files).map((path) => [path, 'rowboat']))
+          const merged = assembleFileMap(manifest, { local: {}, rowboat: project.files })
+          for (const [path, content] of Object.entries(merged)) {
+            await fileSystem.addToCacheWrapper(path, content)
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('rowboat merge failed:', err)
+    }
     // Query renderer capability for GPU normals support
     const useGpuNormals = viewState.viewer?.supportsGpuNormals ?? false
     const result = await workerApi.jscadScript({ script, url, base, root, useGpuNormals })
@@ -631,10 +712,16 @@ const aiDeps = {
 
 if (byId('ai-account')) initAccount(byId('ai-account'))
 if (byId('ai-chat')) {
+  const chatStorage = {
+    readConversation: (pid) => getActiveStore().then((store) => store.readConversation(pid)),
+    writeConversation: (pid, messages) => getActiveStore().then((store) => store.writeConversation(pid, messages)),
+  }
   initChat({
     container: byId('ai-chat'),
     requestTool: (name, input) => handleToolRequest(name, input, aiDeps),
     getProvider: getProviderConfig,
+    storage: chatStorage,
+    projectId: currentProjectId,
   })
 }
 const aiDrawer = byId('ai-drawer')

@@ -1,7 +1,6 @@
 import { buildRowboatDb, createBlobClient, storeName, syncWithServer } from '@jbroll/rowboat-client'
-import { compileSchema } from '@jbroll/rowboat-schema'
-import { schema } from './schema.js'
 import { kindFromEntry } from './local.js'
+import { manifest } from './manifest.js'
 
 const APP_NAME = 'jscad-web'
 const APP_VERSION = 0
@@ -18,7 +17,6 @@ export function createRowboatStorage(options) {
     cache = new Map(),
   } = options
 
-  const manifest = compileSchema(schema).manifest
   const dbName = storeName(APP_NAME, identity)
   const db = buildRowboatDb(dbName, manifest, [], undefined, dbOptions)
 
