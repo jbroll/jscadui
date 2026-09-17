@@ -5,6 +5,7 @@
 //   2. the app loads and renders the default model through the frame,
 //   3. the run host serves the frame-ancestors CSP + Permissions-Policy,
 //   4. a model export returns bytes through the frame (no export UI yet).
+//   5. the relay refuses an untrusted origin with 403 (no provider touched).
 // With a session cookie it additionally runs one turn against a stub
 // OpenAI-compatible provider (no model key needed) and asserts a text event.
 import http from 'node:http'
@@ -121,7 +122,15 @@ const pp = runRes.headers.get('permissions-policy') ?? ''
 check('run host frame-ancestors the app origin', csp.includes(`frame-ancestors ${APP_URL}`), csp.slice(0, 120))
 check('run host permissions-policy locks sensors', pp.includes('camera=()'), pp)
 
-// 5. One agent turn against a stub provider (needs a session cookie; the CI
+// 5. Relay refuses an untrusted origin without touching any provider.
+const relayRes = await fetch(`${APP_URL}/api/relay/openai/v1/chat/completions`, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json', origin: 'https://evil.test' },
+  body: JSON.stringify({ model: 'probe' }),
+})
+check('relay refuses untrusted origins', relayRes.status === 403, `status ${relayRes.status}`)
+
+// 6. One agent turn against a stub provider (needs a session cookie; the CI
 // deploy has no OAuth test harness, so this is opt-in).
 if (process.env.TEST_SESSION_COOKIE && process.env.TEST_PROVIDER_KEY) {
   const stub = http.createServer((req, res) => {
