@@ -62,7 +62,19 @@ const bundles = {
 
 See [bundles.js](bundles.js) for the exact mapping, including the params-core and jscad-text bundles.
 
-Set `window.jscadModuleOverrides` before `main.js` runs to replace any of these URLs (for example with a local package build served by a studio). An override for `@jbroll/jscad-anchors` also replaces `@jscad/modeling`, since both names point at the same anchors build.
+Set `window.jscadModuleOverrides` before `main.js` runs to replace any of these URLs (for example with a local package build served by a studio). Each name overrides independently; `@jscad/modeling` defaults to the local `bundle.jscad_modeling.js` build.
+
+## AI Chat
+
+The app has an agent chat drawer (AI Chat in the menu) layered on the normal editor, viewer and examples. Describe a part, and the server-side agent loop writes and measures models by calling tools that execute locally: `eval`, `params`, `measure`, `check`, `export`, `view` and `writeModel` (`src/aiBridge.js`).
+
+Account setup lives in the drawer above the chat:
+
+- Sign in with Google (session via the API at `/api`).
+- Pick the provider (`anthropic` or an OpenAI-compatible `baseUrl`) and model name.
+- Save the provider key with a custody mode: `session` (memory only), `device` (this browser), or `synced` (AES-GCM ciphertext only, needs a passphrase to unlock). The key travels to the API per chat request and never enters logs or the compute frame.
+
+Tests: `npx vitest run test/aiBridge.test.js` for routing, `npx playwright test e2e/ai-chat.spec.js` for the full turn against a stubbed API with real local measurements.
 
 ## Deployment
 

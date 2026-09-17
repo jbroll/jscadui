@@ -5,15 +5,23 @@ commit that completes it.
 
 ## Deploy
 
-jscad.rkroll.com runs `main`, where export is broken: the worker requests
-`bundle.jscad_io` with no `/build/` prefix
-(`apps/jscad-web/src_bundle/bundle.worker.js`, fixed on `local-packages` in
-`d1982ba`/`f631886` by requiring the registered `@jscad/io` alias instead).
-`local-packages` also adds anchored-model support. Before deploying, run the
-simple-ci `jscadui/render` regression check on `main` and on the branch
-(`sci push jscadui/render` rsyncs the working tree, so the checkout decides
-what is tested). Deploy after `@jbroll/jscad-anchors` is published and
-before jscad-fluent 0.7.0.
+jscad.rkroll.com runs `dev` with the AI chat folded in (2026-09-17): the
+frontend is jscad-web hybrid plus the studio API on :3006, the compute frame
+on jscad-run.rkroll.com. The old `main` export breakage (worker requesting
+`bundle.jscad_io` with no `/build/` prefix) is fixed on this branch by
+requiring the registered `@jscad/io` alias instead. Before merging to `main`,
+run the simple-ci `jscadui/render` regression check on `main` and on the
+branch (`sci push jscadui/render` rsyncs the working tree, so the checkout
+decides what is tested).
+
+## Unpublished @jbroll/jscad-anchors
+
+The package was never published, so the jsdelivr `@0` build 404s. The
+default `@jscad/modeling` worker alias now points at the local
+`bundle.jscad_modeling.js` instead; anchor-specific requires still fail.
+Decide: publish the package (restores anchor models), or vendor a local
+anchors bundle built from `/home/john/src/jscad-anchors` (browser-safe CJS,
+modeling external). Do this before jscad-fluent 0.7.0.
 
 ## Shared WASM handle between clone and colorize
 

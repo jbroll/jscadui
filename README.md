@@ -6,6 +6,8 @@ Join us on Discord: https://discord.gg/6PB7qZ4HC7
 
 - [@jscadui/3mf-export](./file-format/3mf-export) [![npm](https://badge.fury.io/js/@jscadui%2F3mf-export.svg)](https://www.npmjs.com/package/@jscadui%2F3mf-export) - 3MF export (also used by manifold)
 - [@jscadui/html-gizmo](./packages/html-gizmo) [![npm](https://badge.fury.io/js/@jscadui%2Fhtml-gizmo.svg)](https://www.npmjs.com/package/@jscadui%2Fhtml-gizmo) - Camera direction gizmo
+- [@jscadui/key-store](./packages/key-store) - Provider-key custody for apps (session, device, synced modes)
+- [@jscadui/model-tools](./packages/model-tools) - Browser-safe measure and check for JSCAD geometry
 - [@jscadui/orbit](./packages/orbit) [![npm](https://badge.fury.io/js/@jscadui%2Forbit.svg)](https://www.npmjs.com/package/@jscadui%2Forbit) - Orbit controls for multiple 3D engines
 - [@jscadui/postmessage](./packages/postmessage) [![npm](https://badge.fury.io/js/@jscadui%2Fpostmessage.svg)](https://www.npmjs.com/package/@jscadui%2Fpostmessage) - postMessage utilities
 
