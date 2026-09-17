@@ -17,6 +17,8 @@ export interface ServerConfig {
   githubAppId?: string;
   githubAppPrivateKey?: string;
   githubAppSlug?: string;
+  /** Path to the relay provider allowlist file; unrelated to rowboat. */
+  relayAllowlistPath: string;
 }
 
 export function configFromEnv(): ServerConfig {
@@ -77,6 +79,7 @@ export function configFromEnv(): ServerConfig {
     providers,
     rowboatDatabaseId,
     rowboatUrl,
+    relayAllowlistPath: process.env.RELAY_ALLOWLIST || '/etc/jscad-relay/providers.json',
     ...(process.env.GITHUB_APP_ID ? { githubAppId: process.env.GITHUB_APP_ID } : {}),
     // Private keys travel with literal \n in env files; restore real newlines.
     ...(process.env.GITHUB_APP_PRIVATE_KEY

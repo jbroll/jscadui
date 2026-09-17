@@ -4,6 +4,7 @@ import { createIdentity, type Identity } from '@jbroll/rowboat-auth-betterauth';
 import Database from 'better-sqlite3';
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 import { mountAgentRoutes } from './agent/routes.js';
+import { mountRelayRoutes } from './relay/routes.js';
 import { createInstallationStore } from './git/github.js';
 import { mountGitHubRoutes } from './git/routes.js';
 import { configFromEnv, type ServerConfig } from './config.js';
@@ -86,6 +87,10 @@ export async function createServer(config: ServerConfig): Promise<StudioServer> 
   // conversation store stays the in-memory default until a server-side rowboat
   // sync client backs the schema's conversations table (see agent/routes.ts).
   mountAgentRoutes(app, { getAuthor: identity.provider.resolveAuthor });
+
+  // CORS passthrough to provider APIs for the browser-local loop. No session,
+  // no storage; the caller's provider key rides the request through.
+  mountRelayRoutes(app, { allowlistPath: config.relayAllowlistPath, trustedOrigins: config.trustedOrigins });
 
   // Connected repositories: installation records stay in-memory until a
   // server-side store backs the seam (same follow-up as conversations).
