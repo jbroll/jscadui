@@ -17,6 +17,7 @@
     "@jbroll/rowboat-schema": "file:../../../rowboat/packages/schema",
     "@jscadui/format-common": "*",
     "@jscadui/html-gizmo": "*",
+    "@jscadui/key-store": "*",
     "@jscadui/orbit": "^0.1.0",
     "@jscadui/params-controller": "*",
     "@jscadui/params-ui": "*",

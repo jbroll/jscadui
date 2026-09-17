@@ -1,0 +1,15 @@
+{
+  "name": "@jscadui/key-store",
+  "version": "0.1.0",
+  "description": "Provider-key custody for JSCAD apps (session, device, synced)",
+  "type": "module",
+  "main": "index.js",
+  "files": [
+    "index.js",
+    "src"
+  ],
+  "scripts": {
+    "test": "vitest run"
+  },
+  "license": "MIT"
+}

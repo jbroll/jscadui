@@ -1,7 +1,7 @@
 // The chat panel drives the agent loop: it POSTs the user's message, streams
 // the SSE turn the server returns, executes each tool request in the browser,
 // and POSTs the result back to resolve the loop's pending call.
-import { createKeyStore } from './keys.js'
+import { createKeyStore } from '@jscadui/key-store'
 
 const PROVIDER_STORAGE_KEY = 'jscad-studio.provider'
 
