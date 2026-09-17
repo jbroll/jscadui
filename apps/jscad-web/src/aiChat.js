@@ -63,6 +63,7 @@ export const initChat = ({ container, requestTool, getProvider, runTurnFn = defa
   // Never throws: a rejection becomes an {ok:false} result so the turn
   // always has content to feed back.
   const handleTool = async (name, input) => {
+    assistantEl = null
     const resultEl = addToolLine(name, input)
     try {
       const result = await requestTool(name, input)
