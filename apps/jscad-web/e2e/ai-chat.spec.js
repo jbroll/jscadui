@@ -1,6 +1,7 @@
-// A stub relay speaking the provider API the browser loop calls: first POST
-// streams one measure tool call, second POST answers Done. The page points at
-// it via localStorage jscad-ai.relay, so no /api/chat server exists.
+// A stub relay speaking the provider API the browser loop calls, under the
+// real relay path /api/relay/openai: first POST streams one measure tool
+// call, second POST answers Done. The page points at it via localStorage
+// jscad-ai.relay, so no /api/chat server exists.
 import { test, expect } from '@playwright/test'
 import http from 'node:http'
 import { dismissWelcome, waitForRender, assertNoError } from './helpers.js'
@@ -24,7 +25,7 @@ const startStubRelay = () =>
       let body = ''
       req.on('data', (c) => (body += c))
       req.on('end', () => {
-        if (req.url === '/v1/chat/completions' && req.method === 'POST') {
+        if (req.url === '/api/relay/openai/v1/chat/completions' && req.method === 'POST') {
           const parsed = JSON.parse(body)
           requests.push(parsed)
           res.writeHead(200, { ...cors, 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' })
