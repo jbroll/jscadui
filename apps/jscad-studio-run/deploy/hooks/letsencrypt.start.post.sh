@@ -24,6 +24,9 @@ VHOST="/etc/apache2/sites-available/${APP_NAME}.conf"
 
 BLOCK=$(cat <<EOF | base64 -w0
     # jscad-studio frame headers (managed by deploy hook; do not edit)
+    # CORS: the sandboxed frame has an opaque origin, so its module script
+    # and the worker's bundle XHRs are cross-origin fetches that need this.
+    Header always set Access-Control-Allow-Origin "*"
     Header always set Content-Security-Policy "default-src 'none'; script-src $RUN_ORIGIN https://cdn.jsdelivr.net blob: 'unsafe-eval'; connect-src $RUN_ORIGIN https://cdn.jsdelivr.net; worker-src blob: $RUN_ORIGIN; frame-ancestors $APP_ORIGIN"
     Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), usb=(), serial=()"
     # end jscad-studio frame headers
