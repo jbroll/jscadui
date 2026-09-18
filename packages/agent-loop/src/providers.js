@@ -2,9 +2,13 @@
 // Provider adapters over fetch. baseUrl points at the relay, which proxies
 // path-preserving to the provider host, so no relay-specific code lives here.
 // Anthropic default base is the provider itself for non-browser use.
-const ANTHROPIC_DEFAULT_BASE_URL = 'https://api.anthropic.com'
 const ANTHROPIC_API_VERSION = '2023-06-01'
-const OPENAI_DEFAULT_BASE_URL = 'https://api.openai.com'
+
+export const PROVIDER_BASE_URLS = {
+  anthropic: 'https://api.anthropic.com',
+  openai: 'https://api.openai.com',
+  'opencode-go': 'https://opencode.ai/zen/go',
+}
 
 // Yields every `data:` payload of an SSE stream.
 async function* ssePayloads(body) {
@@ -55,7 +59,7 @@ const anthropicProvider = (config) => ({
       messages: messages.map(toAnthropicMessage),
     }
     if (tools.length > 0) body.tools = tools.map(toAnthropicTool)
-    const res = await fetch(`${config.baseUrl ?? ANTHROPIC_DEFAULT_BASE_URL}/v1/messages`, {
+    const res = await fetch(`${config.baseUrl ?? PROVIDER_BASE_URLS.anthropic}/v1/messages`, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -141,7 +145,7 @@ const openaiProvider = (config) => ({
       messages: messages.map(toOpenAIMessage),
     }
     if (tools.length > 0) body.tools = tools.map(toOpenAITool)
-    const res = await fetch(`${config.baseUrl ?? OPENAI_DEFAULT_BASE_URL}/v1/chat/completions`, {
+    const res = await fetch(`${config.baseUrl ?? PROVIDER_BASE_URLS[config.kind]}/v1/chat/completions`, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -197,10 +201,12 @@ const openaiProvider = (config) => ({
  * @param {{kind:'anthropic'|'openai',apiKey:string,model:string,baseUrl?:string}} config
  */
 export const createProvider = (config) => {
+  if (!config.apiKey) throw new Error('createProvider: apiKey is required')
   switch (config.kind) {
     case 'anthropic':
       return anthropicProvider(config)
     case 'openai':
+    case 'opencode-go':
       return openaiProvider(config)
     default:
       throw new Error(`createProvider: unknown kind '${config.kind}'`)

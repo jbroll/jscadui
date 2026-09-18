@@ -72,4 +72,34 @@ describe('providers', () => {
   it('rejects unknown provider kinds', () => {
     expect(() => createProvider({ kind: 'other', apiKey: 'k', model: 'm' })).toThrow(/unknown kind/)
   })
+
+  it('opencode-go resolves the Zen URL through the openai adapter', async () => {
+    const body = `data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n` + `data: [DONE]\n\n`
+    fetchMock.mockResolvedValue(new Response(sseBody(body)))
+    const provider = createProvider({ kind: 'opencode-go', apiKey: 'k', model: 'deepseek-v4-flash' })
+    const events = []
+    for await (const e of provider.send([{ role: 'user', content: 'hi' }], TOOLS)) events.push(e)
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://opencode.ai/zen/go/v1/chat/completions',
+      expect.objectContaining({ method: 'POST' }),
+    )
+    expect(events[events.length - 1]).toEqual({ type: 'done', stopReason: 'stop' })
+  })
+
+  it('an explicit baseUrl overrides the lookup table', async () => {
+    const body = `data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n` + `data: [DONE]\n\n`
+    fetchMock.mockResolvedValue(new Response(sseBody(body)))
+    const provider = createProvider({ kind: 'opencode-go', apiKey: 'k', model: 'm', baseUrl: 'https://relay.test' })
+    const events = []
+    for await (const e of provider.send([{ role: 'user', content: 'hi' }], TOOLS)) events.push(e)
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://relay.test/v1/chat/completions',
+      expect.objectContaining({ method: 'POST' }),
+    )
+    expect(events[events.length - 1]).toEqual({ type: 'done', stopReason: 'stop' })
+  })
+
+  it('throws when the apiKey is missing', () => {
+    expect(() => createProvider({ kind: 'openai', model: 'm', baseUrl: 'https://relay.test' })).toThrow(/apiKey/)
+  })
 })
