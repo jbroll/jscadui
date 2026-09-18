@@ -12,5 +12,10 @@
   "scripts": {
     "test": "vitest run"
   },
+  "devDependencies": {
+    "@jbroll/jscad-fluent": "file:../../../jscad-fluent",
+    "@jscadui/model-tools": "*",
+    "vitest": "^4.0.18"
+  },
   "license": "MIT"
 }
