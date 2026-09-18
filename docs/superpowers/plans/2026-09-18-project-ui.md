@@ -711,6 +711,7 @@ describe('mode toggle', () => {
       onFlip,
     })
     await vi.waitFor(() => expect(document.querySelector('.mode-toggle')).not.toBeNull())
+    await vi.waitFor(() => expect(document.querySelector('.mode-toggle').disabled).toBe(false))
     document.querySelector('.mode-toggle').click()
     await vi.waitFor(() => expect(onFlip).toHaveBeenCalledWith(id, 'rowboat'))
     expect(manager.peekMode(id)).toBe('rowboat')
@@ -726,7 +727,7 @@ Expected: FAIL — `manager.peekMode is not a function`, no `.mode-toggle` eleme
 - [ ] **Step 3: Implement toggle, peekMode, chat getter**
 
   - `apps/jscad-web/src/storage/projects.js`: add `peekMode` plus return entry.
-  - `apps/jscad-web/src/projects.js`: header gains `.mode-toggle` button showing the selected project's mode; click disables the button, calls `manager.flipMode(selectedId)`, then `onFlip?.(selectedId, mode)` and re-renders, re-enabling in a `finally`. Flip failure goes to `onError` and leaves the mode unchanged. When `canUseRowboat` is false the button disables with `title="Sign in to use rowboat mode"`.
+  - `apps/jscad-web/src/projects.js`: header gains `.mode-toggle` button showing the selected project's mode, initially disabled until a project is selected; click disables the button, calls `manager.flipMode(selectedId)`, then `onFlip?.(selectedId, mode)` and re-renders, re-enabling in a `finally`. Flip failure goes to `onError` and leaves the mode unchanged. When `canUseRowboat` is false the button disables with `title="Sign in to use rowboat mode"`.
   - `apps/jscad-web/src/aiChat.js`: resolve `projectId` at use time — `const pid = () => (typeof projectId === 'function' ? projectId() : projectId)` — and use `pid()` in `persistTranscript` and the resume block. Existing string callers (including the current test) behave identically.
 
 - [ ] **Step 4: Run tests and lint**

@@ -78,3 +78,26 @@ describe('version history', () => {
     expect(await manager.listVersions(project.id)).toHaveLength(3)
   })
 })
+
+describe('mode toggle', () => {
+  it('flips the selected project and disables when rowboat is unavailable', async () => {
+    document.body.innerHTML = '<div id="panel"></div>'
+    const local = createLocalStorage()
+    const rowboat = createLocalStorage()
+    const manager = createProjectManager({ local, getRowboat: () => rowboat })
+    const { id } = await manager.createProject('Gear', { files: { 'main.js': 'v1' } })
+    const onFlip = vi.fn()
+    initProjects({
+      container: document.getElementById('panel'),
+      manager,
+      onSwitch: async () => {},
+      canUseRowboat: true,
+      onFlip,
+    })
+    await vi.waitFor(() => expect(document.querySelector('.mode-toggle')).not.toBeNull())
+    await vi.waitFor(() => expect(document.querySelector('.mode-toggle').disabled).toBe(false))
+    document.querySelector('.mode-toggle').click()
+    await vi.waitFor(() => expect(onFlip).toHaveBeenCalledWith(id, 'rowboat'))
+    expect(manager.peekMode(id)).toBe('rowboat')
+  })
+})

@@ -8,11 +8,15 @@ const el = (tag, className, text) => {
 /**
  * @param {{container:HTMLElement,manager:{listAll:Function,createProject:Function,renameProject:Function,listVersions:Function,restoreVersion:Function},onSwitch:Function,onDropOnProject:Function,onRestore?:Function,onError?:Function,readBuffer?:Function}} options
  */
-export const initProjects = ({ container, manager, onSwitch, onDropOnProject, onRestore, onError = () => {}, readBuffer = () => ({ code: '', path: 'main.js' }) }) => {
+export const initProjects = ({ container, manager, onSwitch, onDropOnProject, onRestore, onFlip, onError = () => {}, canUseRowboat = false, readBuffer = () => ({ code: '', path: 'main.js' }) }) => {
   const header = el('div', 'project-header', 'Projects')
   const newBtn = el('button', 'project-new', 'New')
   newBtn.type = 'button'
   header.append(newBtn)
+  const modeBtn = el('button', 'mode-toggle', 'local')
+  modeBtn.type = 'button'
+  modeBtn.disabled = true
+  header.append(modeBtn)
   const list = el('div', 'project-rows')
   const versionsEl = el('div', 'project-versions')
   container.append(header, list, versionsEl)
@@ -44,8 +48,36 @@ export const initProjects = ({ container, manager, onSwitch, onDropOnProject, on
 
   const select = async (id) => {
     selectedId = id
+    await refreshMode()
     await renderVersions()
   }
+
+  const refreshMode = async () => {
+    if (!selectedId) {
+      modeBtn.textContent = 'local'
+      modeBtn.disabled = true
+      return
+    }
+    const mode = manager.peekMode ? manager.peekMode(selectedId) : 'local'
+    modeBtn.textContent = mode
+    modeBtn.disabled = !canUseRowboat
+    modeBtn.title = canUseRowboat ? '' : 'Sign in to use rowboat mode'
+  }
+
+  modeBtn.addEventListener('click', async () => {
+    if (!selectedId) return
+    modeBtn.disabled = true
+    try {
+      const mode = await manager.flipMode(selectedId)
+      modeBtn.textContent = mode
+      onFlip?.(selectedId, mode)
+      render()
+    } catch (err) {
+      onError(err)
+    } finally {
+      modeBtn.disabled = !canUseRowboat
+    }
+  })
 
   const render = async () => {
     const projects = await manager.listAll().catch(() => [])

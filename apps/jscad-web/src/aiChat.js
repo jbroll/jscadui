@@ -37,18 +37,19 @@ export const initChat = ({ container, requestTool, getProvider, runTurnFn = defa
   let running = false
   let assistantEl = null
   let transcript = []
+  const pid = () => (typeof projectId === 'function' ? projectId() : projectId)
 
   const persistTranscript = async () => {
-    if (!storage || !projectId) return
+    if (!storage || !pid()) return
     try {
-      await storage.writeConversation(projectId, transcript)
+      await storage.writeConversation(pid(), transcript)
     } catch (err) {
       console.warn('chat persist failed:', err)
     }
   }
 
-  if (storage && projectId) {
-    storage.readConversation(projectId).then((resumed) => {
+  if (storage && pid()) {
+    storage.readConversation(pid()).then((resumed) => {
       if (!resumed) return
       transcript = resumed.messages.filter((m) => m.role === 'user' || m.role === 'assistant')
       for (const m of transcript) addMessage(m.content, m.role === 'user' ? 'user' : 'assistant')
