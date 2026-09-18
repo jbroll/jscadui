@@ -21,7 +21,13 @@ export async function* ssePayloads(body: ReadableStream<Uint8Array> | null): Asy
   if (buffer.startsWith('data:')) yield buffer.slice(5).trim()
 }
 
-export type ProviderKind = 'anthropic' | 'openai'
+export type ProviderKind = 'anthropic' | 'openai' | 'opencode-go'
+
+export const PROVIDER_BASE_URLS: Record<ProviderKind, string> = {
+  anthropic: 'https://api.anthropic.com',
+  openai: 'https://api.openai.com',
+  'opencode-go': 'https://opencode.ai/zen/go',
+}
 
 export interface ToolCall {
   id: string
@@ -59,10 +65,12 @@ export interface ProviderConfig {
 }
 
 export function createProvider(config: ProviderConfig): Provider {
+  if (!config.apiKey) throw new Error('createProvider: apiKey is required')
   switch (config.kind) {
     case 'anthropic':
       return anthropicProvider(config)
     case 'openai':
+    case 'opencode-go':
       return openaiProvider(config)
     default:
       throw new Error(`createProvider: unknown kind '${config.kind}'`)

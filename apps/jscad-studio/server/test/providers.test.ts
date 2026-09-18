@@ -232,6 +232,24 @@ describe('createProvider', () => {
       createProvider({ kind: 'gemini' as ProviderKind, apiKey: 'sk-test', model: 'x' }),
     ).toThrow(/kind/)
   })
+
+  it('opencode-go posts to the Zen URL through the openai adapter', async () => {
+    fetchMock.mockResolvedValueOnce(streamResponse(OPENAI_PLAIN))
+    const provider = createProvider({ kind: 'opencode-go', apiKey: 'sk-test', model: 'deepseek-v4-flash' })
+    await collect(provider)
+    expect(fetchMock.mock.calls[0][0]).toBe('https://opencode.ai/zen/go/v1/chat/completions')
+  })
+
+  it('an explicit baseUrl overrides the lookup table', async () => {
+    fetchMock.mockResolvedValueOnce(streamResponse(OPENAI_PLAIN))
+    const provider = createProvider({ kind: 'opencode-go', apiKey: 'sk-test', model: 'm', baseUrl: 'https://provider.test' })
+    await collect(provider)
+    expect(fetchMock.mock.calls[0][0]).toBe('https://provider.test/v1/chat/completions')
+  })
+
+  it('throws when the apiKey is missing', () => {
+    expect(() => createProvider({ kind: 'openai', model: 'm', baseUrl: 'https://provider.test' })).toThrow(/apiKey/)
+  })
 })
 
 describe('anthropic provider', () => {

@@ -1,7 +1,5 @@
-import { ssePayloads } from './types.js'
+import { PROVIDER_BASE_URLS, ssePayloads } from './types.js'
 import type { Provider, ProviderConfig, ProviderMessage, ToolDefinition } from './types.js'
-
-const DEFAULT_BASE_URL = 'https://api.openai.com'
 
 function toOpenAIMessage(message: ProviderMessage) {
   if (message.role === 'tool') {
@@ -52,7 +50,7 @@ export function openaiProvider(config: ProviderConfig): Provider {
       }
       if (tools.length > 0) body.tools = tools.map(toOpenAITool)
 
-      const res = await fetch(`${config.baseUrl ?? DEFAULT_BASE_URL}/v1/chat/completions`, {
+      const res = await fetch(`${config.baseUrl ?? PROVIDER_BASE_URLS[config.kind]}/v1/chat/completions`, {
         method: 'POST',
         headers: {
           'content-type': 'application/json',

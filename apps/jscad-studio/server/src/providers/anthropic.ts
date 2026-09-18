@@ -1,7 +1,6 @@
-import { ssePayloads } from './types.js'
+import { PROVIDER_BASE_URLS, ssePayloads } from './types.js'
 import type { Provider, ProviderConfig, ProviderMessage, ToolDefinition } from './types.js'
 
-const DEFAULT_BASE_URL = 'https://api.anthropic.com'
 const API_VERSION = '2023-06-01'
 
 function toAnthropicMessage(message: ProviderMessage) {
@@ -45,7 +44,7 @@ export function anthropicProvider(config: ProviderConfig): Provider {
       }
       if (tools.length > 0) body.tools = tools.map(toAnthropicTool)
 
-      const res = await fetch(`${config.baseUrl ?? DEFAULT_BASE_URL}/v1/messages`, {
+      const res = await fetch(`${config.baseUrl ?? PROVIDER_BASE_URLS.anthropic}/v1/messages`, {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
