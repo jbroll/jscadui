@@ -234,7 +234,7 @@ export function createFileWatcher(onFilesChanged, runScript) {
 /**
  * Setup drag and drop handlers
  * @param {HTMLElement} dropModal
- * @param {(deps: FileSystemDeps) => Promise<void>} onDrop
+ * @param {(dataTransfer: DataTransfer, target: EventTarget | null) => Promise<void>} onDrop
  */
 export function setupDragDrop(dropModal, onDrop) {
   /** @type {number | NodeJS.Timeout | undefined} */
@@ -249,7 +249,7 @@ export function setupDragDrop(dropModal, onDrop) {
     ev.preventDefault()
     if (ev.dataTransfer === null) return
     showDrop(false)
-    await onDrop(ev.dataTransfer)
+    await onDrop(ev.dataTransfer, ev.target)
   })
 
   document.body.addEventListener('dragover', ev => {

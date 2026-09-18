@@ -48,7 +48,10 @@ import { updatePipelineStats, countGeometry, createProgressHandler } from './src
 // whose zod 4 types the root TS 4.9 gate cannot parse (see root tsconfig).
 import { createLocalStorage } from './src/storage/local.js'
 import { assembleFileMap } from './src/storage/map.js'
+import { createProjectManager } from './src/storage/projects.js'
 import { createSession } from './src/storage/session.js'
+import { initProjects } from './src/projects.js'
+import { extractEntries, readAsText, readDir } from '@jscadui/fs-provider'
 import { createWorker, createJobTracker } from './src/workerSetup.js'
 import * as fileSystem from './src/fileSystem.js'
 import * as paramsUI from './src/paramsUI.js'
@@ -188,15 +191,34 @@ async function reloadProject() {
   await fileSystem.reloadProject(fsDeps)
 }
 
-// Version/hash record for every editor compile and writeModel save. Local
-// mode only until the sync loop below attaches the rowboat backend.
+// Version/hash record for every editor compile and writeModel save against
+// the live project; the session routes by the manager's per-project mode.
 const localStore = createLocalStorage()
-const storageSession = createSession({ local: localStore, rowboat: null, getBackend: () => 'local' })
+let rowboatStore = null
+const projectManager = createProjectManager({ local: localStore, getRowboat: () => rowboatStore })
+const storageSession = createSession({ local: localStore, getRowboat: () => rowboatStore, getBackend: (projectId) => projectManager.peekMode(projectId) })
 
 const recordEdit = (script, path) =>
-  storageSession.writeThrough('default', path, script, { message: 'edit', entry: path }).catch((err) => console.warn('storage write failed:', err))
+  storageSession.writeThrough(currentProjectId, path, script, { message: 'edit', entry: path }).catch((err) => console.warn('storage write failed:', err))
 
-const currentProjectId = 'default'
+let currentProjectId = 'default'
+
+const toEditorFiles = (files) =>
+  Object.entries(files).map(([path, content]) =>
+    Object.assign(new File([content], path.split('/').pop()), { fullPath: `/${path}` }),
+  )
+
+const switchProject = async (id) => {
+  const { project, files } = await projectManager.readForSwitch(id)
+  currentProjectId = id
+  workerApi.jscadClearTempCache()
+  for (const [path, content] of Object.entries(files)) {
+    await fileSystem.addToCacheWrapper(path, content)
+  }
+  editor.setFiles(toEditorFiles(files))
+  editor.setSource(files[project.entry] ?? '', project.entry)
+  jscadScript({ script: files[project.entry] ?? '', url: project.entry, base: currentBase })
+}
 
 // Lazy rowboat backend: built once a session exists, so anonymous users stay
 // local-only and never load the rowboat client. Dynamic imports keep the
@@ -222,7 +244,7 @@ const getRowboatStore = async () => {
       const info = await fetchSyncToken()
       if (!info) return null
       const { createRowboatStorage } = await import('./src/storage/rowboat.js')
-      return createRowboatStorage({
+      rowboatStore = createRowboatStorage({
         syncBase: info.syncBase,
         identity: user.id,
         getHeaders: async () => {
@@ -230,6 +252,7 @@ const getRowboatStore = async () => {
           return refreshed ? { authorization: `Bearer ${refreshed.token}` } : {}
         },
       })
+      return rowboatStore
     })().catch((err) => {
       console.warn('rowboat init failed:', err)
       rowboatStorePromise = null
@@ -256,8 +279,20 @@ const initSyncLoop = async () => {
 
 initSyncLoop()
 
-fileSystem.setupDragDrop(dropModal, async (dataTransfer) => {
+fileSystem.setupDragDrop(dropModal, async (dataTransfer, target) => {
+  const row = target?.closest?.('[data-project-id]')
+  if (row) {
+    const entries = await extractEntries(dataTransfer)
+    await projectManager.mergeDrop(row.dataset.projectId, entries, { readDir, readAsText }).catch(setError)
+    if (row.dataset.projectId === currentProjectId) await switchProject(currentProjectId).catch(setError)
+    return
+  }
   await fileSystem.handleFileDrop(dataTransfer, fsDeps)
+  const entries = await extractEntries(dataTransfer)
+  if (entries.length === 1 && entries[0].isDirectory) {
+    const created = await projectManager.createFromDrop(entries, { readDir, readAsText }).catch(setError)
+    if (created) await switchProject(created.id).catch(setError)
+  }
 })
 
 // ============== Animation ==============
@@ -721,7 +756,7 @@ if (byId('ai-chat')) {
     requestTool: (name, input) => handleToolRequest(name, input, aiDeps),
     getProvider: getProviderConfig,
     storage: chatStorage,
-    projectId: currentProjectId,
+    projectId: () => currentProjectId,
   })
 }
 const aiDrawer = byId('ai-drawer')
@@ -730,6 +765,29 @@ byId('ai-toggle')?.addEventListener('click', toggleAi)
 byId('ai-chat-btn')?.addEventListener('click', () => {
   aiDrawer?.classList.remove('closed')
 })
+
+// ============== Project Panel ==============
+if ((await projectManager.listAll()).length === 0) {
+  await projectManager.createProject('default', { entry: 'main.js', files: { 'main.js': defaultCode } })
+}
+const projectPanel = initProjects({
+  container: byId('project-drawer-body'),
+  manager: projectManager,
+  onSwitch: (id) => switchProject(id).catch(setError),
+  onDropOnProject: async (id, dataTransfer) => {
+    const entries = await extractEntries(dataTransfer)
+    await projectManager.mergeDrop(id, entries, { readDir, readAsText }).catch(setError)
+    if (id === currentProjectId) await switchProject(id).catch(setError)
+    projectPanel.render()
+  },
+  onRestore: (id) => switchProject(id).catch(setError),
+  onError: setError,
+  onFlip: () => projectPanel.render(),
+  readBuffer: () => ({ code: editor.getSource(), path: 'main.js' }),
+  canUseRowboat: (await getRowboatStore()) !== null,
+})
+const projectDrawer = byId('project-drawer')
+byId('project-toggle')?.addEventListener('click', () => projectDrawer?.classList.toggle('closed'))
 
 // ============== Cleanup on Page Unload ==============
 // Call destroy functions to clean up event listeners and resources

@@ -103,6 +103,12 @@ Tests: `npx vitest run test/storage-` covers the interface contract, the
 rowboat backend against a recorded sync transcript, map assembly, zip round
 trip, write-through session, sync loop, and manifest parity.
 
+The Projects drawer lists projects across both backends, with per-project
+version history (restore appends a new row) and a local/rowboat mode toggle
+(rowboat needs sign-in). Dropping files onto a project row merges them as a
+subfolder; dropping onto the page creates a project. Drawer tabs stack
+vertically so the editor, project, and AI panels stay reachable together.
+
 ## Deployment
 
 To start the production server run:
