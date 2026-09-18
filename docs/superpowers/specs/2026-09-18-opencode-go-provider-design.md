@@ -25,8 +25,13 @@ Each stack gains an explicit provider→base-URL lookup (a routing table,
 not a silent default):
 
 ```js
-{ anthropic: 'https://api.anthropic.com', openai: 'https://api.openai.com', 'opencode-go': 'https://opencode.ai/zen/go/v1' }
+{ anthropic: 'https://api.anthropic.com', openai: 'https://api.openai.com', 'opencode-go': 'https://opencode.ai/zen/go' }
 ```
+
+Table values are the URL *before* the adapter's `/v1/...` suffix: both
+adapters append `/v1/messages` or `/v1/chat/completions`, and Zen's
+documented base (`.../zen/go/v1`) already contains that segment, so the
+table entry omits the trailing `/v1`.
 
 `createProvider({ kind, model, apiKey, baseUrl })` resolves
 `baseUrl ?? table[kind]`, maps `opencode-go` to the existing
