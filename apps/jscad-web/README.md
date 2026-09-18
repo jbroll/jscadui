@@ -51,8 +51,8 @@ jscad.app does not read node_modules for now, but loads dependencies from jsdeli
 ```js
 const bundles = {
   // local bundled alias for common libs.
-  '@jscad/modeling': 'https://cdn.jsdelivr.net/npm/@jbroll/jscad-anchors@0/dist/jscad-anchors.cjs',
-  '@jbroll/jscad-anchors': 'https://cdn.jsdelivr.net/npm/@jbroll/jscad-anchors@0/dist/jscad-anchors.cjs',
+  '@jscad/modeling': 'https://cdn.jsdelivr.net/npm/@jbroll/jscad-anchors@0.1/dist/jscad-anchors.cjs',
+  '@jbroll/jscad-anchors': 'https://cdn.jsdelivr.net/npm/@jbroll/jscad-anchors@0.1/dist/jscad-anchors.cjs',
   '@jscad/modeling-for-anchors': toUrl('./build/bundle.jscad_modeling.js'), // or bundle.manifold_modeling.js
   '@jscad/modeling-for-manifold': toUrl('./build/bundle.jscad_modeling.js'),
   '@jscad/io': toUrl('./build/bundle.jscad_io.js'),

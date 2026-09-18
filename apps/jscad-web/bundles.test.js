@@ -2,11 +2,11 @@ import { describe, expect, test } from 'vitest'
 import { getBundles } from './bundles.js'
 
 const toUrl = path => new URL(path, 'http://viewer.test/').toString()
-const CDN = 'https://cdn.jsdelivr.net/npm/@jbroll/jscad-anchors@0/dist/jscad-anchors.cjs'
+const CDN = 'https://cdn.jsdelivr.net/npm/@jbroll/jscad-anchors@0.1/dist/jscad-anchors.cjs'
 const LOCAL = 'http://127.0.0.1:9000/__studio/packages/@jbroll/jscad-anchors/dist/jscad-anchors.cjs'
 
 describe('getBundles', () => {
-  test('jscad engine: modeling is the local bundle (anchors CDN is dead)', () => {
+  test('jscad engine: modeling is the local bundle, anchors rides the CDN', () => {
     const b = getBundles({ engine: 'jscad', toUrl })
     expect(b['@jscad/modeling']).toBe('http://viewer.test/build/bundle.jscad_modeling.js')
     expect(b['@jbroll/jscad-anchors']).toBe(CDN)

@@ -1,4 +1,4 @@
-const ANCHORS_CDN = 'https://cdn.jsdelivr.net/npm/@jbroll/jscad-anchors@0/dist/jscad-anchors.cjs'
+const ANCHORS_CDN = 'https://cdn.jsdelivr.net/npm/@jbroll/jscad-anchors@0.1/dist/jscad-anchors.cjs'
 
 /**
  * Module URLs for the worker's bundle aliases.
