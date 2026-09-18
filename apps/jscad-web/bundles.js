@@ -10,11 +10,8 @@ export const getBundles = ({ engine, toUrl, overrides = {} }) => {
   const anchors = overrides['@jbroll/jscad-anchors'] ?? ANCHORS_CDN
   return {
     ...overrides,
-    // The default modeling build is the local bundle: the published anchors
-    // build (@jbroll/jscad-anchors) no longer exists on npm, so the CDN URL
-    // 404s and the default engine cannot load. Plain modeling covers every
-    // bundled example; anchor support stays on its (dead) URL until the
-    // package is published or vendored.
+    // The default modeling build is the local bundle; anchor support loads
+    // from the published @jbroll/jscad-anchors build on the CDN.
     '@jscad/modeling': overrides['@jscad/modeling'] ?? jscadModeling,
     '@jbroll/jscad-anchors': anchors,
     '@jscad/modeling-for-anchors': engine === 'manifold' ? toUrl('./build/bundle.manifold_modeling.js') : jscadModeling,
