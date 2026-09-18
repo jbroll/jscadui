@@ -1,0 +1,64 @@
+# opencode-go provider — design
+
+Date: 2026-09-18. Status: all sections approved in brainstorming.
+
+## Goal
+
+Offer OpenCode Zen Go (`opencode-go`, OpenAI-compatible at
+`https://opencode.ai/zen/go/v1`) as a provider option everywhere the app
+already offers `anthropic` and `openai`, without duplicating wire code.
+
+## Background
+
+Both provider stacks already speak OpenAI-compatible chat completions:
+`packages/agent-loop/src/providers.js` (browser-local loop) and
+`apps/jscad-studio/server/src/providers/` (`openaiCompatible.ts` adapter
+behind `ProviderKind`). Provider kind currently appears in those two
+switches, the jscad-web account dropdown (`aiAccount.js`), the studio chat
+selection key, the relay kind→upstream allowlist, and the eval harness
+(`EVAL_PROVIDER`). Studio has no picker UI writing its selection key, so it
+needs no UI change.
+
+## 1. Kind resolution: lookup table, no fallbacks
+
+Each stack gains an explicit provider→base-URL lookup (a routing table,
+not a silent default):
+
+```js
+{ anthropic: 'https://api.anthropic.com', openai: 'https://api.openai.com', 'opencode-go': 'https://opencode.ai/zen/go/v1' }
+```
+
+`createProvider({ kind, model, apiKey, baseUrl })` resolves
+`baseUrl ?? table[kind]`, maps `opencode-go` to the existing
+openai-compatible adapter, and throws on unknown kind. Error prefix stays
+`openai:` for the alias (it is the OpenAI protocol).
+
+Keys are strictly caller-supplied: browser key-store attached per request,
+server uses the posted per-turn key and never stores one, eval uses
+explicit `EVAL_API_KEY`. No `*_API_KEY` env reads in library or server
+code, and none are added.
+
+## 2. Surfaces
+
+- agent-loop `createProvider`: accept `opencode-go` via the table.
+- Server `ProviderKind`: add `opencode-go`, same alias treatment.
+- jscad-web account panel: dropdown gains `opencode-go`; model
+  placeholder switches to a Zen model id; no auto-fill; key handling
+  unchanged.
+- Relay: `RELAY.md` example gains the `opencode-go` upstream entry;
+  the operator applies it to the allowlist file. Browser turns keep
+  flowing through `/api/relay/<kind>`.
+- Eval: `EVAL_PROVIDER=opencode-go` with `EVAL_MODEL` and `EVAL_API_KEY`;
+  no harness change needed beyond the agent-loop alias.
+
+## 3. Tests (keyless)
+
+- agent-loop `providers.test.js`: table resolves all three kinds
+  (Zen URL asserted), explicit `baseUrl` override wins, unknown kind
+  throws, missing key throws.
+- Server provider tests mirror the same cases.
+- No live-key tests; the live eval run stays manual.
+
+## Non-goals
+
+New wire adapters, model catalogs, server-side default keys, CI live runs.
