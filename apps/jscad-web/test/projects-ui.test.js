@@ -10,8 +10,16 @@ const setup = async () => {
   const manager = createProjectManager({ local, getRowboat: () => null })
   await manager.createProject('Gear', { files: { 'main.js': 'v1' } })
   const onSwitch = vi.fn()
-  initProjects({ container: document.getElementById('panel'), manager, onSwitch, readBuffer: () => ({ code: 'buf', path: 'main.js' }) })
-  return { manager, onSwitch }
+  const onRestore = vi.fn()
+  const panel = initProjects({
+    container: document.getElementById('panel'),
+    manager,
+    onSwitch: async (id) => { onSwitch(id); await panel.select(id) },
+    onRestore,
+    onError: (err) => { throw err },
+    readBuffer: () => ({ code: 'buf', path: 'main.js' }),
+  })
+  return { manager, local, onSwitch, onRestore, panel }
 }
 
 describe('project panel', () => {
@@ -47,5 +55,26 @@ describe('project panel', () => {
     const [project] = await manager.listAll()
     expect(project.name).toBe('Renamed')
     vi.unstubAllGlobals()
+  })
+})
+
+describe('version history', () => {
+  it('lists versions newest-first with a restore button per row', async () => {
+    const { manager, panel } = await setup()
+    const [project] = await manager.listAll()
+    await panel.select(project.id)
+    await vi.waitFor(() => expect(document.querySelectorAll('.version-row').length).toBeGreaterThan(0))
+    expect(document.querySelector('.version-row').textContent).toMatch(/create/)
+  })
+
+  it('restore writes a new row and calls onRestore', async () => {
+    const { manager, local, panel, onRestore } = await setup()
+    const [project] = await manager.listAll()
+    await local.writeFiles(project.id, { 'main.js': 'v2' }, { message: 'two' })
+    await panel.select(project.id)
+    await vi.waitFor(() => expect(document.querySelectorAll('.version-row')).toHaveLength(2))
+    document.querySelector('.version-restore').click()
+    await vi.waitFor(() => expect(onRestore).toHaveBeenCalledWith(project.id))
+    expect(await manager.listVersions(project.id)).toHaveLength(3)
   })
 })

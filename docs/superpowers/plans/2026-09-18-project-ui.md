@@ -577,11 +577,14 @@ export const initProjects = ({ container, manager, onSwitch, onDropOnProject, on
   const versionsEl = el('div', 'project-versions')
   container.append(header, list, versionsEl)
   let selectedId = null
+  let versionGen = 0
 
   const renderVersions = async () => {
-    versionsEl.innerHTML = ''
-    if (!selectedId) return
+    const gen = ++versionGen
     const versions = await manager.listVersions(selectedId).catch(() => [])
+    // A newer render started while this fetch was in flight; drop the stale result.
+    if (gen !== versionGen || !selectedId) return
+    versionsEl.innerHTML = ''
     for (const v of versions) {
       const row = el('div', 'version-row', `${new Date(v.created).toLocaleString()} — ${v.message}`)
       const btn = el('button', 'version-restore', 'Restore')
