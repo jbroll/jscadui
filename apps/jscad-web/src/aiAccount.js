@@ -106,15 +106,19 @@ export const initAccount = (container) => {
   })
 
   container.append(el('h3', 'ai-section-title', 'Model'))
+  const modelPlaceholders = { anthropic: 'claude-sonnet-4-5', openai: 'gpt-4o', 'opencode-go': 'deepseek-v4-flash' }
   const selection = getSelection()
   const kind = el('select', 'ai-input')
-  for (const value of ['anthropic', 'openai']) {
+  for (const value of ['anthropic', 'openai', 'opencode-go']) {
     const option = el('option', '', value)
     option.value = value
     kind.append(option)
   }
   kind.value = selection.kind ?? 'anthropic'
-  const model = textInput(selection.model ?? '', 'claude-sonnet-4-5')
+  const model = textInput(selection.model ?? '', modelPlaceholders[selection.kind] ?? 'claude-sonnet-4-5')
+  kind.addEventListener('change', () => {
+    model.placeholder = modelPlaceholders[kind.value] ?? ''
+  })
   const baseUrl = textInput(selection.baseUrl ?? '', 'base URL (openai-compatible only)')
   container.append(field('Provider', kind), field('Model', model), field('Base URL', baseUrl))
 

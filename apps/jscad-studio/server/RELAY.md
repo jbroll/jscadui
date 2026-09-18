@@ -10,7 +10,7 @@ override with `RELAY_ALLOWLIST`. Entries must be public `https:` URLs without
 ports; re-read at most every 5s, so edits apply without restart.
 
 ```json
-{ "anthropic": "https://api.anthropic.com", "openai": "https://api.openai.com" }
+{ "anthropic": "https://api.anthropic.com", "openai": "https://api.openai.com", "opencode-go": "https://opencode.ai/zen/go" }
 ```
 
 ## Access rules
