@@ -366,15 +366,12 @@ Expected: FAIL with "Cannot find module '../src/projects.js'".
 
 - [ ] **Step 2: Add drawer markup and stacked-tab CSS**
 
-In `apps/jscad-web/static/index.html` after the `#editor` div (line ~93), add:
+In `apps/jscad-web/static/index.html` after the `#editor` div (line ~93), add (the panel builds its own inner structure, so the body stays empty):
 
 ```html
       <div id="project-drawer" class="closed">
         <div id="project-toggle" title="Projects"></div>
-        <div id="project-drawer-body">
-          <div id="project-list"></div>
-          <div id="project-versions"></div>
-        </div>
+        <div id="project-drawer-body"></div>
       </div>
 ```
 
@@ -785,7 +782,7 @@ const switchProject = async (id) => {
 `File` objects keep editor clicks working: `readAsText` reads Blobs via FileReader, and `fullPath` feeds the file buttons. `currentBase` is the module-level base already tracked in `jscadScript`.
 
   - Chat: change `projectId: currentProjectId` to `projectId: () => currentProjectId` in the `initChat` call.
-  - Panel boot (after `editor.init`, before menu init): mount into `#project-list`, wire `onSwitch: (id) => switchProject(id).catch(setError)`, `onDropOnProject` (below), `onRestore: (id) => switchProject(id).catch(setError)`, `onError: setError`, `onFlip` (re-render panel; flip needs no recompile, files are identical bytes), `readBuffer: () => ({ code: editor.getSource(), path: 'main.js' })`, `canUseRowboat: (await getRowboatStore()) !== null`. Toggle for `#project-toggle` mirrors the AI drawer toggle (`classList.toggle('closed')`). Seed modes at boot with `await projectManager.listAll()` before first render.
+  - Panel boot (after `editor.init`, before menu init): mount into `#project-drawer-body`, wire `onSwitch: (id) => switchProject(id).catch(setError)`, `onDropOnProject` (below), `onRestore: (id) => switchProject(id).catch(setError)`, `onError: setError`, `onFlip` (re-render panel; flip needs no recompile, files are identical bytes), `readBuffer: () => ({ code: editor.getSource(), path: 'main.js' })`, `canUseRowboat: (await getRowboatStore()) !== null`. Toggle for `#project-toggle` mirrors the AI drawer toggle (`classList.toggle('closed')`). Seed modes at boot with `await projectManager.listAll()` before first render.
   - Drop branch: replace the `setupDragDrop` callback with:
 
 ```js

@@ -880,7 +880,7 @@ p {
   width: 16px;
   height: 90px;
   left: -17px;
-  top: 50%;
+  top: calc(50% + 110px);
   margin-top: -45px;
   background-color: #bef;
   border: 1px solid #444;
@@ -896,6 +896,94 @@ p {
 }
 #ai-drawer.closed #ai-toggle::after {
   content: "\27E9";
+}
+
+/* Project drawer: fixed right panel like the AI drawer, above it in z.
+ * Toggle tabs stack vertically (project above middle, AI below) so an open
+ * panel never strands another tab out of reach. */
+#project-drawer {
+  position: fixed;
+  right: 0;
+  top: 0;
+  width: 360px;
+  max-width: 90vw;
+  height: 100vh;
+  background: #fff;
+  border-left: 1px solid #444;
+  z-index: 41;
+  display: flex;
+  transition: transform 0.3s;
+}
+#project-drawer.closed {
+  transform: translateX(100%);
+}
+.dark #project-drawer {
+  background: #222;
+  border-left-color: #666;
+}
+#project-toggle {
+  position: absolute;
+  width: 16px;
+  height: 90px;
+  left: -17px;
+  top: calc(50% - 110px);
+  margin-top: -45px;
+  background-color: #fec;
+  border: 1px solid #444;
+  border-right: none;
+  border-top-left-radius: 10px;
+  border-bottom-left-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+#project-toggle::after {
+  content: "\27E8";
+}
+#project-drawer.closed #project-toggle::after {
+  content: "\27E9";
+}
+#project-drawer-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.project-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid #ccc;
+  font-size: 10pt;
+  font-weight: bold;
+}
+.project-rows {
+  overflow-y: auto;
+}
+.project-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-bottom: 1px solid #eee;
+}
+.project-open {
+  flex: 1;
+  text-align: left;
+  font-size: 10pt;
+}
+.project-versions {
+  overflow-y: auto;
+  border-top: 1px solid #ccc;
+  font-size: 10pt;
+}
+.version-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-bottom: 1px solid #eee;
 }
 #ai-drawer-body {
   flex: 1;
