@@ -137,20 +137,24 @@ const toOpenAITool = (tool) => ({
   function: { name: tool.name, description: tool.description, parameters: tool.inputSchema },
 })
 
-const openaiProvider = (config) => ({
-  async *send(messages, tools) {
+const openaiProvider = (config) => {
+  const sessionId = config.sessionId ?? crypto.randomUUID()
+  return {
+    async *send(messages, tools) {
     const body = {
       model: config.model,
       stream: true,
       messages: messages.map(toOpenAIMessage),
     }
     if (tools.length > 0) body.tools = tools.map(toOpenAITool)
+    const headers = {
+      'content-type': 'application/json',
+      authorization: `Bearer ${config.apiKey}`,
+    }
+    if (config.kind === 'opencode-go') headers['x-opencode-session'] = sessionId
     const res = await fetch(`${config.baseUrl ?? PROVIDER_BASE_URLS[config.kind]}/v1/chat/completions`, {
       method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${config.apiKey}`,
-      },
+      headers,
       body: JSON.stringify(body),
     })
     if (!res.ok) {
@@ -194,11 +198,12 @@ const openaiProvider = (config) => ({
       yield { type: 'tool_use', id: acc.id, name: acc.name, input }
     }
     yield { type: 'done', stopReason: stopReason || 'stop' }
-  },
-})
+    },
+  }
+}
 
 /**
- * @param {{kind:'anthropic'|'openai',apiKey:string,model:string,baseUrl?:string}} config
+ * @param {{kind:'anthropic'|'openai'|'opencode-go',apiKey:string,model:string,baseUrl?:string,sessionId?:string}} config
  */
 export const createProvider = (config) => {
   if (!config.apiKey) throw new Error('createProvider: apiKey is required')

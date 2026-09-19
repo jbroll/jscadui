@@ -62,6 +62,7 @@ export interface ProviderConfig {
   apiKey: string
   model: string
   baseUrl?: string
+  sessionId?: string
 }
 
 export function createProvider(config: ProviderConfig): Provider {

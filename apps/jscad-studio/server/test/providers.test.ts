@@ -250,6 +250,19 @@ describe('createProvider', () => {
   it('throws when the apiKey is missing', () => {
     expect(() => createProvider({ kind: 'openai', model: 'm', baseUrl: 'https://provider.test' })).toThrow(/apiKey/)
   })
+
+  it('opencode-go sends a stable session header that openai omits', async () => {
+    fetchMock.mockImplementation(() => Promise.resolve(streamResponse(OPENAI_PLAIN)))
+    const provider = createProvider({ kind: 'opencode-go', apiKey: 'sk-test', model: 'm' })
+    await collect(provider)
+    await collect(provider)
+    const first = (fetchMock.mock.calls[0][1] as { headers: Record<string, string> }).headers['x-opencode-session']
+    expect(typeof first).toBe('string')
+    expect((fetchMock.mock.calls[1][1] as { headers: Record<string, string> }).headers['x-opencode-session']).toBe(first)
+    const plain = createProvider({ kind: 'openai', apiKey: 'sk-test', model: 'm', baseUrl: 'https://provider.test' })
+    await collect(plain)
+    expect((fetchMock.mock.calls[2][1] as { headers: Record<string, string> }).headers['x-opencode-session']).toBeUndefined()
+  })
 })
 
 describe('anthropic provider', () => {

@@ -102,4 +102,23 @@ describe('providers', () => {
   it('throws when the apiKey is missing', () => {
     expect(() => createProvider({ kind: 'openai', model: 'm', baseUrl: 'https://relay.test' })).toThrow(/apiKey/)
   })
+
+  it('opencode-go sends a stable x-opencode-session header; openai does not', async () => {
+    const body = `data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n` + `data: [DONE]\n\n`
+    fetchMock.mockImplementation(() => Promise.resolve(new Response(sseBody(body))))
+    const drain = async (provider) => {
+      const events = []
+      for await (const e of provider.send([{ role: 'user', content: 'hi' }], TOOLS)) events.push(e)
+      return events
+    }
+    const provider = createProvider({ kind: 'opencode-go', apiKey: 'k', model: 'm' })
+    await drain(provider)
+    await drain(provider)
+    const first = fetchMock.mock.calls[0][1].headers['x-opencode-session']
+    expect(typeof first).toBe('string')
+    expect(fetchMock.mock.calls[1][1].headers['x-opencode-session']).toBe(first)
+    const plain = createProvider({ kind: 'openai', apiKey: 'k', model: 'm', baseUrl: 'https://relay.test' })
+    await drain(plain)
+    expect(fetchMock.mock.calls[2][1].headers['x-opencode-session']).toBeUndefined()
+  })
 })

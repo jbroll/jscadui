@@ -41,6 +41,7 @@ interface StreamChunk {
 }
 
 export function openaiProvider(config: ProviderConfig): Provider {
+  const sessionId = config.sessionId ?? crypto.randomUUID()
   return {
     async *send(messages, tools) {
       const body: Record<string, unknown> = {
@@ -50,12 +51,15 @@ export function openaiProvider(config: ProviderConfig): Provider {
       }
       if (tools.length > 0) body.tools = tools.map(toOpenAITool)
 
+      const headers: Record<string, string> = {
+        'content-type': 'application/json',
+        authorization: `Bearer ${config.apiKey}`,
+      }
+      if (config.kind === 'opencode-go') headers['x-opencode-session'] = sessionId
+
       const res = await fetch(`${config.baseUrl ?? PROVIDER_BASE_URLS[config.kind]}/v1/chat/completions`, {
         method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          authorization: `Bearer ${config.apiKey}`,
-        },
+        headers,
         body: JSON.stringify(body),
       })
       if (!res.ok) {

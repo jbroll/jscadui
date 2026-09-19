@@ -43,6 +43,13 @@ server uses the posted per-turn key and never stores one, eval uses
 explicit `EVAL_API_KEY`. No `*_API_KEY` env reads in library or server
 code, and none are added.
 
+Go requires an `x-opencode-session` header per conversation: both
+openai-compatible adapters send one for kind `opencode-go` (explicit
+`sessionId` config wins, else a per-provider `crypto.randomUUID()`).
+Only `chat/completions`-served models work through this adapter; models
+served on `/v1/responses` or `/v1/messages` (e.g. Muse Spark, Qwen, MiniMax)
+need their own adapter, out of scope here.
+
 ## 2. Surfaces
 
 - agent-loop `createProvider`: accept `opencode-go` via the table.
