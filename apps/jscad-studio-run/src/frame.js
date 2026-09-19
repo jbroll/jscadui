@@ -29,6 +29,7 @@ const workerBundles = () => ({
   '@jscad/modeling-for-manifold': BUNDLE_BASE + 'bundle.jscad_modeling.js',
   '@jscad/io': BUNDLE_BASE + 'bundle.jscad_io.js',
   '@jscadui/model-tools': BUNDLE_BASE + 'bundle.model-tools.js',
+  '@jbroll/jscad-fluent': BUNDLE_BASE + 'bundle.jscad-fluent.js',
   '@jscadui/params-core': BUNDLE_BASE + 'bundle.params_core.js',
   '@jscadui/jscad-text': BUNDLE_BASE + 'bundle.jscad_text.js',
 })

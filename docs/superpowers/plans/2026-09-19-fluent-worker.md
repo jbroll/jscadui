@@ -126,13 +126,17 @@ Run again. Expected: FAIL with `expected undefined to be .../bundle.jscad-fluent
 
 - [ ] **Step 2: Add the web alias in bundles.js**
 
-In `getBundles` return object, after the `'@jscadui/model-tools'` line:
+In `getBundles` return object, following the existing anchors pattern (explicit keys after the spread would clobber same-name overrides, so each overridable alias uses `??`):
 
 ```js
-'@jbroll/jscad-fluent': toUrl('./build/bundle.jscad-fluent.js'),
+const fluent = overrides['@jbroll/jscad-fluent'] ?? toUrl('./build/bundle.jscad-fluent.js')
 ```
 
-Full return keeps override spread first so `window.jscadModuleOverrides` can still replace it (same as every other alias; the existing `other overrides pass through` test already covers fluent overrides).
+and in the return object after the `'@jscadui/model-tools'` line:
+
+```js
+'@jbroll/jscad-fluent': fluent,
+```
 
 - [ ] **Step 3: Add the studio-run alias in frame.js workerBundles**
 

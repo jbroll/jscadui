@@ -8,6 +8,7 @@ const ANCHORS_CDN = 'https://cdn.jsdelivr.net/npm/@jbroll/jscad-anchors@0.1/dist
 export const getBundles = ({ engine, toUrl, overrides = {} }) => {
   const jscadModeling = toUrl('./build/bundle.jscad_modeling.js')
   const anchors = overrides['@jbroll/jscad-anchors'] ?? ANCHORS_CDN
+  const fluent = overrides['@jbroll/jscad-fluent'] ?? toUrl('./build/bundle.jscad-fluent.js')
   return {
     ...overrides,
     // The default modeling build is the local bundle; anchor support loads
@@ -18,6 +19,7 @@ export const getBundles = ({ engine, toUrl, overrides = {} }) => {
     '@jscad/modeling-for-manifold': jscadModeling,
     '@jscad/io': toUrl('./build/bundle.jscad_io.js'),
     '@jscadui/model-tools': toUrl('./build/bundle.model-tools.js'),
+    '@jbroll/jscad-fluent': fluent,
     '@jscad/csg': toUrl('./build/bundle.V1_api.js'),
     '@jscadui/params-core': toUrl('./build/bundle.params_core.js'),
     '@jscadui/jscad-text': toUrl('./build/bundle.jscad_text.js'),
