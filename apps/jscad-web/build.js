@@ -116,6 +116,14 @@ await buildBundle(outDir + '/build', 'bundle.model-tools.js', {
   loader: cjsLoader,
   external: ['@jscad/modeling'],
 })
+// fluent bundle: shared deps stay external so the runtime require routes
+// them to the modeling bundle alias and the CDN anchors build.
+await buildBundle(outDir + '/build', 'bundle.jscad-fluent.js', {
+  format: 'cjs',
+  watch: dev,
+  loader: cjsLoader,
+  external: ['@jscad/modeling', '@jscad/modeling-for-anchors', '@jbroll/jscad-anchors'],
+})
 await buildBundle(outDir + '/build', 'bundle.V1_api.js', { format:'cjs', watch: dev, loader: cjsLoader })
 await buildBundle(outDir + '/build', 'bundle.params_core.js', { format: 'cjs', watch: dev, loader: cjsLoader })
 await buildBundle(outDir + '/build', 'bundle.jscadui.transform-babel.js', { globalName: 'jscadui_transform_babel', watch: dev })
