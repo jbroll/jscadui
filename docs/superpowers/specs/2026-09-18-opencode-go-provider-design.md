@@ -50,6 +50,21 @@ Only `chat/completions`-served models work through this adapter; models
 served on `/v1/responses` or `/v1/messages` (e.g. Muse Spark, Qwen, MiniMax)
 need their own adapter, out of scope here.
 
+## 4. Endpoint notes (from live probing 2026-09-19)
+
+- Go serves three protocols per model: `/v1/chat/completions`
+  (DeepSeek, Kimi, GLM, LongCat, MiMo, Hy), `/v1/responses` (Grok 4.6,
+  GPT 5.6 Luna, Muse Spark contributor tiers), `/v1/messages`
+  (MiniMax, Qwen, all `*-max`/`*-plus`). Hitting the wrong one fails
+  (500 on Spark via chat/completions).
+- Missing `x-opencode-session` fails the request outright
+  (`MissingSessionID`, 400).
+- Free-tier models (`*-free` on the main `zen/v1` endpoint) are gated to
+  validated opencode clients (`FreeTierError`, 403): unreachable from a
+  raw harness. Paid Go enforces per-model monthly limits
+  (`GoUsageLimitError`, 429).
+- Docs: `https://opencode.ai/docs/go/`.
+
 ## 2. Surfaces
 
 - agent-loop `createProvider`: accept `opencode-go` via the table.
