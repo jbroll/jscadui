@@ -205,7 +205,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const nodeRequire = createRequire(import.meta.url)
 const modeling = nodeRequire('@jscad/modeling')
 const { measure } = nodeRequire('@jscadui/model-tools')
-const { getParameterDefinitionsFromSource } = await import('@jscadui/worker')
+// Import the pure params module directly: the package entry (worker.js)
+// registers worker-global listeners at import time (no `self` in Node).
+const { getParameterDefinitionsFromSource } = await import('@jscadui/worker/src/getParameterDefinitionsFromSource.js')
 
 // The anchors dist requires the runtime-only '@jscad/modeling-for-anchors'
 // alias; map it to real modeling the way the worker alias does.
@@ -263,7 +265,7 @@ module.exports = { main }`
 
 const CUBE_PARAMS_BLOCK = `/** @jscad-params
 size = 20 // Size
-*/
+}*/
 const jf = require('@jbroll/jscad-fluent')
 function main(p) { return [jf.cube({ size: p.size ?? 20 })] }
 module.exports = { main }`
