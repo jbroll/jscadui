@@ -169,3 +169,4 @@ deploy.conf
 /*.md.tmp
 /all-js-*.md
 apps/jscad-web/e2e/render-report.json
+packages/agent-loop/eval/results/
