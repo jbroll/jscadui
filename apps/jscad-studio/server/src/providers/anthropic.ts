@@ -34,6 +34,7 @@ interface StreamEvent {
 }
 
 export function anthropicProvider(config: ProviderConfig): Provider {
+  const sessionId = config.sessionId ?? crypto.randomUUID()
   return {
     async *send(messages, tools) {
       const body: Record<string, unknown> = {
@@ -44,13 +45,16 @@ export function anthropicProvider(config: ProviderConfig): Provider {
       }
       if (tools.length > 0) body.tools = tools.map(toAnthropicTool)
 
-      const res = await fetch(`${config.baseUrl ?? PROVIDER_BASE_URLS.anthropic}/v1/messages`, {
+      const headers: Record<string, string> = {
+        'content-type': 'application/json',
+        'x-api-key': config.apiKey,
+        'anthropic-version': API_VERSION,
+      }
+      if (config.kind === 'opencode-go') headers['x-opencode-session'] = sessionId
+
+      const res = await fetch(`${config.baseUrl ?? PROVIDER_BASE_URLS[config.kind] ?? PROVIDER_BASE_URLS.anthropic}/v1/messages`, {
         method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'x-api-key': config.apiKey,
-          'anthropic-version': API_VERSION,
-        },
+        headers,
         body: JSON.stringify(body),
       })
       if (!res.ok) {

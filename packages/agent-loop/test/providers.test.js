@@ -121,4 +121,35 @@ describe('providers', () => {
     await drain(plain)
     expect(fetchMock.mock.calls[2][1].headers['x-opencode-session']).toBeUndefined()
   })
+
+  it('opencode-go routes spark models to the responses endpoint', async () => {
+    const body =
+      `data: {"type":"response.output_text.delta","delta":"Hi"}\n\n` +
+      `data: {"type":"response.output_item.added","item":{"id":"item_1","type":"function_call","call_id":"call_1","name":"measure"}}\n\n` +
+      `data: {"type":"response.function_call_arguments.delta","item_id":"item_1","delta":"{\\"target\\":\\"part1\\"}"}\n\n` +
+      `data: {"type":"response.completed"}\n\n`
+    fetchMock.mockResolvedValue(new Response(sseBody(body)))
+    const provider = createProvider({ kind: 'opencode-go', apiKey: 'k', model: 'muse-spark-1.3-contributor' })
+    const events = []
+    for await (const e of provider.send([{ role: 'user', content: 'hi' }], TOOLS)) events.push(e)
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://opencode.ai/zen/go/v1/responses',
+      expect.objectContaining({ method: 'POST' }),
+    )
+    expect(events).toContainEqual({ type: 'text', text: 'Hi' })
+    expect(events).toContainEqual({ type: 'tool_use', id: 'call_1', name: 'measure', input: { target: 'part1' } })
+    expect(events[events.length - 1]).toEqual({ type: 'done', stopReason: 'completed' })
+  })
+
+  it('opencode-go routes qwen models to the messages endpoint', async () => {
+    fetchMock.mockResolvedValue(new Response(sseBody('')))
+    const provider = createProvider({ kind: 'opencode-go', apiKey: 'k', model: 'qwen3.8-flash' })
+    const events = []
+    for await (const e of provider.send([{ role: 'user', content: 'hi' }], TOOLS)) events.push(e)
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://opencode.ai/zen/go/v1/messages',
+      expect.objectContaining({ method: 'POST' }),
+    )
+    expect(events).toEqual([])
+  })
 })

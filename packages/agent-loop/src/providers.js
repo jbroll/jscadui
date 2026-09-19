@@ -2,6 +2,8 @@
 // Provider adapters over fetch. baseUrl points at the relay, which proxies
 // path-preserving to the provider host, so no relay-specific code lives here.
 // Anthropic default base is the provider itself for non-browser use.
+import { responsesProvider } from './responses.js'
+
 const ANTHROPIC_API_VERSION = '2023-06-01'
 
 export const PROVIDER_BASE_URLS = {
@@ -10,8 +12,12 @@ export const PROVIDER_BASE_URLS = {
   'opencode-go': 'https://opencode.ai/zen/go',
 }
 
+// Go serves these models on other protocols; route by model id.
+export const RESPONSES_MODELS = new Set(['grok-4.6', 'gpt-5.6-luna', 'muse-spark-1.3-contributor', 'muse-spark-1.2-contributor'])
+export const MESSAGES_MODELS = new Set(['minimax-m3', 'minimax-m2.7', 'minimax-m2.5', 'qwen3.8-max', 'qwen3.8-flash', 'qwen3.7-max', 'qwen3.7-plus', 'qwen3.6-plus'])
+
 // Yields every `data:` payload of an SSE stream.
-async function* ssePayloads(body) {
+export async function* ssePayloads(body) {
   if (!body) return
   const reader = body.getReader()
   const decoder = new TextDecoder()
@@ -50,8 +56,10 @@ const toAnthropicMessage = (message) => {
 
 const toAnthropicTool = (tool) => ({ name: tool.name, description: tool.description, input_schema: tool.inputSchema })
 
-const anthropicProvider = (config) => ({
-  async *send(messages, tools) {
+const anthropicProvider = (config) => {
+  const sessionId = config.sessionId ?? crypto.randomUUID()
+  return {
+    async *send(messages, tools) {
     const body = {
       model: config.model,
       max_tokens: 4096,
@@ -59,13 +67,15 @@ const anthropicProvider = (config) => ({
       messages: messages.map(toAnthropicMessage),
     }
     if (tools.length > 0) body.tools = tools.map(toAnthropicTool)
-    const res = await fetch(`${config.baseUrl ?? PROVIDER_BASE_URLS.anthropic}/v1/messages`, {
+    const headers = {
+      'content-type': 'application/json',
+      'x-api-key': config.apiKey,
+      'anthropic-version': ANTHROPIC_API_VERSION,
+    }
+    if (config.kind === 'opencode-go') headers['x-opencode-session'] = sessionId
+    const res = await fetch(`${config.baseUrl ?? PROVIDER_BASE_URLS[config.kind] ?? PROVIDER_BASE_URLS.anthropic}/v1/messages`, {
       method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': config.apiKey,
-        'anthropic-version': ANTHROPIC_API_VERSION,
-      },
+      headers,
       body: JSON.stringify(body),
     })
     if (!res.ok) {
@@ -111,8 +121,9 @@ const anthropicProvider = (config) => ({
         throw new Error(`anthropic: ${event.error?.message ?? 'provider error'}`)
       }
     }
-  },
-})
+    },
+  }
+}
 
 const toOpenAIMessage = (message) => {
   if (message.role === 'tool') {
@@ -211,7 +222,10 @@ export const createProvider = (config) => {
     case 'anthropic':
       return anthropicProvider(config)
     case 'openai':
+      return openaiProvider(config)
     case 'opencode-go':
+      if (RESPONSES_MODELS.has(config.model)) return responsesProvider(config)
+      if (MESSAGES_MODELS.has(config.model)) return anthropicProvider(config)
       return openaiProvider(config)
     default:
       throw new Error(`createProvider: unknown kind '${config.kind}'`)

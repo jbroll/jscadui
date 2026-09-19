@@ -263,6 +263,36 @@ describe('createProvider', () => {
     await collect(plain)
     expect((fetchMock.mock.calls[2][1] as { headers: Record<string, string> }).headers['x-opencode-session']).toBeUndefined()
   })
+
+  it('opencode-go routes spark models to the responses endpoint', async () => {
+    const spark =
+      openaiChunk({ type: 'response.output_text.delta', delta: 'Hi' }) +
+      openaiChunk({
+        type: 'response.output_item.added',
+        item: { id: 'item_1', type: 'function_call', call_id: 'call_1', name: 'measure' },
+      }) +
+      openaiChunk({ type: 'response.function_call_arguments.delta', item_id: 'item_1', delta: '{"target":"part1"}' }) +
+      openaiChunk({ type: 'response.completed' })
+    fetchMock.mockResolvedValueOnce(streamResponse(spark))
+    const provider = createProvider({ kind: 'opencode-go', apiKey: 'sk-test', model: 'muse-spark-1.3-contributor' })
+    const events = await collect(provider)
+    const [url, init] = fetchMock.mock.calls[0] as [string, { headers: Record<string, string>; body: string }]
+    expect(url).toBe('https://opencode.ai/zen/go/v1/responses')
+    expect(init.headers['x-opencode-session']).toEqual(expect.any(String))
+    expect(JSON.parse(init.body).model).toBe('muse-spark-1.3-contributor')
+    expect(events).toContainEqual({ type: 'text', text: 'Hi' })
+    expect(events).toContainEqual({ type: 'tool_use', id: 'call_1', name: 'measure', input: { target: 'part1' } })
+    expect(events[events.length - 1]).toEqual({ type: 'done', stopReason: 'completed' })
+  })
+
+  it('opencode-go routes qwen models to the messages endpoint', async () => {
+    fetchMock.mockResolvedValueOnce(streamResponse(ANTHROPIC_PLAIN))
+    const provider = createProvider({ kind: 'opencode-go', apiKey: 'sk-test', model: 'qwen3.8-flash' })
+    await collect(provider)
+    const [url, init] = fetchMock.mock.calls[0] as [string, { headers: Record<string, string> }]
+    expect(url).toBe('https://opencode.ai/zen/go/v1/messages')
+    expect(init.headers['x-opencode-session']).toEqual(expect.any(String))
+  })
 })
 
 describe('anthropic provider', () => {

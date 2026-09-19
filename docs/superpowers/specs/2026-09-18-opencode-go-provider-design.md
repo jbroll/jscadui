@@ -88,4 +88,7 @@ need their own adapter, out of scope here.
 
 ## Non-goals
 
-New wire adapters, model catalogs, server-side default keys, CI live runs.
+Model catalogs, server-side default keys, CI live runs. (A Responses-API
+adapter with per-model routing was added after live probing showed Spark,
+Grok, and Luna are served on `/v1/responses` and MiniMax/Qwen on
+`/v1/messages`; mock-tested only until budget allows a live run.)
