@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { createReadFile, PROJECT_BASE } from '../src/fileMap.js'
+import { createReadFile, PROJECT_BASE } from '../src_frame/fileMap.js'
 
 describe('createReadFile', () => {
   const files = {

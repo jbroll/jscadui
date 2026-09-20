@@ -17,6 +17,7 @@ const mimeTypes = {
   '.txt': 'text/plain',
   '.ttf': 'font/ttf',
   '.woff2': 'font/woff2',
+  '.wasm': 'application/wasm',
 }
 
 /**
@@ -32,6 +33,13 @@ const handleRequest = (req) => {
   } else if (pathname.endsWith('/index.html')) {
     // redirect index.html to /
     return { status: 301, content: pathname.slice(0, -10) }
+  } else if (pathname === '/frame' || pathname.startsWith('/frame/')) {
+    // compute frame: checked before the trailing-slash rule so /frame/ gets
+    // frame headers, not the generic static ones. No SPA fallback (an
+    // index.html fallback would break the blob worker's bundle XHRs), CORS on
+    // (the sandboxed frame fetches cross-origin from its opaque origin),
+    // frame locked to this app.
+    return handleFrame(pathname)
   } else if (pathname.endsWith('/')) {
     // serve index.html
     return handleStatic(`${pathname}index.html`)
@@ -71,6 +79,32 @@ const handleStatic = async (pathname) => {
 
   const content = await fs.readFile(filePath)
   return { status: 200, content, contentType }
+}
+
+const frameHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), usb=(), serial=()',
+  'Content-Security-Policy': "frame-ancestors 'self'",
+}
+
+/**
+ * Serve the compute frame from build/frame without the SPA fallback.
+ */
+const handleFrame = async (pathname) => {
+  const buildDir = path.resolve(process.cwd(), 'build/frame')
+  const rel = pathname === '/frame' || pathname === '/frame/' ? 'index.html' : pathname.replace(/^\/frame\/+/, '')
+  const filePath = path.resolve(buildDir, rel)
+  if (!filePath.startsWith(buildDir + path.sep) && filePath !== buildDir) {
+    return { status: 403, content: 'forbidden' }
+  }
+  const stats = await fs.stat(filePath).catch(() => undefined)
+  if (!stats || !stats.isFile()) {
+    return { status: 404, content: 'not found' }
+  }
+  const extname = path.extname(filePath)
+  const contentType = mimeTypes[extname] || 'application/octet-stream'
+  const content = await fs.readFile(filePath)
+  return { status: 200, content, contentType, headers: frameHeaders }
 }
 
 /**
@@ -193,7 +227,7 @@ const server = http.createServer(async (req, res) => {
   let { content } = result
 
   // write http header
-  const headers = { 'Connection': 'keep-alive' }
+  const headers = { 'Connection': 'keep-alive', ...(result.headers ?? {}) }
   if (contentType) headers['Content-Type'] = contentType
   if (status === 301) {
     // handle redirect

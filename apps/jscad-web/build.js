@@ -1,10 +1,12 @@
 import { copyTask, parseArgs } from '@jbroll/jsx6-build'
 import { execSync } from 'child_process'
 import { existsSync, mkdirSync, readFileSync, copyFileSync, rmSync, readdirSync } from 'fs'
+import { fileURLToPath } from 'url'
 import liveServer from 'live-server'
 import {serve} from './serve.js'
 import { genExamplesManifest } from './src_build/genExamplesManifest.js'
 import { hashAssets } from './src_build/hashAssets.js'
+import { hashFrameAssets } from './src_build/hashFrameAssets.js'
 
 import { buildBundle, buildOne } from './src_build/esbuildUtil.js'
 
@@ -43,6 +45,17 @@ const htmlFilter = {
   include: ['index.html']
 }
 
+// Frame page: bake the web origin as both app and run origin. The frame is
+// served same-host at /frame/ under sandbox (opaque origin), so CSP must
+// name the origin explicitly — 'self' matches nothing inside the frame.
+const frameOrigin = process.env.FRAME_APP_ORIGIN || 'https://jscad.rkroll.com'
+const frameHtmlFilter = {
+  filter: (content) => content
+    .replaceAll('__RUN_ORIGIN__', frameOrigin)
+    .replaceAll('__APP_ORIGIN__', frameOrigin),
+  include: ['frame/index.html'],
+}
+
 // *************** read parameters **********************
 const { dev, port = 5120, serve:serveBuild=false, skipDocs=false } = parseArgs()
 const watch = dev
@@ -75,7 +88,7 @@ for (const f of readdirSync(outDir)) {
 
 /**************************** COPY STATIC ASSETS  *************/
 
-copyTask('static', outDir, { include: [], exclude: [], watch, filters: [htmlFilter] })
+copyTask('static', outDir, { include: [], exclude: [], watch, filters: [htmlFilter, frameHtmlFilter] })
 
 // Clean examples directory before copying to prevent orphaned files
 if (existsSync(outDir + '/examples')) {
@@ -218,14 +231,79 @@ const loader = {
 }
 await buildOne('.', outDir, 'main.js', watch, { format: 'esm', loader })
 
+/******************************* COMPUTE FRAME (/frame) ***********************/
+// Self-contained sandboxed execution page. Bundle set mirrors the app's
+// src_bundle sources (canonical, shared) except the worker, which is the
+// frame-specific entry (blob __BUNDLE_BASE__ + project file map).
+const frameDir = outDir + '/frame'
+const frameBuildDir = frameDir + '/build'
+if (existsSync(frameBuildDir)) rmSync(frameBuildDir, { recursive: true, force: true })
+mkdirSync(frameBuildDir, { recursive: true })
+const frameCjs = { '.js': 'js', '.jsx': 'jsx' }
+await buildBundle(frameBuildDir, 'bundle.jscad_modeling.js', { format: 'cjs', watch: dev, loader: frameCjs })
+await buildOne('src_bundle', frameBuildDir, 'bundle.manifold_modeling.js', watch, {
+  format: 'cjs',
+  loader: frameCjs,
+  external: ['module', '@jscad/modeling-for-manifold'],
+})
+copyFileSync('../../node_modules/manifold-3d/manifold.wasm', frameBuildDir + '/manifold.wasm')
+await buildBundle(frameBuildDir, 'bundle.jscad_io.js', { format: 'cjs', watch: dev, loader: frameCjs })
+await buildBundle(frameBuildDir, 'bundle.model-tools.js', {
+  format: 'cjs',
+  watch: dev,
+  loader: frameCjs,
+  external: ['@jscad/modeling'],
+})
+await buildBundle(frameBuildDir, 'bundle.jscad-fluent.js', {
+  format: 'cjs',
+  watch: dev,
+  loader: frameCjs,
+  external: ['@jscad/modeling', '@jscad/modeling-for-anchors', '@jbroll/jscad-anchors'],
+})
+await buildBundle(frameBuildDir, 'bundle.params_core.js', { format: 'cjs', watch: dev, loader: frameCjs })
+await buildBundle(frameBuildDir, 'bundle.jscadui.transform-babel.js', { globalName: 'jscadui_transform_babel', watch: dev })
+await buildBundle(frameBuildDir, 'bundle.openscad.js', {
+  globalName: 'jscadui_openscad',
+  watch: dev,
+  plugins: [nodeBuiltinStubPlugin],
+})
+await buildBundle(frameBuildDir, 'bundle.jscad_text.js', {
+  format: 'cjs',
+  watch: dev,
+  loader: frameCjs,
+  plugins: [nodeBuiltinStubPlugin],
+})
+// Frame worker: readFileWeb (origin-based) cannot work in the blob worker,
+// so substitute the map-aware loader — same shim pattern as the run app.
+await buildOne('src_frame', frameBuildDir, 'bundle.frame-worker.js', watch, {
+  format: 'iife',
+  plugins: [{
+    name: 'read-file-shim',
+    setup(build) {
+      build.onResolve({ filter: /readFileWeb\.js$/ }, (args) => {
+        if (args.path.endsWith('readFileWeb.js') && args.importer.endsWith('packages/require/index.js')) {
+          return { path: fileURLToPath(new URL('./src_frame/readFileFrame.js', import.meta.url)) }
+        }
+      })
+    },
+  }],
+})
+await buildOne('src_frame', frameDir, 'frame.js', watch, {
+  format: 'esm',
+  define: { __ALLOWED_ORIGIN__: JSON.stringify(frameOrigin) },
+})
+
 // Content-hash entry assets in production so 1-year-cached bundles bust on change.
 if (!dev) hashAssets(outDir)
+if (!dev) hashFrameAssets(frameDir)
 
 
 /**************************** LIVE SERVER if in dev mode *************/
 // docs folder is too heavy for watch
 if (dev) 
-  liveServer.start({ root: outDir, port, open: false, ignore: outDir+'/docs' })
+  // cors: the sandboxed /frame/ fetches its modules cross-origin from its
+  // opaque origin, even same-host.
+  liveServer.start({ root: outDir, port, open: false, cors: true, ignore: outDir+'/docs' })
 else 
   if(serveBuild) serve(port)
 

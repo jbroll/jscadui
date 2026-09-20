@@ -13,7 +13,7 @@ const DEFAULT_TIMEOUT_MS = 30000
 // importScripts fail inside a blob worker, so the bundle base is baked in.
 const workerSource =
   `self.__BUNDLE_BASE__ = ${JSON.stringify(BUNDLE_BASE)}\n` +
-  `importScripts(${JSON.stringify(BUNDLE_BASE + 'bundle.worker.js')})`
+  `importScripts(${JSON.stringify(BUNDLE_BASE + 'bundle.frame-worker.js')})`
 
 // The worker is recreated after a timeout killed the previous one.
 const createWorker = () => {

@@ -502,22 +502,24 @@ then after `if (!dev) hashAssets(outDir)` add:
 if (!dev) hashFrameAssets(frameDir)
 ```
 
-`hashFrameAssets` is the moved run hasher: same topological order (leaves → worker → frame.js → index.html rewrite), parameterized by directory. Verify its `hashFile`/`hashAssets` export names match this call when porting; rename inside the moved file only.
+`hashFrameAssets` is the moved run hasher: same topological order (leaves → worker → frame.js → index.html rewrite), parameterized by directory. Two adaptations inside the moved files: export `hashAssets` → `hashFrameAssets`, and `bundle.worker.js` → `bundle.frame-worker.js` (hasher steps 1–2 plus `src_frame/frame.js` workerSource — otherwise the hashed worker URL never rewrites and the frame loads a file that no longer exists).
 
 - [ ] **Step 5: Serve /frame/ correctly in serve.js**
 
-In `apps/jscad-web/serve.js`: add `'.wasm': 'application/wasm'` to `mimeTypes` (manifold.wasm otherwise serves as octet-stream and `instantiateStreaming` fails). Add a frame branch before the generic static fallback in `handleRequest`:
+In `apps/jscad-web/serve.js`: add `'.wasm': 'application/wasm'` to `mimeTypes` (manifold.wasm otherwise serves as octet-stream and `instantiateStreaming` fails). Add a frame branch in `handleRequest` **before** the trailing-slash rule (otherwise `/frame/` takes the generic static path and misses the frame headers):
 
 ```js
-} else if (pathname === '/frame' || pathname.startsWith('/frame/')) {
-  // Compute frame: no SPA fallback (an index.html fallback would break the
-  // blob worker's bundle XHRs), CORS on (the sandboxed frame fetches
-  // cross-origin from its opaque origin), frame locked to this app.
-  return handleFrame(pathname)
-}
+  } else if (pathname === '/frame' || pathname.startsWith('/frame/')) {
+    // compute frame: checked before the trailing-slash rule so /frame/ gets
+    // frame headers, not the generic static ones. No SPA fallback (an
+    // index.html fallback would break the blob worker's bundle XHRs), CORS on
+    // (the sandboxed frame fetches cross-origin from its opaque origin),
+    // frame locked to this app.
+    return handleFrame(pathname)
+  } else if (pathname.endsWith('/')) {
 ```
 
-with (adapted from the run app's serve.js, directory rebased to `build/frame`):
+with `handleFrame` (adapted from the run app's serve.js, directory rebased to `build/frame`):
 
 ```js
 const frameHeaders = {
@@ -528,7 +530,7 @@ const frameHeaders = {
 
 const handleFrame = async (pathname) => {
   const buildDir = path.resolve(process.cwd(), 'build/frame')
-  const rel = pathname === '/frame' ? 'index.html' : pathname.replace(/^\/frame\/+/, '')
+  const rel = pathname === '/frame' || pathname === '/frame/' ? 'index.html' : pathname.replace(/^\/frame\/+/, '')
   const filePath = path.resolve(buildDir, rel)
   if (!filePath.startsWith(buildDir + path.sep) && filePath !== buildDir) {
     return { status: 403, content: 'forbidden' }
@@ -545,6 +547,8 @@ const handleFrame = async (pathname) => {
 ```
 
 and merge `result.headers` into the response in the server callback (extend the `outHeaders` construction: `const outHeaders = { ...headers, ...(result.headers ?? {}) }` — adapt to the file's actual shape; `frame-ancestors 'self'` is meaningful here because it constrains the embedder, and the embedder is same-origin).
+
+Dev mode serves through live-server, which sends no CORS by default while the opaque frame's module fetches need it even same-host: add `cors: true` to the `liveServer.start` options in `build.js`.
 
 - [ ] **Step 6: Verify the built frame**
 

@@ -7,13 +7,13 @@ import { join } from 'path'
  * and deploys actually reach returning browsers. index.html stays unhashed
  * (served no-cache) and is rewritten to point at the hashed entry file.
  *
- * Same topological order as apps/jscad-web: leaf bundles → worker
+ * Same topological order as the app: leaf bundles → worker
  * (importScripts the hashed leaves) → frame.js (bundle URLs + worker URL) →
  * index.html. Hashing in dependency order means a change in any leaf flows
  * up into frame.js's hash, so index.html (always fresh) points at a
  * fully-current graph.
  */
-export function hashAssets(outDir) {
+export function hashFrameAssets(outDir) {
   const buildDir = join(outDir, 'build')
   const map = {}  // logical basename → hashed basename
   const h8 = buf => createHash('sha256').update(buf).digest('hex').slice(0, 8)
@@ -36,10 +36,10 @@ export function hashAssets(outDir) {
 
   // 1. Leaf bundles (everything in build/ except the worker, which imports leaves).
   for (const f of readdirSync(buildDir)) {
-    if (f.endsWith('.js') && f !== 'bundle.worker.js') hashFile(buildDir, f)
+    if (f.endsWith('.js') && f !== 'bundle.frame-worker.js') hashFile(buildDir, f)
   }
   // 2. Worker (importScripts the hashed transform-babel + openscad bundles).
-  hashFile(buildDir, 'bundle.worker.js')
+  hashFile(buildDir, 'bundle.frame-worker.js')
   // 3. frame.js (references every hashed bundle, incl. the worker).
   hashFile(outDir, 'frame.js')
 
