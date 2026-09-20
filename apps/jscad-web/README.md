@@ -85,8 +85,9 @@ origin and embedded in a hidden `<iframe sandbox="allow-scripts">`. Leaving
 model code gets no cookies, no IndexedDB and no same-origin fetch, and the
 frame page's CSP limits `connect-src` to `/frame/` and the jsdelivr CDN. The
 editor still compiles through the local worker; only the agent's `eval`,
-`params`, `measure`, `check` and `export` calls cross into the frame
-(`src/frameClient.js` on this side, `src_frame/` on the other).
+`measure`, `check` and `export` calls cross into the frame
+(`src/frameClient.js` on this side, `src_frame/` on the other). The agent's
+`params` tool re-runs the model on the local worker, outside the sandbox.
 
 The browser treats the frame as cross-origin even though it is same-host, so it
 needs CORS and frame-ancestors headers of its own. Three places set them and
