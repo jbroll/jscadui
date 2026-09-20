@@ -25,3 +25,29 @@ jscad-studio and jscad-studio-run folded into jscad-web and removed; the
 `run.*` vhosts retire with the next deploy (operator step).
 
 
+
+## Compute frame
+
+The fold left the frame boundary half-covered. In rough priority order:
+
+- **CI runs none of the jscad-web suites.** The deleted `ci/studio` ran the
+  studio vitest and its full Playwright suite; `ci/render` adds only
+  `frame.spec.js`. Nothing in `ci/` runs `apps/jscad-web`'s 282 unit tests or
+  the rest of its e2e.
+- **The agent's `params` tool runs outside the sandbox.** `setParams` in
+  `main.js` calls `paramChangeCallback`, which re-executes model code on the
+  local worker. Agent-written code reaches the unsandboxed engine through it.
+- **Manifold cannot load in the frame.** `src_bundle/bundle.manifold_modeling.js`
+  resolves `./manifold.wasm` against `self.location.href`, which is a `blob:`
+  opaque-path base in the frame worker, so the URL cannot resolve regardless
+  of CSP.
+- **`connect-src` has no e2e coverage.** `e2e/frame.spec.js` exercises only
+  port 5122, so neither the allow nor the deny side of the narrowed
+  `connect-src https://jscad.rkroll.com/frame/` is tested. The test at
+  `frame.spec.js:129` is named for the app origin but does not use it.
+- **The frame iframe is created on every page load**, so every visitor pulls
+  the frame page and its blob worker even when the agent is never used. Create
+  it on first agent use.
+- **Migrate the editor onto the frame** so all model execution is sandboxed
+  and there is one engine. Preconditions: the agent path proven in production,
+  and frame/worker parity held across a full render sweep.
