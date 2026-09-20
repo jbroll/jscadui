@@ -1,6 +1,6 @@
 import { copyTask, parseArgs } from '@jbroll/jsx6-build'
 import { execSync } from 'child_process'
-import { existsSync, mkdirSync, readFileSync, copyFileSync, rmSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, copyFileSync, rmSync, readdirSync } from 'fs'
 import liveServer from 'live-server'
 import {serve} from './serve.js'
 import { genExamplesManifest } from './src_build/genExamplesManifest.js'
@@ -61,6 +61,17 @@ if (!skipDocs && !existsSync(docsDir)) {
 
 /******************************* SETUP  *************/
 mkdirSync(outDir, { recursive: true })
+
+// Clean generated output so repeated builds do not stack hashed files.
+// build.js only recopied examples before, leaving prior hashed bundles
+// (e.g. bundle.jscad_io.315b95f2.315b95f2.js) and stacked main.*.js behind.
+if (existsSync(outDir + '/build')) {
+  rmSync(outDir + '/build', { recursive: true, force: true })
+}
+mkdirSync(outDir + '/build', { recursive: true })
+for (const f of readdirSync(outDir)) {
+  if (/^main\.[0-9a-f]{8}\.(js|css)$/.test(f)) rmSync(outDir + '/' + f, { force: true })
+}
 
 /**************************** COPY STATIC ASSETS  *************/
 

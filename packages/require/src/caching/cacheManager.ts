@@ -319,8 +319,11 @@ export class CacheManager {
    * Keep module cache for reuse across script runs
    */
   clearTempCache(): void {
-    this.localCache = Object.create(null)
-    this.aliases = Object.create(null)
+    // Clear in place to preserve object identity: requireCache holds a
+    // snapshot of these objects (see getLegacyCacheObjects), so reassigning
+    // would orphan writes made via requireCache.alias after a clear.
+    for (const k of Object.keys(this.localCache)) delete this.localCache[k]
+    for (const k of Object.keys(this.aliases)) delete this.aliases[k]
     this.loading.clear()
 
     // Clear dependency tracking for local files to prevent memory leaks
@@ -337,8 +340,9 @@ export class CacheManager {
    * Use for long-running applications to prevent unbounded memory growth
    */
   clearAllCaches(): void {
-    this.localCache = Object.create(null)
-    this.aliases = Object.create(null)
+    // Clear in place (see clearTempCache): preserve requireCache identity.
+    for (const k of Object.keys(this.localCache)) delete this.localCache[k]
+    for (const k of Object.keys(this.aliases)) delete this.aliases[k]
     this.moduleCache.clear()
     this.dependencies.clear()
     this.loading.clear()

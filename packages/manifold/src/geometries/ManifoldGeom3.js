@@ -334,15 +334,16 @@ export class ManifoldGeom3 {
   /**
    * Clone this geometry.
    *
-   * Note: This shares the underlying Manifold object reference, which is safe because
-   * Manifold objects are immutable - all operations (subtract, union, transform, etc.)
-   * return NEW Manifold objects rather than mutating in place. This is the same
-   * pattern used by JSCAD's geom3.clone().
+   * Makes an independent copy of the underlying Manifold WASM handle via an
+   * identity transform, so each wrapper owns its handle. Sharing the handle
+   * would register it twice with the disposal FinalizationRegistry, and GC of
+   * either wrapper would delete the object the other still uses.
    *
    * @returns {ManifoldGeom3} A new ManifoldGeom3 with copied data
    */
   clone() {
-    const cloned = new ManifoldGeom3(this.#manifold)
+    const copied = this.#manifold.translate([0, 0, 0])
+    const cloned = new ManifoldGeom3(copied)
     cloned.#color = this.#color
     return cloned
   }

@@ -47,7 +47,11 @@ export * as maths from './maths/index.js'
 // General utilities
 export * as utils from './utils/index.js'
 
-// Re-export commonly used items at top level for convenience
+// Re-export commonly used items at top level for convenience.
+// These must stay identical bindings to the namespaced versions (same
+// function objects), so external wrappers such as @jbroll/jscad-anchors
+// wrap/groups.js that patch namespaces also cover top-level imports.
+// Do not wrap or redefine these separately.
 export {
   // Primitives
   cube,

@@ -53,7 +53,9 @@ export const union = (...geometries) => {
   // Filter out empty manifolds — Manifold.union() with any empty manifold returns empty
   const nonEmpty = manifolds.filter(m => !m.isEmpty())
   if (nonEmpty.length === 0) return undefined
-  if (nonEmpty.length === 1) return new ManifoldGeom3(nonEmpty[0])
+  // Copy: nonEmpty[0] may be owned by an input wrapper, sharing it would
+  // double-register the WASM handle with the disposal registry.
+  if (nonEmpty.length === 1) return new ManifoldGeom3(nonEmpty[0].translate([0, 0, 0]))
 
   // Use Manifold's batch union for efficiency
   const Manifold = getManifold()
@@ -184,7 +186,8 @@ export const intersect = (...geometries) => {
   const manifolds = geoms.map(g => toManifold(g))
 
   if (manifolds.length === 1) {
-    return new ManifoldGeom3(manifolds[0])
+    // Copy: manifolds[0] may be owned by the input wrapper (see union above).
+    return new ManifoldGeom3(manifolds[0].translate([0, 0, 0]))
   }
 
   // Use Manifold's batch intersection for efficiency
