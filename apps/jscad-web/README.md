@@ -57,10 +57,11 @@ const bundles = {
   '@jscad/modeling-for-manifold': toUrl('./build/bundle.jscad_modeling.js'),
   '@jscad/io': toUrl('./build/bundle.jscad_io.js'),
   '@jscad/csg': toUrl('./build/bundle.V1_api.js'),
+  '@jbroll/jscad-fluent': toUrl('./build/bundle.jscad-fluent.js'),
 }
 ```
 
-See [bundles.js](bundles.js) for the exact mapping, including the params-core and jscad-text bundles.
+See [bundles.js](bundles.js) for the exact mapping, including the params-core and jscad-text bundles. Fluent models (`require('@jbroll/jscad-fluent')`) resolve to the local `bundle.jscad-fluent.js` build, which re-exports the fluent API over the shared modeling bundle and the anchors CDN build; params work through the existing `@jscad-params` and `getParameterDefinitions` paths.
 
 Set `window.jscadModuleOverrides` before `main.js` runs to replace any of these URLs (for example with a local package build served by a studio). Each name overrides independently; `@jscad/modeling` defaults to the local `bundle.jscad_modeling.js` build.
 
