@@ -294,7 +294,8 @@ describe('git storage', () => {
     const s = storage(async (url, init) => {
       seen.push({ url, body: init?.body ? JSON.parse(init.body) : undefined })
       if (String(url).includes('/versions?')) return ok([{ sha: 'abc', message: 'm', created: 1 }])
-      return ok({ commitSha: 'def' })
+      if (String(url).includes('/write')) return ok({ commitSha: 'def' })
+      return ok({ files })
     })
     const res = await s.writeFiles('o/r:@root', { 'main.js': 'x' }, {})
     const write = seen.find((c) => String(c.url).includes('/write'))

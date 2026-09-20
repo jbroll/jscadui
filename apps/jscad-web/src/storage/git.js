@@ -2,9 +2,10 @@
 // server's /api/git routes (the App private key never leaves the server). A
 // dotfile in the path carries the name, entry and conversation, mirroring the
 // folder mode; versions are the path's real commits, newest first.
-import { kindFromEntry } from './cloud.js'
-import { withZip } from './index.js'
+import { kindFromEntry } from './local.js'
+import { exportZip, importZip } from './zip.js'
 
+// Kept from jscad-studio: existing connected repos carry this meta file.
 const META_PATH = '.jscad-studio.json'
 
 export class GitStorageError extends Error {
@@ -134,7 +135,7 @@ export function createGitStorage(options) {
     void projectId
   }
 
-  return withZip({
+  const api = {
     sync: async () => {},
     listProjects,
     readProject,
@@ -143,5 +144,11 @@ export function createGitStorage(options) {
     readVersion,
     readConversation,
     writeConversation,
-  })
+  }
+  // Same zip pair as the folder mode, with this mode's meta entry.
+  return {
+    ...api,
+    exportZip: (id) => exportZip(api, id, META_PATH),
+    importZip: (file) => importZip(api, file, META_PATH),
+  }
 }
