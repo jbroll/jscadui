@@ -12,7 +12,7 @@
     "test:ci": "cd ../.. && JOB=$(../simple-ci/sci push jscadui/studio-run) && ../simple-ci/sci wait \"$JOB\""
   },
   "dependencies": {
-    "@jbroll/jscad-fluent": "file:../../../jscad-fluent",
+    "@jbroll/jscad-fluent": "0.6.1",
     "@jscad/io": "2.4.7",
     "@jscad/modeling": "file:../../../OpenJSCAD.org/packages/modeling",
     "@jscadui/format-common": "*",

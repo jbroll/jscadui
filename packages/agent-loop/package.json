@@ -13,7 +13,7 @@
     "test": "vitest run"
   },
   "devDependencies": {
-    "@jbroll/jscad-fluent": "file:../../../jscad-fluent",
+    "@jbroll/jscad-fluent": "0.6.1",
     "@jscadui/model-tools": "*",
     "vitest": "^4.0.18"
   },
