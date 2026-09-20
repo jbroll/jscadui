@@ -312,3 +312,25 @@ test('a command over timeoutMs kills the worker and the next load starts fresh',
   expect(load.ok).toBe(true)
   expect(load.result.entities.length).toBe(1)
 })
+// The manifold bundle resolves ./manifold.wasm against the bundle base, which
+// in the frame's blob worker is __BUNDLE_BASE__ rather than an opaque blob: URL.
+test('a manifold model loads its wasm and returns geometry', async ({ page }) => {
+  await gotoHost(page)
+  const res = await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
+    id: 16,
+    command: 'load',
+    payload: {
+      ...project(
+        `const { cube, sphere } = require('@jscad/modeling').primitives\n` +
+        `const { subtract } = require('@jscad/modeling').booleans\n` +
+        `const main = () => subtract(cube({ size: 10 }), sphere({ radius: 6 }))\n` +
+        `module.exports = { main }\n`,
+      ),
+      engine: 'manifold',
+      timeoutMs: 60000,
+    },
+  })
+  expect(res.ok).toBe(true)
+  const vertexCount = res.result.entities.reduce((n, e) => n + (e.vertices?.length ?? 0), 0)
+  expect(vertexCount).toBeGreaterThan(0)
+})

@@ -23,9 +23,11 @@ const createWorker = () => {
 
 let { worker, workerApi } = createWorker()
 
-const workerBundles = () => ({
-  '@jscad/modeling': BUNDLE_BASE + 'bundle.jscad_modeling.js',
-  '@jscad/modeling-for-anchors': BUNDLE_BASE + 'bundle.jscad_modeling.js',
+// The manifold build layers on the plain modeling bundle, so only the name
+// model code requires switches; '@jscad/modeling-for-manifold' stays put.
+const workerBundles = (engine) => ({
+  '@jscad/modeling': BUNDLE_BASE + (engine === 'manifold' ? 'bundle.manifold_modeling.js' : 'bundle.jscad_modeling.js'),
+  '@jscad/modeling-for-anchors': BUNDLE_BASE + (engine === 'manifold' ? 'bundle.manifold_modeling.js' : 'bundle.jscad_modeling.js'),
   '@jscad/modeling-for-manifold': BUNDLE_BASE + 'bundle.jscad_modeling.js',
   '@jscad/io': BUNDLE_BASE + 'bundle.jscad_io.js',
   '@jscadui/model-tools': BUNDLE_BASE + 'bundle.model-tools.js',
@@ -52,8 +54,8 @@ const collectBuffers = (value, out = [], seen = new Set()) => {
 }
 
 const commands = {
-  async load({ files, entry }) {
-    await workerApi.jscadInit({ bundles: workerBundles(), useParamsProxy: true })
+  async load({ files, entry, engine }) {
+    await workerApi.jscadInit({ bundles: workerBundles(engine), useParamsProxy: true })
     await workerApi.jscadSetFiles({ files })
     const result = await workerApi.jscadScript({
       script: files[entry],

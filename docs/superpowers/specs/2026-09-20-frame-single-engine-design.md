@@ -216,10 +216,10 @@ the local worker.
   when the frame does not answer.
 - **`connect-src https:`** lets a hostile model exfiltrate the user's own model
   source. Accepted, and strictly better than the status quo.
-- **Manifold in the frame is still broken** (`bundle.manifold_modeling.js`
-  resolves `./manifold.wasm` against a `blob:` base). It must be fixed before
-  step 4, or the Manifold engine has no home. This is a backlog item today and
-  becomes a blocker.
+- **Manifold in the frame** was fixed before this work started: the bundle
+  resolves `./manifold.wasm` through `src_bundle/bundleBase.js`, and the frame
+  selects the manifold bundle from an `engine` field. The app's own bundle map
+  still names app-origin URLs, so step 4 must map engine to bundles frame-side.
 
 ## Decisions
 

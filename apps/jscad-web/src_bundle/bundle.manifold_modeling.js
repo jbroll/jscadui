@@ -6,11 +6,11 @@
  */
 
 import { setWasmUrl, startInit } from '@jscadui/manifold'
+import { bundleFileUrl } from './bundleBase.js'
 
-// Configure WASM URL before initialization
-// The WASM file is served alongside the bundle
-const wasmUrl = new URL('./manifold.wasm', self.location.href).href
-setWasmUrl(wasmUrl)
+// The wasm sits next to this bundle. In the compute frame's blob worker
+// location.href is an opaque blob: URL, so the base comes from __BUNDLE_BASE__.
+setWasmUrl(bundleFileUrl('./manifold.wasm', self))
 
 // Start initialization - ready promise will be available
 startInit()

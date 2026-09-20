@@ -38,10 +38,6 @@ The fold left the frame boundary half-covered. In rough priority order:
   worker last loaded. Once the user has compiled agent-written source in the
   editor, the agent can re-run it on the unsandboxed engine at will. Route
   `params` through the frame instead.
-- **Manifold cannot load in the frame.** `src_bundle/bundle.manifold_modeling.js`
-  resolves `./manifold.wasm` against `self.location.href`, which is a `blob:`
-  opaque-path base in the frame worker, so the URL cannot resolve regardless
-  of CSP.
 - **The frame iframe is created on every page load**, so every visitor pulls
   the frame page and its blob worker even when the agent is never used. Create
   it on first agent use.
