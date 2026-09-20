@@ -435,6 +435,18 @@ node bin/compare-stl.js ref.stl out.stl
 
 ---
 
+## CI entries
+
+Heavy suites run on the CI/GPU host through simple-ci, not locally:
+
+```bash
+sci push jscadui/test     # ci/test   — openscad transpiler suite
+sci push jscadui/web      # ci/web    — jscad-web + API unit suites
+sci push jscadui/render   # ci/render — browser render sweep + frame protocol e2e
+```
+
+---
+
 ## Related Documentation
 
 - `packages/openscad/TESTING.md` - OpenSCAD-specific testing guide

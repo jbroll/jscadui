@@ -126,7 +126,7 @@ test('the frame document sends frame-ancestors for the app origin', async ({ req
   expect(res.headers()['content-security-policy']).toContain("frame-ancestors 'self'")
 })
 
-test('model fetch against the app origin API fails', async ({ page }) => {
+test('model fetch against a third-party origin fails', async ({ page }) => {
   await gotoHost(page)
   const res = await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
     id: 5,
@@ -140,6 +140,41 @@ test('model fetch against the app origin API fails', async ({ page }) => {
     ),
   })
   expect(res.ok).toBe(false)
+})
+
+// connect-src is scoped to the frame's own subtree, so the app origin that
+// serves the frame is still off limits everywhere else on that origin.
+test('model fetch against the app origin outside /frame/ fails', async ({ page }) => {
+  await gotoHost(page)
+  const res = await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
+    id: 8,
+    command: 'load',
+    payload: project(
+      `const main = async () => {\n` +
+      `  await fetch('http://localhost:5120/api/private')\n` +
+      `  return []\n` +
+      `}\n` +
+      `module.exports = { main }\n`,
+    ),
+  })
+  expect(res.ok).toBe(false)
+})
+
+test('model fetch inside /frame/ is allowed', async ({ page }) => {
+  await gotoHost(page)
+  const res = await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
+    id: 9,
+    command: 'load',
+    payload: project(
+      `const main = async () => {\n` +
+      `  const r = await fetch('${RUN}/index.html')\n` +
+      `  if (!r.ok) throw new Error('frame fetch failed: ' + r.status)\n` +
+      `  return []\n` +
+      `}\n` +
+      `module.exports = { main }\n`,
+    ),
+  })
+  expect(res.ok).toBe(true)
 })
 
 test('localStorage and IndexedDB throw inside the opaque frame', async ({ page }) => {

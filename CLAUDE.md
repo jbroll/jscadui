@@ -39,12 +39,20 @@ See `packages/openscad/CLAUDE.md` for the full testing strategy.
 
 Skip files auto-discovered from `skip.txt` in each example directory.
 
-## PR Workflow
+## Merge Workflow
 
-Rebase merges only:
+There are no pull requests. Develop on a branch, fast-forward it into `main`,
+push:
+
 ```bash
-gh pr merge <PR_NUMBER> --rebase --delete-branch
+git checkout main
+git merge --ff-only <branch>
+git push
 ```
+
+`--ff-only` is the point: `main` stays linear. If the merge is refused, rebase
+the branch on `main` and try again. Everything the branch needs verified must be
+green before the merge, not after.
 
 ## Refactoring / Future Work
 

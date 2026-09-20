@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Unit suites for the web app and its API, run on the CI host.
+#
+#   sci push jscadui/web
+#
+# Browser e2e (render sweep, frame protocol) lives in ci/render; this entry is
+# the fast gate that nothing else ran after apps/jscad-studio was folded in.
+set -euo pipefail
+
+WORKTREE="$(cd "$(dirname "$0")/.." && pwd)"
+APP="$WORKTREE/apps/jscad-web"
+
+cd "$WORKTREE"
+npm install
+# The web suite imports @jscadui/* esm outputs; --continue so an unrelated
+# package's build failure does not mask the suites below.
+npm run build -- --continue || echo "workspace build had failures (continuing)"
+
+cd "$APP"
+npx vitest run
+
+cd "$APP/server"
+npm install
+npx vitest run
