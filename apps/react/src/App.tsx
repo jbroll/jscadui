@@ -1,13 +1,15 @@
+import jscad from '@jscad/modeling'
 import type { Geom3 } from '@jscad/modeling/src/geometries/types'
-import { intersect, subtract, union } from '@jscad/modeling/src/operations/booleans'
-import { scale, translate } from '@jscad/modeling/src/operations/transforms'
-import { cube, sphere } from '@jscad/modeling/src/primitives'
 import type * as _renderingDefaults from '@jscad/regl-renderer/types/rendering/renderDefaults'
 import { light } from '@jscadui/themes'
 import { useState } from 'react'
 
 import { downloadGeometry } from './helpers'
 import { Renderer } from './hooks/render'
+
+const { intersect, subtract, union } = jscad.booleans
+const { scale, translate } = jscad.transforms
+const { cube, sphere } = jscad.primitives
 
 const shape = union(
   subtract(cube({ size: 3 }), sphere({ radius: 2 })),

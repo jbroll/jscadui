@@ -5,6 +5,11 @@ import { defineConfig } from 'vite'
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
+  build: {
+    commonjsOptions: {
+      include: [/node_modules/, /OpenJSCAD\.org/],
+    },
+  },
   test: {
     globals: true,
     environment: 'jsdom',
