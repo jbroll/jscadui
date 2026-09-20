@@ -33,13 +33,6 @@ const handleRequest = (req) => {
   } else if (pathname.endsWith('/index.html')) {
     // redirect index.html to /
     return { status: 301, content: pathname.slice(0, -10) }
-  } else if (pathname === '/frame' || pathname.startsWith('/frame/')) {
-    // compute frame: checked before the trailing-slash rule so /frame/ gets
-    // frame headers, not the generic static ones. No SPA fallback (an
-    // index.html fallback would break the blob worker's bundle XHRs), CORS on
-    // (the sandboxed frame fetches cross-origin from its opaque origin),
-    // frame locked to this app.
-    return handleFrame(pathname)
   } else if (pathname.endsWith('/')) {
     // serve index.html
     return handleStatic(`${pathname}index.html`)
@@ -81,19 +74,15 @@ const handleStatic = async (pathname) => {
   return { status: 200, content, contentType }
 }
 
-const frameHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), usb=(), serial=()',
-  'Content-Security-Policy': "frame-ancestors 'self'",
-}
-
 /**
- * Serve the compute frame from build/frame without the SPA fallback.
+ * Serve the compute frame from frameDir, rooted at this server's own origin,
+ * without the SPA fallback. The frame is now a different origin than the
+ * app, so frame-ancestors must name the app origin explicitly — 'self'
+ * would match only this server's own origin.
  */
-const handleFrame = async (pathname) => {
-  const buildDir = path.resolve(process.cwd(), 'build/frame')
-  const rel = pathname === '/frame' || pathname === '/frame/' ? 'index.html' : pathname.replace(/^\/frame\/+/, '')
-  const filePath = path.resolve(buildDir, rel)
+const handleFrame = async (pathname, frameDir, appOrigin) => {
+  const buildDir = path.resolve(process.cwd(), frameDir)
+  const filePath = path.resolve(buildDir, pathname.replace(/^\/+/, ''))
   if (!filePath.startsWith(buildDir + path.sep) && filePath !== buildDir) {
     return { status: 403, content: 'forbidden' }
   }
@@ -104,7 +93,29 @@ const handleFrame = async (pathname) => {
   const extname = path.extname(filePath)
   const contentType = mimeTypes[extname] || 'application/octet-stream'
   const content = await fs.readFile(filePath)
-  return { status: 200, content, contentType, headers: frameHeaders }
+  const headers = {
+    'Access-Control-Allow-Origin': '*',
+    'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), usb=(), serial=()',
+    'Content-Security-Policy': `frame-ancestors ${appOrigin}`,
+  }
+  return { status: 200, content, contentType, headers }
+}
+
+/**
+ * Serve the compute frame on its own origin/port, from frameDir
+ * (build/frame or build_dev/frame, matching the build that made it).
+ */
+export const serveFrame = (port, appOrigin, frameDir = 'build/frame') => {
+  const server = http.createServer(async (req, res) => {
+    const pathname = url.parse(req.url, true).pathname
+    const rel = pathname.endsWith('/') ? `${pathname}index.html` : pathname
+    const { status, content, contentType, headers } = await handleFrame(rel, frameDir, appOrigin)
+    res.writeHead(status, { ...headers, ...(contentType ? { 'Content-Type': contentType } : {}) })
+    res.end(content)
+  })
+  server.listen(port)
+  console.log(`compute frame on http://localhost:${port}`)
+  return server
 }
 
 /**

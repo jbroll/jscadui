@@ -2,12 +2,12 @@ import { test, expect } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { startServers, stopServers } from './frame-serve.mjs'
 
-// The frame under test is served by the real dev server
-// (http://localhost:5120/frame/, whose baked allowed origin is the dev
-// server's own http://localhost:5120). The host page is injected with
-// setContent after navigating to a same-origin lightweight URL, so no fixture
-// ships in the production build.
-const RUN = 'http://localhost:5120/frame'
+// The frame under test is served by the real dev frame server on its own
+// origin (http://localhost:5121, whose baked allowed sender is the app
+// origin's http://localhost:5120). The host page is injected with setContent
+// after navigating to a same-origin lightweight URL, so no fixture ships in
+// the production build.
+const RUN = 'http://localhost:5121'
 const MARK = 'http://localhost:5122'
 const MARKER = `${MARK}/__mark`
 
@@ -123,7 +123,7 @@ test('a wrong-origin sender is never answered and cannot run a command', async (
 
 test('the frame document sends frame-ancestors for the app origin', async ({ request }) => {
   const res = await request.get(`${RUN}/`)
-  expect(res.headers()['content-security-policy']).toContain("frame-ancestors 'self'")
+  expect(res.headers()['content-security-policy']).toContain('frame-ancestors http://localhost:5120')
 })
 
 test('model fetch against a third-party origin fails', async ({ page }) => {
@@ -142,8 +142,8 @@ test('model fetch against a third-party origin fails', async ({ page }) => {
   expect(res.ok).toBe(false)
 })
 
-// connect-src is scoped to the frame's own subtree, so the app origin that
-// serves the frame is still off limits everywhere else on that origin.
+// connect-src names only the run origin, so the app origin — a different
+// origin entirely now — is unreachable from inside the frame.
 test('model fetch against the app origin outside /frame/ fails', async ({ page }) => {
   await gotoHost(page)
   const res = await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
@@ -160,7 +160,7 @@ test('model fetch against the app origin outside /frame/ fails', async ({ page }
   expect(res.ok).toBe(false)
 })
 
-test('model fetch inside /frame/ is allowed', async ({ page }) => {
+test('model fetch against the run origin is allowed', async ({ page }) => {
   await gotoHost(page)
   const res = await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
     id: 9,

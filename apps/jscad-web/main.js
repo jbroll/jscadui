@@ -182,12 +182,13 @@ const { worker, workerApi, handlers } = createWorker({
 // allow-same-origin gives the frame an opaque origin: model scripts run with
 // no ambient authority (no cookies, storage, or same-origin fetch), while the
 // editor keeps the local worker.
+/* global __FRAME_ORIGIN__ */
 const frameEl = document.createElement('iframe')
-frameEl.src = './frame/'
+frameEl.src = __FRAME_ORIGIN__ + '/'
 frameEl.setAttribute('sandbox', 'allow-scripts')
 frameEl.hidden = true
 document.body.appendChild(frameEl)
-const frame = frameClient(frameEl, location.origin)
+const frame = frameClient(frameEl, __FRAME_ORIGIN__)
 
 // Frame answers carry the protocol envelope; agent tools want the payload.
 const unwrap = (res) => (res.ok ? res.result : { ok: false, error: res.error })

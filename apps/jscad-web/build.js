@@ -3,7 +3,7 @@ import { execSync } from 'child_process'
 import { existsSync, mkdirSync, readFileSync, copyFileSync, rmSync, readdirSync } from 'fs'
 import { fileURLToPath } from 'url'
 import liveServer from 'live-server'
-import {serve} from './serve.js'
+import {serve, serveFrame} from './serve.js'
 import { genExamplesManifest } from './src_build/genExamplesManifest.js'
 import { hashAssets } from './src_build/hashAssets.js'
 import { hashFrameAssets } from './src_build/hashFrameAssets.js'
@@ -48,14 +48,15 @@ const htmlFilter = {
 // *************** read parameters **********************
 const { dev, port = 5120, serve:serveBuild=false, skipDocs=false } = parseArgs()
 
-// Frame page: bake the web origin as both app and run origin. The frame is
-// served same-host at /frame/ under sandbox (opaque origin), so CSP must
-// name the origin explicitly — 'self' matches nothing inside the frame.
-const frameOrigin = process.env.FRAME_APP_ORIGIN || (dev ? `http://localhost:${port}` : 'https://jscad.rkroll.com')
+// The frame is a second origin. Its page bakes both: __APP_ORIGIN__ is the only
+// sender it answers, __RUN_ORIGIN__ is its own name in the CSP ('self' matches
+// nothing inside a sandboxed frame).
+const appOrigin = process.env.FRAME_APP_ORIGIN || (dev ? `http://localhost:${port}` : 'https://jscad.rkroll.com')
+const runOrigin = process.env.FRAME_RUN_ORIGIN || (dev ? `http://localhost:${port + 1}` : 'https://jscad-run.rkroll.com')
 const frameHtmlFilter = {
   filter: (content) => content
-    .replaceAll('__RUN_ORIGIN__', frameOrigin)
-    .replaceAll('__APP_ORIGIN__', frameOrigin),
+    .replaceAll('__RUN_ORIGIN__', runOrigin)
+    .replaceAll('__APP_ORIGIN__', appOrigin),
   include: ['frame/index.html'],
 }
 
@@ -230,7 +231,7 @@ const loader = {
   '.js': 'tsx',
   '.jsx': 'tsx',
 }
-await buildOne('.', outDir, 'main.js', watch, { format: 'esm', loader })
+await buildOne('.', outDir, 'main.js', watch, { format: 'esm', loader, define: { __FRAME_ORIGIN__: JSON.stringify(runOrigin) } })
 
 /******************************* COMPUTE FRAME (/frame) ***********************/
 // Self-contained sandboxed execution page. Bundle set mirrors the app's
@@ -291,7 +292,7 @@ await buildOne('src_frame', frameBuildDir, 'bundle.frame-worker.js', watch, {
 })
 await buildOne('src_frame', frameDir, 'frame.js', watch, {
   format: 'esm',
-  define: { __ALLOWED_ORIGIN__: JSON.stringify(frameOrigin) },
+  define: { __ALLOWED_ORIGIN__: JSON.stringify(appOrigin) },
 })
 
 // Content-hash entry assets in production so 1-year-cached bundles bust on change.
@@ -301,19 +302,12 @@ if (!dev) hashFrameAssets(frameDir)
 
 /**************************** LIVE SERVER if in dev mode *************/
 // docs folder is too heavy for watch
-if (dev) 
-  // Frame headers in dev too: the sandboxed /frame/ fetches its modules
-  // cross-origin from its opaque origin even same-host, and only the app
-  // origin may embed it. (Production equivalents live in serve.js.)
-  liveServer.start({ root: outDir, port, open: false, ignore: outDir+'/docs', middleware: [(req, res, next) => {
-    if (req.url === '/frame' || req.url.startsWith('/frame/')) {
-      res.setHeader('Access-Control-Allow-Origin', '*')
-      res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), usb=(), serial=()')
-      res.setHeader('Content-Security-Policy', "frame-ancestors 'self'")
-    }
-    next()
-  }] })
-else 
-  if(serveBuild) serve(port)
+if (dev) {
+  serveFrame(port + 1, appOrigin, outDir + '/frame')
+  liveServer.start({ root: outDir, port, open: false, ignore: outDir + '/docs' })
+} else if (serveBuild) {
+  serveFrame(port + 1, appOrigin, outDir + '/frame')
+  serve(port)
+}
 
 //*/
