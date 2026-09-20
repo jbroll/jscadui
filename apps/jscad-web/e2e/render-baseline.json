@@ -1,0 +1,140 @@
+{
+  "_comment": "Known render-sweep state. Failures here are triaged as pre-existing openscad-corpus issues (see triage 2026-09-20), not regressions. Diff future runs against failures[].",
+  "commit": "0dd7b7a",
+  "date": "2026-09-20",
+  "job": "07ff0ae0ffbdb0f2",
+  "total": 788,
+  "failed": 24,
+  "byLib": {
+    "openscad/01-basics": {
+      "ok": 19,
+      "fail": 0
+    },
+    "openscad/bosl": {
+      "ok": 113,
+      "fail": 0
+    },
+    "openscad/bosl2": {
+      "ok": 177,
+      "fail": 1
+    },
+    "openscad/dotscad": {
+      "ok": 183,
+      "fail": 5
+    },
+    "openscad/mcad": {
+      "ok": 14,
+      "fail": 0
+    },
+    "openscad/nopscadlib": {
+      "ok": 129,
+      "fail": 16
+    },
+    "openscad/snippet": {
+      "ok": 118,
+      "fail": 2
+    },
+    "openscad/text": {
+      "ok": 11,
+      "fail": 0
+    }
+  },
+  "failures": [
+    {
+      "rel": "openscad/bosl2/04-part4/137-strings-parse_num.scad",
+      "status": "error"
+    },
+    {
+      "rel": "openscad/dotscad/examples/fidget_ball.scad",
+      "status": "error"
+    },
+    {
+      "rel": "openscad/dotscad/examples/melted_clock.scad",
+      "status": "error"
+    },
+    {
+      "rel": "openscad/dotscad/examples/spiral/moving_fish.scad",
+      "status": "error"
+    },
+    {
+      "rel": "openscad/dotscad/examples/turtle/fern_leaf_stencil.scad",
+      "status": "error"
+    },
+    {
+      "rel": "openscad/dotscad/examples/voronoi/voronoi_holder.scad",
+      "status": "error"
+    },
+    {
+      "rel": "openscad/nopscadlib/NopSCADlib/tests/displays.scad",
+      "status": "error"
+    },
+    {
+      "rel": "openscad/nopscadlib/NopSCADlib/tests/fastons.scad",
+      "status": "error"
+    },
+    {
+      "rel": "openscad/nopscadlib/NopSCADlib/tests/geared_steppers.scad",
+      "status": "error"
+    },
+    {
+      "rel": "openscad/nopscadlib/NopSCADlib/tests/hot_ends.scad",
+      "status": "error"
+    },
+    {
+      "rel": "openscad/nopscadlib/NopSCADlib/tests/HT_pipes.scad",
+      "status": "error"
+    },
+    {
+      "rel": "openscad/nopscadlib/NopSCADlib/tests/maths.scad",
+      "status": "error"
+    },
+    {
+      "rel": "openscad/nopscadlib/NopSCADlib/tests/microswitches.scad",
+      "status": "error"
+    },
+    {
+      "rel": "openscad/nopscadlib/NopSCADlib/tests/panel_meters.scad",
+      "status": "error"
+    },
+    {
+      "rel": "openscad/nopscadlib/NopSCADlib/tests/potentiometers.scad",
+      "status": "error"
+    },
+    {
+      "rel": "openscad/nopscadlib/NopSCADlib/tests/round.scad",
+      "status": "timeout"
+    },
+    {
+      "rel": "openscad/nopscadlib/NopSCADlib/tests/rounded_polygon.scad",
+      "status": "error"
+    },
+    {
+      "rel": "openscad/nopscadlib/NopSCADlib/tests/sealing_strip.scad",
+      "status": "error"
+    },
+    {
+      "rel": "openscad/nopscadlib/NopSCADlib/tests/spades.scad",
+      "status": "error"
+    },
+    {
+      "rel": "openscad/nopscadlib/NopSCADlib/tests/spools.scad",
+      "status": "error"
+    },
+    {
+      "rel": "openscad/nopscadlib/NopSCADlib/tests/Swiss_clips.scad",
+      "status": "error"
+    },
+    {
+      "rel": "openscad/nopscadlib/NopSCADlib/tests/washers.scad",
+      "status": "error"
+    },
+    {
+      "rel": "openscad/snippet/03-advanced/Mech_Piece_04.scad",
+      "status": "error"
+    },
+    {
+      "rel": "openscad/snippet/04-misc/Scene_House.scad",
+      "status": "error"
+    }
+  ]
+}

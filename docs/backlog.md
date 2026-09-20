@@ -17,6 +17,8 @@ local/rowboat toggle, drop branching). Smoke: site 200, `/api/health` 200,
 requiring the registered `@jscad/io` alias instead. Merged to `main`
 2026-09-20 as `feat/fluent-worker-bundle`: fluent worker bundle in both
 apps plus four backlog fixes (WASM clone ownership, build clean, alias
-cache, export identity).
+cache, export identity). Render gate 2026-09-20: 764/788, 24 failures
+triaged as pre-existing openscad-corpus issues; baseline recorded in
+`apps/jscad-web/e2e/render-baseline.json` (job 07ff0ae0ffbdb0f2).
 
 
