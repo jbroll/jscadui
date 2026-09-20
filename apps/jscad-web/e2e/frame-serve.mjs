@@ -1,13 +1,13 @@
-// Frame e2e micro-servers: the frame itself comes from the real dev server
-// (http://localhost:5120/frame/, started by the playwright webServer or
-// ci/render). This module serves only what the dev server must not:
+// Frame e2e micro-servers: the frame itself comes from its own dev server
+// (http://localhost:5121/, started by the playwright webServer or
+// ci/render). This module serves only what that server must not:
 //   5122 — /api/private (the exfil probe: a model that escapes the frame CSP
 //           would return data instead of a model error) and the __mark
 //           endpoints (a command that ran is observable even though its reply
 //           is dropped for a wrong-origin sender).
-//   5123 — frame-wrong.html, the attacker origin. frame-ancestors 'self' on
-//           /frame/ forbids it from embedding the frame; the wrong-origin
-//           test proves the frame also never answers it.
+//   5123 — frame-wrong.html, the attacker origin. frame-ancestors names the
+//           app origin, so this origin can't embed the frame; the
+//           wrong-origin test proves the frame also never answers it.
 import http from 'node:http'
 import { readFile } from 'node:fs/promises'
 
