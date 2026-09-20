@@ -72,7 +72,7 @@ export function configFromEnv(): ServerConfig {
     authSecret: process.env.BETTER_AUTH_SECRET || 'dev-secret-change-me',
     trustedOrigins: [
       'http://localhost:5120',
-      'https://jscad-studio.rkroll.com',
+      'https://jscad.rkroll.com',
       'https://appleid.apple.com',
       ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []),
     ],

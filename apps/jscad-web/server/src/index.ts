@@ -44,7 +44,7 @@ export interface StudioServer {
 
 // Stands up the express app on ONE better-sqlite3 db: better-auth identity plus the health route
 // the deploy checks. No cookie domain is set anywhere — the session cookie must stay host-only on
-// jscad-studio.rkroll.com, never .rkroll.com, so it is not sent to the run host.
+// jscad.rkroll.com, never .rkroll.com.
 export async function createServer(config: ServerConfig): Promise<StudioServer> {
   const db = new Database(config.dbPath);
 
