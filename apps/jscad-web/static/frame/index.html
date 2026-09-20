@@ -2,9 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8">
-    <!-- CSP names the run origin explicitly: in a sandboxed frame CSP 'self'
-         matches nothing. frame-ancestors is meta-ignored, so it is a header. -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src __RUN_ORIGIN__ https://cdn.jsdelivr.net blob: 'unsafe-eval'; connect-src __RUN_ORIGIN__ https://cdn.jsdelivr.net; worker-src blob: __RUN_ORIGIN__; frame-ancestors __APP_ORIGIN__">
+    <!-- CSP names the run origin explicitly: in a sandboxed frame 'self' matches
+         nothing. frame-ancestors is meta-ignored, so it is a header. connect-src
+         is path-scoped because the run origin also serves the app and its API. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src __RUN_ORIGIN__ https://cdn.jsdelivr.net blob: 'unsafe-eval'; connect-src __RUN_ORIGIN__/frame/ https://cdn.jsdelivr.net; worker-src blob: __RUN_ORIGIN__; frame-ancestors __APP_ORIGIN__">
     <title>jscad studio compute frame</title>
   </head>
   <body>
