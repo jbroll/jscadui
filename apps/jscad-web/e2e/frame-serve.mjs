@@ -11,7 +11,6 @@
 import http from 'node:http'
 import { readFile } from 'node:fs/promises'
 
-const MIME = { '.html': 'text/html' }
 const COMMON_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), usb=(), serial=()',

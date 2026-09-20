@@ -5,7 +5,6 @@
 // the folder's own git, so this mode invents no snapshot rows.
 import { kindFromEntry } from './local.js'
 import { exportZip, importZip } from './zip.js'
-import { withZip } from './index.js'
 
 // Kept from jscad-studio: existing linked folders carry this meta file.
 const META_PATH = '.jscad-studio.json'
