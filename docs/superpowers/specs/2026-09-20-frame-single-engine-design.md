@@ -149,11 +149,12 @@ files therefore travel in the message:
 - A model loaded by URL keeps its real base, so its siblings resolve over the
   network from inside the frame and never enter the map.
 
-`fs-provider` keeps drag-and-drop extraction, `analyzeProject`, alias discovery
-and `checkFiles` watching. It loses `registerServiceWorker`, the `swfs` prefix
-and `sw.base`; `src/fileSystem.js` builds the map from the same entries it
-currently caches. The "cannot start service worker, reload required" path in
-`main.js` goes with it, as does `reloadDetection.js` if nothing else uses it.
+`fs-provider` is unchanged: `analyzeProject`, `fileDropped` and `checkFiles`
+all read the `SwHandler`'s `Cache`, and the map is built from that same cache,
+so the service worker stays as the app-side file store. What it loses is its
+role in execution. A failed registration then costs file watching rather than
+the ability to run a model, so `main.js`'s "reload required" branch becomes a
+warning.
 
 ### Errors
 
