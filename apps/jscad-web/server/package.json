@@ -1,5 +1,5 @@
 {
-  "name": "@jscadui/jscad-studio-server",
+  "name": "@jscadui/jscad-web-server",
   "version": "0.1.0",
   "type": "module",
   "private": true,
