@@ -44,6 +44,7 @@ import { getBundles } from './bundles.js'
 
 // Extracted modules
 import { updatePipelineStats, countGeometry, createProgressHandler } from './src/stats.js'
+import { capGeometry, DEFAULT_CAPS } from './src/caps.js'
 // Leaf imports, not ./src/storage/index.js: the index re-exports schema.js,
 // whose zod 4 types the root TS 4.9 gate cannot parse (see root tsconfig).
 import { createLocalStorage } from './src/storage/local.js'
@@ -132,6 +133,15 @@ let lastRunParams
 const handleEntities = (result, { skipLog } = {}) => {
   const { entities: rawEntities, treeTime, execTime, convTime } = result
   const entities = rawEntities instanceof Array ? rawEntities : [rawEntities]
+
+  // Refuse to draw past the caps before any allocation for rendering.
+  try {
+    capGeometry(entities, DEFAULT_CAPS)
+  } catch (error) {
+    setError(error)
+    onProgress(undefined)
+    return
+  }
 
   // Track render time
   const renderStart = performance.now()
