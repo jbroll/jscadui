@@ -301,9 +301,17 @@ if (!dev) hashFrameAssets(frameDir)
 /**************************** LIVE SERVER if in dev mode *************/
 // docs folder is too heavy for watch
 if (dev) 
-  // cors: the sandboxed /frame/ fetches its modules cross-origin from its
-  // opaque origin, even same-host.
-  liveServer.start({ root: outDir, port, open: false, cors: true, ignore: outDir+'/docs' })
+  // Frame headers in dev too: the sandboxed /frame/ fetches its modules
+  // cross-origin from its opaque origin even same-host, and only the app
+  // origin may embed it. (Production equivalents live in serve.js.)
+  liveServer.start({ root: outDir, port, open: false, ignore: outDir+'/docs', middleware: [(req, res, next) => {
+    if (req.url === '/frame' || req.url.startsWith('/frame/')) {
+      res.setHeader('Access-Control-Allow-Origin', '*')
+      res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), usb=(), serial=()')
+      res.setHeader('Content-Security-Policy', "frame-ancestors 'self'")
+    }
+    next()
+  }] })
 else 
   if(serveBuild) serve(port)
 

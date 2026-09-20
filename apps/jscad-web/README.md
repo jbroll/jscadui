@@ -88,7 +88,7 @@ hashes, in both modes:
 - `rowboat` mode stores bytes as blobs through rowboat file routes, with
   projects, files, versions and conversations in rowboat tables compiled from
   `src/storage/schema.js`. Sign-in starts the interval sync loop with a
-  short-lived JWT from the studio API's `GET /api/sync-token` (15m expiry).
+  short-lived JWT from the app API's `GET /api/sync-token` (15m expiry, served by `server/` in this dir).
 - Mixed projects merge at load time: each manifest path names exactly one
   backend, and unlisted sibling requires resolve local-first, then rowboat.
 - Chat conversations persist per project and resume on revisit.

@@ -6,8 +6,9 @@ commit that completes it.
 ## Deploy
 
 jscad.rkroll.com runs `dev` with the AI chat folded in (2026-09-17): the
-frontend is jscad-web hybrid plus the studio API on :3006, the compute frame
-on jscad-run.rkroll.com. 2026-09-18: deployed from `main` with local-first
+frontend is jscad-web hybrid plus the app API (`apps/jscad-web/server`) on
+:3006, with the compute frame served from the same deploy at `/frame/`.
+2026-09-18: deployed from `main` with local-first
 rowboat storage (versioned projects, per-project chat persistence, table sync
 on sign-in via `/api/sync-token`), then the project UI batch (side drawer
 with stacked tabs, project list/switch/rename, append-only version restore,
@@ -19,6 +20,8 @@ requiring the registered `@jscad/io` alias instead. Merged to `main`
 apps plus four backlog fixes (WASM clone ownership, build clean, alias
 cache, export identity). Render gate 2026-09-20: 764/788, 24 failures
 triaged as pre-existing openscad-corpus issues; baseline recorded in
-`apps/jscad-web/e2e/render-baseline.json` (job 07ff0ae0ffbdb0f2).
+`apps/jscad-web/e2e/render-baseline.json` (job 07ff0ae0ffbdb0f2). 2026-09-20:
+jscad-studio and jscad-studio-run folded into jscad-web and removed; the
+`run.*` vhosts retire with the next deploy (operator step).
 
 
