@@ -14,9 +14,9 @@ with stacked tabs, project list/switch/rename, append-only version restore,
 local/rowboat toggle, drop branching). Smoke: site 200, `/api/health` 200,
 `/api/sync-token` 401 anonymous, relay 403 on fake origin. The old `main` export breakage (worker requesting
 `bundle.jscad_io` with no `/build/` prefix) is fixed on this branch by
-requiring the registered `@jscad/io` alias instead. Before merging to `main`,
-run the simple-ci `jscadui/render` regression check on `main` and on the
-branch (`sci push jscadui/render` rsyncs the working tree, so the checkout
-decides what is tested).
+requiring the registered `@jscad/io` alias instead. Merged to `main`
+2026-09-20 as `feat/fluent-worker-bundle`: fluent worker bundle in both
+apps plus four backlog fixes (WASM clone ownership, build clean, alias
+cache, export identity).
 
 
