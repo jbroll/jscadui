@@ -211,6 +211,7 @@ export function createFolderStorage(options = {}) {
       throw err
     }
     await writeMeta(handle, { ...meta, name, entry })
+    void id
     return { id: 'folder', entry, kind: kindFromEntry(entry) }
   }
 
@@ -224,6 +225,7 @@ export function createFolderStorage(options = {}) {
     const handle = await useHandle()
     const meta = await readMeta(handle)
     await writeMeta(handle, { ...meta, messages, updated: Date.now() })
+    void projectId
   }
 
   const api = {
