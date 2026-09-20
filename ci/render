@@ -24,6 +24,10 @@ npm run build -- --continue || echo "build had failures (continuing — checking
 if [ ! -f packages/openscad/esm/index.js ]; then
   echo "✖ packages/openscad/esm not built"; exit 2
 fi
+( cd "$APP" && npm run build ) || { echo "✖ jscad-web build failed"; exit 2; }
+if [ ! -f "$APP/build/main.js" ]; then
+  echo "✖ jscad-web build produced no build/main.js"; exit 2
+fi
 ( cd "$APP" && npx playwright install chromium )
 
 # ── start dev server in background ──
