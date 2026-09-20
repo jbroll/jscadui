@@ -34,8 +34,10 @@ The fold left the frame boundary half-covered. In rough priority order:
   `ci/web` covers the unit suites and `ci/render` the render sweep, but
   `app.spec.js`, `ai-chat.spec.js` and the rest run nowhere.
 - **The agent's `params` tool runs outside the sandbox.** `setParams` in
-  `main.js` calls `paramChangeCallback`, which re-executes model code on the
-  local worker. Agent-written code reaches the unsandboxed engine through it.
+  `main.js` calls `paramChangeCallback`, which re-executes whatever the local
+  worker last loaded. Once the user has compiled agent-written source in the
+  editor, the agent can re-run it on the unsandboxed engine at will. Route
+  `params` through the frame instead.
 - **Manifold cannot load in the frame.** `src_bundle/bundle.manifold_modeling.js`
   resolves `./manifold.wasm` against `self.location.href`, which is a `blob:`
   opaque-path base in the frame worker, so the URL cannot resolve regardless

@@ -2,6 +2,9 @@
 
 This is the JSCAD web application hosted at https://jscad.rkroll.com
 
+How the page, the compute frame, the API and storage fit together:
+[docs/architecture.md](docs/architecture.md).
+
 If you want to discuss jscad or jscadui, please join us on discord: https://discord.gg/6PB7qZ4HC7
 
 ## Running Locally
@@ -80,30 +83,19 @@ Tests: `npx vitest run test/aiChat.test.js` for the chat turn, `npx playwright t
 ## Compute frame
 
 Agent-written model code runs in `/frame/`, a page served from this app's own
-origin and embedded in a hidden `<iframe sandbox="allow-scripts">`. Leaving
-`allow-same-origin` off is deliberate: it gives the frame an opaque origin, so
-model code gets no cookies, no IndexedDB and no same-origin fetch, and the
-frame page's CSP limits `connect-src` to `/frame/` and the jsdelivr CDN. The
-editor still compiles through the local worker; only the agent's `eval`,
-`measure`, `check` and `export` calls cross into the frame
-(`src/frameClient.js` on this side, `src_frame/` on the other). The agent's
-`params` tool re-runs the model on the local worker, outside the sandbox.
-
-The browser treats the frame as cross-origin even though it is same-host, so it
-needs CORS and frame-ancestors headers of its own. Three places set them and
-must agree:
-
-- `build.js` — dev server middleware.
-- `serve.js` — production preview server (`npm run serve`).
-- `deploy/hooks/apache.configure.post.sh` — the deployed vhost.
-
-`build.js` also bakes the app origin into the frame page's CSP and into
-`__ALLOWED_ORIGIN__`, which `src_frame/frame.js` checks on every inbound
-message. A dev build uses `http://localhost:<port>` and a production build
-`https://jscad.rkroll.com`; `FRAME_APP_ORIGIN` overrides both.
+origin and embedded in a hidden `<iframe sandbox="allow-scripts">`. Without
+`allow-same-origin` the frame has an opaque origin, so model code gets no
+cookies, no IndexedDB and no same-origin fetch. The editor still compiles
+through the local worker; only the agent's `eval`, `measure`, `check` and
+`export` calls cross into the frame. See
+[docs/architecture.md](docs/architecture.md) for the boundary and the protocol.
 
 The frame builds into `build/frame/` as part of the normal web build, with no
-deploy step of its own.
+deploy step of its own. Its CORS and frame-ancestors headers are set in three
+places that must agree: `build.js` (dev server), `serve.js` (`npm run serve`)
+and `deploy/hooks/apache.configure.post.sh` (the deployed vhost). The app
+origin is baked into the frame's CSP and `__ALLOWED_ORIGIN__` at build time;
+`FRAME_APP_ORIGIN` overrides it.
 
 Tests: `npx playwright test e2e/frame.spec.js` covers the sandbox boundary —
 wrong-origin senders, storage access and fetches against the app origin.

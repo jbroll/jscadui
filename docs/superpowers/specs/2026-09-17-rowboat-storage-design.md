@@ -13,8 +13,7 @@ connected — then syncs, with sharing possible later.
 
 jscad-web keeps model files in the service-worker FS, provider selection in
 `localStorage`, keys in `@jscadui/key-store`, and conversations nowhere. The
-studio plan specified the storage interface and rowboat tables (plan
-`docs/superpowers/plans/2026-09-16-jscad-studio.md` Task 10); checklist
+studio plan specified the storage interface and rowboat tables; checklist
 (`src/lib/rowboat.tsx`) proves the local-first sync pattern: `buildRowboatDb`
 IndexedDB store, `syncWithServer` on an interval while signed in, short-lived
 JWTs, anonymous users local-only. jscad-web is vanilla JS, so only the
