@@ -45,10 +45,13 @@ const htmlFilter = {
   include: ['index.html']
 }
 
+// *************** read parameters **********************
+const { dev, port = 5120, serve:serveBuild=false, skipDocs=false } = parseArgs()
+
 // Frame page: bake the web origin as both app and run origin. The frame is
 // served same-host at /frame/ under sandbox (opaque origin), so CSP must
 // name the origin explicitly — 'self' matches nothing inside the frame.
-const frameOrigin = process.env.FRAME_APP_ORIGIN || 'https://jscad.rkroll.com'
+const frameOrigin = process.env.FRAME_APP_ORIGIN || (dev ? `http://localhost:${port}` : 'https://jscad.rkroll.com')
 const frameHtmlFilter = {
   filter: (content) => content
     .replaceAll('__RUN_ORIGIN__', frameOrigin)
@@ -56,8 +59,6 @@ const frameHtmlFilter = {
   include: ['frame/index.html'],
 }
 
-// *************** read parameters **********************
-const { dev, port = 5120, serve:serveBuild=false, skipDocs=false } = parseArgs()
 const watch = dev
 const outDir = dev ? 'build_dev' : 'build'
 // Docs come from the sibling OpenJSCAD.org checkout that also provides @jscad/modeling.

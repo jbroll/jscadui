@@ -31,9 +31,6 @@ fi
 ( cd "$APP" && npx playwright install chromium )
 
 # ── start dev server in background ──
-# FRAME_APP_ORIGIN bakes the co-deployed frame's allowed origin to the dev
-# origin the e2e host page lives on (same value as the playwright webServer).
-export FRAME_APP_ORIGIN="${FRAME_APP_ORIGIN:-http://localhost:5120}"
 cd "$APP"
 node build.js --dev --skipDocs > /tmp/jscad-dev.log 2>&1 &
 DEV_PID=$!

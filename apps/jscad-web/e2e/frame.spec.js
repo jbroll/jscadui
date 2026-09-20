@@ -3,10 +3,10 @@ import { readFileSync } from 'node:fs'
 import { startServers, stopServers } from './frame-serve.mjs'
 
 // The frame under test is served by the real dev server
-// (http://localhost:5120/frame/, baked ALLOWED origin http://localhost:5120
-// via FRAME_APP_ORIGIN in the playwright webServer env). The host page is
-// injected with setContent after navigating to a same-origin lightweight
-// URL, so no fixture ships in the production build.
+// (http://localhost:5120/frame/, whose baked allowed origin is the dev
+// server's own http://localhost:5120). The host page is injected with
+// setContent after navigating to a same-origin lightweight URL, so no fixture
+// ships in the production build.
 const RUN = 'http://localhost:5120/frame'
 const MARK = 'http://localhost:5122'
 const MARKER = `${MARK}/__mark`
