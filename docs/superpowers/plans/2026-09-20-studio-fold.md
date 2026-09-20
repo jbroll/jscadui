@@ -622,12 +622,18 @@ Replace the `aiDeps` entries (`main.js:713-731`):
   },
 ```
 
-with:
+with (plus an `unwrap` helper next to the frame creation — frame answers carry
+the protocol envelope, agent tools want the payload):
+
+```js
+// Frame answers carry the protocol envelope; agent tools want the payload.
+const unwrap = (res) => (res.ok ? res.result : { ok: false, error: res.error })
+```
 
 ```js
   evaluate: async (source, entry = './jscad.model.js') => {
     const loaded = await frame.load({ files: { [entry]: source }, entry })
-    if (!loaded.ok) return loaded
+    if (!loaded.ok) return { ok: false, error: loaded.error }
     handleEntities(loaded.result, {})
     const entities = loaded.result.entities instanceof Array ? loaded.result.entities : [loaded.result.entities]
     return { entityCount: entities.length }
@@ -637,20 +643,22 @@ with:
 `measure: async (options) => workerApi.jscadMeasure({ options })` with:
 
 ```js
-  measure: async (options) => (await frame.measure({ options })).result,
+  measure: async (options) => unwrap(await frame.measure({ options })),
 ```
 
 `check: async (input) => workerApi.jscadCheck({ bed: input?.bed, options: input ?? {} })` with:
 
 ```js
-  check: async (input) => (await frame.check({ bed: input?.bed, options: input ?? {} })).result,
+  check: async (input) => unwrap(await frame.check({ bed: input?.bed, options: input ?? {} })),
 ```
 
 and the `exportModel` body `workerApi.jscadExportData({ format })` with `frame.export({ format })`:
 
 ```js
   exportModel: async ({ format }) => {
-    const { data } = (await frame.export({ format })).result || {}
+    const exported = await frame.export({ format })
+    if (!exported.ok) return { ok: false, error: exported.error }
+    const { data } = exported.result || {}
     const chunks = (data instanceof Array ? data : [data]).filter((v) => v instanceof ArrayBuffer)
     const size = chunks.reduce((n, v) => n + v.byteLength, 0)
     return { format, size, data: toBase64(chunks) }
@@ -659,9 +667,13 @@ and the `exportModel` body `workerApi.jscadExportData({ format })` with `frame.e
 
 `setParams`, `view`, and `save` stay exactly as they are (worker/editor-backed). Failures stay results, never throws: `frameClient` resolves `{ ok: false, error }` and `handleToolRequest` catches the rest.
 
+Agent-session contract (deliberate): `measure`/`check`/`export` operate on what the session `eval` loaded, never on the editor model. No code is trusted by source, so the sandbox gets no ambient editor state; there is no read-editor tool by design, and reconstructing the editor file map (service-worker FS, rowboat merge, multi-file entries) inside the agent path would reimplement the file pipeline. The coherent agent loop is eval-seeds → measure/check/export-inspect. Syncing editor state into the frame belongs to the editor-migration follow-up, not this task.
+
 - [ ] **Step 3: Port the frame protocol e2e**
 
-Move and rebase the run app's harness (frame served by the real dev server on 5120; host + attacker micro-servers stay on 5122/5123):
+The frame is served by the real dev server (port 5120, `FRAME_APP_ORIGIN=http://localhost:5120` via the playwright `webServer.env` below and `ci/render`). The host page is injected with `setContent` after navigating to a same-origin lightweight URL (`/robots.txt`), so no fixture ships in the production build. A micro-server module covers only what the dev server must not: `/api/private` exfil probe + `__mark*` endpoints on 5122, attacker page on 5123.
+
+Move and rebase the run app's harness:
 
 ```bash
 git mv apps/jscad-studio-run/e2e/host.html apps/jscad-web/e2e/frame-host.html
@@ -669,37 +681,13 @@ git mv apps/jscad-studio-run/e2e/wrong.html apps/jscad-web/e2e/frame-wrong.html
 git mv apps/jscad-studio-run/e2e/frame.spec.js apps/jscad-web/e2e/frame.spec.js
 ```
 
-In `frame-host.html`, point the iframe at the folded frame: replace `src="http://localhost:5121/"` with `src="http://localhost:5120/frame/"` (keep `sandbox="allow-scripts"` and the attacker iframe as-is). In `frame.spec.js`, replace `const RUN = 'http://localhost:5121'` with `const RUN = 'http://localhost:5120/frame'` and `http://localhost:5121/` marker base accordingly; HOST stays `http://localhost:5122/host.html` served by the ported helper below.
+In `frame-host.html`, point the iframe at the folded frame (`src="http://localhost:5120/frame/"`, keep `sandbox="allow-scripts"`) and the attacker at `http://localhost:5123/frame-wrong.html`. In `frame.spec.js`: `RUN = 'http://localhost:5120/frame'`; mark endpoints move to the 5122 micro-server (`MARK = 'http://localhost:5122'`); replace every `page.goto(HOST)` with a `gotoHost` helper (goto robots.txt → setContent of `frame-host.html` read from disk → await `window.frameReady`); frame-ancestors assertion becomes `toContain("frame-ancestors 'self'")` (dev serve sends it; prod apache sends `SAMEORIGIN` + hook headers — the behavioral wrong-origin test covers both).
 
-Create `apps/jscad-web/e2e/frame-serve.mjs`: copy of the run `e2e/serve.mjs` with the frame server deleted (the dev server owns `/frame/`) — keep the host server (serving `frame-host.html` at `/host.html` + `/api/private` exfil probe), the attacker server (`frame-wrong.html`), and the `__mark`/`__mark-count`/`__mark-reset` endpoints; `COMMON_HEADERS` keeps CORS + Permissions-Policy, and its CSP `frame-ancestors` still names the app origin under test. Wire start/stop so the spec file imports it in `beforeAll`/`afterAll` instead of requiring a separate process.
+Create `apps/jscad-web/e2e/frame-serve.mjs` exporting `startServers`/`stopServers` (5122: `/api/private` + `__mark`/`__mark-count`/`__mark-reset` with CORS; 5123: `frame-wrong.html`; no frame server — the dev server owns `/frame/`). The spec imports it in `beforeAll`/`afterAll` instead of requiring a separate process.
 
-Add one engine-correctness case to `frame.spec.js` (frame result must equal analytic truth, independent of the worker):
+Add one engine-correctness case to `frame.spec.js` (frame result must equal analytic truth, independent of the worker). The ported spec already contains it (`measure returns the model measurements`: 10mm cube → dimensions `[10,10,10]`, volume ≈ 1000) — no addition needed, just require it green.
 
-```js
-test('measure matches analytic volume for a 10mm cube', async ({ page }) => {
-  await page.goto(HOST)
-  const loadRes = await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
-    id: 9,
-    command: 'load',
-    payload: project(
-      `const { cube } = require('@jscad/modeling').primitives\n` +
-      `const main = () => cube({ size: 10 })\n` +
-      `module.exports = { main }\n`,
-    ),
-  })
-  expect(loadRes.ok).toBe(true)
-  const measureRes = await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
-    id: 10,
-    command: 'measure',
-    payload: {},
-  })
-  expect(measureRes.ok).toBe(true)
-  expect(measureRes.result.volume).toBeGreaterThan(990)
-  expect(measureRes.result.volume).toBeLessThan(1010)
-})
-```
-
-(`project` helper already exists in the spec.)
+Rewrite the `ai-chat.spec.js` stub turn to the coherent agent loop (the old measure-without-eval turn cannot work: the frame session starts empty and there is no read-editor tool). First POST streams one `eval` call with inline 10mm-cube source, second POST streams one `measure` call, third answers Done; assertions require ≥3 requests, `eval` in the first turn's tools, `measure` in the second's, an `{ entityCount: 1 }` tool result, and a dimensions/volume result. Also fix pre-existing drift in the same spec (unrelated to the frame): selecting `openai` retargets the model placeholder to `gpt-4o`, so fill the model input before switching kind.
 
 - [ ] **Step 4: Run the gates**
 

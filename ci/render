@@ -31,6 +31,9 @@ fi
 ( cd "$APP" && npx playwright install chromium )
 
 # ── start dev server in background ──
+# FRAME_APP_ORIGIN bakes the co-deployed frame's allowed origin to the dev
+# origin the e2e host page lives on (same value as the playwright webServer).
+export FRAME_APP_ORIGIN="${FRAME_APP_ORIGIN:-http://localhost:5120}"
 cd "$APP"
 node build.js --dev --skipDocs > /tmp/jscad-dev.log 2>&1 &
 DEV_PID=$!
@@ -54,4 +57,11 @@ echo "Running: node e2e/render-all.mjs $RENDER_ARGS"
 node e2e/render-all.mjs $RENDER_ARGS
 RC=$?
 echo "render-all exit code: $RC"
+if [ "$RC" != "0" ]; then exit $RC; fi
+
+# ── frame protocol e2e (dev server + chromium already up) ──
+echo "Running: npx playwright test e2e/frame.spec.js"
+( cd "$APP" && npx playwright test e2e/frame.spec.js )
+RC=$?
+echo "frame spec exit code: $RC"
 exit $RC

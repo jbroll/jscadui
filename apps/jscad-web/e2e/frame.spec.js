@@ -1,8 +1,28 @@
 import { test, expect } from '@playwright/test'
+import { readFileSync } from 'node:fs'
+import { startServers, stopServers } from './frame-serve.mjs'
 
-const HOST = 'http://localhost:5122/host.html'
-const RUN = 'http://localhost:5121'
-const MARKER = `${RUN}/__mark`
+// The frame under test is served by the real dev server
+// (http://localhost:5120/frame/, baked ALLOWED origin http://localhost:5120
+// via FRAME_APP_ORIGIN in the playwright webServer env). The host page is
+// injected with setContent after navigating to a same-origin lightweight
+// URL, so no fixture ships in the production build.
+const RUN = 'http://localhost:5120/frame'
+const MARK = 'http://localhost:5122'
+const MARKER = `${MARK}/__mark`
+
+test.beforeAll(async () => {
+  await startServers()
+})
+
+test.afterAll(async () => {
+  await stopServers()
+})
+
+const gotoHost = async (page) => {
+  await page.goto('http://localhost:5120/robots.txt')
+  await page.setContent(readFileSync(new URL('./frame-host.html', import.meta.url), 'utf8'))
+  }
 
 const project = (mainSource) => ({ files: { 'main.js': mainSource }, entry: 'main.js' })
 
@@ -29,7 +49,7 @@ const MARKER_PROJECT = project(
 )
 
 test('load resolves a sibling require and returns geometry', async ({ page }) => {
-  await page.goto(HOST)
+  await gotoHost(page)
   const res = await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
     id: 1,
     command: 'load',
@@ -42,7 +62,7 @@ test('load resolves a sibling require and returns geometry', async ({ page }) =>
 })
 
 test('params re-runs the model and returns different geometry', async ({ page }) => {
-  await page.goto(HOST)
+  await gotoHost(page)
   const model = project(
     `const { cube } = require('@jscad/modeling').primitives\n` +
     `const main = (params) => {\n` +
@@ -70,7 +90,7 @@ test('params re-runs the model and returns different geometry', async ({ page })
 })
 
 test('a model error is answered as ok:false with the message', async ({ page }) => {
-  await page.goto(HOST)
+  await gotoHost(page)
   const res = await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
     id: 4,
     command: 'load',
@@ -84,15 +104,14 @@ test('a model error is answered as ok:false with the message', async ({ page }) 
 })
 
 test('a wrong-origin sender is never answered and cannot run a command', async ({ page, request }) => {
-  await request.get(`${RUN}/__mark-reset`)
-  await page.goto(HOST)
-  await page.evaluate(() => window.frameReady)
-  const attacker = page.frames().find((f) => f.url().includes(':5123'))
+  await request.get(`${MARK}/__mark-reset`)
+  await gotoHost(page)
+    const attacker = page.frames().find((f) => f.url().includes(':5123'))
   await attacker.evaluate((payload) => window.send(99, 'load', payload), MARKER_PROJECT)
   await page.waitForTimeout(1500)
   expect(await attacker.evaluate(() => window.received)).toEqual([])
 
-  const readCount = async () => (await (await request.get(`${RUN}/__mark-count`)).json()).count
+  const readCount = async () => (await (await request.get(`${MARK}/__mark-count`)).json()).count
   let count = await readCount()
   const deadline = Date.now() + 5000
   while (count === 0 && Date.now() < deadline) {
@@ -104,11 +123,11 @@ test('a wrong-origin sender is never answered and cannot run a command', async (
 
 test('the frame document sends frame-ancestors for the app origin', async ({ request }) => {
   const res = await request.get(`${RUN}/`)
-  expect(res.headers()['content-security-policy']).toContain('frame-ancestors http://localhost:5122')
+  expect(res.headers()['content-security-policy']).toContain("frame-ancestors 'self'")
 })
 
 test('model fetch against the app origin API fails', async ({ page }) => {
-  await page.goto(HOST)
+  await gotoHost(page)
   const res = await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
     id: 5,
     command: 'load',
@@ -124,7 +143,7 @@ test('model fetch against the app origin API fails', async ({ page }) => {
 })
 
 test('localStorage and IndexedDB throw inside the opaque frame', async ({ page }) => {
-  await page.goto(HOST)
+  await gotoHost(page)
   const storageRes = await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
     id: 6,
     command: 'load',
@@ -153,7 +172,7 @@ const CUBE = project(
 )
 
 test('measure returns the model measurements', async ({ page }) => {
-  await page.goto(HOST)
+  await gotoHost(page)
   const load = await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
     id: 8,
     command: 'load',
@@ -172,7 +191,7 @@ test('measure returns the model measurements', async ({ page }) => {
 })
 
 test('a null payload is treated as an empty one', async ({ page }) => {
-  await page.goto(HOST)
+  await gotoHost(page)
   await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
     id: 16,
     command: 'load',
@@ -189,7 +208,7 @@ test('a null payload is treated as an empty one', async ({ page }) => {
 })
 
 test('check reports solidity and bed fit', async ({ page }) => {
-  await page.goto(HOST)
+  await gotoHost(page)
   await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
     id: 10,
     command: 'load',
@@ -208,7 +227,7 @@ test('check reports solidity and bed fit', async ({ page }) => {
 })
 
 test('export returns binary STL as transferred ArrayBuffers', async ({ page }) => {
-  await page.goto(HOST)
+  await gotoHost(page)
   await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
     id: 12,
     command: 'load',
@@ -235,7 +254,7 @@ test('export returns binary STL as transferred ArrayBuffers', async ({ page }) =
 })
 
 test('a command over timeoutMs kills the worker and the next load starts fresh', async ({ page }) => {
-  await page.goto(HOST)
+  await gotoHost(page)
   const hang = await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
     id: 14,
     command: 'load',

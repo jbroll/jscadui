@@ -54,6 +54,7 @@ import { createSession } from './src/storage/session.js'
 import { initProjects } from './src/projects.js'
 import { extractEntries, readAsText, readDir } from '@jscadui/fs-provider'
 import { createWorker, createJobTracker } from './src/workerSetup.js'
+import { frameClient } from './src/frameClient.js'
 import * as fileSystem from './src/fileSystem.js'
 import * as paramsUI from './src/paramsUI.js'
 import { shouldAllowReload, clearReloadTimestamp } from './src/reloadDetection.js'
@@ -175,6 +176,20 @@ const { worker, workerApi, handlers } = createWorker({
   onEntities: handleEntities,
   onJobCount: trackJobs
 })
+
+// Sandboxed execution for agent-driven code. sandbox without
+// allow-same-origin gives the frame an opaque origin: model scripts run with
+// no ambient authority (no cookies, storage, or same-origin fetch), while the
+// editor keeps the local worker.
+const frameEl = document.createElement('iframe')
+frameEl.src = './frame/'
+frameEl.setAttribute('sandbox', 'allow-scripts')
+frameEl.hidden = true
+document.body.appendChild(frameEl)
+const frame = frameClient(frameEl, location.origin)
+
+// Frame answers carry the protocol envelope; agent tools want the payload.
+const unwrap = (res) => (res.ok ? res.result : { ok: false, error: res.error })
 
 // ============== File System Setup ==============
 const dropModal = byId('dropModal')
@@ -721,10 +736,10 @@ const toBase64 = (buffers) => {
 
 const aiDeps = {
   evaluate: async (source, entry = './jscad.model.js') => {
-    await jscadScript({ script: source, url: entry, base: currentBase })
-    const result = await workerApi.jscadMain(paramsCtrl.getWorkerParams())
-    handleEntities(result, {})
-    const entities = result.entities instanceof Array ? result.entities : [result.entities]
+    const loaded = await frame.load({ files: { [entry]: source }, entry })
+    if (!loaded.ok) return { ok: false, error: loaded.error }
+    handleEntities(loaded.result, {})
+    const entities = loaded.result.entities instanceof Array ? loaded.result.entities : [loaded.result.entities]
     return { entityCount: entities.length }
   },
   setParams: async (values) => {
@@ -733,10 +748,12 @@ const aiDeps = {
     await paramChangeCallback(paramsCtrl.params)
     return { updated: Object.keys(values) }
   },
-  measure: async (options) => workerApi.jscadMeasure({ options }),
-  check: async (input) => workerApi.jscadCheck({ bed: input?.bed, options: input ?? {} }),
+  measure: async (options) => unwrap(await frame.measure({ options })),
+  check: async (input) => unwrap(await frame.check({ bed: input?.bed, options: input ?? {} })),
   exportModel: async ({ format }) => {
-    const { data } = (await workerApi.jscadExportData({ format })) || {}
+    const exported = await frame.export({ format })
+    if (!exported.ok) return { ok: false, error: exported.error }
+    const { data } = exported.result || {}
     const chunks = (data instanceof Array ? data : [data]).filter((v) => v instanceof ArrayBuffer)
     const size = chunks.reduce((n, v) => n + v.byteLength, 0)
     return { format, size, data: toBase64(chunks) }

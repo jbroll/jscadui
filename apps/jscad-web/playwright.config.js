@@ -27,5 +27,8 @@ export default defineConfig({
     url: 'http://localhost:5120',
     reuseExistingServer: true,
     timeout: 90_000,
+    // The co-deployed frame bakes its allowed app origin at build time; the
+    // e2e host page lives on the dev origin, so the frame must allow it.
+    env: { FRAME_APP_ORIGIN: 'http://localhost:5120' },
   },
 })
