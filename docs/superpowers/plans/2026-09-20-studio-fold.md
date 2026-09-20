@@ -199,28 +199,30 @@ import { kindFromEntry } from './local.js'
 
 - [ ] **Step 3: Drop the withZip wrapper, keep compat constants**
 
-Replace:
+The ported test calls `storage.exportZip` / `storage.importZip` as methods, so the object keeps thin delegators over web's standalone pair — with this mode's meta entry, so the meta file never leaks into the folder's project files (`collectFiles` only skips `META_PATH`). First extend `apps/jscad-web/src/storage/zip.js` with an optional meta path (default preserves current behavior for all existing callers):
+
+Replace `export async function exportZip(storage, id) {` with `export async function exportZip(storage, id, metaPath = META_PATH) {`, the `entries` line with `const entries = { [metaPath]: strToU8(JSON.stringify(meta)) }`, `export async function importZip(storage, file) {` with `export async function importZip(storage, file, metaPath = META_PATH) {`, `entries[META_PATH]` with `entries[metaPath]`, and `if (path === META_PATH) continue` with `if (path === metaPath) continue`.
+
+Then in `apps/jscad-web/src/storage/folder.js`, add `import { exportZip, importZip } from './zip.js'`, rename the returned object to `const api = { link, ... }` (same members), and return:
 
 ```js
-  return withZip({
-    link,
-```
-
-with:
-
-```js
+  // Zip pair over the interface, with this mode's meta entry so the meta
+  // file never leaks into the folder's project files.
   return {
-    link,
+    ...api,
+    exportZip: (id) => exportZip(api, id, META_PATH),
+    importZip: (file) => importZip(api, file, META_PATH),
+  }
 ```
 
-Callers use the standalone `exportZip`/`importZip` from `./zip.js`, which operate over the interface (`readProject`/`writeFiles`) — no per-mode wrapper needed. Keep `META_PATH = '.jscad-studio.json'` and `createIdbPersistence` default `'jscad-studio-folder'` byte-for-byte: existing linked folders and their IndexedDB handles use these names, and renaming would orphan them. Add one why-comment above `META_PATH`:
+Keep `META_PATH = '.jscad-studio.json'` and `createIdbPersistence` default `'jscad-studio-folder'` byte-for-byte: existing linked folders and their IndexedDB handles use these names, and renaming would orphan them. Add one why-comment above `META_PATH`:
 
 ```js
 // Kept from jscad-studio: existing linked folders carry this meta file.
 const META_PATH = '.jscad-studio.json'
 ```
 
-(replacing the existing `const META_PATH = '.jscad-studio.json'` line).
+(replacing the existing comment block above that line).
 
 - [ ] **Step 4: Run the ported tests**
 

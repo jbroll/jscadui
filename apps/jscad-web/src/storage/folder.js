@@ -3,12 +3,11 @@
 // project; its files are the model files, and a dotfile carries the name,
 // entry and conversation. Versions are deliberately absent — history lives in
 // the folder's own git, so this mode invents no snapshot rows.
-import { kindFromEntry } from './cloud.js'
+import { kindFromEntry } from './local.js'
+import { exportZip, importZip } from './zip.js'
 import { withZip } from './index.js'
 
-// The folder's own metadata file; never listed as a project file. Same path
-// the zip format uses for its meta entry, so zips of folder projects round
-// trip without leaking it.
+// Kept from jscad-studio: existing linked folders carry this meta file.
 const META_PATH = '.jscad-studio.json'
 
 export class FolderNotLinkedError extends Error {
@@ -228,7 +227,7 @@ export function createFolderStorage(options = {}) {
     await writeMeta(handle, { ...meta, messages, updated: Date.now() })
   }
 
-  return withZip({
+  const api = {
     link,
     // Folder contents are the store; nothing syncs.
     sync: async () => {},
@@ -242,5 +241,12 @@ export function createFolderStorage(options = {}) {
     },
     readConversation,
     writeConversation,
-  })
+  }
+  // Zip pair over the interface, with this mode's meta entry so the meta
+  // file never leaks into the folder's project files.
+  return {
+    ...api,
+    exportZip: (id) => exportZip(api, id, META_PATH),
+    importZip: (file) => importZip(api, file, META_PATH),
+  }
 }
