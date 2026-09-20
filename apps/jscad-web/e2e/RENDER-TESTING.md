@@ -50,3 +50,24 @@ JOB=$(../simple-ci/sci push jscadui/render)   # runs ci/render on gpu
 
 `ci/render` builds the workspace, starts the dev server, and runs `render-all.mjs`.
 Edit `RENDER_ARGS` in `ci/render` to change scope/concurrency.
+
+## Baseline
+
+`e2e/render-baseline.json` records the known sweep state: the commit and CI job
+it was captured from, per-library ok/fail counts, and the failing example
+paths. The 24 failures in it were triaged as pre-existing openscad-corpus
+issues, not regressions — diff future runs against `failures`, not against
+zero.
+
+From `apps/jscad-web`, after a sweep writes a fresh `e2e/render-report.json`:
+
+```bash
+node -e "
+const base = require('./e2e/render-baseline.json');
+const fresh = require('./e2e/render-report.json');
+const known = new Set(base.failures.map((f) => f.rel));
+const byRel = new Map(fresh.results.map((r) => [r.rel, r.status]));
+console.log('new failures:', [...byRel].filter(([rel, s]) => s !== 'ok' && !known.has(rel)).map(([rel]) => rel));
+console.log('fixed:', [...known].filter((rel) => byRel.get(rel) === 'ok'));
+"
+```
