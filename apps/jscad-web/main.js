@@ -45,6 +45,7 @@ import { getBundles } from './bundles.js'
 // Extracted modules
 import { updatePipelineStats, countGeometry, createProgressHandler } from './src/stats.js'
 import { capGeometry, DEFAULT_CAPS } from './src/caps.js'
+import { createEvaluate } from './src/aiEvaluate.js'
 // Leaf imports, not ./src/storage/index.js: the index re-exports schema.js,
 // whose zod 4 types the root TS 4.9 gate cannot parse (see root tsconfig).
 import { createLocalStorage } from './src/storage/local.js'
@@ -735,13 +736,7 @@ const toBase64 = (buffers) => {
 }
 
 const aiDeps = {
-  evaluate: async (source, entry = './jscad.model.js') => {
-    const loaded = await frame.load({ files: { [entry]: source }, entry })
-    if (!loaded.ok) return { ok: false, error: loaded.error }
-    handleEntities(loaded.result, {})
-    const entities = loaded.result.entities instanceof Array ? loaded.result.entities : [loaded.result.entities]
-    return { entityCount: entities.length }
-  },
+  evaluate: createEvaluate(frame, handleEntities),
   setParams: async (values) => {
     Object.assign(paramsCtrl.params, values)
     for (const key of Object.keys(values)) paramsCtrl.userInteracted.add(key)

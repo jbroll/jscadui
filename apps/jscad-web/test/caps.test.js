@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { capGeometry, DEFAULT_CAPS } from '../src/caps.js'
+import { createEvaluate } from '../src/aiEvaluate.js'
 
 const smallEntity = () => ({
   type: 'mesh',
@@ -39,5 +40,35 @@ describe('capGeometry', () => {
     const result = capGeometry(entities, DEFAULT_CAPS)
     expect(result[0].vertices).toBe(vertices)
     expect(result[0].indices).toBe(indices)
+  })
+})
+
+describe('agent evaluate', () => {
+  const frameReturning = (entities) => ({ load: async () => ({ ok: true, result: { entities } }) })
+
+  it('reports an over-cap result as a failure to the agent', async () => {
+    const drawn = []
+    const entities = Array.from({ length: DEFAULT_CAPS.entities + 1 }, smallEntity)
+    const evaluate = createEvaluate(frameReturning(entities), (result) => drawn.push(result))
+
+    const result = await evaluate('module.exports = { main: () => [] }')
+
+    expect(result.ok).toBe(false)
+    expect(result.error.message).toMatch(/entity cap/)
+    expect(result.entityCount).toBeUndefined()
+    expect(drawn.length).toBe(1)
+  })
+
+  it('reports the entity count when the result is under the caps', async () => {
+    const evaluate = createEvaluate(frameReturning([smallEntity()]), () => {})
+
+    expect(await evaluate('module.exports = { main: () => [] }')).toEqual({ entityCount: 1 })
+  })
+
+  it('passes a frame failure through unchanged', async () => {
+    const error = { name: 'ModelError', message: 'boom' }
+    const evaluate = createEvaluate({ load: async () => ({ ok: false, error }) }, () => {})
+
+    expect(await evaluate('module.exports = {}')).toEqual({ ok: false, error })
   })
 })
