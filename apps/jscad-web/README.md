@@ -67,7 +67,7 @@ Set `window.jscadModuleOverrides` before `main.js` runs to replace any of these 
 
 ## AI Chat
 
-The app has an agent chat drawer (AI Chat in the menu) layered on the normal editor, viewer and examples. Describe a part, and the browser-local agent loop writes and measures models by calling tools that execute locally: `eval`, `params`, `measure`, `check`, `export`, `view` and `writeModel` (`src/aiBridge.js`). Provider HTTP goes to the relay at `https://jscad.rkroll.com`, overridable via `localStorage 'jscad-ai.relay'`.
+The app has an agent chat drawer (AI Chat in the menu) layered on the normal editor, viewer and examples. Describe a part, and the browser-local agent loop writes and measures models by calling tools that run in the browser: `eval`, `params`, `measure`, `check`, `export`, `view` and `writeModel` (`src/aiBridge.js`). The ones that execute model code go through the sandboxed compute frame below. Provider HTTP goes to the relay at `https://jscad.rkroll.com`, overridable via `localStorage 'jscad-ai.relay'`.
 
 Account setup lives in the drawer above the chat:
 
@@ -76,6 +76,36 @@ Account setup lives in the drawer above the chat:
 - Save the provider key with a custody mode: `session` (memory only), `device` (this browser), or `synced` (AES-GCM ciphertext only, needs a passphrase to unlock). The key travels to the API per chat request and never enters logs or the compute frame.
 
 Tests: `npx vitest run test/aiChat.test.js` for the chat turn, `npx playwright test e2e/ai-chat.spec.js` for the full turn against a stub relay with real local measurements.
+
+## Compute frame
+
+Agent-written model code runs in `/frame/`, a page served from this app's own
+origin and embedded in a hidden `<iframe sandbox="allow-scripts">`. Leaving
+`allow-same-origin` off is deliberate: it gives the frame an opaque origin, so
+model code gets no cookies, no IndexedDB and no same-origin fetch, and the
+frame page's CSP limits `connect-src` to `/frame/` and the jsdelivr CDN. The
+editor still compiles through the local worker; only the agent's `eval`,
+`params`, `measure`, `check` and `export` calls cross into the frame
+(`src/frameClient.js` on this side, `src_frame/` on the other).
+
+The browser treats the frame as cross-origin even though it is same-host, so it
+needs CORS and frame-ancestors headers of its own. Three places set them and
+must agree:
+
+- `build.js` — dev server middleware.
+- `serve.js` — production preview server (`npm run serve`).
+- `deploy/hooks/apache.configure.post.sh` — the deployed vhost.
+
+`build.js` also bakes the app origin into the frame page's CSP and into
+`__ALLOWED_ORIGIN__`, which `src_frame/frame.js` checks on every inbound
+message. A dev build uses `http://localhost:<port>` and a production build
+`https://jscad.rkroll.com`; `FRAME_APP_ORIGIN` overrides both.
+
+The frame builds into `build/frame/` as part of the normal web build, with no
+deploy step of its own.
+
+Tests: `npx playwright test e2e/frame.spec.js` covers the sandbox boundary —
+wrong-origin senders, storage access and fetches against the app origin.
 
 ## Storage
 
