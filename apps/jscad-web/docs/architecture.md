@@ -206,8 +206,32 @@ host deploys first:
   reject a `null` origin, so they must not inherit a vhost-wide grant.
 
 The session cookie is host-only on `jscad.rkroll.com`, never `.rkroll.com`.
-`deploy-full.sh` deploys the frontend, then the API, then checks
-`/api/health`; the run host is deployed separately, first.
+`deploy-full.sh` builds the workspace once, deploys the run host and confirms
+it answers 200, then the frontend, then the API, then `/api/health`, then
+`e2e/smoke-deploy.mjs` against the live app URL. Both hosts went live
+2026-09-21.
+
+`deploy.sh` sources `lib/platform.sh` from `common.sh` before it reads a
+stage's own config, so an inherited `REMOTE_HOST` makes that sourcing run
+remote detection over ssh and exit the script with status 0 — a silent no-op
+that `set -e` reads as success, not a failure. `deploy-full.sh` never exports
+one stage's `REMOTE_HOST` into the next; each of the three `deploy.sh`
+invocations (run host, frontend, API) takes its host from its own config file.
+This is why the stages look the way they do, rather than sharing one exported
+`REMOTE_HOST`.
+
+### Smoke gate
+
+`e2e/smoke-deploy.mjs` is the only check that runs against the live site
+rather than a local build. It proves: the app boots and a model renders, the
+demo browser reads `manifest.json` instead of the directory listing that 403s
+in production (see backlog), an include-heavy model (`mcad/hardware_test.scad`)
+resolves its includes from the live host, a grid (`01-basics/ALL.js`) renders,
+and the CORS split holds — `/examples/` answers `Access-Control-Allow-Origin: *`
+and `/api/health` answers none. It runs `01-basics/ALL.js` rather than mcad's
+grid because mcad's grid includes `polyholes_test.scad`, which fails on a
+pre-existing geometry bug (see the render sweep item in `docs/backlog.md`), and
+a gate that always fails teaches people to ignore it.
 
 ## History
 

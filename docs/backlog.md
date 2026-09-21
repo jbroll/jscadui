@@ -21,8 +21,12 @@ apps plus four backlog fixes (WASM clone ownership, build clean, alias
 cache, export identity). Render gate 2026-09-20: 764/788, 24 failures
 triaged as pre-existing openscad-corpus issues; baseline recorded in
 `apps/jscad-web/e2e/render-baseline.json` (job 07ff0ae0ffbdb0f2). 2026-09-20:
-jscad-studio and jscad-studio-run folded into jscad-web and removed; the
-`run.*` vhosts retire with the next deploy (operator step).
+jscad-studio and jscad-studio-run folded into jscad-web and removed; the old
+`run.*` vhosts retired with the next deploy. 2026-09-21: the compute frame
+moved to its own host, `jscad-run.rkroll.com`, deployed via
+`deploy-run.conf`; `jscad.rkroll.com` still serves the app and proxies
+`/api`. Both hosts are live. See `apps/jscad-web/docs/architecture.md` for the
+deploy order and headers.
 
 
 
@@ -75,7 +79,11 @@ branch built; they are the gaps it did not close.
 
 ## Render sweep
 
-- **Most of NopSCADlib does not render in the browser.** 85 of 145 fail with
-  `invalid jscad geometry, not an object`, the same on `main` as on the frame
-  branch, while the Node STL corpus passes them. Browser-only, pre-existing,
-  and unrelated to the compute frame.
+- **The largest known problem: 88 of 788 browser-render failures are a
+  browser-only geometry gap**, `invalid jscad geometry, not an object` or
+  similar, that the Node STL corpus does not hit and that fails identically on
+  `main`. Most of it is NopSCADlib (100 of 145 fail in the current baseline);
+  mcad's `polyholes_test.scad` — "segments must be four or more" — is one
+  instance outside that library. See `apps/jscad-web/e2e/RENDER-TESTING.md`
+  and `render-baseline.json`. Pre-existing, unrelated to the compute frame,
+  not a regression.

@@ -76,6 +76,12 @@ old file was replaced, not amended; the two are not comparable.
 88 of the 192 failures are a pre-existing browser-only geometry gap that fails
 on `main` as well, not a regression.
 
+This is the number that justified merging `feat/frame-single-engine`: the same
+harness, run like-for-like against both trees, scored `main` at 575 ok / 201
+error / 12 timeout and the branch at 596 / 186 / 6, with no per-library
+regressions. The difference is the `packages/require` circular-dependency fix,
+not the frame move.
+
 From `apps/jscad-web`, after a sweep writes a fresh `e2e/render-report.json`:
 
 ```bash
