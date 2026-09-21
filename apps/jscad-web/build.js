@@ -221,8 +221,6 @@ await buildBundle(outDir + '/build', 'bundle.jscad_text.js', {
 })
 
 /**************************** BUILD JS THAT can change and watch if in dev mode *************/
-await buildOne('src_bundle', outDir + '/build', 'bundle.worker.js', watch, { format: 'iife' })
-
 await buildOne('src_bundle', outDir, 'bundle.fs-serviceworker.js', watch, { format: 'iife' })
 
 
@@ -235,9 +233,9 @@ const loader = {
 await buildOne('.', outDir, 'main.js', watch, { format: 'esm', loader, define: { __FRAME_ORIGIN__: JSON.stringify(runOrigin) } })
 
 /******************************* COMPUTE FRAME (/frame) ***********************/
-// Self-contained sandboxed execution page. Bundle set mirrors the app's
-// src_bundle sources (canonical, shared) except the worker, which is the
-// frame-specific entry (blob __BUNDLE_BASE__ + project file map).
+// The only place model code runs. Bundle set mirrors the app's src_bundle
+// sources (canonical, shared) plus src_frame's own worker entry
+// (blob __BUNDLE_BASE__ + project file map).
 const frameDir = outDir + '/frame'
 const frameBuildDir = frameDir + '/build'
 if (existsSync(frameBuildDir)) rmSync(frameBuildDir, { recursive: true, force: true })

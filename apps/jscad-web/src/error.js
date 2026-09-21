@@ -55,12 +55,10 @@ const formatStacktrace = (error) => {
   //  ReferenceError: gggggg is not defined
   //  at causeErr (./jscad.model.js:51:3)
   //  at main (./jscad.model.js:46:27)
-  //  at ve (http://localhost:5120/build/bundle.worker.js:28:2964)
-  //  at Pt (http://localhost:5120/build/bundle.worker.js:28:3731)
-  //  at async http://localhost:5120/build/bundle.worker.js:14:3218
+  //  at ve (blob:null/…:28:2964)  ← bundle.frame-worker.js, not user code
   const cleaned = stack
     .split('\n')
-    .filter(line => !line.includes('bundle.worker.js') && !line.includes('bundle.frame-worker.js'))
+    .filter(line => !line.includes('bundle.frame-worker.js'))
     .map(line => STRIP.reduce((acc, prefix) => acc.replaceAll(prefix, ''), line))
 
   if (message && !stack.includes(message)) cleaned.unshift(message)

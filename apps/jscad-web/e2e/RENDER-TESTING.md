@@ -5,12 +5,12 @@ The example libraries are exercised two ways:
 | Path | What it runs | Catches |
 |------|--------------|---------|
 | `packages/openscad` STL comparison | transpiler in **Node**, compares STL vs OpenSCAD | transpiler/geometry correctness |
-| `e2e/render-all.mjs` (this dir) | the **real browser** pipeline: worker transpile → manifold → three.js/WebGL | browser-only failures: worker bundling, dynamic imports, fetch/URL resolution, `j$` wiring, WebGL |
+| `e2e/render-all.mjs` (this dir) | the **real browser** pipeline: compute frame → worker transpile → manifold → three.js/WebGL | browser-only failures: worker bundling, dynamic imports, fetch/URL resolution, `j$` wiring, WebGL |
 
 The Node path passes the OpenSCAD runtime (`j$`) into each transpiled module as a
 `new Function(..., 'j$', code)` parameter. The **browser** path runs modules via
 `@jscadui/require`'s `runModule` (`eval(source)` in global scope), so `j$` must be
-a worker global — initialised in `src_bundle/bundle.worker.js` `getOpenscad()`
+a worker global — initialised in `src_frame/bundle.frame-worker.js` `getOpenscad()`
 (`j$.init(jscad)` + `self.j$ = …`). A regression there fails *every* `.scad` file
 with `ReferenceError: j$ is not defined`, while the Node suite stays green — which
 is exactly why this browser harness exists.

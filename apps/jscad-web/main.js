@@ -58,7 +58,7 @@ import { collectProjectFiles } from './src/projectFiles.js'
 import { PROJECT_BASE } from './src_frame/fileMap.js'
 import * as fileSystem from './src/fileSystem.js'
 import * as paramsUI from './src/paramsUI.js'
-import { shouldAllowReload, clearReloadTimestamp } from './src/reloadDetection.js'
+import { clearReloadTimestamp } from './src/reloadDetection.js'
 import { installStudioBridge } from './src/studioBridge.js'
 import { handleToolRequest } from './src/aiBridge.js'
 import { initChat } from './src/aiChat.js'
@@ -702,20 +702,17 @@ if (loadDefault && !hasRemoteScript) {
 }
 
 // ============== Service Worker Check ==============
+// Models run in the compute frame, so a failed registration costs dropped-file
+// watching, not the ability to run anything. Warn, never block.
 try {
   if (!fileSystem.getSwHandler()) await fileSystem.initFs(fsDeps)
-  // C2 fix: Clear reload retry count on successful initialization
   clearReloadTimestamp()
 } catch (err) {
-  setError(err)
+  console.warn('file service worker unavailable; dropped-file watching is off', err)
 }
 
 if ('serviceWorker' in navigator && !navigator.serviceWorker.controller) {
-  if (shouldAllowReload()) {
-    setError('cannot start service worker, reloading')
-  } else {
-    setError('cannot start service worker, reload required')
-  }
+  console.warn('file service worker not controlling this page; dropped-file watching is off')
 }
 
 // ============== AI Chat ==============

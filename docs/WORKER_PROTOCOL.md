@@ -115,7 +115,7 @@ interface InstanceEntity {
 import { messageProxy } from '@jscadui/postmessage'
 
 /** @type {import('@jscadui/worker').JscadWorker} */
-const workerApi = messageProxy(new Worker('bundle.worker.js'), {})
+const workerApi = messageProxy(new Worker('bundle.frame-worker.js'), {})
 
 await workerApi.jscadInit({ bundles: { '@jscad/modeling': '/bundle.js' } })
 

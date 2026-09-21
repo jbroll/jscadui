@@ -1,5 +1,5 @@
-// The worker bundles' importData treats only .stl as binary
-// (src_bundle/bundle.worker.js, src_frame/bundle.frame-worker.js), so only those cross as ArrayBuffer.
+// The frame worker's importData (src_frame/bundle.frame-worker.js) treats only
+// .stl as binary, so only those cross as ArrayBuffer.
 const BINARY_EXT = new Set(['stl'])
 
 /** @param {string} path */

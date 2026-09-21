@@ -3,7 +3,7 @@ import { bundleFileUrl } from '../src_bundle/bundleBase.js'
 
 describe('bundleFileUrl', () => {
   it('resolves against the worker location in a normal worker', () => {
-    const scope = { location: { href: 'http://localhost:5120/build/bundle.worker.js' } }
+    const scope = { location: { href: 'http://localhost:5120/build/bundle.frame-worker.js' } }
     expect(bundleFileUrl('./manifold.wasm', scope)).toBe('http://localhost:5120/build/manifold.wasm')
   })
 
@@ -23,7 +23,7 @@ describe('bundleFileUrl', () => {
   it('prefers the injected base over the location', () => {
     const scope = {
       __BUNDLE_BASE__: 'https://jscad-run.rkroll.com/build/',
-      location: { href: 'http://localhost:5120/build/bundle.worker.js' },
+      location: { href: 'http://localhost:5120/build/bundle.frame-worker.js' },
     }
     expect(bundleFileUrl('./manifold.wasm', scope)).toBe('https://jscad-run.rkroll.com/build/manifold.wasm')
   })

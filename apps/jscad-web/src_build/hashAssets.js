@@ -8,7 +8,7 @@ import { join } from 'path'
  * (served no-cache) and is rewritten to point at the hashed entry files.
  *
  * Reference graph is shallow and acyclic, so a topological pass propagates hashes:
- *   leaf bundles → worker (importScripts) → main.js (bundle URLs) → index.html.
+ *   leaf bundles → main.js (bundle URLs) → index.html.
  * Hashing in dependency order means a change in any leaf flows up into main.js's
  * hash, so index.html (always fresh) points at a fully-current graph.
  */
@@ -33,18 +33,16 @@ export function hashAssets(outDir) {
     return hashed
   }
 
-  // 1. Leaf bundles (everything in build/ except the worker, which imports leaves).
+  // 1. Leaf bundles.
   for (const f of readdirSync(buildDir)) {
-    if (f.endsWith('.js') && f !== 'bundle.worker.js') hashFile(buildDir, f)
+    if (f.endsWith('.js')) hashFile(buildDir, f)
   }
-  // 2. Worker (importScripts the hashed transform-babel + openscad bundles).
-  hashFile(buildDir, 'bundle.worker.js')
-  // 3. main.css (leaf, referenced only by index.html).
+  // 2. main.css (leaf, referenced only by index.html).
   hashFile(outDir, 'main.css')
-  // 4. main.js (references every hashed bundle, incl. the worker).
+  // 3. main.js (references every hashed bundle).
   hashFile(outDir, 'main.js')
 
-  // 5. index.html — rewrite to hashed entries; do NOT hash (served no-cache).
+  // 4. index.html — rewrite to hashed entries; do NOT hash (served no-cache).
   const idx = join(outDir, 'index.html')
   if (existsSync(idx)) {
     let html = readFileSync(idx, 'utf8')
