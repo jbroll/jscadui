@@ -190,7 +190,7 @@ export const _safeUnion = (parts) => {
   const valid = flattened.filter(p => !_isAbsent(p))
   if (valid.length === 0) return undefined
   if (valid.length === 1) return valid[0]
-  return union(...valid)
+  return union(...valid.map(withoutDegeneratePolygons))
 }
 
 // Re-export direct JSCAD primitives for passthrough
@@ -388,6 +388,21 @@ export const _hull = (...args) => {
   return hull(...valid)
 }
 
+/**
+ * Drop polygons with fewer than three vertices.
+ *
+ * The jscad engine's own booleans emit them when a split lands on a
+ * near-coincident pair. They carry no plane, so the next boolean to take them
+ * as input throws inside plane.fromPoints. Only plain geom3 objects are
+ * touched: a Manifold geometry exposes `polygons` as a getter that would
+ * convert the whole mesh to read it.
+ */
+export const withoutDegeneratePolygons = (geometry) => {
+  if (!geometry || !Object.hasOwn(geometry, 'polygons') || !Array.isArray(geometry.polygons)) return geometry
+  const polygons = geometry.polygons.filter(p => p?.vertices?.length >= 3)
+  return polygons.length === geometry.polygons.length ? geometry : { ...geometry, polygons }
+}
+
 // Boolean wrappers - these filter absent/undefined values and call JSCAD booleans
 // NO_CHILD = conditional branch not taken (absent) → always filtered out
 // undefined/null = module/geometry produced nothing (empty geometry)
@@ -395,14 +410,14 @@ export const _union = (...args) => {
   const valid = args.filter(a => !_isAbsent(a))
   if (valid.length === 0) return undefined
   if (valid.length === 1) return valid[0]
-  return union(...valid)
+  return union(...valid.map(withoutDegeneratePolygons))
 }
 
 export const _subtract = (...args) => {
   const valid = args.filter(a => !_isAbsent(a))
   if (valid.length === 0) return undefined
   if (valid.length === 1) return valid[0]
-  return subtract(...valid)
+  return subtract(...valid.map(withoutDegeneratePolygons))
 }
 
 export const _intersect = (...args) => {
@@ -412,7 +427,7 @@ export const _intersect = (...args) => {
   if (withoutAbsent.some(a => a === undefined || a === null)) return undefined
   if (withoutAbsent.length === 0) return undefined
   if (withoutAbsent.length === 1) return withoutAbsent[0]
-  return intersect(...withoutAbsent)
+  return intersect(...withoutAbsent.map(withoutDegeneratePolygons))
 }
 
 export const _minkowski = (...args) => {

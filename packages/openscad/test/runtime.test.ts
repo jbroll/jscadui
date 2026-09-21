@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 
 // Import the runtime directly for unit testing
 import j$ from '@jscadui/openscad-runtime'
-import { _cylinder, _sphere } from '@jscadui/openscad-runtime'
+import { _cylinder, _sphere, withoutDegeneratePolygons, initColor, _color } from '@jscadui/openscad-runtime'
 
 /**
  * Unit tests for OpenSCAD runtime helpers
@@ -507,5 +507,77 @@ describe('offset corners', () => {
 
   it('maps r to round corners', () => {
     expect(captureOptions({ r: 2 }).corners).toBe('round')
+  })
+})
+
+/**
+ * @jscad/modeling's own union emits polygons with fewer than three vertices
+ * when a split lands on a near-coincident pair. They have no plane, so the
+ * next boolean that takes them as input throws inside plane.fromPoints. A
+ * NopSCADlib test produced 65 of them in one union, which is why every
+ * boolean wrapper runs its arguments through this first.
+ */
+describe('withoutDegeneratePolygons', () => {
+  const tri = { vertices: [[0, 0, 0], [1, 0, 0], [0, 1, 0]] }
+  const sliver = { vertices: [[0, 0, 0], [1e-9, 0, 0]] }
+
+  it('drops a polygon with fewer than three vertices', () => {
+    expect(withoutDegeneratePolygons({ polygons: [tri, sliver] }).polygons).toEqual([tri])
+  })
+
+  it('returns a clean geometry unchanged', () => {
+    const clean = { polygons: [tri] }
+    expect(withoutDegeneratePolygons(clean)).toBe(clean)
+  })
+
+  it('keeps the other fields of the geometry', () => {
+    const transforms = [1, 0, 0, 0]
+    expect(withoutDegeneratePolygons({ polygons: [tri, sliver], transforms }).transforms).toBe(transforms)
+  })
+
+  it('leaves a geometry whose polygons are not its own property', () => {
+    // A Manifold geometry exposes polygons as a getter; reading it converts
+    // the whole mesh.
+    const manifoldish = Object.create({ get polygons() { throw new Error('converted') } })
+    expect(withoutDegeneratePolygons(manifoldish)).toBe(manifoldish)
+  })
+
+  it('passes through undefined', () => {
+    expect(withoutDegeneratePolygons(undefined)).toBeUndefined()
+  })
+})
+
+/**
+ * `color("red") { … }` over children where one produced nothing: OpenSCAD
+ * draws the rest, while @jscad/modeling's colorize sets .color on every
+ * element it is handed and throws on the undefined one. 26 of the sweep's
+ * jscad-engine failures were this.
+ */
+describe('color with absent children', () => {
+  const colorized = (geo: unknown) => {
+    let seen: unknown[] = []
+    initColor({
+      colors: {
+        colorize: (_rgba: unknown, objects: unknown) => { seen = [objects].flat(Infinity); return objects },
+        cssColors: { red: [1, 0, 0] },
+      },
+    })
+    const out = _color('red', undefined, geo)
+    return { seen, out }
+  }
+
+  it('drops absent children before colorize', () => {
+    const a = { polygons: [] }
+    const b = { polygons: [] }
+    expect(colorized([a, undefined, b, null]).seen).toEqual([a, b])
+  })
+
+  it('returns undefined when every child is absent', () => {
+    expect(colorized([undefined, null]).out).toBeUndefined()
+  })
+
+  it('drops NO_CHILD inside the array', () => {
+    const a = { polygons: [] }
+    expect(colorized([a, j$.NO_CHILD]).seen).toEqual([a])
   })
 })

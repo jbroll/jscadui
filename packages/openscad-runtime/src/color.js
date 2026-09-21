@@ -4,6 +4,14 @@
 
 import { NO_CHILD } from './primitives.js'
 
+// colorize() sets .color on every element it is handed, so a child that drew
+// nothing has to go before it gets there. OpenSCAD colours the rest.
+const _present = (geo) => {
+  if (!Array.isArray(geo)) return geo
+  const kept = geo.flat(Infinity).filter(g => g !== undefined && g !== null && g !== NO_CHILD)
+  return kept.length === 0 ? undefined : kept
+}
+
 // JSCAD colors - injected at init time
 let colorize, cssColors
 
@@ -26,5 +34,7 @@ export const _color = (color, alpha, geo) => {
   } else {
     rgba = [0.5, 0.5, 0.5, 1]
   }
-  return colorize(rgba, geo)
+  const present = _present(geo)
+  if (present === undefined || present === null) return undefined
+  return colorize(rgba, present)
 }
