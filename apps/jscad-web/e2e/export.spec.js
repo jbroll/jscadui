@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { readFileSync } from 'node:fs'
 import { dismissWelcome, waitForRender, assertNoError } from './helpers.js'
 
 test.describe('Export panel', () => {
@@ -40,5 +41,29 @@ test.describe('Export panel', () => {
 
     const download = await downloadPromise
     expect(download.suggestedFilename()).toMatch(/\.(stl|obj|3mf|svg|dxf|amf)$/i)
+  })
+
+  test('exports the render branch, not the previewed one', async ({ page }) => {
+    // Three model runs: the preview, the render the export needs, and the
+    // preview the frame restores afterwards.
+    test.setTimeout(120_000)
+    // preview-gate.scad draws a 10mm cube under $preview and a 30mm one without.
+    // A query change forces a full document load, so the model gets a fresh
+    // frame rather than the one the beforeEach already used.
+    await page.goto('/?preview-gate#/examples/openscad/01-basics/preview-gate.scad')
+    await dismissWelcome(page)
+    await waitForRender(page)
+    await assertNoError(page)
+
+    await expect(page.locator('#export-format option')).not.toHaveCount(0, { timeout: 15_000 })
+    await page.selectOption('#export-format', 'stla')
+
+    const downloadPromise = page.waitForEvent('download', { timeout: 60_000 })
+    await page.locator('#export-button').click()
+    const download = await downloadPromise
+
+    const stl = readFileSync(await download.path(), 'utf8')
+    const extent = Math.max(...(stl.match(/-?\d+(\.\d+)?(e[-+]?\d+)?/gi) || []).map(Number))
+    expect(extent).toBeGreaterThan(10)
   })
 })

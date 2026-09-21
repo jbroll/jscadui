@@ -127,6 +127,17 @@ keep the same shape for a given host.
 `__ALLOWED_ORIGIN__`: `http://localhost:<port>` for a dev build,
 `https://jscad.rkroll.com` for production, `FRAME_APP_ORIGIN` to override.
 
+### Preview and render
+
+OpenSCAD models read `$preview` to tell F5 (preview) from F6 (render);
+NopSCADlib's test files draw nothing outside preview. `$preview` is a run-time
+special variable in `@jscadui/openscad-runtime`, not a transpile-time constant,
+so one transpiled module serves both modes. The frame worker keeps it `true`
+while the model is displayed. An export sets it `false`, re-runs `main()`,
+serializes that, then restores the preview run. Only a model that has read
+`$preview` pays for the extra runs: the runtime latches `j$.previewUsed` and
+the export skips the whole dance when it is clear.
+
 ### Geometry caps
 
 Geometry from the frame is untrusted input, so `src/caps.js` bounds it before

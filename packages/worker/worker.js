@@ -238,6 +238,8 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
     }
   }
 
+  workerState.lastParams = params
+
   // Store UI values for proxy
   if (workerState.useParamsProxy) {
     console.log('[STORE] Storing currentUiValues:', params)
@@ -474,6 +476,8 @@ const jscadExportData = async (params) => {
 }
 
 export const currentSolids = () => workerState.solids
+
+export const currentParams = () => workerState.lastParams
 
 const handlers = { jscadScript, jscadInit, jscadMain, jscadClearTempCache, jscadClearFileCache:clearFileCache, jscadExportData }
 // allow main thread to call worker methods and any method from the loaded script

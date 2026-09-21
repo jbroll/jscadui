@@ -6,7 +6,7 @@ importScripts(bundleBase + 'bundle.jscadui.transform-babel.js')
 
 const { transformcjs } = jscadui_transform_babel
 
-import { initWorker, currentSolids, jscadInit } from '@jscadui/worker'
+import { initWorker, currentSolids, currentParams, jscadInit, jscadMain } from '@jscadui/worker'
 import { readFileWeb, require, requireHandlers, jscadClearTempCache, clearFileCache } from '@jscadui/require'
 import { withTransferable } from '@jscadui/postmessage'
 import { defaultSerializerConfigs } from '@jscadui/format-common/src/exportFormats.js'
@@ -60,6 +60,15 @@ export const clearTranspiledCache = () => {
 
 let _openscad = null
 
+// OpenSCAD's F5 preview and F6 render differ for models that read $preview, and
+// NopSCADlib's tests draw nothing outside preview. The viewport is a preview;
+// an export is a render.
+let scadPreview = true
+const setScadPreview = (on) => {
+  scadPreview = on
+  if (_openscad) _openscad.j$.setSpecialVar('$preview', on)
+}
+
 function getOpenscad() {
   if (!_openscad) {
     importScripts(bundleBase + 'bundle.openscad.js')
@@ -68,6 +77,7 @@ function getOpenscad() {
     // global scope, so j$ must be a worker global.
     const jscad = require('@jscad/modeling', null, readFileWeb)
     _openscad.j$.init(jscad)
+    _openscad.j$.setSpecialVar('$preview', scadPreview)
     self.j$ = _openscad.j$
   }
   return _openscad
@@ -180,12 +190,26 @@ const jscadMeasure = ({ options = {} }) => modelTools().measure(currentGeometry(
 
 const jscadCheck = ({ bed, options = {} }) => modelTools().check(currentGeometry(), { ...options, bed })
 
-const jscadExportData = ({ format, options = {} }) => {
+const jscadExportData = async ({ format, options = {} }) => {
   const jscadIo = require('@jscad/io', null, readFileWeb)
   const config = defaultSerializerConfigs.find((c) => c.id === format)
   if (!config) throw new Error(`Unknown export format: ${format}`)
-  const data = jscadIo[config.serializerKey].serialize({ ...config.defaultOptions, ...options }, currentSolids())
-  return withTransferable({ data }, data.filter((v) => typeof v !== 'string'))
+  // Only a model that reads $preview can differ between the two modes, and
+  // re-running one is expensive, so ask the runtime whether it ever mattered.
+  const renderMode = _openscad?.j$.previewUsed
+  try {
+    if (renderMode) {
+      setScadPreview(false)
+      await jscadMain({ params: currentParams() })
+    }
+    const data = jscadIo[config.serializerKey].serialize({ ...config.defaultOptions, ...options }, currentSolids())
+    return withTransferable({ data }, data.filter((v) => typeof v !== 'string'))
+  } finally {
+    if (renderMode) {
+      setScadPreview(true)
+      await jscadMain({ params: currentParams() })
+    }
+  }
 }
 
 // The export dropdown asks the engine which formats it has.

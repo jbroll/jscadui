@@ -56,6 +56,11 @@ export class WorkerState {
     /** @type {Object} */
     this.currentUiValues = {}
 
+    // The params of the last main() run, so an export can re-run the model
+    // (e.g. OpenSCAD render mode) without the app passing them again.
+    /** @type {Object} */
+    this.lastParams = {}
+
     /** @type {Object | null} */
     this.legacyProxyDefs = null
 
@@ -76,6 +81,7 @@ export class WorkerState {
     this.solids = []
     this.userInteracted = new Set()
     this.currentUiValues = {}
+    this.lastParams = {}
     this.legacyProxyDefs = null
     this._lastProxyState = null
     this.scriptGeneration = 0

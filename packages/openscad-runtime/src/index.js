@@ -238,7 +238,12 @@ const j$ = {
   // createJ$Instance() creates a fresh instance via Object.create(j$) with a new stack.
   _scopeStack: [{ ...DEFAULT_SPECIAL_VARS }],
 
+  // Latched once any model reads $preview. Never cleared: a false negative
+  // would export the wrong geometry, while a stale true only costs a re-run.
+  previewUsed: false,
+
   getSpecialVar(name) {
+    if (name === '$preview') this.previewUsed = true
     const stack = this._scopeStack
     for (let i = stack.length - 1; i >= 0; i--) {
       if (name in stack[i]) return stack[i][name]

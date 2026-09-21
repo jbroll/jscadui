@@ -66,8 +66,6 @@ export interface TranspileOptions {
   currentFile?: string
   // Global $fn override (0 = use OpenSCAD's formula)
   fn?: number
-  // Set $preview to true (simulates F5 preview mode; some files gate content on this)
-  preview?: boolean
   // Include source line comments for debugging (e.g., // line 42 in foo.scad)
   includeSourceComments?: boolean
   // Initial parameter lists (inherited from parent context for include chains)

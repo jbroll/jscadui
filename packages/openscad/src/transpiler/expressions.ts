@@ -233,7 +233,6 @@ function containsEachExpr(expr: Expression | null): boolean {
 function transpileLookupExpr(expr: { name: string }, ctx: TranspileContext): string {
   const name = expr.name
   // Handle special constant variables
-  if (name === '$preview') return ctx.options.preview ? 'true' : 'false'
   if (name === '$t') return '0'  // Animation time defaults to 0
   if (name === '$children') return '_children.length'  // Number of children passed to module
   if (name === '$parent_modules') return '0'  // Module nesting depth (stub: always top-level)
