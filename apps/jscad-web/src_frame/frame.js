@@ -1,12 +1,11 @@
-import { messageProxy } from '@jscadui/postmessage'
-import { PROJECT_BASE } from './fileMap.js'
-
 // Injected by esbuild at build time (see build.js).
 const ALLOWED_ORIGIN = __ALLOWED_ORIGIN__
 
 const BUNDLE_BASE = new URL('./build/', location.href).href
 
 const DEFAULT_TIMEOUT_MS = 30000
+
+const RESPONSE = '__RESPONSE__'
 
 // A sandboxed frame has an opaque origin, so new Worker(url) throws and the
 // worker must come from a blob that importScripts the real bundle. Relative
@@ -15,13 +14,8 @@ const workerSource =
   `self.__BUNDLE_BASE__ = ${JSON.stringify(BUNDLE_BASE)}\n` +
   `importScripts(${JSON.stringify(BUNDLE_BASE + 'bundle.frame-worker.js')})`
 
-// The worker is recreated after a timeout killed the previous one.
-const createWorker = () => {
-  const worker = new Worker(URL.createObjectURL(new Blob([workerSource], { type: 'application/javascript' })))
-  return { worker, workerApi: messageProxy(worker, {}) }
-}
-
-let { worker, workerApi } = createWorker()
+const createWorker = () =>
+  new Worker(URL.createObjectURL(new Blob([workerSource], { type: 'application/javascript' })))
 
 // The manifold build layers on the plain modeling bundle, so only the name
 // model code requires switches; '@jscad/modeling-for-manifold' stays put.
@@ -36,8 +30,8 @@ const workerBundles = (engine) => ({
   '@jscadui/jscad-text': BUNDLE_BASE + 'bundle.jscad_text.js',
 })
 
-// Collect the ArrayBuffers behind every typed array in a result so they can
-// cross to the app zero-copy. The worker already transferred them once.
+// Collect the ArrayBuffers behind every typed array in a message so it can
+// cross the hop zero-copy, the way it crossed the previous one.
 const collectBuffers = (value, out = [], seen = new Set()) => {
   if (value === null || typeof value !== 'object') return out
   if (seen.has(value)) return out
@@ -53,80 +47,55 @@ const collectBuffers = (value, out = [], seen = new Set()) => {
   return out
 }
 
-const commands = {
-  async load({ files, entry, engine }) {
-    await workerApi.jscadInit({ bundles: workerBundles(engine), useParamsProxy: true })
-    await workerApi.jscadSetFiles({ files })
-    const result = await workerApi.jscadScript({
-      script: files[entry],
-      url: PROJECT_BASE + entry,
-      base: PROJECT_BASE,
-      root: PROJECT_BASE,
-    })
-    return {
-      result: { params: result.params, entities: result.entities, proxyState: result.proxyState },
-      transfer: collectBuffers(result),
-    }
-  },
-  async params({ values }) {
-    const result = await workerApi.jscadMain({
-      params: values,
-      // The proxy only returns a value the user has interacted with; every
-      // value the app sends is one the user changed.
-      userInteractedPaths: Object.keys(values),
-    })
-    return { result: { entities: result.entities }, transfer: collectBuffers(result) }
-  },
-  async measure({ options }) {
-    return { result: await workerApi.jscadMeasure({ options }) }
-  },
-  async check({ bed, options }) {
-    return { result: await workerApi.jscadCheck({ bed, options }) }
-  },
-  async export({ format, options }) {
-    const { data = [] } = await workerApi.jscadExportData({ format, options })
-    return {
-      result: { data },
-      transfer: data.map((v) => (ArrayBuffer.isView(v) ? v.buffer : v)).filter((v) => v instanceof ArrayBuffer),
-    }
-  },
+const post = (message, transfer) => parent.postMessage(message, ALLOWED_ORIGIN, transfer)
+
+let engine
+let timeoutMs = DEFAULT_TIMEOUT_MS
+let pendingId = null
+let timer
+
+const armTimeout = (id) => {
+  clearTimeout(timer)
+  pendingId = id
+  timer = setTimeout(() => {
+    pendingId = null
+    worker.terminate()
+    worker = null
+    post({ method: 'frameWorkerTerminated', params: [{ reason: `model exceeded ${timeoutMs} ms` }] })
+  }, timeoutMs)
 }
 
-window.addEventListener('message', async (event) => {
-  if (event.origin !== ALLOWED_ORIGIN) return
-  const { id, command } = event.data
-  const payload = event.data.payload ?? {}
-  if (!id || !commands[command]) return
-  // A timed-out command may have left the worker stuck; the next command gets
-  // a fresh one.
-  if (!worker) ({ worker, workerApi } = createWorker())
-  const { timeoutMs = DEFAULT_TIMEOUT_MS } = payload
-  let timer
-  try {
-    const work = commands[command](payload)
-    // The race may already have answered a timeout; swallow the late rejection.
-    work.catch(() => {})
-    const { result, transfer } = await Promise.race([
-      work,
-      new Promise((_, reject) => {
-        timer = setTimeout(() => {
-          const error = new Error(`command ${command} timed out after ${timeoutMs} ms`)
-          error.name = 'TimeoutError'
-          reject(error)
-        }, timeoutMs)
-      }),
-    ])
-    clearTimeout(timer)
-    event.source.postMessage({ id, ok: true, result }, ALLOWED_ORIGIN, transfer)
-  } catch (error) {
-    clearTimeout(timer)
-    if (error.name === 'TimeoutError') {
-      worker.terminate()
-      worker = null
+let worker
+// A timed-out request left the worker stuck, so it was killed; the next
+// request gets a fresh one.
+const attach = () => {
+  worker = createWorker()
+  worker.onmessage = (event) => {
+    const { method, id } = event.data
+    if (method === RESPONSE && id === pendingId) {
+      clearTimeout(timer)
+      pendingId = null
     }
-    event.source.postMessage(
-      { id, ok: false, error: { message: error.message, name: error.name, stack: error.stack } },
-      ALLOWED_ORIGIN,
-    )
+    post(event.data, collectBuffers(event.data))
   }
+}
+attach()
+
+// The one method that is not relayed untouched. A script source inside the
+// frame must come from the frame's own origin, so the app names an engine and
+// the frame names the bundles.
+const frameInit = (data) => {
+  const [options = {}, ...rest] = data.params ?? []
+  const { engine: wanted, timeoutMs: wantedTimeout, ...init } = options
+  if (wanted) engine = wanted
+  if (wantedTimeout) timeoutMs = wantedTimeout
+  return { ...data, params: [{ ...init, bundles: workerBundles(engine) }, ...rest] }
+}
+
+window.addEventListener('message', (event) => {
+  if (event.origin !== ALLOWED_ORIGIN) return
+  if (!worker) attach()
+  const message = event.data?.method === 'jscadInit' ? frameInit(event.data) : event.data
+  if (event.data?.id) armTimeout(event.data.id)
+  worker.postMessage(message, collectBuffers(message))
 })

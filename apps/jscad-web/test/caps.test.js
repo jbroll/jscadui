@@ -44,12 +44,15 @@ describe('capGeometry', () => {
 })
 
 describe('agent evaluate', () => {
-  const frameReturning = (entities) => ({ load: async () => ({ ok: true, result: { entities } }) })
+  const apiReturning = (entities) => ({
+    jscadSetFiles: async () => {},
+    jscadScript: async () => ({ entities }),
+  })
 
   it('reports an over-cap result as a failure to the agent', async () => {
     const drawn = []
     const entities = Array.from({ length: DEFAULT_CAPS.entities + 1 }, smallEntity)
-    const evaluate = createEvaluate(frameReturning(entities), (result) => drawn.push(result))
+    const evaluate = createEvaluate(apiReturning(entities), (result) => drawn.push(result))
 
     const result = await evaluate('module.exports = { main: () => [] }')
 
@@ -60,15 +63,21 @@ describe('agent evaluate', () => {
   })
 
   it('reports the entity count when the result is under the caps', async () => {
-    const evaluate = createEvaluate(frameReturning([smallEntity()]), () => {})
+    const evaluate = createEvaluate(apiReturning([smallEntity()]), () => {})
 
     expect(await evaluate('module.exports = { main: () => [] }')).toEqual({ entityCount: 1 })
   })
 
-  it('passes a frame failure through unchanged', async () => {
-    const error = { name: 'ModelError', message: 'boom' }
-    const evaluate = createEvaluate({ load: async () => ({ ok: false, error }) }, () => {})
+  it('turns a frame rejection into a failure result', async () => {
+    const error = Object.assign(new Error('boom'), { name: 'ModelError' })
+    const evaluate = createEvaluate({
+      jscadSetFiles: async () => {},
+      jscadScript: async () => { throw error },
+    }, () => {})
 
-    expect(await evaluate('module.exports = {}')).toEqual({ ok: false, error })
+    expect(await evaluate('module.exports = {}')).toEqual({
+      ok: false,
+      error: { name: 'ModelError', message: 'boom' },
+    })
   })
 })

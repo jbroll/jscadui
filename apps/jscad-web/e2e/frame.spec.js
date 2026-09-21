@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { startServers, stopServers } from './frame-serve.mjs'
+import { PROJECT_BASE } from '../src_frame/fileMap.js'
 
 // The frame under test is served by the real dev frame server on its own
 // origin (http://localhost:5121, whose baked allowed sender is the app
@@ -22,7 +23,27 @@ test.afterAll(async () => {
 const gotoHost = async (page) => {
   await page.goto('http://localhost:5120/robots.txt')
   await page.setContent(readFileSync(new URL('./frame-host.html', import.meta.url), 'utf8'))
-  }
+}
+
+const send = (page, method, params) =>
+  page.evaluate(({ method, params }) => window.send(method, params), { method, params })
+
+// The app's side of the relayed protocol: name the engine, hand over the file
+// map, run the entry. The frame fills in the bundles itself.
+const init = (page, options = {}) => send(page, 'jscadInit', { useParamsProxy: true, ...options })
+
+const load = async (page, { files, entry }, options = {}) => {
+  const inited = await init(page, options)
+  if (!inited.ok) return inited
+  const set = await send(page, 'jscadSetFiles', { files })
+  if (!set.ok) return set
+  return send(page, 'jscadScript', {
+    script: files[entry],
+    url: PROJECT_BASE + entry,
+    base: PROJECT_BASE,
+    root: PROJECT_BASE,
+  })
+}
 
 const project = (mainSource) => ({ files: { 'main.js': mainSource }, entry: 'main.js' })
 
@@ -48,66 +69,68 @@ const MARKER_PROJECT = project(
   `module.exports = { main }\n`,
 )
 
-test('load resolves a sibling require and returns geometry', async ({ page }) => {
+const CUBE = project(
+  `const { cube } = require('@jscad/modeling').primitives\n` +
+  `const main = () => cube({ size: 10 })\n` +
+  `module.exports = { main }\n`,
+)
+
+test('a script resolves a sibling require and returns geometry', async ({ page }) => {
   await gotoHost(page)
-  const res = await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
-    id: 1,
-    command: 'load',
-    payload: SIBLING_PROJECT,
-  })
+  const res = await load(page, SIBLING_PROJECT)
   expect(res.ok).toBe(true)
   expect(res.result.entities.length).toBe(2)
   const vertexCount = res.result.entities.reduce((n, e) => n + (e.vertices?.length ?? 0), 0)
   expect(vertexCount).toBeGreaterThan(0)
 })
 
-test('params re-runs the model and returns different geometry', async ({ page }) => {
+test('jscadMain re-runs the model and returns different geometry', async ({ page }) => {
   await gotoHost(page)
-  const model = project(
+  const loadRes = await load(page, project(
     `const { cube } = require('@jscad/modeling').primitives\n` +
     `const main = (params) => {\n` +
     `  params.size = { type: 'slider', default: 10, min: 1, max: 100 }\n` +
     `  return cube({ size: params.size })\n` +
     `}\n` +
     `module.exports = { main }\n`,
-  )
-  const loadRes = await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
-    id: 2,
-    command: 'load',
-    payload: model,
-  })
+  ))
   expect(loadRes.ok).toBe(true)
   const first = [...loadRes.result.entities[0].vertices]
 
-  const paramsRes = await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
-    id: 3,
-    command: 'params',
-    payload: { values: { size: 20 } },
-  })
-  expect(paramsRes.ok).toBe(true)
-  const second = [...paramsRes.result.entities[0].vertices]
+  const mainRes = await send(page, 'jscadMain', { params: { size: 20 }, userInteractedPaths: ['size'] })
+  expect(mainRes.ok).toBe(true)
+  const second = [...mainRes.result.entities[0].vertices]
   expect(second).not.toEqual(first)
 })
 
-test('a model error is answered as ok:false with the message', async ({ page }) => {
+test('a model error comes back as an error response', async ({ page }) => {
   await gotoHost(page)
-  const res = await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
-    id: 4,
-    command: 'load',
-    payload: project(
-      `const main = () => { throw new Error('boom from model') }\n` +
-      `module.exports = { main }\n`,
-    ),
-  })
+  const res = await load(page, project(
+    `const main = () => { throw new Error('boom from model') }\n` +
+    `module.exports = { main }\n`,
+  ))
   expect(res.ok).toBe(false)
   expect(res.error.message).toContain('boom from model')
 })
 
-test('a wrong-origin sender is never answered and cannot run a command', async ({ page, request }) => {
+test('the frame names its own bundles and ignores the sender', async ({ page }) => {
+  await gotoHost(page)
+  const res = await load(page, CUBE, {
+    bundles: { '@jscad/modeling': `${MARK}/evil.js` },
+  })
+  expect(res.ok).toBe(true)
+  expect(res.result.entities.length).toBe(1)
+})
+
+test('a wrong-origin sender is never answered and cannot run a script', async ({ page, request }) => {
   await request.get(`${MARK}/__mark-reset`)
   await gotoHost(page)
-    const attacker = page.frames().find((f) => f.url().includes(':5123'))
-  await attacker.evaluate((payload) => window.send(99, 'load', payload), MARKER_PROJECT)
+  await init(page)
+  const attacker = page.frames().find((f) => f.url().includes(':5123'))
+  await attacker.evaluate(({ files, entry, base }) => {
+    window.send('jscadSetFiles', { files })
+    window.send('jscadScript', { script: files[entry], url: base + entry, base, root: base })
+  }, { ...MARKER_PROJECT, base: PROJECT_BASE })
   await page.waitForTimeout(1500)
   expect(await attacker.evaluate(() => window.received)).toEqual([])
 
@@ -128,17 +151,13 @@ test('the frame document sends frame-ancestors for the app origin', async ({ req
 
 test('model fetch against a third-party origin fails', async ({ page }) => {
   await gotoHost(page)
-  const res = await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
-    id: 5,
-    command: 'load',
-    payload: project(
-      `const main = async () => {\n` +
-      `  await fetch('http://localhost:5122/api/private')\n` +
-      `  return []\n` +
-      `}\n` +
-      `module.exports = { main }\n`,
-    ),
-  })
+  const res = await load(page, project(
+    `const main = async () => {\n` +
+    `  await fetch('http://localhost:5122/api/private')\n` +
+    `  return []\n` +
+    `}\n` +
+    `module.exports = { main }\n`,
+  ))
   expect(res.ok).toBe(false)
 })
 
@@ -146,141 +165,79 @@ test('model fetch against a third-party origin fails', async ({ page }) => {
 // origin entirely now — is unreachable from inside the frame.
 test('model fetch against the app origin outside /frame/ fails', async ({ page }) => {
   await gotoHost(page)
-  const res = await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
-    id: 8,
-    command: 'load',
-    payload: project(
-      `const main = async () => {\n` +
-      `  await fetch('http://localhost:5120/api/private')\n` +
-      `  return []\n` +
-      `}\n` +
-      `module.exports = { main }\n`,
-    ),
-  })
+  const res = await load(page, project(
+    `const main = async () => {\n` +
+    `  await fetch('http://localhost:5120/api/private')\n` +
+    `  return []\n` +
+    `}\n` +
+    `module.exports = { main }\n`,
+  ))
   expect(res.ok).toBe(false)
 })
 
 test('model fetch against the run origin is allowed', async ({ page }) => {
   await gotoHost(page)
-  const res = await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
-    id: 9,
-    command: 'load',
-    payload: project(
-      `const main = async () => {\n` +
-      `  const r = await fetch('${RUN}/index.html')\n` +
-      `  if (!r.ok) throw new Error('frame fetch failed: ' + r.status)\n` +
-      `  return []\n` +
-      `}\n` +
-      `module.exports = { main }\n`,
-    ),
-  })
+  const res = await load(page, project(
+    `const main = async () => {\n` +
+    `  const r = await fetch('${RUN}/index.html')\n` +
+    `  if (!r.ok) throw new Error('frame fetch failed: ' + r.status)\n` +
+    `  return []\n` +
+    `}\n` +
+    `module.exports = { main }\n`,
+  ))
   expect(res.ok).toBe(true)
 })
 
 test('localStorage and IndexedDB throw inside the opaque frame', async ({ page }) => {
   await gotoHost(page)
-  const storageRes = await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
-    id: 6,
-    command: 'load',
-    payload: project(
-      `const main = () => { localStorage.getItem('x'); return [] }\n` +
-      `module.exports = { main }\n`,
-    ),
-  })
+  const storageRes = await load(page, project(
+    `const main = () => { localStorage.getItem('x'); return [] }\n` +
+    `module.exports = { main }\n`,
+  ))
   expect(storageRes.ok).toBe(false)
 
-  const idbRes = await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
-    id: 7,
-    command: 'load',
-    payload: project(
-      `const main = () => { indexedDB.open('x'); return [] }\n` +
-      `module.exports = { main }\n`,
-    ),
-  })
+  const idbRes = await load(page, project(
+    `const main = () => { indexedDB.open('x'); return [] }\n` +
+    `module.exports = { main }\n`,
+  ))
   expect(idbRes.ok).toBe(false)
 })
 
-const CUBE = project(
-  `const { cube } = require('@jscad/modeling').primitives\n` +
-  `const main = () => cube({ size: 10 })\n` +
-  `module.exports = { main }\n`,
-)
-
-test('measure returns the model measurements', async ({ page }) => {
+test('jscadMeasure returns the model measurements', async ({ page }) => {
   await gotoHost(page)
-  const load = await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
-    id: 8,
-    command: 'load',
-    payload: CUBE,
-  })
-  expect(load.ok).toBe(true)
+  expect((await load(page, CUBE)).ok).toBe(true)
 
-  const res = await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
-    id: 9,
-    command: 'measure',
-    payload: {},
-  })
+  const res = await send(page, 'jscadMeasure', { options: {} })
   expect(res.ok).toBe(true)
   expect(res.result.dimensions).toEqual([10, 10, 10])
   expect(res.result.volume).toBeCloseTo(1000, 3)
 })
 
-test('a null payload is treated as an empty one', async ({ page }) => {
+test('jscadCheck reports solidity and bed fit', async ({ page }) => {
   await gotoHost(page)
-  await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
-    id: 16,
-    command: 'load',
-    payload: CUBE,
-  })
+  expect((await load(page, CUBE)).ok).toBe(true)
 
-  const res = await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
-    id: 17,
-    command: 'measure',
-    payload: null,
-  })
-  expect(res.ok).toBe(true)
-  expect(res.result.dimensions).toEqual([10, 10, 10])
-})
-
-test('check reports solidity and bed fit', async ({ page }) => {
-  await gotoHost(page)
-  await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
-    id: 10,
-    command: 'load',
-    payload: CUBE,
-  })
-
-  const res = await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
-    id: 11,
-    command: 'check',
-    payload: { bed: [100, 100, 100] },
-  })
+  const res = await send(page, 'jscadCheck', { bed: [100, 100, 100], options: {} })
   expect(res.ok).toBe(true)
   expect(res.result.watertight).toBe(true)
   expect(res.result.manifold).toBe(true)
   expect(res.result.fitsBed).toBe(true)
 })
 
-test('export returns binary STL as transferred ArrayBuffers', async ({ page }) => {
+test('jscadExportData returns binary STL as transferred ArrayBuffers', async ({ page }) => {
   await gotoHost(page)
-  await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
-    id: 12,
-    command: 'load',
-    payload: CUBE,
-  })
+  expect((await load(page, CUBE)).ok).toBe(true)
 
   // Inspect inside the page: an ArrayBuffer arrives back as a Buffer in Node,
   // so the instanceof check must run on the browser side of the boundary.
-  const res = await page.evaluate(
-    ({ id, command, payload }) =>
-      window.send(id, command, payload).then((r) => ({
-        ok: r.ok,
-        error: r.error,
-        dataIsArray: Array.isArray(r.result?.data),
-        allBuffers: (r.result?.data ?? []).every((v) => v instanceof ArrayBuffer),
-        bytes: (r.result?.data ?? []).reduce((n, v) => n + v.byteLength, 0),
-      })),
-    { id: 13, command: 'export', payload: { format: 'stlb' } },
+  const res = await page.evaluate(() =>
+    window.send('jscadExportData', { format: 'stlb' }).then((r) => ({
+      ok: r.ok,
+      error: r.error,
+      dataIsArray: Array.isArray(r.result?.data),
+      allBuffers: (r.result?.data ?? []).every((v) => v instanceof ArrayBuffer),
+      bytes: (r.result?.data ?? []).reduce((n, v) => n + v.byteLength, 0),
+    })),
   )
   expect(res.ok).toBe(true)
   expect(res.dataIsArray).toBe(true)
@@ -288,49 +245,43 @@ test('export returns binary STL as transferred ArrayBuffers', async ({ page }) =
   expect(res.bytes).toBeGreaterThan(0)
 })
 
-test('a command over timeoutMs kills the worker and the next load starts fresh', async ({ page }) => {
+test('a request over the timeout kills the worker and the next load starts fresh', async ({ page }) => {
   await gotoHost(page)
-  const hang = await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
-    id: 14,
-    command: 'load',
-    payload: {
-      ...project(
-        `const main = () => { while (true) {} }\n` +
-        `module.exports = { main }\n`,
-      ),
-      timeoutMs: 500,
-    },
-  })
-  expect(hang.ok).toBe(false)
-  expect(hang.error.name).toBe('TimeoutError')
+  const inited = await init(page, { timeoutMs: 500 })
+  expect(inited.ok).toBe(true)
 
-  const load = await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
-    id: 15,
-    command: 'load',
-    payload: CUBE,
-  })
-  expect(load.ok).toBe(true)
-  expect(load.result.entities.length).toBe(1)
+  const hang = project(
+    `const main = () => { while (true) {} }\n` +
+    `module.exports = { main }\n`,
+  )
+  // The hung request never answers; only the termination notice comes back.
+  await page.evaluate(({ files, entry, base }) => {
+    window.send('jscadScript', { script: files[entry], url: base + entry, base, root: base })
+  }, { ...hang, base: PROJECT_BASE })
+
+  await page.waitForFunction(() => !!window.seen('frameWorkerTerminated'), null, { timeout: 10000 })
+  const notice = await page.evaluate(() => window.seen('frameWorkerTerminated'))
+  expect(notice.params[0].reason).toContain('500')
+
+  const res = await load(page, CUBE)
+  expect(res.ok).toBe(true)
+  expect(res.result.entities.length).toBe(1)
 })
+
 // The manifold bundle resolves ./manifold.wasm against the bundle base, which
 // in the frame's blob worker is __BUNDLE_BASE__ rather than an opaque blob: URL.
 test('a manifold model loads its wasm and returns geometry', async ({ page }) => {
+  const wasm = []
+  page.on('request', (req) => { if (req.url().endsWith('manifold.wasm')) wasm.push(req.url()) })
   await gotoHost(page)
-  const res = await page.evaluate(({ id, command, payload }) => window.send(id, command, payload), {
-    id: 16,
-    command: 'load',
-    payload: {
-      ...project(
-        `const { cube, sphere } = require('@jscad/modeling').primitives\n` +
-        `const { subtract } = require('@jscad/modeling').booleans\n` +
-        `const main = () => subtract(cube({ size: 10 }), sphere({ radius: 6 }))\n` +
-        `module.exports = { main }\n`,
-      ),
-      engine: 'manifold',
-      timeoutMs: 60000,
-    },
-  })
+  const res = await load(page, project(
+    `const { cube, sphere } = require('@jscad/modeling').primitives\n` +
+    `const { subtract } = require('@jscad/modeling').booleans\n` +
+    `const main = () => subtract(cube({ size: 10 }), sphere({ radius: 6 }))\n` +
+    `module.exports = { main }\n`,
+  ), { engine: 'manifold', timeoutMs: 60000 })
   expect(res.ok).toBe(true)
+  expect(wasm).toEqual([`${RUN}/build/manifold.wasm`])
   const vertexCount = res.result.entities.reduce((n, e) => n + (e.vertices?.length ?? 0), 0)
   expect(vertexCount).toBeGreaterThan(0)
 })

@@ -10,8 +10,8 @@
       window.addEventListener('message', e => window.received.push(e.data))
       // frame-ancestors forbids this origin from embedding the frame, so it is
       // reached through the host's frame collection, as a third-party widget would.
-      window.send = (id, command, payload) => {
-        parent.frames[0].postMessage({ id, command, payload }, '*')
+      window.send = (method, params) => {
+        parent.frames[0].postMessage({ method, params: [params], id: 99 }, '*')
       }
     </script>
   </body>

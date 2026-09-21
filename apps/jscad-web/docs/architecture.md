@@ -42,7 +42,7 @@ control around it, stays on the app origin, which is why the canvas is never
 tainted and a view capture is a local operation.
 
 Today only the agent's `eval`, `measure`, `check` and `export` cross into the
-frame (`src/frameClient.js` on the app side, `src_frame/` on the other). The
+frame (`src/framePort.js` on the app side, `src_frame/` on the other). The
 editor still compiles through the local worker on the app origin, so a model
 the user opens runs with the page's full authority. Moving the editor onto the
 frame is the open item in `../../docs/backlog.md`, and the preconditions are
@@ -51,18 +51,28 @@ sweep.
 
 ### Protocol
 
-`{ id, command, payload }` in, `{ id, ok: true, result }` or
-`{ id, ok: false, error }` out. A model error is a result, never a rejection.
-Commands are `load`, `params`, `measure`, `check` and `export`. Geometry
-buffers ride the transfer list, so they cross without a copy.
+The frame speaks the worker protocol, not one of its own: `src/framePort.js`
+wraps the iframe in the `postMessage`, `addEventListener` and
+`removeEventListener` a `Worker` offers, so `messageProxy` drives the frame the
+way it drives the local worker. `jscadInit`, `jscadScript`, `jscadSetFiles`,
+`jscadMain`, `jscadMeasure`, `jscadCheck`, `jscadExportData` and the cache
+clears all reach the frame's worker. Geometry buffers ride the transfer list on
+both hops, so they cross without a copy.
+
+`src_frame/frame.js` relays every method untouched but one. The app never names
+a bundle URL: a script source inside the frame must come from the frame's own
+origin, and the app's bundle set has no frame counterpart. So the app sends
+`jscadInit` with an `engine` name and the frame fills in the `bundles` map from
+its own `__BUNDLE_BASE__`. The same call carries the frame's request timeout.
 
 Both sides check who they are talking to. The frame compares `event.origin`
 against `__ALLOWED_ORIGIN__`, baked in at build time. The app cannot do the
 same in reverse, because a sandboxed frame reports its origin as `null`, so it
 matches on `event.source === iframe.contentWindow` and posts to `'*'`.
 
-A command that outruns its timeout terminates the worker; the next command
-builds a fresh one.
+A request that outruns the timeout terminates the worker, and the frame notifies
+the app with `frameWorkerTerminated`; the next request builds a fresh worker,
+which the app's handler re-initializes.
 
 ### Why a blob worker
 
@@ -71,8 +81,8 @@ relative `importScripts` fails inside a blob worker. So the frame builds a
 two-line blob that sets `__BUNDLE_BASE__` and `importScripts` the real bundle.
 For the same reason the worker's file reads cannot use `readFileWeb`, whose
 base is `self.location.origin` (`'null'` here); `build.js` swaps in
-`src_frame/readFileFrame.js`, which serves reads from the project file map the
-`load` command carried and falls through to the CDN for bare packages.
+`src_frame/readFileFrame.js`, which serves reads from the project file map
+`jscadSetFiles` carried and falls through to the CDN for bare packages.
 
 ### Headers
 

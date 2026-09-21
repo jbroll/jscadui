@@ -55,7 +55,8 @@ import { createSession } from './src/storage/session.js'
 import { initProjects } from './src/projects.js'
 import { extractEntries, readAsText, readDir } from '@jscadui/fs-provider'
 import { createWorker, createJobTracker } from './src/workerSetup.js'
-import { frameClient } from './src/frameClient.js'
+import { framePort } from './src/framePort.js'
+import { messageProxy } from '@jscadui/postmessage'
 import * as fileSystem from './src/fileSystem.js'
 import * as paramsUI from './src/paramsUI.js'
 import { shouldAllowReload, clearReloadTimestamp } from './src/reloadDetection.js'
@@ -188,10 +189,25 @@ frameEl.src = __FRAME_ORIGIN__ + '/'
 frameEl.setAttribute('sandbox', 'allow-scripts')
 frameEl.hidden = true
 document.body.appendChild(frameEl)
-const frame = frameClient(frameEl, __FRAME_ORIGIN__)
 
-// Frame answers carry the protocol envelope; agent tools want the payload.
-const unwrap = (res) => (res.ok ? res.result : { ok: false, error: res.error })
+// The frame relays the worker protocol, so the app drives it with the same
+// proxy it uses for the local worker. The frame names its own bundles; the
+// app names only the engine.
+const frameApi = messageProxy(framePort(frameEl, __FRAME_ORIGIN__), {
+  entities: (result, options = {}) => handleEntities(result, options),
+  onProgress,
+  frameWorkerTerminated: ({ reason }) => {
+    setError(new Error(reason))
+    initFrame()
+  },
+})
+
+const initFrame = () =>
+  frameApi.jscadInit({ engine: viewState.modelingEngine, useParamsProxy }).catch(setError)
+
+// A message sent before the frame document runs is lost, and nothing in the
+// protocol replays it.
+frameEl.addEventListener('load', initFrame, { once: true })
 
 // ============== File System Setup ==============
 const dropModal = byId('dropModal')
@@ -737,19 +753,17 @@ const toBase64 = (buffers) => {
 }
 
 const aiDeps = {
-  evaluate: createEvaluate(frame, handleEntities),
+  evaluate: createEvaluate(frameApi, handleEntities),
   setParams: async (values) => {
     Object.assign(paramsCtrl.params, values)
     for (const key of Object.keys(values)) paramsCtrl.userInteracted.add(key)
     await paramChangeCallback(paramsCtrl.params)
     return { updated: Object.keys(values) }
   },
-  measure: async (options) => unwrap(await frame.measure({ options })),
-  check: async (input) => unwrap(await frame.check({ bed: input?.bed, options: input ?? {} })),
+  measure: async (options) => await frameApi.jscadMeasure({ options }),
+  check: async (input) => await frameApi.jscadCheck({ bed: input?.bed, options: input ?? {} }),
   exportModel: async ({ format }) => {
-    const exported = await frame.export({ format })
-    if (!exported.ok) return { ok: false, error: exported.error }
-    const { data } = exported.result || {}
+    const { data = [] } = await frameApi.jscadExportData({ format })
     const chunks = (data instanceof Array ? data : [data]).filter((v) => v instanceof ArrayBuffer)
     const size = chunks.reduce((n, v) => n + v.byteLength, 0)
     return { format, size, data: toBase64(chunks) }

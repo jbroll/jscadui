@@ -11,16 +11,26 @@
       const frame = document.getElementById('frame')
       const ready = new Promise(resolve => frame.addEventListener('load', resolve, { once: true }))
       window.frameReady = ready
-      window.send = (id, command, payload) => ready.then(() => new Promise(resolve => {
+      window.messages = []
+      let seq = 0
+      window.addEventListener('message', (e) => {
+        if (e.source !== frame.contentWindow) return
+        window.messages.push(e.data)
+      })
+      // The worker protocol as the app speaks it: { method, params, id } out,
+      // a matching { method: '__RESPONSE__', params | error, id } back.
+      window.send = (method, params) => ready.then(() => new Promise(resolve => {
+        const id = ++seq
         const onMsg = (e) => {
-          if (e.data && e.data.id === id) {
-            window.removeEventListener('message', onMsg)
-            resolve(e.data)
-          }
+          const d = e.data
+          if (e.source !== frame.contentWindow || !d || d.method !== '__RESPONSE__' || d.id !== id) return
+          window.removeEventListener('message', onMsg)
+          resolve(d.error ? { ok: false, error: d.error } : { ok: true, result: d.params })
         }
         window.addEventListener('message', onMsg)
-        frame.contentWindow.postMessage({ id, command, payload }, '*')
+        frame.contentWindow.postMessage({ method, params: [params], id }, '*')
       }))
+      window.seen = (method) => window.messages.find(m => m && m.method === method)
     </script>
   </body>
 </html>

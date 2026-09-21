@@ -1,5 +1,4 @@
 let seq = 1
-const reqMap = new Map()
 const RESPONSE = '__RESPONSE__'
 const TRANSFERABLE = Symbol.for('__transferable__')
 
@@ -36,6 +35,10 @@ const fixTransfer = trans => (trans ? trans.map(a => a.buffer || a) : [])
 export const initMessaging = (_self, handlers, { onJobCount, debug, allowedOrigin } = {}) => {
   // on service worker, postMessage is on the controller
   const ___self = _self.postMessage ? _self : _self.controller
+
+  // Per endpoint: a document with two of these (the worker and the compute
+  // frame) must not see the other's in-flight requests in its job count.
+  const reqMap = new Map()
 
   /**
    * @param {unknown} result 
