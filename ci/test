@@ -3,6 +3,9 @@ set -euo pipefail
 
 WORKTREE="$(cd "$(dirname "$0")/.." && pwd)"
 
+# STL comparison is against whatever OpenSCAD the host has, so record which one.
+openscad --version
+
 cd "$WORKTREE"
 npm install
 

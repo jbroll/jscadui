@@ -757,6 +757,13 @@ async function main() {
     console.log(`Threshold: ${options.threshold}`)
   }
 
+  // Every OpenSCAD render failing is a broken reference tool, not a suite of
+  // models to skip: without this the run reports PASS having compared nothing.
+  if (tested === 0 && files.length > 0) {
+    console.error(`\nNothing was tested: all ${files.length} file(s) were skipped. Check that OpenSCAD can render them.`)
+    process.exit(1)
+  }
+
   process.exit(failed + translatorErrors > 0 ? 1 : 0)
 }
 
