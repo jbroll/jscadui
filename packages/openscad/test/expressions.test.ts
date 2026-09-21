@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { parse } from '../src/parser/parse.js'
 import { transpile } from '../src/transpiler/transpile.js'
+import j$ from '@jscadui/openscad-runtime'
 
 /**
  * Unit tests for expression handling in the transpiler
@@ -395,5 +396,33 @@ describe('transpileExpression', () => {
       expect(code).toContain('j$.SKIP')
       expect(code).toContain('filter(x => x !== j$.SKIP)')
     })
+  })
+})
+
+/**
+ * A C-style comprehension took a different path to deciding whether its body
+ * spreads, and that path did not look inside an `if`. BOSL2's lsystems.scad
+ * builds its turtle commands with exactly that shape.
+ */
+describe('each inside a C-style list comprehension', () => {
+  const evalList = (src: string) => {
+    const { code } = transpile(parse(`x = ${src};\n`).ast, { currentFile: '/e.scad' })
+    const fn = new Function('require', 'module', 'exports', 'j$', `${code}\nreturn x`)
+    return fn(() => ({}), { exports: {} }, {}, j$)
+  }
+
+  it('spreads each when the body is guarded by if', () => {
+    expect(evalList('[for (i = 0; i <= 2; i = i + 1) if (i > 0) each [i, i]]'))
+      .toEqual([1, 1, 2, 2])
+  })
+
+  it('still spreads each with no guard', () => {
+    expect(evalList('[for (i = 0; i <= 1; i = i + 1) each [i, i]]'))
+      .toEqual([0, 0, 1, 1])
+  })
+
+  it('does not spread a plain body', () => {
+    expect(evalList('[for (i = 0; i <= 2; i = i + 1) if (i > 0) [i, i]]'))
+      .toEqual([[1, 1], [2, 2]])
   })
 })

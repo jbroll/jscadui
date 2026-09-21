@@ -219,14 +219,6 @@ export function containsIfExpr(expr: Expression | null): boolean {
   return false
 }
 
-/** Check whether a list-comprehension body expression contains 'each' (possibly nested in let). */
-function containsEachExpr(expr: Expression | null): boolean {
-  if (!expr) return false
-  if (isLcEachExpr(expr)) return true
-  if ((isLetExpr(expr) || isLcLetExpr(expr)) && expr.expr) return containsEachExpr(expr.expr)
-  return false
-}
-
 /**
  * Transpile variable lookup expression.
  */
@@ -560,7 +552,7 @@ function transpileLcForCExprHandler(
   // which lets LcIfExpr return [] instead of undefined in spread context.
   // Always set to exactly needsSpread so that when an outer for sets inFlatMapContext=true,
   // the inner C-style for's body correctly uses undefined (not []) when not spreading.
-  const needsSpread = containsEachExpr(forCExpr.expr) || containsNestedForExpr(forCExpr.expr)
+  const needsSpread = isEachExpr(forCExpr.expr) || containsNestedForExpr(forCExpr.expr)
   const savedFlatMapContext = ctx.inFlatMapContext
   ctx.inFlatMapContext = needsSpread
 
