@@ -454,9 +454,9 @@ function buildOutputCode(
   // transpiled.geometryParts = top-level geometry defined in this file itself
   const allGeometry = [...bundled.geometryStatements, ...transpiled.geometryParts]
   if (allGeometry.length > 0) {
-    const mainBody = allGeometry.length === 1
-      ? allGeometry[0]
-      : `j$.safeUnion([\n${allGeometry.map(p => `    ${p}`).join(',\n')}\n  ])`
+    // Always route through safeUnion, including for a single statement: it is
+    // what strips j$.NO_CHILD, which main() must never hand back to a caller.
+    const mainBody = `j$.safeUnion([\n${allGeometry.map(p => `    ${p}`).join(',\n')}\n  ])`
     parts.push(`const main = () => {\n  return ${mainBody}\n}`)
     parts.push('')
   } else {

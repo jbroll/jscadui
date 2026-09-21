@@ -11,7 +11,7 @@ describe('undefined symbol handling — valid JS', () => {
   // Run transpiled code with a minimal j$ and a require stub; it must not throw
   // ReferenceError for the undefined symbols.
   const run = (code: string) => {
-    const j$ = { cube: () => ({}), getSpecialVar: () => 0, setSpecialVar: () => {} }
+    const j$ = { cube: () => ({}), getSpecialVar: () => 0, setSpecialVar: () => {}, safeUnion: (p: unknown[]) => p[0] }
     const fn = new Function('require', 'module', 'exports', 'j$', code)
     const mod = { exports: {} as Record<string, unknown> }
     fn(() => ({}), mod, mod.exports, j$)
