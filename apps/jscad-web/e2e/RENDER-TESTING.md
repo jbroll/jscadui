@@ -58,12 +58,16 @@ Edit `RENDER_ARGS` in `ci/render` to change scope/concurrency.
 
 ## Baseline
 
-`e2e/render-baseline.json` records the known sweep state: the commit and CI job
-it was captured from, per-library ok/fail counts, and the failing example
-paths. Diff future runs against `failures`, not against zero.
+`e2e/render-baseline.json` records the known sweep state: the CI job it was
+captured from, per-library ok/fail counts, and the failing example paths. Diff
+future runs against `failures`, not against zero.
 
-The current baseline is **596 ok of 788**, from commit `c3ee198`, CI job
-`491f86f1330fbdf2`. That is the honest number. The previous baseline claimed 764
+It records no commit. `sci` rsyncs the working tree onto a base worktree, so the
+commit the CI run reports is that worktree's HEAD, not the code measured — a
+field nobody can trust is worse than none.
+
+The current baseline is **596 ok of 788**, CI job `491f86f1330fbdf2`, run from
+the `feat/frame-single-engine` working tree. That is the honest number. The previous baseline claimed 764
 ok, but it was recorded by a harness that waited for `#progress` to become
 hidden while `static/main.css` already sets that element `display: none` — the
 wait resolved before the model ran, so most of its "passes" never rendered. The

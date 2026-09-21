@@ -176,9 +176,15 @@ const { frameEl, workerApi, handlers } = await createFrame({
   runOrigin: __FRAME_ORIGIN__,
 })
 
+// Twice the old agent cap: the heaviest examples in the corpus finish well
+// inside it, and a runaway model still dies rather than wedging the frame.
+const EDITOR_TIMEOUT_MS = 120_000
+
 // The frame names its own bundles; the app names only the engine.
 const initFrame = () =>
-  workerApi.jscadInit({ engine: viewState.modelingEngine, useParamsProxy }).catch(setError)
+  workerApi
+    .jscadInit({ engine: viewState.modelingEngine, useParamsProxy, timeoutMs: EDITOR_TIMEOUT_MS })
+    .catch(setError)
 
 // A project's files travel to the frame in a map keyed by bare path, so a
 // project script names itself against PROJECT_BASE; the app origin's /swfs/

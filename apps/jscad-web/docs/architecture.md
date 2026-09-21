@@ -89,7 +89,9 @@ proxy's own pending-request map on the app side is what drives it.
 a bundle URL: a script source inside the frame must come from the frame's own
 origin, and the app's bundle set has no frame counterpart. So the app sends
 `jscadInit` with an `engine` name and the frame fills in the `bundles` map from
-its own `__BUNDLE_BASE__`. The same call carries the frame's request timeout.
+its own `__BUNDLE_BASE__`. The same call carries the frame's request timeout:
+the app sends `timeoutMs: 120000` from `initFrame()`, and the frame falls back
+to 30 s only if no `jscadInit` ever named one.
 
 Both sides check who they are talking to. The frame compares `event.origin`
 against `__ALLOWED_ORIGIN__`, baked in at build time. The app cannot do the

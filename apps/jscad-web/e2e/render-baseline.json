@@ -1,6 +1,6 @@
 {
   "_comment": "596/788 ok is the honest number. The previous baseline (788-24) was recorded by a harness that waited for #progress to become hidden, but static/main.css already sets that element display:none, so the wait resolved before the model ran and most of its passes never rendered. 88 of the 192 failures are a pre-existing browser-only geometry gap that fails on main too, not a regression from the frame work. Diff future runs against failures[], not against zero.",
-  "commit": "c3ee198",
+  "tree": "feat/frame-single-engine working tree, rsynced onto the CI base worktree by sci — no commit identifies the code that was measured",
   "date": "2026-09-21",
   "job": "491f86f1330fbdf2",
   "total": 788,
