@@ -20,9 +20,8 @@ MODE="${1:-update}"
 DEPLOY_SH="../../../deploy.sh/deploy.sh"
 
 export APP_PORT="${APP_PORT:-3006}"
-export DOMAIN_NAME="jscad.rkroll.com"
-export REMOTE_HOST="jscad.rkroll.com"
-export APP_URL="https://jscad.rkroll.com"
+APP_DOMAIN="jscad.rkroll.com"
+APP_URL="https://${APP_DOMAIN}"
 RUN_DOMAIN="jscad-run.rkroll.com"
 RUN_URL="https://${RUN_DOMAIN}"
 
@@ -41,13 +40,13 @@ npm run build
 echo "✓ Build complete"
 echo ""
 
-# deploy.sh sources the project config into this inherited environment, and
-# deploy-run.conf reads DOMAIN_NAME/REMOTE_HOST as ${VAR:-jscad-run...} — so
-# the app's exports above would win and put the frame on the app's hostname.
+# Each stage gets its hostname from its own config, and nothing exports
+# REMOTE_HOST into a stage that is not its own: deploy.sh sources lib/platform.sh
+# from common.sh before it reads the config, and an inherited REMOTE_HOST makes
+# that run remote detection over ssh and end the script with status 0 — a silent
+# no-op that reads as success.
 echo "[1/4] Deploying compute frame host..."
-DEPLOY_SH_CONF="$(pwd)/deploy-run.conf" \
-    DOMAIN_NAME="$RUN_DOMAIN" REMOTE_HOST="$RUN_DOMAIN" APP_URL="$RUN_URL" \
-    "$DEPLOY_SH" "$MODE" .
+DEPLOY_SH_CONF="$(pwd)/deploy-run.conf" APP_URL="$RUN_URL" "$DEPLOY_SH" "$MODE" .
 echo "✓ Frame host deployed ($RUN_URL)"
 echo ""
 
