@@ -18,9 +18,14 @@ is exactly why this browser harness exists.
 ## render-all.mjs
 
 Loads each example by hash-navigating the dev server
-(`/#/examples/openscad/.../foo.scad`), waits for `#progress` to hide or `#error-bar`
-to show, and reports `ok` / `error` / `timeout` per file. Honors each library's
-`skip.txt`. Writes `e2e/render-report.json`.
+(`/#/examples/openscad/.../foo.scad`), waits for the app to move
+`html[data-render]` from `running` to `ok` or `error`, and reports
+`ok` / `error` / `timeout` per file. Honors each library's `skip.txt`. Writes
+`e2e/render-report.json`.
+
+It must not wait on `#progress`: `static/main.css` sets that element
+`display: none`, so a "wait until hidden" resolves immediately and every file
+scores `ok` without rendering.
 
 ```bash
 cd apps/jscad-web
@@ -55,9 +60,17 @@ Edit `RENDER_ARGS` in `ci/render` to change scope/concurrency.
 
 `e2e/render-baseline.json` records the known sweep state: the commit and CI job
 it was captured from, per-library ok/fail counts, and the failing example
-paths. The 24 failures in it were triaged as pre-existing openscad-corpus
-issues, not regressions — diff future runs against `failures`, not against
-zero.
+paths. Diff future runs against `failures`, not against zero.
+
+The current baseline is **596 ok of 788**, from commit `c3ee198`, CI job
+`491f86f1330fbdf2`. That is the honest number. The previous baseline claimed 764
+ok, but it was recorded by a harness that waited for `#progress` to become
+hidden while `static/main.css` already sets that element `display: none` — the
+wait resolved before the model ran, so most of its "passes" never rendered. The
+old file was replaced, not amended; the two are not comparable.
+
+88 of the 192 failures are a pre-existing browser-only geometry gap that fails
+on `main` as well, not a regression.
 
 From `apps/jscad-web`, after a sweep writes a fresh `e2e/render-report.json`:
 
