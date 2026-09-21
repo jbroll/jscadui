@@ -39,15 +39,33 @@ DEV_PID=$!
 cleanup() { kill "$DEV_PID" 2>/dev/null; wait "$DEV_PID" 2>/dev/null; }
 trap cleanup EXIT
 
-# ── wait until the server serves a real example file (build finished) ──
+# ── wait until the whole example tree is served ──
+# One early file is not enough. The dev build copies ~36MB of examples while the
+# server is already answering, so a sweep started at that point reports missing
+# includes for every library copied later. Probe one deep file per library.
+PROBES="
+openscad/01-basics/lib/hardware.scad
+openscad/bosl/lib/transforms.scad
+openscad/bosl2/lib/std.scad
+openscad/mcad/hardware.scad
+openscad/nopscadlib/NopSCADlib/utils/core/core.scad
+openscad/dotscad/util/set/_impl/_hashset_impl.scad
+openscad/snippet/04-misc/Scene_City_Street.scad
+openscad/text/ALL.js
+"
 echo "Waiting for dev server + example build…"
-for i in $(seq 1 120); do
-  code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:5120/examples/openscad/01-basics/cube.scad || true)
-  [ "$code" = "200" ] && { echo "ready after ${i}s"; break; }
+ready=no
+for i in $(seq 1 300); do
+  missing=
+  for probe in $PROBES; do
+    code=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:5120/examples/$probe" || true)
+    [ "$code" = "200" ] || { missing="$probe"; break; }
+  done
+  [ -z "$missing" ] && { echo "ready after ${i}s"; ready=yes; break; }
   sleep 1
 done
-if [ "$code" != "200" ]; then
-  echo "✖ dev server never served examples; tail of dev log:"; tail -40 /tmp/jscad-dev.log
+if [ "$ready" != "yes" ]; then
+  echo "✖ dev server never served $missing; tail of dev log:"; tail -40 /tmp/jscad-dev.log
   exit 2
 fi
 
