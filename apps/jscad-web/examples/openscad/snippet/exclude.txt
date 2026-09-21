@@ -1,0 +1,4 @@
+# Library assets the examples include; not examples themselves.
+Animation_SCAD/
+Asset_SCAD/
+Image/

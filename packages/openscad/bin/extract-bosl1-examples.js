@@ -5,6 +5,7 @@
 
 import { readFileSync, writeFileSync, readdirSync } from 'fs'
 import { join } from 'path'
+import { withRenderFn } from './exampleCode.js'
 
 const LIB_DIR = 'test/corpus/bosl/lib'
 const OUT_DIR = 'test/corpus/bosl'
@@ -107,14 +108,7 @@ function generateTestFile(example, _testNum) {
     .join('\n')
     .trim()
 
-  // Add $fn for consistent rendering if not already present
-  let finalCode = code
-  if (!finalCode.includes('$fn=') && !finalCode.includes('$fn =')) {
-    const lastParen = finalCode.lastIndexOf(')')
-    if (lastParen > 0 && finalCode[lastParen - 1] !== '(') {
-      finalCode = finalCode.slice(0, lastParen) + ', $fn=32' + finalCode.slice(lastParen)
-    }
-  }
+  const finalCode = withRenderFn(code)
 
   return `// Test BOSL ${libFile.replace('.scad', '')}: ${funcName}()${comment}
 // Extracted from BOSL library examples

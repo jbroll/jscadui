@@ -3,6 +3,7 @@
 
 import { readFileSync, writeFileSync, readdirSync } from 'fs'
 import { join } from 'path'
+import { withRenderFn } from './exampleCode.js'
 
 const LIB_DIR = 'test/corpus/bosl2/lib'
 const OUT_DIR = 'test/corpus/bosl2'
@@ -136,15 +137,7 @@ function generateTestFile(example, _testNum) {
     includes += `include <lib/${libName}>\n`
   }
 
-  // Add $fn for consistent rendering
-  let code = example.code.trim()
-  if (!code.includes('$fn=') && !code.includes('$fn =')) {
-    // Find the last ) and insert $fn before it
-    const lastParen = code.lastIndexOf(')')
-    if (lastParen > 0 && code[lastParen - 1] !== '(') {
-      code = code.slice(0, lastParen) + ', $fn=32' + code.slice(lastParen)
-    }
-  }
+  const code = withRenderFn(example.code)
 
   const funcName = code.match(/^\s*(\w+)\(/)?.[1] || 'unknown'
   const comment = example.name ? ` - ${example.name}` : ''

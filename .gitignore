@@ -125,6 +125,7 @@ apps/jscad-web/examples/openscad/snippet/**
 !apps/jscad-web/examples/openscad/bosl2/skip.txt
 !apps/jscad-web/examples/openscad/bosl2/exclude.txt
 !apps/jscad-web/examples/openscad/snippet/skip.txt
+!apps/jscad-web/examples/openscad/snippet/exclude.txt
 
 # dotSCAD — lib files are fetched by fetch-deps, examples are tracked
 # Root-level lib .scad files (from src/)

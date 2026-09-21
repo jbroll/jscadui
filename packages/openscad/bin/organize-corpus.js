@@ -13,7 +13,7 @@
  *   --force            Overwrite existing batch directories
  */
 
-import { readFileSync, mkdirSync, readdirSync, statSync, existsSync, cpSync, rmSync } from 'fs'
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, existsSync, cpSync, rmSync } from 'fs'
 import { join, relative, dirname } from 'path'
 import { fileURLToPath } from 'url'
 
@@ -213,6 +213,29 @@ function processCategory(categoryName) {
 
   // Organize into batches
   const batches = organizeCategoryByNumbering(categoryName, categoryConfig, files)
+
+  // Batching flattens every .scad into a numbered directory, so a model that
+  // includes <Asset_SCAD/foo.scad> has nothing to resolve against. Mirror the
+  // source's asset directories at the category root, where the library-root
+  // fallback finds them, and list them in exclude.txt so sweeps and the demo
+  // browser do not treat library parts as examples.
+  const assetDirs = readdirSync(sourceDir)
+    .filter(entry => entry !== 'lib' && !excludePatterns.includes(entry))
+    .filter(entry => statSync(join(sourceDir, entry)).isDirectory())
+  if (assetDirs.length > 0) {
+    const categoryDir = join(EXAMPLES_DIR, categoryName)
+    if (!options.dryRun) {
+      mkdirSync(categoryDir, { recursive: true })
+      for (const dir of assetDirs) {
+        cpSync(join(sourceDir, dir), join(categoryDir, dir), { recursive: true })
+      }
+      writeFileSync(
+        join(categoryDir, 'exclude.txt'),
+        `# Library assets the examples include; not examples themselves.\n${assetDirs.map(d => `${d}/`).join('\n')}\n`,
+      )
+    }
+    console.log(`  🧱 Mirrored asset directories: ${assetDirs.join(', ')}`)
+  }
 
   // Copy shared lib directory (once per category)
   const sourceLinkDir = join(sourceDir, 'lib')
