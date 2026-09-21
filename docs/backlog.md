@@ -87,3 +87,10 @@ branch built; they are the gaps it did not close.
   instance outside that library. See `apps/jscad-web/e2e/RENDER-TESTING.md`
   and `render-baseline.json`. Pre-existing, unrelated to the compute frame,
   not a regression.
+- **`polyholes_test.scad` may be worker reuse, not geometry.** Loading an
+  include-heavy model (mcad `hardware_test.scad`) and then the mcad grid in the
+  same worker leaks into polyholes with that same error, which was recorded as
+  an unsolved worker-reuse case well before the compute frame. `render-all.mjs`
+  gives each example a fresh worker and so cannot see it; the deploy smoke gate
+  hit it against production. Worth checking whether the 88 above are one bug or
+  two before hunting geometry.
