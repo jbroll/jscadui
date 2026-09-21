@@ -1,3 +1,5 @@
+import { collectBuffers } from './collectBuffers.js'
+
 // Injected by esbuild at build time (see build.js).
 const ALLOWED_ORIGIN = __ALLOWED_ORIGIN__
 
@@ -30,23 +32,6 @@ const workerBundles = (engine) => ({
   '@jscadui/jscad-text': BUNDLE_BASE + 'bundle.jscad_text.js',
 })
 
-// Collect the ArrayBuffers behind every typed array in a message so it can
-// cross the hop zero-copy, the way it crossed the previous one.
-const collectBuffers = (value, out = [], seen = new Set()) => {
-  if (value === null || typeof value !== 'object') return out
-  if (seen.has(value)) return out
-  seen.add(value)
-  if (ArrayBuffer.isView(value)) {
-    if (!seen.has(value.buffer)) {
-      seen.add(value.buffer)
-      out.push(value.buffer)
-    }
-    return out
-  }
-  for (const v of Object.values(value)) collectBuffers(v, out, seen)
-  return out
-}
-
 const post = (message, transfer) => parent.postMessage(message, ALLOWED_ORIGIN, transfer)
 
 let engine
@@ -61,7 +46,11 @@ const armTimeout = (id) => {
     pendingId = null
     worker.terminate()
     worker = null
-    post({ method: 'frameWorkerTerminated', params: [{ reason: `model exceeded ${timeoutMs} ms` }] })
+    const reason = `model exceeded ${timeoutMs} ms`
+    // The killed worker will never answer, so the frame answers for it: the
+    // caller's promise must reject now, not at the proxy's own 5-minute timeout.
+    post({ method: RESPONSE, id, error: { name: 'TimeoutError', message: reason } })
+    post({ method: 'frameWorkerTerminated', params: [{ reason }] })
   }, timeoutMs)
 }
 

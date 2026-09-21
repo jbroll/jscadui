@@ -224,7 +224,7 @@ test('jscadCheck reports solidity and bed fit', async ({ page }) => {
   expect(res.result.fitsBed).toBe(true)
 })
 
-test('jscadExportData returns binary STL as transferred ArrayBuffers', async ({ page }) => {
+test('jscadExportData returns binary STL as ArrayBuffers', async ({ page }) => {
   await gotoHost(page)
   expect((await load(page, CUBE)).ok).toBe(true)
 
@@ -254,10 +254,14 @@ test('a request over the timeout kills the worker and the next load starts fresh
     `const main = () => { while (true) {} }\n` +
     `module.exports = { main }\n`,
   )
-  // The hung request never answers; only the termination notice comes back.
+  // The killed worker cannot answer, so the frame answers for it.
   await page.evaluate(({ files, entry, base }) => {
-    window.send('jscadScript', { script: files[entry], url: base + entry, base, root: base })
+    window.hung = window.send('jscadScript', { script: files[entry], url: base + entry, base, root: base })
   }, { ...hang, base: PROJECT_BASE })
+
+  const hung = await page.evaluate(() => window.hung)
+  expect(hung.ok).toBe(false)
+  expect(hung.error.name).toBe('TimeoutError')
 
   await page.waitForFunction(() => !!window.seen('frameWorkerTerminated'), null, { timeout: 10000 })
   const notice = await page.evaluate(() => window.seen('frameWorkerTerminated'))

@@ -583,6 +583,9 @@ viewState.onModelingEngineChange = async (newEngine) => {
 
   // Reinitialize worker with new bundles
   await workerApi.jscadInit({ bundles: workerBundles(), useParamsProxy })
+  // The frame holds its own engine, so the agent does not keep evaluating
+  // against the engine that was current at page load.
+  await initFrame()
 
   // Re-run script
   editor.runScript()
