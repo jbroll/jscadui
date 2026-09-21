@@ -3,20 +3,27 @@
 Verified 2026-04-08 — commit `6ab37c1` on `hierarchical-params` ($-var let binding: wrap subsequent bindings + body in withScope).
 MCAD suite GPU-verified 2026-04-08 — 12/14 examples pass.
 
+Re-measured 2026-09-21 on CI job `e82750bf09104beb` with OpenSCAD 2026.08.30.fp
+(the flatpak the CI user can run; the 2026-04 numbers were taken against an
+older build). dotSCAD went to 147/160 and MCAD to 13/14. NopSCADlib's
+`box.scad` drops to 0.1499 against this OpenSCAD and does so on `main` as well,
+so it is a reference-version difference, not a transpiler regression.
+01-basics gained `preview-gate.scad`, verified on its own after that job.
+
 Similarity threshold: **0.99** (Jaccard index on vertex-deduplicated STL meshes).
 
 ## Summary
 
 | Suite      | Total | Excluded | OpenSCAD fail | Skip list | Tested | Passed | Failed | Errors | Pass rate |
 |------------|------:|--------:|--------------:|----------:|-------:|-------:|-------:|-------:|-----------|
-| 01-basics  |    20 |       0 |             1 |         0 |     19 |     19 |      0 |      0 | **100%**  |
+| 01-basics  |    21 |       0 |             1 |         0 |     20 |     20 |      0 |      0 | **100%**  |
 | BOSL v1    |   113 |       0 |            13 |         0 |    100 |    100 |      0 |      0 | **100%**  |
 | BOSL2      |   178 |       0 |            25 |         0 |    153 |    153 |      0 |      0 | **100%**  |
-| NopSCADlib |   149 |       4 |             1 |         4 |    144 |    144 |      0 |      0 | **100%**  |
+| NopSCADlib |   149 |       4 |             1 |         4 |    144 |    143 |      1 |      0 | **99.3%** |
 | snippet    |   122 |       0 |            10 |         2 |    110 |    110 |      0 |      0 | **100%**  |
 | text       |    11 |       0 |             9 |         0 |      2 |      2 |      0 |      0 | **100%**  |
-| dotSCAD    |   212 |       0 |            28 |        24 |    160 |    146 |     14 |      0 | **91.3%** |
-| MCAD       |    15 |       0 |             0 |         1 |     14 |     12 |      2 |      0 | **85.7%** |
+| dotSCAD    |   212 |       0 |            28 |        24 |    160 |    147 |     13 |      0 | **91.9%** |
+| MCAD       |    15 |       0 |             0 |         1 |     14 |     13 |      1 |      0 | **92.9%** |
 
 **Baseline suites** (01-basics, BOSL, BOSL2, NopSCADlib, snippet, text): any failure is a regression.
 

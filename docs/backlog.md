@@ -79,18 +79,26 @@ branch built; they are the gaps it did not close.
 
 ## Render sweep
 
-- **The largest known problem: 88 of 788 browser-render failures are a
-  browser-only geometry gap**, `invalid jscad geometry, not an object` or
-  similar, that the Node STL corpus does not hit and that fails identically on
-  `main`. Most of it is NopSCADlib (100 of 145 fail in the current baseline);
-  mcad's `polyholes_test.scad` — "segments must be four or more" — is one
-  instance outside that library. See `apps/jscad-web/e2e/RENDER-TESTING.md`
-  and `render-baseline.json`. Pre-existing, unrelated to the compute frame,
-  not a regression.
+Baseline 623/789 (CI job `cdc20a40944c1fc3`), up from 596/788. See
+`apps/jscad-web/e2e/RENDER-TESTING.md` and `render-baseline.json`.
+
+- **60 models fail with `Cannot read properties of undefined`**, 46 of them
+  NopSCADlib tests and 14 dotSCAD. 57 share one stack: `plane.fromPoints` →
+  `vec3.dot` on an undefined vector, inside `@jscad/modeling`. Most of the
+  NopSCADlib ones only started running their geometry when `$preview` became a
+  run-time variable, so this is the first look at what they actually do.
+- **The browser and the corpus run different geometry engines.** The app
+  defaults to `jscad` (`viewState.js`), while the whole STL comparison suite
+  runs `manifold`, so nothing in the Node suite exercises the code both
+  clusters above die in. Either the sweep should cover both engines or the
+  default should change.
+- **26 models fail with `Cannot set properties of undefined (setting 'color')`**
+  — 19 NopSCADlib, 5 BOSL2, 1 dotSCAD. The throw is inside `@jscad/modeling`'s
+  `colorize`, mapping over polygons one of which is undefined.
+- **18 timeouts**, spread across dotSCAD, NopSCADlib, BOSL and BOSL2.
 - **`polyholes_test.scad` may be worker reuse, not geometry.** Loading an
   include-heavy model (mcad `hardware_test.scad`) and then the mcad grid in the
-  same worker leaks into polyholes with that same error, which was recorded as
-  an unsolved worker-reuse case well before the compute frame. `render-all.mjs`
+  same worker leaks into polyholes with a geometry error, recorded as an
+  unsolved worker-reuse case well before the compute frame. `render-all.mjs`
   gives each example a fresh worker and so cannot see it; the deploy smoke gate
-  hit it against production. Worth checking whether the 88 above are one bug or
-  two before hunting geometry.
+  hit it against production.
