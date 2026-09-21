@@ -83,9 +83,10 @@ The nine that remain are not transpiler work: `util/rands_disk.scad`,
 from the vendored sources; two maze models exceed the call stack; four are
 timeouts that move with CI load.
 
-Sweeping the other engine takes `--engine jscad`. Its failures are inside
-`@jscad/modeling` — `plane.fromPoints` on an undefined vector, and `colorize`
-over a polygon list with a hole in it.
+Sweeping the other engine takes `--engine jscad`: **715 of 789**, CI job
+`62c6526d17116910`. 30 of its 74 failures are timeouts — that engine's CSG is
+slower, not hung — and 21 extrude a geom2 whose sides do not close. See
+`docs/backlog.md`.
 
 From `apps/jscad-web`, after a sweep writes a fresh `e2e/render-report.json`:
 

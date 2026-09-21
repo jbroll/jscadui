@@ -92,12 +92,21 @@ Baseline 780/789 (CI job `4e6f690d026700a8`), up from 596/788. See
 - **Four models time out at 30s** (`fractal_tree`, `packing_circles`,
   `voronoi_melon`, `extrusion_brackets`). Which four moves with CI load, so
   measure before assuming any of them is a hang.
-- **The jscad engine renders 623 of 789 where manifold renders 780.** The app
-  defaults to manifold now, but the other engine is still a supported choice
-  and its failures are inside `@jscad/modeling`: `plane.fromPoints` reading an
-  undefined vector (57 models) and `colorize` mapping over a polygon list with
-  a hole in it (26). The STL comparison suite only runs manifold, so nothing
-  covers this.
+- **The jscad engine renders 715 of 789 where manifold renders 780.** The app
+  defaults to manifold, but the other engine is still a supported choice, and
+  the STL comparison suite only runs manifold, so nothing covers it. Sweep it
+  with `--engine jscad`, or run one model with
+  `display-check.js --engine jscad`. What is left, after the degenerate-polygon
+  and colorize fixes:
+  - **30 timeouts at 30s**, 19 of them NopSCADlib. The jscad CSG is simply
+    slower than manifold; these are not hangs.
+  - **21 models extrude a geom2 whose sides do not close**, so earcut throws
+    inside `extrudeFromSlices`. Not a tolerance problem: in
+    `hypnotic_squares.scad` the closest distinct endpoints of the 187-side
+    profile are 0.4997 apart, so the profile is genuinely open. Find the
+    operation that builds it before reaching for a weld.
+  - a tail of 4 unions across mixed 2D/3D types, 4 bad planes, 2 minkowski,
+    2 stack overflows.
 - **`polyholes_test.scad` may be worker reuse, not geometry.** Loading an
   include-heavy model (mcad `hardware_test.scad`) and then the mcad grid in the
   same worker leaks into polyholes with a geometry error, recorded as an
