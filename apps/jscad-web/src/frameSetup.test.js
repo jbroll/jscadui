@@ -57,6 +57,17 @@ describe('createFrame', () => {
     expect(el.contentWindow.postMessage).not.toHaveBeenCalled()
   })
 
+  it('sandboxes the frame without allow-same-origin', async () => {
+    const { el, load } = fakeDom()
+    const framePromise = build()
+    load()
+    const { workerApi } = await framePromise
+
+    const sandbox = el.setAttribute.mock.calls.filter(([name]) => name === 'sandbox')
+    expect(sandbox).toEqual([['sandbox', 'allow-scripts']])
+    workerApi.destroy()
+  })
+
   it('relays once the frame loads', async () => {
     const { el, load } = fakeDom()
     const framePromise = build()

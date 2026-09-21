@@ -1,10 +1,9 @@
 // Frame e2e micro-servers: the frame itself comes from its own dev server
 // (http://localhost:5121/, started by the playwright webServer or
 // ci/render). This module serves only what that server must not:
-//   5122 — /api/private (the exfil probe: a model that escapes the frame CSP
-//           would return data instead of a model error) and the __mark
-//           endpoints (a command that ran is observable even though its reply
-//           is dropped for a wrong-origin sender).
+//   5122 — the marker origin: __mark (a command that ran is observable even
+//           though its reply is dropped for a wrong-origin sender), __whoami
+//           (what authority a model's fetch carried) and __no-cors.
 //   5123 — frame-wrong.html, the attacker origin. frame-ancestors names the
 //           app origin, so this origin can't embed the frame; the
 //           wrong-origin test proves the frame also never answers it.
@@ -43,9 +42,6 @@ export const startServers = async () => {
       res.end('ok')
       return
     }
-    // The frame's fetch test targets this. It is reachable from the app
-    // origin, so a model that got through would return data instead of a
-    // model error.
     // Records what authority the caller carried. The model cannot read a
     // credentialed response back (CORS forbids it against a wildcard), so the
     // test reads the observation from the server instead.
@@ -64,11 +60,6 @@ export const startServers = async () => {
     // keeps a model from reading a response it has no business reading.
     if (pathname === '/__no-cors') {
       res.writeHead(200, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ secret: true }))
-      return
-    }
-    if (pathname === '/api/private') {
-      res.writeHead(200, { ...COMMON_HEADERS, 'Content-Type': 'application/json' })
       res.end(JSON.stringify({ secret: true }))
       return
     }

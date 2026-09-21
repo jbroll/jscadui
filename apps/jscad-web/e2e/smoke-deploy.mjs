@@ -7,6 +7,8 @@
  *   1. the app boots and a model renders (no error bar)
  *   2. Browse Demos lists examples via manifest.json — NOT a directory listing
  *      (catches the prod autoindex 403)
+ *   3. the CORS split the compute frame needs: examples carry
+ *      Access-Control-Allow-Origin, the API does not
  *
  *   node e2e/smoke-deploy.mjs --url https://jscad.rkroll.com
  */
@@ -70,12 +72,32 @@ try {
     const pg = await ctx.newPage()
     await pg.goto(url + '/#' + path, { waitUntil: 'domcontentloaded', timeout: 30000 })
     try { await pg.locator('#welcome-dismiss').click({ timeout: 3000 }) } catch { /* ignore */ }
-    await pg.locator('#progress').waitFor({ state: 'hidden', timeout }).catch(() => {})
+    // #progress starts display:none (static/main.css), so waiting for it to
+    // hide resolves before the model runs. html[data-render] is the real gate.
+    let settled = true
+    await pg.waitForFunction(
+      () => ['ok', 'error'].includes(document.documentElement.dataset.render),
+      null, { timeout },
+    ).catch(() => { settled = false })
     const errVisible = await pg.locator('#error-bar').isVisible().catch(() => false)
-    check(`${name} renders`, !errVisible,
-      errVisible ? (await pg.locator('#error-bar').textContent().catch(() => '') || '').replace(/\s+/g, ' ').trim().slice(0, 140) : '')
+    check(`${name} renders`, settled && !errVisible,
+      !settled ? `no render after ${timeout} ms`
+        : errVisible ? (await pg.locator('#error-bar').textContent().catch(() => '') || '').replace(/\s+/g, ' ').trim().slice(0, 140) : '')
     await ctx.close()
   }
+
+  // 3. The frame runs on its own origin, so example files must be readable
+  //    cross-origin while the API must not be.
+  const acao = async (path) => {
+    const res = await page.request.get(url + path, { failOnStatusCode: false })
+    return { status: res.status(), header: res.headers()['access-control-allow-origin'] ?? null }
+  }
+  const ex = await acao('/examples/openscad/01-basics/cube.scad')
+  check('examples send Access-Control-Allow-Origin: *', ex.status === 200 && ex.header === '*',
+    `${ex.status}, ACAO ${ex.header ?? 'absent'}`)
+  const api = await acao('/api/health')
+  check('/api/health sends no Access-Control-Allow-Origin', api.header === null,
+    api.header ? `ACAO ${api.header}` : '')
 } catch (e) {
   check('smoke run completed', false, String(e).split('\n')[0].slice(0, 160))
 }

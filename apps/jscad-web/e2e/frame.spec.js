@@ -114,12 +114,16 @@ test('a model error comes back as an error response', async ({ page }) => {
 })
 
 test('the frame names its own bundles and ignores the sender', async ({ page }) => {
+  const hostile = []
+  page.on('request', (req) => { if (req.url().startsWith(MARK)) hostile.push(req.url()) })
   await gotoHost(page)
   const res = await load(page, CUBE, {
     bundles: { '@jscad/modeling': `${MARK}/evil.js` },
   })
   expect(res.ok).toBe(true)
   expect(res.result.entities.length).toBe(1)
+  // Building is not the point: the sender's bundle URL must never be fetched.
+  expect(hostile).toEqual([])
 })
 
 test('a wrong-origin sender is never answered and cannot run a script', async ({ page, request }) => {
