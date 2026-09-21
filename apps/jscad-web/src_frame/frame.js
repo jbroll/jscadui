@@ -3,7 +3,7 @@ import { collectBuffers } from './collectBuffers.js'
 // Injected by esbuild at build time (see build.js).
 const ALLOWED_ORIGIN = __ALLOWED_ORIGIN__
 
-const BUNDLE_BASE = new URL('./build/', location.href).href
+const BUNDLE_BASE = new URL('./assets/', location.href).href
 
 const DEFAULT_TIMEOUT_MS = 30000
 

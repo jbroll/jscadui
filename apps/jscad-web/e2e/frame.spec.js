@@ -323,7 +323,7 @@ test('a manifold model loads its wasm and returns geometry', async ({ page }) =>
     `module.exports = { main }\n`,
   ), { engine: 'manifold', timeoutMs: 60000 })
   expect(res.ok).toBe(true)
-  expect(wasm).toEqual([`${RUN}/build/manifold.wasm`])
+  expect(wasm).toEqual([`${RUN}/assets/manifold.wasm`])
   const vertexCount = res.result.entities.reduce((n, e) => n + (e.vertices?.length ?? 0), 0)
   expect(vertexCount).toBeGreaterThan(0)
 })

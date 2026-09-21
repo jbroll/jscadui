@@ -237,9 +237,20 @@ await buildOne('.', outDir, 'main.js', watch, { format: 'esm', loader, define: {
 // sources (canonical, shared) plus src_frame's own worker entry
 // (blob __BUNDLE_BASE__ + project file map).
 const frameDir = outDir + '/frame'
-const frameBuildDir = frameDir + '/build'
+// Named 'assets', not 'build': deploy.sh publishes $content_dir/build when the
+// content dir has one, which would publish the bundles instead of the frame.
+const frameBuildDir = frameDir + '/assets'
 if (existsSync(frameBuildDir)) rmSync(frameBuildDir, { recursive: true, force: true })
 mkdirSync(frameBuildDir, { recursive: true })
+// Each production build renames frame.js to a new hash; drop the old ones.
+// A 'build' left by an older tree would make deploy.sh publish it in place of
+// the frame root, so it goes too.
+if (existsSync(frameDir)) {
+  for (const f of readdirSync(frameDir)) {
+    if (/^frame\.[0-9a-f]{8}\.js$/.test(f)) rmSync(frameDir + '/' + f)
+  }
+  rmSync(frameDir + '/build', { recursive: true, force: true })
+}
 const frameCjs = { '.js': 'js', '.jsx': 'jsx' }
 await buildBundle(frameBuildDir, 'bundle.jscad_modeling.js', { format: 'cjs', watch: dev, loader: frameCjs })
 await buildOne('src_bundle', frameBuildDir, 'bundle.manifold_modeling.js', watch, {

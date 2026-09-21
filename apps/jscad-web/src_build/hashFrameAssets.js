@@ -14,7 +14,7 @@ import { join } from 'path'
  * fully-current graph.
  */
 export function hashFrameAssets(outDir) {
-  const buildDir = join(outDir, 'build')
+  const buildDir = join(outDir, 'assets')
   const map = {}  // logical basename → hashed basename
   const h8 = buf => createHash('sha256').update(buf).digest('hex').slice(0, 8)
 
@@ -34,7 +34,7 @@ export function hashFrameAssets(outDir) {
     return hashed
   }
 
-  // 1. Leaf bundles (everything in build/ except the worker, which imports leaves).
+  // 1. Leaf bundles (everything in assets/ except the worker, which imports leaves).
   for (const f of readdirSync(buildDir)) {
     if (f.endsWith('.js') && f !== 'bundle.frame-worker.js') hashFile(buildDir, f)
   }

@@ -192,7 +192,10 @@ Two hosts, both required — an app with no frame has no engine, so the run
 host deploys first:
 
 - `jscad-run.rkroll.com`, from `deploy-run.conf`: the frame, with no SPA
-  fallback, so a bad path 404s instead of returning the app.
+  fallback, so a bad path 404s instead of returning the app. Its content dir is
+  `build/frame`, whose bundles live in `assets/`, not `build/`: deploy.sh
+  publishes a content dir's `dist/` or `build/` child when it has one, and a
+  `build/` child there would publish the bundles in place of the frame page.
 - `jscad.rkroll.com`, from `deploy.conf`: Apache serves the built bundle with
   SPA fallback and proxies `/api` to the Express service under systemd. Its
   vhost also carries the `/examples/` CORS block from `apache.configure.post.sh`
