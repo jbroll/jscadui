@@ -25,8 +25,10 @@ if [ ! -f packages/openscad/esm/index.js ]; then
   echo "✖ packages/openscad/esm not built"; exit 2
 fi
 ( cd "$APP" && npm run build ) || { echo "✖ jscad-web build failed"; exit 2; }
-if [ ! -f "$APP/build/main.js" ]; then
-  echo "✖ jscad-web build produced no build/main.js"; exit 2
+# A production build content-hashes its entry, so the artifact is main.<hash>.js
+# and index.html points at it; build/main.js never survives hashAssets.
+if ! ls "$APP"/build/main.*.js >/dev/null 2>&1; then
+  echo "✖ jscad-web build produced no hashed main entry"; exit 2
 fi
 ( cd "$APP" && npx playwright install chromium )
 
