@@ -23,7 +23,8 @@ export APP_PORT="${APP_PORT:-3006}"
 export DOMAIN_NAME="jscad.rkroll.com"
 export REMOTE_HOST="jscad.rkroll.com"
 export APP_URL="https://jscad.rkroll.com"
-RUN_URL="https://jscad-run.rkroll.com"
+RUN_DOMAIN="jscad-run.rkroll.com"
+RUN_URL="https://${RUN_DOMAIN}"
 
 echo "=== jscad-web Full Deployment ==="
 echo "App: $APP_URL"
@@ -31,8 +32,22 @@ echo "Frame: $RUN_URL"
 echo "Mode: $MODE"
 echo ""
 
+# Both hosts ship out of build/, and the run host's own APACHE_BUILD_CMD never
+# fires (the apache module only runs it when APACHE_CONTENT_DIR has a
+# package.json, and build/frame has none). Build once, here, before either.
+echo "[0/4] Building the workspace..."
+npm --prefix ../.. install --no-audit --no-fund
+npm run build
+echo "✓ Build complete"
+echo ""
+
+# deploy.sh sources the project config into this inherited environment, and
+# deploy-run.conf reads DOMAIN_NAME/REMOTE_HOST as ${VAR:-jscad-run...} — so
+# the app's exports above would win and put the frame on the app's hostname.
 echo "[1/4] Deploying compute frame host..."
-DEPLOY_SH_CONF="$(pwd)/deploy-run.conf" "$DEPLOY_SH" "$MODE" .
+DEPLOY_SH_CONF="$(pwd)/deploy-run.conf" \
+    DOMAIN_NAME="$RUN_DOMAIN" REMOTE_HOST="$RUN_DOMAIN" APP_URL="$RUN_URL" \
+    "$DEPLOY_SH" "$MODE" .
 echo "✓ Frame host deployed ($RUN_URL)"
 echo ""
 
@@ -67,7 +82,7 @@ else
     exit 1
 fi
 
-APP_URL="$APP_URL" node e2e/smoke-deploy.mjs
+node e2e/smoke-deploy.mjs --url "$APP_URL"
 echo ""
 echo "=== Deployment Complete ==="
 echo "App: $APP_URL"

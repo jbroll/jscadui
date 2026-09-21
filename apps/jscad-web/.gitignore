@@ -4,7 +4,8 @@ node_modules
 build
 build_dev
 /jscad
-deploy
+/deploy/*
+!/deploy/hooks/
 bin
 .tmp
 
