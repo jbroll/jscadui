@@ -3,8 +3,8 @@
 #
 #   sci push jscadui/web
 #
-# Browser e2e (render sweep, frame protocol) lives in ci/render; this entry is
-# the fast gate that nothing else ran after apps/jscad-studio was folded in.
+# Browser e2e (render sweep, frame protocol) lives in ci/render; this entry
+# also gates the app and AI chat e2e, since the frame is the only engine now.
 set -euo pipefail
 
 WORKTREE="$(cd "$(dirname "$0")/.." && pwd)"
@@ -22,3 +22,7 @@ npx vitest run
 cd "$APP/server"
 npm install
 npx vitest run
+
+cd "$APP"
+npx playwright install chromium
+npx playwright test e2e/app.spec.js e2e/ai-chat.spec.js

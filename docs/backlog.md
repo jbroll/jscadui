@@ -28,17 +28,6 @@ jscad-studio and jscad-studio-run folded into jscad-web and removed; the
 
 ## Compute frame
 
-The fold left the frame boundary half-covered. In rough priority order:
-
-- **No CI entry runs the jscad-web browser e2e** beyond `frame.spec.js`.
-  `ci/web` covers the unit suites and `ci/render` the render sweep, but
-  `app.spec.js`, `ai-chat.spec.js` and the rest run nowhere.
 - **The app still builds `bundle.worker.js` and `bundles.js`.** Nothing loads
   either since the editor moved into the frame. Drop the build step and the
   module, or keep `src_bundle` only for the parity tests that import it.
-- **The app origin needs `Access-Control-Allow-Origin` on model files.**
-  Examples, `#url=` models and gists resolve their siblings over the network
-  from inside the frame, which is a cross-origin read. `build.js` and
-  `serve.js` set it; the deployed `jscad.rkroll.com` vhost does not, so
-  multi-file examples will fail in production until it does. Scope the header
-  to the static paths, not `/api`.

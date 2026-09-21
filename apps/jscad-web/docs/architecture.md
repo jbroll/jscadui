@@ -43,12 +43,17 @@ tainted and a view capture is a local operation.
 shape the local worker's proxy had, so the params UI, the animation runner and
 the exporter drive it unchanged.
 
-The frame's `connect-src` is wide (`https:`, the run origin, and localhost in
-dev) because a model loaded from a real URL — an example, a `#url=` model, a
-gist — resolves its siblings over the network from inside the worker. Width
-costs little here: the frame holds no credentials and no storage, so a fetch
-from it carries no cookies and a `null` origin. The app origin has to answer
-those reads with `Access-Control-Allow-Origin`.
+The frame's `connect-src` is `https:` plus the run origin and localhost in
+dev — wide enough that a model can fetch and run code from any https host,
+via `require` from a CDN or a raw `fetch`. That width is deliberate: a model
+loaded from a real URL — an example, a `#url=` model, a gist — resolves its
+siblings over the network from inside the frame, and there is no fixed list
+of hosts to name in advance. The boundary's guarantee is not about which code
+runs; it is about what authority it runs with. The frame holds no cookies, no
+storage and no same-origin access, so a fetch from it carries a `null` origin
+and nothing else, regardless of which host answers or what script that host
+hands back. The app origin has to answer examples and OpenSCAD includes with
+`Access-Control-Allow-Origin` for the same reason (see Deployment).
 
 ### Naming a script
 
@@ -57,8 +62,14 @@ A project's files travel to the frame in a map keyed by bare path
 `PROJECT_BASE` (`http://project.local/`) and every sibling `require` resolves
 from the map (`src_frame/fileMap.js`). The app origin's `/swfs/` service-worker
 URLs never cross, because a service worker only serves clients it controls and
-the frame is not one. A model that came from a real URL keeps that URL and
-resolves over the network instead.
+the frame is not one — that is why the map exists at all, in place of the
+serving role a same-origin service worker would otherwise play.
+
+A model loaded from a real URL is different: `main.js` passes the app origin,
+not the model's own URL, as the base for a `#url=` model's siblings, so those
+resolve relative to `jscad.rkroll.com`, not to wherever the model was fetched
+from. The demo browser passes the model's own directory instead. Both cases
+resolve over the network rather than through the file map.
 
 ### Protocol
 
@@ -101,12 +112,14 @@ base is `self.location.origin` (`'null'` here); `build.js` swaps in
 
 ### Headers
 
-The frame is cross-origin, so its module script and the worker's bundle fetches
-need CORS. Three places set the same headers and must agree:
-
-- `build.js` — dev server middleware.
-- `serve.js` — production preview server.
-- `deploy/hooks/apache.configure.post.sh` — the deployed vhost.
+The frame is cross-origin, so its module script and the worker's bundle
+fetches need CORS. `build.js` (dev server middleware) and `serve.js`
+(production preview server) each set this for both hosts they can serve;
+`deploy/hooks/apache.configure.post.sh` sets it for whichever host it is
+running against, keyed by `APP_NAME`: the run host gets a vhost-wide block
+(frame CORS, `frame-ancestors`, `Permissions-Policy`), the app host gets a
+narrower one scoped to `/examples/` (see Deployment). The three places must
+keep the same shape for a given host.
 
 `build.js` also bakes the app origin into the frame page's CSP and into
 `__ALLOWED_ORIGIN__`: `http://localhost:<port>` for a dev build,
@@ -173,18 +186,31 @@ repository token. A project's file contents do cross, because a model's
 
 ## Deployment
 
-Apache serves the built bundle with SPA fallback and proxies `/api` to the
-Express service under systemd. The frame deploys separately to
-`jscad-run.rkroll.com` from `deploy-run.conf`, with its own header block and no
-SPA fallback, so a bad path 404s instead of returning the app. The session
-cookie is host-only on `jscad.rkroll.com`, never `.rkroll.com`.
+Two hosts, both required — an app with no frame has no engine, so the run
+host deploys first:
+
+- `jscad-run.rkroll.com`, from `deploy-run.conf`: the frame, with no SPA
+  fallback, so a bad path 404s instead of returning the app.
+- `jscad.rkroll.com`, from `deploy.conf`: Apache serves the built bundle with
+  SPA fallback and proxies `/api` to the Express service under systemd. Its
+  vhost also carries the `/examples/` CORS block from `apache.configure.post.sh`
+  (`Access-Control-Allow-Origin: *`, no `Access-Control-Allow-Credentials`,
+  scoped to `/examples/` and left off `/api/`) — a model in the frame reads an
+  example's sibling files and OpenSCAD includes as a cross-origin GET with a
+  `null` origin, which only `*` matches, and `/api/` and the relay deliberately
+  reject a `null` origin, so they must not inherit a vhost-wide grant.
+
+The session cookie is host-only on `jscad.rkroll.com`, never `.rkroll.com`.
 `deploy-full.sh` deploys the frontend, then the API, then checks
-`/api/health`.
+`/api/health`; the run host is deployed separately, first.
 
 ## History
 
 jscad-studio and jscad-studio-run were separate apps on two hosts
 (`jscad-studio.rkroll.com` and `run.jscad-studio.rkroll.com`). They folded
-into jscad-web on 2026-09-20; the frame moved from its own host to `/frame/`
-here, and the sandbox's opaque origin now carries the separation the second
-host used to provide.
+into jscad-web on 2026-09-20, and the frame briefly moved to `/frame/` on the
+app host. The second origin came back as `jscad-run.rkroll.com`: the sandbox
+attribute already strips the frame's authority, and the separate origin is a
+second, independent control rather than a replacement for it, so it returned
+alongside the CORS header `/examples/` needs to answer the frame's
+cross-origin reads.

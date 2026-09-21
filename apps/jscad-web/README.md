@@ -49,24 +49,20 @@ do not have `package.json` then jscad.app will try following.
 - FOLDER_NAME.js
 - FOLDER_NAME.ts
 
-jscad.app does not read node_modules for now, but loads dependencies from jsdelivr, and some modules may be bundled with jscad.app to avoid going to jsdelivr. `@jscad/modeling` itself is loaded through the `@jbroll/jscad-anchors` CDN build, which wraps the engine's own modeling bundle (`@jscad/modeling-for-anchors`) and re-exports it plus `anchors`:
+jscad.app does not read node_modules for now, but loads dependencies from jsdelivr, and some modules may be bundled with jscad.app to avoid going to jsdelivr. `@jscad/modeling` itself is loaded through the `@jbroll/jscad-anchors` CDN build, which wraps the engine's own modeling bundle (`@jscad/modeling-for-anchors`) and re-exports it plus `anchors`.
 
-```js
-const bundles = {
-  // local bundled alias for common libs.
-  '@jscad/modeling': 'https://cdn.jsdelivr.net/npm/@jbroll/jscad-anchors@0.1/dist/jscad-anchors.cjs',
-  '@jbroll/jscad-anchors': 'https://cdn.jsdelivr.net/npm/@jbroll/jscad-anchors@0.1/dist/jscad-anchors.cjs',
-  '@jscad/modeling-for-anchors': toUrl('./build/bundle.jscad_modeling.js'), // or bundle.manifold_modeling.js
-  '@jscad/modeling-for-manifold': toUrl('./build/bundle.jscad_modeling.js'),
-  '@jscad/io': toUrl('./build/bundle.jscad_io.js'),
-  '@jscad/csg': toUrl('./build/bundle.V1_api.js'),
-  '@jbroll/jscad-fluent': toUrl('./build/bundle.jscad-fluent.js'),
-}
-```
-
-See [src_frame/frame.js](src_frame/frame.js) for the exact mapping, including the params-core and jscad-text bundles. Fluent models (`require('@jbroll/jscad-fluent')`) resolve to the local `bundle.jscad-fluent.js` build, which re-exports the fluent API over the shared modeling bundle and the anchors CDN build; params work through the existing `@jscad-params` and `getParameterDefinitions` paths.
-
-The page cannot name a bundle URL. A script source inside the compute frame has to come from the frame's own origin, so the page sends an engine name and the frame fills in the map.
+The bundle map lives in [src_frame/frame.js](src_frame/frame.js), not on the
+page: a script source inside the compute frame has to come from the frame's
+own origin, so the page sends an engine name (`jscad` or `manifold`) with
+`jscadInit` and the frame fills in the map from its own `__BUNDLE_BASE__`,
+covering `@jscad/modeling`, `@jscad/modeling-for-anchors`,
+`@jscad/modeling-for-manifold`, `@jbroll/jscad-anchors`, `@jscad/io`,
+`@jscadui/model-tools`, `@jbroll/jscad-fluent`, `@jscad/csg`,
+`@jscadui/params-core` and `@jscadui/jscad-text`. Fluent models
+(`require('@jbroll/jscad-fluent')`) resolve to the local `bundle.jscad-fluent.js`
+build, which re-exports the fluent API over the shared modeling bundle and the
+anchors CDN build; params work through the existing `@jscad-params` and
+`getParameterDefinitions` paths.
 
 ## AI Chat
 
@@ -92,15 +88,18 @@ same-origin fetch. The page keeps the viewer, the editor and every control. See
 
 The frame builds into `build/frame/` as part of the normal web build and
 deploys to the run host from `deploy-run.conf`. Its CORS and frame-ancestors
-headers are set in three places that must agree: `build.js` (dev server),
-`serve.js` (`npm run serve`) and `deploy/hooks/apache.configure.post.sh` (the
-deployed vhost). The app origin is baked into the frame's CSP and
+headers are set in `build.js` (dev server), `serve.js` (`npm run serve`) and
+`deploy/hooks/apache.configure.post.sh` (the deployed vhost, keyed by
+`APP_NAME`). The app origin is baked into the frame's CSP and
 `__ALLOWED_ORIGIN__` at build time; `FRAME_APP_ORIGIN` overrides it, and
 `FRAME_RUN_ORIGIN` overrides the frame's own.
 
-The app origin must answer with `Access-Control-Allow-Origin` for model files:
-an example or a `#url=` model resolves its siblings over the network from
-inside the frame, which is a cross-origin read.
+The app origin answers `Access-Control-Allow-Origin: *` on `/examples/` for
+the same reason: an example resolves its sibling files over the network from
+inside the frame, a cross-origin GET with a `null` origin. A `#url=` model
+resolves its siblings against the app origin too — `main.js` passes it as the
+base, not the model's own URL — while a demo browser example resolves against
+its own directory.
 
 Tests: `npx playwright test e2e/frame.spec.js` covers the sandbox boundary —
 wrong-origin senders, storage access, and what authority a model's fetch
