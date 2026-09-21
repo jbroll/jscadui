@@ -78,6 +78,8 @@ requireHandlers.set('scad', (source, url, _readFile) => {
     for (const err of errors) console.warn(`OpenSCAD parse warning in ${url}:`, err.message)
   }
 
+  const attempts = []
+
   const tryFetch = (testUrl) => {
     const failTime = failureCache.get(testUrl)
     if (failTime && (Date.now() - failTime) < FAILURE_CACHE_TTL) {
@@ -96,9 +98,9 @@ requireHandlers.set('scad', (source, url, _readFile) => {
       failureCache.delete(testUrl)
       return content
     }
-    // "Cannot resolve" alone cannot tell a wrong path from a refused response,
-    // which is the whole diagnosis when includes fail on one host and not another.
-    console.error(`scad include fetch failed: ${testUrl} — ${reason ?? 'no content'}`)
+    // A worker inside a cross-origin frame has no console anyone can read, so
+    // the attempts ride the error instead.
+    attempts.push(`${testUrl} — ${reason ?? 'no content'}`)
     failureCache.set(testUrl, Date.now())
     return undefined
   }
@@ -131,7 +133,8 @@ requireHandlers.set('scad', (source, url, _readFile) => {
     )
     if (criticalErrors.length > 0) {
       const errorMessages = criticalErrors.map(e => e.message).join('; ')
-      throw new Error(`OpenSCAD transpilation failed: ${errorMessages}`)
+      const tried = attempts.length ? ` [tried ${attempts.join(' | ')}]` : ' [no candidate urls]'
+      throw new Error(`OpenSCAD transpilation failed: ${errorMessages}${tried}`)
     }
     for (const err of result.errors) {
       console.warn(`OpenSCAD transpile warning in ${url}:`, err.message)
