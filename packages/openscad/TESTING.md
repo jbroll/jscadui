@@ -136,7 +136,23 @@ node bin/run-jscad.js ../../apps/jscad-web/examples/openscad/bosl2/01-core/align
 
 ---
 
-## 5. Unit Tests
+## 5. Display Conversion (browser-only failures)
+
+The STL path unions `main()`'s result; the browser converts every entity
+separately and rejects anything that is not geometry. `display-check.js` runs
+that conversion in Node, so a browser-only failure can be reproduced without a
+browser:
+
+```bash
+node bin/display-check.js file.scad [--preview] [--lib-path <p>] [--fn <n>]
+```
+
+It prints each rejected entity with the reason, e.g. `invalid jscad geometry,
+not an object — symbol Symbol(no_child)`.
+
+---
+
+## 6. Unit Tests
 
 ```bash
 cd packages/openscad
@@ -156,7 +172,7 @@ npx vitest run -t "function calls"
 
 ---
 
-## 6. Debugging Failures
+## 7. Debugging Failures
 
 ### Check transpiled output
 
@@ -188,7 +204,7 @@ filename.scad
 
 ---
 
-## 7. Comparing with OpenSCAD
+## 8. Comparing with OpenSCAD
 
 ```bash
 # Generate reference STL from OpenSCAD
