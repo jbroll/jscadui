@@ -1,12 +1,15 @@
 import { describe, it, expect } from 'vitest'
 import { collectProjectFiles, isBinaryPath } from '../src/projectFiles.js'
 
+// Mirrors what the real Cache API does: addToCache() calls cache.put(new
+// Request(path), ...) with a leading-slash, project-relative path, which
+// resolves against the document origin with no swfs segment at all.
 const fakeSw = (entries) => ({
   base: 'http://localhost:5120/swfs/',
   cache: {
-    keys: async () => Object.keys(entries).map((path) => ({ url: `http://localhost:5120/swfs/${path}` })),
+    keys: async () => Object.keys(entries).map((path) => ({ url: new URL(`/${path}`, 'http://localhost:5120/').href })),
     match: async (request) => {
-      const path = new URL(request.url ?? request).pathname.replace('/swfs/', '')
+      const path = new URL(request.url ?? request).pathname.replace(/^\//, '')
       const body = entries[path]
       return {
         text: async () => String(body),
@@ -30,6 +33,12 @@ describe('collectProjectFiles', () => {
 
   it('returns an empty map with no handler', async () => {
     expect(await collectProjectFiles(undefined)).toEqual({})
+  })
+
+  it('keys carry no leading slash', async () => {
+    const files = await collectProjectFiles(fakeSw({ 'index.js': 'x' }))
+    expect(Object.keys(files)).toEqual(['index.js'])
+    expect(files['/index.js']).toBeUndefined()
   })
 })
 

@@ -9,6 +9,12 @@ export const isBinaryPath = (path) => BINARY_EXT.has(path.slice(path.lastIndexOf
  * The frame's worker is on another origin, so the file service worker cannot
  * serve it: a service worker only sees fetches from clients it controls. The
  * project travels in the message instead.
+ *
+ * addToCache() puts entries under `new Request(path)` where path is a
+ * leading-slash, project-relative path (e.g. `/index.js`); against the
+ * document origin that resolves to no `sw.base`/swfs prefix at all, just the
+ * bare pathname. Keys here drop only that leading slash, matching the
+ * leading-slash-free lookup in src_frame/fileMap.js's createReadFile.
  * @param {{base:string,cache:Cache}|undefined} sw
  * @returns {Promise<Record<string,string|ArrayBuffer>>}
  */
@@ -16,7 +22,7 @@ export const collectProjectFiles = async (sw) => {
   if (!sw?.cache) return {}
   const files = {}
   for (const request of await sw.cache.keys()) {
-    const path = new URL(request.url).pathname.replace(new URL(sw.base).pathname, '')
+    const path = new URL(request.url).pathname.replace(/^\//, '')
     const response = await sw.cache.match(request)
     if (!response) continue
     files[path] = isBinaryPath(path) ? await response.arrayBuffer() : await response.text()
