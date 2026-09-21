@@ -17,6 +17,7 @@ const COMMON_HEADERS = {
 }
 
 let markHits = 0
+let lastWhoami = null
 let servers = []
 
 const listen = (server, port) =>
@@ -45,11 +46,25 @@ export const startServers = async () => {
     // The frame's fetch test targets this. It is reachable from the app
     // origin, so a model that got through would return data instead of a
     // model error.
-    // Echoes back what authority the caller carried. A model's fetch must
-    // arrive with no cookies and an opaque origin.
+    // Records what authority the caller carried. The model cannot read a
+    // credentialed response back (CORS forbids it against a wildcard), so the
+    // test reads the observation from the server instead.
     if (pathname === '/__whoami') {
+      lastWhoami = { cookie: req.headers.cookie ?? null, origin: req.headers.origin ?? null }
       res.writeHead(200, { ...COMMON_HEADERS, 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ cookie: req.headers.cookie ?? null, origin: req.headers.origin ?? null }))
+      res.end(JSON.stringify(lastWhoami))
+      return
+    }
+    if (pathname === '/__whoami-last') {
+      res.writeHead(200, { ...COMMON_HEADERS, 'Content-Type': 'application/json' })
+      res.end(JSON.stringify(lastWhoami))
+      return
+    }
+    // Deliberately no Access-Control-Allow-Origin: CORS, not CSP, is what now
+    // keeps a model from reading a response it has no business reading.
+    if (pathname === '/__no-cors') {
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ secret: true }))
       return
     }
     if (pathname === '/api/private') {

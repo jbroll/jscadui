@@ -56,7 +56,8 @@ const runOrigin = process.env.FRAME_RUN_ORIGIN || (dev ? `http://localhost:${por
 const frameHtmlFilter = {
   filter: (content) => content
     .replaceAll('__RUN_ORIGIN__', runOrigin)
-    .replaceAll('__APP_ORIGIN__', appOrigin),
+    .replaceAll('__APP_ORIGIN__', appOrigin)
+    .replaceAll('__DEV_CONNECT__', dev ? 'http://localhost:*' : ''),
   include: ['frame/index.html'],
 }
 

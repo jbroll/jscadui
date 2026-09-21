@@ -20,18 +20,29 @@ import { framePort } from './framePort.js'
  * @param {(jobs: number) => void} options.onJobCount
  * @param {() => void} [options.onTerminated] - the frame killed its worker; re-init it
  * @param {string} options.runOrigin
+ * @param {number} [options.loadTimeoutMs]
  * @returns {Promise<{frameEl: HTMLIFrameElement, workerApi: JscadWorker, handlers: object}>}
  */
-export const createFrame = async ({ onError, onProgress, onEntities, onJobCount, onTerminated, runOrigin }) => {
+export const createFrame = async ({ onError, onProgress, onEntities, onJobCount, onTerminated, runOrigin, loadTimeoutMs = 15000 }) => {
   const frameEl = document.createElement('iframe')
   frameEl.src = runOrigin + '/'
   frameEl.setAttribute('sandbox', 'allow-scripts')
   frameEl.hidden = true
   // A message sent before the frame document runs is lost, and nothing in the
-  // protocol replays it.
+  // protocol replays it. An extension, a proxy or DNS can keep that load from
+  // ever arriving, so boot goes on without it rather than stopping the page:
+  // the editor and viewer still work, and every model run reports the failure.
+  let timer
   const ready = new Promise((resolve) => frameEl.addEventListener('load', resolve, { once: true }))
+  const deadline = new Promise((resolve) => {
+    timer = setTimeout(() => {
+      onError(new Error(`compute frame at ${runOrigin} did not load within ${loadTimeoutMs} ms; models cannot run`))
+      resolve(undefined)
+    }, loadTimeoutMs)
+  })
   document.body.appendChild(frameEl)
-  await ready
+  await Promise.race([ready, deadline])
+  clearTimeout(timer)
 
   const handlers = {
     /**

@@ -151,20 +151,28 @@ test('the frame document sends frame-ancestors for the app origin', async ({ req
 
 // A model loaded from a real URL resolves its siblings over the network from
 // inside the frame, so reachability is no longer the guarantee. What holds is
-// that the request carries nothing of the user's.
-test('a model fetch carries no cookies and a null origin', async ({ page }) => {
+// that the request carries nothing of the user's. The cookie is set on the
+// target origin and asked for explicitly, so an unsandboxed worker on the app
+// origin would send it: localhost is one site, and only the frame's opaque
+// origin makes the request cross-site.
+test('a model fetch carries no cookies and a null origin', async ({ page, context, request }) => {
+  await context.addCookies([{ name: 'session', value: 'secret', url: `${MARK}/` }])
   await gotoHost(page)
   const res = await load(page, project(
+    // The response is unreadable — credentials against a wildcard ACAO — so
+    // the model only has to make the request; the server records what arrived.
     `const main = async () => {\n` +
-    `  const r = await fetch('${MARK}/__whoami')\n` +
-    `  const body = await r.json()\n` +
-    `  if (body.cookie) throw new Error('cookie leaked: ' + body.cookie)\n` +
-    `  if (body.origin !== 'null') throw new Error('origin was ' + body.origin)\n` +
+    `  try { await fetch('${MARK}/__whoami', { credentials: 'include' }) } catch {}\n` +
     `  return []\n` +
     `}\n` +
     `module.exports = { main }\n`,
   ))
   expect(res.ok).toBe(true)
+
+  const seen = await (await request.get(`${MARK}/__whoami-last`)).json()
+  expect(seen).not.toBeNull()
+  expect(seen.cookie).toBeNull()
+  expect(seen.origin).toBe('null')
 })
 
 // The examples live on the app origin, so the editor's models must be able to
@@ -180,6 +188,21 @@ test('model fetch against the app origin is allowed', async ({ page }) => {
     `module.exports = { main }\n`,
   ))
   expect(res.ok).toBe(true)
+})
+
+// Reachability is now gated by CORS rather than by connect-src, so a response
+// that does not opt in stays unreadable. An over-broad vhost header would
+// regress this silently.
+test('a response without Access-Control-Allow-Origin is unreadable', async ({ page }) => {
+  await gotoHost(page)
+  const res = await load(page, project(
+    `const main = async () => {\n` +
+    `  const r = await fetch('${MARK}/__no-cors')\n` +
+    `  return [await r.json()]\n` +
+    `}\n` +
+    `module.exports = { main }\n`,
+  ))
+  expect(res.ok).toBe(false)
 })
 
 test('model fetch against the run origin is allowed', async ({ page }) => {
@@ -254,6 +277,9 @@ test('jscadExportData returns binary STL as ArrayBuffers', async ({ page }) => {
 
 test('a request over the timeout kills the worker and the next load starts fresh', async ({ page }) => {
   await gotoHost(page)
+  // Warm the worker before shortening the budget: the timeout covers a whole
+  // request, and a cold blob worker spends more than 500 ms on its bundles.
+  expect((await load(page, CUBE)).ok).toBe(true)
   const inited = await init(page, { timeoutMs: 500 })
   expect(inited.ok).toBe(true)
 
@@ -274,7 +300,8 @@ test('a request over the timeout kills the worker and the next load starts fresh
   const notice = await page.evaluate(() => window.seen('frameWorkerTerminated'))
   expect(notice.params[0].reason).toContain('500')
 
-  const res = await load(page, CUBE)
+  // The replacement worker is cold again, so it needs a real budget.
+  const res = await load(page, CUBE, { timeoutMs: 30000 })
   expect(res.ok).toBe(true)
   expect(res.result.entities.length).toBe(1)
 })

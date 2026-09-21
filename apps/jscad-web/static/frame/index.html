@@ -6,8 +6,10 @@
          nothing. frame-ancestors is meta-ignored, so it is a header (see serve.js).
          connect-src is wide because examples, #url= models and gists resolve
          their siblings over HTTP from inside the worker; the frame holds no
-         credentials and no storage, so a fetch from here carries no authority. -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src __RUN_ORIGIN__ https://cdn.jsdelivr.net blob: 'unsafe-eval'; connect-src https: __RUN_ORIGIN__ http://localhost:*; worker-src blob: __RUN_ORIGIN__; frame-ancestors __APP_ORIGIN__">
+         credentials and no storage, so a fetch from here carries no authority.
+         __DEV_CONNECT__ adds plain-http localhost for a dev build only: in
+         production it is empty, so a visitor's own machine stays unreachable. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src __RUN_ORIGIN__ https://cdn.jsdelivr.net blob: 'unsafe-eval'; connect-src https: __RUN_ORIGIN__ __DEV_CONNECT__; worker-src blob: __RUN_ORIGIN__; frame-ancestors __APP_ORIGIN__">
     <title>jscad studio compute frame</title>
   </head>
   <body>
