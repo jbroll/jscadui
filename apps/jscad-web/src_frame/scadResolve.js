@@ -1,7 +1,8 @@
 // Include resolution for OpenSCAD use/include, shared by the frame worker and
 // its tests. The transpiler hands each resolved file's bare pathname back as
 // fromFile, and a blob worker's self.location.origin is the string 'null', so
-// the transpile entry url's origin is the only base available.
+// the origin has to come from the entry url or, when that carries none, from
+// the app origin the frame was built with.
 
 const isAbsoluteUrl = (path) => path.startsWith('http://') || path.startsWith('https://')
 
@@ -18,16 +19,20 @@ const libraryDir = (contextFile) => {
  * @param {string} filename
  * @param {string|undefined} fromFile path or URL of the including file
  * @param {string} entryUrl URL of the file that started the transpile
+ * @param {string} [fallbackOrigin] origin to use when entryUrl carries none
  * @returns {string[]}
  */
-export const includeCandidates = (filename, fromFile, entryUrl) => {
+export const includeCandidates = (filename, fromFile, entryUrl, fallbackOrigin) => {
   let origin
   try {
     origin = new URL(entryUrl).origin
   } catch {
-    return []
+    origin = null
   }
-  if (origin === 'null') return []
+  // A bare pathname parses as nothing and a blob: url's origin is the string
+  // 'null'; an entry url that does carry an origin still wins.
+  if (!origin || origin === 'null') origin = fallbackOrigin
+  if (!origin || origin === 'null') return []
 
   const context = fromFile || entryUrl
   const base = dirOf(context)

@@ -32,7 +32,30 @@ describe('includeCandidates', () => {
     )
   })
 
-  it('gives up when the entry url carries no usable origin', () => {
+  it('resolves a bare pathname entry url against the fallback origin', () => {
+    const entry = '/examples/openscad/nopscadlib/NopSCADlib/tests/sheets.scad'
+    const fromFile = '/examples/openscad/nopscadlib/NopSCADlib/vitamins/sheets.scad'
+    expect(includeCandidates('../utils/core/core.scad', fromFile, entry, 'http://localhost:5120')[0]).toBe(
+      'http://localhost:5120/examples/openscad/nopscadlib/NopSCADlib/utils/core/core.scad',
+    )
+  })
+
+  it('resolves a blob entry url against the fallback origin', () => {
+    const entry = 'blob:null/8f3c1b5e-0000-4000-8000-000000000000'
+    const fromFile = '/examples/openscad/bosl2/01-part1/cube.scad'
+    expect(includeCandidates('BOSL2/std.scad', fromFile, entry, 'http://localhost:5120')).toEqual([
+      'http://localhost:5120/examples/openscad/bosl2/01-part1/BOSL2/std.scad',
+      'http://localhost:5120/examples/openscad/bosl2/BOSL2/std.scad',
+    ])
+  })
+
+  it('prefers the entry url origin over the fallback', () => {
+    expect(includeCandidates('b.scad', undefined, 'https://example.com/a/a.scad', 'http://localhost:5120')[0]).toBe(
+      'https://example.com/a/b.scad',
+    )
+  })
+
+  it('gives up when neither the entry url nor a fallback carries an origin', () => {
     expect(includeCandidates('a.scad', '/b.scad', 'b.scad')).toEqual([])
   })
 })

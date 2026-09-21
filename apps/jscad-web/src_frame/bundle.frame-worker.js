@@ -6,7 +6,7 @@ importScripts(bundleBase + 'bundle.jscadui.transform-babel.js')
 
 const { transformcjs } = jscadui_transform_babel
 
-import { initWorker, currentSolids } from '@jscadui/worker'
+import { initWorker, currentSolids, jscadInit } from '@jscadui/worker'
 import { readFileWeb, require, requireHandlers, jscadClearTempCache, clearFileCache } from '@jscadui/require'
 import { withTransferable } from '@jscadui/postmessage'
 import { defaultSerializerConfigs } from '@jscadui/format-common/src/exportFormats.js'
@@ -17,6 +17,14 @@ import { includeCandidates, isSpaFallback } from './scadResolve.js'
 // which consults this map before fetching over the network.
 export const jscadSetFiles = ({ files }) => {
   self.__PROJECT_FILES__ = files
+}
+
+// The frame adds appOrigin to every jscadInit: this worker's own origin is
+// opaque, so include urls with no origin of their own have no other base.
+let appOrigin = null
+const frameInit = ({ appOrigin: origin, ...options }) => {
+  if (origin) appOrigin = origin
+  return jscadInit(options)
 }
 
 // Cache for failed URL fetches (to avoid repeated 404s)
@@ -114,7 +122,7 @@ requireHandlers.set('scad', (source, url, _readFile) => {
   }
 
   const fileResolver = (filename, fromFile) => {
-    for (const candidate of includeCandidates(filename, fromFile, url)) {
+    for (const candidate of includeCandidates(filename, fromFile, url, appOrigin)) {
       const content = tryFetch(candidate)
       if (content !== undefined) return { path: urlToPath(candidate), content }
     }
@@ -199,6 +207,7 @@ initWorker({
   jscadExportData,
   importData,
   customHandlers: {
+    jscadInit: frameInit,
     jscadGetExportFormats,
     jscadMeasure,
     jscadCheck,

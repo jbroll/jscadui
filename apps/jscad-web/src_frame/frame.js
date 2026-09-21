@@ -80,7 +80,9 @@ const frameInit = (data) => {
   const { engine: wanted, timeoutMs: wantedTimeout, ...init } = options
   if (wanted) engine = wanted
   if (wantedTimeout) timeoutMs = wantedTimeout
-  return { ...data, params: [{ ...init, bundles: workerBundles(engine) }, ...rest] }
+  // The worker's own origin is opaque, so it gets the app origin here; it is
+  // the only base for include urls that arrive as bare pathnames.
+  return { ...data, params: [{ ...init, bundles: workerBundles(engine), appOrigin: ALLOWED_ORIGIN }, ...rest] }
 }
 
 window.addEventListener('message', (event) => {
