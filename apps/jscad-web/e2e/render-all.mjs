@@ -112,6 +112,11 @@ async function renderOne(context, opts, file, idx) {
   const consoleErrs = []
   page.on('console', m => { if (m.type() === 'error') consoleErrs.push(m.text().slice(0, 200)) })
   page.on('pageerror', e => consoleErrs.push('PAGEERR: ' + String(e).slice(0, 200)))
+  // A failed include reads the same whether the path was wrong or the file was
+  // missing, so record which URL the browser was refused and with what.
+  const badRequests = []
+  page.on('response', r => { if (r.status() >= 400) badRequests.push(`${r.status()} ${r.url()}`) })
+  page.on('requestfailed', r => badRequests.push(`${r.failure()?.errorText ?? 'failed'} ${r.url()}`))
   // Cache-busting query forces a full document load → fresh worker per file.
   const target = `${opts.server}/?r=${idx}#${file.url}`
   let status, errText = ''
@@ -132,7 +137,7 @@ async function renderOne(context, opts, file, idx) {
     errText = String(e).replace(/\s+/g, ' ').slice(0, 200)
   }
   await page.close().catch(() => {})
-  return { rel: file.rel, status, errText, consoleErrs: consoleErrs.slice(0, 5) }
+  return { rel: file.rel, status, errText, consoleErrs: consoleErrs.slice(0, 5), badRequests: badRequests.slice(0, 5) }
 }
 
 // ── pool runner ──────────────────────────────────────────────────────────────
@@ -198,6 +203,7 @@ async function run() {
     for (const f of fails) {
       console.log(`  [${f.status}] ${f.rel}`)
       if (f.errText) console.log(`        ${f.errText}`)
+      for (const bad of f.badRequests ?? []) console.log(`        ↳ ${bad}`)
     }
   }
 
