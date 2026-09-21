@@ -84,15 +84,21 @@ requireHandlers.set('scad', (source, url, _readFile) => {
       return undefined
     }
     let content
+    let reason
     try {
       content = _readFile(testUrl)
-    } catch {
+      if (content !== undefined && isSpaFallback(content)) reason = 'server returned an html fallback'
+    } catch (error) {
       content = undefined
+      reason = error?.message ?? String(error)
     }
-    if (content !== undefined && !isSpaFallback(content)) {
+    if (content !== undefined && !reason) {
       failureCache.delete(testUrl)
       return content
     }
+    // "Cannot resolve" alone cannot tell a wrong path from a refused response,
+    // which is the whole diagnosis when includes fail on one host and not another.
+    console.error(`scad include fetch failed: ${testUrl} — ${reason ?? 'no content'}`)
     failureCache.set(testUrl, Date.now())
     return undefined
   }
