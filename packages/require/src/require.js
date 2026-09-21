@@ -236,7 +236,20 @@ export const require = (urlOrSource, transform, readFile, base, root, importData
       }
       // construct require function relative to resolvedUrl
       const requireFunc = newUrl => require(newUrl, transform, readFile, resolvedUrl, root, importData, moduleBase)
-      const module = requireModule(url, resolvedUrl, source, requireFunc)
+      // CommonJS cycle semantics: cache the exports object before running the
+      // module, so a require that comes back around gets the partial exports.
+      // The OpenSCAD transpiler emits mutual `use` requires (NopSCADlib's
+      // screw.scad / nut.scad) and reads them lazily, which only works if a
+      // re-entrant require returns an object instead of throwing.
+      const pending = {}
+      if (cacheUrl) cacheManager.set(cacheUrl, pending, isRelativeFile)
+      let module
+      try {
+        module = requireModule(url, resolvedUrl, source, requireFunc, pending)
+      } catch (err) {
+        if (cacheUrl) cacheManager.unset(cacheUrl, isRelativeFile)
+        throw err
+      }
       module.local = isRelativeFile
       exports = module.exports
       // import jscad from "@jscad/modeling";
@@ -269,9 +282,8 @@ export const require = (urlOrSource, transform, readFile, base, root, importData
   }
 }
 
-const requireModule = (id, url, source, _require) => {
+const requireModule = (id, url, source, _require, exports = {}) => {
   try {
-    const exports = {}
     const module = { id, uri: url, exports, source } // according to node.js modules
     //module.require = _require
     source += '\n//# sourceURL=' + url

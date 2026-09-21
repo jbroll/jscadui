@@ -3,14 +3,14 @@ import { dismissWelcome, waitForRender, assertNoError } from './helpers.js'
 
 test.describe('URL hash navigation', () => {
   test('loads an example file via URL hash', async ({ page }) => {
-    await page.goto('/#./examples/primitives.example.js')
+    await page.goto('/#./examples/jscad/04-primitives.example.js')
     await dismissWelcome(page)
     await waitForRender(page)
     await assertNoError(page)
   })
 
   test('editor shows the loaded script content', async ({ page }) => {
-    await page.goto('/#./examples/primitives.example.js')
+    await page.goto('/#./examples/jscad/04-primitives.example.js')
     await dismissWelcome(page)
     await waitForRender(page)
 
@@ -22,7 +22,7 @@ test.describe('URL hash navigation', () => {
   })
 
   test('error bar is hidden for a valid example', async ({ page }) => {
-    await page.goto('/#./examples/primitives.example.js')
+    await page.goto('/#./examples/jscad/04-primitives.example.js')
     await dismissWelcome(page)
     await waitForRender(page)
     await assertNoError(page)

@@ -26,6 +26,19 @@ jscad-studio and jscad-studio-run folded into jscad-web and removed; the
 
 
 
+## Render sweep
+
+- **`e2e/render-baseline.json` is not a baseline.** It was recorded with a
+  harness that raced `#progress` → hidden, which `main.css` sets to
+  `display: none`, so most pages were closed before the model ran and reported
+  a pass. The sweep now waits on `html[data-render]`; re-record the baseline
+  from a full CI run and re-triage. A local honest sweep of nopscadlib is
+  44/145, against 129/145 in the old file.
+- **Most of NopSCADlib does not render in the browser.** 85 of 145 fail with
+  `invalid jscad geometry, not an object`, the same on `main` as on the frame
+  branch, while the Node STL corpus passes them. Browser-only, pre-existing,
+  and unrelated to the compute frame.
+
 ## Compute frame
 
 - **The app still builds `bundle.worker.js` and `bundles.js`.** Nothing loads

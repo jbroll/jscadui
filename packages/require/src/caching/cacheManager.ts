@@ -220,6 +220,19 @@ export class CacheManager {
   }
 
   /**
+   * Drop a module from cache. Used when a module that was registered before
+   * evaluation (for cycle handling) failed to evaluate.
+   */
+  unset(url: string, isRelativeFile: boolean): void {
+    if (isRelativeFile) {
+      delete this.localCache[url]
+    } else {
+      this.moduleCache.delete(url)
+      this.dependencies.delete(url)
+    }
+  }
+
+  /**
    * Check if currently loading (for circular dependency detection)
    */
   isLoading(url: string): boolean {

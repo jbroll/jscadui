@@ -427,6 +427,7 @@ viewState.onRequireReRender = () => paramChangeCallback(ctrl.params)
 const jscadScript = async ({ script, url = './jscad.model.js', base = currentBase, root }) => {
   currentBase = base
   loadDefault = false
+  document.documentElement.dataset.render = 'running'
 
   // Save params if preserving across engine switch
   const shouldPreserve = paramsUI.consumePreserveParams()

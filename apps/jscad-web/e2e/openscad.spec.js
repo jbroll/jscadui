@@ -3,7 +3,7 @@ import { dismissWelcome, waitForRender, assertNoError } from './helpers.js'
 
 test.describe('OpenSCAD (.scad) file loading', () => {
   test('loads cube.scad via hash navigation', async ({ page }) => {
-    await page.goto('/#/examples/openscad/01-basics/01-cube.scad')
+    await page.goto('/#/examples/openscad/01-basics/cube.scad')
     await dismissWelcome(page)
 
     // Wait for model to render
@@ -14,7 +14,7 @@ test.describe('OpenSCAD (.scad) file loading', () => {
   })
 
   test('loads sphere.scad via hash navigation', async ({ page }) => {
-    await page.goto('/#/examples/openscad/01-basics/03-sphere.scad')
+    await page.goto('/#/examples/openscad/01-basics/sphere.scad')
     await dismissWelcome(page)
 
     // Wait for model to render
@@ -25,7 +25,7 @@ test.describe('OpenSCAD (.scad) file loading', () => {
   })
 
   test('loads cylinder.scad via hash navigation', async ({ page }) => {
-    await page.goto('/#/examples/openscad/01-basics/04-cylinder.scad')
+    await page.goto('/#/examples/openscad/01-basics/cylinder.scad')
     await dismissWelcome(page)
 
     // Wait for model to render
@@ -36,7 +36,7 @@ test.describe('OpenSCAD (.scad) file loading', () => {
   })
 
   test('loads linear-extrude.scad with OpenSCAD-specific functions', async ({ page }) => {
-    await page.goto('/#/examples/openscad/01-basics/10-linear-extrude.scad')
+    await page.goto('/#/examples/openscad/01-basics/linear-extrude.scad')
     await dismissWelcome(page)
 
     // Wait for model to render

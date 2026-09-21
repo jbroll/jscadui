@@ -123,10 +123,13 @@ async function renderOne(context, opts, file, idx) {
   try {
     await page.goto(target, { waitUntil: 'domcontentloaded', timeout: opts.timeout })
     try { await page.locator('#welcome-dismiss').click({ timeout: 1500 }) } catch {}
-    status = await Promise.race([
-      page.locator('#progress').waitFor({ state: 'hidden', timeout: opts.timeout }).then(() => 'ok'),
-      page.locator('#error-bar').waitFor({ state: 'visible', timeout: opts.timeout }).then(() => 'error'),
-    ])
+    // The app marks html[data-render] running → ok/error. #progress cannot be
+    // waited on: it starts display:none, so 'hidden' resolves before the model
+    // has even begun and every page reads as a pass.
+    status = await page.waitForFunction(
+      () => ['ok', 'error'].includes(document.documentElement.dataset.render),
+      null, { timeout: opts.timeout },
+    ).then(() => page.evaluate(() => document.documentElement.dataset.render))
     if (await page.locator('#error-bar').isVisible().catch(() => false)) {
       status = 'error'
       errText = ((await page.locator('#error-bar').textContent().catch(() => '')) || '')

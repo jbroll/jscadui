@@ -15,12 +15,15 @@ export async function dismissWelcome(page) {
 }
 
 /**
- * Wait for the progress bar to finish and the model to be rendered.
- * Returns when the progress element is hidden (computation done).
+ * Wait for the model run to settle. The app marks html[data-render] running →
+ * ok/error. #progress cannot be waited on: it starts display:none, so 'hidden'
+ * resolves before the model has begun and every page reads as a pass.
  */
 export async function waitForRender(page, timeout = 20_000) {
-  // Progress bar hides when worker finishes
-  await page.locator('#progress').waitFor({ state: 'hidden', timeout })
+  await page.waitForFunction(
+    () => ['ok', 'error'].includes(document.documentElement.dataset.render),
+    null, { timeout },
+  )
 }
 
 /**

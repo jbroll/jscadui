@@ -13,6 +13,13 @@ const errorMessage = document.getElementById('error-message')
  * @param {unknown} error
  */
 export const setError = error => {
+  // Headless runs need a settled state to wait for; #progress starts hidden, so
+  // its visibility cannot say whether a model has finished (see e2e/render-all.mjs).
+  // An error settles the state whenever it arrives; a clear only settles a run
+  // that is actually in flight, so an early clear cannot report a pass.
+  const root = document.documentElement
+  if (error) root.dataset.render = 'error'
+  else if (root.dataset.render === 'running') root.dataset.render = 'ok'
   if (error) {
     // Type-safe access to error properties
     const isErrorLike = error && typeof error === 'object'

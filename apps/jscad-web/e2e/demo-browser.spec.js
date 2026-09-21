@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { dismissWelcome, waitForRender, assertNoError } from './helpers.js'
+import { dismissWelcome, assertNoError } from './helpers.js'
 
 test.describe('Demo browser panel', () => {
   test.beforeEach(async ({ page }) => {
@@ -45,8 +45,9 @@ test.describe('Demo browser panel', () => {
 
     // Panel should remain open
     await expect(page.locator('.demo-panel')).toBeVisible()
-    // Model should render
-    await waitForRender(page)
+    // The first entry is the whole-corpus ALL.js grid, too heavy to wait out
+    // here; that it starts running is what this test is about.
+    await page.waitForFunction(() => document.documentElement.dataset.render === 'running')
     await assertNoError(page)
   })
 
