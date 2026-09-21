@@ -60,4 +60,10 @@ test.describe('Menu', () => {
     await page.locator('#menu-button').click()
     await expect(page.locator('#menu-content')).toContainText('Browse Demos')
   })
+
+  test('a first visit gets the manifold modeling engine', async ({ page }) => {
+    await page.goto('/')
+    await dismissWelcome(page)
+    await expect(page.locator('#modeling-engine')).toHaveValue('manifold')
+  })
 })

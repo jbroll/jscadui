@@ -58,7 +58,9 @@ export class ViewState {
     this.smoothRenderInput.checked = this.smoothRender
     this.zoomToFit = localStorage.getItem('engine.zoomToFit') === 'true'
     this.zoomToFitInput.checked = this.zoomToFit
-    this.modelingEngine = localStorage.getItem('engine.modelingEngine') || 'jscad'
+    // manifold renders 762 of the 789 examples against jscad's 623, and it is
+    // the engine the STL comparison suite verifies.
+    this.modelingEngine = localStorage.getItem('engine.modelingEngine') || 'manifold'
     this.modelingEngineInput.value = this.modelingEngine
     this.renderEngine = localStorage.getItem('engine.renderEngine') || 'threejs'
     this.renderEngineInput.value = this.renderEngine
