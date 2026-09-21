@@ -10,7 +10,7 @@
  * on the first non-object. This reproduces that path in Node.
  *
  * Usage:
- *   node packages/openscad/bin/display-check.js model.scad [--preview] [--lib-path <p>]
+ *   node packages/openscad/bin/display-check.js model.scad [--preview] [--engine jscad] [--lib-path <p>]
  */
 
 import { resolve } from 'node:path'
@@ -18,12 +18,13 @@ import { JscadToCommon } from '../../format-jscad/index.js'
 import { initScadRuntime, evalScadSolidSync } from './run-jscad.js'
 
 function parseArgs(argv) {
-  const o = { input: null, preview: false, libPaths: [], fn: 0 }
+  const o = { input: null, preview: false, libPaths: [], fn: 0, engine: 'manifold' }
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     if (a === '--preview') o.preview = true
     else if (a === '--lib-path') o.libPaths.push(argv[++i])
     else if (a === '--fn') o.fn = Number(argv[++i])
+    else if (a === '--engine') o.engine = argv[++i]
     else if (!o.input) o.input = a
     else throw new Error(`unknown arg: ${a}`)
   }
@@ -41,11 +42,11 @@ function describe(v) {
 
 const opts = parseArgs(process.argv.slice(2))
 if (!opts.input) {
-  console.error('usage: display-check.js <model.scad> [--preview] [--lib-path <p>] [--fn <n>]')
+  console.error('usage: display-check.js <model.scad> [--preview] [--engine jscad|manifold] [--lib-path <p>] [--fn <n>]')
   process.exit(2)
 }
 
-const ctx = await initScadRuntime()
+const ctx = await initScadRuntime({ engine: opts.engine })
 const entities = evalScadSolidSync(resolve(opts.input), ctx, {
   fn: opts.fn, libPaths: opts.libPaths, preview: opts.preview, raw: true,
 })

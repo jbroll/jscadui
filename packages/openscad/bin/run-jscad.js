@@ -459,12 +459,33 @@ export function transpileScad(source, fileName, fileDir, fn = 0, sourceComments 
 // These are initialized once per process and shared across all in-process calls.
 
 let _manifoldRuntime = null
+let _jscadRuntime = null
 let _manifoldModule = null
 let _openscadRuntime = null
 
 async function _getManifoldRuntime() {
   if (!_manifoldRuntime) _manifoldRuntime = await createRuntime()
   return _manifoldRuntime
+}
+
+/**
+ * The modeling runtime the browser uses when the engine is `jscad`: plain
+ * @jscad/modeling, whose API the Manifold runtime above is shaped after.
+ */
+async function _getJscadRuntime() {
+  if (!_jscadRuntime) {
+    // CommonJS: the package's exports arrive under .default.
+    const mod = await import('@jscad/modeling')
+    _jscadRuntime = mod.primitives ? mod : mod.default
+  }
+  return _jscadRuntime
+}
+
+/** @param {'manifold'|'jscad'} engine */
+export async function getModelingRuntime(engine = 'manifold') {
+  if (engine === 'jscad') return _getJscadRuntime()
+  if (engine !== 'manifold') throw new Error(`unknown engine: ${engine}`)
+  return _getManifoldRuntime()
 }
 
 /** Return the raw initialized Manifold module (for STL comparison). */
@@ -608,9 +629,9 @@ function createParamsProxy() {
  * Memoized via module-level caches — safe to call multiple times.
  * @returns {Promise<{ jscadModeling, openscadRuntime }>}
  */
-export async function initScadRuntime() {
+export async function initScadRuntime({ engine = 'manifold' } = {}) {
   await _systemFontsReady
-  const jscadModeling = await _getManifoldRuntime()
+  const jscadModeling = await getModelingRuntime(engine)
   const openscadRuntime = await _getOpenscadRuntime()
   openscadRuntime.j$.init(jscadModeling)
   return { jscadModeling, openscadRuntime }
