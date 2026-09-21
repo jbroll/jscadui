@@ -300,6 +300,10 @@ const clearFileCacheWithTranspiled = ({ files, root }) => {
   }
 }
 
+// No-op: this bundle runs models locally via the service worker, so the project
+// file map (real handler in src_frame/bundle.frame-worker.js) has nothing to read here.
+const jscadSetFiles = () => {}
+
 initWorker({
   transform: transformcjs,
   jscadExportData: exportData,
@@ -310,6 +314,7 @@ initWorker({
     jscadCheck,
     jscadClearTempCache: clearAllCaches,          // Clears all caches including transpile
     jscadClearFileCache: clearFileCacheWithTranspiled,  // Evicts specific changed files
+    jscadSetFiles,
   }
 })
  

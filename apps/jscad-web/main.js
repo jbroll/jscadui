@@ -56,6 +56,7 @@ import { initProjects } from './src/projects.js'
 import { extractEntries, readAsText, readDir } from '@jscadui/fs-provider'
 import { createWorker, createJobTracker } from './src/workerSetup.js'
 import { framePort } from './src/framePort.js'
+import { collectProjectFiles } from './src/projectFiles.js'
 import { messageProxy } from '@jscadui/postmessage'
 import * as fileSystem from './src/fileSystem.js'
 import * as paramsUI from './src/paramsUI.js'
@@ -482,6 +483,7 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
     }
     // Query renderer capability for GPU normals support
     const useGpuNormals = viewState.viewer?.supportsGpuNormals ?? false
+    await workerApi.jscadSetFiles({ files: await collectProjectFiles(fileSystem.getSwHandler()) })
     const result = await workerApi.jscadScript({ script, url, base, root, useGpuNormals })
 
     if (result.proxyState && useParamsProxy) {
