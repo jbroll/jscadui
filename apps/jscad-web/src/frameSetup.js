@@ -9,6 +9,10 @@ import { framePort } from './framePort.js'
  * @typedef {import('@jscadui/worker').JscadWorker} JscadWorker
  */
 
+// Not RPC methods, so they answer normally whether or not the frame loaded.
+// 'then' matters: manufacturing one would make the proxy look like a promise.
+const PASS_THROUGH = new Set(['then', 'destroy', 'onmessage', 'getRpcJobCount'])
+
 /**
  * The compute frame stands in for the local worker. sandbox without
  * allow-same-origin gives it an opaque origin: model code runs with no
@@ -30,13 +34,18 @@ export const createFrame = async ({ onError, onProgress, onEntities, onJobCount,
   frameEl.hidden = true
   // A message sent before the frame document runs is lost, and nothing in the
   // protocol replays it. An extension, a proxy or DNS can keep that load from
-  // ever arriving, so boot goes on without it rather than stopping the page:
-  // the editor and viewer still work, and every model run reports the failure.
+  // ever arriving, so boot goes on without it rather than stopping the page.
+  let loaded = false
   let timer
-  const ready = new Promise((resolve) => frameEl.addEventListener('load', resolve, { once: true }))
+  const ready = new Promise((resolve) => frameEl.addEventListener('load', () => {
+    loaded = true
+    resolve(undefined)
+  }, { once: true }))
+  const notLoaded = () =>
+    new Error(`compute frame at ${runOrigin} did not load within ${loadTimeoutMs} ms; models cannot run`)
   const deadline = new Promise((resolve) => {
     timer = setTimeout(() => {
-      onError(new Error(`compute frame at ${runOrigin} did not load within ${loadTimeoutMs} ms; models cannot run`))
+      onError(notLoaded())
       resolve(undefined)
     }, loadTimeoutMs)
   })
@@ -59,7 +68,18 @@ export const createFrame = async ({ onError, onProgress, onEntities, onJobCount,
     },
   }
 
-  const workerApi = /** @type {JscadWorker} */ (messageProxy(framePort(frameEl, runOrigin), handlers, { onJobCount }))
+  const proxy = messageProxy(framePort(frameEl, runOrigin), handlers, { onJobCount })
+
+  // A frame that never loaded cannot answer, and the message proxy would wait
+  // out its five-minute default to find that out — long enough to stall the
+  // boot path, which awaits jscadInit and the export format list. Reject the
+  // call instead, and go back to relaying if a slow frame does turn up.
+  const workerApi = /** @type {JscadWorker} */ (new Proxy(proxy, {
+    get: (target, prop) => {
+      if (loaded || PASS_THROUGH.has(prop) || typeof prop !== 'string') return target[prop]
+      return () => Promise.reject(notLoaded())
+    },
+  }))
 
   return { frameEl, workerApi, handlers }
 }

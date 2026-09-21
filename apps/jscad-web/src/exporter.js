@@ -32,10 +32,14 @@ let workerApi
 export const init = async (newWorkerApi) => {
   workerApi = newWorkerApi
 
-  // Fetch available formats from the worker (single source of truth)
+  // Fetch available formats from the worker (single source of truth). A frame
+  // that never loaded cannot answer; the dropdown drops to what the page can
+  // do on its own rather than taking the boot path down with it.
   let formats = []
-  if (workerApi.jscadGetExportFormats) {
+  try {
     formats = await workerApi.jscadGetExportFormats()
+  } catch (err) {
+    console.warn('export formats unavailable:', err)
   }
 
   // Build export format entries from worker-provided formats
