@@ -216,13 +216,13 @@ const j$ = {
   /**
    * OpenSCAD offset() - offsets a 2D shape outward (positive) or inward (negative)
    * r=val -> round corners (uses expansions.offset with corners='round')
-   * delta=val -> sharp corners (corners='sharp')
+   * delta=val -> sharp corners (JSCAD calls this mode 'edge')
    * delta=val, chamfer=true -> chamfered corners (corners='chamfer')
    */
   offset({ r, delta, chamfer = false } = {}, child) {
     if (child === _NO_CHILD) return _NO_CHILD
     const amount = r !== undefined ? r : (delta !== undefined ? delta : 0)
-    const corners = r !== undefined ? 'round' : (chamfer ? 'chamfer' : 'sharp')
+    const corners = r !== undefined ? 'round' : (chamfer ? 'chamfer' : 'edge')
     if (!child) return undefined
     const jscad = j$.jscad
     // For round corners, use $fn/$fa/$fs segment count (same as circle/cylinder)

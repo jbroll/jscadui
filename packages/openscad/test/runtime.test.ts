@@ -480,3 +480,32 @@ describe('sphere negative radius guard', () => {
     expect(_sphere({ r: -3 })).toBeUndefined()
   })
 })
+
+describe('offset corners', () => {
+  // JSCAD names the sharp-corner mode 'edge'; anything else throws
+  // 'corners must be "edge", "chamfer", or "round"'.
+  const captureOptions = (args: Record<string, unknown>) => {
+    const runtime = j$ as unknown as { jscad: unknown }
+    const prev = runtime.jscad
+    let seen: Record<string, unknown> = {}
+    runtime.jscad = { expansions: { offset: (options: Record<string, unknown>) => { seen = options; return {} } } }
+    try {
+      j$.offset(args, { sides: [] })
+    } finally {
+      runtime.jscad = prev
+    }
+    return seen
+  }
+
+  it('maps delta to edge corners', () => {
+    expect(captureOptions({ delta: 2 }).corners).toBe('edge')
+  })
+
+  it('maps delta with chamfer to chamfer corners', () => {
+    expect(captureOptions({ delta: 2, chamfer: true }).corners).toBe('chamfer')
+  })
+
+  it('maps r to round corners', () => {
+    expect(captureOptions({ r: 2 }).corners).toBe('round')
+  })
+})
