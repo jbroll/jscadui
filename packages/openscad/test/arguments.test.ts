@@ -213,6 +213,14 @@ describe('function call as a statement', () => {
     expect(code).toContain("pick_$f$obj({ v: [3, 4, 5], '$fn': 32 })")
   })
 
+  it('discards the value, which is not geometry', () => {
+    const code = call(`
+      function sq(v) = v * v;
+      sq(3);
+    `)
+    expect(code).toContain('(sq_$f(3), undefined)')
+  })
+
   it('stays positional when no argument is named', () => {
     const code = call(`
       function pick(v, i = 0) = v[i];

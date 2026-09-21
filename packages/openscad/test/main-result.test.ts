@@ -27,6 +27,12 @@ describe('main() result', () => {
     expect(runMain('if ($preview) cube(1);\nif ($preview) sphere(1);')).toBeUndefined()
   })
 
+  it('returns undefined for a statement that is a function call', () => {
+    // BOSL's 022-math-sum_of_squares.scad is `sum_of_squares([1,2,3]);` — the
+    // value is a number, and the browser rejects a number as geometry.
+    expect(runMain('function sq(v) = v * v;\nsq(3);')).toBeUndefined()
+  })
+
   it('never returns the NO_CHILD sentinel', () => {
     expect(runMain('if (false) cube(1);')).not.toBe(j$.NO_CHILD)
   })

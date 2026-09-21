@@ -464,7 +464,9 @@ function transpileUserDefinedCall(
   // _$f$obj entry point destructures.
   if (isKnownFunction && !isKnownModule) {
     const suffix = argsFormat === 'object' ? '_$f$obj' : '_$f'
-    return `${safeName}${suffix}(${positionalArgs})`
+    // A statement's value is geometry. A function returns a number, a list or
+    // a string, so evaluate it for its asserts and echoes and discard it.
+    return `(${safeName}${suffix}(${positionalArgs}), undefined)`
   }
 
   // Module call with no children: use curried pattern with _$m suffix and options object
