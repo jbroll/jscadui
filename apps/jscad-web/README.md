@@ -64,6 +64,10 @@ build, which re-exports the fluent API over the shared modeling bundle and the
 anchors CDN build; params work through the existing `@jscad-params` and
 `getParameterDefinitions` paths.
 
+The engine defaults to `manifold`, which renders 780 of the 789 bundled
+examples against `jscad`'s 623 and is the one the STL comparison suite checks.
+Modeling Engine in the menu switches it, and the choice is remembered.
+
 ## AI Chat
 
 The app has an agent chat drawer (AI Chat in the menu) layered on the normal editor, viewer and examples. Describe a part, and the browser-local agent loop writes and measures models by calling tools that run in the browser: `eval`, `params`, `measure`, `check`, `export`, `view` and `writeModel` (`src/aiBridge.js`). The ones that execute model code go through the sandboxed compute frame below, the same one the editor uses. Provider HTTP goes to the relay at `https://jscad.rkroll.com`, overridable via `localStorage 'jscad-ai.relay'`.
