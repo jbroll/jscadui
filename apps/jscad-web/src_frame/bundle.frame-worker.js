@@ -10,6 +10,7 @@ import { initWorker, currentSolids } from '@jscadui/worker'
 import { readFileWeb, require, requireHandlers, jscadClearTempCache, clearFileCache } from '@jscadui/require'
 import { withTransferable } from '@jscadui/postmessage'
 import { defaultSerializerConfigs } from '@jscadui/format-common/src/exportFormats.js'
+import { includeCandidates, isSpaFallback } from './scadResolve.js'
 
 // The project file map the frame's load command carries. readFileWeb (which the
 // loader uses for every read) is replaced at build time by readFileFrame.js,
@@ -82,12 +83,18 @@ requireHandlers.set('scad', (source, url, _readFile) => {
     if (failTime && (Date.now() - failTime) < FAILURE_CACHE_TTL) {
       return undefined
     }
+    let content
     try {
-      return _readFile(testUrl)
+      content = _readFile(testUrl)
     } catch {
-      failureCache.set(testUrl, Date.now())
-      return undefined
+      content = undefined
     }
+    if (content !== undefined && !isSpaFallback(content)) {
+      failureCache.delete(testUrl)
+      return content
+    }
+    failureCache.set(testUrl, Date.now())
+    return undefined
   }
 
   const urlToPath = (url) => {
@@ -98,17 +105,10 @@ requireHandlers.set('scad', (source, url, _readFile) => {
     }
   }
 
-  // Resolve use/include paths relative to the current file
-  const fileDir = url.replace(/\/[^/]*$/, '/')
   const fileResolver = (filename, fromFile) => {
-    const base = fromFile ? fromFile.replace(/\/[^/]*$/, '/') : fileDir
-    const baseUrl = base.startsWith('http://') || base.startsWith('https://') ? base : null
-    if (!baseUrl) return undefined
-
-    const resolvedUrl = new URL(filename, baseUrl).toString()
-    const content = tryFetch(resolvedUrl)
-    if (content !== undefined) {
-      return { path: urlToPath(resolvedUrl), content }
+    for (const candidate of includeCandidates(filename, fromFile, url)) {
+      const content = tryFetch(candidate)
+      if (content !== undefined) return { path: urlToPath(candidate), content }
     }
     return undefined
   }
