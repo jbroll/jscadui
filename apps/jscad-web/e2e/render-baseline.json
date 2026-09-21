@@ -1,39 +1,39 @@
 {
-  "_comment": "623/789 ok, measured after the NO_CHILD sentinel fix, the offset corners fix and the $preview run-time split. The previous baseline was 596/788 (job 491f86f1330fbdf2); the extra file is examples/openscad/01-basics/preview-gate.scad. The largest remaining cluster is 60 models failing with 'Cannot read properties of undefined', most of them NopSCADlib tests that only now execute their preview geometry. Diff future runs against failures[], not against zero.",
+  "_comment": "780/789 ok with the manifold engine, which the app now defaults to. What is left is not transpiler work: two dotSCAD models and snippet's Import_Library include files absent from the vendored sources, two maze models that exceed the call stack, and four timeouts that move with CI load. Diff future runs against failures[], not against zero.",
   "tree": "fix/example-model-failures working tree, rsynced onto the CI base worktree by sci \u2014 no commit identifies the code that was measured",
   "date": "2026-09-21",
-  "job": "cdc20a40944c1fc3",
+  "job": "4e6f690d026700a8",
   "total": 789,
-  "ok": 623,
-  "failed": 166,
+  "ok": 780,
+  "failed": 9,
   "byLib": {
     "openscad/01-basics": {
       "ok": 20,
       "fail": 0
     },
     "openscad/bosl": {
-      "ok": 108,
-      "fail": 5
+      "ok": 113,
+      "fail": 0
     },
     "openscad/bosl2": {
-      "ok": 154,
-      "fail": 24
-    },
-    "openscad/dotscad": {
-      "ok": 144,
-      "fail": 44
-    },
-    "openscad/mcad": {
-      "ok": 13,
+      "ok": 177,
       "fail": 1
     },
+    "openscad/dotscad": {
+      "ok": 182,
+      "fail": 6
+    },
+    "openscad/mcad": {
+      "ok": 14,
+      "fail": 0
+    },
     "openscad/nopscadlib": {
-      "ok": 60,
-      "fail": 85
+      "ok": 144,
+      "fail": 1
     },
     "openscad/snippet": {
-      "ok": 113,
-      "fail": 7
+      "ok": 119,
+      "fail": 1
     },
     "openscad/text": {
       "ok": 11,
@@ -42,128 +42,8 @@
   },
   "failures": [
     {
-      "rel": "openscad/bosl/01-part1/021-math-sum.scad",
-      "status": "timeout"
-    },
-    {
-      "rel": "openscad/bosl/01-part1/023-math-mean.scad",
-      "status": "timeout"
-    },
-    {
-      "rel": "openscad/bosl/02-part2/024-math-in_list.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/bosl/02-part2/027-math-flatten.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/bosl/02-part2/030-math-triangle_area2d.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/bosl2/01-part1/009-ball_bearings-ball_bearing.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/bosl2/01-part1/011-bottlecaps-expose_anchors.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/bosl2/01-part1/022-color-ghost.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/bosl2/01-part1/023-color-ghost_this.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/bosl2/01-part1/026-comparisons-max_index.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/bosl2/02-part2/069-linalg-transpose.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/bosl2/03-part3/074-lists-reverse.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/bosl2/03-part3/081-math-log2.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/bosl2/03-part3/082-math-sum.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/bosl2/03-part3/083-math-mean.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/bosl2/03-part3/084-math-deltas.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/bosl2/03-part3/085-math-product.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/bosl2/03-part3/086-math-cumprod.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/bosl2/04-part4/128-shapes3d-color.scad",
-      "status": "timeout"
-    },
-    {
-      "rel": "openscad/bosl2/04-part4/129-shapes3d-torus.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/bosl2/04-part4/137-strings-parse_num.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/bosl2/04-part4/138-strings-format_float.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/bosl2/05-part5/155-utility-same_shape.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/bosl2/05-part5/158-vectors-v_mul.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/bosl2/05-part5/159-vectors-v_div.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/bosl2/05-part5/160-vectors-v_abs.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/bosl2/05-part5/boolean_geometry.scad",
-      "status": "error"
-    },
-    {
       "rel": "openscad/bosl2/05-part5/fractal_tree.scad",
       "status": "timeout"
-    },
-    {
-      "rel": "openscad/bosl2/05-part5/lsystems.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/dotscad/examples/caterpillar.scad",
-      "status": "timeout"
-    },
-    {
-      "rel": "openscad/dotscad/examples/chrome_dino.scad",
-      "status": "error"
     },
     {
       "rel": "openscad/dotscad/examples/circle_packing/forest.scad",
@@ -171,54 +51,6 @@
     },
     {
       "rel": "openscad/dotscad/examples/circle_packing/packing_circles.scad",
-      "status": "timeout"
-    },
-    {
-      "rel": "openscad/dotscad/examples/curved_cabinet.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/dotscad/examples/dancing_cubes.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/dotscad/examples/daruma.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/dotscad/examples/dot_photo_sphere.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/dotscad/examples/dragon/hilbert_dragon.scad",
-      "status": "timeout"
-    },
-    {
-      "rel": "openscad/dotscad/examples/dragon/hilbert_dragon_low_poly.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/dotscad/examples/dragon/torus_knot_dragon_low_poly.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/dotscad/examples/emoticon_moai.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/dotscad/examples/hypnotic_squares.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/dotscad/examples/image_slicer.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/dotscad/examples/maze/heart2heart_maze.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/dotscad/examples/maze/island_maze.scad",
       "status": "error"
     },
     {
@@ -230,95 +62,7 @@
       "status": "error"
     },
     {
-      "rel": "openscad/dotscad/examples/maze/maze_city.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/dotscad/examples/maze/maze_masking.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/dotscad/examples/melted_clock.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/dotscad/examples/mobius_twins.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/dotscad/examples/samurai_daruma.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/dotscad/examples/spiral/bauer_text_sphere.scad",
-      "status": "timeout"
-    },
-    {
-      "rel": "openscad/dotscad/examples/spiral/heart_chain.scad",
-      "status": "timeout"
-    },
-    {
-      "rel": "openscad/dotscad/examples/spiral/lotus_like_flower.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/dotscad/examples/spiral/moving_fish.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/dotscad/examples/spiral/nautilus_shell.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/dotscad/examples/spiral/spiral_city.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/dotscad/examples/spiral/spiral_ripples.scad",
-      "status": "timeout"
-    },
-    {
-      "rel": "openscad/dotscad/examples/spiral/xmas_tree.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/dotscad/examples/spiral_polygons/fidget_boo.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/dotscad/examples/spiral_polygons/fidget_heart.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/dotscad/examples/stereographic_projection/stereographic_caterpillar.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/dotscad/examples/stereographic_projection/stereographic_projection.scad",
-      "status": "error"
-    },
-    {
       "rel": "openscad/dotscad/examples/taiwan/maze_city_taiwan.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/dotscad/examples/text_box.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/dotscad/examples/tiles/tiles_wfc_tube.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/dotscad/examples/triangle2square/triangle2square_box.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/dotscad/examples/vampire_pen_holder.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/dotscad/examples/voronoi/voronoi_holder.scad",
       "status": "error"
     },
     {
@@ -326,383 +70,11 @@
       "status": "timeout"
     },
     {
-      "rel": "openscad/dotscad/examples/voronoi/voronoi_penholder.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/dotscad/examples/walk_torus83_fort.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/mcad/examples/polyholes_test.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/BLDC_motors.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/HT_pipes.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/IECs.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/LED_bezel.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/PCB.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/PCB_mount.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/PCB_utils.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/PSU_shroud.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/PSUs.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/SBR_rails.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/SK_brackets.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/SMDs.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/SSR_shroud.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/SSRs.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/annotation.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/antennas.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/axials.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/batteries.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/bearing_blocks.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/bezier.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/blowers.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/box.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/bulldogs.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/cable_clip.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/camera_housing.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/cameras.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/catenary.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/circlips.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/components.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/core_xy.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/d_connectors.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/displays.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/door_hinge.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/door_latch.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/drag_chain.scad",
-      "status": "error"
-    },
-    {
       "rel": "openscad/nopscadlib/NopSCADlib/tests/extrusion_brackets.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/fans.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/fastons.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/flat_hinge.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/foot.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/geared_steppers.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/green_terminals.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/horiholes.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/hot_ends.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/inserts.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/jack.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/knob.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/leadnuts.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/linear_bearings.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/maths.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/microview.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/modules.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/nuts.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/offset.scad",
       "status": "timeout"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/opengrab.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/panel_meters.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/pillow_blocks.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/pin_headers.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/pocket_handle.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/potentiometers.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/printed_box.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/printed_pulleys.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/pulleys.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/radials.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/rails.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/ring_terminals.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/rod.scad",
-      "status": "timeout"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/rod_ends.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/round.scad",
-      "status": "timeout"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/rounded_polygon.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/screw_knob.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/screws.scad",
-      "status": "timeout"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/servo_motors.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/socket_box.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/spools.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/stepper_motors.scad",
-      "status": "timeout"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/strap_handle.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/sweep.scad",
-      "status": "timeout"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/teardrops.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/toggles.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/ttracks.scad",
-      "status": "timeout"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/variacs.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/veroboard.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/wire.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/zipties.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/snippet/01-basic/Spawing_Cube.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/snippet/03-advanced/Mech_Piece_03.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/snippet/03-advanced/Mech_Piece_04.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/snippet/03-advanced/Screw.scad",
-      "status": "error"
     },
     {
       "rel": "openscad/snippet/04-misc/Import_Library.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/snippet/04-misc/Scene_City_Street.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/snippet/04-misc/Scene_House.scad",
       "status": "error"
     }
   ]

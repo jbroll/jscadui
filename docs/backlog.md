@@ -79,23 +79,25 @@ branch built; they are the gaps it did not close.
 
 ## Render sweep
 
-Baseline 623/789 (CI job `cdc20a40944c1fc3`), up from 596/788. See
+Baseline 780/789 (CI job `4e6f690d026700a8`), up from 596/788. See
 `apps/jscad-web/e2e/RENDER-TESTING.md` and `render-baseline.json`.
 
-- **60 models fail with `Cannot read properties of undefined`**, 46 of them
-  NopSCADlib tests and 14 dotSCAD. 57 share one stack: `plane.fromPoints` →
-  `vec3.dot` on an undefined vector, inside `@jscad/modeling`. Most of the
-  NopSCADlib ones only started running their geometry when `$preview` became a
-  run-time variable, so this is the first look at what they actually do.
-- **The browser and the corpus run different geometry engines.** The app
-  defaults to `jscad` (`viewState.js`), while the whole STL comparison suite
-  runs `manifold`, so nothing in the Node suite exercises the code both
-  clusters above die in. Either the sweep should cover both engines or the
-  default should change.
-- **26 models fail with `Cannot set properties of undefined (setting 'color')`**
-  — 19 NopSCADlib, 5 BOSL2, 1 dotSCAD. The throw is inside `@jscad/modeling`'s
-  `colorize`, mapping over polygons one of which is undefined.
-- **18 timeouts**, spread across dotSCAD, NopSCADlib, BOSL and BOSL2.
+- **Three models include files the vendored sources do not have**: dotSCAD's
+  `util/rands_disk.scad` and `maze/mz_wang_tiles.scad`, and 11 of the 69 assets
+  `snippet/04-misc/Import_Library.scad` pulls from `Asset_SCAD/`. Refresh the
+  vendored copies or drop the examples.
+- **`maze3d_mickey.scad` and `maze3d_sphere.scad` exceed the call stack.**
+  Their recursion is not in tail position, so `tailCall.ts` cannot trampoline
+  it. Node survives with `--stack-size=65536`; a browser has no such lever.
+- **Four models time out at 30s** (`fractal_tree`, `packing_circles`,
+  `voronoi_melon`, `extrusion_brackets`). Which four moves with CI load, so
+  measure before assuming any of them is a hang.
+- **The jscad engine renders 623 of 789 where manifold renders 780.** The app
+  defaults to manifold now, but the other engine is still a supported choice
+  and its failures are inside `@jscad/modeling`: `plane.fromPoints` reading an
+  undefined vector (57 models) and `colorize` mapping over a polygon list with
+  a hole in it (26). The STL comparison suite only runs manifold, so nothing
+  covers this.
 - **`polyholes_test.scad` may be worker reuse, not geometry.** Loading an
   include-heavy model (mcad `hardware_test.scad`) and then the mcad grid in the
   same worker leaks into polyholes with a geometry error, recorded as an

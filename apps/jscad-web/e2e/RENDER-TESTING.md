@@ -66,20 +66,26 @@ It records no commit. `sci` rsyncs the working tree onto a base worktree, so the
 commit the CI run reports is that worktree's HEAD, not the code measured — a
 field nobody can trust is worse than none.
 
-The current baseline is **623 ok of 789**, CI job `cdc20a40944c1fc3`, run from
+The current baseline is **780 ok of 789**, CI job `4e6f690d026700a8`, run from
 the `fix/example-model-failures` working tree. It replaced a 596/788 baseline
-after three fixes: `main()` no longer returns the `NO_CHILD` sentinel (88
-failures), `offset(delta=…)` names JSCAD's sharp-corner mode `edge` rather than
-`sharp` (22), and `$preview` became a run-time variable that the app sets true
-while displaying (which is what makes NopSCADlib's tests draw at all). The
-extra file is `examples/openscad/01-basics/preview-gate.scad`.
+recorded before that branch. The largest single move was the engine: the app
+defaulted to `jscad`, which rendered 623, while manifold rendered 762 on the
+same tree, so the default changed. The rest came from six fixes — the
+`NO_CHILD` sentinel escaping `main()`, `offset(delta=…)` naming JSCAD's
+sharp-corner mode, `$preview` becoming a run-time variable, named arguments
+reaching a function's object entry point, a statement-level function call's
+value being discarded, and `each` spreading inside a guarded C-style
+comprehension. The extra file over the old 788 is
+`examples/openscad/01-basics/preview-gate.scad`.
 
-The largest remaining cluster is 60 models failing with `Cannot read properties
-of undefined`, 46 of them NopSCADlib tests that only now run their preview
-geometry, plus 26 with `Cannot set properties of undefined (setting 'color')`
-and 18 timeouts. Both clusters throw inside `@jscad/modeling`, which the STL
-comparison suite never runs: the app defaults to the `jscad` engine and that
-suite uses `manifold`. Pass `--engine manifold` to sweep the other one.
+The nine that remain are not transpiler work: `util/rands_disk.scad`,
+`maze/mz_wang_tiles.scad` and 11 of `Import_Library.scad`'s assets are absent
+from the vendored sources; two maze models exceed the call stack; four are
+timeouts that move with CI load.
+
+Sweeping the other engine takes `--engine jscad`. Its failures are inside
+`@jscad/modeling` — `plane.fromPoints` on an undefined vector, and `colorize`
+over a polygon list with a hole in it.
 
 From `apps/jscad-web`, after a sweep writes a fresh `e2e/render-report.json`:
 

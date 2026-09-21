@@ -3,12 +3,13 @@
 Verified 2026-04-08 — commit `6ab37c1` on `hierarchical-params` ($-var let binding: wrap subsequent bindings + body in withScope).
 MCAD suite GPU-verified 2026-04-08 — 12/14 examples pass.
 
-Re-measured 2026-09-21 on CI job `e82750bf09104beb` with OpenSCAD 2026.08.30.fp
+Re-measured 2026-09-21 on CI job `c04be4906b610e3e` with OpenSCAD 2026.08.30.fp
 (the flatpak the CI user can run; the 2026-04 numbers were taken against an
 older build). dotSCAD went to 147/160 and MCAD to 13/14. NopSCADlib's
 `box.scad` drops to 0.1499 against this OpenSCAD and does so on `main` as well,
 so it is a reference-version difference, not a transpiler regression.
-01-basics gained `preview-gate.scad`, verified on its own after that job.
+01-basics gained `preview-gate.scad`. snippet gained two files that now parse
+and a third that can reach its `Asset_SCAD/` includes.
 
 Similarity threshold: **0.99** (Jaccard index on vertex-deduplicated STL meshes).
 
@@ -20,7 +21,7 @@ Similarity threshold: **0.99** (Jaccard index on vertex-deduplicated STL meshes)
 | BOSL v1    |   113 |       0 |            13 |         0 |    100 |    100 |      0 |      0 | **100%**  |
 | BOSL2      |   178 |       0 |            25 |         0 |    153 |    153 |      0 |      0 | **100%**  |
 | NopSCADlib |   149 |       4 |             1 |         4 |    144 |    143 |      1 |      0 | **99.3%** |
-| snippet    |   122 |       0 |            10 |         2 |    110 |    110 |      0 |      0 | **100%**  |
+| snippet    |   122 |       0 |             8 |         2 |    112 |    112 |      0 |      0 | **100%**  |
 | text       |    11 |       0 |             9 |         0 |      2 |      2 |      0 |      0 | **100%**  |
 | dotSCAD    |   212 |       0 |            28 |        24 |    160 |    147 |     13 |      0 | **91.9%** |
 | MCAD       |    15 |       0 |             0 |         1 |     14 |     13 |      1 |      0 | **92.9%** |
