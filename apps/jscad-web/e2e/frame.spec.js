@@ -149,30 +149,37 @@ test('the frame document sends frame-ancestors for the app origin', async ({ req
   expect(res.headers()['content-security-policy']).toContain('frame-ancestors http://localhost:5120')
 })
 
-test('model fetch against a third-party origin fails', async ({ page }) => {
+// A model loaded from a real URL resolves its siblings over the network from
+// inside the frame, so reachability is no longer the guarantee. What holds is
+// that the request carries nothing of the user's.
+test('a model fetch carries no cookies and a null origin', async ({ page }) => {
   await gotoHost(page)
   const res = await load(page, project(
     `const main = async () => {\n` +
-    `  await fetch('http://localhost:5122/api/private')\n` +
+    `  const r = await fetch('${MARK}/__whoami')\n` +
+    `  const body = await r.json()\n` +
+    `  if (body.cookie) throw new Error('cookie leaked: ' + body.cookie)\n` +
+    `  if (body.origin !== 'null') throw new Error('origin was ' + body.origin)\n` +
     `  return []\n` +
     `}\n` +
     `module.exports = { main }\n`,
   ))
-  expect(res.ok).toBe(false)
+  expect(res.ok).toBe(true)
 })
 
-// connect-src names only the run origin, so the app origin — a different
-// origin entirely now — is unreachable from inside the frame.
-test('model fetch against the app origin outside /frame/ fails', async ({ page }) => {
+// The examples live on the app origin, so the editor's models must be able to
+// read them from the frame.
+test('model fetch against the app origin is allowed', async ({ page }) => {
   await gotoHost(page)
   const res = await load(page, project(
     `const main = async () => {\n` +
-    `  await fetch('http://localhost:5120/api/private')\n` +
+    `  const r = await fetch('http://localhost:5120/robots.txt')\n` +
+    `  if (!r.ok) throw new Error('app fetch failed: ' + r.status)\n` +
     `  return []\n` +
     `}\n` +
     `module.exports = { main }\n`,
   ))
-  expect(res.ok).toBe(false)
+  expect(res.ok).toBe(true)
 })
 
 test('model fetch against the run origin is allowed', async ({ page }) => {

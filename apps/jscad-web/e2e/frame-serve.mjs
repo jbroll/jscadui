@@ -45,6 +45,13 @@ export const startServers = async () => {
     // The frame's fetch test targets this. It is reachable from the app
     // origin, so a model that got through would return data instead of a
     // model error.
+    // Echoes back what authority the caller carried. A model's fetch must
+    // arrive with no cookies and an opaque origin.
+    if (pathname === '/__whoami') {
+      res.writeHead(200, { ...COMMON_HEADERS, 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ cookie: req.headers.cookie ?? null, origin: req.headers.origin ?? null }))
+      return
+    }
     if (pathname === '/api/private') {
       res.writeHead(200, { ...COMMON_HEADERS, 'Content-Type': 'application/json' })
       res.end(JSON.stringify({ secret: true }))

@@ -64,13 +64,13 @@ const bundles = {
 }
 ```
 
-See [bundles.js](bundles.js) for the exact mapping, including the params-core and jscad-text bundles. Fluent models (`require('@jbroll/jscad-fluent')`) resolve to the local `bundle.jscad-fluent.js` build, which re-exports the fluent API over the shared modeling bundle and the anchors CDN build; params work through the existing `@jscad-params` and `getParameterDefinitions` paths.
+See [src_frame/frame.js](src_frame/frame.js) for the exact mapping, including the params-core and jscad-text bundles. Fluent models (`require('@jbroll/jscad-fluent')`) resolve to the local `bundle.jscad-fluent.js` build, which re-exports the fluent API over the shared modeling bundle and the anchors CDN build; params work through the existing `@jscad-params` and `getParameterDefinitions` paths.
 
-Set `window.jscadModuleOverrides` before `main.js` runs to replace any of these URLs (for example with a local package build served by a studio). Each name overrides independently; `@jscad/modeling` defaults to the local `bundle.jscad_modeling.js` build.
+The page cannot name a bundle URL. A script source inside the compute frame has to come from the frame's own origin, so the page sends an engine name and the frame fills in the map.
 
 ## AI Chat
 
-The app has an agent chat drawer (AI Chat in the menu) layered on the normal editor, viewer and examples. Describe a part, and the browser-local agent loop writes and measures models by calling tools that run in the browser: `eval`, `params`, `measure`, `check`, `export`, `view` and `writeModel` (`src/aiBridge.js`). The ones that execute model code go through the sandboxed compute frame below. Provider HTTP goes to the relay at `https://jscad.rkroll.com`, overridable via `localStorage 'jscad-ai.relay'`.
+The app has an agent chat drawer (AI Chat in the menu) layered on the normal editor, viewer and examples. Describe a part, and the browser-local agent loop writes and measures models by calling tools that run in the browser: `eval`, `params`, `measure`, `check`, `export`, `view` and `writeModel` (`src/aiBridge.js`). The ones that execute model code go through the sandboxed compute frame below, the same one the editor uses. Provider HTTP goes to the relay at `https://jscad.rkroll.com`, overridable via `localStorage 'jscad-ai.relay'`.
 
 Account setup lives in the drawer above the chat:
 
@@ -82,23 +82,29 @@ Tests: `npx vitest run test/aiChat.test.js` for the chat turn, `npx playwright t
 
 ## Compute frame
 
-Agent-written model code runs in `/frame/`, a page served from this app's own
-origin and embedded in a hidden `<iframe sandbox="allow-scripts">`. Without
-`allow-same-origin` the frame has an opaque origin, so model code gets no
-cookies, no IndexedDB and no same-origin fetch. The editor still compiles
-through the local worker; only the agent's `eval`, `measure`, `check` and
-`export` calls cross into the frame. See
+All model code runs in the compute frame — the editor's as well as the
+agent's. The frame is a page on its own origin (`https://jscad-run.rkroll.com`,
+`http://localhost:5121` in dev) embedded in a hidden
+`<iframe sandbox="allow-scripts">`. Without `allow-same-origin` the frame has
+an opaque origin, so model code gets no cookies, no IndexedDB and no
+same-origin fetch. The page keeps the viewer, the editor and every control. See
 [docs/architecture.md](docs/architecture.md) for the boundary and the protocol.
 
-The frame builds into `build/frame/` as part of the normal web build, with no
-deploy step of its own. Its CORS and frame-ancestors headers are set in three
-places that must agree: `build.js` (dev server), `serve.js` (`npm run serve`)
-and `deploy/hooks/apache.configure.post.sh` (the deployed vhost). The app
-origin is baked into the frame's CSP and `__ALLOWED_ORIGIN__` at build time;
-`FRAME_APP_ORIGIN` overrides it.
+The frame builds into `build/frame/` as part of the normal web build and
+deploys to the run host from `deploy-run.conf`. Its CORS and frame-ancestors
+headers are set in three places that must agree: `build.js` (dev server),
+`serve.js` (`npm run serve`) and `deploy/hooks/apache.configure.post.sh` (the
+deployed vhost). The app origin is baked into the frame's CSP and
+`__ALLOWED_ORIGIN__` at build time; `FRAME_APP_ORIGIN` overrides it, and
+`FRAME_RUN_ORIGIN` overrides the frame's own.
+
+The app origin must answer with `Access-Control-Allow-Origin` for model files:
+an example or a `#url=` model resolves its siblings over the network from
+inside the frame, which is a cross-origin read.
 
 Tests: `npx playwright test e2e/frame.spec.js` covers the sandbox boundary —
-wrong-origin senders, storage access and fetches against the app origin.
+wrong-origin senders, storage access, and what authority a model's fetch
+carries.
 
 ## Storage
 

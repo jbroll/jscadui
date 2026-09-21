@@ -40,7 +40,6 @@ import * as welcome from './src/welcome.js'
 import * as about from './src/about.js'
 import { showTrustedSourcesDialog, trustedSourcesStyles } from './src/trustedSourcesUI.js'
 import { showDemoBrowser, demoBrowserStyles } from './src/demoBrowser.js'
-import { getBundles } from './bundles.js'
 
 // Extracted modules
 import { updatePipelineStats, countGeometry, createProgressHandler } from './src/stats.js'
@@ -54,10 +53,9 @@ import { createProjectManager } from './src/storage/projects.js'
 import { createSession } from './src/storage/session.js'
 import { initProjects } from './src/projects.js'
 import { extractEntries, readAsText, readDir } from '@jscadui/fs-provider'
-import { createWorker, createJobTracker } from './src/workerSetup.js'
-import { framePort } from './src/framePort.js'
+import { createFrame, createJobTracker } from './src/frameSetup.js'
 import { collectProjectFiles } from './src/projectFiles.js'
-import { messageProxy } from '@jscadui/postmessage'
+import { PROJECT_BASE } from './src_frame/fileMap.js'
 import * as fileSystem from './src/fileSystem.js'
 import * as paramsUI from './src/paramsUI.js'
 import { shouldAllowReload, clearReloadTimestamp } from './src/reloadDetection.js'
@@ -80,12 +78,6 @@ export const byId = id => /** @type {HTMLElement} */(document.getElementById(id)
 // Use origin + '/' as base to ensure proper URL resolution
 const appBase = location.origin + '/'
 let currentBase = appBase
-
-/**
- * @param {string} path
- * @return {string}
- */
-const toUrl = path => new URL(path, appBase).toString()
 
 // ============== View & Camera Setup ==============
 const viewState = new ViewState()
@@ -127,7 +119,7 @@ const useParamsProxy = true
 /** @type {UserParameters} */
 let lastRunParams
 
-// ============== Worker Setup ==============
+// ============== Compute Frame Setup ==============
 
 /**
  * Handle entities from worker
@@ -172,43 +164,31 @@ const handleEntities = (result, { skipLog } = {}) => {
 
 const trackJobs = createJobTracker(progress, onProgress)
 
-// I9 fix: Keep worker reference for termination on unload
-const { worker, workerApi, handlers } = createWorker({
+// Every model — the editor's and the agent's — runs in the sandboxed frame.
+// Its opaque origin means no cookies, no storage and no same-origin fetch.
+/* global __FRAME_ORIGIN__ */
+const { frameEl, workerApi, handlers } = await createFrame({
   onError: setError,
   onProgress,
   onEntities: handleEntities,
-  onJobCount: trackJobs
+  onJobCount: trackJobs,
+  onTerminated: () => initFrame(),
+  runOrigin: __FRAME_ORIGIN__,
 })
 
-// Sandboxed execution for agent-driven code. sandbox without
-// allow-same-origin gives the frame an opaque origin: model scripts run with
-// no ambient authority (no cookies, storage, or same-origin fetch), while the
-// editor keeps the local worker.
-/* global __FRAME_ORIGIN__ */
-const frameEl = document.createElement('iframe')
-frameEl.src = __FRAME_ORIGIN__ + '/'
-frameEl.setAttribute('sandbox', 'allow-scripts')
-frameEl.hidden = true
-document.body.appendChild(frameEl)
-
-// The frame relays the worker protocol, so the app drives it with the same
-// proxy it uses for the local worker. The frame names its own bundles; the
-// app names only the engine.
-const frameApi = messageProxy(framePort(frameEl, __FRAME_ORIGIN__), {
-  entities: (result, options = {}) => handleEntities(result, options),
-  onProgress,
-  frameWorkerTerminated: ({ reason }) => {
-    setError(new Error(reason))
-    initFrame()
-  },
-})
-
+// The frame names its own bundles; the app names only the engine.
 const initFrame = () =>
-  frameApi.jscadInit({ engine: viewState.modelingEngine, useParamsProxy }).catch(setError)
+  workerApi.jscadInit({ engine: viewState.modelingEngine, useParamsProxy }).catch(setError)
 
-// A message sent before the frame document runs is lost, and nothing in the
-// protocol replays it.
-frameEl.addEventListener('load', initFrame, { once: true })
+// A project's files travel to the frame in a map keyed by bare path, so a
+// project script names itself against PROJECT_BASE; the app origin's /swfs/
+// URLs are unreachable from the frame.
+/** @param {string} path */
+const projectUrls = path => ({
+  url: PROJECT_BASE + String(path).replace(/^\//, ''),
+  base: PROJECT_BASE,
+  root: PROJECT_BASE,
+})
 
 // ============== File System Setup ==============
 const dropModal = byId('dropModal')
@@ -221,13 +201,12 @@ const fsDeps = {
   setError,
   onAliasFound: alias => workerApi.jscadInit({ alias }),
   onScriptReady: (script, url) => {
-    const sw = fileSystem.getSwHandler()
-    jscadScript({ url, base: sw?.base || appBase })
+    jscadScript(projectUrls(url))
     editor.setSource(script, url)
   },
   setProjectName: name => { exporter.exportConfig.projectName = name },
   addV1Shim,
-  clearFileCache: (files, root) => workerApi.jscadClearFileCache({ files, root })
+  clearFileCache: files => workerApi.jscadClearFileCache({ files, root: PROJECT_BASE })
 }
 
 async function reloadProject() {
@@ -261,7 +240,7 @@ const switchProject = async (id) => {
   }
   editor.setFiles(toEditorFiles(files))
   editor.setSource(files[project.entry] ?? '', project.entry)
-  jscadScript({ script: files[project.entry] ?? '', url: project.entry, base: currentBase })
+  jscadScript({ script: files[project.entry] ?? '', ...projectUrls(project.entry) })
 }
 
 // Lazy rowboat backend: built once a session exists, so anonymous users stay
@@ -444,9 +423,6 @@ viewState.onRequireReRender = () => paramChangeCallback(ctrl.params)
 
 // ============== Script Loading ==============
 
-const workerBundles = () =>
-  getBundles({ engine: viewState.modelingEngine, toUrl, overrides: window.jscadModuleOverrides ?? {} })
-
 /** @param {{script?:string,url?:string,base?:string,root?:string}} options*/
 const jscadScript = async ({ script, url = './jscad.model.js', base = currentBase, root }) => {
   currentBase = base
@@ -574,7 +550,7 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
 // Initialize render engine first so we can query its capabilities
 viewState.setEngine(await engine.init(viewState.renderEngine))
 
-await workerApi.jscadInit({ bundles: workerBundles(), useParamsProxy })
+await initFrame()
 
 // Set up engine change handler
 viewState.onModelingEngineChange = async (newEngine) => {
@@ -583,10 +559,6 @@ viewState.onModelingEngineChange = async (newEngine) => {
   // Set flag to preserve params across script re-run
   paramsUI.setPreserveParams(Object.keys(paramsCtrl.params).length > 0)
 
-  // Reinitialize worker with new bundles
-  await workerApi.jscadInit({ bundles: workerBundles(), useParamsProxy })
-  // The frame holds its own engine, so the agent does not keep evaluating
-  // against the engine that was current at page load.
   await initFrame()
 
   // Re-run script
@@ -629,9 +601,9 @@ editor.init(
     const swHandler = fileSystem.getSwHandler()
     if (swHandler && swHandler.fileToRun) {
       await fileSystem.addToCacheWrapper(path, script)
-      await workerApi.jscadClearFileCache({ files: [path], root: swHandler.base })
+      await workerApi.jscadClearFileCache({ files: [path], root: PROJECT_BASE })
       await recordEdit(script, path)
-      if (swHandler.fileToRun) jscadScript({ url: swHandler.fileToRun, base: swHandler.base })
+      if (swHandler.fileToRun) jscadScript(projectUrls(swHandler.fileToRun))
     } else {
       const fullUrl = path.startsWith('http') ? path : new URL(path, appBase).toString()
       const base = new URL('./', fullUrl).toString()
@@ -758,17 +730,17 @@ const toBase64 = (buffers) => {
 }
 
 const aiDeps = {
-  evaluate: createEvaluate(frameApi, handleEntities),
+  evaluate: createEvaluate(workerApi, handleEntities),
   setParams: async (values) => {
     Object.assign(paramsCtrl.params, values)
     for (const key of Object.keys(values)) paramsCtrl.userInteracted.add(key)
     await paramChangeCallback(paramsCtrl.params)
     return { updated: Object.keys(values) }
   },
-  measure: async (options) => await frameApi.jscadMeasure({ options }),
-  check: async (input) => await frameApi.jscadCheck({ bed: input?.bed, options: input ?? {} }),
+  measure: async (options) => await workerApi.jscadMeasure({ options }),
+  check: async (input) => await workerApi.jscadCheck({ bed: input?.bed, options: input ?? {} }),
   exportModel: async ({ format }) => {
-    const { data = [] } = await frameApi.jscadExportData({ format })
+    const { data = [] } = await workerApi.jscadExportData({ format })
     const chunks = (data instanceof Array ? data : [data]).filter((v) => v instanceof ArrayBuffer)
     const size = chunks.reduce((n, v) => n + v.byteLength, 0)
     return { format, size, data: toBase64(chunks) }
@@ -842,6 +814,6 @@ window.addEventListener('unload', () => {
   editor.destroy()
   viewState.viewer?.destroy?.()
   ctrl.destroy() // M5 fix: Clean up OrbitControl event listeners and animation frame
-  worker.terminate() // I9 fix: Terminate worker on page unload
+  frameEl.remove() // tears down the frame and its worker on page unload
   fileWatcher.cleanup() // I8 fix: Explicit cleanup (complements internal beforeunload fallback)
 })

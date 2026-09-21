@@ -1,3 +1,10 @@
+import { PROJECT_BASE } from '../src_frame/fileMap.js'
+
+/* global __FRAME_ORIGIN__ */
+// Model frames come back named against the frame's own origin and the project
+// base; neither means anything to the user reading a stack.
+const STRIP = [PROJECT_BASE, __FRAME_ORIGIN__ + '/']
+
 const errorBar = document.getElementById('error-bar')
 const errorName = document.getElementById('error-name')
 const errorMessage = document.getElementById('error-message')
@@ -46,7 +53,8 @@ const formatStacktrace = (error) => {
   //  at async http://localhost:5120/build/bundle.worker.js:14:3218
   const cleaned = stack
     .split('\n')
-    .filter(line => !line.includes('bundle.worker.js'))
+    .filter(line => !line.includes('bundle.worker.js') && !line.includes('bundle.frame-worker.js'))
+    .map(line => STRIP.reduce((acc, prefix) => acc.replaceAll(prefix, ''), line))
 
   if (message && !stack.includes(message)) cleaned.unshift(message)
   return cleaned.join('\n')

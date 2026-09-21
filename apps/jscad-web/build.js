@@ -262,6 +262,8 @@ await buildBundle(frameBuildDir, 'bundle.jscad-fluent.js', {
   loader: frameCjs,
   external: ['@jscad/modeling', '@jscad/modeling-for-anchors', '@jbroll/jscad-anchors'],
 })
+// v1 .jscad models require @jscad/csg, which resolves to this bundle.
+await buildBundle(frameBuildDir, 'bundle.V1_api.js', { format: 'cjs', watch: dev, loader: frameCjs })
 await buildBundle(frameBuildDir, 'bundle.params_core.js', { format: 'cjs', watch: dev, loader: frameCjs })
 await buildBundle(frameBuildDir, 'bundle.jscadui.transform-babel.js', { globalName: 'jscadui_transform_babel', watch: dev })
 await buildBundle(frameBuildDir, 'bundle.openscad.js', {
@@ -304,7 +306,8 @@ if (!dev) hashFrameAssets(frameDir)
 // docs folder is too heavy for watch
 if (dev) {
   serveFrame(port + 1, appOrigin, outDir + '/frame')
-  liveServer.start({ root: outDir, port, open: false, ignore: outDir + '/docs' })
+  // cors: the frame's opaque origin reads examples and model files from here.
+  liveServer.start({ root: outDir, port, open: false, cors: true, ignore: outDir + '/docs' })
 } else if (serveBuild) {
   serveFrame(port + 1, appOrigin, outDir + '/frame')
   serve(port)

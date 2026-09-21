@@ -1,26 +1,25 @@
 # Architecture
 
-jscad-web is the JSCAD editor, viewer and agent chat in one page, served from
-one origin, with an Express API beside it. What follows is the shape of the
-thing and the reasons behind the parts that are not obvious. For how to use it,
-see the [README](../README.md).
+jscad-web is the JSCAD editor, viewer and agent chat in one page, with an
+Express API beside it and a second origin that runs the models. What follows is
+the shape of the thing and the reasons behind the parts that are not obvious.
+For how to use it, see the [README](../README.md).
 
 ## Pieces
 
 ```
 jscad.rkroll.com
   page (main.js)            editor, viewer, params UI, chat, project drawer
-   ├─ local worker          evaluates the editor's model  (same origin)
-   ├─ /frame/  <iframe sandbox="allow-scripts">
-   │    └─ blob worker      evaluates the agent's model    (opaque origin)
-   └─ /api  →  Express      auth, sync tokens, provider relay, GitHub app
-                              └─ hosted rowboat: projects, files, versions
+   ├─ /api  →  Express      auth, sync tokens, provider relay, GitHub app
+   │                          └─ hosted rowboat: projects, files, versions
+   └─ <iframe sandbox="allow-scripts"> →  jscad-run.rkroll.com
+        └─ blob worker      evaluates every model          (opaque origin)
 ```
 
-The page never evaluates model code itself. Evaluation happens in one of two
-workers, and which one depends on where the code came from.
+The page never evaluates model code itself, and there is only one place that
+does.
 
-## Two engines, one boundary
+## One engine, one boundary
 
 Model code is JavaScript with the privileges of the origin that serves it. A
 model the user opened from a link, a gist or a `#data:` URL is someone else's
@@ -28,11 +27,10 @@ code, and on the app origin it could call `/api` with the user's cookie, read
 IndexedDB, and send what it found anywhere. The browser protects the server
 from the model; it does not protect the user.
 
-The compute frame is the answer to that. `/frame/` is served from this app's
-own host and embedded as `<iframe sandbox="allow-scripts">`. Leaving
-`allow-same-origin` off is the whole point: the frame gets an opaque origin, so
-code inside it has no cookies, no IndexedDB, no same-origin fetch and no
-service worker, and its CSP holds `connect-src` to `/frame/` and jsdelivr.
+The compute frame is the answer to that. It is served from its own host and
+embedded as `<iframe sandbox="allow-scripts">`. Leaving `allow-same-origin` off
+is the whole point: the frame gets an opaque origin, so code inside it has no
+cookies, no IndexedDB, no same-origin fetch and no service worker.
 
 The boundary falls between evaluating and drawing. Evaluating runs arbitrary
 code, including `require` from a CDN and transpiled OpenSCAD, so it belongs in
@@ -41,23 +39,40 @@ transforms and JSON, none of which can execute. Drawing that data, and every
 control around it, stays on the app origin, which is why the canvas is never
 tainted and a view capture is a local operation.
 
-Today only the agent's `eval`, `measure`, `check` and `export` cross into the
-frame (`src/framePort.js` on the app side, `src_frame/` on the other). The
-editor still compiles through the local worker on the app origin, so a model
-the user opens runs with the page's full authority. Moving the editor onto the
-frame is the open item in `../../docs/backlog.md`, and the preconditions are
-the agent path proven in production plus frame/worker parity across a render
-sweep.
+`src/frameSetup.js` builds the frame and hands back a `workerApi` with the
+shape the local worker's proxy had, so the params UI, the animation runner and
+the exporter drive it unchanged.
+
+The frame's `connect-src` is wide (`https:`, the run origin, and localhost in
+dev) because a model loaded from a real URL — an example, a `#url=` model, a
+gist — resolves its siblings over the network from inside the worker. Width
+costs little here: the frame holds no credentials and no storage, so a fetch
+from it carries no cookies and a `null` origin. The app origin has to answer
+those reads with `Access-Control-Allow-Origin`.
+
+### Naming a script
+
+A project's files travel to the frame in a map keyed by bare path
+(`src/projectFiles.js`), so a project script names itself against
+`PROJECT_BASE` (`http://project.local/`) and every sibling `require` resolves
+from the map (`src_frame/fileMap.js`). The app origin's `/swfs/` service-worker
+URLs never cross, because a service worker only serves clients it controls and
+the frame is not one. A model that came from a real URL keeps that URL and
+resolves over the network instead.
 
 ### Protocol
 
 The frame speaks the worker protocol, not one of its own: `src/framePort.js`
 wraps the iframe in the `postMessage`, `addEventListener` and
-`removeEventListener` a `Worker` offers, so `messageProxy` drives the frame the
-way it drives the local worker. `jscadInit`, `jscadScript`, `jscadSetFiles`,
-`jscadMain`, `jscadMeasure`, `jscadCheck`, `jscadExportData` and the cache
-clears all reach the frame's worker. Geometry buffers ride the transfer list on
-both hops, so they cross without a copy.
+`removeEventListener` a `Worker` offers, so `messageProxy` drives it the way it
+drove the local worker. `jscadInit`, `jscadScript`, `jscadSetFiles`,
+`jscadMain`, `jscadMeasure`, `jscadCheck`, `jscadGetExportFormats`,
+`jscadExportData` and the cache clears all reach the frame's worker. Geometry
+buffers ride the transfer list on both hops, so they cross without a copy.
+
+Worker notifications relay the same way, so the progress bar and the animation
+runner's `entities` pushes work unchanged. Job count is not relayed: the
+proxy's own pending-request map on the app side is what drives it.
 
 `src_frame/frame.js` relays every method untouched but one. The app never names
 a bundle URL: a script source inside the frame must come from the frame's own
@@ -86,9 +101,8 @@ base is `self.location.origin` (`'null'` here); `build.js` swaps in
 
 ### Headers
 
-The browser treats the frame as cross-origin even though it is same-host, so
-its module script and the worker's bundle fetches need CORS. Three places set
-the same headers and must agree:
+The frame is cross-origin, so its module script and the worker's bundle fetches
+need CORS. Three places set the same headers and must agree:
 
 - `build.js` — dev server middleware.
 - `serve.js` — production preview server.
@@ -119,15 +133,14 @@ Tools and where they run:
 
 | Tool | Runs |
 |---|---|
-| `eval`, `measure`, `check`, `export` | compute frame |
-| `params` | local worker (outside the sandbox) |
+| `eval`, `measure`, `check`, `export`, `params` | compute frame |
 | `view` | page, from the live canvas |
 | `writeModel` | editor buffer plus a version row |
 
-`params` calls `paramChangeCallback`, which re-runs `jscadMain` on the local
-worker. It re-runs whatever that worker last loaded, so it matters once the
-user has compiled agent-written source in the editor. `writeModel` only fills
-the editor buffer; nothing compiles until the user runs it.
+`params` calls `paramChangeCallback`, which re-runs `jscadMain` against
+whatever the frame last loaded — the agent's `eval` source or the editor's,
+whichever ran last. `writeModel` only fills the editor buffer; nothing compiles
+until the user runs it.
 
 ## Key custody
 
@@ -161,11 +174,12 @@ repository token. A project's file contents do cross, because a model's
 ## Deployment
 
 Apache serves the built bundle with SPA fallback and proxies `/api` to the
-Express service under systemd; `/frame/` is served from the same deploy with
-its own header block and no SPA fallback, so a bad path 404s instead of
-returning the app. The session cookie is host-only on `jscad.rkroll.com`,
-never `.rkroll.com`. `deploy-full.sh` deploys the frontend, then the API, then
-checks `/api/health`.
+Express service under systemd. The frame deploys separately to
+`jscad-run.rkroll.com` from `deploy-run.conf`, with its own header block and no
+SPA fallback, so a bad path 404s instead of returning the app. The session
+cookie is host-only on `jscad.rkroll.com`, never `.rkroll.com`.
+`deploy-full.sh` deploys the frontend, then the API, then checks
+`/api/health`.
 
 ## History
 

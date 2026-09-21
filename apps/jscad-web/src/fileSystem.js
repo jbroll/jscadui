@@ -30,7 +30,7 @@ import { shouldAllowReload } from './reloadDetection.js'
  * @property {(script: string, url: string) => void} onScriptReady - Called when script is ready to run
  * @property {(projectName: string) => void} setProjectName - Set export project name
  * @property {(script: string) => string} addV1Shim - Add v1 compatibility shim
- * @property {(files: string[], root: string) => Promise<void>} clearFileCache - Clear worker file cache
+ * @property {(files: string[]) => Promise<void>} clearFileCache - Clear worker file cache
  */
 
 /** @type {SwHandler | undefined} */
@@ -92,7 +92,7 @@ export async function initFs(deps) {
       if (files.includes('/package.json')) {
         onFilesChange()
       } else {
-        clearFileCache(files, sw.base)
+        clearFileCache(files)
         onFilesChanged(files)
         if (sw.fileToRun) onFilesChange()
       }

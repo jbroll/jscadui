@@ -71,7 +71,9 @@ const handleStatic = async (pathname) => {
   const contentType = mimeTypes[extname] || 'application/octet-stream'
 
   const content = await fs.readFile(filePath)
-  return { status: 200, content, contentType }
+  // The frame's opaque origin reads examples and model files from here, and
+  // every such read is a cross-origin fetch.
+  return { status: 200, content, contentType, headers: { 'Access-Control-Allow-Origin': '*' } }
 }
 
 /**

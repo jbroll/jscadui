@@ -171,10 +171,26 @@ const jscadExportData = ({ format, options = {} }) => {
   return withTransferable({ data }, data.filter((v) => typeof v !== 'string'))
 }
 
+// The export dropdown asks the engine which formats it has.
+const jscadGetExportFormats = () =>
+  defaultSerializerConfigs.map(({ id, label, extension }) => ({ id, label, extension }))
+
+const importData = {
+  isBinaryExt: (ext) => ext === 'stl',
+  deserialize: ({ url, filename, ext }, fileContent) => {
+    const jscadIo = require('@jscad/io', null, readFileWeb)
+    const deserializer = jscadIo.deserializers[ext]
+    if (!deserializer) throw new Error('unsupported format in ' + url)
+    return deserializer({ output: 'geometry', filename }, fileContent)
+  },
+}
+
 initWorker({
   transform: transformcjs,
   jscadExportData,
+  importData,
   customHandlers: {
+    jscadGetExportFormats,
     jscadMeasure,
     jscadCheck,
     jscadSetFiles,

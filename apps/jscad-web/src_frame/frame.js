@@ -25,9 +25,11 @@ const workerBundles = (engine) => ({
   '@jscad/modeling': BUNDLE_BASE + (engine === 'manifold' ? 'bundle.manifold_modeling.js' : 'bundle.jscad_modeling.js'),
   '@jscad/modeling-for-anchors': BUNDLE_BASE + (engine === 'manifold' ? 'bundle.manifold_modeling.js' : 'bundle.jscad_modeling.js'),
   '@jscad/modeling-for-manifold': BUNDLE_BASE + 'bundle.jscad_modeling.js',
+  '@jbroll/jscad-anchors': 'https://cdn.jsdelivr.net/npm/@jbroll/jscad-anchors@0.1/dist/jscad-anchors.cjs',
   '@jscad/io': BUNDLE_BASE + 'bundle.jscad_io.js',
   '@jscadui/model-tools': BUNDLE_BASE + 'bundle.model-tools.js',
   '@jbroll/jscad-fluent': BUNDLE_BASE + 'bundle.jscad-fluent.js',
+  '@jscad/csg': BUNDLE_BASE + 'bundle.V1_api.js',
   '@jscadui/params-core': BUNDLE_BASE + 'bundle.params_core.js',
   '@jscadui/jscad-text': BUNDLE_BASE + 'bundle.jscad_text.js',
 })

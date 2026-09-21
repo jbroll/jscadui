@@ -33,14 +33,12 @@ The fold left the frame boundary half-covered. In rough priority order:
 - **No CI entry runs the jscad-web browser e2e** beyond `frame.spec.js`.
   `ci/web` covers the unit suites and `ci/render` the render sweep, but
   `app.spec.js`, `ai-chat.spec.js` and the rest run nowhere.
-- **The agent's `params` tool runs outside the sandbox.** `setParams` in
-  `main.js` calls `paramChangeCallback`, which re-executes whatever the local
-  worker last loaded. Once the user has compiled agent-written source in the
-  editor, the agent can re-run it on the unsandboxed engine at will. Route
-  `params` through the frame instead.
-- **The frame iframe is created on every page load**, so every visitor pulls
-  the frame page and its blob worker even when the agent is never used. Create
-  it on first agent use.
-- **Migrate the editor onto the frame** so all model execution is sandboxed
-  and there is one engine. Preconditions: the agent path proven in production,
-  and frame/worker parity held across a full render sweep.
+- **The app still builds `bundle.worker.js` and `bundles.js`.** Nothing loads
+  either since the editor moved into the frame. Drop the build step and the
+  module, or keep `src_bundle` only for the parity tests that import it.
+- **The app origin needs `Access-Control-Allow-Origin` on model files.**
+  Examples, `#url=` models and gists resolve their siblings over the network
+  from inside the frame, which is a cross-origin read. `build.js` and
+  `serve.js` set it; the deployed `jscad.rkroll.com` vhost does not, so
+  multi-file examples will fail in production until it does. Scope the header
+  to the static paths, not `/api`.
