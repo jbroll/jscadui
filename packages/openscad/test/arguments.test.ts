@@ -186,3 +186,38 @@ describe('module arguments (options object pattern)', () => {
     })
   })
 })
+
+/**
+ * A bare function call as a statement is not legal OpenSCAD, but the BOSL/BOSL2
+ * example files are full of them (`transpose([3,4,5], $fn=32);`). Named
+ * arguments there must reach the object-form entry point, or the callee gets
+ * the options object as its first parameter.
+ */
+describe('function call as a statement', () => {
+  const call = (scadCode: string) =>
+    transpile(parse(scadCode).ast, { includeHeader: false }).code.trim()
+
+  it('uses the object entry point when an argument is named', () => {
+    const code = call(`
+      function pick(v, i = 0) = v[i];
+      pick([3, 4, 5], i = 2);
+    `)
+    expect(code).toContain('pick_$f$obj({ v: [3, 4, 5], i: 2 })')
+  })
+
+  it('uses the object entry point for a special-variable argument', () => {
+    const code = call(`
+      function pick(v, i = 0) = v[i];
+      pick([3, 4, 5], $fn = 32);
+    `)
+    expect(code).toContain("pick_$f$obj({ v: [3, 4, 5], '$fn': 32 })")
+  })
+
+  it('stays positional when no argument is named', () => {
+    const code = call(`
+      function pick(v, i = 0) = v[i];
+      pick([3, 4, 5], 2);
+    `)
+    expect(code).toContain('pick_$f([3, 4, 5], 2)')
+  })
+})

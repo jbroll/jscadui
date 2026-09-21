@@ -389,7 +389,7 @@ function transpileUserDefinedCall(
   // Build arguments in both formats:
   // - positionalArgs: for function calls (backward compat)
   // - optionsArgs: for module calls (new pattern)
-  const { args: positionalArgs } = reorderNamedArgs(name, argsArray, ctx, 'function')
+  const { args: positionalArgs, format: argsFormat } = reorderNamedArgs(name, argsArray, ctx, 'function')
   const optionsArgs = transpileArgsAsOptions(name, argsArray, ctx)
 
   // Check if this is a LOCAL variable FIRST (no suffix needed)
@@ -459,9 +459,12 @@ function transpileUserDefinedCall(
   }
 
   // Only use _$f suffix if it's EXCLUSIVELY a function (not also a module from any source)
-  // Functions still use positional args for backward compatibility
+  // Functions still use positional args for backward compatibility, but a named
+  // argument makes reorderNamedArgs emit an options object, which only the
+  // _$f$obj entry point destructures.
   if (isKnownFunction && !isKnownModule) {
-    return `${safeName}_$f(${positionalArgs})`
+    const suffix = argsFormat === 'object' ? '_$f$obj' : '_$f'
+    return `${safeName}${suffix}(${positionalArgs})`
   }
 
   // Module call with no children: use curried pattern with _$m suffix and options object
