@@ -110,7 +110,8 @@ field nobody can trust is worse than none.
 `e2e/render-grids-baseline.json` is the same thing for the grid sweep: **34 of
 44** on manifold, CI job `c47078d389ff9071`. Each failure carries its `status`,
 the cells that drew a marker, and why the grid itself died. `docs/backlog.md`
-groups the ten by cause.
+groups them by cause. The file predates the vertex-cap removal, which fixes
+`dotscad/examples/spiral/ALL.js`; re-run the sweep to record it.
 
 The current baseline is **784 ok of 785** on manifold, CI job
 `815f87b0abe7ee68`. It replaced a 596/788 baseline recorded before the

@@ -43,6 +43,11 @@ tainted and a view capture is a local operation.
 shape the local worker's proxy had, so the params UI, the animation runner and
 the exporter drive it unchanged.
 
+Creating the frame and the `jscadInit` that follows are top-level awaits, and
+everything below them in `main.js` waits about 1.5s on a live host. The chrome
+(menu, welcome, about) needs none of it, so it is wired above those awaits:
+a click on a button whose listener has not attached is lost, not queued.
+
 The frame's `connect-src` is `https:` plus the run origin and localhost in
 dev — wide enough that a model can fetch and run code from any https host,
 via `require` from a CDN or a raw `fetch`. That width is deliberate: a model
@@ -179,8 +184,10 @@ the export skips the whole dance when it is clear.
 ### Geometry caps
 
 Geometry from the frame is untrusted input, so `src/caps.js` bounds it before
-the first allocation for drawing: 8M vertices, 256MB of buffers, 2000
-entities. Over a cap is a model error, not an allocation. `aiEvaluate.js`
+the first allocation for drawing: 256MB of buffers and 2000 entities. Over a
+cap is a model error, not an allocation. There is no separate vertex cap: a
+vertex costs at least 12 bytes, so the buffer cap bounds vertices at about 22M,
+and an 8M one refused whole-library `ALL.js` grids that were genuine geometry. `aiEvaluate.js`
 re-checks the same caps so the agent cannot be told a model evaluated when
 nothing was drawn.
 

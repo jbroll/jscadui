@@ -91,7 +91,9 @@ same-origin fetch. The page keeps the viewer, the editor and every control. See
 [docs/architecture.md](docs/architecture.md) for the boundary and the protocol.
 
 The frame builds into `build/frame/` as part of the normal web build and
-deploys to the run host from `deploy-run.conf`. Its CORS and frame-ancestors
+deploys to the run host from `deploy-run.conf`. The model engine is built only
+there, into `build/frame/assets/`; the app origin ships the viewer bundles and
+nothing that can run a model. Its CORS and frame-ancestors
 headers are set in `build.js` (dev server), `serve.js` (`npm run serve`) and
 `deploy/hooks/apache.configure.post.sh` (the deployed vhost, keyed by
 `APP_NAME`). The app origin is baked into the frame's CSP and
