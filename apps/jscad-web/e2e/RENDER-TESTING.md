@@ -56,6 +56,25 @@ JOB=$(../simple-ci/sci push jscadui/render)   # runs ci/render on gpu
 `ci/render` builds the workspace, starts the dev server, and runs `render-all.mjs`.
 Edit `RENDER_ARGS` in `ci/render` to change scope/concurrency.
 
+## The modeling code a sweep actually measures
+
+`@jscad/modeling` and `@jscad/modeling-for-manifold` are `file:` deps on a
+**sibling** checkout, resolved through a relative symlink, so they point at a
+different repository on each machine: `~/src/OpenJSCAD.org` here,
+`/data/john/ci-worktrees/OpenJSCAD.org` (owned by `s-ci`) on the CI host. `sci`
+rsyncs only this repo, so a change to the modeling fork does not reach CI.
+Push the fork and update CI's checkout, or the sweep measures something else:
+
+```bash
+cd ~/src/OpenJSCAD.org && git push origin fork-main
+ssh gpu 'cd /data/john/ci-worktrees/OpenJSCAD.org && sudo -n -u s-ci \
+  git -c safe.directory=$PWD checkout -f -B fork-main origin/fork-main'
+```
+
+Both engines depend on it — the manifold runtime resolves
+`@jscad/modeling-for-manifold` to the same checkout — so this is not only a
+jscad-engine concern.
+
 ## Baseline
 
 `e2e/render-baseline.json` records the known sweep state: the CI job it was

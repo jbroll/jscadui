@@ -178,7 +178,17 @@ const { frameEl, workerApi, handlers } = await createFrame({
 
 // Twice the old agent cap: the heaviest examples in the corpus finish well
 // inside it, and a runaway model still dies rather than wedging the frame.
-const EDITOR_TIMEOUT_MS = 120_000
+// The render sweep raises it: there the point is whether a model is correct,
+// not whether it is quick, and the cap is only there to stop a hang.
+const DEFAULT_EDITOR_TIMEOUT_MS = 120_000
+const EDITOR_TIMEOUT_MS = (() => {
+  try {
+    const stored = Number(localStorage.getItem('engine.modelTimeoutMs'))
+    return Number.isFinite(stored) && stored > 0 ? stored : DEFAULT_EDITOR_TIMEOUT_MS
+  } catch {
+    return DEFAULT_EDITOR_TIMEOUT_MS
+  }
+})()
 
 // The frame names its own bundles; the app names only the engine.
 const initFrame = () =>

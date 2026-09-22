@@ -92,14 +92,17 @@ Baseline 780/789 (CI job `4e6f690d026700a8`), up from 596/788. See
 - **Four models time out at 30s** (`fractal_tree`, `packing_circles`,
   `voronoi_melon`, `extrusion_brackets`). Which four moves with CI load, so
   measure before assuming any of them is a hang.
-- **The jscad engine renders 715 of 789 where manifold renders 780.** The app
+- **The jscad engine renders 719 of 789 where manifold renders 780.** The app
   defaults to manifold, but the other engine is still a supported choice, and
   the STL comparison suite only runs manifold, so nothing covers it. Sweep it
   with `--engine jscad`, or run one model with
   `display-check.js --engine jscad`. What is left, after the degenerate-polygon
   and colorize fixes:
-  - **30 timeouts at 30s**, 19 of them NopSCADlib. The jscad CSG is simply
-    slower than manifold; these are not hangs.
+  - **25 timeouts at 30s**, most of them NopSCADlib. The jscad CSG is simply
+    slower than manifold; these are not hangs. `nuts.scad` takes 37s in Node
+    against manifold's 3.6s, and its profile is entirely BSP: splitByPlane
+    11.6s, GC 11.3s, clipTo 7.3s, with nothing in our own code. Which four or
+    five time out shifts with CI load.
   - **21 models extrude a geom2 whose sides do not close**, so earcut throws
     inside `extrudeFromSlices`. Not a tolerance problem: in
     `hypnotic_squares.scad` the closest distinct endpoints of the 187-side

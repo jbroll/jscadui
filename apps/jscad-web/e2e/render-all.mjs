@@ -24,7 +24,13 @@
  *   --limit <n>        Only the first n files (quick smoke test)
  *   --concurrency <n>  Parallel pages (default: 4)
  *   --engine <name>    Modeling engine: jscad | manifold (default: app default)
- *   --timeout <ms>     Per-file timeout (default: 30000)
+ *   --timeout <ms>     Per-file timeout (default: 300000). This is a hang
+ *                      guard, not a performance budget: a model that renders
+ *                      slowly is still a model that renders.
+ *   --model-timeout <ms>  What the app gives a model before it kills it
+ *                      (default: the per-file timeout less 30s, so the frame
+ *                      reports "model exceeded N ms" rather than the harness
+ *                      reporting an opaque timeout).
  *   --server <url>     Dev server base (default: http://localhost:5120)
  *   --no-skip          Ignore skip.txt files
  *   --out <file>       JSON report path (default: e2e/render-report.json)
@@ -46,7 +52,7 @@ const EXAMPLES_ROOT = join(APP_ROOT, 'examples')
 // ── args ────────────────────────────────────────────────────────────────────
 function parseArgs(argv) {
   const o = {
-    dirs: [], jscad: false, limit: 0, concurrency: 4, timeout: 30_000,
+    dirs: [], jscad: false, limit: 0, concurrency: 4, timeout: 300_000, modelTimeout: 0,
     server: 'http://localhost:5120', skip: true, engine: '', grids: false,
     out: join(__dirname, 'render-report.json'), headed: false,
   }
@@ -57,6 +63,7 @@ function parseArgs(argv) {
     else if (a === '--limit') o.limit = Number(argv[++i])
     else if (a === '--concurrency') o.concurrency = Number(argv[++i])
     else if (a === '--timeout') o.timeout = Number(argv[++i])
+    else if (a === '--model-timeout') o.modelTimeout = Number(argv[++i])
     else if (a === '--server') o.server = argv[++i]
     else if (a === '--engine') o.engine = argv[++i]
     else if (a === '--grids') o.grids = true
@@ -67,6 +74,9 @@ function parseArgs(argv) {
     else throw new Error(`unknown arg: ${a}`)
   }
   if (o.dirs.length === 0) o.dirs = ['openscad']
+  // Leave the harness a margin over the app, so a model that runs too long is
+  // reported by the frame, which names the cause, rather than by page.goto.
+  if (!o.modelTimeout) o.modelTimeout = Math.max(30_000, o.timeout - 30_000)
   return o
 }
 
@@ -122,7 +132,7 @@ async function renderOne(context, opts, file, idx) {
   let status, errText = ''
   try {
     await page.goto(target, { waitUntil: 'domcontentloaded', timeout: opts.timeout })
-    try { await page.locator('#welcome-dismiss').click({ timeout: 1500 }) } catch {}
+    try { await page.locator('#welcome-dismiss').click({ timeout: 1500 }) } catch { /* already dismissed */ }
     // The app marks html[data-render] running → ok/error. #progress cannot be
     // waited on: it starts display:none, so 'hidden' resolves before the model
     // has even begun and every page reads as a pass.
@@ -170,8 +180,11 @@ async function run() {
   async function worker() {
     const context = await browser.newContext()
     if (opts.engine) await context.addInitScript(e => {
-      try { localStorage.setItem('engine.modelingEngine', e) } catch {}
+      try { localStorage.setItem('engine.modelingEngine', e) } catch { /* the app falls back to its default */ }
     }, opts.engine)
+    await context.addInitScript(ms => {
+      try { localStorage.setItem('engine.modelTimeoutMs', String(ms)) } catch { /* the app falls back to its default */ }
+    }, opts.modelTimeout)
     while (next < files.length) {
       const i = next++
       const res = await renderOne(context, opts, files[i], i)

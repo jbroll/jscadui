@@ -13,7 +13,11 @@ set -uo pipefail
 
 WORKTREE="$(cd "$(dirname "$0")/.." && pwd)"
 APP="$WORKTREE/apps/jscad-web"
-RENDER_ARGS="${RENDER_ARGS:---dir openscad --concurrency 6 --timeout 30000}"
+# The timeout is a hang guard, not a performance budget: a model that renders
+# slowly still renders. 300s per file leaves the app a 270s model budget, which
+# is ~4x the slowest example measured single-threaded (rod.scad at 61s) with
+# room for six pages competing for the box.
+RENDER_ARGS="${RENDER_ARGS:---dir openscad --concurrency 6 --timeout 300000}"
 
 cd "$WORKTREE"
 npm install
