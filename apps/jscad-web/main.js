@@ -54,7 +54,7 @@ import { createSession } from './src/storage/session.js'
 import { initProjects } from './src/projects.js'
 import { extractEntries, readAsText, readDir } from '@jscadui/fs-provider'
 import { createFrame, createJobTracker } from './src/frameSetup.js'
-import { collectProjectFiles } from './src/projectFiles.js'
+import { collectProjectFiles, replaceProjectFiles } from './src/projectFiles.js'
 import { PROJECT_BASE } from './src_frame/fileMap.js'
 import * as fileSystem from './src/fileSystem.js'
 import * as paramsUI from './src/paramsUI.js'
@@ -250,9 +250,7 @@ const switchProject = async (id) => {
   const { project, files } = await projectManager.readForSwitch(id)
   currentProjectId = id
   workerApi.jscadClearTempCache()
-  for (const [path, content] of Object.entries(files)) {
-    await fileSystem.addToCacheWrapper(path, content)
-  }
+  await replaceProjectFiles(fileSystem, files)
   editor.setFiles(toEditorFiles(files))
   editor.setSource(files[project.entry] ?? '', project.entry)
   jscadScript({ script: files[project.entry] ?? '', ...projectUrls(project.entry) })

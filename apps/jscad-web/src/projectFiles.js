@@ -18,6 +18,20 @@ export const isBinaryPath = (path) => BINARY_EXT.has(path.slice(path.lastIndexOf
  * @param {{base:string,cache:Cache}|undefined} sw
  * @returns {Promise<Record<string,string|ArrayBuffer>>}
  */
+/**
+ * Make the cache hold exactly this project. Without the clear the frame gets
+ * the union of every project opened this session, since collectProjectFiles
+ * sends whatever is in the cache.
+ * @param {{clearProjectCache:()=>Promise<void>,addToCacheWrapper:(path:string,content:unknown)=>Promise<void>}} fileSystem
+ * @param {Record<string,unknown>} files
+ */
+export const replaceProjectFiles = async (fileSystem, files) => {
+  await fileSystem.clearProjectCache()
+  for (const [path, content] of Object.entries(files)) {
+    await fileSystem.addToCacheWrapper(path, content)
+  }
+}
+
 export const collectProjectFiles = async (sw) => {
   if (!sw?.cache) return {}
   const files = {}

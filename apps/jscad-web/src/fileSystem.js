@@ -179,6 +179,14 @@ export async function addToCacheWrapper(path, content) {
 }
 
 /**
+ * Empty the file cache. The frame is sent whatever the cache holds, so a
+ * project's files have to go before the next project's arrive.
+ */
+export async function clearProjectCache() {
+  if (sw) await clearCache(sw.cache)
+}
+
+/**
  * Get the save map (file handle references)
  * @returns {Object.<string, FileSystemFileHandle>}
  */

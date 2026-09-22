@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { collectProjectFiles, isBinaryPath } from '../src/projectFiles.js'
+import { collectProjectFiles, isBinaryPath, replaceProjectFiles } from '../src/projectFiles.js'
 
 // Mirrors what the real Cache API does: addToCache() calls cache.put(new
 // Request(path), ...) with a leading-slash, project-relative path, which
@@ -46,5 +46,35 @@ describe('isBinaryPath', () => {
   it('classifies by extension', () => {
     expect(isBinaryPath('a/b/part.stl')).toBe(true)
     expect(isBinaryPath('a/b/model.js')).toBe(false)
+  })
+})
+
+describe('replaceProjectFiles', () => {
+  const fakeFileSystem = () => {
+    const cached = new Map()
+    return {
+      cached,
+      clearProjectCache: async () => cached.clear(),
+      addToCacheWrapper: async (path, content) => { cached.set(path, content) },
+    }
+  }
+
+  it('leaves the previous project out of the cache', async () => {
+    const fs = fakeFileSystem()
+    await replaceProjectFiles(fs, { 'main.js': 'first', 'only-in-first.js': 'x' })
+    await replaceProjectFiles(fs, { 'main.js': 'second' })
+
+    expect([...fs.cached.keys()]).toEqual(['main.js'])
+    expect(fs.cached.get('main.js')).toBe('second')
+  })
+
+  it('clears before it writes', async () => {
+    const order = []
+    const fs = {
+      clearProjectCache: async () => order.push('clear'),
+      addToCacheWrapper: async (path) => order.push(`add ${path}`),
+    }
+    await replaceProjectFiles(fs, { 'a.js': '', 'b.js': '' })
+    expect(order).toEqual(['clear', 'add a.js', 'add b.js'])
   })
 })
