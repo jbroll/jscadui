@@ -327,3 +327,59 @@ test('a manifold model loads its wasm and returns geometry', async ({ page }) =>
   const vertexCount = res.result.entities.reduce((n, e) => n + (e.vertices?.length ?? 0), 0)
   expect(vertexCount).toBeGreaterThan(0)
 })
+
+// One triangle is enough to prove the .stl arrived intact and deserialized:
+// the loader now hands the deserializer an ArrayBuffer from the file map
+// rather than the binary string readFileWeb used to return.
+const binaryStl = () => {
+  const bytes = new Uint8Array(84 + 50)
+  const view = new DataView(bytes.buffer)
+  view.setUint32(80, 1, true)
+  const floats = [0, 0, 1, 0, 0, 0, 10, 0, 0, 0, 10, 0]
+  floats.forEach((v, i) => view.setFloat32(84 + i * 4, v, true))
+  return [...bytes]
+}
+
+test('a project require of a .stl deserializes inside the frame', async ({ page }) => {
+  await gotoHost(page)
+  const inited = await init(page)
+  expect(inited.ok).toBe(true)
+
+  const entry =
+    `const { part } = require('./part.stl')\n` +
+    `const main = () => part ?? require('./part.stl')\n` +
+    `module.exports = { main }\n`
+  const set = await page.evaluate(({ entry, bytes }) =>
+    window.send('jscadSetFiles', {
+      files: { 'main.js': entry, 'part.stl': new Uint8Array(bytes).buffer },
+    }), { entry, bytes: binaryStl() })
+  expect(set.ok).toBe(true)
+
+  const res = await send(page, 'jscadScript', {
+    script: entry,
+    url: PROJECT_BASE + 'main.js',
+    base: PROJECT_BASE,
+    root: PROJECT_BASE,
+  })
+  expect(res.ok).toBe(true)
+  const vertexCount = res.result.entities.reduce((n, e) => n + (e.vertices?.length ?? 0), 0)
+  expect(vertexCount).toBeGreaterThan(0)
+})
+
+// The transpiler reports each resolved file's own path as fromFile, so an
+// include from a file two directories deep has to resolve against that file
+// rather than against the entry.
+test('a nested include resolves against the file that asked for it', async ({ page }) => {
+  await gotoHost(page)
+  const res = await load(page, {
+    entry: 'main.scad',
+    files: {
+      'main.scad': 'include <lib/outer.scad>\nouter();\n',
+      'lib/outer.scad': 'include <deep/inner.scad>\nmodule outer() { inner(); }\n',
+      'lib/deep/inner.scad': 'module inner() { cube([4, 4, 4]); }\n',
+    },
+  }, { timeoutMs: 60000 })
+  expect(res.ok).toBe(true)
+  const vertexCount = res.result.entities.reduce((n, e) => n + (e.vertices?.length ?? 0), 0)
+  expect(vertexCount).toBeGreaterThan(0)
+})
