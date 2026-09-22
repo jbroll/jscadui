@@ -29,4 +29,31 @@ describe('undefined symbol handling — valid JS', () => {
     const main = run(code)
     expect(() => main && main()).not.toThrow()
   })
+
+  it('stubs only what the file never declares', () => {
+    const src = `
+      function here(x) = x + 1;
+      module shown() { cube(here(1)); }
+      shown();
+      x = missing_fn(1);
+      cube(x);
+    `
+    const { code } = transpile(parse(src).ast, { currentFile: '/c.scad' })
+    expect(code).toContain('var missing_fn_$f = () => undefined')
+    expect(code).not.toMatch(/var here_\$f = \(\) =>/)
+    expect(code).not.toMatch(/var shown_\$m = \(\) =>/)
+  })
+
+  it('stubs each of several undefined symbols', () => {
+    const src = 'x = miss_a(1) + miss_b(2); cube(x);'
+    const { code } = transpile(parse(src).ast, { currentFile: '/d.scad' })
+    expect(code).toContain('var miss_a_$f = () => undefined')
+    expect(code).toContain('var miss_b_$f = () => undefined')
+  })
+
+  it('treats a name the exports list only mentions as declared', () => {
+    const { code } = transpile(parse('function only(x) = x;').ast, { currentFile: '/e.scad' })
+    expect(code).toMatch(/Object\.assign\(exports, \{[^}]*only_\$f[^}]*\}\)/)
+    expect(code).not.toMatch(/var only_\$f = \(\) =>/)
+  })
 })

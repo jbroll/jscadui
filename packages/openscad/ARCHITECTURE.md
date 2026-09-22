@@ -112,6 +112,16 @@ and OpenSCAD counts at least one step per tail call, so the cap never rejects a
 model OpenSCAD runs. Mutual recursion is not converted; see
 `docs/design/mutual-tail-calls-trial.md` for why.
 
+### Undefined symbols
+
+A `.scad` file may legally call a module or function that is never defined;
+OpenSCAD warns and renders nothing. So after generating a file, the transpiler
+scans it for bare `foo_$m` / `foo_$f` references and declares a no-op `var` for
+any that nothing in the file declares, which keeps the JS valid. Both the
+references and the declarations are collected in single passes: with a library
+bundled in, the generated file is megabytes, and scanning it once per
+referenced name was 90% of what a transpile cost.
+
 ## Worker Integration
 
 The worker's module loader is extended to handle `.scad` files:

@@ -637,13 +637,16 @@ function declareMissingSymbols(code: string): string {
   // Bare references only (skip property access like `_ns.foo_$m`).
   for (const m of code.matchAll(/(?<![.\w$])\w+_\$[mf](?![\w$])/g)) referenced.add(m[0])
   if (referenced.size === 0) return code
+  // Both passes collect names, rather than scanning the file once per referenced
+  // name: with a library bundled in, that was 90% of the time a transpile took.
+  const declared = new Set<string>()
+  for (const m of code.matchAll(/(?:\bvar\b|\bconst\b|\blet\b|\bfunction\b)\s+(\w+_\$[mf])(?![\w$])/g)) declared.add(m[1])
+  // Shorthand in an object literal: the exports list, or a destructured require().
+  // The trailing delimiter is a lookahead so that `{a_$f, b_$f}` matches both.
+  for (const m of code.matchAll(/[{,]\s*(\w+_\$[mf])\s*(?=[,}])/g)) declared.add(m[1])
   const stubs: string[] = []
   for (const name of referenced) {
-    const esc = name.replace(/\$/g, '\\$')
-    const declared =
-      new RegExp(`(?:\\bvar\\b|\\bconst\\b|\\blet\\b|\\bfunction\\b)\\s+${esc}(?![\\w$])`).test(code) ||
-      new RegExp(`[{,]\\s*${esc}\\s*[,}]`).test(code)  // destructured from require()
-    if (!declared) {
+    if (!declared.has(name)) {
       // Module calls are curried: foo_$m(args)(children). Undefined → no geometry.
       stubs.push(name.endsWith('_$m') ? `var ${name} = () => () => undefined` : `var ${name} = () => undefined`)
     }
