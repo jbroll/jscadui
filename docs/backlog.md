@@ -109,13 +109,37 @@ covering this engine. Run one model with `display-check.js --engine jscad`.
   geometry that was fine and a later BSP returns something broken in its own
   right. `gears.scad` is the model that catches it.
 
-  The other 23 are a different bug. In `horiholes.scad` a 24-way `union`
-  returns 820 sides with 16 dangling vertices, paired at ±x on a shared y and
-  9.5e-5 apart against an epsilon of 6.1e-5 — wider than a cell. Two nearly
-  identical full-width sides are missing outright, so these are sides lost
-  inside the 3D boolean rather than corners that rounded apart. Trace one with
-  `packages/openscad/bin/geom2-trace.js`; a gap on the order of the printed
-  epsilon is a snapping split, anything wider is this.
+  The other 23 are a different bug, and it is in the BSP rather than anywhere
+  downstream of it. `unionGeom2` and friends extrude both operands into
+  `to3DWalls` prisms, run the 3D boolean and read the sides back; for these
+  models the wall set the 3D boolean returns does not form closed loops before
+  any snapping happens. On `wire.scad` a `subtract` takes 119 input walls,
+  returns 89, rejects none of them in `fromFakePolygons`, and the raw
+  coordinates already leave 11 vertices unmatched, some by two sides.
+
+  Ruled out, each by measurement:
+
+  - **Not snapping.** The raw BSP output is open at full float precision.
+  - **Not the missing caps.** `to3DWalls` builds side walls only, so the BSP
+    classifies inside/outside on a solid that is not closed. Capping the
+    prisms with earcut triangles changes nothing: same 89 walls, same 11
+    unmatched.
+  - **Not `EPS` alone.** `splitPolygonByPlane` uses an absolute `EPS` of 1e-5
+    (`src/maths/constants.js`) while `horiholes.scad` has walls 7.5e-6 apart,
+    below it. Dropping `EPS` to 1e-9 takes that model from 76 unmatched to 40
+    and leaves `wire.scad` untouched, so it contributes without being the
+    cause.
+
+  Repairing this downstream is not available. Surveying all 23 with
+  `geom2-trace.js --preview`, the distance from an unmatched vertex to the
+  partner a repair would join it to runs from 1.6 epsilon
+  (`horiholes.scad`) through 10.5 (`fidget_boo.scad`) to 37 and beyond for the
+  other 20, topping out at 35,665 (`walk_torus83_fort.scad`);
+  `blowers.scad` has no opposite-sign partner at all. Whole sides are gone, so
+  closing them means inventing geometry. Fixing it means the BSP's coplanar
+  and boundary handling, or doing 2D booleans in 2D instead of through a 3D
+  BSP. Both engines are affected: the manifold runtime routes geom2-sourced
+  booleans through the same code (`packages/manifold/src/booleans/index.js`).
 - **A tail of small clusters**: 5 unions across mixed 2D/3D types, 4 planes
   that an origin and normal do not define, 2 minkowski, 2 subtract across
   mixed types, 2 stack overflows, 3 models past the 270s budget.

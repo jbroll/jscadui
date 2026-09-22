@@ -160,12 +160,19 @@ with its dangling vertices, the geometry's epsilon and how far apart the
 unmatched points are:
 
 ```bash
-node bin/geom2-trace.js file.scad --engine jscad [--lib-path <p>] [--fn <n>] [--all]
+node bin/geom2-trace.js file.scad --engine jscad [--lib-path <p>] [--fn <n>] \
+  [--preview] [--all] [--dump <file>]
 ```
 
-A gap on the order of the printed epsilon is a snapping failure in the
-boolean; a gap much larger than it means the profile was already open further
-upstream. `--all` reports every open result rather than only the first.
+Each dangling vertex is reported with the distance to the vertex a repair
+would have to join it to, in epsilon units. A partner within a few epsilon is
+a snapping failure; hundreds or thousands of epsilon means whole sides are
+missing from the boolean's output. `--all` reports every open result rather
+than only the first, and `--dump` writes the first one's operands as JSON so
+that single boolean call can be replayed without the model around it.
+
+Pass `--preview` to match what the browser runs. Several models fail in the
+render sweep and not here without it.
 
 ---
 
