@@ -46,6 +46,11 @@ const j$ = {
   // Convert EXPLICIT_UNDEF to real undefined in function preambles.
   // Replaces per-param `if (x === EXPLICIT_UNDEF) x = undefined` with a single call.
   resolveUndef: (...args) => args.map(a => a === EXPLICIT_UNDEF ? undefined : a),
+  // A self tail-call loop may run this many times, OpenSCAD's own limit (src/core/Expression.cc).
+  TAIL_CALL_LIMIT: 1000000,
+  recursionDetected: (name) => {
+    throw new Error(`Recursion detected calling function '${name}'`)
+  },
   // Safe array index — returns integer index or NaN (→ undefined element).
   // OpenSCAD: arr[[n]] returns arr[n] (1-element list unwrap, like search([x],y)[0]).
   //           arr[[]] returns undef; Math.trunc([]) === 0 in JS (wrong coercion).

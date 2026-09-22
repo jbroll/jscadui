@@ -15,7 +15,7 @@ import { WarningCode } from './context.js'
 import { generateScopeSuffix, withScope } from './scoping.js'
 import { safeIdentifier, getShortFilename } from '../utils/identifiers.js'
 import { transpileExpression, transpileReturn, transpileCallArg, reorderNamedArgs, isFunctionLiteralExpr } from './expressions.js'
-import { markTailCalls, clearTailCallMarks, buildBounceReassignment } from './tailCall.js'
+import { markTailCalls, clearTailCallMarks, buildBounceReassignment, buildTailLoop } from './tailCall.js'
 import { getLocation } from '../parser/parse.js'
 import {
   isBuiltinPrimitive,
@@ -1252,7 +1252,7 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
         if (arg.value) paramDefaults.set(pName, transpileExpression(arg.value, ctx))
       }
       const reassign = buildBounceReassignment(safeParamNames, paramDefaults)
-      funcCode = `${indent}const ${funcVarName} = (${funcParams}) => { while (true) { const _r = ${bouncedBody}; if (!_r || !_r.__bounce__) return _r; ${reassign}; } }`
+      funcCode = `${indent}const ${funcVarName} = (${funcParams}) => { ${buildTailLoop(f.name, bouncedBody, reassign)} }`
     } else {
       const funcBody = transpileExpression(f.expr, ctx)
       funcCode = `${indent}const ${funcVarName} = (${funcParams}) => ${funcBody}`
@@ -1607,7 +1607,7 @@ export function transpileFunctionDeclaration(stmt: FunctionDeclarationStmt, ctx:
       }
     }
     const reassign = buildBounceReassignment(safeParamNames, paramDefaults)
-    positionalCode = `${comment}function ${name}_$f(${positionalParams}) { ${positionalPreamble}while (true) { const _r = ${tailBody}; if (!_r || !_r.__bounce__) return _r; ${reassign}; } }`
+    positionalCode = `${comment}function ${name}_$f(${positionalParams}) { ${positionalPreamble}${buildTailLoop(stmt.name, tailBody, reassign)} }`
   } else {
     positionalCode = `${comment}function ${name}_$f(${positionalParams}) { ${positionalPreamble}${finalReturn} }`
   }

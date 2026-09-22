@@ -159,6 +159,15 @@ export function emitBounce(
 }
 
 /**
+ * The trampoline loop for a self tail-recursive function. It stops at OpenSCAD's
+ * own iteration limit, because a recursion that never ends never grows the stack.
+ */
+export function buildTailLoop(funcName: string, bouncedBody: string, reassign: string): string {
+  return `let _$n = 0; while (true) { const _r = ${bouncedBody}; if (!_r || !_r.__bounce__) return _r; ` +
+    `if (++_$n === j$.TAIL_CALL_LIMIT) j$.recursionDetected('${funcName}'); ${reassign}; }`
+}
+
+/**
  * Generate the destructuring reassignment for the while-loop continuation.
  * Creates: ({p1 = default1, p2, p3 = default3, ...} = _r.args)
  *

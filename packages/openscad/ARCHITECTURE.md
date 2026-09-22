@@ -100,6 +100,18 @@ const main = () => {
 module.exports = { main }
 ```
 
+### Tail recursion
+
+A function that calls itself in tail position (`tailCall.ts`) compiles to a
+`while (true)` loop: the tail call returns a bounce object, and the loop
+rebinds the parameters and goes round again, so the recursion uses no stack.
+Because a recursion that never ends then never overflows either, the loop
+stops after `j$.TAIL_CALL_LIMIT` (1,000,000) iterations with OpenSCAD's
+`Recursion detected calling function '<name>'`. That is OpenSCAD's own limit,
+and OpenSCAD counts at least one step per tail call, so the cap never rejects a
+model OpenSCAD runs. Mutual recursion is not converted; see
+`docs/design/mutual-tail-calls-trial.md` for why.
+
 ## Worker Integration
 
 The worker's module loader is extended to handle `.scad` files:

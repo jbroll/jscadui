@@ -1,6 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import { parse } from '../src/parser/parse.js'
 import { transpile } from '../src/transpiler/transpile.js'
+import j$ from '@jscadui/openscad-runtime'
+
+const run = (src: string, call: string) => {
+  const { code: js } = transpile(parse(src).ast, { currentFile: '/t.scad' })
+  const fn = new Function('require', 'module', 'exports', 'j$', `${js}\nreturn ${call}`)
+  return fn(() => ({}), { exports: {} }, {}, j$)
+}
 
 /**
  * Unit tests for tail-call trampolining.
@@ -147,6 +154,30 @@ describe('tail-call trampoline', () => {
       expect(resolvePos).toBeGreaterThan(0)
       expect(whilePos).toBeGreaterThan(resolvePos)
     })
+  })
+})
+
+describe('runaway tail recursion', () => {
+  it('fails with OpenSCAD\'s message instead of spinning', () => {
+    expect(() => run('function spin(n) = spin(n + 1);', 'spin_$f(0)'))
+      .toThrow("Recursion detected calling function 'spin'")
+  })
+
+  it('still runs a long legitimate tail recursion', () => {
+    expect(run('function count(n, acc = 0) = n <= 0 ? acc : count(n - 1, acc + 1);', 'count_$f(900000)'))
+      .toBe(900000)
+  })
+
+  it('fails a runaway local function inside a module', () => {
+    const src = `
+      module m() {
+        function spin(n) = spin(n + 1);
+        echo(spin(0));
+      }
+    `
+    const { code: js } = transpile(parse(src).ast, { currentFile: '/t.scad' })
+    const body = js.slice(js.indexOf('const spin'))
+    expect(body).toContain("j$.recursionDetected('spin')")
   })
 })
 

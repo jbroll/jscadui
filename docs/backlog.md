@@ -93,15 +93,6 @@ per-file cap is 300s and is a hang guard, not a performance budget. See
 
 ## Transpiler performance
 
-- **A runaway tail recursion spins instead of failing.** `tailCall.ts` turns
-  self tail recursion into `while (true)`, so a recursion that never ends
-  never grows the stack either: dotSCAD's `_delaunayBoundaries` on
-  `voronoi_melon.scad` (and on as few as 6 points) loops until the model budget
-  kills it, where OpenSCAD reports `Recursion detected calling function
-  '_delaunayBoundaries'` in ~25s. A bounded iteration count in the trampoline
-  would fail with OpenSCAD's message instead. Pick the bound so that
-  legitimate list-walking tail recursion in BOSL2 and dotSCAD stays well
-  inside it.
 - **Replace the undef preamble with per-parameter checks.** Every generated
   function opens with `[a, b, ...] = j$.resolveUndef(a, b, ...)`, which builds
   a rest array, maps it into a second one, and destructures it back through
