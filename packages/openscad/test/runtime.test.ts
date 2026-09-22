@@ -133,18 +133,6 @@ describe('resolveParams', () => {
   })
 })
 
-describe('resolveUndef', () => {
-  it('converts EXPLICIT_UNDEF to undefined', () => {
-    const result = j$.resolveUndef(1, j$.EXPLICIT_UNDEF, 3)
-    expect(result).toEqual([1, undefined, 3])
-  })
-
-  it('leaves other values unchanged', () => {
-    const result = j$.resolveUndef(1, 'hello', undefined, null)
-    expect(result).toEqual([1, 'hello', undefined, null])
-  })
-})
-
 describe('OpenSCAD semantics with isTruthy', () => {
   // These tests verify the expected behavior when isTruthy is used in conditionals
 

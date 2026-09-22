@@ -83,8 +83,8 @@ result = test(1, undef, 3);
     // undef as explicit call arg becomes EXPLICIT_UNDEF so JS default params don't silently apply
     expect(result.code).toMatch(/test_\$f\(1,\s*j\$\.EXPLICIT_UNDEF,\s*3\)/)
 
-    // Function should convert EXPLICIT_UNDEF back to undefined via resolveUndef
-    expect(result.code).toMatch(/j\$\.resolveUndef\(a, b, c\)/)
+    // Function should convert EXPLICIT_UNDEF back to undefined in its preamble
+    expect(result.code).toContain('if (a === _$U) a = undefined; if (b === _$U) b = undefined; if (c === _$U) c = undefined;')
   })
 
   it('should work with no-parameter functions', () => {
@@ -139,8 +139,8 @@ describe('_$f$obj delegation calling conventions', () => {
     `)
     // Positional call uses _$f directly
     expect(code).toMatch(/f_\$f\(1, j\$\.EXPLICIT_UNDEF\)/)
-    // _$f has preamble to convert EXPLICIT_UNDEF via resolveUndef
-    expect(code).toMatch(/j\$\.resolveUndef\(a, b\)/)
+    // _$f has preamble to convert EXPLICIT_UNDEF
+    expect(code).toContain('if (a === _$U) a = undefined; if (b === _$U) b = undefined;')
   })
 
   it('named EXPLICIT_UNDEF through delegation preserves semantics', () => {

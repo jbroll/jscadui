@@ -142,14 +142,13 @@ describe('tail-call trampoline', () => {
     })
   })
 
-  describe('resolveUndef preamble', () => {
+  describe('explicit-undef preamble', () => {
     it('preamble runs before the while loop', () => {
       const code = transpileCode(`
         function f(a, b=5) = a <= 0 ? b : f(a-1, b);
       `)
-      // The resolveUndef call should appear before while(true)
       const fBody = code.slice(code.indexOf('function f_$f('))
-      const resolvePos = fBody.indexOf('resolveUndef')
+      const resolvePos = fBody.indexOf('=== _$U')
       const whilePos = fBody.indexOf('while (true)')
       expect(resolvePos).toBeGreaterThan(0)
       expect(whilePos).toBeGreaterThan(resolvePos)

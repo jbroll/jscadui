@@ -491,7 +491,10 @@ function buildOutputCode(
   // will see the real exports once the module finishes loading.
   parts.push(`Object.assign(exports, { ${allExports.join(', ')} })`)
 
-  return { code: parts.join('\n'), allExports }
+  // Function preambles compare parameters against this; `var` because modules may share a global scope.
+  const code = parts.join('\n')
+  const sentinel = /\b_\$U\b/.test(code) ? 'var _$U = j$.EXPLICIT_UNDEF\n' : ''
+  return { code: sentinel + code, allExports }
 }
 
 /**

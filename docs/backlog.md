@@ -91,18 +91,6 @@ per-file cap is 300s and is a hang guard, not a performance budget. See
   render either: dotSCAD's `_delaunayBoundaries` recurses without end on its
   point set.
 
-## Transpiler performance
-
-- **Replace the undef preamble with per-parameter checks.** Every generated
-  function opens with `[a, b, ...] = j$.resolveUndef(a, b, ...)`, which builds
-  a rest array, maps it into a second one, and destructures it back through
-  the iterator protocol. `if (a === U) a = undefined` per parameter does the
-  same work with no allocation: on a 12-parameter recursion, 651ms -> 97ms
-  optimized and 8,040ms -> 841ms interpreted. It does not change stack depth
-  (measured, both tiers). Touches every function the transpiler emits, so it
-  lands on its own with a full corpus run; the generated code needs a stable
-  handle on `EXPLICIT_UNDEF`.
-
 ## Library bugs found by the sweep
 
 - **dotSCAD's `r_union3` fails on the manifold engine** with
