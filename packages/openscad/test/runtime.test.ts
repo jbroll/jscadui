@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 
 // Import the runtime directly for unit testing
 import j$ from '@jscadui/openscad-runtime'
-import { _cylinder, _sphere, withoutDegeneratePolygons, initColor, _color, initPrimitives, _safeUnion, initTransforms, _mirror } from '@jscadui/openscad-runtime'
+import { _cylinder, _sphere, withoutDegeneratePolygons, initColor, _color, initPrimitives, _safeUnion, initTransforms, _mirror, _subtract, _intersect } from '@jscadui/openscad-runtime'
 
 /**
  * Unit tests for OpenSCAD runtime helpers
@@ -676,5 +676,45 @@ describe('mirror with a 2D normal', () => {
     const { normal, out } = mirrored([0, 0])
     expect(normal).toBeUndefined()
     expect(out).toBe(geo)
+  })
+})
+
+/**
+ * The same rule as safeUnion, for the other two booleans: OpenSCAD's
+ * `difference()` and `intersection()` take their dimension from the first
+ * child and ignore the rest. Two snippet models subtract a 3D child from a 2D
+ * one.
+ */
+describe('subtract and intersect across mixed dimensions', () => {
+  const square = { sides: [[[0, 0], [1, 0]]] }
+  const other2d = { sides: [[[0, 0], [0, 1]]] }
+  const cube = { polygons: [{ vertices: [[0, 0, 0], [1, 0, 0], [0, 1, 0]] }] }
+
+  let seen: unknown[] = []
+  const stub = {
+    primitives: {}, transforms: {}, hulls: {},
+    booleans: {
+      union: (...a: unknown[]) => { seen = a; return a[0] },
+      subtract: (...a: unknown[]) => { seen = a; return a[0] },
+      intersect: (...a: unknown[]) => { seen = a; return a[0] }
+    }
+  }
+  const call = (fn: (...a: unknown[]) => unknown, parts: unknown[]) => {
+    seen = []
+    initPrimitives(stub)
+    fn(...parts)
+    return seen
+  }
+
+  it('subtract keeps only the first child dimension', () => {
+    expect(call(_subtract, [square, cube, other2d])).toEqual([square, other2d])
+  })
+
+  it('intersect keeps only the first child dimension', () => {
+    expect(call(_intersect, [square, cube, other2d])).toEqual([square, other2d])
+  })
+
+  it('subtract of one dimension is untouched', () => {
+    expect(call(_subtract, [square, other2d])).toEqual([square, other2d])
   })
 })

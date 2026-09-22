@@ -432,7 +432,9 @@ export const _subtract = (...args) => {
   const valid = args.filter(a => !_isAbsent(a))
   if (valid.length === 0) return undefined
   if (valid.length === 1) return valid[0]
-  return subtract(...valid.map(withoutDegeneratePolygons))
+  const same = _sameDimensionAsFirst(valid)
+  if (same.length === 1) return same[0]
+  return subtract(...same.map(withoutDegeneratePolygons))
 }
 
 export const _intersect = (...args) => {
@@ -442,7 +444,9 @@ export const _intersect = (...args) => {
   if (withoutAbsent.some(a => a === undefined || a === null)) return undefined
   if (withoutAbsent.length === 0) return undefined
   if (withoutAbsent.length === 1) return withoutAbsent[0]
-  return intersect(...withoutAbsent.map(withoutDegeneratePolygons))
+  const same = _sameDimensionAsFirst(withoutAbsent)
+  if (same.length === 1) return same[0]
+  return intersect(...same.map(withoutDegeneratePolygons))
 }
 
 export const _minkowski = (...args) => {
