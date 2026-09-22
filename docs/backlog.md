@@ -108,9 +108,6 @@ budget, and only the top-level `bosl2/ALL.js`, which loads all five, does not.
   does render in the browser but not in Node, so the browser bundle and
   manifold-3d 3.3.2 in `node_modules` do not have the same headroom. Find
   whether the limit is total live geometry before choosing a fix.
-- **One model that throws kills the whole grid.** The generated `ALL.js`
-  rethrows from its per-item `catch` (`bin/generate-all-files.js`). A skipped
-  cell with a marker would leave the rest of the grid standing.
 - **Nothing splits a grid across workers.** The frame runs one worker, one
   request at a time (`src_frame/frame.js`), so a grid cannot use more than one
   core and cannot give each cell its own budget. A pool would need the app to

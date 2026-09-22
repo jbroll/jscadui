@@ -6,8 +6,11 @@
  */
 
 const jscad = require('@jscad/modeling')
-const { translate, scale } = jscad.transforms
+const { translate, rotate, scale } = jscad.transforms
 const { measureAggregateBoundingBox } = jscad.measurements
+const { cuboid, cylinder, sphere } = jscad.primitives
+const { subtract, union } = jscad.booleans
+const { colorize } = jscad.colors
 
 /**
  * Calculate grid positions for N items.
@@ -122,8 +125,46 @@ function urlToPartName(url) {
   return name.replace(/[-.]/g, '_')
 }
 
+/**
+ * Build a skull-and-crossbones to stand in for a model that failed to load.
+ *
+ * @returns {Array} Array of JSCAD geometries, coloured red
+ */
+function failureMarker() {
+  const segments = 24
+
+  const eye = (x) => sphere({ radius: 4, segments, center: [x, -8, 2] })
+  const cranium = subtract(
+    union(
+      sphere({ radius: 10, segments }),
+      cuboid({ size: [12, 9, 8], center: [0, -5, -9] })
+    ),
+    eye(-4.6),
+    eye(4.6),
+    cuboid({ size: [3, 6, 4.5], center: [0, -9, -3.5] }),
+    cuboid({ size: [10, 6, 1.8], center: [0, -8, -9] })
+  )
+
+  const shaft = union(
+    cylinder({ radius: 2.4, height: 40, segments }),
+    sphere({ radius: 4, segments, center: [0, 0, 20] }),
+    sphere({ radius: 4, segments, center: [0, 0, -20] })
+  )
+  // Lay the shaft along X first, so the pair crosses in the XY plane
+  const bone = (angle) => rotate([0, 0, angle], rotate([0, Math.PI / 2, 0], shaft))
+
+  const crossbones = translate([0, 0, -26],
+    rotate([Math.PI / 2, 0, 0], union(bone(Math.PI / 6), bone(-Math.PI / 6))))
+
+  // Yaw so the face points at the app's default camera, which looks from +X,-Y,+Z
+  const marker = rotate([0, 0, Math.PI / 4], union(cranium, crossbones))
+
+  return [].concat(colorize([0.85, 0.1, 0.1], marker)).flat()
+}
+
 module.exports = {
   gridPosition,
   normalizeAndPlace,
-  urlToPartName
+  urlToPartName,
+  failureMarker
 }

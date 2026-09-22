@@ -150,7 +150,14 @@ async function renderOne(context, opts, file, idx) {
     errText = String(e).replace(/\s+/g, ' ').slice(0, 200)
   }
   await page.close().catch(() => {})
-  return { rel: file.rel, status, errText, consoleErrs: consoleErrs.slice(0, 5), badRequests: badRequests.slice(0, 5) }
+  // A grid with a failed cell renders fine, so the only trace is what ALL.js logs
+  const cellFailures = consoleErrs.filter(t => t.startsWith('ALL: FAILED '))
+    .map(t => t.slice('ALL: FAILED '.length))
+  if (status === 'ok' && cellFailures.length) status = 'partial'
+  return {
+    rel: file.rel, status, errText, cellFailures,
+    consoleErrs: consoleErrs.slice(0, 5), badRequests: badRequests.slice(0, 5),
+  }
 }
 
 // ── pool runner ──────────────────────────────────────────────────────────────
@@ -219,6 +226,7 @@ async function run() {
     for (const f of fails) {
       console.log(`  [${f.status}] ${f.rel}`)
       if (f.errText) console.log(`        ${f.errText}`)
+      for (const cell of f.cellFailures ?? []) console.log(`        ☠ ${cell}`)
       for (const bad of f.badRequests ?? []) console.log(`        ↳ ${bad}`)
     }
   }

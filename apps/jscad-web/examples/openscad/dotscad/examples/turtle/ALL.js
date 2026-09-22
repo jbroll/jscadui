@@ -5,7 +5,7 @@
 //
 // Auto-generated ALL script – loads each model under its own params namespace,
 // normalises it to the grid cell size, and positions it in a grid.
-const { gridPosition, normalizeAndPlace, urlToPartName } = require('../../../../lib/grid-utils.js')
+const { gridPosition, normalizeAndPlace, urlToPartName, failureMarker } = require('../../../../lib/grid-utils.js')
 
 const items = [
   "./fern_leaf_stencil.scad",
@@ -21,12 +21,13 @@ const cellSize = 51
 const main = (params) => {
   const all = []
   const nameSeen = {}
+  const failed = []
 
   items.forEach((url, i) => {
-    try {
-      // Calculate grid position dynamically
-      const [x, y] = gridPosition(i, items.length, spacing)
+    // Calculate grid position dynamically
+    const [x, y] = gridPosition(i, items.length, spacing)
 
+    try {
       // Derive unique part name from URL
       let name = urlToPartName(url)
       // Deduplicate: if the same name appears twice, append _2, _3, …
@@ -46,10 +47,16 @@ const main = (params) => {
         all.push(...normalizeAndPlace(geoms, x, y, cellSize))
       }
     } catch (err) {
-      console.error('ALL: failed to load', url, err.message)
-      throw new Error(`Failed to load ${url}: ${err.message}`)
+      // One bad model marks its own cell; the rest of the grid still renders
+      console.error(`ALL: FAILED ${url}: ${err.message}`)
+      failed.push(url)
+      all.push(...normalizeAndPlace(failureMarker(), x, y, cellSize))
     }
   })
+
+  if (failed.length) {
+    console.error(`ALL: ${failed.length}/${items.length} models failed: ${failed.join(' ')}`)
+  }
   return all
 }
 

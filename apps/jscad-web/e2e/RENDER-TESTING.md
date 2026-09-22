@@ -30,6 +30,15 @@ model budget 30s below its own cap, so a model that really does run away is
 killed by the frame and reported as `model exceeded N ms` rather than as an
 anonymous timeout. `--model-timeout` sets that budget directly.
 
+### Grids and the `partial` status
+
+With `--grids` the sweep loads each `ALL.js` instead of the individual models.
+A cell whose model throws does not abort the grid: the generated `ALL.js`
+catches it, draws a red skull-and-crossbones in that cell, and logs
+`ALL: FAILED <url>: <message>` plus an `ALL: N/M models failed:` summary. The
+sweep reads those lines off the page console into `cellFailures` and scores the
+grid `partial`, which counts as a failure and prints each dead cell under `☠`.
+
 It must not wait on `#progress`: `static/main.css` sets that element
 `display: none`, so a "wait until hidden" resolves immediately and every file
 scores `ok` without rendering.
