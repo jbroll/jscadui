@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 
 // Import the runtime directly for unit testing
 import j$ from '@jscadui/openscad-runtime'
-import { _cylinder, _sphere, withoutDegeneratePolygons, initColor, _color } from '@jscadui/openscad-runtime'
+import { _cylinder, _sphere, withoutDegeneratePolygons, initColor, _color, initPrimitives, _safeUnion } from '@jscadui/openscad-runtime'
 
 /**
  * Unit tests for OpenSCAD runtime helpers
@@ -596,5 +596,50 @@ describe('search() with list needles', () => {
   it('finds every match in a table of triangles', () => {
     const tris = [[0, 1, 2], [1, 2, 3], [0, 1, 2], [2, 3, 4]]
     expect(j$.search([[0, 1, 2]], tris, 0)).toEqual([[0, 2]])
+  })
+})
+
+/**
+ * OpenSCAD takes a group's dimensionality from its first child and ignores the
+ * siblings that do not match, warning "Mixing 2D and 3D objects is not
+ * supported" / "Ignoring 3D child object for 2D operation".
+ * @jscad/modeling's union throws on the mix instead, which cost the sweep five
+ * jscad-engine failures — among them a model whose only mixed group is a
+ * `if($preview)` overlay that never runs during export.
+ */
+describe('safeUnion across mixed dimensions', () => {
+  const square = { sides: [[[0, 0], [1, 0]]] }
+  const other2d = { sides: [[[0, 0], [0, 1]]] }
+  const cube = { polygons: [{ vertices: [[0, 0, 0], [1, 0, 0], [0, 1, 0]] }] }
+  const other3d = { polygons: [{ vertices: [[0, 0, 1], [1, 0, 1], [0, 1, 1]] }] }
+
+  let seen: unknown[] = []
+  const stub = {
+    primitives: {}, transforms: {}, hulls: {},
+    booleans: { union: (...args: unknown[]) => { seen = args; return args[0] } }
+  }
+
+  const unioned = (parts: unknown[]) => {
+    seen = []
+    initPrimitives(stub)
+    _safeUnion(parts)
+    return seen
+  }
+
+  it('keeps only the 2D parts when the first child is 2D', () => {
+    expect(unioned([square, cube, other2d])).toEqual([square, other2d])
+  })
+
+  it('keeps only the 3D parts when the first child is 3D', () => {
+    expect(unioned([cube, square, other3d])).toEqual([cube, other3d])
+  })
+
+  it('leaves a group of one dimension alone', () => {
+    expect(unioned([cube, other3d])).toEqual([cube, other3d])
+  })
+
+  it('returns the sole survivor without unioning', () => {
+    initPrimitives(stub)
+    expect(_safeUnion([square, cube])).toBe(square)
   })
 })

@@ -170,6 +170,18 @@ export const _polyhedron = ({ points, faces, triangles, convexity: _convexity })
 
 const _isAbsent = (p) => p === undefined || p === null || p === NO_CHILD
 
+/**
+ * OpenSCAD takes a group's dimensionality from its first child and ignores the
+ * siblings that do not match ("Ignoring 3D child object for 2D operation"),
+ * where @jscad/modeling's union throws on the mix. A `if($preview)` overlay
+ * beside a 3D model is the common way to hit it.
+ */
+const _sameDimensionAsFirst = (parts) => {
+  const is2D = (p) => p.sides !== undefined || p.outlines !== undefined
+  const first2D = is2D(parts[0])
+  return parts.every((p) => is2D(p) === first2D) ? parts : parts.filter((p) => is2D(p) === first2D)
+}
+
 export const _safeUnion = (parts) => {
   // Flatten nested arrays and filter out undefined/null/NO_CHILD values
   // This handles cases where children return empty arrays or nested undefined values
@@ -183,14 +195,17 @@ export const _safeUnion = (parts) => {
       const valid = resolved.filter(p => !_isAbsent(p))
       if (valid.length === 0) return undefined
       if (valid.length === 1) return valid[0]
-      return union(...valid)
+      const same = _sameDimensionAsFirst(valid)
+      return same.length === 1 ? same[0] : union(...same)
     })
   }
 
   const valid = flattened.filter(p => !_isAbsent(p))
   if (valid.length === 0) return undefined
   if (valid.length === 1) return valid[0]
-  return union(...valid.map(withoutDegeneratePolygons))
+  const same = _sameDimensionAsFirst(valid)
+  if (same.length === 1) return same[0]
+  return union(...same.map(withoutDegeneratePolygons))
 }
 
 // Re-export direct JSCAD primitives for passthrough
