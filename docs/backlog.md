@@ -35,6 +35,12 @@ deploy order and headers.
 Left over from `feat/frame-single-engine`. None of these break the boundary the
 branch built; they are the gaps it did not close.
 
+- **The menu is dead for the first ~1.5s of boot.** `main.js` calls
+  `menu.init()` after `await createFrame()` and `await initFrame()`, so a click
+  on `#menu-button` before that attaches no listener and is lost, not queued.
+  Measured on the live host: click at 1431ms, listener at 1515ms. The chrome
+  (menu, welcome, about) does not depend on the frame and should be wired
+  before the boot awaits.
 - **The app build still produces the whole model engine into `build/`** —
   `bundle.jscad_modeling.js`, `bundle.manifold_modeling.js`, `manifold.wasm`,
   `bundle.openscad.js` and the rest — although only the frame executes models.

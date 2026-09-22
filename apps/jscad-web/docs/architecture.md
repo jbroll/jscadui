@@ -279,6 +279,16 @@ resolves its includes from the live host, a grid (`01-basics/ALL.js`) renders,
 and the CORS split holds — `/examples/` answers `Access-Control-Allow-Origin: *`
 and `/api/health` answers none.
 
+It waits for the first render before touching the menu. `main.js` wires the
+menu partway through a boot that awaits the compute frame, so a click landing
+before that hits a button with no listener and is lost; waiting afterwards
+never recovers it, which is why the menu click retries rather than waiting.
+
+`e2e/page-console.mjs` is the companion for when a check fails with nothing
+but a timeout: it opens a URL in the same bundled chromium and prints every
+console message, uncaught error, failed request and non-2xx response, with
+`--click`, `--init` and `--eval` to reach a specific step.
+
 ## History
 
 jscad-studio and jscad-studio-run were separate apps on two hosts
