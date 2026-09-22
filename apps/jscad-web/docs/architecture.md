@@ -106,7 +106,9 @@ makes it unit-testable (`test/frame-host.test.js`).
 
 The frame relays every method untouched but one. The app never names
 a bundle URL: a script source inside the frame must come from the frame's own
-origin, and the app's bundle set has no frame counterpart. So the app sends
+origin, and the model engine is built only into `build/frame/assets`. The app
+origin ships the viewer bundles (three.js, regl, render-regl) and nothing that
+runs a model. So the app sends
 `jscadInit` with an `engine` name and the frame fills in the `bundles` map from
 its own `__BUNDLE_BASE__`. The same call carries the frame's request timeout:
 the app sends `timeoutMs: 120000` from `initFrame()`, and the frame falls back

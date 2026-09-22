@@ -2,7 +2,8 @@
  * Fluent in the production worker bundles.
  * Exercises the REAL built bundle.jscad-fluent.js with real fluent sources:
  * a cube renders entities, and both classic params paths yield defs.
- * Requires a prior `node build.js` so build/build/bundle.jscad-fluent.<hash>.js exists.
+ * Requires a prior `node build.js` so
+ * build/frame/assets/bundle.jscad-fluent.<hash>.js exists.
  *
  * The bundle is loaded the way the worker loads it: source text evaled as
  * CJS with a require shim for its externals (the worker's bundle aliases
@@ -36,7 +37,7 @@ Module._load = function (request, parent, isMain) {
 const anchorsDist = join(__dirname, '..', '..', '..', '..', 'jscad-anchors', 'dist', 'jscad-anchors.cjs')
 
 const findFluentBundle = () => {
-  const dir = join(__dirname, '..', 'build', 'build')
+  const dir = join(__dirname, '..', 'build', 'frame', 'assets')
   if (!existsSync(dir)) return null
   // Production builds content-hash leaves (bundle.jscad-fluent.<hash>.js);
   // dev builds keep the plain name. Ignore stale double-hashed copies.

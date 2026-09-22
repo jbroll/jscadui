@@ -29,18 +29,6 @@ moved to its own host, `jscad-run.rkroll.com`, deployed via
 deploy order and headers.
 
 
-
-## Compute frame
-
-Left over from `feat/frame-single-engine`. None of these break the boundary the
-branch built; they are the gaps it did not close.
-
-- **The app build still produces the whole model engine into `build/`** —
-  `bundle.jscad_modeling.js`, `bundle.manifold_modeling.js`, `manifold.wasm`,
-  `bundle.openscad.js` and the rest — although only the frame executes models.
-  `test/fluent-worker.test.js` loads the app-side copy, so removing them means
-  repointing that test.
-
 ## Render sweep
 
 Baseline 784/785 on manifold (CI job `815f87b0abe7ee68`), up from 596/788. The

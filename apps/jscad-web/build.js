@@ -116,44 +116,10 @@ await buildBundle(outDir + '/build', 'bundle.render-regl.js', {
   loader: { '.js': 'js', '.jsx': 'jsx' }
 })
 
-// CJS bundles that use CommonJS modules need default js loader (not tsx)
-// The tsx loader breaks CommonJS require resolution in node_modules
-const cjsLoader = { '.js': 'js', '.jsx': 'jsx' }
-await buildBundle(outDir + '/build', 'bundle.jscad_modeling.js', { format: 'cjs', watch: dev, loader: cjsLoader })
+// The model engine is built once, into the frame (see COMPUTE FRAME below).
+// Nothing on the app origin runs model code, so nothing here needs modeling,
+// manifold, io, fluent, params-core, the V1 api, openscad or text.
 
-// Build manifold bundle with @jscad/modeling-for-manifold as external
-// This explicit alias (defined in packages/manifold/package.json) prevents circular resolution:
-// - User requires @jscad/modeling → manifold bundle (when manifold engine selected)
-// - Manifold internally requires @jscad/modeling-for-manifold → real jscad bundle
-await buildOne('src_bundle', outDir + '/build', 'bundle.manifold_modeling.js', watch, {
-  format: 'cjs',
-  loader: cjsLoader,
-  external: ['module', '@jscad/modeling-for-manifold']
-})
-
-// Copy manifold WASM file to build directory (needed by manifold bundle)
-copyFileSync('../../node_modules/manifold-3d/manifold.wasm', outDir + '/build/manifold.wasm')
-
-await buildBundle(outDir + '/build', 'bundle.jscad_io.js', { format:'cjs', watch: dev, loader: cjsLoader })
-// measure/check bundle: modeling stays external so the runtime require routes
-// it to the modeling bundle alias, keeping one shared copy in the worker.
-await buildBundle(outDir + '/build', 'bundle.model-tools.js', {
-  format: 'cjs',
-  watch: dev,
-  loader: cjsLoader,
-  external: ['@jscad/modeling'],
-})
-// fluent bundle: shared deps stay external so the runtime require routes
-// them to the modeling bundle alias and the CDN anchors build.
-await buildBundle(outDir + '/build', 'bundle.jscad-fluent.js', {
-  format: 'cjs',
-  watch: dev,
-  loader: cjsLoader,
-  external: ['@jscad/modeling', '@jscad/modeling-for-anchors', '@jbroll/jscad-anchors'],
-})
-await buildBundle(outDir + '/build', 'bundle.V1_api.js', { format:'cjs', watch: dev, loader: cjsLoader })
-await buildBundle(outDir + '/build', 'bundle.params_core.js', { format: 'cjs', watch: dev, loader: cjsLoader })
-await buildBundle(outDir + '/build', 'bundle.jscadui.transform-babel.js', { globalName: 'jscadui_transform_babel', watch: dev })
 // openscad-parser barrel-exports Node-only classes (PreludeUtil, CodeFile,
 // IncludeResolver) whose files have top-level require("fs"/"path"/"os").
 // We never call those code paths in the browser, but the require() at module
@@ -208,17 +174,6 @@ const nodeBuiltinStubPlugin = {
     })
   },
 }
-await buildBundle(outDir + '/build', 'bundle.openscad.js', {
-  globalName: 'jscadui_openscad',
-  watch: dev,
-  plugins: [nodeBuiltinStubPlugin],
-})
-await buildBundle(outDir + '/build', 'bundle.jscad_text.js', {
-  format: 'cjs',
-  watch: dev,
-  loader: cjsLoader,
-  plugins: [nodeBuiltinStubPlugin],
-})
 
 /**************************** BUILD JS THAT can change and watch if in dev mode *************/
 await buildOne('src_bundle', outDir, 'bundle.fs-serviceworker.js', watch, { format: 'iife' })
