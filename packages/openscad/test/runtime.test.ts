@@ -581,3 +581,32 @@ describe('color with absent children', () => {
     expect(colorized([a, j$.NO_CHILD]).seen).toEqual([a])
   })
 })
+
+/**
+ * search() with a list needle compared every candidate by serializing both
+ * sides, re-serializing the needle for each element. The replacement must
+ * match exactly what that comparison matched, including the values
+ * JSON.stringify collapses to null.
+ */
+describe('search() with list needles', () => {
+  const agreesWithJson = (needle: unknown[], candidate: unknown[]) => {
+    const matched = j$.search([needle], [candidate], 0)[0].length === 1
+    expect(matched).toBe(JSON.stringify(needle) === JSON.stringify(candidate))
+  }
+
+  it('matches equal lists', () => agreesWithJson([1, 2, 3], [1, 2, 3]))
+  it('does not match a different element', () => agreesWithJson([1, 2, 3], [1, 2, 4]))
+  it('does not match a different length', () => agreesWithJson([1, 2], [1, 2, 3]))
+  it('compares nested lists', () => agreesWithJson([1, [2, 3]], [1, [2, 3]]))
+  it('keeps nesting distinct', () => agreesWithJson([[1]], [1]))
+  it('treats undef and null alike, as JSON does', () => agreesWithJson([undefined], [null]))
+  it('treats NaN as null, as JSON does', () => agreesWithJson([NaN], [null]))
+  it('treats Infinity as null, as JSON does', () => agreesWithJson([Infinity], [null]))
+  it('treats 0 and -0 alike', () => agreesWithJson([0], [-0]))
+  it('keeps strings and numbers distinct', () => agreesWithJson(['1'], [1]))
+
+  it('finds every match in a table of triangles', () => {
+    const tris = [[0, 1, 2], [1, 2, 3], [0, 1, 2], [2, 3, 4]]
+    expect(j$.search([[0, 1, 2]], tris, 0)).toEqual([[0, 2]])
+  })
+})

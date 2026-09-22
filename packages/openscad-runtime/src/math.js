@@ -81,6 +81,27 @@ export const version_num = () => 20210100
  */
 export const parent_module = (n = 0) => `<module-${n}>`
 
+// JSON.stringify(a) === JSON.stringify(b), without building either string.
+// search() compared list needles that way, re-serializing the needle for every
+// candidate; this keeps its exact semantics, including undef, NaN and
+// Infinity all serializing as null, and stops at the first difference.
+const _asJson = (v) =>
+  v === undefined || v === null || typeof v === 'function' || typeof v === 'symbol' ||
+  (typeof v === 'number' && !Number.isFinite(v)) ? null : v
+
+const _jsonEqual = (a, b) => {
+  if (Array.isArray(a)) {
+    if (!Array.isArray(b) || a.length !== b.length) return false
+    for (let i = 0; i < a.length; i++) if (!_jsonEqual(a[i], b[i])) return false
+    return true
+  }
+  if (Array.isArray(b)) return false
+  if ((a !== null && typeof a === 'object') || (b !== null && typeof b === 'object')) {
+    return JSON.stringify(a) === JSON.stringify(b)
+  }
+  return _asJson(a) === _asJson(b)
+}
+
 /**
  * OpenSCAD search function
  * search(match_values, source, num_returns=1, index_col_num)
@@ -133,7 +154,7 @@ export const search = (_match, _source, _num_returns = 1, _idx) => {
         const val = effectiveIdx !== undefined && Array.isArray(source[i]) ? source[i][effectiveIdx] : source[i]
         // Deep equality check for arrays, strict equality for primitives
         const isMatch = Array.isArray(m) && Array.isArray(val)
-          ? JSON.stringify(m) === JSON.stringify(val)
+          ? _jsonEqual(m, val)
           : m === val
         if (isMatch) {
           results.push(i)
