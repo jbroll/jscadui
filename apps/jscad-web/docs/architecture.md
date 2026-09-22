@@ -65,6 +65,17 @@ URLs never cross, because a service worker only serves clients it controls and
 the frame is not one — that is why the map exists at all, in place of the
 serving role a same-origin service worker would otherwise play.
 
+Every compile sends whatever the cache holds, so switching projects empties it
+first (`replaceProjectFiles`); otherwise the frame receives the union of every
+project opened in the session.
+
+An OpenSCAD `use`/`include` resolves through `src_frame/scadResolve.js`:
+against the directory of the file that asked for it, then against that file's
+library root (`/examples/openscad/<library>`) as an OPENSCADPATH-like
+fallback. The fallback is dropped when `../` in the filename would resolve
+above that root. It is the only copy of this logic; the loader in
+`@jscadui/require` has no origin to resolve against inside a blob worker.
+
 A model loaded from a real URL is different: `main.js` passes the app origin,
 not the model's own URL, as the base for a `#url=` model's siblings, so those
 resolve relative to `jscad.rkroll.com`, not to wherever the model was fetched
@@ -81,26 +92,51 @@ drove the local worker. `jscadInit`, `jscadScript`, `jscadSetFiles`,
 `jscadExportData` and the cache clears all reach the frame's worker. Geometry
 buffers ride the transfer list on both hops, so they cross without a copy.
 
-Worker notifications relay the same way, so the progress bar and the animation
-runner's `entities` pushes work unchanged. Job count is not relayed: the
+Notifications relay the same way, but the worker sends none: it answers
+`jscadMain` with its entities rather than pushing them, so
+`frameWorkerTerminated` is the only message the frame originates and the only
+one `frameSetup.js` registers with `messageProxy`. `handlers.entities` beside
+it is `main.js`'s own sink, which it calls directly for restores and cached
+results as well as for a fresh render. Job count is not relayed either: the
 proxy's own pending-request map on the app side is what drives it.
 
-`src_frame/frame.js` relays every method untouched but one. The app never names
+`src_frame/frameHost.js` holds the frame's side of all this; `frame.js` is the
+entry that hands it the real worker, `parent` and `postMessage`, which is what
+makes it unit-testable (`test/frame-host.test.js`).
+
+The frame relays every method untouched but one. The app never names
 a bundle URL: a script source inside the frame must come from the frame's own
 origin, and the app's bundle set has no frame counterpart. So the app sends
 `jscadInit` with an `engine` name and the frame fills in the `bundles` map from
 its own `__BUNDLE_BASE__`. The same call carries the frame's request timeout:
 the app sends `timeoutMs: 120000` from `initFrame()`, and the frame falls back
-to 30 s only if no `jscadInit` ever named one.
+to 30 s only if no `jscadInit` ever named one. `engine` latches: a `jscadInit`
+that omits it keeps the last one, which is what the alias path
+(`onAliasFound`) depends on, since it re-inits without naming an engine.
 
-Both sides check who they are talking to. The frame compares `event.origin`
-against `__ALLOWED_ORIGIN__`, baked in at build time. The app cannot do the
-same in reverse, because a sandboxed frame reports its origin as `null`, so it
-matches on `event.source === iframe.contentWindow` and posts to `'*'`.
+Both sides check who they are talking to. The frame requires both
+`event.origin === __ALLOWED_ORIGIN__`, baked in at build time, and
+`event.source === parent` — same origin is not the same window, and another
+tab could otherwise drive the worker. The app cannot check origin in reverse,
+because a sandboxed frame reports its origin as `null`, so it matches on
+`event.source === iframe.contentWindow` and posts to `'*'`.
 
-A request that outruns the timeout terminates the worker, and the frame notifies
-the app with `frameWorkerTerminated`; the next request builds a fresh worker,
-which the app's handler re-initializes.
+Each in-flight request gets its own timer. When one expires the worker is
+terminated, since there is no way to cancel just that model: the expired
+request is answered `TimeoutError`, every other request the worker was holding
+is answered `AbortError`, and the app gets one `frameWorkerTerminated`. The
+next request builds a fresh worker, which the app's handler re-initializes. A
+worker that fails to load its bundles takes the same path through `onerror`,
+so the app sees the load error rather than a timeout a budget later.
+
+Nothing waits on a request the frame can answer immediately: a malformed
+`jscadInit` is rejected in the listener, and a method the worker has no handler
+for is answered with an error by `@jscadui/postmessage` rather than left
+pending.
+
+A second iframe `load` means the frame navigated, so its worker, file map and
+engine are gone. `frameSetup.js` reports that and asks for a re-init, the same
+response it gives a terminated worker.
 
 ### Why a blob worker
 
@@ -218,9 +254,11 @@ host deploys first:
 
 The session cookie is host-only on `jscad.rkroll.com`, never `.rkroll.com`.
 `deploy-full.sh` builds the workspace once, deploys the run host and confirms
-it answers 200, then the frontend, then the API, then `/api/health`, then
-`e2e/smoke-deploy.mjs` against the live app URL. Both hosts went live
-2026-09-21.
+it answers, then the frontend, then the API, then `/api/health`, then
+`e2e/smoke-deploy.mjs` against the live app URL. Both checks go through
+`wait_for_ok`, which retries for 15 s and reads `curl -f`'s exit code: a fresh
+vhost needs a moment, and any non-2xx has to fail the deploy. Both hosts went
+live 2026-09-21.
 
 `deploy.sh` sources `lib/platform.sh` from `common.sh` before it reads a
 stage's own config, so an inherited `REMOTE_HOST` makes that sourcing run
