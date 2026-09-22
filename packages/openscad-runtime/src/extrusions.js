@@ -5,6 +5,27 @@
 import { _globalFn, _getSegments } from './segments.js'
 import { NO_CHILD } from './primitives.js'
 
+/**
+ * Split each side into `segsPerEdge` pieces, reusing the original endpoints.
+ *
+ * Interpolating the ends as p0 + (p1 - p0) * t gives a value one ulp off p1 at
+ * t = 1, so the corner two sides share stops being bit-identical. Everything
+ * downstream of extrudeFromSlices matches slice vertices exactly — calculatePlane
+ * looks up an edge's predecessor that way, toOutlines chains loops that way —
+ * so one bit is the difference between a closed profile and a throw.
+ */
+export const subdivideSides = (sides, segsPerEdge) => {
+  if (segsPerEdge <= 1) return sides
+  const out = []
+  for (const [p0, p1] of sides) {
+    const at = (i) => [p0[0] + (p1[0] - p0[0]) * (i / segsPerEdge), p0[1] + (p1[1] - p0[1]) * (i / segsPerEdge)]
+    for (let i = 0; i < segsPerEdge; i++) {
+      out.push([i === 0 ? p0 : at(i), i === segsPerEdge - 1 ? p1 : at(i + 1)])
+    }
+  }
+  return out
+}
+
 // JSCAD extrusions and utilities - injected at init time
 let extrudeLinear, extrudeRotate, extrudeFromSlices, translate, mirror, geom2, slice, mat4, subtract, union
 
@@ -91,20 +112,7 @@ export const _linearExtrude = ({ height, center = false, twist = 0, slices, scal
 
       // For multi-outline rings, OpenSCAD's CDT triangulation adds edge splits before extrusion.
       if (twist !== 0 && segsPerEdge !== undefined) {
-        if (segsPerEdge > 1) {
-          const subdividedSides = []
-          for (const [p0, p1] of sides) {
-            for (let i = 0; i < segsPerEdge; i++) {
-              const t0 = i / segsPerEdge
-              const t1 = (i + 1) / segsPerEdge
-              subdividedSides.push([
-                [p0[0] + (p1[0] - p0[0]) * t0, p0[1] + (p1[1] - p0[1]) * t0],
-                [p0[0] + (p1[0] - p0[0]) * t1, p0[1] + (p1[1] - p0[1]) * t1]
-              ])
-            }
-          }
-          sides = subdividedSides
-        }
+        sides = subdivideSides(sides, segsPerEdge)
       }
 
       const baseSlice = slice.fromSides(sides)
@@ -168,20 +176,7 @@ export const _linearExtrude = ({ height, center = false, twist = 0, slices, scal
       // Only subdivide when caller explicitly provides a segments count.
       if (twist !== 0 && segments !== undefined) {
         const segsPerEdge = Math.max(1, segments)
-        if (segsPerEdge > 1) {
-          const subdividedSides = []
-          for (const [p0, p1] of sides) {
-            for (let i = 0; i < segsPerEdge; i++) {
-              const t0 = i / segsPerEdge
-              const t1 = (i + 1) / segsPerEdge
-              subdividedSides.push([
-                [p0[0] + (p1[0] - p0[0]) * t0, p0[1] + (p1[1] - p0[1]) * t0],
-                [p0[0] + (p1[0] - p0[0]) * t1, p0[1] + (p1[1] - p0[1]) * t1]
-              ])
-            }
-          }
-          sides = subdividedSides
-        }
+        sides = subdivideSides(sides, segsPerEdge)
       }
 
       const baseSlice = slice.fromSides(sides)

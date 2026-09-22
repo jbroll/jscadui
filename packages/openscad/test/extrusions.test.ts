@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import { fileURLToPath } from 'node:url'
 import jscad from '@jscad/modeling'
-import j$ from '@jscadui/openscad-runtime'
+import j$, { subdivideSides } from '@jscadui/openscad-runtime'
 import { initScadRuntime, evalScadSolidSync } from '../bin/run-jscad.js'
 
 const { primitives, transforms, booleans, extrusions, measurements, geometries } = jscad
@@ -72,4 +72,38 @@ describe('extrusions on the Manifold backend', () => {
     expect(solid.volume()).toBeCloseTo(n / 2 * Math.sin(2 * Math.PI / n) * (11.5 ** 2 - 8.5 ** 2) * 3, 2)
     expect(solid.boundingBox()[1][0]).toBeCloseTo(11.5, 6)
   }, 30000)
+})
+
+/**
+ * A twisted extrusion subdivides each edge first. Interpolating the ends as
+ * p0 + (p1 - p0) * t lands one ulp off p1 at t = 1, so the corner two sides
+ * share stops being bit-identical — and everything downstream of
+ * extrudeFromSlices matches slice vertices exactly. NopSCADlib's fans.scad
+ * (twist = -30) died in calculatePlane on a single split corner.
+ */
+describe('subdivideSides', () => {
+  const sides = [[[0, 0], [7.249958896496416, 0.7578418183378942]], [[7.249958896496416, 0.7578418183378942], [0, 1]]]
+
+  it('keeps the shared corner bit-identical', () => {
+    const out = subdivideSides(sides, 7)
+    const ends = out.map((s) => s[1])
+    const starts = out.map((s) => s[0])
+    for (let i = 0; i < out.length - 1; i++) {
+      expect(ends[i]).toEqual(starts[i + 1])
+    }
+  })
+
+  it('reuses the original endpoints rather than interpolating them', () => {
+    const out = subdivideSides(sides, 7)
+    expect(out[0][0]).toBe(sides[0][0])
+    expect(out[6][1]).toBe(sides[0][1])
+  })
+
+  it('returns the sides untouched when there is nothing to split', () => {
+    expect(subdivideSides(sides, 1)).toBe(sides)
+  })
+
+  it('produces segsPerEdge pieces per side', () => {
+    expect(subdivideSides(sides, 4)).toHaveLength(8)
+  })
 })
