@@ -93,6 +93,33 @@ let setAnimStatus
 // Load default model unless another model was already loaded
 let loadDefault = true
 
+// ============== Menu & Welcome ==============
+// Wired before the frame boot below: none of the chrome needs the frame, and a
+// click landing during those awaits would be dropped rather than queued.
+menu.init({
+  onBrowseDemos: () => showDemoBrowser({
+    baseUrl: new URL('./examples/', appBase).toString(),
+    onLoad: (script, url) => {
+      editor.setSource(script, url)
+      jscadScript({ script, url, base: new URL('./', new URL(url, appBase)).toString(), root: appBase })
+      welcome.dismiss()
+    },
+  })
+})
+welcome.init()
+about.init()
+
+// Trusted Sources dialog
+const trustedSourcesBtn = byId('trusted-sources-btn')
+if (trustedSourcesBtn) {
+  trustedSourcesBtn.addEventListener('click', showTrustedSourcesDialog)
+}
+
+// Inject dialog styles
+const trustedStyles = document.createElement('style')
+trustedStyles.textContent = trustedSourcesStyles + '\n' + demoBrowserStyles
+document.head.appendChild(trustedStyles)
+
 const ctrl = new OrbitControl([byId('viewer')], { ...viewState.camera })
 
 /** @param {OrbitState} change */
@@ -659,31 +686,6 @@ editor.init(
   },
   path => fileSystem.getSwHandler()?.getFile(path),
 )
-
-// ============== Menu & Welcome ==============
-menu.init({
-  onBrowseDemos: () => showDemoBrowser({
-    baseUrl: new URL('./examples/', appBase).toString(),
-    onLoad: (script, url) => {
-      editor.setSource(script, url)
-      jscadScript({ script, url, base: new URL('./', new URL(url, appBase)).toString(), root: appBase })
-      welcome.dismiss()
-    },
-  })
-})
-welcome.init()
-about.init()
-
-// Trusted Sources dialog
-const trustedSourcesBtn = byId('trusted-sources-btn')
-if (trustedSourcesBtn) {
-  trustedSourcesBtn.addEventListener('click', showTrustedSourcesDialog)
-}
-
-// Inject dialog styles
-const trustedStyles = document.createElement('style')
-trustedStyles.textContent = trustedSourcesStyles + '\n' + demoBrowserStyles
-document.head.appendChild(trustedStyles)
 
 let hasRemoteScript
 try {

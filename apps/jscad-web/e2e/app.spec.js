@@ -54,6 +54,22 @@ test.describe('Menu', () => {
     await expect(menuContent).not.toBeVisible()
   })
 
+  test('opens while the compute frame is still loading', async ({ page, baseURL }) => {
+    const appOrigin = new URL(baseURL).origin
+    await page.route(
+      url => url.origin !== appOrigin,
+      async route => {
+        await new Promise(resolve => setTimeout(resolve, 5000))
+        await route.continue()
+      },
+    )
+
+    await page.goto('/', { waitUntil: 'commit' })
+    await dismissWelcome(page)
+    await page.locator('#menu-button').click()
+    await expect(page.locator('#menu-content')).toBeVisible({ timeout: 2000 })
+  })
+
   test('"Browse Demos…" button is in the menu', async ({ page }) => {
     await page.goto('/')
     await dismissWelcome(page)

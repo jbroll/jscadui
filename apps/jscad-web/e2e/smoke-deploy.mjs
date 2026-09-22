@@ -44,24 +44,11 @@ try {
   // 1. Browse Demos lists examples via the manifest (the prod 403 path).
   await page.goto(url + '/', { waitUntil: 'domcontentloaded', timeout: 30000 })
   try { await page.locator('#welcome-dismiss').click({ timeout: 3000 }) } catch { /* ignore */ }
-  // main.js wires the menu partway through a boot that awaits the compute
-  // frame, so a click before that lands on a button with no listener and is
-  // simply lost. The first render is the signal that boot finished.
-  await page.waitForFunction(
-    () => ['ok', 'error'].includes(document.documentElement.dataset.render),
-    null, { timeout: 60000 },
-  )
-  // A live host answers slower than a dev server, and these budgets gate the
-  // whole run: too tight and the deploy fails on a cold cache, not on a defect.
-  // Retry rather than click once: a lost click cannot be recovered by waiting.
   const menuOpen = () => page.evaluate(
     () => getComputedStyle(document.querySelector('#menu-content')).display !== 'none',
   )
-  for (let i = 0; i < 10 && !(await menuOpen()); i++) {
-    await page.locator('#menu-button').click()
-    await page.waitForTimeout(500)
-  }
-  if (!(await menuOpen())) throw new Error('menu never opened after 10 clicks')
+  await page.locator('#menu-button').click()
+  if (!(await menuOpen())) throw new Error('menu did not open')
   await page.locator('#examples').getByText('Browse Demos').click()
   await page.locator('.demo-panel').waitFor({ state: 'visible', timeout: 30000 })
   await page.waitForTimeout(1500)
