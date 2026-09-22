@@ -79,21 +79,22 @@ branch built; they are the gaps it did not close.
 
 ## Render sweep
 
-Baseline 782/789 on manifold (CI job `34cc8ef47df70c74`), up from 596/788. The
+Baseline 784/786 on manifold (CI job `da5e9a52bfbf0b66`), up from 596/788. The
 per-file cap is 300s and is a hang guard, not a performance budget. See
 `apps/jscad-web/e2e/RENDER-TESTING.md` and `render-baseline.json`.
 
-- **Three models include files the vendored sources do not have**: dotSCAD's
-  `util/rands_disk.scad` and `maze/mz_wang_tiles.scad`, and 11 of the 69 assets
-  `snippet/04-misc/Import_Library.scad` pulls from `Asset_SCAD/`. Refresh the
-  vendored copies or drop the examples.
-- **`maze3d_mickey.scad` and `maze3d_sphere.scad` exceed the call stack.**
-  Their recursion is not in tail position, so `tailCall.ts` cannot trampoline
-  it. Node survives with `--stack-size=65536`; a browser has no such lever.
-- **`packing_circles.scad` exceeds the 5M vertex cap** (5,137,050). Either the
-  model is genuinely that large or the transpiler is over-tessellating it.
+- **`maze3d_mickey.scad` exceeds a browser worker's stack.** A depth-first
+  maze carve, `go_maze` <-> `next_cells`, 977 levels deep at two frames a level
+  now that a `let()` body no longer costs a third. Depth is the algorithm's,
+  bounded by the grid's cell count. What is left to shrink is the frame: each
+  call destructures 11-12 parameters through `j$.resolveUndef`. It runs in
+  Node, whose default stack is larger.
 - **`voronoi_melon.scad` runs past 270s** even on manifold. The only example
-  that is actually a runaway rather than merely slow.
+  that is a runaway rather than merely slow.
+- **Three examples are skipped as broken at their source** — see the
+  library `skip.txt` files. Refresh the vendored dotSCAD and snippet copies
+  if upstream ever ships `util/rands_disk.scad`, `maze/mz_wang_tiles.scad` and
+  the 11 missing `Asset_SCAD/` parts.
 
 ## The jscad engine
 
