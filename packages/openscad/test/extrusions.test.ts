@@ -107,3 +107,25 @@ describe('subdivideSides', () => {
     expect(subdivideSides(sides, 4)).toHaveLength(8)
   })
 })
+
+/**
+ * A profile that collapsed to a single point still has sides, so the
+ * empty-profile guard lets it through, and extrudeRotate throws "the callback
+ * function must return slices with one or more edges". OpenSCAD revolves a
+ * degenerate profile to nothing — dotSCAD's lotus_like_flower.scad reaches
+ * rotate_extrude with 13 sides all at the origin.
+ */
+describe('rotate_extrude of a degenerate profile', () => {
+  const atOrigin = geometries.geom2.create(
+    Array.from({ length: 13 }, () => [[0, 0], [0, 0]])
+  )
+
+  it('returns nothing rather than throwing', () => {
+    expect(j$.rotateExtrude({ angle: 360 }, atOrigin)).toBeUndefined()
+  })
+
+  it('still extrudes a real profile', () => {
+    const square = primitives.rectangle({ size: [2, 2], center: [3, 0] })
+    expect(j$.rotateExtrude({ angle: 360 }, square)).toBeDefined()
+  })
+})

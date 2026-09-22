@@ -216,6 +216,17 @@ export const _rotateExtrude = ({ angle = 360, $fn, $fa, $fs } = {}, geo) => {
     if (Math.abs(p1[0]) > maxX) maxX = Math.abs(p1[0])
   }
 
+  // A profile that collapsed to a point still has sides, so the empty-profile
+  // guard above lets it through and extrudeRotate throws on the empty slice.
+  // OpenSCAD revolves a degenerate profile to nothing.
+  let minY = Infinity
+  let maxY = -Infinity
+  for (const [p0, p1] of sides ?? []) {
+    minY = Math.min(minY, p0[1], p1[1])
+    maxY = Math.max(maxY, p0[1], p1[1])
+  }
+  if (maxX === 0 && maxY - minY === 0) return undefined
+
   // _getSegments handles priority: explicit $fn arg > scope $fn > globalFn > $fa/$fs formula
   // Using undefined defaults so scope stack values are used when not explicitly set
   const fullCircleSegments = _getSegments(maxX, $fn, $fa, $fs)
