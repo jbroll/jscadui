@@ -92,8 +92,8 @@ It records no commit. `sci` rsyncs the working tree onto a base worktree, so the
 commit the CI run reports is that worktree's HEAD, not the code measured — a
 field nobody can trust is worse than none.
 
-The current baseline is **784 ok of 786** on manifold, CI job
-`da5e9a52bfbf0b66`. It replaced a 596/788 baseline recorded before the
+The current baseline is **784 ok of 785** on manifold, CI job
+`815f87b0abe7ee68`. It replaced a 596/788 baseline recorded before the
 example-failure work. The largest single move was the engine default: the app
 used to default to `jscad`, which rendered 623 where manifold rendered 762 on
 the same tree. The rest came from transpiler and runtime fixes, two
@@ -101,12 +101,13 @@ example-generator fixes, a 300s hang guard in place of a 30s one, a vertex cap
 raised above the largest real example, and compiling a `let()` function body
 to statements so recursion costs half the stack.
 
-Three examples are skipped because they are broken at their source: dotSCAD's
+Four examples are skipped because they are broken at their source: dotSCAD's
 `forest.scad` and `maze_city_taiwan.scad` include files upstream dotSCAD does
-not ship at the pinned commit, and snippet's `Import_Library.scad` needs 11
-assets the upstream collection lacks. The two that still fail:
-`maze3d_mickey.scad` recurses 977 levels deep and exceeds a browser worker's
-stack, and `voronoi_melon.scad` runs past 270s.
+not ship at the pinned commit, snippet's `Import_Library.scad` needs 11 assets
+the upstream collection lacks, and `voronoi_melon.scad` fails in OpenSCAD too
+(`Recursion detected calling function '_delaunayBoundaries'`). The one that
+still fails, `maze3d_mickey.scad`, recurses 977 levels deep and exceeds a
+browser worker's stack; `docs/backlog.md` has the fix.
 
 Sweeping the other engine takes `--engine jscad`: **738 of 789**, CI job
 `d4f77513990d2eed`. 24 of its 51 failures extrude a geom2 whose sides do not

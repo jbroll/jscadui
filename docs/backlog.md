@@ -89,12 +89,13 @@ per-file cap is 300s and is a hang guard, not a performance budget. See
   bounded by the grid's cell count. What is left to shrink is the frame: each
   call destructures 11-12 parameters through `j$.resolveUndef`. It runs in
   Node, whose default stack is larger.
-- **`voronoi_melon.scad` runs past 270s** even on manifold. The only example
-  that is a runaway rather than merely slow.
-- **Three examples are skipped as broken at their source** — see the
-  library `skip.txt` files. Refresh the vendored dotSCAD and snippet copies
-  if upstream ever ships `util/rands_disk.scad`, `maze/mz_wang_tiles.scad` and
-  the 11 missing `Asset_SCAD/` parts.
+- **Four examples are skipped as broken at their source** — see the
+  library `skip.txt` files. Three include files upstream does not ship:
+  refresh the vendored dotSCAD and snippet copies if it ever ships
+  `util/rands_disk.scad`, `maze/mz_wang_tiles.scad` and the 11 missing
+  `Asset_SCAD/` parts. The fourth, `voronoi_melon.scad`, OpenSCAD cannot
+  render either: dotSCAD's `_delaunayBoundaries` recurses without end on its
+  point set.
 
 ## Transpiler performance
 

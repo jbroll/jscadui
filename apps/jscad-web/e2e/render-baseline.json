@@ -1,12 +1,12 @@
 {
-  "_comment": "784/786 ok on the manifold engine, which the app defaults to, with a 300s hang guard per file. Three examples are skipped because they are broken at their source (missing include files upstream). The two left: maze3d_mickey.scad recurses 977 levels deep and exceeds a browser worker's stack, and voronoi_melon.scad runs past 270s. Diff future runs against failures[], not against zero.",
+  "_comment": "784/785 ok on the manifold engine, which the app defaults to, with a 300s hang guard per file. Four examples are skipped as broken at their source: three include files upstream does not ship, and voronoi_melon.scad, which OpenSCAD cannot render either. The one left, maze3d_mickey.scad, recurses deeper than a browser worker's stack; mutual tail-call elimination (docs/backlog.md) would fit it. Diff future runs against failures[], not against zero.",
   "tree": "main working tree, rsynced onto the CI base worktree by sci \u2014 no commit identifies the code that was measured",
   "date": "2026-09-22",
-  "job": "da5e9a52bfbf0b66",
+  "job": "815f87b0abe7ee68",
   "engine": "manifold",
-  "total": 786,
+  "total": 785,
   "ok": 784,
-  "failed": 2,
+  "failed": 1,
   "byLib": {
     "openscad/01-basics": {
       "ok": 20,
@@ -22,7 +22,7 @@
     },
     "openscad/dotscad": {
       "ok": 184,
-      "fail": 2
+      "fail": 1
     },
     "openscad/mcad": {
       "ok": 14,
@@ -44,10 +44,6 @@
   "failures": [
     {
       "rel": "openscad/dotscad/examples/maze/maze3d_mickey.scad",
-      "status": "error"
-    },
-    {
-      "rel": "openscad/dotscad/examples/voronoi/voronoi_melon.scad",
       "status": "error"
     }
   ]
