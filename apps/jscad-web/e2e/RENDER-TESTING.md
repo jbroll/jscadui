@@ -133,8 +133,8 @@ a level it needs about 850 KB against a worker's ~530 KB, so no transpiler
 change fits it. `docs/design/mutual-tail-calls-trial.md` has the measurements.
 
 Sweeping the other engine takes `--engine jscad`, which `sci push
-jscadui/render-jscad` does at CI scale: **743 of 785**, CI job
-`cbc23bc6fdd1a0ed`, recorded in `e2e/render-jscad-baseline.json`. 23 of its 42
+jscadui/render-jscad` does at CI scale: **757 of 785**, CI job
+`2bcc245e64a2edda`, recorded in `e2e/render-jscad-baseline.json`. 22 of its 28
 failures extrude a geom2 whose sides do not close, which is where that
 engine's remaining work is. See `docs/backlog.md`. That sweep measures
 whatever `@jscad/modeling` the CI host's sibling `OpenJSCAD.org` checkout is

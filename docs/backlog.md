@@ -91,13 +91,13 @@ Every one of the remaining failures dies outside the per-cell catch:
 
 ## The jscad engine
 
-The app defaults to manifold; the other engine renders **743/785** (CI job
-`cbc23bc6fdd1a0ed`, `sci push jscadui/render-jscad`), with
+The app defaults to manifold; the other engine renders **757/785** (CI job
+`2bcc245e64a2edda`, `sci push jscadui/render-jscad`), with
 `apps/jscad-web/e2e/render-jscad-baseline.json` holding the per-model state.
 The STL comparison suite only runs manifold, so that sweep is the only thing
 covering this engine. Run one model with `display-check.js --engine jscad`.
 
-- **23 models extrude a geom2 whose sides do not close.** Was 24. One of them,
+- **22 models extrude a geom2 whose sides do not close.** Was 24. One of them,
   `hypnotic_squares.scad`, was an epsilon-grid split: `fromFakePolygons`
   rounded each point onto the grid on its own, so the two copies a 3D boolean
   returns for a shared corner could land in different cells and the outline
@@ -109,7 +109,11 @@ covering this engine. Run one model with `display-check.js --engine jscad`.
   geometry that was fine and a later BSP returns something broken in its own
   right. `gears.scad` is the model that catches it.
 
-  The other 23 are a different bug, and it is upstream of anything
+  `blowers.scad` left the group for an unrelated reason: a twisted extrusion
+  subdivided its profile and computed the shared corner one ulp off, so the
+  loop never chained. See the subdivision fix in `openscad-runtime`.
+
+  The other 22 are a different bug, and it is upstream of anything
   `fromFakePolygons` does. `unionGeom2` and friends extrude both operands into
   `to3DWalls` prisms, run the 3D boolean and read the sides back; for these
   models the wall set the 3D boolean returns does not form closed loops before
@@ -152,9 +156,24 @@ covering this engine. Run one model with `display-check.js --engine jscad`.
   against a fixed tolerance. Both engines would get it: the manifold runtime
   routes geom2-sourced booleans through the same code
   (`packages/manifold/src/booleans/index.js`).
-- **A tail of small clusters**: 5 unions across mixed 2D/3D types, 4 planes
-  that an origin and normal do not define, 2 minkowski, 2 subtract across
-  mixed types, 2 stack overflows, 3 models past the 270s budget.
+- **2D minkowski is not implemented on this engine.** `minkowskiSum` takes
+  geom3 only, so `minkowski() { shape; circle(r); }` — the round-the-corners
+  idiom — throws. `spiral_city.scad` and `text_box.scad`. Building it out of
+  the 2D booleans means resting it on the open-geom2 bug above; a sweep-line
+  clipper would give both at once.
+- **The last four are one-offs.** `maze3d_mickey.scad` overflows the stack and
+  is an accepted failure (see `RENDER-TESTING.md`). `Spawing_Cube.scad` is
+  empty in OpenSCAD too. `offset.scad` runs past 600s without erroring, and
+  the sweep records a bare `Error:` for it. `packing_circles.scad` sits on the
+  600s guard and has gone both ways across runs.
+
+  Cleared 2026-09-22, all with unit tests: mixed 2D/3D children in union,
+  subtract and intersect now take the group's dimension from its first child
+  and ignore the rest, as OpenSCAD does; a 2D `mirror` normal is padded to
+  three components; a twisted profile's subdivision reuses the original
+  endpoints instead of interpolating them one ulp off; `rotate_extrude` of a
+  collapsed profile returns nothing; and `offset` drops an outline it cannot
+  make a region from (modeling fork, `c2676bd1`).
 - **It is roughly 10x slower than manifold.** `nuts.scad` takes 37s against
   3.6s, and the profile is entirely BSP: splitByPlane 11.6s, GC 11.3s, clipTo
   7.3s, with nothing in our own code. The one avoidable part is upstream now
