@@ -8,3 +8,9 @@ Scene_Test.scad
 # at body boundaries). Manifold cannot compute correct volumes from non-manifold input.
 Wood_Crate.scad
 
+
+# Pulls 69 parts from Asset_SCAD/, 11 of which the upstream snippet collection
+# does not ship (Chalkboard_Support, Fireplace, Flange, Flange_Blind,
+# Flange_Weld_Neck, Pipe, Table, Table_Office, Table_Round, Table_Small,
+# Weights). Broken at source.
+Import_Library.scad

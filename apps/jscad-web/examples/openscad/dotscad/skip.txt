@@ -60,3 +60,9 @@ examples/voronoi/voronoi_vase.scad
 # negative). splitIntoComponents cannot split the mesh because Mountain+Taiwan are stitched
 # into a single manifold surface by Manifold's union triangulation.
 examples/taiwan/SD_Card_Taiwan.scad
+
+# These reference library files that upstream dotSCAD does not ship at the
+# pinned commit (bb33edfd): neither util/rands_disk.scad nor maze/mz_wang_tiles.scad
+# exists anywhere in the source tree. Broken at source, not by our vendoring.
+examples/circle_packing/forest.scad
+examples/taiwan/maze_city_taiwan.scad
