@@ -106,8 +106,10 @@ Four examples are skipped because they are broken at their source: dotSCAD's
 not ship at the pinned commit, snippet's `Import_Library.scad` needs 11 assets
 the upstream collection lacks, and `voronoi_melon.scad` fails in OpenSCAD too
 (`Recursion detected calling function '_delaunayBoundaries'`). The one that
-still fails, `maze3d_mickey.scad`, recurses 977 levels deep and exceeds a
-browser worker's stack; `docs/backlog.md` has the fix.
+still fails, `maze3d_mickey.scad`, recurses about 3,000 levels deep and
+exceeds a browser worker's stack. It is an accepted failure: even at one frame
+a level it needs about 850 KB against a worker's ~530 KB, so no transpiler
+change fits it. `docs/design/mutual-tail-calls-trial.md` has the measurements.
 
 Sweeping the other engine takes `--engine jscad`: **738 of 789**, CI job
 `d4f77513990d2eed`. 24 of its 51 failures extrude a geom2 whose sides do not

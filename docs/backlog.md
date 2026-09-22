@@ -83,12 +83,6 @@ Baseline 784/786 on manifold (CI job `da5e9a52bfbf0b66`), up from 596/788. The
 per-file cap is 300s and is a hang guard, not a performance budget. See
 `apps/jscad-web/e2e/RENDER-TESTING.md` and `render-baseline.json`.
 
-- **`maze3d_mickey.scad` exceeds a browser worker's stack.** A depth-first
-  maze carve, `go_maze` <-> `next_cells`, 977 levels deep at two frames a level
-  now that a `let()` body no longer costs a third. Depth is the algorithm's,
-  bounded by the grid's cell count. What is left to shrink is the frame: each
-  call destructures 11-12 parameters through `j$.resolveUndef`. It runs in
-  Node, whose default stack is larger.
 - **Four examples are skipped as broken at their source** — see the
   library `skip.txt` files. Three include files upstream does not ship:
   refresh the vendored dotSCAD and snippet copies if it ever ships
@@ -99,21 +93,6 @@ per-file cap is 300s and is a hang guard, not a performance budget. See
 
 ## Transpiler performance
 
-- **Mutual tail-call elimination.** `tailCall.ts` only trampolines a function
-  calling *itself*. dotSCAD's maze carver recurses through `go_maze` <->
-  `next_cells`, and `next_cells`'s call to `go_maze` is in tail position; with
-  it eliminated the recursion costs one frame a level instead of two.
-  `maze3d_mickey.scad` needs about 977 levels, and a Chromium worker runs out
-  at about 1,920 frames of that 12-parameter shape (Node gets 3,580), so it
-  would fit with room to spare. The stack limit itself cannot be raised:
-  `--js-flags=--stack-size` does not reach a worker, there is no web API for
-  it, and moving model code to the main thread breaks the sandbox. Design
-  sketch: find strongly connected groups of mutually recursive functions in a
-  module; inside a group, a tail call returns a bounce and a non-tail call
-  site unwraps it in a loop; callers outside the group enter through a wrapper
-  that runs the trampoline, so the external calling convention is unchanged.
-  Blast radius is every call inside such a group, so it needs its own corpus
-  run and a test per recursion shape.
 - **A runaway tail recursion spins instead of failing.** `tailCall.ts` turns
   self tail recursion into `while (true)`, so a recursion that never ends
   never grows the stack either: dotSCAD's `_delaunayBoundaries` on
