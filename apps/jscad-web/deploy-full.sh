@@ -25,6 +25,21 @@ APP_URL="https://${APP_DOMAIN}"
 RUN_DOMAIN="jscad-run.rkroll.com"
 RUN_URL="https://${RUN_DOMAIN}"
 
+# A freshly deployed vhost needs a moment. curl -f exits non-zero on anything
+# but a 2xx, so its status is the check; the body is never read.
+wait_for_ok() {
+    local url="$1" name="$2" tries=15
+    for ((i = 1; i <= tries; i++)); do
+        if curl -sf -o /dev/null --max-time 5 "$url"; then
+            echo "✓ $name responding"
+            return 0
+        fi
+        sleep 1
+    done
+    echo "✗ $name FAILED to respond after ${tries} tries"
+    return 1
+}
+
 echo "=== jscad-web Full Deployment ==="
 echo "App: $APP_URL"
 echo "Frame: $RUN_URL"
@@ -51,13 +66,7 @@ echo "✓ Frame host deployed ($RUN_URL)"
 echo ""
 
 echo "Checking frame host is up before deploying the app..."
-sleep 3
-if curl -sf -o /dev/null -w '%{http_code}' "$RUN_URL/" | grep -q '^200$'; then
-    echo "✓ Frame host responding"
-else
-    echo "✗ Frame host FAILED to respond with 200"
-    exit 1
-fi
+wait_for_ok "$RUN_URL/" "Frame host"
 echo ""
 
 echo "[2/4] Deploying Frontend..."
@@ -73,13 +82,7 @@ echo "✓ API deployed"
 echo ""
 
 echo "[4/4] Health check + smoke test..."
-sleep 3
-if curl -sf "$APP_URL/api/health" > /dev/null; then
-    echo "✓ Backend health check passed"
-else
-    echo "✗ Backend health check FAILED"
-    exit 1
-fi
+wait_for_ok "$APP_URL/api/health" "Backend health check"
 
 node e2e/smoke-deploy.mjs --url "$APP_URL"
 echo ""
