@@ -43,7 +43,7 @@ branch built; they are the gaps it did not close.
 
 ## Render sweep
 
-Baseline 784/786 on manifold (CI job `da5e9a52bfbf0b66`), up from 596/788. The
+Baseline 784/785 on manifold (CI job `815f87b0abe7ee68`), up from 596/788. The
 per-file cap is 300s and is a hang guard, not a performance budget. See
 `apps/jscad-web/e2e/RENDER-TESTING.md` and `render-baseline.json`.
 
