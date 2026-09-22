@@ -91,6 +91,35 @@ per-file cap is 300s and is a hang guard, not a performance budget. See
   render either: dotSCAD's `_delaunayBoundaries` recurses without end on its
   point set.
 
+## Combined ALL.js grids
+
+A grid loads every model in one worker as one job, under one model budget
+(120s, `main.js`), and holds all their geometry at once so it can place them.
+44 grids; the largest are NopSCADlib's 145 tests, dotSCAD's 62 examples and
+about 36 per BOSL2 part. Measured against production 2026-09-22, after the
+missing-symbol scan went linear: each BOSL2 part grid renders inside the
+budget, and only the top-level `bosl2/ALL.js`, which loads all five, does not.
+
+- **A big grid dies in manifold, not on time.** `bosl2/ALL.js` aborts on
+  `orientations.scad` with `table index is out of bounds` inside manifold's
+  `getMesh`; the browser and `run-jscad` give the same message. It is not the
+  model count: of `05-part5`'s 34 models the first 17 render and the second 17
+  do not, and `orientations.scad` renders alone (250,290 vertices). That grid
+  does render in the browser but not in Node, so the browser bundle and
+  manifold-3d 3.3.2 in `node_modules` do not have the same headroom. Find
+  whether the limit is total live geometry before choosing a fix.
+- **One model that throws kills the whole grid.** The generated `ALL.js`
+  rethrows from its per-item `catch` (`bin/generate-all-files.js`). A skipped
+  cell with a marker would leave the rest of the grid standing.
+- **Nothing splits a grid across workers.** The frame runs one worker, one
+  request at a time (`src_frame/frame.js`), so a grid cannot use more than one
+  core and cannot give each cell its own budget. A pool would need the app to
+  send each cell separately and place results as they arrive; each worker then
+  transpiles the shared library again unless the transpile cache moves out of
+  the worker to the frame's main thread (the frame's opaque origin rules out
+  SharedArrayBuffer and IndexedDB). Weigh that against a warm transpile now
+  costing about 40ms.
+
 ## Library bugs found by the sweep
 
 - **dotSCAD's `r_union3` fails on the manifold engine** with
