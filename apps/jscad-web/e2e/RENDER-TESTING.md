@@ -72,6 +72,12 @@ JOB=$(../simple-ci/sci push jscadui/render)   # runs ci/render on gpu
 `ci/render` builds the workspace, starts the dev server, and runs `render-all.mjs`.
 Edit `RENDER_ARGS` in `ci/render` to change scope/concurrency.
 
+`sci push jscadui/render-grids` runs the same setup over the 44 `ALL.js` grids
+instead (`--dir . --grids`, 600s hang guard, concurrency 4, writing
+`e2e/render-grids-report.json`). A grid holds every cell's geometry at once, so
+it is much heavier than one model. `sci` takes the script name as the job name,
+which is why this is a separate file rather than a flag on `ci/render`.
+
 ## The modeling code a sweep actually measures
 
 `@jscad/modeling` and `@jscad/modeling-for-manifold` are `file:` deps on a

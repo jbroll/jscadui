@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Browser render sweep over the combined ALL.js grids, run on the CI/GPU host.
+#
+#   sci push jscadui/render-grids
+#
+# Same setup as ci/render, different scope: every ALL.js under examples/ rather
+# than every model. A grid renders each of its models into one cell, so a cell
+# whose model throws comes back as a skull-and-crossbones marker and the sweep
+# scores that grid `partial` and names the dead cells. See
+# apps/jscad-web/e2e/RENDER-TESTING.md.
+#
+# A grid is far heavier than one model: it holds every cell's geometry at once,
+# so it gets a 600s hang guard and less concurrency than the per-model sweep.
+set -uo pipefail
+
+export RENDER_ARGS="--dir . --grids --concurrency 4 --timeout 600000 --out e2e/render-grids-report.json"
+exec "$(dirname "$0")/render"

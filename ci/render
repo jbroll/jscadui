@@ -18,6 +18,7 @@ APP="$WORKTREE/apps/jscad-web"
 # is ~4x the slowest example measured single-threaded (rod.scad at 61s) with
 # room for six pages competing for the box.
 RENDER_ARGS="${RENDER_ARGS:---dir openscad --concurrency 6 --timeout 300000}"
+# ci/render-grids sets RENDER_ARGS to sweep the ALL.js grids instead.
 
 cd "$WORKTREE"
 npm install
