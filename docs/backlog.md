@@ -119,12 +119,3 @@ with `display-check.js --engine jscad`.
   7.3s, with nothing in our own code. The one avoidable part is upstream now
   (`perf(modeling): group geometries by bounds before unioning them`), worth
   about 20% on a scene of separable parts.
-
-## Worker reuse
-
-- **`polyholes_test.scad` may be worker reuse, not geometry.** Loading an
-  include-heavy model (mcad `hardware_test.scad`) and then the mcad grid in the
-  same worker leaks into polyholes with a geometry error, recorded as an
-  unsolved worker-reuse case well before the compute frame. `render-all.mjs`
-  gives each example a fresh worker and so cannot see it; the deploy smoke gate
-  hit it against production.

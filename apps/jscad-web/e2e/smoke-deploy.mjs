@@ -70,9 +70,6 @@ try {
   for (const [path, name, timeout] of [
     ['/examples/openscad/01-basics/cube.scad', 'cube.scad', 30000],
     ['/examples/openscad/mcad/examples/hardware_test.scad', 'hardware_test.scad (include resolution)', 30000],
-    // 01-basics, not mcad: mcad's grid includes polyholes_test.scad, which fails
-    // on a pre-existing geometry bug, and a gate that always fails teaches people
-    // to ignore it. See the render sweep item in docs/backlog.md.
     ['/examples/openscad/01-basics/ALL.js', '01-basics/ALL.js (grid)', 90000],
   ]) {
     const ctx = await browser.newContext()

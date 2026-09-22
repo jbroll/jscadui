@@ -239,10 +239,7 @@ demo browser reads `manifest.json` instead of the directory listing that 403s
 in production (see backlog), an include-heavy model (`mcad/hardware_test.scad`)
 resolves its includes from the live host, a grid (`01-basics/ALL.js`) renders,
 and the CORS split holds — `/examples/` answers `Access-Control-Allow-Origin: *`
-and `/api/health` answers none. It runs `01-basics/ALL.js` rather than mcad's
-grid because mcad's grid includes `polyholes_test.scad`, which fails on a
-pre-existing geometry bug (see the render sweep item in `docs/backlog.md`), and
-a gate that always fails teaches people to ignore it.
+and `/api/health` answers none.
 
 ## History
 
