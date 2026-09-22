@@ -91,25 +91,30 @@ Every one of the remaining failures dies outside the per-cell catch:
 
 ## The jscad engine
 
-The app defaults to manifold; the other engine renders **738/789** (CI job
-`d4f77513990d2eed`, `--engine jscad`). The STL comparison suite only runs
-manifold, so nothing covers it. Sweep with `--engine jscad`, or run one model
-with `display-check.js --engine jscad`.
+The app defaults to manifold; the other engine renders **743/785** (CI job
+`cbc23bc6fdd1a0ed`, `sci push jscadui/render-jscad`), with
+`apps/jscad-web/e2e/render-jscad-baseline.json` holding the per-model state.
+The STL comparison suite only runs manifold, so that sweep is the only thing
+covering this engine. Run one model with `display-check.js --engine jscad`.
 
-- **24 models extrude a geom2 whose sides do not close.** Root cause found
-  2026-09-22 with `packages/openscad/bin/geom2-trace.js`: a 2D boolean
-  extrudes both operands into 3D walls and reads the sides back out in
-  `fromFakePolygons`, which snapped each point onto an epsilon grid on its
-  own. A shared corner comes back once per wall with float noise between the
-  copies, so a pair straddling a cell boundary landed in two cells and the
-  outline never closed. In `hypnotic_squares.scad` the first break is a
-  `union` whose 4 dangling vertices sit 1.133e-4 apart against an epsilon of
-  1.6e-4; the 0.4997 gap recorded earlier was downstream fallout, not the
-  origin. Fixed on the modeling fork
-  (`jbroll/OpenJSCAD.org`, branch `fix/geom2-snap-weld`) by snapping through a
-  cell map that reuses the first point in any of the nine neighbouring cells.
-  That also closes upstream #907's BSP gap. `hypnotic_squares.scad` converts
-  now; the sweep has not been re-run, so the count this clears is unmeasured.
+- **23 models extrude a geom2 whose sides do not close.** Was 24. One of them,
+  `hypnotic_squares.scad`, was an epsilon-grid split: `fromFakePolygons`
+  rounded each point onto the grid on its own, so the two copies a 3D boolean
+  returns for a shared corner could land in different cells and the outline
+  never closed. Fixed on the modeling fork (`jbroll/OpenJSCAD.org`, branch
+  `fix/geom2-snap-weld`, `c0cc0e77`) by repairing only the vertices left with
+  an unequal number of sides arriving and leaving, which also closes upstream
+  #907's BSP gap. Welding during snapping instead, which the first two
+  attempts did, perturbs geometry that was already fine and broke
+  `gears.scad` through a later BSP boolean.
+
+  The other 23 are a different bug. In `horiholes.scad` a 24-way `union`
+  returns 820 sides with 16 dangling vertices, paired at ±x on a shared y and
+  9.5e-5 apart against an epsilon of 6.1e-5 — wider than a cell. Two nearly
+  identical full-width sides are missing outright, so these are sides lost
+  inside the 3D boolean rather than corners that rounded apart. Trace one with
+  `packages/openscad/bin/geom2-trace.js`; a gap on the order of the printed
+  epsilon is a snapping split, anything wider is this.
 - **A tail of small clusters**: 5 unions across mixed 2D/3D types, 4 planes
   that an origin and normal do not define, 2 minkowski, 2 subtract across
   mixed types, 2 stack overflows, 3 models past the 270s budget.

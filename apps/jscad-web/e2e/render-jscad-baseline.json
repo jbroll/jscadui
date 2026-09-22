@@ -1,0 +1,257 @@
+{
+  "_comment": "Render sweep on the jscad modeling engine (sci push jscadui/render-jscad). 23 of the 42 failures extrude a geom2 whose sides do not close; those are sides lost inside the 3D boolean, not the epsilon-grid split fixed in fromFakePolygons. Diff future runs against failures[], not against zero.",
+  "tree": "main working tree, rsynced onto the CI base worktree by sci — no commit identifies the code that was measured",
+  "modeling": "jbroll/OpenJSCAD.org fix/geom2-snap-weld c0cc0e77",
+  "date": "2026-09-22",
+  "job": "cbc23bc6fdd1a0ed",
+  "engine": "jscad",
+  "total": 785,
+  "ok": 743,
+  "failed": 42,
+  "byLib": {
+    "openscad/01-basics": {
+      "ok": 20,
+      "fail": 0
+    },
+    "openscad/bosl": {
+      "ok": 113,
+      "fail": 0
+    },
+    "openscad/bosl2": {
+      "ok": 178,
+      "fail": 0
+    },
+    "openscad/dotscad": {
+      "ok": 167,
+      "fail": 18
+    },
+    "openscad/mcad": {
+      "ok": 14,
+      "fail": 0
+    },
+    "openscad/nopscadlib": {
+      "ok": 125,
+      "fail": 20
+    },
+    "openscad/snippet": {
+      "ok": 115,
+      "fail": 4
+    },
+    "openscad/text": {
+      "ok": 11,
+      "fail": 0
+    }
+  },
+  "failures": [
+    {
+      "rel": "openscad/dotscad/examples/curved_cabinet.scad",
+      "status": "error",
+      "errText": "Error: jscadMain failed: the given points must define a closed geometry with three or more points"
+    },
+    {
+      "rel": "openscad/dotscad/examples/dot_photo_sphere.scad",
+      "status": "error",
+      "errText": "Error: jscadMain failed: only unions of the same type are supported"
+    },
+    {
+      "rel": "openscad/dotscad/examples/image_slicer.scad",
+      "status": "error",
+      "errText": "Error: jscadMain failed: geometry is not closed at vertex 26.481744604669778,-13.000161350173743"
+    },
+    {
+      "rel": "openscad/dotscad/examples/maze/heart2heart_maze.scad",
+      "status": "error",
+      "errText": "Error: jscadMain failed: geometry is not closed at vertex 14.469305806279758,-6.910692140865015"
+    },
+    {
+      "rel": "openscad/dotscad/examples/maze/maze_city.scad",
+      "status": "error",
+      "errText": "Error: jscadMain failed: geometry is not closed at vertex -15.000035898875808,3.5081609406009973"
+    },
+    {
+      "rel": "openscad/dotscad/examples/maze/maze_masking.scad",
+      "status": "error",
+      "errText": "Error: jscadMain failed: geometry is not closed at vertex -67.99996000000002,-28.00004666666667"
+    },
+    {
+      "rel": "openscad/dotscad/examples/maze/maze3d_mickey.scad",
+      "status": "error",
+      "errText": "RangeError: jscadMain failed: Maximum call stack size exceededRange"
+    },
+    {
+      "rel": "openscad/dotscad/examples/spiral_polygons/fidget_boo.scad",
+      "status": "error",
+      "errText": "Error: jscadMain failed: geometry is not closed at vertex -7.2953101921793735,2.435671429864949"
+    },
+    {
+      "rel": "openscad/dotscad/examples/spiral_polygons/fidget_heart.scad",
+      "status": "error",
+      "errText": "Error: jscadMain failed: geometry is not closed at vertex -0.4491939799789669,-7.646438519118617"
+    },
+    {
+      "rel": "openscad/dotscad/examples/spiral/lotus_like_flower.scad",
+      "status": "error",
+      "errText": "Error: jscadMain failed: the callback function must return slices with one or more edges"
+    },
+    {
+      "rel": "openscad/dotscad/examples/spiral/spiral_city.scad",
+      "status": "error",
+      "errText": "Error: jscadMain failed: minkowskiSum requires geom3 geometries"
+    },
+    {
+      "rel": "openscad/dotscad/examples/stereographic_projection/stereographic_caterpillar.scad",
+      "status": "error",
+      "errText": "Error: jscadMain failed: only unions of the same type are supported"
+    },
+    {
+      "rel": "openscad/dotscad/examples/stereographic_projection/stereographic_projection.scad",
+      "status": "error",
+      "errText": "Error: jscadMain failed: only unions of the same type are supported"
+    },
+    {
+      "rel": "openscad/dotscad/examples/text_box.scad",
+      "status": "error",
+      "errText": "Error: jscadMain failed: minkowskiSum requires geom3 geometries"
+    },
+    {
+      "rel": "openscad/dotscad/examples/tiles/tiles_wfc_tube.scad",
+      "status": "error",
+      "errText": "Error: jscadMain failed: only unions of the same type are supported"
+    },
+    {
+      "rel": "openscad/dotscad/examples/triangle2square/triangle2square_box.scad",
+      "status": "error",
+      "errText": "Error: jscadMain failed: geometry is not closed at vertex 27.780145557037113,-41.53075432982075"
+    },
+    {
+      "rel": "openscad/dotscad/examples/voronoi/voronoi_holder.scad",
+      "status": "error",
+      "errText": "Error: jscadMain failed: geometry is not closed at vertex 0.7032306723555575,5.486411780977778"
+    },
+    {
+      "rel": "openscad/dotscad/examples/walk_torus83_fort.scad",
+      "status": "error",
+      "errText": "Error: jscadMain failed: geometry is not closed at vertex 59.83026079978061,-23.357707033346717"
+    },
+    {
+      "rel": "openscad/nopscadlib/NopSCADlib/tests/blowers.scad",
+      "status": "error",
+      "errText": "Error: jscadMain failed: geometry is not closed at vertex -0.37930302763050383,-11.999829058505336"
+    },
+    {
+      "rel": "openscad/nopscadlib/NopSCADlib/tests/bulldogs.scad",
+      "status": "error",
+      "errText": "Error: jscadMain failed: the given origin and normal do not define a proper plane"
+    },
+    {
+      "rel": "openscad/nopscadlib/NopSCADlib/tests/circlips.scad",
+      "status": "error",
+      "errText": "Error: jscadMain failed: geometry is not closed at vertex -6.74415996422327,-4.466877565275581"
+    },
+    {
+      "rel": "openscad/nopscadlib/NopSCADlib/tests/components.scad",
+      "status": "error",
+      "errText": "Error: jscadMain failed: the given origin and normal do not define a proper plane"
+    },
+    {
+      "rel": "openscad/nopscadlib/NopSCADlib/tests/core_xy.scad",
+      "status": "error",
+      "errText": "Error: jscadMain failed: geometry is not closed at vertex -19.677766854083536,-15.370751179613364"
+    },
+    {
+      "rel": "openscad/nopscadlib/NopSCADlib/tests/fans.scad",
+      "status": "error",
+      "errText": "TypeError: jscadMain failed: Cannot read properties of undefined (reading '0')Type"
+    },
+    {
+      "rel": "openscad/nopscadlib/NopSCADlib/tests/fastons.scad",
+      "status": "error",
+      "errText": "Error: jscadMain failed: the given origin and normal do not define a proper plane"
+    },
+    {
+      "rel": "openscad/nopscadlib/NopSCADlib/tests/horiholes.scad",
+      "status": "error",
+      "errText": "Error: jscadMain failed: geometry is not closed at vertex -27.147193333333338,-6.250040000000001"
+    },
+    {
+      "rel": "openscad/nopscadlib/NopSCADlib/tests/hot_ends.scad",
+      "status": "error",
+      "errText": "Error: jscadMain failed: geometry is not closed at vertex -2.9749338536334236,8.567850032349687"
+    },
+    {
+      "rel": "openscad/nopscadlib/NopSCADlib/tests/IECs.scad",
+      "status": "error",
+      "errText": "Error: jscadMain failed: geometry is not closed at vertex -8.133849609600002,-9.874748333022225"
+    },
+    {
+      "rel": "openscad/nopscadlib/NopSCADlib/tests/offset.scad",
+      "status": "error",
+      "errText": "Error:"
+    },
+    {
+      "rel": "openscad/nopscadlib/NopSCADlib/tests/PCB.scad",
+      "status": "error",
+      "errText": "Error: jscadMain failed: geometry is not closed at vertex 0,-0.024103675662897683"
+    },
+    {
+      "rel": "openscad/nopscadlib/NopSCADlib/tests/PSU_shroud.scad",
+      "status": "error",
+      "errText": "Error: jscadMain failed: geometry is not closed at vertex -2.9149495731778132,3.1182416582136216"
+    },
+    {
+      "rel": "openscad/nopscadlib/NopSCADlib/tests/radials.scad",
+      "status": "error",
+      "errText": "Error: jscadMain failed: geometry is not closed at vertex 0,-0.024103675662897683"
+    },
+    {
+      "rel": "openscad/nopscadlib/NopSCADlib/tests/rod_ends.scad",
+      "status": "error",
+      "errText": "Error: jscadMain failed: the given origin and normal do not define a proper plane"
+    },
+    {
+      "rel": "openscad/nopscadlib/NopSCADlib/tests/screw_knob.scad",
+      "status": "error",
+      "errText": "Error: jscadMain failed: geometry is not closed at vertex 9.182251649951741,11.8393452313831"
+    },
+    {
+      "rel": "openscad/nopscadlib/NopSCADlib/tests/SSR_shroud.scad",
+      "status": "error",
+      "errText": "Error: jscadMain failed: geometry is not closed at vertex -2.9149495731778132,3.1182416582136216"
+    },
+    {
+      "rel": "openscad/nopscadlib/NopSCADlib/tests/stepper_motors.scad",
+      "status": "error",
+      "errText": "Error: jscadMain failed: geometry is not closed at vertex 15.525620152923214,14.13215700535525"
+    },
+    {
+      "rel": "openscad/nopscadlib/NopSCADlib/tests/wire.scad",
+      "status": "error",
+      "errText": "Error: jscadMain failed: geometry is not closed at vertex -2.8610262233795023,2.1158864876426082"
+    },
+    {
+      "rel": "openscad/nopscadlib/NopSCADlib/tests/zipties.scad",
+      "status": "error",
+      "errText": "Error: jscadMain failed: geometry is not closed at vertex -2.9780127651242077,5.35579448075528"
+    },
+    {
+      "rel": "openscad/snippet/01-basic/Spawing_Cube.scad",
+      "status": "error",
+      "errText": "Error: jscadMain failed: size values must be positive"
+    },
+    {
+      "rel": "openscad/snippet/03-advanced/Mech_Piece_03.scad",
+      "status": "error",
+      "errText": "Error: jscadMain failed: only subtract of the types are supported"
+    },
+    {
+      "rel": "openscad/snippet/03-advanced/Mech_Piece_04.scad",
+      "status": "error",
+      "errText": "Error: jscadMain failed: only subtract of the types are supported"
+    },
+    {
+      "rel": "openscad/snippet/03-advanced/Screw.scad",
+      "status": "error",
+      "errText": "Error: jscadMain failed: only unions of the same type are supported"
+    }
+  ]
+}
