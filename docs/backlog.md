@@ -96,11 +96,20 @@ The app defaults to manifold; the other engine renders **738/789** (CI job
 manifold, so nothing covers it. Sweep with `--engine jscad`, or run one model
 with `display-check.js --engine jscad`.
 
-- **24 models extrude a geom2 whose sides do not close**, so earcut throws
-  inside `extrudeFromSlices`. Not a tolerance problem: in
-  `hypnotic_squares.scad` the closest distinct endpoints of the 187-side
-  profile are 0.4997 apart, so the profile is genuinely open. Find the
-  operation that builds it before reaching for a weld.
+- **24 models extrude a geom2 whose sides do not close.** Root cause found
+  2026-09-22 with `packages/openscad/bin/geom2-trace.js`: a 2D boolean
+  extrudes both operands into 3D walls and reads the sides back out in
+  `fromFakePolygons`, which snapped each point onto an epsilon grid on its
+  own. A shared corner comes back once per wall with float noise between the
+  copies, so a pair straddling a cell boundary landed in two cells and the
+  outline never closed. In `hypnotic_squares.scad` the first break is a
+  `union` whose 4 dangling vertices sit 1.133e-4 apart against an epsilon of
+  1.6e-4; the 0.4997 gap recorded earlier was downstream fallout, not the
+  origin. Fixed on the modeling fork
+  (`jbroll/OpenJSCAD.org`, branch `fix/geom2-snap-weld`) by snapping through a
+  cell map that reuses the first point in any of the nine neighbouring cells.
+  That also closes upstream #907's BSP gap. `hypnotic_squares.scad` converts
+  now; the sweep has not been re-run, so the count this clears is unmeasured.
 - **A tail of small clusters**: 5 unions across mixed 2D/3D types, 4 planes
   that an origin and normal do not define, 2 minkowski, 2 subtract across
   mixed types, 2 stack overflows, 3 models past the 270s budget.

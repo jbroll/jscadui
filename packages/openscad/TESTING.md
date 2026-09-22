@@ -150,6 +150,23 @@ node bin/display-check.js file.scad [--preview] [--lib-path <p>] [--fn <n>]
 It prints each rejected entity with the reason, e.g. `invalid jscad geometry,
 not an object — symbol Symbol(no_child)`.
 
+### Open 2D geometry
+
+`linear_extrude` and friends call `geom2.toOutlines()`, which throws
+`geometry is not closed at vertex x,y`. The throw names the extrusion, not the
+boolean that broke the profile. `geom2-trace.js` wraps `union`, `subtract` and
+`intersect`, checks every geom2 they return, and reports the first open result
+with its dangling vertices, the geometry's epsilon and how far apart the
+unmatched points are:
+
+```bash
+node bin/geom2-trace.js file.scad --engine jscad [--lib-path <p>] [--fn <n>] [--all]
+```
+
+A gap on the order of the printed epsilon is a snapping failure in the
+boolean; a gap much larger than it means the profile was already open further
+upstream. `--all` reports every open result rather than only the first.
+
 ---
 
 ## 6. Unit Tests
