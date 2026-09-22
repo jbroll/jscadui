@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 
 // Import the runtime directly for unit testing
 import j$ from '@jscadui/openscad-runtime'
-import { _cylinder, _sphere, withoutDegeneratePolygons, initColor, _color, initPrimitives, _safeUnion } from '@jscadui/openscad-runtime'
+import { _cylinder, _sphere, withoutDegeneratePolygons, initColor, _color, initPrimitives, _safeUnion, initTransforms, _mirror } from '@jscadui/openscad-runtime'
 
 /**
  * Unit tests for OpenSCAD runtime helpers
@@ -641,5 +641,40 @@ describe('safeUnion across mixed dimensions', () => {
   it('returns the sole survivor without unioning', () => {
     initPrimitives(stub)
     expect(_safeUnion([square, cube])).toBe(square)
+  })
+})
+
+/**
+ * OpenSCAD writes 2D mirror normals with two components, as NopSCADlib's
+ * `mirror(v = [0, i])` does. jscad's mirror builds its plane from a 3D normal,
+ * so the missing z makes plane.fromNormalAndPoint return NaN and it throws
+ * "the given origin and normal do not define a proper plane".
+ */
+describe('mirror with a 2D normal', () => {
+  const geo = { sides: [[[0, 0], [1, 0]]] }
+  let seen: unknown
+
+  const mirrored = (v: unknown) => {
+    seen = undefined
+    initTransforms({
+      transforms: { mirror: (options: { normal: unknown }) => { seen = options.normal; return geo } },
+      measurements: {}
+    })
+    const out = _mirror(v, geo)
+    return { normal: seen, out }
+  }
+
+  it('pads a two-component normal with zero', () => {
+    expect(mirrored([0, 1]).normal).toEqual([0, 1, 0])
+  })
+
+  it('leaves a three-component normal alone', () => {
+    expect(mirrored([1, 0, 0]).normal).toEqual([1, 0, 0])
+  })
+
+  it('treats a zero normal as identity', () => {
+    const { normal, out } = mirrored([0, 0])
+    expect(normal).toBeUndefined()
+    expect(out).toBe(geo)
   })
 })

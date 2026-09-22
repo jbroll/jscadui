@@ -58,8 +58,10 @@ export const _mirror = (v, geo) => {
   if (g == null) return undefined
   // Handle zero normal vector: OpenSCAD treats mirror([0,0,0]) and mirror([0,0]) as identity
   if (Array.isArray(v) && v[0] === 0 && v[1] === 0 && (v[2] === 0 || v[2] === undefined)) return g
-  // v is the normal vector [x, y, z]
-  return mirror({ normal: v }, g)
+  // v is the normal vector [x, y, z]. A 2D model writes only [x, y], and
+  // jscad builds its plane from three components, so the missing one makes
+  // the plane NaN rather than zero.
+  return mirror({ normal: Array.isArray(v) && v.length === 2 ? [v[0], v[1], 0] : v }, g)
 }
 
 // Rotation helper for Euler angles
