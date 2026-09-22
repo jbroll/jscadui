@@ -132,9 +132,12 @@ exceeds a browser worker's stack. It is an accepted failure: even at one frame
 a level it needs about 850 KB against a worker's ~530 KB, so no transpiler
 change fits it. `docs/design/mutual-tail-calls-trial.md` has the measurements.
 
-Sweeping the other engine takes `--engine jscad`: **738 of 789**, CI job
+Sweeping the other engine takes `--engine jscad`, which `sci push
+jscadui/render-jscad` does at CI scale: **738 of 789**, CI job
 `d4f77513990d2eed`. 24 of its 51 failures extrude a geom2 whose sides do not
 close, which is where that engine's remaining work is. See `docs/backlog.md`.
+That sweep measures whatever `@jscad/modeling` the CI host's sibling
+`OpenJSCAD.org` checkout is on, which is not tied to the jscadui commit.
 
 From `apps/jscad-web`, after a sweep writes a fresh `e2e/render-report.json`:
 

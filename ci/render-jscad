@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Browser render sweep on the jscad modeling engine, run on the CI/GPU host.
+#
+#   sci push jscadui/render-jscad
+#
+# Same scope as ci/render, different engine. The app defaults to manifold and
+# the STL comparison suite only runs manifold, so this is the only thing that
+# covers the jscad engine. It is roughly 10x slower, hence the longer hang
+# guard and less concurrency. See docs/backlog.md for the known clusters.
+set -uo pipefail
+
+export RENDER_ARGS="--dir openscad --engine jscad --concurrency 4 --timeout 600000 --out e2e/render-jscad-report.json"
+exec "$(dirname "$0")/render"
