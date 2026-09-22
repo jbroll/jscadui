@@ -109,37 +109,49 @@ covering this engine. Run one model with `display-check.js --engine jscad`.
   geometry that was fine and a later BSP returns something broken in its own
   right. `gears.scad` is the model that catches it.
 
-  The other 23 are a different bug, and it is in the BSP rather than anywhere
-  downstream of it. `unionGeom2` and friends extrude both operands into
+  The other 23 are a different bug, and it is upstream of anything
+  `fromFakePolygons` does. `unionGeom2` and friends extrude both operands into
   `to3DWalls` prisms, run the 3D boolean and read the sides back; for these
   models the wall set the 3D boolean returns does not form closed loops before
   any snapping happens. On `wire.scad` a `subtract` takes 119 input walls,
   returns 89, rejects none of them in `fromFakePolygons`, and the raw
   coordinates already leave 11 vertices unmatched, some by two sides.
 
-  Ruled out, each by measurement:
+  The 3D BSP itself is sound. Across 360 booleans on clean primitives
+  (cuboid, sphere, cylinder at assorted sizes and segment counts) 359 came
+  back closed, the one exception off by 1.69e-7. What breaks it is what the 2D
+  path hands it. `to3DWalls` builds side walls only, so the operands are open
+  prisms, and their vertical faces can be closer together than the BSP can
+  resolve: `splitPolygonByPlane` works to an absolute `EPS` of 1e-5
+  (`src/maths/constants.js`) regardless of the geometry's scale.
 
-  - **Not snapping.** The raw BSP output is open at full float precision.
-  - **Not the missing caps.** `to3DWalls` builds side walls only, so the BSP
-    classifies inside/outside on a solid that is not closed. Capping the
-    prisms with earcut triangles changes nothing: same 89 walls, same 11
-    unmatched.
-  - **Not `EPS` alone.** `splitPolygonByPlane` uses an absolute `EPS` of 1e-5
-    (`src/maths/constants.js`) while `horiholes.scad` has walls 7.5e-6 apart,
-    below it. Dropping `EPS` to 1e-9 takes that model from 76 unmatched to 40
-    and leaves `wire.scad` untouched, so it contributes without being the
-    cause.
+  In the smallest `horiholes.scad` case — two of the 24 operands — exactly one
+  pair of parallel wall planes falls below that, 7.531e-6 apart, and the two
+  walls that vanish from the union are precisely that pair. The shapes do
+  overlap across that band, so the correct union needs connector faces 7.5e-6
+  tall to stitch the boundary, which the BSP cannot represent. Dropping `EPS`
+  to 1e-9 takes that case from 6 unmatched vertices to 4 and the full 24-way
+  union from 76 to 40, so the tolerance is a contributor and not the whole
+  story.
 
-  Repairing this downstream is not available. Surveying all 23 with
+  Also ruled out by measurement: it is not snapping, since the raw BSP output
+  is open at full float precision; and it is not the missing caps, since
+  capping the prisms with earcut triangles leaves the same 89 walls and the
+  same 11 unmatched vertices.
+
+  Repairing downstream is not available either. Surveying all 23 with
   `geom2-trace.js --preview`, the distance from an unmatched vertex to the
-  partner a repair would join it to runs from 1.6 epsilon
-  (`horiholes.scad`) through 10.5 (`fidget_boo.scad`) to 37 and beyond for the
-  other 20, topping out at 35,665 (`walk_torus83_fort.scad`);
-  `blowers.scad` has no opposite-sign partner at all. Whole sides are gone, so
-  closing them means inventing geometry. Fixing it means the BSP's coplanar
-  and boundary handling, or doing 2D booleans in 2D instead of through a 3D
-  BSP. Both engines are affected: the manifold runtime routes geom2-sourced
-  booleans through the same code (`packages/manifold/src/booleans/index.js`).
+  partner a repair would join it to runs from 1.6 epsilon (`horiholes.scad`)
+  through 10.5 (`fidget_boo.scad`) to 37 and beyond for the other 20, topping
+  out at 35,665 (`walk_torus83_fort.scad`); `blowers.scad` has no
+  opposite-sign partner at all. Whole sides are gone, so closing them means
+  inventing geometry.
+
+  What is left is to stop routing 2D booleans through a 3D BSP. A sweep-line
+  clipper with exact predicates decides these cases correctly instead of
+  against a fixed tolerance. Both engines would get it: the manifold runtime
+  routes geom2-sourced booleans through the same code
+  (`packages/manifold/src/booleans/index.js`).
 - **A tail of small clusters**: 5 unions across mixed 2D/3D types, 4 planes
   that an origin and normal do not define, 2 minkowski, 2 subtract across
   mixed types, 2 stack overflows, 3 models past the 270s budget.
