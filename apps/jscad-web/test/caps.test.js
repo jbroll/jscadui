@@ -81,3 +81,11 @@ describe('agent evaluate', () => {
     })
   })
 })
+
+describe('the default vertex cap', () => {
+  it('admits the largest example in the corpus', () => {
+    // dotSCAD's packing_circles.scad: 1,712,350 triangles, three un-indexed
+    // vertices each.
+    expect(DEFAULT_CAPS.vertices).toBeGreaterThan(1_712_350 * 3)
+  })
+})

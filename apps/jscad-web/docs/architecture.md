@@ -141,7 +141,7 @@ the export skips the whole dance when it is clear.
 ### Geometry caps
 
 Geometry from the frame is untrusted input, so `src/caps.js` bounds it before
-the first allocation for drawing: 5M vertices, 256MB of buffers, 2000
+the first allocation for drawing: 8M vertices, 256MB of buffers, 2000
 entities. Over a cap is a model error, not an allocation. `aiEvaluate.js`
 re-checks the same caps so the agent cannot be told a model evaluated when
 nothing was drawn.

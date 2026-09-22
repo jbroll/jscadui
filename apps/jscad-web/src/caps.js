@@ -2,9 +2,10 @@
 // They are enforced before any allocation for drawing: setModel builds
 // renderer buffers from these arrays.
 export const DEFAULT_CAPS = {
-  // A 5M-vertex mesh is roughly 1.6M triangles; beyond that the draw cost
-  // alone would stall the page.
-  vertices: 5_000_000,
+  // Render buffers are un-indexed, so this counts three vertices per triangle:
+  // 8M is roughly 2.7M triangles. dotSCAD's packing_circles.scad is genuine
+  // 1.7M-triangle geometry and was refused by the old 5M limit.
+  vertices: 8_000_000,
   // 256MB of vertex/index/color buffers bounds the memory a model can claim.
   bytes: 256 * 1024 * 1024,
   // A model with more parts than this is more likely a runaway loop than a
