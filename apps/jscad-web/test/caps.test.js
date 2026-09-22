@@ -15,10 +15,10 @@ describe('capGeometry', () => {
     expect(result).toBe(entities)
   })
 
-  it('throws a model error when the vertex count is over the limit', () => {
-    const limits = { ...DEFAULT_CAPS, vertices: 4 }
-    const entities = [{ ...smallEntity(), vertices: new Float32Array(15) }] // 5 vertices
-    expect(() => capGeometry(entities, limits)).toThrowError(/vertex cap/)
+  it('passes a grid whose vertices exceed the old 8M cap', () => {
+    // 10M vertices of positions only: 120MB, inside the buffer cap.
+    const entities = [{ type: 'mesh', vertices: new Float32Array(30_000_000) }]
+    expect(() => capGeometry(entities, DEFAULT_CAPS)).not.toThrow()
   })
 
   it('throws a model error when the total buffer size is over the limit', () => {
@@ -82,10 +82,10 @@ describe('agent evaluate', () => {
   })
 })
 
-describe('the default vertex cap', () => {
+describe('the default buffer cap', () => {
   it('admits the largest example in the corpus', () => {
     // dotSCAD's packing_circles.scad: 1,712,350 triangles, three un-indexed
-    // vertices each.
-    expect(DEFAULT_CAPS.vertices).toBeGreaterThan(1_712_350 * 3)
+    // vertices each, at 12 bytes of position per vertex.
+    expect(DEFAULT_CAPS.bytes).toBeGreaterThan(1_712_350 * 3 * 12)
   })
 })

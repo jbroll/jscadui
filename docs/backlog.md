@@ -55,10 +55,11 @@ A cell whose model throws no longer takes the grid with it: it draws a
 skull-and-crossbones and the sweep scores that grid `partial`, naming the dead
 cells. **34 of 44 render** (`sci push jscadui/render-grids`, job
 `c47078d389ff9071`, 600s per grid); `apps/jscad-web/e2e/render-grids-baseline.json`
-holds the per-grid state. Every one of the 10 failures dies outside the
-per-cell catch:
+holds the per-grid state. That baseline predates the vertex-cap removal
+(`dotscad/examples/spiral/ALL.js` now renders) and has not been re-run. Every
+one of the remaining failures dies outside the per-cell catch:
 
-- **manifold wasm stops working mid-grid** — 4 of the 10. `PSUs.scad` raises
+- **manifold wasm stops working mid-grid** — 4 of them. `PSUs.scad` raises
   `function signature mismatch` inside `manifold.wasm`, and every cell after it
   raises the same thing, so all three NopSCADlib grids and the top-level
   `openscad/ALL.js` end up dead whatever the per-cell catch does. Recovering
@@ -68,10 +69,6 @@ per-cell catch:
   `orientations.scad`, and likely the same bug. `run-jscad` reproduces both,
   while the browser bundle has more headroom than manifold-3d 3.3.2 in
   `node_modules`.
-- **The vertex cap is summed over the whole grid.**
-  `dotscad/examples/spiral/ALL.js` raises `9379968 > 8000000` during entity
-  conversion, after `main()` has returned, so no per-cell handling can see it.
-  A grid either needs its own cap or has to convert cell by cell.
 - **The aggregate-of-aggregate grids exceed 600s** — top-level `ALL.js`,
   `openscad/bosl2/ALL.js`, `dotscad/ALL.js` and `dotscad/examples/ALL.js`. Each
   loads several whole grids in one worker on one core.
