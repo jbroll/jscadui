@@ -149,7 +149,10 @@ export const initMessaging = (_self, handlers, { onJobCount, debug, allowedOrigi
     if (!Object.hasOwn(handlers, method)) {
       const msg = 'no handler for type: ' + method
       console.error(msg, e)
-      throw new Error(msg)
+      // A request must be answered now; leaving it unanswered burns the
+      // caller's whole timeout on a message that will never be handled.
+      if (id) return sendError(new Error(msg), id)
+      return
     }
     const fn = handlers[method]
     try {

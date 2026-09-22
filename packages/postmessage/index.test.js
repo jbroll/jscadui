@@ -98,14 +98,15 @@ describe('initMessaging', () => {
     it('should add event listener to _self', () => {
       messaging = initMessaging(mockSelf, {})
 
-      expect(mockSelf.addEventListener).toHaveBeenCalledWith('message', messaging.listener)
+      expect(mockSelf.addEventListener).toHaveBeenCalledWith('message', expect.any(Function))
     })
 
     it('should remove event listener on destroy()', () => {
       messaging = initMessaging(mockSelf, {})
+      const [, registered] = mockSelf.addEventListener.mock.calls[0]
       messaging.destroy()
 
-      expect(mockSelf.removeEventListener).toHaveBeenCalledWith('message', messaging.listener)
+      expect(mockSelf.removeEventListener).toHaveBeenCalledWith('message', registered)
     })
 
     it('should use controller for service worker when postMessage is not on _self', () => {
@@ -304,7 +305,7 @@ describe('initMessaging', () => {
 
       vi.advanceTimersByTime(1001)
 
-      await expect(promise).rejects.toBe('timeout')
+      await expect(promise).rejects.toThrow(/^RPC timeout for /)
     })
 
     it('should not timeout if response arrives in time', async () => {
@@ -337,7 +338,7 @@ describe('initMessaging', () => {
       vi.advanceTimersByTime(1001)
 
       // Catch the expected rejection
-      await expect(promise).rejects.toBe('timeout')
+      await expect(promise).rejects.toThrow(/^RPC timeout for /)
 
       expect(messaging.getRpcJobCount()).toBe(baseline)
     })
@@ -587,7 +588,7 @@ describe('initMessaging', () => {
       vi.useRealTimers()
 
       // Catch the expected rejection
-      await expect(promise).rejects.toBe('timeout')
+      await expect(promise).rejects.toThrow(/^RPC timeout for /)
     })
 
     it('should return correct pending count via getRpcJobCount()', () => {
