@@ -23,7 +23,6 @@ const fakeDom = () => {
 
 const build = (overrides = {}) => createFrame({
   onError: () => {},
-  onProgress: () => {},
   onEntities: () => {},
   onJobCount: () => {},
   runOrigin: RUN,
@@ -65,6 +64,35 @@ describe('createFrame', () => {
 
     const sandbox = el.setAttribute.mock.calls.filter(([name]) => name === 'sandbox')
     expect(sandbox).toEqual([['sandbox', 'allow-scripts']])
+    workerApi.destroy()
+  })
+
+  it('reports a reload and asks for a re-init', async () => {
+    const { load } = fakeDom()
+    const errors = []
+    let reinits = 0
+    const framePromise = build({ onError: (err) => errors.push(err), onTerminated: () => reinits++ })
+    load()
+    const { workerApi } = await framePromise
+    expect(errors).toEqual([])
+
+    load()
+    expect(errors).toHaveLength(1)
+    expect(errors[0].message).toContain('reloaded')
+    expect(reinits).toBe(1)
+    workerApi.destroy()
+  })
+
+  it('hands back an entities sink the caller can drive itself', async () => {
+    const { load } = fakeDom()
+    const seen = []
+    const framePromise = build({ onEntities: (result, options) => seen.push([result, options]) })
+    load()
+    const { handlers, workerApi } = await framePromise
+
+    handlers.entities({ entities: [1] }, { skipLog: true })
+    handlers.entities({ entities: [2] })
+    expect(seen).toEqual([[{ entities: [1] }, { skipLog: true }], [{ entities: [2] }, {}]])
     workerApi.destroy()
   })
 

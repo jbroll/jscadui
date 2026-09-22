@@ -19,7 +19,6 @@ const PASS_THROUGH = new Set(['then', 'destroy', 'onmessage', 'getRpcJobCount'])
  * cookies, no storage and no same-origin fetch.
  * @param {object} options
  * @param {(error: unknown) => void} options.onError
- * @param {(value?: number) => void} options.onProgress
  * @param {(result: unknown, options: {skipLog?: boolean}) => void} options.onEntities
  * @param {(jobs: number) => void} options.onJobCount
  * @param {() => void} [options.onTerminated] - the frame killed its worker; re-init it
@@ -27,7 +26,7 @@ const PASS_THROUGH = new Set(['then', 'destroy', 'onmessage', 'getRpcJobCount'])
  * @param {number} [options.loadTimeoutMs]
  * @returns {Promise<{frameEl: HTMLIFrameElement, workerApi: JscadWorker, handlers: object}>}
  */
-export const createFrame = async ({ onError, onProgress, onEntities, onJobCount, onTerminated, runOrigin, loadTimeoutMs = 15000 }) => {
+export const createFrame = async ({ onError, onEntities, onJobCount, onTerminated, runOrigin, loadTimeoutMs = 15000 }) => {
   const frameEl = document.createElement('iframe')
   frameEl.src = runOrigin + '/'
   frameEl.setAttribute('sandbox', 'allow-scripts')
@@ -38,9 +37,17 @@ export const createFrame = async ({ onError, onProgress, onEntities, onJobCount,
   let loaded = false
   let timer
   const ready = new Promise((resolve) => frameEl.addEventListener('load', () => {
+    if (loaded) {
+      // A second load means the frame navigated. Its worker, file map and
+      // engine went with it, so every later request would run against a frame
+      // the app never set up.
+      onError(new Error(`compute frame at ${runOrigin} reloaded; its state is gone`))
+      onTerminated?.()
+      return
+    }
     loaded = true
     resolve(undefined)
-  }, { once: true }))
+  }))
   const notLoaded = () =>
     new Error(`compute frame at ${runOrigin} did not load within ${loadTimeoutMs} ms; models cannot run`)
   const deadline = new Promise((resolve) => {
@@ -53,7 +60,19 @@ export const createFrame = async ({ onError, onProgress, onEntities, onJobCount,
   await Promise.race([ready, deadline])
   clearTimeout(timer)
 
+  // The worker answers jscadMain with its entities rather than notifying, so
+  // frameWorkerTerminated is the only message the frame sends on its own.
+  const notifications = {
+    frameWorkerTerminated: ({ reason }) => {
+      onError(new Error(reason))
+      onTerminated?.()
+    },
+  }
+
+  // Not messages: main.js's own sink for whatever produced geometry, called
+  // directly for restores and cached results as well as for a fresh render.
   const handlers = {
+    ...notifications,
     /**
      * @param {{entities:unknown | Array<unknown>,treeTime:number,execTime:number,convTime:number}} result
      * @param {{skipLog?:boolean }} options
@@ -61,14 +80,9 @@ export const createFrame = async ({ onError, onProgress, onEntities, onJobCount,
     entities: (result, options = {}) => {
       onEntities(result, options)
     },
-    onProgress,
-    frameWorkerTerminated: ({ reason }) => {
-      onError(new Error(reason))
-      onTerminated?.()
-    },
   }
 
-  const proxy = messageProxy(framePort(frameEl, runOrigin), handlers, { onJobCount })
+  const proxy = messageProxy(framePort(frameEl, runOrigin), notifications, { onJobCount })
 
   // A frame that never loaded cannot answer, and the message proxy would wait
   // out its five-minute default to find that out — long enough to stall the

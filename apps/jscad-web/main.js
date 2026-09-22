@@ -169,7 +169,6 @@ const trackJobs = createJobTracker(progress, onProgress)
 /* global __FRAME_ORIGIN__ */
 const { frameEl, workerApi, handlers } = await createFrame({
   onError: setError,
-  onProgress,
   onEntities: handleEntities,
   onJobCount: trackJobs,
   onTerminated: () => initFrame(),
