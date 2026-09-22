@@ -14,7 +14,7 @@ import type { TranspileContext } from './context.js'
 import { WarningCode } from './context.js'
 import { generateScopeSuffix, withScope } from './scoping.js'
 import { safeIdentifier, getShortFilename } from '../utils/identifiers.js'
-import { transpileExpression, transpileCallArg, reorderNamedArgs, isFunctionLiteralExpr } from './expressions.js'
+import { transpileExpression, transpileReturn, transpileCallArg, reorderNamedArgs, isFunctionLiteralExpr } from './expressions.js'
 import { markTailCalls, clearTailCallMarks, buildBounceReassignment } from './tailCall.js'
 import { getLocation } from '../parser/parse.js'
 import {
@@ -1516,13 +1516,13 @@ export function transpileFunctionDeclaration(stmt: FunctionDeclarationStmt, ctx:
   ctx.currentLocalBindings = new Set(ctx.currentLocalBindings)
   for (const a of stmt.definitionArgs) ctx.currentLocalBindings.add(safeIdentifier(a.name))
 
-  const body = transpileExpression(stmt.expr, ctx)
+  const bodyReturn = transpileReturn(stmt.expr, ctx)
   ctx.scopes.restoreFunctionBindings(paramBindingsSnapshot)
 
   if (stmt.definitionArgs.length === 0) {
     ctx.currentLocalBindings = savedLocalBindings
     // No parameters - simple function (no object version needed)
-    const code = `${comment}function ${name}_$f() { return ${body}; }`
+    const code = `${comment}function ${name}_$f() { ${bodyReturn} }`
     ctx.declarations.addFunction(
       `${name}_$f`,
       code,
@@ -1553,9 +1553,9 @@ export function transpileFunctionDeclaration(stmt: FunctionDeclarationStmt, ctx:
   }
 
   // Re-generate body with self-referencing params renamed (so they don't shadow the outer vars)
-  let finalBody = selfRefRenames.size > 0
-    ? withScope(ctx, selfRefRenames, () => transpileExpression(stmt.expr, ctx))
-    : body
+  const finalReturn = selfRefRenames.size > 0
+    ? withScope(ctx, selfRefRenames, () => transpileReturn(stmt.expr, ctx))
+    : bodyReturn
 
   // ── Tail-call optimization ─────────────────────────────────────────────────
   // Detect self-recursive calls in tail position. If found, re-transpile the body
@@ -1563,12 +1563,13 @@ export function transpileFunctionDeclaration(stmt: FunctionDeclarationStmt, ctx:
   // Skip for functions with self-referencing defaults (complex renaming interaction).
   const safeParamNames = uniqueArgs.map(a => safeIdentifier(a.name))
   const tailRecursive = selfRefRenames.size === 0 && markTailCalls(stmt.name, stmt.expr)
+  let tailBody = ''
 
   if (tailRecursive) {
     // Re-transpile body with tail calls emitting bounce objects
     const savedTailCallParams = ctx._tailCallParamNames
     ctx._tailCallParamNames = safeParamNames
-    finalBody = transpileExpression(stmt.expr, ctx)
+    tailBody = transpileExpression(stmt.expr, ctx)
     ctx._tailCallParamNames = savedTailCallParams
 
     // Clean up AST marks
@@ -1606,9 +1607,9 @@ export function transpileFunctionDeclaration(stmt: FunctionDeclarationStmt, ctx:
       }
     }
     const reassign = buildBounceReassignment(safeParamNames, paramDefaults)
-    positionalCode = `${comment}function ${name}_$f(${positionalParams}) { ${positionalPreamble}while (true) { const _r = ${finalBody}; if (!_r || !_r.__bounce__) return _r; ${reassign}; } }`
+    positionalCode = `${comment}function ${name}_$f(${positionalParams}) { ${positionalPreamble}while (true) { const _r = ${tailBody}; if (!_r || !_r.__bounce__) return _r; ${reassign}; } }`
   } else {
-    positionalCode = `${comment}function ${name}_$f(${positionalParams}) { ${positionalPreamble}return ${finalBody}; }`
+    positionalCode = `${comment}function ${name}_$f(${positionalParams}) { ${positionalPreamble}${finalReturn} }`
   }
 
   // Generate object version as thin delegation wrapper.

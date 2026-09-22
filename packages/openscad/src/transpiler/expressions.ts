@@ -120,18 +120,22 @@ export function isFunctionLiteralExpr(expr: Expression | null, ctx?: TranspileCo
 }
 
 /**
- * Helper to transpile let bindings (used by both LetExpr and LcLetExpr)
- * Creates an IIFE with const bindings and returns the body expression result.
+ * The const bindings of a let() and the expression it evaluates to, kept apart
+ * so a caller can emit them either as an IIFE or as statements of a function.
  *
  * Special variable bindings ($attach_to, $fn, etc.) use j$.withScope() for
  * dynamic scoping, since they must be readable via j$.getSpecialVar() not just
  * as local JS variables.
+ *
+ * With `flattenBody`, a body that is itself a let() is merged in rather than
+ * nested, so a chain of lets becomes one run of statements.
  */
-function transpileLetBindings(
+function transpileLetParts(
   args: readonly { name: string; value: Expression | null }[],
   bodyExpr: Expression,
-  ctx: TranspileContext
-): string {
+  ctx: TranspileContext,
+  flattenBody: boolean
+): { bindings: string[]; result: string } {
   const suffix = generateScopeSuffix(ctx)
 
   const bindings: string[] = []
@@ -194,7 +198,13 @@ function transpileLetBindings(
       }
     }
 
-    // No special vars encountered — transpile body directly
+    // No special vars encountered — transpile body directly, merging a nested
+    // let() into this one when the caller wants statements.
+    if (flattenBody && isLetExpr(bodyExpr)) {
+      const inner = transpileLetParts((bodyExpr as LetExpr).args, (bodyExpr as LetExpr).expr, ctx, true)
+      bindings.push(...inner.bindings)
+      return inner.result
+    }
     return transpileExpression(bodyExpr, ctx)
   })
 
@@ -203,8 +213,33 @@ function transpileLetBindings(
     ctx.scopes.unregisterFunctionBinding(origName)
   }
 
+  return { bindings, result }
+}
+
+/** A let() in expression position: an IIFE, since the bindings need a scope. */
+function transpileLetBindings(
+  args: readonly { name: string; value: Expression | null }[],
+  bodyExpr: Expression,
+  ctx: TranspileContext
+): string {
+  const { bindings, result } = transpileLetParts(args, bodyExpr, ctx, false)
   if (bindings.length === 0) return result
   return `(() => { ${bindings.join('; ')}; return ${result} })()`
+}
+
+/**
+ * The body of a function as statements ending in `return`.
+ *
+ * `function f(...) = let(...) expr;` is the commonest function shape in dotSCAD
+ * and BOSL2. As an IIFE, every call pays a closure and a stack frame, which
+ * halves how deep a recursion can go. When the let() is the whole body its
+ * bindings can simply be statements of the function.
+ */
+export function transpileReturn(expr: Expression, ctx: TranspileContext): string {
+  if (!isLetExpr(expr)) return `return ${transpileExpression(expr, ctx)};`
+  const { bindings, result } = transpileLetParts((expr as LetExpr).args, (expr as LetExpr).expr, ctx, true)
+  if (bindings.length === 0) return `return ${result};`
+  return `${bindings.join('; ')}; return ${result};`
 }
 
 /**
