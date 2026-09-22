@@ -1,0 +1,131 @@
+{
+  "_comment": "34/44 ALL.js grids render on the manifold engine with a 600s hang guard per grid. A cell whose model throws draws a skull-and-crossbones and the grid scores partial; the grids that fail outright do so outside the per-cell catch. Diff future runs against failures[], not against zero.",
+  "tree": "main working tree, rsynced onto the CI base worktree by sci — no commit identifies the code that was measured",
+  "date": "2026-09-22",
+  "job": "c47078d389ff9071",
+  "engine": "manifold",
+  "total": 44,
+  "ok": 34,
+  "failed": 10,
+  "byLib": {
+    "ALL.js": {
+      "ok": 0,
+      "fail": 1
+    },
+    "jscad/ALL.js": {
+      "ok": 1,
+      "fail": 0
+    },
+    "jscad/benchmarks": {
+      "ok": 1,
+      "fail": 0
+    },
+    "openscad/01-basics": {
+      "ok": 1,
+      "fail": 0
+    },
+    "openscad/ALL.js": {
+      "ok": 0,
+      "fail": 1
+    },
+    "openscad/bosl": {
+      "ok": 6,
+      "fail": 0
+    },
+    "openscad/bosl2": {
+      "ok": 5,
+      "fail": 1
+    },
+    "openscad/dotscad": {
+      "ok": 12,
+      "fail": 4
+    },
+    "openscad/mcad": {
+      "ok": 2,
+      "fail": 0
+    },
+    "openscad/nopscadlib": {
+      "ok": 0,
+      "fail": 3
+    },
+    "openscad/snippet": {
+      "ok": 5,
+      "fail": 0
+    },
+    "openscad/text": {
+      "ok": 1,
+      "fail": 0
+    }
+  },
+  "failures": [
+    {
+      "rel": "ALL.js",
+      "status": "timeout",
+      "why": "TimeoutError: page.waitForFunction: Timeout 600000ms exceeded."
+    },
+    {
+      "rel": "openscad/ALL.js",
+      "status": "error",
+      "cells": [
+        "./fractal_tree.scad: table index is out of bounds",
+        "./05-part5/ALL.js: function signature mismatch",
+        "./bosl2/ALL.js: function signature mismatch"
+      ],
+      "why": "RuntimeError: jscadMain failed: function signature mismatchRuntimeError: function signature mismatch"
+    },
+    {
+      "rel": "openscad/bosl2/ALL.js",
+      "status": "timeout",
+      "why": "TimeoutError: page.waitForFunction: Timeout 600000ms exceeded."
+    },
+    {
+      "rel": "openscad/dotscad/ALL.js",
+      "status": "timeout",
+      "why": "TimeoutError: page.waitForFunction: Timeout 600000ms exceeded."
+    },
+    {
+      "rel": "openscad/dotscad/examples/ALL.js",
+      "status": "timeout",
+      "why": "TimeoutError: page.waitForFunction: Timeout 600000ms exceeded."
+    },
+    {
+      "rel": "openscad/dotscad/examples/maze/ALL.js",
+      "status": "partial",
+      "cells": [
+        "./maze3d_mickey.scad: Maximum call stack size exceeded"
+      ]
+    },
+    {
+      "rel": "openscad/dotscad/examples/spiral/ALL.js",
+      "status": "error",
+      "why": "ModelError: ModelError: geometry exceeds the vertex cap (9379968 > 8000000)"
+    },
+    {
+      "rel": "openscad/nopscadlib/ALL.js",
+      "status": "error",
+      "cells": [
+        "./PSUs.scad: function signature mismatch",
+        "./tests/ALL.js: function signature mismatch",
+        "./NopSCADlib/ALL.js: function signature mismatch"
+      ],
+      "why": "RuntimeError: jscadMain failed: function signature mismatchRuntimeError: function signature mismatch"
+    },
+    {
+      "rel": "openscad/nopscadlib/NopSCADlib/ALL.js",
+      "status": "error",
+      "cells": [
+        "./PSUs.scad: function signature mismatch",
+        "./tests/ALL.js: function signature mismatch"
+      ],
+      "why": "RuntimeError: jscadMain failed: function signature mismatchRuntimeError: function signature mismatch"
+    },
+    {
+      "rel": "openscad/nopscadlib/NopSCADlib/tests/ALL.js",
+      "status": "error",
+      "cells": [
+        "./PSUs.scad: function signature mismatch"
+      ],
+      "why": "RuntimeError: jscadMain failed: function signature mismatchRuntimeError: function signature mismatch"
+    }
+  ]
+}

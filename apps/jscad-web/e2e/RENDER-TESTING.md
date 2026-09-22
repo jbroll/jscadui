@@ -107,6 +107,11 @@ It records no commit. `sci` rsyncs the working tree onto a base worktree, so the
 commit the CI run reports is that worktree's HEAD, not the code measured — a
 field nobody can trust is worse than none.
 
+`e2e/render-grids-baseline.json` is the same thing for the grid sweep: **34 of
+44** on manifold, CI job `c47078d389ff9071`. Each failure carries its `status`,
+the cells that drew a marker, and why the grid itself died. `docs/backlog.md`
+groups the ten by cause.
+
 The current baseline is **784 ok of 785** on manifold, CI job
 `815f87b0abe7ee68`. It replaced a 596/788 baseline recorded before the
 example-failure work. The largest single move was the engine default: the app

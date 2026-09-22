@@ -96,18 +96,33 @@ per-file cap is 300s and is a hang guard, not a performance budget. See
 A grid loads every model in one worker as one job, under one model budget
 (120s, `main.js`), and holds all their geometry at once so it can place them.
 44 grids; the largest are NopSCADlib's 145 tests, dotSCAD's 62 examples and
-about 36 per BOSL2 part. Measured against production 2026-09-22, after the
-missing-symbol scan went linear: each BOSL2 part grid renders inside the
-budget, and only the top-level `bosl2/ALL.js`, which loads all five, does not.
+about 36 per BOSL2 part. Grids nest, so a nested grid is one cell of its
+parent.
 
-- **A big grid dies in manifold, not on time.** `bosl2/ALL.js` aborts on
-  `orientations.scad` with `table index is out of bounds` inside manifold's
-  `getMesh`; the browser and `run-jscad` give the same message. It is not the
-  model count: of `05-part5`'s 34 models the first 17 render and the second 17
-  do not, and `orientations.scad` renders alone (250,290 vertices). That grid
-  does render in the browser but not in Node, so the browser bundle and
-  manifold-3d 3.3.2 in `node_modules` do not have the same headroom. Find
-  whether the limit is total live geometry before choosing a fix.
+A cell whose model throws no longer takes the grid with it: it draws a
+skull-and-crossbones and the sweep scores that grid `partial`, naming the dead
+cells. **34 of 44 render** (`sci push jscadui/render-grids`, job
+`c47078d389ff9071`, 600s per grid); `apps/jscad-web/e2e/render-grids-baseline.json`
+holds the per-grid state. Every one of the 10 failures dies outside the
+per-cell catch:
+
+- **manifold wasm stops working mid-grid** — 4 of the 10. `PSUs.scad` raises
+  `function signature mismatch` inside `manifold.wasm`, and every cell after it
+  raises the same thing, so all three NopSCADlib grids and the top-level
+  `openscad/ALL.js` end up dead whatever the per-cell catch does. Recovering
+  means reinitialising the wasm module, which the worker has no path for today.
+  `openscad/ALL.js` also loses `fractal_tree.scad` to `table index is out of
+  bounds` in manifold's `getMesh` — the error the BOSL2 grids give on
+  `orientations.scad`, and likely the same bug. `run-jscad` reproduces both,
+  while the browser bundle has more headroom than manifold-3d 3.3.2 in
+  `node_modules`.
+- **The vertex cap is summed over the whole grid.**
+  `dotscad/examples/spiral/ALL.js` raises `9379968 > 8000000` during entity
+  conversion, after `main()` has returned, so no per-cell handling can see it.
+  A grid either needs its own cap or has to convert cell by cell.
+- **The aggregate-of-aggregate grids exceed 600s** — top-level `ALL.js`,
+  `openscad/bosl2/ALL.js`, `dotscad/ALL.js` and `dotscad/examples/ALL.js`. Each
+  loads several whole grids in one worker on one core.
 - **Nothing splits a grid across workers.** The frame runs one worker, one
   request at a time (`src_frame/frame.js`), so a grid cannot use more than one
   core and cannot give each cell its own budget. A pool would need the app to
