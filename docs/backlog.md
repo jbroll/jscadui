@@ -53,11 +53,11 @@ parent.
 
 A cell whose model throws no longer takes the grid with it: it draws a
 skull-and-crossbones and the sweep scores that grid `partial`, naming the dead
-cells. **34 of 44 render** (`sci push jscadui/render-grids`, job
-`c47078d389ff9071`, 600s per grid); `apps/jscad-web/e2e/render-grids-baseline.json`
-holds the per-grid state. That baseline predates the vertex-cap removal
-(`dotscad/examples/spiral/ALL.js` now renders) and has not been re-run. Every
-one of the remaining failures dies outside the per-cell catch:
+cells. **35 of 44 render** (`sci push jscadui/render-grids`, job
+`53ddb53720d2395b`, 600s per grid); `apps/jscad-web/e2e/render-grids-baseline.json`
+holds the per-grid state. The vertex-cap removal is what changed
+`dotscad/examples/spiral/ALL.js` from failing to rendering; nothing else moved.
+Every one of the remaining failures dies outside the per-cell catch:
 
 - **manifold wasm stops working mid-grid** — 4 of them. `PSUs.scad` raises
   `function signature mismatch` inside `manifold.wasm`, and every cell after it
