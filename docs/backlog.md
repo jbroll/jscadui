@@ -96,6 +96,33 @@ per-file cap is 300s and is a hang guard, not a performance budget. See
   if upstream ever ships `util/rands_disk.scad`, `maze/mz_wang_tiles.scad` and
   the 11 missing `Asset_SCAD/` parts.
 
+## Transpiler performance
+
+- **Mutual tail-call elimination.** `tailCall.ts` only trampolines a function
+  calling *itself*. dotSCAD's maze carver recurses through `go_maze` <->
+  `next_cells`, and `next_cells`'s call to `go_maze` is in tail position; with
+  it eliminated the recursion costs one frame a level instead of two.
+  `maze3d_mickey.scad` needs about 977 levels, and a Chromium worker runs out
+  at about 1,920 frames of that 12-parameter shape (Node gets 3,580), so it
+  would fit with room to spare. The stack limit itself cannot be raised:
+  `--js-flags=--stack-size` does not reach a worker, there is no web API for
+  it, and moving model code to the main thread breaks the sandbox. Design
+  sketch: find strongly connected groups of mutually recursive functions in a
+  module; inside a group, a tail call returns a bounce and a non-tail call
+  site unwraps it in a loop; callers outside the group enter through a wrapper
+  that runs the trampoline, so the external calling convention is unchanged.
+  Blast radius is every call inside such a group, so it needs its own corpus
+  run and a test per recursion shape.
+- **Replace the undef preamble with per-parameter checks.** Every generated
+  function opens with `[a, b, ...] = j$.resolveUndef(a, b, ...)`, which builds
+  a rest array, maps it into a second one, and destructures it back through
+  the iterator protocol. `if (a === U) a = undefined` per parameter does the
+  same work with no allocation: on a 12-parameter recursion, 651ms -> 97ms
+  optimized and 8,040ms -> 841ms interpreted. It does not change stack depth
+  (measured, both tiers). Touches every function the transpiler emits, so it
+  lands on its own with a full corpus run; the generated code needs a stable
+  handle on `EXPLICIT_UNDEF`.
+
 ## The jscad engine
 
 The app defaults to manifold; the other engine renders **738/789** (CI job
