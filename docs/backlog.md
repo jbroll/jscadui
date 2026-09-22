@@ -102,11 +102,12 @@ covering this engine. Run one model with `display-check.js --engine jscad`.
   rounded each point onto the grid on its own, so the two copies a 3D boolean
   returns for a shared corner could land in different cells and the outline
   never closed. Fixed on the modeling fork (`jbroll/OpenJSCAD.org`, branch
-  `fix/geom2-snap-weld`, `c0cc0e77`) by repairing only the vertices left with
+  `fix/geom2-snap-weld`, `bf7d77f2`) by repairing only the vertices left with
   an unequal number of sides arriving and leaving, which also closes upstream
-  #907's BSP gap. Welding during snapping instead, which the first two
-  attempts did, perturbs geometry that was already fine and broke
-  `gears.scad` through a later BSP boolean.
+  #907's BSP gap. Do not weld during snapping instead: each boolean's output
+  is the next one's input, so moving points that already balance perturbs
+  geometry that was fine and a later BSP returns something broken in its own
+  right. `gears.scad` is the model that catches it.
 
   The other 23 are a different bug. In `horiholes.scad` a 24-way `union`
   returns 820 sides with 16 dangling vertices, paired at ±x on a shared y and

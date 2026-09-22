@@ -1,7 +1,7 @@
 {
   "_comment": "Render sweep on the jscad modeling engine (sci push jscadui/render-jscad). 23 of the 42 failures extrude a geom2 whose sides do not close; those are sides lost inside the 3D boolean, not the epsilon-grid split fixed in fromFakePolygons. Diff future runs against failures[], not against zero.",
   "tree": "main working tree, rsynced onto the CI base worktree by sci — no commit identifies the code that was measured",
-  "modeling": "jbroll/OpenJSCAD.org fix/geom2-snap-weld c0cc0e77",
+  "modeling": "jbroll/OpenJSCAD.org fix/geom2-snap-weld bf7d77f2",
   "date": "2026-09-22",
   "job": "cbc23bc6fdd1a0ed",
   "engine": "jscad",
