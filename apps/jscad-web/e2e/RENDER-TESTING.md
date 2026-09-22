@@ -23,6 +23,13 @@ Loads each example by hash-navigating the dev server
 `ok` / `error` / `timeout` per file. Honors each library's `skip.txt`. Writes
 `e2e/render-report.json`.
 
+`--timeout` (default 300s) is a hang guard, not a performance budget: a model
+that renders slowly still renders, and the jscad engine needs 37s for a
+NopSCADlib test that manifold does in 3.6s. The harness sets the app's own
+model budget 30s below its own cap, so a model that really does run away is
+killed by the frame and reported as `model exceeded N ms` rather than as an
+anonymous timeout. `--model-timeout` sets that budget directly.
+
 It must not wait on `#progress`: `static/main.css` sets that element
 `display: none`, so a "wait until hidden" resolves immediately and every file
 scores `ok` without rendering.
@@ -85,27 +92,22 @@ It records no commit. `sci` rsyncs the working tree onto a base worktree, so the
 commit the CI run reports is that worktree's HEAD, not the code measured — a
 field nobody can trust is worse than none.
 
-The current baseline is **780 ok of 789**, CI job `4e6f690d026700a8`, run from
-the `fix/example-model-failures` working tree. It replaced a 596/788 baseline
-recorded before that branch. The largest single move was the engine: the app
-defaulted to `jscad`, which rendered 623, while manifold rendered 762 on the
-same tree, so the default changed. The rest came from six fixes — the
-`NO_CHILD` sentinel escaping `main()`, `offset(delta=…)` naming JSCAD's
-sharp-corner mode, `$preview` becoming a run-time variable, named arguments
-reaching a function's object entry point, a statement-level function call's
-value being discarded, and `each` spreading inside a guarded C-style
-comprehension. The extra file over the old 788 is
-`examples/openscad/01-basics/preview-gate.scad`.
+The current baseline is **782 ok of 789** on manifold, CI job
+`34cc8ef47df70c74`. It replaced a 596/788 baseline recorded before the
+example-failure work. The largest single move was the engine default: the app
+used to default to `jscad`, which rendered 623 where manifold rendered 762 on
+the same tree. The rest came from six transpiler and runtime fixes, two
+example-generator fixes, and a 300s hang guard in place of a 30s one.
 
-The nine that remain are not transpiler work: `util/rands_disk.scad`,
+All seven that remain have a named cause: `util/rands_disk.scad`,
 `maze/mz_wang_tiles.scad` and 11 of `Import_Library.scad`'s assets are absent
-from the vendored sources; two maze models exceed the call stack; four are
-timeouts that move with CI load.
+from the vendored sources; `packing_circles.scad` exceeds the 5M vertex cap;
+two maze models exceed the call stack; and `voronoi_melon.scad` really does run
+past 270s.
 
-Sweeping the other engine takes `--engine jscad`: **715 of 789**, CI job
-`62c6526d17116910`. 30 of its 74 failures are timeouts — that engine's CSG is
-slower, not hung — and 21 extrude a geom2 whose sides do not close. See
-`docs/backlog.md`.
+Sweeping the other engine takes `--engine jscad`: **738 of 789**, CI job
+`d4f77513990d2eed`. 24 of its 51 failures extrude a geom2 whose sides do not
+close, which is where that engine's remaining work is. See `docs/backlog.md`.
 
 From `apps/jscad-web`, after a sweep writes a fresh `e2e/render-report.json`:
 

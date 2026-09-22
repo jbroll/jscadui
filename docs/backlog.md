@@ -79,7 +79,8 @@ branch built; they are the gaps it did not close.
 
 ## Render sweep
 
-Baseline 780/789 (CI job `4e6f690d026700a8`), up from 596/788. See
+Baseline 782/789 on manifold (CI job `34cc8ef47df70c74`), up from 596/788. The
+per-file cap is 300s and is a hang guard, not a performance budget. See
 `apps/jscad-web/e2e/RENDER-TESTING.md` and `render-baseline.json`.
 
 - **Three models include files the vendored sources do not have**: dotSCAD's
@@ -89,27 +90,34 @@ Baseline 780/789 (CI job `4e6f690d026700a8`), up from 596/788. See
 - **`maze3d_mickey.scad` and `maze3d_sphere.scad` exceed the call stack.**
   Their recursion is not in tail position, so `tailCall.ts` cannot trampoline
   it. Node survives with `--stack-size=65536`; a browser has no such lever.
-- **Four models time out at 30s** (`fractal_tree`, `packing_circles`,
-  `voronoi_melon`, `extrusion_brackets`). Which four moves with CI load, so
-  measure before assuming any of them is a hang.
-- **The jscad engine renders 719 of 789 where manifold renders 780.** The app
-  defaults to manifold, but the other engine is still a supported choice, and
-  the STL comparison suite only runs manifold, so nothing covers it. Sweep it
-  with `--engine jscad`, or run one model with
-  `display-check.js --engine jscad`. What is left, after the degenerate-polygon
-  and colorize fixes:
-  - **25 timeouts at 30s**, most of them NopSCADlib. The jscad CSG is simply
-    slower than manifold; these are not hangs. `nuts.scad` takes 37s in Node
-    against manifold's 3.6s, and its profile is entirely BSP: splitByPlane
-    11.6s, GC 11.3s, clipTo 7.3s, with nothing in our own code. Which four or
-    five time out shifts with CI load.
-  - **21 models extrude a geom2 whose sides do not close**, so earcut throws
-    inside `extrudeFromSlices`. Not a tolerance problem: in
-    `hypnotic_squares.scad` the closest distinct endpoints of the 187-side
-    profile are 0.4997 apart, so the profile is genuinely open. Find the
-    operation that builds it before reaching for a weld.
-  - a tail of 4 unions across mixed 2D/3D types, 4 bad planes, 2 minkowski,
-    2 stack overflows.
+- **`packing_circles.scad` exceeds the 5M vertex cap** (5,137,050). Either the
+  model is genuinely that large or the transpiler is over-tessellating it.
+- **`voronoi_melon.scad` runs past 270s** even on manifold. The only example
+  that is actually a runaway rather than merely slow.
+
+## The jscad engine
+
+The app defaults to manifold; the other engine renders **738/789** (CI job
+`d4f77513990d2eed`, `--engine jscad`). The STL comparison suite only runs
+manifold, so nothing covers it. Sweep with `--engine jscad`, or run one model
+with `display-check.js --engine jscad`.
+
+- **24 models extrude a geom2 whose sides do not close**, so earcut throws
+  inside `extrudeFromSlices`. Not a tolerance problem: in
+  `hypnotic_squares.scad` the closest distinct endpoints of the 187-side
+  profile are 0.4997 apart, so the profile is genuinely open. Find the
+  operation that builds it before reaching for a weld.
+- **A tail of small clusters**: 5 unions across mixed 2D/3D types, 4 planes
+  that an origin and normal do not define, 2 minkowski, 2 subtract across
+  mixed types, 2 stack overflows, 3 models past the 270s budget.
+- **It is roughly 10x slower than manifold.** `nuts.scad` takes 37s against
+  3.6s, and the profile is entirely BSP: splitByPlane 11.6s, GC 11.3s, clipTo
+  7.3s, with nothing in our own code. The one avoidable part is upstream now
+  (`perf(modeling): group geometries by bounds before unioning them`), worth
+  about 20% on a scene of separable parts.
+
+## Worker reuse
+
 - **`polyholes_test.scad` may be worker reuse, not geometry.** Loading an
   include-heavy model (mcad `hardware_test.scad`) and then the mcad grid in the
   same worker leaks into polyholes with a geometry error, recorded as an

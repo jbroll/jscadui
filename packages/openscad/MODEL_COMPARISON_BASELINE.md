@@ -3,13 +3,15 @@
 Verified 2026-04-08 — commit `6ab37c1` on `hierarchical-params` ($-var let binding: wrap subsequent bindings + body in withScope).
 MCAD suite GPU-verified 2026-04-08 — 12/14 examples pass.
 
-Re-measured 2026-09-21 on CI job `c04be4906b610e3e` with OpenSCAD 2026.08.30.fp
+Re-measured 2026-09-21 on CI job `4832f00b7aa7c3fd` with OpenSCAD 2026.08.30.fp
 (the flatpak the CI user can run; the 2026-04 numbers were taken against an
 older build). dotSCAD went to 147/160 and MCAD to 13/14. NopSCADlib's
 `box.scad` drops to 0.1499 against this OpenSCAD and does so on `main` as well,
 so it is a reference-version difference, not a transpiler regression.
 01-basics gained `preview-gate.scad`. snippet gained two files that now parse
-and a third that can reach its `Asset_SCAD/` includes.
+and a third that can reach its `Asset_SCAD/` includes. Pointing CI at the
+`fork-main` modeling checkout changed no score at all (see
+`apps/jscad-web/e2e/RENDER-TESTING.md` on which modeling code a run measures).
 
 Similarity threshold: **0.99** (Jaccard index on vertex-deduplicated STL meshes).
 
