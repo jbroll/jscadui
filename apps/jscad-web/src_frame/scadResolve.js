@@ -41,8 +41,11 @@ export const includeCandidates = (filename, fromFile, entryUrl, fallbackOrigin) 
   const candidates = [new URL(filename, baseUrl).toString()]
   const libDir = libraryDir(context)
   if (libDir) {
-    const libUrl = new URL(`${libDir}/${filename}`, origin).toString()
-    if (libUrl !== candidates[0]) candidates.push(libUrl)
+    const libRoot = new URL(`${libDir}/`, origin).toString()
+    const libUrl = new URL(filename, libRoot).toString()
+    // A filename with enough ../ resolves above the library it names, which
+    // is not a path this fallback is entitled to reach.
+    if (libUrl.startsWith(libRoot) && libUrl !== candidates[0]) candidates.push(libUrl)
   }
   return candidates
 }

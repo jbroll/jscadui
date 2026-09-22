@@ -26,6 +26,13 @@ describe('includeCandidates', () => {
     ])
   })
 
+  it('drops a library-root candidate that walks out of its library', () => {
+    const fromFile = '/examples/openscad/bosl2/01-part1/cube.scad'
+    expect(includeCandidates('../../../secret.scad', fromFile, ENTRY)).toEqual([
+      'http://localhost:5121/examples/secret.scad',
+    ])
+  })
+
   it('resolves project files against the synthetic project origin', () => {
     expect(includeCandidates('lib/a.scad', '/main.scad', `${PROJECT_BASE}main.scad`)[0]).toBe(
       'http://project.local/lib/a.scad',

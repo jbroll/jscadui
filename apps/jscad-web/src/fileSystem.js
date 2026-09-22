@@ -130,7 +130,9 @@ export async function reloadProject(deps) {
   // so worker and editor have the same code
   if (sw.fileToRun?.endsWith('.jscad')) {
     script = addV1Shim(script)
-    addToCache(sw.cache, sw.fileToRun, script)
+    // onScriptReady sends the cache to the frame, so the shimmed source has to
+    // be in it by then or the frame compiles the source without the shim.
+    await addToCache(sw.cache, sw.fileToRun, script)
   }
 
   onScriptReady(script, url)
