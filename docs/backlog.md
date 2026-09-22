@@ -113,6 +113,15 @@ per-file cap is 300s and is a hang guard, not a performance budget. See
   that runs the trampoline, so the external calling convention is unchanged.
   Blast radius is every call inside such a group, so it needs its own corpus
   run and a test per recursion shape.
+- **A runaway tail recursion spins instead of failing.** `tailCall.ts` turns
+  self tail recursion into `while (true)`, so a recursion that never ends
+  never grows the stack either: dotSCAD's `_delaunayBoundaries` on
+  `voronoi_melon.scad` (and on as few as 6 points) loops until the model budget
+  kills it, where OpenSCAD reports `Recursion detected calling function
+  '_delaunayBoundaries'` in ~25s. A bounded iteration count in the trampoline
+  would fail with OpenSCAD's message instead. Pick the bound so that
+  legitimate list-walking tail recursion in BOSL2 and dotSCAD stays well
+  inside it.
 - **Replace the undef preamble with per-parameter checks.** Every generated
   function opens with `[a, b, ...] = j$.resolveUndef(a, b, ...)`, which builds
   a rest array, maps it into a second one, and destructures it back through
@@ -122,6 +131,14 @@ per-file cap is 300s and is a hang guard, not a performance budget. See
   (measured, both tiers). Touches every function the transpiler emits, so it
   lands on its own with a full corpus run; the generated code needs a stable
   handle on `EXPLICIT_UNDEF`.
+
+## Library bugs found by the sweep
+
+- **dotSCAD's `r_union3` fails on the manifold engine** with
+  `null is not a valid Manifold` inside an intersection, when given a scaled
+  sphere and a hull (the pair `voronoi_melon.scad` uses). A `dilate` minkowski
+  is the likely source of the null. Not covered by any example that is not
+  already skipped.
 
 ## The jscad engine
 

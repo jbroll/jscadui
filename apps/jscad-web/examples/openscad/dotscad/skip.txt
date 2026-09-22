@@ -66,3 +66,10 @@ examples/taiwan/SD_Card_Taiwan.scad
 # exists anywhere in the source tree. Broken at source, not by our vendoring.
 examples/circle_packing/forest.scad
 examples/taiwan/maze_city_taiwan.scad
+
+# OpenSCAD cannot render this either: dotSCAD's _delaunayBoundaries recurses
+# without end on its point set, and OpenSCAD stops with "Recursion detected
+# calling function '_delaunayBoundaries'" after ~25s. Our trampoline turns that
+# runaway tail recursion into a loop that never grows the stack, so here it
+# spins until the frame's model budget kills it instead.
+examples/voronoi/voronoi_melon.scad
