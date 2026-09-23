@@ -195,6 +195,57 @@ describe('shared transpiler cache', () => {
     expect(scad.handle('main2 include lib.scad', `${APP}/demo/main.scad`, readFile)).toBe('main2+lib-v1')
   })
 
+  it('rebuilds an includer when its include changes on disk', () => {
+    const scad = createScadHandler({ getOpenscad: inliningOpenscad, getAppOrigin: () => APP })
+    const files = { 'https://lib.example/lib.scad': 'lib-v1' }
+    const readFile = reader(files)
+    const main = 'main include https://lib.example/lib.scad'
+    expect(scad.handle(main, `${APP}/demo/main.scad`, readFile)).toBe('main+lib-v1')
+
+    files['https://lib.example/lib.scad'] = 'lib-v2'
+    expect(scad.handle(main, `${APP}/demo/main.scad`, readFile)).toBe('main+lib-v2')
+  })
+
+  it('rebuilds an includer when an include of an include changes on disk', () => {
+    const scad = createScadHandler({ getOpenscad: inliningOpenscad, getAppOrigin: () => APP })
+    const files = { [`${project}/b.scad`]: 'b include c.scad', [`${project}/c.scad`]: 'c-v1' }
+    const readFile = reader(files)
+    expect(scad.handle('a include b.scad', `${project}/a.scad`, readFile)).toBe('a+b+c-v1')
+
+    files[`${project}/c.scad`] = 'c-v2'
+    expect(scad.handle('a include b.scad', `${project}/a.scad`, readFile)).toBe('a+b+c-v2')
+  })
+
+  it('rebuilds an includer whose include came from the shared cache', () => {
+    const scad = createScadHandler({ getOpenscad: inliningOpenscad, getAppOrigin: () => APP })
+    const files = { [`${project}/b.scad`]: 'b include c.scad', [`${project}/c.scad`]: 'c-v1' }
+    const readFile = reader(files)
+    scad.handle('a include b.scad', `${project}/a.scad`, readFile)
+    expect(scad.handle('d include b.scad', `${project}/d.scad`, readFile)).toBe('d+b+c-v1')
+
+    files[`${project}/c.scad`] = 'c-v2'
+    expect(scad.handle('d include b.scad', `${project}/d.scad`, readFile)).toBe('d+b+c-v2')
+  })
+
+  it('builds a new includer over an include whose own include changed on disk', () => {
+    const scad = createScadHandler({ getOpenscad: inliningOpenscad, getAppOrigin: () => APP })
+    const files = { [`${project}/b.scad`]: 'b include c.scad', [`${project}/c.scad`]: 'c-v1' }
+    const readFile = reader(files)
+    scad.handle('a include b.scad', `${project}/a.scad`, readFile)
+
+    files[`${project}/c.scad`] = 'c-v2'
+    expect(scad.handle('e include b.scad', `${project}/e.scad`, readFile)).toBe('e+b+c-v2')
+  })
+
+  it('serves a cached includer without reading its app-origin includes', () => {
+    const scad = createScadHandler({ getOpenscad: inliningOpenscad, getAppOrigin: () => APP })
+    const readFile = vi.fn(reader({ [`${APP}/demo/lib.scad`]: 'lib' }))
+    scad.handle('main include lib.scad', `${APP}/demo/main.scad`, readFile)
+    readFile.mockClear()
+    expect(scad.handle('main include lib.scad', `${APP}/demo/main.scad`, readFile)).toBe('main+lib')
+    expect(readFile).not.toHaveBeenCalled()
+  })
+
   it('starts empty after the caches are cleared', () => {
     const scad = createScadHandler({ getOpenscad: inliningOpenscad, getAppOrigin: () => APP })
     const files = { [`${project}/lib.scad`]: 'lib-a' }

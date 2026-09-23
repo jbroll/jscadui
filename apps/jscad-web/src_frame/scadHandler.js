@@ -42,6 +42,40 @@ export const createScadHandler = ({ getOpenscad, getAppOrigin, now = Date.now })
   // with no project clears nothing, so the source is what shows an edit.
   const sources = new Map()
 
+  // url -> the urls it includes, and url -> the content last read for it. A
+  // cached build can inline a file the transpiler never read that run, because
+  // the shared cache had it, so a hit checks the whole chain.
+  const includesOf = new Map()
+  const readContent = new Map()
+
+  const chainOf = (url) => {
+    const seen = new Set()
+    const visit = (from) => {
+      for (const next of includesOf.get(from) ?? []) {
+        if (seen.has(next)) continue
+        seen.add(next)
+        visit(next)
+      }
+    }
+    visit(url)
+    return seen
+  }
+
+  // App-origin files change only with a redeploy, so a hit does not fetch them.
+  const chainUnchanged = (url, readFile, appOrigin) => {
+    for (const dep of chainOf(url)) {
+      if (originOf(dep) === appOrigin) continue
+      let content
+      try {
+        content = readFile(dep)
+      } catch {
+        return false
+      }
+      if (content !== readContent.get(dep)) return false
+    }
+    return true
+  }
+
   // The transpiler's own cache of TranspiledFile objects, kept across runs so
   // it can skip unchanged dependencies. It is keyed by the paths pathFor gives,
   // which are bare on the entry's origin, so there is one per entry origin.
@@ -57,7 +91,7 @@ export const createScadHandler = ({ getOpenscad, getAppOrigin, now = Date.now })
     if (!entryOrigin || entryOrigin === 'null') entryOrigin = appOrigin
     const key = absolute(url, entryOrigin)
 
-    if (transpiledCache.has(key) && sources.get(key) === source) {
+    if (transpiledCache.has(key) && sources.get(key) === source && chainUnchanged(key, readFile, appOrigin)) {
       return transpiledCache.get(key)
     }
 
@@ -115,9 +149,15 @@ export const createScadHandler = ({ getOpenscad, getAppOrigin, now = Date.now })
         if (content === undefined) continue
         const path = pathFor(candidate)
         // The transpiler reads a file before it looks in its cache, so dropping
-        // an entry built from other source here makes it build a fresh one.
-        if (sources.get(candidate) !== content) shared.delete(path)
+        // an entry built from other source, or over a changed include, here
+        // makes it build a fresh one.
+        if (sources.get(candidate) !== content || !chainUnchanged(candidate, readFile, appOrigin)) shared.delete(path)
         sources.set(candidate, content)
+        if (readContent.get(candidate) !== content) includesOf.delete(candidate)
+        readContent.set(candidate, content)
+        const parent = absolute(fromFile, entryOrigin)
+        if (!includesOf.has(parent)) includesOf.set(parent, new Set())
+        includesOf.get(parent).add(candidate)
         return { path, content }
       }
       return undefined
@@ -161,6 +201,8 @@ export const createScadHandler = ({ getOpenscad, getAppOrigin, now = Date.now })
       transpiledCache.clear()
       sharedCaches.clear()
       sources.clear()
+      includesOf.clear()
+      readContent.clear()
     },
     /**
      * Includes are inlined into their includers, so an edit under `root` drops

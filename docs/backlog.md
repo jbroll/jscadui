@@ -31,17 +31,6 @@ serves the build just made. Later on 2026-09-23: deployed `4c0bd32e`, the
 review follow-ups, then `91d6402f`, the render-engine redraw guard. See `apps/jscad-web/docs/architecture.md` for the
 deploy order and headers.
 
-## Follow-ups from the 2026-09-19..22 review
-
-- **A cached includer misses a change to its includes on disk** when nothing
-  calls `forgetFiles`. `scadHandler.js` serves a cache hit when the entry's own
-  source matches, and never re-reads the files inlined into it: run A, change
-  B on disk, run A, and the old build comes back. With no project loaded the
-  includes come from the app origin, which changes only on a redeploy, so this
-  bites only if some other origin's files can change under a running session.
-  Unsaved edits do not leak: every sequence of up to four disk or edited runs
-  over an A→B→C include chain matches a fresh handler.
-
 ## Render sweep
 
 Baseline 761/807 on manifold (CI job `b758af600414f82f`). The 22 models
