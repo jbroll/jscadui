@@ -47,21 +47,33 @@ export const union = (...geometries) => {
     return union2D(geoms)
   }
 
-  // Convert all to Manifold objects
-  const manifolds = geoms.map(g => toManifold(g))
+  const { manifolds, temps } = toManifolds(geoms)
 
   // Filter out empty manifolds — Manifold.union() with any empty manifold returns empty
   const nonEmpty = manifolds.filter(m => !m.isEmpty())
-  if (nonEmpty.length === 0) return undefined
-  // Copy: nonEmpty[0] may be owned by an input wrapper, sharing it would
-  // double-register the WASM handle with the disposal registry.
-  if (nonEmpty.length === 1) return new ManifoldGeom3(nonEmpty[0].translate([0, 0, 0]))
+  let result
+  if (nonEmpty.length === 1) result = ownedCopy(nonEmpty[0], temps)
+  else if (nonEmpty.length > 1) result = getManifold().union(nonEmpty)
+  freeTemps(temps, result)
+  return result ? new ManifoldGeom3(result) : undefined
+}
 
-  // Use Manifold's batch union for efficiency
-  const Manifold = getManifold()
-  const result = Manifold.union(nonEmpty)
+/**
+ * Convert geometries to manifolds, noting which ones were created here
+ * (from plain geom3) and so must be freed by the caller.
+ */
+const toManifolds = (geoms) => {
+  const manifolds = geoms.map(g => toManifold(g))
+  const temps = new Set(manifolds.filter((m, i) => !isManifoldGeom3(geoms[i])))
+  return { manifolds, temps }
+}
 
-  return new ManifoldGeom3(result)
+// An input wrapper's manifold must be copied: sharing it would give two
+// wrappers one WASM handle, each deleting it on dispose or GC.
+const ownedCopy = (manifold, temps) => temps.has(manifold) ? manifold : manifold.translate([0, 0, 0])
+
+const freeTemps = (temps, keep) => {
+  for (const t of temps) if (t !== keep) t.delete()
 }
 
 /**
@@ -182,18 +194,11 @@ export const intersect = (...geometries) => {
     return intersect2D(geoms)
   }
 
-  // Convert all to Manifold objects
-  const manifolds = geoms.map(g => toManifold(g))
-
-  if (manifolds.length === 1) {
-    // Copy: manifolds[0] may be owned by the input wrapper (see union above).
-    return new ManifoldGeom3(manifolds[0].translate([0, 0, 0]))
-  }
-
-  // Use Manifold's batch intersection for efficiency
-  const Manifold = getManifold()
-  const result = Manifold.intersection(manifolds)
-
+  const { manifolds, temps } = toManifolds(geoms)
+  const result = manifolds.length === 1
+    ? ownedCopy(manifolds[0], temps)
+    : getManifold().intersection(manifolds)
+  freeTemps(temps, result)
   return new ManifoldGeom3(result)
 }
 

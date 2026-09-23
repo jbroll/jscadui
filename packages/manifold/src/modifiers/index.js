@@ -203,15 +203,12 @@ export const snap = (options, ...geometries) => {
  * @returns {Object|Array} Retessellated geometry/geometries
  */
 export const retessellate = (...geometries) => {
-  // Manifold automatically produces clean tessellation
-  // Just pass through by converting to Manifold and back
+  // Manifold tessellation is already clean, so this is a conversion or a copy
   const geoms = geometries.flat(Infinity).filter(g => g != null)
 
-  const results = geoms.map(geom => {
-    const manifold = toManifold(geom)
-    // The conversion process retessellates
-    return new ManifoldGeom3(manifold)
-  })
+  const results = geoms.map(geom => isManifoldGeom3(geom)
+    ? geom.clone()
+    : new ManifoldGeom3(toManifold(geom)))
 
   return results.length === 1 ? results[0] : results
 }
