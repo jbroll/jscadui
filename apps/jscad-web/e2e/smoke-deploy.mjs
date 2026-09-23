@@ -4,7 +4,8 @@
  *
  * Drives a real (bundled-chromium, WebGL) browser through the critical paths a
  * curl check can't see, and FAILS LOUDLY (non-zero exit) on any problem:
- *   1. the app boots and a model renders (no error bar)
+ *   1. the app boots and a model renders (no error bar, some vertices drawn,
+ *      and no `ALL: FAILED` cell in the grid)
  *   2. Browse Demos lists examples via manifest.json — NOT a directory listing
  *      (catches the prod autoindex 403)
  *   3. the CORS split the compute frame needs: examples carry
@@ -102,6 +103,12 @@ try {
   ]) {
     const ctx = await browser.newContext()
     const pg = await ctx.newPage()
+    // A grid catches each cell's error and draws a marker, so the page still
+    // settles ok; the dead cells show only in these console lines.
+    const deadCells = []
+    pg.on('console', m => {
+      if (m.type() === 'error' && m.text().startsWith('ALL: FAILED ')) deadCells.push(m.text().slice('ALL: FAILED '.length))
+    })
     await pg.goto(url + '/#' + path, { waitUntil: 'domcontentloaded', timeout: 30000 })
     try { await pg.locator('#welcome-dismiss').click({ timeout: 3000 }) } catch { /* ignore */ }
     // #progress starts display:none (static/main.css), so waiting for it to
@@ -112,9 +119,12 @@ try {
       null, { timeout },
     ).catch(() => { settled = false })
     const errVisible = await pg.locator('#error-bar').isVisible().catch(() => false)
-    check(`${name} renders`, settled && !errVisible,
+    const empty = settled && !errVisible && await pg.evaluate(() => document.documentElement.dataset.vertices) === '0'
+    check(`${name} renders`, settled && !errVisible && !empty && !deadCells.length,
       !settled ? `no render after ${timeout} ms`
-        : errVisible ? (await pg.locator('#error-bar').textContent().catch(() => '') || '').replace(/\s+/g, ' ').trim().slice(0, 140) : '')
+        : errVisible ? (await pg.locator('#error-bar').textContent().catch(() => '') || '').replace(/\s+/g, ' ').trim().slice(0, 140)
+          : empty ? 'drew no vertices'
+            : deadCells.length ? `${deadCells.length} dead cell(s): ${deadCells.slice(0, 3).join('; ').slice(0, 200)}` : '')
     await ctx.close()
   }
 

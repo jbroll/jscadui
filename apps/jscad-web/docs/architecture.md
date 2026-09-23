@@ -304,8 +304,9 @@ against the one just built.
 rather than a local build. It proves: the app boots and a model renders, the
 demo browser reads `manifest.json` instead of the directory listing that 403s
 in production (see backlog), an include-heavy model (`mcad/hardware_test.scad`)
-resolves its includes from the live host, a grid (`01-basics/ALL.js`) renders,
-and the CORS split holds — `/examples/` answers `Access-Control-Allow-Origin: *`
+resolves its includes from the live host, a grid (`01-basics/ALL.js`) renders
+with no `ALL: FAILED` cell (a dead cell draws a marker and the page still
+settles `ok`), no model draws zero vertices, and the CORS split holds — `/examples/` answers `Access-Control-Allow-Origin: *`
 and `/api/health` answers none.
 
 With `--build build`, it first checks that the app host serves the build in
