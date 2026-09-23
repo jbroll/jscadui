@@ -875,6 +875,14 @@ export function reorderNamedArgs(
   // This is critical for OpenSCAD's mixed positional/named parameter semantics:
   // func(a, b=2, d=4) should skip parameter c, not pass undefined which bypasses JS defaults
   const hasNamedArgs = argsArray.some(arg => arg.name !== null)
+
+  // A zero-parameter function has no $obj entry point, and OpenSCAD ignores
+  // the named arguments it cannot bind.
+  if (hasNamedArgs && isUserDefined && kind === 'function' && ctx.symbols.isKind(safeIdentifier(name), 'function')
+      && ctx.symbols.getParams(safeIdentifier(name), 'function')?.length === 0) {
+    return { args: argsArray.filter(a => a.name === null).map(a => a.value).join(', '), format: 'positional' }
+  }
+
   const format = (hasNamedArgs && isUserDefined) ? 'object' : 'positional'
 
   const args = mapArgsToParams(name, argsArray, ctx, format, kind)

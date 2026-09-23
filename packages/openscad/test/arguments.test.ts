@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { parse } from '../src/parser/parse.js'
 import { transpile } from '../src/transpiler/transpile.js'
+import j$ from '@jscadui/openscad-runtime'
 
 /**
  * Tests for module argument handling
@@ -205,12 +206,32 @@ describe('function call as a statement', () => {
     expect(code).toContain('pick_$f$obj({ v: [3, 4, 5], i: 2 })')
   })
 
-  it('uses the object entry point for a special-variable argument', () => {
+  it('scopes a special-variable argument around the call', () => {
     const code = call(`
       function pick(v, i = 0) = v[i];
       pick([3, 4, 5], $fn = 32);
     `)
-    expect(code).toContain("pick_$f$obj({ v: [3, 4, 5], '$fn': 32 })")
+    expect(code).toContain("j$.withScope({ '$fn': 32 }, () => pick_$f([3, 4, 5]))")
+  })
+
+  const runMain = (src: string) => {
+    const { code } = transpile(parse(src).ast, { currentFile: '/t.scad' })
+    const fn = new Function('require', 'module', 'exports', 'j$', code)
+    const mod = { exports: {} as Record<string, unknown> }
+    fn(() => ({}), mod, mod.exports, j$)
+    return (mod.exports.main as () => unknown)()
+  }
+
+  it('runs a zero-parameter function given only a special variable', () => {
+    expect(() => runMain('function f() = 1;\nf($fn = 8);')).not.toThrow()
+  })
+
+  it('ignores an unknown named argument to a zero-parameter function', () => {
+    expect(() => runMain('function f() = 1;\nx = f(y = 2);\nf(y = 2);')).not.toThrow()
+  })
+
+  it('sets a special variable for the callee alongside a named argument', () => {
+    expect(() => runMain('function g(a) = assert($fn == 8) a;\ng(a = 1, $fn = 8);')).not.toThrow()
   })
 
   it('discards the value, which is not geometry', () => {

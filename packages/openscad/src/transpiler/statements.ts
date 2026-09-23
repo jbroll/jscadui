@@ -389,7 +389,7 @@ function transpileUserDefinedCall(
   // Build arguments in both formats:
   // - positionalArgs: for function calls (backward compat)
   // - optionsArgs: for module calls (new pattern)
-  const { args: positionalArgs, format: argsFormat } = reorderNamedArgs(name, argsArray, ctx, 'function')
+  const { args: positionalArgs } = reorderNamedArgs(name, argsArray, ctx, 'function')
   const optionsArgs = transpileArgsAsOptions(name, argsArray, ctx)
 
   // Check if this is a LOCAL variable FIRST (no suffix needed)
@@ -463,10 +463,19 @@ function transpileUserDefinedCall(
   // argument makes reorderNamedArgs emit an options object, which only the
   // _$f$obj entry point destructures.
   if (isKnownFunction && !isKnownModule) {
-    const suffix = argsFormat === 'object' ? '_$f$obj' : '_$f'
+    // As in the expression form, special variables are scoped around the call
+    // rather than passed: the $obj entry point drops them.
+    const specialVars = argsArray.filter(a => a.name?.startsWith('$'))
+    const { args, format } = reorderNamedArgs(name, argsArray.filter(a => !a.name?.startsWith('$')), ctx, 'function')
+    const suffix = format === 'object' ? '_$f$obj' : '_$f'
+    let callExpr = `${safeName}${suffix}(${args})`
+    if (specialVars.length > 0) {
+      const vars = specialVars.map(sv => `'${sv.name}': ${sv.value}`).join(', ')
+      callExpr = `j$.withScope({ ${vars} }, () => ${callExpr})`
+    }
     // A statement's value is geometry. A function returns a number, a list or
     // a string, so evaluate it for its asserts and echoes and discard it.
-    return `(${safeName}${suffix}(${positionalArgs}), undefined)`
+    return `(${callExpr}, undefined)`
   }
 
   // Module call with no children: use curried pattern with _$m suffix and options object
