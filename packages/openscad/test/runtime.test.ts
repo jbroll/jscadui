@@ -642,6 +642,7 @@ describe('safeUnion across mixed dimensions', () => {
     initPrimitives(stub)
     expect(_safeUnion([square, cube])).toBe(square)
   })
+
 })
 
 /**
@@ -668,6 +669,10 @@ describe('mirror with a 2D normal', () => {
     expect(mirrored([0, 1]).normal).toEqual([0, 1, 0])
   })
 
+  it('pads a one-component normal with zeros', () => {
+    expect(mirrored([1]).normal).toEqual([1, 0, 0])
+  })
+
   it('leaves a three-component normal alone', () => {
     expect(mirrored([1, 0, 0]).normal).toEqual([1, 0, 0])
   })
@@ -676,6 +681,14 @@ describe('mirror with a 2D normal', () => {
     const { normal, out } = mirrored([0, 0])
     expect(normal).toBeUndefined()
     expect(out).toBe(geo)
+  })
+
+  it('treats a short zero normal as identity', () => {
+    for (const v of [[0], []]) {
+      const { normal, out } = mirrored(v)
+      expect(normal).toBeUndefined()
+      expect(out).toBe(geo)
+    }
   })
 })
 
