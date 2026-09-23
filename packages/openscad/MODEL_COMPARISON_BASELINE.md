@@ -102,7 +102,7 @@ Previously 43 models were skipped as non-deterministic. 40 of those were made de
 | `dragon_head.scad` | ~0.98 | Near-miss — CDT triangulation difference |
 | `fourier_vase.scad` | ~0.98 | Near-miss — CDT triangulation difference |
 | `chrome_dino.scad` | ~0.98 | Near-miss — CDT triangulation difference |
-| `delaunay_fibonacci.scad` | ~0.98 | Near-miss — CDT triangulation difference |
+| `delaunay_fibonacci.scad` | 0.9296 | Near-miss — CDT triangulation difference |
 | `floor_stand_text.scad` | ~0.98 | Near-miss — text geometry difference |
 | `voronoi_holder.scad` | ~0.99 | Near-miss — CDT triangulation difference |
 | `penrose_crystallization.scad` | ~0.99 | Near-miss — CDT triangulation difference |
