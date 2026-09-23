@@ -13,7 +13,8 @@ const items = [
   "./hilbert_curve_drawing.scad",
   "./lsystem2_collection.scad",
   "./lsystem3_collection.scad",
-  "./sierpinski_triangle.scad"
+  "./sierpinski_triangle.scad",
+  "./tree.scad"
 ]
 const spacing = 60
 const cellSize = 51

@@ -9,6 +9,7 @@ const { gridPosition, normalizeAndPlace, urlToPartName, failureMarker } = requir
 
 const items = [
   "./hollow_out_cylinder.scad",
+  "./hollow_out_holder.scad",
   "./hollow_out_square.scad",
   "./hollow_out_starburst.scad",
   "./hollow_out_torus.scad",

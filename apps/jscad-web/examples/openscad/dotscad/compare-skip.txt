@@ -1,0 +1,38 @@
+# dotSCAD comparison skip list — models that render but that the STL comparison
+# cannot grade. Only test-harness.js reads this; browser sweeps still render them.
+
+# Unseeded rands(): time-seeded, so the reference STL and every re-run differ.
+examples/tiles/random_town_square.scad
+examples/tiles/penrose_basket.scad
+examples/voronoi/ruyi_pineapple.scad
+examples/crystal_cluster.scad
+examples/differential_line_growth.scad
+examples/turtle/tree.scad
+examples/voronoi/ripple_vase.scad
+examples/taiwan/chair_score.scad
+examples/tiles/random_city.scad
+examples/taiwan/random_city_taiwan.scad
+# tile_w2c/tile_w2e use unseeded rands() for corner/edge assignment
+examples/tiles/2_corner_wang_tiles_basic.scad
+examples/tiles/2_edge_wang_tiles_basic.scad
+examples/tiles/tube_box.scad
+# hollow_out_square calls rand() without a seed
+examples/hollow_out/hollow_out_holder.scad
+# rock() uses unseeded rands() for the rock shape
+examples/maze/rock_theta_maze.scad
+
+# Uses "Webdings", a Windows symbol font the runtime lacks, so a fallback font
+# draws different glyphs.
+examples/stereographic_projection/stereographic_chars.scad
+
+# Non-manifold reference STL: compare-stl.js trianglesToManifold fails on
+# OpenSCAD's output, so no comparison is possible.
+examples/voronoi/ripple_sphere.scad
+examples/voronoi/voronoi_vase.scad
+
+# Mixed-winding polyhedron: SD_Mountain faces are CW in OpenSCAD's STL while our
+# _polyhedron corrects them to CCW. The reference's total signed volume is
+# negative, so compare-stl.js flips every normal and scores Taiwan as a
+# subtracted region (Jaccard 0.174). Manifold's union stitches Mountain and
+# Taiwan into one surface, so splitIntoComponents cannot separate them.
+examples/taiwan/SD_Card_Taiwan.scad

@@ -1,0 +1,6 @@
+# Snippet comparison skip list — models that render but that the STL comparison
+# cannot grade. Only test-harness.js reads this.
+
+# OpenSCAD exports multi-color geometry as concatenated non-manifold STL (valence-4 edges
+# at body boundaries). Manifold cannot compute correct volumes from non-manifold input.
+Wood_Crate.scad

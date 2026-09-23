@@ -8,11 +8,14 @@
 const { gridPosition, normalizeAndPlace, urlToPartName, failureMarker } = require('../../../../lib/grid-utils.js')
 
 const items = [
+  "./SD_Card_Taiwan.scad",
   "./TaiwaneseBlackBear.scad",
   "./cargo_container_landmark.scad",
+  "./chair_score.scad",
   "./dancing_taiwan.scad",
   "./golden_taiwan.scad",
   "./leopard_cat_taiwan.scad",
+  "./random_city_taiwan.scad",
   "./voronoi_taiwan.scad"
 ]
 const spacing = 60

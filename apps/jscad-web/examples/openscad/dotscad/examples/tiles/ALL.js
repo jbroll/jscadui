@@ -8,18 +8,24 @@
 const { gridPosition, normalizeAndPlace, urlToPartName, failureMarker } = require('../../../../lib/grid-utils.js')
 
 const items = [
+  "./2_corner_wang_tiles_basic.scad",
+  "./2_edge_wang_tiles_basic.scad",
   "./city_tile.scad",
   "./hitomezashi_stitching.scad",
   "./knot_tiles.scad",
   "./lavender.scad",
   "./magic_apartment.scad",
+  "./penrose_basket.scad",
   "./penrose_crystallization.scad",
+  "./random_city.scad",
+  "./random_town_square.scad",
   "./tiled_line_mobius.scad",
   "./tiled_line_ring.scad",
   "./tiled_line_torus.scad",
   "./tiled_lines.scad",
   "./tiled_quarter_circles.scad",
-  "./tiles_wfc_tube.scad"
+  "./tiles_wfc_tube.scad",
+  "./tube_box.scad"
 ]
 const spacing = 60
 const cellSize = 51

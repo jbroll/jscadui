@@ -9,6 +9,7 @@ const { gridPosition, normalizeAndPlace, urlToPartName, failureMarker } = requir
 
 const items = [
   "./stereographic_caterpillar.scad",
+  "./stereographic_chars.scad",
   "./stereographic_projection.scad"
 ]
 const spacing = 60

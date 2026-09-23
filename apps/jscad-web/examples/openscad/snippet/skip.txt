@@ -4,11 +4,6 @@
 # Depends on Import_Library.scad which has missing Asset_SCAD dependencies
 Scene_Test.scad
 
-# OpenSCAD exports multi-color geometry as concatenated non-manifold STL (valence-4 edges
-# at body boundaries). Manifold cannot compute correct volumes from non-manifold input.
-Wood_Crate.scad
-
-
 # Pulls 69 parts from Asset_SCAD/, 11 of which the upstream snippet collection
 # does not ship (Chalkboard_Support, Fireplace, Flange, Flange_Blind,
 # Flange_Weld_Neck, Pipe, Table, Table_Office, Table_Round, Table_Small,

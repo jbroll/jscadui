@@ -37,7 +37,7 @@ node bin/run-jscad.js path/to/file.scad
 
 ### Skip files
 
-Each library directory may have a `skip.txt` listing files to exclude. The test harness auto-discovers these — no `--skip-file` flags needed:
+Each library directory may have a `skip.txt` of models that do not render and a `compare-skip.txt` of models that render but cannot be graded against their reference STL. The test harness auto-discovers both — no `--skip-file` flags needed. Everything else (the browser sweeps, the demo browser, the `ALL.js` grids) reads only `skip.txt`:
 
 ```
 apps/jscad-web/examples/openscad/
@@ -46,7 +46,7 @@ apps/jscad-web/examples/openscad/
 └── snippet/skip.txt     ← auto-loaded for snippet tests
 ```
 
-To add a file to a skip list, append to the relevant `skip.txt` with a comment explaining why.
+To add a file to a skip list, append to the relevant file with a comment explaining why.
 
 ---
 
@@ -227,7 +227,9 @@ node bin/transpile-file.js path/to/file.scad --source-comments
 When a file fails due to a known unfixable issue:
 
 1. Identify the root cause (library bug, font difference, rands() mismatch, etc.)
-2. Add to the appropriate `apps/jscad-web/examples/openscad/{library}/skip.txt`:
+2. Add to `apps/jscad-web/examples/openscad/{library}/compare-skip.txt` if the
+   model renders and only the comparison cannot grade it, otherwise to
+   `skip.txt`:
 
 ```
 # Reason for skipping

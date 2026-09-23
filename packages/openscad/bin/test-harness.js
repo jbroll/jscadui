@@ -234,7 +234,7 @@ Usage:
 
 Options:
   --skip-file <path>      File containing filenames/patterns to skip (one per line)
-  --no-dir-skips          Ignore auto-discovered skip.txt files in test directories
+  --no-dir-skips          Ignore auto-discovered skip.txt and compare-skip.txt files
   --match <glob>          Only run files matching this glob pattern (repeatable)
                           Examples: --match "*/01-basics/*"
                                     --match "*/bosl/*" --match "*/bosl2/*"
@@ -554,7 +554,12 @@ function discoverDirPatterns(dirs, filename) {
 }
 
 /** Convenience wrappers */
-const discoverSkipPatterns = dirs => discoverDirPatterns(dirs, 'skip.txt')
+// skip.txt: does not render, so every sweep skips it. compare-skip.txt: renders,
+// but its reference STL cannot grade it, so only this harness skips it.
+const discoverSkipPatterns = dirs => [
+  ...discoverDirPatterns(dirs, 'skip.txt'),
+  ...discoverDirPatterns(dirs, 'compare-skip.txt'),
+]
 const discoverExcludePatterns = dirs => discoverDirPatterns(dirs, 'exclude.txt')
 
 /**
@@ -674,7 +679,7 @@ async function main() {
     process.exit(1)
   }
 
-  // Auto-discover skip.txt files from the tested directories (directory-scoped patterns)
+  // Auto-discover skip.txt and compare-skip.txt from the tested directories (directory-scoped patterns)
   const dirSkips = options.noDirSkips ? [] : discoverSkipPatterns(options.dirs)
 
   // Filter out skipped files: explicit --skip-file patterns OR auto-discovered skip.txt patterns

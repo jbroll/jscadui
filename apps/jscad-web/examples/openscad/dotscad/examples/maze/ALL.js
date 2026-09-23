@@ -32,6 +32,7 @@ const items = [
   "./pyramid_maze.scad",
   "./random_scala.scad",
   "./regular_polygon_maze.scad",
+  "./rock_theta_maze.scad",
   "./senbon_torii.scad",
   "./sphere_maze.scad",
   "./spiral_maze.scad",

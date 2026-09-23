@@ -1,37 +1,8 @@
-# dotSCAD skip list — add filenames (relative to dotscad/) of known failures
+# dotSCAD skip list — models that do not render, excluded from every sweep, the
+# demo browser and the ALL.js grids. A model that renders but that the STL
+# comparison cannot grade goes in compare-skip.txt instead.
 # Format: one pattern per line, # for comments
 # Supports * wildcards and trailing / as directory shorthand
-
-# Non-deterministic models: these use OpenSCAD's unseeded rands() which is
-# time-seeded and produces different results each run. The reference STL is
-# generated once, but our transpiler (and any re-run of OpenSCAD) would
-# generate different geometry. These models can never reliably reach 0.99.
-
-# Maze models: all now deterministic via position-based seeding in rand_dirs.
-# island_maze and maze_yinyan have explicit seeds but fail due to transpiler bug — kept in test suite.
-
-# Unseeded-rands models: use time-seeded rands() with no deterministic seed,
-# so geometry differs between reference STL (generated once) and test runs.
-examples/tiles/random_town_square.scad
-examples/tiles/penrose_basket.scad
-examples/voronoi/ruyi_pineapple.scad
-examples/crystal_cluster.scad
-examples/differential_line_growth.scad
-examples/differential_line_growth_bowl.scad
-examples/turtle/tree.scad
-examples/voronoi/ripple_vase.scad
-examples/taiwan/chair_score.scad
-examples/tiles/random_city.scad
-examples/taiwan/random_city_taiwan.scad
-# Wang tile models: tile_w2c/tile_w2e use unseeded rands() for corner/edge assignment
-examples/tiles/2_corner_wang_tiles_basic.scad
-examples/tiles/2_edge_wang_tiles_basic.scad
-# tube_box uses tile_w2e which uses unseeded rands()
-examples/tiles/tube_box.scad
-# hollow_out_holder uses hollow_out_square which calls rand() without seed
-examples/hollow_out/hollow_out_holder.scad
-# rock_theta_maze: rock() module uses unseeded rands() for rock shape generation
-examples/maze/rock_theta_maze.scad
 
 # Missing dependency: shape_glued2circles.scad not included in dotSCAD repo
 examples/spiral/spring_dog.scad
@@ -42,24 +13,7 @@ examples/fidget_ball_fern_leaf.scad
 # Timeout: model renders too slowly in JSCAD (complex recursive/iterative geometry)
 examples/spiral/climbing_rose.scad
 examples/stereographic_projection/stereographic_foliage_scroll.scad
-
-# Font not available: these models use fonts that are not available in the JSCAD runtime.
-# The rendered text geometry differs because a fallback font is used instead.
-# stereographic_chars uses "Webdings" — a Windows symbol font not in JSCAD runtime.
-examples/stereographic_projection/stereographic_chars.scad
-
-# Non-manifold reference STL: OpenSCAD produces non-manifold geometry for these models
-# (compare-stl.js trianglesToManifold fails); no valid comparison is possible.
-examples/voronoi/ripple_sphere.scad
-examples/voronoi/voronoi_vase.scad
-
-# Mixed-winding polyhedron: SD_Mountain polyhedron faces have CW winding in OpenSCAD's STL
-# output, while our _polyhedron auto-corrects to CCW. The reference STL total signed volume
-# is negative (Mountain CW + Taiwan CCW = -10737), so compare-stl.js auto-orient flips ALL
-# normals, making the comparison treat Taiwan as a subtracted region → Jaccard=0.174 (false
-# negative). splitIntoComponents cannot split the mesh because Mountain+Taiwan are stitched
-# into a single manifold surface by Manifold's union triangulation.
-examples/taiwan/SD_Card_Taiwan.scad
+examples/differential_line_growth_bowl.scad
 
 # These reference library files that upstream dotSCAD does not ship at the
 # pinned commit (bb33edfd): neither util/rands_disk.scad nor maze/mz_wang_tiles.scad

@@ -9,8 +9,11 @@ const { gridPosition, normalizeAndPlace, urlToPartName, failureMarker } = requir
 
 const items = [
   "./delaunay_fibonacci.scad",
+  "./ripple_sphere.scad",
+  "./ripple_vase.scad",
   "./ripples.scad",
   "./rock_horn.scad",
+  "./ruyi_pineapple.scad",
   "./voronoi_bracelet.scad",
   "./voronoi_crystallization.scad",
   "./voronoi_fibonacci.scad",
@@ -19,6 +22,7 @@ const items = [
   "./voronoi_penholder.scad",
   "./voronoi_sphere.scad",
   "./voronoi_torus.scad",
+  "./voronoi_vase.scad",
   "./worley_vase.scad"
 ]
 const spacing = 60

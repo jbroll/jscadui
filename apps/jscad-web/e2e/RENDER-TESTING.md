@@ -22,7 +22,8 @@ Loads each example by hash-navigating the dev server
 `html[data-render]` from `running` to `ok` or `error`, and reports
 `ok` / `error` / `timeout` per file. A page that settles `ok` with no vertices
 drawn (`html[data-vertices="0"]`) scores `empty` instead, which counts as a
-failure. Honors each library's `skip.txt`. Writes `e2e/render-report.json`.
+failure. Honors each library's `skip.txt`, not `compare-skip.txt`: a model the
+STL comparison cannot grade still renders here. Writes `e2e/render-report.json`.
 
 `--timeout` (default 300s) is a hang guard, not a performance budget: a model
 that renders slowly still renders, and the jscad engine needs 37s for a
