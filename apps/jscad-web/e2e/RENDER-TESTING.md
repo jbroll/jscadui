@@ -78,6 +78,9 @@ JOB=$(../simple-ci/sci push jscadui/render)   # runs ci/render on gpu
 ```
 
 `ci/render` builds the workspace, starts the dev server, and runs `render-all.mjs`.
+Every `ci/render*` job and `ci/web` serve on port 5120 of the same host, so run
+them one at a time: `ci/render` exits 2 if the port is already taken rather
+than sweep a server that disappears when its own job ends.
 Edit `RENDER_ARGS` in `ci/render` to change scope/concurrency.
 
 `sci push jscadui/render-grids` runs the same setup over the 44 `ALL.js` grids

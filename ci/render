@@ -38,6 +38,11 @@ fi
 ( cd "$APP" && npx playwright install chromium )
 
 # ── start dev server in background ──
+# Another job's server on the port would answer the probes below and then vanish
+# mid-sweep when that job exits, failing every later page as a crash.
+if curl -s -o /dev/null http://localhost:5120/; then
+  echo "✖ something already serves :5120 (another ci/render* or ci/web job?)"; exit 2
+fi
 cd "$APP"
 node build.js --dev --skipDocs > /tmp/jscad-dev.log 2>&1 &
 DEV_PID=$!
