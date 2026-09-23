@@ -1,40 +1,40 @@
 {
-  "_comment": "784/785 ok on the manifold engine, which the app defaults to, with a 300s hang guard per file. Four examples are skipped as broken at their source: three include files upstream does not ship, and voronoi_melon.scad, which OpenSCAD cannot render either. The one left, maze3d_mickey.scad, recurses deeper than a browser worker's stack; mutual tail-call elimination (docs/backlog.md) would fit it. Diff future runs against failures[], not against zero.",
-  "tree": "main working tree, rsynced onto the CI base worktree by sci \u2014 no commit identifies the code that was measured",
-  "date": "2026-09-22",
-  "job": "815f87b0abe7ee68",
+  "_comment": "761/807 on the manifold engine, which the app defaults to, with a 300s hang guard per file. 45 models draw nothing and score empty: echo- and assert-only library doc examples and files that only define modules. The one error, maze3d_mickey.scad, recurses deeper than a browser worker stack. Comparison-only skips (compare-skip.txt) render here. render-all.mjs --baseline diffs a run against failures[].",
+  "tree": "main working tree, rsynced onto the CI base worktree by sci — no commit identifies the code that was measured",
+  "date": "2026-09-23",
+  "job": "b758af600414f82f",
   "engine": "manifold",
-  "total": 785,
-  "ok": 784,
-  "failed": 1,
+  "total": 807,
+  "ok": 761,
+  "failed": 46,
   "byLib": {
     "openscad/01-basics": {
       "ok": 20,
       "fail": 0
     },
     "openscad/bosl": {
-      "ok": 113,
-      "fail": 0
+      "ok": 100,
+      "fail": 13
     },
     "openscad/bosl2": {
-      "ok": 178,
-      "fail": 0
+      "ok": 156,
+      "fail": 22
     },
     "openscad/dotscad": {
-      "ok": 184,
-      "fail": 1
+      "ok": 195,
+      "fail": 9
     },
     "openscad/mcad": {
       "ok": 14,
       "fail": 0
     },
     "openscad/nopscadlib": {
-      "ok": 145,
-      "fail": 0
+      "ok": 146,
+      "fail": 1
     },
     "openscad/snippet": {
       "ok": 119,
-      "fail": 0
+      "fail": 1
     },
     "openscad/text": {
       "ok": 11,
@@ -43,8 +43,189 @@
   },
   "failures": [
     {
+      "rel": "openscad/bosl/01-part1/001-constants-cuboid.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl/01-part1/002-constants-cyl.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl/01-part1/021-math-sum.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl/01-part1/022-math-sum_of_squares.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl/01-part1/023-math-mean.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl/02-part2/024-math-in_list.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl/02-part2/025-math-reverse.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl/02-part2/026-math-enumerate.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl/02-part2/027-math-flatten.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl/02-part2/028-math-vmul.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl/02-part2/029-math-vdiv.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl/02-part2/030-math-triangle_area2d.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl/05-part5/110-wiring-hex_offset_ring.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/01-part1/026-comparisons-max_index.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/02-part2/047-fnliterals-echo.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/02-part2/054-geometry-plane_from_normal.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/02-part2/059-hooks-ring_hook.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/02-part2/069-linalg-transpose.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/03-part3/074-lists-reverse.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/03-part3/081-math-log2.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/03-part3/082-math-sum.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/03-part3/083-math-mean.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/03-part3/084-math-deltas.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/03-part3/085-math-product.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/03-part3/086-math-cumprod.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/04-part4/137-strings-parse_num.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/04-part4/138-strings-format_float.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/05-part5/155-utility-same_shape.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/05-part5/156-utility-assert_approx.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/05-part5/157-utility-assert_equal.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/05-part5/158-vectors-v_mul.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/05-part5/159-vectors-v_div.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/05-part5/160-vectors-v_abs.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/05-part5/161-vnf-echo.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/05-part5/worldmap_360x180.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/dotscad/examples/dragon/dragon_claw.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/dotscad/examples/dragon/dragon_foot.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/dotscad/examples/dragon/dragon_head_low_poly.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/dotscad/examples/dragon/dragon_scales.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/dotscad/examples/floor_stand/floor_stand.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/dotscad/examples/hollow_out/hollow_out_square.scad",
+      "status": "empty"
+    },
+    {
       "rel": "openscad/dotscad/examples/maze/maze3d_mickey.scad",
-      "status": "error"
+      "status": "error",
+      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at Array.isArray (<anonymous>) at Object.isTruthy (assets/bundle.openscad.js:1:1) at eval (http://localhost:5120/examples/openscad/dotscad/util/swap.scad:1:1) at Object.swap_$f (http://localhos"
+    },
+    {
+      "rel": "openscad/dotscad/examples/tiles/city_tile.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/dotscad/examples/triangle2square/triangle2square.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/nopscadlib/NopSCADlib/tests/annotation.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/snippet/02-intermediate/Coin_02.scad",
+      "status": "empty"
     }
   ]
 }

@@ -130,8 +130,14 @@ field nobody can trust is worse than none.
 the cells that drew a marker, and why the grid itself died. `docs/backlog.md`
 groups them by cause.
 
-The current baseline is **784 ok of 785** on manifold, CI job
-`815f87b0abe7ee68`. It replaced a 596/788 baseline recorded before the
+The current baseline is **761 ok of 807** on manifold, CI job
+`b758af600414f82f`. It grew by the 22 models that moved to `compare-skip.txt`,
+all of which render, and it counts 45 models as `empty` now that an empty
+result is no longer an `ok`: echo- and assert-only library doc examples
+(`021-math-sum.scad`, `157-utility-assert_equal.scad`) and files that only
+define modules (`hollow_out_square.scad`, `dragon_claw.scad`). Those are
+correct as empty, so the baseline records them. Before that it was 784 of 785
+(job `815f87b0abe7ee68`), which replaced a 596/788 baseline recorded before the
 example-failure work. The largest single move was the engine default: the app
 used to default to `jscad`, which rendered 623 where manifold rendered 762 on
 the same tree. The rest came from transpiler and runtime fixes, two
