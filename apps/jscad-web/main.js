@@ -627,6 +627,7 @@ viewState.onRenderEngineChange = async (newEngine) => {
 
   // Initialize new viewer
   viewState.setEngine(await engine.init(newEngine))
+  const isStale = scriptRuns.paramChange()
 
   // Re-run main with current params to regenerate geometry
   const useGpuNormals = viewState.viewer?.supportsGpuNormals ?? false
@@ -634,6 +635,7 @@ viewState.onRenderEngineChange = async (newEngine) => {
     ? { ...paramsCtrl.getWorkerParams(), useGpuNormals }
     : { params: lastRunParams, useGpuNormals }
   const result = await workerApi.jscadMain(mainOptions)
+  if (isStale()) return
   handlers.entities(result)
 }
 

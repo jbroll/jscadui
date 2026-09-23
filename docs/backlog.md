@@ -33,8 +33,6 @@ deploy order and headers.
 
 ## Follow-ups from the 2026-09-19..22 review
 
-- **`onRenderEngineChange` calls `jscadMain` without the `createScriptRuns`
-  guard**, so a result from before a newer load can still be drawn.
 - **An unsaved edit two includes down can leak into a cached includer** when
   no project is loaded. The source check in `scadHandler.js` compares each
   file only against its own source.
