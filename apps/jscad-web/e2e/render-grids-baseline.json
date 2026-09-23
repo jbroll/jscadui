@@ -1,8 +1,8 @@
 {
-  "_comment": "35/44 ALL.js grids render on the manifold engine with a 320s hang guard per grid. A cell whose model throws draws a skull-and-crossbones and the grid scores partial; after a wasm trap every later cell fails as not run. The NopSCADlib grids no longer trap in PSUs.scad and now run past the guard. render-all.mjs --baseline diffs a run against failures[], cells included.",
+  "_comment": "35/44 ALL.js grids render on the manifold engine with a 320s hang guard per grid. A cell whose model throws draws a skull-and-crossbones and the grid scores partial; after a wasm trap every later cell fails as not run. Six grids crash the renderer before the frame's 290s kill, and the sweep scores a crash as soon as it happens. render-all.mjs --baseline diffs a run against failures[], cells included.",
   "tree": "main working tree, rsynced onto the CI base worktree by sci — no commit identifies the code that was measured",
   "date": "2026-09-23",
-  "job": "737437e4401ff051",
+  "job": "50a257d37f27c7f3",
   "engine": "manifold",
   "total": 44,
   "ok": 35,
@@ -60,14 +60,14 @@
   "failures": [
     {
       "rel": "ALL.js",
-      "status": "timeout",
-      "why": "TimeoutError: page.waitForFunction: Timeout 320000ms exceeded."
+      "status": "crash",
+      "why": "Error: renderer crashed"
     },
     {
       "rel": "openscad/ALL.js",
       "status": "error",
       "cells": [
-        "./fractal_tree.scad: table index is out of bounds",
+        "./fractal_tree.scad: function signature mismatch",
         "./lsystems.scad: not run: wasm trapped in ./fractal_tree.scad",
         "./orientations.scad: not run: wasm trapped in ./fractal_tree.scad",
         "./spherical_patch.scad: not run: wasm trapped in ./fractal_tree.scad",
@@ -81,22 +81,22 @@
         "./snippet/ALL.js: not run: wasm trapped in ./fractal_tree.scad",
         "./text/ALL.js: not run: wasm trapped in ./fractal_tree.scad"
       ],
-      "why": "RuntimeError: jscadMain failed: table index is out of boundsRuntimeError: table index is out of bounds at assets/manifold.wasm:wasm-function[57]:0x4e4c at assets/manifold.wasm:wasm-function[215]:0x107da at assets/manifold.wasm:wasm-function[86]:0x6087 at Ls (assets/bundle.manifold_modeling.js:1:2634"
+      "why": "RuntimeError: jscadMain failed: function signature mismatchRuntimeError: function signature mismatch at assets/manifold.wasm:wasm-function[86]:0x6087 at Ls (assets/bundle.manifold_modeling.js:1:26344) at eval (assets/bundle.manifold_modeling.js:1:26395) at Manifold.numTri (eval at jo (assets/bundle."
     },
     {
       "rel": "openscad/bosl2/ALL.js",
-      "status": "timeout",
-      "why": "TimeoutError: page.waitForFunction: Timeout 320000ms exceeded."
+      "status": "error",
+      "why": "Error: Error: model exceeded 290000 ms at frameWorkerTerminated (http://localhost:5140/main.js:551:12516) at d (http://localhost:5140/main.js:161:22195) at m (http://localhost:5140/main.js:161:22287) at o (http://localhost:5140/main.js:551:11078)"
     },
     {
       "rel": "openscad/dotscad/ALL.js",
-      "status": "timeout",
-      "why": "TimeoutError: page.waitForFunction: Timeout 320000ms exceeded."
+      "status": "crash",
+      "why": "Error: renderer crashed"
     },
     {
       "rel": "openscad/dotscad/examples/ALL.js",
-      "status": "timeout",
-      "why": "TimeoutError: page.waitForFunction: Timeout 320000ms exceeded."
+      "status": "crash",
+      "why": "Error: renderer crashed"
     },
     {
       "rel": "openscad/dotscad/examples/maze/ALL.js",
@@ -107,18 +107,18 @@
     },
     {
       "rel": "openscad/nopscadlib/ALL.js",
-      "status": "timeout",
-      "why": "TimeoutError: page.waitForFunction: Timeout 320000ms exceeded."
+      "status": "crash",
+      "why": "Error: renderer crashed"
     },
     {
       "rel": "openscad/nopscadlib/NopSCADlib/ALL.js",
-      "status": "timeout",
-      "why": "TimeoutError: page.waitForFunction: Timeout 320000ms exceeded."
+      "status": "crash",
+      "why": "Error: renderer crashed"
     },
     {
       "rel": "openscad/nopscadlib/NopSCADlib/tests/ALL.js",
-      "status": "timeout",
-      "why": "TimeoutError: page.waitForFunction: Timeout 320000ms exceeded."
+      "status": "crash",
+      "why": "Error: renderer crashed"
     }
   ]
 }

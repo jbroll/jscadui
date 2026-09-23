@@ -176,10 +176,15 @@ async function renderOne(context, opts, file, idx) {
     // The app marks html[data-render] running → ok/error. #progress cannot be
     // waited on: it starts display:none, so 'hidden' resolves before the model
     // has even begun and every page reads as a pass.
-    status = await page.waitForFunction(
-      () => ['ok', 'error'].includes(document.documentElement.dataset.render),
-      null, { timeout: opts.timeout },
-    ).then(() => page.evaluate(() => document.documentElement.dataset.render))
+    // waitForFunction does not notice a crashed renderer and runs out the guard.
+    const crashed = new Promise((_, reject) => page.once('crash', () => reject(new Error('renderer crashed'))))
+    status = await Promise.race([
+      page.waitForFunction(
+        () => ['ok', 'error'].includes(document.documentElement.dataset.render),
+        null, { timeout: opts.timeout },
+      ),
+      crashed,
+    ]).then(() => page.evaluate(() => document.documentElement.dataset.render))
     if (await page.locator('#error-bar').isVisible().catch(() => false)) {
       status = 'error'
       errText = ((await page.locator('#error-bar').textContent().catch(() => '')) || '')

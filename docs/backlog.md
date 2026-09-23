@@ -32,14 +32,6 @@ deploy order and headers.
 
 ## Follow-ups from the 2026-09-19..22 review
 
-- **Timed-out grids hit the sweep's 320s guard, not the frame's 290s kill.**
-  Unexplained. The kill settles a grid within 0.3s locally (NopSCADlib
-  `ALL.js`, 10s budget), and in CI job `737437e4401ff051` neither the kill
-  nor the app's 300s RPC timeout fired. The sweep now reports the app's
-  render state and whether each document answers when the guard trips, which
-  tells a blocked main thread from a slow result transfer. The reported 404 on
-  `bundle.frame-worker.js` is Chrome's message for an `importScripts` aborted
-  by `terminate()`; the server answers 200.
 - **`onRenderEngineChange` calls `jscadMain` without the `createScriptRuns`
   guard**, so a result from before a newer load can still be drawn.
 - **An unsaved edit two includes down can leak into a cached includer** when
@@ -75,23 +67,27 @@ parent.
 A cell whose model throws no longer takes the grid with it: it draws a
 skull-and-crossbones and the sweep scores that grid `partial`, naming the dead
 cells. **35 of 44 render** (`sci push jscadui/render-grids`, job
-`737437e4401ff051`, 320s hang guard per grid);
+`50a257d37f27c7f3`, 320s hang guard per grid);
 `apps/jscad-web/e2e/render-grids-baseline.json` holds the per-grid state and
 each partial grid's dead cells. After the first `WebAssembly.RuntimeError` a
 grid fails every later cell as `not run: wasm trapped in <url>`.
 
-- **The three NopSCADlib grids time out at 320s.** They used to die at
-  `PSUs.scad`'s `function signature mismatch` inside `manifold.wasm`; they no
-  longer trap there. Recovering from a trap means reinitialising the wasm
-  module, which the worker has no path for today.
+- **Six grids crash the renderer**, the three NopSCADlib ones, top-level
+  `ALL.js`, `dotscad/ALL.js` and `dotscad/examples/ALL.js`, before the frame's
+  290s kill can fire. The sweep runs four grids at once on the CI host, so
+  memory is the likely cause; not yet measured. The NopSCADlib grids used to
+  die at `PSUs.scad`'s `function signature mismatch` inside `manifold.wasm`
+  and no longer trap there. Recovering from a trap means reinitialising the
+  wasm module, which the worker has no path for today.
 - **`openscad/ALL.js` traps at `fractal_tree.scad`** with `table index is out
   of bounds` in manifold's `getMesh`, the error the BOSL2 grids give on
   `orientations.scad` and likely the same bug. `run-jscad` reproduces it,
   while the browser bundle has more headroom than manifold-3d 3.3.2 in
   `node_modules`.
-- **The aggregate-of-aggregate grids exceed the guard** — top-level `ALL.js`,
-  `openscad/bosl2/ALL.js`, `dotscad/ALL.js` and `dotscad/examples/ALL.js`. Each
-  loads several whole grids in one worker on one core.
+- **The aggregate-of-aggregate grids are too big for one worker.**
+  `openscad/bosl2/ALL.js` hits the 290s kill; the top-level and dotSCAD
+  aggregates crash first (above). Each loads several whole grids in one worker
+  on one core.
 - **Nothing splits a grid across workers.** The frame runs one worker, one
   request at a time (`src_frame/frame.js`), so a grid cannot use more than one
   core and cannot give each cell its own budget. A pool would need the app to
