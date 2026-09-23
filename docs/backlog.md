@@ -28,7 +28,7 @@ moved to its own host, `jscad-run.rkroll.com`, deployed via
 `/api`. Both hosts are live. 2026-09-23: deployed `f402d41c` (the review
 fixes, GitHub App storage removed); the smoke gate now checks that each host
 serves the build just made. Later on 2026-09-23: deployed `4c0bd32e`, the
-review follow-ups. See `apps/jscad-web/docs/architecture.md` for the
+review follow-ups, then `91d6402f`, the render-engine redraw guard. See `apps/jscad-web/docs/architecture.md` for the
 deploy order and headers.
 
 ## Follow-ups from the 2026-09-19..22 review
