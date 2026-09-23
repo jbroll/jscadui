@@ -80,8 +80,9 @@ reaches the frame, so two loads can overlap and finish in either order.
 other load's map lands between them, and `main.js` drops any load that a newer
 one has started after, before it sends and again before it draws or reports
 an error. A parameter change takes a run from the same counter and draws only
-if no load or other parameter change started while its `jscadMain` ran. A
-parameter change never drops a load, which still has to build the params UI.
+if no load or other parameter change started while its `jscadMain` ran; the
+redraw after a render-engine switch takes a run the same way. A parameter
+change never drops a load, which still has to build the params UI.
 
 An OpenSCAD `use`/`include` resolves through `src_frame/scadResolve.js`:
 against the directory of the file that asked for it, then against that file's
