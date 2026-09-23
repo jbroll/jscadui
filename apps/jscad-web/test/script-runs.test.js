@@ -26,10 +26,10 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 describe('overlapping script runs', () => {
   it('draw only the run started last, whichever finishes last', async () => {
     const worker = fakeWorker()
-    const begin = createScriptRuns()
+    const runs = createScriptRuns()
     const drawn = []
     const run = async (entry, files, collectMs) => {
-      const isStale = begin()
+      const isStale = runs.load()
       await delay(collectMs)
       if (isStale()) return
       const result = await sendScript(worker, files, { entry })
@@ -47,5 +47,33 @@ describe('overlapping script runs', () => {
     const b = sendScript(worker, 'filesB', { entry: 'B' })
     expect(await b).toEqual({ entry: 'B', files: 'filesB' })
     await a
+  })
+
+  it('drop a param change whose main finishes after a newer script load', () => {
+    const runs = createScriptRuns()
+    const isStale = runs.paramChange()
+    runs.load()
+    expect(isStale()).toBe(true)
+  })
+
+  it('drop a param change once a newer param change starts', () => {
+    const runs = createScriptRuns()
+    const isStale = runs.paramChange()
+    runs.paramChange()
+    expect(isStale()).toBe(true)
+  })
+
+  it('keep a script load when a param change starts during it', () => {
+    const runs = createScriptRuns()
+    const isStale = runs.load()
+    runs.paramChange()
+    expect(isStale()).toBe(false)
+  })
+
+  it('keep a param change when nothing newer starts', () => {
+    const runs = createScriptRuns()
+    runs.load()
+    const isStale = runs.paramChange()
+    expect(isStale()).toBe(false)
   })
 })

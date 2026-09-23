@@ -420,6 +420,8 @@ const pauseAnimCallback = async (_def, _value) => {
  */
 let lastParams
 
+const scriptRuns = createScriptRuns()
+
 /**
  * @param {UserParameters} params
  * @param {string} [source]
@@ -444,6 +446,7 @@ const paramChangeCallback = async (params, source) => {
   }
   lastParams = null
   paramsUI.setWorking(true)
+  const isStale = scriptRuns.paramChange()
 
   let result
   let pendingParams = null
@@ -452,6 +455,7 @@ const paramChangeCallback = async (params, source) => {
       ? paramsCtrl.getWorkerParams()
       : { params }
     result = await workerApi.jscadMain(mainOptions)
+    if (isStale()) return
     lastRunParams = params
   } finally {
     // Capture pending params atomically before releasing lock
@@ -467,11 +471,9 @@ viewState.onRequireReRender = () => paramChangeCallback(ctrl.params)
 
 // ============== Script Loading ==============
 
-const beginScriptRun = createScriptRuns()
-
 /** @param {{script?:string,url?:string,base?:string,root?:string}} options*/
 const jscadScript = async ({ script, url = './jscad.model.js', base = currentBase, root }) => {
-  const isStale = beginScriptRun()
+  const isStale = scriptRuns.load()
   currentBase = base
   loadDefault = false
   document.documentElement.dataset.render = 'running'
