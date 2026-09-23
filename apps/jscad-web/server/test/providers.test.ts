@@ -353,6 +353,18 @@ describe('anthropic provider', () => {
     await expect(collect(provider)).rejects.toThrow(/anthropic/)
   })
 
+  it('moves system messages to the top-level system field', async () => {
+    fetchMock.mockResolvedValueOnce(streamResponse(ANTHROPIC_PLAIN))
+    const messages: ProviderMessage[] = [
+      { role: 'system', content: 'You are a CAD agent.' },
+      { role: 'user', content: 'Measure part1' },
+    ]
+    for await (const event of provider.send(messages, TOOLS)) void event
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body)
+    expect(body.system).toBe('You are a CAD agent.')
+    expect(body.messages).toEqual([{ role: 'user', content: 'Measure part1' }])
+  })
+
   it('posts messages and tools to the messages endpoint with the api key', async () => {
     fetchMock.mockResolvedValueOnce(streamResponse(ANTHROPIC_PLAIN))
     await collect(provider)
@@ -366,6 +378,7 @@ describe('anthropic provider', () => {
     expect(body.model).toBe('claude-sonnet-4-5')
     expect(body.stream).toBe(true)
     expect(body.messages).toEqual([{ role: 'user', content: 'Measure part1' }])
+    expect(body.system).toBeUndefined()
     expect(body.tools[0]).toEqual({
       name: 'measure',
       description: 'Measure the current model',

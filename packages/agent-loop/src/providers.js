@@ -60,12 +60,14 @@ const anthropicProvider = (config) => {
   const sessionId = config.sessionId ?? crypto.randomUUID()
   return {
     async *send(messages, tools) {
+    const system = messages.filter((m) => m.role === 'system').map((m) => m.content).join('\n\n')
     const body = {
       model: config.model,
       max_tokens: 4096,
       stream: true,
-      messages: messages.map(toAnthropicMessage),
+      messages: messages.filter((m) => m.role !== 'system').map(toAnthropicMessage),
     }
+    if (system) body.system = system
     if (tools.length > 0) body.tools = tools.map(toAnthropicTool)
     const headers = {
       'content-type': 'application/json',

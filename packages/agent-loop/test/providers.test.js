@@ -141,6 +141,19 @@ describe('providers', () => {
     expect(events[events.length - 1]).toEqual({ type: 'done', stopReason: 'completed' })
   })
 
+  it('anthropic: moves system messages to the top-level system field', async () => {
+    fetchMock.mockResolvedValue(new Response(sseBody('')))
+    const provider = createProvider({ kind: 'opencode-go', apiKey: 'k', model: 'minimax-m3' })
+    const messages = [
+      { role: 'system', content: 'You are a CAD agent.' },
+      { role: 'user', content: 'hi' },
+    ]
+    for await (const e of provider.send(messages, TOOLS)) void e
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body)
+    expect(body.system).toBe('You are a CAD agent.')
+    expect(body.messages).toEqual([{ role: 'user', content: 'hi' }])
+  })
+
   it('opencode-go routes qwen models to the messages endpoint', async () => {
     fetchMock.mockResolvedValue(new Response(sseBody('')))
     const provider = createProvider({ kind: 'opencode-go', apiKey: 'k', model: 'qwen3.8-flash' })
