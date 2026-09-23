@@ -167,6 +167,18 @@ engine are gone. `frameSetup.js` rejects every request still in flight, since
 the new frame never saw them, then reports the reload and asks for a re-init,
 the same response it gives a terminated worker.
 
+Either way the new worker starts empty, and a parameter change or an export
+would run against no model; an export would serialize an empty scene and
+report success. So `frameSetup.js` records what set the worker up, from
+successful calls only: the `jscadInit`s (the last one naming an engine, every
+alias, and the latest), the last `jscadSetFiles`, the last `jscadScript`, and
+the params of the last `jscadMain` after it. On restart it replays them in that
+order, and any request made meanwhile waits for the replay. A script that
+failed or timed out is not replayed, and neither is one whose replay fails. In
+those cases `jscadMain`, `jscadExportData`, `jscadMeasure` and `jscadCheck` are
+refused with "the model stopped and could not be reloaded" until a script loads
+again.
+
 ### Why a blob worker
 
 A frame with an opaque origin cannot construct a `Worker` from a URL, and

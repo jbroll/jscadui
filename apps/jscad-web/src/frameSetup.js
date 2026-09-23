@@ -14,6 +14,87 @@ import { framePort } from './framePort.js'
 const PASS_THROUGH = new Set(['then', 'destroy', 'onmessage', 'getRpcJobCount'])
 
 /**
+ * What a worker needs to be the one the app last set up: the inits, the file
+ * map, the script and the params of the last run. A fresh worker, after a
+ * timeout kill or a frame reload, gets these replayed before any new request,
+ * so a parameter change or an export runs against the model on screen.
+ * @param {Record<string, (...args: unknown[]) => Promise<unknown>>} proxy
+ */
+const createReplay = (proxy) => {
+  let engineInit = null
+  let lastInit = null
+  const aliasInits = new Map()
+  let files = null
+  let script = null
+  let main = null
+  let restoring = null
+  // The worker lost a model it could not get back. Without this an export
+  // would serialize the fresh worker's empty scene and report success.
+  let lost = false
+
+  const succeeded = {
+    jscadInit: (args) => {
+      const [options = {}] = args
+      if (options.engine) engineInit = args
+      if (options.alias) aliasInits.set(JSON.stringify(options.alias), args)
+      lastInit = args
+    },
+    jscadSetFiles: (args) => { files = args },
+    jscadScript: (args) => { script = args; main = null; lost = false },
+    jscadMain: (args) => { main = args },
+  }
+
+  let everLoaded = false
+
+  const record = (method, args, result) => {
+    const onSuccess = succeeded[method]
+    if (!onSuccess) return
+    if (method === 'jscadScript') everLoaded = true
+    result.then(() => onSuccess(args), () => {
+      if (method === 'jscadScript') script = main = null
+    })
+  }
+
+  const replay = async () => {
+    const inits = [...new Set([engineInit, ...aliasInits.values(), lastInit])].filter(Boolean)
+    for (const args of inits) await proxy.jscadInit(...args)
+    if (files) await proxy.jscadSetFiles(...files)
+    if (!script) {
+      lost = everLoaded
+      return
+    }
+    try {
+      await proxy.jscadScript(...script)
+      if (main) await proxy.jscadMain(...main)
+    } catch {
+      script = main = null
+      lost = true
+    }
+  }
+
+  const needsModel = new Set(['jscadMain', 'jscadExportData', 'jscadMeasure', 'jscadCheck'])
+
+  return {
+    record,
+    restore: () => {
+      const run = (restoring ?? Promise.resolve()).then(replay).catch(() => {})
+      restoring = run
+      run.then(() => { if (restoring === run) restoring = null })
+    },
+    /**
+     * @param {string} method
+     * @param {() => Promise<unknown>} send
+     */
+    gate: (method, send) => {
+      const checked = () => lost && needsModel.has(method)
+        ? Promise.reject(new Error('the model stopped and could not be reloaded; run it again'))
+        : send()
+      return restoring ? restoring.then(checked) : checked()
+    },
+  }
+}
+
+/**
  * The compute frame stands in for the local worker. sandbox without
  * allow-same-origin gives it an opaque origin: model code runs with no
  * cookies, no storage and no same-origin fetch.
@@ -37,11 +118,13 @@ export const createFrame = async ({ onError, onEntities, onJobCount, onTerminate
   const notifications = {
     frameWorkerTerminated: ({ reason }) => {
       onError(new Error(reason))
+      replay.restore()
       onTerminated?.()
     },
   }
 
   const proxy = messageProxy(framePort(frameEl, runOrigin), notifications, { onJobCount })
+  const replay = createReplay(proxy)
 
   // A message sent before the frame document runs is lost, and nothing in the
   // protocol replays it. An extension, a proxy or DNS can keep that load from
@@ -56,6 +139,7 @@ export const createFrame = async ({ onError, onEntities, onJobCount, onTerminate
       const error = new Error(`compute frame at ${runOrigin} reloaded; its state is gone`)
       proxy.rejectPending(error)
       onError(error)
+      replay.restore()
       onTerminated?.()
       return
     }
@@ -93,8 +177,13 @@ export const createFrame = async ({ onError, onEntities, onJobCount, onTerminate
   // call instead, and go back to relaying if a slow frame does turn up.
   const workerApi = /** @type {JscadWorker} */ (new Proxy(proxy, {
     get: (target, prop) => {
-      if (loaded || PASS_THROUGH.has(prop) || typeof prop !== 'string') return target[prop]
-      return () => Promise.reject(notLoaded())
+      if (PASS_THROUGH.has(prop) || typeof prop !== 'string') return target[prop]
+      if (!loaded) return () => Promise.reject(notLoaded())
+      return (...args) => replay.gate(prop, () => {
+        const result = target[prop](...args)
+        replay.record(prop, args, result)
+        return result
+      })
     },
   }))
 
