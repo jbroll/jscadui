@@ -33,13 +33,6 @@ deploy order and headers.
 The review's findings are fixed on `fix/review-backlog`. These are what the
 fixes left open.
 
-- **A GitHub installation is not tied to the caller's GitHub account.**
-  `POST /api/git/installations` now requires the requested repo to be in the
-  installation's repository list, but sign-in is Google or Apple only
-  (`server/src/config.ts`), so a signed-in user who knows an installation id
-  and one of its repo names can still bind it. Closing it needs GitHub user
-  authorization (OAuth during install, or GitHub as a linked account) and a
-  check against `GET /user/installations`.
 - **Timed-out grids hit the sweep's 320s guard, not the frame's 290s kill.**
   Unexplained. It is not the restart loop fixed in `10a66a62`, which needs the
   init itself to time out. Pages in the tiny-timeout e2e also request the

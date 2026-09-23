@@ -5,8 +5,6 @@ import Database from 'better-sqlite3';
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 import { mountAgentRoutes } from './agent/routes.js';
 import { mountRelayRoutes } from './relay/routes.js';
-import { createInstallationStore } from './git/github.js';
-import { mountGitHubRoutes } from './git/routes.js';
 import { configFromEnv, type ServerConfig } from './config.js';
 
 export type { ServerConfig } from './config.js';
@@ -106,18 +104,6 @@ export async function createServer(config: ServerConfig): Promise<StudioServer> 
   // CORS passthrough to provider APIs for the browser-local loop. No session,
   // no storage; the caller's provider key rides the request through.
   mountRelayRoutes(app, { allowlistPath: config.relayAllowlistPath, trustedOrigins: config.trustedOrigins });
-
-  // Connected repositories: installation records stay in-memory until a
-  // server-side store backs the seam (same follow-up as conversations).
-  mountGitHubRoutes(app, {
-    getAuthor: identity.provider.resolveAuthor,
-    installationStore: createInstallationStore(),
-    appConfig:
-      config.githubAppId && config.githubAppPrivateKey
-        ? { appId: config.githubAppId, privateKey: config.githubAppPrivateKey }
-        : null,
-    appSlug: config.githubAppSlug,
-  });
 
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });

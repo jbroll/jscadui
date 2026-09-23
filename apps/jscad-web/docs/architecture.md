@@ -10,7 +10,7 @@ For how to use it, see the [README](../README.md).
 ```
 jscad.rkroll.com
   page (main.js)            editor, viewer, params UI, chat, project drawer
-   ├─ /api  →  Express      auth, sync tokens, provider relay, GitHub app
+   ├─ /api  →  Express      auth, sync tokens, provider relay
    │                          └─ hosted rowboat: projects, files, versions
    └─ <iframe sandbox="allow-scripts"> →  jscad-run.rkroll.com
         └─ blob worker      evaluates every model          (opaque origin)
@@ -282,13 +282,10 @@ Local-first with per-project version history (`src/storage/`). Every editor
 compile and every `writeModel` records a version row and file hashes.
 Backends: the service-worker FS and file handles (`local`, the default and the
 only mode for anonymous users), rowboat blobs and tables (`rowboat`, after
-sign-in, synced with a 15-minute JWT from `GET /api/sync-token`), a linked
-local folder through `showDirectoryPicker()`, and a connected GitHub
-repository through a GitHub App installation. Connecting saves the
-installation only when its repository list includes the requested
-owner/repo, and every read, write and version listing must name that same
-owner/repo. Sign-in is Google or Apple, so the server has no GitHub identity
-to check the installation's account against.
+sign-in, synced with a 15-minute JWT from `GET /api/sync-token`), and a linked
+local folder through `showDirectoryPicker()`. A folder that is a git checkout
+stays the user's to commit. A GitHub App backend that read and committed
+through the server is parked on the `park/github-app-storage` branch.
 
 A mixed project merges at load: each manifest path names exactly one backend,
 and an unlisted sibling resolves local-first then rowboat.

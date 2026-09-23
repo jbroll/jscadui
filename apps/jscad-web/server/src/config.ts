@@ -13,10 +13,6 @@ export interface ServerConfig {
   rowboatDatabaseId: string;
   /** Origin of the hosted rowboat that serves this tenant's data plane and group API. */
   rowboatUrl: string;
-  /** GitHub App for connected-repository storage; absent until the app is installed. */
-  githubAppId?: string;
-  githubAppPrivateKey?: string;
-  githubAppSlug?: string;
   /** Path to the relay provider allowlist file; unrelated to rowboat. */
   relayAllowlistPath: string;
 }
@@ -80,11 +76,5 @@ export function configFromEnv(): ServerConfig {
     rowboatDatabaseId,
     rowboatUrl,
     relayAllowlistPath: process.env.RELAY_ALLOWLIST || '/etc/jscad-relay/providers.json',
-    ...(process.env.GITHUB_APP_ID ? { githubAppId: process.env.GITHUB_APP_ID } : {}),
-    // Private keys travel with literal \n in env files; restore real newlines.
-    ...(process.env.GITHUB_APP_PRIVATE_KEY
-      ? { githubAppPrivateKey: process.env.GITHUB_APP_PRIVATE_KEY.replace(/\\n/g, '\n') }
-      : {}),
-    ...(process.env.GITHUB_APP_SLUG ? { githubAppSlug: process.env.GITHUB_APP_SLUG } : {}),
   };
 }
