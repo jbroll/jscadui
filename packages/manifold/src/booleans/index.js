@@ -125,10 +125,6 @@ export const subtract = (...geometries) => {
     return undefined
   }
 
-  if (geoms.length === 1) {
-    return isManifoldGeom3(geoms[0]) ? geoms[0] : new ManifoldGeom3(toManifold(geoms[0]))
-  }
-
   // Check if 2D
   const is2D = isManifoldGeom2(geoms[0]) || (geoms[0].sides !== undefined) || (geoms[0].outlines !== undefined)
 
@@ -136,15 +132,14 @@ export const subtract = (...geometries) => {
     return subtract2D(geoms)
   }
 
-  // Convert all to Manifold objects
-  const manifolds = geoms.map(g => toManifold(g))
-
-  // Subtract all subsequent geometries from the first
-  let result = manifolds[0]
+  const { manifolds, temps } = toManifolds(geoms)
+  let result = manifolds.length === 1 ? ownedCopy(manifolds[0], temps) : manifolds[0]
   for (let i = 1; i < manifolds.length; i++) {
-    result = result.subtract(manifolds[i])
+    const next = result.subtract(manifolds[i])
+    if (i > 1) result.delete()
+    result = next
   }
-
+  freeTemps(temps, result)
   return new ManifoldGeom3(result)
 }
 

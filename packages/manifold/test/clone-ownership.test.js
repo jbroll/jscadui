@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest'
 import { init, cube, measureVolume, getManifold } from '../src/index.js'
 import { colorize } from '../src/colors/index.js'
-import { union, intersect } from '../src/booleans/index.js'
+import { union, intersect, subtract } from '../src/booleans/index.js'
 import { retessellate } from '../src/modifiers/index.js'
 import * as jscadModule from '@jscad/modeling-for-manifold'
 
@@ -14,12 +14,14 @@ const expectNoLeak = (op, inputs) => {
   const consumed = []
   let proto = cube({ size: 1 }).manifold
   while (!Object.hasOwn(proto, 'translate')) proto = Object.getPrototypeOf(proto)
-  const translate = proto.translate
-  vi.spyOn(proto, 'translate').mockImplementation(function (...args) {
-    consumed.push(this)
-    return translate.apply(this, args)
-  })
-  for (const name of ['union', 'intersection']) {
+  for (const name of ['translate', 'subtract']) {
+    const orig = proto[name]
+    vi.spyOn(proto, name).mockImplementation(function (...args) {
+      consumed.push(this, ...args.filter(a => a instanceof Manifold))
+      return orig.apply(this, args)
+    })
+  }
+  for (const name of ['union', 'intersection', 'difference']) {
     const orig = Manifold[name]
     vi.spyOn(Manifold, name).mockImplementation((ms, ...rest) => {
       if (Array.isArray(ms)) consumed.push(...ms)
@@ -82,6 +84,32 @@ describe('clone ownership', () => {
     const b = jscad.primitives.cube({ size: 10, center: [5, 0, 0] })
     const r = expectNoLeak(intersect, [a, b])
     expect(measureVolume(r)).toBeCloseTo(500, 0)
+  })
+  it('plain geom3 subtract inputs and intermediates are freed', () => {
+    const a = jscad.primitives.cube({ size: 10 })
+    const b = jscad.primitives.cube({ size: 10, center: [5, 0, 0] })
+    const c = jscad.primitives.cube({ size: 10, center: [0, 5, 0] })
+    const r = expectNoLeak(subtract, [a, b, c])
+    expect(measureVolume(r)).toBeCloseTo(250, 0)
+  })
+  it('wrapped subtract inputs stay usable and intermediates are freed', () => {
+    const a = cube({ size: 10 })
+    const b = cube({ size: 10, center: [5, 0, 0] })
+    const c = cube({ size: 10, center: [0, 5, 0] })
+    expectNoLeak(subtract, [a, b, c]).dispose()
+    expect(measureVolume(a)).toBeCloseTo(1000, 0)
+  })
+  it('single plain geom3 subtract frees its temporary', () => {
+    const r = expectNoLeak(subtract, [jscad.primitives.cube({ size: 10 })])
+    expect(measureVolume(r)).toBeCloseTo(1000, 0)
+  })
+  it('single wrapped subtract input returns a distinct handle', () => {
+    const c = cube({ size: 10 })
+    const r = expectNoLeak(subtract, [c])
+    expect(r).not.toBe(c)
+    expect(r.manifold).not.toBe(c.manifold)
+    r.dispose()
+    expect(measureVolume(c)).toBeCloseTo(1000, 0)
   })
   it('single wrapped union input stays usable after result disposal', () => {
     const c = cube({ size: 10 })
