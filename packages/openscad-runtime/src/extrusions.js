@@ -195,6 +195,20 @@ export const _linearExtrude = ({ height, center = false, twist = 0, slices, scal
   return center ? translate([0, 0, -height/2], result) : result
 }
 
+const _isZeroArea = (sides) => {
+  let area = 0
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
+  for (const [p0, p1] of sides) {
+    area += p0[0] * p1[1] - p1[0] * p0[1]
+    minX = Math.min(minX, p0[0], p1[0])
+    maxX = Math.max(maxX, p0[0], p1[0])
+    minY = Math.min(minY, p0[1], p1[1])
+    maxY = Math.max(maxY, p0[1], p1[1])
+  }
+  const extent = Math.max(maxX - minX, maxY - minY)
+  return Math.abs(area / 2) <= 1e-9 * extent * extent
+}
+
 // Rotate extrude helper
 export const _rotateExtrude = ({ angle = 360, $fn, $fa, $fs } = {}, geo) => {
   // Propagate absent child (NO_CHILD = conditional branch not taken)
@@ -216,16 +230,11 @@ export const _rotateExtrude = ({ angle = 360, $fn, $fa, $fs } = {}, geo) => {
     if (Math.abs(p1[0]) > maxX) maxX = Math.abs(p1[0])
   }
 
-  // A profile that collapsed to a point still has sides, so the empty-profile
-  // guard above lets it through and extrudeRotate throws on the empty slice.
-  // OpenSCAD revolves a degenerate profile to nothing.
-  let minY = Infinity
-  let maxY = -Infinity
-  for (const [p0, p1] of sides ?? []) {
-    minY = Math.min(minY, p0[1], p1[1])
-    maxY = Math.max(maxY, p0[1], p1[1])
-  }
-  if (maxX === 0 && maxY - minY === 0) return undefined
+  // A profile collapsed to a point or a line still has sides, so the
+  // empty-profile guard above lets it through, and extrudeRotate either throws
+  // on the empty slice or returns zero-volume polygons. OpenSCAD revolves a
+  // zero-area profile to nothing.
+  if (sides && _isZeroArea(sides)) return undefined
 
   // _getSegments handles priority: explicit $fn arg > scope $fn > globalFn > $fa/$fs formula
   // Using undefined defaults so scope stack values are used when not explicitly set

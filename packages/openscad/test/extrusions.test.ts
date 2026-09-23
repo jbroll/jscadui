@@ -124,6 +124,18 @@ describe('rotate_extrude of a degenerate profile', () => {
     expect(j$.rotateExtrude({ angle: 360 }, atOrigin)).toBeUndefined()
   })
 
+  it('returns nothing for a profile collapsed to a point off the axis', () => {
+    const offAxis = geometries.geom2.create(
+      Array.from({ length: 13 }, () => [[5, 5], [5, 5]])
+    )
+    expect(j$.rotateExtrude({ angle: 360 }, offAxis)).toBeUndefined()
+  })
+
+  it('returns nothing for a profile collapsed to a line', () => {
+    const line = geometries.geom2.create([[[5, 0], [6, 3]], [[6, 3], [7, 6]], [[7, 6], [5, 0]]])
+    expect(j$.rotateExtrude({ angle: 360 }, line)).toBeUndefined()
+  })
+
   it('still extrudes a real profile', () => {
     const square = primitives.rectangle({ size: [2, 2], center: [3, 0] })
     expect(j$.rotateExtrude({ angle: 360 }, square)).toBeDefined()
