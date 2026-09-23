@@ -126,7 +126,10 @@ hashes, in both modes:
 - Mixed projects merge at load time: each manifest path names exactly one
   backend, and unlisted sibling requires resolve local-first, then rowboat.
 - Chat conversations persist per project and resume on revisit.
-- Any project exports or imports as a zip (`exportZip`/`importZip`).
+- Any project exports or imports as a zip (`exportZip`/`importZip`). Its
+  name and entry ride in `.jscad-web.json`, the same dotfile a linked folder
+  or connected repo keeps. Zips, folders and repos that carry jscad-studio's
+  `.jscad-studio.json` still read; writes use the new name.
 
 `src/storage/manifest.js` is generated from `schema.js`; regenerate with
 `node scripts/gen-manifest.js` after editing the schema (a parity test fails

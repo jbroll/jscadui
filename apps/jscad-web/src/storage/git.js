@@ -3,10 +3,8 @@
 // dotfile in the path carries the name, entry and conversation, mirroring the
 // folder mode; versions are the path's real commits, newest first.
 import { kindFromEntry } from './local.js'
+import { LEGACY_META_PATH, META_PATH, isMetaPath } from './meta.js'
 import { exportZip, importZip } from './zip.js'
-
-// Kept from jscad-studio: existing connected repos carry this meta file.
-const META_PATH = '.jscad-studio.json'
 
 export class GitStorageError extends Error {
   constructor(message) {
@@ -38,19 +36,16 @@ export function createGitStorage(options) {
   }
 
   const readMeta = (files) => {
-    if (!files[META_PATH]) return {}
+    const text = files[META_PATH] ?? files[LEGACY_META_PATH]
+    if (!text) return {}
     try {
-      return JSON.parse(files[META_PATH])
+      return JSON.parse(text)
     } catch {
       return {}
     }
   }
 
-  const withoutMeta = (files) => {
-    const out = { ...files }
-    delete out[META_PATH]
-    return out
-  }
+  const withoutMeta = (files) => Object.fromEntries(Object.entries(files).filter(([p]) => !isMetaPath(p)))
 
   const readProject = async () => {
     const { files } = await call(filesUrl())
@@ -145,10 +140,9 @@ export function createGitStorage(options) {
     readConversation,
     writeConversation,
   }
-  // Same zip pair as the folder mode, with this mode's meta entry.
   return {
     ...api,
-    exportZip: (id) => exportZip(api, id, META_PATH),
-    importZip: (file) => importZip(api, file, META_PATH),
+    exportZip: (id) => exportZip(api, id),
+    importZip: (file) => importZip(api, file),
   }
 }

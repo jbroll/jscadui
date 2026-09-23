@@ -22,6 +22,28 @@ describe('zip export/import', () => {
     expect(project.kind).toBe('jscad')
   })
 
+  it('writes its metadata as .jscad-web.json', async () => {
+    const store = createLocalStorage()
+    await store.writeFiles('p6', { 'main.js': MAIN }, { name: 'Meta', entry: 'main.js' })
+    const { unzipSync, strFromU8 } = await import('fflate')
+    const entries = unzipSync(await exportZip(store, 'p6'))
+    expect(JSON.parse(strFromU8(entries['.jscad-web.json']))).toMatchObject({ name: 'Meta', entry: 'main.js' })
+    expect(entries['.jscad-studio.json']).toBe(undefined)
+  })
+
+  it('imports a zip that carries the jscad-studio metadata name', async () => {
+    const store = createLocalStorage()
+    const { zipSync, strToU8 } = await import('fflate')
+    const old = zipSync({
+      'part.scad': strToU8('cube(5);'),
+      '.jscad-studio.json': strToU8(JSON.stringify({ name: 'Old', entry: 'part.scad' })),
+    })
+    const imported = await importZip(store, old)
+    const project = await store.readProject(imported.id)
+    expect(project.files).toEqual({ 'part.scad': 'cube(5);' })
+    expect(project.entry).toBe('part.scad')
+  })
+
   it('refuses a zip with no project metadata', async () => {
     const store = createLocalStorage()
     const { zipSync, strToU8 } = await import('fflate')

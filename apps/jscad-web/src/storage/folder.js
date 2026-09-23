@@ -4,10 +4,8 @@
 // entry and conversation. Versions are deliberately absent — history lives in
 // the folder's own git, so this mode invents no snapshot rows.
 import { kindFromEntry } from './local.js'
+import { LEGACY_META_PATH, META_PATH, isMetaPath } from './meta.js'
 import { exportZip, importZip } from './zip.js'
-
-// Kept from jscad-studio: existing linked folders carry this meta file.
-const META_PATH = '.jscad-studio.json'
 
 export class FolderNotLinkedError extends Error {
   constructor() {
@@ -113,13 +111,15 @@ export function createFolderStorage(options = {}) {
   }
 
   const readMeta = async (handle) => {
-    try {
-      const fileHandle = await handle.getFileHandle(META_PATH)
-      return JSON.parse(await (await fileHandle.getFile()).text())
-    } catch (err) {
-      if (isNotFound(err)) return {}
-      throw new FolderStaleError()
+    for (const path of [META_PATH, LEGACY_META_PATH]) {
+      try {
+        const fileHandle = await handle.getFileHandle(path)
+        return JSON.parse(await (await fileHandle.getFile()).text())
+      } catch (err) {
+        if (!isNotFound(err)) throw new FolderStaleError()
+      }
     }
+    return {}
   }
 
   const writeMeta = async (handle, meta) => {
@@ -146,7 +146,7 @@ export function createFolderStorage(options = {}) {
       for await (const entry of dir.values()) {
         if (entry.kind === 'file') {
           const path = `${prefix}${entry.name}`
-          if (path === META_PATH) continue
+          if (isMetaPath(path)) continue
           files[path] = await (await entry.getFile()).text()
         } else if (entry.kind === 'directory') {
           await walk(entry, `${prefix}${entry.name}/`)
@@ -243,11 +243,9 @@ export function createFolderStorage(options = {}) {
     readConversation,
     writeConversation,
   }
-  // Zip pair over the interface, with this mode's meta entry so the meta
-  // file never leaks into the folder's project files.
   return {
     ...api,
-    exportZip: (id) => exportZip(api, id, META_PATH),
-    importZip: (file) => importZip(api, file, META_PATH),
+    exportZip: (id) => exportZip(api, id),
+    importZip: (file) => importZip(api, file),
   }
 }

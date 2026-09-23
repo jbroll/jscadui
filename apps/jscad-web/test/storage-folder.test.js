@@ -165,6 +165,35 @@ describe('linked folder storage', () => {
     expect((await second.readProject('x')).files).toEqual({ 'main.js': 'shared' })
   })
 
+  it('keeps its metadata in .jscad-web.json', async () => {
+    const dir = fakeDir('parts')
+    const { storage } = await linked(dir)
+    await storage.writeFiles('x', { 'main.js': 'm' }, { name: 'N', entry: 'main.js' })
+    const meta = await (await (await dir.getFileHandle('.jscad-web.json')).getFile()).text()
+    expect(JSON.parse(meta)).toMatchObject({ name: 'N', entry: 'main.js' })
+  })
+
+  it('reads a folder that still carries the jscad-studio meta file', async () => {
+    const dir = fakeDir('parts')
+    dir.__seed('part.scad', 'cube(5);')
+    dir.__seed('.jscad-studio.json', JSON.stringify({ name: 'Old', entry: 'part.scad' }))
+    const { storage } = await linked(dir)
+    const project = await storage.readProject('x')
+    expect(project.name).toBe('Old')
+    expect(project.entry).toBe('part.scad')
+    expect(project.files).toEqual({ 'part.scad': 'cube(5);' })
+  })
+
+  it('exports a zip that local storage can import', async () => {
+    const { createLocalStorage } = await import('../src/storage/local.js')
+    const { importZip } = await import('../src/storage/zip.js')
+    const { storage } = await linked(fakeDir('parts'))
+    await storage.writeFiles('x', { 'main.js': 'm' }, { name: 'Z', entry: 'main.js' })
+    const local = createLocalStorage()
+    const imported = await importZip(local, await storage.exportZip('x'))
+    expect((await local.readProject(imported.id)).files).toEqual({ 'main.js': 'm' })
+  })
+
   it('exports and imports a zip over the folder interface', async () => {
     const { storage } = await linked(fakeDir('parts'))
     await storage.writeFiles('x', { 'main.js': 'm', 'lib/t.js': 't' }, { name: 'Z', entry: 'main.js' })
