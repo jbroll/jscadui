@@ -79,11 +79,4 @@ echo "Running: node e2e/render-all.mjs $RENDER_ARGS"
 node e2e/render-all.mjs $RENDER_ARGS
 RC=$?
 echo "render-all exit code: $RC"
-if [ "$RC" != "0" ]; then exit $RC; fi
-
-# ── frame protocol e2e (dev server + chromium already up) ──
-echo "Running: npx playwright test e2e/frame.spec.js"
-( cd "$APP" && npx playwright test e2e/frame.spec.js )
-RC=$?
-echo "frame spec exit code: $RC"
 exit $RC

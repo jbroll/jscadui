@@ -3,8 +3,8 @@
 #
 #   sci push jscadui/web
 #
-# Browser e2e (render sweep, frame protocol) lives in ci/render; this entry
-# also gates the app and AI chat e2e, since the frame is the only engine now.
+# The render sweep lives in ci/render; this entry gates the app, AI chat and
+# frame protocol e2e, since the frame is the only engine now.
 set -euo pipefail
 
 WORKTREE="$(cd "$(dirname "$0")/.." && pwd)"
@@ -25,4 +25,4 @@ npx vitest run
 
 cd "$APP"
 npx playwright install chromium
-npx playwright test e2e/app.spec.js e2e/ai-chat.spec.js
+npx playwright test e2e/app.spec.js e2e/ai-chat.spec.js e2e/frame.spec.js
