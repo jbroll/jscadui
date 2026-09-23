@@ -1,41 +1,41 @@
 {
-  "_comment": "Render sweep on the jscad modeling engine (sci push jscadui/render-jscad). 23 of the 27 failures extrude a geom2 whose sides do not close; those are sides lost inside the 3D boolean, not anything downstream of it — see docs/backlog.md. packing_circles.scad sits on the 600s guard and has gone both ways across runs. Diff future runs against failures[], not against zero.",
+  "_comment": "Render sweep on the jscad modeling engine (sci push jscadui/render-jscad), 320s hang guard. 59 models draw nothing and score empty, the 45 the manifold sweep also scores empty plus ones this engine returns nothing for. 25 of the 28 errors extrude a geom2 whose sides do not close, random_city.scad and random_city_taiwan.scad among them now that comparison-only skips render; see docs/backlog.md. packing_circles.scad sits on the time limit and has gone both ways across runs, so it is marked flaky.",
   "tree": "main working tree, rsynced onto the CI base worktree by sci — no commit identifies the code that was measured",
   "modeling": "jbroll/OpenJSCAD.org fix/offset-degenerate-outline c2676bd1",
-  "date": "2026-09-22",
-  "job": "8738629ba8767389",
+  "date": "2026-09-23",
+  "job": "66c6287cbb317a60",
   "engine": "jscad",
-  "total": 785,
-  "ok": 758,
-  "failed": 27,
+  "total": 807,
+  "ok": 719,
+  "failed": 88,
   "byLib": {
     "openscad/01-basics": {
       "ok": 20,
       "fail": 0
     },
     "openscad/bosl": {
-      "ok": 113,
-      "fail": 0
+      "ok": 92,
+      "fail": 21
     },
     "openscad/bosl2": {
-      "ok": 178,
-      "fail": 0
+      "ok": 156,
+      "fail": 22
     },
     "openscad/dotscad": {
-      "ok": 173,
-      "fail": 12
+      "ok": 182,
+      "fail": 22
     },
     "openscad/mcad": {
-      "ok": 14,
-      "fail": 0
+      "ok": 12,
+      "fail": 2
     },
     "openscad/nopscadlib": {
-      "ok": 131,
-      "fail": 14
+      "ok": 132,
+      "fail": 15
     },
     "openscad/snippet": {
-      "ok": 118,
-      "fail": 1
+      "ok": 114,
+      "fail": 6
     },
     "openscad/text": {
       "ok": 11,
@@ -44,139 +44,386 @@
   },
   "failures": [
     {
+      "rel": "openscad/bosl/01-part1/001-constants-cuboid.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl/01-part1/002-constants-cyl.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl/01-part1/017-masks-chamfer_hole_mask.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl/01-part1/021-math-sum.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl/01-part1/022-math-sum_of_squares.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl/01-part1/023-math-mean.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl/02-part2/024-math-in_list.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl/02-part2/025-math-reverse.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl/02-part2/026-math-enumerate.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl/02-part2/027-math-flatten.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl/02-part2/028-math-vmul.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl/02-part2/029-math-vdiv.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl/02-part2/030-math-triangle_area2d.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl/03-part3/060-shapes-tube.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl/04-part4/077-threading-trapezoidal_threaded_nut.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl/04-part4/079-threading-threaded_nut.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl/04-part4/081-threading-buttress_threaded_nut.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl/04-part4/083-threading-metric_trapezoidal_threaded_nut.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl/04-part4/085-threading-acme_threaded_nut.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl/04-part4/087-threading-square_threaded_nut.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl/05-part5/110-wiring-hex_offset_ring.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/01-part1/026-comparisons-max_index.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/02-part2/047-fnliterals-echo.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/02-part2/054-geometry-plane_from_normal.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/02-part2/059-hooks-ring_hook.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/02-part2/069-linalg-transpose.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/03-part3/074-lists-reverse.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/03-part3/081-math-log2.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/03-part3/082-math-sum.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/03-part3/083-math-mean.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/03-part3/084-math-deltas.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/03-part3/085-math-product.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/03-part3/086-math-cumprod.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/04-part4/137-strings-parse_num.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/04-part4/138-strings-format_float.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/05-part5/155-utility-same_shape.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/05-part5/156-utility-assert_approx.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/05-part5/157-utility-assert_equal.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/05-part5/158-vectors-v_mul.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/05-part5/159-vectors-v_div.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/05-part5/160-vectors-v_abs.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/05-part5/161-vnf-echo.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/05-part5/worldmap_360x180.scad",
+      "status": "empty"
+    },
+    {
       "rel": "openscad/dotscad/examples/circle_packing/packing_circles.scad",
       "status": "timeout",
-      "errText": "TimeoutError: page.waitForFunction: Timeout 600000ms exceeded."
+      "why": "TimeoutError: page.waitForFunction: Timeout 320000ms exceeded.",
+      "flaky": true
+    },
+    {
+      "rel": "openscad/dotscad/examples/dragon/dragon_claw.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/dotscad/examples/dragon/dragon_foot.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/dotscad/examples/dragon/dragon_head_low_poly.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/dotscad/examples/dragon/dragon_scales.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/dotscad/examples/floor_stand/floor_stand.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/dotscad/examples/hollow_out/hollow_out_square.scad",
+      "status": "empty"
     },
     {
       "rel": "openscad/dotscad/examples/image_slicer.scad",
       "status": "error",
-      "errText": "Error: jscadMain failed: geometry is not closed at vertex 26.481744604669778,-13.000161350173743"
+      "why": "Error: jscadMain failed: geometry is not closed at vertex 26.481744604669778,-13.000161350173743Error: geometry is not closed at vertex 26.481744604669778,-13.000161350173743 at Object.Mw [as toOutlines] (assets/bundle.jscad_modeling.js:1:20289) at WS (assets/bundle.jscad_modeling.js:17:13760) at ev"
     },
     {
       "rel": "openscad/dotscad/examples/maze/heart2heart_maze.scad",
       "status": "error",
-      "errText": "Error: jscadMain failed: geometry is not closed at vertex 14.469305806279758,-6.910692140865015"
+      "why": "Error: jscadMain failed: geometry is not closed at vertex 14.469305806279758,-6.910692140865015Error: geometry is not closed at vertex 14.469305806279758,-6.910692140865015 at Object.Mw [as toOutlines] (assets/bundle.jscad_modeling.js:1:20289) at WS (assets/bundle.jscad_modeling.js:17:13760) at eval"
     },
     {
       "rel": "openscad/dotscad/examples/maze/maze_city.scad",
       "status": "error",
-      "errText": "Error: jscadMain failed: geometry is not closed at vertex -15.000035898875808,3.5081609406009973"
+      "why": "Error: jscadMain failed: geometry is not closed at vertex -15.000035898875808,3.5081609406009973Error: geometry is not closed at vertex -15.000035898875808,3.5081609406009973 at Mw (assets/bundle.jscad_modeling.js:1:20289) at K6 (assets/bundle.jscad_modeling.js:13:58225) at new no (assets/bundle.jsc"
     },
     {
       "rel": "openscad/dotscad/examples/maze/maze_masking.scad",
       "status": "error",
-      "errText": "Error: jscadMain failed: geometry is not closed at vertex -67.99996000000002,-28.00004666666667"
+      "why": "Error: jscadMain failed: geometry is not closed at vertex -67.99996000000002,-28.00004666666667Error: geometry is not closed at vertex -67.99996000000002,-28.00004666666667 at Mw (assets/bundle.jscad_modeling.js:1:20289) at K6 (assets/bundle.jscad_modeling.js:13:58225) at new no (assets/bundle.jscad"
     },
     {
       "rel": "openscad/dotscad/examples/maze/maze3d_mickey.scad",
       "status": "error",
-      "errText": "RangeError: jscadMain failed: Maximum call stack size exceededRange"
+      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at eval (http://localhost:5120/examples/openscad/dotscad/matrix/m_replace.scad:1:1) at Array.map (<anonymous>) at Object.m_replace_$f (http://localhost:5120/examples/openscad/dotscad/matrix/m_r"
     },
     {
       "rel": "openscad/dotscad/examples/spiral_polygons/fidget_boo.scad",
       "status": "error",
-      "errText": "Error: jscadMain failed: geometry is not closed at vertex -7.2953101921793735,2.435671429864949"
+      "why": "Error: jscadMain failed: geometry is not closed at vertex -7.2953101921793735,2.435671429864949Error: geometry is not closed at vertex -7.2953101921793735,2.435671429864949 at Object.Mw [as toOutlines] (assets/bundle.jscad_modeling.js:1:20289) at Qu (assets/bundle.openscad.js:135:20353) at Object.li"
     },
     {
       "rel": "openscad/dotscad/examples/spiral_polygons/fidget_heart.scad",
       "status": "error",
-      "errText": "Error: jscadMain failed: geometry is not closed at vertex -0.4491939799789669,-7.646438519118617"
+      "why": "Error: jscadMain failed: geometry is not closed at vertex -0.4491939799789669,-7.646438519118617Error: geometry is not closed at vertex -0.4491939799789669,-7.646438519118617 at Object.Mw [as toOutlines] (assets/bundle.jscad_modeling.js:1:20289) at Qu (assets/bundle.openscad.js:135:20353) at Object."
+    },
+    {
+      "rel": "openscad/dotscad/examples/taiwan/random_city_taiwan.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: geometry is not closed at vertex -15.000035898875808,3.5081609406009973Error: geometry is not closed at vertex -15.000035898875808,3.5081609406009973 at Mw (assets/bundle.jscad_modeling.js:1:20289) at K6 (assets/bundle.jscad_modeling.js:13:58225) at new no (assets/bundle.jsc"
     },
     {
       "rel": "openscad/dotscad/examples/text_box.scad",
       "status": "error",
-      "errText": "Error: jscadMain failed: geometry is not closed at vertex -14.064318743488146,-30.80989825311967"
+      "why": "Error: jscadMain failed: geometry is not closed at vertex -14.064318743488146,-30.80989825311967Error: geometry is not closed at vertex -14.064318743488146,-30.80989825311967 at Mw (assets/bundle.jscad_modeling.js:1:20289) at K6 (assets/bundle.jscad_modeling.js:13:58225) at new no (assets/bundle.jsc"
+    },
+    {
+      "rel": "openscad/dotscad/examples/tiles/city_tile.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/dotscad/examples/tiles/random_city.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: geometry is not closed at vertex -15.000035898875808,3.5081609406009973Error: geometry is not closed at vertex -15.000035898875808,3.5081609406009973 at Mw (assets/bundle.jscad_modeling.js:1:20289) at K6 (assets/bundle.jscad_modeling.js:13:58225) at new no (assets/bundle.jsc"
     },
     {
       "rel": "openscad/dotscad/examples/triangle2square/triangle2square_box.scad",
       "status": "error",
-      "errText": "Error: jscadMain failed: geometry is not closed at vertex 27.780145557037113,-41.53075432982075"
+      "why": "Error: jscadMain failed: geometry is not closed at vertex 27.780145557037113,-41.53075432982075Error: geometry is not closed at vertex 27.780145557037113,-41.53075432982075 at Mw (assets/bundle.jscad_modeling.js:1:20289) at K6 (assets/bundle.jscad_modeling.js:13:58225) at new no (assets/bundle.jscad"
+    },
+    {
+      "rel": "openscad/dotscad/examples/triangle2square/triangle2square.scad",
+      "status": "empty"
     },
     {
       "rel": "openscad/dotscad/examples/voronoi/voronoi_holder.scad",
       "status": "error",
-      "errText": "Error: jscadMain failed: geometry is not closed at vertex 0.7032306723555575,5.486411780977778"
+      "why": "Error: jscadMain failed: geometry is not closed at vertex 0.7032306723555575,5.486411780977778Error: geometry is not closed at vertex 0.7032306723555575,5.486411780977778 at Object.Mw [as toOutlines] (assets/bundle.jscad_modeling.js:1:20289) at Qu (assets/bundle.openscad.js:135:20353) at Object.line"
     },
     {
       "rel": "openscad/dotscad/examples/walk_torus83_fort.scad",
       "status": "error",
-      "errText": "Error: jscadMain failed: geometry is not closed at vertex 59.83026079978061,-23.357707033346717"
+      "why": "Error: jscadMain failed: geometry is not closed at vertex 59.83026079978061,-23.357707033346717Error: geometry is not closed at vertex 59.83026079978061,-23.357707033346717 at Mw (assets/bundle.jscad_modeling.js:1:20289) at K6 (assets/bundle.jscad_modeling.js:13:58225) at new no (assets/bundle.jscad"
+    },
+    {
+      "rel": "openscad/mcad/examples/bearing_test.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/mcad/examples/linear_bearing_test.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/nopscadlib/NopSCADlib/tests/annotation.scad",
+      "status": "empty"
     },
     {
       "rel": "openscad/nopscadlib/NopSCADlib/tests/circlips.scad",
       "status": "error",
-      "errText": "Error: jscadMain failed: geometry is not closed at vertex -6.74415996422327,-4.466877565275581"
+      "why": "Error: jscadMain failed: geometry is not closed at vertex -6.74415996422327,-4.466877565275581Error: geometry is not closed at vertex -6.74415996422327,-4.466877565275581 at Object.Mw [as toOutlines] (assets/bundle.jscad_modeling.js:1:20289) at WS (assets/bundle.jscad_modeling.js:17:13760) at eval ("
     },
     {
       "rel": "openscad/nopscadlib/NopSCADlib/tests/core_xy.scad",
       "status": "error",
-      "errText": "Error: jscadMain failed: geometry is not closed at vertex -19.677766854083536,-15.370751179613364"
+      "why": "Error: jscadMain failed: geometry is not closed at vertex -19.677766854083536,-15.370751179613364Error: geometry is not closed at vertex -19.677766854083536,-15.370751179613364 at Mw (assets/bundle.jscad_modeling.js:1:20289) at K6 (assets/bundle.jscad_modeling.js:13:58225) at new no (assets/bundle.j"
     },
     {
       "rel": "openscad/nopscadlib/NopSCADlib/tests/horiholes.scad",
       "status": "error",
-      "errText": "Error: jscadMain failed: geometry is not closed at vertex -27.147193333333338,-6.250040000000001"
+      "why": "Error: jscadMain failed: geometry is not closed at vertex -27.147193333333338,-6.250040000000001Error: geometry is not closed at vertex -27.147193333333338,-6.250040000000001 at Mw (assets/bundle.jscad_modeling.js:1:20289) at K6 (assets/bundle.jscad_modeling.js:13:58225) at new no (assets/bundle.jsc"
     },
     {
       "rel": "openscad/nopscadlib/NopSCADlib/tests/hot_ends.scad",
       "status": "error",
-      "errText": "Error: jscadMain failed: geometry is not closed at vertex -2.9749338536334236,8.567850032349687"
+      "why": "Error: jscadMain failed: geometry is not closed at vertex -2.9749338536334236,8.567850032349687Error: geometry is not closed at vertex -2.9749338536334236,8.567850032349687 at Mw (assets/bundle.jscad_modeling.js:1:20289) at K6 (assets/bundle.jscad_modeling.js:13:58225) at new no (assets/bundle.jscad"
     },
     {
       "rel": "openscad/nopscadlib/NopSCADlib/tests/IECs.scad",
       "status": "error",
-      "errText": "Error: jscadMain failed: geometry is not closed at vertex -8.133849609600002,-9.874748333022225"
+      "why": "Error: jscadMain failed: geometry is not closed at vertex -8.133849609600002,-9.874748333022225Error: geometry is not closed at vertex -8.133849609600002,-9.874748333022225 at Mw (assets/bundle.jscad_modeling.js:1:20289) at K6 (assets/bundle.jscad_modeling.js:13:58225) at new no (assets/bundle.jscad"
     },
     {
       "rel": "openscad/nopscadlib/NopSCADlib/tests/offset.scad",
       "status": "error",
-      "errText": "Error:"
+      "why": "Error: Error: model exceeded 290000 ms at frameWorkerTerminated (http://localhost:5120/main.js:551:12335) at d (http://localhost:5120/main.js:161:22195) at m (http://localhost:5120/main.js:161:22287) at o (http://localhost:5120/main.js:551:11021)"
     },
     {
       "rel": "openscad/nopscadlib/NopSCADlib/tests/PCB.scad",
       "status": "error",
-      "errText": "Error: jscadMain failed: geometry is not closed at vertex 0,-0.024103675662897683"
+      "why": "Error: jscadMain failed: geometry is not closed at vertex 0,-0.024103675662897683Error: geometry is not closed at vertex 0,-0.024103675662897683 at Mw (assets/bundle.jscad_modeling.js:1:20289) at K6 (assets/bundle.jscad_modeling.js:13:58225) at new no (assets/bundle.jscad_modeling.js:13:59110) at Ob"
     },
     {
       "rel": "openscad/nopscadlib/NopSCADlib/tests/PSU_shroud.scad",
       "status": "error",
-      "errText": "Error: jscadMain failed: geometry is not closed at vertex -2.9149495731778132,3.1182416582136216"
+      "why": "Error: jscadMain failed: geometry is not closed at vertex -2.9149495731778132,3.1182416582136216Error: geometry is not closed at vertex -2.9149495731778132,3.1182416582136216 at Mw (assets/bundle.jscad_modeling.js:1:20289) at K6 (assets/bundle.jscad_modeling.js:13:58225) at new no (assets/bundle.jsc"
     },
     {
       "rel": "openscad/nopscadlib/NopSCADlib/tests/radials.scad",
       "status": "error",
-      "errText": "Error: jscadMain failed: geometry is not closed at vertex 0,-0.024103675662897683"
+      "why": "Error: jscadMain failed: geometry is not closed at vertex 0,-0.024103675662897683Error: geometry is not closed at vertex 0,-0.024103675662897683 at Mw (assets/bundle.jscad_modeling.js:1:20289) at K6 (assets/bundle.jscad_modeling.js:13:58225) at new no (assets/bundle.jscad_modeling.js:13:59110) at Ob"
     },
     {
       "rel": "openscad/nopscadlib/NopSCADlib/tests/screw_knob.scad",
       "status": "error",
-      "errText": "Error: jscadMain failed: geometry is not closed at vertex 9.182251649951741,11.8393452313831"
+      "why": "Error: jscadMain failed: geometry is not closed at vertex 9.182251649951741,11.8393452313831Error: geometry is not closed at vertex 9.182251649951741,11.8393452313831 at Mw (assets/bundle.jscad_modeling.js:1:20289) at K6 (assets/bundle.jscad_modeling.js:13:58225) at new no (assets/bundle.jscad_model"
     },
     {
       "rel": "openscad/nopscadlib/NopSCADlib/tests/SSR_shroud.scad",
       "status": "error",
-      "errText": "Error: jscadMain failed: geometry is not closed at vertex -2.9149495731778132,3.1182416582136216"
+      "why": "Error: jscadMain failed: geometry is not closed at vertex -2.9149495731778132,3.1182416582136216Error: geometry is not closed at vertex -2.9149495731778132,3.1182416582136216 at Mw (assets/bundle.jscad_modeling.js:1:20289) at K6 (assets/bundle.jscad_modeling.js:13:58225) at new no (assets/bundle.jsc"
     },
     {
       "rel": "openscad/nopscadlib/NopSCADlib/tests/stepper_motors.scad",
       "status": "error",
-      "errText": "Error: jscadMain failed: geometry is not closed at vertex 15.525620152923214,14.13215700535525"
+      "why": "Error: jscadMain failed: geometry is not closed at vertex 15.525620152923214,14.13215700535525Error: geometry is not closed at vertex 15.525620152923214,14.13215700535525 at Mw (assets/bundle.jscad_modeling.js:1:20289) at K6 (assets/bundle.jscad_modeling.js:13:58225) at new no (assets/bundle.jscad_m"
     },
     {
       "rel": "openscad/nopscadlib/NopSCADlib/tests/wire.scad",
       "status": "error",
-      "errText": "Error: jscadMain failed: geometry is not closed at vertex -2.8610262233795023,2.1158864876426082"
+      "why": "Error: jscadMain failed: geometry is not closed at vertex -2.8610262233795023,2.1158864876426082Error: geometry is not closed at vertex -2.8610262233795023,2.1158864876426082 at Mw (assets/bundle.jscad_modeling.js:1:20289) at K6 (assets/bundle.jscad_modeling.js:13:58225) at new no (assets/bundle.jsc"
     },
     {
       "rel": "openscad/nopscadlib/NopSCADlib/tests/zipties.scad",
       "status": "error",
-      "errText": "Error: jscadMain failed: geometry is not closed at vertex -2.9780127651242077,5.35579448075528"
+      "why": "Error: jscadMain failed: geometry is not closed at vertex -2.9780127651242077,5.35579448075528Error: geometry is not closed at vertex -2.9780127651242077,5.35579448075528 at Mw (assets/bundle.jscad_modeling.js:1:20289) at K6 (assets/bundle.jscad_modeling.js:13:58225) at new no (assets/bundle.jscad_m"
     },
     {
       "rel": "openscad/snippet/01-basic/Spawing_Cube.scad",
       "status": "error",
-      "errText": "Error: jscadMain failed: size values must be positive"
+      "why": "Error: jscadMain failed: size values must be positiveError: size values must be positive at tb (assets/bundle.jscad_modeling.js:13:31888) at bu (assets/bundle.openscad.js:135:10679) at Object.cube (assets/bundle.openscad.js:143:213) at ht.main (/examples/openscad/snippet/01-basic/Spawing_Cube.scad:5"
+    },
+    {
+      "rel": "openscad/snippet/02-intermediate/Coin_02.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/snippet/02-intermediate/Cone_01.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/snippet/03-advanced/Nut_LQ.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/snippet/04-misc/Wall_03.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/snippet/04-misc/Washer.scad",
+      "status": "empty"
     }
   ]
 }
