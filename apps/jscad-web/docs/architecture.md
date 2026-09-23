@@ -106,7 +106,10 @@ which project switches and edits clear; a full URL would land in its module
 cache, which they do not. Both caches empty on `jscadClearTempCache`. An edit
 reported through `jscadClearFileCache` drops every project-origin entry, since
 an include is inlined into each file that includes it; entries from other
-origins, such as a library's, stay.
+origins, such as a library's, stay. An editor run with no project clears
+nothing, so the handler also remembers the source each entry was built from:
+an entry whose source differs, or an include whose read differs, is
+transpiled again.
 
 A model loaded from a real URL is different: `main.js` passes the app origin,
 not the model's own URL, as the base for a `#url=` model's siblings, so those

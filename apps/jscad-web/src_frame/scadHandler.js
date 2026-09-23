@@ -38,6 +38,10 @@ export const createScadHandler = ({ getOpenscad, getAppOrigin, now = Date.now })
   // path -> transpiled JS source
   const transpiledCache = new Map()
 
+  // url -> the .scad source its cached entries were built from. An editor run
+  // with no project clears nothing, so the source is what shows an edit.
+  const sources = new Map()
+
   // The transpiler's own cache of TranspiledFile objects, kept across runs so
   // it can skip unchanged dependencies. It is keyed by the paths pathFor gives,
   // which are bare on the entry's origin, so there is one per entry origin.
@@ -53,7 +57,7 @@ export const createScadHandler = ({ getOpenscad, getAppOrigin, now = Date.now })
     if (!entryOrigin || entryOrigin === 'null') entryOrigin = appOrigin
     const key = absolute(url, entryOrigin)
 
-    if (transpiledCache.has(key)) {
+    if (transpiledCache.has(key) && sources.get(key) === source) {
       return transpiledCache.get(key)
     }
 
@@ -104,19 +108,27 @@ export const createScadHandler = ({ getOpenscad, getAppOrigin, now = Date.now })
       return undefined
     }
 
+    const shared = sharedCacheFor(entryOrigin)
     const fileResolver = (filename, fromFile) => {
       for (const candidate of includeCandidates(filename, fromFile, url, appOrigin)) {
         const content = tryFetch(candidate)
-        if (content !== undefined) return { path: pathFor(candidate), content }
+        if (content === undefined) continue
+        const path = pathFor(candidate)
+        // The transpiler reads a file before it looks in its cache, so dropping
+        // an entry built from other source here makes it build a fresh one.
+        if (sources.get(candidate) !== content) shared.delete(path)
+        sources.set(candidate, content)
+        return { path, content }
       }
       return undefined
     }
 
+    sources.set(key, source)
     const result = transpile(ast, {
       fileResolver,
       currentFile: pathFor(key),
       includeHeader: true,
-    }, sharedCacheFor(entryOrigin))
+    }, shared)
 
     if (result.errors && result.errors.length > 0) {
       const criticalErrors = result.errors.filter(e =>
@@ -148,6 +160,7 @@ export const createScadHandler = ({ getOpenscad, getAppOrigin, now = Date.now })
     clearTranspiled: () => {
       transpiledCache.clear()
       sharedCaches.clear()
+      sources.clear()
     },
     /**
      * Includes are inlined into their includers, so an edit under `root` drops

@@ -179,6 +179,22 @@ describe('shared transpiler cache', () => {
     expect(compiled).toEqual(['/main.scad', '/lib.scad'])
   })
 
+  it('transpiles an edited entry again when nothing clears the cache', () => {
+    const scad = createScadHandler({ getOpenscad: inliningOpenscad, getAppOrigin: () => APP })
+    const readFile = reader({ [`${APP}/demo/lib.scad`]: 'lib' })
+    expect(scad.handle('v1 include lib.scad', `${APP}/demo/main.scad`, readFile)).toBe('v1+lib')
+    expect(scad.handle('v2 include lib.scad', `${APP}/demo/main.scad`, readFile)).toBe('v2+lib')
+  })
+
+  it('includes the file as read, not an edited copy of it that was run', () => {
+    const scad = createScadHandler({ getOpenscad: inliningOpenscad, getAppOrigin: () => APP })
+    const readFile = reader({ [`${APP}/demo/lib.scad`]: 'lib-v1' })
+    expect(scad.handle('main include lib.scad', `${APP}/demo/main.scad`, readFile)).toBe('main+lib-v1')
+    expect(scad.handle('lib-v2', `${APP}/demo/lib.scad`, readFile)).toBe('lib-v2')
+    expect(scad.handle('main include lib.scad', `${APP}/demo/main.scad`, readFile)).toBe('main+lib-v1')
+    expect(scad.handle('main2 include lib.scad', `${APP}/demo/main.scad`, readFile)).toBe('main2+lib-v1')
+  })
+
   it('starts empty after the caches are cleared', () => {
     const scad = createScadHandler({ getOpenscad: inliningOpenscad, getAppOrigin: () => APP })
     const files = { [`${project}/lib.scad`]: 'lib-a' }
