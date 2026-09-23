@@ -146,7 +146,9 @@ origin ships the viewer bundles (three.js, regl, render-regl) and nothing that
 runs a model. So the app sends
 `jscadInit` with an `engine` name and the frame fills in the `bundles` map from
 its own `__BUNDLE_BASE__`. The same call carries the frame's request timeout:
-the app sends `timeoutMs: 120000` from `initFrame()`, and the frame falls back
+the app sends `timeoutMs: 120000` from `initFrame()`, or the value of the
+`engine.modelTimeoutMs` localStorage key when one is set (the render sweep sets
+it for every model and grid), and the frame falls back
 to 30 s only if no `jscadInit` ever named one. `engine` latches: a `jscadInit`
 that omits it keeps the last one, which is what the alias path
 (`onAliasFound`) depends on, since it re-inits without naming an engine.
