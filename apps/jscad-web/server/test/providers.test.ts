@@ -297,6 +297,12 @@ describe('createProvider', () => {
     await expect(collect(provider)).rejects.toThrow(message)
   })
 
+  it('responses: a stream that ends without response.completed ends the turn with an error', async () => {
+    fetchMock.mockResolvedValueOnce(streamResponse(openaiChunk({ type: 'response.output_text.delta', delta: 'Hi' })))
+    const provider = createProvider({ kind: 'opencode-go', apiKey: 'sk-test', model: 'grok-4.6' })
+    await expect(collect(provider)).rejects.toThrow(/ended before response\.completed/)
+  })
+
   it('opencode-go routes qwen models to the messages endpoint', async () => {
     fetchMock.mockResolvedValueOnce(streamResponse(ANTHROPIC_PLAIN))
     const provider = createProvider({ kind: 'opencode-go', apiKey: 'sk-test', model: 'qwen3.8-flash' })

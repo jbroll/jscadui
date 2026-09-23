@@ -63,6 +63,7 @@ export function responsesProvider(config: ProviderConfig): Provider {
         throw new Error(`responses: ${detail} (status ${res.status})`)
       }
       const calls = new Map<string, { id: string; name: string; args: string }>()
+      let completed = false
       for await (const payload of ssePayloads(res.body)) {
         let event: ResponsesEvent
         try {
@@ -84,6 +85,7 @@ export function responsesProvider(config: ProviderConfig): Provider {
           acc.args += event.delta ?? ''
           calls.set(key, acc)
         } else if (event.type === 'response.completed') {
+          completed = true
           break
         } else if (event.type === 'response.failed') {
           throw new Error(`responses: ${event.response?.error?.message ?? 'response failed'}`)
@@ -93,6 +95,7 @@ export function responsesProvider(config: ProviderConfig): Provider {
           throw new Error(`responses: ${event.message ?? 'provider error'}`)
         }
       }
+      if (!completed) throw new Error('responses: stream ended before response.completed')
       for (const acc of calls.values()) {
         let input: unknown
         try {
