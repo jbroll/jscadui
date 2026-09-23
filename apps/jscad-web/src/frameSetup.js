@@ -56,19 +56,19 @@ const createReplay = (proxy) => {
   }
 
   const replay = async () => {
-    const inits = [...new Set([engineInit, ...aliasInits.values(), lastInit])].filter(Boolean)
-    for (const args of inits) await proxy.jscadInit(...args)
-    if (files) await proxy.jscadSetFiles(...files)
-    if (!script) {
-      lost = everLoaded
-      return
-    }
     try {
+      const inits = [...new Set([engineInit, ...aliasInits.values(), lastInit])].filter(Boolean)
+      for (const args of inits) await proxy.jscadInit(...args)
+      if (files) await proxy.jscadSetFiles(...files)
+      if (!script) {
+        lost = everLoaded
+        return
+      }
       await proxy.jscadScript(...script)
       if (main) await proxy.jscadMain(...main)
     } catch {
       script = main = null
-      lost = true
+      lost = everLoaded
     }
   }
 
@@ -76,10 +76,11 @@ const createReplay = (proxy) => {
 
   return {
     record,
+    // A restart during a replay is the replay's own doing: its calls fail, so
+    // it ends without the model rather than starting over.
     restore: () => {
-      const run = (restoring ?? Promise.resolve()).then(replay).catch(() => {})
-      restoring = run
-      run.then(() => { if (restoring === run) restoring = null })
+      if (restoring) return
+      restoring = replay().finally(() => { restoring = null })
     },
     /**
      * @param {string} method

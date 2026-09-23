@@ -168,6 +168,23 @@ describe('worker restart', () => {
     await expect(exported).resolves.toEqual({})
   })
 
+  it('does not start over when the replay itself is killed', async () => {
+    const frame = await boot()
+    await loadModel(frame)
+
+    terminate(frame)
+    const next = frame.workerApi.jscadScript({ script: 'next' })
+    await frame.flush()
+    const [init] = frame.sent
+    frame.fail(init, 'TimeoutError', 'model exceeded 1 ms')
+    terminate(frame)
+    await frame.flush()
+    await settleAll(frame)
+    await next
+
+    expect(methods(frame.sent)).toEqual(['jscadInit', 'jscadScript'])
+  })
+
   it('sends requests straight through when nothing needs replaying', async () => {
     const frame = await boot()
     frame.workerApi.jscadMain({ params: {} }).catch(() => {})

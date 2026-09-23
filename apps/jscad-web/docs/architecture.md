@@ -181,7 +181,9 @@ successful calls only: the `jscadInit`s (the last one naming an engine, every
 alias, and the latest), the last `jscadSetFiles`, the last `jscadScript`, and
 the params of the last `jscadMain` after it. On restart it replays them in that
 order, and any request made meanwhile waits for the replay. A script that
-failed or timed out is not replayed, and neither is one whose replay fails. In
+failed or timed out is not replayed, and neither is one whose replay fails. A
+restart during a replay ends that replay instead of starting another, so a
+budget too small for the replay cannot hold requests back forever. In
 those cases `jscadMain`, `jscadExportData`, `jscadMeasure` and `jscadCheck` are
 refused with "the model stopped and could not be reloaded" until a script loads
 again.
