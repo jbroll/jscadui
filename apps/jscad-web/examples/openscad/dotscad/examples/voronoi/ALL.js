@@ -24,6 +24,9 @@ const items = [
 const spacing = 60
 const cellSize = 51
 
+const isWasmTrap = (err) =>
+  (typeof WebAssembly !== 'undefined' && err instanceof WebAssembly.RuntimeError) || err?.name === 'RuntimeError'
+
 const main = (params) => {
   const all = []
   const nameSeen = {}
@@ -44,6 +47,9 @@ const main = (params) => {
         nameSeen[name] = 1
       }
 
+      // A trapped wasm instance stays broken, so no later cell's result can be trusted
+      if (globalThis.__allWasmTrap) throw new Error(`not run: wasm trapped in ${globalThis.__allWasmTrap}`)
+
       const mod = require(url)
       const fn = (mod && mod.main) || (typeof mod === 'function' ? mod : null)
       if (typeof fn === 'function') {
@@ -54,9 +60,12 @@ const main = (params) => {
       }
     } catch (err) {
       // One bad model marks its own cell; the rest of the grid still renders
+      if (isWasmTrap(err)) globalThis.__allWasmTrap ??= url
       console.error(`ALL: FAILED ${url}: ${err.message}`)
       failed.push(url)
-      all.push(...normalizeAndPlace(failureMarker(), x, y, cellSize))
+      try {
+        all.push(...normalizeAndPlace(failureMarker(), x, y, cellSize))
+      } catch { /* the marker needs the same wasm */ }
     }
   })
 

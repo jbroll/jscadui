@@ -41,6 +41,9 @@ catches it, draws a red skull-and-crossbones in that cell, and logs
 `ALL: FAILED <url>: <message>` plus an `ALL: N/M models failed:` summary. The
 sweep reads those lines off the page console into `cellFailures` and scores the
 grid `partial`, which counts as a failure and prints each dead cell under `☠`.
+A cell that raises a `WebAssembly.RuntimeError` leaves the wasm instance
+broken, so every cell after it in that worker, nested grids included, fails as
+`not run: wasm trapped in <url>` rather than being scored on a broken instance.
 
 It must not wait on `#progress`: `static/main.css` sets that element
 `display: none`, so a "wait until hidden" resolves immediately and every file

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { readFileSync } from 'fs'
 import { createRequire } from 'module'
 import { dirname, join, resolve } from 'path'
@@ -26,18 +26,31 @@ const loadCjs = (path, req) => {
  * Run a generated ALL.js with every model stubbed out, except the ones named
  * in `broken`, whose require throws.
  */
-const runGrid = (broken = []) => {
+const runGrid = (broken = [], { trap = [] } = {}) => {
   const req = (name) => {
     if (name.endsWith('grid-utils.js')) {
       return loadCjs(resolve(dirname(gridPath), name), nodeRequire)
     }
     if (broken.includes(name)) throw new Error(`boom in ${name}`)
+    if (trap.includes(name)) throw new WebAssembly.RuntimeError('function signature mismatch')
     return { main: () => cube({ size: 10 }) }
   }
   return loadCjs(gridPath, req).main({})
 }
 
+const failureLines = (run) => {
+  const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+  try {
+    run()
+    return errors.mock.calls.map(args => args.join(' '))
+  } finally {
+    errors.mockRestore()
+  }
+}
+
 describe('generated ALL.js grid', () => {
+  afterEach(() => { delete globalThis.__allWasmTrap })
+
   it('renders every cell when nothing fails', () => {
     const geoms = runGrid()
     expect(geoms.length).toBe(11)
@@ -86,5 +99,22 @@ describe('generated ALL.js grid', () => {
     expect(lines).toContain('ALL: FAILED ./text-fonts.scad: boom in ./text-fonts.scad')
     expect(lines).toContain('ALL: FAILED ./text-sizes.scad: boom in ./text-sizes.scad')
     expect(lines).toContain('ALL: 2/11 models failed: ./text-fonts.scad ./text-sizes.scad')
+  })
+
+  it('fails every cell after a wasm trap instead of trusting it', () => {
+    const lines = failureLines(() => runGrid([], { trap: ['./text-fonts.scad'] }))
+    expect(lines).toContain('ALL: FAILED ./text-fonts.scad: function signature mismatch')
+    expect(lines).toContain('ALL: FAILED ./text-sizes.scad: not run: wasm trapped in ./text-fonts.scad')
+    expect(lines.at(-1)).toMatch(/^ALL: \d+\/11 models failed: \.\/text-fonts\.scad /)
+  })
+
+  it('fails cells before the trap only if they threw', () => {
+    const lines = failureLines(() => runGrid([], { trap: ['./text-sizes.scad'] }))
+    expect(lines.some(l => l.startsWith('ALL: FAILED ./text-fonts.scad'))).toBe(false)
+  })
+
+  it('keeps an ordinary error from poisoning later cells', () => {
+    const lines = failureLines(() => runGrid(['./text-fonts.scad']))
+    expect(lines.filter(l => l.startsWith('ALL: FAILED '))).toHaveLength(1)
   })
 })
