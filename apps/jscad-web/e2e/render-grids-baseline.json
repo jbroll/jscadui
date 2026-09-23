@@ -60,39 +60,67 @@
   "failures": [
     {
       "rel": "ALL.js",
-      "status": "timeout"
+      "status": "timeout",
+      "why": "TimeoutError: page.waitForFunction: Timeout 600000ms exceeded."
     },
     {
       "rel": "openscad/ALL.js",
-      "status": "error"
+      "status": "error",
+      "cells": [
+        "./fractal_tree.scad: table index is out of bounds",
+        "./05-part5/ALL.js: function signature mismatch",
+        "./bosl2/ALL.js: function signature mismatch"
+      ],
+      "why": "RuntimeError: jscadMain failed: function signature mismatchRuntimeError: function signature mismatch at assets/manifold.wasm:wasm-function[130]:0x8c1f at assets/manifold.wasm:wasm-function[446]:0x35154 at assets/manifold.wasm:wasm-function[821]:0x6676d at assets/manifold.wasm:wasm-function[931]:0x6b"
     },
     {
       "rel": "openscad/bosl2/ALL.js",
-      "status": "timeout"
+      "status": "timeout",
+      "why": "TimeoutError: page.waitForFunction: Timeout 600000ms exceeded."
     },
     {
       "rel": "openscad/dotscad/ALL.js",
-      "status": "timeout"
+      "status": "timeout",
+      "why": "TimeoutError: page.waitForFunction: Timeout 600000ms exceeded."
     },
     {
       "rel": "openscad/dotscad/examples/ALL.js",
-      "status": "timeout"
+      "status": "timeout",
+      "why": "TimeoutError: page.waitForFunction: Timeout 600000ms exceeded."
     },
     {
       "rel": "openscad/dotscad/examples/maze/ALL.js",
-      "status": "partial"
+      "status": "partial",
+      "cells": [
+        "./maze3d_mickey.scad: Maximum call stack size exceeded"
+      ]
     },
     {
       "rel": "openscad/nopscadlib/ALL.js",
-      "status": "error"
+      "status": "error",
+      "cells": [
+        "./PSUs.scad: function signature mismatch",
+        "./tests/ALL.js: function signature mismatch",
+        "./NopSCADlib/ALL.js: function signature mismatch"
+      ],
+      "why": "RuntimeError: jscadMain failed: function signature mismatchRuntimeError: function signature mismatch at assets/manifold.wasm:wasm-function[130]:0x8c1f at assets/manifold.wasm:wasm-function[446]:0x35154 at assets/manifold.wasm:wasm-function[821]:0x6676d at assets/manifold.wasm:wasm-function[931]:0x6b"
     },
     {
       "rel": "openscad/nopscadlib/NopSCADlib/ALL.js",
-      "status": "error"
+      "status": "error",
+      "cells": [
+        "./PSUs.scad: function signature mismatch",
+        "./tests/ALL.js: function signature mismatch"
+      ],
+      "why": "RuntimeError: jscadMain failed: function signature mismatchRuntimeError: function signature mismatch at assets/manifold.wasm:wasm-function[130]:0x8c1f at assets/manifold.wasm:wasm-function[446]:0x35154 at assets/manifold.wasm:wasm-function[821]:0x6676d at assets/manifold.wasm:wasm-function[931]:0x6b"
     },
     {
       "rel": "openscad/nopscadlib/NopSCADlib/tests/ALL.js",
-      "status": "error"
+      "status": "error",
+      "cells": [
+        "./PSUs.scad: function signature mismatch"
+      ],
+      "why": "RuntimeError: jscadMain failed: function signature mismatchRuntimeError: function signature mismatch at assets/manifold.wasm:wasm-function[130]:0x8c1f at assets/manifold.wasm:wasm-function[446]:0x35154 at assets/manifold.wasm:wasm-function[821]:0x6676d at assets/manifold.wasm:wasm-function[931]:0x6b"
     }
   ]
 }
