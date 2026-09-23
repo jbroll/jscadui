@@ -15,7 +15,7 @@ import { _getSegments } from './segments.js'
 export const NO_CHILD = Symbol('no_child')
 
 // JSCAD primitives and transforms - injected at init time
-let cube, cuboid, cylinder, circle, rectangle, polygon, polyhedron, translate, union, subtract, intersect, hull, minkowski, geom2
+let cube, cuboid, cylinder, circle, rectangle, polygon, polyhedron, translate, union, subtract, intersect, hull, minkowski, geom2, slice
 
 export const initPrimitives = (jscad) => {
   cube = jscad.primitives.cube
@@ -32,6 +32,7 @@ export const initPrimitives = (jscad) => {
   hull = jscad.hulls.hull
   minkowski = jscad.booleans.minkowski
   geom2 = jscad.geometries?.geom2
+  slice = jscad.extrusions?.slice
 }
 
 export const _cube = ({ size, center = false }) => {
@@ -474,7 +475,7 @@ const _isConvexRing = (ring) => {
 }
 
 /**
- * Minkowski sum of two 2D geometries, for a convex second operand.
+ * Minkowski sum of a 2D geometry and a convex ring.
  *
  * Sweeping a convex shape along a segment covers exactly the hull of the shape
  * at both ends, so the sum is that hull over every side of the first operand,
@@ -486,14 +487,10 @@ const _isConvexRing = (ring) => {
  * manifold engine uses, is not the same thing: it leaves gaps wherever the
  * first operand is thinner than the second's edges.
  */
-const _minkowski2D = (a, b) => {
-  const ring = geom2.toOutlines(b).sort((x, y) => Math.abs(_ringArea(y)) - Math.abs(_ringArea(x)))[0]
-  if (!ring || ring.length < 3) return a
-  if (!_isConvexRing(ring)) throw new Error('2D minkowski needs one convex operand')
-
+const _sweepConvex = (a, ring) => {
   const cx = ring.reduce((t, p) => t + p[0], 0) / ring.length
   const cy = ring.reduce((t, p) => t + p[1], 0) / ring.length
-  const centred = translate([-cx, -cy], b)
+  const centred = polygon({ points: ring.map(([x, y]) => [x - cx, y - cy]) })
 
   const pieces = [a]
   for (const [p, q] of geom2.toSides(a)) {
@@ -502,15 +499,35 @@ const _minkowski2D = (a, b) => {
   return translate([cx, cy], union(...pieces))
 }
 
+/** The operand's outlines, if they are all convex islands with no holes. */
+const _convexIslands = (g) => {
+  const rings = geom2.toOutlines(g).filter(r => r.length >= 3)
+  return rings.every(r => _ringArea(r) > 0 && _isConvexRing(r)) ? rings : undefined
+}
+
+const _triangles = (g) => slice.toPolygons(slice.fromSides(geom2.toSides(g)))
+  .map(p => p.vertices.map(([x, y]) => [x, y]))
+  .map(t => _ringArea(t) < 0 ? t.reverse() : t)
+
+/**
+ * The sum distributes over union, so a multi-part or holed operand is summed
+ * as convex pieces: its islands when each is convex, triangles otherwise.
+ */
+const _minkowski2D = (a, b) => {
+  let pieces = _convexIslands(b)
+  if (!pieces) {
+    const aIslands = _convexIslands(a)
+    if (aIslands) [a, b, pieces] = [b, a, aIslands]
+    else pieces = _triangles(b)
+  }
+  if (pieces.length === 0) return a
+  const sums = pieces.map(ring => _sweepConvex(a, ring))
+  return sums.length === 1 ? sums[0] : union(...sums)
+}
+
 export const _minkowski = (...args) => {
   const valid = args.filter(a => a !== undefined && a !== null && a !== NO_CHILD)
   if (valid.length < 2) return valid[0] || undefined
-  if (valid.every(_isJscadGeom2)) {
-    // Either operand may be the convex one, and the sum is symmetric.
-    return valid.reduce((acc, next) => {
-      const bRing = geom2.toOutlines(next)[0]
-      return bRing && _isConvexRing(bRing) ? _minkowski2D(acc, next) : _minkowski2D(next, acc)
-    })
-  }
+  if (valid.every(_isJscadGeom2)) return valid.reduce(_minkowski2D)
   return minkowski(...valid)
 }

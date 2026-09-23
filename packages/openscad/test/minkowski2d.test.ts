@@ -47,6 +47,52 @@ describe('2D minkowski', () => {
     expect(geometries.geom2.toOutlines(result)).toHaveLength(2)
   })
 
+  const twoCircles = () => jscad.booleans.union(
+    primitives.circle({ radius: 1, segments: 64 }),
+    primitives.circle({ radius: 1, segments: 64, center: [20, 0] })
+  )
+  // Each 10x10 square grown by r = 1: 100 + 4 * 10 + pi.
+  const roundedSquare = 100 + 40 + Math.PI
+
+  it('sums each part of a multi-part operand separately', () => {
+    const result = j$.minkowski(primitives.rectangle({ size: [10, 10] }), twoCircles())
+    expect(geometries.geom2.toOutlines(result)).toHaveLength(2)
+    expect(area(result)).toBeCloseTo(2 * roundedSquare, 1)
+  })
+
+  it('sums a multi-part operand given first', () => {
+    const result = j$.minkowski(twoCircles(), primitives.rectangle({ size: [10, 10] }))
+    expect(area(result)).toBeCloseTo(2 * roundedSquare, 1)
+  })
+
+  it('sums two operands when neither is convex', () => {
+    const ell = jscad.booleans.union(
+      primitives.rectangle({ size: [8, 2], center: [0, 0] }),
+      primitives.rectangle({ size: [2, 8], center: [-3, 3] })
+    )
+    const pair = jscad.booleans.union(square(2), square(2, [20, 0]))
+    const result = j$.minkowski(ell, pair)
+    expect(bbox(result)).toEqual([[-5, -2, 0], [25, 8, 0]])
+    expect(geometries.geom2.toOutlines(result)).toHaveLength(2)
+  })
+
+  it('matches the sum over convex parts when both operands are non-convex', () => {
+    const armA = primitives.rectangle({ size: [8, 2], center: [0, 0] })
+    const armB = primitives.rectangle({ size: [2, 8], center: [-3, 3] })
+    const ring = jscad.booleans.subtract(square(20), square(10))
+    const result = j$.minkowski(ring, jscad.booleans.union(armA, armB))
+    const byParts = jscad.booleans.union(j$.minkowski(ring, armA), j$.minkowski(ring, armB))
+    expect(bbox(result)).toEqual([[-14, -11, 0], [14, 17, 0]])
+    expect(area(result)).toBeCloseTo(area(byParts), 1)
+  })
+
+  it('keeps a hole in the convex-side search', () => {
+    const ring = jscad.booleans.subtract(square(20), square(10))
+    const result = j$.minkowski(square(2), ring)
+    expect(geometries.geom2.toOutlines(result)).toHaveLength(2)
+    expect(area(result)).toBeCloseTo(22 * 22 - 8 * 8, 1)
+  })
+
   it('sweeps a non-convex profile', () => {
     const ell = jscad.booleans.union(
       primitives.rectangle({ size: [8, 2], center: [0, 0] }),
