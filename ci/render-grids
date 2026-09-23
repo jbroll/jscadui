@@ -10,8 +10,9 @@
 # apps/jscad-web/e2e/RENDER-TESTING.md.
 #
 # A grid is far heavier than one model: it holds every cell's geometry at once,
-# so it gets a 600s hang guard and less concurrency than the per-model sweep.
+# so it gets less concurrency than the per-model sweep. The model budget cannot
+# exceed the app's 300s RPC timeout, so the hang guard stops at 320s.
 set -uo pipefail
 
-export RENDER_ARGS="--dir . --grids --concurrency 4 --timeout 600000 --out e2e/render-grids-report.json"
+export RENDER_ARGS="--dir . --grids --concurrency 4 --timeout 320000 --out e2e/render-grids-report.json"
 exec "$(dirname "$0")/render"

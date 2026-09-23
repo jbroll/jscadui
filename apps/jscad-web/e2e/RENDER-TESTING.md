@@ -28,7 +28,10 @@ that renders slowly still renders, and the jscad engine needs 37s for a
 NopSCADlib test that manifold does in 3.6s. The harness sets the app's own
 model budget 30s below its own cap, so a model that really does run away is
 killed by the frame and reported as `model exceeded N ms` rather than as an
-anonymous timeout. `--model-timeout` sets that budget directly.
+anonymous timeout. `--model-timeout` sets that budget directly. Either way the
+budget stops at 290s: the app's RPC to the frame gives up at 300s
+(`@jscadui/postmessage`), and past that the page reports "RPC timeout" while
+the worker keeps running. The harness warns and clamps a larger value.
 
 ### Grids and the `partial` status
 
@@ -73,7 +76,7 @@ JOB=$(../simple-ci/sci push jscadui/render)   # runs ci/render on gpu
 Edit `RENDER_ARGS` in `ci/render` to change scope/concurrency.
 
 `sci push jscadui/render-grids` runs the same setup over the 44 `ALL.js` grids
-instead (`--dir . --grids`, 600s hang guard, concurrency 4, writing
+instead (`--dir . --grids`, 320s hang guard, concurrency 4, writing
 `e2e/render-grids-report.json`). A grid holds every cell's geometry at once, so
 it is much heavier than one model. `sci` takes the script name as the job name,
 which is why this is a separate file rather than a flag on `ci/render`.

@@ -30,7 +30,8 @@
  *   --model-timeout <ms>  What the app gives a model before it kills it
  *                      (default: the per-file timeout less 30s, so the frame
  *                      reports "model exceeded N ms" rather than the harness
- *                      reporting an opaque timeout).
+ *                      reporting an opaque timeout). Capped below the app's
+ *                      300s RPC timeout, which would otherwise fire first.
  *   --server <url>     Dev server base (default: http://localhost:5120)
  *   --no-skip          Ignore skip.txt files
  *   --out <file>       JSON report path (default: e2e/render-report.json)
@@ -48,6 +49,11 @@ import { isExcluded } from '../src_build/exampleExclusions.js'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const APP_ROOT = join(__dirname, '..')
 const EXAMPLES_ROOT = join(APP_ROOT, 'examples')
+
+// @jscadui/postmessage's DEFAULT_TIMEOUT: past it the app reports "RPC timeout"
+// while the worker keeps running, so the frame's kill must come first.
+const RPC_TIMEOUT = 300_000
+const MAX_MODEL_TIMEOUT = RPC_TIMEOUT - 10_000
 
 // ── args ────────────────────────────────────────────────────────────────────
 function parseArgs(argv) {
@@ -77,6 +83,10 @@ function parseArgs(argv) {
   // Leave the harness a margin over the app, so a model that runs too long is
   // reported by the frame, which names the cause, rather than by page.goto.
   if (!o.modelTimeout) o.modelTimeout = Math.max(30_000, o.timeout - 30_000)
+  if (o.modelTimeout > MAX_MODEL_TIMEOUT) {
+    console.warn(`model budget ${o.modelTimeout} ms exceeds the app's ${RPC_TIMEOUT} ms RPC timeout; using ${MAX_MODEL_TIMEOUT} ms`)
+    o.modelTimeout = MAX_MODEL_TIMEOUT
+  }
   return o
 }
 

@@ -5,9 +5,10 @@
 #
 # Same scope as ci/render, different engine. The app defaults to manifold and
 # the STL comparison suite only runs manifold, so this is the only thing that
-# covers the jscad engine. It is roughly 10x slower, hence the longer hang
-# guard and less concurrency. See docs/backlog.md for the known clusters.
+# covers the jscad engine. It is roughly 10x slower, hence less concurrency;
+# the model budget cannot exceed the app's 300s RPC timeout, so the hang guard
+# stops at 320s. See docs/backlog.md for the known clusters.
 set -uo pipefail
 
-export RENDER_ARGS="--dir openscad --engine jscad --concurrency 4 --timeout 600000 --out e2e/render-jscad-report.json"
+export RENDER_ARGS="--dir openscad --engine jscad --concurrency 4 --timeout 320000 --out e2e/render-jscad-report.json"
 exec "$(dirname "$0")/render"
