@@ -27,8 +27,9 @@ const __dirname = dirname(__filename)
 
 // ── OpenSCAD STL cache ────────────────────────────────────────────────────
 // Caches reference STLs to skip flatpak re-renders.
-// Cache validity is per-library: invalidated when the library's lib/ dir changes.
-// Stored in ~/.cache/jscadui/openscad-stl/ so it persists across CI worktrees.
+// Cache validity is per-library: invalidated when the library's lib/ dir or the
+// OpenSCAD version changes. Stored in ~/.cache/jscadui/openscad-stl/ so it
+// persists across CI worktrees.
 
 const STL_CACHE_ROOT = join(homedir(), '.cache', 'jscadui', 'openscad-stl')
 
@@ -77,7 +78,8 @@ function failedCachePath(originalScadPath, fn, libName, preview = false) {
  * so parallel test runners don't race on a shared meta file.
  */
 class StlCache {
-  constructor() {
+  constructor(openscadVersion = '') {
+    this._openscadVersion = openscadVersion
     this._validated = {}     // libName → boolean
     this._hits = 0
     this._misses = 0
@@ -109,7 +111,7 @@ class StlCache {
     // Hash lib/ dir if it exists, else hash the library root itself
     const libDir = join(libRoot, 'lib')
     const hashTarget = existsSync(libDir) ? libDir : libRoot
-    const hash = hashDirectory(hashTarget)
+    const hash = `${hashDirectory(hashTarget)} ${this._openscadVersion}`.trim()
     this._hashes[libName] = hash
     this._dirtyLibs.add(libName)
 
@@ -119,7 +121,7 @@ class StlCache {
       const libCacheDir = join(STL_CACHE_ROOT, libName)
       if (existsSync(libCacheDir)) {
         rmSync(libCacheDir, { recursive: true })
-        process.stderr.write(`[stl-cache] invalidated ${libName} (lib changed)\n`)
+        process.stderr.write(`[stl-cache] invalidated ${libName} (lib or OpenSCAD version changed)\n`)
       }
     }
     this._validated[libName] = true
@@ -135,7 +137,7 @@ class StlCache {
     if (!libName || !this._validate(libName, originalScadPath)) return null
 
     const failed = failedCachePath(originalScadPath, fn, libName, preview)
-    if (failed && existsSync(failed)) { this._failedHits++; return { failed: true } }
+    if (failed && existsSync(failed)) { this._failedHits++; return { failed: readFileSync(failed, 'utf8').split('\n')[0] || 'failed' } }
 
     const cached = stlCachePath(originalScadPath, fn, libName, preview)
     if (cached && existsSync(cached)) { this._hits++; return { stlPath: cached } }
@@ -179,6 +181,7 @@ class StlCache {
 }
 
 const VERSION = '0.2.0'
+const OPENSCAD_TIMEOUT = 60_000
 // Limit by CPU count AND available memory (each JSCAD subprocess uses ~3GB).
 // This prevents OOM on laptops when running the full comparison suite locally.
 const MEM_PER_WORKER = 3e9
@@ -309,7 +312,7 @@ async function runOpenscad(scadPath, stlPath, openscadPath, fn = 0, originalPath
   if (stlCache) {
     const cached = stlCache.check(pathForLibDetection, fn, preview)
     if (cached) {
-      if (cached.failed) return { success: false, error: 'OpenSCAD render failed (cached)', cached: true }
+      if (cached.failed) return { success: false, error: `${cached.failed} (cached)`, cached: true }
       copyFileSync(cached.stlPath, stlPath)
       return { success: true, cached: true }
     }
@@ -324,10 +327,12 @@ async function runOpenscad(scadPath, stlPath, openscadPath, fn = 0, originalPath
   const env = libDir ? { ...process.env, OPENSCADPATH: resolve(libDir) } : process.env
 
   try {
-    await execAsync(`${openscadPath} ${args.join(' ')}`, { timeout: 60000, env })
+    await execAsync(`${openscadPath} ${args.join(' ')}`, { timeout: OPENSCAD_TIMEOUT, env })
     stlCache?.saveHit(pathForLibDetection, stlPath, fn, preview)
     return { success: true }
   } catch (err) {
+    // A timeout under load says nothing about the model, so it is not cached
+    if (err.killed) return { success: false, error: `timed out after ${OPENSCAD_TIMEOUT} ms` }
     stlCache?.saveFailed(pathForLibDetection, fn, err.message, preview)
     return { success: false, error: err.message }
   }
@@ -657,7 +662,7 @@ async function main() {
 
   // Init STL cache (skip if disabled or running with custom $fn)
   if (!options.noStlCache) {
-    options.stlCache = new StlCache()
+    options.stlCache = new StlCache(openscadInfo.version)
   }
 
   const files = getTestFiles(options.dirs, options.matchPatterns)
@@ -711,6 +716,7 @@ async function main() {
     if (result.error) {
       if (result.error.startsWith('OpenSCAD:')) {
         openscadErrors++
+        if (!options.json) console.log(`${result.name}: NOT GRADED - reference ${result.error}`)
       } else {
         translatorErrors++
         if (!options.json) console.log(`${result.name}: ERROR - ${result.error}`)
@@ -748,19 +754,17 @@ async function main() {
     }, null, 2))
   } else {
     console.log(`\nSummary: ${passed} passed, ${failed} failed, ${translatorErrors} errors out of ${tested} tested (${passRate}%)`)
-    if (openscadErrors > 0 || skipped > 0) {
-      const reasons = []
-      if (openscadErrors > 0) reasons.push(`${openscadErrors} OpenSCAD failures`)
-      if (skipped > 0) reasons.push(`${skipped} in skip list (WIP)`)
-      console.log(`Skipped: ${reasons.join(', ')}`)
+    if (openscadErrors > 0) {
+      console.log(`Not graded: ${openscadErrors} whose OpenSCAD reference failed (NOT GRADED above)`)
     }
+    if (skipped > 0) console.log(`Skipped: ${skipped} in skip list`)
     console.log(`Threshold: ${options.threshold}`)
   }
 
   // Every OpenSCAD render failing is a broken reference tool, not a suite of
   // models to skip: without this the run reports PASS having compared nothing.
   if (tested === 0 && files.length > 0) {
-    console.error(`\nNothing was tested: all ${files.length} file(s) were skipped. Check that OpenSCAD can render them.`)
+    console.error(`\nNothing was graded: ${skipped} skipped, ${openscadErrors} without an OpenSCAD reference. Check that OpenSCAD can render them.`)
     process.exit(1)
   }
 

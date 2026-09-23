@@ -82,12 +82,20 @@ node bin/test-harness.js ../../apps/jscad-web/examples/openscad --skip-file my-e
 ```
 align.scad: PASS (1.0000)
 dashed-stroke.scad: FAIL (0.4512)   ← low Jaccard similarity
-interior-fillet.scad: ERROR - OpenSCAD: ...  ← OpenSCAD itself failed (not our bug)
+interior-fillet.scad: NOT GRADED - reference OpenSCAD: ...  ← OpenSCAD itself failed
 my-module.scad: ERROR - JSCAD: ...   ← transpiler/runtime error
 
-Summary: 128/145 passed (88.3%)
-Skipped: 12 OpenSCAD failures, 5 in skip list
+Summary: 128 passed, 1 failed, 1 errors out of 130 tested (98.5%)
+Not graded: 12 whose OpenSCAD reference failed (NOT GRADED above)
+Skipped: 5 in skip list
 ```
+
+A model whose reference render fails is listed by name and left out of
+`tested`; it does not fail the run. Reference STLs, and a `.failed` sentinel for
+a reference that errored, are cached in `~/.cache/jscadui/openscad-stl/<lib>/`,
+invalidated when that library's `lib/` or the OpenSCAD version changes. A
+reference that hits the 60s limit is not cached, so a timeout under load is
+retried on the next run.
 
 ---
 
