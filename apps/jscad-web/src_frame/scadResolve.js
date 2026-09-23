@@ -1,8 +1,9 @@
 // Include resolution for OpenSCAD use/include, shared by the frame worker and
-// its tests. The transpiler hands each resolved file's bare pathname back as
-// fromFile, and a blob worker's self.location.origin is the string 'null', so
-// the origin has to come from the entry url or, when that carries none, from
-// the app origin the frame was built with.
+// its tests. The transpiler hands a resolved file on the entry's origin back as
+// a bare pathname in fromFile (scadHandler.js keeps the url of any other), and
+// a blob worker's self.location.origin is the string 'null', so the origin has
+// to come from the entry url or, when that carries none, from the app origin
+// the frame was built with.
 
 const isAbsoluteUrl = (path) => path.startsWith('http://') || path.startsWith('https://')
 

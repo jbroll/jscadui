@@ -84,6 +84,14 @@ above that root. It is the only copy of this logic; the loader in
 does not fetch the same missing file for every includer, and forgets them all
 whenever a new file map arrives or a cache is cleared.
 
+The transpiler writes each included file's path into a `require()` call, and
+`require` resolves a bare path against the script's root. So a file on the
+entry's origin, when that is the app or the project, is named by its bare
+pathname, and a file on any other origin keeps its full URL. The full URL also
+serves as the `fromFile` its own includes resolve against, which keeps them on
+their origin. The transpiled-file cache is keyed by full URL, so two origins
+with the same path do not share an entry.
+
 A model loaded from a real URL is different: `main.js` passes the app origin,
 not the model's own URL, as the base for a `#url=` model's siblings, so those
 resolve relative to `jscad.rkroll.com`, not to wherever the model was fetched

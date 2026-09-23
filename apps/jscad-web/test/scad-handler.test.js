@@ -53,3 +53,59 @@ describe('failed include reads', () => {
     expect(scad.handle('main', entry, readFile)).toBe('// main')
   })
 })
+
+describe('include origins', () => {
+  const reader = (files) => vi.fn((url) => {
+    if (url in files) return files[url]
+    throw new Error(`file not found ${url}`)
+  })
+
+  it('resolves an include of an include against the origin it came from', () => {
+    const scad = setup({ main: ['https://lib.example/a/one.scad'], one: ['two.scad'] })
+    const readFile = reader({
+      'https://lib.example/a/one.scad': 'one',
+      'https://lib.example/a/two.scad': 'two',
+    })
+    expect(scad.handle('main', 'https://app.example/examples/main.scad', readFile)).toBe('// main')
+    expect(readFile).toHaveBeenCalledWith('https://lib.example/a/two.scad')
+  })
+
+  it('names a cross-origin include by its full url so require fetches it from there', () => {
+    const openscad = fakeOpenscad({ main: ['https://lib.example/a/one.scad'] })
+    const transpile = vi.spyOn(openscad, 'transpile')
+    const scad = createScadHandler({ getOpenscad: () => openscad, getAppOrigin: () => APP })
+    scad.handle('main', 'https://app.example/examples/main.scad', reader({ 'https://lib.example/a/one.scad': 'one' }))
+    const [, { currentFile }] = transpile.mock.calls[0]
+    expect(currentFile).toBe('/examples/main.scad')
+    expect([...transpile.mock.results[0].value.files.keys()]).toEqual(['https://lib.example/a/one.scad'])
+  })
+
+  it('keeps a same-origin include as a bare path', () => {
+    const openscad = fakeOpenscad({ main: ['lib.scad'] })
+    const transpile = vi.spyOn(openscad, 'transpile')
+    const scad = createScadHandler({ getOpenscad: () => openscad, getAppOrigin: () => APP })
+    scad.handle('main', 'http://project.local/main.scad', reader({ 'http://project.local/lib.scad': 'lib' }))
+    expect([...transpile.mock.results[0].value.files.keys()]).toEqual(['/lib.scad'])
+  })
+
+  it('does not serve one origin a file transpiled from another with the same path', () => {
+    const scad = setup()
+    expect(scad.handle('A', 'https://a.example/m.scad', reader({}))).toBe('// A')
+    expect(scad.handle('B', 'https://b.example/m.scad', reader({}))).toBe('// B')
+  })
+
+  it('serves an include from the cache under its full url, and forgets it by project path', () => {
+    const openscad = fakeOpenscad({ main: ['lib.scad'] })
+    const transpile = vi.spyOn(openscad, 'transpile')
+    const scad = createScadHandler({ getOpenscad: () => openscad, getAppOrigin: () => APP })
+    const readFile = reader({ 'http://project.local/lib.scad': 'lib' })
+    scad.handle('main', 'http://project.local/main.scad', readFile)
+
+    expect(scad.handle('lib', 'http://project.local/lib.scad', readFile)).toBe('// lib')
+    expect(transpile).toHaveBeenCalledTimes(1)
+
+    scad.forgetFiles(['/lib.scad'], 'http://project.local/')
+    scad.handle('lib', 'http://project.local/lib.scad', readFile)
+    expect(transpile).toHaveBeenCalledTimes(2)
+  })
+})

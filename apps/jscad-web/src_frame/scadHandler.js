@@ -1,13 +1,22 @@
 import { includeCandidates, isSpaFallback } from './scadResolve.js'
+import { PROJECT_BASE } from './fileMap.js'
 
 const FAILURE_CACHE_TTL = 60000
 
-// Normalise a URL or path to an absolute path for use as a cache key.
-// No self.location.origin here: in a blob worker that base is 'null', so
-// absolute URLs parse on their own.
-const toCachePath = (urlOrPath) => {
+const PROJECT_ORIGIN = new URL(PROJECT_BASE).origin
+
+const originOf = (url) => {
   try {
-    return new URL(urlOrPath).pathname
+    return new URL(url).origin
+  } catch {
+    return null
+  }
+}
+
+// No self.location.origin here: in a blob worker that base is 'null'.
+const absolute = (urlOrPath, origin) => {
+  try {
+    return new URL(urlOrPath, origin ?? undefined).href
   } catch {
     return urlOrPath
   }
@@ -34,10 +43,27 @@ export const createScadHandler = ({ getOpenscad, getAppOrigin, now = Date.now })
   const workerSharedCache = new Map()
 
   const handle = (source, url, readFile) => {
-    const urlPath = toCachePath(url)
+    const appOrigin = getAppOrigin()
+    let entryOrigin = originOf(url)
+    if (!entryOrigin || entryOrigin === 'null') entryOrigin = appOrigin
+    const key = absolute(url, entryOrigin)
 
-    if (transpiledCache.has(urlPath)) {
-      return transpiledCache.get(urlPath)
+    if (transpiledCache.has(key)) {
+      return transpiledCache.get(key)
+    }
+
+    // The transpiler writes each file's path into a require() call, and
+    // require resolves a bare path against the script's root, which is the app
+    // or the project. A file anywhere else keeps its origin, both there and as
+    // the fromFile its own includes resolve against.
+    const bare = entryOrigin === appOrigin || entryOrigin === PROJECT_ORIGIN
+    const pathFor = (fileUrl) => {
+      try {
+        const parsed = new URL(fileUrl)
+        return bare && parsed.origin === entryOrigin ? parsed.pathname : parsed.href
+      } catch {
+        return fileUrl
+      }
     }
     const { parse, transpile } = getOpenscad()
 
@@ -74,16 +100,16 @@ export const createScadHandler = ({ getOpenscad, getAppOrigin, now = Date.now })
     }
 
     const fileResolver = (filename, fromFile) => {
-      for (const candidate of includeCandidates(filename, fromFile, url, getAppOrigin())) {
+      for (const candidate of includeCandidates(filename, fromFile, url, appOrigin)) {
         const content = tryFetch(candidate)
-        if (content !== undefined) return { path: toCachePath(candidate), content }
+        if (content !== undefined) return { path: pathFor(candidate), content }
       }
       return undefined
     }
 
     const result = transpile(ast, {
       fileResolver,
-      currentFile: urlPath,
+      currentFile: pathFor(key),
       includeHeader: true,
     }, workerSharedCache)
 
@@ -103,10 +129,10 @@ export const createScadHandler = ({ getOpenscad, getAppOrigin, now = Date.now })
 
     if (result.files && result.files.size > 0) {
       for (const [filePath, fileData] of result.files) {
-        transpiledCache.set(filePath, fileData.code)
+        transpiledCache.set(absolute(filePath, entryOrigin), fileData.code)
       }
     }
-    transpiledCache.set(urlPath, result.code)
+    transpiledCache.set(key, result.code)
 
     return result.code
   }
@@ -118,9 +144,14 @@ export const createScadHandler = ({ getOpenscad, getAppOrigin, now = Date.now })
       transpiledCache.clear()
       workerSharedCache.clear()
     },
-    /** @param {string[]} files */
-    forgetFiles: (files) => {
-      for (const file of files) transpiledCache.delete(toCachePath(file))
+    /**
+     * @param {string[]} files paths as jscadClearFileCache names them
+     * @param {string} [root] the base those paths are relative to
+     */
+    forgetFiles: (files, root) => {
+      for (const file of files) {
+        transpiledCache.delete(root ? absolute(file.startsWith('/') ? `.${file}` : file, root) : file)
+      }
     },
   }
 }
