@@ -643,6 +643,13 @@ describe('safeUnion across mixed dimensions', () => {
     expect(_safeUnion([square, cube])).toBe(square)
   })
 
+  it('drops degenerate polygons when a child is async, as text() is', async () => {
+    const sliver = { polygons: [...cube.polygons, { vertices: [[0, 0, 0], [1, 0, 0]] }] }
+    seen = []
+    initPrimitives(stub)
+    await _safeUnion([Promise.resolve(sliver), other3d])
+    expect(seen).toEqual([cube, other3d])
+  })
 })
 
 /**

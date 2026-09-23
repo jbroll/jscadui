@@ -183,6 +183,15 @@ const _sameDimensionAsFirst = (parts) => {
   return parts.every((p) => is2D(p) === first2D) ? parts : parts.filter((p) => is2D(p) === first2D)
 }
 
+const _unionPresent = (parts) => {
+  const valid = parts.filter(p => !_isAbsent(p))
+  if (valid.length === 0) return undefined
+  if (valid.length === 1) return valid[0]
+  const same = _sameDimensionAsFirst(valid)
+  if (same.length === 1) return same[0]
+  return union(...same.map(withoutDegeneratePolygons))
+}
+
 export const _safeUnion = (parts) => {
   // Flatten nested arrays and filter out undefined/null/NO_CHILD values
   // This handles cases where children return empty arrays or nested undefined values
@@ -190,23 +199,8 @@ export const _safeUnion = (parts) => {
 
   // Check if any element is a Promise (async children thunks, e.g. from text())
   const hasPromise = flattened.some(p => p instanceof Promise || (p && typeof p.then === 'function'))
-  if (hasPromise) {
-    // Resolve all Promises then union
-    return Promise.all(flattened.map(p => Promise.resolve(p))).then(resolved => {
-      const valid = resolved.filter(p => !_isAbsent(p))
-      if (valid.length === 0) return undefined
-      if (valid.length === 1) return valid[0]
-      const same = _sameDimensionAsFirst(valid)
-      return same.length === 1 ? same[0] : union(...same)
-    })
-  }
-
-  const valid = flattened.filter(p => !_isAbsent(p))
-  if (valid.length === 0) return undefined
-  if (valid.length === 1) return valid[0]
-  const same = _sameDimensionAsFirst(valid)
-  if (same.length === 1) return same[0]
-  return union(...same.map(withoutDegeneratePolygons))
+  if (hasPromise) return Promise.all(flattened).then(_unionPresent)
+  return _unionPresent(flattened)
 }
 
 // Re-export direct JSCAD primitives for passthrough
