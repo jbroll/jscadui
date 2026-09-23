@@ -91,13 +91,13 @@ Every one of the remaining failures dies outside the per-cell catch:
 
 ## The jscad engine
 
-The app defaults to manifold; the other engine renders **757/785** (CI job
-`2bcc245e64a2edda`, `sci push jscadui/render-jscad`), with
+The app defaults to manifold; the other engine renders **758/785** (CI job
+`8738629ba8767389`, `sci push jscadui/render-jscad`), with
 `apps/jscad-web/e2e/render-jscad-baseline.json` holding the per-model state.
 The STL comparison suite only runs manifold, so that sweep is the only thing
 covering this engine. Run one model with `display-check.js --engine jscad`.
 
-- **22 models extrude a geom2 whose sides do not close.** Was 24. One of them,
+- **23 models extrude a geom2 whose sides do not close.** One of them,
   `hypnotic_squares.scad`, was an epsilon-grid split: `fromFakePolygons`
   rounded each point onto the grid on its own, so the two copies a 3D boolean
   returns for a shared corner could land in different cells and the outline
@@ -113,7 +113,11 @@ covering this engine. Run one model with `display-check.js --engine jscad`.
   subdivided its profile and computed the shared corner one ulp off, so the
   loop never chained. See the subdivision fix in `openscad-runtime`.
 
-  The other 22 are a different bug, and it is upstream of anything
+  `text_box.scad` joined the group once 2D minkowski stopped throwing ahead
+  of it: it now reaches a later `subtract` whose unmatched vertices sit 1,700
+  to 4,000 epsilon apart.
+
+  The rest are a different bug, and it is upstream of anything
   `fromFakePolygons` does. `unionGeom2` and friends extrude both operands into
   `to3DWalls` prisms, run the 3D boolean and read the sides back; for these
   models the wall set the 3D boolean returns does not form closed loops before
@@ -156,18 +160,20 @@ covering this engine. Run one model with `display-check.js --engine jscad`.
   against a fixed tolerance. Both engines would get it: the manifold runtime
   routes geom2-sourced booleans through the same code
   (`packages/manifold/src/booleans/index.js`).
-- **2D minkowski is not implemented on this engine.** `minkowskiSum` takes
-  geom3 only, so `minkowski() { shape; circle(r); }` — the round-the-corners
-  idiom — throws. `spiral_city.scad` and `text_box.scad`. Building it out of
-  the 2D booleans means resting it on the open-geom2 bug above; a sweep-line
-  clipper would give both at once.
+- **2D minkowski is implemented** (2026-09-22): the convex operand swept along
+  every side of the other, hulled at each end and unioned, recentred on its
+  centroid so the union with the operand itself is valid. Not the union of
+  copies at the convex shape's vertices that the manifold engine uses — that
+  leaves gaps wherever the first operand is thinner than the second's edges.
+  A Manifold geometry exposes `sides` as a prototype getter, so the jscad path
+  keys on an own property and that engine keeps its own implementation.
 - **The last four are one-offs.** `maze3d_mickey.scad` overflows the stack and
   is an accepted failure (see `RENDER-TESTING.md`). `Spawing_Cube.scad` is
   empty in OpenSCAD too. `offset.scad` runs past 600s without erroring, and
   the sweep records a bare `Error:` for it. `packing_circles.scad` sits on the
   600s guard and has gone both ways across runs.
 
-  Cleared 2026-09-22, all with unit tests: mixed 2D/3D children in union,
+  Cleared 2026-09-22, all with unit tests: 2D minkowski; mixed 2D/3D children in union,
   subtract and intersect now take the group's dimension from its first child
   and ignore the rest, as OpenSCAD does; a 2D `mirror` normal is padded to
   three components; a twisted profile's subdivision reuses the original

@@ -1,13 +1,13 @@
 {
-  "_comment": "Render sweep on the jscad modeling engine (sci push jscadui/render-jscad). 22 of the 28 failures extrude a geom2 whose sides do not close; those are sides lost inside the 3D boolean, not anything downstream of it — see docs/backlog.md. packing_circles.scad sits on the 600s guard and has gone both ways across runs. Diff future runs against failures[], not against zero.",
+  "_comment": "Render sweep on the jscad modeling engine (sci push jscadui/render-jscad). 23 of the 27 failures extrude a geom2 whose sides do not close; those are sides lost inside the 3D boolean, not anything downstream of it — see docs/backlog.md. packing_circles.scad sits on the 600s guard and has gone both ways across runs. Diff future runs against failures[], not against zero.",
   "tree": "main working tree, rsynced onto the CI base worktree by sci — no commit identifies the code that was measured",
   "modeling": "jbroll/OpenJSCAD.org fix/offset-degenerate-outline c2676bd1",
   "date": "2026-09-22",
-  "job": "2bcc245e64a2edda",
+  "job": "8738629ba8767389",
   "engine": "jscad",
   "total": 785,
-  "ok": 757,
-  "failed": 28,
+  "ok": 758,
+  "failed": 27,
   "byLib": {
     "openscad/01-basics": {
       "ok": 20,
@@ -22,8 +22,8 @@
       "fail": 0
     },
     "openscad/dotscad": {
-      "ok": 172,
-      "fail": 13
+      "ok": 173,
+      "fail": 12
     },
     "openscad/mcad": {
       "ok": 14,
@@ -84,14 +84,9 @@
       "errText": "Error: jscadMain failed: geometry is not closed at vertex -0.4491939799789669,-7.646438519118617"
     },
     {
-      "rel": "openscad/dotscad/examples/spiral/spiral_city.scad",
-      "status": "error",
-      "errText": "Error: jscadMain failed: minkowskiSum requires geom3 geometries"
-    },
-    {
       "rel": "openscad/dotscad/examples/text_box.scad",
       "status": "error",
-      "errText": "Error: jscadMain failed: minkowskiSum requires geom3 geometries"
+      "errText": "Error: jscadMain failed: geometry is not closed at vertex -14.064318743488146,-30.80989825311967"
     },
     {
       "rel": "openscad/dotscad/examples/triangle2square/triangle2square_box.scad",
