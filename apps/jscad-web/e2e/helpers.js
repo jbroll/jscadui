@@ -7,7 +7,9 @@ export async function dismissWelcome(page) {
   const welcome = page.locator('#welcome')
   try {
     await welcome.waitFor({ state: 'visible', timeout: 3000 })
-    await page.locator('#welcome-dismiss').click()
+    // A model load removes the overlay itself; an unbounded click on a button
+    // that was just removed waits out the whole test for it to come back.
+    await page.locator('#welcome-dismiss').click({ timeout: 3000 })
     await welcome.waitFor({ state: 'hidden', timeout: 5000 })
   } catch {
     // welcome already gone or never appeared

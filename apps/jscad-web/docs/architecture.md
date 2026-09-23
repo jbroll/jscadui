@@ -189,8 +189,8 @@ loop. Until an init naming an engine succeeds, the replay retries the last one
 attempted. Nothing else re-inits on a restart: `main.js` used to send
 `jscadInit` on every `frameWorkerTerminated`, and when that init was what
 timed out (a 1 ms budget, or a worker that cannot load) each restart caused
-the next. That loop kept the page too busy for the e2e harness to see the
-settled `data-render`. In
+the next, about one `setError` every 2 ms for as long as the page was open.
+In
 those cases `jscadMain`, `jscadExportData`, `jscadMeasure` and `jscadCheck` are
 refused with "the model stopped and could not be reloaded" until a script loads
 again.
