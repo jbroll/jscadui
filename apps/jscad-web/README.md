@@ -98,7 +98,9 @@ headers are set in `build.js` (dev server), `serve.js` (`npm run serve`) and
 `deploy/hooks/apache.configure.post.sh` (the deployed vhost, keyed by
 `APP_NAME`). The app origin is baked into the frame's CSP and
 `__ALLOWED_ORIGIN__` at build time; `FRAME_APP_ORIGIN` overrides it, and
-`FRAME_RUN_ORIGIN` overrides the frame's own.
+`FRAME_RUN_ORIGIN` overrides the frame's own. In dev the app serves on
+`JSCAD_WEB_PORT` (default 5120) and the frame on the port above it; `--port`
+overrides both.
 
 The app origin answers `Access-Control-Allow-Origin: *` on `/examples/` for
 the same reason: an example resolves its sibling files over the network from
