@@ -15,7 +15,7 @@ import { _getSegments } from './segments.js'
 export const NO_CHILD = Symbol('no_child')
 
 // JSCAD primitives and transforms - injected at init time
-let cube, cuboid, cylinder, circle, rectangle, polygon, polyhedron, translate, union, subtract, intersect, hull, minkowski
+let cube, cuboid, cylinder, circle, rectangle, polygon, polyhedron, translate, union, subtract, intersect, hull, minkowski, geom2
 
 export const initPrimitives = (jscad) => {
   cube = jscad.primitives.cube
@@ -31,6 +31,7 @@ export const initPrimitives = (jscad) => {
   intersect = jscad.booleans.intersect
   hull = jscad.hulls.hull
   minkowski = jscad.booleans.minkowski
+  geom2 = jscad.geometries?.geom2
 }
 
 export const _cube = ({ size, center = false }) => {
@@ -449,8 +450,71 @@ export const _intersect = (...args) => {
   return intersect(...same.map(withoutDegeneratePolygons))
 }
 
+// Own property, not the prototype getter a Manifold geometry exposes: that
+// engine has its own 2D minkowski and must keep it.
+const _isJscadGeom2 = (g) => g !== null && typeof g === 'object' && Object.prototype.hasOwnProperty.call(g, 'sides')
+
+/** Signed area of a ring; its sign is the winding. */
+const _ringArea = (ring) => {
+  let a = 0
+  for (let i = 0; i < ring.length; i++) {
+    const p = ring[i], q = ring[(i + 1) % ring.length]
+    a += p[0] * q[1] - q[0] * p[1]
+  }
+  return a / 2
+}
+
+const _isConvexRing = (ring) => {
+  let sign = 0
+  for (let i = 0; i < ring.length; i++) {
+    const p = ring[i], q = ring[(i + 1) % ring.length], r = ring[(i + 2) % ring.length]
+    const cross = (q[0] - p[0]) * (r[1] - q[1]) - (q[1] - p[1]) * (r[0] - q[0])
+    if (cross === 0) continue
+    const s = Math.sign(cross)
+    if (sign === 0) sign = s
+    else if (s !== sign) return false
+  }
+  return true
+}
+
+/**
+ * Minkowski sum of two 2D geometries, for a convex second operand.
+ *
+ * Sweeping a convex shape along a segment covers exactly the hull of the shape
+ * at both ends, so the sum is that hull over every side of the first operand,
+ * unioned with the operand itself. That last part needs the origin to lie
+ * inside the swept shape, so it is recentred on its centroid and the result
+ * translated back — the sum commutes with translation.
+ *
+ * The union of the translated copies at the convex shape's vertices, which the
+ * manifold engine uses, is not the same thing: it leaves gaps wherever the
+ * first operand is thinner than the second's edges.
+ */
+const _minkowski2D = (a, b) => {
+  const ring = geom2.toOutlines(b).sort((x, y) => Math.abs(_ringArea(y)) - Math.abs(_ringArea(x)))[0]
+  if (!ring || ring.length < 3) return a
+  if (!_isConvexRing(ring)) throw new Error('2D minkowski needs one convex operand')
+
+  const cx = ring.reduce((t, p) => t + p[0], 0) / ring.length
+  const cy = ring.reduce((t, p) => t + p[1], 0) / ring.length
+  const centred = translate([-cx, -cy], b)
+
+  const pieces = [a]
+  for (const [p, q] of geom2.toSides(a)) {
+    pieces.push(hull(translate([p[0], p[1]], centred), translate([q[0], q[1]], centred)))
+  }
+  return translate([cx, cy], union(...pieces))
+}
+
 export const _minkowski = (...args) => {
   const valid = args.filter(a => a !== undefined && a !== null && a !== NO_CHILD)
   if (valid.length < 2) return valid[0] || undefined
+  if (valid.every(_isJscadGeom2)) {
+    // Either operand may be the convex one, and the sum is symmetric.
+    return valid.reduce((acc, next) => {
+      const bRing = geom2.toOutlines(next)[0]
+      return bRing && _isConvexRing(bRing) ? _minkowski2D(acc, next) : _minkowski2D(next, acc)
+    })
+  }
   return minkowski(...valid)
 }
