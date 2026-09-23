@@ -7,7 +7,8 @@
 # block, so a re-deploy replaces rather than duplicates it.
 #
 # Runs locally after the apache configure stage with APP_NAME, DOMAIN_NAME
-# and REMOTE_HOST/REMOTE_USER from deploy.conf/deploy-run.conf.
+# and REMOTE_HOST/REMOTE_USER from deploy.conf/deploy-run.conf, and for the
+# run host FRAME_APP_ORIGIN, the same origin build.js baked into the frame.
 set -e
 source "$DEPLOY_HOME/lib/common.sh"
 
@@ -25,7 +26,7 @@ if [[ "$APP_NAME" == "jscad-run" ]]; then
     # and the worker's bundle XHRs are cross-origin fetches that need this.
     # frame-ancestors allows only the app origin to embed this frame.
     Header always set Access-Control-Allow-Origin "*"
-    Header always set Content-Security-Policy "frame-ancestors https://jscad.rkroll.com"
+    Header always set Content-Security-Policy "frame-ancestors ${FRAME_APP_ORIGIN:?FRAME_APP_ORIGIN is set by deploy-run.conf}"
     Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), usb=(), serial=()"
     # end jscad-web frame headers
 EOF

@@ -169,6 +169,9 @@ keep the same shape for a given host.
 `build.js` also bakes the app origin into the frame page's CSP and into
 `__ALLOWED_ORIGIN__`: `http://localhost:<port>` for a dev build,
 `https://jscad.rkroll.com` for production, `FRAME_APP_ORIGIN` to override.
+The run host's `frame-ancestors` header reads the same variable:
+`deploy-full.sh` exports it before building, defaulting to the app URL, and
+`deploy-run.conf` defaults it for a standalone run-host deploy.
 
 ### Preview and render
 

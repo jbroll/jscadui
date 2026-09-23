@@ -28,6 +28,8 @@ APP_DOMAIN="jscad.rkroll.com"
 APP_URL="https://${APP_DOMAIN}"
 RUN_DOMAIN="jscad-run.rkroll.com"
 RUN_URL="https://${RUN_DOMAIN}"
+# Read by build.js and by the run host's frame-ancestors hook; they must agree.
+export FRAME_APP_ORIGIN="${FRAME_APP_ORIGIN:-$APP_URL}"
 
 # A freshly deployed vhost needs a moment. curl -f exits non-zero on anything
 # but a 2xx, so its status is the check; the body is never read.
