@@ -147,9 +147,9 @@ worker's own listener is attached, `src_frame/sealMessages.js` makes later
 cannot read the ids either.
 
 Nothing waits on a request the frame can answer immediately: a malformed
-`jscadInit` is rejected in the listener, and a method the worker has no handler
-for is answered with an error by `@jscadui/postmessage` rather than left
-pending.
+`jscadInit` is rejected in the listener, a worker that cannot be constructed
+fails the request that needed it, and a method the worker has no handler for
+is answered with an error by `@jscadui/postmessage` rather than left pending.
 
 A second iframe `load` means the frame navigated, so its worker, file map and
 engine are gone. `frameSetup.js` reports that and asks for a re-init, the same

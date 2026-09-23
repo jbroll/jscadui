@@ -113,6 +113,33 @@ describe('worker messages', () => {
 })
 
 
+describe('worker creation failure', () => {
+  const failingHost = (posted) => createFrameHost({
+    allowedOrigin: APP,
+    bundleBase: BASE,
+    createWorker: () => { throw new Error('blob workers are blocked') },
+    post: (message) => posted.push(message),
+    parentWindow,
+  })
+
+  it('answers the request with the error', () => {
+    const posted = []
+    const host = failingHost(posted)
+    host.handleMessage({ origin: APP, source: parentWindow, data: { method: 'jscadMain', id: 4, params: [] } })
+    expect(posted).toEqual([
+      { method: RESPONSE, id: 4, error: { name: 'Error', message: 'could not start the model worker: blob workers are blocked' } },
+    ])
+    expect(host.getPendingCount()).toBe(0)
+  })
+
+  it('drops a notification it cannot deliver', () => {
+    const posted = []
+    const host = failingHost(posted)
+    host.handleMessage({ origin: APP, source: parentWindow, data: { method: 'onPing', params: [] } })
+    expect(posted).toEqual([])
+  })
+})
+
 describe('jscadInit rewriting', () => {
   it('names the frame bundles and drops the sender bundles', () => {
     const { workers, send } = setup()

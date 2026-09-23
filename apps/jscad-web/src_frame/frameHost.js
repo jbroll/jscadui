@@ -135,7 +135,15 @@ export const createFrameHost = ({
       message = frameInit(data, options, rest)
     }
 
-    if (!worker) attach()
+    if (!worker) {
+      try {
+        attach()
+      } catch (error) {
+        worker = null
+        if (id) answerError(id, 'Error', `could not start the model worker: ${error?.message ?? error}`)
+        return
+      }
+    }
     if (id) message = { ...message, id: track(id) }
     worker.postMessage(message, collectBuffers(message))
   }
