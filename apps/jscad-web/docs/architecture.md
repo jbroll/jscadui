@@ -136,6 +136,16 @@ next request builds a fresh worker, which the app's handler re-initializes. A
 worker that fails to load its bundles takes the same path through `onerror`,
 so the app sees the load error rather than a timeout a budget later.
 
+Model code runs in the same worker as the code that answers requests, so the
+frame does not trust what the worker posts. Each relayed request goes to the
+worker under a fresh `crypto.randomUUID()`, and the frame maps it back to the
+app's id. A worker message that is not an answer to an id the frame issued is
+dropped, so a model cannot answer a request itself to cancel its timer, and
+cannot post `frameWorkerTerminated` or any other message to the app. Once the
+worker's own listener is attached, `src_frame/sealMessages.js` makes later
+`message` listeners and `onmessage` on the worker global inert, so model code
+cannot read the ids either.
+
 Nothing waits on a request the frame can answer immediately: a malformed
 `jscadInit` is rejected in the listener, and a method the worker has no handler
 for is answered with an error by `@jscadui/postmessage` rather than left
