@@ -55,6 +55,7 @@ import { initProjects } from './src/projects.js'
 import { extractEntries, readAsText, readDir } from '@jscadui/fs-provider'
 import { createFrame, createJobTracker } from './src/frameSetup.js'
 import { collectProjectFiles, replaceProjectFiles } from './src/projectFiles.js'
+import { createScriptRuns, sendScript } from './src/scriptRuns.js'
 import { PROJECT_BASE } from './src_frame/fileMap.js'
 import * as fileSystem from './src/fileSystem.js'
 import * as paramsUI from './src/paramsUI.js'
@@ -465,8 +466,11 @@ viewState.onRequireReRender = () => paramChangeCallback(ctrl.params)
 
 // ============== Script Loading ==============
 
+const beginScriptRun = createScriptRuns()
+
 /** @param {{script?:string,url?:string,base?:string,root?:string}} options*/
 const jscadScript = async ({ script, url = './jscad.model.js', base = currentBase, root }) => {
+  const isStale = beginScriptRun()
   currentBase = base
   loadDefault = false
   document.documentElement.dataset.render = 'running'
@@ -503,8 +507,10 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
     }
     // Query renderer capability for GPU normals support
     const useGpuNormals = viewState.viewer?.supportsGpuNormals ?? false
-    await workerApi.jscadSetFiles({ files: await collectProjectFiles(fileSystem.getSwHandler()) })
-    const result = await workerApi.jscadScript({ script, url, base, root, useGpuNormals })
+    const files = await collectProjectFiles(fileSystem.getSwHandler())
+    if (isStale()) return
+    const result = await sendScript(workerApi, files, { script, url, base, root, useGpuNormals })
+    if (isStale()) return
 
     if (result.proxyState && useParamsProxy) {
       paramsCtrl.initFromResult(result)
@@ -564,6 +570,7 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
         paramsTreeView?.update({ values: paramsCtrl.params })
         // Re-run model with restored params
         const restoreResult = await workerApi.jscadMain(paramsCtrl.getWorkerParams())
+        if (isStale()) return
         handlers.entities(restoreResult)
         return
       }
@@ -585,7 +592,7 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
       })
     }
   } catch (err) {
-    setError(err)
+    if (!isStale()) setError(err)
   }
 }
 

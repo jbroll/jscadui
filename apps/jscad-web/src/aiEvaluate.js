@@ -1,5 +1,6 @@
 import { capGeometry, DEFAULT_CAPS } from './caps.js'
 import { PROJECT_BASE } from '../src_frame/fileMap.js'
+import { sendScript } from './scriptRuns.js'
 
 const DEFAULT_ENTRY = './jscad.model.js'
 
@@ -14,8 +15,7 @@ const toError = (error) => ({ ok: false, error: { name: error?.name ?? 'Error', 
 export const createEvaluate = (workerApi, handleEntities) => async (source, entry = DEFAULT_ENTRY) => {
   let result
   try {
-    await workerApi.jscadSetFiles({ files: { [entry]: source } })
-    result = await workerApi.jscadScript({
+    result = await sendScript(workerApi, { [entry]: source }, {
       script: source,
       url: PROJECT_BASE + entry,
       base: PROJECT_BASE,

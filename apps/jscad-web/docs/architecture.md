@@ -74,6 +74,13 @@ Every compile sends whatever the cache holds, so switching projects empties it
 first (`replaceProjectFiles`); otherwise the frame receives the union of every
 project opened in the session.
 
+The worker holds one file map, and a load awaits file collection before it
+reaches the frame, so two loads can overlap and finish in either order.
+`src/scriptRuns.js` sends a script together with its map in one turn, so no
+other load's map lands between them, and `main.js` drops any load that a newer
+one has started after, before it sends and again before it draws or reports
+an error.
+
 An OpenSCAD `use`/`include` resolves through `src_frame/scadResolve.js`:
 against the directory of the file that asked for it, then against that file's
 library root (`/examples/openscad/<library>`) as an OPENSCADPATH-like
