@@ -13,15 +13,23 @@ export interface RelayRouteOptions {
   dnsLookup?: (host: string) => Promise<Array<{ address: string }>>
 }
 
-// Forwarded hop-by-hop headers are the caller's, not the relay's; content
-// length especially must go, since the relay streams without knowing it.
-const DROP_HEADERS = new Set(['host', 'connection', 'content-length', 'transfer-encoding'])
+// The app shares this origin, so the browser attaches its session cookie;
+// anything not needed by a provider stays here.
+const FORWARD_HEADERS = new Set([
+  'content-type',
+  'accept',
+  'authorization',
+  'x-api-key',
+  'anthropic-version',
+  'anthropic-beta',
+  'x-opencode-session',
+])
 
 const pickHeaders = (req: Request): Record<string, string> => {
   const out: Record<string, string> = {}
   for (const [name, value] of Object.entries(req.headers)) {
-    if (DROP_HEADERS.has(name.toLowerCase())) continue
-    if (typeof value === 'string') out[name] = value
+    const key = name.toLowerCase()
+    if (FORWARD_HEADERS.has(key) && typeof value === 'string') out[key] = value
   }
   return out
 }

@@ -198,7 +198,9 @@ page holds the conversation, calls the provider, and serves each tool request
 itself through `src/aiBridge.js`. Provider HTTP goes through `/api/relay`,
 which exists only because providers do not send CORS headers; it keeps no
 session and no storage, checks the caller's origin, resolves the upstream host
-at forward time and refuses private addresses.
+at forward time and refuses private addresses. It forwards an allowlist of
+headers (content type, accept, provider auth and version, the opencode
+session), so the session cookie never reaches a provider.
 
 Tools and where they run:
 

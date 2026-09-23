@@ -18,6 +18,10 @@ ports; re-read at most every 5s, so edits apply without restart.
 - Browser `Origin` must be in the server's trusted origins; else `403`.
 - Per-IP 60 req/min, burst 10; over limit is `429` with `Retry-After`.
 - No session required; the caller's provider key rides the request through.
+- Only `content-type`, `accept`, `authorization`, `x-api-key`,
+  `anthropic-version`, `anthropic-beta` and `x-opencode-session` go upstream.
+  The app shares the relay's origin, so the session cookie, `origin`,
+  `referer` and forwarding headers must stay behind.
 
 ## Logs and smoke
 

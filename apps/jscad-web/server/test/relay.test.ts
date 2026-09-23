@@ -73,6 +73,30 @@ describe('relay routes', () => {
     expect(JSON.stringify(logs[0])).not.toMatch(/sk-secret|model/)
   })
 
+  it('forwards only provider headers, never cookies or client identity', async () => {
+    fetchMock.mockImplementation(async () => sseResponse('data: ok\n\n'))
+    await request(relayApp([]))
+      .post('/api/relay/openai/v1/messages')
+      .set('Origin', 'https://app.test')
+      .set('Cookie', 'better-auth.session_token=secret')
+      .set('Referer', 'https://app.test/project/1')
+      .set('X-Forwarded-For', '203.0.113.9')
+      .set('User-Agent', 'browser')
+      .set('x-api-key', 'sk-ant')
+      .set('anthropic-version', '2023-06-01')
+      .set('x-opencode-session', 'sess-1')
+      .set('Accept', 'text/event-stream')
+      .send({ model: 'm' })
+    const headers = fetchMock.mock.calls[0][1].headers as Record<string, string>
+    expect(headers).toEqual({
+      'content-type': 'application/json',
+      accept: 'text/event-stream',
+      'x-api-key': 'sk-ant',
+      'anthropic-version': '2023-06-01',
+      'x-opencode-session': 'sess-1',
+    })
+  })
+
   it('refuses an upstream that resolves to a private address', async () => {
     const app = express()
     const logs: unknown[] = []
