@@ -31,6 +31,18 @@ export const createFrame = async ({ onError, onEntities, onJobCount, onTerminate
   frameEl.src = runOrigin + '/'
   frameEl.setAttribute('sandbox', 'allow-scripts')
   frameEl.hidden = true
+
+  // The worker answers jscadMain with its entities rather than notifying, so
+  // frameWorkerTerminated is the only message the frame sends on its own.
+  const notifications = {
+    frameWorkerTerminated: ({ reason }) => {
+      onError(new Error(reason))
+      onTerminated?.()
+    },
+  }
+
+  const proxy = messageProxy(framePort(frameEl, runOrigin), notifications, { onJobCount })
+
   // A message sent before the frame document runs is lost, and nothing in the
   // protocol replays it. An extension, a proxy or DNS can keep that load from
   // ever arriving, so boot goes on without it rather than stopping the page.
@@ -40,8 +52,10 @@ export const createFrame = async ({ onError, onEntities, onJobCount, onTerminate
     if (loaded) {
       // A second load means the frame navigated. Its worker, file map and
       // engine went with it, so every later request would run against a frame
-      // the app never set up.
-      onError(new Error(`compute frame at ${runOrigin} reloaded; its state is gone`))
+      // the app never set up, and no request in flight will be answered.
+      const error = new Error(`compute frame at ${runOrigin} reloaded; its state is gone`)
+      proxy.rejectPending(error)
+      onError(error)
       onTerminated?.()
       return
     }
@@ -60,15 +74,6 @@ export const createFrame = async ({ onError, onEntities, onJobCount, onTerminate
   await Promise.race([ready, deadline])
   clearTimeout(timer)
 
-  // The worker answers jscadMain with its entities rather than notifying, so
-  // frameWorkerTerminated is the only message the frame sends on its own.
-  const notifications = {
-    frameWorkerTerminated: ({ reason }) => {
-      onError(new Error(reason))
-      onTerminated?.()
-    },
-  }
-
   // Not messages: main.js's own sink for whatever produced geometry, called
   // directly for restores and cached results as well as for a fresh render.
   const handlers = {
@@ -81,8 +86,6 @@ export const createFrame = async ({ onError, onEntities, onJobCount, onTerminate
       onEntities(result, options)
     },
   }
-
-  const proxy = messageProxy(framePort(frameEl, runOrigin), notifications, { onJobCount })
 
   // A frame that never loaded cannot answer, and the message proxy would wait
   // out its five-minute default to find that out — long enough to stall the

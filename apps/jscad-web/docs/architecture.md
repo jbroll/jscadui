@@ -155,8 +155,9 @@ fails the request that needed it, and a method the worker has no handler for
 is answered with an error by `@jscadui/postmessage` rather than left pending.
 
 A second iframe `load` means the frame navigated, so its worker, file map and
-engine are gone. `frameSetup.js` reports that and asks for a re-init, the same
-response it gives a terminated worker.
+engine are gone. `frameSetup.js` rejects every request still in flight, since
+the new frame never saw them, then reports the reload and asks for a re-init,
+the same response it gives a terminated worker.
 
 ### Why a blob worker
 

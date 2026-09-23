@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 
-import { initMessaging } from '../index.js'
+import { initMessaging, messageProxy } from '../index.js'
 
 const RESPONSE = '__RESPONSE__'
 
@@ -102,5 +102,36 @@ describe('unknown method', () => {
     expect(target.postMessage).not.toHaveBeenCalled()
     error.mockRestore()
     messaging.destroy()
+  })
+})
+
+describe('rejectPending', () => {
+  it('rejects every request in flight with the given error and keeps listening', async () => {
+    const target = createTarget()
+    const counts = []
+    const messaging = initMessaging(target, {}, { onJobCount: n => counts.push(n) })
+    const first = messaging.sendCmd('one')
+    const second = messaging.sendCmd('two')
+
+    messaging.rejectPending(new Error('frame reloaded'))
+
+    await expect(first).rejects.toThrow('frame reloaded')
+    await expect(second).rejects.toThrow('frame reloaded')
+    expect(messaging.getRpcJobCount()).toBe(0)
+    expect(counts.at(-1)).toBe(0)
+
+    const third = messaging.sendCmd('three')
+    target.receive({ method: RESPONSE, id: idOfLastSend(target), params: 'ok' })
+    await expect(third).resolves.toBe('ok')
+    messaging.destroy()
+  })
+
+  it('is reachable through messageProxy', async () => {
+    const target = createTarget()
+    const proxy = messageProxy(target, {})
+    const pending = proxy.anything()
+    proxy.rejectPending(new Error('gone'))
+    await expect(pending).rejects.toThrow('gone')
+    proxy.destroy()
   })
 })

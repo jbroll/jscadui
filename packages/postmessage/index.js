@@ -178,15 +178,18 @@ export const initMessaging = (_self, handlers, { onJobCount, debug, allowedOrigi
    * Clean up the message listener and pending requests. Call when messaging is no longer needed.
    * M4 fix: Also clean up pending requests to prevent memory leaks
    */
-  const destroy = () => {
-    _self.removeEventListener?.('message', wrappedListener)
-    // M4 fix: Clean up all pending requests
+  const rejectPending = (error) => {
     for (const [, [, reject, timeoutId]] of reqMap.entries()) {
       if (timeoutId) clearTimeout(timeoutId)
-      reject(new Error('Messaging destroyed with pending request'))
+      reject(error)
     }
     reqMap.clear()
     onJobCount?.(0)
+  }
+
+  const destroy = () => {
+    _self.removeEventListener?.('message', wrappedListener)
+    rejectPending(new Error('Messaging destroyed with pending request'))
   }
 
   return {
@@ -196,6 +199,8 @@ export const initMessaging = (_self, handlers, { onJobCount, debug, allowedOrigi
     sendError,
     listener,
     destroy,
+    /** Reject every request in flight, for when the other end lost them. */
+    rejectPending,
     self: _self,
     getRpcJobCount: () => reqMap.size,
   }
@@ -208,7 +213,7 @@ export const initMessaging = (_self, handlers, { onJobCount, debug, allowedOrigi
  * @returns {object}
  */
 export const messageProxy = (_self, handlers, { onJobCount, debug, allowedOrigin } = {}) => {
-  const { sendCmd, sendNotify, getRpcJobCount, listener, destroy } = initMessaging(_self, handlers, {
+  const { sendCmd, sendNotify, getRpcJobCount, listener, destroy, rejectPending } = initMessaging(_self, handlers, {
     onJobCount,
     debug,
     allowedOrigin,
@@ -218,7 +223,7 @@ export const messageProxy = (_self, handlers, { onJobCount, debug, allowedOrigin
   const created = new Error('proxy')
 
   return new Proxy(
-    { getRpcJobCount, onmessage: listener, destroy },
+    { getRpcJobCount, onmessage: listener, destroy, rejectPending },
     {
       get(target, prop, _receiver) {
         // then is used to recognize if object is a promise, we do not want
