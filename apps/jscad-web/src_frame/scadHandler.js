@@ -38,9 +38,14 @@ export const createScadHandler = ({ getOpenscad, getAppOrigin, now = Date.now })
   // path -> transpiled JS source
   const transpiledCache = new Map()
 
-  // Shared transpiler cache: persists TranspiledFile objects across jscadScript
-  // calls so the transpiler can skip re-processing unchanged dependencies.
-  const workerSharedCache = new Map()
+  // The transpiler's own cache of TranspiledFile objects, kept across runs so
+  // it can skip unchanged dependencies. It is keyed by the paths pathFor gives,
+  // which are bare on the entry's origin, so there is one per entry origin.
+  const sharedCaches = new Map()
+  const sharedCacheFor = (origin) => {
+    if (!sharedCaches.has(origin)) sharedCaches.set(origin, new Map())
+    return sharedCaches.get(origin)
+  }
 
   const handle = (source, url, readFile) => {
     const appOrigin = getAppOrigin()
@@ -111,7 +116,7 @@ export const createScadHandler = ({ getOpenscad, getAppOrigin, now = Date.now })
       fileResolver,
       currentFile: pathFor(key),
       includeHeader: true,
-    }, workerSharedCache)
+    }, sharedCacheFor(entryOrigin))
 
     if (result.errors && result.errors.length > 0) {
       const criticalErrors = result.errors.filter(e =>
@@ -142,15 +147,26 @@ export const createScadHandler = ({ getOpenscad, getAppOrigin, now = Date.now })
     clearFailures: () => failureCache.clear(),
     clearTranspiled: () => {
       transpiledCache.clear()
-      workerSharedCache.clear()
+      sharedCaches.clear()
     },
     /**
+     * Includes are inlined into their includers, so an edit under `root` drops
+     * every file on its origin. Files from other origins stay.
      * @param {string[]} files paths as jscadClearFileCache names them
      * @param {string} [root] the base those paths are relative to
      */
     forgetFiles: (files, root) => {
-      for (const file of files) {
-        transpiledCache.delete(root ? absolute(file.startsWith('/') ? `.${file}` : file, root) : file)
+      const origin = root && originOf(root)
+      if (!origin) {
+        for (const file of files) transpiledCache.delete(file)
+        return
+      }
+      for (const key of transpiledCache.keys()) {
+        if (originOf(key) === origin) transpiledCache.delete(key)
+      }
+      const shared = sharedCaches.get(origin)
+      for (const path of shared?.keys() ?? []) {
+        if (path.startsWith('/')) shared.delete(path)
       }
     },
   }

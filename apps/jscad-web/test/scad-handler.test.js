@@ -109,3 +109,84 @@ describe('include origins', () => {
     expect(transpile).toHaveBeenCalledTimes(2)
   })
 })
+
+// Like the real transpiler: an include is inlined, a file already in the shared
+// cache is not compiled again, and the shared cache comes back as `files`.
+const inliningOpenscad = (compiled = []) => ({
+  parse: (source) => ({ ast: { source }, errors: [] }),
+  transpile: (ast, { fileResolver, currentFile }, shared) => {
+    const compile = (path, source) => {
+      compiled.push(path)
+      const [text, ...includes] = source.split(' include ')
+      const parts = [text]
+      for (const name of includes) {
+        const resolved = fileResolver(name, path)
+        if (!shared.has(resolved.path)) compile(resolved.path, resolved.content)
+        parts.push(shared.get(resolved.path).code)
+      }
+      shared.set(path, { code: parts.join('+') })
+    }
+    compile(currentFile, ast.source)
+    return { code: shared.get(currentFile).code, errors: [], files: shared }
+  },
+})
+
+describe('shared transpiler cache', () => {
+  const reader = (files) => (url) => {
+    if (url in files) return files[url]
+    throw new Error(`file not found ${url}`)
+  }
+  const project = 'http://project.local'
+
+  it('keeps an app file apart from a project file with the same path', () => {
+    const scad = createScadHandler({ getOpenscad: inliningOpenscad, getAppOrigin: () => APP })
+    const readFile = reader({
+      [`${project}/demo/lib.scad`]: 'project-lib',
+      [`${APP}/demo/lib.scad`]: 'app-lib',
+    })
+    expect(scad.handle('main include lib.scad', `${project}/demo/main.scad`, readFile)).toBe('main+project-lib')
+    expect(scad.handle('main include lib.scad', `${APP}/demo/main.scad`, readFile)).toBe('main+app-lib')
+    expect(scad.handle('app-lib', `${APP}/demo/lib.scad`, readFile)).toBe('app-lib')
+  })
+
+  it('drops a project file and its includers when the file is edited', () => {
+    const scad = createScadHandler({ getOpenscad: inliningOpenscad, getAppOrigin: () => APP })
+    const files = { [`${project}/lib.scad`]: 'lib-v1' }
+    const readFile = reader(files)
+    expect(scad.handle('main include lib.scad', `${project}/main.scad`, readFile)).toBe('main+lib-v1')
+
+    files[`${project}/lib.scad`] = 'lib-v2'
+    scad.forgetFiles(['/lib.scad'], `${project}/`)
+    expect(scad.handle('main include lib.scad', `${project}/main.scad`, readFile)).toBe('main+lib-v2')
+  })
+
+  it('keeps a file from another origin across a project edit', () => {
+    const compiled = []
+    const openscad = inliningOpenscad(compiled)
+    const scad = createScadHandler({ getOpenscad: () => openscad, getAppOrigin: () => APP })
+    const files = {
+      [`${project}/lib.scad`]: 'lib-v1',
+      'https://lib.example/std.scad': 'std',
+    }
+    const readFile = reader(files)
+    scad.handle('main include lib.scad include https://lib.example/std.scad', `${project}/main.scad`, readFile)
+
+    files[`${project}/lib.scad`] = 'lib-v2'
+    scad.forgetFiles(['/lib.scad'], `${project}/`)
+    compiled.length = 0
+    expect(scad.handle('main include lib.scad include https://lib.example/std.scad', `${project}/main.scad`, readFile))
+      .toBe('main+lib-v2+std')
+    expect(compiled).toEqual(['/main.scad', '/lib.scad'])
+  })
+
+  it('starts empty after the caches are cleared', () => {
+    const scad = createScadHandler({ getOpenscad: inliningOpenscad, getAppOrigin: () => APP })
+    const files = { [`${project}/lib.scad`]: 'lib-a' }
+    const readFile = reader(files)
+    scad.handle('main include lib.scad', `${project}/main.scad`, readFile)
+
+    files[`${project}/lib.scad`] = 'lib-b'
+    scad.clearTranspiled()
+    expect(scad.handle('main include lib.scad', `${project}/main.scad`, readFile)).toBe('main+lib-b')
+  })
+})

@@ -99,7 +99,14 @@ entry's origin, when that is the app or the project, is named by its bare
 pathname, and a file on any other origin keeps its full URL. The full URL also
 serves as the `fromFile` its own includes resolve against, which keeps them on
 their origin. The transpiled-file cache is keyed by full URL, so two origins
-with the same path do not share an entry.
+with the same path do not share an entry. The transpiler's own cache is keyed
+by the names it writes, bare paths included, so the handler keeps one per entry
+origin. Keeping bare names keeps project files in `require`'s local cache,
+which project switches and edits clear; a full URL would land in its module
+cache, which they do not. Both caches empty on `jscadClearTempCache`. An edit
+reported through `jscadClearFileCache` drops every project-origin entry, since
+an include is inlined into each file that includes it; entries from other
+origins, such as a library's, stay.
 
 A model loaded from a real URL is different: `main.js` passes the app origin,
 not the model's own URL, as the base for a `#url=` model's siblings, so those
