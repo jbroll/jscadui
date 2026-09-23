@@ -10,15 +10,8 @@ import { initWorker, currentSolids, currentParams, jscadInit, jscadMain } from '
 import { readFileWeb, require, requireHandlers, jscadClearTempCache, clearFileCache } from '@jscadui/require'
 import { withTransferable } from '@jscadui/postmessage'
 import { defaultSerializerConfigs } from '@jscadui/format-common/src/exportFormats.js'
-import { includeCandidates, isSpaFallback } from './scadResolve.js'
+import { createScadHandler } from './scadHandler.js'
 import { sealMessageListeners } from './sealMessages.js'
-
-// The project file map the frame's load command carries. readFileWeb (which the
-// loader uses for every read) is replaced at build time by readFileFrame.js,
-// which consults this map before fetching over the network.
-export const jscadSetFiles = ({ files }) => {
-  self.__PROJECT_FILES__ = files
-}
 
 // The frame adds appOrigin to every jscadInit: this worker's own origin is
 // opaque, so include urls with no origin of their own have no other base.
@@ -26,33 +19,6 @@ let appOrigin = null
 const frameInit = ({ appOrigin: origin, ...options }) => {
   if (origin) appOrigin = origin
   return jscadInit(options)
-}
-
-// Cache for failed URL fetches (to avoid repeated 404s)
-const failureCache = new Map()
-const FAILURE_CACHE_TTL = 60000
-
-// Cache for transpiled .scad files (path -> transpiled JS source)
-const transpiledCache = new Map()
-
-// Shared transpiler cache: persists TranspiledFile objects across jscadScript
-// calls so the transpiler can skip re-processing unchanged dependencies.
-const workerSharedCache = new Map()
-
-// Normalise a URL or path to an absolute path for use as a cache key.
-// No self.location.origin here: in a blob worker that base is 'null', so
-// absolute URLs parse on their own.
-const toCachePath = (urlOrPath) => {
-  try {
-    return new URL(urlOrPath).pathname
-  } catch {
-    return urlOrPath
-  }
-}
-
-export const clearTranspiledCache = () => {
-  transpiledCache.clear()
-  workerSharedCache.clear()
 }
 
 // ── OpenSCAD (.scad) handler ──────────────────────────────────────────────
@@ -84,91 +50,17 @@ function getOpenscad() {
   return _openscad
 }
 
-requireHandlers.set('scad', (source, url, _readFile) => {
-  const urlPath = toCachePath(url)
+const scad = createScadHandler({ getOpenscad, getAppOrigin: () => appOrigin })
+requireHandlers.set('scad', scad.handle)
 
-  if (transpiledCache.has(urlPath)) {
-    return transpiledCache.get(urlPath)
-  }
-  const { parse, transpile } = getOpenscad()
-
-  const { ast, errors } = parse(source, url)
-  if (errors.length > 0) {
-    for (const err of errors) console.warn(`OpenSCAD parse warning in ${url}:`, err.message)
-  }
-
-  const attempts = []
-
-  const tryFetch = (testUrl) => {
-    const failTime = failureCache.get(testUrl)
-    if (failTime && (Date.now() - failTime) < FAILURE_CACHE_TTL) {
-      return undefined
-    }
-    let content
-    let reason
-    try {
-      content = _readFile(testUrl)
-      if (content !== undefined && isSpaFallback(content)) reason = 'server returned an html fallback'
-    } catch (error) {
-      content = undefined
-      reason = error?.message ?? String(error)
-    }
-    if (content !== undefined && !reason) {
-      failureCache.delete(testUrl)
-      return content
-    }
-    // A worker inside a cross-origin frame has no console anyone can read, so
-    // the attempts ride the error instead.
-    attempts.push(`${testUrl} — ${reason ?? 'no content'}`)
-    failureCache.set(testUrl, Date.now())
-    return undefined
-  }
-
-  const urlToPath = (url) => {
-    try {
-      return new URL(url).pathname
-    } catch {
-      return url
-    }
-  }
-
-  const fileResolver = (filename, fromFile) => {
-    for (const candidate of includeCandidates(filename, fromFile, url, appOrigin)) {
-      const content = tryFetch(candidate)
-      if (content !== undefined) return { path: urlToPath(candidate), content }
-    }
-    return undefined
-  }
-
-  const result = transpile(ast, {
-    fileResolver,
-    currentFile: urlPath,
-    includeHeader: true,
-  }, workerSharedCache)
-
-  if (result.errors && result.errors.length > 0) {
-    const criticalErrors = result.errors.filter(e =>
-      e.code === 'FILE_NOT_FOUND' || e.code === 'PARSE_ERROR'
-    )
-    if (criticalErrors.length > 0) {
-      const errorMessages = criticalErrors.map(e => e.message).join('; ')
-      const tried = attempts.length ? ` [tried ${attempts.join(' | ')}]` : ' [no candidate urls]'
-      throw new Error(`OpenSCAD transpilation failed: ${errorMessages}${tried}`)
-    }
-    for (const err of result.errors) {
-      console.warn(`OpenSCAD transpile warning in ${url}:`, err.message)
-    }
-  }
-
-  if (result.files && result.files.size > 0) {
-    for (const [filePath, fileData] of result.files) {
-      transpiledCache.set(filePath, fileData.code)
-    }
-  }
-  transpiledCache.set(urlPath, result.code)
-
-  return result.code
-})
+// The project file map the frame's load command carries. readFileWeb (which the
+// loader uses for every read) is replaced at build time by readFileFrame.js,
+// which consults this map before fetching over the network. A file that failed
+// to read may exist now, so the failed reads go with the old map.
+export const jscadSetFiles = ({ files }) => {
+  self.__PROJECT_FILES__ = files
+  scad.clearFailures()
+}
 
 // ── measure, check and export ─────────────────────────────────────────────
 // jscadMain flattens the model's return into solids, so one solid is a single
@@ -239,11 +131,13 @@ initWorker({
     jscadSetFiles,
     jscadClearTempCache: () => {
       jscadClearTempCache()
-      clearTranspiledCache()
+      scad.clearTranspiled()
+      scad.clearFailures()
     },
     jscadClearFileCache: ({ files, root }) => {
       clearFileCache({ files, root })
-      for (const file of files) transpiledCache.delete(toCachePath(file))
+      scad.forgetFiles(files, root)
+      scad.clearFailures()
     },
   },
 })

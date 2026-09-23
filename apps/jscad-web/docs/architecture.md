@@ -80,6 +80,9 @@ library root (`/examples/openscad/<library>`) as an OPENSCADPATH-like
 fallback. The fallback is dropped when `../` in the filename would resolve
 above that root. It is the only copy of this logic; the loader in
 `@jscadui/require` has no origin to resolve against inside a blob worker.
+`src_frame/scadHandler.js` remembers a failed read for 60 s so one transpile
+does not fetch the same missing file for every includer, and forgets them all
+whenever a new file map arrives or a cache is cleared.
 
 A model loaded from a real URL is different: `main.js` passes the app origin,
 not the model's own URL, as the base for a `#url=` model's siblings, so those
