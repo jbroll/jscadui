@@ -137,6 +137,26 @@ function collectFiles(opts) {
 }
 
 // ── render one file in a page ────────────────────────────────────────────────
+const within = (ms, promise) => Promise.race([
+  promise.catch(e => `failed: ${String(e).replace(/\s+/g, ' ').slice(0, 80)}`),
+  new Promise(resolve => setTimeout(() => resolve(`no answer in ${ms} ms`), ms)),
+])
+
+// A hang-guard timeout alone cannot tell a page that settled unseen from one
+// still running, or a running one from a blocked main thread.
+async function stallState(page) {
+  const app = await within(5000, page.evaluate(() => {
+    const root = document.documentElement
+    const bar = document.querySelector('#error-bar.visible')?.textContent.replace(/\s+/g, ' ').trim().slice(0, 120)
+    return `render=${root.dataset.render} at ${Math.round(performance.now() / 1000)}s${bar ? `, error-bar: ${bar}` : ''}`
+  }))
+  const frame = page.frames().find(f => f !== page.mainFrame())
+  const run = frame
+    ? await within(5000, frame.evaluate(() => `up ${Math.round(performance.now() / 1000)}s`))
+    : 'absent'
+  return `app ${app}; frame ${run}`
+}
+
 async function renderOne(context, opts, file, idx) {
   const page = await context.newPage()
   const consoleErrs = []
@@ -149,7 +169,7 @@ async function renderOne(context, opts, file, idx) {
   page.on('requestfailed', r => badRequests.push(`${r.failure()?.errorText ?? 'failed'} ${r.url()}`))
   // Cache-busting query forces a full document load → fresh worker per file.
   const target = `${opts.server}/?r=${idx}#${file.url}`
-  let status, errText = ''
+  let status, errText = '', stalled
   try {
     await page.goto(target, { waitUntil: 'domcontentloaded', timeout: opts.timeout })
     try { await page.locator('#welcome-dismiss').click({ timeout: 1500 }) } catch { /* already dismissed */ }
@@ -170,6 +190,7 @@ async function renderOne(context, opts, file, idx) {
   } catch (e) {
     status = String(e).includes('Timeout') ? 'timeout' : 'crash'
     errText = String(e).replace(/\s+/g, ' ').slice(0, 200)
+    if (status === 'timeout') stalled = await stallState(page)
   }
   await page.close().catch(() => {})
   // A grid with a failed cell renders fine, so the only trace is what ALL.js logs
@@ -177,7 +198,7 @@ async function renderOne(context, opts, file, idx) {
     .map(t => t.slice('ALL: FAILED '.length))
   if (status === 'ok' && cellFailures.length) status = 'partial'
   return {
-    rel: file.rel, status, errText, cellFailures,
+    rel: file.rel, status, errText, stalled, cellFailures,
     consoleErrs: consoleErrs.slice(0, 5), badRequests: badRequests.slice(0, 5),
   }
 }
@@ -248,6 +269,7 @@ async function run() {
     for (const f of fails) {
       console.log(`  [${f.status}] ${f.rel}`)
       if (f.errText) console.log(`        ${f.errText}`)
+      if (f.stalled) console.log(`        at the guard: ${f.stalled}`)
       for (const cell of f.cellFailures ?? []) console.log(`        ☠ ${cell}`)
       for (const bad of f.badRequests ?? []) console.log(`        ↳ ${bad}`)
     }

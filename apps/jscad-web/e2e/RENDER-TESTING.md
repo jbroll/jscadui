@@ -35,6 +35,14 @@ budget stops at 290s: the app's RPC to the frame gives up at 300s
 (`@jscadui/postmessage`), and past that the page reports "RPC timeout" while
 the worker keeps running. The harness warns and clamps a larger value.
 
+A `timeout` is followed by an `at the guard:` line: the app's
+`data-render` and error bar and the page clock, then whether the frame
+document answers. Each read gives up after 5s. `render=error` with a
+`model exceeded` error bar means the page settled and the harness missed it.
+`render=running` from a page that answers means neither the frame's kill nor
+the app's RPC timeout fired in time. `no answer in 5000 ms` means that
+document's main thread is blocked.
+
 ### Grids and the `partial` status
 
 With `--grids` the sweep loads each `ALL.js` instead of the individual models.
