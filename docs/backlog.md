@@ -32,26 +32,19 @@ deploy order and headers.
 
 ## Follow-ups from the 2026-09-19..22 review
 
-The review's findings are fixed on `fix/review-backlog`. These are what the
-fixes left open.
-
 - **Timed-out grids hit the sweep's 320s guard, not the frame's 290s kill.**
-  Unexplained. It is not the restart loop fixed in `10a66a62`, which needs the
-  init itself to time out. Pages in the tiny-timeout e2e also request the
-  unhashed `assets/bundle.frame-worker.js` and get a 404; check that first.
-- **`subtract` leaks like `union` and `intersect` did**
-  (`packages/manifold/src/booleans/index.js`): temporaries converted from a
-  plain geom3 are never freed, and a single input returns the input wrapper
-  itself.
-- **`paramChangeCallback` draws a stale result** when a newer script has loaded
-  while its `jscadMain` ran; `createScriptRuns` guards only script loads.
-- **`workerSharedCache` keys app-origin and project files by bare pathname**,
-  so the same path on both origins collides. Moving them to full URLs puts
-  them in a require cache that project switches and edits do not clear.
-- **A Responses stream that ends without `response.completed`** still yields
-  `done` with `completed`.
-- **`ci/render*` and `ci/web` share port 5120** on the CI host; `ci/render`
-  now refuses to start when the port is taken, so run them one at a time.
+  Unexplained. The kill settles a grid within 0.3s locally (NopSCADlib
+  `ALL.js`, 10s budget), and in CI job `737437e4401ff051` neither the kill
+  nor the app's 300s RPC timeout fired. The sweep now reports the app's
+  render state and whether each document answers when the guard trips, which
+  tells a blocked main thread from a slow result transfer. The reported 404 on
+  `bundle.frame-worker.js` is Chrome's message for an `importScripts` aborted
+  by `terminate()`; the server answers 200.
+- **`onRenderEngineChange` calls `jscadMain` without the `createScriptRuns`
+  guard**, so a result from before a newer load can still be drawn.
+- **An unsaved edit two includes down can leak into a cached includer** when
+  no project is loaded. The source check in `scadHandler.js` compares each
+  file only against its own source.
 
 ## Render sweep
 
@@ -74,7 +67,7 @@ exits nonzero only on a regression against `render-baseline.json`. See
 ## Combined ALL.js grids
 
 A grid loads every model in one worker as one job, under one model budget
-(120s, `main.js`), and holds all their geometry at once so it can place them.
+(120s, `main.js`; 290s in the sweep), and holds all their geometry at once so it can place them.
 44 grids; the largest are NopSCADlib's 145 tests, dotSCAD's 62 examples and
 about 36 per BOSL2 part. Grids nest, so a nested grid is one cell of its
 parent.
