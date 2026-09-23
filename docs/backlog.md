@@ -25,7 +25,9 @@ jscad-studio and jscad-studio-run folded into jscad-web and removed; the old
 `run.*` vhosts retired with the next deploy. 2026-09-21: the compute frame
 moved to its own host, `jscad-run.rkroll.com`, deployed via
 `deploy-run.conf`; `jscad.rkroll.com` still serves the app and proxies
-`/api`. Both hosts are live. See `apps/jscad-web/docs/architecture.md` for the
+`/api`. Both hosts are live. 2026-09-23: deployed `f402d41c` (the review
+fixes, GitHub App storage removed); the smoke gate now checks that each host
+serves the build just made. See `apps/jscad-web/docs/architecture.md` for the
 deploy order and headers.
 
 ## Follow-ups from the 2026-09-19..22 review
