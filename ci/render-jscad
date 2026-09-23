@@ -10,5 +10,5 @@
 # stops at 320s. See docs/backlog.md for the known clusters.
 set -uo pipefail
 
-export RENDER_ARGS="--dir openscad --engine jscad --concurrency 4 --timeout 320000 --out e2e/render-jscad-report.json"
+export RENDER_ARGS="--dir openscad --engine jscad --concurrency 4 --timeout 320000 --out e2e/render-jscad-report.json --baseline e2e/render-jscad-baseline.json"
 exec "$(dirname "$0")/render"

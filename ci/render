@@ -5,8 +5,8 @@
 #
 # Starts the dev server, then drives a headless (bundled-chromium) browser
 # through the real render pipeline for every example via
-# apps/jscad-web/e2e/render-all.mjs. Honors skip.txt. Fails if any example
-# shows the error bar / times out.
+# apps/jscad-web/e2e/render-all.mjs. Honors skip.txt. Fails only where the run
+# differs from the baseline: a new failure, a status change or a new dead cell.
 #
 # Scope/concurrency: edit RENDER_ARGS below (sci push runs this verbatim).
 set -uo pipefail
@@ -17,7 +17,7 @@ APP="$WORKTREE/apps/jscad-web"
 # slowly still renders. 300s per file leaves the app a 270s model budget, which
 # is ~4x the slowest example measured single-threaded (rod.scad at 61s) with
 # room for six pages competing for the box.
-RENDER_ARGS="${RENDER_ARGS:---dir openscad --concurrency 6 --timeout 300000}"
+RENDER_ARGS="${RENDER_ARGS:---dir openscad --concurrency 6 --timeout 300000 --baseline e2e/render-baseline.json}"
 # ci/render-grids sets RENDER_ARGS to sweep the ALL.js grids instead.
 
 cd "$WORKTREE"

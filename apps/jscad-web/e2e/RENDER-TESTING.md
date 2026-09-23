@@ -107,8 +107,18 @@ jscad-engine concern.
 ## Baseline
 
 `e2e/render-baseline.json` records the known sweep state: the CI job it was
-captured from, per-library ok/fail counts, and the failing example paths. Diff
-future runs against `failures`, not against zero.
+captured from, per-library ok/fail counts, and each failure as `{ rel, status }`,
+plus `cells` (a grid's dead cells) and `why` (the error text) where there are
+any. `"flaky": true` on an entry accepts either `ok` or its status, for a model
+that sits on its time limit.
+
+`--baseline <file>` makes the sweep compare itself with one: it prints each
+fixed model and each regression, and exits 1 only on a regression, which is a
+new failure, a changed status (`error` to `timeout`, `ok` to `empty`) or a new
+dead cell in a grid. Cells compare by URL, not message. Every `ci/render*` job
+passes its own baseline, so the job's exit status is the regression signal. To
+refresh a baseline, copy `ok`, `failed`, `byLib` and `failures` from the
+sweep's report, whose `failures` array is already in baseline form.
 
 It records no commit. `sci` rsyncs the working tree onto a base worktree, so the
 commit the CI run reports is that worktree's HEAD, not the code measured — a
@@ -147,16 +157,3 @@ engine's remaining work is. See `docs/backlog.md`. That sweep measures
 whatever `@jscad/modeling` the CI host's sibling `OpenJSCAD.org` checkout is
 on, which is not tied to the jscadui commit — the baseline records which
 modeling commit it measured.
-
-From `apps/jscad-web`, after a sweep writes a fresh `e2e/render-report.json`:
-
-```bash
-node -e "
-const base = require('./e2e/render-baseline.json');
-const fresh = require('./e2e/render-report.json');
-const known = new Set(base.failures.map((f) => f.rel));
-const byRel = new Map(fresh.results.map((r) => [r.rel, r.status]));
-console.log('new failures:', [...byRel].filter(([rel, s]) => s !== 'ok' && !known.has(rel)).map(([rel]) => rel));
-console.log('fixed:', [...known].filter((rel) => byRel.get(rel) === 'ok'));
-"
-```

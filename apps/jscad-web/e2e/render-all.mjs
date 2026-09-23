@@ -38,6 +38,9 @@
  *   --server <url>     Dev server base (default: http://localhost:5120)
  *   --no-skip          Ignore skip.txt files
  *   --out <file>       JSON report path (default: e2e/render-report.json)
+ *   --baseline <file>  Compare with a recorded baseline: print what changed and
+ *                      exit 1 only on a new failure, a status change or a new
+ *                      dead grid cell. Without it, any failure exits 1.
  *   --headed           Run headed (debug)
  *
  * Requires the dev server running: `npm run dev` (or pass --server).
@@ -48,6 +51,7 @@ import { readdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { join, relative, basename, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isExcluded } from '../src_build/exampleExclusions.js'
+import { diffAgainstBaseline, toFailure } from './baseline-diff.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const APP_ROOT = join(__dirname, '..')
@@ -78,6 +82,7 @@ function parseArgs(argv) {
     else if (a === '--grids') o.grids = true
     else if (a === '--no-skip') o.skip = false
     else if (a === '--out') o.out = argv[++i]
+    else if (a === '--baseline') o.baseline = argv[++i]
     else if (a === '--headed') o.headed = true
     else if (a === '-h' || a === '--help') { o.help = true }
     else throw new Error(`unknown arg: ${a}`)
@@ -247,11 +252,19 @@ async function run() {
   }
 
   writeFileSync(opts.out, JSON.stringify({
-    when: new Date().toISOString(), dirs: opts.dirs,
-    total: results.length, failed: fails.length, byLib, results,
+    when: new Date().toISOString(), dirs: opts.dirs, engine: opts.engine || 'default',
+    total: results.length, ok: results.length - fails.length, failed: fails.length, byLib,
+    failures: fails.map(toFailure), results,
   }, null, 2))
   console.log(`\nReport: ${relative(process.cwd(), opts.out)}`)
-  process.exit(fails.length ? 1 : 0)
+
+  if (!opts.baseline) process.exit(fails.length ? 1 : 0)
+  const { regressions, fixed } = diffAgainstBaseline(JSON.parse(readFileSync(opts.baseline, 'utf8')), results)
+  console.log(`\n── Against ${relative(process.cwd(), opts.baseline)} ──`)
+  for (const line of fixed) console.log(`  fixed: ${line}`)
+  for (const line of regressions) console.log(`  REGRESSION ${line}`)
+  if (!fixed.length && !regressions.length) console.log('  matches the baseline')
+  process.exit(regressions.length ? 1 : 0)
 }
 
 run()
