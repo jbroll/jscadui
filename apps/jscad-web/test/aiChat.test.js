@@ -82,6 +82,41 @@ describe('stored conversation', () => {
     expect(persisted).toContainEqual({ role: 'assistant', content: 'hi' })
   })
 })
+describe('opencode session', () => {
+  it('keeps one x-opencode-session per project across messages', async () => {
+    const fetchMock = vi.fn(async () => new Response('data: [DONE]\n\n'))
+    vi.stubGlobal('fetch', fetchMock)
+    document.body.innerHTML = '<div id="chat"></div>'
+    const container = document.getElementById('chat')
+    let project = 'p1'
+    const runTurnFn = vi.fn(async ({ provider }) => {
+      for await (const event of provider.send([], [])) void event
+      return { messages: [] }
+    })
+    initChat({
+      container,
+      requestTool: async () => '{}',
+      getProvider: () => ({ kind: 'opencode-go', model: 'm', apiKey: 'k', baseUrl: 'https://relay.test' }),
+      runTurnFn,
+      projectId: () => project,
+    })
+    const submit = async (text, turns) => {
+      container.querySelector('.chat-input').value = text
+      container.querySelector('.chat-form').dispatchEvent(new Event('submit', { cancelable: true }))
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(turns))
+      await vi.waitFor(() => expect(container.querySelector('.chat-input').disabled).toBe(false))
+    }
+    await submit('one', 1)
+    await submit('two', 2)
+    project = 'p2'
+    await submit('three', 3)
+    const session = (i) => fetchMock.mock.calls[i][1].headers['x-opencode-session']
+    expect(session(0)).toEqual(expect.any(String))
+    expect(session(1)).toBe(session(0))
+    expect(session(2)).not.toBe(session(0))
+    vi.unstubAllGlobals()
+  })
+})
 describe('relay base url', () => {
   it('builds per-kind relay paths under the default root', async () => {
     window.localStorage.removeItem('jscad-ai.relay')

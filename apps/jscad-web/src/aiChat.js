@@ -38,6 +38,13 @@ export const initChat = ({ container, requestTool, getProvider, runTurnFn = defa
   let assistantEl = null
   let transcript = []
   const pid = () => (typeof projectId === 'function' ? projectId() : projectId)
+  // opencode groups a conversation's requests by this id, so it must outlive one message.
+  const sessions = new Map()
+  const sessionId = () => {
+    const key = pid() ?? ''
+    if (!sessions.has(key)) sessions.set(key, crypto.randomUUID())
+    return sessions.get(key)
+  }
 
   const persistTranscript = async () => {
     if (!storage || !pid()) return
@@ -110,7 +117,11 @@ export const initChat = ({ container, requestTool, getProvider, runTurnFn = defa
     assistantEl = null
     const aborter = new AbortController()
     try {
-      const provider = createProvider({ ...selection, baseUrl: selection.baseUrl || relayBaseUrl(selection.kind) })
+      const provider = createProvider({
+        ...selection,
+        baseUrl: selection.baseUrl || relayBaseUrl(selection.kind),
+        sessionId: sessionId(),
+      })
       let assistantText = ''
       await runTurnFn({
         conversation: { messages: [{ role: 'system', content: SYSTEM_PROMPT }, { role: 'user', content: message }] },
