@@ -5,8 +5,8 @@
     <title>test host</title>
   </head>
   <body>
-    <iframe id="frame" src="http://localhost:5121/" sandbox="allow-scripts" hidden></iframe>
-    <iframe id="attacker" src="http://localhost:5123/frame-wrong.html" hidden></iframe>
+    <iframe id="frame" src="__RUN_ORIGIN__/" sandbox="allow-scripts" hidden></iframe>
+    <iframe id="attacker" src="__ATTACKER_ORIGIN__/frame-wrong.html" hidden></iframe>
     <script>
       const frame = document.getElementById('frame')
       const ready = new Promise(resolve => frame.addEventListener('load', resolve, { once: true }))

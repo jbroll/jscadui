@@ -14,5 +14,6 @@
 # exceed the app's 300s RPC timeout, so the hang guard stops at 320s.
 set -uo pipefail
 
+export JSCAD_WEB_PORT=5140
 export RENDER_ARGS="--dir . --grids --concurrency 4 --timeout 320000 --out e2e/render-grids-report.json --baseline e2e/render-grids-baseline.json"
 exec "$(dirname "$0")/render"

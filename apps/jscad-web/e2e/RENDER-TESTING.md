@@ -78,9 +78,20 @@ JOB=$(../simple-ci/sci push jscadui/render)   # runs ci/render on gpu
 ```
 
 `ci/render` builds the workspace, starts the dev server, and runs `render-all.mjs`.
-Every `ci/render*` job and `ci/web` serve on port 5120 of the same host, so run
-them one at a time: `ci/render` exits 2 if the port is already taken rather
-than sweep a server that disappears when its own job ends.
+Each job that serves the app sets its own base port in `JSCAD_WEB_PORT`, so
+they can run at the same time on one host:
+
+| job | `JSCAD_WEB_PORT` | ports used |
+|---|---|---|
+| `ci/render` | 5120 | 5120 app, 5121 frame |
+| `ci/render-jscad` | 5130 | 5130, 5131 |
+| `ci/render-grids` | 5140 | 5140, 5141 |
+| `ci/web` | 5150 | 5150 app, 5151 frame, 5152 marker, 5153 attacker |
+
+`build.js`, `playwright.config.js`, `render-all.mjs` and the frame e2e read the
+same variable (offsets in `e2e/ports.mjs`); unset, it is 5120. Two copies of
+the same job still collide, so each job exits 2 if one of its ports is already
+taken rather than test a server that disappears when its own job ends.
 Edit `RENDER_ARGS` in `ci/render` to change scope/concurrency.
 
 `sci push jscadui/render-grids` runs the same setup over the 44 `ALL.js` grids

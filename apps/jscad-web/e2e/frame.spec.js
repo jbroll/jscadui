@@ -2,15 +2,16 @@ import { test, expect } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { startServers, stopServers } from './frame-serve.mjs'
 import { PROJECT_BASE } from '../src_frame/fileMap.js'
+import { APP_ORIGIN as APP, ATTACKER_ORIGIN, ATTACKER_PORT, MARK_ORIGIN as MARK, RUN_ORIGIN as RUN } from './ports.mjs'
 
 // The frame under test is served by the real dev frame server on its own
-// origin (http://localhost:5121, whose baked allowed sender is the app
-// origin's http://localhost:5120). The host page is injected with setContent
-// after navigating to a same-origin lightweight URL, so no fixture ships in
-// the production build.
-const RUN = 'http://localhost:5121'
-const MARK = 'http://localhost:5122'
+// origin (RUN, whose baked allowed sender is APP). The host page is injected
+// with setContent after navigating to a same-origin lightweight URL, so no
+// fixture ships in the production build.
 const MARKER = `${MARK}/__mark`
+const HOST_HTML = readFileSync(new URL('./frame-host.html', import.meta.url), 'utf8')
+  .replaceAll('__RUN_ORIGIN__', RUN)
+  .replaceAll('__ATTACKER_ORIGIN__', ATTACKER_ORIGIN)
 
 test.beforeAll(async () => {
   await startServers()
@@ -21,8 +22,8 @@ test.afterAll(async () => {
 })
 
 const gotoHost = async (page) => {
-  await page.goto('http://localhost:5120/robots.txt')
-  await page.setContent(readFileSync(new URL('./frame-host.html', import.meta.url), 'utf8'))
+  await page.goto(`${APP}/robots.txt`)
+  await page.setContent(HOST_HTML)
 }
 
 const send = (page, method, params) =>
@@ -130,7 +131,7 @@ test('a wrong-origin sender is never answered and cannot run a script', async ({
   await request.get(`${MARK}/__mark-reset`)
   await gotoHost(page)
   await init(page)
-  const attacker = page.frames().find((f) => f.url().includes(':5123'))
+  const attacker = page.frames().find((f) => f.url().includes(`:${ATTACKER_PORT}`))
   await attacker.evaluate(({ files, entry, base }) => {
     window.send('jscadSetFiles', { files })
     window.send('jscadScript', { script: files[entry], url: base + entry, base, root: base })
@@ -150,7 +151,7 @@ test('a wrong-origin sender is never answered and cannot run a script', async ({
 
 test('the frame document sends frame-ancestors for the app origin', async ({ request }) => {
   const res = await request.get(`${RUN}/`)
-  expect(res.headers()['content-security-policy']).toContain('frame-ancestors http://localhost:5120')
+  expect(res.headers()['content-security-policy']).toContain(`frame-ancestors ${APP}`)
 })
 
 // A model loaded from a real URL resolves its siblings over the network from
@@ -185,7 +186,7 @@ test('model fetch against the app origin is allowed', async ({ page }) => {
   await gotoHost(page)
   const res = await load(page, project(
     `const main = async () => {\n` +
-    `  const r = await fetch('http://localhost:5120/robots.txt')\n` +
+    `  const r = await fetch('${APP}/robots.txt')\n` +
     `  if (!r.ok) throw new Error('app fetch failed: ' + r.status)\n` +
     `  return []\n` +
     `}\n` +

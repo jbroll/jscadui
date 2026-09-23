@@ -23,6 +23,16 @@ cd "$APP/server"
 npm install
 npx vitest run
 
+# App, frame, marker and attacker origins take PORT..PORT+3 (e2e/ports.mjs),
+# clear of the ci/render* jobs. Playwright reuses a server already on the app
+# port, so another copy of this job would be tested against the wrong tree.
+export JSCAD_WEB_PORT=5150
+for p in 5150 5151 5152 5153; do
+  if curl -s -o /dev/null "http://localhost:$p/"; then
+    echo "✖ something already serves :$p (another copy of this job?)"; exit 2
+  fi
+done
+
 cd "$APP"
 npx playwright install chromium
 npx playwright test e2e/app.spec.js e2e/ai-chat.spec.js e2e/frame.spec.js

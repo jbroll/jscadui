@@ -46,7 +46,7 @@ const htmlFilter = {
 }
 
 // *************** read parameters **********************
-const { dev, port = 5120, serve:serveBuild=false, skipDocs=false } = parseArgs()
+const { dev, port = Number(process.env.JSCAD_WEB_PORT) || 5120, serve:serveBuild=false, skipDocs=false } = parseArgs()
 
 // The frame is a second origin. Its page bakes both: __APP_ORIGIN__ is the only
 // sender it answers, __RUN_ORIGIN__ is its own name in the CSP ('self' matches

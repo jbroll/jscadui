@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test'
+import { APP_ORIGIN } from './e2e/ports.mjs'
 
 export default defineConfig({
   testDir: './e2e',
@@ -9,7 +10,7 @@ export default defineConfig({
   reporter: process.env.CI ? 'github' : 'list',
 
   use: {
-    baseURL: 'http://localhost:5120',
+    baseURL: APP_ORIGIN,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     // WebGL requires hardware acceleration
@@ -22,9 +23,10 @@ export default defineConfig({
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
   ],
 
+  // build.js inherits JSCAD_WEB_PORT, so it listens on APP_ORIGIN.
   webServer: {
     command: 'node build.js --dev --skipDocs',
-    url: 'http://localhost:5120',
+    url: APP_ORIGIN,
     reuseExistingServer: true,
     timeout: 90_000,
   },

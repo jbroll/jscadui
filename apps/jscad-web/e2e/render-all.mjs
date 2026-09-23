@@ -35,7 +35,8 @@
  *                      reports "model exceeded N ms" rather than the harness
  *                      reporting an opaque timeout). Capped below the app's
  *                      300s RPC timeout, which would otherwise fire first.
- *   --server <url>     Dev server base (default: http://localhost:5120)
+ *   --server <url>     Dev server base (default: http://localhost:$JSCAD_WEB_PORT,
+ *                      else :5120)
  *   --no-skip          Ignore skip.txt files
  *   --out <file>       JSON report path (default: e2e/render-report.json)
  *   --baseline <file>  Compare with a recorded baseline: print what changed and
@@ -52,6 +53,7 @@ import { join, relative, basename, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isExcluded } from '../src_build/exampleExclusions.js'
 import { diffAgainstBaseline, toFailure } from './baseline-diff.mjs'
+import { APP_ORIGIN } from './ports.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const APP_ROOT = join(__dirname, '..')
@@ -66,7 +68,7 @@ const MAX_MODEL_TIMEOUT = RPC_TIMEOUT - 10_000
 function parseArgs(argv) {
   const o = {
     dirs: [], jscad: false, limit: 0, concurrency: 4, timeout: 300_000, modelTimeout: 0,
-    server: 'http://localhost:5120', skip: true, engine: '', grids: false,
+    server: APP_ORIGIN, skip: true, engine: '', grids: false,
     out: join(__dirname, 'render-report.json'), headed: false,
   }
   for (let i = 0; i < argv.length; i++) {

@@ -1,14 +1,16 @@
 // Frame e2e micro-servers: the frame itself comes from its own dev server
-// (http://localhost:5121/, started by the playwright webServer or
-// ci/render). This module serves only what that server must not:
-//   5122 — the marker origin: __mark (a command that ran is observable even
-//           though its reply is dropped for a wrong-origin sender), __whoami
-//           (what authority a model's fetch carried) and __no-cors.
-//   5123 — frame-wrong.html, the attacker origin. frame-ancestors names the
-//           app origin, so this origin can't embed the frame; the
-//           wrong-origin test proves the frame also never answers it.
+// (RUN_PORT, started by the playwright webServer or ci/render). This module
+// serves only what that server must not (ports in ports.mjs):
+//   MARK_PORT     — the marker origin: __mark (a command that ran is observable
+//                   even though its reply is dropped for a wrong-origin sender),
+//                   __whoami (what authority a model's fetch carried) and
+//                   __no-cors.
+//   ATTACKER_PORT — frame-wrong.html, the attacker origin. frame-ancestors names
+//                   the app origin, so this origin can't embed the frame; the
+//                   wrong-origin test proves the frame also never answers it.
 import http from 'node:http'
 import { readFile } from 'node:fs/promises'
+import { ATTACKER_PORT, MARK_PORT } from './ports.mjs'
 
 const COMMON_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -77,7 +79,7 @@ export const startServers = async () => {
     res.writeHead(404, COMMON_HEADERS)
     res.end('not found')
   })
-  servers = [await listen(api, 5122), await listen(attacker, 5123)]
+  servers = [await listen(api, MARK_PORT), await listen(attacker, ATTACKER_PORT)]
 }
 
 export const stopServers = async () => {

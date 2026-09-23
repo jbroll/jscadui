@@ -19,6 +19,11 @@ APP="$WORKTREE/apps/jscad-web"
 # room for six pages competing for the box.
 RENDER_ARGS="${RENDER_ARGS:---dir openscad --concurrency 6 --timeout 300000 --baseline e2e/render-baseline.json}"
 # ci/render-grids sets RENDER_ARGS to sweep the ALL.js grids instead.
+# Each job has its own port so they can share the host: app on PORT, frame on
+# PORT+1. build.js and render-all.mjs read JSCAD_WEB_PORT too.
+export JSCAD_WEB_PORT="${JSCAD_WEB_PORT:-5120}"
+PORT=$JSCAD_WEB_PORT
+DEV_LOG="/tmp/jscad-dev-$PORT.log"
 
 cd "$WORKTREE"
 npm install
@@ -40,11 +45,13 @@ fi
 # ── start dev server in background ──
 # Another job's server on the port would answer the probes below and then vanish
 # mid-sweep when that job exits, failing every later page as a crash.
-if curl -s -o /dev/null http://localhost:5120/; then
-  echo "✖ something already serves :5120 (another ci/render* or ci/web job?)"; exit 2
-fi
+for p in "$PORT" "$((PORT + 1))"; do
+  if curl -s -o /dev/null "http://localhost:$p/"; then
+    echo "✖ something already serves :$p (another copy of this job?)"; exit 2
+  fi
+done
 cd "$APP"
-node build.js --dev --skipDocs > /tmp/jscad-dev.log 2>&1 &
+node build.js --dev --skipDocs > "$DEV_LOG" 2>&1 &
 DEV_PID=$!
 cleanup() { kill "$DEV_PID" 2>/dev/null; wait "$DEV_PID" 2>/dev/null; }
 trap cleanup EXIT
@@ -68,14 +75,14 @@ ready=no
 for i in $(seq 1 300); do
   missing=
   for probe in $PROBES; do
-    code=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:5120/examples/$probe" || true)
+    code=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:$PORT/examples/$probe" || true)
     [ "$code" = "200" ] || { missing="$probe"; break; }
   done
   [ -z "$missing" ] && { echo "ready after ${i}s"; ready=yes; break; }
   sleep 1
 done
 if [ "$ready" != "yes" ]; then
-  echo "✖ dev server never served $missing; tail of dev log:"; tail -40 /tmp/jscad-dev.log
+  echo "✖ dev server never served $missing; tail of dev log:"; tail -40 "$DEV_LOG"
   exit 2
 fi
 
