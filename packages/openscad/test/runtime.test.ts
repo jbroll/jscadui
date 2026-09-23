@@ -643,6 +643,17 @@ describe('safeUnion across mixed dimensions', () => {
     expect(_safeUnion([square, cube])).toBe(square)
   })
 
+  it('classifies a getter-backed 2D geometry without converting it', () => {
+    let reads = 0
+    class Lazy2D {
+      get sides() { reads++; return square.sides }
+      get outlines() { reads++; return [] }
+    }
+    const a = new Lazy2D(), b = new Lazy2D()
+    expect(unioned([a, cube, b])).toEqual([a, b])
+    expect(reads).toBe(0)
+  })
+
   it('drops degenerate polygons when a child is async, as text() is', async () => {
     const sliver = { polygons: [...cube.polygons, { vertices: [[0, 0, 0], [1, 0, 0]] }] }
     seen = []

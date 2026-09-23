@@ -178,7 +178,9 @@ const _isAbsent = (p) => p === undefined || p === null || p === NO_CHILD
  * beside a 3D model is the common way to hit it.
  */
 const _sameDimensionAsFirst = (parts) => {
-  const is2D = (p) => p.sides !== undefined || p.outlines !== undefined
+  // `in`, not a read: on ManifoldGeom2 these are getters that convert the
+  // whole cross-section.
+  const is2D = (p) => p !== null && typeof p === 'object' && ('sides' in p || 'outlines' in p)
   const first2D = is2D(parts[0])
   return parts.every((p) => is2D(p) === first2D) ? parts : parts.filter((p) => is2D(p) === first2D)
 }
