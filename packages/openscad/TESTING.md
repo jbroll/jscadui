@@ -148,7 +148,9 @@ node bin/display-check.js file.scad [--preview] [--lib-path <p>] [--fn <n>]
 ```
 
 It prints each rejected entity with the reason, e.g. `invalid jscad geometry,
-not an object — symbol Symbol(no_child)`.
+not an object — symbol Symbol(no_child)`, and exits 1. A result with no
+entities, or none with a vertex, prints `empty:` and exits 3, since the browser
+draws nothing for it.
 
 ### Open 2D geometry
 

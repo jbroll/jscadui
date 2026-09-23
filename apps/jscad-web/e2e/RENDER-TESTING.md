@@ -20,8 +20,9 @@ is exactly why this browser harness exists.
 Loads each example by hash-navigating the dev server
 (`/#/examples/openscad/.../foo.scad`), waits for the app to move
 `html[data-render]` from `running` to `ok` or `error`, and reports
-`ok` / `error` / `timeout` per file. Honors each library's `skip.txt`. Writes
-`e2e/render-report.json`.
+`ok` / `error` / `timeout` per file. A page that settles `ok` with no vertices
+drawn (`html[data-vertices="0"]`) scores `empty` instead, which counts as a
+failure. Honors each library's `skip.txt`. Writes `e2e/render-report.json`.
 
 `--timeout` (default 300s) is a hang guard, not a performance budget: a model
 that renders slowly still renders, and the jscad engine needs 37s for a

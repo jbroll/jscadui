@@ -181,11 +181,13 @@ const handleEntities = (result, { skipLog } = {}) => {
     console.log('tree:', treeTime?.toFixed(2), ', exec:', execTime?.toFixed(2), ', conv:', convTime?.toFixed(2), ', render:', renderTime?.toFixed(2), entities)
   }
 
+  // Read by the render sweep, which must tell an empty model from a render
+  const { triangles, vertices } = countGeometry(entities)
+  document.documentElement.dataset.vertices = String(vertices)
+
   setError(undefined)
   onProgress(undefined)
 
-  // Update pipeline stats
-  const { triangles, vertices } = countGeometry(entities)
   updatePipelineStats(statsContent, { treeTime, execTime, convTime, renderTime, triangles, vertices })
 }
 
@@ -468,6 +470,7 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
   currentBase = base
   loadDefault = false
   document.documentElement.dataset.render = 'running'
+  delete document.documentElement.dataset.vertices
 
   // Save params if preserving across engine switch
   const shouldPreserve = paramsUI.consumePreserveParams()

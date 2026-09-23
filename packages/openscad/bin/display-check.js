@@ -11,6 +11,9 @@
  *
  * Usage:
  *   node packages/openscad/bin/display-check.js model.scad [--preview] [--engine jscad] [--lib-path <p>]
+ *
+ * Exit status: 0 every entity converts, 1 some are rejected, 2 usage,
+ * 3 the result is empty (no entities, or none with a vertex).
  */
 
 import { resolve } from 'node:path'
@@ -51,24 +54,30 @@ const entities = evalScadSolidSync(resolve(opts.input), ctx, {
   fn: opts.fn, libPaths: opts.libPaths, preview: opts.preview, raw: true,
 })
 
-if (!entities) {
-  console.log('no geometry returned from main()')
-  process.exit(0)
+if (!entities?.length) {
+  console.log('empty: no geometry returned from main()')
+  process.exit(3)
 }
 
 console.log(`${entities.length} entit${entities.length === 1 ? 'y' : 'ies'}`)
 const bad = []
+let vertices = 0
 entities.forEach((e, i) => {
   try {
     const obj = JscadToCommon(e, [], false)
     if (!obj || obj.type === 'unknown') bad.push({ i, why: 'unknown type', e })
+    else vertices += (obj.vertices?.length ?? 0) / 3
   } catch (err) {
     bad.push({ i, why: err.message, e })
   }
 })
 
 if (bad.length === 0) {
-  console.log('all entities convert')
+  if (vertices === 0) {
+    console.log('empty: every entity converts but none has a vertex')
+    process.exit(3)
+  }
+  console.log(`all entities convert, ${vertices} vertices`)
   process.exit(0)
 }
 console.log(`${bad.length} rejected:`)

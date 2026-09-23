@@ -6,6 +6,9 @@
  * → manifold geometry → three.js/WebGL) by hash-navigating the dev server, then
  * records whether it rendered cleanly, showed the #error-bar, or timed out.
  *
+ * A model that settles without error but draws no vertices scores `empty`, not
+ * `ok`: an empty result is a failure unless the baseline records it.
+ *
  * This is the browser-side counterpart to packages/openscad's STL-comparison
  * harness (which runs the transpiler in Node). It catches browser-only failures:
  * worker bundling, dynamic imports, fetch/URL resolution, WebGL, missing files.
@@ -154,6 +157,8 @@ async function renderOne(context, opts, file, idx) {
       status = 'error'
       errText = ((await page.locator('#error-bar').textContent().catch(() => '')) || '')
         .replace(/\s+/g, ' ').trim().slice(0, 300)
+    } else if (status === 'ok' && await page.evaluate(() => document.documentElement.dataset.vertices) === '0') {
+      status = 'empty'
     }
   } catch (e) {
     status = String(e).includes('Timeout') ? 'timeout' : 'crash'
