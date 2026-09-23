@@ -28,6 +28,151 @@ moved to its own host, `jscad-run.rkroll.com`, deployed via
 `/api`. Both hosts are live. See `apps/jscad-web/docs/architecture.md` for the
 deploy order and headers.
 
+## Review of 2026-09-19 to 2026-09-22
+
+Found by reviewing those commits. Items say "unverified" where the defect was
+read from the code but not reproduced.
+
+### Security
+
+- **The relay forwards the user's session cookie to LLM providers.**
+  `pickHeaders` in `apps/jscad-web/server/src/relay/routes.ts` drops only
+  hop-by-hop headers, so `cookie`, `origin`, `referer` and `x-forwarded-for`
+  go upstream. The app and relay share an origin, so every chat turn sends the
+  better-auth session cookie to opencode.ai, OpenAI or Anthropic. Forward an
+  allowlist (auth, content-type, `anthropic-version`, `x-opencode-session`).
+- **Any signed-in user can claim another account's GitHub installation.**
+  `POST /api/git/installations` in `server/src/git/routes.ts` only checks that
+  `mintInstallationToken(installationId)` succeeds, which it does for every
+  installation of the App. Installation ids are small integers; once saved, the
+  caller reads and commits through `/files`, `/write` and `/versions`. Tie the
+  installation to the caller's GitHub identity, and check the requested
+  owner/repo against the saved record.
+- **Model code can cancel its own watchdog.** `src_frame/frameHost.js` settles
+  a request's timer on any `__RESPONSE__` the worker posts, and request ids are
+  sequential. A model posts a fake empty result for the next id, then loops:
+  the app shows nothing and a core spins until the next request. A forged
+  `frameWorkerTerminated` in a loop drives `initFrame` repeatedly. Only accept
+  responses the frame itself generated, or key them with an unguessable id.
+
+### OpenSCAD runtime and transpiler
+
+- **2D minkowski hulls a multi-part operand into one blob** (`_minkowski2D`,
+  `openscad-runtime/src/primitives.js`). It checks convexity of one ring and
+  hulls all of `b`. `minkowski(){ square(10,center=true); union(){ circle(1);
+  translate([20,0]) circle(1); } }` gives one 32x12 slab (area 383) instead of
+  two rounded squares (about 286). Holes and extra islands in either operand
+  are also lost.
+- **Statement calls with named arguments** (b1318ae2,
+  `transpiler/statements.ts`). `function f() = 1; f($fn=8);` throws
+  `f_$f$obj is not defined`, since no `$obj` entry point is emitted for a
+  zero-parameter function and `declareMissingSymbols` does not stub it.
+  Separately, `g(a=1, $fn=8);` as a statement never scopes `$fn`: `g_$f$obj`
+  drops it, while the expression form wraps the call in `j$.withScope`.
+- **`rotate_extrude` of a collapsed profile** only returns nothing when the
+  point is at the origin (`extrusions.js`). A profile collapsed to (5,5) still
+  throws "slices with one or more edges"; one collapsed to a line off the axis
+  returns 76 zero-volume polygons where OpenSCAD returns nothing.
+- **`mirror([1])` still throws**; only two-component normals are padded
+  (`transforms.js`).
+- **The async branch of `_safeUnion` skips `withoutDegeneratePolygons`**, so a
+  union containing `text()` can still throw in `plane.fromPoints`. Unverified.
+- **`_sameDimensionAsFirst` converts every manifold 2D operand.** `is2D` reads
+  `sides`/`outlines`, which on `ManifoldGeom2` are getters running
+  `crossSectionToGeom2`, at every level of a 2D CSG tree. Correct but slow;
+  key on an own property as the minkowski path does. Unverified cost.
+
+### Compute frame
+
+- **A frame reload leaves in-flight requests pending.** The second-load branch
+  in `src/frameSetup.js` re-inits but never rejects the proxy's `reqMap`, so a
+  `jscadScript` waits out the 5-minute RPC timeout with the progress bar up and
+  `paramsUI.setWorking` held.
+- **A restarted worker has no state.** After a timeout kill, `onTerminated`
+  only sends `jscadInit`: no `jscadSetFiles`, script or aliases. A parameter
+  change or Export then runs against an empty worker, likely exporting an empty
+  file with no error. Unverified end to end.
+- **`failureCache` in `bundle.frame-worker.js` is never cleared.** A failed
+  include stays failed for 60s after the file is added or the project changes.
+- **Overlapping runs are not ordered.** `jscadSetFiles` sets one global map in
+  its own message after several awaits, and nothing tags a result with its run,
+  so a project switch mid-run can pair B's entry with A's files, and the last
+  answer drawn wins. Unverified.
+- **`scadResolve.js` resolves nested includes against the entry's origin.**
+  `fromFile` arrives as a bare pathname, so an include on another origin looks
+  up its own includes on the project origin; `transpiledCache` keys drop the
+  origin too.
+- **A `createWorker()` throw is never answered** (`frameHost.js`), so the
+  caller waits the 5-minute default.
+- **`render-all.mjs --timeout` above 330s** outlives the RPC timeout: the app
+  reports "RPC timeout" while the worker keeps running.
+
+### Agent and providers
+
+- **Qwen and MiniMax on opencode-go send `role: 'system'` inside `messages`**
+  (1450a9b9). `toAnthropicMessage` in `agent-loop/src/providers.js` and
+  `server/src/providers/anthropic.ts` passes the role through, and `aiChat.js`
+  always prepends a system message. Move it to the top-level `system` field.
+  The request shape is confirmed; the 400 is not.
+- **The Responses adapter ignores `response.failed`, `response.incomplete` and
+  `error`** (`agent-loop/src/responses.js`, `server/src/providers/responses.ts`)
+  and still yields `done` with `completed`, so a mid-stream failure shows an
+  empty turn.
+- **`x-opencode-session` changes every message**: `aiChat.js` calls
+  `createProvider` per submit, and the id defaults to a fresh UUID there.
+
+### Manifold
+
+- **`retessellate` shares the input's WASM handle**
+  (`packages/manifold/src/modifiers/index.js`); disposing either wrapper breaks
+  the other, and the FinalizationRegistry holds the handle twice. Missed by the
+  clone-ownership fix. The single-input `translate([0,0,0])` copies in `union`
+  and `intersect` also leak a temporary manifold for a plain geom3 input.
+
+### Tests and CI
+
+- **`e2e/frame.spec.js` never runs in CI.** `ci/render` runs it only when
+  `render-all.mjs` exits 0, which no baseline allows; `ci/web` does not list
+  it. The hostile-bundle assertion has never executed.
+- **Render sweeps cannot signal a regression by exit status.** Every job ends
+  FAILED against a nonzero baseline; the only diff is the hand-run snippet in
+  `RENDER-TESTING.md`, which ignores status changes such as error to timeout.
+  Have the sweep compare against its baseline and exit on new failures.
+- **The deploy smoke gate passes a grid of dead cells.** `smoke-deploy.mjs`
+  checks only `data-render` and `#error-bar`, and since the per-cell catch a
+  fully failing `01-basics/ALL.js` renders 20 skulls. Read the `ALL: FAILED`
+  lines.
+- **The grid baseline lost its cells.** 0f740d6c dropped `cells` and `why`
+  from `render-grids-baseline.json`, so a new cell failure in an already
+  partial grid diffs clean. `RENDER-TESTING.md` still says 34/44 and that each
+  failure carries its cells.
+- **Browser sweeps honour comparison-only skips.** `render-all.mjs` applies
+  every `skip.txt` (35 entries), most of which only say the STL comparison
+  cannot grade the model (unseeded `rands()`, bad reference STL, fonts).
+  `random_city.scad` and `voronoi_vase.scad` are never rendered in the browser.
+  Split render skips from comparison skips.
+- **OpenSCAD reference failures vanish from the count**
+  (`openscad/bin/test-harness.js`). Any failure, including a 60s timeout under
+  load, is subtracted from `tested` and cached as a permanent `.failed`
+  sentinel keyed on the library hash, not the OpenSCAD version. Unverified
+  that CI's cache persists.
+- **An empty result scores as a render.** `render-all.mjs` treats no error bar
+  as `ok`, and `display-check.js` exits 0 on "no geometry returned".
+- **Cells after a wasm trap are still scored.** The per-cell catch keeps using
+  a manifold instance that raised a `WebAssembly.RuntimeError`, so later `ok`
+  cells may not be trustworthy.
+
+### Deploy and storage
+
+- **An exported `REMOTE_HOST` makes `deploy-full.sh` a silent no-op** that
+  still passes `wait_for_ok` and `smoke-deploy.mjs`, since neither compares a
+  build id. `unset REMOTE_HOST` in the script, and check the served build hash.
+- **`frame-ancestors` is hardcoded** to `https://jscad.rkroll.com` in
+  `deploy/hooks/apache.configure.post.sh`, while `build.js` accepts
+  `FRAME_APP_ORIGIN`.
+- **Folder and git storage export `.jscad-studio.json` metadata**; `zip.js`
+  expects `.jscad-web.json`, so their zips do not import elsewhere. Neither
+  mode is wired into `main.js` yet.
 
 ## Render sweep
 
