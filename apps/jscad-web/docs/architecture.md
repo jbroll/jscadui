@@ -274,11 +274,12 @@ live 2026-09-21.
 `deploy.sh` sources `lib/platform.sh` from `common.sh` before it reads a
 stage's own config, so an inherited `REMOTE_HOST` makes that sourcing run
 remote detection over ssh and exit the script with status 0 — a silent no-op
-that `set -e` reads as success, not a failure. `deploy-full.sh` never exports
-one stage's `REMOTE_HOST` into the next; each of the three `deploy.sh`
-invocations (run host, frontend, API) takes its host from its own config file.
-This is why the stages look the way they do, rather than sharing one exported
-`REMOTE_HOST`.
+that `set -e` reads as success, not a failure. `deploy-full.sh` unsets
+`REMOTE_HOST` on entry and never exports one stage's into the next; each of
+the three `deploy.sh` invocations (run host, frontend, API) takes its host from
+its own config file. Because a no-op stage leaves the previous build serving,
+which passes every other check, the smoke gate also compares the served build
+against the one just built.
 
 ### Smoke gate
 
@@ -289,6 +290,12 @@ in production (see backlog), an include-heavy model (`mcad/hardware_test.scad`)
 resolves its includes from the live host, a grid (`01-basics/ALL.js`) renders,
 and the CORS split holds — `/examples/` answers `Access-Control-Allow-Origin: *`
 and `/api/health` answers none.
+
+With `--build build`, it first checks that the app host serves the build in
+that directory, and with `--frame-url` the frame host too. The build id is the
+content hash in each `index.html`'s entry name (`main.<hash>.js`,
+`frame.<hash>.js`): the entry's hash covers every bundle it loads, and
+`index.html` is served no-cache. `deploy-full.sh` passes both flags.
 
 It waits for the first render before touching the menu. `main.js` wires the
 menu partway through a boot that awaits the compute frame, so a click landing

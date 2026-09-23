@@ -15,6 +15,10 @@
 
 set -e
 
+# An inherited REMOTE_HOST turns every deploy.sh stage into a silent no-op
+# (see the stage comment below). Each stage takes its host from its own config.
+unset REMOTE_HOST
+
 MODE="${1:-update}"
 
 DEPLOY_SH="../../../deploy.sh/deploy.sh"
@@ -84,7 +88,7 @@ echo ""
 echo "[4/4] Health check + smoke test..."
 wait_for_ok "$APP_URL/api/health" "Backend health check"
 
-node e2e/smoke-deploy.mjs --url "$APP_URL"
+node e2e/smoke-deploy.mjs --url "$APP_URL" --build build --frame-url "$RUN_URL"
 echo ""
 echo "=== Deployment Complete ==="
 echo "App: $APP_URL"

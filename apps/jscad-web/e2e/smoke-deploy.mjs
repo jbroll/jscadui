@@ -9,15 +9,24 @@
  *      (catches the prod autoindex 403)
  *   3. the CORS split the compute frame needs: examples carry
  *      Access-Control-Allow-Origin, the API does not
+ *   4. with --build, the app (and with --frame-url, the frame) serves the
+ *      build in that directory, by the entry hash in each index.html
  *
  *   node e2e/smoke-deploy.mjs --url https://jscad.rkroll.com
+ *   node e2e/smoke-deploy.mjs --url https://jscad.rkroll.com --build build \
+ *     --frame-url https://jscad-run.rkroll.com
  */
+import { readFileSync } from 'fs'
 import { chromium } from '@playwright/test'
+import { entryHash } from '../src_build/buildId.js'
 
-const url = (() => {
-  const i = process.argv.indexOf('--url')
-  return (i !== -1 ? process.argv[i + 1] : 'http://localhost:5120')
-})().replace(/\/$/, '')
+const arg = (name) => {
+  const i = process.argv.indexOf(name)
+  return i !== -1 ? process.argv[i + 1]?.replace(/\/$/, '') ?? null : null
+}
+const url = arg('--url') ?? 'http://localhost:5120'
+const buildDir = arg('--build')
+const frameUrl = arg('--frame-url')
 
 const fails = []
 const checked = []
@@ -28,6 +37,25 @@ const check = (name, ok, detail = '') => {
 }
 
 console.log(`Smoke testing ${url}`)
+
+// A deploy stage that silently did nothing leaves the old build serving, which
+// passes every other check here.
+if (buildDir) {
+  const hosts = [['app', url, buildDir + '/index.html', 'main']]
+  if (frameUrl) hosts.push(['frame', frameUrl, buildDir + '/frame/index.html', 'frame'])
+  for (const [name, hostUrl, indexPath, entry] of hosts) {
+    try {
+      const built = entryHash(readFileSync(indexPath, 'utf8'), entry)
+      const res = await fetch(hostUrl + '/', { cache: 'no-store' })
+      const served = res.ok ? entryHash(await res.text(), entry) : null
+      check(`${name} serves this build`, built !== null && served === built,
+        `built ${built ?? 'unhashed'}, served ${res.ok ? served ?? 'unhashed' : 'HTTP ' + res.status}`)
+    } catch (e) {
+      check(`${name} serves this build`, false, String(e).split('\n')[0].slice(0, 160))
+    }
+  }
+}
+
 const browser = await chromium.launch({ headless: true, args: ['--use-gl=angle', '--ignore-gpu-blocklist'] })
 const page = await (await browser.newContext()).newPage()
 
