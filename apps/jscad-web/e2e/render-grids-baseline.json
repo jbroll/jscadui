@@ -1,8 +1,8 @@
 {
-  "_comment": "35/44 ALL.js grids render on the manifold engine with a 600s hang guard per grid. A cell whose model throws draws a skull-and-crossbones and the grid scores partial; the grids that fail outright do so outside the per-cell catch. Diff future runs against failures[], not against zero.",
+  "_comment": "35/44 ALL.js grids render on the manifold engine with a 320s hang guard per grid. A cell whose model throws draws a skull-and-crossbones and the grid scores partial; after a wasm trap every later cell fails as not run. The NopSCADlib grids no longer trap in PSUs.scad and now run past the guard. render-all.mjs --baseline diffs a run against failures[], cells included.",
   "tree": "main working tree, rsynced onto the CI base worktree by sci — no commit identifies the code that was measured",
-  "date": "2026-09-22",
-  "job": "53ddb53720d2395b",
+  "date": "2026-09-23",
+  "job": "737437e4401ff051",
   "engine": "manifold",
   "total": 44,
   "ok": 35,
@@ -61,32 +61,42 @@
     {
       "rel": "ALL.js",
       "status": "timeout",
-      "why": "TimeoutError: page.waitForFunction: Timeout 600000ms exceeded."
+      "why": "TimeoutError: page.waitForFunction: Timeout 320000ms exceeded."
     },
     {
       "rel": "openscad/ALL.js",
       "status": "error",
       "cells": [
         "./fractal_tree.scad: table index is out of bounds",
-        "./05-part5/ALL.js: function signature mismatch",
-        "./bosl2/ALL.js: function signature mismatch"
+        "./lsystems.scad: not run: wasm trapped in ./fractal_tree.scad",
+        "./orientations.scad: not run: wasm trapped in ./fractal_tree.scad",
+        "./spherical_patch.scad: not run: wasm trapped in ./fractal_tree.scad",
+        "./spring_handle.scad: not run: wasm trapped in ./fractal_tree.scad",
+        "./worldmap_360x180.scad: not run: wasm trapped in ./fractal_tree.scad",
+        "./05-part5/ALL.js: table index is out of bounds",
+        "./bosl2/ALL.js: table index is out of bounds",
+        "./dotscad/ALL.js: not run: wasm trapped in ./fractal_tree.scad",
+        "./mcad/ALL.js: not run: wasm trapped in ./fractal_tree.scad",
+        "./nopscadlib/ALL.js: not run: wasm trapped in ./fractal_tree.scad",
+        "./snippet/ALL.js: not run: wasm trapped in ./fractal_tree.scad",
+        "./text/ALL.js: not run: wasm trapped in ./fractal_tree.scad"
       ],
-      "why": "RuntimeError: jscadMain failed: function signature mismatchRuntimeError: function signature mismatch at assets/manifold.wasm:wasm-function[130]:0x8c1f at assets/manifold.wasm:wasm-function[446]:0x35154 at assets/manifold.wasm:wasm-function[821]:0x6676d at assets/manifold.wasm:wasm-function[931]:0x6b"
+      "why": "RuntimeError: jscadMain failed: table index is out of boundsRuntimeError: table index is out of bounds at assets/manifold.wasm:wasm-function[57]:0x4e4c at assets/manifold.wasm:wasm-function[215]:0x107da at assets/manifold.wasm:wasm-function[86]:0x6087 at Ls (assets/bundle.manifold_modeling.js:1:2634"
     },
     {
       "rel": "openscad/bosl2/ALL.js",
       "status": "timeout",
-      "why": "TimeoutError: page.waitForFunction: Timeout 600000ms exceeded."
+      "why": "TimeoutError: page.waitForFunction: Timeout 320000ms exceeded."
     },
     {
       "rel": "openscad/dotscad/ALL.js",
       "status": "timeout",
-      "why": "TimeoutError: page.waitForFunction: Timeout 600000ms exceeded."
+      "why": "TimeoutError: page.waitForFunction: Timeout 320000ms exceeded."
     },
     {
       "rel": "openscad/dotscad/examples/ALL.js",
       "status": "timeout",
-      "why": "TimeoutError: page.waitForFunction: Timeout 600000ms exceeded."
+      "why": "TimeoutError: page.waitForFunction: Timeout 320000ms exceeded."
     },
     {
       "rel": "openscad/dotscad/examples/maze/ALL.js",
@@ -97,30 +107,18 @@
     },
     {
       "rel": "openscad/nopscadlib/ALL.js",
-      "status": "error",
-      "cells": [
-        "./PSUs.scad: function signature mismatch",
-        "./tests/ALL.js: function signature mismatch",
-        "./NopSCADlib/ALL.js: function signature mismatch"
-      ],
-      "why": "RuntimeError: jscadMain failed: function signature mismatchRuntimeError: function signature mismatch at assets/manifold.wasm:wasm-function[130]:0x8c1f at assets/manifold.wasm:wasm-function[446]:0x35154 at assets/manifold.wasm:wasm-function[821]:0x6676d at assets/manifold.wasm:wasm-function[931]:0x6b"
+      "status": "timeout",
+      "why": "TimeoutError: page.waitForFunction: Timeout 320000ms exceeded."
     },
     {
       "rel": "openscad/nopscadlib/NopSCADlib/ALL.js",
-      "status": "error",
-      "cells": [
-        "./PSUs.scad: function signature mismatch",
-        "./tests/ALL.js: function signature mismatch"
-      ],
-      "why": "RuntimeError: jscadMain failed: function signature mismatchRuntimeError: function signature mismatch at assets/manifold.wasm:wasm-function[130]:0x8c1f at assets/manifold.wasm:wasm-function[446]:0x35154 at assets/manifold.wasm:wasm-function[821]:0x6676d at assets/manifold.wasm:wasm-function[931]:0x6b"
+      "status": "timeout",
+      "why": "TimeoutError: page.waitForFunction: Timeout 320000ms exceeded."
     },
     {
       "rel": "openscad/nopscadlib/NopSCADlib/tests/ALL.js",
-      "status": "error",
-      "cells": [
-        "./PSUs.scad: function signature mismatch"
-      ],
-      "why": "RuntimeError: jscadMain failed: function signature mismatchRuntimeError: function signature mismatch at assets/manifold.wasm:wasm-function[130]:0x8c1f at assets/manifold.wasm:wasm-function[446]:0x35154 at assets/manifold.wasm:wasm-function[821]:0x6676d at assets/manifold.wasm:wasm-function[931]:0x6b"
+      "status": "timeout",
+      "why": "TimeoutError: page.waitForFunction: Timeout 320000ms exceeded."
     }
   ]
 }
