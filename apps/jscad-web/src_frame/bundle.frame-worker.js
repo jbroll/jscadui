@@ -11,6 +11,7 @@ import { readFileWeb, require, requireHandlers, jscadClearTempCache, clearFileCa
 import { withTransferable } from '@jscadui/postmessage'
 import { defaultSerializerConfigs } from '@jscadui/format-common/src/exportFormats.js'
 import { includeCandidates, isSpaFallback } from './scadResolve.js'
+import { sealMessageListeners } from './sealMessages.js'
 
 // The project file map the frame's load command carries. readFileWeb (which the
 // loader uses for every read) is replaced at build time by readFileFrame.js,
@@ -246,3 +247,5 @@ initWorker({
     },
   },
 })
+
+sealMessageListeners(self)

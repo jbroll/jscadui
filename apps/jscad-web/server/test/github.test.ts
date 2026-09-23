@@ -9,6 +9,8 @@ import {
   GitHubConflictError,
   createGitHubApp,
   createInstallationStore,
+  type GitHubApp,
+  type InstallationStore,
 } from '../src/git/github.js'
 import { mountGitHubRoutes } from '../src/git/routes.js'
 
@@ -134,6 +136,23 @@ describe('github app client', () => {
     expect(calls).toHaveLength(0)
   })
 
+  it('lists every repository an installation can reach, across pages', async () => {
+    const page = (n: number, from: number) =>
+      Array.from({ length: n }, (_, i) => ({ full_name: `Org/repo${from + i}` }))
+    const calls = stubFetch((url) => {
+      if (url.endsWith('/access_tokens')) return json(201, { token: 'tok', expires_at: '2999-01-01T00:00:00Z' })
+      if (url.endsWith('/installation/repositories?per_page=100&page=1'))
+        return json(200, { total_count: 101, repositories: page(100, 0) })
+      if (url.endsWith('/installation/repositories?per_page=100&page=2'))
+        return json(200, { total_count: 101, repositories: page(1, 100) })
+      throw new Error(`unexpected ${url}`)
+    })
+    const repos = await createGitHubApp(APP).listInstallationRepos(9)
+    expect(repos).toHaveLength(101)
+    expect(repos[100]).toBe('Org/repo100')
+    expect(calls[1].url).toBe('https://api.test/installation/repositories?per_page=100&page=1')
+  })
+
   it('mints one installation token and reuses it until expiry', async () => {
     let tokens = 0
     stubFetch((url) => {
@@ -164,6 +183,60 @@ describe('github routes', () => {
     expect(store.get('u1', 9)).toBeUndefined()
     const again = await request(app).delete('/api/git/installations/9')
     expect(again.status).toBe(404)
+  })
+
+  const fakeApp = (repos: string[]): GitHubApp => ({
+    mintInstallationToken: async () => 'tok',
+    listInstallationRepos: async () => repos,
+    readProject: async () => ({ files: { 'main.js': 'one' } }),
+    writeFiles: async () => ({ commitSha: 'c9' }),
+    listVersions: async () => [],
+  })
+
+  const routesApp = (store: InstallationStore, repos: string[]) => {
+    const app = express()
+    app.use(express.json())
+    mountGitHubRoutes(app, {
+      getAuthor: () => 'u1',
+      installationStore: store,
+      appConfig: APP,
+      createApp: () => fakeApp(repos),
+    })
+    return app
+  }
+
+  it('refuses to save an installation that cannot reach the requested repo', async () => {
+    const store = createInstallationStore()
+    const res = await request(routesApp(store, ['someone/else']))
+      .post('/api/git/installations')
+      .send({ installationId: 9, owner: 'o', repo: 'r' })
+    expect(res.status).toBe(403)
+    expect(store.get('u1', 9)).toBeUndefined()
+  })
+
+  it('saves an installation whose repositories include the requested repo', async () => {
+    const store = createInstallationStore()
+    const res = await request(routesApp(store, ['O/R']))
+      .post('/api/git/installations')
+      .send({ installationId: 9, owner: 'o', repo: 'r' })
+    expect(res.status).toBe(200)
+    expect(store.get('u1', 9)).toMatchObject({ owner: 'o', repo: 'r' })
+  })
+
+  it('refuses read, write and versions for a repo other than the saved one', async () => {
+    const store = createInstallationStore()
+    store.save('u1', { installationId: 9, owner: 'o', repo: 'r', created: 0 })
+    const app = routesApp(store, ['o/r', 'o/other'])
+    const files = await request(app).get('/api/git/o/other/files?installationId=9&path=proj')
+    expect(files.status).toBe(403)
+    const versions = await request(app).get('/api/git/o/other/versions?installationId=9&path=proj')
+    expect(versions.status).toBe(403)
+    const write = await request(app)
+      .post('/api/git/o/other/write')
+      .send({ installationId: 9, files: { 'main.js': 'x' }, message: 'm', expectedSha: 's' })
+    expect(write.status).toBe(403)
+    const ok = await request(app).get('/api/git/O/R/files?installationId=9&path=proj')
+    expect(ok.status).toBe(200)
   })
 
   it('answers 401 without a session', async () => {

@@ -30,14 +30,26 @@ export const workerBundles = (bundleBase, engine) => ({
  * @param {() => Worker} options.createWorker
  * @param {(message: unknown, transfer?: Transferable[]) => void} options.post sends to the app
  * @param {Window} options.parentWindow the only window whose messages are accepted
+ * @param {() => string} [options.randomId]
  */
-export const createFrameHost = ({ allowedOrigin, bundleBase, createWorker, post, parentWindow }) => {
+export const createFrameHost = ({
+  allowedOrigin,
+  bundleBase,
+  createWorker,
+  post,
+  parentWindow,
+  randomId = () => crypto.randomUUID(),
+}) => {
   // Latched: a jscadInit that omits `engine` keeps the last one. The alias
   // path (onAliasFound) re-inits without naming an engine and must not switch
   // the model bundles out from under a loaded project.
   let engine
   let timeoutMs = DEFAULT_TIMEOUT_MS
   let worker = null
+  // Keyed by the id the worker sees. Model code shares the worker with the
+  // code that answers, so a sequential id would let it answer the next request
+  // itself and cancel that request's timer.
+  /** @type {Map<string, {appId: unknown, timer: ReturnType<typeof setTimeout>}>} */
   const pending = new Map()
 
   const answerError = (id, name, message) =>
@@ -48,36 +60,37 @@ export const createFrameHost = ({ allowedOrigin, bundleBase, createWorker, post,
   const killWorker = (expiredId, reason, errorName) => {
     worker?.terminate()
     worker = null
-    for (const [id, timer] of pending) {
+    for (const [workerId, { appId, timer }] of pending) {
       clearTimeout(timer)
-      if (id === expiredId) answerError(id, errorName, reason)
-      else answerError(id, 'AbortError', `worker terminated before this request finished: ${reason}`)
+      if (workerId === expiredId) answerError(appId, errorName, reason)
+      else answerError(appId, 'AbortError', `worker terminated before this request finished: ${reason}`)
     }
     pending.clear()
     post({ method: 'frameWorkerTerminated', params: [{ reason }] })
   }
 
-  const armTimeout = (id) => {
-    pending.set(id, setTimeout(() => {
-      killWorker(id, `model exceeded ${timeoutMs} ms`, 'TimeoutError')
-    }, timeoutMs))
+  const track = (appId) => {
+    const workerId = randomId()
+    const timer = setTimeout(() => {
+      killWorker(workerId, `model exceeded ${timeoutMs} ms`, 'TimeoutError')
+    }, timeoutMs)
+    pending.set(workerId, { appId, timer })
+    return workerId
   }
 
-  const settle = (id) => {
-    const timer = pending.get(id)
-    if (timer === undefined) return
-    clearTimeout(timer)
-    pending.delete(id)
-  }
-
-  // A timed-out or crashed request left the worker unusable, so it was killed;
-  // the next request gets a fresh one.
+  // The worker sends nothing but answers, so anything else it posts, and any
+  // answer to a request the frame did not issue, is model code talking.
   const attach = () => {
     worker = createWorker()
     worker.onmessage = (event) => {
-      const { method, id } = event.data
-      if (method === RESPONSE) settle(id)
-      post(event.data, collectBuffers(event.data))
+      const data = event.data
+      if (data?.method !== RESPONSE) return
+      const request = pending.get(data.id)
+      if (!request) return
+      clearTimeout(request.timer)
+      pending.delete(data.id)
+      const message = { ...data, id: request.appId }
+      post(message, collectBuffers(message))
     }
     // Without these a bundle that fails to load surfaces as "model exceeded
     // N ms" one timeout later, naming the model instead of the load.
@@ -123,7 +136,7 @@ export const createFrameHost = ({ allowedOrigin, bundleBase, createWorker, post,
     }
 
     if (!worker) attach()
-    if (id) armTimeout(id)
+    if (id) message = { ...message, id: track(id) }
     worker.postMessage(message, collectBuffers(message))
   }
 

@@ -1,7 +1,7 @@
 // GitHub storage routes: the browser adapter talks to the repo through these,
 // so the App private key never leaves the server. Every route is session-gated
 // and every installation lookup is author-scoped — one author's connection
-// never resolves another's.
+// never resolves another's — and bound to the owner/repo saved with it.
 import type { Express, Request, Response } from 'express'
 import {
   GitHubConflictError,
@@ -70,8 +70,12 @@ export function mountGitHubRoutes(app: Express, options: GitHubRouteOptions = {}
       res.status(400).json({ error: 'installationId, owner and repo are required' })
       return
     }
-    // Minting first proves the installation is real before anything is stored.
-    await client.mintInstallationToken(installationId)
+    const wanted = `${owner}/${repo}`.toLowerCase()
+    const repos = await client.listInstallationRepos(installationId)
+    if (!repos.some((name) => name.toLowerCase() === wanted)) {
+      res.status(403).json({ error: 'repository not accessible to this installation' })
+      return
+    }
     store.save(author, { installationId, owner, repo, created: Date.now() })
     res.json({ ok: true })
   })
@@ -101,6 +105,11 @@ export function mountGitHubRoutes(app: Express, options: GitHubRouteOptions = {}
       res.status(404).json({ error: 'unknown installation' })
       return null
     }
+    const { owner, repo } = req.params as Record<string, string>
+    if (`${owner}/${repo}`.toLowerCase() !== `${record.owner}/${record.repo}`.toLowerCase()) {
+      res.status(403).json({ error: 'repository does not match the installation' })
+      return null
+    }
     return { author, installationId }
   }
 
@@ -115,24 +124,18 @@ export function mountGitHubRoutes(app: Express, options: GitHubRouteOptions = {}
   })
 
   app.post('/api/git/:owner/:repo/write', async (req: Request, res: Response) => {
-    const author = await requireAuthor(req, res)
-    if (author === null && getAuthor) return
-    if (author === null) return
+    const found = await installationFor(req, res)
+    if (!found) return
     const client = appFor(res)
     if (!client) return
+    const { installationId } = found
     const { owner, repo } = req.params as Record<string, string>
-    const { installationId, path = '', branch = 'main', files, message, expectedSha } = (req.body ?? {}) as {
-      installationId?: number
+    const { path = '', branch = 'main', files, message, expectedSha } = (req.body ?? {}) as {
       path?: string
       branch?: string
       files?: Record<string, string>
       message?: string
       expectedSha?: string
-    }
-    const record = installationId ? store.get(author, installationId) : undefined
-    if (!record || !installationId) {
-      res.status(404).json({ error: 'unknown installation' })
-      return
     }
     if (!files || !message || !expectedSha) {
       res.status(400).json({ error: 'files, message and expectedSha are required' })

@@ -92,6 +92,8 @@ async function api(fetchFn: FetchFn, apiBase: string, token: string, path: strin
 
 export interface GitHubApp {
   mintInstallationToken(installationId: number): Promise<string>
+  /** `owner/repo` names the installation can reach. */
+  listInstallationRepos(installationId: number): Promise<string[]>
   readProject(ref: RepoRef): Promise<{ files: Record<string, string> }>
   writeFiles(args: RepoRef & { files: Record<string, string>; message: string; expectedSha: string }): Promise<{ commitSha: string }>
   listVersions(ref: RepoRef): Promise<{ sha: string; message: string; created: string }[]>
@@ -116,6 +118,20 @@ export function createGitHubApp(config: GitHubAppConfig, fetchFn: FetchFn = fetc
     const body = (await res.json()) as { token: string; expires_at: string }
     tokens.set(installationId, { token: body.token, expiresAt: Date.parse(body.expires_at) })
     return body.token
+  }
+
+  const listInstallationRepos = async (installationId: number): Promise<string[]> => {
+    const token = await mintInstallationToken(installationId)
+    const names: string[] = []
+    for (let page = 1; ; page++) {
+      const res = await fetchFn(`${apiBase}/installation/repositories?per_page=100&page=${page}`, {
+        headers: { accept: 'application/vnd.github+json', authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) throw new Error(`github: installation repositories failed (${res.status})`)
+      const body = (await res.json()) as { total_count: number; repositories: { full_name: string }[] }
+      for (const repo of body.repositories) names.push(repo.full_name)
+      if (body.repositories.length < 100 || names.length >= body.total_count) return names
+    }
   }
 
   const treeRef = (ref: RepoRef) => ref.ref ?? ref.branch ?? 'main'
@@ -199,7 +215,7 @@ export function createGitHubApp(config: GitHubAppConfig, fetchFn: FetchFn = fetc
     return commits.map((c) => ({ sha: c.sha, message: c.commit.message, created: c.commit.author.date }))
   }
 
-  return { mintInstallationToken, readProject, writeFiles, listVersions }
+  return { mintInstallationToken, listInstallationRepos, readProject, writeFiles, listVersions }
 }
 
 export interface InstallationStore {

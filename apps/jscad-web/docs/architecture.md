@@ -231,7 +231,11 @@ Backends: the service-worker FS and file handles (`local`, the default and the
 only mode for anonymous users), rowboat blobs and tables (`rowboat`, after
 sign-in, synced with a 15-minute JWT from `GET /api/sync-token`), a linked
 local folder through `showDirectoryPicker()`, and a connected GitHub
-repository through a GitHub App installation.
+repository through a GitHub App installation. Connecting saves the
+installation only when its repository list includes the requested
+owner/repo, and every read, write and version listing must name that same
+owner/repo. Sign-in is Google or Apple, so the server has no GitHub identity
+to check the installation's account against.
 
 A mixed project merges at load: each manifest path names exactly one backend,
 and an unlisted sibling resolves local-first then rowboat.
@@ -274,12 +278,11 @@ live 2026-09-21.
 `deploy.sh` sources `lib/platform.sh` from `common.sh` before it reads a
 stage's own config, so an inherited `REMOTE_HOST` makes that sourcing run
 remote detection over ssh and exit the script with status 0 — a silent no-op
-that `set -e` reads as success, not a failure. `deploy-full.sh` unsets
-`REMOTE_HOST` on entry and never exports one stage's into the next; each of
-the three `deploy.sh` invocations (run host, frontend, API) takes its host from
-its own config file. Because a no-op stage leaves the previous build serving,
-which passes every other check, the smoke gate also compares the served build
-against the one just built.
+that `set -e` reads as success, not a failure. `deploy-full.sh` never exports
+one stage's `REMOTE_HOST` into the next; each of the three `deploy.sh`
+invocations (run host, frontend, API) takes its host from its own config file.
+This is why the stages look the way they do, rather than sharing one exported
+`REMOTE_HOST`.
 
 ### Smoke gate
 
@@ -290,12 +293,6 @@ in production (see backlog), an include-heavy model (`mcad/hardware_test.scad`)
 resolves its includes from the live host, a grid (`01-basics/ALL.js`) renders,
 and the CORS split holds — `/examples/` answers `Access-Control-Allow-Origin: *`
 and `/api/health` answers none.
-
-With `--build build`, it first checks that the app host serves the build in
-that directory, and with `--frame-url` the frame host too. The build id is the
-content hash in each `index.html`'s entry name (`main.<hash>.js`,
-`frame.<hash>.js`): the entry's hash covers every bundle it loads, and
-`index.html` is served no-cache. `deploy-full.sh` passes both flags.
 
 It waits for the first render before touching the menu. `main.js` wires the
 menu partway through a boot that awaits the compute frame, so a click landing
