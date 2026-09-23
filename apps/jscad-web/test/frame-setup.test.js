@@ -134,7 +134,7 @@ describe('worker restart', () => {
     next.catch(() => {})
     await settleAll(frame)
     await expect(next).rejects.toThrow('the model stopped and could not be reloaded')
-    expect(methods(frame.sent)).toEqual(['jscadInit', 'jscadInit', 'jscadSetFiles'])
+    expect(methods(frame.sent)).toEqual([])
   })
 
   it('replays after a frame reload too', async () => {
@@ -177,12 +177,33 @@ describe('worker restart', () => {
     await frame.flush()
     const [init] = frame.sent
     frame.fail(init, 'TimeoutError', 'model exceeded 1 ms')
+    await frame.flush()
     terminate(frame)
     await frame.flush()
     await settleAll(frame)
     await next
 
     expect(methods(frame.sent)).toEqual(['jscadInit', 'jscadScript'])
+  })
+
+  it('retries an init that never succeeded once per restart, not in a loop', async () => {
+    const frame = await boot()
+    const init = frame.workerApi.jscadInit({ engine: 'manifold', timeoutMs: 1 })
+    await frame.flush()
+    frame.fail(frame.sent[0], 'TimeoutError', 'model exceeded 1 ms')
+    await expect(init).rejects.toThrow()
+    frame.sent.length = 0
+
+    terminate(frame)
+    await frame.flush()
+    expect(methods(frame.sent)).toEqual(['jscadInit'])
+    expect(frame.sent[0].params[0]).toEqual({ engine: 'manifold', timeoutMs: 1 })
+    frame.fail(frame.sent[0], 'TimeoutError', 'model exceeded 1 ms')
+    await frame.flush()
+    terminate(frame)
+    await frame.flush()
+    await frame.flush()
+    expect(methods(frame.sent)).toEqual(['jscadInit'])
   })
 
   it('sends requests straight through when nothing needs replaying', async () => {

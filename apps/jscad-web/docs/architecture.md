@@ -150,7 +150,8 @@ Each in-flight request gets its own timer. When one expires the worker is
 terminated, since there is no way to cancel just that model: the expired
 request is answered `TimeoutError`, every other request the worker was holding
 is answered `AbortError`, and the app gets one `frameWorkerTerminated`. The
-next request builds a fresh worker, which the app's handler re-initializes. A
+next request builds a fresh worker, which `frameSetup.js` re-initializes (see
+the replay below). A
 worker that fails to load its bundles takes the same path through `onerror`,
 so the app sees the load error rather than a timeout a budget later.
 
@@ -182,8 +183,14 @@ alias, and the latest), the last `jscadSetFiles`, the last `jscadScript`, and
 the params of the last `jscadMain` after it. On restart it replays them in that
 order, and any request made meanwhile waits for the replay. A script that
 failed or timed out is not replayed, and neither is one whose replay fails. A
-restart during a replay ends that replay instead of starting another, so a
-budget too small for the replay cannot hold requests back forever. In
+replay request answered by a kill ends the replay, and the restart that kill
+reports is not replayed, so a budget too small for the replay cannot start a
+loop. Until an init naming an engine succeeds, the replay retries the last one
+attempted. Nothing else re-inits on a restart: `main.js` used to send
+`jscadInit` on every `frameWorkerTerminated`, and when that init was what
+timed out (a 1 ms budget, or a worker that cannot load) each restart caused
+the next. That loop kept the page too busy for the e2e harness to see the
+settled `data-render`. In
 those cases `jscadMain`, `jscadExportData`, `jscadMeasure` and `jscadCheck` are
 refused with "the model stopped and could not be reloaded" until a script loads
 again.

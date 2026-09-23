@@ -201,7 +201,8 @@ const { frameEl, workerApi, handlers } = await createFrame({
   onError: setError,
   onEntities: handleEntities,
   onJobCount: trackJobs,
-  onTerminated: () => initFrame(),
+  // No onTerminated re-init: frameSetup replays the inits itself, and an init
+  // sent on every restart loops forever when the init is what timed out.
   runOrigin: __FRAME_ORIGIN__,
 })
 

@@ -45,19 +45,28 @@ const createReplay = (proxy) => {
   }
 
   let everLoaded = false
+  // A worker that never finished an init still needs its bundles named, so
+  // until one succeeds the replay retries the last one attempted.
+  let attemptedEngineInit = null
 
   const record = (method, args, result) => {
     const onSuccess = succeeded[method]
     if (!onSuccess) return
     if (method === 'jscadScript') everLoaded = true
+    if (method === 'jscadInit' && args[0]?.engine) attemptedEngineInit = args
     result.then(() => onSuccess(args), () => {
       if (method === 'jscadScript') script = main = null
     })
   }
 
+  // A replay request answered by a kill means the frame's frameWorkerTerminated
+  // for that kill is on its way. Replaying on it would restart the loop with no
+  // request of the app's behind it, so that one restart is skipped.
+  let skipRestart = false
+
   const replay = async () => {
     try {
-      const inits = [...new Set([engineInit, ...aliasInits.values(), lastInit])].filter(Boolean)
+      const inits = [...new Set([engineInit ?? attemptedEngineInit, ...aliasInits.values(), lastInit])].filter(Boolean)
       for (const args of inits) await proxy.jscadInit(...args)
       if (files) await proxy.jscadSetFiles(...files)
       if (!script) {
@@ -66,9 +75,10 @@ const createReplay = (proxy) => {
       }
       await proxy.jscadScript(...script)
       if (main) await proxy.jscadMain(...main)
-    } catch {
+    } catch (error) {
       script = main = null
       lost = everLoaded
+      skipRestart = error?.name === 'TimeoutError' || error?.name === 'AbortError'
     }
   }
 
@@ -79,6 +89,10 @@ const createReplay = (proxy) => {
     // A restart during a replay is the replay's own doing: its calls fail, so
     // it ends without the model rather than starting over.
     restore: () => {
+      if (skipRestart) {
+        skipRestart = false
+        return
+      }
       if (restoring) return
       restoring = replay().finally(() => { restoring = null })
     },
@@ -103,7 +117,7 @@ const createReplay = (proxy) => {
  * @param {(error: unknown) => void} options.onError
  * @param {(result: unknown, options: {skipLog?: boolean}) => void} options.onEntities
  * @param {(jobs: number) => void} options.onJobCount
- * @param {() => void} [options.onTerminated] - the frame killed its worker; re-init it
+ * @param {() => void} [options.onTerminated] - the frame lost its worker; the replay already re-inits it
  * @param {string} options.runOrigin
  * @param {number} [options.loadTimeoutMs]
  * @returns {Promise<{frameEl: HTMLIFrameElement, workerApi: JscadWorker, handlers: object}>}
