@@ -40,10 +40,10 @@ fixes left open.
   and one of its repo names can still bind it. Closing it needs GitHub user
   authorization (OAuth during install, or GitHub as a linked account) and a
   check against `GET /user/installations`.
-- **A timed-out model never settles the page.** `e2e/app.spec.js:80` fails on
-  CI: the error bar shows `model exceeded 1 ms` but `html[data-render]` is
-  never set. Timed-out grids in the sweeps hit the harness's 320s guard
-  instead of the frame's 290s kill for the same reason.
+- **Timed-out grids hit the sweep's 320s guard, not the frame's 290s kill.**
+  Unexplained. It is not the restart loop fixed in `10a66a62`, which needs the
+  init itself to time out. Pages in the tiny-timeout e2e also request the
+  unhashed `assets/bundle.frame-worker.js` and get a 404; check that first.
 - **`subtract` leaks like `union` and `intersect` did**
   (`packages/manifold/src/booleans/index.js`): temporaries converted from a
   plain geom3 are never freed, and a single input returns the input wrapper
