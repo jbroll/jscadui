@@ -285,6 +285,18 @@ describe('createProvider', () => {
     expect(events[events.length - 1]).toEqual({ type: 'done', stopReason: 'completed' })
   })
 
+  it.each([
+    ['response.failed', { type: 'response.failed', response: { error: { code: 'server_error', message: 'model crashed' } } }, /model crashed/],
+    ['response.incomplete', { type: 'response.incomplete', response: { incomplete_details: { reason: 'max_output_tokens' } } }, /max_output_tokens/],
+    ['error', { type: 'error', code: 'rate_limit_exceeded', message: 'slow down' }, /slow down/],
+  ])('responses: %s ends the turn with an error', async (_name, event, message) => {
+    fetchMock.mockResolvedValueOnce(
+      streamResponse(openaiChunk({ type: 'response.output_text.delta', delta: 'Hi' }) + openaiChunk(event)),
+    )
+    const provider = createProvider({ kind: 'opencode-go', apiKey: 'sk-test', model: 'grok-4.6' })
+    await expect(collect(provider)).rejects.toThrow(message)
+  })
+
   it('opencode-go routes qwen models to the messages endpoint', async () => {
     fetchMock.mockResolvedValueOnce(streamResponse(ANTHROPIC_PLAIN))
     const provider = createProvider({ kind: 'opencode-go', apiKey: 'sk-test', model: 'qwen3.8-flash' })

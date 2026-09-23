@@ -70,6 +70,12 @@ export const responsesProvider = (config) => {
           calls.set(event.item_id, acc)
         } else if (event.type === 'response.completed') {
           break
+        } else if (event.type === 'response.failed') {
+          throw new Error(`responses: ${event.response?.error?.message ?? 'response failed'}`)
+        } else if (event.type === 'response.incomplete') {
+          throw new Error(`responses: incomplete (${event.response?.incomplete_details?.reason ?? 'unknown reason'})`)
+        } else if (event.type === 'error') {
+          throw new Error(`responses: ${event.message ?? 'provider error'}`)
         }
       }
       for (const acc of calls.values()) {

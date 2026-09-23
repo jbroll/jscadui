@@ -141,6 +141,20 @@ describe('providers', () => {
     expect(events[events.length - 1]).toEqual({ type: 'done', stopReason: 'completed' })
   })
 
+  it.each([
+    ['response.failed', `{"type":"response.failed","response":{"error":{"code":"server_error","message":"model crashed"}}}`, /model crashed/],
+    ['response.incomplete', `{"type":"response.incomplete","response":{"incomplete_details":{"reason":"max_output_tokens"}}}`, /max_output_tokens/],
+    ['error', `{"type":"error","code":"rate_limit_exceeded","message":"slow down"}`, /slow down/],
+  ])('responses: %s ends the turn with an error', async (_name, event, message) => {
+    const body = `data: {"type":"response.output_text.delta","delta":"Hi"}\n\n` + `data: ${event}\n\n`
+    fetchMock.mockResolvedValue(new Response(sseBody(body)))
+    const provider = createProvider({ kind: 'opencode-go', apiKey: 'k', model: 'grok-4.6' })
+    const drain = async () => {
+      for await (const e of provider.send([{ role: 'user', content: 'hi' }], TOOLS)) void e
+    }
+    await expect(drain()).rejects.toThrow(message)
+  })
+
   it('anthropic: moves system messages to the top-level system field', async () => {
     fetchMock.mockResolvedValue(new Response(sseBody('')))
     const provider = createProvider({ kind: 'opencode-go', apiKey: 'k', model: 'minimax-m3' })
