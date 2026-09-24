@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from 'vitest'
+import { describe, it, expect, beforeAll, afterEach } from 'vitest'
 import {
   init,
   isInitialized,
@@ -17,7 +17,11 @@ import {
   isManifoldGeom3,
   rectangle,
   extrudeLinear,
-  isManifoldGeom2
+  isManifoldGeom2,
+  setUseGpuNormals,
+  fromManifold,
+  getManifold,
+  getModule
 } from '../src/index.js'
 
 describe('@jscadui/manifold', () => {
@@ -219,6 +223,52 @@ describe('@jscadui/manifold', () => {
       for (let i = 0; i < normals.length; i += 3) {
         const len = Math.hypot(normals[i], normals[i + 1], normals[i + 2])
         expect(len).toBeCloseTo(1, 5)
+      }
+    })
+  })
+
+  describe('indexed mesh (useGpuNormals)', () => {
+    afterEach(() => setUseGpuNormals(false))
+
+    it('returns indexed positions-only mesh for a cube', () => {
+      setUseGpuNormals(true)
+      const c = cube({ size: 10 })
+      expect(c.indices.length).toBe(36)
+      expect(c.vertices.length).toBe(8 * 3)
+      expect(c.normals).toBeUndefined()
+      for (let i = 0; i < c.indices.length; i++) {
+        expect(c.indices[i]).toBeLessThan(8)
+      }
+    })
+
+    it('strips extra vertex properties, keeping only x, y, z', () => {
+      const Manifold = getManifold()
+      const Module = getModule()
+      const baseMesh = Manifold.cube([10, 10, 10], true).getMesh()
+      const numProp = 4
+      const vertCount = baseMesh.vertProperties.length / baseMesh.numProp
+      const vertProperties = new Float32Array(vertCount * numProp)
+      for (let v = 0; v < vertCount; v++) {
+        vertProperties[v * numProp] = baseMesh.vertProperties[v * baseMesh.numProp]
+        vertProperties[v * numProp + 1] = baseMesh.vertProperties[v * baseMesh.numProp + 1]
+        vertProperties[v * numProp + 2] = baseMesh.vertProperties[v * baseMesh.numProp + 2]
+        vertProperties[v * numProp + 3] = v
+      }
+      const mesh = new Module.Mesh({ numProp, vertProperties, triVerts: baseMesh.triVerts })
+      const manifold = Manifold.ofMesh(mesh)
+      // Manifold.ofMesh may reorder vertices, so compare against its own
+      // getMesh() output (stable across calls) rather than our input array.
+      const sourceMesh = manifold.getMesh()
+      const sourceVertCount = sourceMesh.vertProperties.length / sourceMesh.numProp
+
+      setUseGpuNormals(true)
+      const geom = fromManifold(manifold)
+      expect(sourceMesh.numProp).toBe(numProp)
+      expect(geom.vertices.length).toBe(sourceVertCount * 3)
+      for (let v = 0; v < sourceVertCount; v++) {
+        expect(geom.vertices[v * 3]).toBeCloseTo(sourceMesh.vertProperties[v * numProp])
+        expect(geom.vertices[v * 3 + 1]).toBeCloseTo(sourceMesh.vertProperties[v * numProp + 1])
+        expect(geom.vertices[v * 3 + 2]).toBeCloseTo(sourceMesh.vertProperties[v * numProp + 2])
       }
     })
   })

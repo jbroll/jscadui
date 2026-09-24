@@ -74,6 +74,19 @@ function computeMeshData(srcVerts, srcIndices) {
   return { vertices, indices, normals }
 }
 
+// Manifold interleaves any extra vertex properties after x, y, z
+function positionsOnly(vertProperties, numProp) {
+  if (!numProp || numProp === 3) return vertProperties
+  const count = vertProperties.length / numProp
+  const out = new Float32Array(count * 3)
+  for (let v = 0; v < count; v++) {
+    out[v * 3] = vertProperties[v * numProp]
+    out[v * 3 + 1] = vertProperties[v * numProp + 1]
+    out[v * 3 + 2] = vertProperties[v * numProp + 2]
+  }
+  return out
+}
+
 /**
  * FinalizationRegistry for automatic WASM cleanup.
  * When a ManifoldGeom3 wrapper is garbage collected, this ensures
@@ -101,8 +114,9 @@ const disposalRegistry = new FinalizationRegistry((manifoldRef) => {
 export class ManifoldGeom3 {
   /**
    * When true, skip CPU normal computation and return indexed mesh directly.
-   * Only enable for renderers that support GPU-computed flat normals (e.g., Regl).
-   * Three.js requires CPU-computed normals.
+   * The raw mesh keeps only x, y, z (any extra Manifold vertex properties are
+   * stripped), so any renderer that computes flat normals from the indexed
+   * mesh (GPU-side or otherwise) can use it, not just Regl.
    * Saves ~170ms at 400K triangles when enabled.
    * @type {boolean}
    */
@@ -150,12 +164,8 @@ export class ManifoldGeom3 {
    */
   #ensureRawMesh() {
     if (this.#cachedRawMesh === null) {
-      const mesh = this.#manifold.getMesh()
-      // vertProperties is Float32Array, triVerts is Uint32Array
-      this.#cachedRawMesh = {
-        vertices: mesh.vertProperties,
-        indices: mesh.triVerts
-      }
+      const { vertProperties, triVerts, numProp } = this.#manifold.getMesh()
+      this.#cachedRawMesh = { vertices: positionsOnly(vertProperties, numProp), indices: triVerts }
     }
     return this.#cachedRawMesh
   }
