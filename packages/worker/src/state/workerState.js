@@ -82,6 +82,7 @@ export class WorkerState {
     this.main = undefined
     this.scriptModule = {}
     this.solids = []
+    this.lastRunStreamed = false
     this.userInteracted = new Set()
     this.currentUiValues = {}
     this.lastParams = {}
@@ -96,6 +97,7 @@ export class WorkerState {
    */
   clearGeometry() {
     this.solids = []
+    this.lastRunStreamed = false
     this._lastProxyState = null
   }
 
