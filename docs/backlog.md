@@ -58,18 +58,19 @@ exits nonzero only on a regression against `render-baseline.json`. See
 
 ## Combined ALL.js grids
 
-A grid loads every model in one worker as one job and streams each placed
-cell to the app as it finishes, so the worker never holds the whole grid's
-geometry. The model budget (120s, `main.js`; 290s in the sweep) restarts on
-each cell, so it bounds one cell rather than the grid. The app draws cells as
-they arrive, capped at 1.5 GB and 20,000 entities per grid
+A grid's leaves, nested sub-grids included, are spread over the frame's
+worker pool: each worker claims leaves by key and streams each placed cell to
+the app as it finishes, so no worker holds the whole grid's geometry. The
+model budget (120s, `main.js`; 290s in the sweep) restarts on each cell, so it
+bounds one leaf rather than the grid. The app draws cells as they arrive,
+capped at 1.5 GB and 20,000 entities per grid
 (`apps/jscad-web/docs/architecture.md`, Streamed runs). 46 grids; the largest
 are dotSCAD's 64-cell examples grid, about 36 per BOSL2 part and NopSCADlib's
 32-cell electronics grid, one of six category grids that replaced its
-147-cell tests grid. Grids nest, so a nested grid is one cell of its
-parent. The generator writes no grid whose only item is one sub-grid, and the
-sweep runs the six aggregates (every item a sub-grid) after the rest, one at
-a time.
+147-cell tests grid. A sub-grid is scaled into its parent's cell and streams
+its own leaves. The generator writes no grid whose only item is one sub-grid,
+and the sweep runs the six aggregates (every item a sub-grid) after the rest,
+one at a time.
 
 A cell whose model throws no longer takes the grid with it: it draws a
 skull-and-crossbones and the sweep scores that grid `partial`, naming the dead
@@ -77,8 +78,10 @@ cells. **42 of 46 render** (`sci push jscadui/render-grids`, job
 `81535cace82fc6ea`, 320s hang guard restarting on each streamed cell, 290s
 model budget per cell), and none crashes the renderer;
 `apps/jscad-web/e2e/render-grids-baseline.json` holds the per-grid state and
-each partial grid's dead cells. After the first `WebAssembly.RuntimeError` a
-grid fails every later cell as `not run: wasm trapped in <url>`.
+each partial grid's dead cells. A worker whose WASM traps draws the trapped
+leaf's marker, stops claiming, and is replaced, so the other leaves still run.
+A run without claims (export's re-run) still fails every cell after the first
+`WebAssembly.RuntimeError` as `not run: wasm trapped in <url>`.
 
 Manifold frees a WASM handle only from a `FinalizationRegistry` callback, which
 cannot run inside a synchronous `main`, so the OpenSCAD runtime disposes each
