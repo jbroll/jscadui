@@ -89,9 +89,13 @@ buffers, and the app draws the mesh it already holds under that hash. A buffer a
 ref'd mesh shares with another entity in the same message stays in the transfer
 list. `held` does not apply to `line`, `lines` or `instance` entities.
 
-The worker clears its conversion cache after every `jscadMain`, success or
-failure, so a later run converts each solid again instead of reusing an entity
-whose buffers were transferred away.
+Each `jscadCells` batch carries copies of the typed arrays it sends, one copy
+per distinct array in the batch, and transfers the copies' buffers. A solid
+emitted in two batches, or kept for export, keeps its own arrays. The worker
+clears its conversion cache after each batch and after every `jscadMain`,
+success or failure, so a later run converts each solid again. The whole result
+is not copied: it transfers the converted arrays, which for a `ManifoldGeom3`
+are the solid's own cached mesh arrays.
 
 `jscadExportData`, `jscadMeasure` and `jscadCheck` need the solids. A grid run
 does not keep them, so after one of those the worker re-runs main with

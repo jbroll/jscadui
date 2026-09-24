@@ -108,6 +108,15 @@ disposes its two intermediate transforms per geometry.
   `jscadMain`, which converts every cell to meshes it then discards. Calling
   main without that conversion would cut the time and the peak memory.
 
+## Worker
+
+- **The whole result transfers a `ManifoldGeom3`'s own arrays.** Its
+  `vertices`, `indices` and `normals` getters return the solid's cached mesh
+  arrays, and `jscadMain`'s whole-result path transfers them. The solid stays in
+  `workerState.solids`, so a later export, measure or check that reconverts the
+  kept solids can read detached arrays. Streamed batches already send copies
+  (`packages/worker/src/stream.js`).
+
 ## Library bugs found by the sweep
 
 - **dotSCAD's `r_union3` fails on the manifold engine** with

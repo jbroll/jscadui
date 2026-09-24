@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from 'vitest'
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 
 // worker.js registers self.addEventListener at import time, so self must
 // exist before the dynamic import; Node has no self global by default.
@@ -32,7 +32,7 @@ describe('jscadMain streaming', () => {
 
     const call = self.postMessage.mock.calls.find(([message]) => message.method === 'jscadCells')
     expect(call[0].params[0].entities).toHaveLength(1)
-    expect(call[1]).toContain(vertices.buffer)
+    expect(call[1]).toContain(call[0].params[0].entities[0].vertices.buffer)
   })
 
   it('tags the batches and the streamed result with the runId it was given', async () => {
@@ -234,5 +234,62 @@ describe('jscadMain with held meshes', () => {
     const second = received.slice(2).map(message => message.params[0].entities[0])
     expect(second).toHaveLength(2)
     expect(second.every(entity => entity.vertices.length === 9)).toBe(true)
+  })
+})
+
+describe('jscadMain streaming repeated geometry', () => {
+  const tri = { polygons: [{ vertices: [[0, 0, 0], [1, 0, 0], [0, 1, 0]] }] }
+  let received
+
+  beforeEach(() => {
+    received = []
+    self.postMessage = vi.fn((message, transfer) => received.push(structuredClone(message, { transfer })))
+  })
+
+  afterEach(() => {
+    self.postMessage = vi.fn()
+    workerState.main = undefined
+  })
+
+  const cells = () => received.filter(message => message.method === 'jscadCells').map(message => message.params[0].entities[0])
+
+  it('posts a solid and its translated copy, which share polygons, in two batches', async () => {
+    workerState.main = () => [tri, { ...tri, transforms: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 5, 0, 0, 1] }]
+
+    await expect(jscadMain({ params: {}, runId: 1 })).resolves.toBeDefined()
+
+    expect(cells()).toHaveLength(2)
+    expect(cells().every(entity => entity.vertices.length === 9)).toBe(true)
+  })
+
+  it('posts the same manifold solid twice in two batches', async () => {
+    const vertices = new Float32Array(9)
+    const indices = new Uint16Array([0, 1, 2])
+    class ManifoldLike {
+      type = 'mesh'
+      isManifoldGeom3 = true
+      manifold = Object.create({ numTri() {} })
+      get vertices() { return vertices }
+      get indices() { return indices }
+    }
+    const m = new ManifoldLike()
+    workerState.main = () => [m, m]
+
+    await expect(jscadMain({ params: {}, runId: 1 })).resolves.toBeDefined()
+
+    expect(cells()).toHaveLength(2)
+    expect(cells().every(entity => entity.vertices.length === 9 && entity.indices.length === 3)).toBe(true)
+  })
+
+  it('leaves the arrays of the solids it keeps attached after streaming the parts', async () => {
+    const solids = [
+      { type: 'mesh', vertices: new Float32Array(9) },
+      { type: 'mesh', vertices: new Float32Array(9) },
+    ]
+    workerState.main = () => solids
+
+    await jscadMain({ params: {}, runId: 1 })
+
+    expect(currentSolids().map(solid => solid.vertices.byteLength)).toEqual([36, 36])
   })
 })

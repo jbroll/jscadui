@@ -2,6 +2,23 @@ import { JscadToCommon } from '@jscadui/format-jscad'
 
 import { toRefs } from './meshRefs.js'
 
+// Later batches and kept solids can reuse these arrays, so each batch transfers copies
+const withCopies = (entities) => {
+  const copies = new Map()
+  const copyOf = (view) => {
+    if (!copies.has(view)) copies.set(view, view.slice())
+    return copies.get(view)
+  }
+  const out = entities.map(entity => {
+    const copy = { ...entity }
+    for (const [key, value] of Object.entries(copy)) {
+      if (ArrayBuffer.isView(value)) copy[key] = copyOf(value)
+    }
+    return copy
+  })
+  return { entities: out, transfer: [...copies.values()].map(view => view.buffer) }
+}
+
 /**
  * The hook an ALL.js grid finds on globalThis.__jscadStream: each emitted
  * cell goes to the app at once instead of waiting for main to return.
@@ -16,10 +33,10 @@ export const createStreamHook = ({ post, userInstances, runId, held = new Set() 
       for (const solid of solids) {
         if (solid?.isManifoldGeom3) solid.manifold.numTri()
       }
-      const transferable = []
-      const entities = toRefs(JscadToCommon.prepare(solids, transferable, userInstances).all, held, transferable)
+      const { entities, transfer } = withCopies(toRefs(JscadToCommon.prepare(solids, undefined, userInstances).all, held, []))
+      JscadToCommon.clearCache()
       emitted = true
-      post({ method: 'jscadCells', params: [{ entities, runId }] }, [...new Set(transferable.map(a => a.buffer || a))])
+      post({ method: 'jscadCells', params: [{ entities, runId }] }, transfer)
     },
     progress() {
       post({ method: 'jscadProgress', params: [] })

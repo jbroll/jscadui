@@ -14,10 +14,24 @@ describe('stream hook', () => {
     expect(emitted()).toBe(true)
     const [message, transfer] = post.mock.calls[0]
     expect(message.method).toBe('jscadCells')
-    expect(message.params[0].entities).toHaveLength(1)
-    expect(transfer).toContain(a.vertices.buffer)
-    expect(transfer).toContain(a.normals.buffer)
+    const [entity] = message.params[0].entities
+    expect(transfer).toContain(entity.vertices.buffer)
+    expect(transfer).toContain(entity.normals.buffer)
     expect(new Set(transfer).size).toBe(transfer.length)
+  })
+
+  it('posts copies of the arrays, one per distinct array, leaving the solid and cached entity intact', () => {
+    const post = vi.fn()
+    const a = mesh()
+    const { hook } = createStreamHook({ post })
+    hook.emit([a, { ...a, transforms: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 5, 0, 0, 1] }])
+    const [message, transfer] = post.mock.calls[0]
+    const [first, second] = message.params[0].entities
+    expect(first.vertices).not.toBe(a.vertices)
+    expect(first.vertices).toEqual(a.vertices)
+    expect(second.vertices).toBe(first.vertices)
+    expect(transfer).not.toContain(a.vertices.buffer)
+    expect(transfer).toHaveLength(2)
   })
 
   it('tags each batch with the run it belongs to', () => {
