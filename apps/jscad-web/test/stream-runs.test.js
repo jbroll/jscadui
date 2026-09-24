@@ -238,7 +238,16 @@ describe('stream runs', () => {
     expect(totals).toMatchObject({ cells: 1, lost: 2 })
     const [error] = onError.mock.calls[0]
     expect(error.name).toBe('TimeoutError')
-    expect(error.message).toMatch(/\.\/slow\.scad \.\/slower\.scad/)
+    expect(error.message).toBe('2 grid model(s) stopped: ./slow.scad (TimeoutError) ./slower.scad (TimeoutError)')
+  })
+
+  it('names each lost leaf by its own reason, and calls it a timeout only when every leaf timed out', () => {
+    const { runs, onError } = setup()
+    runs.begin(() => false, 1)
+    runs.finish(1, [{ url: './a.scad', reason: 'TimeoutError' }, { url: './b.scad', reason: 'WorkerError' }])
+    const [error] = onError.mock.calls[0]
+    expect(error.name).toBe('Error')
+    expect(error.message).toBe('2 grid model(s) stopped: ./a.scad (TimeoutError) ./b.scad (WorkerError)')
   })
 
   it('reports nothing for a run that lost no leaf', () => {

@@ -92,8 +92,9 @@ disposes its two intermediate transforms per geometry.
 
 - **Model code can keep its own run alive.** It can post its own `jscadCells`
   during a load or parameter run, and each relayed message restarts the frame's
-  kill timer, so a model that keeps posting is never killed. The damage stays
-  in the user's own session.
+  kill timer, so a model that keeps posting is never killed. Claims restart the
+  kill timers too, so model code can post `jscadClaim` with a guessable
+  `runId` to the same end. The damage stays in the user's own session.
 - **Serialize the export, measure and check re-runs.** After a streamed grid
   they re-run main in the frame's worker without waiting for other runs, so two
   can interleave and share `__jscadProgress`, `releaseSolids` and
@@ -105,6 +106,11 @@ disposes its two intermediate transforms per geometry.
   could spread across the frame's pool the way a grid's leaves do now, using
   the same claim mechanism: `jscadClaim`, a key per part, fan-out on the first
   claim.
+- **Merge a pooled run's params in grid order.** `mergeProxyStates` follows
+  the order members answered, not grid order, so the params UI can reorder
+  between pooled runs. A timed-out member's params are missing from the merge.
+- **Revoke the frame's worker blob URLs.** `frame.js` makes a blob URL per
+  worker and never revokes it, and the pool starts more workers than before.
 
 ## Worker
 

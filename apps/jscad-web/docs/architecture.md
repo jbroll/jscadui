@@ -136,9 +136,10 @@ drove the local worker. `jscadInit`, `jscadScript`, `jscadSetFiles`,
 `jscadExportData` and the cache clears all reach the frame's worker. Geometry
 buffers ride the transfer list on both hops, so they cross without a copy.
 
-Notifications relay the same way. The worker sends three, a grid's
-`jscadCells` and `jscadProgress` (see Streamed runs) and `jscadClaim`, which
-the frame answers itself and never relays to the app. `frameWorkerTerminated`
+Notifications relay the same way. The worker sends two, a grid's
+`jscadCells` and `jscadProgress` (see Streamed runs). It also sends
+`jscadClaim`, a request with its own id that the frame answers itself and
+never relays to the app. `frameWorkerTerminated`
 is the only message the frame originates; `frameSetup.js` registers
 `jscadCells`, `jscadProgress` and `frameWorkerTerminated` with `messageProxy`.
 `handlers.entities` beside it is `main.js`'s own sink, which
@@ -186,7 +187,9 @@ most. `poolSize` defaults to `max(1, min(hardwareConcurrency - 1, 4))`;
 `jscadInit`'s `poolSize` overrides it and the frame strips it, as it does
 `timeoutMs`. The app sends it from the `engine.poolSize` localStorage key when
 one is set. Each worker holds its own bundles, WASM instances and file map,
-which is what bounds the pool's size.
+which is what bounds the pool's size. Members leave the pool when their run
+ends: once a grid run settles, the frame ends every idle worker but one,
+keeping one that holds the current script, without telling the app.
 
 Every worker gets a copy of every `jscadInit` (as rewritten), `jscadSetFiles`,
 `jscadClearTempCache` and `jscadClearFileCache` the app sends, as the frame's
@@ -406,7 +409,8 @@ while it walks the grid, and restores it after.
 A sub-grid, an item that is itself a grid, runs its own leaves under a world
 transform, `ctx · translate(x, y) · scale(s)`, where `s = cellSize / max(width,
 depth)` and `width` and `depth` are the sub-grid's extent, which follows from
-its item count alone (`gridExtent`). So every leaf streams on its own, and the
+its item count alone (`gridExtent`); a sub-grid module that exports no
+`extent` is fitted to the cell as if it were one item. So every leaf streams on its own, and the
 per-cell budget applies to a leaf, not to a whole sub-grid. A sub-grid whose
 leaves are all small or flat is placed slightly differently than it was when
 it arrived as one normalized cell. Failure markers take the same transform.
@@ -417,8 +421,10 @@ are static, so every worker in a run computes the same keys. The grid claims
 each leaf before running it and skips one it loses without requiring it; a
 sub-grid is walked by every worker regardless of claims, so every worker
 requires every grid file in the tree but transpiles only the leaf files it
-wins. A `stream: false` run — export's re-run, an animation frame, agent
-evaluation — has no claim hook and runs every leaf itself.
+wins. A sub-grid whose grid file fails to load is claimed under its own key
+before it is marked, so only one worker draws its skull and logs the failure.
+A `stream: false` run, such as export's re-run, an animation frame or agent
+evaluation, has no claim hook and runs every leaf itself.
 
 Every streaming `jscadMain` or `jscadScript` is a run. Its first won claim
 fans it out: the same request goes to up to `poolSize - 1` more workers,
@@ -438,8 +444,10 @@ discovers only the leaves it ran itself. A run nobody claims into behaves as a
 single request, as before.
 
 Losing a member: a trap or a timeout stops only that member. The frame
-retires it and, while the run is open and the member was on a leaf, adds a
-replacement that joins late. A timed-out member's current leaf goes into
+retires it and, while the run is open, adds a replacement that joins late. A
+trapped member always gets one, since it stops walking the grid after its
+trapped leaf streams a skull; a timeout or other loss gets one only when the
+member was on a leaf. A timed-out member's current leaf goes into
 `lost`, which `streamRuns.js` reports as an error while keeping the cells
 already drawn. `frameWorkerTerminated` is posted only when no member remains
 and none can start.
@@ -448,9 +456,9 @@ Supersede: a superseding request answers a fanned-out run `SupersededError`
 at once, closes it to claims and stops relaying its cells; a member on a leaf
 it started at least `ABANDON_AFTER_MS` ago is retired, and the rest finish
 their leaf, find later claims refused, and go idle. A superseding request
-also closes a run that has not fanned out yet, without answering it — the
-ordinary supersede rules answer that request instead — so an old grid can no
-longer fan out once it is superseded. A superseding `jscadMain` leaves a grid
+also closes a run that has not fanned out yet, without answering it, so an
+old grid can no longer fan out once it is superseded. The ordinary supersede
+rules answer that request instead. A superseding `jscadMain` leaves a grid
 load alone either way, and never retires a worker still holding a pending app
 `jscadScript`.
 

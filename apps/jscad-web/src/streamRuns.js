@@ -10,8 +10,9 @@ const mergeBox = (a, b) => a ? {
 const hasVertices = (entities) => entities.some((e) => e?.vertices?.length)
 
 const lostError = (lost) => {
-  const error = new Error(`${lost.length} grid model(s) ran out of time: ${lost.map((leaf) => leaf?.url).join(' ')}`)
-  error.name = 'TimeoutError'
+  const leaves = lost.map((leaf) => `${leaf?.url} (${leaf?.reason})`).join(' ')
+  const error = new Error(`${lost.length} grid model(s) stopped: ${leaves}`)
+  error.name = lost.every((leaf) => leaf?.reason === 'TimeoutError') ? 'TimeoutError' : 'Error'
   return error
 }
 

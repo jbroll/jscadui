@@ -44,8 +44,9 @@ interface JscadScriptResult {
 
 With `runMain: false`, `jscadScript` loads the module and waits for WASM to be
 ready, same as a normal load, but resolves `{ def: [], params: {} }` without
-calling `main`. A promoted spare worker uses this to have the last script
-loaded and ready before it takes over, then replays `jscadMain` separately.
+calling `main`. The frame uses this on one of its idle workers, one being
+promoted to active or joining a grid run, to have the last script loaded and
+ready before it runs, then sends `jscadMain` separately.
 
 ### jscadMain
 Re-run main() with new parameters.
@@ -158,7 +159,7 @@ made after the run has closed.
 A worker that joins a `jscadMain` run late is sent that same `jscadMain`
 request, and reloads whichever script the frame had most recently relayed as
 `jscadScript` when the `jscadMain` arrived, even if that load had not finished
-yet — not necessarily the last script that finished loading without error. A
+yet, which is not necessarily the last script that finished loading without error. A
 load that answers with an error is not the script a joiner reloads; the frame
 falls back to the last one that did.
 
@@ -170,10 +171,11 @@ active worker has an app `jscadMain` or `jscadScript` pending that started at
 least 500 ms earlier (`ABANDON_AFTER_MS`), the frame rejects it and every other
 pending `jscadMain` and `jscadScript` on that worker with
 `{ name: 'SupersededError', message: 'superseded by a newer run' }`, terminates
-that worker, and runs the new request on the spare. A superseding `jscadMain`
-does not abandon a pending `jscadScript`. Other requests on the terminated
-worker reject with `AbortError`, apart from mirrored setup the spare also
-received, which resolves with the spare's answer. No `frameWorkerTerminated` is
+that worker, and runs the new request on an idle worker it promotes to active.
+A superseding `jscadMain` does not abandon a pending `jscadScript`. Other
+requests on the terminated worker reject with `AbortError`, apart from mirrored
+setup the promoted worker also received, which resolves with the promoted
+worker's answer. No `frameWorkerTerminated` is
 sent. When every pending run is younger than 500 ms, none is abandoned, and
 the new request runs after them on the same worker.
 
@@ -188,9 +190,9 @@ superseding request rejects it `SupersededError` at once, closes it to further
 claims, and stops relaying its `jscadCells`. A member on a leaf it started at
 least `ABANDON_AFTER_MS` ago is retired the same way as above; the rest finish
 their current leaf, find every later claim answered `false`, and go idle. A
-run that has not yet fanned out is closed to claims but not answered this
-way — it is answered by the ordinary supersede rules above instead, so it
-never gets the chance to fan out. Either way, a superseding `jscadMain` leaves
+run that has not yet fanned out is closed to claims, so it never gets the
+chance to fan out, but not answered this way. The ordinary supersede rules
+above answer it instead. Either way, a superseding `jscadMain` leaves
 a grid load alone and never retires a worker still holding a pending app
 `jscadScript`.
 
