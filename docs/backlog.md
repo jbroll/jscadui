@@ -81,9 +81,13 @@ disposes its two intermediate transforms per geometry.
 
 - **The NopSCADlib tests grid exceeds the buffer cap**: 13.3M triangles is
   1,107,490,272 bytes against the 256 MB cap in `src/caps.js`. It now finishes
-  building; the app refuses to draw it. The non-GPU normals path costs 84 bytes
-  a triangle; indexed geometry or GPU normals would cut that, as would a lower
-  `$fn` for grid cells.
+  building; the app refuses to draw it.
+- **Cut the per-triangle cost of drawn geometry.** The worker sends unindexed
+  triangles with CPU normals, 84 bytes a triangle, and the app never sets
+  `useGpuNormals`. Indexed geometry with GPU-computed normals is about 18 bytes,
+  which would bring NopSCADlib's grid to about 240 MB, under the 256 MB cap,
+  and cut page memory for every model. The cap would then stay a safety bound
+  instead of being raised for grids.
 - **`dotscad/examples/ALL.js` hits the 290s kill**, after
   `maze3d_mickey.scad` (the accepted stack overflow) fails in its maze
   sub-grid.
