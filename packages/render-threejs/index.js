@@ -1,5 +1,7 @@
 import { CommonToThree } from '@jscadui/format-threejs'
 
+import { createObjectCache } from './objectCache.js'
+
 export function RenderThreejs({
   PerspectiveCamera,
   AmbientLight,
@@ -8,7 +10,6 @@ export function RenderThreejs({
   DirectionalLight,
   Scene,
   Group,
-  Box3,
   // L11 fix: Removed unused BoxGeometry
   Vector3,
   Color, // used by both
@@ -30,11 +31,15 @@ export function RenderThreejs({
   let _smooth
   // M14 fix: Remove unused variables SHADOW, _shouldRender, _lastRender
   let renderTimer
-  // I12 fix: Track disposal timeout to clear on destroy
-  let disposalTimer
   let meshColor = new Color(1, 1, 1)
 
-  let entities = []
+  const disposeObject = (obj3d) => {
+    obj3d.geometry?.dispose?.()
+    obj3d.material?.dispose?.()
+  }
+  const built = createObjectCache(disposeObject)
+  let builtWith = null
+
   const groups = []
   let canvas
 
@@ -176,17 +181,7 @@ export function RenderThreejs({
         cancelAnimationFrame(renderTimer)
         renderTimer = null
       }
-      // I12 fix: Cancel any pending disposal to prevent accessing disposed resources
-      if (disposalTimer) {
-        clearTimeout(disposalTimer)
-        disposalTimer = null
-      }
-      // Dispose all entities
-      entities.forEach(ent => {
-        ent.geometry?.dispose?.()
-        ent.material?.dispose?.()
-      })
-      entities.length = 0
+      built.clear()
       // Clear scene
       groups.forEach(group => _scene?.remove(group))
       groups.length = 0
@@ -226,33 +221,22 @@ export function RenderThreejs({
   }
 
   function setScene(scene,{smooth, prepFit: _prepFit}={}) {
-    console.log('setScene', scene)
     groups.forEach(group => {
       _scene.remove(group)
     })
-    const old = entities
-    entities = []
     groups.length = 0
-    // I12 fix: Track disposal timeout to allow cancellation on destroy
-    disposalTimer = setTimeout(()=>{
-      disposalTimer = null
-      old.forEach(ent => {
-        ent.geometry?.dispose?.()
-        ent.material?.dispose?.()
-      })
-    },0)
+    // Objects take the mesh color and smoothing they were built with
+    built.begin(builtWith !== null && (builtWith.smooth !== smooth || builtWith.meshColor !== meshColor))
+    builtWith = { smooth, meshColor }
 
-    const box = new Box3()
     scene.items.forEach(item => {
       const group = new Group()
       group.jscadId = item.id
       group.ignoreBB = item.ignoreBB
       groups.push(group)
       item.items.forEach(obj => {
-        const obj3d = csgConvert(obj, { smooth, scene, meshColor})
+        const obj3d = built.get(obj, () => csgConvert(obj, { smooth, scene, meshColor }))
         if (obj3d) {
-          entities.push(obj3d)
-          if(!group.ignoreBB) box.expandByObject(obj3d)
           group.add(obj3d)
         } else {
           console.error('could not convert to obj3d', obj)
@@ -260,9 +244,7 @@ export function RenderThreejs({
       })
       _scene.add(group)
     })
-    // console.warn('box', box, _camera.position, _camera)
-    // L11 fix: Removed commented-out debug bounding box visualization code
-    // To visualize bounds, enable bounding box helper in the app settings instead
+    built.end()
 
     updateView()
   }
