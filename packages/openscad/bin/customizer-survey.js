@@ -14,7 +14,8 @@
  *   error          parse or transpile failure
  *
  * Usage:
- *   npm run build   # bin tools import ../esm
+ *   npm run fetch-deps   # (repo root) library sources and generated examples are not in git
+ *   npm run build        # bin tools import ../esm
  *   node bin/customizer-survey.js [options] [root...]
  *
  * Options:
@@ -218,7 +219,7 @@ function report(files, opts) {
       missing.set(name, (missing.get(name) ?? 0) + 1)
     }
     const top = [...missing].sort((a, b) => b[1] - a[1]).slice(0, 10)
-    console.log(`\nUnresolved includes (${unresolved.length} files; pass the library source dir with -I):`)
+    console.log(`\nUnresolved includes (${unresolved.length} files; run "npm run fetch-deps" at the repo root, or pass library dirs with -I):`)
     for (const [name, n] of top) console.log(`  ${pad(n, 4)}  ${name}`)
   }
 
