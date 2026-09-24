@@ -109,7 +109,7 @@ they can run at the same time on one host:
 | `ci/render` | 5120 | 5120 app, 5121 frame |
 | `ci/render-jscad` | 5130 | 5130, 5131 |
 | `ci/render-grids` | 5140 | 5140, 5141 |
-| `ci/render-grids-serial` | 5150 | 5150, 5151 |
+| `ci/render-grids-serial` | 5160 | 5160, 5161 |
 | `ci/web` | 5150 | 5150 app, 5151 frame, 5152 marker, 5153 attacker |
 
 `build.js`, `playwright.config.js`, `render-all.mjs` and the frame e2e read the
@@ -128,7 +128,7 @@ much heavier than one model. `sci` takes the script name as the job name,
 which is why this is a separate file rather than a flag on `ci/render`.
 
 `sci push jscadui/render-grids-serial` runs the same 46 grids with
-`--pool-size 1`, on port 5150, writing `e2e/render-grids-serial-report.json`
+`--pool-size 1`, on port 5160, writing `e2e/render-grids-serial-report.json`
 against the same baseline. Each grid should draw the same `data-cells` count
 either way; the `cells` and `ms` a grid takes under one worker against four
 is what tells whether the pool pays for itself.

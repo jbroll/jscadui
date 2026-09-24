@@ -6,6 +6,6 @@
 #   sci push jscadui/render-grids-serial
 set -uo pipefail
 
-export JSCAD_WEB_PORT=5150
+export JSCAD_WEB_PORT=5160
 export RENDER_ARGS="--dir . --grids --concurrency 4 --timeout 320000 --pool-size 1 --out e2e/render-grids-serial-report.json --baseline e2e/render-grids-baseline.json"
 exec "$(dirname "$0")/render"
