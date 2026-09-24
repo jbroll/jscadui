@@ -33,6 +33,9 @@ export class WorkerState {
     /** @type {JscadMainResultRaw[]} */
     this.solids = []
 
+    /** @type {boolean} */
+    this.lastRunStreamed = false
+
     // Configuration state (set by jscadInit)
     /** @type {TransformFunction} */
     this.transformFunc = x => x

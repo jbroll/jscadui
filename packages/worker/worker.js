@@ -8,6 +8,7 @@ import { combineParameterDefinitions, getParameterDefinitionsFromSource } from '
 import { extractDefaults } from './src/extractDefaults.js'
 import { extractPathInfo, readAsArrayBuffer, readAsText } from '../fs-provider/fs-provider.js'
 import { workerState } from './src/state/workerState.js'
+import { createStreamHook, withStreamHook } from './src/stream.js'
 
 /**
 @typedef Alias
@@ -197,10 +198,10 @@ async function readFileFile(file, {bin=false}={}){
 
 
 /**
- * @param {{params?:import('@jscadui/format-common').UserParameters,skipLog?:boolean,userInteractedPaths?:string[],useGpuNormals?:boolean}} options
+ * @param {{params?:import('@jscadui/format-common').UserParameters,skipLog?:boolean,userInteractedPaths?:string[],useGpuNormals?:boolean,stream?:boolean}} options
  * @returns {Promise<import('@jscadui/format-common').JscadMainResult>}
  */
-export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths, useGpuNormals } = {}) {
+export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths, useGpuNormals, stream = true } = {}) {
   // Update GPU normals setting if provided (allows switching without re-running script)
   if (useGpuNormals !== undefined) {
     const modelingBundleUrl = requireCache.bundleAlias['@jscad/modeling']
@@ -256,6 +257,11 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
   let execTime = 0
   let convTime = 0
 
+  const { hook, emitted } = stream
+    ? createStreamHook({ post: (message, transfer) => self.postMessage(message, transfer), userInstances: workerState.userInstances })
+    : { hook: null, emitted: () => false }
+  const runMain = (mainParams) => withStreamHook(hook, () => workerState.main(mainParams))
+
   try {
     // Run main with either proxy or plain params
     // For Manifold: this builds the lazy operation tree (fast)
@@ -276,40 +282,48 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
         // Inject legacy defs and seal the proxy
         injectLegacyDefs(proxyParams, workerState.legacyProxyDefs)
 
-        workerState.solids = flatten(await workerState.main(proxyParams))
+        workerState.solids = flatten(await runMain(proxyParams))
       } else {
         // New hierarchical param system - shared state for nested parts
         proxyState = createProxyState(workerState.currentUiValues, workerState.userInteracted, { mode: 'hierarchical' })
         const proxyParams = createParamsProxy(proxyState)
 
-        workerState.solids = flatten(await workerState.main(proxyParams))
+        workerState.solids = flatten(await runMain(proxyParams))
       }
       workerState._lastProxyState = proxyState
     } else {
-      workerState.solids = flatten(await workerState.main(params || {}))
+      workerState.solids = flatten(await runMain(params || {}))
     }
 
     treeTime = performance.now() - time
 
-    // Force evaluation of lazy Manifold geometries
-    // This triggers actual CSG computation; result is cached for getMesh()
-    time = performance.now()
-    for (const solid of workerState.solids) {
-      if (solid && solid.isManifoldGeom3) {
-        solid.manifold.numTri() // Forces evaluation, caches result
+    if (stream) workerState.lastRunStreamed = emitted()
+    let entities = []
+    if (emitted()) {
+      // Each cell went out as it finished; keeping them would hold the whole grid again
+      workerState.solids = []
+    } else {
+      // Force evaluation of lazy Manifold geometries
+      // This triggers actual CSG computation; result is cached for getMesh()
+      time = performance.now()
+      for (const solid of workerState.solids) {
+        if (solid && solid.isManifoldGeom3) {
+          solid.manifold.numTri() // Forces evaluation, caches result
+        }
       }
-    }
-    execTime = performance.now() - time
+      execTime = performance.now() - time
 
-    // Convert to render format (getMesh + common format conversion)
-    // 2.3: No clearCache() here — WeakMap evicts stale entries automatically on GC,
-    // and stable IDs across renders improve instance detection grouping.
-    // Cache is only cleared on error (below) to ensure clean state after failures.
-    time = performance.now()
-    const entities = JscadToCommon.prepare(workerState.solids, transferable, workerState.userInstances).all
-    convTime = performance.now() - time
+      // Convert to render format (getMesh + common format conversion)
+      // 2.3: No clearCache() here — WeakMap evicts stale entries automatically on GC,
+      // and stable IDs across renders improve instance detection grouping.
+      // Cache is only cleared on error (below) to ensure clean state after failures.
+      time = performance.now()
+      entities = JscadToCommon.prepare(workerState.solids, transferable, workerState.userInstances).all
+      convTime = performance.now() - time
+    }
 
     const result = { entities, treeTime, execTime, convTime }
+    if (emitted()) result.streamed = true
 
     // Include proxy state info in result
     if (proxyState) {
@@ -480,6 +494,12 @@ const jscadExportData = async (params) => {
 export const currentSolids = () => workerState.solids
 
 export const currentParams = () => workerState.lastParams
+
+export const lastRunStreamed = () => workerState.lastRunStreamed
+
+export const postProgress = () => self.postMessage({ method: 'jscadProgress', params: [] })
+
+export const releaseSolids = () => { workerState.solids = [] }
 
 const handlers = { jscadScript, jscadInit, jscadMain, jscadClearTempCache, jscadClearFileCache:clearFileCache, jscadExportData }
 // allow main thread to call worker methods and any method from the loaded script

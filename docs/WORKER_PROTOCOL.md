@@ -43,14 +43,30 @@ Re-run main() with new parameters.
 interface RunMainOptions {
   params: Record<string, any>
   skipLog?: boolean
+  stream?: boolean   // default true
 }
 
 interface JscadMainResult {
   entities: Entity[]
   mainTime: number
   convertTime: number
+  streamed?: true
 }
 ```
+
+When `stream` is true (the default) and the loaded script is an ALL.js grid,
+only the outermost grid emits: it streams each cell as a `jscadCells`
+notification as soon as that cell finishes, instead of the worker holding
+every cell's geometry until main returns. A run during which anything was
+emitted resolves with `entities: []` and `streamed: true`; a normal (non-grid)
+run is unaffected and returns entities as before.
+
+During a streamed run the worker posts:
+
+- `jscadCells` — `params: [{ entities }]`, one per emitted cell, with that
+  cell's typed-array buffers passed as transfer.
+- `jscadProgress` — `params: []`, for a cell counted but not yet ready to
+  render.
 
 ### jscadExportData
 Export model to a format.
