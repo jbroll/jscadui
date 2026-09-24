@@ -476,6 +476,43 @@ was. Loading a different script URL and switching the render engine clear it.
 `render-regl` rebuilds every entity on each draw, so it gains nothing from
 reuse beyond the smaller messages.
 
+## Demo menu
+
+Browse Demos (`src/demoBrowser.js`) walks `examples/` one directory at a time.
+It reads `examples/manifest.json`, which `src_build/genExamplesManifest.js`
+writes at build time: each directory's URL pathname maps to `{ dirs, files }`,
+with `exclude.txt`, `skip.txt` and `lib/` directories already applied.
+Production Apache has autoindex off, so without the manifest the menu has
+nothing to read. When there is no manifest, the menu parses the server's live
+directory listing instead (`src/directoryParser.js`), which applies no
+exclusions.
+
+A directory with no files and exactly one subdirectory is skipped: the menu
+opens the subdirectory, and the breadcrumb shows the chain as one crumb
+(`dotscad/examples/`, `nopscadlib/NopSCADlib/tests/`). These levels come from a
+library's include layout, and the files cannot move without breaking includes.
+The skip happens in the browser, not the generator, so the manifest stays a
+plain copy of the served tree and the same rule applies to a live listing. With
+a live listing a library's source files show up, so its directories are not
+pass-throughs and the menu shows every level as before. File URLs stay the
+real paths.
+
+A directory can group its models with a `categories.json`,
+`{ "<category>": ["<model base name>", ...] }`. The manifest then lists one
+virtual subdirectory per category, in the map's order, ahead of the real
+subdirectories. Grouped models leave the parent's listing, and a category
+whose models are all skipped is left out. A virtual entry carries `href`, a
+map from each listed name to its URL relative to the virtual directory
+(`"box.scad": "../box.scad"`). The menu resolves a name through `href` when
+present, so loading a model loads the real file. An entry without `href`
+behaves as before. `generate-all-files.js` writes one grid per category,
+`ALL.<category>.js`, next to the models so its items stay `./name.scad`. The
+manifest lists it as `ALL.js` inside the category, and the directory's own
+`ALL.js` aggregates the category grids. NopSCADlib's 148 tests are the one
+user: `apps/jscad-web/test/nopscadlib-categories.test.js` fails when a test is
+missing from the map or listed twice, so a refreshed vendor copy cannot drop
+models from the menu.
+
 ## Agent loop
 
 The loop runs in the browser (`packages/agent-loop`), not on the server. The

@@ -7,6 +7,11 @@
  * Directories containing only a single index file (index.js / index.scad) and
  * no subdirectories are treated as leaf items (loaded directly, not navigated into).
  *
+ * A directory with no files and exactly one subdirectory is passed through:
+ * the menu opens the subdirectory instead and the breadcrumb folds the two
+ * into one crumb. A manifest entry may carry `href` (file name → URL relative
+ * to the directory) for files that live elsewhere, as in category folders.
+ *
  * Interactions:
  *   Click file        → call loadFile(url), panel stays open
  *   Click dir         → navigate into directory (drill-down)
@@ -192,7 +197,9 @@ export const demoBrowserStyles = `
 // State
 // ──────────────────────────────────────────────────────────────────
 
-/** @type {Map<string, {dirs: string[], files: string[]}>} */
+/** @typedef {{dirs: string[], files: string[], href?: Record<string,string>}} Listing */
+
+/** @type {Map<string, Listing>} */
 const listingCache = new Map()
 
 /** @type {HTMLElement|null} */
@@ -212,7 +219,7 @@ let fileCallback = null
 // Directory listing (with cache)
 // ──────────────────────────────────────────────────────────────────
 
-/** @type {Promise<Record<string,{dirs:string[],files:string[]}>|null>|null} */
+/** @type {Promise<Record<string,Listing>|null>|null} */
 let manifestPromise = null
 
 // Prefer the static manifest.json (works on any host); fall back to a live
@@ -238,6 +245,25 @@ async function loadDirectory(url) {
   }
   listingCache.set(url, result)
   return result
+}
+
+const fileUrl = (dirUrl, { href }, name) =>
+  href?.[name] ? new URL(href[name], dirUrl).href : dirUrl + name
+
+const isPassThrough = ({ dirs, files }) => files.length === 0 && dirs.length === 1
+
+/** The first directory at or below dirUrl that is not a pass-through. */
+async function skipPassThrough(dirUrl) {
+  for (;;) {
+    let listing
+    try {
+      listing = await loadDirectory(dirUrl)
+    } catch {
+      return dirUrl
+    }
+    if (!isPassThrough(listing)) return dirUrl
+    dirUrl += listing.dirs[0] + '/'
+  }
 }
 
 // ──────────────────────────────────────────────────────────────────
@@ -271,11 +297,12 @@ function el(tag, attrs = {}, ...children) {
  */
 async function getIndexOnlyUrl(dirUrl) {
   try {
-    const { dirs, files } = await loadDirectory(dirUrl)
+    const listing = await loadDirectory(dirUrl)
+    const { dirs, files } = listing
     if (dirs.length === 0 && files.length === 1) {
       const f = files[0]
       if (f === 'index.js' || f === 'index.scad') {
-        return dirUrl + f
+        return fileUrl(dirUrl, listing, f)
       }
     }
   } catch (_) { /* ignore */ }
@@ -287,16 +314,33 @@ async function getIndexOnlyUrl(dirUrl) {
 // ──────────────────────────────────────────────────────────────────
 
 /**
- * Given rootUrl and currentUrl, build the breadcrumb DOM.
+ * Crumbs from root to currentU, each { label, url }. A pass-through directory
+ * gets no crumb of its own; its name leads the label of the crumb it opens.
+ */
+async function crumbSegments(rootU, currentU) {
+  const rel = currentU.startsWith(rootU) ? currentU.slice(rootU.length) : currentU
+  const names = rel ? rel.replace(/\/$/, '').split('/') : []
+  const segments = []
+  let label = ''
+  let url = rootU
+  for (const [i, name] of names.entries()) {
+    url += name + '/'
+    label += name + '/'
+    const last = i === names.length - 1
+    if (!last && isPassThrough(await loadDirectory(url).catch(() => ({ dirs: [], files: [] })))) continue
+    segments.push({ label, url })
+    label = ''
+  }
+  return segments
+}
+
+/**
+ * Build the breadcrumb DOM from crumbSegments.
  * Segments between root and current are clickable links.
  * Final segment is plain text (current location).
  */
-function buildBreadcrumb(rootU, currentU) {
+function buildBreadcrumb(rootU, parts) {
   const container = el('div', { className: 'demo-breadcrumb' })
-
-  // Strip rootUrl prefix from currentUrl to get relative path segments
-  const rel = currentU.startsWith(rootU) ? currentU.slice(rootU.length) : currentU
-  const parts = rel ? rel.replace(/\/$/, '').split('/') : []
 
   // Root crumb
   const rootLabel = rootU.replace(/\/$/, '').split('/').pop() || 'examples'
@@ -313,18 +357,17 @@ function buildBreadcrumb(rootU, currentU) {
   }
 
   // Intermediate + final segments
-  parts.forEach((part, i) => {
+  parts.forEach(({ label, url }, i) => {
     container.appendChild(el('span', { className: 'demo-crumb-sep' }, '›'))
-    const segUrl = rootU + parts.slice(0, i + 1).join('/') + '/'
     if (i === parts.length - 1) {
       // Current (final) segment - plain text
-      container.appendChild(el('span', { className: 'demo-crumb-current' }, part + '/'))
+      container.appendChild(el('span', { className: 'demo-crumb-current' }, label))
     } else {
       const crumb = el('button', {
         className: 'demo-crumb',
-        title: segUrl,
-        onclick: () => navigate(segUrl),
-      }, part + '/')
+        title: url,
+        onclick: () => navigate(url),
+      }, label)
       container.appendChild(crumb)
     }
   })
@@ -339,33 +382,36 @@ function buildBreadcrumb(rootU, currentU) {
 /**
  * Navigate to dirUrl: fetch contents and update panel content area + breadcrumb.
  */
-async function navigate(dirUrl) {
+async function navigate(requestedUrl) {
   if (!panel) return
-  currentUrl = dirUrl
-
-  // Update breadcrumb
-  const oldCrumb = panel.querySelector('.demo-breadcrumb')
-  const newCrumb = buildBreadcrumb(rootUrl, currentUrl)
-  if (oldCrumb) oldCrumb.replaceWith(newCrumb)
+  currentUrl = requestedUrl
 
   const content = panel.querySelector('.demo-content')
   content.innerHTML = ''
   content.appendChild(el('div', { className: 'demo-loading' }, 'Loading…'))
 
-  try {
-    const { dirs, files } = await loadDirectory(dirUrl)
-    if (!panel) return
-    content.innerHTML = ''
+  const dirUrl = await skipPassThrough(requestedUrl)
+  const segments = await crumbSegments(rootUrl, dirUrl)
+  // A click made while this one was loading wins
+  if (!panel || currentUrl !== requestedUrl) return
+  currentUrl = dirUrl
+  panel.querySelector('.demo-breadcrumb').replaceWith(buildBreadcrumb(rootUrl, segments))
 
-    // Pre-check which dirs are index-only (in parallel)
-    const dirIndexUrls = await Promise.all(
-      dirs.map(d => getIndexOnlyUrl(dirUrl + d + '/'))
-    )
-    if (!panel) return
+  try {
+    const listing = await loadDirectory(dirUrl)
+    const { dirs, files } = listing
+
+    // Resolve each subdir's pass-through chain and index-only check (in parallel)
+    const targets = await Promise.all(dirs.map(d => skipPassThrough(dirUrl + d + '/')))
+    const dirIndexUrls = await Promise.all(targets.map(getIndexOnlyUrl))
+    if (!panel || currentUrl !== dirUrl) return
+    content.innerHTML = ''
 
     const indexOnlyDirs = new Set()
     const indexOnlyFileUrls = {}
+    const dirTargets = {}
     dirs.forEach((d, i) => {
+      dirTargets[d] = targets[i]
       if (dirIndexUrls[i] != null) {
         indexOnlyDirs.add(d)
         indexOnlyFileUrls[d] = dirIndexUrls[i]
@@ -379,7 +425,7 @@ async function navigate(dirUrl) {
     // All files (real + leaf dirs treated as files), sorted by name for consistent NN- ordering
     const allFiles = [
       ...leafDirs.map(d => ({ name: d, url: indexOnlyFileUrls[d], isLeafDir: true })),
-      ...files.map(f => ({ name: f, url: dirUrl + f, isLeafDir: false })),
+      ...files.map(f => ({ name: f, url: fileUrl(dirUrl, listing, f), isLeafDir: false })),
     ].sort((a, b) => a.name.localeCompare(b.name))
 
     // Removed dynamic ALL button – use on-disk ALL.js files instead
@@ -388,7 +434,7 @@ async function navigate(dirUrl) {
     if (regularDirs.length > 0) {
       if (allFiles.length > 0) content.appendChild(el('hr', { className: 'demo-divider' }))
       for (const d of regularDirs) {
-        const subUrl = dirUrl + d + '/'
+        const subUrl = dirTargets[d]
         const btn = el('button', {
           className: 'demo-nav-dir',
           title: subUrl,
@@ -459,14 +505,14 @@ export function showDemoBrowser({ baseUrl, onLoad }) {
   currentUrl = rootUrl
 
   // ── file callback ──
-  fileCallback = async (fileUrl) => {
+  fileCallback = async (url) => {
     try {
-      const res = await fetch(fileUrl)
+      const res = await fetch(url)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const script = await res.text()
-      onLoad(script, fileUrl)
+      onLoad(script, url)
     } catch (err) {
-      console.error('demoBrowser: failed to load file', fileUrl, err)
+      console.error('demoBrowser: failed to load file', url, err)
     }
   }
 
@@ -482,7 +528,7 @@ export function showDemoBrowser({ baseUrl, onLoad }) {
     closeBtn,
   )
 
-  const breadcrumb = buildBreadcrumb(rootUrl, currentUrl)
+  const breadcrumb = buildBreadcrumb(rootUrl, [])
   const content = el('div', { className: 'demo-content' })
 
   panel.appendChild(header)

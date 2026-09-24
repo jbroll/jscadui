@@ -71,6 +71,42 @@ test.describe('Demo browser panel', () => {
     await expect(entry).toBeVisible({ timeout: 10_000 })
   })
 
+  const exactly = (text) => new RegExp('^' + text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$')
+  const dirEntry = (page, name) => page.locator('.demo-nav-dir').filter({ hasText: exactly(name + '/') })
+  const fileEntry = (page, name) => page.locator('.demo-nav-file').filter({ hasText: exactly(name) })
+  const openDir = (page, name) => dirEntry(page, name).click()
+  const openFile = (page, name) => fileEntry(page, name).click()
+
+  test('a directory holding only one subdirectory opens that subdirectory', async ({ page }) => {
+    await openDir(page, 'openscad')
+    await openDir(page, 'dotscad')
+    await expect(page.locator('.demo-crumb-current')).toHaveText('dotscad/examples/')
+    await expect(fileEntry(page, 'ALL.js')).toBeVisible()
+  })
+
+  test('NopSCADlib tests are grouped into category folders', async ({ page }) => {
+    await openDir(page, 'openscad')
+    await openDir(page, 'nopscadlib')
+    await expect(page.locator('.demo-crumb-current')).toHaveText('nopscadlib/NopSCADlib/tests/')
+    for (const category of ['printed', 'utils', 'vitamins-electronics', 'vitamins-motion', 'vitamins-hardware', 'other']) {
+      await expect(dirEntry(page, category)).toBeVisible()
+    }
+    await expect(fileEntry(page, 'box.scad')).toHaveCount(0)
+
+    await openDir(page, 'printed')
+    await expect(page.locator('.demo-crumb-current')).toHaveText('printed/')
+    const model = page.waitForRequest(r => r.url().endsWith('/examples/openscad/nopscadlib/NopSCADlib/tests/box.scad'))
+    await openFile(page, 'box.scad')
+    await model
+
+    const grid = page.waitForRequest(r => r.url().endsWith('/NopSCADlib/tests/ALL.printed.js'))
+    await openFile(page, 'ALL.js')
+    await grid
+
+    await page.locator('.demo-crumb', { hasText: 'nopscadlib/NopSCADlib/tests/' }).click()
+    await expect(page.locator('.demo-crumb-current')).toHaveText('nopscadlib/NopSCADlib/tests/')
+  })
+
   test('breadcrumb root link navigates back to root', async ({ page }) => {
     // Navigate into first dir
     const dirBtn = page.locator('.demo-nav-dir').first()
