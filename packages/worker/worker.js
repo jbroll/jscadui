@@ -355,6 +355,8 @@ const exportReg = /export.*from/
 const jscadScript = async ({ script, url='jscad.js', base=workerState.globalBase, root=base, useGpuNormals: gpuNormals }) => {
   // I1 fix: Increment generation to invalidate any timed-out scripts still running
   const myGeneration = workerState.nextGeneration()
+  // An ALL.js grid yields between cells and reads this to stop once it is stale
+  globalThis.__jscadScriptGeneration = myGeneration
 
   // Acquire lock to prevent race conditions with concurrent script executions
   const release = await acquireScriptLock()

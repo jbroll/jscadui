@@ -85,6 +85,10 @@ sweep reports the grids that now fail later as regressions.
 - **The aggregate-of-aggregate grids are too big for one worker.** Top-level
   `ALL.js` and `openscad/ALL.js` hit the 290s kill. Each loads several whole
   grids in one worker on one core.
+- A grid's `main` is async and yields to the event loop after each cell, so
+  finalizers queued during a cell can run before the next. A yield also lets a
+  newer script start in the worker, so a grid stops with `grid superseded by a
+  newer script` once one has.
 - **Nothing splits a grid across workers.** The frame runs one worker, one
   request at a time (`src_frame/frame.js`), so a grid cannot use more than one
   core and cannot give each cell its own budget. A pool would need the app to

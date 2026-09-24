@@ -33,12 +33,13 @@ const cellSize = 51
 const isWasmTrap = (err) =>
   (typeof WebAssembly !== 'undefined' && err instanceof WebAssembly.RuntimeError) || err?.name === 'RuntimeError'
 
-const main = (params) => {
+const main = async (params) => {
   const all = []
   const nameSeen = {}
   const failed = []
+  const generation = globalThis.__jscadScriptGeneration
 
-  items.forEach((url, i) => {
+  for (const [i, url] of items.entries()) {
     // Calculate grid position dynamically
     const [x, y] = gridPosition(i, items.length, spacing)
 
@@ -61,7 +62,7 @@ const main = (params) => {
       if (typeof fn === 'function') {
         // For hierarchical models: pass child proxy
         // For legacy models: wrapLegacyModule detects child proxy and creates isolated state
-        const geoms = [].concat(fn(params[name])).flat()
+        const geoms = [].concat(await fn(params[name])).flat()
         all.push(...normalizeAndPlace(geoms, x, y, cellSize))
       }
     } catch (err) {
@@ -73,7 +74,12 @@ const main = (params) => {
         all.push(...normalizeAndPlace(failureMarker(), x, y, cellSize))
       } catch { /* the marker needs the same wasm */ }
     }
-  })
+
+    // Manifold handles are freed by a FinalizationRegistry, which only runs once main yields
+    await new Promise(r => setTimeout(r, 0))
+    // Yielding lets a newer script start in this worker; stop rather than run beside it
+    if (globalThis.__jscadScriptGeneration !== generation) throw new Error(`grid superseded by a newer script after ${url}`)
+  }
 
   if (failed.length) {
     console.error(`ALL: ${failed.length}/${items.length} models failed: ${failed.join(' ')}`)
