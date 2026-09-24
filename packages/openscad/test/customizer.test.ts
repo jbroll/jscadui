@@ -163,6 +163,27 @@ describe('transpile with customizer option', () => {
     expect(calls.at(-1)).toEqual({ size: [50, 100, 2] })
   })
 
+  it('gives dependencies the same customizer output as a main file', () => {
+    const files: Record<string, string> = {
+      '/lib.scad': 'size = 4; // [1:10]\nmodule part() { cube(size); }\npart();\n',
+      '/inc.scad': 'depth = 2;\nmodule slab() { cube(depth); }\n',
+    }
+    const fileResolver = (name: string) => {
+      const path = `/${name}`
+      return files[path] === undefined ? undefined : { path, content: files[path] }
+    }
+    const main = transpile(parse('use <lib.scad>\ninclude <inc.scad>\npart();\n', '/main.scad').ast,
+      { customizer: true, fileResolver, currentFile: '/main.scad' })
+    const asDependency = main.files.get('/lib.scad')!.code
+    const asMain = transpile(parse(files['/lib.scad'], '/lib.scad').ast,
+      { customizer: true, fileResolver, currentFile: '/lib.scad' }).code
+
+    expect(asDependency).toContain('const getParameterDefinitions')
+    expect(asDependency).toBe(asMain)
+    // Callers that use the file do not import getParameterDefinitions from it
+    expect(main.files.get('/lib.scad')!.exports).not.toContain('getParameterDefinitions')
+  })
+
   it('does not change output for files without parameters', () => {
     const plain = 'x = 1 + 1;\ncube(x);\n'
     const on = transpile(parse(plain).ast, { customizer: true })

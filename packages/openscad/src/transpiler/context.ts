@@ -81,7 +81,8 @@ export interface TranspileOptions {
   initialLazyVarNames?: Set<string>
   // Expose OpenSCAD Customizer parameters: export getParameterDefinitions() and
   // make main(params) re-run top-level assignments with parameter overrides.
-  // Applies to this file only; dependencies are transpiled without it.
+  // Dependencies get it too, so a file's cached code is the same whether it was
+  // first transpiled as a dependency or as the main file.
   customizer?: boolean
 }
 
