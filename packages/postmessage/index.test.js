@@ -947,3 +947,29 @@ describe('transferable extraction', () => {
     expect(mockSelf.postMessage).toHaveBeenCalledWith(expect.any(Object), [])
   })
 })
+
+describe('resetTimeouts', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+
+  const fakePort = () => ({ postMessage: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn() })
+
+  it('restarts each pending timer with its original duration', async () => {
+    const { sendCmd, resetTimeouts } = initMessaging(fakePort(), {})
+    const result = sendCmd('slow', [], [], 1000)
+    const settled = vi.fn()
+    result.catch(settled)
+    vi.advanceTimersByTime(900)
+    resetTimeouts()
+    vi.advanceTimersByTime(900)
+    await Promise.resolve()
+    expect(settled).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(101)
+    await expect(result).rejects.toThrow('RPC timeout for slow after 1000ms')
+  })
+
+  it('is exposed on the proxy', () => {
+    const proxy = messageProxy(fakePort(), {})
+    expect(typeof proxy.resetTimeouts).toBe('function')
+  })
+})

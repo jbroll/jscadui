@@ -99,19 +99,15 @@ export const initMessaging = (_self, handlers, { onJobCount, debug, allowedOrigi
     ___self.postMessage({ method, params, id }, fixTransfer(transferable))
 
     const out = new Promise((resolve, reject) => {
-      // H11 fix: Always use a timeout (default or provided) to prevent memory leak
-      // from requests that never receive responses
       const effectiveTimeout = timeout ?? DEFAULT_TIMEOUT
-      // H2 fix: Store timeout ID so it can be cleared when response arrives
-      const timeoutId = setTimeout(() => {
+      const arm = () => setTimeout(() => {
         if (reqMap.has(id)) {
           reqMap.delete(id)
           onJobCount?.(reqMap.size)
           reject(new Error(`RPC timeout for ${method} after ${effectiveTimeout}ms`))
         }
       }, effectiveTimeout)
-      // Store resolve, reject, and timeoutId for cleanup
-      reqMap.set(id, [resolve, reject, timeoutId])
+      reqMap.set(id, [resolve, reject, arm(), arm])
       onJobCount?.(reqMap.size)
     })
     return out
@@ -187,6 +183,14 @@ export const initMessaging = (_self, handlers, { onJobCount, debug, allowedOrigi
     onJobCount?.(0)
   }
 
+  /** Restart every pending timer, for when the other end shows it is still working. */
+  const resetTimeouts = () => {
+    for (const entry of reqMap.values()) {
+      clearTimeout(entry[2])
+      entry[2] = entry[3]()
+    }
+  }
+
   const destroy = () => {
     _self.removeEventListener?.('message', wrappedListener)
     rejectPending(new Error('Messaging destroyed with pending request'))
@@ -201,6 +205,7 @@ export const initMessaging = (_self, handlers, { onJobCount, debug, allowedOrigi
     destroy,
     /** Reject every request in flight, for when the other end lost them. */
     rejectPending,
+    resetTimeouts,
     self: _self,
     getRpcJobCount: () => reqMap.size,
   }
@@ -213,7 +218,7 @@ export const initMessaging = (_self, handlers, { onJobCount, debug, allowedOrigi
  * @returns {object}
  */
 export const messageProxy = (_self, handlers, { onJobCount, debug, allowedOrigin } = {}) => {
-  const { sendCmd, sendNotify, getRpcJobCount, listener, destroy, rejectPending } = initMessaging(_self, handlers, {
+  const { sendCmd, sendNotify, getRpcJobCount, listener, destroy, rejectPending, resetTimeouts } = initMessaging(_self, handlers, {
     onJobCount,
     debug,
     allowedOrigin,
@@ -223,7 +228,7 @@ export const messageProxy = (_self, handlers, { onJobCount, debug, allowedOrigin
   const created = new Error('proxy')
 
   return new Proxy(
-    { getRpcJobCount, onmessage: listener, destroy, rejectPending },
+    { getRpcJobCount, onmessage: listener, destroy, rejectPending, resetTimeouts },
     {
       get(target, prop, _receiver) {
         // then is used to recognize if object is a promise, we do not want
