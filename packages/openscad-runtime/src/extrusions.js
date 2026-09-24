@@ -4,6 +4,7 @@
 
 import { _globalFn, _getSegments } from './segments.js'
 import { NO_CHILD } from './primitives.js'
+import { consuming } from './consume.js'
 
 /**
  * Split each side into `segsPerEdge` pieces, reusing the original endpoints.
@@ -33,14 +34,14 @@ export const initExtrusions = (jscad) => {
   extrudeLinear = jscad.extrusions.extrudeLinear
   extrudeRotate = jscad.extrusions.extrudeRotate
   extrudeFromSlices = jscad.extrusions.extrudeFromSlices
-  translate = jscad.transforms.translate
-  mirror = jscad.transforms.mirror
+  translate = consuming(jscad.transforms.translate)
+  mirror = consuming(jscad.transforms.mirror)
   geom2 = jscad.geometries.geom2
   // slice is under extrusions in the Manifold runtime, but under geometries in standard JSCAD
   slice = jscad.extrusions?.slice || jscad.geometries?.slice
   mat4 = jscad.maths.mat4
-  subtract = jscad.booleans.subtract
-  union = jscad.booleans.union
+  subtract = consuming(jscad.booleans.subtract)
+  union = consuming(jscad.booleans.union)
 }
 
 // Sides of a native v2 geom2 ({ sides }) or a ManifoldGeom2 (sides/outlines getters), transforms

@@ -70,28 +70,32 @@ parent.
 
 A cell whose model throws no longer takes the grid with it: it draws a
 skull-and-crossbones and the sweep scores that grid `partial`, naming the dead
-cells. **35 of 44 render** (`sci push jscadui/render-grids`, job
-`50a257d37f27c7f3`, 320s hang guard per grid);
+cells. 35 of 44 rendered before the change below (`sci push
+jscadui/render-grids`, job `50a257d37f27c7f3`, 320s hang guard per grid);
 `apps/jscad-web/e2e/render-grids-baseline.json` holds the per-grid state and
 each partial grid's dead cells. After the first `WebAssembly.RuntimeError` a
 grid fails every later cell as `not run: wasm trapped in <url>`.
 
-- **Six grids crash the renderer**, the three NopSCADlib ones, top-level
-  `ALL.js`, `dotscad/ALL.js` and `dotscad/examples/ALL.js`, before the frame's
-  290s kill can fire. The sweep runs four grids at once on the CI host, so
-  memory is the likely cause; not yet measured. The NopSCADlib grids used to
-  die at `PSUs.scad`'s `function signature mismatch` inside `manifold.wasm`
-  and no longer trap there. Recovering from a trap means reinitialising the
-  wasm module, which the worker has no path for today.
-- **`openscad/ALL.js` traps at `fractal_tree.scad`** with `table index is out
-  of bounds` in manifold's `getMesh`, the error the BOSL2 grids give on
-  `orientations.scad` and likely the same bug. `run-jscad` reproduces it,
-  while the browser bundle has more headroom than manifold-3d 3.3.2 in
-  `node_modules`.
-- **The aggregate-of-aggregate grids are too big for one worker.**
-  `openscad/bosl2/ALL.js` hits the 290s kill; the top-level and dotSCAD
-  aggregates crash first (above). Each loads several whole grids in one worker
-  on one core.
+Since the runtime frees each op's `ManifoldGeom3` inputs as it goes
+(`openscad-runtime/src/consume.js`), **36 of 44 render** (job
+`f4729e1ce541fb12`): `openscad/bosl2/ALL.js` now renders, and
+`openscad/ALL.js` no longer traps at `fractal_tree.scad`. Node measurements of
+the WASM heap peak: `fractal_tree.scad` 2352 → 207 MB, NopSCADlib
+`extrusion_brackets.scad` 3087 → 963 MB, same triangle counts and volumes.
+`render-grids-baseline.json` still records the job before this change, so the
+sweep reports the grids that now fail later as regressions.
+
+- **The NopSCADlib tests grid still crashes the renderer**, and its two
+  parents score `partial` on that cell with manifold's `Aborted()`. The sweep
+  runs four grids at once on the CI host.
+- **`dotscad/ALL.js` traps at `stereographic_caterpillar.scad`** with
+  `function signature mismatch`, and `dotscad/examples/ALL.js` hits the 290s
+  kill; both crashed the renderer before. The model renders on its own.
+  Recovering from a trap means reinitialising the wasm module, which the
+  worker has no path for today.
+- **The aggregate-of-aggregate grids are too big for one worker.** Top-level
+  `ALL.js` and `openscad/ALL.js` hit the 290s kill. Each loads several whole
+  grids in one worker on one core.
 - **Nothing splits a grid across workers.** The frame runs one worker, one
   request at a time (`src_frame/frame.js`), so a grid cannot use more than one
   core and cannot give each cell its own budget. A pool would need the app to

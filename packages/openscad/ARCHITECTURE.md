@@ -122,6 +122,20 @@ references and the declarations are collected in single passes: with a library
 bundled in, the generated file is megabytes, and scanning it once per
 referenced name was 90% of what a transpile cost.
 
+### Freeing intermediate geometry
+
+The runtime's booleans, hulls, minkowski, transforms and `color`
+(`openscad-runtime/src/consume.js`) delete the Manifold handle of every
+`ManifoldGeom3` input they did not return. `ManifoldGeom3` otherwise frees its
+handle only from a `FinalizationRegistry`, and finalizers cannot run while a
+synchronous `main()` holds the thread, so every intermediate CSG result stayed
+in the 4 GB WASM heap until the model finished. Eager disposal is safe because
+OpenSCAD has no geometry values: generated code passes each geometry to exactly
+one op, and `children()` re-runs its thunk rather than reusing a result. The
+2D minkowski sweep for jscad `geom2`, which does reuse its operands, calls the
+unwrapped ops. On the jscad engine the inputs are plain objects and nothing is
+freed.
+
 ## Worker Integration
 
 The worker's module loader is extended to handle `.scad` files:

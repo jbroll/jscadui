@@ -3,6 +3,7 @@
  */
 
 import { NO_CHILD } from './primitives.js'
+import { consuming } from './consume.js'
 
 // Filter null/undefined/NO_CHILD from geometry arrays before passing to JSCAD.
 // OpenSCAD silently ignores absent children; JSCAD throws on null array elements.
@@ -16,13 +17,13 @@ const filterGeo = (geo) => {
 let translate, rotateX, rotateY, rotateZ, scale, mirror, transform, measureBoundingBox
 
 export const initTransforms = (jscad) => {
-  translate = jscad.transforms.translate
-  rotateX = jscad.transforms.rotateX
-  rotateY = jscad.transforms.rotateY
-  rotateZ = jscad.transforms.rotateZ
-  scale = jscad.transforms.scale
-  mirror = jscad.transforms.mirror
-  transform = jscad.transforms.transform
+  translate = consuming(jscad.transforms.translate)
+  rotateX = consuming(jscad.transforms.rotateX)
+  rotateY = consuming(jscad.transforms.rotateY)
+  rotateZ = consuming(jscad.transforms.rotateZ)
+  scale = consuming(jscad.transforms.scale)
+  mirror = consuming(jscad.transforms.mirror)
+  transform = consuming(jscad.transforms.transform)
   measureBoundingBox = jscad.measurements.measureBoundingBox
 }
 

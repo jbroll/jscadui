@@ -5,6 +5,7 @@
 
 import { _num } from './math.js'
 import { _getSegments } from './segments.js'
+import { consuming } from './consume.js'
 
 /**
  * Sentinel for "no child produced by a conditional branch".
@@ -16,6 +17,8 @@ export const NO_CHILD = Symbol('no_child')
 
 // JSCAD primitives and transforms - injected at init time
 let cube, cuboid, cylinder, circle, rectangle, polygon, polyhedron, translate, union, subtract, intersect, hull, minkowski, geom2, slice
+// The 2D minkowski sweep reuses its operands across ops, so it must not consume them.
+let rawTranslate, rawUnion, rawHull
 
 export const initPrimitives = (jscad) => {
   cube = jscad.primitives.cube
@@ -25,12 +28,15 @@ export const initPrimitives = (jscad) => {
   rectangle = jscad.primitives.rectangle
   polygon = jscad.primitives.polygon
   polyhedron = jscad.primitives.polyhedron
-  translate = jscad.transforms.translate
-  union = jscad.booleans.union
-  subtract = jscad.booleans.subtract
-  intersect = jscad.booleans.intersect
-  hull = jscad.hulls.hull
-  minkowski = jscad.booleans.minkowski
+  rawTranslate = jscad.transforms.translate
+  rawUnion = jscad.booleans.union
+  rawHull = jscad.hulls.hull
+  translate = consuming(rawTranslate)
+  union = consuming(rawUnion)
+  subtract = consuming(jscad.booleans.subtract)
+  intersect = consuming(jscad.booleans.intersect)
+  hull = consuming(rawHull)
+  minkowski = consuming(jscad.booleans.minkowski)
   geom2 = jscad.geometries?.geom2
   slice = jscad.extrusions?.slice
 }
@@ -494,9 +500,9 @@ const _sweepConvex = (a, ring) => {
 
   const pieces = [a]
   for (const [p, q] of geom2.toSides(a)) {
-    pieces.push(hull(translate([p[0], p[1]], centred), translate([q[0], q[1]], centred)))
+    pieces.push(rawHull(rawTranslate([p[0], p[1]], centred), rawTranslate([q[0], q[1]], centred)))
   }
-  return translate([cx, cy], union(...pieces))
+  return rawTranslate([cx, cy], rawUnion(...pieces))
 }
 
 /** The operand's outlines, if they are all convex islands with no holes. */
@@ -522,7 +528,7 @@ const _minkowski2D = (a, b) => {
   }
   if (pieces.length === 0) return a
   const sums = pieces.map(ring => _sweepConvex(a, ring))
-  return sums.length === 1 ? sums[0] : union(...sums)
+  return sums.length === 1 ? sums[0] : rawUnion(...sums)
 }
 
 export const _minkowski = (...args) => {

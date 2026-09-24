@@ -3,6 +3,7 @@
  */
 
 import { NO_CHILD } from './primitives.js'
+import { consuming } from './consume.js'
 
 // colorize() sets .color on every element it is handed, so a child that drew
 // nothing has to go before it gets there. OpenSCAD colours the rest.
@@ -16,7 +17,7 @@ const _present = (geo) => {
 let colorize, cssColors
 
 export const initColor = (jscad) => {
-  colorize = jscad.colors.colorize
+  colorize = consuming(jscad.colors.colorize)
   cssColors = jscad.colors.cssColors
 }
 
