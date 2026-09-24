@@ -280,7 +280,8 @@ sent in the request options. A nested grid emits nothing and returns its
 geometry as one cell of its parent. Export, measure and check need the
 solids, so when the last run streamed they re-run `jscadMain` with no stream
 hook and with `__jscadProgress` set, which posts one `jscadProgress` per
-cell.
+cell. Animation frames also run with `stream: false`, since each frame draws
+the result it returns.
 
 The frame relays `jscadCells` only while a `jscadScript` or `jscadMain` request
 is pending and `jscadProgress` only while a `jscadExportData`, `jscadMeasure`

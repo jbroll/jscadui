@@ -76,7 +76,7 @@ export class AnimRunner {
 
         times = { [name]: (dir == 1) ? t : max - t }
         paramValues = { ...params, ...times }
-        resp = await this.worker.jscadMain({ params: paramValues, skipLog: true })
+        resp = await this.worker.jscadMain({ params: paramValues, skipLog: true, stream: false })
         // C1 fix: Check if animation was stopped while worker was running
         if (this.generation !== startGeneration) {
           console.log(`Animation stopped (generation ${startGeneration} -> ${this.generation}), discarding result`)
