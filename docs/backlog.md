@@ -32,7 +32,8 @@ review follow-ups, then `91d6402f`, the render-engine redraw guard.
 2026-09-24: deployed `3543a03e`, the include-chain cache check and the grid
 memory fixes. Later on 2026-09-24: deployed `715e4509`, streamed grids, then
 `cf7e8dc1`, the preview optimizations (indexed meshes, streamed parts, mesh
-reuse, spare worker).
+reuse, spare worker), then `c848f0ba`, the grid failure marker drawn from
+`skull.svg`.
 See `apps/jscad-web/docs/architecture.md` for the
 deploy order and headers.
 
