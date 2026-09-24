@@ -816,3 +816,248 @@ describe('worker load failure', () => {
     expect(posted.find((m) => m.id === 5)?.error?.name).toBe('AbortError')
   })
 })
+
+describe('grid runs', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+
+  const superseded = { name: 'SupersededError', message: 'superseded by a newer run' }
+  const sent = (worker) => worker.postMessage.mock.calls.map(([m]) => m)
+
+  // Answers every setup and load the worker was sent, so a worker that joined a run reaches its jscadMain.
+  const loadAll = (worker) => {
+    for (const message of sent(worker)) {
+      if (message.id && ['jscadInit', 'jscadSetFiles', 'jscadScript'].includes(message.method)) {
+        worker.onmessage({ data: { method: RESPONSE, id: message.id, params: { def: [], params: {} } } })
+      }
+    }
+  }
+
+  let claims = 0
+  const claimOn = (worker, key, { runId = 7, url = `./${key}.scad` } = {}) => {
+    const id = `claim-${++claims}`
+    worker.onmessage({ data: { method: 'jscadClaim', id, params: [{ key, url, runId }] } })
+    return sent(worker).find((m) => m.method === '__CLAIM__' && m.params[0].id === id)?.params[0].won
+  }
+
+  const lastOf = (worker, method) => sent(worker).findLast((m) => m.method === method)
+  const answerLastOf = (worker, method, params = { entities: [] }) =>
+    worker.onmessage({ data: { method: RESPONSE, id: lastOf(worker, method).id, params } })
+
+  // A grid script loaded, the spare set up, and app run 4 (runId 7) in flight on the active worker.
+  const gridRun = ({ poolSize = 3, timeoutMs } = {}) => {
+    const ctx = setup()
+    const { workers, send } = ctx
+    init(send, { poolSize, ...(timeoutMs ? { timeoutMs } : {}) }, 1)
+    answer(workers[0], 0)
+    send({ method: 'jscadSetFiles', id: 2, params: [{ files: { 'ALL.js': 'grid' } }] })
+    answer(workers[0], 1)
+    send({ method: 'jscadScript', id: 3, params: [{ script: 'grid', url: 'ALL.js', runMain: false }] })
+    answer(workers[0], 2, { def: [], params: {} })
+    loadAll(workers[1])
+    send({ method: 'jscadMain', id: 4, params: [{ params: {}, runId: 7 }] })
+    ctx.posted.length = 0
+    return ctx
+  }
+
+  it('tells each worker it may claim leaves and strips poolSize', () => {
+    const { workers, send } = setup()
+    init(send, { poolSize: 2 })
+    expect(workers[0].postMessage.mock.calls[0][0].params[0]).toMatchObject({ claims: true })
+    expect(workers[0].postMessage.mock.calls[0][0].params[0].poolSize).toBeUndefined()
+  })
+
+  it('fans a run out on its first claim, reloading each joining worker first', () => {
+    const { workers } = gridRun()
+    expect(claimOn(workers[0], '0')).toBe(true)
+    expect(workers).toHaveLength(4)
+    expect(lastOf(workers[1], 'jscadScript')).toMatchObject({ params: [{ script: 'grid', url: 'ALL.js', runMain: false }] })
+    loadAll(workers[1])
+    expect(lastOf(workers[1], 'jscadMain').params).toEqual([{ params: {}, runId: 7 }])
+    loadAll(workers[2])
+    expect(lastOf(workers[2], 'jscadMain').params).toEqual([{ params: {}, runId: 7 }])
+    expect(lastOf(workers[3], 'jscadMain')).toBeUndefined()
+  })
+
+  it('fans out nothing when the pool holds one worker', () => {
+    const { workers } = gridRun({ poolSize: 1 })
+    expect(claimOn(workers[0], '0')).toBe(true)
+    expect(claimOn(workers[0], '1')).toBe(true)
+    expect(workers).toHaveLength(2)
+    expect(methodsOf(workers[1])).toEqual(['jscadInit', 'jscadSetFiles'])
+  })
+
+  it('gives a late joiner only the keys nobody claimed', () => {
+    const { workers } = gridRun()
+    claimOn(workers[0], '0')
+    claimOn(workers[0], '1')
+    loadAll(workers[1])
+    expect(claimOn(workers[1], '0')).toBe(false)
+    expect(claimOn(workers[1], '2')).toBe(true)
+    expect(claimOn(workers[0], '2')).toBe(false)
+  })
+
+  it('ignores a claim from a worker outside the run', () => {
+    const { workers } = gridRun()
+    claimOn(workers[0], '0')
+    loadAll(workers[3])
+    expect(claimOn(workers[3], '1')).toBe(false)
+    expect(claimOn(workers[0], '1')).toBe(true)
+  })
+
+  it('answers the app once, after its last member answers', () => {
+    const { workers, posted, host } = gridRun()
+    claimOn(workers[0], '0')
+    loadAll(workers[1])
+    loadAll(workers[2])
+    answerLastOf(workers[0], 'jscadMain', { entities: [], streamed: true, runId: 7 })
+    answerLastOf(workers[1], 'jscadMain')
+    expect(posted.filter((m) => m.id === 4)).toEqual([])
+    expect(host.getPendingCount()).toBe(1)
+    answerLastOf(workers[2], 'jscadMain')
+    expect(posted.filter((m) => m.id === 4)).toEqual([
+      { method: RESPONSE, id: 4, params: { entities: [], streamed: true, runId: 7, lost: [] } },
+    ])
+    expect(host.getPendingCount()).toBe(0)
+  })
+
+  it('relays cells from every member while the run is open', () => {
+    const { workers, posted } = gridRun()
+    claimOn(workers[0], '0')
+    loadAll(workers[1])
+    const cells = { method: 'jscadCells', params: [{ entities: [], runId: 7 }] }
+    workers[1].onmessage({ data: cells })
+    workers[3].onmessage({ data: cells })
+    expect(posted).toEqual([cells])
+  })
+
+  it('replaces a member that traps and leaves the flag out of the answer', () => {
+    const { workers, posted } = gridRun()
+    claimOn(workers[0], '0')
+    loadAll(workers[1])
+    loadAll(workers[2])
+    expect(claimOn(workers[1], '1')).toBe(true)
+    answerLastOf(workers[1], 'jscadMain', { entities: [], trapped: true })
+    expect(workers[1].terminate).toHaveBeenCalled()
+    loadAll(workers[3])
+    expect(lastOf(workers[3], 'jscadMain').params).toEqual([{ params: {}, runId: 7 }])
+    answerLastOf(workers[0], 'jscadMain')
+    answerLastOf(workers[2], 'jscadMain')
+    answerLastOf(workers[3], 'jscadMain')
+    expect(posted.find((m) => m.id === 4).params).toEqual({ entities: [], streamed: true, runId: 7, lost: [] })
+  })
+
+  it('reports the leaf a timed-out member was running as lost, and the run goes on', () => {
+    const { workers, posted } = gridRun({ timeoutMs: 1000 })
+    claimOn(workers[0], '0')
+    loadAll(workers[1])
+    loadAll(workers[2])
+    loadAll(workers[3])
+    claimOn(workers[1], '1', { url: './slow.scad' })
+    vi.advanceTimersByTime(600)
+    claimOn(workers[0], '2')
+    claimOn(workers[2], '3')
+    vi.advanceTimersByTime(500)
+    expect(workers[1].terminate).toHaveBeenCalled()
+    loadAll(workers[3])
+    answerLastOf(workers[0], 'jscadMain')
+    answerLastOf(workers[2], 'jscadMain')
+    answerLastOf(workers[3], 'jscadMain')
+    expect(posted.find((m) => m.id === 4).params.lost).toEqual([{ url: './slow.scad', reason: 'TimeoutError' }])
+    expect(posted.filter((m) => m.method === 'frameWorkerTerminated')).toEqual([])
+  })
+
+  it('tells the app its worker stopped only when no worker is left to finish the grid', () => {
+    const posted = []
+    const workers = []
+    const host = createFrameHost({
+      allowedOrigin: APP,
+      bundleBase: BASE,
+      parentWindow,
+      post: (message) => posted.push(message),
+      createWorker: () => {
+        if (workers.length) throw new Error('out of memory')
+        const worker = { postMessage: vi.fn(), terminate: vi.fn() }
+        workers.push(worker)
+        return worker
+      },
+    })
+    const send = (data) => host.handleMessage({ origin: APP, source: parentWindow, data })
+    init(send, { poolSize: 2, timeoutMs: 1000 }, 1)
+    answer(workers[0], 0)
+    send({ method: 'jscadMain', id: 2, params: [{ params: {}, runId: 7 }] })
+    claimOn(workers[0], '0')
+    vi.advanceTimersByTime(1001)
+    expect(posted.filter((m) => m.method === 'frameWorkerTerminated')).toHaveLength(1)
+    expect(posted.find((m) => m.id === 2)?.error?.name).toBe('AbortError')
+  })
+
+  it('supersedes a grid run at once, retiring members on an old leaf and draining the rest', () => {
+    const { workers, posted, send } = gridRun()
+    claimOn(workers[0], '0')
+    loadAll(workers[1])
+    loadAll(workers[2])
+    loadAll(workers[3])
+    vi.advanceTimersByTime(400)
+    claimOn(workers[1], '1')
+    vi.advanceTimersByTime(200)
+    send({ method: 'jscadMain', id: 5, params: [{ params: { size: 2 }, runId: 8, supersede: true }] })
+
+    expect(posted.find((m) => m.id === 4)).toEqual({ method: RESPONSE, id: 4, error: superseded })
+    expect(workers[0].terminate).toHaveBeenCalled()
+    expect(workers[1].terminate).not.toHaveBeenCalled()
+    expect(workers[2].terminate).not.toHaveBeenCalled()
+    expect(claimOn(workers[1], '2')).toBe(false)
+    workers[1].onmessage({ data: { method: 'jscadCells', params: [{ entities: [], runId: 7 }] } })
+    expect(posted.filter((m) => m.method === 'jscadCells')).toEqual([])
+  })
+
+  it('leaves a grid load alone when a run supersedes it', () => {
+    const { workers, posted, send } = gridRun()
+    answerLastOf(workers[0], 'jscadMain')
+    send({ method: 'jscadScript', id: 5, params: [{ script: 'grid2', url: 'ALL.js', runId: 9 }] })
+    claimOn(workers[0], '0', { runId: 9 })
+    vi.advanceTimersByTime(600)
+    send({ method: 'jscadMain', id: 6, params: [{ params: {}, runId: 10, supersede: true }] })
+    expect(posted.find((m) => m.id === 5)).toBeUndefined()
+    expect(workers[0].terminate).not.toHaveBeenCalled()
+  })
+
+  it('sends a load that fans out the load itself', () => {
+    const { workers, send } = gridRun()
+    answerLastOf(workers[0], 'jscadMain')
+    send({ method: 'jscadScript', id: 5, params: [{ script: 'grid2', url: 'ALL.js', runId: 9 }] })
+    claimOn(workers[0], '0', { runId: 9 })
+    expect(lastOf(workers[1], 'jscadScript').params).toEqual([{ script: 'grid2', url: 'ALL.js', runId: 9 }])
+  })
+
+  it('reloads the current script on an idle worker that holds an older one', () => {
+    const { workers, send } = gridRun({ poolSize: 2 })
+    claimOn(workers[0], '0')
+    loadAll(workers[1])
+    answerLastOf(workers[0], 'jscadMain')
+    answerLastOf(workers[1], 'jscadMain')
+    send({ method: 'jscadScript', id: 5, params: [{ script: 'grid2', url: 'ALL.js', runMain: false }] })
+    answerLastOf(workers[0], 'jscadScript', { def: [], params: {} })
+    send({ method: 'jscadMain', id: 6, params: [{ params: {}, runId: 8 }] })
+    claimOn(workers[0], '0', { runId: 8 })
+    expect(lastSent(workers[1])).toMatchObject({ method: 'jscadScript', params: [{ script: 'grid2', runMain: false }] })
+  })
+
+  it('merges the params every member discovered into the answer to a load', () => {
+    const { workers, posted, send } = gridRun({ poolSize: 2 })
+    answerLastOf(workers[0], 'jscadMain')
+    send({ method: 'jscadScript', id: 5, params: [{ script: 'grid2', url: 'ALL.js', runId: 9 }] })
+    claimOn(workers[0], '0', { runId: 9 })
+    const param = (path, value) => ({ path, parent: path.split('.')[0], name: path.split('.')[1], type: 'number', default: value })
+    const state = (...discovered) => ({ discovered, types: {}, classes: {} })
+    answerLastOf(workers[0], 'jscadScript', { def: [], params: {}, entities: [], streamed: true, runId: 9, proxyState: state(param('a.size', 1)) })
+    answerLastOf(workers[1], 'jscadScript', { def: [], params: {}, entities: [], proxyState: state(param('b.size', 2)) })
+
+    const { params } = posted.find((m) => m.id === 5)
+    expect(params.proxyState.discovered.map((p) => p.path)).toEqual(['a.size', 'b.size'])
+    expect(Object.keys(params.proxyState.tree.children)).toEqual(['a', 'b'])
+    expect(params.params).toEqual({ 'a.size': 1, 'b.size': 2 })
+    expect(params.def.map((d) => d.name)).toEqual(['_group_a', 'a.size', '_group_b', 'b.size'])
+  })
+})
