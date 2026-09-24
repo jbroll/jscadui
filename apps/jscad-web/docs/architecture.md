@@ -205,6 +205,25 @@ still running, since it is the model the app expects. The cost is a second
 worker's memory: the loaded bundles, WASM instances and file map, held idle
 from the first script onward.
 
+A load, a parameter change and a render-engine redraw send `supersede: true`
+with their `jscadScript` or `jscadMain`. When one arrives while the active
+worker has an app `jscadMain` or `jscadScript` it started at least 500 ms ago
+(`ABANDON_AFTER_MS`, exported from `src_frame/frameHost.js`), the frame answers
+each such request `SupersededError`, retires the worker the same way as a trap,
+and sends the new request to the promoted worker, after the reload for a
+`jscadMain`. Younger requests are left alone and the new one queues behind them
+on the same worker, since starting over costs more than the rest of a short
+run. A `jscadMain` never abandons a pending `jscadScript`: the promoted worker
+would reload the previous script and run the new parameters against it. The
+retired worker's other app requests are answered `AbortError`, except setup
+(`jscadSetFiles` and the other mirrored methods) that the promoted worker also
+received, which is answered with the promoted worker's answer to its copy. The
+frame strips `supersede` before the message reaches a worker. On the app side,
+`runModelUpdate` and `paramChangeCallback` keep coalescing updates while a run
+younger than 500 ms is in flight, and send the new run at once when it is
+older. A rejection named `SupersededError` sets no error, and a run a newer one
+replaced draws nothing.
+
 Model code runs in the same worker as the code that answers requests, so the
 frame does not trust what the worker posts. Each relayed request goes to the
 worker under a fresh `crypto.randomUUID()`, and the frame maps it back to the

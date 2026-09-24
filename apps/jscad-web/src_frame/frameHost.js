@@ -1,6 +1,7 @@
 import { collectBuffers } from './collectBuffers.js'
 
 export const DEFAULT_TIMEOUT_MS = 30000
+export const ABANDON_AFTER_MS = 500
 
 const RESPONSE = '__RESPONSE__'
 
@@ -51,8 +52,10 @@ export const createFrameHost = ({
    * request itself and cancel that request's timer. An entry with `onAnswer` is
    * the frame's own request; its answer never reaches the app.
    * @typedef {{appId?: unknown, method: string, options?: object, onAnswer?: (data: any) => void,
+   *   setup?: object, startedAt: number,
    *   arm: () => ReturnType<typeof setTimeout>, timer: ReturnType<typeof setTimeout>}} Pending
-   * @typedef {{worker: Worker, pending: Map<string, Pending>, loaded: boolean, held: object[] | null}} Slot
+   * @typedef {{worker: Worker, pending: Map<string, Pending>, loaded: boolean, held: object[] | null,
+   *   setupAnswers: WeakMap<object, object>}} Slot
    * @type {{active: Slot | null, spare: Slot | null}}
    */
   const workers = { active: null, spare: null }
@@ -98,13 +101,13 @@ export const createFrameHost = ({
     const arm = () => setTimeout(() => {
       killWorker(slot, workerId, `model exceeded ${timeoutMs} ms`, 'TimeoutError')
     }, timeoutMs)
-    slot.pending.set(workerId, { ...entry, arm, timer: arm() })
+    slot.pending.set(workerId, { ...entry, startedAt: Date.now(), arm, timer: arm() })
     return workerId
   }
 
   // Sent without a transfer list: a mirrored message is kept for the next spare.
-  const request = (slot, message, onAnswer) => {
-    slot.worker.postMessage({ ...message, id: track(slot, { method: message.method, onAnswer }) })
+  const request = (slot, message, onAnswer, setup) => {
+    slot.worker.postMessage({ ...message, id: track(slot, { method: message.method, onAnswer, setup }) })
   }
 
   // A cell or a progress beat shows the model is still advancing, so the
@@ -144,6 +147,7 @@ export const createFrameHost = ({
     if (!request) return
     clearTimeout(request.timer)
     slot.pending.delete(data.id)
+    if (request.setup) slot.setupAnswers.set(request.setup, data)
     if (request.onAnswer) {
       request.onAnswer(data)
     } else {
@@ -151,7 +155,7 @@ export const createFrameHost = ({
       post(message, collectBuffers(message))
       answered(slot, request, data)
     }
-    if (slot === workers.active && trapped(data)) retire()
+    if (slot === workers.active && trapped(data)) retire('the model trapped in WebAssembly')
   }
 
   const answered = (slot, { method, options }, data) => {
@@ -165,7 +169,7 @@ export const createFrameHost = ({
   }
 
   const start = ({ replay }) => {
-    const slot = { worker: createWorker(), pending: new Map(), loaded: false, held: null }
+    const slot = { worker: createWorker(), pending: new Map(), loaded: false, held: null, setupAnswers: new WeakMap() }
     const { worker } = slot
     worker.onmessage = (event) => receive(slot, event.data)
     // Without these a bundle that fails to load surfaces as "model exceeded
@@ -177,7 +181,7 @@ export const createFrameHost = ({
     worker.onmessageerror = () => {
       killWorker(slot, null, 'worker sent a message that could not be deserialized', 'DataCloneError')
     }
-    if (replay) for (const message of mirrored) request(slot, message, ignore)
+    if (replay) for (const message of mirrored) request(slot, message, ignore, message)
     return slot
   }
 
@@ -189,16 +193,58 @@ export const createFrameHost = ({
     }
   }
 
-  // A trapped WebAssembly instance cannot be trusted with the next run. The app
-  // is not told: the promoted spare already holds its setup and reloads the
-  // script on demand.
-  const retire = () => {
-    end(workers.active, null, 'the model trapped in WebAssembly', null)
+  // Setup the app sent the retired worker went to the promoted one too, so the
+  // promoted worker's answer stands in for it.
+  const handOver = (from, to) => {
+    for (const [workerId, request] of from.pending) {
+      if (request.onAnswer || !request.setup) continue
+      const copy = [...to.pending.values()].find((r) => r.setup === request.setup)
+      const answer = to.setupAnswers.get(request.setup)
+      if (!copy && !answer) continue
+      clearTimeout(request.timer)
+      from.pending.delete(workerId)
+      if (copy) Object.assign(copy, { appId: request.appId, onAnswer: undefined })
+      else post({ ...answer, id: request.appId })
+    }
+  }
+
+  // For a trapped WebAssembly instance or a superseded run. The app is not
+  // told: the promoted spare already holds its setup and reloads the script on demand.
+  const retire = (reason) => {
+    const retired = workers.active
     workers.active = workers.spare ?? tryStart()
     workers.spare = workers.active ? tryStart() : null
+    if (workers.active) handOver(retired, workers.active)
+    end(retired, null, reason, null)
+  }
+
+  // A run never abandons a load: the promoted worker would reload the previous
+  // script and run the new parameters against it.
+  const abandonStale = (method) => {
+    const slot = workers.active
+    const appRequests = [...slot.pending].filter(([, r]) => !r.onAnswer)
+    if (method === 'jscadMain' && appRequests.some(([, r]) => r.method === 'jscadScript')) return
+    const now = Date.now()
+    const stale = appRequests.filter(([, r]) => RECORDED.has(r.method) && now - r.startedAt >= ABANDON_AFTER_MS)
+    if (!stale.length) return
+    for (const [workerId, { appId, timer }] of stale) {
+      clearTimeout(timer)
+      slot.pending.delete(workerId)
+      answerError(appId, 'SupersededError', 'superseded by a newer run')
+    }
+    retire('a newer run superseded the model')
+  }
+
+  const takeSupersede = (message) => {
+    const [options, ...rest] = message?.params ?? []
+    if (options === null || typeof options !== 'object' || !Object.hasOwn(options, 'supersede')) return [message, false]
+    const { supersede, ...kept } = options
+    return [{ ...message, params: [kept, ...rest] }, supersede === true]
   }
 
   const MIRRORED = new Set(['jscadInit', 'jscadSetFiles', 'jscadClearTempCache', 'jscadClearFileCache'])
+
+  const setupOf = new WeakMap()
 
   // A file map replaces the one before it, and the cache clears before it
   // cleared state that map already replaced.
@@ -207,7 +253,8 @@ export const createFrameHost = ({
     const kept = structuredClone(setup)
     if (kept.method === 'jscadSetFiles') mirrored = mirrored.filter((m) => m.method === 'jscadInit')
     mirrored.push(kept)
-    if (workers.spare) request(workers.spare, kept, ignore)
+    setupOf.set(message, kept)
+    if (workers.spare) request(workers.spare, kept, ignore, kept)
   }
 
   const NEEDS_MODEL = new Set(['jscadMain', 'jscadExportData', 'jscadMeasure', 'jscadCheck'])
@@ -218,7 +265,7 @@ export const createFrameHost = ({
     let out = message
     if (message.id) {
       const options = RECORDED.has(message.method) ? structuredClone(message.params?.[0]) : undefined
-      out = { ...message, id: track(slot, { appId: message.id, method: message.method, options }) }
+      out = { ...message, id: track(slot, { appId: message.id, method: message.method, options, setup: setupOf.get(message) }) }
     }
     slot.worker.postMessage(out, collectBuffers(out))
   }
@@ -296,6 +343,9 @@ export const createFrameHost = ({
       }
       message = frameInit(data, options, rest)
     }
+    const [relayed, supersede] = takeSupersede(message)
+    message = relayed
+    if (supersede && workers.active && RECORDED.has(message.method)) abandonStale(message.method)
 
     if (!workers.active) {
       try {

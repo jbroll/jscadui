@@ -5,6 +5,7 @@
 
 import { createParamsTree, paramsTreeStyles, inputStyles } from '@jscadui/params-ui'
 import { createParamsController } from '@jscadui/params-controller'
+import { ABANDON_AFTER_MS } from '../src_frame/frameHost.js'
 
 /**
  * Efficiently compare two Maps or Map-like objects for equality.
@@ -66,6 +67,8 @@ let pendingDeps = null
 
 /** @type {boolean} */
 let working = false
+let workingSince = 0
+let workToken = 0
 
 /**
  * Flag to preserve params when re-running script (e.g., modeling engine switch)
@@ -98,19 +101,32 @@ export function getParamsTreeView() {
 }
 
 /**
- * Set the working state
- * @param {boolean} value
+ * Mark a run as in flight
+ * @returns {number} token that ends this run's hold on the working state
  */
-export function setWorking(value) {
-  working = value
+export function beginWork() {
+  working = true
+  workingSince = Date.now()
+  return ++workToken
 }
 
 /**
- * Get the working state
+ * @param {number} token
+ * @returns {boolean} whether this run still held the working state, which is now released
+ */
+export function endWork(token) {
+  if (token !== workToken) return false
+  working = false
+  return true
+}
+
+/**
+ * A newer run waits for one in flight only while that one is young; an older
+ * one is abandoned, since the frame supersedes it.
  * @returns {boolean}
  */
-export function isWorking() {
-  return working
+export function mustWait() {
+  return working && Date.now() - workingSince < ABANDON_AFTER_MS
 }
 
 /**
@@ -178,7 +194,7 @@ export async function runModelUpdate(deps) {
   const { workerApi, handleEntities, setError, stopCurrentAnim, beginRun, endRun, held } = deps
 
   // H5 fix: Store deps for pending update to use the most recent deps
-  if (working) {
+  if (mustWait()) {
     modelUpdatePending = true
     pendingDeps = deps
     return
@@ -187,11 +203,12 @@ export async function runModelUpdate(deps) {
   modelUpdatePending = false
   pendingDeps = null
   stopCurrentAnim()
-  working = true
+  const work = beginWork()
 
   try {
     const runId = beginRun?.()
-    const result = await workerApi.jscadMain({ ...paramsCtrl.getWorkerParams(), runId, held: held?.() })
+    const result = await workerApi.jscadMain({ ...paramsCtrl.getWorkerParams(), runId, held: held?.(), supersede: true })
+    if (work !== workToken) return
 
     if (result.proxyState) {
       const oldState = paramsCtrl.proxyState
@@ -216,12 +233,13 @@ export async function runModelUpdate(deps) {
     handleEntities(result, {})
   } catch (err) {
     endRun?.()
-    setError(err)
-    console.error('Model update failed:', err)
+    if (err?.name !== 'SupersededError') {
+      setError(err)
+      console.error('Model update failed:', err)
+    }
   } finally {
-    working = false
     // H5 fix: Use stored pendingDeps if available, otherwise fall back to current deps
-    if (modelUpdatePending) {
+    if (endWork(work) && modelUpdatePending) {
       const depsToUse = pendingDeps || deps
       pendingDeps = null
       runModelUpdate(depsToUse)

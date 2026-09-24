@@ -541,6 +541,138 @@ describe('kill with a spare', () => {
   })
 })
 
+describe('superseding a stale run', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+
+  const superseded = { name: 'SupersededError', message: 'superseded by a newer run' }
+
+  it('answers a run pending 600 ms SupersededError and runs the new one on the promoted worker', () => {
+    const { workers, send, posted } = withSpare()
+    send({ method: 'jscadMain', id: 4, params: [{ params: { size: 1 } }] })
+    vi.advanceTimersByTime(600)
+    send({ method: 'jscadMain', id: 5, params: [{ params: { size: 2 }, supersede: true }] })
+
+    expect(posted).toEqual([{ method: RESPONSE, id: 4, error: superseded }])
+    expect(workers[0].terminate).toHaveBeenCalled()
+    expect(lastSent(workers[1])).toMatchObject({ method: 'jscadScript', params: [{ script: 'main', runMain: false }] })
+    answerLast(workers[1], { def: [], params: {} })
+    expect(lastSent(workers[1]).params).toEqual([{ params: { size: 2 } }])
+    answerLast(workers[1], { entities: [] })
+
+    expect(posted.slice(1)).toEqual([{ method: RESPONSE, id: 5, params: { entities: [] } }])
+    expect(posted.filter((m) => m.method === 'frameWorkerTerminated')).toEqual([])
+  })
+
+  it('relays a run superseding one pending 100 ms to the same worker and answers nothing early', () => {
+    const { workers, send, posted } = withSpare()
+    send({ method: 'jscadMain', id: 4, params: [{ params: {} }] })
+    vi.advanceTimersByTime(100)
+    send({ method: 'jscadMain', id: 5, params: [{ params: {}, runId: 7, held: ['0123456789abcdef'], stream: true, supersede: true }] })
+
+    expect(posted).toEqual([])
+    expect(workers[0].terminate).not.toHaveBeenCalled()
+    expect(lastSent(workers[0])).toMatchObject({ method: 'jscadMain' })
+    expect(lastSent(workers[0]).params).toEqual([{ params: {}, runId: 7, held: ['0123456789abcdef'], stream: true }])
+  })
+
+  it('strips supersede from a script', () => {
+    const { workers, send } = setup()
+    send({ method: 'jscadScript', id: 1, params: [{ script: 'main', supersede: true }] })
+    expect(lastSent(workers[0]).params).toEqual([{ script: 'main' }])
+  })
+
+  it('answers another request on the retired worker as a retire does', () => {
+    const { send, posted } = withSpare()
+    send({ method: 'jscadMain', id: 4, params: [{ params: {} }] })
+    send({ method: 'jscadExportData', id: 5, params: [{ format: 'stla' }] })
+    vi.advanceTimersByTime(600)
+    send({ method: 'jscadMain', id: 6, params: [{ params: {}, supersede: true }] })
+
+    expect(posted.find((m) => m.id === 4).error).toEqual(superseded)
+    expect(posted.find((m) => m.id === 5).error.name).toBe('AbortError')
+  })
+
+  it('sends a superseding script straight to the promoted worker', () => {
+    const { workers, send, posted } = withSpare()
+    send({ method: 'jscadMain', id: 4, params: [{ params: {} }] })
+    vi.advanceTimersByTime(600)
+    send({ method: 'jscadScript', id: 5, params: [{ script: 'next', supersede: true }] })
+
+    expect(posted).toEqual([{ method: RESPONSE, id: 4, error: superseded }])
+    expect(lastSent(workers[1])).toMatchObject({ method: 'jscadScript', params: [{ script: 'next' }] })
+  })
+
+  it('answers file setup the retired worker still held with the promoted worker answer', () => {
+    const { workers, send, posted } = withSpare()
+    send({ method: 'jscadMain', id: 4, params: [{ params: {} }] })
+    vi.advanceTimersByTime(600)
+    send({ method: 'jscadSetFiles', id: 5, params: [{ files: { 'main.js': 'y' } }] })
+    send({ method: 'jscadScript', id: 6, params: [{ script: 'next', supersede: true }] })
+
+    expect(posted.find((m) => m.id === 5)).toBeUndefined()
+    const copy = workers[1].postMessage.mock.calls.findLast(([m]) => m.method === 'jscadSetFiles')[0]
+    workers[1].onmessage({ data: { method: RESPONSE, id: copy.id, params: 'set' } })
+    expect(posted.find((m) => m.id === 5)).toEqual({ method: RESPONSE, id: 5, params: 'set' })
+  })
+
+  it('answers file setup the promoted worker already finished at once', () => {
+    const { workers, send, posted } = withSpare()
+    send({ method: 'jscadMain', id: 4, params: [{ params: {} }] })
+    vi.advanceTimersByTime(600)
+    send({ method: 'jscadSetFiles', id: 5, params: [{ files: { 'main.js': 'y' } }] })
+    const copy = workers[1].postMessage.mock.calls.findLast(([m]) => m.method === 'jscadSetFiles')[0]
+    workers[1].onmessage({ data: { method: RESPONSE, id: copy.id, params: 'set' } })
+    send({ method: 'jscadScript', id: 6, params: [{ script: 'next', supersede: true }] })
+
+    expect(posted.find((m) => m.id === 5)).toEqual({ method: RESPONSE, id: 5, params: 'set' })
+  })
+
+  it('does not abandon a pending load for a run', () => {
+    const { workers, send, posted } = withSpare()
+    send({ method: 'jscadScript', id: 4, params: [{ script: 'next' }] })
+    vi.advanceTimersByTime(600)
+    send({ method: 'jscadMain', id: 5, params: [{ params: {}, supersede: true }] })
+
+    expect(posted).toEqual([])
+    expect(workers[0].terminate).not.toHaveBeenCalled()
+    expect(lastSent(workers[0])).toMatchObject({ method: 'jscadMain' })
+  })
+
+  it('does not abandon a run for a request without supersede', () => {
+    const { workers, send, posted } = withSpare()
+    send({ method: 'jscadMain', id: 4, params: [{ params: {} }] })
+    vi.advanceTimersByTime(600)
+    send({ method: 'jscadMain', id: 5, params: [{ params: {} }] })
+    expect(posted).toEqual([])
+    expect(workers[0].terminate).not.toHaveBeenCalled()
+  })
+
+  it('answers the new request when no worker can replace the retired one', () => {
+    const posted = []
+    let made = 0
+    const host = createFrameHost({
+      allowedOrigin: APP,
+      bundleBase: BASE,
+      createWorker: () => {
+        if (made++) throw new Error('out of memory')
+        return { postMessage: vi.fn(), terminate: vi.fn() }
+      },
+      post: (message) => posted.push(message),
+      parentWindow,
+    })
+    const send = (data) => host.handleMessage({ origin: APP, source: parentWindow, data })
+    send({ method: 'jscadScript', id: 1, params: [{ script: 'main' }] })
+    vi.advanceTimersByTime(600)
+    send({ method: 'jscadScript', id: 2, params: [{ script: 'next', supersede: true }] })
+
+    expect(posted).toEqual([
+      { method: RESPONSE, id: 1, error: superseded },
+      { method: RESPONSE, id: 2, error: { name: 'Error', message: 'could not start the model worker: out of memory' } },
+    ])
+  })
+})
+
 describe('worker load failure', () => {
   it('answers with the load error rather than waiting out the timeout', () => {
     const { posted, workers, send } = setup()

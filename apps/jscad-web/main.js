@@ -509,13 +509,13 @@ const paramChangeCallback = async (params, source) => {
   }
 
   stopCurrentAnim()
-  if (paramsUI.isWorking()) {
+  if (paramsUI.mustWait()) {
     // I7 note: Overwrites previous pending - intentionally keeps only the latest
     lastParams = params
     return
   }
   lastParams = null
-  paramsUI.setWorking(true)
+  const work = paramsUI.beginWork()
   const isStale = scriptRuns.paramChange()
   const runId = beginStream(isStale)
 
@@ -523,19 +523,21 @@ const paramChangeCallback = async (params, source) => {
   let pendingParams = null
   try {
     const mainOptions = useParamsProxy
-      ? { ...paramsCtrl.getWorkerParams(), runId, held: meshRefs.held() }
-      : { params, runId, held: meshRefs.held() }
+      ? { ...paramsCtrl.getWorkerParams(), runId, held: meshRefs.held(), supersede: true }
+      : { params, runId, held: meshRefs.held(), supersede: true }
     result = await workerApi.jscadMain(mainOptions)
     if (isStale()) return
     lastRunParams = params
   } catch (error) {
     streamRuns.end(runId)
+    if (error?.name === 'SupersededError') return
     throw error
   } finally {
     // Capture pending params atomically before releasing lock
-    pendingParams = lastParams
-    lastParams = null
-    paramsUI.setWorking(false)
+    if (paramsUI.endWork(work)) {
+      pendingParams = lastParams
+      lastParams = null
+    }
   }
   handlers.entities(result, {})
   if (pendingParams && pendingParams !== params) paramChangeCallback(pendingParams)
@@ -591,7 +593,7 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
     const useGpuNormals = viewState.viewer?.supportsGpuNormals ?? false
     const files = await collectProjectFiles(fileSystem.getSwHandler())
     if (isStale()) return
-    const result = await sendScript(workerApi, files, { script, url, base, root, useGpuNormals, runId, held: meshRefs.held() })
+    const result = await sendScript(workerApi, files, { script, url, base, root, useGpuNormals, runId, held: meshRefs.held(), supersede: true })
     if (isStale()) return
 
     if (result.proxyState && useParamsProxy) {
@@ -642,7 +644,7 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
         paramsTreeView?.update({ values: paramsCtrl.params })
         // Re-run model with restored params
         runId = beginStream(isStale)
-        const restoreResult = await workerApi.jscadMain({ ...paramsCtrl.getWorkerParams(), runId, held: meshRefs.held() })
+        const restoreResult = await workerApi.jscadMain({ ...paramsCtrl.getWorkerParams(), runId, held: meshRefs.held(), supersede: true })
         if (isStale()) return
         handlers.entities(restoreResult)
         return
@@ -666,7 +668,7 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
     }
   } catch (err) {
     streamRuns.end(runId)
-    if (!isStale()) setError(err)
+    if (!isStale() && err?.name !== 'SupersededError') setError(err)
   }
 }
 
@@ -705,13 +707,14 @@ viewState.onRenderEngineChange = async (newEngine) => {
   // Re-run main with current params to regenerate geometry
   const useGpuNormals = viewState.viewer?.supportsGpuNormals ?? false
   const mainOptions = useParamsProxy
-    ? { ...paramsCtrl.getWorkerParams(), useGpuNormals, runId, held: meshRefs.held() }
-    : { params: lastRunParams, useGpuNormals, runId, held: meshRefs.held() }
+    ? { ...paramsCtrl.getWorkerParams(), useGpuNormals, runId, held: meshRefs.held(), supersede: true }
+    : { params: lastRunParams, useGpuNormals, runId, held: meshRefs.held(), supersede: true }
   let result
   try {
     result = await workerApi.jscadMain(mainOptions)
   } catch (error) {
     streamRuns.end(runId)
+    if (error?.name === 'SupersededError') return
     throw error
   }
   if (isStale()) return
