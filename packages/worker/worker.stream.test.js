@@ -73,4 +73,27 @@ describe('jscadMain streaming', () => {
     expect(lastRunStreamed()).toBe(true)
     expect(self.postMessage).not.toHaveBeenCalled()
   })
+
+  it('leaves lastRunStreamed set when a stream:false re-run fails, so the next export re-runs again', async () => {
+    workerState.main = () => {
+      globalThis.__jscadStream.emit([{ type: 'mesh', vertices: new Float32Array(9) }])
+      return []
+    }
+    await jscadMain({ params: {} })
+    workerState.main = () => { throw new Error('boom') }
+
+    await expect(jscadMain({ params: {}, stream: false })).rejects.toThrow('boom')
+
+    expect(lastRunStreamed()).toBe(true)
+    expect(workerState.solids).toEqual([])
+  })
+
+  it('clears lastRunStreamed when a streaming run fails', async () => {
+    workerState.lastRunStreamed = true
+    workerState.main = () => { throw new Error('boom') }
+
+    await expect(jscadMain({ params: {} })).rejects.toThrow('boom')
+
+    expect(lastRunStreamed()).toBe(false)
+  })
 })

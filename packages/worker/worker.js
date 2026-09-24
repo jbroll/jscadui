@@ -348,7 +348,10 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
   } catch (error) {
     // Clear cache on error to avoid stale state
     JscadToCommon.clearCache()
+    const { lastRunStreamed } = workerState
     workerState.clearGeometry() // M1 fix: Also clear solids array on error to free memory
+    // A failed export re-run must not make later exports read the emptied solids as the model.
+    if (!stream) workerState.lastRunStreamed = lastRunStreamed
     // Re-throw with additional context
     const message = error.message || String(error)
     const wrappedError = new Error(`jscadMain failed: ${message}`)
