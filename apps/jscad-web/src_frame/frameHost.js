@@ -154,8 +154,10 @@ export const createFrameHost = ({
       const message = { ...data, id: request.appId }
       post(message, collectBuffers(message))
       answered(slot, request, data)
+      // A frame request that traps still answers the one it was made for; the
+      // next app run that traps retires the worker.
+      if (slot === workers.active && trapped(data)) retire('the model trapped in WebAssembly')
     }
-    if (slot === workers.active && trapped(data)) retire('the model trapped in WebAssembly')
   }
 
   const answered = (slot, { method, options }, data) => {
@@ -163,6 +165,7 @@ export const createFrameHost = ({
     if (method !== 'jscadScript') return
     if (!data.error) {
       lastScript = options
+      lastMain = undefined
       slot.loaded = true
     }
     if (!workers.spare) workers.spare = tryStart()
@@ -294,11 +297,13 @@ export const createFrameHost = ({
   }
 
   // A promoted worker has the setup but not the model. Export, measure and
-  // check read the solids of the last run, so those replay it as well.
+  // check read the solids of the last run, so those replay it as well; with no
+  // run since the load, the load's own main is that run.
   const ensureLoaded = (slot, message) => {
     slot.held = [message]
-    const steps = [{ method: 'jscadScript', params: [{ ...lastScript, runMain: false }] }]
-    if (NEEDS_SOLIDS.has(message.method) && lastMain) {
+    const needsSolids = NEEDS_SOLIDS.has(message.method)
+    const steps = [{ method: 'jscadScript', params: [{ ...lastScript, runMain: needsSolids && !lastMain }] }]
+    if (needsSolids && lastMain) {
       steps.push({ method: 'jscadMain', params: [{ ...lastMain, stream: false }] })
     }
     const next = () => {

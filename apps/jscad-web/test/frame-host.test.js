@@ -495,6 +495,51 @@ describe('trap retirement', () => {
   })
 })
 
+describe('export after a promotion', () => {
+  it('script answered, trap, export: runs the new script main instead of the old model params', () => {
+    const { workers, send, posted } = withSpare()
+    send({ method: 'jscadMain', id: 4, params: [{ params: { size: 2 } }] })
+    answerLast(workers[0], { entities: [] })
+    send({ method: 'jscadScript', id: 5, params: [{ script: 'grid', url: 'ALL.js' }] })
+    answerLast(workers[0], { def: [], params: {}, trapped: true })
+    expect(workers[0].terminate).toHaveBeenCalled()
+
+    send({ method: 'jscadExportData', id: 6, params: [{ format: 'stla' }] })
+    expect(lastSent(workers[1])).toMatchObject({ method: 'jscadScript', params: [{ script: 'grid', url: 'ALL.js', runMain: true }] })
+    answerLast(workers[1], { def: [], params: {} })
+    expect(lastSent(workers[1])).toMatchObject({ method: 'jscadExportData', params: [{ format: 'stla' }] })
+    answerLast(workers[1], { data: ['solid'] })
+
+    expect(posted.at(-1)).toEqual({ method: RESPONSE, id: 6, params: { data: ['solid'] } })
+  })
+
+  it('loads without running main for a run that brings its own params', () => {
+    const { workers, send } = withSpare()
+    send({ method: 'jscadScript', id: 4, params: [{ script: 'grid' }] })
+    answerLast(workers[0], { def: [], params: {}, trapped: true })
+    send({ method: 'jscadMain', id: 5, params: [{ params: {} }] })
+    expect(lastSent(workers[1])).toMatchObject({ method: 'jscadScript', params: [{ script: 'grid', runMain: false }] })
+  })
+
+  it('serves an export whose reload run traps, then retires on the next app run that traps', () => {
+    const { workers, send, posted } = withSpare()
+    send({ method: 'jscadMain', id: 4, params: [{ params: { size: 2 } }] })
+    answerLast(workers[0], { entities: [], trapped: true })
+
+    send({ method: 'jscadExportData', id: 5, params: [{ format: 'stla' }] })
+    answerLast(workers[1], { def: [], params: {} })
+    answerLast(workers[1], { entities: [], trapped: true })
+    expect(lastSent(workers[1])).toMatchObject({ method: 'jscadExportData' })
+    answerLast(workers[1], { data: ['solid'] })
+
+    expect(posted.at(-1)).toEqual({ method: RESPONSE, id: 5, params: { data: ['solid'] } })
+    expect(workers[1].terminate).not.toHaveBeenCalled()
+    send({ method: 'jscadMain', id: 6, params: [{ params: { size: 2 } }] })
+    answerLast(workers[1], { entities: [], trapped: true })
+    expect(workers[1].terminate).toHaveBeenCalled()
+  })
+})
+
 describe('reload after a trap', () => {
   it('does not load the old script over one the app is loading', () => {
     const { workers, send } = withSpare()

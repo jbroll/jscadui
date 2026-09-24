@@ -186,7 +186,8 @@ those messages in order so it can replay them into the next spare; a new
 `jscadSetFiles` drops the file map and cache clears before it, since the map
 replaces them. File buffers are copied for the spare rather than transferred.
 The frame also records the params of the last `jscadScript` and `jscadMain`
-the active worker answered without error.
+the active worker answered without error; a new script clears the recorded
+`jscadMain`, since its params belong to the previous model.
 
 On a kill the spare becomes the active worker at once, and a new spare is
 started and set up from the recorded messages; the app still gets its answers
@@ -198,8 +199,15 @@ spare is promoted the same way. A promoted worker has the setup but no model,
 so before it runs `jscadMain`, `jscadExportData`, `jscadMeasure` or
 `jscadCheck` the frame sends it the last script with `runMain: false`, and for
 the last three also the last `jscadMain` with `stream: false`, since they read
-that run's solids. Requests that arrive meanwhile wait behind the reload in
-order; a reload that fails answers the request with its error. A `jscadScript`
+that run's solids. When no `jscadMain` has succeeded since that script loaded,
+those three reload it with `runMain: true` instead, so the load's own run
+provides the solids; a grid streams its cells, which the frame drops because no
+app run is pending, and `withSolids` re-runs it as it does after any grid.
+Requests that arrive meanwhile wait behind the reload in order; a reload that
+fails answers the request with its error. Only an answer relayed to the app
+retires a worker: a reload step that traps still lets the request it was made
+for run, so a model whose run traps can still be exported, and the next app run
+that traps retires the worker. A `jscadScript`
 from the app loads the worker itself and skips this, including while it is
 still running, since it is the model the app expects. The cost is a second
 worker's memory: the loaded bundles, WASM instances and file map, held idle
