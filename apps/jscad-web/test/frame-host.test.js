@@ -324,6 +324,208 @@ describe('streamed cells and progress', () => {
   })
 })
 
+const methodsOf = (worker) => worker.postMessage.mock.calls.map(([m]) => m.method)
+const lastSent = (worker) => worker.postMessage.mock.calls.at(-1)[0]
+const answerLast = (worker, params = {}) =>
+  worker.onmessage({ data: { method: RESPONSE, id: lastSent(worker).id, params } })
+const failLast = (worker, name, message = name) =>
+  worker.onmessage({ data: { method: RESPONSE, id: lastSent(worker).id, error: { name, message } } })
+
+// A host whose active worker ran a script, with the spare's setup answered.
+const withSpare = ({ timeoutMs } = {}) => {
+  const ctx = setup()
+  const { workers, send } = ctx
+  init(send, timeoutMs ? { timeoutMs } : {}, 1)
+  answer(workers[0], 0)
+  send({ method: 'jscadSetFiles', id: 2, params: [{ files: { 'main.js': 'x' } }] })
+  answer(workers[0], 1)
+  send({ method: 'jscadScript', id: 3, params: [{ script: 'main', url: 'main.js' }] })
+  answer(workers[0], 2, { def: [], params: {} })
+  answer(workers[1], 0)
+  answer(workers[1], 1)
+  ctx.posted.length = 0
+  return ctx
+}
+
+describe('warm spare', () => {
+  it('is created after the first script answer and holds the setup but no script', () => {
+    const { workers, send, posted } = setup()
+    init(send, { engine: 'manifold' }, 1)
+    answer(workers[0], 0)
+    send({ method: 'jscadSetFiles', id: 2, params: [{ files: { 'main.js': 'x' } }] })
+    answer(workers[0], 1)
+    send({ method: 'jscadScript', id: 3, params: [{ script: 'main' }] })
+    expect(workers).toHaveLength(1)
+    answer(workers[0], 2, { def: [], params: {} })
+
+    expect(workers).toHaveLength(2)
+    expect(methodsOf(workers[1])).toEqual(['jscadInit', 'jscadSetFiles'])
+    const [spareInit] = workers[1].postMessage.mock.calls[0]
+    expect(spareInit.params[0].bundles['@jscad/modeling']).toBe(BASE + 'bundle.manifold_modeling.js')
+    expect(spareInit.params[0].appOrigin).toBe(APP)
+    expect(workers[1].postMessage.mock.calls[1][0].params).toEqual([{ files: { 'main.js': 'x' } }])
+    expect(posted.map((m) => m.id)).toEqual([1, 2, 3])
+  })
+
+  it('mirrors later setup to the spare and drops its answers', () => {
+    const { workers, send, posted, host } = withSpare()
+    send({ method: 'jscadClearTempCache', id: 4, params: [] })
+    send({ method: 'jscadClearFileCache', id: 5, params: [{ files: ['a.js'], root: '/' }] })
+    send({ method: 'jscadMain', id: 6, params: [{ params: {} }] })
+    expect(methodsOf(workers[1]).slice(2)).toEqual(['jscadClearTempCache', 'jscadClearFileCache'])
+    expect(host.getPendingCount()).toBe(3)
+    answerLast(workers[1])
+    workers[1].onmessage({ data: { method: RESPONSE, id: workers[1].postMessage.mock.calls[2][0].id, params: {} } })
+    expect(posted).toEqual([])
+  })
+
+  it('keeps its own copy of file buffers the active worker takes by transfer', () => {
+    const { workers, send } = withSpare()
+    const bytes = new Uint8Array([1, 2, 3])
+    send({ method: 'jscadSetFiles', id: 4, params: [{ files: { 'a.stl': bytes } }] })
+    const [toActive, transfer] = workers[0].postMessage.mock.calls.at(-1)
+    const [toSpare, spareTransfer] = workers[1].postMessage.mock.calls.at(-1)
+    expect(transfer).toEqual([bytes.buffer])
+    expect(spareTransfer).toBeUndefined()
+    expect(toSpare.params[0].files['a.stl']).toEqual(bytes)
+    expect(toSpare.params[0].files['a.stl'].buffer).not.toBe(toActive.params[0].files['a.stl'].buffer)
+  })
+
+  it('drops cells the spare sends', () => {
+    const { workers, send, posted } = withSpare()
+    send({ method: 'jscadMain', id: 4, params: [] })
+    workers[1].onmessage({ data: { method: 'jscadCells', params: [{ entities: [] }] } })
+    expect(posted).toEqual([])
+  })
+})
+
+describe('trap retirement', () => {
+  it('relays a RuntimeError, retires the worker and loads the script into the promoted spare', () => {
+    const { workers, send, posted } = withSpare()
+    send({ method: 'jscadMain', id: 4, params: [{ params: { size: 2 } }] })
+    failLast(workers[0], 'RuntimeError', 'unreachable')
+
+    expect(posted).toEqual([{ method: RESPONSE, id: 4, error: { name: 'RuntimeError', message: 'unreachable' } }])
+    expect(workers[0].terminate).toHaveBeenCalled()
+    expect(workers).toHaveLength(3)
+    expect(methodsOf(workers[2])).toEqual(['jscadInit', 'jscadSetFiles'])
+
+    send({ method: 'jscadMain', id: 5, params: [{ params: { size: 3 } }] })
+    expect(lastSent(workers[1])).toMatchObject({ method: 'jscadScript', params: [{ script: 'main', url: 'main.js', runMain: false }] })
+    answerLast(workers[1], { def: [], params: {} })
+    expect(lastSent(workers[1])).toMatchObject({ method: 'jscadMain', params: [{ params: { size: 3 } }] })
+    answerLast(workers[1], { entities: [] })
+
+    expect(posted.slice(1)).toEqual([{ method: RESPONSE, id: 5, params: { entities: [] } }])
+    expect(posted.filter((m) => m.method === 'frameWorkerTerminated')).toEqual([])
+  })
+
+  it('retires on a trapped result the same way', () => {
+    const { workers, send, posted } = withSpare()
+    send({ method: 'jscadMain', id: 4, params: [{ params: {} }] })
+    answerLast(workers[0], { entities: [], trapped: true })
+
+    expect(posted).toEqual([{ method: RESPONSE, id: 4, params: { entities: [], trapped: true } }])
+    expect(workers[0].terminate).toHaveBeenCalled()
+    send({ method: 'jscadMain', id: 5, params: [{ params: {} }] })
+    expect(lastSent(workers[1])).toMatchObject({ method: 'jscadScript', params: [{ runMain: false }] })
+  })
+
+  it('runs the last main without streaming before an export on the promoted worker', () => {
+    const { workers, send, posted } = withSpare()
+    send({ method: 'jscadMain', id: 4, params: [{ params: { size: 2 }, stream: true, runId: 9 }] })
+    answerLast(workers[0], { entities: [], trapped: true })
+
+    send({ method: 'jscadExportData', id: 5, params: [{ format: 'stla' }] })
+    expect(lastSent(workers[1])).toMatchObject({ method: 'jscadScript', params: [{ script: 'main', runMain: false }] })
+    answerLast(workers[1], { def: [], params: {} })
+    expect(lastSent(workers[1])).toMatchObject({ method: 'jscadMain', params: [{ params: { size: 2 }, stream: false, runId: 9 }] })
+    answerLast(workers[1], { entities: [] })
+    expect(lastSent(workers[1])).toMatchObject({ method: 'jscadExportData', params: [{ format: 'stla' }] })
+    answerLast(workers[1], { data: ['solid'] })
+
+    expect(posted.slice(1)).toEqual([{ method: RESPONSE, id: 5, params: { data: ['solid'] } }])
+  })
+
+  it('answers the request with the error when the reload fails', () => {
+    const { workers, send, posted } = withSpare()
+    send({ method: 'jscadMain', id: 4, params: [{ params: {} }] })
+    failLast(workers[0], 'RuntimeError')
+    send({ method: 'jscadMeasure', id: 5, params: [{}] })
+    failLast(workers[1], 'SyntaxError', 'bad script')
+
+    expect(posted.slice(1)).toEqual([{ method: RESPONSE, id: 5, error: { name: 'SyntaxError', message: 'bad script' } }])
+    expect(methodsOf(workers[1]).at(-1)).toBe('jscadScript')
+  })
+
+  it('holds later requests until the reload finishes and keeps their order', () => {
+    const { workers, send, posted, host } = withSpare()
+    send({ method: 'jscadMain', id: 4, params: [{ params: {} }] })
+    failLast(workers[0], 'RuntimeError')
+    send({ method: 'jscadMain', id: 5, params: [{ params: { a: 1 } }] })
+    send({ method: 'jscadGetExportFormats', id: 6, params: [] })
+    expect(host.getPendingCount()).toBe(2)
+    expect(methodsOf(workers[1]).slice(2)).toEqual(['jscadScript'])
+    answerLast(workers[1], { def: [], params: {} })
+    expect(methodsOf(workers[1]).slice(3)).toEqual(['jscadMain', 'jscadGetExportFormats'])
+    expect(posted).toHaveLength(1)
+  })
+
+  it('relays a script to the promoted worker without reloading the old one', () => {
+    const { workers, send } = withSpare()
+    send({ method: 'jscadMain', id: 4, params: [{ params: {} }] })
+    failLast(workers[0], 'RuntimeError')
+    send({ method: 'jscadScript', id: 5, params: [{ script: 'next' }] })
+    expect(lastSent(workers[1])).toMatchObject({ method: 'jscadScript', params: [{ script: 'next' }] })
+    answerLast(workers[1], { def: [], params: {} })
+    send({ method: 'jscadMain', id: 6, params: [{ params: {} }] })
+    expect(methodsOf(workers[1]).slice(2)).toEqual(['jscadScript', 'jscadMain'])
+  })
+})
+
+describe('kill with a spare', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+
+  it('still reports the kill, then serves the next request from the former spare', () => {
+    const { workers, send, posted } = withSpare({ timeoutMs: 1000 })
+    send({ method: 'jscadMain', id: 4, params: [{ params: {} }] })
+    vi.advanceTimersByTime(1001)
+
+    expect(posted.find((m) => m.id === 4)?.error?.name).toBe('TimeoutError')
+    expect(posted.filter((m) => m.method === 'frameWorkerTerminated')).toHaveLength(1)
+    expect(workers[0].terminate).toHaveBeenCalled()
+    expect(workers).toHaveLength(3)
+
+    send({ method: 'jscadMain', id: 5, params: [{ params: {} }] })
+    expect(workers).toHaveLength(3)
+    expect(lastSent(workers[1])).toMatchObject({ method: 'jscadScript', params: [{ runMain: false }] })
+  })
+
+  it('answers a request held for a reload when the promoted worker is killed', () => {
+    const { workers, send, posted } = withSpare({ timeoutMs: 1000 })
+    send({ method: 'jscadMain', id: 4, params: [{ params: {} }] })
+    failLast(workers[0], 'RuntimeError')
+    answer(workers[2], 0)
+    answer(workers[2], 1)
+    send({ method: 'jscadMain', id: 5, params: [{ params: {} }] })
+    vi.advanceTimersByTime(1001)
+    expect(posted.find((m) => m.id === 5)?.error?.name).toBe('AbortError')
+    expect(posted.filter((m) => m.method === 'frameWorkerTerminated')).toHaveLength(1)
+  })
+
+  it('discards a spare that times out without telling the app', () => {
+    const { workers, send, posted } = setup()
+    init(send, { timeoutMs: 1000 }, 1)
+    answer(workers[0], 0)
+    send({ method: 'jscadScript', id: 2, params: [{ script: 'main' }] })
+    answer(workers[0], 1, { def: [], params: {} })
+    vi.advanceTimersByTime(1001)
+    expect(workers[1].terminate).toHaveBeenCalled()
+    expect(posted.map((m) => m.id ?? m.method)).toEqual([1, 2])
+  })
+})
+
 describe('worker load failure', () => {
   it('answers with the load error rather than waiting out the timeout', () => {
     const { posted, workers, send } = setup()

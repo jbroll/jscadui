@@ -178,6 +178,32 @@ the replay below). A
 worker that fails to load its bundles takes the same path through `onerror`,
 so the app sees the load error rather than a timeout a budget later.
 
+After the first `jscadScript` answer the frame starts a second worker, the
+spare. It gets a copy of every `jscadInit` (as rewritten), `jscadSetFiles`,
+`jscadClearTempCache` and `jscadClearFileCache` the app sends, as the frame's
+own requests whose answers go nowhere, but never a script. The frame keeps
+those messages in order so it can replay them into the next spare; a new
+`jscadSetFiles` drops the file map and cache clears before it, since the map
+replaces them. File buffers are copied for the spare rather than transferred.
+The frame also records the params of the last `jscadScript` and `jscadMain`
+the active worker answered without error.
+
+On a kill the spare becomes the active worker at once, and a new spare is
+started and set up from the recorded messages; the app still gets its answers
+and `frameWorkerTerminated`. The frame also retires the active worker without
+telling the app when an answer it relays has `error.name === 'RuntimeError'` or
+`trapped: true`: a trapped WebAssembly instance is not trusted with the next
+run. The retired worker's other requests are answered `AbortError` and the
+spare is promoted the same way. A promoted worker has the setup but no model,
+so before it runs `jscadMain`, `jscadExportData`, `jscadMeasure` or
+`jscadCheck` the frame sends it the last script with `runMain: false`, and for
+the last three also the last `jscadMain` with `stream: false`, since they read
+that run's solids. Requests that arrive meanwhile wait behind the reload in
+order; a reload that fails answers the request with its error. A `jscadScript`
+from the app loads the worker itself and skips this. The cost is a second
+worker's memory: the loaded bundles, WASM instances and file map, held idle
+from the first script onward.
+
 Model code runs in the same worker as the code that answers requests, so the
 frame does not trust what the worker posts. Each relayed request goes to the
 worker under a fresh `crypto.randomUUID()`, and the frame maps it back to the

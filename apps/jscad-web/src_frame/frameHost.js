@@ -20,9 +20,9 @@ export const workerBundles = (bundleBase, engine) => ({
 })
 
 /**
- * The frame's side of the relayed protocol: one worker, a timeout per
- * in-flight request, and jscadInit rewritten so bundle URLs come from here
- * rather than from the sender.
+ * The frame's side of the relayed protocol: an active worker and a warm spare,
+ * a timeout per in-flight request, and jscadInit rewritten so bundle URLs come
+ * from here rather than from the sender.
  *
  * @param {object} options
  * @param {string} options.allowedOrigin the app origin; the only sender answered
@@ -45,43 +45,72 @@ export const createFrameHost = ({
   // the model bundles out from under a loaded project.
   let engine
   let timeoutMs = DEFAULT_TIMEOUT_MS
-  let worker = null
-  // Keyed by the id the worker sees. Model code shares the worker with the
-  // code that answers, so a sequential id would let it answer the next request
-  // itself and cancel that request's timer.
-  /** @type {Map<string, {appId: unknown, method: string, arm: () => ReturnType<typeof setTimeout>, timer: ReturnType<typeof setTimeout>}>} */
-  const pending = new Map()
+  /**
+   * `pending` is keyed by the id the worker sees. Model code shares the worker
+   * with the code that answers, so a sequential id would let it answer the next
+   * request itself and cancel that request's timer. An entry with `onAnswer` is
+   * the frame's own request; its answer never reaches the app.
+   * @typedef {{appId?: unknown, method: string, options?: object, onAnswer?: (data: any) => void,
+   *   arm: () => ReturnType<typeof setTimeout>, timer: ReturnType<typeof setTimeout>}} Pending
+   * @typedef {{worker: Worker, pending: Map<string, Pending>, loaded: boolean, held: object[] | null}} Slot
+   * @type {{active: Slot | null, spare: Slot | null}}
+   */
+  const workers = { active: null, spare: null }
+  // What a new spare is set up with, in the order the app sent it.
+  let mirrored = []
+  let lastScript
+  let lastMain
 
   const answerError = (id, name, message) =>
     post({ method: RESPONSE, id, error: { name, message } })
 
-  // The worker is gone, so it will never answer: every request it was holding
-  // must reject now, not at the proxy's own 5-minute timeout.
-  const killWorker = (expiredId, reason, errorName) => {
-    worker?.terminate()
-    worker = null
-    for (const [workerId, { appId, timer }] of pending) {
+  const ignore = () => {}
+
+  // The worker is gone, so it will never answer: every app request it was
+  // holding must reject now, not at the proxy's own 5-minute timeout.
+  const end = (slot, expiredId, reason, errorName) => {
+    slot.worker.terminate()
+    for (const [workerId, { appId, onAnswer, timer }] of slot.pending) {
       clearTimeout(timer)
+      if (onAnswer) continue
       if (workerId === expiredId) answerError(appId, errorName, reason)
       else answerError(appId, 'AbortError', `worker terminated before this request finished: ${reason}`)
     }
-    pending.clear()
-    post({ method: 'frameWorkerTerminated', params: [{ reason }] })
+    slot.pending.clear()
+    for (const { id } of slot.held ?? []) {
+      if (id) answerError(id, 'AbortError', `worker terminated before this request finished: ${reason}`)
+    }
+    slot.held = null
   }
 
-  const track = (appId, method) => {
+  const killWorker = (slot, expiredId, reason, errorName) => {
+    end(slot, expiredId, reason, errorName)
+    if (slot === workers.spare) workers.spare = null
+    if (slot !== workers.active) return
+    post({ method: 'frameWorkerTerminated', params: [{ reason }] })
+    workers.active = workers.spare
+    workers.spare = null
+    if (workers.active) workers.spare = tryStart()
+  }
+
+  const track = (slot, entry) => {
     const workerId = randomId()
     const arm = () => setTimeout(() => {
-      killWorker(workerId, `model exceeded ${timeoutMs} ms`, 'TimeoutError')
+      killWorker(slot, workerId, `model exceeded ${timeoutMs} ms`, 'TimeoutError')
     }, timeoutMs)
-    pending.set(workerId, { appId, method, arm, timer: arm() })
+    slot.pending.set(workerId, { ...entry, arm, timer: arm() })
     return workerId
+  }
+
+  // Sent without a transfer list: a mirrored message is kept for the next spare.
+  const request = (slot, message, onAnswer) => {
+    slot.worker.postMessage({ ...message, id: track(slot, { method: message.method, onAnswer }) })
   }
 
   // A cell or a progress beat shows the model is still advancing, so the
   // budget becomes the longest one step may take.
-  const restartTimers = () => {
-    for (const request of pending.values()) {
+  const restartTimers = (slot) => {
+    for (const request of slot.pending.values()) {
       clearTimeout(request.timer)
       request.timer = request.arm()
     }
@@ -93,41 +122,142 @@ export const createFrameHost = ({
     jscadCells: new Set(['jscadMain', 'jscadScript']),
     jscadProgress: new Set(['jscadExportData', 'jscadMeasure', 'jscadCheck']),
   }
-  const relayable = (method) => {
+  const relayable = (slot, method) => {
     const methods = Object.hasOwn(RELAYED_WHILE, method) && RELAYED_WHILE[method]
-    return !!methods && [...pending.values()].some((r) => methods.has(r.method))
+    return !!methods && [...slot.pending.values()].some((r) => !r.onAnswer && methods.has(r.method))
   }
+
+  const trapped = (data) => data.error?.name === 'RuntimeError' || data.params?.trapped === true
 
   // The worker sends answers plus streamed cells and progress, so anything
   // else it posts, and any answer to a request the frame did not issue, is
   // model code talking.
-  const attach = () => {
-    worker = createWorker()
-    worker.onmessage = (event) => {
-      const data = event.data
-      if (data?.id == null && relayable(data?.method)) {
-        restartTimers()
-        const message = { method: data.method, params: data.params }
-        post(message, collectBuffers(message))
-        return
-      }
-      if (data?.method !== RESPONSE) return
-      const request = pending.get(data.id)
-      if (!request) return
-      clearTimeout(request.timer)
-      pending.delete(data.id)
+  const receive = (slot, data) => {
+    if (data?.id == null && slot === workers.active && relayable(slot, data?.method)) {
+      restartTimers(slot)
+      const message = { method: data.method, params: data.params }
+      post(message, collectBuffers(message))
+      return
+    }
+    if (data?.method !== RESPONSE) return
+    const request = slot.pending.get(data.id)
+    if (!request) return
+    clearTimeout(request.timer)
+    slot.pending.delete(data.id)
+    if (request.onAnswer) {
+      request.onAnswer(data)
+    } else {
       const message = { ...data, id: request.appId }
       post(message, collectBuffers(message))
+      answered(slot, request, data)
     }
+    if (slot === workers.active && trapped(data)) retire()
+  }
+
+  const answered = (slot, { method, options }, data) => {
+    if (method === 'jscadMain' && !data.error) lastMain = options
+    if (method !== 'jscadScript') return
+    if (!data.error) {
+      lastScript = options
+      slot.loaded = true
+    }
+    if (!workers.spare) workers.spare = tryStart()
+  }
+
+  const start = ({ replay }) => {
+    const slot = { worker: createWorker(), pending: new Map(), loaded: false, held: null }
+    const { worker } = slot
+    worker.onmessage = (event) => receive(slot, event.data)
     // Without these a bundle that fails to load surfaces as "model exceeded
     // N ms" one timeout later, naming the model instead of the load.
     worker.onerror = (event) => {
       event.preventDefault?.()
-      killWorker(null, event.message ?? 'worker failed to load', 'WorkerError')
+      killWorker(slot, null, event.message ?? 'worker failed to load', 'WorkerError')
     }
     worker.onmessageerror = () => {
-      killWorker(null, 'worker sent a message that could not be deserialized', 'DataCloneError')
+      killWorker(slot, null, 'worker sent a message that could not be deserialized', 'DataCloneError')
     }
+    if (replay) for (const message of mirrored) request(slot, message, ignore)
+    return slot
+  }
+
+  const tryStart = () => {
+    try {
+      return start({ replay: true })
+    } catch {
+      return null
+    }
+  }
+
+  // A trapped WebAssembly instance cannot be trusted with the next run. The app
+  // is not told: the promoted spare already holds its setup and reloads the
+  // script on demand.
+  const retire = () => {
+    end(workers.active, null, 'the model trapped in WebAssembly', null)
+    workers.active = workers.spare ?? tryStart()
+    workers.spare = workers.active ? tryStart() : null
+  }
+
+  const MIRRORED = new Set(['jscadInit', 'jscadSetFiles', 'jscadClearTempCache', 'jscadClearFileCache'])
+
+  // A file map replaces the one before it, and the cache clears before it
+  // cleared state that map already replaced.
+  const mirror = (message) => {
+    const { id: _id, ...setup } = message
+    const kept = structuredClone(setup)
+    if (kept.method === 'jscadSetFiles') mirrored = mirrored.filter((m) => m.method === 'jscadInit')
+    mirrored.push(kept)
+    if (workers.spare) request(workers.spare, kept, ignore)
+  }
+
+  const NEEDS_MODEL = new Set(['jscadMain', 'jscadExportData', 'jscadMeasure', 'jscadCheck'])
+  const NEEDS_SOLIDS = new Set(['jscadExportData', 'jscadMeasure', 'jscadCheck'])
+  const RECORDED = new Set(['jscadScript', 'jscadMain'])
+
+  const dispatch = (slot, message) => {
+    let out = message
+    if (message.id) {
+      const options = RECORDED.has(message.method) ? structuredClone(message.params?.[0]) : undefined
+      out = { ...message, id: track(slot, { appId: message.id, method: message.method, options }) }
+    }
+    slot.worker.postMessage(out, collectBuffers(out))
+  }
+
+  // Requests that arrive during the reload wait behind it, so they reach the
+  // worker in the order the app sent them.
+  const relay = (message) => {
+    const slot = workers.active
+    if (slot.held) slot.held.push(message)
+    else if (!slot.loaded && lastScript && NEEDS_MODEL.has(message.method)) ensureLoaded(slot, message)
+    else dispatch(slot, message)
+  }
+
+  const release = (slot, error) => {
+    const [first, ...rest] = slot.held
+    slot.held = null
+    if (!error) dispatch(slot, first)
+    else if (first.id) answerError(first.id, error.name, error.message)
+    for (const message of rest) relay(message)
+  }
+
+  // A promoted worker has the setup but not the model. Export, measure and
+  // check read the solids of the last run, so those replay it as well.
+  const ensureLoaded = (slot, message) => {
+    slot.held = [message]
+    const steps = [{ method: 'jscadScript', params: [{ ...lastScript, runMain: false }] }]
+    if (NEEDS_SOLIDS.has(message.method) && lastMain) {
+      steps.push({ method: 'jscadMain', params: [{ ...lastMain, stream: false }] })
+    }
+    const next = () => {
+      const step = steps.shift()
+      if (!step) return release(slot)
+      request(slot, step, (data) => {
+        if (data.error) return release(slot, data.error)
+        if (step.method === 'jscadScript') slot.loaded = true
+        next()
+      })
+    }
+    next()
   }
 
   // The one method that is not relayed untouched. A script source inside the
@@ -162,18 +292,24 @@ export const createFrameHost = ({
       message = frameInit(data, options, rest)
     }
 
-    if (!worker) {
+    if (!workers.active) {
       try {
-        attach()
+        workers.active = start({ replay: false })
       } catch (error) {
-        worker = null
         if (id) answerError(id, 'Error', `could not start the model worker: ${error?.message ?? error}`)
         return
       }
     }
-    if (id) message = { ...message, id: track(id, data?.method) }
-    worker.postMessage(message, collectBuffers(message))
+    if (MIRRORED.has(data?.method)) mirror(message)
+    relay(message)
   }
 
-  return { handleMessage, getPendingCount: () => pending.size }
+  const getPendingCount = () => {
+    const slot = workers.active
+    if (!slot) return 0
+    const relayed = [...slot.pending.values()].filter((r) => !r.onAnswer).length
+    return relayed + (slot.held ?? []).filter((m) => m.id).length
+  }
+
+  return { handleMessage, getPendingCount }
 }
