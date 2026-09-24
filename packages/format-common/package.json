@@ -6,7 +6,8 @@
   "description": "common format definition for jscadui",
   "main": "index.d.ts",
   "files": [
-    "src"
+    "src",
+    "meshHash.js"
   ],
   "scripts": {
     "test": "vitest run"

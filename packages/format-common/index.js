@@ -1,14 +1,16 @@
+export { meshHash } from './meshHash.js'
+
 /**
  * @typedef Vec3
  * @prop {number} x
  * @prop {number} y
  * @prop {number} z
- * 
+ *
  * @typedef BoundingBox
  * @prop {Vec3} min
  * @prop {Vec3} max
- * 
- * @param {Array<{vertices:Array<number>}>} entities 
+ *
+ * @param {Array<{vertices:Array<number>}>} entities
  * @returns {BoundingBox}
  */
 export function boundingBox(entities=[]){
