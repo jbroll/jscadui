@@ -128,14 +128,15 @@ indexed (`vertices`, `indices`) and carries no `normals`.
 The app may set `supersede: true` on the options of `jscadScript` or
 `jscadMain`. The frame reads it and strips it; the worker never sees it. If the
 active worker has an app `jscadMain` or `jscadScript` pending that started at
-least 500 ms earlier (`ABANDON_AFTER_MS`), the frame rejects each of them with
+least 500 ms earlier (`ABANDON_AFTER_MS`), the frame rejects it and every other
+pending `jscadMain` and `jscadScript` on that worker with
 `{ name: 'SupersededError', message: 'superseded by a newer run' }`, terminates
 that worker, and runs the new request on the spare. A superseding `jscadMain`
 does not abandon a pending `jscadScript`. Other requests on the terminated
 worker reject with `AbortError`, apart from mirrored setup the spare also
 received, which resolves with the spare's answer. No `frameWorkerTerminated` is
-sent. A request pending less than 500 ms is not abandoned, and the new request
-runs after it on the same worker.
+sent. When every pending run is younger than 500 ms, none is abandoned, and
+the new request runs after them on the same worker.
 
 ### jscadExportData
 Export model to a format.

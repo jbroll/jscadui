@@ -471,6 +471,18 @@ describe('trap retirement', () => {
     expect(posted).toHaveLength(1)
   })
 
+  it('answers file setup still pending on the trapped worker with the promoted worker answer', () => {
+    const { workers, send, posted } = withSpare()
+    send({ method: 'jscadMain', id: 4, params: [{ params: {} }] })
+    send({ method: 'jscadSetFiles', id: 5, params: [{ files: { 'main.js': 'y' } }] })
+    const copy = workers[1].postMessage.mock.calls.findLast(([m]) => m.method === 'jscadSetFiles')[0]
+    workers[0].onmessage({ data: { method: RESPONSE, id: workerIdOf(workers[0], 3), error: { name: 'RuntimeError', message: 'unreachable' } } })
+
+    expect(posted.find((m) => m.id === 5)).toBeUndefined()
+    workers[1].onmessage({ data: { method: RESPONSE, id: copy.id, params: 'set' } })
+    expect(posted.find((m) => m.id === 5)).toEqual({ method: RESPONSE, id: 5, params: 'set' })
+  })
+
   it('relays a script to the promoted worker without reloading the old one', () => {
     const { workers, send } = withSpare()
     send({ method: 'jscadMain', id: 4, params: [{ params: {} }] })
@@ -580,6 +592,24 @@ describe('superseding a stale run', () => {
     const { workers, send } = setup()
     send({ method: 'jscadScript', id: 1, params: [{ script: 'main', supersede: true }] })
     expect(lastSent(workers[0]).params).toEqual([{ script: 'main' }])
+  })
+
+  it('answers a younger run behind the stale one SupersededError too', () => {
+    const { workers, send, posted } = withSpare()
+    send({ method: 'jscadMain', id: 4, params: [{ params: { size: 1 } }] })
+    vi.advanceTimersByTime(200)
+    send({ method: 'jscadMain', id: 5, params: [{ params: { size: 2 } }] })
+    vi.advanceTimersByTime(450)
+    send({ method: 'jscadMain', id: 6, params: [{ params: { size: 3 }, supersede: true }] })
+
+    expect(posted).toEqual([
+      { method: RESPONSE, id: 4, error: superseded },
+      { method: RESPONSE, id: 5, error: superseded },
+    ])
+    answerLast(workers[1], { def: [], params: {} })
+    expect(lastSent(workers[1]).params).toEqual([{ params: { size: 3 } }])
+    answerLast(workers[1], { entities: [] })
+    expect(posted.slice(2)).toEqual([{ method: RESPONSE, id: 6, params: { entities: [] } }])
   })
 
   it('answers another request on the retired worker as a retire does', () => {

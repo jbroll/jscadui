@@ -224,10 +224,11 @@ export const createFrameHost = ({
     const slot = workers.active
     const appRequests = [...slot.pending].filter(([, r]) => !r.onAnswer)
     if (method === 'jscadMain' && appRequests.some(([, r]) => r.method === 'jscadScript')) return
+    const runs = appRequests.filter(([, r]) => RECORDED.has(r.method))
     const now = Date.now()
-    const stale = appRequests.filter(([, r]) => RECORDED.has(r.method) && now - r.startedAt >= ABANDON_AFTER_MS)
-    if (!stale.length) return
-    for (const [workerId, { appId, timer }] of stale) {
+    if (!runs.some(([, r]) => now - r.startedAt >= ABANDON_AFTER_MS)) return
+    // A younger run queued behind the stale one is replaced too.
+    for (const [workerId, { appId, timer }] of runs) {
       clearTimeout(timer)
       slot.pending.delete(workerId)
       answerError(appId, 'SupersededError', 'superseded by a newer run')
