@@ -15,6 +15,14 @@ import { crossSectionToGeom2, geom2ToCrossSection } from '../conversions/index.j
 const SOURCE_CROSSSECTION = 'crossSection'
 const SOURCE_JSCAD = 'jscad'
 
+const disposalRegistry = new FinalizationRegistry((crossSection) => {
+  try {
+    crossSection.delete()
+  } catch {
+    // Already deleted
+  }
+})
+
 /**
  * A geometry wrapper that can hold either CrossSection or JSCAD geom2 internally.
  * Provides lazy conversion between formats.
@@ -48,14 +56,14 @@ export class ManifoldGeom2 {
 
     // Detect type if not specified
     if (sourceType === SOURCE_CROSSSECTION) {
-      this.#crossSection = geometry
+      this.#own(geometry)
       this.#sourceType = SOURCE_CROSSSECTION
     } else if (sourceType === SOURCE_JSCAD) {
       this.#jscadGeom2 = geometry
       this.#sourceType = SOURCE_JSCAD
     } else if (geometry.toPolygons || geometry.area || (geometry.offset && !geometry.sides)) {
       // Looks like a CrossSection (has CrossSection-specific methods)
-      this.#crossSection = geometry
+      this.#own(geometry)
       this.#sourceType = SOURCE_CROSSSECTION
     } else if (geometry.sides || geometry.outlines) {
       // Looks like a JSCAD geom2
@@ -63,12 +71,17 @@ export class ManifoldGeom2 {
       this.#sourceType = SOURCE_JSCAD
     } else {
       // Default to CrossSection
-      this.#crossSection = geometry
+      this.#own(geometry)
       this.#sourceType = SOURCE_CROSSSECTION
     }
 
     // Identity transform
     this.transforms = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
+  }
+
+  #own(crossSection) {
+    this.#crossSection = crossSection
+    disposalRegistry.register(this, crossSection, this)
   }
 
   /**
@@ -84,7 +97,7 @@ export class ManifoldGeom2 {
 
     // Need to convert from JSCAD geom2
     if (this.#jscadGeom2 !== null) {
-      this.#crossSection = geom2ToCrossSection(this.#jscadGeom2)
+      this.#own(geom2ToCrossSection(this.#jscadGeom2))
       return this.#crossSection
     }
 
@@ -218,7 +231,24 @@ export class ManifoldGeom2 {
   }
 
   /**
-   * Clone this geometry.
+   * Free the CrossSection now rather than when the wrapper is collected.
+   */
+  dispose() {
+    if (this.#crossSection !== null) {
+      disposalRegistry.unregister(this)
+      try {
+        this.#crossSection.delete()
+      } catch {
+        // Already deleted
+      }
+    }
+    this.#crossSection = null
+    this.#jscadGeom2 = null
+    this.#cachedSides = null
+  }
+
+  /**
+   * Clone this geometry. The copy owns its own CrossSection handle.
    *
    * @returns {ManifoldGeom2} A new ManifoldGeom2 with copied data
    */
@@ -228,7 +258,7 @@ export class ManifoldGeom2 {
       // Clone the JSCAD geom2 as source
       cloned = new ManifoldGeom2(this.#jscadGeom2, SOURCE_JSCAD)
     } else if (this.#crossSection) {
-      cloned = new ManifoldGeom2(this.#crossSection, SOURCE_CROSSSECTION)
+      cloned = new ManifoldGeom2(this.#crossSection.translate([0, 0]), SOURCE_CROSSSECTION)
     } else {
       cloned = new ManifoldGeom2(null)
     }

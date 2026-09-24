@@ -31,9 +31,9 @@ export const subdivideSides = (sides, segsPerEdge) => {
 let extrudeLinear, extrudeRotate, extrudeFromSlices, translate, mirror, geom2, slice, mat4, subtract, union
 
 export const initExtrusions = (jscad) => {
-  extrudeLinear = jscad.extrusions.extrudeLinear
-  extrudeRotate = jscad.extrusions.extrudeRotate
-  extrudeFromSlices = jscad.extrusions.extrudeFromSlices
+  extrudeLinear = consuming(jscad.extrusions.extrudeLinear)
+  extrudeRotate = consuming(jscad.extrusions.extrudeRotate)
+  extrudeFromSlices = consuming(jscad.extrusions.extrudeFromSlices)
   translate = consuming(jscad.transforms.translate)
   mirror = consuming(jscad.transforms.mirror)
   geom2 = jscad.geometries.geom2

@@ -16,6 +16,7 @@ import { initExtrusions, _linearExtrude, _rotateExtrude } from './extrusions.js'
 import { initColor, _color } from './color.js'
 import { initText, _text } from './text.js'
 import { DEFAULT_SPECIAL_VARS } from './specialVars.js'
+import { consuming } from './consume.js'
 
 /**
  * Sentinel for explicit undef passed as argument.
@@ -226,13 +227,12 @@ const j$ = {
     const amount = r !== undefined ? r : (delta !== undefined ? delta : 0)
     const corners = r !== undefined ? 'round' : (chamfer ? 'chamfer' : 'edge')
     if (!child) return undefined
-    const jscad = j$.jscad
     // For round corners, use $fn/$fa/$fs segment count (same as circle/cylinder)
     const _fn = this.getSpecialVar('$fn'), _fa = this.getSpecialVar('$fa'), _fs = this.getSpecialVar('$fs')
     const segments = corners === 'round'
       ? _getSegments(Math.abs(amount), _fn, _fa, _fs)
       : undefined
-    return jscad.expansions.offset({ delta: amount, corners, ...(segments !== undefined ? { segments } : {}) }, child)
+    return consuming(j$.jscad.expansions.offset)({ delta: amount, corners, ...(segments !== undefined ? { segments } : {}) }, child)
   },
 
   // ── Special variable scope stack (instance state) ─────────────────────────

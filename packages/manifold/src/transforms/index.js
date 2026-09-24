@@ -14,6 +14,10 @@ const jscad = jscadModule.default || jscadModule
 
 const jscadTransforms = jscad.transforms
 
+// A handle converted from plain geometry belongs to no wrapper, so nothing else frees it.
+const freeManifold = (manifold, geom) => { if (!isManifoldGeom3(geom)) manifold.delete() }
+const freeSection = (section, geom) => { if (!isManifoldGeom2(geom)) section.delete() }
+
 // ============================================================================
 // Core Transforms
 // ============================================================================
@@ -36,6 +40,7 @@ export const translate = (offset, ...geometries) => {
     if (isManifoldGeom2(geom) || (geom.sides !== undefined)) {
       const section = toCrossSection(geom)
       const translated = section.translate([offset[0] || 0, offset[1] || 0])
+      freeSection(section, geom)
       const result = new ManifoldGeom2(translated)
       // Preserve color
       if (isManifoldGeom2(geom) && geom.color) result.color = geom.color
@@ -44,6 +49,7 @@ export const translate = (offset, ...geometries) => {
       const manifold = toManifold(geom)
       if (manifold == null) return null
       const translated = manifold.translate([offset[0] || 0, offset[1] || 0, offset[2] || 0])
+      freeManifold(manifold, geom)
       const result = new ManifoldGeom3(translated)
       // Preserve color
       if (isManifoldGeom3(geom) && geom.color) {
@@ -129,6 +135,7 @@ export const rotate = (angles, ...geometries) => {
         // Scalar angle - Z rotation (in radians)
         rotated = section.rotate(toDeg(angles))
       }
+      freeSection(section, geom)
       const result = new ManifoldGeom2(rotated)
       // Preserve color
       if (isManifoldGeom2(geom) && geom.color) result.color = geom.color
@@ -141,6 +148,7 @@ export const rotate = (angles, ...geometries) => {
       const ry = toDeg(angles[1] || 0)
       const rz = toDeg(angles[2] || 0)
       const rotated = manifold.rotate([rx, ry, rz])
+      freeManifold(manifold, geom)
       const result = new ManifoldGeom3(rotated)
       // Preserve color
       if (isManifoldGeom3(geom) && geom.color) {
@@ -199,6 +207,7 @@ export const scale = (factors, ...geometries) => {
     if (isManifoldGeom2(geom) || (geom.sides !== undefined)) {
       const section = toCrossSection(geom)
       const scaled = section.scale([f[0] || 1, f[1] || 1])
+      freeSection(section, geom)
       const result = new ManifoldGeom2(scaled)
       // Preserve color
       if (isManifoldGeom2(geom) && geom.color) result.color = geom.color
@@ -207,6 +216,7 @@ export const scale = (factors, ...geometries) => {
       const manifold = toManifold(geom)
       if (manifold == null) return null
       const scaled = manifold.scale([f[0] || 1, f[1] || 1, f[2] || 1])
+      freeManifold(manifold, geom)
       const result = new ManifoldGeom3(scaled)
       // Preserve color
       if (isManifoldGeom3(geom) && geom.color) result.color = geom.color
@@ -271,6 +281,7 @@ export const mirror = (options, ...geometries) => {
       const section = toCrossSection(geom)
       // For 2D, mirror across line defined by normal (use x, y components)
       const mirrored = section.mirror([nx, ny])
+      freeSection(section, geom)
       const result = new ManifoldGeom2(mirrored)
       // Preserve color
       if (isManifoldGeom2(geom) && geom.color) result.color = geom.color
@@ -285,9 +296,12 @@ export const mirror = (options, ...geometries) => {
         const translated = manifold.translate([-origin[0], -origin[1], -origin[2]])
         const mirroredT = translated.mirror(normal)
         mirrored = mirroredT.translate(origin)
+        translated.delete()
+        mirroredT.delete()
       } else {
         mirrored = manifold.mirror(normal)
       }
+      freeManifold(manifold, geom)
       const result = new ManifoldGeom3(mirrored)
       // Preserve color
       if (isManifoldGeom3(geom) && geom.color) result.color = geom.color
@@ -349,6 +363,7 @@ export const transform = (matrix, ...geometries) => {
         matrix[12] ?? 0, matrix[13] ?? 0, 1   // column 2: translation
       ]
       const transformed = section.transform(mat3)
+      freeSection(section, geom)
       const result = new ManifoldGeom2(transformed)
       // Preserve color
       if (isManifoldGeom2(geom) && geom.color) result.color = geom.color
@@ -366,6 +381,7 @@ export const transform = (matrix, ...geometries) => {
         matrix[12] ?? 0, matrix[13] ?? 0, matrix[14] ?? 0, matrix[15] ?? 1
       ]
       const transformed = manifold.transform(mat16)
+      freeManifold(manifold, geom)
       const result = new ManifoldGeom3(transformed)
       // Preserve color
       if (isManifoldGeom3(geom) && geom.color) result.color = geom.color

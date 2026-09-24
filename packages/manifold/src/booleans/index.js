@@ -80,6 +80,10 @@ const freeTemps = (temps, keep) => {
  * Check if any geometry has JSCAD as its source of truth.
  * If so, we should use JSCAD booleans to avoid conversion issues.
  */
+// A CrossSection taken from an input wrapper must be copied, as with ownedCopy.
+const ownedSection = (section, geometries) =>
+  geometries.some(g => isManifoldGeom2(g) && g.crossSection === section) ? section.translate([0, 0]) : section
+
 const hasJscadSource = (geometries) => {
   return geometries.some(g => isManifoldGeom2(g) && g.hasJscadSource)
 }
@@ -103,7 +107,7 @@ const union2D = (geometries) => {
 
   if (sections.length === 0) return undefined
   if (sections.length === 1) {
-    return new ManifoldGeom2(sections[0])
+    return new ManifoldGeom2(ownedSection(sections[0], geometries))
   }
 
   const CrossSection = getCrossSection()
@@ -161,9 +165,12 @@ const subtract2D = (geometries) => {
   const sections = geometries.map(g => toCrossSection(g)).filter(s => s != null)
 
   if (sections.length === 0) return undefined
+  if (sections.length === 1) return new ManifoldGeom2(ownedSection(sections[0], geometries))
   let result = sections[0]
   for (let i = 1; i < sections.length; i++) {
-    result = result.subtract(sections[i])
+    const next = result.subtract(sections[i])
+    if (i > 1) result.delete()
+    result = next
   }
 
   return new ManifoldGeom2(result)
@@ -216,7 +223,7 @@ const intersect2D = (geometries) => {
 
   if (sections.length === 0) return undefined
   if (sections.length === 1) {
-    return new ManifoldGeom2(sections[0])
+    return new ManifoldGeom2(ownedSection(sections[0], geometries))
   }
 
   const CrossSection = getCrossSection()
@@ -264,17 +271,20 @@ export const scission = (geometry) => {
  */
 function minkowski2D(csA, csB) {
   const polygonsB = csB.toPolygons()
-  if (!polygonsB || polygonsB.length === 0) return new ManifoldGeom2(csA)
+  if (!polygonsB || polygonsB.length === 0) return new ManifoldGeom2(csA.translate([0, 0]))
 
   // Use vertices of the outer contour of B
   const vertices = polygonsB[0]
-  if (!vertices || vertices.length === 0) return new ManifoldGeom2(csA)
+  if (!vertices || vertices.length === 0) return new ManifoldGeom2(csA.translate([0, 0]))
 
   // Union of A translated to each vertex of B
   let result = csA.translate([vertices[0][0], vertices[0][1]])
   for (let i = 1; i < vertices.length; i++) {
     const translated = csA.translate([vertices[i][0], vertices[i][1]])
-    result = result.add(translated)
+    const next = result.add(translated)
+    translated.delete()
+    result.delete()
+    result = next
   }
   return new ManifoldGeom2(result)
 }

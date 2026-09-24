@@ -109,6 +109,45 @@ describe('manifold inputs are disposed once an op consumes them', () => {
   })
 })
 
+describe('manifold 2D inputs are disposed once an op consumes them', () => {
+  beforeAll(async () => { await initScadRuntime() })
+
+  const square = () => j$.square({ size: 10 })
+  const disposed = (g: Geom) => g.crossSection === null
+
+  it('2D booleans, hull and transforms free their inputs', () => {
+    const a = square(), b = j$.translate([5, 0], square())
+    const r = j$.union(a, b)
+    expect(disposed(a) && disposed(b)).toBe(true)
+    expect(r.area()).toBeCloseTo(150, 6)
+
+    const c = square(), d = j$.translate([20, 0], square())
+    expect(j$.hull(c, d).area()).toBeCloseTo(300, 6)
+    expect(disposed(c) && disposed(d)).toBe(true)
+  })
+
+  it('extrusions and offset free their profile', () => {
+    const p = square()
+    expect(j$.linearExtrude({ height: 2 }, p).volume()).toBeCloseTo(200, 6)
+    expect(disposed(p)).toBe(true)
+
+    const q = j$.translate([5, 0], square())
+    expect(j$.rotateExtrude({ $fn: 64 }, q).volume()).toBeGreaterThan(0)
+    expect(disposed(q)).toBe(true)
+
+    const s = square()
+    expect(j$.offset({ delta: 1 }, s).area()).toBeCloseTo(144, 6)
+    expect(disposed(s)).toBe(true)
+  })
+
+  it('a twisted multi-outline extrusion keeps its profile usable', () => {
+    const ring = j$.subtract(j$.square({ size: 10, center: true }), j$.square({ size: 4, center: true }))
+    const r = j$.linearExtrude({ height: 5, twist: 30 }, ring)
+    expect(r.volume()).toBeGreaterThan(400)
+    expect(r.volume()).toBeLessThan(421)
+  })
+})
+
 describe('on the jscad engine disposal does nothing', () => {
   beforeAll(() => { j$.init(jscad) })
 

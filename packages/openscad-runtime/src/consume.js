@@ -1,4 +1,4 @@
-const isDisposable = (g) => g?.isManifoldGeom3 === true
+const isDisposable = (g) => g?.isManifoldGeom3 === true || g?.isManifoldGeom2 === true
 
 // OpenSCAD has no geometry values, so an op's inputs are dead once it returns,
 // and the FinalizationRegistry never runs during a synchronous main().

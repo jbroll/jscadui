@@ -125,7 +125,7 @@ export class ManifoldGeom3 {
     this.transforms = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
 
     // Register for automatic WASM cleanup on garbage collection
-    disposalRegistry.register(this, manifold)
+    disposalRegistry.register(this, manifold, this)
   }
 
   /**
