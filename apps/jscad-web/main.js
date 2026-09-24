@@ -57,6 +57,7 @@ import { createFrame, createJobTracker } from './src/frameSetup.js'
 import { collectProjectFiles, replaceProjectFiles } from './src/projectFiles.js'
 import { createScriptRuns, sendScript } from './src/scriptRuns.js'
 import { createStreamRuns } from './src/streamRuns.js'
+import { createMeshRefs } from './src/meshRefs.js'
 import { PROJECT_BASE } from './src_frame/fileMap.js'
 import * as fileSystem from './src/fileSystem.js'
 import * as paramsUI from './src/paramsUI.js'
@@ -160,6 +161,7 @@ const handleEntities = (result, { skipLog } = {}) => {
     // null for another run's result, or one a cap error already ended
     const totals = streamRuns.finish(result.runId)
     if (!totals) return
+    meshRefs.remember(streamDrawn)
     onProgress(undefined)
     document.documentElement.dataset.vertices = String(totals.vertices)
     setError(undefined)
@@ -169,11 +171,11 @@ const handleEntities = (result, { skipLog } = {}) => {
   }
   streamRuns.discard()
   const { entities: rawEntities, treeTime, execTime, convTime } = result
-  const entities = rawEntities instanceof Array ? rawEntities : [rawEntities]
 
   // Refuse to draw past the caps before any allocation for rendering.
+  let entities
   try {
-    capGeometry(entities, DEFAULT_CAPS)
+    entities = capGeometry(meshRefs.resolve(rawEntities instanceof Array ? rawEntities : [rawEntities]), DEFAULT_CAPS)
   } catch (error) {
     setError(error)
     onProgress(undefined)
@@ -184,6 +186,7 @@ const handleEntities = (result, { skipLog } = {}) => {
   const renderStart = performance.now()
   viewState.setModel(entities)
   const renderTime = performance.now() - renderStart
+  meshRefs.remember(entities)
 
   if (viewState.zoomToFit) {
     const { min, max } = boundingBox(entities)
@@ -205,9 +208,15 @@ const handleEntities = (result, { skipLog } = {}) => {
   updatePipelineStats(statsContent, { treeTime, execTime, convTime, renderTime, triangles, vertices })
 }
 
+const meshRefs = createMeshRefs()
+
+// Remembered only when the run finishes: its later batches still refer to the previous model's meshes.
+let streamDrawn = []
+
 // A grid draws cell by cell; the camera refits to what is drawn, so it only zooms out.
 const drawStream = (entities, box) => {
   viewState.setModel(entities)
+  streamDrawn = entities
   if (viewState.zoomToFit && box) {
     const { fov, aspect } = viewState.viewer.getCamera()
     ctrl.fit(box.min, box.max, fov, aspect, 1 / 0.6)
@@ -216,6 +225,7 @@ const drawStream = (entities, box) => {
 
 const streamRuns = createStreamRuns({
   draw: drawStream,
+  resolve: meshRefs.resolve,
   // Read by the render sweep, which restarts its hang guard on each cell
   onCells: count => { document.documentElement.dataset.cells = String(count) },
   onError: error => {
@@ -437,6 +447,7 @@ const modelUpdateDeps = () => {
       return runId
     },
     endRun: () => streamRuns.end(runId),
+    held: meshRefs.held,
   }
 }
 
@@ -512,8 +523,8 @@ const paramChangeCallback = async (params, source) => {
   let pendingParams = null
   try {
     const mainOptions = useParamsProxy
-      ? { ...paramsCtrl.getWorkerParams(), runId }
-      : { params, runId }
+      ? { ...paramsCtrl.getWorkerParams(), runId, held: meshRefs.held() }
+      : { params, runId, held: meshRefs.held() }
     result = await workerApi.jscadMain(mainOptions)
     if (isStale()) return
     lastRunParams = params
@@ -534,9 +545,13 @@ viewState.onRequireReRender = () => paramChangeCallback(ctrl.params)
 
 // ============== Script Loading ==============
 
+let lastScriptUrl
+
 /** @param {{script?:string,url?:string,base?:string,root?:string}} options*/
 const jscadScript = async ({ script, url = './jscad.model.js', base = currentBase, root }) => {
   const isStale = scriptRuns.load()
+  if (url !== lastScriptUrl) meshRefs.forget()
+  lastScriptUrl = url
   let runId = beginStream(isStale)
   currentBase = base
   loadDefault = false
@@ -576,7 +591,7 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
     const useGpuNormals = viewState.viewer?.supportsGpuNormals ?? false
     const files = await collectProjectFiles(fileSystem.getSwHandler())
     if (isStale()) return
-    const result = await sendScript(workerApi, files, { script, url, base, root, useGpuNormals, runId })
+    const result = await sendScript(workerApi, files, { script, url, base, root, useGpuNormals, runId, held: meshRefs.held() })
     if (isStale()) return
 
     if (result.proxyState && useParamsProxy) {
@@ -627,7 +642,7 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
         paramsTreeView?.update({ values: paramsCtrl.params })
         // Re-run model with restored params
         runId = beginStream(isStale)
-        const restoreResult = await workerApi.jscadMain({ ...paramsCtrl.getWorkerParams(), runId })
+        const restoreResult = await workerApi.jscadMain({ ...paramsCtrl.getWorkerParams(), runId, held: meshRefs.held() })
         if (isStale()) return
         handlers.entities(restoreResult)
         return
@@ -683,14 +698,15 @@ viewState.onRenderEngineChange = async (newEngine) => {
 
   // Initialize new viewer
   viewState.setEngine(await engine.init(newEngine))
+  meshRefs.forget()
   const isStale = scriptRuns.paramChange()
   const runId = beginStream(isStale)
 
   // Re-run main with current params to regenerate geometry
   const useGpuNormals = viewState.viewer?.supportsGpuNormals ?? false
   const mainOptions = useParamsProxy
-    ? { ...paramsCtrl.getWorkerParams(), useGpuNormals, runId }
-    : { params: lastRunParams, useGpuNormals, runId }
+    ? { ...paramsCtrl.getWorkerParams(), useGpuNormals, runId, held: meshRefs.held() }
+    : { params: lastRunParams, useGpuNormals, runId, held: meshRefs.held() }
   let result
   try {
     result = await workerApi.jscadMain(mainOptions)

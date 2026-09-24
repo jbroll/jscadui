@@ -184,6 +184,42 @@ describe('stream runs', () => {
     expect(runs.finish(2)).toBeNull()
   })
 
+  it('counts the bytes of a resolved ref toward the caps', () => {
+    const draw = vi.fn()
+    const onError = vi.fn()
+    const held = cell(1)
+    // Reports 200 MB without allocating it; the per-batch cap is 256 MB.
+    Object.defineProperty(held.vertices, 'byteLength', { value: 200 * 1024 * 1024 })
+    const resolve = (entities) => entities.map((e) => (e.ref ? held : e))
+    const runs = createStreamRuns({ draw, onCells: vi.fn(), onError, resolve })
+    runs.begin(() => false, 1)
+    const ref = { type: 'mesh', hash: '0123456789abcdef', ref: true }
+    expect(runs.accept([ref, ref], 1)).toBe(false)
+    expect(onError.mock.calls[0][0].message).toMatch(/buffer cap/)
+  })
+
+  it('draws a resolved ref and counts its geometry', () => {
+    const draw = vi.fn()
+    const held = cell(1, 6)
+    const resolve = (entities) => entities.map((e) => (e.ref ? held : e))
+    const runs = createStreamRuns({ draw, onCells: vi.fn(), onError: vi.fn(), resolve })
+    runs.begin(() => false, 1)
+    expect(runs.accept([{ type: 'mesh', hash: '0123456789abcdef', ref: true }], 1)).toBe(true)
+    expect(runs.finish(1)).toEqual({ cells: 1, vertices: 6, triangles: 0 })
+    expect(draw.mock.calls[0][0][0]).toBe(held)
+  })
+
+  it('ends the run when a ref does not resolve', () => {
+    const { draw, onCells } = setup()
+    const onError = vi.fn()
+    const error = Object.assign(new Error('unknown mesh 0123456789abcdef'), { name: 'ModelError' })
+    const runs = createStreamRuns({ draw, onCells, onError, resolve: () => { throw error } })
+    runs.begin(() => false, 1)
+    expect(runs.accept([{ type: 'mesh', hash: '0123456789abcdef', ref: true }], 1)).toBe(false)
+    expect(onError).toHaveBeenCalledWith(error)
+    expect(runs.finish(1)).toBeNull()
+  })
+
   it('returns null from finish for a stale run', () => {
     const { runs } = setup()
     let stale = false

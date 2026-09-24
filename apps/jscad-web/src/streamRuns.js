@@ -13,9 +13,9 @@ const hasVertices = (entities) => entities.some((e) => e?.vertices?.length)
  * One streamed run at a time: the batches a grid sends while the load or
  * parameter change that started it is current. Batches and the final result
  * carry the request's runId, so an older request's late cells are dropped.
- * @param {{draw: (entities: object[], box: object | null) => void, onCells: (count: number) => void, onError: (error: Error) => void, delayMs?: number}} options
+ * @param {{draw: (entities: object[], box: object | null) => void, onCells: (count: number) => void, onError: (error: Error) => void, resolve?: (entities: object[]) => object[], delayMs?: number}} options
  */
-export const createStreamRuns = ({ draw, onCells, onError, delayMs = 250 }) => {
+export const createStreamRuns = ({ draw, onCells, onError, resolve = (e) => e, delayMs = 250 }) => {
   let run = null
   const owns = (runId) => run !== null && run.id === runId
 
@@ -46,9 +46,10 @@ export const createStreamRuns = ({ draw, onCells, onError, delayMs = 250 }) => {
     accept(batch, runId) {
       if (!owns(runId) || run.isStale()) return false
       // Drop non-object entries here so nothing downstream (caps, countGeometry) has to guard against them.
-      const entities = (Array.isArray(batch) ? batch : []).filter((e) => e && typeof e === 'object')
+      let entities = (Array.isArray(batch) ? batch : []).filter((e) => e && typeof e === 'object')
       let bytes, counts, box
       try {
+        entities = resolve(entities)
         checkBuffers(entities)
         capGeometry(entities, DEFAULT_CAPS)
         bytes = geometryBytes(entities)

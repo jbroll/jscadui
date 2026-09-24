@@ -20,7 +20,7 @@ export const STREAM_CAPS = {
 }
 
 /** @param {string} message */
-const modelError = (message) => {
+export const modelError = (message) => {
   const error = new Error(message)
   error.name = 'ModelError'
   return error

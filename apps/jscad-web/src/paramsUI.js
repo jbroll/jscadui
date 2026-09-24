@@ -45,6 +45,7 @@ const mapsEqual = (a, b) => {
  * @property {() => boolean} stopCurrentAnim - Stop current animation
  * @property {() => unknown} [beginRun] - starts a streaming run; returns the runId jscadMain is tagged with
  * @property {() => void} [endRun] - the run failed; keep what it drew
+ * @property {() => string[]} [held] - hashes of the meshes the page draws, which the run may send as refs
  */
 
 /** @type {ReturnType<typeof createParamsController>} */
@@ -174,7 +175,7 @@ export function clearModelUpdateTimer() {
  * @param {ParamsUIDeps} deps
  */
 export async function runModelUpdate(deps) {
-  const { workerApi, handleEntities, setError, stopCurrentAnim, beginRun, endRun } = deps
+  const { workerApi, handleEntities, setError, stopCurrentAnim, beginRun, endRun, held } = deps
 
   // H5 fix: Store deps for pending update to use the most recent deps
   if (working) {
@@ -190,7 +191,7 @@ export async function runModelUpdate(deps) {
 
   try {
     const runId = beginRun?.()
-    const result = await workerApi.jscadMain({ ...paramsCtrl.getWorkerParams(), runId })
+    const result = await workerApi.jscadMain({ ...paramsCtrl.getWorkerParams(), runId, held: held?.() })
 
     if (result.proxyState) {
       const oldState = paramsCtrl.proxyState

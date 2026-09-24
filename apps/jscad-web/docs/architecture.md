@@ -346,6 +346,30 @@ running bounding box. The final `streamed` result draws what is pending, sets
 `data-vertices` from the running count and clears the error. `data-cells`
 counts accepted batches for the render sweep's per-cell hang guard.
 
+### Mesh reuse
+
+`src/meshRefs.js` keeps the meshes the last completed run drew, keyed by the
+`hash` the worker puts on each mesh. Every request that carries a `runId` also
+sends `held`, the list of those hashes, and the worker sends a mesh whose hash
+is listed as a `ref` with no buffers (see `docs/WORKER_PROTOCOL.md`). The app
+resolves each ref before the cap checks, in both the whole-result and the
+streamed path, so a resolved mesh's bytes count toward the caps as if the
+worker had sent them. A ref whose `color`, `transforms`, `isTransparent` and
+`opacity` all equal the held mesh's, compared element by element, resolves to
+the held entity object itself. The three.js renderer keys built objects by
+entity object, so that mesh is not rebuilt. A ref that differs in any of them
+resolves to a new entity with the ref's values and the held mesh's buffers,
+so the renderer builds a new object but the buffers are not copied again. A
+ref to a hash the page does not hold is a model error.
+
+The map is replaced only when a run completes: after a whole result is drawn,
+or after a streamed run finishes, with the entity array it last drew. A
+streamed run's later batches still refer to the previous run's meshes, so it
+must not be replaced mid-run, and a run that ends in an error leaves it as it
+was. Loading a different script URL and switching the render engine clear it.
+`render-regl` rebuilds every entity on each draw, so it gains nothing from
+reuse beyond the smaller messages.
+
 ## Agent loop
 
 The loop runs in the browser (`packages/agent-loop`), not on the server. The
