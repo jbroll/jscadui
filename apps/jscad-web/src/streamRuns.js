@@ -9,6 +9,12 @@ const mergeBox = (a, b) => a ? {
 
 const hasVertices = (entities) => entities.some((e) => e?.vertices?.length)
 
+const lostError = (lost) => {
+  const error = new Error(`${lost.length} grid model(s) ran out of time: ${lost.map((leaf) => leaf?.url).join(' ')}`)
+  error.name = 'TimeoutError'
+  return error
+}
+
 /**
  * One streamed run at a time: the batches a grid sends while the load or
  * parameter change that started it is current. Batches and the final result
@@ -72,7 +78,8 @@ export const createStreamRuns = ({ draw, onCells, onError, resolve = (e) => e, d
       run.timer ??= setTimeout(flush, delayMs)
       return true
     },
-    finish(runId) {
+    // A leaf that timed out on its worker leaves its cell empty; the rest stay drawn.
+    finish(runId, lost = []) {
       if (!owns(runId)) return null
       if (run.isStale()) {
         drop()
@@ -81,7 +88,9 @@ export const createStreamRuns = ({ draw, onCells, onError, resolve = (e) => e, d
       flush(true)
       const { cells, vertices, triangles } = run
       run = null
-      return { cells, vertices, triangles }
+      const missing = Array.isArray(lost) ? lost : []
+      if (missing.length) onError(lostError(missing))
+      return { cells, vertices, triangles, lost: missing.length }
     },
     end(runId) {
       if (owns(runId)) stop()

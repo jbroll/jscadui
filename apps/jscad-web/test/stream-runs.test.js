@@ -54,7 +54,7 @@ describe('stream runs', () => {
   it('replaces the previous model on finish even with no batches', () => {
     const { runs, draw } = setup()
     runs.begin(() => false)
-    expect(runs.finish()).toEqual({ cells: 0, vertices: 0, triangles: 0 })
+    expect(runs.finish()).toEqual({ cells: 0, vertices: 0, triangles: 0, lost: 0 })
     expect(draw).toHaveBeenCalledWith([], null)
   })
 
@@ -62,7 +62,7 @@ describe('stream runs', () => {
     const { runs, draw } = setup()
     runs.begin(() => false)
     runs.accept([cell(1, 6)])
-    expect(runs.finish()).toEqual({ cells: 1, vertices: 6, triangles: 0 })
+    expect(runs.finish()).toEqual({ cells: 1, vertices: 6, triangles: 0, lost: 0 })
     expect(draw).toHaveBeenCalledTimes(1)
     expect(runs.accept([cell()])).toBe(false)
   })
@@ -160,7 +160,7 @@ describe('stream runs', () => {
     runs.end(1)
     expect(draw).not.toHaveBeenCalled()
     expect(runs.accept([cell()], 2)).toBe(true)
-    expect(runs.finish(2)).toEqual({ cells: 2, vertices: 6, triangles: 0 })
+    expect(runs.finish(2)).toEqual({ cells: 2, vertices: 6, triangles: 0, lost: 0 })
     expect(draw.mock.calls[0][0]).toHaveLength(2)
   })
 
@@ -205,7 +205,7 @@ describe('stream runs', () => {
     const runs = createStreamRuns({ draw, onCells: vi.fn(), onError: vi.fn(), resolve })
     runs.begin(() => false, 1)
     expect(runs.accept([{ type: 'mesh', hash: '0123456789abcdef', ref: true }], 1)).toBe(true)
-    expect(runs.finish(1)).toEqual({ cells: 1, vertices: 6, triangles: 0 })
+    expect(runs.finish(1)).toEqual({ cells: 1, vertices: 6, triangles: 0, lost: 0 })
     expect(draw.mock.calls[0][0][0]).toBe(held)
   })
 
@@ -227,5 +227,25 @@ describe('stream runs', () => {
     runs.accept([cell()])
     stale = true
     expect(runs.finish()).toBeNull()
+  })
+
+  it('reports leaves that ran out of time as an error, keeping the cells already drawn', () => {
+    const { runs, draw, onError } = setup()
+    runs.begin(() => false, 1)
+    runs.accept([cell(1)], 1)
+    const totals = runs.finish(1, [{ url: './slow.scad', reason: 'TimeoutError' }, { url: './slower.scad', reason: 'TimeoutError' }])
+    expect(draw).toHaveBeenCalledTimes(1)
+    expect(totals).toMatchObject({ cells: 1, lost: 2 })
+    const [error] = onError.mock.calls[0]
+    expect(error.name).toBe('TimeoutError')
+    expect(error.message).toMatch(/\.\/slow\.scad \.\/slower\.scad/)
+  })
+
+  it('reports nothing for a run that lost no leaf', () => {
+    const { runs, onError } = setup()
+    runs.begin(() => false, 1)
+    runs.accept([cell(1)], 1)
+    expect(runs.finish(1, []).lost).toBe(0)
+    expect(onError).not.toHaveBeenCalled()
   })
 })

@@ -38,6 +38,7 @@
  *                      reports "model exceeded N ms" rather than the harness
  *                      reporting an opaque timeout). Capped below the app's
  *                      300s RPC timeout, which would otherwise fire first.
+ *   --pool-size <n>    Frame workers per page (sets engine.poolSize). Default: the app's own.
  *   --server <url>     Dev server base (default: http://localhost:$JSCAD_WEB_PORT,
  *                      else :5120)
  *   --no-skip          Ignore skip.txt files
@@ -72,7 +73,7 @@ const MAX_MODEL_TIMEOUT = RPC_TIMEOUT - 10_000
 function parseArgs(argv) {
   const o = {
     dirs: [], jscad: false, limit: 0, concurrency: 4, timeout: 300_000, modelTimeout: 0,
-    server: APP_ORIGIN, skip: true, engine: '', grids: false,
+    server: APP_ORIGIN, skip: true, engine: '', grids: false, poolSize: 0,
     out: join(__dirname, 'render-report.json'), headed: false,
   }
   for (let i = 0; i < argv.length; i++) {
@@ -86,6 +87,7 @@ function parseArgs(argv) {
     else if (a === '--server') o.server = argv[++i]
     else if (a === '--engine') o.engine = argv[++i]
     else if (a === '--grids') o.grids = true
+    else if (a === '--pool-size') o.poolSize = Number(argv[++i])
     else if (a === '--no-skip') o.skip = false
     else if (a === '--out') o.out = argv[++i]
     else if (a === '--baseline') o.baseline = argv[++i]
@@ -173,7 +175,8 @@ async function renderOne(context, opts, file, idx) {
   page.on('requestfailed', r => badRequests.push(`${r.failure()?.errorText ?? 'failed'} ${r.url()}`))
   // Cache-busting query forces a full document load → fresh worker per file.
   const target = `${opts.server}/?r=${idx}#${file.url}`
-  let status, errText = '', stalled
+  let status, errText = '', stalled, cells = null
+  const started = Date.now()
   try {
     await page.goto(target, { waitUntil: 'domcontentloaded', timeout: opts.timeout })
     try { await page.locator('#welcome-dismiss').click({ timeout: 1500 }) } catch { /* already dismissed */ }
@@ -199,6 +202,7 @@ async function renderOne(context, opts, file, idx) {
     }
     status = await Promise.race([settled(), crashed])
       .then(() => page.evaluate(() => document.documentElement.dataset.render))
+    cells = await page.evaluate(() => document.documentElement.dataset.cells ?? null).catch(() => null)
     if (await page.locator('#error-bar').isVisible().catch(() => false)) {
       status = 'error'
       errText = ((await page.locator('#error-bar').textContent().catch(() => '')) || '')
@@ -217,7 +221,7 @@ async function renderOne(context, opts, file, idx) {
     .map(t => t.slice('ALL: FAILED '.length))
   if (status === 'ok' && cellFailures.length) status = 'partial'
   return {
-    rel: file.rel, status, errText, stalled, cellFailures,
+    rel: file.rel, status, errText, stalled, cellFailures, cells, ms: Date.now() - started,
     consoleErrs: consoleErrs.slice(0, 5), badRequests: badRequests.slice(0, 5),
   }
 }
@@ -260,6 +264,9 @@ async function run() {
     await context.addInitScript(ms => {
       try { localStorage.setItem('engine.modelTimeoutMs', String(ms)) } catch { /* the app falls back to its default */ }
     }, opts.modelTimeout)
+    if (opts.poolSize) await context.addInitScript(n => {
+      try { localStorage.setItem('engine.poolSize', String(n)) } catch { /* the app falls back to its default */ }
+    }, opts.poolSize)
     while (next < end) {
       const i = next++
       const res = await renderOne(context, opts, files[i], i)
@@ -290,6 +297,11 @@ async function run() {
     console.log(`  ${c.fail === 0 ? '✓' : '✗'} ${lib.padEnd(28)} ${c.ok}/${total}`)
   }
   console.log(`\nTotal: ${results.length - fails.length}/${results.length} rendered, ${fails.length} failed`)
+
+  if (opts.grids) {
+    console.log('\n── Grid cells and times ──')
+    for (const r of results) console.log(`  ${r.rel.padEnd(70)} cells=${r.cells ?? '-'}  ${(r.ms / 1000).toFixed(1)}s`)
+  }
 
   if (fails.length) {
     console.log('\n── Failures ──')

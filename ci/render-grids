@@ -15,8 +15,11 @@
 # and the aggregate grids (every item another grid) run afterwards, one at a
 # time. The hang guard restarts on each cell, so 320s is a per-cell budget; the
 # model budget cannot exceed the app's 300s RPC timeout either way.
+#
+# The pool size is pinned so the sweep does not depend on the CI host's core
+# count; ci/render-grids-serial runs the same sweep on one worker.
 set -uo pipefail
 
 export JSCAD_WEB_PORT=5140
-export RENDER_ARGS="--dir . --grids --concurrency 4 --timeout 320000 --out e2e/render-grids-report.json --baseline e2e/render-grids-baseline.json"
+export RENDER_ARGS="--dir . --grids --concurrency 4 --timeout 320000 --pool-size 4 --out e2e/render-grids-report.json --baseline e2e/render-grids-baseline.json"
 exec "$(dirname "$0")/render"

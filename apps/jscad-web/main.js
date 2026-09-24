@@ -159,12 +159,12 @@ let lastRunParams
 const handleEntities = (result, { skipLog } = {}) => {
   if (result?.streamed) {
     // null for another run's result, or one a cap error already ended
-    const totals = streamRuns.finish(result.runId)
+    const totals = streamRuns.finish(result.runId, result.lost)
     if (!totals) return
     meshRefs.remember(streamDrawn)
     onProgress(undefined)
     document.documentElement.dataset.vertices = String(totals.vertices)
-    setError(undefined)
+    if (!totals.lost) setError(undefined)
     updatePipelineStats(statsContent, { treeTime: result.treeTime, triangles: totals.triangles, vertices: totals.vertices })
     if (!skipLog) console.log('streamed', totals.cells, 'cells, tree:', result.treeTime?.toFixed(2))
     return
@@ -276,10 +276,20 @@ const EDITOR_TIMEOUT_MS = (() => {
   }
 })()
 
+// The render sweep pins the frame's worker count to compare a pooled grid with one worker.
+const POOL_SIZE = (() => {
+  try {
+    const stored = Number(localStorage.getItem('engine.poolSize'))
+    return Number.isInteger(stored) && stored > 0 ? stored : undefined
+  } catch {
+    return undefined
+  }
+})()
+
 // The frame names its own bundles; the app names only the engine.
 const initFrame = () =>
   workerApi
-    .jscadInit({ engine: viewState.modelingEngine, useParamsProxy, timeoutMs: EDITOR_TIMEOUT_MS })
+    .jscadInit({ engine: viewState.modelingEngine, useParamsProxy, timeoutMs: EDITOR_TIMEOUT_MS, poolSize: POOL_SIZE })
     .catch(setError)
 
 // A project's files travel to the frame in a map keyed by bare path, so a
