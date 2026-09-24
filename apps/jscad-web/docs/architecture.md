@@ -211,7 +211,16 @@ that traps retires the worker. A `jscadScript`
 from the app loads the worker itself and skips this, including while it is
 still running, since it is the model the app expects. The cost is a second
 worker's memory: the loaded bundles, WASM instances and file map, held idle
-from the first script onward.
+from the first script onward. The frame also keeps its own copy of the last
+file map in its list of mirrored messages, so a project's files are held three
+times: in the active worker, in the spare and in the frame. A promotion costs a
+script load, and since the transpile cache lives in each worker, the promoted
+worker transpiles the model's OpenSCAD includes again.
+
+A spare exists so that a trapped WebAssembly instance or a run the user has
+moved past can be dropped at once. Without one the frame could only wait for
+the run to finish or kill the worker, and a kill costs a cold start: bundles,
+WASM and the replay.
 
 A load, a parameter change and a render-engine redraw send `supersede: true`
 with their `jscadScript` or `jscadMain`. When one arrives while the active
@@ -329,9 +338,31 @@ vertex costs at least 12 bytes, so the buffer cap bounds vertices at about 22M,
 and an 8M one refused whole-library `ALL.js` grids that were genuine geometry.
 Manifold meshes arrive indexed without normals: about 18 bytes a triangle for
 a typical mesh (about half a vertex, 12 bytes, plus 12 bytes of indices), so
-the 256 MB cap covers about 15M triangles. `aiEvaluate.js`
+the 256 MB cap covers about 15M triangles. A streamed run, a grid or a
+multi-part model sent with a `runId`, is capped per batch at `DEFAULT_CAPS`
+(256 MB, 2,000 entities) and in total at `STREAM_CAPS` (1.5 GB, 20,000
+entities); see Streamed runs. `aiEvaluate.js`
 re-checks the same caps so the agent cannot be told a model evaluated when
 nothing was drawn.
+
+### Indexed meshes and GPU normals
+
+A Manifold mesh expanded to three vertices a triangle with a normal each costs
+84 bytes a triangle; indexed without normals it costs about 18. So both
+viewers set `supportsGpuNormals`, and the app passes `useGpuNormals` with each
+load and render-engine redraw; the worker keeps it for later runs. It makes `ManifoldGeom3` return Manifold's own indexed
+mesh (`vertProperties`, `triVerts`) with no `normals`. Manifold interleaves any
+extra vertex properties after x, y, z, so the raw mesh keeps only the first
+three. `format-threejs` gives a mesh with no normals a `flatShading: true`
+material, and three.js takes the face normal from screen-space derivatives, as
+regl already did; meshes with normals keep the smooth-capable material, and the
+smooth option computes normals from positions with `toCreasedNormals`. Plain
+jscad geometry is already indexed and keeps its CPU normals.
+
+Nothing outside the viewers reads the render layout. Export, measure and check
+work from the solids' `polygons`, which the flag does not change, and
+`exportStlText` computes each facet normal from the triangle's positions and
+ignores any `normals`.
 
 ### Streamed runs
 
@@ -411,7 +442,9 @@ counts accepted batches for the render sweep's per-cell hang guard.
 
 ### Mesh reuse
 
-`src/meshRefs.js` keeps the meshes the last completed run drew, keyed by the
+Nothing produces the same geometry objects across runs: plain jscad, Manifold
+and the OpenSCAD runtime rebuild every part, so reuse is by content, not by
+object. `src/meshRefs.js` keeps the meshes the last completed run drew, keyed by the
 `hash` the worker puts on each mesh. Every request that carries a `runId` also
 sends `held`, the list of those hashes, and the worker sends a mesh whose hash
 is listed as a `ref` with no buffers (see `docs/WORKER_PROTOCOL.md`). The worker

@@ -117,6 +117,52 @@ disposes its two intermediate transforms per geometry.
   kept solids can read detached arrays. Streamed batches already send copies
   (`packages/worker/src/stream.js`).
 
+## Spare worker and supersede
+
+See `apps/jscad-web/docs/architecture.md`, Protocol, for how the frame keeps a
+spare and abandons stale runs.
+
+- **A promoted worker's export reload has no progress beats.** Before an
+  export, measure or check, the frame replays a grid's last `jscadMain` with
+  `stream: false`, or reloads the script with `runMain: true`, as one frame
+  request. Neither relays cells or progress, so the kill timer covers the whole
+  grid, and a large grid export after a promotion can time out.
+- **A superseding load or parameter change aborts a pending export.** The
+  retire answers the export `AbortError`.
+- **Move `ABANDON_AFTER_MS` to a leaf constants module.** It lives in
+  `src_frame/frameHost.js`, and the app imports it from there.
+- **The app sends a superseding `jscadMain` every 500 ms while a load is
+  pending.** The frame never abandons a pending script, so each one queues on
+  the worker and runs in full. Queue them behind the load instead and supersede
+  the queued ones, as the frame already does behind a reload.
+- **The frame's `jscadInit` mirror entries grow with every kill's replay.**
+  Only a new file map trims the mirror list, and it keeps every init.
+- **`retire()` can leave no active worker.** If `createWorker` throws, the
+  active slot is empty, and the next cold start sends no bundles.
+- **A reload step that fails with `RuntimeError` leaves the trapped worker
+  active.** The queued request gets the error and the requests behind it run on
+  that worker, until an app answer traps and retires it.
+
+## Mesh reuse
+
+- **Agent evaluate or an animation frame can `remember` while a run with older
+  `held` is in flight.** Its refs then name hashes the map no longer holds and
+  fail. Fix by falling back to the previous map in `resolve`.
+- **The same held entity twice in one scene rebuilds an extra three.js object
+  on each streamed redraw.**
+- **A part whose conversion throws mid-stream clears the solids** after earlier
+  parts were already posted.
+
+## Tests to add
+
+- Instance-path shading in `format-threejs`.
+- A late message from a retired worker is dropped.
+- An app script that rejects on a promoted worker, then a model request that
+  reloads `lastScript`.
+- `paramChangeCallback`'s work token.
+- `paramChangeCallback` and `runModelUpdate` stranding each other's pending
+  update.
+
 ## Library bugs found by the sweep
 
 - **dotSCAD's `r_union3` fails on the manifold engine** with
