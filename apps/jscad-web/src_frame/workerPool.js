@@ -15,7 +15,7 @@ const ignore = () => {}
  * @typedef {import('./workerSlot.js').Slot} Slot
  * @typedef {import('./workerSlot.js').Entry} Entry
  * @typedef {{slots: Slot[], active: Slot | null, mirrored: object[], lastScript: object | undefined,
- *   lastMain: object | undefined, poolSize: number, timeoutMs: number}} State
+ *   sentScript: object | undefined, lastMain: object | undefined, poolSize: number, timeoutMs: number}} State
  * @param {object} options
  * @param {State} options.state
  * @param {ReturnType<typeof import('./workerSlot.js').createSlots>} options.slotOps
@@ -117,16 +117,19 @@ export const createPool = ({ state, slotOps, post, answerError, busy, inGrid, op
     slot.worker.postMessage(out, collectBuffers(out))
   }
 
+  // A worker joining a run loads the script the run was sent against.
+  const scriptFor = (entry) => entry?.run?.script ?? state.lastScript
+
   // The app does not know about a retire, so a script it sent meanwhile is the
   // model it expects; reloading lastScript would replace it.
-  const needsReload = (slot) => !!state.lastScript && slot.script !== state.lastScript &&
+  const needsReload = (slot, script) => !!script && slot.script !== script &&
     ![...slot.pending.values()].some((r) => r.method === 'jscadScript' && (!r.onAnswer || r.run))
 
   // Requests that arrive during the reload wait behind it, so they reach the
   // worker in the order they were sent.
   const relay = (slot, message, entry) => {
     if (slot.queued) slot.queued.push({ message, entry })
-    else if (NEEDS_MODEL.has(message.method) && needsReload(slot)) ensureLoaded(slot, message, entry)
+    else if (NEEDS_MODEL.has(message.method) && needsReload(slot, scriptFor(entry))) ensureLoaded(slot, message, entry)
     else dispatch(slot, message, entry)
   }
 
@@ -145,7 +148,7 @@ export const createPool = ({ state, slotOps, post, answerError, busy, inGrid, op
   // well; with no run since the load, the load's own main is that run.
   const ensureLoaded = (slot, message, entry) => {
     slot.queued = [{ message, entry }]
-    const script = state.lastScript
+    const script = scriptFor(entry)
     const needsSolids = NEEDS_SOLIDS.has(message.method)
     const steps = [{ method: 'jscadScript', params: [{ ...script, runMain: needsSolids && !state.lastMain }] }]
     if (needsSolids && state.lastMain) {

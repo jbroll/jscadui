@@ -60,6 +60,8 @@ export const createFrameHost = ({
     // What a new worker is set up with, in the order the app sent it.
     mirrored: [],
     lastScript: undefined,
+    // The newest script the app sent, answered or not.
+    sentScript: undefined,
     lastMain: undefined,
     poolSize: defaultPoolSize(hardwareConcurrency),
     timeoutMs: DEFAULT_TIMEOUT_MS,
@@ -250,7 +252,9 @@ export const createFrameHost = ({
       }
     }
     if (MIRRORED.has(data?.method)) mirror(message)
-    pool.relay(state.active, message, entryFor(message))
+    const entry = entryFor(message)
+    if (entry?.method === 'jscadScript') state.sentScript = entry.options
+    pool.relay(state.active, message, entry)
   }
 
   const getPendingCount = () => {

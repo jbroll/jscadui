@@ -1044,6 +1044,54 @@ describe('grid runs', () => {
     expect(lastSent(workers[1])).toMatchObject({ method: 'jscadScript', params: [{ script: 'grid2', runMain: false }] })
   })
 
+  it('loads the script the app sent last on a joiner of a run that fans out during a grid load', () => {
+    const { workers, send } = gridRun()
+    answerLastOf(workers[0], 'jscadMain')
+    send({ method: 'jscadScript', id: 5, params: [{ script: 'grid2', url: 'ALL.js', runId: 9 }] })
+    claimOn(workers[0], '0', { runId: 9 })
+    loadAll(workers[3])
+    vi.advanceTimersByTime(600)
+    send({ method: 'jscadMain', id: 6, params: [{ params: {}, runId: 10, supersede: true }] })
+    claimOn(workers[0], '1', { runId: 10 })
+    expect(lastOf(workers[3], 'jscadScript').params).toEqual([{ script: 'grid2', url: 'ALL.js', runId: 9, runMain: false }])
+  })
+
+  it('closes a superseded run that has not claimed yet, so it never fans out', () => {
+    const { workers, posted, send } = gridRun()
+    vi.advanceTimersByTime(100)
+    send({ method: 'jscadMain', id: 5, params: [{ params: {}, runId: 8, supersede: true }] })
+    expect(claimOn(workers[0], '0')).toBe(false)
+    expect(workers).toHaveLength(2)
+    workers[0].onmessage({ data: { method: 'jscadCells', params: [{ entities: [], runId: 7 }] } })
+    expect(posted.filter((m) => m.method === 'jscadCells' || m.id === 4)).toEqual([])
+  })
+
+  it('does not report a leaf whose cells streamed as lost when its member dies', () => {
+    const { workers, posted } = gridRun()
+    claimOn(workers[0], '0')
+    loadAll(workers[1])
+    loadAll(workers[2])
+    claimOn(workers[1], '1')
+    workers[1].onmessage({ data: { method: 'jscadCells', params: [{ entities: [], runId: 7 }] } })
+    workers[1].onerror({ message: 'gone', preventDefault: () => {} })
+    loadAll(workers[3])
+    expect(lastOf(workers[3], 'jscadMain')).toBeUndefined()
+    answerLastOf(workers[0], 'jscadMain')
+    answerLastOf(workers[2], 'jscadMain')
+    expect(posted.find((m) => m.id === 4).params.lost).toEqual([])
+  })
+
+  it('does not retire a member holding a pending load when a run supersedes the grid', () => {
+    const { workers, posted, send } = gridRun()
+    claimOn(workers[0], '0')
+    vi.advanceTimersByTime(600)
+    send({ method: 'jscadScript', id: 5, params: [{ script: 'grid2', url: 'ALL.js', runMain: false }] })
+    send({ method: 'jscadMain', id: 6, params: [{ params: {}, runId: 8, supersede: true }] })
+    expect(posted.find((m) => m.id === 4)).toEqual({ method: RESPONSE, id: 4, error: superseded })
+    expect(workers[0].terminate).not.toHaveBeenCalled()
+    expect(posted.find((m) => m.id === 5)).toBeUndefined()
+  })
+
   it('merges the params every member discovered into the answer to a load', () => {
     const { workers, posted, send } = gridRun({ poolSize: 2 })
     answerLastOf(workers[0], 'jscadMain')

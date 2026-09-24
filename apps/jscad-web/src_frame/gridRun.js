@@ -17,7 +17,8 @@ const streams = ({ method, params }) =>
  * @typedef {{appId: unknown, method: string, options: object | undefined,
  *   message: {method: string, params: unknown[]}, runId: unknown, primary: Slot,
  *   members: Map<Slot, Member>, claimed: Set<string>, lost: {url: string | null, reason: string}[],
- *   answers: {data: any, primary: boolean}[], fanned: boolean, closed: boolean, answered: boolean}} Run
+ *   answers: {data: any, primary: boolean}[], fanned: boolean, closed: boolean, answered: boolean,
+ *   script: object | undefined}} Run
  */
 
 /**
@@ -59,6 +60,8 @@ export const createGridRuns = ({ state, pool, slotOps, post, answerError }) => {
       fanned: false,
       closed: false,
       answered: false,
+      // A load still running has not reached lastScript, yet joiners must run its model.
+      script: message.method === 'jscadMain' ? state.sentScript : undefined,
     }
     runs.add(run)
     return run
@@ -93,9 +96,13 @@ export const createGridRuns = ({ state, pool, slotOps, post, answerError }) => {
   }
 
   // Cells carry the runId of the request that made them, which names the run.
+  // A claimed leaf streams one batch, so after it the member holds no leaf.
   const relaysCells = (slot, data) => {
     const run = find(slot, data.params?.[0]?.runId)
-    return !!run && !run.closed
+    if (!run || run.closed) return false
+    const member = run.members.get(slot)
+    if (member) member.key = null
+    return true
   }
 
   // The primary's answer comes first: for a load it carries what the params UI is built from.
@@ -167,19 +174,26 @@ export const createGridRuns = ({ state, pool, slotOps, post, answerError }) => {
     }
   }
 
+  const holdsLoad = (slot) => [...slot.pending.values()].some((r) => r.method === 'jscadScript' && !r.onAnswer)
+
   // A newer run replaces a grid run at once. A worker on a leaf it started
   // ABANDON_AFTER_MS ago is retired; the rest finish their leaf, find every
-  // later claim refused, and go idle.
+  // later claim refused, and go idle. A run that has not fanned out is only
+  // closed: its own request is answered as any other relayed one.
   const supersede = (method) => {
     for (const run of [...runs]) {
-      if (!run.fanned || run.answered) continue
+      if (run.answered) continue
       if (method === 'jscadMain' && run.method === 'jscadScript') continue
-      run.answered = true
       run.closed = true
+      if (!run.fanned) continue
+      run.answered = true
       answerError(run.appId, 'SupersededError', 'superseded by a newer run')
       const now = Date.now()
       for (const [slot, member] of [...run.members]) {
-        if (member.key !== null && now - member.startedAt >= ABANDON_AFTER_MS) pool.retire(slot, 'a newer run superseded the model')
+        if (member.key === null || now - member.startedAt < ABANDON_AFTER_MS) continue
+        // A run never abandons a load, as abandonStale holds for a single worker.
+        if (method === 'jscadMain' && holdsLoad(slot)) continue
+        pool.retire(slot, 'a newer run superseded the model')
       }
       settle(run)
     }
