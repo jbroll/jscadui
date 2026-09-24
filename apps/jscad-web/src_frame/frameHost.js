@@ -49,7 +49,7 @@ export const createFrameHost = ({
   // Keyed by the id the worker sees. Model code shares the worker with the
   // code that answers, so a sequential id would let it answer the next request
   // itself and cancel that request's timer.
-  /** @type {Map<string, {appId: unknown, timer: ReturnType<typeof setTimeout>}>} */
+  /** @type {Map<string, {appId: unknown, method: string, arm: () => ReturnType<typeof setTimeout>, timer: ReturnType<typeof setTimeout>}>} */
   const pending = new Map()
 
   const answerError = (id, name, message) =>
@@ -69,21 +69,44 @@ export const createFrameHost = ({
     post({ method: 'frameWorkerTerminated', params: [{ reason }] })
   }
 
-  const track = (appId) => {
+  const track = (appId, method) => {
     const workerId = randomId()
-    const timer = setTimeout(() => {
+    const arm = () => setTimeout(() => {
       killWorker(workerId, `model exceeded ${timeoutMs} ms`, 'TimeoutError')
     }, timeoutMs)
-    pending.set(workerId, { appId, timer })
+    pending.set(workerId, { appId, method, arm, timer: arm() })
     return workerId
   }
 
-  // The worker sends nothing but answers, so anything else it posts, and any
-  // answer to a request the frame did not issue, is model code talking.
+  // A cell or a progress beat shows the model is still advancing, so the
+  // budget becomes the longest one step may take.
+  const restartTimers = () => {
+    for (const request of pending.values()) {
+      clearTimeout(request.timer)
+      request.timer = request.arm()
+    }
+  }
+
+  const RUNS_MAIN = new Set(['jscadMain', 'jscadScript'])
+  const relayable = (method) => {
+    if (method === 'jscadProgress') return pending.size > 0
+    if (method === 'jscadCells') return [...pending.values()].some((r) => RUNS_MAIN.has(r.method))
+    return false
+  }
+
+  // The worker sends answers plus streamed cells and progress, so anything
+  // else it posts, and any answer to a request the frame did not issue, is
+  // model code talking.
   const attach = () => {
     worker = createWorker()
     worker.onmessage = (event) => {
       const data = event.data
+      if (data?.id == null && relayable(data?.method)) {
+        restartTimers()
+        const message = { method: data.method, params: data.params }
+        post(message, collectBuffers(message))
+        return
+      }
       if (data?.method !== RESPONSE) return
       const request = pending.get(data.id)
       if (!request) return
@@ -144,7 +167,7 @@ export const createFrameHost = ({
         return
       }
     }
-    if (id) message = { ...message, id: track(id) }
+    if (id) message = { ...message, id: track(id, data?.method) }
     worker.postMessage(message, collectBuffers(message))
   }
 

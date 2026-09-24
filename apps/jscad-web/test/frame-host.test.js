@@ -235,6 +235,74 @@ describe('per-request timeouts', () => {
   })
 })
 
+describe('streamed cells and progress', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+
+  const cells = { method: 'jscadCells', params: [{ entities: [] }] }
+  const progress = { method: 'jscadProgress', params: [] }
+
+  it('relays cells while a jscadMain is pending', () => {
+    const { posted, workers, send } = setup()
+    send({ method: 'jscadMain', id: 1, params: [] })
+    workers[0].onmessage({ data: cells })
+    expect(posted).toEqual([cells])
+  })
+
+  it('relays cells while a jscadScript is pending, since a load runs main', () => {
+    const { posted, workers, send } = setup()
+    send({ method: 'jscadScript', id: 1, params: [] })
+    workers[0].onmessage({ data: cells })
+    expect(posted).toEqual([cells])
+  })
+
+  it('drops cells while only another request is pending', () => {
+    const { posted, workers, send } = setup()
+    send({ method: 'jscadExportData', id: 1, params: [] })
+    workers[0].onmessage({ data: cells })
+    expect(posted).toEqual([])
+  })
+
+  it('drops cells and progress with nothing pending', () => {
+    const { posted, workers, send } = setup()
+    send({ method: 'jscadMain', id: 1, params: [] })
+    answer(workers[0])
+    posted.length = 0
+    workers[0].onmessage({ data: cells })
+    workers[0].onmessage({ data: progress })
+    expect(posted).toEqual([])
+  })
+
+  it('relays progress while any request is pending', () => {
+    const { posted, workers, send } = setup()
+    send({ method: 'jscadExportData', id: 1, params: [] })
+    workers[0].onmessage({ data: progress })
+    expect(posted).toEqual([progress])
+  })
+
+  it('drops a cells message that carries an id', () => {
+    const { posted, workers, send } = setup()
+    send({ method: 'jscadMain', id: 1, params: [] })
+    workers[0].onmessage({ data: { ...cells, id: 'x' } })
+    expect(posted).toEqual([])
+  })
+
+  it('restarts the kill timer on each relayed message', () => {
+    const { posted, workers, send } = setup()
+    init(send, { timeoutMs: 1000 }, 1)
+    answer(workers[0])
+    send({ method: 'jscadMain', id: 2, params: [] })
+    vi.advanceTimersByTime(900)
+    workers[0].onmessage({ data: cells })
+    vi.advanceTimersByTime(900)
+    workers[0].onmessage({ data: progress })
+    vi.advanceTimersByTime(900)
+    expect(posted.find((m) => m.id === 2)).toBeUndefined()
+    vi.advanceTimersByTime(101)
+    expect(posted.find((m) => m.id === 2)?.error?.name).toBe('TimeoutError')
+  })
+})
+
 describe('worker load failure', () => {
   it('answers with the load error rather than waiting out the timeout', () => {
     const { posted, workers, send } = setup()
