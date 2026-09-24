@@ -87,25 +87,31 @@ disposes its two intermediate transforms per geometry.
 - **Cut the per-triangle cost of drawn geometry.** The worker sends unindexed
   triangles with CPU normals, 84 bytes a triangle, and the app never sets
   `useGpuNormals`. Indexed geometry with GPU-computed normals is about 18 bytes,
-  which would bring NopSCADlib's grid to about 240 MB, under the 256 MB cap,
-  and cut page memory for every model. The cap would then stay a safety bound
-  instead of being raised for grids.
+  which would cut page memory for every model and let a streamed grid hold
+  more cells under its 1.5 GB cap. The 256 MB cap on a model or one streamed
+  cell would then cover about 15M triangles instead of about 3M.
 - **Top-level `ALL.js` and `openscad/ALL.js` still hit the 290s kill.** A
   nested sub-grid arrives at its parent as one streamed cell, not a stream of
   its own, so one cell can be a whole sub-grid's worth of work and still has
   to fit the per-cell budget.
 - **Nothing splits a grid across workers.** The frame runs one worker, one
   request at a time (`src_frame/frame.js`), so a grid cannot use more than one
-  core and cannot give each cell its own budget. A pool would need the app to
-  send each cell separately and place results as they arrive; each worker then
-  transpiles the shared library again unless the transpile cache moves out of
-  the worker to the frame's main thread (the frame's opaque origin rules out
-  SharedArrayBuffer and IndexedDB). Weigh that against a warm transpile now
-  costing about 40ms.
+  core. A pool would need the app to send each cell separately and place
+  results as they arrive; each worker then transpiles the shared library again
+  unless the transpile cache moves out of the worker to the frame's main thread
+  (the frame's opaque origin rules out SharedArrayBuffer and IndexedDB). Weigh
+  that against a warm transpile now costing about 40ms.
 - **Model code can keep its own run alive.** It can post its own `jscadCells`
   during a load or parameter run, and each relayed message restarts the frame's
   kill timer, so a model that keeps posting is never killed. The damage stays
   in the user's own session.
+- **Serialize the export, measure and check re-runs.** After a streamed grid
+  they re-run main in the frame's worker without waiting for other runs, so two
+  can interleave and share `__jscadProgress`, `releaseSolids` and
+  `currentParams()`.
+- **Re-run a grid for export without converting it.** The re-run goes through
+  `jscadMain`, which converts every cell to meshes it then discards. Calling
+  main without that conversion would cut the time and the peak memory.
 
 ## Library bugs found by the sweep
 

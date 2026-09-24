@@ -139,9 +139,9 @@ buffers ride the transfer list on both hops, so they cross without a copy.
 Notifications relay the same way. The worker sends two, a grid's `jscadCells`
 and `jscadProgress` (see Streamed grids), and `frameWorkerTerminated` is the
 only message the frame originates; `frameSetup.js` registers those three with
-`messageProxy`. `handlers.entities` beside
-it is `main.js`'s own sink, which it calls directly for restores and cached
-results as well as for a fresh render. Job count is not relayed either: the
+`messageProxy`. `handlers.entities` beside it is `main.js`'s own sink, which
+it calls directly for restores and cached results as well as for a fresh
+render. Job count is not relayed either: the
 proxy's own pending-request map on the app side is what drives it.
 
 `src_frame/frameHost.js` holds the frame's side of all this; `frame.js` is the
@@ -276,18 +276,36 @@ An `ALL.js` grid does not return its geometry. While the worker runs a model's
 the grid emits each placed cell through it as a `jscadCells` notification
 (`{ entities, runId }`), then disposes the cell. The result is
 `{ entities: [], streamed: true, runId }`, where `runId` is the one the app
-sent in the request options. A nested grid emits nothing and returns its
-geometry as one cell of its parent. Export, measure and check need the
-solids, so when the last run streamed they re-run `jscadMain` with no stream
-hook and with `__jscadProgress` set, which posts one `jscadProgress` per
-cell. Animation frames also run with `stream: false`, since each frame draws
+sent in the request options.
+
+Only the outermost grid streams. The generated template's `main` saves
+`__jscadStream`, sets it to `null` while its cells run and restores it after,
+so a nested grid sees no hook, returns its geometry and arrives in its parent
+as one cell. The parent's `normalizeAndPlace` scales each cell by its whole
+bounding box, so it cannot place a sub-grid's cells before the sub-grid
+returns. The cost is that a nested sub-grid must fit one per-cell budget.
+
+A cell that fails draws a skull. Once `__allWasmTrap` is set, or when building
+`failureMarker()` itself fails, the grid uses a prebuilt skull instead: the
+marker's triangles stored in `examples/lib/skull-mesh.js`, turned into a plain
+geom3 on both the streamed and the non-streamed path, so it needs no WASM.
+`examples/lib/build-skull-mesh.mjs` generates that file; re-run it whenever
+`failureMarker()` changes.
+
+Export, measure and check need the solids, so when the last run streamed they
+re-run `jscadMain` with `stream: false` and with `__jscadProgress` set, which
+posts one `jscadProgress` per cell. Export skips its `$preview` re-run for a
+streamed grid, since the grid is re-run for the export anyway. The re-run holds
+the whole grid in memory again, so exporting a large streamed grid can still
+fail. Animation frames also run with `stream: false`, since each frame draws
 the result it returns.
 
 The frame relays `jscadCells` only while a `jscadScript` or `jscadMain` request
 is pending and `jscadProgress` only while a `jscadExportData`, `jscadMeasure`
-or `jscadCheck` request is; any other worker post is still dropped. Each relayed message restarts every pending request's kill timer
-in the frame, and `proxy.resetTimeouts()` restarts the app's RPC timers, so the
-model budget applies to one cell rather than the whole grid.
+or `jscadCheck` request is; any other worker post is still dropped. Each
+relayed message restarts every pending request's kill timer in the frame, and
+`proxy.resetTimeouts()` restarts the app's RPC timers, so the model budget
+applies to one cell rather than the whole grid.
 
 `src/streamRuns.js` holds one run at a time. A load, a parameter change, a tree
 update and the redraw after a render-engine switch each begin one with a fresh
@@ -306,10 +324,14 @@ typed arrays and a fake `length` would stall the counting and bounding-box
 loops. Each batch is then checked against the per-batch caps (256 MB, 2,000
 entities) and the run's total against 1.5 GB and 20,000 entities. Any failure,
 including a throw while counting, ends the run with the error before the batch
-is added and leaves the drawn cells in place, as a kill does. Redraws coalesce to one per 250 ms and pass the run's whole entity array, which
+is added and leaves the drawn cells in place, as a kill does.
+
+Redraws coalesce to one per 250 ms and pass the run's whole entity array, which
 starts empty, so the first redraw replaces the previous model. The three.js
 renderer keeps built objects keyed by entity object across `setScene`, so each
-redraw builds only the new cells. With zoom-to-fit on, the camera fits the
+redraw builds only the new cells. `render-regl`, which is not the default,
+still rebuilds everything on each redraw, bounded by the 250 ms coalescing.
+With zoom-to-fit on, the camera fits the
 running bounding box. The final `streamed` result draws what is pending, sets
 `data-vertices` from the running count and clears the error. `data-cells`
 counts accepted batches for the render sweep's per-cell hang guard.

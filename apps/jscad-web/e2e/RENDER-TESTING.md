@@ -35,12 +35,11 @@ budget stops at 290s: the app's RPC to the frame gives up at 300s
 (`@jscadui/postmessage`), and past that the page reports "RPC timeout" while
 the worker keeps running. The harness warns and clamps a larger value.
 
-For a streamed grid (`--grids`), both budgets apply per cell, not per grid:
-each accepted batch sets `html[data-cells]` to the new count, which restarts
-the frame's kill timer, the app's RPC timers and the harness's own hang guard.
-A grid is scored
-once it settles (`data-render` reaches `ok`/`error`), however many cells that
-took.
+For a streamed grid (`--grids`), both budgets apply per cell, not per grid.
+Each relayed `jscadCells` message restarts the frame's kill timer and the
+app's RPC timers. Each batch the app accepts sets `html[data-cells]` to the new
+count, which restarts the harness's own hang guard. A grid is scored once it
+settles (`data-render` reaches `ok`/`error`), however many cells that took.
 
 A `timeout` is followed by an `at the guard:` line: the app's
 `data-render` and error bar and the page clock, then whether the frame
