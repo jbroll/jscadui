@@ -398,6 +398,7 @@ export const jscadScript = async ({ script, url='jscad.js', base=workerState.glo
     workerState.currentUiValues = {}
     workerState.legacyProxyDefs = null
     workerState.solids = [] // C2 fix: Clear solids array to prevent memory leak on script reload
+    workerState.lastRunStreamed = false
 
     if(!script) script = readFileWeb(resolveUrl(url, base, root).url)
 
@@ -440,18 +441,20 @@ export const jscadScript = async ({ script, url='jscad.js', base=workerState.glo
     // if the main function is the default export
     if(!workerState.main && typeof workerState.scriptModule == 'function') workerState.main = workerState.scriptModule
 
+    // Check if script has legacy getParameterDefinitions and convert them.
+    // Doesn't need main to run, so a runMain:false load leaves this set too.
+    if (workerState.useParamsProxy) {
+      const legacyDefs = await workerState.scriptModule.getParameterDefinitions?.()
+      if (legacyDefs && legacyDefs.length > 0) {
+        workerState.legacyProxyDefs = convertLegacyDefs(legacyDefs)
+      }
+    }
+
     // Promotion loads the spare with the last script ahead of time, without running main
     if (!runMain) return { def: [], params: {} }
 
     let params = {}
     if (workerState.useParamsProxy) {
-      // Check if script has legacy getParameterDefinitions and convert them
-      // This allows legacy scripts to work with the params proxy system
-      const legacyDefs = await workerState.scriptModule.getParameterDefinitions?.()
-      if (legacyDefs && legacyDefs.length > 0) {
-        workerState.legacyProxyDefs = convertLegacyDefs(legacyDefs)
-      }
-
       // In proxy mode, run main to discover params, then extract defaults
       const out = await jscadMain({ params: {}, runId, held })
       if (out.proxyState) {
