@@ -31,4 +31,19 @@ describe('claims', () => {
     claims.answer({ id: 'id1', won: true })
     await expect(a).resolves.toBe(false)
   })
+
+  it('makes distinct string ids without crypto.randomUUID, which the frame worker lacks', () => {
+    const realCrypto = globalThis.crypto
+    vi.stubGlobal('crypto', { getRandomValues: realCrypto.getRandomValues.bind(realCrypto) })
+    try {
+      const post = vi.fn()
+      const claims = createClaims({ post })
+      for (let i = 0; i < 10; i++) claims.claim('k' + i, './a.scad', 1)
+      const ids = post.mock.calls.map(([message]) => message.id)
+      expect(new Set(ids).size).toBe(10)
+      for (const id of ids) expect(typeof id).toBe('string')
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
 })

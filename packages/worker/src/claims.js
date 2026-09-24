@@ -4,7 +4,11 @@
  * top-level id is a request, which the worker would answer.
  * @param {{post: (message: object) => void, randomId?: () => string}} options
  */
-export const createClaims = ({ post, randomId = () => crypto.randomUUID() }) => {
+// crypto.randomUUID needs a secure context; the frame's worker runs in a
+// sandboxed opaque-origin frame, which isn't one. getRandomValues works anywhere.
+const defaultRandomId = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('')
+
+export const createClaims = ({ post, randomId = defaultRandomId }) => {
   /** @type {Map<unknown, (won: boolean) => void>} */
   const waiting = new Map()
   return {
