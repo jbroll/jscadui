@@ -102,6 +102,10 @@ disposes its two intermediate transforms per geometry.
   the worker to the frame's main thread (the frame's opaque origin rules out
   SharedArrayBuffer and IndexedDB). Weigh that against a warm transpile now
   costing about 40ms.
+- **Model code can keep its own run alive.** It can post its own `jscadCells`
+  during a load or parameter run, and each relayed message restarts the frame's
+  kill timer, so a model that keeps posting is never killed. The damage stays
+  in the user's own session.
 
 ## Library bugs found by the sweep
 

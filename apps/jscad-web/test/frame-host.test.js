@@ -273,11 +273,19 @@ describe('streamed cells and progress', () => {
     expect(posted).toEqual([])
   })
 
-  it('relays progress while any request is pending', () => {
+  it.each(['jscadExportData', 'jscadMeasure', 'jscadCheck'])('relays progress while a %s is pending', (method) => {
     const { posted, workers, send } = setup()
-    send({ method: 'jscadExportData', id: 1, params: [] })
+    send({ method, id: 1, params: [] })
     workers[0].onmessage({ data: progress })
     expect(posted).toEqual([progress])
+  })
+
+  it.each(['jscadMain', 'jscadScript', 'jscadInit'])('drops progress while only a %s is pending', (method) => {
+    const { posted, workers, send } = setup()
+    send({ method, id: 1, params: [] })
+    posted.length = 0
+    workers[0].onmessage({ data: progress })
+    expect(posted).toEqual([])
   })
 
   it('drops a cells message that carries an id', () => {
@@ -294,6 +302,19 @@ describe('streamed cells and progress', () => {
     send({ method: 'jscadMain', id: 2, params: [] })
     vi.advanceTimersByTime(900)
     workers[0].onmessage({ data: cells })
+    vi.advanceTimersByTime(900)
+    workers[0].onmessage({ data: cells })
+    vi.advanceTimersByTime(900)
+    expect(posted.find((m) => m.id === 2)).toBeUndefined()
+    vi.advanceTimersByTime(101)
+    expect(posted.find((m) => m.id === 2)?.error?.name).toBe('TimeoutError')
+  })
+
+  it('restarts the kill timer on relayed progress during an export', () => {
+    const { posted, workers, send } = setup()
+    init(send, { timeoutMs: 1000 }, 1)
+    answer(workers[0])
+    send({ method: 'jscadExportData', id: 2, params: [] })
     vi.advanceTimersByTime(900)
     workers[0].onmessage({ data: progress })
     vi.advanceTimersByTime(900)

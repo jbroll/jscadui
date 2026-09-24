@@ -87,11 +87,15 @@ export const createFrameHost = ({
     }
   }
 
-  const RUNS_MAIN = new Set(['jscadMain', 'jscadScript'])
+  // Only the solids re-run of export, measure and check posts progress; relaying
+  // it elsewhere would let model code keep any request alive.
+  const RELAYED_WHILE = {
+    jscadCells: new Set(['jscadMain', 'jscadScript']),
+    jscadProgress: new Set(['jscadExportData', 'jscadMeasure', 'jscadCheck']),
+  }
   const relayable = (method) => {
-    if (method === 'jscadProgress') return pending.size > 0
-    if (method === 'jscadCells') return [...pending.values()].some((r) => RUNS_MAIN.has(r.method))
-    return false
+    const methods = Object.hasOwn(RELAYED_WHILE, method) && RELAYED_WHILE[method]
+    return !!methods && [...pending.values()].some((r) => methods.has(r.method))
   }
 
   // The worker sends answers plus streamed cells and progress, so anything

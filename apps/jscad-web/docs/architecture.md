@@ -283,8 +283,8 @@ hook and with `__jscadProgress` set, which posts one `jscadProgress` per
 cell.
 
 The frame relays `jscadCells` only while a `jscadScript` or `jscadMain` request
-is pending and `jscadProgress` while any request is; any other worker post is
-still dropped. Each relayed message restarts every pending request's kill timer
+is pending and `jscadProgress` only while a `jscadExportData`, `jscadMeasure`
+or `jscadCheck` request is; any other worker post is still dropped. Each relayed message restarts every pending request's kill timer
 in the frame, and `proxy.resetTimeouts()` restarts the app's RPC timers, so the
 model budget applies to one cell rather than the whole grid.
 
