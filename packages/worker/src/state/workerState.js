@@ -49,6 +49,10 @@ export class WorkerState {
     /** @type {boolean | undefined} */
     this.useParamsProxy = undefined
 
+    // Set by jscadInit when the host answers grid leaf claims
+    /** @type {boolean} */
+    this.claims = false
+
     /** @type {ImportData | undefined} */
     this.importData = undefined
 

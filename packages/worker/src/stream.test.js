@@ -55,6 +55,15 @@ describe('stream hook', () => {
     expect(emitted()).toBe(false)
   })
 
+  it('offers claim only when given one, passing the runId and marking the run emitted', async () => {
+    expect(createStreamHook({ post: vi.fn() }).hook.claim).toBeUndefined()
+    const claim = vi.fn(async () => false)
+    const { hook, emitted } = createStreamHook({ post: vi.fn(), runId: 3, claim })
+    await expect(hook.claim('0/1', './a.scad')).resolves.toBe(false)
+    expect(claim).toHaveBeenCalledWith('0/1', './a.scad', 3)
+    expect(emitted()).toBe(true)
+  })
+
   it('sets the hook for the run and clears it after, even on a throw', async () => {
     const hook = {}
     let seen

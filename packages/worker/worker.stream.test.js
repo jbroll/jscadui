@@ -4,7 +4,7 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 // exist before the dynamic import; Node has no self global by default.
 globalThis.self = { addEventListener() {}, postMessage: vi.fn() }
 
-const { jscadMain, jscadScript, lastRunStreamed, currentSolids } = await import('./worker.js')
+const { jscadInit, jscadMain, jscadScript, lastRunStreamed, currentSolids, answerClaim } = await import('./worker.js')
 const { workerState } = await import('./src/state/workerState.js')
 const { JscadToCommon } = await import('@jscadui/format-jscad')
 const { meshHash } = await import('@jscadui/format-common')
@@ -308,5 +308,69 @@ describe('jscadMain streaming repeated geometry', () => {
     await jscadMain({ params: {}, runId: 1 })
 
     expect(currentSolids().map(solid => solid.vertices.byteLength)).toEqual([36, 36])
+  })
+})
+
+describe('jscadMain claims', () => {
+  beforeEach(() => {
+    self.postMessage = vi.fn()
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    self.postMessage = vi.fn()
+    workerState.main = undefined
+    workerState.claims = false
+  })
+
+  const claimsPosted = () => self.postMessage.mock.calls.map(([message]) => message).filter((message) => message.method === 'jscadClaim')
+
+  it('offers claim on the stream hook once jscadInit enables it, tagged with the runId', async () => {
+    jscadInit({ claims: true })
+    let won
+    workerState.main = async () => {
+      won = await globalThis.__jscadStream.claim('0/1', './a.scad')
+      return []
+    }
+
+    const run = jscadMain({ params: {}, runId: 4 })
+    await vi.waitFor(() => expect(claimsPosted()).toHaveLength(1))
+    const [claim] = claimsPosted()
+    expect(claim.params).toEqual([{ key: '0/1', url: './a.scad', runId: 4 }])
+    answerClaim({ id: claim.id, won: true })
+    const result = await run
+
+    expect(won).toBe(true)
+    expect(result.streamed).toBe(true)
+    expect(result.runId).toBe(4)
+  })
+
+  it('counts a grid that wins no leaf as streamed and keeps no solids', async () => {
+    jscadInit({ claims: true })
+    workerState.main = async () => {
+      await globalThis.__jscadStream.claim('0', './a.scad')
+      return []
+    }
+
+    const run = jscadMain({ params: {}, runId: 5 })
+    await vi.waitFor(() => expect(claimsPosted()).toHaveLength(1))
+    answerClaim({ id: claimsPosted()[0].id, won: false })
+    const result = await run
+
+    expect(result.streamed).toBe(true)
+    expect(lastRunStreamed()).toBe(true)
+    expect(currentSolids()).toEqual([])
+  })
+
+  it('offers no claim unless jscadInit enabled it', async () => {
+    jscadInit({})
+    let claim = 'unset'
+    workerState.main = () => {
+      claim = globalThis.__jscadStream.claim
+      return []
+    }
+    await jscadMain({ params: {} })
+    expect(claim).toBeUndefined()
   })
 })

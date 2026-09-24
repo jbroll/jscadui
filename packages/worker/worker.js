@@ -10,6 +10,7 @@ import { extractPathInfo, readAsArrayBuffer, readAsText } from '../fs-provider/f
 import { workerState } from './src/state/workerState.js'
 import { toRefs } from './src/meshRefs.js'
 import { createStreamHook, withStreamHook } from './src/stream.js'
+import { createClaims } from './src/claims.js'
 
 /**
 @typedef Alias
@@ -35,6 +36,7 @@ import { createStreamHook, withStreamHook } from './src/stream.js'
  @prop {Object.<string,string>} [bundles] - bundle alias {name:path}
  @prop {boolean} [userInstances] called useInstances at other places
  @prop {boolean} [useParamsProxy] - use params proxy for hierarchical parameter discovery
+ @prop {boolean} [claims] - the host answers jscadClaim, so a grid claims each leaf before running it
 
 
 @typedef JscadWorker
@@ -97,6 +99,10 @@ let scriptLockTimeout = 30000
 export const setScriptLockTimeout = (ms) => {
   scriptLockTimeout = ms
 }
+
+const claims = createClaims({ post: (message) => self.postMessage(message) })
+
+export const answerClaim = claims.answer
 
 /**
  * Acquire the script execution lock
@@ -186,6 +192,7 @@ export const jscadInit = options => {
   console.log('init alias', alias, 'bundles',bundles)
   workerState.userInstances = options.userInstances
   workerState.useParamsProxy = options.useParamsProxy
+  workerState.claims = options.claims === true
 }
 /**
  * @param {import('../fs-provider/fs-provider.js').FSFileEntry | Blob} file 
@@ -260,7 +267,13 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
 
   const heldSet = held === undefined ? undefined : new Set(held)
   const { hook, emitted } = stream
-    ? createStreamHook({ post: (message, transfer) => self.postMessage(message, transfer), userInstances: workerState.userInstances, runId, held: heldSet })
+    ? createStreamHook({
+      post: (message, transfer) => self.postMessage(message, transfer),
+      userInstances: workerState.userInstances,
+      runId,
+      held: heldSet,
+      claim: workerState.claims ? claims.claim : undefined,
+    })
     : { hook: null, emitted: () => false }
   const runMain = (mainParams) => withStreamHook(hook, () => workerState.main(mainParams))
 
@@ -517,7 +530,7 @@ export const postProgress = () => self.postMessage({ method: 'jscadProgress', pa
 
 export const releaseSolids = () => { workerState.solids = [] }
 
-const handlers = { jscadScript, jscadInit, jscadMain, jscadClearTempCache, jscadClearFileCache:clearFileCache, jscadExportData }
+const handlers = { jscadScript, jscadInit, jscadMain, jscadClearTempCache, jscadClearFileCache:clearFileCache, jscadExportData, __CLAIM__: answerClaim }
 // allow main thread to call worker methods and any method from the loaded script
 const handlersProxy = new Proxy(handlers, {
   get(target, prop, _receiver) {
