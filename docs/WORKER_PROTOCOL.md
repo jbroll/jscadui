@@ -155,6 +155,13 @@ with a top-level id is a request the worker would answer. The frame answers
 `won: false` to a worker outside the run named by `runId` and to any claim
 made after the run has closed.
 
+A worker that joins a `jscadMain` run late is sent that same `jscadMain`
+request, and reloads whichever script the frame had most recently relayed as
+`jscadScript` when the `jscadMain` arrived, even if that load had not finished
+yet — not necessarily the last script that finished loading without error. A
+load that answers with an error is not the script a joiner reloads; the frame
+falls back to the last one that did.
+
 ### supersede and SupersededError
 
 The app may set `supersede: true` on the options of `jscadScript` or

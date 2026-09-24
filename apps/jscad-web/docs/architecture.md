@@ -415,14 +415,19 @@ With `claims: true` in `jscadInit` (the frame always sets it), the stream hook
 gains `claim(key, url)`. A leaf's key is its index path (`"2/14"`); item lists
 are static, so every worker in a run computes the same keys. The grid claims
 each leaf before running it and skips one it loses without requiring it; a
-sub-grid is walked by every worker regardless of claims, so each worker
-requires every file in the tree but transpiles only the leaves it wins. A
-`stream: false` run — export's re-run, an animation frame, agent evaluation —
-has no claim hook and runs every leaf itself.
+sub-grid is walked by every worker regardless of claims, so every worker
+requires every grid file in the tree but transpiles only the leaf files it
+wins. A `stream: false` run — export's re-run, an animation frame, agent
+evaluation — has no claim hook and runs every leaf itself.
 
 Every streaming `jscadMain` or `jscadScript` is a run. Its first won claim
 fans it out: the same request goes to up to `poolSize - 1` more workers,
-which join late and take whatever keys are still open. A `jscadCells`
+which join late and take whatever keys are still open. A worker joining a
+`jscadMain` run loads the newest `jscadScript` the frame had relayed when that
+`jscadMain` arrived (`sentScript`), not necessarily the last script that
+finished loading, since a load can still be in flight when the run starts; a
+load that answers with an error resets `sentScript` back to the last good
+script. A `jscadCells`
 notification is relayed only when its `runId` names an open run the sending
 worker still belongs to; relaying one clears that member's current leaf, so a
 worker lost afterward is not reported as having lost it. The app gets one
