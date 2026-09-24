@@ -223,12 +223,17 @@ export const createFrameHost = ({
     slot.worker.postMessage(out, collectBuffers(out))
   }
 
+  // The app does not know about a retire, so a script it sent meanwhile is the
+  // model it expects; reloading lastScript would replace it.
+  const needsReload = (slot) => !slot.loaded && lastScript &&
+    ![...slot.pending.values()].some((r) => !r.onAnswer && r.method === 'jscadScript')
+
   // Requests that arrive during the reload wait behind it, so they reach the
   // worker in the order the app sent them.
   const relay = (message) => {
     const slot = workers.active
     if (slot.held) slot.held.push(message)
-    else if (!slot.loaded && lastScript && NEEDS_MODEL.has(message.method)) ensureLoaded(slot, message)
+    else if (NEEDS_MODEL.has(message.method) && needsReload(slot)) ensureLoaded(slot, message)
     else dispatch(slot, message)
   }
 

@@ -483,6 +483,21 @@ describe('trap retirement', () => {
   })
 })
 
+describe('reload after a trap', () => {
+  it('does not load the old script over one the app is loading', () => {
+    const { workers, send } = withSpare()
+    send({ method: 'jscadMain', id: 4, params: [{ params: {} }] })
+    failLast(workers[0], 'RuntimeError')
+    send({ method: 'jscadScript', id: 5, params: [{ script: 'next' }] })
+    send({ method: 'jscadMain', id: 6, params: [{ params: {} }] })
+
+    const sent = workers[1].postMessage.mock.calls.slice(2).map(([m]) => m)
+    expect(sent.map((m) => m.method)).toEqual(['jscadScript', 'jscadMain'])
+    expect(sent[0].params).toEqual([{ script: 'next' }])
+    expect(sent.some((m) => m.params?.[0]?.runMain === false)).toBe(false)
+  })
+})
+
 describe('kill with a spare', () => {
   beforeEach(() => vi.useFakeTimers())
   afterEach(() => vi.useRealTimers())

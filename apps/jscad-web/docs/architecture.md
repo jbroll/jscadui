@@ -200,7 +200,8 @@ so before it runs `jscadMain`, `jscadExportData`, `jscadMeasure` or
 the last three also the last `jscadMain` with `stream: false`, since they read
 that run's solids. Requests that arrive meanwhile wait behind the reload in
 order; a reload that fails answers the request with its error. A `jscadScript`
-from the app loads the worker itself and skips this. The cost is a second
+from the app loads the worker itself and skips this, including while it is
+still running, since it is the model the app expects. The cost is a second
 worker's memory: the loaded bundles, WASM instances and file map, held idle
 from the first script onward.
 
