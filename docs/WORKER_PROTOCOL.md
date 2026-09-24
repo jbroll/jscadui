@@ -77,6 +77,9 @@ grid calls it once per cell, which posts `jscadProgress` (`params: []`). The
 stream hook also offers `progress()`, which posts the same message. The frame
 relays `jscadProgress` only while one of those three requests is pending.
 
+With `useGpuNormals` set on the manifold package, each mesh entity arrives
+indexed (`vertices`, `indices`) and carries no `normals`.
+
 ### jscadExportData
 Export model to a format.
 

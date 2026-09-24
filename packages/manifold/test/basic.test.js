@@ -271,6 +271,24 @@ describe('@jscadui/manifold', () => {
         expect(geom.vertices[v * 3 + 2]).toBeCloseTo(sourceMesh.vertProperties[v * numProp + 2])
       }
     })
+
+    it('does not change polygons or volume for a subtracted shape', () => {
+      const box = cube({ size: 10 })
+      const hole = sphere({ radius: 6, segments: 16 })
+
+      setUseGpuNormals(false)
+      const withNormals = subtract(box, hole)
+      const polyCountWithNormals = withNormals.polygons.length
+      const volumeWithNormals = measureVolume(withNormals)
+
+      setUseGpuNormals(true)
+      const withoutNormals = subtract(box, hole)
+      const polyCountWithoutNormals = withoutNormals.polygons.length
+      const volumeWithoutNormals = measureVolume(withoutNormals)
+
+      expect(polyCountWithoutNormals).toBe(polyCountWithNormals)
+      expect(volumeWithoutNormals).toBeCloseTo(volumeWithNormals, 5)
+    })
   })
 
   describe('mirror on 2D geometry', () => {

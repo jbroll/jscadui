@@ -264,8 +264,9 @@ the first allocation for drawing: 256MB of buffers and 2000 entities. Over a
 cap is a model error, not an allocation. There is no separate vertex cap: a
 vertex costs at least 12 bytes, so the buffer cap bounds vertices at about 22M,
 and an 8M one refused whole-library `ALL.js` grids that were genuine geometry.
-The NopSCADlib tests grid, 13.3M triangles at 84 bytes each, is still over
-the buffer cap. `aiEvaluate.js`
+Manifold meshes arrive indexed without normals: about 18 bytes a triangle for
+a typical mesh (about half a vertex, 12 bytes, plus 12 bytes of indices), so
+the 256 MB cap covers about 15M triangles. `aiEvaluate.js`
 re-checks the same caps so the agent cannot be told a model evaluated when
 nothing was drawn.
 

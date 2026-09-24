@@ -85,12 +85,6 @@ NopSCADlib `extrusion_brackets.scad` 3087 → 963 MB, `openscad/bosl2/ALL.js`
 after each cell, which by itself changed no Node peak, and `normalizeAndPlace`
 disposes its two intermediate transforms per geometry.
 
-- **Cut the per-triangle cost of drawn geometry.** The worker sends unindexed
-  triangles with CPU normals, 84 bytes a triangle, and the app never sets
-  `useGpuNormals`. Indexed geometry with GPU-computed normals is about 18 bytes,
-  which would cut page memory for every model and let a streamed grid hold
-  more cells under its 1.5 GB cap. The 256 MB cap on a model or one streamed
-  cell would then cover about 15M triangles instead of about 3M.
 - **Top-level `ALL.js` and `openscad/ALL.js` still hit the 290s kill.** A
   nested sub-grid arrives at its parent as one streamed cell, not a stream of
   its own, so one cell can be a whole sub-grid's worth of work and still has
