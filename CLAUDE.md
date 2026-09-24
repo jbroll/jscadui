@@ -41,8 +41,7 @@ Skip files auto-discovered from `skip.txt` in each example directory.
 
 ## Merge Workflow
 
-There are no pull requests. Develop on a branch, fast-forward it into `main`,
-push:
+Develop on a branch, fast-forward it into `main`, push:
 
 ```bash
 git checkout main
@@ -53,6 +52,11 @@ git push
 `--ff-only` is the point: `main` stays linear. If the merge is refused, rebase
 the branch on `main` and try again. Everything the branch needs verified must be
 green before the merge, not after.
+
+Pull requests are used only as the CI channel for sessions that can't reach
+simple-ci: opening one makes the GPU host run the OpenSCAD suite on its head
+commit (`ci/gpu-poll.mjs`, see `ci/README.md`) and report back on the PR. Never
+merge through GitHub; fast-forward as above, and GitHub marks the PR merged.
 
 ## Refactoring / Future Work
 

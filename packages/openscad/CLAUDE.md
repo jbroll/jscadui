@@ -35,7 +35,13 @@ node bin/test-harness.js ../../apps/jscad-web/examples/openscad/nopscadlib
 npm run test:local
 ```
 
-> **NEVER work around CI.** `npm test` is the only sanctioned way to run the full comparison
+> **gpu-poll is also sanctioned.** The GPU host runs `ci/gpu-poll.mjs`, which runs the same
+> `ci/test` on the head commit of every open PR from this repo and reports an `openscad-gpu`
+> commit status plus a PR comment. A `success` status on the exact commit counts as GPU
+> verification. Use it when simple-ci is not reachable (e.g. cloud sessions): push the branch,
+> open a PR, wait for the status. Setup: `ci/README.md`.
+
+> **NEVER work around CI.** `npm test` (or gpu-poll) is the only sanctioned way to run the full comparison
 > suite. Do not manually rsync to the GPU, do not SSH in and run test-harness by hand, do not
 > improvise alternate CI paths. If `npm test` fails due to infrastructure (connection refused,
 > host unreachable, simple-ci errors), **stop and investigate the CI issue first** or raise it
