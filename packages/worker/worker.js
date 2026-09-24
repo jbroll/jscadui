@@ -329,6 +329,7 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
 
     const result = { entities, treeTime, execTime, convTime }
     if (emitted() || streamParts) Object.assign(result, { streamed: true, runId })
+    if (globalThis.__allWasmTrap) result.trapped = true
 
     // Include proxy state info in result
     if (proxyState) {
@@ -372,10 +373,10 @@ const importReg = /import(?:(?:(?:[ \n\t]+([^ *\n\t{},]+)[ \n\t]*(?:,|[ \n\t]+))
 const exportReg = /export.*from/
 
 /**
- * @param {{script:string,url?:string,base?:string,root?:string,useGpuNormals?:boolean,runId?:unknown,held?:string[]}} param0
+ * @param {{script:string,url?:string,base?:string,root?:string,useGpuNormals?:boolean,runId?:unknown,held?:string[],runMain?:boolean}} param0
  * @returns {Promise<import('@jscadui/format-common').JscadScriptResultWithParams>}
  */
-export const jscadScript = async ({ script, url='jscad.js', base=workerState.globalBase, root=base, useGpuNormals: gpuNormals, runId, held }) => {
+export const jscadScript = async ({ script, url='jscad.js', base=workerState.globalBase, root=base, useGpuNormals: gpuNormals, runId, held, runMain = true }) => {
   // I1 fix: Increment generation to invalidate any timed-out scripts still running
   const myGeneration = workerState.nextGeneration()
   // An ALL.js grid yields between cells and reads this to stop once it is stale
@@ -438,6 +439,9 @@ export const jscadScript = async ({ script, url='jscad.js', base=workerState.glo
     workerState.main = workerState.scriptModule.main
     // if the main function is the default export
     if(!workerState.main && typeof workerState.scriptModule == 'function') workerState.main = workerState.scriptModule
+
+    // Promotion loads the spare with the last script ahead of time, without running main
+    if (!runMain) return { def: [], params: {} }
 
     let params = {}
     if (workerState.useParamsProxy) {

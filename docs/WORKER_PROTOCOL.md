@@ -27,6 +27,7 @@ interface RunScriptOptions {
   root?: string     // Root path constraint
   runId?: unknown   // passed to the main run; see jscadMain
   held?: string[]   // passed to the main run; see jscadMain
+  runMain?: boolean // default true
 }
 
 interface JscadScriptResult {
@@ -37,6 +38,11 @@ interface JscadScriptResult {
   convertTime: number
 }
 ```
+
+With `runMain: false`, `jscadScript` loads the module and waits for WASM to be
+ready, same as a normal load, but resolves `{ def: [], params: {} }` without
+calling `main`. A promoted spare worker uses this to have the last script
+loaded and ready before it takes over, then replays `jscadMain` separately.
 
 ### jscadMain
 Re-run main() with new parameters.
@@ -56,8 +62,16 @@ interface JscadMainResult {
   convertTime: number
   streamed?: true
   runId?: unknown    // set only when streamed
+  trapped?: true     // set when the worker's WASM instance has trapped
 }
 ```
+
+`trapped: true` is set on a `jscadMain` or `jscadScript` result (never on a
+rejection) when `globalThis.__allWasmTrap` is set, meaning some earlier cell in
+this worker trapped the shared WASM instance. Once set it is never cleared, so
+every later result from this worker carries it; the worker is expected to be
+retired, not reused. An error still rejects with its original `name` — a
+`WebAssembly.RuntimeError` arrives as `RuntimeError`, as before.
 
 When `stream` is true (the default) and the loaded script is an ALL.js grid,
 only the outermost grid emits: it streams each cell as a `jscadCells`
