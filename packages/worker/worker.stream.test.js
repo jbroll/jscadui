@@ -4,7 +4,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 // exist before the dynamic import; Node has no self global by default.
 globalThis.self = { addEventListener() {}, postMessage: vi.fn() }
 
-const { jscadMain, jscadScript, lastRunStreamed } = await import('./worker.js')
+const { jscadMain, jscadScript, lastRunStreamed, currentSolids } = await import('./worker.js')
 const { workerState } = await import('./src/state/workerState.js')
 
 describe('jscadMain streaming', () => {
@@ -95,5 +95,71 @@ describe('jscadMain streaming', () => {
     await expect(jscadMain({ params: {} })).rejects.toThrow('boom')
 
     expect(lastRunStreamed()).toBe(false)
+  })
+
+  it('streams the parts of a multi-part model one batch per solid, in order', async () => {
+    const solids = [
+      { type: 'mesh', vertices: new Float32Array(9) },
+      { type: 'mesh', vertices: new Float32Array(9) },
+      { type: 'mesh', vertices: new Float32Array(9) },
+    ]
+    workerState.main = () => solids
+
+    const result = await jscadMain({ params: {}, runId: 7 })
+
+    const calls = self.postMessage.mock.calls.filter(([message]) => message.method === 'jscadCells')
+    expect(calls).toHaveLength(3)
+    calls.forEach(([message]) => {
+      expect(message.params[0].entities).toHaveLength(1)
+      expect(message.params[0].runId).toBe(7)
+    })
+
+    expect(result.streamed).toBe(true)
+    expect(result.runId).toBe(7)
+    expect(result.entities).toEqual([])
+    expect(currentSolids()).toHaveLength(3)
+    expect(lastRunStreamed()).toBe(false)
+  })
+
+  it('returns the whole result for a multi-part model with no runId', async () => {
+    workerState.main = () => [
+      { type: 'mesh', vertices: new Float32Array(9) },
+      { type: 'mesh', vertices: new Float32Array(9) },
+      { type: 'mesh', vertices: new Float32Array(9) },
+    ]
+
+    const result = await jscadMain({ params: {} })
+
+    expect(self.postMessage.mock.calls.some(([message]) => message.method === 'jscadCells')).toBe(false)
+    expect(result.streamed).toBeUndefined()
+    expect(result.entities).toHaveLength(3)
+  })
+
+  it('returns the whole result for a single-part model even with a runId', async () => {
+    workerState.main = () => [{ type: 'mesh', vertices: new Float32Array(9) }]
+
+    const result = await jscadMain({ params: {}, runId: 7 })
+
+    expect(self.postMessage.mock.calls.some(([message]) => message.method === 'jscadCells')).toBe(false)
+    expect(result.streamed).toBeUndefined()
+    expect(result.entities).toHaveLength(1)
+  })
+
+  it('evaluates a manifold solid before posting its batch', async () => {
+    const calls = []
+    const numTri = vi.fn(() => calls.push('numTri'))
+    const manifoldSolid = { type: 'mesh', vertices: new Float32Array(9), isManifoldGeom3: true, manifold: { numTri } }
+    workerState.main = () => [manifoldSolid, { type: 'mesh', vertices: new Float32Array(9) }]
+    const originalPost = self.postMessage
+    self.postMessage = vi.fn((message) => {
+      if (message.method === 'jscadCells') calls.push('post')
+      originalPost(message)
+    })
+
+    await jscadMain({ params: {}, runId: 7 })
+
+    self.postMessage = originalPost
+    expect(numTri).toHaveBeenCalled()
+    expect(calls.indexOf('numTri')).toBeLessThan(calls.indexOf('post'))
   })
 })

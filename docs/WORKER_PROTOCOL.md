@@ -65,13 +65,21 @@ emitted resolves with `entities: []`, `streamed: true` and the request's
 `runId`; a normal (non-grid) run is unaffected and returns entities as before.
 `jscadScript` passes its `runId` to the main run it starts.
 
+A request with `runId` set whose `main` did not stream itself but returned
+more than one solid is streamed too: the worker posts one `jscadCells` batch
+per solid, in the order `main` returned them, then resolves the same way
+(`entities: []`, `streamed: true`, `runId`). Unlike the grid case, the worker
+keeps the solids afterward, so export needs no re-run. A request with no
+`runId`, or whose `main` returns zero or one solid, gets the whole result in
+one piece as before.
+
 During a streamed run the worker posts `jscadCells`, `params: [{ entities,
 runId }]`, one per emitted cell, with that cell's typed-array buffers passed as
 transfer. Notifications carry no request id, so `runId` is how the app tells one
 run's cells from an older run's still arriving.
 
-`jscadExportData`, `jscadMeasure` and `jscadCheck` need the solids, which a
-streamed run does not keep, so after a streamed run they re-run main with
+`jscadExportData`, `jscadMeasure` and `jscadCheck` need the solids. A grid run
+does not keep them, so after one of those the worker re-runs main with
 `stream: false`. During that re-run `globalThis.__jscadProgress` is set, and the
 grid calls it once per cell, which posts `jscadProgress` (`params: []`). The
 stream hook also offers `progress()`, which posts the same message. The frame

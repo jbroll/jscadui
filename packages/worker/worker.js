@@ -299,9 +299,16 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
 
     if (stream) workerState.lastRunStreamed = emitted()
     let entities = []
+    const streamParts = Boolean(hook) && !emitted() && runId !== undefined && workerState.solids.length > 1
     if (emitted()) {
       // Each cell went out as it finished; keeping them would hold the whole grid again
       workerState.solids = []
+    } else if (streamParts) {
+      // main returned instead of streaming itself; send one part per solid so
+      // export still finds them all in workerState.solids without a re-run
+      time = performance.now()
+      for (const solid of workerState.solids) hook.emit([solid])
+      execTime = performance.now() - time
     } else {
       // Force evaluation of lazy Manifold geometries
       // This triggers actual CSG computation; result is cached for getMesh()
@@ -323,7 +330,7 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
     }
 
     const result = { entities, treeTime, execTime, convTime }
-    if (emitted()) Object.assign(result, { streamed: true, runId })
+    if (emitted() || streamParts) Object.assign(result, { streamed: true, runId })
 
     // Include proxy state info in result
     if (proxyState) {

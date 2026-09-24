@@ -137,7 +137,7 @@ drove the local worker. `jscadInit`, `jscadScript`, `jscadSetFiles`,
 buffers ride the transfer list on both hops, so they cross without a copy.
 
 Notifications relay the same way. The worker sends two, a grid's `jscadCells`
-and `jscadProgress` (see Streamed grids), and `frameWorkerTerminated` is the
+and `jscadProgress` (see Streamed runs), and `frameWorkerTerminated` is the
 only message the frame originates; `frameSetup.js` registers those three with
 `messageProxy`. `handlers.entities` beside it is `main.js`'s own sink, which
 it calls directly for restores and cached results as well as for a fresh
@@ -270,7 +270,7 @@ the 256 MB cap covers about 15M triangles. `aiEvaluate.js`
 re-checks the same caps so the agent cannot be told a model evaluated when
 nothing was drawn.
 
-### Streamed grids
+### Streamed runs
 
 An `ALL.js` grid does not return its geometry. While the worker runs a model's
 `main`, for a load or a `jscadMain`, it sets `globalThis.__jscadStream`, and
@@ -278,6 +278,14 @@ the grid emits each placed cell through it as a `jscadCells` notification
 (`{ entities, runId }`), then disposes the cell. The result is
 `{ entities: [], streamed: true, runId }`, where `runId` is the one the app
 sent in the request options.
+
+A model that is not a grid but still returns more than one solid streams too,
+as long as the request carries a `runId`: the worker posts each solid as its
+own `jscadCells` batch, in the order `main` returned them, after `main`
+returns rather than as it runs. Unlike the grid case the worker keeps the
+solids afterward, so export, measure and check need no re-run for this path.
+Each batch holds one solid, so instancing only groups matching geometry within
+a batch, not across the model's parts.
 
 Only the outermost grid streams. The generated template's `main` saves
 `__jscadStream`, sets it to `null` while its cells run and restores it after,
@@ -293,13 +301,14 @@ geom3 on both the streamed and the non-streamed path, so it needs no WASM.
 `examples/lib/build-skull-mesh.mjs` generates that file; re-run it whenever
 `failureMarker()` changes.
 
-Export, measure and check need the solids, so when the last run streamed they
-re-run `jscadMain` with `stream: false` and with `__jscadProgress` set, which
-posts one `jscadProgress` per cell. Export skips its `$preview` re-run for a
-streamed grid, since the grid is re-run for the export anyway. The re-run holds
-the whole grid in memory again, so exporting a large streamed grid can still
-fail. Animation frames also run with `stream: false`, since each frame draws
-the result it returns.
+Export, measure and check need the solids. A grid run disposes each cell as it
+streams, so when the last run was a grid they re-run `jscadMain` with
+`stream: false` and with `__jscadProgress` set, which posts one
+`jscadProgress` per cell. Export skips its `$preview` re-run for a streamed
+grid, since the grid is re-run for the export anyway. The re-run holds the
+whole grid in memory again, so exporting a large streamed grid can still fail.
+Animation frames also run with `stream: false`, since each frame draws the
+result it returns.
 
 The frame relays `jscadCells` only while a `jscadScript` or `jscadMain` request
 is pending and `jscadProgress` only while a `jscadExportData`, `jscadMeasure`
