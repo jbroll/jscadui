@@ -35,6 +35,15 @@ describe('toRefs', () => {
     expect(transferable).toHaveLength(3)
   })
 
+  it('leaves meshes unhashed and the transfer list alone without held', () => {
+    const entity = mesh()
+    const transferable = [entity.vertices]
+    const [out] = toRefs([entity], undefined, transferable)
+    expect(out).toBe(entity)
+    expect(out.hash).toBeUndefined()
+    expect(transferable).toEqual([entity.vertices])
+  })
+
   it('passes lines entities through unchanged', () => {
     const lines = { type: 'lines', vertices: new Float32Array(6) }
     const transferable = [lines.vertices]

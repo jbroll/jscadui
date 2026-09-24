@@ -414,7 +414,10 @@ counts accepted batches for the render sweep's per-cell hang guard.
 `src/meshRefs.js` keeps the meshes the last completed run drew, keyed by the
 `hash` the worker puts on each mesh. Every request that carries a `runId` also
 sends `held`, the list of those hashes, and the worker sends a mesh whose hash
-is listed as a `ref` with no buffers (see `docs/WORKER_PROTOCOL.md`). The app
+is listed as a `ref` with no buffers (see `docs/WORKER_PROTOCOL.md`). The worker
+hashes meshes only for a request that carries `held`, so a run without it (an
+animation frame, an agent evaluation) returns meshes with no `hash`, and
+remembering what it drew leaves the map empty. The app
 resolves each ref before the cap checks, in both the whole-result and the
 streamed path, so a resolved mesh's bytes count toward the caps as if the
 worker had sent them. A ref whose `color`, `transforms`, `isTransparent` and

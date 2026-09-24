@@ -25,7 +25,7 @@ const withCopies = (entities) => {
  * @param {{post: (message: object, transfer?: Transferable[]) => void, userInstances?: boolean, runId?: unknown, held?: Set<string>}} options
  *   runId is echoed on every batch so the app can drop batches of a run it has moved past
  */
-export const createStreamHook = ({ post, userInstances, runId, held = new Set() }) => {
+export const createStreamHook = ({ post, userInstances, runId, held }) => {
   let emitted = false
   const hook = {
     emit(geoms) {

@@ -7,13 +7,15 @@ const buffersOf = (entity) => BUFFERS.map(field => entity[field]).filter(view =>
 
 /**
  * Replaces each mesh the page already holds with a reference to it by hash,
- * and takes the buffers of those meshes off the transfer list.
+ * and takes the buffers of those meshes off the transfer list. Without `held`
+ * nothing is hashed: only a run the app keeps meshes for needs hashes.
  * @param {object[]} entities
- * @param {Set<string>} held
+ * @param {Set<string> | undefined} held
  * @param {unknown[]} transferable
  * @returns {object[]}
  */
 export const toRefs = (entities, held, transferable) => {
+  if (!held) return entities
   const dropped = []
   const out = entities.map(entity => {
     if (entity.type !== 'mesh') return entity

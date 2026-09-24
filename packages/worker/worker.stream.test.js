@@ -222,6 +222,23 @@ describe('jscadMain with held meshes', () => {
     expect(result.entities[0]).toMatchObject({ hash, ref: true })
   })
 
+  it('hashes no mesh for a run without held, streamed or whole', async () => {
+    workerState.main = () => [triangle(0), triangle(1)]
+    await jscadMain({ params: {}, runId: 1 })
+    const cells = self.postMessage.mock.calls.filter(([message]) => message.method === 'jscadCells')
+    expect(cells.map(([message]) => message.params[0].entities[0].hash)).toEqual([undefined, undefined])
+
+    workerState.main = () => [triangle(0)]
+    const result = await jscadMain({ params: {} })
+    expect(result.entities[0].hash).toBeUndefined()
+  })
+
+  it('hashes every mesh for a run with an empty held', async () => {
+    workerState.main = () => [triangle(0)]
+    const result = await jscadMain({ params: {}, held: [] })
+    expect(result.entities[0].hash).toMatch(/^[0-9a-f]{16}$/)
+  })
+
   it('reconverts the same model on a second run after the first run transferred its buffers', async () => {
     const solids = [triangle(0), triangle(1)]
     const received = []

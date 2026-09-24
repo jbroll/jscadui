@@ -258,7 +258,7 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
   let execTime = 0
   let convTime = 0
 
-  const heldSet = new Set(held ?? [])
+  const heldSet = held === undefined ? undefined : new Set(held)
   const { hook, emitted } = stream
     ? createStreamHook({ post: (message, transfer) => self.postMessage(message, transfer), userInstances: workerState.userInstances, runId, held: heldSet })
     : { hook: null, emitted: () => false }

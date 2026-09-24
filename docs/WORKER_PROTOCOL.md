@@ -96,10 +96,15 @@ runId }]`, one per emitted cell, with that cell's typed-array buffers passed as
 transfer. Notifications carry no request id, so `runId` is how the app tells one
 run's cells from an older run's still arriving.
 
-Every `mesh` entity, in the whole result and in each `jscadCells` batch,
-carries `hash`: a 16-character lowercase hex 64-bit FNV-1a hash of its
-`vertices`, `indices`, `normals` and `colors` bytes (`meshHash` in
-`@jscadui/format-common`). When the request's `held` contains that hash, the
+When the request carries `held`, even an empty array, every `mesh` entity in
+the whole result and in each `jscadCells` batch carries `hash`: a 16-character
+lowercase hex string from two 32-bit FNV-1a lanes fed the entity's `type` and
+its `vertices`, `indices`, `normals` and `colors` contents, 32-bit words at a
+time, each field prefixed by its name and byte length (`meshHash` in
+`@jscadui/format-common`). The hash is never stored, so the function can change
+between releases. Hashing 400K indexed triangles takes about 20 ms in Node, so a
+request without `held` (an animation frame, an export re-run, an agent
+evaluation, the frame's own replay) gets meshes with no `hash`. When `held` contains a mesh's hash, the
 worker sends a `MeshRef` in its place, with no typed arrays and no transfer
 buffers, and the app draws the mesh it already holds under that hash. A buffer a
 ref'd mesh shares with another entity in the same message stays in the transfer
@@ -184,7 +189,7 @@ interface MeshEntity {
   colors?: Float32Array     // Per-vertex
   isTransparent?: boolean
   transforms?: number[]     // 4x4 matrix
-  hash: string              // 16 hex chars, see jscadMain
+  hash?: string             // 16 hex chars, only when the request carried held; see jscadMain
 }
 
 // Sent in place of a MeshEntity whose hash was in the request's held
