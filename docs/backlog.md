@@ -142,12 +142,20 @@ spare and abandons stale runs.
 - **A reload step that fails with `RuntimeError` leaves the trapped worker
   active.** The queued request gets the error and the requests behind it run on
   that worker, until an app answer traps and retires it.
+- **An export after a failed run uses the last successful params.** The frame
+  records `lastMain` only when a `jscadMain` succeeds, so after one fails with
+  `RuntimeError` a promoted worker replays the previous params, not the ones the
+  user last set.
+- **The frame's replay steps carry the app's `held`.** The worker hashes every
+  mesh for an answer the frame drops. Strip `held` and `runId` from the replay.
 
 ## Mesh reuse
 
 - **Agent evaluate or an animation frame can `remember` while a run with older
   `held` is in flight.** Its refs then name hashes the map no longer holds and
-  fail. Fix by falling back to the previous map in `resolve`.
+  fail. Those runs send no `held`, so their meshes carry no hash and `remember`
+  empties the map: every ref in the in-flight run fails. Fix by falling back to
+  the previous map in `resolve`.
 - **The same held entity twice in one scene rebuilds an extra three.js object
   on each streamed redraw.**
 - **A part whose conversion throws mid-stream clears the solids** after earlier

@@ -104,7 +104,9 @@ time, each field prefixed by its name and byte length (`meshHash` in
 `@jscadui/format-common`). The hash is never stored, so the function can change
 between releases. Hashing 400K indexed triangles takes about 20 ms in Node, so a
 request without `held` (an animation frame, an export re-run, an agent
-evaluation, the frame's own replay) gets meshes with no `hash`. When `held` contains a mesh's hash, the
+evaluation) gets meshes with no `hash`. The frame's replay on a promoted worker
+reuses the app's recorded options, `held` included, so it is hashed although
+the frame drops its answer. When `held` contains a mesh's hash, the
 worker sends a `MeshRef` in its place, with no typed arrays and no transfer
 buffers, and the app draws the mesh it already holds under that hash. A buffer a
 ref'd mesh shares with another entity in the same message stays in the transfer
