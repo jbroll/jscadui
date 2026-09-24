@@ -102,11 +102,20 @@ the same job still collide, so each job exits 2 if one of its ports is already
 taken rather than test a server that disappears when its own job ends.
 Edit `RENDER_ARGS` in `ci/render` to change scope/concurrency.
 
-`sci push jscadui/render-grids` runs the same setup over the 44 `ALL.js` grids
+`sci push jscadui/render-grids` runs the same setup over the 40 `ALL.js` grids
 instead (`--dir . --grids`, 320s hang guard, concurrency 4, writing
 `e2e/render-grids-report.json`). A grid holds every cell's geometry at once, so
 it is much heavier than one model. `sci` takes the script name as the job name,
 which is why this is a separate file rather than a flag on `ci/render`.
+
+Five grids are aggregates, every item another `ALL.js`: the top-level
+`ALL.js`, `openscad/ALL.js`, and the `bosl`, `bosl2` and `snippet` ones. Each
+reruns grids the pool already covers, in one page, so with `--grids` the sweep
+holds them back until the pool has finished and then runs them one at a time.
+They stay in the report and the baseline. The generator writes no grid whose
+only item is one sub-grid: the parent loads that sub-grid directly, so
+`openscad/ALL.js` lists `./nopscadlib/NopSCADlib/tests/ALL.js` rather than a
+chain of one-item wrappers around it.
 
 ## The modeling code a sweep actually measures
 
@@ -148,10 +157,13 @@ commit the CI run reports is that worktree's HEAD, not the code measured — a
 field nobody can trust is worse than none.
 
 `e2e/render-grids-baseline.json` is the same thing for the grid sweep: **35 of
-44** on manifold, CI job `50a257d37f27c7f3`. Each failure carries its `status`,
-the cells that drew a marker, and why the grid itself died. `docs/backlog.md`
-groups them by cause. Six grids, the three NopSCADlib ones among them, crash
-the renderer before the frame's 290s kill. The sweep listens for the page's
+44** on manifold, CI job `50a257d37f27c7f3`, which is 34 of 40 once the four
+one-item wrapper grids that run measured are dropped. No CI run has measured
+the grids since the wrappers went and the grids started yielding between
+cells. Each failure carries its `status`, the cells that drew a marker, and
+why the grid itself died. `docs/backlog.md` groups them by cause. In that run
+six grids, the three NopSCADlib ones among them, crashed the renderer before
+the frame's 290s kill; three of the six were wrappers. The sweep listens for the page's
 `crash` event and scores them `crash` at once, where it used to wait out the
 320s guard on a dead page.
 

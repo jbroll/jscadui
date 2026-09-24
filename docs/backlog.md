@@ -53,13 +53,15 @@ exits nonzero only on a regression against `render-baseline.json`. See
 
 A grid loads every model in one worker as one job, under one model budget
 (120s, `main.js`; 290s in the sweep), and holds all their geometry at once so it can place them.
-44 grids; the largest are NopSCADlib's 145 tests, dotSCAD's 62 examples and
+40 grids; the largest are NopSCADlib's 147-cell tests grid, dotSCAD's 64-cell examples grid and
 about 36 per BOSL2 part. Grids nest, so a nested grid is one cell of its
-parent.
+parent. The generator writes no grid whose only item is one sub-grid, and the
+sweep runs the five aggregates (every item a sub-grid) after the rest, one at
+a time.
 
 A cell whose model throws no longer takes the grid with it: it draws a
 skull-and-crossbones and the sweep scores that grid `partial`, naming the dead
-cells. 35 of 44 rendered before the change below (`sci push
+cells. 35 of 44 rendered before the changes below (`sci push
 jscadui/render-grids`, job `50a257d37f27c7f3`, 320s hang guard per grid);
 `apps/jscad-web/e2e/render-grids-baseline.json` holds the per-grid state and
 each partial grid's dead cells. After the first `WebAssembly.RuntimeError` a

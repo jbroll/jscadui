@@ -310,6 +310,17 @@ function renameFilesInDirectory(dir, files, examplesRoot) {
   return renamed
 }
 
+/** Items for the subdirectories that have models: an index file, or the grid that stands for the subdir. */
+function subdirItems(subdirResults) {
+  return subdirResults.filter(subdir => subdir.hasModels).map(subdir => {
+    if (isIndexOnlyDirectory(subdir.path)) {
+      const indexFile = existsSync(join(subdir.path, 'index.js')) ? 'index.js' : 'index.scad'
+      return `./${subdir.name}/${indexFile}`
+    }
+    return `./${subdir.name}/${subdir.gridRef}`
+  })
+}
+
 /**
  * Process directory manifest-driven: generate ALL.js for any directory with models
  */
@@ -328,7 +339,7 @@ function processDirectory(dir, examplesRoot, depth = 0, scopes = []) {
   })
 
   const indent = '  '.repeat(depth)
-  const stats = { dirs: 0, files: 0, renamed: 0, hasModels: false }
+  const stats = { dirs: 0, files: 0, renamed: 0, hasModels: false, gridRef: 'ALL.js' }
 
   try {
     const entries = readdirSync(dir, { withFileTypes: true })
@@ -365,20 +376,7 @@ function processDirectory(dir, examplesRoot, depth = 0, scopes = []) {
       items.push('./' + filename)
     }
 
-    // Add subdirectories that have models
-    for (const subdir of subdirResults) {
-      if (subdir.hasModels) {
-        // Check if subdirectory is index-only
-        if (isIndexOnlyDirectory(subdir.path)) {
-          // Add direct reference to index file
-          const indexFile = existsSync(join(subdir.path, 'index.js')) ? 'index.js' : 'index.scad'
-          items.push(`./${subdir.name}/${indexFile}`)
-        } else {
-          // Add reference to subdirectory's ALL.js
-          items.push(`./${subdir.name}/ALL.js`)
-        }
-      }
-    }
+    items.push(...subdirItems(subdirResults))
 
     // Generate ALL.js if this directory has any items
     if (items.length > 0) {
@@ -402,19 +400,17 @@ function processDirectory(dir, examplesRoot, depth = 0, scopes = []) {
         const finalName = (options.noRename || preservePrefix) ? file : removePrefix(file)
         finalItems.push('./' + finalName)
       }
-      for (const subdir of subdirResults) {
-        if (subdir.hasModels) {
-          if (isIndexOnlyDirectory(subdir.path)) {
-            const indexFile = existsSync(join(subdir.path, 'index.js')) ? 'index.js' : 'index.scad'
-            finalItems.push(`./${subdir.name}/${indexFile}`)
-          } else {
-            finalItems.push(`./${subdir.name}/ALL.js`)
-          }
-        }
-      }
+      finalItems.push(...subdirItems(subdirResults))
 
-      const count = generateAllFile(dir, finalItems, examplesRoot)
-      stats.files += count
+      // A grid of one sub-grid draws the same thing one level up, so the parent loads the child directly
+      const onlyGrid = finalItems.length === 1 && finalItems[0].endsWith('/ALL.js') ? finalItems[0] : null
+      if (onlyGrid) {
+        stats.gridRef = onlyGrid.slice(2)
+        stats.dirs--
+        console.log(`${indent}  → ${relative(examplesRoot, join(dir, stats.gridRef))} (single sub-grid, no ALL.js here)`)
+      } else {
+        stats.files += generateAllFile(dir, finalItems, examplesRoot)
+      }
     }
   } catch (err) {
     console.error(`Error processing ${dir}: ${err.message}`)

@@ -25,7 +25,8 @@
  *                      Default: openscad
  *   --jscad            Also include .js examples (default: .scad only)
  *   --limit <n>        Only the first n files (quick smoke test)
- *   --concurrency <n>  Parallel pages (default: 4)
+ *   --concurrency <n>  Parallel pages (default: 4). With --grids, a grid whose
+ *                      items are all other grids runs after the rest, alone.
  *   --engine <name>    Modeling engine: jscad | manifold (default: app default)
  *   --timeout <ms>     Per-file timeout (default: 300000). This is a hang
  *                      guard, not a performance budget: a model that renders
@@ -54,6 +55,7 @@ import { fileURLToPath } from 'node:url'
 import { isExcluded } from '../src_build/exampleExclusions.js'
 import { diffAgainstBaseline, toFailure } from './baseline-diff.mjs'
 import { APP_ORIGIN } from './ports.mjs'
+import { splitAggregateGrids } from './grid-order.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const APP_ROOT = join(__dirname, '..')
@@ -222,8 +224,14 @@ async function run() {
     process.exit(2)
   }
 
-  const files = collectFiles(opts)
-  console.log(`Rendering ${files.length} example(s) from [${opts.dirs.join(', ')}] @ concurrency ${opts.concurrency}\n`)
+  const collected = collectFiles(opts)
+  const { grids: pooled, aggregates } = opts.grids
+    ? splitAggregateGrids(collected, rel => readFileSync(join(EXAMPLES_ROOT, rel), 'utf8'))
+    : { grids: collected, aggregates: [] }
+  const files = [...pooled, ...aggregates]
+  console.log(`Rendering ${files.length} example(s) from [${opts.dirs.join(', ')}] @ concurrency ${opts.concurrency}`)
+  if (aggregates.length) console.log(`then ${aggregates.length} aggregate grid(s) one at a time: ${aggregates.map(f => f.rel).join(' ')}`)
+  console.log()
 
   const browser = await chromium.launch({
     headless: !opts.headed,
@@ -232,7 +240,7 @@ async function run() {
 
   const results = []
   let next = 0, done = 0
-  async function worker() {
+  async function worker(end) {
     const context = await browser.newContext()
     if (opts.engine) await context.addInitScript(e => {
       try { localStorage.setItem('engine.modelingEngine', e) } catch { /* the app falls back to its default */ }
@@ -240,7 +248,7 @@ async function run() {
     await context.addInitScript(ms => {
       try { localStorage.setItem('engine.modelTimeoutMs', String(ms)) } catch { /* the app falls back to its default */ }
     }, opts.modelTimeout)
-    while (next < files.length) {
+    while (next < end) {
       const i = next++
       const res = await renderOne(context, opts, files[i], i)
       results[i] = res
@@ -251,7 +259,9 @@ async function run() {
     }
     await context.close()
   }
-  await Promise.all(Array.from({ length: Math.min(opts.concurrency, files.length) }, worker))
+  const pool = (end, n) => Promise.all(Array.from({ length: Math.min(n, end - next) }, () => worker(end)))
+  await pool(pooled.length, opts.concurrency)
+  await pool(files.length, 1)
   await browser.close()
 
   // ── report ──
