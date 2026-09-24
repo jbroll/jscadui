@@ -14,6 +14,7 @@
  *   --max-gb <n>       stop when the browser's total RSS passes this (default 6)
  *   --stall <s>        stop when no new cell arrives for this long (default 120)
  *   --every <s>        sample interval (default 2)
+ *   --log <prefix>     also print console lines that start with this, timestamped
  */
 import { chromium } from '@playwright/test'
 import { readFileSync, readdirSync } from 'node:fs'
@@ -70,6 +71,13 @@ const browserProcs = () => {
 
 const gb = (bytes) => (bytes / 2 ** 30).toFixed(2)
 
+// Swap in use slows every worker at once, which shows up as leaves timing out
+const systemMemory = () => {
+  const info = Object.fromEntries(readFileSync('/proc/meminfo', 'utf8').trim().split('\n')
+    .map((line) => line.split(/:\s+/)).map(([key, value]) => [key, parseInt(value, 10) * 1024]))
+  return { available: info.MemAvailable, swapUsed: info.SwapTotal - info.SwapFree }
+}
+
 const browser = await chromium.launch({ args: ['--use-gl=angle', '--ignore-gpu-blocklist'] })
 const context = await browser.newContext()
 if (poolSize) {
@@ -79,7 +87,12 @@ if (poolSize) {
 }
 const page = await context.newPage()
 const cellFailures = []
-page.on('console', (m) => { if (m.text().startsWith('ALL: FAILED ')) cellFailures.push(m.text()) })
+const logPrefix = arg('log', null)
+page.on('console', (m) => {
+  const text = m.text()
+  if (text.startsWith('ALL: FAILED ')) cellFailures.push(text)
+  if (logPrefix && text.startsWith(logPrefix)) console.log(`  [${((Date.now() - started) / 1000).toFixed(1)}s] ${text}`)
+})
 
 const started = Date.now()
 await page.goto(`${server}/?r=${started}#${model}`, { waitUntil: 'domcontentloaded' })
@@ -110,8 +123,9 @@ for (;;) {
     return module?.HEAPU8?.length ?? module?.wasmMemory?.buffer.byteLength ?? 0
   }).catch(() => 0)))
   const heaps = workers.map((bytes) => gb(bytes)).join(' ')
+  const { available, swapUsed } = systemMemory()
   const t = ((Date.now() - started) / 1000).toFixed(0).padStart(6)
-  console.log(`${t}  ${gb(total).padStart(8)}  ${gb(largest).padStart(10)}  ${String(procs.length).padStart(5)}  ${String(cells ?? '-').padStart(5)}  ${render}  wasm GB: ${heaps || '-'}`)
+  console.log(`${t}  ${gb(total).padStart(8)}  ${gb(largest).padStart(10)}  ${String(procs.length).padStart(5)}  ${String(cells ?? '-').padStart(5)}  ${render}  avail ${gb(available)} swap ${gb(swapUsed)}  wasm GB: ${heaps || '-'}`)
   if (render === 'ok' || render === 'error') { outcome = render; break }
   if (total > maxBytes) { outcome = `over the ${gb(maxBytes)} GB cap`; break }
   if (Date.now() - lastChange > stallMs) { outcome = `stalled: no new cell for ${stallMs / 1000}s`; break }
@@ -120,4 +134,6 @@ for (;;) {
 
 console.log(`\n${outcome} after ${((Date.now() - started) / 1000).toFixed(0)}s, peak ${gb(peak)} GB, cells ${lastCells ?? '-'}`)
 for (const line of cellFailures.slice(0, 10)) console.log(`  ${line}`)
+const errorBar = await page.locator('#error-bar.visible').textContent({ timeout: 1000 }).catch(() => null)
+if (errorBar) console.log(`  error bar: ${errorBar.replace(/\s+/g, ' ').trim().slice(0, 400)}`)
 await browser.close()

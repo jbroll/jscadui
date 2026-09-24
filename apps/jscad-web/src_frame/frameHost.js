@@ -23,8 +23,9 @@ export const workerBundles = (bundleBase, engine) => ({
   '@jscadui/jscad-text': bundleBase + 'bundle.jscad_text.js',
 })
 
-// Each worker holds its own bundles, WASM instances and file map, which bounds the pool.
-export const defaultPoolSize = (hardwareConcurrency = 2) => Math.max(1, Math.min(hardwareConcurrency - 1, 4))
+// Memory bounds the pool, not cores: each worker holds up to a 1 GiB WASM heap,
+// and four of them sent a 15 GB laptop into swap where leaves ran 100x slower.
+export const defaultPoolSize = (hardwareConcurrency = 2) => Math.max(1, Math.min(hardwareConcurrency - 1, 2))
 
 /**
  * The frame's side of the relayed protocol: a pool of workers, a timeout per

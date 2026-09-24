@@ -36,7 +36,7 @@ budget stops at 290s: the app's RPC to the frame gives up at 300s
 the worker keeps running. The harness warns and clamps a larger value.
 `--pool-size <n>` sets `engine.poolSize` in localStorage before the page
 loads, pinning how many frame workers a page's compute frame keeps (default:
-the app's own, `max(1, min(hardwareConcurrency - 1, 4))`); the grid CI jobs use
+the app's own, `max(1, min(hardwareConcurrency - 1, 2))`); the grid CI jobs use
 it to compare a pooled grid against one worker.
 
 For a streamed grid (`--grids`), both budgets apply per cell, not per grid.
@@ -94,10 +94,14 @@ with `--use-gl=angle`. Do **not** point `executablePath` at the system chromium.
 Renders one model in the bundled chromium and samples memory until the page
 settles, stops streaming cells, or passes a cap. Each sample prints the resident
 memory of every chromium process the script launched (total and largest), the
-process count, `html[data-cells]`, `html[data-render]`, and each worker's
-manifold WASM heap, read through `j$.jscad.getModule().HEAPU8`. The last line
-gives the outcome, the peak total and the final cell count, followed by up to
-ten `ALL: FAILED` lines. Linux only: it reads `/proc`.
+process count, `html[data-cells]`, `html[data-render]`, the system's available
+memory and swap in use, and each worker's manifold WASM heap, read through
+`j$.jscad.getModule().HEAPU8`. Reading a worker's heap waits until that worker
+is between leaves, so a gap between samples marks a leaf that ran that long.
+Swap growing while leaves slow down means the pool is too large for the
+machine. The last line gives the outcome, the peak total and the final cell
+count, followed by up to ten `ALL: FAILED` lines and the error bar's text.
+Linux only: it reads `/proc`.
 
 | Option | Default | Meaning |
 |--------|---------|---------|
@@ -107,6 +111,7 @@ ten `ALL: FAILED` lines. Linux only: it reads `/proc`.
 | `--max-gb <n>` | 6 | stop once the browser's total RSS passes this |
 | `--stall <s>` | 120 | stop when no new cell arrives for this long |
 | `--every <s>` | 2 | sample interval |
+| `--log <prefix>` | none | also print page and frame console lines that start with this, timestamped |
 
 ```bash
 node e2e/grid-memory.mjs --model /examples/openscad/nopscadlib/NopSCADlib/tests/ALL.js --pool-size 4
