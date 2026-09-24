@@ -56,6 +56,7 @@ import { extractEntries, readAsText, readDir } from '@jscadui/fs-provider'
 import { createFrame, createJobTracker } from './src/frameSetup.js'
 import { collectProjectFiles, replaceProjectFiles } from './src/projectFiles.js'
 import { createScriptRuns, sendScript } from './src/scriptRuns.js'
+import { createStreamRuns } from './src/streamRuns.js'
 import { PROJECT_BASE } from './src_frame/fileMap.js'
 import * as fileSystem from './src/fileSystem.js'
 import * as paramsUI from './src/paramsUI.js'
@@ -155,6 +156,16 @@ let lastRunParams
  * @param {{skipLog?:boolean }} options
  */
 const handleEntities = (result, { skipLog } = {}) => {
+  if (result?.streamed) {
+    const totals = streamRuns.finish()
+    onProgress(undefined)
+    if (!totals) return
+    document.documentElement.dataset.vertices = String(totals.vertices)
+    setError(undefined)
+    updatePipelineStats(statsContent, { treeTime: result.treeTime, triangles: totals.triangles, vertices: totals.vertices })
+    if (!skipLog) console.log('streamed', totals.cells, 'cells, tree:', result.treeTime?.toFixed(2))
+    return
+  }
   const { entities: rawEntities, treeTime, execTime, convTime } = result
   const entities = rawEntities instanceof Array ? rawEntities : [rawEntities]
 
@@ -192,6 +203,31 @@ const handleEntities = (result, { skipLog } = {}) => {
   updatePipelineStats(statsContent, { treeTime, execTime, convTime, renderTime, triangles, vertices })
 }
 
+// A grid draws cell by cell; the camera refits to what is drawn, so it only zooms out.
+const drawStream = (entities, box) => {
+  viewState.setModel(entities)
+  if (viewState.zoomToFit && box) {
+    const { fov, aspect } = viewState.viewer.getCamera()
+    ctrl.fit(box.min, box.max, fov, aspect, 1 / 0.6)
+  }
+}
+
+const streamRuns = createStreamRuns({
+  draw: drawStream,
+  // Read by the render sweep, which restarts its hang guard on each cell
+  onCells: count => { document.documentElement.dataset.cells = String(count) },
+  onError: error => {
+    setError(error)
+    onProgress(undefined)
+  },
+})
+
+/** @param {() => boolean} isStale */
+const beginStream = isStale => {
+  delete document.documentElement.dataset.cells
+  streamRuns.begin(isStale)
+}
+
 const trackJobs = createJobTracker(progress, onProgress)
 
 // Every model — the editor's and the agent's — runs in the sandboxed frame.
@@ -201,6 +237,7 @@ const { frameEl, workerApi, handlers } = await createFrame({
   onError: setError,
   onEntities: handleEntities,
   onJobCount: trackJobs,
+  onCells: entities => streamRuns.accept(entities),
   // No onTerminated re-init: frameSetup replays the inits itself, and an init
   // sent on every restart loops forever when the init is what timed out.
   runOrigin: __FRAME_ORIGIN__,
@@ -374,16 +411,30 @@ function stopCurrentAnim() {
   return true
 }
 
+const scriptRuns = createScriptRuns()
+
+// streamRuns holds only the newest run, so a superseded update must not
+// finish or end it.
+const modelUpdateDeps = () => {
+  let isStale = () => false
+  return {
+    workerApi,
+    handleEntities: (result, options) => { if (!isStale()) handlers.entities(result, options) },
+    setError,
+    stopCurrentAnim,
+    beginRun: () => {
+      isStale = scriptRuns.paramChange()
+      beginStream(isStale)
+    },
+    endRun: () => { if (!isStale()) streamRuns.end() },
+  }
+}
+
 // ============== Studio Bridge ==============
 installStudioBridge({
   paramsCtrl,
   getParams: () => paramsCtrl.getState().params,
-  runModel: () => paramsUI.runModelUpdate({
-    workerApi,
-    handleEntities: handlers.entities,
-    setError,
-    stopCurrentAnim,
-  }),
+  runModel: () => paramsUI.runModelUpdate(modelUpdateDeps()),
 })
 
 /**
@@ -420,8 +471,6 @@ const pauseAnimCallback = async (_def, _value) => {
  */
 let lastParams
 
-const scriptRuns = createScriptRuns()
-
 /**
  * @param {UserParameters} params
  * @param {string} [source]
@@ -447,6 +496,7 @@ const paramChangeCallback = async (params, source) => {
   lastParams = null
   paramsUI.setWorking(true)
   const isStale = scriptRuns.paramChange()
+  beginStream(isStale)
 
   let result
   let pendingParams = null
@@ -457,6 +507,9 @@ const paramChangeCallback = async (params, source) => {
     result = await workerApi.jscadMain(mainOptions)
     if (isStale()) return
     lastRunParams = params
+  } catch (error) {
+    if (!isStale()) streamRuns.end()
+    throw error
   } finally {
     // Capture pending params atomically before releasing lock
     pendingParams = lastParams
@@ -474,6 +527,7 @@ viewState.onRequireReRender = () => paramChangeCallback(ctrl.params)
 /** @param {{script?:string,url?:string,base?:string,root?:string}} options*/
 const jscadScript = async ({ script, url = './jscad.model.js', base = currentBase, root }) => {
   const isStale = scriptRuns.load()
+  beginStream(isStale)
   currentBase = base
   loadDefault = false
   document.documentElement.dataset.render = 'running'
@@ -537,21 +591,11 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
         state,
         onChange: (paramPath, value) => {
           paramsUI.handleTreeParamChange(paramPath, value, () => {
-            paramsUI.scheduleModelUpdate(() => paramsUI.runModelUpdate({
-              workerApi,
-              handleEntities: handlers.entities,
-              setError,
-              stopCurrentAnim
-            }))
+            paramsUI.scheduleModelUpdate(() => paramsUI.runModelUpdate(modelUpdateDeps()))
           })
         },
         onClassChange: (partPath, newClass, mode) => {
-          paramsUI.handleTreeClassChange(partPath, newClass, mode, {
-            workerApi,
-            handleEntities: handlers.entities,
-            setError,
-            stopCurrentAnim
-          })
+          paramsUI.handleTreeClassChange(partPath, newClass, mode, modelUpdateDeps())
         }
       })
 
@@ -572,6 +616,7 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
         savedUserInteracted.forEach(p => paramsCtrl.userInteracted.add(p))
         paramsTreeView?.update({ values: paramsCtrl.params })
         // Re-run model with restored params
+        beginStream(isStale)
         const restoreResult = await workerApi.jscadMain(paramsCtrl.getWorkerParams())
         if (isStale()) return
         handlers.entities(restoreResult)
@@ -595,7 +640,10 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
       })
     }
   } catch (err) {
-    if (!isStale()) setError(err)
+    if (!isStale()) {
+      streamRuns.end()
+      setError(err)
+    }
   }
 }
 
@@ -628,13 +676,20 @@ viewState.onRenderEngineChange = async (newEngine) => {
   // Initialize new viewer
   viewState.setEngine(await engine.init(newEngine))
   const isStale = scriptRuns.paramChange()
+  beginStream(isStale)
 
   // Re-run main with current params to regenerate geometry
   const useGpuNormals = viewState.viewer?.supportsGpuNormals ?? false
   const mainOptions = useParamsProxy
     ? { ...paramsCtrl.getWorkerParams(), useGpuNormals }
     : { params: lastRunParams, useGpuNormals }
-  const result = await workerApi.jscadMain(mainOptions)
+  let result
+  try {
+    result = await workerApi.jscadMain(mainOptions)
+  } catch (error) {
+    if (!isStale()) streamRuns.end()
+    throw error
+  }
   if (isStale()) return
   handlers.entities(result)
 }

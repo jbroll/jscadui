@@ -136,10 +136,10 @@ drove the local worker. `jscadInit`, `jscadScript`, `jscadSetFiles`,
 `jscadExportData` and the cache clears all reach the frame's worker. Geometry
 buffers ride the transfer list on both hops, so they cross without a copy.
 
-Notifications relay the same way, but the worker sends none: it answers
-`jscadMain` with its entities rather than pushing them, so
-`frameWorkerTerminated` is the only message the frame originates and the only
-one `frameSetup.js` registers with `messageProxy`. `handlers.entities` beside
+Notifications relay the same way. The worker sends two, a grid's `jscadCells`
+and `jscadProgress` (see Streamed grids), and `frameWorkerTerminated` is the
+only message the frame originates; `frameSetup.js` registers those three with
+`messageProxy`. `handlers.entities` beside
 it is `main.js`'s own sink, which it calls directly for restores and cached
 results as well as for a fresh render. Job count is not relayed either: the
 proxy's own pending-request map on the app side is what drives it.
@@ -268,6 +268,40 @@ The NopSCADlib tests grid, 13.3M triangles at 84 bytes each, is still over
 the buffer cap. `aiEvaluate.js`
 re-checks the same caps so the agent cannot be told a model evaluated when
 nothing was drawn.
+
+### Streamed grids
+
+An `ALL.js` grid does not return its geometry. While the worker runs a model's
+`main`, for a load or a `jscadMain`, it sets `globalThis.__jscadStream`, and
+the grid emits each placed
+cell through it as a `jscadCells` notification (`{ entities }`), then disposes
+the cell. The result is `{ entities: [], streamed: true }`. A nested grid emits
+nothing and returns its geometry as one cell of its parent. Export, measure and
+check need the solids, so when the last run streamed they re-run `jscadMain`
+with no stream hook and with `__jscadProgress` set, which posts one
+`jscadProgress` per cell.
+
+The frame relays `jscadCells` only while a `jscadScript` or `jscadMain` request
+is pending and `jscadProgress` while any request is; any other worker post is
+still dropped. Each relayed message restarts every pending request's kill timer
+in the frame, and `proxy.resetTimeouts()` restarts the app's RPC timers, so the
+model budget applies to one cell rather than the whole grid.
+
+`src/streamRuns.js` holds one run at a time. A load, a parameter change, a tree
+update and the redraw after a render-engine switch each begin one with their
+`scriptRuns` staleness check; a batch is accepted only while its run is current
+and not stale. Batches arriving during `frameSetup`'s replay are dropped before
+they reach the run, since a request sent meanwhile waits behind the replay.
+Each batch is checked against the per-batch caps (256 MB, 2,000 entities) and
+the run's total against 1.5 GB and 20,000 entities; going over ends the run
+with the cap error and leaves the drawn cells in place, as a kill does.
+Redraws coalesce to one per 250 ms and pass the run's whole entity array, which
+starts empty, so the first redraw replaces the previous model. The three.js
+renderer keeps built objects keyed by entity object across `setScene`, so each
+redraw builds only the new cells. With zoom-to-fit on, the camera fits the
+running bounding box. The final `streamed` result draws what is pending, sets
+`data-vertices` from the running count and clears the error. `data-cells`
+counts accepted batches for the render sweep's per-cell hang guard.
 
 ## Agent loop
 

@@ -96,6 +96,7 @@ const createReplay = (proxy) => {
       if (restoring) return
       restoring = replay().finally(() => { restoring = null })
     },
+    isRestoring: () => restoring !== null,
     /**
      * @param {string} method
      * @param {() => Promise<unknown>} send
@@ -118,23 +119,34 @@ const createReplay = (proxy) => {
  * @param {(result: unknown, options: {skipLog?: boolean}) => void} options.onEntities
  * @param {(jobs: number) => void} options.onJobCount
  * @param {() => void} [options.onTerminated] - the frame lost its worker; the replay already re-inits it
+ * @param {(entities: unknown[]) => void} [options.onCells] - one batch of a streamed grid's cells
  * @param {string} options.runOrigin
  * @param {number} [options.loadTimeoutMs]
  * @returns {Promise<{frameEl: HTMLIFrameElement, workerApi: JscadWorker, handlers: object}>}
  */
-export const createFrame = async ({ onError, onEntities, onJobCount, onTerminated, runOrigin, loadTimeoutMs = 15000 }) => {
+export const createFrame = async ({ onError, onEntities, onJobCount, onTerminated, onCells, runOrigin, loadTimeoutMs = 15000 }) => {
   const frameEl = document.createElement('iframe')
   frameEl.src = runOrigin + '/'
   frameEl.setAttribute('sandbox', 'allow-scripts')
   frameEl.hidden = true
 
-  // The worker answers jscadMain with its entities rather than notifying, so
-  // frameWorkerTerminated is the only message the frame sends on its own.
+  // The frame sends frameWorkerTerminated on its own, and relays a grid's
+  // cells and progress while a model is running.
   const notifications = {
     frameWorkerTerminated: ({ reason }) => {
       onError(new Error(reason))
       replay.restore()
       onTerminated?.()
+    },
+    jscadCells: ({ entities } = {}) => {
+      proxy.resetTimeouts()
+      // A request the app sends during a replay waits behind it, so the
+      // replay's cells would land in that request's run.
+      if (replay.isRestoring()) return
+      onCells?.(Array.isArray(entities) ? entities : [])
+    },
+    jscadProgress: () => {
+      proxy.resetTimeouts()
     },
   }
 

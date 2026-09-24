@@ -43,6 +43,8 @@ const mapsEqual = (a, b) => {
  * @property {(result: object, options?: object) => void} handleEntities - Entities handler
  * @property {(error: unknown) => void} setError - Error handler
  * @property {() => boolean} stopCurrentAnim - Stop current animation
+ * @property {() => void} [beginRun] - a streamed grid's cells from here on belong to this run
+ * @property {() => void} [endRun] - the run failed; keep what it drew
  */
 
 /** @type {ReturnType<typeof createParamsController>} */
@@ -172,7 +174,7 @@ export function clearModelUpdateTimer() {
  * @param {ParamsUIDeps} deps
  */
 export async function runModelUpdate(deps) {
-  const { workerApi, handleEntities, setError, stopCurrentAnim } = deps
+  const { workerApi, handleEntities, setError, stopCurrentAnim, beginRun, endRun } = deps
 
   // H5 fix: Store deps for pending update to use the most recent deps
   if (working) {
@@ -187,6 +189,7 @@ export async function runModelUpdate(deps) {
   working = true
 
   try {
+    beginRun?.()
     const result = await workerApi.jscadMain(paramsCtrl.getWorkerParams())
 
     if (result.proxyState) {
@@ -211,6 +214,7 @@ export async function runModelUpdate(deps) {
 
     handleEntities(result, {})
   } catch (err) {
+    endRun?.()
     setError(err)
     console.error('Model update failed:', err)
   } finally {

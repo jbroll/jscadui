@@ -212,3 +212,72 @@ describe('worker restart', () => {
     expect(methods(frame.sent)).toEqual(['jscadMain'])
   })
 })
+
+describe('streamed cells', () => {
+  const RPC_DEFAULT_MS = 5 * 60 * 1000
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  const startMain = (frame) => {
+    let settled = false
+    const main = frame.workerApi.jscadMain({ params: {} })
+    main.then(() => { settled = true }, () => { settled = true })
+    return () => settled
+  }
+
+  it('hands a jscadCells batch to onCells and restarts the pending timers', async () => {
+    const onCells = vi.fn()
+    const frame = await boot({ onCells })
+    vi.useFakeTimers()
+    const settled = startMain(frame)
+
+    await vi.advanceTimersByTimeAsync(RPC_DEFAULT_MS - 1000)
+    const entities = [{ id: 'cell-0' }]
+    frame.fromFrame({ method: 'jscadCells', params: [{ entities }] })
+    await vi.advanceTimersByTimeAsync(RPC_DEFAULT_MS - 1000)
+
+    expect(onCells).toHaveBeenCalledWith(entities)
+    expect(settled()).toBe(false)
+  })
+
+  it('restarts the pending timers on jscadProgress without calling onCells', async () => {
+    const onCells = vi.fn()
+    const frame = await boot({ onCells })
+    vi.useFakeTimers()
+    const settled = startMain(frame)
+
+    await vi.advanceTimersByTimeAsync(RPC_DEFAULT_MS - 1000)
+    frame.fromFrame({ method: 'jscadProgress', params: [] })
+    await vi.advanceTimersByTimeAsync(RPC_DEFAULT_MS - 1000)
+
+    expect(onCells).not.toHaveBeenCalled()
+    expect(settled()).toBe(false)
+  })
+
+  it('drops batches the replay streams, and takes them again once it is done', async () => {
+    const onCells = vi.fn()
+    const frame = await boot({ onCells })
+    await loadModel(frame)
+
+    terminate(frame)
+    const next = frame.workerApi.jscadMain({ params: { size: 4 } })
+    await frame.flush()
+    frame.fromFrame({ method: 'jscadCells', params: [{ entities: [{ id: 'replayed' }] }] })
+    expect(onCells).not.toHaveBeenCalled()
+
+    await settleAll(frame)
+    await next
+    frame.fromFrame({ method: 'jscadCells', params: [{ entities: [{ id: 'new' }] }] })
+    expect(onCells).toHaveBeenCalledWith([{ id: 'new' }])
+  })
+
+  it('hands onCells an empty batch when entities is not an array', async () => {
+    const onCells = vi.fn()
+    const frame = await boot({ onCells })
+    frame.fromFrame({ method: 'jscadCells', params: [{ entities: 'nope' }] })
+    frame.fromFrame({ method: 'jscadCells', params: [] })
+    expect(onCells.mock.calls).toEqual([[[]], [[]]])
+  })
+})
