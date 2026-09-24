@@ -157,15 +157,11 @@ commit the CI run reports is that worktree's HEAD, not the code measured — a
 field nobody can trust is worse than none.
 
 `e2e/render-grids-baseline.json` is the same thing for the grid sweep: **35 of
-44** on manifold, CI job `50a257d37f27c7f3`, which is 34 of 40 once the four
-one-item wrapper grids that run measured are dropped. No CI run has measured
-the grids since the wrappers went and the grids started yielding between
-cells. Each failure carries its `status`, the cells that drew a marker, and
-why the grid itself died. `docs/backlog.md` groups them by cause. In that run
-six grids, the three NopSCADlib ones among them, crashed the renderer before
-the frame's 290s kill; three of the six were wrappers. The sweep listens for the page's
-`crash` event and scores them `crash` at once, where it used to wait out the
-320s guard on a dead page.
+40** on manifold, CI job `2d31a58dc893d052`. Each failure carries its
+`status`, the cells that drew a marker, and why the grid itself died.
+`docs/backlog.md` groups them by cause. No grid crashes the renderer now; if
+one does, the sweep listens for the page's `crash` event and scores it `crash`
+at once rather than wait out the 320s guard on a dead page.
 
 The current baseline is **761 ok of 807** on manifold, CI job
 `b758af600414f82f`. It grew by the 22 models that moved to `compare-skip.txt`,

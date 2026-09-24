@@ -61,40 +61,33 @@ a time.
 
 A cell whose model throws no longer takes the grid with it: it draws a
 skull-and-crossbones and the sweep scores that grid `partial`, naming the dead
-cells. 35 of 44 rendered before the changes below (`sci push
-jscadui/render-grids`, job `50a257d37f27c7f3`, 320s hang guard per grid);
+cells. **35 of 40 render** (`sci push jscadui/render-grids`, job
+`2d31a58dc893d052`, 320s hang guard per grid), and none crashes the renderer;
 `apps/jscad-web/e2e/render-grids-baseline.json` holds the per-grid state and
 each partial grid's dead cells. After the first `WebAssembly.RuntimeError` a
 grid fails every later cell as `not run: wasm trapped in <url>`.
 
-Since the runtime frees each op's `ManifoldGeom3` inputs as it goes
-(`openscad-runtime/src/consume.js`), **36 of 44 render** (job
-`f4729e1ce541fb12`): `openscad/bosl2/ALL.js` now renders, and
-`openscad/ALL.js` no longer traps at `fractal_tree.scad`. Node measurements of
-the WASM heap peak: `fractal_tree.scad` 2352 → 207 MB, NopSCADlib
-`extrusion_brackets.scad` 3087 → 963 MB, same triangle counts and volumes.
-`render-grids-baseline.json` still records the job before this change, so the
-sweep reports the grids that now fail later as regressions.
+Manifold frees a WASM handle only from a `FinalizationRegistry` callback, which
+cannot run inside a synchronous `main`, so the OpenSCAD runtime disposes each
+op's inputs once it has consumed them (`openscad-runtime/src/consume.js`) and
+the manifold transforms free what they build from a plain jscad input. Node
+measurements of the WASM heap peak: `fractal_tree.scad` 2352 → 207 MB,
+NopSCADlib `extrusion_brackets.scad` 3087 → 963 MB, `openscad/bosl2/ALL.js`
+3425 → 358 MB, same triangle counts and volumes. A grid's `main` also yields
+after each cell, which by itself changed no Node peak, and `normalizeAndPlace`
+disposes its two intermediate transforms per geometry.
 
-A grid's `main` is async and yields to the event loop after each cell, so
-finalizers queued during a cell can run before the next; a yield does not
-force the GC that queues them. In a Node emulation of the dotSCAD dragon grid
-the peak WASM heap was 429 MB with or without the yield, and 358 MB once
-`normalizeAndPlace` disposes its two intermediate transforms per geometry. A
-yield also lets a newer script start in the worker, so a grid stops with `grid
-superseded by a newer script` once one has.
-
-- **The NopSCADlib tests grid still crashes the renderer**, and its two
-  parents score `partial` on that cell with manifold's `Aborted()`. The sweep
-  runs four grids at once on the CI host.
-- **`dotscad/ALL.js` traps at `stereographic_caterpillar.scad`** with
-  `function signature mismatch`, and `dotscad/examples/ALL.js` hits the 290s
-  kill; both crashed the renderer before. The model renders on its own.
-  Recovering from a trap means reinitialising the wasm module, which the
-  worker has no path for today.
-- **The aggregate-of-aggregate grids are too big for one worker.** Top-level
-  `ALL.js` and `openscad/ALL.js` hit the 290s kill. Each loads several whole
-  grids in one worker on one core.
+- **The NopSCADlib tests grid exceeds the buffer cap**: 13.3M triangles is
+  1,107,490,272 bytes against the 256 MB cap in `src/caps.js`. It now finishes
+  building; the app refuses to draw it. The non-GPU normals path costs 84 bytes
+  a triangle; indexed geometry or GPU normals would cut that, as would a lower
+  `$fn` for grid cells.
+- **`dotscad/examples/ALL.js` hits the 290s kill**, after
+  `maze3d_mickey.scad` (the accepted stack overflow) fails in its maze
+  sub-grid.
+- **The aggregate grids are too big for one worker.** Top-level `ALL.js` and
+  `openscad/ALL.js` hit the 290s kill. Each loads several whole grids in one
+  worker on one core.
 - **Nothing splits a grid across workers.** The frame runs one worker, one
   request at a time (`src_frame/frame.js`), so a grid cannot use more than one
   core and cannot give each cell its own budget. A pool would need the app to
