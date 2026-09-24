@@ -172,6 +172,7 @@ export function processDependency(filename: string, ctx: TranspileContext, curre
 
   const result = transpile(ast, {
     ...ctx.options,
+    customizer: false,
     currentFile: resolvedFilename,
     initialParamLists: moduleParamLists,
     initialFunctionParamLists: functionParamLists,

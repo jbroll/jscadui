@@ -2,6 +2,7 @@
  * Transpiler context types and interfaces
  */
 import type { ScadFile } from 'openscad-parser'
+import type { CustomizerSchema } from '../customizer/extract.js'
 import { SymbolTable } from './symbolTable.js'
 import { CodeGenState } from './managers/CodeGenState.js'
 import { ScopeManager } from './managers/ScopeManager.js'
@@ -78,6 +79,10 @@ export interface TranspileOptions {
   initialImportedFunctions?: Set<string>
   // Initial lazy var names (inherited from parent context so module bodies call them as functions)
   initialLazyVarNames?: Set<string>
+  // Expose OpenSCAD Customizer parameters: export getParameterDefinitions() and
+  // make main(params) re-run top-level assignments with parameter overrides.
+  // Applies to this file only; dependencies are transpiled without it.
+  customizer?: boolean
 }
 
 export interface TranspileResult {
@@ -90,6 +95,8 @@ export interface TranspileResult {
   warnings: TranspileWarning[]
   // Errors generated during transpilation (non-fatal)
   errors: TranspileError[]
+  // Customizer parameter schema (only when options.customizer is set)
+  customizer?: CustomizerSchema
 }
 
 /**

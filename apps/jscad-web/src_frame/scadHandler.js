@@ -168,6 +168,8 @@ export const createScadHandler = ({ getOpenscad, getAppOrigin, now = Date.now })
       fileResolver,
       currentFile: pathFor(key),
       includeHeader: true,
+      // Expose OpenSCAD Customizer parameters (getParameterDefinitions + main(params))
+      customizer: true,
     }, shared)
 
     if (result.errors && result.errors.length > 0) {

@@ -41,6 +41,8 @@ import { deduplicateParamNames, mergeSetInto, importSymbolsFromFile } from './ut
 import { splitDeclarationsByKind } from './bundling/mergeDeclarations.js'
 import type { Declaration } from './managers/DeclarationTracker.js'
 import { processDependency } from './dependencies/dependencyProcessor.js'
+import { extractCustomizerParameters, type CustomizerSchema } from '../customizer/extract.js'
+import { toJscadParameterDefinitions } from '../customizer/definitions.js'
 
 // Re-export types for public API
 export type {
@@ -75,6 +77,10 @@ interface TranspiledStatements {
   localModules: string[]
   localConstants: string[]
   geometryParts: string[]
+  // Customizer support (options.customizer): the schema, and the top-level
+  // assignments re-run at the start of main() with parameter overrides
+  customizer?: CustomizerSchema
+  customizerPrologue: string[]
 }
 
 /**
@@ -275,6 +281,10 @@ function transpileAllStatements(ast: ScadFile, ctx: TranspileContext): Transpile
   const localModules: string[] = []
   const localConstants: string[] = []
   const geometryParts: string[] = []
+  const customizerPrologue: string[] = []
+
+  const customizer = ctx.options.customizer ? extractCustomizerFromAst(ast) : undefined
+  const customizerParams = new Map(customizer?.parameters.map(p => [p.name, p]) ?? [])
 
   // Dual-defined names are already tracked in SymbolTable
   // No need to register __fn variants - getParams() uses preferKind instead
@@ -308,6 +318,7 @@ function transpileAllStatements(ast: ScadFile, ctx: TranspileContext): Transpile
       if (stmt.name.startsWith('$')) {
         const code = `j$.setSpecialVar('${stmt.name}', ${value})`
         localConstants.push(code)
+        customizerPrologue.push(code)
 
         // Track special variable assignments for AST-based bundling
         // Use the variable name (without $ prefix) as the key for deduplication
@@ -334,6 +345,14 @@ function transpileAllStatements(ast: ScadFile, ctx: TranspileContext): Transpile
           code = `var ${varName} = ${value}`
         }
         localConstants.push(code)
+        const param = customizerParams.get(stmt.name)
+        if (param) {
+          const key = JSON.stringify(stmt.name)
+          const override = param.type === 'vector' ? `_$cv(${key}, ${value})` : `_$cp(${key}, ${value})`
+          customizerPrologue.push(`${varName} = ${override}`)
+        } else {
+          customizerPrologue.push(code.slice('var '.length))
+        }
 
         // Track this declaration for AST-based bundling
         ctx.declarations.addConstant(
@@ -357,8 +376,35 @@ function transpileAllStatements(ast: ScadFile, ctx: TranspileContext): Transpile
     }
   }
 
-  return { localFunctions, localModules, localConstants, geometryParts }
+  return {
+    localFunctions,
+    localModules,
+    localConstants,
+    geometryParts,
+    customizer,
+    customizerPrologue: customizerParams.size > 0 ? customizerPrologue : [],
+  }
 }
+
+/**
+ * Extract Customizer parameters from the source text the AST was parsed from.
+ */
+function extractCustomizerFromAst(ast: ScadFile): CustomizerSchema | undefined {
+  const file = (ast.statements[0] as { span?: { start?: { file?: { code?: string; path?: string } | null } } } | undefined)
+    ?.span?.start?.file
+  if (typeof file?.code !== 'string') return undefined
+  return extractCustomizerParameters(file.code, file.path)
+}
+
+/**
+ * Helpers emitted at the start of a Customizer main():
+ * _$cp(name, fallback)  parameter value, or the source default
+ * _$cv(name, fallback)  vector parameter reassembled from its `name[i]` components
+ */
+const CUSTOMIZER_HELPERS = [
+  'const _$cp = (k, d) => { const v = _$params?.[k]; return v === undefined ? d : v }',
+  'const _$cv = (k, d) => d.map((x, i) => _$cp(`${k}[${i}]`, x))',
+]
 
 /**
  * Build the output code string
@@ -453,10 +499,23 @@ function buildOutputCode(
   // bundled.geometryStatements = top-level geometry from directly included files
   // transpiled.geometryParts = top-level geometry defined in this file itself
   const allGeometry = [...bundled.geometryStatements, ...transpiled.geometryParts]
-  if (allGeometry.length > 0) {
-    // Always route through safeUnion, including for a single statement: it is
-    // what strips j$.NO_CHILD, which main() must never hand back to a caller.
-    const mainBody = `j$.safeUnion([\n${allGeometry.map(p => `    ${p}`).join(',\n')}\n  ])`
+  // Always route through safeUnion, including for a single statement: it is
+  // what strips j$.NO_CHILD, which main() must never hand back to a caller.
+  const mainBody = allGeometry.length > 0
+    ? `j$.safeUnion([\n${allGeometry.map(p => `    ${p}`).join(',\n')}\n  ])`
+    : undefined
+  const customizerExports: string[] = []
+  if (transpiled.customizerPrologue.length > 0) {
+    // Customizer: re-run top-level assignments with overrides so derived
+    // variables are recomputed from the parameter values
+    const defs = toJscadParameterDefinitions(transpiled.customizer!)
+    parts.push(`const getParameterDefinitions = () => (${JSON.stringify(defs, null, 2)})`)
+    parts.push('')
+    const prologue = [...CUSTOMIZER_HELPERS, ...transpiled.customizerPrologue].map(l => `  ${l}`).join('\n')
+    parts.push(`const main = (_$params = {}) => {\n${prologue}\n  return ${mainBody ?? 'undefined'}\n}`)
+    parts.push('')
+    customizerExports.push('getParameterDefinitions')
+  } else if (mainBody) {
     parts.push(`const main = () => {\n  return ${mainBody}\n}`)
     parts.push('')
   } else {
@@ -485,7 +544,7 @@ function buildOutputCode(
   // Optimized includes use require() but still need their symbols re-exported
   const includeReExports = ctx.includeImports
     .flatMap(imp => imp.symbols)
-  const allExports = [...new Set([...moduleExportNames, ...functionExportNames, ...ctx.variableNames, ...includeReExports, 'main'])]
+  const allExports = [...new Set([...moduleExportNames, ...functionExportNames, ...ctx.variableNames, ...includeReExports, ...customizerExports, 'main'])]
   // Use Object.assign to mutate the pre-registered exports object in-place.
   // This ensures cyclic requires (where the caller got an empty {} placeholder)
   // will see the real exports once the module finishes loading.
@@ -723,7 +782,8 @@ export function transpile(
 
     ctx.transpiledFiles.set(ctx.options.currentFile, {
       code,
-      exports: allExports.filter((e: string) => e !== 'main'),
+      exports: allExports.filter((e: string) => e !== 'main'
+        && !(transpiled.customizerPrologue.length > 0 && e === 'getParameterDefinitions')),
       functionExports: ctx.symbols.getByKind('function')
         .filter(name => ctx.symbols.isFromSource(name, 'local', 'function') && name !== 'main'),
       moduleExports: ctx.symbols.getByKind('module')
@@ -749,6 +809,7 @@ export function transpile(
     files: ctx.transpiledFiles,
     warnings: ctx.warnings,
     errors: ctx.errors,
+    ...(transpiled.customizer ? { customizer: transpiled.customizer } : {}),
   }
 }
 
