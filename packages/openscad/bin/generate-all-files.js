@@ -11,7 +11,11 @@
  * - Removes numeric prefixes for OpenSCAD examples (not needed)
  *
  * Usage:
+ *   npm run generate-all              (from the repo root; passes --no-rename)
  *   node bin/generate-all-files.js [options]
+ *
+ * Without --no-rename this strips numeric prefixes from the gitignored bosl and
+ * bosl2 corpus, which breaks the render baselines.
  *
  * Options:
  *   --dry-run         Show what would be done without making changes
