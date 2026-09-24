@@ -3,8 +3,9 @@
 #
 #   sci push jscadui/web
 #
-# The render sweep lives in ci/render; this entry gates the app, AI chat and
-# frame protocol e2e, since the frame is the only engine now.
+# The render sweep lives in ci/render; this entry gates the app, AI chat,
+# frame protocol, export and multi-model e2e, since the frame is the only
+# engine now.
 set -euo pipefail
 
 WORKTREE="$(cd "$(dirname "$0")/.." && pwd)"
@@ -35,4 +36,4 @@ done
 
 cd "$APP"
 npx playwright install chromium
-npx playwright test e2e/app.spec.js e2e/ai-chat.spec.js e2e/frame.spec.js
+npx playwright test e2e/app.spec.js e2e/ai-chat.spec.js e2e/frame.spec.js e2e/export.spec.js e2e/multi-model.spec.js
