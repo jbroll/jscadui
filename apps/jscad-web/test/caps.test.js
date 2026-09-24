@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { capGeometry, DEFAULT_CAPS } from '../src/caps.js'
+import { capGeometry, checkLimits, DEFAULT_CAPS, geometryBytes, STREAM_CAPS } from '../src/caps.js'
 import { createEvaluate } from '../src/aiEvaluate.js'
 
 const smallEntity = () => ({
@@ -87,5 +87,18 @@ describe('the default buffer cap', () => {
     // dotSCAD's packing_circles.scad: 1,712,350 triangles, three un-indexed
     // vertices each, at 12 bytes of position per vertex.
     expect(DEFAULT_CAPS.bytes).toBeGreaterThan(1_712_350 * 3 * 12)
+  })
+})
+
+describe('stream caps', () => {
+  it('allows a streamed run 1.5 GB and 20,000 entities', () => {
+    expect(STREAM_CAPS).toEqual({ bytes: 1.5 * 1024 * 1024 * 1024, entities: 20_000 })
+  })
+  it('sums typed-array bytes across entities', () => {
+    expect(geometryBytes([{ vertices: new Float32Array(3) }, { indices: new Uint32Array(2) }])).toBe(20)
+  })
+  it('names the limit that was passed', () => {
+    expect(() => checkLimits(3, 0, { entities: 2, bytes: 10 })).toThrow(/entity cap/)
+    expect(() => checkLimits(1, 11, { entities: 2, bytes: 10 })).toThrow(/buffer cap/)
   })
 })

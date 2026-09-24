@@ -12,6 +12,13 @@ export const DEFAULT_CAPS = {
   entities: 2_000,
 }
 
+// A streamed grid is checked batch by batch against DEFAULT_CAPS and in total
+// against these; its batches never exist in one message.
+export const STREAM_CAPS = {
+  bytes: 1.5 * 1024 * 1024 * 1024,
+  entities: 20_000,
+}
+
 /** @param {string} message */
 const modelError = (message) => {
   const error = new Error(message)
@@ -19,15 +26,8 @@ const modelError = (message) => {
   return error
 }
 
-/**
- * @param {Array<object>} entities
- * @param {{bytes:number,entities:number}} limits
- * @returns {Array<object>}
- */
-export const capGeometry = (entities, limits) => {
-  if (entities.length > limits.entities) {
-    throw modelError(`geometry exceeds the entity cap (${entities.length} > ${limits.entities})`)
-  }
+/** @param {Array<object>} entities */
+export const geometryBytes = (entities) => {
   let bytes = 0
   for (const entity of entities) {
     if (!entity || typeof entity !== 'object') continue
@@ -36,8 +36,29 @@ export const capGeometry = (entities, limits) => {
       if (ArrayBuffer.isView(value)) bytes += value.byteLength
     }
   }
-  if (bytes > limits.bytes) {
-    throw modelError(`geometry exceeds the buffer cap (${bytes} > ${limits.bytes})`)
-  }
+  return bytes
+}
+
+const checkCount = (count, limits) => {
+  if (count > limits.entities) throw modelError(`geometry exceeds the entity cap (${count} > ${limits.entities})`)
+}
+
+const checkBytes = (bytes, limits) => {
+  if (bytes > limits.bytes) throw modelError(`geometry exceeds the buffer cap (${bytes} > ${limits.bytes})`)
+}
+
+export const checkLimits = (count, bytes, limits) => {
+  checkCount(count, limits)
+  checkBytes(bytes, limits)
+}
+
+/**
+ * @param {Array<object>} entities
+ * @param {{bytes:number,entities:number}} limits
+ * @returns {Array<object>}
+ */
+export const capGeometry = (entities, limits) => {
+  checkCount(entities.length, limits)
+  checkBytes(geometryBytes(entities), limits)
   return entities
 }
