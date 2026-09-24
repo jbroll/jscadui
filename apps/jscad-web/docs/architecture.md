@@ -82,7 +82,11 @@ one has started after, before it sends and again before it draws or reports
 an error. A parameter change takes a run from the same counter and draws only
 if no load or other parameter change started while its `jscadMain` ran; the
 redraw after a render-engine switch takes a run the same way. A parameter
-change never drops a load, which still has to build the params UI.
+change never drops a load, which still has to build the params UI. An `ALL.js`
+grid yields between cells, so a newer `jscadScript` can start in the same
+worker once the script lock times out; the worker bumps
+`__jscadScriptGeneration` and the grid stops at its next cell rather than
+share the WASM heap with it.
 
 An OpenSCAD `use`/`include` resolves through `src_frame/scadResolve.js`:
 against the directory of the file that asked for it, then against that file's
@@ -259,7 +263,9 @@ Geometry from the frame is untrusted input, so `src/caps.js` bounds it before
 the first allocation for drawing: 256MB of buffers and 2000 entities. Over a
 cap is a model error, not an allocation. There is no separate vertex cap: a
 vertex costs at least 12 bytes, so the buffer cap bounds vertices at about 22M,
-and an 8M one refused whole-library `ALL.js` grids that were genuine geometry. `aiEvaluate.js`
+and an 8M one refused whole-library `ALL.js` grids that were genuine geometry.
+The NopSCADlib tests grid, 13.3M triangles at 84 bytes each, is still over
+the buffer cap. `aiEvaluate.js`
 re-checks the same caps so the agent cannot be told a model evaluated when
 nothing was drawn.
 
