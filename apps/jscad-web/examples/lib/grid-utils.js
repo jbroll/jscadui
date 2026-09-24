@@ -90,11 +90,22 @@ function normalizeAndPlace(geoms, gx, gy, cellSize) {
   const cz = (z0 + z1) / 2
 
   // For each geometry: centre → scale → place
-  return geoms.map(g =>
-    translate([gx, gy, 0],
-      scale([s, s, s],
-        translate([-cx, -cy, -cz], g)))
-  )
+  return geoms.map(g => {
+    const centred = translate([-cx, -cy, -cz], g)
+    const scaled = scale([s, s, s], centred)
+    const placed = translate([gx, gy, 0], scaled)
+    // A manifold transform result owns its own handle, so the steps can go now
+    // rather than wait for the finalizer; g stays, as a model may reuse it.
+    disposeIntermediate(centred, g)
+    disposeIntermediate(scaled, g)
+    return placed
+  })
+}
+
+function disposeIntermediate(geom, keep) {
+  for (const x of [geom].flat(Infinity)) {
+    if (x !== keep && x?.isManifoldGeom3 && typeof x.dispose === 'function') x.dispose()
+  }
 }
 
 /**

@@ -76,6 +76,14 @@ the WASM heap peak: `fractal_tree.scad` 2352 → 207 MB, NopSCADlib
 `render-grids-baseline.json` still records the job before this change, so the
 sweep reports the grids that now fail later as regressions.
 
+A grid's `main` is async and yields to the event loop after each cell, so
+finalizers queued during a cell can run before the next; a yield does not
+force the GC that queues them. In a Node emulation of the dotSCAD dragon grid
+the peak WASM heap was 429 MB with or without the yield, and 358 MB once
+`normalizeAndPlace` disposes its two intermediate transforms per geometry. A
+yield also lets a newer script start in the worker, so a grid stops with `grid
+superseded by a newer script` once one has.
+
 - **The NopSCADlib tests grid still crashes the renderer**, and its two
   parents score `partial` on that cell with manifold's `Aborted()`. The sweep
   runs four grids at once on the CI host.
@@ -87,10 +95,6 @@ sweep reports the grids that now fail later as regressions.
 - **The aggregate-of-aggregate grids are too big for one worker.** Top-level
   `ALL.js` and `openscad/ALL.js` hit the 290s kill. Each loads several whole
   grids in one worker on one core.
-- A grid's `main` is async and yields to the event loop after each cell, so
-  finalizers queued during a cell can run before the next. A yield also lets a
-  newer script start in the worker, so a grid stops with `grid superseded by a
-  newer script` once one has.
 - **Nothing splits a grid across workers.** The frame runs one worker, one
   request at a time (`src_frame/frame.js`), so a grid cannot use more than one
   core and cannot give each cell its own budget. A pool would need the app to
