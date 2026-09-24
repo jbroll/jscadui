@@ -34,7 +34,8 @@ memory fixes. Later on 2026-09-24: deployed `715e4509`, streamed grids, then
 `cf7e8dc1`, the preview optimizations (indexed meshes, streamed parts, mesh
 reuse, spare worker), then `c848f0ba`, the grid failure marker drawn from
 `skull.svg`, then `66ee38c7`, the demo menu without pass-through levels and
-with NopSCADlib's tests in six categories.
+with NopSCADlib's tests in six categories, then `746a96f7`, the grid worker
+pool (a grid's leaves spread over the frame's workers by claim).
 See `apps/jscad-web/docs/architecture.md` for the
 deploy order and headers.
 
