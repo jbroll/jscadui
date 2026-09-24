@@ -167,6 +167,9 @@ export const extractDefinition = (value) => {
     // Slider/live properties
     if (value.live !== undefined) result.live = value.live
 
+    // Heading this param is listed under (legacy group definitions)
+    if (typeof value.group === 'string') result.group = value.group
+
     // Group properties
     if (value.initial === 'closed') result.initialState = 'closed'
     else if (value.initialState !== undefined) result.initialState = value.initialState
@@ -466,10 +469,16 @@ export const toParamDefinitions = (discovered, includeHidden = false) => {
     }
 
     // Add params
+    let group
     for (const param of node.params) {
       if (param.hidden && !includeHidden) continue
       // Skip unknown types (like color arrays) that can't be rendered
       if (param.type === 'unknown') continue
+
+      if (param.group && param.group !== group) {
+        result.push({ name: `_group_${node.path}#${param.group}`, type: 'group', caption: param.group })
+      }
+      group = param.group
 
       result.push({
         name: param.path,  // Use full path as name
@@ -698,10 +707,15 @@ export const getLinkedParamPaths = (types, classes, paramPath) => {
  */
 export const convertLegacyDefs = (legacyDefs, prefix = '') => {
   const params = {}
+  // Groups are UI-only: they don't become params, but label the params after them
+  let group
 
   for (const def of legacyDefs) {
-    // Skip groups - they're UI-only and don't map to params
-    if (def.type === 'group') continue
+    if (def.type === 'group') {
+      // params-form convention: a leading '>' means the group starts closed
+      group = String(def.caption ?? def.name).replace(/^>/, '').trim() || undefined
+      continue
+    }
 
     const name = def.name
     const _path = prefix ? `${prefix}.${name}` : name
@@ -751,6 +765,7 @@ export const convertLegacyDefs = (legacyDefs, prefix = '') => {
     if (def.caption) paramDef.label = def.caption
     if (def.values) paramDef.values = def.values
     if (def.captions) paramDef.captions = def.captions
+    if (group) paramDef.group = group
 
     // Normalize float to number
     if (paramDef.type === 'float') {

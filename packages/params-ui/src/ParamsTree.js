@@ -211,9 +211,17 @@ export const createParamsTree = (options) => {
         content.classList.add('params-tree-content--collapsed')
       }
 
-      // Params
+      // Params, with a heading wherever the group label changes
+      let group
       for (const param of node.params) {
         if (!showHidden && param.hidden) continue
+        if (param.group && param.group !== group) {
+          const heading = document.createElement('div')
+          heading.className = 'params-tree-group'
+          heading.textContent = param.group
+          content.appendChild(heading)
+        }
+        group = param.group
         content.appendChild(renderParam(param))
       }
 
@@ -703,6 +711,16 @@ export const paramsTreeStyles = `
 /* Header span for control+value columns */
 .params-tree-header-span {
   grid-column: control / -1;
+}
+
+/* Heading for a run of params with the same group label */
+.params-tree-group {
+  grid-column: 1 / -1;
+  font-weight: 600;
+  font-size: 0.85em;
+  margin-top: 6px;
+  padding: 2px 0;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.3);
 }
 
 /* Parameter row uses subgrid */

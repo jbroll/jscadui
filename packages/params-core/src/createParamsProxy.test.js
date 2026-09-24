@@ -15,6 +15,7 @@ import {
   convertLegacyDefs,
   extractLegacyDefaults,
   extractDefinition,
+  injectLegacyDefs,
 } from './createParamsProxy.js'
 
 describe('createParamsProxy', () => {
@@ -664,6 +665,37 @@ describe('convertLegacyDefs', () => {
 
     expect(params.group1).toBeUndefined()
     expect(params.radius).toBeDefined()
+  })
+
+  it('should label params with the group they follow', () => {
+    const params = convertLegacyDefs([
+      { name: 'loose', type: 'number', initial: 1 },
+      { name: 'g1', type: 'group', caption: 'Settings' },
+      { name: 'radius', type: 'number', initial: 5 },
+      { name: 'g2', type: 'group', caption: '>Advanced' },
+      { name: 'segments', type: 'int', initial: 32 },
+    ])
+
+    expect(params.loose.group).toBeUndefined()
+    expect(params.radius.group).toBe('Settings')
+    expect(params.segments.group).toBe('Advanced')
+  })
+
+  it('should carry group labels through the proxy to discovery and definitions', () => {
+    const state = createProxyState()
+    const proxy = createParamsProxy(state)
+    injectLegacyDefs(proxy, convertLegacyDefs([
+      { name: 'g1', type: 'group', caption: 'Size' },
+      { name: 'w', type: 'number', initial: 5 },
+      { name: 'h', type: 'number', initial: 6 },
+      { name: 'g2', type: 'group', caption: 'Style' },
+      { name: 'round', type: 'checkbox', checked: true },
+    ]))
+
+    expect(state.discovered.map(d => [d.path, d.group])).toEqual([['w', 'Size'], ['h', 'Size'], ['round', 'Style']])
+    expect(proxy.w).toBe(5)
+    expect(toParamDefinitions(state.discovered).map(d => d.type === 'group' ? `[${d.caption}]` : d.name))
+      .toEqual(['[Size]', 'w', 'h', '[Style]', 'round'])
   })
 
   it('should preserve slider type with default min/max', () => {
