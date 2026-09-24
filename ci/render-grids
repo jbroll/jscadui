@@ -3,7 +3,7 @@
 #
 #   sci push jscadui/render-grids
 #
-# Same setup as ci/render, different scope: every ALL.js under examples/ rather
+# Same setup as ci/render, different scope: every ALL.js and ALL.<category>.js grid rather
 # than every model. A grid renders each of its models into one cell, so a cell
 # whose model throws comes back as a skull-and-crossbones marker and the sweep
 # scores that grid `partial` and names the dead cells. See
@@ -12,7 +12,7 @@
 # A grid streams cell by cell and the worker frees each cell once sent, but the
 # page keeps everything drawn so far, up to 1.5 GB per run, so a grid is still
 # far heavier than one model: it gets less concurrency than the per-model sweep,
-# and the aggregate grids (every item another ALL.js) run afterwards, one at a
+# and the aggregate grids (every item another grid) run afterwards, one at a
 # time. The hang guard restarts on each cell, so 320s is a per-cell budget; the
 # model budget cannot exceed the app's 300s RPC timeout either way.
 set -uo pipefail

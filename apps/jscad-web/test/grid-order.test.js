@@ -19,15 +19,17 @@ describe('splitAggregateGrids', () => {
     'openscad/text/ALL.js': grid(['./text-fonts.scad']),
     'openscad/mixed/ALL.js': grid(['./one.scad', './sub/ALL.js']),
     'openscad/bosl/ALL.js': grid(['./01-part1/ALL.js', './02-part2/ALL.js']),
+    'openscad/lib/tests/ALL.js': grid(['./ALL.printed.js', './ALL.utils.js']),
+    'openscad/lib/tests/ALL.printed.js': grid(['./box.scad']),
   }
   const files = Object.keys(sources).map(rel => ({ rel, url: `/examples/${rel}` }))
   const { grids, aggregates } = splitAggregateGrids(files, rel => sources[rel])
 
   it('holds back a grid whose every item is another grid', () => {
-    expect(aggregates.map(f => f.rel)).toEqual(['ALL.js', 'openscad/bosl/ALL.js'])
+    expect(aggregates.map(f => f.rel)).toEqual(['ALL.js', 'openscad/bosl/ALL.js', 'openscad/lib/tests/ALL.js'])
   })
 
   it('keeps a grid with any model of its own in the pool', () => {
-    expect(grids.map(f => f.rel)).toEqual(['openscad/text/ALL.js', 'openscad/mixed/ALL.js'])
+    expect(grids.map(f => f.rel)).toEqual(['openscad/text/ALL.js', 'openscad/mixed/ALL.js', 'openscad/lib/tests/ALL.printed.js'])
   })
 })

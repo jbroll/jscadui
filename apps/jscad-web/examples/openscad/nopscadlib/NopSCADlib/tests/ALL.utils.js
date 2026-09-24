@@ -8,12 +8,36 @@
 const { gridPosition, normalizeAndPlace, urlToPartName, failureMarker, prebuiltSkull } = require('../../../../lib/grid-utils.js')
 
 const items = [
-  "./ALL.printed.js",
-  "./ALL.utils.js",
-  "./ALL.vitamins-electronics.js",
-  "./ALL.vitamins-motion.js",
-  "./ALL.vitamins-hardware.js",
-  "./ALL.other.js"
+  "./annotation.scad",
+  "./bezier.scad",
+  "./catenary.scad",
+  "./chamfer.scad",
+  "./clip.scad",
+  "./core_xy.scad",
+  "./dimension.scad",
+  "./dogbones.scad",
+  "./fillet.scad",
+  "./gears.scad",
+  "./global.scad",
+  "./hanging_hole.scad",
+  "./horiholes.scad",
+  "./layout.scad",
+  "./maths.scad",
+  "./offset.scad",
+  "./polyholes.scad",
+  "./quadrant.scad",
+  "./round.scad",
+  "./rounded_cylinder.scad",
+  "./rounded_polygon.scad",
+  "./rounded_rectangle.scad",
+  "./rounded_triangle.scad",
+  "./sector.scad",
+  "./sphere.scad",
+  "./splines.scad",
+  "./sweep.scad",
+  "./teardrops.scad",
+  "./thread.scad",
+  "./tube.scad"
 ]
 const spacing = 60
 const cellSize = 51

@@ -108,20 +108,23 @@ the same job still collide, so each job exits 2 if one of its ports is already
 taken rather than test a server that disappears when its own job ends.
 Edit `RENDER_ARGS` in `ci/render` to change scope/concurrency.
 
-`sci push jscadui/render-grids` runs the same setup over the 40 `ALL.js` grids
-instead (`--dir . --grids`, 320s hang guard, concurrency 4, writing
+`sci push jscadui/render-grids` runs the same setup over the 46 grids
+instead, every `ALL.js` plus the per-category `ALL.<category>.js` grids beside
+the NopSCADlib tests (`--dir . --grids`, 320s hang guard, concurrency 4, writing
 `e2e/render-grids-report.json`). The worker streams a grid cell by cell and
 frees each cell's geometry once sent, but the page keeps every cell it has
 drawn, up to 1.5 GB of buffers per run, so a grid is still much heavier than
 one model. `sci` takes the script name as the job name,
 which is why this is a separate file rather than a flag on `ci/render`.
 
-Five grids are aggregates, every item another `ALL.js`: the top-level
-`ALL.js`, `openscad/ALL.js`, and the `bosl`, `bosl2` and `snippet` ones. Each
-reruns grids the pool already covers, in one page, so with `--grids` the sweep
-holds them back until the pool has finished and then runs them one at a time.
-They stay in the report and the baseline. The generator writes no grid whose
-only item is one sub-grid: the parent loads that sub-grid directly, so
+Six grids are aggregates, every item another grid: the top-level `ALL.js`,
+`openscad/ALL.js`, the `bosl`, `bosl2` and `snippet` ones, and
+`nopscadlib/NopSCADlib/tests/ALL.js`, which lists the six category grids.
+`e2e/grid-order.mjs` detects them by content, so a new aggregate needs no list
+edit. Each reruns grids the pool already covers, in one page, so with `--grids`
+the sweep holds them back until the pool has finished and then runs them one at
+a time. They stay in the report and the baseline. The generator writes no grid
+whose only item is one sub-grid: the parent loads that sub-grid directly, so
 `openscad/ALL.js` lists `./nopscadlib/NopSCADlib/tests/ALL.js` rather than a
 chain of one-item wrappers around it.
 

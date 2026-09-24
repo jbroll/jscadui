@@ -1,3 +1,7 @@
+import { isGridFile } from '../src_build/genExamplesManifest.js'
+
+export { isGridFile }
+
 /** The `items` array of a generated ALL.js, or null if the source is not one. */
 export function gridItems(source) {
   const match = source.match(/^const items = (\[[\s\S]*?\])$/m)
@@ -6,8 +10,9 @@ export function gridItems(source) {
 
 /**
  * Split grid files into the ones with models of their own and the aggregates,
- * whose every item is another ALL.js. An aggregate reruns grids the pool
- * already covers, all in one worker, so it must not share the box with them.
+ * whose every item is another grid (ALL.js or ALL.<category>.js). An aggregate
+ * reruns grids the pool already covers, all in one worker, so it must not share
+ * the box with them.
  * @param {{rel: string}[]} files
  * @param {(rel: string) => string} readSource
  */
@@ -15,7 +20,7 @@ export function splitAggregateGrids(files, readSource) {
   const grids = [], aggregates = []
   for (const file of files) {
     const items = gridItems(readSource(file.rel))
-    const aggregate = items?.length > 0 && items.every(item => item.endsWith('/ALL.js'))
+    const aggregate = items?.length > 0 && items.every(item => isGridFile(item.split('/').pop()))
     ;(aggregate ? aggregates : grids).push(file)
   }
   return { grids, aggregates }

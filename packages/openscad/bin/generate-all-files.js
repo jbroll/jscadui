@@ -7,6 +7,8 @@
  * - Generates ALL.js for ANY directory containing models (.js or .scad files)
  * - Treats directories with single index.js/index.scad as leaf model files
  * - Parent directories aggregate subdirectory ALL.js files and direct model files
+ * - A directory with categories.json gets ALL.<category>.js per category, and
+ *   its ALL.js aggregates those
  * - Preserves numeric prefixes for top-level examples and benchmarks (for directory ordering)
  * - Removes numeric prefixes for OpenSCAD examples (not needed)
  *
@@ -82,6 +84,15 @@ function loadConfig(examplesDir) {
 // Load configuration
 const config = loadConfig(options.examplesDir)
 
+/** ALL.js, or a per-category grid such as ALL.printed.js. */
+const isGridFile = (name) => /^ALL(\.[^/]+)?\.js$/.test(name)
+
+/** categories.json in dir: { category: [model base names] }, or null. */
+function loadCategories(dir) {
+  const file = join(dir, 'categories.json')
+  return existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : null
+}
+
 function loadPatternFile(dir, name) {
   const file = join(dir, name)
   if (!existsSync(file)) return []
@@ -133,7 +144,7 @@ function findModelFiles(dir) {
     return readdirSync(dir)
       .filter(f => {
         if (f.startsWith('.')) return false
-        if (f === 'ALL.js' || f === 'ALL.scad' || f === '__all__.scad') return false
+        if (isGridFile(f) || f === 'ALL.scad' || f === '__all__.scad') return false
         return f.endsWith('.scad') || f.endsWith('.js')
       })
       .sort()
@@ -181,7 +192,7 @@ function getLibPath(dir, examplesRoot) {
  * @param {string[]} items - Array of relative paths to load (files or subdirs)
  * @param {string} examplesRoot - Root examples directory
  */
-function generateAllFile(dir, items, examplesRoot) {
+function generateAllFile(dir, items, examplesRoot, fileName = 'ALL.js') {
   const libPath = getLibPath(dir, examplesRoot)
   const spacing = config.gridSettings.spacing
   const cellSize = spacing * config.gridSettings.cellSizeRatio
@@ -294,7 +305,7 @@ const runCells = async (params, stream) => {
 module.exports = { main }
 `
 
-  const allPath = join(dir, 'ALL.js')
+  const allPath = join(dir, fileName)
 
   if (options.dryRun) {
     console.log(`  [DRY RUN] Would write ${allPath} (${items.length} items)`)
@@ -356,6 +367,29 @@ function subdirItems(subdirResults) {
     }
     return `./${subdir.name}/${subdir.gridRef}`
   })
+}
+
+/**
+ * Write ALL.<category>.js per category beside the models, so its items stay
+ * ./name.scad. Returns the directory's own grid items: the category grids, then
+ * whatever no category claims.
+ */
+function categoryGridItems(dir, categories, items, examplesRoot, stats) {
+  const isOwnFile = (item) => !item.slice(2).includes('/')
+  const claimed = new Set()
+  const grids = []
+  for (const [category, models] of Object.entries(categories)) {
+    const members = items.filter(item => isOwnFile(item) && models.includes(basename(item).replace(/\.(scad|js)$/, '')))
+    if (!members.length) continue
+    members.forEach(m => claimed.add(m))
+    const fileName = `ALL.${category}.js`
+    stats.files += generateAllFile(dir, members, examplesRoot, fileName)
+    grids.push('./' + fileName)
+  }
+  const rest = items.filter(item => !claimed.has(item))
+  const unlisted = rest.filter(isOwnFile)
+  if (unlisted.length) console.warn(`Warning: ${join(dir, 'categories.json')} lists none of ${unlisted.join(' ')}`)
+  return [...grids, ...rest]
 }
 
 /**
@@ -428,7 +462,7 @@ function processDirectory(dir, examplesRoot, depth = 0, scopes = []) {
       }
 
       // Regenerate items list after potential rename
-      const finalItems = []
+      let finalItems = []
       const preservePrefix = shouldPreservePrefix(dir, examplesRoot)
       for (const file of modelFiles) {
         if ((file === 'index.js' || file === 'index.scad') && isIndexOnlyDirectory(dir)) {
@@ -438,6 +472,8 @@ function processDirectory(dir, examplesRoot, depth = 0, scopes = []) {
         finalItems.push('./' + finalName)
       }
       finalItems.push(...subdirItems(subdirResults))
+      const categories = loadCategories(dir)
+      if (categories) finalItems = categoryGridItems(dir, categories, finalItems, examplesRoot, stats)
 
       // A grid of one sub-grid draws the same thing one level up, so the parent loads the child directly
       const onlyGrid = finalItems.length === 1 && finalItems[0].endsWith('/ALL.js') ? finalItems[0] : null
@@ -466,9 +502,9 @@ function cleanAllFiles(dir, depth = 0) {
   try {
     const entries = readdirSync(dir, { withFileTypes: true })
 
-    // Clean ALL.js in current directory
-    const allPath = join(dir, 'ALL.js')
-    if (existsSync(allPath)) {
+    // Clean ALL.js and per-category grids in current directory
+    for (const grid of entries.filter(e => e.isFile() && isGridFile(e.name))) {
+      const allPath = join(dir, grid.name)
       if (options.dryRun) {
         console.log(`  [DRY RUN] Would remove ${allPath}`)
       } else {

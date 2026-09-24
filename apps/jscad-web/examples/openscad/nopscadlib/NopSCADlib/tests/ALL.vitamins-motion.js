@@ -8,12 +8,23 @@
 const { gridPosition, normalizeAndPlace, urlToPartName, failureMarker, prebuiltSkull } = require('../../../../lib/grid-utils.js')
 
 const items = [
-  "./ALL.printed.js",
-  "./ALL.utils.js",
-  "./ALL.vitamins-electronics.js",
-  "./ALL.vitamins-motion.js",
-  "./ALL.vitamins-hardware.js",
-  "./ALL.other.js"
+  "./ball_bearings.scad",
+  "./bearing_blocks.scad",
+  "./belts.scad",
+  "./blowers.scad",
+  "./fans.scad",
+  "./gear_motors.scad",
+  "./geared_steppers.scad",
+  "./hot_ends.scad",
+  "./leadnuts.scad",
+  "./linear_bearings.scad",
+  "./opengrab.scad",
+  "./pillow_blocks.scad",
+  "./pulleys.scad",
+  "./rails.scad",
+  "./servo_motors.scad",
+  "./shaft_couplings.scad",
+  "./stepper_motors.scad"
 ]
 const spacing = 60
 const cellSize = 51

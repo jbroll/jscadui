@@ -57,7 +57,7 @@ import { fileURLToPath } from 'node:url'
 import { isExcluded } from '../src_build/exampleExclusions.js'
 import { diffAgainstBaseline, toFailure } from './baseline-diff.mjs'
 import { APP_ORIGIN } from './ports.mjs'
-import { splitAggregateGrids } from './grid-order.mjs'
+import { splitAggregateGrids, isGridFile } from './grid-order.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const APP_ROOT = join(__dirname, '..')
@@ -126,10 +126,10 @@ function collectFiles(opts) {
     // Each immediate library subdir gets its own skip.txt scope; also the dir itself.
     for (const f of walk(absDir)) {
       if (opts.grids) {
-        if (basename(f) !== 'ALL.js') continue
+        if (!isGridFile(basename(f))) continue
       } else {
         if (!exts.includes(f.slice(f.lastIndexOf('.')))) continue
-        if (basename(f) === 'ALL.js') continue
+        if (isGridFile(basename(f))) continue
         if (opts.skip && isExcluded(f, EXAMPLES_ROOT)) continue
       }
       const relFromExamples = relative(EXAMPLES_ROOT, f)
