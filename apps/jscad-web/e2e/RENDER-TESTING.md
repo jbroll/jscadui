@@ -89,6 +89,29 @@ system chromium on the dev box cannot create a headless WebGL context, so the ap
 aborts at init. `render-all.mjs` and `playwright.config.js` use the bundled browser
 with `--use-gl=angle`. Do **not** point `executablePath` at the system chromium.
 
+## grid-memory.mjs
+
+Renders one model in the bundled chromium and samples memory until the page
+settles, stops streaming cells, or passes a cap. Each sample prints the resident
+memory of every chromium process the script launched (total and largest), the
+process count, `html[data-cells]`, `html[data-render]`, and each worker's
+manifold WASM heap, read through `j$.jscad.getModule().HEAPU8`. The last line
+gives the outcome, the peak total and the final cell count, followed by up to
+ten `ALL: FAILED` lines. Linux only: it reads `/proc`.
+
+| Option | Default | Meaning |
+|--------|---------|---------|
+| `--model <path>` | required | example URL path to load |
+| `--pool-size <n>` | the app's own | sets `engine.poolSize` before the page loads |
+| `--server <url>` | `http://localhost:$JSCAD_WEB_PORT`, else `:5120` | app base |
+| `--max-gb <n>` | 6 | stop once the browser's total RSS passes this |
+| `--stall <s>` | 120 | stop when no new cell arrives for this long |
+| `--every <s>` | 2 | sample interval |
+
+```bash
+node e2e/grid-memory.mjs --model /examples/openscad/nopscadlib/NopSCADlib/tests/ALL.js --pool-size 4
+```
+
 ## Running the full sweep on CI (recommended)
 
 The full sweep is memory/CPU heavy — run it on the GPU CI host via simple-ci
