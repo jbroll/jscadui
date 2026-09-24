@@ -47,6 +47,18 @@ const checkBytes = (bytes, limits) => {
   if (bytes > limits.bytes) throw modelError(`geometry exceeds the buffer cap (${bytes} > ${limits.bytes})`)
 }
 
+const BUFFER_FIELDS = ['vertices', 'indices', 'normals', 'colors']
+
+// Byte counting sees only typed arrays, and a fake length would stall the loops that read it.
+export const checkBuffers = (entities) => {
+  for (const entity of entities) {
+    for (const field of BUFFER_FIELDS) {
+      const value = entity[field]
+      if (value != null && !ArrayBuffer.isView(value)) throw modelError(`geometry ${field} is not a typed array`)
+    }
+  }
+}
+
 export const checkLimits = (count, bytes, limits) => {
   checkCount(count, limits)
   checkBytes(bytes, limits)

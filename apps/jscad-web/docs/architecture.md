@@ -298,11 +298,14 @@ the current run's and the run is not stale. Anything else is dropped and leaves
 the current run alone. A `frameSetup` replay re-sends requests with the
 `runId`s they first carried, whose runs are closed, so its batches are dropped
 too. A result that is not streamed discards the open run without drawing, so a
-pending redraw cannot paint over it. Each batch is checked against the
-per-batch caps (256 MB, 2,000 entities) and the run's total against 1.5 GB and
-20,000 entities; going over ends the run with the cap error and leaves the
-drawn cells in place, as a kill does.
-Redraws coalesce to one per 250 ms and pass the run's whole entity array, which
+pending redraw cannot paint over it. Model code can post its own `jscadCells`,
+so a batch is untrusted: a `vertices`, `indices`, `normals` or `colors` field
+that is not a typed array is a model error, since the byte cap counts only
+typed arrays and a fake `length` would stall the counting and bounding-box
+loops. Each batch is then checked against the per-batch caps (256 MB, 2,000
+entities) and the run's total against 1.5 GB and 20,000 entities. Any failure,
+including a throw while counting, ends the run with the error before the batch
+is added and leaves the drawn cells in place, as a kill does. Redraws coalesce to one per 250 ms and pass the run's whole entity array, which
 starts empty, so the first redraw replaces the previous model. The three.js
 renderer keeps built objects keyed by entity object across `setScene`, so each
 redraw builds only the new cells. With zoom-to-fit on, the camera fits the

@@ -1,5 +1,5 @@
 import { boundingBox } from '@jscadui/format-common'
-import { capGeometry, checkLimits, DEFAULT_CAPS, geometryBytes, STREAM_CAPS } from './caps.js'
+import { capGeometry, checkBuffers, checkLimits, DEFAULT_CAPS, geometryBytes, STREAM_CAPS } from './caps.js'
 import { countGeometry } from './stats.js'
 
 const mergeBox = (a, b) => a ? {
@@ -47,21 +47,24 @@ export const createStreamRuns = ({ draw, onCells, onError, delayMs = 250 }) => {
       if (!owns(runId) || run.isStale()) return false
       // Drop non-object entries here so nothing downstream (caps, countGeometry) has to guard against them.
       const entities = (Array.isArray(batch) ? batch : []).filter((e) => e && typeof e === 'object')
+      let bytes, counts, box
       try {
+        checkBuffers(entities)
         capGeometry(entities, DEFAULT_CAPS)
-        const bytes = geometryBytes(entities)
+        bytes = geometryBytes(entities)
         checkLimits(run.entities.length + entities.length, run.bytes + bytes, STREAM_CAPS)
-        run.bytes += bytes
+        counts = countGeometry(entities)
+        box = hasVertices(entities) ? mergeBox(run.box, boundingBox(entities)) : run.box
       } catch (error) {
         stop()
         onError(error)
         return false
       }
       for (const entity of entities) run.entities.push(entity)
-      const { vertices, triangles } = countGeometry(entities)
-      run.vertices += vertices
-      run.triangles += triangles
-      if (hasVertices(entities)) run.box = mergeBox(run.box, boundingBox(entities))
+      run.bytes += bytes
+      run.vertices += counts.vertices
+      run.triangles += counts.triangles
+      run.box = box
       run.cells++
       onCells(run.cells)
       run.dirty = true

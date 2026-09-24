@@ -97,6 +97,50 @@ describe('stream runs', () => {
     expect(draw.mock.calls[0][0]).toHaveLength(1)
   })
 
+  it.each([
+    ['a fake length', { type: 'mesh', vertices: { length: 1e12 } }],
+    ['a plain array', { type: 'mesh', vertices: [0, 0, 0, 1, 1, 1, 2, 2, 2] }],
+    ['plain-array indices', { type: 'mesh', vertices: new Float32Array(9), indices: [0, 1, 2] }],
+    ['plain-array normals', { type: 'mesh', vertices: new Float32Array(9), normals: [0, 0, 1] }],
+    ['plain-array colors', { type: 'mesh', vertices: new Float32Array(9), colors: [1, 0, 0, 1] }],
+  ])('fails the run on a buffer field with %s', (_, entity) => {
+    const { runs, draw, onCells, onError } = setup()
+    runs.begin(() => false)
+    expect(runs.accept([cell(), entity])).toBe(false)
+    expect(onError.mock.calls[0][0].name).toBe('ModelError')
+    expect(onCells).not.toHaveBeenCalled()
+    expect(draw).not.toHaveBeenCalled()
+    expect(runs.finish()).toBeNull()
+  })
+
+  it('accepts buffer fields that are absent or undefined', () => {
+    const { runs, onError } = setup()
+    runs.begin(() => false)
+    expect(runs.accept([{ type: 'mesh', vertices: new Float32Array(9), indices: undefined, colors: undefined }])).toBe(true)
+    expect(onError).not.toHaveBeenCalled()
+  })
+
+  it('pushes nothing and ends the run when counting a batch throws', () => {
+    const { runs, draw, onCells, onError } = setup()
+    runs.begin(() => false)
+    runs.accept([cell(1)])
+    const entity = cell(2)
+    let reads = 0
+    // Passes the buffer check on the first read, throws when counted.
+    Object.defineProperty(entity, 'indices', {
+      get() {
+        if (reads++) throw new Error('bad getter')
+        return undefined
+      },
+      enumerable: false,
+    })
+    expect(runs.accept([entity])).toBe(false)
+    expect(onError.mock.calls[0][0].message).toBe('bad getter')
+    expect(onCells).toHaveBeenCalledTimes(1)
+    expect(draw.mock.calls[0][0]).toHaveLength(1)
+    expect(runs.finish()).toBeNull()
+  })
+
   it('drops a batch tagged with another run', () => {
     const { runs, draw, onCells } = setup()
     runs.begin(() => false, 2)
