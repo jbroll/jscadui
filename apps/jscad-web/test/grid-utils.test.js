@@ -138,4 +138,12 @@ describe('prebuiltSkull', () => {
     const { prebuiltSkull } = gridUtils
     expect(prebuiltSkull(0, 0, 1)[0].polygons).not.toBe(prebuiltSkull(0, 0, 1)[0].polygons)
   })
+
+  it('composes a world transform into its placement', () => {
+    const { prebuiltSkull } = gridUtils
+    const { mat4 } = jscad.maths
+    const ctx = mat4.fromTranslation(mat4.create(), [100, 0, 0])
+    const [[x0], [x1]] = measureAggregateBoundingBox(...prebuiltSkull(0, 0, 51, ctx))
+    expect((x0 + x1) / 2).toBeCloseTo(100, 1)
+  })
 })

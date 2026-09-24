@@ -161,6 +161,12 @@ describe('generated ALL.js grid', () => {
     const lines = await failureLines(() => runGrid(['./text-fonts.scad']))
     expect(lines.filter(l => l.startsWith('ALL: FAILED '))).toHaveLength(1)
   })
+
+  it('exports runGrid and its extent, so a parent grid can nest it', () => {
+    const grid = loadCjs(gridPath, (name) => name.endsWith('grid-utils.js') ? loadGridUtils() : { main: () => cube({ size: 10 }) })
+    expect(typeof grid.runGrid).toBe('function')
+    expect(grid.extent).toEqual([4 * 60 - 60 + 51, 3 * 60 - 60 + 51])
+  })
 })
 
 describe('streaming', () => {
@@ -180,15 +186,21 @@ describe('streaming', () => {
   })
 
   it('disposes each placed geometry after it is sent', async () => {
-    const placed = []
-    const normalizeAndPlace = () => { const g = { dispose: vi.fn() }; placed.push(g); return [g] }
+    // custom properties on a real geom, such as a manifold's dispose, survive normalizeAndPlace's transforms
+    const disposed = []
+    const tracked = () => {
+      const g = cube({ size: 10 })
+      g.dispose = vi.fn()
+      disposed.push(g)
+      return g
+    }
     globalThis.__jscadStream = hook()
-    await runGrid([], { utils: { normalizeAndPlace } })
-    expect(placed).toHaveLength(11)
-    for (const g of placed) expect(g.dispose).toHaveBeenCalledOnce()
+    await runGrid([], { models: Object.fromEntries(items.map((url) => [url, tracked])) })
+    expect(disposed).toHaveLength(11)
+    for (const g of disposed) expect(g.dispose).toHaveBeenCalledOnce()
   })
 
-  it('hides the hook from a nested grid, which returns its geometry', async () => {
+  it('hides the hook from leaf code', async () => {
     const stream = globalThis.__jscadStream = hook()
     let seen = 'unset'
     const nested = async () => { seen = globalThis.__jscadStream; return cube({ size: 10 }) }
