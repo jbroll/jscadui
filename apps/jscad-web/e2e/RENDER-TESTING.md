@@ -35,6 +35,12 @@ budget stops at 290s: the app's RPC to the frame gives up at 300s
 (`@jscadui/postmessage`), and past that the page reports "RPC timeout" while
 the worker keeps running. The harness warns and clamps a larger value.
 
+For a streamed grid (`--grids`), both budgets apply per cell, not per grid:
+each accepted batch resets `html[data-cells]`, which restarts the frame's kill
+timer, the app's RPC timers and the harness's own hang guard. A grid is scored
+once it settles (`data-render` reaches `ok`/`error`), however many cells that
+took.
+
 A `timeout` is followed by an `at the guard:` line: the app's
 `data-render` and error bar and the page clock, then whether the frame
 document answers. Each read gives up after 5s. `render=error` with a
@@ -104,8 +110,10 @@ Edit `RENDER_ARGS` in `ci/render` to change scope/concurrency.
 
 `sci push jscadui/render-grids` runs the same setup over the 40 `ALL.js` grids
 instead (`--dir . --grids`, 320s hang guard, concurrency 4, writing
-`e2e/render-grids-report.json`). A grid holds every cell's geometry at once, so
-it is much heavier than one model. `sci` takes the script name as the job name,
+`e2e/render-grids-report.json`). The worker streams a grid cell by cell and
+frees each cell's geometry once sent, but the page keeps every cell it has
+drawn, up to 1.5 GB of buffers per run, so a grid is still much heavier than
+one model. `sci` takes the script name as the job name,
 which is why this is a separate file rather than a flag on `ci/render`.
 
 Five grids are aggregates, every item another `ALL.js`: the top-level

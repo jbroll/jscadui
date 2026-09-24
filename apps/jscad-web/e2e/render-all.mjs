@@ -30,7 +30,9 @@
  *   --engine <name>    Modeling engine: jscad | manifold (default: app default)
  *   --timeout <ms>     Per-file timeout (default: 300000). This is a hang
  *                      guard, not a performance budget: a model that renders
- *                      slowly is still a model that renders.
+ *                      slowly is still a model that renders. For a streamed
+ *                      grid (--grids) the guard restarts on each cell that
+ *                      arrives, so the budget is per cell, not per grid.
  *   --model-timeout <ms>  What the app gives a model before it kills it
  *                      (default: the per-file timeout less 30s, so the frame
  *                      reports "model exceeded N ms" rather than the harness
@@ -180,13 +182,23 @@ async function renderOne(context, opts, file, idx) {
     // has even begun and every page reads as a pass.
     // waitForFunction does not notice a crashed renderer and runs out the guard.
     const crashed = new Promise((_, reject) => page.once('crash', () => reject(new Error('renderer crashed'))))
-    status = await Promise.race([
-      page.waitForFunction(
-        () => ['ok', 'error'].includes(document.documentElement.dataset.render),
-        null, { timeout: opts.timeout },
-      ),
-      crashed,
-    ]).then(() => page.evaluate(() => document.documentElement.dataset.render))
+    // A streamed grid sets data-cells as each cell lands, so the guard is per cell.
+    const settled = async () => {
+      let cells = null
+      for (;;) {
+        const handle = await page.waitForFunction((seen) => {
+          const d = document.documentElement.dataset
+          if (['ok', 'error'].includes(d.render)) return { settled: true }
+          const now = d.cells ?? null
+          return now !== seen ? { cells: now } : false
+        }, cells, { timeout: opts.timeout })
+        const state = await handle.jsonValue()
+        if (state.settled) return
+        cells = state.cells
+      }
+    }
+    status = await Promise.race([settled(), crashed])
+      .then(() => page.evaluate(() => document.documentElement.dataset.render))
     if (await page.locator('#error-bar').isVisible().catch(() => false)) {
       status = 'error'
       errText = ((await page.locator('#error-bar').textContent().catch(() => '')) || '')
