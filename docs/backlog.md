@@ -30,7 +30,9 @@ fixes, GitHub App storage removed); the smoke gate now checks that each host
 serves the build just made. Later on 2026-09-23: deployed `4c0bd32e`, the
 review follow-ups, then `91d6402f`, the render-engine redraw guard.
 2026-09-24: deployed `3543a03e`, the include-chain cache check and the grid
-memory fixes. Later on 2026-09-24: deployed `715e4509`, streamed grids.
+memory fixes. Later on 2026-09-24: deployed `715e4509`, streamed grids, then
+`cf7e8dc1`, the preview optimizations (indexed meshes, streamed parts, mesh
+reuse, spare worker).
 See `apps/jscad-web/docs/architecture.md` for the
 deploy order and headers.
 
