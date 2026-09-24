@@ -38,4 +38,9 @@ describe('CommonToThree mesh shading', () => {
     convert.setDefColor([0, 1, 0])
     expect(convert(tri, {}).material.flatShading).toBe(true)
   })
+
+  it('does not pass flatShading to a colored lines material', () => {
+    const lines = { type: 'lines', vertices: tri.vertices, color: [1, 0, 0, 1] }
+    expect('flatShading' in convert(lines, {}).material).toBe(false)
+  })
 })

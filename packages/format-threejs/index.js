@@ -54,8 +54,9 @@ export function CommonToThree({
         vertexColors: !!colors,
         opacity: c[3] === undefined ? 1 : c[3],
         transparent: (color && c[3] !== 1 && c[3] !== undefined) || isTransparent,
-        flatShading: flat,
       }
+      // LineBasicMaterial has no flatShading property; only mesh materials take it
+      if (objType === 'mesh') opts.flatShading = flat
       if (opacity) opts.opacity = opacity
       if (!colors) opts.color = _CSG2Three.makeColor(color)
       material = materialDef.make(opts)
