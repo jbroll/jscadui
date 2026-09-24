@@ -6,12 +6,22 @@ importScripts(bundleBase + 'bundle.jscadui.transform-babel.js')
 
 const { transformcjs } = jscadui_transform_babel
 
-import { initWorker, currentSolids, currentParams, jscadInit, jscadMain } from '@jscadui/worker'
+import {
+  initWorker,
+  currentSolids,
+  currentParams,
+  jscadInit,
+  jscadMain,
+  lastRunStreamed,
+  postProgress,
+  releaseSolids,
+} from '@jscadui/worker'
 import { readFileWeb, require, requireHandlers, jscadClearTempCache, clearFileCache } from '@jscadui/require'
 import { withTransferable } from '@jscadui/postmessage'
 import { defaultSerializerConfigs } from '@jscadui/format-common/src/exportFormats.js'
 import { createScadHandler } from './scadHandler.js'
 import { sealMessageListeners } from './sealMessages.js'
+import { createWithSolids } from './withSolids.js'
 
 // The frame adds appOrigin to every jscadInit: this worker's own origin is
 // opaque, so include urls with no origin of their own have no other base.
@@ -66,10 +76,9 @@ export const jscadSetFiles = ({ files }) => {
 // jscadMain flattens the model's return into solids, so one solid is a single
 // geometry and more are a scene array — the CLI's classification rule, kept so
 // frame output stays identical to jscad-work.
-const currentGeometry = () => {
-  const solids = currentSolids()
-  return solids.length === 1 ? solids[0] : solids
-}
+const asGeometry = (solids) => solids.length === 1 ? solids[0] : solids
+
+const withSolids = createWithSolids({ lastRunStreamed, postProgress, releaseSolids, currentParams, jscadMain, currentSolids })
 
 // Loaded lazily through the '@jscadui/model-tools' bundle alias, which resolves
 // @jscad/modeling to the modeling bundle alias already in the worker.
@@ -79,9 +88,9 @@ const modelTools = () => {
   return _modelTools
 }
 
-const jscadMeasure = ({ options = {} }) => modelTools().measure(currentGeometry(), options)
+const jscadMeasure = ({ options = {} }) => withSolids((solids) => modelTools().measure(asGeometry(solids), options))
 
-const jscadCheck = ({ bed, options = {} }) => modelTools().check(currentGeometry(), { ...options, bed })
+const jscadCheck = ({ bed, options = {} }) => withSolids((solids) => modelTools().check(asGeometry(solids), { ...options, bed }))
 
 const jscadExportData = async ({ format, options = {} }) => {
   const jscadIo = require('@jscad/io', null, readFileWeb)
@@ -89,14 +98,17 @@ const jscadExportData = async ({ format, options = {} }) => {
   if (!config) throw new Error(`Unknown export format: ${format}`)
   // Only a model that reads $preview can differ between the two modes, and
   // re-running one is expensive, so ask the runtime whether it ever mattered.
-  const renderMode = _openscad?.j$.previewUsed
+  // A streamed grid is re-run for the export anyway, in preview mode.
+  const renderMode = !lastRunStreamed() && _openscad?.j$.previewUsed
   try {
     if (renderMode) {
       setScadPreview(false)
       await jscadMain({ params: currentParams() })
     }
-    const data = jscadIo[config.serializerKey].serialize({ ...config.defaultOptions, ...options }, currentSolids())
-    return withTransferable({ data }, data.filter((v) => typeof v !== 'string'))
+    return await withSolids((solids) => {
+      const data = jscadIo[config.serializerKey].serialize({ ...config.defaultOptions, ...options }, solids)
+      return withTransferable({ data }, data.filter((v) => typeof v !== 'string'))
+    })
   } finally {
     if (renderMode) {
       setScadPreview(true)
