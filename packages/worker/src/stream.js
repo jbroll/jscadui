@@ -3,9 +3,10 @@ import { JscadToCommon } from '@jscadui/format-jscad'
 /**
  * The hook an ALL.js grid finds on globalThis.__jscadStream: each emitted
  * cell goes to the app at once instead of waiting for main to return.
- * @param {{post: (message: object, transfer?: Transferable[]) => void, userInstances?: boolean}} options
+ * @param {{post: (message: object, transfer?: Transferable[]) => void, userInstances?: boolean, runId?: unknown}} options
+ *   runId is echoed on every batch so the app can drop batches of a run it has moved past
  */
-export const createStreamHook = ({ post, userInstances }) => {
+export const createStreamHook = ({ post, userInstances, runId }) => {
   let emitted = false
   const hook = {
     emit(geoms) {
@@ -16,7 +17,7 @@ export const createStreamHook = ({ post, userInstances }) => {
       const transferable = []
       const entities = JscadToCommon.prepare(solids, transferable, userInstances).all
       emitted = true
-      post({ method: 'jscadCells', params: [{ entities }] }, [...new Set(transferable.map(a => a.buffer || a))])
+      post({ method: 'jscadCells', params: [{ entities, runId }] }, [...new Set(transferable.map(a => a.buffer || a))])
     },
     progress() {
       post({ method: 'jscadProgress', params: [] })

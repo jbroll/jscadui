@@ -58,7 +58,8 @@ cell to the app as it finishes, so the worker never holds the whole grid's
 geometry. The model budget (120s, `main.js`; 290s in the sweep) restarts on
 each cell, so it bounds one cell rather than the grid. The app draws cells as
 they arrive, capped at 1.5 GB and 20,000 entities per grid
-(`apps/jscad-web/docs/architecture.md`, Streamed grids). 40 grids; the largest are NopSCADlib's 147-cell tests grid, dotSCAD's 64-cell examples grid and
+(`apps/jscad-web/docs/architecture.md`, Streamed grids). 40 grids; the largest
+are NopSCADlib's 147-cell tests grid, dotSCAD's 64-cell examples grid and
 about 36 per BOSL2 part. Grids nest, so a nested grid is one cell of its
 parent. The generator writes no grid whose only item is one sub-grid, and the
 sweep runs the five aggregates (every item a sub-grid) after the rest, one at

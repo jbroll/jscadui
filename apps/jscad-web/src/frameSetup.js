@@ -96,7 +96,6 @@ const createReplay = (proxy) => {
       if (restoring) return
       restoring = replay().finally(() => { restoring = null })
     },
-    isRestoring: () => restoring !== null,
     /**
      * @param {string} method
      * @param {() => Promise<unknown>} send
@@ -119,7 +118,7 @@ const createReplay = (proxy) => {
  * @param {(result: unknown, options: {skipLog?: boolean}) => void} options.onEntities
  * @param {(jobs: number) => void} options.onJobCount
  * @param {() => void} [options.onTerminated] - the frame lost its worker; the replay already re-inits it
- * @param {(entities: unknown[]) => void} [options.onCells] - one batch of a streamed grid's cells
+ * @param {(entities: unknown[], runId: unknown) => void} [options.onCells] - one batch of a streamed grid's cells, tagged with the runId of the request that made it
  * @param {string} options.runOrigin
  * @param {number} [options.loadTimeoutMs]
  * @returns {Promise<{frameEl: HTMLIFrameElement, workerApi: JscadWorker, handlers: object}>}
@@ -138,12 +137,9 @@ export const createFrame = async ({ onError, onEntities, onJobCount, onTerminate
       replay.restore()
       onTerminated?.()
     },
-    jscadCells: ({ entities } = {}) => {
+    jscadCells: ({ entities, runId } = {}) => {
       proxy.resetTimeouts()
-      // A request the app sends during a replay waits behind it, so the
-      // replay's cells would land in that request's run.
-      if (replay.isRestoring()) return
-      onCells?.(Array.isArray(entities) ? entities : [])
+      onCells?.(Array.isArray(entities) ? entities : [], runId)
     },
     jscadProgress: () => {
       proxy.resetTimeouts()

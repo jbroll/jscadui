@@ -198,10 +198,10 @@ async function readFileFile(file, {bin=false}={}){
 
 
 /**
- * @param {{params?:import('@jscadui/format-common').UserParameters,skipLog?:boolean,userInteractedPaths?:string[],useGpuNormals?:boolean,stream?:boolean}} options
+ * @param {{params?:import('@jscadui/format-common').UserParameters,skipLog?:boolean,userInteractedPaths?:string[],useGpuNormals?:boolean,stream?:boolean,runId?:unknown}} options
  * @returns {Promise<import('@jscadui/format-common').JscadMainResult>}
  */
-export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths, useGpuNormals, stream = true } = {}) {
+export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths, useGpuNormals, stream = true, runId } = {}) {
   // Update GPU normals setting if provided (allows switching without re-running script)
   if (useGpuNormals !== undefined) {
     const modelingBundleUrl = requireCache.bundleAlias['@jscad/modeling']
@@ -258,7 +258,7 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
   let convTime = 0
 
   const { hook, emitted } = stream
-    ? createStreamHook({ post: (message, transfer) => self.postMessage(message, transfer), userInstances: workerState.userInstances })
+    ? createStreamHook({ post: (message, transfer) => self.postMessage(message, transfer), userInstances: workerState.userInstances, runId })
     : { hook: null, emitted: () => false }
   const runMain = (mainParams) => withStreamHook(hook, () => workerState.main(mainParams))
 
@@ -323,7 +323,7 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
     }
 
     const result = { entities, treeTime, execTime, convTime }
-    if (emitted()) result.streamed = true
+    if (emitted()) Object.assign(result, { streamed: true, runId })
 
     // Include proxy state info in result
     if (proxyState) {
@@ -363,10 +363,10 @@ const importReg = /import(?:(?:(?:[ \n\t]+([^ *\n\t{},]+)[ \n\t]*(?:,|[ \n\t]+))
 const exportReg = /export.*from/
 
 /**
- * @param {{script:string,url?:string,base?:string,root?:string,useGpuNormals?:boolean}} param0
+ * @param {{script:string,url?:string,base?:string,root?:string,useGpuNormals?:boolean,runId?:unknown}} param0
  * @returns {Promise<import('@jscadui/format-common').JscadScriptResultWithParams>}
  */
-const jscadScript = async ({ script, url='jscad.js', base=workerState.globalBase, root=base, useGpuNormals: gpuNormals }) => {
+export const jscadScript = async ({ script, url='jscad.js', base=workerState.globalBase, root=base, useGpuNormals: gpuNormals, runId }) => {
   // I1 fix: Increment generation to invalidate any timed-out scripts still running
   const myGeneration = workerState.nextGeneration()
   // An ALL.js grid yields between cells and reads this to stop once it is stale
@@ -440,7 +440,7 @@ const jscadScript = async ({ script, url='jscad.js', base=workerState.globalBase
       }
 
       // In proxy mode, run main to discover params, then extract defaults
-      const out = await jscadMain({ params: {} })
+      const out = await jscadMain({ params: {}, runId })
       if (out.proxyState) {
         def = toParamDefinitions(out.proxyState.discovered)
         params = extractProxyDefaults(out.proxyState.discovered)
@@ -453,9 +453,9 @@ const jscadScript = async ({ script, url='jscad.js', base=workerState.globalBase
     } else {
       // Traditional mode: use getParameterDefinitions
       const fromSource = getParameterDefinitionsFromSource(script)
-      def = combineParameterDefinitions(fromSource, await scriptModule.getParameterDefinitions?.())
+      def = combineParameterDefinitions(fromSource, await workerState.scriptModule.getParameterDefinitions?.())
       params = extractDefaults(def)
-      const out = await jscadMain({ params })
+      const out = await jscadMain({ params, runId })
       return {
         def,
         params,

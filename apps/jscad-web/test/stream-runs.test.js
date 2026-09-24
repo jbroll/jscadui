@@ -97,6 +97,49 @@ describe('stream runs', () => {
     expect(draw.mock.calls[0][0]).toHaveLength(1)
   })
 
+  it('drops a batch tagged with another run', () => {
+    const { runs, draw, onCells } = setup()
+    runs.begin(() => false, 2)
+    expect(runs.accept([cell()], 1)).toBe(false)
+    expect(runs.accept([cell()])).toBe(false)
+    expect(onCells).not.toHaveBeenCalled()
+    expect(runs.accept([cell()], 2)).toBe(true)
+    vi.advanceTimersByTime(250)
+    expect(draw.mock.calls[0][0]).toHaveLength(1)
+  })
+
+  it('leaves the current run alone when another run finishes or ends', () => {
+    const { runs, draw } = setup()
+    runs.begin(() => false, 2)
+    runs.accept([cell()], 2)
+    expect(runs.finish(1)).toBeNull()
+    runs.end(1)
+    expect(draw).not.toHaveBeenCalled()
+    expect(runs.accept([cell()], 2)).toBe(true)
+    expect(runs.finish(2)).toEqual({ cells: 2, vertices: 6, triangles: 0 })
+    expect(draw.mock.calls[0][0]).toHaveLength(2)
+  })
+
+  it('ends its own run, drawing what is pending', () => {
+    const { runs, draw } = setup()
+    runs.begin(() => false, 2)
+    runs.accept([cell()], 2)
+    runs.end(2)
+    expect(draw).toHaveBeenCalledTimes(1)
+    expect(runs.accept([cell()], 2)).toBe(false)
+  })
+
+  it('discards the run without drawing what is pending', () => {
+    const { runs, draw } = setup()
+    runs.begin(() => false, 2)
+    runs.accept([cell()], 2)
+    runs.discard()
+    vi.runAllTimers()
+    expect(draw).not.toHaveBeenCalled()
+    expect(runs.accept([cell()], 2)).toBe(false)
+    expect(runs.finish(2)).toBeNull()
+  })
+
   it('returns null from finish for a stale run', () => {
     const { runs } = setup()
     let stale = false

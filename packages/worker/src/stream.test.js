@@ -20,6 +20,12 @@ describe('stream hook', () => {
     expect(new Set(transfer).size).toBe(transfer.length)
   })
 
+  it('tags each batch with the run it belongs to', () => {
+    const post = vi.fn()
+    createStreamHook({ post, runId: 7 }).hook.emit([mesh()])
+    expect(post.mock.calls[0][0].params[0].runId).toBe(7)
+  })
+
   it('forces manifold evaluation before converting', () => {
     const numTri = vi.fn()
     const solid = { ...mesh(), isManifoldGeom3: true, manifold: { numTri } }

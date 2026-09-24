@@ -25,6 +25,12 @@ describe('runModelUpdate', () => {
     expect(d.handleEntities).toHaveBeenCalledOnce()
   })
 
+  it('tags jscadMain with the runId beginRun returns', async () => {
+    const jscadMain = vi.fn(async () => ({ entities: [] }))
+    await runModelUpdate(deps(jscadMain, { beginRun: () => 9 }))
+    expect(jscadMain.mock.calls[0][0].runId).toBe(9)
+  })
+
   it('ends the run when jscadMain throws', async () => {
     const error = new Error('model exceeded 1000 ms')
     const endRun = vi.fn()

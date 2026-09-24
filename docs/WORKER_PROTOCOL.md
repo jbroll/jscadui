@@ -25,6 +25,7 @@ interface RunScriptOptions {
   url?: string      // Script URL/name
   base?: string     // Base URL for imports
   root?: string     // Root path constraint
+  runId?: unknown   // passed to the main run; see jscadMain
 }
 
 interface JscadScriptResult {
@@ -44,6 +45,7 @@ interface RunMainOptions {
   params: Record<string, any>
   skipLog?: boolean
   stream?: boolean   // default true
+  runId?: unknown    // echoed on each jscadCells and on a streamed result
 }
 
 interface JscadMainResult {
@@ -51,6 +53,7 @@ interface JscadMainResult {
   mainTime: number
   convertTime: number
   streamed?: true
+  runId?: unknown    // set only when streamed
 }
 ```
 
@@ -58,13 +61,16 @@ When `stream` is true (the default) and the loaded script is an ALL.js grid,
 only the outermost grid emits: it streams each cell as a `jscadCells`
 notification as soon as that cell finishes, instead of the worker holding
 every cell's geometry until main returns. A run during which anything was
-emitted resolves with `entities: []` and `streamed: true`; a normal (non-grid)
-run is unaffected and returns entities as before.
+emitted resolves with `entities: []`, `streamed: true` and the request's
+`runId`; a normal (non-grid) run is unaffected and returns entities as before.
+`jscadScript` passes its `runId` to the main run it starts.
 
 During a streamed run the worker posts:
 
-- `jscadCells` — `params: [{ entities }]`, one per emitted cell, with that
-  cell's typed-array buffers passed as transfer.
+- `jscadCells` — `params: [{ entities, runId }]`, one per emitted cell, with
+  that cell's typed-array buffers passed as transfer. Notifications carry no
+  request id, so `runId` is how the app tells one run's cells from an older
+  run's still arriving.
 - `jscadProgress` — `params: []`, for a cell counted but not yet ready to
   render.
 

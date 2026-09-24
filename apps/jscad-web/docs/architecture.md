@@ -272,11 +272,12 @@ nothing was drawn.
 ### Streamed grids
 
 An `ALL.js` grid does not return its geometry. While the worker runs a model's
-`main`, for a load or a `jscadMain`, it sets `globalThis.__jscadStream`, and
-the grid emits each placed
-cell through it as a `jscadCells` notification (`{ entities }`), then disposes
-the cell. The result is `{ entities: [], streamed: true }`. A nested grid emits
-nothing and returns its geometry as one cell of its parent. Export, measure and
+`main`, for a load or a `jscadMain`, it sets `globalThis.__jscadStream`, and the
+grid emits each placed cell through it as a `jscadCells` notification
+(`{ entities, runId }`), then disposes the cell. The result is
+`{ entities: [], streamed: true, runId }`, where `runId` is the one the app sent
+in the request options. A nested grid emits nothing and returns its geometry as
+one cell of its parent. Export, measure and
 check need the solids, so when the last run streamed they re-run `jscadMain`
 with no stream hook and with `__jscadProgress` set, which posts one
 `jscadProgress` per cell.
@@ -288,11 +289,16 @@ in the frame, and `proxy.resetTimeouts()` restarts the app's RPC timers, so the
 model budget applies to one cell rather than the whole grid.
 
 `src/streamRuns.js` holds one run at a time. A load, a parameter change, a tree
-update and the redraw after a render-engine switch each begin one with their
-`scriptRuns` staleness check; a batch is accepted only while its run is current
-and not stale. Batches arriving during `frameSetup`'s replay are dropped before
-they reach the run, since a request sent meanwhile waits behind the replay.
-Each batch is checked against the per-batch caps (256 MB, 2,000 entities) and
+update and the redraw after a render-engine switch each begin one with a fresh
+`runId` and their `scriptRuns` staleness check, and send that `runId` with the
+request. Notifications carry no request id, and an older request keeps
+emitting until the worker stops it, so the tag is what separates runs: a batch
+is accepted, and a streamed result finishes the run, only when its `runId` is
+the current run's and the run is not stale. Anything else is dropped and leaves
+the current run alone. A `frameSetup` replay re-sends requests with the
+`runId`s they first carried, whose runs are closed, so its batches are dropped
+too. A result that is not streamed discards the open run without drawing, so a
+pending redraw cannot paint over it. Each batch is checked against the per-batch caps (256 MB, 2,000 entities) and
 the run's total against 1.5 GB and 20,000 entities; going over ends the run
 with the cap error and leaves the drawn cells in place, as a kill does.
 Redraws coalesce to one per 250 ms and pass the run's whole entity array, which

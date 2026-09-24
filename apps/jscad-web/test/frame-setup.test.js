@@ -238,7 +238,7 @@ describe('streamed cells', () => {
     frame.fromFrame({ method: 'jscadCells', params: [{ entities }] })
     await vi.advanceTimersByTimeAsync(RPC_DEFAULT_MS - 1000)
 
-    expect(onCells).toHaveBeenCalledWith(entities)
+    expect(onCells).toHaveBeenCalledWith(entities, undefined)
     expect(settled()).toBe(false)
   })
 
@@ -256,21 +256,28 @@ describe('streamed cells', () => {
     expect(settled()).toBe(false)
   })
 
-  it('drops batches the replay streams, and takes them again once it is done', async () => {
+  it('hands onCells the runId the batch was tagged with', async () => {
     const onCells = vi.fn()
     const frame = await boot({ onCells })
-    await loadModel(frame)
+    frame.fromFrame({ method: 'jscadCells', params: [{ entities: [{ id: 'cell' }], runId: 4 }] })
+    expect(onCells).toHaveBeenCalledWith([{ id: 'cell' }], 4)
+  })
+
+  // Replayed cells carry these old runIds, whose runs are closed, so the app drops them.
+  it('replays the script and main with the runIds they were first sent with', async () => {
+    const frame = await boot()
+    const script = frame.workerApi.jscadScript({ script: 'grid', runId: 1 })
+    const main = frame.workerApi.jscadMain({ params: {}, runId: 2 })
+    await settleAll(frame)
+    await Promise.all([script, main])
+    frame.sent.length = 0
 
     terminate(frame)
-    const next = frame.workerApi.jscadMain({ params: { size: 4 } })
-    await frame.flush()
-    frame.fromFrame({ method: 'jscadCells', params: [{ entities: [{ id: 'replayed' }] }] })
-    expect(onCells).not.toHaveBeenCalled()
-
     await settleAll(frame)
-    await next
-    frame.fromFrame({ method: 'jscadCells', params: [{ entities: [{ id: 'new' }] }] })
-    expect(onCells).toHaveBeenCalledWith([{ id: 'new' }])
+
+    const replayed = Object.fromEntries(frame.sent.map((m) => [m.method, m.params[0]]))
+    expect(replayed.jscadScript.runId).toBe(1)
+    expect(replayed.jscadMain.runId).toBe(2)
   })
 
   it('hands onCells an empty batch when entities is not an array', async () => {
@@ -278,6 +285,6 @@ describe('streamed cells', () => {
     const frame = await boot({ onCells })
     frame.fromFrame({ method: 'jscadCells', params: [{ entities: 'nope' }] })
     frame.fromFrame({ method: 'jscadCells', params: [] })
-    expect(onCells.mock.calls).toEqual([[[]], [[]]])
+    expect(onCells.mock.calls).toEqual([[[], undefined], [[], undefined]])
   })
 })

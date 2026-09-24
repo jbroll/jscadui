@@ -11,11 +11,13 @@ const hasVertices = (entities) => entities.some((e) => e?.vertices?.length)
 
 /**
  * One streamed run at a time: the batches a grid sends while the load or
- * parameter change that started it is current.
+ * parameter change that started it is current. Batches and the final result
+ * carry the request's runId, so an older request's late cells are dropped.
  * @param {{draw: (entities: object[], box: object | null) => void, onCells: (count: number) => void, onError: (error: Error) => void, delayMs?: number}} options
  */
 export const createStreamRuns = ({ draw, onCells, onError, delayMs = 250 }) => {
   let run = null
+  const owns = (runId) => run !== null && run.id === runId
 
   const flush = (always = false) => {
     if (!run) return
@@ -31,13 +33,18 @@ export const createStreamRuns = ({ draw, onCells, onError, delayMs = 250 }) => {
     run = null
   }
 
+  const drop = () => {
+    if (run) clearTimeout(run.timer)
+    run = null
+  }
+
   return {
-    begin(isStale) {
+    begin(isStale, runId) {
       if (run) clearTimeout(run.timer)
-      run = { isStale, entities: [], bytes: 0, cells: 0, vertices: 0, triangles: 0, box: null, timer: null, dirty: false }
+      run = { id: runId, isStale, entities: [], bytes: 0, cells: 0, vertices: 0, triangles: 0, box: null, timer: null, dirty: false }
     },
-    accept(batch) {
-      if (!run || run.isStale()) return false
+    accept(batch, runId) {
+      if (!owns(runId) || run.isStale()) return false
       // Drop non-object entries here so nothing downstream (caps, countGeometry) has to guard against them.
       const entities = (Array.isArray(batch) ? batch : []).filter((e) => e && typeof e === 'object')
       try {
@@ -61,10 +68,10 @@ export const createStreamRuns = ({ draw, onCells, onError, delayMs = 250 }) => {
       run.timer ??= setTimeout(flush, delayMs)
       return true
     },
-    finish() {
-      if (!run || run.isStale()) {
-        if (run) clearTimeout(run.timer)
-        run = null
+    finish(runId) {
+      if (!owns(runId)) return null
+      if (run.isStale()) {
+        drop()
         return null
       }
       flush(true)
@@ -72,6 +79,10 @@ export const createStreamRuns = ({ draw, onCells, onError, delayMs = 250 }) => {
       run = null
       return { cells, vertices, triangles }
     },
-    end: stop,
+    end(runId) {
+      if (owns(runId)) stop()
+    },
+    // A whole result replaced the model, so a pending redraw must not paint over it.
+    discard: drop,
   }
 }

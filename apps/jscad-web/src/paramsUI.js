@@ -43,7 +43,7 @@ const mapsEqual = (a, b) => {
  * @property {(result: object, options?: object) => void} handleEntities - Entities handler
  * @property {(error: unknown) => void} setError - Error handler
  * @property {() => boolean} stopCurrentAnim - Stop current animation
- * @property {() => void} [beginRun] - a streamed grid's cells from here on belong to this run
+ * @property {() => unknown} [beginRun] - starts a streaming run; returns the runId jscadMain is tagged with
  * @property {() => void} [endRun] - the run failed; keep what it drew
  */
 
@@ -189,8 +189,8 @@ export async function runModelUpdate(deps) {
   working = true
 
   try {
-    beginRun?.()
-    const result = await workerApi.jscadMain(paramsCtrl.getWorkerParams())
+    const runId = beginRun?.()
+    const result = await workerApi.jscadMain({ ...paramsCtrl.getWorkerParams(), runId })
 
     if (result.proxyState) {
       const oldState = paramsCtrl.proxyState

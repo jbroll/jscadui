@@ -157,15 +157,17 @@ let lastRunParams
  */
 const handleEntities = (result, { skipLog } = {}) => {
   if (result?.streamed) {
-    const totals = streamRuns.finish()
-    onProgress(undefined)
+    // null for another run's result, or one a cap error already ended
+    const totals = streamRuns.finish(result.runId)
     if (!totals) return
+    onProgress(undefined)
     document.documentElement.dataset.vertices = String(totals.vertices)
     setError(undefined)
     updatePipelineStats(statsContent, { treeTime: result.treeTime, triangles: totals.triangles, vertices: totals.vertices })
     if (!skipLog) console.log('streamed', totals.cells, 'cells, tree:', result.treeTime?.toFixed(2))
     return
   }
+  streamRuns.discard()
   const { entities: rawEntities, treeTime, execTime, convTime } = result
   const entities = rawEntities instanceof Array ? rawEntities : [rawEntities]
 
@@ -222,10 +224,17 @@ const streamRuns = createStreamRuns({
   },
 })
 
-/** @param {() => boolean} isStale */
+let lastRunId = 0
+
+/**
+ * @param {() => boolean} isStale
+ * @returns {number} the runId to send with the request, which the worker echoes on its cells
+ */
 const beginStream = isStale => {
+  const runId = ++lastRunId
   delete document.documentElement.dataset.cells
-  streamRuns.begin(isStale)
+  streamRuns.begin(isStale, runId)
+  return runId
 }
 
 const trackJobs = createJobTracker(progress, onProgress)
@@ -237,7 +246,7 @@ const { frameEl, workerApi, handlers } = await createFrame({
   onError: setError,
   onEntities: handleEntities,
   onJobCount: trackJobs,
-  onCells: entities => streamRuns.accept(entities),
+  onCells: (entities, runId) => streamRuns.accept(entities, runId),
   // No onTerminated re-init: frameSetup replays the inits itself, and an init
   // sent on every restart loops forever when the init is what timed out.
   runOrigin: __FRAME_ORIGIN__,
@@ -413,10 +422,10 @@ function stopCurrentAnim() {
 
 const scriptRuns = createScriptRuns()
 
-// streamRuns holds only the newest run, so a superseded update must not
-// finish or end it.
+// A superseded update must not draw: a whole result would also discard the newer run.
 const modelUpdateDeps = () => {
   let isStale = () => false
+  let runId
   return {
     workerApi,
     handleEntities: (result, options) => { if (!isStale()) handlers.entities(result, options) },
@@ -424,9 +433,10 @@ const modelUpdateDeps = () => {
     stopCurrentAnim,
     beginRun: () => {
       isStale = scriptRuns.paramChange()
-      beginStream(isStale)
+      runId = beginStream(isStale)
+      return runId
     },
-    endRun: () => { if (!isStale()) streamRuns.end() },
+    endRun: () => streamRuns.end(runId),
   }
 }
 
@@ -496,19 +506,19 @@ const paramChangeCallback = async (params, source) => {
   lastParams = null
   paramsUI.setWorking(true)
   const isStale = scriptRuns.paramChange()
-  beginStream(isStale)
+  const runId = beginStream(isStale)
 
   let result
   let pendingParams = null
   try {
     const mainOptions = useParamsProxy
-      ? paramsCtrl.getWorkerParams()
-      : { params }
+      ? { ...paramsCtrl.getWorkerParams(), runId }
+      : { params, runId }
     result = await workerApi.jscadMain(mainOptions)
     if (isStale()) return
     lastRunParams = params
   } catch (error) {
-    if (!isStale()) streamRuns.end()
+    streamRuns.end(runId)
     throw error
   } finally {
     // Capture pending params atomically before releasing lock
@@ -527,7 +537,7 @@ viewState.onRequireReRender = () => paramChangeCallback(ctrl.params)
 /** @param {{script?:string,url?:string,base?:string,root?:string}} options*/
 const jscadScript = async ({ script, url = './jscad.model.js', base = currentBase, root }) => {
   const isStale = scriptRuns.load()
-  beginStream(isStale)
+  let runId = beginStream(isStale)
   currentBase = base
   loadDefault = false
   document.documentElement.dataset.render = 'running'
@@ -566,7 +576,7 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
     const useGpuNormals = viewState.viewer?.supportsGpuNormals ?? false
     const files = await collectProjectFiles(fileSystem.getSwHandler())
     if (isStale()) return
-    const result = await sendScript(workerApi, files, { script, url, base, root, useGpuNormals })
+    const result = await sendScript(workerApi, files, { script, url, base, root, useGpuNormals, runId })
     if (isStale()) return
 
     if (result.proxyState && useParamsProxy) {
@@ -616,8 +626,8 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
         savedUserInteracted.forEach(p => paramsCtrl.userInteracted.add(p))
         paramsTreeView?.update({ values: paramsCtrl.params })
         // Re-run model with restored params
-        beginStream(isStale)
-        const restoreResult = await workerApi.jscadMain(paramsCtrl.getWorkerParams())
+        runId = beginStream(isStale)
+        const restoreResult = await workerApi.jscadMain({ ...paramsCtrl.getWorkerParams(), runId })
         if (isStale()) return
         handlers.entities(restoreResult)
         return
@@ -640,10 +650,8 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
       })
     }
   } catch (err) {
-    if (!isStale()) {
-      streamRuns.end()
-      setError(err)
-    }
+    streamRuns.end(runId)
+    if (!isStale()) setError(err)
   }
 }
 
@@ -676,18 +684,18 @@ viewState.onRenderEngineChange = async (newEngine) => {
   // Initialize new viewer
   viewState.setEngine(await engine.init(newEngine))
   const isStale = scriptRuns.paramChange()
-  beginStream(isStale)
+  const runId = beginStream(isStale)
 
   // Re-run main with current params to regenerate geometry
   const useGpuNormals = viewState.viewer?.supportsGpuNormals ?? false
   const mainOptions = useParamsProxy
-    ? { ...paramsCtrl.getWorkerParams(), useGpuNormals }
-    : { params: lastRunParams, useGpuNormals }
+    ? { ...paramsCtrl.getWorkerParams(), useGpuNormals, runId }
+    : { params: lastRunParams, useGpuNormals, runId }
   let result
   try {
     result = await workerApi.jscadMain(mainOptions)
   } catch (error) {
-    if (!isStale()) streamRuns.end()
+    streamRuns.end(runId)
     throw error
   }
   if (isStale()) return
