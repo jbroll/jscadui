@@ -843,6 +843,8 @@ describe('grid runs', () => {
   const lastOf = (worker, method) => sent(worker).findLast((m) => m.method === method)
   const answerLastOf = (worker, method, params = { entities: [] }) =>
     worker.onmessage({ data: { method: RESPONSE, id: lastOf(worker, method).id, params } })
+  const failLastOf = (worker, method, name = 'SyntaxError') =>
+    worker.onmessage({ data: { method: RESPONSE, id: lastOf(worker, method).id, error: { name, message: name } } })
 
   // A grid script loaded, the spare set up, and app run 4 (runId 7) in flight on the active worker.
   const gridRun = ({ poolSize = 3, timeoutMs } = {}) => {
@@ -945,6 +947,62 @@ describe('grid runs', () => {
     answerLastOf(workers[2], 'jscadMain')
     answerLastOf(workers[3], 'jscadMain')
     expect(posted.find((m) => m.id === 4).params).toEqual({ entities: [], streamed: true, runId: 7, lost: [] })
+  })
+
+  it('replaces a member that traps after streaming its skull cell', () => {
+    const { workers, posted } = gridRun({ poolSize: 2 })
+    claimOn(workers[0], '0')
+    loadAll(workers[1])
+    expect(claimOn(workers[1], '1')).toBe(true)
+    workers[1].onmessage({ data: { method: 'jscadCells', params: [{ entities: [], runId: 7 }] } })
+    answerLastOf(workers[1], 'jscadMain', { entities: [], trapped: true })
+    expect(workers[1].terminate).toHaveBeenCalled()
+    loadAll(workers[2])
+    expect(lastOf(workers[2], 'jscadMain').params).toEqual([{ params: {}, runId: 7 }])
+    answerLastOf(workers[0], 'jscadMain')
+    expect(posted.find((m) => m.id === 4)).toBeUndefined()
+    answerLastOf(workers[2], 'jscadMain')
+    expect(posted.find((m) => m.id === 4).params.lost).toEqual([])
+  })
+
+  it('replaces a trapped worker in a pool of one, so the leaves after the trap still run', () => {
+    const { workers, posted } = gridRun({ poolSize: 1 })
+    claimOn(workers[0], '0')
+    workers[0].onmessage({ data: { method: 'jscadCells', params: [{ entities: [], runId: 7 }] } })
+    answerLastOf(workers[0], 'jscadMain', { entities: [], trapped: true })
+    expect(workers[0].terminate).toHaveBeenCalled()
+    const joiner = workers.find((w) => w !== workers[0] && !w.terminate.mock.calls.length && lastOf(w, 'jscadScript'))
+    expect(joiner).toBeDefined()
+    loadAll(joiner)
+    expect(lastOf(joiner, 'jscadMain').params).toEqual([{ params: {}, runId: 7 }])
+    expect(posted.find((m) => m.id === 4)).toBeUndefined()
+    answerLastOf(joiner, 'jscadMain')
+    expect(posted.find((m) => m.id === 4).params).toMatchObject({ streamed: true, lost: [] })
+  })
+
+  const alive = (workers) => workers.filter((w) => !w.terminate.mock.calls.length)
+
+  it('ends the idle workers a fanned run leaves beyond one', () => {
+    const { workers, posted } = gridRun()
+    claimOn(workers[0], '0')
+    expect(workers).toHaveLength(4)
+    loadAll(workers[1])
+    loadAll(workers[2])
+    answerLastOf(workers[0], 'jscadMain')
+    answerLastOf(workers[1], 'jscadMain')
+    answerLastOf(workers[2], 'jscadMain')
+    expect(posted.find((m) => m.id === 4).params.lost).toEqual([])
+    expect(alive(workers)).toEqual([workers[0], workers[1]])
+  })
+
+  it('keeps the idle worker that holds the current script when trimming', () => {
+    const { workers } = gridRun()
+    claimOn(workers[0], '0')
+    failLastOf(workers[1], 'jscadScript', 'NetworkError')
+    loadAll(workers[2])
+    answerLastOf(workers[0], 'jscadMain')
+    answerLastOf(workers[2], 'jscadMain')
+    expect(alive(workers)).toEqual([workers[0], workers[2]])
   })
 
   it('reports the leaf a timed-out member was running as lost, and the run goes on', () => {
@@ -1055,9 +1113,6 @@ describe('grid runs', () => {
     claimOn(workers[0], '1', { runId: 10 })
     expect(lastOf(workers[3], 'jscadScript').params).toEqual([{ script: 'grid2', url: 'ALL.js', runId: 9, runMain: false }])
   })
-
-  const failLastOf = (worker, method, name = 'SyntaxError') =>
-    worker.onmessage({ data: { method: RESPONSE, id: lastOf(worker, method).id, error: { name, message: name } } })
 
   it('loads the last good script on a joiner after a load fails', () => {
     const { workers, send } = gridRun()

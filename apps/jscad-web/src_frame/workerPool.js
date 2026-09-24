@@ -64,6 +64,17 @@ export const createPool = ({ state, slotOps, post, answerError, busy, inGrid, op
     tryStart()
   }
 
+  // Each worker holds its own bundles, file map and WASM heap, so once a run
+  // ends only one idle worker stays warm.
+  const trim = () => {
+    const keep = pickIdle()
+    for (const slot of state.slots.filter(idle)) {
+      if (slot === keep) continue
+      remove(slot)
+      slotOps.end(slot, null, 'the grid run ended', null)
+    }
+  }
+
   const mirror = (message) => {
     for (const slot of state.slots) if (slot !== state.active) request(slot, message, ignore, message)
   }
@@ -166,5 +177,5 @@ export const createPool = ({ state, slotOps, post, answerError, busy, inGrid, op
     next()
   }
 
-  return { start, tryStart, pickIdle, ensureSpare, mirror, retire, kill, relay }
+  return { start, tryStart, pickIdle, ensureSpare, trim, mirror, retire, kill, relay }
 }

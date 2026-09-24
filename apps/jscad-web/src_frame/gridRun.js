@@ -126,7 +126,11 @@ export const createGridRuns = ({ state, pool, slotOps, post, answerError }) => {
   const settle = (run) => {
     if (run.members.size) return
     runs.delete(run)
-    if (run.answered) return
+    if (!run.answered) answer(run)
+    pool.trim()
+  }
+
+  const answer = (run) => {
     run.answered = true
     const message = merged(run)
     post(message)
@@ -146,9 +150,11 @@ export const createGridRuns = ({ state, pool, slotOps, post, answerError }) => {
     run.members.delete(slot)
     run.answers.push({ data, primary: slot === run.primary })
     if (!data.error && run.method === 'jscadScript') slot.script = run.options
+    // A trapped worker stops walking the grid, so its unclaimed leaves need a
+    // replacement even after its trapped leaf streamed; each trap uses up a leaf.
     if (trapped(data)) {
       pool.retire(slot, 'the model trapped in WebAssembly')
-      if (!run.closed && member.key !== null) join(run)
+      if (!run.closed) join(run)
     }
     settle(run)
   }
