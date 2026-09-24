@@ -27,7 +27,7 @@ const loadGridUtils = (req) => {
 const gridUtils = loadGridUtils(nodeRequire)
 const { failureMarker, normalizeAndPlace } = gridUtils
 const jscad = nodeRequire('@jscad/modeling')
-const { measureAggregateBoundingBox, measureBoundingBox } = jscad.measurements
+const { measureAggregateBoundingBox } = jscad.measurements
 
 describe('failureMarker', () => {
   it('returns geometry', () => {
@@ -43,8 +43,15 @@ describe('failureMarker', () => {
     expect(z1 - z0).toBeGreaterThan(0)
   })
 
-  it('is colorized so it stands out from real models', () => {
-    expect(failureMarker().every(g => Array.isArray(g.color))).toBe(true)
+  it('is an off-white plate with black linework', () => {
+    expect(failureMarker().map(g => g.color)).toEqual([[0.95, 0.95, 0.92, 1], [0.1, 0.1, 0.1, 1]])
+  })
+
+  it('stands upright, facing the default camera from +X,-Y', () => {
+    const [[x0, y0, z0], [x1, y1, z1]] = measureAggregateBoundingBox(...failureMarker())
+    expect(z1 - z0).toBeCloseTo(1, 3)
+    // the drawing runs along (1,1,0), so its x and y extents match
+    expect(x1 - x0).toBeCloseTo(y1 - y0, 5)
   })
 
   it('survives normalizeAndPlace at the grid cell size', () => {
@@ -100,6 +107,13 @@ describe('normalizeAndPlace on the manifold engine', () => {
     expect((z0 + z1) / 2).toBeCloseTo(0, 5)
   })
 
+  it('builds the failure marker as colored manifolds', () => {
+    const marker = loadGridUtils(name => name === '@jscad/modeling' ? manifold : nodeRequire(name)).failureMarker()
+    expect(marker.map(g => g.isManifoldGeom3)).toEqual([true, true])
+    expect(marker.map(g => g.color)).toEqual([[0.95, 0.95, 0.92, 1], [0.1, 0.1, 0.1, 1]])
+    expect(marker.every(g => g.volume() > 0)).toBe(true)
+  })
+
   it('leaves the cell geometry alone, since a model may reuse it', () => {
     const cell = manifold.cube({ size: 10 })
     placeWithManifold([cell], 0, 0, 51)
@@ -109,11 +123,11 @@ describe('normalizeAndPlace on the manifold engine', () => {
 })
 
 describe('prebuiltSkull', () => {
-  it('fills the cell like the built marker, without any boolean', () => {
+  it('fills the cell like the built marker, as plain geometry', () => {
     const { prebuiltSkull } = gridUtils
     const skull = prebuiltSkull(90, -30, 51)
-    expect(skull.color).toEqual([0.85, 0.1, 0.1, 1])
-    const [[x0, y0, z0], [x1, y1, z1]] = measureBoundingBox(skull)
+    expect(skull.map(g => g.color)).toEqual(failureMarker().map(g => g.color))
+    const [[x0, y0, z0], [x1, y1, z1]] = measureAggregateBoundingBox(...skull)
     expect(Math.max(x1 - x0, y1 - y0, z1 - z0)).toBeCloseTo(51, 1)
     expect((x0 + x1) / 2).toBeCloseTo(90, 1)
     expect((y0 + y1) / 2).toBeCloseTo(-30, 1)
@@ -122,6 +136,6 @@ describe('prebuiltSkull', () => {
 
   it('builds fresh polygons each call', () => {
     const { prebuiltSkull } = gridUtils
-    expect(prebuiltSkull(0, 0, 1).polygons).not.toBe(prebuiltSkull(0, 0, 1).polygons)
+    expect(prebuiltSkull(0, 0, 1)[0].polygons).not.toBe(prebuiltSkull(0, 0, 1)[0].polygons)
   })
 })

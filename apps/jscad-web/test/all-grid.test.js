@@ -202,9 +202,11 @@ describe('streaming', () => {
     await failureLines(() => runGrid([], { trap: ['./text-fonts.scad'] }))
     const trapped = items.indexOf('./text-fonts.scad')
     for (const batch of stream.batches.slice(trapped)) {
-      expect(batch).toHaveLength(1)
-      expect(batch[0].transforms).toHaveLength(16)
-      expect(batch[0].color).toEqual([0.85, 0.1, 0.1, 1])
+      // the stream hook flattens the nested [prebuiltSkull()] before converting
+      const skull = batch.flat(Infinity)
+      expect(skull).toHaveLength(2)
+      expect(skull.every(g => g.transforms.length === 16 && !g.isManifoldGeom3)).toBe(true)
+      expect(skull.map(g => g.color)).toEqual([[0.95, 0.95, 0.92, 1], [0.1, 0.1, 0.1, 1]])
     }
   })
 

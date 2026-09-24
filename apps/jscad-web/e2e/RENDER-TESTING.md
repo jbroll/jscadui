@@ -53,7 +53,7 @@ document's main thread is blocked.
 
 With `--grids` the sweep loads each `ALL.js` instead of the individual models.
 A cell whose model throws does not abort the grid: the generated `ALL.js`
-catches it, draws a red skull-and-crossbones in that cell, and logs
+catches it, draws a black-and-white skull and crossbones in that cell, and logs
 `ALL: FAILED <url>: <message>` plus an `ALL: N/M models failed:` summary. The
 sweep reads those lines off the page console into `cellFailures` and scores the
 grid `partial`, which counts as a failure and prints each dead cell under `☠`.

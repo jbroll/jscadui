@@ -388,12 +388,19 @@ as one cell. The parent's `normalizeAndPlace` scales each cell by its whole
 bounding box, so it cannot place a sub-grid's cells before the sub-grid
 returns. The cost is that a nested sub-grid must fit one per-cell budget.
 
-A cell that fails draws a skull. Once `__allWasmTrap` is set, or when building
-`failureMarker()` itself fails, the grid uses a prebuilt skull instead: the
-marker's triangles stored in `examples/lib/skull-mesh.js`, turned into a plain
-geom3 on both the streamed and the non-streamed path, so it needs no WASM.
-`examples/lib/build-skull-mesh.mjs` generates that file; re-run it whenever
-`failureMarker()` changes.
+A cell that fails draws a skull and crossbones: `examples/lib/skull.svg` as an
+upright relief facing the default camera, an off-white plate with the black
+linework standing proud of it. `examples/lib/build-skull-mesh.mjs` turns the
+drawing into triangles at build time (manifold-3d cross-sections: each stroke
+is outlined at its width, and a later white fill hides the lines it covers) and
+writes them to `examples/lib/skull-mesh.js`; re-run it whenever `skull.svg`
+changes. At run time no boolean runs. `failureMarker()` colours the two stored
+meshes with the model's library, so on manifold they become two manifolds.
+Once `__allWasmTrap` is set, or when `failureMarker()` or placing it fails, the
+grid uses `prebuiltSkull()` instead: the same two meshes as plain geom3s with
+the cell placement in their `transforms`, which need no WASM. It returns an
+array, so the grid's `[prebuiltSkull(...)]` is nested; the stream hook and the
+worker's result both flatten it.
 
 Export, measure and check need the solids. A grid run disposes each cell as it
 streams, so when the last run was a grid they re-run `jscadMain` with

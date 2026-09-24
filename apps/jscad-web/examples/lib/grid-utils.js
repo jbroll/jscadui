@@ -6,10 +6,8 @@
  */
 
 const jscad = require('@jscad/modeling')
-const { translate, rotate, scale } = jscad.transforms
+const { translate, scale } = jscad.transforms
 const { measureAggregateBoundingBox } = jscad.measurements
-const { cuboid, cylinder, sphere } = jscad.primitives
-const { subtract, union } = jscad.booleans
 const { colorize } = jscad.colors
 
 /**
@@ -136,57 +134,41 @@ function urlToPartName(url) {
   return name.replace(/[-.]/g, '_')
 }
 
-/**
- * Build a skull-and-crossbones to stand in for a model that failed to load.
- *
- * @returns {Array} Array of JSCAD geometries, coloured red
- */
-function failureMarker() {
-  const segments = 24
+const SKULL_COLORS = { white: [0.95, 0.95, 0.92, 1], black: [0.1, 0.1, 0.1, 1] }
 
-  const eye = (x) => sphere({ radius: 4, segments, center: [x, -8, 2] })
-  const cranium = subtract(
-    union(
-      sphere({ radius: 10, segments }),
-      cuboid({ size: [12, 9, 8], center: [0, -5, -9] })
-    ),
-    eye(-4.6),
-    eye(4.6),
-    cuboid({ size: [3, 6, 4.5], center: [0, -9, -3.5] }),
-    cuboid({ size: [10, 6, 1.8], center: [0, -8, -9] })
-  )
-
-  const shaft = union(
-    cylinder({ radius: 2.4, height: 40, segments }),
-    sphere({ radius: 4, segments, center: [0, 0, 20] }),
-    sphere({ radius: 4, segments, center: [0, 0, -20] })
-  )
-  // Lay the shaft along X first, so the pair crosses in the XY plane
-  const bone = (angle) => rotate([0, 0, angle], rotate([0, Math.PI / 2, 0], shaft))
-
-  const crossbones = translate([0, 0, -26],
-    rotate([Math.PI / 2, 0, 0], union(bone(Math.PI / 6), bone(-Math.PI / 6))))
-
-  // Yaw so the face points at the app's default camera, which looks from +X,-Y,+Z
-  const marker = rotate([0, 0, Math.PI / 4], union(cranium, crossbones))
-
-  return [].concat(colorize([0.85, 0.1, 0.1], marker)).flat()
+// skull.svg as a relief with longest side 1, one plain geom3 per colour
+function skullLayers() {
+  const mesh = require('./skull-mesh.js')
+  const vertex = (i) => mesh.vertices.slice(i * 3, i * 3 + 3)
+  // Named, not iterated: @jscadui/require adds a `default` key to exports
+  return Object.entries(SKULL_COLORS).map(([name, color]) => {
+    const indices = mesh[name]
+    const polygons = []
+    for (let i = 0; i < indices.length; i += 3) {
+      polygons.push({ vertices: [vertex(indices[i]), vertex(indices[i + 1]), vertex(indices[i + 2])] })
+    }
+    return { polygons, transforms: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], color }
+  })
 }
 
 /**
- * The failure marker as stored triangles, for a cell that fails once the
- * wasm has trapped: building it needs no boolean and no wasm.
+ * A skull-and-crossbones to stand in for a model that failed to load.
  *
- * @returns {object} a plain geom3 placed at (gx, gy) with longest side cellSize
+ * @returns {Array} the off-white plate and the black linework, coloured
+ */
+function failureMarker() {
+  return skullLayers().map(g => colorize(g.color, g))
+}
+
+/**
+ * The failure marker as plain geometry, for a cell that fails once the wasm
+ * has trapped: building it needs no wasm.
+ *
+ * @returns {Array} two plain geom3s placed at (gx, gy) with longest side cellSize
  */
 function prebuiltSkull(gx, gy, cellSize) {
-  const data = require('./skull-mesh.js')
-  const polygons = []
-  for (let i = 0; i < data.length; i += 9) {
-    polygons.push({ vertices: [data.slice(i, i + 3), data.slice(i + 3, i + 6), data.slice(i + 6, i + 9)] })
-  }
   const s = cellSize
-  return { polygons, transforms: [s, 0, 0, 0, 0, s, 0, 0, 0, 0, s, 0, gx, gy, 0, 1], color: [0.85, 0.1, 0.1, 1] }
+  return skullLayers().map(g => ({ ...g, transforms: [s, 0, 0, 0, 0, s, 0, 0, 0, 0, s, 0, gx, gy, 0, 1] }))
 }
 
 module.exports = {
