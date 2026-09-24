@@ -227,7 +227,15 @@ would reload the previous script and run the new parameters against it. The
 retired worker's other app requests are answered `AbortError`, except setup
 (`jscadSetFiles` and the other mirrored methods) that the promoted worker also
 received, which is answered with the promoted worker's answer to its copy. The
-frame strips `supersede` before the message reaches a worker. On the app side,
+frame strips `supersede` before the message reaches a worker.
+
+After a promotion a run waits behind the reload, and the app, seeing that run
+in flight for 500 ms, sends another superseding run every 500 ms while it
+waits. So a superseding request also answers `SupersededError` to every app
+`jscadMain` still queued behind a reload and removes it; none of them has
+started, so nothing is retired. A queued `jscadScript` stays, as a pending one
+does, and so does a queued `jscadMain` that a queued export, measure or check
+after it will read. On the app side,
 `runModelUpdate` and `paramChangeCallback` keep coalescing updates while a run
 younger than 500 ms is in flight, and send the new run at once when it is
 older. A rejection named `SupersededError` sets no error, and a run a newer one

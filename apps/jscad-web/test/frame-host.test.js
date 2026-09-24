@@ -703,6 +703,54 @@ describe('superseding a stale run', () => {
     expect(posted.find((m) => m.id === 5)).toEqual({ method: RESPONSE, id: 5, params: 'set' })
   })
 
+  it('keeps only the newest superseding run queued behind the reload', () => {
+    const { workers, send, posted } = withSpare()
+    send({ method: 'jscadMain', id: 4, params: [{ params: { size: 1 } }] })
+    vi.advanceTimersByTime(600)
+    send({ method: 'jscadMain', id: 5, params: [{ params: { size: 2 }, supersede: true }] })
+    vi.advanceTimersByTime(500)
+    send({ method: 'jscadMain', id: 6, params: [{ params: { size: 3 }, supersede: true }] })
+    vi.advanceTimersByTime(500)
+    send({ method: 'jscadMain', id: 7, params: [{ params: { size: 4 }, supersede: true }] })
+
+    expect(posted).toEqual([
+      { method: RESPONSE, id: 4, error: superseded },
+      { method: RESPONSE, id: 5, error: superseded },
+      { method: RESPONSE, id: 6, error: superseded },
+    ])
+    answerLast(workers[1], { def: [], params: {} })
+    expect(methodsOf(workers[1]).slice(2)).toEqual(['jscadScript', 'jscadMain'])
+    expect(lastSent(workers[1]).params).toEqual([{ params: { size: 4 } }])
+    answerLast(workers[1], { entities: [] })
+    expect(posted.at(-1)).toEqual({ method: RESPONSE, id: 7, params: { entities: [] } })
+  })
+
+  it('keeps a queued run that a queued export will read', () => {
+    const { workers, send, posted } = withSpare()
+    send({ method: 'jscadMain', id: 4, params: [{ params: {} }] })
+    vi.advanceTimersByTime(600)
+    send({ method: 'jscadMain', id: 5, params: [{ params: { size: 2 }, supersede: true }] })
+    send({ method: 'jscadExportData', id: 6, params: [{ format: 'stla' }] })
+    send({ method: 'jscadMain', id: 7, params: [{ params: { size: 3 }, supersede: true }] })
+
+    expect(posted.map((m) => m.id)).toEqual([4])
+    answerLast(workers[1], { def: [], params: {} })
+    expect(methodsOf(workers[1]).slice(2)).toEqual(['jscadScript', 'jscadMain', 'jscadExportData', 'jscadMain'])
+  })
+
+  it('keeps a script queued behind the reload when a run supersedes', () => {
+    const { workers, send, posted } = withSpare()
+    send({ method: 'jscadMain', id: 4, params: [{ params: {} }] })
+    vi.advanceTimersByTime(600)
+    send({ method: 'jscadMain', id: 5, params: [{ params: {}, supersede: true }] })
+    send({ method: 'jscadScript', id: 6, params: [{ script: 'next' }] })
+    send({ method: 'jscadMain', id: 7, params: [{ params: {}, supersede: true }] })
+
+    expect(posted.map((m) => m.id)).toEqual([4, 5])
+    answerLast(workers[1], { def: [], params: {} })
+    expect(methodsOf(workers[1]).slice(2)).toEqual(['jscadScript', 'jscadScript', 'jscadMain'])
+  })
+
   it('does not abandon a pending load for a run', () => {
     const { workers, send, posted } = withSpare()
     send({ method: 'jscadScript', id: 4, params: [{ script: 'next' }] })

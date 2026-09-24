@@ -138,6 +138,12 @@ received, which resolves with the spare's answer. No `frameWorkerTerminated` is
 sent. When every pending run is younger than 500 ms, none is abandoned, and
 the new request runs after them on the same worker.
 
+Requests that wait behind a promoted worker's reload have not reached a worker
+yet. A superseding request rejects every `jscadMain` waiting there with the same
+`SupersededError` and takes its place in the queue, except a `jscadMain` that a
+queued `jscadExportData`, `jscadMeasure` or `jscadCheck` after it will read. A
+queued `jscadScript` is never rejected this way.
+
 ### jscadExportData
 Export model to a format.
 

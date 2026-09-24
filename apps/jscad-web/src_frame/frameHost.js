@@ -54,7 +54,7 @@ export const createFrameHost = ({
    * @typedef {{appId?: unknown, method: string, options?: object, onAnswer?: (data: any) => void,
    *   setup?: object, startedAt: number,
    *   arm: () => ReturnType<typeof setTimeout>, timer: ReturnType<typeof setTimeout>}} Pending
-   * @typedef {{worker: Worker, pending: Map<string, Pending>, loaded: boolean, held: object[] | null,
+   * @typedef {{worker: Worker, pending: Map<string, Pending>, loaded: boolean, queued: object[] | null,
    *   setupAnswers: WeakMap<object, object>}} Slot
    * @type {{active: Slot | null, spare: Slot | null}}
    */
@@ -80,10 +80,10 @@ export const createFrameHost = ({
       else answerError(appId, 'AbortError', `worker terminated before this request finished: ${reason}`)
     }
     slot.pending.clear()
-    for (const { id } of slot.held ?? []) {
+    for (const { id } of slot.queued ?? []) {
       if (id) answerError(id, 'AbortError', `worker terminated before this request finished: ${reason}`)
     }
-    slot.held = null
+    slot.queued = null
   }
 
   const killWorker = (slot, expiredId, reason, errorName) => {
@@ -172,7 +172,7 @@ export const createFrameHost = ({
   }
 
   const start = ({ replay }) => {
-    const slot = { worker: createWorker(), pending: new Map(), loaded: false, held: null, setupAnswers: new WeakMap() }
+    const slot = { worker: createWorker(), pending: new Map(), loaded: false, queued: null, setupAnswers: new WeakMap() }
     const { worker } = slot
     worker.onmessage = (event) => receive(slot, event.data)
     // Without these a bundle that fails to load surfaces as "model exceeded
@@ -239,6 +239,20 @@ export const createFrameHost = ({
     retire('a newer run superseded the model')
   }
 
+  // Runs waiting behind a reload have not started, so a newer run replaces
+  // them without a retire. A queued script stays, as a pending one does, and so
+  // does a run an export, measure or check queued after it will read.
+  const supersedeQueued = () => {
+    const slot = workers.active
+    if (!slot.queued) return
+    const lastRead = slot.queued.findLastIndex((m) => NEEDS_SOLIDS.has(m.method))
+    slot.queued = slot.queued.filter(({ method, id }, i) => {
+      if (method !== 'jscadMain' || i < lastRead) return true
+      if (id) answerError(id, 'SupersededError', 'superseded by a newer run')
+      return false
+    })
+  }
+
   const takeSupersede = (message) => {
     const [options, ...rest] = message?.params ?? []
     if (options === null || typeof options !== 'object' || !Object.hasOwn(options, 'supersede')) return [message, false]
@@ -283,14 +297,15 @@ export const createFrameHost = ({
   // worker in the order the app sent them.
   const relay = (message) => {
     const slot = workers.active
-    if (slot.held) slot.held.push(message)
+    if (slot.queued) slot.queued.push(message)
     else if (NEEDS_MODEL.has(message.method) && needsReload(slot)) ensureLoaded(slot, message)
     else dispatch(slot, message)
   }
 
   const release = (slot, error) => {
-    const [first, ...rest] = slot.held
-    slot.held = null
+    const [first, ...rest] = slot.queued
+    slot.queued = null
+    if (!first) return
     if (!error) dispatch(slot, first)
     else if (first.id) answerError(first.id, error.name, error.message)
     for (const message of rest) relay(message)
@@ -300,7 +315,7 @@ export const createFrameHost = ({
   // check read the solids of the last run, so those replay it as well; with no
   // run since the load, the load's own main is that run.
   const ensureLoaded = (slot, message) => {
-    slot.held = [message]
+    slot.queued = [message]
     const needsSolids = NEEDS_SOLIDS.has(message.method)
     const steps = [{ method: 'jscadScript', params: [{ ...lastScript, runMain: needsSolids && !lastMain }] }]
     if (needsSolids && lastMain) {
@@ -351,7 +366,10 @@ export const createFrameHost = ({
     }
     const [relayed, supersede] = takeSupersede(message)
     message = relayed
-    if (supersede && workers.active && RECORDED.has(message.method)) abandonStale(message.method)
+    if (supersede && workers.active && RECORDED.has(message.method)) {
+      supersedeQueued()
+      abandonStale(message.method)
+    }
 
     if (!workers.active) {
       try {
@@ -369,7 +387,7 @@ export const createFrameHost = ({
     const slot = workers.active
     if (!slot) return 0
     const relayed = [...slot.pending.values()].filter((r) => !r.onAnswer).length
-    return relayed + (slot.held ?? []).filter((m) => m.id).length
+    return relayed + (slot.queued ?? []).filter((m) => m.id).length
   }
 
   return { handleMessage, getPendingCount }
