@@ -191,7 +191,7 @@ function generateAllFile(dir, items, examplesRoot) {
 //
 // Auto-generated ALL script – loads each model under its own params namespace,
 // normalises it to the grid cell size, and positions it in a grid.
-const { gridPosition, normalizeAndPlace, urlToPartName, failureMarker } = require('${libPath}')
+const { gridPosition, normalizeAndPlace, urlToPartName, failureMarker, prebuiltSkull } = require('${libPath}')
 
 const items = ${itemsJson}
 const spacing = ${spacing}
@@ -200,20 +200,50 @@ const cellSize = ${cellSize}
 const isWasmTrap = (err) =>
   (typeof WebAssembly !== 'undefined' && err instanceof WebAssembly.RuntimeError) || err?.name === 'RuntimeError'
 
+// Once the wasm has trapped, a built marker would need it too
+const markerFor = (x, y) => {
+  if (!globalThis.__allWasmTrap) {
+    try {
+      return normalizeAndPlace(failureMarker(), x, y, cellSize)
+    } catch { /* fall back to the stored skull */ }
+  }
+  return [prebuiltSkull(x, y, cellSize)]
+}
+
 const main = async (params) => {
+  // Only the outermost grid streams; a nested grid arrives in it as one cell
+  const stream = globalThis.__jscadStream
+  globalThis.__jscadStream = null
+  try {
+    return await runCells(params, stream)
+  } finally {
+    globalThis.__jscadStream = stream
+  }
+}
+
+const runCells = async (params, stream) => {
   const all = []
   const nameSeen = {}
   const failed = []
   const generation = globalThis.__jscadScriptGeneration
 
+  const send = (geoms) => {
+    if (!stream) {
+      all.push(...geoms)
+      return
+    }
+    try {
+      stream.emit(geoms)
+    } finally {
+      for (const g of geoms) if (typeof g?.dispose === 'function') g.dispose()
+    }
+  }
+
   for (const [i, url] of items.entries()) {
-    // Calculate grid position dynamically
     const [x, y] = gridPosition(i, items.length, spacing)
 
     try {
-      // Derive unique part name from URL
       let name = urlToPartName(url)
-      // Deduplicate: if the same name appears twice, append _2, _3, …
       if (nameSeen[name]) {
         nameSeen[name]++
         name = \`\${name}_\${nameSeen[name]}\`
@@ -227,10 +257,9 @@ const main = async (params) => {
       const mod = require(url)
       const fn = (mod && mod.main) || (typeof mod === 'function' ? mod : null)
       if (typeof fn === 'function') {
-        // For hierarchical models: pass child proxy
-        // For legacy models: wrapLegacyModule detects child proxy and creates isolated state
         const geoms = [].concat(await fn(params[name])).flat()
-        all.push(...normalizeAndPlace(geoms, x, y, cellSize))
+        // emit evaluates the cell's CSG, so its failures belong to this cell too
+        send(normalizeAndPlace(geoms, x, y, cellSize))
       }
     } catch (err) {
       // One bad model marks its own cell; the rest of the grid still renders
@@ -238,10 +267,14 @@ const main = async (params) => {
       console.error(\`ALL: FAILED \${url}: \${err.message}\`)
       failed.push(url)
       try {
-        all.push(...normalizeAndPlace(failureMarker(), x, y, cellSize))
-      } catch { /* the marker needs the same wasm */ }
+        send(markerFor(x, y))
+      } catch (markerErr) {
+        if (isWasmTrap(markerErr)) globalThis.__allWasmTrap ??= url
+        send([prebuiltSkull(x, y, cellSize)])
+      }
     }
 
+    if (!stream) globalThis.__jscadProgress?.()
     // Manifold handles are freed by a FinalizationRegistry, which only runs once main yields
     await new Promise(r => setTimeout(r, 0))
     // Yielding lets a newer script start in this worker; stop rather than run beside it
@@ -251,7 +284,7 @@ const main = async (params) => {
   if (failed.length) {
     console.error(\`ALL: \${failed.length}/\${items.length} models failed: \${failed.join(' ')}\`)
   }
-  return all
+  return stream ? [] : all
 }
 
 module.exports = { main }

@@ -9,10 +9,13 @@ const nodeRequire = createRequire(import.meta.url)
 
 const examplesDir = join(__dirname, '..', 'examples')
 const gridPath = join(examplesDir, 'openscad', 'text', 'ALL.js')
+const gridUtilsPath = join(examplesDir, 'lib', 'grid-utils.js')
 
 const jscad = nodeRequire('@jscad/modeling')
 const { cube } = jscad.primitives
 const { measureAggregateBoundingBox } = jscad.measurements
+
+const items = JSON.parse(readFileSync(gridPath, 'utf-8').match(/const items = (\[[\s\S]*?\])/)[1])
 
 const loadCjs = (path, req) => {
   const module = { exports: {} }
@@ -22,14 +25,21 @@ const loadCjs = (path, req) => {
   return module.exports
 }
 
+// The examples package is "type": "module", so Node's real require() can't load a local
+// .js file as CommonJS; eval it, resolving grid-utils.js's own relative requires by hand.
+const loadGridUtils = () => {
+  const localRequire = (spec) => spec.startsWith('.') ? loadCjs(resolve(dirname(gridUtilsPath), spec), localRequire) : nodeRequire(spec)
+  return loadCjs(gridUtilsPath, localRequire)
+}
+
 /**
  * Run a generated ALL.js with every model stubbed out, except the ones named
  * in `broken`, whose require throws.
  */
-const runGrid = (broken = [], { trap = [], models = {} } = {}) => {
+const runGrid = (broken = [], { trap = [], models = {}, utils = {} } = {}) => {
   const req = (name) => {
     if (name.endsWith('grid-utils.js')) {
-      return loadCjs(resolve(dirname(gridPath), name), nodeRequire)
+      return { ...loadGridUtils(), ...utils }
     }
     if (broken.includes(name)) throw new Error(`boom in ${name}`)
     if (trap.includes(name)) throw new WebAssembly.RuntimeError('function signature mismatch')
@@ -48,12 +58,14 @@ const failureLines = async (run) => {
   }
 }
 
-describe('generated ALL.js grid', () => {
-  afterEach(() => {
-    delete globalThis.__allWasmTrap
-    delete globalThis.__jscadScriptGeneration
-  })
+afterEach(() => {
+  delete globalThis.__allWasmTrap
+  delete globalThis.__jscadScriptGeneration
+  delete globalThis.__jscadStream
+  delete globalThis.__jscadProgress
+})
 
+describe('generated ALL.js grid', () => {
   it('renders every cell when nothing fails', async () => {
     const geoms = await runGrid()
     expect(geoms.length).toBe(11)
@@ -148,5 +160,70 @@ describe('generated ALL.js grid', () => {
   it('keeps an ordinary error from poisoning later cells', async () => {
     const lines = await failureLines(() => runGrid(['./text-fonts.scad']))
     expect(lines.filter(l => l.startsWith('ALL: FAILED '))).toHaveLength(1)
+  })
+})
+
+describe('streaming', () => {
+  const hook = () => {
+    const batches = []
+    return { batches, emit: vi.fn(geoms => batches.push(geoms)), progress: vi.fn() }
+  }
+
+  it('emits each cell in order and returns nothing', async () => {
+    const stream = globalThis.__jscadStream = hook()
+    const geoms = await runGrid()
+    expect(geoms).toEqual([])
+    expect(stream.batches).toHaveLength(11)
+    const centres = stream.batches.map(b => measureAggregateBoundingBox(...b)).map(([[x0], [x1]]) => (x0 + x1) / 2)
+    expect(centres[0]).toBeCloseTo(-90, 5)
+    expect(centres[1]).toBeCloseTo(-30, 5)
+  })
+
+  it('disposes each placed geometry after it is sent', async () => {
+    const placed = []
+    const normalizeAndPlace = () => { const g = { dispose: vi.fn() }; placed.push(g); return [g] }
+    globalThis.__jscadStream = hook()
+    await runGrid([], { utils: { normalizeAndPlace } })
+    expect(placed).toHaveLength(11)
+    for (const g of placed) expect(g.dispose).toHaveBeenCalledOnce()
+  })
+
+  it('hides the hook from a nested grid, which returns its geometry', async () => {
+    const stream = globalThis.__jscadStream = hook()
+    let seen = 'unset'
+    const nested = async () => { seen = globalThis.__jscadStream; return cube({ size: 10 }) }
+    await runGrid([], { models: { './text-fonts.scad': nested } })
+    expect(seen).toBeNull()
+    expect(globalThis.__jscadStream).toBe(stream)
+  })
+
+  it('emits the prebuilt skull for every cell after a trap', async () => {
+    const stream = globalThis.__jscadStream = hook()
+    await failureLines(() => runGrid([], { trap: ['./text-fonts.scad'] }))
+    const trapped = items.indexOf('./text-fonts.scad')
+    for (const batch of stream.batches.slice(trapped)) {
+      expect(batch).toHaveLength(1)
+      expect(batch[0].transforms).toHaveLength(16)
+      expect(batch[0].color).toEqual([0.85, 0.1, 0.1, 1])
+    }
+  })
+
+  it('turns a failure inside emit into that cell\'s marker', async () => {
+    const stream = hook()
+    let calls = 0
+    stream.emit = vi.fn(geoms => { if (calls++ === 0) throw new Error('numTri failed'); stream.batches.push(geoms) })
+    globalThis.__jscadStream = stream
+    const lines = await failureLines(() => runGrid())
+    expect(lines[0]).toMatch(/^ALL: FAILED .*: numTri failed$/)
+    expect(stream.batches).toHaveLength(11)
+  })
+})
+
+describe('progress without streaming', () => {
+  it('calls __jscadProgress once per cell and returns the geometry', async () => {
+    globalThis.__jscadProgress = vi.fn()
+    const geoms = await runGrid()
+    expect(globalThis.__jscadProgress).toHaveBeenCalledTimes(11)
+    expect(geoms).toHaveLength(11)
   })
 })
