@@ -1,12 +1,12 @@
 {
-  "_comment": "Job 2d31a58dc893d052 measured 35/40 ALL.js grids on the manifold engine with a 320s hang guard per grid, the pool at concurrency 4 and the five aggregates one at a time afterwards. No grid crashed the renderer. A cell whose model throws draws a skull-and-crossbones and the grid scores partial; after a wasm trap every later cell fails as not run. render-all.mjs --baseline diffs a run against failures[], cells included.",
+  "_comment": "Job 6163cd59d9043472 measured 36/40 ALL.js grids on the manifold engine with a 320s hang guard that now restarts on each streamed cell and a 290s model budget per cell, the pool at concurrency 4 and the five aggregates one at a time afterwards. No grid crashed the renderer. A cell whose model throws draws a skull-and-crossbones and the grid scores partial; after a wasm trap every later cell fails as not run. render-all.mjs --baseline diffs a run against failures[], cells included.",
   "tree": "main working tree, rsynced onto the CI base worktree by sci — no commit identifies the code that was measured",
   "date": "2026-09-24",
-  "job": "2d31a58dc893d052",
+  "job": "6163cd59d9043472",
   "engine": "manifold",
   "total": 40,
-  "ok": 35,
-  "failed": 5,
+  "ok": 36,
+  "failed": 4,
   "byLib": {
     "jscad/ALL.js": {
       "ok": 1,
@@ -37,8 +37,8 @@
       "fail": 0
     },
     "openscad/nopscadlib": {
-      "ok": 0,
-      "fail": 1
+      "ok": 1,
+      "fail": 0
     },
     "openscad/snippet": {
       "ok": 5,
@@ -60,11 +60,10 @@
   "failures": [
     {
       "rel": "openscad/dotscad/examples/ALL.js",
-      "status": "error",
+      "status": "partial",
       "cells": [
         "./maze3d_mickey.scad: Maximum call stack size exceeded"
-      ],
-      "why": "Error: Error: model exceeded 290000 ms at frameWorkerTerminated (http://localhost:5140/main.js:551:12516) at d (http://localhost:5140/main.js:161:22195) at m (http://localhost:5140/main.js:161:22287) at o (http://localhost:5140/main.js:551:11078)"
+      ]
     },
     {
       "rel": "openscad/dotscad/examples/maze/ALL.js",
@@ -74,17 +73,12 @@
       ]
     },
     {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/ALL.js",
-      "status": "error",
-      "why": "ModelError: ModelError: geometry exceeds the buffer cap (1107490272 > 268435456) at qw (http://localhost:5140/main.js:551:4621) at Mc (http://localhost:5140/main.js:551:4914) at qS (http://localhost:5140/main.js:1093:470) at Object.entities (http://localhost:5140/main.js:551:13036) at wi (http://loc"
-    },
-    {
       "rel": "ALL.js",
       "status": "error",
       "cells": [
         "./maze3d_mickey.scad: Maximum call stack size exceeded"
       ],
-      "why": "Error: Error: model exceeded 290000 ms at frameWorkerTerminated (http://localhost:5140/main.js:551:12516) at d (http://localhost:5140/main.js:161:22195) at m (http://localhost:5140/main.js:161:22287) at o (http://localhost:5140/main.js:551:11078)"
+      "why": "Error: Error: model exceeded 290000 ms at frameWorkerTerminated (http://localhost:5140/main.js:551:12646) at d (http://localhost:5140/main.js:161:22203) at m (http://localhost:5140/main.js:161:22295) at o (http://localhost:5140/main.js:551:11198)"
     },
     {
       "rel": "openscad/ALL.js",
@@ -92,7 +86,7 @@
       "cells": [
         "./maze3d_mickey.scad: Maximum call stack size exceeded"
       ],
-      "why": "Error: Error: model exceeded 290000 ms at frameWorkerTerminated (http://localhost:5140/main.js:551:12516) at d (http://localhost:5140/main.js:161:22195) at m (http://localhost:5140/main.js:161:22287) at o (http://localhost:5140/main.js:551:11078)"
+      "why": "Error: Error: model exceeded 290000 ms at frameWorkerTerminated (http://localhost:5140/main.js:551:12646) at d (http://localhost:5140/main.js:161:22203) at m (http://localhost:5140/main.js:161:22295) at o (http://localhost:5140/main.js:551:11198)"
     }
   ]
 }

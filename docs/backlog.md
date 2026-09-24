@@ -67,8 +67,9 @@ a time.
 
 A cell whose model throws no longer takes the grid with it: it draws a
 skull-and-crossbones and the sweep scores that grid `partial`, naming the dead
-cells. **35 of 40 render** (`sci push jscadui/render-grids`, job
-`2d31a58dc893d052`, 320s hang guard per grid), and none crashes the renderer;
+cells. **36 of 40 render** (`sci push jscadui/render-grids`, job
+`6163cd59d9043472`, 320s hang guard restarting on each streamed cell, 290s
+model budget per cell), and none crashes the renderer;
 `apps/jscad-web/e2e/render-grids-baseline.json` holds the per-grid state and
 each partial grid's dead cells. After the first `WebAssembly.RuntimeError` a
 grid fails every later cell as `not run: wasm trapped in <url>`.
@@ -83,21 +84,16 @@ NopSCADlib `extrusion_brackets.scad` 3087 → 963 MB, `openscad/bosl2/ALL.js`
 after each cell, which by itself changed no Node peak, and `normalizeAndPlace`
 disposes its two intermediate transforms per geometry.
 
-- **The NopSCADlib tests grid exceeds the buffer cap**: 13.3M triangles is
-  1,107,490,272 bytes against the 256 MB cap in `src/caps.js`. It now finishes
-  building; the app refuses to draw it.
 - **Cut the per-triangle cost of drawn geometry.** The worker sends unindexed
   triangles with CPU normals, 84 bytes a triangle, and the app never sets
   `useGpuNormals`. Indexed geometry with GPU-computed normals is about 18 bytes,
   which would bring NopSCADlib's grid to about 240 MB, under the 256 MB cap,
   and cut page memory for every model. The cap would then stay a safety bound
   instead of being raised for grids.
-- **`dotscad/examples/ALL.js` hits the 290s kill**, after
-  `maze3d_mickey.scad` (the accepted stack overflow) fails in its maze
-  sub-grid.
-- **The aggregate grids are too big for one worker.** Top-level `ALL.js` and
-  `openscad/ALL.js` hit the 290s kill. Each loads several whole grids in one
-  worker on one core.
+- **Top-level `ALL.js` and `openscad/ALL.js` still hit the 290s kill.** A
+  nested sub-grid arrives at its parent as one streamed cell, not a stream of
+  its own, so one cell can be a whole sub-grid's worth of work and still has
+  to fit the per-cell budget.
 - **Nothing splits a grid across workers.** The frame runs one worker, one
   request at a time (`src_frame/frame.js`), so a grid cannot use more than one
   core and cannot give each cell its own budget. A pool would need the app to

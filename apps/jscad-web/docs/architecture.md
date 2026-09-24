@@ -272,15 +272,15 @@ nothing was drawn.
 ### Streamed grids
 
 An `ALL.js` grid does not return its geometry. While the worker runs a model's
-`main`, for a load or a `jscadMain`, it sets `globalThis.__jscadStream`, and the
-grid emits each placed cell through it as a `jscadCells` notification
+`main`, for a load or a `jscadMain`, it sets `globalThis.__jscadStream`, and
+the grid emits each placed cell through it as a `jscadCells` notification
 (`{ entities, runId }`), then disposes the cell. The result is
-`{ entities: [], streamed: true, runId }`, where `runId` is the one the app sent
-in the request options. A nested grid emits nothing and returns its geometry as
-one cell of its parent. Export, measure and
-check need the solids, so when the last run streamed they re-run `jscadMain`
-with no stream hook and with `__jscadProgress` set, which posts one
-`jscadProgress` per cell.
+`{ entities: [], streamed: true, runId }`, where `runId` is the one the app
+sent in the request options. A nested grid emits nothing and returns its
+geometry as one cell of its parent. Export, measure and check need the
+solids, so when the last run streamed they re-run `jscadMain` with no stream
+hook and with `__jscadProgress` set, which posts one `jscadProgress` per
+cell.
 
 The frame relays `jscadCells` only while a `jscadScript` or `jscadMain` request
 is pending and `jscadProgress` while any request is; any other worker post is
@@ -298,9 +298,10 @@ the current run's and the run is not stale. Anything else is dropped and leaves
 the current run alone. A `frameSetup` replay re-sends requests with the
 `runId`s they first carried, whose runs are closed, so its batches are dropped
 too. A result that is not streamed discards the open run without drawing, so a
-pending redraw cannot paint over it. Each batch is checked against the per-batch caps (256 MB, 2,000 entities) and
-the run's total against 1.5 GB and 20,000 entities; going over ends the run
-with the cap error and leaves the drawn cells in place, as a kill does.
+pending redraw cannot paint over it. Each batch is checked against the
+per-batch caps (256 MB, 2,000 entities) and the run's total against 1.5 GB and
+20,000 entities; going over ends the run with the cap error and leaves the
+drawn cells in place, as a kill does.
 Redraws coalesce to one per 250 ms and pass the run's whole entity array, which
 starts empty, so the first redraw replaces the previous model. The three.js
 renderer keeps built objects keyed by entity object across `setScene`, so each

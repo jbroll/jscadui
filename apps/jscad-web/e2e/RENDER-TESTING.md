@@ -36,8 +36,9 @@ budget stops at 290s: the app's RPC to the frame gives up at 300s
 the worker keeps running. The harness warns and clamps a larger value.
 
 For a streamed grid (`--grids`), both budgets apply per cell, not per grid:
-each accepted batch resets `html[data-cells]`, which restarts the frame's kill
-timer, the app's RPC timers and the harness's own hang guard. A grid is scored
+each accepted batch sets `html[data-cells]` to the new count, which restarts
+the frame's kill timer, the app's RPC timers and the harness's own hang guard.
+A grid is scored
 once it settles (`data-render` reaches `ok`/`error`), however many cells that
 took.
 
@@ -164,9 +165,11 @@ It records no commit. `sci` rsyncs the working tree onto a base worktree, so the
 commit the CI run reports is that worktree's HEAD, not the code measured — a
 field nobody can trust is worse than none.
 
-`e2e/render-grids-baseline.json` is the same thing for the grid sweep: **35 of
-40** on manifold, CI job `2d31a58dc893d052`. Each failure carries its
-`status`, the cells that drew a marker, and why the grid itself died.
+`e2e/render-grids-baseline.json` is the same thing for the grid sweep: **36 of
+40** on manifold, CI job `6163cd59d9043472`, with the 320s hang guard now
+restarting on each streamed cell and a 290s model budget per cell. Each
+failure carries its `status`, the cells that drew a marker, and why the grid
+itself died.
 `docs/backlog.md` groups them by cause. No grid crashes the renderer now; if
 one does, the sweep listens for the page's `crash` event and scores it `crash`
 at once rather than wait out the 320s guard on a dead page.
