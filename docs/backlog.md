@@ -33,7 +33,8 @@ review follow-ups, then `91d6402f`, the render-engine redraw guard.
 memory fixes. Later on 2026-09-24: deployed `715e4509`, streamed grids, then
 `cf7e8dc1`, the preview optimizations (indexed meshes, streamed parts, mesh
 reuse, spare worker), then `c848f0ba`, the grid failure marker drawn from
-`skull.svg`.
+`skull.svg`, then `66ee38c7`, the demo menu without pass-through levels and
+with NopSCADlib's tests in six categories.
 See `apps/jscad-web/docs/architecture.md` for the
 deploy order and headers.
 
