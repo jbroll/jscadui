@@ -72,8 +72,8 @@ a time.
 
 A cell whose model throws no longer takes the grid with it: it draws a
 skull-and-crossbones and the sweep scores that grid `partial`, naming the dead
-cells. **36 of 40 render** (`sci push jscadui/render-grids`, job
-`6163cd59d9043472`, 320s hang guard restarting on each streamed cell, 290s
+cells. **42 of 46 render** (`sci push jscadui/render-grids`, job
+`81535cace82fc6ea`, 320s hang guard restarting on each streamed cell, 290s
 model budget per cell), and none crashes the renderer;
 `apps/jscad-web/e2e/render-grids-baseline.json` holds the per-grid state and
 each partial grid's dead cells. After the first `WebAssembly.RuntimeError` a

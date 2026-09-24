@@ -167,8 +167,8 @@ It records no commit. `sci` rsyncs the working tree onto a base worktree, so the
 commit the CI run reports is that worktree's HEAD, not the code measured — a
 field nobody can trust is worse than none.
 
-`e2e/render-grids-baseline.json` is the same thing for the grid sweep: **36 of
-40** on manifold, CI job `6163cd59d9043472`, with the 320s hang guard now
+`e2e/render-grids-baseline.json` is the same thing for the grid sweep: **42 of
+46** on manifold, CI job `81535cace82fc6ea`, with the 320s hang guard now
 restarting on each streamed cell and a 290s model budget per cell. Each
 failure carries its `status`, the cells that drew a marker, and why the grid
 itself died.
