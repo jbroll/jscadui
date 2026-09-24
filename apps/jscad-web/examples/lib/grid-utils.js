@@ -173,9 +173,26 @@ function failureMarker() {
   return [].concat(colorize([0.85, 0.1, 0.1], marker)).flat()
 }
 
+/**
+ * The failure marker as stored triangles, for a cell that fails once the
+ * wasm has trapped: building it needs no boolean and no wasm.
+ *
+ * @returns {object} a plain geom3 placed at (gx, gy) with longest side cellSize
+ */
+function prebuiltSkull(gx, gy, cellSize) {
+  const data = require('./skull-mesh.js')
+  const polygons = []
+  for (let i = 0; i < data.length; i += 9) {
+    polygons.push({ vertices: [data.slice(i, i + 3), data.slice(i + 3, i + 6), data.slice(i + 6, i + 9)] })
+  }
+  const s = cellSize
+  return { polygons, transforms: [s, 0, 0, 0, 0, s, 0, 0, 0, 0, s, 0, gx, gy, 0, 1], color: [0.85, 0.1, 0.1, 1] }
+}
+
 module.exports = {
   gridPosition,
   normalizeAndPlace,
   urlToPartName,
-  failureMarker
+  failureMarker,
+  prebuiltSkull
 }

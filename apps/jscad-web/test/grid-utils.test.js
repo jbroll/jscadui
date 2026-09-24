@@ -5,19 +5,29 @@ import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const nodeRequire = createRequire(import.meta.url)
+const examplesDir = join(__dirname, '..', 'examples')
+// rooted at grid-utils.js's own path, since it requires './skull-mesh.js' relative to itself
+const nodeRequire = createRequire(join(examplesDir, 'lib', 'grid-utils.js'))
 
-// grid-utils is CommonJS, loaded the same way the worker loads it
-const loadGridUtils = (req) => {
-  const source = readFileSync(join(__dirname, '..', 'examples', 'lib', 'grid-utils.js'), 'utf-8')
+// The examples package is "type": "module", so Node's real require() can't load a local
+// .js file as CommonJS; eval it the same way @jscadui/require and the worker do.
+const loadCjs = (path, req) => {
+  const source = readFileSync(path, 'utf-8')
   const module = { exports: {} }
   new Function('require', 'exports', 'module', source)(req, module.exports, module)
   return module.exports
 }
+
+// grid-utils is CommonJS, loaded the same way the worker loads it
+const loadGridUtils = (req) => {
+  const gridUtilsPath = join(examplesDir, 'lib', 'grid-utils.js')
+  const localRequire = (spec) => spec.startsWith('.') ? loadCjs(join(dirname(gridUtilsPath), spec), localRequire) : req(spec)
+  return loadCjs(gridUtilsPath, localRequire)
+}
 const gridUtils = loadGridUtils(nodeRequire)
 const { failureMarker, normalizeAndPlace } = gridUtils
 const jscad = nodeRequire('@jscad/modeling')
-const { measureAggregateBoundingBox } = jscad.measurements
+const { measureAggregateBoundingBox, measureBoundingBox } = jscad.measurements
 
 describe('failureMarker', () => {
   it('returns geometry', () => {
@@ -95,5 +105,23 @@ describe('normalizeAndPlace on the manifold engine', () => {
     placeWithManifold([cell], 0, 0, 51)
     expect(cell.manifold.isDeleted()).toBe(false)
     expect(cell.volume()).toBeCloseTo(1000, 5)
+  })
+})
+
+describe('prebuiltSkull', () => {
+  it('fills the cell like the built marker, without any boolean', () => {
+    const { prebuiltSkull } = gridUtils
+    const skull = prebuiltSkull(90, -30, 51)
+    expect(skull.color).toEqual([0.85, 0.1, 0.1, 1])
+    const [[x0, y0, z0], [x1, y1, z1]] = measureBoundingBox(skull)
+    expect(Math.max(x1 - x0, y1 - y0, z1 - z0)).toBeCloseTo(51, 1)
+    expect((x0 + x1) / 2).toBeCloseTo(90, 1)
+    expect((y0 + y1) / 2).toBeCloseTo(-30, 1)
+    expect((z0 + z1) / 2).toBeCloseTo(0, 1)
+  })
+
+  it('builds fresh polygons each call', () => {
+    const { prebuiltSkull } = gridUtils
+    expect(prebuiltSkull(0, 0, 1).polygons).not.toBe(prebuiltSkull(0, 0, 1).polygons)
   })
 })
