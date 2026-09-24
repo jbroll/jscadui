@@ -38,7 +38,8 @@ export const createStreamRuns = ({ draw, onCells, onError, delayMs = 250 }) => {
     },
     accept(batch) {
       if (!run || run.isStale()) return false
-      const entities = Array.isArray(batch) ? batch : []
+      // Drop non-object entries here so nothing downstream (caps, countGeometry) has to guard against them.
+      const entities = (Array.isArray(batch) ? batch : []).filter((e) => e && typeof e === 'object')
       try {
         capGeometry(entities, DEFAULT_CAPS)
         const bytes = geometryBytes(entities)

@@ -88,6 +88,15 @@ describe('stream runs', () => {
     expect(onError.mock.calls[0][0].message).toMatch(/entity cap/)
   })
 
+  it('drops non-object entries from a batch before checking or drawing', () => {
+    const { runs, draw, onCells } = setup()
+    runs.begin(() => false)
+    expect(() => runs.accept([null, cell(), 7])).not.toThrow()
+    expect(onCells).toHaveBeenLastCalledWith(1)
+    vi.advanceTimersByTime(250)
+    expect(draw.mock.calls[0][0]).toHaveLength(1)
+  })
+
   it('returns null from finish for a stale run', () => {
     const { runs } = setup()
     let stale = false
