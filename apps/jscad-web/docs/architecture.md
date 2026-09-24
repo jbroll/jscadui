@@ -136,10 +136,12 @@ drove the local worker. `jscadInit`, `jscadScript`, `jscadSetFiles`,
 `jscadExportData` and the cache clears all reach the frame's worker. Geometry
 buffers ride the transfer list on both hops, so they cross without a copy.
 
-Notifications relay the same way. The worker sends two, a grid's `jscadCells`
-and `jscadProgress` (see Streamed runs), and `frameWorkerTerminated` is the
-only message the frame originates; `frameSetup.js` registers those three with
-`messageProxy`. `handlers.entities` beside it is `main.js`'s own sink, which
+Notifications relay the same way. The worker sends three, a grid's
+`jscadCells` and `jscadProgress` (see Streamed runs) and `jscadClaim`, which
+the frame answers itself and never relays to the app. `frameWorkerTerminated`
+is the only message the frame originates; `frameSetup.js` registers
+`jscadCells`, `jscadProgress` and `frameWorkerTerminated` with `messageProxy`.
+`handlers.entities` beside it is `main.js`'s own sink, which
 it calls directly for restores and cached results as well as for a fresh
 render. Job count is not relayed either: the
 proxy's own pending-request map on the app side is what drives it.
@@ -178,24 +180,36 @@ the replay below). A
 worker that fails to load its bundles takes the same path through `onerror`,
 so the app sees the load error rather than a timeout a budget later.
 
-After the first `jscadScript` answer the frame starts a second worker, the
-spare. It gets a copy of every `jscadInit` (as rewritten), `jscadSetFiles`,
+The frame keeps a list of workers: the active one the app's requests go to,
+the members of any grid run, and one idle worker kept warm, `poolSize + 1` at
+most. `poolSize` defaults to `max(1, min(hardwareConcurrency - 1, 4))`;
+`jscadInit`'s `poolSize` overrides it and the frame strips it, as it does
+`timeoutMs`. The app sends it from the `engine.poolSize` localStorage key when
+one is set. Each worker holds its own bundles, WASM instances and file map,
+which is what bounds the pool's size.
+
+Every worker gets a copy of every `jscadInit` (as rewritten), `jscadSetFiles`,
 `jscadClearTempCache` and `jscadClearFileCache` the app sends, as the frame's
 own requests whose answers go nowhere, but never a script. The frame keeps
-those messages in order so it can replay them into the next spare; a new
+those messages in order so it can replay them into a new worker; a new
 `jscadSetFiles` drops the file map and cache clears before it, since the map
-replaces them. File buffers are copied for the spare rather than transferred.
-The frame also records the params of the last `jscadScript` and `jscadMain`
-the active worker answered without error; a new script clears the recorded
-`jscadMain`, since its params belong to the previous model.
+replaces them. File buffers are copied for each worker rather than
+transferred. The frame also records the params of the last `jscadScript` and
+`jscadMain` the active worker answered without error; a new script clears the
+recorded `jscadMain`, since its params belong to the previous model. Each
+worker records the script it has loaded (`slot.script`), compared by identity
+with that recorded `jscadScript`; a worker without it reloads the script with
+`runMain: false` before it runs `jscadMain`, `jscadExportData`, `jscadMeasure`
+or `jscadCheck`.
 
-On a kill the spare becomes the active worker at once, and a new spare is
-started and set up from the recorded messages; the app still gets its answers
-and `frameWorkerTerminated`. The frame also retires the active worker without
+On a kill an idle worker is promoted to active at once, preferring one that
+already holds the current script, and a new idle worker is started and set up
+from the recorded messages; the app still gets its answers and
+`frameWorkerTerminated`. The frame also retires the active worker without
 telling the app when an answer it relays has `error.name === 'RuntimeError'` or
 `trapped: true`: a trapped WebAssembly instance is not trusted with the next
-run. The retired worker's other requests are answered `AbortError` and the
-spare is promoted the same way. A promoted worker has the setup but no model,
+run. The retired worker's other requests are answered `AbortError` and an idle
+worker is promoted the same way. A promoted worker has the setup but no model,
 so before it runs `jscadMain`, `jscadExportData`, `jscadMeasure` or
 `jscadCheck` the frame sends it the last script with `runMain: false`, and for
 the last three also the last `jscadMain` with `stream: false`, since they read
@@ -209,18 +223,18 @@ retires a worker: a reload step that traps still lets the request it was made
 for run, so a model whose run traps can still be exported, and the next app run
 that traps retires the worker. A `jscadScript`
 from the app loads the worker itself and skips this, including while it is
-still running, since it is the model the app expects. The cost is a second
-worker's memory: the loaded bundles, WASM instances and file map, held idle
-from the first script onward. The frame also keeps its own copy of the last
-file map in its list of mirrored messages, so a project's files are held three
-times: in the active worker, in the spare and in the frame. A promotion costs a
-script load, and since the transpile cache lives in each worker, the promoted
-worker transpiles the model's OpenSCAD includes again.
+still running, since it is the model the app expects. The cost is each idle
+worker's memory: the loaded bundles, WASM instances and file map, held from the
+first script onward. The frame also keeps its own copy of the last file map in
+its list of mirrored messages, so a project's files are held once per worker
+plus the frame's own copy. A promotion costs a script load, and since the
+transpile cache lives in each worker, the promoted worker transpiles the
+model's OpenSCAD includes again.
 
-A spare exists so that a trapped WebAssembly instance or a run the user has
-moved past can be dropped at once. Without one the frame could only wait for
-the run to finish or kill the worker, and a kill costs a cold start: bundles,
-WASM and the replay.
+A warm worker exists so that a trapped WebAssembly instance or a run the user
+has moved past can be dropped at once. Without one the frame could only wait
+for the run to finish or kill the worker, and a kill costs a cold start:
+bundles, WASM and the replay.
 
 A load, a parameter change and a render-engine redraw send `supersede: true`
 with their `jscadScript` or `jscadMain`. When one arrives while the active
@@ -381,12 +395,65 @@ solids afterward, so export, measure and check need no re-run for this path.
 Each batch holds one solid, so instancing only groups matching geometry within
 a batch, not across the model's parts.
 
-Only the outermost grid streams. The generated template's `main` saves
-`__jscadStream`, sets it to `null` while its cells run and restores it after,
-so a nested grid sees no hook, returns its geometry and arrives in its parent
-as one cell. The parent's `normalizeAndPlace` scales each cell by its whole
-bounding box, so it cannot place a sub-grid's cells before the sub-grid
-returns. The cost is that a nested sub-grid must fit one per-cell budget.
+A generated `ALL.js` is an item list plus one call,
+`gridModule(items, { spacing, cellSize }, require)`, from
+`examples/lib/grid-utils.js`, which holds the loop, name deduplication,
+failure markers and trap handling that used to live in the generated template.
+The file's own `require` is passed in so item paths resolve against the grid's
+directory. `main` takes `globalThis.__jscadStream`, hides it from leaf code
+while it walks the grid, and restores it after.
+
+A sub-grid, an item that is itself a grid, runs its own leaves under a world
+transform, `ctx · translate(x, y) · scale(s)`, where `s = cellSize / max(width,
+depth)` and `width` and `depth` are the sub-grid's extent, which follows from
+its item count alone (`gridExtent`). So every leaf streams on its own, and the
+per-cell budget applies to a leaf, not to a whole sub-grid. A sub-grid whose
+leaves are all small or flat is placed slightly differently than it was when
+it arrived as one normalized cell. Failure markers take the same transform.
+
+With `claims: true` in `jscadInit` (the frame always sets it), the stream hook
+gains `claim(key, url)`. A leaf's key is its index path (`"2/14"`); item lists
+are static, so every worker in a run computes the same keys. The grid claims
+each leaf before running it and skips one it loses without requiring it; a
+sub-grid is walked by every worker regardless of claims, so each worker
+requires every file in the tree but transpiles only the leaves it wins. A
+`stream: false` run — export's re-run, an animation frame, agent evaluation —
+has no claim hook and runs every leaf itself.
+
+Every streaming `jscadMain` or `jscadScript` is a run. Its first won claim
+fans it out: the same request goes to up to `poolSize - 1` more workers,
+which join late and take whatever keys are still open. A `jscadCells`
+notification is relayed only when its `runId` names an open run the sending
+worker still belongs to; relaying one clears that member's current leaf, so a
+worker lost afterward is not reported as having lost it. The app gets one
+answer, once the run's last member has answered: the primary member's answer
+merged with `entities: []`, `streamed: true`, `runId`, `lost`, and the params
+every member discovered (`src_frame/mergeProxyStates.js`), since each worker
+discovers only the leaves it ran itself. A run nobody claims into behaves as a
+single request, as before.
+
+Losing a member: a trap or a timeout stops only that member. The frame
+retires it and, while the run is open and the member was on a leaf, adds a
+replacement that joins late. A timed-out member's current leaf goes into
+`lost`, which `streamRuns.js` reports as an error while keeping the cells
+already drawn. `frameWorkerTerminated` is posted only when no member remains
+and none can start.
+
+Supersede: a superseding request answers a fanned-out run `SupersededError`
+at once, closes it to claims and stops relaying its cells; a member on a leaf
+it started at least `ABANDON_AFTER_MS` ago is retired, and the rest finish
+their leaf, find later claims refused, and go idle. A superseding request
+also closes a run that has not fanned out yet, without answering it — the
+ordinary supersede rules answer that request instead — so an old grid can no
+longer fan out once it is superseded. A superseding `jscadMain` leaves a grid
+load alone either way, and never retires a worker still holding a pending app
+`jscadScript`.
+
+The frame's side of this splits across four files: `src_frame/workerSlot.js`
+(a worker's own start, request tracking, timers and end), `workerPool.js`
+(the worker list, idle workers, promotion, setup replay, reload), `gridRun.js`
+(fan-out, claims, lost leaves, finishing a run) and `frameHost.js` (message
+routing, the `jscadInit` rewrite, the supersede entry points).
 
 A cell that fails draws a skull and crossbones: `examples/lib/skull.svg` as an
 upright relief facing the default camera, an off-white plate with the black

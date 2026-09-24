@@ -90,17 +90,6 @@ NopSCADlib `extrusion_brackets.scad` 3087 → 963 MB, `openscad/bosl2/ALL.js`
 after each cell, which by itself changed no Node peak, and `normalizeAndPlace`
 disposes its two intermediate transforms per geometry.
 
-- **Top-level `ALL.js` and `openscad/ALL.js` still hit the 290s kill.** A
-  nested sub-grid arrives at its parent as one streamed cell, not a stream of
-  its own, so one cell can be a whole sub-grid's worth of work and still has
-  to fit the per-cell budget.
-- **Nothing splits a grid across workers.** The frame runs one worker, one
-  request at a time (`src_frame/frame.js`), so a grid cannot use more than one
-  core. A pool would need the app to send each cell separately and place
-  results as they arrive; each worker then transpiles the shared library again
-  unless the transpile cache moves out of the worker to the frame's main thread
-  (the frame's opaque origin rules out SharedArrayBuffer and IndexedDB). Weigh
-  that against a warm transpile now costing about 40ms.
 - **Model code can keep its own run alive.** It can post its own `jscadCells`
   during a load or parameter run, and each relayed message restarts the frame's
   kill timer, so a model that keeps posting is never killed. The damage stays
@@ -112,6 +101,10 @@ disposes its two intermediate transforms per geometry.
 - **Re-run a grid for export without converting it.** The re-run goes through
   `jscadMain`, which converts every cell to meshes it then discards. Calling
   main without that conversion would cut the time and the peak memory.
+- **`part()` boundaries for JSCAD and SCAD parts.** A single model's parts
+  could spread across the frame's pool the way a grid's leaves do now, using
+  the same claim mechanism: `jscadClaim`, a key per part, fan-out on the first
+  claim.
 
 ## Worker
 
@@ -122,10 +115,11 @@ disposes its two intermediate transforms per geometry.
   kept solids can read detached arrays. Streamed batches already send copies
   (`packages/worker/src/stream.js`).
 
-## Spare worker and supersede
+## Worker pool and supersede
 
-See `apps/jscad-web/docs/architecture.md`, Protocol, for how the frame keeps a
-spare and abandons stale runs.
+See `apps/jscad-web/docs/architecture.md`, Protocol and Streamed runs, for how
+the frame keeps a pool of workers, spreads a grid's leaves across it by
+claims, and abandons stale runs.
 
 - **A promoted worker's export reload has no progress beats.** Before an
   export, measure or check, the frame replays a grid's last `jscadMain` with
@@ -135,7 +129,8 @@ spare and abandons stale runs.
 - **A superseding load or parameter change aborts a pending export.** The
   retire answers the export `AbortError`.
 - **Move `ABANDON_AFTER_MS` to a leaf constants module.** It lives in
-  `src_frame/frameHost.js`, and the app imports it from there.
+  `src_frame/gridRun.js`, re-exported from `frameHost.js`, and the app imports
+  it from there.
 - **The app sends a superseding `jscadMain` every 500 ms while a load is
   pending.** The frame never abandons a pending script, so each one queues on
   the worker and runs in full. Queue them behind the load instead and supersede

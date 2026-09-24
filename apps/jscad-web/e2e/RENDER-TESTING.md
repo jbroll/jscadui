@@ -34,12 +34,21 @@ anonymous timeout. `--model-timeout` sets that budget directly. Either way the
 budget stops at 290s: the app's RPC to the frame gives up at 300s
 (`@jscadui/postmessage`), and past that the page reports "RPC timeout" while
 the worker keeps running. The harness warns and clamps a larger value.
+`--pool-size <n>` sets `engine.poolSize` in localStorage before the page
+loads, pinning how many frame workers a page's compute frame keeps (default:
+the app's own, `max(1, min(hardwareConcurrency - 1, 4))`); the grid CI jobs use
+it to compare a pooled grid against one worker.
 
 For a streamed grid (`--grids`), both budgets apply per cell, not per grid.
 Each relayed `jscadCells` message restarts the frame's kill timer and the
 app's RPC timers. Each batch the app accepts sets `html[data-cells]` to the new
 count, which restarts the harness's own hang guard. A grid is scored once it
 settles (`data-render` reaches `ok`/`error`), however many cells that took.
+Each result also records `cells`, the last `data-cells` count read, and `ms`,
+the wall time from navigation to settling; with `--grids` the run prints a
+"Grid cells and times" listing at the end, one line per grid,
+`<path> cells=<n> <ms/1000>s`, so a pooled run and a serial run can be
+compared cell for cell and second for second.
 
 A `timeout` is followed by an `at the guard:` line: the app's
 `data-render` and error bar and the page clock, then whether the frame
@@ -100,6 +109,7 @@ they can run at the same time on one host:
 | `ci/render` | 5120 | 5120 app, 5121 frame |
 | `ci/render-jscad` | 5130 | 5130, 5131 |
 | `ci/render-grids` | 5140 | 5140, 5141 |
+| `ci/render-grids-serial` | 5150 | 5150, 5151 |
 | `ci/web` | 5150 | 5150 app, 5151 frame, 5152 marker, 5153 attacker |
 
 `build.js`, `playwright.config.js`, `render-all.mjs` and the frame e2e read the
@@ -110,12 +120,18 @@ Edit `RENDER_ARGS` in `ci/render` to change scope/concurrency.
 
 `sci push jscadui/render-grids` runs the same setup over the 46 grids
 instead, every `ALL.js` plus the per-category `ALL.<category>.js` grids beside
-the NopSCADlib tests (`--dir . --grids`, 320s hang guard, concurrency 4, writing
-`e2e/render-grids-report.json`). The worker streams a grid cell by cell and
-frees each cell's geometry once sent, but the page keeps every cell it has
-drawn, up to 1.5 GB of buffers per run, so a grid is still much heavier than
-one model. `sci` takes the script name as the job name,
+the NopSCADlib tests (`--dir . --grids --pool-size 4`, 320s hang guard,
+concurrency 4, writing `e2e/render-grids-report.json`). The worker streams a
+grid cell by cell and frees each cell's geometry once sent, but the page keeps
+every cell it has drawn, up to 1.5 GB of buffers per run, so a grid is still
+much heavier than one model. `sci` takes the script name as the job name,
 which is why this is a separate file rather than a flag on `ci/render`.
+
+`sci push jscadui/render-grids-serial` runs the same 46 grids with
+`--pool-size 1`, on port 5150, writing `e2e/render-grids-serial-report.json`
+against the same baseline. Each grid should draw the same `data-cells` count
+either way; the `cells` and `ms` a grid takes under one worker against four
+is what tells whether the pool pays for itself.
 
 Six grids are aggregates, every item another grid: the top-level `ALL.js`,
 `openscad/ALL.js`, the `bosl`, `bosl2` and `snippet` ones, and

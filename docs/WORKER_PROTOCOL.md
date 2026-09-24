@@ -13,6 +13,8 @@ interface InitOptions {
   alias?: Array<{name: string, path: string}>   // Path aliases
   bundles?: Record<string, string>              // Package mappings
   userInstances?: boolean                       // Enable instancing
+  claims?: boolean                              // the host answers jscadClaim; set by the frame
+  poolSize?: number                             // frame only: read and stripped before the worker sees it
 }
 ```
 
@@ -65,6 +67,7 @@ interface JscadMainResult {
   streamed?: true
   runId?: unknown    // set only when streamed
   trapped?: true     // set when the worker's WASM instance has trapped
+  lost?: { url: string, reason: string }[]  // set on a run that fanned out; see jscadClaim
 }
 ```
 
@@ -76,8 +79,10 @@ retired, not reused. An error still rejects with its original `name` — a
 `WebAssembly.RuntimeError` arrives as `RuntimeError`, as before.
 
 When `stream` is true (the default) and the loaded script is an ALL.js grid,
-only the outermost grid emits: it streams each cell as a `jscadCells`
-notification as soon as that cell finishes, instead of the worker holding
+every grid level emits its own leaves through the stream hook: a nested grid
+does not arrive at its parent as one cell, it streams each of its own leaves
+the same way the outermost grid does. Each leaf is sent as a `jscadCells`
+notification as soon as that leaf finishes, instead of the worker holding
 every cell's geometry until main returns. A run during which anything was
 emitted resolves with `entities: []`, `streamed: true` and the request's
 `runId`; a normal (non-grid) run is unaffected and returns entities as before.
@@ -130,6 +135,26 @@ relays `jscadProgress` only while one of those three requests is pending.
 With `useGpuNormals` set on the manifold package, each mesh entity arrives
 indexed (`vertices`, `indices`) and carries no `normals`.
 
+### jscadClaim
+
+Only a worker whose `jscadInit` had `claims: true` claims. Before running a
+leaf, a grid's stream hook posts
+
+```
+{ method: 'jscadClaim', id, params: [{ key, url, runId }] }
+```
+
+The host answers with the notification
+
+```
+{ method: '__CLAIM__', params: [{ id, won }] }
+```
+
+with the id inside `params` rather than at the top level, because a message
+with a top-level id is a request the worker would answer. The frame answers
+`won: false` to a worker outside the run named by `runId` and to any claim
+made after the run has closed.
+
 ### supersede and SupersededError
 
 The app may set `supersede: true` on the options of `jscadScript` or
@@ -150,6 +175,17 @@ yet. A superseding request rejects every `jscadMain` waiting there with the same
 `SupersededError` and takes its place in the queue, except a `jscadMain` that a
 queued `jscadExportData`, `jscadMeasure` or `jscadCheck` after it will read. A
 queued `jscadScript` is never rejected this way.
+
+A run that has fanned out across the pool is superseded as a whole: the
+superseding request rejects it `SupersededError` at once, closes it to further
+claims, and stops relaying its `jscadCells`. A member on a leaf it started at
+least `ABANDON_AFTER_MS` ago is retired the same way as above; the rest finish
+their current leaf, find every later claim answered `false`, and go idle. A
+run that has not yet fanned out is closed to claims but not answered this
+way — it is answered by the ordinary supersede rules above instead, so it
+never gets the chance to fan out. Either way, a superseding `jscadMain` leaves
+a grid load alone and never retires a worker still holding a pending app
+`jscadScript`.
 
 ### jscadExportData
 Export model to a format.
