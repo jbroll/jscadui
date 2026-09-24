@@ -236,12 +236,12 @@ function applyPatches(patches) {
     const desc = patch.description ? ` — ${patch.description}` : ''
     console.log(`  patch${desc}`)
     if (DRY_RUN) {
-      console.log(`    [dry] patch --forward --no-backup-if-mismatch -p1 -i ${patch.patchFile}`)
+      console.log(`    [dry] patch --forward --no-backup-if-mismatch --ignore-whitespace -p1 -i ${patch.patchFile}`)
       continue
     }
     const result = spawnSync(
       'patch',
-      ['--forward', '--no-backup-if-mismatch', '-p1', '-i', patchFile],
+      ['--forward', '--no-backup-if-mismatch', '--ignore-whitespace', '-p1', '-i', patchFile],
       { cwd: ROOT, encoding: 'utf8', stdio: 'pipe' }
     )
     if (result.status === 0) continue
