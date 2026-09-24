@@ -189,7 +189,9 @@ most. `poolSize` defaults to `max(1, min(hardwareConcurrency - 1, 4))`;
 one is set. Each worker holds its own bundles, WASM instances and file map,
 which is what bounds the pool's size. Members leave the pool when their run
 ends: once a grid run settles, the frame ends every idle worker but one,
-keeping one that holds the current script, without telling the app.
+without telling the app. The one kept has a WASM heap under the recycle budget
+(see Streamed runs), preferring one that holds the current script, then the
+smallest heap; when every idle worker is over the budget, none is kept.
 
 Every worker gets a copy of every `jscadInit` (as rewritten), `jscadSetFiles`,
 `jscadClearTempCache` and `jscadClearFileCache` the app sends, as the frame's
@@ -452,6 +454,22 @@ member was on a leaf. A timed-out member's current leaf goes into
 already drawn. `frameWorkerTerminated` is posted only when no member remains
 and none can start.
 
+Recycling a member: a WebAssembly heap grows and never shrinks, so each worker
+keeps the heap of the largest leaf it has run, and the pool's memory is the sum
+of those high-water marks. Measured with `e2e/grid-memory.mjs` on NopSCADlib's
+tests grid at pool 4, the worker heaps reached 1.56, 1.09, 0.96 and 1.32 GB (4.9
+of 5.3 GB total), and the top-level `ALL.js` on a 22-core, 15 GB laptop grew to
+9 GB and stalled. Every claim carries the worker's heap size (`slot.heap`). A
+member that claims with a heap of at least `RECYCLE_HEAP_BYTES` (1 GiB,
+`gridRun.js`) after it has won a leaf in the run is marked to recycle: that
+claim and every later one is refused, and its timers restart as for any claim.
+When it answers, the frame retires it and, while the run is open, adds a
+replacement that joins late, as for a trap. The won-a-leaf guard keeps a fresh
+worker that starts over budget from being recycled before it makes progress.
+The cost of each recycle is a worker start, a script reload, and the model's
+OpenSCAD includes transpiled again, since the transpile cache lives in the
+worker. A `stream: false` run makes no claims and is never recycled.
+
 Supersede: a superseding request answers a fanned-out run `SupersededError`
 at once, closes it to claims and stops relaying its cells; a member on a leaf
 it started at least `ABANDON_AFTER_MS` ago is retired, and the rest finish
@@ -465,7 +483,7 @@ load alone either way, and never retires a worker still holding a pending app
 The frame's side of this splits across four files: `src_frame/workerSlot.js`
 (a worker's own start, request tracking, timers and end), `workerPool.js`
 (the worker list, idle workers, promotion, setup replay, reload), `gridRun.js`
-(fan-out, claims, lost leaves, finishing a run) and `frameHost.js` (message
+(fan-out, claims, lost leaves, recycling, finishing a run) and `frameHost.js` (message
 routing, the `jscadInit` rewrite, the supersede entry points).
 
 A cell that fails draws a skull and crossbones: `examples/lib/skull.svg` as an

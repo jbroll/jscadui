@@ -142,8 +142,13 @@ Only a worker whose `jscadInit` had `claims: true` claims. Before running a
 leaf, a grid's stream hook posts
 
 ```
-{ method: 'jscadClaim', id, params: [{ key, url, runId }] }
+{ method: 'jscadClaim', id, params: [{ key, url, runId, heap }] }
 ```
+
+`heap` is the worker's manifold WASM heap size in bytes
+(`getModule().HEAPU8.length` of the `@jscad/modeling` bundle), or 0 on the
+plain jscad engine or when it cannot be read. The frame uses it to recycle a
+worker whose heap has passed its budget.
 
 The host answers with the notification
 
@@ -153,8 +158,10 @@ The host answers with the notification
 
 with the id inside `params` rather than at the top level, because a message
 with a top-level id is a request the worker would answer. The frame answers
-`won: false` to a worker outside the run named by `runId` and to any claim
-made after the run has closed.
+`won: false` to a worker outside the run named by `runId`, to any claim
+made after the run has closed, and to every claim from a member it is
+recycling: one that reported `heap` of at least 1 GiB after winning a leaf in
+the run.
 
 A worker that joins a `jscadMain` run late is sent that same `jscadMain`
 request, and reloads whichever script the frame had most recently relayed as

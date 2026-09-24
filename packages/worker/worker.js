@@ -100,7 +100,18 @@ export const setScriptLockTimeout = (ms) => {
   scriptLockTimeout = ms
 }
 
-const claims = createClaims({ post: (message) => self.postMessage(message) })
+// The plain jscad engine has no getModule, so it reports 0.
+const wasmHeap = () => {
+  try {
+    const modelingBundleUrl = requireCache.bundleAlias['@jscad/modeling']
+    if (!modelingBundleUrl) return 0
+    return require(modelingBundleUrl, null, readFileWeb)?.getModule?.()?.HEAPU8?.length ?? 0
+  } catch {
+    return 0
+  }
+}
+
+const claims = createClaims({ post: (message) => self.postMessage(message), heap: wasmHeap })
 
 export const answerClaim = claims.answer
 

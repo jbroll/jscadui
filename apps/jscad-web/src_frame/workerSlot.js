@@ -10,7 +10,8 @@
  * @typedef {Entry & {startedAt: number, arm: () => ReturnType<typeof setTimeout>,
  *   timer: ReturnType<typeof setTimeout>}} Pending
  * @typedef {{worker: Worker, pending: Map<string, Pending>, script: object | undefined,
- *   queued: {message: any, entry: Entry | null}[] | null, setupAnswers: WeakMap<object, object>}} Slot
+ *   queued: {message: any, entry: Entry | null}[] | null, setupAnswers: WeakMap<object, object>,
+ *   heap: number}} Slot - heap is the WASM heap size its last claim reported
  */
 
 /**
@@ -26,7 +27,7 @@
 export const createSlots = ({ createWorker, randomId, timeoutMs, answerError, onMessage, onKill, onEnd }) => {
   const start = () => {
     /** @type {Slot} */
-    const slot = { worker: createWorker(), pending: new Map(), script: undefined, queued: null, setupAnswers: new WeakMap() }
+    const slot = { worker: createWorker(), pending: new Map(), script: undefined, queued: null, setupAnswers: new WeakMap(), heap: 0 }
     const { worker } = slot
     worker.onmessage = (event) => onMessage(slot, event.data)
     // Without these a bundle that fails to load surfaces as "model exceeded

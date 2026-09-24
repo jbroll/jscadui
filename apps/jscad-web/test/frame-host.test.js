@@ -834,9 +834,9 @@ describe('grid runs', () => {
   }
 
   let claims = 0
-  const claimOn = (worker, key, { runId = 7, url = `./${key}.scad` } = {}) => {
+  const claimOn = (worker, key, { runId = 7, url = `./${key}.scad`, heap = 0 } = {}) => {
     const id = `claim-${++claims}`
-    worker.onmessage({ data: { method: 'jscadClaim', id, params: [{ key, url, runId }] } })
+    worker.onmessage({ data: { method: 'jscadClaim', id, params: [{ key, url, runId, heap }] } })
     return sent(worker).find((m) => m.method === '__CLAIM__' && m.params[0].id === id)?.params[0].won
   }
 
@@ -1003,6 +1003,108 @@ describe('grid runs', () => {
     answerLastOf(workers[0], 'jscadMain')
     answerLastOf(workers[2], 'jscadMain')
     expect(alive(workers)).toEqual([workers[0], workers[2]])
+  })
+
+  const overBudget = { heap: 2 ** 30 }
+
+  it('refuses every claim from a member whose heap passed the budget after it won a leaf', () => {
+    const { workers } = gridRun()
+    claimOn(workers[0], '0')
+    loadAll(workers[1])
+    expect(claimOn(workers[1], '1')).toBe(true)
+    expect(claimOn(workers[1], '2', overBudget)).toBe(false)
+    expect(claimOn(workers[1], '3')).toBe(false)
+    expect(claimOn(workers[0], '2')).toBe(true)
+  })
+
+  it('lets a member over budget that has won nothing in the run claim', () => {
+    const { workers } = gridRun()
+    claimOn(workers[0], '0')
+    loadAll(workers[1])
+    expect(claimOn(workers[1], '1', overBudget)).toBe(true)
+    expect(claimOn(workers[1], '2', overBudget)).toBe(false)
+  })
+
+  it('replaces a recycled member once it answers, and answers the app after the replacement', () => {
+    const { workers, posted } = gridRun()
+    claimOn(workers[0], '0')
+    loadAll(workers[1])
+    loadAll(workers[2])
+    claimOn(workers[1], '1')
+    claimOn(workers[1], '2', overBudget)
+    expect(workers[1].terminate).not.toHaveBeenCalled()
+    answerLastOf(workers[1], 'jscadMain')
+    expect(workers[1].terminate).toHaveBeenCalled()
+    loadAll(workers[3])
+    expect(lastOf(workers[3], 'jscadMain').params).toEqual([{ params: {}, runId: 7 }])
+    answerLastOf(workers[0], 'jscadMain')
+    answerLastOf(workers[2], 'jscadMain')
+    expect(posted.filter((m) => m.id === 4)).toEqual([])
+    answerLastOf(workers[3], 'jscadMain')
+    expect(posted.filter((m) => m.id === 4)).toEqual([
+      { method: RESPONSE, id: 4, params: { entities: [], streamed: true, runId: 7, lost: [] } },
+    ])
+  })
+
+  it('replaces a recycled worker in a pool of one', () => {
+    const { workers, posted } = gridRun({ poolSize: 1 })
+    claimOn(workers[0], '0')
+    expect(claimOn(workers[0], '1', overBudget)).toBe(false)
+    answerLastOf(workers[0], 'jscadMain')
+    expect(workers[0].terminate).toHaveBeenCalled()
+    const joiner = workers.find((w) => w !== workers[0] && !w.terminate.mock.calls.length && lastOf(w, 'jscadScript'))
+    expect(joiner).toBeDefined()
+    loadAll(joiner)
+    expect(lastOf(joiner, 'jscadMain').params).toEqual([{ params: {}, runId: 7 }])
+    expect(posted.find((m) => m.id === 4)).toBeUndefined()
+    answerLastOf(joiner, 'jscadMain')
+    expect(posted.find((m) => m.id === 4).params).toMatchObject({ streamed: true, lost: [] })
+  })
+
+  it('retires a recycled member of a superseded run without a replacement', () => {
+    const { workers, send } = gridRun()
+    claimOn(workers[0], '0')
+    loadAll(workers[1])
+    loadAll(workers[2])
+    claimOn(workers[1], '1')
+    claimOn(workers[1], '2', overBudget)
+    send({ method: 'jscadMain', id: 5, params: [{ params: { size: 2 }, runId: 8, supersede: true }] })
+    const count = workers.length
+    const sentToSpare = sent(workers[3]).length
+    answerLastOf(workers[1], 'jscadMain')
+    expect(workers[1].terminate).toHaveBeenCalled()
+    expect(workers).toHaveLength(count)
+    expect(sent(workers[3])).toHaveLength(sentToSpare)
+  })
+
+  it('keeps an idle worker under the heap budget over one past it when trimming', () => {
+    const { workers } = gridRun()
+    claimOn(workers[0], '0')
+    loadAll(workers[1])
+    loadAll(workers[2])
+    claimOn(workers[1], '1', overBudget)
+    claimOn(workers[2], '2', { heap: 1000 })
+    answerLastOf(workers[0], 'jscadMain')
+    answerLastOf(workers[1], 'jscadMain')
+    answerLastOf(workers[2], 'jscadMain')
+    expect(alive(workers)).toEqual([workers[0], workers[2]])
+  })
+
+  it('ends every idle worker when all of them are past the heap budget', () => {
+    const { workers } = gridRun()
+    claimOn(workers[0], '0')
+    loadAll(workers[1])
+    loadAll(workers[2])
+    claimOn(workers[1], '1')
+    claimOn(workers[1], '2', overBudget)
+    answerLastOf(workers[1], 'jscadMain')
+    loadAll(workers[3])
+    claimOn(workers[2], '3', overBudget)
+    claimOn(workers[3], '4', overBudget)
+    answerLastOf(workers[0], 'jscadMain')
+    answerLastOf(workers[2], 'jscadMain')
+    answerLastOf(workers[3], 'jscadMain')
+    expect(alive(workers)).toEqual([workers[0]])
   })
 
   it('reports the leaf a timed-out member was running as lost, and the run goes on', () => {

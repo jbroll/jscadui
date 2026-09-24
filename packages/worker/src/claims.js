@@ -6,9 +6,10 @@ const defaultRandomId = () => Array.from(crypto.getRandomValues(new Uint8Array(1
  * A claim asks the frame whether this worker runs a grid leaf. The answer is
  * a __CLAIM__ notification with the id inside params: a message with a
  * top-level id is a request, which the worker would answer.
- * @param {{post: (message: object) => void, randomId?: () => string}} options
+ * @param {{post: (message: object) => void, randomId?: () => string, heap?: () => number}} options
+ *   heap - the worker's WASM heap size in bytes, which the frame uses to recycle the worker
  */
-export const createClaims = ({ post, randomId = defaultRandomId }) => {
+export const createClaims = ({ post, randomId = defaultRandomId, heap = () => 0 }) => {
   /** @type {Map<unknown, (won: boolean) => void>} */
   const waiting = new Map()
   return {
@@ -21,7 +22,7 @@ export const createClaims = ({ post, randomId = defaultRandomId }) => {
     claim: (key, url, runId) => new Promise((resolve) => {
       const id = randomId()
       waiting.set(id, resolve)
-      post({ method: 'jscadClaim', id, params: [{ key, url, runId }] })
+      post({ method: 'jscadClaim', id, params: [{ key, url, runId, heap: heap() }] })
     }),
     /** @param {{id?: unknown, won?: unknown}} [answer] */
     answer: ({ id, won } = {}) => {

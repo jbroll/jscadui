@@ -2,6 +2,9 @@ import { mergeProxyStates } from './mergeProxyStates.js'
 
 export const ABANDON_AFTER_MS = 500
 
+// A WASM heap never shrinks, so a worker past this is replaced rather than kept.
+export const RECYCLE_HEAP_BYTES = 2 ** 30
+
 const RESPONSE = '__RESPONSE__'
 
 export const trapped = (data) => data.error?.name === 'RuntimeError' || data.params?.trapped === true
@@ -11,9 +14,12 @@ const streams = ({ method, params }) =>
   (method === 'jscadMain' && params?.[0]?.stream !== false) ||
   (method === 'jscadScript' && params?.[0]?.runMain !== false)
 
+/** @returns {Member} */
+const newMember = () => ({ key: null, url: null, startedAt: Date.now(), wins: 0, recycle: false })
+
 /**
  * @typedef {import('./workerSlot.js').Slot} Slot
- * @typedef {{key: string | null, url: string | null, startedAt: number}} Member
+ * @typedef {{key: string | null, url: string | null, startedAt: number, wins: number, recycle: boolean}} Member
  * @typedef {{appId: unknown, method: string, options: object | undefined,
  *   message: {method: string, params: unknown[]}, runId: unknown, primary: Slot,
  *   members: Map<Slot, Member>, claimed: Set<string>, lost: {url: string | null, reason: string}[],
@@ -53,7 +59,7 @@ export const createGridRuns = ({ state, pool, slotOps, post, answerError }) => {
       message: { method: message.method, params: structuredClone(message.params) },
       runId: message.params?.[0]?.runId,
       primary: slot,
-      members: new Map([[slot, { key: null, url: null, startedAt: Date.now() }]]),
+      members: new Map([[slot, newMember()]]),
       claimed: new Set(),
       lost: [],
       answers: [],
@@ -69,7 +75,7 @@ export const createGridRuns = ({ state, pool, slotOps, post, answerError }) => {
   const join = (run) => {
     const slot = pool.pickIdle() ?? (state.slots.length <= state.poolSize ? pool.tryStart() : null)
     if (!slot) return false
-    run.members.set(slot, { key: null, url: null, startedAt: Date.now() })
+    run.members.set(slot, newMember())
     pool.relay(slot, run.message, { method: run.method, run, onAnswer: (data) => answered(run, slot, data) })
     return true
   }
@@ -81,11 +87,15 @@ export const createGridRuns = ({ state, pool, slotOps, post, answerError }) => {
   }
 
   const claim = (slot, { id, params }) => {
-    const { key, url, runId } = params?.[0] ?? {}
+    const { key, url, runId, heap } = params?.[0] ?? {}
+    if (Number.isFinite(heap)) slot.heap = heap
     const run = find(slot, runId)
     const member = run?.members.get(slot)
-    const won = !!member && !run.closed && typeof key === 'string' && !run.claimed.has(key)
+    // A fresh worker can start over budget; recycling it before it wins a leaf would loop.
+    if (member && member.wins > 0 && slot.heap >= RECYCLE_HEAP_BYTES) member.recycle = true
+    const won = !!member && !run.closed && !member.recycle && typeof key === 'string' && !run.claimed.has(key)
     if (won) {
+      member.wins++
       run.claimed.add(key)
       Object.assign(member, { key, url: typeof url === 'string' ? url : null, startedAt: Date.now() })
     }
@@ -152,8 +162,10 @@ export const createGridRuns = ({ state, pool, slotOps, post, answerError }) => {
     if (!data.error && run.method === 'jscadScript') slot.script = run.options
     // A trapped worker stops walking the grid, so its unclaimed leaves need a
     // replacement even after its trapped leaf streamed; each trap uses up a leaf.
-    if (trapped(data)) {
-      pool.retire(slot, 'the model trapped in WebAssembly')
+    const retiring = trapped(data) ? 'the model trapped in WebAssembly'
+      : member.recycle ? 'its WASM heap passed the budget' : null
+    if (retiring) {
+      pool.retire(slot, retiring)
       if (!run.closed) join(run)
     }
     settle(run)

@@ -13,13 +13,23 @@ describe('claims', () => {
     const a = claims.claim('0', './a.scad', 7)
     const b = claims.claim('1', './b.scad', 7)
     expect(post.mock.calls.map(([message]) => message)).toEqual([
-      { method: 'jscadClaim', id: 'id1', params: [{ key: '0', url: './a.scad', runId: 7 }] },
-      { method: 'jscadClaim', id: 'id2', params: [{ key: '1', url: './b.scad', runId: 7 }] },
+      { method: 'jscadClaim', id: 'id1', params: [{ key: '0', url: './a.scad', runId: 7, heap: 0 }] },
+      { method: 'jscadClaim', id: 'id2', params: [{ key: '1', url: './b.scad', runId: 7, heap: 0 }] },
     ])
     claims.answer({ id: 'id2', won: false })
     claims.answer({ id: 'id1', won: true })
     await expect(a).resolves.toBe(true)
     await expect(b).resolves.toBe(false)
+  })
+
+  it('reports the heap size the worker holds at each claim', () => {
+    const post = vi.fn()
+    let bytes = 1024
+    const claims = createClaims({ post, randomId: counter(), heap: () => bytes })
+    claims.claim('0', './a.scad', 7)
+    bytes = 2 ** 30
+    claims.claim('1', './b.scad', 7)
+    expect(post.mock.calls.map(([message]) => message.params[0].heap)).toEqual([1024, 2 ** 30])
   })
 
   it('wins only on won === true and ignores unknown or repeated answers', async () => {

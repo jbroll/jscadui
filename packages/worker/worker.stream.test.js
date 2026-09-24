@@ -337,7 +337,7 @@ describe('jscadMain claims', () => {
     const run = jscadMain({ params: {}, runId: 4 })
     await vi.waitFor(() => expect(claimsPosted()).toHaveLength(1))
     const [claim] = claimsPosted()
-    expect(claim.params).toEqual([{ key: '0/1', url: './a.scad', runId: 4 }])
+    expect(claim.params).toEqual([{ key: '0/1', url: './a.scad', runId: 4, heap: 0 }])
     answerClaim({ id: claim.id, won: true })
     const result = await run
 

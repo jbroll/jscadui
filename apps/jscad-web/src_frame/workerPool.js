@@ -1,4 +1,5 @@
 import { collectBuffers } from './collectBuffers.js'
+import { RECYCLE_HEAP_BYTES } from './gridRun.js'
 
 const RESPONSE = '__RESPONSE__'
 
@@ -65,9 +66,11 @@ export const createPool = ({ state, slotOps, post, answerError, busy, inGrid, op
   }
 
   // Each worker holds its own bundles, file map and WASM heap, so once a run
-  // ends only one idle worker stays warm.
+  // ends only one idle worker stays warm: the smallest heap under the budget.
   const trim = () => {
-    const keep = pickIdle()
+    const small = state.slots.filter((slot) => idle(slot) && slot.heap < RECYCLE_HEAP_BYTES)
+      .sort((a, b) => a.heap - b.heap)
+    const keep = small.find((slot) => slot.script === state.lastScript) ?? small[0]
     for (const slot of state.slots.filter(idle)) {
       if (slot === keep) continue
       remove(slot)
