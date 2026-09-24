@@ -6,7 +6,7 @@
  * request itself and cancel that request's timer. An entry with `onAnswer` is
  * the frame's own request; its answer never reaches the app.
  * @typedef {{appId?: unknown, method: string, options?: object, onAnswer?: (data: any) => void,
- *   setup?: object, run?: import('./gridRun.js').Run}} Entry
+ *   setup?: object, script?: object, run?: import('./gridRun.js').Run}} Entry
  * @typedef {Entry & {startedAt: number, arm: () => ReturnType<typeof setTimeout>,
  *   timer: ReturnType<typeof setTimeout>}} Pending
  * @typedef {{worker: Worker, pending: Map<string, Pending>, script: object | undefined,

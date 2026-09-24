@@ -131,7 +131,7 @@ export const createFrameHost = ({
       state.lastScript = options
       state.lastMain = undefined
       slot.script = options
-    }
+    } else if (state.sentScript === options) state.sentScript = state.lastScript
     pool.ensureSpare()
   }
 
@@ -197,6 +197,9 @@ export const createFrameHost = ({
       method: message.method,
       options: RECORDED.has(message.method) ? structuredClone(message.params?.[0]) : undefined,
       setup: setupOf.get(message),
+      // A run held behind a reload opens late, after a later load may have been sent;
+      // workers that join it must load the script sent before it.
+      script: message.method === 'jscadMain' ? state.sentScript : undefined,
     }
     : null
 

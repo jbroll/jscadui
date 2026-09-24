@@ -60,8 +60,7 @@ export const createGridRuns = ({ state, pool, slotOps, post, answerError }) => {
       fanned: false,
       closed: false,
       answered: false,
-      // A load still running has not reached lastScript, yet joiners must run its model.
-      script: message.method === 'jscadMain' ? state.sentScript : undefined,
+      script: entry.script,
     }
     runs.add(run)
     return run
@@ -137,7 +136,7 @@ export const createGridRuns = ({ state, pool, slotOps, post, answerError }) => {
         state.lastScript = run.options
         state.lastMain = undefined
       }
-    }
+    } else if (state.sentScript === run.options) state.sentScript = state.lastScript
     if (run.method === 'jscadScript' && state.active) pool.ensureSpare()
   }
 

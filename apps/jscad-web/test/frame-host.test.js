@@ -1056,6 +1056,40 @@ describe('grid runs', () => {
     expect(lastOf(workers[3], 'jscadScript').params).toEqual([{ script: 'grid2', url: 'ALL.js', runId: 9, runMain: false }])
   })
 
+  const failLastOf = (worker, method, name = 'SyntaxError') =>
+    worker.onmessage({ data: { method: RESPONSE, id: lastOf(worker, method).id, error: { name, message: name } } })
+
+  it('loads the last good script on a joiner after a load fails', () => {
+    const { workers, send } = gridRun()
+    answerLastOf(workers[0], 'jscadMain')
+    send({ method: 'jscadScript', id: 5, params: [{ script: 'bad', url: 'ALL.js', runMain: false }] })
+    failLastOf(workers[0], 'jscadScript')
+    send({ method: 'jscadMain', id: 6, params: [{ params: {}, runId: 8 }] })
+    claimOn(workers[0], '0', { runId: 8 })
+    expect(lastOf(workers[1], 'jscadScript').params[0]).toMatchObject({ script: 'grid', runMain: false })
+  })
+
+  it('loads the last good script on a joiner after a grid load fails', () => {
+    const { workers, send } = gridRun()
+    answerLastOf(workers[0], 'jscadMain')
+    send({ method: 'jscadScript', id: 5, params: [{ script: 'bad', url: 'ALL.js', runId: 9 }] })
+    claimOn(workers[0], '0', { runId: 9 })
+    for (const worker of workers.slice(0, 3)) failLastOf(worker, 'jscadScript')
+    send({ method: 'jscadMain', id: 6, params: [{ params: {}, runId: 10 }] })
+    claimOn(workers[0], '0', { runId: 10 })
+    expect(lastOf(workers[1], 'jscadScript').params[0]).toMatchObject({ script: 'grid', runMain: false })
+  })
+
+  it('runs a run held behind a reload against the script loaded when it arrived', () => {
+    const { workers, send } = gridRun()
+    answerLastOf(workers[0], 'jscadMain', { entities: [], trapped: true })
+    send({ method: 'jscadMain', id: 5, params: [{ params: {}, runId: 8 }] })
+    send({ method: 'jscadScript', id: 6, params: [{ script: 'grid2', url: 'ALL.js', runMain: false }] })
+    answerLastOf(workers[1], 'jscadScript', { def: [], params: {} })
+    claimOn(workers[1], '0', { runId: 8 })
+    expect(lastOf(workers[2], 'jscadScript').params[0]).toMatchObject({ script: 'grid', runMain: false })
+  })
+
   it('closes a superseded run that has not claimed yet, so it never fans out', () => {
     const { workers, posted, send } = gridRun()
     vi.advanceTimersByTime(100)
