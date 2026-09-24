@@ -26,6 +26,7 @@ interface RunScriptOptions {
   base?: string     // Base URL for imports
   root?: string     // Root path constraint
   runId?: unknown   // passed to the main run; see jscadMain
+  held?: string[]   // passed to the main run; see jscadMain
 }
 
 interface JscadScriptResult {
@@ -46,6 +47,7 @@ interface RunMainOptions {
   skipLog?: boolean
   stream?: boolean   // default true
   runId?: unknown    // echoed on each jscadCells and on a streamed result
+  held?: string[]    // hashes of meshes the app already has; see below
 }
 
 interface JscadMainResult {
@@ -77,6 +79,19 @@ During a streamed run the worker posts `jscadCells`, `params: [{ entities,
 runId }]`, one per emitted cell, with that cell's typed-array buffers passed as
 transfer. Notifications carry no request id, so `runId` is how the app tells one
 run's cells from an older run's still arriving.
+
+Every `mesh` entity, in the whole result and in each `jscadCells` batch,
+carries `hash`: a 16-character lowercase hex 64-bit FNV-1a hash of its
+`vertices`, `indices`, `normals` and `colors` bytes (`meshHash` in
+`@jscadui/format-common`). When the request's `held` contains that hash, the
+worker sends a `MeshRef` in its place, with no typed arrays and no transfer
+buffers, and the app draws the mesh it already holds under that hash. A buffer a
+ref'd mesh shares with another entity in the same message stays in the transfer
+list. `held` does not apply to `line`, `lines` or `instance` entities.
+
+The worker clears its conversion cache after every `jscadMain`, success or
+failure, so a later run converts each solid again instead of reusing an entity
+whose buffers were transferred away.
 
 `jscadExportData`, `jscadMeasure` and `jscadCheck` need the solids. A grid run
 does not keep them, so after one of those the worker re-runs main with
@@ -128,6 +143,19 @@ interface MeshEntity {
   colors?: Float32Array     // Per-vertex
   isTransparent?: boolean
   transforms?: number[]     // 4x4 matrix
+  hash: string              // 16 hex chars, see jscadMain
+}
+
+// Sent in place of a MeshEntity whose hash was in the request's held
+interface MeshRef {
+  type: 'mesh'
+  hash: string
+  ref: true
+  id?: number
+  color?: [r, g, b, a]
+  transforms?: number[]
+  isTransparent?: boolean
+  opacity?: number
 }
 
 interface LineEntity {

@@ -1,12 +1,14 @@
 import { JscadToCommon } from '@jscadui/format-jscad'
 
+import { toRefs } from './meshRefs.js'
+
 /**
  * The hook an ALL.js grid finds on globalThis.__jscadStream: each emitted
  * cell goes to the app at once instead of waiting for main to return.
- * @param {{post: (message: object, transfer?: Transferable[]) => void, userInstances?: boolean, runId?: unknown}} options
+ * @param {{post: (message: object, transfer?: Transferable[]) => void, userInstances?: boolean, runId?: unknown, held?: Set<string>}} options
  *   runId is echoed on every batch so the app can drop batches of a run it has moved past
  */
-export const createStreamHook = ({ post, userInstances, runId }) => {
+export const createStreamHook = ({ post, userInstances, runId, held = new Set() }) => {
   let emitted = false
   const hook = {
     emit(geoms) {
@@ -15,7 +17,7 @@ export const createStreamHook = ({ post, userInstances, runId }) => {
         if (solid?.isManifoldGeom3) solid.manifold.numTri()
       }
       const transferable = []
-      const entities = JscadToCommon.prepare(solids, transferable, userInstances).all
+      const entities = toRefs(JscadToCommon.prepare(solids, transferable, userInstances).all, held, transferable)
       emitted = true
       post({ method: 'jscadCells', params: [{ entities, runId }] }, [...new Set(transferable.map(a => a.buffer || a))])
     },

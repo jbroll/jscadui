@@ -6,6 +6,8 @@ globalThis.self = { addEventListener() {}, postMessage: vi.fn() }
 
 const { jscadMain, jscadScript, lastRunStreamed, currentSolids } = await import('./worker.js')
 const { workerState } = await import('./src/state/workerState.js')
+const { JscadToCommon } = await import('@jscadui/format-jscad')
+const { meshHash } = await import('@jscadui/format-common')
 
 describe('jscadMain streaming', () => {
   afterEach(() => {
@@ -161,5 +163,76 @@ describe('jscadMain streaming', () => {
     self.postMessage = originalPost
     expect(numTri).toHaveBeenCalled()
     expect(calls.indexOf('numTri')).toBeLessThan(calls.indexOf('post'))
+  })
+})
+
+describe('jscadMain with held meshes', () => {
+  const triangle = (x) => ({ polygons: [{ vertices: [[x, 0, 0], [x + 1, 0, 0], [x, 1, 0]] }] })
+  const convert = (solid) => JscadToCommon.prepare([solid], []).all[0]
+
+  afterEach(() => {
+    self.postMessage = vi.fn()
+    workerState.main = undefined
+    JscadToCommon.clearCache()
+  })
+
+  it('posts a held part of a streamed run as a ref with no buffers to transfer', async () => {
+    const solids = [triangle(0), triangle(1), triangle(2)]
+    const hashOfPart2 = meshHash(convert(solids[1]))
+    JscadToCommon.clearCache()
+    workerState.main = () => solids
+
+    await jscadMain({ params: {}, runId: 1, held: [hashOfPart2] })
+
+    const calls = self.postMessage.mock.calls.filter(([message]) => message.method === 'jscadCells')
+    expect(calls).toHaveLength(3)
+    const [message, transfer] = calls[1]
+    const [entity] = message.params[0].entities
+    expect(entity).toMatchObject({ type: 'mesh', hash: hashOfPart2, ref: true })
+    expect(entity.vertices).toBeUndefined()
+    expect(transfer).toEqual([])
+    expect(calls[0][0].params[0].entities[0].vertices).toBeInstanceOf(Float32Array)
+    expect(calls[0][1].length).toBeGreaterThan(0)
+  })
+
+  it('returns a held mesh as a ref in the whole result', async () => {
+    const solid = triangle(0)
+    const hash = meshHash(convert(solid))
+    JscadToCommon.clearCache()
+    workerState.main = () => [solid]
+
+    const result = await jscadMain({ params: {}, held: [hash] })
+
+    expect(result.entities).toHaveLength(1)
+    expect(result.entities[0]).toMatchObject({ type: 'mesh', hash, ref: true })
+    expect(result.entities[0].vertices).toBeUndefined()
+  })
+
+  it.each([true, false])('passes held from a load through to the main it runs (params proxy %s)', async (useParamsProxy) => {
+    workerState.useParamsProxy = useParamsProxy
+    const hash = meshHash(convert(triangle(0)))
+    JscadToCommon.clearCache()
+    const script = `module.exports = { main: () => [{ polygons: [{ vertices: [[0, 0, 0], [1, 0, 0], [0, 1, 0]] }] }] }`
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    const result = await jscadScript({ script, url: 'http://project.local/part.js', held: [hash] })
+
+    log.mockRestore()
+    workerState.useParamsProxy = undefined
+    expect(result.entities[0]).toMatchObject({ hash, ref: true })
+  })
+
+  it('reconverts the same model on a second run after the first run transferred its buffers', async () => {
+    const solids = [triangle(0), triangle(1)]
+    const received = []
+    self.postMessage = vi.fn((message, transfer) => received.push(structuredClone(message, { transfer })))
+    workerState.main = () => solids
+
+    await jscadMain({ params: {}, runId: 1 })
+    await expect(jscadMain({ params: {}, runId: 2 })).resolves.toBeDefined()
+
+    const second = received.slice(2).map(message => message.params[0].entities[0])
+    expect(second).toHaveLength(2)
+    expect(second.every(entity => entity.vertices.length === 9)).toBe(true)
   })
 })

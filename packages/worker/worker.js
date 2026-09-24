@@ -8,6 +8,7 @@ import { combineParameterDefinitions, getParameterDefinitionsFromSource } from '
 import { extractDefaults } from './src/extractDefaults.js'
 import { extractPathInfo, readAsArrayBuffer, readAsText } from '../fs-provider/fs-provider.js'
 import { workerState } from './src/state/workerState.js'
+import { toRefs } from './src/meshRefs.js'
 import { createStreamHook, withStreamHook } from './src/stream.js'
 
 /**
@@ -198,10 +199,10 @@ async function readFileFile(file, {bin=false}={}){
 
 
 /**
- * @param {{params?:import('@jscadui/format-common').UserParameters,skipLog?:boolean,userInteractedPaths?:string[],useGpuNormals?:boolean,stream?:boolean,runId?:unknown}} options
+ * @param {{params?:import('@jscadui/format-common').UserParameters,skipLog?:boolean,userInteractedPaths?:string[],useGpuNormals?:boolean,stream?:boolean,runId?:unknown,held?:string[]}} options
  * @returns {Promise<import('@jscadui/format-common').JscadMainResult>}
  */
-export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths, useGpuNormals, stream = true, runId } = {}) {
+export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths, useGpuNormals, stream = true, runId, held } = {}) {
   // Update GPU normals setting if provided (allows switching without re-running script)
   if (useGpuNormals !== undefined) {
     const modelingBundleUrl = requireCache.bundleAlias['@jscad/modeling']
@@ -257,8 +258,9 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
   let execTime = 0
   let convTime = 0
 
+  const heldSet = new Set(held ?? [])
   const { hook, emitted } = stream
-    ? createStreamHook({ post: (message, transfer) => self.postMessage(message, transfer), userInstances: workerState.userInstances, runId })
+    ? createStreamHook({ post: (message, transfer) => self.postMessage(message, transfer), userInstances: workerState.userInstances, runId, held: heldSet })
     : { hook: null, emitted: () => false }
   const runMain = (mainParams) => withStreamHook(hook, () => workerState.main(mainParams))
 
@@ -320,12 +322,8 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
       }
       execTime = performance.now() - time
 
-      // Convert to render format (getMesh + common format conversion)
-      // 2.3: No clearCache() here — WeakMap evicts stale entries automatically on GC,
-      // and stable IDs across renders improve instance detection grouping.
-      // Cache is only cleared on error (below) to ensure clean state after failures.
       time = performance.now()
-      entities = JscadToCommon.prepare(workerState.solids, transferable, workerState.userInstances).all
+      entities = toRefs(JscadToCommon.prepare(workerState.solids, transferable, workerState.userInstances).all, heldSet, transferable)
       convTime = performance.now() - time
     }
 
@@ -353,8 +351,6 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
 
     return withTransferable(result, transferable)
   } catch (error) {
-    // Clear cache on error to avoid stale state
-    JscadToCommon.clearCache()
     const { lastRunStreamed } = workerState
     workerState.clearGeometry() // M1 fix: Also clear solids array on error to free memory
     // A failed export re-run must not make later exports read the emptied solids as the model.
@@ -365,6 +361,9 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
     wrappedError.stack = error.stack
     wrappedError.name = error.name || 'Error'
     throw wrappedError
+  } finally {
+    // Reuse is by content hash; a cached entity whose buffers were transferred is detached
+    JscadToCommon.clearCache()
   }
 }
 
@@ -373,10 +372,10 @@ const importReg = /import(?:(?:(?:[ \n\t]+([^ *\n\t{},]+)[ \n\t]*(?:,|[ \n\t]+))
 const exportReg = /export.*from/
 
 /**
- * @param {{script:string,url?:string,base?:string,root?:string,useGpuNormals?:boolean,runId?:unknown}} param0
+ * @param {{script:string,url?:string,base?:string,root?:string,useGpuNormals?:boolean,runId?:unknown,held?:string[]}} param0
  * @returns {Promise<import('@jscadui/format-common').JscadScriptResultWithParams>}
  */
-export const jscadScript = async ({ script, url='jscad.js', base=workerState.globalBase, root=base, useGpuNormals: gpuNormals, runId }) => {
+export const jscadScript = async ({ script, url='jscad.js', base=workerState.globalBase, root=base, useGpuNormals: gpuNormals, runId, held }) => {
   // I1 fix: Increment generation to invalidate any timed-out scripts still running
   const myGeneration = workerState.nextGeneration()
   // An ALL.js grid yields between cells and reads this to stop once it is stale
@@ -450,7 +449,7 @@ export const jscadScript = async ({ script, url='jscad.js', base=workerState.glo
       }
 
       // In proxy mode, run main to discover params, then extract defaults
-      const out = await jscadMain({ params: {}, runId })
+      const out = await jscadMain({ params: {}, runId, held })
       if (out.proxyState) {
         def = toParamDefinitions(out.proxyState.discovered)
         params = extractProxyDefaults(out.proxyState.discovered)
@@ -465,7 +464,7 @@ export const jscadScript = async ({ script, url='jscad.js', base=workerState.glo
       const fromSource = getParameterDefinitionsFromSource(script)
       def = combineParameterDefinitions(fromSource, await workerState.scriptModule.getParameterDefinitions?.())
       params = extractDefaults(def)
-      const out = await jscadMain({ params, runId })
+      const out = await jscadMain({ params, runId, held })
       return {
         def,
         params,
