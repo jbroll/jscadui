@@ -288,11 +288,13 @@ function gridModule(items, { spacing, cellSize }, req) {
         try {
           mod = req(url)
         } catch (err) {
-          fail(url, x, y, err)
+          // Every worker walks the sub-grid, so only the one that claims it draws the marker
+          if (!claiming || await stream.claim(key.join('/'), url)) fail(url, x, y, err)
           continue
         }
         if (typeof mod?.runGrid === 'function') {
-          all.push(...await mod.runGrid(params[name], { ctx: subGridContext(ctx, x, y, cellSize, mod.extent), path: key, stream }))
+          const subExtent = mod.extent ?? [cellSize, cellSize]
+          all.push(...await mod.runGrid(params[name], { ctx: subGridContext(ctx, x, y, cellSize, subExtent), path: key, stream }))
           continue
         }
       }

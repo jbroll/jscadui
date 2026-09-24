@@ -162,6 +162,30 @@ describe('claims', () => {
     expect(skull.every((layer) => layer.transforms.length === 16 && !layer.isManifoldGeom3)).toBe(true)
   })
 
+  it('marks a sub-grid that fails to load only on the worker that claims it', async () => {
+    const error = quiet()
+    const items = ['./x.scad', './sub/ALL.js']
+    const modules = { './x.scad': model(), './sub/ALL.js': new Error('bad sub-grid') }
+    const winner = globalThis.__jscadStream = claimingHook()
+    await grid(items, modules).main({})
+    expect(winner.keys).toEqual(['0', '1'])
+    expect(winner.batches).toHaveLength(2)
+    expect(error).toHaveBeenCalledWith(expect.stringMatching(/^ALL: FAILED \.\/sub\/ALL\.js/))
+
+    error.mockClear()
+    const loser = globalThis.__jscadStream = claimingHook(['1'])
+    await grid(items, modules).main({})
+    expect(loser.keys).toEqual(['0', '1'])
+    expect(loser.batches).toHaveLength(1)
+    expect(error).not.toHaveBeenCalled()
+  })
+
+  it('fits a sub-grid module that exports no extent into one cell', async () => {
+    const { extent: _extent, ...sub } = grid(['./a.scad'], leaves(['./a.scad']))
+    const [leaf] = await grid(['./sub/ALL.js'], { './sub/ALL.js': sub }).main({})
+    expect(box([leaf]).size).toBeCloseTo(51, 5)
+  })
+
   it('stops the parent too when a sub-grid leaf traps', async () => {
     quiet()
     const hook = globalThis.__jscadStream = claimingHook()
