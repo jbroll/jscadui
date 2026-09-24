@@ -11,11 +11,11 @@ export function CommonToThree({
   Vector3,
   Matrix4,
 }) {
-  const flatShading = false
   const materials = {
     mesh: {
-      def: new MeshPhongMaterial({ color: 0x0084d1, flatShading }),
-      make: params => new MeshPhongMaterial({ flatShading, ...params }),
+      def: new MeshPhongMaterial({ color: 0x0084d1, flatShading: false }),
+      defFlat: new MeshPhongMaterial({ color: 0x0084d1, flatShading: true }),
+      make: params => new MeshPhongMaterial(params),
     },
     line: {
       def: new LineBasicMaterial({ color: 0x0000ff }),
@@ -44,14 +44,17 @@ export function CommonToThree({
       console.error(`material not found for type ${objType}`, obj)
       return
     }
-    let material = materialDef.def
     const isInstanced = obj.type === 'instance'
+    // No normals means the GPU derives face normals from screen-space derivatives, which needs flat shading
+    const flat = !normals && !smooth && (objType === 'mesh' || objType === 'instance')
+    let material = flat ? materialDef.defFlat : materialDef.def
     if ((color || colors) && !isInstanced) {
       const c = color || colors
       const opts = {
         vertexColors: !!colors,
         opacity: c[3] === undefined ? 1 : c[3],
         transparent: (color && c[3] !== 1 && c[3] !== undefined) || isTransparent,
+        flatShading: flat,
       }
       if (opacity) opts.opacity = opacity
       if (!colors) opts.color = _CSG2Three.makeColor(color)
@@ -78,7 +81,9 @@ export function CommonToThree({
         const { list } = obj
         // Use the object's color for the instanced mesh (color is consistent across all instances
         // in the group because format-jscad groups by composite key: mesh id + color)
-        const instanceMaterialOpts = color ? { color: _CSG2Three.makeColor(color) } : { color: 0x0084d1 }
+        const instanceMaterialOpts = color
+          ? { color: _CSG2Three.makeColor(color), flatShading: flat }
+          : { color: 0x0084d1, flatShading: flat }
         mesh = new InstancedMesh(geo, materials.mesh.make(instanceMaterialOpts), list.length)
         list.forEach((item, i) => {
           copyTransformToArray(item.transforms, mesh.instanceMatrix.array, i * 16)
@@ -131,7 +136,9 @@ export function CommonToThree({
   _CSG2Three.makeColor = c => new Color(c[0], c[1], c[2])
   _CSG2Three.materials = materials
   _CSG2Three.setDefColor = c => {
-    materials.mesh.def = new MeshPhongMaterial({ color: _CSG2Three.makeColor(c), flatShading })
+    const color = _CSG2Three.makeColor(c)
+    materials.mesh.def = new MeshPhongMaterial({ color, flatShading: false })
+    materials.mesh.defFlat = new MeshPhongMaterial({ color, flatShading: true })
   }
 
   return _CSG2Three

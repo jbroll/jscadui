@@ -36,8 +36,8 @@ export const init = async (engineType = 'threejs') => {
     await addScript('build/bundle.threejs.js')
     const JscadThreeViewer = RenderThreejs(THREE)
     viewer = JscadThreeViewer(el)
-    // Three.js requires CPU-computed normals
-    viewer.supportsGpuNormals = false
+    // Meshes without normals get a flatShading material, which takes the face normal from screen-space derivatives
+    viewer.supportsGpuNormals = true
   }
 
   // Set up resize observer for future resizes
