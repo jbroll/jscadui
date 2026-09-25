@@ -134,7 +134,8 @@ export const _regular_polygon = ({ order = 6, n, r = 1, $fn: _$fn = 0 }) => {
 
 export const _polyhedron = ({ points, faces, triangles, convexity: _convexity }) => {
   if (!points || !Array.isArray(points) || points.length === 0) return undefined
-  const faceList = faces || triangles || []
+  // faces = undef arrives as j$.EXPLICIT_UNDEF, which is truthy: take lists only
+  const faceList = Array.isArray(faces) ? faces : Array.isArray(triangles) ? triangles : []
   // Filter out any invalid faces (undefined or non-array elements). OpenSCAD
   // warns "Point index N is out of bounds" and drops just that index from the
   // face, so [7,6,5,99] renders as [7,6,5]; a face left with < 3 points is gone.
