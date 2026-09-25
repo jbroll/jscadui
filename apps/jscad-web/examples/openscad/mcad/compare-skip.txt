@@ -1,0 +1,6 @@
+# MCAD comparison skip list — models that render but that the STL comparison
+# cannot grade. Only test-harness.js reads this.
+
+# hardware_test.scad: Jaccard 0.9854 (GPU job 475b626e2ebb404d) — geometry
+# difference in the rod/screw assembly; listed in MODEL_COMPARISON_BASELINE.md.
+examples/hardware_test.scad

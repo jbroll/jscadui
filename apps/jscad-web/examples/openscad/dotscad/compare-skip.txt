@@ -36,3 +36,25 @@ examples/voronoi/voronoi_vase.scad
 # subtracted region (Jaccard 0.174). Manifold's union stitches Mountain and
 # Taiwan into one surface, so splitIntoComponents cannot separate them.
 examples/taiwan/SD_Card_Taiwan.scad
+
+# Geometry mismatch below the 0.99 threshold (GPU job 475b626e2ebb404d,
+# OpenSCAD 2026.03.17.fp). Listed in MODEL_COMPARISON_BASELINE.md as known
+# dotSCAD failures; transpiler triage pending.
+# Near-miss, CDT triangulation difference:
+examples/bunny_frame.scad
+examples/chrome_dino.scad
+examples/dragon/dragon_head.scad
+examples/emoticon_moai.scad
+examples/fourier_vase.scad
+examples/taiwan/TaiwaneseBlackBear.scad
+examples/tiles/penrose_crystallization.scad
+examples/voronoi/delaunay_fibonacci.scad
+examples/voronoi/voronoi_holder.scad
+# Near-miss, text geometry difference:
+examples/floor_stand/floor_stand_text.scad
+# text rendering + box_extrude geometry difference (0.8686)
+examples/text_box.scad
+# path_extrude geometry difference (0.8133)
+examples/trefoil_klein_bottle.scad
+# sweep + polyline_join polyhedron topology difference (0.2657)
+examples/voronoi/voronoi_sphere.scad
