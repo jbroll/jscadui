@@ -128,26 +128,22 @@ apps/jscad-web/examples/openscad/snippet/**
 !apps/jscad-web/examples/openscad/snippet/exclude.txt
 !apps/jscad-web/examples/openscad/snippet/compare-skip.txt
 
-# dotSCAD — lib files are fetched by fetch-deps, examples are tracked
-# Root-level lib .scad files (from src/)
+# NopSCADlib, dotSCAD, MCAD — every upstream file is fetched by fetch-deps.
+# What stays tracked is ours: skip/exclude/compare-skip/config files, the
+# generated ALL*.js grids, NopSCADlib's categories.json and MCAD's examples/.
+apps/jscad-web/examples/openscad/nopscadlib/NopSCADlib/*
+!apps/jscad-web/examples/openscad/nopscadlib/NopSCADlib/tests/
+apps/jscad-web/examples/openscad/nopscadlib/NopSCADlib/tests/*
+!apps/jscad-web/examples/openscad/nopscadlib/NopSCADlib/tests/ALL*.js
+!apps/jscad-web/examples/openscad/nopscadlib/NopSCADlib/tests/categories.json
+!apps/jscad-web/examples/openscad/nopscadlib/NopSCADlib/tests/skip.txt
+# dotSCAD src/ is fetched to the suite root, examples/ to examples/
 apps/jscad-web/examples/openscad/dotscad/*.scad
-# Library subdirectories (from src/)
-apps/jscad-web/examples/openscad/dotscad/__comm__/
-apps/jscad-web/examples/openscad/dotscad/_impl/
-apps/jscad-web/examples/openscad/dotscad/experimental/
-apps/jscad-web/examples/openscad/dotscad/matrix/
-apps/jscad-web/examples/openscad/dotscad/maze/
-apps/jscad-web/examples/openscad/dotscad/noise/
-apps/jscad-web/examples/openscad/dotscad/part/
-apps/jscad-web/examples/openscad/dotscad/polyhedra/
-apps/jscad-web/examples/openscad/dotscad/pp/
-apps/jscad-web/examples/openscad/dotscad/ptf/
-apps/jscad-web/examples/openscad/dotscad/surface/
-apps/jscad-web/examples/openscad/dotscad/triangle/
-apps/jscad-web/examples/openscad/dotscad/turtle/
-apps/jscad-web/examples/openscad/dotscad/util/
-apps/jscad-web/examples/openscad/dotscad/voronoi/
-apps/jscad-web/examples/openscad/dotscad/voxel/
+apps/jscad-web/examples/openscad/dotscad/*/
+!apps/jscad-web/examples/openscad/dotscad/examples/
+apps/jscad-web/examples/openscad/dotscad/examples/**/*.scad
+apps/jscad-web/examples/openscad/mcad/*.scad
+apps/jscad-web/examples/openscad/mcad/bitmap/
 
 # Turbo
 .turbo
