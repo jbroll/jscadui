@@ -307,7 +307,7 @@ describe('search function', () => {
     const table = [[1, 'a'], [5, 'b'], [3, 'c']]
     expect(j$.search(5, table)).toEqual([1])
     // List needle always returns list of lists: [[k]] when found
-    expect(j$.search([5], table)).toEqual([[1]])
+    expect(j$.search([5], table)).toEqual([1])
   })
 
   it('finds array key in column 0 of table (array keys) — hashmap_get pattern', () => {
@@ -316,8 +316,8 @@ describe('search function', () => {
     // Compare [key] with [key] → deep equal → found
     // List needle returns [[k]] when found, [[]] when not found
     const bucket: [number[], string][] = [[[2, 3, 1, 2016], 'circ_val_a'], [[0, 1, 3, 34], 'circ_val_b']]
-    expect(j$.search([[2, 3, 1, 2016]], bucket)).toEqual([[0]])
-    expect(j$.search([[0, 1, 3, 34]], bucket)).toEqual([[1]])
+    expect(j$.search([[2, 3, 1, 2016]], bucket)).toEqual([0])
+    expect(j$.search([[0, 1, 3, 34]], bucket)).toEqual([1])
     expect(j$.search([[9, 9, 9, 9]], bucket)).toEqual([[]])
   })
 
@@ -328,9 +328,25 @@ describe('search function', () => {
     // List needle returns list of lists: [[k]] when found, [[]] when not found
     const vectors = [[1, 2], [3, 4], [5, 6]]
     // [3,4] vs [1,2]: no; [3,4] vs [3,4]: found at index 1
-    expect(j$.search([[3, 4]], vectors)).toEqual([[1]])
+    expect(j$.search([[3, 4]], vectors)).toEqual([1])
     // [9,9] not in list → [[]] (so contains() returns false via _eq([[[]],[[]]]))
     expect(j$.search([[9, 9]], vectors)).toEqual([[]])
+  })
+
+  // Expected values below are OpenSCAD 2026.09's output for the same calls.
+  it('searches a string needle per character', () => {
+    const data = [['a', 1], ['b', 2], ['n', 3], ['e', 4], ['o', 5], ['o', 6]]
+    expect(j$.search('one', data)).toEqual([4, 2, 3])
+    // with num_returns == 1 a character that is not found is dropped
+    expect(j$.search('oq', data)).toEqual([4])
+    expect(j$.search('oq', data, 0)).toEqual([[4, 5], []])
+    expect(j$.search('ab', 'abcab', 0)).toEqual([[0, 3], [1, 4]])
+  })
+
+  it('keeps a not-found list element as [] and returns per-element lists when num_returns != 1', () => {
+    const data = [['a', 1], ['b', 2], ['o', 5], ['o', 6]]
+    expect(j$.search(['q', 'b'], data)).toEqual([[], 1])
+    expect(j$.search(['o', 'q'], data, 2)).toEqual([[2, 3], []])
   })
 
   it('returns multiple results with num_returns=0', () => {
