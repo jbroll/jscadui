@@ -291,4 +291,14 @@ describe('unknown module calls without imports', () => {
     const result = transpile(parse('assembly("x");').ast, { includeHeader: false })
     expect(result.code).toContain(`typeof assembly_$m === 'function'`)
   })
+
+  it('declares unknown variables as undefined instead of throwing', () => {
+    // OpenSCAD: WARNING: Ignoring unknown variable "nope"; a = [1, undef, 3]
+    const result = transpile(parse('a = [1, nope, 3]; module m(x = zz) cube(1); m();').ast, { includeHeader: false })
+    expect(result.code).toMatch(/^var nope, zz$/m)
+    // Module names are not variables, and declared variables get no stub
+    expect(result.code).not.toMatch(/^var [^=\n]*\b(m|a)\b[^=\n]*$/m)
+    const main = new Function('exports', 'require', 'j$', result.code + '\nreturn exports')
+    expect(() => main({}, () => ({}), {})).not.toThrow()
+  })
 })
