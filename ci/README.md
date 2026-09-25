@@ -86,7 +86,8 @@ gates fail closed (any error establishing trust means no run):
 
 Host requirements for `ci/gpu-test` are the same as for simple-ci: `openscad`
 on `PATH` (`/home/john/bin`), GNU `patch`, and the `openscad-parser` fork at
-`/home/john/src/openscad-parser`. Reference STLs are cached in the service
+`/data/john/src/openscad-parser` (what a CI worktree's `node_modules/openscad-parser`
+resolves to; rebuild its `dist/` after changing it). Reference STLs are cached in the service
 user's `~/.cache/jscadui/openscad-stl/`.
 
 If runs can exceed the server's `CI_JOB_TIMEOUT` (default 3600s), raise it on
