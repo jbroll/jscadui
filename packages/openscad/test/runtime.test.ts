@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 
 // Import the runtime directly for unit testing
 import j$ from '@jscadui/openscad-runtime'
-import { _cylinder, _sphere, withoutDegeneratePolygons, initColor, _color, initPrimitives, _safeUnion, initTransforms, _mirror, _subtract, _intersect } from '@jscadui/openscad-runtime'
+import { _cylinder, _sphere, _cube, _square, _circle, withoutDegeneratePolygons, initColor, _color, initPrimitives, _safeUnion, initTransforms, _mirror, _subtract, _intersect } from '@jscadui/openscad-runtime'
 
 /**
  * Unit tests for OpenSCAD runtime helpers
@@ -494,6 +494,26 @@ describe('sphere negative radius guard', () => {
   // OpenSCAD: sphere(0) is empty; minkowski() { cube(4); sphere(0); } is the cube
   it('returns undefined for r = 0', () => {
     expect(_sphere({ r: 0 })).toBeUndefined()
+  })
+})
+
+describe('primitives with non-finite or non-positive sizes', () => {
+  // OpenSCAD 2026.09: "Current top level object is empty" (or "not a 2D
+  // object") for each of these; builtin-invalid-range-test hit square(-inf)
+  const inf = Infinity
+  it('square is empty for a zero, negative or non-finite side', () => {
+    for (const size of [0, -1, inf, NaN, [1, 0], [1, -inf], [inf, 1], [1, NaN]]) {
+      expect(_square({ size })).toBeUndefined()
+    }
+  })
+
+  it('cube, sphere, cylinder and circle are empty for infinite or NaN sizes', () => {
+    expect(_cube({ size: [1, inf, 1] })).toBeUndefined()
+    expect(_sphere({ r: inf })).toBeUndefined()
+    expect(_cylinder({ h: inf, r: 1 })).toBeUndefined()
+    expect(_cylinder({ h: 1, r: inf })).toBeUndefined()
+    expect(_circle({ r: inf })).toBeUndefined()
+    expect(_circle({ r: NaN })).toBeUndefined()
   })
 })
 

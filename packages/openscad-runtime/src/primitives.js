@@ -47,7 +47,7 @@ export const _cube = ({ size, center = false }) => {
     : [_num(size) ?? 1, _num(size) ?? 1, _num(size) ?? 1]
   // OpenSCAD: a cube with a zero or negative dimension is empty geometry,
   // which minkowski() and the booleans then skip.
-  if (s.some(v => !(v > 0))) return undefined
+  if (s.some(v => !(v > 0 && v < Infinity))) return undefined
   const geo = s[0] === s[1] && s[1] === s[2] ? cube({ size: s[0] }) : cuboid({ size: s })
   return center ? geo : translate([s[0]/2, s[1]/2, s[2]/2], geo)
 }
@@ -60,7 +60,8 @@ export const _cylinder = ({ h, r, r1, r2, d, d1, d2, center = false, $fn = 0, $f
   // OpenSCAD: a cylinder with a negative radius, both radii zero, or a zero or
   // negative height is empty geometry (a cone with one zero radius is not)
   if (radius1 < 0 || radius2 < 0 || isNaN(radius1) || isNaN(radius2)) return undefined
-  if (!(height > 0) || (radius1 === 0 && radius2 === 0)) return undefined
+  if (!(height > 0 && height < Infinity) || (radius1 === 0 && radius2 === 0)) return undefined
+  if (radius1 === Infinity || radius2 === Infinity) return undefined
   const segments = _getSegments(Math.max(radius1, radius2), $fn, $fa, $fs)
   const geo = cylinder({ height, startRadius: radius1, endRadius: radius2, segments })
   return center ? geo : translate([0, 0, height/2], geo)
@@ -70,7 +71,7 @@ export const _sphere = ({ r, d, $fn = 0, $fa, $fs }) => {
   const rr = _num(r), dd = _num(d)
   const radius = rr ?? (dd ? dd/2 : 1)
   // OpenSCAD: a sphere with zero or negative radius is empty geometry
-  if (!(radius > 0)) return undefined
+  if (!(radius > 0 && radius < Infinity)) return undefined
   const fn = _getSegments(radius, $fn, $fa, $fs)
   const numRings = Math.floor((fn + 1) / 2)
   const points = []
@@ -109,19 +110,23 @@ export const _sphere = ({ r, d, $fn = 0, $fa, $fs }) => {
 
 export const _circle = ({ r, d, $fn = 0, $fa, $fs }) => {
   const rr = _num(r), dd = _num(d)
+  if (Number.isNaN(r) || (r == null && Number.isNaN(d))) return undefined
   const radius = rr ?? (dd ? dd/2 : 1)
   // OpenSCAD circle(r=0) creates a degenerate point used in hull() to anchor corners.
   // JSCAD circle(radius=0) returns empty geometry (no sides), losing the hull anchor.
   // Return a tiny centered square so hull() treats it as a point at origin.
+  if (!(radius < Infinity)) return undefined
   if (radius <= 0) return rectangle({ size: [0.0001, 0.0001] })
   const segments = _getSegments(radius, $fn, $fa, $fs)
   return circle({ radius, segments })
 }
 
 export const _square = ({ size, center = false }) => {
-  const s = Array.isArray(size)
-    ? size.map(v => _num(v) ?? 1)
-    : [_num(size) ?? 1, _num(size) ?? 1]
+  // NaN is a size here, not a missing one: it makes the square empty below
+  const side = v => typeof v === 'number' ? v : 1
+  const s = Array.isArray(size) ? size.map(side) : [side(size), side(size)]
+  // OpenSCAD: a square with a zero, negative or non-finite side is empty geometry
+  if (s.some(v => !(v > 0 && v < Infinity))) return undefined
   const geo = rectangle({ size: s })
   return center ? geo : translate([s[0]/2, s[1]/2], geo)
 }
