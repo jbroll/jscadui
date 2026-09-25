@@ -36,14 +36,26 @@ export const _tanDeg = (a) => {
   return Math.tan(a * Math.PI / 180)
 }
 
-export const _range = (start, end, step = 1) => {
-  const r = []
-  if (step > 0) {
-    for (let i = start; i <= end; i += step) r.push(i)
-  } else if (step < 0) {
-    for (let i = start; i >= end; i += step) r.push(i)
-  }
-  // step === 0 returns empty array (avoid infinite loop)
+// OpenSCAD ranges (checked against 2026.09). The transpiler always passes a step
+// ([a:b] is range(a, b, 1)), so an undefined step is an undef/unknown value.
+// - begin, end or step not a number (undef, true, NaN), or step 0: empty
+// - step pointing away from end ([5:1], [1:-1:5]): empty
+// - element i is begin + i*step, with a small tolerance on the count so that
+//   [0:0.1:1] has 11 elements, and an infinite step gives just begin
+// - 1,000,000 elements or more ("too many elements", e.g. [0:inf]): empty
+const RANGE_MAX_ELEMENTS = 1000000
+export const _range = (start, end, step) => {
+  if (typeof start !== 'number' || typeof end !== 'number' || typeof step !== 'number') return []
+  if (Number.isNaN(start) || Number.isNaN(end) || Number.isNaN(step) || step === 0) return []
+  if ((step > 0 && start > end) || (step < 0 && start < end)) return []
+  // A few ULPs of slack: (1-0)/0.1 is 9.999999999999998 and [0:0.1:1] has 11
+  // elements, but [0:1:9.9999999999999] (1e-13 short) still has 10.
+  const n = (end - start) / step
+  const count = Math.floor(n + Math.max(1, n) * 4 * Number.EPSILON) + 1
+  if (!(count < RANGE_MAX_ELEMENTS)) return []
+  const r = new Array(count)
+  r[0] = start  // not start + 0*step: 0*Infinity is NaN
+  for (let i = 1; i < count; i++) r[i] = start + i * step
   return r
 }
 

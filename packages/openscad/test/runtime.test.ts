@@ -513,6 +513,31 @@ describe('polyhedron out-of-bounds point indices', () => {
   })
 })
 
+describe('range', () => {
+  // Expected values are OpenSCAD 2026.09's for the same ranges (for-tests.scad)
+  it('counts with a few ULPs of slack and computes begin + i*step', () => {
+    expect(j$.range(0, 1, 0.1)).toHaveLength(11)
+    expect(j$.range(1.5, 2.5, 0.2)).toHaveLength(6)
+    expect(j$.range(0, 9.9999999999999, 1)).toHaveLength(10)
+    expect(j$.range(0, 0.3, 0.1)[3]).toBe(3 * 0.1)
+    expect(j$.range(5, 1, -1)).toEqual([5, 4, 3, 2, 1])
+  })
+  it('is empty for a step of 0, the wrong direction, or a non-number', () => {
+    expect(j$.range(1, 5, 0)).toEqual([])
+    expect(j$.range(5, 1, 1)).toEqual([])
+    expect(j$.range(1, 5, -1)).toEqual([])
+    expect(j$.range(1, 5, true)).toEqual([])
+    expect(j$.range(0, 1, undefined)).toEqual([])
+    expect(j$.range(0, 1, NaN)).toEqual([])
+  })
+  it('gives begin alone for an infinite step, nothing for 1e6+ elements', () => {
+    expect(j$.range(0, 1, Infinity)).toEqual([0])
+    expect(j$.range(0, Infinity, 1)).toEqual([])
+    expect(j$.range(0, 999999, 1)).toEqual([])
+    expect(j$.range(0, 999998, 1)).toHaveLength(999999)
+  })
+})
+
 describe('childrenAt', () => {
   // OpenSCAD 2026.09 (three children): children(1.7) is child 1; children(5) and
   // children(-1) warn "Children index (5) out of bounds" and render nothing;
