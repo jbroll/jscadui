@@ -58,6 +58,9 @@ const WRITERS = new Set(['OWNER', 'MEMBER', 'COLLABORATOR'])
 const HARNESS_PREFIXES = ['ci/', 'scripts/']
 const LOG_TAIL_LINES = 80
 const COMMENT_LIMIT = 60000
+const FINDINGS_LIMIT = 300
+// test-harness result lines: per-model FAIL/ERROR, per-suite Summary, final PASS/FAIL table
+const FINDING_RE = /: (FAIL|ERROR)\b|Summary: |^\s+(PASS|FAIL)\s+\S/
 
 const env = process.env
 const token = env.GITHUB_TOKEN || env.GH_TOKEN
@@ -273,10 +276,14 @@ async function test(pr) {
   log(`PR #${pr.number} ${sha.slice(0, 8)}: ${result} (${minutes} min)`)
 
   let tail = ''
+  let findings = ''
   if (jobId) {
     try {
-      const text = await sci('GET', `/log/${jobId}`)
-      tail = text.split('\n').slice(-LOG_TAIL_LINES).join('\n')
+      const lines = (await sci('GET', `/log/${jobId}`)).split('\n')
+      tail = lines.slice(-LOG_TAIL_LINES).join('\n')
+      // Failures and per-suite summaries from the whole log: a suite that fails
+      // early is otherwise scrolled out of the tail by the suites after it
+      findings = lines.filter(l => FINDING_RE.test(l)).slice(0, FINDINGS_LIMIT).join('\n')
     } catch (e) {
       tail = `(log unavailable: ${e.message.slice(0, 120)})`
     }
@@ -289,10 +296,13 @@ async function test(pr) {
       ? `Full log on the GPU host: \`~/ci-logs/${jobId}.log\` (simple-ci job \`${jobId}\`). Comment \`${RETEST}\` to run again.`
       : `The run never reached the queue. Comment \`${RETEST}\` to run again.`,
     '',
-    '<details open><summary>Log tail</summary>',
+    ...(findings
+      ? ['<details open><summary>Failures and suite summaries</summary>', '', '```', findings.slice(0, COMMENT_LIMIT / 2), '```', '</details>', '']
+      : []),
+    '<details><summary>Log tail</summary>',
     '',
     '```',
-    tail.slice(-COMMENT_LIMIT),
+    tail.slice(-COMMENT_LIMIT / 2),
     '```',
     '</details>',
   ].join('\n')
