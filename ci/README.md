@@ -85,9 +85,10 @@ gates fail closed (any error establishing trust means no run):
    restart gpu-poll`.
 
 Host requirements for `ci/gpu-test` are the same as for simple-ci: `openscad`
-on `PATH` (`/home/john/bin`), GNU `patch`, and the `openscad-parser` fork at
-`/data/john/src/openscad-parser` (what a CI worktree's `node_modules/openscad-parser`
-resolves to; rebuild its `dist/` after changing it). Reference STLs are cached in the service
+on `PATH` (`/home/john/bin`), GNU `patch`, `git`, and HTTPS access to GitHub.
+`openscad-parser` is a git dependency pinned by commit in
+`packages/openscad/package.json`; `npm install` fetches and builds it, so no
+host-local parser checkout is needed. Reference STLs are cached in the service
 user's `~/.cache/jscadui/openscad-stl/`.
 
 If runs can exceed the server's `CI_JOB_TIMEOUT` (default 3600s), raise it on
