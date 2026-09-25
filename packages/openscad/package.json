@@ -44,7 +44,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "openscad-parser": "file:/home/john/src/openscad-parser",
+    "openscad-parser": "git+https://github.com/jbroll/openscad-parser.git#8374a0113c072e33e4963d2a05baa210b2c00ee1",
     "@jscadui/manifold": "file:../manifold",
     "@jscadui/openscad-runtime": "file:../openscad-runtime",
     "@jscad/modeling-for-manifold": "file:../../../OpenJSCAD.org/packages/modeling"
