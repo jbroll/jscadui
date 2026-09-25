@@ -184,10 +184,14 @@ so the app sees the load error rather than a timeout a budget later.
 The frame keeps a list of workers: the active one the app's requests go to,
 the members of any grid run, and one idle worker kept warm, `poolSize + 1` at
 most. `poolSize` defaults to `max(1, min(hardwareConcurrency - 1, 2))`.
-Memory sets that limit, not cores: on a 15 GB, 22-thread laptop the top-level
-`ALL.js` at four workers pushed the machine into swap, where leaves that take
-under a second ran for over a minute and hit the 120s budget; at two it drew
-all 835 cells in 610s with the browser under 3.4 GB. `jscadInit`'s `poolSize` overrides it and the frame strips it, as it does
+Memory sets that limit, not cores. On a 15 GB, 22-thread laptop with about
+6 GB in use by other programs, the top-level `ALL.js` at four workers took
+available memory down to 0.7 GB and grew swap by 2.8 GB, while the browser's
+own resident memory read only 3.5 GB (shared memory for the cell buffers is not
+counted per process). Leaves that take under a second alone ran for over a
+minute and `sierpinski_pyramid.scad` hit the 120s budget. At two workers the
+same grid drew all 835 cells in 610s, with available memory staying above
+2 GB. `jscadInit`'s `poolSize` overrides it and the frame strips it, as it does
 `timeoutMs`. The app sends it from the `engine.poolSize` localStorage key when
 one is set. Each worker holds its own bundles, WASM instances and file map,
 which is what bounds the pool's size. Members leave the pool when their run

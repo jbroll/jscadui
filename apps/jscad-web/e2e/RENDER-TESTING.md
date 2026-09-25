@@ -99,7 +99,8 @@ memory and swap in use, and each worker's manifold WASM heap, read through
 `j$.jscad.getModule().HEAPU8`. Reading a worker's heap waits until that worker
 is between leaves, so a gap between samples marks a leaf that ran that long.
 Swap growing while leaves slow down means the pool is too large for the
-machine. The last line gives the outcome, the peak total and the final cell
+machine. The per-process totals miss Chromium's shared memory, so trust the
+available and swap columns over the browser total. The last line gives the outcome, the peak total and the final cell
 count, followed by up to ten `ALL: FAILED` lines and the error bar's text.
 Linux only: it reads `/proc`.
 
