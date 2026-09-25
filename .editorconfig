@@ -1,0 +1,6 @@
+root = true
+
+# Dependency patches must keep upstream whitespace byte-for-byte.
+[scripts/deps/patches/*.patch]
+trim_trailing_whitespace = false
+insert_final_newline = false
