@@ -214,14 +214,20 @@ export function transpileBuiltinTransform(
       // Check the original filteredArgs (not the stringified form) to avoid
       // false positives from ':' inside ternary expressions like (a ? b : c).
       if (filteredArgs.some(a => a.name)) {
-        return wrapWithSpecialVars(`j$.rotate({ ${args} }, ${childCode})`)
+        // Positional args take rotate's parameter order (a, v) even when mixed with
+        // named ones: rotate([45,30,15], v=[0,0,0]) must not emit `{ [45,30,15], v: ... }`.
+        const params = ['a', 'v']
+        let pos = 0
+        const fields = filteredArgs.map(a => `${a.name ?? params[pos++] ?? `_arg${pos - 1}`}: ${a.value}`)
+        return wrapWithSpecialVars(`j$.rotate({ ${fields.join(', ')} }, ${childCode})`)
       }
       // Two positional args: rotate(a, v) → axis-angle form { a, v }
       // Without this, the child would be passed as the 3rd arg and ignored.
       if (filteredArgs.length === 2) {
         return wrapWithSpecialVars(`j$.rotate({ a: ${filteredArgs[0].value}, v: ${filteredArgs[1].value} }, ${childCode})`)
       }
-      return wrapWithSpecialVars(`j$.rotate(${args}, ${childCode})`)
+      // rotate() is rotate(undef): no rotation. An empty args string would emit `rotate(, child)`.
+      return wrapWithSpecialVars(`j$.rotate(${args || 'undefined'}, ${childCode})`)
 
     case 'scale': {
       // scale(v) where v is scalar or vector
