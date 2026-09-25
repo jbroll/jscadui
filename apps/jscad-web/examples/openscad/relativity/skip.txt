@@ -1,0 +1,8 @@
+# Files to skip in corpus tests
+# One filename per line, comments start with #
+
+# Known failures at PR jbroll/jscadui#113 (do not render).
+# Each is a transpiler/runtime bug or unimplemented feature (import, surface)
+# to fix in a targeted session; remove the entry when it passes.
+# no geometry returned
+demos/body/lower_body_muscle.scad

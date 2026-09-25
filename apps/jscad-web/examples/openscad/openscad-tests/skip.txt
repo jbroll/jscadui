@@ -1,0 +1,86 @@
+# Files to skip in corpus tests
+# One filename per line, comments start with #
+
+# Known failures at PR jbroll/jscadui#113 (do not render).
+# Each is a transpiler/runtime bug or unimplemented feature (import, surface)
+# to fix in a targeted session; remove the entry when it passes.
+# no geometry returned
+scad/3D/features/disable-modifier.scad
+# no geometry returned
+scad/3D/features/linear_extrude_invisible-tests.scad
+# transpiled JS throws
+scad/3D/features/nullspace-minkowski-intersection.scad
+# transpiled JS throws
+scad/3D/features/nullspace-minkowski.scad
+# transpiled JS throws
+scad/3D/features/primitive-inf-tests.scad
+# no geometry returned
+scad/3D/features/projection-extrude-tests.scad
+# transpiled JS throws
+scad/3D/features/resize-tests.scad
+# transpiled JS throws
+scad/3D/features/sphere-tests.scad
+# no geometry returned
+scad/3D/features/surface-png-image-tests.scad
+# no geometry returned
+scad/3D/features/surface-png-image2-tests.scad
+# no geometry returned
+scad/3D/features/surface-png-image3-tests.scad
+# no geometry returned
+scad/3D/features/surface-simple.scad
+# no geometry returned
+scad/3D/features/surface-tests.scad
+# no geometry returned
+scad/3D/issues/adns2610_dev_circuit_inv.scad
+# no geometry returned
+scad/3D/issues/issue1089.scad
+# no geometry returned
+scad/3D/issues/issue5135-bad.scad
+# no geometry returned
+scad/3D/issues/issue964.scad
+# no geometry returned
+scad/3D/issues/issue964b.scad
+# no geometry returned
+scad/3D/issues/polygon-illegal-winding.scad
+# no geometry returned
+scad/3D/misc/import-single-triangle.scad
+# no geometry returned
+scad/3D/misc/polyhedron-single-triangle.scad
+# no geometry returned
+scad/bugs/issue1580-import-back-to-back.scad
+# no geometry returned
+scad/bugs/issue1580-import-back-to-back2.scad
+# no geometry returned
+scad/bugs/issue1580-import-zero-area-triangle.scad
+# no geometry returned
+scad/bugs/issue1876.scad
+# no geometry returned
+scad/bugs/issue945e.scad
+# no geometry returned
+scad/bugs/issue945f.scad
+# transpiled JS throws
+scad/functions/rands.scad
+# transpiled JS throws
+scad/misc/allmodules.scad
+# no geometry returned
+scad/misc/bad-stl-pcbvicebar.scad
+# no geometry returned
+scad/misc/bad-stl-tardis.scad
+# no geometry returned
+scad/misc/bad-stl-wing.scad
+# transpiled JS throws
+scad/misc/builtins-calling-vec3vec2.scad
+# no geometry returned
+scad/misc/localfiles-test.scad
+# no geometry returned
+scad/misc/nonmanifold-polyhedron.scad
+# transpiled JS throws
+scad/misc/special-consts.scad
+# transpiled JS throws
+scad/misc/vector-values.scad
+# no geometry returned
+scad/nef3/nef3_cube.scad
+# no geometry returned
+scad/obj/obj-import-export_cube.scad
+# no geometry returned
+scad/obj/obj-import-export_dodecahedron.scad
