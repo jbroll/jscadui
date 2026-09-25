@@ -7,4 +7,4 @@
 +use <lib/shapes.scad>
  
  joiner(screwsize=3, orient=ORIENT_X);
- joiner(w=10, l=10, h=40, orient=ORIENT_X) cuboid([10, 10*2, 40], align=V_LEFT, $fn=32);
+ joiner(w=10, l=10, h=40, orient=ORIENT_X, $fn=32);
