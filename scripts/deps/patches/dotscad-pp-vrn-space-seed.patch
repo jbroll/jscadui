@@ -7,8 +7,8 @@
 -    sd = is_undef(seed) ? rands(0, 255, 1)[0] : seed; 
 +    sd = is_undef(seed) ? 0 : seed;
  
+ 
      gw = size[0] / grid_w;
-     gh = size[1] / grid_w;
 --- a/apps/jscad-web/examples/openscad/dotscad/voronoi/vrn3_space.scad
 +++ b/apps/jscad-web/examples/openscad/dotscad/voronoi/vrn3_space.scad
 @@ -36,7 +36,7 @@
@@ -45,7 +45,6 @@
 --- a/apps/jscad-web/examples/openscad/dotscad/pp/pp_disk.scad
 +++ b/apps/jscad-web/examples/openscad/dotscad/pp/pp_disk.scad
 @@ -12,8 +12,8 @@
- function pp_disk(radius, value_count, seed = undef) =
      let(
  	    seed_undef = is_undef(seed),
  		n = value_count * 2,
@@ -56,7 +55,6 @@
  	)
  	[
  	    for(i = [0:value_count - 1])
- 		[cos(theta[i]), sin(theta[i])] * sqrt(k[i])
 --- a/apps/jscad-web/examples/openscad/dotscad/pp/pp_sphere.scad
 +++ b/apps/jscad-web/examples/openscad/dotscad/pp/pp_sphere.scad
 @@ -11,7 +11,7 @@
