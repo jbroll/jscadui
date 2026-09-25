@@ -7,6 +7,7 @@
  */
 
 import type {
+  AssignmentNode,
   ScadFile,
   Statement,
 } from 'openscad-parser'
@@ -63,6 +64,7 @@ interface BundledContent {
   functions: string[]
   modules: string[]
   constants: string[]
+  constantNameList: string[]  // parallel to constants ('' when unnamed)
   functionNames: Set<string>
   moduleNames: Set<string>
   constantNames: Set<string>
@@ -76,6 +78,7 @@ interface TranspiledStatements {
   localFunctions: string[]
   localModules: string[]
   localConstants: string[]
+  localConstantNames: string[]  // parallel to localConstants
   geometryParts: string[]
   // Customizer support (options.customizer): the schema, and the top-level
   // assignments re-run at the start of main() with parameter overrides
@@ -113,6 +116,7 @@ function processIncludeStatements(ctx: TranspileContext): BundledContent {
   const bundledFunctionNames = new Set<string>()
   const bundledModuleNames = new Set<string>()
   const bundledConstantNames = new Set<string>()
+  const bundledConstantNameList: string[] = []
 
   for (const includeImport of ctx.includeImports) {
     // Transpile the dependency and get the resolved path from fileResolver
@@ -195,6 +199,7 @@ function processIncludeStatements(ctx: TranspileContext): BundledContent {
         if (!name || !bundledConstantNames.has(name)) {
           if (name) bundledConstantNames.add(name)
           bundledConstants.push(parts.constants[i])
+          bundledConstantNameList.push(name ?? '')
         }
       }
       // Propagate use imports from included files
@@ -220,6 +225,7 @@ function processIncludeStatements(ctx: TranspileContext): BundledContent {
     functions: bundledFunctions,
     modules: bundledModules,
     constants: bundledConstants,
+    constantNameList: bundledConstantNameList,
     functionNames: bundledFunctionNames,
     moduleNames: bundledModuleNames,
     constantNames: bundledConstantNames,
@@ -280,6 +286,7 @@ function transpileAllStatements(ast: ScadFile, ctx: TranspileContext): Transpile
   const localFunctions: string[] = []
   const localModules: string[] = []
   const localConstants: string[] = []
+  const localConstantNames: string[] = []
   const geometryParts: string[] = []
   const customizerPrologue: string[] = []
 
@@ -302,6 +309,16 @@ function transpileAllStatements(ast: ScadFile, ctx: TranspileContext): Transpile
     }
   }
 
+  // OpenSCAD reassignment: when a scope assigns a name more than once, the LAST
+  // value is used, evaluated at the FIRST assignment's position ("x was assigned
+  // on line 1 but was overwritten"). So `L = 120; t = [L]; L = 150;` gives
+  // t = [150]. Emit each name once, at its first position, with its last value.
+  const lastAssignment = new Map<string, AssignmentNode>()
+  for (const stmt of ast.statements) {
+    if (isAssignmentNode(stmt) && stmt.value) lastAssignment.set(stmt.name, stmt)
+  }
+  const emittedAssignments = new Set<string>()
+
   for (const stmt of ast.statements) {
     if (isModuleDeclaration(stmt)) {
       localModules.push(transpileModuleDeclaration(stmt, ctx))
@@ -309,15 +326,19 @@ function transpileAllStatements(ast: ScadFile, ctx: TranspileContext): Transpile
       localFunctions.push(transpileFunctionDeclaration(stmt, ctx))
     } else if (isUseStmt(stmt) || isIncludeStmt(stmt)) {
       // Already collected in first pass
+    } else if (isAssignmentNode(stmt) && emittedAssignments.has(stmt.name)) {
+      // Overwritten assignment: its value was emitted at the first position
     } else if (isAssignmentNode(stmt)) {
       // Top-level variable assignment
-      const value = transpileExpression(stmt.value!, ctx)
+      emittedAssignments.add(stmt.name)
+      const value = transpileExpression((lastAssignment.get(stmt.name) ?? stmt).value!, ctx)
       // In OpenSCAD, ALL $-prefixed variables use dynamic scoping.
       // User-defined vars like $explode, $child_assembly, etc. must be in the
       // scope stack so that j$.getSpecialVar() can find them in child modules.
       if (stmt.name.startsWith('$')) {
         const code = `j$.setSpecialVar('${stmt.name}', ${value})`
         localConstants.push(code)
+        localConstantNames.push(stmt.name)
         customizerPrologue.push(code)
 
         // Track special variable assignments for AST-based bundling
@@ -345,6 +366,7 @@ function transpileAllStatements(ast: ScadFile, ctx: TranspileContext): Transpile
           code = `var ${varName} = ${value}`
         }
         localConstants.push(code)
+        localConstantNames.push(varName)
         const param = customizerParams.get(stmt.name)
         if (param) {
           const key = JSON.stringify(stmt.name)
@@ -380,6 +402,7 @@ function transpileAllStatements(ast: ScadFile, ctx: TranspileContext): Transpile
     localFunctions,
     localModules,
     localConstants,
+    localConstantNames,
     geometryParts,
     customizer,
     customizerPrologue: customizerParams.size > 0 ? customizerPrologue : [],
@@ -476,9 +499,25 @@ function buildOutputCode(
     parts.push('')
   }
 
+  // An include is textual, so a name this file assigns that an included file
+  // also assigns is one variable reassigned in one scope: OpenSCAD evaluates the
+  // LAST value (this file's) at the FIRST position (the included file's). Put
+  // this file's assignment in place of the included one and drop it below.
+  const localConstantByName = new Map<string, string>()
+  transpiled.localConstantNames.forEach((name, i) => localConstantByName.set(name, transpiled.localConstants[i]))
+  const overridden = new Set<string>()
+  const libraryConstants = bundled.constants.map((code, i) => {
+    const name = bundled.constantNameList[i]
+    const local = name ? localConstantByName.get(name) : undefined
+    if (local === undefined) return code
+    overridden.add(name)
+    return local
+  })
+  const localConstants = transpiled.localConstants.filter((_, i) => !overridden.has(transpiled.localConstantNames[i]))
+
   // LIBRARY CONSTANTS (bundled from includes) - BEFORE MODULES
-  if (bundled.constants.length > 0) {
-    parts.push(bundled.constants.join('\n'))
+  if (libraryConstants.length > 0) {
+    parts.push(libraryConstants.join('\n'))
     parts.push('')
   }
 
@@ -490,8 +529,8 @@ function buildOutputCode(
   }
 
   // LOCAL CONSTANT ASSIGNMENTS
-  if (transpiled.localConstants.length > 0) {
-    parts.push(transpiled.localConstants.join('\n'))
+  if (localConstants.length > 0) {
+    parts.push(localConstants.join('\n'))
     parts.push('')
   }
 
@@ -598,9 +637,11 @@ function createBundledParts(ctx: TranspileContext, localGeometryParts: string[])
   for (const d of includeDeclarations) {
     if (!declMap.has(d.name)) declMap.set(d.name, d)
   }
-  // Local declarations override any included ones with same name; appear at end
+  // Local declarations override any included ones with same name. A constant
+  // takes the included one's position (OpenSCAD: last value at first position);
+  // functions and modules move to the end.
   for (const d of localDeclarations) {
-    declMap.delete(d.name) // remove include version so local is appended at end
+    if (d.kind !== 'constant') declMap.delete(d.name)
     declMap.set(d.name, d)
   }
   const allDeclarations = Array.from(declMap.values())

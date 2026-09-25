@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { parse } from '../src/parser/parse.js'
 import { transpile } from '../src/transpiler/transpile.js'
+import type { FileResolver } from '../src/transpiler/context.js'
 
 /**
  * Unit tests for scoping, hoisting, and special variable propagation.
@@ -266,5 +267,39 @@ describe('for-loop scoping', () => {
     // Both i and j should be properly scoped
     expect(code).toContain('i')
     expect(code).toContain('j')
+  })
+})
+
+describe('variable reassignment (last value at first position)', () => {
+  // OpenSCAD: "L was assigned on line 1 but was overwritten"; t sees 150.
+  it('uses the last value at the first assignment in one file', () => {
+    const code = transpileCode(`
+      L = 120;
+      t = [L];
+      L = 150;
+      cube(t[0]);
+    `)
+    expect(code).toMatch(/var L = 150\s*\n\s*var t = \[L\]/)
+    expect(code).not.toContain('var L = 120')
+  })
+
+  it('lets an including file override an included file\'s variable in place', () => {
+    // YAPP_Box's generator defines pcbLength and builds its pcb table from it;
+    // each example includes the generator, then sets pcbLength.
+    const libSource = `
+      L = 120;
+      tbl = [["Main", L]];
+      function getL() = tbl[0][1];
+    `
+    const fileResolver: FileResolver = (filename) =>
+      filename === 'lib.scad' ? { path: '/lib.scad', content: libSource } : undefined
+    const { ast } = parse(`
+      include <lib.scad>
+      L = 150;
+      cube(getL());
+    `)
+    const { code } = transpile(ast, { currentFile: '/main.scad', fileResolver, includeHeader: false })
+    expect(code).toMatch(/var L = 150\s*\n\s*var tbl = \[\["Main", L\]\]/)
+    expect(code).not.toContain('var L = 120')
   })
 })
