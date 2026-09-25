@@ -1,0 +1,2 @@
+# MCAD, which OpenSCAD bundles on its library path, not models
+MCAD/

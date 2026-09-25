@@ -182,6 +182,20 @@
           "include": ["*.scad"],
           "exclude": [],
           "skipFiles": []
+        },
+        {
+          "srcDir": ".",
+          "destDir": "apps/jscad-web/examples/openscad/openscad-examples/MCAD",
+          "include": ["*.scad"],
+          "exclude": [],
+          "skipFiles": []
+        },
+        {
+          "srcDir": ".",
+          "destDir": "apps/jscad-web/examples/openscad/openscad-tests/MCAD",
+          "include": ["*.scad"],
+          "exclude": [],
+          "skipFiles": []
         }
       ],
       "patches": [
