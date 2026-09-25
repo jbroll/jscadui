@@ -234,6 +234,141 @@
           "description": "Seed rands() calls in Bricks.scad for deterministic output across test runs"
         }
       ]
+    },
+    {
+      "name": "openscad",
+      "description": "OpenSCAD's bundled examples and regression-test models (openscad/openscad)",
+      "url": "https://github.com/openscad/openscad.git",
+      "ref": "master",
+      "commit": "28fe66bcaf3e89239153cd16c34499c541d2841e",
+      "license": "examples/: CC0-1.0; tests/data/: GPL-2.0",
+      "sparse": ["examples", "tests/data"],
+      "mappings": [
+        {
+          "srcDir": "examples",
+          "destDir": "apps/jscad-web/examples/openscad/openscad-examples",
+          "include": ["**"],
+          "exclude": ["*.md", "*.txt", "*.json", "CMakeLists.txt"],
+          "skipFiles": []
+        },
+        {
+          "srcDir": "tests/data",
+          "destDir": "apps/jscad-web/examples/openscad/openscad-tests",
+          "include": ["scad/**", "dxf/**", "svg/**", "stl/**", "json/**", "obj/**", "off/**", "nef3/**", "3mf/**", "image/**", "ttf/**"],
+          "exclude": ["scad/experimental/**", "scad/customizer/**", "scad/templates/**"],
+          "skipFiles": []
+        }
+      ],
+      "patches": []
+    },
+    {
+      "name": "round-anything",
+      "description": "Round-Anything polyRound library and examples (Irev-Dev/Round-Anything)",
+      "url": "https://github.com/Irev-Dev/Round-Anything.git",
+      "ref": "master",
+      "commit": "061fef7c429628808e847696bb345a9b0ec6e279",
+      "license": "MIT",
+      "mappings": [
+        {
+          "srcDir": ".",
+          "destDir": "apps/jscad-web/examples/openscad/round-anything",
+          "include": ["*.scad"],
+          "exclude": [],
+          "skipFiles": []
+        },
+        {
+          "srcDir": ".",
+          "destDir": "apps/jscad-web/examples/openscad/round-anything/Round-Anything-1.0.4",
+          "include": ["*.scad"],
+          "exclude": ["roundAnythingExamples.scad"],
+          "skipFiles": []
+        },
+        {
+          "srcDir": "examples",
+          "destDir": "apps/jscad-web/examples/openscad/round-anything/examples",
+          "include": ["*.scad"],
+          "exclude": [],
+          "skipFiles": []
+        }
+      ],
+      "patches": []
+    },
+    {
+      "name": "scad-utils",
+      "description": "scad-utils: sweep/skin helpers, transformations and lists (openscad/scad-utils)",
+      "url": "https://github.com/openscad/scad-utils.git",
+      "ref": "master",
+      "commit": "26f8c2cf8124cdafe2fc21f9f9bbf2514e404834",
+      "license": "MIT",
+      "mappings": [
+        {
+          "srcDir": ".",
+          "destDir": "apps/jscad-web/examples/openscad/list-comprehension-demos/scad-utils",
+          "include": ["*.scad"],
+          "exclude": [],
+          "skipFiles": []
+        }
+      ],
+      "patches": []
+    },
+    {
+      "name": "list-comprehension-demos",
+      "description": "List-comprehension demos: sweep, skin, knots (openscad/list-comprehension-demos)",
+      "url": "https://github.com/openscad/list-comprehension-demos.git",
+      "ref": "master",
+      "commit": "dec3fc3037f0107e5d9da79cb5b36b3e1ad9ce22",
+      "license": "none stated upstream",
+      "mappings": [
+        {
+          "srcDir": ".",
+          "destDir": "apps/jscad-web/examples/openscad/list-comprehension-demos",
+          "include": ["*.scad"],
+          "exclude": [],
+          "skipFiles": []
+        }
+      ],
+      "patches": [
+        {
+          "patchFile": "scripts/deps/patches/list-comprehension-demos-spiral-include.patch",
+          "description": "Include sweep.scad as a sibling; upstream's <list-comprehension-demos/sweep.scad> assumes a library-path install"
+        }
+      ]
+    },
+    {
+      "name": "threads-scad",
+      "description": "threads.scad metric threads, bolts and nuts; renders its own Demo() (rcolyer/threads-scad)",
+      "url": "https://github.com/rcolyer/threads-scad.git",
+      "ref": "master",
+      "commit": "4ae9aeb3b136f9858200f77a304b909a000ce3b4",
+      "license": "CC0-1.0",
+      "mappings": [
+        {
+          "srcDir": ".",
+          "destDir": "apps/jscad-web/examples/openscad/threads-scad",
+          "include": ["*.scad"],
+          "exclude": [],
+          "skipFiles": []
+        }
+      ],
+      "patches": []
+    },
+    {
+      "name": "gridfinity",
+      "description": "Gridfinity Rebuilt bins and baseplates (kennetek/gridfinity-rebuilt-openscad)",
+      "url": "https://github.com/kennetek/gridfinity-rebuilt-openscad.git",
+      "ref": "main",
+      "commit": "910e22d8607fd7f5f51ad5e5cbc5287a76810bfd",
+      "license": "MIT",
+      "mappings": [
+        {
+          "srcDir": ".",
+          "destDir": "apps/jscad-web/examples/openscad/gridfinity",
+          "include": ["*.scad", "src/**/*.scad"],
+          "exclude": [],
+          "skipFiles": []
+        }
+      ],
+      "patches": []
     }
   ],
   "organize": {

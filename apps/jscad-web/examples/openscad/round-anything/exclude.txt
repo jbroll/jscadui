@@ -1,0 +1,6 @@
+# Round-Anything library files, not models. The examples include the
+# library as <Round-Anything-1.0.4/polyround.scad>, so it is fetched twice.
+/polyround.scad
+/MinkowskiRound.scad
+/unionRoundMask.scad
+Round-Anything-1.0.4/

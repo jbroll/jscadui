@@ -1,0 +1,2 @@
+# Gridfinity library sources; the top-level .scad files are the models
+src/
