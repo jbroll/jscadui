@@ -513,6 +513,21 @@ describe('polyhedron out-of-bounds point indices', () => {
   })
 })
 
+describe('childrenAt', () => {
+  // OpenSCAD 2026.09 (three children): children(1.7) is child 1; children(5) and
+  // children(-1) warn "Children index (5) out of bounds" and render nothing;
+  // children("a") renders nothing.
+  const kids = [() => 'c0', () => 'c1', () => 'c2']
+  it('floors a numeric index', () => {
+    expect(j$.childrenAt(kids, 1.7)).toBe('c1')
+  })
+  it('skips an out-of-bounds or non-numeric index instead of throwing', () => {
+    expect(j$.childrenAt(kids, 5)).toBeUndefined()
+    expect(j$.childrenAt(kids, -1)).toBeUndefined()
+    expect(j$.childrenAt(kids, 'a')).toBeUndefined()
+  })
+})
+
 describe('cube zero/negative size guard', () => {
   // OpenSCAD: cube([0,20,10]) and cube([-2,20,10]) are empty. A degenerate cube
   // handed to minkowski() came back without a manifold and crashed subtract().

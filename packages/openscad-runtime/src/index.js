@@ -177,6 +177,17 @@ const j$ = {
   },
   polyhedron(args) { return _polyhedron(args) },
   safeUnion: _safeUnion,
+  // children(index): OpenSCAD floors a number (children(1.7) is child 1), skips an
+  // out-of-bounds index with a warning, unions a list or range, and ignores
+  // anything else. `kids` are the child thunks.
+  childrenAt: (kids, index) => {
+    const pick = i => {
+      if (typeof i !== 'number') return undefined
+      const k = Math.floor(i)
+      return k >= 0 && k < kids.length ? kids[k]() : undefined
+    }
+    return Array.isArray(index) ? _safeUnion(index.map(pick)) : pick(index)
+  },
   hull: _hull,
 
   // Booleans (wrappers that filter undefined values)
