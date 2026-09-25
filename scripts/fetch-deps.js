@@ -244,6 +244,10 @@ function applyPatches(patches) {
       ['--forward', '--no-backup-if-mismatch', '--ignore-whitespace', '-p1', '-i', patchFile],
       { cwd: ROOT, encoding: 'utf8', stdio: 'pipe' }
     )
+    if (result.error) {
+      // spawn failure (e.g. ENOENT): patch produced no output to explain it
+      throw new Error(`patch failed (${patch.patchFile}): could not run 'patch' (${result.error.code ?? result.error.message}); GNU patch must be installed and on PATH`)
+    }
     if (result.status === 0) continue
     const out = (result.stdout || '') + (result.stderr || '')
     if (out.includes('Skipping patch')) {
