@@ -1,0 +1,4 @@
+# Constructive library builds and sources, not models
+constructive-all.scad
+constructive-compiled.scad
+/sources/

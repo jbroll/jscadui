@@ -307,6 +307,13 @@
           "include": ["*.scad"],
           "exclude": [],
           "skipFiles": []
+        },
+        {
+          "srcDir": ".",
+          "destDir": "apps/jscad-web/examples/openscad/threadlib/scad-utils",
+          "include": ["*.scad"],
+          "exclude": [],
+          "skipFiles": []
         }
       ],
       "patches": []
@@ -323,6 +330,13 @@
           "srcDir": ".",
           "destDir": "apps/jscad-web/examples/openscad/list-comprehension-demos",
           "include": ["*.scad"],
+          "exclude": [],
+          "skipFiles": []
+        },
+        {
+          "srcDir": ".",
+          "destDir": "apps/jscad-web/examples/openscad/threadlib/list-comprehension-demos",
+          "include": ["skin.scad", "sweep.scad"],
           "exclude": [],
           "skipFiles": []
         }
@@ -364,6 +378,179 @@
           "srcDir": ".",
           "destDir": "apps/jscad-web/examples/openscad/gridfinity",
           "include": ["*.scad", "src/**/*.scad"],
+          "exclude": [],
+          "skipFiles": []
+        }
+      ],
+      "patches": []
+    },
+    {
+      "name": "yapp-box",
+      "description": "YAPP_Box enclosure generator and its examples (mrWheel/YAPP_Box)",
+      "url": "https://github.com/mrWheel/YAPP_Box.git",
+      "ref": "main",
+      "commit": "f9400c419ef1dea7dc0b3607876989b4f3faa2b7",
+      "license": "MIT",
+      "mappings": [
+        {
+          "srcDir": ".",
+          "destDir": "apps/jscad-web/examples/openscad/yapp-box",
+          "include": ["*.scad"],
+          "exclude": [],
+          "skipFiles": []
+        },
+        {
+          "srcDir": "examples",
+          "destDir": "apps/jscad-web/examples/openscad/yapp-box/examples",
+          "include": ["*.scad"],
+          "exclude": [],
+          "skipFiles": []
+        }
+      ],
+      "patches": []
+    },
+    {
+      "name": "gears",
+      "description": "Gears library (janssen86, maintained at chrisspen/gears) and its examples",
+      "url": "https://github.com/chrisspen/gears.git",
+      "ref": "master",
+      "commit": "50ee0acc2e7fbeb81dd92600d395ae4b32630de8",
+      "license": "CC-BY-NC-SA-3.0",
+      "mappings": [
+        {
+          "srcDir": ".",
+          "destDir": "apps/jscad-web/examples/openscad/gears",
+          "include": ["*.scad"],
+          "exclude": [],
+          "skipFiles": []
+        },
+        {
+          "srcDir": "examples",
+          "destDir": "apps/jscad-web/examples/openscad/gears/examples",
+          "include": ["*.scad"],
+          "exclude": [],
+          "skipFiles": []
+        }
+      ],
+      "patches": []
+    },
+    {
+      "name": "closepoints",
+      "description": "closepoints polyhedron-from-point-grid library and demos (rcolyer/closepoints)",
+      "url": "https://github.com/rcolyer/closepoints.git",
+      "ref": "master",
+      "commit": "8ce827f5a7fec8afe4ab9a13a3427d685bca2ce0",
+      "license": "CC0-1.0",
+      "mappings": [
+        {
+          "srcDir": ".",
+          "destDir": "apps/jscad-web/examples/openscad/closepoints",
+          "include": ["*.scad"],
+          "exclude": [],
+          "skipFiles": []
+        }
+      ],
+      "patches": []
+    },
+    {
+      "name": "constructive",
+      "description": "Constructive library ($-variable driven assembly DSL) with examples (solidboredom/constructive)",
+      "url": "https://github.com/solidboredom/constructive.git",
+      "ref": "main",
+      "commit": "8aad3ca29534223debe084d9ad48bddffb71da32",
+      "license": "GPL-2.0 OR CERN-OHL-W",
+      "mappings": [
+        {
+          "srcDir": ".",
+          "destDir": "apps/jscad-web/examples/openscad/constructive",
+          "include": ["*.scad", "sources/*.scad", "examples/*.scad", "gallery/sources/*.scad", "cad_kickstart/*.scad"],
+          "exclude": [],
+          "skipFiles": []
+        }
+      ],
+      "patches": []
+    },
+    {
+      "name": "relativity",
+      "description": "relativity.scad: relative positioning, strings and PEG parser, with demos and echo tests (davidson16807/relativity.scad)",
+      "url": "https://github.com/davidson16807/relativity.scad.git",
+      "ref": "master",
+      "commit": "3c57b82a820da5791c5c7d0ec6a2c2c019b952f4",
+      "license": "none stated upstream",
+      "mappings": [
+        {
+          "srcDir": ".",
+          "destDir": "apps/jscad-web/examples/openscad/relativity",
+          "include": ["*.scad", "demos/**/*.scad"],
+          "exclude": [],
+          "skipFiles": []
+        }
+      ],
+      "patches": []
+    },
+    {
+      "name": "obiscad",
+      "description": "obiscad: attach, bevel and bcube helpers with examples (Obijuan/obiscad)",
+      "url": "https://github.com/Obijuan/obiscad.git",
+      "ref": "master",
+      "commit": "4cbf0bd08a78e6c0568807e03ac7d6a6ee87551f",
+      "license": "none stated upstream",
+      "mappings": [
+        {
+          "srcDir": "obiscad",
+          "destDir": "apps/jscad-web/examples/openscad/obiscad/obiscad",
+          "include": ["*.scad"],
+          "exclude": [],
+          "skipFiles": []
+        },
+        {
+          "srcDir": "examples",
+          "destDir": "apps/jscad-web/examples/openscad/obiscad/examples",
+          "include": ["*.scad"],
+          "exclude": [],
+          "skipFiles": []
+        },
+        {
+          "srcDir": "obiscad",
+          "destDir": "apps/jscad-web/examples/openscad/list-comprehension-demos/obiscad",
+          "include": ["*.scad"],
+          "exclude": [],
+          "skipFiles": []
+        }
+      ],
+      "patches": []
+    },
+    {
+      "name": "threadlib",
+      "description": "threadlib: ISO/UTS/BSP thread tables, taps, nuts and bolts (adrianschlatter/threadlib)",
+      "url": "https://github.com/adrianschlatter/threadlib.git",
+      "ref": "develop",
+      "commit": "dce1967dfb40c18a3405861f6ae661369275d3eb",
+      "license": "BSD-3-Clause",
+      "mappings": [
+        {
+          "srcDir": ".",
+          "destDir": "apps/jscad-web/examples/openscad/threadlib/threadlib",
+          "include": ["*.scad", "tests/*.scad", "docs/img_prep/*.scad"],
+          "exclude": [],
+          "skipFiles": []
+        }
+      ],
+      "patches": []
+    },
+    {
+      "name": "thread-profile",
+      "description": "thread_profile.scad, which threadlib uses (MisterHW/IoP-satellite)",
+      "url": "https://github.com/MisterHW/IoP-satellite.git",
+      "ref": "master",
+      "commit": "a78b36fc8fed4347eb05b7ef6d3df15df806ce55",
+      "license": "none stated upstream",
+      "sparse": ["OpenSCAD bottle threads"],
+      "mappings": [
+        {
+          "srcDir": "OpenSCAD bottle threads",
+          "destDir": "apps/jscad-web/examples/openscad/threadlib",
+          "include": ["thread_profile.scad"],
           "exclude": [],
           "skipFiles": []
         }

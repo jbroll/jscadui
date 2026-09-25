@@ -1,0 +1,2 @@
+# closepoints library; the demo_*.scad files are the models
+/closepoints.scad

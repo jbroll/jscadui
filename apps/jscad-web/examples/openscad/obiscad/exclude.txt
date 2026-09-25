@@ -1,0 +1,2 @@
+# obiscad library; examples/ holds the models
+obiscad/

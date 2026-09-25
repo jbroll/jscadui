@@ -152,6 +152,13 @@ apps/jscad-web/examples/openscad/round-anything/*
 apps/jscad-web/examples/openscad/list-comprehension-demos/*
 apps/jscad-web/examples/openscad/threads-scad/*
 apps/jscad-web/examples/openscad/gridfinity/*
+apps/jscad-web/examples/openscad/yapp-box/*
+apps/jscad-web/examples/openscad/gears/*
+apps/jscad-web/examples/openscad/closepoints/*
+apps/jscad-web/examples/openscad/constructive/*
+apps/jscad-web/examples/openscad/relativity/*
+apps/jscad-web/examples/openscad/obiscad/*
+apps/jscad-web/examples/openscad/threadlib/*
 !apps/jscad-web/examples/openscad/*/exclude.txt
 !apps/jscad-web/examples/openscad/*/skip.txt
 !apps/jscad-web/examples/openscad/*/compare-skip.txt
