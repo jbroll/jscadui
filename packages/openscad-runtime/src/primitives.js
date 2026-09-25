@@ -224,6 +224,20 @@ export const _safeUnion = (parts) => {
   return _unionPresent(flattened)
 }
 
+// A 2D geometry: jscad geom2 ('sides') or ManifoldGeom2 ('outlines'). `in`, not
+// a read: on ManifoldGeom2 these are getters that convert the cross-section.
+export const _is2D = (p) => p !== null && typeof p === 'object' && ('sides' in p || 'outlines' in p)
+
+// Children of linear_extrude/rotate_extrude: OpenSCAD extrudes the 2D ones and
+// ignores 3D ones ("Ignoring 3D child object for 2D operation") in any order.
+export const _safeUnion2D = (parts) => {
+  const flattened = parts.flat(Infinity)
+  const hasPromise = flattened.some(p => p instanceof Promise || (p && typeof p.then === 'function'))
+  const only2D = all => _unionPresent(all.filter(p => _isAbsent(p) || _is2D(p)))
+  if (hasPromise) return Promise.all(flattened).then(only2D)
+  return only2D(flattened)
+}
+
 // Re-export direct JSCAD primitives for passthrough
 export const getPolygon = () => polygon
 

@@ -528,6 +528,19 @@ describe('childrenAt', () => {
   })
 })
 
+describe('safeUnion2D', () => {
+  // OpenSCAD: "Ignoring 3D child object for 2D operation" for extrusion children
+  const square = { sides: [] }
+  const cube = { polygons: [] }
+  it('keeps the 2D part whatever the order', () => {
+    expect(j$.safeUnion2D([cube, square])).toBe(square)
+    expect(j$.safeUnion2D([square, cube])).toBe(square)
+  })
+  it('is empty when every child is 3D', () => {
+    expect(j$.safeUnion2D([cube])).toBeUndefined()
+  })
+})
+
 describe('cube zero/negative size guard', () => {
   // OpenSCAD: cube([0,20,10]) and cube([-2,20,10]) are empty. A degenerate cube
   // handed to minkowski() came back without a manifold and crashed subtract().

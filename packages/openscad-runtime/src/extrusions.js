@@ -3,7 +3,7 @@
  */
 
 import { _globalFn, _getSegments } from './segments.js'
-import { NO_CHILD } from './primitives.js'
+import { NO_CHILD, _is2D } from './primitives.js'
 import { consuming } from './consume.js'
 
 /**
@@ -55,6 +55,8 @@ export const _linearExtrude = ({ height, center = false, twist = 0, slices, scal
   if (geo === NO_CHILD) return NO_CHILD
   // Return undefined for empty/missing geometry to avoid degenerate extrusions
   if (!geo) return undefined
+  // A lone 3D child: OpenSCAD ignores it ("Ignoring 3D child object for 2D operation")
+  if (!_is2D(geo)) return undefined
   // ManifoldGeom2 has 'crossSection' — delegate directly to Manifold's native extrudeLinear.
   // For twist with multi-outline (shapes with holes), fall through to JSCAD extrudeFromSlices
   // which handles hole subtraction more accurately for twisted extrusions.
@@ -217,6 +219,8 @@ export const _rotateExtrude = ({ angle = 360, $fn, $fa, $fs } = {}, geo) => {
   // Return undefined for empty/missing geometry to avoid degenerate extrusions
   // that break subsequent boolean operations
   if (!geo) return undefined
+  // A lone 3D child: OpenSCAD ignores it ("Ignoring 3D child object for 2D operation")
+  if (!_is2D(geo)) return undefined
   const sides = profileSides(geo)
   if (sides?.length === 0) return undefined
   const absAngle = Math.abs(angle)

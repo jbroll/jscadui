@@ -275,7 +275,12 @@ export function transpileBuiltinExtrusion(
 ): string {
   // Handle underscore-prefixed versions (BOSL2 builtins.scad wrappers)
   const baseName = stripUnderscorePrefix(name)
-  let childCode = child || 'undefined'
+  // An extrusion takes only its 2D children (OpenSCAD: "Ignoring 3D child object
+  // for 2D operation"), whatever their order; a plain group takes its dimension
+  // from the first child, so a leading cube would drop every square.
+  let childCode = child?.startsWith('j$.safeUnion([')
+    ? 'j$.safeUnion2D([' + child.slice('j$.safeUnion(['.length)
+    : child || 'undefined'
 
   // Extract special variables from args that should be inherited by children
   // In OpenSCAD, extrusions like rotate_extrude($fn=30) set special variables
