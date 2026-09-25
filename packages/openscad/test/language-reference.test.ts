@@ -627,7 +627,7 @@ describe('Utility Functions', () => {
 
   it('handles children(i)', () => {
     const code = transpileCode('module wrapper() { children(0); }')
-    expect(code).toContain('_children[0]')
+    expect(code).toContain('j$.childrenAt(_children, 0)')
   })
 })
 

@@ -359,17 +359,14 @@ function transpileChildrenModule(
     const arg = stmt.args[0]
     const argValue = arg.value
 
-    if (argValue && isVectorExpr(argValue)) {
-      // Array of indices: children([0, 2, 3]) → union children at those indices (call thunks)
-      // Use safeUnion to handle cases where some children return undefined
-      const indices = argValue.children.map(c => transpileExpression(c, ctx))
-      return `j$.safeUnion([${indices.map(i => `_children[${i}]()`).join(', ')}])`
-    } else {
-      // Simple index: children(0) or children(i) → single child access (call thunk)
-      const indexArg = argsArray.find(a => a.name === 'index' || !a.name)
-      const indexExpr = indexArg?.value || '0'
-      return `_children[${indexExpr}]()`
-    }
+    // children(i), children([i, j]), children([a:b]), children(v): j$.childrenAt
+    // resolves the index at runtime (a variable may hold a number or a list) and
+    // skips out-of-bounds indices, as OpenSCAD does, instead of calling a missing thunk.
+    const indexArg = argsArray.find(a => a.name === 'index' || !a.name)
+    const indexExpr = argValue && isVectorExpr(argValue)
+      ? `[${argValue.children.map(c => transpileExpression(c, ctx)).join(', ')}]`
+      : indexArg?.value || '0'
+    return `j$.childrenAt(_children, ${indexExpr})`
   }
 }
 
