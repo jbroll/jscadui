@@ -497,6 +497,16 @@ describe('sphere negative radius guard', () => {
   })
 })
 
+describe('polyhedron out-of-bounds point indices', () => {
+  // OpenSCAD: "Point index 99 is out of bounds" drops that index from the face;
+  // a face left with fewer than 3 points is gone. Indexing past the points list
+  // used to throw "Cannot read properties of undefined".
+  it('drops faces left with fewer than 3 valid points instead of throwing', () => {
+    const points = [[0, 0, 0], [1, 0, 0], [0, 1, 0]]
+    expect(j$.polyhedron({ points, faces: [[0, 1, 99], [97, 98, 99]] })).toBeUndefined()
+  })
+})
+
 describe('cube zero/negative size guard', () => {
   // OpenSCAD: cube([0,20,10]) and cube([-2,20,10]) are empty. A degenerate cube
   // handed to minkowski() came back without a manifold and crashed subtract().
