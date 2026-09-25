@@ -233,14 +233,16 @@ export function collectChildrenAsArray(child: Statement | null, ctx: TranspileCo
 
     if (assignments.length > 0) {
       // Block has regular (non-special) variable assignments.
-      // Hoist them into an IIFE that returns the children ARRAY so that module
-      // callers (e.g. xdistribute) still see each child as a separate entry.
-      // This preserves variable scope without collapsing children into one thunk.
+      // Each child stays a separate entry, so module callers (e.g. xdistribute)
+      // and $children see one per statement. The assignments go inside every
+      // child's thunk: OpenSCAD evaluates them when children() instantiates the
+      // block, so they see the $-variables of the module that calls children()
+      // (e.g. a `$_grid_element` set by the parent before it calls children()).
       const suffix = generateScopeSuffix(ctx)
       const assignStrs: string[] = []
       const incrementalScope = new Map<string, string>()
 
-      const thunks = withScope(ctx, incrementalScope, () => {
+      const codes = withScope(ctx, incrementalScope, () => {
         for (const a of assignments) {
           const origName = safeIdentifier(a.name)
           const newName = `${origName}${suffix}`
@@ -253,15 +255,15 @@ export function collectChildrenAsArray(child: Statement | null, ctx: TranspileCo
         for (const c of child.children) {
           if (!isAssignmentNode(c) && !isNoopStmt(c as Statement)) {
             const code = transpileStatement(c as Statement, ctx)
-            if (code) result.push(makeThunk(code))
+            if (code) result.push(code)
           }
         }
         return result
       })
 
-      if (thunks.length === 0) return []
-      // Return children as a spread from an IIFE: [...(() => { const x=1; return [thunk1, thunk2] })()]
-      return [`...(() => { ${assignStrs.join('; ')}; return [${thunks.join(', ')}] })()`]
+      // () => { const x=1; return child1 }, () => { const x=1; return child2 }
+      const assignBody = assignStrs.join('; ')
+      return codes.map(code => makeThunk(`{ ${assignBody}; return ${code} }`))
     }
 
     // No assignments - collect individual statements as separate thunks

@@ -119,6 +119,27 @@ describe('special variable scope propagation', () => {
     expect(code).toContain('withScope')
     expect(code).toContain('$fn')
   })
+
+  it('evaluates child-block assignments when children() instantiates them', () => {
+    // OpenSCAD evaluates `s = cur() + 1` when place() calls children(), so
+    // cur() sees the $_g that place() set. Gridfinity's bin_subdivide relies
+    // on this ($_grid_element). Hoisting the assignment to where the block is
+    // built evaluated it before place() ran.
+    const code = transpileCode(`
+      $_g = undef;
+      function cur() = $_g;
+      module place(v) { $_g = v; children(); }
+      place(3) {
+        s = cur() + 1;
+        cube(s);
+        sphere(s);
+      }
+    `)
+    // One thunk per child statement, each evaluating the assignment itself
+    const thunks = code.match(/\(\) => \{ const s\$\d+ = [^;]*cur_\$f\(\)[^;]*; return j\$\.(cube|sphere)\(/g) ?? []
+    expect(thunks).toHaveLength(2)
+    expect(code).not.toMatch(/\.\.\.\(\(\) => \{ const s\$/)
+  })
 })
 
 describe('let binding scoping', () => {
