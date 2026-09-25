@@ -10,7 +10,7 @@
 import { PI, _range, _min, _max, _num, str, version_num, parent_module, search, _norm, _cross, _lookup, _rands, _resetRng, is_vector, chr, ord, is_consistent, _list_pattern, reverse, _sinDeg, _cosDeg, _tanDeg } from './math.js'
 import { _eq, _vadd, _vsub, _vmul, _vdiv, _vneg } from './vector.js'
 import { _getSegments, setGlobalFn } from './segments.js'
-import { NO_CHILD as _NO_CHILD, initPrimitives, _cube, _cylinder, _sphere, _circle, _square, _regular_polygon, _polyhedron, _safeUnion, _hull, _union, _subtract, _intersect, _minkowski, _polygon, _region } from './primitives.js'
+import { NO_CHILD as _NO_CHILD, initPrimitives, _cube, _cylinder, _sphere, _circle, _square, _regular_polygon, _polyhedron, _safeUnion, _safeUnion2D, _hull, _union, _subtract, _intersect, _minkowski, _polygon, _region } from './primitives.js'
 import { initTransforms, _translate, _rotate, _scale, _mirror, _multmatrix, _resize } from './transforms.js'
 import { initExtrusions, _linearExtrude, _rotateExtrude } from './extrusions.js'
 import { initColor, _color } from './color.js'
@@ -177,6 +177,7 @@ const j$ = {
   },
   polyhedron(args) { return _polyhedron(args) },
   safeUnion: _safeUnion,
+  safeUnion2D: _safeUnion2D,
   // children(index): OpenSCAD floors a number (children(1.7) is child 1), skips an
   // out-of-bounds index with a warning, unions a list or range, and ignores
   // anything else. `kids` are the child thunks.
@@ -335,7 +336,7 @@ export function createJ$Instance() {
 export { PI, _range, _min, _max, _num, str, version_num, parent_module, search, _norm, _cross, _lookup, _rands, is_vector, chr, ord, is_consistent, _list_pattern, reverse } from './math.js'
 export { _eq, _vadd, _vsub, _vmul, _vdiv, _vneg } from './vector.js'
 export { _getSegments, setGlobalFn } from './segments.js'
-export { initPrimitives, withoutDegeneratePolygons, _cube, _cylinder, _sphere, _circle, _square, _regular_polygon, _polyhedron, _safeUnion, _hull, _union, _subtract, _intersect, _minkowski, _polygon, _region } from './primitives.js'
+export { initPrimitives, withoutDegeneratePolygons, _cube, _cylinder, _sphere, _circle, _square, _regular_polygon, _polyhedron, _safeUnion, _safeUnion2D, _hull, _union, _subtract, _intersect, _minkowski, _polygon, _region } from './primitives.js'
 export { initTransforms, _translate, _rotate, _scale, _mirror, _multmatrix, _resize } from './transforms.js'
 export { initExtrusions, _linearExtrude, _rotateExtrude , subdivideSides } from './extrusions.js'
 export { initColor, _color } from './color.js'

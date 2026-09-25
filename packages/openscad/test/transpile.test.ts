@@ -300,6 +300,12 @@ describe('unknown module calls without imports', () => {
     expect(() => new Function('exports', 'require', 'j$', result.code)).not.toThrow()
   })
 
+  it('unions only the 2D children of an extrusion', () => {
+    // OpenSCAD extrudes the square in linear_extrude(5) { cube(1); square(2); }
+    const result = transpile(parse('linear_extrude(5) { cube(1); square(2); }').ast, { includeHeader: false })
+    expect(result.code).toContain('j$.linearExtrude({ height: 5 }, j$.safeUnion2D([')
+  })
+
   it('declares unknown variables as undefined instead of throwing', () => {
     // OpenSCAD: WARNING: Ignoring unknown variable "nope"; a = [1, undef, 3]
     const result = transpile(parse('a = [1, nope, 3]; module m(x = zz) cube(1); m();').ast, { includeHeader: false })
