@@ -63,6 +63,14 @@ function srcHash(originalScadPath, fn, preview) {
   return hash.digest('hex')
 }
 
+/**
+ * Tag appended to the source hash of a failure sentinel. Bump it when the
+ * harness changes in a way that can turn a recorded failure into a success
+ * (e.g. 2: paths with spaces used to reach openscad unquoted), so old
+ * failures are re-rendered once instead of replayed. Cached successes keep.
+ */
+const FAILURE_EPOCH = '|failed-v2'
+
 /** Sidecar file recording which source content a cached entry was rendered from. */
 function srcHashPath(stlPath) {
   return `${stlPath}.src-hash`
@@ -151,7 +159,7 @@ export class StlCache {
     const cached = stlCachePath(originalScadPath, fn, libName, preview)
     const failed = failedCachePath(originalScadPath, fn, libName, preview)
     if (failed && existsSync(failed)) {
-      if (cached && storedSrcHash(cached) === current) {
+      if (cached && storedSrcHash(cached) === current + FAILURE_EPOCH) {
         this._failedHits++
         return { failed: readFileSync(failed, 'utf8').split('\n')[0] || 'failed' }
       }
@@ -195,7 +203,7 @@ export class StlCache {
     mkdirSync(dirname(dest), { recursive: true })
     writeFileSync(dest, errorMsg || 'failed')
     const cached = stlCachePath(originalScadPath, fn, libName, preview)
-    if (cached) writeFileSync(srcHashPath(cached), srcHash(originalScadPath, fn, preview))
+    if (cached) writeFileSync(srcHashPath(cached), srcHash(originalScadPath, fn, preview) + FAILURE_EPOCH)
   }
 
   /** Persist per-library hash files. Safe to call from parallel processes. */
