@@ -287,6 +287,7 @@ function transpileLookupExpr(expr: { name: string }, ctx: TranspileContext): str
   // Used by canOptimizeInclude to detect files that reference ambient include-scope variables.
   if (!ctx.currentLocalBindings.has(safeName)) {
     ctx.potentialFreeVarRefs.add(safeName)
+    ctx.freeVariableRefs.add(safeName)
   }
 
   // If this is a lazy variable (defined as a thunk because it references $special vars),

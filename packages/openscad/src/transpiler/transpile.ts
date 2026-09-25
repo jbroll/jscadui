@@ -732,7 +732,13 @@ function createBundledParts(ctx: TranspileContext, localGeometryParts: string[])
  * ReferenceError. This is deterministic — it depends only on this file's output,
  * not on what else has been transpiled.
  */
-function declareMissingSymbols(code: string): string {
+function declareMissingSymbols(code: string, freeVarRefs: Iterable<string> = []): string {
+  // Variables too: OpenSCAD reads an unknown variable as undef ("Ignoring unknown
+  // variable"), e.g. YAPP_Box v3.0 examples naming constants the v3 generator
+  // dropped. `var x` (undefined) keeps the file valid; an includer's own `var x`
+  // still wins once bundled, since bundling uses declarations, not this code.
+  const varStubs = missingVariableStubs(code, freeVarRefs)
+  if (varStubs) code = varStubs + '\n' + code
   const referenced = new Set<string>()
   // Bare references only (skip property access like `_ns.foo_$m`).
   for (const m of code.matchAll(/(?<![.\w$])\w+_\$[mf](?![\w$])/g)) referenced.add(m[0])
@@ -752,6 +758,23 @@ function declareMissingSymbols(code: string): string {
     }
   }
   return stubs.length ? stubs.join('\n') + '\n' + code : code
+}
+
+function missingVariableStubs(code: string, freeVarRefs: Iterable<string>): string {
+  const candidates = [...freeVarRefs].filter(name =>
+    /^[A-Za-z_][\w]*$/.test(name) && !(name in globalThis))
+  if (candidates.length === 0) return ''
+  const declared = new Set<string>()
+  for (const m of code.matchAll(/\b(?:var|const|let|function|class)\s+([A-Za-z_$][\w$]*)/g)) declared.add(m[1])
+  // Destructured declarations: `var { a, b } = ...`
+  for (const m of code.matchAll(/\b(?:var|const|let)\s*\{([^}]*)\}\s*=/g)) {
+    for (const part of m[1].split(',')) {
+      const id = part.split(':').pop()!.trim()
+      if (id) declared.add(id)
+    }
+  }
+  const missing = candidates.filter(name => !declared.has(name))
+  return missing.length ? `var ${missing.join(', ')}` : ''
 }
 
 export function transpile(
@@ -794,7 +817,7 @@ export function transpile(
 
   // Build the output code
   const built = buildOutputCode(ctx, bundled, transpiled)
-  const code = declareMissingSymbols(built.code)
+  const code = declareMissingSymbols(built.code, ctx.freeVariableRefs)
   const allExports = built.allExports
 
   // Create bundled parts for caching

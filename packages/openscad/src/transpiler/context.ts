@@ -185,6 +185,9 @@ export interface TranspileContext {
   // Free variable reference tracking for canOptimizeInclude detection
   // Set of identifier names that fall through transpileLookupExpr without being locally bound
   potentialFreeVarRefs: Set<string>
+  // Variables read without a local binding (subset of potentialFreeVarRefs, which
+  // also holds module names). Undeclared ones become `var x` (undef) in the output.
+  freeVariableRefs: Set<string>
   // Current set of locally-bound names (module/function params + local vars)
   // Used to avoid false positives when tracking potentialFreeVarRefs
   currentLocalBindings: Set<string>
@@ -257,6 +260,7 @@ export function createContext(
     warnings: [],
     errors: [],
     potentialFreeVarRefs: new Set(),
+    freeVariableRefs: new Set(),
     currentLocalBindings: new Set(),
     localNestedModuleNames: new Set(),
     inFlatMapContext: false,
