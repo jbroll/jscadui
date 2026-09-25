@@ -109,6 +109,7 @@ function fileWanted(relPath, fileName, include, exclude, skipFiles) {
 // git helpers
 // ---------------------------------------------------------------------------
 function cloneOrFetch(dep, cacheDir) {
+  if (dep.sparse) return sparseFetch(dep, cacheDir)
   const pinned = dep.commit || null
 
   if (existsSync(cacheDir)) {
@@ -152,6 +153,28 @@ function cloneOrFetch(dep, cacheDir) {
   }
 }
 
+// A dep with "sparse": [paths] is fetched one commit deep and checks out only
+// those paths, for large upstreams (e.g. openscad/openscad) where only a few
+// directories are wanted.
+function sparseFetch(dep, cacheDir) {
+  const target = UPDATE || !dep.commit ? dep.ref : dep.commit
+  const git = args => exec(`git -C ${q(cacheDir)} ${args}`)
+  if (!existsSync(cacheDir)) {
+    ensureDir(cacheDir)
+    console.log(`  sparse fetch ${dep.url} @ ${target.slice(0, 12)} (${dep.sparse.join(', ')})…`)
+    git('init -q')
+    git(`remote add origin ${q(dep.url)}`)
+  } else if (!UPDATE && dep.commit && headSHA(cacheDir) === dep.commit) {
+    console.log(`  cache hit: ${cacheDir}`)
+    return
+  } else {
+    console.log(`  sparse fetch @ ${target.slice(0, 12)}…`)
+  }
+  git(`sparse-checkout set --no-cone ${dep.sparse.map(p => q('/' + p.replace(/\/$/, '') + '/')).join(' ')}`)
+  git(`fetch -q --depth=1 --filter=blob:none origin ${q(target)}`)
+  git('checkout -q --detach FETCH_HEAD')
+}
+
 function q(s) { return JSON.stringify(s) }
 
 function headSHA(cacheDir) {
@@ -183,7 +206,8 @@ function listFiles(cacheDir, srcDir) {
   )
   if (!raw) return []
 
-  return raw.split('\n').filter(Boolean).map(p => {
+  // A sparse checkout's index still lists paths outside the checkout.
+  return raw.split('\n').filter(Boolean).filter(p => existsSync(join(cacheDir, p))).map(p => {
     // strip the srcDir prefix so we get a path relative to srcDir
     const prefix = normalized ? normalized + '/' : ''
     return prefix ? p.replace(prefix, '') : p

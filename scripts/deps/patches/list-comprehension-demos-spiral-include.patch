@@ -1,0 +1,8 @@
+--- a/apps/jscad-web/examples/openscad/list-comprehension-demos/spiral-2d.scad
++++ b/apps/jscad-web/examples/openscad/list-comprehension-demos/spiral-2d.scad
+@@ -1,4 +1,4 @@
+-include <list-comprehension-demos/sweep.scad>
++include <sweep.scad>
+ include <scad-utils/shapes.scad>
+ 
+ sweep(square(10),

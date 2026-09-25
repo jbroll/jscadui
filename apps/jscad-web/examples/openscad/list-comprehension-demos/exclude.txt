@@ -1,0 +1,5 @@
+# Libraries the demos use, not models
+scad-utils/
+/sweep.scad
+/skin.scad
+/draw-helpers.scad

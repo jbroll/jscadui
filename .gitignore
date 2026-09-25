@@ -145,6 +145,19 @@ apps/jscad-web/examples/openscad/dotscad/examples/**/*.scad
 apps/jscad-web/examples/openscad/mcad/*.scad
 apps/jscad-web/examples/openscad/mcad/bitmap/
 
+# Suites fetched whole by fetch-deps; only our own control files are tracked.
+apps/jscad-web/examples/openscad/openscad-examples/*
+apps/jscad-web/examples/openscad/openscad-tests/*
+apps/jscad-web/examples/openscad/round-anything/*
+apps/jscad-web/examples/openscad/list-comprehension-demos/*
+apps/jscad-web/examples/openscad/threads-scad/*
+apps/jscad-web/examples/openscad/gridfinity/*
+!apps/jscad-web/examples/openscad/*/exclude.txt
+!apps/jscad-web/examples/openscad/*/skip.txt
+!apps/jscad-web/examples/openscad/*/compare-skip.txt
+!apps/jscad-web/examples/openscad/*/config.json
+!apps/jscad-web/examples/openscad/*/ALL*.js
+
 # Turbo
 .turbo
 **/build/**
