@@ -433,6 +433,9 @@ export const _union = (...args) => {
 }
 
 export const _subtract = (...args) => {
+  // No subject, nothing to subtract from — even when mask children are present
+  // (e.g. a childless call whose mask would otherwise leak through below).
+  if (args.length === 0 || _isAbsent(args[0])) return undefined
   const valid = args.filter(a => !_isAbsent(a))
   if (valid.length === 0) return undefined
   if (valid.length === 1) return valid[0]

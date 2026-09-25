@@ -749,3 +749,28 @@ describe('subtract and intersect across mixed dimensions', () => {
     expect(call(_subtract, [square, other2d])).toEqual([square, other2d])
   })
 })
+
+/**
+ * OpenSCAD `difference()` with an absent subject is empty, even when mask
+ * children are present: there is nothing to subtract from. A bare call like
+ * `half_of(v, s=200);` (no children) must not leak its mask cube.
+ */
+describe('subtract with absent subject', () => {
+  const mask = { polygons: [{ vertices: [[0, 0, 0], [1, 0, 0], [0, 1, 0]] }] }
+
+  it('returns undefined for undefined subject with mask', () => {
+    expect(_subtract(undefined, mask)).toBeUndefined()
+  })
+
+  it('returns undefined for null subject with mask', () => {
+    expect(_subtract(null, mask)).toBeUndefined()
+  })
+
+  it('returns undefined for NO_CHILD subject with mask', () => {
+    expect(_subtract(j$.NO_CHILD, mask)).toBeUndefined()
+  })
+
+  it('still passes a lone present subject through', () => {
+    expect(_subtract(mask)).toBe(mask)
+  })
+})
