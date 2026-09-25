@@ -475,6 +475,13 @@ describe('cylinder negative/NaN radius guard', () => {
     expect(_cylinder({ r1: 5, r2: -1, h: 10 })).toBeUndefined()
   })
 
+  // OpenSCAD 2026.09: "Current top level object is empty" for each of these
+  it('returns undefined for zero or negative height, or both radii zero', () => {
+    expect(_cylinder({ r: 1, h: 0 })).toBeUndefined()
+    expect(_cylinder({ r: 1, h: -1 })).toBeUndefined()
+    expect(_cylinder({ r: 0, h: 2 })).toBeUndefined()
+  })
+
 })
 
 describe('sphere negative radius guard', () => {
@@ -482,6 +489,21 @@ describe('sphere negative radius guard', () => {
 
   it('returns undefined for negative r', () => {
     expect(_sphere({ r: -3 })).toBeUndefined()
+  })
+
+  // OpenSCAD: sphere(0) is empty; minkowski() { cube(4); sphere(0); } is the cube
+  it('returns undefined for r = 0', () => {
+    expect(_sphere({ r: 0 })).toBeUndefined()
+  })
+})
+
+describe('cube zero/negative size guard', () => {
+  // OpenSCAD: cube([0,20,10]) and cube([-2,20,10]) are empty. A degenerate cube
+  // handed to minkowski() came back without a manifold and crashed subtract().
+  it('returns undefined for a zero or negative dimension', () => {
+    expect(j$.cube({ size: [0, 20, 10] })).toBeUndefined()
+    expect(j$.cube({ size: [-2, 20, 10] })).toBeUndefined()
+    expect(j$.cube({ size: -1 })).toBeUndefined()
   })
 })
 
