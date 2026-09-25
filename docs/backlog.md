@@ -198,7 +198,16 @@ This predates the customizer work:
 
 - Transpiled output is byte-identical between `main` (`7516264f`) and the PR
   across all 671 committed example files, and example inputs are unchanged,
-  so the same JS would fail the same way on `main`.
+  so the same JS would fail the same way on `main`. The customizer option is
+  opt-in and the comparison suite never enables it (`customizer: true`
+  appears only in the survey tool and unit tests).
+- No `jscadui/test` job has passed on any path since 2026-09-21 15:11 UTC;
+  dev-laptop pushes fail with the same signature as queue runs, so this is
+  not a queue-vs-rsync difference.
+- The host openscad beta flatpak redeployed 2026-09-21 11:08, the morning
+  the suite went red — correlation only: a mirror ground-truth render
+  (`mirror([1,0,0]) translate([10,0,0]) cube(1)` spans x in [-11,-10])
+  proves the reference side handles at least that class correctly.
 - `main` cannot run the comparison through the queue at all: it has no
   `ci/gpu-test`, and its `fetch-deps` dies on a fresh clone (stale dotscad
   patches dirty tracked files, then `_mz_theta_cells.scad` fails).
