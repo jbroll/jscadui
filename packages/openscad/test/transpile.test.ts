@@ -292,6 +292,14 @@ describe('unknown module calls without imports', () => {
     expect(result.code).toContain(`typeof assembly_$m === 'function'`)
   })
 
+  it('emits valid JS for rotate() with no or mixed positional and named arguments', () => {
+    // OpenSCAD's rotate-parameters.scad: rotate() and rotate([45,30,15], v=[0,0,0])
+    const result = transpile(parse('rotate() cube(1); rotate([45,30,15], v=[0,0,0]) cube(1);').ast, { includeHeader: false })
+    expect(result.code).toContain('j$.rotate(undefined,')
+    expect(result.code).toContain('j$.rotate({ a: [45, 30, 15], v: [0, 0, 0] },')
+    expect(() => new Function('exports', 'require', 'j$', result.code)).not.toThrow()
+  })
+
   it('declares unknown variables as undefined instead of throwing', () => {
     // OpenSCAD: WARNING: Ignoring unknown variable "nope"; a = [1, undef, 3]
     const result = transpile(parse('a = [1, nope, 3]; module m(x = zz) cube(1); m();').ast, { includeHeader: false })

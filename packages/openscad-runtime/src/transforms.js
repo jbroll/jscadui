@@ -73,6 +73,11 @@ export const _rotate = (params, geo) => {
   if (g == null) return undefined
   geo = g
   const toRad = d => d * Math.PI / 180
+  // OpenSCAD (checked against 2026.09): an angle that is neither a number nor a
+  // list (undef, a string) is no rotation; a number with an axis that is not a
+  // 3-vector of numbers (undef, [0,1,0,0]) rotates about Z.
+  const isNum = x => typeof x === 'number'
+  const isVec3 = v => Array.isArray(v) && v.length === 3 && v.every(isNum)
   // Handle object form: rotate(a=angle, v=[x,y,z]) or rotate(a=angle)
   if (params && typeof params === 'object' && !Array.isArray(params)) {
     const a = params.a
@@ -84,8 +89,9 @@ export const _rotate = (params, geo) => {
       if (a[2] !== 0) result = rotateZ(toRad(a[2]), result)
       return result
     }
-    const angle = toRad(a || 0)
-    if (params.v !== undefined) {
+    if (!isNum(a)) return geo
+    const angle = toRad(a)
+    if (isVec3(params.v)) {
       // Axis-angle rotation with explicit axis
       const [x, y, z] = params.v
       // Rodrigues' rotation formula via mat4
@@ -106,6 +112,7 @@ export const _rotate = (params, geo) => {
     return angle !== 0 ? rotateZ(angle, geo) : geo
   }
   // Handle Euler angles: rotate([x, y, z]) or rotate(z)
+  if (!Array.isArray(params) && !isNum(params)) return geo
   const a = Array.isArray(params) ? params : [0, 0, params]
   let result = geo
   if (a[0] !== 0) result = rotateX(toRad(a[0]), result)
