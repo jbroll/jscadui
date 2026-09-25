@@ -190,6 +190,27 @@ claims, and abandons stale runs.
   is the likely source of the null. Not covered by any example that is not
   already skipped.
 
+## OpenSCAD comparison red on a clean tree (pre-existing, not PR112)
+
+`ci/gpu-test` on a fresh worktree fails bosl, bosl2, dotscad, mcad and one
+nopscadlib model (`box.scad`) against gpu openscad 2026.03.17.fp (flatpak).
+This predates the customizer work:
+
+- Transpiled output is byte-identical between `main` (`7516264f`) and the PR
+  across all 671 committed example files, and example inputs are unchanged,
+  so the same JS would fail the same way on `main`.
+- `main` cannot run the comparison through the queue at all: it has no
+  `ci/gpu-test`, and its `fetch-deps` dies on a fresh clone (stale dotscad
+  patches dirty tracked files, then `_mz_theta_cells.scad` fails).
+- The reference STL cache is content-keyed (sha256 + openscad version), so
+  stale references are ruled out. Failing classes: `color`/`ghost`/`hsl` and
+  distributors return no geometry; transforms mirrors mismatch near 0.5;
+  near-miss scores (0.83–0.99) elsewhere.
+
+Next step is transpiler-owner triage per model (`run-jscad.js` +
+`compare-stl.js`), not more CI work. The gpu-poll infra merges on truthful
+reporting, not on this going green.
+
 ## The jscad engine
 
 The app defaults to manifold; the other engine renders **719/807** (CI job
