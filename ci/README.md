@@ -69,10 +69,11 @@ gates fail closed (any error establishing trust means no run):
    ```
 4. Install the service from the repo (`ci/runit/gpu-poll/`):
    ```sh
-   sudo mkdir -p /etc/sv/gpu-poll/log
+   sudo mkdir -p /etc/sv/gpu-poll/log /var/log/gpu-poll  # svlogd needs the log dir to exist
    sudo cp ci/runit/gpu-poll/run /etc/sv/gpu-poll/run
    sudo cp ci/runit/gpu-poll/log/run /etc/sv/gpu-poll/log/run
-   sudo chmod 700 /etc/sv/gpu-poll/run
+   sudo chmod 700 /etc/sv/gpu-poll/run     # token is read before chpst; keep unreadable
+   sudo chmod +x /etc/sv/gpu-poll/log/run  # plain cp drops the exec bit
    sudo ln -s /etc/sv/gpu-poll /var/service/
    sudo sv status gpu-poll          # logs via svlogd at /var/log/gpu-poll/
    ```
