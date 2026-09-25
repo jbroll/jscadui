@@ -1,0 +1,26 @@
+#!/bin/sh
+# /etc/sv/gpu-poll/run — OpenSCAD GPU PR poller (Void Linux / runit).
+# Install: cp ci/runit/gpu-poll/run /etc/sv/gpu-poll/run (mode 700, root),
+#          cp ci/runit/gpu-poll/log/run /etc/sv/gpu-poll/log/run,
+#          ln -s /etc/sv/gpu-poll /var/service/
+#
+# The token is read here, while still root, from a root-only file. The poller
+# then drops to s-ci — jobs the poller queues also run as s-ci, so a token
+# readable by s-ci would be readable by untrusted PR code. Keep /etc/gpu-poll
+# mode 700 and the token file mode 600.
+exec 2>&1
+export HOME=/data/ci
+export PATH=/home/john/bin:/usr/local/bin:/usr/bin:/bin
+export GITHUB_TOKEN="$(cat /etc/gpu-poll/token)"
+export CI_REPO=jbroll/jscadui
+export CI_TRUSTED_USERS=jbroll
+export CI_SCI_REPO=jscadui
+export CI_SCRIPT=gpu-test
+export CI_WORKSPACE=/home/john/ci-workspace
+export CI_SERVER_URL=http://127.0.0.1:8080
+export CI_POLL_SECONDS=60
+export CI_TIMEOUT_MINUTES=180
+unset GH_TOKEN
+# Poller code comes from a dedicated checkout tracking main (updated with
+# `git pull` on deploy), not from the simple-ci workspace clone.
+exec chpst -u s-ci node /home/john/src/jscadui-ci/ci/gpu-poll.mjs

@@ -35,8 +35,9 @@ node bin/test-harness.js ../../apps/jscad-web/examples/openscad/nopscadlib
 npm run test:local
 ```
 
-> **gpu-poll is also sanctioned.** The GPU host runs `ci/gpu-poll.mjs`, which runs the same
-> `ci/test` on the head commit of every open PR from this repo and reports an `openscad-gpu`
+> **gpu-poll is also sanctioned.** The GPU host runs `ci/gpu-poll.mjs`, which submits
+> `ci/gpu-test` (fetch-deps check, then the same `ci/test`) for the head commit of every
+> open trusted PR through the simple-ci queue and reports an `openscad-gpu`
 > commit status plus a PR comment. A `success` status on the exact commit counts as GPU
 > verification. Use it when simple-ci is not reachable (e.g. cloud sessions): push the branch,
 > open a PR, wait for the status. Setup: `ci/README.md`.

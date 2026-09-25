@@ -1,9 +1,12 @@
 #!/bin/sh
-# Keep ci/gpu-poll.mjs running (no systemd needed). Reads the token and any
+# Manual/cron fallback for ci/gpu-poll.mjs. On the GPU host prefer the runit
+# service (ci/runit/gpu-poll/, see ci/README.md), which reads the token from a
+# root-only file. This script is for hand runs: it reads the token and any
 # CI_* overrides from ~/.config/jscadui/gpu-poll.env (chmod 600), e.g.
 #   GITHUB_TOKEN=github_pat_...
-#   PATH=/home/john/.nvm/versions/node/v22.12.0/bin:/usr/local/bin:/usr/bin:/bin
-# Start at boot with cron:  @reboot /path/to/jscadui/ci/gpu-poll.sh >> ~/gpu-poll.log 2>&1
+#   CI_SERVER_URL=http://127.0.0.1:8080
+#   CI_WORKSPACE=/home/john/ci-workspace
+#   PATH=/home/john/bin:/usr/local/bin:/usr/bin:/bin
 set -a
 . "${GPU_POLL_ENV:-$HOME/.config/jscadui/gpu-poll.env}"
 set +a

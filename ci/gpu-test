@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# ci/gpu-test — what gpu-poll submits to the simple-ci queue for each PR.
+#
+# Invoked as: sci push jscadui/gpu-test   (or POST /job {repo, commit, script})
+# Runs fetch-deps on the committed tree, fails if that changes a tracked file
+# (stale patches), then runs the same ci/test every other run uses.
+set -euo pipefail
+
+WORKTREE="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$WORKTREE"
+
+node scripts/fetch-deps.js
+
+dirty="$(git status --porcelain --untracked-files=no)"
+if [[ -n "$dirty" ]]; then
+  echo "gpu-test: fetch-deps modified tracked files:" >&2
+  echo "$dirty" >&2
+  exit 1
+fi
+
+exec ci/test

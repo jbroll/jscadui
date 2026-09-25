@@ -1,0 +1,3 @@
+#!/bin/sh
+# /etc/sv/gpu-poll/log/run — svlogd for the GPU poller.
+exec svlogd -tt /var/log/gpu-poll
