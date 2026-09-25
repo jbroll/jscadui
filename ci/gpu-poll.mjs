@@ -132,6 +132,21 @@ async function alreadyCommented(pr) {
   return comments.some(c => c.body.includes(MARKER))
 }
 
+/**
+ * When this poller last reported a result for `sha` in a PR comment. A run is
+ * recorded there as well as in the commit status, so a commit whose status
+ * could not be written (e.g. a token without Commit statuses permission) still
+ * counts as evaluated and does not re-run on every poll.
+ */
+async function lastResultAt(pr, sha) {
+  const tag = `\`${sha.slice(0, 12)}\``
+  const results = (await prComments(pr))
+    .filter(c => c.body.includes(MARKER) && c.body.includes(tag) && !c.body.includes('⏭️'))
+    .map(c => c.created_at)
+    .sort()
+  return results.at(-1)
+}
+
 async function setStatus(sha, state, description) {
   await gh('POST', `/repos/${repo}/statuses/${sha}`, { state, context: CONTEXT, description: description.slice(0, 140) })
 }
@@ -154,9 +169,10 @@ async function compareHeads(pr) {
 async function approval(pr, sha) {
   const login = pr.user.login
   const status = await lastStatus(sha)
-  if (status) {
+  const evaluatedAt = status?.updated_at ?? await lastResultAt(pr, sha)
+  if (evaluatedAt) {
     // Already evaluated: only an explicit owner re-run re-executes.
-    if (!(await retestRequested(pr, status.updated_at))) return { run: false }
+    if (!(await retestRequested(pr, evaluatedAt))) return { run: false }
     return { run: true, forced: true }
   }
   let cmp
@@ -224,12 +240,13 @@ async function test(pr) {
   const deadline = started + timeoutMinutes * 60_000
   log(`PR #${pr.number} ${sha.slice(0, 8)}: start`)
 
-  let step = 'fetch'
+  let step = 'status'
   let jobId = null
   let ok = false
   let detail = ''
   try {
     await setStatus(sha, 'pending', 'Queued ci/gpu-test on the GPU host')
+    step = 'fetch'
     ensureFetched(pr)
     step = 'queue'
     const created = await sci('POST', '/job', { repo: sciRepo, commit: sha, script })
@@ -246,6 +263,9 @@ async function test(pr) {
     }
   } catch (e) {
     detail = ` (${e.message.slice(0, 120)})`
+    if (step === 'status' && /\b403\b/.test(e.message)) {
+      detail += ' — the token needs "Commit statuses: Read and write"'
+    }
   }
 
   const minutes = ((Date.now() - started) / 60_000).toFixed(1)
@@ -277,7 +297,12 @@ async function test(pr) {
     '</details>',
   ].join('\n')
   await comment(pr, body)
-  await setStatus(sha, ok ? 'success' : 'failure', `ci/${script} ${result} (${minutes} min)`)
+  try {
+    await setStatus(sha, ok ? 'success' : 'failure', `ci/${script} ${result} (${minutes} min)`)
+  } catch (e) {
+    // The comment above already records the result (see lastResultAt)
+    log(`PR #${pr.number} ${sha.slice(0, 8)}: could not set status (${e.message})`)
+  }
 }
 
 async function pass() {
