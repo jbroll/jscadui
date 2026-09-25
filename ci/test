@@ -8,6 +8,9 @@ openscad --version
 
 cd "$WORKTREE"
 npm install
+# Third-party OpenSCAD sources are not committed; fetch-deps populates them
+# (a no-op when they are already current).
+node scripts/fetch-deps.js --if-missing
 
 cd "$WORKTREE/packages/openscad"
 npm install

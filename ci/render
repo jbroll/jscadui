@@ -27,6 +27,9 @@ DEV_LOG="/tmp/jscad-dev-$PORT.log"
 
 cd "$WORKTREE"
 npm install
+# Third-party OpenSCAD sources are not committed; fetch-deps populates them
+# (a no-op when they are already current).
+node scripts/fetch-deps.js --if-missing
 # Build workspace packages so the web bundle can resolve @jscadui/* esm outputs.
 # --continue: an unrelated package (e.g. engine-test) failing must not abort the
 # openscad build the web bundle depends on.

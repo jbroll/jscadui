@@ -17,7 +17,8 @@
  * Options:
  *   --update        Move each pin to the tip of its ref, write SHAs back to manifest
  *   --dep=<name>    Process only this named dependency
- *   --if-missing    Skip deps whose dest dirs all already contain files
+ *   --if-missing    Skip deps whose inputs are unchanged since the last run
+ *                   and whose fetched files are all present
  *   --no-organize   Skip the final organize-corpus step
  *   --dry-run       Print actions without writing any files
  */
@@ -28,6 +29,7 @@ import {
 import { join, dirname, basename } from 'path'
 import { fileURLToPath } from 'url'
 import { execSync, spawnSync } from 'child_process'
+import { createHash } from 'crypto'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT      = join(__dirname, '..')
@@ -74,10 +76,6 @@ function exec(cmd, opts = {}) {
   } catch (err) {
     throw new Error(`${cmd}\n${err.stderr?.trim() || err.message}`)
   }
-}
-
-function dirHasFiles(absPath) {
-  return existsSync(absPath) && readdirSync(absPath).length > 0
 }
 
 function ensureDir(absPath) {
@@ -229,16 +227,44 @@ function applyMapping(cacheDir, mapping) {
 }
 
 // ---------------------------------------------------------------------------
-// Stale-file removal: each dep records the files it wrote, so a file that
-// upstream deleted (or a mapping no longer selects) is removed on the next
-// run. Only files fetch-deps itself wrote are ever deleted.
+// Per-dep record (.deps-cache/<dep>.json): what the last successful run wrote
+// and a stamp of its inputs (manifest entry, patch contents, generator script).
+// It lets a run remove files upstream deleted, and lets --if-missing skip a
+// dep whose inputs are unchanged and whose files are all still present.
+// Only files fetch-deps itself wrote are ever deleted.
 // ---------------------------------------------------------------------------
+const recordPath = dep => join(CACHE_DIR, `${dep.name}.json`)
+
+function readRecord(dep) {
+  try { return JSON.parse(readFileSync(recordPath(dep), 'utf8')) } catch { return null }
+}
+
+function depStamp(dep) {
+  const h = createHash('sha256').update(JSON.stringify(dep))
+  for (const patch of dep.patches ?? []) {
+    const f = join(ROOT, patch.patchFile)
+    if (existsSync(f)) h.update(readFileSync(f))
+  }
+  if (dep.script) h.update(readFileSync(join(ROOT, dep.script)))
+  return h.digest('hex')
+}
+
+function upToDate(dep) {
+  const rec = readRecord(dep)
+  return !!rec && rec.stamp === depStamp(dep) &&
+    (rec.files ?? []).every(rel => existsSync(join(ROOT, rel)))
+}
+
+function writeRecord(dep, files) {
+  if (DRY_RUN) return
+  ensureDir(CACHE_DIR)
+  writeFileSync(recordPath(dep), JSON.stringify({ stamp: depStamp(dep), files }, null, 1) + '\n', 'utf8')
+}
+
 function removeStale(dep, written) {
-  const listPath = join(CACHE_DIR, `${dep.name}.files.json`)
-  const previous = existsSync(listPath) ? JSON.parse(readFileSync(listPath, 'utf8')) : []
   const keep = new Set(written)
   let removed = 0
-  for (const rel of previous) {
+  for (const rel of readRecord(dep)?.files ?? []) {
     if (keep.has(rel)) continue
     const abs = join(ROOT, rel)
     if (!existsSync(abs)) continue
@@ -247,10 +273,6 @@ function removeStale(dep, written) {
     removed++
   }
   if (removed) console.log(`  ${removed} stale file(s) removed`)
-  if (!DRY_RUN) {
-    ensureDir(CACHE_DIR)
-    writeFileSync(listPath, JSON.stringify(written, null, 1) + '\n', 'utf8')
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -290,9 +312,9 @@ function applyPatches(patches) {
 function processFetchedDep(dep) {
   const cacheDir = join(CACHE_DIR, dep.name)
 
-  if (IF_MISSING && (dep.mappings ?? []).every(m => dirHasFiles(join(ROOT, m.destDir)))) {
-    console.log(`  skip (already populated)`)
-    return
+  if (IF_MISSING && upToDate(dep)) {
+    console.log(`  up to date`)
+    return false
   }
 
   cloneOrFetch(dep, cacheDir)
@@ -313,12 +335,18 @@ function processFetchedDep(dep) {
   removeStale(dep, written)
 
   applyPatches(dep.patches)
+  writeRecord(dep, written)
+  return true
 }
 
 // ---------------------------------------------------------------------------
 // Process a generated dep (runs a script)
 // ---------------------------------------------------------------------------
 function processGeneratedDep(dep) {
+  if (IF_MISSING && upToDate(dep)) {
+    console.log(`  up to date`)
+    return false
+  }
   console.log(`  running: ${dep.script}`)
 
   if (!DRY_RUN) {
@@ -331,6 +359,8 @@ function processGeneratedDep(dep) {
   }
 
   applyPatches(dep.patches)
+  writeRecord(dep, [])
+  return true
 }
 
 // ---------------------------------------------------------------------------
@@ -346,18 +376,21 @@ if (!allDeps.length) die(`No dep found matching --dep=${DEP_FILTER}`)
 const fetchedDeps   = allDeps.filter(d => !d.generated)
 const generatedDeps = allDeps.filter(d =>  d.generated)
 
+const changed = new Set()
 for (const dep of fetchedDeps) {
   console.log(`\n── ${dep.name}: ${dep.description ?? ''}`)
-  try { processFetchedDep(dep) } catch (err) { die(err.message) }
+  try { if (processFetchedDep(dep)) changed.add(dep.name) } catch (err) { die(err.message) }
 }
 
 for (const dep of generatedDeps) {
   console.log(`\n── ${dep.name}: ${dep.description ?? ''} (generated)`)
-  try { processGeneratedDep(dep) } catch (err) { die(err.message) }
+  // A generated dep reads its inputs' output, so it re-runs when they changed.
+  if ((dep.requires ?? []).some(r => changed.has(r))) rmSync(recordPath(dep), { force: true })
+  try { if (processGeneratedDep(dep)) changed.add(dep.name) } catch (err) { die(err.message) }
 }
 
 // Organize corpus → examples/
-if (!NO_ORGANIZE && !DEP_FILTER && manifest.organize) {
+if (!NO_ORGANIZE && !DEP_FILTER && manifest.organize && (changed.size || !IF_MISSING)) {
   const { script, args: scriptArgs = [] } = manifest.organize
   console.log(`\n── organize: ${manifest.organize.description ?? ''}`)
   if (DRY_RUN) {
