@@ -275,3 +275,20 @@ describe('bundling', () => {
     expect(result.code.length).toBeGreaterThan(0)
   })
 })
+
+describe('unknown module calls without imports', () => {
+  // Files meant to be include()d (e.g. NopSCADlib part definitions) have no
+  // use/include of their own but resolve names from the includer's scope at
+  // runtime. Dropping the call loses the whole subtree; emit a guarded call
+  // that resolves via merged scope when available and stays empty otherwise.
+  it('emits a guarded call for unknown modules with children', () => {
+    const result = transpile(parse('assembly("x") cube(10);').ast, { includeHeader: false })
+    expect(result.code).toContain(`typeof assembly_$m === 'function'`)
+    expect(result.code).toContain('cube(')
+  })
+
+  it('emits a guarded call for unknown modules without children', () => {
+    const result = transpile(parse('assembly("x");').ast, { includeHeader: false })
+    expect(result.code).toContain(`typeof assembly_$m === 'function'`)
+  })
+})

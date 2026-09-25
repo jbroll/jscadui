@@ -422,18 +422,18 @@ function transpileUserDefinedCall(
   const isKnownFunction = ctx.symbols.isKind(name, 'function')
 
   // If module/function is not known at all (not in symbol table, not a local binding),
-  // return empty string — OpenSCAD treats calls to undefined modules as no-ops (warnings).
-  // Returning '' is falsy so it gets filtered by `if (code)` in transpileAllStatements.
-  // BUT: only do this if there are no imports at all — if the file has any use/include
-  // statements, the module may be available at runtime even if not in the symbol table.
-  // For example, canOptimizeInclude converts included files to use imports but registers
-  // modules with defineModules:false, so they won't appear in the symbol table.
-  if (!isKnownModule && !isKnownFunction) {
-    const hasAnyImports = ctx.useImports.length > 0 || ctx.includeImports.length > 0
-    if (!hasAnyImports) {
-      return ''
-    }
-  }
+  // it may still resolve at runtime: files meant to be include()d often have no
+  // use/include of their own and take names from the includer's merged scope
+  // (e.g. NopSCADlib part files calling assembly()). Dropping the call would
+  // lose the whole subtree, so emit a guarded call instead: it resolves via
+  // merged scope when available and stays empty otherwise, matching OpenSCAD,
+  // which warns and drops children of undefined modules.
+  // Only do this if there are no imports at all — with imports, the normal
+  // unguarded call below applies (a truly missing module then fails loudly).
+  const hasAnyImports = ctx.useImports.length > 0 || ctx.includeImports.length > 0
+  const ambientUnknown = !isKnownModule && !isKnownFunction && !hasAnyImports
+  const guardCall = (expr: string) =>
+    ambientUnknown ? `(typeof ${safeName}_$m === 'function' ? (${expr}) : undefined)` : expr
 
   // If there are children, collect them as an array and pass via curried call
   if (childCode && childCode !== 'undefined') {
@@ -447,7 +447,7 @@ function transpileUserDefinedCall(
       if (!ctx.scopes.lookupFunctionBinding(safeName)) {
         ctx.potentialFreeVarRefs.add(safeName)
       }
-      return `${safeName}_$m(${optionsArgs})(${childrenArg})`
+      return guardCall(`${safeName}_$m(${optionsArgs})(${childrenArg})`)
     }
   }
 
@@ -479,7 +479,7 @@ function transpileUserDefinedCall(
   }
 
   // Module call with no children: use curried pattern with _$m suffix and options object
-  return `${safeName}_$m(${optionsArgs})()`
+  return guardCall(`${safeName}_$m(${optionsArgs})()`)
 }
 
 /**
