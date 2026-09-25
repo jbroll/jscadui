@@ -167,10 +167,11 @@ async function runOpenscad(scadPath, stlPath, openscadPath, fn = 0, originalPath
     }
   }
 
-  const args = ['--backend=manifold', '-o', stlPath]
+  // Paths go through a shell: quote them (snippet's "Angle Shelf.scad").
+  const args = ['--backend=manifold', '-o', JSON.stringify(stlPath)]
   if (fn > 0) args.push('-D', `"\\$fn=${fn}"`)
   if (preview) args.push('-D', '"\\$preview=true"')
-  args.push(scadPath)
+  args.push(JSON.stringify(scadPath))
 
   const libDir = detectLibraryDir(pathForLibDetection)
   const env = libDir ? { ...process.env, OPENSCADPATH: resolve(libDir) } : process.env

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdtempSync, mkdirSync, writeFileSync, copyFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, copyFileSync, rmSync, readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { tmpdir, homedir } from 'node:os'
 import { StlCache, stlCachePath } from '../bin/stl-cache.js'
@@ -67,6 +67,18 @@ describe('StlCache content validation', () => {
     a.flush()
     expect(new StlCache('v1').check(model, 0)).toMatchObject({ failed: 'boom' })
     writeFileSync(model, 'cube(20);\n')
+    expect(new StlCache('v1').check(model, 0)).toBeNull()
+  })
+
+  it('failed sentinels from before the current failure epoch miss', () => {
+    // A failure recorded by an older harness (e.g. one that passed paths with
+    // spaces to openscad unquoted) must be re-rendered, not replayed.
+    const a = new StlCache('v1')
+    expect(a.check(model, 0)).toBeNull()
+    a.saveFailed(model, 0, 'boom')
+    a.flush()
+    const sidecar = `${stlCachePath(model, 0, lib)!}.src-hash`
+    writeFileSync(sidecar, readFileSync(sidecar, 'utf8').replace(/\|failed-v\d+$/, ''))
     expect(new StlCache('v1').check(model, 0)).toBeNull()
   })
 })
