@@ -4,8 +4,9 @@
  *
  * Reads scripts/deps/manifest.json.  For each dep it:
  *   1. Clones the upstream git repo to a local cache (.deps-cache/<name>/)
- *   2. For each mapping: copies files from srcDir → destDir inside the dest tree
- *   3. Applies unified-diff patch files
+ *   2. For each mapping: copies files from srcDir → destDir inside the dest tree,
+ *      and removes files an earlier run wrote that this run did not
+ *   3. Applies unified-diff patch files exactly (--fuzz=0)
  *
  * Generated deps (no URL) run a script instead of a git clone.
  * After all deps are fetched, organize-corpus.js is run to build the examples dir.
@@ -14,15 +15,15 @@
  *   node scripts/fetch-deps.js [options]
  *
  * Options:
- *   --update        Re-fetch repos, write pinned SHAs back to manifest
+ *   --update        Move each pin to the tip of its ref, write SHAs back to manifest
  *   --dep=<name>    Process only this named dependency
- *   --if-missing    Skip dest dirs that already contain files
+ *   --if-missing    Skip deps whose dest dirs all already contain files
  *   --no-organize   Skip the final organize-corpus step
  *   --dry-run       Print actions without writing any files
  */
 
 import {
-  readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync, readdirSync,
+  readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync, readdirSync, rmSync,
 } from 'fs'
 import { join, dirname, basename } from 'path'
 import { fileURLToPath } from 'url'
@@ -45,9 +46,10 @@ const DEP_FILTER  = argv.find(a => a.startsWith('--dep='))?.split('=')[1]
 // ---------------------------------------------------------------------------
 // Manifest
 // ---------------------------------------------------------------------------
-let manifest
+let manifest, manifestText
 try {
-  manifest = JSON.parse(readFileSync(MANIFEST_PATH, 'utf8'))
+  manifestText = readFileSync(MANIFEST_PATH, 'utf8')
+  manifest = JSON.parse(manifestText)
 } catch (err) {
   die(`Cannot read manifest: ${err.message}`)
 }
@@ -113,27 +115,31 @@ function cloneOrFetch(dep, cacheDir) {
 
   if (existsSync(cacheDir)) {
     if (!UPDATE) {
-      if (pinned) {
-        const current = headSHA(cacheDir)
-        if (current !== pinned) {
-          console.warn(`  warn: cache is at ${current.slice(0, 8)}, manifest pins ${pinned.slice(0, 8)}`)
-          console.warn(`  run npm run fetch-deps:update to re-checkout pinned commit`)
+      if (pinned && headSHA(cacheDir) !== pinned) {
+        // The pin wins over whatever the cache last held.
+        console.log(`  cache moving to pinned ${pinned.slice(0, 8)}…`)
+        try {
+          exec(`git -C ${q(cacheDir)} checkout --detach ${q(pinned)}`)
+        } catch {
+          exec(`git -C ${q(cacheDir)} fetch origin`)
+          exec(`git -C ${q(cacheDir)} checkout --detach ${q(pinned)}`)
         }
+      } else {
+        console.log(`  cache hit: ${cacheDir}`)
       }
-      console.log(`  cache hit: ${cacheDir}`)
       return
     }
-    console.log(`  updating…`)
-    if (pinned) {
-      exec(`git -C ${q(cacheDir)} fetch origin`)
-      exec(`git -C ${q(cacheDir)} checkout ${q(pinned)}`)
-    } else {
-      exec(`git -C ${q(cacheDir)} fetch --depth=1 origin ${q(dep.ref)}`)
-      exec(`git -C ${q(cacheDir)} checkout FETCH_HEAD`)
-    }
+    // --update moves the pin to the tip of dep.ref; the caller writes the new
+    // SHA back to the manifest.
+    console.log(`  updating to ${dep.ref}…`)
+    exec(`git -C ${q(cacheDir)} fetch origin ${q(dep.ref)}`)
+    exec(`git -C ${q(cacheDir)} checkout --detach FETCH_HEAD`)
   } else {
     ensureDir(CACHE_DIR)
-    if (pinned) {
+    if (UPDATE) {
+      console.log(`  cloning ${dep.url} @ ${dep.ref} (update)…`)
+      exec(`git clone --filter=blob:none --branch ${q(dep.ref)} ${q(dep.url)} ${q(cacheDir)}`)
+    } else if (pinned) {
       console.log(`  cloning ${dep.url} (pinned @ ${pinned.slice(0, 8)})…`)
       // blobless clone (no depth) so we can checkout a specific commit
       exec(`git clone --filter=blob:none ${q(dep.url)} ${q(cacheDir)}`)
@@ -189,14 +195,11 @@ function listFiles(cacheDir, srcDir) {
 // ---------------------------------------------------------------------------
 // Copy one mapping from a cloned repo into the dest tree
 // ---------------------------------------------------------------------------
+// Returns the written paths, relative to ROOT.
 function applyMapping(cacheDir, mapping) {
   const { srcDir, destDir, include, exclude, skipFiles } = mapping
   const destAbs = join(ROOT, destDir)
-
-  if (IF_MISSING && dirHasFiles(destAbs)) {
-    console.log(`  skip mapping ${srcDir || '.'} → ${destDir} (already populated)`)
-    return
-  }
+  const written = []
 
   const srcNorm = (!srcDir || srcDir === '.') ? '' : srcDir.replace(/\/$/, '')
   const srcAbs  = srcNorm ? join(cacheDir, srcNorm) : cacheDir
@@ -217,10 +220,37 @@ function applyMapping(cacheDir, mapping) {
       mkdirSync(dirname(dest), { recursive: true })
       copyFileSync(src, dest)
     }
+    written.push(join(destDir, name))
     count++
   }
 
   console.log(`  ${count} file(s) copied from ${srcDir || '.'} → ${destDir}`)
+  return written
+}
+
+// ---------------------------------------------------------------------------
+// Stale-file removal: each dep records the files it wrote, so a file that
+// upstream deleted (or a mapping no longer selects) is removed on the next
+// run. Only files fetch-deps itself wrote are ever deleted.
+// ---------------------------------------------------------------------------
+function removeStale(dep, written) {
+  const listPath = join(CACHE_DIR, `${dep.name}.files.json`)
+  const previous = existsSync(listPath) ? JSON.parse(readFileSync(listPath, 'utf8')) : []
+  const keep = new Set(written)
+  let removed = 0
+  for (const rel of previous) {
+    if (keep.has(rel)) continue
+    const abs = join(ROOT, rel)
+    if (!existsSync(abs)) continue
+    console.log(`  remove stale ${rel}`)
+    if (!DRY_RUN) rmSync(abs)
+    removed++
+  }
+  if (removed) console.log(`  ${removed} stale file(s) removed`)
+  if (!DRY_RUN) {
+    ensureDir(CACHE_DIR)
+    writeFileSync(listPath, JSON.stringify(written, null, 1) + '\n', 'utf8')
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -235,25 +265,21 @@ function applyPatches(patches) {
     }
     const desc = patch.description ? ` — ${patch.description}` : ''
     console.log(`  patch${desc}`)
+    // Every run copies pristine upstream first, so a patch must apply exactly:
+    // no fuzz (a fuzzy hunk can land on the wrong lines after an upstream
+    // update) and no "already applied" pass-through.
+    const args = ['--forward', '--batch', '--no-backup-if-mismatch', '--fuzz=0', '-p1', '-i', patchFile]
     if (DRY_RUN) {
-      console.log(`    [dry] patch --forward --no-backup-if-mismatch --ignore-whitespace -p1 -i ${patch.patchFile}`)
+      console.log(`    [dry] patch ${args.join(' ')}`)
       continue
     }
-    const result = spawnSync(
-      'patch',
-      ['--forward', '--no-backup-if-mismatch', '--ignore-whitespace', '-p1', '-i', patchFile],
-      { cwd: ROOT, encoding: 'utf8', stdio: 'pipe' }
-    )
+    const result = spawnSync('patch', args, { cwd: ROOT, encoding: 'utf8', stdio: 'pipe' })
     if (result.error) {
       // spawn failure (e.g. ENOENT): patch produced no output to explain it
       throw new Error(`patch failed (${patch.patchFile}): could not run 'patch' (${result.error.code ?? result.error.message}); GNU patch must be installed and on PATH`)
     }
     if (result.status === 0) continue
     const out = (result.stdout || '') + (result.stderr || '')
-    if (out.includes('Skipping patch')) {
-      console.log('    already applied')
-      continue
-    }
     throw new Error(`patch failed (${patch.patchFile}):\n${out}`)
   }
 }
@@ -264,15 +290,27 @@ function applyPatches(patches) {
 function processFetchedDep(dep) {
   const cacheDir = join(CACHE_DIR, dep.name)
 
+  if (IF_MISSING && (dep.mappings ?? []).every(m => dirHasFiles(join(ROOT, m.destDir)))) {
+    console.log(`  skip (already populated)`)
+    return
+  }
+
   cloneOrFetch(dep, cacheDir)
 
   const sha = headSHA(cacheDir)
   console.log(`  HEAD: ${sha}`)
-  if (UPDATE && !DRY_RUN) dep.commit = sha
-
-  for (const mapping of dep.mappings ?? []) {
-    applyMapping(cacheDir, mapping)
+  if (UPDATE && !DRY_RUN && dep.commit !== sha) {
+    // Swap only the SHA text so the hand-formatted manifest keeps its layout.
+    if (!dep.commit || !manifestText.includes(`"${dep.commit}"`)) {
+      throw new Error(`cannot find pinned commit for ${dep.name} in manifest text`)
+    }
+    console.log(`  pin ${dep.commit.slice(0, 8)} → ${sha.slice(0, 8)}`)
+    manifestText = manifestText.replace(`"${dep.commit}"`, `"${sha}"`)
+    dep.commit = sha
   }
+
+  const written = (dep.mappings ?? []).flatMap(m => applyMapping(cacheDir, m))
+  removeStale(dep, written)
 
   applyPatches(dep.patches)
 }
@@ -335,7 +373,7 @@ if (!NO_ORGANIZE && !DEP_FILTER && manifest.organize) {
 
 // Persist pinned SHAs when --update was used
 if (UPDATE && !DRY_RUN) {
-  writeFileSync(MANIFEST_PATH, JSON.stringify(manifest, null, 2) + '\n', 'utf8')
+  writeFileSync(MANIFEST_PATH, manifestText, 'utf8')
   console.log('\nManifest updated with pinned commits.')
 }
 
