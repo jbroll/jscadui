@@ -505,6 +505,12 @@ describe('polyhedron out-of-bounds point indices', () => {
     const points = [[0, 0, 0], [1, 0, 0], [0, 1, 0]]
     expect(j$.polyhedron({ points, faces: [[0, 1, 99], [97, 98, 99]] })).toBeUndefined()
   })
+
+  it('treats faces = undef (EXPLICIT_UNDEF) as no faces', () => {
+    // OpenSCAD's polyhedron-tests.scad: polyhedron(points = [...], faces = undef)
+    const points = [[0, 0, 0], [1, 1, 1]]
+    expect(j$.polyhedron({ points, faces: j$.EXPLICIT_UNDEF })).toBeUndefined()
+  })
 })
 
 describe('cube zero/negative size guard', () => {
