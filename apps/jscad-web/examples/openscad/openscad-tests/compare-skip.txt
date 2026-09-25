@@ -1,0 +1,98 @@
+# Comparison skip list: models that render but do not match OpenSCAD.
+# Only test-harness.js reads this.
+
+# Known failures at PR jbroll/jscadui#113 (render, but do not match OpenSCAD).
+# Each is a transpiler/runtime bug or unimplemented feature (import, surface)
+# to fix in a targeted session; remove the entry when it passes.
+# Jaccard 0.7550
+scad/3D/features/background-modifier2.scad
+# Jaccard 0.5808
+scad/3D/features/cylinder-diameter-tests.scad
+# Jaccard 0.9539
+scad/3D/features/cylinder-tests.scad
+# Jaccard 0.8822
+scad/3D/features/difference-tests.scad
+# Jaccard 0.8304
+scad/3D/features/intersection-tests.scad
+# Jaccard 0.3404
+scad/3D/features/linear_extrude-parameter-tests.scad
+# Jaccard 0.8316
+scad/3D/features/linear_extrude-scale-zero-tests.scad
+# Jaccard 0.4266
+scad/3D/features/linear_extrude-tests.scad
+# Jaccard 0.4685
+scad/3D/features/minkowski3-difference-test.scad
+# reference/generated STL comparison fails (non-manifold output)
+scad/3D/features/minkowski3-erosion.scad
+# Jaccard 0.2353
+scad/3D/features/polyhedron-tests.scad
+# Jaccard 0.0000
+scad/3D/features/root-modifier.scad
+# Jaccard 0.5571
+scad/3D/features/rotate_extrude-angle.scad
+# Jaccard 0.9023
+scad/3D/features/rotate_extrude-tests.scad
+# Jaccard 0.9792
+scad/3D/features/tessellation-text-test.scad
+# Jaccard 0.8642
+scad/3D/features/transform-tests.scad
+# Jaccard 0.8756
+scad/3D/issues/issue1061.scad
+# Jaccard 0.9817
+scad/3D/issues/issue1138.scad
+# Jaccard 0.2100
+scad/3D/issues/issue1221.scad
+# Jaccard 0.0433
+scad/3D/issues/issue1223.scad
+# Jaccard 0.0234
+scad/3D/issues/issue1223b.scad
+# reference/generated STL comparison fails (non-manifold output)
+scad/3D/issues/issue1325.scad
+# reference/generated STL comparison fails (non-manifold output)
+scad/3D/issues/issue1672.scad
+# Jaccard 0.9744
+scad/3D/issues/issue1867.scad
+# Jaccard 0.8051
+scad/3D/issues/issue2090.scad
+# Jaccard 0.8261
+scad/3D/issues/issue2259.scad
+# Jaccard 0.0001
+scad/3D/issues/issue2301.scad
+# Jaccard 0.8762
+scad/3D/issues/issue4432.scad
+# Jaccard 0.0105
+scad/3D/issues/issue5555.scad
+# Jaccard 0.8739
+scad/3D/issues/transform-nan-inf-tests.scad
+# Jaccard 0.8097
+scad/3D/misc/camera-tests.scad
+# Jaccard 0.8097
+scad/3D/misc/camera-vp.scad
+# Jaccard 0.9744
+scad/3D/misc/polyhedron-self-touch-edge-nonmanifold.scad
+# Jaccard 0.9744
+scad/3D/misc/polyhedron-self-touch-edge.scad
+# Jaccard 0.1515
+scad/3mf/3mf-import-centered.scad
+# Jaccard 0.5000
+scad/bugs/issue6456.scad
+# Jaccard 0.8276
+scad/bugs/issue791.scad
+# Jaccard 0.7289
+scad/misc/builtin-invalid-range-test.scad
+# Jaccard 0.7760
+scad/misc/root-modifiers.scad
+# Jaccard 0.1515
+scad/obj/obj-import-centered.scad
+# Jaccard 0.1515
+scad/off/off-import-centered.scad
+# Jaccard 0.1515
+scad/stl/stl-import-centered.scad
+# Jaccard 0.3636
+scad/stl/stl-import-nonmanifold.scad
+# Jaccard 0.1515
+scad/stl/stl-import-not-centered.scad
+# Jaccard 0.0037
+scad/svg/extruded/box-w-holes.scad
+# Jaccard 0.0746
+scad/svg/extruded/simple-center.scad

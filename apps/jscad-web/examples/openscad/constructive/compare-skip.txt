@@ -1,0 +1,12 @@
+# Comparison skip list: models that render but do not match OpenSCAD.
+# Only test-harness.js reads this.
+
+# Known failures at PR jbroll/jscadui#113 (render, but do not match OpenSCAD).
+# Each is a transpiler/runtime bug or unimplemented feature (import, surface)
+# to fix in a targeted session; remove the entry when it passes.
+# reference/generated STL comparison fails (non-manifold output)
+examples/skin.scad
+# reference/generated STL comparison fails (non-manifold output)
+gallery/sources/cart14-Plugs.scad
+# reference/generated STL comparison fails (non-manifold output)
+gallery/sources/cart14-tensioner.scad

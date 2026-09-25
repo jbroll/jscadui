@@ -1,0 +1,12 @@
+# Comparison skip list: models that render but do not match OpenSCAD.
+# Only test-harness.js reads this.
+
+# Known failures at PR jbroll/jscadui#113 (render, but do not match OpenSCAD).
+# Each is a transpiler/runtime bug or unimplemented feature (import, surface)
+# to fix in a targeted session; remove the entry when it passes.
+# reference/generated STL comparison fails (non-manifold output)
+spiral-2d.scad
+# Jaccard 0.8743
+sweep-path.scad
+# Jaccard 0.9895
+sweep-test.scad
