@@ -168,14 +168,27 @@ export const search = (_match, _source, _num_returns = 1, _idx) => {
     return results
   }
 
-  // If input was scalar, return flat list; otherwise return list of lists.
-  // For list needle (including single-element), returns [[k]] when found, [[]] when not found.
-  // This matches OpenSCAD semantics. hashmap_del's `loop_var != search_result[0]` works
-  // because _eq handles number == [number] coercion (matching OpenSCAD's implicit behavior).
-  if (wasScalar) {
+  // OpenSCAD result shapes (checked against OpenSCAD 2026.09):
+  //   number needle:  flat list of indices           search(3, [1,2,3,3], 0) = [2, 3]
+  //   list needle:    one entry per element; with num_returns == 1 the entry is the
+  //                   index itself, or [] when not found
+  //                                                  search(["q","b"], data) = [[], 1]
+  //                   otherwise a list of indices    search(["o"], data, 0)  = [[4, 5]]
+  //   string needle:  searched per character like a list, except that with
+  //                   num_returns == 1 a character that is not found is dropped
+  //                                                  search("oq", data)      = [4]
+  if (wasScalar && typeof _match !== 'string') {
     return searchOne(matches[0])
   }
-  return matches.map(m => searchOne(m))
+  const elements = typeof _match === 'string' ? [..._match] : matches
+  const out = []
+  for (const m of elements) {
+    const found = searchOne(m)
+    if (_num_returns !== 1) out.push(found)
+    else if (found.length) out.push(found[0])
+    else if (typeof _match !== 'string') out.push([])
+  }
+  return out
 }
 
 // min/max that handle array arguments (OpenSCAD: max([1,2,3]) returns 3)
