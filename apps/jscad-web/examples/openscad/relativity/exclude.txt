@@ -1,0 +1,4 @@
+# relativity.scad library files, not models
+/relativity.scad
+/strings.scad
+/peg.scad

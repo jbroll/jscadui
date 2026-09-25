@@ -3,3 +3,4 @@ scad-utils/
 /sweep.scad
 /skin.scad
 /draw-helpers.scad
+obiscad/
