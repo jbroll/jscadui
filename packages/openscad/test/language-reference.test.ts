@@ -653,7 +653,8 @@ describe('Utility Functions', () => {
 
   it('handles children(i)', () => {
     const code = transpileCode('module wrapper() { children(0); }')
-    expect(code).toContain('j$.childrenAt(_children, 0)')
+    // typeof guard: top-level children() has no _children binding (yields empty)
+    expect(code).toContain(`j$.childrenAt((typeof _children !== 'undefined' ? _children : []), 0)`)
   })
 })
 

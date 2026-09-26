@@ -37,6 +37,7 @@ import {
   isModuleDeclaration,
   isFunctionDeclaration,
   isVectorExpr,
+  isRangeExpr,
   getNodeTypeName,
   isLookupExpr,
 } from './ast-types.js'
@@ -352,10 +353,13 @@ function transpileChildrenModule(
   // children() with no args returns all children as union
   // children(n) returns the nth child
   // children([indices...]) returns union of specified children
+  // At top level there is no _children binding; OpenSCAD warns and yields
+  // empty, so guard the reference with typeof instead of tracking depth.
+  const kids = `(typeof _children !== 'undefined' ? _children : [])`
   if (argsArray.length === 0) {
     // All children: union of _children array (call each thunk)
     // Use safeUnion to handle cases where some children return undefined (e.g., conditional geometry)
-    return `(_children.length === 0 ? undefined : _children.length === 1 ? _children[0]() : j$.safeUnion(_children.map(_c => _c())))`
+    return `(${kids}.length === 0 ? undefined : ${kids}.length === 1 ? ${kids}[0]() : j$.safeUnion(${kids}.map(_c => _c())))`
   } else {
     // Indexed access - check if argument is a vector (array of indices) or simple index
     const arg = stmt.args[0]
@@ -364,11 +368,19 @@ function transpileChildrenModule(
     // children(i), children([i, j]), children([a:b]), children(v): j$.childrenAt
     // resolves the index at runtime (a variable may hold a number or a list) and
     // skips out-of-bounds indices, as OpenSCAD does, instead of calling a missing thunk.
+    // A literal range goes through childrenAtRange: over-10000-element ranges
+    // are rejected entirely rather than clamped to valid picks.
     const indexArg = argsArray.find(a => a.name === 'index' || !a.name)
+    if (argValue && isRangeExpr(argValue)) {
+      const begin = transpileExpression(argValue.begin, ctx)
+      const end = transpileExpression(argValue.end, ctx)
+      const step = argValue.step ? transpileExpression(argValue.step, ctx) : '1'
+      return `j$.childrenAtRange(${kids}, ${begin}, ${end}, ${step})`
+    }
     const indexExpr = argValue && isVectorExpr(argValue)
       ? `[${argValue.children.map(c => transpileExpression(c, ctx)).join(', ')}]`
       : indexArg?.value || '0'
-    return `j$.childrenAt(_children, ${indexExpr})`
+    return `j$.childrenAt(${kids}, ${indexExpr})`
   }
 }
 

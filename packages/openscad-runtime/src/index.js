@@ -212,6 +212,17 @@ const j$ = {
     }
     return Array.isArray(index) ? _safeUnion(index.map(pick)) : pick(index)
   },
+  // children([begin:end:step]): a range with more than 10000 elements is
+  // rejected entirely (warning, empty) rather than clamped to valid picks.
+  childrenAtRange: (kids, begin, end, step) => {
+    const index = _range(begin, end, step)
+    if (index.length > 10000) return undefined
+    return _safeUnion(index.map(i => {
+      if (typeof i !== 'number') return undefined
+      const k = Math.floor(i)
+      return k >= 0 && k < kids.length ? kids[k]() : undefined
+    }))
+  },
   hull: _hull,
 
   // Booleans (wrappers that filter undefined values)
