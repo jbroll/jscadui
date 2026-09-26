@@ -1,0 +1,7 @@
+# Echo skip list: models whose geometry test-harness.js grades but whose echo()
+# output it does not compare. Only test-harness.js reads this.
+
+# search("a", lTableW1, num_returns_per_match=0) on a table whose entry is a
+# bare number: OpenSCAD warns "Invalid entry in search vector" and returns [];
+# the runtime's search() returns [[0]]. Geometry still graded (1.0000).
+scad/misc/search-tests.scad
