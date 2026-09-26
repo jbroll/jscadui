@@ -48,12 +48,8 @@ scad/3D/issues/issue1672.scad
 scad/3D/issues/issue1867.scad
 # Jaccard 0.8051
 scad/3D/issues/issue2090.scad
-# Jaccard 0.8261
-scad/3D/issues/issue2259.scad
 # Jaccard 0.0001
 scad/3D/issues/issue2301.scad
-# Jaccard 0.8762
-scad/3D/issues/issue4432.scad
 # Jaccard 0.0105
 scad/3D/issues/issue5555.scad
 # Jaccard 0.8739

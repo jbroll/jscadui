@@ -100,6 +100,12 @@ Single-model runs: `openscad-tests` `linear_extrude-tests` 0.4266 → 1.0000,
 `linear_extrude-parameter-tests` 0.3404 → 1.0000, `linear_extrude-scale-zero-tests`
 0.8316 → 0.9972; `openscad-examples` `Basics/linear_extrude` 0.8732 → 0.9988.
 All four are off the compare-skip lists.
+Every other compare-skip entry was rerun alone after this change. Eight more now
+score 1.0000 and are off the lists: dotSCAD `dragon_head`, `emoticon_moai`,
+`fourier_vase`, `voronoi_holder`, `floor_stand_text`; `openscad-examples`
+`Old/example020`; `openscad-tests` `issue2259`, `issue4432`. The 120 corpus files
+that call `linear_extrude` with `twist` or `scale` were also rerun: each one that
+fails fails identically (same or lower Jaccard) at the parent commit.
 
 **shaft_couplings** was not a slice-count problem. NopSCADlib writes
 `square(radius - r1, 1)`; OpenSCAD centers `square`, `cube` and `cylinder` only
