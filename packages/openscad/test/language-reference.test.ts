@@ -607,12 +607,22 @@ describe('Type Testing Functions', () => {
 describe('Utility Functions', () => {
   it('handles echo', () => {
     const code = transpileCode('echo("hello");')
-    expect(code).toContain('console.log')
+    expect(code).toContain('j$.echo(null, "hello")')
   })
 
   it('handles echo with multiple args', () => {
     const code = transpileCode('echo("x=", x, "y=", y);')
-    expect(code).toContain('console.log')
+    expect(code).toContain('j$.echo(null, "x=", x, "y=", y)')
+  })
+
+  it('passes echo argument names', () => {
+    const code = transpileCode('echo("s", n=1);')
+    expect(code).toContain('j$.echo([null, "n"], "s", 1)')
+  })
+
+  it('instantiates the child of echo()', () => {
+    const code = transpileCode('echo("s") cube(1);')
+    expect(code).toMatch(/j\$\.echo\(null, "s"\), j\$\.cube/)
   })
 
   it('handles assert', () => {

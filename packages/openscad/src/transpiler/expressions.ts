@@ -756,17 +756,10 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
   }
 
   if (isEchoExpr(expr)) {
-    // echo(x) expr -> logs x and returns expr (or x if no expr follows)
-    // In JavaScript: (console.log(x), expr) or just (console.log(x), x)
+    // echo(x) expr -> prints x, then evaluates to expr
     const echoExpr = expr as EchoExpr
-    const args = echoExpr.args.map(a => {
-      if (a.name) {
-        return `"${a.name}=", ${transpileExpression(a.value!, ctx)}`
-      }
-      return transpileExpression(a.value!, ctx)
-    }).join(', ')
     const innerExpr = transpileExpression(echoExpr.expr, ctx)
-    return `(console.log(${args}), ${innerExpr})`
+    return `(${transpileEchoCall(echoExpr.args, ctx)}, ${innerExpr})`
   }
 
   if (isAssertExpr(expr)) {
@@ -912,6 +905,21 @@ export function transpileBinaryOp(op: number): string {
   return opMap[op] || String(op)
 }
 
+/**
+ * A j$.echo() call printing `args` in OpenSCAD's echo format. Argument names
+ * go in the first parameter (null when every argument is positional).
+ */
+export function transpileEchoCall(
+  args: ReadonlyArray<{ name?: string | null, value?: Expression | null }>,
+  ctx: TranspileContext
+): string {
+  const values = args.map(a => ', ' + transpileExpression(a.value!, ctx)).join('')
+  const names = args.some(a => a.name)
+    ? `[${args.map(a => a.name ? JSON.stringify(a.name) : 'null').join(', ')}]`
+    : 'null'
+  return `j$.echo(${names}${values})`
+}
+
 export function transpileUnaryOp(op: number): string {
   const opMap: Record<number, string> = {
     [TokenType.Bang]: '!',
@@ -1036,9 +1044,9 @@ export function transpileFunctionCall(
     }
   }
 
-  // echo() for debugging - map to console.log
+  // echo() reached as a plain call: its args are already positional here
   if (useBuiltin && callee === 'echo') {
-    return `console.log(${args})`
+    return `j$.echo(null${args ? ', ' + args : ''})`
   }
 
   // Check if this is a local function binding (from a let/for expression)

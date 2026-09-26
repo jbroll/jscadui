@@ -70,29 +70,37 @@ export const _range = (start, end, step) => {
   return r
 }
 
-// Format a number like OpenSCAD's str(): 6 significant digits, C printf %g style
-const _strNum = (x) => {
-  if (!Number.isFinite(x)) return String(x)
+// Format a number like OpenSCAD's str() and echo(): 6 significant digits,
+// trailing zeros trimmed, exponential form when the (rounded) exponent is
+// below -5 or above 5 (double-conversion ToPrecision in OpenSCAD's Value.cc).
+// 0.000011 prints as is, 1.1e-6 and 1.1e+6 as exponentials, -0 as 0.
+export const _fmtNum = (x) => {
+  if (Number.isNaN(x)) return 'nan'
+  if (!Number.isFinite(x)) return x > 0 ? 'inf' : '-inf'
   if (x === 0) return '0'
-  const s = x.toPrecision(6)
-  if (s.includes('e')) {
-    // Exponential notation: strip trailing zeros in mantissa, normalize exponent
-    return s.replace(/\.?0+(e)/, '$1').replace(/e([+-])0*(\d+)/, (_, sign, digits) => 'e' + sign + digits)
+  const [mant, e] = x.toExponential(5).split('e')
+  const exp = Number(e)
+  if (exp < -5 || exp > 5) {
+    return mant.replace(/\.?0+$/, '') + 'e' + (exp < 0 ? '-' : '+') + Math.abs(exp)
   }
-  // Fixed notation: strip trailing decimal zeros
-  if (s.includes('.')) return s.replace(/\.?0+$/, '')
-  return s
+  const s = x.toFixed(5 - exp)
+  return s.includes('.') ? s.replace(/\.?0+$/, '') : s
 }
 
-const _strVal = (a) => {
-  if (a === undefined || a === null) return 'undef'
-  if (typeof a === 'number') return _strNum(a)
+// A value as echo() prints it: strings quoted (not escaped), lists recursive.
+// Symbols are the runtime's undef sentinels (EXPLICIT_UNDEF).
+export const _echoVal = (a) => {
+  if (a === undefined || a === null || typeof a === 'symbol') return 'undef'
+  if (typeof a === 'number') return _fmtNum(a)
   if (typeof a === 'boolean') return a ? 'true' : 'false'
-  if (Array.isArray(a)) return '[' + a.map(_strVal).join(', ') + ']'
+  if (typeof a === 'string') return '"' + a + '"'
+  if (Array.isArray(a)) return '[' + a.map(_echoVal).join(', ') + ']'
+  if (typeof a === 'function') return 'function'
   return String(a)
 }
 
-export const str = (...args) => args.map(_strVal).join("")
+// str() concatenates its arguments; only a top-level string is unquoted.
+export const str = (...args) => args.map(a => typeof a === 'string' ? a : _echoVal(a)).join('')
 
 export const version_num = () => 20210100
 

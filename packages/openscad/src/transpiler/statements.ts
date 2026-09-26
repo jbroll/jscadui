@@ -14,7 +14,7 @@ import type { TranspileContext } from './context.js'
 import { WarningCode } from './context.js'
 import { generateScopeSuffix, withScope } from './scoping.js'
 import { safeIdentifier, getShortFilename } from '../utils/identifiers.js'
-import { transpileExpression, transpileReturn, transpileCallArg, reorderNamedArgs, isFunctionLiteralExpr } from './expressions.js'
+import { transpileExpression, transpileReturn, transpileCallArg, reorderNamedArgs, isFunctionLiteralExpr, transpileEchoCall } from './expressions.js'
 import { markTailCalls, clearTailCallMarks, buildBounceReassignment, buildTailLoop } from './tailCall.js'
 import { getLocation } from '../parser/parse.js'
 import {
@@ -284,14 +284,16 @@ export function collectChildrenAsArray(child: Statement | null, ctx: TranspileCo
 }
 
 /**
- * Transpile echo() module - outputs to console but returns undefined (no geometry)
+ * Transpile echo() module - prints its args, then instantiates its child if any
+ * (OpenSCAD's `echo(x) cube(1);` renders the cube)
  */
 function transpileEchoModule(
   stmt: ModuleInstantiationStmt,
   ctx: TranspileContext
 ): string {
-  const args = stmt.args.map(a => transpileExpression(a.value!, ctx)).join(', ')
-  return `(console.log(${args}), undefined)`
+  const echo = transpileEchoCall(stmt.args, ctx)
+  const childCode = stmt.child ? transpileStatement(stmt.child, ctx) : null
+  return `(${echo}, ${childCode || 'undefined'})`
 }
 
 /**
