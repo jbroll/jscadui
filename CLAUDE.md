@@ -13,6 +13,14 @@ Main production app: [jscad.app](https://jscad.app) at `apps/jscad-web`. See `RE
 
 npm workspaces monorepo: `packages/*` (libraries), `apps/*` (applications), `file-format/*` (exporters).
 
+## Setup
+
+Fresh clone: `npm run setup` (pinned source checkouts, `npm install`, OpenSCAD
+corpora). Cloud sessions run the same via `.claude/hooks/session-start.sh`.
+`@jscad/modeling` resolves to `.deps-cache/OpenJSCAD.org` (pinned in
+`scripts/deps/sources.json`); symlink your own checkout there to edit it live.
+Details, pins and GPU verification from a session: `docs/CLOUD_SESSION.md`.
+
 ## Common Commands
 
 ```bash

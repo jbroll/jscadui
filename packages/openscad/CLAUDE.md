@@ -40,7 +40,8 @@ npm run test:local
 > open trusted PR through the simple-ci queue and reports an `openscad-gpu`
 > commit status plus a PR comment. A `success` status on the exact commit counts as GPU
 > verification. Use it when simple-ci is not reachable (e.g. cloud sessions): push the branch,
-> open a PR, wait for the status. Setup: `ci/README.md`.
+> open a PR, wait for the status. Setup: `ci/README.md`; session workflow:
+> `docs/CLOUD_SESSION.md`.
 
 > **NEVER work around CI.** `npm test` (or gpu-poll) is the only sanctioned way to run the full comparison
 > suite. Do not manually rsync to the GPU, do not SSH in and run test-harness by hand, do not
