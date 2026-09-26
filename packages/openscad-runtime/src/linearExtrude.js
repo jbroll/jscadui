@@ -279,50 +279,82 @@ const sideTriangles = (p, outlines, positive, n, stride) => {
 
 /**
  * Triangles covering the outlines (holes included) that use every outline point.
- * Earcut drops collinear points, which the side walls still use, so a cap edge
- * that skips points is fanned out through them to keep the mesh closed.
+ * Earcut drops collinear points, which the side walls still use, and can run a
+ * triangle edge along several outlines at once (a row of holes whose edges line
+ * up). Each cap edge is therefore split at every outline point lying on it, its
+ * triangle fanned out through them, and earcut's zero-area triangles, which the
+ * split edges replace, are dropped.
  */
 const capTriangles = (outlines, slice) => {
+  const flat = outlines.flat()
   const indexOf = new Map()
-  const rings = []
-  let first = 0
-  for (const o of outlines) {
-    rings.push(o.map((_, i) => first + i))
-    o.forEach(([x, y], i) => {
-      const key = `${x},${y}`
-      if (!indexOf.has(key)) indexOf.set(key, first + i)
-    })
-    first += o.length
-  }
-  const sides = outlines.flatMap((o) => o.map((pt, i) => [pt, o[(i + 1) % o.length]]))
-  const tris = []
-  for (const poly of slice.toPolygons(slice.fromSides(sides))) {
-    const tri = poly.vertices.map(([x, y]) => indexOf.get(`${x},${y}`))
-    if (tri.some((i) => i === undefined)) continue
-    tris.push(tri)
-  }
+  flat.forEach(([x, y], i) => {
+    const key = `${x},${y}`
+    if (!indexOf.has(key)) indexOf.set(key, i)
+  })
 
-  // For each used point, the unused points that follow it on its ring, and the next used one
-  const used = new Set(tris.flat())
-  const skipped = new Map()
-  for (const ring of rings) {
-    const start = ring.findIndex((i) => used.has(i))
-    if (start < 0) continue
-    for (let k = 0; k < ring.length; k++) {
-      const from = ring[(start + k) % ring.length]
-      if (!used.has(from)) continue
-      const between = []
-      let j = 1
-      while (!used.has(ring[(start + k + j) % ring.length])) between.push(ring[(start + k + j++) % ring.length])
-      skipped.set(from, { to: ring[(start + k + j) % ring.length], between })
+  // slice.toPolygons can pair a hole with the wrong outline when outlines nest
+  // several deep, so each outline goes in with only its own holes: a hole
+  // belongs to the smallest outline around it.
+  const area = outlines.map(signedArea)
+  const inside = ([x, y], o) => {
+    let odd = false
+    for (let i = 0, j = o.length - 1; i < o.length; j = i++) {
+      const [xi, yi] = o[i], [xj, yj] = o[j]
+      if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) odd = !odd
+    }
+    return odd
+  }
+  const groups = new Map()
+  outlines.forEach((o, k) => { if (area[k] > 0) groups.set(k, [o]) })
+  outlines.forEach((o, k) => {
+    if (area[k] > 0) return
+    let parent
+    for (const g of groups.keys()) {
+      if (inside(o[0], outlines[g]) && (parent === undefined || area[g] < area[parent])) parent = g
+    }
+    if (parent !== undefined) groups.get(parent).push(o)
+  })
+
+  const collinear = ([a, b, c]) => {
+    const [pa, pb, pc] = [flat[a], flat[b], flat[c]]
+    const cross = (pb[0] - pa[0]) * (pc[1] - pa[1]) - (pc[0] - pa[0]) * (pb[1] - pa[1])
+    const len2 = Math.max(...[[pa, pb], [pb, pc], [pc, pa]].map(([p, q]) => (q[0] - p[0]) ** 2 + (q[1] - p[1]) ** 2))
+    return Math.abs(cross) <= 1e-9 * len2
+  }
+  const sidesOf = (rs) => rs.flatMap((o) => o.map((pt, i) => [pt, o[(i + 1) % o.length]]))
+  const tris = []
+  for (const group of groups.values()) {
+    for (const poly of slice.toPolygons(slice.fromSides(sidesOf(group)))) {
+      const tri = poly.vertices.map(([x, y]) => indexOf.get(`${x},${y}`))
+      if (tri.some((i) => i === undefined) || collinear(tri)) continue
+      tris.push(tri)
     }
   }
+
+  // Outline points strictly inside segment a-b, in order from a
+  const byX = [...indexOf.values()].sort((i, j) => flat[i][0] - flat[j][0])
+  const firstAtLeast = (x) => {
+    let lo = 0, hi = byX.length
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (flat[byX[mid]][0] < x) lo = mid + 1; else hi = mid }
+    return lo
+  }
   const pointsBetween = (a, b) => {
-    const fwd = skipped.get(a)
-    if (fwd && fwd.to === b) return fwd.between
-    const back = skipped.get(b)
-    if (back && back.to === a) return [...back.between].reverse()
-    return []
+    const pa = flat[a], pb = flat[b]
+    const dx = pb[0] - pa[0], dy = pb[1] - pa[1]
+    const len2 = dx * dx + dy * dy
+    const tol = 1e-9 * Math.sqrt(len2)
+    const [x0, x1] = [Math.min(pa[0], pb[0]) - tol, Math.max(pa[0], pb[0]) + tol]
+    const found = []
+    for (let k = firstAtLeast(x0); k < byX.length && flat[byX[k]][0] <= x1; k++) {
+      const i = byX[k]
+      if (i === a || i === b) continue
+      const p = flat[i]
+      const t = ((p[0] - pa[0]) * dx + (p[1] - pa[1]) * dy) / len2
+      if (t <= 0 || t >= 1) continue
+      if (Math.abs((p[0] - pa[0]) * dy - (p[1] - pa[1]) * dx) <= 1e-9 * len2) found.push([t, i])
+    }
+    return found.sort((u, v) => u[0] - v[0]).map(([, i]) => i)
   }
 
   const out = []
@@ -332,7 +364,7 @@ const capTriangles = (outlines, slice) => {
       out.push([a, b, c])
       continue
     }
-    // Fan from the corner opposite the longest run of skipped points
+    // Fan from the corner opposite the longest run of inserted points
     const loop = [a, ...ab, b, ...bc, c, ...ca]
     const apex = ab.length >= bc.length && ab.length >= ca.length ? loop.indexOf(c)
       : bc.length >= ca.length ? 0 : loop.indexOf(b)
