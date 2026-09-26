@@ -94,8 +94,6 @@ scad/functions/bitwise-operators.scad
 scad/functions/exponent-operator-test.scad
 # transpiled JS throws: 10.5 is not a function
 scad/functions/function-literal-tests.scad
-# transpiled JS throws: 42 is not iterable
-scad/functions/list-comprehensions.scad
 # transpiled JS throws: Unexpected token ')'
 scad/misc/allfunctions.scad
 # transpiled JS throws: _children is not defined

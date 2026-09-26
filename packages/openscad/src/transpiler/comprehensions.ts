@@ -135,9 +135,14 @@ export function handlePureComprehension(
     return transpileExpression(children[0], ctx)
   }
   // List comprehension with let: [let(a=1) for (i = range) expr] has single LcLetExpr child
-  // The LcLetExpr wraps an LcForExpr, so we need to unwrap
+  // The LcLetExpr wraps an LcForExpr, so we need to unwrap — but only when the
+  // body actually produces an array. [let(x=2) 1] wraps a scalar and must keep
+  // its vector brackets (the mixed path below wraps it).
   if (children.length === 1 && isLcLetExpr(children[0])) {
-    return transpileExpression(children[0], ctx)
+    const body = (children[0] as { expr?: Expression | null }).expr
+    if (body && (containsNestedForExpr(body) || isEachExpr(body))) {
+      return transpileExpression(children[0], ctx)
+    }
   }
   return null
 }
@@ -162,8 +167,9 @@ export function handleMixedVector(
   const hasConditionals = children.some(c => isLcIfExpr(c))
   const parts = children.map(c => {
     if (isLcEachExpr(c)) {
-      // Spread the inner expression
-      return `...${transpileExpression(c.expr, ctx)}`
+      // Spread the inner expression. j$.iter() wraps scalars (each 42
+      // includes 42 verbatim in OpenSCAD) so the spread never throws.
+      return `...j$.iter(${transpileExpression(c.expr, ctx)})`
     }
     if (isLcForExpr(c) || isLcForCExpr(c)) {
       // For comprehensions inside mixed vectors need to be spread
