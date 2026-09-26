@@ -48,9 +48,14 @@ export function stlCachePath(originalScadPath, fn, libName, preview = false) {
   return join(STL_CACHE_ROOT, libName, rel + suffix)
 }
 
+/**
+ * The echo export cached with an STL. The name says which evaluation it came
+ * from: `.echo` entries (first cached by jbroll/jscadui#116) were evaluated
+ * with $preview = true whatever the STL used, so they are never read.
+ */
 export function echoCachePath(originalScadPath, fn, libName, preview = false) {
   const p = stlCachePath(originalScadPath, fn, libName, preview)
-  return p ? p.replace(/\.stl$/, '.echo') : null
+  return p ? p.replace(/\.stl$/, '.render.echo') : null
 }
 
 export function failedCachePath(originalScadPath, fn, libName, preview = false) {

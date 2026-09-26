@@ -42,6 +42,7 @@ const OPENSCAD_TIMEOUT = 60_000
 // Limit by CPU count AND available memory (each JSCAD subprocess uses ~3GB).
 // This prevents OOM on laptops when running the full comparison suite locally.
 const MEM_PER_WORKER = 3e9
+const JSCAD_TIMEOUT = 120_000
 const DEFAULT_CONCURRENCY = Math.min(Math.max(1, cpus().length - 1), Math.max(1, Math.floor(totalmem() / MEM_PER_WORKER)))
 
 /**
@@ -195,7 +196,9 @@ async function runOpenscad(scadPath, stlPath, echoPath, openscadPath, fn = 0, or
   // Paths go through a shell: quote them (snippet's "Angle Shelf.scad").
   const args = ['--backend=manifold', '-o', JSON.stringify(stlPath), '-o', JSON.stringify(echoPath)]
   if (fn > 0) args.push('-D', `"\\$fn=${fn}"`)
-  if (preview) args.push('-D', '"\\$preview=true"')
+  // Always set: with a second -o, OpenSCAD evaluates the model again for the
+  // echo export, and that evaluation defaults to $preview = true.
+  args.push('-D', `"\\$preview=${preview}"`)
   args.push(JSON.stringify(scadPath))
 
   const libDir = detectLibraryDir(pathForLibDetection)
@@ -266,7 +269,7 @@ async function runJscad(scadPath, stlPath, fn = 0, preview = false, echoPath = n
   if (libDir) args.push('--lib-path', JSON.stringify(resolve(libDir)))
   args.push('--timeout', '0')  // harness manages timeout via execAsync; disable internal guard
   const cmd = `node --stack-size=65536 ${args.join(' ')}`
-  const opts = { timeout: 120000, maxBuffer: 2 * 1024 * 1024 }
+  const opts = { timeout: JSCAD_TIMEOUT, maxBuffer: 2 * 1024 * 1024 }
 
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
@@ -283,6 +286,7 @@ async function runJscad(scadPath, stlPath, fn = 0, preview = false, echoPath = n
       }
       // Retry once on process-level failures (OOM, timeout under load)
       if (attempt === 0) continue
+      if (err.killed) return { success: false, error: `timed out after ${JSCAD_TIMEOUT} ms` }
       return { success: false, error: jscadErrorLine(err) }
     }
   }
