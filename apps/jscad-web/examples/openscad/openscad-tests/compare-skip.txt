@@ -112,7 +112,8 @@ scad/functions/trig-tests.scad
 scad/issues/issue1516.scad
 # echo 3/7 (got 7): expected "ECHO: [1, 2, 3, 4]", got "ECHO: [1, 2, [3, 4]]"
 scad/issues/issue1851-each-fail-on-scalar.scad
-# echo 1/1 (got 1): expected "ECHO: \"A continued string\"", got "ECHO: \"A continued \nstring\""
+# echo 1/1: "A continued \<newline>string" is "A continued string" in OpenSCAD;
+# openscad-parser keeps the newline of a line continuation (parser bug)
 scad/issues/issue6942.scad
 # echo 11/43 (got 43): expected "ECHO: [[0 : 1 : 10]]", got "ECHO: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]"
 scad/misc/concat-tests.scad
