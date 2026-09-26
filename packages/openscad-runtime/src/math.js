@@ -287,10 +287,17 @@ export const _norm = (v) => {
 // OpenSCAD reverse() - reverses a list
 export const reverse = (arr) => Array.isArray(arr) ? [...arr].reverse() : arr
 
-export const _cross = (a, b) => {
+export const _cross = (...args) => {
   // OpenSCAD cross() behavior:
   // - For 2D vectors: returns scalar (z-component of 3D cross product)
   // - For 3D vectors: returns 3D vector
+  // Anything else (wrong arity, non-vectors, mismatched or invalid sizes,
+  // non-finite elements) warns and yields undef — never throws.
+  if (args.length !== 2) return undefined
+  const [a, b] = args
+  if (!Array.isArray(a) || !Array.isArray(b)) return undefined
+  if (a.length !== b.length || (a.length !== 2 && a.length !== 3)) return undefined
+  if (![...a, ...b].every(v => typeof v === 'number' && Number.isFinite(v))) return undefined
   if (a.length === 2 && b.length === 2) {
     return a[0] * b[1] - a[1] * b[0]
   }
