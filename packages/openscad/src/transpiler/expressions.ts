@@ -463,6 +463,21 @@ function transpileFunctionCallExprHandler(
     }
   }
 
+  // Single-argument builtins return undef on wrong arity in OpenSCAD
+  // (with a warning, which echo comparison ignores). Without this guard
+  // is_bool() emits `typeof ()` and len() emits `()?.length`, both JS
+  // SyntaxErrors, and multi-arg calls echo the wrong value instead of undef.
+  const singleArgPredicates = new Set([
+    'is_bool', 'is_num', 'is_str', 'is_string',
+    'is_list', 'is_undef', 'is_def', 'is_function',
+    'len', 'chr',
+  ])
+  if (singleArgPredicates.has(callee) && shouldUseBuiltin(callee, 'function', ctx)) {
+    if (regularArgs.length !== 1) {
+      return 'j$.EXPLICIT_UNDEF'
+    }
+  }
+
   // Reorder named arguments to match parameter definition order
   // Note: function calls use _$f suffix which is added in transpileFunctionCall
   // kind='function' because this is a function call (uses return value)

@@ -114,14 +114,6 @@ scad/misc/chr-tests.scad
 scad/misc/function-scope.scad
 # transpiled JS throws: Identifier 'main' has already been declared
 scad/misc/include-overwrite-main.scad
-# transpiled JS throws: Unexpected token ')'
-scad/misc/isbool-test.scad
-# transpiled JS throws: Unexpected token ')'
-scad/misc/isnum-test.scad
-# transpiled JS throws: Unexpected token ')'
-scad/misc/isstring-test.scad
-# transpiled JS throws: Unexpected token ')'
-scad/misc/isundef-test.scad
 # transpiled JS throws: table is not iterable
 scad/misc/lookup-tests.scad
 # transpiled JS throws: Parse errors: [{"message":"Unexpected character '�'.","location":{"start":{"line":0,"column":2},"end":{"line":0,"column":2}}}]
