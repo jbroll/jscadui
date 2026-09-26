@@ -44,14 +44,25 @@ export const _tanDeg = (a) => {
 //   [0:0.1:1] has 11 elements, and an infinite step gives just begin
 // - 1,000,000 elements or more ("too many elements", e.g. [0:inf]): empty
 const RANGE_MAX_ELEMENTS = 1000000
+// The next double above a non-negative finite x (C's nextafter(x, +inf))
+const _ulpView = new DataView(new ArrayBuffer(8))
+const _nextUp = (x) => {
+  if (x === 0) return Number.MIN_VALUE  // also -0, whose bits would step downward
+  if (!Number.isFinite(x)) return x
+  _ulpView.setFloat64(0, x)
+  _ulpView.setBigUint64(0, _ulpView.getBigUint64(0) + 1n)
+  return _ulpView.getFloat64(0)
+}
+
 export const _range = (start, end, step) => {
   if (typeof start !== 'number' || typeof end !== 'number' || typeof step !== 'number') return []
   if (Number.isNaN(start) || Number.isNaN(end) || Number.isNaN(step) || step === 0) return []
   if ((step > 0 && start > end) || (step < 0 && start < end)) return []
-  // A few ULPs of slack: (1-0)/0.1 is 9.999999999999998 and [0:0.1:1] has 11
-  // elements, but [0:1:9.9999999999999] (1e-13 short) still has 10.
+  // One ULP of slack, as OpenSCAD 2026.09 floors nextafter(n, +inf): (1-0)/0.1
+  // is 9.999999999999998, one ULP short of 10, and [0:0.1:1] has 11 elements;
+  // [0:3:12 - 1ulp] has 5 but [0:3:12 - 2ulp] has 4.
   const n = (end - start) / step
-  const count = Math.floor(n + Math.max(1, n) * 4 * Number.EPSILON) + 1
+  const count = Math.floor(_nextUp(n)) + 1
   if (!(count < RANGE_MAX_ELEMENTS)) return []
   const r = new Array(count)
   r[0] = start  // not start + 0*step: 0*Infinity is NaN

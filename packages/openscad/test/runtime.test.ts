@@ -557,7 +557,18 @@ describe('polyhedron out-of-bounds point indices', () => {
 
 describe('range', () => {
   // Expected values are OpenSCAD 2026.09's for the same ranges (for-tests.scad)
-  it('counts with a few ULPs of slack and computes begin + i*step', () => {
+  it('counts with one ULP of slack, as OpenSCAD floors nextafter(n, +inf)', () => {
+    // OpenSCAD 2026.09: [0:3:l] has 5 elements for l = 12 - 1ulp, 4 for 12 - 2ulp.
+    // rock_theta_maze builds a rock wall from [0:3:leng] with leng 2 ULPs short of 12.
+    const below = (x, ulps) => x - ulps * 2 ** (Math.floor(Math.log2(x)) - 52)
+    expect(j$.range(0, below(12, 1), 3)).toHaveLength(5)
+    expect(j$.range(0, below(12, 2), 3)).toHaveLength(4)
+    expect(j$.range(0, below(3, 1), 1)).toHaveLength(4)
+    expect(j$.range(0, below(3, 2), 1)).toHaveLength(3)
+    expect(j$.range(5, 5, -1)).toEqual([5])
+  })
+
+  it('computes begin + i*step', () => {
     expect(j$.range(0, 1, 0.1)).toHaveLength(11)
     expect(j$.range(1.5, 2.5, 0.2)).toHaveLength(6)
     expect(j$.range(0, 9.9999999999999, 1)).toHaveLength(10)
