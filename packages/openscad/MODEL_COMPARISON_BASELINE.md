@@ -15,7 +15,46 @@ and a third that can reach its `Asset_SCAD/` includes. Pointing CI at the
 
 Similarity threshold: **0.99** (Jaccard index on vertex-deduplicated STL meshes).
 
-## Latest GPU run: 2026-09-26, echo grading
+## Latest GPU run: 2026-09-26, inverted polyhedra
+
+Commit `9f1c04a` (branch `claude/eager-brahmagupta-wcnzjm`, jbroll/jscadui#117),
+simple-ci job `395a9882cc22e4be`, 9.0 min. All 21 suites pass.
+
+`dotscad-reverse-inverted-polyhedra.patch` reverses the faces of the `chair`
+(chair_score) and `SD_Mountain` (SD_Card_Taiwan) polyhedra. Their faces were
+wound inside-out, which OpenSCAD's Manifold backend keeps, so the references
+were wrong. Both models left `dotscad/compare-skip.txt` and pass, so dotSCAD
+grades 170 instead of 168 (see `SKIP_BACKLOG.md`).
+
+| Suite | Tested | Passed | Tested before (b9f5272) |
+|-------|-------:|-------:|------------------------:|
+| 01-basics | 21 | 21 | 21 |
+| bosl | 113 | 113 | 112 |
+| bosl2 | 135 | 135 | 135 |
+| closepoints | 5 | 5 | 5 |
+| constructive | 2 | 2 | 2 |
+| dotscad | 170 | 170 | 168 |
+| gears | 18 | 18 | 18 |
+| gridfinity | 4 | 4 | 4 |
+| list-comprehension-demos | 9 | 9 | 9 |
+| mcad | 13 | 13 | 13 |
+| nopscadlib | 145 | 145 | 145 |
+| obiscad | 9 | 9 | 9 |
+| openscad-examples | 32 | 32 | 32 |
+| openscad-tests | 214 | 214 | 214 |
+| relativity | 6 | 6 | 6 |
+| round-anything | 10 | 10 | 10 |
+| snippet | 115 | 115 | 114 |
+| text | 2 | 2 | 2 |
+| threadlib | 9 | 9 | 9 |
+| threads-scad | 1 | 1 | 1 |
+| yapp-box | 40 | 40 | 40 |
+
+BOSL (113) and snippet (115) each grade one more model than in the `b9f5272`
+run without a change for them in this commit; the PR comment does not name
+which.
+
+## Previous GPU run: 2026-09-26, echo grading
 
 Commit `b9f5272` (branch `claude/intelligent-brown-fbivac`, jbroll/jscadui#116),
 simple-ci job `47aa71e6d3b99c02`, 8.3 min, OpenSCAD 2026.08.30.fp. All 21
@@ -61,7 +100,7 @@ run pinned `$preview=false`; the model OpenSCAD 2026.08.30.fp no longer
 grades is not named in the PR comment (single-model runs with OpenSCAD
 2026.09.23 grade all 113).
 
-## Previous GPU run: 2026-09-26
+## GPU run: 2026-09-26, before echo grading
 
 Commit `18de519` (branch `claude/great-clarke-t6v3uc`, jbroll/jscadui#115),
 simple-ci job `6e7d5c6b6d2d3c95`, 8.5 min. All 21 suites pass. Models that
