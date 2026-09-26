@@ -1243,7 +1243,7 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
       [...paramNames].some(p => safeIdentifier(p) === varName)
     const funcVarName = hasVarConflict ? varName + '_$f' : varName
     funcVarNames.set(f.name, funcVarName)
-    ctx.scopes.registerFunctionBinding(varName, funcVarName)
+    ctx.scopes.registerFunctionBinding(varName, funcVarName, false, true)
     ctx.currentLocalBindings.add(varName)
     if (hasVarConflict) ctx.currentLocalBindings.add(funcVarName)
   }

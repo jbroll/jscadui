@@ -631,6 +631,11 @@ describe('Utility Functions', () => {
     expect(code).not.toContain('j$.str(')
   })
 
+  it('keeps the builtin when only a parameter has the helper name', () => {
+    const code = transpileCode('function no_point(str) = str(str);')
+    expect(code).toContain('j$.str(str)')
+  })
+
   it('instantiates the child of echo()', () => {
     const code = transpileCode('echo("s") cube(1);')
     expect(code).toMatch(/j\$\.echo\(null, "s"\), j\$\.cube/)
