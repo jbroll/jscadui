@@ -276,6 +276,7 @@ export async function createRuntime() {
     hulls: {
       hull: hulls.hull,
       hullChain: hulls.hullChain,
+      hullPoints: hulls.hullPoints,
     },
     colors: {
       colorize: colors.colorize,

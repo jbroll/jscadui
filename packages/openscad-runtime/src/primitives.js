@@ -19,8 +19,11 @@ export const NO_CHILD = Symbol('no_child')
 let cube, cuboid, cylinder, circle, rectangle, polygon, polyhedron, translate, union, subtract, intersect, hull, minkowski, geom2, slice
 // The 2D minkowski sweep reuses its operands across ops, so it must not consume them.
 let rawTranslate, rawUnion, rawHull
+// The whole modeling namespace, for the few helpers that differ by backend
+let jscad
 
-export const initPrimitives = (jscad) => {
+export const initPrimitives = (modeling) => {
+  jscad = modeling
   cube = jscad.primitives.cube
   cuboid = jscad.primitives.cuboid
   cylinder = jscad.primitives.cylinder
@@ -137,7 +140,9 @@ export const _regular_polygon = ({ order = 6, n, r = 1, $fn: _$fn = 0 }) => {
   return circle({ radius, segments: sides })
 }
 
-export const _polyhedron = ({ points, faces, triangles, convexity: _convexity }) => {
+// The faces and points OpenSCAD keeps from polyhedron()'s arguments, or
+// undefined when no face survives.
+const _polyhedronMesh = ({ points, faces, triangles }) => {
   if (!points || !Array.isArray(points) || points.length === 0) return undefined
   // faces = undef arrives as j$.EXPLICIT_UNDEF, which is truthy: take lists only
   const faceList = Array.isArray(faces) ? faces : Array.isArray(triangles) ? triangles : []
@@ -159,6 +164,13 @@ export const _polyhedron = ({ points, faces, triangles, convexity: _convexity })
   const points3d = cleanPoints[0] && cleanPoints[0].length === 2
     ? cleanPoints.map(p => [p[0], p[1], 0])
     : cleanPoints
+  return { points3d, validFaces }
+}
+
+export const _polyhedron = ({ points, faces, triangles, convexity: _convexity }) => {
+  const mesh = _polyhedronMesh({ points, faces, triangles })
+  if (!mesh) return undefined
+  const { points3d, validFaces } = mesh
 
   // Determine winding convention by computing signed volume (divergence theorem).
   // Outward-pointing normals → positive signed volume; inward → negative.
@@ -191,6 +203,23 @@ export const _polyhedron = ({ points, faces, triangles, convexity: _convexity })
     // OpenSCAD silently ignores polyhedron errors in preview mode
     return undefined
   }
+}
+
+/**
+ * A polyhedron() that is a direct child of hull(). OpenSCAD hulls the vertices
+ * its faces use, whether or not they close a solid: dotSCAD's
+ * `hull() polyhedron(points, [[0:len(points) - 1]])` is a single face through
+ * every point. polyhedron() drops such an open mesh, so hull the points here.
+ */
+export const _polyhedronHull = (args) => {
+  const mesh = _polyhedronMesh(args)
+  if (!mesh) return undefined
+  const used = [...new Set(mesh.validFaces.flat())]
+  const unique = [...new Map(used.map(i => [mesh.points3d[i].join(','), mesh.points3d[i]])).values()]
+  if (unique.length < 4) return undefined
+  // Manifold engine: native hull. @jscad/modeling: quickhull polygons.
+  if (jscad.hulls.hullPoints) return jscad.hulls.hullPoints(unique)
+  return jscad.geometries.geom3.create(jscad.hulls.hullPoints3(unique))
 }
 
 const _isAbsent = (p) => p === undefined || p === null || p === NO_CHILD

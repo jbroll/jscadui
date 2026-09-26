@@ -124,7 +124,8 @@ export {
 export {
   // Hulls
   hull,
-  hullChain
+  hullChain,
+  hullPoints
 } from './hulls/index.js'
 
 export {

@@ -41,6 +41,14 @@ export const hull = (...geometries) => {
 }
 
 /**
+ * Compute the 3D convex hull of a set of points.
+ *
+ * @param {Array<Array<number>>} points - [x, y, z] points
+ * @returns {ManifoldGeom3} The convex hull geometry
+ */
+export const hullPoints = (points) => new ManifoldGeom3(getManifold().hull(points))
+
+/**
  * Compute 2D convex hull using Manifold's native CrossSection.hull().
  *
  * @param {Array} geometries - 2D geometries to hull

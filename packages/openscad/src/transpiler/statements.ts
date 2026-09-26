@@ -687,6 +687,19 @@ function transpileBuiltinBoolean(name: string, child: Statement | null, ctx: Tra
 }
 
 /**
+ * Transpile one child of hull(). OpenSCAD hulls a polyhedron's vertices even
+ * when its faces do not close a solid, which polyhedron() on its own drops, so
+ * a direct polyhedron child hulls its points instead.
+ */
+function transpileHullChild(stmt: Statement, ctx: TranspileContext): string | null {
+  const code = transpileStatement(stmt, ctx)
+  if (!code || !isModuleInstantiation(stmt)) return code
+  const name = (stmt as ModuleInstantiationStmt).name
+  if (stripUnderscorePrefix(name) !== 'polyhedron' || !shouldUseBuiltin(name, 'module', ctx)) return code
+  return code.replace('j$.polyhedron(', 'j$.polyhedronHull(')
+}
+
+/**
  * Transpile built-in hull operation
  */
 function transpileBuiltinHull(child: Statement | null, ctx: TranspileContext): string {
@@ -715,7 +728,7 @@ function transpileBuiltinHull(child: Statement | null, ctx: TranspileContext): s
           }
           return child.children
             .filter(c => !isAssignmentNode(c) && !isNoopStmt(c as Statement))
-            .map(c => transpileStatement(c as Statement, ctx))
+            .map(c => transpileHullChild(c as Statement, ctx))
             .filter(Boolean) as string[]
         })
 
@@ -727,10 +740,10 @@ function transpileBuiltinHull(child: Statement | null, ctx: TranspileContext): s
       // No assignments — collect geometry children, skipping unsupported ones
       childCodes = child.children
         .filter(c => !isAssignmentNode(c) && !isNoopStmt(c as Statement))
-        .map(c => transpileStatement(c as Statement, ctx))
+        .map(c => transpileHullChild(c as Statement, ctx))
         .filter(Boolean) as string[]
     } else {
-      const code = transpileStatement(child, ctx)
+      const code = transpileHullChild(child, ctx)
       if (code) childCodes = [code]
     }
   }
