@@ -47,10 +47,10 @@
     "openscad-parser": "git+https://github.com/jbroll/openscad-parser.git#8374a0113c072e33e4963d2a05baa210b2c00ee1",
     "@jscadui/manifold": "file:../manifold",
     "@jscadui/openscad-runtime": "file:../openscad-runtime",
-    "@jscad/modeling-for-manifold": "file:../../../OpenJSCAD.org/packages/modeling"
+    "@jscad/modeling-for-manifold": "file:../../.deps-cache/OpenJSCAD.org/packages/modeling"
   },
   "devDependencies": {
-    "@jscad/modeling": "file:../../../OpenJSCAD.org/packages/modeling",
+    "@jscad/modeling": "file:../../.deps-cache/OpenJSCAD.org/packages/modeling",
     "@types/node": "^20.0.0",
     "typescript": "^5.7.0",
     "vite": "^7.3.1",

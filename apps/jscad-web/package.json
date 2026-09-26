@@ -20,7 +20,7 @@
     "@jbroll/rowboat-schema": "file:../../../rowboat/packages/schema",
     "@jscad/csg": "0.7.0",
     "@jscad/io": "2.4.7",
-    "@jscad/modeling": "file:../../../OpenJSCAD.org/packages/modeling",
+    "@jscad/modeling": "file:../../.deps-cache/OpenJSCAD.org/packages/modeling",
     "@jbroll/jscad-fluent": "0.6.1",
     "@jscadui/agent-loop": "*",
     "@jscadui/format-common": "*",

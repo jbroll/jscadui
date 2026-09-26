@@ -12,7 +12,7 @@
     "bundle-jscad_io": " esbuild bundle.jscad_io.js --outdir=build --bundle --sourcemap --minify --format=cjs"
   },
   "dependencies": {
-    "@jscad/modeling": "file:../../../OpenJSCAD.org/packages/modeling",
+    "@jscad/modeling": "file:../../.deps-cache/OpenJSCAD.org/packages/modeling",
     "@jscadui/format-jscad": "*",
     "@jscadui/format-threejs": "*",
     "@jscadui/html-gizmo": "*",

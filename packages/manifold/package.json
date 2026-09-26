@@ -24,8 +24,8 @@
   },
   "dependencies": {
     "manifold-3d": "^3.0.0",
-    "@jscad/modeling": "file:../../../OpenJSCAD.org/packages/modeling",
-    "@jscad/modeling-for-manifold": "file:../../../OpenJSCAD.org/packages/modeling"
+    "@jscad/modeling": "file:../../.deps-cache/OpenJSCAD.org/packages/modeling",
+    "@jscad/modeling-for-manifold": "file:../../.deps-cache/OpenJSCAD.org/packages/modeling"
   },
   "devDependencies": {
     "vitest": "^1.0.0"
