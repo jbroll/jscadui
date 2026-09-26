@@ -102,8 +102,6 @@ export const _echoVal = (a) => {
 // str() concatenates its arguments; only a top-level string is unquoted.
 export const str = (...args) => args.map(a => typeof a === 'string' ? a : _echoVal(a)).join('')
 
-export const version_num = () => 20210100
-
 /**
  * OpenSCAD parent_module function
  * Returns the name of the calling module (for introspection/debugging)
