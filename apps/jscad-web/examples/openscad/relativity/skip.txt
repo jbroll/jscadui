@@ -6,3 +6,9 @@
 # to fix in a targeted session; remove the entry when it passes.
 # no geometry returned
 demos/body/lower_body_muscle.scad
+
+# Text-only models: OpenSCAD's top level is empty and they are graded on their
+# echo() output by test-harness.js. Known failures when echo grading started;
+# remove the entry when it passes.
+# transpiled JS throws: Invalid code point NaN
+peg.test.selector.scad

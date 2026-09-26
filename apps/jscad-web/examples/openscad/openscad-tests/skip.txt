@@ -84,3 +84,55 @@ scad/nef3/nef3_cube.scad
 scad/obj/obj-import-export_cube.scad
 # no geometry returned
 scad/obj/obj-import-export_dodecahedron.scad
+
+# Text-only models: OpenSCAD's top level is empty and they are graded on their
+# echo() output by test-harness.js. Known failures when echo grading started;
+# remove the entry when it passes.
+# transpiled JS throws: Unexpected number
+scad/functions/bitwise-operators.scad
+# transpiled JS throws: Cannot read properties of undefined (reading '2')
+scad/functions/cross-tests.scad
+# transpiled JS throws: Unary operator used immediately before exponentiation expression. Parenthesis must be used to disambiguate operator precedence
+scad/functions/exponent-operator-test.scad
+# transpiled JS throws: 10.5 is not a function
+scad/functions/function-literal-tests.scad
+# transpiled JS throws: Identifier 'b$13' has already been declared
+scad/functions/let-tests.scad
+# transpiled JS throws: 42 is not iterable
+scad/functions/list-comprehensions.scad
+# transpiled JS throws: Cannot convert a Symbol value to a number
+scad/functions/min-max-tests.scad
+# transpiled JS throws: table is not iterable
+scad/issues/issue1528.scad
+# transpiled JS throws: Unexpected token ')'
+scad/misc/allfunctions.scad
+# transpiled JS throws: _children is not defined
+scad/misc/children-warnings-tests.scad
+# transpiled JS throws: Invalid code point NaN
+scad/misc/chr-tests.scad
+# transpiled JS throws: Unexpected token ':'
+scad/misc/function-scope.scad
+# transpiled JS throws: Identifier 'main' has already been declared
+scad/misc/include-overwrite-main.scad
+# transpiled JS throws: Unexpected token ')'
+scad/misc/isbool-test.scad
+# transpiled JS throws: Unexpected token ')'
+scad/misc/isnum-test.scad
+# transpiled JS throws: Unexpected token ')'
+scad/misc/isstring-test.scad
+# transpiled JS throws: Unexpected token ')'
+scad/misc/isundef-test.scad
+# transpiled JS throws: table is not iterable
+scad/misc/lookup-tests.scad
+# transpiled JS throws: Parse errors: [{"message":"Unexpected character '�'.","location":{"start":{"line":0,"column":2},"end":{"line":0,"column":2}}}]
+scad/misc/nbsp-latin1-test.scad
+# transpiled JS throws: Parse errors: [{"message":"Unexpected character ' '.","location":{"start":{"line":0,"column":2},"end":{"line":0,"column":2}}}]
+scad/misc/nbsp-utf8-test.scad
+# transpiled JS throws: Parse errors: [{"message":"Unexpected character ' '.","location":{"start":{"line":1,"column":5},"end":{"line":1,"column":5}}}]
+scad/misc/no-break-space-test.scad
+# transpiled JS throws: Identifier 'g$13' has already been declared
+scad/misc/scope-assignment-tests.scad
+# transpiled JS throws: Module not found: ttf/liberation-2.00.1/LiberationSans-Regular.ttf
+scad/misc/text-metrics-test.scad
+# transpiled JS throws: a is not defined
+scad/misc/variable-scope-tests.scad

@@ -46,3 +46,9 @@ examples/text_box.scad
 examples/trefoil_klein_bottle.scad
 # sweep + polyline_join polyhedron topology difference (0.2657)
 examples/voronoi/voronoi_sphere.scad
+
+# Text-only models: OpenSCAD's top level is empty and they are graded on their
+# echo() output. Known mismatches when echo grading started (first differing
+# echo line shown); remove the entry when it passes.
+# JSCAD draws geometry; OpenSCAD's top level is empty
+examples/spiral/seashell.scad
