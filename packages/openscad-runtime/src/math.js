@@ -227,6 +227,8 @@ export const _min = (...args) => {
     const arr = args[0]
     if (arr.length === 0) return undefined
     if (Array.isArray(arr[0])) {
+      // Component-wise min of vectors; non-numeric rows yield undef
+      if (!arr.every(r => Array.isArray(r) && r.every(v => typeof v === 'number'))) return undefined
       // Component-wise min of vectors
       const len = arr[0].length
       const result = new Array(len)
@@ -238,8 +240,12 @@ export const _min = (...args) => {
       }
       return result
     }
+    // Any non-number (string, bool, undef) yields undef, not NaN
+    if (!arr.every(v => typeof v === 'number')) return undefined
     return Math.min(...arr)
   }
+  // No args or any non-number yields undef (Math.min() would give +Infinity)
+  if (args.length === 0 || !args.every(v => typeof v === 'number')) return undefined
   return Math.min(...args)
 }
 
@@ -248,6 +254,8 @@ export const _max = (...args) => {
     const arr = args[0]
     if (arr.length === 0) return undefined
     if (Array.isArray(arr[0])) {
+      // Component-wise max of vectors; non-numeric rows yield undef
+      if (!arr.every(r => Array.isArray(r) && r.every(v => typeof v === 'number'))) return undefined
       // Component-wise max of vectors
       const len = arr[0].length
       const result = new Array(len)
@@ -259,8 +267,12 @@ export const _max = (...args) => {
       }
       return result
     }
+    // Any non-number (string, bool, undef) yields undef, not NaN
+    if (!arr.every(v => typeof v === 'number')) return undefined
     return Math.max(...arr)
   }
+  // No args or any non-number yields undef (Math.max() would give -Infinity)
+  if (args.length === 0 || !args.every(v => typeof v === 'number')) return undefined
   return Math.max(...args)
 }
 

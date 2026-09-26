@@ -98,8 +98,6 @@ scad/functions/exponent-operator-test.scad
 scad/functions/function-literal-tests.scad
 # transpiled JS throws: 42 is not iterable
 scad/functions/list-comprehensions.scad
-# transpiled JS throws: Cannot convert a Symbol value to a number
-scad/functions/min-max-tests.scad
 # transpiled JS throws: Unexpected token ')'
 scad/misc/allfunctions.scad
 # transpiled JS throws: _children is not defined
