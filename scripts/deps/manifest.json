@@ -174,6 +174,10 @@
         {
           "patchFile": "scripts/deps/patches/dotscad-sticky-seed-examples.patch",
           "description": "Seed the RNG once at the top of nine examples with unseeded rands(); the later calls continue from it"
+        },
+        {
+          "patchFile": "scripts/deps/patches/dotscad-reverse-inverted-polyhedra.patch",
+          "description": "Reverse the faces of the chair (chair_score) and SD_Mountain (SD_Card_Taiwan) polyhedra, which wind inside-out"
         }
       ]
     },

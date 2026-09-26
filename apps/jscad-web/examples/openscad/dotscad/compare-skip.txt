@@ -5,9 +5,6 @@
 # Jaccard 0.9803 (OpenSCAD 2026.09.23 nightly, single-model run). An iterative
 # simulation, so float drift across its steps is the likely cause; not traced.
 examples/differential_line_growth.scad
-# Deterministic (rand() only feeds color()), but JSCAD output differs:
-# Jaccard 0.0537 (OpenSCAD 2026.09.23 nightly, single-model run). Triage pending.
-examples/taiwan/chair_score.scad
 
 # Uses "Webdings", a Windows symbol font the runtime lacks, so a fallback font
 # draws different glyphs.
@@ -17,13 +14,6 @@ examples/stereographic_projection/stereographic_chars.scad
 # OpenSCAD's output, so no comparison is possible.
 examples/voronoi/ripple_sphere.scad
 examples/voronoi/voronoi_vase.scad
-
-# Mixed-winding polyhedron: SD_Mountain faces are CW in OpenSCAD's STL while our
-# _polyhedron corrects them to CCW. The reference's total signed volume is
-# negative, so compare-stl.js flips every normal and scores Taiwan as a
-# subtracted region (Jaccard 0.174). Manifold's union stitches Mountain and
-# Taiwan into one surface, so splitIntoComponents cannot separate them.
-examples/taiwan/SD_Card_Taiwan.scad
 
 # Geometry mismatch below the 0.99 threshold (GPU job 475b626e2ebb404d,
 # OpenSCAD 2026.03.17.fp). Listed in MODEL_COMPARISON_BASELINE.md as known

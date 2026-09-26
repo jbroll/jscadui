@@ -1,0 +1,16 @@
+--- a/apps/jscad-web/examples/openscad/dotscad/examples/taiwan/chair_score.scad
++++ b/apps/jscad-web/examples/openscad/dotscad/examples/taiwan/chair_score.scad
+@@ -34 +34,4 @@
+-module chair(scale) {polyhedron(
++// The faces below wind counter-clockwise seen from outside, the reverse of
++// OpenSCAD's convention, so the solid rendered inside-out. Reverse each face.
++module _reversed_polyhedron(points, faces) polyhedron(points, [for (f = faces) [for (i = [len(f) - 1:-1:0]) f[i]]]);
++module chair(scale) {_reversed_polyhedron(
+--- a/apps/jscad-web/examples/openscad/dotscad/examples/taiwan/SD_Card_Taiwan.scad
++++ b/apps/jscad-web/examples/openscad/dotscad/examples/taiwan/SD_Card_Taiwan.scad
+@@ -19 +19,4 @@
+-module SD_Mountain(scale) {polyhedron(
++// The faces below wind counter-clockwise seen from outside, the reverse of
++// OpenSCAD's convention, so the solid rendered inside-out. Reverse each face.
++module _reversed_polyhedron(points, faces) polyhedron(points, [for (f = faces) [for (i = [len(f) - 1:-1:0]) f[i]]]);
++module SD_Mountain(scale) {_reversed_polyhedron(

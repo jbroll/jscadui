@@ -37,10 +37,21 @@ were **not** run in this triage, so no Jaccard numbers here are new.
 | `examples/voronoi/ruyi_pineapple.scad` | dotSCAD | same patch | identical after |
 | `examples/tiles/random_city.scad` | dotSCAD | same patch | identical after |
 | `examples/taiwan/random_city_taiwan.scad` | dotSCAD | same patch | identical after |
+| `examples/taiwan/chair_score.scad` | dotSCAD | `dotscad-reverse-inverted-polyhedra.patch`: the `chair` polyhedron's faces wind the wrong way, so OpenSCAD rendered 450 inside-out chairs (reference signed volume 0.24M instead of 7.86M; was Jaccard 0.0537). The patch reverses each face. | deterministic before and after (`rand()` only feeds `color()`) |
+| `examples/taiwan/SD_Card_Taiwan.scad` | dotSCAD | same patch (`SD_Mountain`; was Jaccard 0.174) | deterministic |
 
 Single-model runs (2026-09-26, cloud session, OpenSCAD 2026.09.23 nightly,
 `test-harness.js --no-stl-cache`): all above **PASS (1.0000)** except
-`penrose_basket` **PASS (0.9976)**, as does `hollow_out_torus`. The full
+`penrose_basket` **PASS (0.9976)**, as does `hollow_out_torus`.
+
+**Inverted polyhedra.** OpenSCAD takes polyhedron faces as clockwise seen from
+outside and does not repair the reverse. A reversed polyhedron that takes part
+in no boolean is exported inside-out by both backends. In a boolean, CGAL
+comes out correctly oriented, while Manifold (the harness's backend) carries
+the inverted shell along and gives wrong volumes where it overlaps other
+solids. Our `_polyhedron` always corrects the orientation, which matches CGAL.
+Fix the source when a reference is inverted, rather than the comparison.
+`chair_score` and `SD_Card_Taiwan` both score **1.000000** with the patch. The full
 suite on the GPU host has not run yet; the `rands()` count and range changes
 affect every suite, so its result matters beyond these models.
 
@@ -56,7 +67,6 @@ reproducible.
 
 | Model | Suite | Reason skipped | Proposed fix | Effort |
 |-------|-------|----------------|--------------|--------|
-| `examples/taiwan/chair_score.scad` | dotSCAD | Back in `compare-skip.txt`: deterministic (`rand()` only feeds `color()`), but Jaccard **0.0537** | Transpiler/runtime mismatch, not randomness. Compare the per-chair polyhedron and the `rotate`/`translate` chain first. | M |
 | `examples/differential_line_growth.scad` (`…_bowl.scad` is in `skip.txt` as a timeout on `main`) | dotSCAD | Deterministic since the sticky-seed patch (two renders identical), but Jaccard **0.9803** | Iterative simulation; find the first step where JSCAD and OpenSCAD node positions diverge. | M |
 
 **Sticky seed (used by `dotscad-sticky-seed-examples.patch`).** OpenSCAD ≥ 2021.01 keeps the RNG state after a seeded
@@ -75,7 +85,6 @@ patches.
 
 | Model | Suite | Reason skipped | Proposed fix |
 |-------|-------|----------------|--------------|
-| `examples/taiwan/SD_Card_Taiwan.scad` | dotSCAD | Mixed winding in reference; `compare-stl.js` auto-orient flips the whole mesh (Jaccard 0.174) | Harness: orient per shell (e.g. flip only inward-facing shells) instead of by total signed volume |
 | `NopSCADlib/tests/belts.scad` | NopSCADlib | Jaccard ~0.973 — CDT triangulation differs in multi-contour twisted `linear_extrude` | Runtime: match OpenSCAD's twisted-extrude slicing/triangulation |
 | `NopSCADlib/tests/shaft_couplings.scad` | NopSCADlib | Jaccard ~0.960 — step count for large-angle helical extrusions | Runtime: match OpenSCAD's slice count for large `twist` |
 | `examples/spiral/spring_dog.scad` | dotSCAD | `shape_glued2circles.scad` missing | Upstream deleted it in dotSCAD `45d7490e` (2021-02, "clean deprecated modules/functions") but the example still uses it. Vendor `shape_glued2circles.scad` + `_impl` from `45d7490e^` as a fetch-deps patch. |
