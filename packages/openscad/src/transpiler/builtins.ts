@@ -54,7 +54,7 @@ const primitiveParams: Record<string, string[]> = {
 
 // Positional parameter names for extrusions
 const extrusionParams: Record<string, string[]> = {
-  linear_extrude: ['height', 'center', 'twist', 'slices'],
+  linear_extrude: ['height', 'v', 'scale', 'center', 'twist', 'slices', 'segments'],
   rotate_extrude: ['angle', 'convexity'],
 }
 

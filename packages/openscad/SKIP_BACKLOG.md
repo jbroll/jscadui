@@ -85,10 +85,42 @@ patches.
 
 | Model | Suite | Reason skipped | Proposed fix |
 |-------|-------|----------------|--------------|
-| `NopSCADlib/tests/belts.scad` | NopSCADlib | Jaccard ~0.973 — CDT triangulation differs in multi-contour twisted `linear_extrude` | Runtime: match OpenSCAD's twisted-extrude slicing/triangulation |
-| `NopSCADlib/tests/shaft_couplings.scad` | NopSCADlib | Jaccard ~0.960 — step count for large-angle helical extrusions | Runtime: match OpenSCAD's slice count for large `twist` |
+| `NopSCADlib/tests/belts.scad` | NopSCADlib | Jaccard 0.9820 (was ~0.973). Not the extrusion: see **belts** below | `compare-stl.js`: read a mesh whose touching bodies share edges without losing volume, or find why our union leaves those faces apart |
 | `examples/spiral/spring_dog.scad` | dotSCAD | `shape_glued2circles.scad` missing | Upstream deleted it in dotSCAD `45d7490e` (2021-02, "clean deprecated modules/functions") but the example still uses it. Vendor `shape_glued2circles.scad` + `_impl` from `45d7490e^` as a fetch-deps patch. |
 | `examples/spiral/climbing_rose.scad`, `examples/stereographic_projection/stereographic_foliage_scroll.scad` | dotSCAD | JSCAD timeout | Profile; `foliage_scroll` also has unseeded `rands()` in `_foliage_scroll_impl.scad` and needs a seed patch regardless |
+
+**linear_extrude (2026-09-26).** The runtime now builds twisted, scaled and
+slanted (`v`) extrusions as OpenSCAD does (`openscad-runtime/src/linearExtrude.js`,
+ported from `LinearExtrudeNode.cc`, `linear_extrude.cc`, `CurveDiscretizer.cc`):
+the same slice count, edge splits and quad diagonals, plus OpenSCAD's argument
+rules (`h`, `v`, default height 100, `scale` only as a number or 2-vector,
+`center` only when boolean, integral `slices`/`segments`). Positional arguments
+follow OpenSCAD's order `height, v, scale, center, twist, slices, segments`.
+Single-model runs: `openscad-tests` `linear_extrude-tests` 0.4266 → 1.0000,
+`linear_extrude-parameter-tests` 0.3404 → 1.0000, `linear_extrude-scale-zero-tests`
+0.8316 → 0.9972; `openscad-examples` `Basics/linear_extrude` 0.8732 → 0.9988.
+All four are off the compare-skip lists.
+Every other compare-skip entry was rerun alone after this change. Eight more now
+score 1.0000 and are off the lists: dotSCAD `dragon_head`, `emoticon_moai`,
+`fourier_vase`, `voronoi_holder`, `floor_stand_text`; `openscad-examples`
+`Old/example020`; `openscad-tests` `issue2259`, `issue4432`. The 120 corpus files
+that call `linear_extrude` with `twist` or `scale` were also rerun: each one that
+fails fails identically (same or lower Jaccard) at the parent commit.
+
+**shaft_couplings** was not a slice-count problem. NopSCADlib writes
+`square(radius - r1, 1)`; OpenSCAD centers `square`, `cube` and `cylinder` only
+when `center` is a boolean, and the runtime centered on any truthy value. Fixed;
+the model scores 1.0000 and is off the list.
+
+**belts.** Split into its parts, the straight runs and the arcs each score
+1.0000, and the triangles of our STL have the reference's signed volume to 2e-6
+(9695.398 vs 9695.414). Together they score 0.925: our STL has 586 edges shared
+by four triangles where the tooth and back bodies meet, where the reference has
+only two-triangle edges, and `compare-stl.js`'s whole-mesh `Manifold.ofMesh`
+reads it as 8969.5. Rejecting a whole-mesh result whose volume disagrees with
+the signed volume is not enough: `splitIntoComponents` keeps the touching
+bodies together. Why our union leaves those faces apart is not traced (a
+plane computed two ways, one ulp apart, is the likely cause).
 
 ## P3 — keep skipped
 

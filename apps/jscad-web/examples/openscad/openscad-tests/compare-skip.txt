@@ -14,12 +14,6 @@ scad/3D/features/cylinder-tests.scad
 scad/3D/features/difference-tests.scad
 # Jaccard 0.8304
 scad/3D/features/intersection-tests.scad
-# Jaccard 0.3404
-scad/3D/features/linear_extrude-parameter-tests.scad
-# Jaccard 0.8316
-scad/3D/features/linear_extrude-scale-zero-tests.scad
-# Jaccard 0.4266
-scad/3D/features/linear_extrude-tests.scad
 # Jaccard 0.4685
 scad/3D/features/minkowski3-difference-test.scad
 # reference/generated STL comparison fails (non-manifold output)
@@ -54,12 +48,8 @@ scad/3D/issues/issue1672.scad
 scad/3D/issues/issue1867.scad
 # Jaccard 0.8051
 scad/3D/issues/issue2090.scad
-# Jaccard 0.8261
-scad/3D/issues/issue2259.scad
 # Jaccard 0.0001
 scad/3D/issues/issue2301.scad
-# Jaccard 0.8762
-scad/3D/issues/issue4432.scad
 # Jaccard 0.0105
 scad/3D/issues/issue5555.scad
 # Jaccard 0.8739
