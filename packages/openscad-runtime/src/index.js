@@ -7,7 +7,7 @@
  *        j$.cube({size: 10})
  */
 
-import { PI, _range, _min, _max, _num, str, version_num, parent_module, search, _norm, _cross, _lookup, _rands, _resetRng, is_vector, chr, ord, is_consistent, _list_pattern, reverse, _sinDeg, _cosDeg, _tanDeg } from './math.js'
+import { PI, _range, _min, _max, _num, str, _echoVal, version_num, parent_module, search, _norm, _cross, _lookup, _rands, _resetRng, is_vector, chr, ord, is_consistent, _list_pattern, reverse, _sinDeg, _cosDeg, _tanDeg } from './math.js'
 import { _eq, _vadd, _vsub, _vmul, _vdiv, _vneg } from './vector.js'
 import { _getSegments, setGlobalFn } from './segments.js'
 import { NO_CHILD as _NO_CHILD, initPrimitives, _cube, _cylinder, _sphere, _circle, _square, _regular_polygon, _polyhedron, _polyhedronHull, _safeUnion, _safeUnion2D, _hull, _union, _subtract, _intersect, _minkowski, _polygon, _region } from './primitives.js'
@@ -136,6 +136,20 @@ const j$ = {
     if (Array.isArray(x) && x.length === 0) return false
     return true
   },
+
+  /**
+   * OpenSCAD echo(): one `ECHO: ` line in OpenSCAD's format, e.g.
+   * `ECHO: "s", a = [1, 2], undef`. `names` holds each value's argument name
+   * (null or absent when positional), or is null when none are named.
+   * The line goes to this.onEcho when set (run-jscad --echo collects it),
+   * else to console.log.
+   */
+  echo(names, ...values) {
+    const line = 'ECHO: ' + values.map((v, i) => (names?.[i] ? names[i] + ' = ' : '') + _echoVal(v)).join(', ')
+    if (this.onEcho) this.onEcho(line)
+    else console.log(line)
+  },
+  onEcho: null,
 
   /**
    * OpenSCAD assert - throws if condition is false, returns undefined if true

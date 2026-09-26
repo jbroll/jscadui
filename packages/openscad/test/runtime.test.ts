@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest'
 
 // Import the runtime directly for unit testing
 import j$ from '@jscadui/openscad-runtime'
-import { _cylinder, _sphere, _cube, _square, _circle, withoutDegeneratePolygons, initColor, _color, initPrimitives, _safeUnion, initTransforms, _mirror, _subtract, _intersect } from '@jscadui/openscad-runtime'
+import { _cylinder, _sphere, _cube, _square, _circle, withoutDegeneratePolygons, initColor, _color, initPrimitives, _safeUnion, initTransforms, _mirror, _subtract, _intersect, str, createJ$Instance } from '@jscadui/openscad-runtime'
+import { _fmtNum } from '../../openscad-runtime/src/math.js'
 
 /**
  * Unit tests for OpenSCAD runtime helpers
@@ -932,5 +933,28 @@ describe('subtract with absent subject', () => {
 
   it('still passes a lone present subject through', () => {
     expect(_subtract(mask)).toBe(mask)
+  })
+})
+
+// Expected strings are OpenSCAD 2026.09.23's own echo() output.
+describe('echo() and str() formatting', () => {
+  it('formats numbers as OpenSCAD does', () => {
+    const nums = [0.00001, 0.000011, 1e-6, 1.1e-6, 123456, 1234567, 999999.5, 0.1 + 0.2, -0, -1e-7, 1e21, 1/3, 100/3, 600001, 1/0, -1/0, 0/0]
+    expect(nums.map(_fmtNum)).toEqual([
+      '0.00001', '0.000011', '1e-6', '1.1e-6', '123456', '1.23457e+6', '1e+6', '0.3', '0', '-1e-7', '1e+21', '0.333333', '33.3333', '600001', 'inf', '-inf', 'nan',
+    ])
+  })
+
+  it('str() quotes strings only inside lists', () => {
+    expect(str('a', ['x', 1, [true, undefined]], 1.1e-5)).toBe('a["x", 1, [true, undef]]0.000011')
+  })
+
+  it('j$.echo() writes one ECHO line with argument names', () => {
+    const inst = createJ$Instance()
+    const lines: string[] = []
+    inst.onEcho = (l: string) => lines.push(l)
+    inst.echo(['x', null], undefined, 's')
+    inst.echo(null)
+    expect(lines).toEqual(['ECHO: x = undef, "s"', 'ECHO: '])
   })
 })
