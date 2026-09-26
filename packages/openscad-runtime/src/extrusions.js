@@ -41,17 +41,37 @@ export const _linearExtrude = (args, geo) => {
   if (!geo) return undefined
   // A lone 3D child: OpenSCAD ignores it ("Ignoring 3D child object for 2D operation")
   if (!_is2D(geo)) return undefined
-  if (profileSides(geo)?.length === 0) return undefined
+  const sides = profileSides(geo)
+  if (sides?.length === 0) return undefined
+  // circle(0) is empty in OpenSCAD; the runtime draws it as a 1e-4 square
+  // (_circle) only so that hull() keeps the point, so extrude it to nothing
+  // (float32 in Manifold, so a little over 1e-4 across).
+  if (sides && _extent(sides) <= 1.001e-4) return undefined
   const p = linearExtrudeParams(args)
   const [vx, vy, height] = p.vector
   if (height <= 0) return undefined
 
-  if (p.twist === 0 && p.scaleX === 1 && p.scaleY === 1 && vx === 0 && vy === 0) {
-    const result = extrudeLinear({ height }, geo)
+  // Without twist, a uniform scale gives OpenSCAD's frustum however many slices
+  // it cuts. A Manifold cross-section extrudes that natively in double
+  // precision; the polyhedron path rounds to float32, and stacked frustums
+  // (dotSCAD's ellipse_extrude) then leave a sliver where they should meet.
+  const native = geo.isManifoldGeom2 === true && !geo.hasJscadSource
+  const straight = p.twist === 0 && vx === 0 && vy === 0 && p.scaleX === p.scaleY
+  if (straight && (p.scaleX === 1 || (native && p.scaleX > 0))) {
+    const result = extrudeLinear(p.scaleX === 1 ? { height } : { height, scale: [p.scaleX, p.scaleY] }, geo)
     return p.center ? translate([0, 0, -height / 2], result) : result
   }
 
   return extrudeMesh(p, geo)
+}
+
+const _extent = (sides) => {
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
+  for (const [p0, p1] of sides) {
+    minX = Math.min(minX, p0[0], p1[0]); maxX = Math.max(maxX, p0[0], p1[0])
+    minY = Math.min(minY, p0[1], p1[1]); maxY = Math.max(maxY, p0[1], p1[1])
+  }
+  return Math.max(maxX - minX, maxY - minY)
 }
 
 const _isZeroArea = (sides) => {
