@@ -7,13 +7,17 @@
  * 1. Running OpenSCAD to generate reference STL (using Manifold backend)
  * 2. Translating to JSCAD and running with Manifold backend
  * 3. Comparing the two outputs using Jaccard similarity
+ * 4. Comparing their echo() output line for line
+ *
+ * A model whose OpenSCAD top level is empty (it only echoes) is graded on its
+ * echo() output alone, and JSCAD must then produce no geometry either.
  *
  * Usage:
  *   test-harness dir1 dir2 ...           Test all .scad files in directories
  *   test-harness --skip-file skip.txt    Skip files listed in skip.txt
  */
 
-import { readFileSync, readdirSync, existsSync, mkdirSync, rmSync, copyFileSync } from 'node:fs'
+import { readFileSync, readdirSync, existsSync, mkdirSync, rmSync, copyFileSync, statSync } from 'node:fs'
 import { resolve, basename, dirname, join, relative } from 'node:path'
 import { execSync, exec } from 'node:child_process'
 import { promisify } from 'node:util'
@@ -28,6 +32,10 @@ const __dirname = dirname(__filename)
 // Extracted to bin/stl-cache.js so it can be unit-tested. Stored in
 // ~/.cache/jscadui/openscad-stl/ so it persists across CI worktrees.
 import { StlCache } from './stl-cache.js'
+import { parseEchoExport, compareEcho, describeEchoMismatch } from './echo-compare.js'
+
+// OpenSCAD's message when the STL export has nothing to write
+const EMPTY_TOP_LEVEL = 'Current top level object is empty.'
 
 const VERSION = '0.2.0'
 const OPENSCAD_TIMEOUT = 60_000
@@ -66,6 +74,8 @@ function parseArgs(args) {
     noStlCache: false,
     stlCache: null,    // populated in main() after parsing
     preview: false,
+    echo: true,
+    list: false,
   }
 
   let i = 0
@@ -83,7 +93,8 @@ Usage:
 
 Options:
   --skip-file <path>      File containing filenames/patterns to skip (one per line)
-  --no-dir-skips          Ignore auto-discovered skip.txt and compare-skip.txt files
+  --no-dir-skips          Ignore auto-discovered skip.txt, compare-skip.txt and
+                          echo-skip.txt files
   --match <glob>          Only run files matching this glob pattern (repeatable)
                           Examples: --match "*/01-basics/*"
                                     --match "*/bosl/*" --match "*/bosl2/*"
@@ -93,6 +104,9 @@ Options:
   --concurrency <n>       Number of parallel tests (default: ${DEFAULT_CONCURRENCY})
   --no-stl-cache          Disable OpenSCAD STL cache (always re-render)
   --preview               Set $preview=true for both OpenSCAD and transpiler
+  --no-echo               Grade geometry only: skip the echo() comparison
+                          (models that only echo are then NOT GRADED)
+  --list                  Print the files that would be graded and exit
   --keep-temp             Keep temporary files for debugging
   --verbose               Print detailed output
   --json                  Output results as JSON
@@ -117,6 +131,10 @@ Options:
       options.noStlCache = true
     } else if (arg === '--preview') {
       options.preview = true
+    } else if (arg === '--list') {
+      options.list = true
+    } else if (arg === '--no-echo') {
+      options.echo = false
     } else if (arg === '--no-dir-skips') {
       options.noDirSkips = true
     } else if (arg === '--skip-file') {
@@ -154,7 +172,13 @@ function checkOpenscad(openscadPath) {
   }
 }
 
-async function runOpenscad(scadPath, stlPath, openscadPath, fn = 0, originalPath = null, stlCache = null, preview = false) {
+/**
+ * Render the reference: STL and echo() export from one OpenSCAD run.
+ * Returns { success, empty, echoPath, cached } or { success: false, error }.
+ * `empty` means the top level is empty (the model only echoes): OpenSCAD
+ * fails the STL export but writes the echo export, and no STL is left.
+ */
+async function runOpenscad(scadPath, stlPath, echoPath, openscadPath, fn = 0, originalPath = null, stlCache = null, preview = false) {
   const pathForLibDetection = originalPath || scadPath
 
   // Check STL cache before invoking flatpak
@@ -162,13 +186,14 @@ async function runOpenscad(scadPath, stlPath, openscadPath, fn = 0, originalPath
     const cached = stlCache.check(pathForLibDetection, fn, preview)
     if (cached) {
       if (cached.failed) return { success: false, error: `${cached.failed} (cached)`, cached: true }
-      copyFileSync(cached.stlPath, stlPath)
-      return { success: true, cached: true }
+      if (!cached.empty) copyFileSync(cached.stlPath, stlPath)
+      copyFileSync(cached.echoPath, echoPath)
+      return { success: true, empty: cached.empty, echoPath, cached: true }
     }
   }
 
   // Paths go through a shell: quote them (snippet's "Angle Shelf.scad").
-  const args = ['--backend=manifold', '-o', JSON.stringify(stlPath)]
+  const args = ['--backend=manifold', '-o', JSON.stringify(stlPath), '-o', JSON.stringify(echoPath)]
   if (fn > 0) args.push('-D', `"\\$fn=${fn}"`)
   if (preview) args.push('-D', '"\\$preview=true"')
   args.push(JSON.stringify(scadPath))
@@ -177,12 +202,20 @@ async function runOpenscad(scadPath, stlPath, openscadPath, fn = 0, originalPath
   const env = libDir ? { ...process.env, OPENSCADPATH: resolve(libDir) } : process.env
 
   try {
-    await execAsync(`${openscadPath} ${args.join(' ')}`, { timeout: OPENSCAD_TIMEOUT, env })
-    stlCache?.saveHit(pathForLibDetection, stlPath, fn, preview)
-    return { success: true }
+    // OpenSCAD writes every echo to stderr too; a model that echoes a lot
+    // (issue4172-echo-vector-stack-exhaust) overflows the 1 MB default.
+    await execAsync(`${openscadPath} ${args.join(' ')}`, { timeout: OPENSCAD_TIMEOUT, env, maxBuffer: 64 * 1024 * 1024 })
+    stlCache?.saveHit(pathForLibDetection, { stlPath, echoPath }, fn, preview)
+    return { success: true, empty: false, echoPath }
   } catch (err) {
     // A timeout under load says nothing about the model, so it is not cached
     if (err.killed) return { success: false, error: `timed out after ${OPENSCAD_TIMEOUT} ms` }
+    // Nothing to export is the reference for a model that only echoes
+    if (err.stderr?.includes(EMPTY_TOP_LEVEL) && existsSync(echoPath)) {
+      rmSync(stlPath, { force: true })
+      stlCache?.saveHit(pathForLibDetection, { stlPath: null, echoPath }, fn, preview)
+      return { success: true, empty: true, echoPath }
+    }
     stlCache?.saveFailed(pathForLibDetection, fn, err.message, preview)
     return { success: false, error: err.message }
   }
@@ -217,10 +250,17 @@ function detectLibraryDir(scadPath) {
   return null
 }
 
-async function runJscad(scadPath, stlPath, fn = 0, preview = false) {
+/**
+ * Transpile and run the model. With `echoPath`, run-jscad writes the echo()
+ * output there and an empty result is not an error: no STL is written.
+ */
+async function runJscad(scadPath, stlPath, fn = 0, preview = false, echoPath = null, openscadVersion = null) {
   const libDir = detectLibraryDir(scadPath)
   const runJscadScript = join(__dirname, 'run-jscad.js')
   const args = [runJscadScript, JSON.stringify(scadPath), '-o', JSON.stringify(stlPath)]
+  if (echoPath) args.push('--echo', JSON.stringify(echoPath))
+  // version() must report the reference's OpenSCAD to echo the same thing
+  if (openscadVersion) args.push('--openscad-version', openscadVersion)
   if (fn > 0) args.push('--fn', fn)
   if (preview) args.push('--preview')
   if (libDir) args.push('--lib-path', JSON.stringify(resolve(libDir)))
@@ -243,10 +283,19 @@ async function runJscad(scadPath, stlPath, fn = 0, preview = false) {
       }
       // Retry once on process-level failures (OOM, timeout under load)
       if (attempt === 0) continue
-      const msg = err.stderr ? err.stderr.split('\n').filter(l => l.trim()).pop() || err.message : err.message
-      return { success: false, error: msg }
+      return { success: false, error: jscadErrorLine(err) }
     }
   }
+}
+
+/**
+ * The line of run-jscad's stderr that says what failed: its own report
+ * ("main() threw: ...", "Execution error: ...") rather than the last line,
+ * which is usually a stack frame. Falls back to the last line, then the message.
+ */
+function jscadErrorLine(err) {
+  const lines = (err.stderr || '').split('\n').map(l => l.trim()).filter(Boolean)
+  return lines.find(l => /^(main\(\) threw|Execution error|run-jscad: timeout)/.test(l)) || lines.pop() || err.message
 }
 
 async function compareStl(refStl, genStl) {
@@ -273,6 +322,15 @@ async function compareStl(refStl, genStl) {
 }
 
 
+/**
+ * Whether run-jscad wrote any triangles: it writes no file for an empty
+ * result, and exportStl() writes just the solid/endsolid lines for a mesh
+ * without triangles.
+ */
+function hasGeometry(stlPath) {
+  return existsSync(stlPath) && statSync(stlPath).size > 'solid JSCAD\nendsolid JSCAD\n'.length
+}
+
 async function testFile(scadPath, options) {
   const name = basename(scadPath)
   const tempDir = join(homedir(), '.cache', 'scad-test', `${Date.now()}-${Math.random().toString(36).slice(2)}`)
@@ -281,8 +339,11 @@ async function testFile(scadPath, options) {
 
   const refStl = join(tempDir, 'reference.stl')
   const genStl = join(tempDir, 'generated.stl')
+  const refEcho = join(tempDir, 'reference.echo')
+  const genEcho = join(tempDir, 'generated.echo.json')
 
-  const result = { name, path: scadPath, jaccard: null, pass: false, error: null }
+  // textOnly: graded on echo() alone. echo: compareEcho() result.
+  const result = { name, path: scadPath, jaccard: null, textOnly: false, echo: null, pass: false, error: null }
 
   try {
     // Use the original scadPath directly — OpenSCAD resolves includes relative to the
@@ -290,26 +351,63 @@ async function testFile(scadPath, options) {
     // Passing a temp copy caused a race condition: includes with `..` paths escaped
     // the temp dir into a shared parent, allowing concurrent workers to overwrite
     // the same dependency files while OpenSCAD was reading them.
-    const openscadResult = await runOpenscad(scadPath, refStl, options.openscad, options.fn, null, options.stlCache, options.preview)
+    const openscadResult = await runOpenscad(scadPath, refStl, refEcho, options.openscad, options.fn, null, options.stlCache, options.preview)
     if (!openscadResult.success) {
       result.error = `OpenSCAD: ${openscadResult.error}`
       return result
     }
+    // An empty top level after an evaluation error (failed assert, recursion
+    // limit) is OpenSCAD failing, not a model that only echoes.
+    const evalError = openscadResult.empty && readFileSync(refEcho, 'utf8').match(/^ERROR: .*/m)?.[0]
+    if (evalError) {
+      result.error = `OpenSCAD: ${evalError}`
+      return result
+    }
+    const compareText = options.echo && !isSkippedByDirPatterns(scadPath, options.echoSkips)
+    if (openscadResult.empty && !compareText) {
+      // Nothing left to grade: counted with the models that have no reference
+      result.error = `OpenSCAD: ${EMPTY_TOP_LEVEL} (echo not compared)`
+      return result
+    }
+    result.textOnly = openscadResult.empty
 
-    const jscadResult = await runJscad(scadPath, genStl, options.fn, options.preview)
+    const jscadResult = await runJscad(scadPath, genStl, options.fn, options.preview, compareText ? genEcho : null, options.openscadVersion)
     if (!jscadResult.success) {
       result.error = `JSCAD: ${jscadResult.error}`
       return result
     }
 
-    const compareResult = await compareStl(refStl, genStl)
-    if (!compareResult.success) {
-      result.error = `Compare: ${compareResult.error}`
+    const genHasGeometry = hasGeometry(genStl)
+    if (result.textOnly && genHasGeometry) {
+      result.error = 'JSCAD: produced geometry, OpenSCAD\'s top level is empty'
+      return result
+    }
+    if (!result.textOnly && !genHasGeometry) {
+      result.error = 'JSCAD: No geometry returned from main()'
       return result
     }
 
-    result.jaccard = compareResult.jaccard
-    result.pass = result.jaccard >= options.threshold
+    if (!result.textOnly) {
+      const compareResult = await compareStl(refStl, genStl)
+      if (!compareResult.success) {
+        result.error = `Compare: ${compareResult.error}`
+        return result
+      }
+      result.jaccard = compareResult.jaccard
+    }
+
+    if (compareText) {
+      let gen
+      try {
+        gen = JSON.parse(readFileSync(genEcho, 'utf8'))
+      } catch (err) {
+        result.error = `JSCAD: no echo output (${err.message})`
+        return result
+      }
+      result.echo = compareEcho(parseEchoExport(readFileSync(refEcho, 'utf8')), gen)
+    }
+
+    result.pass = (result.textOnly || result.jaccard >= options.threshold) && (result.echo?.match ?? true)
   } finally {
     if (!options.keepTemp) {
       try { rmSync(tempDir, { recursive: true }) } catch { /* ignore cleanup errors */ }
@@ -317,6 +415,15 @@ async function testFile(scadPath, options) {
   }
 
   return result
+}
+
+/** Result detail for the report: Jaccard and/or echo line count, or what differed. */
+function describeResult(result, threshold) {
+  const parts = []
+  if (!result.textOnly) parts.push(result.jaccard.toFixed(4) + (result.jaccard < threshold ? ' below threshold' : ''))
+  if (result.echo) parts.push(result.echo.match ? `echo ${result.echo.refCount} lines` : describeEchoMismatch(result.echo))
+  if (result.textOnly) parts.push('text only')
+  return parts.join('; ')
 }
 
 /**
@@ -411,6 +518,8 @@ const discoverSkipPatterns = dirs => [
   ...discoverDirPatterns(dirs, 'compare-skip.txt'),
 ]
 const discoverExcludePatterns = dirs => discoverDirPatterns(dirs, 'exclude.txt')
+// echo-skip.txt: the geometry is graded, the echo() output is not compared.
+const discoverEchoSkipPatterns = dirs => discoverDirPatterns(dirs, 'echo-skip.txt')
 
 /**
  * Check if a file should be skipped based on directory-scoped skip patterns.
@@ -509,11 +618,25 @@ async function main() {
     process.exit(1)
   }
 
+  if (options.list) {
+    const dirSkips = options.noDirSkips ? [] : discoverSkipPatterns(options.dirs)
+    const cwd = process.cwd()
+    for (const f of getTestFiles(options.dirs, options.matchPatterns)) {
+      if (!matchesSkipPattern(relative(cwd, f), options.skipPatterns) && !isSkippedByDirPatterns(f, dirSkips)) {
+        console.log(relative(cwd, f))
+      }
+    }
+    process.exit(0)
+  }
+
   const openscadInfo = checkOpenscad(options.openscad)
   if (!openscadInfo.available) {
     console.error(`Error: OpenSCAD not found at '${options.openscad}'`)
     process.exit(1)
   }
+
+  // "OpenSCAD version 2026.09.23" -> "2026.09.23", for the transpiled version()
+  options.openscadVersion = openscadInfo.version.match(/version\s+(\S+)/)?.[1] ?? null
 
   // Init STL cache (skip if disabled or running with custom $fn)
   if (!options.noStlCache) {
@@ -531,6 +654,7 @@ async function main() {
 
   // Auto-discover skip.txt and compare-skip.txt from the tested directories (directory-scoped patterns)
   const dirSkips = options.noDirSkips ? [] : discoverSkipPatterns(options.dirs)
+  options.echoSkips = options.noDirSkips ? [] : discoverEchoSkipPatterns(options.dirs)
 
   // Filter out skipped files: explicit --skip-file patterns OR auto-discovered skip.txt patterns
   const cwd = process.cwd()
@@ -566,6 +690,7 @@ async function main() {
 
   // Tally results
   let passed = 0, failed = 0, translatorErrors = 0, openscadErrors = 0
+  let textOnly = 0  // graded on echo() output alone (included in passed/failed)
 
   for (const result of results) {
     if (result.error) {
@@ -578,12 +703,14 @@ async function main() {
       }
     } else if (result.pass) {
       passed++
+      if (result.textOnly) textOnly++
       if (options.verbose && !options.json) {
-        console.log(`${result.name}: PASS (${result.jaccard.toFixed(4)})`)
+        console.log(`${result.name}: PASS (${describeResult(result, options.threshold)})`)
       }
     } else {
       failed++
-      if (!options.json) console.log(`${result.name}: FAIL (${result.jaccard.toFixed(4)})`)
+      if (result.textOnly) textOnly++
+      if (!options.json) console.log(`${result.name}: FAIL (${describeResult(result, options.threshold)})`)
     }
   }
 
@@ -602,13 +729,14 @@ async function main() {
 
   if (options.json) {
     console.log(JSON.stringify({
-      summary: { total: files.length, tested, passed, failed, translatorErrors, openscadErrors, skipped },
+      summary: { total: files.length, tested, passed, failed, translatorErrors, openscadErrors, skipped, textOnly },
       threshold: options.threshold,
       passRate: `${passRate}%`,
       results
     }, null, 2))
   } else {
     console.log(`\nSummary: ${passed} passed, ${failed} failed, ${translatorErrors} errors out of ${tested} tested (${passRate}%)`)
+    if (textOnly > 0) console.log(`Text only: ${textOnly} of the graded models only echo (graded on echo() output)`)
     if (openscadErrors > 0) {
       console.log(`Not graded: ${openscadErrors} whose OpenSCAD reference failed (NOT GRADED above)`)
     }
