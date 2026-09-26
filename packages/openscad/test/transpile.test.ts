@@ -316,3 +316,24 @@ describe('unknown module calls without imports', () => {
     expect(() => main({}, () => ({}), {})).not.toThrow()
   })
 })
+
+describe('source decoding and whitespace', () => {
+  it('decodes strict UTF-8 unchanged', async () => {
+    const { decodeScadSource } = await import('../src/parser/parse.js')
+    const bytes = new TextEncoder().encode('echo("héllo");\n')
+    expect(decodeScadSource(bytes)).toBe('echo("héllo");\n')
+  })
+
+  it('falls back to latin-1 for non-UTF-8 bytes', async () => {
+    const { decodeScadSource } = await import('../src/parser/parse.js')
+    // 0xA0 alone is invalid UTF-8; in latin-1 it is no-break space
+    expect(decodeScadSource(new Uint8Array([0x61, 0xA0, 0x3D]))).toBe('a\u00A0=')
+  })
+
+  it('treats NBSP as whitespace outside strings, preserving string contents', async () => {
+    const { normalizeSourceWhitespace, parse } = await import('../src/parser/parse.js')
+    expect(normalizeSourceWhitespace('a\u00A0=\u00A01;')).toBe('a = 1;')
+    expect(normalizeSourceWhitespace('echo("a\u00A0b");')).toBe('echo("a\u00A0b");')
+    expect(parse('echo(\u00A01\u00A0);').errors).toHaveLength(0)
+  })
+})

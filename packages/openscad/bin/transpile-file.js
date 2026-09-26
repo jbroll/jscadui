@@ -12,7 +12,7 @@
 
 import { readFileSync, existsSync } from 'node:fs'
 import { dirname, resolve, basename } from 'node:path'
-import { parse } from '../esm/parser/parse.js'
+import { parse, decodeScadSource } from '../esm/parser/parse.js'
 import { transpile } from '../esm/transpiler/transpile.js'
 
 const args = process.argv.slice(2)
@@ -41,7 +41,7 @@ if (!existsSync(filePath)) {
   process.exit(1)
 }
 
-const source = readFileSync(filePath, 'utf8')
+const source = decodeScadSource(readFileSync(filePath))
 const { ast, errors } = parse(source)
 
 if (errors.length > 0) {

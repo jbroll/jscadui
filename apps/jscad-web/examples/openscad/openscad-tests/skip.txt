@@ -92,12 +92,6 @@ scad/obj/obj-import-export_dodecahedron.scad
 scad/functions/function-literal-tests.scad
 # transpiled JS throws: Identifier 'main' has already been declared
 scad/misc/include-overwrite-main.scad
-# transpiled JS throws: Parse errors: [{"message":"Unexpected character '�'.","location":{"start":{"line":0,"column":2},"end":{"line":0,"column":2}}}]
-scad/misc/nbsp-latin1-test.scad
-# transpiled JS throws: Parse errors: [{"message":"Unexpected character ' '.","location":{"start":{"line":0,"column":2},"end":{"line":0,"column":2}}}]
-scad/misc/nbsp-utf8-test.scad
-# transpiled JS throws: Parse errors: [{"message":"Unexpected character ' '.","location":{"start":{"line":1,"column":5},"end":{"line":1,"column":5}}}]
-scad/misc/no-break-space-test.scad
 # transpiled JS throws: Identifier 'g$13' has already been declared
 scad/misc/scope-assignment-tests.scad
 # transpiled JS throws: Module not found: ttf/liberation-2.00.1/LiberationSans-Regular.ttf

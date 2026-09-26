@@ -13,7 +13,7 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
-import { parse } from '../esm/parser/parse.js'
+import { parse, decodeScadSource } from '../esm/parser/parse.js'
 import { transpile } from '../esm/transpiler/transpile.js'
 import { registerCachedFonts } from '../../jscad-text/src/fonts/fontCache.js'
 import { loadSystemFonts } from '../../jscad-text/src/fonts/FontMap.js'
@@ -420,7 +420,7 @@ export function createFileResolver(fileDir, customLibPaths = []) {
     if (existsSync(relativePath)) {
       return {
         path: relativePath,  // Use full filesystem path
-        content: readFileSync(relativePath, 'utf8')
+        content: decodeScadSource(readFileSync(relativePath))
       }
     }
 
@@ -430,7 +430,7 @@ export function createFileResolver(fileDir, customLibPaths = []) {
       if (existsSync(libTargetPath)) {
         return {
           path: libTargetPath,  // Use full filesystem path
-          content: readFileSync(libTargetPath, 'utf8')
+          content: decodeScadSource(readFileSync(libTargetPath))
         }
       }
     }
@@ -563,7 +563,7 @@ function createMakeRequire(jscadModeling, openscadRuntime, moduleCache, fn, libP
         try {
           const resolvedPath = resolve(currentFileDir, path)
           if (existsSync(resolvedPath)) {
-            const scadSource = readFileSync(resolvedPath, 'utf8')
+            const scadSource = decodeScadSource(readFileSync(resolvedPath))
             const fileDir = dirname(resolvedPath)
             const transpiled = transpileScad(scadSource, resolvedPath, fileDir, fn, false, libPaths, sharedCache)
 
@@ -664,7 +664,7 @@ export function evalScadSolidSync(scadPath, ctx, { fn = 0, libPaths = [], shared
   const { jscadModeling, openscadRuntime } = ctx
   const inputPath = resolve(scadPath)
   const fileDir = dirname(inputPath)
-  const source = readFileSync(inputPath, 'utf8')
+  const source = decodeScadSource(readFileSync(inputPath))
   const { code, moduleCache } = transpileScad(source, inputPath, fileDir, fn, false, libPaths, sharedCache)
   const j$Instance = createJ$Instance()
   j$Instance.jscad = jscadModeling
@@ -726,7 +726,7 @@ async function main() {
     inputPath = resolve(options.input)
     isScad = options.input.endsWith('.scad')
     try {
-      source = readFileSync(inputPath, 'utf8')
+      source = decodeScadSource(readFileSync(inputPath))
     } catch (err) {
       console.error(`Error reading file: ${options.input}`)
       console.error(err.message)
