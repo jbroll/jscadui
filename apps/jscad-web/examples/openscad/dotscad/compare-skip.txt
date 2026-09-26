@@ -21,15 +21,9 @@ examples/voronoi/voronoi_vase.scad
 # Near-miss, CDT triangulation difference:
 examples/bunny_frame.scad
 examples/chrome_dino.scad
-examples/dragon/dragon_head.scad
-examples/emoticon_moai.scad
-examples/fourier_vase.scad
 examples/taiwan/TaiwaneseBlackBear.scad
 examples/tiles/penrose_crystallization.scad
 examples/voronoi/delaunay_fibonacci.scad
-examples/voronoi/voronoi_holder.scad
-# Near-miss, text geometry difference:
-examples/floor_stand/floor_stand_text.scad
 # text rendering + box_extrude geometry difference (0.8686)
 examples/text_box.scad
 # path_extrude geometry difference (0.8133)
