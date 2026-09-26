@@ -625,6 +625,12 @@ describe('Utility Functions', () => {
     expect(code).toContain('j$.version()')
   })
 
+  it('lets a function nested in a module shadow a runtime helper', () => {
+    const code = transpileCode('module m() { function version(n) = n; function str(x) = x; echo(version(1), str(2)); }')
+    expect(code).not.toContain('j$.version(')
+    expect(code).not.toContain('j$.str(')
+  })
+
   it('instantiates the child of echo()', () => {
     const code = transpileCode('echo("s") cube(1);')
     expect(code).toMatch(/j\$\.echo\(null, "s"\), j\$\.cube/)

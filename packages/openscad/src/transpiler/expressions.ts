@@ -1036,8 +1036,9 @@ export function transpileFunctionCall(
     return `[].concat(${args})`
   }
 
-  // Helper functions from j$ runtime
-  if (useBuiltin) {
+  // Helper functions from j$ runtime, unless a function nested in the current
+  // module shadows the name (dotSCAD's qr_coder defines its own version())
+  if (useBuiltin && !ctx.scopes.lookupFunctionBinding(callee)) {
     const helperFuncs = ['norm', 'cross', 'lookup', 'rands', 'search', 'version', 'version_num', 'parent_module', 'str', 'chr', 'ord', 'reverse']
     if (helperFuncs.includes(callee)) {
       return `j$.${callee}(${args})`
