@@ -1,0 +1,12 @@
+{
+  "comment": "Source checkouts that package.json file: dependencies point into. scripts/fetch-sources.js clones each to .deps-cache/<name> at the pinned commit; run it before npm install.",
+  "sources": [
+    {
+      "name": "OpenJSCAD.org",
+      "description": "@jbroll/jscad-modeling fork, installed as @jscad/modeling and @jscad/modeling-for-manifold from packages/modeling",
+      "url": "https://github.com/jbroll/OpenJSCAD.org.git",
+      "ref": "fork-main",
+      "commit": "bf7d77f25fb656d060f5d5e931ecfefcfed54bcf"
+    }
+  ]
+}

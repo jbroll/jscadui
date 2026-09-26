@@ -7,6 +7,9 @@ WORKTREE="$(cd "$(dirname "$0")/.." && pwd)"
 openscad --version
 
 cd "$WORKTREE"
+# file: dependencies (@jscad/modeling) point into .deps-cache; check out their
+# pinned source repos before npm install resolves them.
+node scripts/fetch-sources.js
 npm install
 # Third-party OpenSCAD sources are not committed; fetch-deps populates them
 # (a no-op when they are already current).
