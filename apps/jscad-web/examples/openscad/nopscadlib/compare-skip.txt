@@ -1,8 +1,9 @@
 # NopSCADlib comparison skip list — models that render but that the STL
 # comparison cannot grade. Only test-harness.js reads this.
 
-# belts.scad: Jaccard ~0.973 — CDT triangulation difference in multi-contour twisted extrusions
+# belts.scad: Jaccard 0.9820 (single-model run, OpenSCAD 2026.09.23). Not the
+# extrusion: the triangles' signed volume matches the reference to 2e-6, and the
+# straight runs and the arcs each score 1.0000 alone. Our STL has 586 edges
+# shared by four triangles where the tooth and back bodies meet (the reference
+# has none), and compare-stl.js reads it back 7.5% short. See SKIP_BACKLOG.md.
 NopSCADlib/tests/belts.scad
-
-# shaft_couplings.scad: Jaccard ~0.960 — step count difference for large-angle helical extrusions
-NopSCADlib/tests/shaft_couplings.scad
