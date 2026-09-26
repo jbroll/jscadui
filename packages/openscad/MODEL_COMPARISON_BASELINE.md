@@ -15,7 +15,47 @@ and a third that can reach its `Asset_SCAD/` includes. Pointing CI at the
 
 Similarity threshold: **0.99** (Jaccard index on vertex-deduplicated STL meshes).
 
-## Summary
+## Latest GPU run: 2026-09-26
+
+Commit `18de519` (branch `claude/great-clarke-t6v3uc`, jbroll/jscadui#115),
+simple-ci job `6e7d5c6b6d2d3c95`, 8.5 min. All 21 suites pass. Models that
+render but that the comparison can't grade are in each suite's
+`compare-skip.txt` and are not counted as tested, so "Tested" here is lower
+than in the 2026-09-21 table below for suites that have one. The PR comment
+gives only these two columns; the other columns are in the full log on the
+GPU host.
+
+| Suite | Tested | Passed |
+|-------|-------:|-------:|
+| 01-basics | 20 | 20 |
+| bosl | 95 | 95 |
+| bosl2 | 135 | 135 |
+| closepoints | 5 | 5 |
+| constructive | 1 | 1 |
+| dotscad | 160 | 160 |
+| gears | 18 | 18 |
+| gridfinity | 4 | 4 |
+| list-comprehension-demos | 8 | 8 |
+| mcad | 13 | 13 |
+| nopscadlib | 144 | 144 |
+| obiscad | 9 | 9 |
+| openscad-examples | 30 | 30 |
+| openscad-tests | 144 | 144 |
+| relativity | 1 | 1 |
+| round-anything | 10 | 10 |
+| snippet | 113 | 113 |
+| text | 2 | 2 |
+| threadlib | 9 | 9 |
+| threads-scad | 1 | 1 |
+| yapp-box | 39 | 39 |
+
+This run added eight dotSCAD models to the tested set (sticky RNG seed plus
+the `rands()` count, range-length and `hull() polyhedron` fixes; see
+`SKIP_BACKLOG.md`): crystal_cluster, turtle/tree, tiles/random_town_square,
+maze/rock_theta_maze, tiles/penrose_basket, voronoi/ruyi_pineapple,
+tiles/random_city and taiwan/random_city_taiwan.
+
+## Summary (2026-09-21)
 
 | Suite      | Total | Excluded | OpenSCAD fail | Skip list | Tested | Passed | Failed | Errors | Pass rate |
 |------------|------:|--------:|--------------:|----------:|-------:|-------:|-------:|-------:|-----------|
@@ -47,7 +87,7 @@ Similarity threshold: **0.99** (Jaccard index on vertex-deduplicated STL meshes)
 
 | Model | Reason |
 |-------|--------|
-| `libtest.scad` | Includes all test modules — duplicate `_saved__fa` declaration |
+| `libtest.scad` | Includes all test modules — Manifold WASM out-of-bounds (memory), as `PCBs.scad`. The duplicate `_saved__fa` declaration it used to hit is fixed. |
 | `PCBs.scad` | WASM out-of-bounds — model too large for Manifold WASM memory |
 | `belts.scad` | Jaccard ~0.973 — CDT triangulation difference in twisted extrusions |
 | `shaft_couplings.scad` | Jaccard ~0.960 — step count difference for large-angle helical extrusions |
