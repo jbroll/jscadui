@@ -1,5 +1,5 @@
 # NopSCADlib skip list
-# libtest.scad includes all test modules — hits duplicate _saved__fa declaration bug
+# libtest.scad includes all test modules — Manifold WASM out-of-bounds (memory), as PCBs.scad
 NopSCADlib/libtest.scad
 
 # PCBs.scad: WASM out-of-bounds crash — model is too large for Manifold WASM memory
