@@ -12,10 +12,6 @@ examples/voronoi/ripple_vase.scad
 examples/taiwan/chair_score.scad
 examples/tiles/random_city.scad
 examples/taiwan/random_city_taiwan.scad
-# tile_w2c/tile_w2e use unseeded rands() for corner/edge assignment
-examples/tiles/2_corner_wang_tiles_basic.scad
-examples/tiles/2_edge_wang_tiles_basic.scad
-examples/tiles/tube_box.scad
 # hollow_out_square calls rand() without a seed
 examples/hollow_out/hollow_out_holder.scad
 # rock() uses unseeded rands() for the rock shape

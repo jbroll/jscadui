@@ -156,6 +156,10 @@
           "description": "Default seed to 0 in circle_packing/perlin_sphere/lsystem_comm/shuffle/choose — deterministic output"
         },
         {
+          "patchFile": "scripts/deps/patches/dotscad-tile-w2-seed.patch",
+          "description": "Position-based seed fallback in tile_w2e/tile_w2c — makes 2-edge/2-corner Wang tile models deterministic"
+        },
+        {
           "patchFile": "scripts/deps/patches/dotscad-examples-seed-rands.patch",
           "description": "Seed rands() in example files for deterministic output"
         }

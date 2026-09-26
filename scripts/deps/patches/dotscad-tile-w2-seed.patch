@@ -1,0 +1,22 @@
+--- a/apps/jscad-web/examples/openscad/dotscad/experimental/tile_w2e.scad
++++ b/apps/jscad-web/examples/openscad/dotscad/experimental/tile_w2e.scad
+@@ -15,7 +15,7 @@
+ 			for(y = y_range)
+ 			[
+ 				for(x = x_range) 
+-				let(rs = rands(0, 1, 2))
++				let(rs = rands(0, 1, 2, y * columns + x))
+ 				[round(rs[0]), round(rs[1])]
+ 			]
+ 		] : [
+--- a/apps/jscad-web/examples/openscad/dotscad/experimental/tile_w2c.scad
++++ b/apps/jscad-web/examples/openscad/dotscad/experimental/tile_w2c.scad
+@@ -10,7 +10,7 @@
+ 			for(y = y_range)
+ 			[
+ 				for(x = x_range) 
+-				round(rands(0, 1, 1)[0])
++				round(rands(0, 1, 1, y * columns + x)[0])
+ 			]
+ 		] : [
+ 			for(y = y_range)
