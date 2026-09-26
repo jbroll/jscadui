@@ -2,16 +2,10 @@
 # cannot grade. Only test-harness.js reads this; browser sweeps still render them.
 
 # Unseeded rands(): time-seeded, so the reference STL and every re-run differ.
-examples/tiles/random_town_square.scad
-examples/tiles/penrose_basket.scad
 examples/voronoi/ruyi_pineapple.scad
-examples/crystal_cluster.scad
 examples/differential_line_growth.scad
-examples/turtle/tree.scad
 examples/tiles/random_city.scad
 examples/taiwan/random_city_taiwan.scad
-# rock() uses unseeded rands() for the rock shape
-examples/maze/rock_theta_maze.scad
 # Deterministic (rand() only feeds color()), but JSCAD output differs:
 # Jaccard 0.0537 (OpenSCAD 2026.09.23 nightly, single-model run). Triage pending.
 examples/taiwan/chair_score.scad

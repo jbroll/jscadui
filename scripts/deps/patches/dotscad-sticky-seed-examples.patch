@@ -1,0 +1,40 @@
+--- a/apps/jscad-web/examples/openscad/dotscad/examples/crystal_cluster.scad
++++ b/apps/jscad-web/examples/openscad/dotscad/examples/crystal_cluster.scad
+@@ -1,3 +1,5 @@
++// jscadui: seed the RNG once; the unseeded rands() below continue from it
++_rng_seed = rands(0, 1, 1, 42);
+ use <shape_pie.scad>
+ use <polyhedron_hull.scad>
+ use <util/rand.scad>
+--- a/apps/jscad-web/examples/openscad/dotscad/examples/maze/rock_theta_maze.scad
++++ b/apps/jscad-web/examples/openscad/dotscad/examples/maze/rock_theta_maze.scad
+@@ -1,3 +1,5 @@
++// jscadui: seed the RNG once; the unseeded rands() below continue from it
++_rng_seed = rands(0, 1, 1, 42);
+ use <along_with.scad>
+ use <polyhedron_hull.scad>
+ use <maze/mz_theta.scad>
+--- a/apps/jscad-web/examples/openscad/dotscad/examples/tiles/penrose_basket.scad
++++ b/apps/jscad-web/examples/openscad/dotscad/examples/tiles/penrose_basket.scad
+@@ -1,3 +1,5 @@
++// jscadui: seed the RNG once; the unseeded rands() below continue from it
++_rng_seed = rands(0, 1, 1, 42);
+ use <experimental/tile_penrose3.scad>
+ use <experimental/ptf_c2sphere.scad>
+ use <ptf/ptf_rotate.scad>
+--- a/apps/jscad-web/examples/openscad/dotscad/examples/tiles/random_town_square.scad
++++ b/apps/jscad-web/examples/openscad/dotscad/examples/tiles/random_town_square.scad
+@@ -1,3 +1,5 @@
++// jscadui: seed the RNG once; the unseeded rands() below continue from it
++_rng_seed = rands(0, 1, 1, 42);
+ use <pie.scad>
+ use <util/parse_number.scad>
+ use <util/contains.scad>
+--- a/apps/jscad-web/examples/openscad/dotscad/examples/turtle/tree.scad
++++ b/apps/jscad-web/examples/openscad/dotscad/examples/turtle/tree.scad
+@@ -1,3 +1,5 @@
++// jscadui: seed the RNG once; the unseeded rands() below continue from it
++_rng_seed = rands(0, 1, 1, 42);
+ use <polyline_join.scad>
+ use <turtle/t3d.scad>
+ use <util/rand.scad>

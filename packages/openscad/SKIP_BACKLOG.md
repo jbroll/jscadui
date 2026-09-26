@@ -29,10 +29,17 @@ were **not** run in this triage, so no Jaccard numbers here are new.
 | `examples/tiles/tube_box.scad` | dotSCAD | same patch (`tile_w2e`) | identical after |
 | `examples/hollow_out/hollow_out_holder.scad` | dotSCAD | `dotscad-hollow-out-square-seed.patch` | differed before, identical after |
 | `examples/voronoi/ripple_vase.scad` | dotSCAD | `dotscad-ripple-vase-seed.patch` (`seed = 42`) | differed before, identical after |
+| `examples/crystal_cluster.scad` | dotSCAD | `dotscad-sticky-seed-examples.patch`: one seeded `rands()` at file top | identical after |
+| `examples/turtle/tree.scad` | dotSCAD | same patch | identical after |
+| `examples/tiles/random_town_square.scad` | dotSCAD | same patch | identical after |
+| `examples/maze/rock_theta_maze.scad` | dotSCAD | same patch, plus runtime fixes: `rands()` count is `trunc(\|count\|)`; ranges allow one ULP of slack, not ~8 | identical after |
+| `examples/tiles/penrose_basket.scad` | dotSCAD | same patch, plus `hull() polyhedron(...)` of an open (single-face) mesh now hulls its vertices | identical after |
 
 Single-model runs (2026-09-26, cloud session, OpenSCAD 2026.09.23 nightly,
-`test-harness.js --no-stl-cache`): all five above **PASS (1.0000)**, as does
-`hollow_out_torus`. The full suite on the GPU host has not run yet.
+`test-harness.js --no-stl-cache`): all above **PASS (1.0000)** except
+`penrose_basket` **PASS (0.9976)**, as does `hollow_out_torus`. The full
+suite on the GPU host has not run yet; the `rands()` count and range changes
+affect every suite, so its result matters beyond these models.
 
 Side effect: `examples/hollow_out/hollow_out_torus.scad` is in the tested set
 and uses the same `hollow_out_square()`; its reference was one of two random
@@ -47,15 +54,11 @@ reproducible.
 | Model | Suite | Reason skipped | Proposed fix | Effort |
 |-------|-------|----------------|--------------|--------|
 | `examples/taiwan/chair_score.scad` | dotSCAD | Back in `compare-skip.txt`: deterministic (`rand()` only feeds `color()`), but Jaccard **0.0537** | Transpiler/runtime mismatch, not randomness. Compare the per-chair polyhedron and the `rotate`/`translate` chain first. | M |
-| `NopSCADlib/libtest.scad` | NopSCADlib (baseline) | Duplicate `_saved__fa` declaration | Transpiler bug. `statements.ts` now dedups special-var saves per block (`savedSpecialVars`), so this may already pass — re-test first. If still failing, the collision is across blocks sharing a scope suffix. | S–M |
-| `examples/maze/rock_theta_maze.scad` | dotSCAD | 4 unseeded `rands()` in `rock()` | Add seeds per call (as in `dotscad-examples-seed-rands.patch`) | S |
-| `examples/tiles/random_town_square.scad` | dotSCAD | Same `rock()` pattern + `tile_wfc` `rand()` | Seed example `rands()`; seed `tile_wfc.scad` / `_tiles_wfc_impl.scad` `rand()` | M |
-| `examples/tiles/penrose_basket.scad` | dotSCAD | 1 unseeded `rands()` in a loop | Seed with loop index | S |
 | `examples/differential_line_growth.scad` (`…_bowl.scad` is in `skip.txt` as a timeout on `main`) | dotSCAD | `node()` velocity `rands()` in `_differential_line_growth.scad` | Seed from position. Iterative simulation, so float drift may still sink Jaccard. | S patch / unknown pass |
-| `examples/crystal_cluster.scad`, `examples/turtle/tree.scad`, `examples/voronoi/ruyi_pineapple.scad` | dotSCAD | Many `rand()` calls (10–20 each, some recursive) | Per-call seeds are invasive; see "sticky seed" note below | M |
+| `examples/voronoi/ruyi_pineapple.scad` | dotSCAD | Many `rand()` calls (10–20, some recursive) | Sticky seed, as for `crystal_cluster`/`tree` | M |
 | `examples/tiles/random_city.scad`, `examples/taiwan/random_city_taiwan.scad` | dotSCAD | `tile_w2e` (now seeded) + ~40 `rand()` calls in `city_tile.scad` | Same as above | M |
 
-**Sticky-seed option.** OpenSCAD ≥ 2021.01 keeps the RNG state after a seeded
+**Sticky seed (used by `dotscad-sticky-seed-examples.patch`).** OpenSCAD ≥ 2021.01 keeps the RNG state after a seeded
 `rands()`, and `openscad-runtime/src/math.js` `_rands` does the same. A single
 `_ = rands(0, 1, 1, 42);` at file top therefore makes the OpenSCAD reference
 deterministic. The JSCAD output matches only if the transpiled code calls
@@ -83,6 +86,7 @@ patches.
 |-------|-------|--------|
 | `examples/fidget_ball_fern_leaf.scad` | dotSCAD | OOM |
 | `NopSCADlib/tests/PCBs.scad` | NopSCADlib | Manifold WASM out-of-bounds (memory) |
+| `NopSCADlib/libtest.scad` | NopSCADlib | The duplicate `_saved__fa` declaration is gone (2026-09-26: transpiles and runs), but after ~2.5 min it hits the same Manifold WASM out-of-bounds as `PCBs.scad`. Its `skip.txt` reason is stale. |
 | `examples/stereographic_projection/stereographic_chars.scad` | dotSCAD | Webdings font not available |
 | `examples/voronoi/ripple_sphere.scad`, `examples/voronoi/voronoi_vase.scad` | dotSCAD | OpenSCAD reference is non-manifold; no valid comparison |
 | `04-misc/Wood_Crate.scad` | snippet | OpenSCAD multi-colour export is non-manifold |
