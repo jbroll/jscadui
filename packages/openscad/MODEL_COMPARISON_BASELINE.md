@@ -15,7 +15,53 @@ and a third that can reach its `Asset_SCAD/` includes. Pointing CI at the
 
 Similarity threshold: **0.99** (Jaccard index on vertex-deduplicated STL meshes).
 
-## Latest GPU run: 2026-09-26
+## Latest GPU run: 2026-09-26, echo grading
+
+Commit `b9f5272` (branch `claude/intelligent-brown-fbivac`, jbroll/jscadui#116),
+simple-ci job `47aa71e6d3b99c02`, 8.3 min, OpenSCAD 2026.08.30.fp. All 21
+suites pass.
+
+From this run the harness also compares each model's `echo()` output with
+OpenSCAD's, and a model whose OpenSCAD top level is empty is graded on its
+echo output alone instead of being NOT GRADED (see TESTING.md). That is most
+of the growth in "Tested": the text-only models of each suite, e.g. most of
+`openscad-tests/scad/functions` and `misc`, BOSL's function examples and
+relativity's `*.test.scad`. Models that stop on an OpenSCAD `ERROR:` (failed
+assert, recursion limit) stay NOT GRADED. Known mismatches are in each
+suite's `skip.txt` / `compare-skip.txt`, and `echo-skip.txt` for models
+whose geometry is graded but whose echo output is not compared yet (all of
+BOSL2, MCAD `shapes_3d`, openscad-tests `search-tests`).
+
+| Suite | Tested | Passed | Tested before (18de519) |
+|-------|-------:|-------:|------------------------:|
+| 01-basics | 21 | 21 | 20 |
+| bosl | 112 | 112 | 95 |
+| bosl2 | 135 | 135 | 135 |
+| closepoints | 5 | 5 | 5 |
+| constructive | 2 | 2 | 1 |
+| dotscad | 168 | 168 | 160 |
+| gears | 18 | 18 | 18 |
+| gridfinity | 4 | 4 | 4 |
+| list-comprehension-demos | 9 | 9 | 8 |
+| mcad | 13 | 13 | 13 |
+| nopscadlib | 145 | 145 | 144 |
+| obiscad | 9 | 9 | 9 |
+| openscad-examples | 32 | 32 | 30 |
+| openscad-tests | 214 | 214 | 144 |
+| relativity | 6 | 6 | 1 |
+| round-anything | 10 | 10 | 10 |
+| snippet | 114 | 114 | 113 |
+| text | 2 | 2 | 2 |
+| threadlib | 9 | 9 | 9 |
+| threads-scad | 1 | 1 | 1 |
+| yapp-box | 40 | 40 | 39 |
+
+BOSL graded 113 in the first runs on this branch and 112 once the reference
+run pinned `$preview=false`; the model OpenSCAD 2026.08.30.fp no longer
+grades is not named in the PR comment (single-model runs with OpenSCAD
+2026.09.23 grade all 113).
+
+## Previous GPU run: 2026-09-26
 
 Commit `18de519` (branch `claude/great-clarke-t6v3uc`, jbroll/jscadui#115),
 simple-ci job `6e7d5c6b6d2d3c95`, 8.5 min. All 21 suites pass. Models that
