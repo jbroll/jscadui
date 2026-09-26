@@ -96,8 +96,6 @@ scad/functions/cross-tests.scad
 scad/functions/exponent-operator-test.scad
 # transpiled JS throws: 10.5 is not a function
 scad/functions/function-literal-tests.scad
-# transpiled JS throws: Identifier 'b$13' has already been declared
-scad/functions/let-tests.scad
 # transpiled JS throws: 42 is not iterable
 scad/functions/list-comprehensions.scad
 # transpiled JS throws: Cannot convert a Symbol value to a number

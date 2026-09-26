@@ -136,7 +136,15 @@ function transpileLetParts(
   ctx: TranspileContext,
   flattenBody: boolean
 ): { bindings: string[]; result: string } {
-  const suffix = generateScopeSuffix(ctx)
+  // OpenSCAD ignores later duplicates (first wins, with a warning).
+  // Without this, let(b=3,b=5) would bind b=5; the reference expects 3.
+  const seenNames = new Set<string>()
+  args = args.filter(a => {
+    if (!a.name) return true
+    if (seenNames.has(a.name)) return false
+    seenNames.add(a.name)
+    return true
+  })
 
   const bindings: string[] = []
   const functionBindingPairs: Array<[string, string]> = []
@@ -172,7 +180,9 @@ function transpileLetParts(
         return `j$.withScope({ '${a.name}': ${value} }, () => ${inner})`
       }
 
-      const newName = `${origName}${suffix}`
+      // Each binding gets its own suffix so bindings never collide.
+      // (Later duplicates are dropped above: OpenSCAD keeps the first.)
+      const newName = `${origName}${generateScopeSuffix(ctx)}`
 
       // Check if this is a function literal (for recursive self-reference support)
       // This includes direct function declarations, ternary expressions returning functions,

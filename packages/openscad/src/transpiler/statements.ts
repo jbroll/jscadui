@@ -881,7 +881,9 @@ function transpileIntersectionForLoop(stmt: ModuleInstantiationStmt, ctx: Transp
  * because child modules read special vars through j$.getSpecialVar(), not JS scope.
  */
 function transpileLetModule(stmt: ModuleInstantiationStmt, ctx: TranspileContext): string {
-  const args = stmt.args
+  // Unnamed args (let(42,)) are meaningless for let; OpenSCAD ignores them.
+  // Keeping them would emit `( => body)(42)`, a JS SyntaxError.
+  const args = (stmt.args || []).filter(a => a.name)
   if (!args || args.length === 0) {
     // let() with no bindings - just transpile the children
     return stmt.child ? transpileStatement(stmt.child, ctx) || 'undefined' : 'undefined'
