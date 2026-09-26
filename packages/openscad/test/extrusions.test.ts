@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import { fileURLToPath } from 'node:url'
 import jscad from '@jscad/modeling'
-import j$, { subdivideSides } from '@jscadui/openscad-runtime'
+import j$ from '@jscadui/openscad-runtime'
 import { initScadRuntime, evalScadSolidSync } from '../bin/run-jscad.js'
 
 const { primitives, transforms, booleans, extrusions, measurements, geometries } = jscad
@@ -75,36 +75,60 @@ describe('extrusions on the Manifold backend', () => {
 })
 
 /**
- * A twisted extrusion subdivides each edge first. Interpolating the ends as
- * p0 + (p1 - p0) * t lands one ulp off p1 at t = 1, so the corner two sides
- * share stops being bit-identical — and everything downstream of
- * extrudeFromSlices matches slice vertices exactly. NopSCADlib's fans.scad
- * (twist = -30) died in calculatePlane on a single split corner.
+ * linear_extrude follows OpenSCAD's LinearExtrudeNode (arguments) and
+ * extrudePolygon (slices, edge splits, quad diagonals). Expected volumes are
+ * OpenSCAD 2026.09.23 --backend=manifold renders of the same call.
  */
-describe('subdivideSides', () => {
-  const sides = [[[0, 0], [7.249958896496416, 0.7578418183378942]], [[7.249958896496416, 0.7578418183378942], [0, 1]]]
+describe('linear_extrude matches OpenSCAD', () => {
+  beforeAll(() => {
+    j$.init(jscad)
+  })
 
-  it('keeps the shared corner bit-identical', () => {
-    const out = subdivideSides(sides, 7)
-    const ends = out.map((s) => s[1])
-    const starts = out.map((s) => s[0])
-    for (let i = 0; i < out.length - 1; i++) {
-      expect(ends[i]).toEqual(starts[i + 1])
+  const unitSquare = () => primitives.rectangle({ size: [1, 1] })
+
+  it('twist with scale 0 slices and splits as OpenSCAD does', () => {
+    // linear_extrude(height=3, slices=20, twist=180, scale=0) square(1, center=true)
+    const g = j$.linearExtrude({ height: 3, slices: 20, twist: 180, scale: 0 }, unitSquare())
+    expect(volume(g)).toBeCloseTo(1.047921, 5)
+  })
+
+  it('takes the slice count from $fa/$fs when twisted', () => {
+    // linear_extrude(height=20, twist=-90) translate([2,0]) square([10,4])
+    const profile = transforms.translate([7, 2, 0], primitives.rectangle({ size: [10, 4] }))
+    const g = j$.linearExtrude({ height: 20, twist: -90, $fn: 0, $fa: 12, $fs: 2 }, profile)
+    expect(volume(g)).toBeCloseTo(807.882096, 4)
+  })
+
+  it('extrudes a non-uniform scale in slices', () => {
+    // linear_extrude(height=10, scale=[2,0.5]) square(5)
+    const g = j$.linearExtrude({ height: 10, scale: [2, 0.5] }, primitives.rectangle({ size: [5, 5], center: [2.5, 2.5] }))
+    expect(volume(g)).toBeCloseTo(270.833333, 4)
+  })
+
+  it('reads h, v and a missing height as OpenSCAD does', () => {
+    expect(bbox(j$.linearExtrude({ h: 4 }, unitSquare()))[1][2]).toBeCloseTo(4, 9)
+    expect(bbox(j$.linearExtrude({ height: 6, h: 4 }, unitSquare()))[1][2]).toBeCloseTo(6, 9)
+    expect(bbox(j$.linearExtrude({}, unitSquare()))[1][2]).toBeCloseTo(100, 9)
+    // v sets the direction, and its length when there is no height
+    const [min, max] = bbox(j$.linearExtrude({ v: [3, 2, 5] }, unitSquare()))
+    expect(min).toEqual([-0.5, -0.5, 0])
+    expect(max.map((c) => +c.toFixed(9))).toEqual([3.5, 2.5, 5])
+    expect(j$.linearExtrude({ v: [10, 10, -5] }, unitSquare())).toBeUndefined()
+    expect(j$.linearExtrude({ height: -1 }, unitSquare())).toBeUndefined()
+  })
+
+  it('ignores a scale that is not a number or 2-vector and clamps a negative one to 0', () => {
+    expect(volume(j$.linearExtrude({ height: 10, scale: [4, 5, 6] }, unitSquare()))).toBeCloseTo(10, 9)
+    expect(volume(j$.linearExtrude({ height: 3, scale: -2 }, unitSquare()))).toBeCloseTo(1, 9)
+  })
+
+  it('treats slices that are not a finite number as absent, and centers only on true', () => {
+    for (const slices of [undefined, Infinity, NaN, '', true]) {
+      expect(volume(j$.linearExtrude({ height: 10, twist: 30, slices }, unitSquare())))
+        .toBeCloseTo(volume(j$.linearExtrude({ height: 10, twist: 30 }, unitSquare())), 9)
     }
-  })
-
-  it('reuses the original endpoints rather than interpolating them', () => {
-    const out = subdivideSides(sides, 7)
-    expect(out[0][0]).toBe(sides[0][0])
-    expect(out[6][1]).toBe(sides[0][1])
-  })
-
-  it('returns the sides untouched when there is nothing to split', () => {
-    expect(subdivideSides(sides, 1)).toBe(sides)
-  })
-
-  it('produces segsPerEdge pieces per side', () => {
-    expect(subdivideSides(sides, 4)).toHaveLength(8)
+    expect(bbox(j$.linearExtrude({ height: 10, center: 1 }, unitSquare()))[0][2]).toBe(0)
+    expect(bbox(j$.linearExtrude({ height: 10, center: true }, unitSquare()))[0][2]).toBe(-5)
   })
 })
 

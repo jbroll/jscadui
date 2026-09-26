@@ -6,8 +6,6 @@
 # to fix in a targeted session; remove the entry when it passes.
 # Jaccard 0.9677
 Advanced/GEB.scad
-# Jaccard 0.8732
-Basics/linear_extrude.scad
 # Jaccard 0.7105
 Basics/projection.scad
 # Jaccard 0.7777

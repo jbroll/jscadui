@@ -143,8 +143,8 @@ describe('manifold 2D inputs are disposed once an op consumes them', () => {
   it('a twisted multi-outline extrusion keeps its profile usable', () => {
     const ring = j$.subtract(j$.square({ size: 10, center: true }), j$.square({ size: 4, center: true }))
     const r = j$.linearExtrude({ height: 5, twist: 30 }, ring)
-    expect(r.volume()).toBeGreaterThan(400)
-    expect(r.volume()).toBeLessThan(421)
+    // OpenSCAD 2026.09.23 (manifold): 421.346049
+    expect(r.volume()).toBeCloseTo(421.346, 2)
   })
 })
 
