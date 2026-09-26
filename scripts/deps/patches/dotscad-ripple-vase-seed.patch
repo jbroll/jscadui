@@ -1,0 +1,11 @@
+--- a/apps/jscad-web/examples/openscad/dotscad/examples/voronoi/ripple_vase.scad
++++ b/apps/jscad-web/examples/openscad/dotscad/examples/voronoi/ripple_vase.scad
+@@ -23,7 +23,7 @@
+ ripple_vase(beginning_radius, height, thickness, fn, amplitude, curve_step, sample_scale, grid_w, dist, bottom, epsilon);
+ 
+ module ripple_vase(beginning_radius, height, thickness, fn, amplitude,curve_step, sample_scale, grid_w, dist, bottom, epsilon) {
+-    seed = rand() * 1000;
++    seed = 42;
+ 	section = shape_circle(radius = beginning_radius, $fn = fn);
+ 	pt = [beginning_radius, 0, 0];
+     h_s = height / 140;
