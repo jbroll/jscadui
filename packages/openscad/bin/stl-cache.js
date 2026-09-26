@@ -2,12 +2,14 @@
 /**
  * OpenSCAD STL reference cache.
  *
- * Caches reference STLs to skip flatpak re-renders.
+ * Caches reference renders to skip flatpak re-renders. An entry is the STL
+ * plus an `.echo` sidecar holding the render's echo() export; an empty STL
+ * file records a model whose top level is empty (it only echoes).
  * Cache validity is per-library: invalidated when the library's lib/ dir or the
  * OpenSCAD version changes. Stored in ~/.cache/jscadui/openscad-stl/ so it
  * persists across CI worktrees.
  */
-import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync, copyFileSync, readdirSync } from 'node:fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync, copyFileSync, readdirSync, statSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { createHash } from 'node:crypto'
 import { homedir } from 'node:os'
@@ -46,6 +48,11 @@ export function stlCachePath(originalScadPath, fn, libName, preview = false) {
   return join(STL_CACHE_ROOT, libName, rel + suffix)
 }
 
+export function echoCachePath(originalScadPath, fn, libName, preview = false) {
+  const p = stlCachePath(originalScadPath, fn, libName, preview)
+  return p ? p.replace(/\.stl$/, '.echo') : null
+}
+
 export function failedCachePath(originalScadPath, fn, libName, preview = false) {
   const p = stlCachePath(originalScadPath, fn, libName, preview)
   return p ? p.replace(/\.stl$/, '.failed') : null
@@ -66,10 +73,12 @@ function srcHash(originalScadPath, fn, preview) {
 /**
  * Tag appended to the source hash of a failure sentinel. Bump it when the
  * harness changes in a way that can turn a recorded failure into a success
- * (e.g. 2: paths with spaces used to reach openscad unquoted), so old
- * failures are re-rendered once instead of replayed. Cached successes keep.
+ * (e.g. 2: paths with spaces used to reach openscad unquoted; 3: a model
+ * with an empty top level that only echoes is a reference, not a failure),
+ * so old failures are re-rendered once instead of replayed. Cached successes
+ * keep.
  */
-const FAILURE_EPOCH = '|failed-v2'
+const FAILURE_EPOCH = '|failed-v3'
 
 /** Sidecar file recording which source content a cached entry was rendered from. */
 function srcHashPath(stlPath) {
@@ -141,9 +150,12 @@ export class StlCache {
 
   /**
    * Check the cache for a source file.
-   * Returns null (miss), { failed: true } (known failure), or { stlPath } (hit).
-   * Entries are validated against the current source content: a cached render
-   * (or failure) for different content is a miss, not a hit.
+   * Returns null (miss), { failed } (known failure), or { stlPath, echoPath,
+   * empty } (hit; `empty` when the model's top level is empty, and stlPath is
+   * then a 0-byte file). Entries are validated against the current source
+   * content: a cached render (or failure) for different content is a miss,
+   * not a hit. An entry without its echo sidecar (cached before echo was
+   * compared) is a miss.
    */
   check(originalScadPath, fn, preview = false) {
     const libName = getLibraryName(originalScadPath)
@@ -167,10 +179,11 @@ export class StlCache {
       return null
     }
 
-    if (cached && existsSync(cached)) {
+    const echo = echoCachePath(originalScadPath, fn, libName, preview)
+    if (cached && existsSync(cached) && existsSync(echo)) {
       if (storedSrcHash(cached) === current) {
         this._hits++
-        return { stlPath: cached }
+        return { stlPath: cached, echoPath: echo, empty: statSync(cached).size === 0 }
       }
       this._misses++
       return null
@@ -180,14 +193,19 @@ export class StlCache {
     return null
   }
 
-  /** Save a successful render to cache. */
-  saveHit(originalScadPath, generatedStlPath, fn, preview = false) {
+  /**
+   * Save a successful render to cache: `stlPath` (null when the top level is
+   * empty) and `echoPath`, OpenSCAD's echo export of the same render.
+   */
+  saveHit(originalScadPath, { stlPath, echoPath }, fn, preview = false) {
     const libName = getLibraryName(originalScadPath)
     if (!libName) return
     const dest = stlCachePath(originalScadPath, fn, libName, preview)
     if (!dest) return
     mkdirSync(dirname(dest), { recursive: true })
-    copyFileSync(generatedStlPath, dest)
+    if (stlPath) copyFileSync(stlPath, dest)
+    else writeFileSync(dest, '')
+    copyFileSync(echoPath, echoCachePath(originalScadPath, fn, libName, preview))
     writeFileSync(srcHashPath(dest), srcHash(originalScadPath, fn, preview))
     // A success supersedes any recorded failure for this model.
     const failed = failedCachePath(originalScadPath, fn, libName, preview)

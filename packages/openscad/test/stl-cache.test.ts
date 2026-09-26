@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtempSync, mkdirSync, writeFileSync, copyFileSync, rmSync, readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { tmpdir, homedir } from 'node:os'
-import { StlCache, stlCachePath } from '../bin/stl-cache.js'
+import { StlCache, stlCachePath, echoCachePath } from '../bin/stl-cache.js'
 
 // NOTE: exercises the real ~/.cache tree under a unique lib name;
 // cleaned up after each test. Mirrors production layout: the lib hash
@@ -27,10 +27,12 @@ afterEach(() => {
   rmSync(cacheLibDir(), { recursive: true, force: true })
 })
 
-function saveRef(cache: InstanceType<typeof StlCache>, body = 'solid ref\nendsolid ref\n') {
+function saveRef(cache: InstanceType<typeof StlCache>, body: string | null = 'solid ref\nendsolid ref\n') {
   const stl = join(root, 'ref.stl')
-  writeFileSync(stl, body)
-  cache.saveHit(model, stl, 0)
+  const echo = join(root, 'ref.echo')
+  if (body !== null) writeFileSync(stl, body)
+  writeFileSync(echo, 'ECHO: 1\n')
+  cache.saveHit(model, { stlPath: body === null ? null : stl, echoPath: echo }, 0)
   cache.flush()
 }
 
@@ -41,6 +43,23 @@ describe('StlCache content validation', () => {
     saveRef(a)
     const hit = new StlCache('v1').check(model, 0)
     expect(hit && 'stlPath' in hit && hit.stlPath).toBeTruthy()
+    expect(hit).toMatchObject({ empty: false })
+    expect(readFileSync((hit as { echoPath: string }).echoPath, 'utf8')).toBe('ECHO: 1\n')
+  })
+
+  it('records an empty top level (a model that only echoes)', () => {
+    const a = new StlCache('v1')
+    expect(a.check(model, 0)).toBeNull()
+    saveRef(a, null)
+    expect(new StlCache('v1').check(model, 0)).toMatchObject({ empty: true })
+  })
+
+  it('misses entries cached without an echo export', () => {
+    const a = new StlCache('v1')
+    expect(a.check(model, 0)).toBeNull()
+    saveRef(a)
+    rmSync(echoCachePath(model, 0, lib)!)
+    expect(new StlCache('v1').check(model, 0)).toBeNull()
   })
 
   it('misses after the source file changes', () => {

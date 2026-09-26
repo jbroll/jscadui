@@ -44,6 +44,11 @@ Usage:
 
 Options:
   -o, --output <file>       Write STL output to file
+  --echo <file>             Write echo() output to file as a JSON array of
+                            OpenSCAD-format lines ("ECHO: ..."); empty
+                            geometry is then not an error (no STL is written)
+  --openscad-version <v>    Version for version()/version_num() to report,
+                            e.g. 2026.09.23 (default 2021.01)
   --volume                  Print volume of the geometry
   --bbox                    Print bounding box
   --mesh-stats              Print mesh statistics (vertices, triangles)
@@ -69,6 +74,8 @@ function parseArgs(args) {
   const options = {
     input: null,
     output: null,
+    echo: null,
+    openscadVersion: null,
     volume: false,
     bbox: false,
     meshStats: false,
@@ -106,6 +113,12 @@ function parseArgs(args) {
     } else if (arg === '-o' || arg === '--output') {
       i++
       options.output = args[i]
+    } else if (arg === '--openscad-version') {
+      i++
+      options.openscadVersion = args[i]
+    } else if (arg === '--echo') {
+      i++
+      options.echo = args[i]
     } else if (arg === '--fn') {
       i++
       options.fn = parseInt(args[i], 10)
@@ -768,6 +781,18 @@ async function main() {
     j$Instance.jscad = jscadModeling
     j$Instance.setSpecialVar('$preview', options.preview)
     if (options.fn > 0) setGlobalFn(options.fn)
+    // version() is [year, month, day]; a nightly's "2026.09.23" or a
+    // flatpak's "2026.03.17.fp" gives [2026, 9, 23] / [2026, 3, 17].
+    if (options.openscadVersion) {
+      const parts = options.openscadVersion.split('.').map(Number).filter(Number.isFinite).slice(0, 3)
+      while (parts.length < 3) parts.push(0)
+      j$Instance.openscadVersion = parts
+    }
+    // Collect echo() lines; written on every exit path so a failing model
+    // still shows what it printed before it failed.
+    const echoLines = []
+    const writeEcho = () => { if (options.echo) writeFileSync(options.echo, JSON.stringify(echoLines, null, 1) + '\n') }
+    if (options.echo) j$Instance.onEcho = line => echoLines.push(line)
 
     const mainFileDir = dirname(inputPath)
     const makeRequire = createMakeRequire(jscadModeling, openscadRuntime, moduleCache, options.fn, options.libPaths, undefined, j$Instance)
@@ -777,7 +802,11 @@ async function main() {
     const exports = {}
     const moduleObj = { exports }
     const modFn = new Function('require', 'module', 'exports', 'j$', jsCode)
-    modFn(customRequire, moduleObj, exports, j$Instance)
+    try {
+      modFn(customRequire, moduleObj, exports, j$Instance)
+    } finally {
+      writeEcho()
+    }
 
     // Call main() if it exists - handle both sync and async main()
     let result
@@ -786,6 +815,7 @@ async function main() {
       try {
         result = await Promise.resolve(moduleObj.exports.main(params))
       } catch (mainErr) {
+        writeEcho()
         console.error('main() threw:', mainErr.message)
         console.error(mainErr.stack)
         process.exit(1)
@@ -793,10 +823,12 @@ async function main() {
     } else {
       result = null
     }
+    writeEcho()
 
-    if (!result) {
+    if (!result || (Array.isArray(result) && result.length === 0)) {
       console.error('No geometry returned from main()')
-      process.exit(1)
+      // With --echo the text is the output: a model that only echoes is valid.
+      process.exit(options.echo ? 0 : 1)
     }
 
     // Handle array of geometries (union them)
