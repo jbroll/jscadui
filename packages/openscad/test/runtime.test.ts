@@ -958,3 +958,15 @@ describe('echo() and str() formatting', () => {
     expect(lines).toEqual(['ECHO: x = undef, "s"', 'ECHO: '])
   })
 })
+
+describe('version()', () => {
+  it('reports OpenSCAD 2021.01 unless a version is set', () => {
+    const inst = createJ$Instance()
+    expect(inst.version()).toEqual([2021, 1, 0])
+    expect(inst.version_num()).toBe(20210100)
+    inst.openscadVersion = [2026, 9, 23]
+    expect(inst.version()).toEqual([2026, 9, 23])
+    expect(inst.version_num()).toBe(20260923)
+    expect(createJ$Instance().version()).toEqual([2021, 1, 0])
+  })
+})
