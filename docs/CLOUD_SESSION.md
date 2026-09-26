@@ -63,7 +63,11 @@ machine. In a cloud session it:
 5. Installs the latest OpenSCAD nightly AppImage into `~/.local/bin/openscad`
    unless an `openscad` with `--backend` support is already on `PATH`, and
    adds `~/.local/bin` to the session `PATH`. The distro package (2021.01)
-   lacks `--backend=manifold`, which `test-harness.js` passes. This step may
+   lacks `--backend=manifold`, which `test-harness.js` passes. The AppImage
+   also needs `libEGL.so.1` and `libOpenGL.so.0`, which the base image lacks;
+   when `openscad --version` reports a missing shared library, the hook
+   installs `libegl1` and `libopengl0` with apt (before the version check,
+   so a missing library is not mistaken for an old OpenSCAD). These steps may
    fail without failing the hook.
 
 It runs synchronously: the session starts once setup is done (about 40 s
@@ -72,7 +76,7 @@ fetch). The container is snapshotted afterwards, so later sessions start
 faster.
 
 Network: the hook needs HTTPS to `github.com`, `registry.npmjs.org` and
-`files.openscad.org`.
+`files.openscad.org`, plus the Ubuntu apt mirrors for the OpenSCAD libraries.
 
 ## Working in a session
 
@@ -115,6 +119,7 @@ never merge it through GitHub.
 
 | Symptom | Cause / fix |
 |---------|-------------|
+| `openscad: error while loading shared libraries: libEGL.so.1` | `apt-get install -y libegl1 libopengl0` (the SessionStart hook does this). |
 | `Cannot find module '@jscad/modeling'` or `…modeling-for-manifold` | `.deps-cache/OpenJSCAD.org` missing. Run `npm run fetch-sources`, then `npm install`. |
 | `fetch-sources: … has local changes` | Someone edited the cached checkout. Commit/stash there, or replace it with a symlink to your own checkout. |
 | `Cannot find module 'openscad-parser'` or missing `dist/` | The git dependency didn't build. Re-run `npm install` (it runs the parser's `prepare`). |

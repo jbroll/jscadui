@@ -17,6 +17,23 @@ npm install --no-audit --no-fund
 node scripts/fetch-deps.js --if-missing
 npm run build --workspace=@jscadui/openscad
 
+# The OpenSCAD AppImage links libEGL and libOpenGL, which the base image lacks;
+# without them every run fails with "error while loading shared libraries".
+openscad_libs() {
+  local bin out
+  bin=$(command -v openscad || echo "$HOME/.local/bin/openscad")
+  [ -x "$bin" ] || return 0
+  out=$("$bin" --version 2>&1 || true)
+  [[ $out == *'shared libraries'* ]] || return 0
+  ( (apt-get install -y -qq libegl1 libopengl0 \
+      || (apt-get update -qq && apt-get install -y -qq libegl1 libopengl0)) >/dev/null \
+    && echo "session-start: installed libegl1 libopengl0 for OpenSCAD" ) \
+    || echo "session-start: apt install of libegl1/libopengl0 failed; openscad will not run" >&2
+}
+# Before the check below, which would otherwise read a missing library as an
+# OpenSCAD without --backend and download it again.
+openscad_libs
+
 # OpenSCAD for reference STLs (test-harness.js / single-model compares). Uses
 # --backend=manifold, which needs a recent snapshot; distro 2021.01 lacks it.
 # Optional: a failure here leaves the rest of the setup usable.
@@ -35,3 +52,4 @@ if ! command -v openscad >/dev/null || ! openscad --help 2>&1 | grep -q -- '--ba
   ) || echo "session-start: OpenSCAD install failed; comparisons need 'openscad' on PATH" >&2
   echo "export PATH=\"\$HOME/.local/bin:\$PATH\"" >> "$CLAUDE_ENV_FILE"
 fi
+openscad_libs
