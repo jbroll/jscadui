@@ -389,8 +389,13 @@ export const _rands = (min, max, count, seed) => {
     _globalRng = new MT19937(_hashFloatingPoint(seed) >>> 0)
   }
 
+  // OpenSCAD 2026.09: the count is trunc(|count|), so 18.27 draws 18 values and
+  // -2 draws 2; an infinite or NaN count warns and draws one; a non-number
+  // count makes rands() undef.
+  if (typeof count !== 'number') return undefined
+  const n = Number.isFinite(count) ? Math.trunc(Math.abs(count)) : 1
   const r = []
-  for (let i = 0; i < count; i++) {
+  for (let i = 0; i < n; i++) {
     r.push(min + _globalRng.random() * (max - min))
   }
   return r

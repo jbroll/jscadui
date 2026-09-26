@@ -402,6 +402,28 @@ describe('rands MT19937 output', () => {
   })
 })
 
+describe('rands count', () => {
+  // OpenSCAD 2026.09 draws trunc(|count|) values: rock_theta_maze passes
+  // 15 * rands(1, 1.25, 1)[0] as the count.
+  it('truncates the absolute value of a non-integer or negative count', () => {
+    expect(j$.rands(0, 1, 2.7, 1)).toHaveLength(2)
+    expect(j$.rands(0, 1, 0.5, 1)).toHaveLength(0)
+    expect(j$.rands(0, 1, -3.7, 1)).toHaveLength(3)
+  })
+
+  it('draws one value for an infinite or NaN count, undef for a non-number', () => {
+    expect(j$.rands(0, 1, Infinity, 1)).toHaveLength(1)
+    expect(j$.rands(0, 1, NaN, 1)).toHaveLength(1)
+    expect(j$.rands(0, 1, 'a', 1)).toBeUndefined()
+  })
+
+  it('consumes only the values it returns', () => {
+    const [a, b] = j$.rands(0, 1, 2.7, 5)
+    const [c] = j$.rands(0, 1, 1)
+    expect(j$.rands(0, 1, 3, 5)).toEqual([a, b, c])
+  })
+})
+
 describe('rands float seed (Python hash conversion)', () => {
   // OpenSCAD converts float seeds via Python's _Py_HashDouble before seeding mt19937.
   // hash(1.0)=1, hash(2.0)=2 (integers map to themselves), but hash(1.5)≠hash(1.0).
