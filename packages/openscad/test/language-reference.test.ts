@@ -620,6 +620,11 @@ describe('Utility Functions', () => {
     expect(code).toContain('j$.echo([null, "n"], "s", 1)')
   })
 
+  it('calls the runtime for version()', () => {
+    const code = transpileCode('v = version();')
+    expect(code).toContain('j$.version()')
+  })
+
   it('instantiates the child of echo()', () => {
     const code = transpileCode('echo("s") cube(1);')
     expect(code).toMatch(/j\$\.echo\(null, "s"\), j\$\.cube/)
