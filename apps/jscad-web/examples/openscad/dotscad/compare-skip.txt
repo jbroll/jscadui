@@ -8,7 +8,6 @@ examples/voronoi/ruyi_pineapple.scad
 examples/crystal_cluster.scad
 examples/differential_line_growth.scad
 examples/turtle/tree.scad
-examples/voronoi/ripple_vase.scad
 examples/taiwan/chair_score.scad
 examples/tiles/random_city.scad
 examples/taiwan/random_city_taiwan.scad

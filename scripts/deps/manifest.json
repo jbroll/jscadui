@@ -166,6 +166,10 @@
         {
           "patchFile": "scripts/deps/patches/dotscad-hollow-out-square-seed.patch",
           "description": "Seed rand() in example hollow_out_square — makes hollow_out_holder/hollow_out_torus deterministic"
+        },
+        {
+          "patchFile": "scripts/deps/patches/dotscad-ripple-vase-seed.patch",
+          "description": "Fixed noise seed in ripple_vase (was rand() * 1000)"
         }
       ]
     },
