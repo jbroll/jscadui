@@ -90,8 +90,6 @@ scad/obj/obj-import-export_dodecahedron.scad
 # remove the entry when it passes.
 # transpiled JS throws: 10.5 is not a function
 scad/functions/function-literal-tests.scad
-# transpiled JS throws: Unexpected token ':'
-scad/misc/function-scope.scad
 # transpiled JS throws: Identifier 'main' has already been declared
 scad/misc/include-overwrite-main.scad
 # transpiled JS throws: Parse errors: [{"message":"Unexpected character '�'.","location":{"start":{"line":0,"column":2},"end":{"line":0,"column":2}}}]

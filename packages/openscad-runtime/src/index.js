@@ -315,6 +315,20 @@ const j$ = {
     try { return fn() } finally { this.popScope() }
   },
 
+  // Snapshot the scope stack for tail-call bounces: a bounce created inside
+  // withScope frames must re-enter them on each trampoline continuation,
+  // which evaluates outside those frames. Copies isolate later mutations.
+  // Snapshots are restored relative to the loop-entry depth (withScopeFrom),
+  // so restored frames never accumulate across iterations.
+  scopeSnapshot() { return this._scopeStack.map(frame => ({ ...frame })) },
+  scopeDepth() { return this._scopeStack.length },
+  withScopeFrom(depth, frames, fn) {
+    const base = Math.max(depth, 1)
+    this._scopeStack.length = base
+    for (let i = depth; i < frames.length; i++) this._scopeStack.push({ ...frames[i] })
+    try { return fn() } finally { this._scopeStack.length = base }
+  },
+
   // Inline scope management — eliminates closure overhead for module bodies.
   // Returns true if scope was pushed (caller must call exitScope in finally block).
   enterScope(vars) {

@@ -767,7 +767,12 @@ function missingVariableStubs(code: string, freeVarRefs: Iterable<string>): stri
   const declared = new Set<string>()
   for (const m of code.matchAll(/\b(?:var|const|let|function|class)\s+([A-Za-z_$][\w$]*)/g)) declared.add(m[1])
   // Destructured declarations: `var { a, b } = ...`
-  for (const m of code.matchAll(/\b(?:var|const|let)\s*\{([^}]*)\}\s*=/g)) {
+  // Function/module options destructuring (`let { b, x } = _opts`) is skipped:
+  // those names are function-scoped params, so a file-level `var` stub can
+  // never conflict with them — but counting them as declared would wrongly
+  // suppress the stub for a truly unbound variable (OpenSCAD reads those as
+  // undef, e.g. `x` in `function scope_leak(b=false) = b ? x : ...`).
+  for (const m of code.matchAll(/\b(?:var|const|let)\s*\{([^}]*)\}\s*=(?!\s*_opts\b)/g)) {
     for (const part of m[1].split(',')) {
       const id = part.split(':').pop()!.trim()
       if (id) declared.add(id)

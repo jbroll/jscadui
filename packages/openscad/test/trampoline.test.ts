@@ -27,7 +27,7 @@ describe('tail-call trampoline', () => {
         function sum_helper(n, acc=0) = n <= 0 ? acc : sum_helper(n - 1, acc + n);
       `)
       // Should have while-loop trampoline
-      expect(code).toContain('while (true)')
+      expect(code).toContain('while (_r && _r.__bounce__)')
       expect(code).toContain('__bounce__')
     })
 
@@ -36,7 +36,7 @@ describe('tail-call trampoline', () => {
       const code = transpileCode(`
         function factorial(n) = n <= 1 ? 1 : n * factorial(n - 1);
       `)
-      expect(code).not.toContain('while (true)')
+      expect(code).not.toContain('while (_r && _r.__bounce__)')
       expect(code).not.toContain('__bounce__')
       // Should be a normal function
       expect(code).toContain('return')
@@ -46,7 +46,7 @@ describe('tail-call trampoline', () => {
       const code = transpileCode(`
         function add(a, b) = a + b;
       `)
-      expect(code).not.toContain('while (true)')
+      expect(code).not.toContain('while (_r && _r.__bounce__)')
       expect(code).not.toContain('__bounce__')
     })
 
@@ -54,7 +54,7 @@ describe('tail-call trampoline', () => {
       const code = transpileCode(`
         function f(n, acc=0) = n < 0 ? f(0, acc) : n == 0 ? acc : f(n-1, acc+n);
       `)
-      expect(code).toContain('while (true)')
+      expect(code).toContain('while (_r && _r.__bounce__)')
       expect(code).toContain('__bounce__')
     })
 
@@ -65,7 +65,7 @@ describe('tail-call trampoline', () => {
           let(newval = list[i])
           cumulate(list, i + 1, concat(acc, [newval]));
       `)
-      expect(code).toContain('while (true)')
+      expect(code).toContain('while (_r && _r.__bounce__)')
       expect(code).toContain('__bounce__')
     })
   })
@@ -79,6 +79,9 @@ describe('tail-call trampoline', () => {
       expect(code).toContain('args: {')
       expect(code).toMatch(/args:\s*\{.*n:/)
       expect(code).toMatch(/args:\s*\{.*acc:/)
+      // Bounce carries the special-var scope for the trampoline continuation
+      expect(code).toContain('scope: j$.scopeSnapshot()')
+      expect(code).toContain('j$.withScopeFrom(_$d, _b.scope, () => (')
     })
 
     it('generates bounce with named args in self-call', () => {
@@ -87,7 +90,7 @@ describe('tail-call trampoline', () => {
         function arc(n, r, angle, cp, points, wedge=false) =
           points != undef ? arc(n, points=points, wedge=wedge) : n;
       `)
-      expect(code).toContain('while (true)')
+      expect(code).toContain('while (_r && _r.__bounce__)')
       // Bounce should only include args that were passed
       expect(code).toMatch(/__bounce__.*args:\s*\{.*n:/)
       expect(code).toMatch(/__bounce__.*args:\s*\{.*points:/)
@@ -101,7 +104,7 @@ describe('tail-call trampoline', () => {
         function f(a, b, c=10) = a > 0 ? f(a-1, b, c) : b;
       `)
       // The reassignment should include default for c
-      expect(code).toMatch(/\(\{a, b, c = 10\} = _r\.args\)/)
+      expect(code).toMatch(/\(\{a, b, c = 10\} = _b\.args\)/)
     })
   })
 
@@ -133,12 +136,12 @@ describe('tail-call trampoline', () => {
       const objBody = code.slice(objIdx)
 
       // _$f should have the while-loop trampoline
-      expect(fBody).toContain('while (true)')
+      expect(fBody).toContain('while (_r && _r.__bounce__)')
       expect(fBody).toContain('__bounce__')
 
       // _$f$obj should delegate to _$f (no duplicated trampoline)
       expect(objBody).toContain('return sum_r_$f(')
-      expect(objBody).not.toContain('while (true)')
+      expect(objBody).not.toContain('while (_r && _r.__bounce__)')
     })
   })
 
@@ -149,7 +152,7 @@ describe('tail-call trampoline', () => {
       `)
       const fBody = code.slice(code.indexOf('function f_$f('))
       const resolvePos = fBody.indexOf('=== _$U')
-      const whilePos = fBody.indexOf('while (true)')
+      const whilePos = fBody.indexOf('while (_r')
       expect(resolvePos).toBeGreaterThan(0)
       expect(whilePos).toBeGreaterThan(resolvePos)
     })
@@ -189,7 +192,7 @@ describe('local function TCO in modules', () => {
       }
     `)
     // Local _helper should get a while-loop trampoline
-    expect(code).toContain('while (true)')
+    expect(code).toContain('while (_r && _r.__bounce__)')
     expect(code).toContain('__bounce__')
   })
 
@@ -201,7 +204,7 @@ describe('local function TCO in modules', () => {
       }
     `)
     // Non-tail recursion should not get trampoline
-    expect(code).not.toContain('while (true)')
+    expect(code).not.toContain('while (_r && _r.__bounce__)')
     expect(code).not.toContain('__bounce__')
   })
 })

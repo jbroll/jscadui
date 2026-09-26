@@ -188,7 +188,7 @@ describe('_$f$obj delegation calling conventions', () => {
       function sum(n, acc=0) = n <= 0 ? acc : sum(n - 1, acc + n);
     `)
     // _$f has the trampoline
-    expect(code).toMatch(/function sum_\$f\(.*while \(true\)/)
+    expect(code).toMatch(/function sum_\$f\(.*while \(_r && _r\.__bounce__\)/)
     // _$f$obj just delegates
     expect(code).toMatch(/function sum_\$f\$obj\(_opts = \{\}\) \{ let \{ n, acc \} = _opts; return sum_\$f\(n, acc\); \}/)
   })

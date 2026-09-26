@@ -7,7 +7,9 @@
  *
  * Design:
  * - No runtime helpers needed — trampoline logic is inlined into each function
- * - Bounce is a plain object: { __bounce__: true, args: { param: value, ... } }
+ * - Bounce is a plain object: { __bounce__: true, args: { param: value, ... }, scope: [...] }
+ * - `scope` snapshots the special-var stack so $ bindings (let($x=..)) survive
+ *   across bounces, which evaluate outside the withScope that created them
  * - Both _$f and _$f$obj variants get the same while-loop wrapper
  * - Only handles self-recursion (not mutual recursion)
  */
@@ -116,7 +118,7 @@ export function clearTailCallMarks(): void {
  * @param paramNames - The function's parameter names (safe identifiers)
  * @param fnExpr - The function call AST node
  * @param transpileExprFn - Function to transpile argument expressions to JS strings
- * @returns JS string for the bounce object: { __bounce__: true, args: { ... } }
+ * @returns JS string for the bounce object: { __bounce__: true, args: { ... }, scope: [...] }
  */
 export function emitBounce(
   paramNames: string[],
@@ -155,16 +157,21 @@ export function emitBounce(
     }
   }
 
-  return `{__bounce__: true, args: {${entries.join(', ')}}}`
+  return `{__bounce__: true, args: {${entries.join(', ')}}, scope: j$.scopeSnapshot()}`
 }
 
 /**
  * The trampoline loop for a self tail-recursive function. It stops at OpenSCAD's
  * own iteration limit, because a recursion that never ends never grows the stack.
+ * Each continuation re-enters the scope snapshot carried by its bounce, so
+ * dynamically-scoped $ bindings established around the tail call stay visible.
  */
 export function buildTailLoop(funcName: string, bouncedBody: string, reassign: string): string {
-  return `let _$n = 0; while (true) { const _r = ${bouncedBody}; if (!_r || !_r.__bounce__) return _r; ` +
-    `if (++_$n === j$.TAIL_CALL_LIMIT) j$.recursionDetected('${funcName}'); ${reassign}; }`
+  // The re-eval body is parenthesized: it can be a bare bounce object
+  // literal, which `=> {` would parse as a block label.
+  return `let _$n = 0; const _$d = j$.scopeDepth(); let _r = ${bouncedBody}; while (_r && _r.__bounce__) { ` +
+    `if (++_$n === j$.TAIL_CALL_LIMIT) j$.recursionDetected('${funcName}'); const _b = _r; ${reassign.replace('_r.args', '_b.args')}; ` +
+    `_r = j$.withScopeFrom(_$d, _b.scope, () => (${bouncedBody})); } return _r;`
 }
 
 /**

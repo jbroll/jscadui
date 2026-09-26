@@ -177,7 +177,9 @@ function transpileLetParts(
         const value = transpileExpression(a.value!, ctx)
         const remaining = args.slice(i + 1)
         const inner = transpileLetBindings(remaining, bodyExpr, ctx)
-        return `j$.withScope({ '${a.name}': ${value} }, () => ${inner})`
+        // Parenthesize the continuation: it can be a bare object literal
+        // (a tail-call bounce), which `=> {` would parse as a block label.
+        return `j$.withScope({ '${a.name}': ${value} }, () => (${inner}))`
       }
 
       // Each binding gets its own suffix so bindings never collide.
