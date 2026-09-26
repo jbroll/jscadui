@@ -360,8 +360,51 @@ function transpileBinaryOpExpr(
     return `(j$.isTruthy(${left}) || j$.isTruthy(${right}))`
   }
 
+  // OpenSCAD ^ is right-associative (4^3^2 is 4^(3^2)), but the parser
+  // produces a left-leaning chain. Re-associate bare chains to the right.
+  // Explicit parens arrive as Grouping nodes and stop the walk, so
+  // (4^3)^2 keeps its written left association.
+  if (expr.operation === TokenType.Caret) {
+    type PowerNode = { left: Expression, right: Expression, operation: number }
+    const parts: Expression[] = [expr.right]
+    let cur: Expression = expr.left
+    while (
+      isBinaryOpExpr(cur) &&
+      (cur as PowerNode).operation === TokenType.Caret &&
+      !isGroupingExpr(cur)
+    ) {
+      parts.unshift((cur as PowerNode).right)
+      cur = (cur as PowerNode).left
+    }
+    parts.unshift(cur)
+    let acc = transpileExpression(parts[parts.length - 1], ctx)
+    for (let i = parts.length - 2; i >= 0; i--) {
+      acc = emitPower(parts[i], acc, ctx)
+    }
+    return acc
+  }
+
   const op = transpileBinaryOp(expr.operation)
   return `(${left} ${op} ${right})`
+}
+
+/**
+ * Emit one `**` level: left AST against an already-transpiled right string.
+ * OpenSCAD ^ binds tighter than a leading unary: -5^2 is -(5^2).
+ * JavaScript forbids a unary directly before **, so hoist it out.
+ * (Vector negation via j$.vneg can't hoist; that untested shape keeps
+ * today's emission.)
+ */
+function emitPower(leftAST: Expression, rightStr: string, ctx: TranspileContext): string {
+  if (isUnaryOpExpr(leftAST)) {
+    const unary = leftAST as { operation: number, right: Expression }
+    const sym = transpileUnaryOp(unary.operation)
+    if (sym !== '-' || isLiteralExpr(unary.right)) {
+      return `(${sym}(${transpileExpression(unary.right, ctx)} ** ${rightStr}))`
+    }
+    return `(${transpileExpression(leftAST, ctx)} ** ${rightStr})`
+  }
+  return `(${transpileExpression(leftAST, ctx)} ** ${rightStr})`
 }
 
 /**
@@ -926,6 +969,10 @@ export function transpileBinaryOp(op: number): string {
     [TokenType.BangEqual]: '!==',   // (see special handling)
     [TokenType.AND]: '&&',
     [TokenType.OR]: '||',
+    [TokenType.BitAnd]: '&',
+    [TokenType.BitOr]: '|',
+    [TokenType.Shl]: '<<',
+    [TokenType.Shr]: '>>',
   }
   return opMap[op] || String(op)
 }
@@ -950,6 +997,7 @@ export function transpileUnaryOp(op: number): string {
     [TokenType.Bang]: '!',
     [TokenType.Minus]: '-',
     [TokenType.Plus]: '+',
+    [TokenType.BitNot]: '~',
   }
   return opMap[op] || String(op)
 }

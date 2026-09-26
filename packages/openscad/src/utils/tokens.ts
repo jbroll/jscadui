@@ -28,6 +28,13 @@ export const TokenType = {
   Slash: 31,       // /
   Percent: 32,     // %
   Caret: 33,       // ^ (power)
+
+  // Bitwise operators
+  BitAnd: 48,      // &
+  BitOr: 49,       // |
+  BitNot: 50,      // ~ (unary)
+  Shl: 51,         // <<
+  Shr: 52,         // >>
 } as const
 
 export type TokenTypeValue = typeof TokenType[keyof typeof TokenType]
