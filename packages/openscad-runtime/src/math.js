@@ -447,12 +447,24 @@ export const _rands = (min, max, count, seed) => {
  * Convert character code(s) to string
  * chr(65) -> "A"
  * chr([72, 101, 108, 108, 111]) -> "Hello"
+ * chr(90, 89, 88) -> "ZYX" (multiple args concatenate)
+ * Non-integer, out-of-range, and non-numeric values (strings, bools, undef)
+ * are silently skipped; vectors and ranges (already arrays) flatten
+ * recursively. No valid input yields "" (including zero args).
  */
-export const chr = (code) => {
-  if (Array.isArray(code)) {
-    return code.map(c => String.fromCodePoint(c)).join('')
+export const chr = (...args) => {
+  const out = []
+  const push = (v) => {
+    if (Array.isArray(v)) {
+      v.forEach(push)
+      return
+    }
+    if (typeof v === 'number' && Number.isInteger(v) && v > 0 && v <= 0x10FFFF) {
+      out.push(String.fromCodePoint(v))
+    }
   }
-  return String.fromCodePoint(code)
+  args.forEach(push)
+  return out.join('')
 }
 
 /**

@@ -523,7 +523,7 @@ function transpileFunctionCallExprHandler(
   const singleArgPredicates = new Set([
     'is_bool', 'is_num', 'is_str', 'is_string',
     'is_list', 'is_undef', 'is_def', 'is_function',
-    'len', 'chr',
+    'len',
   ])
   if (singleArgPredicates.has(callee) && shouldUseBuiltin(callee, 'function', ctx)) {
     if (regularArgs.length !== 1) {

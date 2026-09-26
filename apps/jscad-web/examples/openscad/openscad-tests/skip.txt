@@ -90,12 +90,8 @@ scad/obj/obj-import-export_dodecahedron.scad
 # remove the entry when it passes.
 # transpiled JS throws: 10.5 is not a function
 scad/functions/function-literal-tests.scad
-# transpiled JS throws: Unexpected token ')'
-scad/misc/allfunctions.scad
 # transpiled JS throws: _children is not defined
 scad/misc/children-warnings-tests.scad
-# transpiled JS throws: Invalid code point NaN
-scad/misc/chr-tests.scad
 # transpiled JS throws: Unexpected token ':'
 scad/misc/function-scope.scad
 # transpiled JS throws: Identifier 'main' has already been declared
