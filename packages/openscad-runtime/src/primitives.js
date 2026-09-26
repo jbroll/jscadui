@@ -52,7 +52,7 @@ export const _cube = ({ size, center = false }) => {
   // which minkowski() and the booleans then skip.
   if (s.some(v => !(v > 0 && v < Infinity))) return undefined
   const geo = s[0] === s[1] && s[1] === s[2] ? cube({ size: s[0] }) : cuboid({ size: s })
-  return center ? geo : translate([s[0]/2, s[1]/2, s[2]/2], geo)
+  return center === true ? geo : translate([s[0]/2, s[1]/2, s[2]/2], geo)
 }
 
 export const _cylinder = ({ h, r, r1, r2, d, d1, d2, center = false, $fn = 0, $fa, $fs }) => {
@@ -67,7 +67,7 @@ export const _cylinder = ({ h, r, r1, r2, d, d1, d2, center = false, $fn = 0, $f
   if (radius1 === Infinity || radius2 === Infinity) return undefined
   const segments = _getSegments(Math.max(radius1, radius2), $fn, $fa, $fs)
   const geo = cylinder({ height, startRadius: radius1, endRadius: radius2, segments })
-  return center ? geo : translate([0, 0, height/2], geo)
+  return center === true ? geo : translate([0, 0, height/2], geo)
 }
 
 export const _sphere = ({ r, d, $fn = 0, $fa, $fs }) => {
@@ -131,7 +131,7 @@ export const _square = ({ size, center = false }) => {
   // OpenSCAD: a square with a zero, negative or non-finite side is empty geometry
   if (s.some(v => !(v > 0 && v < Infinity))) return undefined
   const geo = rectangle({ size: s })
-  return center ? geo : translate([s[0]/2, s[1]/2], geo)
+  return center === true ? geo : translate([s[0]/2, s[1]/2], geo)
 }
 
 export const _regular_polygon = ({ order = 6, n, r = 1, $fn: _$fn = 0 }) => {

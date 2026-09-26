@@ -132,6 +132,19 @@ describe('linear_extrude matches OpenSCAD', () => {
   })
 })
 
+describe('primitives center only on true', () => {
+  beforeAll(() => {
+    j$.init(jscad)
+  })
+
+  it('square, cube and cylinder with center = 1 stay at the origin corner', () => {
+    expect(bbox(j$.square({ size: 2, center: 1 }))[0]).toEqual([0, 0, 0])
+    expect(bbox(j$.cube({ size: 2, center: 1 }))[0]).toEqual([0, 0, 0])
+    expect(bbox(j$.cylinder({ h: 2, r: 1, center: 1 }))[0][2]).toBe(0)
+    expect(bbox(j$.cube({ size: 2, center: true }))[0]).toEqual([-1, -1, -1])
+  })
+})
+
 /**
  * A profile that collapsed to a single point still has sides, so the
  * empty-profile guard lets it through, and extrudeRotate throws "the callback
