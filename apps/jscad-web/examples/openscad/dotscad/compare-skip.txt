@@ -12,8 +12,6 @@ examples/voronoi/ripple_vase.scad
 examples/taiwan/chair_score.scad
 examples/tiles/random_city.scad
 examples/taiwan/random_city_taiwan.scad
-# hollow_out_square calls rand() without a seed
-examples/hollow_out/hollow_out_holder.scad
 # rock() uses unseeded rands() for the rock shape
 examples/maze/rock_theta_maze.scad
 

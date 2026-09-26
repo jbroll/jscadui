@@ -162,6 +162,10 @@
         {
           "patchFile": "scripts/deps/patches/dotscad-examples-seed-rands.patch",
           "description": "Seed rands() in example files for deterministic output"
+        },
+        {
+          "patchFile": "scripts/deps/patches/dotscad-hollow-out-square-seed.patch",
+          "description": "Seed rand() in example hollow_out_square — makes hollow_out_holder/hollow_out_torus deterministic"
         }
       ]
     },
