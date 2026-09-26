@@ -38,3 +38,35 @@
  use <polyline_join.scad>
  use <turtle/t3d.scad>
  use <util/rand.scad>
+--- a/apps/jscad-web/examples/openscad/dotscad/examples/voronoi/ruyi_pineapple.scad
++++ b/apps/jscad-web/examples/openscad/dotscad/examples/voronoi/ruyi_pineapple.scad
+@@ -1,3 +1,5 @@
++// jscadui: seed the RNG once; the unseeded rands() below continue from it
++_rng_seed = rands(0, 1, 1, 42);
+ use <fibonacci_lattice.scad>
+ use <shape_superformula.scad>   
+ use <ring_extrude.scad>
+--- a/apps/jscad-web/examples/openscad/dotscad/examples/differential_line_growth.scad
++++ b/apps/jscad-web/examples/openscad/dotscad/examples/differential_line_growth.scad
+@@ -1,3 +1,5 @@
++// jscadui: seed the RNG once; the unseeded rands() below continue from it
++_rng_seed = rands(0, 1, 1, 42);
+ use <shape_circle.scad>
+ use <experimental/differential_line_growth.scad>
+ use <midpt_smooth.scad>
+--- a/apps/jscad-web/examples/openscad/dotscad/examples/tiles/random_city.scad
++++ b/apps/jscad-web/examples/openscad/dotscad/examples/tiles/random_city.scad
+@@ -1,3 +1,5 @@
++// jscadui: seed the RNG once; the unseeded rands() below continue from it
++_rng_seed = rands(0, 1, 1, 42);
+ use <util/rand.scad>
+ use <experimental/tile_w2e.scad>
+ use <select.scad>
+--- a/apps/jscad-web/examples/openscad/dotscad/examples/taiwan/random_city_taiwan.scad
++++ b/apps/jscad-web/examples/openscad/dotscad/examples/taiwan/random_city_taiwan.scad
+@@ -1,3 +1,5 @@
++// jscadui: seed the RNG once; the unseeded rands() below continue from it
++_rng_seed = rands(0, 1, 1, 42);
+ use <../tiles/random_city.scad>
+ 
+ mask = [

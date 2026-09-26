@@ -173,7 +173,7 @@
         },
         {
           "patchFile": "scripts/deps/patches/dotscad-sticky-seed-examples.patch",
-          "description": "Seed the RNG once at the top of crystal_cluster, rock_theta_maze, penrose_basket, random_town_square and tree; their unseeded rands() continue from it"
+          "description": "Seed the RNG once at the top of nine examples with unseeded rands(); the later calls continue from it"
         }
       ]
     },

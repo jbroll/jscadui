@@ -34,6 +34,9 @@ were **not** run in this triage, so no Jaccard numbers here are new.
 | `examples/tiles/random_town_square.scad` | dotSCAD | same patch | identical after |
 | `examples/maze/rock_theta_maze.scad` | dotSCAD | same patch, plus runtime fixes: `rands()` count is `trunc(\|count\|)`; ranges allow one ULP of slack, not ~8 | identical after |
 | `examples/tiles/penrose_basket.scad` | dotSCAD | same patch, plus `hull() polyhedron(...)` of an open (single-face) mesh now hulls its vertices | identical after |
+| `examples/voronoi/ruyi_pineapple.scad` | dotSCAD | same patch | identical after |
+| `examples/tiles/random_city.scad` | dotSCAD | same patch | identical after |
+| `examples/taiwan/random_city_taiwan.scad` | dotSCAD | same patch | identical after |
 
 Single-model runs (2026-09-26, cloud session, OpenSCAD 2026.09.23 nightly,
 `test-harness.js --no-stl-cache`): all above **PASS (1.0000)** except
@@ -54,9 +57,7 @@ reproducible.
 | Model | Suite | Reason skipped | Proposed fix | Effort |
 |-------|-------|----------------|--------------|--------|
 | `examples/taiwan/chair_score.scad` | dotSCAD | Back in `compare-skip.txt`: deterministic (`rand()` only feeds `color()`), but Jaccard **0.0537** | Transpiler/runtime mismatch, not randomness. Compare the per-chair polyhedron and the `rotate`/`translate` chain first. | M |
-| `examples/differential_line_growth.scad` (`…_bowl.scad` is in `skip.txt` as a timeout on `main`) | dotSCAD | `node()` velocity `rands()` in `_differential_line_growth.scad` | Seed from position. Iterative simulation, so float drift may still sink Jaccard. | S patch / unknown pass |
-| `examples/voronoi/ruyi_pineapple.scad` | dotSCAD | Many `rand()` calls (10–20, some recursive) | Sticky seed, as for `crystal_cluster`/`tree` | M |
-| `examples/tiles/random_city.scad`, `examples/taiwan/random_city_taiwan.scad` | dotSCAD | `tile_w2e` (now seeded) + ~40 `rand()` calls in `city_tile.scad` | Same as above | M |
+| `examples/differential_line_growth.scad` (`…_bowl.scad` is in `skip.txt` as a timeout on `main`) | dotSCAD | Deterministic since the sticky-seed patch (two renders identical), but Jaccard **0.9803** | Iterative simulation; find the first step where JSCAD and OpenSCAD node positions diverge. | M |
 
 **Sticky seed (used by `dotscad-sticky-seed-examples.patch`).** OpenSCAD ≥ 2021.01 keeps the RNG state after a seeded
 `rands()`, and `openscad-runtime/src/math.js` `_rands` does the same. A single

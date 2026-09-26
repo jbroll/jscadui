@@ -1,11 +1,10 @@
 # dotSCAD comparison skip list — models that render but that the STL comparison
 # cannot grade. Only test-harness.js reads this; browser sweeps still render them.
 
-# Unseeded rands(): time-seeded, so the reference STL and every re-run differ.
-examples/voronoi/ruyi_pineapple.scad
+# Deterministic since dotscad-sticky-seed-examples.patch, but below threshold:
+# Jaccard 0.9803 (OpenSCAD 2026.09.23 nightly, single-model run). An iterative
+# simulation, so float drift across its steps is the likely cause; not traced.
 examples/differential_line_growth.scad
-examples/tiles/random_city.scad
-examples/taiwan/random_city_taiwan.scad
 # Deterministic (rand() only feeds color()), but JSCAD output differs:
 # Jaccard 0.0537 (OpenSCAD 2026.09.23 nightly, single-model run). Triage pending.
 examples/taiwan/chair_score.scad
