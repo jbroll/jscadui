@@ -136,3 +136,7 @@ scad/misc/scope-assignment-tests.scad
 scad/misc/text-metrics-test.scad
 # transpiled JS throws: a is not defined
 scad/misc/variable-scope-tests.scad
+# transpiled JS throws: minkowski currently supports exactly two geometries (GPU run on jbroll/jscadui#116)
+scad/3D/issues/issue1671.scad
+# transpiled JS throws: Cannot read properties of undefined (reading 'length') (GPU run on jbroll/jscadui#116)
+scad/bugs2D/issue2220.scad

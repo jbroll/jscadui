@@ -52,3 +52,5 @@ examples/voronoi/voronoi_sphere.scad
 # echo line shown); remove the entry when it passes.
 # JSCAD draws geometry; OpenSCAD's top level is empty
 examples/spiral/seashell.scad
+# JSCAD draws geometry; OpenSCAD's top level is empty (GPU run on jbroll/jscadui#116)
+examples/maze/maze_masking.scad
