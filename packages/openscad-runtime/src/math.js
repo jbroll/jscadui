@@ -291,13 +291,19 @@ export const _cross = (a, b) => {
 }
 
 export const _lookup = (val, table) => {
+  // OpenSCAD warns and returns undef when the arguments don't convert:
+  // a non-table, a non-numeric value, or rows that aren't [number, number]
+  // pairs. Without this the spread/sort below throws on such inputs.
+  if (!Array.isArray(table) || typeof val !== 'number') return undefined
   if (table.length === 0) return 0
+  const rows = table.filter(r => Array.isArray(r) && typeof r[0] === 'number' && typeof r[1] === 'number')
+  if (rows.length === 0) return undefined
   // OpenSCAD always sorts the table by x-value before interpolation.
   // We must do the same: a table can appear ordered (first[0] < last[0]) but
   // still be non-monotonic internally (e.g. BOSL2 worm rack_profile, where
   // xcopies produces per-tooth segments each in decreasing x order, then jumps
   // up for the next tooth — causing wrong lookup results if we skip the sort).
-  const sorted = [...table].sort((a, b) => a[0] - b[0])
+  const sorted = [...rows].sort((a, b) => a[0] - b[0])
   if (val <= sorted[0][0]) return sorted[0][1]
   for (let i = 1; i < sorted.length; i++) {
     if (val <= sorted[i][0]) {
