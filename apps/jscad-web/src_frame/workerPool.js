@@ -25,8 +25,9 @@ const ignore = () => {}
  * @param {(slot: Slot) => boolean} options.busy - a member of a grid run
  * @param {(slot: Slot) => boolean} options.inGrid - a member of a run that fanned out
  * @param {(slot: Slot, message: any, entry: Entry) => import('./gridRun.js').Run | null} options.openRun
+ * @param {(slot: Slot, reason: string) => void} [options.onExit] - the frame answers requests it held back
  */
-export const createPool = ({ state, slotOps, post, answerError, busy, inGrid, openRun }) => {
+export const createPool = ({ state, slotOps, post, answerError, busy, inGrid, openRun, onExit = () => {} }) => {
   const idle = (slot) => slot !== state.active && !busy(slot)
 
   // Sent without a transfer list: a mirrored message is kept for the next worker.
@@ -109,6 +110,7 @@ export const createPool = ({ state, slotOps, post, answerError, busy, inGrid, op
       state.active = replacement
       handOver(slot, state.active)
     } else remove(slot)
+    onExit(slot, reason)
     slotOps.end(slot, null, reason, null)
     if (state.active) ensureSpare()
   }
@@ -116,6 +118,7 @@ export const createPool = ({ state, slotOps, post, answerError, busy, inGrid, op
   const kill = (slot, expiredId, reason, errorName) => {
     const inGridRun = inGrid(slot)
     remove(slot)
+    onExit(slot, reason)
     slotOps.end(slot, expiredId, reason, errorName)
     if (slot !== state.active) return
     state.active = pickIdle()

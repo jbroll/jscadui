@@ -89,6 +89,7 @@ export const createFrameHost = ({
     busy: (slot) => runs.busy(slot),
     inGrid: (slot) => runs.inGrid(slot),
     openRun: (slot, message, entry) => runs.open(slot, message, entry),
+    onExit: (slot, reason) => dropHeld(slot, 'AbortError', `worker terminated before this request finished: ${reason}`),
   })
   const runs = createGridRuns({ state, pool, slotOps, post, answerError })
 
@@ -126,7 +127,7 @@ export const createFrameHost = ({
     if (slot === state.active && trapped(data)) pool.retire(slot, 'the model trapped in WebAssembly')
   }
 
-  const answered = (slot, { method, options }, data) => {
+  const answered = (slot, { method, options, onAnswer }, data) => {
     // The export replay runs what the user last set, even when that run
     // failed: replaying older successful params would export stale state.
     if (method === 'jscadMain' && options) state.lastMain = options
@@ -136,7 +137,34 @@ export const createFrameHost = ({
       state.lastMain = undefined
       slot.script = options
     } else if (state.sentScript === options) state.sentScript = state.lastScript
+    if (!onAnswer) flushHeld(slot)
     pool.ensureSpare()
+  }
+
+  // A superseding run that arrives while a load is pending queues behind the
+  // load instead of running in full on the worker; a newer one supersedes it.
+  const heldMains = new Map()
+
+  const holdsLoad = (slot) => [...slot.pending.values()]
+    .some((r) => r.method === 'jscadScript' && !r.onAnswer && !r.run?.fanned)
+
+  const flushHeld = (slot) => {
+    const held = heldMains.get(slot)
+    if (!held?.length) return
+    heldMains.delete(slot)
+    for (const { message, entry } of held) {
+      if (entry) entry.script = state.sentScript
+      pool.relay(slot, message, entry)
+    }
+  }
+
+  const dropHeld = (slot, name, message) => {
+    const held = heldMains.get(slot)
+    if (!held?.length) return
+    heldMains.delete(slot)
+    for (const { entry } of held) {
+      if (entry) answerError(entry.appId, name, message)
+    }
   }
 
   const RECORDED = new Set(['jscadScript', 'jscadMain'])
@@ -156,6 +184,8 @@ export const createFrameHost = ({
       slot.pending.delete(workerId)
       answerError(appId, 'SupersededError', 'superseded by a newer run')
     }
+    // A run held behind the load was superseded by the same newer run.
+    dropHeld(slot, 'SupersededError', 'superseded by a newer run')
     // An export, measure or check in flight is never superseded: retire would
     // answer it AbortError, so the new run queues behind it instead.
     if (appRequests.some(([, r]) => NEEDS_SOLIDS.has(r.method))) return
@@ -267,6 +297,14 @@ export const createFrameHost = ({
     if (MIRRORED.has(data?.method)) mirror(message)
     const entry = entryFor(message)
     if (entry?.method === 'jscadScript') state.sentScript = entry.options
+    // The app sends a superseding run every 500 ms while a load is pending;
+    // queue it behind the load instead of running each one in full, and let a
+    // newer one supersede it.
+    if (entry && supersede && entry.method === 'jscadMain' && !state.active.queued && holdsLoad(state.active)) {
+      dropHeld(state.active, 'SupersededError', 'superseded by a newer run')
+      heldMains.set(state.active, [{ message, entry }])
+      return
+    }
     pool.relay(state.active, message, entry)
   }
 
@@ -274,7 +312,8 @@ export const createFrameHost = ({
     const slot = state.active
     const relayed = slot ? [...slot.pending.values()].filter((r) => !r.onAnswer && !r.run?.fanned).length : 0
     const queued = (slot?.queued ?? []).filter(({ entry }) => entry && !entry.onAnswer).length
-    return relayed + queued + runs.pendingCount()
+    const held = [...heldMains.values()].reduce((n, list) => n + list.filter(({ entry }) => entry && !entry.onAnswer).length, 0)
+    return relayed + queued + held + runs.pendingCount()
   }
 
   return { handleMessage, getPendingCount }

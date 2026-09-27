@@ -803,6 +803,33 @@ describe('superseding a stale run', () => {
     expect(workers[0].terminate).not.toHaveBeenCalled()
   })
 
+  it('queues a superseding run behind a pending load instead of running it', () => {
+    const { workers, send, posted, host } = withSpare()
+    send({ method: 'jscadScript', id: 4, params: [{ script: 'next' }] })
+    vi.advanceTimersByTime(600)
+    send({ method: 'jscadMain', id: 5, params: [{ params: { size: 1 }, supersede: true }] })
+    send({ method: 'jscadMain', id: 6, params: [{ params: { size: 2 }, supersede: true }] })
+
+    expect(posted.find((m) => m.id === 5)?.error).toEqual(superseded)
+    expect(posted.find((m) => m.id === 6)).toBeUndefined()
+    expect(host.getPendingCount()).toBe(2)
+    expect(workers[0].postMessage.mock.calls.map(([m]) => m.method)).not.toContain('jscadMain')
+    answerLast(workers[0], { def: [], params: {} })
+    expect(lastSent(workers[0])).toMatchObject({ method: 'jscadMain', params: [{ params: { size: 2 } }] })
+    answerLast(workers[0], { entities: [] })
+    expect(posted.find((m) => m.id === 6)).toEqual({ method: RESPONSE, id: 6, params: { entities: [] } })
+  })
+
+  it('answers a run held behind a load when the worker dies', () => {
+    const { workers, send, posted, host } = withSpare()
+    send({ method: 'jscadScript', id: 4, params: [{ script: 'next' }] })
+    send({ method: 'jscadMain', id: 5, params: [{ params: {}, supersede: true }] })
+    workers[0].onerror({ message: 'boom' })
+
+    expect(posted.find((m) => m.id === 5)?.error?.name).toBe('AbortError')
+    expect(host.getPendingCount()).toBe(0)
+  })
+
   it('sends a superseding script straight to the promoted worker', () => {
     const { workers, send, posted } = withSpare()
     send({ method: 'jscadMain', id: 4, params: [{ params: {} }] })
@@ -894,7 +921,9 @@ describe('superseding a stale run', () => {
 
     expect(posted).toEqual([])
     expect(workers[0].terminate).not.toHaveBeenCalled()
-    expect(lastSent(workers[0])).toMatchObject({ method: 'jscadMain' })
+    expect(lastSent(workers[0])).toMatchObject({ method: 'jscadScript' })
+    answerLast(workers[0], { def: [], params: {} })
+    expect(lastSent(workers[0])).toMatchObject({ method: 'jscadMain', params: [{ params: {} }] })
   })
 
   it('does not abandon a run for a request without supersede', () => {
