@@ -77,6 +77,8 @@ const result = transpile(ast, {
   fileResolver,
   currentFile: fileName,
   includeSourceComments: sourceComments,
+  // Match the browser, which always transpiles with the Customizer on.
+  customizer: true,
 })
 
 if (infoMode) {

@@ -457,6 +457,9 @@ export function transpileScad(source, fileName, fileDir, fn = 0, sourceComments 
     currentFile: fileName,
     fn: fn,
     includeSourceComments: sourceComments,
+    // The browser always transpiles with the Customizer on; the CLI must too,
+    // or corpus runs pass models that skull in the browser.
+    customizer: true,
   }, sharedCache)
 
   // Build in-memory module cache from transpiled files.
@@ -613,29 +616,6 @@ function createMakeRequire(jscadModeling, openscadRuntime, moduleCache, fn, libP
   return makeRequire
 }
 
-// ── Shared params proxy factory ────────────────────────────────────────────
-
-function createParamsProxy() {
-  const paramsData = {}
-  return new Proxy(paramsData, {
-    set(target, prop, value) {
-      // If setting a parameter definition object, store the default value
-      if (value && typeof value === 'object' && 'default' in value) {
-        target[prop] = value.default
-      } else {
-        target[prop] = value
-      }
-      return true
-    },
-    get(target, prop) {
-      if (!(prop in target)) {
-        target[prop] = new Proxy({}, this)
-      }
-      return target[prop]
-    }
-  })
-}
-
 // ── In-process execution (for test-harness) ────────────────────────────────
 
 /**
@@ -674,7 +654,9 @@ export function evalScadSolidSync(scadPath, ctx, { fn = 0, libPaths = [], shared
   const moduleObj = { exports: {} }
   new Function('require', 'module', 'exports', 'j$', code)(customRequire, moduleObj, moduleObj.exports, j$Instance)
   if (typeof moduleObj.exports.main !== 'function') throw new Error('No main() function in ' + scadPath)
-  const result = moduleObj.exports.main(createParamsProxy())
+  // Call with no overrides so customizer defaults apply: the legacy
+  // auto-vivifying params proxy would shadow every default with an object.
+  const result = moduleObj.exports.main()
   if (!result || (Array.isArray(result) && result.length === 0)) return null
   // The browser renders each entity separately, so a caller checking display
   // conversion needs the list the union would have collapsed.
@@ -811,9 +793,9 @@ async function main() {
     // Call main() if it exists - handle both sync and async main()
     let result
     if (typeof moduleObj.exports.main === 'function') {
-      const params = createParamsProxy()
       try {
-        result = await Promise.resolve(moduleObj.exports.main(params))
+        // No overrides: customizer defaults apply (see evalScadSolidSync).
+        result = await Promise.resolve(moduleObj.exports.main())
       } catch (mainErr) {
         writeEcho()
         console.error('main() threw:', mainErr.message)
