@@ -15,7 +15,45 @@ and a third that can reach its `Asset_SCAD/` includes. Pointing CI at the
 
 Similarity threshold: **0.99** (Jaccard index on vertex-deduplicated STL meshes).
 
-## Latest GPU run: 2026-09-26, inverted polyhedra
+## Latest GPU run: 2026-09-27, text-only fixes + CI rsync fix
+
+Branch `fix/text-only-is-let-skips`, simple-ci job `660559e1` (`sci push
+jscadui/test`), 8.9 min, OpenSCAD 2026.08.30.fp. All 21 suites pass.
+
+Nineteen text-only models unskipped since the previous run (single-arg
+builtin arity, `let()` duplicates, `lookup`/`min`/`max`/`cross`/`chr`
+guards, `each` over scalars, bitwise ops, right-associative `^`, top-level
+`children()`, tail-scope bounces, latin-1/NBSP sources), so openscad-tests
+goes 214 → 233 tested. This run also fixes `ci/simple-ci.conf`: the rsync
+filter dropped `skip.txt`/`compare-skip.txt`/`echo-skip.txt`/`exclude.txt`
+for suites without explicit `--include` coverage, so `sci push` jobs graded
+hundreds of models the PR channel skips.
+
+| Suite | Tested | Passed |
+|-------|-------:|-------:|
+| 01-basics | 21 | 21 |
+| bosl | 113 | 113 |
+| bosl2 | 135 | 135 |
+| closepoints | 6 | 6 |
+| constructive | 2 | 2 |
+| dotscad | 170 | 170 |
+| gears | 18 | 18 |
+| gridfinity | 4 | 4 |
+| list-comprehension-demos | 9 | 9 |
+| mcad | 13 | 13 |
+| nopscadlib | 145 | 145 |
+| obiscad | 9 | 9 |
+| openscad-examples | 32 | 32 |
+| openscad-tests | 233 | 233 |
+| relativity | 6 | 6 |
+| round-anything | 10 | 10 |
+| snippet | 115 | 115 |
+| text | 2 | 2 |
+| threadlib | 9 | 9 |
+| threads-scad | 1 | 1 |
+| yapp-box | 40 | 40 |
+
+## Previous GPU run: 2026-09-26, inverted polyhedra
 
 Commit `9f1c04a` (branch `claude/eager-brahmagupta-wcnzjm`, jbroll/jscadui#117),
 simple-ci job `395a9882cc22e4be`, 9.0 min. All 21 suites pass.
