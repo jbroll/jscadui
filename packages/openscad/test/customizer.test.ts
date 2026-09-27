@@ -166,6 +166,30 @@ describe('transpile with customizer option', () => {
     expect(calls.at(-1)).toEqual({ size: [50, 100, 2] })
   })
 
+  it('does not repeat echo() side effects when main re-runs assignments', () => {
+    // w is a real parameter, so main() gets a customizer prologue that
+    // re-runs every top-level assignment, including t0 = echo().
+    const src = 'w = 5;\nt0 = echo();\nmodule m() { cube(w); }\nm();\n'
+    const result = transpile(parse(src).ast, { customizer: true })
+    const calls: unknown[][] = []
+    const j$ = {
+      cube: () => ({}),
+      withScope: (_: unknown, f: () => unknown) => f(),
+      setSpecialVar() {},
+      safeUnion: (parts: unknown[]) => parts[0],
+      echoMuted: false,
+      echo(...args: unknown[]) { if (!this.echoMuted) calls.push(args) },
+    }
+    const exports = {} as { main: (...args: unknown[]) => unknown }
+    new Function('exports', 'j$', 'require', result.code)(exports, j$, () => ({}))
+    // Module load runs the assignment once and echoes
+    expect(calls).toHaveLength(1)
+    exports.main({})
+    // main's prologue re-runs it silently; geometry here has no echo
+    expect(calls).toHaveLength(1)
+    expect(j$.echoMuted).toBe(false)
+  })
+
   it('gives dependencies the same customizer output as a main file', () => {
     const files: Record<string, string> = {
       '/lib.scad': 'size = 4; // [1:10]\nmodule part() { cube(size); }\npart();\n',

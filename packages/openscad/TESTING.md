@@ -135,6 +135,11 @@ node bin/run-jscad.js file.scad --debug-transpile
 node bin/run-jscad.js file.scad --source-comments
 ```
 
+The CLI always transpiles with the Customizer on, exactly like the browser
+(`main(params)` with `getParameterDefinitions`; called with no overrides, so
+defaults apply). A model that skulls in the browser but passes here is a
+corpus-harness gap — report it, don't add it to a skip list.
+
 For files that use library includes (BOSL, BOSL2), the lib-path is auto-detected from the file's location. Explicit override if needed:
 
 ```bash

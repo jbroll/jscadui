@@ -153,11 +153,17 @@ const j$ = {
    * else to console.log.
    */
   echo(names, ...values) {
+    // echoMuted silences the print while keeping the return value: the
+    // customizer main() re-runs top-level assignments to apply overrides,
+    // and without this every echo() in them would print twice (once at
+    // module load, once per run). Only the flag setter below writes it.
+    if (this.echoMuted) return
     const line = 'ECHO: ' + values.map((v, i) => (names?.[i] ? names[i] + ' = ' : '') + _echoVal(v)).join(', ')
     if (this.onEcho) this.onEcho(line)
     else console.log(line)
   },
   onEcho: null,
+  echoMuted: false,
 
   /**
    * OpenSCAD assert - throws if condition is false, returns undefined if true

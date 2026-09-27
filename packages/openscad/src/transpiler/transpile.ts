@@ -553,8 +553,13 @@ function buildOutputCode(
     const defs = toJscadParameterDefinitions(transpiled.customizer!)
     parts.push(`const getParameterDefinitions = () => (${JSON.stringify(defs, null, 2)})`)
     parts.push('')
-    const prologue = [...CUSTOMIZER_HELPERS, ...transpiled.customizerPrologue].map(l => `  ${l}`).join('\n')
-    parts.push(`const main = (_$params = {}) => {\n${prologue}\n  return ${mainBody ?? 'undefined'}\n}`)
+    // The re-run must not repeat echo() side effects: those already printed
+    // once at module load. Mute around the assignments only; geometry below
+    // still echoes. try/finally so a throwing assignment cannot leave the
+    // worker muted for later runs.
+    const helpers = CUSTOMIZER_HELPERS.map(l => `  ${l}`).join('\n')
+    const reassign = transpiled.customizerPrologue.map(l => `    ${l}`).join('\n')
+    parts.push(`const main = (_$params = {}) => {\n${helpers}\n  j$.echoMuted = true\n  try {\n${reassign}\n  } finally {\n    j$.echoMuted = false\n  }\n  return ${mainBody ?? 'undefined'}\n}`)
     parts.push('')
     customizerExports.push('getParameterDefinitions')
   } else if (mainBody) {
