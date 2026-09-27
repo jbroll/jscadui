@@ -14,6 +14,7 @@
  */
 
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, existsSync, cpSync, rmSync } from 'fs'
+import { spawnSync } from 'child_process'
 import { join, relative, dirname } from 'path'
 import { fileURLToPath } from 'url'
 
@@ -290,6 +291,21 @@ function main() {
     const categories = Object.keys(manifest.categories)
     for (const category of categories) {
       processCategory(category)
+    }
+  }
+
+  // Batching wipes batch directories (including their ALL.js grids), so
+  // regenerate the grids: fetch-deps output must match the tracked files or
+  // ci/gpu-test fails its dirtiness gate. --no-rename keeps the numeric
+  // prefixes the render baselines depend on.
+  if (!options.dryRun) {
+    console.log('\n📐 Regenerating ALL.js grids...')
+    const result = spawnSync(process.execPath,
+      [join(__dirname, 'generate-all-files.js'), '--no-rename'],
+      { stdio: 'inherit' })
+    if (result.status !== 0) {
+      console.error('❌ Grid regeneration failed')
+      process.exit(1)
     }
   }
 
