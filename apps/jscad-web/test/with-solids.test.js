@@ -26,7 +26,7 @@ describe('createWithSolids', () => {
     let progressDuringRun = null
     const currentParams = () => ({ foo: 'bar' })
     const jscadMain = async (args) => {
-      expect(args).toEqual({ params: { foo: 'bar' }, stream: false })
+      expect(args).toEqual({ params: { foo: 'bar' }, stream: false, solidsOnly: true })
       progressDuringRun = globalThis.__jscadProgress
     }
     const withSolids = createWithSolids({

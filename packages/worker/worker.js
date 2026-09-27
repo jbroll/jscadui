@@ -220,7 +220,7 @@ async function readFileFile(file, {bin=false}={}){
  * @param {{params?:import('@jscadui/format-common').UserParameters,skipLog?:boolean,userInteractedPaths?:string[],useGpuNormals?:boolean,stream?:boolean,runId?:unknown,held?:string[]}} options
  * @returns {Promise<import('@jscadui/format-common').JscadMainResult>}
  */
-export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths, useGpuNormals, stream = true, runId, held } = {}) {
+export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths, useGpuNormals, stream = true, runId, held, solidsOnly = false } = {}) {
   const myGeneration = workerState.getGeneration()
   const assertFresh = (stage) => {
     if (myGeneration !== workerState.getGeneration()) {
@@ -356,12 +356,18 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
       }
       execTime = performance.now() - time
 
-      time = performance.now()
-      const prepared = toRefs(JscadToCommon.prepare(workerState.solids, undefined, workerState.userInstances).all, heldSet, [])
-      const copied = withCopies(prepared)
-      entities = copied.entities
-      transferable.push(...copied.transfer)
-      convTime = performance.now() - time
+      // A solidsOnly re-run (an export re-running a streamed grid) reads the
+      // solids back out, so the mesh conversion below would build entity
+      // arrays only to discard them, at grid-scale memory cost. The
+      // evaluation above already warmed the cache the export reads.
+      if (!solidsOnly) {
+        time = performance.now()
+        const prepared = toRefs(JscadToCommon.prepare(workerState.solids, undefined, workerState.userInstances).all, heldSet, [])
+        const copied = withCopies(prepared)
+        entities = copied.entities
+        transferable.push(...copied.transfer)
+        convTime = performance.now() - time
+      }
     }
 
     const result = { entities, treeTime, execTime, convTime }

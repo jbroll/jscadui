@@ -404,3 +404,40 @@ describe('jscadMain claims', () => {
     expect(claim).toBeUndefined()
   })
 })
+
+describe('jscadMain solidsOnly re-run', () => {
+  afterEach(() => {
+    self.postMessage.mockClear()
+    workerState.main = undefined
+    workerState.useParamsProxy = undefined
+    workerState.lastRunStreamed = false
+  })
+
+  it('skips mesh conversion, keeping the solids for the export', async () => {
+    workerState.lastRunStreamed = true
+    workerState.main = () => [
+      { type: 'mesh', vertices: new Float32Array(9) },
+      { type: 'mesh', vertices: new Float32Array(9) },
+    ]
+
+    const result = await jscadMain({ params: {}, stream: false, solidsOnly: true })
+
+    expect(result.entities).toEqual([])
+    expect(result.convTime).toBe(0)
+    expect(currentSolids()).toHaveLength(2)
+    expect(lastRunStreamed()).toBe(true)
+    expect(self.postMessage).not.toHaveBeenCalled()
+  })
+
+  it('still evaluates manifold solids, warming the cache the export reads', async () => {
+    const numTri = vi.fn()
+    workerState.main = () => [
+      { type: 'mesh', vertices: new Float32Array(9), isManifoldGeom3: true, manifold: { numTri } },
+    ]
+
+    await jscadMain({ params: {}, stream: false, solidsOnly: true })
+
+    expect(numTri).toHaveBeenCalled()
+    expect(currentSolids()).toHaveLength(1)
+  })
+})
