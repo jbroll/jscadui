@@ -9,6 +9,7 @@ import { spawnSync } from 'node:child_process'
 import { basename, dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { resolveEntry } from './local/resolveEntry.js'
+import { scaffoldStarter } from './local/scaffold.js'
 import { createRelayHandler, defaultAllowlist, loadAllowlist } from './local/relay.js'
 import { startLocal } from './local/server.js'
 
@@ -34,9 +35,17 @@ if (!out || args.includes('--build')) {
   if (r.status !== 0) process.exit(r.status ?? 1)
   out = join(webDir, existsSync(join(webDir, 'build', 'index.html')) ? 'build' : 'build_dev')
 }
-const { urlPath } = await resolveEntry(modelDir, explicitFile ? { explicitFile } : {}).catch((e) => {
-  console.error(e.message); process.exit(1)
-})
+let entry
+try {
+  entry = await resolveEntry(modelDir, explicitFile ? { explicitFile } : {})
+} catch (e) {
+  if (explicitFile) { console.error(e.message); process.exit(1) }
+  const scaffolded = scaffoldStarter(modelDir)
+  if (!scaffolded) { console.error(e.message); process.exit(1) }
+  console.log(`jscad: empty directory — created ${scaffolded.entryFile}`)
+  entry = await resolveEntry(modelDir, {})
+}
+const { urlPath } = entry
 const allowlist = process.env.RELAY_ALLOWLIST && existsSync(process.env.RELAY_ALLOWLIST)
   ? loadAllowlist(process.env.RELAY_ALLOWLIST)
   : defaultAllowlist()
