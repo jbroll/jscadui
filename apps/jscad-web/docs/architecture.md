@@ -205,9 +205,11 @@ Every worker gets a copy of every `jscadInit` (as rewritten), `jscadSetFiles`,
 own requests whose answers go nowhere, but never a script. The frame keeps
 those messages in order so it can replay them into a new worker; a new
 `jscadSetFiles` drops the file map and cache clears before it, since the map
-replaces them. File buffers are copied for each worker rather than
-transferred. The frame also records the params of the last `jscadScript` and
-`jscadMain` the active worker answered without error; a new script clears the
+replaces them, and a new `jscadInit` drops the previous one, so the mirror
+holds at most one init. File buffers are copied for each worker rather than
+transferred. The frame also records the params of the last `jscadScript` and the last
+attempted `jscadMain`, even when that run failed, so an export replays what the
+user last set rather than older successful params; a new script clears the
 recorded `jscadMain`, since its params belong to the previous model. Each
 worker records the script it has loaded (`slot.script`), compared by identity
 with that recorded `jscadScript`; a worker without it reloads the script with
@@ -221,17 +223,23 @@ from the recorded messages; the app still gets its answers and
 telling the app when an answer it relays has `error.name === 'RuntimeError'` or
 `trapped: true`: a trapped WebAssembly instance is not trusted with the next
 run. The retired worker's other requests are answered `AbortError` and an idle
-worker is promoted the same way. A promoted worker has the setup but no model,
+worker is promoted the same way. If no replacement worker can start, the old
+worker keeps serving instead of leaving the frame with no active worker. A promoted worker has the setup but no model,
 so before it runs `jscadMain`, `jscadExportData`, `jscadMeasure` or
 `jscadCheck` the frame sends it the last script with `runMain: false`, and for
 the last three also the last `jscadMain` with `stream: false`, since they read
-that run's solids. When no `jscadMain` has succeeded since that script loaded,
+that run's solids. The replay carries neither the app's `held` nor its `runId`:
+the worker must not hash meshes for an answer the frame drops. Progress posted
+during the reload is relayed and restarts the kill timer, so a large export
+cannot time out for lack of beats; cells are dropped, since no app run waits on
+them, but still restart the timer. When no `jscadMain` has run since that script loaded,
 those three reload it with `runMain: true` instead, so the load's own run
 provides the solids; a grid streams its cells, which the frame drops because no
 app run is pending, and `withSolids` re-runs it as it does after any grid.
 Requests that arrive meanwhile wait behind the reload in order; a reload that
-fails answers the request with its error. Only an answer relayed to the app
-retires a worker: a reload step that traps still lets the request it was made
+fails answers the request with its error. A reload script step that traps
+retires the worker at once instead of running the queued requests on the
+trapped worker; a main replay step that traps still lets the request it was made
 for run, so a model whose run traps can still be exported, and the next app run
 that traps retires the worker. A `jscadScript`
 from the app loads the worker itself and skips this, including while it is
@@ -253,12 +261,16 @@ with their `jscadScript` or `jscadMain`. When one arrives while the active
 worker has an app `jscadMain` or `jscadScript` it started at least 500 ms ago
 (`ABANDON_AFTER_MS`, defined in `src_frame/constants.js` and re-exported from `src_frame/frameHost.js`), the frame answers
 that request and every other app `jscadMain` or `jscadScript` on the worker
-`SupersededError`, retires the worker the same way as a trap, and sends the new
-request to the promoted worker, after the reload for a `jscadMain`. When every
+`SupersededError` and, unless an export, measure or check is in flight, retires
+the worker the same way as a trap and sends the new
+request to the promoted worker, after the reload for a `jscadMain`. An export,
+measure or check is never superseded: the stale runs are answered, the worker
+is kept, and the new request queues behind the export instead of aborting it. When every
 pending run is younger, they are left alone and the new one queues behind them
 on the same worker, since starting over costs more than the rest of a short
-run. A `jscadMain` never abandons a pending `jscadScript`: the promoted worker
-would reload the previous script and run the new parameters against it. The
+run. A `jscadMain` never abandons a pending `jscadScript`: the run queues behind
+the load instead, and a newer superseding run replaces the queued one, since the
+worker would otherwise run each 500 ms update in full. The
 retired worker's other app requests are answered `AbortError`, except setup
 (`jscadSetFiles` and the other mirrored methods) that the promoted worker also
 received, which is answered with the promoted worker's answer to its copy. The
