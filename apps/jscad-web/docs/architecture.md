@@ -692,7 +692,10 @@ host deploys first:
   reject a `null` origin, so they must not inherit a vhost-wide grant.
 
 The session cookie is host-only on `jscad.rkroll.com`, never `.rkroll.com`.
-`deploy-full.sh` builds the workspace once, deploys the run host and confirms
+`deploy-full.sh` regenerates the `ALL.js` example grids first (`fetch-deps
+--if-missing`, then `generate-all-files.js --no-rename`): most grids are
+gitignored build artifacts, so a fresh checkout has the corpus but no grids.
+It then builds the workspace once, deploys the run host and confirms
 it answers, then the frontend, then the API, then `/api/health`, then
 `e2e/smoke-deploy.mjs` against the live app URL. Both checks go through
 `wait_for_ok`, which retries for 15 s and reads `curl -f`'s exit code: a fresh

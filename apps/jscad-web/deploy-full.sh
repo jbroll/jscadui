@@ -57,6 +57,11 @@ echo ""
 # package.json, and build/frame has none). Build once, here, before either.
 echo "[0/4] Building the workspace..."
 npm --prefix ../.. install --no-audit --no-fund
+# Regenerate the ALL.js example grids: most are gitignored build artifacts, so a
+# fresh checkout has the .scad corpus but no grids. --no-rename keeps numeric
+# prefixes, which the render baselines depend on.
+node ../../scripts/fetch-deps.js --if-missing
+node ../../packages/openscad/bin/generate-all-files.js --no-rename
 npm run build
 echo "✓ Build complete"
 echo ""
