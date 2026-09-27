@@ -304,9 +304,6 @@ ParamsTree cleanup handling, three.js disposal timing, regl render queue,
 FileWatcher cleanup, babel error context, DXF/X3D menu gaps and the 3mf
 README claim.
 
-- **STL export validation (worker).** Out-of-range vertices only log, and
-  normals are not checked at all. Decide: throw on malformed meshes or keep
-  graceful degradation. (`packages/worker/src/exportStlText.js`)
 - **Parameter updates keep the latest (jscad-web).** Rapid changes
   intentionally coalesce to the most recent params instead of queueing.
   Decide whether a real queue is needed. (`apps/jscad-web/main.js`)
@@ -316,9 +313,6 @@ README claim.
   enforce step, settle `setParam` type coercion (`5` vs `"5"`), document
   `setClass` as non-reentrant, validate `extractPartValues` inputs beyond
   the null guard.
-- **Security note in worker.js.** The require, params-form and engine.js
-  notes exist; the dynamic loading in `packages/worker/worker.js` still has
-  none. Add it so scanners stop re-flagging the file.
 - **Rate-limit CDN requests (require).** No throttling of any kind. Needs
   async `fetch()` first; see the async module loading refactor below.
   (`packages/require/src/readFileWeb.js`)
