@@ -349,6 +349,25 @@ function transpileBinaryOpExpr(
     return `j$.vdiv(${left}, ${right})`
   }
 
+  // Bitwise operators are 64-bit in OpenSCAD but 32-bit in JavaScript (which
+  // also coerces strings); route through the runtime helpers.
+  if (expr.operation === TokenType.BitAnd) {
+    ctx.codeGen.usedHelpers.add('band')
+    return `j$.band(${left}, ${right})`
+  }
+  if (expr.operation === TokenType.BitOr) {
+    ctx.codeGen.usedHelpers.add('bor')
+    return `j$.bor(${left}, ${right})`
+  }
+  if (expr.operation === TokenType.Shl) {
+    ctx.codeGen.usedHelpers.add('shl')
+    return `j$.shl(${left}, ${right})`
+  }
+  if (expr.operation === TokenType.Shr) {
+    ctx.codeGen.usedHelpers.add('shr')
+    return `j$.shr(${left}, ${right})`
+  }
+
   // Handle logical operators with OpenSCAD truthiness
   // In OpenSCAD, && and || return true/false (not the last-evaluated value).
   // Using native JS && / || avoids duplicating the left-operand expression,
@@ -431,6 +450,12 @@ function transpileUnaryOpExpr(
   if (op === '!') {
     ctx.codeGen.usedHelpers.add('isTruthy')
     return `!j$.isTruthy(${right})`
+  }
+
+  // Bitwise NOT is 64-bit in OpenSCAD but 32-bit in JavaScript
+  if (op === '~') {
+    ctx.codeGen.usedHelpers.add('bnot')
+    return `j$.bnot(${right})`
   }
 
   return `${op}${right}`
@@ -834,11 +859,15 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
 
   if (isAssertExpr(expr)) {
     // assert(cond, msg) expr -> checks condition, returns expr (or undef if no expr)
-    // j$.assert throws if condition is false, matching OpenSCAD behavior
+    // j$.assert throws if condition is false, matching OpenSCAD behavior.
+    // The condition is the `condition=` argument when named, else the first
+    // positional; a missing condition is an error, as assert() shows.
     const assertExpr = expr as AssertExpr
     const args = assertExpr.args
-    const condition = args.length > 0 ? transpileExpression(args[0].value!, ctx) : 'true'
-    const message = args.length > 1 ? transpileExpression(args[1].value!, ctx) : '"Assertion failed"'
+    const condArg = args.find(a => a.name === 'condition') ?? args.find(a => !a.name)
+    const condition = condArg ? transpileExpression(condArg.value!, ctx) : 'false'
+    const msgArg = args.find(a => a.name === 'message') ?? args.filter(a => !a.name)[1]
+    const message = msgArg ? transpileExpression(msgArg.value!, ctx) : '"Assertion failed"'
     // expr may be undefined when assert is at the end of a chain
     const innerExpr = assertExpr.expr ? transpileExpression(assertExpr.expr, ctx) : 'undefined'
     return `(j$.assert(${condition}, ${message}), ${innerExpr})`

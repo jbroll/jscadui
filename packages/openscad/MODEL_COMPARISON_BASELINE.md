@@ -15,7 +15,49 @@ and a third that can reach its `Asset_SCAD/` includes. Pointing CI at the
 
 Similarity threshold: **0.99** (Jaccard index on vertex-deduplicated STL meshes).
 
-## Latest GPU run: 2026-09-27, text-only fixes + CI rsync fix
+## Latest GPU run: 2026-09-27, assert/bitwise semantics + example children
+
+Branch `claude/untrack-all-grids` (uncommitted working tree), simple-ci job
+`af7399fb` (`sci push jscadui/test`), 8.6 min, OpenSCAD 2026.08.30.fp. All
+21 suites pass.
+
+Three transpiler semantics fixes, each exposed by the assert change that
+precedes it: statement `assert()` now throws through `j$.assert` (it emitted
+non-throwing `console.assert`), with the condition taken from `condition=`
+when named and an error on a missing condition; bitwise `& | << >> ~` are
+64-bit `j$.band/bor/shl/shr/bnot` helpers (JavaScript's are 32-bit and coerce
+strings), with undef for non-numbers and shift counts outside [0, 64). The
+bitwise file this unblocked, `bitwise-operators.scad`, now grades and passes,
+so openscad-tests goes 233 → 238 tested. The example generator keeps module
+children (`hsl(...) sphere(...)` no longer loses the sphere), so bosl2 goes
+135 → 152 graded. `closepoints` tests 5:
+`closepoints.scad` itself is the excluded library file.
+
+| Suite | Tested | Passed |
+|-------|-------:|-------:|
+| 01-basics | 21 | 21 |
+| bosl | 113 | 113 |
+| bosl2 | 152 | 152 |
+| closepoints | 5 | 5 |
+| constructive | 2 | 2 |
+| dotscad | 175 | 175 |
+| gears | 18 | 18 |
+| gridfinity | 4 | 4 |
+| list-comprehension-demos | 9 | 9 |
+| mcad | 13 | 13 |
+| nopscadlib | 146 | 146 |
+| obiscad | 9 | 9 |
+| openscad-examples | 34 | 34 |
+| openscad-tests | 238 | 238 |
+| relativity | 6 | 6 |
+| round-anything | 10 | 10 |
+| snippet | 115 | 115 |
+| text | 2 | 2 |
+| threadlib | 9 | 9 |
+| threads-scad | 1 | 1 |
+| yapp-box | 40 | 40 |
+
+## Previous GPU run: 2026-09-27, text-only fixes + CI rsync fix
 
 Branch `fix/text-only-is-let-skips`, simple-ci job `660559e1` (`sci push
 jscadui/test`), 8.9 min, OpenSCAD 2026.08.30.fp. All 21 suites pass.

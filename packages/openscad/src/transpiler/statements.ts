@@ -305,14 +305,19 @@ function transpileAssertModule(
   stmt: ModuleInstantiationStmt,
   ctx: TranspileContext
 ): string {
-  const condition = stmt.args.length > 0 ? transpileExpression(stmt.args[0].value!, ctx) : 'true'
-  const message = stmt.args.length > 1 ? transpileExpression(stmt.args[1].value!, ctx) : '"Assertion failed"'
+  // The condition is the `condition=` argument when named, else the first
+  // positional; OpenSCAD errors when it is missing, as assert() and
+  // assert(message=...) show.
+  const condArg = stmt.args.find(a => a.name === 'condition') ?? stmt.args.find(a => !a.name)
+  const condition = condArg ? transpileExpression(condArg.value!, ctx) : 'false'
+  const msgArg = stmt.args.find(a => a.name === 'message') ?? stmt.args.filter(a => !a.name)[1]
+  const message = msgArg ? transpileExpression(msgArg.value!, ctx) : '"Assertion failed"'
   // If assert has a child statement, execute it after the assertion
   if (stmt.child) {
     const childCode = transpileStatement(stmt.child, ctx)
-    return `(console.assert(${condition}, ${message}), ${childCode || 'undefined'})`
+    return `(j$.assert(${condition}, ${message}), ${childCode || 'undefined'})`
   }
-  return `(console.assert(${condition}, ${message}), undefined)`
+  return `(j$.assert(${condition}, ${message}), undefined)`
 }
 
 /**

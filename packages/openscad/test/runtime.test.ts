@@ -970,3 +970,44 @@ describe('version()', () => {
     expect(createJ$Instance().version()).toEqual([2021, 1, 0])
   })
 })
+
+describe('bitwise operators (64-bit, OpenSCAD semantics)', () => {
+  it('shifts left with 64-bit wraparound', () => {
+    expect(j$.shl(2, 3)).toBe(16)
+    expect(j$.shl(1, 32)).toBe(4294967296)
+    expect(j$.shl(j$.shl(1, 32), 32)).toBe(0)
+  })
+
+  it('shifts right arithmetically', () => {
+    expect(j$.shr(16, 2)).toBe(4)
+    expect(j$.shr(1, 1)).toBe(0)
+    expect(j$.shr(-8, 1)).toBe(-4)
+    expect(j$.shr(4294967296, 1)).toBe(2147483648)
+  })
+
+  it('ands, ors and nots with truncation toward zero', () => {
+    expect(j$.band(12, 5)).toBe(4)
+    expect(j$.band(-1.4, 3)).toBe(3)
+    expect(j$.bor(12, 5)).toBe(13)
+    expect(j$.bor(1.4, 0)).toBe(1)
+    expect(j$.bnot(0)).toBe(-1)
+    expect(j$.bnot(-1)).toBe(0)
+    expect(j$.bnot(5)).toBe(-6)
+  })
+
+  it('keeps full 64-bit range instead of JavaScript 32-bit wraparound', () => {
+    expect(j$.band(4294967295, 4294967295)).toBe(4294967295)
+    expect(j$.bor(4294967296, 0)).toBe(4294967296)
+  })
+
+  it('returns undef for out-of-range shift counts and non-numbers', () => {
+    expect(j$.shl(1, 64)).toBe(undefined)
+    expect(j$.shl(1, -1)).toBe(undefined)
+    expect(j$.shr(1, 64)).toBe(undefined)
+    expect(j$.shr(1, -1)).toBe(undefined)
+    expect(j$.band(1, 'hello')).toBe(undefined)
+    expect(j$.bor('hello', 1)).toBe(undefined)
+    expect(j$.shl(1, 'hello')).toBe(undefined)
+    expect(j$.bnot('hello')).toBe(undefined)
+  })
+})

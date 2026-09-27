@@ -122,6 +122,19 @@ describe('transpileExpression', () => {
     })
   })
 
+  describe('bitwise operators', () => {
+    it('routes and/or/shifts through 64-bit j$ helpers', () => {
+      expect(transpileExpr('x = a & b;')).toContain('j$.band(a, b)')
+      expect(transpileExpr('x = a | b;')).toContain('j$.bor(a, b)')
+      expect(transpileExpr('x = a << b;')).toContain('j$.shl(a, b)')
+      expect(transpileExpr('x = a >> b;')).toContain('j$.shr(a, b)')
+    })
+
+    it('routes bitwise not through j$.bnot', () => {
+      expect(transpileExpr('x = ~a;')).toContain('j$.bnot(a)')
+    })
+  })
+
   describe('comparison operators', () => {
     it('handles equality with deep comparison', () => {
       const code = transpileExpr('x = a == b;')
@@ -153,6 +166,20 @@ describe('transpileExpression', () => {
       expect(code).toContain('(a >= b)')
     })
   })
+
+  describe('assert statements', () => {
+    it('throws through j$.assert on a false condition', () => {
+      expect(transpileExpr('assert(a);')).toContain('j$.assert(a, "Assertion failed")')
+    })
+
+    it('binds the condition by name when given as condition=', () => {
+      expect(transpileExpr('assert(condition = a);')).toContain('j$.assert(a, "Assertion failed")')
+    })
+
+    it('throws on a missing condition', () => {
+      expect(transpileExpr('assert();')).toContain('j$.assert(false, "Assertion failed")')
+      expect(transpileExpr('assert(message = "x");')).toContain('j$.assert(false, "x")')
+    })  })
 
   describe('logical operators', () => {
     it('handles logical AND with OpenSCAD truthiness', () => {

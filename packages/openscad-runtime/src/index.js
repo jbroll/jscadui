@@ -35,6 +35,16 @@ const EXPLICIT_UNDEF = Symbol('explicit_undef')
 const SKIP = Symbol('skip_element')
 
 /**
+ * Truncate toward zero and wrap into unsigned 64 bits, for the bitwise
+ * operators below. Math.trunc first: BigInt() throws on fractional values.
+ */
+const toU64 = (x) => BigInt.asUintN(64, BigInt(Math.trunc(x)))
+
+// Finite numbers only: BigInt() throws on Infinity and NaN, and OpenSCAD
+// yields undef (with a warning) for out-of-domain bitwise operands.
+const isBitwiseNum = (x) => typeof x === 'number' && Number.isFinite(x)
+
+/**
  * The j$ namespace - contains all OpenSCAD runtime helpers.
  * Use j$.functionName() in transpiled code.
  * Since $ is illegal in OpenSCAD identifiers, this can never conflict with user code.
@@ -143,6 +153,36 @@ const j$ = {
     if (x === 0 || x === '') return false
     if (Array.isArray(x) && x.length === 0) return false
     return true
+  },
+
+  /**
+   * OpenSCAD bitwise operators are 64-bit; JavaScript's are 32-bit (and
+   * coerce strings instead of yielding undef). Operands truncate toward
+   * zero; non-numbers, and shift counts outside [0, 64), are undef.
+   */
+  band: (a, b) => {
+    if (!isBitwiseNum(a) || !isBitwiseNum(b)) return undefined
+    return Number(BigInt.asIntN(64, toU64(a) & toU64(b)))
+  },
+  bor: (a, b) => {
+    if (!isBitwiseNum(a) || !isBitwiseNum(b)) return undefined
+    return Number(BigInt.asIntN(64, toU64(a) | toU64(b)))
+  },
+  shl: (a, b) => {
+    if (!isBitwiseNum(a) || !isBitwiseNum(b)) return undefined
+    const n = Math.trunc(b)
+    if (n < 0 || n >= 64) return undefined
+    return Number(BigInt.asIntN(64, toU64(a) << BigInt(n)))
+  },
+  shr: (a, b) => {
+    if (!isBitwiseNum(a) || !isBitwiseNum(b)) return undefined
+    const n = Math.trunc(b)
+    if (n < 0 || n >= 64) return undefined
+    return Number(BigInt.asIntN(64, toU64(a)) >> BigInt(n))
+  },
+  bnot: (a) => {
+    if (!isBitwiseNum(a)) return undefined
+    return Number(BigInt.asIntN(64, ~toU64(a)))
   },
 
   /**
