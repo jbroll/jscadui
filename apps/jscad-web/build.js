@@ -234,6 +234,11 @@ await buildBundle(frameBuildDir, 'bundle.jscadui.transform-babel.js', { globalNa
 await buildBundle(frameBuildDir, 'bundle.openscad.js', {
   globalName: 'jscadui_openscad',
   watch: dev,
+  // CJS like the other frame bundles: the tsx loader breaks CommonJS
+  // require resolution in node_modules (openscad-parser's extensionless
+  // barrel requires). No JSX in this closure (parser CJS + openscad TS +
+  // runtime JS), so the plain js loader is safe.
+  loader: frameCjs,
   plugins: [nodeBuiltinStubPlugin],
 })
 await buildBundle(frameBuildDir, 'bundle.jscad_text.js', {
