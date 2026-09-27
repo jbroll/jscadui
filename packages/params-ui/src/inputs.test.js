@@ -141,6 +141,63 @@ describe('createNumberInput', () => {
     input.oninput()
     expect(onChange).toHaveBeenCalledWith(25)
   })
+
+  it('snaps a typed number to the step grid', () => {
+    const onChange = vi.fn()
+    const result = createNumberInput({
+      param: { path: 'test.x', name: 'x', type: 'number', min: 0, step: 0.5 },
+      value: 0,
+      onChange
+    })
+
+    const input = result.value.querySelector('input')
+    input.value = '1.7'
+    input.oninput()
+    expect(onChange).toHaveBeenCalledWith(1.5)
+    expect(input.value).toBe('1.5')
+  })
+
+  it('snaps to the step grid relative to min', () => {
+    const onChange = vi.fn()
+    const result = createNumberInput({
+      param: { path: 'test.x', name: 'x', type: 'number', min: 1, step: 2 },
+      value: 1,
+      onChange
+    })
+
+    const input = result.value.querySelector('input')
+    input.value = '4.2'
+    input.oninput()
+    expect(onChange).toHaveBeenCalledWith(5)
+  })
+
+  it('does not snap when no step is defined', () => {
+    const onChange = vi.fn()
+    const result = createNumberInput({
+      param: { path: 'test.x', name: 'x', type: 'number' },
+      value: 0,
+      onChange
+    })
+
+    const input = result.value.querySelector('input')
+    input.value = '1.7'
+    input.oninput()
+    expect(onChange).toHaveBeenCalledWith(1.7)
+  })
+
+  it('snaps without float artifacts', () => {
+    const onChange = vi.fn()
+    const result = createNumberInput({
+      param: { path: 'test.x', name: 'x', type: 'number', min: 0, step: 0.1 },
+      value: 0,
+      onChange
+    })
+
+    const input = result.value.querySelector('input')
+    input.value = '0.35'
+    input.oninput()
+    expect(onChange).toHaveBeenCalledWith(0.4)
+  })
 })
 
 describe('createSliderInput', () => {
@@ -236,6 +293,22 @@ describe('createSliderInput', () => {
     result.updateValue(75)
     expect(result.control.value).toBe('75')
     expect(result.value.value).toBe('75')
+  })
+
+  it('snaps the typed number side to the step grid', () => {
+    const onChange = vi.fn()
+    const result = createSliderInput({
+      param: { path: 'test.volume', name: 'volume', type: 'slider', min: 0, max: 10, step: 2 },
+      value: 0,
+      onChange
+    })
+
+    result.value.value = '3.2'
+    result.value.oninput()
+
+    expect(onChange).toHaveBeenCalledWith(4)
+    expect(result.value.value).toBe('4')
+    expect(result.control.value).toBe('4')
   })
 })
 

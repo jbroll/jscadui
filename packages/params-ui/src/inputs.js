@@ -49,12 +49,43 @@ export const createCheckboxInput = ({ param, value, onChange }) => {
 }
 
 /**
+ * Decimals in a decimal-string number, for float-safe step snapping.
+ * @param {number} n
+ * @returns {number}
+ */
+const decimalsOf = (n) => {
+  const s = String(n)
+  if (s.includes('e') || s.includes('E')) return 12
+  const i = s.indexOf('.')
+  return i < 0 ? 0 : s.length - i - 1
+}
+
+/**
+ * Snap a value to the step grid relative to base. Non-finite or
+ * non-positive steps pass through unchanged.
+ * @param {number} val
+ * @param {number|undefined} step
+ * @param {number|undefined} base
+ * @returns {number}
+ */
+export const snapToStep = (val, step, base) => {
+  if (!Number.isFinite(val) || !Number.isFinite(step) || step <= 0) return val
+  const b = Number.isFinite(base) ? base : 0
+  const q = (val - b) / step
+  // Float-safe halfway rounding: 0.35/0.1 is 3.4999999999999996 in binary.
+  const n = Math.round(q + Number.EPSILON * Math.max(1, Math.abs(q)) * 10)
+  const snapped = b + n * step
+  return Number(snapped.toFixed(Math.min(Math.max(decimalsOf(step), decimalsOf(b)), 12)))
+}
+
+/**
  * Create a number input (int or number type)
  * @param {InputOptions} options
  * @returns {InputResult}
  */
 export const createNumberInput = ({ param, value, onChange }) => {
   const { type, min, max, step } = param
+  const effectiveStep = step !== undefined ? step : (type === 'int' ? 1 : undefined)
 
   const container = document.createElement('span')
   container.className = 'params-input-number-container'
@@ -82,6 +113,9 @@ export const createNumberInput = ({ param, value, onChange }) => {
   input.oninput = () => {
     let val = type === 'int' ? parseInt(input.value) : parseFloat(input.value)
     if (!isNaN(val)) {
+      // Snap free-typed values to the step grid, then clamp to min/max.
+      val = snapToStep(val, effectiveStep, min)
+      if (val !== Number(input.value)) input.value = String(val)
       // H23 fix: Validate against min/max constraints
       // H1 fix: Also update input.value to keep UI in sync with clamped value
       if (min !== undefined && val < min) {
@@ -169,8 +203,10 @@ export const createSliderInput = ({ param, value, onChange }) => {
 
   // Number -> Slider sync + onChange
   numberInput.oninput = () => {
-    const val = Number(numberInput.value)
-    if (!isNaN(val)) {
+    const raw = Number(numberInput.value)
+    if (!isNaN(raw)) {
+      const val = snapToStep(raw, step, min)
+      numberInput.value = String(val)
       slider.value = String(val)
       slider.setAttribute('aria-valuenow', String(val))
       onChange(val)
