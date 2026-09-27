@@ -27,6 +27,9 @@ export const diffAgainstBaseline = (baseline, results) => {
       continue
     }
     if (!b) {
+      // Unrecorded passing statuses pass silently, like ok: only a model
+      // that fails (or changes a recorded status) can fail the job.
+      if (r.status === 'ok' || r.status === 'text') continue
       regressions.push(`new ${r.status}: ${r.rel}`)
       continue
     }

@@ -42,11 +42,13 @@ deploy order and headers.
 
 ## Render sweep
 
-Baseline 761/807 on manifold (CI job `b758af600414f82f`). The 22 models
-skipped only for the STL comparison now render, and 45 models score `empty`:
-echo- or assert-only doc examples and files that only define modules.
-`maze3d_mickey.scad` is the one error. The model budget is 290s, under the
-300s RPC timeout, and is a hang guard, not a performance budget. The sweep
+Baseline 1241/1420 on manifold (CI job `6831b2a6422e20ae`), plus 95
+text-only models that run clean and only echo. The 179 recorded failures are
+the 25 pre-existing ones plus suites the 09-23 baseline never swept:
+echo-only, 2D-only and assert/error negative tests, include/use wiring and
+helper modules, empty-by-construction models, `%`/`#` display modifiers (the
+viewport drops them), `$t` animations, and unfixable content (removed
+`assign()`, a Windows include path, missing upstream files). The sweep
 exits nonzero only on a regression against `render-baseline.json`. See
 `apps/jscad-web/e2e/RENDER-TESTING.md`.
 
@@ -110,6 +112,17 @@ disposes its two intermediate transforms per geometry.
   claim.
 
 ## Library bugs found by the sweep
+
+- **constructive `heightInfo()` divergence**: `yapp-box` and constructive
+  `TUBE()` assert `h` defined, defaulted from `heightInfo()`; reference
+  OpenSCAD renders `cart14-tensioner.scad` (14k vertices) while ours evaluates
+  it undef and throws. Suspect stacking/`$children` plumbing. Recorded as
+  render errors; `mount-demo.scad` fails in reference too.
+- **`%` background (and `#` highlight) modifiers draw nothing**: the
+  transpiler emits `undefined` for `%child` (`statements.ts`), so with the
+  viewport's `$preview=true` the branch vanishes instead of ghosting (e.g.
+  `rubber_duck_debugging.scad`, `issue1005.scad`). Comparison grades these
+  with `$preview=false` and passes. Recorded as render empties.
 
 - **dotSCAD's `r_union3` fails on the manifold engine** with
   `null is not a valid Manifold` inside an intersection, when given a scaled

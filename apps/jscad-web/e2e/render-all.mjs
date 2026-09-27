@@ -166,7 +166,13 @@ async function stallState(page) {
 async function renderOne(context, opts, file, idx) {
   const page = await context.newPage()
   const consoleErrs = []
-  page.on('console', m => { if (m.type() === 'error') consoleErrs.push(m.text().slice(0, 200)) })
+  // j$.echo() reaches the page as console.log('ECHO: ...'): an ok run that
+  // draws no vertices but echoed is a text-only model, not a failure.
+  let echoLines = 0
+  page.on('console', m => {
+    if (m.type() === 'error') consoleErrs.push(m.text().slice(0, 200))
+    else if (m.text().startsWith('ECHO:')) echoLines++
+  })
   page.on('pageerror', e => consoleErrs.push('PAGEERR: ' + String(e).slice(0, 200)))
   // A failed include reads the same whether the path was wrong or the file was
   // missing, so record which URL the browser was refused and with what.
@@ -208,7 +214,7 @@ async function renderOne(context, opts, file, idx) {
       errText = ((await page.locator('#error-bar').textContent().catch(() => '')) || '')
         .replace(/\s+/g, ' ').trim().slice(0, 300)
     } else if (status === 'ok' && await page.evaluate(() => document.documentElement.dataset.vertices) === '0') {
-      status = 'empty'
+      status = echoLines > 0 ? 'text' : 'empty'
     }
   } catch (e) {
     status = String(e).includes('Timeout') ? 'timeout' : 'crash'
@@ -221,7 +227,7 @@ async function renderOne(context, opts, file, idx) {
     .map(t => t.slice('ALL: FAILED '.length))
   if (status === 'ok' && cellFailures.length) status = 'partial'
   return {
-    rel: file.rel, status, errText, stalled, cellFailures, cells, ms: Date.now() - started,
+    rel: file.rel, status, errText, stalled, cellFailures, cells, echo: echoLines, ms: Date.now() - started,
     consoleErrs: consoleErrs.slice(0, 5), badRequests: badRequests.slice(0, 5),
   }
 }
@@ -272,7 +278,7 @@ async function run() {
       const res = await renderOne(context, opts, files[i], i)
       results[i] = res
       done++
-      const mark = res.status === 'ok' ? '·' : 'F'
+      const mark = res.status === 'ok' ? '·' : res.status === 'text' ? 't' : 'F'
       process.stdout.write(mark)
       if (done % 80 === 0) process.stdout.write(`  ${done}/${files.length}\n`)
     }
@@ -284,19 +290,22 @@ async function run() {
   await browser.close()
 
   // ── report ──
-  const fails = results.filter(r => r.status !== 'ok')
+  // 'text' passes: the model ran clean and only echoed, drawing no vertices.
+  const passed = (r) => r.status === 'ok' || r.status === 'text'
+  const fails = results.filter(r => !passed(r))
+  const texts = results.filter(r => r.status === 'text')
   const byLib = {}
   for (const r of results) {
     const lib = r.rel.split('/').slice(0, 2).join('/')
     byLib[lib] ??= { ok: 0, fail: 0 }
-    byLib[lib][r.status === 'ok' ? 'ok' : 'fail']++
+    byLib[lib][passed(r) ? 'ok' : 'fail']++
   }
   console.log('\n\n── Summary by library ──')
   for (const [lib, c] of Object.entries(byLib).sort()) {
     const total = c.ok + c.fail
     console.log(`  ${c.fail === 0 ? '✓' : '✗'} ${lib.padEnd(28)} ${c.ok}/${total}`)
   }
-  console.log(`\nTotal: ${results.length - fails.length}/${results.length} rendered, ${fails.length} failed`)
+  console.log(`\nTotal: ${results.length - fails.length}/${results.length} rendered, ${texts.length} text-only, ${fails.length} failed`)
 
   if (opts.grids) {
     console.log('\n── Grid cells and times ──')

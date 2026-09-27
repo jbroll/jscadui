@@ -21,8 +21,12 @@ Loads each example by hash-navigating the dev server
 (`/#/examples/openscad/.../foo.scad`), waits for the app to move
 `html[data-render]` from `running` to `ok` or `error`, and reports
 `ok` / `error` / `timeout` per file. A page that settles `ok` with no vertices
-drawn (`html[data-vertices="0"]`) scores `empty` instead, which counts as a
-failure. Honors each library's `skip.txt`, not `compare-skip.txt`: a model the
+drawn (`html[data-vertices="0"]`) scores `empty` instead — unless the run
+echoed (`ECHO:` on the page console), which scores `text`: the model ran clean
+and only echoes, so it passes like `ok`. Without `--baseline` any
+`empty`/`error`/`timeout` fails the job; with one, only diffs do. A `text`
+that stops echoing becomes `empty` (and vice versa), so echo regressions
+still flag as status changes. Honors each library's `skip.txt`, not `compare-skip.txt`: a model the
 STL comparison cannot grade still renders here. Writes `e2e/render-report.json`.
 
 `--timeout` (default 300s) is a hang guard, not a performance budget: a model
@@ -203,7 +207,8 @@ that sits on its time limit.
 `--baseline <file>` makes the sweep compare itself with one: it prints each
 fixed model and each regression, and exits 1 only on a regression, which is a
 new failure, a changed status (`error` to `timeout`, `ok` to `empty`) or a new
-dead cell in a grid. Cells compare by URL, not message. Every `ci/render*` job
+dead cell in a grid. Unrecorded `ok` and `text` pass silently; a `text` that
+stops echoing or starts erroring still flags as a status change. Cells compare by URL, not message. Every `ci/render*` job
 passes its own baseline, so the job's exit status is the regression signal. To
 refresh a baseline, copy `ok`, `failed`, `byLib` and `failures` from the
 sweep's report, whose `failures` array is already in baseline form.

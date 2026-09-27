@@ -1,12 +1,12 @@
 {
-  "_comment": "761/807 on the manifold engine, which the app defaults to, with a 300s hang guard per file. 45 models draw nothing and score empty: echo- and assert-only library doc examples and files that only define modules. The one error, maze3d_mickey.scad, recurses deeper than a browser worker stack. Comparison-only skips (compare-skip.txt) render here. render-all.mjs --baseline diffs a run against failures[].",
-  "tree": "main working tree, rsynced onto the CI base worktree by sci — no commit identifies the code that was measured",
-  "date": "2026-09-23",
-  "job": "b758af600414f82f",
-  "engine": "manifold",
-  "total": 807,
-  "ok": 761,
-  "failed": 46,
+  "_comment": "1241/1420 on the manifold engine, which the app defaults to, with a 300s hang guard per file; 95 text-only models run clean and only echo. 179 failures recorded: 25 pre-existing (batch-dir lib 404s, maze3d_mickey recursion). The rest are suites the 09-23 baseline never swept: echo-only, 2D-only (dxf/svg/text) and assert/error negative tests; include/use wiring and helper modules with no top-level call; empty-by-construction (empty-union, nullspace, minkowski-erosion, error-model imports); % background and # highlight modifiers, which the viewport drops; $t animations, empty in a static sweep. Unfixable content: twisted-torus-ring (removed assign()), YAPP_Connector_Demo (Windows include path), missing peg.scad and ../../../ttf font files. assert-fail1-5 now correctly error (statement assert throws); constructive mount-demo/cart14 trip parameter-validation asserts (cart14 renders in reference OpenSCAD: heightInfo divergence, backlog). render-all.mjs --baseline diffs a run against failures[]; text-only passes unrecorded.",
+  "tree": "claude/untrack-all-grids working tree at e18cc778 plus uncommitted CI/transpiler fixes, rsynced onto the CI base worktree by sci",
+  "date": "2026-09-27",
+  "job": "6831b2a6422e20ae",
+  "engine": "default",
+  "total": 1420,
+  "ok": 1241,
+  "failed": 179,
   "byLib": {
     "openscad/01-basics": {
       "ok": 20,
@@ -17,12 +17,32 @@
       "fail": 13
     },
     "openscad/bosl2": {
-      "ok": 156,
-      "fail": 22
+      "ok": 177,
+      "fail": 1
+    },
+    "openscad/closepoints": {
+      "ok": 5,
+      "fail": 0
+    },
+    "openscad/constructive": {
+      "ok": 4,
+      "fail": 5
     },
     "openscad/dotscad": {
-      "ok": 195,
-      "fail": 9
+      "ok": 194,
+      "fail": 10
+    },
+    "openscad/gears": {
+      "ok": 18,
+      "fail": 0
+    },
+    "openscad/gridfinity": {
+      "ok": 4,
+      "fail": 0
+    },
+    "openscad/list-comprehension-demos": {
+      "ok": 11,
+      "fail": 1
     },
     "openscad/mcad": {
       "ok": 14,
@@ -32,13 +52,45 @@
       "ok": 146,
       "fail": 1
     },
+    "openscad/obiscad": {
+      "ok": 9,
+      "fail": 0
+    },
+    "openscad/openscad-examples": {
+      "ok": 43,
+      "fail": 0
+    },
+    "openscad/openscad-tests": {
+      "ok": 293,
+      "fail": 141
+    },
+    "openscad/relativity": {
+      "ok": 8,
+      "fail": 4
+    },
+    "openscad/round-anything": {
+      "ok": 12,
+      "fail": 0
+    },
     "openscad/snippet": {
-      "ok": 119,
-      "fail": 1
+      "ok": 118,
+      "fail": 2
     },
     "openscad/text": {
       "ok": 11,
       "fail": 0
+    },
+    "openscad/threadlib": {
+      "ok": 9,
+      "fail": 0
+    },
+    "openscad/threads-scad": {
+      "ok": 1,
+      "fail": 0
+    },
+    "openscad/yapp-box": {
+      "ok": 44,
+      "fail": 1
     }
   },
   "failures": [
@@ -95,91 +147,29 @@
       "status": "empty"
     },
     {
-      "rel": "openscad/bosl2/01-part1/026-comparisons-max_index.scad",
-      "status": "empty"
-    },
-    {
-      "rel": "openscad/bosl2/02-part2/047-fnliterals-echo.scad",
-      "status": "empty"
-    },
-    {
-      "rel": "openscad/bosl2/02-part2/054-geometry-plane_from_normal.scad",
-      "status": "empty"
-    },
-    {
-      "rel": "openscad/bosl2/02-part2/059-hooks-ring_hook.scad",
-      "status": "empty"
-    },
-    {
-      "rel": "openscad/bosl2/02-part2/069-linalg-transpose.scad",
-      "status": "empty"
-    },
-    {
-      "rel": "openscad/bosl2/03-part3/074-lists-reverse.scad",
-      "status": "empty"
-    },
-    {
-      "rel": "openscad/bosl2/03-part3/081-math-log2.scad",
-      "status": "empty"
-    },
-    {
-      "rel": "openscad/bosl2/03-part3/082-math-sum.scad",
-      "status": "empty"
-    },
-    {
-      "rel": "openscad/bosl2/03-part3/083-math-mean.scad",
-      "status": "empty"
-    },
-    {
-      "rel": "openscad/bosl2/03-part3/084-math-deltas.scad",
-      "status": "empty"
-    },
-    {
-      "rel": "openscad/bosl2/03-part3/085-math-product.scad",
-      "status": "empty"
-    },
-    {
-      "rel": "openscad/bosl2/03-part3/086-math-cumprod.scad",
-      "status": "empty"
-    },
-    {
-      "rel": "openscad/bosl2/04-part4/137-strings-parse_num.scad",
-      "status": "empty"
-    },
-    {
-      "rel": "openscad/bosl2/04-part4/138-strings-format_float.scad",
-      "status": "empty"
-    },
-    {
-      "rel": "openscad/bosl2/05-part5/155-utility-same_shape.scad",
-      "status": "empty"
-    },
-    {
-      "rel": "openscad/bosl2/05-part5/156-utility-assert_approx.scad",
-      "status": "empty"
-    },
-    {
-      "rel": "openscad/bosl2/05-part5/157-utility-assert_equal.scad",
-      "status": "empty"
-    },
-    {
-      "rel": "openscad/bosl2/05-part5/158-vectors-v_mul.scad",
-      "status": "empty"
-    },
-    {
-      "rel": "openscad/bosl2/05-part5/159-vectors-v_div.scad",
-      "status": "empty"
-    },
-    {
-      "rel": "openscad/bosl2/05-part5/160-vectors-v_abs.scad",
-      "status": "empty"
-    },
-    {
-      "rel": "openscad/bosl2/05-part5/161-vnf-echo.scad",
-      "status": "empty"
-    },
-    {
       "rel": "openscad/bosl2/05-part5/worldmap_360x180.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/constructive/cad_kickstart/constructive-compiled.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/constructive/examples/constructive-compiled.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/constructive/examples/mount-demo.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: Assertion failed: TUBEFAST():h is undefinedError: Assertion failed: TUBEFAST():h is undefined at Object.assert (assets/bundle.openscad.js:155:160) at eval (/examples/openscad/"
+    },
+    {
+      "rel": "openscad/constructive/gallery/sources/cart14-tensioner.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: Assertion failed: TUBE():h is undefinedError: Assertion failed: TUBE():h is undefined at Object.assert (assets/bundle.openscad.js:155:160) at eval (/examples/openscad/construc"
+    },
+    {
+      "rel": "openscad/constructive/tubeV2.scad",
       "status": "empty"
     },
     {
@@ -212,6 +202,10 @@
       "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at Array.isArray (<anonymous>) at Object.isTruthy (assets/bundle.openscad.js:1:1) at eval (http://localhost:5120/examples/openscad/dotscad/util/swap.scad:1:1) at Object.swap_$f (http://localhos"
     },
     {
+      "rel": "openscad/dotscad/examples/rubber_duck_debugging.scad",
+      "status": "empty"
+    },
+    {
       "rel": "openscad/dotscad/examples/tiles/city_tile.scad",
       "status": "empty"
     },
@@ -220,12 +214,647 @@
       "status": "empty"
     },
     {
+      "rel": "openscad/list-comprehension-demos/twisted-torus-ring.scad",
+      "status": "empty"
+    },
+    {
       "rel": "openscad/nopscadlib/NopSCADlib/tests/annotation.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/2D/features/fill2-tests.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/2D/features/projection-tests.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/2D/features/text-empty-tests.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/2D/features/text-font-alignment-tests.scad",
+      "status": "error",
+      "why": "Error: Error: OpenSCAD transpilation failed: Parse error in ../../../ttf/liberation-2.00.1/LiberationSans-Regular.ttf: Unexpected character '\u0000'. [no candidate urls]"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/2D/features/text-font-btt-alignment-tests.scad",
+      "status": "error",
+      "why": "Error: Error: OpenSCAD transpilation failed: Parse error in ../../../ttf/liberation-2.00.1/LiberationSans-Regular.ttf: Unexpected character '\u0000'. [no candidate urls]"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/2D/features/text-font-composition.scad",
+      "status": "error",
+      "why": "Error: Error: OpenSCAD transpilation failed: Parse error in ../../../ttf/liberation-2.00.1/LiberationSans-Regular.ttf: Unexpected character '\u0000'. [no candidate urls]"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/2D/features/text-font-direction-tests.scad",
+      "status": "error",
+      "why": "Error: Error: OpenSCAD transpilation failed: Parse error in ../../../ttf/liberation-2.00.1/LiberationSans-Regular.ttf: Unexpected character '\u0000'. [no candidate urls]"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/2D/features/text-font-features.scad",
+      "status": "error",
+      "why": "Error: Error: OpenSCAD transpilation failed: Parse error in ../../../ttf/amiri-0.106/amiri-regular.ttf: Unexpected character '\u0000'. [no candidate urls]"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/2D/features/text-font-overlap.scad",
+      "status": "error",
+      "why": "Error: Error: OpenSCAD transpilation failed: Parse error in ../../../ttf/EvenOddTT/EvenOddTT-mod.ttf: Unexpected character '\u0000'. [no candidate urls]"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/2D/features/text-font-simple-tests.scad",
+      "status": "error",
+      "why": "Error: Error: OpenSCAD transpilation failed: Parse error in ../../../ttf/liberation-2.00.1/LiberationSans-Regular.ttf: Unexpected character '\u0000'. [no candidate urls]"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/2D/features/text-font-spacing-tests.scad",
+      "status": "error",
+      "why": "Error: Error: OpenSCAD transpilation failed: Parse error in ../../../ttf/liberation-2.00.1/LiberationSans-Regular.ttf: Unexpected character '\u0000'. [no candidate urls]"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/2D/features/text-font-symbol.scad",
+      "status": "error",
+      "why": "Error: Error: OpenSCAD transpilation failed: Parse error in ../../../ttf/marvosym-3.10/marvosym.ttf: Unexpected character '\u0000'.; Parse error in ../../../ttf/liberation-2.00.1/LiberationSans-Regular.ttf"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/2D/features/text-font-tests.scad",
+      "status": "error",
+      "why": "Error: Error: OpenSCAD transpilation failed: Parse error in ../../../ttf/amiri-0.106/amiri-regular.ttf: Unexpected character '\u0000'.; Parse error in ../../../ttf/liberation-2.00.1/LiberationSans-Regular."
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/2D/features/text-font-ttb-alignment-tests.scad",
+      "status": "error",
+      "why": "Error: Error: OpenSCAD transpilation failed: Parse error in ../../../ttf/liberation-2.00.1/LiberationSans-Regular.ttf: Unexpected character '\u0000'. [no candidate urls]"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/2D/features/text-metrics.scad",
+      "status": "error",
+      "why": "Error: Error: OpenSCAD transpilation failed: Parse error in ../../../ttf/liberation-2.00.1/LiberationSans-Regular.ttf: Unexpected character '\u0000'. [no candidate urls]"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/2D/issues/issue5137.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/2D/issues/issue5253.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/2D/issues/issue5574.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/2D/issues/linear_extrude-twist-tests.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/3D/features/import-empty-tests.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/3D/features/minkowski3-erosion.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/3D/features/nullspace-difference.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/3D/features/nullspace-intersection.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/3D/issues/issue1005.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/3D/issues/issue1246.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/3D/issues/issue1325.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/3D/issues/issue1833.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/3D/issues/issue517.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/3D/issues/issue5766.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/3D/issues/issue5766b.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/3D/issues/issue666.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/arc.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/circle-advanced.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/circle-double.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/circle-small.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/circle.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/ellipse-arc-rot.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/ellipse-arc.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/ellipse-reverse.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/ellipse-rot.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/ellipse.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/lwpolyline-closed.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/lwpolyline.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/lwpolyline2.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/multiple-layers.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/nothing-decimal-comma-separated.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/polygon-concave-hole.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/polygon-concave-simple.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/polygon-concave.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/polygon-holes-touch.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/polygon-intersect.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/polygon-many-holes.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/polygon-mesh.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/polygon-overlap.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/polygon-riser.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/polygon-self-intersect.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/polygon8.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/polygons.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/transform-insert.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/triangle-with-duplicate-vertex.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/functions/assert-expression-fail1-test.scad",
+      "status": "error",
+      "why": "Error: Assertion failed: Assertion failed / failed loading module /examples/openscad/openscad-tests/scad/functions/assert-expression-fail1-test.scadError: Assertion failed: Assertion failed at Object."
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/functions/assert-expression-fail2-test.scad",
+      "status": "error",
+      "why": "Error: Assertion failed: Test! <html>&</html> / failed loading module /examples/openscad/openscad-tests/scad/functions/assert-expression-fail2-test.scadError: Assertion failed: Test! <html>&</html> at"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/functions/assert-expression-fail3-test.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: Assertion failed: Assertion failedError: Assertion failed: Assertion failed at Object.assert (assets/bundle.openscad.js:155:160) at eval (/examples/openscad/openscad-tests/sca"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/issues/issue1890-comment.scad",
+      "status": "error",
+      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at sn (assets/bundle.openscad.js:147:577)"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/issues/issue1890-include.scad",
+      "status": "error",
+      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at sn (assets/bundle.openscad.js:147:577)"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/issues/issue1890-string.scad",
+      "status": "error",
+      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at sn (assets/bundle.openscad.js:147:577)"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/issues/issue1890-use.scad",
+      "status": "error",
+      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at sn (assets/bundle.openscad.js:147:577)"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/issues/issue1923-module.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/issues/issue3118-recur-limit.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: Recursion detected calling function 'sin'Error: Recursion detected calling function 'sin' at Object.recursionDetected (assets/bundle.openscad.js:154:3471) at sin_$f (/examples"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/issues/issue4172-echo-vector-stack-exhaust.scad",
+      "status": "error",
+      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at Array.isArray (<anonymous>) at ks (assets/bundle.openscad.js:1:1) at Array.map (<anonymous"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/issues/issue6597.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/issues/issue7013.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/json/submodule/submodule.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/allfunctions.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/assert-fail1-test.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: Assertion failed: Assertion failedError: Assertion failed: Assertion failed at Object.assert (assets/bundle.openscad.js:155:160) at vt.main (/examples/openscad/openscad-tests/"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/assert-fail2-test.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: Assertion failed: Test! <html>&</html>Error: Assertion failed: Test! <html>&</html> at Object.assert (assets/bundle.openscad.js:155:160) at main (/examples/openscad/openscad-t"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/assert-fail3-test.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: Assertion failed: Assertion failedError: Assertion failed: Assertion failed at Object.assert (assets/bundle.openscad.js:155:160) at eval (/examples/openscad/openscad-tests/sca"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/assert-fail4-test.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: Assertion failed: Assertion failedError: Assertion failed: Assertion failed at Object.assert (assets/bundle.openscad.js:155:160) at vt.main (/examples/openscad/openscad-tests/"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/assert-fail5-test.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: Assertion failed: assert-messageError: Assertion failed: assert-message at Object.assert (assets/bundle.openscad.js:155:160) at vt.main (/examples/openscad/openscad-tests/scad"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/children-warnings-tests.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/empty-shape-tests.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/empty-union.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/errors-warnings-included.scad",
+      "status": "error",
+      "why": "SyntaxError: Babel transform failed for /examples/openscad/openscad-tests/scad/misc/errors-warnings-included.scad: /examples/openscad/openscad-tests/scad/misc/errors-warnings-included.scad: Unexpected"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/errors-warnings-use.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/errors-warnings.scad",
+      "status": "error",
+      "why": "SyntaxError: SyntaxError: Unexpected number / failed loading module /examples/openscad/openscad-tests/scad/misc/errors-warnings.scad"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/escape-test.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/for-c-style-infinite-loop.scad",
+      "status": "error",
+      "why": "RangeError: jscadMain failed: Invalid array lengthRangeError: Invalid array length at Array.push (<anonymous>) at eval (/examples/openscad/openscad-tests/scad/misc/for-c-style-infinite-loop.scad:5:100"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/include test6.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/include-overwrite-use.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/include-test5.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/intersection-prune-test.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/linenumber.scad",
+      "status": "error",
+      "why": "Error: Error: OpenSCAD transpilation failed: Cannot resolve include file: line 1; Cannot resolve include file: line 6line 7line 8line 9; Cannot resolve file: line 1; Cannot resolve file: line 15line 1"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/localfiles_dir/localfiles_module.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/nbsp-latin1-test.scad",
+      "status": "error",
+      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at sn (assets/bundle.openscad.js:147:577)"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/recursion-test-function.scad",
+      "status": "error",
+      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at crash_$f (/examples/openscad/openscad-tests/scad/misc/recursion-test-function.scad:1:1) at"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/recursion-test-function2.scad",
+      "status": "error",
+      "why": "RangeError: Maximum call stack size exceeded / failed loading module /examples/openscad/openscad-tests/scad/misc/recursion-test-function2.scadRangeError: Maximum call stack size exceeded at crash_$f ("
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/recursion-test-function3.scad",
+      "status": "error",
+      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at Array.isArray (<anonymous>) at Es (assets/bundle.openscad.js:1:1) at Object.eq (assets/bun"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/recursion-test-module.scad",
+      "status": "error",
+      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at Object.withScope (assets/bundle.openscad.js:155:2704) at eval (/examples/openscad/openscad"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/recursion-test-vector.scad",
+      "status": "error",
+      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at Object.withScope (assets/bundle.openscad.js:155:2704) at eval (/examples/openscad/openscad"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/sub1/included.scad",
+      "status": "error",
+      "why": "Error: Error: OpenSCAD transpilation failed: Cannot resolve include file: not_exist.scad; Cannot resolve file: not_exist.scad [tried http://localhost:5120/examples/openscad/openscad-tests/scad/misc/su"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/sub1/sub2/sub3/include-test4.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/sub1/sub2/sub3/sub4/include-test2.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/sub1/sub2/sub3/sub4/include-test3.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/sub1/sub2/sub3/sub4/use-test2.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/sub1/sub2/sub3/sub4/use-test3.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/sub1/sub2/sub3/use-test4.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/sub2/test7.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/sub2/useuse.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/unicode-identifiers-fail.scad",
+      "status": "error",
+      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at sn (assets/bundle.openscad.js:147:577)"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/unicode-identifiers.scad",
+      "status": "error",
+      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at sn (assets/bundle.openscad.js:147:577)"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/use test6.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/use-test5.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/utf8-import.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/utf8-tests-inc.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/utf8-tests-use.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/variable-overwrite.scad",
+      "status": "error",
+      "why": "Error: Assertion failed: Assertion failed / failed loading module /examples/openscad/openscad-tests/scad/misc/variable-overwrite.scadError: Assertion failed: Assertion failed at Object.assert (assets/"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/variable-scope-sub.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/nef3/nef3_broken.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/stl/stl-import-invalidvertex.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/stl/stl-import-toomanyvertices.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/stl/stl-import-unparseable.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/svg/box-w-holes-2d.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/svg/display.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/svg/fill-rule.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/svg/id-selection-test.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/svg/line-cap-line-join.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/svg/simple-center-2d.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/svg/svg-spec/spec-paths-arcs01.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/svg/svg-spec/spec-paths-arcs02.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/svg/svg-spec/spec-paths-cubic01.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/svg/svg-spec/spec-paths-cubic02.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/svg/svg-spec/spec-paths-quad01.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/svg/svg-spec/spec-paths-triangle01.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/svg/svg-spec/spec-shapes-circle01.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/svg/svg-spec/spec-shapes-ellipse01.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/svg/svg-spec/spec-shapes-line01.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/svg/svg-spec/spec-shapes-polygon01.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/svg/svg-spec/spec-shapes-polyline01.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/svg/svg-spec/spec-shapes-rect01.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/svg/svg-spec/spec-shapes-rect02.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/svg/use-transform.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/relativity/demos/body/body2.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/relativity/demos/body/step4.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/relativity/peg.test.dogfood.scad",
+      "status": "error",
+      "why": "Error: Error: OpenSCAD transpilation failed: Cannot resolve include file: peg.scad; Cannot resolve file: peg.scad [tried http://localhost:5120/examples/openscad/relativity/peg.scad \u00e2\u0080\u0094 file not found "
+    },
+    {
+      "rel": "openscad/relativity/peg.test.scad",
+      "status": "error",
+      "why": "Error: Error: OpenSCAD transpilation failed: Cannot resolve include file: peg.scad; Cannot resolve file: peg.scad [tried http://localhost:5120/examples/openscad/relativity/peg.scad \u00e2\u0080\u0094 file not found "
+    },
+    {
+      "rel": "openscad/snippet/01-basic/Spawing_Cube.scad",
       "status": "empty"
     },
     {
       "rel": "openscad/snippet/02-intermediate/Coin_02.scad",
       "status": "empty"
+    },
+    {
+      "rel": "openscad/yapp-box/examples/YAPP_Connector_Demo.scad",
+      "status": "error",
+      "why": "Error: Error: OpenSCAD transpilation failed: Cannot resolve include file: C:\\SourceCode\\YAPP_Box/YAPPgenerator_v3.scad; Cannot resolve file: C:\\SourceCode\\YAPP_Box/YAPPgenerator_v3.scad [tried c:\\Sour"
     }
   ]
 }
