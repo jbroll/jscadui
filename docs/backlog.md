@@ -250,14 +250,11 @@ README claim.
 - **Save fallback feedback (jscad-web).** Done 2026-09-27: a missing file
   handle reports through `setError` instead of failing silently.
   (`apps/jscad-web/main.js`, `src/saveFile.js`)
-- **Params validation (params-ui, params-controller).** Done 2026-09-27
-  except step snapping: paths and class names are validated, numeric
-  strings coerce when the stored value is a number, `setClass` documents
-  non-reentrancy with a guard, `extractPartValues` validates its inputs.
-- **Params step snapping (params-ui).** Inputs carry the `step` attribute
-  but free-typed values are not snapped to it in JS. Decide whether
-  snapping is wanted. (`packages/params-ui/src/inputs.js`,
-  `createNumberInput`)
+- **Params validation (params-ui, params-controller).** Done 2026-09-27:
+  paths and class names are validated, numeric strings coerce when the
+  stored value is a number, free-typed values snap to the step grid,
+  `setClass` documents non-reentrancy with a guard, `extractPartValues`
+  validates its inputs.
 - **Rate-limit CDN requests (require).** Done 2026-09-27 as a burst guard
   (200/s, fail fast); real throttling with queuing/backoff still needs
   async `fetch()` first; see the async module loading refactor below.
