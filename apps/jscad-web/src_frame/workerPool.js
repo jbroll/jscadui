@@ -1,5 +1,5 @@
 import { collectBuffers } from './collectBuffers.js'
-import { RECYCLE_HEAP_BYTES } from './gridRun.js'
+import { RECYCLE_HEAP_BYTES, trapped } from './gridRun.js'
 
 const RESPONSE = '__RESPONSE__'
 
@@ -183,7 +183,17 @@ export const createPool = ({ state, slotOps, post, answerError, busy, inGrid, op
       const step = steps.shift()
       if (!step) return release(slot)
       request(slot, step, (data) => {
-        if (data.error) return release(slot, data.error)
+        if (data.error) {
+          // A script step that traps poisoned the worker before any model
+          // ran: answer the queued requests, then retire it instead of
+          // running them on the trapped worker.
+          if (step.method === 'jscadScript' && trapped(data)) {
+            release(slot, data.error)
+            retire(slot, 'the model trapped in WebAssembly')
+            return
+          }
+          return release(slot, data.error)
+        }
         if (step.method === 'jscadScript') slot.script = script
         next()
       })

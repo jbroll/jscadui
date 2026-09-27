@@ -527,6 +527,19 @@ describe('trap retirement', () => {
     expect(methodsOf(workers[1]).at(-1)).toBe('jscadScript')
   })
 
+  it('retires the worker when the reload script step traps', () => {
+    const { workers, send, posted, host } = withSpare()
+    send({ method: 'jscadMain', id: 4, params: [{ params: {} }] })
+    failLast(workers[0], 'RuntimeError')
+    send({ method: 'jscadExportData', id: 5, params: [{ format: 'stla' }] })
+    expect(lastSent(workers[1]).method).toBe('jscadScript')
+    failLast(workers[1], 'RuntimeError', 'trap')
+
+    expect(posted.slice(1)).toEqual([{ method: RESPONSE, id: 5, error: { name: 'RuntimeError', message: 'trap' } }])
+    expect(workers[1].terminate).toHaveBeenCalled()
+    expect(host.getPendingCount()).toBe(0)
+  })
+
   it('holds later requests until the reload finishes and keeps their order', () => {
     const { workers, send, posted, host } = withSpare()
     send({ method: 'jscadMain', id: 4, params: [{ params: {} }] })
