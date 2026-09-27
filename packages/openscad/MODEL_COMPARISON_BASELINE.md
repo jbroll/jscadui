@@ -28,11 +28,33 @@ warnings the transpiled library echoed are gone, and `bosl2/echo-skip.txt` is
 deleted. bosl2 goes 152 → 174 graded: the 22 BOSL2 models that only echo are
 now graded on their echo() output and all match.
 
+## Previous GPU run: 2026-09-27, duplicate-definition last-wins + empty minkowski
+
+Branch `work/library-bugs-20260927`, simple-ci job `bb7257a6c145b65e`
+(`sci push jscadui/test`), OpenSCAD 2026.08.30.fp. All 21 suites pass
+(bosl2 152 graded; the echo-grading change above landed separately).
+
+Two fixes, both invisible to the graded suites (no graded model covers
+them) and covered by unit tests instead: duplicate top-level
+function/module definitions resolve last-wins, matching OpenSCAD (the
+constructive library defines `set` twice; the bundler kept the first, so
+`geomsOnly` merged with array-`set` semantics, `$geomInfo` lost every
+entry, and `cart14-tensioner.scad` died on `TUBE():h is undefined` — it
+now runs clean locally); `minkowski` with an empty operand returns empty
+instead of a null-wrapping object that crashed downstream ops (the
+r_union3 dilate-minkowski class). A third attempt, rendering `%`
+background geometry at `$preview=true`, was reverted on this branch:
+reference OpenSCAD excludes `%` from STL exports even at preview=true
+(verified against the flatpak), while nopscadlib must grade at
+preview=true for its `if($preview)` gates, so the conditional regressed
+9 nopscadlib models (137/146 against a 146/146 clean-tree baseline on
+the same host). Ghosting needs tagged geometry the STL path strips.
+
 | Suite | Tested | Passed |
 |-------|-------:|-------:|
 | 01-basics | 21 | 21 |
 | bosl | 113 | 113 |
-| bosl2 | 174 | 174 |
+| bosl2 | 152 | 152 |
 | closepoints | 5 | 5 |
 | constructive | 2 | 2 |
 | dotscad | 175 | 175 |

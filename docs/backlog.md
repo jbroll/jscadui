@@ -107,19 +107,27 @@ disposes its two intermediate transforms per geometry.
 - **constructive `heightInfo()` divergence**: `yapp-box` and constructive
   `TUBE()` assert `h` defined, defaulted from `heightInfo()`; reference
   OpenSCAD renders `cart14-tensioner.scad` (14k vertices) while ours evaluates
-  it undef and throws. Suspect stacking/`$children` plumbing. Recorded as
-  render errors; `mount-demo.scad` fails in reference too.
+  it undef and throws. Two transpiler defects, both fixed 2026-09-27: the
+  bundler kept the first of two `set()` definitions so `geomsOnly` merged
+  with array-`set` semantics (now last-wins), and `$`-assignments in
+  builtin-boolean child blocks emitted dead consts so assemble()'s
+  remove-pass `$removing = true` never landed and difference() emptied
+  everything (now save/set/restore). `cart14` runs clean locally and grades
+  0.988 against the flatpak reference (threshold 0.99; local OpenSCAD is
+  older than the GPU host's, so the last point needs the sweep).
+  `mount-demo.scad` fails in reference too.
 - **`%` background (and `#` highlight) modifiers draw nothing**: the
   transpiler emits `undefined` for `%child` (`statements.ts`), so with the
   viewport's `$preview=true` the branch vanishes instead of ghosting (e.g.
   `rubber_duck_debugging.scad`, `issue1005.scad`). Comparison grades these
   with `$preview=false` and passes. Recorded as render empties.
-
-- **dotSCAD's `r_union3` fails on the manifold engine** with
-  `null is not a valid Manifold` inside an intersection, when given a scaled
-  sphere and a hull (the pair `voronoi_melon.scad` uses). A `dilate` minkowski
-  is the likely source of the null. Not covered by any example that is not
-  already skipped.
+  Tried 2026-09-27 and reverted: emitting the child behind a
+  `$preview` conditional renders it solid at preview=true, but reference
+  OpenSCAD excludes `%` from STL exports even at preview=true (verified
+  against the flatpak) while nopscadlib must grade at preview=true for its
+  `if($preview)` gates, so 9 nopscadlib models regressed (137/146 vs a
+  146/146 clean-tree baseline on the same host). Ghosting needs tagged
+  geometry the STL path strips, not a transpiler conditional.
 
 ## OpenSCAD comparison red on a clean tree (pre-existing, not PR112)
 
