@@ -117,24 +117,6 @@ disposes its two intermediate transforms per geometry.
 - **Revoke the frame's worker blob URLs.** `frame.js` makes a blob URL per
   worker and never revokes it, and the pool starts more workers than before.
 
-## Worker pool and supersede
-
-See `apps/jscad-web/docs/architecture.md`, Protocol and Streamed runs, for how
-the frame keeps a pool of workers, spreads a grid's leaves across it by
-claims, and abandons stale runs.
-
-- **A promoted worker's export reload has no progress beats.** Before an
-  export, measure or check, the frame replays a grid's last `jscadMain` with
-  `stream: false`, or reloads the script with `runMain: true`, as one frame
-  request. Neither relays cells or progress, so the kill timer covers the whole
-  grid, and a large grid export after a promotion can time out.
-- **A superseding load or parameter change aborts a pending export.** The
-  retire answers the export `AbortError`.
-- **The app sends a superseding `jscadMain` every 500 ms while a load is
-  pending.** The frame never abandons a pending script, so each one queues on
-  the worker and runs in full. Queue them behind the load instead and supersede
-  the queued ones, as the frame already does behind a reload.
-
 ## Mesh reuse
 
 - **Agent evaluate or an animation frame can `remember` while a run with older
