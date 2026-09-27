@@ -123,6 +123,32 @@ the signed volume is not enough: `splitIntoComponents` keeps the touching
 bodies together. Why our union leaves those faces apart is not traced (a
 plane computed two ways, one ulp apart, is the likely cause).
 
+**linear_extrude caps (2026-09-26).** The GPU run flagged five regressions:
+`hypnotic_squares` at 0.7798, no geometry for `stereographic_projection` and
+`stereographic_caterpillar`, `spiral_plate` at 0.9705, and `empty-shape-tests`
+producing geometry. The caps did not close, so Manifold rejected the mesh and
+the extrusion vanished. `slice.toPolygons` paired a hole two levels deep with
+the outermost outline, so each outline is now triangulated with only its own
+holes. Earcut drops points on straight runs and can run one triangle edge past
+several outlines at once (a row of holes whose edges line up), so each cap edge
+is split at every outline point lying on it and earcut's zero-area triangles
+are dropped. Stacked uniform-scale frustums left a 5e-9 float32 gap where they
+should meet, so a uniform scale without twist now uses Manifold's own extrude
+in full precision. `circle(0)` is drawn as a 1e-4 square so `hull()` keeps the
+point; that square was extruded once `h` was honoured, so a profile that small
+now extrudes to nothing, as in OpenSCAD. All five pass in single-model runs.
+Four unit tests in `test/linear-extrude-manifold.test.ts` fail before and pass
+after.
+
+**twist_taiji (2026-09-27).** The cap-edge splitting above regressed
+`twist_taiji` to 0.0465: `offset()` leaves consecutive outline points ~1e-8
+apart that earcut drops, and the fan inserted one dropped point into three
+triangles at once, covering edges twice (110 open edges on the dumped
+profile). Consecutive points closer than `GRID_FINE` are now merged before the
+sides and caps are built. The model passes again, with a regression test on
+the dumped magatama outline (`test/twist-taiji-outline.ts`: 76 open edges
+before, 0 after).
+
 ## P3 — keep skipped
 
 | Model | Suite | Reason |
