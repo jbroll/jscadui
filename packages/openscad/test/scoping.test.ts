@@ -303,3 +303,34 @@ describe('variable reassignment (last value at first position)', () => {
     expect(code).not.toContain('var L = 120')
   })
 })
+
+describe('assignments before an include', () => {
+  const transpileWith = (main: string, files: Record<string, string>) => {
+    const fileResolver: FileResolver = (filename) =>
+      filename in files ? { path: `/${filename}`, content: files[filename] } : undefined
+    return transpile(parse(main).ast, { currentFile: '/main.scad', fileResolver, includeHeader: false }).code
+  }
+  const indexOf = (code: string, re: RegExp) => code.search(re)
+
+  it('evaluates an assignment above an include before the included assignments', () => {
+    const code = transpileWith(`
+      A = 1;
+      include <lib.scad>
+      cube(B);
+    `, { 'lib.scad': 'B = A + 1;' })
+    expect(indexOf(code, /var A = 1/)).toBeGreaterThanOrEqual(0)
+    expect(indexOf(code, /var A = 1/)).toBeLessThan(indexOf(code, /var B = /))
+  })
+
+  it('sees a flag set by the file that includes it, one level up (BOSL2 std.scad guard)', () => {
+    const code = transpileWith(`
+      include <std.scad>
+      cube(1);
+    `, {
+      'std.scad': '_STD = true;\ninclude <part.scad>\n',
+      'part.scad': '_PART = is_undef(_STD) ? echo("part without std") true : true;\n',
+    })
+    expect(indexOf(code, /var _STD = true/)).toBeGreaterThanOrEqual(0)
+    expect(indexOf(code, /var _STD = true/)).toBeLessThan(indexOf(code, /var _PART = /))
+  })
+})

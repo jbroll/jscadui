@@ -65,6 +65,7 @@ interface BundledContent {
   modules: string[]
   constants: string[]
   constantNameList: string[]  // parallel to constants ('' when unnamed)
+  includeConstantStarts: number[]  // per include statement: its first index in constants
   functionNames: Set<string>
   moduleNames: Set<string>
   constantNames: Set<string>
@@ -79,6 +80,7 @@ interface TranspiledStatements {
   localModules: string[]
   localConstants: string[]
   localConstantNames: string[]  // parallel to localConstants
+  constantsBeforeInclude: number[]  // per include statement: local constants above it
   geometryParts: string[]
   // Customizer support (options.customizer): the schema, and the top-level
   // assignments re-run at the start of main() with parameter overrides
@@ -117,8 +119,10 @@ function processIncludeStatements(ctx: TranspileContext): BundledContent {
   const bundledModuleNames = new Set<string>()
   const bundledConstantNames = new Set<string>()
   const bundledConstantNameList: string[] = []
+  const includeConstantStarts: number[] = []
 
   for (const includeImport of ctx.includeImports) {
+    includeConstantStarts.push(bundledConstants.length)
     // Transpile the dependency and get the resolved path from fileResolver
     const result = processDependency(includeImport.filename, ctx)
     includeImport.resolvedPath = result.resolvedPath
@@ -226,6 +230,7 @@ function processIncludeStatements(ctx: TranspileContext): BundledContent {
     modules: bundledModules,
     constants: bundledConstants,
     constantNameList: bundledConstantNameList,
+    includeConstantStarts,
     functionNames: bundledFunctionNames,
     moduleNames: bundledModuleNames,
     constantNames: bundledConstantNames,
@@ -287,6 +292,7 @@ function transpileAllStatements(ast: ScadFile, ctx: TranspileContext): Transpile
   const localModules: string[] = []
   const localConstants: string[] = []
   const localConstantNames: string[] = []
+  const constantsBeforeInclude: number[] = []
   const geometryParts: string[] = []
   const customizerPrologue: string[] = []
 
@@ -324,7 +330,9 @@ function transpileAllStatements(ast: ScadFile, ctx: TranspileContext): Transpile
       localModules.push(transpileModuleDeclaration(stmt, ctx))
     } else if (isFunctionDeclaration(stmt)) {
       localFunctions.push(transpileFunctionDeclaration(stmt, ctx))
-    } else if (isUseStmt(stmt) || isIncludeStmt(stmt)) {
+    } else if (isIncludeStmt(stmt)) {
+      constantsBeforeInclude.push(localConstants.length)
+    } else if (isUseStmt(stmt)) {
       // Already collected in first pass
     } else if (isAssignmentNode(stmt) && emittedAssignments.has(stmt.name)) {
       // Overwritten assignment: its value was emitted at the first position
@@ -403,6 +411,7 @@ function transpileAllStatements(ast: ScadFile, ctx: TranspileContext): Transpile
     localModules,
     localConstants,
     localConstantNames,
+    constantsBeforeInclude,
     geometryParts,
     customizer,
     customizerPrologue: customizerParams.size > 0 ? customizerPrologue : [],
@@ -432,6 +441,19 @@ const CUSTOMIZER_HELPERS = [
 /**
  * Build the output code string
  */
+/**
+ * For each local constant, the index of the first include statement below it,
+ * or undefined when it stays with the local constants. A name an include also
+ * assigns is left alone: the in-place override rule places it.
+ */
+function hoistAboveIncludes(names: string[], constantsBeforeInclude: number[], includedNames: Set<string>): (number | undefined)[] {
+  return names.map((name, i) => {
+    if (includedNames.has(name)) return undefined
+    const k = constantsBeforeInclude.findIndex(count => i < count)
+    return k === -1 ? undefined : k
+  })
+}
+
 function buildOutputCode(
   ctx: TranspileContext,
   bundled: BundledContent,
@@ -516,11 +538,22 @@ function buildOutputCode(
     overridden.add(name)
     return local
   })
-  const localConstants = transpiled.localConstants.filter((_, i) => !overridden.has(transpiled.localConstantNames[i]))
+  // An assignment above an include runs before the included assignments
+  // (BOSL2's std.scad sets _BOSL2_STD, then includes files that test it).
+  const aboveInclude = hoistAboveIncludes(
+    transpiled.localConstantNames,
+    transpiled.constantsBeforeInclude.slice(0, bundled.includeConstantStarts.length),
+    new Set(bundled.constantNameList))
+  const localConstants = transpiled.localConstants.filter((_, i) =>
+    !overridden.has(transpiled.localConstantNames[i]) && aboveInclude[i] === undefined)
+  const orderedConstants = bundled.includeConstantStarts.flatMap((start, k) => [
+    ...transpiled.localConstants.filter((_, i) => aboveInclude[i] === k),
+    ...libraryConstants.slice(start, bundled.includeConstantStarts[k + 1] ?? libraryConstants.length),
+  ])
 
   // LIBRARY CONSTANTS (bundled from includes) - BEFORE MODULES
-  if (libraryConstants.length > 0) {
-    parts.push(libraryConstants.join('\n'))
+  if (orderedConstants.length > 0) {
+    parts.push(orderedConstants.join('\n'))
     parts.push('')
   }
 
@@ -624,31 +657,36 @@ interface OptimizationInfo {
  * The allDeclarations must be stored in the cached TranspiledFile so that grandparent
  * files can recursively collect declarations from the full include chain.
  */
-function createBundledParts(ctx: TranspileContext, localGeometryParts: string[]): { bundledParts: BundledParts; allDeclarations: Declaration[]; optimizationInfo: OptimizationInfo } {
+function createBundledParts(ctx: TranspileContext, transpiled: TranspiledStatements): { bundledParts: BundledParts; allDeclarations: Declaration[]; optimizationInfo: OptimizationInfo } {
+  const localGeometryParts = transpiled.geometryParts
   // Collect all local declarations
   const localDeclarations = ctx.declarations.getAll()
 
   // Collect declarations from includes (which themselves include transitive declarations
   // because we store allDeclarations in the cached TranspiledFile)
-  const includeDeclarations: Declaration[] = []
-  for (const inc of ctx.includeImports) {
-    const file = ctx.transpiledFiles.get(inc.resolvedPath)
-    if (file?.declarations) {
-      includeDeclarations.push(...file.declarations)
-    }
-  }
+  const declarationsPerInclude = ctx.includeImports.map(inc =>
+    ctx.transpiledFiles.get(inc.resolvedPath)?.declarations ?? [])
+  const includeDeclarations = declarationsPerInclude.flat()
 
-  // Merge with dependency-correct ordering: include declarations first so that
-  // transitive dependencies (e.g. M4_washer from washers.scad) are emitted before
-  // the constants that reference them (e.g. M4_cap_screw from screws.scad).
-  // Local declarations override same-named includes and appear at the end.
-  // This matches OpenSCAD semantics where `include <file>` inlines the file content
-  // at that point, so included constants are available when local ones are initialized.
+  // Merge in include order: `include <file>` inlines the file at that point, so
+  // a local constant above an include comes before it, and the included
+  // constants come before the local constants below it (e.g. M4_washer from
+  // washers.scad before M4_cap_screw from screws.scad).
   const declMap = new Map<string, Declaration>()
-  // Include declarations first (transitive deps already in correct order recursively)
-  for (const d of includeDeclarations) {
-    if (!declMap.has(d.name)) declMap.set(d.name, d)
-  }
+  const localConstantByName = new Map(localDeclarations.filter(d => d.kind === 'constant').map(d => [d.name, d]))
+  const aboveInclude = hoistAboveIncludes(
+    transpiled.localConstantNames,
+    transpiled.constantsBeforeInclude.slice(0, declarationsPerInclude.length),
+    new Set(includeDeclarations.filter(d => d.kind === 'constant').map(d => d.name)))
+  declarationsPerInclude.forEach((decls, k) => {
+    transpiled.localConstantNames.forEach((name, i) => {
+      const d = localConstantByName.get(name)
+      if (aboveInclude[i] === k && d) declMap.set(name, d)
+    })
+    for (const d of decls) {
+      if (!declMap.has(d.name)) declMap.set(d.name, d)
+    }
+  })
   // Local declarations override any included ones with same name. A constant
   // takes the included one's position (OpenSCAD: last value at first position);
   // functions and modules move to the end.
@@ -841,7 +879,7 @@ export function transpile(
   // Create bundled parts using AST-based bundling
   // allDeclarations includes local + transitive includes (for recursive bundling)
   // Pass localGeometryParts so only THIS file's own geometry is stored (not transitive)
-  const { bundledParts, allDeclarations, optimizationInfo } = createBundledParts(ctx, transpiled.geometryParts)
+  const { bundledParts, allDeclarations, optimizationInfo } = createBundledParts(ctx, transpiled)
 
   // Add this file to the cache if it has a name
   if (ctx.options.currentFile) {

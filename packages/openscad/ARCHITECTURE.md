@@ -100,6 +100,19 @@ const main = () => {
 module.exports = { main }
 ```
 
+### `include`
+
+`include <file.scad>` inlines the file's constants, functions and modules
+into the including file (`processIncludeStatements`, `createBundledParts`),
+except a file of only functions and modules, which becomes a `require()` like
+`use`. OpenSCAD pastes an include's text in at the include line, so constants
+are written out in source order across includes: a local assignment above
+an include comes before the included constants, and one below comes after.
+BOSL2 depends on this. `std.scad` sets `_BOSL2_STD` and then includes files
+whose guards test it. When a name is assigned both in the file and in an
+include, the file's value takes the included assignment's position (last
+value at first position).
+
 ### Tail recursion
 
 A function that calls itself in tail position (`tailCall.ts`) compiles to a
@@ -251,12 +264,12 @@ Libraries would be resolved from:
 - [x] Multi-file transpilation with caching
 - [x] OpenSCAD compatibility helpers (_cube, _cylinder, etc.)
 - [x] Parameter preservation with defaults
+- [x] `include` statements, bundled in source order
 
 ### TODO
 - [ ] Integrate transpiler into worker
 - [ ] Hook into worker's require system
 - [ ] File resolution for library paths
-- [ ] `include` statement support (vs `use`)
 - [ ] Error source mapping (.scad line numbers)
 - [ ] Watch mode for development
 

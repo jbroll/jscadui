@@ -15,7 +15,44 @@ and a third that can reach its `Asset_SCAD/` includes. Pointing CI at the
 
 Similarity threshold: **0.99** (Jaccard index on vertex-deduplicated STL meshes).
 
-## Latest GPU run: 2026-09-27, assert/bitwise semantics + example children
+## Latest GPU run: 2026-09-27, include order + BOSL2 echo grading
+
+Branch `worktree-include-order` (uncommitted working tree), simple-ci job
+`cdb147ae4240ce5c` (`sci push jscadui/test`), OpenSCAD 2026.08.30.fp. All
+21 suites pass.
+
+Included constants are now bundled in source order: a local assignment above
+an `include` is evaluated before the included assignments. BOSL2's `std.scad`
+sets `_BOSL2_STD` before its includes, so the ~30 "included without std.scad"
+warnings the transpiled library echoed are gone, and `bosl2/echo-skip.txt` is
+deleted. bosl2 goes 152 → 174 graded: the 22 BOSL2 models that only echo are
+now graded on their echo() output and all match.
+
+| Suite | Tested | Passed |
+|-------|-------:|-------:|
+| 01-basics | 21 | 21 |
+| bosl | 113 | 113 |
+| bosl2 | 174 | 174 |
+| closepoints | 5 | 5 |
+| constructive | 2 | 2 |
+| dotscad | 175 | 175 |
+| gears | 18 | 18 |
+| gridfinity | 4 | 4 |
+| list-comprehension-demos | 9 | 9 |
+| mcad | 13 | 13 |
+| nopscadlib | 146 | 146 |
+| obiscad | 9 | 9 |
+| openscad-examples | 34 | 34 |
+| openscad-tests | 238 | 238 |
+| relativity | 6 | 6 |
+| round-anything | 10 | 10 |
+| snippet | 115 | 115 |
+| text | 2 | 2 |
+| threadlib | 9 | 9 |
+| threads-scad | 1 | 1 |
+| yapp-box | 40 | 40 |
+
+## Previous GPU run: 2026-09-27, assert/bitwise semantics + example children
 
 Branch `claude/untrack-all-grids` (uncommitted working tree), simple-ci job
 `af7399fb` (`sci push jscadui/test`), 8.6 min, OpenSCAD 2026.08.30.fp. All
