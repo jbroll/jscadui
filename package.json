@@ -22,6 +22,7 @@
     "fetch-deps:missing": "node scripts/fetch-deps.js --if-missing",
     "dev": "turbo dev",
     "jscad": "npm run jscad -w apps/jscad-web --",
+    "jscad-chat": "npm run jscad-chat -w apps/jscad-web --",
     "build": "turbo build",
     "test": "node scripts/test-all.js",
     "test:unit": "turbo test --filter=!@jscadui/openscad --concurrency=8",
