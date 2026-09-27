@@ -41,11 +41,18 @@ through manifold `CrossSection` (would make the WASM-free jscad engine depend on
 
 ## Plan
 
-1. **Evaluate libs** (pending — websearch was cancelled, re-run on resume). Candidates:
-   `polygon-clipping` (Martinez-Rueda), `clipper-lib` (Clipper JS port), Clipper2 JS/WASM
-   options. Criteria: CJS + browser ESM, float-coordinate robustness for near-coincident
-   edges, holes/multi-polygon support, holes-preserving geom2 round-trip, bundle size,
-   maintenance status. The fork's modeling package is currently zero-dependency.
+1. **Evaluate libs** (done). Constraint: no heavy dependencies. Measured (esbuild, minified):
+
+   | lib | min / gz | deps | 24-way horiholes union |
+   |---|---|---|---|
+   | `polygon-clipping` 0.15.7 (2023) | 29 KB / 9.6 KB | `robust-predicates`, `splaytree` | 16 rings, 0 holes, area 29.464640356 |
+   | `clipper-lib` 6.4.2 (2022) | 98 KB / 25.5 KB | none | 16 rings, 0 holes, area 29.464640362 |
+   | `clipper2-ts` 2.0.1-18 | 119 KB / 32 KB | none | wrong: 2 spurious triangle holes covered by operands 11/12 |
+
+   Pair 1+2: all three give one closed ring. Fuzz (2000 trials, 2–7 rotated rects offset
+   1e-7..1e-4, angle jitter 1e-5): `polygon-clipping` vs `clipper-lib` at 1e9 scale, 0 throws,
+   0 area mismatches > 1e-6, 0 slivers. Leading choice: `polygon-clipping` (smallest, floats
+   with exact predicates, no quantization scale to pick).
 2. **Spike in this worktree**: union the dumped `/tmp/horiholes-dump.json` operands
    (24-way + minimal pairs) with the chosen lib; verify closed outlines and compare
    against `geom2-trace.js --preview` (expect 21→0 opens) and `wire.scad` (119→89 wall-loss
