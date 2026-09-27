@@ -109,28 +109,6 @@ disposes its two intermediate transforms per geometry.
   the same claim mechanism: `jscadClaim`, a key per part, fan-out on the first
   claim.
 
-## Mesh reuse
-
-- **Agent evaluate or an animation frame can `remember` while a run with older
-  `held` is in flight.** Its refs then name hashes the map no longer holds and
-  fail. Those runs send no `held`, so their meshes carry no hash and `remember`
-  empties the map: every ref in the in-flight run fails. Fix by falling back to
-  the previous map in `resolve`.
-- **The same held entity twice in one scene rebuilds an extra three.js object
-  on each streamed redraw.**
-- **A part whose conversion throws mid-stream clears the solids** after earlier
-  parts were already posted.
-
-## Tests to add
-
-- Instance-path shading in `format-threejs`.
-- A late message from a retired worker is dropped.
-- An app script that rejects on a promoted worker, then a model request that
-  reloads `lastScript`.
-- `paramChangeCallback`'s work token.
-- `paramChangeCallback` and `runModelUpdate` stranding each other's pending
-  update.
-
 ## Library bugs found by the sweep
 
 - **dotSCAD's `r_union3` fails on the manifold engine** with
@@ -274,9 +252,6 @@ README claim.
 - **Rate-limit CDN requests (require).** No throttling of any kind. Needs
   async `fetch()` first; see the async module loading refactor below.
   (`packages/require/src/readFileWeb.js`)
-- **Monitor, don't fix.** Child proxies cache without bounds
-  (`packages/params-core/src/createParamsProxy.js`); fix together with the
-  params memory item below.
 
 ## Refactoring
 
@@ -306,6 +281,6 @@ Async module loading is the breaking one; the rest are extractions.
   toolbar roles, keyboard navigation for the param and file trees, modal
   focus trap and `aria-expanded` on collapsibles.
   (`packages/params-ui`, `apps/jscad-web`)
-- **Params memory.** Class-input and color-picker listeners are never removed
-  (params-ui); child proxies cache without bounds (params-core, confirmed).
-  Fix together with the proxy-cache monitor item above.
+- **Params memory follow-up.** Child-proxy eviction recreates the child with
+  fresh per-proxy defaults; only matters if 500 distinct properties are
+  probed on one proxy between a set and a read of the same child.

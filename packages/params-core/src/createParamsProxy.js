@@ -214,6 +214,11 @@ const getByPath = (obj, path) => {
  * @param {string} [path=''] - Current path in the hierarchy
  * @returns {Proxy}
  */
+/** Per-proxy cap on cached child proxies. Probing distinct properties
+ * (typos, enumeration) must not grow the cache without bounds; an evicted
+ * path is recreated on its next access, with fresh per-proxy defaults. */
+export const MAX_CHILD_PROXIES = 500
+
 export const createParamsProxy = (state, path = '') => {
   const { discovered, discoveredPaths, discoveredByPath, userInteracted, uiValues } = state
   const defaults = {}
@@ -269,6 +274,9 @@ export const createParamsProxy = (state, path = '') => {
 
       // In hierarchical mode (not sealed), create child proxies for nested parts
       if (!(propStr in children)) {
+        if (Object.keys(children).length >= MAX_CHILD_PROXIES) {
+          delete children[Object.keys(children)[0]]
+        }
         children[propStr] = createParamsProxy(state, fullPath)
       }
       return children[propStr]

@@ -969,3 +969,20 @@ describe('proxy state efficiency', () => {
     expect(state.discovered.map(d => d.path).sort()).toEqual(['front.height', 'front.length', 'front.width'])
   })
 })
+
+describe('child proxy cache bound', () => {
+  it('evicts the oldest child once the cache exceeds its cap', () => {
+    const state = createProxyState()
+    const params = createParamsProxy(state)
+    for (let i = 0; i < 600; i++) expect(params[`probe${i}`]._path).toBe(`probe${i}`)
+    expect(Object.keys(params).length).toBeLessThanOrEqual(500)
+  })
+
+  it('still resolves an evicted path through shared state', () => {
+    const state = createProxyState()
+    const params = createParamsProxy(state)
+    for (let i = 0; i < 600; i++) expect(params[`probe${i}`]._path).toBe(`probe${i}`)
+    expect(params.probe599._path).toBe('probe599')
+    expect(params.probe0._path).toBe('probe0')
+  })
+})
