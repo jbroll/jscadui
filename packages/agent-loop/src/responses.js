@@ -38,6 +38,7 @@ export const responsesProvider = (config) => {
         input: toResponsesInput(messages),
       }
       if (tools.length > 0) body.tools = tools.map(toResponsesTool)
+      if (config.effort) body.reasoning = { effort: config.effort }
       const headers = {
         'content-type': 'application/json',
         authorization: `Bearer ${config.apiKey}`,

@@ -72,6 +72,7 @@ const anthropicProvider = (config) => {
     }
     if (system) body.system = system
     if (tools.length > 0) body.tools = tools.map(toAnthropicTool)
+    if (config.effort) body.output_config = { effort: config.effort }
     const headers = {
       'content-type': 'application/json',
       'x-api-key': config.apiKey,
@@ -163,6 +164,7 @@ const openaiProvider = (config) => {
       messages: messages.map(toOpenAIMessage),
     }
     if (tools.length > 0) body.tools = tools.map(toOpenAITool)
+    if (config.effort) body.reasoning_effort = config.effort
     const headers = {
       'content-type': 'application/json',
       authorization: `Bearer ${config.apiKey}`,
@@ -219,7 +221,7 @@ const openaiProvider = (config) => {
 }
 
 /**
- * @param {{kind:'anthropic'|'openai'|'opencode-go'|'meta',apiKey:string,model:string,baseUrl?:string,sessionId?:string}} config
+ * @param {{kind:'anthropic'|'openai'|'opencode-go'|'meta',apiKey:string,model:string,baseUrl?:string,sessionId?:string,effort?:string}} config
  */
 export const createProvider = (config) => {
   if (!config.apiKey) throw new Error('createProvider: apiKey is required')

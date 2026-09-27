@@ -187,11 +187,52 @@ describe('providers', () => {
     fetchMock.mockResolvedValue(new Response(sseBody('')))
     const provider = createProvider({ kind: 'opencode-go', apiKey: 'k', model: 'qwen3.8-flash' })
     const events = []
-    for await (const e of provider.send([{ role: 'user', content: 'hi' }], TOOLS)) events.push(e)
+    for await (const e of provider.send([{ role: 'user', content: 'hi' }], [])) events.push(e)
     expect(fetchMock).toHaveBeenCalledWith(
       'https://opencode.ai/zen/go/v1/messages',
       expect.objectContaining({ method: 'POST' }),
     )
     expect(events).toEqual([])
+  })
+
+  it('anthropic: maps effort to output_config.effort and omits when unset', async () => {
+    fetchMock.mockResolvedValue(new Response(sseBody('')))
+    const p = createProvider({ kind: 'anthropic', apiKey: 'k', model: 'm', baseUrl: 'https://relay.test', effort: 'high' })
+    for await (const e of p.send([{ role: 'user', content: 'hi' }], [])) void e
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).output_config).toEqual({ effort: 'high' })
+    fetchMock.mockClear()
+    fetchMock.mockResolvedValue(new Response(sseBody('')))
+    const q = createProvider({ kind: 'anthropic', apiKey: 'k', model: 'm', baseUrl: 'https://relay.test' })
+    for await (const e of q.send([{ role: 'user', content: 'hi' }], [])) void e
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).not.toHaveProperty('output_config')
+  })
+
+  it('openai: maps effort to reasoning_effort and omits when unset', async () => {
+    const body = `data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n` + `data: [DONE]\n\n`
+    fetchMock.mockResolvedValue(new Response(sseBody(body)))
+    const p = createProvider({ kind: 'openai', apiKey: 'k', model: 'm', baseUrl: 'https://relay.test', effort: 'medium' })
+    for await (const e of p.send([{ role: 'user', content: 'hi' }], [])) void e
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).reasoning_effort).toBe('medium')
+    fetchMock.mockClear()
+    fetchMock.mockResolvedValue(new Response(sseBody(body)))
+    const q = createProvider({ kind: 'openai', apiKey: 'k', model: 'm', baseUrl: 'https://relay.test' })
+    for await (const e of q.send([{ role: 'user', content: 'hi' }], [])) void e
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).not.toHaveProperty('reasoning_effort')
+  })
+
+  it('responses: maps effort to reasoning.effort and omits when unset', async () => {
+    const body = `data: {"type":"response.completed"}\n\n`
+    fetchMock.mockResolvedValue(new Response(sseBody(body)))
+    const p = createProvider({ kind: 'meta', apiKey: 'k', model: 'muse-spark-1.3', effort: 'low' })
+    for await (const e of p.send([{ role: 'user', content: 'hi' }], [])) void e
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).reasoning).toEqual({ effort: 'low' })
+  })
+
+  it('meta chat path: maps effort to reasoning_effort', async () => {
+    const body = `data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n` + `data: [DONE]\n\n`
+    fetchMock.mockResolvedValue(new Response(sseBody(body)))
+    const p = createProvider({ kind: 'meta', apiKey: 'k', model: 'some-chat-model', effort: 'xhigh' })
+    for await (const e of p.send([{ role: 'user', content: 'hi' }], [])) void e
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).reasoning_effort).toBe('xhigh')
   })
 })
