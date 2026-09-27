@@ -539,6 +539,9 @@ discarded, at grid-scale memory cost. Manifold evaluation still runs, warming
 the cache the serializer reads. Export skips its `$preview` re-run for a streamed
 grid, since the grid is re-run for the export anyway. The re-run holds the
 whole grid's solids in memory again, so exporting a large streamed grid can still fail.
+The worker answers concurrent requests freely, so concurrent re-runs serialize
+on a shared promise chain in `withSolids.js`: each runs whole before the next
+starts, since they share `__jscadProgress` and the solids store.
 Animation frames also run with `stream: false`, since each frame draws the
 result it returns.
 

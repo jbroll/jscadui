@@ -102,10 +102,6 @@ disposes its two intermediate transforms per geometry.
   kill timer, so a model that keeps posting is never killed. Claims restart the
   kill timers too, so model code can post `jscadClaim` with a guessable
   `runId` to the same end. The damage stays in the user's own session.
-- **Serialize the export, measure and check re-runs.** After a streamed grid
-  they re-run main in the frame's worker without waiting for other runs, so two
-  can interleave and share `__jscadProgress`, `releaseSolids` and
-  `currentParams()`.
 - **`part()` boundaries for JSCAD and SCAD parts.** A single model's parts
   could spread across the frame's pool the way a grid's leaves do now, using
   the same claim mechanism: `jscadClaim`, a key per part, fan-out on the first
