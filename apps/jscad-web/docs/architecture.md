@@ -413,7 +413,10 @@ A generated `ALL.js` is an item list plus one call,
 failure markers and trap handling that used to live in the generated template.
 The file's own `require` is passed in so item paths resolve against the grid's
 directory. `main` takes `globalThis.__jscadStream`, hides it from leaf code
-while it walks the grid, and restores it after.
+while it walks the grid, and restores it after. Grids are gitignored build
+artifacts, never tracked: `organize-corpus.js` regenerates them with
+`--no-rename` after batching, as do `deploy-full.sh` and `npm run
+generate-all`.
 
 A sub-grid, an item that is itself a grid, runs its own leaves under a world
 transform, `ctx · translate(x, y) · scale(s)`, where `s = cellSize / max(width,
