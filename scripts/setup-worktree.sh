@@ -19,8 +19,7 @@ set -euo pipefail
 
 worktree="${1:-$PWD}"
 worktree="$(cd "$worktree" && pwd -P)"
-# Convention: worktrees live in <main>/.worktrees/<name>.
-main="$(dirname "$(dirname "$worktree")")"
+main="$(dirname "$(git -C "$worktree" rev-parse --path-format=absolute --git-common-dir)")"
 
 # Build worktree/node_modules as a real directory: workspace links are
 # copied verbatim (their relative text then resolves into the worktree's own
@@ -91,7 +90,7 @@ while IFS= read -r d; do
 done < <(cd "$main" && find packages apps file-format -maxdepth 3 -name node_modules -type d 2>/dev/null)
 
 # Sibling checkouts beside the main checkout (rowboat, OpenJSCAD.org).
-# From the worktree they resolve at <main>/.worktrees/<sibling>.
+# From the worktree they resolve beside it, at <worktree>/../<sibling>.
 wt_parent="$(dirname "$worktree")"
 for s in rowboat OpenJSCAD.org; do
   if [ -e "$wt_parent/$s" ]; then
