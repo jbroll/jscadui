@@ -8,6 +8,7 @@
     "dev:full": "node build.js --dev",
     "build": "node build.js",
     "serve": "node build.js --serve",
+    "jscad": "node scripts/jscad.mjs",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:watch": "vitest",

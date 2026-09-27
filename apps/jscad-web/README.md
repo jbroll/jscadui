@@ -80,6 +80,10 @@ Account setup lives in the drawer above the chat:
 
 Tests: `npx vitest run test/aiChat.test.js` for the chat turn, `npx playwright test e2e/ai-chat.spec.js` for the full turn against a stub relay with real local measurements.
 
+## Local model directory
+
+From any model folder: `npm run jscad -- [dir|file] [--port N]` (root) or `node scripts/jscad.mjs` from `apps/jscad-web`. Serves the app on `:7377`, the frame on `:7378`, your folder at `/models/`, and a same-origin `/api/relay` so AI Chat works with your own key. `RELAY_ALLOWLIST` overrides the default anthropic+openai allowlist.
+
 ## Compute frame
 
 All model code runs in the compute frame — the editor's as well as the
