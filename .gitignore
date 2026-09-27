@@ -198,3 +198,8 @@ deploy.conf
 /all-js-*.md
 apps/jscad-web/e2e/render-report.json
 packages/agent-loop/eval/results/
+
+# Local git worktrees (all locations)
+.claude/worktrees/
+.worktrees/
+worktrees/
