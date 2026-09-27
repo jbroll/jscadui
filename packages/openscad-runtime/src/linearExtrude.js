@@ -238,6 +238,26 @@ const signedArea = (o) => {
 }
 
 /**
+ * Drop consecutive outline points closer together than the fine grid:
+ * offset() leaves pairs ~1e-8 apart that earcut drops, and the cap fan then
+ * inserts the dropped point into every triangle edge passing near it, covering
+ * edges twice so the mesh does not close.
+ */
+const dedupeOutline = (o) => {
+  const out = []
+  for (const pt of o) {
+    const prev = out[out.length - 1]
+    if (prev === undefined || (pt[0] - prev[0]) ** 2 + (pt[1] - prev[1]) ** 2 >= GRID_FINE * GRID_FINE) out.push(pt)
+  }
+  while (out.length > 1) {
+    const [fx, fy] = out[0], [lx, ly] = out[out.length - 1]
+    if ((fx - lx) ** 2 + (fy - ly) ** 2 < GRID_FINE * GRID_FINE) out.pop()
+    else break
+  }
+  return out
+}
+
+/**
  * Side triangles of the extrusion, as add_slice_indices builds them: each quad
  * is split along its shorter diagonal (measured in XY), ties broken by the
  * outline's orientation and the twist direction.
@@ -387,7 +407,7 @@ const capTriangles = (outlines, slice) => {
  */
 export const linearExtrudeMesh = (p, outlines, slice) => {
   if (p.vector[2] <= 0) return undefined
-  outlines = outlines.filter((o) => o.length >= 3)
+  outlines = outlines.filter((o) => o.length >= 3).map(dedupeOutline).filter((o) => o.length >= 3)
   if (outlines.length === 0) return undefined
 
   const n = numSlices(p, outlines)
