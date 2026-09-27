@@ -107,4 +107,28 @@ describe('createFrame', () => {
     expect(el.contentWindow.postMessage).toHaveBeenCalled()
     workerApi.destroy()
   })
+
+  it('exposes an explicit destroy that removes the frame', async () => {
+    const { el, load } = fakeDom()
+    el.remove = vi.fn()
+    const framePromise = build()
+    load()
+    const result = await framePromise
+
+    expect(typeof result.destroy).toBe('function')
+    result.destroy()
+    expect(el.remove).toHaveBeenCalledOnce()
+  })
+
+  it('rejects pending requests when destroyed', async () => {
+    const { load } = fakeDom()
+    const framePromise = build()
+    load()
+    const { workerApi, destroy } = await framePromise
+
+    const pending = workerApi.jscadInit({ engine: 'jscad' })
+    pending.catch(() => {})
+    destroy()
+    await expect(pending).rejects.toThrow()
+  })
 })

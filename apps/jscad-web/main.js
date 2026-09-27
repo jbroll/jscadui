@@ -252,7 +252,7 @@ const trackJobs = createJobTracker(progress, onProgress)
 // Every model — the editor's and the agent's — runs in the sandboxed frame.
 // Its opaque origin means no cookies, no storage and no same-origin fetch.
 /* global __FRAME_ORIGIN__ */
-const { frameEl, workerApi, handlers } = await createFrame({
+const { workerApi, handlers, destroy: destroyFrame } = await createFrame({
   onError: setError,
   onEntities: handleEntities,
   onJobCount: trackJobs,
@@ -934,6 +934,6 @@ window.addEventListener('unload', () => {
   editor.destroy()
   viewState.viewer?.destroy?.()
   ctrl.destroy() // M5 fix: Clean up OrbitControl event listeners and animation frame
-  frameEl.remove() // tears down the frame and its worker on page unload
+  destroyFrame() // explicit terminate path: rejects pending frame requests and removes the frame
   fileWatcher.cleanup() // I8 fix: Explicit cleanup (complements internal beforeunload fallback)
 })

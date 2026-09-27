@@ -121,7 +121,7 @@ const createReplay = (proxy) => {
  * @param {(entities: unknown[], runId: unknown) => void} [options.onCells] - one batch of a streamed grid's cells, tagged with the runId of the request that made it
  * @param {string} options.runOrigin
  * @param {number} [options.loadTimeoutMs]
- * @returns {Promise<{frameEl: HTMLIFrameElement, workerApi: JscadWorker, handlers: object}>}
+ * @returns {Promise<{frameEl: HTMLIFrameElement, workerApi: JscadWorker, handlers: object, destroy: () => void}>}
  */
 export const createFrame = async ({ onError, onEntities, onJobCount, onTerminated, onCells, runOrigin, loadTimeoutMs = 15000 }) => {
   const frameEl = document.createElement('iframe')
@@ -210,7 +210,17 @@ export const createFrame = async ({ onError, onEntities, onJobCount, onTerminate
     },
   }))
 
-  return { frameEl, workerApi, handlers }
+  // Explicit teardown: reject pending requests and remove the frame, so the
+  // frame and its worker do not rely on frame removal alone.
+  const destroy = () => {
+    try {
+      proxy.destroy()
+    } finally {
+      frameEl.remove()
+    }
+  }
+
+  return { frameEl, workerApi, handlers, destroy }
 }
 
 /**
