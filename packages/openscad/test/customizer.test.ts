@@ -134,7 +134,10 @@ describe('transpile with customizer option', () => {
       setSpecialVar() {},
       safeUnion: (parts: unknown[]) => parts[0],
     }
-    const exports: Record<string, any> = {}
+    const exports = {} as {
+      main: (...args: unknown[]) => unknown
+      getParameterDefinitions: () => { name: string }[]
+    }
     new Function('exports', 'j$', 'require', code)(exports, j$, () => ({}))
     return { exports, calls }
   }
@@ -189,5 +192,21 @@ describe('transpile with customizer option', () => {
     const on = transpile(parse(plain).ast, { customizer: true })
     const off = transpile(parse(plain).ast, {})
     expect(on.code).toBe(off.code)
+  })
+
+  it('does not re-export an include\'s getParameterDefinitions from a file without parameters', () => {
+    const files: Record<string, string> = {
+      '/lib.scad': 'size = 4;\nmodule part() { cube(size); }\npart();\n',
+    }
+    const fileResolver = (name: string) => {
+      const path = `/${name}`
+      return files[path] === undefined ? undefined : { path, content: files[path] }
+    }
+    const main = transpile(parse('include <lib.scad>\n', '/main.scad').ast,
+      { customizer: true, fileResolver, currentFile: '/main.scad' })
+    expect(main.exports).not.toContain('getParameterDefinitions')
+    // Loading the module used to throw ReferenceError: getParameterDefinitions is not defined
+    const { exports } = load(main.code)
+    expect(exports.main).toBeDefined()
   })
 })
