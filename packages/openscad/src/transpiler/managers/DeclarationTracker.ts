@@ -66,8 +66,10 @@ export class DeclarationTracker {
     params: string[],
     source: DeclarationSource
   ): void {
-    // Avoid duplicates (first definition wins, same as current behavior)
-    if (this.declarations.has(name)) return
+    // Later definitions override earlier ones (OpenSCAD last-wins: a later
+    // `function set(...)` replaces the earlier one for all callers).
+    // Delete-then-set also moves the entry to the end in emission order.
+    this.declarations.delete(name)
 
     this.declarations.set(name, {
       name,
@@ -94,7 +96,9 @@ export class DeclarationTracker {
     params: string[],
     source: DeclarationSource
   ): void {
-    if (this.declarations.has(name)) return
+    // Later definitions override earlier ones (OpenSCAD last-wins).
+    // Delete-then-set also moves the entry to the end in emission order.
+    this.declarations.delete(name)
 
     this.declarations.set(name, {
       name,
