@@ -94,8 +94,11 @@ export const createFrameHost = ({
   const runs = createGridRuns({ state, pool, slotOps, post, answerError })
 
   // Only the solids re-run of export, measure and check posts progress; relaying
-  // it elsewhere would let model code keep any request alive.
-  const exporting = (slot) => [...slot.pending.values()].some((r) => !r.onAnswer && NEEDS_SOLIDS.has(r.method))
+  // it elsewhere would let model code keep any request alive. A reload for one
+  // of those counts too: its steps run as frame requests while the app's own
+  // request waits behind them.
+  const exporting = (slot) => [...slot.pending.values()].some((r) => !r.onAnswer && NEEDS_SOLIDS.has(r.method)) ||
+    (slot.queued ?? []).some(({ entry }) => entry && !entry.onAnswer && NEEDS_SOLIDS.has(entry.method))
 
   const relayOut = (slot, data) => {
     slotOps.restartTimers(slot)
@@ -109,6 +112,12 @@ export const createFrameHost = ({
   const receive = (slot, data) => {
     if (data?.method === 'jscadClaim' && data.id != null) return runs.claim(slot, data)
     if (data?.id == null && data?.method === 'jscadCells' && runs.relaysCells(slot, data)) return relayOut(slot, data)
+    // Cells a reload streams prove the model is advancing but belong to no run
+    // the app waits on: restart the kill timer without relaying them.
+    if (data?.id == null && data?.method === 'jscadCells' && slot === state.active && exporting(slot)) {
+      slotOps.restartTimers(slot)
+      return
+    }
     if (data?.id == null && data?.method === 'jscadProgress' && slot === state.active && exporting(slot)) return relayOut(slot, data)
     if (data?.method !== RESPONSE) return
     const request = slot.pending.get(data.id)

@@ -613,6 +613,49 @@ describe('trap retirement', () => {
   })
 })
 
+describe('export reload progress', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+
+  const progress = { method: 'jscadProgress', params: [{}] }
+  const cells = { method: 'jscadCells', params: [{ entities: [] }] }
+
+  // A promoted worker reloading for an export: script step in flight.
+  const reloadingExport = () => {
+    const ctx = withSpare({ timeoutMs: 1000 })
+    const { workers, send } = ctx
+    send({ method: 'jscadMain', id: 4, params: [{ params: {} }] })
+    answerLast(workers[0], { entities: [] })
+    send({ method: 'jscadMain', id: 5, params: [{ params: {} }] })
+    failLast(workers[0], 'RuntimeError', 'trap')
+    send({ method: 'jscadExportData', id: 6, params: [{ format: 'stla' }] })
+    return ctx
+  }
+
+  it('relays progress beats during the export reload', () => {
+    const { workers, posted } = reloadingExport()
+    expect(lastSent(workers[1]).method).toBe('jscadScript')
+    vi.advanceTimersByTime(900)
+    workers[1].onmessage({ data: progress })
+    expect(posted.filter((m) => m.method === 'jscadProgress')).toHaveLength(1)
+    vi.advanceTimersByTime(900)
+    expect(posted.find((m) => m.id === 6)).toBeUndefined()
+    vi.advanceTimersByTime(101)
+    expect(posted.find((m) => m.id === 6)?.error?.name).toBe('AbortError')
+  })
+
+  it('restarts the kill timer on cells during the export reload without relaying them', () => {
+    const { workers, posted } = reloadingExport()
+    vi.advanceTimersByTime(900)
+    workers[1].onmessage({ data: cells })
+    expect(posted.filter((m) => m.method === 'jscadCells')).toHaveLength(0)
+    vi.advanceTimersByTime(900)
+    expect(posted.find((m) => m.id === 6)).toBeUndefined()
+    vi.advanceTimersByTime(101)
+    expect(posted.find((m) => m.id === 6)?.error?.name).toBe('AbortError')
+  })
+})
+
 describe('export after a promotion', () => {
   it('script answered, trap, export: runs the new script main instead of the old model params', () => {
     const { workers, send, posted } = withSpare()
