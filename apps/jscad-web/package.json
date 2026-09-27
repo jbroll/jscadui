@@ -2,6 +2,10 @@
   "name": "@jscadui/jscad-web",
   "version": "0.1.0",
   "type": "module",
+  "bin": {
+    "jscad": "scripts/jscad.mjs",
+    "jscad-chat": "scripts/jscad.mjs"
+  },
   "scripts": {
     "dev": "node build.js --dev --skipDocs",
     "sync-examples": "cp -r examples/. build_dev/examples/",
