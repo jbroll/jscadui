@@ -25,6 +25,16 @@ describe('withRenderFn', () => {
       .toBe('log2(0.125);\nlog2(16, $fn=32);')
   })
 
+  it('keeps a module call\u2019s trailing children', () => {
+    expect(withRenderFn('hsl(h=120,s=1,l=0.5) sphere(d=60);'))
+      .toBe('hsl(h=120,s=1,l=0.5, $fn=32) sphere(d=60);')
+  })
+
+  it('keeps a brace block of children', () => {
+    expect(withRenderFn('xcopies(3) {cube(10);}'))
+      .toBe('xcopies(3, $fn=32) {cube(10);}')
+  })
+
   it('leaves a call that takes no arguments', () => {
     expect(withRenderFn('nothing()')).toBe('nothing();')
   })

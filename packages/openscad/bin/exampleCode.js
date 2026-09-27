@@ -33,11 +33,30 @@ function matchingClose(line, open) {
   return -1
 }
 
+/** True when every bracket in `s` is balanced; strings are skipped. */
+function bracketsBalanced(s) {
+  let depth = 0
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i]
+    if (c === '"') {
+      i = s.indexOf('"', i + 1)
+      if (i === -1) return false
+    } else if (c === '(' || c === '[' || c === '{') {
+      depth++
+    } else if (c === ')' || c === ']' || c === '}') {
+      depth--
+      if (depth < 0) return false
+    }
+  }
+  return depth === 0
+}
+
 /**
  * Add `$fn=<fn>` to the last call in an extracted example and terminate it.
- * Anything after the call other than a `//` comment is library prose and is
- * dropped. Returns the code unchanged when it already sets $fn or when no line
- * holds a balanced call.
+ * A module call's children follow its argument list on the same line
+ * (`hsl(...) sphere(d=60);`) and are kept; anything else after the call is
+ * library prose and is dropped. Returns the code unchanged when it already
+ * sets $fn or when no line holds a balanced call.
  *
  * @param {string} code - the extracted example body
  * @param {number} [fn] - the $fn value to pin
@@ -59,8 +78,11 @@ export function withRenderFn(code, fn = 32) {
     const empty = call.slice(open + 1).trim() === ''
     const commentAt = line.indexOf('//', close)
     const comment = commentAt === -1 ? '' : `  ${line.slice(commentAt).trim()}`
+    const after = line.slice(close + 1, commentAt === -1 ? undefined : commentAt).trim()
+    const keepTail = after.includes('(') && /[;}]$/.test(after) && bracketsBalanced(after)
+      ? ` ${after}` : ''
 
-    lines[i] = `${empty ? call : `${call}, $fn=${fn}`});${comment}`
+    lines[i] = `${empty ? call : `${call}, $fn=${fn}`})${keepTail || ';'}${comment}`
     return lines.join('\n')
   }
   return trimmed
