@@ -9,6 +9,12 @@
 # which installs from scratch because there is no parent checkout there.
 #
 # Usage: scripts/setup-worktree.sh [<worktree-path>]   (default: cwd)
+#
+# This runs the repo's own generate pipeline inside the worktree so a fresh
+# checkout is complete: example corpora and test fixtures (fetch-deps),
+# ALL.js grids (generate-all-files) and the dev-server examples copy
+# (sync-examples). All three are gitignored, so `git worktree add` alone
+# leaves a tree whose unit tests and pre-commit gate fail.
 set -euo pipefail
 
 worktree="${1:-$PWD}"
@@ -105,6 +111,45 @@ for d in node_modules .deps-cache; do
     echo "excluded: $d in git info/exclude"
   fi
 done
+
+# The dep cache is shared with the parent checkout via symlink. fetch-deps
+# checks out its pins there, so refuse when the cache holds different pins
+# than this worktree's manifest instead of moving them under the parent.
+if ! node -e '
+  const { execSync } = require("child_process");
+  const { existsSync } = require("fs");
+  const { join } = require("path");
+  const root = process.argv[1];
+  const manifest = require(join(root, "scripts/deps/manifest.json"));
+  const cache = join(root, ".deps-cache");
+  let drifted = 0;
+  for (const dep of manifest.deps) {
+    if (!dep.commit) continue;
+    const dir = join(cache, dep.name);
+    if (!existsSync(join(dir, ".git"))) continue;
+    let head = "";
+    try { head = execSync(`git -C ${JSON.stringify(dir)} rev-parse HEAD`, { encoding: "utf8" }).trim(); }
+    catch { continue; }
+    if (head !== dep.commit) {
+      console.error(`pin drift: ${dep.name} cache@${head.slice(0, 8)} manifest@${dep.commit.slice(0, 8)}`);
+      drifted = 1;
+    }
+  }
+  process.exit(drifted);
+' "$worktree"; then
+  echo "error: shared .deps-cache pins differ from this worktree's manifest." >&2
+  echo "Update the parent checkout to matching pins first, then re-run this script." >&2
+  exit 1
+fi
+
+# Example corpora, test fixtures and ALL.js grids are gitignored, so a fresh
+# worktree lacks them until the generate pipeline runs. This mirrors root
+# `npm run generate-all`, scoped to the worktree (the cache hits the
+# parent's checkouts, so there are no clones). It must run before the web
+# bundles below, which copy examples/ into build/.
+(cd "$worktree" && node scripts/fetch-deps.js --if-missing)
+(cd "$worktree" && node packages/openscad/bin/generate-all-files.js --no-rename)
+(cd "$worktree/apps/jscad-web" && npm run sync-examples)
 
 # The openscad bundle entry imports @jscadui/openscad, whose package main is
 # the tsc-built esm/ output, absent in a fresh worktree. Build it before the
