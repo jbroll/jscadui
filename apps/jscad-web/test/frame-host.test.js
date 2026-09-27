@@ -553,6 +553,20 @@ describe('trap retirement', () => {
     expect(lastSent(workers[1])).toMatchObject({ method: 'jscadMain', params: [{ params: { size: 3 }, stream: false }] })
   })
 
+  it('keeps one jscadInit in the mirror', () => {
+    const { workers, send } = withSpare()
+    send({ method: 'jscadInit', id: 4, params: [{ engine: 'jscad' }] })
+    answerLast(workers[0], {})
+    send({ method: 'jscadMain', id: 5, params: [{ params: {} }] })
+    failLast(workers[0], 'RuntimeError')
+
+    const fresh = workers.at(-1)
+    expect(fresh).not.toBe(workers[0])
+    const inits = fresh.postMessage.mock.calls.map(([m]) => m).filter((m) => m.method === 'jscadInit')
+    expect(inits).toHaveLength(1)
+    expect(inits[0].params[0].bundles['@jscad/modeling']).toBe(BASE + 'bundle.jscad_modeling.js')
+  })
+
   it('holds later requests until the reload finishes and keeps their order', () => {
     const { workers, send, posted, host } = withSpare()
     send({ method: 'jscadMain', id: 4, params: [{ params: {} }] })

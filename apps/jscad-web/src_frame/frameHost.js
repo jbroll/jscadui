@@ -188,6 +188,7 @@ export const createFrameHost = ({
   const mirror = (message) => {
     const { id: _id, ...setup } = message
     const kept = structuredClone(setup)
+    if (kept.method === 'jscadInit') state.mirrored = state.mirrored.filter((m) => m.method !== 'jscadInit')
     if (kept.method === 'jscadSetFiles') state.mirrored = state.mirrored.filter((m) => m.method === 'jscadInit')
     state.mirrored.push(kept)
     setupOf.set(message, kept)
