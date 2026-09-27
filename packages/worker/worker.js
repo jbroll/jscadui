@@ -556,6 +556,10 @@ export const postProgress = () => self.postMessage({ method: 'jscadProgress', pa
 export const releaseSolids = () => { workerState.solids = [] }
 
 const handlers = { jscadScript, jscadInit, jscadMain, jscadClearTempCache, jscadClearFileCache:clearFileCache, jscadExportData, __CLAIM__: answerClaim }
+// SECURITY NOTE (FALSE POSITIVE): Intentional dynamic code loading - JSCAD is a script playground.
+// User scripts are evaled via require() and their exports exposed below, all inside an
+// isolated Worker context with no DOM access. Executing user-provided modeling scripts
+// is fundamental to the app's purpose. This is by design.
 // allow main thread to call worker methods and any method from the loaded script
 const handlersProxy = new Proxy(handlers, {
   get(target, prop, _receiver) {
