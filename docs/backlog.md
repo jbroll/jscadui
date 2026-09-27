@@ -309,5 +309,3 @@ Async module loading is the breaking one; the rest are extractions.
 - **Params memory.** Class-input and color-picker listeners are never removed
   (params-ui); child proxies cache without bounds (params-core, confirmed).
   Fix together with the proxy-cache monitor item above.
-- **Decide: `packages/modeling-preview`.** Still present and unimported
-  anywhere. Remove it.
