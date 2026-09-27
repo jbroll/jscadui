@@ -11,11 +11,24 @@ const items = [
   "./01-basics/ALL.js",
   "./bosl/ALL.js",
   "./bosl2/ALL.js",
+  "./closepoints/ALL.js",
+  "./constructive/ALL.js",
   "./dotscad/examples/ALL.js",
+  "./gears/examples/ALL.js",
+  "./gridfinity/ALL.js",
+  "./list-comprehension-demos/ALL.js",
   "./mcad/examples/ALL.js",
   "./nopscadlib/NopSCADlib/tests/ALL.js",
+  "./obiscad/examples/ALL.js",
+  "./openscad-examples/ALL.js",
+  "./openscad-tests/scad/ALL.js",
+  "./relativity/ALL.js",
+  "./round-anything/ALL.js",
   "./snippet/ALL.js",
-  "./text/ALL.js"
+  "./text/ALL.js",
+  "./threadlib/threadlib/ALL.js",
+  "./threads-scad/ALL.js",
+  "./yapp-box/ALL.js"
 ]
 
 module.exports = gridModule(items, { spacing: 60, cellSize: 51 }, require)
