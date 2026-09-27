@@ -439,12 +439,26 @@ describe('trap retirement', () => {
     send({ method: 'jscadExportData', id: 5, params: [{ format: 'stla' }] })
     expect(lastSent(workers[1])).toMatchObject({ method: 'jscadScript', params: [{ script: 'main', runMain: false }] })
     answerLast(workers[1], { def: [], params: {} })
-    expect(lastSent(workers[1])).toMatchObject({ method: 'jscadMain', params: [{ params: { size: 2 }, stream: false, runId: 9 }] })
+    expect(lastSent(workers[1])).toMatchObject({ method: 'jscadMain', params: [{ params: { size: 2 }, stream: false }] })
     answerLast(workers[1], { entities: [] })
     expect(lastSent(workers[1])).toMatchObject({ method: 'jscadExportData', params: [{ format: 'stla' }] })
     answerLast(workers[1], { data: ['solid'] })
 
     expect(posted.slice(1)).toEqual([{ method: RESPONSE, id: 5, params: { data: ['solid'] } }])
+  })
+
+  it('replays without held or runId', () => {
+    const { workers, send } = withSpare()
+    send({ method: 'jscadMain', id: 4, params: [{ params: { size: 2 }, stream: true, runId: 9, held: [{ hash: 'abc' }] }] })
+    answerLast(workers[0], { entities: [], trapped: true })
+
+    send({ method: 'jscadExportData', id: 5, params: [{ format: 'stla' }] })
+    expect(lastSent(workers[1])).toMatchObject({ method: 'jscadScript' })
+    answerLast(workers[1], { def: [], params: {} })
+    const replay = lastSent(workers[1])
+    expect(replay.method).toBe('jscadMain')
+    expect(replay.params[0].held).toBeUndefined()
+    expect(replay.params[0].runId).toBeUndefined()
   })
 
   it('answers the request with the error when the reload fails', () => {
@@ -1213,7 +1227,7 @@ describe('grid runs', () => {
     vi.advanceTimersByTime(600)
     send({ method: 'jscadMain', id: 6, params: [{ params: {}, runId: 10, supersede: true }] })
     claimOn(workers[0], '1', { runId: 10 })
-    expect(lastOf(workers[3], 'jscadScript').params).toEqual([{ script: 'grid2', url: 'ALL.js', runId: 9, runMain: false }])
+    expect(lastOf(workers[3], 'jscadScript').params).toEqual([{ script: 'grid2', url: 'ALL.js', runMain: false }])
   })
 
   it('loads the last good script on a joiner after a load fails', () => {

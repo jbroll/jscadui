@@ -160,13 +160,20 @@ export const createPool = ({ state, slotOps, post, answerError, busy, inGrid, op
   // A worker without the model has the setup but not the script. Export,
   // measure and check read the solids of the last run, so those replay it as
   // well; with no run since the load, the load's own main is that run.
+  // A replay answers for the frame, so the worker must not hash meshes for
+  // an answer the frame drops: strip the app's held and runId.
+  const cleanReplay = (options) => {
+    const { held: _held, runId: _runId, ...kept } = options ?? {}
+    return kept
+  }
+
   const ensureLoaded = (slot, message, entry) => {
     slot.queued = [{ message, entry }]
     const script = scriptFor(entry)
     const needsSolids = NEEDS_SOLIDS.has(message.method)
-    const steps = [{ method: 'jscadScript', params: [{ ...script, runMain: needsSolids && !state.lastMain }] }]
+    const steps = [{ method: 'jscadScript', params: [{ ...cleanReplay(script), runMain: needsSolids && !state.lastMain }] }]
     if (needsSolids && state.lastMain) {
-      steps.push({ method: 'jscadMain', params: [{ ...state.lastMain, stream: false }] })
+      steps.push({ method: 'jscadMain', params: [{ ...cleanReplay(state.lastMain), stream: false }] })
     }
     const next = () => {
       const step = steps.shift()
