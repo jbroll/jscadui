@@ -83,6 +83,28 @@ describe('ParamsController', () => {
     })
   })
 
+  describe('validation', () => {
+    it('rejects an empty param path', () => {
+      const ctrl = createParamsController()
+      expect(() => ctrl.setParam('', 1)).toThrow()
+    })
+
+    it('coerces a numeric string when the stored value is a number', () => {
+      const ctrl = createParamsController()
+      ctrl.initFromResult({
+        proxyState: { types: {}, classes: {}, discovered: [] },
+        params: { radius: 5 }
+      })
+      ctrl.setParam('radius', '10')
+      expect(ctrl.params.radius).toBe(10)
+    })
+
+    it('rejects an empty class name', () => {
+      const ctrl = createParamsController()
+      expect(() => ctrl.setClass('front.left', '', 'unlink')).toThrow()
+    })
+  })
+
   describe('class linking', () => {
     let ctrl
 

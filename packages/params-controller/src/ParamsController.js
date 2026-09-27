@@ -74,7 +74,9 @@ export const createParamsController = () => {
    */
   const extractPartValues = (partPath, paramValues) => {
     // H5 fix: Guard against null/undefined paramValues
-    if (!paramValues) return {}
+    if (paramValues == null) return {}
+    if (typeof partPath !== 'string' || partPath === '') throw new TypeError('extractPartValues needs a part path')
+    if (typeof paramValues !== 'object') throw new TypeError('extractPartValues needs a params object')
     const prefix = partPath + '.'
     const values = {}
 
@@ -115,6 +117,13 @@ export const createParamsController = () => {
    * @returns {string[]} - All paths that were updated (for UI sync)
    */
   const setParam = (paramPath, value) => {
+    if (typeof paramPath !== 'string' || paramPath === '') throw new TypeError('setParam needs a param path')
+    // Settle 5 vs "5": inputs hand back strings, so coerce a numeric string
+    // when the stored value is already a number. Text params keep strings.
+    if (typeof value === 'string' && typeof params[paramPath] === 'number') {
+      const coerced = Number(value)
+      if (Number.isFinite(coerced)) value = coerced
+    }
     if (params[paramPath] === value) return []
 
     const { typesMap, classesMap } = getMaps()
@@ -149,12 +158,19 @@ export const createParamsController = () => {
   }
 
   /**
-   * Handle a class change
+   * Handle a class change. Synchronous and non-reentrant: it mutates params
+   * in place, so calling it again before it returns corrupts the move.
    * @param {string} partPath - The part whose class is changing
    * @param {string} newClass - The new class name
    * @param {ClassChangeMode} mode - How to change the class
    */
+  let inSetClass = false
   const setClass = (partPath, newClass, mode) => {
+    if (typeof partPath !== 'string' || partPath === '') throw new TypeError('setClass needs a part path')
+    if (typeof newClass !== 'string' || newClass === '') throw new TypeError('setClass needs a class name')
+    if (inSetClass) throw new Error('setClass is not reentrant')
+    inSetClass = true
+    try {
     const { typesMap, classesMap } = getMaps()
 
     // Get parts in current class
@@ -216,6 +232,11 @@ export const createParamsController = () => {
         }
         break
       }
+      default:
+        throw new TypeError(`setClass needs a valid mode, got ${String(mode)}`)
+    }
+    } finally {
+      inSetClass = false
     }
   }
 
