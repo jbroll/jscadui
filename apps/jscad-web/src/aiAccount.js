@@ -1,8 +1,11 @@
-// Account panel: session (Google sign-in/out), model selection, and provider
-// key custody. Non-secret selection lives in localStorage; the key itself
-// lives in @jscadui/key-store and attaches per request. Nothing here sends
-// the key anywhere but the API request body.
+// Account panel: gear-gated chat config. The drawer shows one header row
+// (sign-in for project sync on the left, gear on the right) plus a Provider
+// row; API key, model, base URL, and effort live in the gear dialog.
+// Non-secret selection lives in localStorage; the key itself lives in
+// @jscadui/key-store and attaches per request.
 import { createKeyStore } from '@jscadui/key-store'
+import { relayBaseUrl } from './aiChat.js'
+import { effortOptionsForModel } from './aiEffort.js'
 
 const SELECTION_KEY = 'jscad-ai.selection'
 
@@ -44,10 +47,10 @@ const setSelection = (selection) => {
 // The provider config the chat POSTs per turn, or null when incomplete.
 // Fail-closed: no key, no model, no turn.
 export const getProviderConfig = () => {
-  const { kind = 'anthropic', model = '', baseUrl = '' } = getSelection()
+  const { kind = 'anthropic', model = '', baseUrl = '', effort = '' } = getSelection()
   const apiKey = keyStore.get()
   if (!apiKey || !model) return null
-  return { kind, model, ...(baseUrl ? { baseUrl } : {}), apiKey }
+  return { kind, model, ...(baseUrl ? { baseUrl } : {}), ...(effort ? { effort } : {}), apiKey }
 }
 
 const getSession = async () => {
@@ -63,28 +66,55 @@ const getSession = async () => {
 
 export { getSession }
 
+const modelPlaceholders = { anthropic: 'claude-sonnet-4-5', openai: 'gpt-4o', 'opencode-go': 'deepseek-v4-flash', meta: 'muse-spark-1.3' }
+const KINDS = ['anthropic', 'openai', 'opencode-go', 'meta']
+
+const authHeaders = (kind, apiKey) =>
+  kind === 'anthropic'
+    ? { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' }
+    : { authorization: `Bearer ${apiKey}` }
+
+const modelsUrl = (kind, baseUrl) =>
+  baseUrl ? `${baseUrl.replace(/\/+$/, '')}/v1/models` : `${relayBaseUrl(kind)}/v1/models`
+
 /**
  * @param {HTMLElement} container
  */
 export const initAccount = (container) => {
-  container.append(el('h3', 'ai-section-title', 'Account'))
-  const sessionLine = el('div', 'ai-session', 'Checking session...')
-  const signIn = el('button', 'ai-button', 'Sign in with Google')
+  const selection = getSelection()
+  const state = {
+    kind: selection.kind ?? 'anthropic',
+    model: selection.model ?? '',
+    baseUrl: selection.baseUrl ?? '',
+    effort: selection.effort ?? '',
+    capabilities: new Map(),
+  }
+  const persistSelection = () => setSelection({ kind: state.kind, model: state.model, baseUrl: state.baseUrl, ...(state.effort ? { effort: state.effort } : {}) })
+
+  // Header row: sign-in state on the left, gear on the right.
+  const header = el('div', 'ai-header-row')
+  const signIn = el('button', 'ai-button', 'Sign in to Sync')
   signIn.type = 'button'
+  const sessionLine = el('span', 'ai-session', '')
   const signOut = el('button', 'ai-button', 'Sign out')
   signOut.type = 'button'
   signOut.style.display = 'none'
-  container.append(sessionLine, signIn, signOut)
+  const gear = el('button', 'ai-gear', '⚙')
+  gear.type = 'button'
+  gear.title = 'Chat settings'
+  gear.setAttribute('aria-label', 'Chat settings')
+  header.append(signIn, sessionLine, signOut, gear)
+  container.append(header)
 
   const refreshSession = async () => {
     const user = await getSession()
     if (user) {
-      sessionLine.textContent = `Signed in as ${user.email ?? user.name ?? 'user'}`
       signIn.style.display = 'none'
+      sessionLine.textContent = `${user.email ?? user.name ?? 'user'}`
       signOut.style.display = ''
     } else {
-      sessionLine.textContent = 'Not signed in — chat turns need an account.'
       signIn.style.display = ''
+      sessionLine.textContent = 'Sync is off — chat works with your key.'
       signOut.style.display = 'none'
     }
   }
@@ -105,24 +135,68 @@ export const initAccount = (container) => {
     refreshSession()
   })
 
-  container.append(el('h3', 'ai-section-title', 'Model'))
-  const modelPlaceholders = { anthropic: 'claude-sonnet-4-5', openai: 'gpt-4o', 'opencode-go': 'deepseek-v4-flash', meta: 'muse-spark-1.3' }
-  const selection = getSelection()
+  // Provider row stays visible; everything else lives behind the gear.
+  const providerRow = el('div', 'ai-provider-row')
   const kind = el('select', 'ai-input')
-  for (const value of ['anthropic', 'openai', 'opencode-go', 'meta']) {
+  for (const value of KINDS) {
     const option = el('option', '', value)
     option.value = value
     kind.append(option)
   }
-  kind.value = selection.kind ?? 'anthropic'
-  const model = textInput(selection.model ?? '', modelPlaceholders[selection.kind] ?? 'claude-sonnet-4-5')
-  kind.addEventListener('change', () => {
-    model.placeholder = modelPlaceholders[kind.value] ?? ''
-  })
-  const baseUrl = textInput(selection.baseUrl ?? '', 'base URL (openai-compatible only)')
-  container.append(field('Provider', kind), field('Model', model), field('Base URL', baseUrl))
+  kind.value = state.kind
+  providerRow.append(field('Provider', kind))
+  container.append(providerRow)
 
-  container.append(el('h3', 'ai-section-title', 'API key'))
+  const dialog = document.createElement('dialog')
+  dialog.className = 'ai-settings'
+
+  const modelSelect = el('select', 'ai-input')
+  modelSelect.classList.add('ai-model-select')
+  const modelInput = textInput(state.model, modelPlaceholders[state.kind] ?? '')
+  modelInput.classList.add('ai-model-input')
+  const syncModelControls = (models) => {
+    modelSelect.innerHTML = ''
+    for (const m of models) {
+      const option = el('option', '', m.id ?? m)
+      option.value = m.id ?? m
+      modelSelect.append(option)
+    }
+    if (state.model) {
+      if ([...modelSelect.options].some((o) => o.value === state.model)) modelSelect.value = state.model
+      else modelInput.value = state.model
+    }
+  }
+
+  const effortField = field('Effort', el('select', 'ai-input'))
+  const effortSelect = effortField.querySelector('select')
+  effortSelect.classList.add('ai-effort-select')
+  const effortWrap = effortField
+  const refreshEffort = () => {
+    const caps = state.capabilities.get(state.model) ?? null
+    const options = effortOptionsForModel({ kind: state.kind, modelId: state.model, capabilities: caps })
+    effortSelect.innerHTML = ''
+    for (const level of options) {
+      const option = el('option', '', level)
+      option.value = level
+      effortSelect.append(option)
+    }
+    if (!options.length) {
+      effortWrap.style.display = 'none'
+      state.effort = ''
+    } else {
+      effortWrap.style.display = ''
+      effortSelect.value = options.includes(state.effort) ? state.effort : options[0]
+      state.effort = effortSelect.value
+    }
+    persistSelection()
+  }
+
+  const baseUrl = textInput(state.baseUrl, 'base URL (openai-compatible only)')
+  baseUrl.classList.add('ai-base-input')
+  const advanced = document.createElement('details')
+  advanced.className = 'ai-advanced'
+  advanced.append(Object.assign(document.createElement('summary'), { textContent: 'Advanced' }), field('Base URL', baseUrl))
+
   const key = textInput('', 'sk-...', 'password')
   key.autocomplete = 'off'
   const mode = el('select', 'ai-input')
@@ -134,17 +208,73 @@ export const initAccount = (container) => {
   const clearKey = el('button', 'ai-button', 'Forget key')
   clearKey.type = 'button'
   const keyLine = el('div', 'ai-session', keyStore.get() ? 'Key set.' : 'No key set.')
-  container.append(field('Key', key), field('Keep', mode), field('Passphrase', passphrase), saveKey, clearKey, keyLine)
+  const closeBtn = el('button', 'ai-button', 'Close')
+  closeBtn.type = 'button'
 
-  const persistSelection = () => setSelection({ kind: kind.value, model: model.value.trim(), baseUrl: baseUrl.value.trim() })
-  kind.addEventListener('change', persistSelection)
-  model.addEventListener('change', persistSelection)
-  baseUrl.addEventListener('change', persistSelection)
+  dialog.append(
+    field('Model', modelSelect),
+    field('Or model id', modelInput),
+    effortWrap,
+    advanced,
+    field('Key', key),
+    field('Keep', mode),
+    field('Passphrase', passphrase),
+    saveKey, clearKey, keyLine, closeBtn,
+  )
+  container.append(dialog)
+
+  const openDialog = async () => {
+    if (typeof dialog.showModal === 'function') dialog.showModal()
+    else dialog.setAttribute('open', '')
+    const apiKey = keyStore.get()
+    if (!apiKey) return
+    try {
+      const res = await fetch(modelsUrl(state.kind, state.baseUrl), { headers: authHeaders(state.kind, apiKey) })
+      if (!res.ok) return
+      const body = await res.json()
+      const models = body?.data ?? []
+      if (!Array.isArray(models) || models.length === 0) return
+      state.capabilities = new Map(models.map((m) => [m.id, m.capabilities ?? null]))
+      syncModelControls(models)
+      refreshEffort()
+    } catch {
+      // Offline or relay failure: free-text input keeps the saved value.
+    }
+  }
+
+  gear.addEventListener('click', openDialog)
+  closeBtn.addEventListener('click', () => {
+    if (typeof dialog.close === 'function') dialog.close()
+    else dialog.removeAttribute('open')
+  })
+
+  kind.addEventListener('change', () => {
+    state.kind = kind.value
+    modelInput.placeholder = modelPlaceholders[state.kind] ?? ''
+    state.capabilities = new Map()
+    persistSelection()
+  })
+  modelSelect.addEventListener('change', () => {
+    state.model = modelSelect.value
+    modelInput.value = modelSelect.value
+    refreshEffort()
+  })
+  modelInput.addEventListener('change', () => {
+    state.model = modelInput.value.trim()
+    refreshEffort()
+  })
+  effortSelect.addEventListener('change', () => {
+    state.effort = effortSelect.value
+    persistSelection()
+  })
+  baseUrl.addEventListener('change', () => {
+    state.baseUrl = baseUrl.value.trim()
+    persistSelection()
+  })
 
   saveKey.addEventListener('click', async () => {
     try {
       if (!key.value) {
-        // No new key typed: unlock a stored synced key instead.
         await keyStore.unlock(passphrase.value)
       } else {
         await keyStore.set(key.value, mode.value, passphrase.value || undefined)
@@ -162,5 +292,6 @@ export const initAccount = (container) => {
     keyLine.textContent = 'No key set.'
   })
 
+  refreshEffort()
   refreshSession()
 }
