@@ -128,10 +128,6 @@ disposes its two intermediate transforms per geometry.
   `if($preview)` gates, so 9 nopscadlib models regressed (137/146 vs a
   146/146 clean-tree baseline on the same host). Ghosting needs tagged
   geometry the STL path strips, not a transpiler conditional.
-- **`$`-assignments in `hull()` child blocks use dead consts**: same defect
-  class as the boolean-block fix above (`transpileBuiltinHull` in
-  `statements.ts` emits `const` for every block assignment), still live.
-  A `hull() { $x = ...; ... }` block never sets the special variable.
 
 ## OpenSCAD comparison red on a clean tree (pre-existing, not PR112)
 

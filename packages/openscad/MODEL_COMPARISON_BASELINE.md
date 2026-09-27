@@ -15,7 +15,18 @@ and a third that can reach its `Asset_SCAD/` includes. Pointing CI at the
 
 Similarity threshold: **0.99** (Jaccard index on vertex-deduplicated STL meshes).
 
-## Latest GPU run: 2026-09-27, include order + BOSL2 echo grading
+## Latest GPU run: 2026-09-27, hull block scope
+
+Branch `worktree-next` (uncommitted working tree), simple-ci job
+`386cc9acca2d691a` (`sci push jscadui/test`), OpenSCAD 2026.08.30.fp. All
+21 suites pass, counts unchanged from the run below.
+
+`$`-assignments in `hull()` child blocks use dynamic scope
+(save/set/restore), as builtin-boolean blocks already do; before, they were
+renamed consts that modules called in the block never saw. No graded model
+covers it; `boolean-block-scope.test.ts` does.
+
+## Previous GPU run: 2026-09-27, include order + BOSL2 echo grading
 
 Branch `worktree-include-order` (uncommitted working tree), simple-ci job
 `cdb147ae4240ce5c` (`sci push jscadui/test`), OpenSCAD 2026.08.30.fp. All

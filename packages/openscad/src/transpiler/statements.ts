@@ -755,13 +755,23 @@ function transpileBuiltinHull(child: Statement | null, ctx: TranspileContext): s
         // separate geometry objects (hull(a,b) == hull(union(a,b)) but preserves intent).
         const suffix = generateScopeSuffix(ctx)
         const assignStrs: string[] = []
+        const specialSaves: string[] = []
+        const specialRestores: string[] = []
         const incrementalScope = new Map<string, string>()
 
         const geomCodes = withScope(ctx, incrementalScope, () => {
           for (const a of assignments) {
+            const value = transpileExpression(a.value!, ctx)
+            // Special variables use dynamic scope, as in transpileBuiltinBoolean.
+            if (a.name.startsWith('$')) {
+              const savedName = `_saved_${a.name.replace(/\$/g, '_')}${suffix}`
+              specialSaves.push(`const ${savedName} = j$.getSpecialVar('${a.name}')`)
+              assignStrs.push(`j$.setSpecialVar('${a.name}', ${value})`)
+              specialRestores.push(`j$.setSpecialVar('${a.name}', ${savedName})`)
+              continue
+            }
             const origName = safeIdentifier(a.name)
             const newName = `${origName}${suffix}`
-            const value = transpileExpression(a.value!, ctx)
             assignStrs.push(`const ${newName} = ${value}`)
             incrementalScope.set(origName, newName)
           }
@@ -773,6 +783,10 @@ function transpileBuiltinHull(child: Statement | null, ctx: TranspileContext): s
 
         if (geomCodes.length === 0) return 'undefined'
         ctx.codeGen.usedHulls = true
+        if (specialSaves.length > 0) {
+          const preamble = [...specialSaves, ...assignStrs].join('; ')
+          return `j$.hull(\n  ...(() => { ${preamble}; try { return [${geomCodes.join(', ')}] } finally { ${specialRestores.join('; ')} } })()\n)`
+        }
         return `j$.hull(\n  ...(() => { ${assignStrs.join('; ')}; return [${geomCodes.join(', ')}] })()\n)`
       }
 

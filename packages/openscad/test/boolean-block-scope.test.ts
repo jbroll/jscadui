@@ -45,4 +45,18 @@ describe('special assignments in boolean child blocks use dynamic scope', () => 
       sizesFor('$v = 1;\nmodule sized(n=$v) { cube(n); }\nunion() {\n $v = 7;\n sized();\n union() {\n $v = 9;\n sized();\n }\n sized();\n}\n')
     ).toEqual([7, 9, 7])
   })
+
+  it('hull block assignment is visible to children', () => {
+    expect(sizesFor('$v = 1;\nmodule sized(n=$v) { cube(n); }\nhull() {\n $v = 5;\n sized();\n}\n')).toEqual([5])
+  })
+
+  it('hull block reads its own special assignment directly', () => {
+    expect(sizesFor('$v = 1;\nhull() {\n $v = 4;\n cube($v);\n}\n')).toEqual([4])
+  })
+
+  it('hull block restores the outer value after the block', () => {
+    expect(
+      sizesFor('$v = 1;\nmodule sized(n=$v) { cube(n); }\nunion() {\n hull() {\n $v = 5;\n sized();\n }\n sized();\n}\n')
+    ).toEqual([5, 1])
+  })
 })
