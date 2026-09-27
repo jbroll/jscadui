@@ -117,6 +117,27 @@ describe('opencode session', () => {
     vi.unstubAllGlobals()
   })
 })
+describe('effort passthrough', () => {
+  it('passes effort from selection into the provider body', async () => {
+    const fetchMock = vi.fn(async () => new Response('data: [DONE]\n\n'))
+    vi.stubGlobal('fetch', fetchMock)
+    document.body.innerHTML = '<div id="chat"></div>'
+    initChat({
+      container: document.getElementById('chat'),
+      requestTool: async () => '{}',
+      getProvider: () => ({ kind: 'openai', model: 'm', apiKey: 'k', baseUrl: 'https://relay.test', effort: 'high' }),
+      runTurnFn: async ({ provider }) => {
+        for await (const e of provider.send([{ role: 'user', content: 'hi' }], [])) void e
+        return { messages: [] }
+      },
+    })
+    document.querySelector('.chat-input').value = 'hi'
+    document.querySelector('.chat-form').dispatchEvent(new Event('submit', { cancelable: true }))
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).reasoning_effort).toBe('high')
+    vi.unstubAllGlobals()
+  })
+})
 describe('relay base url', () => {
   it('builds per-kind relay paths under the default root', async () => {
     window.localStorage.removeItem('jscad-ai.relay')
