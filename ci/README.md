@@ -3,6 +3,10 @@
 Two ways to run the OpenSCAD comparison suite on the GPU host. Both end up in
 the simple-ci queue (`ci/gpu-test`).
 
+Pull requests are the CI channel **only for cloud sessions** that cannot
+reach simple-ci. Local terminal sessions verify with `sci push jscadui/test`
+(or `npm test`) and merge fast-forward into `main`, never through GitHub.
+
 | | simple-ci (`sci push jscadui/test`) | gpu-poll (`ci/gpu-poll.mjs`) |
 |---|---|---|
 | Source tree | rsync of your working tree, including uncommitted changes and generated examples | clean checkout of a PR's head commit, built by the server from `~/ci-workspace/jscadui` |
@@ -35,8 +39,9 @@ Runs are serial. A PR comment that is exactly `/gpu-retest`, from the owner, a
 member or a collaborator, re-runs the head commit. Use it after a run was
 killed (its status stays `pending`) or to confirm a suspected flake.
 
-PRs are only the CI channel. Merging stays fast-forward only (root `CLAUDE.md`);
-when a PR's commits reach `main`, GitHub marks the PR merged.
+PRs are only the CI channel for cloud sessions. Merging stays fast-forward only (root `CLAUDE.md`);
+when a PR's commits reach `main`, GitHub marks the PR merged. Local sessions
+never open PRs: verify, fast-forward, push.
 
 ### Trust gates
 

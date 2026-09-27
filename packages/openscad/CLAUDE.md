@@ -19,14 +19,15 @@ When debugging test failures:
 3. Full comparison runs on the GPU host (same `ci/test` either way)
 
 ```bash
-# Runs on GPU via simple-ci (when reachable from your session):
+# Runs on GPU via simple-ci (the local-session path):
 npm test          # rsyncs working tree, including uncommitted changes,
                   # streams log to stdout when done
 
-# Runs on GPU by committing: push the branch (open a PR if none).
-# ci/gpu-poll.mjs runs ci/gpu-test on the head commit and reports an
-# `openscad-gpu` commit status plus a PR comment. A `success` status on
-# the exact commit counts as GPU verification.
+# Cloud sessions that cannot reach simple-ci verify by committing instead:
+# push the branch and open a PR. ci/gpu-poll.mjs runs ci/gpu-test on the
+# head commit and reports an `openscad-gpu` commit status plus a PR comment.
+# A `success` status on the exact commit counts as GPU verification.
+# Local terminal sessions never open PRs: verify, fast-forward, push.
 
 # OK locally — single file or single suite:
 npx vitest run                                                      # unit tests (fast, local)
@@ -55,12 +56,11 @@ Setup: `ci/README.md`; session workflow: `docs/CLOUD_SESSION.md`.
 
 1. **Make one small, focused change** — a single logical modification to the transpiler
 2. **Run unit tests locally** — `npx vitest run` must pass (fast, seconds)
-3. **Commit on a branch and push** (open a PR if there is none) — pushing re-runs the full suite on the GPU host
-4. **Wait for `openscad-gpu` success on the exact head commit** — never stack unverified changes
-5. **Record the run in `MODEL_COMPARISON_BASELINE.md`** — new `Latest GPU run` section with commit, branch/PR, job id, OpenSCAD version, and the suite table
-6. **If a regression appears, fix it immediately** before moving on
+3. **Verify on the GPU host** — local sessions: `npm test`; cloud sessions without simple-ci: commit, push, open a PR and wait for `openscad-gpu` success on the exact head commit
+4. **Record the run in `MODEL_COMPARISON_BASELINE.md`** — new `Latest GPU run` section with commit, branch/PR, job id, OpenSCAD version, and the suite table (local sessions use the job id simple-ci reports)
+5. **If a regression appears, fix it immediately** before moving on — never stack unverified changes
 
-Never combine multiple transpiler changes into one commit. Never merge through GitHub; fast-forward `main` as in root `CLAUDE.md`, and GitHub marks the PR merged.
+Never combine multiple transpiler changes into one commit. Never merge through GitHub; fast-forward `main` as in root `CLAUDE.md`, and GitHub marks the PR merged. Local sessions never open PRs.
 
 **Baseline documentation** (`MODEL_COMPARISON_BASELINE.md`) is the source of truth:
 - Any deviation from 100% on baseline suites is a regression that must be fixed

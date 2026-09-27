@@ -2,9 +2,10 @@
 
 Triaged 2026-09-25 against `c3ee198` and carried forward onto `main` (`3699443`).
 Covers the dotSCAD, NopSCADlib and snippet entries of `skip.txt` (does not render)
-and `compare-skip.txt` (renders, but the STL comparison can't grade it). The
-suites added on `main` on 2026-09-25 (MCAD, constructive, relativity, etc.) are
-**not** triaged here.
+and `compare-skip.txt` (renders, but the STL comparison can't grade it), plus
+the openscad-tests text-only failures (graded on `echo()` output; see
+"Text-only models (openscad-tests)" below). The suites added on `main` on
+2026-09-25 (MCAD, constructive, relativity, etc.) are **not** triaged here.
 
 Evidence used: skip-list comments, `MODEL_COMPARISON_BASELINE.md`, source reading,
 and OpenSCAD 2026.09.23 `--backend=manifold` renders (two renders per model,
@@ -101,6 +102,23 @@ patches.
 | `examples/voronoi/ripple_sphere.scad`, `examples/voronoi/voronoi_vase.scad` | dotSCAD | OpenSCAD reference is non-manifold; no valid comparison |
 | `04-misc/Wood_Crate.scad` | snippet | OpenSCAD multi-colour export is non-manifold |
 | `04-misc/Scene_Test.scad` | snippet | `Import_Library.scad` / `Asset_SCAD` not in the snippet corpus |
+
+## Text-only models (openscad-tests) — stuck 2026-09-27
+
+Session `fix/text-only-is-let-skips` fixed and unskipped 19 models (single-arg
+builtin arity, `let()` duplicates, `lookup`/`min`/`max`/`cross`/`chr` guards,
+`each` over scalars, bitwise ops, right-associative `^`, top-level
+`children()`, tail-scope bounces, latin-1/NBSP sources, N-ary `minkowski`
+fold). The rest need architecture or features, not fixes:
+
+| Model | Blocker |
+|-------|---------|
+| `scad/functions/function-literal-tests.scad` | Mutual-recursion TCO (`chaining1↔chaining2`, 500k deep); the trampoline handles self-recursion only. Literal-callee and `$-function` dispatch fixes were prototyped and reverted with it. |
+| `scad/misc/scope-assignment-tests.scad`, `scad/misc/variable-scope-tests.scad` | Block-scope assignment redesign: OpenSCAD ignores anonymous `{}` scopes (last-wins, leaks outward) yet reads sequentially across scopes (`global_lookup` expects `5, 1`). A per-assignment suffix only converts the throw into an echo diff; reverted. |
+| `scad/misc/include-overwrite-main.scad` | Include-order bundling: included echoes must inline at the `include` line, but bundling hoists them first; transitive geometry storage regressed BOSL2 before. Entry-alias (`main_$entry`) fix reverted with it. |
+| `scad/misc/text-metrics-test.scad` | Unimplemented `textmetrics()` builtin plus font-file `use` handling. |
+| `scad/3D/issues/issue1671.scad` | Degenerate flat `minkowski` inputs: OpenSCAD hard-crashes to empty, ours yields geometry. (N-ary sums fold pairwise correctly, Jaccard 1.0.) |
+| `scad/bugs2D/issue2220.scad` | Degenerate hull: OpenSCAD CGAL-errors to empty. |
 
 ## Stale skip lists
 
