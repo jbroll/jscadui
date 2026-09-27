@@ -1,0 +1,82 @@
+// Same-origin relay for local startup: forwards user-keyed provider requests,
+// streams responses back, stores nothing. Plain node:http so the startup script
+// needs no express/TS build.
+import { readFileSync } from 'node:fs'
+
+const FORWARD = new Set(['content-type', 'accept', 'authorization', 'x-api-key', 'anthropic-version', 'anthropic-beta', 'x-opencode-session'])
+
+export const loadAllowlist = (path) => {
+  const parsed = JSON.parse(readFileSync(path, 'utf-8'))
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) throw new Error('relay: allowlist must be a {name: url} object')
+  return parsed
+}
+
+export const defaultAllowlist = () => ({
+  anthropic: 'https://api.anthropic.com',
+  openai: 'https://api.openai.com',
+})
+
+export const createRelayHandler = ({ allowlist, trustedOrigins, allowPrivateUpstream = false }) => {
+  const allowed = new Set(trustedOrigins)
+  const hits = new Map()
+  return async (req, res) => {
+    const m = (req.url ?? '').match(/^\/api\/relay\/([^/]+)(\/.*)?$/)
+    if (!m || req.method !== 'POST') return false
+    const origin = req.headers.origin
+    if (typeof origin !== 'string' || !allowed.has(origin)) {
+      res.writeHead(403, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ error: 'untrusted origin' }))
+      return true
+    }
+    const now = Date.now()
+    const seen = (hits.get(req.socket.remoteAddress ?? '') ?? []).filter((t) => now - t < 60_000)
+    if (seen.length >= 60) {
+      res.writeHead(429, { 'content-type': 'application/json', 'retry-after': '60' })
+      res.end(JSON.stringify({ error: 'rate limited' }))
+      return true
+    }
+    seen.push(now)
+    hits.set(req.socket.remoteAddress ?? '', seen)
+    const base = allowlist[m[1]]
+    if (!base) {
+      res.writeHead(404, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ error: 'unknown provider' }))
+      return true
+    }
+    const sub = (m[2] ?? '').replace(/^\/+/, '')
+    if (sub.split('/').includes('..')) {
+      res.writeHead(400, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ error: 'path traversal refused' }))
+      return true
+    }
+    const upstream = `${base.replace(/\/+$/, '')}/${sub}`
+    if (!allowPrivateUpstream && /127\.|localhost|10\.|192\.168\./.test(new URL(upstream).hostname)) {
+      res.writeHead(400, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ error: 'private upstream refused' }))
+      return true
+    }
+    const headers = {}
+    for (const [k, v] of Object.entries(req.headers)) {
+      if (FORWARD.has(k.toLowerCase()) && typeof v === 'string') headers[k] = v
+    }
+    const chunks = []
+    for await (const c of req) chunks.push(c)
+    let up
+    try {
+      up = await fetch(upstream, { method: 'POST', headers, body: Buffer.concat(chunks) })
+    } catch {
+      res.writeHead(502, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ error: 'upstream unreachable' }))
+      return true
+    }
+    res.writeHead(up.status, {
+      ...(up.headers.get('content-type') ? { 'content-type': up.headers.get('content-type') } : {}),
+      'cache-control': 'no-cache',
+      'access-control-allow-origin': origin,
+      vary: 'Origin',
+    })
+    if (up.body) for await (const c of up.body) res.write(c)
+    res.end()
+    return true
+  }
+}
