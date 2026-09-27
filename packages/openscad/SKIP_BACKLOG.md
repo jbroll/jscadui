@@ -148,6 +148,17 @@ sides and caps are built. The model passes again, with a regression test on
 the dumped magatama outline (`test/twist-taiji-outline.ts`: 76 open edges
 before, 0 after).
 
+**customizer re-export (2026-09-27).** The deploy smoke caught
+`mcad/examples/hardware_test.scad` failing to load: `ReferenceError:
+getParameterDefinitions is not defined`. A file with no customizer parameters
+that includes one with parameters (`hardware_test.scad` including
+`mcad/hardware.scad`) re-exported the include's `getParameterDefinitions`
+in its own `Object.assign(exports, {...})` without ever defining the binding.
+`include` inlines the dependency's code, but `getParameterDefinitions` is
+file-local, so an include's copy is now filtered out of the re-exports.
+Regression test in `test/customizer.test.ts` loads such a module and asserts
+the export is absent; it fails on the old emit and passes with the fix.
+
 ## P3 — keep skipped
 
 | Model | Suite | Reason |
