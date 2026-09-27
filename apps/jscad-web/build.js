@@ -62,7 +62,9 @@ const frameHtmlFilter = {
 }
 
 const watch = dev
-const outDir = dev ? 'build_dev' : 'build'
+// JSCAD_OUT_DIR lets the single-script local starter build a matching
+// app+frame pair (build_local/) without touching build/ or build_dev/.
+const outDir = process.env.JSCAD_OUT_DIR || (dev ? 'build_dev' : 'build')
 // Docs come from the sibling OpenJSCAD.org checkout that also provides @jscad/modeling.
 const jscadDir = '../../../OpenJSCAD.org'
 const docsDir = jscadDir + '/docs'

@@ -5,10 +5,10 @@
 // /models/, and a same-origin /api/relay so AI Chat works with your own key.
 import { existsSync } from 'node:fs'
 import { stat } from 'node:fs/promises'
-import { spawnSync } from 'node:child_process'
 import { basename, dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { resolveEntry } from './local/resolveEntry.js'
+import { ensureLocalBuild } from './local/build.js'
 import { openBrowser } from './local/openBrowser.js'
 import { scaffoldStarter } from './local/scaffold.js'
 import { createRelayHandler, defaultAllowlist, loadAllowlist } from './local/relay.js'
@@ -27,15 +27,12 @@ if (!st) { console.error(`jscad: no such file or directory: ${target}`); process
 const modelDir = st.isDirectory() ? target : dirname(target)
 const explicitFile = st.isDirectory() ? undefined : basename(target)
 
-const pick = ['build', 'build_dev'].map((d) => join(webDir, d)).find((d) => existsSync(join(d, 'index.html')))
-let out = pick
-if (!out || args.includes('--build')) {
-  if (args.includes('--no-build')) { console.error('jscad: no build output; run `npm run build` in apps/jscad-web or pass --build'); process.exit(1) }
-  console.log('jscad: building web bundles…')
-  const r = spawnSync('node', ['build.js', '--skipDocs'], { cwd: webDir, stdio: 'inherit' })
-  if (r.status !== 0) process.exit(r.status ?? 1)
-  out = join(webDir, existsSync(join(webDir, 'build', 'index.html')) ? 'build' : 'build_dev')
-}
+const out = await ensureLocalBuild({
+  webDir,
+  port,
+  force: args.includes('--build'),
+  noBuild: args.includes('--no-build'),
+}).catch((e) => { console.error(e.message); process.exit(1) })
 let entry
 try {
   entry = await resolveEntry(modelDir, explicitFile ? { explicitFile } : {})
@@ -53,6 +50,6 @@ const allowlist = process.env.RELAY_ALLOWLIST && existsSync(process.env.RELAY_AL
 const origin = `http://localhost:${port}`
 const relayHandler = createRelayHandler({ allowlist, trustedOrigins: [origin] })
 const { url } = await startLocal({ appDir: out, frameDir: join(out, 'frame'), modelDir, relayHandler, port })
-const page = `${url}/#url=${urlPath}`
+const page = `${url}/#${urlPath}`
 console.log(`jscad: ${modelDir} → ${page}  (frame :${port + 1})`)
 if (!args.includes('--no-open') && !process.env.JSCAD_NO_OPEN) await openBrowser(page)
