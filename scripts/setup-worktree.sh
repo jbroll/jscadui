@@ -80,9 +80,11 @@ for d in node_modules .deps-cache; do
 done
 
 # Workspace packages keep their own node_modules (per-package dev deps such
-# as typescript); link the ones missing in the worktree.
+# as typescript); link the ones missing in the worktree. Packages absent
+# from the worktree (added or removed on either side) are skipped: linking
+# them would fail or leave phantom dirs.
 while IFS= read -r d; do
-  if [ ! -e "$worktree/$d" ] && [ -d "$main/$d" ]; then
+  if [ ! -e "$worktree/$d" ] && [ -d "$main/$d" ] && [ -d "$worktree/$(dirname "$d")" ]; then
     ln -s "$main/$d" "$worktree/$d"
     echo "linked: $d -> $main/$d"
   fi
