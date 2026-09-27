@@ -89,10 +89,11 @@ while IFS= read -r d; do
   fi
 done < <(cd "$main" && find packages apps file-format -maxdepth 3 -name node_modules -type d 2>/dev/null)
 
-# Sibling checkouts beside the main checkout (rowboat, OpenJSCAD.org).
+# Sibling checkouts beside the main checkout (rowboat, OpenJSCAD.org, and
+# simple-ci for the openscad package's `npm test`).
 # From the worktree they resolve beside it, at <worktree>/../<sibling>.
 wt_parent="$(dirname "$worktree")"
-for s in rowboat OpenJSCAD.org; do
+for s in rowboat OpenJSCAD.org simple-ci; do
   if [ -e "$wt_parent/$s" ]; then
     echo "keep: $s already beside worktrees"
   elif [ -d "$main/../$s" ]; then
