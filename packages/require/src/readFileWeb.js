@@ -1,7 +1,25 @@
 // it is possible to read binary data
 // https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest/Sending_and_Receiving_Binary_Data
 
+// Burst guard: sync XHR cannot queue or back off, so a runaway model fails
+// fast instead of hammering the CDN. Real throttling (fetch + concurrency
+// limit) waits on the async module loading refactor.
+const requestTimes = []
+export const READ_FILE_BURST_LIMIT = 200
+export const READ_FILE_BURST_WINDOW_MS = 1000
+export const resetReadFileRateLimit = () => { requestTimes.length = 0 }
+
+const checkBurst = () => {
+  const now = Date.now()
+  while (requestTimes.length && now - requestTimes[0] > READ_FILE_BURST_WINDOW_MS) requestTimes.shift()
+  if (requestTimes.length >= READ_FILE_BURST_LIMIT) {
+    throw new Error(`rate limited: more than ${READ_FILE_BURST_LIMIT} CDN requests in ${READ_FILE_BURST_WINDOW_MS}ms`)
+  }
+  requestTimes.push(now)
+}
+
 export const readFileWeb = (path, {base = '', output='text'}={}) => {
+  checkBurst()
   const req = new XMLHttpRequest()
   // If path is already an absolute URL, ignore base parameter
   const isAbsoluteUrl = path.startsWith('http://') || path.startsWith('https://')
