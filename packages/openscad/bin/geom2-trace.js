@@ -13,7 +13,9 @@
  * Usage:
  *   node packages/openscad/bin/geom2-trace.js model.scad [--engine jscad] [--lib-path <p>] [--fn <n>] [--all] [--preview]
  *
- * --dump <file> writes the first open result's operands as JSON, so the one
+ * A boolean that throws on geom2 operands is reported the same way.
+ *
+ * --dump <file> writes the first failing call's operands as JSON, so the one
  * boolean call can be replayed on its own without the model around it.
  */
 
@@ -82,7 +84,22 @@ const { measureEpsilon, measureBoundingBox } = ctx.jscadModeling.measurements
 let reported = 0
 
 const wrap = (name, fn) => (...args) => {
-  const result = fn(...args)
+  let result
+  try {
+    result = fn(...args)
+  } catch (err) {
+    const inputs = args.flat(Infinity).filter((a) => geom2.isA(a))
+    if (inputs.length) {
+      console.log(`\n${name}() threw: ${err.message}`)
+      console.log(`  inputs: ${inputs.map((g) => `${geom2.toSides(g).length} sides`).join(', ')}`)
+      if (opts.dump && reported === 0) {
+        writeFileSync(opts.dump, JSON.stringify({ op: name, operands: inputs.map((g) => geom2.toSides(g)) }))
+        console.log(`  operands written to ${opts.dump}`)
+      }
+      reported++
+    }
+    throw err
+  }
   if (!geom2.isA(result)) return result
   const sides = geom2.toSides(result)
   const dangling = danglingVertices(sides)
