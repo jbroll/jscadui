@@ -661,9 +661,21 @@ page holds the conversation, calls the provider, and serves each tool request
 itself through `src/aiBridge.js`. Provider HTTP goes through `/api/relay`,
 which exists only because providers do not send CORS headers; it keeps no
 session and no storage, checks the caller's origin, resolves the upstream host
-at forward time and refuses private addresses. It forwards an allowlist of
+at forward time and refuses private addresses. Browsers send no `Origin` on a
+same-origin GET, so the model-list GET from the app's own origin passes on
+`Sec-Fetch-Site: same-origin` instead. It forwards an allowlist of
 headers (content type, accept, provider auth and version, the opencode
 session), so the session cookie never reaches a provider.
+
+Chat settings live in the drawer's gear dialog (`src/aiAccount.js`), in the
+order a user fills them: provider, API key and its custody mode, model, effort,
+then base URL under Advanced. Saving a key, changing the provider or changing
+the base URL GETs `/v1/models` through the relay (or `{baseUrl}/v1/models`) and
+fills the model select; the status line under it shows the count or the HTTP
+failure, and a custom model id stays available either way. Effort options come
+from `src/aiEffort.js`: Anthropic's list carries per-model effort support, the
+other kinds get their documented level set, and Meta Muse models drop `none`,
+which Meta answers with a 400.
 
 Tools and where they run:
 

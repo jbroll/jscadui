@@ -14,6 +14,8 @@ export const loadAllowlist = (path) => {
 export const defaultAllowlist = () => ({
   anthropic: 'https://api.anthropic.com',
   openai: 'https://api.openai.com',
+  'opencode-go': 'https://opencode.ai/zen/go',
+  meta: 'https://api.meta.ai',
 })
 
 export const createRelayHandler = ({ allowlist, trustedOrigins, allowPrivateUpstream = false }) => {
@@ -21,9 +23,11 @@ export const createRelayHandler = ({ allowlist, trustedOrigins, allowPrivateUpst
   const hits = new Map()
   return async (req, res) => {
     const m = (req.url ?? '').match(/^\/api\/relay\/([^/]+)(\/.*)?$/)
-    if (!m || req.method !== 'POST') return false
+    if (!m || (req.method !== 'POST' && req.method !== 'GET')) return false
     const origin = req.headers.origin
-    if (typeof origin !== 'string' || !allowed.has(origin)) {
+    // Browsers omit Origin on a same-origin GET.
+    const sameOrigin = origin === undefined && req.headers['sec-fetch-site'] === 'same-origin'
+    if (!sameOrigin && (typeof origin !== 'string' || !allowed.has(origin))) {
       res.writeHead(403, { 'content-type': 'application/json' })
       res.end(JSON.stringify({ error: 'untrusted origin' }))
       return true
@@ -63,7 +67,7 @@ export const createRelayHandler = ({ allowlist, trustedOrigins, allowPrivateUpst
     for await (const c of req) chunks.push(c)
     let up
     try {
-      up = await fetch(upstream, { method: 'POST', headers, body: Buffer.concat(chunks) })
+      up = await fetch(upstream, { method: req.method, headers, ...(req.method === 'POST' ? { body: Buffer.concat(chunks) } : {}) })
     } catch {
       res.writeHead(502, { 'content-type': 'application/json' })
       res.end(JSON.stringify({ error: 'upstream unreachable' }))
@@ -72,8 +76,7 @@ export const createRelayHandler = ({ allowlist, trustedOrigins, allowPrivateUpst
     res.writeHead(up.status, {
       ...(up.headers.get('content-type') ? { 'content-type': up.headers.get('content-type') } : {}),
       'cache-control': 'no-cache',
-      'access-control-allow-origin': origin,
-      vary: 'Origin',
+      ...(origin ? { 'access-control-allow-origin': origin, vary: 'Origin' } : {}),
     })
     if (up.body) for await (const c of up.body) res.write(c)
     res.end()

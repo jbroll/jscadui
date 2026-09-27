@@ -44,6 +44,13 @@ describe('relay', () => {
       expect(await res.text()).toContain('/v1/chat')
     })
   })
+  it('forwards a GET such as the model list', async () => {
+    await withServers(async (base) => {
+      const res = await fetch(`${base}/api/relay/test/v1/models`, { headers: { origin: 'http://app.test' } })
+      expect(res.status).toBe(200)
+      expect(await res.text()).toBe('echo:/v1/models:')
+    })
+  })
   it('403s an untrusted origin', async () => {
     await withServers(async (base) => {
       const res = await fetch(`${base}/api/relay/test/v1/chat`, {

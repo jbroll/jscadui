@@ -65,6 +65,62 @@ describe('account header', () => {
     await new Promise((r) => setTimeout(r, 20))
     expect(document.querySelector('.ai-model-input').value).toBe('kept-model')
   })
+
+  const modelsFetch = (byKind) => vi.fn(async (url) => {
+    if (String(url).includes('/api/auth/')) return new Response(JSON.stringify({}), { status: 401 })
+    const kind = String(url).match(/\/api\/relay\/([^/]+)\//)?.[1]
+    const ids = byKind[kind]
+    if (!ids) return new Response('nope', { status: 404 })
+    return new Response(JSON.stringify({ data: ids.map((id) => ({ id })) }), { headers: { 'content-type': 'application/json' } })
+  })
+
+  it('loads the model list as soon as a key is saved', async () => {
+    const { initAccount, keyStore } = await loadAccount()
+    keyStore.clear()
+    localStorage.setItem('jscad-ai.selection', JSON.stringify({ kind: 'meta' }))
+    globalThis.fetch = modelsFetch({ meta: ['muse-spark-1.3', 'muse-spark-1.2'] })
+    document.body.innerHTML = '<div id="a"></div>'
+    initAccount(document.getElementById('a'))
+    document.querySelector('.ai-gear').click()
+    document.querySelector('.ai-key-input').value = 'sk-meta'
+    document.querySelector('.ai-save-key').click()
+    await vi.waitFor(() => expect(document.querySelector('.ai-model-select').options.length).toBe(2))
+    expect(document.querySelector('.ai-model-status').textContent).toMatch(/2 models/)
+  })
+
+  it('reloads the model list when the provider changes', async () => {
+    const { initAccount, keyStore } = await loadAccount()
+    await keyStore.set('sk-x', 'session')
+    localStorage.setItem('jscad-ai.selection', JSON.stringify({ kind: 'openai' }))
+    globalThis.fetch = modelsFetch({ openai: ['gpt-x'], meta: ['muse-a', 'muse-b', 'muse-c'] })
+    document.body.innerHTML = '<div id="a"></div>'
+    initAccount(document.getElementById('a'))
+    document.querySelector('.ai-gear').click()
+    await vi.waitFor(() => expect(document.querySelector('.ai-model-select').options.length).toBe(1))
+    const provider = document.querySelector('.ai-provider-select')
+    provider.value = 'meta'
+    provider.dispatchEvent(new Event('change'))
+    await vi.waitFor(() => expect(document.querySelector('.ai-model-select').options.length).toBe(3))
+  })
+
+  it('reports a failed model fetch with its status', async () => {
+    const { initAccount, keyStore } = await loadAccount()
+    await keyStore.set('sk-x', 'session')
+    localStorage.setItem('jscad-ai.selection', JSON.stringify({ kind: 'meta' }))
+    globalThis.fetch = modelsFetch({})
+    document.body.innerHTML = '<div id="a"></div>'
+    initAccount(document.getElementById('a'))
+    document.querySelector('.ai-gear').click()
+    await vi.waitFor(() => expect(document.querySelector('.ai-model-status').textContent).toMatch(/404/))
+  })
+
+  it('orders the dialog fields provider, key, models, effort', async () => {
+    const { initAccount } = await loadAccount()
+    document.body.innerHTML = '<div id="a"></div>'
+    initAccount(document.getElementById('a'))
+    const names = [...document.querySelectorAll('.ai-settings .ai-field-name')].map((n) => n.textContent)
+    expect(names).toEqual(['Provider', 'API key', 'Keep', 'Passphrase', 'Model', 'Custom model id', 'Effort', 'Base URL'])
+  })
 })
 
 describe('aiEffort', () => {

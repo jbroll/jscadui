@@ -97,12 +97,14 @@ test.describe('AI chat', () => {
     await page.locator('#ai-chat-btn').click()
     await expect(page.locator('#ai-chat')).toBeVisible()
 
-    await page.locator('#ai-account input[placeholder="claude-sonnet-4-5"]').fill('stub-model')
-    await page.locator('#ai-account select').first().selectOption('openai')
-    await page.locator('#ai-account select').nth(1).selectOption('device')
-    await page.locator('#ai-account input[placeholder="sk-..."]').fill('sk-test')
-    await page.locator('#ai-account button', { hasText: 'Save key' }).click()
-    await expect(page.locator('#ai-account')).toContainText('Key set.')
+    await page.locator('.ai-gear').click()
+    await page.locator('.ai-provider-select').selectOption('openai')
+    await page.locator('.ai-model-input').fill('stub-model')
+    await page.locator('.ai-model-input').dispatchEvent('change')
+    await page.getByLabel('Keep').selectOption('device')
+    await page.locator('.ai-key-input').fill('sk-test')
+    await page.locator('.ai-save-key').click()
+    await expect(page.locator('.ai-settings')).toContainText('Key set.')
 
     const stub = await startStubRelay()
     await page.addInitScript((port) => {

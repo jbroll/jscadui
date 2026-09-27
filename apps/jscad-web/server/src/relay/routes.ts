@@ -70,14 +70,17 @@ export function mountRelayRoutes(app: Express, options: RelayRouteOptions): void
   const limiter = createLimiter({ ratePerMin: 60, burst: 10 })
   const allowed = new Set(options.trustedOrigins)
 
+  // Browsers omit Origin on a same-origin GET, so the model list from the
+  // app's own origin arrives with only Sec-Fetch-Site to vouch for it.
   const corsFor = (req: Request, res: Response): boolean => {
     const origin = req.headers.origin
-    if (typeof origin === 'string' && allowed.has(origin)) {
+    if (typeof origin === 'string') {
+      if (!allowed.has(origin)) return false
       res.setHeader('Access-Control-Allow-Origin', origin)
       res.setHeader('Vary', 'Origin')
       return true
     }
-    return false
+    return req.headers['sec-fetch-site'] === 'same-origin'
   }
 
   app.options('/api/relay/*splat', (req, res) => {

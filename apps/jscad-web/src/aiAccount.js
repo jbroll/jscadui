@@ -1,6 +1,6 @@
 // Account panel: gear-gated chat config. The drawer shows one header row
-// (sign-in for project sync on the left, gear on the right) plus a Provider
-// row; API key, model, base URL, and effort live in the gear dialog.
+// (sign-in for project sync on the left, gear on the right) plus a
+// provider · model summary; every setting lives in the gear dialog.
 // Non-secret selection lives in localStorage; the key itself lives in
 // @jscadui/key-store and attaches per request.
 import { createKeyStore } from '@jscadui/key-store'
@@ -135,23 +135,26 @@ export const initAccount = (container) => {
     refreshSession()
   })
 
-  // Provider row stays visible; everything else lives behind the gear.
-  const providerRow = el('div', 'ai-provider-row')
-  const kind = el('select', 'ai-input')
+  const summary = el('div', 'ai-session ai-summary')
+  const refreshSummary = () => {
+    summary.textContent = state.model ? `${state.kind} · ${state.model}` : `${state.kind} · no model set`
+  }
+  container.append(summary)
+
+  const dialog = document.createElement('dialog')
+  dialog.className = 'ai-settings'
+
+  const kind = el('select', 'ai-input ai-provider-select')
   for (const value of KINDS) {
     const option = el('option', '', value)
     option.value = value
     kind.append(option)
   }
   kind.value = state.kind
-  providerRow.append(field('Provider', kind))
-  container.append(providerRow)
-
-  const dialog = document.createElement('dialog')
-  dialog.className = 'ai-settings'
 
   const modelSelect = el('select', 'ai-input')
   modelSelect.classList.add('ai-model-select')
+  const modelStatus = el('div', 'ai-session ai-model-status', '')
   const modelInput = textInput(state.model, modelPlaceholders[state.kind] ?? '')
   modelInput.classList.add('ai-model-input')
   const syncModelControls = (models) => {
@@ -161,10 +164,12 @@ export const initAccount = (container) => {
       option.value = m.id ?? m
       modelSelect.append(option)
     }
-    if (state.model) {
-      if ([...modelSelect.options].some((o) => o.value === state.model)) modelSelect.value = state.model
-      else modelInput.value = state.model
+    if (!state.model && modelSelect.options.length) {
+      state.model = modelSelect.value
+      modelInput.value = state.model
     }
+    if ([...modelSelect.options].some((o) => o.value === state.model)) modelSelect.value = state.model
+    else modelInput.value = state.model
   }
 
   const effortField = field('Effort', el('select', 'ai-input'))
@@ -189,6 +194,7 @@ export const initAccount = (container) => {
       state.effort = effortSelect.value
     }
     persistSelection()
+    refreshSummary()
   }
 
   const baseUrl = textInput(state.baseUrl, 'base URL (openai-compatible only)')
@@ -198,61 +204,96 @@ export const initAccount = (container) => {
   advanced.append(Object.assign(document.createElement('summary'), { textContent: 'Advanced' }), field('Base URL', baseUrl))
 
   const key = textInput('', 'sk-...', 'password')
+  key.classList.add('ai-key-input')
   key.autocomplete = 'off'
   const mode = el('select', 'ai-input')
   for (const value of ['session', 'device', 'synced']) mode.append(Object.assign(el('option'), { value, textContent: value }))
   mode.value = 'session'
-  const passphrase = textInput('', 'passphrase (synced mode)', 'password')
-  const saveKey = el('button', 'ai-button', 'Save key')
+  const passphrase = textInput('', 'synced mode only', 'password')
+  const saveKey = el('button', 'ai-button ai-save-key', 'Save key')
   saveKey.type = 'button'
   const clearKey = el('button', 'ai-button', 'Forget key')
   clearKey.type = 'button'
-  const keyLine = el('div', 'ai-session', keyStore.get() ? 'Key set.' : 'No key set.')
+  const keyLine = el('span', 'ai-session', keyStore.get() ? 'Key set.' : 'No key set.')
+  const keyActions = el('div', 'ai-actions')
+  keyActions.append(saveKey, clearKey, keyLine)
   const closeBtn = el('button', 'ai-button', 'Close')
   closeBtn.type = 'button'
+  const footer = el('div', 'ai-dialog-footer')
+  footer.append(closeBtn)
 
   dialog.append(
-    field('Model', modelSelect),
-    field('Or model id', modelInput),
-    effortWrap,
-    advanced,
-    field('Key', key),
+    el('h2', 'ai-dialog-title', 'Chat settings'),
+    field('Provider', kind),
+    field('API key', key),
     field('Keep', mode),
     field('Passphrase', passphrase),
-    saveKey, clearKey, keyLine, closeBtn,
+    keyActions,
+    field('Model', modelSelect),
+    modelStatus,
+    field('Custom model id', modelInput),
+    effortWrap,
+    advanced,
+    footer,
   )
   container.append(dialog)
 
-  const openDialog = async () => {
-    if (typeof dialog.showModal === 'function') dialog.showModal()
-    else dialog.setAttribute('open', '')
+  let modelsRequest = 0
+  const loadModels = async () => {
+    const request = ++modelsRequest
     const apiKey = keyStore.get()
-    if (!apiKey) return
+    if (!apiKey) {
+      modelStatus.textContent = 'Save an API key to load the model list.'
+      return
+    }
+    modelStatus.textContent = 'Loading models…'
     try {
       const res = await fetch(modelsUrl(state.kind, state.baseUrl), { headers: authHeaders(state.kind, apiKey) })
-      if (!res.ok) return
+      if (request !== modelsRequest) return
+      if (!res.ok) {
+        const detail = (await res.text().catch(() => '')).slice(0, 160)
+        modelStatus.textContent = `Models failed: ${res.status}${detail ? ` ${detail}` : ''}`
+        return
+      }
       const body = await res.json()
-      const models = body?.data ?? []
-      if (!Array.isArray(models) || models.length === 0) return
+      if (request !== modelsRequest) return
+      const models = Array.isArray(body?.data) ? body.data : []
+      if (models.length === 0) {
+        modelStatus.textContent = 'No models listed. Enter a model id below.'
+        return
+      }
       state.capabilities = new Map(models.map((m) => [m.id, m.capabilities ?? null]))
       syncModelControls(models)
+      modelStatus.textContent = `${models.length} models`
       refreshEffort()
-    } catch {
-      // Offline or relay failure: free-text input keeps the saved value.
+    } catch (err) {
+      if (request === modelsRequest) modelStatus.textContent = `Models failed: ${err.message}`
     }
   }
 
-  gear.addEventListener('click', openDialog)
-  closeBtn.addEventListener('click', () => {
+  const closeDialog = () => {
     if (typeof dialog.close === 'function') dialog.close()
     else dialog.removeAttribute('open')
+  }
+  gear.addEventListener('click', () => {
+    if (typeof dialog.showModal === 'function') dialog.showModal()
+    else dialog.setAttribute('open', '')
+    loadModels()
+  })
+  closeBtn.addEventListener('click', closeDialog)
+  dialog.addEventListener('click', (event) => {
+    if (event.target === dialog) closeDialog()
   })
 
   kind.addEventListener('change', () => {
     state.kind = kind.value
+    state.model = ''
+    modelInput.value = ''
     modelInput.placeholder = modelPlaceholders[state.kind] ?? ''
+    modelSelect.innerHTML = ''
     state.capabilities = new Map()
-    persistSelection()
+    refreshEffort()
+    loadModels()
   })
   modelSelect.addEventListener('change', () => {
     state.model = modelSelect.value
@@ -270,6 +311,7 @@ export const initAccount = (container) => {
   baseUrl.addEventListener('change', () => {
     state.baseUrl = baseUrl.value.trim()
     persistSelection()
+    loadModels()
   })
 
   saveKey.addEventListener('click', async () => {
@@ -282,6 +324,7 @@ export const initAccount = (container) => {
       }
       persistSelection()
       keyLine.textContent = 'Key set.'
+      loadModels()
     } catch (err) {
       keyLine.textContent = `Key failed: ${err.message}`
     }

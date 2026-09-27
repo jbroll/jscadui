@@ -140,4 +140,32 @@ describe('relay routes', () => {
     expect(res.status).toBe(403)
     expect(fetchMock).not.toHaveBeenCalled()
   })
+
+  it('forwards a same-origin GET, which browsers send without Origin', async () => {
+    fetchMock.mockImplementation(async () => sseResponse('{"data":[]}'))
+    const res = await request(relayApp([])).get('/api/relay/openai/v1/models').set('Sec-Fetch-Site', 'same-origin')
+    expect(res.status).toBe(200)
+    expect(res.headers['access-control-allow-origin']).toBeUndefined()
+  })
+
+  it('refuses a request with neither Origin nor same-origin fetch metadata', async () => {
+    const res = await request(relayApp([])).get('/api/relay/openai/v1/models').set('Sec-Fetch-Site', 'cross-site')
+    expect(res.status).toBe(403)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('uses the built-in providers when the allowlist file is absent', async () => {
+    fetchMock.mockImplementation(async () => sseResponse('{"data":[]}'))
+    const app = express()
+    mountRelayRoutes(app, {
+      allowlistPath: join(dir, 'absent.json'),
+      trustedOrigins: ['https://app.test'],
+      logger: () => {},
+      fetchFn: fetchMock,
+      dnsLookup: async () => [{ address: '93.184.216.34' }],
+    })
+    const res = await request(app).get('/api/relay/meta/v1/models').set('Origin', 'https://app.test')
+    expect(res.status).toBe(200)
+    expect(fetchMock).toHaveBeenCalledWith('https://api.meta.ai/v1/models', expect.objectContaining({ method: 'GET' }))
+  })
 })

@@ -7,7 +7,10 @@ responses back. It stores nothing: no DB rows, no logs with secrets.
 
 JSON `{kind: upstreamBase}`, default `/etc/jscad-relay/providers.json`,
 override with `RELAY_ALLOWLIST`. Entries must be public `https:` URLs without
-ports; re-read at most every 5s, so edits apply without restart.
+ports; re-read at most every 5s, so edits apply without restart. When the file
+does not exist the relay serves the built-in table below
+(`PROVIDER_BASE_URLS` in `src/providers/types.ts`); any other read or parse
+failure is a `500`.
 
 ```json
 { "anthropic": "https://api.anthropic.com", "openai": "https://api.openai.com", "opencode-go": "https://opencode.ai/zen/go", "meta": "https://api.meta.ai" }
@@ -15,7 +18,10 @@ ports; re-read at most every 5s, so edits apply without restart.
 
 ## Access rules
 
-- Browser `Origin` must be in the server's trusted origins; else `403`.
+- Browser `Origin` must be in the server's trusted origins; else `403`. A
+  request with no `Origin` passes only with `Sec-Fetch-Site: same-origin`,
+  which is how a browser sends a GET from the app's own origin.
+- `POST` and `GET` are forwarded; `GET` carries the model-list fetch.
 - Per-IP 60 req/min, burst 10; over limit is `429` with `Retry-After`.
 - No session required; the caller's provider key rides the request through.
 - Only `content-type`, `accept`, `authorization`, `x-api-key`,

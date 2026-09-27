@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { isIP } from 'node:net'
+import { PROVIDER_BASE_URLS } from '../providers/types.js'
 
 // Literal-IP ranges refused at load; hostnames are resolved and re-checked at
 // forward time, since DNS can change between load and request.
@@ -45,6 +46,7 @@ export const loadAllowlistFile = (path: string): Record<string, string> => {
   try {
     raw = readFileSync(path, 'utf-8')
   } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return { ...PROVIDER_BASE_URLS }
     throw new Error(`relay: cannot read allowlist ${path}: ${(err as Error).message}`)
   }
   let parsed: unknown
