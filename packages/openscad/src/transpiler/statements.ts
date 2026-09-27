@@ -696,9 +696,29 @@ function transpileBuiltinBoolean(name: string, child: Statement | null, ctx: Tra
       return `/* unknown boolean: ${name} */`
   }
 
-  // If there are assignments, wrap in IIFE
+  // If there are assignments, wrap in IIFE. Special ($-prefixed) variables
+  // use dynamic scope (save/set/restore); without it e.g. assemble()'s
+  // remove-pass `$removing = true` is lost and difference() empties out.
   if (assignments.length > 0) {
-    const assignStrs = assignments.map(a => `const ${a.name} = ${transpileExpression(a.value!, ctx)}`)
+    const suffix = generateScopeSuffix(ctx)
+    const assignStrs: string[] = []
+    const specialSaves: string[] = []
+    const specialRestores: string[] = []
+    for (const a of assignments) {
+      const value = transpileExpression(a.value!, ctx)
+      if (a.name.startsWith('$')) {
+        const savedName = `_saved_${a.name.replace(/\$/g, '_')}${suffix}`
+        specialSaves.push(`const ${savedName} = j$.getSpecialVar('${a.name}')`)
+        assignStrs.push(`j$.setSpecialVar('${a.name}', ${value})`)
+        specialRestores.push(`j$.setSpecialVar('${a.name}', ${savedName})`)
+      } else {
+        assignStrs.push(`const ${a.name} = ${value}`)
+      }
+    }
+    if (specialSaves.length > 0) {
+      const preamble = [...specialSaves, ...assignStrs].join('; ')
+      return `(() => { ${preamble}; try { return ${boolOp}; } finally { ${specialRestores.join('; ')} } })()`
+    }
     return `(() => { ${assignStrs.join('; ')}; return ${boolOp} })()`
   }
 
