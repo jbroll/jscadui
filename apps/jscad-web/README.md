@@ -82,7 +82,9 @@ Tests: `npx vitest run test/aiChat.test.js` for the chat turn, `npx playwright t
 
 ## Local model directory
 
-From any model folder: `npm run jscad -- [dir|file] [--port N]` (root) or `node scripts/jscad.mjs` from `apps/jscad-web`. Serves the app on `:7377`, the frame on `:7378`, your folder at `/models/`, and a same-origin `/api/relay` so AI Chat works with your own key. `RELAY_ALLOWLIST` overrides the default anthropic+openai allowlist.
+From any model folder: `npm run jscad-chat -- [dir|file] [--port N] [--build|--no-build] [--no-open]` (root) or `node scripts/jscad.mjs` from `apps/jscad-web`. Serves the app on `:7377`, the frame on `:7378`, your folder at `/models/`, and a same-origin `/api/relay` so AI Chat works with your own key. `RELAY_ALLOWLIST` overrides the default anthropic+openai allowlist.
+
+The bundles are built once into `build_local/` and reused while the ports match, so after pulling app or frame changes pass `--build` to rebuild them.
 
 ## Compute frame
 

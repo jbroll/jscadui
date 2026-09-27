@@ -284,6 +284,12 @@ Async module loading is the breaking one; the rest are extractions.
 
 ## Remaining issues
 
+- **Missing files read as network errors in the frame.** The local server
+  (`apps/jscad-web/scripts/local/server.js`) and `serve.js` send
+  `Access-Control-Allow-Origin` only on a 200, so a 404 or 403 for a file the
+  frame asked for is blocked by CORS and reaches the worker as `NetworkError`
+  instead of `file not found`. Send the header on error responses too.
+
 - **Accessibility.** Input-level ARIA exists; still missing are tree and
   toolbar roles, keyboard navigation for the param and file trees, modal
   focus trap and `aria-expanded` on collapsibles.
