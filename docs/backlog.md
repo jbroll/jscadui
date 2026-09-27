@@ -313,23 +313,12 @@ ParamsTree cleanup handling, three.js disposal timing, regl render queue,
 FileWatcher cleanup, babel error context, DXF/X3D menu gaps and the 3mf
 README claim.
 
-- **Script lock race (worker).** Only `jscadScript` checks the generation
-  counter; `jscadMain` has none, and the timeout path still releases the lock
-  while the timed-out script keeps running. Add a staleness guard to
-  `jscadMain`. (`packages/worker/worker.js`)
 - **STL export validation (worker).** Out-of-range vertices only log, and
   normals are not checked at all. Decide: throw on malformed meshes or keep
   graceful degradation. (`packages/worker/src/exportStlText.js`)
-- **Unbounded dependency map (require).** The module cache is LRU-capped but
-  `knownDependencies` grows without eviction. Cap it or clear on module
-  evict. (`packages/require/src/require.js`)
 - **Parameter updates keep the latest (jscad-web).** Rapid changes
   intentionally coalesce to the most recent params instead of queueing.
   Decide whether a real queue is needed. (`apps/jscad-web/main.js`)
-- **Worker termination on unload (jscad-web).** No stored worker reference
-  and no `terminate()` call; teardown relies on frame removal. Add an
-  explicit terminate path. (`apps/jscad-web/src/frameSetup.js`,
-  `apps/jscad-web/main.js`)
 - **Save fallback feedback (jscad-web).** Without the File System Access API
   the save fails silently. Tell the user. (`apps/jscad-web/main.js`)
 - **Params validation (params-ui, params-controller).** Validate class names,
