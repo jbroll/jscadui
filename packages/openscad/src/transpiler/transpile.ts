@@ -581,8 +581,12 @@ function buildOutputCode(
   // useImportPaths is already declared above
   // Re-export symbols from ALL includes (both bundled and optimized)
   // Optimized includes use require() but still need their symbols re-exported
+  // getParameterDefinitions is file-local (emitted only for a file with its own
+  // parameters): re-exporting an include's copy references a binding this
+  // module never defines, throwing ReferenceError at load.
   const includeReExports = ctx.includeImports
     .flatMap(imp => imp.symbols)
+    .filter(s => s !== 'getParameterDefinitions')
   const allExports = [...new Set([...moduleExportNames, ...functionExportNames, ...ctx.variableNames, ...includeReExports, ...customizerExports, 'main'])]
   // Use Object.assign to mutate the pre-registered exports object in-place.
   // This ensures cyclic requires (where the caller got an empty {} placeholder)
