@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // jscad: single-script local startup. Run from a model folder:
-//   jscad [dir|file] [--port N] [--build|--no-build]
+//   jscad [dir|file] [--port N] [--build|--no-build] [--no-open]
 // Serves the app on :7377, the compute frame on :7378, the model dir at
 // /models/, and a same-origin /api/relay so AI Chat works with your own key.
 import { existsSync } from 'node:fs'
@@ -9,6 +9,7 @@ import { spawnSync } from 'node:child_process'
 import { basename, dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { resolveEntry } from './local/resolveEntry.js'
+import { openBrowser } from './local/openBrowser.js'
 import { scaffoldStarter } from './local/scaffold.js'
 import { createRelayHandler, defaultAllowlist, loadAllowlist } from './local/relay.js'
 import { startLocal } from './local/server.js'
@@ -52,4 +53,6 @@ const allowlist = process.env.RELAY_ALLOWLIST && existsSync(process.env.RELAY_AL
 const origin = `http://localhost:${port}`
 const relayHandler = createRelayHandler({ allowlist, trustedOrigins: [origin] })
 const { url } = await startLocal({ appDir: out, frameDir: join(out, 'frame'), modelDir, relayHandler, port })
-console.log(`jscad: ${modelDir} → ${url}/#url=${urlPath}  (frame :${port + 1})`)
+const page = `${url}/#url=${urlPath}`
+console.log(`jscad: ${modelDir} → ${page}  (frame :${port + 1})`)
+if (!args.includes('--no-open') && !process.env.JSCAD_NO_OPEN) await openBrowser(page)
