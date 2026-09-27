@@ -65,6 +65,10 @@ let modelUpdatePending = false
 /** @type {ParamsUIDeps|null} H5 fix: Store pending deps for recursive call */
 let pendingDeps = null
 
+/** A param-tree change queued while a run holds the work token. Drained by
+ * whichever path settles first, so the two paths cannot strand each other. */
+let pendingParamChange = null
+
 /** @type {boolean} */
 let working = false
 let workingSince = 0
@@ -239,12 +243,71 @@ export async function runModelUpdate(deps) {
     }
   } finally {
     // H5 fix: Use stored pendingDeps if available, otherwise fall back to current deps
-    if (endWork(work) && modelUpdatePending) {
-      const depsToUse = pendingDeps || deps
-      pendingDeps = null
-      runModelUpdate(depsToUse)
+    if (endWork(work)) {
+      if (modelUpdatePending) {
+        const depsToUse = pendingDeps || deps
+        pendingDeps = null
+        modelUpdatePending = false
+        runModelUpdate(depsToUse)
+      } else if (pendingParamChange) {
+        const queued = pendingParamChange
+        pendingParamChange = null
+        runParamChange(queued.deps, queued.params, queued.source)
+      }
     }
   }
+}
+
+/**
+ * Handle a param-tree change: coalesce rapid changes to the latest params,
+ * supersede the frame run in flight, and draw unless a newer run replaced it.
+ * Shares the work token with runModelUpdate; each path drains the other's
+ * queue on settling so neither strands the other.
+ * @param {object} deps - workerApi, onEntities, stopCurrentAnim, paramChange,
+ *   beginStream, endStream, held, getMainOptions, noteParams, noteRunParams
+ * @param {object} params - the changed params
+ * @param {string} [source] - 'group' changes are ignored
+ */
+export async function runParamChange(deps, params, source) {
+  if (source === 'group') return
+  deps.noteParams?.(params)
+  deps.stopCurrentAnim()
+  if (mustWait()) {
+    // Intentionally keeps only the latest: dragging a slider processes where
+    // the user stopped, not every intermediate value.
+    pendingParamChange = { deps, params, source }
+    return
+  }
+  pendingParamChange = null
+  const work = beginWork()
+  const isStale = deps.paramChange()
+  const runId = deps.beginStream(isStale)
+
+  let result
+  let pending = null
+  let queuedModelUpdate = null
+  try {
+    result = await deps.workerApi.jscadMain(deps.getMainOptions(params, runId))
+    if (isStale()) return
+    deps.noteRunParams?.(params)
+  } catch (error) {
+    deps.endStream(runId)
+    if (error?.name === 'SupersededError') return
+    throw error
+  } finally {
+    if (endWork(work)) {
+      pending = pendingParamChange
+      pendingParamChange = null
+      if (!pending && modelUpdatePending && pendingDeps) {
+        queuedModelUpdate = pendingDeps
+        pendingDeps = null
+        modelUpdatePending = false
+      }
+    }
+  }
+  deps.onEntities(result, {})
+  if (pending && pending.params !== params) runParamChange(pending.deps, pending.params, pending.source)
+  else if (queuedModelUpdate) runModelUpdate(queuedModelUpdate)
 }
 
 /**

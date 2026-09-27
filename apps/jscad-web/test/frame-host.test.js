@@ -484,6 +484,38 @@ describe('trap retirement', () => {
     expect(posted.filter((m) => m.method === 'frameWorkerTerminated')).toEqual([])
   })
 
+  it('drops a late message from a retired worker', () => {
+    const { workers, send, posted, host } = withSpare()
+    send({ method: 'jscadMain', id: 4, params: [{ params: {} }] })
+    const staleId = lastSent(workers[0]).id
+    failLast(workers[0], 'RuntimeError', 'unreachable')
+    expect(workers[0].terminate).toHaveBeenCalled()
+
+    const before = posted.length
+    const pending = host.getPendingCount()
+    workers[0].onmessage({ data: { method: RESPONSE, id: staleId, params: { entities: [] } } })
+    workers[0].onmessage({ data: { method: RESPONSE, id: staleId + 1000, params: { entities: [] } } })
+    expect(posted).toHaveLength(before)
+    expect(host.getPendingCount()).toBe(pending)
+  })
+
+  it('reloads lastScript on the promoted worker after a rejected app script', () => {
+    const { workers, send, posted } = withSpare()
+    send({ method: 'jscadMain', id: 4, params: [{ params: {} }] })
+    failLast(workers[0], 'RuntimeError', 'unreachable')
+    send({ method: 'jscadScript', id: 5, params: [{ script: 'next', url: 'next.js' }] })
+    expect(lastSent(workers[1])).toMatchObject({ method: 'jscadScript', params: [{ script: 'next' }] })
+    failLast(workers[1], 'SyntaxError', 'bad script')
+    expect(posted.at(-1)).toMatchObject({ id: 5, error: { name: 'SyntaxError' } })
+
+    send({ method: 'jscadMain', id: 6, params: [{ params: {} }] })
+    expect(lastSent(workers[1])).toMatchObject({ method: 'jscadScript', params: [{ script: 'main', runMain: false }] })
+    answerLast(workers[1], { def: [], params: {} })
+    expect(lastSent(workers[1])).toMatchObject({ method: 'jscadMain' })
+    answerLast(workers[1], { entities: [] })
+    expect(posted.at(-1)).toMatchObject({ id: 6, params: { entities: [] } })
+  })
+
   it('retires on a trapped result the same way', () => {
     const { workers, send, posted } = withSpare()
     send({ method: 'jscadMain', id: 4, params: [{ params: {} }] })

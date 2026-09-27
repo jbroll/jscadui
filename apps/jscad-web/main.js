@@ -493,65 +493,35 @@ const pauseAnimCallback = async (_def, _value) => {
 }
 
 // ============== Param Change Handling ==============
-/**
- * I7 note: This stores only the most recent pending params, not a queue.
- * This is intentional - when dragging a slider rapidly, we only want to
- * process the final value where the user stopped, not every intermediate value.
- * This prevents excessive re-renders and provides better UX.
- * @type {UserParameters | null}
- */
-let lastParams
-
+// Coalescing (I7 note: keeps only the latest pending params) and the work
+// token live in paramsUI.runParamChange, shared with runModelUpdate so the
+// two paths drain each other's queue instead of stranding it.
 /**
  * @param {UserParameters} params
  * @param {string} [source]
  */
-const paramChangeCallback = async (params, source) => {
-  if (source === 'group') return
-
-  // Track changed params in proxy mode
-  if (useParamsProxy && lastRunParams) {
-    for (const key in params) {
-      if (params[key] !== lastRunParams[key]) {
-        paramsCtrl.userInteracted.add(key)
+const paramChangeCallback = (params, source) => paramsUI.runParamChange({
+  noteParams: (next) => {
+    // Track changed params in proxy mode
+    if (useParamsProxy && lastRunParams) {
+      for (const key in next) {
+        if (next[key] !== lastRunParams[key]) {
+          paramsCtrl.userInteracted.add(key)
+        }
       }
     }
-  }
-
-  stopCurrentAnim()
-  if (paramsUI.mustWait()) {
-    // I7 note: Overwrites previous pending - intentionally keeps only the latest
-    lastParams = params
-    return
-  }
-  lastParams = null
-  const work = paramsUI.beginWork()
-  const isStale = scriptRuns.paramChange()
-  const runId = beginStream(isStale)
-
-  let result
-  let pendingParams = null
-  try {
-    const mainOptions = useParamsProxy
-      ? { ...paramsCtrl.getWorkerParams(), runId, held: meshRefs.held(), supersede: true }
-      : { params, runId, held: meshRefs.held(), supersede: true }
-    result = await workerApi.jscadMain(mainOptions)
-    if (isStale()) return
-    lastRunParams = params
-  } catch (error) {
-    streamRuns.end(runId)
-    if (error?.name === 'SupersededError') return
-    throw error
-  } finally {
-    // Capture pending params atomically before releasing lock
-    if (paramsUI.endWork(work)) {
-      pendingParams = lastParams
-      lastParams = null
-    }
-  }
-  handlers.entities(result, {})
-  if (pendingParams && pendingParams !== params) paramChangeCallback(pendingParams)
-}
+  },
+  stopCurrentAnim,
+  paramChange: () => scriptRuns.paramChange(),
+  beginStream: (isStale) => beginStream(isStale),
+  endStream: (runId) => streamRuns.end(runId),
+  workerApi,
+  getMainOptions: (next, runId) => useParamsProxy
+    ? { ...paramsCtrl.getWorkerParams(), runId, held: meshRefs.held(), supersede: true }
+    : { params: next, runId, held: meshRefs.held(), supersede: true },
+  noteRunParams: (next) => { lastRunParams = next },
+  onEntities: (result, options) => handlers.entities(result, options),
+}, params, source)
 
 viewState.onRequireReRender = () => paramChangeCallback(ctrl.params)
 

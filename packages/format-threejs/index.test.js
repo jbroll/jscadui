@@ -44,3 +44,40 @@ describe('CommonToThree mesh shading', () => {
     expect('flatShading' in convert(lines, {}).material).toBe(false)
   })
 })
+
+describe('CommonToThree instance shading', () => {
+  class RealInstancedMesh extends Mesh {
+    constructor(geometry, material, count) {
+      super(geometry, material)
+      this.count = count
+      this.instanceMatrix = { array: new Array(count * 16).fill(0), needsUpdate: false }
+    }
+  }
+  const convertInstances = CommonToThree({
+    MeshPhongMaterial: Material, LineBasicMaterial: Material, BufferGeometry, BufferAttribute,
+    Mesh, InstancedMesh: RealInstancedMesh, Line: Mesh, LineSegments: Mesh, Color,
+    Vector3: class {}, Matrix4: class { fromArray() {} },
+  })
+  const identity = new Float32Array(16).fill(1)
+  const instance = (extra = {}) => ({
+    type: 'instance', vertices: tri.vertices, indices: tri.indices,
+    list: [{ transforms: identity }, { transforms: identity }],
+    ...extra,
+  })
+
+  it('shades an instance with no normals flat on the GPU', () => {
+    const mesh = convertInstances(instance(), {})
+    expect(mesh.material.flatShading).toBe(true)
+    expect(mesh.geometry.attributes.normal).toBeUndefined()
+  })
+
+  it('keeps the smooth-capable material when normals are given', () => {
+    const mesh = convertInstances(instance({ normals: new Float32Array(9) }), {})
+    expect(mesh.material.flatShading).toBe(false)
+  })
+
+  it('colors an instance with flat shading matching its normals', () => {
+    expect(convertInstances(instance({ color: [1, 0, 0, 1] }), {}).material.flatShading).toBe(true)
+    expect(convertInstances(instance({ color: [1, 0, 0, 1], normals: new Float32Array(9) }), {}).material.flatShading).toBe(false)
+  })
+})
