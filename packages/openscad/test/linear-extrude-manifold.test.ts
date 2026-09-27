@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import j$ from '@jscadui/openscad-runtime'
 import jscad from '@jscad/modeling'
 import { linearExtrudeMesh } from '../../openscad-runtime/src/linearExtrude.js'
+import { taijiOutline } from './twist-taiji-outline.js'
 import { initScadRuntime } from '../bin/run-jscad.js'
 
 type Geom = { manifold: { numTri(): number }, volume(): number }
@@ -63,5 +64,14 @@ describe('linear_extrude on the Manifold engine', () => {
 
   it('extrudes circle(0) to nothing, as OpenSCAD does', () => {
     expect(j$.linearExtrude({ h: 1 }, j$.circle({ r: 0 }))).toBeUndefined()
+  })
+
+  it('closes the caps when offset() leaves near-duplicate points (dotSCAD twist_taiji)', () => {
+    const mesh = linearExtrudeMesh(
+      { vector: [0, 0, 90], center: false, scaleX: 1, scaleY: 1, twist: 360, hasTwist: true, fn: 96, fa: 12, fs: 2 },
+      [taijiOutline],
+      jscad.extrusions.slice,
+    )
+    expect(openEdges(mesh!.faces)).toBe(0)
   })
 })
