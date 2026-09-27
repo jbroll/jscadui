@@ -86,6 +86,7 @@ export interface ProviderConfig {
   model: string
   baseUrl?: string
   sessionId?: string
+  effort?: string
 }
 
 export function createProvider(config: ProviderConfig): Provider {

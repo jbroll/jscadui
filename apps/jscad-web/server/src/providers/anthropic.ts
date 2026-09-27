@@ -49,6 +49,7 @@ export function anthropicProvider(config: ProviderConfig): Provider {
       }
       if (system) body.system = system
       if (tools.length > 0) body.tools = tools.map(toAnthropicTool)
+      if (config.effort) body.output_config = { effort: config.effort }
 
       const headers: Record<string, string> = {
         'content-type': 'application/json',

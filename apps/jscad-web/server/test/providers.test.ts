@@ -321,6 +321,29 @@ describe('createProvider', () => {
     expect(url).toBe('https://opencode.ai/zen/go/v1/messages')
     expect(init.headers['x-opencode-session']).toEqual(expect.any(String))
   })
+
+  it('maps effort to the documented param per adapter and omits when unset', async () => {
+    fetchMock.mockResolvedValueOnce(streamResponse(ANTHROPIC_PLAIN))
+    const a = createProvider({ kind: 'anthropic', apiKey: 'sk-test', model: 'm', baseUrl: 'https://r.test', effort: 'high' })
+    for await (const e of a.send(MESSAGES, TOOLS)) void e
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body as string).output_config).toEqual({ effort: 'high' })
+    fetchMock.mockClear()
+    fetchMock.mockResolvedValueOnce(streamResponse(OPENAI_PLAIN))
+    const o = createProvider({ kind: 'openai', apiKey: 'sk-test', model: 'm', baseUrl: 'https://r.test', effort: 'medium' })
+    for await (const e of o.send(MESSAGES, TOOLS)) void e
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body as string).reasoning_effort).toBe('medium')
+    fetchMock.mockClear()
+    fetchMock.mockResolvedValueOnce(streamResponse(OPENAI_PLAIN))
+    const q = createProvider({ kind: 'openai', apiKey: 'sk-test', model: 'm', baseUrl: 'https://r.test' })
+    for await (const e of q.send(MESSAGES, TOOLS)) void e
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body as string)).not.toHaveProperty('reasoning_effort')
+    fetchMock.mockClear()
+    const spark = openaiChunk({ type: 'response.output_text.delta', delta: 'Hi' }) + openaiChunk({ type: 'response.completed' })
+    fetchMock.mockResolvedValueOnce(streamResponse(spark))
+    const r = createProvider({ kind: 'meta', apiKey: 'sk-test', model: 'muse-spark-1.3', effort: 'low' })
+    for await (const e of r.send(MESSAGES, TOOLS)) void e
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body as string).reasoning).toEqual({ effort: 'low' })
+  })
 })
 
 describe('anthropic provider', () => {

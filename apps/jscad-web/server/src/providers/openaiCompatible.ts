@@ -50,6 +50,7 @@ export function openaiProvider(config: ProviderConfig): Provider {
         messages: messages.map(toOpenAIMessage),
       }
       if (tools.length > 0) body.tools = tools.map(toOpenAITool)
+      if (config.effort) body.reasoning_effort = config.effort
 
       const headers: Record<string, string> = {
         'content-type': 'application/json',

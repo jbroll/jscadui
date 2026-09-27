@@ -46,6 +46,7 @@ export function responsesProvider(config: ProviderConfig): Provider {
         input: toResponsesInput(messages),
       }
       if (tools.length > 0) body.tools = tools.map(toResponsesTool)
+      if (config.effort) body.reasoning = { effort: config.effort }
 
       const headers: Record<string, string> = {
         'content-type': 'application/json',
