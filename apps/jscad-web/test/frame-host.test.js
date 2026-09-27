@@ -751,6 +751,22 @@ describe('superseding a stale run', () => {
     expect(lastSent(workers[0]).params).toEqual([{ params: {}, runId: 7, held: ['0123456789abcdef'], stream: true }])
   })
 
+  it('keeps a pending export across a superseding param change', () => {
+    const { workers, send, posted } = withSpare()
+    send({ method: 'jscadMain', id: 4, params: [{ params: {} }] })
+    vi.advanceTimersByTime(600)
+    send({ method: 'jscadExportData', id: 5, params: [{ format: 'stla' }] })
+    send({ method: 'jscadMain', id: 6, params: [{ params: {}, supersede: true }] })
+
+    expect(posted.find((m) => m.id === 4)?.error).toEqual(superseded)
+    expect(posted.find((m) => m.id === 5)).toBeUndefined()
+    expect(workers[0].terminate).not.toHaveBeenCalled()
+    workers[0].onmessage({ data: { method: RESPONSE, id: workerIdOf(workers[0], 4), params: { data: ['solid'] } } })
+    expect(posted.find((m) => m.id === 5)).toEqual({ method: RESPONSE, id: 5, params: { data: ['solid'] } })
+    answerLast(workers[0], { entities: [] })
+    expect(posted.find((m) => m.id === 6)).toEqual({ method: RESPONSE, id: 6, params: { entities: [] } })
+  })
+
   it('strips supersede from a script', () => {
     const { workers, send } = setup()
     send({ method: 'jscadScript', id: 1, params: [{ script: 'main', supersede: true }] })
@@ -775,15 +791,16 @@ describe('superseding a stale run', () => {
     expect(posted.slice(2)).toEqual([{ method: RESPONSE, id: 6, params: { entities: [] } }])
   })
 
-  it('answers another request on the retired worker as a retire does', () => {
-    const { send, posted } = withSpare()
+  it('keeps another request on the worker instead of aborting it', () => {
+    const { send, posted, workers } = withSpare()
     send({ method: 'jscadMain', id: 4, params: [{ params: {} }] })
     send({ method: 'jscadExportData', id: 5, params: [{ format: 'stla' }] })
     vi.advanceTimersByTime(600)
     send({ method: 'jscadMain', id: 6, params: [{ params: {}, supersede: true }] })
 
     expect(posted.find((m) => m.id === 4).error).toEqual(superseded)
-    expect(posted.find((m) => m.id === 5).error.name).toBe('AbortError')
+    expect(posted.find((m) => m.id === 5)).toBeUndefined()
+    expect(workers[0].terminate).not.toHaveBeenCalled()
   })
 
   it('sends a superseding script straight to the promoted worker', () => {

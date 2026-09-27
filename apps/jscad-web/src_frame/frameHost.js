@@ -156,6 +156,9 @@ export const createFrameHost = ({
       slot.pending.delete(workerId)
       answerError(appId, 'SupersededError', 'superseded by a newer run')
     }
+    // An export, measure or check in flight is never superseded: retire would
+    // answer it AbortError, so the new run queues behind it instead.
+    if (appRequests.some(([, r]) => NEEDS_SOLIDS.has(r.method))) return
     pool.retire(slot, 'a newer run superseded the model')
   }
 
