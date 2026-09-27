@@ -138,6 +138,61 @@ describe('worker creation failure', () => {
     host.handleMessage({ origin: APP, source: parentWindow, data: { method: 'onPing', params: [] } })
     expect(posted).toEqual([])
   })
+
+  it('keeps serving on the old worker when the replacement fails to start', () => {
+    const posted = []
+    const workers = []
+    let calls = 0
+    const host = createFrameHost({
+      allowedOrigin: APP,
+      bundleBase: BASE,
+      parentWindow,
+      createWorker: () => {
+        calls++
+        if (calls > 1) throw new Error('blocked')
+        const worker = { postMessage: vi.fn(), terminate: vi.fn() }
+        workers.push(worker)
+        return worker
+      },
+      post: (message) => posted.push(message),
+    })
+    const send = (data) => host.handleMessage({ origin: APP, source: parentWindow, data })
+    send({ method: 'jscadMain', id: 1, params: [{}] })
+    failLast(workers[0], 'RuntimeError', 'trap')
+    expect(posted).toEqual([{ method: RESPONSE, id: 1, error: { name: 'RuntimeError', message: 'trap' } }])
+    send({ method: 'jscadMain', id: 2, params: [{}] })
+    expect(workers).toHaveLength(1)
+    expect(lastSent(workers[0]).method).toBe('jscadMain')
+    expect(posted.find((m) => m.id === 2 && m.error)).toBeUndefined()
+  })
+
+  it('replays setup on a cold start after the active worker died', () => {
+    const posted = []
+    const workers = []
+    let blocked = false
+    const host = createFrameHost({
+      allowedOrigin: APP,
+      bundleBase: BASE,
+      parentWindow,
+      createWorker: () => {
+        if (blocked) throw new Error('blocked')
+        const worker = { postMessage: vi.fn(), terminate: vi.fn() }
+        workers.push(worker)
+        return worker
+      },
+      post: (message) => posted.push(message),
+    })
+    const send = (data) => host.handleMessage({ origin: APP, source: parentWindow, data })
+    send({ method: 'jscadInit', id: 1, params: [{}] })
+    answer(workers[0], 0)
+    blocked = true
+    workers[0].onerror({ message: 'boom' })
+    expect(workers[0].terminate).toHaveBeenCalled()
+    blocked = false
+    send({ method: 'jscadInit', id: 2, params: [{}] })
+    expect(methodsOf(workers[1]).slice(0, 2)).toEqual(['jscadInit', 'jscadInit'])
+    expect(workers[1].postMessage.mock.calls[0][0].params[0].bundles['@jscad/modeling']).toBe(BASE + 'bundle.jscad_modeling.js')
+  })
 })
 
 describe('jscadInit rewriting', () => {
@@ -785,15 +840,18 @@ describe('superseding a stale run', () => {
     expect(workers[0].terminate).not.toHaveBeenCalled()
   })
 
-  it('answers the new request when no worker can replace the retired one', () => {
+  it('serves the new request on the old worker when no replacement starts', () => {
     const posted = []
+    const workers = []
     let made = 0
     const host = createFrameHost({
       allowedOrigin: APP,
       bundleBase: BASE,
       createWorker: () => {
         if (made++) throw new Error('out of memory')
-        return { postMessage: vi.fn(), terminate: vi.fn() }
+        const worker = { postMessage: vi.fn(), terminate: vi.fn() }
+        workers.push(worker)
+        return worker
       },
       post: (message) => posted.push(message),
       parentWindow,
@@ -805,8 +863,10 @@ describe('superseding a stale run', () => {
 
     expect(posted).toEqual([
       { method: RESPONSE, id: 1, error: superseded },
-      { method: RESPONSE, id: 2, error: { name: 'Error', message: 'could not start the model worker: out of memory' } },
     ])
+    expect(workers).toHaveLength(1)
+    expect(workers[0].terminate).not.toHaveBeenCalled()
+    expect(workers[0].postMessage.mock.calls.at(-1)[0]).toMatchObject({ method: 'jscadScript', params: [{ script: 'next' }] })
   })
 })
 

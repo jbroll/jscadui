@@ -249,7 +249,9 @@ export const createFrameHost = ({
 
     if (!state.active) {
       try {
-        state.active = pool.start({ replay: false })
+        // Replay the mirror: on a true first start it is empty, and after a
+        // dead worker it restores the setup the app already sent.
+        state.active = pool.start({ replay: true })
       } catch (error) {
         if (id) answerError(id, 'Error', `could not start the model worker: ${error?.message ?? error}`)
         return

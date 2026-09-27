@@ -100,11 +100,15 @@ export const createPool = ({ state, slotOps, post, answerError, busy, inGrid, op
   // For a trapped WebAssembly instance or a superseded run. The app is not
   // told: the promoted worker already holds its setup and reloads the script on demand.
   const retire = (slot, reason) => {
-    remove(slot)
     if (slot === state.active) {
-      state.active = pickIdle() ?? tryStart()
-      if (state.active) handOver(slot, state.active)
-    }
+      const replacement = pickIdle() ?? tryStart()
+      // Without a replacement the old worker keeps serving: a trapped one
+      // answers errors, but the app stays live for a transient failure.
+      if (!replacement) return
+      remove(slot)
+      state.active = replacement
+      handOver(slot, state.active)
+    } else remove(slot)
     slotOps.end(slot, null, reason, null)
     if (state.active) ensureSpare()
   }
