@@ -263,6 +263,10 @@ export async function runModelUpdate(deps) {
  * supersede the frame run in flight, and draw unless a newer run replaced it.
  * Shares the work token with runModelUpdate; each path drains the other's
  * queue on settling so neither strands the other.
+ *
+ * Decision: no queue of intermediate values. Dragging a slider only needs
+ * where the user stopped; noteParams still records every change so intent
+ * tracking is complete even though only the latest runs.
  * @param {object} deps - workerApi, onEntities, stopCurrentAnim, paramChange,
  *   beginStream, endStream, held, getMainOptions, noteParams, noteRunParams
  * @param {object} params - the changed params
