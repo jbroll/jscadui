@@ -126,7 +126,9 @@ export const createFrameHost = ({
   }
 
   const answered = (slot, { method, options }, data) => {
-    if (method === 'jscadMain' && !data.error) state.lastMain = options
+    // The export replay runs what the user last set, even when that run
+    // failed: replaying older successful params would export stale state.
+    if (method === 'jscadMain' && options) state.lastMain = options
     if (method !== 'jscadScript') return
     if (!data.error) {
       state.lastScript = options

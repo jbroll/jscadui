@@ -540,6 +540,19 @@ describe('trap retirement', () => {
     expect(host.getPendingCount()).toBe(0)
   })
 
+  it('replays the attempted params after a trapped run', () => {
+    const { workers, send } = withSpare()
+    send({ method: 'jscadMain', id: 4, params: [{ params: { size: 2 } }] })
+    answerLast(workers[0], { entities: [] })
+    send({ method: 'jscadMain', id: 5, params: [{ params: { size: 3 } }] })
+    failLast(workers[0], 'RuntimeError', 'trap')
+
+    send({ method: 'jscadExportData', id: 6, params: [{ format: 'stla' }] })
+    expect(lastSent(workers[1])).toMatchObject({ method: 'jscadScript' })
+    answerLast(workers[1], { def: [], params: {} })
+    expect(lastSent(workers[1])).toMatchObject({ method: 'jscadMain', params: [{ params: { size: 3 }, stream: false }] })
+  })
+
   it('holds later requests until the reload finishes and keeps their order', () => {
     const { workers, send, posted, host } = withSpare()
     send({ method: 'jscadMain', id: 4, params: [{ params: {} }] })

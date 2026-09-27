@@ -144,12 +144,10 @@ export const createGridRuns = ({ state, pool, slotOps, post, answerError }) => {
     run.answered = true
     const message = merged(run)
     post(message)
-    if (!message.error) {
-      if (run.method === 'jscadMain') state.lastMain = run.options
-      else {
-        state.lastScript = run.options
-        state.lastMain = undefined
-      }
+    if (run.method === 'jscadMain' && run.options) state.lastMain = run.options
+    else if (!message.error) {
+      state.lastScript = run.options
+      state.lastMain = undefined
     } else if (state.sentScript === run.options) state.sentScript = state.lastScript
     if (run.method === 'jscadScript' && state.active) pool.ensureSpare()
   }
