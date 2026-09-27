@@ -32,6 +32,16 @@ const createMockSelf = () => {
 // Note: reqMap is module-level and shared across tests
 // Use messaging.getRpcJobCount() to track pending requests
 
+// Resolve every posted request so a later destroy() finds nothing pending.
+// Fire-and-forget sendCmd calls would otherwise reject unhandled on destroy.
+const drainPending = (mock) => {
+  for (const call of mock.postMessage.mock.calls) {
+    const id = call[0]?.id
+    if (id == null) continue
+    mock.simulateMessage({ method: '__RESPONSE__', params: 'cleanup', id })
+  }
+}
+
 describe('withTransferable', () => {
   it('should attach transferable metadata via Symbol', () => {
     const params = { data: 'test' }
@@ -78,6 +88,7 @@ describe('initMessaging', () => {
   })
 
   afterEach(() => {
+    drainPending(mockSelf)
     messaging?.destroy()
   })
 
@@ -661,6 +672,7 @@ describe('messageProxy', () => {
   })
 
   afterEach(() => {
+    drainPending(mockSelf)
     proxy?.destroy()
   })
 
@@ -867,6 +879,8 @@ describe('cross-instance behavior', () => {
     expect(mockSelf1.postMessage.mock.calls[0][0].method).toBe('method1')
     expect(mockSelf2.postMessage.mock.calls[0][0].method).toBe('method2')
 
+    drainPending(mockSelf1)
+    drainPending(mockSelf2)
     messaging1.destroy()
     messaging2.destroy()
   })
@@ -887,6 +901,8 @@ describe('cross-instance behavior', () => {
     // IDs should be different (incrementing from shared seq)
     expect(id2).toBeGreaterThan(id1)
 
+    drainPending(mockSelf1)
+    drainPending(mockSelf2)
     messaging1.destroy()
     messaging2.destroy()
   })
@@ -902,6 +918,7 @@ describe('transferable extraction', () => {
   })
 
   afterEach(() => {
+    drainPending(mockSelf)
     messaging?.destroy()
   })
 
