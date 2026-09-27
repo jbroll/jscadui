@@ -30,8 +30,58 @@ describe('exportStlText', () => {
     })
   })
 
-  it('wraps output in solid/endsolid JSCAD', () => {
-    const quad = {
+  it('skips a facet with an out-of-range index instead of emitting NaN', () => {
+    const errors = []
+    const origError = console.error
+    console.error = (...args) => { errors.push(args.join(' ')) }
+    try {
+      const mesh = {
+        vertices: new Float32Array([0, 0, 0, 1, 0, 0]),
+        indices: new Uint32Array([0, 1, 5])
+      }
+      const text = exportStlText([mesh]).join('')
+      expect(errors.length).toBeGreaterThan(0)
+      expect(text).not.toMatch(/NaN|undefined/)
+      expect(text.match(/facet normal/g) || []).toHaveLength(0)
+    } finally {
+      console.error = origError
+    }
+  })
+
+  it('skips a facet with non-finite vertices instead of emitting NaN', () => {
+    const errors = []
+    const origError = console.error
+    console.error = (...args) => { errors.push(args.join(' ')) }
+    try {
+      const mesh = {
+        vertices: new Float32Array([0, 0, 0, NaN, 0, 0, 1, 1, 0]),
+        indices: new Uint32Array([0, 1, 2])
+      }
+      const text = exportStlText([mesh]).join('')
+      expect(errors.length).toBeGreaterThan(0)
+      expect(text).not.toMatch(/NaN/)
+      expect(text.match(/facet normal/g) || []).toHaveLength(0)
+    } finally {
+      console.error = origError
+    }
+  })
+
+  it('keeps valid facets from a mesh that also has a bad one', () => {
+    const origError = console.error
+    console.error = () => {}
+    try {
+      const mesh = {
+        vertices: new Float32Array([0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0]),
+        indices: new Uint32Array([0, 1, 2, 0, 2, 99])
+      }
+      const text = exportStlText([mesh]).join('')
+      expect(text.match(/facet normal/g) || []).toHaveLength(1)
+    } finally {
+      console.error = origError
+    }
+  })
+
+  it('wraps output in solid/endsolid JSCAD', () => {    const quad = {
       vertices: new Float32Array([0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0]),
       indices: new Uint32Array([0, 1, 2, 0, 2, 3])
     }
