@@ -319,6 +319,16 @@ export const minkowski = (...geometries) => {
 
   const Manifold = getManifold()
 
+  // An empty operand makes an empty sum (OpenSCAD renders nothing, no error).
+  // Without this, the convex fast path feeds a vertex-less mesh to
+  // minkowskiConvex, which returns null, and `new ManifoldGeom3(null)`
+  // poisons downstream ops (e.g. dotSCAD r_union3's dilate minkowski).
+  // Copy (not alias) the empty input: callers free their inputs after use.
+  if (manifoldA.isEmpty() || manifoldB.isEmpty()) {
+    const empty = manifoldA.isEmpty() ? manifoldA : manifoldB
+    return new ManifoldGeom3(empty.translate([0, 0, 0]))
+  }
+
   // Check if inputs are convex by comparing to their hulls
   const hullA = manifoldA.hull()
   const hullB = manifoldB.hull()
