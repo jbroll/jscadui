@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, copyFileSync, rmSync, readdirSync 
 import { fileURLToPath } from 'url'
 import liveServer from 'live-server'
 import {serve, serveFrame} from './serve.js'
+import { fillFrameHtml } from './src_build/frameHtml.js'
 import { genExamplesManifest } from './src_build/genExamplesManifest.js'
 import { hashAssets } from './src_build/hashAssets.js'
 import { hashFrameAssets } from './src_build/hashFrameAssets.js'
@@ -54,10 +55,7 @@ const { dev, port = Number(process.env.JSCAD_WEB_PORT) || 5120, serve:serveBuild
 const appOrigin = process.env.FRAME_APP_ORIGIN || (dev ? `http://localhost:${port}` : 'https://jscad.rkroll.com')
 const runOrigin = process.env.FRAME_RUN_ORIGIN || (dev ? `http://localhost:${port + 1}` : 'https://jscad-run.rkroll.com')
 const frameHtmlFilter = {
-  filter: (content) => content
-    .replaceAll('__RUN_ORIGIN__', runOrigin)
-    .replaceAll('__APP_ORIGIN__', appOrigin)
-    .replaceAll('__DEV_CONNECT__', dev ? 'http://localhost:*' : ''),
+  filter: (content) => fillFrameHtml(content, { appOrigin, runOrigin, dev }),
   include: ['frame/index.html'],
 }
 

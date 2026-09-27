@@ -48,8 +48,10 @@ everything below them in `main.js` waits about 1.5s on a live host. The chrome
 (menu, welcome, about) needs none of it, so it is wired above those awaits:
 a click on a button whose listener has not attached is lost, not queued.
 
-The frame's `connect-src` is `https:` plus the run origin and localhost in
-dev — wide enough that a model can fetch and run code from any https host,
+The frame's `connect-src` is `https:` plus the run origin, the app origin, and
+localhost in dev. The app origin is named because it serves examples and
+models; the `jscad` local build serves it over plain http, which `https:` does
+not cover. The list is wide enough that a model can fetch and run code from any https host,
 via `require` from a CDN or a raw `fetch`. That width is deliberate: a model
 loaded from a real URL — an example, a `#url=` model, a gist — resolves its
 siblings over the network from inside the frame, and there is no fixed list

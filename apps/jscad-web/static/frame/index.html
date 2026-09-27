@@ -7,9 +7,11 @@
          connect-src is wide because examples, #url= models and gists resolve
          their siblings over HTTP from inside the worker; the frame holds no
          credentials and no storage, so a fetch from here carries no authority.
+         __APP_ORIGIN__ is named because it serves the examples and models,
+         and a local build serves it over plain http.
          __DEV_CONNECT__ adds plain-http localhost for a dev build only: in
          production it is empty, so a visitor's own machine stays unreachable. -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src __RUN_ORIGIN__ https://cdn.jsdelivr.net blob: 'unsafe-eval'; connect-src https: __RUN_ORIGIN__ __DEV_CONNECT__; worker-src blob: __RUN_ORIGIN__; frame-ancestors __APP_ORIGIN__">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src __RUN_ORIGIN__ https://cdn.jsdelivr.net blob: 'unsafe-eval'; connect-src https: __RUN_ORIGIN__ __APP_ORIGIN__ __DEV_CONNECT__; worker-src blob: __RUN_ORIGIN__; frame-ancestors __APP_ORIGIN__">
     <title>jscad studio compute frame</title>
   </head>
   <body>
