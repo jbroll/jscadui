@@ -85,13 +85,13 @@ export function mountRelayRoutes(app: Express, options: RelayRouteOptions): void
       res.status(204).end()
       return
     }
-    res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS')
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
     res.setHeader('Access-Control-Allow-Headers', req.headers['access-control-request-headers'] ?? 'Content-Type,Authorization')
     res.setHeader('Access-Control-Max-Age', '600')
     res.status(204).end()
   })
 
-  app.post('/api/relay/:kind/*splat', async (req, res) => {
+  const forward = async (req: Request, res: Response, method: 'GET' | 'POST') => {
     if (!corsFor(req, res)) {
       res.status(403).json({ error: 'untrusted origin' })
       return
@@ -129,9 +129,9 @@ export function mountRelayRoutes(app: Express, options: RelayRouteOptions): void
     let upstreamRes: globalThis.Response
     try {
       upstreamRes = await fetchFn(upstream, {
-        method: 'POST',
+        method,
         headers: pickHeaders(req),
-        body: JSON.stringify(req.body ?? {}),
+        ...(method === 'GET' ? {} : { body: JSON.stringify(req.body ?? {}) }),
       })
     } catch {
       res.status(502).json({ error: 'upstream unreachable' })
@@ -160,5 +160,8 @@ export function mountRelayRoutes(app: Express, options: RelayRouteOptions): void
       return
     }
     logger({ relay: kind, status: upstreamRes.status, bytes })
-  })
+  }
+
+  app.post('/api/relay/:kind/*splat', async (req, res) => forward(req, res, 'POST'))
+  app.get('/api/relay/:kind/*splat', async (req, res) => forward(req, res, 'GET'))
 }

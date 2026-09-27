@@ -127,4 +127,17 @@ describe('relay routes', () => {
     expect(last).toBe(429)
     expect(retryAfter).not.toBe('')
   })
+
+  it('GETs a model list through the relay with the same guards', async () => {
+    fetchMock.mockImplementation(async () => sseResponse('{"data":[]}'))
+    const res = await request(relayApp([])).get('/api/relay/openai/v1/models').set('Origin', 'https://app.test').set('Authorization', 'Bearer sk-x')
+    expect(res.status).toBe(200)
+    expect(fetchMock).toHaveBeenCalledWith('https://upstream.test/v1/models', expect.objectContaining({ method: 'GET' }))
+  })
+
+  it('refuses GET from an untrusted origin', async () => {
+    const res = await request(relayApp([])).get('/api/relay/openai/v1/models').set('Origin', 'https://evil.test')
+    expect(res.status).toBe(403)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
 })
