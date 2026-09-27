@@ -167,11 +167,15 @@ export function emitBounce(
  * dynamically-scoped $ bindings established around the tail call stay visible.
  */
 export function buildTailLoop(funcName: string, bouncedBody: string, reassign: string): string {
+  // No temp for the bounce: names like `_b` can collide with parameters
+  // (a block-scoped `const _b` shadows the param, and the reassignment then
+  // throws "Assignment to constant variable"). The reassignment runs inside
+  // the restored frames, so param defaults also see the right $ scope.
   // The re-eval body is parenthesized: it can be a bare bounce object
   // literal, which `=> {` would parse as a block label.
   return `let _$n = 0; const _$d = j$.scopeDepth(); let _r = ${bouncedBody}; while (_r && _r.__bounce__) { ` +
-    `if (++_$n === j$.TAIL_CALL_LIMIT) j$.recursionDetected('${funcName}'); const _b = _r; ${reassign.replace('_r.args', '_b.args')}; ` +
-    `_r = j$.withScopeFrom(_$d, _b.scope, () => (${bouncedBody})); } return _r;`
+    `if (++_$n === j$.TAIL_CALL_LIMIT) j$.recursionDetected('${funcName}'); ` +
+    `_r = j$.withScopeFrom(_$d, _r.scope, () => { ${reassign}; return (${bouncedBody}); }); } return _r;`
 }
 
 /**

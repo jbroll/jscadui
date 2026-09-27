@@ -81,7 +81,7 @@ describe('tail-call trampoline', () => {
       expect(code).toMatch(/args:\s*\{.*acc:/)
       // Bounce carries the special-var scope for the trampoline continuation
       expect(code).toContain('scope: j$.scopeSnapshot()')
-      expect(code).toContain('j$.withScopeFrom(_$d, _b.scope, () => (')
+      expect(code).toContain('j$.withScopeFrom(_$d, _r.scope, () => {')
     })
 
     it('generates bounce with named args in self-call', () => {
@@ -104,7 +104,7 @@ describe('tail-call trampoline', () => {
         function f(a, b, c=10) = a > 0 ? f(a-1, b, c) : b;
       `)
       // The reassignment should include default for c
-      expect(code).toMatch(/\(\{a, b, c = 10\} = _b\.args\)/)
+      expect(code).toMatch(/\(\{a, b, c = 10\} = _r\.args\)/)
     })
   })
 
