@@ -598,5 +598,7 @@ export const _minkowski = (...args) => {
   const valid = args.filter(a => a !== undefined && a !== null && a !== NO_CHILD)
   if (valid.length < 2) return valid[0] || undefined
   if (valid.every(_isJscadGeom2)) return valid.reduce(_minkowski2D)
-  return minkowski(...valid)
+  // Minkowski sum is associative: fold N-ary sums pairwise. The underlying
+  // manifold call supports exactly two geometries.
+  return valid.reduce((a, b) => minkowski(a, b))
 }
