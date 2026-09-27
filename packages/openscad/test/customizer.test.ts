@@ -209,4 +209,22 @@ describe('transpile with customizer option', () => {
     const { exports } = load(main.code)
     expect(exports.main).toBeDefined()
   })
+
+  it('does not forward a use-import\'s getParameterDefinitions into a file with its own parameters', () => {
+    const files: Record<string, string> = {
+      '/lib.scad': 'size = 4;\nmodule part() { cube(size); }\npart();\n',
+    }
+    const fileResolver = (name: string) => {
+      const path = `/${name}`
+      return files[path] === undefined ? undefined : { path, content: files[path] }
+    }
+    const main = transpile(parse('use <lib.scad>\nwidth = 50;\nmodule box() { cube(width); }\nbox();\npart();\n', '/main.scad').ast,
+      { customizer: true, fileResolver, currentFile: '/main.scad' })
+    expect(main.code).toContain('const getParameterDefinitions')
+    // Loading the module used to throw SyntaxError: Identifier
+    // 'getParameterDefinitions' has already been declared (the use-forwarder
+    // `var` collided with the file's own `const`)
+    const { exports } = load(main.code)
+    expect(exports.getParameterDefinitions().map((d: { name: string }) => d.name)).toContain('width')
+  })
 })

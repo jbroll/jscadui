@@ -477,7 +477,10 @@ function buildOutputCode(
       // The require system handles absolute paths by resolving them from the root URL
       // Fallback to filename if resolvedPath is empty (when no fileResolver)
       const scadPath = imp.resolvedPath || imp.filename
-      const newSymbols = imp.symbols.filter(s => !importedSymbols.has(s))
+      // getParameterDefinitions is file-local (each file with parameters emits
+      // its own `const`): forwarding a use-import's copy as `var` collides
+      // with it, throwing SyntaxError at load.
+      const newSymbols = imp.symbols.filter(s => s !== 'getParameterDefinitions' && !importedSymbols.has(s))
       for (const s of newSymbols) importedSymbols.add(s)
       if (newSymbols.length > 0) {
         const nsVar = `_ns${nsIdx++}`
