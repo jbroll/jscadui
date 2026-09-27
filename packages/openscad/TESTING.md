@@ -172,7 +172,8 @@ draws nothing for it.
 boolean that broke the profile. `geom2-trace.js` wraps `union`, `subtract` and
 `intersect`, checks every geom2 they return, and reports the first open result
 with its dangling vertices, the geometry's epsilon and how far apart the
-unmatched points are:
+unmatched points are. A boolean that throws on geom2 operands is reported the
+same way:
 
 ```bash
 node bin/geom2-trace.js file.scad --engine jscad [--lib-path <p>] [--fn <n>] \
@@ -183,8 +184,10 @@ Each dangling vertex is reported with the distance to the vertex a repair
 would have to join it to, in epsilon units. A partner within a few epsilon is
 a snapping failure; hundreds or thousands of epsilon means whole sides are
 missing from the boolean's output. `--all` reports every open result rather
-than only the first, and `--dump` writes the first one's operands as JSON so
-that single boolean call can be replayed without the model around it.
+than only the first, and `--dump` writes the first failing call's operands as
+JSON (`{op, operands: [sides]}`) so that single boolean call can be replayed
+without the model around it. The modeling fork keeps such dumps as regression
+fixtures in `packages/modeling/test/fixtures/`.
 
 Pass `--preview` to match what the browser runs. Several models fail in the
 render sweep and not here without it.

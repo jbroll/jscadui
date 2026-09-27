@@ -175,72 +175,7 @@ The app defaults to manifold; the other engine renders **719/807** (CI job
 The STL comparison suite only runs manifold, so that sweep is the only thing
 covering this engine. Run one model with `display-check.js --engine jscad`.
 
-- **25 models extrude a geom2 whose sides do not close.** `random_city.scad`
-  and `random_city_taiwan.scad` joined once comparison-only skips stopped
-  applying to the browser sweep. One of them,
-  `hypnotic_squares.scad`, was an epsilon-grid split: `fromFakePolygons`
-  rounded each point onto the grid on its own, so the two copies a 3D boolean
-  returns for a shared corner could land in different cells and the outline
-  never closed. Fixed on the modeling fork (`jbroll/OpenJSCAD.org`, branch
-  `fix/geom2-snap-weld`, `bf7d77f2`) by repairing only the vertices left with
-  an unequal number of sides arriving and leaving, which also closes upstream
-  #907's BSP gap. Do not weld during snapping instead: each boolean's output
-  is the next one's input, so moving points that already balance perturbs
-  geometry that was fine and a later BSP returns something broken in its own
-  right. `gears.scad` is the model that catches it.
-
-  `blowers.scad` left the group for an unrelated reason: a twisted extrusion
-  subdivided its profile and computed the shared corner one ulp off, so the
-  loop never chained. See the subdivision fix in `openscad-runtime`.
-
-  `text_box.scad` joined the group once 2D minkowski stopped throwing ahead
-  of it: it now reaches a later `subtract` whose unmatched vertices sit 1,700
-  to 4,000 epsilon apart.
-
-  The rest are a different bug, and it is upstream of anything
-  `fromFakePolygons` does. `unionGeom2` and friends extrude both operands into
-  `to3DWalls` prisms, run the 3D boolean and read the sides back; for these
-  models the wall set the 3D boolean returns does not form closed loops before
-  any snapping happens. On `wire.scad` a `subtract` takes 119 input walls,
-  returns 89, rejects none of them in `fromFakePolygons`, and the raw
-  coordinates already leave 11 vertices unmatched, some by two sides.
-
-  The 3D BSP itself is sound. Across 360 booleans on clean primitives
-  (cuboid, sphere, cylinder at assorted sizes and segment counts) 359 came
-  back closed, the one exception off by 1.69e-7. What breaks it is what the 2D
-  path hands it. `to3DWalls` builds side walls only, so the operands are open
-  prisms, and their vertical faces can be closer together than the BSP can
-  resolve: `splitPolygonByPlane` works to an absolute `EPS` of 1e-5
-  (`src/maths/constants.js`) regardless of the geometry's scale.
-
-  In the smallest `horiholes.scad` case — two of the 24 operands — exactly one
-  pair of parallel wall planes falls below that, 7.531e-6 apart, and the two
-  walls that vanish from the union are precisely that pair. The shapes do
-  overlap across that band, so the correct union needs connector faces 7.5e-6
-  tall to stitch the boundary, which the BSP cannot represent. Dropping `EPS`
-  to 1e-9 takes that case from 6 unmatched vertices to 4 and the full 24-way
-  union from 76 to 40, so the tolerance is a contributor and not the whole
-  story.
-
-  Also ruled out by measurement: it is not snapping, since the raw BSP output
-  is open at full float precision; and it is not the missing caps, since
-  capping the prisms with earcut triangles leaves the same 89 walls and the
-  same 11 unmatched vertices.
-
-  Repairing downstream is not available either. Surveying all 23 with
-  `geom2-trace.js --preview`, the distance from an unmatched vertex to the
-  partner a repair would join it to runs from 1.6 epsilon (`horiholes.scad`)
-  through 10.5 (`fidget_boo.scad`) to 37 and beyond for the other 20, topping
-  out at 35,665 (`walk_torus83_fort.scad`); `blowers.scad` has no
-  opposite-sign partner at all. Whole sides are gone, so closing them means
-  inventing geometry.
-
-  What is left is to stop routing 2D booleans through a 3D BSP. A sweep-line
-  clipper with exact predicates decides these cases correctly instead of
-  against a fixed tolerance. Both engines would get it: the manifold runtime
-  routes geom2-sourced booleans through the same code
-  (`packages/manifold/src/booleans/index.js`).
-- **The last four are one-offs.** `maze3d_mickey.scad` overflows the stack and
+- **Four errors are one-offs.** `maze3d_mickey.scad` overflows the stack and
   is an accepted failure (see `RENDER-TESTING.md`). `Spawing_Cube.scad` errors
   here and renders on manifold. `offset.scad` exceeds the 290s model budget.
   `packing_circles.scad` sits on the budget and is marked flaky in the
@@ -249,7 +184,10 @@ covering this engine. Run one model with `display-check.js --engine jscad`.
   3.6s, and the profile is entirely BSP: splitByPlane 11.6s, GC 11.3s, clipTo
   7.3s, with nothing in our own code. The one avoidable part is upstream now
   (`perf(modeling): group geometries by bounds before unioning them`), worth
-  about 20% on a scene of separable parts.
+  about 20% on a scene of separable parts. NopSCADlib `PCB.scad` now gets past
+  its 2D booleans (1,319 calls, 1.4s in all) and spends 227s in 853 3D unions,
+  two of them merging 154k and 175k polygons in 50s each with the Node heap
+  peaking at 2.7 GB; it finishes in 234s against the 290s budget.
 
 ## Code review follow-ups
 

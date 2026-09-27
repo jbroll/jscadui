@@ -152,6 +152,19 @@ result. The
 unwrapped ops. On the jscad engine the inputs are plain objects and nothing is
 freed.
 
+### 2D booleans
+
+`union`, `difference` and `intersection` of `geom2` run in the modeling fork
+on `polyclip-ts`, a sweep-line clipper. The manifold runtime uses the same code
+for any operand built from a jscad geom2 (`hasJscadSource` in
+`packages/manifold/src/booleans/index.js`). The fork used to extrude each
+operand into an open prism, run the 3D BSP boolean and read the walls back.
+The BSP splits against an absolute `EPS` of 1e-5, so parallel walls closer than
+that were dropped, and 25 models got outlines that did not close.
+`polygon-clipping`, which `polyclip-ts` forked from, throws "Unable to complete
+output ring" on some small float inputs (`heart2heart_maze.scad`,
+`fidget_boo.scad`). Both calls are kept as fixtures in the fork's tests.
+
 ## Worker Integration
 
 The worker's module loader is extended to handle `.scad` files:
