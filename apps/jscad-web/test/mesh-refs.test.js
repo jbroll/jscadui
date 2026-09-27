@@ -75,12 +75,13 @@ describe('mesh refs', () => {
       .toThrow(expect.objectContaining({ name: 'ModelError', message: expect.stringContaining('cccccccccccccccc') }))
   })
 
-  it('replaces the remembered meshes rather than adding to them', () => {
+  it('resolves refs from the previous remember while an older run is in flight', () => {
     const refs = createMeshRefs()
     const first = mesh('aaaaaaaaaaaaaaaa')
     refs.remember([first])
     refs.remember([mesh('bbbbbbbbbbbbbbbb')])
-    expect(() => refs.resolve([refTo(first)])).toThrow(/aaaaaaaaaaaaaaaa/)
+    const [resolved] = refs.resolve([refTo(first)])
+    expect(resolved.vertices).toBe(first.vertices)
   })
 
   it('lists the remembered hashes', () => {

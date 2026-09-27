@@ -123,6 +123,28 @@ describe('jscadMain streaming', () => {
     expect(lastRunStreamed()).toBe(false)
   })
 
+  it('keeps solids when a streamed part conversion throws mid-stream', async () => {
+    workerState.main = () => [
+      { type: 'mesh', vertices: new Float32Array(9) },
+      { type: 'mesh', vertices: new Float32Array(9) },
+      { type: 'mesh', vertices: new Float32Array(9) },
+    ]
+    const prepare = JscadToCommon.prepare
+    let calls = 0
+    JscadToCommon.prepare = (...args) => {
+      if (++calls === 2) throw new Error('bad part')
+      return prepare(...args)
+    }
+    try {
+      await expect(jscadMain({ params: {}, runId: 7 })).rejects.toThrow('bad part')
+    } finally {
+      JscadToCommon.prepare = prepare
+    }
+    const posted = self.postMessage.mock.calls.filter(([message]) => message.method === 'jscadCells')
+    expect(posted).toHaveLength(1)
+    expect(currentSolids()).toHaveLength(3)
+  })
+
   it('returns the whole result for a multi-part model with no runId', async () => {
     workerState.main = () => [
       { type: 'mesh', vertices: new Float32Array(9) },

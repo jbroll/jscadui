@@ -7,8 +7,6 @@
 export const createObjectCache = (dispose) => {
   let kept = new Map()
   let next = new Map()
-  let extra = []
-  let staleExtra = []
   let timer = null
   let pendingStale = null
 
@@ -17,20 +15,13 @@ export const createObjectCache = (dispose) => {
   return {
     begin(reset) {
       if (reset) {
-        disposeAll([...kept.values(), ...extra])
+        disposeAll([...kept.values()])
         kept = new Map()
-        extra = []
       }
       next = new Map()
-      staleExtra = extra
-      extra = []
     },
     get(entity, build) {
-      if (next.has(entity)) {
-        const obj3d = build(entity)
-        if (obj3d) extra.push(obj3d)
-        return obj3d
-      }
+      if (next.has(entity)) return next.get(entity)
       let obj3d = kept.get(entity)
       if (obj3d) kept.delete(entity)
       else obj3d = build(entity)
@@ -44,10 +35,9 @@ export const createObjectCache = (dispose) => {
         clearTimeout(timer)
         disposeAll(pendingStale)
       }
-      const stale = [...kept.values(), ...staleExtra]
+      const stale = [...kept.values()]
       kept = next
       next = new Map()
-      staleExtra = []
       pendingStale = stale
       timer = setTimeout(() => {
         timer = null
@@ -62,11 +52,9 @@ export const createObjectCache = (dispose) => {
         disposeAll(pendingStale)
         pendingStale = null
       }
-      disposeAll([...kept.values(), ...next.values(), ...extra, ...staleExtra])
+      disposeAll([...kept.values(), ...next.values()])
       kept = new Map()
       next = new Map()
-      extra = []
-      staleExtra = []
     },
   }
 }

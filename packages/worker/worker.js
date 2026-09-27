@@ -397,7 +397,12 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
   } catch (error) {
     if (myGeneration !== workerState.getGeneration()) throw error
     const { lastRunStreamed } = workerState
+    const partialStream = emitted()
+    const solids = workerState.solids
     workerState.clearGeometry() // M1 fix: Also clear solids array on error to free memory
+    // A part whose conversion throws mid-stream already posted earlier parts;
+    // keep the solids so the partial model is not lost.
+    if (partialStream && solids.length) workerState.solids = solids
     // A failed export re-run must not make later exports read the emptied solids as the model.
     if (!stream) workerState.lastRunStreamed = lastRunStreamed
     // Re-throw with additional context

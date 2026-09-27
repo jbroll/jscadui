@@ -48,11 +48,17 @@ describe('object cache', () => {
     cache.end()
   })
 
-  it('gives a repeated entity its own object', () => {
+  it('reuses one object for a repeated entity instead of rebuilding each redraw', () => {
+    const build = vi.fn((e) => ({ e }))
     const cache = createObjectCache(vi.fn())
     const a = {}
-    const [x, y] = scene(cache, [a, a], (e) => ({ e }))
-    expect(x).not.toBe(y)
+    const [x, y] = scene(cache, [a, a], build)
+    expect(y).toBe(x)
+    expect(build).toHaveBeenCalledTimes(1)
+    const [x2, y2] = scene(cache, [a, a], build)
+    expect(x2).toBe(x)
+    expect(y2).toBe(x)
+    expect(build).toHaveBeenCalledTimes(1)
   })
 
   it('flushes the earlier stale list when end() runs again before its timer fires', () => {

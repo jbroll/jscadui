@@ -15,10 +15,11 @@ const ATTRIBUTES = ['color', 'transforms', 'isTransparent', 'opacity']
  */
 export const createMeshRefs = () => {
   let byHash = new Map()
+  let prevByHash = new Map()
 
   const resolveOne = (entity) => {
     if (!entity?.ref) return entity
-    const held = byHash.get(entity.hash)
+    const held = byHash.get(entity.hash) ?? prevByHash.get(entity.hash)
     if (!held) throw modelError(`geometry refers to mesh ${entity.hash}, which the page does not hold`)
     // The same object lets the renderer reuse what it built for it.
     if (ATTRIBUTES.every((key) => sameValue(held[key], entity[key]))) return held
@@ -32,11 +33,13 @@ export const createMeshRefs = () => {
     resolve: (entities) => entities.map(resolveOne),
     /** @param {Array<object>} entities */
     remember(entities) {
+      prevByHash = byHash
       byHash = new Map()
       for (const entity of entities) if (entity?.hash && !entity.ref) byHash.set(entity.hash, entity)
     },
     forget() {
       byHash = new Map()
+      prevByHash = new Map()
     },
   }
 }
