@@ -37,6 +37,11 @@ reuse, spare worker), then `c848f0ba`, the grid failure marker drawn from
 with NopSCADlib's tests in six categories, then `746a96f7`, the grid worker
 pool (a grid's leaves spread over the frame's workers by claim), then
 `3cae6ef5`, workers recycled past a 1 GiB WASM heap and a default pool of two.
+2026-09-27: deployed `152cb36b`, the chat settings fix. Before it the host had
+no `/etc/jscad-relay/providers.json`, so every relayed request, chat turns
+included, returned 500; the relay now falls back to the built-in provider
+table. A same-origin models GET now reaches the provider (`meta` answers 401
+without a key) instead of a 403.
 See `apps/jscad-web/docs/architecture.md` for the
 deploy order and headers.
 
@@ -291,6 +296,12 @@ Async module loading is the breaking one; the rest are extractions.
   `legacy/legacyConverter.ts`, `tree/treeBuilder.ts`.
 
 ## Remaining issues
+
+- **Chat settings follow-ups (jscad-web).** `e2e/ai-chat.spec.js` was
+  updated for the gear dialog but not yet run through simple-ci. The model
+  list has not been seen with a real Meta key. Form controls stay light in
+  dark mode, and the drawer header wraps the gear onto its own line when the
+  sign-in copy is long.
 
 - **Missing files read as network errors in the frame.** The local server
   (`apps/jscad-web/scripts/local/server.js`) and `serve.js` send
