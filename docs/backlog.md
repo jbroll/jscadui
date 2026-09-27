@@ -253,17 +253,22 @@ ParamsTree cleanup handling, three.js disposal timing, regl render queue,
 FileWatcher cleanup, babel error context, DXF/X3D menu gaps and the 3mf
 README claim.
 
-- **Parameter updates keep the latest (jscad-web).** Rapid changes
-  intentionally coalesce to the most recent params instead of queueing.
-  Decide whether a real queue is needed. (`apps/jscad-web/src/paramsUI.js`,
-  `runParamChange`)
-- **Save fallback feedback (jscad-web).** Without the File System Access API
-  the save fails silently. Tell the user. (`apps/jscad-web/main.js`)
-- **Params validation (params-ui, params-controller).** Validate class names,
-  enforce step, settle `setParam` type coercion (`5` vs `"5"`), document
-  `setClass` as non-reentrant, validate `extractPartValues` inputs beyond
-  the null guard.
-- **Rate-limit CDN requests (require).** No throttling of any kind. Needs
+- **Parameter updates keep the latest (jscad-web).** Decided 2026-09-27:
+  no queue; rapid changes coalesce to the latest and `noteParams` still
+  records every change. (`apps/jscad-web/src/paramsUI.js`, `runParamChange`)
+- **Save fallback feedback (jscad-web).** Done 2026-09-27: a missing file
+  handle reports through `setError` instead of failing silently.
+  (`apps/jscad-web/main.js`, `src/saveFile.js`)
+- **Params validation (params-ui, params-controller).** Done 2026-09-27
+  except step snapping: paths and class names are validated, numeric
+  strings coerce when the stored value is a number, `setClass` documents
+  non-reentrancy with a guard, `extractPartValues` validates its inputs.
+- **Params step snapping (params-ui).** Inputs carry the `step` attribute
+  but free-typed values are not snapped to it in JS. Decide whether
+  snapping is wanted. (`packages/params-ui/src/inputs.js`,
+  `createNumberInput`)
+- **Rate-limit CDN requests (require).** Done 2026-09-27 as a burst guard
+  (200/s, fail fast); real throttling with queuing/backoff still needs
   async `fetch()` first; see the async module loading refactor below.
   (`packages/require/src/readFileWeb.js`)
 
