@@ -282,10 +282,11 @@ waits. So a superseding request also answers `SupersededError` to every app
 `jscadMain` still queued behind a reload and removes it; none of them has
 started, so nothing is retired. A queued `jscadScript` stays, as a pending one
 does, and so does a queued `jscadMain` that a queued export, measure or check
-after it will read. On the app side,
-`runModelUpdate` and `paramChangeCallback` keep coalescing updates while a run
+after it will read. On the app side, `runModelUpdate` and `runParamChange` (`src/paramsUI.js`)
+share one work token and keep coalescing updates while a run
 younger than 500 ms is in flight, and send the new run at once when it is
-older. A rejection named `SupersededError` sets no error, and a run a newer one
+older. Each path drains the other's queue on settling, so neither strands the
+other. A rejection named `SupersededError` sets no error, and a run a newer one
 replaced draws nothing.
 
 Model code runs in the same worker as the code that answers requests, so the
@@ -582,18 +583,21 @@ counts accepted batches for the render sweep's per-cell hang guard.
 Nothing produces the same geometry objects across runs: plain jscad, Manifold
 and the OpenSCAD runtime rebuild every part, so reuse is by content, not by
 object. `src/meshRefs.js` keeps the meshes the last completed run drew, keyed by the
-`hash` the worker puts on each mesh. Every request that carries a `runId` also
+`hash` the worker puts on each mesh, plus the previous map: a `remember` from
+an agent evaluation or animation frame no longer strands an in-flight run's
+refs, which resolve against the map before it. Every request that carries a
+`runId` also
 sends `held`, the list of those hashes, and the worker sends a mesh whose hash
 is listed as a `ref` with no buffers (see `docs/WORKER_PROTOCOL.md`). The worker
 hashes meshes only for a request that carries `held`, so a run without it (an
-animation frame, an agent evaluation) returns meshes with no `hash`, and
-remembering what it drew leaves the map empty. The app
+animation frame, an agent evaluation) returns meshes with no `hash`. The app
 resolves each ref before the cap checks, in both the whole-result and the
 streamed path, so a resolved mesh's bytes count toward the caps as if the
 worker had sent them. A ref whose `color`, `transforms`, `isTransparent` and
 `opacity` all equal the held mesh's, compared element by element, resolves to
 the held entity object itself. The three.js renderer keys built objects by
-entity object, so that mesh is not rebuilt. A ref that differs in any of them
+entity object, so that mesh is not rebuilt, and the same held entity twice in
+one scene reuses the one built object. A ref that differs in any of them
 resolves to a new entity with the ref's values and the held mesh's buffers,
 so the renderer builds a new object but the buffers are not copied again. A
 ref to a hash the page does not hold is a model error.
@@ -662,7 +666,7 @@ Tools and where they run:
 | `view` | page, from the live canvas |
 | `writeModel` | editor buffer plus a version row |
 
-`params` calls `paramChangeCallback`, which re-runs `jscadMain` against
+`params` calls `paramsUI.runParamChange`, which re-runs `jscadMain` against
 whatever the frame last loaded — the agent's `eval` source or the editor's,
 whichever ran last. `writeModel` only fills the editor buffer; nothing compiles
 until the user runs it.

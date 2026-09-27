@@ -242,7 +242,8 @@ README claim.
 
 - **Parameter updates keep the latest (jscad-web).** Rapid changes
   intentionally coalesce to the most recent params instead of queueing.
-  Decide whether a real queue is needed. (`apps/jscad-web/main.js`)
+  Decide whether a real queue is needed. (`apps/jscad-web/src/paramsUI.js`,
+  `runParamChange`)
 - **Save fallback feedback (jscad-web).** Without the File System Access API
   the save fails silently. Tell the user. (`apps/jscad-web/main.js`)
 - **Params validation (params-ui, params-controller).** Validate class names,
