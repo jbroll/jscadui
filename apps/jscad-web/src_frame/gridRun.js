@@ -14,16 +14,18 @@ const streams = ({ method, params }) =>
   (method === 'jscadScript' && params?.[0]?.runMain !== false)
 
 /** @returns {Member} */
-const newMember = () => ({ key: null, url: null, startedAt: Date.now(), wins: 0, recycle: false })
+const newMember = () => ({ key: null, url: null, startedAt: Date.now(), wins: 0, recycle: false, order: null })
 
 /**
  * @typedef {import('./workerSlot.js').Slot} Slot
- * @typedef {{key: string | null, url: string | null, startedAt: number, wins: number, recycle: boolean}} Member
+ * @typedef {{key: string | null, url: string | null, startedAt: number, wins: number, recycle: boolean,
+ *   order: number | null}} Member - order is the member's first claim in the run, the grid-order rank its params merge by
  * @typedef {{appId: unknown, method: string, options: object | undefined,
  *   message: {method: string, params: unknown[]}, runId: unknown, primary: Slot,
  *   members: Map<Slot, Member>, claimed: Set<string>, lost: {url: string | null, reason: string}[],
- *   answers: {data: any, primary: boolean}[], fanned: boolean, closed: boolean, answered: boolean,
- *   script: object | undefined}} Run
+ *   answers: {data: any, primary: boolean, order: number | null}[], fanned: boolean, closed: boolean, answered: boolean,
+ *   script: object | undefined, retried: Set<string>,
+ *   pendingLost: {key: string, url: string | null, reason: string}[]}} Run
  */
 
 /**
@@ -66,6 +68,11 @@ export const createGridRuns = ({ state, pool, slotOps, post, answerError }) => {
       closed: false,
       answered: false,
       script: entry.script,
+      // A leaf freed for re-run after its member died: kept out of lost when
+      // a replacement claims it again, reported when nobody does. Retried
+      // once, so a leaf that always hangs ends up lost instead of looping.
+      retried: new Set(),
+      pendingLost: [],
     }
     runs.add(run)
     return run
@@ -94,6 +101,7 @@ export const createGridRuns = ({ state, pool, slotOps, post, answerError }) => {
     if (member && member.wins > 0 && slot.heap >= RECYCLE_HEAP_BYTES) member.recycle = true
     const won = !!member && !run.closed && !member.recycle && typeof key === 'string' && !run.claimed.has(key)
     if (won) {
+      if (member.order === null) member.order = run.claimed.size
       member.wins++
       run.claimed.add(key)
       Object.assign(member, { key, url: typeof url === 'string' ? url : null, startedAt: Date.now() })
@@ -114,8 +122,13 @@ export const createGridRuns = ({ state, pool, slotOps, post, answerError }) => {
   }
 
   // The primary's answer comes first: for a load it carries what the params UI is built from.
+  // The rest merge in claim order, the frame's view of grid order, so the
+  // params UI keeps its shape between pooled runs instead of following answer
+  // arrival. The primary claims before the run fans out, so it is order 0.
   const merged = (run) => {
-    const answers = [...run.answers].sort((a, b) => Number(b.primary) - Number(a.primary)).map((a) => a.data)
+    const answers = [...run.answers]
+      .sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity) || Number(b.primary) - Number(a.primary))
+      .map((a) => a.data)
     const failure = answers.find((data) => data.error && data.error.name !== 'RuntimeError')
     const done = answers.filter((data) => !data.error)
     if (failure || !done.length) {
@@ -123,12 +136,16 @@ export const createGridRuns = ({ state, pool, slotOps, post, answerError }) => {
         { name: 'AbortError', message: 'every worker running the grid stopped' }
       return { method: RESPONSE, id: run.appId, error }
     }
+    const lost = [...run.lost]
+    for (const { key, url, reason } of run.pendingLost) {
+      if (!run.claimed.has(key)) lost.push({ url, reason })
+    }
     const { trapped: _trapped, ...first } = done[0].params ?? {}
     const params = mergeProxyStates(done.map((data) => data.params), run.method === 'jscadScript')
     return {
       method: RESPONSE,
       id: run.appId,
-      params: { ...first, ...params, entities: [], streamed: true, runId: run.runId, lost: run.lost },
+      params: { ...first, ...params, entities: [], streamed: true, runId: run.runId, lost },
     }
   }
 
@@ -155,7 +172,7 @@ export const createGridRuns = ({ state, pool, slotOps, post, answerError }) => {
     const member = run.members.get(slot)
     if (!member) return
     run.members.delete(slot)
-    run.answers.push({ data, primary: slot === run.primary })
+    run.answers.push({ data, primary: slot === run.primary, order: member.order })
     if (!data.error && run.method === 'jscadScript') slot.script = run.options
     // A trapped worker stops walking the grid, so its unclaimed leaves need a
     // replacement even after its trapped leaf streamed; each trap uses up a leaf.
@@ -179,7 +196,15 @@ export const createGridRuns = ({ state, pool, slotOps, post, answerError }) => {
         continue
       }
       if (member.key !== null) {
-        run.lost.push({ url: member.url, reason: errorName ?? 'AbortError' })
+        // Free the leaf for re-run so its cells and params are not lost with
+        // its member; the merge reports it when no replacement claims it.
+        if (!run.closed && !run.retried.has(member.key)) {
+          run.retried.add(member.key)
+          run.pendingLost.push({ key: member.key, url: member.url, reason: errorName ?? 'AbortError' })
+          run.claimed.delete(member.key)
+        } else {
+          run.lost.push({ url: member.url, reason: errorName ?? 'AbortError' })
+        }
         if (!run.closed && !join(run) && !run.members.size) {
           post({ method: 'frameWorkerTerminated', params: [{ reason: 'no worker is left to finish the grid' }] })
         }
