@@ -117,15 +117,6 @@ disposes its two intermediate transforms per geometry.
 - **Revoke the frame's worker blob URLs.** `frame.js` makes a blob URL per
   worker and never revokes it, and the pool starts more workers than before.
 
-## Worker
-
-- **The whole result transfers a `ManifoldGeom3`'s own arrays.** Its
-  `vertices`, `indices` and `normals` getters return the solid's cached mesh
-  arrays, and `jscadMain`'s whole-result path transfers them. The solid stays in
-  `workerState.solids`, so a later export, measure or check that reconverts the
-  kept solids can read detached arrays. Streamed batches already send copies
-  (`packages/worker/src/stream.js`).
-
 ## Worker pool and supersede
 
 See `apps/jscad-web/docs/architecture.md`, Protocol and Streamed runs, for how
