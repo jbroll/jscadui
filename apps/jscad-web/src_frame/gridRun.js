@@ -1,6 +1,5 @@
+import { ABANDON_AFTER_MS } from './constants.js'
 import { mergeProxyStates } from './mergeProxyStates.js'
-
-export const ABANDON_AFTER_MS = 500
 
 // A WASM heap never shrinks, so a worker past this is replaced rather than kept.
 export const RECYCLE_HEAP_BYTES = 2 ** 30

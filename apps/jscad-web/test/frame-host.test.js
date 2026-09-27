@@ -195,6 +195,15 @@ describe('worker creation failure', () => {
   })
 })
 
+describe('frame constants', () => {
+  it('exposes ABANDON_AFTER_MS from the leaf constants module', async () => {
+    const constants = await import('../src_frame/constants.js')
+    const frameHost = await import('../src_frame/frameHost.js')
+    expect(constants.ABANDON_AFTER_MS).toBe(500)
+    expect(frameHost.ABANDON_AFTER_MS).toBe(500)
+  })
+})
+
 describe('jscadInit rewriting', () => {
   it('names the frame bundles and drops the sender bundles', () => {
     const { workers, send } = setup()

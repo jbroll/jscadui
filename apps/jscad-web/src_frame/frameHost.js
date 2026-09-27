@@ -1,9 +1,10 @@
 import { collectBuffers } from './collectBuffers.js'
-import { ABANDON_AFTER_MS, createGridRuns, trapped } from './gridRun.js'
+import { ABANDON_AFTER_MS } from './constants.js'
+import { createGridRuns, trapped } from './gridRun.js'
 import { createPool, NEEDS_SOLIDS } from './workerPool.js'
 import { createSlots } from './workerSlot.js'
 
-export { ABANDON_AFTER_MS } from './gridRun.js'
+export { ABANDON_AFTER_MS } from './constants.js'
 export const DEFAULT_TIMEOUT_MS = 30000
 
 const RESPONSE = '__RESPONSE__'

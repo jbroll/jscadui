@@ -130,26 +130,10 @@ claims, and abandons stale runs.
   grid, and a large grid export after a promotion can time out.
 - **A superseding load or parameter change aborts a pending export.** The
   retire answers the export `AbortError`.
-- **Move `ABANDON_AFTER_MS` to a leaf constants module.** It lives in
-  `src_frame/gridRun.js`, re-exported from `frameHost.js`, and the app imports
-  it from there.
 - **The app sends a superseding `jscadMain` every 500 ms while a load is
   pending.** The frame never abandons a pending script, so each one queues on
   the worker and runs in full. Queue them behind the load instead and supersede
   the queued ones, as the frame already does behind a reload.
-- **The frame's `jscadInit` mirror entries grow with every kill's replay.**
-  Only a new file map trims the mirror list, and it keeps every init.
-- **`retire()` can leave no active worker.** If `createWorker` throws, the
-  active slot is empty, and the next cold start sends no bundles.
-- **A reload step that fails with `RuntimeError` leaves the trapped worker
-  active.** The queued request gets the error and the requests behind it run on
-  that worker, until an app answer traps and retires it.
-- **An export after a failed run uses the last successful params.** The frame
-  records `lastMain` only when a `jscadMain` succeeds, so after one fails with
-  `RuntimeError` a promoted worker replays the previous params, not the ones the
-  user last set.
-- **The frame's replay steps carry the app's `held`.** The worker hashes every
-  mesh for an answer the frame drops. Strip `held` and `runId` from the replay.
 
 ## Mesh reuse
 

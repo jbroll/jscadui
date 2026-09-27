@@ -251,7 +251,7 @@ bundles, WASM and the replay.
 A load, a parameter change and a render-engine redraw send `supersede: true`
 with their `jscadScript` or `jscadMain`. When one arrives while the active
 worker has an app `jscadMain` or `jscadScript` it started at least 500 ms ago
-(`ABANDON_AFTER_MS`, exported from `src_frame/frameHost.js`), the frame answers
+(`ABANDON_AFTER_MS`, defined in `src_frame/constants.js` and re-exported from `src_frame/frameHost.js`), the frame answers
 that request and every other app `jscadMain` or `jscadScript` on the worker
 `SupersededError`, retires the worker the same way as a trap, and sends the new
 request to the promoted worker, after the reload for a `jscadMain`. When every
