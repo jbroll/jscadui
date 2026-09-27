@@ -221,6 +221,12 @@ async function readFileFile(file, {bin=false}={}){
  * @returns {Promise<import('@jscadui/format-common').JscadMainResult>}
  */
 export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths, useGpuNormals, stream = true, runId, held } = {}) {
+  const myGeneration = workerState.getGeneration()
+  const assertFresh = (stage) => {
+    if (myGeneration !== workerState.getGeneration()) {
+      throw new Error(`jscadMain superseded by newer script ${stage}`)
+    }
+  }
   // Update GPU normals setting if provided (allows switching without re-running script)
   if (useGpuNormals !== undefined) {
     const modelingBundleUrl = requireCache.bundleAlias['@jscad/modeling']
@@ -257,6 +263,8 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
       }
     }
   }
+
+  assertFresh('before run')
 
   workerState.lastParams = params
 
@@ -321,6 +329,8 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
       workerState.solids = flatten(await runMain(params || {}))
     }
 
+    assertFresh('after main')
+
     treeTime = performance.now() - time
 
     if (stream) workerState.lastRunStreamed = emitted()
@@ -376,6 +386,7 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
 
     return withTransferable(result, transferable)
   } catch (error) {
+    if (myGeneration !== workerState.getGeneration()) throw error
     const { lastRunStreamed } = workerState
     workerState.clearGeometry() // M1 fix: Also clear solids array on error to free memory
     // A failed export re-run must not make later exports read the emptied solids as the model.
