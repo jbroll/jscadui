@@ -106,10 +106,10 @@ export const initAccount = (container) => {
   })
 
   container.append(el('h3', 'ai-section-title', 'Model'))
-  const modelPlaceholders = { anthropic: 'claude-sonnet-4-5', openai: 'gpt-4o', 'opencode-go': 'deepseek-v4-flash' }
+  const modelPlaceholders = { anthropic: 'claude-sonnet-4-5', openai: 'gpt-4o', 'opencode-go': 'deepseek-v4-flash', meta: 'muse-spark-1.3' }
   const selection = getSelection()
   const kind = el('select', 'ai-input')
-  for (const value of ['anthropic', 'openai', 'opencode-go']) {
+  for (const value of ['anthropic', 'openai', 'opencode-go', 'meta']) {
     const option = el('option', '', value)
     option.value = value
     kind.append(option)

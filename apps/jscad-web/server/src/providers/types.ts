@@ -22,12 +22,15 @@ export async function* ssePayloads(body: ReadableStream<Uint8Array> | null): Asy
   if (buffer.startsWith('data:')) yield buffer.slice(5).trim()
 }
 
-export type ProviderKind = 'anthropic' | 'openai' | 'opencode-go'
+export type ProviderKind = 'anthropic' | 'openai' | 'opencode-go' | 'meta'
 
 export const PROVIDER_BASE_URLS: Record<ProviderKind, string> = {
   anthropic: 'https://api.anthropic.com',
   openai: 'https://api.openai.com',
   'opencode-go': 'https://opencode.ai/zen/go',
+  // Meta Model API host; adapters append /v1/responses, /v1/chat/completions,
+  // or /v1/messages, matching Meta's documented surfaces.
+  meta: 'https://api.meta.ai',
 }
 
 // Go serves these models on other protocols; route by model id.
@@ -36,6 +39,7 @@ export const RESPONSES_MODELS: ReadonlySet<string> = new Set([
   'gpt-5.6-luna',
   'muse-spark-1.3-contributor',
   'muse-spark-1.2-contributor',
+  'muse-spark-1.3',
 ])
 export const MESSAGES_MODELS: ReadonlySet<string> = new Set([
   'minimax-m3',
@@ -92,6 +96,7 @@ export function createProvider(config: ProviderConfig): Provider {
     case 'openai':
       return openaiProvider(config)
     case 'opencode-go':
+    case 'meta':
       if (RESPONSES_MODELS.has(config.model)) return responsesProvider(config)
       if (MESSAGES_MODELS.has(config.model)) return anthropicProvider(config)
       return openaiProvider(config)

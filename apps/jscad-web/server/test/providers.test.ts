@@ -247,6 +247,16 @@ describe('createProvider', () => {
     expect(fetchMock.mock.calls[0][0]).toBe('https://provider.test/v1/chat/completions')
   })
 
+  it('meta posts Muse Spark to the Model API responses endpoint', async () => {
+    const spark =
+      openaiChunk({ type: 'response.output_text.delta', delta: 'Hi' }) + openaiChunk({ type: 'response.completed' })
+    fetchMock.mockResolvedValueOnce(streamResponse(spark))
+    const provider = createProvider({ kind: 'meta', apiKey: 'sk-test', model: 'muse-spark-1.3' })
+    const events = await collect(provider)
+    expect(fetchMock.mock.calls[0][0]).toBe('https://api.meta.ai/v1/responses')
+    expect(events).toContainEqual({ type: 'text', text: 'Hi' })
+  })
+
   it('throws when the apiKey is missing', () => {
     expect(() => createProvider({ kind: 'openai', model: 'm', baseUrl: 'https://provider.test' })).toThrow(/apiKey/)
   })

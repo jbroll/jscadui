@@ -10,10 +10,13 @@ export const PROVIDER_BASE_URLS = {
   anthropic: 'https://api.anthropic.com',
   openai: 'https://api.openai.com',
   'opencode-go': 'https://opencode.ai/zen/go',
+  // Meta Model API host; adapters append /v1/responses, /v1/chat/completions,
+  // or /v1/messages, matching Meta's documented surfaces.
+  meta: 'https://api.meta.ai',
 }
 
 // Go serves these models on other protocols; route by model id.
-export const RESPONSES_MODELS = new Set(['grok-4.6', 'gpt-5.6-luna', 'muse-spark-1.3-contributor', 'muse-spark-1.2-contributor'])
+export const RESPONSES_MODELS = new Set(['grok-4.6', 'gpt-5.6-luna', 'muse-spark-1.3-contributor', 'muse-spark-1.2-contributor', 'muse-spark-1.3'])
 export const MESSAGES_MODELS = new Set(['minimax-m3', 'minimax-m2.7', 'minimax-m2.5', 'qwen3.8-max', 'qwen3.8-flash', 'qwen3.7-max', 'qwen3.7-plus', 'qwen3.6-plus'])
 
 // Yields every `data:` payload of an SSE stream.
@@ -216,7 +219,7 @@ const openaiProvider = (config) => {
 }
 
 /**
- * @param {{kind:'anthropic'|'openai'|'opencode-go',apiKey:string,model:string,baseUrl?:string,sessionId?:string}} config
+ * @param {{kind:'anthropic'|'openai'|'opencode-go'|'meta',apiKey:string,model:string,baseUrl?:string,sessionId?:string}} config
  */
 export const createProvider = (config) => {
   if (!config.apiKey) throw new Error('createProvider: apiKey is required')
@@ -226,6 +229,7 @@ export const createProvider = (config) => {
     case 'openai':
       return openaiProvider(config)
     case 'opencode-go':
+    case 'meta':
       if (RESPONSES_MODELS.has(config.model)) return responsesProvider(config)
       if (MESSAGES_MODELS.has(config.model)) return anthropicProvider(config)
       return openaiProvider(config)

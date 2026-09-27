@@ -103,6 +103,21 @@ describe('providers', () => {
     expect(() => createProvider({ kind: 'openai', model: 'm', baseUrl: 'https://relay.test' })).toThrow(/apiKey/)
   })
 
+  it('meta posts Muse Spark to the Model API responses endpoint', async () => {
+    const body =
+      `data: {"type":"response.output_text.delta","delta":"Hi"}\n\n` +
+      `data: {"type":"response.completed"}\n\n`
+    fetchMock.mockResolvedValue(new Response(sseBody(body)))
+    const provider = createProvider({ kind: 'meta', apiKey: 'k', model: 'muse-spark-1.3' })
+    const events = []
+    for await (const e of provider.send([{ role: 'user', content: 'hi' }], TOOLS)) events.push(e)
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.meta.ai/v1/responses',
+      expect.objectContaining({ method: 'POST' }),
+    )
+    expect(events).toContainEqual({ type: 'text', text: 'Hi' })
+  })
+
   it('opencode-go sends a stable x-opencode-session header; openai does not', async () => {
     const body = `data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n` + `data: [DONE]\n\n`
     fetchMock.mockImplementation(() => Promise.resolve(new Response(sseBody(body))))
