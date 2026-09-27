@@ -97,11 +97,6 @@ NopSCADlib `extrusion_brackets.scad` 3087 → 963 MB, `openscad/bosl2/ALL.js`
 after each cell, which by itself changed no Node peak, and `normalizeAndPlace`
 disposes its two intermediate transforms per geometry.
 
-- **Model code can keep its own run alive.** It can post its own `jscadCells`
-  during a load or parameter run, and each relayed message restarts the frame's
-  kill timer, so a model that keeps posting is never killed. Claims restart the
-  kill timers too, so model code can post `jscadClaim` with a guessable
-  `runId` to the same end. The damage stays in the user's own session.
 - **`part()` boundaries for JSCAD and SCAD parts.** A single model's parts
   could spread across the frame's pool the way a grid's leaves do now, using
   the same claim mechanism: `jscadClaim`, a key per part, fan-out on the first

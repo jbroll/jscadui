@@ -559,7 +559,9 @@ request. Notifications carry no request id, and an older request keeps
 emitting until the worker stops it, so the tag is what separates runs: a batch
 is accepted, and a streamed result finishes the run, only when its `runId` is
 the current run's and the run is not stale. Anything else is dropped and leaves
-the current run alone. A `frameSetup` replay re-sends requests with the
+the current run alone. Run ids are random UUIDs, so model code sharing the
+worker cannot guess one: a spoofed batch names no open run and drops without
+restarting the kill timers. A `frameSetup` replay re-sends requests with the
 `runId`s they first carried, whose runs are closed, so its batches are dropped
 too. A result that is not streamed discards the open run without drawing, so a
 pending redraw cannot paint over it. Model code can post its own `jscadCells`,

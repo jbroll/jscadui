@@ -386,6 +386,21 @@ describe('streamed cells and progress', () => {
     vi.advanceTimersByTime(101)
     expect(posted.find((m) => m.id === 2)?.error?.name).toBe('TimeoutError')
   })
+
+  it('drops model-spoofed cells and claims without restarting the kill timer', () => {
+    const { posted, workers, send } = setup()
+    init(send, { timeoutMs: 1000 }, 1)
+    answer(workers[0])
+    send({ method: 'jscadMain', id: 2, params: [{ params: {}, runId: 'real-run' }] })
+    vi.advanceTimersByTime(900)
+    // Model code guessing at the runId hits nothing: the claim is refused
+    // and the cells are dropped, and neither touches the timers.
+    workers[0].onmessage({ data: { method: 'jscadClaim', id: 'spoof', params: [{ key: '0', url: './x.scad', runId: 'guessed', heap: 0 }] } })
+    workers[0].onmessage({ data: { method: 'jscadCells', params: [{ entities: [], runId: 'guessed' }] } })
+    expect(posted.filter((m) => m.method === 'jscadCells')).toEqual([])
+    vi.advanceTimersByTime(101)
+    expect(posted.find((m) => m.id === 2)?.error?.name).toBe('TimeoutError')
+  })
 })
 
 const methodsOf = (worker) => worker.postMessage.mock.calls.map(([m]) => m.method)

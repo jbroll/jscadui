@@ -57,6 +57,7 @@ import { createFrame, createJobTracker } from './src/frameSetup.js'
 import { collectProjectFiles, replaceProjectFiles } from './src/projectFiles.js'
 import { createScriptRuns, sendScript } from './src/scriptRuns.js'
 import { createStreamRuns } from './src/streamRuns.js'
+import { newRunId } from './src/runId.js'
 import { createMeshRefs } from './src/meshRefs.js'
 import { PROJECT_BASE } from './src_frame/fileMap.js'
 import * as fileSystem from './src/fileSystem.js'
@@ -235,14 +236,12 @@ const streamRuns = createStreamRuns({
   },
 })
 
-let lastRunId = 0
-
 /**
  * @param {() => boolean} isStale
- * @returns {number} the runId to send with the request, which the worker echoes on its cells
+ * @returns {string} the runId to send with the request, which the worker echoes on its cells
  */
 const beginStream = isStale => {
-  const runId = ++lastRunId
+  const runId = newRunId()
   delete document.documentElement.dataset.cells
   streamRuns.begin(isStale, runId)
   return runId
