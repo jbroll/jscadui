@@ -256,4 +256,33 @@ describe('CacheManager', () => {
       }).not.toThrow()
     })
   })
+
+  describe('dependency bounds', () => {
+    it('should cap the dependency map instead of growing without bound', () => {
+      for (let i = 0; i < 500; i++) {
+        cache.trackDependency(`https://cdn.com/base${i}.js`, `https://cdn.com/dep${i}.js`)
+      }
+
+      expect(cache.getLegacyCacheObjects().knownDependencies.size).toBeLessThanOrEqual(200)
+    })
+
+    it('should cap per-module dependency sets', () => {
+      for (let i = 0; i < 300; i++) {
+        cache.trackDependency('https://cdn.com/main.js', `https://cdn.com/dep${i}.js`)
+      }
+
+      expect(cache.getDependencies('https://cdn.com/main.js').size).toBeLessThanOrEqual(100)
+    })
+
+    it('should drop reverse references when a module is evicted', () => {
+      for (let i = 0; i < 50; i++) {
+        cache.set(`https://cdn.com/module${i}.js`, { id: i }, false)
+      }
+      cache.trackDependency('https://cdn.com/main.js', 'https://cdn.com/module0.js')
+      cache.set('https://cdn.com/module50.js', { id: 50 }, false)
+
+      expect(cache.get('https://cdn.com/module0.js', false)).toBeUndefined()
+      expect(cache.getDependencies('https://cdn.com/main.js').has('https://cdn.com/module0.js')).toBe(false)
+    })
+  })
 })

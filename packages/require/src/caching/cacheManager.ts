@@ -174,6 +174,14 @@ class LRUCache {
 const MAX_MODULE_CACHE_SIZE = 50
 
 /**
+ * Maximum number of base URLs tracked in the dependency map, and maximum
+ * dependencies kept per module. The module cache is LRU-capped but the
+ * dependency map grew without eviction.
+ */
+export const MAX_DEPENDENCY_KEYS = 200
+export const MAX_DEPS_PER_MODULE = 100
+
+/**
  * Central cache manager for the module system
  */
 export class CacheManager {
@@ -215,6 +223,7 @@ export class CacheManager {
       // Clean up dependencies for evicted module
       if (evictedKey) {
         this.dependencies.delete(evictedKey)
+        this.pruneReference(evictedKey)
       }
     }
   }
@@ -229,6 +238,17 @@ export class CacheManager {
     } else {
       this.moduleCache.delete(url)
       this.dependencies.delete(url)
+      this.pruneReference(url)
+    }
+  }
+
+  /**
+   * Remove an evicted URL from every other module's dependency set so the
+   * map cannot hold stale references forever.
+   */
+  private pruneReference(url: string): void {
+    for (const deps of this.dependencies.values()) {
+      deps.delete(url)
     }
   }
 
@@ -259,10 +279,24 @@ export class CacheManager {
   trackDependency(baseUrl: string | undefined, dependencyUrl: string): void {
     if (!baseUrl) return
 
-    if (!this.dependencies.has(baseUrl)) {
-      this.dependencies.set(baseUrl, new Set())
+    let deps = this.dependencies.get(baseUrl)
+    if (!deps) {
+      deps = new Set()
+      this.dependencies.set(baseUrl, deps)
+      // Evict the oldest base URL when the map grows past its cap.
+      // Map preserves insertion order, so the first key is the oldest.
+      if (this.dependencies.size > MAX_DEPENDENCY_KEYS) {
+        const oldest = this.dependencies.keys().next().value
+        if (oldest !== undefined) this.dependencies.delete(oldest)
+      }
+      deps = this.dependencies.get(baseUrl)!
     }
-    this.dependencies.get(baseUrl)!.add(dependencyUrl)
+    deps.add(dependencyUrl)
+    // Cap per-module sets the same way.
+    if (deps.size > MAX_DEPS_PER_MODULE) {
+      const oldest = deps.values().next().value
+      if (oldest !== undefined) deps.delete(oldest)
+    }
   }
 
   /**
