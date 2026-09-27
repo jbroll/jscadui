@@ -3,7 +3,7 @@ import { JscadToCommon } from '@jscadui/format-jscad'
 import { toRefs } from './meshRefs.js'
 
 // Later batches and kept solids can reuse these arrays, so each batch transfers copies
-const withCopies = (entities) => {
+export const withCopies = (entities) => {
   const copies = new Map()
   const copyOf = (view) => {
     if (!copies.has(view)) copies.set(view, view.slice())

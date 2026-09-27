@@ -309,6 +309,36 @@ describe('jscadMain streaming repeated geometry', () => {
 
     expect(currentSolids().map(solid => solid.vertices.byteLength)).toEqual([36, 36])
   })
+
+  it('sends copies in the whole result so the kept solids stay usable', async () => {
+    const vertices = new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0])
+    const indices = new Uint32Array([0, 1, 2])
+    const normals = new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1])
+    class ManifoldLike {
+      type = 'mesh'
+      isManifoldGeom3 = true
+      manifold = Object.create({ numTri() {} })
+      get vertices() { return vertices }
+      get indices() { return indices }
+      get normals() { return normals }
+    }
+    const m = new ManifoldLike()
+    workerState.main = () => [m]
+
+    const result = await jscadMain({ params: {}, stream: false })
+
+    expect(result.entities).toHaveLength(1)
+    expect(result.entities[0].vertices).not.toBe(vertices)
+    expect(result.entities[0].indices).not.toBe(indices)
+    expect(result.entities[0].normals).not.toBe(normals)
+    expect([...result.entities[0].vertices]).toEqual([...vertices])
+    const transfer = result[Symbol.for('__transferable__')]
+    expect(transfer).not.toContain(vertices)
+    expect(transfer).not.toContain(indices)
+    expect(transfer).not.toContain(normals)
+    expect(vertices.byteLength).toBe(36)
+    expect(currentSolids()).toHaveLength(1)
+  })
 })
 
 describe('jscadMain claims', () => {

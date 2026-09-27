@@ -9,7 +9,7 @@ import { extractDefaults } from './src/extractDefaults.js'
 import { extractPathInfo, readAsArrayBuffer, readAsText } from '../fs-provider/fs-provider.js'
 import { workerState } from './src/state/workerState.js'
 import { toRefs } from './src/meshRefs.js'
-import { createStreamHook, withStreamHook } from './src/stream.js'
+import { createStreamHook, withCopies, withStreamHook } from './src/stream.js'
 import { createClaims } from './src/claims.js'
 
 /**
@@ -357,7 +357,10 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
       execTime = performance.now() - time
 
       time = performance.now()
-      entities = toRefs(JscadToCommon.prepare(workerState.solids, transferable, workerState.userInstances).all, heldSet, transferable)
+      const prepared = toRefs(JscadToCommon.prepare(workerState.solids, undefined, workerState.userInstances).all, heldSet, [])
+      const copied = withCopies(prepared)
+      entities = copied.entities
+      transferable.push(...copied.transfer)
       convTime = performance.now() - time
     }
 
