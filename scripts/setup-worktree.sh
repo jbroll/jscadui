@@ -73,6 +73,15 @@ for d in node_modules .deps-cache; do
   fi
 done
 
+# Workspace packages keep their own node_modules (per-package dev deps such
+# as typescript); link the ones missing in the worktree.
+while IFS= read -r d; do
+  if [ ! -e "$worktree/$d" ] && [ -d "$main/$d" ]; then
+    ln -s "$main/$d" "$worktree/$d"
+    echo "linked: $d -> $main/$d"
+  fi
+done < <(cd "$main" && find packages apps file-format -maxdepth 3 -name node_modules -type d 2>/dev/null)
+
 # Sibling checkouts beside the main checkout (rowboat, OpenJSCAD.org).
 # From the worktree they resolve at <main>/.worktrees/<sibling>.
 wt_parent="$(dirname "$worktree")"
@@ -96,6 +105,13 @@ for d in node_modules .deps-cache; do
     echo "excluded: $d in git info/exclude"
   fi
 done
+
+# The openscad bundle entry imports @jscadui/openscad, whose package main is
+# the tsc-built esm/ output, absent in a fresh worktree. Build it before the
+# web bundles, which resolve it through the worktree's own packages.
+if [ ! -d "$worktree/packages/openscad/esm" ]; then
+  (cd "$worktree/packages/openscad" && npm run build)
+fi
 
 # Bundle artifacts are gitignored and cannot be symlinked usefully, so build
 # them once per worktree. This is the fast esbuild script (not a full turbo
