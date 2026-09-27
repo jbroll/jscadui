@@ -332,7 +332,9 @@ again.
 
 A frame with an opaque origin cannot construct a `Worker` from a URL, and
 relative `importScripts` fails inside a blob worker. So the frame builds a
-two-line blob that sets `__BUNDLE_BASE__` and `importScripts` the real bundle.
+two-line blob that sets `__BUNDLE_BASE__` and `importScripts` the real bundle
+(`src_frame/blobWorker.js`). The worker's blob URL is revoked when the worker
+is terminated, since the pool starts and retires workers as runs come and go.
 For the same reason the worker's file reads cannot use `readFileWeb`, whose
 base is `self.location.origin` (`'null'` here); `build.js` swaps in
 `src_frame/readFileFrame.js`, which serves reads from the project file map
@@ -464,17 +466,22 @@ worker lost afterward is not reported as having lost it. The app gets one
 answer, once the run's last member has answered: the primary member's answer
 merged with `entities: []`, `streamed: true`, `runId`, `lost`, and the params
 every member discovered (`src_frame/mergeProxyStates.js`), since each worker
-discovers only the leaves it ran itself. A run nobody claims into behaves as a
-single request, as before.
+discovers only the leaves it ran itself. Members merge in claim order, the
+frame's view of grid order — each member is ranked by its first won claim, so
+the params UI keeps its shape between pooled runs instead of following answer
+arrival. The primary claims before the run fans out, so it stays first. A run
+nobody claims into behaves as a single request, as before.
 
 Losing a member: a trap or a timeout stops only that member. The frame
 retires it and, while the run is open, adds a replacement that joins late. A
 trapped member always gets one, since it stops walking the grid after its
 trapped leaf streams a skull; a timeout or other loss gets one only when the
-member was on a leaf. A timed-out member's current leaf goes into
-`lost`, which `streamRuns.js` reports as an error while keeping the cells
-already drawn. `frameWorkerTerminated` is posted only when no member remains
-and none can start.
+member was on a leaf. A timed-out member's current leaf is freed for re-run
+once, so a replacement can claim it and its cells and params still arrive; the
+leaf goes into `lost` only when no replacement claims it, or when the
+replacement loses it too, which `streamRuns.js` reports as an error while
+keeping the cells already drawn. `frameWorkerTerminated` is posted only when
+no member remains and none can start.
 
 Recycling a member: a WebAssembly heap grows and never shrinks, so each worker
 keeps the heap of the largest leaf it has run, and the pool's memory is the sum
@@ -524,10 +531,13 @@ worker's result both flatten it.
 
 Export, measure and check need the solids. A grid run disposes each cell as it
 streams, so when the last run was a grid they re-run `jscadMain` with
-`stream: false` and with `__jscadProgress` set, which posts one
-`jscadProgress` per cell. Export skips its `$preview` re-run for a streamed
+`stream: false`, `solidsOnly: true` and with `__jscadProgress` set, which posts one
+`jscadProgress` per cell. `solidsOnly` skips the mesh conversion: the export
+reads the solids back out, so entity arrays would be built only to be
+discarded, at grid-scale memory cost. Manifold evaluation still runs, warming
+the cache the serializer reads. Export skips its `$preview` re-run for a streamed
 grid, since the grid is re-run for the export anyway. The re-run holds the
-whole grid in memory again, so exporting a large streamed grid can still fail.
+whole grid's solids in memory again, so exporting a large streamed grid can still fail.
 Animation frames also run with `stream: false`, since each frame draws the
 result it returns.
 

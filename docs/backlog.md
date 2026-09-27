@@ -104,18 +104,10 @@ disposes its two intermediate transforms per geometry.
   they re-run main in the frame's worker without waiting for other runs, so two
   can interleave and share `__jscadProgress`, `releaseSolids` and
   `currentParams()`.
-- **Re-run a grid for export without converting it.** The re-run goes through
-  `jscadMain`, which converts every cell to meshes it then discards. Calling
-  main without that conversion would cut the time and the peak memory.
 - **`part()` boundaries for JSCAD and SCAD parts.** A single model's parts
   could spread across the frame's pool the way a grid's leaves do now, using
   the same claim mechanism: `jscadClaim`, a key per part, fan-out on the first
   claim.
-- **Merge a pooled run's params in grid order.** `mergeProxyStates` follows
-  the order members answered, not grid order, so the params UI can reorder
-  between pooled runs. A timed-out member's params are missing from the merge.
-- **Revoke the frame's worker blob URLs.** `frame.js` makes a blob URL per
-  worker and never revokes it, and the pool starts more workers than before.
 
 ## Mesh reuse
 
