@@ -28,21 +28,24 @@ warnings the transpiled library echoed are gone, and `bosl2/echo-skip.txt` is
 deleted. bosl2 goes 152 → 174 graded: the 22 BOSL2 models that only echo are
 now graded on their echo() output and all match.
 
-## Previous GPU run: 2026-09-27, duplicate-definition last-wins + empty minkowski
+## Previous GPU run: 2026-09-27, duplicate-definition last-wins + empty minkowski + boolean block scope
 
-Branch `work/library-bugs-20260927`, simple-ci job `bb7257a6c145b65e`
+Branch `work/library-bugs-20260927`, simple-ci job `6c80490b1d9b6a1a`
 (`sci push jscadui/test`), OpenSCAD 2026.08.30.fp. All 21 suites pass
 (bosl2 152 graded; the echo-grading change above landed separately).
 
-Two fixes, both invisible to the graded suites (no graded model covers
+Three fixes, all invisible to the graded suites (no graded model covers
 them) and covered by unit tests instead: duplicate top-level
 function/module definitions resolve last-wins, matching OpenSCAD (the
 constructive library defines `set` twice; the bundler kept the first, so
 `geomsOnly` merged with array-`set` semantics, `$geomInfo` lost every
 entry, and `cart14-tensioner.scad` died on `TUBE():h is undefined` — it
-now runs clean locally); `minkowski` with an empty operand returns empty
-instead of a null-wrapping object that crashed downstream ops (the
-r_union3 dilate-minkowski class). A third attempt, rendering `%`
+now runs clean locally and grades 0.988 against the flatpak reference);
+`$`-assignments in builtin-boolean child blocks use dynamic scope
+(assemble()'s remove-pass `$removing = true` was a dead const, so
+difference() emptied everything); `minkowski` with an empty operand
+returns empty instead of a null-wrapping object that crashed downstream
+ops (the r_union3 dilate-minkowski class). A fourth attempt, rendering `%`
 background geometry at `$preview=true`, was reverted on this branch:
 reference OpenSCAD excludes `%` from STL exports even at preview=true
 (verified against the flatpak), while nopscadlib must grade at
