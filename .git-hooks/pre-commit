@@ -1,4 +1,8 @@
 #!/bin/sh
+# Pre-commit hook: build, lint staged files, typecheck, fast unit tests.
+# Runs on every commit. Heavy suites (JSCAD examples, OpenSCAD comparison,
+# e2e) stay on the CI GPU host: `sci push jscadui/test` (see ci/README.md) —
+# too slow and memory-intensive for a commit gate.
 set -e
 
 echo "Running pre-commit checks..."
@@ -19,9 +23,12 @@ fi
 echo "Type checking..."
 npm run typecheck
 
-# Run unit tests only (fast, local)
-# Full comparison suite runs via CI (npm test) — too slow for pre-commit.
+# Fast unit tests: every workspace except openscad (turbo, parallel), then
+# the openscad vitest suite. Needs a built tree for bundle-dependent suites
+# (e.g. fluent-worker): run `node apps/jscad-web/build.js` first on a fresh
+# checkout.
 echo "Running unit tests..."
+npm run test:unit
 npm run test:unit --workspace=@jscadui/openscad
 
 echo "All pre-commit checks passed!"
