@@ -1,3 +1,4 @@
+import { createBlobWorker } from './blobWorker.js'
 import { createFrameHost } from './frameHost.js'
 
 // Injected by esbuild at build time (see build.js).
@@ -16,7 +17,12 @@ const { handleMessage } = createFrameHost({
   allowedOrigin: ALLOWED_ORIGIN,
   bundleBase: BUNDLE_BASE,
   createWorker: () =>
-    new Worker(URL.createObjectURL(new Blob([workerSource], { type: 'application/javascript' }))),
+    createBlobWorker({
+      source: workerSource,
+      createObjectURL: URL.createObjectURL.bind(URL),
+      revokeObjectURL: URL.revokeObjectURL.bind(URL),
+      WorkerClass: Worker,
+    }),
   post: (message, transfer) => parent.postMessage(message, ALLOWED_ORIGIN, transfer),
   parentWindow: parent,
 })
