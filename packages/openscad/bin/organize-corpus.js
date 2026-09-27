@@ -294,10 +294,11 @@ function main() {
     }
   }
 
-  // Batching wipes batch directories (including their ALL.js grids), so
-  // regenerate the grids: fetch-deps output must match the tracked files or
-  // ci/gpu-test fails its dirtiness gate. --no-rename keeps the numeric
-  // prefixes the render baselines depend on.
+  // Batching wipes batch directories, including their ALL.js grids, so
+  // regenerate them here: the grids are gitignored build artifacts, and this
+  // (plus deploy-full.sh and `npm run generate-all`) is what puts them into
+  // the examples tree for the demo browser, the render sweeps and deploys.
+  // --no-rename keeps numeric prefixes, which the render baselines depend on.
   if (!options.dryRun) {
     console.log('\n📐 Regenerating ALL.js grids...')
     const result = spawnSync(process.execPath,
