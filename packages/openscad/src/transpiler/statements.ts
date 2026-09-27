@@ -172,18 +172,9 @@ export function transpileStatement(stmt: Statement, ctx: TranspileContext): stri
   }
 
   if (isIfElseStatement(stmt)) {
-    // * (tagDisabled) modifiers on if/else exclude the entire block
-    if (stmt.tagDisabled) {
+    // % (tagBackground) and * (tagDisabled) modifiers on if/else exclude the entire block
+    if (stmt.tagBackground || stmt.tagDisabled) {
       return 'undefined'
-    }
-    // % (tagBackground) renders in preview ($preview) and is excluded from render
-    if (stmt.tagBackground) {
-      const copy = Object.create(Object.getPrototypeOf(stmt), Object.getOwnPropertyDescriptors(stmt))
-      copy.tagBackground = false
-      const inner = transpileStatement(copy, ctx) || 'undefined'
-      ctx.codeGen.usedHelpers.add('isTruthy')
-      const wrapped = `(j$.isTruthy(j$.getSpecialVar('$preview'))) ? (${inner}) : (j$.NO_CHILD)`
-      return comment ? `${comment}${wrapped}` : wrapped
     }
     const cond = transpileExpression(stmt.cond, ctx)
     const thenPart = transpileStatement(stmt.thenBranch, ctx) || 'undefined'
@@ -551,19 +542,12 @@ function transpileModuleInstantiation(stmt: ModuleInstantiationStmt, ctx: Transp
   const name = stmt.name
 
   // Handle OpenSCAD modifier characters:
-  // % (tagBackground): ghost display - geometry included in preview ($preview), excluded from render
+  // % (tagBackground): ghost display - geometry excluded from output
   // * (tagDisabled): disabled - geometry excluded from output
   // # (tagHighlight): highlight display - geometry included (display-only difference)
   // ! (tagRoot): show only this subtree - geometry included
-  if (stmt.tagDisabled) {
+  if (stmt.tagBackground || stmt.tagDisabled) {
     return 'undefined'
-  }
-  if (stmt.tagBackground) {
-    const copy = Object.create(Object.getPrototypeOf(stmt), Object.getOwnPropertyDescriptors(stmt)) as ModuleInstantiationStmt
-    copy.tagBackground = false
-    const inner = transpileModuleInstantiation(copy, ctx)
-    ctx.codeGen.usedHelpers.add('isTruthy')
-    return `(j$.isTruthy(j$.getSpecialVar('$preview'))) ? (${inner}) : (j$.NO_CHILD)`
   }
 
   // Special modules that don't follow the normal pattern
