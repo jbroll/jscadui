@@ -97,5 +97,9 @@ for d in node_modules .deps-cache; do
   fi
 done
 
-echo "done. Still needed once per worktree: npm run build in apps/jscad-web"
-echo "(bundle artifacts are gitignored and cannot be symlinked usefully)."
+# Bundle artifacts are gitignored and cannot be symlinked usefully, so build
+# them once per worktree. This is the fast esbuild script (not a full turbo
+# build); fluent-worker tests and the pre-commit gate need it.
+(cd "$worktree/apps/jscad-web" && node build.js)
+
+echo "done."
