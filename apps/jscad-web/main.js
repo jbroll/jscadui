@@ -62,6 +62,7 @@ import { PROJECT_BASE } from './src_frame/fileMap.js'
 import * as fileSystem from './src/fileSystem.js'
 import * as paramsUI from './src/paramsUI.js'
 import { clearReloadTimestamp } from './src/reloadDetection.js'
+import { missingSaveHandleMessage } from './src/saveFile.js'
 import { installStudioBridge } from './src/studioBridge.js'
 import { handleToolRequest } from './src/aiBridge.js'
 import { initChat } from './src/aiChat.js'
@@ -759,6 +760,8 @@ editor.init(
       fileSystem.setSaveMapEntry(path, fileHandle)
       fileHandle.lastMod = Date.now() + 500
       await recordEdit(script, path)
+    } else {
+      setError(new Error(missingSaveHandleMessage(path)))
     }
   },
   path => fileSystem.getSwHandler()?.getFile(path),
