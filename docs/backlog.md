@@ -304,3 +304,78 @@ covering this engine. Run one model with `display-check.js --engine jscad`.
   7.3s, with nothing in our own code. The one avoidable part is upstream now
   (`perf(modeling): group geometries by bounds before unioning them`), worth
   about 20% on a scene of separable parts.
+
+## Code review follow-ups
+
+Status re-checked against current code 2026-09-27. Dropped as already fixed:
+URL entry validation, decode iteration cap, OrbitControl pointer tracking,
+ParamsTree cleanup handling, three.js disposal timing, regl render queue,
+FileWatcher cleanup, babel error context, DXF/X3D menu gaps and the 3mf
+README claim.
+
+- **Script lock race (worker).** Only `jscadScript` checks the generation
+  counter; `jscadMain` has none, and the timeout path still releases the lock
+  while the timed-out script keeps running. Add a staleness guard to
+  `jscadMain`. (`packages/worker/worker.js`)
+- **STL export validation (worker).** Out-of-range vertices only log, and
+  normals are not checked at all. Decide: throw on malformed meshes or keep
+  graceful degradation. (`packages/worker/src/exportStlText.js`)
+- **Unbounded dependency map (require).** The module cache is LRU-capped but
+  `knownDependencies` grows without eviction. Cap it or clear on module
+  evict. (`packages/require/src/require.js`)
+- **Parameter updates keep the latest (jscad-web).** Rapid changes
+  intentionally coalesce to the most recent params instead of queueing.
+  Decide whether a real queue is needed. (`apps/jscad-web/main.js`)
+- **Worker termination on unload (jscad-web).** No stored worker reference
+  and no `terminate()` call; teardown relies on frame removal. Add an
+  explicit terminate path. (`apps/jscad-web/src/frameSetup.js`,
+  `apps/jscad-web/main.js`)
+- **Save fallback feedback (jscad-web).** Without the File System Access API
+  the save fails silently. Tell the user. (`apps/jscad-web/main.js`)
+- **Params validation (params-ui, params-controller).** Validate class names,
+  enforce step, settle `setParam` type coercion (`5` vs `"5"`), document
+  `setClass` as non-reentrant, validate `extractPartValues` inputs beyond
+  the null guard.
+- **Security note in worker.js.** The require, params-form and engine.js
+  notes exist; the dynamic loading in `packages/worker/worker.js` still has
+  none. Add it so scanners stop re-flagging the file.
+- **Rate-limit CDN requests (require).** No throttling of any kind. Needs
+  async `fetch()` first; see the async module loading refactor below.
+  (`packages/require/src/readFileWeb.js`)
+- **Monitor, don't fix.** Child proxies cache without bounds
+  (`packages/params-core/src/createParamsProxy.js`); fix together with the
+  params memory item below.
+
+## Refactoring
+
+Async module loading is the breaking one; the rest are extractions.
+
+- **Async module loading.** Replace sync XHR in `readFileWeb.js` with
+  `fetch()`, make `require()` async, parallelize loads. Breaking: needs a
+  worker protocol update and a migration guide. 2–3 weeks.
+- **Transpiler extraction.** `buildOutputCode()` out of the output builder
+  (~170 lines); the 3 near-identical dedup loops in `processIncludeStatements()`
+  into `bundling/deduplicator.ts`; 3 merge functions into
+  `bundling/symbolMerger.ts` (~40 lines).
+- **Worker extraction.** 220 lines of parameter logic into
+  `src/parameters/parameterHandler.ts`; lock/generation code (77 lines) into
+  `src/locks/scriptLock.ts`; Manifold eval + format conversion into
+  `src/geometry/geometryProcessor.ts`.
+- **require.js extraction.** CDN redirect, `.scad` search and `.ts` fallback
+  into `loading/errorRecovery.ts`; JSON/custom extensions into
+  `loading/formatHandler.ts`.
+- **params-core proxy system (low priority).** `proxy/proxyHandlers.ts`,
+  `proxy/discoveryTracker.ts`, `proxy/proxyFactory.ts`,
+  `legacy/legacyConverter.ts`, `tree/treeBuilder.ts`.
+
+## Remaining issues
+
+- **Accessibility.** Input-level ARIA exists; still missing are tree and
+  toolbar roles, keyboard navigation for the param and file trees, modal
+  focus trap and `aria-expanded` on collapsibles.
+  (`packages/params-ui`, `apps/jscad-web`)
+- **Params memory.** Class-input and color-picker listeners are never removed
+  (params-ui); child proxies cache without bounds (params-core, confirmed).
+  Fix together with the proxy-cache monitor item above.
+- **Decide: `packages/modeling-preview`.** Still present and unimported
+  anywhere. Remove it.
