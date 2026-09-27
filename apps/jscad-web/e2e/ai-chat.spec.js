@@ -96,6 +96,7 @@ test.describe('AI chat', () => {
     await page.locator('#menu-button').click()
     await page.locator('#ai-chat-btn').click()
     await expect(page.locator('#ai-chat')).toBeVisible()
+    await expect(page.locator('#menu')).not.toHaveClass(/open/)
 
     await page.locator('.ai-gear').click()
     await page.locator('.ai-provider-select').selectOption('openai')

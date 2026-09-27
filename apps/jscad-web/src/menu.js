@@ -69,6 +69,6 @@ export const destroy = () => {
   if (cleanupFn) cleanupFn()
 }
 
-const dismiss = () => {
+export const dismiss = () => {
   menu.classList.remove('open')
 }

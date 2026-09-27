@@ -869,6 +869,7 @@ const aiDrawer = byId('ai-drawer')
 const toggleAi = () => aiDrawer?.classList.toggle('closed')
 byId('ai-toggle')?.addEventListener('click', toggleAi)
 byId('ai-chat-btn')?.addEventListener('click', () => {
+  menu.dismiss()
   aiDrawer?.classList.remove('closed')
 })
 
