@@ -22,6 +22,28 @@ conversation's chat id and the error text.
 Live eval runs spend API budget. Before the first live run of a review, tell
 the user the fixture count times `EVAL_RUNS` and get a yes.
 
+## Rules
+
+- A fixture's `prompt` is what a user would type: the user's message from the
+  log, verbatim, or, for a new fixture, a casual, possibly underspecified
+  request. Never write a prompt like a spec so a band can grade it, and never
+  phrase a prompt to provoke or steer the model toward a particular answer.
+- `checks` test properties any reasonable answer has: plausible size, hollow
+  where the object should be hollow, watertight (via the `solid` context), a
+  size the prompt actually states, and, for a jscad-fluent request, the
+  chaining style. No exact-answer volume band unless the prompt pins the
+  geometry.
+- A prompt or example change is general guidance that holds across requests.
+  Never add a line to `prompt.md` or an example to fix one fixture's failure;
+  that overfits the prompt to a single case.
+- When a stumble comes from a confusing API or error (e.g. `cube` given
+  `[x, y, z]` fails with "size must be positive"), prefer fixing the tool
+  side first — `docs`, warnings, clearer error text — and record it in
+  `docs/backlog.md`, over changing prompt text.
+- The default suite tests CSG primitives and booleans. A fixture whose
+  correct answer needs a computed point-list profile belongs in the opt-in
+  `profiles` group, not the default suite.
+
 ## Steps
 
 1. **Read the logs.** Read `~/.local/state/jscad-chat/last-review` with the
@@ -48,7 +70,11 @@ the user the fixture count times `EVAL_RUNS` and get a yes.
 
 4. **Reproduce each group as a fixture.** Add
    `packages/agent-loop/eval/fixtures/<name>.js`, where `<name>` is the
-   fixture's `name`:
+   fixture's `name`. The `prompt` is the user's message from the log,
+   verbatim — never rewritten to steer the model toward the fix. The
+   `checks` test properties any reasonable answer has, not one exact answer,
+   so the fixture keeps testing the stumble even after the model's phrasing
+   of a correct answer varies:
 
    ```js
    // <one line: the stumble this fixture reproduces>
@@ -58,8 +84,8 @@ the user the fixture count times `EVAL_RUNS` and get a yes.
      requires: ['eval', 'writeModel'],
      verifyBeforeWrite: false,
      maxTurns: 8,
-     checks: (m, { params = [] } = {}) => [
-       { name: '<what the result must be>', pass: /* from m.dimensions, m.volume, m.boundingBox, params */ false },
+     checks: (m, { params = [], solid } = {}) => [
+       { name: '<a property any reasonable answer has>', pass: /* from m.dimensions, m.volume, m.boundingBox, params, solid.watertight */ false },
      ],
      // For a follow-up request, add the prior turns and project files from the log:
      // transcript: [{ role: 'user', content: '...' }, { role: 'assistant', content: '...' }],
@@ -91,10 +117,10 @@ the user the fixture count times `EVAL_RUNS` and get a yes.
 
 6. **Measure the candidate.** Run the suite on the candidate. The default run
    (no `EVAL_FIXTURES`) is the CSG suite: primitives and boolean operations,
-   which is what most real requests exercise. `gear` and `gear-module` sit in
-   the `profiles` group and are opt-in (`EVAL_FIXTURES=profiles` or
-   `EVAL_FIXTURES=all`) since they test computing a point-list profile, not
-   representative of most requests and prone to dominating run time:
+   which is what most real requests exercise. `gear` sits in the `profiles`
+   group and is opt-in (`EVAL_FIXTURES=profiles` or `EVAL_FIXTURES=all`)
+   since it tests computing a point-list profile, not representative of most
+   requests and prone to dominating run time:
 
    ```bash
    EVAL_PROVIDER=meta EVAL_MODEL=muse-spark-1.3-contributor npm run eval -w @jscadui/agent-loop

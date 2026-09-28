@@ -127,7 +127,9 @@ export async function runSuite(
       const seconds = (Date.now() - startedAt) / 1000
       const finalMeasure = JSON.parse(await backend.requestTool('measure', {}))
       const measure = finalMeasure.ok ? finalMeasure : null
-      const report = gradeFixture(fixture, transcript, measure, { params: backend.params() })
+      const finalCheck = JSON.parse(await backend.requestTool('check', {}))
+      const solid = finalCheck.ok ? finalCheck : null
+      const report = gradeFixture(fixture, transcript, measure, { params: backend.params(), solid })
       const { toolCalls, failedCalls, warnings, docsCalls } = transcriptMetrics(transcript)
       const { inputTokens, outputTokens, reasoningTokens } = cappedProvider.usage()
       const { providerSeconds, firstTokenSeconds } = cappedProvider.speed()

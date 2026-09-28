@@ -154,7 +154,7 @@ npm run eval:keyless -w @jscadui/agent-loop
 ```
 
 A fixture may declare `group` (string), such as `'profiles'` for fixtures whose
-correct answer requires computing a point-list profile (`gear`, `gear-module`).
+correct answer requires computing a point-list profile (`gear`).
 The default run, with no `EVAL_FIXTURES`, runs only ungrouped fixtures: the CSG
 suite of primitives and boolean operations. `EVAL_FIXTURES` runs the union of
 whatever it names, fixture names and group names both, e.g. `EVAL_FIXTURES=profiles`
@@ -286,7 +286,7 @@ that caused it. The eval prints one line per run as it goes. The key is never
 printed or written.
 
 A fixture is one file exporting `fixture`:
-`{ name, prompt, requires, verifyBeforeWrite, maxTurns, checks(measure, { params, source }), transcript?, files?, target? }`.
+`{ name, prompt, requires, verifyBeforeWrite, maxTurns, checks(measure, { params, source, solid }), transcript?, files?, target? }`.
 `name` matches the file name; `transcript` (prior `{ role, content }` turns)
 and `files` (`{ path: source }`) test follow-up requests through the same
 `buildMessages` the app uses. `target` (`{ volume?, dimensions? }`) feeds
@@ -294,8 +294,19 @@ and `files` (`{ path: source }`) test follow-up requests through the same
 last `writeModel` source in the run, else the last `eval` source, else `''`
 (`lastSource` in `eval/grade.js`), so a check can inspect the code the model
 wrote as well as the geometry it produced (a style check on a fluent chain,
-for example). `--regrade` still leaves geometry and `checkRate` as stored,
-since it has no live measure to re-run `checks` against.
+for example). `solid` is the parsed result of the backend's `check` tool run
+on the final geometry after the run ends (`eval/backend.js`, `@jscadui/model-tools`),
+or `null` when no geometry was produced; checks use it for `watertight` since
+`measure` alone doesn't report it. `--regrade` still leaves geometry and
+`checkRate` as stored, since it has no live measure to re-run `checks` against.
+
+A fixture's `prompt` is a request a real user would type: casual and often
+underspecified, never a specification written to be graded, and never phrased
+to steer the model toward a particular answer. `checks` test properties any
+reasonable answer has (plausible size, hollow where the object should be
+hollow, watertight, a size the prompt actually states) rather than one exact
+shape; an exact-volume band is only for a fixture whose prompt pins the
+geometry precisely.
 
 ## Review loop
 

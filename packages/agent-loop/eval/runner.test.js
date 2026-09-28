@@ -154,6 +154,53 @@ describe('runSuite', () => {
     expect(result.metrics.outputTokensPerSecond).toBeNull()
     expect(typeof result.metrics.providerSeconds).toBe('number')
   })
+
+  it('passes the final check-tool result as solid in the checks context', async () => {
+    const backend = createEvalBackend()
+    const provider = scripted([
+      [
+        { type: 'tool_use', id: 't1', name: 'eval', input: { source: 'const jf = require("@jbroll/jscad-fluent")\nfunction main() { return [jf.cube({ size: 20 })] }\nmodule.exports = { main }' } },
+        { type: 'done', stopReason: 'tool_use' },
+      ],
+      [{ type: 'text', text: 'done' }, { type: 'done', stopReason: 'end_turn' }],
+    ])
+    let seenSolid
+    const fixture = {
+      name: 'solid-context',
+      prompt: 'p',
+      requires: ['eval'],
+      verifyBeforeWrite: false,
+      maxTurns: 8,
+      checks: (m, { solid } = {}) => {
+        seenSolid = solid
+        return []
+      },
+    }
+    await runSuite([fixture], { provider, backend })
+    expect(seenSolid.watertight).toBe(true)
+  })
+
+  it('solid is null in the checks context when no geometry was produced', async () => {
+    const provider = {
+      async *send() {
+        yield { type: 'done', stopReason: 'end_turn' }
+      },
+    }
+    let seenSolid = 'unset'
+    const fixture = {
+      name: 'x',
+      prompt: 'p',
+      requires: ['eval'],
+      verifyBeforeWrite: false,
+      maxTurns: 2,
+      checks: (m, { solid } = {}) => {
+        seenSolid = solid
+        return []
+      },
+    }
+    await runSuite([fixture], { provider, backend: createEvalBackend() })
+    expect(seenSolid).toBeNull()
+  })
 })
 
 describe('runSuite runs and context', () => {
