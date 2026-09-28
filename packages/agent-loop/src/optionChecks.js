@@ -21,11 +21,17 @@ export const suggestOptions = (option, known) => {
 const checked = (fnName, fn, known, warn) => {
   const allowed = new Set(known)
   return function (...args) {
-    const [first] = args
-    if (isPlainObject(first)) {
-      for (const option of Object.keys(first)) {
-        if (!allowed.has(option)) warn({ fn: fnName, option, suggestions: suggestOptions(option, known) })
+    // A hostile or revoked options argument, or a throwing warn, must never
+    // stop the wrapped call: warnings are reported, never thrown.
+    try {
+      const [first] = args
+      if (isPlainObject(first)) {
+        for (const option of Object.keys(first)) {
+          if (!allowed.has(option)) warn({ fn: fnName, option, suggestions: suggestOptions(option, known) })
+        }
       }
+    } catch {
+      // Ignored — the original call below still runs.
     }
     return fn.apply(this, args)
   }
@@ -64,7 +70,15 @@ export const withOptionChecks = (api, table, warn) => {
       original = child
       copy = copies.get(child)
     }
-    if (typeof original?.[last] === 'function') setValue(copy, last, checked(table.prefix + path, original[last], known, warn))
+    if (typeof original?.[last] === 'function') {
+      const wrapped = checked(table.prefix + path, original[last], known, warn)
+      setValue(copy, last, wrapped)
+      // Manifold also re-exports namespaced functions at the top level as the
+      // same function object; keep both bindings pointing at one wrapper.
+      for (const key of Object.keys(api)) {
+        if (api[key] === original[last]) setValue(root, key, wrapped)
+      }
+    }
   }
   if (api.default === api) setValue(root, 'default', root)
   return root
@@ -82,6 +96,7 @@ const FLUENT_FACTORIES = {
 // Fluent exports no classes and its bundles minify their names, so each
 // prototype comes from an object a factory makes.
 export const fluentPrototypes = (jf) => {
+  /** @type {Record<string, object>} */
   const protos = {}
   for (const [cls, factory] of Object.entries(FLUENT_FACTORIES)) {
     if (typeof jf?.[factory] !== 'function') continue

@@ -95,6 +95,39 @@ describe('withOptionChecks', () => {
     withOptionChecks(api, OPTION_TABLES['@jscad/modeling'], warn).primitives.roundedCuboid({ size: [3, 2, 1], radius: 2 })
     expect(warn).toHaveBeenCalledWith({ fn: 'primitives.roundedCuboid', option: 'radius', suggestions: ['roundRadius'] })
   })
+
+  it('still calls the original with a revoked Proxy as the options argument', () => {
+    const { api, roundedCuboid } = fakeApi()
+    const warn = vi.fn()
+    const { proxy, revoke } = Proxy.revocable({}, {})
+    revoke()
+    const result = withOptionChecks(api, table, warn).primitives.roundedCuboid(proxy)
+    expect(warn).not.toHaveBeenCalled()
+    expect(roundedCuboid.mock.calls[0][0]).toBe(proxy)
+    expect(result.made).toBe(proxy)
+  })
+
+  it('still calls the original and returns its result when warn throws', () => {
+    const { api, roundedCuboid } = fakeApi()
+    const warn = vi.fn(() => { throw new Error('warn blew up') })
+    const options = { radius: 2 }
+    const result = withOptionChecks(api, table, warn).primitives.roundedCuboid(options)
+    expect(roundedCuboid.mock.calls[0][0]).toBe(options)
+    expect(result).toEqual({ made: options })
+  })
+
+  it('checks a manifold-shaped api with a top-level alias of the same function', () => {
+    const roundedCuboid = vi.fn((options) => ({ made: options }))
+    const api = { primitives: { roundedCuboid }, roundedCuboid }
+    const warn = vi.fn()
+    const wrapped = withOptionChecks(api, table, warn)
+    wrapped.primitives.roundedCuboid({ radius: 1 })
+    wrapped.roundedCuboid({ radius: 2 })
+    expect(warn).toHaveBeenCalledTimes(2)
+    expect(wrapped.primitives.roundedCuboid).toBe(wrapped.roundedCuboid)
+    expect(api.roundedCuboid).toBe(roundedCuboid)
+    expect(api.primitives.roundedCuboid).toBe(roundedCuboid)
+  })
 })
 
 describe('suggestOptions', () => {
@@ -207,6 +240,21 @@ describe('wrapFluentMethods', () => {
     const jf = { cube: () => { throw new Error('no cube on this engine') }, arc: () => 'arc' }
     expect(() => wrapFluentMethods(jf, methodTable, vi.fn())).not.toThrow()
     expect(Object.getOwnPropertyNames(String.prototype)).not.toContain('center')
+  })
+
+  it('still calls the original with a revoked Proxy argument or a throwing warn', () => {
+    const { jf, Geom2 } = fakeFluent()
+    const { proxy, revoke } = Proxy.revocable({}, {})
+    revoke()
+    wrapFluentMethods(jf, methodTable, vi.fn())
+    const shape = new Geom2()
+    expect(shape.extrudeLinear(proxy).options).toBe(proxy)
+
+    const throwingWarn = vi.fn(() => { throw new Error('warn blew up') })
+    setMethodWarn(throwingWarn)
+    const options = { hieght: 1 }
+    const result = shape.extrudeLinear(options)
+    expect(result.options).toBe(options)
   })
 
   it('checks the real fluent classes against the generated table', () => {
