@@ -102,7 +102,35 @@ each) and on `firstAttemptFailures`: the failed tool results before the first
 successful `eval`, or before the end of the run if none succeeds. The summary
 gives, per fixture, the mean `firstAttemptFailures`, the pass rate of its
 geometry checks, the mean total and the count of runs that ended in a
-provider error. Each result file, `eval/results/<date>-<model>-<sha8>.json`,
+provider error.
+
+Each result also carries `metrics`, degrading gradually where the 0-2 grades
+tend to max out once a prompt clears the bar:
+
+- `rounds`: provider calls in the run (one per `send()` on the wrapped
+  provider, capped at `fixture.maxTurns`).
+- `toolCalls` / `failedCalls`: every tool call and every failed tool result in
+  the run, not just the ones before the first success. Transcript-derived, so
+  `--regrade` recomputes them from the stored transcript.
+- `inputTokens` / `outputTokens`: summed over the run's provider calls from a
+  `usage` stream event (Anthropic's `message_start`/`message_delta`, OpenAI's
+  `stream_options.include_usage` final chunk, or the Responses API's
+  `response.completed`); `null` when the provider never reports usage.
+- `seconds`: wall time of the run.
+- `geometryError`: relative error against an optional fixture `target`
+  (`{ volume?, dimensions? }`): the max of `|volume - target| / target` and,
+  for `dimensions`, the max per-axis relative error comparing both sides
+  sorted ascending (so orientation doesn't matter); `null` when the fixture
+  has no `target` or no geometry was produced.
+
+`summarize` means each of these per fixture (over non-null values; `null`
+when none exist), and `formatSummary`/`formatComparison` print them in a
+second table alongside the existing one, showing `-` for a result file
+written before `metrics` existed. `--regrade` fills only `toolCalls` and
+`failedCalls`; the rest are left as stored, since they need the original
+provider run.
+
+Each result file, `eval/results/<date>-<model>-<sha8>.json`,
 records the SHA-256 of the assembled system prompt, so `--compare` can set two
 prompt versions side by side. The result dir is `evalResultsDir()`: `EVAL_RESULTS_DIR`
 when set, else `<data>/results` when the evals repo is present; with neither,
@@ -114,15 +142,17 @@ that caused it. The eval prints one line per run as it goes. The key is never
 printed or written.
 
 A fixture is one file exporting `fixture`:
-`{ name, prompt, requires, verifyBeforeWrite, maxTurns, checks(measure, { params }), transcript?, files? }`.
+`{ name, prompt, requires, verifyBeforeWrite, maxTurns, checks(measure, { params }), transcript?, files?, target? }`.
 `name` matches the file name; `transcript` (prior `{ role, content }` turns)
 and `files` (`{ path: source }`) test follow-up requests through the same
-`buildMessages` the app uses.
+`buildMessages` the app uses. `target` (`{ volume?, dimensions? }`) feeds
+`geometryError` for a fixture whose prompt fixes the geometry.
 
 ## Review loop
 
 The `chat-review` project skill (`.claude/skills/chat-review/SKILL.md`) runs
 the loop: read new conversations since the last review, group the stumbles by
 cause, reproduce each group as a fixture, change the prompt or its examples,
-and keep the change only when the eval shows fewer first-attempt failures on
-the new fixtures and no fixture's mean total falls by more than 0.5.
+and keep the change only when the target fixtures improve (fewer first-attempt
+or total failed calls, fewer rounds, or lower `geometryError`) and no fixture's
+mean total falls by more than 0.5 or its mean `rounds` rises by more than 1.0.

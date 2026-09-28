@@ -93,15 +93,16 @@ the user the fixture count times `EVAL_RUNS` and get a yes.
 
    ```bash
    EVAL_PROVIDER=meta EVAL_MODEL=muse-spark-1.3-contributor npm run eval -w @jscadui/agent-loop
-   npm run eval -w @jscadui/agent-loop -- --compare eval/results/<baseline>.json eval/results/<candidate>.json
+   npm run eval -w @jscadui/agent-loop -- --compare <data>/results/<baseline>.json <data>/results/<candidate>.json
    ```
 
    The baseline is the newest result file in `<data>/results/` (`$JSCAD_CHAT_DATA`,
    default `~/src/jscad-chat-evals`) for the current prompt (its `promptSha256`
    matches the committed prompt); run one if none exists.
-   Keep the change only if the mean `firstAttemptFailures` drops on the new
-   fixtures and no fixture's mean total score falls by more than 0.5.
-   Otherwise revise and measure again, or drop the change.
+   Keep the change only if the target fixtures improve (fewer first-attempt or
+   total failed calls, fewer rounds, or lower `geometryError`) and no fixture's
+   mean total score falls by more than 0.5 or its mean `rounds` rises by more
+   than 1.0. Otherwise revise and measure again, or drop the change.
 
 7. **Show and commit.** Show the user the prompt/example diff and the
    comparison table. On approval, commit the prompt, examples and fixtures in
