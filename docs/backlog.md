@@ -43,7 +43,9 @@ included, returned 500; the relay now falls back to the built-in provider
 table. A same-origin models GET now reaches the provider (`meta` answers 401
 without a key) instead of a 403. Later on 2026-09-27: deployed `cb504202`,
 the build-stamped relay origin, so the `jscad-chat` launcher uses its own
-relay instead of production's, which never trusted its origin.
+relay instead of production's, which never trusted its origin. Then
+`d1f328ea`, geom2 booleans on clipper-lib (modeling `ff759668`); smoke passed
+(app build `d651ba36`, frame `63973ab6`).
 See `apps/jscad-web/docs/architecture.md` for the
 deploy order and headers.
 
