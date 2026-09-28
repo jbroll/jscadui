@@ -16,6 +16,7 @@
  *                     an observer that records what happens during load
  *   --eval <js>       expression to evaluate in the page after watching; its
  *                     value is printed as JSON
+ *   --screenshot <file>  save a PNG of the page here, after --eval
  *   --headed          show the browser
  */
 import { chromium } from '@playwright/test'
@@ -75,6 +76,12 @@ if (expr) {
   } catch (e) {
     line('eval-failed', e.message?.split('\n')[0])
   }
+}
+
+const screenshot = arg('screenshot', null)
+if (screenshot) {
+  await page.screenshot({ path: screenshot })
+  line('screenshot', screenshot)
 }
 
 await browser.close()
