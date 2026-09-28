@@ -24,7 +24,8 @@ pre-commit gate passes on a fresh tree. It aborts when the shared
 `.deps-cache` pins drift from the worktree manifest instead of moving them
 under the parent checkout.
 `@jscad/modeling` resolves to `.deps-cache/OpenJSCAD.org` (pinned in
-`scripts/deps/sources.json`); symlink your own checkout there to edit it live.
+`scripts/deps/sources.json`, which also pins jscad-fluent and jscad-anchors
+the same way); symlink your own checkout there to edit it live.
 Details, pins and GPU verification from a session: `docs/CLOUD_SESSION.md`.
 
 ## Common Commands

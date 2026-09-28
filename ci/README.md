@@ -94,10 +94,10 @@ on `PATH` (`/home/john/bin`), GNU `patch`, `git`, and HTTPS access to GitHub.
 `openscad-parser` is a git dependency pinned by commit in
 `packages/openscad/package.json`; `npm install` fetches and builds it, so no
 host-local parser checkout is needed. `ci/test` runs `scripts/fetch-sources.js`
-before `npm install`, which checks out the pinned `@jscad/modeling` fork into
-the worktree's `.deps-cache/OpenJSCAD.org`, so no sibling `OpenJSCAD.org`
-checkout is needed either (`docs/CLOUD_SESSION.md`). Reference STLs are cached in the service
-user's `~/.cache/jscadui/openscad-stl/`.
+before `npm install`, which checks out the pinned `@jscad/modeling`,
+jscad-fluent and jscad-anchors forks into the worktree's `.deps-cache/`, so no
+sibling checkouts of any of them are needed either (`docs/CLOUD_SESSION.md`).
+Reference STLs are cached in the service user's `~/.cache/jscadui/openscad-stl/`.
 
 If runs can exceed the server's `CI_JOB_TIMEOUT` (default 3600s), raise it on
 the host — the poller's own timeout only kills via the API, it cannot extend

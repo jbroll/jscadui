@@ -71,8 +71,9 @@ npm install                    # refresh the lockfile
 ```
 
 `fetch-sources:update` moves every pinned source to the tip of its own `ref`
-(OpenJSCAD.org's `fork-main`, jscad-fluent's `local-packages`), so it also
-rebuilds jscad-fluent if its tip moved.
+(OpenJSCAD.org's `fork-main`, jscad-fluent's and jscad-anchors' both
+`local-packages`), so it also rebuilds jscad-fluent and jscad-anchors if
+their tip moved.
 
 For the parser, change the commit in `packages/openscad/package.json` and run
 `npm install`. For corpora, `npm run fetch-deps:update`.

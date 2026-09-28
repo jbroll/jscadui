@@ -235,7 +235,11 @@ Async module loading is the breaking one; the rest are extractions.
   0.6.1 release. Remaining work: publish jscad-fluent 0.7.0 with 273579c to
   npm, then point `apps/jscad-web/package.json` and
   `packages/agent-loop/package.json` back at the npm version and remove the
-  `sources.json` entry.
+  `sources.json` entry (also its `jscad-anchors` entry, if fluent no longer
+  needs it). Until then, the eval resolves fluent's `@jbroll/jscad-anchors`
+  to the pinned sibling checkout (ba632c6, unreleased manifold anchor fixes)
+  while the frame loads CDN `@jbroll/jscad-anchors@0.1` (`frameHost.js:18`),
+  so eval results for anchor models may differ from the app.
 - **Editor lint, autocomplete and hover from the API index (jscad-web,
   agent-loop).** Next spec after the docs tool. CodeMirror 6 plugins on the
   Lezer tree `lang-javascript` already builds (no TypeScript, too heavy):
