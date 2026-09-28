@@ -6,6 +6,7 @@ import { _getSegments } from './segments.js'
 import { NO_CHILD, _is2D, _polyhedron } from './primitives.js'
 import { linearExtrudeParams, linearExtrudeMesh } from './linearExtrude.js'
 import { consuming } from './consume.js'
+import { gathering } from './overlay.js'
 
 // JSCAD extrusions and utilities - injected at init time
 let extrudeLinear, extrudeMesh, extrudeRotate, translate, mirror, geom2, slice
@@ -34,7 +35,7 @@ const profileSides = (geo) =>
  * the engine's extrudeLinear; anything else is built as OpenSCAD builds it
  * (linearExtrude.js) and handed over as a polyhedron.
  */
-export const _linearExtrude = (args, geo) => {
+export const _linearExtrude = gathering((args, geo) => {
   // Propagate absent child (NO_CHILD = conditional branch not taken)
   if (geo === NO_CHILD) return NO_CHILD
   // Return undefined for empty/missing geometry to avoid degenerate extrusions
@@ -63,7 +64,7 @@ export const _linearExtrude = (args, geo) => {
   }
 
   return extrudeMesh(p, geo)
-}
+})
 
 const _extent = (sides) => {
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
@@ -89,7 +90,7 @@ const _isZeroArea = (sides) => {
 }
 
 // Rotate extrude helper
-export const _rotateExtrude = ({ angle = 360, $fn, $fa, $fs } = {}, geo) => {
+export const _rotateExtrude = gathering(({ angle = 360, $fn, $fa, $fs } = {}, geo) => {
   // Propagate absent child (NO_CHILD = conditional branch not taken)
   if (geo === NO_CHILD) return NO_CHILD
   // Return undefined for empty/missing geometry to avoid degenerate extrusions
@@ -129,4 +130,4 @@ export const _rotateExtrude = ({ angle = 360, $fn, $fa, $fs } = {}, geo) => {
   // This is mathematically equivalent: rotate_extrude(-θ, S) = mirror_xz(rotate_extrude(+θ, S))
   // JSCAD's mirror() reverses polygon winding, preserving correct outward normals.
   return angle < 0 ? mirror({ normal: [0, 1, 0] }, result) : result
-}
+})

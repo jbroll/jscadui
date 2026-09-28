@@ -4,6 +4,7 @@
 
 import { NO_CHILD } from './primitives.js'
 import { consuming } from './consume.js'
+import { gathering } from './overlay.js'
 
 // colorize() sets .color on every element it is handed, so a child that drew
 // nothing has to go before it gets there. OpenSCAD colours the rest.
@@ -22,7 +23,7 @@ export const initColor = (jscad) => {
 }
 
 // Color helper - handles CSS names, RGB, and RGBA
-export const _color = (color, alpha, geo) => {
+export const _color = gathering((color, alpha, geo) => {
   if (geo === NO_CHILD) return NO_CHILD
   let rgba
   if (typeof color === 'string') {
@@ -38,4 +39,4 @@ export const _color = (color, alpha, geo) => {
   const present = _present(geo)
   if (present === undefined || present === null) return undefined
   return colorize(rgba, present)
-}
+})

@@ -7,6 +7,7 @@ import { _num } from './math.js'
 import { _getSegments } from './segments.js'
 import { consuming } from './consume.js'
 import { NO_CHILD } from './sentinels.js'
+import { gathering } from './overlay.js'
 export { NO_CHILD }
 
 // JSCAD primitives and transforms - injected at init time
@@ -241,6 +242,8 @@ const _unionPresent = (parts) => {
   return union(...same.map(withoutDegeneratePolygons))
 }
 
+const _safeUnionFlat = gathering((flattened) => _unionPresent(flattened))
+
 export const _safeUnion = (parts) => {
   // Flatten nested arrays and filter out undefined/null/NO_CHILD values
   // This handles cases where children return empty arrays or nested undefined values
@@ -248,8 +251,8 @@ export const _safeUnion = (parts) => {
 
   // Check if any element is a Promise (async children thunks, e.g. from text())
   const hasPromise = flattened.some(p => p instanceof Promise || (p && typeof p.then === 'function'))
-  if (hasPromise) return Promise.all(flattened).then(_unionPresent)
-  return _unionPresent(flattened)
+  if (hasPromise) return Promise.all(flattened).then(_safeUnionFlat)
+  return _safeUnionFlat(flattened)
 }
 
 // A 2D geometry: jscad geom2 ('sides') or ManifoldGeom2 ('outlines'). `in`, not
@@ -258,12 +261,13 @@ export const _is2D = (p) => p !== null && typeof p === 'object' && ('sides' in p
 
 // Children of linear_extrude/rotate_extrude: OpenSCAD extrudes the 2D ones and
 // ignores 3D ones ("Ignoring 3D child object for 2D operation") in any order.
+const _safeUnion2DFlat = gathering((all) => _unionPresent(all.filter(p => _isAbsent(p) || _is2D(p))))
+
 export const _safeUnion2D = (parts) => {
   const flattened = parts.flat(Infinity)
   const hasPromise = flattened.some(p => p instanceof Promise || (p && typeof p.then === 'function'))
-  const only2D = all => _unionPresent(all.filter(p => _isAbsent(p) || _is2D(p)))
-  if (hasPromise) return Promise.all(flattened).then(only2D)
-  return only2D(flattened)
+  if (hasPromise) return Promise.all(flattened).then(_safeUnion2DFlat)
+  return _safeUnion2DFlat(flattened)
 }
 
 // Re-export direct JSCAD primitives for passthrough
@@ -455,11 +459,11 @@ export const _region = ({ r } = {}) => {
 // NOTE: Do NOT short-circuit for valid.length === 1. OpenSCAD hull() computes the
 // convex hull even of a single (non-convex) child; returning it directly would skip
 // that convexification and break models like BOSL cyl() with fillets.
-export const _hull = (...args) => {
+export const _hull = gathering((...args) => {
   const valid = args.filter(a => !_isAbsent(a))
   if (valid.length === 0) return undefined
   return hull(...valid)
-}
+})
 
 /**
  * Drop polygons with fewer than three vertices.
@@ -479,14 +483,14 @@ export const withoutDegeneratePolygons = (geometry) => {
 // Boolean wrappers - these filter absent/undefined values and call JSCAD booleans
 // NO_CHILD = conditional branch not taken (absent) → always filtered out
 // undefined/null = module/geometry produced nothing (empty geometry)
-export const _union = (...args) => {
+export const _union = gathering((...args) => {
   const valid = args.filter(a => !_isAbsent(a))
   if (valid.length === 0) return undefined
   if (valid.length === 1) return valid[0]
   return union(...valid.map(withoutDegeneratePolygons))
-}
+})
 
-export const _subtract = (...args) => {
+export const _subtract = gathering((...args) => {
   // No subject, nothing to subtract from — even when mask children are present
   // (e.g. a childless call whose mask would otherwise leak through below).
   if (args.length === 0 || _isAbsent(args[0])) return undefined
@@ -496,9 +500,9 @@ export const _subtract = (...args) => {
   const same = _sameDimensionAsFirst(valid)
   if (same.length === 1) return same[0]
   return subtract(...same.map(withoutDegeneratePolygons))
-}
+})
 
-export const _intersect = (...args) => {
+export const _intersect = gathering((...args) => {
   // NO_CHILD (conditional branch not taken) → absent, skip
   // undefined/null (module returned empty geometry) → intersection is empty
   const withoutAbsent = args.filter(a => a !== NO_CHILD)
@@ -508,7 +512,7 @@ export const _intersect = (...args) => {
   const same = _sameDimensionAsFirst(withoutAbsent)
   if (same.length === 1) return same[0]
   return intersect(...same.map(withoutDegeneratePolygons))
-}
+})
 
 // Own property, not the prototype getter a Manifold geometry exposes: that
 // engine has its own 2D minkowski and must keep it.
@@ -588,11 +592,11 @@ const _minkowski2D = (a, b) => {
   return sums.length === 1 ? sums[0] : rawUnion(...sums)
 }
 
-export const _minkowski = (...args) => {
+export const _minkowski = gathering((...args) => {
   const valid = args.filter(a => a !== undefined && a !== null && a !== NO_CHILD)
   if (valid.length < 2) return valid[0] || undefined
   if (valid.every(_isJscadGeom2)) return valid.reduce(_minkowski2D)
   // Minkowski sum is associative: fold N-ary sums pairwise. The underlying
   // manifold call supports exactly two geometries.
   return valid.reduce((a, b) => minkowski(a, b))
-}
+})

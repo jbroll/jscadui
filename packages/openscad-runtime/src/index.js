@@ -17,7 +17,7 @@ import { initColor, _color } from './color.js'
 import { initText, _text } from './text.js'
 import { DEFAULT_SPECIAL_VARS } from './specialVars.js'
 import { consuming } from './consume.js'
-import { initOverlays, highlight as _highlight, background as _background, withOverlays as _withOverlays } from './overlay.js'
+import { initOverlays, highlight as _highlight, background as _background, withOverlays as _withOverlays, gathering } from './overlay.js'
 
 /**
  * Sentinel for explicit undef passed as argument.
@@ -320,7 +320,7 @@ const j$ = {
    * delta=val -> sharp corners (JSCAD calls this mode 'edge')
    * delta=val, chamfer=true -> chamfered corners (corners='chamfer')
    */
-  offset({ r, delta, chamfer = false } = {}, child) {
+  offset: gathering(function ({ r, delta, chamfer = false } = {}, child) {
     if (child === _NO_CHILD) return _NO_CHILD
     const amount = r !== undefined ? r : (delta !== undefined ? delta : 0)
     const corners = r !== undefined ? 'round' : (chamfer ? 'chamfer' : 'edge')
@@ -331,7 +331,7 @@ const j$ = {
       ? _getSegments(Math.abs(amount), _fn, _fa, _fs)
       : undefined
     return consuming(j$.jscad.expansions.offset)({ delta: amount, corners, ...(segments !== undefined ? { segments } : {}) }, child)
-  },
+  }),
 
   // ── Special variable scope stack (instance state) ─────────────────────────
   // Each j$ instance has its own _scopeStack so concurrent executions are isolated.
