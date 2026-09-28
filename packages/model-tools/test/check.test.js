@@ -106,6 +106,16 @@ test('a bed given as a JSON array string fits like the equivalent array', () => 
   expect(check(cuboid({ size: [300, 300, 300] }), { bed: '[200, 200, 200]' }).fitsBed).toBe(false)
 })
 
+test('a bed given as a JSON object string fits like the equivalent object', () => {
+  expect(check(cuboid({ size: [10, 10, 10] }), { bed: '{"x": 250, "y": 210, "z": 210}' }).fitsBed).toBe(true)
+  expect(check(cuboid({ size: [300, 300, 300] }), { bed: '{"x": 250, "y": 210, "z": 210}' }).fitsBed).toBe(false)
+})
+
+test('a string that parses to something other than a dims array or {x, y, z} object still errors', () => {
+  expect(() => check(cuboid({ size: [10, 10, 10] }), { bed: '{"a": 1}' })).toThrow(/unknown bed/)
+  expect(() => check(cuboid({ size: [10, 10, 10] }), { bed: '"just a string"' })).toThrow(/unknown bed/)
+})
+
 test('an unknown bed name throws with the list of known names', () => {
   expect(() => check(cuboid({ size: [10, 10, 10] }), { bed: 'bambu' })).toThrow(
     /unknown bed bambu: use one of .*mk3.*or \[x, y, z\] in mm/,

@@ -15,20 +15,24 @@ export const BEDS = {
   ender3: [220, 220, 250],
 }
 
-// Accepts a real [x, y, z] array, a string parsing to one (the model tool
-// wire format sometimes stringifies array args), or an {x, y, z} object.
+const isDimsArray = (v) => Array.isArray(v) && v.length === 3 && v.every((n) => typeof n === 'number')
+const isXyzObject = (v) => v && typeof v === 'object' && ['x', 'y', 'z'].every((k) => typeof v[k] === 'number')
+
+// Accepts a real [x, y, z] array, an {x, y, z} object, or a JSON string
+// parsing to either (the model tool wire format sometimes stringifies args).
 const asDims = (bed) => {
-  if (Array.isArray(bed)) return bed
-  if (typeof bed === 'string' && bed.trim().startsWith('[')) {
+  if (isDimsArray(bed)) return [...bed]
+  if (isXyzObject(bed)) return [bed.x, bed.y, bed.z]
+  if (typeof bed === 'string' && /^[[{]/.test(bed.trim())) {
     try {
       const parsed = JSON.parse(bed)
-      if (Array.isArray(parsed) && parsed.length === 3 && parsed.every((n) => typeof n === 'number')) return parsed
+      if (isDimsArray(parsed)) return parsed
+      if (isXyzObject(parsed)) return [parsed.x, parsed.y, parsed.z]
     } catch {
-      // fall through: not a JSON array, treat as a bed name below
+      // fall through: not valid JSON, treat as a bed name below
     }
     return null
   }
-  if (bed && typeof bed === 'object' && ['x', 'y', 'z'].every((k) => typeof bed[k] === 'number')) return [bed.x, bed.y, bed.z]
   return null
 }
 
