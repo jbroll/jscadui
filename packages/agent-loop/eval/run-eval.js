@@ -18,6 +18,13 @@ const FIXTURES = new URL('./fixtures/', import.meta.url)
 
 export const promptHash = (prompt) => createHash('sha256').update(prompt).digest('hex')
 
+// Sortable UTC timestamp so two runs on the same day and prompt don't collide:
+// <YYYY-MM-DD>T<HHMMSS>Z-<model>-<sha8>.json
+export const resultFileName = (model, promptSha256, now = new Date()) => {
+  const timestamp = now.toISOString().replace(/\.\d{3}Z$/, 'Z').replace(/:/g, '')
+  return `${timestamp}-${model}-${promptSha256.slice(0, 8)}.json`
+}
+
 export async function loadFixtures(dir = FIXTURES) {
   const fixtures = []
   for (const file of readdirSync(dir).filter((f) => f.endsWith('.js')).sort()) {
@@ -220,7 +227,7 @@ const main = async (argv, env) => {
   const provider = createProvider({ kind: EVAL_PROVIDER, model: EVAL_MODEL, apiKey, baseUrl })
   const promptSha256 = promptHash(SYSTEM_PROMPT)
   mkdirSync(resultsDir, { recursive: true })
-  const filePath = join(resultsDir, `${new Date().toISOString().slice(0, 10)}-${EVAL_MODEL}-${promptSha256.slice(0, 8)}.json`)
+  const filePath = join(resultsDir, resultFileName(EVAL_MODEL, promptSha256))
   console.log(`run-eval: writing ${filePath}`)
 
   const verbose = env.EVAL_VERBOSE === '1'

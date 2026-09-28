@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createEvalBackend } from './backend.js'
-import { promptHash, runSuite, saveResults } from './run-eval.js'
+import { promptHash, resultFileName, runSuite, saveResults } from './run-eval.js'
 
 const scripted = (rounds) => ({
   async *send() {
@@ -157,6 +157,15 @@ describe('runSuite runs and context', () => {
 
   it('hashes the prompt with SHA-256', () => {
     expect(promptHash('x')).toBe('2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881')
+  })
+})
+
+describe('resultFileName', () => {
+  it('names the file with a sortable UTC date and time so same-day reruns do not collide', () => {
+    const now = new Date('2026-09-28T14:05:07.123Z')
+    expect(resultFileName('muse-spark-1.3', 'abcd1234ef567890', now)).toBe(
+      '2026-09-28T140507Z-muse-spark-1.3-abcd1234.json',
+    )
   })
 })
 

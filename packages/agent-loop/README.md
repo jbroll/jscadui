@@ -231,7 +231,7 @@ results on every write. `formatSummary` prints one line from it, e.g.
 first token 1.8s (median)  94 tok/s (median)`; `formatComparison` prints one
 such line per file.
 
-Each result file, `eval/results/<date>-<model>-<sha8>.json`,
+Each result file, `eval/results/<YYYY-MM-DD>T<HHMMSS>Z-<model>-<sha8>.json`,
 records the SHA-256 of the assembled system prompt, so `--compare` can set two
 prompt versions side by side. The result dir is `evalResultsDir()`: `EVAL_RESULTS_DIR`
 when set, else `<data>/results` when the evals repo is present; with neither,
