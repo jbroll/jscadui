@@ -21,7 +21,7 @@ Join us on Discord: https://discord.gg/6PB7qZ4HC7
 
 Features:
 - Run remote scripts with imports
-- Use npm packages (via unpkg)
+- Use npm packages (resolved to https://cdn.jsdelivr.net/npm/)
 - ES6 modules and TypeScript support
 - Worker instance preserved for caching between parameter changes
 
@@ -79,6 +79,10 @@ module.exports = { main }
 | `checkbox` | Boolean toggle | - |
 | `text` | Text input | - |
 | `date` | Date picker | - |
+| `email` | Email input | - |
+| `url` | URL input | - |
+| `password` | Password input | - |
+| `group` | Section heading for the parameters that follow | - |
 
 ## Defining Parameters
 

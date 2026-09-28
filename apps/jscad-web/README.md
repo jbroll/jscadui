@@ -51,6 +51,10 @@ do not have `package.json` then jscad.app will try following.
 
 jscad.app does not read node_modules for now, but loads dependencies from jsdelivr, and some modules may be bundled with jscad.app to avoid going to jsdelivr. `@jscad/modeling` itself is loaded through the `@jbroll/jscad-anchors` CDN build, which wraps the engine's own modeling bundle (`@jscad/modeling-for-anchors`) and re-exports it plus `anchors`.
 
+Change detection needs a Chromium-based browser: it is the only one that lets
+a page check a dropped file's contents for changes. Firefox keeps handing
+back the file's initial contents even after it changes on disk.
+
 The bundle map lives in [src_frame/frame.js](src_frame/frame.js), not on the
 page: a script source inside the compute frame has to come from the frame's
 own origin, so the page sends an engine name (`jscad` or `manifold`) with
@@ -70,13 +74,13 @@ Modeling Engine in the menu switches it, and the choice is remembered.
 
 ## AI Chat
 
-The app has an agent chat drawer (AI Chat in the menu) layered on the normal editor, viewer and examples. Describe a part, and the browser-local agent loop writes and measures models by calling tools that run in the browser: `eval`, `params`, `measure`, `check`, `export`, `view` and `writeModel` (`src/aiBridge.js`). The ones that execute model code go through the sandboxed compute frame below, the same one the editor uses. Provider HTTP goes to the relay at `https://jscad.rkroll.com`, overridable via `localStorage 'jscad-ai.relay'`.
+The app has an agent chat drawer (AI Chat in the menu) layered on the normal editor, viewer and examples. Describe a part, and the browser-local agent loop writes and measures models by calling tools that run in the browser: `eval`, `params`, `measure`, `check`, `export` and `writeModel` (`packages/agent-loop/src/tools.js`). The ones that execute model code go through the sandboxed compute frame below, the same one the editor uses. Provider HTTP goes through the relay at `https://jscad.rkroll.com`, overridable via `localStorage 'jscad-ai.relay'`.
 
 Account setup lives in the drawer above the chat:
 
 - Sign in with Google (session via the API at `/api`).
 - Pick the provider (`anthropic` or an OpenAI-compatible `baseUrl`) and model name.
-- Save the provider key with a custody mode: `session` (memory only), `device` (this browser), or `synced` (AES-GCM ciphertext only, needs a passphrase to unlock). The key travels to the API per chat request and never enters logs or the compute frame.
+- Save the provider key with a custody mode: `session` (memory only), `device` (this browser), or `synced` (AES-GCM ciphertext only, needs a passphrase to unlock). The key rides the relay request to the provider per chat request; it is never stored server-side, never logged, and never sent into the compute frame.
 
 Tests: `npx vitest run test/aiChat.test.js` for the chat turn, `npx playwright test e2e/ai-chat.spec.js` for the full turn against a stub relay with real local measurements.
 
