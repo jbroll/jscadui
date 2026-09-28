@@ -46,11 +46,8 @@ function hasCommit(dir, sha) {
   try { git(dir, 'cat-file', '-e', `${sha}^{commit}`); return true } catch { return false }
 }
 
-// Records which commit and build list produced the build output on disk, so
-// a source that hasn't moved (and whose build list is unchanged) skips
-// rebuilding on every run. Kept outside the checkout, never inside it: the
-// checkout must stay clean for the next pin move regardless of what the
-// build wrote there.
+// Kept outside the checkout (never inside it) so the checkout can stay clean
+// for the next pin move regardless of what the build wrote there.
 const buildHash = (build) => createHash('sha1').update(JSON.stringify(build)).digest('hex').slice(0, 8)
 const markerPath = (name) => join(CACHE_DIR, `.${name}.built`)
 
@@ -64,6 +61,11 @@ function readMarker(name) {
 export const markerValue = (target, build) => `${target}:${buildHash(build)}`
 export const needsBuild = (markerContent, target, build) => markerContent !== markerValue(target, build)
 
+// Marker at the current HEAD means the dirt is our own build's leftovers,
+// not someone's edit, so it's safe to discard automatically.
+export const isOwnBuildDirt = (markerContent, currentHead) =>
+  markerContent != null && currentHead != null && markerContent.startsWith(`${currentHead}:`)
+
 function buildIfNeeded(dir, src, target) {
   if (!src.build) return
   if (!needsBuild(readMarker(src.name), target, src.build)) {
@@ -74,11 +76,10 @@ function buildIfNeeded(dir, src, target) {
   for (const cmd of src.build) {
     execFileSync('/bin/sh', ['-c', cmd], { cwd: dir, stdio: 'inherit' })
   }
-  // The build (npm pkg set, npm install) can edit tracked files such as
-  // package.json/package-lock.json. Discard those edits so the checkout is
-  // clean for the next fetch or pin move; build output (node_modules, dist)
-  // is gitignored and untouched by this.
+  // Discard whatever the build left (tracked edits, stray untracked files) so
+  // the checkout stays clean for the next fetch or pin move; never -x.
   git(dir, 'checkout', '--quiet', '--', '.')
+  git(dir, 'clean', '--quiet', '-fd')
   writeFileSync(markerPath(src.name), markerValue(target, src.build) + '\n')
 }
 
@@ -101,10 +102,16 @@ function fetchSource(src) {
     git(null, 'clone', '--quiet', '--filter=blob:none', '--no-checkout', src.url, dir)
   }
 
-  // A previous build's edits (or one interrupted mid-build) must never block
-  // a pin move: discard them before the dirty-checkout guard below runs.
-  if (!fresh && src.build && git(dir, 'status', '--porcelain')) {
+  // A --no-checkout clone has an empty index, which status reports as changes.
+  let dirty = !fresh && git(dir, 'status', '--porcelain') !== ''
+  if (dirty && src.build && isOwnBuildDirt(readMarker(src.name), head(dir))) {
+    console.log(`  discarding ${src.name}'s own uncommitted build output`)
     git(dir, 'checkout', '--quiet', '--', '.')
+    git(dir, 'clean', '--quiet', '-fd')
+    dirty = false
+  }
+  if (dirty) {
+    throw new Error(`${dir} has local changes; commit, stash or remove them, or symlink a dev checkout instead`)
   }
 
   let target = src.commit
@@ -119,10 +126,6 @@ function fetchSource(src) {
     console.log(`  at pin ${target.slice(0, 8)}`)
     buildIfNeeded(dir, src, target)
     return target
-  }
-  // A --no-checkout clone has an empty index, which status reports as changes.
-  if (!fresh && git(dir, 'status', '--porcelain')) {
-    throw new Error(`${dir} has local changes; commit, stash or remove them, or symlink a dev checkout instead`)
   }
   git(dir, 'checkout', '--quiet', '--detach', target)
   console.log(`  checked out ${target.slice(0, 8)}`)

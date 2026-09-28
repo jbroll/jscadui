@@ -31,7 +31,8 @@ every machine resolves the same path:
 
 - **missing:** blobless clone, detached at the pin
 - **a checkout it made:** moved to the pin if HEAD differs; refuses if there are
-  local changes
+  local changes, unless they're the checkout's own uncommitted build output
+  (tracked by a marker), which it discards automatically
 - **a symlink:** left alone and reported, so a dev machine can link its working
   copy for live edits
 
@@ -39,11 +40,14 @@ A source can also carry a `build` list (jscad-fluent and jscad-anchors both
 do): commands run inside the checkout once it's at the pinned commit, skipped
 on later runs via a marker (`.deps-cache/.<name>.built`, outside the
 checkout) recording which commit and build list produced the output. Needed
-for a source that doesn't commit its build output. Any tracked-file edits a
-build makes (e.g. `npm ci` touching `package-lock.json`) are discarded from
-the checkout right after with `git checkout -- .`, so it stays clean for the
-next fetch or pin move; a symlinked (dev) checkout is never built — that's
-the linked owner's job.
+for a source that doesn't commit its build output. Tracked-file and stray
+untracked edits a build leaves are discarded from the checkout right after
+(`git checkout -- .` and `git clean -fd`), so it stays clean for the next
+fetch or pin move. A checkout with local changes otherwise refuses, unless
+the marker shows they're that build's own leftovers at the current HEAD (an
+interrupted build), which get discarded the same way on the next run — one
+log line names the source when this happens. A symlinked (dev) checkout is
+never built — that's the linked owner's job.
 
 jscad-fluent's own `devDependencies` pins `@jbroll/jscad-anchors` to
 `file:../jscad-anchors`, a path that resolves only when something sits at
@@ -51,12 +55,8 @@ jscad-fluent's own `devDependencies` pins `@jbroll/jscad-anchors` to
 `@jscad/modeling`'s `file:../OpenJSCAD.org/packages/modeling` already relies
 on. Pinning `jscad-anchors` as its own source (listed first, so it exists
 before jscad-fluent's `npm ci` runs) makes that resolve like any other
-sibling `file:` dependency, with no edits to jscad-fluent's own
-package.json needed. An earlier version of this mechanism rewrote
-jscad-fluent's package.json with `npm pkg set` instead; that broke because a
-later root-level `npm install` re-derives each linked package's
-`node_modules` from its own (reverted-to-committed) package.json, undoing
-the rewrite. Pinning the real sibling avoids the edit entirely.
+sibling `file:` dependency, with no edits to jscad-fluent's own package.json
+needed.
 
 Because the checkout is inside the project root, npm also installs the fork's
 own devDependencies (ava, browserify, nyc…; about 450 lockfile entries, all

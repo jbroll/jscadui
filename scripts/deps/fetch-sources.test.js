@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { markerValue, needsBuild } from '../fetch-sources.js'
+import { isOwnBuildDirt, markerValue, needsBuild } from '../fetch-sources.js'
 
 describe('needsBuild', () => {
   const build = ['npm install', 'npm run build']
@@ -18,5 +18,21 @@ describe('needsBuild', () => {
 
   it('skips the build once the marker matches commit and build list exactly', () => {
     expect(needsBuild(markerValue('abc123', build), 'abc123', build)).toBe(false)
+  })
+})
+
+describe('isOwnBuildDirt', () => {
+  const build = ['npm install', 'npm run build']
+
+  it('is dirt from our own build when the marker records the current HEAD', () => {
+    expect(isOwnBuildDirt(markerValue('abc123', build), 'abc123')).toBe(true)
+  })
+
+  it('refuses when there is no marker', () => {
+    expect(isOwnBuildDirt(null, 'abc123')).toBe(false)
+  })
+
+  it('refuses when the marker is for a different (older) commit', () => {
+    expect(isOwnBuildDirt(markerValue('oldsha', build), 'abc123')).toBe(false)
   })
 })

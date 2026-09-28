@@ -34,9 +34,8 @@ Module._load = function (request, parent, isMain) {
   return origLoad.call(this, request, parent, isMain)
 }
 
-// @jbroll/jscad-anchors ships as jscad-fluent's own npm dependency; resolve
-// it through jscad-fluent's own node_modules rather than a hardcoded path,
-// so this survives however npm hoists things.
+// jscad-fluent depends on @jbroll/jscad-anchors as a file: sibling; resolve
+// through its own node_modules rather than a hardcoded path.
 const anchorsDist = createRequire(nodeRequire.resolve('@jbroll/jscad-fluent')).resolve('@jbroll/jscad-anchors/dist/jscad-anchors.cjs')
 
 const findFluentBundle = () => {

@@ -14,7 +14,7 @@
       "url": "https://github.com/jbroll/jscad-anchors.git",
       "ref": "local-packages",
       "commit": "ba632c6e1ef4f6e93299ad942b3929e947fc8b67",
-      "build": ["npm install", "npm run build"]
+      "build": ["npm ci", "npm run build"]
     },
     {
       "name": "jscad-fluent",
