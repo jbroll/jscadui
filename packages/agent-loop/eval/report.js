@@ -12,10 +12,50 @@ export function formatTable(results) {
 const mean = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length
 const n2 = (x) => x.toFixed(2)
 
+const median = (xs) => {
+  const sorted = [...xs].sort((a, b) => a - b)
+  const mid = Math.floor(sorted.length / 2)
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2
+}
+
 // Mean over the non-null/undefined values of an optional per-run field; null when none exist.
 const meanOf = (runs, get) => {
   const vals = runs.map(get).filter((v) => v !== null && v !== undefined)
   return vals.length > 0 ? mean(vals) : null
+}
+
+// Speed totals over every run in a result file: sums for wall/provider/tool time
+// (tool time is the difference, not stored), medians for the per-call rates.
+export function computeSpeed(results) {
+  const seconds = results.map((r) => r.metrics?.seconds).filter((v) => typeof v === 'number')
+  const providerSeconds = results.map((r) => r.metrics?.providerSeconds).filter((v) => typeof v === 'number')
+  const toolSeconds = results
+    .filter((r) => typeof r.metrics?.seconds === 'number' && typeof r.metrics?.providerSeconds === 'number')
+    .map((r) => r.metrics.seconds - r.metrics.providerSeconds)
+  const firstTokenSeconds = results.map((r) => r.metrics?.firstTokenSeconds).filter((v) => v !== null && v !== undefined)
+  const outputTokensPerSecond = results
+    .map((r) => r.metrics?.outputTokensPerSecond)
+    .filter((v) => v !== null && v !== undefined)
+  return {
+    wallSeconds: seconds.reduce((a, b) => a + b, 0),
+    providerSeconds: providerSeconds.reduce((a, b) => a + b, 0),
+    toolSeconds: toolSeconds.reduce((a, b) => a + b, 0),
+    medianFirstTokenSeconds: firstTokenSeconds.length ? median(firstTokenSeconds) : null,
+    medianOutputTokensPerSecond: outputTokensPerSecond.length ? median(outputTokensPerSecond) : null,
+    runs: results.length,
+  }
+}
+
+// One line of speed totals for a report; '-' when the file predates speed metrics.
+const formatSpeedLine = (speed, model, provider) => {
+  if (!speed) return `speed: model ${model} via ${provider}  -`
+  const first = speed.medianFirstTokenSeconds === null ? '-' : `${speed.medianFirstTokenSeconds.toFixed(1)}s`
+  const tokPerSec = speed.medianOutputTokensPerSecond === null ? '-' : `${Math.round(speed.medianOutputTokensPerSecond)} tok/s`
+  return (
+    `speed: model ${model} via ${provider}  wall ${Math.round(speed.wallSeconds)}s  ` +
+    `provider ${Math.round(speed.providerSeconds)}s  tools ${Math.round(speed.toolSeconds)}s  ` +
+    `first token ${first} (median)  ${tokPerSec} (median)`
+  )
 }
 
 export function summarize(results) {
@@ -39,12 +79,15 @@ export function summarize(results) {
     geometryError: meanOf(runs, (r) => r.metrics?.geometryError),
     warnings: meanOf(runs, (r) => r.metrics?.warnings),
     docsCalls: meanOf(runs, (r) => r.metrics?.docsCalls),
+    providerSeconds: meanOf(runs, (r) => r.metrics?.providerSeconds),
+    firstTokenSeconds: meanOf(runs, (r) => r.metrics?.firstTokenSeconds),
+    outputTokensPerSecond: meanOf(runs, (r) => r.metrics?.outputTokensPerSecond),
   }))
 }
 
 const n2or = (x) => (x === null || x === undefined ? '-' : n2(x))
 
-export function formatSummary(summary) {
+export function formatSummary(summary, speed) {
   const lines = ['fixture  runs  firstFail  checks  total  errors']
   for (const s of summary) {
     lines.push(`${s.fixture}  ${s.runs}  ${n2(s.firstAttemptFailures)}  ${n2(s.checkPassRate)}  ${n2(s.total)}  ${s.errors}`)
@@ -55,6 +98,11 @@ export function formatSummary(summary) {
       `${s.fixture}  ${n2or(s.rounds)}  ${n2or(s.failedCalls)}  ${n2or(s.inputTokens)}  ${n2or(s.outputTokens)}  ${n2or(s.seconds)}  ${n2or(s.geometryError)}  ${n2or(s.warnings)}  ${n2or(s.docsCalls)}`,
     )
   }
+  lines.push('', 'fixture  providerSeconds  firstTokenSeconds  outputTokensPerSecond')
+  for (const s of summary) {
+    lines.push(`${s.fixture}  ${n2or(s.providerSeconds)}  ${n2or(s.firstTokenSeconds)}  ${n2or(s.outputTokensPerSecond)}`)
+  }
+  if (speed) lines.push('', formatSpeedLine(speed, speed.model, speed.provider))
   return lines.join('\n')
 }
 
@@ -72,13 +120,17 @@ export function formatComparison(a, b) {
       `${name}  ${cell(sa, 'firstAttemptFailures')} → ${cell(sb, 'firstAttemptFailures')}  ${cell(sa, 'checkPassRate')} → ${cell(sb, 'checkPassRate')}  ${cell(sa, 'total')} → ${cell(sb, 'total')}`,
     )
   }
-  lines.push('', 'fixture  rounds a → b  failedCalls a → b  seconds a → b  geometryError a → b  warnings a → b  docsCalls a → b')
+  lines.push(
+    '',
+    'fixture  rounds a → b  failedCalls a → b  seconds a → b  geometryError a → b  warnings a → b  docsCalls a → b  providerSeconds a → b  outputTokensPerSecond a → b',
+  )
   for (const name of names) {
     const sa = a.summary.find((s) => s.fixture === name)
     const sb = b.summary.find((s) => s.fixture === name)
     lines.push(
-      `${name}  ${cell(sa, 'rounds')} → ${cell(sb, 'rounds')}  ${cell(sa, 'failedCalls')} → ${cell(sb, 'failedCalls')}  ${cell(sa, 'seconds')} → ${cell(sb, 'seconds')}  ${cell(sa, 'geometryError')} → ${cell(sb, 'geometryError')}  ${cell(sa, 'warnings')} → ${cell(sb, 'warnings')}  ${cell(sa, 'docsCalls')} → ${cell(sb, 'docsCalls')}`,
+      `${name}  ${cell(sa, 'rounds')} → ${cell(sb, 'rounds')}  ${cell(sa, 'failedCalls')} → ${cell(sb, 'failedCalls')}  ${cell(sa, 'seconds')} → ${cell(sb, 'seconds')}  ${cell(sa, 'geometryError')} → ${cell(sb, 'geometryError')}  ${cell(sa, 'warnings')} → ${cell(sb, 'warnings')}  ${cell(sa, 'docsCalls')} → ${cell(sb, 'docsCalls')}  ${cell(sa, 'providerSeconds')} → ${cell(sb, 'providerSeconds')}  ${cell(sa, 'outputTokensPerSecond')} → ${cell(sb, 'outputTokensPerSecond')}`,
     )
   }
+  lines.push('', formatSpeedLine(a.speed, a.model, a.provider), formatSpeedLine(b.speed, b.model, b.provider))
   return lines.join('\n')
 }

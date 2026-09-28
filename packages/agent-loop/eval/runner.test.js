@@ -72,6 +72,50 @@ describe('runSuite', () => {
   it('refuses without a provider', async () => {
     await expect(runSuite([], { provider: null, backend: createEvalBackend() })).rejects.toThrow(/provider/)
   })
+
+  it('measures provider speed per run with an injected clock', async () => {
+    const backend = createEvalBackend()
+    let t = 0
+    const now = () => (t += 100)
+    let calls = 0
+    const provider = {
+      async *send() {
+        calls += 1
+        if (calls === 1) {
+          yield { type: 'text', text: 'thinking' }
+          yield { type: 'tool_use', id: 't1', name: 'eval', input: { source: 'x' } }
+          yield { type: 'done', stopReason: 'tool_use' }
+        } else {
+          yield { type: 'usage', outputTokens: 30 }
+          yield { type: 'text', text: 'done' }
+          yield { type: 'done', stopReason: 'end_turn' }
+        }
+      },
+    }
+    const fixture = { name: 'x', prompt: 'p', requires: ['eval'], verifyBeforeWrite: false, maxTurns: 8, checks: () => [] }
+    const [result] = await runSuite([fixture], { provider, backend, now })
+    // call 1: start 100, first content 200, end 300 -> providerSeconds 0.2, firstToken 0.1, postFirstToken 0.1
+    // call 2: start 400, first content (usage doesn't count) 500 (text), end 600 -> providerSeconds 0.2, firstToken 0.1, postFirstToken 0.1
+    expect(result.metrics.providerSeconds).toBeCloseTo(0.4)
+    expect(result.metrics.firstTokenSeconds).toBeCloseTo(0.1)
+    expect(result.metrics.outputTokensPerSecond).toBeCloseTo(30 / 0.2)
+  })
+
+  it('nulls firstTokenSeconds and outputTokensPerSecond when there is no content or no tokens', async () => {
+    const backend = createEvalBackend()
+    let t = 0
+    const now = () => (t += 50)
+    const provider = {
+      async *send() {
+        yield { type: 'done', stopReason: 'end_turn' }
+      },
+    }
+    const fixture = { name: 'x', prompt: 'p', requires: ['eval'], verifyBeforeWrite: false, maxTurns: 8, checks: () => [] }
+    const [result] = await runSuite([fixture], { provider, backend, now })
+    expect(result.metrics.firstTokenSeconds).toBeNull()
+    expect(result.metrics.outputTokensPerSecond).toBeNull()
+    expect(typeof result.metrics.providerSeconds).toBe('number')
+  })
 })
 
 describe('runSuite runs and context', () => {
@@ -201,13 +245,17 @@ describe('saveResults', () => {
   it('writes the accumulated results and a recomputed summary via the injected writer', () => {
     const writes = []
     const writeFile = (path, content) => writes.push({ path, content })
-    const resultA = { fixture: 'x', run: 1, report: { firstAttemptFailures: 0, checkRate: 1, total: 8 } }
+    const resultA = {
+      fixture: 'x', run: 1, report: { firstAttemptFailures: 0, checkRate: 1, total: 8 },
+      metrics: { seconds: 4, providerSeconds: 3, firstTokenSeconds: 0.4, outputTokensPerSecond: 50 },
+    }
     saveResults(writeFile, '/fake/path.json', { model: 'm', provider: 'p', runs: 2, promptSha256: 'sha', results: [resultA] })
     expect(writes).toHaveLength(1)
     const parsed = JSON.parse(writes[0].content)
     expect(parsed.model).toBe('m')
     expect(parsed.results).toHaveLength(1)
     expect(parsed.summary[0].fixture).toBe('x')
+    expect(parsed.speed).toEqual({ wallSeconds: 4, providerSeconds: 3, toolSeconds: 1, medianFirstTokenSeconds: 0.4, medianOutputTokensPerSecond: 50, runs: 1 })
 
     const resultB = { fixture: 'x', run: 2, report: { firstAttemptFailures: 1, checkRate: 0, total: 4 } }
     saveResults(writeFile, '/fake/path.json', { model: 'm', provider: 'p', runs: 2, promptSha256: 'sha', results: [resultA, resultB] })

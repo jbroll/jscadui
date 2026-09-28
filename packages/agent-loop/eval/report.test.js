@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatComparison, formatSummary, summarize } from './report.js'
+import { computeSpeed, formatComparison, formatSummary, summarize } from './report.js'
 
 const run = (fixture, firstAttemptFailures, checkRate, total, error, metrics) => ({
   fixture,
@@ -17,10 +17,12 @@ describe('eval report', () => {
       {
         fixture: 'a', runs: 2, firstAttemptFailures: 1, checkPassRate: 0.75, total: 6, errors: 1,
         rounds: null, failedCalls: null, inputTokens: null, outputTokens: null, seconds: null, geometryError: null, warnings: null, docsCalls: null,
+        providerSeconds: null, firstTokenSeconds: null, outputTokensPerSecond: null,
       },
       {
         fixture: 'b', runs: 1, firstAttemptFailures: 1, checkPassRate: 1, total: 7, errors: 0,
         rounds: null, failedCalls: null, inputTokens: null, outputTokens: null, seconds: null, geometryError: null, warnings: null, docsCalls: null,
+        providerSeconds: null, firstTokenSeconds: null, outputTokensPerSecond: null,
       },
     ])
     expect(formatSummary(summary)).toContain('a  2  1.00  0.75  6.00  1')
@@ -83,5 +85,59 @@ describe('eval report', () => {
     const text = formatComparison({ model: 'm', summary }, { model: 'm', summary: summarize([run('a', 0, 1, 8)]) })
     expect(text).toContain('warnings a → b  docsCalls a → b')
     expect(text).toContain('0.10 → -  1.00 → -  2.00 → -')
+  })
+
+  it('means, prints and compares providerSeconds, firstTokenSeconds and outputTokensPerSecond', () => {
+    const metrics = { seconds: 2, providerSeconds: 1.5, firstTokenSeconds: 0.3, outputTokensPerSecond: 50 }
+    const summary = summarize([run('a', 0, 1, 8, undefined, metrics), run('a', 0, 1, 8, undefined, { ...metrics, providerSeconds: 2.5, firstTokenSeconds: 0.5, outputTokensPerSecond: 100 })])
+    expect(summary[0]).toEqual(expect.objectContaining({ providerSeconds: 2, firstTokenSeconds: 0.4, outputTokensPerSecond: 75 }))
+    const text = formatSummary(summary)
+    expect(text).toContain('fixture  providerSeconds  firstTokenSeconds  outputTokensPerSecond')
+    expect(text).toContain('a  2.00  0.40  75.00')
+    const noMetricsSummary = summarize([run('b', 0, 1, 8)])
+    expect(formatSummary(noMetricsSummary)).toContain('b  -  -  -')
+    const compared = formatComparison({ model: 'm', summary }, { model: 'm', summary: summarize([run('a', 0, 1, 8)]) })
+    expect(compared).toContain('providerSeconds a → b  outputTokensPerSecond a → b')
+    expect(compared).toContain('2.00 → -  75.00 → -')
+  })
+
+  it('computeSpeed sums wall/provider/tool seconds and medians first-token and throughput over all runs', () => {
+    const results = [
+      { fixture: 'a', metrics: { seconds: 10, providerSeconds: 8, firstTokenSeconds: 0.2, outputTokensPerSecond: 40 } },
+      { fixture: 'a', metrics: { seconds: 6, providerSeconds: 4, firstTokenSeconds: 0.6, outputTokensPerSecond: 80 } },
+      { fixture: 'b', metrics: { seconds: 4, providerSeconds: 3, firstTokenSeconds: null, outputTokensPerSecond: null } },
+    ]
+    expect(computeSpeed(results)).toEqual({
+      wallSeconds: 20,
+      providerSeconds: 15,
+      toolSeconds: 5,
+      medianFirstTokenSeconds: 0.4,
+      medianOutputTokensPerSecond: 60,
+      runs: 3,
+    })
+  })
+
+  it('computeSpeed returns nulls and zeros when no runs carry speed metrics', () => {
+    expect(computeSpeed([{ fixture: 'a', metrics: {} }])).toEqual({
+      wallSeconds: 0, providerSeconds: 0, toolSeconds: 0, medianFirstTokenSeconds: null, medianOutputTokensPerSecond: null, runs: 1,
+    })
+  })
+
+  it('formatSummary prints the speed totals line when a speed object with model/provider is given', () => {
+    const speed = { wallSeconds: 812, providerSeconds: 640, toolSeconds: 172, medianFirstTokenSeconds: 1.8, medianOutputTokensPerSecond: 94, runs: 6, model: 'muse-spark-1.3', provider: 'meta' }
+    const text = formatSummary(summarize([run('a', 0, 1, 8)]), speed)
+    expect(text).toContain('speed: model muse-spark-1.3 via meta  wall 812s  provider 640s  tools 172s  first token 1.8s (median)  94 tok/s (median)')
+  })
+
+  it('formatSummary omits the speed line when no speed object is given', () => {
+    expect(formatSummary(summarize([run('a', 0, 1, 8)]))).not.toContain('speed:')
+  })
+
+  it('formatComparison prints both files\' speed lines, "-" when a file predates speed', () => {
+    const a = { model: 'm', provider: 'meta', summary: summarize([run('a', 0, 1, 8)]), speed: { wallSeconds: 10, providerSeconds: 8, toolSeconds: 2, medianFirstTokenSeconds: 0.5, medianOutputTokensPerSecond: 20, runs: 1 } }
+    const b = { model: 'm', provider: 'meta', summary: summarize([run('a', 0, 1, 8)]) }
+    const text = formatComparison(a, b)
+    expect(text).toContain('speed: model m via meta  wall 10s  provider 8s  tools 2s  first token 0.5s (median)  20 tok/s (median)')
+    expect(text).toContain('speed: model m via meta  -')
   })
 })

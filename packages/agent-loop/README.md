@@ -204,13 +204,32 @@ tend to max out once a prompt clears the bar:
   for `dimensions`, the max per-axis relative error comparing both sides
   sorted ascending (so orientation doesn't matter); `null` when the fixture
   has no `target` or no geometry was produced.
+- `providerSeconds`: sum, over the run's provider calls, of the time from
+  starting `send()` to the end of its stream. Model/provider speed, not
+  score; a slow model doesn't lose points.
+- `firstTokenSeconds`: mean, over the run's provider calls, of the time from
+  starting `send()` to the first streamed `text` or `tool_use` event (not
+  `usage`/`done`); `null` when no call produced one.
+- `outputTokensPerSecond`: the run's `outputTokens` divided by the total
+  streaming time after each call's first content event; `null` when
+  `outputTokens` is `null` or that time is zero.
 
 `summarize` means each of these per fixture (over non-null values; `null`
 when none exist), and `formatSummary`/`formatComparison` print them in a
-second table alongside the existing one, showing `-` for a result file
-written before `metrics` existed. `--regrade` fills only `toolCalls`,
-`failedCalls`, `warnings` and `docsCalls`; the rest are left as stored, since
-they need the original provider run.
+second and third table alongside the existing one, showing `-` for a result
+file written before `metrics` existed. `--regrade` fills only `toolCalls`,
+`failedCalls`, `warnings` and `docsCalls`; the rest, including the speed
+fields, are left as stored, since they need the original provider run.
+
+Each result file also carries a top-level `speed` object, summed/medianed
+over every run in the file: `{ wallSeconds, providerSeconds, toolSeconds,
+medianFirstTokenSeconds, medianOutputTokensPerSecond, runs }`. `toolSeconds`
+is `seconds - providerSeconds` per run, summed: wall time not spent waiting
+on the provider. `saveResults` and `--regrade` recompute it from the file's
+results on every write. `formatSummary` prints one line from it, e.g.
+`speed: model muse-spark-1.3 via meta  wall 812s  provider 640s  tools 172s
+first token 1.8s (median)  94 tok/s (median)`; `formatComparison` prints one
+such line per file.
 
 Each result file, `eval/results/<date>-<model>-<sha8>.json`,
 records the SHA-256 of the assembled system prompt, so `--compare` can set two

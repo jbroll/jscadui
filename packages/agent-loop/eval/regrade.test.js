@@ -78,6 +78,27 @@ describe('regradeResults', () => {
     })
   })
 
+  it('keeps stored speed metrics as-is and recomputes the top-level speed from them', () => {
+    const transcript = [toolMsg('t1', 'eval'), resultMsg('t1', JSON.stringify({ ok: true }))]
+    const file = {
+      model: 'm',
+      results: [
+        {
+          fixture: 'cube-hole',
+          run: 1,
+          transcript,
+          report: { dimensions: { discipline: 2, recovery: 2, geometry: 2, conservation: 2 }, total: 8, firstAttemptFailures: 0, checkRate: 1 },
+          metrics: { seconds: 4, providerSeconds: 3, firstTokenSeconds: 0.4, outputTokensPerSecond: 50 },
+        },
+      ],
+    }
+    const out = regradeResults(file, new Map([['cube-hole', fixture]]))
+    expect(out.results[0].metrics).toEqual(
+      expect.objectContaining({ seconds: 4, providerSeconds: 3, firstTokenSeconds: 0.4, outputTokensPerSecond: 50 }),
+    )
+    expect(out.speed).toEqual({ wallSeconds: 4, providerSeconds: 3, toolSeconds: 1, medianFirstTokenSeconds: 0.4, medianOutputTokensPerSecond: 50, runs: 1 })
+  })
+
   it('leaves a result untouched when its fixture no longer exists', () => {
     const file = {
       results: [

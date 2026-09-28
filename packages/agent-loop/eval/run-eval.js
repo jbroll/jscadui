@@ -11,7 +11,7 @@ import { isMainModule } from '../src/mainModule.js'
 import { createEvalBackend } from './backend.js'
 import { resolveCredentials } from './credentials.js'
 import { gradeFixture, gradeTranscript, geometryError, transcriptMetrics } from './grade.js'
-import { formatComparison, formatSummary, summarize } from './report.js'
+import { computeSpeed, formatComparison, formatSummary, summarize } from './report.js'
 import { formatRunHeader, formatText, formatToolCall, formatToolResult } from './verbose.js'
 
 const FIXTURES = new URL('./fixtures/', import.meta.url)
@@ -26,12 +26,18 @@ export async function loadFixtures(dir = FIXTURES) {
   return fixtures
 }
 
-// Wraps the provider for one run: caps the number of send() calls (rounds) and
-// tallies usage events along the way, so the caller can read both once the run ends.
-const withTurnCap = (provider, maxTurns) => {
+const isContentEvent = (event) => event.type === 'text' || event.type === 'tool_use'
+
+// Wraps the provider for one run: caps the number of send() calls (rounds),
+// tallies usage events, and times each call against an injected clock so the
+// caller can read rounds/usage/speed once the run ends.
+const withTurnCap = (provider, maxTurns, now = () => performance.now()) => {
   let rounds = 0
   let inputTokens = null
   let outputTokens = null
+  let providerSeconds = 0
+  const firstTokenSeconds = []
+  let postFirstTokenSeconds = 0
   return {
     async *send(messages, tools) {
       rounds += 1
@@ -39,22 +45,43 @@ const withTurnCap = (provider, maxTurns) => {
         yield { type: 'done', stopReason: 'end_turn' }
         return
       }
+      const startedAt = now()
+      let firstContentAt = null
+      // The caller (runTurn) calls iterator.return() right after 'done' instead of exhausting
+      // the generator, without awaiting it, so bookkeeping can't wait for a trailing finally to
+      // run; it finalizes on 'done' itself, before that event is yielded.
       for await (const event of provider.send(messages, tools)) {
+        if (firstContentAt === null && isContentEvent(event)) firstContentAt = now()
         if (event.type === 'usage') {
           if (typeof event.inputTokens === 'number') inputTokens = (inputTokens ?? 0) + event.inputTokens
           if (typeof event.outputTokens === 'number') outputTokens = (outputTokens ?? 0) + event.outputTokens
+        }
+        if (event.type === 'done') {
+          const endedAt = now()
+          providerSeconds += (endedAt - startedAt) / 1000
+          if (firstContentAt !== null) {
+            firstTokenSeconds.push((firstContentAt - startedAt) / 1000)
+            postFirstTokenSeconds += (endedAt - firstContentAt) / 1000
+          }
         }
         yield event
       }
     },
     rounds: () => rounds,
     usage: () => ({ inputTokens, outputTokens }),
+    speed: () => ({
+      providerSeconds,
+      firstTokenSeconds: firstTokenSeconds.length
+        ? firstTokenSeconds.reduce((a, b) => a + b, 0) / firstTokenSeconds.length
+        : null,
+      postFirstTokenSeconds,
+    }),
   }
 }
 
 export async function runSuite(
   fixtures,
-  { provider, backend, runs = 1, systemPrompt = SYSTEM_PROMPT, onRun, onRunStart, onToolCall, onToolResult, onText },
+  { provider, backend, runs = 1, systemPrompt = SYSTEM_PROMPT, now, onRun, onRunStart, onToolCall, onToolResult, onText },
 ) {
   if (!provider) throw new Error('runSuite: provider is required (set EVAL_PROVIDER/EVAL_MODEL/EVAL_API_KEY)')
   const results = []
@@ -65,7 +92,7 @@ export async function runSuite(
       const messages = buildMessages({ systemPrompt, transcript: fixture.transcript ?? [], files: fixture.files ?? {}, message: fixture.prompt })
       let transcript = messages
       let error
-      const cappedProvider = withTurnCap(provider, fixture.maxTurns)
+      const cappedProvider = withTurnCap(provider, fixture.maxTurns, now)
       const startedAt = Date.now()
       try {
         const turn = await runTurn({
@@ -89,6 +116,9 @@ export async function runSuite(
       const report = gradeFixture(fixture, transcript, measure, { params: backend.params() })
       const { toolCalls, failedCalls, warnings, docsCalls } = transcriptMetrics(transcript)
       const { inputTokens, outputTokens } = cappedProvider.usage()
+      const { providerSeconds, firstTokenSeconds, postFirstTokenSeconds } = cappedProvider.speed()
+      const outputTokensPerSecond =
+        outputTokens != null && postFirstTokenSeconds > 0 ? outputTokens / postFirstTokenSeconds : null
       const result = {
         fixture: fixture.name,
         run,
@@ -104,6 +134,9 @@ export async function runSuite(
           inputTokens,
           outputTokens,
           seconds,
+          providerSeconds,
+          firstTokenSeconds,
+          outputTokensPerSecond,
           geometryError: geometryError(fixture.target, measure),
         },
         ...(error ? { error } : {}),
@@ -136,17 +169,22 @@ export function regradeResults(file, fixturesByName) {
       metrics: { ...result.metrics, ...transcriptMetrics(result.transcript) },
     }
   })
-  return { ...file, results, summary: summarize(results) }
+  return { ...file, results, summary: summarize(results), speed: computeSpeed(results) }
 }
 
 // Rewritten after every run so an interrupted eval keeps every finished run.
 export function saveResults(writeFile, filePath, { model, provider, runs, promptSha256, results }) {
   const summary = summarize(results)
+  const speed = computeSpeed(results)
   writeFile(
     filePath,
-    JSON.stringify({ model, provider, runs, promptSha256, date: new Date().toISOString(), summary, results }, null, 2),
+    JSON.stringify(
+      { model, provider, runs, promptSha256, date: new Date().toISOString(), summary, speed, results },
+      null,
+      2,
+    ),
   )
-  return summary
+  return { summary, speed }
 }
 
 const main = async (argv, env) => {
@@ -216,14 +254,14 @@ const main = async (argv, env) => {
     : {}
 
   await runSuite(fixtures, { provider, backend: createEvalBackend(), runs, onRun, ...hooks })
-  const summary = saveResults(writeFileSync, filePath, {
+  const { summary, speed } = saveResults(writeFileSync, filePath, {
     model: EVAL_MODEL,
     provider: EVAL_PROVIDER,
     runs,
     promptSha256,
     results: collected,
   })
-  console.log(formatSummary(summary))
+  console.log(formatSummary(summary, { ...speed, model: EVAL_MODEL, provider: EVAL_PROVIDER }))
 }
 
 if (isMainModule(process.argv[1], import.meta.url)) {
