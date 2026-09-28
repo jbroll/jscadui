@@ -1,6 +1,6 @@
-// The frame worker's importData (src_frame/bundle.frame-worker.js) treats only
-// .stl as binary, so only those cross as ArrayBuffer.
-const BINARY_EXT = new Set(['stl'])
+// The frame worker's importData (src_frame/importData.js) reads these as
+// binary, so only these cross as ArrayBuffer.
+const BINARY_EXT = new Set(['stl', 'ttf', 'otf'])
 
 /** @param {string} path */
 export const isBinaryPath = (path) => BINARY_EXT.has(path.slice(path.lastIndexOf('.') + 1).toLowerCase())

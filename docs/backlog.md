@@ -122,6 +122,12 @@ disposes its two intermediate transforms per geometry.
 - **`!` root modifier is ignored.** OpenSCAD renders only the `!` subtree;
   we render the whole model. Needs `main()` to return that subtree with its
   ancestors' transforms, which the `%`/`#` overlay channel does not provide.
+- **`use <font.ttf>` gaps.** A missing font file fails the model in the
+  browser (`scadHandler` treats `FILE_NOT_FOUND` as fatal) where OpenSCAD and
+  `run-jscad.js` warn and fall back. A font `use` inside an included file does
+  not reach the including file. A project font arrives as a new `ArrayBuffer`
+  each run, so its model re-transpiles every time. `textmetrics()` and
+  `fontmetrics()` are not implemented.
 - **Ghosts are not drawn in ALL.js grid cells.** Cells drop `previewOnly`
   items before `normalizeAndPlace`; drawing them needs placement and the
   streaming claims to carry them.

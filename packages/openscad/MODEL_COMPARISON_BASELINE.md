@@ -15,7 +15,20 @@ and a third that can reach its `Asset_SCAD/` includes. Pointing CI at the
 
 Similarity threshold: **0.99** (Jaccard index on vertex-deduplicated STL meshes).
 
-## Latest GPU run: 2026-09-28, `%` on an empty child
+## Latest GPU run: 2026-09-28, `use <font.ttf>`
+
+Branch `work/ttf-use` (uncommitted on top of `3c9bfb36`), simple-ci job
+`24a1e0936fa715ee` (`sci push jscadui/test`), OpenSCAD 2026.08.30.fp. All
+21 suites pass. openscad-tests goes 238 → 239: `scad/misc/text-metrics-test.scad`
+left `skip.txt` and grades on its echo output. Every other count is unchanged.
+
+`use` of a `.ttf` or `.otf` file emits `j$.useFont(require(...))`, which
+registers the font under its family and style names, instead of parsing the
+font as SCAD. The `text-font-*` and `text-metrics.scad` models are 2D, so
+this suite cannot grade them; the render sweep (job `02a3b804ccec0774`) shows
+all 12 rendering.
+
+## Previous GPU run: 2026-09-28, `%` on an empty child
 
 Branch `work/backlog-20260928` (uncommitted on top of `a7e17875`), simple-ci
 job `820f229bd9a9050c` (`sci push jscadui/test`), OpenSCAD 2026.08.30.fp. All

@@ -45,6 +45,8 @@ describe('collectProjectFiles', () => {
 describe('isBinaryPath', () => {
   it('classifies by extension', () => {
     expect(isBinaryPath('a/b/part.stl')).toBe(true)
+    expect(isBinaryPath('fonts/Sans.ttf')).toBe(true)
+    expect(isBinaryPath('fonts/Sans.OTF')).toBe(true)
     expect(isBinaryPath('a/b/model.js')).toBe(false)
   })
 })

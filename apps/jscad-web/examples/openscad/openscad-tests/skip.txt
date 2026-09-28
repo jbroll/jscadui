@@ -94,8 +94,6 @@ scad/functions/function-literal-tests.scad
 scad/misc/include-overwrite-main.scad
 # transpiled JS throws: Identifier 'g$13' has already been declared
 scad/misc/scope-assignment-tests.scad
-# transpiled JS throws: Module not found: ttf/liberation-2.00.1/LiberationSans-Regular.ttf
-scad/misc/text-metrics-test.scad
 # transpiled JS throws: a is not defined
 scad/misc/variable-scope-tests.scad
 # degenerate flat minkowski inputs: OpenSCAD's manifold backend hard-crashes

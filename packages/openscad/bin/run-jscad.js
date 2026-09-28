@@ -591,6 +591,9 @@ function createMakeRequire(jscadModeling, openscadRuntime, moduleCache, fn, libP
         }
       }
 
+      // `use <font.ttf>` becomes j$.useFont(require(path)), which wants the bytes
+      if (/\.(ttf|otf)$/i.test(path)) return new Uint8Array(readFileSync(resolve(currentFileDir, path)))
+
       // Try to load regular .js files from the filesystem
       if (path.endsWith('.js') || path.startsWith('./') || path.startsWith('../')) {
         try {

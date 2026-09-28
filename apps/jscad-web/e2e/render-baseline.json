@@ -1,12 +1,12 @@
 {
-  "_comment": "1226/1420 on the manifold engine, which the app defaults to, with a 300s hang guard per file; 75 text-only models run clean and only echo or draw text. 194 failures recorded: 25 pre-existing (batch-dir lib 404s, maze3d_mickey recursion). The rest are suites the 09-23 baseline never swept: echo-only, 2D-only (dxf/svg/text) and assert/error negative tests; include/use wiring and helper modules with no top-level call; empty-by-construction (empty-union, nullspace, minkowski-erosion, error-model imports); % background and # highlight modifiers, which the viewport drops; $t animations, empty in a static sweep. Unfixable content: twisted-torus-ring (removed assign()), YAPP_Connector_Demo (Windows include path), missing peg.scad and ../../../ttf font files. assert-fail1-5 now correctly error (statement assert throws). render-all.mjs --baseline diffs a run against failures[]; text-only passes unrecorded. 2026-09-28: issue1672 (hull of a cube scaled to zero) is empty, as in OpenSCAD, now that a zero scale factor removes the shape instead of reading as 1. 4 models fixed by the `%`/`#` viewport ghosts (dotSCAD rubber_duck_debugging, NopSCADlib annotation, openscad-tests issue1005 and issue1833). 2026-09-27: 20 BOSL2 doc examples that call a function as a statement or fail to parse moved from text to empty once including std.scad stopped echoing warnings (c845b6bf); mount-demo and cart14-tensioner now render.",
+  "_comment": "1239/1421 on the manifold engine, which the app defaults to, with a 300s hang guard per file; 76 text-only models run clean and only echo or draw text. 182 failures recorded: 25 pre-existing (batch-dir lib 404s, maze3d_mickey recursion). The rest are suites the 09-23 baseline never swept: echo-only, 2D-only (dxf/svg/text) and assert/error negative tests; include/use wiring and helper modules with no top-level call; empty-by-construction (empty-union, nullspace, minkowski-erosion, error-model imports); % background and # highlight modifiers, which the viewport drops; $t animations, empty in a static sweep. Unfixable content: twisted-torus-ring (removed assign()), YAPP_Connector_Demo (Windows include path), missing peg.scad. assert-fail1-5 now correctly error (statement assert throws). render-all.mjs --baseline diffs a run against failures[]; text-only passes unrecorded. 2026-09-28: issue1672 (hull of a cube scaled to zero) is empty, as in OpenSCAD, now that a zero scale factor removes the shape instead of reading as 1. 4 models fixed by the `%`/`#` viewport ghosts (dotSCAD rubber_duck_debugging, NopSCADlib annotation, openscad-tests issue1005 and issue1833). 2026-09-27: 20 BOSL2 doc examples that call a function as a statement or fail to parse moved from text to empty once including std.scad stopped echoing warnings (c845b6bf); mount-demo and cart14-tensioner now render. 2026-09-28: the 12 text-font-* and text-metrics models render now that use <font.ttf> registers the font (job 02a3b804ccec0774).",
   "tree": "worktree-scale-circle-gaps working tree, rsynced onto the CI base worktree by sci",
   "date": "2026-09-28",
   "job": "94f275be0655e54b",
   "engine": "default",
-  "total": 1420,
-  "ok": 1226,
-  "failed": 194,
+  "total": 1421,
+  "ok": 1239,
+  "failed": 182,
   "byLib": {
     "openscad/01-basics": {
       "ok": 20,
@@ -61,8 +61,8 @@
       "fail": 0
     },
     "openscad/openscad-tests": {
-      "ok": 294,
-      "fail": 140
+      "ok": 307,
+      "fail": 128
     },
     "openscad/relativity": {
       "ok": 8,
@@ -296,66 +296,6 @@
       "status": "empty"
     },
     {
-      "rel": "openscad/openscad-tests/scad/2D/features/text-font-alignment-tests.scad",
-      "status": "error",
-      "why": "Error: Error: OpenSCAD transpilation failed: Parse error in ../../../ttf/liberation-2.00.1/LiberationSans-Regular.ttf: Unexpected character '\u0000'. [no candidate urls]"
-    },
-    {
-      "rel": "openscad/openscad-tests/scad/2D/features/text-font-btt-alignment-tests.scad",
-      "status": "error",
-      "why": "Error: Error: OpenSCAD transpilation failed: Parse error in ../../../ttf/liberation-2.00.1/LiberationSans-Regular.ttf: Unexpected character '\u0000'. [no candidate urls]"
-    },
-    {
-      "rel": "openscad/openscad-tests/scad/2D/features/text-font-composition.scad",
-      "status": "error",
-      "why": "Error: Error: OpenSCAD transpilation failed: Parse error in ../../../ttf/liberation-2.00.1/LiberationSans-Regular.ttf: Unexpected character '\u0000'. [no candidate urls]"
-    },
-    {
-      "rel": "openscad/openscad-tests/scad/2D/features/text-font-direction-tests.scad",
-      "status": "error",
-      "why": "Error: Error: OpenSCAD transpilation failed: Parse error in ../../../ttf/liberation-2.00.1/LiberationSans-Regular.ttf: Unexpected character '\u0000'. [no candidate urls]"
-    },
-    {
-      "rel": "openscad/openscad-tests/scad/2D/features/text-font-features.scad",
-      "status": "error",
-      "why": "Error: Error: OpenSCAD transpilation failed: Parse error in ../../../ttf/amiri-0.106/amiri-regular.ttf: Unexpected character '\u0000'. [no candidate urls]"
-    },
-    {
-      "rel": "openscad/openscad-tests/scad/2D/features/text-font-overlap.scad",
-      "status": "error",
-      "why": "Error: Error: OpenSCAD transpilation failed: Parse error in ../../../ttf/EvenOddTT/EvenOddTT-mod.ttf: Unexpected character '\u0000'. [no candidate urls]"
-    },
-    {
-      "rel": "openscad/openscad-tests/scad/2D/features/text-font-simple-tests.scad",
-      "status": "error",
-      "why": "Error: Error: OpenSCAD transpilation failed: Parse error in ../../../ttf/liberation-2.00.1/LiberationSans-Regular.ttf: Unexpected character '\u0000'. [no candidate urls]"
-    },
-    {
-      "rel": "openscad/openscad-tests/scad/2D/features/text-font-spacing-tests.scad",
-      "status": "error",
-      "why": "Error: Error: OpenSCAD transpilation failed: Parse error in ../../../ttf/liberation-2.00.1/LiberationSans-Regular.ttf: Unexpected character '\u0000'. [no candidate urls]"
-    },
-    {
-      "rel": "openscad/openscad-tests/scad/2D/features/text-font-symbol.scad",
-      "status": "error",
-      "why": "Error: Error: OpenSCAD transpilation failed: Parse error in ../../../ttf/marvosym-3.10/marvosym.ttf: Unexpected character '\u0000'.; Parse error in ../../../ttf/liberation-2.00.1/LiberationSans-Regular.ttf: Unexpected character '\u0000'.; Parse error in ../../../ttf/amiri-0.106/amiri-regular.ttf: Unexpected c"
-    },
-    {
-      "rel": "openscad/openscad-tests/scad/2D/features/text-font-tests.scad",
-      "status": "error",
-      "why": "Error: Error: OpenSCAD transpilation failed: Parse error in ../../../ttf/amiri-0.106/amiri-regular.ttf: Unexpected character '\u0000'.; Parse error in ../../../ttf/liberation-2.00.1/LiberationSans-Regular.ttf: Unexpected character '\u0000'. [no candidate urls]"
-    },
-    {
-      "rel": "openscad/openscad-tests/scad/2D/features/text-font-ttb-alignment-tests.scad",
-      "status": "error",
-      "why": "Error: Error: OpenSCAD transpilation failed: Parse error in ../../../ttf/liberation-2.00.1/LiberationSans-Regular.ttf: Unexpected character '\u0000'. [no candidate urls]"
-    },
-    {
-      "rel": "openscad/openscad-tests/scad/2D/features/text-metrics.scad",
-      "status": "error",
-      "why": "Error: Error: OpenSCAD transpilation failed: Parse error in ../../../ttf/liberation-2.00.1/LiberationSans-Regular.ttf: Unexpected character '\u0000'. [no candidate urls]"
-    },
-    {
       "rel": "openscad/openscad-tests/scad/2D/issues/issue5137.scad",
       "status": "empty"
     },
@@ -549,22 +489,22 @@
     {
       "rel": "openscad/openscad-tests/scad/issues/issue1890-comment.scad",
       "status": "error",
-      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at dn (assets/bundle.openscad.js:149:577)"
+      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at hn (assets/bundle.openscad.js:149:577)"
     },
     {
       "rel": "openscad/openscad-tests/scad/issues/issue1890-include.scad",
       "status": "error",
-      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at dn (assets/bundle.openscad.js:149:577)"
+      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at hn (assets/bundle.openscad.js:149:577)"
     },
     {
       "rel": "openscad/openscad-tests/scad/issues/issue1890-string.scad",
       "status": "error",
-      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at dn (assets/bundle.openscad.js:149:577)"
+      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at hn (assets/bundle.openscad.js:149:577)"
     },
     {
       "rel": "openscad/openscad-tests/scad/issues/issue1890-use.scad",
       "status": "error",
-      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at dn (assets/bundle.openscad.js:149:577)"
+      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at hn (assets/bundle.openscad.js:149:577)"
     },
     {
       "rel": "openscad/openscad-tests/scad/issues/issue1923-module.scad",
@@ -573,12 +513,12 @@
     {
       "rel": "openscad/openscad-tests/scad/issues/issue3118-recur-limit.scad",
       "status": "error",
-      "why": "Error: jscadMain failed: Recursion detected calling function 'sin'Error: Recursion detected calling function 'sin' at Object.recursionDetected (assets/bundle.openscad.js:156:3471) at sin_$f (/examples/openscad/openscad-tests/scad/issues/issue3118-recur-limit.scad:4:227) at vt.main (/examples/opensca"
+      "why": "Error: jscadMain failed: Recursion detected calling function 'sin'Error: Recursion detected calling function 'sin' at Object.recursionDetected (assets/bundle.openscad.js:156:3768) at sin_$f (/examples/openscad/openscad-tests/scad/issues/issue3118-recur-limit.scad:4:227) at vt.main (/examples/opensca"
     },
     {
       "rel": "openscad/openscad-tests/scad/issues/issue4172-echo-vector-stack-exhaust.scad",
       "status": "error",
-      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at Array.isArray (<anonymous>) at $s (assets/bundle.openscad.js:1:1) at Array.map (<anonymous>) at $s (assets/bundle.openscad.js:1:1) at Array.map (<anonymous>) at $s (assets/bundle.openscad.js"
+      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at Array.isArray (<anonymous>) at Us (assets/bundle.openscad.js:1:1) at Array.map (<anonymous>) at Us (assets/bundle.openscad.js:1:1) at Array.map (<anonymous>) at Us (assets/bundle.openscad.js"
     },
     {
       "rel": "openscad/openscad-tests/scad/issues/issue6597.scad",
@@ -609,7 +549,7 @@
     {
       "rel": "openscad/openscad-tests/scad/misc/assert-fail3-test.scad",
       "status": "error",
-      "why": "Error: jscadMain failed: Assertion failed: Assertion failedError: Assertion failed: Assertion failed at Object.assert (assets/bundle.openscad.js:157:160) at eval (/examples/openscad/openscad-tests/scad/misc/assert-fail3-test.scad:12:16) at Object.withScope (assets/bundle.openscad.js:157:2752) at eva"
+      "why": "Error: jscadMain failed: Assertion failed: Assertion failedError: Assertion failed: Assertion failed at Object.assert (assets/bundle.openscad.js:157:160) at eval (/examples/openscad/openscad-tests/scad/misc/assert-fail3-test.scad:12:16) at Object.withScope (assets/bundle.openscad.js:157:2763) at eva"
     },
     {
       "rel": "openscad/openscad-tests/scad/misc/assert-fail4-test.scad",
@@ -684,7 +624,7 @@
     {
       "rel": "openscad/openscad-tests/scad/misc/nbsp-latin1-test.scad",
       "status": "error",
-      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at dn (assets/bundle.openscad.js:149:577)"
+      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at hn (assets/bundle.openscad.js:149:577)"
     },
     {
       "rel": "openscad/openscad-tests/scad/misc/recursion-test-function.scad",
@@ -699,17 +639,17 @@
     {
       "rel": "openscad/openscad-tests/scad/misc/recursion-test-function3.scad",
       "status": "error",
-      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at Bs (assets/bundle.openscad.js:1:1) at Object.eq (assets/bundle.openscad.js:1:1) at add_up_to_$f (/examples/openscad/openscad-tests/scad/misc/recursion-test-function3.scad:1:1) at add_up_to_$"
+      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at _s (assets/bundle.openscad.js:1:1) at Object.eq (assets/bundle.openscad.js:1:1) at add_up_to_$f (/examples/openscad/openscad-tests/scad/misc/recursion-test-function3.scad:1:1) at add_up_to_$"
     },
     {
       "rel": "openscad/openscad-tests/scad/misc/recursion-test-module.scad",
       "status": "error",
-      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at Object.withScope (assets/bundle.openscad.js:157:2769) at eval (/examples/openscad/openscad-tests/scad/misc/recursion-test-module.scad:5:13) at eval (/examples/openscad/openscad-tests/scad/mi"
+      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at Object.withScope (assets/bundle.openscad.js:157:2780) at eval (/examples/openscad/openscad-tests/scad/misc/recursion-test-module.scad:5:13) at eval (/examples/openscad/openscad-tests/scad/mi"
     },
     {
       "rel": "openscad/openscad-tests/scad/misc/recursion-test-vector.scad",
       "status": "error",
-      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at Object.withScope (assets/bundle.openscad.js:157:2769) at eval (/examples/openscad/openscad-tests/scad/misc/recursion-test-vector.scad:7:13) at eval (/examples/openscad/openscad-tests/scad/mi"
+      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at Object.withScope (assets/bundle.openscad.js:157:2780) at eval (/examples/openscad/openscad-tests/scad/misc/recursion-test-vector.scad:7:13) at eval (/examples/openscad/openscad-tests/scad/mi"
     },
     {
       "rel": "openscad/openscad-tests/scad/misc/sub1/included.scad",
@@ -751,12 +691,12 @@
     {
       "rel": "openscad/openscad-tests/scad/misc/unicode-identifiers-fail.scad",
       "status": "error",
-      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at dn (assets/bundle.openscad.js:149:577)"
+      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at hn (assets/bundle.openscad.js:149:577)"
     },
     {
       "rel": "openscad/openscad-tests/scad/misc/unicode-identifiers.scad",
       "status": "error",
-      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at dn (assets/bundle.openscad.js:149:577)"
+      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at hn (assets/bundle.openscad.js:149:577)"
     },
     {
       "rel": "openscad/openscad-tests/scad/misc/use test6.scad",

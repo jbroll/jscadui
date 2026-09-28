@@ -88,6 +88,31 @@ interface TranspiledStatements {
   customizerPrologue: string[]
 }
 
+const FONT_FILE = /\.(ttf|otf)$/i
+
+/**
+ * Resolve `use <font.ttf>` paths. The file is loaded at run time, never parsed.
+ */
+function resolveFontImports(ctx: TranspileContext): void {
+  const fileResolver = ctx.options.fileResolver
+  for (const font of ctx.fontImports) {
+    if (!fileResolver) {
+      font.resolvedPath = font.filename
+      continue
+    }
+    const resolved = fileResolver(font.filename, ctx.options.currentFile)
+    if (resolved) {
+      font.resolvedPath = resolved.path
+    } else {
+      ctx.errors.push({
+        code: ErrorCode.FILE_NOT_FOUND,
+        message: `Cannot resolve file: ${font.filename}`,
+        file: ctx.options.currentFile,
+      })
+    }
+  }
+}
+
 /**
  * Process use statements: transpile dependencies and discover their exports
  */
@@ -468,6 +493,13 @@ function buildOutputCode(
       parts.push(imports.join('\n'))
       parts.push('')
     }
+  }
+
+  // Top-level assignments may measure text, so fonts register before anything else runs
+  const fonts = ctx.fontImports.filter(font => font.resolvedPath)
+  if (fonts.length > 0) {
+    for (const font of fonts) parts.push(`j$.useFont(require('${font.resolvedPath}'))`)
+    parts.push('')
   }
 
   // Track imported symbols to avoid duplicates
@@ -856,6 +888,8 @@ export function transpile(
   // Pre-pass: collect all function/module signatures from include files recursively
   collectSignaturesFromIncludes(ctx)
 
+  resolveFontImports(ctx)
+
   // Process use statements: transpile dependencies and discover exports
   processUseStatements(ctx)
 
@@ -1052,7 +1086,8 @@ function collectDeclarations(stmt: Statement, ctx: TranspileContext): void {
     // SymbolTable is the single source of truth for symbols and params
     ctx.symbols.define(name, { kind: 'function', source: 'local', params })
   } else if (isUseStmt(stmt)) {
-    ctx.useImports.push({
+    const imports = FONT_FILE.test(stmt.filename) ? ctx.fontImports : ctx.useImports
+    imports.push({
       filename: stmt.filename,
       resolvedPath: '',  // Will be computed during processing
       symbols: [],

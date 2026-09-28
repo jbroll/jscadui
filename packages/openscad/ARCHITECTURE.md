@@ -113,6 +113,20 @@ whose guards test it. When a name is assigned both in the file and in an
 include, the file's value takes the included assignment's position (last
 value at first position).
 
+### Font files
+
+`use <font.ttf>` (or `.otf`, any case) registers a font rather than importing
+symbols. The transpiler resolves the path through the file resolver, never
+parses it, and emits `j$.useFont(require('<path>'))` at the top of the module,
+ahead of the `use` requires and top-level assignments, so text measured at
+load time already sees the font. `j$.useFont` registers the bytes with
+jscad-text under the font's family and `family:style=Style` names. Each loader's
+`require` returns a font file as a `Uint8Array`: `bin/run-jscad.js` reads it from
+disk, and the web frame reads it as binary through `apps/jscad-web/src_frame/importData.js`. An
+unresolvable font file is a `FILE_NOT_FOUND` error, the same as any other `use`
+file, and no `require` is emitted for it. A font `use` in an included file is
+not carried into the including file.
+
 ### Tail recursion
 
 A function that calls itself in tail position (`tailCall.ts`) compiles to a

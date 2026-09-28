@@ -166,6 +166,8 @@ export interface TranspileContext {
   useImports: UseImport[]
   // Track include statements (import all symbols including variables)
   includeImports: UseImport[]
+  // `use <x.ttf>` / `use <x.otf>`: font files registered with j$.useFont
+  fontImports: UseImport[]
   // Track top-level variable assignments for export
   variableNames: string[]
   // Unified symbol table - single source of truth for symbols and params
@@ -251,6 +253,7 @@ export function createContext(
     // Context state
     useImports: [],
     includeImports: [],
+    fontImports: [],
     variableNames: [],
     symbols,
     indentLevel: 0,

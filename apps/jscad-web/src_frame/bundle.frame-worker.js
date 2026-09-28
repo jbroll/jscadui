@@ -22,6 +22,7 @@ import { readFileWeb, require, requireHandlers, jscadClearTempCache, clearFileCa
 import { withTransferable } from '@jscadui/postmessage'
 import { defaultSerializerConfigs } from '@jscadui/format-common/src/exportFormats.js'
 import { createScadHandler } from './scadHandler.js'
+import { createImportData } from './importData.js'
 import { sealMessageListeners } from './sealMessages.js'
 import { createWithSolids } from './withSolids.js'
 import { installOptionWarnings } from './optionWarnings.js'
@@ -127,15 +128,7 @@ const jscadExportData = async ({ format, options = {} }) => {
 const jscadGetExportFormats = () =>
   defaultSerializerConfigs.map(({ id, label, extension }) => ({ id, label, extension }))
 
-const importData = {
-  isBinaryExt: (ext) => ext === 'stl',
-  deserialize: ({ url, filename, ext }, fileContent) => {
-    const jscadIo = require('@jscad/io', null, readFileWeb)
-    const deserializer = jscadIo.deserializers[ext]
-    if (!deserializer) throw new Error('unsupported format in ' + url)
-    return deserializer({ output: 'geometry', filename }, fileContent)
-  },
-}
+const importData = createImportData(() => require('@jscad/io', null, readFileWeb).deserializers)
 
 const runWarnings = installOptionWarnings({ setUserModuleWrapper, setRunWarnings })
 installRunConsole({ setRunConsole })
