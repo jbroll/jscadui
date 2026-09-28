@@ -41,7 +41,9 @@ pool (a grid's leaves spread over the frame's workers by claim), then
 no `/etc/jscad-relay/providers.json`, so every relayed request, chat turns
 included, returned 500; the relay now falls back to the built-in provider
 table. A same-origin models GET now reaches the provider (`meta` answers 401
-without a key) instead of a 403.
+without a key) instead of a 403. Later on 2026-09-27: deployed `cb504202`,
+the build-stamped relay origin, so the `jscad-chat` launcher uses its own
+relay instead of production's, which never trusted its origin.
 See `apps/jscad-web/docs/architecture.md` for the
 deploy order and headers.
 
