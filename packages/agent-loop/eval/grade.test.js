@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { firstAttemptFailures, gradeFixture } from './grade.js'
+import { firstAttemptFailures, geometryError, gradeFixture, transcriptMetrics } from './grade.js'
 
 const fixture = {
   name: 'cube-hole',
@@ -93,5 +93,46 @@ describe('firstAttemptFailures', () => {
   it('passes the context to the checks', () => {
     const withParams = { ...fixture, checks: (_m, { params = [] } = {}) => [{ name: 'slider', pass: params.length === 1 }] }
     expect(gradeFixture(withParams, [], null, { params: [{ type: 'slider' }] }).checkRate).toBe(1)
+  })
+})
+
+describe('transcriptMetrics', () => {
+  const fail = (id) => resultMsg(id, JSON.stringify({ ok: false, error: { message: 'boom' } }))
+  const ok = (id) => resultMsg(id, JSON.stringify({ ok: true }))
+
+  it('counts every tool call and every failed result, not just before the first success', () => {
+    const transcript = [
+      toolMsg('t1', 'eval'), fail('t1'),
+      toolMsg('t2', 'eval'), ok('t2'),
+      toolMsg('t3', 'measure'), fail('t3'),
+      toolMsg('t4', 'writeModel'), ok('t4'),
+    ]
+    expect(transcriptMetrics(transcript)).toEqual({ toolCalls: 4, failedCalls: 2 })
+  })
+
+  it('is zero for an empty transcript', () => {
+    expect(transcriptMetrics([])).toEqual({ toolCalls: 0, failedCalls: 0 })
+  })
+})
+
+describe('geometryError', () => {
+  it('is null when the fixture has no target', () => {
+    expect(geometryError(undefined, { volume: 100 })).toBeNull()
+  })
+
+  it('is null when no geometry was produced', () => {
+    expect(geometryError({ volume: 100 }, null)).toBeNull()
+  })
+
+  it('is the relative volume error when the target has a volume', () => {
+    expect(geometryError({ volume: 100 }, { volume: 110 })).toBeCloseTo(0.1)
+  })
+
+  it('is the max relative dimension error, comparing sorted ascending', () => {
+    expect(geometryError({ dimensions: [10, 20, 30] }, { dimensions: [30, 11, 20] })).toBeCloseTo(0.1)
+  })
+
+  it('takes the max across volume and dimension errors', () => {
+    expect(geometryError({ volume: 100, dimensions: [10, 20] }, { volume: 105, dimensions: [10, 24] })).toBeCloseTo(0.2)
   })
 })

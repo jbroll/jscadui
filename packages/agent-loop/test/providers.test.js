@@ -278,6 +278,49 @@ describe('stream parsers', () => {
       { type: 'done', stopReason: 'completed' },
     ])
   })
+
+  it('anthropic: yields usage from message_start and message_delta', async () => {
+    const body =
+      `data: {"type":"message_start","message":{"usage":{"input_tokens":42,"output_tokens":0}}}\n\n` +
+      `data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"hi"}}\n\n` +
+      `data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":7}}\n\n`
+    expect(await collect(parseAnthropicStream(sseBody(body)))).toEqual([
+      { type: 'usage', inputTokens: 42, outputTokens: null },
+      { type: 'text', text: 'hi' },
+      { type: 'usage', inputTokens: null, outputTokens: 7 },
+      { type: 'done', stopReason: 'end_turn' },
+    ])
+  })
+
+  it('openai: yields usage from the final chunk', async () => {
+    const body =
+      `data: {"choices":[{"delta":{"content":"hi"}}]}\n\n` +
+      `data: {"choices":[{"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":3}}\n\n` +
+      `data: [DONE]\n\n`
+    expect(await collect(parseOpenAIStream(sseBody(body)))).toEqual([
+      { type: 'text', text: 'hi' },
+      { type: 'usage', inputTokens: 10, outputTokens: 3 },
+      { type: 'done', stopReason: 'stop' },
+    ])
+  })
+
+  it('openai: request body includes stream_options.include_usage', async () => {
+    fetchMock.mockResolvedValue(new Response(sseBody(`data: [DONE]\n\n`)))
+    const provider = createProvider({ kind: 'openai', apiKey: 'k', model: 'm', baseUrl: 'https://relay.test' })
+    for await (const e of provider.send([{ role: 'user', content: 'hi' }], [])) void e
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).stream_options).toEqual({ include_usage: true })
+  })
+
+  it('responses: yields usage from response.completed', async () => {
+    const body =
+      `data: {"type":"response.output_text.delta","delta":"hi"}\n\n` +
+      `data: {"type":"response.completed","response":{"usage":{"input_tokens":5,"output_tokens":2}}}\n\n`
+    expect(await collect(parseResponsesStream(sseBody(body)))).toEqual([
+      { type: 'text', text: 'hi' },
+      { type: 'usage', inputTokens: 5, outputTokens: 2 },
+      { type: 'done', stopReason: 'completed' },
+    ])
+  })
 })
 
 describe('prior assistant turns without tool calls', () => {

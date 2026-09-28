@@ -59,6 +59,36 @@ export function gradeTranscript(fixture, transcript) {
   }
 }
 
+// All tool calls and all failed results in the run, unlike firstAttemptFailures
+// which stops counting at the first successful eval.
+export function transcriptMetrics(transcript) {
+  return {
+    toolCalls: toolCallsOf(transcript).length,
+    failedCalls: resultsOf(transcript).filter((r) => failed(r.content)).length,
+  }
+}
+
+const relativeError = (actual, target) => Math.abs(actual - target) / target
+
+// Relative error against an optional fixture target ({ volume?, dimensions? });
+// dimensions compare sorted ascending so orientation doesn't matter.
+export function geometryError(target, measure) {
+  if (!target || !measure) return null
+  let maxError = null
+  if (typeof target.volume === 'number') {
+    maxError = relativeError(measure.volume ?? 0, target.volume)
+  }
+  if (Array.isArray(target.dimensions)) {
+    const t = [...target.dimensions].sort((a, b) => a - b)
+    const d = [...(measure.dimensions ?? [])].sort((a, b) => a - b)
+    for (let i = 0; i < t.length; i += 1) {
+      const err = relativeError(d[i] ?? 0, t[i])
+      maxError = maxError === null ? err : Math.max(maxError, err)
+    }
+  }
+  return maxError
+}
+
 export function gradeFixture(fixture, transcript, finalMeasure, context = {}) {
   const { dimensions, firstAttemptFailures: faf } = gradeTranscript(fixture, transcript)
 

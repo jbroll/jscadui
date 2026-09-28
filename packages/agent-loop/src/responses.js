@@ -46,6 +46,8 @@ export async function* parseResponsesStream(body) {
       acc.args += event.delta ?? ''
       calls.set(event.item_id, acc)
     } else if (event.type === 'response.completed') {
+      const usage = event.response?.usage
+      if (usage) yield { type: 'usage', inputTokens: usage.input_tokens ?? null, outputTokens: usage.output_tokens ?? null }
       break
     } else if (event.type === 'response.failed') {
       throw new Error(`responses: ${event.response?.error?.message ?? 'response failed'}`)

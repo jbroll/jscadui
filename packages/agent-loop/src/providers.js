@@ -69,7 +69,10 @@ export async function* parseAnthropicStream(body) {
     } catch {
       continue
     }
-    if (event.type === 'content_block_start' && event.content_block?.type === 'tool_use') {
+    if (event.type === 'message_start') {
+      const inputTokens = event.message?.usage?.input_tokens
+      if (typeof inputTokens === 'number') yield { type: 'usage', inputTokens, outputTokens: null }
+    } else if (event.type === 'content_block_start' && event.content_block?.type === 'tool_use') {
       toolInputs.set(event.index ?? 0, {
         id: event.content_block.id ?? '',
         name: event.content_block.name ?? '',
@@ -94,6 +97,8 @@ export async function* parseAnthropicStream(body) {
         yield { type: 'tool_use', id: acc.id, name: acc.name, input }
       }
     } else if (event.type === 'message_delta' && event.delta?.stop_reason) {
+      const outputTokens = event.usage?.output_tokens
+      if (typeof outputTokens === 'number') yield { type: 'usage', inputTokens: null, outputTokens }
       yield { type: 'done', stopReason: event.delta.stop_reason }
     } else if (event.type === 'error') {
       throw new Error(`anthropic: ${event.error?.message ?? 'provider error'}`)
@@ -163,6 +168,7 @@ export async function* parseOpenAIStream(body) {
   // Function arguments arrive split across chunks; hold each tool call by index until done.
   const toolCalls = new Map()
   let stopReason = ''
+  let usage = null
   for await (const payload of ssePayloads(body)) {
     if (payload === '[DONE]') break
     let chunk
@@ -186,6 +192,10 @@ export async function* parseOpenAIStream(body) {
       }
     }
     if (choice?.finish_reason) stopReason = choice.finish_reason
+    if (chunk.usage) usage = chunk.usage
+  }
+  if (usage) {
+    yield { type: 'usage', inputTokens: usage.prompt_tokens ?? null, outputTokens: usage.completion_tokens ?? null }
   }
   for (const acc of toolCalls.values()) {
     let input
@@ -210,6 +220,9 @@ const openaiProvider = (config) => {
       }
       if (tools.length > 0) body.tools = tools.map(toOpenAITool)
       if (config.effort) body.reasoning_effort = config.effort
+      // Only the direct OpenAI kind is confirmed to accept this; opencode-go's
+      // openai-protocol models are unverified without a live call, so it's withheld there.
+      if (config.kind === 'openai') body.stream_options = { include_usage: true }
       const headers = {
         'content-type': 'application/json',
         authorization: `Bearer ${config.apiKey}`,
