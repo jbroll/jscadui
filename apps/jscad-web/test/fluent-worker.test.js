@@ -8,7 +8,7 @@
  * The bundle is loaded the way the worker loads it: source text evaled as
  * CJS with a require shim for its externals (the worker's bundle aliases
  * provide @jbroll/jscad-anchors and @jscad/modeling at runtime; here the
- * shim provides the local anchors dist and real modeling). Plain Node
+ * shim provides the built anchors dist and real modeling). Plain Node
  * require() of the .js artifact does not work under "type": "module".
  */
 import { describe, expect, it } from 'vitest'
@@ -34,7 +34,12 @@ Module._load = function (request, parent, isMain) {
   return origLoad.call(this, request, parent, isMain)
 }
 
-const anchorsDist = join(__dirname, '..', '..', '..', '..', 'jscad-anchors', 'dist', 'jscad-anchors.cjs')
+// @jbroll/jscad-anchors ships as jscad-fluent's own npm dependency, pulled in
+// by fetch-sources.js's build step; reuse that copy instead of a sibling
+// checkout that only exists on a dev machine.
+const anchorsDist = join(
+  __dirname, '..', '..', '..', '.deps-cache', 'jscad-fluent', 'node_modules', '@jbroll', 'jscad-anchors', 'dist', 'jscad-anchors.cjs',
+)
 
 const findFluentBundle = () => {
   const dir = join(__dirname, '..', 'build', 'frame', 'assets')
