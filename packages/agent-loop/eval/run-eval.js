@@ -86,7 +86,7 @@ export async function runSuite(
       const finalMeasure = JSON.parse(await backend.requestTool('measure', {}))
       const measure = finalMeasure.ok ? finalMeasure : null
       const report = gradeFixture(fixture, transcript, measure, { params: backend.params() })
-      const { toolCalls, failedCalls } = transcriptMetrics(transcript)
+      const { toolCalls, failedCalls, warnings, docsCalls } = transcriptMetrics(transcript)
       const { inputTokens, outputTokens } = cappedProvider.usage()
       const result = {
         fixture: fixture.name,
@@ -98,6 +98,8 @@ export async function runSuite(
           rounds: cappedProvider.rounds(),
           toolCalls,
           failedCalls,
+          warnings,
+          docsCalls,
           inputTokens,
           outputTokens,
           seconds,
@@ -122,7 +124,6 @@ export function regradeResults(file, fixturesByName) {
     if (!fixture) return result
     const { dimensions, firstAttemptFailures } = gradeTranscript(fixture, result.transcript)
     const { geometry } = result.report.dimensions
-    const { toolCalls, failedCalls } = transcriptMetrics(result.transcript)
     return {
       ...result,
       report: {
@@ -131,7 +132,7 @@ export function regradeResults(file, fixturesByName) {
         firstAttemptFailures,
         checkRate: result.report.checkRate,
       },
-      metrics: { ...result.metrics, toolCalls, failedCalls },
+      metrics: { ...result.metrics, ...transcriptMetrics(result.transcript) },
     }
   })
   return { ...file, results, summary: summarize(results) }

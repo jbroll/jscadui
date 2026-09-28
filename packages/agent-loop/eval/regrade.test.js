@@ -55,7 +55,7 @@ describe('regradeResults', () => {
       ],
     }
     const out = regradeResults(file, new Map([['cube-hole', fixture]]))
-    expect(out.results[0].metrics).toEqual({ toolCalls: 2, failedCalls: 1 })
+    expect(out.results[0].metrics).toEqual({ toolCalls: 2, failedCalls: 1, warnings: 0, docsCalls: 0 })
   })
 
   it('keeps other stored metrics fields untouched while refreshing toolCalls/failedCalls', () => {
@@ -73,7 +73,9 @@ describe('regradeResults', () => {
       ],
     }
     const out = regradeResults(file, new Map([['cube-hole', fixture]]))
-    expect(out.results[0].metrics).toEqual({ rounds: 5, toolCalls: 1, failedCalls: 0, inputTokens: 100, outputTokens: 20, seconds: 3.5, geometryError: 0.1 })
+    expect(out.results[0].metrics).toEqual({
+      rounds: 5, toolCalls: 1, failedCalls: 0, warnings: 0, docsCalls: 0, inputTokens: 100, outputTokens: 20, seconds: 3.5, geometryError: 0.1,
+    })
   })
 
   it('leaves a result untouched when its fixture no longer exists', () => {

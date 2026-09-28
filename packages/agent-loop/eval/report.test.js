@@ -16,11 +16,11 @@ describe('eval report', () => {
     expect(summary).toEqual([
       {
         fixture: 'a', runs: 2, firstAttemptFailures: 1, checkPassRate: 0.75, total: 6, errors: 1,
-        rounds: null, failedCalls: null, inputTokens: null, outputTokens: null, seconds: null, geometryError: null,
+        rounds: null, failedCalls: null, inputTokens: null, outputTokens: null, seconds: null, geometryError: null, warnings: null, docsCalls: null,
       },
       {
         fixture: 'b', runs: 1, firstAttemptFailures: 1, checkPassRate: 1, total: 7, errors: 0,
-        rounds: null, failedCalls: null, inputTokens: null, outputTokens: null, seconds: null, geometryError: null,
+        rounds: null, failedCalls: null, inputTokens: null, outputTokens: null, seconds: null, geometryError: null, warnings: null, docsCalls: null,
       },
     ])
     expect(formatSummary(summary)).toContain('a  2  1.00  0.75  6.00  1')
@@ -72,5 +72,16 @@ describe('eval report', () => {
     const b = { model: 'm', promptSha256: 'bbbbbbbb22', summary: summarize([run('single-sphere', 0, 1, 7)]) }
     const text = formatComparison(a, b)
     expect(text).toContain('single-sphere  4.00 → -  1.00 → -')
+  })
+
+  it('means, prints and compares warnings and docsCalls', () => {
+    const metrics = { rounds: 4, toolCalls: 3, failedCalls: 1, inputTokens: 100, outputTokens: 20, seconds: 2, geometryError: 0.1, warnings: 2, docsCalls: 1 }
+    const summary = summarize([run('a', 0, 1, 8, undefined, metrics), run('a', 0, 1, 8, undefined, { ...metrics, warnings: 0, docsCalls: 3 })])
+    expect(summary[0]).toEqual(expect.objectContaining({ warnings: 1, docsCalls: 2 }))
+    expect(formatSummary(summary)).toContain('geometryError  warnings  docsCalls')
+    expect(formatSummary(summary)).toContain('a  4.00  1.00  100.00  20.00  2.00  0.10  1.00  2.00')
+    const text = formatComparison({ model: 'm', summary }, { model: 'm', summary: summarize([run('a', 0, 1, 8)]) })
+    expect(text).toContain('warnings a → b  docsCalls a → b')
+    expect(text).toContain('0.10 → -  1.00 → -  2.00 → -')
   })
 })

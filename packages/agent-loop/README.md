@@ -170,6 +170,9 @@ tend to max out once a prompt clears the bar:
 - `toolCalls` / `failedCalls`: every tool call and every failed tool result in
   the run, not just the ones before the first success. Transcript-derived, so
   `--regrade` recomputes them from the stored transcript.
+- `warnings`: unknown-option warnings returned on the run's `eval` and
+  `writeModel` results, summed. Transcript-derived.
+- `docsCalls`: `docs` calls in the run. Transcript-derived.
 - `inputTokens` / `outputTokens`: summed over the run's provider calls from a
   `usage` stream event (Anthropic's `message_start`/`message_delta`, OpenAI's
   `stream_options.include_usage` final chunk, or the Responses API's
@@ -184,9 +187,9 @@ tend to max out once a prompt clears the bar:
 `summarize` means each of these per fixture (over non-null values; `null`
 when none exist), and `formatSummary`/`formatComparison` print them in a
 second table alongside the existing one, showing `-` for a result file
-written before `metrics` existed. `--regrade` fills only `toolCalls` and
-`failedCalls`; the rest are left as stored, since they need the original
-provider run.
+written before `metrics` existed. `--regrade` fills only `toolCalls`,
+`failedCalls`, `warnings` and `docsCalls`; the rest are left as stored, since
+they need the original provider run.
 
 Each result file, `eval/results/<date>-<model>-<sha8>.json`,
 records the SHA-256 of the assembled system prompt, so `--compare` can set two

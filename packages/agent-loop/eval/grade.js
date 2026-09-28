@@ -59,12 +59,25 @@ export function gradeTranscript(fixture, transcript) {
   }
 }
 
+const warningsIn = (content) => {
+  try {
+    const warnings = JSON.parse(content)?.warnings
+    return Array.isArray(warnings) ? warnings.length : 0
+  } catch {
+    return 0
+  }
+}
+
 // All tool calls and all failed results in the run, unlike firstAttemptFailures
 // which stops counting at the first successful eval.
 export function transcriptMetrics(transcript) {
+  const calls = toolCallsOf(transcript)
+  const results = resultsOf(transcript)
   return {
-    toolCalls: toolCallsOf(transcript).length,
-    failedCalls: resultsOf(transcript).filter((r) => failed(r.content)).length,
+    toolCalls: calls.length,
+    failedCalls: results.filter((r) => failed(r.content)).length,
+    warnings: results.reduce((n, r) => n + warningsIn(r.content), 0),
+    docsCalls: calls.filter((c) => c.name === 'docs').length,
   }
 }
 

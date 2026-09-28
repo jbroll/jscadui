@@ -37,6 +37,8 @@ export function summarize(results) {
     outputTokens: meanOf(runs, (r) => r.metrics?.outputTokens),
     seconds: meanOf(runs, (r) => r.metrics?.seconds),
     geometryError: meanOf(runs, (r) => r.metrics?.geometryError),
+    warnings: meanOf(runs, (r) => r.metrics?.warnings),
+    docsCalls: meanOf(runs, (r) => r.metrics?.docsCalls),
   }))
 }
 
@@ -47,10 +49,10 @@ export function formatSummary(summary) {
   for (const s of summary) {
     lines.push(`${s.fixture}  ${s.runs}  ${n2(s.firstAttemptFailures)}  ${n2(s.checkPassRate)}  ${n2(s.total)}  ${s.errors}`)
   }
-  lines.push('', 'fixture  rounds  failedCalls  inputTokens  outputTokens  seconds  geometryError')
+  lines.push('', 'fixture  rounds  failedCalls  inputTokens  outputTokens  seconds  geometryError  warnings  docsCalls')
   for (const s of summary) {
     lines.push(
-      `${s.fixture}  ${n2or(s.rounds)}  ${n2or(s.failedCalls)}  ${n2or(s.inputTokens)}  ${n2or(s.outputTokens)}  ${n2or(s.seconds)}  ${n2or(s.geometryError)}`,
+      `${s.fixture}  ${n2or(s.rounds)}  ${n2or(s.failedCalls)}  ${n2or(s.inputTokens)}  ${n2or(s.outputTokens)}  ${n2or(s.seconds)}  ${n2or(s.geometryError)}  ${n2or(s.warnings)}  ${n2or(s.docsCalls)}`,
     )
   }
   return lines.join('\n')
@@ -70,12 +72,12 @@ export function formatComparison(a, b) {
       `${name}  ${cell(sa, 'firstAttemptFailures')} → ${cell(sb, 'firstAttemptFailures')}  ${cell(sa, 'checkPassRate')} → ${cell(sb, 'checkPassRate')}  ${cell(sa, 'total')} → ${cell(sb, 'total')}`,
     )
   }
-  lines.push('', 'fixture  rounds a → b  failedCalls a → b  seconds a → b  geometryError a → b')
+  lines.push('', 'fixture  rounds a → b  failedCalls a → b  seconds a → b  geometryError a → b  warnings a → b  docsCalls a → b')
   for (const name of names) {
     const sa = a.summary.find((s) => s.fixture === name)
     const sb = b.summary.find((s) => s.fixture === name)
     lines.push(
-      `${name}  ${cell(sa, 'rounds')} → ${cell(sb, 'rounds')}  ${cell(sa, 'failedCalls')} → ${cell(sb, 'failedCalls')}  ${cell(sa, 'seconds')} → ${cell(sb, 'seconds')}  ${cell(sa, 'geometryError')} → ${cell(sb, 'geometryError')}`,
+      `${name}  ${cell(sa, 'rounds')} → ${cell(sb, 'rounds')}  ${cell(sa, 'failedCalls')} → ${cell(sb, 'failedCalls')}  ${cell(sa, 'seconds')} → ${cell(sb, 'seconds')}  ${cell(sa, 'geometryError')} → ${cell(sb, 'geometryError')}  ${cell(sa, 'warnings')} → ${cell(sb, 'warnings')}  ${cell(sa, 'docsCalls')} → ${cell(sb, 'docsCalls')}`,
     )
   }
   return lines.join('\n')

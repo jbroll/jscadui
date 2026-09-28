@@ -38,6 +38,8 @@ describe('runSuite', () => {
     expect(results[0].metrics.rounds).toBe(3)
     expect(results[0].metrics.toolCalls).toBe(2)
     expect(results[0].metrics.failedCalls).toBe(0)
+    expect(results[0].metrics.warnings).toBe(0)
+    expect(results[0].metrics.docsCalls).toBe(0)
     expect(results[0].metrics.inputTokens).toBeNull()
     expect(results[0].metrics.outputTokens).toBeNull()
     expect(typeof results[0].metrics.seconds).toBe('number')

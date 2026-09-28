@@ -107,11 +107,21 @@ describe('transcriptMetrics', () => {
       toolMsg('t3', 'measure'), fail('t3'),
       toolMsg('t4', 'writeModel'), ok('t4'),
     ]
-    expect(transcriptMetrics(transcript)).toEqual({ toolCalls: 4, failedCalls: 2 })
+    expect(transcriptMetrics(transcript)).toEqual({ toolCalls: 4, failedCalls: 2, warnings: 0, docsCalls: 0 })
   })
 
   it('is zero for an empty transcript', () => {
-    expect(transcriptMetrics([])).toEqual({ toolCalls: 0, failedCalls: 0 })
+    expect(transcriptMetrics([])).toEqual({ toolCalls: 0, failedCalls: 0, warnings: 0, docsCalls: 0 })
+  })
+
+  it('sums returned warnings and counts docs calls', () => {
+    const warned = (id, n) => resultMsg(id, JSON.stringify({ ok: true, warnings: Array.from({ length: n }, () => ({})) }))
+    const transcript = [
+      toolMsg('t1', 'docs'), resultMsg('t1', 'primitives.roundedCuboid (@jscad/modeling)'),
+      toolMsg('t2', 'eval'), warned('t2', 2),
+      toolMsg('t3', 'writeModel'), warned('t3', 1),
+    ]
+    expect(transcriptMetrics(transcript)).toEqual({ toolCalls: 3, failedCalls: 0, warnings: 3, docsCalls: 1 })
   })
 })
 

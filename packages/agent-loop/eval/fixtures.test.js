@@ -33,8 +33,17 @@ describe('eval fixtures', () => {
     ['single-sphere', () => primitives.sphere({ radius: 10 }), {}],
     ['rounded-box', () => primitives.roundedCuboid({ size: [30, 20, 10], roundRadius: 2 }), {}],
     ['cylinder-param', () => primitives.cylinder({ radius: 5, height: 20 }), { params: [{ name: 'height', type: 'slider' }] }],
+    ['misspelled-option', () => primitives.roundedCuboid({ size: [30, 20, 10], roundRadius: 3 }), {}],
   ])('%s passes a matching model', (name, shape, context) => {
     expect(byName[name].checks(measure([shape()], {}), context).every((c) => c.pass)).toBe(true)
+  })
+
+  it('misspelled-option fails the default and a 2mm radius, passes 3mm at 16 segments', () => {
+    const passes = (roundRadius, segments = 32) =>
+      byName['misspelled-option'].checks(measure([primitives.roundedCuboid({ size: [30, 20, 10], roundRadius, segments })], {}), {}).every((c) => c.pass)
+    expect(passes(0.2)).toBe(false)
+    expect(passes(2)).toBe(false)
+    expect(passes(3, 16)).toBe(true)
   })
 
   it('single-sphere fails a cube', () => {
