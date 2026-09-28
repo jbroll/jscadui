@@ -78,7 +78,9 @@ the user the fixture count times `EVAL_RUNS` and get a yes.
 
 5. **Draft a prompt or example change.** Use the
    `llm-application-dev:prompt-engineering-patterns` skill, especially its
-   few-shot reference (`references/few-shot-learning.md`). Prefer a short
+   few-shot reference (`references/few-shot-learning.md`). If that skill is
+   not available, prefer a short example file over added prose, and keep
+   prose edits to the Imports and Tool policy sections. Prefer a short
    example model in `prompt/examples/NN-<name>.js` that shows the right form
    over more prose. Each example opens with a one-line comment naming the
    request it answers, and must be listed in `prompt/index.js` in file-name

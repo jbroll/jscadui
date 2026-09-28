@@ -133,6 +133,17 @@ test.describe('AI chat', () => {
     const measured = toolContents.find((r) => r.dimensions)
     expect(measured.dimensions).toHaveLength(3)
     expect(measured.volume).toBeGreaterThan(0)
+
+    // Follow-up turn: the prior assistant reply ('Done.') carries no tool
+    // calls, which is what crashed the OpenAI/Anthropic adapters (finding 1).
+    await page.locator('.chat-input').fill('make it bigger')
+    await page.locator('.chat-send').click()
+    await expect(page.locator('.chat-messages')).toContainText('Done.', { timeout: 30_000 })
+    await assertNoError(page)
+    expect(stub.requests.length).toBeGreaterThanOrEqual(4)
+    const followUp = stub.requests[stub.requests.length - 1]
+    expect(followUp.messages ?? []).toContainEqual(expect.objectContaining({ role: 'assistant', content: 'Done.' }))
+
     stub.server.close()
   })
 })
