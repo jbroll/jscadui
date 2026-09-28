@@ -15,13 +15,15 @@ import {
   lastRunStreamed,
   postProgress,
   releaseSolids,
+  setRunWarnings,
 } from '@jscadui/worker'
-import { readFileWeb, require, requireHandlers, jscadClearTempCache, clearFileCache } from '@jscadui/require'
+import { readFileWeb, require, requireHandlers, jscadClearTempCache, clearFileCache, setUserModuleWrapper } from '@jscadui/require'
 import { withTransferable } from '@jscadui/postmessage'
 import { defaultSerializerConfigs } from '@jscadui/format-common/src/exportFormats.js'
 import { createScadHandler } from './scadHandler.js'
 import { sealMessageListeners } from './sealMessages.js'
 import { createWithSolids } from './withSolids.js'
+import { installOptionWarnings } from './optionWarnings.js'
 
 // The frame adds appOrigin to every jscadInit: this worker's own origin is
 // opaque, so include urls with no origin of their own have no other base.
@@ -130,6 +132,8 @@ const importData = {
     return deserializer({ output: 'geometry', filename }, fileContent)
   },
 }
+
+installOptionWarnings({ setUserModuleWrapper, setRunWarnings })
 
 initWorker({
   transform: transformcjs,

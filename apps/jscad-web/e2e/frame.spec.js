@@ -329,6 +329,47 @@ test('a manifold model loads its wasm and returns geometry', async ({ page }) =>
   expect(vertexCount).toBeGreaterThan(0)
 })
 
+const MISSPELLED = project(
+  `const { roundedCuboid } = require('@jscad/modeling').primitives\n` +
+  `const main = () => roundedCuboid({ size: [30, 20, 10], radius: 2 })\n` +
+  `module.exports = { main }\n`,
+)
+
+const FLUENT_CLEAN = project(
+  `const jf = require('@jbroll/jscad-fluent')\n` +
+  `const main = () => jf.circle({ radius: 5 }).extrudeLinear({ height: 10 }).translate([1, 2, 3])\n` +
+  `module.exports = { main }\n`,
+)
+
+const FLUENT_MISSPELLED_METHOD = project(
+  `const jf = require('@jbroll/jscad-fluent')\n` +
+  `const main = () => jf.circle({ radius: 5 }).extrudeLinear({ hieght: 10 })\n` +
+  `module.exports = { main }\n`,
+)
+
+for (const engine of ['jscad', 'manifold']) {
+  test(`a misspelled option comes back as a warning on the ${engine} engine`, async ({ page }) => {
+    await gotoHost(page)
+    const res = await load(page, MISSPELLED, { engine, timeoutMs: 60000 })
+    expect(res.ok).toBe(true)
+    expect(res.result.warnings).toEqual([{ fn: 'primitives.roundedCuboid', option: 'radius', suggestions: ['roundRadius'] }])
+  })
+
+  test(`fluent's own modeling calls raise no warning on the ${engine} engine`, async ({ page }) => {
+    await gotoHost(page)
+    const res = await load(page, FLUENT_CLEAN, { engine, timeoutMs: 60000 })
+    expect(res.ok).toBe(true)
+    expect(res.result.warnings).toBeUndefined()
+  })
+
+  test(`a misspelled fluent method option comes back as a warning on the ${engine} engine`, async ({ page }) => {
+    await gotoHost(page)
+    const res = await load(page, FLUENT_MISSPELLED_METHOD, { engine, timeoutMs: 60000 })
+    expect(res.ok).toBe(true)
+    expect(res.result.warnings).toEqual([{ fn: 'FluentGeom2.extrudeLinear', option: 'hieght', suggestions: ['height'] }])
+  })
+}
+
 // One triangle is enough to prove the .stl arrived intact and deserialized:
 // the loader now hands the deserializer an ArrayBuffer from the file map
 // rather than the binary string readFileWeb used to return.

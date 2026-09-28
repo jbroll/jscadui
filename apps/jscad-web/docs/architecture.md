@@ -731,6 +731,38 @@ whatever the frame last loaded — the agent's `eval` source or the editor's,
 whichever ran last. `writeModel` only fills the editor buffer; nothing compiles
 until the user runs it.
 
+### Unknown-option warnings
+
+A modeling function ignores an option it does not know, so
+`roundedCuboid({ radius: 2 })` keeps the 0.2 default without a word. Model
+code gets a copy of `@jscad/modeling` and `@jbroll/jscad-fluent` in which
+every function that takes an options object first
+(`packages/agent-loop/api/optionTable.js`, generated with the API index)
+reports each unknown key as `{ fn, option, suggestions }` and then calls the
+real function with the same arguments. `@jscadui/require` hands the copy out
+(`setUserModuleWrapper`), and the frame worker registers it through
+`src_frame/optionWarnings.js`. The require cache holds one exports object per
+bundle URL, shared by the fluent, model-tools and anchors bundles and the
+OpenSCAD runtime, so only a caller whose URL is a project file under `root`,
+and not a `.scad` file, gets the copy; the libraries' internal calls would
+otherwise warn about options the user never wrote. The worker's collector is
+cleared at the start of each `jscadScript`, since top-level model code runs
+during the require, keeps each `fn`+`option` once, holds at most 20, and
+`jscadMain` returns them as `warnings`.
+
+Fluent class methods that take an options object (`.extrudeLinear({...})`,
+`.center`, `.mirror`, `.expand`, `.offset`, `.extrudeRotate`) are checked
+too, because the chat prompt teaches chaining. Fluent exports no classes, so
+`wrapFluentMethods` finds each prototype from an object a factory makes and
+wraps the methods listed under `methods` in the option table in place, once,
+the first time a project file requires fluent. A warning names the class,
+`FluentGeom2.extrudeLinear`, and goes to the run's collector. Unlike the
+exports copy, this reaches every caller in the worker, fluent's own code
+included. That is safe because fluent never calls its own option-taking
+methods and passes modeling only valid options;
+`packages/agent-loop/eval/fluent-guard.test.js` runs every fluent example with
+the wraps on and fails on any warning.
+
 ### Chat feedback loop
 
 The prompt improves from real sessions. The launcher relay logs each
