@@ -49,13 +49,15 @@ deploy order and headers.
 
 ## Render sweep
 
-Baseline 1241/1420 on manifold (CI job `6831b2a6422e20ae`), plus 95
-text-only models that run clean and only echo. The 179 recorded failures are
+Baseline 1223/1420 on manifold (CI job `4fa53806f2e17742`), plus 74
+text-only models that run clean and only echo. The 197 recorded failures are
 the 25 pre-existing ones plus suites the 09-23 baseline never swept:
 echo-only, 2D-only and assert/error negative tests, include/use wiring and
 helper modules, empty-by-construction models, `%`/`#` display modifiers (the
 viewport drops them), `$t` animations, and unfixable content (removed
-`assign()`, a Windows include path, missing upstream files). The sweep
+`assign()`, a Windows include path, missing upstream files). 20 BOSL2 doc
+examples that call a function as a statement, or do not parse, went from
+text-only to empty once `std.scad` stopped echoing include warnings. The sweep
 exits nonzero only on a regression against `render-baseline.json`. See
 `apps/jscad-web/e2e/RENDER-TESTING.md`.
 
@@ -111,18 +113,6 @@ disposes its two intermediate transforms per geometry.
 
 ## Library bugs found by the sweep
 
-- **constructive `heightInfo()` divergence**: `yapp-box` and constructive
-  `TUBE()` assert `h` defined, defaulted from `heightInfo()`; reference
-  OpenSCAD renders `cart14-tensioner.scad` (14k vertices) while ours evaluates
-  it undef and throws. Two transpiler defects, both fixed 2026-09-27: the
-  bundler kept the first of two `set()` definitions so `geomsOnly` merged
-  with array-`set` semantics (now last-wins), and `$`-assignments in
-  builtin-boolean child blocks emitted dead consts so assemble()'s
-  remove-pass `$removing = true` never landed and difference() emptied
-  everything (now save/set/restore). `cart14` runs clean locally and grades
-  0.988 against the flatpak reference (threshold 0.99; local OpenSCAD is
-  older than the GPU host's, so the last point needs the sweep).
-  `mount-demo.scad` fails in reference too.
 - **`%` background (and `#` highlight) modifiers draw nothing**: the
   transpiler emits `undefined` for `%child` (`statements.ts`), so with the
   viewport's `$preview=true` the branch vanishes instead of ghosting (e.g.
@@ -168,18 +158,25 @@ reporting, not on this going green.
 
 ## The jscad engine
 
-The app defaults to manifold; the other engine renders **719/807** (CI job
-`66c6287cbb317a60`, `sci push jscadui/render-jscad`); 59 of the rest are
-`empty`, with
+The app defaults to manifold; the other engine renders **1175/1420** (CI job
+`c2e8a724e49b25ae`, `sci push jscadui/render-jscad`), plus 75 text-only, with
 `apps/jscad-web/e2e/render-jscad-baseline.json` holding the per-model state.
-The STL comparison suite only runs manifold, so that sweep is the only thing
-covering this engine. Run one model with `display-check.js --engine jscad`.
+195 of its 245 failures fail on manifold too. The STL comparison suite only
+runs manifold, so that sweep is the only thing covering this engine. Run one
+model with `display-check.js --engine jscad`.
 
-- **Four errors are one-offs.** `maze3d_mickey.scad` overflows the stack and
-  is an accepted failure (see `RENDER-TESTING.md`). `Spawing_Cube.scad` errors
-  here and renders on manifold. `offset.scad` exceeds the 290s model budget.
-  `packing_circles.scad` sits on the budget and is marked flaky in the
-  baseline.
+- **`scale()` with a zero or negative factor throws.** 22 models fail with
+  `factors must be positive` from the modeling `scale`: all 16 yapp-box
+  examples, `threads.scad` and five openscad-tests. OpenSCAD accepts these
+  (a negative factor mirrors, zero flattens); manifold renders them.
+- **Circles with fewer than three segments throw.** `circle-tests.scad`,
+  `cylinder-tests.scad` and `rotate_extrude-tests.scad` fail with `segments
+  must be three or more`, where OpenSCAD clamps.
+- **One-offs.** `maze3d_mickey.scad` overflows the stack and is an accepted
+  failure (see `RENDER-TESTING.md`). `packing_circles.scad` and
+  `heart_chain.scad` sit on the 290s model budget and are marked flaky;
+  `heart_chain` spends 200s of its time in a 1,000-way 3D union.
+  `radials.scad` crashes the renderer in its 3D unions.
 - **It is roughly 10x slower than manifold.** `nuts.scad` takes 37s against
   3.6s, and the profile is entirely BSP: splitByPlane 11.6s, GC 11.3s, clipTo
   7.3s, with nothing in our own code. The one avoidable part is upstream now

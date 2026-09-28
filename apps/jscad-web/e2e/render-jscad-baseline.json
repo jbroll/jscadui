@@ -1,13 +1,13 @@
 {
-  "_comment": "Render sweep on the jscad modeling engine (sci push jscadui/render-jscad), 320s hang guard. 59 models draw nothing and score empty, the 45 the manifold sweep also scores empty plus ones this engine returns nothing for. 25 of the 28 errors extrude a geom2 whose sides do not close, random_city.scad and random_city_taiwan.scad among them now that comparison-only skips render; see docs/backlog.md. packing_circles.scad sits on the time limit and has gone both ways across runs, so it is marked flaky.",
+  "_comment": "Render sweep on the jscad modeling engine (sci push jscadui/render-jscad), 320s hang guard, all 1420 models the manifold sweep covers (807 before 2026-09-27). 1175 render and 75 only echo. geom2 booleans run on clipper-lib (modeling ff759668), which fixed all 25 models whose extruded geom2 did not close. 195 of the 245 failures are also manifold failures; 50 are jscad-only: 22 scale() calls with a zero or negative factor (all of yapp-box, threads.scad, openscad-tests), 3 circles with fewer than three segments, and the empties and one-offs in docs/backlog.md. PCB.scad now renders; radials.scad now reaches its 3D unions and crashes the renderer instead of erroring early. packing_circles.scad and heart_chain.scad sit on the 290s model budget and are marked flaky.",
   "tree": "main working tree, rsynced onto the CI base worktree by sci — no commit identifies the code that was measured",
-  "modeling": "jbroll/OpenJSCAD.org fix/offset-degenerate-outline c2676bd1",
-  "date": "2026-09-23",
-  "job": "66c6287cbb317a60",
+  "modeling": "jbroll/OpenJSCAD.org fork-main ff759668",
+  "date": "2026-09-27",
+  "job": "c2e8a724e49b25ae",
   "engine": "jscad",
-  "total": 807,
-  "ok": 719,
-  "failed": 88,
+  "total": 1420,
+  "ok": 1175,
+  "failed": 245,
   "byLib": {
     "openscad/01-basics": {
       "ok": 20,
@@ -18,20 +18,60 @@
       "fail": 21
     },
     "openscad/bosl2": {
-      "ok": 156,
-      "fail": 22
+      "ok": 157,
+      "fail": 21
+    },
+    "openscad/closepoints": {
+      "ok": 4,
+      "fail": 1
+    },
+    "openscad/constructive": {
+      "ok": 6,
+      "fail": 3
     },
     "openscad/dotscad": {
-      "ok": 182,
-      "fail": 22
+      "ok": 193,
+      "fail": 11
+    },
+    "openscad/gears": {
+      "ok": 18,
+      "fail": 0
+    },
+    "openscad/gridfinity": {
+      "ok": 4,
+      "fail": 0
+    },
+    "openscad/list-comprehension-demos": {
+      "ok": 11,
+      "fail": 1
     },
     "openscad/mcad": {
       "ok": 12,
       "fail": 2
     },
     "openscad/nopscadlib": {
-      "ok": 132,
-      "fail": 15
+      "ok": 145,
+      "fail": 2
+    },
+    "openscad/obiscad": {
+      "ok": 9,
+      "fail": 0
+    },
+    "openscad/openscad-examples": {
+      "ok": 43,
+      "fail": 0
+    },
+    "openscad/openscad-tests": {
+      "ok": 280,
+      "fail": 154
+    },
+    "openscad/relativity": {
+      "ok": 8,
+      "fail": 4
+    },
+    "openscad/round-anything": {
+      "ok": 12,
+      "fail": 0
     },
     "openscad/snippet": {
       "ok": 114,
@@ -40,6 +80,18 @@
     "openscad/text": {
       "ok": 11,
       "fail": 0
+    },
+    "openscad/threadlib": {
+      "ok": 9,
+      "fail": 0
+    },
+    "openscad/threads-scad": {
+      "ok": 0,
+      "fail": 1
+    },
+    "openscad/yapp-box": {
+      "ok": 27,
+      "fail": 18
     }
   },
   "failures": [
@@ -132,10 +184,6 @@
       "status": "empty"
     },
     {
-      "rel": "openscad/bosl2/02-part2/047-fnliterals-echo.scad",
-      "status": "empty"
-    },
-    {
       "rel": "openscad/bosl2/02-part2/054-geometry-plane_from_normal.scad",
       "status": "empty"
     },
@@ -176,6 +224,10 @@
       "status": "empty"
     },
     {
+      "rel": "openscad/bosl2/04-part4/134-skin-linear_sweep.scad",
+      "status": "empty"
+    },
+    {
       "rel": "openscad/bosl2/04-part4/137-strings-parse_num.scad",
       "status": "empty"
     },
@@ -208,18 +260,25 @@
       "status": "empty"
     },
     {
-      "rel": "openscad/bosl2/05-part5/161-vnf-echo.scad",
-      "status": "empty"
-    },
-    {
       "rel": "openscad/bosl2/05-part5/worldmap_360x180.scad",
       "status": "empty"
     },
     {
-      "rel": "openscad/dotscad/examples/circle_packing/packing_circles.scad",
-      "status": "timeout",
-      "why": "TimeoutError: page.waitForFunction: Timeout 320000ms exceeded.",
-      "flaky": true
+      "rel": "openscad/closepoints/demo_roller_coaster2.scad",
+      "status": "error",
+      "why": "Error: Error: model exceeded 290000 ms at frameWorkerTerminated (http://localhost:5130/main.js:551:13300) at d (http://localhost:5130/main.js:161:22203) at m (http://localhost:5130/main.js:161:22295) at o (http://localhost:5130/main.js:551:11852)"
+    },
+    {
+      "rel": "openscad/constructive/cad_kickstart/constructive-compiled.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/constructive/examples/constructive-compiled.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/constructive/tubeV2.scad",
+      "status": "empty"
     },
     {
       "rel": "openscad/dotscad/examples/dragon/dragon_claw.scad",
@@ -246,77 +305,31 @@
       "status": "empty"
     },
     {
-      "rel": "openscad/dotscad/examples/image_slicer.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: geometry is not closed at vertex 26.481744604669778,-13.000161350173743Error: geometry is not closed at vertex 26.481744604669778,-13.000161350173743 at Object.Mw [as toOutlines] (assets/bundle.jscad_modeling.js:1:20289) at WS (assets/bundle.jscad_modeling.js:17:13760) at ev"
-    },
-    {
-      "rel": "openscad/dotscad/examples/maze/heart2heart_maze.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: geometry is not closed at vertex 14.469305806279758,-6.910692140865015Error: geometry is not closed at vertex 14.469305806279758,-6.910692140865015 at Object.Mw [as toOutlines] (assets/bundle.jscad_modeling.js:1:20289) at WS (assets/bundle.jscad_modeling.js:17:13760) at eval"
-    },
-    {
-      "rel": "openscad/dotscad/examples/maze/maze_city.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: geometry is not closed at vertex -15.000035898875808,3.5081609406009973Error: geometry is not closed at vertex -15.000035898875808,3.5081609406009973 at Mw (assets/bundle.jscad_modeling.js:1:20289) at K6 (assets/bundle.jscad_modeling.js:13:58225) at new no (assets/bundle.jsc"
-    },
-    {
-      "rel": "openscad/dotscad/examples/maze/maze_masking.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: geometry is not closed at vertex -67.99996000000002,-28.00004666666667Error: geometry is not closed at vertex -67.99996000000002,-28.00004666666667 at Mw (assets/bundle.jscad_modeling.js:1:20289) at K6 (assets/bundle.jscad_modeling.js:13:58225) at new no (assets/bundle.jscad"
-    },
-    {
       "rel": "openscad/dotscad/examples/maze/maze3d_mickey.scad",
       "status": "error",
-      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at eval (http://localhost:5120/examples/openscad/dotscad/matrix/m_replace.scad:1:1) at Array.map (<anonymous>) at Object.m_replace_$f (http://localhost:5120/examples/openscad/dotscad/matrix/m_r"
+      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at eval (http://localhost:5130/examples/openscad/dotscad/util/swap.scad:1:1) at Array.map (<anonymous>) at eval (http://localhost:5130/examples/openscad/dotscad/util/swap.scad:1:1) at Object.sw"
     },
     {
-      "rel": "openscad/dotscad/examples/spiral_polygons/fidget_boo.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: geometry is not closed at vertex -7.2953101921793735,2.435671429864949Error: geometry is not closed at vertex -7.2953101921793735,2.435671429864949 at Object.Mw [as toOutlines] (assets/bundle.jscad_modeling.js:1:20289) at Qu (assets/bundle.openscad.js:135:20353) at Object.li"
+      "rel": "openscad/dotscad/examples/rubber_duck_debugging.scad",
+      "status": "empty"
     },
     {
-      "rel": "openscad/dotscad/examples/spiral_polygons/fidget_heart.scad",
+      "rel": "openscad/dotscad/examples/spiral/heart_chain.scad",
       "status": "error",
-      "why": "Error: jscadMain failed: geometry is not closed at vertex -0.4491939799789669,-7.646438519118617Error: geometry is not closed at vertex -0.4491939799789669,-7.646438519118617 at Object.Mw [as toOutlines] (assets/bundle.jscad_modeling.js:1:20289) at Qu (assets/bundle.openscad.js:135:20353) at Object."
-    },
-    {
-      "rel": "openscad/dotscad/examples/taiwan/random_city_taiwan.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: geometry is not closed at vertex -15.000035898875808,3.5081609406009973Error: geometry is not closed at vertex -15.000035898875808,3.5081609406009973 at Mw (assets/bundle.jscad_modeling.js:1:20289) at K6 (assets/bundle.jscad_modeling.js:13:58225) at new no (assets/bundle.jsc"
-    },
-    {
-      "rel": "openscad/dotscad/examples/text_box.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: geometry is not closed at vertex -14.064318743488146,-30.80989825311967Error: geometry is not closed at vertex -14.064318743488146,-30.80989825311967 at Mw (assets/bundle.jscad_modeling.js:1:20289) at K6 (assets/bundle.jscad_modeling.js:13:58225) at new no (assets/bundle.jsc"
+      "why": "Error: Error: model exceeded 290000 ms at frameWorkerTerminated (http://localhost:5130/main.js:551:13300) at d (http://localhost:5130/main.js:161:22203) at m (http://localhost:5130/main.js:161:22295) at o (http://localhost:5130/main.js:551:11852)",
+      "flaky": true
     },
     {
       "rel": "openscad/dotscad/examples/tiles/city_tile.scad",
       "status": "empty"
     },
     {
-      "rel": "openscad/dotscad/examples/tiles/random_city.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: geometry is not closed at vertex -15.000035898875808,3.5081609406009973Error: geometry is not closed at vertex -15.000035898875808,3.5081609406009973 at Mw (assets/bundle.jscad_modeling.js:1:20289) at K6 (assets/bundle.jscad_modeling.js:13:58225) at new no (assets/bundle.jsc"
-    },
-    {
-      "rel": "openscad/dotscad/examples/triangle2square/triangle2square_box.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: geometry is not closed at vertex 27.780145557037113,-41.53075432982075Error: geometry is not closed at vertex 27.780145557037113,-41.53075432982075 at Mw (assets/bundle.jscad_modeling.js:1:20289) at K6 (assets/bundle.jscad_modeling.js:13:58225) at new no (assets/bundle.jscad"
-    },
-    {
       "rel": "openscad/dotscad/examples/triangle2square/triangle2square.scad",
       "status": "empty"
     },
     {
-      "rel": "openscad/dotscad/examples/voronoi/voronoi_holder.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: geometry is not closed at vertex 0.7032306723555575,5.486411780977778Error: geometry is not closed at vertex 0.7032306723555575,5.486411780977778 at Object.Mw [as toOutlines] (assets/bundle.jscad_modeling.js:1:20289) at Qu (assets/bundle.openscad.js:135:20353) at Object.line"
-    },
-    {
-      "rel": "openscad/dotscad/examples/walk_torus83_fort.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: geometry is not closed at vertex 59.83026079978061,-23.357707033346717Error: geometry is not closed at vertex 59.83026079978061,-23.357707033346717 at Mw (assets/bundle.jscad_modeling.js:1:20289) at K6 (assets/bundle.jscad_modeling.js:13:58225) at new no (assets/bundle.jscad"
+      "rel": "openscad/list-comprehension-demos/twisted-torus-ring.scad",
+      "status": "empty"
     },
     {
       "rel": "openscad/mcad/examples/bearing_test.scad",
@@ -331,79 +344,699 @@
       "status": "empty"
     },
     {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/circlips.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: geometry is not closed at vertex -6.74415996422327,-4.466877565275581Error: geometry is not closed at vertex -6.74415996422327,-4.466877565275581 at Object.Mw [as toOutlines] (assets/bundle.jscad_modeling.js:1:20289) at WS (assets/bundle.jscad_modeling.js:17:13760) at eval ("
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/core_xy.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: geometry is not closed at vertex -19.677766854083536,-15.370751179613364Error: geometry is not closed at vertex -19.677766854083536,-15.370751179613364 at Mw (assets/bundle.jscad_modeling.js:1:20289) at K6 (assets/bundle.jscad_modeling.js:13:58225) at new no (assets/bundle.j"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/horiholes.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: geometry is not closed at vertex -27.147193333333338,-6.250040000000001Error: geometry is not closed at vertex -27.147193333333338,-6.250040000000001 at Mw (assets/bundle.jscad_modeling.js:1:20289) at K6 (assets/bundle.jscad_modeling.js:13:58225) at new no (assets/bundle.jsc"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/hot_ends.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: geometry is not closed at vertex -2.9749338536334236,8.567850032349687Error: geometry is not closed at vertex -2.9749338536334236,8.567850032349687 at Mw (assets/bundle.jscad_modeling.js:1:20289) at K6 (assets/bundle.jscad_modeling.js:13:58225) at new no (assets/bundle.jscad"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/IECs.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: geometry is not closed at vertex -8.133849609600002,-9.874748333022225Error: geometry is not closed at vertex -8.133849609600002,-9.874748333022225 at Mw (assets/bundle.jscad_modeling.js:1:20289) at K6 (assets/bundle.jscad_modeling.js:13:58225) at new no (assets/bundle.jscad"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/offset.scad",
-      "status": "error",
-      "why": "Error: Error: model exceeded 290000 ms at frameWorkerTerminated (http://localhost:5120/main.js:551:12335) at d (http://localhost:5120/main.js:161:22195) at m (http://localhost:5120/main.js:161:22287) at o (http://localhost:5120/main.js:551:11021)"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/PCB.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: geometry is not closed at vertex 0,-0.024103675662897683Error: geometry is not closed at vertex 0,-0.024103675662897683 at Mw (assets/bundle.jscad_modeling.js:1:20289) at K6 (assets/bundle.jscad_modeling.js:13:58225) at new no (assets/bundle.jscad_modeling.js:13:59110) at Ob"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/PSU_shroud.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: geometry is not closed at vertex -2.9149495731778132,3.1182416582136216Error: geometry is not closed at vertex -2.9149495731778132,3.1182416582136216 at Mw (assets/bundle.jscad_modeling.js:1:20289) at K6 (assets/bundle.jscad_modeling.js:13:58225) at new no (assets/bundle.jsc"
-    },
-    {
       "rel": "openscad/nopscadlib/NopSCADlib/tests/radials.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: geometry is not closed at vertex 0,-0.024103675662897683Error: geometry is not closed at vertex 0,-0.024103675662897683 at Mw (assets/bundle.jscad_modeling.js:1:20289) at K6 (assets/bundle.jscad_modeling.js:13:58225) at new no (assets/bundle.jscad_modeling.js:13:59110) at Ob"
+      "status": "crash",
+      "why": "Error: renderer crashed"
     },
     {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/screw_knob.scad",
+      "rel": "openscad/openscad-tests/scad/2D/features/circle-tests.scad",
       "status": "error",
-      "why": "Error: jscadMain failed: geometry is not closed at vertex 9.182251649951741,11.8393452313831Error: geometry is not closed at vertex 9.182251649951741,11.8393452313831 at Mw (assets/bundle.jscad_modeling.js:1:20289) at K6 (assets/bundle.jscad_modeling.js:13:58225) at new no (assets/bundle.jscad_model"
+      "why": "Error: jscadMain failed: segments must be three or moreError: segments must be three or more at r4 (assets/bundle.jscad_modeling.js:13:31826) at o4 (assets/bundle.jscad_modeling.js:13:32627) at Ku (assets/bundle.openscad.js:149:14340) at Object.circle (assets/bundle.openscad.js:157:597) at vt.main ("
     },
     {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/SSR_shroud.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: geometry is not closed at vertex -2.9149495731778132,3.1182416582136216Error: geometry is not closed at vertex -2.9149495731778132,3.1182416582136216 at Mw (assets/bundle.jscad_modeling.js:1:20289) at K6 (assets/bundle.jscad_modeling.js:13:58225) at new no (assets/bundle.jsc"
+      "rel": "openscad/openscad-tests/scad/2D/features/fill2-tests.scad",
+      "status": "empty"
     },
     {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/stepper_motors.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: geometry is not closed at vertex 15.525620152923214,14.13215700535525Error: geometry is not closed at vertex 15.525620152923214,14.13215700535525 at Mw (assets/bundle.jscad_modeling.js:1:20289) at K6 (assets/bundle.jscad_modeling.js:13:58225) at new no (assets/bundle.jscad_m"
+      "rel": "openscad/openscad-tests/scad/2D/features/projection-tests.scad",
+      "status": "empty"
     },
     {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/wire.scad",
+      "rel": "openscad/openscad-tests/scad/2D/features/scale2D-tests.scad",
       "status": "error",
-      "why": "Error: jscadMain failed: geometry is not closed at vertex -2.8610262233795023,2.1158864876426082Error: geometry is not closed at vertex -2.8610262233795023,2.1158864876426082 at Mw (assets/bundle.jscad_modeling.js:1:20289) at K6 (assets/bundle.jscad_modeling.js:13:58225) at new no (assets/bundle.jsc"
+      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at vt.main (/examples/openscad/openscad-tests/scad/2D/features/scale2"
     },
     {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/zipties.scad",
+      "rel": "openscad/openscad-tests/scad/2D/features/text-empty-tests.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/2D/features/text-font-alignment-tests.scad",
       "status": "error",
-      "why": "Error: jscadMain failed: geometry is not closed at vertex -2.9780127651242077,5.35579448075528Error: geometry is not closed at vertex -2.9780127651242077,5.35579448075528 at Mw (assets/bundle.jscad_modeling.js:1:20289) at K6 (assets/bundle.jscad_modeling.js:13:58225) at new no (assets/bundle.jscad_m"
+      "why": "Error: Error: OpenSCAD transpilation failed: Parse error in ../../../ttf/liberation-2.00.1/LiberationSans-Regular.ttf: Unexpected character '\u0000'. [no candidate urls]"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/2D/features/text-font-btt-alignment-tests.scad",
+      "status": "error",
+      "why": "Error: Error: OpenSCAD transpilation failed: Parse error in ../../../ttf/liberation-2.00.1/LiberationSans-Regular.ttf: Unexpected character '\u0000'. [no candidate urls]"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/2D/features/text-font-composition.scad",
+      "status": "error",
+      "why": "Error: Error: OpenSCAD transpilation failed: Parse error in ../../../ttf/liberation-2.00.1/LiberationSans-Regular.ttf: Unexpected character '\u0000'. [no candidate urls]"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/2D/features/text-font-direction-tests.scad",
+      "status": "error",
+      "why": "Error: Error: OpenSCAD transpilation failed: Parse error in ../../../ttf/liberation-2.00.1/LiberationSans-Regular.ttf: Unexpected character '\u0000'. [no candidate urls]"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/2D/features/text-font-features.scad",
+      "status": "error",
+      "why": "Error: Error: OpenSCAD transpilation failed: Parse error in ../../../ttf/amiri-0.106/amiri-regular.ttf: Unexpected character '\u0000'. [no candidate urls]"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/2D/features/text-font-overlap.scad",
+      "status": "error",
+      "why": "Error: Error: OpenSCAD transpilation failed: Parse error in ../../../ttf/EvenOddTT/EvenOddTT-mod.ttf: Unexpected character '\u0000'. [no candidate urls]"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/2D/features/text-font-simple-tests.scad",
+      "status": "error",
+      "why": "Error: Error: OpenSCAD transpilation failed: Parse error in ../../../ttf/liberation-2.00.1/LiberationSans-Regular.ttf: Unexpected character '\u0000'. [no candidate urls]"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/2D/features/text-font-spacing-tests.scad",
+      "status": "error",
+      "why": "Error: Error: OpenSCAD transpilation failed: Parse error in ../../../ttf/liberation-2.00.1/LiberationSans-Regular.ttf: Unexpected character '\u0000'. [no candidate urls]"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/2D/features/text-font-symbol.scad",
+      "status": "error",
+      "why": "Error: Error: OpenSCAD transpilation failed: Parse error in ../../../ttf/marvosym-3.10/marvosym.ttf: Unexpected character '\u0000'.; Parse error in ../../../ttf/liberation-2.00.1/LiberationSans-Regular.ttf: Unexpected character '\u0000'.; Parse error in ../../../ttf/amiri-0.106/amiri-regular.ttf: Unexpected c"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/2D/features/text-font-tests.scad",
+      "status": "error",
+      "why": "Error: Error: OpenSCAD transpilation failed: Parse error in ../../../ttf/amiri-0.106/amiri-regular.ttf: Unexpected character '\u0000'.; Parse error in ../../../ttf/liberation-2.00.1/LiberationSans-Regular.ttf: Unexpected character '\u0000'. [no candidate urls]"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/2D/features/text-font-ttb-alignment-tests.scad",
+      "status": "error",
+      "why": "Error: Error: OpenSCAD transpilation failed: Parse error in ../../../ttf/liberation-2.00.1/LiberationSans-Regular.ttf: Unexpected character '\u0000'. [no candidate urls]"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/2D/features/text-metrics.scad",
+      "status": "error",
+      "why": "Error: Error: OpenSCAD transpilation failed: Parse error in ../../../ttf/liberation-2.00.1/LiberationSans-Regular.ttf: Unexpected character '\u0000'. [no candidate urls]"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/2D/issues/issue5137.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/2D/issues/issue5253.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/2D/issues/issue5574.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/2D/issues/linear_extrude-twist-tests.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/3D/features/cylinder-tests.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: segments must be three or moreError: segments must be three or more at v4 (assets/bundle.jscad_modeling.js:13:34696) at q4 (assets/bundle.jscad_modeling.js:13:36219) at Vu (assets/bundle.openscad.js:149:13459) at Object.cylinder (assets/bundle.openscad.js:157:327) at vt.main"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/3D/features/import-empty-tests.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/3D/features/mirror-tests.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20812) at eval (/examples/openscad/openscad-tests/scad/3D/features/mirror-te"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/3D/features/nullspace-difference.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/3D/features/nullspace-intersection.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/3D/features/rotate_extrude-angle.scad",
+      "status": "error",
+      "why": "TypeError: jscadMain failed: Cannot read properties of null (reading 'edges')TypeError: Cannot read properties of null (reading 'edges') at Object.fS [as equals] (assets/bundle.jscad_modeling.js:13:51999) at E_ (assets/bundle.jscad_modeling.js:13:64613) at T_ (assets/bundle.jscad_modeling.js:13:6601"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/3D/features/rotate_extrude-tests.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: segments must be three or moreError: segments must be three or more at r4 (assets/bundle.jscad_modeling.js:13:31826) at o4 (assets/bundle.jscad_modeling.js:13:32627) at Ku (assets/bundle.openscad.js:149:14340) at Object.circle (assets/bundle.openscad.js:157:597) at eval (/ex"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/3D/features/scale-mirror2D-3D-tests.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at vt.main (/examples/openscad/openscad-tests/scad/3D/features/scale-"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/3D/features/scale3D-tests.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at vt.main (/examples/openscad/openscad-tests/scad/3D/features/scale3"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/3D/issues/issue1005.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/3D/issues/issue1215c.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/3D/issues/issue1221.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/3D/issues/issue1246.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/3D/issues/issue1672.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at vt.main (/examples/openscad/openscad-tests/scad/3D/issues/issue167"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/3D/issues/issue1803.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/3D/issues/issue1833.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/3D/issues/issue4522.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at vt.main (/examples/openscad/openscad-tests/scad/3D/issues/issue452"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/3D/issues/issue517.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/3D/issues/issue5766.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/3D/issues/issue5766b.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/3D/issues/issue666.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/arc.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/circle-advanced.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/circle-double.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/circle-small.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/circle.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/ellipse-arc-rot.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/ellipse-arc.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/ellipse-reverse.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/ellipse-rot.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/ellipse.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/lwpolyline-closed.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/lwpolyline.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/lwpolyline2.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/multiple-layers.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/nothing-decimal-comma-separated.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/polygon-concave-hole.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/polygon-concave-simple.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/polygon-concave.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/polygon-holes-touch.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/polygon-intersect.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/polygon-many-holes.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/polygon-mesh.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/polygon-overlap.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/polygon-riser.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/polygon-self-intersect.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/polygon8.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/polygons.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/transform-insert.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/dxf/triangle-with-duplicate-vertex.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/functions/assert-expression-fail1-test.scad",
+      "status": "error",
+      "why": "Error: Assertion failed: Assertion failed / failed loading module /examples/openscad/openscad-tests/scad/functions/assert-expression-fail1-test.scadError: Assertion failed: Assertion failed at Object.assert (assets/bundle.openscad.js:157:160) at eval (/examples/openscad/openscad-tests/scad/functions"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/functions/assert-expression-fail2-test.scad",
+      "status": "error",
+      "why": "Error: Assertion failed: Test! <html>&</html> / failed loading module /examples/openscad/openscad-tests/scad/functions/assert-expression-fail2-test.scadError: Assertion failed: Test! <html>&</html> at Object.assert (assets/bundle.openscad.js:157:160) at eval (/examples/openscad/openscad-tests/scad/f"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/functions/assert-expression-fail3-test.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: Assertion failed: Assertion failedError: Assertion failed: Assertion failed at Object.assert (assets/bundle.openscad.js:157:160) at eval (/examples/openscad/openscad-tests/scad/functions/assert-expression-fail3-test.scad:12:19) at Object.withScope (assets/bundle.openscad.js:"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/issues/issue1890-comment.scad",
+      "status": "error",
+      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at sn (assets/bundle.openscad.js:149:577)"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/issues/issue1890-include.scad",
+      "status": "error",
+      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at sn (assets/bundle.openscad.js:149:577)"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/issues/issue1890-string.scad",
+      "status": "error",
+      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at sn (assets/bundle.openscad.js:149:577)"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/issues/issue1890-use.scad",
+      "status": "error",
+      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at sn (assets/bundle.openscad.js:149:577)"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/issues/issue1923-module.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/issues/issue3118-recur-limit.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: Recursion detected calling function 'sin'Error: Recursion detected calling function 'sin' at Object.recursionDetected (assets/bundle.openscad.js:156:3471) at sin_$f (/examples/openscad/openscad-tests/scad/issues/issue3118-recur-limit.scad:4:227) at vt.main (/examples/opensca"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/issues/issue4172-echo-vector-stack-exhaust.scad",
+      "status": "error",
+      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at ks (assets/bundle.openscad.js:1:1) at Array.map (<anonymous>) at ks (assets/bundle.openscad.js:1:1) at Array.map (<anonymous>) at ks (assets/bundle.openscad.js:1:1) at Array.map (<anonymous>"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/issues/issue6597.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/issues/issue7013.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/json/submodule/submodule.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/allfunctions.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/assert-fail1-test.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: Assertion failed: Assertion failedError: Assertion failed: Assertion failed at Object.assert (assets/bundle.openscad.js:157:160) at vt.main (/examples/openscad/openscad-tests/scad/misc/assert-fail1-test.scad:5:9)"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/assert-fail2-test.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: Assertion failed: Test! <html>&</html>Error: Assertion failed: Test! <html>&</html> at Object.assert (assets/bundle.openscad.js:157:160) at main (/examples/openscad/openscad-tests/scad/misc/assert-fail2-test.scad:39:9)"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/assert-fail3-test.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: Assertion failed: Assertion failedError: Assertion failed: Assertion failed at Object.assert (assets/bundle.openscad.js:157:160) at eval (/examples/openscad/openscad-tests/scad/misc/assert-fail3-test.scad:12:16) at Object.withScope (assets/bundle.openscad.js:157:2687) at eva"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/assert-fail4-test.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: Assertion failed: Assertion failedError: Assertion failed: Assertion failed at Object.assert (assets/bundle.openscad.js:157:160) at vt.main (/examples/openscad/openscad-tests/scad/misc/assert-fail4-test.scad:5:9)"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/assert-fail5-test.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: Assertion failed: assert-messageError: Assertion failed: assert-message at Object.assert (assets/bundle.openscad.js:157:160) at vt.main (/examples/openscad/openscad-tests/scad/misc/assert-fail5-test.scad:5:9)"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/builtin-invalid-range-test.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: only unions of the same type are supportedError: only unions of the same type are supported at aL (assets/bundle.jscad_modeling.js:17:6499) at assets/bundle.openscad.js:149:12292 at Object.nl [as union] (assets/bundle.openscad.js:149:18619) at vt.main (/examples/openscad/ope"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/children-warnings-tests.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/empty-shape-tests.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/empty-union.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/errors-warnings-included.scad",
+      "status": "error",
+      "why": "SyntaxError: Babel transform failed for /examples/openscad/openscad-tests/scad/misc/errors-warnings-included.scad: /examples/openscad/openscad-tests/scad/misc/errors-warnings-included.scad: Unexpected token (2:29) 1 | echo(\"include\");> 2 | include<errors-warnings.scad>; | ^ 3 | include<../3D/feature"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/errors-warnings-use.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/errors-warnings.scad",
+      "status": "error",
+      "why": "SyntaxError: SyntaxError: Unexpected number / failed loading module /examples/openscad/openscad-tests/scad/misc/errors-warnings.scad"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/escape-test.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/for-c-style-infinite-loop.scad",
+      "status": "error",
+      "why": "RangeError: jscadMain failed: Invalid array lengthRangeError: Invalid array length at Array.push (<anonymous>) at eval (/examples/openscad/openscad-tests/scad/misc/for-c-style-infinite-loop.scad:5:100) at vt.main (/examples/openscad/openscad-tests/scad/misc/for-c-style-infinite-loop.scad:5:142)"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/include test6.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/include-overwrite-use.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/include-test5.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/intersection-prune-test.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/linenumber.scad",
+      "status": "error",
+      "why": "Error: Error: OpenSCAD transpilation failed: Cannot resolve include file: line 1; Cannot resolve include file: line 6line 7line 8line 9; Cannot resolve file: line 1; Cannot resolve file: line 15line 16; Cannot resolve file: line 1; Cannot resolve file: line 6line 7line 8line 9 [tried http://localhos"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/localfiles_dir/localfiles_module.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/nbsp-latin1-test.scad",
+      "status": "error",
+      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at sn (assets/bundle.openscad.js:149:577)"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/recursion-test-function.scad",
+      "status": "error",
+      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at crash_$f (/examples/openscad/openscad-tests/scad/misc/recursion-test-function.scad:1:1) at crash_$f (/examples/openscad/openscad-tests/scad/misc/recursion-test-function.scad:1:1) at crash_$f"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/recursion-test-function2.scad",
+      "status": "error",
+      "why": "RangeError: Maximum call stack size exceeded / failed loading module /examples/openscad/openscad-tests/scad/misc/recursion-test-function2.scadRangeError: Maximum call stack size exceeded at crash_$f (/examples/openscad/openscad-tests/scad/misc/recursion-test-function2.scad:1:1) at crash_$f (/example"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/recursion-test-function3.scad",
+      "status": "error",
+      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at Array.isArray (<anonymous>) at Es (assets/bundle.openscad.js:1:1) at Object.eq (assets/bundle.openscad.js:1:1) at add_up_to_$f (/examples/openscad/openscad-tests/scad/misc/recursion-test-fun"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/recursion-test-module.scad",
+      "status": "error",
+      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at Object.withScope (assets/bundle.openscad.js:157:2704) at eval (/examples/openscad/openscad-tests/scad/misc/recursion-test-module.scad:5:13) at eval (/examples/openscad/openscad-tests/scad/mi"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/recursion-test-vector.scad",
+      "status": "error",
+      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at Object.withScope (assets/bundle.openscad.js:157:2704) at eval (/examples/openscad/openscad-tests/scad/misc/recursion-test-vector.scad:7:13) at eval (/examples/openscad/openscad-tests/scad/mi"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/sub1/included.scad",
+      "status": "error",
+      "why": "Error: Error: OpenSCAD transpilation failed: Cannot resolve include file: not_exist.scad; Cannot resolve file: not_exist.scad [tried http://localhost:5130/examples/openscad/openscad-tests/scad/misc/sub1/not_exist.scad â file not found http://localhost:5130/examples/openscad/openscad-tests/scad/misc/"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/sub1/sub2/sub3/include-test4.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/sub1/sub2/sub3/sub4/include-test2.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/sub1/sub2/sub3/sub4/include-test3.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/sub1/sub2/sub3/sub4/use-test2.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/sub1/sub2/sub3/sub4/use-test3.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/sub1/sub2/sub3/use-test4.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/sub2/test7.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/sub2/useuse.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/test-view-variables.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20812) at vt.main (/examples/openscad/openscad-tests/scad/misc/test-view-var"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/unicode-identifiers-fail.scad",
+      "status": "error",
+      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at sn (assets/bundle.openscad.js:149:577)"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/unicode-identifiers.scad",
+      "status": "error",
+      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at sn (assets/bundle.openscad.js:149:577)"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/use test6.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/use-test5.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/utf8-import.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/utf8-tests-inc.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/utf8-tests-use.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/variable-overwrite.scad",
+      "status": "error",
+      "why": "Error: Assertion failed: Assertion failed / failed loading module /examples/openscad/openscad-tests/scad/misc/variable-overwrite.scadError: Assertion failed: Assertion failed at Object.assert (assets/bundle.openscad.js:157:160) at eval (/examples/openscad/openscad-tests/scad/misc/variable-overwrite."
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/misc/variable-scope-sub.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/nef3/nef3_broken.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/stl/stl-import-invalidvertex.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/stl/stl-import-toomanyvertices.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/stl/stl-import-unparseable.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/svg/box-w-holes-2d.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/svg/display.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/svg/fill-rule.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/svg/id-selection-test.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/svg/line-cap-line-join.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/svg/simple-center-2d.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/svg/svg-spec/spec-paths-arcs01.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/svg/svg-spec/spec-paths-arcs02.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/svg/svg-spec/spec-paths-cubic01.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/svg/svg-spec/spec-paths-cubic02.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/svg/svg-spec/spec-paths-quad01.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/svg/svg-spec/spec-paths-triangle01.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/svg/svg-spec/spec-shapes-circle01.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/svg/svg-spec/spec-shapes-ellipse01.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/svg/svg-spec/spec-shapes-line01.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/svg/svg-spec/spec-shapes-polygon01.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/svg/svg-spec/spec-shapes-polyline01.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/svg/svg-spec/spec-shapes-rect01.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/svg/svg-spec/spec-shapes-rect02.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/openscad-tests/scad/svg/use-transform.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/relativity/demos/body/body2.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/relativity/demos/body/step4.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/relativity/peg.test.dogfood.scad",
+      "status": "error",
+      "why": "Error: Error: OpenSCAD transpilation failed: Cannot resolve include file: peg.scad; Cannot resolve file: peg.scad [tried http://localhost:5130/examples/openscad/relativity/peg.scad â file not found http://localhost:5130/examples/openscad/relativity/peg.scad]"
+    },
+    {
+      "rel": "openscad/relativity/peg.test.scad",
+      "status": "error",
+      "why": "Error: Error: OpenSCAD transpilation failed: Cannot resolve include file: peg.scad; Cannot resolve file: peg.scad [tried http://localhost:5130/examples/openscad/relativity/peg.scad â file not found http://localhost:5130/examples/openscad/relativity/peg.scad]"
     },
     {
       "rel": "openscad/snippet/01-basic/Spawing_Cube.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: size values must be positiveError: size values must be positive at tb (assets/bundle.jscad_modeling.js:13:31888) at bu (assets/bundle.openscad.js:135:10679) at Object.cube (assets/bundle.openscad.js:143:213) at ht.main (/examples/openscad/snippet/01-basic/Spawing_Cube.scad:5"
+      "status": "empty"
     },
     {
       "rel": "openscad/snippet/02-intermediate/Coin_02.scad",
@@ -424,6 +1057,101 @@
     {
       "rel": "openscad/snippet/04-misc/Washer.scad",
       "status": "empty"
+    },
+    {
+      "rel": "openscad/threads-scad/threads.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at eval (/examples/openscad/threads-scad/threads.scad:325:36) at Obje"
+    },
+    {
+      "rel": "openscad/yapp-box/examples/ESP32-CAM-USB_v30.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at eval (/examples/openscad/yapp-box/examples/ESP32-CAM-USB_v30.scad:"
+    },
+    {
+      "rel": "openscad/yapp-box/examples/ESP32-CAM-USB-FISH_v30.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at eval (/examples/openscad/yapp-box/examples/ESP32-CAM-USB-FISH_v30."
+    },
+    {
+      "rel": "openscad/yapp-box/examples/Multiple_PCB_v30.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at eval (/examples/openscad/yapp-box/examples/Multiple_PCB_v30.scad:1"
+    },
+    {
+      "rel": "openscad/yapp-box/examples/RidgeExtDemo_v30.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at eval (/examples/openscad/yapp-box/examples/RidgeExtDemo_v30.scad:1"
+    },
+    {
+      "rel": "openscad/yapp-box/examples/WaterHeaterMonitor_v3.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at eval (/examples/openscad/yapp-box/examples/WaterHeaterMonitor_v3.s"
+    },
+    {
+      "rel": "openscad/yapp-box/examples/YAPP_ArduinoClone_v30.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at eval (/examples/openscad/yapp-box/examples/YAPP_ArduinoClone_v30.s"
+    },
+    {
+      "rel": "openscad/yapp-box/examples/YAPP_Connector_Demo.scad",
+      "status": "error",
+      "why": "Error: Error: OpenSCAD transpilation failed: Cannot resolve include file: C:\\SourceCode\\YAPP_Box/YAPPgenerator_v3.scad; Cannot resolve file: C:\\SourceCode\\YAPP_Box/YAPPgenerator_v3.scad [tried c:\\SourceCode\\YAPP_Box/YAPPgenerator_v3.scad â Failed to execute 'send' on 'XMLHttpRequest': Failed to load"
+    },
+    {
+      "rel": "openscad/yapp-box/examples/YAPP_Countersink Sample_v3.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at eval (/examples/openscad/yapp-box/examples/YAPP_Countersink%20Samp"
+    },
+    {
+      "rel": "openscad/yapp-box/examples/YAPP_cutouts_from_inside_v30.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at eval (/examples/openscad/yapp-box/examples/YAPP_cutouts_from_insid"
+    },
+    {
+      "rel": "openscad/yapp-box/examples/YAPP_Demo_buttons2_v30.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at Array.eval (/examples/openscad/yapp-box/examples/YAPP_Demo_buttons"
+    },
+    {
+      "rel": "openscad/yapp-box/examples/YAPP_Demo_buttons2_v31.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at Array.eval (/examples/openscad/yapp-box/examples/YAPP_Demo_buttons"
+    },
+    {
+      "rel": "openscad/yapp-box/examples/YAPP_Demo_cutouts_masks_v30.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at eval (/examples/openscad/yapp-box/examples/YAPP_Demo_cutouts_masks"
+    },
+    {
+      "rel": "openscad/yapp-box/examples/YAPP_Demo_lightTubes_v30.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at eval (/examples/openscad/yapp-box/examples/YAPP_Demo_lightTubes_v3"
+    },
+    {
+      "rel": "openscad/yapp-box/examples/YAPP_Demo_RealBox_v30.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at eval (/examples/openscad/yapp-box/examples/YAPP_Demo_RealBox_v30.s"
+    },
+    {
+      "rel": "openscad/yapp-box/examples/YAPP_Demo_RealBox_v31.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at eval (/examples/openscad/yapp-box/examples/YAPP_Demo_RealBox_v31.s"
+    },
+    {
+      "rel": "openscad/yapp-box/examples/YAPP_Reference_Shapes_v30.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at eval (/examples/openscad/yapp-box/examples/YAPP_Reference_Shapes_v"
+    },
+    {
+      "rel": "openscad/yapp-box/examples/YAPP_RidgeExtDemo_v30.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at eval (/examples/openscad/yapp-box/examples/YAPP_RidgeExtDemo_v30.s"
+    },
+    {
+      "rel": "openscad/yapp-box/examples/YAPP_RidgeExtDemo_v31.scad",
+      "status": "error",
+      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at eval (/examples/openscad/yapp-box/examples/YAPP_RidgeExtDemo_v31.s"
     }
   ]
 }

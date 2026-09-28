@@ -179,22 +179,13 @@ chain of one-item wrappers around it.
 
 ## The modeling code a sweep actually measures
 
-`@jscad/modeling` and `@jscad/modeling-for-manifold` are `file:` deps on a
-**sibling** checkout, resolved through a relative symlink, so they point at a
-different repository on each machine: `~/src/OpenJSCAD.org` here,
-`/data/john/ci-worktrees/OpenJSCAD.org` (owned by `s-ci`) on the CI host. `sci`
-rsyncs only this repo, so a change to the modeling fork does not reach CI.
-Push the fork and update CI's checkout, or the sweep measures something else:
-
-```bash
-cd ~/src/OpenJSCAD.org && git push origin fork-main
-ssh gpu 'cd /data/john/ci-worktrees/OpenJSCAD.org && sudo -n -u s-ci \
-  git -c safe.directory=$PWD checkout -f -B fork-main origin/fork-main'
-```
-
-Both engines depend on it — the manifold runtime resolves
-`@jscad/modeling-for-manifold` to the same checkout — so this is not only a
-jscad-engine concern.
+`@jscad/modeling` and `@jscad/modeling-for-manifold` are `file:` deps on
+`.deps-cache/OpenJSCAD.org`, which `scripts/fetch-sources.js` checks out at the
+commit pinned in `scripts/deps/sources.json`. Every `ci/` script runs it, and
+`sci` does not rsync `.deps-cache`, so a sweep measures the pinned commit. A
+modeling change reaches CI once the fork commit is pushed to
+`jbroll/OpenJSCAD.org` and pinned. Both engines depend on it: the manifold
+runtime resolves `@jscad/modeling-for-manifold` to the same checkout.
 
 ## Baseline
 
@@ -226,8 +217,10 @@ itself died.
 one does, the sweep listens for the page's `crash` event and scores it `crash`
 at once rather than wait out the 320s guard on a dead page.
 
-The current baseline is **761 ok of 807** on manifold, CI job
-`b758af600414f82f`. It grew by the 22 models that moved to `compare-skip.txt`,
+The current baseline is **1223 ok of 1420** on manifold, CI job
+`4fa53806f2e17742`, after the sweep grew to the openscad-tests, yapp-box and
+other suites (see `docs/backlog.md`, Render sweep). At 807 models it was 761
+ok, CI job `b758af600414f82f`. That one grew by the 22 models that moved to `compare-skip.txt`,
 all of which render, and it counts 45 models as `empty` now that an empty
 result is no longer an `ok`: echo- and assert-only library doc examples
 (`021-math-sum.scad`, `157-utility-assert_equal.scad`) and files that only
@@ -252,13 +245,9 @@ a level it needs about 850 KB against a worker's ~530 KB, so no transpiler
 change fits it. `docs/design/mutual-tail-calls-trial.md` has the measurements.
 
 Sweeping the other engine takes `--engine jscad`, which `sci push
-jscadui/render-jscad` does at CI scale: **719 of 807**, CI job
-`66c6287cbb317a60`, recorded in `e2e/render-jscad-baseline.json`. 59 of its 88
-failures are `empty`, and 25 of the 28 errors extrude a geom2 whose sides do
-not close, which is where that engine's remaining work is; `random_city.scad`
-and `random_city_taiwan.scad` joined that group once they stopped being
-skipped. `offset.scad` now reports `model exceeded 290000 ms` rather than a
-bare `Error:`. See `docs/backlog.md`. That sweep measures
-whatever `@jscad/modeling` the CI host's sibling `OpenJSCAD.org` checkout is
-on, which is not tied to the jscadui commit — the baseline records which
-modeling commit it measured.
+jscadui/render-jscad` does at CI scale: **1175 of 1420**, CI job
+`c2e8a724e49b25ae`, recorded in `e2e/render-jscad-baseline.json` with the
+modeling commit it measured. 195 of its 245 failures fail on manifold too; the
+jscad-only ones are grouped in `docs/backlog.md`. Moving the geom2 booleans
+off the 3D BSP onto clipper-lib fixed the 25 models whose extruded geom2 did
+not close.

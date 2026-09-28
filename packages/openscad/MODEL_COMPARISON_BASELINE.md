@@ -15,7 +15,19 @@ and a third that can reach its `Asset_SCAD/` includes. Pointing CI at the
 
 Similarity threshold: **0.99** (Jaccard index on vertex-deduplicated STL meshes).
 
-## Latest GPU run: 2026-09-27, hull block scope
+## Latest GPU run: 2026-09-27, geom2 booleans on clipper-lib
+
+Branch `work/brisk-otter-5ee7`, modeling fork pinned at `fork-main`
+`ff759668`, simple-ci job `d23a6199b1e65866` (`sci push jscadui/test`),
+OpenSCAD 2026.08.30.fp. All 21 suites pass, counts unchanged from the run
+below.
+
+The fork's geom2 `union`/`subtract`/`intersect` run on `clipper-lib` instead
+of extruding to a 3D BSP. This suite grades the manifold engine, which uses the
+fork's 2D booleans only for operands built from a jscad geom2, so no score
+moved; the jscad engine is covered by the render sweep.
+
+## Previous GPU run: 2026-09-27, hull block scope
 
 Branch `worktree-next` (uncommitted working tree), simple-ci job
 `386cc9acca2d691a` (`sci push jscadui/test`), OpenSCAD 2026.08.30.fp. All

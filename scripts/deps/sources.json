@@ -6,7 +6,7 @@
       "description": "@jbroll/jscad-modeling fork, installed as @jscad/modeling and @jscad/modeling-for-manifold from packages/modeling",
       "url": "https://github.com/jbroll/OpenJSCAD.org.git",
       "ref": "fork-main",
-      "commit": "62b471c57ce275902d0757fd28757a922a4f5bf3"
+      "commit": "ff75966812bd3afa3a760cd953b8dcf23a32b684"
     }
   ]
 }

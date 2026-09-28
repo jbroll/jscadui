@@ -1,12 +1,12 @@
 {
-  "_comment": "1241/1420 on the manifold engine, which the app defaults to, with a 300s hang guard per file; 95 text-only models run clean and only echo. 179 failures recorded: 25 pre-existing (batch-dir lib 404s, maze3d_mickey recursion). The rest are suites the 09-23 baseline never swept: echo-only, 2D-only (dxf/svg/text) and assert/error negative tests; include/use wiring and helper modules with no top-level call; empty-by-construction (empty-union, nullspace, minkowski-erosion, error-model imports); % background and # highlight modifiers, which the viewport drops; $t animations, empty in a static sweep. Unfixable content: twisted-torus-ring (removed assign()), YAPP_Connector_Demo (Windows include path), missing peg.scad and ../../../ttf font files. assert-fail1-5 now correctly error (statement assert throws); constructive mount-demo/cart14 trip parameter-validation asserts (cart14 renders in reference OpenSCAD: heightInfo divergence, backlog). render-all.mjs --baseline diffs a run against failures[]; text-only passes unrecorded.",
+  "_comment": "1223/1420 on the manifold engine, which the app defaults to, with a 300s hang guard per file; 74 text-only models run clean and only echo. 197 failures recorded: 25 pre-existing (batch-dir lib 404s, maze3d_mickey recursion). The rest are suites the 09-23 baseline never swept: echo-only, 2D-only (dxf/svg/text) and assert/error negative tests; include/use wiring and helper modules with no top-level call; empty-by-construction (empty-union, nullspace, minkowski-erosion, error-model imports); % background and # highlight modifiers, which the viewport drops; $t animations, empty in a static sweep. Unfixable content: twisted-torus-ring (removed assign()), YAPP_Connector_Demo (Windows include path), missing peg.scad and ../../../ttf font files. assert-fail1-5 now correctly error (statement assert throws). render-all.mjs --baseline diffs a run against failures[]; text-only passes unrecorded. 2026-09-27: 20 BOSL2 doc examples that call a function as a statement or fail to parse moved from text to empty once including std.scad stopped echoing warnings (c845b6bf); mount-demo and cart14-tensioner now render.",
   "tree": "claude/untrack-all-grids working tree at e18cc778 plus uncommitted CI/transpiler fixes, rsynced onto the CI base worktree by sci",
   "date": "2026-09-27",
-  "job": "6831b2a6422e20ae",
+  "job": "4fa53806f2e17742",
   "engine": "default",
   "total": 1420,
-  "ok": 1241,
-  "failed": 179,
+  "ok": 1223,
+  "failed": 197,
   "byLib": {
     "openscad/01-basics": {
       "ok": 20,
@@ -17,16 +17,16 @@
       "fail": 13
     },
     "openscad/bosl2": {
-      "ok": 177,
-      "fail": 1
+      "ok": 157,
+      "fail": 21
     },
     "openscad/closepoints": {
       "ok": 5,
       "fail": 0
     },
     "openscad/constructive": {
-      "ok": 4,
-      "fail": 5
+      "ok": 6,
+      "fail": 3
     },
     "openscad/dotscad": {
       "ok": 194,
@@ -147,6 +147,86 @@
       "status": "empty"
     },
     {
+      "rel": "openscad/bosl2/01-part1/026-comparisons-max_index.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/02-part2/054-geometry-plane_from_normal.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/02-part2/059-hooks-ring_hook.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/02-part2/069-linalg-transpose.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/03-part3/074-lists-reverse.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/03-part3/081-math-log2.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/03-part3/082-math-sum.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/03-part3/083-math-mean.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/03-part3/084-math-deltas.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/03-part3/085-math-product.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/03-part3/086-math-cumprod.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/04-part4/134-skin-linear_sweep.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/04-part4/137-strings-parse_num.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/04-part4/138-strings-format_float.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/05-part5/155-utility-same_shape.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/05-part5/156-utility-assert_approx.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/05-part5/157-utility-assert_equal.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/05-part5/158-vectors-v_mul.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/05-part5/159-vectors-v_div.scad",
+      "status": "empty"
+    },
+    {
+      "rel": "openscad/bosl2/05-part5/160-vectors-v_abs.scad",
+      "status": "empty"
+    },
+    {
       "rel": "openscad/bosl2/05-part5/worldmap_360x180.scad",
       "status": "empty"
     },
@@ -157,16 +237,6 @@
     {
       "rel": "openscad/constructive/examples/constructive-compiled.scad",
       "status": "empty"
-    },
-    {
-      "rel": "openscad/constructive/examples/mount-demo.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: Assertion failed: TUBEFAST():h is undefinedError: Assertion failed: TUBEFAST():h is undefined at Object.assert (assets/bundle.openscad.js:155:160) at eval (/examples/openscad/"
-    },
-    {
-      "rel": "openscad/constructive/gallery/sources/cart14-tensioner.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: Assertion failed: TUBE():h is undefinedError: Assertion failed: TUBE():h is undefined at Object.assert (assets/bundle.openscad.js:155:160) at eval (/examples/openscad/construc"
     },
     {
       "rel": "openscad/constructive/tubeV2.scad",
@@ -199,7 +269,7 @@
     {
       "rel": "openscad/dotscad/examples/maze/maze3d_mickey.scad",
       "status": "error",
-      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at Array.isArray (<anonymous>) at Object.isTruthy (assets/bundle.openscad.js:1:1) at eval (http://localhost:5120/examples/openscad/dotscad/util/swap.scad:1:1) at Object.swap_$f (http://localhos"
+      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at eval (http://localhost:5120/examples/openscad/dotscad/util/swap.scad:1:1) at Array.map (<anonymous>) at eval (http://localhost:5120/examples/openscad/dotscad/util/swap.scad:1:1) at Object.sw"
     },
     {
       "rel": "openscad/dotscad/examples/rubber_duck_debugging.scad",
@@ -276,12 +346,12 @@
     {
       "rel": "openscad/openscad-tests/scad/2D/features/text-font-symbol.scad",
       "status": "error",
-      "why": "Error: Error: OpenSCAD transpilation failed: Parse error in ../../../ttf/marvosym-3.10/marvosym.ttf: Unexpected character '\u0000'.; Parse error in ../../../ttf/liberation-2.00.1/LiberationSans-Regular.ttf"
+      "why": "Error: Error: OpenSCAD transpilation failed: Parse error in ../../../ttf/marvosym-3.10/marvosym.ttf: Unexpected character '\u0000'.; Parse error in ../../../ttf/liberation-2.00.1/LiberationSans-Regular.ttf: Unexpected character '\u0000'.; Parse error in ../../../ttf/amiri-0.106/amiri-regular.ttf: Unexpected c"
     },
     {
       "rel": "openscad/openscad-tests/scad/2D/features/text-font-tests.scad",
       "status": "error",
-      "why": "Error: Error: OpenSCAD transpilation failed: Parse error in ../../../ttf/amiri-0.106/amiri-regular.ttf: Unexpected character '\u0000'.; Parse error in ../../../ttf/liberation-2.00.1/LiberationSans-Regular."
+      "why": "Error: Error: OpenSCAD transpilation failed: Parse error in ../../../ttf/amiri-0.106/amiri-regular.ttf: Unexpected character '\u0000'.; Parse error in ../../../ttf/liberation-2.00.1/LiberationSans-Regular.ttf: Unexpected character '\u0000'. [no candidate urls]"
     },
     {
       "rel": "openscad/openscad-tests/scad/2D/features/text-font-ttb-alignment-tests.scad",
@@ -476,37 +546,37 @@
     {
       "rel": "openscad/openscad-tests/scad/functions/assert-expression-fail1-test.scad",
       "status": "error",
-      "why": "Error: Assertion failed: Assertion failed / failed loading module /examples/openscad/openscad-tests/scad/functions/assert-expression-fail1-test.scadError: Assertion failed: Assertion failed at Object."
+      "why": "Error: Assertion failed: Assertion failed / failed loading module /examples/openscad/openscad-tests/scad/functions/assert-expression-fail1-test.scadError: Assertion failed: Assertion failed at Object.assert (assets/bundle.openscad.js:157:160) at eval (/examples/openscad/openscad-tests/scad/functions"
     },
     {
       "rel": "openscad/openscad-tests/scad/functions/assert-expression-fail2-test.scad",
       "status": "error",
-      "why": "Error: Assertion failed: Test! <html>&</html> / failed loading module /examples/openscad/openscad-tests/scad/functions/assert-expression-fail2-test.scadError: Assertion failed: Test! <html>&</html> at"
+      "why": "Error: Assertion failed: Test! <html>&</html> / failed loading module /examples/openscad/openscad-tests/scad/functions/assert-expression-fail2-test.scadError: Assertion failed: Test! <html>&</html> at Object.assert (assets/bundle.openscad.js:157:160) at eval (/examples/openscad/openscad-tests/scad/f"
     },
     {
       "rel": "openscad/openscad-tests/scad/functions/assert-expression-fail3-test.scad",
       "status": "error",
-      "why": "Error: jscadMain failed: Assertion failed: Assertion failedError: Assertion failed: Assertion failed at Object.assert (assets/bundle.openscad.js:155:160) at eval (/examples/openscad/openscad-tests/sca"
+      "why": "Error: jscadMain failed: Assertion failed: Assertion failedError: Assertion failed: Assertion failed at Object.assert (assets/bundle.openscad.js:157:160) at eval (/examples/openscad/openscad-tests/scad/functions/assert-expression-fail3-test.scad:12:19) at Object.withScope (assets/bundle.openscad.js:"
     },
     {
       "rel": "openscad/openscad-tests/scad/issues/issue1890-comment.scad",
       "status": "error",
-      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at sn (assets/bundle.openscad.js:147:577)"
+      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at sn (assets/bundle.openscad.js:149:577)"
     },
     {
       "rel": "openscad/openscad-tests/scad/issues/issue1890-include.scad",
       "status": "error",
-      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at sn (assets/bundle.openscad.js:147:577)"
+      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at sn (assets/bundle.openscad.js:149:577)"
     },
     {
       "rel": "openscad/openscad-tests/scad/issues/issue1890-string.scad",
       "status": "error",
-      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at sn (assets/bundle.openscad.js:147:577)"
+      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at sn (assets/bundle.openscad.js:149:577)"
     },
     {
       "rel": "openscad/openscad-tests/scad/issues/issue1890-use.scad",
       "status": "error",
-      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at sn (assets/bundle.openscad.js:147:577)"
+      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at sn (assets/bundle.openscad.js:149:577)"
     },
     {
       "rel": "openscad/openscad-tests/scad/issues/issue1923-module.scad",
@@ -515,12 +585,12 @@
     {
       "rel": "openscad/openscad-tests/scad/issues/issue3118-recur-limit.scad",
       "status": "error",
-      "why": "Error: jscadMain failed: Recursion detected calling function 'sin'Error: Recursion detected calling function 'sin' at Object.recursionDetected (assets/bundle.openscad.js:154:3471) at sin_$f (/examples"
+      "why": "Error: jscadMain failed: Recursion detected calling function 'sin'Error: Recursion detected calling function 'sin' at Object.recursionDetected (assets/bundle.openscad.js:156:3471) at sin_$f (/examples/openscad/openscad-tests/scad/issues/issue3118-recur-limit.scad:4:227) at vt.main (/examples/opensca"
     },
     {
       "rel": "openscad/openscad-tests/scad/issues/issue4172-echo-vector-stack-exhaust.scad",
       "status": "error",
-      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at Array.isArray (<anonymous>) at ks (assets/bundle.openscad.js:1:1) at Array.map (<anonymous"
+      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at Array.isArray (<anonymous>) at ks (assets/bundle.openscad.js:1:1) at Array.map (<anonymous>) at ks (assets/bundle.openscad.js:1:1) at Array.map (<anonymous>) at ks (assets/bundle.openscad.js"
     },
     {
       "rel": "openscad/openscad-tests/scad/issues/issue6597.scad",
@@ -541,27 +611,27 @@
     {
       "rel": "openscad/openscad-tests/scad/misc/assert-fail1-test.scad",
       "status": "error",
-      "why": "Error: jscadMain failed: Assertion failed: Assertion failedError: Assertion failed: Assertion failed at Object.assert (assets/bundle.openscad.js:155:160) at vt.main (/examples/openscad/openscad-tests/"
+      "why": "Error: jscadMain failed: Assertion failed: Assertion failedError: Assertion failed: Assertion failed at Object.assert (assets/bundle.openscad.js:157:160) at vt.main (/examples/openscad/openscad-tests/scad/misc/assert-fail1-test.scad:5:9)"
     },
     {
       "rel": "openscad/openscad-tests/scad/misc/assert-fail2-test.scad",
       "status": "error",
-      "why": "Error: jscadMain failed: Assertion failed: Test! <html>&</html>Error: Assertion failed: Test! <html>&</html> at Object.assert (assets/bundle.openscad.js:155:160) at main (/examples/openscad/openscad-t"
+      "why": "Error: jscadMain failed: Assertion failed: Test! <html>&</html>Error: Assertion failed: Test! <html>&</html> at Object.assert (assets/bundle.openscad.js:157:160) at main (/examples/openscad/openscad-tests/scad/misc/assert-fail2-test.scad:39:9)"
     },
     {
       "rel": "openscad/openscad-tests/scad/misc/assert-fail3-test.scad",
       "status": "error",
-      "why": "Error: jscadMain failed: Assertion failed: Assertion failedError: Assertion failed: Assertion failed at Object.assert (assets/bundle.openscad.js:155:160) at eval (/examples/openscad/openscad-tests/sca"
+      "why": "Error: jscadMain failed: Assertion failed: Assertion failedError: Assertion failed: Assertion failed at Object.assert (assets/bundle.openscad.js:157:160) at eval (/examples/openscad/openscad-tests/scad/misc/assert-fail3-test.scad:12:16) at Object.withScope (assets/bundle.openscad.js:157:2687) at eva"
     },
     {
       "rel": "openscad/openscad-tests/scad/misc/assert-fail4-test.scad",
       "status": "error",
-      "why": "Error: jscadMain failed: Assertion failed: Assertion failedError: Assertion failed: Assertion failed at Object.assert (assets/bundle.openscad.js:155:160) at vt.main (/examples/openscad/openscad-tests/"
+      "why": "Error: jscadMain failed: Assertion failed: Assertion failedError: Assertion failed: Assertion failed at Object.assert (assets/bundle.openscad.js:157:160) at vt.main (/examples/openscad/openscad-tests/scad/misc/assert-fail4-test.scad:5:9)"
     },
     {
       "rel": "openscad/openscad-tests/scad/misc/assert-fail5-test.scad",
       "status": "error",
-      "why": "Error: jscadMain failed: Assertion failed: assert-messageError: Assertion failed: assert-message at Object.assert (assets/bundle.openscad.js:155:160) at vt.main (/examples/openscad/openscad-tests/scad"
+      "why": "Error: jscadMain failed: Assertion failed: assert-messageError: Assertion failed: assert-message at Object.assert (assets/bundle.openscad.js:157:160) at vt.main (/examples/openscad/openscad-tests/scad/misc/assert-fail5-test.scad:5:9)"
     },
     {
       "rel": "openscad/openscad-tests/scad/misc/children-warnings-tests.scad",
@@ -578,7 +648,7 @@
     {
       "rel": "openscad/openscad-tests/scad/misc/errors-warnings-included.scad",
       "status": "error",
-      "why": "SyntaxError: Babel transform failed for /examples/openscad/openscad-tests/scad/misc/errors-warnings-included.scad: /examples/openscad/openscad-tests/scad/misc/errors-warnings-included.scad: Unexpected"
+      "why": "SyntaxError: Babel transform failed for /examples/openscad/openscad-tests/scad/misc/errors-warnings-included.scad: /examples/openscad/openscad-tests/scad/misc/errors-warnings-included.scad: Unexpected token (2:29) 1 | echo(\"include\");> 2 | include<errors-warnings.scad>; | ^ 3 | include<../3D/feature"
     },
     {
       "rel": "openscad/openscad-tests/scad/misc/errors-warnings-use.scad",
@@ -596,7 +666,7 @@
     {
       "rel": "openscad/openscad-tests/scad/misc/for-c-style-infinite-loop.scad",
       "status": "error",
-      "why": "RangeError: jscadMain failed: Invalid array lengthRangeError: Invalid array length at Array.push (<anonymous>) at eval (/examples/openscad/openscad-tests/scad/misc/for-c-style-infinite-loop.scad:5:100"
+      "why": "RangeError: jscadMain failed: Invalid array lengthRangeError: Invalid array length at Array.push (<anonymous>) at eval (/examples/openscad/openscad-tests/scad/misc/for-c-style-infinite-loop.scad:5:100) at vt.main (/examples/openscad/openscad-tests/scad/misc/for-c-style-infinite-loop.scad:5:142)"
     },
     {
       "rel": "openscad/openscad-tests/scad/misc/include test6.scad",
@@ -617,7 +687,7 @@
     {
       "rel": "openscad/openscad-tests/scad/misc/linenumber.scad",
       "status": "error",
-      "why": "Error: Error: OpenSCAD transpilation failed: Cannot resolve include file: line 1; Cannot resolve include file: line 6line 7line 8line 9; Cannot resolve file: line 1; Cannot resolve file: line 15line 1"
+      "why": "Error: Error: OpenSCAD transpilation failed: Cannot resolve include file: line 1; Cannot resolve include file: line 6line 7line 8line 9; Cannot resolve file: line 1; Cannot resolve file: line 15line 16; Cannot resolve file: line 1; Cannot resolve file: line 6line 7line 8line 9 [tried http://localhos"
     },
     {
       "rel": "openscad/openscad-tests/scad/misc/localfiles_dir/localfiles_module.scad",
@@ -626,37 +696,37 @@
     {
       "rel": "openscad/openscad-tests/scad/misc/nbsp-latin1-test.scad",
       "status": "error",
-      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at sn (assets/bundle.openscad.js:147:577)"
+      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at sn (assets/bundle.openscad.js:149:577)"
     },
     {
       "rel": "openscad/openscad-tests/scad/misc/recursion-test-function.scad",
       "status": "error",
-      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at crash_$f (/examples/openscad/openscad-tests/scad/misc/recursion-test-function.scad:1:1) at"
+      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at crash_$f (/examples/openscad/openscad-tests/scad/misc/recursion-test-function.scad:1:1) at crash_$f (/examples/openscad/openscad-tests/scad/misc/recursion-test-function.scad:1:1) at crash_$f"
     },
     {
       "rel": "openscad/openscad-tests/scad/misc/recursion-test-function2.scad",
       "status": "error",
-      "why": "RangeError: Maximum call stack size exceeded / failed loading module /examples/openscad/openscad-tests/scad/misc/recursion-test-function2.scadRangeError: Maximum call stack size exceeded at crash_$f ("
+      "why": "RangeError: Maximum call stack size exceeded / failed loading module /examples/openscad/openscad-tests/scad/misc/recursion-test-function2.scadRangeError: Maximum call stack size exceeded at crash_$f (/examples/openscad/openscad-tests/scad/misc/recursion-test-function2.scad:1:1) at crash_$f (/example"
     },
     {
       "rel": "openscad/openscad-tests/scad/misc/recursion-test-function3.scad",
       "status": "error",
-      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at Array.isArray (<anonymous>) at Es (assets/bundle.openscad.js:1:1) at Object.eq (assets/bun"
+      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at Array.isArray (<anonymous>) at Es (assets/bundle.openscad.js:1:1) at Object.eq (assets/bundle.openscad.js:1:1) at add_up_to_$f (/examples/openscad/openscad-tests/scad/misc/recursion-test-fun"
     },
     {
       "rel": "openscad/openscad-tests/scad/misc/recursion-test-module.scad",
       "status": "error",
-      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at Object.withScope (assets/bundle.openscad.js:155:2704) at eval (/examples/openscad/openscad"
+      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at Object.withScope (assets/bundle.openscad.js:157:2704) at eval (/examples/openscad/openscad-tests/scad/misc/recursion-test-module.scad:5:13) at eval (/examples/openscad/openscad-tests/scad/mi"
     },
     {
       "rel": "openscad/openscad-tests/scad/misc/recursion-test-vector.scad",
       "status": "error",
-      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at Object.withScope (assets/bundle.openscad.js:155:2704) at eval (/examples/openscad/openscad"
+      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at Object.withScope (assets/bundle.openscad.js:157:2704) at eval (/examples/openscad/openscad-tests/scad/misc/recursion-test-vector.scad:7:13) at eval (/examples/openscad/openscad-tests/scad/mi"
     },
     {
       "rel": "openscad/openscad-tests/scad/misc/sub1/included.scad",
       "status": "error",
-      "why": "Error: Error: OpenSCAD transpilation failed: Cannot resolve include file: not_exist.scad; Cannot resolve file: not_exist.scad [tried http://localhost:5120/examples/openscad/openscad-tests/scad/misc/su"
+      "why": "Error: Error: OpenSCAD transpilation failed: Cannot resolve include file: not_exist.scad; Cannot resolve file: not_exist.scad [tried http://localhost:5120/examples/openscad/openscad-tests/scad/misc/sub1/not_exist.scad â file not found http://localhost:5120/examples/openscad/openscad-tests/scad/misc/"
     },
     {
       "rel": "openscad/openscad-tests/scad/misc/sub1/sub2/sub3/include-test4.scad",
@@ -693,12 +763,12 @@
     {
       "rel": "openscad/openscad-tests/scad/misc/unicode-identifiers-fail.scad",
       "status": "error",
-      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at sn (assets/bundle.openscad.js:147:577)"
+      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at sn (assets/bundle.openscad.js:149:577)"
     },
     {
       "rel": "openscad/openscad-tests/scad/misc/unicode-identifiers.scad",
       "status": "error",
-      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at sn (assets/bundle.openscad.js:147:577)"
+      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at sn (assets/bundle.openscad.js:149:577)"
     },
     {
       "rel": "openscad/openscad-tests/scad/misc/use test6.scad",
@@ -723,7 +793,7 @@
     {
       "rel": "openscad/openscad-tests/scad/misc/variable-overwrite.scad",
       "status": "error",
-      "why": "Error: Assertion failed: Assertion failed / failed loading module /examples/openscad/openscad-tests/scad/misc/variable-overwrite.scadError: Assertion failed: Assertion failed at Object.assert (assets/"
+      "why": "Error: Assertion failed: Assertion failed / failed loading module /examples/openscad/openscad-tests/scad/misc/variable-overwrite.scadError: Assertion failed: Assertion failed at Object.assert (assets/bundle.openscad.js:157:160) at eval (/examples/openscad/openscad-tests/scad/misc/variable-overwrite."
     },
     {
       "rel": "openscad/openscad-tests/scad/misc/variable-scope-sub.scad",
@@ -836,12 +906,12 @@
     {
       "rel": "openscad/relativity/peg.test.dogfood.scad",
       "status": "error",
-      "why": "Error: Error: OpenSCAD transpilation failed: Cannot resolve include file: peg.scad; Cannot resolve file: peg.scad [tried http://localhost:5120/examples/openscad/relativity/peg.scad \u00e2\u0080\u0094 file not found "
+      "why": "Error: Error: OpenSCAD transpilation failed: Cannot resolve include file: peg.scad; Cannot resolve file: peg.scad [tried http://localhost:5120/examples/openscad/relativity/peg.scad â file not found http://localhost:5120/examples/openscad/relativity/peg.scad]"
     },
     {
       "rel": "openscad/relativity/peg.test.scad",
       "status": "error",
-      "why": "Error: Error: OpenSCAD transpilation failed: Cannot resolve include file: peg.scad; Cannot resolve file: peg.scad [tried http://localhost:5120/examples/openscad/relativity/peg.scad \u00e2\u0080\u0094 file not found "
+      "why": "Error: Error: OpenSCAD transpilation failed: Cannot resolve include file: peg.scad; Cannot resolve file: peg.scad [tried http://localhost:5120/examples/openscad/relativity/peg.scad â file not found http://localhost:5120/examples/openscad/relativity/peg.scad]"
     },
     {
       "rel": "openscad/snippet/01-basic/Spawing_Cube.scad",
@@ -854,7 +924,7 @@
     {
       "rel": "openscad/yapp-box/examples/YAPP_Connector_Demo.scad",
       "status": "error",
-      "why": "Error: Error: OpenSCAD transpilation failed: Cannot resolve include file: C:\\SourceCode\\YAPP_Box/YAPPgenerator_v3.scad; Cannot resolve file: C:\\SourceCode\\YAPP_Box/YAPPgenerator_v3.scad [tried c:\\Sour"
+      "why": "Error: Error: OpenSCAD transpilation failed: Cannot resolve include file: C:\\SourceCode\\YAPP_Box/YAPPgenerator_v3.scad; Cannot resolve file: C:\\SourceCode\\YAPP_Box/YAPPgenerator_v3.scad [tried c:\\SourceCode\\YAPP_Box/YAPPgenerator_v3.scad â Failed to execute 'send' on 'XMLHttpRequest': Failed to load"
     }
   ]
 }
