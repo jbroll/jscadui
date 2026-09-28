@@ -95,3 +95,11 @@ A fixture is one file exporting `fixture`:
 `name` matches the file name; `transcript` (prior `{ role, content }` turns)
 and `files` (`{ path: source }`) test follow-up requests through the same
 `buildMessages` the app uses.
+
+## Review loop
+
+The `chat-review` project skill (`.claude/skills/chat-review/SKILL.md`) runs
+the loop: read new conversations since the last review, group the stumbles by
+cause, reproduce each group as a fixture, change the prompt or its examples,
+and keep the change only when the eval shows fewer first-attempt failures on
+the new fixtures and no fixture's mean total falls by more than 0.5.
