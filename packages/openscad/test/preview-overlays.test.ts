@@ -45,8 +45,14 @@ describe('overlay core', () => {
   it('records nothing for an absent child', () => {
     expect(J.highlight(J.NO_CHILD)).toBe(J.NO_CHILD)
     expect(J.highlight(undefined)).toBe(undefined)
-    expect(J.background(J.NO_CHILD)).toBe(J.NO_CHILD)
-    expect(J.background(undefined)).toBe(J.NO_CHILD)
+  })
+
+  it('background of an absent or empty child is a placeholder with no ghost', () => {
+    for (const child of [J.NO_CHILD, undefined]) {
+      const out = J.background(child)
+      expect(out).not.toBe(J.NO_CHILD)
+      expect(J.withOverlays(J.union(out))).toBe(undefined)
+    }
   })
 
   it('snapshots a 2D child as sides', () => {

@@ -51,6 +51,8 @@ export class Ghosts {
 
 export const isGhosts = (x) => x instanceof Ghosts
 
+const hasGhosts = (x) => x instanceof Ghosts || (Array.isArray(x) && x.some(hasGhosts))
+
 const isThenable = (x) => x !== null && typeof x === 'object' && typeof x.then === 'function'
 
 const present = (g) => g !== undefined && g !== null && g !== NO_CHILD && !(g instanceof Ghosts)
@@ -75,7 +77,7 @@ const forget = (x) => {
 }
 
 export const attach = (result, list, empty = true) => {
-  if (list.length === 0) return result
+  if (list.length === 0) return result === null || typeof result !== 'object' ? (empty ? undefined : NO_CHILD) : result
   if (isThenable(result)) return result.then(r => attach(r, list, empty))
   if (Array.isArray(result)) {
     forget(result)
@@ -88,13 +90,13 @@ export const attach = (result, list, empty = true) => {
 
 export const gathering = (op) => function (...args) {
   const list = overlaysOf(args)
-  if (list.length === 0) return op.apply(this, args)
+  if (list.length === 0 && !hasGhosts(args)) return op.apply(this, args)
   return attach(op.apply(this, args.map(strip)), list)
 }
 
 export const affine = (matrixOf, op) => function (arg, geo) {
   const list = overlaysOf(geo)
-  if (list.length === 0) return op.call(this, arg, geo)
+  if (list.length === 0 && !hasGhosts(geo)) return op.call(this, arg, geo)
   const g = strip(geo)
   const m = matrixOf(arg, g)
   return attach(op.call(this, arg, g), list.map(o => ({ ...o, matrix: mul(m, o.matrix) })))
@@ -121,8 +123,8 @@ export const highlight = (child) => {
 
 export const background = (child) => {
   if (isThenable(child)) return child.then(background)
-  const list = [...overlaysOf(child), ...snapshots('background', strip(child))]
-  return list.length === 0 ? NO_CHILD : new Ghosts(list, false)
+  // Even with nothing to draw: OpenSCAD skips the % child, so difference must not take it as its subject.
+  return new Ghosts([...overlaysOf(child), ...snapshots('background', strip(child))], false)
 }
 
 // A module body whose only statement is `%x`: the module node exists, so it is empty.

@@ -15,7 +15,18 @@ and a third that can reach its `Asset_SCAD/` includes. Pointing CI at the
 
 Similarity threshold: **0.99** (Jaccard index on vertex-deduplicated STL meshes).
 
-## Latest GPU run: 2026-09-28, `%` under difference and groups
+## Latest GPU run: 2026-09-28, `%` on an empty child
+
+Branch `work/backlog-20260928` (uncommitted on top of `a7e17875`), simple-ci
+job `820f229bd9a9050c` (`sci push jscadui/test`), OpenSCAD 2026.08.30.fp. All
+21 suites pass, counts unchanged (bosl2 174 graded).
+
+`j$.background` returns a `Ghosts` placeholder even when its child is absent
+or empty, so `difference(){ %if (false) cube(20); cube(10); }` and `%` on an
+empty module no longer become the subject and empty the difference.
+`preview-modifiers.test.ts` covers the cases.
+
+## Previous GPU run: 2026-09-28, `%` under difference and groups
 
 Branch `backlog-triage` (uncommitted on top of `44fb2814`), simple-ci job
 `573bee0a90329510` (`sci push jscadui/test`), OpenSCAD 2026.08.30.fp. All

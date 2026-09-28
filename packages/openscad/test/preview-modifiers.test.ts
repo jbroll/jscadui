@@ -133,6 +133,24 @@ describe('% and # results', () => {
     expect(ghosts(r).length).toBeGreaterThan(0)
   })
 
+  it.each([
+    ['an if not taken', '%if (false) cube(20);'],
+    ['an empty module', '%m();'],
+  ])('difference skips a leading empty background child: %s', (_name, child) => {
+    const r = run(`module m() {}\ndifference() { ${child} cube(10); }`)
+    expect(solids(r)).toHaveLength(1)
+    expect(solids(r)[0].volume!()).toBeCloseTo(1000, 3)
+  })
+
+  it('a % child that is empty stays out of intersection', () => {
+    const r = run('intersection() { cube(10); %if (false) cube(20); }')
+    expect(solids(r)[0].volume!()).toBeCloseTo(1000, 3)
+  })
+
+  it('a % child that is empty returns no geometry from main', () => {
+    expect(run('%if (false) cube(20);')).toBeUndefined()
+  })
+
   it('union and intersection skip a leading % child', () => {
     expect(solids(run('union() { %cube(20); cube(10); }'))[0].volume!()).toBeCloseTo(1000, 3)
     expect(solids(run('intersection() { %cube(20); cube(10); }'))[0].volume!()).toBeCloseTo(1000, 3)

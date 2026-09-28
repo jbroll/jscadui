@@ -299,6 +299,9 @@ module whose single statement is one, including a nested `{ }` block around it
 or a `children()` call that may be handed a `%` child. `subtract` takes its
 subject from the first child that is not a bare `Ghosts`, so
 `difference(){ %cube(20); cube(10); sphere(6); }` cuts `cube(10)`.
+`background()` returns a `Ghosts` even when the child is absent or empty and
+there is nothing to draw, so `difference(){ %if (false) cube(20); cube(10); }`
+still skips it and keeps `cube(10)`.
 
 `main()` ends with `j$.withOverlays`, which turns the collected overlay
 records into ghost geometry alongside the real result, merged into at most
