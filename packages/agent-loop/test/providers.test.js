@@ -1,6 +1,7 @@
 // packages/agent-loop/test/providers.test.js
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createProvider } from '../src/providers.js'
+import { createProvider, parseAnthropicStream, parseOpenAIStream } from '../src/providers.js'
+import { parseResponsesStream } from '../src/responses.js'
 
 const TOOLS = [
   {
@@ -234,5 +235,66 @@ describe('providers', () => {
     const p = createProvider({ kind: 'meta', apiKey: 'k', model: 'some-chat-model', effort: 'xhigh' })
     for await (const e of p.send([{ role: 'user', content: 'hi' }], [])) void e
     expect(JSON.parse(fetchMock.mock.calls[0][1].body).reasoning_effort).toBe('xhigh')
+  })
+})
+
+const collect = async (iterable) => {
+  const out = []
+  for await (const event of iterable) out.push(event)
+  return out
+}
+
+describe('stream parsers', () => {
+  it('anthropic: parses a recorded body without fetch', async () => {
+    expect(await collect(parseAnthropicStream(sseBody(anthropicToolUse)))).toEqual([
+      { type: 'tool_use', id: 'toolu_01', name: 'measure', input: { target: 'part1' } },
+      { type: 'done', stopReason: 'tool_use' },
+    ])
+  })
+
+  it('openai: parses a recorded body without fetch', async () => {
+    const body =
+      `data: {"choices":[{"delta":{"content":"Hi"}}]}\n\n` +
+      `data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","function":{"name":"measure","arguments":"{\\"target\\":\\"p\\"}"}}]}}]}\n\n` +
+      `data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}]}\n\n` +
+      `data: [DONE]\n\n`
+    expect(await collect(parseOpenAIStream(sseBody(body)))).toEqual([
+      { type: 'text', text: 'Hi' },
+      { type: 'tool_use', id: 'call_1', name: 'measure', input: { target: 'p' } },
+      { type: 'done', stopReason: 'tool_calls' },
+    ])
+  })
+
+  it('responses: parses a recorded body without fetch', async () => {
+    const body =
+      `data: {"type":"response.output_text.delta","delta":"Hi"}\n\n` +
+      `data: {"type":"response.output_item.added","item":{"id":"item_1","type":"function_call","call_id":"call_1","name":"measure"}}\n\n` +
+      `data: {"type":"response.function_call_arguments.delta","item_id":"item_1","delta":"{\\"target\\":\\"p\\"}"}\n\n` +
+      `data: {"type":"response.completed"}\n\n`
+    expect(await collect(parseResponsesStream(sseBody(body)))).toEqual([
+      { type: 'text', text: 'Hi' },
+      { type: 'tool_use', id: 'call_1', name: 'measure', input: { target: 'p' } },
+      { type: 'done', stopReason: 'completed' },
+    ])
+  })
+})
+
+describe('chat id header', () => {
+  it.each([
+    ['anthropic', 'm'],
+    ['openai', 'm'],
+    ['meta', 'muse-spark-1.3'],
+  ])('%s sends x-jscad-chat-id when chatId is set', async (kind, model) => {
+    fetchMock.mockResolvedValue(new Response(sseBody('')))
+    const provider = createProvider({ kind, apiKey: 'k', model, baseUrl: 'https://relay.test', chatId: 'chat-1' })
+    for await (const e of provider.send([{ role: 'user', content: 'hi' }], TOOLS)) void e
+    expect(fetchMock.mock.calls[0][1].headers['x-jscad-chat-id']).toBe('chat-1')
+  })
+
+  it('omits x-jscad-chat-id without a chatId', async () => {
+    fetchMock.mockResolvedValue(new Response(sseBody('')))
+    const provider = createProvider({ kind: 'openai', apiKey: 'k', model: 'm', baseUrl: 'https://relay.test' })
+    for await (const e of provider.send([{ role: 'user', content: 'hi' }], TOOLS)) void e
+    expect(fetchMock.mock.calls[0][1].headers).not.toHaveProperty('x-jscad-chat-id')
   })
 })

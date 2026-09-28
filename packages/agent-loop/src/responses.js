@@ -28,6 +28,45 @@ const toResponsesInput = (messages) => {
   return input
 }
 
+export async function* parseResponsesStream(body) {
+  const calls = new Map()
+  for await (const payload of ssePayloads(body)) {
+    let event
+    try {
+      event = JSON.parse(payload)
+    } catch {
+      continue
+    }
+    if (event.type === 'response.output_text.delta' && typeof event.delta === 'string') {
+      yield { type: 'text', text: event.delta }
+    } else if (event.type === 'response.output_item.added' && event.item?.type === 'function_call') {
+      calls.set(event.item.id, { id: event.item.call_id ?? event.item.id, name: event.item.name ?? '', args: '' })
+    } else if (event.type === 'response.function_call_arguments.delta') {
+      const acc = calls.get(event.item_id) ?? { id: event.item_id, name: '', args: '' }
+      acc.args += event.delta ?? ''
+      calls.set(event.item_id, acc)
+    } else if (event.type === 'response.completed') {
+      break
+    } else if (event.type === 'response.failed') {
+      throw new Error(`responses: ${event.response?.error?.message ?? 'response failed'}`)
+    } else if (event.type === 'response.incomplete') {
+      throw new Error(`responses: incomplete (${event.response?.incomplete_details?.reason ?? 'unknown reason'})`)
+    } else if (event.type === 'error') {
+      throw new Error(`responses: ${event.message ?? 'provider error'}`)
+    }
+  }
+  for (const acc of calls.values()) {
+    let input
+    try {
+      input = JSON.parse(acc.args || '{}')
+    } catch {
+      throw new Error(`responses: unparseable tool arguments for ${acc.name}`)
+    }
+    yield { type: 'tool_use', id: acc.id, name: acc.name, input }
+  }
+  yield { type: 'done', stopReason: 'completed' }
+}
+
 export const responsesProvider = (config) => {
   const sessionId = config.sessionId ?? crypto.randomUUID()
   return {
@@ -44,6 +83,7 @@ export const responsesProvider = (config) => {
         authorization: `Bearer ${config.apiKey}`,
       }
       if (config.kind === 'opencode-go') headers['x-opencode-session'] = sessionId
+      if (config.chatId) headers['x-jscad-chat-id'] = config.chatId
       const res = await fetch(`${config.baseUrl ?? PROVIDER_BASE_URLS[config.kind]}/v1/responses`, {
         method: 'POST',
         headers,
@@ -53,42 +93,7 @@ export const responsesProvider = (config) => {
         const detail = await res.text()
         throw new Error(`responses: ${detail} (status ${res.status})`)
       }
-      const calls = new Map()
-      for await (const payload of ssePayloads(res.body)) {
-        let event
-        try {
-          event = JSON.parse(payload)
-        } catch {
-          continue
-        }
-        if (event.type === 'response.output_text.delta' && typeof event.delta === 'string') {
-          yield { type: 'text', text: event.delta }
-        } else if (event.type === 'response.output_item.added' && event.item?.type === 'function_call') {
-          calls.set(event.item.id, { id: event.item.call_id ?? event.item.id, name: event.item.name ?? '', args: '' })
-        } else if (event.type === 'response.function_call_arguments.delta') {
-          const acc = calls.get(event.item_id) ?? { id: event.item_id, name: '', args: '' }
-          acc.args += event.delta ?? ''
-          calls.set(event.item_id, acc)
-        } else if (event.type === 'response.completed') {
-          break
-        } else if (event.type === 'response.failed') {
-          throw new Error(`responses: ${event.response?.error?.message ?? 'response failed'}`)
-        } else if (event.type === 'response.incomplete') {
-          throw new Error(`responses: incomplete (${event.response?.incomplete_details?.reason ?? 'unknown reason'})`)
-        } else if (event.type === 'error') {
-          throw new Error(`responses: ${event.message ?? 'provider error'}`)
-        }
-      }
-      for (const acc of calls.values()) {
-        let input
-        try {
-          input = JSON.parse(acc.args || '{}')
-        } catch {
-          throw new Error(`responses: unparseable tool arguments for ${acc.name}`)
-        }
-        yield { type: 'tool_use', id: acc.id, name: acc.name, input }
-      }
-      yield { type: 'done', stopReason: 'completed' }
+      yield* parseResponsesStream(res.body)
     },
   }
 }

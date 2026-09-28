@@ -59,74 +59,79 @@ const toAnthropicMessage = (message) => {
 
 const toAnthropicTool = (tool) => ({ name: tool.name, description: tool.description, input_schema: tool.inputSchema })
 
+export async function* parseAnthropicStream(body) {
+  // Tool input JSON arrives split across input_json_delta events; hold it per block until stop.
+  const toolInputs = new Map()
+  for await (const payload of ssePayloads(body)) {
+    let event
+    try {
+      event = JSON.parse(payload)
+    } catch {
+      continue
+    }
+    if (event.type === 'content_block_start' && event.content_block?.type === 'tool_use') {
+      toolInputs.set(event.index ?? 0, {
+        id: event.content_block.id ?? '',
+        name: event.content_block.name ?? '',
+        json: '',
+      })
+    } else if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
+      const text = event.delta.text
+      if (typeof text === 'string') yield { type: 'text', text }
+    } else if (event.type === 'content_block_delta' && event.delta?.type === 'input_json_delta') {
+      const acc = toolInputs.get(event.index ?? 0)
+      if (acc) acc.json += event.delta.partial_json ?? ''
+    } else if (event.type === 'content_block_stop') {
+      const acc = toolInputs.get(event.index ?? 0)
+      if (acc) {
+        toolInputs.delete(event.index ?? 0)
+        let input
+        try {
+          input = JSON.parse(acc.json || '{}')
+        } catch {
+          throw new Error(`anthropic: unparseable tool input for ${acc.name}`)
+        }
+        yield { type: 'tool_use', id: acc.id, name: acc.name, input }
+      }
+    } else if (event.type === 'message_delta' && event.delta?.stop_reason) {
+      yield { type: 'done', stopReason: event.delta.stop_reason }
+    } else if (event.type === 'error') {
+      throw new Error(`anthropic: ${event.error?.message ?? 'provider error'}`)
+    }
+  }
+}
+
 const anthropicProvider = (config) => {
   const sessionId = config.sessionId ?? crypto.randomUUID()
   return {
     async *send(messages, tools) {
-    const system = messages.filter((m) => m.role === 'system').map((m) => m.content).join('\n\n')
-    const body = {
-      model: config.model,
-      max_tokens: 4096,
-      stream: true,
-      messages: messages.filter((m) => m.role !== 'system').map(toAnthropicMessage),
-    }
-    if (system) body.system = system
-    if (tools.length > 0) body.tools = tools.map(toAnthropicTool)
-    if (config.effort) body.output_config = { effort: config.effort }
-    const headers = {
-      'content-type': 'application/json',
-      'x-api-key': config.apiKey,
-      'anthropic-version': ANTHROPIC_API_VERSION,
-    }
-    if (config.kind === 'opencode-go') headers['x-opencode-session'] = sessionId
-    const res = await fetch(`${config.baseUrl ?? PROVIDER_BASE_URLS[config.kind] ?? PROVIDER_BASE_URLS.anthropic}/v1/messages`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(body),
-    })
-    if (!res.ok) {
-      const detail = await res.text()
-      throw new Error(`anthropic: ${detail} (status ${res.status})`)
-    }
-    // Tool input JSON arrives split across input_json_delta events; hold it per block until stop.
-    const toolInputs = new Map()
-    for await (const payload of ssePayloads(res.body)) {
-      let event
-      try {
-        event = JSON.parse(payload)
-      } catch {
-        continue
+      const system = messages.filter((m) => m.role === 'system').map((m) => m.content).join('\n\n')
+      const body = {
+        model: config.model,
+        max_tokens: 4096,
+        stream: true,
+        messages: messages.filter((m) => m.role !== 'system').map(toAnthropicMessage),
       }
-      if (event.type === 'content_block_start' && event.content_block?.type === 'tool_use') {
-        toolInputs.set(event.index ?? 0, {
-          id: event.content_block.id ?? '',
-          name: event.content_block.name ?? '',
-          json: '',
-        })
-      } else if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
-        const text = event.delta.text
-        if (typeof text === 'string') yield { type: 'text', text }
-      } else if (event.type === 'content_block_delta' && event.delta?.type === 'input_json_delta') {
-        const acc = toolInputs.get(event.index ?? 0)
-        if (acc) acc.json += event.delta.partial_json ?? ''
-      } else if (event.type === 'content_block_stop') {
-        const acc = toolInputs.get(event.index ?? 0)
-        if (acc) {
-          toolInputs.delete(event.index ?? 0)
-          let input
-          try {
-            input = JSON.parse(acc.json || '{}')
-          } catch {
-            throw new Error(`anthropic: unparseable tool input for ${acc.name}`)
-          }
-          yield { type: 'tool_use', id: acc.id, name: acc.name, input }
-        }
-      } else if (event.type === 'message_delta' && event.delta?.stop_reason) {
-        yield { type: 'done', stopReason: event.delta.stop_reason }
-      } else if (event.type === 'error') {
-        throw new Error(`anthropic: ${event.error?.message ?? 'provider error'}`)
+      if (system) body.system = system
+      if (tools.length > 0) body.tools = tools.map(toAnthropicTool)
+      if (config.effort) body.output_config = { effort: config.effort }
+      const headers = {
+        'content-type': 'application/json',
+        'x-api-key': config.apiKey,
+        'anthropic-version': ANTHROPIC_API_VERSION,
       }
-    }
+      if (config.kind === 'opencode-go') headers['x-opencode-session'] = sessionId
+      if (config.chatId) headers['x-jscad-chat-id'] = config.chatId
+      const res = await fetch(`${config.baseUrl ?? PROVIDER_BASE_URLS[config.kind] ?? PROVIDER_BASE_URLS.anthropic}/v1/messages`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) {
+        const detail = await res.text()
+        throw new Error(`anthropic: ${detail} (status ${res.status})`)
+      }
+      yield* parseAnthropicStream(res.body)
     },
   }
 }
@@ -154,74 +159,79 @@ const toOpenAITool = (tool) => ({
   function: { name: tool.name, description: tool.description, parameters: tool.inputSchema },
 })
 
+export async function* parseOpenAIStream(body) {
+  // Function arguments arrive split across chunks; hold each tool call by index until done.
+  const toolCalls = new Map()
+  let stopReason = ''
+  for await (const payload of ssePayloads(body)) {
+    if (payload === '[DONE]') break
+    let chunk
+    try {
+      chunk = JSON.parse(payload)
+    } catch {
+      continue
+    }
+    const choice = chunk.choices?.[0]
+    const delta = choice?.delta ?? {}
+    if (typeof delta.content === 'string' && delta.content !== '') {
+      yield { type: 'text', text: delta.content }
+    }
+    if (delta.tool_calls) {
+      for (const call of delta.tool_calls) {
+        const acc = toolCalls.get(call.index ?? 0) ?? { id: '', name: '', args: '' }
+        if (call.id) acc.id = call.id
+        if (call.function?.name) acc.name = call.function.name
+        if (call.function?.arguments) acc.args += call.function.arguments
+        toolCalls.set(call.index ?? 0, acc)
+      }
+    }
+    if (choice?.finish_reason) stopReason = choice.finish_reason
+  }
+  for (const acc of toolCalls.values()) {
+    let input
+    try {
+      input = JSON.parse(acc.args || '{}')
+    } catch {
+      throw new Error(`openai: unparseable tool arguments for ${acc.name}`)
+    }
+    yield { type: 'tool_use', id: acc.id, name: acc.name, input }
+  }
+  yield { type: 'done', stopReason: stopReason || 'stop' }
+}
+
 const openaiProvider = (config) => {
   const sessionId = config.sessionId ?? crypto.randomUUID()
   return {
     async *send(messages, tools) {
-    const body = {
-      model: config.model,
-      stream: true,
-      messages: messages.map(toOpenAIMessage),
-    }
-    if (tools.length > 0) body.tools = tools.map(toOpenAITool)
-    if (config.effort) body.reasoning_effort = config.effort
-    const headers = {
-      'content-type': 'application/json',
-      authorization: `Bearer ${config.apiKey}`,
-    }
-    if (config.kind === 'opencode-go') headers['x-opencode-session'] = sessionId
-    const res = await fetch(`${config.baseUrl ?? PROVIDER_BASE_URLS[config.kind]}/v1/chat/completions`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(body),
-    })
-    if (!res.ok) {
-      const detail = await res.text()
-      throw new Error(`openai: ${detail} (status ${res.status})`)
-    }
-    // Function arguments arrive split across chunks; hold each tool call by index until done.
-    const toolCalls = new Map()
-    let stopReason = ''
-    for await (const payload of ssePayloads(res.body)) {
-      if (payload === '[DONE]') break
-      let chunk
-      try {
-        chunk = JSON.parse(payload)
-      } catch {
-        continue
+      const body = {
+        model: config.model,
+        stream: true,
+        messages: messages.map(toOpenAIMessage),
       }
-      const choice = chunk.choices?.[0]
-      const delta = choice?.delta ?? {}
-      if (typeof delta.content === 'string' && delta.content !== '') {
-        yield { type: 'text', text: delta.content }
+      if (tools.length > 0) body.tools = tools.map(toOpenAITool)
+      if (config.effort) body.reasoning_effort = config.effort
+      const headers = {
+        'content-type': 'application/json',
+        authorization: `Bearer ${config.apiKey}`,
       }
-      if (delta.tool_calls) {
-        for (const call of delta.tool_calls) {
-          const acc = toolCalls.get(call.index ?? 0) ?? { id: '', name: '', args: '' }
-          if (call.id) acc.id = call.id
-          if (call.function?.name) acc.name = call.function.name
-          if (call.function?.arguments) acc.args += call.function.arguments
-          toolCalls.set(call.index ?? 0, acc)
-        }
+      if (config.kind === 'opencode-go') headers['x-opencode-session'] = sessionId
+      if (config.chatId) headers['x-jscad-chat-id'] = config.chatId
+      const res = await fetch(`${config.baseUrl ?? PROVIDER_BASE_URLS[config.kind]}/v1/chat/completions`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) {
+        const detail = await res.text()
+        throw new Error(`openai: ${detail} (status ${res.status})`)
       }
-      if (choice?.finish_reason) stopReason = choice.finish_reason
-    }
-    for (const acc of toolCalls.values()) {
-      let input
-      try {
-        input = JSON.parse(acc.args || '{}')
-      } catch {
-        throw new Error(`openai: unparseable tool arguments for ${acc.name}`)
-      }
-      yield { type: 'tool_use', id: acc.id, name: acc.name, input }
-    }
-    yield { type: 'done', stopReason: stopReason || 'stop' }
+      yield* parseOpenAIStream(res.body)
     },
   }
 }
 
 /**
- * @param {{kind:'anthropic'|'openai'|'opencode-go'|'meta',apiKey:string,model:string,baseUrl?:string,sessionId?:string,effort?:string}} config
+ * @param {{kind:'anthropic'|'openai'|'opencode-go'|'meta',apiKey:string,model:string,baseUrl?:string,sessionId?:string,effort?:string,chatId?:string}} config
  */
 export const createProvider = (config) => {
   if (!config.apiKey) throw new Error('createProvider: apiKey is required')
