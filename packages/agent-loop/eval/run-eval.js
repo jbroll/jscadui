@@ -10,6 +10,7 @@ import { createEvalBackend } from './backend.js'
 import { resolveCredentials } from './credentials.js'
 import { gradeFixture } from './grade.js'
 import { formatComparison, formatSummary, summarize } from './report.js'
+import { formatRunHeader, formatText, formatToolCall, formatToolResult } from './verbose.js'
 
 const FIXTURES = new URL('./fixtures/', import.meta.url)
 
@@ -37,11 +38,15 @@ const withTurnCap = (provider, maxTurns) => {
   }
 }
 
-export async function runSuite(fixtures, { provider, backend, runs = 1, systemPrompt = SYSTEM_PROMPT, onRun }) {
+export async function runSuite(
+  fixtures,
+  { provider, backend, runs = 1, systemPrompt = SYSTEM_PROMPT, onRun, onRunStart, onToolCall, onToolResult, onText },
+) {
   if (!provider) throw new Error('runSuite: provider is required (set EVAL_PROVIDER/EVAL_MODEL/EVAL_API_KEY)')
   const results = []
   for (const fixture of fixtures) {
     for (let run = 1; run <= runs; run += 1) {
+      onRunStart?.(fixture, run, runs)
       backend.reset()
       const messages = buildMessages({ systemPrompt, transcript: fixture.transcript ?? [], files: fixture.files ?? {}, message: fixture.prompt })
       let transcript = messages
@@ -50,8 +55,13 @@ export async function runSuite(fixtures, { provider, backend, runs = 1, systemPr
         const turn = await runTurn({
           conversation: { messages },
           provider: withTurnCap(provider, fixture.maxTurns),
-          requestTool: (name, input) => backend.requestTool(name, input),
-          onText: () => {},
+          requestTool: async (name, input) => {
+            onToolCall?.(name, input)
+            const result = await backend.requestTool(name, input)
+            onToolResult?.(name, result)
+            return result
+          },
+          onText: (text) => onText?.(text),
         })
         transcript = turn.messages
       } catch (err) {
@@ -76,6 +86,16 @@ export async function runSuite(fixtures, { provider, backend, runs = 1, systemPr
 
 const readJson = (path) => JSON.parse(readFileSync(path, 'utf8'))
 
+// Rewritten after every run so an interrupted eval keeps every finished run.
+export function saveResults(writeFile, filePath, { model, provider, runs, promptSha256, results }) {
+  const summary = summarize(results)
+  writeFile(
+    filePath,
+    JSON.stringify({ model, provider, runs, promptSha256, date: new Date().toISOString(), summary, results }, null, 2),
+  )
+  return summary
+}
+
 const main = async (argv, env) => {
   const at = argv.indexOf('--compare')
   if (at !== -1) {
@@ -92,18 +112,51 @@ const main = async (argv, env) => {
   const only = env.EVAL_FIXTURES ? env.EVAL_FIXTURES.split(',') : null
   const fixtures = (await loadFixtures()).filter((f) => !only || only.includes(f.name))
   const provider = createProvider({ kind: EVAL_PROVIDER, model: EVAL_MODEL, apiKey, baseUrl })
-  const onRun = (result) => {
-    const line = `${result.fixture} run ${result.run}/${runs}  firstFail ${result.report.firstAttemptFailures}  total ${result.report.total}`
-    console.log(result.error ? `${line}  error: ${result.error}` : line)
-  }
-  const results = await runSuite(fixtures, { provider, backend: createEvalBackend(), runs, onRun })
-  const summary = summarize(results)
   const promptSha256 = promptHash(SYSTEM_PROMPT)
-  console.log(formatSummary(summary))
   mkdirSync(new URL('./results/', import.meta.url), { recursive: true })
   const file = new URL(`./results/${new Date().toISOString().slice(0, 10)}-${EVAL_MODEL}-${promptSha256.slice(0, 8)}.json`, import.meta.url)
-  writeFileSync(file, JSON.stringify({ model: EVAL_MODEL, provider: EVAL_PROVIDER, runs, promptSha256, date: new Date().toISOString(), summary, results }, null, 2))
-  console.log(`run-eval: wrote ${fileURLToPath(file)}`)
+  const filePath = fileURLToPath(file)
+  console.log(`run-eval: writing ${filePath}`)
+
+  const verbose = env.EVAL_VERBOSE === '1'
+  let pending = ''
+  const flush = () => {
+    if (pending) console.log(formatText(pending))
+    pending = ''
+  }
+
+  const collected = []
+  const onRun = (result) => {
+    flush()
+    const line = `${result.fixture} run ${result.run}/${runs}  firstFail ${result.report.firstAttemptFailures}  total ${result.report.total}`
+    console.log(result.error ? `${line}  error: ${result.error}` : line)
+    collected.push(result)
+    saveResults(writeFileSync, filePath, { model: EVAL_MODEL, provider: EVAL_PROVIDER, runs, promptSha256, results: collected })
+  }
+
+  const hooks = verbose
+    ? {
+        onRunStart: (fixture, run, n) => console.log(formatRunHeader(fixture, run, n)),
+        onToolCall: (name, input) => {
+          flush()
+          console.log(formatToolCall(name, input))
+        },
+        onToolResult: (_name, result) => console.log(formatToolResult(result)),
+        onText: (text) => {
+          pending += text
+        },
+      }
+    : {}
+
+  await runSuite(fixtures, { provider, backend: createEvalBackend(), runs, onRun, ...hooks })
+  const summary = saveResults(writeFileSync, filePath, {
+    model: EVAL_MODEL,
+    provider: EVAL_PROVIDER,
+    runs,
+    promptSha256,
+    results: collected,
+  })
+  console.log(formatSummary(summary))
 }
 
 if (process.argv[1] === new URL(import.meta.url).pathname) {

@@ -80,6 +80,7 @@ npm run eval:keyless -w @jscadui/agent-loop
 | `EVAL_BASE_URL` | provider base URL, without `/v1` |
 | `EVAL_RUNS` | runs per fixture, default 5 |
 | `EVAL_FIXTURES` | comma-separated fixture names to run, default all |
+| `EVAL_VERBOSE` | `1` prints each run turn by turn: the header and prompt, tool calls with full input, tool results, and streamed assistant text |
 
 Each run is graded on discipline, recovery, geometry and conservation (0-2
 each) and on `firstAttemptFailures`: the failed tool results before the first
@@ -88,7 +89,8 @@ gives, per fixture, the mean `firstAttemptFailures`, the pass rate of its
 geometry checks, the mean total and the count of runs that ended in a
 provider error. Each result file, `eval/results/<date>-<model>-<sha8>.json`,
 records the SHA-256 of the assembled system prompt, so `--compare` can set two
-prompt versions side by side. Each result also carries `transcript`, the run's
+prompt versions side by side. The file is rewritten after every run, so an
+interrupted eval keeps every run that finished. Each result also carries `transcript`, the run's
 messages minus the system prompt, for tracing a stumble back to the tool calls
 that caused it. The eval prints one line per run as it goes. The key is never
 printed or written.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createEvalBackend } from './backend.js'
-import { promptHash, runSuite } from './run-eval.js'
+import { promptHash, runSuite, saveResults } from './run-eval.js'
 
 const scripted = (rounds) => ({
   async *send() {
@@ -123,5 +123,62 @@ describe('runSuite transcript', () => {
     await runSuite([fixture], { provider, backend: createEvalBackend(), runs: 2, onRun: (result) => seen.push(result) })
     expect(seen).toHaveLength(2)
     expect(seen.map((r) => r.run)).toEqual([1, 2])
+  })
+})
+
+describe('runSuite verbose hooks', () => {
+  it('calls onRunStart, onText and the tool hooks in order', async () => {
+    const events = []
+    let calls = 0
+    const scriptedProvider = {
+      async *send() {
+        calls += 1
+        if (calls === 1) {
+          yield { type: 'text', text: 'thinking' }
+          yield { type: 'tool_use', id: 't1', name: 'eval', input: { source: 'const x=1' } }
+          yield { type: 'done', stopReason: 'tool_use' }
+        } else {
+          yield { type: 'text', text: 'done now' }
+          yield { type: 'done', stopReason: 'end_turn' }
+        }
+      },
+    }
+    const fixture = { name: 'smoke', prompt: 'p', requires: ['eval'], verifyBeforeWrite: false, maxTurns: 8, checks: () => [] }
+    await runSuite([fixture], {
+      provider: scriptedProvider,
+      backend: createEvalBackend(),
+      runs: 1,
+      onRunStart: (fx, run, runs) => events.push(['start', fx.name, run, runs]),
+      onToolCall: (name, input) => events.push(['call', name, input]),
+      onToolResult: (name, result) => events.push(['result', name, result]),
+      onText: (text) => events.push(['text', text]),
+    })
+    expect(events[0]).toEqual(['start', 'smoke', 1, 1])
+    expect(events[1]).toEqual(['text', 'thinking'])
+    expect(events[2][0]).toBe('call')
+    expect(events[2][1]).toBe('eval')
+    expect(events[3][0]).toBe('result')
+    expect(events[3][1]).toBe('eval')
+    expect(typeof events[3][2]).toBe('string')
+    expect(events[4]).toEqual(['text', 'done now'])
+  })
+})
+
+describe('saveResults', () => {
+  it('writes the accumulated results and a recomputed summary via the injected writer', () => {
+    const writes = []
+    const writeFile = (path, content) => writes.push({ path, content })
+    const resultA = { fixture: 'x', run: 1, report: { firstAttemptFailures: 0, checkRate: 1, total: 8 } }
+    saveResults(writeFile, '/fake/path.json', { model: 'm', provider: 'p', runs: 2, promptSha256: 'sha', results: [resultA] })
+    expect(writes).toHaveLength(1)
+    const parsed = JSON.parse(writes[0].content)
+    expect(parsed.model).toBe('m')
+    expect(parsed.results).toHaveLength(1)
+    expect(parsed.summary[0].fixture).toBe('x')
+
+    const resultB = { fixture: 'x', run: 2, report: { firstAttemptFailures: 1, checkRate: 0, total: 4 } }
+    saveResults(writeFile, '/fake/path.json', { model: 'm', provider: 'p', runs: 2, promptSha256: 'sha', results: [resultA, resultB] })
+    expect(writes).toHaveLength(2)
+    expect(JSON.parse(writes[1].content).results).toHaveLength(2)
   })
 })
