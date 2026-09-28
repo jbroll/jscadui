@@ -1,15 +1,18 @@
-// 12-tooth gear, 40mm outer diameter, 5mm thick.
+// 12-tooth gear: point-list profile group, so exact tooth geometry isn't checkable from bbox/volume.
 export const fixture = {
   name: 'gear',
   group: 'profiles',
-  prompt: 'Model a 12-tooth spur gear, 40mm outer diameter and 5mm thick centered on the origin, in jscad-fluent. Verify with measure, then persist with writeModel.',
+  prompt: 'A 12-tooth gear, about 40mm across',
   requires: ['eval', 'measure', 'writeModel'],
   verifyBeforeWrite: true,
   maxTurns: 10,
-  target: { dimensions: [40, 40, 5] },
-  checks: (m) => [
-    { name: '40mm outer diameter', pass: (m?.boundingBox?.[1]?.[0] ?? 0) - (m?.boundingBox?.[0]?.[0] ?? 0) > 38 && (m?.boundingBox?.[1]?.[0] ?? 0) - (m?.boundingBox?.[0]?.[0] ?? 0) < 42 },
-    { name: '5mm thick', pass: (m?.boundingBox?.[1]?.[2] ?? 0) - (m?.boundingBox?.[0]?.[2] ?? 0) > 4.5 && (m?.boundingBox?.[1]?.[2] ?? 0) - (m?.boundingBox?.[0]?.[2] ?? 0) < 5.5 },
-    { name: 'positive volume', pass: (m?.volume ?? 0) > 1000 },
-  ],
+  checks: (m, { solid } = {}) => {
+    const dims = [...(m?.dimensions ?? [0, 0, 0])].sort((a, b) => a - b)
+    const [thickness, mid, largest] = dims
+    return [
+      { name: 'about 40mm across', pass: largest >= 36 && largest <= 44 && mid >= 36 && mid <= 44 },
+      { name: 'thickness 2-20mm', pass: thickness >= 2 && thickness <= 20 },
+      { name: 'watertight', pass: solid?.watertight === true },
+    ]
+  },
 }

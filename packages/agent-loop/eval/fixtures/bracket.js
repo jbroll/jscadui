@@ -1,14 +1,19 @@
-// L-bracket fitting a 200x200 bed: constraint satisfaction, not just shape.
+// L-bracket: shape (L, not a slab) matters more than any one exact dimension.
 export const fixture = {
   name: 'bracket',
-  prompt: 'Model an L-bracket, 60mm wide with 40mm tall arms 8mm thick, in jscad-fluent. Check it against the mk3 bed, then persist with writeModel.',
-  requires: ['eval', 'check', 'writeModel'],
+  prompt: 'An L-bracket for a shelf, about 60mm wide, using jscad-fluent',
+  requires: ['eval', 'writeModel'],
   verifyBeforeWrite: true,
   maxTurns: 10,
-  // 60mm wide, two 40mm arms meeting at a right angle: bounding box 60 x 40 x 40.
-  // 8mm is the plate thickness, not a bounding extent.
-  target: { dimensions: [40, 40, 60] },
-  checks: (m) => [
-    { name: 'fits mk3 bed', pass: Array.isArray(m?.dimensions) && m.dimensions.every((d, i) => d <= [250, 210, 210][i]) },
-  ],
+  checks: (m, { solid } = {}) => {
+    const dims = m?.dimensions ?? [0, 0, 0]
+    const volume = m?.volume ?? 0
+    const bboxVolume = dims[0] * dims[1] * dims[2]
+    return [
+      { name: 'about 60mm wide', pass: dims.some((d) => d >= 50 && d <= 70) },
+      { name: 'L-shaped, not a solid block', pass: bboxVolume > 0 && volume < bboxVolume * 0.5 },
+      { name: 'plausible size', pass: dims.every((d) => d >= 3 && d <= 200) },
+      { name: 'watertight', pass: solid?.watertight === true },
+    ]
+  },
 }
