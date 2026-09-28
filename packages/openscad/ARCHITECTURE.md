@@ -279,10 +279,12 @@ Libraries would be resolved from:
 overlay records (`{ kind, mesh, matrix }`) in a `WeakMap` keyed by the result
 geometry, so a value carries its ghosts without changing shape. Affine ops
 (translate, rotate, ...) compose their own matrix onto any overlays they
-receive; every other op gathers the overlays off its inputs. When a `%`
-subtree has no geometry of its own, `background()` returns a `Ghosts`
-placeholder that stands in for the missing child and reads as `NO_CHILD`
-everywhere else.
+receive; every other op gathers the overlays off its inputs. `background()`
+snapshots the child's own geometry into an overlay and returns a `Ghosts`
+placeholder holding it (plus any overlays the child already carried), so the
+geometry itself does not propagate downstream. Every other op treats a
+`Ghosts` as absent: `strip()` turns it into `NO_CHILD`, or into `undefined`
+when it replaced an empty result.
 
 `main()` ends with `j$.withOverlays`, which turns the collected overlay
 records into ghost geometry alongside the real result. It never reads
