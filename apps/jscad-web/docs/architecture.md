@@ -715,6 +715,33 @@ whatever the frame last loaded — the agent's `eval` source or the editor's,
 whichever ran last. `writeModel` only fills the editor buffer; nothing compiles
 until the user runs it.
 
+### Chat feedback loop
+
+The prompt improves from real sessions. The launcher relay logs each
+conversation (above), and `packages/agent-loop/log/read-log.js` rebuilds the
+log into turns, each tool call with its result and the source of any failed
+one. It parses responses with the adapters' own stream parsers, so each
+protocol has one SSE parser. The `chat-review` project skill
+(`.claude/skills/chat-review/`) groups the stumbles by cause, reproduces each
+group as an eval fixture, and keeps a prompt or example change only when the
+eval shows fewer first-attempt failures on the new fixtures and no fixture's
+mean total falls by more than 0.5.
+
+The eval runs model code through `@jscadui/require` with the frame's
+transform rule and URL scheme, mapping `https://cdn.jsdelivr.net/npm/<pkg>` to
+local `node_modules`, so a bad import fails with the same `failed to load
+module` / `file not found` text the model gets in the app. It imports the
+prebuilt `esm/` bundles of `@jscadui/require` and `@jscadui/transform-babel`,
+because their `src/` entries do not load in plain Node.
+
+`prompt.md` is the only copy of the prompt prose; examples are separate files
+in `prompt/examples/`, listed in `prompt/index.js`. They are imported as `?raw`
+text, which Vitest reads natively, jscad-web's build reads through
+`src_build/rawImport.js`, and Node reads through `text-loader.js`.
+
+Logging stays in the local launcher. The production relay forwards by
+allowlist, so it drops the chat id header and records nothing.
+
 ## Key custody
 
 The provider key is the user's, in one of three modes (`packages/key-store`):

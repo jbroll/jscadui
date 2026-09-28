@@ -236,6 +236,18 @@ Async module loading is the breaking one; the rest are extractions.
 
 ## Remaining issues
 
+- **Trim project files in chat context (agent-loop).** `buildMessages` sends
+  every text file of the project outside the 24,000-character budget. Large
+  projects need trimming, most recently mentioned files first.
+  (`packages/agent-loop/src/context.js`)
+- **Production relay chat logging (jscad-web server).** Only the launcher
+  relay logs conversations. Logging in `server/src/relay` needs the user's
+  opt-in before anything is written.
+- **Eval cannot load ESM-only or CDN-only packages (agent-loop).**
+  `@jscadui/jscad-text` (its `exports` has only an `import` condition) and
+  `@jbroll/jscad-anchors` (not installed) fail in `eval/backend.js` while the
+  frame serves them.
+
 - **Chat settings follow-ups (jscad-web).** `e2e/ai-chat.spec.js` was
   updated for the gear dialog but not yet run through simple-ci. The model
   list has not been seen with a real Meta key. Form controls stay light in
