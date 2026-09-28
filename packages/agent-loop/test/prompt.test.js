@@ -37,6 +37,11 @@ describe('system prompt', () => {
     expect(res).toMatchObject({ ok: true })
   })
 
+  it.each(files)('%s raises no option warnings', async (file) => {
+    const res = JSON.parse(await createEvalBackend().requestTool('eval', { source: read(file) }))
+    expect(res.warnings).toBeUndefined()
+  })
+
   it('tells the model to look up options with docs', () => {
     expect(SYSTEM_PROMPT).toMatch(/- Look up an unfamiliar function's options and defaults with `docs` before\s+using it\./)
   })

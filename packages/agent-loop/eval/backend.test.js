@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { createEvalBackend, createReadFile, EXPORT_REG, IMPORT_REG } from './backend.js'
 
 const CUBE = `const jf = require('@jbroll/jscad-fluent')
@@ -107,5 +108,44 @@ describe('eval backend', () => {
     const backend = createEvalBackend()
     expect(await backend.requestTool('docs', { query: 'roundedCuboid' })).toContain('roundRadius: Number = 0.2')
     expect(JSON.parse(await backend.requestTool('docs', { query: 'roundedCube' })).error.name).toBe('NotFoundError')
+  })
+
+  it('returns a warning for an option the function does not take', async () => {
+    const res = await evalSource(`const { primitives } = require('@jscad/modeling')
+const main = () => primitives.roundedCuboid({ size: [30, 20, 10], radius: 2 })
+module.exports = { main }`)
+    expect(res.ok).toBe(true)
+    expect(res.warnings).toEqual([{ fn: 'primitives.roundedCuboid', option: 'radius', suggestions: ['roundRadius'] }])
+  })
+
+  it('names fluent factories and stays quiet for fluent internals', async () => {
+    const fluent = await evalSource(`const jf = require('@jbroll/jscad-fluent')
+const main = () => [jf.cube({ sise: 10 }), jf.circle({ radius: 5 }).extrudeLinear({ height: 10 }).translate([1, 2, 3])]
+module.exports = { main }`)
+    expect(fluent.warnings).toEqual([{ fn: 'jf.cube', option: 'sise', suggestions: ['size'] }])
+  })
+
+  it('names fluent methods called on shapes', async () => {
+    const res = await evalSource(`const jf = require('@jbroll/jscad-fluent')
+module.exports = { main: () => jf.circle({ radius: 5 }).extrudeLinear({ hieght: 10 }).center({ axis: [true, true, false] }) }`)
+    expect(res.ok).toBe(true)
+    expect(res.warnings).toEqual([
+      { fn: 'FluentGeom2.extrudeLinear', option: 'hieght', suggestions: ['height'] },
+      { fn: 'FluentGeom3.center', option: 'axis', suggestions: ['axes'] },
+    ])
+  })
+
+  it('starts each run with no warnings and reports them on writeModel too', async () => {
+    const backend = createEvalBackend()
+    const bad = `const { primitives } = require('@jscad/modeling')\nmodule.exports = { main: () => primitives.cube({ sise: 3 }) }`
+    expect(JSON.parse(await backend.requestTool('writeModel', { source: bad })).warnings).toHaveLength(1)
+    expect(JSON.parse(await backend.requestTool('eval', { source: CUBE }))).not.toHaveProperty('warnings')
+  })
+
+  it('never mutates the modeling module object fluent and model-tools share', async () => {
+    const modeling = createRequire(import.meta.url)('@jscad/modeling')
+    const before = modeling.primitives.roundedCuboid
+    await evalSource(`const { primitives } = require('@jscad/modeling')\nmodule.exports = { main: () => primitives.roundedCuboid({ radius: 1 }) }`)
+    expect(modeling.primitives.roundedCuboid).toBe(before)
   })
 })

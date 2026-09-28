@@ -799,6 +799,13 @@ module` / `file not found` text the model gets in the app. It imports the
 prebuilt `esm/` bundles of `@jscadui/require` and `@jscadui/transform-babel`,
 because their `src/` entries do not load in plain Node.
 
+Its CDN stub returns the option-checked copy of `@jscad/modeling` and
+`@jbroll/jscad-fluent` itself rather than through `setUserModuleWrapper`,
+because the eval loads the prebuilt `esm/` build and Node's module object is
+shared with fluent's and model-tools' own requires. It wraps the fluent
+methods on Node's fluent prototypes with the same `wrapFluentMethods` the
+frame uses.
+
 `prompt.md` is the only copy of the prompt prose; examples are separate files
 in `prompt/examples/`, listed in `prompt/index.js`. They are imported as `?raw`
 text, which Vitest reads natively, jscad-web's build reads through

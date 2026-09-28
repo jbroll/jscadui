@@ -116,6 +116,18 @@ installed fails with the frame's `failed to load module <name>` /
 `file not found <url>` text. `@jscadui/jscad-text` (ESM-only) and
 `@jbroll/jscad-anchors` (not installed) fail here though the app serves them.
 
+The CDN stub hands model code a copy of `@jscad/modeling` and
+`@jbroll/jscad-fluent` with the unknown-option checks (`src/optionChecks.js`,
+`api/optionTable.js`), so `eval` and `writeModel` results carry
+`warnings: [{ fn, option, suggestions }]` like the app's. Node's modeling
+module object is never changed: fluent and model-tools require the same one.
+Fluent class methods that take options (`.extrudeLinear({...})`) are checked
+by wrapping them once on Node's fluent prototypes, since fluent exports no
+classes; that reaches fluent's own calls too, which is safe because fluent
+never calls those methods itself and passes modeling only valid options.
+`eval/fluent-guard.test.js` runs every fluent example in the repo with the
+wraps on and fails on any warning.
+
 ```bash
 EVAL_PROVIDER=meta EVAL_MODEL=muse-spark-1.3-contributor npm run eval -w @jscadui/agent-loop
 npm run eval -w @jscadui/agent-loop -- --compare eval/results/a.json eval/results/b.json

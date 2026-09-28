@@ -36,6 +36,8 @@ function main() {
 }
 module.exports = { main }`
 
+export const KEYLESS_SOURCES = { 'cube-hole': CUBE_HOLE, gear: GEAR, bracket: BRACKET }
+
 const roundsFor = (source, verify) => [
   [{ type: 'tool_use', id: 't1', name: 'eval', input: { source } }, { type: 'done', stopReason: 'tool_use' }],
   [{ type: 'tool_use', id: 't2', name: verify, input: verify === 'check' ? { bed: [250, 210, 200] } : {} }, { type: 'done', stopReason: 'tool_use' }],
@@ -52,7 +54,7 @@ const scripted = (rounds) => ({
 export async function runKeylessBaseline() {
   const backend = createEvalBackend()
   const fixtures = [cubeHole, gear, bracket]
-  const sources = { 'cube-hole': CUBE_HOLE, gear: GEAR, bracket: BRACKET }
+  const sources = KEYLESS_SOURCES
   const verifies = { 'cube-hole': 'measure', gear: 'measure', bracket: 'check' }
   const rounds = fixtures.flatMap((f) => roundsFor(sources[f.name], verifies[f.name]))
   return runSuite(fixtures, { provider: scripted(rounds), backend })
