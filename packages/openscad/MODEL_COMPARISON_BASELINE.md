@@ -32,6 +32,8 @@ it now returns a lone solid unwrapped.
 Re-run on `286b33f4` after the review fixes (a `%` subtree read through a
 transform or a one-statement module is empty, not absent; ghosts merged per
 kind), simple-ci job `4f6eb1bc2dae03a8`: all 21 suites pass, counts
+unchanged. Rebased onto `main` with the modeling fork at `ff759668`
+(clipper-lib), simple-ci job `cccfb8b177b85030`: all 21 suites pass, counts
 unchanged.
 
 ## Previous GPU run: 2026-09-27, geom2 booleans on clipper-lib
