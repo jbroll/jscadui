@@ -1,9 +1,9 @@
 import type { ToolDefinition } from '../providers/types.js'
 
 // The tools the agent may ask the browser to run. Every one executes in the user's browser: eval,
-// params, measure, check and export through the compute frame, and writeModel against the
-// project storage. `view` is not offered here; see docs/architecture.md's tool table. The server
-// only relays inputs and results.
+// params, measure, check and export through the compute frame, writeModel against the project
+// storage, and docs from the page's API index. `view` is not offered here; see
+// docs/architecture.md's tool table. The server only relays inputs and results.
 export const TOOLS: ToolDefinition[] = [
   {
     name: 'eval',
@@ -72,6 +72,16 @@ export const TOOLS: ToolDefinition[] = [
         message: { type: 'string', description: 'A version message describing the change' },
       },
       required: ['source'],
+    },
+  },
+  {
+    name: 'docs',
+    description:
+      "Look up a JSCAD function's signature, options and defaults, or list a namespace. Query a name (roundedCuboid, primitives.roundedCuboid, jf.polygon, FluentGeom2.extrudeLinear) or a namespace (primitives, booleans, FluentGeom2).",
+    inputSchema: {
+      type: 'object',
+      properties: { query: { type: 'string', description: 'A function, class or namespace name' } },
+      required: ['query'],
     },
   },
 ]

@@ -102,4 +102,10 @@ describe('eval backend', () => {
     const res = JSON.parse(await createEvalBackend().requestTool('teleport', {}))
     expect(res.ok).toBe(false)
   })
+
+  it('answers docs from the API index', async () => {
+    const backend = createEvalBackend()
+    expect(await backend.requestTool('docs', { query: 'roundedCuboid' })).toContain('roundRadius: Number = 0.2')
+    expect(JSON.parse(await backend.requestTool('docs', { query: 'roundedCube' })).error.name).toBe('NotFoundError')
+  })
 })

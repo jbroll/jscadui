@@ -46,5 +46,7 @@ params.radius = { type: 'slider', default: 5, min: 1, max: 20, step: 0.5 }
   prose is never parsed for code. Always use tools.
 - Try ideas with `eval`, verify with `measure`/`check` before claiming
   a result, persist with `writeModel`.
+- Look up an unfamiliar function's options and defaults with `docs` before
+  using it.
 - A tool failure is a JSON result, not a dead end: read `error.message` and
   try again with corrected input.

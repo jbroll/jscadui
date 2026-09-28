@@ -1,8 +1,12 @@
+import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { check, measure } from '@jscadui/model-tools'
 import { createParamsProxy, createProxyState, toParamDefinitions } from '@jscadui/params-core'
 import { clearAllCaches, moduleResolver, require as jscadRequire } from '@jscadui/require/esm/index.js'
 import { transformcjs } from '@jscadui/transform-babel/esm/transform-babel.js'
+import { docsTool } from '../src/docs.js'
+
+const API_INDEX = JSON.parse(readFileSync(new URL('../api/index.json', import.meta.url), 'utf8'))
 
 export const PROJECT_BASE = 'http://project.local/'
 export const CDN_BASE = 'https://cdn.jsdelivr.net/npm/'
@@ -78,6 +82,7 @@ export function createEvalBackend() {
       if (name === 'measure') return geometry ? JSON.stringify({ ok: true, ...measure(geometry, args) }) : noGeometry()
       if (name === 'check') return geometry ? JSON.stringify({ ok: true, ...check(geometry, args) }) : noGeometry()
       if (name === 'params') return JSON.stringify({ ok: true, params })
+      if (name === 'docs') return docsTool(API_INDEX, args.query)
       if (name === 'writeModel') {
         const entry = args.entry ?? 'main.js'
         project.set(entry, { source: args.source, message: args.message ?? '' })

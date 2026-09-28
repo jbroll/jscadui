@@ -89,6 +89,23 @@ same commit. Where JSDoc misses an option the generator adds it: a function's
 `PASS_THROUGH` in `api/build-index.js` names (`extrudeRectangular` hands its
 options to `expand` and `extrudeLinear`).
 
+## docs tool
+
+`docs({ query })` answers from the index with `docsTool(index, query)`
+(`src/docs.js`), the same pure function in the page and in the eval. A query
+is a qualified name (`primitives.roundedCuboid`, `jf.polygon`,
+`FluentGeom2.extrudeLinear`), a bare name (`roundedCuboid`) or a namespace or
+class (`primitives`, `FluentGeom2`). A function answers with its signature,
+description, options with type and default, and example; a fluent entry adds
+`Same options as <modeling name>`. A namespace or class answers with its
+members and one-line summaries, and a class method missing from an array
+class is looked up on the class it extends. A bare name that matches in
+several packages answers the `@jscad/modeling` entry with the others on an
+`Also:` line, or lists the candidates. A miss is a failed result,
+`{ ok: false, error: { name: 'NotFoundError', message: 'no entry <query>; closest: a, b, c' } }`,
+with the three nearest names by edit distance. Answers are cut at 3,000
+characters.
+
 ## Eval
 
 The eval replays each fixture in `eval/fixtures/` against a live model and

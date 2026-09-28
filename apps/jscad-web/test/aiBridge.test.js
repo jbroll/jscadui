@@ -73,4 +73,11 @@ describe('local tool bridge', () => {
     const res = await handleToolRequest('measure', {}, d)
     expect(res).toEqual({ ok: false, error: { name: 'Error', message: 'boom' } })
   })
+
+  it('routes docs with the query and returns its text', async () => {
+    const d = deps({ docs: vi.fn(() => 'primitives.cube (@jscad/modeling)') })
+    const res = await handleToolRequest('docs', { query: 'cube' }, d)
+    expect(d.docs).toHaveBeenCalledWith('cube')
+    expect(res).toBe('primitives.cube (@jscad/modeling)')
+  })
 })

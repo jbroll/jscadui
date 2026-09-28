@@ -70,4 +70,14 @@ export const TOOLS = [
       required: ['source'],
     },
   },
+  {
+    name: 'docs',
+    description:
+      "Look up a JSCAD function's signature, options and defaults, or list a namespace. Query a name (roundedCuboid, primitives.roundedCuboid, jf.polygon, FluentGeom2.extrudeLinear) or a namespace (primitives, booleans, FluentGeom2).",
+    inputSchema: {
+      type: 'object',
+      properties: { query: { type: 'string', description: 'A function, class or namespace name' } },
+      required: ['query'],
+    },
+  },
 ]

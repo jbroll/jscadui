@@ -12,7 +12,7 @@ const errorResult = (error) => ({
 /**
  * @param {string} name
  * @param {object} [input]
- * @param {{evaluate:Function,setParams:Function,measure:Function,check:Function,exportModel:Function,view:Function,save:Function}} deps
+ * @param {{evaluate:Function,setParams:Function,measure:Function,check:Function,exportModel:Function,view:Function,save:Function,docs:Function}} deps
  */
 export const handleToolRequest = async (name, input, deps) => {
   try {
@@ -23,6 +23,7 @@ export const handleToolRequest = async (name, input, deps) => {
     if (name === 'check') return await deps.check(args)
     if (name === 'export') return await deps.exportModel(args)
     if (name === 'view') return await deps.view(args)
+    if (name === 'docs') return deps.docs(args.query)
     if (name === 'writeModel') {
       const entry = args.entry ?? DEFAULT_ENTRY
       await deps.save(args.source, entry)

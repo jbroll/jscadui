@@ -66,6 +66,8 @@ import { clearReloadTimestamp } from './src/reloadDetection.js'
 import { missingSaveHandleMessage } from './src/saveFile.js'
 import { installStudioBridge } from './src/studioBridge.js'
 import { handleToolRequest } from './src/aiBridge.js'
+import { docsTool } from '@jscadui/agent-loop'
+import apiIndex from '@jscadui/agent-loop/api/index.json'
 import { initChat } from './src/aiChat.js'
 import { initAccount, getProviderConfig, getSession } from './src/aiAccount.js'
 
@@ -849,6 +851,7 @@ const aiDeps = {
     await recordEdit(source, entry)
     return { ok: true, entry }
   },
+  docs: (query) => docsTool(apiIndex, query),
 }
 
 if (byId('ai-account')) initAccount(byId('ai-account'))

@@ -719,6 +719,7 @@ Tools and where they run:
 |---|---|
 | `eval`, `measure`, `check`, `export`, `params` | compute frame |
 | `writeModel` | editor buffer plus a version row |
+| `docs` | page: `docsTool` over `@jscadui/agent-loop/api/index.json`, no frame round trip |
 
 `view` (page, from the live canvas) is not offered to the model: its PNG data
 URL gets JSON-encoded into a text tool result that no provider adapter turns
