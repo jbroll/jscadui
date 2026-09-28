@@ -277,18 +277,29 @@ Libraries would be resolved from:
 `%child` and `#child` transpile to `j$.background(child)` and
 `j$.highlight(child)`. `overlay.js` in `@jscadui/openscad-runtime` keeps
 overlay records (`{ kind, mesh, matrix }`) in a `WeakMap` keyed by the result
-geometry, so a value carries its ghosts without changing shape. Affine ops
-(translate, rotate, ...) compose their own matrix onto any overlays they
-receive; every other op gathers the overlays off its inputs. `background()`
-snapshots the child's own geometry into an overlay and returns a `Ghosts`
-placeholder holding it (plus any overlays the child already carried), so the
-geometry itself does not propagate downstream. Every other op treats a
-`Ghosts` as absent: `strip()` turns it into `NO_CHILD`, or into `undefined`
-when it replaced an empty result.
+geometry, so a value carries its ghosts without changing shape. The
+transforms (translate, rotate, scale, mirror, multmatrix, resize) compose
+their matrix onto the overlays they receive. `safeUnion`, `union`,
+`subtract`, `intersect`, `hull`, `minkowski`, `color`, `offset` and the
+extrusions gather the overlays off their inputs; `children()` passes them
+through. Ops outside
+that set drop overlays; a test in `test/preview-overlays.test.ts` fails when a
+new `j$` function is not classified.
+
+`background()` snapshots the child's own geometry into an overlay and returns
+a `Ghosts` placeholder holding it (plus any overlays the child already
+carried), so the geometry itself does not propagate downstream. OpenSCAD
+skips a `%` node only where it is a direct child, so a bare `Ghosts` from
+`background()` is absent (`strip()` gives `NO_CHILD`), while a `Ghosts` that
+comes out of any op is empty (`strip()` gives `undefined`):
+`intersection(){ cube(10); translate([20,0,0]) %sphere(1); }` is empty. A
+module whose single statement is `%x` returns through `j$.group`, which marks
+the placeholder empty in the same way.
 
 `main()` ends with `j$.withOverlays`, which turns the collected overlay
-records into ghost geometry alongside the real result. It never reads
-`$preview`.
+records into ghost geometry alongside the real result, merged into at most
+one 3D and one 2D ghost per kind so a loop of `#` children stays under the
+viewport's entity cap. It never reads `$preview`.
 
 ## Current Status
 
