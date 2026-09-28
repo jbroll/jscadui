@@ -7,6 +7,7 @@
   "files": [
     "index.js",
     "src",
+    "api",
     "prompt.md",
     "prompt",
     "log",
@@ -15,6 +16,7 @@
   ],
   "scripts": {
     "test": "vitest run",
+    "api-index": "node api/build-index.js",
     "read-log": "node log/read-log.js",
     "eval": "node --import ./text-loader.js eval/run-eval.js",
     "eval:keyless": "node --import ./text-loader.js eval/keyless.js"

@@ -60,6 +60,28 @@ characters (24,000 by default), a user message with every text file in
 `files` under `### <path>` (outside the budget, omitted when empty), and the
 new message. The app and the eval both use it.
 
+## API index
+
+`api/index.json` describes the public API of `@jscad/modeling`, from the
+pinned checkout's JSDoc (every namespace but `maths` and `geometries`), and of
+`@jscadui/jscad-text`, from its JSDoc. It has one entry per namespace or
+function: `name` (`primitives.roundedCuboid`, `jscadText.text2d`), `pkg`,
+`kind`, `signature`, `description`, `example`, and for a function that takes
+an options object first, `optionsFirst` and `options` (name, type, default,
+description). `api/optionTable.js` holds only the option names, for the
+unknown-option checks.
+
+Both files are generated and committed:
+
+    npm run api-index -w @jscadui/agent-loop
+
+A test fails when either differs from a fresh generation, so a
+`@jscad/modeling` pin update needs a regeneration in the same commit. Where
+JSDoc misses an option the generator adds it: a function's `defaults` literal
+keys (`extrudeLinear`'s `repair`), and the options `PASS_THROUGH` in
+`api/build-index.js` names (`extrudeRectangular` hands its options to
+`expand` and `extrudeLinear`).
+
 ## Eval
 
 The eval replays each fixture in `eval/fixtures/` against a live model and
