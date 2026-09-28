@@ -6,14 +6,8 @@
 import { _num } from './math.js'
 import { _getSegments } from './segments.js'
 import { consuming } from './consume.js'
-
-/**
- * Sentinel for "no child produced by a conditional branch".
- * `if(cond) child` with cond=false and no else branch emits j$.NO_CHILD.
- * Distinct from undefined (which means "module/geometry produced nothing").
- * In intersection: NO_CHILD is absent (skipped); undefined makes intersection empty.
- */
-export const NO_CHILD = Symbol('no_child')
+import { NO_CHILD } from './sentinels.js'
+export { NO_CHILD }
 
 // JSCAD primitives and transforms - injected at init time
 let cube, cuboid, cylinder, circle, rectangle, polygon, polyhedron, translate, union, subtract, intersect, hull, minkowski, geom2, slice

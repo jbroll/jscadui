@@ -17,6 +17,7 @@ import { initColor, _color } from './color.js'
 import { initText, _text } from './text.js'
 import { DEFAULT_SPECIAL_VARS } from './specialVars.js'
 import { consuming } from './consume.js'
+import { initOverlays, highlight as _highlight, background as _background, withOverlays as _withOverlays } from './overlay.js'
 
 /**
  * Sentinel for explicit undef passed as argument.
@@ -302,6 +303,11 @@ const j$ = {
   // Color (populated after init)
   color: _color,
 
+  // % and # modifiers (overlay.js)
+  highlight: _highlight,
+  background: _background,
+  withOverlays: _withOverlays,
+
   // Text primitive — resolves $fn/$fa/$fs from scope like other segment-aware primitives
   text(args) {
     const $fn = this.getSpecialVar('$fn'), $fa = this.getSpecialVar('$fa'), $fs = this.getSpecialVar('$fs')
@@ -403,6 +409,7 @@ const j$ = {
     initExtrusions(jscad)
     initColor(jscad)
     initText(jscad)
+    initOverlays(jscad)
     if (options.globalFn !== undefined) {
       setGlobalFn(options.globalFn)
     }
