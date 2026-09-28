@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 
 // Import the runtime directly for unit testing
 import j$ from '@jscadui/openscad-runtime'
-import { _cylinder, _sphere, _cube, _square, _circle, withoutDegeneratePolygons, initColor, _color, initPrimitives, _safeUnion, initTransforms, _mirror, _subtract, _intersect, str, createJ$Instance } from '@jscadui/openscad-runtime'
+import { _cylinder, _sphere, _cube, _square, _circle, withoutDegeneratePolygons, initColor, _color, initPrimitives, _safeUnion, initTransforms, _mirror, _scale, _subtract, _intersect, str, createJ$Instance } from '@jscadui/openscad-runtime'
 import { _fmtNum } from '../../openscad-runtime/src/math.js'
 
 /**
@@ -868,6 +868,50 @@ describe('mirror with a 2D normal', () => {
       expect(normal).toBeUndefined()
       expect(out).toBe(geo)
     }
+  })
+})
+
+// OpenSCAD 2026.09: scale([1,1,-1]) mirrors, scale([W,L,0]) of a 2D shape
+// ignores z, and scale([0,1]) of a 2D shape warns "Scaling a 2D object with 0 -
+// removing object". jscad's scale throws "factors must be positive" on all three.
+describe('scale with zero or negative factors', () => {
+  const square = { sides: [[[0, 0], [1, 0]]] }
+  const cube = { polygons: [] }
+  let calls: { op: string, arg: unknown, geo: unknown }[]
+
+  const scaled = (v: unknown, geo: unknown) => {
+    calls = []
+    const record = (op: string) => (arg: unknown, g: unknown) => { calls.push({ op, arg, geo: g }); return g }
+    initTransforms({ transforms: { scale: record('scale'), transform: record('transform') }, measurements: {} })
+    return _scale(v, geo)
+  }
+  const matrixOf = (x: number, y: number, z: number) => [x, 0, 0, 0, 0, y, 0, 0, 0, 0, z, 0, 0, 0, 0, 1]
+
+  it('uses scale for positive factors', () => {
+    scaled([1, 2, 3], cube)
+    expect(calls).toEqual([{ op: 'scale', arg: [1, 2, 3], geo: cube }])
+  })
+
+  it('mirrors through a matrix on a negative factor', () => {
+    scaled([1, 1, -1], cube)
+    expect(calls).toEqual([{ op: 'transform', arg: matrixOf(1, 1, -1), geo: [cube] }])
+  })
+
+  it('keeps a 2D shape scaled by zero in z', () => {
+    scaled([2, 3, 0], square)
+    expect(calls).toEqual([{ op: 'transform', arg: matrixOf(2, 3, 0), geo: [square] }])
+  })
+
+  it('removes a shape flattened by a zero factor', () => {
+    expect(scaled([0, 1], square)).toBeUndefined()
+    expect(scaled([1, 1, 0], cube)).toBeUndefined()
+    expect(scaled(0, cube)).toBeUndefined()
+    expect(calls).toEqual([])
+  })
+
+  it('removes only the flattened children', () => {
+    scaled([1, 1, 0], [square, cube])
+    expect(calls).toEqual([{ op: 'transform', arg: matrixOf(1, 1, 0), geo: [square] }])
   })
 })
 

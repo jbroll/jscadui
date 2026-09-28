@@ -15,7 +15,19 @@ and a third that can reach its `Asset_SCAD/` includes. Pointing CI at the
 
 Similarity threshold: **0.99** (Jaccard index on vertex-deduplicated STL meshes).
 
-## Latest GPU run: 2026-09-27, `%` and `#` ghosts
+## Latest GPU run: 2026-09-27, scale by zero or negative factors
+
+Branch `worktree-scale-circle-gaps` (uncommitted working tree), simple-ci job
+`7245f8926a12408e` (`sci push jscadui/test`), OpenSCAD 2026.08.30.fp. All
+21 suites pass, counts unchanged from the run below.
+
+`scale()` with a factor that is not positive now goes through a scaling
+matrix instead of the modeling `scale`, which throws on it: a negative factor
+mirrors, z is ignored for 2D, and a shape flattened to zero area or volume is
+removed. On manifold only the zero case changes (it used to read 0 as 1). The
+jscad engine is covered by the render sweep.
+
+## Previous GPU run: 2026-09-27, `%` and `#` ghosts
 
 Branch `work/next-20260927b` (Task 4 transpiler change uncommitted on top of
 `867b47a8`), simple-ci job `5dddf64737577c73` (`sci push jscadui/test`),

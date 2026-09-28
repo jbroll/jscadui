@@ -4,6 +4,7 @@
 
 import { NO_CHILD } from './sentinels.js'
 import { consuming } from './consume.js'
+import { _is2D } from './primitives.js'
 import { affine, IDENTITY, mul } from './overlay.js'
 
 // Filter null/undefined/NO_CHILD from geometry arrays before passing to JSCAD.
@@ -15,7 +16,7 @@ const filterGeo = (geo) => {
 }
 
 // JSCAD transforms - injected at init time
-let translate, rotateX, rotateY, rotateZ, scale, mirror, transform, measureBoundingBox
+let translate, rotateX, rotateY, rotateZ, scale, mirror, transform, rawTransform, measureBoundingBox
 
 export const initTransforms = (jscad) => {
   translate = consuming(jscad.transforms.translate)
@@ -24,7 +25,8 @@ export const initTransforms = (jscad) => {
   rotateZ = consuming(jscad.transforms.rotateZ)
   scale = consuming(jscad.transforms.scale)
   mirror = consuming(jscad.transforms.mirror)
-  transform = consuming(jscad.transforms.transform)
+  rawTransform = jscad.transforms.transform
+  transform = consuming(rawTransform)
   measureBoundingBox = jscad.measurements.measureBoundingBox
 }
 
@@ -139,7 +141,19 @@ export const _scale = affine((v) => scaleMatrix(scaleVector(v)), (v, geo) => {
   if (geo === NO_CHILD) return NO_CHILD
   const g = filterGeo(geo)
   if (g == null) return undefined
-  return scale(scaleVector(v), g)
+  const [x, y, z] = scaleVector(v)
+  if (x > 0 && y > 0 && z > 0) return scale([x, y, z], g)
+  return scaleByMatrix([x, y, z], g)
+})
+
+// jscad's scale throws on a factor <= 0. OpenSCAD mirrors on a negative factor,
+// ignores z for 2D, and removes a 2D object flattened to zero area. A 3D object
+// it keeps as a zero-volume sheet, which adds nothing, so it is removed too.
+const flattens = ([x, y, z], g) => (_is2D(g) ? x * y : x * y * z) === 0
+const scaleByMatrix = consuming((factors, geo) => {
+  const kept = [geo].flat().filter(g => !flattens(factors, g))
+  if (kept.length === 0) return undefined
+  return rawTransform(scaleMatrix(factors), kept)
 })
 
 export const _mirror = affine(mirrorMatrix, (v, geo) => {

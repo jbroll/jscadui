@@ -175,10 +175,6 @@ The app defaults to manifold; the other engine renders **1175/1420** (CI job
 runs manifold, so that sweep is the only thing covering this engine. Run one
 model with `display-check.js --engine jscad`.
 
-- **`scale()` with a zero or negative factor throws.** 22 models fail with
-  `factors must be positive` from the modeling `scale`: all 16 yapp-box
-  examples, `threads.scad` and five openscad-tests. OpenSCAD accepts these
-  (a negative factor mirrors, zero flattens); manifold renders them.
 - **Circles with fewer than three segments throw.** `circle-tests.scad`,
   `cylinder-tests.scad` and `rotate_extrude-tests.scad` fail with `segments
   must be three or more`, where OpenSCAD clamps.
