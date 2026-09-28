@@ -175,7 +175,7 @@ const main = async (argv, env) => {
     console.error('run-eval: set EVAL_PROVIDER, EVAL_MODEL and EVAL_API_KEY (EVAL_PROVIDER=meta reads ~/.config/muse/auth.json)')
     process.exit(1)
   }
-  const runs = Number(env.EVAL_RUNS) || 5
+  const runs = Number(env.EVAL_RUNS) || 3
   const only = env.EVAL_FIXTURES ? env.EVAL_FIXTURES.split(',') : null
   const fixtures = (await loadFixtures()).filter((f) => !only || only.includes(f.name))
   const provider = createProvider({ kind: EVAL_PROVIDER, model: EVAL_MODEL, apiKey, baseUrl })

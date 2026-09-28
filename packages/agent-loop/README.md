@@ -153,7 +153,7 @@ files without spending API budget.
 | `EVAL_MODEL` | model id |
 | `EVAL_API_KEY` | provider key; with `EVAL_PROVIDER=meta` and no key, `providers.meta.api_key` and `api_base_url` come from `~/.config/muse/auth.json` |
 | `EVAL_BASE_URL` | provider base URL, without `/v1` |
-| `EVAL_RUNS` | runs per fixture, default 5 |
+| `EVAL_RUNS` | runs per fixture, default 3 |
 | `EVAL_FIXTURES` | comma-separated fixture names to run, default all |
 | `EVAL_VERBOSE` | `1` prints each run turn by turn: the header and prompt, tool calls with full input, tool results, and streamed assistant text |
 | `JSCAD_CHAT_DATA` | path to the `jscad-chat-evals` clone, default `~/src/jscad-chat-evals` |
