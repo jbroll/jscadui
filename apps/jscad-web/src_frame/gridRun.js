@@ -1,3 +1,4 @@
+import { createWarningCollector } from '@jscadui/agent-loop/src/optionChecks.js'
 import { ABANDON_AFTER_MS } from './constants.js'
 import { mergeProxyStates } from './mergeProxyStates.js'
 
@@ -125,6 +126,12 @@ export const createGridRuns = ({ state, pool, slotOps, post, answerError }) => {
   // The rest merge in claim order, the frame's view of grid order, so the
   // params UI keeps its shape between pooled runs instead of following answer
   // arrival. The primary claims before the run fans out, so it is order 0.
+  const mergedWarnings = (answers) => {
+    const warnings = createWarningCollector()
+    for (const data of answers) for (const warning of data.params?.warnings ?? []) warnings.warn(warning)
+    return warnings.list()
+  }
+
   const merged = (run) => {
     const answers = [...run.answers]
       .sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity) || Number(b.primary) - Number(a.primary))
@@ -140,12 +147,13 @@ export const createGridRuns = ({ state, pool, slotOps, post, answerError }) => {
     for (const { key, url, reason } of run.pendingLost) {
       if (!run.claimed.has(key)) lost.push({ url, reason })
     }
-    const { trapped: _trapped, ...first } = done[0].params ?? {}
+    const { trapped: _trapped, warnings: _warnings, ...first } = done[0].params ?? {}
     const params = mergeProxyStates(done.map((data) => data.params), run.method === 'jscadScript')
+    const warnings = mergedWarnings(done)
     return {
       method: RESPONSE,
       id: run.appId,
-      params: { ...first, ...params, entities: [], streamed: true, runId: run.runId, lost },
+      params: { ...first, ...params, ...(warnings.length ? { warnings } : {}), entities: [], streamed: true, runId: run.runId, lost },
     }
   }
 

@@ -68,6 +68,16 @@ describe('agent evaluate', () => {
     expect(await evaluate('module.exports = { main: () => [] }')).toEqual({ entityCount: 1 })
   })
 
+  it('passes the run warnings on to the agent', async () => {
+    const warnings = [{ fn: 'primitives.roundedCuboid', option: 'radius', suggestions: ['roundRadius'] }]
+    const evaluate = createEvaluate({
+      jscadSetFiles: async () => {},
+      jscadScript: async () => ({ entities: [smallEntity()], warnings }),
+    }, () => {})
+
+    expect(await evaluate('module.exports = { main: () => [] }')).toEqual({ entityCount: 1, warnings })
+  })
+
   it('turns a frame rejection into a failure result', async () => {
     const error = Object.assign(new Error('boom'), { name: 'ModelError' })
     const evaluate = createEvaluate({

@@ -1559,6 +1559,19 @@ describe('grid runs', () => {
     expect(params.def.map((d) => d.name)).toEqual(['_group_a', 'a.size', '_group_b', 'b.size'])
   })
 
+  it('merges the warnings every member reported, once each', () => {
+    const { workers, posted, send } = gridRun({ poolSize: 2 })
+    answerLastOf(workers[0], 'jscadMain')
+    send({ method: 'jscadScript', id: 5, params: [{ script: 'grid2', url: 'ALL.js', runId: 9 }] })
+    claimOn(workers[0], '0', { runId: 9 })
+    const radius = { fn: 'primitives.roundedCuboid', option: 'radius', suggestions: ['roundRadius'] }
+    const sise = { fn: 'primitives.cube', option: 'sise', suggestions: ['size'] }
+    answerLastOf(workers[0], 'jscadScript', { def: [], params: {}, entities: [], streamed: true, runId: 9, warnings: [radius] })
+    answerLastOf(workers[1], 'jscadScript', { def: [], params: {}, entities: [], warnings: [radius, sise] })
+
+    expect(posted.find((m) => m.id === 5).params.warnings).toEqual([radius, sise])
+  })
+
   it('merges pooled params in claim order rather than answer order', () => {
     const { workers, posted, send } = gridRun({ poolSize: 3 })
     answerLastOf(workers[0], 'jscadMain')

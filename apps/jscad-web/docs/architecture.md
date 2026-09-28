@@ -750,6 +750,10 @@ cleared at the start of each `jscadScript`, since top-level model code runs
 during the require, keeps each `fn`+`option` once, holds at most 20, and
 `jscadMain` returns them as `warnings`.
 
+A grid run's answer merges every member's warnings the same way. The chat's
+`eval` result passes them on as `{ entityCount, warnings }`; the editor's own
+runs ignore them.
+
 Fluent class methods that take an options object (`.extrudeLinear({...})`,
 `.center`, `.mirror`, `.expand`, `.offset`, `.extrudeRotate`) are checked
 too, because the chat prompt teaches chaining. Fluent exports no classes, so
