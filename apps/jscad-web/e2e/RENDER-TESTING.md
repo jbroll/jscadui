@@ -217,7 +217,10 @@ itself died.
 one does, the sweep listens for the page's `crash` event and scores it `crash`
 at once rather than wait out the 320s guard on a dead page.
 
-The current baseline is **1227 ok of 1420** on manifold, CI job
+The current baseline is **1226 ok of 1420** on manifold, CI job
+`94f275be0655e54b`. openscad-tests' `issue1672.scad`, a `hull()` of a cube
+scaled to zero, is now empty as in OpenSCAD, since a zero scale factor removes
+the shape instead of reading as 1. Before that it was 1227, CI job
 `ab8011b5cfc355fd`, up from 1223 as the `%`/`#` viewport ghosts fixed 4
 models: dotSCAD's `rubber_duck_debugging.scad`, NopSCADlib's
 `annotation.scad`, and openscad-tests' `issue1005.scad` and `issue1833.scad`.

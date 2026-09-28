@@ -51,11 +51,13 @@ deploy order and headers.
 
 ## Render sweep
 
-Baseline 1227/1420 on manifold (CI job `ab8011b5cfc355fd`), plus 74
-text-only models that run clean and only echo. The 193 recorded failures are
+Baseline 1226/1420 on manifold (CI job `94f275be0655e54b`), plus 75
+text-only models that run clean and only echo or draw text. The 194 recorded
+failures are
 the 25 pre-existing ones plus suites the 09-23 baseline never swept:
 echo-only, 2D-only and assert/error negative tests, include/use wiring and
-helper modules, empty-by-construction models, `$t` animations, and unfixable
+helper modules, empty-by-construction models (now including `issue1672.scad`,
+a cube scaled to zero), `$t` animations, and unfixable
 content (removed `assign()`, a Windows include path, missing upstream files).
 20 BOSL2 doc examples that call a function as a statement, or do not parse,
 went from text-only to empty once `std.scad` stopped echoing include warnings.
