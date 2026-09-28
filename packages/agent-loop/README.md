@@ -153,6 +153,15 @@ npm run eval -w @jscadui/agent-loop -- --regrade eval/results/a.json eval/result
 npm run eval:keyless -w @jscadui/agent-loop
 ```
 
+A fixture may declare `group` (string), such as `'profiles'` for fixtures whose
+correct answer requires computing a point-list profile (`gear`, `gear-module`).
+The default run, with no `EVAL_FIXTURES`, runs only ungrouped fixtures: the CSG
+suite of primitives and boolean operations. `EVAL_FIXTURES` runs the union of
+whatever it names, fixture names and group names both, e.g. `EVAL_FIXTURES=profiles`
+runs every fixture in that group, `EVAL_FIXTURES=gear,fluent-chain` runs one named
+fixture plus one grouped fixture, and `EVAL_FIXTURES=all` runs every fixture
+regardless of group.
+
 `--regrade` rewrites each result file in place with no provider calls: it recomputes
 `discipline`, `recovery`, `conservation` and `firstAttemptFailures` from the stored
 `transcript` against the current grading code and fixtures, keeps the stored `geometry`
@@ -168,7 +177,7 @@ files without spending API budget.
 | `EVAL_API_KEY` | provider key; overrides everything below |
 | `EVAL_BASE_URL` | provider base URL, without `/v1` |
 | `EVAL_RUNS` | runs per fixture, default 3 |
-| `EVAL_FIXTURES` | comma-separated fixture names to run, default all |
+| `EVAL_FIXTURES` | comma-separated fixture and/or group names to run; default: ungrouped fixtures only; `all` runs everything |
 | `EVAL_VERBOSE` | `1` also prints the live log's lines to stdout, turn by turn: the header and prompt, tool calls with full input, tool results, and streamed assistant text |
 | `JSCAD_CHAT_DATA` | path to the `jscad-chat-evals` clone, default `~/src/jscad-chat-evals` |
 | `EVAL_RESULTS_DIR` | overrides where results are written, regardless of `JSCAD_CHAT_DATA` |

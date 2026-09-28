@@ -1,6 +1,7 @@
 // Tip diameter is module*(teeth+2): 2*(20+2) = 44mm.
 export const fixture = {
   name: 'gear-module',
+  group: 'profiles',
   prompt: 'Model a spur gear with module 2, 20 teeth and 5mm thick, centered on the origin. Verify with measure, then persist with writeModel.',
   requires: ['eval', 'measure', 'writeModel'],
   verifyBeforeWrite: true,

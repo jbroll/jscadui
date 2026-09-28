@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createEvalBackend } from './backend.js'
-import { promptHash, resultFileName, runSuite, saveResults } from './run-eval.js'
+import { promptHash, resultFileName, runSuite, saveResults, selectFixtures } from './run-eval.js'
 
 const scripted = (rounds) => ({
   async *send() {
@@ -285,6 +285,33 @@ describe('runSuite verbose hooks', () => {
     expect(events[3][1]).toBe('eval')
     expect(typeof events[3][2]).toBe('string')
     expect(events[4]).toEqual(['text', 'done now'])
+  })
+})
+
+describe('selectFixtures', () => {
+  const ungrouped = { name: 'cube-hole' }
+  const grouped = { name: 'gear', group: 'profiles' }
+  const otherGrouped = { name: 'gear-module', group: 'profiles' }
+  const all = [ungrouped, grouped, otherGrouped]
+
+  it('with no EVAL_FIXTURES, runs only fixtures without a group', () => {
+    expect(selectFixtures(all, null)).toEqual([ungrouped])
+  })
+
+  it('EVAL_FIXTURES names a fixture regardless of group', () => {
+    expect(selectFixtures(all, ['gear'])).toEqual([grouped])
+  })
+
+  it('EVAL_FIXTURES names a group, selecting every fixture in it', () => {
+    expect(selectFixtures(all, ['profiles'])).toEqual([grouped, otherGrouped])
+  })
+
+  it('EVAL_FIXTURES accepts a mix of fixture names and group names', () => {
+    expect(selectFixtures(all, ['cube-hole', 'profiles'])).toEqual(all)
+  })
+
+  it('EVAL_FIXTURES=all runs everything', () => {
+    expect(selectFixtures(all, ['all'])).toEqual(all)
   })
 })
 

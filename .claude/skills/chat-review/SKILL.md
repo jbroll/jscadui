@@ -89,7 +89,12 @@ the user the fixture count times `EVAL_RUNS` and get a yes.
    request it answers, and must be listed in `prompt/index.js` in file-name
    order. Keep `prompt.md` prose short and concrete.
 
-6. **Measure the candidate.** Run the full suite on the candidate:
+6. **Measure the candidate.** Run the suite on the candidate. The default run
+   (no `EVAL_FIXTURES`) is the CSG suite: primitives and boolean operations,
+   which is what most real requests exercise. `gear` and `gear-module` sit in
+   the `profiles` group and are opt-in (`EVAL_FIXTURES=profiles` or
+   `EVAL_FIXTURES=all`) since they test computing a point-list profile, not
+   representative of most requests and prone to dominating run time:
 
    ```bash
    EVAL_PROVIDER=meta EVAL_MODEL=muse-spark-1.3-contributor npm run eval -w @jscadui/agent-loop

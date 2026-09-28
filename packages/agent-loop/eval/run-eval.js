@@ -26,6 +26,15 @@ export const resultFileName = (model, promptSha256, now = new Date()) => {
   return `${timestamp}-${model}-${promptSha256.slice(0, 8)}.json`
 }
 
+// `only`: null runs every ungrouped fixture (the default CSG suite); a list of
+// fixture and/or group names runs their union; ['all'] runs everything.
+export function selectFixtures(fixtures, only) {
+  if (!only) return fixtures.filter((f) => !f.group)
+  if (only.includes('all')) return fixtures
+  const wanted = new Set(only)
+  return fixtures.filter((f) => wanted.has(f.name) || (f.group && wanted.has(f.group)))
+}
+
 export async function loadFixtures(dir = FIXTURES) {
   const fixtures = []
   for (const file of readdirSync(dir).filter((f) => f.endsWith('.js')).sort()) {
@@ -222,7 +231,7 @@ const main = async (argv, env) => {
   }
   const runs = Number(env.EVAL_RUNS) || 3
   const only = env.EVAL_FIXTURES ? env.EVAL_FIXTURES.split(',') : null
-  const fixtures = (await loadFixtures()).filter((f) => !only || only.includes(f.name))
+  const fixtures = selectFixtures(await loadFixtures(), only)
   const provider = createProvider({ kind: EVAL_PROVIDER, model: EVAL_MODEL, apiKey, baseUrl })
   const promptSha256 = promptHash(SYSTEM_PROMPT)
   mkdirSync(resultsDir, { recursive: true })
