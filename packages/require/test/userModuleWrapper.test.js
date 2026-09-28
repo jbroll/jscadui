@@ -1,0 +1,64 @@
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { clearAllCaches, require as jscadRequire, requireCache, setUserModuleWrapper } from '../src/require.js'
+import { moduleResolver } from '../src/resolution/moduleResolver.js'
+
+const ROOT = 'http://project.local/'
+const MODELING = 'http://bundles.test/modeling.js'
+const FLUENT = 'http://bundles.test/fluent.js'
+const files = {
+  [MODELING]: 'module.exports = { primitives: { cube: () => "cube" } }',
+  [FLUENT]: 'module.exports = { modeling: require("@jscad/modeling") }',
+}
+const readFile = (path) => {
+  if (path in files) return files[path]
+  throw new Error(`not found ${path}`)
+}
+const wrap = (name, exports) => ({ ...exports, wrappedAs: name })
+const project = (url, script) => jscadRequire({ url, script }, null, readFile, ROOT, ROOT)
+
+beforeEach(() => {
+  requireCache.bundleAlias['@jscad/modeling'] = MODELING
+  requireCache.bundleAlias['@jbroll/jscad-fluent'] = FLUENT
+  setUserModuleWrapper(wrap)
+})
+
+afterEach(() => {
+  delete requireCache.bundleAlias['@jscad/modeling']
+  delete requireCache.bundleAlias['@jbroll/jscad-fluent']
+  setUserModuleWrapper(null)
+  clearAllCaches()
+  moduleResolver.clearCache()
+})
+
+describe('user module wrapper', () => {
+  it('gives a project file the wrapped copy, the same one on a cache hit', () => {
+    const a = project(`${ROOT}a.js`, 'module.exports = { m: require("@jscad/modeling") }')
+    const b = project(`${ROOT}b.js`, 'module.exports = { m: require("@jscad/modeling") }')
+    expect(a.m.wrappedAs).toBe('@jscad/modeling')
+    expect(b.m).toBe(a.m)
+  })
+
+  it('gives a library bundle the real object', () => {
+    const { fluent } = project(`${ROOT}c.js`, 'module.exports = { fluent: require("@jbroll/jscad-fluent") }')
+    expect(fluent.wrappedAs).toBe('@jbroll/jscad-fluent')
+    expect(fluent.modeling.wrappedAs).toBeUndefined()
+    expect(fluent.modeling.primitives.cube()).toBe('cube')
+  })
+
+  it('gives a .scad caller the real object', () => {
+    const { m } = project(`${ROOT}part.scad`, 'module.exports = { m: require("@jscad/modeling") }')
+    expect(m.wrappedAs).toBeUndefined()
+  })
+
+  it('gives a base-less caller the real object, which is what the cache holds', () => {
+    project(`${ROOT}a.js`, 'module.exports = { m: require("@jscad/modeling") }')
+    const real = jscadRequire('@jscad/modeling', null, readFile)
+    expect(real.wrappedAs).toBeUndefined()
+    expect(real.primitives.cube()).toBe('cube')
+  })
+
+  it('passes everything through with no wrapper registered', () => {
+    setUserModuleWrapper(null)
+    expect(project(`${ROOT}a.js`, 'module.exports = { m: require("@jscad/modeling") }').m.wrappedAs).toBeUndefined()
+  })
+})

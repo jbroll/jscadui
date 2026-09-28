@@ -43,6 +43,33 @@ export const requireHandlers = new Map()
 // purpose of executing user-provided CAD modeling scripts. This is by design.
 export const runModule = globalThis.eval('(require, exports, module, source)=>eval(source)')
 
+const USER_MODULES = new Set(['@jscad/modeling', '@jscad/modeling-for-anchors', '@jbroll/jscad-fluent'])
+let userModuleWrapper = null
+let wrappedModules = new WeakMap()
+
+/**
+ * Registers the function that gives project files their own copy of the
+ * modeling and fluent exports. Pass null to turn it off.
+ * @param {((name: string, exports: object) => object) | null} fn
+ */
+export const setUserModuleWrapper = (fn) => {
+  userModuleWrapper = fn
+  wrappedModules = new WeakMap()
+}
+
+// Library bundles, transpiled .scad and base-less worker lookups share the
+// cached exports and must keep calling the real functions.
+const forCaller = (name, exports, base, root) => {
+  if (!userModuleWrapper || !USER_MODULES.has(name) || exports === null || typeof exports !== 'object') return exports
+  if (typeof base !== 'string' || typeof root !== 'string' || !root || !base.startsWith(root) || base.endsWith('.scad')) return exports
+  let wrapped = wrappedModules.get(exports)
+  if (!wrapped) {
+    wrapped = userModuleWrapper(name, exports)
+    wrappedModules.set(exports, wrapped)
+  }
+  return wrapped
+}
+
 /**
  * @typedef SourceWithUrl
  * @prop {string} url
@@ -61,6 +88,7 @@ export const runModule = globalThis.eval('(require, exports, module, source)=>ev
  * @returns 
  */
 export const require = (urlOrSource, transform, readFile, base, root, importData = null, moduleBase = MODULE_BASE) => {
+  const callerBase = base
   /** @type {string | undefined} */
   let source
   /** @type {string} */
@@ -225,7 +253,7 @@ export const require = (urlOrSource, transform, readFile, base, root, importData
       cacheManager.set(cacheUrl, exports, isRelativeFile) // O(1) LRU-managed cache
     }
 
-    return exports // require returns object exported by module
+    return forCaller(url, exports, callerBase, root)
   } finally {
     // Always remove from loading set, even on error (C3 fix)
     if (cacheUrl) {
