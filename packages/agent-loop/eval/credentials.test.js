@@ -25,4 +25,27 @@ describe('resolveCredentials', () => {
     expect(resolveCredentials({ EVAL_PROVIDER: 'openai' }, readAuth).apiKey).toBeUndefined()
     expect(readAuth).not.toHaveBeenCalled()
   })
+
+  it('reads the opencode-go key from the opencode auth file', () => {
+    const readAuth = () => ({ 'opencode-go': { type: 'api', key: 'oc-secret' }, meta: { type: 'api', key: 'meta-secret' } })
+    expect(resolveCredentials({ EVAL_PROVIDER: 'opencode-go' }, readAuth)).toEqual({ apiKey: 'oc-secret', baseUrl: undefined })
+  })
+
+  it('uses EVAL_API_KEY for opencode-go without reading the auth file', () => {
+    const readAuth = vi.fn()
+    expect(resolveCredentials({ EVAL_PROVIDER: 'opencode-go', EVAL_API_KEY: 'k' }, readAuth)).toEqual({ apiKey: 'k', baseUrl: undefined })
+    expect(readAuth).not.toHaveBeenCalled()
+  })
+
+  it('leaves the opencode-go key unset when its auth file is missing', () => {
+    const readAuth = () => {
+      throw new Error('ENOENT')
+    }
+    expect(resolveCredentials({ EVAL_PROVIDER: 'opencode-go' }, readAuth).apiKey).toBeUndefined()
+  })
+
+  it('lets EVAL_BASE_URL override the opencode-go default base', () => {
+    const readAuth = () => ({ 'opencode-go': { type: 'api', key: 'oc-secret' } })
+    expect(resolveCredentials({ EVAL_PROVIDER: 'opencode-go', EVAL_BASE_URL: 'https://b' }, readAuth)).toEqual({ apiKey: 'oc-secret', baseUrl: 'https://b' })
+  })
 })

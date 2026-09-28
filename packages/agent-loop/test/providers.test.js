@@ -311,6 +311,13 @@ describe('stream parsers', () => {
     expect(JSON.parse(fetchMock.mock.calls[0][1].body).stream_options).toEqual({ include_usage: true })
   })
 
+  it('opencode-go chat-completions models: request body includes stream_options.include_usage', async () => {
+    fetchMock.mockResolvedValue(new Response(sseBody(`data: [DONE]\n\n`)))
+    const provider = createProvider({ kind: 'opencode-go', apiKey: 'k', model: 'deepseek-v4.1-flash', baseUrl: 'https://relay.test' })
+    for await (const e of provider.send([{ role: 'user', content: 'hi' }], [])) void e
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).stream_options).toEqual({ include_usage: true })
+  })
+
   it('responses: yields usage from response.completed', async () => {
     const body =
       `data: {"type":"response.output_text.delta","delta":"hi"}\n\n` +

@@ -151,7 +151,7 @@ files without spending API budget.
 |---|---|
 | `EVAL_PROVIDER` | provider kind: `anthropic`, `openai`, `opencode-go`, `meta` |
 | `EVAL_MODEL` | model id |
-| `EVAL_API_KEY` | provider key; with `EVAL_PROVIDER=meta` and no key, `providers.meta.api_key` and `api_base_url` come from `~/.config/muse/auth.json` |
+| `EVAL_API_KEY` | provider key; with `EVAL_PROVIDER=meta` and no key, `providers.meta.api_key` and `api_base_url` come from `~/.config/muse/auth.json`; with `EVAL_PROVIDER=opencode-go` and no key, `["opencode-go"].key` comes from `~/.local/share/opencode/auth.json` |
 | `EVAL_BASE_URL` | provider base URL, without `/v1` |
 | `EVAL_RUNS` | runs per fixture, default 3 |
 | `EVAL_FIXTURES` | comma-separated fixture names to run, default all |

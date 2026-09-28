@@ -220,9 +220,7 @@ const openaiProvider = (config) => {
       }
       if (tools.length > 0) body.tools = tools.map(toOpenAITool)
       if (config.effort) body.reasoning_effort = config.effort
-      // Only the direct OpenAI kind is confirmed to accept this; opencode-go's
-      // openai-protocol models are unverified without a live call, so it's withheld there.
-      if (config.kind === 'openai') body.stream_options = { include_usage: true }
+      if (config.kind === 'openai' || config.kind === 'opencode-go') body.stream_options = { include_usage: true }
       const headers = {
         'content-type': 'application/json',
         authorization: `Bearer ${config.apiKey}`,
