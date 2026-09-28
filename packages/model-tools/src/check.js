@@ -15,11 +15,33 @@ export const BEDS = {
   ender3: [220, 220, 250],
 }
 
+// Accepts a real [x, y, z] array, a string parsing to one (the model tool
+// wire format sometimes stringifies array args), or an {x, y, z} object.
+const asDims = (bed) => {
+  if (Array.isArray(bed)) return bed
+  if (typeof bed === 'string' && bed.trim().startsWith('[')) {
+    try {
+      const parsed = JSON.parse(bed)
+      if (Array.isArray(parsed) && parsed.length === 3 && parsed.every((n) => typeof n === 'number')) return parsed
+    } catch {
+      // fall through: not a JSON array, treat as a bed name below
+    }
+    return null
+  }
+  if (bed && typeof bed === 'object' && ['x', 'y', 'z'].every((k) => typeof bed[k] === 'number')) return [bed.x, bed.y, bed.z]
+  return null
+}
+
 const resolveBed = (bed) => {
-  if (!bed || Array.isArray(bed)) return bed
-  const dims = BEDS[bed.toLowerCase()]
-  if (!dims) throw new Error(`unknown bed ${bed}: use one of ${Object.keys(BEDS).join(', ')} or [x, y, z] in mm`)
-  return dims
+  if (!bed) return bed
+  const dims = asDims(bed)
+  if (dims) return dims
+  const name = typeof bed === 'string' ? BEDS[bed.toLowerCase()] : undefined
+  if (!name) {
+    const shown = typeof bed === 'string' ? bed : JSON.stringify(bed)
+    throw new Error(`unknown bed ${shown}: use one of ${Object.keys(BEDS).join(', ')} or [x, y, z] in mm`)
+  }
+  return name
 }
 
 const fitsBed = (dimensions, bed) => {

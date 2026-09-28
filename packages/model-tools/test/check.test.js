@@ -96,6 +96,16 @@ test('an oversized cube does not fit the mk3 bed', () => {
   expect(check(cuboid({ size: [300, 300, 300] }), { bed: 'mk3' }).fitsBed).toBe(false)
 })
 
+test('a bed given as an {x, y, z} object fits like the equivalent array', () => {
+  expect(check(cuboid({ size: [10, 10, 10] }), { bed: { x: 200, y: 200, z: 200 } }).fitsBed).toBe(true)
+  expect(check(cuboid({ size: [300, 300, 300] }), { bed: { x: 200, y: 200, z: 200 } }).fitsBed).toBe(false)
+})
+
+test('a bed given as a JSON array string fits like the equivalent array', () => {
+  expect(check(cuboid({ size: [10, 10, 10] }), { bed: '[200, 200, 200]' }).fitsBed).toBe(true)
+  expect(check(cuboid({ size: [300, 300, 300] }), { bed: '[200, 200, 200]' }).fitsBed).toBe(false)
+})
+
 test('an unknown bed name throws with the list of known names', () => {
   expect(() => check(cuboid({ size: [10, 10, 10] }), { bed: 'bambu' })).toThrow(
     /unknown bed bambu: use one of .*mk3.*or \[x, y, z\] in mm/,
