@@ -14,8 +14,11 @@ export const fixture = {
       { name: '80mm wide', pass: Math.abs(dims[0] - 80) < 0.5 },
       // three plates, overlap-tolerant since a union can lose a little material where they touch.
       { name: 'volume near 76000', pass: volume > 70000 && volume < 78500 },
-      // 100mm back plate at 20 degrees off vertical, hinged 5mm up: 5 + 100*cos(20deg) = 99.9mm.
-      { name: 'height near 99.9', pass: Math.abs(dims[2] - 99.8) < 3 },
+      // 100*cos(20deg) = 94mm of rise; where the plate pivots and sits on or beside the base
+      // adds 0-7mm, so any height in 93-102 is a fair reading of the request.
+      { name: 'height 93-102', pass: dims[2] > 93 && dims[2] < 102 },
+      // the lean shows as depth: 70mm base plus 100*sin(20deg) = 34mm behind it. Upright is ~75.
+      { name: 'leans back (depth 100-110)', pass: dims[1] > 100 && dims[1] < 110 },
     ]
   },
 }

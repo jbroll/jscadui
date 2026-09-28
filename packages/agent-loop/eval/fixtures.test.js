@@ -149,16 +149,17 @@ describe('CSG fixture reference models', () => {
   })
 
   // Two colinear 20mm-OD, 2mm-wall arms (the run) plus a perpendicular branch, each 30mm from center.
-  function pipeTee(segments, { bored = true } = {}) {
-    const outerR = 10
-    const innerR = 8
+  // bores: 'open' (bores meet at the center), 'blocked' (each tube bored on its own, run wall across the branch), 'none'.
+  function pipeTee(segments, { bores = 'open' } = {}) {
     const armLen = 30
-    const bore = (solid, height) => (bored ? booleans.subtract(solid, p.cylinder({ radius: innerR, height: height + 2, segments })) : solid)
-    let run = bore(p.cylinder({ radius: outerR, height: armLen * 2, segments }), armLen * 2)
-    run = transforms.rotateY(Math.PI / 2, run)
-    let branch = bore(p.cylinder({ radius: outerR, height: armLen, segments }), armLen)
-    branch = transforms.translateY(armLen / 2, transforms.rotateX(Math.PI / 2, branch))
-    return booleans.union(run, branch)
+    const run = (r) => transforms.rotateY(Math.PI / 2, p.cylinder({ radius: r, height: armLen * 2, segments }))
+    const branch = (r) => transforms.translateY(armLen / 2, transforms.rotateX(Math.PI / 2, p.cylinder({ radius: r, height: armLen, segments })))
+    const outer = booleans.union(run(10), branch(10))
+    if (bores === 'none') return outer
+    if (bores === 'blocked') {
+      return booleans.union(booleans.subtract(run(10), run(8)), booleans.subtract(branch(10), branch(8)))
+    }
+    return booleans.subtract(outer, booleans.union(run(8), branch(8)))
   }
 
   it.each([32, 64])('pipe-tee passes its reference model at %i segments', (segments) => {
@@ -166,7 +167,11 @@ describe('CSG fixture reference models', () => {
   })
 
   it('pipe-tee fails an unbored (solid) tee', () => {
-    expect(passes('pipe-tee', pipeTee(32, { bored: false }))).toBe(false)
+    expect(passes('pipe-tee', pipeTee(32, { bores: 'none' }))).toBe(false)
+  })
+
+  it('pipe-tee fails a tee whose branch bore does not reach the run bore', () => {
+    expect(passes('pipe-tee', pipeTee(32, { bores: 'blocked' }))).toBe(false)
   })
 
   // 100x60x4 plate with a grid of 5mm holes on 10mm centers, 5mm in from the edges.
