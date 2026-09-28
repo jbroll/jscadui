@@ -152,5 +152,20 @@ export const withOverlays = (result) => {
   const list = overlaysOf(result)
   if (list.length === 0) return result
   const solids = [strip(result)].flat(Infinity).filter(present)
-  return [...solids, ...list.map(ghostOf)]
+  return [...solids, ...merged(list)]
+}
+
+// One entity per kind and dimension: the viewport caps the entity count, and a
+// loop of # children would otherwise spend one per iteration.
+const merged = (list) => {
+  const byKey = new Map()
+  for (const o of list) {
+    const g = ghostOf(o)
+    const key = `${o.kind}${o.mesh.dim}`
+    const into = byKey.get(key)
+    if (!into) byKey.set(key, g)
+    else if (g.sides) for (const s of g.sides) into.sides.push(s)
+    else for (const p of g.polygons) into.polygons.push(p)
+  }
+  return [...byKey.values()]
 }

@@ -96,6 +96,19 @@ describe('% and # results', () => {
     expect(ghosts(r)).toHaveLength(1)
   })
 
+  it('merges a loop of highlights into one ghost', () => {
+    const one = ghosts(run('#cube(1);'))[0].polygons!.length
+    const r = run('for (i = [0:2499]) #translate([2 * i, 0, 0]) cube(1);')
+    expect(ghosts(r)).toHaveLength(1)
+    expect(ghosts(r)[0].polygons).toHaveLength(2500 * one)
+  })
+
+  it('keeps one ghost per kind and dimension', () => {
+    const r = run('#cube(1); #sphere(1); %cube(2); %square(3); %circle(1); #square(1);') as (G & { sides?: unknown[] })[]
+    expect(ghosts(r)).toHaveLength(4)
+    expect(ghosts(r).filter(g => g.sides)).toHaveLength(2)
+  })
+
   it('% inside a module call follows the call\'s transform', () => {
     const r = run('module m() { %cube(1); cube(1); }\ntranslate([0, 0, 20]) m();')
     expect(zRange(ghosts(r)[0])).toEqual([20, 21])
