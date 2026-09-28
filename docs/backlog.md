@@ -210,6 +210,17 @@ Async module loading is the breaking one; the rest are extractions.
 
 ## Remaining issues
 
+- **Editor lint, autocomplete and hover from the API index (jscad-web,
+  agent-loop).** Next spec after the docs tool. CodeMirror 6 plugins on the
+  Lezer tree `lang-javascript` already builds (no TypeScript, too heavy):
+  lint calls to known functions whose first argument is an object literal
+  for unknown option keys and unknown function names, plus Lezer's syntax
+  errors; autocomplete function and option names with defaults; hover shows
+  the `docs` entry. The lint rules are a pure function over a Lezer tree, so
+  the `eval` tool runs the same check on the submitted source and returns
+  static warnings beside the runtime ones. Static checks see only inline
+  literals; the runtime wrapper still covers built or spread options.
+  (`apps/jscad-web/src/editor.js`, `packages/agent-loop/api/index.json`)
 - **Trim project files in chat context (agent-loop).** `buildMessages` sends
   every text file of the project outside the 24,000-character budget. Large
   projects need trimming, most recently mentioned files first.
