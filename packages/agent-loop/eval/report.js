@@ -82,6 +82,7 @@ export function summarize(results) {
     providerSeconds: meanOf(runs, (r) => r.metrics?.providerSeconds),
     firstTokenSeconds: meanOf(runs, (r) => r.metrics?.firstTokenSeconds),
     outputTokensPerSecond: meanOf(runs, (r) => r.metrics?.outputTokensPerSecond),
+    reasoningTokens: meanOf(runs, (r) => r.metrics?.reasoningTokens),
   }))
 }
 
@@ -98,9 +99,11 @@ export function formatSummary(summary, speed) {
       `${s.fixture}  ${n2or(s.rounds)}  ${n2or(s.failedCalls)}  ${n2or(s.inputTokens)}  ${n2or(s.outputTokens)}  ${n2or(s.seconds)}  ${n2or(s.geometryError)}  ${n2or(s.warnings)}  ${n2or(s.docsCalls)}`,
     )
   }
-  lines.push('', 'fixture  providerSeconds  firstTokenSeconds  outputTokensPerSecond')
+  lines.push('', 'fixture  providerSeconds  firstTokenSeconds  outputTokensPerSecond  reasoningTokens')
   for (const s of summary) {
-    lines.push(`${s.fixture}  ${n2or(s.providerSeconds)}  ${n2or(s.firstTokenSeconds)}  ${n2or(s.outputTokensPerSecond)}`)
+    lines.push(
+      `${s.fixture}  ${n2or(s.providerSeconds)}  ${n2or(s.firstTokenSeconds)}  ${n2or(s.outputTokensPerSecond)}  ${n2or(s.reasoningTokens)}`,
+    )
   }
   if (speed) lines.push('', formatSpeedLine(speed, speed.model, speed.provider))
   return lines.join('\n')

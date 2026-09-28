@@ -17,12 +17,12 @@ describe('eval report', () => {
       {
         fixture: 'a', runs: 2, firstAttemptFailures: 1, checkPassRate: 0.75, total: 6, errors: 1,
         rounds: null, failedCalls: null, inputTokens: null, outputTokens: null, seconds: null, geometryError: null, warnings: null, docsCalls: null,
-        providerSeconds: null, firstTokenSeconds: null, outputTokensPerSecond: null,
+        providerSeconds: null, firstTokenSeconds: null, outputTokensPerSecond: null, reasoningTokens: null,
       },
       {
         fixture: 'b', runs: 1, firstAttemptFailures: 1, checkPassRate: 1, total: 7, errors: 0,
         rounds: null, failedCalls: null, inputTokens: null, outputTokens: null, seconds: null, geometryError: null, warnings: null, docsCalls: null,
-        providerSeconds: null, firstTokenSeconds: null, outputTokensPerSecond: null,
+        providerSeconds: null, firstTokenSeconds: null, outputTokensPerSecond: null, reasoningTokens: null,
       },
     ])
     expect(formatSummary(summary)).toContain('a  2  1.00  0.75  6.00  1')
@@ -99,6 +99,17 @@ describe('eval report', () => {
     const compared = formatComparison({ model: 'm', summary }, { model: 'm', summary: summarize([run('a', 0, 1, 8)]) })
     expect(compared).toContain('providerSeconds a → b  outputTokensPerSecond a → b')
     expect(compared).toContain('2.00 → -  75.00 → -')
+  })
+
+  it('means and prints reasoningTokens in the speed table, "-" when never reported', () => {
+    const metrics = { seconds: 2, providerSeconds: 1.5, firstTokenSeconds: 0.3, outputTokensPerSecond: 50, reasoningTokens: 40 }
+    const summary = summarize([run('a', 0, 1, 8, undefined, metrics), run('a', 0, 1, 8, undefined, { ...metrics, reasoningTokens: 20 })])
+    expect(summary[0]).toEqual(expect.objectContaining({ reasoningTokens: 30 }))
+    const text = formatSummary(summary)
+    expect(text).toContain('fixture  providerSeconds  firstTokenSeconds  outputTokensPerSecond  reasoningTokens')
+    expect(text).toContain('a  1.50  0.30  50.00  30.00')
+    const noneSummary = summarize([run('b', 0, 1, 8, undefined, { ...metrics, reasoningTokens: undefined })])
+    expect(formatSummary(noneSummary)).toContain('b  1.50  0.30  50.00  -')
   })
 
   it('computeSpeed sums wall/provider/tool seconds and medians first-token and throughput over all runs', () => {

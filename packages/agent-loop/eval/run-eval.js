@@ -42,9 +42,9 @@ const withTurnCap = (provider, maxTurns, now = () => performance.now()) => {
   let rounds = 0
   let inputTokens = null
   let outputTokens = null
+  let reasoningTokens = null
   let providerSeconds = 0
   const firstTokenSeconds = []
-  let postFirstTokenSeconds = 0
   return {
     async *send(messages, tools) {
       rounds += 1
@@ -62,26 +62,23 @@ const withTurnCap = (provider, maxTurns, now = () => performance.now()) => {
         if (event.type === 'usage') {
           if (typeof event.inputTokens === 'number') inputTokens = (inputTokens ?? 0) + event.inputTokens
           if (typeof event.outputTokens === 'number') outputTokens = (outputTokens ?? 0) + event.outputTokens
+          if (typeof event.reasoningTokens === 'number') reasoningTokens = (reasoningTokens ?? 0) + event.reasoningTokens
         }
         if (event.type === 'done') {
           const endedAt = now()
           providerSeconds += (endedAt - startedAt) / 1000
-          if (firstContentAt !== null) {
-            firstTokenSeconds.push((firstContentAt - startedAt) / 1000)
-            postFirstTokenSeconds += (endedAt - firstContentAt) / 1000
-          }
+          if (firstContentAt !== null) firstTokenSeconds.push((firstContentAt - startedAt) / 1000)
         }
         yield event
       }
     },
     rounds: () => rounds,
-    usage: () => ({ inputTokens, outputTokens }),
+    usage: () => ({ inputTokens, outputTokens, reasoningTokens }),
     speed: () => ({
       providerSeconds,
       firstTokenSeconds: firstTokenSeconds.length
         ? firstTokenSeconds.reduce((a, b) => a + b, 0) / firstTokenSeconds.length
         : null,
-      postFirstTokenSeconds,
     }),
   }
 }
@@ -122,10 +119,10 @@ export async function runSuite(
       const measure = finalMeasure.ok ? finalMeasure : null
       const report = gradeFixture(fixture, transcript, measure, { params: backend.params() })
       const { toolCalls, failedCalls, warnings, docsCalls } = transcriptMetrics(transcript)
-      const { inputTokens, outputTokens } = cappedProvider.usage()
-      const { providerSeconds, firstTokenSeconds, postFirstTokenSeconds } = cappedProvider.speed()
+      const { inputTokens, outputTokens, reasoningTokens } = cappedProvider.usage()
+      const { providerSeconds, firstTokenSeconds } = cappedProvider.speed()
       const outputTokensPerSecond =
-        outputTokens != null && postFirstTokenSeconds > 0 ? outputTokens / postFirstTokenSeconds : null
+        outputTokens != null && providerSeconds > 0 ? outputTokens / providerSeconds : null
       const result = {
         fixture: fixture.name,
         run,
@@ -140,6 +137,7 @@ export async function runSuite(
           docsCalls,
           inputTokens,
           outputTokens,
+          reasoningTokens,
           seconds,
           providerSeconds,
           firstTokenSeconds,

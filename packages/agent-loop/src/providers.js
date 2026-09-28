@@ -71,7 +71,7 @@ export async function* parseAnthropicStream(body) {
     }
     if (event.type === 'message_start') {
       const inputTokens = event.message?.usage?.input_tokens
-      if (typeof inputTokens === 'number') yield { type: 'usage', inputTokens, outputTokens: null }
+      if (typeof inputTokens === 'number') yield { type: 'usage', inputTokens, outputTokens: null, reasoningTokens: null }
     } else if (event.type === 'content_block_start' && event.content_block?.type === 'tool_use') {
       toolInputs.set(event.index ?? 0, {
         id: event.content_block.id ?? '',
@@ -98,7 +98,7 @@ export async function* parseAnthropicStream(body) {
       }
     } else if (event.type === 'message_delta' && event.delta?.stop_reason) {
       const outputTokens = event.usage?.output_tokens
-      if (typeof outputTokens === 'number') yield { type: 'usage', inputTokens: null, outputTokens }
+      if (typeof outputTokens === 'number') yield { type: 'usage', inputTokens: null, outputTokens, reasoningTokens: null }
       yield { type: 'done', stopReason: event.delta.stop_reason }
     } else if (event.type === 'error') {
       throw new Error(`anthropic: ${event.error?.message ?? 'provider error'}`)
@@ -195,7 +195,12 @@ export async function* parseOpenAIStream(body) {
     if (chunk.usage) usage = chunk.usage
   }
   if (usage) {
-    yield { type: 'usage', inputTokens: usage.prompt_tokens ?? null, outputTokens: usage.completion_tokens ?? null }
+    yield {
+      type: 'usage',
+      inputTokens: usage.prompt_tokens ?? null,
+      outputTokens: usage.completion_tokens ?? null,
+      reasoningTokens: usage.completion_tokens_details?.reasoning_tokens ?? null,
+    }
   }
   for (const acc of toolCalls.values()) {
     let input

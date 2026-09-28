@@ -198,6 +198,10 @@ tend to max out once a prompt clears the bar:
   `usage` stream event (Anthropic's `message_start`/`message_delta`, OpenAI's
   `stream_options.include_usage` final chunk, or the Responses API's
   `response.completed`); `null` when the provider never reports usage.
+- `reasoningTokens`: summed the same way, from OpenAI chat completions'
+  `usage.completion_tokens_details.reasoning_tokens` or the Responses API's
+  `usage.output_tokens_details.reasoning_tokens`; `null` when the provider
+  never reports it (Anthropic never does).
 - `seconds`: wall time of the run.
 - `geometryError`: relative error against an optional fixture `target`
   (`{ volume?, dimensions? }`): the max of `|volume - target| / target` and,
@@ -210,16 +214,19 @@ tend to max out once a prompt clears the bar:
 - `firstTokenSeconds`: mean, over the run's provider calls, of the time from
   starting `send()` to the first streamed `text` or `tool_use` event (not
   `usage`/`done`); `null` when no call produced one.
-- `outputTokensPerSecond`: the run's `outputTokens` divided by the total
-  streaming time after each call's first content event; `null` when
-  `outputTokens` is `null` or that time is zero.
+- `outputTokensPerSecond`: the run's `outputTokens` divided by `providerSeconds`,
+  an effective rate that includes time spent before the first visible token
+  (e.g. reasoning); `null` when `outputTokens` is `null` or `providerSeconds`
+  is zero.
 
 `summarize` means each of these per fixture (over non-null values; `null`
 when none exist), and `formatSummary`/`formatComparison` print them in a
 second and third table alongside the existing one, showing `-` for a result
-file written before `metrics` existed. `--regrade` fills only `toolCalls`,
-`failedCalls`, `warnings` and `docsCalls`; the rest, including the speed
-fields, are left as stored, since they need the original provider run.
+file written before `metrics` existed. `reasoningTokens` appears only in
+`formatSummary`'s third table, not in `formatComparison`. `--regrade` fills
+only `toolCalls`, `failedCalls`, `warnings` and `docsCalls`; the rest,
+including the speed fields, are left as stored, since they need the original
+provider run.
 
 Each result file also carries a top-level `speed` object, summed/medianed
 over every run in the file: `{ wallSeconds, providerSeconds, toolSeconds,

@@ -94,11 +94,49 @@ describe('runSuite', () => {
     }
     const fixture = { name: 'x', prompt: 'p', requires: ['eval'], verifyBeforeWrite: false, maxTurns: 8, checks: () => [] }
     const [result] = await runSuite([fixture], { provider, backend, now })
-    // call 1: start 100, first content 200, end 300 -> providerSeconds 0.2, firstToken 0.1, postFirstToken 0.1
-    // call 2: start 400, first content (usage doesn't count) 500 (text), end 600 -> providerSeconds 0.2, firstToken 0.1, postFirstToken 0.1
+    // call 1: start 100, first content 200, end 300 -> providerSeconds 0.2, firstToken 0.1
+    // call 2: start 400, first content (usage doesn't count) 500 (text), end 600 -> providerSeconds 0.2, firstToken 0.1
+    // outputTokensPerSecond is outputTokens over total providerSeconds (0.4), not just streaming
+    // time after first content, so a call that reasons silently before its first token doesn't
+    // inflate the rate.
     expect(result.metrics.providerSeconds).toBeCloseTo(0.4)
     expect(result.metrics.firstTokenSeconds).toBeCloseTo(0.1)
-    expect(result.metrics.outputTokensPerSecond).toBeCloseTo(30 / 0.2)
+    expect(result.metrics.outputTokensPerSecond).toBeCloseTo(30 / 0.4)
+  })
+
+  it('reasoningTokens is null when the provider never reports it', async () => {
+    const backend = createEvalBackend()
+    const provider = {
+      async *send() {
+        yield { type: 'text', text: 'ok' }
+        yield { type: 'done', stopReason: 'end_turn' }
+      },
+    }
+    const fixture = { name: 'x', prompt: 'p', requires: ['eval'], verifyBeforeWrite: false, maxTurns: 8, checks: () => [] }
+    const [result] = await runSuite([fixture], { provider, backend })
+    expect(result.metrics.reasoningTokens).toBeNull()
+  })
+
+  it('sums reasoningTokens across rounds', async () => {
+    const backend = createEvalBackend()
+    let calls = 0
+    const provider = {
+      async *send() {
+        calls += 1
+        if (calls === 1) {
+          yield { type: 'usage', outputTokens: 20, reasoningTokens: 15 }
+          yield { type: 'tool_use', id: 't1', name: 'eval', input: { source: 'x' } }
+          yield { type: 'done', stopReason: 'tool_use' }
+        } else {
+          yield { type: 'usage', outputTokens: 5, reasoningTokens: 3 }
+          yield { type: 'text', text: 'done' }
+          yield { type: 'done', stopReason: 'end_turn' }
+        }
+      },
+    }
+    const fixture = { name: 'x', prompt: 'p', requires: ['eval'], verifyBeforeWrite: false, maxTurns: 8, checks: () => [] }
+    const [result] = await runSuite([fixture], { provider, backend })
+    expect(result.metrics.reasoningTokens).toBe(18)
   })
 
   it('nulls firstTokenSeconds and outputTokensPerSecond when there is no content or no tokens', async () => {

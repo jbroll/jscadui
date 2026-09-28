@@ -285,9 +285,9 @@ describe('stream parsers', () => {
       `data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"hi"}}\n\n` +
       `data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":7}}\n\n`
     expect(await collect(parseAnthropicStream(sseBody(body)))).toEqual([
-      { type: 'usage', inputTokens: 42, outputTokens: null },
+      { type: 'usage', inputTokens: 42, outputTokens: null, reasoningTokens: null },
       { type: 'text', text: 'hi' },
-      { type: 'usage', inputTokens: null, outputTokens: 7 },
+      { type: 'usage', inputTokens: null, outputTokens: 7, reasoningTokens: null },
       { type: 'done', stopReason: 'end_turn' },
     ])
   })
@@ -299,7 +299,19 @@ describe('stream parsers', () => {
       `data: [DONE]\n\n`
     expect(await collect(parseOpenAIStream(sseBody(body)))).toEqual([
       { type: 'text', text: 'hi' },
-      { type: 'usage', inputTokens: 10, outputTokens: 3 },
+      { type: 'usage', inputTokens: 10, outputTokens: 3, reasoningTokens: null },
+      { type: 'done', stopReason: 'stop' },
+    ])
+  })
+
+  it('openai: yields reasoningTokens from usage.completion_tokens_details', async () => {
+    const body =
+      `data: {"choices":[{"delta":{"content":"hi"}}]}\n\n` +
+      `data: {"choices":[{"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":23,"completion_tokens_details":{"reasoning_tokens":20}}}\n\n` +
+      `data: [DONE]\n\n`
+    expect(await collect(parseOpenAIStream(sseBody(body)))).toEqual([
+      { type: 'text', text: 'hi' },
+      { type: 'usage', inputTokens: 10, outputTokens: 23, reasoningTokens: 20 },
       { type: 'done', stopReason: 'stop' },
     ])
   })
@@ -324,7 +336,18 @@ describe('stream parsers', () => {
       `data: {"type":"response.completed","response":{"usage":{"input_tokens":5,"output_tokens":2}}}\n\n`
     expect(await collect(parseResponsesStream(sseBody(body)))).toEqual([
       { type: 'text', text: 'hi' },
-      { type: 'usage', inputTokens: 5, outputTokens: 2 },
+      { type: 'usage', inputTokens: 5, outputTokens: 2, reasoningTokens: null },
+      { type: 'done', stopReason: 'completed' },
+    ])
+  })
+
+  it('responses: yields reasoningTokens from usage.output_tokens_details', async () => {
+    const body =
+      `data: {"type":"response.output_text.delta","delta":"hi"}\n\n` +
+      `data: {"type":"response.completed","response":{"usage":{"input_tokens":5,"output_tokens":30,"output_tokens_details":{"reasoning_tokens":25}}}}\n\n`
+    expect(await collect(parseResponsesStream(sseBody(body)))).toEqual([
+      { type: 'text', text: 'hi' },
+      { type: 'usage', inputTokens: 5, outputTokens: 30, reasoningTokens: 25 },
       { type: 'done', stopReason: 'completed' },
     ])
   })
