@@ -204,7 +204,8 @@ export const _resize = affine(resizeMatrix, (newsize, geo) => {
 })
 
 // Multmatrix helper - applies a 4x4 transformation matrix
-export const _multmatrix = affine(flatMatrix, (m, geo) => {
+// A ghosts-only child still needs the matrix though the op returns early, so undef must not throw.
+export const _multmatrix = affine((m) => Array.isArray(m) ? flatMatrix(m) : IDENTITY, (m, geo) => {
   if (geo === NO_CHILD) return NO_CHILD
   const g = filterGeo(geo)
   if (g == null) return undefined

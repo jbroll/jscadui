@@ -176,6 +176,15 @@ describe('overlays through ops (manifold)', () => {
     expect(cut[0].previewOnly).toBe(true)
   })
 
+  it('a transform moves a ghosts-only child', () => {
+    const [ghost] = J.withOverlays(J.translate([0, 0, 20], J.background(cube())))
+    close(ghostBounds(ghost), [[0, 0, 20], [10, 10, 30]])
+  })
+
+  it('a transform of a ghosts-only child needs no matrix', () => {
+    expect(J.withOverlays(J.multmatrix(undefined, J.background(cube())))).toHaveLength(1)
+  })
+
   it('a background-only op result reads as empty', () => {
     const out = J.union(J.background(cube()))
     const cut = J.withOverlays(J.intersect(cube(), out))
