@@ -29,6 +29,11 @@ openscad-tests `issue1833.scad`: an empty intersection of two `#` cubes left
 `exportedGeometry` returning a one-element array that the caller unioned;
 it now returns a lone solid unwrapped.
 
+Re-run on `286b33f4` after the review fixes (a `%` subtree read through a
+transform or a one-statement module is empty, not absent; ghosts merged per
+kind), simple-ci job `4f6eb1bc2dae03a8`: all 21 suites pass, counts
+unchanged.
+
 ## Previous GPU run: 2026-09-27, geom2 booleans on clipper-lib
 
 Branch `work/brisk-otter-5ee7`, modeling fork pinned at `fork-main`
