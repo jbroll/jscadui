@@ -46,7 +46,7 @@ describe('runSuite runs and context', () => {
     const seen = []
     const provider = {
       async *send(messages) {
-        seen.push(messages)
+        seen.push([...messages])
         yield { type: 'text', text: 'ok' }
         yield { type: 'done', stopReason: 'end_turn' }
       },

@@ -32,7 +32,7 @@ const withTurnCap = (provider, maxTurns) => {
         yield { type: 'done', stopReason: 'end_turn' }
         return
       }
-      yield* provider.send([...messages], tools)
+      yield* provider.send(messages, tools)
     },
   }
 }
