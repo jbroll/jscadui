@@ -16,8 +16,8 @@ export const setGlobalFn = (fn) => { _globalFn = fn }
  * 3. Calculate from $fa/$fs
  */
 export const _getSegments = (radius, $fn = 0, $fa = 12, $fs = 2) => {
-  if ($fn > 0) return $fn
-  if (_globalFn > 0) return _globalFn
+  if ($fn > 0) return Math.max(Math.ceil($fn), 3)
+  if (_globalFn > 0) return Math.max(Math.ceil(_globalFn), 3)
   if (radius < 0.001) return 5
   const fromAngle = 360 / $fa
   const fromSize = (2 * Math.PI * radius) / $fs

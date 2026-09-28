@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 
 // Import the runtime directly for unit testing
 import j$ from '@jscadui/openscad-runtime'
-import { _cylinder, _sphere, _cube, _square, _circle, withoutDegeneratePolygons, initColor, _color, initPrimitives, _safeUnion, initTransforms, _mirror, _scale, _subtract, _intersect, str, createJ$Instance } from '@jscadui/openscad-runtime'
+import { _cylinder, _sphere, _cube, _square, _circle, withoutDegeneratePolygons, initColor, _color, initPrimitives, _safeUnion, initTransforms, _mirror, _scale, _getSegments, _subtract, _intersect, str, createJ$Instance } from '@jscadui/openscad-runtime'
 import { _fmtNum } from '../../openscad-runtime/src/math.js'
 
 /**
@@ -868,6 +868,23 @@ describe('mirror with a 2D normal', () => {
       expect(normal).toBeUndefined()
       expect(out).toBe(geo)
     }
+  })
+})
+
+// OpenSCAD 2026.09: circle($fn=2) and circle($fn=0.5) are triangles, $fn=4.2
+// draws 5 sides, and a negative $fn falls back to $fa/$fs.
+describe('segment count from $fn', () => {
+  it('rounds a fractional $fn up', () => {
+    expect(_getSegments(1, 4.2)).toBe(5)
+  })
+
+  it('uses at least three segments', () => {
+    expect(_getSegments(1, 2)).toBe(3)
+    expect(_getSegments(1, 0.5)).toBe(3)
+  })
+
+  it('ignores a negative $fn', () => {
+    expect(_getSegments(1, -2)).toBe(_getSegments(1, 0))
   })
 })
 

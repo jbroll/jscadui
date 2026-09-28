@@ -175,9 +175,6 @@ The app defaults to manifold; the other engine renders **1175/1420** (CI job
 runs manifold, so that sweep is the only thing covering this engine. Run one
 model with `display-check.js --engine jscad`.
 
-- **Circles with fewer than three segments throw.** `circle-tests.scad`,
-  `cylinder-tests.scad` and `rotate_extrude-tests.scad` fail with `segments
-  must be three or more`, where OpenSCAD clamps.
 - **One-offs.** `maze3d_mickey.scad` overflows the stack and is an accepted
   failure (see `RENDER-TESTING.md`). `packing_circles.scad` and
   `heart_chain.scad` sit on the 290s model budget and are marked flaky;

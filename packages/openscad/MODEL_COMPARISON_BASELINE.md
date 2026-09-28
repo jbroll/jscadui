@@ -15,7 +15,17 @@ and a third that can reach its `Asset_SCAD/` includes. Pointing CI at the
 
 Similarity threshold: **0.99** (Jaccard index on vertex-deduplicated STL meshes).
 
-## Latest GPU run: 2026-09-27, scale by zero or negative factors
+## Latest GPU run: 2026-09-27, $fn below three or fractional
+
+Branch `worktree-scale-circle-gaps` (uncommitted working tree), simple-ci job
+`fca32d030aaa8258` (`sci push jscadui/test`), OpenSCAD 2026.08.30.fp. All
+21 suites pass, counts unchanged from the run below.
+
+A positive `$fn` gives `max(ceil($fn), 3)` segments, as OpenSCAD draws
+`circle($fn=2)` as a triangle and `circle($fn=4.2)` with five sides. The
+modeling `circle` and `cylinder` threw on fewer than three.
+
+## Previous GPU run: 2026-09-27, scale by zero or negative factors
 
 Branch `worktree-scale-circle-gaps` (uncommitted working tree), simple-ci job
 `7245f8926a12408e` (`sci push jscadui/test`), OpenSCAD 2026.08.30.fp. All
