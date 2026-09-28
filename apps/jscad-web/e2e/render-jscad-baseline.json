@@ -1,13 +1,13 @@
 {
-  "_comment": "Render sweep on the jscad modeling engine (sci push jscadui/render-jscad), 320s hang guard, all 1420 models the manifold sweep covers (807 before 2026-09-27). 1175 render and 75 only echo. geom2 booleans run on clipper-lib (modeling ff759668), which fixed all 25 models whose extruded geom2 did not close. 195 of the 245 failures are also manifold failures; 50 are jscad-only: 22 scale() calls with a zero or negative factor (all of yapp-box, threads.scad, openscad-tests), 3 circles with fewer than three segments, and the empties and one-offs in docs/backlog.md. PCB.scad now renders; radials.scad now reaches its 3D unions and crashes the renderer instead of erroring early. packing_circles.scad and heart_chain.scad sit on the 290s model budget and are marked flaky.",
+  "_comment": "Render sweep on the jscad modeling engine (sci push jscadui/render-jscad), 320s hang guard, all 1420 models the manifold sweep covers. 1206 render and 76 only echo or draw text. scale() by a zero or negative factor and $fn below three now render, which fixed 17 yapp-box examples, threads.scad and 8 openscad-tests; the % and # ghosts fixed 4 more and radials.scad renders. issue1672.scad is empty and test-view-variables.scad draws only text, as in OpenSCAD. PCB.scad sits at the memory limit and crashes or renders from run to run, so it is marked flaky, as are packing_circles.scad and heart_chain.scad on the 290s model budget.",
   "tree": "main working tree, rsynced onto the CI base worktree by sci — no commit identifies the code that was measured",
   "modeling": "jbroll/OpenJSCAD.org fork-main ff759668",
-  "date": "2026-09-27",
-  "job": "c2e8a724e49b25ae",
+  "date": "2026-09-28",
+  "job": "49223beac13db19b",
   "engine": "jscad",
   "total": 1420,
-  "ok": 1175,
-  "failed": 245,
+  "ok": 1206,
+  "failed": 214,
   "byLib": {
     "openscad/01-basics": {
       "ok": 20,
@@ -30,8 +30,8 @@
       "fail": 3
     },
     "openscad/dotscad": {
-      "ok": 193,
-      "fail": 11
+      "ok": 194,
+      "fail": 10
     },
     "openscad/gears": {
       "ok": 18,
@@ -50,8 +50,8 @@
       "fail": 2
     },
     "openscad/nopscadlib": {
-      "ok": 145,
-      "fail": 2
+      "ok": 146,
+      "fail": 1
     },
     "openscad/obiscad": {
       "ok": 9,
@@ -62,8 +62,8 @@
       "fail": 0
     },
     "openscad/openscad-tests": {
-      "ok": 280,
-      "fail": 154
+      "ok": 291,
+      "fail": 143
     },
     "openscad/relativity": {
       "ok": 8,
@@ -86,12 +86,12 @@
       "fail": 0
     },
     "openscad/threads-scad": {
-      "ok": 0,
-      "fail": 1
+      "ok": 1,
+      "fail": 0
     },
     "openscad/yapp-box": {
-      "ok": 27,
-      "fail": 18
+      "ok": 44,
+      "fail": 1
     }
   },
   "failures": [
@@ -310,10 +310,6 @@
       "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at eval (http://localhost:5130/examples/openscad/dotscad/util/swap.scad:1:1) at Array.map (<anonymous>) at eval (http://localhost:5130/examples/openscad/dotscad/util/swap.scad:1:1) at Object.sw"
     },
     {
-      "rel": "openscad/dotscad/examples/rubber_duck_debugging.scad",
-      "status": "empty"
-    },
-    {
       "rel": "openscad/dotscad/examples/spiral/heart_chain.scad",
       "status": "error",
       "why": "Error: Error: model exceeded 290000 ms at frameWorkerTerminated (http://localhost:5130/main.js:551:13300) at d (http://localhost:5130/main.js:161:22203) at m (http://localhost:5130/main.js:161:22295) at o (http://localhost:5130/main.js:551:11852)",
@@ -340,18 +336,10 @@
       "status": "empty"
     },
     {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/annotation.scad",
-      "status": "empty"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/radials.scad",
+      "rel": "openscad/nopscadlib/NopSCADlib/tests/PCB.scad",
       "status": "crash",
-      "why": "Error: renderer crashed"
-    },
-    {
-      "rel": "openscad/openscad-tests/scad/2D/features/circle-tests.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: segments must be three or moreError: segments must be three or more at r4 (assets/bundle.jscad_modeling.js:13:31826) at o4 (assets/bundle.jscad_modeling.js:13:32627) at Ku (assets/bundle.openscad.js:149:14340) at Object.circle (assets/bundle.openscad.js:157:597) at vt.main ("
+      "why": "Error: renderer crashed",
+      "flaky": true
     },
     {
       "rel": "openscad/openscad-tests/scad/2D/features/fill2-tests.scad",
@@ -360,11 +348,6 @@
     {
       "rel": "openscad/openscad-tests/scad/2D/features/projection-tests.scad",
       "status": "empty"
-    },
-    {
-      "rel": "openscad/openscad-tests/scad/2D/features/scale2D-tests.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at vt.main (/examples/openscad/openscad-tests/scad/2D/features/scale2"
     },
     {
       "rel": "openscad/openscad-tests/scad/2D/features/text-empty-tests.scad",
@@ -447,18 +430,8 @@
       "status": "empty"
     },
     {
-      "rel": "openscad/openscad-tests/scad/3D/features/cylinder-tests.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: segments must be three or moreError: segments must be three or more at v4 (assets/bundle.jscad_modeling.js:13:34696) at q4 (assets/bundle.jscad_modeling.js:13:36219) at Vu (assets/bundle.openscad.js:149:13459) at Object.cylinder (assets/bundle.openscad.js:157:327) at vt.main"
-    },
-    {
       "rel": "openscad/openscad-tests/scad/3D/features/import-empty-tests.scad",
       "status": "empty"
-    },
-    {
-      "rel": "openscad/openscad-tests/scad/3D/features/mirror-tests.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20812) at eval (/examples/openscad/openscad-tests/scad/3D/features/mirror-te"
     },
     {
       "rel": "openscad/openscad-tests/scad/3D/features/nullspace-difference.scad",
@@ -474,25 +447,6 @@
       "why": "TypeError: jscadMain failed: Cannot read properties of null (reading 'edges')TypeError: Cannot read properties of null (reading 'edges') at Object.fS [as equals] (assets/bundle.jscad_modeling.js:13:51999) at E_ (assets/bundle.jscad_modeling.js:13:64613) at T_ (assets/bundle.jscad_modeling.js:13:6601"
     },
     {
-      "rel": "openscad/openscad-tests/scad/3D/features/rotate_extrude-tests.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: segments must be three or moreError: segments must be three or more at r4 (assets/bundle.jscad_modeling.js:13:31826) at o4 (assets/bundle.jscad_modeling.js:13:32627) at Ku (assets/bundle.openscad.js:149:14340) at Object.circle (assets/bundle.openscad.js:157:597) at eval (/ex"
-    },
-    {
-      "rel": "openscad/openscad-tests/scad/3D/features/scale-mirror2D-3D-tests.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at vt.main (/examples/openscad/openscad-tests/scad/3D/features/scale-"
-    },
-    {
-      "rel": "openscad/openscad-tests/scad/3D/features/scale3D-tests.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at vt.main (/examples/openscad/openscad-tests/scad/3D/features/scale3"
-    },
-    {
-      "rel": "openscad/openscad-tests/scad/3D/issues/issue1005.scad",
-      "status": "empty"
-    },
-    {
       "rel": "openscad/openscad-tests/scad/3D/issues/issue1215c.scad",
       "status": "empty"
     },
@@ -506,21 +460,11 @@
     },
     {
       "rel": "openscad/openscad-tests/scad/3D/issues/issue1672.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at vt.main (/examples/openscad/openscad-tests/scad/3D/issues/issue167"
+      "status": "empty"
     },
     {
       "rel": "openscad/openscad-tests/scad/3D/issues/issue1803.scad",
       "status": "empty"
-    },
-    {
-      "rel": "openscad/openscad-tests/scad/3D/issues/issue1833.scad",
-      "status": "empty"
-    },
-    {
-      "rel": "openscad/openscad-tests/scad/3D/issues/issue4522.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at vt.main (/examples/openscad/openscad-tests/scad/3D/issues/issue452"
     },
     {
       "rel": "openscad/openscad-tests/scad/3D/issues/issue517.scad",
@@ -672,22 +616,22 @@
     {
       "rel": "openscad/openscad-tests/scad/issues/issue1890-comment.scad",
       "status": "error",
-      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at sn (assets/bundle.openscad.js:149:577)"
+      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at dn (assets/bundle.openscad.js:149:577)"
     },
     {
       "rel": "openscad/openscad-tests/scad/issues/issue1890-include.scad",
       "status": "error",
-      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at sn (assets/bundle.openscad.js:149:577)"
+      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at dn (assets/bundle.openscad.js:149:577)"
     },
     {
       "rel": "openscad/openscad-tests/scad/issues/issue1890-string.scad",
       "status": "error",
-      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at sn (assets/bundle.openscad.js:149:577)"
+      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at dn (assets/bundle.openscad.js:149:577)"
     },
     {
       "rel": "openscad/openscad-tests/scad/issues/issue1890-use.scad",
       "status": "error",
-      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at sn (assets/bundle.openscad.js:149:577)"
+      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at dn (assets/bundle.openscad.js:149:577)"
     },
     {
       "rel": "openscad/openscad-tests/scad/issues/issue1923-module.scad",
@@ -701,7 +645,7 @@
     {
       "rel": "openscad/openscad-tests/scad/issues/issue4172-echo-vector-stack-exhaust.scad",
       "status": "error",
-      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at ks (assets/bundle.openscad.js:1:1) at Array.map (<anonymous>) at ks (assets/bundle.openscad.js:1:1) at Array.map (<anonymous>) at ks (assets/bundle.openscad.js:1:1) at Array.map (<anonymous>"
+      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at Array.map (<anonymous>) at $s (assets/bundle.openscad.js:1:1) at Array.map (<anonymous>) at $s (assets/bundle.openscad.js:1:1) at Array.map (<anonymous>) at $s (assets/bundle.openscad.js:1:1"
     },
     {
       "rel": "openscad/openscad-tests/scad/issues/issue6597.scad",
@@ -732,7 +676,7 @@
     {
       "rel": "openscad/openscad-tests/scad/misc/assert-fail3-test.scad",
       "status": "error",
-      "why": "Error: jscadMain failed: Assertion failed: Assertion failedError: Assertion failed: Assertion failed at Object.assert (assets/bundle.openscad.js:157:160) at eval (/examples/openscad/openscad-tests/scad/misc/assert-fail3-test.scad:12:16) at Object.withScope (assets/bundle.openscad.js:157:2687) at eva"
+      "why": "Error: jscadMain failed: Assertion failed: Assertion failedError: Assertion failed: Assertion failed at Object.assert (assets/bundle.openscad.js:157:160) at eval (/examples/openscad/openscad-tests/scad/misc/assert-fail3-test.scad:12:16) at Object.withScope (assets/bundle.openscad.js:157:2752) at eva"
     },
     {
       "rel": "openscad/openscad-tests/scad/misc/assert-fail4-test.scad",
@@ -747,7 +691,7 @@
     {
       "rel": "openscad/openscad-tests/scad/misc/builtin-invalid-range-test.scad",
       "status": "error",
-      "why": "Error: jscadMain failed: only unions of the same type are supportedError: only unions of the same type are supported at aL (assets/bundle.jscad_modeling.js:17:6499) at assets/bundle.openscad.js:149:12292 at Object.nl [as union] (assets/bundle.openscad.js:149:18619) at vt.main (/examples/openscad/ope"
+      "why": "Error: jscadMain failed: only unions of the same type are supportedError: only unions of the same type are supported at aL (assets/bundle.jscad_modeling.js:17:6499) at assets/bundle.openscad.js:149:12338 at Object.<anonymous> (assets/bundle.openscad.js:149:21370) at Object.union (assets/bundle.opens"
     },
     {
       "rel": "openscad/openscad-tests/scad/misc/children-warnings-tests.scad",
@@ -812,7 +756,7 @@
     {
       "rel": "openscad/openscad-tests/scad/misc/nbsp-latin1-test.scad",
       "status": "error",
-      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at sn (assets/bundle.openscad.js:149:577)"
+      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at dn (assets/bundle.openscad.js:149:577)"
     },
     {
       "rel": "openscad/openscad-tests/scad/misc/recursion-test-function.scad",
@@ -827,17 +771,17 @@
     {
       "rel": "openscad/openscad-tests/scad/misc/recursion-test-function3.scad",
       "status": "error",
-      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at Array.isArray (<anonymous>) at Es (assets/bundle.openscad.js:1:1) at Object.eq (assets/bundle.openscad.js:1:1) at add_up_to_$f (/examples/openscad/openscad-tests/scad/misc/recursion-test-fun"
+      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at Bs (assets/bundle.openscad.js:1:1) at Object.eq (assets/bundle.openscad.js:1:1) at add_up_to_$f (/examples/openscad/openscad-tests/scad/misc/recursion-test-function3.scad:1:1) at add_up_to_$"
     },
     {
       "rel": "openscad/openscad-tests/scad/misc/recursion-test-module.scad",
       "status": "error",
-      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at Object.withScope (assets/bundle.openscad.js:157:2704) at eval (/examples/openscad/openscad-tests/scad/misc/recursion-test-module.scad:5:13) at eval (/examples/openscad/openscad-tests/scad/mi"
+      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at Object.withScope (assets/bundle.openscad.js:157:2769) at eval (/examples/openscad/openscad-tests/scad/misc/recursion-test-module.scad:5:13) at eval (/examples/openscad/openscad-tests/scad/mi"
     },
     {
       "rel": "openscad/openscad-tests/scad/misc/recursion-test-vector.scad",
       "status": "error",
-      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at Object.withScope (assets/bundle.openscad.js:157:2704) at eval (/examples/openscad/openscad-tests/scad/misc/recursion-test-vector.scad:7:13) at eval (/examples/openscad/openscad-tests/scad/mi"
+      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at Object.withScope (assets/bundle.openscad.js:157:2769) at eval (/examples/openscad/openscad-tests/scad/misc/recursion-test-vector.scad:7:13) at eval (/examples/openscad/openscad-tests/scad/mi"
     },
     {
       "rel": "openscad/openscad-tests/scad/misc/sub1/included.scad",
@@ -877,19 +821,14 @@
       "status": "empty"
     },
     {
-      "rel": "openscad/openscad-tests/scad/misc/test-view-variables.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20812) at vt.main (/examples/openscad/openscad-tests/scad/misc/test-view-var"
-    },
-    {
       "rel": "openscad/openscad-tests/scad/misc/unicode-identifiers-fail.scad",
       "status": "error",
-      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at sn (assets/bundle.openscad.js:149:577)"
+      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at dn (assets/bundle.openscad.js:149:577)"
     },
     {
       "rel": "openscad/openscad-tests/scad/misc/unicode-identifiers.scad",
       "status": "error",
-      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at sn (assets/bundle.openscad.js:149:577)"
+      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at dn (assets/bundle.openscad.js:149:577)"
     },
     {
       "rel": "openscad/openscad-tests/scad/misc/use test6.scad",
@@ -1059,99 +998,9 @@
       "status": "empty"
     },
     {
-      "rel": "openscad/threads-scad/threads.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at eval (/examples/openscad/threads-scad/threads.scad:325:36) at Obje"
-    },
-    {
-      "rel": "openscad/yapp-box/examples/ESP32-CAM-USB_v30.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at eval (/examples/openscad/yapp-box/examples/ESP32-CAM-USB_v30.scad:"
-    },
-    {
-      "rel": "openscad/yapp-box/examples/ESP32-CAM-USB-FISH_v30.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at eval (/examples/openscad/yapp-box/examples/ESP32-CAM-USB-FISH_v30."
-    },
-    {
-      "rel": "openscad/yapp-box/examples/Multiple_PCB_v30.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at eval (/examples/openscad/yapp-box/examples/Multiple_PCB_v30.scad:1"
-    },
-    {
-      "rel": "openscad/yapp-box/examples/RidgeExtDemo_v30.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at eval (/examples/openscad/yapp-box/examples/RidgeExtDemo_v30.scad:1"
-    },
-    {
-      "rel": "openscad/yapp-box/examples/WaterHeaterMonitor_v3.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at eval (/examples/openscad/yapp-box/examples/WaterHeaterMonitor_v3.s"
-    },
-    {
-      "rel": "openscad/yapp-box/examples/YAPP_ArduinoClone_v30.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at eval (/examples/openscad/yapp-box/examples/YAPP_ArduinoClone_v30.s"
-    },
-    {
       "rel": "openscad/yapp-box/examples/YAPP_Connector_Demo.scad",
       "status": "error",
       "why": "Error: Error: OpenSCAD transpilation failed: Cannot resolve include file: C:\\SourceCode\\YAPP_Box/YAPPgenerator_v3.scad; Cannot resolve file: C:\\SourceCode\\YAPP_Box/YAPPgenerator_v3.scad [tried c:\\SourceCode\\YAPP_Box/YAPPgenerator_v3.scad â Failed to execute 'send' on 'XMLHttpRequest': Failed to load"
-    },
-    {
-      "rel": "openscad/yapp-box/examples/YAPP_Countersink Sample_v3.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at eval (/examples/openscad/yapp-box/examples/YAPP_Countersink%20Samp"
-    },
-    {
-      "rel": "openscad/yapp-box/examples/YAPP_cutouts_from_inside_v30.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at eval (/examples/openscad/yapp-box/examples/YAPP_cutouts_from_insid"
-    },
-    {
-      "rel": "openscad/yapp-box/examples/YAPP_Demo_buttons2_v30.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at Array.eval (/examples/openscad/yapp-box/examples/YAPP_Demo_buttons"
-    },
-    {
-      "rel": "openscad/yapp-box/examples/YAPP_Demo_buttons2_v31.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at Array.eval (/examples/openscad/yapp-box/examples/YAPP_Demo_buttons"
-    },
-    {
-      "rel": "openscad/yapp-box/examples/YAPP_Demo_cutouts_masks_v30.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at eval (/examples/openscad/yapp-box/examples/YAPP_Demo_cutouts_masks"
-    },
-    {
-      "rel": "openscad/yapp-box/examples/YAPP_Demo_lightTubes_v30.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at eval (/examples/openscad/yapp-box/examples/YAPP_Demo_lightTubes_v3"
-    },
-    {
-      "rel": "openscad/yapp-box/examples/YAPP_Demo_RealBox_v30.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at eval (/examples/openscad/yapp-box/examples/YAPP_Demo_RealBox_v30.s"
-    },
-    {
-      "rel": "openscad/yapp-box/examples/YAPP_Demo_RealBox_v31.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at eval (/examples/openscad/yapp-box/examples/YAPP_Demo_RealBox_v31.s"
-    },
-    {
-      "rel": "openscad/yapp-box/examples/YAPP_Reference_Shapes_v30.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at eval (/examples/openscad/yapp-box/examples/YAPP_Reference_Shapes_v"
-    },
-    {
-      "rel": "openscad/yapp-box/examples/YAPP_RidgeExtDemo_v30.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at eval (/examples/openscad/yapp-box/examples/YAPP_RidgeExtDemo_v30.s"
-    },
-    {
-      "rel": "openscad/yapp-box/examples/YAPP_RidgeExtDemo_v31.scad",
-      "status": "error",
-      "why": "Error: jscadMain failed: factors must be positiveError: factors must be positive at Dn (assets/bundle.jscad_modeling.js:17:31346) at assets/bundle.openscad.js:149:12292 at Object.pl [as scale] (assets/bundle.openscad.js:149:20877) at eval (/examples/openscad/yapp-box/examples/YAPP_RidgeExtDemo_v31.s"
     }
   ]
 }

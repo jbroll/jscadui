@@ -25,6 +25,10 @@ A positive `$fn` gives `max(ceil($fn), 3)` segments, as OpenSCAD draws
 `circle($fn=2)` as a triangle and `circle($fn=4.2)` with five sides. The
 modeling `circle` and `cylinder` threw on fewer than three.
 
+Both runtime changes were first verified on the pre-ghosts `main`. Rebased onto
+`main` at `1aa65f82` (`%` and `#` ghosts), simple-ci job `06592dabe19d8c96`:
+all 21 suites pass, counts unchanged.
+
 ## Previous GPU run: 2026-09-27, scale by zero or negative factors
 
 Branch `worktree-scale-circle-gaps` (uncommitted working tree), simple-ci job

@@ -168,10 +168,11 @@ reporting, not on this going green.
 
 ## The jscad engine
 
-The app defaults to manifold; the other engine renders **1175/1420** (CI job
-`c2e8a724e49b25ae`, `sci push jscadui/render-jscad`), plus 75 text-only, with
+The app defaults to manifold; the other engine renders **1206/1420** (CI job
+`49223beac13db19b`, `sci push jscadui/render-jscad`), plus 76 text-only, with
 `apps/jscad-web/e2e/render-jscad-baseline.json` holding the per-model state.
-195 of its 245 failures fail on manifold too. The STL comparison suite only
+191 of its 214 failures fail on manifold too; most of the other 23 are empty
+results from BOSL threaded nuts, MCAD bearings and snippet models. The STL comparison suite only
 runs manifold, so that sweep is the only thing covering this engine. Run one
 model with `display-check.js --engine jscad`.
 
@@ -179,7 +180,9 @@ model with `display-check.js --engine jscad`.
   failure (see `RENDER-TESTING.md`). `packing_circles.scad` and
   `heart_chain.scad` sit on the 290s model budget and are marked flaky;
   `heart_chain` spends 200s of its time in a 1,000-way 3D union.
-  `radials.scad` crashes the renderer in its 3D unions.
+  NopSCADlib `PCB.scad` sits at the memory limit: in Node its preview run
+  exhausts a 4 GB heap on some runs and finishes with 3M vertices on others,
+  and the browser sweep crashed on it, so it is marked flaky too.
 - **It is roughly 10x slower than manifold.** `nuts.scad` takes 37s against
   3.6s, and the profile is entirely BSP: splitByPlane 11.6s, GC 11.3s, clipTo
   7.3s, with nothing in our own code. The one avoidable part is upstream now

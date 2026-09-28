@@ -249,9 +249,11 @@ a level it needs about 850 KB against a worker's ~530 KB, so no transpiler
 change fits it. `docs/design/mutual-tail-calls-trial.md` has the measurements.
 
 Sweeping the other engine takes `--engine jscad`, which `sci push
-jscadui/render-jscad` does at CI scale: **1175 of 1420**, CI job
-`c2e8a724e49b25ae`, recorded in `e2e/render-jscad-baseline.json` with the
-modeling commit it measured. 195 of its 245 failures fail on manifold too; the
-jscad-only ones are grouped in `docs/backlog.md`. Moving the geom2 booleans
-off the 3D BSP onto clipper-lib fixed the 25 models whose extruded geom2 did
-not close.
+jscadui/render-jscad` does at CI scale: **1206 of 1420**, CI job
+`49223beac13db19b`, recorded in `e2e/render-jscad-baseline.json` with the
+modeling commit it measured. 191 of its 214 failures fail on manifold too; the
+jscad-only ones are grouped in `docs/backlog.md`. It was 1175 before
+`scale()` accepted zero and negative factors and `$fn` below three was
+clamped, which fixed yapp-box, `threads.scad` and 8 openscad-tests. Moving the
+geom2 booleans off the 3D BSP onto clipper-lib fixed the 25 models whose
+extruded geom2 did not close.
