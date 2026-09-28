@@ -142,6 +142,24 @@ module.exports = { main: () => jf.circle({ radius: 5 }).extrudeLinear({ hieght: 
     expect(JSON.parse(await backend.requestTool('eval', { source: CUBE }))).not.toHaveProperty('warnings')
   })
 
+  it('returns console output from the model run on eval and writeModel', async () => {
+    const backend = createEvalBackend()
+    const source = `console.log('hi', { a: 1 })\nmodule.exports = { main: () => [] }`
+    const evalRes = JSON.parse(await backend.requestTool('eval', { source }))
+    expect(evalRes.console).toEqual(['hi {"a":1}'])
+    const writeRes = JSON.parse(await backend.requestTool('writeModel', { source }))
+    expect(writeRes.console).toEqual(['hi {"a":1}'])
+  })
+
+  it('omits console when the run logs nothing, and restores the real console after a throw', async () => {
+    const originalLog = console.log
+    const res = await evalSource('throw new Error("boom")')
+    expect(res.ok).toBe(false)
+    expect(console.log).toBe(originalLog)
+    const clean = JSON.parse(await createEvalBackend().requestTool('eval', { source: CUBE }))
+    expect(clean).not.toHaveProperty('console')
+  })
+
   it('never mutates the modeling module object fluent and model-tools share', async () => {
     const modeling = createRequire(import.meta.url)('@jscad/modeling')
     const before = modeling.primitives.roundedCuboid

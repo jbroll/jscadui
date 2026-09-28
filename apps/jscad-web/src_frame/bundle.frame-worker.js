@@ -15,6 +15,7 @@ import {
   lastRunStreamed,
   postProgress,
   releaseSolids,
+  setRunConsole,
   setRunWarnings,
 } from '@jscadui/worker'
 import { readFileWeb, require, requireHandlers, jscadClearTempCache, clearFileCache, setUserModuleWrapper } from '@jscadui/require'
@@ -24,6 +25,7 @@ import { createScadHandler } from './scadHandler.js'
 import { sealMessageListeners } from './sealMessages.js'
 import { createWithSolids } from './withSolids.js'
 import { installOptionWarnings } from './optionWarnings.js'
+import { installRunConsole } from './consoleCapture.js'
 
 // The frame adds appOrigin to every jscadInit: this worker's own origin is
 // opaque, so include urls with no origin of their own have no other base.
@@ -134,6 +136,7 @@ const importData = {
 }
 
 installOptionWarnings({ setUserModuleWrapper, setRunWarnings })
+installRunConsole({ setRunConsole })
 
 initWorker({
   transform: transformcjs,

@@ -78,6 +78,16 @@ describe('agent evaluate', () => {
     expect(await evaluate('module.exports = { main: () => [] }')).toEqual({ entityCount: 1, warnings })
   })
 
+  it('passes the run console output on to the agent', async () => {
+    const consoleLines = ['hi {"a":1}']
+    const evaluate = createEvaluate({
+      jscadSetFiles: async () => {},
+      jscadScript: async () => ({ entities: [smallEntity()], console: consoleLines }),
+    }, () => {})
+
+    expect(await evaluate('module.exports = { main: () => [] }')).toEqual({ entityCount: 1, console: consoleLines })
+  })
+
   it('turns a frame rejection into a failure result', async () => {
     const error = Object.assign(new Error('boom'), { name: 'ModelError' })
     const evaluate = createEvaluate({

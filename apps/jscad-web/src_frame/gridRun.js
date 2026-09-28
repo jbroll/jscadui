@@ -1,3 +1,4 @@
+import { createConsoleCollector } from '@jscadui/agent-loop/src/consoleCapture.js'
 import { createWarningCollector } from '@jscadui/agent-loop/src/optionChecks.js'
 import { ABANDON_AFTER_MS } from './constants.js'
 import { mergeProxyStates } from './mergeProxyStates.js'
@@ -132,6 +133,12 @@ export const createGridRuns = ({ state, pool, slotOps, post, answerError }) => {
     return warnings.list()
   }
 
+  const mergedConsole = (answers) => {
+    const lines = createConsoleCollector()
+    for (const data of answers) for (const line of data.params?.console ?? []) lines.append(line)
+    return lines.list()
+  }
+
   const merged = (run) => {
     const answers = [...run.answers]
       .sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity) || Number(b.primary) - Number(a.primary))
@@ -147,13 +154,23 @@ export const createGridRuns = ({ state, pool, slotOps, post, answerError }) => {
     for (const { key, url, reason } of run.pendingLost) {
       if (!run.claimed.has(key)) lost.push({ url, reason })
     }
-    const { trapped: _trapped, warnings: _warnings, ...first } = done[0].params ?? {}
+    const { trapped: _trapped, warnings: _warnings, console: _console, ...first } = done[0].params ?? {}
     const params = mergeProxyStates(done.map((data) => data.params), run.method === 'jscadScript')
     const warnings = mergedWarnings(done)
+    const consoleLines = mergedConsole(done)
     return {
       method: RESPONSE,
       id: run.appId,
-      params: { ...first, ...params, ...(warnings.length ? { warnings } : {}), entities: [], streamed: true, runId: run.runId, lost },
+      params: {
+        ...first,
+        ...params,
+        ...(warnings.length ? { warnings } : {}),
+        ...(consoleLines.length ? { console: consoleLines } : {}),
+        entities: [],
+        streamed: true,
+        runId: run.runId,
+        lost,
+      },
     }
   }
 

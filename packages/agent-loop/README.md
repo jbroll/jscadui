@@ -128,6 +128,17 @@ The CDN stub hands model code a copy of `@jscad/modeling` and
 `api/optionTable.js`), so `eval` and `writeModel` results carry
 `warnings: [{ fn, option, suggestions }]` like the app's. Node's modeling
 module object is never changed: fluent and model-tools require the same one.
+
+`eval` and `writeModel` also capture the model run's `console.log/info/warn/error/debug`
+calls (`src/consoleCapture.js`) and return them as `console: [lines]` when
+non-empty, formatted like Node's `util.format` (objects via `JSON.stringify`,
+falling back to `String` on a circular one), capped at 50 lines and 4,000
+characters total with a trailing `… (N more lines)` note. The frame worker
+captures the same way for the app (`apps/jscad-web/src_frame/consoleCapture.js`),
+always forwarding to the real console too so the editor's own runs still log
+to devtools; a grid run concatenates every member's console lines in member
+order under the same cap.
+
 Fluent class methods that take options (`.extrudeLinear({...})`) are checked
 by wrapping them once on Node's fluent prototypes, since fluent exports no
 classes; that reaches fluent's own calls too, which is safe because fluent

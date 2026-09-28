@@ -112,6 +112,18 @@ export const setRunWarnings = (collector) => {
   runWarnings = collector
 }
 
+/** @type {{reset: () => void, list: () => string[]} | null} */
+let runConsole = null
+
+/**
+ * The collector model code's console calls report to; jscadScript clears it
+ * and jscadMain returns what it holds.
+ * @param {{reset: () => void, list: () => string[]} | null} collector
+ */
+export const setRunConsole = (collector) => {
+  runConsole = collector
+}
+
 // The plain jscad engine has no getModule, so it reports 0.
 const wasmHeap = () => {
   try {
@@ -393,6 +405,8 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
     if (globalThis.__allWasmTrap) result.trapped = true
     const warnings = runWarnings?.list() ?? []
     if (warnings.length) result.warnings = warnings
+    const consoleLines = runConsole?.list() ?? []
+    if (consoleLines.length) result.console = consoleLines
 
     // Include proxy state info in result
     if (proxyState) {
@@ -471,6 +485,7 @@ export const jscadScript = async ({ script, url='jscad.js', base=workerState.glo
 
     // Top-level model code runs during the require below.
     runWarnings?.reset()
+    runConsole?.reset()
 
     if(!script) script = readFileWeb(resolveUrl(url, base, root).url)
 

@@ -5,6 +5,7 @@ import { createParamsProxy, createProxyState, toParamDefinitions } from '@jscadu
 import { clearAllCaches, moduleResolver, require as jscadRequire } from '@jscadui/require/esm/index.js'
 import { transformcjs } from '@jscadui/transform-babel/esm/transform-babel.js'
 import { OPTION_TABLES } from '../api/optionTable.js'
+import { installConsoleCapture } from '../src/consoleCapture.js'
 import { docsTool } from '../src/docs.js'
 import { createWarningCollector, withOptionChecks, wrapFluentMethods } from '../src/optionChecks.js'
 
@@ -73,12 +74,17 @@ const runModel = async (source, entry) => {
   moduleResolver.clearCache()
   const url = PROJECT_BASE + entry
   const transform = shouldTransform(url, source) ? transformcjs : undefined
-  const exports = jscadRequire({ url, script: source }, transform, createReadFile({ [entry]: source }), PROJECT_BASE, PROJECT_BASE)
-  const main = exports.main ?? (typeof exports === 'function' ? exports : undefined)
-  if (typeof main !== 'function') throw new Error('model exports no main()')
-  const state = createProxyState({}, new Set(), { mode: 'hierarchical' })
-  const out = await main(createParamsProxy(state))
-  return { geometry: [out].flat(Infinity), params: toParamDefinitions(state.discovered), warnings: warnings.list() }
+  const capture = installConsoleCapture()
+  try {
+    const exports = jscadRequire({ url, script: source }, transform, createReadFile({ [entry]: source }), PROJECT_BASE, PROJECT_BASE)
+    const main = exports.main ?? (typeof exports === 'function' ? exports : undefined)
+    if (typeof main !== 'function') throw new Error('model exports no main()')
+    const state = createProxyState({}, new Set(), { mode: 'hierarchical' })
+    const out = await main(createParamsProxy(state))
+    return { geometry: [out].flat(Infinity), params: toParamDefinitions(state.discovered), warnings: warnings.list(), console: capture.list() }
+  } finally {
+    capture.restore()
+  }
 }
 
 const noGeometry = () => JSON.stringify({ ok: false, error: { name: 'NoGeometryError', message: 'no geometry: eval a model first' } })
@@ -87,6 +93,7 @@ export function createEvalBackend() {
   let geometry = null
   let params = []
   let lastWarnings = []
+  let lastConsole = []
   const project = new Map()
 
   const load = async (source, entry) => {
@@ -94,9 +101,15 @@ export function createEvalBackend() {
     geometry = loaded.geometry
     params = loaded.params
     lastWarnings = loaded.warnings
+    lastConsole = loaded.console
   }
 
-  const withWarnings = (result) => (lastWarnings.length ? { ...result, warnings: lastWarnings } : result)
+  const withWarnings = (result) => {
+    let out = result
+    if (lastWarnings.length) out = { ...out, warnings: lastWarnings }
+    if (lastConsole.length) out = { ...out, console: lastConsole }
+    return out
+  }
 
   const requestTool = async (name, input) => {
     try {
@@ -128,6 +141,7 @@ export function createEvalBackend() {
     geometry = null
     params = []
     lastWarnings = []
+    lastConsole = []
     project.clear()
   }
 

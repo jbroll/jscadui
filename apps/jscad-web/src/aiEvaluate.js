@@ -34,5 +34,8 @@ export const createEvaluate = (workerApi, handleEntities) => async (source, entr
   } catch (error) {
     return toError(error)
   }
-  return result.warnings?.length ? { entityCount: entities.length, warnings: result.warnings } : { entityCount: entities.length }
+  let out = { entityCount: entities.length }
+  if (result.warnings?.length) out = { ...out, warnings: result.warnings }
+  if (result.console?.length) out = { ...out, console: result.console }
+  return out
 }

@@ -717,8 +717,8 @@ Tools and where they run:
 
 | Tool | Runs |
 |---|---|
-| `eval`, `measure`, `check`, `export`, `params` | compute frame |
-| `writeModel` | editor buffer plus a version row |
+| `eval`, `measure`, `check`, `export`, `params` | compute frame (`eval` also returns `warnings` and `console`) |
+| `writeModel` | editor buffer plus a version row (also returns `warnings` and `console`) |
 | `docs` | page: `docsTool` over `@jscadui/agent-loop/api/index.json`, no frame round trip |
 
 `view` (page, from the live canvas) is not offered to the model: its PNG data
@@ -753,6 +753,15 @@ during the require, keeps each `fn`+`option` once, holds at most 20, and
 A grid run's answer merges every member's warnings the same way. The chat's
 `eval` result passes them on as `{ entityCount, warnings }`; the editor's own
 runs ignore them.
+
+Model code's `console.log/info/warn/error/debug` calls during that run are
+captured the same way (`src_frame/consoleCapture.js`, always forwarding to
+the real console too, so devtools still shows everything), reset before the
+require and read back on `jscadMain`'s result as `console`. A grid run's
+answer concatenates every member's console lines in member order (no
+dedupe), capped at 50 lines and 4,000 characters total with a trailing
+`… (N more lines)` note. The chat's `eval` result adds it to
+`{ entityCount, warnings, console }` when non-empty.
 
 Fluent class methods that take an options object (`.extrudeLinear({...})`,
 `.center`, `.mirror`, `.expand`, `.offset`, `.extrudeRotate`) are checked

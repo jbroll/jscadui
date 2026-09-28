@@ -1572,6 +1572,17 @@ describe('grid runs', () => {
     expect(posted.find((m) => m.id === 5).params.warnings).toEqual([radius, sise])
   })
 
+  it('concatenates the console output every member reported, in member order', () => {
+    const { workers, posted, send } = gridRun({ poolSize: 2 })
+    answerLastOf(workers[0], 'jscadMain')
+    send({ method: 'jscadScript', id: 5, params: [{ script: 'grid2', url: 'ALL.js', runId: 9 }] })
+    claimOn(workers[0], '0', { runId: 9 })
+    answerLastOf(workers[0], 'jscadScript', { def: [], params: {}, entities: [], streamed: true, runId: 9, console: ['a'] })
+    answerLastOf(workers[1], 'jscadScript', { def: [], params: {}, entities: [], console: ['b', 'c'] })
+
+    expect(posted.find((m) => m.id === 5).params.console).toEqual(['a', 'b', 'c'])
+  })
+
   it('merges pooled params in claim order rather than answer order', () => {
     const { workers, posted, send } = gridRun({ poolSize: 3 })
     answerLastOf(workers[0], 'jscadMain')
