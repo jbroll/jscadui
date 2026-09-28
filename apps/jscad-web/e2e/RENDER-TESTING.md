@@ -217,9 +217,13 @@ itself died.
 one does, the sweep listens for the page's `crash` event and scores it `crash`
 at once rather than wait out the 320s guard on a dead page.
 
-The current baseline is **1223 ok of 1420** on manifold, CI job
-`4fa53806f2e17742`, after the sweep grew to the openscad-tests, yapp-box and
-other suites (see `docs/backlog.md`, Render sweep). At 807 models it was 761
+The current baseline is **1227 ok of 1420** on manifold, CI job
+`ab8011b5cfc355fd`, up from 1223 as the `%`/`#` viewport ghosts fixed 4
+models: dotSCAD's `rubber_duck_debugging.scad`, NopSCADlib's
+`annotation.scad`, and openscad-tests' `issue1005.scad` and `issue1833.scad`.
+The 1223 mark (job `4fa53806f2e17742`) followed the sweep growing to the
+openscad-tests, yapp-box and other suites (see `docs/backlog.md`, Render
+sweep). At 807 models it was 761
 ok, CI job `b758af600414f82f`. That one grew by the 22 models that moved to `compare-skip.txt`,
 all of which render, and it counts 45 models as `empty` now that an empty
 result is no longer an `ok`: echo- and assert-only library doc examples

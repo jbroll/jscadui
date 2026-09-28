@@ -1,12 +1,12 @@
 {
-  "_comment": "1223/1420 on the manifold engine, which the app defaults to, with a 300s hang guard per file; 74 text-only models run clean and only echo. 197 failures recorded: 25 pre-existing (batch-dir lib 404s, maze3d_mickey recursion). The rest are suites the 09-23 baseline never swept: echo-only, 2D-only (dxf/svg/text) and assert/error negative tests; include/use wiring and helper modules with no top-level call; empty-by-construction (empty-union, nullspace, minkowski-erosion, error-model imports); % background and # highlight modifiers, which the viewport drops; $t animations, empty in a static sweep. Unfixable content: twisted-torus-ring (removed assign()), YAPP_Connector_Demo (Windows include path), missing peg.scad and ../../../ttf font files. assert-fail1-5 now correctly error (statement assert throws). render-all.mjs --baseline diffs a run against failures[]; text-only passes unrecorded. 2026-09-27: 20 BOSL2 doc examples that call a function as a statement or fail to parse moved from text to empty once including std.scad stopped echoing warnings (c845b6bf); mount-demo and cart14-tensioner now render.",
-  "tree": "claude/untrack-all-grids working tree at e18cc778 plus uncommitted CI/transpiler fixes, rsynced onto the CI base worktree by sci",
-  "date": "2026-09-27",
-  "job": "4fa53806f2e17742",
+  "_comment": "1227/1420 on the manifold engine, which the app defaults to, with a 300s hang guard per file; 74 text-only models run clean and only echo. 193 failures recorded: 25 pre-existing (batch-dir lib 404s, maze3d_mickey recursion). The rest are suites the 09-23 baseline never swept: echo-only, 2D-only (dxf/svg/text) and assert/error negative tests; include/use wiring and helper modules with no top-level call; empty-by-construction (empty-union, nullspace, minkowski-erosion, error-model imports); % background and # highlight modifiers, which the viewport drops; $t animations, empty in a static sweep. Unfixable content: twisted-torus-ring (removed assign()), YAPP_Connector_Demo (Windows include path), missing peg.scad and ../../../ttf font files. assert-fail1-5 now correctly error (statement assert throws). render-all.mjs --baseline diffs a run against failures[]; text-only passes unrecorded. 2026-09-28: 4 models fixed by the `%`/`#` viewport ghosts (dotSCAD rubber_duck_debugging, NopSCADlib annotation, openscad-tests issue1005 and issue1833). 2026-09-27: 20 BOSL2 doc examples that call a function as a statement or fail to parse moved from text to empty once including std.scad stopped echoing warnings (c845b6bf); mount-demo and cart14-tensioner now render.",
+  "tree": "work/next-20260927b working tree, rsynced onto the CI base worktree by sci",
+  "date": "2026-09-28",
+  "job": "ab8011b5cfc355fd",
   "engine": "default",
   "total": 1420,
-  "ok": 1223,
-  "failed": 197,
+  "ok": 1227,
+  "failed": 193,
   "byLib": {
     "openscad/01-basics": {
       "ok": 20,
@@ -29,8 +29,8 @@
       "fail": 3
     },
     "openscad/dotscad": {
-      "ok": 194,
-      "fail": 10
+      "ok": 195,
+      "fail": 9
     },
     "openscad/gears": {
       "ok": 18,
@@ -49,8 +49,8 @@
       "fail": 0
     },
     "openscad/nopscadlib": {
-      "ok": 146,
-      "fail": 1
+      "ok": 147,
+      "fail": 0
     },
     "openscad/obiscad": {
       "ok": 9,
@@ -61,8 +61,8 @@
       "fail": 0
     },
     "openscad/openscad-tests": {
-      "ok": 293,
-      "fail": 141
+      "ok": 295,
+      "fail": 139
     },
     "openscad/relativity": {
       "ok": 8,
@@ -272,10 +272,6 @@
       "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at eval (http://localhost:5120/examples/openscad/dotscad/util/swap.scad:1:1) at Array.map (<anonymous>) at eval (http://localhost:5120/examples/openscad/dotscad/util/swap.scad:1:1) at Object.sw"
     },
     {
-      "rel": "openscad/dotscad/examples/rubber_duck_debugging.scad",
-      "status": "empty"
-    },
-    {
       "rel": "openscad/dotscad/examples/tiles/city_tile.scad",
       "status": "empty"
     },
@@ -285,10 +281,6 @@
     },
     {
       "rel": "openscad/list-comprehension-demos/twisted-torus-ring.scad",
-      "status": "empty"
-    },
-    {
-      "rel": "openscad/nopscadlib/NopSCADlib/tests/annotation.scad",
       "status": "empty"
     },
     {
@@ -396,19 +388,11 @@
       "status": "empty"
     },
     {
-      "rel": "openscad/openscad-tests/scad/3D/issues/issue1005.scad",
-      "status": "empty"
-    },
-    {
       "rel": "openscad/openscad-tests/scad/3D/issues/issue1246.scad",
       "status": "empty"
     },
     {
       "rel": "openscad/openscad-tests/scad/3D/issues/issue1325.scad",
-      "status": "empty"
-    },
-    {
-      "rel": "openscad/openscad-tests/scad/3D/issues/issue1833.scad",
       "status": "empty"
     },
     {
@@ -561,22 +545,22 @@
     {
       "rel": "openscad/openscad-tests/scad/issues/issue1890-comment.scad",
       "status": "error",
-      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at sn (assets/bundle.openscad.js:149:577)"
+      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at pn (assets/bundle.openscad.js:149:577)"
     },
     {
       "rel": "openscad/openscad-tests/scad/issues/issue1890-include.scad",
       "status": "error",
-      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at sn (assets/bundle.openscad.js:149:577)"
+      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at pn (assets/bundle.openscad.js:149:577)"
     },
     {
       "rel": "openscad/openscad-tests/scad/issues/issue1890-string.scad",
       "status": "error",
-      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at sn (assets/bundle.openscad.js:149:577)"
+      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at pn (assets/bundle.openscad.js:149:577)"
     },
     {
       "rel": "openscad/openscad-tests/scad/issues/issue1890-use.scad",
       "status": "error",
-      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at sn (assets/bundle.openscad.js:149:577)"
+      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at pn (assets/bundle.openscad.js:149:577)"
     },
     {
       "rel": "openscad/openscad-tests/scad/issues/issue1923-module.scad",
@@ -590,7 +574,7 @@
     {
       "rel": "openscad/openscad-tests/scad/issues/issue4172-echo-vector-stack-exhaust.scad",
       "status": "error",
-      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at Array.isArray (<anonymous>) at ks (assets/bundle.openscad.js:1:1) at Array.map (<anonymous>) at ks (assets/bundle.openscad.js:1:1) at Array.map (<anonymous>) at ks (assets/bundle.openscad.js"
+      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at Array.isArray (<anonymous>) at Is (assets/bundle.openscad.js:1:1) at Array.map (<anonymous>) at Is (assets/bundle.openscad.js:1:1) at Array.map (<anonymous>) at Is (assets/bundle.openscad.js"
     },
     {
       "rel": "openscad/openscad-tests/scad/issues/issue6597.scad",
@@ -621,7 +605,7 @@
     {
       "rel": "openscad/openscad-tests/scad/misc/assert-fail3-test.scad",
       "status": "error",
-      "why": "Error: jscadMain failed: Assertion failed: Assertion failedError: Assertion failed: Assertion failed at Object.assert (assets/bundle.openscad.js:157:160) at eval (/examples/openscad/openscad-tests/scad/misc/assert-fail3-test.scad:12:16) at Object.withScope (assets/bundle.openscad.js:157:2687) at eva"
+      "why": "Error: jscadMain failed: Assertion failed: Assertion failedError: Assertion failed: Assertion failed at Object.assert (assets/bundle.openscad.js:157:160) at eval (/examples/openscad/openscad-tests/scad/misc/assert-fail3-test.scad:12:16) at Object.withScope (assets/bundle.openscad.js:157:2752) at eva"
     },
     {
       "rel": "openscad/openscad-tests/scad/misc/assert-fail4-test.scad",
@@ -696,7 +680,7 @@
     {
       "rel": "openscad/openscad-tests/scad/misc/nbsp-latin1-test.scad",
       "status": "error",
-      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at sn (assets/bundle.openscad.js:149:577)"
+      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at pn (assets/bundle.openscad.js:149:577)"
     },
     {
       "rel": "openscad/openscad-tests/scad/misc/recursion-test-function.scad",
@@ -711,22 +695,22 @@
     {
       "rel": "openscad/openscad-tests/scad/misc/recursion-test-function3.scad",
       "status": "error",
-      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at Array.isArray (<anonymous>) at Es (assets/bundle.openscad.js:1:1) at Object.eq (assets/bundle.openscad.js:1:1) at add_up_to_$f (/examples/openscad/openscad-tests/scad/misc/recursion-test-fun"
+      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at $s (assets/bundle.openscad.js:1:1) at Object.eq (assets/bundle.openscad.js:1:1) at add_up_to_$f (/examples/openscad/openscad-tests/scad/misc/recursion-test-function3.scad:1:1) at add_up_to_$"
     },
     {
       "rel": "openscad/openscad-tests/scad/misc/recursion-test-module.scad",
       "status": "error",
-      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at Object.withScope (assets/bundle.openscad.js:157:2704) at eval (/examples/openscad/openscad-tests/scad/misc/recursion-test-module.scad:5:13) at eval (/examples/openscad/openscad-tests/scad/mi"
+      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at Object.withScope (assets/bundle.openscad.js:157:2769) at eval (/examples/openscad/openscad-tests/scad/misc/recursion-test-module.scad:5:13) at eval (/examples/openscad/openscad-tests/scad/mi"
     },
     {
       "rel": "openscad/openscad-tests/scad/misc/recursion-test-vector.scad",
       "status": "error",
-      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at Object.withScope (assets/bundle.openscad.js:157:2704) at eval (/examples/openscad/openscad-tests/scad/misc/recursion-test-vector.scad:7:13) at eval (/examples/openscad/openscad-tests/scad/mi"
+      "why": "RangeError: jscadMain failed: Maximum call stack size exceededRangeError: Maximum call stack size exceeded at Object.withScope (assets/bundle.openscad.js:157:2769) at eval (/examples/openscad/openscad-tests/scad/misc/recursion-test-vector.scad:7:13) at eval (/examples/openscad/openscad-tests/scad/mi"
     },
     {
       "rel": "openscad/openscad-tests/scad/misc/sub1/included.scad",
       "status": "error",
-      "why": "Error: Error: OpenSCAD transpilation failed: Cannot resolve include file: not_exist.scad; Cannot resolve file: not_exist.scad [tried http://localhost:5120/examples/openscad/openscad-tests/scad/misc/sub1/not_exist.scad â file not found http://localhost:5120/examples/openscad/openscad-tests/scad/misc/"
+      "why": "Error: Error: OpenSCAD transpilation failed: Cannot resolve include file: not_exist.scad; Cannot resolve file: not_exist.scad [tried http://localhost:5120/examples/openscad/openscad-tests/scad/misc/sub1/not_exist.scad — file not found http://localhost:5120/examples/openscad/openscad-tests/scad/misc/"
     },
     {
       "rel": "openscad/openscad-tests/scad/misc/sub1/sub2/sub3/include-test4.scad",
@@ -763,12 +747,12 @@
     {
       "rel": "openscad/openscad-tests/scad/misc/unicode-identifiers-fail.scad",
       "status": "error",
-      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at sn (assets/bundle.openscad.js:149:577)"
+      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at pn (assets/bundle.openscad.js:149:577)"
     },
     {
       "rel": "openscad/openscad-tests/scad/misc/unicode-identifiers.scad",
       "status": "error",
-      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at sn (assets/bundle.openscad.js:149:577)"
+      "why": "TypeError: TypeError: Cannot read properties of null (reading 'statements') at pn (assets/bundle.openscad.js:149:577)"
     },
     {
       "rel": "openscad/openscad-tests/scad/misc/use test6.scad",
@@ -906,12 +890,12 @@
     {
       "rel": "openscad/relativity/peg.test.dogfood.scad",
       "status": "error",
-      "why": "Error: Error: OpenSCAD transpilation failed: Cannot resolve include file: peg.scad; Cannot resolve file: peg.scad [tried http://localhost:5120/examples/openscad/relativity/peg.scad â file not found http://localhost:5120/examples/openscad/relativity/peg.scad]"
+      "why": "Error: Error: OpenSCAD transpilation failed: Cannot resolve include file: peg.scad; Cannot resolve file: peg.scad [tried http://localhost:5120/examples/openscad/relativity/peg.scad — file not found http://localhost:5120/examples/openscad/relativity/peg.scad]"
     },
     {
       "rel": "openscad/relativity/peg.test.scad",
       "status": "error",
-      "why": "Error: Error: OpenSCAD transpilation failed: Cannot resolve include file: peg.scad; Cannot resolve file: peg.scad [tried http://localhost:5120/examples/openscad/relativity/peg.scad â file not found http://localhost:5120/examples/openscad/relativity/peg.scad]"
+      "why": "Error: Error: OpenSCAD transpilation failed: Cannot resolve include file: peg.scad; Cannot resolve file: peg.scad [tried http://localhost:5120/examples/openscad/relativity/peg.scad — file not found http://localhost:5120/examples/openscad/relativity/peg.scad]"
     },
     {
       "rel": "openscad/snippet/01-basic/Spawing_Cube.scad",
@@ -924,7 +908,7 @@
     {
       "rel": "openscad/yapp-box/examples/YAPP_Connector_Demo.scad",
       "status": "error",
-      "why": "Error: Error: OpenSCAD transpilation failed: Cannot resolve include file: C:\\SourceCode\\YAPP_Box/YAPPgenerator_v3.scad; Cannot resolve file: C:\\SourceCode\\YAPP_Box/YAPPgenerator_v3.scad [tried c:\\SourceCode\\YAPP_Box/YAPPgenerator_v3.scad â Failed to execute 'send' on 'XMLHttpRequest': Failed to load"
+      "why": "Error: Error: OpenSCAD transpilation failed: Cannot resolve include file: C:\\SourceCode\\YAPP_Box/YAPPgenerator_v3.scad; Cannot resolve file: C:\\SourceCode\\YAPP_Box/YAPPgenerator_v3.scad [tried c:\\SourceCode\\YAPP_Box/YAPPgenerator_v3.scad — Failed to execute 'send' on 'XMLHttpRequest': Failed to load"
     }
   ]
 }

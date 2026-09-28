@@ -51,15 +51,18 @@ deploy order and headers.
 
 ## Render sweep
 
-Baseline 1223/1420 on manifold (CI job `4fa53806f2e17742`), plus 74
-text-only models that run clean and only echo. The 197 recorded failures are
+Baseline 1227/1420 on manifold (CI job `ab8011b5cfc355fd`), plus 74
+text-only models that run clean and only echo. The 193 recorded failures are
 the 25 pre-existing ones plus suites the 09-23 baseline never swept:
 echo-only, 2D-only and assert/error negative tests, include/use wiring and
 helper modules, empty-by-construction models, `$t` animations, and unfixable
 content (removed `assign()`, a Windows include path, missing upstream files).
 20 BOSL2 doc examples that call a function as a statement, or do not parse,
 went from text-only to empty once `std.scad` stopped echoing include warnings.
-The sweep exits nonzero only on a regression against `render-baseline.json`.
+The step from 1223 is 4 models the `%`/`#` viewport ghosts fixed (dotSCAD
+rubber_duck_debugging, NopSCADlib annotation, openscad-tests issue1005 and
+issue1833). The sweep exits nonzero only on a regression against
+`render-baseline.json`.
 See `apps/jscad-web/e2e/RENDER-TESTING.md`.
 
 - **Four examples are skipped as broken at their source** — see the
