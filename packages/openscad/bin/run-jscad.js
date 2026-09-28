@@ -632,10 +632,13 @@ export async function initScadRuntime({ engine = 'manifold' } = {}) {
 }
 
 // % and # ghosts are viewport-only; OpenSCAD leaves them out of every export.
+// Dropping ghosts must reproduce exactly what main() returned before ghosts
+// existed, so a lone remaining solid comes back unwrapped, not as [solid].
 export const exportedGeometry = (result) => {
   if (!Array.isArray(result)) return result
   const solids = result.flat(Infinity).filter(g => g && !g.previewOnly)
-  return solids.length === 0 ? null : solids
+  if (solids.length === 0) return null
+  return solids.length === 1 ? solids[0] : solids
 }
 
 /**
