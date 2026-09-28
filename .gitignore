@@ -185,6 +185,8 @@ __snapshots__
 
 # Local deployment config (use deploy.conf.example as template)
 deploy.conf
+!apps/jscad-web/deploy.conf
+!apps/jscad-web/server/deploy.conf
 .playwright-mcp/
 
 # Root-level debug screenshots and temporary files
