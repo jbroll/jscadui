@@ -210,24 +210,15 @@ Async module loading is the breaking one; the rest are extractions.
 
 ## Remaining issues
 
-- **`extrudeLinear`/`extrudeRotate`/`offset` on a `FluentGeom2` crash under
-  the default manifold engine.** Symptom: `TypeError: Cannot read properties
-  of null (reading 'extrude')`; `packages/agent-loop/prompt/examples/05-fluent-hex-nut.js`,
-  the chat prompt's own example, hits it. Cause: the pinned
-  `"@jbroll/jscad-fluent": "0.6.1"` (`apps/jscad-web/package.json:30`) copies
-  geometry with `Object.assign(this, r ?? l.create())`, which skips
-  `ManifoldGeom2`/`ManifoldGeom3`'s prototype getters (`isManifoldGeom2`,
-  `crossSection`, ...), so they read `undefined` on the `FluentGeom2` wrapper
-  and `@jscadui/manifold`'s extrusion code hits null. Already fixed upstream,
-  unreleased: jscad-fluent commit 273579c ("fix: keep manifold geometry
-  getters when wrapping geometry", `/home/john/src/jscad-fluent`) replaces the
-  `Object.assign` copy with forwarding getters; verified against
-  `/home/john/src/jscad-fluent/dist/jscad-fluent.umd.cjs`, which extrudes
-  fine. jscad-fluent's own backlog plans this for its 0.7.0 release. Fix:
-  publish jscad-fluent 0.7.0 with 273579c, bump the pin in
-  `apps/jscad-web/package.json`, then restore the `extrudeLinear` variant of
-  `apps/jscad-web/e2e/frame.spec.js`'s fluent-method warning test on the
-  manifold engine (it currently uses `.center` there to avoid the crash).
+- **jscad-fluent 0.7.0 not yet published.** `extrudeLinear`/`extrudeRotate`/`offset`
+  on a `FluentGeom2` used to crash under the manifold engine (`Object.assign`
+  copying dropped `ManifoldGeom2`/`ManifoldGeom3`'s prototype getters). Fixed
+  by pinning jscad-fluent commit 273579c through `scripts/deps/sources.json`
+  (`.deps-cache/jscad-fluent`, built by `fetch-sources.js`) instead of the npm
+  0.6.1 release. Remaining work: publish jscad-fluent 0.7.0 with 273579c to
+  npm, then point `apps/jscad-web/package.json` and
+  `packages/agent-loop/package.json` back at the npm version and remove the
+  `sources.json` entry.
 - **Editor lint, autocomplete and hover from the API index (jscad-web,
   agent-loop).** Next spec after the docs tool. CodeMirror 6 plugins on the
   Lezer tree `lang-javascript` already builds (no TypeScript, too heavy):

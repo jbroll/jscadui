@@ -347,21 +347,6 @@ const FLUENT_MISSPELLED_EXTRUDE = project(
   `module.exports = { main }\n`,
 )
 
-// jscad-fluent 0.6.1 drops manifold's prototype getters when copying geometry,
-// crashing extrudeLinear on the manifold engine (docs/backlog.md), so these
-// two use center there instead.
-const FLUENT_CLEAN_CENTER = project(
-  `const jf = require('@jbroll/jscad-fluent')\n` +
-  `const main = () => jf.circle({ radius: 5 }).center({ axes: [true, true, false] }).translate([1, 2, 3])\n` +
-  `module.exports = { main }\n`,
-)
-
-const FLUENT_MISSPELLED_CENTER = project(
-  `const jf = require('@jbroll/jscad-fluent')\n` +
-  `const main = () => jf.circle({ radius: 5 }).center({ axess: [true, true, false] })\n` +
-  `module.exports = { main }\n`,
-)
-
 for (const engine of ['jscad', 'manifold']) {
   test(`a misspelled option comes back as a warning on the ${engine} engine`, async ({ page }) => {
     await gotoHost(page)
@@ -370,22 +355,18 @@ for (const engine of ['jscad', 'manifold']) {
     expect(res.result.warnings).toEqual([{ fn: 'primitives.roundedCuboid', option: 'radius', suggestions: ['roundRadius'] }])
   })
 
-  const fluentClean = engine === 'manifold' ? FLUENT_CLEAN_CENTER : FLUENT_CLEAN_EXTRUDE
   test(`fluent's own modeling calls raise no warning on the ${engine} engine`, async ({ page }) => {
     await gotoHost(page)
-    const res = await load(page, fluentClean, { engine, timeoutMs: 60000 })
+    const res = await load(page, FLUENT_CLEAN_EXTRUDE, { engine, timeoutMs: 60000 })
     expect(res.ok).toBe(true)
     expect(res.result.warnings).toBeUndefined()
   })
 
-  const fluentMisspelled = engine === 'manifold'
-    ? { project: FLUENT_MISSPELLED_CENTER, warning: { fn: 'FluentGeom2.center', option: 'axess', suggestions: ['axes'] } }
-    : { project: FLUENT_MISSPELLED_EXTRUDE, warning: { fn: 'FluentGeom2.extrudeLinear', option: 'hieght', suggestions: ['height'] } }
   test(`a misspelled fluent method option comes back as a warning on the ${engine} engine`, async ({ page }) => {
     await gotoHost(page)
-    const res = await load(page, fluentMisspelled.project, { engine, timeoutMs: 60000 })
+    const res = await load(page, FLUENT_MISSPELLED_EXTRUDE, { engine, timeoutMs: 60000 })
     expect(res.ok).toBe(true)
-    expect(res.result.warnings).toEqual([fluentMisspelled.warning])
+    expect(res.result.warnings).toEqual([{ fn: 'FluentGeom2.extrudeLinear', option: 'hieght', suggestions: ['height'] }])
   })
 }
 
