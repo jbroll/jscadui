@@ -335,15 +335,19 @@ const MISSPELLED = project(
   `module.exports = { main }\n`,
 )
 
+// center/mirror/expand work on both engines; extrudeLinear and offset do not
+// resolve a manifold-backed FluentGeom2's cross-section correctly under the
+// manifold engine today (a jscad-fluent/@jscadui/manifold compatibility gap,
+// unrelated to option warnings — see docs/backlog.md).
 const FLUENT_CLEAN = project(
   `const jf = require('@jbroll/jscad-fluent')\n` +
-  `const main = () => jf.circle({ radius: 5 }).extrudeLinear({ height: 10 }).translate([1, 2, 3])\n` +
+  `const main = () => jf.circle({ radius: 5 }).center({ axes: [true, true, false] }).translate([1, 2, 3])\n` +
   `module.exports = { main }\n`,
 )
 
 const FLUENT_MISSPELLED_METHOD = project(
   `const jf = require('@jbroll/jscad-fluent')\n` +
-  `const main = () => jf.circle({ radius: 5 }).extrudeLinear({ hieght: 10 })\n` +
+  `const main = () => jf.circle({ radius: 5 }).center({ axess: [true, true, false] })\n` +
   `module.exports = { main }\n`,
 )
 
@@ -366,7 +370,7 @@ for (const engine of ['jscad', 'manifold']) {
     await gotoHost(page)
     const res = await load(page, FLUENT_MISSPELLED_METHOD, { engine, timeoutMs: 60000 })
     expect(res.ok).toBe(true)
-    expect(res.result.warnings).toEqual([{ fn: 'FluentGeom2.extrudeLinear', option: 'hieght', suggestions: ['height'] }])
+    expect(res.result.warnings).toEqual([{ fn: 'FluentGeom2.center', option: 'axess', suggestions: ['axes'] }])
   })
 }
 

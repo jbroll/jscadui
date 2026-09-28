@@ -253,3 +253,18 @@ Async module loading is the breaking one; the rest are extractions.
 - **Params memory follow-up.** Child-proxy eviction recreates the child with
   fresh per-proxy defaults; only matters if 500 distinct properties are
   probed on one proxy between a set and a read of the same child.
+- **jscad-fluent + manifold engine: `extrudeLinear`/`extrudeRotate`/`offset`
+  crash on a `FluentGeom2`.** `copyGeometry` (jscad-fluent) forwards a
+  `ManifoldGeom2` source's accessor getters (`isManifoldGeom2`, `crossSection`,
+  `sides`) onto the `FluentGeom2` instance, but the forwarded
+  `isManifoldGeom2` reads back `undefined` rather than `true`, so
+  `@jscadui/manifold`'s extrusion/expansion code takes the JSCAD-conversion
+  branch instead of the native one, and that conversion fails on a
+  `FluentGeom2` (`geom2ToCrossSection: toOutlines failed`), leaving `section`
+  null. Reproduced outside the frame with a Node script loading the built
+  fluent bundle against `@jscadui/manifold` directly (no option-warnings code
+  involved). `center`, `mirror`, `translate` and `expand` are unaffected.
+  `apps/jscad-web/e2e/frame.spec.js`'s fluent-method warning tests use
+  `center` instead of `extrudeLinear` for this reason.
+  (`/home/john/src/jscad-fluent/src/copyGeometry.ts`,
+  `packages/manifold/src/extrusions/index.js`)
