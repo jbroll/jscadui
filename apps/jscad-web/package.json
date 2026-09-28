@@ -27,7 +27,7 @@
     "@jscad/csg": "0.7.0",
     "@jscad/io": "2.4.7",
     "@jscad/modeling": "file:../../.deps-cache/OpenJSCAD.org/packages/modeling",
-    "@jbroll/jscad-fluent": "0.6.1",
+    "@jbroll/jscad-fluent": "file:../../.deps-cache/jscad-fluent",
     "@jscadui/agent-loop": "*",
     "@jscadui/format-common": "*",
     "@jscadui/format-jscad": "*",

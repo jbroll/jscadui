@@ -19,6 +19,7 @@ OpenSCAD, and the full suite is verified on the GPU host.
 |------------|---------|--------|-----|
 | `openscad-parser` | `packages/openscad` | npm git dependency on `jbroll/openscad-parser` | commit in `packages/openscad/package.json`; `npm install` clones and builds it |
 | `@jscad/modeling`, `@jscad/modeling-for-manifold` | most packages and apps | `file:` into `.deps-cache/OpenJSCAD.org/packages/modeling` (the `@jbroll/jscad-modeling` fork, branch `fork-main`) | `scripts/deps/sources.json`, checked out by `scripts/fetch-sources.js` |
+| `@jbroll/jscad-fluent` | `apps/jscad-web`, `packages/agent-loop` | `file:` into `.deps-cache/jscad-fluent` (branch `local-packages`, ahead of the 0.6.1 npm release with the manifold-getter fix) | `scripts/deps/sources.json`; `fetch-sources.js` also runs its `build` list (`npm install`, `npm run build`) since it doesn't commit `dist/` |
 | OpenSCAD corpora (BOSL, dotSCAD, NopSCADlib, MCAD, …) | comparison suites | `scripts/fetch-deps.js` copies them into `apps/jscad-web/examples/openscad/*` | `scripts/deps/manifest.json` |
 | `@jbroll/rowboat-*` | `apps/jscad-web` storage and server only | `file:../../../rowboat/…` sibling checkout | **not pinned.** Not on npm or GitHub under an accessible name. Without it `npm install` leaves dangling links; the OpenSCAD packages and tests don't need it. |
 
@@ -32,6 +33,11 @@ every machine resolves the same path:
   local changes
 - **a symlink:** left alone and reported, so a dev machine can link its working
   copy for live edits
+
+A source can also carry a `build` list (jscad-fluent's does): commands run
+inside the checkout once it's at the pinned commit, skipped on later runs via
+a `.jscadui-built` marker recording which commit was built. Needed for a
+source that doesn't commit its build output.
 
 Because the checkout is inside the project root, npm also installs the fork's
 own devDependencies (ava, browserify, nyc…; about 450 lockfile entries, all

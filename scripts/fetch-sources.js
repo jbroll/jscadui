@@ -45,6 +45,27 @@ function hasCommit(dir, sha) {
   try { git(dir, 'cat-file', '-e', `${sha}^{commit}`); return true } catch { return false }
 }
 
+// Records which commit's build output is on disk, so a source that hasn't
+// moved skips rebuilding on every run.
+function builtMarkerPath(dir) {
+  return join(dir, '.jscadui-built')
+}
+
+function buildIfNeeded(dir, src, target) {
+  if (!src.build) return
+  const marker = builtMarkerPath(dir)
+  const built = existsSync(marker) ? readFileSync(marker, 'utf8').trim() : null
+  if (built === target) {
+    console.log('  build up to date')
+    return
+  }
+  console.log(`  building (${src.build.join(' && ')})…`)
+  for (const cmd of src.build) {
+    execFileSync('/bin/sh', ['-c', cmd], { cwd: dir, stdio: 'inherit' })
+  }
+  writeFileSync(marker, target + '\n')
+}
+
 function fetchSource(src) {
   const dir = join(CACHE_DIR, src.name)
   console.log(`${src.name}:`)
@@ -53,6 +74,7 @@ function fetchSource(src) {
     const sha = head(dir)
     const note = sha === src.commit ? 'at pin' : `HEAD ${sha?.slice(0, 8)}, pin ${src.commit.slice(0, 8)} — not changed`
     console.log(`  linked → ${realpathSync(dir)} (${note})`)
+    buildIfNeeded(dir, src, sha)
     return src.commit
   }
 
@@ -73,6 +95,7 @@ function fetchSource(src) {
 
   if (!fresh && head(dir) === target) {
     console.log(`  at pin ${target.slice(0, 8)}`)
+    buildIfNeeded(dir, src, target)
     return target
   }
   // A --no-checkout clone has an empty index, which status reports as changes.
@@ -81,6 +104,7 @@ function fetchSource(src) {
   }
   git(dir, 'checkout', '--quiet', '--detach', target)
   console.log(`  checked out ${target.slice(0, 8)}`)
+  buildIfNeeded(dir, src, target)
   return target
 }
 
