@@ -300,6 +300,7 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
     // Run main with either proxy or plain params
     // For Manifold: this builds the lazy operation tree (fast)
     // For JSCAD: this does all the actual CSG work (treeTime will be 0, work is immediate)
+    let out
     let proxyState = null
     if (workerState.useParamsProxy) {
       if (workerState.legacyProxyDefs) {
@@ -316,18 +317,22 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
         // Inject legacy defs and seal the proxy
         injectLegacyDefs(proxyParams, workerState.legacyProxyDefs)
 
-        workerState.solids = flatten(await runMain(proxyParams))
+        out = flatten(await runMain(proxyParams))
       } else {
         // New hierarchical param system - shared state for nested parts
         proxyState = createProxyState(workerState.currentUiValues, workerState.userInteracted, { mode: 'hierarchical' })
         const proxyParams = createParamsProxy(proxyState)
 
-        workerState.solids = flatten(await runMain(proxyParams))
+        out = flatten(await runMain(proxyParams))
       }
       workerState._lastProxyState = proxyState
     } else {
-      workerState.solids = flatten(await runMain(params || {}))
+      out = flatten(await runMain(params || {}))
     }
+
+    // % and # ghosts are drawn but never exported, so they stay out of solids
+    const ghosts = out.filter(g => g?.previewOnly)
+    workerState.solids = ghosts.length ? out.filter(g => !g?.previewOnly) : out
 
     assertFresh('after main')
 
@@ -344,6 +349,7 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
       // export still finds them all in workerState.solids without a re-run
       time = performance.now()
       for (const solid of workerState.solids) hook.emit([solid])
+      if (ghosts.length) hook.emit(ghosts)
       execTime = performance.now() - time
     } else {
       // Force evaluation of lazy Manifold geometries
@@ -362,7 +368,7 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
       // evaluation above already warmed the cache the export reads.
       if (!solidsOnly) {
         time = performance.now()
-        const prepared = toRefs(JscadToCommon.prepare(workerState.solids, undefined, workerState.userInstances).all, heldSet, [])
+        const prepared = toRefs(JscadToCommon.prepare(ghosts.length ? [...workerState.solids, ...ghosts] : workerState.solids, undefined, workerState.userInstances).all, heldSet, [])
         const copied = withCopies(prepared)
         entities = copied.entities
         transferable.push(...copied.transfer)

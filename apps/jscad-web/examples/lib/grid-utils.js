@@ -306,7 +306,7 @@ function gridModule(items, { spacing, cellSize }, req) {
         mod ??= req(url)
         const fn = (mod && mod.main) || (typeof mod === 'function' ? mod : null)
         if (typeof fn === 'function') {
-          const geoms = [].concat(await fn(params[name])).flat()
+          const geoms = [].concat(await fn(params[name])).flat().filter(g => !g?.previewOnly)
           // emit evaluates the cell's CSG, so its failures belong to this cell too
           send(toWorld(normalizeAndPlace(geoms, x, y, cellSize), ctx))
         }

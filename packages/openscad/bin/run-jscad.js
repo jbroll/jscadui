@@ -631,6 +631,13 @@ export async function initScadRuntime({ engine = 'manifold' } = {}) {
   return { jscadModeling, openscadRuntime }
 }
 
+// % and # ghosts are viewport-only; OpenSCAD leaves them out of every export.
+export const exportedGeometry = (result) => {
+  if (!Array.isArray(result)) return result
+  const solids = result.flat(Infinity).filter(g => g && !g.previewOnly)
+  return solids.length === 0 ? null : solids
+}
+
 /**
  * Synchronously transpile and evaluate a .scad file, returning the Manifold solid.
  * Must be called after initScadRuntime() has resolved.
@@ -661,7 +668,9 @@ export function evalScadSolidSync(scadPath, ctx, { fn = 0, libPaths = [], shared
   // The browser renders each entity separately, so a caller checking display
   // conversion needs the list the union would have collapsed.
   if (raw) return Array.isArray(result) ? result.flat(Infinity) : [result]
-  return Array.isArray(result) ? jscadModeling.booleans.union(result) : result
+  const geometry = exportedGeometry(result)
+  if (geometry === null) return null
+  return Array.isArray(geometry) ? jscadModeling.booleans.union(geometry) : geometry
 }
 
 export { manifoldToGeom3 } from '../../manifold/src/conversions/index.js'
@@ -806,6 +815,7 @@ async function main() {
       result = null
     }
     writeEcho()
+    result = exportedGeometry(result)
 
     if (!result || (Array.isArray(result) && result.length === 0)) {
       console.error('No geometry returned from main()')

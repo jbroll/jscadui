@@ -82,7 +82,7 @@ const main = (params) => {
       }
       const mod = require(url)
       const fn = mod.main || mod
-      const geoms = [].concat(fn(params[name])).flat()
+      const geoms = [].concat(fn(params[name])).flat().filter(g => !g?.previewOnly)
       all.push(...normalizeAndPlace(geoms, x, y, cellSize))
     } catch (err) {
       console.warn('ALL: failed to load', url, err.message)
