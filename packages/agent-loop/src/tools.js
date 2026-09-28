@@ -47,17 +47,6 @@ export const TOOLS = [
     },
   },
   {
-    name: 'view',
-    description: 'Render a view of the current model and return a screenshot the assistant can inspect.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        preset: { type: 'string', description: 'A camera preset name' },
-        camera: { type: 'object', description: 'An explicit camera position' },
-      },
-    },
-  },
-  {
     name: 'export',
     description: 'Export the current model in the given format.',
     inputSchema: {

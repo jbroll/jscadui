@@ -1,8 +1,9 @@
 import type { ToolDefinition } from '../providers/types.js'
 
 // The tools the agent may ask the browser to run. Every one executes in the user's browser: eval,
-// params, measure, check and export through the compute frame, view from the live canvas, and
-// writeModel against the project storage. The server only relays inputs and results.
+// params, measure, check and export through the compute frame, and writeModel against the
+// project storage. `view` is not offered here; see docs/architecture.md's tool table. The server
+// only relays inputs and results.
 export const TOOLS: ToolDefinition[] = [
   {
     name: 'eval',
@@ -47,17 +48,6 @@ export const TOOLS: ToolDefinition[] = [
         options: { type: 'object', description: 'Check options' },
       },
       required: ['bed'],
-    },
-  },
-  {
-    name: 'view',
-    description: 'Render a view of the current model and return a screenshot the assistant can inspect.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        preset: { type: 'string', description: 'A camera preset name' },
-        camera: { type: 'object', description: 'An explicit camera position' },
-      },
     },
   },
   {

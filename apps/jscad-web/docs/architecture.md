@@ -710,8 +710,12 @@ Tools and where they run:
 | Tool | Runs |
 |---|---|
 | `eval`, `measure`, `check`, `export`, `params` | compute frame |
-| `view` | page, from the live canvas |
 | `writeModel` | editor buffer plus a version row |
+
+`view` (page, from the live canvas) is not offered to the model: its PNG data
+URL gets JSON-encoded into a text tool result that no provider adapter turns
+back into an image block, so the model never sees a picture, only hundreds of
+KB of base64 text. The handler stays for other callers.
 
 `params` calls `paramsUI.runParamChange`, which re-runs `jscadMain` against
 whatever the frame last loaded — the agent's `eval` source or the editor's,
