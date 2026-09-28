@@ -63,24 +63,31 @@ new message. The app and the eval both use it.
 ## API index
 
 `api/index.json` describes the public API of `@jscad/modeling`, from the
-pinned checkout's JSDoc (every namespace but `maths` and `geometries`), and of
-`@jscadui/jscad-text`, from its JSDoc. It has one entry per namespace or
-function: `name` (`primitives.roundedCuboid`, `jscadText.text2d`), `pkg`,
-`kind`, `signature`, `description`, `example`, and for a function that takes
-an options object first, `optionsFirst` and `options` (name, type, default,
-description). `api/optionTable.js` holds only the option names, for the
-unknown-option checks.
+pinned checkout's JSDoc (every namespace but `maths` and `geometries`),
+`@jbroll/jscad-fluent`, from its installed `dist/*.d.ts`, and
+`@jscadui/jscad-text`, from its JSDoc. It has one entry per namespace, class
+or function: `name` (`primitives.roundedCuboid`, `jf.cube`,
+`FluentGeom2.extrudeLinear`, `jscadText.text2d`), `pkg`, `kind`, `signature`,
+`description`, `example`, and for a function that takes an options object
+first, `optionsFirst` and `options` (name, type, default, description). A
+fluent entry whose options are a modeling function's names it in `sameAs`
+instead of copying them, and the fluent array classes name their base class
+in `extends`. `api/optionTable.js` holds only the option names, for the
+unknown-option checks: `options` for functions reached from the exports
+(`primitives.roundedCuboid`, `cube` for `jf.cube`), and `methods` for the
+fluent class methods whose first parameter is an options object, keyed by
+class (`FluentGeom2.extrudeLinear`).
 
 Both files are generated and committed:
 
     npm run api-index -w @jscadui/agent-loop
 
 A test fails when either differs from a fresh generation, so a
-`@jscad/modeling` pin update needs a regeneration in the same commit. Where
-JSDoc misses an option the generator adds it: a function's `defaults` literal
-keys (`extrudeLinear`'s `repair`), and the options `PASS_THROUGH` in
-`api/build-index.js` names (`extrudeRectangular` hands its options to
-`expand` and `extrudeLinear`).
+`@jscad/modeling` pin update or a fluent upgrade needs a regeneration in the
+same commit. Where JSDoc misses an option the generator adds it: a function's
+`defaults` literal keys (`extrudeLinear`'s `repair`), and the options
+`PASS_THROUGH` in `api/build-index.js` names (`extrudeRectangular` hands its
+options to `expand` and `extrudeLinear`).
 
 ## Eval
 

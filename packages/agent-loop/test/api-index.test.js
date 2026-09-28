@@ -85,3 +85,65 @@ describe('API index', () => {
     expect(readFileSync(new URL('../api/optionTable.js', import.meta.url), 'utf8')).toBe(formatOptionTable(optionTables(entries)))
   })
 })
+
+describe('fluent entries', () => {
+  it('points a factory with modeling options at the modeling entry', () => {
+    expect(entry('jf.roundedCuboid')).toMatchObject({ pkg: '@jbroll/jscad-fluent', sameAs: 'primitives.roundedCuboid', optionsFirst: true })
+    expect(entry('jf.roundedCuboid').options).toBeUndefined()
+    expect(entry('jf.arc').sameAs).toBe('primitives.arc')
+  })
+
+  it('keeps polygon as a points array, not options', () => {
+    expect(entry('jf.polygon').signature).toBe('polygon(points: Point2[]) → FluentGeom2')
+    expect(entry('jf.polygon').optionsFirst).toBeUndefined()
+  })
+
+  it('lists the options of fluent-only factories', () => {
+    expect(entry('jf.cylinder').options.map((o) => o.name)).toEqual(['height', 'segments', 'center', 'angle', 'radius', 'outer', 'inner', 'wall'])
+    expect(entry('jf.polyhedron').options.map((o) => o.name)).toEqual(['points', 'faces'])
+  })
+
+  it('documents class methods and maps option types to modeling', () => {
+    expect(entry('FluentGeom2.extrudeLinear')).toMatchObject({
+      sameAs: 'extrusions.extrudeLinear', signature: 'extrudeLinear(options: ExtrudeLinearOptions) → FluentGeom3',
+    })
+    expect(entry('FluentGeom3').members.map((m) => m.name)).toContain('translate')
+    expect(entry('FluentGeom3Array')).toMatchObject({ kind: 'class', extends: 'FluentGeometryArray' })
+  })
+
+  it('marks the methods that take an options object', () => {
+    expect(entry('FluentGeom3.center')).toMatchObject({ sameAs: 'transforms.center', optionsFirst: true })
+    expect(entry('FluentGeometryArray.mirror')).toMatchObject({ sameAs: 'transforms.mirror', optionsFirst: true })
+    expect(entry('FluentGeom2Array.extrudeRotate')).toMatchObject({ sameAs: 'extrusions.extrudeRotate', optionsFirst: true })
+    expect(entry('FluentGeom2.translate').optionsFirst).toBeUndefined()
+    expect(entry('FluentGeom2.union').optionsFirst).toBeUndefined()
+  })
+
+  it('tables the options of fluent methods by class', () => {
+    const { methods } = OPTION_TABLES['@jbroll/jscad-fluent']
+    expect(Object.keys(methods).sort()).toEqual(['FluentGeom2', 'FluentGeom2Array', 'FluentGeom3', 'FluentGeometryArray', 'FluentPath2'])
+    expect(Object.keys(methods.FluentGeom2).sort()).toEqual(['center', 'expand', 'extrudeLinear', 'extrudeRotate', 'mirror', 'offset'])
+    expect(Object.keys(methods.FluentGeom3).sort()).toEqual(['center', 'expand', 'mirror'])
+    expect(Object.keys(methods.FluentPath2).sort()).toEqual(['center', 'expand', 'mirror', 'offset'])
+    expect(methods.FluentGeometryArray).toEqual({ mirror: ['normal', 'origin'], center: ['axes', 'relativeTo'] })
+    expect(Object.keys(methods.FluentGeom2Array).sort()).toEqual(['extrudeLinear', 'extrudeRotate'])
+    expect(methods.FluentGeom2.extrudeLinear).toEqual(['height', 'repair', 'twistAngle', 'twistSteps'])
+    expect(OPTION_TABLES['@jscad/modeling'].methods).toEqual({})
+  })
+
+  it('reads nested namespace JSDoc without comment markers', () => {
+    expect(entry('jf.colors.hexToRgb').description).toBe('Convert hex color notation to RGB or RGBA.')
+  })
+
+  it('tables fluent factory options under names without jf.', () => {
+    const fluent = OPTION_TABLES['@jbroll/jscad-fluent']
+    expect(fluent.prefix).toBe('jf.')
+    expect(fluent.options.roundedCuboid).toEqual(['center', 'roundRadius', 'segments', 'size'])
+    expect(fluent.options.cylinder).toEqual(['angle', 'center', 'height', 'inner', 'outer', 'radius', 'segments', 'wall'])
+    expect(Object.keys(fluent.options)).not.toContain('polygon')
+  })
+
+  it('stays under 150 KB', () => {
+    expect(formatIndex(entries).length).toBeLessThan(150_000)
+  })
+})
