@@ -40,7 +40,10 @@ export const TOOLS: ToolDefinition[] = [
     inputSchema: {
       type: 'object',
       properties: {
-        bed: { type: 'string', description: 'Bed name, e.g. mk3' },
+        bed: {
+          description:
+            'Bed name (mk3, mk4, mini, x1, p1, a1mini, ender3) or [x, y, z] in mm',
+        },
         options: { type: 'object', description: 'Check options' },
       },
       required: ['bed'],

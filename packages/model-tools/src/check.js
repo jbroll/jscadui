@@ -5,8 +5,27 @@ import { findSelfIntersections } from './self-intersect.js'
 const SOLID_NOTE = 'wall thickness and overhangs: run jscad-work dfm'
 const OUTLINE_NOTE = 'watertight and manifold apply to 3D solids; closed covers 2D outlines'
 
-const fitsBed = (dimensions, bed) =>
-  !bed || !dimensions ? true : dimensions.every((d, i) => d <= bed[i])
+export const BEDS = {
+  mk3: [250, 210, 210],
+  mk4: [250, 210, 220],
+  mini: [180, 180, 180],
+  x1: [256, 256, 256],
+  p1: [256, 256, 256],
+  a1mini: [180, 180, 180],
+  ender3: [220, 220, 250],
+}
+
+const resolveBed = (bed) => {
+  if (!bed || Array.isArray(bed)) return bed
+  const dims = BEDS[bed.toLowerCase()]
+  if (!dims) throw new Error(`unknown bed ${bed}: use one of ${Object.keys(BEDS).join(', ')} or [x, y, z] in mm`)
+  return dims
+}
+
+const fitsBed = (dimensions, bed) => {
+  const resolved = resolveBed(bed)
+  return !resolved || !dimensions ? true : dimensions.every((d, i) => d <= resolved[i])
+}
 
 const classify = (g) => {
   if (g && typeof g === 'object' && 'polygons' in g) return 'geom3'

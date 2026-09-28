@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import jscad from '@jscad/modeling'
-import { check } from '../index.js'
+import { check, BEDS } from '../index.js'
 
 const { booleans, geometries, primitives, transforms } = jscad
 const { geom3 } = geometries
@@ -78,6 +78,33 @@ test('solids touching face to face do not self-intersect', () => {
 
 test('flags a model larger than the bed', () => {
   expect(check(cuboid({ size: [20, 20, 20] }), { bed: [10, 10, 10] }).fitsBed).toBe(false)
+})
+
+test('a named bed fits a 10mm cube', () => {
+  expect(check(cuboid({ size: [10, 10, 10] }), { bed: 'mk3' }).fitsBed).toBe(true)
+})
+
+test('a named bed is case-insensitive', () => {
+  expect(check(cuboid({ size: [10, 10, 10] }), { bed: 'MK3' }).fitsBed).toBe(true)
+})
+
+test('a bracket-sized cube fits the mk3 bed', () => {
+  expect(check(cuboid({ size: [40, 60, 40] }), { bed: 'mk3' }).fitsBed).toBe(true)
+})
+
+test('an oversized cube does not fit the mk3 bed', () => {
+  expect(check(cuboid({ size: [300, 300, 300] }), { bed: 'mk3' }).fitsBed).toBe(false)
+})
+
+test('an unknown bed name throws with the list of known names', () => {
+  expect(() => check(cuboid({ size: [10, 10, 10] }), { bed: 'bambu' })).toThrow(
+    /unknown bed bambu: use one of .*mk3.*or \[x, y, z\] in mm/,
+  )
+})
+
+test('BEDS exports the known bed dimensions in mm', () => {
+  expect(BEDS.mk3).toEqual([250, 210, 210])
+  expect(BEDS.mk4).toEqual([250, 210, 220])
 })
 
 test.each([
