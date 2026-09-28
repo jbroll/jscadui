@@ -5,6 +5,7 @@ export const fixture = {
   requires: ['eval', 'check', 'writeModel'],
   verifyBeforeWrite: true,
   maxTurns: 10,
+  target: { dimensions: [60, 40, 8] },
   checks: (m) => [
     { name: 'fits mk3 bed', pass: Array.isArray(m?.dimensions) && m.dimensions.every((d, i) => d <= [250, 210, 210][i]) },
   ],

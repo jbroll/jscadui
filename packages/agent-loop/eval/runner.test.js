@@ -28,12 +28,43 @@ describe('runSuite', () => {
       requires: ['eval', 'measure'],
       verifyBeforeWrite: false,
       maxTurns: 8,
+      target: { volume: 8000 },
       checks: (m) => [{ name: 'volume', pass: (m?.volume ?? 0) > 7000 }],
     }
     const results = await runSuite([fixture], { provider, backend })
     expect(results).toHaveLength(1)
     expect(results[0].report.dimensions.discipline).toBe(2)
     expect(results[0].report.total).toBeGreaterThanOrEqual(6)
+    expect(results[0].metrics.rounds).toBe(3)
+    expect(results[0].metrics.toolCalls).toBe(2)
+    expect(results[0].metrics.failedCalls).toBe(0)
+    expect(results[0].metrics.inputTokens).toBeNull()
+    expect(results[0].metrics.outputTokens).toBeNull()
+    expect(typeof results[0].metrics.seconds).toBe('number')
+    expect(results[0].metrics.geometryError).toBeCloseTo(0)
+  })
+
+  it('sums usage events across rounds; null when the provider reports none', async () => {
+    const backend = createEvalBackend()
+    const provider = {
+      calls: 0,
+      async *send() {
+        this.calls += 1
+        if (this.calls === 1) {
+          yield { type: 'usage', inputTokens: 100, outputTokens: 20 }
+          yield { type: 'tool_use', id: 't1', name: 'eval', input: { source: 'x' } }
+          yield { type: 'done', stopReason: 'tool_use' }
+        } else {
+          yield { type: 'usage', inputTokens: 50, outputTokens: 5 }
+          yield { type: 'text', text: 'done' }
+          yield { type: 'done', stopReason: 'end_turn' }
+        }
+      },
+    }
+    const fixture = { name: 'x', prompt: 'p', requires: ['eval'], verifyBeforeWrite: false, maxTurns: 8, checks: () => [] }
+    const [result] = await runSuite([fixture], { provider, backend })
+    expect(result.metrics.inputTokens).toBe(150)
+    expect(result.metrics.outputTokens).toBe(25)
   })
 
   it('refuses without a provider', async () => {

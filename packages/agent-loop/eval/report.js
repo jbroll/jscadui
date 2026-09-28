@@ -12,6 +12,12 @@ export function formatTable(results) {
 const mean = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length
 const n2 = (x) => x.toFixed(2)
 
+// Mean over the non-null/undefined values of an optional per-run field; null when none exist.
+const meanOf = (runs, get) => {
+  const vals = runs.map(get).filter((v) => v !== null && v !== undefined)
+  return vals.length > 0 ? mean(vals) : null
+}
+
 export function summarize(results) {
   const byFixture = new Map()
   for (const r of results) {
@@ -25,13 +31,27 @@ export function summarize(results) {
     checkPassRate: mean(runs.map((r) => r.report.checkRate)),
     total: mean(runs.map((r) => r.report.total)),
     errors: runs.filter((r) => r.error).length,
+    rounds: meanOf(runs, (r) => r.metrics?.rounds),
+    failedCalls: meanOf(runs, (r) => r.metrics?.failedCalls),
+    inputTokens: meanOf(runs, (r) => r.metrics?.inputTokens),
+    outputTokens: meanOf(runs, (r) => r.metrics?.outputTokens),
+    seconds: meanOf(runs, (r) => r.metrics?.seconds),
+    geometryError: meanOf(runs, (r) => r.metrics?.geometryError),
   }))
 }
+
+const n2or = (x) => (x === null || x === undefined ? '-' : n2(x))
 
 export function formatSummary(summary) {
   const lines = ['fixture  runs  firstFail  checks  total  errors']
   for (const s of summary) {
     lines.push(`${s.fixture}  ${s.runs}  ${n2(s.firstAttemptFailures)}  ${n2(s.checkPassRate)}  ${n2(s.total)}  ${s.errors}`)
+  }
+  lines.push('', 'fixture  rounds  failedCalls  inputTokens  outputTokens  seconds  geometryError')
+  for (const s of summary) {
+    lines.push(
+      `${s.fixture}  ${n2or(s.rounds)}  ${n2or(s.failedCalls)}  ${n2or(s.inputTokens)}  ${n2or(s.outputTokens)}  ${n2or(s.seconds)}  ${n2or(s.geometryError)}`,
+    )
   }
   return lines.join('\n')
 }
@@ -42,12 +62,20 @@ export function formatComparison(a, b) {
     'fixture  firstFail a → b  checks a → b  total a → b',
   ]
   const names = [...new Set([...a.summary, ...b.summary].map((s) => s.fixture))]
-  const cell = (s, key) => (s ? n2(s[key]) : '-')
+  const cell = (s, key) => (s ? n2or(s[key]) : '-')
   for (const name of names) {
     const sa = a.summary.find((s) => s.fixture === name)
     const sb = b.summary.find((s) => s.fixture === name)
     lines.push(
       `${name}  ${cell(sa, 'firstAttemptFailures')} → ${cell(sb, 'firstAttemptFailures')}  ${cell(sa, 'checkPassRate')} → ${cell(sb, 'checkPassRate')}  ${cell(sa, 'total')} → ${cell(sb, 'total')}`,
+    )
+  }
+  lines.push('', 'fixture  rounds a → b  failedCalls a → b  seconds a → b  geometryError a → b')
+  for (const name of names) {
+    const sa = a.summary.find((s) => s.fixture === name)
+    const sb = b.summary.find((s) => s.fixture === name)
+    lines.push(
+      `${name}  ${cell(sa, 'rounds')} → ${cell(sb, 'rounds')}  ${cell(sa, 'failedCalls')} → ${cell(sb, 'failedCalls')}  ${cell(sa, 'seconds')} → ${cell(sb, 'seconds')}  ${cell(sa, 'geometryError')} → ${cell(sb, 'geometryError')}`,
     )
   }
   return lines.join('\n')

@@ -9,7 +9,7 @@ import { buildMessages, createProvider, runTurn, SYSTEM_PROMPT } from '../index.
 import { evalResultsDir } from '../log/log-dir.js'
 import { createEvalBackend } from './backend.js'
 import { resolveCredentials } from './credentials.js'
-import { gradeFixture, gradeTranscript } from './grade.js'
+import { gradeFixture, gradeTranscript, geometryError, transcriptMetrics } from './grade.js'
 import { formatComparison, formatSummary, summarize } from './report.js'
 import { formatRunHeader, formatText, formatToolCall, formatToolResult } from './verbose.js'
 
@@ -25,8 +25,12 @@ export async function loadFixtures(dir = FIXTURES) {
   return fixtures
 }
 
+// Wraps the provider for one run: caps the number of send() calls (rounds) and
+// tallies usage events along the way, so the caller can read both once the run ends.
 const withTurnCap = (provider, maxTurns) => {
   let rounds = 0
+  let inputTokens = null
+  let outputTokens = null
   return {
     async *send(messages, tools) {
       rounds += 1
@@ -34,8 +38,16 @@ const withTurnCap = (provider, maxTurns) => {
         yield { type: 'done', stopReason: 'end_turn' }
         return
       }
-      yield* provider.send(messages, tools)
+      for await (const event of provider.send(messages, tools)) {
+        if (event.type === 'usage') {
+          if (typeof event.inputTokens === 'number') inputTokens = (inputTokens ?? 0) + event.inputTokens
+          if (typeof event.outputTokens === 'number') outputTokens = (outputTokens ?? 0) + event.outputTokens
+        }
+        yield event
+      }
     },
+    rounds: () => rounds,
+    usage: () => ({ inputTokens, outputTokens }),
   }
 }
 
@@ -52,10 +64,12 @@ export async function runSuite(
       const messages = buildMessages({ systemPrompt, transcript: fixture.transcript ?? [], files: fixture.files ?? {}, message: fixture.prompt })
       let transcript = messages
       let error
+      const cappedProvider = withTurnCap(provider, fixture.maxTurns)
+      const startedAt = Date.now()
       try {
         const turn = await runTurn({
           conversation: { messages },
-          provider: withTurnCap(provider, fixture.maxTurns),
+          provider: cappedProvider,
           requestTool: async (name, input) => {
             onToolCall?.(name, input)
             const result = await backend.requestTool(name, input)
@@ -68,14 +82,27 @@ export async function runSuite(
       } catch (err) {
         error = err.message
       }
+      const seconds = (Date.now() - startedAt) / 1000
       const finalMeasure = JSON.parse(await backend.requestTool('measure', {}))
-      const report = gradeFixture(fixture, transcript, finalMeasure.ok ? finalMeasure : null, { params: backend.params() })
+      const measure = finalMeasure.ok ? finalMeasure : null
+      const report = gradeFixture(fixture, transcript, measure, { params: backend.params() })
+      const { toolCalls, failedCalls } = transcriptMetrics(transcript)
+      const { inputTokens, outputTokens } = cappedProvider.usage()
       const result = {
         fixture: fixture.name,
         run,
         report,
         turns: transcript.length,
         transcript: transcript.filter((m) => m.role !== 'system'),
+        metrics: {
+          rounds: cappedProvider.rounds(),
+          toolCalls,
+          failedCalls,
+          inputTokens,
+          outputTokens,
+          seconds,
+          geometryError: geometryError(fixture.target, measure),
+        },
         ...(error ? { error } : {}),
       }
       results.push(result)
@@ -95,6 +122,7 @@ export function regradeResults(file, fixturesByName) {
     if (!fixture) return result
     const { dimensions, firstAttemptFailures } = gradeTranscript(fixture, result.transcript)
     const { geometry } = result.report.dimensions
+    const { toolCalls, failedCalls } = transcriptMetrics(result.transcript)
     return {
       ...result,
       report: {
@@ -103,6 +131,7 @@ export function regradeResults(file, fixturesByName) {
         firstAttemptFailures,
         checkRate: result.report.checkRate,
       },
+      metrics: { ...result.metrics, toolCalls, failedCalls },
     }
   })
   return { ...file, results, summary: summarize(results) }

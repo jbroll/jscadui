@@ -5,6 +5,7 @@ export const fixture = {
   requires: ['eval', 'writeModel'],
   verifyBeforeWrite: false,
   maxTurns: 8,
+  target: { dimensions: [10, 20, 30] },
   checks: (m) => {
     const [a, b, c] = [...(m?.dimensions ?? [0, 0, 0])].sort((p, q) => p - q)
     const volume = m?.volume ?? 0

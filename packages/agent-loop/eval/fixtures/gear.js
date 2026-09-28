@@ -5,6 +5,7 @@ export const fixture = {
   requires: ['eval', 'measure', 'writeModel'],
   verifyBeforeWrite: true,
   maxTurns: 10,
+  target: { dimensions: [40, 40, 5] },
   checks: (m) => [
     { name: '40mm outer diameter', pass: (m?.boundingBox?.[1]?.[0] ?? 0) - (m?.boundingBox?.[0]?.[0] ?? 0) > 38 && (m?.boundingBox?.[1]?.[0] ?? 0) - (m?.boundingBox?.[0]?.[0] ?? 0) < 42 },
     { name: '5mm thick', pass: (m?.boundingBox?.[1]?.[2] ?? 0) - (m?.boundingBox?.[0]?.[2] ?? 0) > 4.5 && (m?.boundingBox?.[1]?.[2] ?? 0) - (m?.boundingBox?.[0]?.[2] ?? 0) < 5.5 },
