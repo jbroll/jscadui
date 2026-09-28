@@ -2,7 +2,7 @@
 // from the account panel, runs runTurn directly, executes each tool request
 // through requestTool, and renders streamed text. Provider HTTP targets the
 // relay, which proxies path-preserving to the provider and stores nothing.
-import { createProvider, runTurn as defaultRunTurn, SYSTEM_PROMPT } from '@jscadui/agent-loop'
+import { buildMessages, createProvider, runTurn as defaultRunTurn, SYSTEM_PROMPT } from '@jscadui/agent-loop'
 
 /* global __RELAY_ORIGIN__ */
 const RELAY_OVERRIDE_KEY = 'jscad-ai.relay'
@@ -23,9 +23,9 @@ const el = (tag, className, text) => {
 }
 
 /**
- * @param {{container:HTMLElement,requestTool:Function,getProvider:Function,runTurnFn?:Function,storage?:{readConversation:Function,writeConversation:Function},projectId?:string}} options
+ * @param {{container:HTMLElement,requestTool:Function,getProvider:Function,runTurnFn?:Function,storage?:{readConversation:Function,writeConversation:Function},projectId?:string|(()=>string),getProjectFiles?:()=>Promise<Record<string,string|ArrayBuffer>>}} options
  */
-export const initChat = ({ container, requestTool, getProvider, runTurnFn = defaultRunTurn, storage, projectId }) => {
+export const initChat = ({ container, requestTool, getProvider, runTurnFn = defaultRunTurn, storage, projectId, getProjectFiles = async () => ({}) }) => {
   const header = el('div', 'chat-header', 'AI Chat')
   const messagesEl = el('div', 'chat-messages')
   const form = el('form', 'chat-form')
@@ -55,6 +55,15 @@ export const initChat = ({ container, requestTool, getProvider, runTurnFn = defa
       await storage.writeConversation(pid(), transcript)
     } catch (err) {
       console.warn('chat persist failed:', err)
+    }
+  }
+
+  const projectFiles = async () => {
+    try {
+      return (await getProjectFiles()) ?? {}
+    } catch (err) {
+      console.warn('chat: project files unavailable:', err)
+      return {}
     }
   }
 
@@ -115,6 +124,7 @@ export const initChat = ({ container, requestTool, getProvider, runTurnFn = defa
     }
     setRunning(true)
     addMessage(message, 'user')
+    const prior = transcript
     transcript = [...transcript, { role: 'user', content: message }]
     persistTranscript()
     assistantEl = null
@@ -124,10 +134,13 @@ export const initChat = ({ container, requestTool, getProvider, runTurnFn = defa
         ...selection,
         baseUrl: selection.baseUrl || relayBaseUrl(selection.kind),
         sessionId: sessionId(),
+        // A custom base URL may be a provider called directly, whose CORS preflight would refuse this header.
+        ...(selection.baseUrl ? {} : { chatId: sessionId() }),
       })
+      const files = await projectFiles()
       let assistantText = ''
       await runTurnFn({
-        conversation: { messages: [{ role: 'system', content: SYSTEM_PROMPT }, { role: 'user', content: message }] },
+        conversation: { messages: buildMessages({ systemPrompt: SYSTEM_PROMPT, transcript: prior, files, message }) },
         provider,
         requestTool: handleTool,
         onText: (text) => {

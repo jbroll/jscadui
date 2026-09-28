@@ -680,6 +680,18 @@ elapsed ms. Headers are never written. The response is teed while it streams,
 and a failed write warns once without failing the request. Neither relay
 forwards `x-jscad-chat-id`, and the production relay does not log.
 
+Each turn sends `buildMessages` (`packages/agent-loop/src/context.js`): the
+system prompt; prior turns, newest first, as whole user/assistant pairs until
+the next would pass `CONTEXT_BUDGET` (24,000 characters); one user message
+holding every text file of the current project under `### <path>` in a fenced
+block, outside the budget and omitted when the project is empty; then the new
+message. Prior turns carry only what the transcript stores, the user text and
+the assistant's streamed text, so earlier tool calls are not replayed. The
+project files come from the file cache the frame runs (`collectProjectFiles`).
+The chat sends its per-project session id as `x-jscad-chat-id` when it goes
+through the relay, and not to a custom base URL. The eval builds its messages
+with the same function.
+
 Chat settings live in the drawer's gear dialog (`src/aiAccount.js`), in the
 order a user fills them: provider, API key and its custody mode, model, effort,
 then base URL under Advanced. Saving a key, changing the provider or changing

@@ -44,3 +44,14 @@ esbuild build uses `src_build/rawImport.js`, and a Node script that imports
 ```bash
 node --import ./text-loader.js eval/run-eval.js
 ```
+
+## Conversation context
+
+```js
+buildMessages({ systemPrompt, transcript, files, message, budget = CONTEXT_BUDGET })
+```
+
+Returns the system prompt, the newest whole prior turns that fit in `budget`
+characters (24,000 by default), a user message with every text file in
+`files` under `### <path>` (outside the budget, omitted when empty), and the
+new message. The app and the eval both use it.

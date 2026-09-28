@@ -16,7 +16,7 @@ const startStubRelay = () =>
     const requests = []
     const cors = {
       'access-control-allow-origin': '*',
-      'access-control-allow-headers': 'content-type, authorization',
+      'access-control-allow-headers': 'content-type, authorization, x-jscad-chat-id',
       'access-control-allow-methods': 'POST, OPTIONS',
     }
     const server = http.createServer((req, res) => {

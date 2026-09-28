@@ -76,7 +76,7 @@ describe('stored conversation', () => {
     await vi.waitFor(() => expect(container.querySelector('.chat-messages').textContent).toMatch(/old/))
     container.querySelector('.chat-input').value = 'hello'
     container.querySelector('.chat-form').dispatchEvent(new Event('submit', { cancelable: true }))
-    await vi.waitFor(() => expect(storage.writeConversation).toHaveBeenCalledWith('p1', expect.any(Array)))
+    await vi.waitFor(() => expect(storage.writeConversation.mock.calls.at(-1)?.[1]).toContainEqual({ role: 'assistant', content: 'hi' }))
     const persisted = storage.writeConversation.mock.calls.at(-1)[1]
     expect(persisted).toContainEqual({ role: 'user', content: 'hello' })
     expect(persisted).toContainEqual({ role: 'assistant', content: 'hi' })
@@ -159,5 +159,61 @@ describe('relay base url', () => {
     window.localStorage.setItem('jscad-ai.relay', 'http://127.0.0.1:9999')
     expect(relayBaseUrl('openai')).toBe('http://127.0.0.1:9999/api/relay/openai')
     window.localStorage.removeItem('jscad-ai.relay')
+  })
+})
+describe('conversation context', () => {
+  const submit = async (container, text, calls, runTurnFn) => {
+    container.querySelector('.chat-input').value = text
+    container.querySelector('.chat-form').dispatchEvent(new Event('submit', { cancelable: true }))
+    await vi.waitFor(() => expect(runTurnFn).toHaveBeenCalledTimes(calls))
+    await vi.waitFor(() => expect(container.querySelector('.chat-input').disabled).toBe(false))
+  }
+
+  it('sends prior turns and the project files ahead of the new message', async () => {
+    document.body.innerHTML = '<div id="chat"></div>'
+    const container = document.getElementById('chat')
+    const runTurnFn = vi.fn(async ({ onText }) => {
+      onText(`reply ${runTurnFn.mock.calls.length}`)
+      return { messages: [] }
+    })
+    initChat({
+      container,
+      requestTool: async () => '{}',
+      getProvider: () => ({ kind: 'openai', model: 'm', apiKey: 'k', baseUrl: 'https://relay.test' }),
+      runTurnFn,
+      getProjectFiles: async () => ({ 'main.js': 'module.exports = {}' }),
+    })
+    await submit(container, 'first', 1, runTurnFn)
+    await submit(container, 'second', 2, runTurnFn)
+    const messages = runTurnFn.mock.calls[1][0].conversation.messages
+    expect(messages[0].role).toBe('system')
+    expect(messages.slice(1, 3)).toEqual([
+      { role: 'user', content: 'first' },
+      { role: 'assistant', content: 'reply 1' },
+    ])
+    expect(messages[3].content).toContain('### main.js')
+    expect(messages.at(-1)).toEqual({ role: 'user', content: 'second' })
+  })
+
+  it('sends x-jscad-chat-id through the relay but not to a custom base URL', async () => {
+    const fetchMock = vi.fn(async () => new Response('data: [DONE]\n\n'))
+    vi.stubGlobal('fetch', fetchMock)
+    window.localStorage.removeItem('jscad-ai.relay')
+    const run = async (selection) => {
+      document.body.innerHTML = '<div id="chat"></div>'
+      const container = document.getElementById('chat')
+      const runTurnFn = vi.fn(async ({ provider }) => {
+        for await (const e of provider.send([{ role: 'user', content: 'hi' }], [])) void e
+        return { messages: [] }
+      })
+      initChat({ container, requestTool: async () => '{}', getProvider: () => selection, runTurnFn, projectId: 'p1' })
+      await submit(container, 'hi', 1, runTurnFn)
+    }
+    await run({ kind: 'openai', model: 'm', apiKey: 'k' })
+    await run({ kind: 'openai', model: 'm', apiKey: 'k', baseUrl: 'https://direct.test' })
+    expect(fetchMock.mock.calls[0][0]).toBe('https://jscad.rkroll.com/api/relay/openai/v1/chat/completions')
+    expect(fetchMock.mock.calls[0][1].headers['x-jscad-chat-id']).toEqual(expect.any(String))
+    expect(fetchMock.mock.calls[1][1].headers).not.toHaveProperty('x-jscad-chat-id')
+    vi.unstubAllGlobals()
   })
 })

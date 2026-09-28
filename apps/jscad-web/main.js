@@ -863,6 +863,7 @@ if (byId('ai-chat')) {
     getProvider: getProviderConfig,
     storage: chatStorage,
     projectId: () => currentProjectId,
+    getProjectFiles: () => collectProjectFiles(fileSystem.getSwHandler()),
   })
 }
 const aiDrawer = byId('ai-drawer')
