@@ -4,8 +4,9 @@
 // Runs the suite live. Never in CI: every run spends real API budget.
 import { createHash } from 'node:crypto'
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 import { buildMessages, createProvider, runTurn, SYSTEM_PROMPT } from '../index.js'
+import { evalResultsDir } from '../log/log-dir.js'
 import { createEvalBackend } from './backend.js'
 import { resolveCredentials } from './credentials.js'
 import { gradeFixture } from './grade.js'
@@ -102,6 +103,11 @@ const main = async (argv, env) => {
     console.log(formatComparison(readJson(argv[at + 1]), readJson(argv[at + 2])))
     return
   }
+  const resultsDir = evalResultsDir(env)
+  if (!resultsDir) {
+    console.error('run-eval: no results dir: clone jbroll/jscad-chat-evals to ~/src/jscad-chat-evals or set EVAL_RESULTS_DIR')
+    process.exit(1)
+  }
   const { EVAL_PROVIDER, EVAL_MODEL } = env
   const { apiKey, baseUrl } = resolveCredentials(env)
   if (!EVAL_PROVIDER || !EVAL_MODEL || !apiKey) {
@@ -113,9 +119,8 @@ const main = async (argv, env) => {
   const fixtures = (await loadFixtures()).filter((f) => !only || only.includes(f.name))
   const provider = createProvider({ kind: EVAL_PROVIDER, model: EVAL_MODEL, apiKey, baseUrl })
   const promptSha256 = promptHash(SYSTEM_PROMPT)
-  mkdirSync(new URL('./results/', import.meta.url), { recursive: true })
-  const file = new URL(`./results/${new Date().toISOString().slice(0, 10)}-${EVAL_MODEL}-${promptSha256.slice(0, 8)}.json`, import.meta.url)
-  const filePath = fileURLToPath(file)
+  mkdirSync(resultsDir, { recursive: true })
+  const filePath = join(resultsDir, `${new Date().toISOString().slice(0, 10)}-${EVAL_MODEL}-${promptSha256.slice(0, 8)}.json`)
   console.log(`run-eval: writing ${filePath}`)
 
   const verbose = env.EVAL_VERBOSE === '1'

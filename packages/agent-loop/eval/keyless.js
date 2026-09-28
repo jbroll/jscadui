@@ -2,6 +2,8 @@
 // sources while geometry and grading run for real. No key, no budget. The
 // committed script plus test are the reference; JSON output regenerates.
 import { mkdirSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { evalResultsDir } from '../log/log-dir.js'
 import { createEvalBackend } from './backend.js'
 import { fixture as bracket } from './fixtures/bracket.js'
 import { fixture as cubeHole } from './fixtures/cube-hole.js'
@@ -59,7 +61,12 @@ export async function runKeylessBaseline() {
 if (process.argv[1] === new URL(import.meta.url).pathname) {
   const results = await runKeylessBaseline()
   console.log(formatTable(results))
-  mkdirSync(new URL('./results/', import.meta.url), { recursive: true })
-  const stamp = new Date().toISOString().slice(0, 10)
-  writeFileSync(new URL(`./results/${stamp}-keyless.json`, import.meta.url), JSON.stringify({ model: 'keyless', results }, null, 2))
+  const resultsDir = evalResultsDir()
+  if (!resultsDir) {
+    console.log('keyless: no results dir (clone jbroll/jscad-chat-evals to ~/src/jscad-chat-evals or set EVAL_RESULTS_DIR), skipping write')
+  } else {
+    mkdirSync(resultsDir, { recursive: true })
+    const stamp = new Date().toISOString().slice(0, 10)
+    writeFileSync(join(resultsDir, `${stamp}-keyless.json`), JSON.stringify({ model: 'keyless', results }, null, 2))
+  }
 }

@@ -13,9 +13,13 @@ import { createProvider, runTurn, SYSTEM_PROMPT } from '@jscadui/agent-loop'
 ## Chat log reader
 
 The `jscad-chat` launcher's relay logs each chat request as one JSONL line
-(see `apps/jscad-web/README.md`). The reader groups the lines by chat id,
-splits them into turns, and parses each response with the adapters' own
-stream parsers.
+(see `apps/jscad-web/README.md`). Logs and eval results live in the private
+`jscad-chat-evals` repo, cloned at `~/src/jscad-chat-evals` (or
+`$JSCAD_CHAT_DATA`); `chatLogDir`/`evalResultsDir` (`log/log-dir.js`) resolve
+to `<data>/logs` and `<data>/results` when that repo is present, else the XDG
+fallback (logs) or nothing (results, see `EVAL_RESULTS_DIR` below). The reader
+groups the lines by chat id, splits them into turns, and parses each response
+with the adapters' own stream parsers.
 
 ```bash
 npm run read-log -w @jscadui/agent-loop -- --since 2026-09-27T00:00:00Z
@@ -81,6 +85,8 @@ npm run eval:keyless -w @jscadui/agent-loop
 | `EVAL_RUNS` | runs per fixture, default 5 |
 | `EVAL_FIXTURES` | comma-separated fixture names to run, default all |
 | `EVAL_VERBOSE` | `1` prints each run turn by turn: the header and prompt, tool calls with full input, tool results, and streamed assistant text |
+| `JSCAD_CHAT_DATA` | path to the `jscad-chat-evals` clone, default `~/src/jscad-chat-evals` |
+| `EVAL_RESULTS_DIR` | overrides where results are written, regardless of `JSCAD_CHAT_DATA` |
 
 Each run is graded on discipline, recovery, geometry and conservation (0-2
 each) and on `firstAttemptFailures`: the failed tool results before the first
@@ -89,7 +95,10 @@ gives, per fixture, the mean `firstAttemptFailures`, the pass rate of its
 geometry checks, the mean total and the count of runs that ended in a
 provider error. Each result file, `eval/results/<date>-<model>-<sha8>.json`,
 records the SHA-256 of the assembled system prompt, so `--compare` can set two
-prompt versions side by side. The file is rewritten after every run, so an
+prompt versions side by side. The result dir is `evalResultsDir()`: `EVAL_RESULTS_DIR`
+when set, else `<data>/results` when the evals repo is present; with neither,
+`run-eval` exits 1 before calling any provider. `--compare` always takes
+explicit paths. The file is rewritten after every run, so an
 interrupted eval keeps every run that finished. Each result also carries `transcript`, the run's
 messages minus the system prompt, for tracing a stumble back to the tool calls
 that caused it. The eval prints one line per run as it goes. The key is never

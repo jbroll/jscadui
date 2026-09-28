@@ -12,10 +12,12 @@ conversations; the eval measures a prompt change before it is kept.
 ## Scope
 
 Edit only `packages/agent-loop/prompt.md`, `packages/agent-loop/prompt/`
-(examples and `prompt/index.js`), `packages/agent-loop/eval/fixtures/` and
-new files in `packages/agent-loop/eval/results/`. A stumble whose cause is in
-the runtime, the tools or the app goes to `docs/backlog.md` as an item
-instead, with the conversation's chat id and the error text.
+(examples and `prompt/index.js`) and `packages/agent-loop/eval/fixtures/` in
+jscadui. Logs and eval result files live in the private `jscad-chat-evals`
+repo, `$JSCAD_CHAT_DATA` (default `~/src/jscad-chat-evals`); new result files
+go there, not in jscadui. A stumble whose cause is in the runtime, the tools
+or the app goes to `docs/backlog.md` as an item instead, with the
+conversation's chat id and the error text.
 
 Live eval runs spend API budget. Before the first live run of a review, tell
 the user the fixture count times `EVAL_RUNS` and get a yes.
@@ -94,14 +96,18 @@ the user the fixture count times `EVAL_RUNS` and get a yes.
    npm run eval -w @jscadui/agent-loop -- --compare eval/results/<baseline>.json eval/results/<candidate>.json
    ```
 
-   The baseline is the newest result file for the current prompt (its
-   `promptSha256` matches the committed prompt); run one if none exists.
+   The baseline is the newest result file in `<data>/results/` (`$JSCAD_CHAT_DATA`,
+   default `~/src/jscad-chat-evals`) for the current prompt (its `promptSha256`
+   matches the committed prompt); run one if none exists.
    Keep the change only if the mean `firstAttemptFailures` drops on the new
    fixtures and no fixture's mean total score falls by more than 0.5.
    Otherwise revise and measure again, or drop the change.
 
 7. **Show and commit.** Show the user the prompt/example diff and the
-   comparison table. On approval, commit the prompt, examples, fixtures and
-   both result files together, then write the review time from step 1 to
-   `~/.local/state/jscad-chat/last-review` with the Write tool. Never push or
-   open a pull request.
+   comparison table. On approval, commit the prompt, examples and fixtures in
+   jscadui; then, in the evals repo, `git -C <data> add logs results` and
+   commit the new log and result files, with a message naming the jscadui
+   commit it goes with. Push the evals repo (`jbroll/jscad-chat-evals`, the
+   user's private repo). Never push jscadui without asking, and never open a
+   pull request. Write the review time from step 1 to
+   `~/.local/state/jscad-chat/last-review` with the Write tool.

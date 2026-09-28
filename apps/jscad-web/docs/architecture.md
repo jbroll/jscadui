@@ -672,13 +672,16 @@ headers (content type, accept, provider auth and version, the opencode
 session), so the session cookie never reaches a provider.
 
 The `jscad-chat` launcher's relay (`scripts/local/relay.js`) also appends each
-forwarded POST to `~/.local/state/jscad-chat/logs/YYYY-MM-DD.jsonl`
-(`$XDG_STATE_HOME` when set; `JSCAD_CHAT_LOG=<dir>` moves it, `=0` turns it
-off): time, the `x-jscad-chat-id` header the chat sends, provider kind,
-sub-path, status, the request body without `tools`, the response text and the
-elapsed ms. Headers are never written. The response is teed while it streams,
-and a failed write warns once without failing the request. Neither relay
-forwards `x-jscad-chat-id`, and the production relay does not log.
+forwarded POST to `<dir>/YYYY-MM-DD.jsonl` (`chatLogDir` in
+`packages/agent-loop/log/log-dir.js`: `<jscad-chat-evals clone>/logs` when
+that repo is cloned at `~/src/jscad-chat-evals` or `$JSCAD_CHAT_DATA`, else
+`~/.local/state/jscad-chat/logs` with `$XDG_STATE_HOME` when set;
+`JSCAD_CHAT_LOG=<dir>` moves it regardless, `=0` turns it off): time, the
+`x-jscad-chat-id` header the chat sends, provider kind, sub-path, status, the
+request body without `tools`, the response text and the elapsed ms. Headers
+are never written. The response is teed while it streams, and a failed write
+warns once without failing the request. Neither relay forwards
+`x-jscad-chat-id`, and the production relay does not log.
 
 Each turn sends `buildMessages` (`packages/agent-loop/src/context.js`): the
 system prompt; prior turns, newest first, as whole user/assistant pairs until
@@ -721,7 +724,10 @@ The prompt improves from real sessions. The launcher relay logs each
 conversation (above), and `packages/agent-loop/log/read-log.js` rebuilds the
 log into turns, each tool call with its result and the source of any failed
 one. It parses responses with the adapters' own stream parsers, so each
-protocol has one SSE parser. The `chat-review` project skill
+protocol has one SSE parser. Logs and eval result files live in the private
+`jscad-chat-evals` repo (`~/src/jscad-chat-evals`, or `$JSCAD_CHAT_DATA`), not
+in jscadui; `evalResultsDir` (same module) resolves the eval's write target
+and `run-eval` refuses to run without one. The `chat-review` project skill
 (`.claude/skills/chat-review/`) groups the stumbles by cause, reproduces each
 group as an eval fixture, and keeps a prompt or example change only when the
 eval shows fewer first-attempt failures on the new fixtures and no fixture's
