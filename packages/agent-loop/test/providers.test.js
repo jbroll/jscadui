@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createProvider, parseAnthropicStream, parseOpenAIStream } from '../src/providers.js'
 import { parseResponsesStream } from '../src/responses.js'
+import { buildMessages } from '../src/context.js'
 
 const TOOLS = [
   {
@@ -276,6 +277,34 @@ describe('stream parsers', () => {
       { type: 'tool_use', id: 'call_1', name: 'measure', input: { target: 'p' } },
       { type: 'done', stopReason: 'completed' },
     ])
+  })
+})
+
+describe('prior assistant turns without tool calls', () => {
+  const messages = buildMessages({
+    systemPrompt: 'S',
+    transcript: [
+      { role: 'user', content: 'a sphere' },
+      { role: 'assistant', content: 'done' },
+    ],
+    message: 'bigger',
+  })
+
+  it.each([
+    ['anthropic', { kind: 'anthropic', model: 'm' }, ''],
+    ['openai', { kind: 'openai', model: 'm' }, `data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n` + `data: [DONE]\n\n`],
+    ['opencode-go anthropic-protocol', { kind: 'opencode-go', model: 'minimax-m3' }, ''],
+    ['opencode-go openai-protocol', { kind: 'opencode-go', model: 'deepseek-v4-flash' }, `data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n` + `data: [DONE]\n\n`],
+    ['meta responses', { kind: 'meta', model: 'muse-spark-1.3-contributor' }, `data: {"type":"response.completed"}\n\n`],
+  ])('%s: sends the prior assistant text without throwing', async (_name, config, body) => {
+    fetchMock.mockResolvedValue(new Response(sseBody(body)))
+    const provider = createProvider({ ...config, apiKey: 'k', baseUrl: 'https://relay.test' })
+    await expect((async () => {
+      for await (const e of provider.send(messages, TOOLS)) void e
+    })()).resolves.not.toThrow()
+    const sentBody = JSON.parse(fetchMock.mock.calls[0][1].body)
+    const serialized = JSON.stringify(sentBody)
+    expect(serialized).toContain('done')
   })
 })
 

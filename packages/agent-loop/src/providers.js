@@ -49,7 +49,7 @@ const toAnthropicMessage = (message) => {
   if (message.role === 'assistant') {
     const content = []
     if (message.content) content.push({ type: 'text', text: message.content })
-    for (const call of message.toolCalls) {
+    for (const call of message.toolCalls ?? []) {
       content.push({ type: 'tool_use', id: call.id, name: call.name, input: call.input })
     }
     return { role: 'assistant', content }
@@ -140,7 +140,7 @@ const toOpenAIMessage = (message) => {
   if (message.role === 'tool') {
     return { role: 'tool', tool_call_id: message.toolCallId, content: message.content }
   }
-  if (message.role === 'assistant' && message.toolCalls.length > 0) {
+  if (message.role === 'assistant' && (message.toolCalls ?? []).length > 0) {
     return {
       role: 'assistant',
       content: message.content,
