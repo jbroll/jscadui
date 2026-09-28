@@ -13,7 +13,7 @@
   OpenSCAD                   Browser
 ```
 
-Transpiles OpenSCAD to JavaScript. Run `.scad` files directly in [jscad.app](https://jscad.app).
+Transpiles OpenSCAD to JavaScript. Run `.scad` files directly in [jscad.rkroll.com](https://jscad.rkroll.com).
 
 ## Installation
 

@@ -11,6 +11,6 @@ esbuild .\script.js --bundle --external:@jscad/modeling --outdir=build
 --sourcemap=inline --format=cjs --watch
 ```
 
-This way `@jscad/modeling` will not be included in the bundle, and that is ok because worker has it available unlike other dependencies that you might have. You can drag and drop the generated script on https://jscad.app and develop it even further before including with your HTML page.
+This way `@jscad/modeling` will not be included in the bundle, and that is ok because worker has it available unlike other dependencies that you might have. You can drag and drop the generated script on https://jscad.rkroll.com and develop it even further before including with your HTML page.
 
 `--sourcemap=inline` option is gives line numbers when errors occur, it is nice while developing, but can be omitted for production build.

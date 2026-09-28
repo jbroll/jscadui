@@ -5,7 +5,7 @@ This file provides guidance to Claude Code when working with this repository.
 ## Project Overview
 
 jscadui is a JSCAD UI playground — libraries and apps for building 3D CAD interfaces.
-Main production app: [jscad.app](https://jscad.app) at `apps/jscad-web`. See `README.md`.
+Main production app: [jscad.rkroll.com](https://jscad.rkroll.com) at `apps/jscad-web`. See `README.md`.
 
 **Targets modern browsers only.** Uses ES2022+ features without polyfills. No compat shims.
 

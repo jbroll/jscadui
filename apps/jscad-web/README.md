@@ -169,7 +169,7 @@ npm run serve
 
 If you want to share a script from your website you should setup CORS, and make sure to use HTTPS!
 
-if you do not setup CORS [jscad.app](https://jscad.app) can fallback to `/remote` to download the script, but this workaround  may not be available forever (such enpoint could be abused to hide IP for attacks).
+if you do not setup CORS [jscad.rkroll.com](https://jscad.rkroll.com) can fallback to `/remote` to download the script, but this workaround  may not be available forever (such enpoint could be abused to hide IP for attacks).
 
 
 For hostings (that are uaually cheap and abundant) on CPanel adding .htaccess to your folder should work.
@@ -187,7 +187,7 @@ If you are using github you should be fine, as gists and github pages have those
 
 you can use data url to pack the script into the url
 
-- [example](https://jscad.app/#data:application/javascript;base64,bW9kdWxlLmV4cG9ydHM9ZnVuY3Rpb24gbWFpbigpe3JldHVybiByZXF1aXJlKCdAanNjYWQvbW9kZWxpbmcnKS5wcmltaXRpdmVzLnNwaGVyZSh7cmFkaXVzOiA0MH0pfQ==)
+- [example](https://jscad.rkroll.com/#data:application/javascript;base64,bW9kdWxlLmV4cG9ydHM9ZnVuY3Rpb24gbWFpbigpe3JldHVybiByZXF1aXJlKCdAanNjYWQvbW9kZWxpbmcnKS5wcmltaXRpdmVzLnNwaGVyZSh7cmFkaXVzOiA0MH0pfQ==)
 
 *NOTICE: utf8 encoding is assumed when converting bytes to string*
 
@@ -195,7 +195,7 @@ you can use data url to pack the script into the url
 
 you can also use gzip to minimize the length of the url.
 
-- [example](https://jscad.app/#data:application/gzip;base64,H4sICN1FqGUAA3Rlc3QADcrBDkAwDADQu6/YjV3GxUUi8SuLFRXrpl1FIv6dd34xBT3AwZ0TFxkXpblgIhM9UmMfhqJMhuFUZGjqaZfZhzamAAfSWluXGSMWvECc5A3+9LAPqDKYvnvtW33S8ZutYgAAAA==)
+- [example](https://jscad.rkroll.com/#data:application/gzip;base64,H4sICN1FqGUAA3Rlc3QADcrBDkAwDADQu6/YjV3GxUUi8SuLFRXrpl1FIv6dd34xBT3AwZ0TFxkXpblgIhM9UmMfhqJMhuFUZGjqaZfZhzamAAfSWluXGSMWvECc5A3+9LAPqDKYvnvtW33S8ZutYgAAAA==)
 
 *NOTICE: utf8 encoding is assumed when converting bytes to string*
 
