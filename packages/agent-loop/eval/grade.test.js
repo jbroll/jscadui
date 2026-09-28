@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { firstAttemptFailures, geometryError, gradeFixture, transcriptMetrics } from './grade.js'
+import { firstAttemptFailures, geometryError, gradeFixture, lastSource, transcriptMetrics } from './grade.js'
 
 const fixture = {
   name: 'cube-hole',
@@ -93,6 +93,42 @@ describe('firstAttemptFailures', () => {
   it('passes the context to the checks', () => {
     const withParams = { ...fixture, checks: (_m, { params = [] } = {}) => [{ name: 'slider', pass: params.length === 1 }] }
     expect(gradeFixture(withParams, [], null, { params: [{ type: 'slider' }] }).checkRate).toBe(1)
+  })
+
+  it('passes the last writeModel source to the checks, over an earlier eval', () => {
+    const transcript = [
+      toolMsg('t1', 'eval', { source: 'const a = 1' }),
+      resultMsg('t1', JSON.stringify({ ok: true })),
+      toolMsg('t2', 'writeModel', { source: 'const b = 2' }),
+      resultMsg('t2', JSON.stringify({ ok: true })),
+    ]
+    const withSource = { ...fixture, checks: (_m, { source }) => [{ name: 'source', pass: source === 'const b = 2' }] }
+    expect(gradeFixture(withSource, transcript, null).checkRate).toBe(1)
+  })
+
+  it('falls back to the last eval source when writeModel was never called', () => {
+    const transcript = [toolMsg('t1', 'eval', { source: 'const a = 1' }), resultMsg('t1', JSON.stringify({ ok: true }))]
+    const withSource = { ...fixture, checks: (_m, { source }) => [{ name: 'source', pass: source === 'const a = 1' }] }
+    expect(gradeFixture(withSource, transcript, null).checkRate).toBe(1)
+  })
+})
+
+describe('lastSource', () => {
+  it('is the last writeModel source in the run', () => {
+    const transcript = [
+      toolMsg('t1', 'eval', { source: 'a' }),
+      toolMsg('t2', 'writeModel', { source: 'b' }),
+      toolMsg('t3', 'writeModel', { source: 'c' }),
+    ]
+    expect(lastSource(transcript)).toBe('c')
+  })
+
+  it('falls back to the last eval source when there is no writeModel', () => {
+    expect(lastSource([toolMsg('t1', 'eval', { source: 'a' }), toolMsg('t2', 'eval', { source: 'b' })])).toBe('b')
+  })
+
+  it('is an empty string when neither was called', () => {
+    expect(lastSource([toolMsg('t1', 'measure', {})])).toBe('')
   })
 })
 

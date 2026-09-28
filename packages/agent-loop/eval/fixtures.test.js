@@ -63,4 +63,55 @@ describe('eval fixtures', () => {
     expect([...m.dimensions].sort((a, b) => a - b)).toEqual([40, 40, 60])
     expect(geometryError(byName['bracket'].target, m)).toBeLessThan(0.01)
   })
+
+  it('gear-module passes a 44mm/5mm-thick, Z-centered placeholder', () => {
+    const { primitives: p } = createRequire(import.meta.url)('@jscad/modeling')
+    const shape = p.cylinder({ radius: 22, height: 5, segments: 20 })
+    expect(byName['gear-module'].checks(measure([shape], {}), {}).every((c) => c.pass)).toBe(true)
+  })
+
+  it('gear-module fails a tip diameter that is off by more than 1mm', () => {
+    const { primitives: p } = createRequire(import.meta.url)('@jscad/modeling')
+    const shape = p.cylinder({ radius: 20, height: 5, segments: 20 })
+    expect(byName['gear-module'].checks(measure([shape], {}), {}).every((c) => c.pass)).toBe(false)
+  })
+
+  it('gear-module fails a gear not centered in Z', () => {
+    const { primitives: p, transforms } = createRequire(import.meta.url)('@jscad/modeling')
+    const shape = transforms.translateZ(3, p.cylinder({ radius: 22, height: 5, segments: 20 }))
+    expect(byName['gear-module'].checks(measure([shape], {}), {}).every((c) => c.pass)).toBe(false)
+  })
+
+  it('fluent-chain passes a method-chained model with the right geometry', () => {
+    const { booleans, transforms, primitives: p } = createRequire(import.meta.url)('@jscad/modeling')
+    const cyl = () => p.cylinder({ radius: 5, height: 40 })
+    const cube = booleans.subtract(
+      booleans.subtract(booleans.subtract(p.cuboid({ size: [30, 30, 30] }), cyl()), transforms.rotateX(Math.PI / 2, cyl())),
+      transforms.rotateY(Math.PI / 2, cyl()),
+    )
+    const source = `const jf = require('@jbroll/jscad-fluent')
+let shape = jf.cube({ size: 30 })
+shape = shape.subtract(jf.cylinder({ radius: 5, height: 40 }))
+shape = shape.subtract(jf.cylinder({ radius: 5, height: 40 }).rotateX(Math.PI / 2))
+shape = shape.subtract(jf.cylinder({ radius: 5, height: 40 }).rotateY(Math.PI / 2))
+module.exports = { main: () => [shape] }`
+    expect(byName['fluent-chain'].checks(measure([cube], {}), { source }).every((c) => c.pass)).toBe(true)
+  })
+
+  it('fluent-chain fails a free jf.subtract(...) source with the right geometry', () => {
+    const { booleans, transforms, primitives: p } = createRequire(import.meta.url)('@jscad/modeling')
+    const cyl = () => p.cylinder({ radius: 5, height: 40 })
+    const cube = booleans.subtract(p.cuboid({ size: [30, 30, 30] }), cyl(), transforms.rotateX(Math.PI / 2, cyl()), transforms.rotateY(Math.PI / 2, cyl()))
+    const source = `const jf = require('@jbroll/jscad-fluent')
+const cube = jf.cube({ size: 30 })
+const cz = jf.cylinder({ radius: 5, height: 40 })
+const cx = jf.cylinder({ radius: 5, height: 40 }).rotateX(Math.PI / 2)
+const cy = jf.cylinder({ radius: 5, height: 40 }).rotateY(Math.PI / 2)
+module.exports = { main: () => [jf.subtract(cube, cz, cx, cy)] }`
+    const results = byName['fluent-chain'].checks(measure([cube], {}), { source })
+    expect(results.every((c) => c.pass)).toBe(false)
+    expect(results.find((c) => c.name === 'no free combine').pass).toBe(false)
+    expect(results.find((c) => c.name === '30mm extents').pass).toBe(true)
+    expect(results.find((c) => c.name === 'volume near 21365').pass).toBe(true)
+  })
 })

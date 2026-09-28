@@ -261,11 +261,16 @@ that caused it. The eval prints one line per run as it goes. The key is never
 printed or written.
 
 A fixture is one file exporting `fixture`:
-`{ name, prompt, requires, verifyBeforeWrite, maxTurns, checks(measure, { params }), transcript?, files?, target? }`.
+`{ name, prompt, requires, verifyBeforeWrite, maxTurns, checks(measure, { params, source }), transcript?, files?, target? }`.
 `name` matches the file name; `transcript` (prior `{ role, content }` turns)
 and `files` (`{ path: source }`) test follow-up requests through the same
 `buildMessages` the app uses. `target` (`{ volume?, dimensions? }`) feeds
-`geometryError` for a fixture whose prompt fixes the geometry.
+`geometryError` for a fixture whose prompt fixes the geometry. `source` is the
+last `writeModel` source in the run, else the last `eval` source, else `''`
+(`lastSource` in `eval/grade.js`), so a check can inspect the code the model
+wrote as well as the geometry it produced (a style check on a fluent chain,
+for example). `--regrade` still leaves geometry and `checkRate` as stored,
+since it has no live measure to re-run `checks` against.
 
 ## Review loop
 

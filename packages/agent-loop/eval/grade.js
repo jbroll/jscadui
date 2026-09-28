@@ -21,6 +21,13 @@ export function firstAttemptFailures(transcript) {
   return count
 }
 
+// The last writeModel source in the run, else the last eval source, else ''.
+export function lastSource(transcript) {
+  const calls = toolCallsOf(transcript)
+  const named = (name) => [...calls].reverse().find((c) => c.name === name)
+  return named('writeModel')?.input?.source ?? named('eval')?.input?.source ?? ''
+}
+
 // The transcript-based dimensions: everything except geometry, which needs the final measure.
 export function gradeTranscript(fixture, transcript) {
   const calls = toolCallsOf(transcript)
@@ -105,7 +112,8 @@ export function geometryError(target, measure) {
 export function gradeFixture(fixture, transcript, finalMeasure, context = {}) {
   const { dimensions, firstAttemptFailures: faf } = gradeTranscript(fixture, transcript)
 
-  const outcomes = fixture.checks(finalMeasure, context).map((c) => (c.pass ? 1 : 0))
+  const checksContext = { ...context, source: lastSource(transcript) }
+  const outcomes = fixture.checks(finalMeasure, checksContext).map((c) => (c.pass ? 1 : 0))
   const rate = outcomes.length === 0 ? 0 : outcomes.reduce((a, b) => a + b, 0) / outcomes.length
   const geometry = rate === 1 ? 2 : rate >= 0.5 ? 1 : 0
 
