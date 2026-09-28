@@ -108,6 +108,25 @@ mutated. The table is derived from the index at build time into a small
 module (`api/optionTable.js`, names and option names only) so the frame
 does not load the full index.
 
+### Fluent class methods
+
+The prompt teaches chaining (`jf.polygon(pts).extrudeLinear({ height: 8 })`),
+so the fluent methods whose first parameter is an options object are checked
+too: `center`, `mirror`, `expand`, `offset`, `extrudeLinear`,
+`extrudeRotate` on the classes that have them. Each forwards its options to
+the modeling function of the same name, so its table entry is that
+function's. The table lists them under `methods`, keyed by class
+(`methods.FluentGeom2.extrudeLinear`). Fluent exports no classes, so
+`wrapFluentMethods(jf, table, warn)` finds each prototype from an object a
+factory makes and wraps the listed methods in place, once (a `Symbol.for`
+mark); the warn target is global and swappable because the prototypes
+outlive any one copy of the module. A warning names
+`FluentGeom2.extrudeLinear`. Unlike the exports copy, this reaches every
+caller, fluent's own code included. That is accepted because fluent never
+calls its own option-taking methods and passes modeling only valid options;
+a guard test runs every fluent example in the repo through the eval backend
+with the wraps on and requires zero warnings.
+
 ### Where it is installed
 
 Model code must see the wrapped copy; library code must not, or internal
@@ -122,11 +141,13 @@ exports object per bundle URL, so the object itself is never wrapped.
   wrapped copy, memoized in a `WeakMap` keyed by the real exports. The
   cache keeps the real object. Library bundles (fluent, model-tools,
   anchors, manifold internals), the `j$` OpenSCAD runtime and the worker's
-  own lookups get the real object, as today.
+  own lookups get the real object, as today. The first time a project file
+  requires fluent, the frame worker also wraps the fluent bundle's methods.
 - **Eval** (`packages/agent-loop/eval/backend.js` `createReadFile` CDN
   stub): for `@jscad/modeling` and `@jbroll/jscad-fluent`, the stub returns
   the wrapped copy of Node's module object, never mutating it (fluent and
-  model-tools share that object).
+  model-tools share that object). On the first fluent request it wraps the
+  methods on Node's fluent prototypes.
 
 The require hook takes the wrapper from the frame worker through a
 registration function (`setUserModuleWrapper(fn)`), so `@jscadui/require`

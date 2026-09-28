@@ -4,7 +4,7 @@
 
 **Goal:** Give the chat model a `docs` tool that answers JSCAD API lookups from a generated index, and return unknown-option warnings with `eval` results, in the app and in the eval harness.
 
-**Architecture:** A generator in `packages/agent-loop/api/` parses the modeling JSDoc, the fluent `.d.ts` files and the jscad-text JSDoc into a committed `api/index.json` plus a small `api/optionTable.js`. A pure `docs.js` answers lookups from the index in the page and in the eval backend. `optionChecks.js` builds a copy of a module's exports whose options-first functions report unknown keys; `@jscadui/require` hands that copy only to project files (`setUserModuleWrapper`), the frame worker collects warnings per run, and the eval backend wraps inside its CDN stub.
+**Architecture:** A generator in `packages/agent-loop/api/` parses the modeling JSDoc, the fluent `.d.ts` files and the jscad-text JSDoc into a committed `api/index.json` plus a small `api/optionTable.js`. A pure `docs.js` answers lookups from the index in the page and in the eval backend. `optionChecks.js` builds a copy of a module's exports whose options-first functions report unknown keys; `@jscadui/require` hands that copy only to project files (`setUserModuleWrapper`), the frame worker collects warnings per run, and the eval backend wraps inside its CDN stub. Fluent class methods that take options (`.extrudeLinear({...})`) are checked by wrapping their shared prototypes once (`wrapFluentMethods`), in the frame worker and in the eval backend.
 
 **Tech Stack:** Node 22 ESM, vitest 4, esbuild (app and frame bundles), Playwright via simple-ci only.
 
@@ -20,7 +20,7 @@
 - Never run the OpenSCAD full suite locally.
 - No `sleep`, `while`/`until` loops, `watch` or `tail -f`. One command per Bash call.
 - Stay on branch `docs-tool`. Commit at the end of each task and let the pre-commit hook run; never `--no-verify`. Never push, never open a PR. Implementers end commit messages with their harness's own `Co-Authored-By` line.
-- Library code must never receive a wrapped exports object; the require cache holds the real one.
+- Library code must never receive a wrapped exports object; the require cache holds the real one. The one in-place change is the fluent class methods listed under `OPTION_TABLES['@jbroll/jscad-fluent'].methods`, wrapped once on their prototypes (Decision 9).
 - A warning is `{ fn, option, suggestions }`; a run keeps each `fn`+`option` once and at most 20 warnings.
 - A `docs` answer is at most 3,000 characters, truncated with a note.
 - Live evals spend API budget: run one only after the user says yes (Task 11).
@@ -36,8 +36,8 @@ The executor should read these before Task 1; each task's code already follows t
 5. **Bare names that hit several packages.** `roundedCuboid` matches `primitives.roundedCuboid` and `jf.roundedCuboid`. When exactly one hit is from `@jscad/modeling`, `docs` answers it and lists the others on an `Also:` line; otherwise it lists the candidates.
 6. **`minkowski` is indexed.** It is a public modeling namespace the spec's list left out.
 7. **Options JSDoc misses.** The generator adds a function's `defaults` literal keys when the file exports that one function (`extrudeLinear`'s `repair`), and `PASS_THROUGH` adds the options `extrudeRectangular` hands to `expand` and `extrudeLinear`. Without these, correct calls warn.
-8. **Option table shape** is `{ [pkg]: { prefix, options: { [path]: string[] } } }`, so a fluent warning names `jf.cube` while the wrapper walks `cube`.
-9. **Fluent class methods are documented but not checked.** The wrapper covers functions reachable from the exports object. Class prototypes are shared with library code, so wrapping them would warn on internal calls. Recorded in the backlog.
+8. **Option table shape** is `{ [pkg]: { prefix, options: { [path]: string[] }, methods: { [Class]: { [method]: string[] } } } }`, so a fluent warning names `jf.cube` while the wrapper walks `cube`, and a method warning names `FluentGeom2.extrudeLinear`. Task 1 committed `{ prefix, options }`; Task 2 adds `methods` to every package (`{}` for modeling). `methods` lists only methods whose first parameter is an options object, each class with only its own methods.
+9. **Fluent class methods that take options are checked, by wrapping their shared prototypes.** The prompt teaches chaining (`jf.polygon(pts).extrudeLinear({ height: 8 })`), so checking only the `jf.*` factories would miss most fluent misspellings. From fluent 0.6.1's `dist/gen/*.d.ts`, checked against `dist/jscad-fluent.js`, the option-taking methods are: `FluentGeom2` `center`, `expand`, `extrudeLinear`, `extrudeRotate`, `mirror`, `offset`; `FluentGeom3` `center`, `expand`, `mirror`; `FluentPath2` `center`, `expand`, `mirror`, `offset`; `FluentGeometryArray` `center`, `mirror` (inherited by the three array classes, so a warning names the base class); `FluentGeom2Array` `extrudeLinear`, `extrudeRotate`. Each hands its first argument unchanged to the modeling function of the same name, so each entry is `sameAs` that function (`center(axes: CenterOptions)` included: the argument is `transforms.center`'s whole options object despite the parameter name). Fluent exports no classes and its bundles minify class names, so `wrapFluentMethods` finds each prototype from an object a factory makes (`circle`, `cube`, `arc`, `geom2Array`, `geom3Array`, `path2Array`; `FluentGeometryArray` is the parent of an array class's prototype) and wraps once, marked with `Symbol.for('jscadui.optionChecks.wrapped')`. Warnings go to a target on `globalThis` (`setMethodWarn`), because the prototypes outlive any one copy of `optionChecks.js`. The wrap reaches every caller in the worker or Node process, fluent's own code included. That is accepted: fluent 0.6.1 never calls its own option-taking methods and hands modeling only valid options. `packages/agent-loop/eval/fluent-guard.test.js` (Task 9) runs every fluent example with the wraps on and requires zero warnings. The repo's `apps/jscad-web/examples` has no fluent model today, so that corpus is the two fluent prompt examples plus the three keyless eval sources; the guard globs the app examples too, so a future fluent example joins it.
 10. **The app's `eval` result keeps its shape**, `{ entityCount }`, and gains `warnings` only when there are some. It has never carried `ok: true`.
 11. **The collector lives behind `setRunWarnings(collector)` in `packages/worker/worker.js`**, so the worker package needs no agent-loop code. A parameter-change `jscadMain` without a new `jscadScript` reports the load's warnings plus its own, deduplicated.
 
@@ -498,7 +498,7 @@ git commit -m "feat(agent-loop): generate an API index from modeling and jscad-t
 
 **Files:**
 - Create: `packages/agent-loop/api/fluent.js`
-- Modify: `packages/agent-loop/api/build-index.js` (`buildIndex`)
+- Modify: `packages/agent-loop/api/build-index.js` (`buildIndex`, `optionTables`, `formatOptionTable`)
 - Regenerate: `packages/agent-loop/api/index.json`, `packages/agent-loop/api/optionTable.js`
 - Modify: `packages/agent-loop/test/api-index.test.js` (new `describe('fluent entries')`)
 - Modify: `packages/agent-loop/README.md` (`## API index`)
@@ -507,7 +507,7 @@ git commit -m "feat(agent-loop): generate an API index from modeling and jscad-t
 
 **Interfaces:**
 - Consumes: `parseBlock`, `firstSentence` from `api/jsdoc.js`; modeling `Entry[]` from `modelingEntries`.
-- Produces: `fluentEntries(distDir: string, modeling: Entry[]) → Entry[]` with names `jf`, `jf.<factory>`, `jf.colors`, `jf.colors.<fn>`, `FluentGeom2|FluentGeom3|FluentPath2|FluentGeometryArray|FluentGeom2Array|FluentGeom3Array|FluentPath2Array` (kind `class`, `members`, optional `extends`) and `<Class>.<method>`. A factory or method whose options are a modeling function's carries `sameAs: '<modeling name>'` and `optionsFirst: true`, no `options`. `OPTION_TABLES['@jbroll/jscad-fluent'].options` keys are factory names without `jf.`.
+- Produces: `fluentEntries(distDir: string, modeling: Entry[]) → Entry[]` with names `jf`, `jf.<factory>`, `jf.colors`, `jf.colors.<fn>`, `FluentGeom2|FluentGeom3|FluentPath2|FluentGeometryArray|FluentGeom2Array|FluentGeom3Array|FluentPath2Array` (kind `class`, `members`, optional `extends`) and `<Class>.<method>`. A factory or method whose options are a modeling function's carries `sameAs: '<modeling name>'` and `optionsFirst: true`, no `options`. `optionTables(entries) → { [pkg]: { prefix, options: { [path]: string[] }, methods: { [Class]: { [method]: string[] } } } }`: `OPTION_TABLES['@jbroll/jscad-fluent'].options` keys are factory names without `jf.`, and `.methods` holds the 17 option-taking methods of Decision 9 keyed by class (`methods.FluentGeom2.extrudeLinear`), each class with only its own methods. `OPTION_TABLES['@jscad/modeling'].methods` is `{}`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -537,6 +537,26 @@ describe('fluent entries', () => {
     })
     expect(entry('FluentGeom3').members.map((m) => m.name)).toContain('translate')
     expect(entry('FluentGeom3Array')).toMatchObject({ kind: 'class', extends: 'FluentGeometryArray' })
+  })
+
+  it('marks the methods that take an options object', () => {
+    expect(entry('FluentGeom3.center')).toMatchObject({ sameAs: 'transforms.center', optionsFirst: true })
+    expect(entry('FluentGeometryArray.mirror')).toMatchObject({ sameAs: 'transforms.mirror', optionsFirst: true })
+    expect(entry('FluentGeom2Array.extrudeRotate')).toMatchObject({ sameAs: 'extrusions.extrudeRotate', optionsFirst: true })
+    expect(entry('FluentGeom2.translate').optionsFirst).toBeUndefined()
+    expect(entry('FluentGeom2.union').optionsFirst).toBeUndefined()
+  })
+
+  it('tables the options of fluent methods by class', () => {
+    const { methods } = OPTION_TABLES['@jbroll/jscad-fluent']
+    expect(Object.keys(methods).sort()).toEqual(['FluentGeom2', 'FluentGeom2Array', 'FluentGeom3', 'FluentGeometryArray', 'FluentPath2'])
+    expect(Object.keys(methods.FluentGeom2).sort()).toEqual(['center', 'expand', 'extrudeLinear', 'extrudeRotate', 'mirror', 'offset'])
+    expect(Object.keys(methods.FluentGeom3).sort()).toEqual(['center', 'expand', 'mirror'])
+    expect(Object.keys(methods.FluentPath2).sort()).toEqual(['center', 'expand', 'mirror', 'offset'])
+    expect(methods.FluentGeometryArray).toEqual({ mirror: ['normal', 'origin'], center: ['axes', 'relativeTo'] })
+    expect(Object.keys(methods.FluentGeom2Array).sort()).toEqual(['extrudeLinear', 'extrudeRotate'])
+    expect(methods.FluentGeom2.extrudeLinear).toEqual(['height', 'repair', 'twistAngle', 'twistSteps'])
+    expect(OPTION_TABLES['@jscad/modeling'].methods).toEqual({})
   })
 
   it('reads nested namespace JSDoc without comment markers', () => {
@@ -773,15 +793,59 @@ export const buildIndex = () => {
 }
 ```
 
+In the same file, replace `optionTables` and `formatOptionTable` so a class's option-taking methods land under `methods`:
+
+```js
+const optionNames = (e, byName) => ((e.sameAs ? byName.get(e.sameAs) : e).options ?? []).map((o) => o.name).sort()
+
+export const optionTables = (entries) => {
+  const byName = new Map(entries.map((e) => [e.name, e]))
+  const classes = new Set(entries.filter((e) => e.kind === 'class').map((e) => e.name))
+  const tables = {}
+  for (const [pkg, prefix] of Object.entries(PACKAGE_PREFIX)) {
+    const options = {}
+    const methods = {}
+    for (const e of entries) {
+      if (e.pkg !== pkg || !e.optionsFirst) continue
+      const dot = e.name.indexOf('.')
+      const owner = e.name.slice(0, dot)
+      if (classes.has(owner)) {
+        methods[owner] ??= {}
+        methods[owner][e.name.slice(dot + 1)] = optionNames(e, byName)
+      } else if (e.name.startsWith(prefix)) {
+        options[e.name.slice(prefix.length)] = optionNames(e, byName)
+      }
+    }
+    tables[pkg] = { prefix, options, methods }
+  }
+  return tables
+}
+```
+
+```js
+const rows = (record, indent) => Object.entries(record).map(([key, names]) => `${indent}${JSON.stringify(key)}: ${JSON.stringify(names)},`)
+
+export const formatOptionTable = (tables) => {
+  const packages = Object.entries(tables).map(([pkg, { prefix, options, methods }]) => {
+    const classes = Object.entries(methods).map(([cls, byMethod]) => `      ${JSON.stringify(cls)}: {\n${rows(byMethod, '        ').join('\n')}\n      },`)
+    const methodBlock = classes.length ? `{\n${classes.join('\n')}\n    }` : '{}'
+    return `  ${JSON.stringify(pkg)}: {\n    prefix: ${JSON.stringify(prefix)},\n    options: {\n${rows(options, '      ').join('\n')}\n    },\n    methods: ${methodBlock},\n  },`
+  })
+  return `// Generated by api/build-index.js; do not edit. Run: npm run api-index -w @jscadui/agent-loop\nexport const OPTION_TABLES = {\n${packages.join('\n')}\n}\n`
+}
+```
+
+The scanner above already gives each option-taking method `sameAs` and `optionsFirst` through `optionsOf` (the `*Options` type names the modeling function); only the table is new. Before regenerating, confirm the method list against the installed JS: in `node_modules/@jbroll/jscad-fluent/dist/jscad-fluent.js` each of the 17 methods of Decision 9 is a one-line forward of its first argument to the modeling function of the same name, and no fluent code calls these methods itself (`grep -nE "\.(mirror|center|expand|offset|extrudeLinear|extrudeRotate)\(" node_modules/@jbroll/jscad-fluent/dist/jscad-fluent.js` shows only `e.`, `_.` and `C.` modeling calls). If a fluent upgrade breaks either, stop and report it.
+
 - [ ] **Step 4: Regenerate the index**
 
 Run: `npm run api-index -w @jscadui/agent-loop`
-Expected: `api-index: 331 entries`. `api/index.json` is about 129 KB.
+Expected: `api-index: 331 entries`. `api/index.json` is about 129 KB. `api/optionTable.js` gains a `methods` block per package: `methods: {},` for modeling and five classes for fluent.
 
 - [ ] **Step 5: Run test to verify it passes**
 
 Run: `npx vitest run --root packages/agent-loop test/api-index.test.js`
-Expected: PASS, 19 tests.
+Expected: PASS, 21 tests.
 
 - [ ] **Step 6: Document fluent in the index**
 
@@ -799,7 +863,10 @@ first, `optionsFirst` and `options` (name, type, default, description). A
 fluent entry whose options are a modeling function's names it in `sameAs`
 instead of copying them, and the fluent array classes name their base class
 in `extends`. `api/optionTable.js` holds only the option names, for the
-unknown-option checks.
+unknown-option checks: `options` for functions reached from the exports
+(`primitives.roundedCuboid`, `cube` for `jf.cube`), and `methods` for the
+fluent class methods whose first parameter is an options object, keyed by
+class (`FluentGeom2.extrudeLinear`).
 ```
 
 and change "so a `@jscad/modeling` pin update needs" to "so a `@jscad/modeling` pin update or a fluent upgrade needs".
@@ -1249,12 +1316,15 @@ git commit -m "feat(agent-loop): offer a docs tool in the chat and the eval"
 - Create: `packages/agent-loop/src/optionChecks.js`
 - Create: `packages/agent-loop/test/optionChecks.test.js`
 
-**Model:** `haiku` — two files with the complete code and tests below.
+**Model:** `sonnet` — the code and tests are complete below, but the fluent method wraps mutate shared prototypes and one test runs the real fluent package.
 
 **Interfaces:**
-- Consumes: `editDistance` (Task 3); `OPTION_TABLES` shape (Task 1).
+- Consumes: `editDistance` (Task 3); `OPTION_TABLES` shape (Task 2: `{ prefix, options, methods }`).
 - Produces:
-  - `withOptionChecks(api: object, table: { prefix: string, options: Record<string, string[]> } | undefined, warn: (w: {fn, option, suggestions}) => void) → object`: a copy with wrapped functions; `api` itself when `table` is missing.
+  - `withOptionChecks(api: object, table: { prefix: string, options: Record<string, string[]> } | undefined, warn: (w: {fn, option, suggestions}) => void) → object`: a copy with wrapped functions; `api` itself when `table` is missing. It ignores `table.methods`.
+  - `wrapFluentMethods(jf: object, table: { methods?: Record<string, Record<string, string[]>> } | undefined, warn: ((w) => void) | null) → void`: sets the method warn target to `warn`, then wraps in place, once, each listed method on the prototype of the fluent class it names. Warnings name `<Class>.<method>`.
+  - `setMethodWarn(warn: ((w) => void) | null) → void`: swaps the target every wrapped method reports to (held on `globalThis`); `null` silences them.
+  - `fluentPrototypes(jf: object) → Record<string, object>`: class name to prototype, found from factory results.
   - `suggestOptions(option: string, known: string[]) → string[]`
   - `createWarningCollector(cap = MAX_WARNINGS) → { warn(w), reset(), list() → Warning[] }`
   - `MAX_WARNINGS = 20`
@@ -1264,9 +1334,12 @@ git commit -m "feat(agent-loop): offer a docs tool in the chat and the eval"
 Create `packages/agent-loop/test/optionChecks.test.js`:
 
 ```js
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { createRequire } from 'node:module'
 import { OPTION_TABLES } from '../api/optionTable.js'
-import { createWarningCollector, MAX_WARNINGS, suggestOptions, withOptionChecks } from '../src/optionChecks.js'
+import {
+  createWarningCollector, MAX_WARNINGS, setMethodWarn, suggestOptions, withOptionChecks, wrapFluentMethods,
+} from '../src/optionChecks.js'
 
 const table = {
   prefix: '',
@@ -1391,6 +1464,98 @@ describe('createWarningCollector', () => {
     expect(c.list()).toEqual([])
   })
 })
+
+// Fresh classes per call, so one test's wraps never reach another's.
+const fakeFluent = () => {
+  class GeometryArray extends Array {
+    mirror(options) { return { options } }
+  }
+  class Geom2Array extends GeometryArray {}
+  class Geom2 {
+    extrudeLinear(options, extra) { return { options, extra, self: this } }
+    translate(offset) { return offset }
+  }
+  return { jf: { circle: () => new Geom2(), geom2Array: () => new Geom2Array() }, Geom2, Geom2Array }
+}
+
+const methodTable = {
+  prefix: 'jf.',
+  options: {},
+  methods: {
+    FluentGeom2: { extrudeLinear: ['height', 'twistAngle'] },
+    FluentGeometryArray: { mirror: ['normal', 'origin'] },
+    FluentGeom3: { center: ['axes', 'relativeTo'] },
+  },
+}
+
+describe('wrapFluentMethods', () => {
+  afterEach(() => setMethodWarn(null))
+
+  it('warns on an unknown method option and calls the original with the same this and arguments', () => {
+    const { jf, Geom2 } = fakeFluent()
+    const warn = vi.fn()
+    wrapFluentMethods(jf, methodTable, warn)
+    const shape = new Geom2()
+    const options = { hieght: 8 }
+    const extra = { other: 1 }
+    const result = shape.extrudeLinear(options, extra)
+    expect(warn).toHaveBeenCalledWith({ fn: 'FluentGeom2.extrudeLinear', option: 'hieght', suggestions: ['height'] })
+    expect(result.options).toBe(options)
+    expect(result.extra).toBe(extra)
+    expect(result.self).toBe(shape)
+  })
+
+  it('wraps inherited array methods once, on the base class', () => {
+    const { jf, Geom2Array } = fakeFluent()
+    const warn = vi.fn()
+    wrapFluentMethods(jf, methodTable, warn)
+    new Geom2Array().mirror({ normals: [1, 0, 0] })
+    expect(warn).toHaveBeenCalledWith({ fn: 'FluentGeometryArray.mirror', option: 'normals', suggestions: ['normal'] })
+  })
+
+  it('ignores a first argument that is not a plain object and methods the table leaves out', () => {
+    const { jf, Geom2 } = fakeFluent()
+    const warn = vi.fn()
+    wrapFluentMethods(jf, methodTable, warn)
+    new Geom2().extrudeLinear([1, 2])
+    new Geom2().extrudeLinear()
+    expect(new Geom2().translate({ anything: 1 })).toEqual({ anything: 1 })
+    expect(warn).not.toHaveBeenCalled()
+  })
+
+  it('installs once and reports to the latest target', () => {
+    const { jf, Geom2 } = fakeFluent()
+    const first = vi.fn()
+    const second = vi.fn()
+    wrapFluentMethods(jf, methodTable, first)
+    const wrapped = Geom2.prototype.extrudeLinear
+    wrapFluentMethods(jf, methodTable, second)
+    expect(Geom2.prototype.extrudeLinear).toBe(wrapped)
+    new Geom2().extrudeLinear({ hieght: 1 })
+    expect(first).not.toHaveBeenCalled()
+    expect(second).toHaveBeenCalledOnce()
+    setMethodWarn(null)
+    new Geom2().extrudeLinear({ hieght: 1 })
+    expect(second).toHaveBeenCalledOnce()
+  })
+
+  it('skips classes with no factory, factories that throw and results that are not objects', () => {
+    const jf = { cube: () => { throw new Error('no cube on this engine') }, arc: () => 'arc' }
+    expect(() => wrapFluentMethods(jf, methodTable, vi.fn())).not.toThrow()
+    expect(Object.getOwnPropertyNames(String.prototype)).not.toContain('center')
+  })
+
+  it('checks the real fluent classes against the generated table', () => {
+    const jf = createRequire(import.meta.url)('@jbroll/jscad-fluent')
+    const warn = vi.fn()
+    wrapFluentMethods(jf, OPTION_TABLES['@jbroll/jscad-fluent'], warn)
+    const solid = jf.circle({ radius: 5 }).extrudeLinear({ height: 10, twist: 1 }).center({ axes: [true, true, false] })
+    expect(solid.measureVolume()).toBeGreaterThan(0)
+    expect(warn.mock.calls.map(([w]) => w)).toEqual([
+      { fn: 'FluentGeom2.extrudeLinear', option: 'twist', suggestions: ['twistAngle', 'twistSteps'] },
+    ])
+  })
+})
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -1475,6 +1640,61 @@ export const withOptionChecks = (api, table, warn) => {
   return root
 }
 
+const FLUENT_FACTORIES = {
+  FluentGeom2: 'circle',
+  FluentGeom3: 'cube',
+  FluentPath2: 'arc',
+  FluentGeom2Array: 'geom2Array',
+  FluentGeom3Array: 'geom3Array',
+  FluentPath2Array: 'path2Array',
+}
+
+// Fluent exports no classes and its bundles minify their names, so each
+// prototype comes from an object a factory makes.
+export const fluentPrototypes = (jf) => {
+  const protos = {}
+  for (const [cls, factory] of Object.entries(FLUENT_FACTORIES)) {
+    if (typeof jf?.[factory] !== 'function') continue
+    try {
+      const made = jf[factory]()
+      if (made !== null && typeof made === 'object') protos[cls] = Object.getPrototypeOf(made)
+    } catch {
+      // An engine without this primitive leaves the class unchecked.
+    }
+  }
+  const array = protos.FluentGeom2Array ?? protos.FluentGeom3Array ?? protos.FluentPath2Array
+  if (array) protos.FluentGeometryArray = Object.getPrototypeOf(array)
+  return protos
+}
+
+// The prototypes outlive any one copy of this module (another bundle, a test
+// file's fresh import), so the mark and the warn target are global.
+const WRAPPED = Symbol.for('jscadui.optionChecks.wrapped')
+const METHOD_WARN = Symbol.for('jscadui.optionChecks.methodWarn')
+
+export const setMethodWarn = (warn) => {
+  globalThis[METHOD_WARN] = warn
+}
+
+const reportMethod = (warning) => globalThis[METHOD_WARN]?.(warning)
+
+export const wrapFluentMethods = (jf, table, warn) => {
+  setMethodWarn(warn)
+  if (!table?.methods || jf === null || typeof jf !== 'object') return
+  const protos = fluentPrototypes(jf)
+  for (const [cls, methods] of Object.entries(table.methods)) {
+    const proto = protos[cls]
+    if (!proto) continue
+    for (const [name, known] of Object.entries(methods)) {
+      const descriptor = Object.getOwnPropertyDescriptor(proto, name)
+      if (typeof descriptor?.value !== 'function' || descriptor.value[WRAPPED]) continue
+      const wrapped = checked(`${cls}.${name}`, descriptor.value, known, reportMethod)
+      wrapped[WRAPPED] = true
+      Object.defineProperty(proto, name, { ...descriptor, value: wrapped })
+    }
+  }
+}
+
 export const createWarningCollector = (cap = MAX_WARNINGS) => {
   let seen = new Set()
   let list = []
@@ -1497,13 +1717,13 @@ export const createWarningCollector = (cap = MAX_WARNINGS) => {
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `npx vitest run --root packages/agent-loop test/optionChecks.test.js`
-Expected: PASS, 13 tests.
+Expected: PASS, 19 tests.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add packages/agent-loop/src/optionChecks.js packages/agent-loop/test/optionChecks.test.js
-git commit -m "feat(agent-loop): wrap options-first functions to report unknown keys"
+git commit -m "feat(agent-loop): wrap options-first functions and fluent methods to report unknown keys"
 ```
 
 ---
@@ -1689,11 +1909,11 @@ git commit -m "feat(require): hand project files a wrapped copy of modeling and 
 **Model:** `sonnet` — worker, frame and e2e must agree; the e2e runs on simple-ci.
 
 **Interfaces:**
-- Consumes: `setUserModuleWrapper` (Task 6); `withOptionChecks`, `createWarningCollector` (Task 5); `OPTION_TABLES` (Tasks 1-2).
+- Consumes: `setUserModuleWrapper` (Task 6); `withOptionChecks`, `wrapFluentMethods`, `createWarningCollector` (Task 5); `OPTION_TABLES` with `methods` (Task 2).
 - Produces:
   - `setRunWarnings(collector: { reset(): void, list(): Warning[] } | null)` exported from `@jscadui/worker`.
   - `jscadMain` and `jscadScript` results carry `warnings: Warning[]` when non-empty.
-  - `installOptionWarnings({ setUserModuleWrapper, setRunWarnings }) → collector` in `src_frame/optionWarnings.js`.
+  - `installOptionWarnings({ setUserModuleWrapper, setRunWarnings }) → collector` in `src_frame/optionWarnings.js`. The first time a project file requires `@jbroll/jscad-fluent`, it also wraps the fluent bundle's class methods (`wrapFluentMethods`), reporting to the same collector the worker resets each run.
 
 - [ ] **Step 1: Write the failing unit tests**
 
@@ -1785,6 +2005,16 @@ describe('frame option warnings', () => {
     wrapper('@jbroll/jscad-fluent', { cube: () => 'c' }).cube({ sise: 1 })
     expect(collector.list()).toEqual([{ fn: 'jf.cube', option: 'sise', suggestions: ['size'] }])
   })
+
+  it('checks fluent methods on the classes behind the module', () => {
+    const { wrapper, collector } = install()
+    class Geom2 {
+      extrudeLinear(options) { return options }
+    }
+    wrapper('@jbroll/jscad-fluent', { circle: () => new Geom2() })
+    new Geom2().extrudeLinear({ hieght: 1 })
+    expect(collector.list()).toEqual([{ fn: 'FluentGeom2.extrudeLinear', option: 'hieght', suggestions: ['height'] }])
+  })
 })
 ```
 
@@ -1833,18 +2063,27 @@ In `jscadScript`, after `workerState.lastRunStreamed = false`, add:
 Create `apps/jscad-web/src_frame/optionWarnings.js`:
 
 ```js
-import { createWarningCollector, withOptionChecks } from '@jscadui/agent-loop/src/optionChecks.js'
+import { createWarningCollector, withOptionChecks, wrapFluentMethods } from '@jscadui/agent-loop/src/optionChecks.js'
 import { OPTION_TABLES } from '@jscadui/agent-loop/api/optionTable.js'
 
+const FLUENT = '@jbroll/jscad-fluent'
 const tableFor = (name) => OPTION_TABLES[name === '@jscad/modeling-for-anchors' ? '@jscad/modeling' : name]
 
 export const installOptionWarnings = ({ setUserModuleWrapper, setRunWarnings }) => {
   const warnings = createWarningCollector()
   setRunWarnings(warnings)
-  setUserModuleWrapper((name, api) => withOptionChecks(api, tableFor(name), warnings.warn))
+  setUserModuleWrapper((name, api) => {
+    const table = tableFor(name)
+    // Fluent's classes are not exported, so their methods are checked on the
+    // shared prototypes, for every caller in the worker.
+    if (name === FLUENT) wrapFluentMethods(api, table, warnings.warn)
+    return withOptionChecks(api, table, warnings.warn)
+  })
   return warnings
 }
 ```
+
+`setUserModuleWrapper` memoizes per exports object (Task 6), so the wrapper runs once per fluent bundle, on the real exports, when a project file first requires fluent. The probes in `fluentPrototypes` then call the real factories inside that run's `jscadScript`, after the collector reset; they report nothing because the real exports are unwrapped. `wrapFluentMethods` is idempotent, so a second call (a reloaded bundle with the same classes) wraps nothing twice.
 
 In `apps/jscad-web/src_frame/bundle.frame-worker.js`, add `setRunWarnings` to the `@jscadui/worker` import, `setUserModuleWrapper` to the `@jscadui/require` import, add `import { installOptionWarnings } from './optionWarnings.js'`, and before `initWorker({`:
 
@@ -1858,7 +2097,7 @@ Run: `npx vitest run --root packages/worker`
 Expected: PASS, every file including the 2 new tests.
 
 Run: `npx vitest run --root apps/jscad-web test/option-warnings.test.js`
-Expected: PASS, 2 tests.
+Expected: PASS, 3 tests.
 
 - [ ] **Step 6: Add the frame e2e tests**
 
@@ -1877,6 +2116,12 @@ const FLUENT_CLEAN = project(
   `module.exports = { main }\n`,
 )
 
+const FLUENT_MISSPELLED_METHOD = project(
+  `const jf = require('@jbroll/jscad-fluent')\n` +
+  `const main = () => jf.circle({ radius: 5 }).extrudeLinear({ hieght: 10 })\n` +
+  `module.exports = { main }\n`,
+)
+
 for (const engine of ['jscad', 'manifold']) {
   test(`a misspelled option comes back as a warning on the ${engine} engine`, async ({ page }) => {
     await gotoHost(page)
@@ -1891,8 +2136,17 @@ for (const engine of ['jscad', 'manifold']) {
     expect(res.ok).toBe(true)
     expect(res.result.warnings).toBeUndefined()
   })
+
+  test(`a misspelled fluent method option comes back as a warning on the ${engine} engine`, async ({ page }) => {
+    await gotoHost(page)
+    const res = await load(page, FLUENT_MISSPELLED_METHOD, { engine, timeoutMs: 60000 })
+    expect(res.ok).toBe(true)
+    expect(res.result.warnings).toEqual([{ fn: 'FluentGeom2.extrudeLinear', option: 'hieght', suggestions: ['height'] }])
+  })
 }
 ```
+
+The clean-fluent test is the frame's false-warning guard: it runs fluent's method wraps against the bundled fluent on both engines. The full example corpus runs in the eval backend (Task 9), which is cheaper than a browser sweep.
 
 - [ ] **Step 7: Run the web suite on simple-ci**
 
@@ -1900,7 +2154,7 @@ Run from the repo root: `../simple-ci/sci push jscadui/web`
 Expected: prints the job id. Read it from the output.
 
 Run under Bash `run_in_background`: `../simple-ci/sci wait <job>`
-Expected when it exits: the job passes, including the four new `frame.spec.js` tests. On a failure, read the log it names, fix, and push again. Do not run Playwright locally.
+Expected when it exits: the job passes, including the six new `frame.spec.js` tests. On a failure, read the log it names, fix, and push again. Do not run Playwright locally.
 
 - [ ] **Step 8: Document the checks**
 
@@ -1924,16 +2178,27 @@ and not a `.scad` file, gets the copy; the libraries' internal calls would
 otherwise warn about options the user never wrote. The worker's collector is
 cleared at the start of each `jscadScript`, since top-level model code runs
 during the require, keeps each `fn`+`option` once, holds at most 20, and
-`jscadMain` returns them as `warnings`. Fluent class methods
-(`.extrudeLinear(...)`) are not checked: their prototypes are shared with
-library code.
+`jscadMain` returns them as `warnings`.
+
+Fluent class methods that take an options object (`.extrudeLinear({...})`,
+`.center`, `.mirror`, `.expand`, `.offset`, `.extrudeRotate`) are checked
+too, because the chat prompt teaches chaining. Fluent exports no classes, so
+`wrapFluentMethods` finds each prototype from an object a factory makes and
+wraps the methods listed under `methods` in the option table in place, once,
+the first time a project file requires fluent. A warning names the class,
+`FluentGeom2.extrudeLinear`, and goes to the run's collector. Unlike the
+exports copy, this reaches every caller in the worker, fluent's own code
+included. That is safe because fluent never calls its own option-taking
+methods and passes modeling only valid options;
+`packages/agent-loop/eval/fluent-guard.test.js` runs every fluent example with
+the wraps on and fails on any warning.
 ```
 
 - [ ] **Step 9: Commit**
 
 ```bash
 git add packages/worker/worker.js packages/worker/worker.warnings.test.js apps/jscad-web/src_frame/optionWarnings.js apps/jscad-web/test/option-warnings.test.js apps/jscad-web/src_frame/bundle.frame-worker.js apps/jscad-web/e2e/frame.spec.js apps/jscad-web/docs/architecture.md
-git commit -m "feat(frame): return unknown-option warnings from model runs"
+git commit -m "feat(frame): return unknown-option warnings from model runs, fluent methods included"
 ```
 
 ---
@@ -2059,6 +2324,8 @@ git commit -m "feat(frame): merge grid warnings and pass them to the chat's eval
 **Files:**
 - Modify: `packages/agent-loop/eval/backend.js` (`createReadFile` stub, line 49; `runModel`, lines 62-73; `load` and `requestTool`, lines 82-103)
 - Modify: `packages/agent-loop/eval/backend.test.js`
+- Modify: `packages/agent-loop/eval/keyless.js` (export the three sources)
+- Create: `packages/agent-loop/eval/fluent-guard.test.js`
 - Modify: `packages/agent-loop/test/prompt.test.js` (examples raise no warnings)
 - Modify: `packages/agent-loop/README.md` (`## Eval`, first paragraph)
 - Modify: `apps/jscad-web/docs/architecture.md` (the eval paragraph starting "The eval runs model code through `@jscadui/require`")
@@ -2066,8 +2333,8 @@ git commit -m "feat(frame): merge grid warnings and pass them to the chat's eval
 **Model:** `sonnet` — the stub runs inside `@jscadui/require`'s prebuilt esm, so the wrap has to happen in the stub, not through the require hook.
 
 **Interfaces:**
-- Consumes: `withOptionChecks`, `createWarningCollector` (Task 5); `OPTION_TABLES`.
-- Produces: `requestTool('eval'|'writeModel')` results gain `warnings` when non-empty; `globalThis[Symbol.for('jscadui.eval.userModule')](spec)` returns the wrapped copy for `@jscad/modeling` and `@jbroll/jscad-fluent`, the Node module object otherwise.
+- Consumes: `withOptionChecks`, `wrapFluentMethods`, `createWarningCollector` (Task 5); `OPTION_TABLES` with `methods` (Task 2).
+- Produces: `requestTool('eval'|'writeModel')` results gain `warnings` when non-empty, fluent method warnings included; `globalThis[Symbol.for('jscadui.eval.userModule')](spec)` returns the wrapped copy for `@jscad/modeling` and `@jbroll/jscad-fluent`, the Node module object otherwise, and on the first fluent request wraps the methods on Node's fluent classes; `KEYLESS_SOURCES: { 'cube-hole': string, gear: string, bracket: string }` exported from `eval/keyless.js`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -2089,6 +2356,16 @@ module.exports = { main }`)
     expect(fluent.warnings).toEqual([{ fn: 'jf.cube', option: 'sise', suggestions: ['size'] }])
   })
 
+  it('names fluent methods called on shapes', async () => {
+    const res = await evalSource(`const jf = require('@jbroll/jscad-fluent')
+module.exports = { main: () => jf.circle({ radius: 5 }).extrudeLinear({ hieght: 10 }).center({ axis: [true, true, false] }) }`)
+    expect(res.ok).toBe(true)
+    expect(res.warnings).toEqual([
+      { fn: 'FluentGeom2.extrudeLinear', option: 'hieght', suggestions: ['height'] },
+      { fn: 'FluentGeom3.center', option: 'axis', suggestions: ['axes'] },
+    ])
+  })
+
   it('starts each run with no warnings and reports them on writeModel too', async () => {
     const backend = createEvalBackend()
     const bad = `const { primitives } = require('@jscad/modeling')\nmodule.exports = { main: () => primitives.cube({ sise: 3 }) }`
@@ -2096,7 +2373,7 @@ module.exports = { main }`)
     expect(JSON.parse(await backend.requestTool('eval', { source: CUBE }))).not.toHaveProperty('warnings')
   })
 
-  it('never mutates the Node module object fluent and model-tools share', async () => {
+  it('never mutates the modeling module object fluent and model-tools share', async () => {
     const modeling = createRequire(import.meta.url)('@jscad/modeling')
     const before = modeling.primitives.roundedCuboid
     await evalSource(`const { primitives } = require('@jscad/modeling')\nmodule.exports = { main: () => primitives.roundedCuboid({ radius: 1 }) }`)
@@ -2115,10 +2392,65 @@ In `packages/agent-loop/test/prompt.test.js`, add after the `'%s evaluates in th
   })
 ```
 
+In `packages/agent-loop/eval/keyless.js`, add after the `BRACKET` constant:
+
+```js
+export const KEYLESS_SOURCES = { 'cube-hole': CUBE_HOLE, gear: GEAR, bracket: BRACKET }
+```
+
+and in `runKeylessBaseline` replace `const sources = { 'cube-hole': CUBE_HOLE, gear: GEAR, bracket: BRACKET }` with `const sources = KEYLESS_SOURCES`.
+
+Create `packages/agent-loop/eval/fluent-guard.test.js`, the false-warning guard for the fluent method wraps:
+
+```js
+import { describe, expect, it } from 'vitest'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { join, relative } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { createEvalBackend } from './backend.js'
+import { KEYLESS_SOURCES } from './keyless.js'
+
+const REPO = fileURLToPath(new URL('../../../', import.meta.url))
+const FLUENT = /require\(\s*['"]@jbroll\/jscad-fluent['"]\s*\)/
+const EXAMPLE_DIRS = ['apps/jscad-web/examples', 'packages/agent-loop/prompt/examples']
+
+const jsFiles = (dir) =>
+  existsSync(dir) ? readdirSync(dir, { recursive: true }).filter((f) => f.endsWith('.js')).map((f) => join(dir, f)) : []
+
+const corpus = () => [
+  ...EXAMPLE_DIRS.flatMap((dir) => jsFiles(join(REPO, dir)))
+    .map((file) => ({ name: relative(REPO, file), source: readFileSync(file, 'utf8') }))
+    .filter(({ source }) => FLUENT.test(source)),
+  ...Object.entries(KEYLESS_SOURCES).map(([name, source]) => ({ name: `eval/keyless.js ${name}`, source })),
+]
+
+describe('fluent method checks on real models', () => {
+  it('raise no warning on any fluent example', async () => {
+    const skipped = []
+    const warned = []
+    let ran = 0
+    for (const { name, source } of corpus()) {
+      const res = JSON.parse(await createEvalBackend().requestTool('eval', { source }))
+      if (!res.ok) {
+        skipped.push(`${name}: ${res.error.message}`)
+        continue
+      }
+      ran += 1
+      if (res.warnings) warned.push({ name, warnings: res.warnings })
+    }
+    if (skipped.length) console.warn(`fluent guard skipped ${skipped.length}:\n${skipped.join('\n')}`)
+    expect(warned).toEqual([])
+    expect(ran).toBeGreaterThanOrEqual(5)
+  }, 120_000)
+})
+```
+
+An example that fails to evaluate (a CDN package missing from `node_modules`) is skipped and listed, not failed. The two fluent prompt examples and the three keyless sources must run, so `ran` has a floor of 5.
+
 - [ ] **Step 2: Run the tests to verify they fail**
 
-Run: `npx vitest run --root packages/agent-loop eval/backend.test.js test/prompt.test.js`
-Expected: FAIL on the three warning tests (`res.warnings` is undefined); the mutation and prompt-example tests pass already. If a prompt example warns after Step 3, the index is missing an option that function really takes: fix the generator (`PASS_THROUGH` or the JSDoc walk) and regenerate, never the example.
+Run: `npx vitest run --root packages/agent-loop eval/backend.test.js eval/fluent-guard.test.js eval/keyless.test.js test/prompt.test.js`
+Expected: FAIL on the four warning tests (`res.warnings` is undefined); the mutation, prompt-example, keyless and guard tests pass already (the guard is a regression check for Step 3). If a prompt example or the guard warns after Step 3, the index is missing an option that function really takes: fix the generator (`PASS_THROUGH` or the JSDoc walk) and regenerate, never the example. If the guard's warning comes from fluent's own code rather than the example's call, stop and report it: that is the case the backlog's stack-gated checks are for.
 
 - [ ] **Step 3: Wrap in the stub and collect per run**
 
@@ -2126,7 +2458,7 @@ In `packages/agent-loop/eval/backend.js`, add imports:
 
 ```js
 import { OPTION_TABLES } from '../api/optionTable.js'
-import { createWarningCollector, withOptionChecks } from '../src/optionChecks.js'
+import { createWarningCollector, withOptionChecks, wrapFluentMethods } from '../src/optionChecks.js'
 ```
 
 After `globalThis[NODE_REQUIRE] = createRequire(import.meta.url)`, add:
@@ -2134,17 +2466,25 @@ After `globalThis[NODE_REQUIRE] = createRequire(import.meta.url)`, add:
 ```js
 // Node's module object for @jscad/modeling is the one fluent's and
 // model-tools' own requires get, so model code gets a wrapped copy instead.
+// Fluent's classes are not exported; their methods are wrapped on the shared
+// prototypes, once.
 const USER_MODULE = Symbol.for('jscadui.eval.userModule')
+const FLUENT = '@jbroll/jscad-fluent'
 const warnings = createWarningCollector()
 const wrapped = new WeakMap()
 globalThis[USER_MODULE] = (spec) => {
   const real = globalThis[NODE_REQUIRE](spec)
   const table = OPTION_TABLES[spec]
   if (!table) return real
-  if (!wrapped.has(real)) wrapped.set(real, withOptionChecks(real, table, warnings.warn))
+  if (!wrapped.has(real)) {
+    if (spec === FLUENT) wrapFluentMethods(real, table, warnings.warn)
+    wrapped.set(real, withOptionChecks(real, table, warnings.warn))
+  }
   return wrapped.get(real)
 }
 ```
+
+The method wraps report to the module-level `warnings`, which `runModel` resets per run, so they need no per-run swap. A second import of `backend.js` in the same process (vitest re-imports it per test file) calls `wrapFluentMethods` again: it wraps nothing twice and points the target at the new module's collector.
 
 In `createReadFile`, change the stub line to:
 
@@ -2188,8 +2528,14 @@ In `packages/agent-loop/README.md` `## Eval`, add after the first paragraph:
 The CDN stub hands model code a copy of `@jscad/modeling` and
 `@jbroll/jscad-fluent` with the unknown-option checks (`src/optionChecks.js`,
 `api/optionTable.js`), so `eval` and `writeModel` results carry
-`warnings: [{ fn, option, suggestions }]` like the app's. Node's module object
-is never changed: fluent and model-tools require the same one.
+`warnings: [{ fn, option, suggestions }]` like the app's. Node's modeling
+module object is never changed: fluent and model-tools require the same one.
+Fluent class methods that take options (`.extrudeLinear({...})`) are checked
+by wrapping them once on Node's fluent prototypes, since fluent exports no
+classes; that reaches fluent's own calls too, which is safe because fluent
+never calls those methods itself and passes modeling only valid options.
+`eval/fluent-guard.test.js` runs every fluent example in the repo with the
+wraps on and fails on any warning.
 ```
 
 In `apps/jscad-web/docs/architecture.md`, at the end of the paragraph starting "The eval runs model code through `@jscadui/require`", add:
@@ -2198,13 +2544,15 @@ In `apps/jscad-web/docs/architecture.md`, at the end of the paragraph starting "
 Its CDN stub returns the option-checked copy of `@jscad/modeling` and
 `@jbroll/jscad-fluent` itself rather than through `setUserModuleWrapper`,
 because the eval loads the prebuilt `esm/` build and Node's module object is
-shared with fluent's and model-tools' own requires.
+shared with fluent's and model-tools' own requires. It wraps the fluent
+methods on Node's fluent prototypes with the same `wrapFluentMethods` the
+frame uses.
 ```
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add packages/agent-loop/eval/backend.js packages/agent-loop/eval/backend.test.js packages/agent-loop/test/prompt.test.js packages/agent-loop/README.md apps/jscad-web/docs/architecture.md
+git add packages/agent-loop/eval/backend.js packages/agent-loop/eval/backend.test.js packages/agent-loop/eval/keyless.js packages/agent-loop/eval/fluent-guard.test.js packages/agent-loop/test/prompt.test.js packages/agent-loop/README.md apps/jscad-web/docs/architecture.md
 git commit -m "feat(agent-loop): return unknown-option warnings from the eval backend"
 ```
 
@@ -2436,7 +2784,7 @@ Runs after the final whole-branch review.
 
 - [ ] **Step 1: Check the spec's Documentation list against the tree**
 
-Read the spec's `## Documentation` section and confirm each item exists: `architecture.md` Agent loop covers the `docs` tool, the index, the option checks and why the hook is base-gated (Tasks 4, 7, 8, 9); `packages/agent-loop/README.md` covers the generator, `docs` and warnings in eval results (Tasks 1, 2, 4, 9, 10); `packages/require/README.md` covers `setUserModuleWrapper` (Task 6). Add anything missing in the same plain style. Carry over the "Decisions that differ from the spec" that a reader of the code would need and that no doc states yet (for example why suggestions also match by containment).
+Read the spec's `## Documentation` section and confirm each item exists: `architecture.md` Agent loop covers the `docs` tool, the index, the option checks, why the hook is base-gated, and why the fluent method checks wrap the shared prototypes and which test guards them (Tasks 4, 7, 8, 9); `packages/agent-loop/README.md` covers the generator, `docs` and warnings in eval results (Tasks 1, 2, 4, 9, 10); `packages/require/README.md` covers `setUserModuleWrapper` (Task 6). Add anything missing in the same plain style. Carry over the "Decisions that differ from the spec" that a reader of the code would need and that no doc states yet (for example why suggestions also match by containment).
 
 - [ ] **Step 2: Record deferred work**
 
@@ -2445,11 +2793,12 @@ In `docs/backlog.md`, before `## Refactoring`, add:
 ```markdown
 ## Chat API help
 
-- Option checks cover only functions reachable from the `@jscad/modeling` and
-  `@jbroll/jscad-fluent` exports. Fluent class methods
-  (`FluentGeom2.extrudeLinear`) are documented by `docs` but unchecked: their
-  prototypes are shared with library code, so a check there needs a way to
-  tell model calls from fluent's own.
+- Stack-gated fluent method checks, if `eval/fluent-guard.test.js` ever finds
+  a false warning from fluent's internals. The method checks wrap the shared
+  prototypes, so they see fluent's own calls as well as the model's; a
+  fluent release that calls its own option-taking methods with options the
+  table lacks would need the check to warn only when the caller is project
+  code.
 - `api/index.json` is about 130 KB in the app's main bundle. Load it on the
   first `docs` call if bundle size starts to matter.
 - JSDoc gaps in `@jscad/modeling` are patched in `api/build-index.js`
