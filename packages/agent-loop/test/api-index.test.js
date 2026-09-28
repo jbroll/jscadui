@@ -68,6 +68,11 @@ describe('API index', () => {
     )
   })
 
+  it('adds font, which the JSDoc omits, to the vector text options', () => {
+    expect(entry('text.vectorText').options.map((o) => o.name)).toContain('font')
+    expect(entry('text.vectorChar').options.map((o) => o.name)).toContain('font')
+  })
+
   it('documents jscad-text', () => {
     expect(entry('jscadText.text2d').options.map((o) => o.name)).toContain('halign')
     expect(entry('jscadText').kind).toBe('namespace')

@@ -107,7 +107,7 @@ export const initChat = ({ container, requestTool, getProvider, runTurnFn = defa
     const resultEl = addToolLine(name, input)
     try {
       const result = await requestTool(name, input)
-      resultEl.textContent = JSON.stringify(result, null, 2)
+      resultEl.textContent = typeof result === 'string' ? result : JSON.stringify(result, null, 2)
       return typeof result === 'string' ? result : JSON.stringify(result ?? null)
     } catch (err) {
       const errorResult = { ok: false, error: { name: err.name, message: err.message } }

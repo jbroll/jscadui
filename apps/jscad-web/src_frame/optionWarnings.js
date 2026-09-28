@@ -29,7 +29,7 @@ export const installOptionWarnings = ({ setUserModuleWrapper, setRunWarnings }) 
     // shared prototypes, for every caller in the worker.
     if (name === FLUENT) {
       const ready = modelingReady()
-      if (ready instanceof Promise) ready.then(() => wrapFluentMethods(api, table, warnings.warn))
+      if (ready instanceof Promise) ready.then(() => wrapFluentMethods(api, table, warnings.warn)).catch(() => {})
       else wrapFluentMethods(api, table, warnings.warn)
     }
     return withOptionChecks(api, table, warnings.warn)

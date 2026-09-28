@@ -64,7 +64,12 @@ const forCaller = (name, exports, base, root) => {
   if (typeof base !== 'string' || typeof root !== 'string' || !root || !base.startsWith(root) || base.endsWith('.scad')) return exports
   let wrapped = wrappedModules.get(exports)
   if (!wrapped) {
-    wrapped = userModuleWrapper(name, exports)
+    try {
+      wrapped = userModuleWrapper(name, exports)
+    } catch (err) {
+      console.error(`userModuleWrapper failed for ${name}, using unwrapped exports:`, err)
+      return exports
+    }
     wrappedModules.set(exports, wrapped)
   }
   return wrapped

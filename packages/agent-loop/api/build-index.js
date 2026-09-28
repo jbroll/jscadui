@@ -26,8 +26,24 @@ const addPassThrough = (entries) => {
   return entries
 }
 
+// Options a function reads via a shared params helper (vectorText/vectorChar
+// via vectorParams's defaultsVectorParams), so its own JSDoc never lists them.
+const EXTRA_OPTIONS = {
+  'text.vectorText': ['font'],
+  'text.vectorChar': ['font'],
+}
+
+const addExtraOptions = (entries) => {
+  for (const entry of entries) {
+    for (const name of EXTRA_OPTIONS[entry.name] ?? []) {
+      if (!entry.options.some((o) => o.name === name)) entry.options.push({ name, type: '', default: '', description: '' })
+    }
+  }
+  return entries
+}
+
 export const buildIndex = () => {
-  const modeling = addPassThrough(modelingEntries(dirname(require.resolve('@jscad/modeling'))))
+  const modeling = addExtraOptions(addPassThrough(modelingEntries(dirname(require.resolve('@jscad/modeling')))))
   const fluent = fluentEntries(dirname(require.resolve('@jbroll/jscad-fluent')), modeling)
   const text = jscadTextEntries(fileURLToPath(new URL('../../jscad-text/src', import.meta.url)))
   return [...modeling, ...fluent, ...text]

@@ -116,6 +116,15 @@ describe('withOptionChecks', () => {
     expect(result).toEqual({ made: options })
   })
 
+  it('does not warn on vectorText/vectorChar font, which their JSDoc omits', () => {
+    const api = { text: { vectorText: vi.fn(), vectorChar: vi.fn() } }
+    const warn = vi.fn()
+    const wrapped = withOptionChecks(api, OPTION_TABLES['@jscad/modeling'], warn)
+    wrapped.text.vectorText({ font: {}, input: 'A' })
+    wrapped.text.vectorChar({ font: {}, input: 'A' })
+    expect(warn).not.toHaveBeenCalled()
+  })
+
   it('checks a manifold-shaped api with a top-level alias of the same function', () => {
     const roundedCuboid = vi.fn((options) => ({ made: options }))
     const api = { primitives: { roundedCuboid }, roundedCuboid }

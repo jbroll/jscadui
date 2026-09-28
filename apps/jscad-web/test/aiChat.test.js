@@ -27,6 +27,31 @@ describe('browser chat turn', () => {
     expect(container.querySelector('.chat-messages').textContent).toMatch(/volume 42/)
   })
 
+  it('renders a string tool result as-is, not JSON-quoted with literal \\n', async () => {
+    document.body.innerHTML = '<div id="chat"></div>'
+    const container = document.getElementById('chat')
+    const docsText = 'cuboid(options)\n  size: [x, y, z]'
+    const runTurnFn = vi.fn(async ({ requestTool }) => {
+      await requestTool('docs', { name: 'cuboid' })
+      return { messages: [] }
+    })
+    initChat({
+      container,
+      requestTool: vi.fn(async () => docsText),
+      getProvider: () => ({ kind: 'openai', model: 'm', apiKey: 'k', baseUrl: 'https://relay.test' }),
+      runTurnFn,
+    })
+    container.querySelector('.chat-input').value = 'docs for cuboid'
+    container.querySelector('.chat-form').dispatchEvent(new Event('submit', { cancelable: true }))
+    await vi.waitFor(() => expect(runTurnFn).toHaveBeenCalledTimes(1))
+    const resultEl = await vi.waitFor(() => {
+      const el = container.querySelector('.chat-tool-result')
+      expect(el.textContent).not.toBe('running...')
+      return el
+    })
+    expect(resultEl.textContent).toBe(docsText)
+  })
+
   it('renders text after a tool call as a fresh message below the tool line', async () => {
     document.body.innerHTML = '<div id="chat"></div>'
     const container = document.getElementById('chat')

@@ -61,4 +61,11 @@ describe('user module wrapper', () => {
     setUserModuleWrapper(null)
     expect(project(`${ROOT}a.js`, 'module.exports = { m: require("@jscad/modeling") }').m.wrappedAs).toBeUndefined()
   })
+
+  it('falls back to the real exports when the wrapper throws', () => {
+    setUserModuleWrapper(() => { throw new Error('wrapper bug') })
+    const { m } = project(`${ROOT}a.js`, 'module.exports = { m: require("@jscad/modeling") }')
+    expect(m.wrappedAs).toBeUndefined()
+    expect(m.primitives.cube()).toBe('cube')
+  })
 })
