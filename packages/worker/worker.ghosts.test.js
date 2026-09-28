@@ -27,4 +27,19 @@ describe('preview-only ghosts', () => {
     expect(result.entities.some(e => e.color?.[3] === 0.3)).toBe(true)
     expect(workerState.solids).toEqual([solid])
   })
+
+  it('streams ghosts after the parts without keeping them as solids', async () => {
+    const solids = [{ polygons: [tri()], transforms: identity }, { polygons: [tri()], transforms: identity }]
+    const ghost = { polygons: [tri()], transforms: identity, color: [1, 0.32, 0.32, 0.5], previewOnly: true }
+    workerState.main = () => [...solids, ghost]
+    self.postMessage.mockClear()
+
+    const result = await jscadMain({ params: {}, runId: 2 })
+
+    const cells = self.postMessage.mock.calls.filter(([message]) => message.method === 'jscadCells')
+    expect(result.streamed).toBe(true)
+    expect(cells).toHaveLength(3)
+    expect(cells[2][0].params[0].entities.map(e => e.color?.[3])).toEqual([0.5])
+    expect(workerState.solids).toEqual(solids)
+  })
 })

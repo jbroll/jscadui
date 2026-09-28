@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import { parse } from '../src/parser/parse.js'
 import { transpile } from '../src/transpiler/transpile.js'
+import jscad from '@jscad/modeling'
 import j$ from '@jscadui/openscad-runtime'
 import { initScadRuntime } from '../bin/run-jscad.js'
 
@@ -32,6 +33,7 @@ describe('% and # emission', () => {
   it('wraps # children in j$.highlight', () => {
     expect(code('#cube(1);')).toContain('j$.highlight(')
     expect(code('#if (true) cube(1);')).toContain('j$.highlight(')
+    expect(code('#for (i = [0:1]) cube(1);')).toContain('j$.highlight(')
   })
 
   it('marks a module body that is only a % statement as a group', () => {
@@ -112,5 +114,25 @@ describe('% and # results', () => {
   it('% inside a module call follows the call\'s transform', () => {
     const r = run('module m() { %cube(1); cube(1); }\ntranslate([0, 0, 20]) m();')
     expect(zRange(ghosts(r)[0])).toEqual([20, 21])
+  })
+})
+
+// Last: j$.init(jscad) switches the shared runtime off manifold for the rest of the file.
+describe('% and # on the jscad engine', () => {
+  beforeAll(() => { j$.init(jscad) })
+
+  it('# inside difference gives a 3D ghost', () => {
+    const r = run('difference() { cube(10); #translate([5, 5, -1]) cylinder(h = 12, r = 2); }')
+    expect(ghosts(r)).toHaveLength(1)
+    expect(ghosts(r)[0].polygons!.length).toBeGreaterThan(0)
+    expect(solids(r)).toHaveLength(1)
+    expect(jscad.geometries.geom3.isA(solids(r)[0])).toBe(true)
+  })
+
+  it('% on a 2D shape gives a sides ghost', () => {
+    const r = run('%square(3);') as (G & { sides?: number[][][] })[]
+    expect(r).toHaveLength(1)
+    expect(r[0].previewOnly).toBe(true)
+    expect(r[0].sides!.length).toBeGreaterThan(0)
   })
 })
