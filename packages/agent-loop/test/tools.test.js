@@ -11,14 +11,4 @@ describe('agent tools', () => {
       expect(tool.inputSchema.type).toBe('object')
     }
   })
-
-  it('keeps prompt.js in sync with prompt.md', async () => {
-    const { readFile } = await import('node:fs/promises')
-    const { dirname, join } = await import('node:path')
-    const { fileURLToPath } = await import('node:url')
-    const dir = dirname(fileURLToPath(import.meta.url))
-    const md = await readFile(join(dir, '..', 'prompt.md'), 'utf-8')
-    const { SYSTEM_PROMPT } = await import('../src/prompt.js')
-    expect(SYSTEM_PROMPT.trim()).toBe(md.trim().replace(/^<!--[\s\S]*?-->\n/, ''))
-  })
 })

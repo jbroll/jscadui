@@ -11,6 +11,7 @@ import { hashFrameAssets } from './src_build/hashFrameAssets.js'
 import { relayOrigin } from './src_build/relayOrigin.js'
 
 import { buildBundle, buildOne } from './src_build/esbuildUtil.js'
+import { rawImportPlugin } from './src_build/rawImport.js'
 
 // Read package.json for about page
 const pkg = JSON.parse(readFileSync('./package.json', 'utf-8'))
@@ -186,7 +187,7 @@ const loader = {
   '.js': 'tsx',
   '.jsx': 'tsx',
 }
-await buildOne('.', outDir, 'main.js', watch, { format: 'esm', loader, define: { __FRAME_ORIGIN__: JSON.stringify(runOrigin), __RELAY_ORIGIN__: JSON.stringify(relayOrigin({ dev, appOrigin })) } })
+await buildOne('.', outDir, 'main.js', watch, { format: 'esm', loader, plugins: [rawImportPlugin], define: { __FRAME_ORIGIN__: JSON.stringify(runOrigin), __RELAY_ORIGIN__: JSON.stringify(relayOrigin({ dev, appOrigin })) } })
 
 /******************************* COMPUTE FRAME (/frame) ***********************/
 // The only place model code runs. Bundle set mirrors the app's src_bundle

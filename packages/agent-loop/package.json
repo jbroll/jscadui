@@ -8,11 +8,16 @@
     "index.js",
     "src",
     "prompt.md",
-    "log"
+    "prompt",
+    "log",
+    "text-loader.js",
+    "text-hooks.js"
   ],
   "scripts": {
     "test": "vitest run",
-    "read-log": "node log/read-log.js"
+    "read-log": "node log/read-log.js",
+    "eval": "node --import ./text-loader.js eval/run-eval.js",
+    "eval:keyless": "node --import ./text-loader.js eval/keyless.js"
   },
   "devDependencies": {
     "@jbroll/jscad-fluent": "0.6.1",
