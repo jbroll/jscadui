@@ -133,6 +133,7 @@ describe('transpile with customizer option', () => {
       vmul: (a: number, b: number) => a * b,
       setSpecialVar() {},
       safeUnion: (parts: unknown[]) => parts[0],
+      withOverlays: (g: unknown) => g,
     }
     const exports = {} as {
       main: (...args: unknown[]) => unknown
@@ -177,6 +178,7 @@ describe('transpile with customizer option', () => {
       withScope: (_: unknown, f: () => unknown) => f(),
       setSpecialVar() {},
       safeUnion: (parts: unknown[]) => parts[0],
+      withOverlays: (g: unknown) => g,
       echoMuted: false,
       echo(...args: unknown[]) { if (!this.echoMuted) calls.push(args) },
     }

@@ -172,15 +172,14 @@ export function transpileStatement(stmt: Statement, ctx: TranspileContext): stri
   }
 
   if (isIfElseStatement(stmt)) {
-    // % (tagBackground) and * (tagDisabled) modifiers on if/else exclude the entire block
-    if (stmt.tagBackground || stmt.tagDisabled) {
-      return 'undefined'
-    }
+    if (stmt.tagDisabled) return 'undefined'
     const cond = transpileExpression(stmt.cond, ctx)
     const thenPart = transpileStatement(stmt.thenBranch, ctx) || 'undefined'
     const elsePart = stmt.elseBranch ? transpileStatement(stmt.elseBranch, ctx) : 'j$.NO_CHILD'
     ctx.codeGen.usedHelpers.add('isTruthy')
-    const code = `(j$.isTruthy(${cond})) ? (${thenPart}) : (${elsePart})`
+    let code = `(j$.isTruthy(${cond})) ? (${thenPart}) : (${elsePart})`
+    if (stmt.tagBackground) code = `j$.background(${code})`
+    else if (stmt.tagHighlight) code = `j$.highlight(${code})`
     return comment ? `${comment}${code}` : code
   }
 
@@ -537,18 +536,21 @@ function tryDispatchBuiltin(
 
 /**
  * Transpile a module instantiation (e.g., cube(10), translate([1,2,3]) child)
+ * with its modifier: * drops it, % draws it as a ghost only, # draws it and a ghost.
  */
 function transpileModuleInstantiation(stmt: ModuleInstantiationStmt, ctx: TranspileContext): string {
-  const name = stmt.name
+  if (stmt.tagDisabled) return 'undefined'
+  const code = transpileModuleInstantiationBody(stmt, ctx)
+  if (stmt.tagBackground) return `j$.background(${code})`
+  if (stmt.tagHighlight) return `j$.highlight(${code})`
+  return code
+}
 
-  // Handle OpenSCAD modifier characters:
-  // % (tagBackground): ghost display - geometry excluded from output
-  // * (tagDisabled): disabled - geometry excluded from output
-  // # (tagHighlight): highlight display - geometry included (display-only difference)
-  // ! (tagRoot): show only this subtree - geometry included
-  if (stmt.tagBackground || stmt.tagDisabled) {
-    return 'undefined'
-  }
+/**
+ * Transpile a module instantiation (e.g., cube(10), translate([1,2,3]) child)
+ */
+function transpileModuleInstantiationBody(stmt: ModuleInstantiationStmt, ctx: TranspileContext): string {
+  const name = stmt.name
 
   // Special modules that don't follow the normal pattern
   if (name === 'for') return transpileForLoop(stmt, ctx)

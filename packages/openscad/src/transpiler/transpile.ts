@@ -576,8 +576,9 @@ function buildOutputCode(
   const allGeometry = [...bundled.geometryStatements, ...transpiled.geometryParts]
   // Always route through safeUnion, including for a single statement: it is
   // what strips j$.NO_CHILD, which main() must never hand back to a caller.
+  // withOverlays appends the % and # ghosts, if any, as previewOnly entries.
   const mainBody = allGeometry.length > 0
-    ? `j$.safeUnion([\n${allGeometry.map(p => `    ${p}`).join(',\n')}\n  ])`
+    ? `j$.withOverlays(j$.safeUnion([\n${allGeometry.map(p => `    ${p}`).join(',\n')}\n  ]))`
     : undefined
   const customizerExports: string[] = []
   if (transpiled.customizerPrologue.length > 0) {
