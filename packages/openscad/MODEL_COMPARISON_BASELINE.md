@@ -28,6 +28,9 @@ in `j$.group`. Across the 2502 example `.scad` files, 459 transpile
 differently, and every difference is an inserted `j$.group(...)`, which only
 changes a `%` placeholder. `preview-modifiers.test.ts` covers the cases.
 
+Rebased onto `main` at `55c35325` (scale and `$fn` fixes), simple-ci job
+`366aaa86dbc73a5f`: all 21 suites pass, counts unchanged.
+
 ## Previous GPU run: 2026-09-27, $fn below three or fractional
 
 Branch `worktree-scale-circle-gaps` (uncommitted working tree), simple-ci job
