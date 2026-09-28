@@ -16,8 +16,8 @@ const run = (src: string) => {
 }
 
 type G = { previewOnly?: boolean, color?: number[], polygons?: { vertices: number[][] }[], volume?: () => number }
-const ghosts = (r: G[]) => r.filter(g => g.previewOnly)
-const solids = (r: G[]) => r.filter(g => !g.previewOnly)
+const ghosts = (r: G | G[]) => [r].flat().filter(g => g.previewOnly)
+const solids = (r: G | G[]) => [r].flat().filter(g => !g.previewOnly)
 const zRange = (g: G) => {
   const zs = g.polygons!.flatMap(p => p.vertices.map(v => v[2]))
   return [Math.min(...zs), Math.max(...zs)]
@@ -39,6 +39,27 @@ describe('% and # emission', () => {
   it('marks a module body that is only a % statement as a group', () => {
     expect(code('module m() { %cube(1); }')).toContain('return j$.group(j$.background(')
     expect(code('module m() { cube(1); }')).not.toContain('j$.group(')
+  })
+
+  it('marks a module body that is only a nested % block or children() as a group', () => {
+    expect(code('module m() { { %cube(1); } }')).toContain('return j$.group(j$.background(')
+    expect(code('module m() { { a = 1; %cube(1); } }')).toContain('return j$.group(')
+    expect(code('module m() { children(0); }')).toContain('return j$.group(j$.childrenAt(')
+    expect(code('module m() { children(); }')).toContain('return j$.group(')
+  })
+
+  it('marks if, let, echo and assert around a % child as a group', () => {
+    expect(code('if (true) %cube(1);')).toContain('j$.group((j$.isTruthy(')
+    expect(code('if (true) cube(1); else { %cube(1); }')).toContain('j$.group(')
+    expect(code('let (a = 1) %cube(1);')).toContain('j$.group(')
+    expect(code('echo(1) %cube(1);')).toContain('j$.group(')
+    expect(code('assert(true) %cube(1);')).toContain('j$.group(')
+  })
+
+  it('leaves groups around geometry that is not % unmarked', () => {
+    expect(code('if (true) cube(1);')).not.toContain('j$.group(')
+    expect(code('let (a = 1) cube(1);')).not.toContain('j$.group(')
+    expect(code('if (true) translate([1, 0, 0]) %cube(1);')).not.toContain('j$.group(')
   })
 
   it('leaves * disabled', () => {
@@ -96,6 +117,56 @@ describe('% and # results', () => {
     const r = run('module m() { %sphere(1); }\nintersection() { cube(10); m(); }')
     expect(solids(r)).toHaveLength(0)
     expect(ghosts(r)).toHaveLength(1)
+  })
+
+  it('difference skips a leading % child and subtracts from the next', () => {
+    const plain = solids(run('difference() { cube(10); sphere(6); }'))[0].volume!()
+    const r = run('difference() { %cube(20); cube(10); sphere(6); }')
+    expect(solids(r)).toHaveLength(1)
+    expect(solids(r)[0].volume!()).toBeCloseTo(plain, 3)
+    expect(ghosts(r)).toHaveLength(1)
+  })
+
+  it('difference skips every leading % child', () => {
+    const r = run('difference() { %cube(20); %sphere(30); cube(10); translate([20, 0, 0]) cube(1); }')
+    expect(solids(r)[0].volume!()).toBeCloseTo(1000, 3)
+    expect(ghosts(r).length).toBeGreaterThan(0)
+  })
+
+  it('union and intersection skip a leading % child', () => {
+    expect(solids(run('union() { %cube(20); cube(10); }'))[0].volume!()).toBeCloseTo(1000, 3)
+    expect(solids(run('intersection() { %cube(20); cube(10); }'))[0].volume!()).toBeCloseTo(1000, 3)
+  })
+
+  it.each([
+    ['if', 'if (true) %sphere(1);'],
+    ['if else', 'if (false) cube(1); else %sphere(1);'],
+    ['let', 'let (a = 1) %sphere(1);'],
+    ['echo', 'echo("x") %sphere(1);'],
+    ['assert', 'assert(true) %sphere(1);'],
+  ])('%s around a lone % child empties intersection', (_name, child) => {
+    const r = run(`intersection() { cube(10); ${child} }`)
+    expect(solids(r)).toHaveLength(0)
+    expect(ghosts(r)).toHaveLength(1)
+  })
+
+  it('an if not taken around a % child stays absent', () => {
+    const r = run('intersection() { cube(10); if (false) %sphere(1); }')
+    expect(solids(r)[0].volume!()).toBeCloseTo(1000, 3)
+  })
+
+  it('a module whose only statement is a nested % block empties intersection', () => {
+    const r = run('module m() { { %sphere(1); } }\nintersection() { cube(10); m(); }')
+    expect(solids(r)).toHaveLength(0)
+    expect(ghosts(r)).toHaveLength(1)
+  })
+
+  it('a module passing a % child through children() empties intersection', () => {
+    for (const body of ['children(0);', 'children();']) {
+      const r = run(`module m() { ${body} }\nintersection() { cube(10); m() %sphere(1); }`)
+      expect(solids(r)).toHaveLength(0)
+      expect(ghosts(r)).toHaveLength(1)
+    }
   })
 
   it('merges a loop of highlights into one ghost', () => {

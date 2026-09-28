@@ -178,6 +178,7 @@ export function transpileStatement(stmt: Statement, ctx: TranspileContext): stri
     const elsePart = stmt.elseBranch ? transpileStatement(stmt.elseBranch, ctx) : 'j$.NO_CHILD'
     ctx.codeGen.usedHelpers.add('isTruthy')
     let code = `(j$.isTruthy(${cond})) ? (${thenPart}) : (${elsePart})`
+    if (yieldsBareBackground(stmt.thenBranch) || (stmt.elseBranch && yieldsBareBackground(stmt.elseBranch))) code = `j$.group(${code})`
     if (stmt.tagBackground) code = `j$.background(${code})`
     else if (stmt.tagHighlight) code = `j$.highlight(${code})`
     return comment ? `${comment}${code}` : code
@@ -535,6 +536,27 @@ function tryDispatchBuiltin(
 }
 
 /**
+ * Whether a statement can evaluate to the bare placeholder of a `%` child,
+ * which reads as absent. OpenSCAD skips a `%` node only as a direct child, so
+ * the node around one (if, let, echo, assert, a module) must mark it empty.
+ */
+function yieldsBareBackground(stmt: Statement | null): boolean {
+  if (!stmt) return false
+  if (isBlockStmt(stmt)) {
+    const geometry = stmt.children.filter(c => !isAssignmentNode(c) && !isNoopStmt(c as Statement)
+      && !isModuleDeclaration(c as Statement) && !isFunctionDeclaration(c as Statement))
+    return geometry.length === 1 && yieldsBareBackground(geometry[0] as Statement)
+  }
+  if (isIfElseStatement(stmt)) return !stmt.tagDisabled && !!stmt.tagBackground
+  if (!isModuleInstantiation(stmt) || stmt.tagDisabled) return false
+  return !!stmt.tagBackground || stmt.name === 'children'
+}
+
+function groupIfBareBackground(stmt: Statement | null, code: string): string {
+  return yieldsBareBackground(stmt) ? `j$.group(${code})` : code
+}
+
+/**
  * Transpile a module instantiation (e.g., cube(10), translate([1,2,3]) child)
  * with its modifier: * drops it, % draws it as a ghost only, # draws it and a ghost.
  */
@@ -555,9 +577,9 @@ function transpileModuleInstantiationBody(stmt: ModuleInstantiationStmt, ctx: Tr
   // Special modules that don't follow the normal pattern
   if (name === 'for') return transpileForLoop(stmt, ctx)
   if (name === 'intersection_for') return transpileIntersectionForLoop(stmt, ctx)
-  if (name === 'let') return transpileLetModule(stmt, ctx)
-  if (name === 'echo') return transpileEchoModule(stmt, ctx)
-  if (name === 'assert') return transpileAssertModule(stmt, ctx)
+  if (name === 'let') return groupIfBareBackground(stmt.child, transpileLetModule(stmt, ctx))
+  if (name === 'echo') return groupIfBareBackground(stmt.child, transpileEchoModule(stmt, ctx))
+  if (name === 'assert') return groupIfBareBackground(stmt.child, transpileAssertModule(stmt, ctx))
 
   // Prepare common data needed by most handlers
   const argsArray = transpileArgsArray(stmt.args, ctx)
@@ -1250,7 +1272,6 @@ export function extractModuleBody(stmt: Statement, _ctx: TranspileContext): {
   return { nestedModules, nestedFunctions, assignments, geometryStmts }
 }
 
-const isBackground = (stmt: Statement) => (isModuleInstantiation(stmt) || isIfElseStatement(stmt)) && stmt.tagBackground
 
 /**
  * Recursively build the body of a module function, handling nested modules at any depth
@@ -1442,7 +1463,7 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
   // Use j$.safeUnion to filter out undefined values from side-effect statements like assert
   const geomParts = geometryStmts.map(g => transpileStatement(g, ctx)).filter(Boolean) as string[]
   const returnExpr = geomParts.length === 0 ? 'undefined' :
-    geomParts.length === 1 ? (geometryStmts.length === 1 && isBackground(geometryStmts[0]) ? `j$.group(${geomParts[0]})` : geomParts[0]) :
+    geomParts.length === 1 ? (geometryStmts.length === 1 ? groupIfBareBackground(geometryStmts[0], geomParts[0]) : geomParts[0]) :
     `j$.safeUnion([\n${indent}  ${geomParts.join(',\n' + indent + '  ')}\n${indent}])`
   if (geomParts.length > 1) ctx.codeGen.usedHelpers.add('safeUnion')
 

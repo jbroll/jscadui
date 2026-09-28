@@ -141,6 +141,13 @@ describe('overlays through ops (manifold)', () => {
     close(measure(out[0]), plain)
   })
 
+  it('subtract skips leading background operands', () => {
+    const plain = measure(J.subtract(cube(), J.translate([5, 5, 5], cube())))
+    const out = J.withOverlays(J.subtract(J.background(J.scale(3, cube())), J.background(cube()), cube(), J.translate([5, 5, 5], cube())))
+    expect(out.filter((g: Ghost) => g.previewOnly)).toHaveLength(1)
+    close(measure(out[0]), plain)
+  })
+
   it('an undefined result still carries its operands\' ghosts', () => {
     // intersect with an empty (undefined) operand returns undefined
     const out = J.withOverlays(J.intersect(J.highlight(cube()), undefined))

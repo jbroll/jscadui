@@ -292,9 +292,13 @@ carried), so the geometry itself does not propagate downstream. OpenSCAD
 skips a `%` node only where it is a direct child, so a bare `Ghosts` from
 `background()` is absent (`strip()` gives `NO_CHILD`), while a `Ghosts` that
 comes out of any op is empty (`strip()` gives `undefined`):
-`intersection(){ cube(10); translate([20,0,0]) %sphere(1); }` is empty. A
-module whose single statement is `%x` returns through `j$.group`, which marks
-the placeholder empty in the same way.
+`intersection(){ cube(10); translate([20,0,0]) %sphere(1); }` is empty.
+Nodes that pass their child through unchanged mark it empty with `j$.group`:
+`if`, `let`, `echo` and `assert` whose child can be a bare `%` statement, and a
+module whose single statement is one, including a nested `{ }` block around it
+or a `children()` call that may be handed a `%` child. `subtract` takes its
+subject from the first child that is not a bare `Ghosts`, so
+`difference(){ %cube(20); cube(10); sphere(6); }` cuts `cube(10)`.
 
 `main()` ends with `j$.withOverlays`, which turns the collected overlay
 records into ghost geometry alongside the real result, merged into at most

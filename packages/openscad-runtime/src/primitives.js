@@ -7,7 +7,7 @@ import { _num } from './math.js'
 import { _getSegments } from './segments.js'
 import { consuming } from './consume.js'
 import { NO_CHILD } from './sentinels.js'
-import { gathering } from './overlay.js'
+import { gathering, isGhosts } from './overlay.js'
 export { NO_CHILD }
 
 // JSCAD primitives and transforms - injected at init time
@@ -490,7 +490,7 @@ export const _union = gathering((...args) => {
   return union(...valid.map(withoutDegeneratePolygons))
 })
 
-export const _subtract = gathering((...args) => {
+const _subtractFromFirst = gathering((...args) => {
   // No subject, nothing to subtract from — even when mask children are present
   // (e.g. a childless call whose mask would otherwise leak through below).
   if (args.length === 0 || _isAbsent(args[0])) return undefined
@@ -501,6 +501,16 @@ export const _subtract = gathering((...args) => {
   if (same.length === 1) return same[0]
   return subtract(...same.map(withoutDegeneratePolygons))
 })
+
+// OpenSCAD skips a direct % child, so the subject is the first child that is not
+// one. Moved to the end, the skipped children still hand over their ghosts.
+const _isSkipped = (a) => isGhosts(a) && !a.empty
+
+export const _subtract = (...args) => {
+  const subject = args.findIndex(a => !_isSkipped(a))
+  if (subject <= 0) return _subtractFromFirst(...args)
+  return _subtractFromFirst(...args.slice(subject), ...args.slice(0, subject))
+}
 
 export const _intersect = gathering((...args) => {
   // NO_CHILD (conditional branch not taken) → absent, skip

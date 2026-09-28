@@ -125,18 +125,6 @@ disposes its two intermediate transforms per geometry.
 - **Ghosts are not drawn in ALL.js grid cells.** Cells drop `previewOnly`
   items before `normalizeAndPlace`; drawing them needs placement and the
   streaming claims to carry them.
-- **A leading `%` child of `difference()` empties the result.**
-  `difference(){ %cube(20); cube(10); sphere(6); }` is empty here; OpenSCAD
-  skips the background child and subtracts from `cube(10)`. Predates the
-  ghosts work. The boolean wrappers need to drop a leading bare-`%` operand
-  rather than read it as `NO_CHILD`.
-- **Some groups around a lone `%` child still read as absent.** OpenSCAD
-  skips a `%` node only as a direct child, so any node around it evaluates
-  empty: `intersection(){ cube(10); if (true) %sphere(1); }` is empty there
-  and the cube here. A module whose single statement is `%x` is handled
-  (`j$.group`); `if`, `let()`, a nested `{ }` block as a module's only
-  statement, and a module whose only statement is `children(i)` passing a
-  `%` child are not. Each needs the same `j$.group` wrap at its emit site.
 
 ## OpenSCAD comparison red on a clean tree (pre-existing, not PR112)
 

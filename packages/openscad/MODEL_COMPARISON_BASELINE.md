@@ -15,7 +15,20 @@ and a third that can reach its `Asset_SCAD/` includes. Pointing CI at the
 
 Similarity threshold: **0.99** (Jaccard index on vertex-deduplicated STL meshes).
 
-## Latest GPU run: 2026-09-27, $fn below three or fractional
+## Latest GPU run: 2026-09-28, `%` under difference and groups
+
+Branch `backlog-triage` (uncommitted on top of `44fb2814`), simple-ci job
+`573bee0a90329510` (`sci push jscadui/test`), OpenSCAD 2026.08.30.fp. All
+21 suites pass, counts unchanged.
+
+`difference()` skips leading `%` children when picking its subject, and
+`if`, `let`, `echo`, `assert`, and one-statement module bodies (a nested
+`{ }` block or `children()`) wrap a child that can be a bare `%` placeholder
+in `j$.group`. Across the 2502 example `.scad` files, 459 transpile
+differently, and every difference is an inserted `j$.group(...)`, which only
+changes a `%` placeholder. `preview-modifiers.test.ts` covers the cases.
+
+## Previous GPU run: 2026-09-27, $fn below three or fractional
 
 Branch `worktree-scale-circle-gaps` (uncommitted working tree), simple-ci job
 `fca32d030aaa8258` (`sci push jscadui/test`), OpenSCAD 2026.08.30.fp. All
