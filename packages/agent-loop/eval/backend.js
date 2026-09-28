@@ -1,52 +1,87 @@
 import { createRequire } from 'node:module'
-import { check } from '@jscadui/model-tools'
-import { measure } from '@jscadui/model-tools'
+import { check, measure } from '@jscadui/model-tools'
+import { createParamsProxy, createProxyState, toParamDefinitions } from '@jscadui/params-core'
+import { clearAllCaches, moduleResolver, require as jscadRequire } from '@jscadui/require/esm/index.js'
+import { transformcjs } from '@jscadui/transform-babel/esm/transform-babel.js'
 
-const fluentRequire = createRequire(import.meta.url)
+export const PROJECT_BASE = 'http://project.local/'
+export const CDN_BASE = 'https://cdn.jsdelivr.net/npm/'
+const NODE_REQUIRE = Symbol.for('jscadui.eval.nodeRequire')
+globalThis[NODE_REQUIRE] = createRequire(import.meta.url)
+
+// Copied from packages/worker/worker.js (a test keeps them equal): the frame
+// transforms the entry only when it has an import or an export-from line.
+export const IMPORT_REG = /import(?:(?:(?:[ \n\t]+([^ *\n\t{},]+)[ \n\t]*(?:,|[ \n\t]+))?([ \n\t]*\{(?:[ \n\t]*[^ \n\t"'{}]+[ \n\t]*,?)+\})?[ \n\t]*)|[ \n\t]*\*[ \n\t]*as[ \n\t]+([^ \n\t{}]+)[ \n\t]+)from[ \n\t]*(?:['"])([^'"\n]+)(['"])/
+export const EXPORT_REG = /export.*from/
+
+export const shouldTransform = (url, script) =>
+  url.endsWith('.ts') || (script.includes('import') && (IMPORT_REG.test(script) || EXPORT_REG.test(script)))
+
+const packageSpec = (url) => url.slice(CDN_BASE.length).replace(/^((?:@[^/]+\/)?[^/@]+)@[^/]+/, '$1')
+
+// The frame fetches CDN packages; here they come from node_modules, and a
+// missing one throws the text the frame's fetch gives a 404.
+export const createReadFile = (files) => (path) => {
+  if (path.startsWith(PROJECT_BASE)) {
+    const projectPath = path.slice(PROJECT_BASE.length)
+    if (Object.hasOwn(files, projectPath)) return files[projectPath]
+  } else if (path.startsWith(CDN_BASE)) {
+    const spec = packageSpec(path)
+    try {
+      globalThis[NODE_REQUIRE].resolve(spec)
+      return `module.exports = globalThis[Symbol.for('jscadui.eval.nodeRequire')](${JSON.stringify(spec)})`
+    } catch {
+      // falls through to the frame's 404 text
+    }
+  }
+  throw new Error(`file not found ${path}`)
+}
 
 const errorResult = (error) => ({
   ok: false,
   error: { name: error?.name ?? 'Error', message: error?.message ?? String(error) },
 })
 
-const runSource = (source) => {
-  const module = { exports: {} }
-  const require = (name) => {
-    if (name === '@jbroll/jscad-fluent') return fluentRequire('@jbroll/jscad-fluent')
-    throw new Error(`cannot require ${name}`)
-  }
-  const fn = new Function('require', 'module', 'exports', source)
-  fn(require, module, module.exports)
-  const main = module.exports.main ?? module.exports
+const runModel = async (source, entry) => {
+  clearAllCaches()
+  moduleResolver.clearCache()
+  const url = PROJECT_BASE + entry
+  const transform = shouldTransform(url, source) ? transformcjs : undefined
+  const exports = jscadRequire({ url, script: source }, transform, createReadFile({ [entry]: source }), PROJECT_BASE, PROJECT_BASE)
+  const main = exports.main ?? (typeof exports === 'function' ? exports : undefined)
   if (typeof main !== 'function') throw new Error('model exports no main()')
-  const out = main({})
-  return Array.isArray(out) ? out : [out]
+  const state = createProxyState({}, new Set(), { mode: 'hierarchical' })
+  const out = await main(createParamsProxy(state))
+  return { geometry: [out].flat(Infinity), params: toParamDefinitions(state.discovered) }
 }
+
+const noGeometry = () => JSON.stringify({ ok: false, error: { name: 'NoGeometryError', message: 'no geometry: eval a model first' } })
 
 export function createEvalBackend() {
   let geometry = null
+  let params = []
   const project = new Map()
+
+  const load = async (source, entry) => {
+    const loaded = await runModel(source, entry)
+    geometry = loaded.geometry
+    params = loaded.params
+  }
 
   const requestTool = async (name, input) => {
     try {
       const args = input ?? {}
       if (name === 'eval') {
-        geometry = runSource(args.source)
-        return JSON.stringify({ ok: true, params: [], entities: geometry.length })
+        await load(args.source, args.entry ?? 'main.js')
+        return JSON.stringify({ ok: true, params, entities: geometry.length })
       }
-      if (name === 'measure') {
-        if (!geometry) return JSON.stringify({ ok: false, error: { name: 'NoGeometryError', message: 'no geometry: eval a model first' } })
-        return JSON.stringify({ ok: true, ...measure(geometry, args) })
-      }
-      if (name === 'check') {
-        if (!geometry) return JSON.stringify({ ok: false, error: { name: 'NoGeometryError', message: 'no geometry: eval a model first' } })
-        return JSON.stringify({ ok: true, ...check(geometry, args) })
-      }
-      if (name === 'params') return JSON.stringify({ ok: true, params: [] })
+      if (name === 'measure') return geometry ? JSON.stringify({ ok: true, ...measure(geometry, args) }) : noGeometry()
+      if (name === 'check') return geometry ? JSON.stringify({ ok: true, ...check(geometry, args) }) : noGeometry()
+      if (name === 'params') return JSON.stringify({ ok: true, params })
       if (name === 'writeModel') {
         const entry = args.entry ?? 'main.js'
         project.set(entry, { source: args.source, message: args.message ?? '' })
-        geometry = runSource(args.source)
+        await load(args.source, entry)
         return JSON.stringify({ ok: true, entry })
       }
       if (name === 'view' || name === 'export') {
@@ -60,8 +95,9 @@ export function createEvalBackend() {
 
   const reset = () => {
     geometry = null
+    params = []
     project.clear()
   }
 
-  return { requestTool, reset, project }
+  return { requestTool, reset, project, params: () => params }
 }

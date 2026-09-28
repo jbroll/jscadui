@@ -17,6 +17,9 @@
   "devDependencies": {
     "@jbroll/jscad-fluent": "0.6.1",
     "@jscadui/model-tools": "*",
+    "@jscadui/params-core": "*",
+    "@jscadui/require": "*",
+    "@jscadui/transform-babel": "*",
     "vitest": "^4.0.18"
   },
   "license": "MIT"
