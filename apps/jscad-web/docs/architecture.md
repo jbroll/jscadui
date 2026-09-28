@@ -765,7 +765,10 @@ exports copy, this reaches every caller in the worker, fluent's own code
 included. That is safe because fluent never calls its own option-taking
 methods and passes modeling only valid options;
 `packages/agent-loop/eval/fluent-guard.test.js` runs every fluent example with
-the wraps on and fails on any warning.
+the wraps on and fails on any warning. `subtract`, `attachTo` and `alignTo`
+take options too, but not as the first argument (`subtract`'s trails a
+variadic list of operands, `attachTo`/`alignTo`'s follows an anchor), so the
+first-argument check does not cover them (see backlog).
 
 The probe that finds fluent's prototypes calls its real factories
 (`circle()`, `cube()`, ...), and a manifold-backed factory throws until the

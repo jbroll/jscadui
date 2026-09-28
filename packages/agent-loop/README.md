@@ -78,6 +78,10 @@ unknown-option checks: `options` for functions reached from the exports
 fluent class methods whose first parameter is an options object, keyed by
 class (`FluentGeom2.extrudeLinear`).
 
+An unknown key's `suggestions` are known options within edit distance 3, plus
+either name containing the other (`radius` → `roundRadius`, 5 edits apart,
+matches by containment instead).
+
 Both files are generated and committed:
 
     npm run api-index -w @jscadui/agent-loop

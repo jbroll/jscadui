@@ -186,6 +186,23 @@ model with `display-check.js --engine jscad`.
   two of them merging 154k and 175k polygons in 50s each with the Node heap
   peaking at 2.7 GB; it finishes in 234s against the 290s budget.
 
+## Chat API help
+
+- Stack-gated fluent method checks, if `eval/fluent-guard.test.js` ever finds
+  a false warning from fluent's internals. The method checks wrap the shared
+  prototypes, so they see fluent's own calls as well as the model's; a
+  fluent release that calls its own option-taking methods with options the
+  table lacks would need the check to warn only when the caller is project
+  code.
+- Option checks for options passed in a non-first position: fluent's
+  `subtract` (a variadic operand list), `attachTo` and `alignTo` (options
+  follow an anchor argument).
+- `api/index.json` is about 130 KB in the app's main bundle. Load it on the
+  first `docs` call if bundle size starts to matter.
+- JSDoc gaps in `@jscad/modeling` are patched in `api/build-index.js`
+  (`PASS_THROUGH`, `defaults` keys). A false warning from a real call means
+  another entry belongs there, or upstream JSDoc needs the option.
+
 ## Refactoring
 
 Async module loading is the breaking one; the rest are extractions.
