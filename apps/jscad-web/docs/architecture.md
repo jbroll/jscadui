@@ -671,6 +671,15 @@ same-origin GET, so the model-list GET from the app's own origin passes on
 headers (content type, accept, provider auth and version, the opencode
 session), so the session cookie never reaches a provider.
 
+The `jscad-chat` launcher's relay (`scripts/local/relay.js`) also appends each
+forwarded POST to `~/.local/state/jscad-chat/logs/YYYY-MM-DD.jsonl`
+(`$XDG_STATE_HOME` when set; `JSCAD_CHAT_LOG=<dir>` moves it, `=0` turns it
+off): time, the `x-jscad-chat-id` header the chat sends, provider kind,
+sub-path, status, the request body without `tools`, the response text and the
+elapsed ms. Headers are never written. The response is teed while it streams,
+and a failed write warns once without failing the request. Neither relay
+forwards `x-jscad-chat-id`, and the production relay does not log.
+
 Chat settings live in the drawer's gear dialog (`src/aiAccount.js`), in the
 order a user fills them: provider, API key and its custody mode, model, effort,
 then base URL under Advanced. Saving a key, changing the provider or changing

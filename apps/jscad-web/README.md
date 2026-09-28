@@ -86,6 +86,8 @@ From any model folder: `npm run jscad-chat -- [dir|file] [--port N] [--build|--n
 
 The bundles are built once into `build_local/` and reused while the ports match, so after pulling app or frame changes pass `--build` to rebuild them.
 
+The launcher's relay logs each chat request to `~/.local/state/jscad-chat/logs/YYYY-MM-DD.jsonl` (UTC date; under `$XDG_STATE_HOME` when set): time, chat id, provider, path, status, the request body without its tool list, the response and the elapsed time. Headers, and so API keys, are never written. `JSCAD_CHAT_LOG=<dir>` moves the log, `JSCAD_CHAT_LOG=0` turns it off. `npm run read-log -w @jscadui/agent-loop` prints the logged conversations.
+
 ## Compute frame
 
 All model code runs in the compute frame — the editor's as well as the

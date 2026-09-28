@@ -1,7 +1,8 @@
 // Same-origin relay for local startup: forwards user-keyed provider requests,
-// streams responses back, stores nothing. Plain node:http so the startup script
-// needs no express/TS build.
+// streams responses back, stores nothing except the optional chat log. Plain
+// node:http so the startup script needs no express/TS build.
 import { readFileSync } from 'node:fs'
+import { toLogRequest } from './chatLog.js'
 
 const FORWARD = new Set(['content-type', 'accept', 'authorization', 'x-api-key', 'anthropic-version', 'anthropic-beta', 'x-opencode-session'])
 
@@ -18,12 +19,14 @@ export const defaultAllowlist = () => ({
   meta: 'https://api.meta.ai',
 })
 
-export const createRelayHandler = ({ allowlist, trustedOrigins, allowPrivateUpstream = false }) => {
+export const createRelayHandler = ({ allowlist, trustedOrigins, allowPrivateUpstream = false, log = null }) => {
   const allowed = new Set(trustedOrigins)
   const hits = new Map()
   return async (req, res) => {
     const m = (req.url ?? '').match(/^\/api\/relay\/([^/]+)(\/.*)?$/)
     if (!m || (req.method !== 'POST' && req.method !== 'GET')) return false
+    const ts = new Date().toISOString()
+    const started = Date.now()
     const origin = req.headers.origin
     // Browsers omit Origin on a same-origin GET.
     const sameOrigin = origin === undefined && req.headers['sec-fetch-site'] === 'same-origin'
@@ -65,12 +68,25 @@ export const createRelayHandler = ({ allowlist, trustedOrigins, allowPrivateUpst
     }
     const chunks = []
     for await (const c of req) chunks.push(c)
+    const logging = log !== null && req.method === 'POST'
+    const chatId = req.headers['x-jscad-chat-id']
+    const record = (status, response) => log.write({
+      ts,
+      chatId: typeof chatId === 'string' ? chatId : null,
+      kind: m[1],
+      path: sub,
+      status,
+      request: toLogRequest(Buffer.concat(chunks)),
+      response,
+      ms: Date.now() - started,
+    })
     let up
     try {
       up = await fetch(upstream, { method: req.method, headers, ...(req.method === 'POST' ? { body: Buffer.concat(chunks) } : {}) })
     } catch {
       res.writeHead(502, { 'content-type': 'application/json' })
       res.end(JSON.stringify({ error: 'upstream unreachable' }))
+      if (logging) record(502, 'upstream unreachable')
       return true
     }
     res.writeHead(up.status, {
@@ -78,8 +94,16 @@ export const createRelayHandler = ({ allowlist, trustedOrigins, allowPrivateUpst
       'cache-control': 'no-cache',
       ...(origin ? { 'access-control-allow-origin': origin, vary: 'Origin' } : {}),
     })
-    if (up.body) for await (const c of up.body) res.write(c)
+    const decoder = new TextDecoder()
+    let text = ''
+    if (up.body) {
+      for await (const c of up.body) {
+        res.write(c)
+        if (logging) text += decoder.decode(c, { stream: true })
+      }
+    }
     res.end()
+    if (logging) record(up.status, text + decoder.decode())
     return true
   }
 }

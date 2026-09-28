@@ -13,6 +13,8 @@ import { openBrowser } from './local/openBrowser.js'
 import { scaffoldStarter } from './local/scaffold.js'
 import { createRelayHandler, defaultAllowlist, loadAllowlist } from './local/relay.js'
 import { startLocal } from './local/server.js'
+import { chatLogDir } from '@jscadui/agent-loop/log/log-dir.js'
+import { createChatLog } from './local/chatLog.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const webDir = process.env.JSCADUI_WEB_DIR ?? resolve(here, '..')
@@ -48,8 +50,10 @@ const allowlist = process.env.RELAY_ALLOWLIST && existsSync(process.env.RELAY_AL
   ? loadAllowlist(process.env.RELAY_ALLOWLIST)
   : defaultAllowlist()
 const origin = `http://localhost:${port}`
-const relayHandler = createRelayHandler({ allowlist, trustedOrigins: [origin] })
+const logDir = chatLogDir()
+const relayHandler = createRelayHandler({ allowlist, trustedOrigins: [origin], log: logDir ? createChatLog(logDir) : null })
 const { url } = await startLocal({ appDir: out, frameDir: join(out, 'frame'), modelDir, relayHandler, port })
 const page = `${url}/#${urlPath}`
 console.log(`jscad: ${modelDir} → ${page}  (frame :${port + 1})`)
+console.log(logDir ? `jscad: chat log → ${logDir}` : 'jscad: chat log off (JSCAD_CHAT_LOG=0)')
 if (!args.includes('--no-open') && !process.env.JSCAD_NO_OPEN) await openBrowser(page)
