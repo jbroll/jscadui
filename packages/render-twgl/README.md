@@ -1,35 +1,22 @@
-# JSCAD renderer using Three.js
+# JSCAD renderer for an external regl renderer
 
-The module does not declare dependency to the library through import to allow using in places
-where the library is loaded from a pre-packaged bundle.
+Thin adapter around a regl renderer prepared elsewhere, such as
+`@jscad/regl-renderer`. Unlike `@jscadui/render-regl`, this package does not
+bundle its own shaders or `regl` dependency: it takes an already-built
+renderer object and only adds the JSCAD viewer wiring (camera, orbit
+controls, scene conversion).
 
-If you have reference to whole THREE module as a global variable then just call
 ```js
-  const renderer = RenderThreejs(THREE)(options)
+import { RenderRegl } from '@jscadui/render-twgl'
+import reglRenderer from '@jscad/regl-renderer'
+
+const JscadReglViewer = RenderRegl(reglRenderer)
+const viewer = JscadReglViewer(containerEl, { camera: { position: [180, -180, 220] } })
+viewer.setScene(scene)
 ```
 
-If you just import whole THREE module also is simple nad short
-```js
-import * as THREE from 'three'
-const renderer = RenderThreejs(THREE)(options)
-```
+`reglRenderer` must provide `prepareRender`, `drawCommands`, `cameras` and
+`controls`, the shape `@jscad/regl-renderer` exports.
 
-If you have three.js as a dependency and you want to optimize the bundle it is quite more verbose
-
-```javascript
-import { PerspectiveCamera, HemisphereLight, WebGLRenderer, DirectionalLight, Scene, Group, Vector3, Color,  MeshPhongMaterial, LineBasicMaterial, BufferGeometry, BufferAttribute, Mesh, InstancedMesh, Line, LineSegments 
-} from 'three'
-
-const renderer = RenderThreejs({PerspectiveCamera, HemisphereLight, WebGLRenderer, DirectionalLight, Scene, Group, Vector3, Color,  MeshPhongMaterial, LineBasicMaterial, BufferGeometry, BufferAttribute, Mesh, InstancedMesh, Line, LineSegments 
-})(options)
-```
-
-## Creating a smaller Three.js bundle
-
-Use `bundle.example.js`, it has all needed dependencies. It is smaller than full build, but may not be the smallest possible.
-
-Three.js bundle that is minimised but usable in jscad renderer At version `0.146.0` it is about 430 KB.
-
-
-
-
+The returned viewer exposes `sendCmd`, `resize`, `destroy`, `getCamera`,
+`setCamera`, `setBg`, `setMeshColor` and `setScene`.

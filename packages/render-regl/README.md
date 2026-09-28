@@ -1,35 +1,22 @@
-# JSCAD renderer using Three.js
+# JSCAD renderer using regl
 
-The module does not declare dependency to the library through import to allow using in places
-where the library is loaded from a pre-packaged bundle.
+Self-contained WebGL renderer built on [regl](https://github.com/regl-project/regl),
+with its own shaders, camera and orbit controls. `regl` itself is loaded
+dynamically, so it only needs to be present as a peer dependency.
 
-If you have reference to whole THREE module as a global variable then just call
 ```js
-  const renderer = RenderThreejs(THREE)(options)
+import { RenderRegl } from '@jscadui/render-regl'
+
+const JscadReglViewer = RenderRegl()
+const viewer = JscadReglViewer(containerEl, { camera: { position: [180, -180, 220] } })
+viewer.setScene(scene)
 ```
 
-If you just import whole THREE module also is simple nad short
-```js
-import * as THREE from 'three'
-const renderer = RenderThreejs(THREE)(options)
-```
+`RenderRegl` also accepts an options object shaped like
+`@jscad/regl-renderer` (`{ prepareRender, drawCommands, cameras, controls }`)
+to reuse an externally prepared renderer instead of the built-in one.
 
-If you have three.js as a dependency and you want to optimize the bundle it is quite more verbose
-
-```javascript
-import { PerspectiveCamera, HemisphereLight, WebGLRenderer, DirectionalLight, Scene, Group, Vector3, Color,  MeshPhongMaterial, LineBasicMaterial, BufferGeometry, BufferAttribute, Mesh, InstancedMesh, Line, LineSegments 
-} from 'three'
-
-const renderer = RenderThreejs({PerspectiveCamera, HemisphereLight, WebGLRenderer, DirectionalLight, Scene, Group, Vector3, Color,  MeshPhongMaterial, LineBasicMaterial, BufferGeometry, BufferAttribute, Mesh, InstancedMesh, Line, LineSegments 
-})(options)
-```
-
-## Creating a smaller Three.js bundle
-
-Use `bundle.example.js`, it has all needed dependencies. It is smaller than full build, but may not be the smallest possible.
-
-Three.js bundle that is minimised but usable in jscad renderer At version `0.146.0` it is about 430 KB.
-
-
-
-
+The returned viewer exposes `sendCmd`, `resize`, `destroy`, `getCamera`,
+`setCamera`, `setBg`, `setMeshColor`, `setScene` and `getViewerEnv`. The
+module also re-exports its internal camera, controls, scene-helper
+(`makeGrid`, `makeAxes`) and bounds utilities for direct use.

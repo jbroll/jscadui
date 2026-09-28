@@ -1,16 +1,18 @@
-# jscadui scene utility
-This is set of standalone 3d models that are useful for presentation. The model produced is in the interchange format defined by `@jscadui/format-common`.
+# @jscadui/params
 
-## makeAxes
-Creates axes lines for x,y,z
+Reference implementation of a JSCAD params form in vanilla JS: renders
+parameter definitions (sliders, choices, colors, etc.) into a DOM element and
+wires up the reset/save/load/edit/link buttons.
 
-## makeGrid
-Creates grid lines
+```js
+import { genParams } from '@jscadui/params'
 
-## preview
-Here is how it looks in different WEBGL engines.
+genParams({
+  params: parameterDefinitions,
+  target: document.getElementById('params'),
+  callback: (values) => rebuildModel(values),
+})
+```
 
-![](docs/regl_grid.png)
-![](docs/three_grid.png)
-![](docs/babylon_grid.png)
-
+Also exports the DOM helpers it is built on: `querySelector`, `forQS`,
+`forEachInput`, `forEachGroup`, `forEachButton`.
