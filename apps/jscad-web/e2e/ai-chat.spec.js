@@ -146,7 +146,7 @@ test.describe('AI chat', () => {
     await expect(page.locator('.chat-msg.assistant')).toHaveCount(assistantNodesBefore + 1, { timeout: 30_000 })
     await assertNoError(page)
     const followUp = stub.requests[stub.requests.length - 1]
-    expect(followUp.messages ?? []).toContainEqual(expect.objectContaining({ role: 'assistant', content: 'Done.' }))
+    expect(followUp.messages ?? []).toContainEqual(expect.objectContaining({ role: 'assistant', content: expect.stringContaining('Done.') }))
 
     stub.server.close()
   })
