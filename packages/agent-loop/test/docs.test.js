@@ -80,4 +80,18 @@ describe('docs lookup', () => {
     expect(docsTool(index, 'jf.polygon')).toContain('polygon(points: Point2[]) → FluentGeom2')
     expect(JSON.parse(docsTool(index, 'nope'))).toMatchObject({ ok: false, error: { name: 'NotFoundError' } })
   })
+
+  it('resolves a package name to its top entry', () => {
+    expect(text('@jbroll/jscad-fluent').startsWith('jf (@jbroll/jscad-fluent) namespace')).toBe(true)
+    expect(text('@jscadui/jscad-text').startsWith('jscadText (@jscadui/jscad-text) namespace')).toBe(true)
+  })
+
+  it('lists the @jscad/modeling namespaces for a package-name query', () => {
+    const answer = text('@jscad/modeling')
+    expect(answer.startsWith('@jscad/modeling namespaces:')).toBe(true)
+    expect(answer).toContain('  primitives - ')
+    expect(answer).toContain('  booleans - ')
+    expect(answer).toContain('  transforms - ')
+    expect(answer.length).toBeLessThanOrEqual(MAX_ANSWER)
+  })
 })

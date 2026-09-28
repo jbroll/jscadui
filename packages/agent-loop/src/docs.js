@@ -59,12 +59,33 @@ const closest = (index, query) => {
     .map((c) => c.name)
 }
 
+// A query equal to a package name resolves to that package's top entry, or
+// (for @jscad/modeling, which has no single top entry) a namespace listing.
+const PACKAGE_TOP = {
+  '@jbroll/jscad-fluent': 'jf',
+  '@jscadui/jscad-text': 'jscadText',
+}
+
+const packageListing = (index, pkg) => {
+  const namespaces = index.filter((e) => e.pkg === pkg && e.kind === 'namespace' && !e.name.includes('.'))
+  return [`${pkg} namespaces:`, ...namespaces.map((e) => `  ${e.name} - ${e.description}`)].join('\n')
+}
+
+const byPackage = (index, byName, q) => {
+  const top = PACKAGE_TOP[q]
+  if (top && byName.has(top)) return render(byName.get(top), byName)
+  if (q === '@jscad/modeling') return packageListing(index, q)
+  return null
+}
+
 export const lookupDocs = (index, query) => {
   const q = typeof query === 'string' ? query.trim() : ''
   if (!q) return { ok: false, error: { name: 'QueryError', message: 'docs needs a query: a function, class or namespace name' } }
+  const byName = new Map(index.map((e) => [e.name, e]))
+  const pkgAnswer = byPackage(index, byName, q)
+  if (pkgAnswer) return { ok: true, text: cap(pkgAnswer) }
   const hits = matches(index, q)
   if (!hits.length) return { ok: false, error: { name: 'NotFoundError', message: `no entry ${q}; closest: ${closest(index, q).join(', ')}` } }
-  const byName = new Map(index.map((e) => [e.name, e]))
   if (hits.length === 1) return { ok: true, text: cap(render(hits[0], byName)) }
   const modeling = hits.filter((e) => e.pkg === '@jscad/modeling')
   if (modeling.length === 1) {

@@ -105,7 +105,10 @@ description, options with type and default, and example; a fluent entry adds
 members and one-line summaries, and a class method missing from an array
 class is looked up on the class it extends. A bare name that matches in
 several packages answers the `@jscad/modeling` entry with the others on an
-`Also:` line, or lists the candidates. A miss is a failed result,
+`Also:` line, or lists the candidates. A package name (`@jbroll/jscad-fluent`,
+`@jscadui/jscad-text`, `@jscad/modeling`) resolves to that package's top entry,
+or, for `@jscad/modeling`, a listing of its namespaces (`primitives`,
+`booleans`, `transforms`, …) with one-line descriptions. A miss is a failed result,
 `{ ok: false, error: { name: 'NotFoundError', message: 'no entry <query>; closest: a, b, c' } }`,
 with the three nearest names by edit distance. Answers are cut at 3,000
 characters.
