@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { gradeFixture } from './grade.js'
+import { firstAttemptFailures, gradeFixture } from './grade.js'
 
 const fixture = {
   name: 'cube-hole',
@@ -60,5 +60,38 @@ describe('grader', () => {
     const transcript = [{ role: 'user', content: 'make it' }]
     expect(gradeFixture(fixture, transcript, { volume: 100 }).dimensions.geometry).toBe(1)
     expect(gradeFixture(fixture, transcript, null).dimensions.geometry).toBe(0)
+  })
+})
+
+describe('firstAttemptFailures', () => {
+  const fail = (id) => resultMsg(id, JSON.stringify({ ok: false, error: { message: 'boom' } }))
+  const ok = (id) => resultMsg(id, JSON.stringify({ ok: true }))
+
+  it('counts failed results before the first successful eval', () => {
+    const transcript = [
+      toolMsg('t1', 'eval'), fail('t1'),
+      toolMsg('t2', 'params'), ok('t2'),
+      toolMsg('t3', 'eval'), fail('t3'),
+      toolMsg('t4', 'eval'), ok('t4'),
+      toolMsg('t5', 'measure'), fail('t5'),
+    ]
+    expect(firstAttemptFailures(transcript)).toBe(2)
+  })
+
+  it('counts every failure when no eval succeeds', () => {
+    expect(firstAttemptFailures([toolMsg('t1', 'eval'), fail('t1'), toolMsg('t2', 'writeModel'), fail('t2')])).toBe(2)
+  })
+
+  it('is zero for a clean run and lands on the report', () => {
+    const transcript = [toolMsg('t1', 'eval'), ok('t1')]
+    expect(firstAttemptFailures(transcript)).toBe(0)
+    const report = gradeFixture(fixture, transcript, { volume: 6400 })
+    expect(report.firstAttemptFailures).toBe(0)
+    expect(report.checkRate).toBe(1)
+  })
+
+  it('passes the context to the checks', () => {
+    const withParams = { ...fixture, checks: (_m, { params = [] } = {}) => [{ name: 'slider', pass: params.length === 1 }] }
+    expect(gradeFixture(withParams, [], null, { params: [{ type: 'slider' }] }).checkRate).toBe(1)
   })
 })

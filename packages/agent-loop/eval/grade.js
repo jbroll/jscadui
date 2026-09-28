@@ -11,7 +11,17 @@ const failed = (content) => {
   }
 }
 
-export function gradeFixture(fixture, transcript, finalMeasure) {
+export function firstAttemptFailures(transcript) {
+  const names = new Map(toolCallsOf(transcript).map((c) => [c.id, c.name]))
+  let count = 0
+  for (const m of resultsOf(transcript)) {
+    if (failed(m.content)) count += 1
+    else if (names.get(m.toolCallId) === 'eval') return count
+  }
+  return count
+}
+
+export function gradeFixture(fixture, transcript, finalMeasure, context = {}) {
   const calls = toolCallsOf(transcript)
   const results = resultsOf(transcript)
   const names = calls.map((c) => c.name)
@@ -38,12 +48,17 @@ export function gradeFixture(fixture, transcript, finalMeasure) {
     recovery = laterSuccess ? 2 : 0
   }
 
-  const outcomes = fixture.checks(finalMeasure).map((c) => (c.pass ? 1 : 0))
+  const outcomes = fixture.checks(finalMeasure, context).map((c) => (c.pass ? 1 : 0))
   const rate = outcomes.length === 0 ? 0 : outcomes.reduce((a, b) => a + b, 0) / outcomes.length
   const geometry = rate === 1 ? 2 : rate >= 0.5 ? 1 : 0
 
   const writes = names.filter((n) => n === 'writeModel').length
   const conservation = calls.length <= 12 && writes <= 2 ? 2 : calls.length <= 24 ? 1 : 0
 
-  return { dimensions: { discipline, recovery, geometry, conservation }, total: discipline + recovery + geometry + conservation }
+  return {
+    dimensions: { discipline, recovery, geometry, conservation },
+    total: discipline + recovery + geometry + conservation,
+    firstAttemptFailures: firstAttemptFailures(transcript),
+    checkRate: rate,
+  }
 }

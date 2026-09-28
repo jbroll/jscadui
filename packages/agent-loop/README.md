@@ -55,3 +55,43 @@ Returns the system prompt, the newest whole prior turns that fit in `budget`
 characters (24,000 by default), a user message with every text file in
 `files` under `### <path>` (outside the budget, omitted when empty), and the
 new message. The app and the eval both use it.
+
+## Eval
+
+The eval replays each fixture in `eval/fixtures/` against a live model and
+grades the transcript. Model code runs through `@jscadui/require` with the
+compute frame's transform rule and CDN URL scheme; `https://cdn.jsdelivr.net/npm/<pkg>`
+maps to the package in local `node_modules`, and a package that is not
+installed fails with the frame's `failed to load module <name>` /
+`file not found <url>` text. `@jscadui/jscad-text` (ESM-only) and
+`@jbroll/jscad-anchors` (not installed) fail here though the app serves them.
+
+```bash
+EVAL_PROVIDER=meta EVAL_MODEL=muse-spark-1.3-contributor npm run eval -w @jscadui/agent-loop
+npm run eval -w @jscadui/agent-loop -- --compare eval/results/a.json eval/results/b.json
+npm run eval:keyless -w @jscadui/agent-loop
+```
+
+| Variable | Meaning |
+|---|---|
+| `EVAL_PROVIDER` | provider kind: `anthropic`, `openai`, `opencode-go`, `meta` |
+| `EVAL_MODEL` | model id |
+| `EVAL_API_KEY` | provider key; with `EVAL_PROVIDER=meta` and no key, `providers.meta.api_key` and `api_base_url` come from `~/.config/muse/auth.json` |
+| `EVAL_BASE_URL` | provider base URL, without `/v1` |
+| `EVAL_RUNS` | runs per fixture, default 5 |
+| `EVAL_FIXTURES` | comma-separated fixture names to run, default all |
+
+Each run is graded on discipline, recovery, geometry and conservation (0-2
+each) and on `firstAttemptFailures`: the failed tool results before the first
+successful `eval`, or before the end of the run if none succeeds. The summary
+gives, per fixture, the mean `firstAttemptFailures`, the pass rate of its
+geometry checks, the mean total and the count of runs that ended in a
+provider error. Each result file, `eval/results/<date>-<model>-<sha8>.json`,
+records the SHA-256 of the assembled system prompt, so `--compare` can set two
+prompt versions side by side. The key is never printed or written.
+
+A fixture is one file exporting `fixture`:
+`{ name, prompt, requires, verifyBeforeWrite, maxTurns, checks(measure, { params }), transcript?, files? }`.
+`name` matches the file name; `transcript` (prior `{ role, content }` turns)
+and `files` (`{ path: source }`) test follow-up requests through the same
+`buildMessages` the app uses.
