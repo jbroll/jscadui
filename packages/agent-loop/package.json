@@ -11,7 +11,8 @@
     "log"
   ],
   "scripts": {
-    "test": "vitest run"
+    "test": "vitest run",
+    "read-log": "node log/read-log.js"
   },
   "devDependencies": {
     "@jbroll/jscad-fluent": "0.6.1",
