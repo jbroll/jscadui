@@ -40,7 +40,8 @@ export const initOverlays = (jscad) => {
 const table = new WeakMap()
 
 // Stands in for a child whose only content is overlays. `empty` keeps the
-// difference between an empty result (undefined) and an absent one (NO_CHILD).
+// difference between an empty result (undefined) and an absent one (NO_CHILD):
+// OpenSCAD skips a % node only as a direct child, so once an op wraps it, it is empty.
 export class Ghosts {
   constructor(list, empty) {
     this.list = list
@@ -73,17 +74,14 @@ const forget = (x) => {
   else table.delete(x)
 }
 
-export const attach = (result, list) => {
+export const attach = (result, list, empty = true) => {
   if (list.length === 0) return result
-  if (isThenable(result)) return result.then(r => attach(r, list))
+  if (isThenable(result)) return result.then(r => attach(r, list, empty))
   if (Array.isArray(result)) {
     forget(result)
     return [...result, new Ghosts(list, false)]
   }
-  if (result === null || typeof result !== 'object' || result instanceof Ghosts) {
-    const empty = result === undefined || result === null || (result instanceof Ghosts && result.empty)
-    return new Ghosts(list, empty)
-  }
+  if (result === null || typeof result !== 'object' || result instanceof Ghosts) return new Ghosts(list, empty)
   table.set(result, list)
   return result
 }
@@ -117,7 +115,8 @@ const snapshots = (kind, child) =>
 
 export const highlight = (child) => {
   if (isThenable(child)) return child.then(highlight)
-  return attach(child, [...overlaysOf(child), ...snapshots('highlight', strip(child))])
+  const absent = child === NO_CHILD || (child instanceof Ghosts && !child.empty)
+  return attach(child, [...overlaysOf(child), ...snapshots('highlight', strip(child))], !absent)
 }
 
 export const background = (child) => {

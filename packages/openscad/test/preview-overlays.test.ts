@@ -168,10 +168,24 @@ describe('overlays through ops (manifold)', () => {
     expect(J.withOverlays(J.childrenAtRange(kids, 0, 1, 1))).toHaveLength(2)
   })
 
-  it('a background-only transform chain stays absent', () => {
+  it('a background-only transform chain reads as empty', () => {
     const out = J.translate([1, 0, 0], J.background(cube()))
-    expect(J.intersect(cube(), out)).toBeDefined()
     expect(J.withOverlays(out)).toHaveLength(1)
+    const cut = J.withOverlays(J.intersect(cube(), out))
+    expect(cut).toHaveLength(1)
+    expect(cut[0].previewOnly).toBe(true)
+  })
+
+  it('a background-only op result reads as empty', () => {
+    const out = J.union(J.background(cube()))
+    const cut = J.withOverlays(J.intersect(cube(), out))
+    expect(cut).toHaveLength(1)
+    expect(cut[0].previewOnly).toBe(true)
+  })
+
+  it('highlight keeps a background child absent', () => {
+    const plain = J.withOverlays(J.intersect(cube(), J.highlight(J.background(J.translate([50, 50, 50], cube())))))
+    expect(plain.filter((g: Ghost) => !g.previewOnly)).toHaveLength(1)
   })
 })
 

@@ -79,6 +79,12 @@ describe('% and # results', () => {
     expect(solids(r)[0].volume!()).toBeCloseTo(1000, 3)
   })
 
+  it('a % child behind a transform empties intersection', () => {
+    const r = run('intersection() { cube(10); translate([20, 0, 0]) %sphere(1); }')
+    expect(solids(r)).toHaveLength(0)
+    expect(ghosts(r)).toHaveLength(1)
+  })
+
   it('% inside a module call follows the call\'s transform', () => {
     const r = run('module m() { %cube(1); cube(1); }\ntranslate([0, 0, 20]) m();')
     expect(zRange(ghosts(r)[0])).toEqual([20, 21])
