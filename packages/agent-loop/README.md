@@ -151,13 +151,27 @@ files without spending API budget.
 |---|---|
 | `EVAL_PROVIDER` | provider kind: `anthropic`, `openai`, `opencode-go`, `meta` |
 | `EVAL_MODEL` | model id |
-| `EVAL_API_KEY` | provider key; with `EVAL_PROVIDER=meta` and no key, `providers.meta.api_key` and `api_base_url` come from `~/.config/muse/auth.json`; with `EVAL_PROVIDER=opencode-go` and no key, `["opencode-go"].key` comes from `~/.local/share/opencode/auth.json` |
+| `EVAL_API_KEY` | provider key; overrides everything below |
 | `EVAL_BASE_URL` | provider base URL, without `/v1` |
 | `EVAL_RUNS` | runs per fixture, default 3 |
 | `EVAL_FIXTURES` | comma-separated fixture names to run, default all |
 | `EVAL_VERBOSE` | `1` prints each run turn by turn: the header and prompt, tool calls with full input, tool results, and streamed assistant text |
 | `JSCAD_CHAT_DATA` | path to the `jscad-chat-evals` clone, default `~/src/jscad-chat-evals` |
 | `EVAL_RESULTS_DIR` | overrides where results are written, regardless of `JSCAD_CHAT_DATA` |
+| `JSCAD_CHAT_KEYS` | overrides the path to `keys.json` below |
+
+Without `EVAL_API_KEY`, the key for `EVAL_PROVIDER` is looked up in order:
+
+1. `~/.config/jscad-chat/keys.json` (or `JSCAD_CHAT_KEYS`), shape `{ "<provider>": "<key>" }`, mode 600.
+   This holds the dedicated `jscad-chat` service account key and is the preferred source for
+   `opencode-go`; use it instead of a personal key.
+2. The provider's own auth file: `EVAL_PROVIDER=meta` reads `providers.meta.api_key` and
+   `api_base_url` from `~/.config/muse/auth.json`; `EVAL_PROVIDER=opencode-go` reads
+   `["opencode-go"].key` from `~/.local/share/opencode/auth.json`.
+
+A missing or unreadable `keys.json` falls through silently to the provider auth file. When
+`opencode-go` falls back to the opencode auth file, `run-eval` prints one warning to stderr
+telling you to add the key to `keys.json` instead.
 
 Each run is graded on discipline, recovery, geometry and conservation (0-2
 each) and on `firstAttemptFailures`: the failed tool results before the first
