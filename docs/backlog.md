@@ -125,6 +125,10 @@ disposes its two intermediate transforms per geometry.
 - **Ghosts are not drawn in ALL.js grid cells.** Cells drop `previewOnly`
   items before `normalizeAndPlace`; drawing them needs placement and the
   streaming claims to carry them.
+- **A `%` child that evaluates to nothing still reads as `NO_CHILD`.**
+  `difference(){ %if (false) cube(20); cube(10); }` is empty here; OpenSCAD
+  skips the background child and keeps `cube(10)`. Same for `%` on an empty
+  module. The `%` placeholder has to survive an empty operand.
 
 ## OpenSCAD comparison red on a clean tree (pre-existing, not PR112)
 
