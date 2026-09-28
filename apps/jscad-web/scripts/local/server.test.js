@@ -31,4 +31,29 @@ describe('local server', () => {
       appServer.close(); frameServer.close()
     }
   })
+
+  it('sends CORS on missing and forbidden files so the frame sees the status', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'jscad-local-'))
+    mkdirSync(join(root, 'frame'), { recursive: true })
+    mkdirSync(join(root, 'models'), { recursive: true })
+    const relayHandler = createRelayHandler({ allowlist: {}, trustedOrigins: [] })
+    const { appServer, frameServer, url } = await startLocal({
+      appDir: root, frameDir: join(root, 'frame'), modelDir: join(root, 'models'),
+      relayHandler, port: 0,
+    })
+    const frameUrl = url.replace(/:(\d+)$/, (_, p) => `:${Number(p) + 1}`)
+    try {
+      for (const [target, status] of [
+        [`${url}/models/missing.scad`, 404],
+        [`${url}/..%2Fsecret`, 403],
+        [`${frameUrl}/missing.js`, 404],
+      ]) {
+        const res = await fetch(target)
+        expect(res.status).toBe(status)
+        expect(res.headers.get('access-control-allow-origin')).toBe('*')
+      }
+    } finally {
+      appServer.close(); frameServer.close()
+    }
+  })
 })

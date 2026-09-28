@@ -53,14 +53,18 @@ const handleStatic = async (pathname) => {
   const buildDir = path.resolve(process.cwd(), 'build')
   const filePath = path.resolve(buildDir, pathname.replace(/^\/+/, ''))
 
+  // The frame's opaque origin reads examples and model files from here, and
+  // every such read is a cross-origin fetch, errors included.
+  const headers = { 'Access-Control-Allow-Origin': '*' }
+
   // Prevent path traversal attacks
   if (!filePath.startsWith(buildDir + path.sep) && filePath !== buildDir) {
-    return { status: 403, content: 'forbidden' }
+    return { status: 403, content: 'forbidden', headers }
   }
 
   const stats = await fs.stat(filePath).catch(() => undefined)
   if (!stats || !stats.isFile()) {
-    return { status: 404, content: 'not found' }
+    return { status: 404, content: 'not found', headers }
   }
 
   // detect content type
@@ -71,9 +75,7 @@ const handleStatic = async (pathname) => {
   const contentType = mimeTypes[extname] || 'application/octet-stream'
 
   const content = await fs.readFile(filePath)
-  // The frame's opaque origin reads examples and model files from here, and
-  // every such read is a cross-origin fetch.
-  return { status: 200, content, contentType, headers: { 'Access-Control-Allow-Origin': '*' } }
+  return { status: 200, content, contentType, headers }
 }
 
 /**
@@ -85,18 +87,19 @@ const handleStatic = async (pathname) => {
 const handleFrame = async (pathname, frameDir, appOrigin) => {
   const buildDir = path.resolve(process.cwd(), frameDir)
   const filePath = path.resolve(buildDir, pathname.replace(/^\/+/, ''))
+  const cors = { 'Access-Control-Allow-Origin': '*' }
   if (!filePath.startsWith(buildDir + path.sep) && filePath !== buildDir) {
-    return { status: 403, content: 'forbidden' }
+    return { status: 403, content: 'forbidden', headers: cors }
   }
   const stats = await fs.stat(filePath).catch(() => undefined)
   if (!stats || !stats.isFile()) {
-    return { status: 404, content: 'not found' }
+    return { status: 404, content: 'not found', headers: cors }
   }
   const extname = path.extname(filePath)
   const contentType = mimeTypes[extname] || 'application/octet-stream'
   const content = await fs.readFile(filePath)
   const headers = {
-    'Access-Control-Allow-Origin': '*',
+    ...cors,
     'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), usb=(), serial=()',
     'Content-Security-Policy': `frame-ancestors ${appOrigin}`,
   }

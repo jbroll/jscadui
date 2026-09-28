@@ -194,30 +194,6 @@ model with `display-check.js --engine jscad`.
   two of them merging 154k and 175k polygons in 50s each with the Node heap
   peaking at 2.7 GB; it finishes in 234s against the 290s budget.
 
-## Code review follow-ups
-
-Status re-checked against current code 2026-09-27. Dropped as already fixed:
-URL entry validation, decode iteration cap, OrbitControl pointer tracking,
-ParamsTree cleanup handling, three.js disposal timing, regl render queue,
-FileWatcher cleanup, babel error context, DXF/X3D menu gaps and the 3mf
-README claim.
-
-- **Parameter updates keep the latest (jscad-web).** Decided 2026-09-27:
-  no queue; rapid changes coalesce to the latest and `noteParams` still
-  records every change. (`apps/jscad-web/src/paramsUI.js`, `runParamChange`)
-- **Save fallback feedback (jscad-web).** Done 2026-09-27: a missing file
-  handle reports through `setError` instead of failing silently.
-  (`apps/jscad-web/main.js`, `src/saveFile.js`)
-- **Params validation (params-ui, params-controller).** Done 2026-09-27:
-  paths and class names are validated, numeric strings coerce when the
-  stored value is a number, free-typed values snap to the step grid,
-  `setClass` documents non-reentrancy with a guard, `extractPartValues`
-  validates its inputs.
-- **Rate-limit CDN requests (require).** Done 2026-09-27 as a burst guard
-  (200/s, fail fast); real throttling with queuing/backoff still needs
-  async `fetch()` first; see the async module loading refactor below.
-  (`packages/require/src/readFileWeb.js`)
-
 ## Refactoring
 
 Async module loading is the breaking one; the rest are extractions.
@@ -266,12 +242,6 @@ Async module loading is the breaking one; the rest are extractions.
   list has not been seen with a real Meta key. Form controls stay light in
   dark mode, and the drawer header wraps the gear onto its own line when the
   sign-in copy is long.
-
-- **Missing files read as network errors in the frame.** The local server
-  (`apps/jscad-web/scripts/local/server.js`) and `serve.js` send
-  `Access-Control-Allow-Origin` only on a 200, so a 404 or 403 for a file the
-  frame asked for is blocked by CORS and reaches the worker as `NetworkError`
-  instead of `file not found`. Send the header on error responses too.
 
 - **Accessibility.** Input-level ARIA exists; still missing are tree and
   toolbar roles, keyboard navigation for the param and file trees, modal

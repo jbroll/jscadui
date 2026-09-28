@@ -23,13 +23,15 @@ export const startLocal = async ({ appDir, frameDir, modelDir, relayHandler, por
     let file = null
     if (path.startsWith('/models/')) file = safeJoin(modelDir, decodeURIComponent(path.slice('/models/'.length)))
     else file = safeJoin(appDir, decodeURIComponent(path === '/' ? '/index.html' : path))
-    if (!file) { res.writeHead(403); res.end('forbidden'); return }
+    // Errors carry CORS too, or the frame sees a NetworkError instead of the status.
+    const cors = { 'access-control-allow-origin': '*' }
+    if (!file) { res.writeHead(403, cors); res.end('forbidden'); return }
     try {
       const content = await readFile(file)
-      res.writeHead(200, { 'content-type': MIME[extname(file)] ?? 'application/octet-stream', 'access-control-allow-origin': '*' })
+      res.writeHead(200, { 'content-type': MIME[extname(file)] ?? 'application/octet-stream', ...cors })
       res.end(content)
     } catch {
-      res.writeHead(404); res.end('not found')
+      res.writeHead(404, cors); res.end('not found')
     }
   })
   await new Promise((r) => server.listen(port, '127.0.0.1', r))
