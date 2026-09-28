@@ -136,11 +136,15 @@ test.describe('AI chat', () => {
 
     // Follow-up turn: the prior assistant reply ('Done.') carries no tool
     // calls, which is what crashed the OpenAI/Anthropic adapters (finding 1).
+    const assistantNodesBefore = await page.locator('.chat-msg.assistant').count()
     await page.locator('.chat-input').fill('make it bigger')
     await page.locator('.chat-send').click()
-    await expect(page.locator('.chat-messages')).toContainText('Done.', { timeout: 30_000 })
+    // .chat-messages accumulates across turns and already contains 'Done.'
+    // from the first turn, so wait on the follow-up round trip and a new
+    // assistant message node instead of racing that stale text.
+    await expect.poll(() => stub.requests.length, { timeout: 30_000 }).toBeGreaterThanOrEqual(4)
+    await expect(page.locator('.chat-msg.assistant')).toHaveCount(assistantNodesBefore + 1, { timeout: 30_000 })
     await assertNoError(page)
-    expect(stub.requests.length).toBeGreaterThanOrEqual(4)
     const followUp = stub.requests[stub.requests.length - 1]
     expect(followUp.messages ?? []).toContainEqual(expect.objectContaining({ role: 'assistant', content: 'Done.' }))
 
