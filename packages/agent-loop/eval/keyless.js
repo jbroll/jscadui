@@ -4,6 +4,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { evalResultsDir } from '../log/log-dir.js'
+import { isMainModule } from '../src/mainModule.js'
 import { createEvalBackend } from './backend.js'
 import { fixture as bracket } from './fixtures/bracket.js'
 import { fixture as cubeHole } from './fixtures/cube-hole.js'
@@ -60,7 +61,7 @@ export async function runKeylessBaseline() {
   return runSuite(fixtures, { provider: scripted(rounds), backend })
 }
 
-if (process.argv[1] === new URL(import.meta.url).pathname) {
+if (isMainModule(process.argv[1], import.meta.url)) {
   const results = await runKeylessBaseline()
   console.log(formatTable(results))
   const resultsDir = evalResultsDir()

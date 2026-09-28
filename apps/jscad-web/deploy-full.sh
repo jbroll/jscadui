@@ -56,6 +56,7 @@ echo ""
 # fires (the apache module only runs it when APACHE_CONTENT_DIR has a
 # package.json, and build/frame has none). Build once, here, before either.
 echo "[0/4] Building the workspace..."
+node ../../scripts/fetch-sources.js
 npm --prefix ../.. install --no-audit --no-fund
 # Regenerate the ALL.js example grids: most are gitignored build artifacts, so a
 # fresh checkout has the .scad corpus but no grids. --no-rename keeps numeric

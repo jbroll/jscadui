@@ -7,6 +7,7 @@ import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { buildMessages, createProvider, runTurn, SYSTEM_PROMPT } from '../index.js'
 import { evalResultsDir } from '../log/log-dir.js'
+import { isMainModule } from '../src/mainModule.js'
 import { createEvalBackend } from './backend.js'
 import { resolveCredentials } from './credentials.js'
 import { gradeFixture, gradeTranscript, geometryError, transcriptMetrics } from './grade.js'
@@ -225,6 +226,6 @@ const main = async (argv, env) => {
   console.log(formatSummary(summary))
 }
 
-if (process.argv[1] === new URL(import.meta.url).pathname) {
+if (isMainModule(process.argv[1], import.meta.url)) {
   await main(process.argv.slice(2), process.env)
 }

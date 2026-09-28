@@ -56,6 +56,17 @@ function readMarker(name) {
   return existsSync(p) ? readFileSync(p, 'utf8').trim() : null
 }
 
+// realpath resolves a symlinked invocation (e.g. scripts/setup-worktree.sh)
+// to the same path import.meta.url reports, so the guard fires there too.
+export const isMainModule = (argv1, moduleUrl) => {
+  if (!argv1) return false
+  try {
+    return realpathSync(argv1) === fileURLToPath(moduleUrl)
+  } catch {
+    return false
+  }
+}
+
 // Pure, no fs/git access, so the decision logic is unit-testable without a
 // real checkout: exported for scripts/deps/fetch-sources.test.js.
 export const markerValue = (target, build) => `${target}:${buildHash(build)}`
@@ -135,7 +146,7 @@ function fetchSource(src) {
 
 // Guarded so scripts/deps/fetch-sources.test.js can import the pure helpers
 // above without running the whole fetch as an import side effect.
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMainModule(process.argv[1], import.meta.url)) {
   const manifest = JSON.parse(readFileSync(MANIFEST, 'utf8'))
   let changed = false
   for (const src of manifest.sources) {
