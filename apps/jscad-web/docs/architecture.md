@@ -763,6 +763,16 @@ methods and passes modeling only valid options;
 `packages/agent-loop/eval/fluent-guard.test.js` runs every fluent example with
 the wraps on and fails on any warning.
 
+The probe that finds fluent's prototypes calls its real factories
+(`circle()`, `cube()`, ...), and a manifold-backed factory throws until the
+modeling bundle's WASM finishes loading. `src_frame/optionWarnings.js` waits
+on that bundle's own `ready` promise, already in the require cache since
+fluent requires modeling before this wrapper runs, and wraps once it
+resolves — strictly before `jscadScript`'s own `await modelingModule.ready`
+resumes, since both are `.then` continuations on the same promise in
+attachment order. The plain jscad engine has no such promise, so the wrap
+runs synchronously instead.
+
 ### Chat feedback loop
 
 The prompt improves from real sessions. The launcher relay logs each
