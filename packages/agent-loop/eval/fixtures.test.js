@@ -3,6 +3,7 @@ import { readdirSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { measure } from '@jscadui/model-tools'
 import { TOOLS } from '../src/tools.js'
+import { geometryError } from './grade.js'
 import { loadFixtures } from './run-eval.js'
 
 const names = new Set(TOOLS.map((t) => t.name))
@@ -42,5 +43,15 @@ describe('eval fixtures', () => {
 
   it('cylinder-param fails without a slider', () => {
     expect(byName['cylinder-param'].checks(measure([primitives.cylinder({ radius: 5, height: 20 })], {}), { params: [] }).every((c) => c.pass)).toBe(false)
+  })
+
+  it('bracket target matches its 60x40x40 bounding box, not the 8mm plate thickness', () => {
+    const { booleans, transforms, primitives: p } = createRequire(import.meta.url)('@jscad/modeling')
+    const upright = p.cuboid({ size: [60, 40, 8] })
+    const foot = transforms.translate([0, -16, 16], p.cuboid({ size: [60, 8, 40] }))
+    const bracket = booleans.union(upright, foot)
+    const m = measure([bracket], {})
+    expect([...m.dimensions].sort((a, b) => a - b)).toEqual([40, 40, 60])
+    expect(geometryError(byName['bracket'].target, m)).toBeLessThan(0.01)
   })
 })
