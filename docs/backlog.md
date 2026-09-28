@@ -188,6 +188,18 @@ model with `display-check.js --engine jscad`.
 
 ## Chat API help
 
+- Run live model evals on the CI host (`ci/eval`). The eval runs model-written
+  code with the user's privileges in the same home as the provider keys
+  (`eval/backend.js` resolves any `require.resolve`-able name, Node built-ins
+  included), and runs started from a Claude session are reaped under memory
+  pressure. A `ci/eval` job: fetch-sources, `npm install`, the eval per
+  requested model into the job worktree, results fetched with
+  `sci artifact` and committed to jscad-chat-evals. Needs the `jscad-chat`
+  opencode-go key and the Meta key placed on the CI host (user's step), and
+  either `sci log` streaming or a live log reachable over ssh. Independently:
+  restrict the backend's CDN stub to the frame's package allowlist and run
+  model code in a child process under Node's permission model with an empty
+  environment.
 - Stack-gated fluent method checks, if `eval/fluent-guard.test.js` ever finds
   a false warning from fluent's internals. The method checks wrap the shared
   prototypes, so they see fluent's own calls as well as the model's; a
