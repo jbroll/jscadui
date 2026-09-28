@@ -658,8 +658,12 @@ models from the menu.
 
 The loop runs in the browser (`packages/agent-loop`), not on the server. The
 page holds the conversation, calls the provider, and serves each tool request
-itself through `src/aiBridge.js`. Provider HTTP goes through `/api/relay`,
-which exists only because providers do not send CORS headers; it keeps no
+itself through `src/aiBridge.js`. Provider HTTP goes through `/api/relay` on
+the origin `build.js` stamps in as `__RELAY_ORIGIN__` (`src_build/relayOrigin.js`):
+the app's own origin for a deployed or `jscad-chat` launcher build, production
+for the `:5120` dev server, `RELAY_ORIGIN` when set, and
+`localStorage['jscad-ai.relay']` overrides all of them. The relay exists only
+because providers do not send CORS headers; it keeps no
 session and no storage, checks the caller's origin, resolves the upstream host
 at forward time and refuses private addresses. Browsers send no `Origin` on a
 same-origin GET, so the model-list GET from the app's own origin passes on

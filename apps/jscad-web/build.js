@@ -8,6 +8,7 @@ import { fillFrameHtml } from './src_build/frameHtml.js'
 import { genExamplesManifest } from './src_build/genExamplesManifest.js'
 import { hashAssets } from './src_build/hashAssets.js'
 import { hashFrameAssets } from './src_build/hashFrameAssets.js'
+import { relayOrigin } from './src_build/relayOrigin.js'
 
 import { buildBundle, buildOne } from './src_build/esbuildUtil.js'
 
@@ -185,7 +186,7 @@ const loader = {
   '.js': 'tsx',
   '.jsx': 'tsx',
 }
-await buildOne('.', outDir, 'main.js', watch, { format: 'esm', loader, define: { __FRAME_ORIGIN__: JSON.stringify(runOrigin) } })
+await buildOne('.', outDir, 'main.js', watch, { format: 'esm', loader, define: { __FRAME_ORIGIN__: JSON.stringify(runOrigin), __RELAY_ORIGIN__: JSON.stringify(relayOrigin({ dev, appOrigin })) } })
 
 /******************************* COMPUTE FRAME (/frame) ***********************/
 // The only place model code runs. Bundle set mirrors the app's src_bundle

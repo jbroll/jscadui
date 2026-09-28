@@ -4,11 +4,14 @@
 // relay, which proxies path-preserving to the provider and stores nothing.
 import { createProvider, runTurn as defaultRunTurn, SYSTEM_PROMPT } from '@jscadui/agent-loop'
 
-const RELAY_DEFAULT = 'https://jscad.rkroll.com'
+/* global __RELAY_ORIGIN__ */
 const RELAY_OVERRIDE_KEY = 'jscad-ai.relay'
 
+// build.js stamps __RELAY_ORIGIN__; unit tests run unbundled without it.
+const relayDefault = () => (typeof __RELAY_ORIGIN__ === 'string' ? __RELAY_ORIGIN__ : 'https://jscad.rkroll.com')
+
 export const relayBaseUrl = (kind) => {
-  const root = globalThis.localStorage?.getItem(RELAY_OVERRIDE_KEY) || RELAY_DEFAULT
+  const root = globalThis.localStorage?.getItem(RELAY_OVERRIDE_KEY) || relayDefault()
   return `${root.replace(/\/+$/, '')}/api/relay/${kind}`
 }
 

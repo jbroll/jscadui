@@ -145,6 +145,16 @@ describe('relay base url', () => {
     expect(relayBaseUrl('openai')).toBe('https://jscad.rkroll.com/api/relay/openai')
   })
 
+  it('uses the relay origin stamped in at build time', async () => {
+    window.localStorage.removeItem('jscad-ai.relay')
+    globalThis.__RELAY_ORIGIN__ = 'http://localhost:7377'
+    try {
+      expect(relayBaseUrl('meta')).toBe('http://localhost:7377/api/relay/meta')
+    } finally {
+      delete globalThis.__RELAY_ORIGIN__
+    }
+  })
+
   it('honors the localStorage root override', async () => {
     window.localStorage.setItem('jscad-ai.relay', 'http://127.0.0.1:9999')
     expect(relayBaseUrl('openai')).toBe('http://127.0.0.1:9999/api/relay/openai')
