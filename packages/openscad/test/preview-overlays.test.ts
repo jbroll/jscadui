@@ -222,7 +222,7 @@ const NOT_GEOMETRY_OPS: string[] = ['_list_pattern', 'applyPositionalArgs', 'ass
   'norm', 'num', 'ord', 'parent_module', 'polygon', 'polyhedron', 'polyhedronHull', 'popScope', 'pushScope', 'rands',
   'range', 'recursionDetected', 'region', 'regular_polygon', 'resetRng', 'resetScope', 'resolveParams', 'reverse',
   'scopeDepth', 'scopeSnapshot', 'search', 'setSpecialVar', 'shl', 'shr', 'sinDeg', 'sphere', 'square', 'str',
-  'tanDeg', 'text', 'trunc', 'vadd', 'vdiv', 'version', 'version_num', 'vmul', 'vneg', 'vsub', 'withOverlays',
+  'tanDeg', 'text', 'trunc', 'useFont', 'vadd', 'vdiv', 'version', 'version_num', 'vmul', 'vneg', 'vsub', 'withOverlays',
   'withScope', 'withScopeFrom']
 
 describe('overlay coverage', () => {

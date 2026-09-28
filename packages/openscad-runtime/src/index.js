@@ -14,7 +14,7 @@ import { NO_CHILD as _NO_CHILD, initPrimitives, _cube, _cylinder, _sphere, _circ
 import { initTransforms, _translate, _rotate, _scale, _mirror, _multmatrix, _resize } from './transforms.js'
 import { initExtrusions, _linearExtrude, _rotateExtrude } from './extrusions.js'
 import { initColor, _color } from './color.js'
-import { initText, _text } from './text.js'
+import { initText, _text, _useFont } from './text.js'
 import { DEFAULT_SPECIAL_VARS } from './specialVars.js'
 import { consuming } from './consume.js'
 import { initOverlays, highlight as _highlight, background as _background, group as _group, withOverlays as _withOverlays, gathering } from './overlay.js'
@@ -314,6 +314,7 @@ const j$ = {
     const $fn = this.getSpecialVar('$fn'), $fa = this.getSpecialVar('$fa'), $fs = this.getSpecialVar('$fs')
     return _text({ $fn, $fa, $fs, ...args })
   },
+  useFont: _useFont,
 
   /**
    * OpenSCAD offset() - offsets a 2D shape outward (positive) or inward (negative)

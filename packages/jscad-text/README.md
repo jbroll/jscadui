@@ -77,6 +77,15 @@ const geom = await text2dAsync('Hello', {
 })
 ```
 
+### `registerFontFile(bytes)`
+
+Parses a TTF/OTF file (`Uint8Array` or `ArrayBuffer`) once and adds it to the font map under `Family` and `Family:style=Style`, taken from the font's own English names (typographic family and subfamily when present). A registered font replaces a built-in entry of the same name. Returns the keys it registered.
+
+```javascript
+registerFontFile(bytes)  // → ['Liberation Sans', 'Liberation Sans:style=Regular']
+text2d('Hi', { font: 'Liberation Sans:style=Regular' })
+```
+
 ## Font specifier
 
 The `font` option accepts:

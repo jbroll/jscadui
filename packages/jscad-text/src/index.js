@@ -253,4 +253,4 @@ function renderTTF(text, { size, font, halign, valign, spacing }) {
 export { defaultLoader as fontLoader } from './fonts/TTFLoader.js'
 export { TTFFont, TTFLoader, isClockwise } from './fonts/TTFLoader.js'
 export { computeValignOffset } from './layout/Alignment.js'
-export { resolveFont, registerFonts, registerNodeFont, listFonts, loadSystemFonts, STATIC_FONT_MAP } from './fonts/FontMap.js'
+export { resolveFont, registerFonts, registerFontFile, registerNodeFont, listFonts, loadSystemFonts, STATIC_FONT_MAP } from './fonts/FontMap.js'

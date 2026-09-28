@@ -399,10 +399,11 @@ export class TTFLoader {
    * - File path in Node.js: opentype.loadSync() → fs.readFileSync()
    * - HTTP URL in Node.js: throws — pre-load with fontLoader.load(url) first
    *
-   * @param {string | ArrayBuffer | Buffer | Uint8Array} source
+   * @param {string | ArrayBuffer | Buffer | Uint8Array | TTFFont} source
    * @returns {TTFFont}
    */
   loadSync(source) {
+    if (source instanceof TTFFont) return source
     const cacheKey = typeof source === 'string' ? source : null
     if (cacheKey && this._cache.has(cacheKey)) {
       return this._cache.get(cacheKey)
@@ -427,10 +428,11 @@ export class TTFLoader {
    * Use this to pre-load fonts before synchronous rendering, or for
    * Node.js HTTP URLs which cannot be loaded synchronously.
    *
-   * @param {string | ArrayBuffer | Buffer | Uint8Array} source
+   * @param {string | ArrayBuffer | Buffer | Uint8Array | TTFFont} source
    * @returns {Promise<TTFFont>}
    */
   async load(source) {
+    if (source instanceof TTFFont) return source
     // Use string sources as cache keys
     const cacheKey = typeof source === 'string' ? source : null
     if (cacheKey && this._cache.has(cacheKey)) {

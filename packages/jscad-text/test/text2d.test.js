@@ -1,8 +1,11 @@
-import { describe, it, expect, beforeAll } from 'vitest'
+import { describe, it, expect, beforeAll, vi } from 'vitest'
 import { fileURLToPath } from 'url'
 import { join, dirname } from 'path'
 import jscad from '@jscad/modeling'
-import { init, text2d, text2dAsync, resolveFont, registerFonts, listFonts, STATIC_FONT_MAP } from '../src/index.js'
+import {
+  init, text2d, text2dAsync, resolveFont, registerFonts, registerFontFile, listFonts, STATIC_FONT_MAP,
+  TTFFont, fontLoader,
+} from '../src/index.js'
 
 // A TTF font from the sibling OpenJSCAD.org checkout (no network needed)
 const OPEN_SANS_TTF = join(
@@ -241,6 +244,51 @@ describe('FontMap', () => {
     expect(fonts).toContain('Roboto')
     expect(fonts).toContain('Noto Sans')
     expect(fonts).toContain('My Custom Font')
+  })
+})
+
+describe('registerFontFile', () => {
+  const LIBERATION_TTF = join(dirname(fileURLToPath(import.meta.url)), '../src/fonts/data/LiberationSans-Regular.ttf')
+  let keys
+
+  beforeAll(async () => {
+    const { readFile } = await import('node:fs/promises')
+    keys = registerFontFile(new Uint8Array(await readFile(LIBERATION_TTF)))
+  })
+
+  it('returns the family and family:style keys', () => {
+    expect(keys).toEqual(['Liberation Sans', 'Liberation Sans:style=Regular'])
+  })
+
+  it('makes the style key resolvable to the parsed font', () => {
+    expect(resolveFont('Liberation Sans:style=Regular')).toBeInstanceOf(TTFFont)
+    expect(resolveFont('Liberation Sans')).toBe(resolveFont('Liberation Sans:style=Regular'))
+  })
+
+  it('renders text with the registered font', () => {
+    const result = text2d({ text: 'A', font: 'Liberation Sans:style=Regular' })
+    expect(jscad.geometries.geom2.toSides(result).length).toBeGreaterThan(0)
+  })
+
+  it('does not re-parse the font on later text2d calls', () => {
+    const font = resolveFont('Liberation Sans:style=Regular')
+    const loadSync = vi.spyOn(fontLoader, 'loadSync')
+    try {
+      text2d({ text: 'B', font: 'Liberation Sans:style=Regular' })
+      text2d({ text: 'C', font: 'Liberation Sans' })
+      expect(loadSync).toHaveBeenCalledTimes(2)
+      expect(loadSync.mock.results[0].value).toBe(font)
+      expect(loadSync.mock.results[1].value).toBe(font)
+    } finally {
+      loadSync.mockRestore()
+    }
+  })
+
+  it('accepts an ArrayBuffer', async () => {
+    const { readFile } = await import('node:fs/promises')
+    const buf = await readFile(LIBERATION_TTF)
+    const ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
+    expect(registerFontFile(ab)).toEqual(keys)
   })
 })
 

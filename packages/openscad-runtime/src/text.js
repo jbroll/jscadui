@@ -11,7 +11,7 @@
  */
 
 import { _getSegments } from './segments.js'
-import { text2d, init as initJscadText } from '@jscadui/jscad-text'
+import { text2d, registerFontFile, init as initJscadText } from '@jscadui/jscad-text'
 
 let jscad = null
 let textInitDone = false
@@ -73,6 +73,16 @@ export const _text = ({
     console.warn(`text(): font '${font}' not available: ${e.message}`)
     return null
   }
+}
+
+/**
+ * OpenSCAD `use <Font.ttf>`: register the font file so later text() calls
+ * can name it by family and style.
+ *
+ * @param {Uint8Array | ArrayBuffer} bytes
+ */
+export const _useFont = (bytes) => {
+  registerFontFile(bytes)
 }
 
 /**

@@ -21,6 +21,8 @@
  *   "Family Name:style=Bold"    - with style qualifier
  */
 
+import { defaultLoader } from './TTFLoader.js'
+
 /**
  * In Node.js, Liberation Sans is resolved from the bundled TTF (same font OpenSCAD ships).
  * In browser, the actual Liberation Sans is fetched from jsDelivr (sync XHR in Web Workers).
@@ -265,6 +267,25 @@ export function registerFonts(entries) {
   for (const [name, url] of Object.entries(entries)) {
     runtimeMap.set(name, url)
   }
+}
+
+/**
+ * Parse a font file and register it under its own family and style names,
+ * replacing any existing entry of the same name. The parsed font is stored
+ * in the map, so later text2d calls reuse it without parsing again.
+ *
+ * @param {Uint8Array | ArrayBuffer} bytes - TTF/OTF file contents
+ * @returns {string[]} the registered keys: `Family` and `Family:style=Style`
+ */
+export function registerFontFile(bytes) {
+  const font = defaultLoader.loadSync(bytes)
+  const names = font._font.names
+  const family = (names.preferredFamily ?? names.fontFamily)?.en
+  const style = (names.preferredSubfamily ?? names.fontSubfamily)?.en
+  if (!family) throw new Error('registerFontFile: font has no English family name')
+  const keys = style ? [family, `${family}:style=${style}`] : [family]
+  for (const key of keys) runtimeMap.set(key, font)
+  return keys
 }
 
 /**
