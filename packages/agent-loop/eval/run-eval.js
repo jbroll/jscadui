@@ -37,7 +37,7 @@ const withTurnCap = (provider, maxTurns) => {
   }
 }
 
-export async function runSuite(fixtures, { provider, backend, runs = 1, systemPrompt = SYSTEM_PROMPT }) {
+export async function runSuite(fixtures, { provider, backend, runs = 1, systemPrompt = SYSTEM_PROMPT, onRun }) {
   if (!provider) throw new Error('runSuite: provider is required (set EVAL_PROVIDER/EVAL_MODEL/EVAL_API_KEY)')
   const results = []
   for (const fixture of fixtures) {
@@ -59,7 +59,16 @@ export async function runSuite(fixtures, { provider, backend, runs = 1, systemPr
       }
       const finalMeasure = JSON.parse(await backend.requestTool('measure', {}))
       const report = gradeFixture(fixture, transcript, finalMeasure.ok ? finalMeasure : null, { params: backend.params() })
-      results.push({ fixture: fixture.name, run, report, turns: transcript.length, ...(error ? { error } : {}) })
+      const result = {
+        fixture: fixture.name,
+        run,
+        report,
+        turns: transcript.length,
+        transcript: transcript.filter((m) => m.role !== 'system'),
+        ...(error ? { error } : {}),
+      }
+      results.push(result)
+      onRun?.(result)
     }
   }
   return results
@@ -83,7 +92,11 @@ const main = async (argv, env) => {
   const only = env.EVAL_FIXTURES ? env.EVAL_FIXTURES.split(',') : null
   const fixtures = (await loadFixtures()).filter((f) => !only || only.includes(f.name))
   const provider = createProvider({ kind: EVAL_PROVIDER, model: EVAL_MODEL, apiKey, baseUrl })
-  const results = await runSuite(fixtures, { provider, backend: createEvalBackend(), runs })
+  const onRun = (result) => {
+    const line = `${result.fixture} run ${result.run}/${runs}  firstFail ${result.report.firstAttemptFailures}  total ${result.report.total}`
+    console.log(result.error ? `${line}  error: ${result.error}` : line)
+  }
+  const results = await runSuite(fixtures, { provider, backend: createEvalBackend(), runs, onRun })
   const summary = summarize(results)
   const promptSha256 = promptHash(SYSTEM_PROMPT)
   console.log(formatSummary(summary))

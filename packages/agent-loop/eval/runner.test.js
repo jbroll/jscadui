@@ -82,3 +82,46 @@ describe('runSuite runs and context', () => {
     expect(promptHash('x')).toBe('2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881')
   })
 })
+
+describe('runSuite transcript', () => {
+  it('keeps the run transcript without the system message', async () => {
+    const backend = createEvalBackend()
+    const provider = scripted([
+      [
+        { type: 'tool_use', id: 't1', name: 'eval', input: { source: 'x' } },
+        { type: 'done', stopReason: 'tool_use' },
+      ],
+      [{ type: 'text', text: 'done' }, { type: 'done', stopReason: 'end_turn' }],
+    ])
+    const fixture = { name: 'smoke', prompt: 'make a cube', requires: ['eval'], verifyBeforeWrite: false, maxTurns: 8, checks: () => [] }
+    const [result] = await runSuite([fixture], { provider, backend })
+    expect(result.transcript.some((m) => m.role === 'system')).toBe(false)
+    expect(result.transcript[0]).toEqual({ role: 'user', content: 'make a cube' })
+    expect(result.transcript.some((m) => m.toolCalls?.some((c) => c.name === 'eval'))).toBe(true)
+    expect(result.transcript.some((m) => m.role === 'tool')).toBe(true)
+  })
+
+  it('keeps whatever messages exist on a provider error, minus system', async () => {
+    const provider = {
+      send: () => ({ [Symbol.asyncIterator]: () => ({ next: async () => { throw new Error('status 500') } }) }),
+    }
+    const fixture = { name: 'x', prompt: 'p', requires: ['eval'], verifyBeforeWrite: false, maxTurns: 2, checks: () => [] }
+    const [result] = await runSuite([fixture], { provider, backend: createEvalBackend() })
+    expect(result.transcript.some((m) => m.role === 'system')).toBe(false)
+    expect(result.transcript[0]).toEqual({ role: 'user', content: 'p' })
+  })
+
+  it('calls onRun once per run with the result', async () => {
+    const provider = {
+      async *send() {
+        yield { type: 'text', text: 'ok' }
+        yield { type: 'done', stopReason: 'end_turn' }
+      },
+    }
+    const fixture = { name: 'x', prompt: 'p', requires: ['eval'], verifyBeforeWrite: false, maxTurns: 2, checks: () => [] }
+    const seen = []
+    await runSuite([fixture], { provider, backend: createEvalBackend(), runs: 2, onRun: (result) => seen.push(result) })
+    expect(seen).toHaveLength(2)
+    expect(seen.map((r) => r.run)).toEqual([1, 2])
+  })
+})

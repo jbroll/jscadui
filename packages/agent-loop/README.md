@@ -88,7 +88,10 @@ gives, per fixture, the mean `firstAttemptFailures`, the pass rate of its
 geometry checks, the mean total and the count of runs that ended in a
 provider error. Each result file, `eval/results/<date>-<model>-<sha8>.json`,
 records the SHA-256 of the assembled system prompt, so `--compare` can set two
-prompt versions side by side. The key is never printed or written.
+prompt versions side by side. Each result also carries `transcript`, the run's
+messages minus the system prompt, for tracing a stumble back to the tool calls
+that caused it. The eval prints one line per run as it goes. The key is never
+printed or written.
 
 A fixture is one file exporting `fixture`:
 `{ name, prompt, requires, verifyBeforeWrite, maxTurns, checks(measure, { params }), transcript?, files? }`.

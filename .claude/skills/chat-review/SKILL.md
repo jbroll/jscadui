@@ -71,10 +71,11 @@ the user the fixture count times `EVAL_RUNS` and get a yes.
    EVAL_PROVIDER=meta EVAL_MODEL=muse-spark-1.3-contributor EVAL_FIXTURES=<name>,<name> npm run eval -w @jscadui/agent-loop
    ```
 
-   Confirm each fails the way the log shows (a nonzero mean `firstFail`, the
-   same error text in the result file). A fixture that passes on the current
-   prompt does not reproduce the stumble; rework its prompt or context until
-   it fails, or drop it.
+   Confirm each fails the way the log shows: a nonzero mean `firstFail`, and
+   the same error text in the run transcripts (`results[].transcript`, the
+   tool messages with `"ok":false`) in the result file. A fixture that passes
+   on the current prompt does not reproduce the stumble; rework its prompt or
+   context until it fails, or drop it.
 
 5. **Draft a prompt or example change.** Use the
    `llm-application-dev:prompt-engineering-patterns` skill, especially its
