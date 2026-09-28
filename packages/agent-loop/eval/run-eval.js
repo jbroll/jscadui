@@ -11,6 +11,7 @@ import { isMainModule } from '../src/mainModule.js'
 import { createEvalBackend } from './backend.js'
 import { resolveCredentials } from './credentials.js'
 import { gradeFixture, gradeTranscript, geometryError, transcriptMetrics } from './grade.js'
+import { createLiveLog, formatLiveHeader, liveLogPath, prefixBlock } from './live-log.js'
 import { computeSpeed, formatComparison, formatSummary, summarize } from './report.js'
 import { formatRunHeader, formatText, formatToolCall, formatToolResult } from './verbose.js'
 
@@ -229,9 +230,18 @@ const main = async (argv, env) => {
   console.log(`run-eval: writing ${filePath}`)
 
   const verbose = env.EVAL_VERBOSE === '1'
+  // Always written to the live log so a second terminal can `tail -F` it;
+  // EVAL_VERBOSE only controls whether these lines also go to stdout.
+  const liveLog = createLiveLog(liveLogPath(env))
+  const logLine = (text, { toStdout = verbose } = {}) => {
+    liveLog.write(prefixBlock(EVAL_MODEL, text))
+    if (toStdout) console.log(text)
+  }
+  logLine(formatLiveHeader({ provider: EVAL_PROVIDER, model: EVAL_MODEL, promptSha256, fixtureNames: fixtures.map((f) => f.name), runs, filePath }))
+
   let pending = ''
   const flush = () => {
-    if (pending) console.log(formatText(pending))
+    if (pending) logLine(formatText(pending))
     pending = ''
   }
 
@@ -239,24 +249,22 @@ const main = async (argv, env) => {
   const onRun = (result) => {
     flush()
     const line = `${result.fixture} run ${result.run}/${runs}  firstFail ${result.report.firstAttemptFailures}  total ${result.report.total}`
-    console.log(result.error ? `${line}  error: ${result.error}` : line)
+    logLine(result.error ? `${line}  error: ${result.error}` : line, { toStdout: true })
     collected.push(result)
     saveResults(writeFileSync, filePath, { model: EVAL_MODEL, provider: EVAL_PROVIDER, runs, promptSha256, results: collected })
   }
 
-  const hooks = verbose
-    ? {
-        onRunStart: (fixture, run, n) => console.log(formatRunHeader(fixture, run, n)),
-        onToolCall: (name, input) => {
-          flush()
-          console.log(formatToolCall(name, input))
-        },
-        onToolResult: (_name, result) => console.log(formatToolResult(result)),
-        onText: (text) => {
-          pending += text
-        },
-      }
-    : {}
+  const hooks = {
+    onRunStart: (fixture, run, n) => logLine(formatRunHeader(fixture, run, n)),
+    onToolCall: (name, input) => {
+      flush()
+      logLine(formatToolCall(name, input))
+    },
+    onToolResult: (_name, result) => logLine(formatToolResult(result)),
+    onText: (text) => {
+      pending += text
+    },
+  }
 
   await runSuite(fixtures, { provider, backend: createEvalBackend(), runs, onRun, ...hooks })
   const { summary, speed } = saveResults(writeFileSync, filePath, {
@@ -266,7 +274,7 @@ const main = async (argv, env) => {
     promptSha256,
     results: collected,
   })
-  console.log(formatSummary(summary, { ...speed, model: EVAL_MODEL, provider: EVAL_PROVIDER }))
+  logLine(formatSummary(summary, { ...speed, model: EVAL_MODEL, provider: EVAL_PROVIDER }), { toStdout: true })
 }
 
 if (isMainModule(process.argv[1], import.meta.url)) {

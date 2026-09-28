@@ -169,10 +169,26 @@ files without spending API budget.
 | `EVAL_BASE_URL` | provider base URL, without `/v1` |
 | `EVAL_RUNS` | runs per fixture, default 3 |
 | `EVAL_FIXTURES` | comma-separated fixture names to run, default all |
-| `EVAL_VERBOSE` | `1` prints each run turn by turn: the header and prompt, tool calls with full input, tool results, and streamed assistant text |
+| `EVAL_VERBOSE` | `1` also prints the live log's lines to stdout, turn by turn: the header and prompt, tool calls with full input, tool results, and streamed assistant text |
 | `JSCAD_CHAT_DATA` | path to the `jscad-chat-evals` clone, default `~/src/jscad-chat-evals` |
 | `EVAL_RESULTS_DIR` | overrides where results are written, regardless of `JSCAD_CHAT_DATA` |
 | `JSCAD_CHAT_KEYS` | overrides the path to `keys.json` below |
+| `EVAL_LIVE_LOG` | overrides the live log path; `0` disables it |
+
+Every run appends the same conversation lines `EVAL_VERBOSE` prints — run
+headers, prompts, tool calls with source, tool results, per-run summaries,
+and the final tables and speed line — to
+`~/.local/state/jscad-chat/eval-live.log` (`eval/live-log.js`), whether or not
+`EVAL_VERBOSE` is set; that variable only controls stdout. Each line is
+prefixed `[<model>] ` so two models' concurrent runs stay legible in one
+file, and a multi-line block (a model source, a multi-line error) gets the
+prefix on every line. The file starts with one header line: time, provider,
+model, the prompt hash's first 8 characters, the fixture names, the run
+count and the result file path. Past 10 MB the file rotates to
+`eval-live.log.1` (replacing an older one) before the next write, so
+`tail -F ~/.local/state/jscad-chat/eval-live.log` in a second terminal
+follows a run live across the rotation. The log never receives anything
+beyond this text, so no key material reaches it.
 
 Without `EVAL_API_KEY`, the key for `EVAL_PROVIDER` is looked up in order:
 
