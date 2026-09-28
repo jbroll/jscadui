@@ -1250,6 +1250,8 @@ export function extractModuleBody(stmt: Statement, _ctx: TranspileContext): {
   return { nestedModules, nestedFunctions, assignments, geometryStmts }
 }
 
+const isBackground = (stmt: Statement) => (isModuleInstantiation(stmt) || isIfElseStatement(stmt)) && stmt.tagBackground
+
 /**
  * Recursively build the body of a module function, handling nested modules at any depth
  * @param paramNames - Set of parameter names from the parent function (to detect shadowing)
@@ -1440,7 +1442,7 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
   // Use j$.safeUnion to filter out undefined values from side-effect statements like assert
   const geomParts = geometryStmts.map(g => transpileStatement(g, ctx)).filter(Boolean) as string[]
   const returnExpr = geomParts.length === 0 ? 'undefined' :
-    geomParts.length === 1 ? geomParts[0] :
+    geomParts.length === 1 ? (geometryStmts.length === 1 && isBackground(geometryStmts[0]) ? `j$.group(${geomParts[0]})` : geomParts[0]) :
     `j$.safeUnion([\n${indent}  ${geomParts.join(',\n' + indent + '  ')}\n${indent}])`
   if (geomParts.length > 1) ctx.codeGen.usedHelpers.add('safeUnion')
 

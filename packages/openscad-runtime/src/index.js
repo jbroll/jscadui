@@ -17,7 +17,7 @@ import { initColor, _color } from './color.js'
 import { initText, _text } from './text.js'
 import { DEFAULT_SPECIAL_VARS } from './specialVars.js'
 import { consuming } from './consume.js'
-import { initOverlays, highlight as _highlight, background as _background, withOverlays as _withOverlays, gathering } from './overlay.js'
+import { initOverlays, highlight as _highlight, background as _background, group as _group, withOverlays as _withOverlays, gathering } from './overlay.js'
 
 /**
  * Sentinel for explicit undef passed as argument.
@@ -306,6 +306,7 @@ const j$ = {
   // % and # modifiers (overlay.js)
   highlight: _highlight,
   background: _background,
+  group: _group,
   withOverlays: _withOverlays,
 
   // Text primitive — resolves $fn/$fa/$fs from scope like other segment-aware primitives

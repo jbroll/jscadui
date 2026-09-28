@@ -125,7 +125,13 @@ export const background = (child) => {
   return list.length === 0 ? NO_CHILD : new Ghosts(list, false)
 }
 
-const ghostOf = ({ kind, mesh, matrix }) => {
+// A module body whose only statement is `%x`: the module node exists, so it is empty.
+export const group = (child) => {
+  if (isThenable(child)) return child.then(group)
+  return child instanceof Ghosts && !child.empty ? new Ghosts(child.list, true) : child
+}
+
+const ghostOf =({ kind, mesh, matrix }) => {
   const flip = det3(matrix) < 0
   const base = { transforms: [...IDENTITY], color: [...COLORS[kind]], previewOnly: true }
   if (mesh.dim === 2) {

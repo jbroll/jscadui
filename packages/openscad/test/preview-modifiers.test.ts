@@ -34,6 +34,11 @@ describe('% and # emission', () => {
     expect(code('#if (true) cube(1);')).toContain('j$.highlight(')
   })
 
+  it('marks a module body that is only a % statement as a group', () => {
+    expect(code('module m() { %cube(1); }')).toContain('return j$.group(j$.background(')
+    expect(code('module m() { cube(1); }')).not.toContain('j$.group(')
+  })
+
   it('leaves * disabled', () => {
     const c = code('*cube(1);')
     expect(c).not.toContain('j$.background(')
@@ -81,6 +86,12 @@ describe('% and # results', () => {
 
   it('a % child behind a transform empties intersection', () => {
     const r = run('intersection() { cube(10); translate([20, 0, 0]) %sphere(1); }')
+    expect(solids(r)).toHaveLength(0)
+    expect(ghosts(r)).toHaveLength(1)
+  })
+
+  it('a module whose only child is % empties intersection', () => {
+    const r = run('module m() { %sphere(1); }\nintersection() { cube(10); m(); }')
     expect(solids(r)).toHaveLength(0)
     expect(ghosts(r)).toHaveLength(1)
   })

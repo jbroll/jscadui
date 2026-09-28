@@ -196,7 +196,7 @@ const GEOMETRY_OPS = ['translate', 'rotate', 'scale', 'mirror', 'multmatrix', 'r
   'linearExtrude', 'rotateExtrude']
 const NOT_GEOMETRY_OPS: string[] = ['_list_pattern', 'applyPositionalArgs', 'assert', 'background', 'band', 'bnot',
   'bor', 'chr', 'circle', 'cosDeg', 'cross', 'cube', 'cylinder', 'echo', 'enterScope', 'eq', 'exitScope',
-  'getSpecialVar', 'highlight', 'init', 'isTruthy', 'is_consistent', 'is_vector', 'iter', 'lookup', 'max', 'min',
+  'getSpecialVar', 'group', 'highlight', 'init', 'isTruthy', 'is_consistent', 'is_vector', 'iter', 'lookup', 'max', 'min',
   'norm', 'num', 'ord', 'parent_module', 'polygon', 'polyhedron', 'polyhedronHull', 'popScope', 'pushScope', 'rands',
   'range', 'recursionDetected', 'region', 'regular_polygon', 'resetRng', 'resetScope', 'resolveParams', 'reverse',
   'scopeDepth', 'scopeSnapshot', 'search', 'setSpecialVar', 'shl', 'shr', 'sinDeg', 'sphere', 'square', 'str',
