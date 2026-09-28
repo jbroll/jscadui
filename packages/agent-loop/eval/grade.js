@@ -21,7 +21,8 @@ export function firstAttemptFailures(transcript) {
   return count
 }
 
-export function gradeFixture(fixture, transcript, finalMeasure, context = {}) {
+// The transcript-based dimensions: everything except geometry, which needs the final measure.
+export function gradeTranscript(fixture, transcript) {
   const calls = toolCallsOf(transcript)
   const results = resultsOf(transcript)
   const names = calls.map((c) => c.name)
@@ -38,7 +39,8 @@ export function gradeFixture(fixture, transcript, finalMeasure, context = {}) {
     }
   }
 
-  let recovery = 1
+  // No failures means nothing to recover from: full marks, same as a recovered run.
+  let recovery = 2
   const failures = results.filter((r) => failed(r.content))
   if (failures.length > 0) {
     const lastFailureAt = transcript.lastIndexOf(failures[failures.length - 1])
@@ -48,17 +50,26 @@ export function gradeFixture(fixture, transcript, finalMeasure, context = {}) {
     recovery = laterSuccess ? 2 : 0
   }
 
-  const outcomes = fixture.checks(finalMeasure, context).map((c) => (c.pass ? 1 : 0))
-  const rate = outcomes.length === 0 ? 0 : outcomes.reduce((a, b) => a + b, 0) / outcomes.length
-  const geometry = rate === 1 ? 2 : rate >= 0.5 ? 1 : 0
-
   const writes = names.filter((n) => n === 'writeModel').length
   const conservation = calls.length <= 12 && writes <= 2 ? 2 : calls.length <= 24 ? 1 : 0
 
   return {
-    dimensions: { discipline, recovery, geometry, conservation },
-    total: discipline + recovery + geometry + conservation,
+    dimensions: { discipline, recovery, conservation },
     firstAttemptFailures: firstAttemptFailures(transcript),
+  }
+}
+
+export function gradeFixture(fixture, transcript, finalMeasure, context = {}) {
+  const { dimensions, firstAttemptFailures: faf } = gradeTranscript(fixture, transcript)
+
+  const outcomes = fixture.checks(finalMeasure, context).map((c) => (c.pass ? 1 : 0))
+  const rate = outcomes.length === 0 ? 0 : outcomes.reduce((a, b) => a + b, 0) / outcomes.length
+  const geometry = rate === 1 ? 2 : rate >= 0.5 ? 1 : 0
+
+  return {
+    dimensions: { ...dimensions, geometry },
+    total: dimensions.discipline + dimensions.recovery + geometry + dimensions.conservation,
+    firstAttemptFailures: faf,
     checkRate: rate,
   }
 }

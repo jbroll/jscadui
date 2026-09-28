@@ -16,7 +16,7 @@ const toolMsg = (id, name, input = {}) => ({ role: 'assistant', content: null, t
 const resultMsg = (id, content) => ({ role: 'tool', toolCallId: id, content })
 
 describe('grader', () => {
-  it('scores a clean verified run at full marks', () => {
+  it('scores a clean verified run at full marks, including recovery (nothing to recover from)', () => {
     const transcript = [
       { role: 'user', content: 'make it' },
       toolMsg('t1', 'eval', { source: 'x' }),
@@ -27,8 +27,8 @@ describe('grader', () => {
       resultMsg('t3', JSON.stringify({ ok: true, entry: 'main.js' })),
     ]
     const report = gradeFixture(fixture, transcript, { volume: 6400 })
-    expect(report.dimensions).toEqual({ discipline: 2, recovery: 1, geometry: 2, conservation: 2 })
-    expect(report.total).toBe(7)
+    expect(report.dimensions).toEqual({ discipline: 2, recovery: 2, geometry: 2, conservation: 2 })
+    expect(report.total).toBe(8)
   })
 
   it('penalizes writeModel before any verification', () => {

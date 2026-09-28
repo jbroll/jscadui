@@ -9,7 +9,7 @@ import { buildMessages, createProvider, runTurn, SYSTEM_PROMPT } from '../index.
 import { evalResultsDir } from '../log/log-dir.js'
 import { createEvalBackend } from './backend.js'
 import { resolveCredentials } from './credentials.js'
-import { gradeFixture } from './grade.js'
+import { gradeFixture, gradeTranscript } from './grade.js'
 import { formatComparison, formatSummary, summarize } from './report.js'
 import { formatRunHeader, formatText, formatToolCall, formatToolResult } from './verbose.js'
 
@@ -87,6 +87,27 @@ export async function runSuite(
 
 const readJson = (path) => JSON.parse(readFileSync(path, 'utf8'))
 
+// Recomputes the transcript-based grading fields in a result file with no provider calls.
+// Geometry and checkRate need the final measure, which the file doesn't store, so they're kept as-is.
+export function regradeResults(file, fixturesByName) {
+  const results = file.results.map((result) => {
+    const fixture = fixturesByName.get(result.fixture)
+    if (!fixture) return result
+    const { dimensions, firstAttemptFailures } = gradeTranscript(fixture, result.transcript)
+    const { geometry } = result.report.dimensions
+    return {
+      ...result,
+      report: {
+        dimensions: { ...dimensions, geometry },
+        total: dimensions.discipline + dimensions.recovery + geometry + dimensions.conservation,
+        firstAttemptFailures,
+        checkRate: result.report.checkRate,
+      },
+    }
+  })
+  return { ...file, results, summary: summarize(results) }
+}
+
 // Rewritten after every run so an interrupted eval keeps every finished run.
 export function saveResults(writeFile, filePath, { model, provider, runs, promptSha256, results }) {
   const summary = summarize(results)
@@ -101,6 +122,16 @@ const main = async (argv, env) => {
   const at = argv.indexOf('--compare')
   if (at !== -1) {
     console.log(formatComparison(readJson(argv[at + 1]), readJson(argv[at + 2])))
+    return
+  }
+  const regradeAt = argv.indexOf('--regrade')
+  if (regradeAt !== -1) {
+    const fixturesByName = new Map((await loadFixtures()).map((f) => [f.name, f]))
+    for (const path of argv.slice(regradeAt + 1)) {
+      const regraded = regradeResults(readJson(path), fixturesByName)
+      writeFileSync(path, JSON.stringify(regraded, null, 2))
+      console.log(`run-eval: regraded ${path}`)
+    }
     return
   }
   const resultsDir = evalResultsDir(env)

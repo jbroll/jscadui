@@ -73,8 +73,17 @@ installed fails with the frame's `failed to load module <name>` /
 ```bash
 EVAL_PROVIDER=meta EVAL_MODEL=muse-spark-1.3-contributor npm run eval -w @jscadui/agent-loop
 npm run eval -w @jscadui/agent-loop -- --compare eval/results/a.json eval/results/b.json
+npm run eval -w @jscadui/agent-loop -- --regrade eval/results/a.json eval/results/b.json
 npm run eval:keyless -w @jscadui/agent-loop
 ```
+
+`--regrade` rewrites each result file in place with no provider calls: it recomputes
+`discipline`, `recovery`, `conservation` and `firstAttemptFailures` from the stored
+`transcript` against the current grading code and fixtures, keeps the stored `geometry`
+and `checkRate` (they need the final measure, which isn't stored), recomputes each
+run's `total`, and rebuilds the file's `summary`. A result whose fixture no longer
+exists is left as it was. Use it after a grading-rule change to update old result
+files without spending API budget.
 
 | Variable | Meaning |
 |---|---|
