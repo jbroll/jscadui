@@ -36,8 +36,17 @@ every machine resolves the same path:
 
 A source can also carry a `build` list (jscad-fluent's does): commands run
 inside the checkout once it's at the pinned commit, skipped on later runs via
-a `.jscadui-built` marker recording which commit was built. Needed for a
-source that doesn't commit its build output.
+a marker (`.deps-cache/.<name>.built`, outside the checkout) recording which
+commit and build list produced the output. Needed for a source that doesn't
+commit its build output. jscad-fluent's list is
+`npm pkg set devDependencies.@jbroll/jscad-anchors=^0.1.0`, `rm -f
+package-lock.json`, `npm install`, `npm run build` — the checkout pins
+`@jbroll/jscad-anchors` to a sibling path that only exists on the author's own
+machine, so the build repoints it at the published npm range before
+installing. Any tracked-file edits the build makes (`package.json`,
+`package-lock.json`) are discarded from the checkout right after, so it stays
+clean for the next fetch or pin move; a symlinked (dev) checkout is never
+built — that's the linked owner's job.
 
 Because the checkout is inside the project root, npm also installs the fork's
 own devDependencies (ava, browserify, nyc…; about 450 lockfile entries, all
@@ -47,9 +56,13 @@ mistake in the lockfile.
 ### Moving a pin
 
 ```bash
-npm run fetch-sources:update   # OpenJSCAD.org → tip of its ref; rewrites sources.json
+npm run fetch-sources:update   # every source → tip of its ref; rewrites sources.json
 npm install                    # refresh the lockfile
 ```
+
+`fetch-sources:update` moves every pinned source to the tip of its own `ref`
+(OpenJSCAD.org's `fork-main`, jscad-fluent's `local-packages`), so it also
+rebuilds jscad-fluent if its tip moved.
 
 For the parser, change the commit in `packages/openscad/package.json` and run
 `npm install`. For corpora, `npm run fetch-deps:update`.

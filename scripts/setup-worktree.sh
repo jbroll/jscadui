@@ -115,28 +115,32 @@ for d in node_modules .deps-cache; do
 done
 
 # The dep cache is shared with the parent checkout via symlink. fetch-deps
-# checks out its pins there, so refuse when the cache holds different pins
-# than this worktree's manifest instead of moving them under the parent.
+# and fetch-sources check out their pins there, so refuse when the cache
+# holds different pins than this worktree's manifest.json/sources.json
+# instead of moving them under the parent.
 if ! node -e '
   const { execSync } = require("child_process");
   const { existsSync } = require("fs");
   const { join } = require("path");
   const root = process.argv[1];
   const manifest = require(join(root, "scripts/deps/manifest.json"));
+  const sources = require(join(root, "scripts/deps/sources.json"));
   const cache = join(root, ".deps-cache");
   let drifted = 0;
-  for (const dep of manifest.deps) {
-    if (!dep.commit) continue;
-    const dir = join(cache, dep.name);
-    if (!existsSync(join(dir, ".git"))) continue;
+  const check = (name, commit) => {
+    if (!commit) return;
+    const dir = join(cache, name);
+    if (!existsSync(join(dir, ".git"))) return;
     let head = "";
     try { head = execSync(`git -C ${JSON.stringify(dir)} rev-parse HEAD`, { encoding: "utf8" }).trim(); }
-    catch { continue; }
-    if (head !== dep.commit) {
-      console.error(`pin drift: ${dep.name} cache@${head.slice(0, 8)} manifest@${dep.commit.slice(0, 8)}`);
+    catch { return; }
+    if (head !== commit) {
+      console.error(`pin drift: ${name} cache@${head.slice(0, 8)} pinned@${commit.slice(0, 8)}`);
       drifted = 1;
     }
-  }
+  };
+  for (const dep of manifest.deps) check(dep.name, dep.commit);
+  for (const src of sources.sources) check(src.name, src.commit);
   process.exit(drifted);
 ' "$worktree"; then
   echo "error: shared .deps-cache pins differ from this worktree's manifest." >&2

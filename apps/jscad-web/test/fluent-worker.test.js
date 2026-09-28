@@ -34,12 +34,10 @@ Module._load = function (request, parent, isMain) {
   return origLoad.call(this, request, parent, isMain)
 }
 
-// @jbroll/jscad-anchors ships as jscad-fluent's own npm dependency, pulled in
-// by fetch-sources.js's build step; reuse that copy instead of a sibling
-// checkout that only exists on a dev machine.
-const anchorsDist = join(
-  __dirname, '..', '..', '..', '.deps-cache', 'jscad-fluent', 'node_modules', '@jbroll', 'jscad-anchors', 'dist', 'jscad-anchors.cjs',
-)
+// @jbroll/jscad-anchors ships as jscad-fluent's own npm dependency; resolve
+// it through jscad-fluent's own node_modules rather than a hardcoded path,
+// so this survives however npm hoists things.
+const anchorsDist = createRequire(nodeRequire.resolve('@jbroll/jscad-fluent')).resolve('@jbroll/jscad-anchors/dist/jscad-anchors.cjs')
 
 const findFluentBundle = () => {
   const dir = join(__dirname, '..', 'build', 'frame', 'assets')

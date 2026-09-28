@@ -25,6 +25,7 @@ import { readFileSync, writeFileSync, existsSync, lstatSync, mkdirSync, realpath
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { execFileSync } from 'child_process'
+import { createHash } from 'crypto'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const MANIFEST = join(ROOT, 'scripts', 'deps', 'sources.json')
@@ -45,17 +46,27 @@ function hasCommit(dir, sha) {
   try { git(dir, 'cat-file', '-e', `${sha}^{commit}`); return true } catch { return false }
 }
 
-// Records which commit's build output is on disk, so a source that hasn't
-// moved skips rebuilding on every run.
-function builtMarkerPath(dir) {
-  return join(dir, '.jscadui-built')
+// Records which commit and build list produced the build output on disk, so
+// a source that hasn't moved (and whose build list is unchanged) skips
+// rebuilding on every run. Kept outside the checkout, never inside it: the
+// checkout must stay clean for the next pin move regardless of what the
+// build wrote there.
+const buildHash = (build) => createHash('sha1').update(JSON.stringify(build)).digest('hex').slice(0, 8)
+const markerPath = (name) => join(CACHE_DIR, `.${name}.built`)
+
+function readMarker(name) {
+  const p = markerPath(name)
+  return existsSync(p) ? readFileSync(p, 'utf8').trim() : null
 }
+
+// Pure, no fs/git access, so the decision logic is unit-testable without a
+// real checkout: exported for scripts/deps/fetch-sources.test.js.
+export const markerValue = (target, build) => `${target}:${buildHash(build)}`
+export const needsBuild = (markerContent, target, build) => markerContent !== markerValue(target, build)
 
 function buildIfNeeded(dir, src, target) {
   if (!src.build) return
-  const marker = builtMarkerPath(dir)
-  const built = existsSync(marker) ? readFileSync(marker, 'utf8').trim() : null
-  if (built === target) {
+  if (!needsBuild(readMarker(src.name), target, src.build)) {
     console.log('  build up to date')
     return
   }
@@ -63,7 +74,12 @@ function buildIfNeeded(dir, src, target) {
   for (const cmd of src.build) {
     execFileSync('/bin/sh', ['-c', cmd], { cwd: dir, stdio: 'inherit' })
   }
-  writeFileSync(marker, target + '\n')
+  // The build (npm pkg set, npm install) can edit tracked files such as
+  // package.json/package-lock.json. Discard those edits so the checkout is
+  // clean for the next fetch or pin move; build output (node_modules, dist)
+  // is gitignored and untouched by this.
+  git(dir, 'checkout', '--quiet', '--', '.')
+  writeFileSync(markerPath(src.name), markerValue(target, src.build) + '\n')
 }
 
 function fetchSource(src) {
@@ -74,7 +90,7 @@ function fetchSource(src) {
     const sha = head(dir)
     const note = sha === src.commit ? 'at pin' : `HEAD ${sha?.slice(0, 8)}, pin ${src.commit.slice(0, 8)} — not changed`
     console.log(`  linked → ${realpathSync(dir)} (${note})`)
-    buildIfNeeded(dir, src, sha)
+    if (src.build) console.log('  build skipped: linked checkout must be built by its owner')
     return src.commit
   }
 
@@ -83,6 +99,12 @@ function fetchSource(src) {
     mkdirSync(CACHE_DIR, { recursive: true })
     console.log(`  cloning ${src.url}…`)
     git(null, 'clone', '--quiet', '--filter=blob:none', '--no-checkout', src.url, dir)
+  }
+
+  // A previous build's edits (or one interrupted mid-build) must never block
+  // a pin move: discard them before the dirty-checkout guard below runs.
+  if (!fresh && src.build && git(dir, 'status', '--porcelain')) {
+    git(dir, 'checkout', '--quiet', '--', '.')
   }
 
   let target = src.commit
@@ -108,21 +130,25 @@ function fetchSource(src) {
   return target
 }
 
-const manifest = JSON.parse(readFileSync(MANIFEST, 'utf8'))
-let changed = false
-for (const src of manifest.sources) {
-  if (NAME && src.name !== NAME) continue
-  let sha
-  try {
-    sha = fetchSource(src)
-  } catch (err) {
-    console.error(`\nfatal: ${src.name}: ${err.stderr?.trim() || err.message}`)
-    process.exit(1)
+// Guarded so scripts/deps/fetch-sources.test.js can import the pure helpers
+// above without running the whole fetch as an import side effect.
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  const manifest = JSON.parse(readFileSync(MANIFEST, 'utf8'))
+  let changed = false
+  for (const src of manifest.sources) {
+    if (NAME && src.name !== NAME) continue
+    let sha
+    try {
+      sha = fetchSource(src)
+    } catch (err) {
+      console.error(`\nfatal: ${src.name}: ${err.stderr?.trim() || err.message}`)
+      process.exit(1)
+    }
+    if (UPDATE && sha !== src.commit) {
+      console.log(`  pin ${src.commit.slice(0, 8)} → ${sha.slice(0, 8)}`)
+      src.commit = sha
+      changed = true
+    }
   }
-  if (UPDATE && sha !== src.commit) {
-    console.log(`  pin ${src.commit.slice(0, 8)} → ${sha.slice(0, 8)}`)
-    src.commit = sha
-    changed = true
-  }
+  if (changed) writeFileSync(MANIFEST, JSON.stringify(manifest, null, 2) + '\n')
 }
-if (changed) writeFileSync(MANIFEST, JSON.stringify(manifest, null, 2) + '\n')
