@@ -272,6 +272,22 @@ Libraries would be resolved from:
 2. Global library path
 3. Remote URLs (unpkg, etc.)
 
+## Preview modifiers (`%` and `#`)
+
+`%child` and `#child` transpile to `j$.background(child)` and
+`j$.highlight(child)`. `overlay.js` in `@jscadui/openscad-runtime` keeps
+overlay records (`{ kind, mesh, matrix }`) in a `WeakMap` keyed by the result
+geometry, so a value carries its ghosts without changing shape. Affine ops
+(translate, rotate, ...) compose their own matrix onto any overlays they
+receive; every other op gathers the overlays off its inputs. When a `%`
+subtree has no geometry of its own, `background()` returns a `Ghosts`
+placeholder that stands in for the missing child and reads as `NO_CHILD`
+everywhere else.
+
+`main()` ends with `j$.withOverlays`, which turns the collected overlay
+records into ghost geometry alongside the real result. It never reads
+`$preview`.
+
 ## Current Status
 
 ### Implemented

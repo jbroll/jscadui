@@ -115,18 +115,12 @@ disposes its two intermediate transforms per geometry.
 
 ## Library bugs found by the sweep
 
-- **`%` background (and `#` highlight) modifiers draw nothing**: the
-  transpiler emits `undefined` for `%child` (`statements.ts`), so with the
-  viewport's `$preview=true` the branch vanishes instead of ghosting (e.g.
-  `rubber_duck_debugging.scad`, `issue1005.scad`). Comparison grades these
-  with `$preview=false` and passes. Recorded as render empties.
-  Tried 2026-09-27 and reverted: emitting the child behind a
-  `$preview` conditional renders it solid at preview=true, but reference
-  OpenSCAD excludes `%` from STL exports even at preview=true (verified
-  against the flatpak) while nopscadlib must grade at preview=true for its
-  `if($preview)` gates, so 9 nopscadlib models regressed (137/146 vs a
-  146/146 clean-tree baseline on the same host). Ghosting needs tagged
-  geometry the STL path strips, not a transpiler conditional.
+- **`!` root modifier is ignored.** OpenSCAD renders only the `!` subtree;
+  we render the whole model. Needs `main()` to return that subtree with its
+  ancestors' transforms, which the `%`/`#` overlay channel does not provide.
+- **Ghosts are not drawn in ALL.js grid cells.** Cells drop `previewOnly`
+  items before `normalizeAndPlace`; drawing them needs placement and the
+  streaming claims to carry them.
 
 ## OpenSCAD comparison red on a clean tree (pre-existing, not PR112)
 

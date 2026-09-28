@@ -372,6 +372,14 @@ serializes that, then restores the preview run. Only a model that has read
 `$preview` pays for the extra runs: the runtime latches `j$.previewUsed` and
 the export skips the whole dance when it is clear.
 
+### `%` and `#` ghosts
+
+A transpiled OpenSCAD `main()` returns `[solid, ...ghosts]` when the model
+uses `%` or `#`. Ghosts are plain geom3/geom2 objects with `previewOnly: true`
+and a translucent color (background grey, highlight pink). The worker draws
+them as entities but keeps them out of `workerState.solids`, so export never
+sees them; `run-jscad.js` and grid cells drop them the same way.
+
 ### Geometry caps
 
 Geometry from the frame is untrusted input, so `src/caps.js` bounds it before

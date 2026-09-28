@@ -15,7 +15,7 @@ and a third that can reach its `Asset_SCAD/` includes. Pointing CI at the
 
 Similarity threshold: **0.99** (Jaccard index on vertex-deduplicated STL meshes).
 
-## Latest GPU run: 2026-09-28, `%` and `#` ghosts
+## Latest GPU run: 2026-09-27, `%` and `#` ghosts
 
 Branch `work/next-20260927b` (Task 4 transpiler change uncommitted on top of
 `867b47a8`), simple-ci job `5dddf64737577c73` (`sci push jscadui/test`),
