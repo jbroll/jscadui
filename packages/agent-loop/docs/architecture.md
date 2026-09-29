@@ -150,8 +150,8 @@ Model code shares the executor's process and can send replies of its own, so
 the parent trusts no reply's shape. A tool result must be a string of at most
 256 KB, else the model gets an `EvaluatorError` or `ToolResultTooLarge` tool
 error; an error reply becomes an `EvaluatorError` tool result capped at 4,000
-characters; a grade must be plain JSON data shaped `{ measure, solid, params }`
-under 1 MB, else it grades nothing, and so does one the fixture's checks or
+characters; a grade must be plain JSON data shaped `{ measure, solid, params, probe? }`
+under 1 MB (a `probe` that is not an object becomes `null`), else it grades nothing, and so does one the fixture's checks or
 `geometryError` cannot read (a grade model code shaped): the transcript and
 first-attempt failures are kept, and `--regrade` goes on. `providerError` is
 set only by the

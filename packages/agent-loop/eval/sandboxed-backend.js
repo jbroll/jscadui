@@ -34,12 +34,12 @@ const whenReady = async (executor, readyTimeoutMs) => {
 }
 
 // A death during the grade grades nothing: the model's code caused it.
-export const gradeInFreshExecutor = async (start, model, { timeoutMs = GRADE_TIMEOUT_MS, readyTimeoutMs = READY_TIMEOUT_MS } = {}) => {
+export const gradeInFreshExecutor = async (start, model, { timeoutMs = GRADE_TIMEOUT_MS, readyTimeoutMs = READY_TIMEOUT_MS, probe } = {}) => {
   if (!model) return NO_GRADE()
   const executor = start()
   try {
     await whenReady(executor, readyTimeoutMs)
-    return await executor.gradeProject(model, { timeoutMs })
+    return await executor.gradeProject(model, probe ? { timeoutMs, probe } : { timeoutMs })
   } catch (error) {
     if (error instanceof ExecutorExited) return NO_GRADE()
     throw error

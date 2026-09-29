@@ -491,7 +491,7 @@ line per run as each finishes. The key is never printed or written.
 ### Fixtures
 
 A fixture is one file exporting `fixture`:
-`{ name, prompt, requires, verifyBeforeWrite, maxTurns, checks(measure, { params, source, solid }), api?, transcript?, files?, target? }`.
+`{ name, prompt, requires, verifyBeforeWrite, maxTurns, checks(measure, { params, source, solid, probe }), api?, transcript?, files?, target?, probe? }`.
 `name` matches the file name; `transcript` (prior `{ role, content }` turns)
 and `files` (`{ path: source }`) test follow-up requests through the same
 `buildMessages` the app uses. `target` (`{ volume?, dimensions? }`) feeds
@@ -504,6 +504,26 @@ the geometry it produced (a style check on a fluent chain, for example).
 geometry; checks use it for `watertight` since `measure` alone doesn't report
 it. `check` reports `watertight: false` and `insideOut: true` for a
 negative-volume (inside-out) solid.
+
+`probe` asks the grader for facts `measure` does not give (`eval/probe.js`),
+computed on the same geometry and passed to `checks` as `probe`, `null` when
+there is no geometry:
+
+- `sections: [{ axis, at?, above? }]` cuts the model normal to `axis` at each
+  fraction `at` of its extent and each distance `above` (mm) over its minimum,
+  and splits each cut into loops: `{ axis, at | above, offset, loopCount,
+  loops: [{ area, boundingBox, dimensions }] }`, largest first, with outer
+  loops' `area` positive and holes' negative. `outerLoops`, `holeLoops` and
+  `footprint` (a loop's two in-plane sizes, smaller first) read them.
+- `bodies: { sections? }` lists the separate solids, each array item split into
+  the parts that share no vertex: `{ boundingBox, dimensions, volume,
+  sections? }`, with `sections` cut through that body alone.
+
+`followup-edit`, `pencil-cup`, `hook-rack`, `nameplate` and `box-with-lid` use
+it for a slot, wall thickness, an open top, a hook count, lettering and a lid's
+fit. `eval/reference-answers.test.js` grades a reference answer for each of
+those fixtures in both API styles through the backend, and a plain block that
+must fail.
 
 A fixture's `prompt` is a request a real user would type: casual and often
 underspecified, never a specification written to be graded, and never phrased

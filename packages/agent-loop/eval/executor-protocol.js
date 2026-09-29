@@ -81,9 +81,10 @@ const toolReply = (message) => {
 const gradeReply = (message) => {
   const data = message.ok ? jsonData(message.value, MAX_GRADE_BYTES) : undefined
   if (!isRecord(data)) return NO_GRADE()
-  const { measure, solid, params } = data
+  const { measure, solid, params, probe } = data
   if (!(measure === null || isRecord(measure)) || !(solid === null || isRecord(solid)) || !Array.isArray(params)) return NO_GRADE()
-  return { measure, solid, params }
+  if (probe === undefined) return { measure, solid, params }
+  return { measure, solid, params, probe: isRecord(probe) ? probe : null }
 }
 
 const REPLIES = { reset: () => undefined, requestTool: toolReply, gradeProject: gradeReply }
@@ -148,13 +149,13 @@ export const createExecutorClient = (transport, { api, graceMs = 10_000 }) => {
       transport.send({ type: 'call', id, method, args })
     })
 
-  const gradeProject = async (model, { timeoutMs = GRADE_TIMEOUT_MS } = {}) => {
+  const gradeProject = async (model, { timeoutMs = GRADE_TIMEOUT_MS, probe } = {}) => {
     let timer
     const gaveUp = new Promise((resolve) => {
       timer = setTimeout(resolve, timeoutMs + graceMs, null)
     })
     try {
-      const graded = await Promise.race([call('gradeProject', [model, { timeoutMs }]), gaveUp])
+      const graded = await Promise.race([call('gradeProject', [model, probe ? { timeoutMs, probe } : { timeoutMs }]), gaveUp])
       if (graded !== null) return graded
       kill(`grading ran past ${(timeoutMs + graceMs) / 1000} s`)
       return NO_GRADE()

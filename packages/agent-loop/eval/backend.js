@@ -14,6 +14,7 @@ import { withErrorHint } from '../src/hints.js'
 import { createWarningCollector, withOptionChecks, wrapFluentMethods } from '../src/optionChecks.js'
 import { withSaveState } from '../src/saveState.js'
 import { GRADE_TIMEOUT_MS, PROJECT_ENTRY, projectEntry } from './grade.js'
+import { runProbe } from './probe.js'
 
 const API_INDEX = JSON.parse(readFileSync(new URL('../api/index.json', import.meta.url), 'utf8'))
 
@@ -216,9 +217,19 @@ export function createEvalBackend({ api = DEFAULT_API } = {}) {
     for (const [path, source] of Object.entries(files)) project.set(path, { source, message: '' })
   }
 
-  // Measures `{ files, entry }` (grade.js gradedModel) in a fresh state.
-  const gradeProject = async (model, { timeoutMs = GRADE_TIMEOUT_MS } = {}) => {
-    const none = { measure: null, solid: null, params: [] }
+  const probed = (spec) => {
+    if (!geometry) return null
+    try {
+      return runProbe(geometry, spec)
+    } catch {
+      return null
+    }
+  }
+
+  // Measures `{ files, entry }` (grade.js gradedModel) in a fresh state, plus
+  // the fixture's `probe` when it has one.
+  const gradeProject = async (model, { timeoutMs = GRADE_TIMEOUT_MS, probe } = {}) => {
+    const none = { measure: null, solid: null, params: [], ...(probe ? { probe: null } : {}) }
     reset(model?.files)
     if (!model) return none
     let timer
@@ -233,7 +244,8 @@ export function createEvalBackend({ api = DEFAULT_API } = {}) {
     }
     const measured = JSON.parse(await requestTool('measure', {}))
     const checked = JSON.parse(await requestTool('check', {}))
-    return { measure: measured.ok ? measured : null, solid: checked.ok ? checked : null, params }
+    const graded = { measure: measured.ok ? measured : null, solid: checked.ok ? checked : null, params }
+    return probe ? { ...graded, probe: probed(probe) } : graded
   }
 
   return { requestTool, reset, gradeProject, project, params: () => params }

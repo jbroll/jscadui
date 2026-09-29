@@ -200,6 +200,24 @@ describe('forged executor replies', () => {
     expect(graded).toEqual({ measure: { volume: 8000, extra: null, when: {} }, solid: { watertight: true }, params: [] })
   })
 
+  it('passes a probe to the backend and keeps its answer, or null when it is not an object', async () => {
+    const { client, server } = transportPair()
+    const seen = []
+    serveExecutor(server, () =>
+      fakeBackend({
+        gradeProject: async (model, options) => {
+          seen.push(options)
+          return { measure: null, solid: null, params: [], probe: { sections: [] } }
+        },
+      }),
+    )
+    const executor = createExecutorClient(client, { api: 'fluent' })
+    const probe = { sections: [{ axis: 'z', at: [0.5] }] }
+    expect((await executor.gradeProject({ files: {}, entry: 'main.js' }, { timeoutMs: 1000, probe })).probe).toEqual({ sections: [] })
+    expect(seen).toEqual([{ timeoutMs: 1000, probe }])
+    expect((await forged('gradeProject', { ok: true, value: { measure: null, solid: null, params: [], probe: 'x' } })).probe).toBeNull()
+  })
+
   it('ignores whatever a reset reply carries', async () => {
     const { client } = transportPair()
     const handlers = []

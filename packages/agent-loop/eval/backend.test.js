@@ -187,6 +187,15 @@ module.exports = { main: () => { load('fs'); return [] } }`)
     expect(await backend.gradeProject(null)).toEqual({ measure: null, solid: null, params: [] })
   })
 
+  it('gradeProject adds the probe a fixture asks for, and only then', async () => {
+    const box = { files: { 'main.js': CUBE }, entry: 'main.js' }
+    const graded = await createEvalBackend().gradeProject(box, { probe: { sections: [{ axis: 'z', at: [0.5] }], bodies: {} } })
+    expect(graded.probe.sections).toHaveLength(1)
+    expect(graded.probe.bodies).toHaveLength(1)
+    expect(await createEvalBackend().gradeProject(box)).not.toHaveProperty('probe')
+    expect(await createEvalBackend().gradeProject(null, { probe: { bodies: {} } })).toEqual({ measure: null, solid: null, params: [], probe: null })
+  })
+
   it('gradeProject gives up on a model that never finishes', async () => {
     const hang = { files: { 'main.js': 'module.exports = { main: () => new Promise(() => {}) }' }, entry: 'main.js' }
     expect(await createEvalBackend().gradeProject(hang, { timeoutMs: 20 })).toEqual({ measure: null, solid: null, params: [] })

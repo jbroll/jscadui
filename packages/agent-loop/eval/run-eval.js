@@ -74,8 +74,8 @@ export async function loadFixtures(dir = FIXTURES) {
 // shape the one it is measured in) grades nothing, as a model failure.
 const scoreGrade = (fixture, transcript, graded, maxTurns) => {
   try {
-    const { measure, solid, params } = graded
-    return { report: gradeFixture(fixture, transcript, measure, { params, solid }, { maxTurns }), geometryError: geometryError(fixture.target, measure) }
+    const { measure, solid, params, probe } = graded
+    return { report: gradeFixture(fixture, transcript, measure, { params, solid, probe }, { maxTurns }), geometryError: geometryError(fixture.target, measure) }
   } catch {
     const { measure, solid, params } = NO_GRADE()
     return { report: gradeFixture(fixture, transcript, measure, { params, solid }, { maxTurns }), geometryError: geometryError(fixture.target, measure) }
@@ -234,7 +234,7 @@ export async function runConversation(
   let graded = NO_GRADE()
   if (!infraError) {
     try {
-      graded = await backend.gradeProject(gradedModel(fixture, transcript), { timeoutMs: gradeTimeoutMs })
+      graded = await backend.gradeProject(gradedModel(fixture, transcript), { timeoutMs: gradeTimeoutMs, probe: fixture.probe })
     } catch (err) {
       noteInfra(err)
     }
@@ -363,7 +363,7 @@ async function regradeRun(result, fixture, grader) {
   let report
   let regradeNote = samePrompt ? undefined : 'prompt differs from the current fixture; graded as unsaved'
   if (samePrompt || !model) {
-    const scored = scoreGrade(fixture, transcript, await grader.gradeProject(model), maxTurns)
+    const scored = scoreGrade(fixture, transcript, await grader.gradeProject(model, { probe: fixture.probe }), maxTurns)
     report = scored.report
     metrics.geometryError = scored.geometryError
   } else {
@@ -432,7 +432,7 @@ export const runTimeoutFrom = (env) => {
 
 // Grades each stored project in its own executor, so one stored model can
 // neither end the regrade nor forge a later run's grade.
-export const freshExecutorGrader = (start) => ({ gradeProject: (model) => gradeInFreshExecutor(start, model) })
+export const freshExecutorGrader = (start) => ({ gradeProject: (model, options) => gradeInFreshExecutor(start, model, options) })
 
 const LOUD = '!'.repeat(72)
 
