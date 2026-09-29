@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { builtinModules, createRequire } from 'node:module'
 import { CDN_BASE, createEvalBackend, createReadFile, EXPORT_REG, IMPORT_REG } from './backend.js'
 import { expectCase, WARNING_CASES } from '../test/warningCases.js'
+import { NOT_SAVED } from '../src/saveState.js'
 
 const CUBE = `const jf = require('@jbroll/jscad-fluent')
 function main() { return [jf.cube({ size: 20 })] }
@@ -191,39 +192,48 @@ module.exports = { main: () => { load('fs'); return [] } }`)
     expect(await createEvalBackend().gradeProject(hang, { timeoutMs: 20 })).toEqual({ measure: null, solid: null, params: [] })
   })
 
+  it('tells the model a scratch run leaves the current model unsaved', async () => {
+    const backend = createEvalBackend()
+    expect(JSON.parse(await backend.requestTool('eval', { source: 'console.log(1)' }))).not.toHaveProperty('notSaved')
+    await backend.requestTool('eval', { source: CUBE })
+    expect(JSON.parse(await backend.requestTool('eval', { source: 'console.log(1)' })).notSaved).toBe(NOT_SAVED)
+    await backend.requestTool('writeModel', { source: CUBE })
+    expect(JSON.parse(await backend.requestTool('eval', { source: 'console.log(1)' }))).not.toHaveProperty('notSaved')
+  })
+
   it('marks eval, measure and check unsaved until writeModel matches the evaluated source', async () => {
     const backend = createEvalBackend()
     const evalRes = JSON.parse(await backend.requestTool('eval', { source: CUBE }))
-    expect(evalRes.saved).toBe(false)
-    expect(JSON.parse(await backend.requestTool('measure', {})).saved).toBe(false)
-    expect(JSON.parse(await backend.requestTool('check', { bed: 'mk3' })).saved).toBe(false)
+    expect(evalRes.notSaved).toBe(NOT_SAVED)
+    expect(JSON.parse(await backend.requestTool('measure', {})).notSaved).toBe(NOT_SAVED)
+    expect(JSON.parse(await backend.requestTool('check', { bed: 'mk3' })).notSaved).toBe(NOT_SAVED)
     await backend.requestTool('writeModel', { source: CUBE })
-    expect(JSON.parse(await backend.requestTool('measure', {})).saved).toBe(true)
-    expect(JSON.parse(await backend.requestTool('check', { bed: 'mk3' })).saved).toBe(true)
+    expect(JSON.parse(await backend.requestTool('measure', {}))).not.toHaveProperty('notSaved')
+    expect(JSON.parse(await backend.requestTool('check', { bed: 'mk3' }))).not.toHaveProperty('notSaved')
   })
 
-  // Same scenario table as apps/jscad-web/test/aiDeps.test.js: `saved` is
+  // Same scenario table as apps/jscad-web/test/aiDeps.test.js: `notSaved` is
   // decided against every file the eval used, not just the one last written.
   it('marks a multi-file project unsaved and saved the same way, across an entry and a helper', async () => {
     const backend = createEvalBackend()
     const main = `const { primitives } = require('@jscad/modeling')\nconst { size } = require('./helper.js')\nmodule.exports = { main: () => [primitives.cuboid({ size: [size, size, size] })] }`
     await backend.requestTool('writeModel', { source: 'module.exports = { main: () => [] }' })
     await backend.requestTool('writeModel', { source: 'module.exports = { size: 10 }', entry: 'helper.js' })
-    expect(JSON.parse(await backend.requestTool('measure', {})).saved).toBe(true)
+    expect(JSON.parse(await backend.requestTool('measure', {}))).not.toHaveProperty('notSaved')
 
     // eval an unsaved entry draft that now uses the helper: unsaved.
     const evalRes = JSON.parse(await backend.requestTool('eval', { source: main }))
-    expect(evalRes.saved).toBe(false)
-    expect(JSON.parse(await backend.requestTool('measure', {})).saved).toBe(false)
+    expect(evalRes.notSaved).toBe(NOT_SAVED)
+    expect(JSON.parse(await backend.requestTool('measure', {})).notSaved).toBe(NOT_SAVED)
 
     // writing the draft: saved.
     await backend.requestTool('writeModel', { source: main })
-    expect(JSON.parse(await backend.requestTool('measure', {})).saved).toBe(true)
+    expect(JSON.parse(await backend.requestTool('measure', {}))).not.toHaveProperty('notSaved')
 
     // editing the helper re-runs main.js through it (writeModel always does),
     // so the freshly-rendered geometry is saved again, not stale.
     await backend.requestTool('writeModel', { source: 'module.exports = { size: 20 }', entry: 'helper.js' })
-    expect(JSON.parse(await backend.requestTool('measure', {})).saved).toBe(true)
+    expect(JSON.parse(await backend.requestTool('measure', {}))).not.toHaveProperty('notSaved')
   })
 
   it('writeModel persists to the memory project', async () => {

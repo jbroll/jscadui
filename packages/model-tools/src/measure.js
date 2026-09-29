@@ -1,11 +1,8 @@
 import { anchors } from './anchors.js'
 import { measureArray, wrapOne } from './array-geom.js'
 import { axisRelation, symmetryAxis } from './axis.js'
-import { isInsideOut } from './check.js'
+import { INSIDE_OUT_NOTE, isInsideOut } from './check.js'
 import { sectionOutline } from './section.js'
-
-const INSIDE_OUT_NOTE =
-  'solid is inside out (volume < 0); a 2D outline given clockwise usually causes this; reverse its points'
 
 export const measureGeom = (geom, geomType) => {
   if (geomType === 'array') return measureArray(geom)
@@ -17,7 +14,10 @@ export const measureGeom = (geom, geomType) => {
   if (geomType === 'geom3') {
     out.volume = geom.measureVolume()
     out.polygonCount = geom.toPolygons().length
-    if (isInsideOut(out.volume, out.dimensions)) out.notes = [INSIDE_OUT_NOTE]
+    if (isInsideOut(out.volume, out.dimensions)) {
+      out.insideOut = true
+      out.notes = [INSIDE_OUT_NOTE]
+    }
   } else if (geomType === 'geom2') {
     out.area = geom.measureArea()
     out.polygonCount = geom.toOutlines().length
@@ -163,6 +163,13 @@ export const measure = (geometry, options = {}) => {
   const geomType = Array.isArray(geometry) ? 'array' : classify(geometry)
   const { parts, between, anchors: wantAnchors, section } = options
   const out = measureGeom(wrapped, geomType)
+  if (geomType === 'array') {
+    const insideOut = wrapped.flatMap((item, i) => (classify(item) === 'geom3' && measureGeom(wrapOne(item), 'geom3').insideOut ? [i] : []))
+    if (insideOut.length) {
+      out.insideOut = true
+      out.notes = insideOut.map((i) => `part ${i}: ${INSIDE_OUT_NOTE}`)
+    }
+  }
   if (parts !== undefined) out.parts = measureParts(wrapped, geomType, normalizeParts(parts))
   if (between !== undefined) out.between = measureBetween(wrapped, geomType, normalizeBetween(between))
   if (wantAnchors) out.anchors = measureAnchors(wrapped, geomType)

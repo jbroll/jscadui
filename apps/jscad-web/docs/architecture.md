@@ -770,10 +770,12 @@ helper write therefore validates through the model that uses it, and an entry
 with no `main()` fails with the harness's error text, `model exports no
 main()`.
 
-`eval`, `measure` and `check` also carry `saved`: `true` when the open project
-still holds every text file the agent's last real eval used
-(`src/aiSaveTracker.js`), so an unwritten draft, a later change to any of
-those files, or a switch to another project reads `false`.
+`eval` (scratch runs too), `measure` and `check` also carry `notSaved`
+(`withSaveState` from `@jscadui/agent-loop`) once the open project no longer
+holds every text file the agent's last real eval used
+(`src/aiSaveTracker.js`): an unwritten draft, a later change to any of those
+files, or a switch to another project. Before the agent's first eval they
+carry nothing, since the open project is then its own saved model.
 
 An `eval` of a script with no `main` is a scratch run: `createEvaluate` sets
 `allowScratch` on its `jscadScript`, and the frame answers the run's console

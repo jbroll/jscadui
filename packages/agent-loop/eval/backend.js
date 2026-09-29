@@ -12,6 +12,7 @@ import { installConsoleCapture } from '../src/consoleCapture.js'
 import { docsTool } from '../src/docs.js'
 import { withErrorHint } from '../src/hints.js'
 import { createWarningCollector, withOptionChecks, wrapFluentMethods } from '../src/optionChecks.js'
+import { withSaveState } from '../src/saveState.js'
 import { GRADE_TIMEOUT_MS, PROJECT_ENTRY, projectEntry } from './grade.js'
 
 const API_INDEX = JSON.parse(readFileSync(new URL('../api/index.json', import.meta.url), 'utf8'))
@@ -143,7 +144,7 @@ export function createEvalBackend({ api = DEFAULT_API } = {}) {
 
   const projectFiles = () => Object.fromEntries([...project].map(([path, file]) => [path, file.source]))
 
-  const isSaved = () => lastEntry !== null && project.get(lastEntry)?.source === lastSource
+  const unsaved = () => lastEntry !== null && project.get(lastEntry)?.source !== lastSource
 
   const load = async (files, entry, { allowScratch = false } = {}) => {
     const started = generation
@@ -176,14 +177,13 @@ export function createEvalBackend({ api = DEFAULT_API } = {}) {
         const entry = args.entry ?? PROJECT_ENTRY
         const result = await load({ ...projectFiles(), [entry]: args.source }, entry, { allowScratch: true })
         if (result?.scratch) {
-          return JSON.stringify(
-            withWarnings({ ok: true, scratch: true, message: 'no main(): nothing rendered, current model unchanged' }),
-          )
+          const scratch = { ok: true, scratch: true, message: 'no main(): nothing rendered, current model unchanged' }
+          return JSON.stringify(withSaveState(withWarnings(scratch), unsaved()))
         }
-        return JSON.stringify(withWarnings({ ok: true, params, entities: geometry.length, saved: isSaved() }))
+        return JSON.stringify(withSaveState(withWarnings({ ok: true, params, entities: geometry.length }), unsaved()))
       }
-      if (name === 'measure') return geometry ? JSON.stringify({ ok: true, ...measure(geometry, args), saved: isSaved() }) : noGeometry()
-      if (name === 'check') return geometry ? JSON.stringify({ ok: true, ...check(geometry, args), saved: isSaved() }) : noGeometry()
+      if (name === 'measure') return geometry ? JSON.stringify(withSaveState({ ok: true, ...measure(geometry, args) }, unsaved())) : noGeometry()
+      if (name === 'check') return geometry ? JSON.stringify(withSaveState({ ok: true, ...check(geometry, args) }, unsaved())) : noGeometry()
       if (name === 'params') return JSON.stringify({ ok: true, params })
       if (name === 'docs') return docsTool(API_INDEX, args.query, { api })
       if (name === 'writeModel') {

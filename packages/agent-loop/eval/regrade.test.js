@@ -212,6 +212,16 @@ describe('regradeResults on the saved model', () => {
     expect(out.results[0].metrics.geometryError).toBeCloseTo(0)
   })
 
+  it('scores no recovery penalty for a failure in the last round of a capped run', async () => {
+    const transcript = [
+      prompt,
+      toolMsg('t1', 'writeModel', { source: CUBE }), resultMsg('t1', JSON.stringify({ ok: true })),
+      toolMsg('t2', 'eval', { source: 'nope(' }), resultMsg('t2', JSON.stringify({ ok: false, error: { message: 'boom' } })),
+    ]
+    expect((await regrade(fileOf(transcript, { maxTurns: 2 }))).results[0].report.dimensions.recovery).toBe(2)
+    expect((await regrade(fileOf(transcript, { maxTurns: 3 }))).results[0].report.dimensions.recovery).toBe(0)
+  })
+
   it('marks a stored empty-reply error as a provider error', async () => {
     const out = await regrade(fileOf([prompt], { error: 'empty provider reply' }))
     expect(out.results[0].providerError).toBe(true)

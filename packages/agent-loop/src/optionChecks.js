@@ -27,6 +27,76 @@ const kindOf = (value) => (Array.isArray(value) ? 'array' : typeof value === 'nu
 
 const degreeLike = (angle) => [angle].flat().find((a) => typeof a === 'number' && Math.abs(a) > TAU + EPS)
 
+// Twice the signed area of one closed path of [x, y] points (shoelace), or
+// NaN when it is not one.
+const doubledArea = (path) => {
+  let sum = 0
+  for (let i = 0; i < path.length; i += 1) {
+    const [x0, y0] = path[i]
+    const [x1, y1] = path[(i + 1) % path.length]
+    sum += x0 * y1 - x1 * y0
+  }
+  return sum
+}
+
+// The signed area of a flat list of points or a list of paths (holes wound the
+// other way subtract), undefined when the argument is not points.
+export const outlineArea = (points) => {
+  if (!Array.isArray(points) || points.length < 3) return undefined
+  const paths = Array.isArray(points[0]?.[0]) ? points : [points]
+  try {
+    const area = paths.reduce((total, path) => total + doubledArea(path), 0) / 2
+    return Number.isFinite(area) ? area : undefined
+  } catch {
+    return undefined
+  }
+}
+
+// primitives.polygon's own orientation option flips the points it is given;
+// with `paths` the points are not in outline order.
+const polygonOptionsArea = ([options]) => {
+  if (!isPlainObject(options) || options.paths !== undefined) return undefined
+  const area = outlineArea(options.points)
+  return options.orientation === 'clockwise' && area !== undefined ? -area : area
+}
+
+const pointsArea = ([points]) => (isPlainObject(points) ? polygonOptionsArea([points]) : outlineArea(points))
+
+const BOOLEANS = ['union', 'subtract', 'intersect']
+const booleanSpecs = (prefix) => Object.fromEntries(BOOLEANS.map((op) => [`${prefix}${op}`, { boolean: op }]))
+
+// Checks the generated option table cannot describe, keyed by the table's
+// prefix ('' is @jscad/modeling, 'jf.' jscad-fluent): where a 2D outline
+// enters as points, and the booleans.
+const EXTRA_SPECS = {
+  '': {
+    'primitives.polygon': { outline: polygonOptionsArea },
+    'geometries.geom2.fromPoints': { outline: pointsArea },
+    ...booleanSpecs('booleans.'),
+  },
+  'jf.': { polygon: { outline: pointsArea }, ...booleanSpecs('') },
+}
+const EXTRA_METHOD_SPECS = {
+  FluentGeom3: Object.fromEntries(BOOLEANS.map((op) => [op, { boolean: op, method: true }])),
+  FluentGeom2: Object.fromEntries(BOOLEANS.map((op) => [op, { boolean: op, method: true }])),
+}
+
+// Manifold shapes convert their polygons lazily, so ask them first.
+const isEmptyShape = (shape) => {
+  if (shape === null || typeof shape !== 'object') return false
+  if (typeof shape.isEmpty === 'function') return shape.isEmpty() === true
+  if (Array.isArray(shape.polygons)) return shape.polygons.length === 0
+  if (Array.isArray(shape.sides)) return shape.sides.length === 0
+  return false
+}
+
+// jf.hullPoints3 and a hand-made mesh give { points, faces }, which only a
+// polyhedron factory turns into a shape.
+const isMeshData = (value) =>
+  value !== null && typeof value === 'object' && Array.isArray(value.points) && Array.isArray(value.faces) && !('polygons' in value)
+
+const operandsOf = (spec, self, args) => (spec.method ? [self, ...args] : args).flat(Infinity)
+
 // A mistyped option or an overlarge roundRadius often makes the function throw
 // a message that names neither; the error then carries the hint too.
 const annotate = (error, hints) => {
@@ -42,7 +112,7 @@ const annotate = (error, hints) => {
 /**
  * @param {string} fnName
  * @param {Function} fn
- * @param {{ known?: string[], types?: Record<string, string>, angle?: boolean }} spec
+ * @param {{ known?: string[], types?: Record<string, string>, angle?: boolean, outline?: Function, boolean?: string, method?: boolean }} spec
  * @param {(fact: object) => ({ hint?: string } | void)} warn
  */
 const checked = (fnName, fn, spec, warn) => {
@@ -72,15 +142,29 @@ const checked = (fnName, fn, spec, warn) => {
         const value = degreeLike(first)
         if (value !== undefined) report({ fn: fnName, option: 'angle', value })
       }
+      if (spec.outline) {
+        const area = spec.outline(args)
+        if (area < 0) report({ fn: fnName, option: 'points', area })
+      }
+      if (spec.boolean && operandsOf(spec, this, args).some(isMeshData)) report({ fn: fnName, meshOperand: true })
     } catch {
       // Ignored — the original call below still runs.
     }
+    let result
     try {
-      return fn.apply(this, args)
+      result = fn.apply(this, args)
     } catch (error) {
       annotate(error, [...hints, explainThrow(error?.message ?? '', args[0])])
       throw error
     }
+    try {
+      if (spec.boolean && spec.boolean !== 'union' && isEmptyShape(result) && !isEmptyShape(operandsOf(spec, this, args)[0])) {
+        report({ fn: fnName, empty: spec.boolean })
+      }
+    } catch {
+      // A shape that cannot be inspected goes out unchecked.
+    }
+    return result
   }
 }
 
@@ -94,6 +178,7 @@ const specsOf = (table) => {
   for (const [path, known] of Object.entries(table.options ?? {})) spec(path).known = known
   for (const [path, types] of Object.entries(table.types ?? {})) spec(path).types = types
   for (const path of table.angles ?? []) spec(path).angle = true
+  for (const [path, extra] of Object.entries(EXTRA_SPECS[table.prefix] ?? {})) Object.assign(spec(path), extra)
   return specs
 }
 
@@ -114,6 +199,9 @@ const methodSpecsOf = (table) => {
   }
   for (const [cls, names] of Object.entries(table.methodAngles ?? {})) {
     for (const name of names) spec(cls, name).angle = true
+  }
+  for (const [cls, methods] of Object.entries(EXTRA_METHOD_SPECS)) {
+    for (const [name, extra] of Object.entries(methods)) Object.assign(spec(cls, name), extra)
   }
   return classes
 }

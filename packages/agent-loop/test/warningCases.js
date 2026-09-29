@@ -121,6 +121,78 @@ module.exports = { main: () => primitives.cube({ size: 2 }).translate([1, 0, 0])
     source: fluent('module.exports = { main: () => { jf.measureVolume(jf.cube({ size: 2 })); return jf.cube() } }'),
     error: ['jf.measureVolume is not a function', 'measureVolume is a method of FluentGeom3, FluentGeom3Array: use shape.measureVolume(...)'],
   },
+  {
+    name: 'W: clockwise jf.polygon points',
+    api: 'fluent',
+    source: fluent('module.exports = { main: () => jf.polygon([[0, 0], [0, 10], [10, 0]]).extrudeLinear({ height: 2 }) }'),
+    warnings: [{ fn: 'jf.polygon', option: 'points', hints: ['points run clockwise (area -50)', 'inside out', 'jf.polygon([...points].reverse())'] }],
+  },
+  {
+    name: 'W: clockwise primitives.polygon points',
+    api: 'modeling',
+    source: modeling('module.exports = { main: () => extrusions.extrudeLinear({ height: 2 }, primitives.polygon({ points: [[0, 0], [0, 10], [10, 0]] })) }'),
+    warnings: [{ fn: 'primitives.polygon', option: 'points', hints: ['points run clockwise (area -50)', 'primitives.polygon({ points: [...points].reverse() })'] }],
+  },
+  {
+    name: 'W: clockwise geom2.fromPoints points',
+    api: 'modeling',
+    source: `const { geometries } = require('@jscad/modeling')\nmodule.exports = { main: () => geometries.geom2.fromPoints([[0, 0], [0, 10], [10, 0]]) }`,
+    warnings: [{ fn: 'geometries.geom2.fromPoints', option: 'points', hints: ['points run clockwise', 'geometries.geom2.fromPoints([...points].reverse())'] }],
+  },
+  {
+    name: 'W: counter-clockwise points warn nothing',
+    api: 'fluent',
+    source: fluent('module.exports = { main: () => jf.polygon([[0, 0], [10, 0], [0, 10]]).extrudeLinear({ height: 2 }) }'),
+    warnings: [],
+  },
+  {
+    name: 'B: a fluent subtract that removes the whole part',
+    api: 'fluent',
+    source: fluent('module.exports = { main: () => [jf.cube({ size: 2 }).subtract(jf.cube({ size: 10 })), jf.cube()] }'),
+    warnings: [{ fn: 'FluentGeom3.subtract', hints: ['subtract returned an empty shape', 'shape.measureBoundingBox()'] }],
+  },
+  {
+    name: 'B: a modeling intersect with no overlap',
+    api: 'modeling',
+    source: `const { booleans, primitives, transforms } = require('@jscad/modeling')\nmodule.exports = { main: () => [booleans.intersect(primitives.cube({ size: 2 }), transforms.translate([10, 0, 0], primitives.cube({ size: 2 }))), primitives.cube()] }`,
+    warnings: [{ fn: 'booleans.intersect', hints: ['intersect returned an empty shape: the shapes do not overlap', 'measurements.measureBoundingBox(shape)'] }],
+  },
+  {
+    name: 'U: jf.hullPoints3 data given to union points at jf.polyhedron',
+    api: 'fluent',
+    source: fluent('module.exports = { main: () => jf.cube({ size: 2 }).union(jf.hullPoints3([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]])) }'),
+    error: ['only unions of the same type are supported', 'jf.polyhedron(jf.hullPoints3(points))'],
+  },
+  {
+    name: 'U: { points, faces } given to a modeling union points at primitives.polyhedron',
+    api: 'modeling',
+    source: `const { booleans, primitives } = require('@jscad/modeling')\nmodule.exports = { main: () => booleans.union(primitives.cube(), { points: [[0, 0, 0], [1, 0, 0], [0, 1, 0]], faces: [[0, 1, 2]] }) }`,
+    error: ['only unions of the same type are supported', 'primitives.polyhedron({ points, faces })'],
+  },
+  {
+    name: 'N: a modeling function used without its namespace, modeling mode',
+    api: 'modeling',
+    source: modeling('module.exports = { main: () => cuboid({ size: [1, 2, 3] }) }'),
+    error: ['cuboid is not defined', "const { cuboid } = require('@jscad/modeling').primitives"],
+  },
+  {
+    name: 'N: a modeling namespace never required, modeling mode',
+    api: 'modeling',
+    source: modeling('module.exports = { main: () => { measurements.measureVolume(primitives.cube()); return primitives.cube() } }'),
+    error: ['measurements is not defined', "const { measurements } = require('@jscad/modeling')"],
+  },
+  {
+    name: 'N: a modeling function name in fluent mode',
+    api: 'fluent',
+    source: fluent('module.exports = { main: () => cuboid({ size: [1, 2, 3] }) }'),
+    error: ['cuboid is not defined', 'use jf.cuboid(...)'],
+  },
+  {
+    name: 'N: a modeling transform name in fluent mode',
+    api: 'fluent',
+    source: fluent('module.exports = { main: () => translate([1, 0, 0], jf.cube()) }'),
+    error: ['translate is not defined', 'use shape.translate(...)'],
+  },
   // Code that calls the other API's package: hints still name the chosen API only.
   {
     name: 'cross D: a modeling taper option under fluent names the jf radius pair',
@@ -187,6 +259,12 @@ module.exports = { main: () => primitives.cube({ size: 2 }).translate([1, 0, 0])
     api: 'fluent',
     source: modeling('module.exports = { main: () => primitives.roundedCuboid({ size: [40, 30, 2.4], roundRadius: 2 }) }'),
     error: ['roundRadius 2 is too big: it must be under half the smallest size, 2.4 / 2 = 1.2'],
+  },
+  {
+    name: 'cross W: clockwise modeling polygon points under fluent name jf.polygon',
+    api: 'fluent',
+    source: modeling('module.exports = { main: () => primitives.polygon({ points: [[0, 0], [0, 10], [10, 0]] }) }'),
+    warnings: [{ fn: 'primitives.polygon', option: 'points', hints: ['jf.polygon([...points].reverse())'] }],
   },
   {
     name: 'cross I: a method used as a jf function under modeling',

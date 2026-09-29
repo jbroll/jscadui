@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import index from '@jscadui/agent-loop/api/index.json'
+import { NOT_SAVED } from '@jscadui/agent-loop'
 import { createSavedDeps } from '../src/aiDeps.js'
 
 // A minimal but real CommonJS runner over whatever files jscadSetFiles last
@@ -78,23 +79,38 @@ describe('createSavedDeps: saved across a multi-file project', () => {
   it('a fresh eval is unsaved, and measure/check report it', async () => {
     const d = deps()
     const evalRes = await d.evaluate(MAIN_V1, 'main.js')
-    expect(evalRes.saved).toBe(false)
-    expect((await d.measure({})).saved).toBe(false)
-    expect((await d.check({})).saved).toBe(false)
+    expect(evalRes.notSaved).toBe(NOT_SAVED)
+    expect((await d.measure({})).notSaved).toBe(NOT_SAVED)
+    expect((await d.check({})).notSaved).toBe(NOT_SAVED)
+  })
+
+  it('says nothing about saving before the agent evaluates anything, as the open project is its own saved model', async () => {
+    const d = deps({ project: fakeProject({ 'main.js': MAIN_V1 }, 'main.js') })
+    expect(await d.measure({})).not.toHaveProperty('notSaved')
+    expect(await d.check({})).not.toHaveProperty('notSaved')
+  })
+
+  it('a scratch run after an unsaved eval says the model is not saved', async () => {
+    const d = deps()
+    expect(await d.evaluate(NO_MAIN, 'main.js')).not.toHaveProperty('notSaved')
+    await d.evaluate(MAIN_V1, 'main.js')
+    expect((await d.evaluate(NO_MAIN, 'scratch.js')).notSaved).toBe(NOT_SAVED)
+    await d.save(MAIN_V1, 'main.js')
+    expect(await d.evaluate(NO_MAIN, 'scratch.js')).not.toHaveProperty('notSaved')
   })
 
   it('writing the evaluated source makes it saved', async () => {
     const d = deps()
     await d.evaluate(MAIN_V1, 'main.js')
     await d.save(MAIN_V1, 'main.js')
-    expect((await d.measure({})).saved).toBe(true)
+    expect(await d.measure({})).not.toHaveProperty('notSaved')
   })
 
   it('writing a helper the entry does not use yet leaves the saved entry saved', async () => {
     const d = deps()
     await d.save(MAIN_V1, 'main.js')
     await d.save(HELPER_V1, 'helpers.js')
-    expect((await d.measure({})).saved).toBe(true)
+    expect(await d.measure({})).not.toHaveProperty('notSaved')
   })
 
   it('write helper, then eval an unsaved entry draft that uses it: measure reports unsaved', async () => {
@@ -102,8 +118,8 @@ describe('createSavedDeps: saved across a multi-file project', () => {
     await d.save(MAIN_V1, 'main.js')
     await d.save(HELPER_V1, 'helpers.js')
     const evalRes = await d.evaluate(MAIN_V2_USES_HELPER, 'main.js')
-    expect(evalRes.saved).toBe(false)
-    expect((await d.measure({})).saved).toBe(false)
+    expect(evalRes.notSaved).toBe(NOT_SAVED)
+    expect((await d.measure({})).notSaved).toBe(NOT_SAVED)
   })
 
   it('writing the entry draft makes it saved', async () => {
@@ -112,7 +128,7 @@ describe('createSavedDeps: saved across a multi-file project', () => {
     await d.save(HELPER_V1, 'helpers.js')
     await d.evaluate(MAIN_V2_USES_HELPER, 'main.js')
     await d.save(MAIN_V2_USES_HELPER, 'main.js')
-    expect((await d.measure({})).saved).toBe(true)
+    expect(await d.measure({})).not.toHaveProperty('notSaved')
   })
 
   it('editing a helper the entry uses re-validates against the entry and stays saved', async () => {
@@ -122,15 +138,15 @@ describe('createSavedDeps: saved across a multi-file project', () => {
     await d.evaluate(MAIN_V2_USES_HELPER, 'main.js')
     await d.save(MAIN_V2_USES_HELPER, 'main.js')
     await d.save(HELPER_V2, 'helpers.js')
-    expect((await d.measure({})).saved).toBe(true)
+    expect(await d.measure({})).not.toHaveProperty('notSaved')
   })
 
   it('a file the eval used that changes in the project reads unsaved', async () => {
     const project = fakeProject({ 'main.js': MAIN_V2_USES_HELPER, 'helpers.js': HELPER_V1 }, 'main.js')
     const d = deps({ project })
-    expect((await d.evaluate(MAIN_V2_USES_HELPER, 'main.js')).saved).toBe(true)
+    expect(await d.evaluate(MAIN_V2_USES_HELPER, 'main.js')).not.toHaveProperty('notSaved')
     await project.writeProjectFile('helpers.js', HELPER_V2)
-    expect((await d.measure({})).saved).toBe(false)
+    expect((await d.measure({})).notSaved).toBe(NOT_SAVED)
   })
 })
 
@@ -187,9 +203,9 @@ describe('createSavedDeps: the open project', () => {
     const d = deps({ project })
     await d.evaluate(MAIN_V1, 'main.js')
     await d.save(MAIN_V1, 'main.js')
-    expect((await d.measure({})).saved).toBe(true)
+    expect(await d.measure({})).not.toHaveProperty('notSaved')
     project.open({ 'main.js': MAIN_V2_USES_HELPER, 'helpers.js': HELPER_V1 }, 'main.js')
-    expect((await d.measure({})).saved).toBe(false)
+    expect((await d.measure({})).notSaved).toBe(NOT_SAVED)
   })
 })
 
@@ -209,7 +225,7 @@ describe('createSavedDeps: writeModel parity with the eval harness', () => {
     await expect(d.save(MAIN_V2_USES_HELPER, 'main.js')).rejects.toThrow('file not found helpers.js')
     const res = await d.save(HELPER_V1, 'helpers.js')
     expect(res).toEqual({ ok: true, entry: 'helpers.js' })
-    expect((await d.measure({})).saved).toBe(true)
+    expect(await d.measure({})).not.toHaveProperty('notSaved')
   })
 
   it("answers with the run's warnings and console", async () => {

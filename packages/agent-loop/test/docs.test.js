@@ -314,13 +314,29 @@ describe('docs answers in one round', () => {
     expect(lineOf(modeling('transforms'), '  translate(')).toMatch(/^ {2}translate\(offset, \.\.\.objects\)/)
   })
 
+  it('lists jf shapes with their option defaults, then the FluentGeom3 and FluentGeom2 method names', () => {
+    const answer = fluent('jf')
+    expect(answer.length).toBeLessThanOrEqual(MAX_ANSWER)
+    expect(answer).not.toContain('[truncated')
+    expect(lineOf(answer, '  cuboid(')).toBe('  cuboid({ center = [0,0,0], size = [2,2,2] })')
+    expect(lineOf(answer, '  cylinder(')).toMatch(/height = 1\b.*radius = 1\b/)
+    expect(lineOf(answer, '  polygon(')).toBe('  polygon(points)')
+    const methods = answer.slice(answer.indexOf('\nFluentGeom3 and FluentGeom2 methods: '))
+    for (const cls of ['FluentGeom3', 'FluentGeom2']) {
+      for (const m of index.find((e) => e.name === cls).members) expect(methods).toMatch(new RegExp(`\\b${m.name}\\b`))
+    }
+    expect(lineOf(answer, 'FluentGeom2 only: ')).toMatch(/\bextrudeLinear\b/)
+    expect(lineOf(answer, 'FluentGeom2 only: ')).not.toMatch(/\btranslate\b/)
+    expect(answer).toMatch(/\nQuery jf\.<name> or FluentGeom3\.<method> for /)
+  })
+
   it('lists class methods with their options', () => {
     const answer = fluent('FluentGeom2')
     expect(lineOf(answer, '  extrudeLinear(')).toMatch(/^ {2}extrudeLinear\(\{ height = 1, twistAngle = 0, twistSteps = 1, repair = true \}\)/)
     expect(lineOf(answer, '  translate(')).toMatch(/^ {2}translate\(offset: Vec3\)/)
   })
 
-  it.each([['fluent', 'jf'], ['fluent', 'FluentGeom3'], ['fluent', 'FluentGeom3Array'], ['modeling', 'primitives'], ['modeling', 'transforms']])(
+  it.each([['fluent', 'FluentGeom3'], ['fluent', 'FluentGeom3Array'], ['modeling', 'primitives'], ['modeling', 'transforms']])(
     '%s %s lists every member within the cap',
     (api, query) => {
       const answer = text(query, api)
@@ -330,6 +346,11 @@ describe('docs answers in one round', () => {
       for (const m of entry.members) expect(answer).toMatch(new RegExp(`\\n {2}${m.name.replace('$', '\\$')}\\b`))
     },
   )
+
+  it('names every jf member within the cap', () => {
+    const answer = fluent('jf')
+    for (const m of index.find((e) => e.name === 'jf').members) expect(answer).toMatch(new RegExp(`[\\s,]${m.name}\\b`))
+  })
 
   it('answers several names separated by commas or plus signs', () => {
     const answer = fluent('cuboid, jf.cylinder + roundedCuboid')
@@ -382,6 +403,23 @@ describe('docs answers on angles and tapers', () => {
     expect(modeling('primitives.cylinder')).toContain('For a taper or cone use primitives.cylinderElliptic.')
     expect(modeling('cylinderElliptic')).toContain('startRadius is the -Z end, endRadius the +Z end.')
     expect(fluent('jf.cylinder')).toContain('radius: [start, end] makes a taper or cone; start is the -Z end.')
+  })
+
+  it.each([
+    ['fluent', 'jf.polygon'],
+    ['modeling', 'primitives.polygon'],
+    ['modeling', 'geometries.geom2.fromPoints'],
+  ])('%s %s says to list the points counter-clockwise', (api, query) => {
+    expect(text(query, api)).toContain(
+      'List the points counter-clockwise: clockwise points give an outline with negative area, and its extrusion comes out inside out.',
+    )
+  })
+
+  it('extrudes clockwise points inside out, as the winding note says', () => {
+    const { extrusions, geometries, measurements } = require('@jscad/modeling')
+    const volume = (points) => measurements.measureVolume(extrusions.extrudeLinear({ height: 1 }, geometries.geom2.fromPoints(points)))
+    expect(volume([[0, 0], [1, 0], [0, 1]])).toBeGreaterThan(0)
+    expect(volume([[0, 0], [0, 1], [1, 0]])).toBeLessThan(0)
   })
 
   it('starts a cylinderElliptic at -Z, as the note says', () => {

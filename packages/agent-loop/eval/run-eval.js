@@ -72,25 +72,27 @@ export async function loadFixtures(dir = FIXTURES) {
 
 // A grade the fixture's checks or geometryError cannot read (model code can
 // shape the one it is measured in) grades nothing, as a model failure.
-const scoreGrade = (fixture, transcript, graded) => {
+const scoreGrade = (fixture, transcript, graded, maxTurns) => {
   try {
     const { measure, solid, params } = graded
-    return { report: gradeFixture(fixture, transcript, measure, { params, solid }), geometryError: geometryError(fixture.target, measure) }
+    return { report: gradeFixture(fixture, transcript, measure, { params, solid }, { maxTurns }), geometryError: geometryError(fixture.target, measure) }
   } catch {
     const { measure, solid, params } = NO_GRADE()
-    return { report: gradeFixture(fixture, transcript, measure, { params, solid }), geometryError: geometryError(fixture.target, measure) }
+    return { report: gradeFixture(fixture, transcript, measure, { params, solid }, { maxTurns }), geometryError: geometryError(fixture.target, measure) }
   }
 }
 
 const isContentEvent = (event) => event.type === 'text' || event.type === 'tool_use'
 
 // Wraps the provider for one run: caps the number of send() calls (rounds),
-// tallies usage events, counts calls that sent neither content nor usage,
+// tallies usage events, counts calls that sent neither text nor a tool call
+// (reasoning and usage alone are no reply), records each call's stop reason,
 // notes whether the provider itself threw, and times each call against an
 // injected clock so the caller can read rounds/usage/speed once the run ends.
 const withTurnCap = (provider, maxTurns, now = () => performance.now()) => {
   let rounds = 0
   let emptyReplies = 0
+  const stopReasons = []
   let providerFailed = false
   let inputTokens = null
   let outputTokens = null
@@ -113,7 +115,7 @@ const withTurnCap = (provider, maxTurns, now = () => performance.now()) => {
       try {
         for await (const event of provider.send(messages, tools)) {
           if (firstContentAt === null && isContentEvent(event)) firstContentAt = now()
-          if (isContentEvent(event) || event.type === 'usage') replied = true
+          if (isContentEvent(event)) replied = true
           if (event.type === 'usage') {
             if (typeof event.inputTokens === 'number') inputTokens = (inputTokens ?? 0) + event.inputTokens
             if (typeof event.outputTokens === 'number') outputTokens = (outputTokens ?? 0) + event.outputTokens
@@ -121,6 +123,7 @@ const withTurnCap = (provider, maxTurns, now = () => performance.now()) => {
           }
           if (event.type === 'done') {
             if (!replied) emptyReplies += 1
+            stopReasons.push(event.stopReason ?? null)
             const endedAt = now()
             providerSeconds += (endedAt - startedAt) / 1000
             if (firstContentAt !== null) firstTokenSeconds.push((firstContentAt - startedAt) / 1000)
@@ -133,7 +136,9 @@ const withTurnCap = (provider, maxTurns, now = () => performance.now()) => {
       }
     },
     rounds: () => rounds,
+    capped: () => rounds > maxTurns,
     emptyReplies: () => emptyReplies,
+    stopReasons: () => [...stopReasons],
     providerFailed: () => providerFailed,
     usage: () => ({ inputTokens, outputTokens, reasoningTokens }),
     speed: () => ({
@@ -206,9 +211,14 @@ export async function runConversation(
       })
       transcript = turn.messages
     } catch (err) {
-      error = signal?.aborted && signal.reason instanceof Error ? signal.reason.message : err.message
       if (Array.isArray(err?.messages)) transcript = err.messages
-      if (err?.infrastructure) infraError = true
+      // The cap's own closing round sends nothing back, which runTurn reads as an empty reply.
+      if (err?.name === 'EmptyReplyError') {
+        if (!cappedProvider.capped()) error = EMPTY_REPLY
+      } else {
+        error = signal?.aborted && signal.reason instanceof Error ? signal.reason.message : err.message
+        if (err?.infrastructure) infraError = true
+      }
     }
   }
   if (!error && cappedProvider.emptyReplies() > 0) error = EMPTY_REPLY
@@ -222,7 +232,7 @@ export async function runConversation(
       noteInfra(err)
     }
   }
-  const { report, geometryError: geometry } = scoreGrade(fixture, transcript, graded)
+  const { report, geometryError: geometry } = scoreGrade(fixture, transcript, graded, maxTurns)
   const { toolCalls, failedCalls, warnings, docsCalls } = transcriptMetrics(transcript)
   const { inputTokens, outputTokens, reasoningTokens } = cappedProvider.usage()
   const { providerSeconds, firstTokenSeconds } = cappedProvider.speed()
@@ -235,6 +245,7 @@ export async function runConversation(
     maxTurns,
     report,
     turns: transcript.length,
+    stopReasons: cappedProvider.stopReasons(),
     transcript: transcript.filter((m) => m.role !== 'system'),
     metrics: {
       rounds: cappedProvider.rounds(),
@@ -332,6 +343,7 @@ async function regradeRun(result, fixture, grader) {
   if (!fixture) return { ...result, regradeNote: 'fixture no longer exists; kept stored grading' }
   if (!Array.isArray(result.transcript)) return { ...result, regradeNote: 'no transcript; kept stored grading' }
   const { transcript } = result
+  const maxTurns = result.maxTurns ?? fixture.maxTurns
   const { regradeNote: _stale, ...rest } = result
   const metrics = { ...result.metrics, ...transcriptMetrics(transcript) }
   const model = gradedModel(fixture, transcript)
@@ -339,11 +351,11 @@ async function regradeRun(result, fixture, grader) {
   let report
   let regradeNote = samePrompt ? undefined : 'prompt differs from the current fixture; graded as unsaved'
   if (samePrompt || !model) {
-    const scored = scoreGrade(fixture, transcript, await grader.gradeProject(model))
+    const scored = scoreGrade(fixture, transcript, await grader.gradeProject(model), maxTurns)
     report = scored.report
     metrics.geometryError = scored.geometryError
   } else {
-    const { dimensions, firstAttemptFailures } = gradeTranscript(fixture, transcript)
+    const { dimensions, firstAttemptFailures } = gradeTranscript(fixture, transcript, { maxTurns })
     const { geometry } = result.report.dimensions
     report = {
       dimensions: { ...dimensions, geometry },
@@ -353,7 +365,7 @@ async function regradeRun(result, fixture, grader) {
     }
     regradeNote = 'prompt differs from the current fixture; kept stored geometry'
   }
-  const empty = !result.error && endedWithoutReply(transcript, result.maxTurns ?? fixture.maxTurns)
+  const empty = !result.error && endedWithoutReply(transcript, maxTurns)
   return {
     ...rest,
     report,

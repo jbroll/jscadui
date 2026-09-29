@@ -364,3 +364,84 @@ describe('wrapFluentMethods', () => {
     ])
   })
 })
+
+describe('outline winding and boolean results', () => {
+  const nodeRequire = createRequire(import.meta.url)
+  const realModeling = nodeRequire('@jscad/modeling')
+  const jf = nodeRequire('@jbroll/jscad-fluent')
+  const CW = [[0, 0], [0, 10], [10, 0]]
+  const CCW = [[0, 0], [10, 0], [0, 10]]
+  const modelingWith = (warn) => withOptionChecks(realModeling, OPTION_TABLES['@jscad/modeling'], warn)
+  const facts = (warn) => warn.mock.calls.map(([w]) => w)
+  const insideOut = (outline) => realModeling.measurements.measureVolume(realModeling.extrusions.extrudeLinear({ height: 1 }, outline)) < 0
+
+  afterEach(() => setMethodWarn(null))
+
+  it('reports clockwise points given to primitives.polygon and geometries.geom2.fromPoints, which extrude inside out', () => {
+    const warn = vi.fn()
+    const m = modelingWith(warn)
+    expect(insideOut(m.primitives.polygon({ points: CW }))).toBe(true)
+    expect(insideOut(m.geometries.geom2.fromPoints(CW))).toBe(true)
+    expect(facts(warn)).toEqual([
+      { fn: 'primitives.polygon', option: 'points', area: -50 },
+      { fn: 'geometries.geom2.fromPoints', option: 'points', area: -50 },
+    ])
+  })
+
+  it('leaves counter-clockwise points, a clockwise orientation option, holes and paths alone', () => {
+    const warn = vi.fn()
+    const m = modelingWith(warn)
+    m.primitives.polygon({ points: CCW })
+    m.geometries.geom2.fromPoints(CCW)
+    expect(insideOut(m.primitives.polygon({ points: CW, orientation: 'clockwise' }))).toBe(false)
+    m.primitives.polygon({ points: [[[0, 0], [10, 0], [10, 10], [0, 10]], [[2, 2], [2, 8], [8, 8], [8, 2]]] })
+    m.primitives.polygon({ points: CW, paths: [[0, 1, 2]] })
+    expect(warn).not.toHaveBeenCalled()
+  })
+
+  it('reports clockwise points given to jf.polygon', () => {
+    const warn = vi.fn()
+    const wrapped = withOptionChecks(jf, OPTION_TABLES['@jbroll/jscad-fluent'], warn)
+    expect(wrapped.polygon(CW).extrudeLinear({ height: 1 }).measureVolume()).toBeLessThan(0)
+    wrapped.polygon(CCW)
+    expect(facts(warn)).toEqual([{ fn: 'jf.polygon', option: 'points', area: -50 }])
+  })
+
+  it('reports a subtract or intersect that leaves nothing of a shape', () => {
+    const warn = vi.fn()
+    const { booleans, primitives, transforms } = modelingWith(warn)
+    booleans.subtract(primitives.cube({ size: 2 }), primitives.cube({ size: 10 }))
+    booleans.intersect(primitives.square({ size: 2 }), transforms.translate([10, 0, 0], primitives.square({ size: 2 })))
+    booleans.subtract(primitives.cube({ size: 10 }), primitives.cube({ size: 2 }))
+    booleans.subtract(booleans.subtract(primitives.cube({ size: 2 }), primitives.cube({ size: 10 })), primitives.cube({ size: 1 }))
+    expect(facts(warn)).toEqual([
+      { fn: 'booleans.subtract', empty: 'subtract' },
+      { fn: 'booleans.intersect', empty: 'intersect' },
+      { fn: 'booleans.subtract', empty: 'subtract' },
+    ])
+  })
+
+  it('reports an empty boolean from a fluent method once', () => {
+    const warn = vi.fn()
+    wrapFluentMethods(jf, OPTION_TABLES['@jbroll/jscad-fluent'], warn)
+    jf.cube({ size: 2 }).subtract(jf.cube({ size: 10 }))
+    jf.square({ size: 2 }).intersect(jf.square({ size: 2 }).translate([10, 0, 0]))
+    expect(facts(warn)).toEqual([
+      { fn: 'FluentGeom3.subtract', empty: 'subtract' },
+      { fn: 'FluentGeom2.intersect', empty: 'intersect' },
+    ])
+  })
+
+  it('reports { points, faces } data given to a boolean, and the thrown error carries the hint', () => {
+    const mesh = jf.hullPoints3([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]])
+    const warn = vi.fn((fact) => ({ ...fact, hint: 'make it a shape' }))
+    const { booleans, primitives } = modelingWith(warn)
+    expect(() => booleans.union(primitives.cube(), mesh)).toThrow('only unions of the same type are supported\nmake it a shape')
+    wrapFluentMethods(jf, OPTION_TABLES['@jbroll/jscad-fluent'], warn)
+    expect(() => jf.cube().union(mesh)).toThrow('\nmake it a shape')
+    expect(facts(warn)).toEqual([
+      { fn: 'booleans.union', meshOperand: true },
+      { fn: 'FluentGeom3.union', meshOperand: true },
+    ])
+  })
+})

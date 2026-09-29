@@ -4,7 +4,7 @@ import { findSelfIntersections } from './self-intersect.js'
 
 const SOLID_NOTE = 'wall thickness and overhangs: run jscad-work dfm'
 const OUTLINE_NOTE = 'watertight and manifold apply to 3D solids; closed covers 2D outlines'
-const INSIDE_OUT_NOTE =
+export const INSIDE_OUT_NOTE =
   'solid is inside out (volume < 0); a 2D outline given clockwise usually causes this; reverse its points'
 
 // A relative epsilon against the model's own scale, so floating-point summation
@@ -61,6 +61,9 @@ const fitsBed = (dimensions, bed) => {
   return !resolved || !dimensions ? true : dimensions.every((d, i) => d <= resolved[i])
 }
 
+// With no bed there is nothing to fit, so the result carries no fitsBed.
+const bedFit = (dimensions, bed) => (bed ? { fitsBed: fitsBed(dimensions, bed) } : {})
+
 const classify = (g) => {
   if (g && typeof g === 'object' && 'polygons' in g) return 'geom3'
   if (g && typeof g === 'object' && 'sides' in g) return 'geom2'
@@ -69,7 +72,7 @@ const classify = (g) => {
 
 const extent = (geom, bed) => {
   const dimensions = geom.measureDimensions()
-  return { fitsBed: fitsBed(dimensions, bed), bbox: geom.measureBoundingBox(), dimensions }
+  return { ...bedFit(dimensions, bed), bbox: geom.measureBoundingBox(), dimensions }
 }
 
 const checkSolid = (geom, bed) => {
@@ -144,7 +147,7 @@ const checkArray = (arr, bed) => {
     selfIntersecting: anyOf(items.map((it) => it.selfIntersecting)),
     insideOut: anyOf(items.map((it) => it.insideOut)),
     openEdges: items.reduce((n, it) => n + (it.openEdges ?? 0), 0),
-    fitsBed: fitsBed(dimensions, bed),
+    ...bedFit(dimensions, bed),
     bbox: boundingBox,
     dimensions,
     entityCount: items.length,

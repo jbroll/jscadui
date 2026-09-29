@@ -53,6 +53,15 @@ valid options.
 `eval/fluent-guard.test.js` runs every fluent example in the repo with the
 wraps on and fails on any warning.
 
+Some checks come from no option table: clockwise points where a 2D outline
+enters (`primitives.polygon`, `geometries.geom2.fromPoints`, `jf.polygon`),
+and the booleans (`booleans.*`, `jf.*`, the `FluentGeom3` and `FluentGeom2`
+methods), which report `{ points, faces }` operands before the call and an
+empty `subtract` or `intersect` result after it. `EXTRA_SPECS` and
+`EXTRA_METHOD_SPECS` in `src/optionChecks.js` add them to the table's specs,
+keyed by the table's prefix. The empty check asks a shape's `isEmpty()` first,
+because a manifold shape converts its polygons only when they are read.
+
 The prototypes outlive any one copy of `src/optionChecks.js`: the app's frame
 bundles its own, and a test file's fresh import makes another. So the state
 the wraps depend on is global. Each wrapped method carries

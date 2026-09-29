@@ -41,6 +41,7 @@ describe('runTurn', () => {
     const provider = {
       async *send(_messages, tools) {
         seen.push(tools)
+        yield { type: 'text', text: 'ok' }
         yield { type: 'done', stopReason: 'end_turn' }
       },
     }
@@ -48,6 +49,17 @@ describe('runTurn', () => {
     await runTurn({ conversation, provider, requestTool: vi.fn() })
     await runTurn({ conversation, provider, requestTool: vi.fn(), api: 'modeling' })
     expect(seen).toEqual([buildTools('fluent'), buildTools('modeling')])
+  })
+
+  it('rejects a round with neither text nor a tool call as an empty reply, with its stop reason', async () => {
+    const provider = roundsProvider([
+      [{ type: 'tool_use', id: 't1', name: 'params', input: {} }, { type: 'done', stopReason: 'tool_calls' }],
+      [{ type: 'usage', inputTokens: 900, outputTokens: 4000, reasoningTokens: 4000 }, { type: 'done', stopReason: 'length' }],
+    ])
+    const conversation = { messages: [{ role: 'user', content: 'hi' }] }
+    const error = await runTurn({ conversation, provider, requestTool: vi.fn(async () => '{"ok":true}') }).catch((e) => e)
+    expect(error).toMatchObject({ name: 'EmptyReplyError', stopReason: 'length', message: 'the model stopped without answering (stop reason: length)' })
+    expect(error.messages.map((m) => m.role)).toEqual(['user', 'assistant', 'tool'])
   })
 
   it('resolves a tool call through requestTool and continues', async () => {

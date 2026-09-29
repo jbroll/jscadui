@@ -43,6 +43,56 @@ describe('grader', () => {
     expect(report.dimensions.discipline).toBe(1)
   })
 
+  it('credits an eval that measures in the model code and logs it, as a measure call', () => {
+    const measuring = "const shape = jf.cube({ size: 10 })\nconsole.log('dims', shape.measureDimensions(), 'vol', shape.measureVolume())\nmodule.exports = { main: () => shape }"
+    const run = (source, content) => [
+      { role: 'user', content: 'make it' },
+      toolMsg('t1', 'eval', { source }),
+      resultMsg('t1', JSON.stringify(content)),
+      toolMsg('t2', 'writeModel', { source }),
+      resultMsg('t2', JSON.stringify({ ok: true, entry: 'main.js' })),
+    ]
+    const logged = { ok: true, entities: 1, console: ['dims [10,10,10] vol 1000'] }
+    expect(gradeFixture(fixture, run(measuring, logged), { volume: 6400 }).dimensions.discipline).toBe(2)
+    expect(gradeFixture(fixture, run(measuring, { ok: true, entities: 1 }), { volume: 6400 }).dimensions.discipline).toBe(1)
+    expect(gradeFixture(fixture, run("console.log('hi')\nmodule.exports = { main: () => 1 }", logged), { volume: 6400 }).dimensions.discipline).toBe(1)
+  })
+
+  it('credits measuring after the save, with or without an eval, for any fixture', () => {
+    const writeThen = (name) => [
+      { role: 'user', content: 'make it' },
+      toolMsg('t1', 'writeModel', { source: 'x' }),
+      resultMsg('t1', JSON.stringify({ ok: true, entry: 'main.js' })),
+      toolMsg('t2', name, {}),
+      resultMsg('t2', JSON.stringify({ ok: true, volume: 6400 })),
+    ]
+    for (const f of [fixture, { ...fixture, verifyBeforeWrite: false }]) {
+      expect(gradeFixture(f, writeThen('measure'), { volume: 6400 }).dimensions.discipline).toBe(2)
+      expect(gradeFixture(f, writeThen('check'), { volume: 6400 }).dimensions.discipline).toBe(2)
+      expect(gradeFixture(f, writeThen('params'), { volume: 6400 }).dimensions.discipline).toBe(0)
+    }
+  })
+
+  it('scores no recovery penalty for a failure in the last round of a run the turn cap ended', () => {
+    const transcript = [
+      { role: 'user', content: 'make it' },
+      toolMsg('t1', 'writeModel', { source: 'x' }),
+      resultMsg('t1', JSON.stringify({ ok: true, entry: 'main.js' })),
+      toolMsg('t2', 'eval', { source: 'y' }),
+      resultMsg('t2', JSON.stringify({ ok: false, error: { message: 'boom' } })),
+    ]
+    expect(gradeFixture(fixture, transcript, { volume: 6400 }, {}, { maxTurns: 2 }).dimensions.recovery).toBe(2)
+    expect(gradeFixture(fixture, transcript, { volume: 6400 }, {}, { maxTurns: 3 }).dimensions.recovery).toBe(0)
+    expect(gradeFixture(fixture, transcript, { volume: 6400 }).dimensions.recovery).toBe(0)
+    const earlier = [
+      { role: 'user', content: 'make it' },
+      toolMsg('t1', 'eval', { source: 'x' }),
+      resultMsg('t1', JSON.stringify({ ok: false, error: { message: 'boom' } })),
+      ...transcript.slice(3),
+    ]
+    expect(gradeFixture(fixture, earlier, { volume: 6400 }, {}, { maxTurns: 2 }).dimensions.recovery).toBe(0)
+  })
+
   it('rewards recovery and punishes abandonment', () => {
     const recovered = [
       { role: 'user', content: 'make it' },

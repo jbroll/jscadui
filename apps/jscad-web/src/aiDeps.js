@@ -1,3 +1,4 @@
+import { withSaveState } from '@jscadui/agent-loop'
 import { createEvaluate } from './aiEvaluate.js'
 import { createSaveTracker } from './aiSaveTracker.js'
 
@@ -28,23 +29,20 @@ const projectEntry = (files, declared, lastWritten) => {
 export const createSavedDeps = ({ workerApi, handleEntities, editor, recordEdit, getProjectFiles, writeProjectFile, getProjectEntry = () => undefined, getApi, loadIndex }) => {
   const saveTracker = createSaveTracker()
   const evaluateModel = createEvaluate(workerApi, handleEntities, getApi, loadIndex)
-  const isSaved = async () => saveTracker.isSaved(await getProjectFiles())
+  const withSaved = async (result) => withSaveState(result, saveTracker.isUnsaved(await getProjectFiles()))
 
   const evaluate = async (source, entry = PROJECT_ENTRY) => {
     const files = { ...(await getProjectFiles()), [entry]: source }
     const result = await evaluateModel(source, entry, files)
+    if (result.ok === false) return result
     // A scratch run (no main) neither changes the model nor is a save candidate.
-    if (result.scratch) return result
-    if (result.ok !== false) saveTracker.recordEval(files)
-    return { ...result, saved: await isSaved() }
+    if (!result.scratch) saveTracker.recordEval(files)
+    return withSaved(result)
   }
 
-  const measure = async (options) => ({ ...(await workerApi.jscadMeasure({ options })), saved: await isSaved() })
+  const measure = async (options) => withSaved(await workerApi.jscadMeasure({ options }))
 
-  const check = async (input) => ({
-    ...(await workerApi.jscadCheck({ bed: input?.bed, options: input ?? {} })),
-    saved: await isSaved(),
-  })
+  const check = async (input) => withSaved(await workerApi.jscadCheck({ bed: input?.bed, options: input ?? {} }))
 
   const save = async (source, entry = PROJECT_ENTRY) => {
     editor.setSource(source, entry)

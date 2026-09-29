@@ -171,3 +171,23 @@ test('measure notes a negative-volume solid as inside out', () => {
   )
 })
 
+
+const insideOutCube = () => {
+  const cube10 = { ...cuboid({ size: [10, 10, 10] }) }
+  cube10.polygons = cube10.polygons.map((p) => ({ ...p, vertices: [...p.vertices].reverse() }))
+  return cube10
+}
+
+test('measure flags a negative-volume solid as inside out', () => {
+  expect(measure(insideOutCube()).insideOut).toBe(true)
+  expect(measure(cuboid({ size: [10, 10, 10] }))).not.toHaveProperty('insideOut')
+})
+
+test('measure flags an array holding an inside-out solid, naming the part', () => {
+  const m = measure([cuboid({ size: [2, 2, 2] }), insideOutCube()])
+  expect(m.insideOut).toBe(true)
+  expect(m.notes).toEqual([
+    'part 1: solid is inside out (volume < 0); a 2D outline given clockwise usually causes this; reverse its points',
+  ])
+  expect(measure([cuboid({ size: [2, 2, 2] })])).not.toHaveProperty('insideOut')
+})

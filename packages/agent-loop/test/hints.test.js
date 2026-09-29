@@ -151,3 +151,63 @@ describe('explainError', () => {
     expect(withErrorHint('boom', { api: 'modeling', index })).toBe('boom')
   })
 })
+
+describe('explainWarning: winding, empty booleans and mesh data', () => {
+  it('says clockwise points extrude inside out, in the chosen API form', () => {
+    expect(explainWarning({ fn: 'jf.polygon', option: 'points', area: -50 }, 'fluent')).toEqual({
+      fn: 'jf.polygon',
+      option: 'points',
+      hint: 'points run clockwise (area -50), so an extrusion of this outline comes out inside out: list them counter-clockwise, e.g. jf.polygon([...points].reverse())',
+    })
+    expect(explainWarning({ fn: 'jf.polygon', option: 'points', area: -50 }, 'modeling').hint).toMatch(/e\.g\. primitives\.polygon\(\{ points: \[\.\.\.points\]\.reverse\(\) \}\)$/)
+    expect(explainWarning({ fn: 'geometries.geom2.fromPoints', option: 'points', area: -2.5 }, 'modeling').hint).toMatch(
+      /^points run clockwise \(area -2\.5\).*e\.g\. geometries\.geom2\.fromPoints\(\[\.\.\.points\]\.reverse\(\)\)$/,
+    )
+    expect(explainWarning({ fn: 'geometries.geom2.fromPoints', option: 'points', area: -50 }, 'fluent').hint).toMatch(/jf\.polygon\(\[\.\.\.points\]\.reverse\(\)\)$/)
+  })
+
+  it('says why a subtract or intersect came back empty', () => {
+    expect(explainWarning({ fn: 'FluentGeom3.subtract', empty: 'subtract' }, 'fluent')).toEqual({
+      fn: 'FluentGeom3.subtract',
+      hint: 'subtract returned an empty shape: what it removed covers all of the first shape; compare their bounding boxes with shape.measureBoundingBox()',
+    })
+    expect(explainWarning({ fn: 'booleans.intersect', empty: 'intersect' }, 'modeling').hint).toBe(
+      'intersect returned an empty shape: the shapes do not overlap; compare their bounding boxes with measurements.measureBoundingBox(shape)',
+    )
+  })
+
+  it('points { points, faces } data at the polyhedron factory', () => {
+    expect(explainWarning({ fn: 'FluentGeom3.union', meshOperand: true }, 'fluent').hint).toBe(
+      'an operand is { points, faces } data, not a shape: make it one with jf.polyhedron(data), e.g. jf.polyhedron(jf.hullPoints3(points))',
+    )
+    expect(explainWarning({ fn: 'booleans.union', meshOperand: true }, 'modeling').hint).toBe(
+      'an operand is { points, faces } data, not a shape: make it one with primitives.polyhedron({ points, faces })',
+    )
+  })
+})
+
+describe('explainError: names that are not defined', () => {
+  const fluent = (message) => explainError(message, { api: 'fluent', index })
+  const modeling = (message) => explainError(message, { api: 'modeling', index })
+
+  it('names the namespace a modeling function comes from', () => {
+    expect(modeling('cuboid is not defined')).toBe("cuboid is in primitives: const { cuboid } = require('@jscad/modeling').primitives")
+    expect(modeling('union is not defined')).toBe("union is in booleans: const { union } = require('@jscad/modeling').booleans")
+    expect(modeling('colorize is not defined')).toBe("colorize is in colors: const { colorize } = require('@jscad/modeling').colors")
+  })
+
+  it('names a modeling namespace', () => {
+    expect(modeling('measurements is not defined')).toBe("measurements is a namespace: const { measurements } = require('@jscad/modeling')")
+  })
+
+  it('gives the jf function or the method form in fluent mode', () => {
+    expect(fluent('cuboid is not defined')).toBe('use jf.cuboid(...)')
+    expect(fluent('union is not defined')).toBe('use jf.union(...), or shape.union(...) on a jf shape')
+    expect(fluent('translate is not defined')).toBe('translate is a method of FluentGeom2, FluentGeom3, FluentPath2, FluentGeometryArray: use shape.translate(...)')
+  })
+
+  it('adds nothing for a name neither API has', () => {
+    expect(fluent('wibble is not defined')).toBeUndefined()
+    expect(modeling('wibble is not defined')).toBeUndefined()
+  })
+})

@@ -60,7 +60,8 @@ export const buildTools = (api: Api = DEFAULT_API): ToolDefinition[] => [
   },
   {
     name: 'check',
-    description: 'Check the current model against a print bed.',
+    description:
+      'Check the current model: watertight, manifold, inside out, self-intersecting, size. With a bed, also whether it fits. Pass a bed only when the user names a printer.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -70,7 +71,6 @@ export const buildTools = (api: Api = DEFAULT_API): ToolDefinition[] => [
         },
         options: { type: 'object', description: 'Check options' },
       },
-      required: ['bed'],
     },
   },
   {

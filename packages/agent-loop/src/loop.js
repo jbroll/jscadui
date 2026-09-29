@@ -31,6 +31,16 @@ export class ToolTimeoutError extends Error {
   }
 }
 
+// A provider round with neither text nor a tool call (a reply that is all
+// reasoning, or a stop on the length limit) leaves the user with nothing.
+export class EmptyReplyError extends Error {
+  constructor(stopReason) {
+    super(`the model stopped without answering (stop reason: ${stopReason ?? 'none'})`)
+    this.name = 'EmptyReplyError'
+    this.stopReason = stopReason
+  }
+}
+
 const abortError = (message) => {
   const err = new Error(message)
   err.name = 'AbortError'
@@ -137,6 +147,7 @@ export const runTurn = (options) => {
         for (;;) {
           const text = []
           const toolCalls = []
+          let stopReason
           iterator = provider.send(messages, tools)[Symbol.asyncIterator]()
           try {
             for (;;) {
@@ -148,6 +159,7 @@ export const runTurn = (options) => {
               } else if (value.type === 'tool_use') {
                 toolCalls.push({ id: value.id, name: value.name, input: value.input })
               } else if (value.type === 'done') {
+                stopReason = value.stopReason
                 break
               }
             }
@@ -155,13 +167,12 @@ export const runTurn = (options) => {
             iterator.return?.(undefined).catch(() => {})
           }
           if (cancelled) throw abortError('turn aborted')
-          if (text.length > 0 || toolCalls.length > 0) {
-            messages.push({
-              role: 'assistant',
-              content: text.length > 0 ? text.join('') : null,
-              toolCalls,
-            })
-          }
+          if (text.length === 0 && toolCalls.length === 0) throw new EmptyReplyError(stopReason)
+          messages.push({
+            role: 'assistant',
+            content: text.length > 0 ? text.join('') : null,
+            toolCalls,
+          })
           if (toolCalls.length === 0) break
           for (const call of toolCalls) {
             const content = await withTimeout(

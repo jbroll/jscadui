@@ -36,7 +36,11 @@ overflow the provider's context. Past `TOOL_RESULTS_PER_TURN_CHARS` (120,000
 characters) of results in one turn (an eval run is one turn), each further
 result is replaced by `[tool result omitted: this turn's tool results passed
 120000 characters]` and the turn goes on. A turn that rejects carries the
-messages so far as `error.messages`.
+messages so far as `error.messages`. A provider round with neither text nor a
+tool call (only reasoning, or a stop at the length limit) rejects the turn
+with `EmptyReplyError`, whose `stopReason` is the provider's and whose message
+is `the model stopped without answering (stop reason: length)`; the app shows
+it in the chat as an error.
 
 ## docs tool
 
@@ -56,13 +60,21 @@ function's lists them without naming that function. Any function whose first
 parameter is an angle (`rotate*`) adds that angles are radians and which way
 a positive angle turns (right-hand rule: `rotateX(Math.PI / 2)` turns +Y into
 +Z). `cylinder`, `cylinderElliptic` and `jf.cylinder` add a line on tapers and
-which end is the start (-Z), and `cone`, `taper` or `frustum` (bare or
+which end is the start (-Z); `jf.polygon`, `primitives.polygon` and
+`geometries.geom2.fromPoints` add that the points go counter-clockwise, since
+clockwise points extrude inside out; and `cone`, `taper` or `frustum` (bare or
 qualified) answers with the taper form, `jf.cylinder` under fluent and
 `primitives.cylinderElliptic` under modeling. A namespace or class answers
 with one line per member, `cylinder({ center = [0,0,0], height = 2, radius =
 1, segments = 32 })`, a method's own call part, or a value's name, followed
 by its one-line summary; when that passes the cap it drops the summaries,
-then the option defaults, then the call forms. A class method missing from an
+then the positional parameters' types, then the option defaults, then the
+call forms. `jf` answers a first model's lookups in one call: each shape
+factory (a member returning one `FluentGeom3`, `FluentGeom2` or `FluentPath2`)
+with its option defaults and untyped positional parameters, the other members
+by name on an `Also:` line, the method names `FluentGeom3` and `FluentGeom2`
+share and then each one's own, and a line saying to query `jf.<name>` or
+`FluentGeom3.<method>` for descriptions, option types and examples. A class method missing from an
 array class is looked up on the class it extends. A bare name
 with several hits answers the preferred one with the others on an `Also:`
 line (under fluent, the `jf.*` factory, then the `FluentGeom3`, `FluentGeom2`
@@ -107,6 +119,9 @@ turns each into the warning the model sees, worded for the chat's API style
 | unknown option | `{ fn, option, suggestions }`, plus `hint` when a sibling function takes it |
 | number option given an array, or the reverse | `{ fn, option, hint }` naming the sibling that takes that type (`cube` size array → `cuboid`) |
 | rotate angle with magnitude over 2π | `{ fn, option: 'angle', hint }`: "90 looks like degrees; angles are radians, so use 90 * Math.PI / 180" |
+| clockwise points (negative signed area) to `jf.polygon`, `primitives.polygon` (after its `orientation`; not with `paths`) or `geometries.geom2.fromPoints` | `{ fn, option: 'points', hint }`: "points run clockwise (area -50), so an extrusion of this outline comes out inside out: list them counter-clockwise, e.g. jf.polygon([...points].reverse())" |
+| a `subtract` or `intersect` (modeling `booleans`, `jf`, or a `FluentGeom3`/`FluentGeom2` method) that returns an empty shape from a non-empty first shape | `{ fn, hint }`: what emptied it, and the bounding-box measure to compare the shapes with |
+| `{ points, faces }` data (what `jf.hullPoints3` returns) given to a boolean | `{ fn, hint }`: make it a shape with `jf.polyhedron(...)` or `primitives.polyhedron({ points, faces })` |
 
 A hint names only the chosen API's forms, even when the model code called the
 other package: `primitives.cube({ size: [x, y, z] })` under fluent reads
@@ -132,7 +147,13 @@ function" error gets a hint from `withErrorHint`, applied where the error
 result is built (`eval/backend.js`, the app's `createEvaluate`): in fluent, X
 as a method of the named classes, called on a jf shape; in modeling, the
 functional call from the index signature (`transforms.translate(offset,
-shape)`). `cone` gets the taper form. `test/warningCases.js` holds the cases
+shape)`). `cone` gets the taper form. An "X is not defined" error, X a
+modeling function or namespace the code never took from its package, gets,
+in modeling, the require that brings it in (`const { cuboid } =
+require('@jscad/modeling').primitives`, `const { measurements } =
+require('@jscad/modeling')`), and in fluent `jf.X(...)` or `shape.X(...)`.
+The boolean hint for `{ points, faces }` data also lands on the error the
+boolean throws ("only unions of the same type are supported"). `test/warningCases.js` holds the cases
 both the eval backend and the app must answer alike.
 
 ## Chat log reader
@@ -201,13 +222,21 @@ objects via `JSON.stringify`, falling back to `String` on a circular one,
 capped at 50 lines and 4,000 characters total with a trailing `… (N more
 lines)` note).
 
-`eval`, `measure` and `check` results also carry `saved: false` when the
-current geometry does not match the source of the last `writeModel` (`true`
-when it does), so the model can tell an unsaved change apart from a saved
-one without asking. An `eval` of a script with no `main()` is a scratch run:
-it answers `{ ok: true, scratch: true, console, message }` and leaves the
-current model and geometry unchanged, rather than failing and dropping the
-console output (`writeModel` still requires a runnable `main()`).
+`eval`, `measure` and `check` results, and scratch runs, also carry
+`notSaved: "this model is not saved; call writeModel to keep it"` (`NOT_SAVED`,
+`withSaveState` in `src/saveState.js`) while the current geometry is not the
+source of the last `writeModel`, and nothing when it is, so the model reads an
+instruction rather than a flag. The app adds it the same way
+(`apps/jscad-web/src/aiDeps.js`), from the agent's first eval on. An `eval`
+of a script with no `main()` is a scratch run: it answers
+`{ ok: true, scratch: true, console, message }` and leaves the current model
+and geometry unchanged, rather than failing and dropping the console output
+(`writeModel` still requires a runnable `main()`).
+
+`check` takes a `bed` only when the user names a printer: without one it
+reports watertight, manifold, inside out, self-intersecting and size, with no
+`fitsBed`. `measure` gives a negative-volume solid `insideOut: true` and a
+note, naming the part for an array (`@jscadui/model-tools`).
 
 ### Choosing fixtures and API style
 
@@ -339,6 +368,18 @@ Each run is graded on discipline, recovery, geometry and conservation (0-2
 each, total 8) and on `firstAttemptFailures`: the failed tool results before the first
 successful `eval`, or before the end of the run if none succeeds.
 
+Discipline asks whether the model checked its model. Verification is a
+`measure` or `check` call, or an `eval` whose source calls a `measure*`
+function (`shape.measureDimensions()`, `measureVolume()`, as `fluent.md`
+teaches) and whose result carries console output. A run with an `eval` gets 2
+when the fixture has no `verifyBeforeWrite`, when it never writes, or when it
+verifies before or after its first `writeModel`, else 1; `writeModel` runs the
+model, so measuring after the save counts. A run with no `eval` gets 2 when it
+verifies after a `writeModel`, else 0. Recovery is 2 when no tool call failed
+or a success followed the last failure, else 0; a run the turn cap ended
+(its last round's results got no reply) leaves that round's failures out,
+since it had no turn left to recover in.
+
 Geometry grades the project the run saved, since that is what the app's user
 keeps: every file written, evaluated again through its entry in a fresh backend
 state after the run ends, so a probe `eval` after the save changes nothing. A
@@ -349,9 +390,11 @@ and `checkRate` 0 without running its checks, and marks the report
 most 6. A fixture that does not require `writeModel` is graded on the saved
 project, else the last `eval`.
 
-A provider call that streams neither content nor a `usage` event is an empty
-reply; the run records `error: "empty provider reply"`. The turn cap's own
-closing round is not one. An empty reply and any error the provider's stream
+A provider call that streams neither text nor a tool call is an empty reply,
+even when it streamed reasoning and a `usage` event; the run records
+`error: "empty provider reply"`. The turn cap's own closing round is not one.
+Each run records its provider calls' stop reasons in order as `stopReasons`
+(`end_turn`, `tool_use`, `length`, ...). An empty reply and any error the provider's stream
 throws (HTTP, network, auth, rate limit) also set `providerError: true`.
 
 The summary gives, per fixture, the mean `firstAttemptFailures`, the pass rate

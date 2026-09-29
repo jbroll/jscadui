@@ -3,13 +3,15 @@ const toolCallsOf = (transcript) =>
 
 const resultsOf = (transcript) => transcript.filter((m) => m.role === 'tool')
 
-const failed = (content) => {
+const parsed = (content) => {
   try {
-    return JSON.parse(content)?.ok === false
+    return JSON.parse(content)
   } catch {
-    return false
+    return undefined
   }
 }
+
+const failed = (content) => parsed(content)?.ok === false
 
 export function firstAttemptFailures(transcript) {
   const names = new Map(toolCallsOf(transcript).map((c) => [c.id, c.name]))
@@ -53,27 +55,43 @@ export function endedWithoutReply(transcript, maxTurns) {
   return transcript.filter((m) => m.role === 'assistant').length < maxTurns
 }
 
+// A run the turn cap ended: its last round's tool results got no reply.
+const hitCap = (transcript, maxTurns) =>
+  maxTurns !== undefined && transcript.at(-1)?.role === 'tool' && transcript.filter((m) => m.role === 'assistant').length >= maxTurns
+
+// measureDimensions() and measureVolume() in the model code, as fluent.md
+// teaches, with the numbers logged back to the model.
+const MEASURES_IN_CODE = /\bmeasure[A-Z]\w*\s*\(/
+const measuringEval = (call, result) =>
+  call.name === 'eval' && MEASURES_IN_CODE.test(call.input?.source ?? '') && parsed(result?.content)?.console?.length > 0
+
+// A measure or check call, or an eval that measures in code and logs it.
+const verifies = (call, resultOf) => call.name === 'measure' || call.name === 'check' || measuringEval(call, resultOf.get(call.id))
+
 // The transcript-based dimensions: everything except geometry, which needs the final measure.
-export function gradeTranscript(fixture, transcript) {
+// `maxTurns` is the run's turn cap, when known.
+export function gradeTranscript(fixture, transcript, { maxTurns } = {}) {
   const calls = toolCallsOf(transcript)
   const results = resultsOf(transcript)
   const names = calls.map((c) => c.name)
+  const resultOf = new Map(results.map((r) => [r.toolCallId, r]))
 
+  // Measuring after a save verifies as well as measuring before it: writeModel runs the model too.
+  const firstWrite = names.indexOf('writeModel')
+  const verifiedBefore = calls.slice(0, firstWrite === -1 ? calls.length : firstWrite).some((c) => verifies(c, resultOf))
+  const verifiedAfter = firstWrite !== -1 && calls.slice(firstWrite + 1).some((c) => verifies(c, resultOf))
   let discipline = 0
   if (names.includes('eval')) {
-    discipline = 1
-    if (!fixture.verifyBeforeWrite) {
-      discipline = 2
-    } else {
-      const firstWrite = names.indexOf('writeModel')
-      const verified = names.slice(0, firstWrite).some((n) => n === 'measure' || n === 'check')
-      if (firstWrite === -1 || verified) discipline = 2
-    }
+    discipline = !fixture.verifyBeforeWrite || firstWrite === -1 || verifiedBefore || verifiedAfter ? 2 : 1
+  } else if (verifiedAfter) {
+    discipline = 2
   }
 
   // No failures means nothing to recover from: full marks, same as a recovered run.
+  // The capped last round had no turn left to recover in.
+  const lastRound = hitCap(transcript, maxTurns) ? transcript.slice(transcript.findLastIndex((m) => m.role === 'assistant')) : []
   let recovery = 2
-  const failures = results.filter((r) => failed(r.content))
+  const failures = results.filter((r) => failed(r.content) && !lastRound.includes(r))
   if (failures.length > 0) {
     const lastFailureAt = transcript.lastIndexOf(failures[failures.length - 1])
     const laterSuccess = results
@@ -136,8 +154,8 @@ export function geometryError(target, measure) {
 
 // `finalMeasure` and `context` describe the gradedModel's geometry. A fixture
 // that requires writeModel gets geometry 0 and checkRate 0 without one.
-export function gradeFixture(fixture, transcript, finalMeasure, context = {}) {
-  const { dimensions, firstAttemptFailures: faf } = gradeTranscript(fixture, transcript)
+export function gradeFixture(fixture, transcript, finalMeasure, context = {}, { maxTurns } = {}) {
+  const { dimensions, firstAttemptFailures: faf } = gradeTranscript(fixture, transcript, { maxTurns })
   const model = gradedModel(fixture, transcript)
   const unsaved = requiresWrite(fixture) && !model
 

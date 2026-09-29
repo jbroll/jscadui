@@ -24,7 +24,12 @@ const RIGHT_HAND =
   'rotateX(Math.PI / 2) turns +Y into +Z, rotateY(Math.PI / 2) turns +Z into +X, rotateZ(Math.PI / 2) turns +X into +Y.'
 
 const START_AT_MINUS_Z = 'startRadius is the -Z end, endRadius the +Z end.'
+const COUNTER_CLOCKWISE =
+  'List the points counter-clockwise: clockwise points give an outline with negative area, and its extrusion comes out inside out.'
 const NOTES = {
+  'primitives.polygon': COUNTER_CLOCKWISE,
+  'geometries.geom2.fromPoints': COUNTER_CLOCKWISE,
+  'jf.polygon': COUNTER_CLOCKWISE,
   'primitives.cylinder': 'For a taper or cone use primitives.cylinderElliptic.',
   'primitives.cylinderElliptic': START_AT_MINUS_Z,
   'jf.cylinder': 'radius: [start, end] makes a taper or cone; start is the -Z end.',
@@ -60,48 +65,102 @@ const paramsText = (signature) => {
   return ''
 }
 
-const firstComma = (text) => {
+// Indexes of `char` outside any brackets.
+const topLevel = (text, char) => {
+  const at = []
   let depth = 0
   for (let i = 0; i < text.length; i += 1) {
     if ('([{'.includes(text[i])) depth += 1
     else if (')]}'.includes(text[i])) depth -= 1
-    else if (text[i] === ',' && depth === 0) return i
+    else if (text[i] === char && depth === 0) at.push(i)
   }
-  return -1
+  return at
+}
+
+const firstComma = (text) => topLevel(text, ',')[0] ?? -1
+
+// `points: Point2[], text?: string` → `points, text?`
+const untyped = (params) => {
+  const cuts = [-1, ...topLevel(params, ','), params.length]
+  return cuts
+    .slice(1)
+    .map((end, i) => {
+      const part = params.slice(cuts[i] + 1, end)
+      const colon = topLevel(part, ':')[0]
+      return (colon === undefined ? part : part.slice(0, colon)).trim()
+    })
+    .filter(Boolean)
+    .join(', ')
 }
 
 // cylinder({ radius = 1, height = 2 }) for an options-first function (without
-// the defaults when `defaults` is false), the signature's call part otherwise.
-const callForm = (entry, byName, defaults) => {
+// the defaults when `defaults` is false), the signature's call part otherwise;
+// `types: false` drops the positional parameters' types.
+const callForm = (entry, byName, { defaults, types = true }) => {
   const bare = lastSegment(entry.name)
   if (entry.kind !== 'function' || !entry.signature) return bare
   const options = optionsOf(entry, byName)
-  if (!entry.optionsFirst || !options.length) return entry.signature.replace(/\s*→[\s\S]*$/, '')
   const params = paramsText(entry.signature)
+  if (!entry.optionsFirst || !options.length) {
+    return types ? entry.signature.replace(/\s*→[\s\S]*$/, '') : `${bare}(${untyped(params)})`
+  }
   const comma = firstComma(params)
-  const rest = comma === -1 ? '' : params.slice(comma)
+  const rest = comma === -1 ? '' : types ? params.slice(comma) : `, ${untyped(params.slice(comma + 1))}`
   const list = options.map((o) => (defaults && o.default != null && o.default !== '' ? `${o.name} = ${o.default}` : o.name)).join(', ')
   return `${bare}({ ${list} }${rest})`
 }
 
-const memberLines = (owner, members, byName, { calls, defaults, summaries }) =>
+const memberLines = (owner, members, byName, style) =>
   members.map((m) => {
     const entry = byName.get(`${owner}.${m.name}`)
-    const head = calls && entry ? callForm(entry, byName, defaults) : m.name
-    return `  ${head}${summaries && m.summary ? ` - ${m.summary}` : ''}`
+    const head = style.calls && entry ? callForm(entry, byName, style) : m.name
+    return `  ${head}${style.summaries && m.summary ? ` - ${m.summary}` : ''}`
   })
 
+// The jf listing answers a first model's lookups in one call: each shape
+// factory with its option defaults, the other members by name, and the
+// methods of the two shape classes.
+const SHAPE_FACTORY = /→\s*Fluent(?:Geom2|Geom3|Path2)\s*$/
+const SHAPE_CLASSES = ['FluentGeom3', 'FluentGeom2']
+
+const classMethodLines = (byName) => {
+  const [a, b] = SHAPE_CLASSES.map((cls) => byName.get(cls).members.map((m) => m.name))
+  return [
+    `${SHAPE_CLASSES.join(' and ')} methods: ${a.filter((n) => b.includes(n)).join(', ')}`,
+    `${SHAPE_CLASSES[0]} only: ${a.filter((n) => !b.includes(n)).join(', ')}`,
+    `${SHAPE_CLASSES[1]} only: ${b.filter((n) => !a.includes(n)).join(', ')}`,
+  ]
+}
+
+const renderJf = (entry, byName) => {
+  const members = entry.members.map((m) => ({ name: m.name, fn: byName.get(`${entry.name}.${m.name}`) }))
+  const isShape = ({ fn }) => fn?.kind === 'function' && SHAPE_FACTORY.test(fn.signature ?? '')
+  return [
+    `${entry.name} (${entry.pkg}) ${entry.kind}`,
+    'Shapes, with option defaults:',
+    ...members.filter(isShape).map(({ fn }) => `  ${callForm(fn, byName, { defaults: true, types: false })}`),
+    `Also: ${members.filter((m) => !isShape(m)).map((m) => m.name).join(', ')}`,
+    ...classMethodLines(byName),
+    `Query ${entry.name}.<name> or ${SHAPE_CLASSES[0]}.<method> for descriptions, option types and examples.`,
+  ].join('\n')
+}
+
 // The fullest listing that fits the cap, dropping first the summaries, then
-// the option defaults, then the call forms.
+// the positional types, then the option defaults, then the call forms.
 const LISTINGS = [
   { calls: true, defaults: true, summaries: true },
   { calls: true, defaults: true, summaries: false },
+  { calls: true, defaults: true, summaries: false, types: false },
   { calls: true, defaults: false, summaries: false },
   { calls: false, summaries: true },
   { calls: false, summaries: false },
 ]
 
 const renderMembers = (entry, byName) => {
+  if (entry.name === 'jf' && entry.pkg === FLUENT) {
+    const text = renderJf(entry, byName)
+    if (text.length <= MAX_ANSWER) return text
+  }
   const target = entry.members ? entry : byName.get(entry.sameAs)
   const parent = entry.extends && byName.get(entry.extends)
   const listing = (style) => {

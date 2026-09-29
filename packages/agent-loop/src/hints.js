@@ -85,20 +85,48 @@ const typeHint = ({ fn, option, expected, got }, api) => {
 
 const angleHint = ({ value }) => `${value} looks like degrees; angles are radians, so use ${value} * Math.PI / 180`
 
+const round = (x) => Number(x.toFixed(6))
+
+const reversedCall = (fn, api) => {
+  if (api === 'fluent') return 'jf.polygon([...points].reverse())'
+  if (fn === 'geometries.geom2.fromPoints') return 'geometries.geom2.fromPoints([...points].reverse())'
+  return 'primitives.polygon({ points: [...points].reverse() })'
+}
+
+const windingHint = ({ fn, area }, api) =>
+  `points run clockwise (area ${round(area)}), so an extrusion of this outline comes out inside out: list them counter-clockwise, e.g. ${reversedCall(fn, api)}`
+
+const BOUNDING_BOX = { fluent: 'shape.measureBoundingBox()', modeling: 'measurements.measureBoundingBox(shape)' }
+const EMPTY_CAUSE = {
+  subtract: 'what it removed covers all of the first shape',
+  intersect: 'the shapes do not overlap',
+}
+const emptyHint = ({ empty }, api) =>
+  `${empty} returned an empty shape: ${EMPTY_CAUSE[empty]}; compare their bounding boxes with ${BOUNDING_BOX[api] ?? BOUNDING_BOX[DEFAULT_API]}`
+
+const MESH_FIX = {
+  fluent: 'jf.polyhedron(data), e.g. jf.polyhedron(jf.hullPoints3(points))',
+  modeling: 'primitives.polyhedron({ points, faces })',
+}
+const meshHint = (api) => `an operand is { points, faces } data, not a shape: make it one with ${MESH_FIX[api] ?? MESH_FIX[DEFAULT_API]}`
+
 /**
  * The warning a model sees for a fact the option checks found: an unknown
- * option `{ fn, option, suggestions }`, a mistyped one `{ fn, option, expected, got }`
- * or an angle over 2π `{ fn, option, value }`.
+ * option `{ fn, option, suggestions }`, a mistyped one `{ fn, option, expected, got }`,
+ * an angle over 2π `{ fn, option, value }`, clockwise outline points
+ * `{ fn, option, area }`, an empty boolean result `{ fn, empty }` or
+ * `{ points, faces }` data given to a boolean `{ fn, meshOperand }`.
  */
 export const explainWarning = (fact, api = DEFAULT_API) => {
   const { fn, option } = fact
   if (Array.isArray(fact.suggestions)) return explainUnknown(fact, api)
   if (fact.expected) return { fn, option, hint: typeHint(fact, api) }
   if ('value' in fact) return { fn, option, hint: angleHint(fact) }
+  if ('area' in fact) return { fn, option, hint: windingHint(fact, api) }
+  if (fact.empty) return { fn, hint: emptyHint(fact, api) }
+  if (fact.meshOperand) return { fn, hint: meshHint(api) }
   return fact
 }
-
-const round = (x) => Number(x.toFixed(6))
 
 const LIMITS = [
   [
@@ -136,6 +164,8 @@ const lookupFor = (index) => {
   const methods = new Map()
   /** @type {Map<string, object[]>} */
   const functions = new Map()
+  const namespaces = new Set(index.filter((e) => e.kind === 'namespace' && e.pkg === '@jscad/modeling' && !e.name.includes('.')).map((e) => e.name))
+  const jfNames = new Set(index.filter((e) => e.pkg === '@jbroll/jscad-fluent' && /^jf\.[\w$]+$/.test(e.name)).map((e) => e.name.slice(3)))
   for (const e of index) {
     if (e.kind !== 'function') continue
     const dot = e.name.lastIndexOf('.')
@@ -146,7 +176,7 @@ const lookupFor = (index) => {
     // Nested helpers (maths.vec3.scale, extrusions.slice.transform) share the operations' names.
     else if (e.pkg === '@jscad/modeling' && !owner.includes('.')) functions.set(name, [...(functions.get(name) ?? []), e])
   }
-  const lookup = { methods, functions }
+  const lookup = { methods, functions, namespaces, jfNames }
   lookups.set(index, lookup)
   return lookup
 }
@@ -157,16 +187,35 @@ const callOf = (entry) => {
 }
 
 const NOT_A_FUNCTION = /(\S+) is not a function/
+const NOT_DEFINED = /\b([A-Za-z_$][\w$]*) is not defined\b/
+
+// A bare modeling name the model code never took from its namespace.
+const explainUndefined = (name, api, { methods, functions, namespaces, jfNames }) => {
+  if (api === 'fluent') {
+    const classes = methods.get(name)
+    if (jfNames.has(name)) return classes ? `use jf.${name}(...), or shape.${name}(...) on a jf shape` : `use jf.${name}(...)`
+    return classes ? `${name} is a method of ${classes.join(', ')}: use shape.${name}(...)` : undefined
+  }
+  if (namespaces.has(name)) return `${name} is a namespace: const { ${name} } = require('@jscad/modeling')`
+  const entries = functions.get(name)
+  if (!entries) return undefined
+  const owners = [...new Set(entries.map((e) => e.name.slice(0, e.name.lastIndexOf('.'))))]
+  return owners.map((owner) => `${name} is in ${owner}: const { ${name} } = require('@jscad/modeling').${owner}`).join('; or ')
+}
 
 /**
  * A hint for "X is not a function" when X names a fluent method or a modeling
- * function, in the chosen API's form.
+ * function, or for "X is not defined" when X is a modeling function or
+ * namespace name, in the chosen API's form.
  * @param {string} message
  * @param {{ api?: string, index: Array<object> }} options index is api/index.json
  */
 export const explainError = (message, { api = DEFAULT_API, index }) => {
+  if (!index) return undefined
+  const undefinedName = NOT_DEFINED.exec(message ?? '')
+  if (undefinedName) return explainUndefined(undefinedName[1], api, lookupFor(index))
   const match = NOT_A_FUNCTION.exec(message ?? '')
-  if (!match || !index) return undefined
+  if (!match) return undefined
   const expr = match[1]
   const dot = expr.lastIndexOf('.')
   const name = expr.slice(dot + 1)

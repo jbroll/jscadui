@@ -323,16 +323,17 @@ describe('runSuite empty provider replies', () => {
     expect(result.providerError).toBe(true)
   })
 
-  it('does not count a round that only reported usage as empty', async () => {
-    const provider = {
-      async *send() {
-        yield { type: 'usage', inputTokens: 10, outputTokens: 0 }
-        yield { type: 'done', stopReason: 'end_turn' }
-      },
-    }
+  it('counts a round with only reasoning and usage as empty, and records each round\'s stop reason', async () => {
+    const provider = scripted([
+      toolRound('t1', 'params', {}),
+      [{ type: 'usage', inputTokens: 10, outputTokens: 4000, reasoningTokens: 4000 }, { type: 'done', stopReason: 'length' }],
+    ])
     const fixture = { name: 'x', prompt: 'p', requires: ['eval'], verifyBeforeWrite: false, maxTurns: 8, checks: () => [] }
     const [result] = await runSuite([fixture], { provider, backend: createEvalBackend() })
-    expect(result.error).toBeUndefined()
+    expect(result.error).toBe('empty provider reply')
+    expect(result.providerError).toBe(true)
+    expect(result.stopReasons).toEqual(['tool_use', 'length'])
+    expect(result.transcript.map((m) => m.role)).toEqual(['user', 'assistant', 'tool'])
   })
 })
 
@@ -581,6 +582,15 @@ describe('runSuite turn cap', () => {
     expect(result.maxTurns).toBe(4)
     expect(result.metrics.rounds).toBe(5)
     expect(result.error).toBeUndefined()
+    expect(result).not.toHaveProperty('providerError')
+    expect(result.stopReasons).toEqual(['tool_use', 'tool_use', 'tool_use', 'tool_use'])
+    expect(result.transcript.at(-1).role).toBe('tool')
+  })
+
+  it('scores no recovery penalty for a failure in the capped last round', async () => {
+    const failing = scripted([toolRound('t1', 'params', {}), toolRound('t2', 'eval', { source: 'nope(' })])
+    const [result] = await runSuite([fixture], { provider: failing, backend: createEvalBackend(), maxTurns: 2 })
+    expect(result.report.dimensions.recovery).toBe(2)
   })
 
   it('a maxTurns option overrides the fixture cap', async () => {

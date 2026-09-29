@@ -238,3 +238,12 @@ test('an array reports each item and aggregates only known values', () => {
   )
   expect(check([])).toMatchObject({ empty: true, watertight: null, items: [] })
 })
+test('with no bed, check reports size and watertightness without fitsBed', () => {
+  const c = check(cuboid({ size: [300, 300, 300] }))
+  expect(c).toMatchObject({ watertight: true, dimensions: [300, 300, 300] })
+  expect(c).not.toHaveProperty('fitsBed')
+  const arr = check([cuboid({ size: [10, 10, 10] }), rectangle({ size: [5, 5] })])
+  expect(arr).not.toHaveProperty('fitsBed')
+  for (const item of arr.items) expect(item).not.toHaveProperty('fitsBed')
+  expect(check(rectangle({ size: [5, 5] }))).not.toHaveProperty('fitsBed')
+})
