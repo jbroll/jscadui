@@ -559,8 +559,16 @@ sudo crt setup                         # once per host, so crt can enforce the m
 ```
 
 `ci/jscad-eval.crt` is a Void rootfs with the `nodejs` package (Node 24.18 as
-of this writing). Without `sudo crt setup`, crt warns and runs the executor
-with no memory limit.
+of this writing), stored `root ro`. Without `sudo crt setup`, crt warns and
+runs the executor with no memory limit.
+
+The rootfs is part of the trusted base: the `node` and `setpriv` inside it run
+before and around the sandboxed code. The eval and the setup script only ever
+run it with `--ro-root`, and the setup script creates it when absent and
+otherwise only checks it. Never run it writable (`crt run` or `crt enter`
+without `--ro-root` and the stored `root ro`, or installing into it); to
+change it, remove it (`crt rm jscad-eval`) and recreate it with the setup
+script.
 
 A grade the executor has not answered 10 s past its own timeout (model code
 stuck in a synchronous loop never lets the executor's timer fire) kills the

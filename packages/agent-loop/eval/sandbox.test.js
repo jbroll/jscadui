@@ -197,6 +197,7 @@ describe('sandboxProblem', () => {
     const { spawn, calls } = recordingSpawn({ stdout: 'v22.14.0\n' })
     expect(await sandboxProblem(rootfs(), { spawn })).toMatch(/Node 22.14.0 in rootfs "jscad-eval".*22.15/)
     expect(calls[0].args.slice(-3)).toEqual(['jscad-eval', 'node', '--version'])
+    expect(calls[0].args).toContain('--ro-root')
     expect(calls[0].options.env).toEqual({ PATH: TRUSTED_PATH, CRT_HOME: scratch })
   })
 

@@ -7,6 +7,8 @@
 #
 # Reads EVAL_CRT, EVAL_SANDBOX_ROOTFS and CRT_HOME like the eval does. Run it
 # as the user the eval runs as: crt is rootless and the rootfs is per CRT_HOME.
+# An existing rootfs is only checked, never changed, and only run read-only:
+# it is part of the trusted base. To change it, `crt rm` it and rerun this.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

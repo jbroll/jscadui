@@ -81,7 +81,9 @@ as the user the job runs as:
    ```
 
 `scripts/eval-sandbox-setup.sh --check` repeats the check at any time; it
-prints `eval sandbox: ready` or what is missing.
+prints `eval sandbox: ready` or what is missing. The rootfs is part of the
+trusted base: never run it writable or install into it. To change or upgrade
+it, `crt rm jscad-eval` and run `scripts/eval-sandbox-setup.sh` again.
 
 ## gpu-poll
 
