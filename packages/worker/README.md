@@ -22,9 +22,11 @@ collectors, each `{ reset(), list() }`:
   collector from `@jscadui/agent-loop`'s `createWarningCollector`.
 - `setRunConsole(collector)`: the model's console lines.
 
-`jscadScript` resets both before the module loads. `jscadMain` does not, so a
-parameter change reports the load's warnings plus its own, with duplicates
-dropped by the collector. A result carries `warnings` and `console` only when
+`jscadScript` resets both before the module loads. A `jscadMain` re-run (a
+parameter change) resets the console before `main` runs, so it reports only
+its own lines, never those of the load or of a scratch run before it. It keeps
+the warnings, so a parameter change reports the load's warnings plus its own,
+with duplicates dropped by the collector. A result carries `warnings` and `console` only when
 they are non-empty.
 
 ## Tests

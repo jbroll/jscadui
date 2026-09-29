@@ -29,4 +29,25 @@ describe('frame console capture', () => {
     console.debug('d')
     expect(collector.list()).toEqual(['i', 'w', 'e', 'd'])
   })
+
+  it('reports only the current run in the frame worker, not a scratch run before it', async () => {
+    globalThis.self ??= { addEventListener() {}, postMessage() {} }
+    const { jscadMain, jscadScript, setRunConsole } = await import('@jscadui/worker')
+    const quiet = () => {}
+    Object.assign(console, { log: quiet, info: quiet, warn: quiet, error: quiet, debug: quiet })
+    installRunConsole({ setRunConsole })
+    const model = "module.exports = { main: () => { console.log('main ran'); return [] } }"
+    await jscadScript({ script: model, url: 'http://project.local/model.js' })
+    const scratch = await jscadScript({
+      script: "console.log('scratch output')\nmodule.exports = {}",
+      url: 'http://project.local/scratch.js',
+      allowScratch: true,
+    })
+    expect(scratch.console).toEqual(['scratch output'])
+
+    const paramChange = await jscadMain({ params: {} })
+
+    expect(paramChange.console).toEqual(['main ran'])
+    setRunConsole(null)
+  })
 })

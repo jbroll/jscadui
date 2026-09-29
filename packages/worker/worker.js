@@ -242,10 +242,10 @@ async function readFileFile(file, {bin=false}={}){
 
 
 /**
- * @param {{params?:import('@jscadui/format-common').UserParameters,skipLog?:boolean,userInteractedPaths?:string[],useGpuNormals?:boolean,stream?:boolean,runId?:unknown,held?:string[]}} options
+ * @param {{params?:import('@jscadui/format-common').UserParameters,skipLog?:boolean,userInteractedPaths?:string[],useGpuNormals?:boolean,stream?:boolean,runId?:unknown,held?:string[],freshConsole?:boolean}} options
  * @returns {Promise<import('@jscadui/format-common').JscadMainResult>}
  */
-export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths, useGpuNormals, stream = true, runId, held, solidsOnly = false } = {}) {
+export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths, useGpuNormals, stream = true, runId, held, solidsOnly = false, freshConsole = true } = {}) {
   const myGeneration = workerState.getGeneration()
   const assertFresh = (stage) => {
     if (myGeneration !== workerState.getGeneration()) {
@@ -320,6 +320,9 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
     })
     : { hook: null, emitted: () => false }
   const runMain = (mainParams) => withStreamHook(hook, () => workerState.main(mainParams))
+
+  // A re-run reports only its own lines; jscadScript keeps the top-level ones it just collected.
+  if (freshConsole) runConsole?.reset()
 
   try {
     // Run main with either proxy or plain params
@@ -570,7 +573,7 @@ export const jscadScript = async ({ script, url='jscad.js', base=workerState.glo
     let params = {}
     if (workerState.useParamsProxy) {
       // In proxy mode, run main to discover params, then extract defaults
-      const out = await jscadMain({ params: {}, runId, held })
+      const out = await jscadMain({ params: {}, runId, held, freshConsole: false })
       if (out.proxyState) {
         def = toParamDefinitions(out.proxyState.discovered)
         params = extractProxyDefaults(out.proxyState.discovered)
@@ -585,7 +588,7 @@ export const jscadScript = async ({ script, url='jscad.js', base=workerState.glo
       const fromSource = getParameterDefinitionsFromSource(script)
       def = combineParameterDefinitions(fromSource, await workerState.scriptModule.getParameterDefinitions?.())
       params = extractDefaults(def)
-      const out = await jscadMain({ params, runId, held })
+      const out = await jscadMain({ params, runId, held, freshConsole: false })
       return {
         def,
         params,

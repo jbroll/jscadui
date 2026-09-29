@@ -830,7 +830,9 @@ that error comes from model code, not a wrapped call.
 Model code's `console.log/info/warn/error/debug` calls during that run are
 captured the same way (`src_frame/consoleCapture.js`, always forwarding to
 the real console too, so devtools still shows everything), reset before the
-require and read back on `jscadMain`'s result as `console`. A grid run's
+require and read back on `jscadMain`'s result as `console`. A re-run on a
+parameter change resets it again before `main`, so its result carries only
+that run's lines. A grid run's
 answer concatenates every member's console lines in member order (no
 dedupe), capped at 50 lines and 4,000 characters total with a trailing
 `… (N more lines)` note. The chat's `eval` result adds it to

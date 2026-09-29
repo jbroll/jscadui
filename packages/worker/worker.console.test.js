@@ -3,7 +3,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 // worker.js registers self.addEventListener at import time.
 globalThis.self = { addEventListener() {}, postMessage: vi.fn() }
 
-const { jscadScript, setRunConsole } = await import('./worker.js')
+const { jscadMain, jscadScript, setRunConsole } = await import('./worker.js')
 const { workerState } = await import('./src/state/workerState.js')
 
 const collector = () => {
@@ -48,5 +48,36 @@ describe('run console', () => {
     setRunConsole(collector())
     const result = await jscadScript({ script: 'module.exports = { main: () => [] }', url: 'http://project.local/clean.js' })
     expect(result).not.toHaveProperty('console')
+  })
+
+  it('keeps top-level lines together with the first main run of a script', async () => {
+    const c = collector()
+    setRunConsole(c)
+    globalThis.__runConsole = c
+    const script = [
+      "globalThis.__runConsole.push('top')",
+      "module.exports = { main: () => { globalThis.__runConsole.push('main'); return [] } }",
+    ].join('\n')
+
+    const result = await jscadScript({ script, url: 'http://project.local/both.js' })
+
+    expect(result.console).toEqual(['top', 'main'])
+  })
+
+  it('gives a param change only its own lines, not those of a scratch run before it', async () => {
+    const c = collector()
+    setRunConsole(c)
+    globalThis.__runConsole = c
+    const model = "module.exports = { main: () => { globalThis.__runConsole.push('main ran'); return [] } }"
+    await jscadScript({ script: model, url: 'http://project.local/model.js' })
+    const scratch = "globalThis.__runConsole.push('scratch output')\nmodule.exports = {}"
+    const scratchResult = await jscadScript({ script: scratch, url: 'http://project.local/scratch.js', allowScratch: true })
+    expect(scratchResult.console).toEqual(['scratch output'])
+
+    const first = await jscadMain({ params: {} })
+    const second = await jscadMain({ params: {} })
+
+    expect(first.console).toEqual(['main ran'])
+    expect(second.console).toEqual(['main ran'])
   })
 })
