@@ -476,6 +476,9 @@ export const jscadScript = async ({ script, url='jscad.js', base=workerState.glo
 
     console.log('run script with base:', base, workerState.useParamsProxy ? '(proxy mode)' : '')
 
+    // A scratch run (no main) restores this instead of running with an emptied model.
+    const previousSolids = workerState.solids
+
     // Reset proxy state for new script
     workerState.userInteracted = new Set()
     workerState.currentUiValues = {}
@@ -539,6 +542,20 @@ export const jscadScript = async ({ script, url='jscad.js', base=workerState.glo
 
     // Promotion loads the spare with the last script ahead of time, without running main
     if (!runMain) return { def: [], params: {} }
+
+    // A script with no main is a scratch run (console-only debugging, say): report
+    // its console output and leave workerState.solids (the current model) alone,
+    // rather than failing and losing what it printed.
+    if (!workerState.main) {
+      workerState.solids = previousSolids
+      return {
+        def: [],
+        params: {},
+        scratch: true,
+        console: runConsole?.list() ?? [],
+        message: 'no main(): nothing rendered, current model unchanged',
+      }
+    }
 
     let params = {}
     if (workerState.useParamsProxy) {

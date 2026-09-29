@@ -24,6 +24,11 @@ export const createEvaluate = (workerApi, handleEntities) => async (source, entr
   } catch (error) {
     return toError(error)
   }
+  if (result.scratch) {
+    let out = { ok: true, scratch: true, message: result.message }
+    if (result.console?.length) out = { ...out, console: result.console }
+    return out
+  }
   handleEntities(result, {})
   const raw = result.entities
   const entities = raw instanceof Array ? raw : [raw]

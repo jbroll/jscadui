@@ -832,6 +832,8 @@ const evaluateModel = createEvaluate(workerApi, handleEntities)
 const aiDeps = {
   evaluate: async (source, entry) => {
     const result = await evaluateModel(source, entry)
+    // A scratch run (no main) neither changes the model nor is a save candidate.
+    if (result.scratch) return result
     if (result.ok !== false) saveTracker.recordEval(source)
     return { ...result, saved: saveTracker.isSaved() }
   },
