@@ -130,10 +130,15 @@ the user the fixture count times `EVAL_RUNS` and get a yes.
    The baseline is the newest result file in `<data>/results/` (`$JSCAD_CHAT_DATA`,
    default `~/src/jscad-chat-evals`) for the current prompt (its `promptSha256`
    matches the committed prompt); run one if none exists.
-   Keep the change only if the target fixtures improve (fewer first-attempt or
-   total failed calls, fewer rounds, or lower `geometryError`) and no fixture's
-   mean total score falls by more than 0.5 or its mean `rounds` rises by more
-   than 1.0. Otherwise revise and measure again, or drop the change.
+   Keep the change only if all of these hold, for every model measured:
+   - the target fixtures improve (fewer first-attempt or total failed calls,
+     fewer rounds, or lower `geometryError`);
+   - the suite-wide sum of mean totals does not fall;
+   - no fixture regresses. At 3 runs one bad run moves a fixture's mean total
+     by 0.67, so a fixture regresses only if its mean total falls by more than
+     1.0 or its mean `rounds` rises by more than 2.0. A smaller drop counts
+     only if it repeats when that fixture is rerun on its own.
+   Otherwise revise and measure again, or drop the change.
 
 7. **Show and commit.** Show the user the prompt/example diff and the
    comparison table. On approval, commit the prompt, examples and fixtures in
