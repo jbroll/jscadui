@@ -476,8 +476,15 @@ export const jscadScript = async ({ script, url='jscad.js', base=workerState.glo
 
     console.log('run script with base:', base, workerState.useParamsProxy ? '(proxy mode)' : '')
 
-    // A scratch run (no main) restores this instead of running with an emptied model.
-    const previousSolids = workerState.solids
+    // A scratch run (no main) restores all of this instead of running with the
+    // current model's param and solid state wiped out from under it.
+    const previousModelState = {
+      userInteracted: workerState.userInteracted,
+      currentUiValues: workerState.currentUiValues,
+      legacyProxyDefs: workerState.legacyProxyDefs,
+      solids: workerState.solids,
+      lastRunStreamed: workerState.lastRunStreamed,
+    }
 
     // Reset proxy state for new script
     workerState.userInteracted = new Set()
@@ -547,7 +554,7 @@ export const jscadScript = async ({ script, url='jscad.js', base=workerState.glo
     // its console output and leave workerState.solids (the current model) alone,
     // rather than failing and losing what it printed.
     if (!workerState.main) {
-      workerState.solids = previousSolids
+      Object.assign(workerState, previousModelState)
       return {
         def: [],
         params: {},

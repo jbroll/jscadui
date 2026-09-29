@@ -17,6 +17,8 @@ describe('a script with no main', () => {
     delete globalThis.__runConsole
     workerState.main = undefined
     workerState.solids = []
+    workerState.userInteracted = new Set()
+    workerState.currentUiValues = {}
   })
 
   it('is a scratch run: ok, its console, and the current model left in place', async () => {
@@ -40,5 +42,27 @@ describe('a script with no main', () => {
   it('is a scratch run for an object export with no main too', async () => {
     const result = await jscadScript({ script: 'module.exports = { size: 10 }', url: 'http://project.local/scratch2.js' })
     expect(result.scratch).toBe(true)
+  })
+
+  it('restores userInteracted and currentUiValues too, not just solids', async () => {
+    const interacted = new Set(['width'])
+    const uiValues = { width: 20 }
+    workerState.userInteracted = interacted
+    workerState.currentUiValues = uiValues
+
+    await jscadScript({ script: 'module.exports = {}', url: 'http://project.local/scratch3.js' })
+
+    expect(workerState.userInteracted).toBe(interacted)
+    expect(workerState.currentUiValues).toBe(uiValues)
+  })
+
+  it('leaves nothing behind for the next normal run, whose own geometry replaces the marker', async () => {
+    workerState.solids = [{ id: 'previous-solid' }]
+    await jscadScript({ script: 'module.exports = {}', url: 'http://project.local/scratch4.js' })
+
+    const result = await jscadScript({ script: 'module.exports = { main: () => [] }', url: 'http://project.local/normal.js' })
+
+    expect(result.scratch).toBeUndefined()
+    expect(currentSolids()).toEqual([])
   })
 })
