@@ -51,17 +51,17 @@ const conversation = async ({ fixtureName, run, runs, maxTurns, api, provider: p
   process.exit(0)
 }
 
-const grader = () => {
-  const backend = createEvalBackend()
+const grader = ({ api }) => {
+  const backend = createEvalBackend({ api })
   process.on('message', async (message) => {
     if (message.type !== 'grade') return
     const graded = await backend.gradeProject(message.model)
     send({ type: 'graded', id: message.id, graded })
   })
-  send({ type: 'ready' })
+  send({ type: 'ready', api })
 }
 
 process.once('message', (message) => {
   if (message.type === 'conversation') conversation(message.data)
-  if (message.type === 'grade-server') grader()
+  if (message.type === 'grade-server') grader(message)
 })

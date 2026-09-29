@@ -221,7 +221,9 @@ fixture prompt never names the API: the setting does, as the chat's settings
 will for a user.
 
 `--regrade` rewrites each result file in place with no provider calls; the evals
-repo's git history keeps the old version. It recomputes `discipline`, `recovery`,
+repo's git history keeps the old version. It grades each file under the `api`
+the file records, in a grader child per style; a file written before the
+setting has no `api` and is graded as `fluent`. It recomputes `discipline`, `recovery`,
 `conservation` and `firstAttemptFailures` from the stored `transcript`, rebuilds
 the saved project from the transcript's `writeModel` calls and evaluates it in a
 sandboxed grader child (see below) to recompute `geometry`, `checkRate` and

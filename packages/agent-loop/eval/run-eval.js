@@ -274,10 +274,13 @@ async function regradeRun(result, fixture, grader) {
 }
 
 // Recomputes every grading field in a result file with no provider calls.
-// `grader` has `gradeProject` (eval/backend.js, or eval/sandbox.js's sandboxed one).
-export async function regradeResults(file, fixturesByName, { grader }) {
+// `grader` has `gradeProject` (eval/backend.js, or eval/sandbox.js's sandboxed
+// one); `graderFor(api)` instead picks one for the file's api. A file written
+// before the api setting has none and is graded as fluent.
+export async function regradeResults(file, fixturesByName, { grader, graderFor = () => grader }) {
+  const fileGrader = graderFor(file.api ?? DEFAULT_API)
   const results = []
-  for (const result of file.results) results.push(await regradeRun(result, fixturesByName.get(result.fixture), grader))
+  for (const result of file.results) results.push(await regradeRun(result, fixturesByName.get(result.fixture), fileGrader))
   if (!file.results.some((r) => Array.isArray(r.transcript))) return { ...file, results }
   const speed = computeSpeed(results)
   if (typeof file.speed?.wallSeconds === 'number') speed.wallSeconds = file.speed.wallSeconds
@@ -318,15 +321,19 @@ const main = async (argv, env) => {
   const regradeAt = argv.indexOf('--regrade')
   if (regradeAt !== -1) {
     const fixturesByName = new Map((await loadFixtures()).map((f) => [f.name, f]))
-    const grader = createSandboxedGrader()
+    const graders = new Map()
+    const graderFor = (api) => {
+      if (!graders.has(api)) graders.set(api, createSandboxedGrader({ api }))
+      return graders.get(api)
+    }
     try {
       for (const path of argv.slice(regradeAt + 1)) {
-        const regraded = await regradeResults(readJson(path), fixturesByName, { grader })
+        const regraded = await regradeResults(readJson(path), fixturesByName, { graderFor })
         writeFileSync(path, JSON.stringify(regraded, null, 2))
         console.log(`run-eval: regraded ${path}`)
       }
     } finally {
-      grader.close()
+      for (const grader of graders.values()) grader.close()
     }
     return
   }

@@ -4,8 +4,8 @@ import { APIS } from '../src/api.js'
 import { buildSystemPrompt } from '../src/prompt.js'
 import { buildTools } from '../src/tools.js'
 import { createEvalBackend } from './backend.js'
-import { runInChild } from './sandbox.js'
-import { compareApis, evalApi, resultFileName, runSuite, saveResults, selectFixtures } from './run-eval.js'
+import { createSandboxedGrader, runInChild } from './sandbox.js'
+import { compareApis, evalApi, regradeResults, resultFileName, runSuite, saveResults, selectFixtures } from './run-eval.js'
 
 const FAKE_PROVIDER = new URL('./fake-provider.js', import.meta.url).href
 const fixture = { name: 'x', prompt: 'p', requires: ['eval'], verifyBeforeWrite: false, maxTurns: 2, checks: () => [] }
@@ -75,6 +75,35 @@ describe('compareApis', () => {
   it('passes files of one style', () => {
     expect(compareApis({ api: 'fluent' }, { api: 'fluent' })).toEqual({})
   })
+})
+
+describe('regrade under the recorded api', () => {
+  const file = (api) => ({ ...(api ? { api } : {}), results: [{ fixture: 'x', run: 1, transcript: [{ role: 'user', content: 'p' }], report: { dimensions: {} }, metrics: {} }] })
+  const recording = () => {
+    const asked = []
+    const graderFor = (api) => {
+      asked.push(api)
+      return { gradeProject: async () => ({ measure: null, solid: null, params: [] }) }
+    }
+    return { asked, graderFor }
+  }
+
+  it('grades each file under its own api, and a file without one as fluent', async () => {
+    const { asked, graderFor } = recording()
+    const fixtures = new Map([['x', fixture]])
+    await regradeResults(file('modeling'), fixtures, { graderFor })
+    await regradeResults(file(), fixtures, { graderFor })
+    expect(asked).toEqual(['modeling', 'fluent'])
+  })
+
+  it('a sandboxed grader child gets its api over IPC', async () => {
+    const grader = createSandboxedGrader({ api: 'modeling' })
+    try {
+      expect(await grader.ready).toBe('modeling')
+    } finally {
+      grader.close()
+    }
+  }, 30_000)
 })
 
 describe('a conversation under an api', () => {

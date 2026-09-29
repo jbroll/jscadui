@@ -8,6 +8,7 @@ import { readdirSync, realpathSync } from 'node:fs'
 import * as nodeModule from 'node:module'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { DEFAULT_API } from '../src/api.js'
 
 const CHILD = fileURLToPath(new URL('./child.js', import.meta.url))
 const TEXT_LOADER = fileURLToPath(new URL('../text-loader.js', import.meta.url))
@@ -86,13 +87,20 @@ export const runInChild = (data, onLog) =>
     child.send({ type: 'conversation', data })
   })
 
-// A long-lived sandboxed child that answers gradeProject requests one at a time.
-export const createSandboxedGrader = () => {
+// A long-lived sandboxed child that answers gradeProject requests one at a
+// time, under `api` (the child's environment is empty, so it goes over IPC).
+// `ready` resolves with the api the child's backend runs under.
+export const createSandboxedGrader = ({ api = DEFAULT_API } = {}) => {
   const child = spawnChild()
   const pending = new Map()
   let nextId = 0
   let exited = null
+  let markReady
+  const ready = new Promise((resolve) => {
+    markReady = resolve
+  })
   child.on('message', (message) => {
+    if (message.type === 'ready') markReady(message.api)
     if (message.type !== 'graded') return
     pending.get(message.id)?.resolve(message.graded)
     pending.delete(message.id)
@@ -102,8 +110,9 @@ export const createSandboxedGrader = () => {
     for (const { reject } of pending.values()) reject(exited)
     pending.clear()
   })
-  child.send({ type: 'grade-server' })
+  child.send({ type: 'grade-server', api })
   return {
+    ready,
     gradeProject: (model) =>
       new Promise((resolve, reject) => {
         if (exited) return reject(exited)
