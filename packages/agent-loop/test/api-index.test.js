@@ -135,6 +135,12 @@ describe('fluent entries', () => {
     expect(entry('jf.polygon').optionsFirst).toBeUndefined()
   })
 
+  it('takes jf.cylinder option defaults from its JSDoc', () => {
+    const defaults = Object.fromEntries(entry('jf.cylinder').options.map((o) => [o.name, o.default]))
+    expect(defaults).toMatchObject({ height: '1', segments: '32', center: '[0,0,0]', angle: '[0,TAU]', radius: '1', outer: 'radius', inner: null, wall: null })
+    expect(entry('jf.cylinder').options.find((o) => o.name === 'radius').description).toMatch(/start at the -Z end/)
+  })
+
   it('lists the options of fluent-only factories', () => {
     expect(entry('jf.cylinder').options.map((o) => o.name)).toEqual(['height', 'segments', 'center', 'angle', 'radius', 'outer', 'inner', 'wall'])
     expect(entry('jf.polyhedron').options.map((o) => o.name)).toEqual(['points', 'faces'])

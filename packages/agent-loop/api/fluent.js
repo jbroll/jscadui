@@ -131,9 +131,16 @@ export const fluentEntries = (distDir, modeling) => {
           signature: 'cylinder(options: FlexCylinderOptions) → FluentGeom3',
           description: cylinderDoc.description,
           optionsFirst: true,
-          options: flex.map((m) => ({
-            name: /^(\w+)/.exec(m.text)[1], type: squash(m.text.replace(/^\w+\??\s*:\s*/, '')), default: null, description: m.doc?.description ?? '',
-          })),
+          options: flex.map((m) => {
+            const name = /^(\w+)/.exec(m.text)[1]
+            const documented = cylinderDoc.params.find((p) => p.name === `options.${name}`)
+            return {
+              name,
+              type: documented?.type || squash(m.text.replace(/^\w+\??\s*:\s*/, '')),
+              default: documented?.default ?? null,
+              description: documented?.description || (m.doc?.description ?? ''),
+            }
+          }),
           ...(cylinderDoc.example ? { example: cylinderDoc.example } : {}),
         }
       }

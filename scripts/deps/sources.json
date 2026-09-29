@@ -21,7 +21,7 @@
       "description": "@jbroll/jscad-fluent fork, pinned ahead of npm for @jscad/modeling parity",
       "url": "https://github.com/jbroll/jscad-fluent.git",
       "ref": "modeling-parity",
-      "commit": "6c6996f12a0d91714ddcdebdef6176eb74c887d6",
+      "commit": "bfe6941db05b6b97b5047688568236aa567e73d8",
       "build": ["npm ci", "npm run build"]
     }
   ]
