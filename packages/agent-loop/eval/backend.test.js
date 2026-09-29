@@ -201,6 +201,30 @@ module.exports = { main: () => { load('fs'); return [] } }`)
     expect(JSON.parse(await backend.requestTool('check', { bed: 'mk3' })).saved).toBe(true)
   })
 
+  // Same scenario table as apps/jscad-web/test/aiDeps.test.js: `saved` is
+  // decided against every file the eval used, not just the one last written.
+  it('marks a multi-file project unsaved and saved the same way, across an entry and a helper', async () => {
+    const backend = createEvalBackend()
+    const main = `const { primitives } = require('@jscad/modeling')\nconst { size } = require('./helper.js')\nmodule.exports = { main: () => [primitives.cuboid({ size: [size, size, size] })] }`
+    await backend.requestTool('writeModel', { source: 'module.exports = { main: () => [] }' })
+    await backend.requestTool('writeModel', { source: 'module.exports = { size: 10 }', entry: 'helper.js' })
+    expect(JSON.parse(await backend.requestTool('measure', {})).saved).toBe(true)
+
+    // eval an unsaved entry draft that now uses the helper: unsaved.
+    const evalRes = JSON.parse(await backend.requestTool('eval', { source: main }))
+    expect(evalRes.saved).toBe(false)
+    expect(JSON.parse(await backend.requestTool('measure', {})).saved).toBe(false)
+
+    // writing the draft: saved.
+    await backend.requestTool('writeModel', { source: main })
+    expect(JSON.parse(await backend.requestTool('measure', {})).saved).toBe(true)
+
+    // editing the helper re-runs main.js through it (writeModel always does),
+    // so the freshly-rendered geometry is saved again, not stale.
+    await backend.requestTool('writeModel', { source: 'module.exports = { size: 20 }', entry: 'helper.js' })
+    expect(JSON.parse(await backend.requestTool('measure', {})).saved).toBe(true)
+  })
+
   it('writeModel persists to the memory project', async () => {
     const backend = createEvalBackend()
     const res = JSON.parse(await backend.requestTool('writeModel', { source: CUBE, entry: 'main.js', message: 'first' }))

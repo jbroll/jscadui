@@ -44,8 +44,7 @@ import { showDemoBrowser, demoBrowserStyles } from './src/demoBrowser.js'
 // Extracted modules
 import { updatePipelineStats, countGeometry, createProgressHandler } from './src/stats.js'
 import { capGeometry, DEFAULT_CAPS } from './src/caps.js'
-import { createEvaluate } from './src/aiEvaluate.js'
-import { createSaveTracker } from './src/aiSaveTracker.js'
+import { createSavedDeps } from './src/aiDeps.js'
 // Leaf imports, not ./src/storage/index.js: the index re-exports schema.js,
 // whose zod 4 types the root TS 4.9 gate cannot parse (see root tsconfig).
 import { createLocalStorage } from './src/storage/local.js'
@@ -824,30 +823,21 @@ const toBase64 = (buffers) => {
   return btoa(binary)
 }
 
-// Tracks whether the agent's last eval matches what writeModel last saved, so
-// eval/measure/check answers can carry `saved` the way the eval harness does.
-const saveTracker = createSaveTracker()
-const evaluateModel = createEvaluate(workerApi, handleEntities)
+// evaluate/measure/check/save track `saved` per file across the whole
+// project, and save re-validates like the eval harness's writeModel; see
+// aiDeps.js.
+const savedDeps = createSavedDeps({ workerApi, handleEntities, editor, recordEdit })
 
 const aiDeps = {
-  evaluate: async (source, entry) => {
-    const result = await evaluateModel(source, entry)
-    // A scratch run (no main) neither changes the model nor is a save candidate.
-    if (result.scratch) return result
-    if (result.ok !== false) saveTracker.recordEval(source)
-    return { ...result, saved: saveTracker.isSaved() }
-  },
+  evaluate: savedDeps.evaluate,
   setParams: async (values) => {
     Object.assign(paramsCtrl.params, values)
     for (const key of Object.keys(values)) paramsCtrl.userInteracted.add(key)
     await paramChangeCallback(paramsCtrl.params)
     return { updated: Object.keys(values) }
   },
-  measure: async (options) => ({ ...(await workerApi.jscadMeasure({ options })), saved: saveTracker.isSaved() }),
-  check: async (input) => ({
-    ...(await workerApi.jscadCheck({ bed: input?.bed, options: input ?? {} })),
-    saved: saveTracker.isSaved(),
-  }),
+  measure: savedDeps.measure,
+  check: savedDeps.check,
   exportModel: async ({ format }) => {
     const { data = [] } = await workerApi.jscadExportData({ format })
     const chunks = (data instanceof Array ? data : [data]).filter((v) => v instanceof ArrayBuffer)
@@ -861,12 +851,7 @@ const aiDeps = {
     if (!image) throw new Error('no rendered canvas to capture')
     return { ok: true, image, camera: viewState.viewer.getCamera() }
   },
-  save: async (source, entry = './jscad.model.js') => {
-    editor.setSource(source, entry)
-    await recordEdit(source, entry)
-    saveTracker.recordSave(source)
-    return { ok: true, entry }
-  },
+  save: savedDeps.save,
   docs: (query) => docsTool(apiIndex, query, { api: getChatApi() }),
 }
 

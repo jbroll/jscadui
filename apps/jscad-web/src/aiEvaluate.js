@@ -12,10 +12,10 @@ const toError = (error) => ({ ok: false, error: { name: error?.name ?? 'Error', 
  * @param {{jscadSetFiles:Function,jscadScript:Function}} workerApi
  * @param {(result:any, options:{skipLog?:boolean}) => void} handleEntities
  */
-export const createEvaluate = (workerApi, handleEntities) => async (source, entry = DEFAULT_ENTRY) => {
+export const createEvaluate = (workerApi, handleEntities) => async (source, entry = DEFAULT_ENTRY, files = { [entry]: source }) => {
   let result
   try {
-    result = await sendScript(workerApi, { [entry]: source }, {
+    result = await sendScript(workerApi, files, {
       script: source,
       url: PROJECT_BASE + entry,
       base: PROJECT_BASE,
