@@ -85,17 +85,8 @@ const EQUIVALENT = {
     extrusions: 'FluentGeom2',
     'minkowski.minkowskiSum': 'FluentGeom3.minkowski',
     text: 'jscadText',
-    'text.vectorText': 'jscadText.text2d',
   },
   modeling: { [FLUENT]: MODELING, jf: 'primitives', 'jf.colors': 'colors' },
-}
-
-// The one modeling function a fluent model may import: fluent has no helical
-// extrusion, and threads and springs need one.
-const FLUENT_EXCEPTIONS = {
-  'extrusions.extrudeHelical': (name) =>
-    `${name} is not part of the fluent API, and fluent has no helical extrusion. It is the one @jscad/modeling function a fluent model may use: ` +
-    "`const { extrudeHelical } = require('@jscad/modeling').extrusions`, then `new jf.FluentGeom3(extrudeHelical(options, outline))` to chain on the result.",
 }
 
 // Order among same-named fluent entries: the factory, then the 3D, 2D and
@@ -125,9 +116,8 @@ const equivalentOf = (entry, own, byName, api) => {
   if (mapped) return byName.get(mapped) ?? null
   const bare = lastSegment(entry.name)
   if (api === 'fluent') {
-    if (!isDirectModelingFunction(entry)) return null
     const sameAs = own.filter((e) => e.sameAs === entry.name)
-    const named = own.filter((e) => e.kind === 'function' && lastSegment(e.name) === bare)
+    const named = isDirectModelingFunction(entry) ? own.filter((e) => e.kind === 'function' && lastSegment(e.name) === bare) : []
     return byFluentRank([...sameAs, ...named])[0] ?? null
   }
   if (entry.sameAs) return byName.get(entry.sameAs) ?? null
@@ -137,7 +127,6 @@ const equivalentOf = (entry, own, byName, api) => {
 // A query that only the other API answers gets a pointer, never that API's entry.
 const redirect = (byName, own, hits, query, api) => {
   const name = hits.length === 1 ? hits[0].name : query
-  if (api === 'fluent' && FLUENT_EXCEPTIONS[name]) return `${FLUENT_EXCEPTIONS[name](name)}\n\n${render(byName.get(name), byName)}`
   const target = hits.map((e) => equivalentOf(e, own, byName, api)).find(Boolean)
   if (!target) return `${name} is not available in the ${api} API.`
   return `${name} is not part of the ${api} API; the ${api} form is ${target.name}.\n\n${render(target, byName)}`

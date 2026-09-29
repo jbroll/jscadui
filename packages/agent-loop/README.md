@@ -96,7 +96,9 @@ or function: `name` (`primitives.roundedCuboid`, `jf.cube`,
 first, `optionsFirst` and `options` (name, type, default, description). A
 fluent entry whose options are a modeling function's names it in `sameAs`
 instead of copying them, and the fluent array classes name their base class
-in `extends`. `api/optionTable.js` holds what the option checks need:
+in `extends`. A fluent class method takes its description, example and (with
+no modeling counterpart, as `appendArc`) its options from its own JSDoc in
+the `.d.ts`, and falls back to the same-named modeling function's summary. `api/optionTable.js` holds what the option checks need:
 `options` for functions reached from the exports (`primitives.roundedCuboid`,
 `cube` for `jf.cube`) and `methods` for the fluent class methods whose first
 parameter is an options object, keyed by class (`FluentGeom2.extrudeLinear`);
@@ -176,10 +178,7 @@ chosen API has an equivalent (a `sameAs` link, the same function name, or
 `EQUIVALENT` in `src/docs.js` for namespaces and renamed functions), the
 answer is `<name> is not part of the <api> API; the <api> form is <entry>.`
 followed by that entry; otherwise it is `<name> is not available in the <api>
-API.` The one exception is `extrusions.extrudeHelical` under fluent, which has
-no helical extrusion: the answer permits that single modeling import, wrapped
-as `new jf.FluentGeom3(extrudeHelical(options, outline))`, and shows its
-options. A miss in both is a failed result,
+API.` A miss in both is a failed result,
 `{ ok: false, error: { name: 'NotFoundError', message: 'no entry <query>; closest: a, b, c' } }`,
 with the three nearest names in the chosen API by edit distance. Answers are
 cut at 3,000 characters.

@@ -219,14 +219,9 @@ model with `display-check.js --engine jscad`.
   point at `rectangle`, nor `circle` at `ellipse`. A small alias list in
   `src/hints.js` would cover them.
 - jscad-fluent gaps against `@jscad/modeling`, answered "not available" by the
-  fluent `docs`: `extrudeFromSlices`, `extrudeRectangular`, `project`,
-  `scission`, `modifiers.*`, `curves.bezier.*`, `hullPoints2/3`,
-  `measureAggregate*`, `measureCenterOfMass`, `measureEpsilon`,
-  `transforms.align`, `utils.*`, `text.vectorChar`, and `maths` and
-  `geometries` (in neither index). `extrudeHelical` is the one modeling
-  import the fluent `docs` permits. Upstream: `FluentPath2.expand` returns a
-  `FluentPath2` holding geom2 sides, typed `path2`, with no `extrudeLinear`,
-  so a path cannot be thickened and extruded in one chain.
+  fluent `docs`: the internal `utils` helpers (`areAllShapesTheSameType`,
+  `fnNumberSort`, `insertSorted`), and `maths` and `geometries` (in neither
+  index).
 
 ## Refactoring
 
@@ -255,10 +250,11 @@ Async module loading is the breaking one; the rest are extractions.
 - **jscad-fluent 0.7.0 not yet published.** `extrudeLinear`/`extrudeRotate`/`offset`
   on a `FluentGeom2` used to crash under the manifold engine (`Object.assign`
   copying dropped `ManifoldGeom2`/`ManifoldGeom3`'s prototype getters). Fixed
-  by pinning jscad-fluent commit 273579c through `scripts/deps/sources.json`
+  by pinning jscad-fluent through `scripts/deps/sources.json`
   (`.deps-cache/jscad-fluent`, built by `fetch-sources.js`) instead of the npm
-  0.6.1 release. Remaining work: publish jscad-fluent 0.7.0 with 273579c to
-  npm, then point `apps/jscad-web/package.json` and
+  0.6.1 release; the pin is now 6c6996f on `modeling-parity`, which also adds
+  the `@jscad/modeling` parity surface. Remaining work: publish jscad-fluent
+  0.7.0 from that branch to npm, then point `apps/jscad-web/package.json` and
   `packages/agent-loop/package.json` back at the npm version and remove the
   `sources.json` entry (also its `jscad-anchors` entry, if fluent no longer
   needs it). Until then, the eval resolves fluent's `@jbroll/jscad-anchors`

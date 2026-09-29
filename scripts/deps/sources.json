@@ -18,10 +18,10 @@
     },
     {
       "name": "jscad-fluent",
-      "description": "@jbroll/jscad-fluent fork, pinned ahead of npm for the manifold-getter fix",
+      "description": "@jbroll/jscad-fluent fork, pinned ahead of npm for @jscad/modeling parity",
       "url": "https://github.com/jbroll/jscad-fluent.git",
-      "ref": "local-packages",
-      "commit": "273579c59266bcad873aeee811315e7b94e82f3f",
+      "ref": "modeling-parity",
+      "commit": "6c6996f12a0d91714ddcdebdef6176eb74c887d6",
       "build": ["npm ci", "npm run build"]
     }
   ]

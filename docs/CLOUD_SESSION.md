@@ -19,7 +19,7 @@ OpenSCAD, and the full suite is verified on the GPU host.
 |------------|---------|--------|-----|
 | `openscad-parser` | `packages/openscad` | npm git dependency on `jbroll/openscad-parser` | commit in `packages/openscad/package.json`; `npm install` clones and builds it |
 | `@jscad/modeling`, `@jscad/modeling-for-manifold` | most packages and apps | `file:` into `.deps-cache/OpenJSCAD.org/packages/modeling` (the `@jbroll/jscad-modeling` fork, branch `fork-main`) | `scripts/deps/sources.json`, checked out by `scripts/fetch-sources.js` |
-| `@jbroll/jscad-fluent` | `apps/jscad-web`, `packages/agent-loop` | `file:` into `.deps-cache/jscad-fluent` (branch `local-packages`, ahead of the 0.6.1 npm release with the manifold-getter fix) | `scripts/deps/sources.json`; `fetch-sources.js` also runs its `build` list (`npm ci`, `npm run build`) since it doesn't commit `dist/` |
+| `@jbroll/jscad-fluent` | `apps/jscad-web`, `packages/agent-loop` | `file:` into `.deps-cache/jscad-fluent` (branch `modeling-parity`, ahead of the 0.6.1 npm release with the manifold-getter fix and `@jscad/modeling` parity) | `scripts/deps/sources.json`; `fetch-sources.js` also runs its `build` list (`npm ci`, `npm run build`) since it doesn't commit `dist/` |
 | `@jbroll/jscad-anchors` | jscad-fluent's own `devDependencies: "file:../jscad-anchors"` | pinned as a `.deps-cache/jscad-anchors` sibling so that sibling path resolves | `scripts/deps/sources.json`, listed before jscad-fluent so it exists first; also has a `build` list |
 | OpenSCAD corpora (BOSL, dotSCAD, NopSCADlib, MCAD, …) | comparison suites | `scripts/fetch-deps.js` copies them into `apps/jscad-web/examples/openscad/*` | `scripts/deps/manifest.json` |
 | `@jbroll/rowboat-*` | `apps/jscad-web` storage and server only | `file:../../../rowboat/…` sibling checkout | **not pinned.** Not on npm or GitHub under an accessible name. Without it `npm install` leaves dangling links; the OpenSCAD packages and tests don't need it. |
@@ -71,8 +71,8 @@ npm install                    # refresh the lockfile
 ```
 
 `fetch-sources:update` moves every pinned source to the tip of its own `ref`
-(OpenJSCAD.org's `fork-main`, jscad-fluent's and jscad-anchors' both
-`local-packages`), so it also rebuilds jscad-fluent and jscad-anchors if
+(OpenJSCAD.org's `fork-main`, jscad-fluent's `modeling-parity`,
+jscad-anchors' `local-packages`), so it also rebuilds jscad-fluent and jscad-anchors if
 their tip moved.
 
 For the parser, change the commit in `packages/openscad/package.json` and run

@@ -119,6 +119,6 @@ module.exports = { main: () => primitives.cube({ size: 2 }).translate([1, 0, 0])
     name: 'I: a method used as a jf function',
     api: 'fluent',
     source: fluent('module.exports = { main: () => { jf.measureVolume(jf.cube({ size: 2 })); return jf.cube() } }'),
-    error: ['jf.measureVolume is not a function', 'measureVolume is a method of FluentGeom3: use shape.measureVolume(...)'],
+    error: ['jf.measureVolume is not a function', 'measureVolume is a method of FluentGeom3, FluentGeom3Array: use shape.measureVolume(...)'],
   },
 ]

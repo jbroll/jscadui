@@ -56,6 +56,17 @@ const closeParen = (text, open) => {
   return -1
 }
 
+// A method with no modeling counterpart (appendArc) documents its options in
+// modeling's `[options.name=default]` JSDoc form.
+const docOptions = (doc) => {
+  const options = (doc?.params ?? []).filter((p) => /^options\.[A-Za-z_$][\w$]*$/.test(p.name))
+  if (!options.length) return null
+  return {
+    optionsFirst: true,
+    options: options.map((p) => ({ name: p.name.slice('options.'.length), type: p.type, default: p.default, description: p.description })),
+  }
+}
+
 const method = (text) => {
   const m = /^([A-Za-z_$][\w$]*)\s*\(/.exec(text)
   if (!m) return null
@@ -169,16 +180,19 @@ export const fluentEntries = (distDir, modeling) => {
     const source = read(join(distDir, 'gen', `${cls}.d.ts`))
     const head = new RegExp(`export declare class ${cls}(?:<[^>]*>)?(?: extends (\\w+)(?:<[^>]*>)?)?[^{]*\\{`).exec(source)
     const methodEntries = members(bodyAfter(source, head[0]))
-      .map((m) => m.text)
-      .filter((t) => !/^(private|readonly|static|constructor)\b/.test(t))
-      .map(method)
-      .filter(Boolean)
-      .map((m) => ({
-        name: `${cls}.${m.name}`, pkg: FLUENT, kind: 'function',
-        signature: `${m.name}(${squash(m.params)}) → ${m.returns}`,
-        description: fromModeling(m.name),
-        ...optionsOf(m.name, m.params),
-      }))
+      .filter(({ text }) => !/^(private|readonly|static|constructor)\b/.test(text))
+      .map(({ doc, text }) => ({ doc, m: method(text) }))
+      .filter(({ m }) => m)
+      .map(({ doc, m }) => {
+        const shared = optionsOf(m.name, m.params)
+        return {
+          name: `${cls}.${m.name}`, pkg: FLUENT, kind: 'function',
+          signature: `${m.name}(${squash(m.params)}) → ${m.returns}`,
+          description: doc?.description || fromModeling(m.name),
+          ...(shared.sameAs ? shared : docOptions(doc) ?? shared),
+          ...(doc?.example ? { example: doc.example } : {}),
+        }
+      })
     entries.push(
       {
         name: cls, pkg: FLUENT, kind: 'class',

@@ -270,6 +270,24 @@ module.exports = { main: () => jf.circle({ radius: 5 }).extrudeLinear({ hieght: 
     ])
   })
 
+  it('names unknown options on fluent functions and methods added for modeling parity', async () => {
+    const res = await evalSource(`const jf = require('@jbroll/jscad-fluent')
+module.exports = { main: () => [
+  jf.circle({ radius: 1, center: [5, 0] }).extrudeHelical({ pitchh: 10 }),
+  jf.path({ closd: false }, [[0, 0], [10, 0]]).appendArc({ endpoint: [10, 10], radius: [5, 5], clockwize: true }).expand({ delta: 1 }).extrudeLinear({ height: 1 }),
+  jf.cube({ size: 4 }).project({ axiss: [0, 0, 1] }).extrudeLinear({ height: 1 }),
+  jf.geom3Array(jf.cube({ size: 1 }), jf.cube({ size: 2 })).rotateX(90),
+] }`)
+    expect(res.ok).toBe(true)
+    expect(res.warnings.map(({ fn, option, suggestions }) => ({ fn, option, suggestions }))).toEqual([
+      { fn: 'FluentGeom2.extrudeHelical', option: 'pitchh', suggestions: ['pitch'] },
+      { fn: 'jf.path', option: 'closd', suggestions: ['closed'] },
+      { fn: 'FluentPath2.appendArc', option: 'clockwize', suggestions: ['clockwise'] },
+      { fn: 'FluentGeom3.project', option: 'axiss', suggestions: ['axis'] },
+      { fn: 'FluentGeometryArray.rotateX', option: 'angle', suggestions: undefined },
+    ])
+  })
+
   it('starts each run with no warnings and reports them on writeModel too', async () => {
     const backend = createEvalBackend()
     const bad = `const { primitives } = require('@jscad/modeling')\nmodule.exports = { main: () => primitives.cube({ sise: 3 }) }`

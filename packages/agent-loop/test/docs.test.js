@@ -83,8 +83,37 @@ describe('docs lookup, fluent API', () => {
     expect(fluent('extrusions.extrudeLinear')).toMatch(/the fluent form is FluentGeom2\.extrudeLinear\./)
     expect(fluent('measureVolume')).toMatch(/^FluentGeom3\.measureVolume \(@jbroll\/jscad-fluent\)/)
     expect(fluent('minkowski.minkowskiSum')).toMatch(/the fluent form is FluentGeom3\.minkowski\./)
-    expect(fluent('text.vectorText')).toMatch(/the fluent form is jscadText\.text2d\./)
     expect(fluent('primitives')).toMatch(/^primitives is not part of the fluent API; the fluent form is jf\.\n\njf \(@jbroll\/jscad-fluent\) namespace/)
+  })
+
+  it.each([
+    ['extrusions.extrudeHelical', 'FluentGeom2.extrudeHelical'],
+    ['extrusions.extrudeRectangular', 'FluentGeom2.extrudeRectangular'],
+    ['extrusions.extrudeFromSlices', 'jf.extrudeFromSlices'],
+    ['extrusions.slice.fromPoints', 'jf.slice.fromPoints'],
+    ['extrusions.project', 'FluentGeom3.project'],
+    ['booleans.scission', 'FluentGeom3.scission'],
+    ['modifiers.generalize', 'FluentGeom3.generalize'],
+    ['modifiers.retessellate', 'FluentGeom3.retessellate'],
+    ['curves.bezier.create', 'jf.curves.bezier.create'],
+    ['hulls.hullPoints2', 'jf.hullPoints2'],
+    ['hulls.hullPoints3', 'jf.hullPoints3'],
+    ['measurements.measureAggregateVolume', 'jf.measureAggregateVolume'],
+    ['measurements.measureCenterOfMass', 'FluentGeom3.measureCenterOfMass'],
+    ['transforms.align', 'jf.align'],
+    ['utils.degToRad', 'jf.utils.degToRad'],
+    ['text.vectorText', 'jf.vectorText'],
+    ['text.vectorChar', 'jf.vectorChar'],
+  ])('answers %s, once a gap, with %s', (query, form) => {
+    const answer = fluent(query)
+    const head = answer.startsWith(`${form} `) ? '' : `${query} is not part of the fluent API; the fluent form is ${form}.\n\n`
+    expect(answer.startsWith(`${head}${form} (@jbroll/jscad-fluent)\n`)).toBe(true)
+    expect(answer).not.toContain('(@jscad/modeling)')
+  })
+
+  it('answers jf.vectorText, and keeps jscadText.text2d for filled text', () => {
+    expect(fluent('vectorText').startsWith('jf.vectorText (@jbroll/jscad-fluent)')).toBe(true)
+    expect(fluent('text')).toMatch(/the fluent form is jscadText\./)
   })
 
   it('never shows the modeling entry for a redirect', () => {
@@ -94,17 +123,14 @@ describe('docs lookup, fluent API', () => {
   })
 
   it('says a modeling-only function is not available', () => {
-    expect(fluent('extrusions.project')).toBe('extrusions.project is not available in the fluent API.')
-    expect(fluent('scission')).toBe('booleans.scission is not available in the fluent API.')
-    expect(fluent('curves.bezier.create')).toBe('curves.bezier.create is not available in the fluent API.')
+    expect(fluent('utils.insertSorted')).toBe('utils.insertSorted is not available in the fluent API.')
   })
 
-  it('permits extrudeHelical as the one modeling import, wrapped to chain', () => {
+  it('answers extrudeHelical with the fluent method, no modeling import', () => {
     const answer = fluent('extrudeHelical')
-    expect(answer).toMatch(/^extrusions\.extrudeHelical is not part of the fluent API/)
-    expect(answer).toContain("require('@jscad/modeling').extrusions")
-    expect(answer).toContain('new jf.FluentGeom3(')
+    expect(answer.startsWith('FluentGeom2.extrudeHelical (@jbroll/jscad-fluent)')).toBe(true)
     expect(answer).toContain('  pitch: ')
+    expect(answer).not.toContain("require('@jscad/modeling')")
   })
 
   it('redirects the @jscad/modeling package to jf', () => {
@@ -125,13 +151,13 @@ describe('docs lookup, fluent API', () => {
     expect(JSON.parse(docsTool(index, 'nope', { api: 'fluent' }))).toMatchObject({ ok: false, error: { name: 'NotFoundError' } })
   })
 
-  it('shows a working extrudeHelical exception', async () => {
+  it('documents a helical extrusion that evaluates with no warnings', async () => {
     const source = `const jf = require('@jbroll/jscad-fluent')
-const { extrudeHelical } = require('@jscad/modeling').extrusions
-const main = () => new jf.FluentGeom3(extrudeHelical({ angle: Math.PI * 4, pitch: 10 }, jf.circle({ radius: 1, center: [5, 0] }))).translateZ(2)
+const main = () => jf.circle({ radius: 1, center: [5, 0] }).extrudeHelical({ angle: Math.PI * 4, pitch: 10 }).translateZ(2)
 module.exports = { main }`
     const res = JSON.parse(await createEvalBackend().requestTool('eval', { source }))
     expect(res).toMatchObject({ ok: true })
+    expect(res).not.toHaveProperty('warnings')
   })
 })
 

@@ -145,14 +145,41 @@ describe('fluent entries', () => {
 
   it('tables the options of fluent methods by class', () => {
     const { methods } = OPTION_TABLES['@jbroll/jscad-fluent']
-    expect(Object.keys(methods).sort()).toEqual(['FluentGeom2', 'FluentGeom2Array', 'FluentGeom3', 'FluentGeometryArray', 'FluentPath2'])
-    expect(Object.keys(methods.FluentGeom2).sort()).toEqual(['center', 'expand', 'extrudeLinear', 'extrudeRotate', 'mirror', 'offset'])
-    expect(Object.keys(methods.FluentGeom3).sort()).toEqual(['center', 'expand', 'mirror'])
-    expect(Object.keys(methods.FluentPath2).sort()).toEqual(['center', 'expand', 'mirror', 'offset'])
-    expect(methods.FluentGeometryArray).toEqual({ mirror: ['normal', 'origin'], center: ['axes', 'relativeTo'] })
-    expect(Object.keys(methods.FluentGeom2Array).sort()).toEqual(['extrudeLinear', 'extrudeRotate'])
+    expect(Object.keys(methods).sort()).toEqual(['FluentGeom2', 'FluentGeom2Array', 'FluentGeom3', 'FluentGeometryArray', 'FluentPath2', 'FluentPath2Array'])
+    expect(Object.keys(methods.FluentGeom2).sort()).toEqual([
+      'align', 'center', 'expand', 'extrudeFromSlices', 'extrudeHelical', 'extrudeLinear', 'extrudeRectangular', 'extrudeRotate', 'generalize', 'mirror', 'offset',
+    ])
+    expect(Object.keys(methods.FluentGeom3).sort()).toEqual(['align', 'center', 'expand', 'generalize', 'mirror', 'project'])
+    expect(Object.keys(methods.FluentPath2).sort()).toEqual([
+      'align', 'appendArc', 'appendBezier', 'center', 'expand', 'extrudeRectangular', 'generalize', 'mirror', 'offset',
+    ])
+    expect(Object.keys(methods.FluentGeometryArray).sort()).toEqual(['align', 'center', 'mirror'])
+    expect(Object.keys(methods.FluentGeom2Array).sort()).toEqual(['extrudeHelical', 'extrudeLinear', 'extrudeRectangular', 'extrudeRotate'])
+    expect(Object.keys(methods.FluentPath2Array).sort()).toEqual(['expand', 'extrudeRectangular'])
     expect(methods.FluentGeom2.extrudeLinear).toEqual(['height', 'repair', 'twistAngle', 'twistSteps'])
+    expect(methods.FluentGeom2.extrudeHelical).toEqual(expect.arrayContaining(['angle', 'pitch', 'height', 'segmentsPerRotation']))
+    expect(methods.FluentPath2.appendArc).toEqual(['clockwise', 'endpoint', 'large', 'radius', 'segments', 'xaxisrotation'])
     expect(OPTION_TABLES['@jscad/modeling'].methods).toEqual({})
+  })
+
+  it('takes a class method description and example from its own JSDoc', () => {
+    expect(entry('FluentPath2.appendArc').description).toMatch(/^Add an elliptical arc from the path's last point/)
+    expect(entry('FluentPath2.appendArc').example).toContain('.appendArc({ endpoint: [10, 10]')
+    for (const name of ['FluentPath2.close', 'FluentPath2.concat', 'FluentGeom2.toSides', 'FluentGeom3.retessellate', 'FluentGeom3.invert', 'FluentGeom2.invert']) {
+      expect(entry(name).description, name).not.toBe('')
+    }
+    for (const name of ['FluentPath2.reverse', 'FluentGeom3.clone', 'FluentPath2.clone']) {
+      expect(entry(name).description, name).not.toMatch(/slice/)
+    }
+    expect(entry('FluentGeometryArray.measureArea').description).toMatch(/^Each item's area, in order/)
+  })
+
+  it('tables fluent factories added for modeling parity', () => {
+    const { options } = OPTION_TABLES['@jbroll/jscad-fluent']
+    expect(options.path).toEqual(['closed'])
+    expect(options.align).toEqual(expect.arrayContaining(['modes', 'relativeTo', 'grouped']))
+    expect(options.vectorText).toEqual(expect.arrayContaining(['height', 'align', 'font']))
+    expect(options.extrudeFromSlices).toEqual(expect.arrayContaining(['numberOfSlices', 'callback']))
   })
 
   it('reads nested namespace JSDoc without comment markers', () => {
@@ -167,7 +194,7 @@ describe('fluent entries', () => {
     expect(Object.keys(fluent.options)).not.toContain('polygon')
   })
 
-  it('stays under 150 KB', () => {
-    expect(formatIndex(entries).length).toBeLessThan(150_000)
+  it('stays under 260 KB', () => {
+    expect(formatIndex(entries).length).toBeLessThan(260_000)
   })
 })

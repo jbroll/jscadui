@@ -97,7 +97,7 @@ describe('explainError', () => {
   const modeling = (message) => explainError(message, { api: 'modeling', index })
 
   it('points a method used as a jf function at the method form', () => {
-    expect(fluent('jf.measureVolume is not a function')).toBe('measureVolume is a method of FluentGeom3: use shape.measureVolume(...)')
+    expect(fluent('jf.measureVolume is not a function')).toBe('measureVolume is a method of FluentGeom3, FluentGeom3Array: use shape.measureVolume(...)')
   })
 
   it('points a method called on plain modeling geometry at jf shapes in fluent mode', () => {
