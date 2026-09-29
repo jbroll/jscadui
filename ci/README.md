@@ -54,6 +54,35 @@ crash, or a missing/unset key) — provider errors inside individual runs are
 recorded in the result file, not job failures. A failed style does not stop
 that model's next style.
 
+### Host setup for `ci/eval`
+
+Model code from the models runs only in a crt container with no network, no
+home directory and no provider key (`packages/agent-loop/README.md`,
+Sandbox). The job runs `scripts/eval-sandbox-setup.sh --check` after the
+build and fails before any provider call when the sandbox is missing. Once,
+as the user the job runs as:
+
+1. Install crt on that user's `PATH` (or set `EVAL_CRT` to its absolute path
+   in the job's environment):
+   ```sh
+   sudo cp crt /usr/local/bin/crt && sudo chmod 755 /usr/local/bin/crt
+   ```
+2. Create the rootfs (`ci/jscad-eval.crt`: Void, `nodejs`) and check that an
+   executor starts in it. It lands in `CRT_HOME` (crt's default
+   `/home/crt`), which that user must be able to write; set `CRT_HOME` for
+   both this step and the job otherwise.
+   ```sh
+   scripts/eval-sandbox-setup.sh
+   ```
+3. Optional, so crt enforces the executor's 2G memory limit (without it crt
+   warns and runs with no limit):
+   ```sh
+   sudo crt setup
+   ```
+
+`scripts/eval-sandbox-setup.sh --check` repeats the check at any time; it
+prints `eval sandbox: ready` or what is missing.
+
 ## gpu-poll
 
 The GPU host polls GitHub (outbound HTTPS only; no runner, no inbound ports).

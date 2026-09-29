@@ -27,6 +27,13 @@ npm install
 # package's build failure doesn't mask agent-loop's own build.
 npm run build -- --continue || echo "workspace build had failures (continuing)"
 
+# Model code runs only in the crt sandbox; fail the job before any provider
+# call when the host lacks crt or its rootfs (ci/README.md, host setup).
+if ! scripts/eval-sandbox-setup.sh --check; then
+  echo "ci/eval: the eval sandbox is not set up on this host; see ci/README.md (Live model eval, host setup)" >&2
+  exit 1
+fi
+
 # shellcheck source=ci/eval.conf
 . "$WORKTREE/ci/eval.conf"
 
