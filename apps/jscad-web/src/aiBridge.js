@@ -24,11 +24,7 @@ export const handleToolRequest = async (name, input, deps) => {
     if (name === 'export') return await deps.exportModel(args)
     if (name === 'view') return await deps.view(args)
     if (name === 'docs') return await deps.docs(args.query)
-    if (name === 'writeModel') {
-      const entry = args.entry ?? DEFAULT_ENTRY
-      await deps.save(args.source, entry)
-      return { ok: true, entry }
-    }
+    if (name === 'writeModel') return await deps.save(args.source, args.entry ?? DEFAULT_ENTRY)
     return errorResult({ name: 'UnknownToolError', message: `unknown tool ${name}` })
   } catch (error) {
     return errorResult(error)

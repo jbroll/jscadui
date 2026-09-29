@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { collectProjectFiles, isBinaryPath, replaceProjectFiles } from '../src/projectFiles.js'
+import { collectProjectFiles, isBinaryPath, projectPathOf, replaceProjectFiles } from '../src/projectFiles.js'
 
 // Mirrors what the real Cache API does: addToCache() calls cache.put(new
 // Request(path), ...) with a leading-slash, project-relative path, which
@@ -76,5 +76,17 @@ describe('replaceProjectFiles', () => {
     }
     await replaceProjectFiles(fs, { 'a.js': '', 'b.js': '' })
     expect(order).toEqual(['clear', 'add a.js', 'add b.js'])
+  })
+})
+
+describe('projectPathOf', () => {
+  it('names a project file by its bare path', () => {
+    expect(projectPathOf('main.js')).toBe('main.js')
+    expect(projectPathOf('/lib/gear.js')).toBe('lib/gear.js')
+  })
+
+  it('is null for an example or a remote script, which is not a project file', () => {
+    expect(projectPathOf('http://localhost:5120/examples/jscad/01-two-cars.example.js')).toBeNull()
+    expect(projectPathOf('https://example.com/model.js')).toBeNull()
   })
 })

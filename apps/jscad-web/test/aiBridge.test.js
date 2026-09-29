@@ -10,7 +10,7 @@ const deps = (overrides = {}) => ({
   check: vi.fn(async () => ({ watertight: true })),
   exportModel: vi.fn(async () => ({ format: 'stlb', size: 684 })),
   view: vi.fn(async () => ({ image: 'data:image/png;base64,x' })),
-  save: vi.fn(async () => ({ entry: 'main.js' })),
+  save: vi.fn(async (_source, entry) => ({ ok: true, entry })),
   ...overrides,
 })
 
@@ -60,6 +60,13 @@ describe('local tool bridge', () => {
     const res = await handleToolRequest('writeModel', { source: 'sphere', entry: 'main.js' }, d)
     expect(d.save).toHaveBeenCalledWith('sphere', 'main.js')
     expect(res.entry).toBe('main.js')
+  })
+
+  it("answers writeModel with the run's warnings and console, like the eval harness", async () => {
+    const warnings = [{ fn: 'primitives.cuboid', option: 'radius', suggestions: ['roundRadius'] }]
+    const d = deps({ save: async () => ({ ok: true, entry: 'main.js', warnings, console: ['hi'] }) })
+    const res = await handleToolRequest('writeModel', { source: 'sphere' }, d)
+    expect(res).toEqual({ ok: true, entry: 'main.js', warnings, console: ['hi'] })
   })
 
   it('answers unknown tools with an error result, never a throw', async () => {

@@ -54,7 +54,7 @@ import { createSession } from './src/storage/session.js'
 import { initProjects } from './src/projects.js'
 import { extractEntries, readAsText, readDir } from '@jscadui/fs-provider'
 import { createFrame, createJobTracker } from './src/frameSetup.js'
-import { collectProjectFiles, replaceProjectFiles } from './src/projectFiles.js'
+import { collectProjectFiles, projectPathOf, replaceProjectFiles } from './src/projectFiles.js'
 import { createScriptRuns, sendScript } from './src/scriptRuns.js'
 import { createStreamRuns } from './src/streamRuns.js'
 import { newRunId } from './src/runId.js'
@@ -338,6 +338,7 @@ const recordEdit = (script, path) =>
   storageSession.writeThrough(currentProjectId, path, script, { message: 'edit', entry: path }).catch((err) => console.warn('storage write failed:', err))
 
 let currentProjectId = 'default'
+let currentEntry
 
 const toEditorFiles = (files) =>
   Object.entries(files).map(([path, content]) =>
@@ -347,6 +348,7 @@ const toEditorFiles = (files) =>
 const switchProject = async (id) => {
   const { project, files } = await projectManager.readForSwitch(id)
   currentProjectId = id
+  currentEntry = project.entry
   workerApi.jscadClearTempCache()
   await replaceProjectFiles(fileSystem, files)
   editor.setFiles(toEditorFiles(files))
@@ -726,6 +728,9 @@ editor.init(
     } else {
       const fullUrl = path.startsWith('http') ? path : new URL(path, appBase).toString()
       const base = new URL('./', fullUrl).toString()
+      // The chat's writeModel validates against the file cache, so it must hold this edit.
+      const projectPath = projectPathOf(path)
+      if (projectPath) await fileSystem.addToCacheWrapper(projectPath, script)
       await recordEdit(script, path)
       jscadScript({ script, url: path, base })
     }
@@ -822,11 +827,23 @@ const toBase64 = (buffers) => {
   return btoa(binary)
 }
 
-// evaluate/measure/check/save track `saved` per file across the whole
-// project, and save re-validates like the eval harness's writeModel; see
-// aiDeps.js.
+// The agent works on the open project's files, the file cache every run
+// sends the frame; see aiDeps.js.
 const loadApiIndex = createIndexLoader()
-const savedDeps = createSavedDeps({ workerApi, handleEntities, editor, recordEdit, getApi: getChatApi, loadIndex: loadApiIndex })
+const savedDeps = createSavedDeps({
+  workerApi,
+  handleEntities,
+  editor,
+  recordEdit,
+  getProjectFiles: () => collectProjectFiles(fileSystem.getSwHandler()),
+  writeProjectFile: async (path, source) => {
+    await fileSystem.addToCacheWrapper(path, source)
+    await workerApi.jscadClearFileCache({ files: [path], root: PROJECT_BASE })
+  },
+  getProjectEntry: () => fileSystem.getSwHandler()?.fileToRun ?? currentEntry,
+  getApi: getChatApi,
+  loadIndex: loadApiIndex,
+})
 
 const aiDeps = {
   evaluate: savedDeps.evaluate,

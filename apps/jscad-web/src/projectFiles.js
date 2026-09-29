@@ -6,6 +6,13 @@ const BINARY_EXT = new Set(['stl'])
 export const isBinaryPath = (path) => BINARY_EXT.has(path.slice(path.lastIndexOf('.') + 1).toLowerCase())
 
 /**
+ * The project file an editor path names, or null for a URL (an example or a
+ * remote script).
+ * @param {string} path
+ */
+export const projectPathOf = (path) => (/^[a-z][a-z\d+.-]*:/i.test(path) ? null : path.replace(/^\//, ''))
+
+/**
  * The frame's worker is on another origin, so the file service worker cannot
  * serve it: a service worker only sees fetches from clients it controls. The
  * project travels in the message instead.

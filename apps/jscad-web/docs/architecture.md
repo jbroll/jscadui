@@ -748,7 +748,7 @@ Tools and where they run:
 | Tool | Runs |
 |---|---|
 | `eval`, `measure`, `check`, `export`, `params` | compute frame (`eval` also returns `warnings` and `console`) |
-| `writeModel` | editor buffer plus a version row (also returns `warnings` and `console`) |
+| `writeModel` | the project's file cache, the editor buffer and a version row, then the compute frame re-runs the project (returns `warnings` and `console` like `eval`) |
 | `docs` | page: `docsTool` over `@jscadui/agent-loop/api/index.json` for the chat's API style, no frame round trip |
 
 The index (about 260 KB) is not in the app entry: `build.js` bundles it as
@@ -757,15 +757,29 @@ The index (about 260 KB) is not in the app entry: `build.js` bundles it as
 that needs a hint, then keeps it. A failed load is retried on the next call;
 an eval error goes out without its hint meanwhile.
 
-`eval`, `measure` and `check` also carry `saved: false` when any file the
-agent's last real eval used does not match what `writeModel` has saved for
-it (`true` when every one does), decided against the whole project the
-tool evaluated, not just the last file touched — the same guarantee as the
-eval harness's `saved` (`packages/agent-loop/README.md`), tracked
-client-side per entry in `src/aiSaveTracker.js` (`main.js` wires it through
-`src/aiDeps.js`, which also re-validates on `writeModel` the way the
-harness's `writeModel` does, so an entry with no `main()` fails to save
-with the same error text).
+The agent works on the open project's files: the file cache every run sends
+the frame (`collectProjectFiles`), which `switchProject` refills and the
+editor's own run of a project file writes to. `src/aiDeps.js` reads it at
+each call, so it follows project switches and the user's edits. `eval` runs
+its source over those files, as the eval harness's `eval` runs over its
+project. `writeModel` writes the file into the cache, then re-runs the
+project through its entry: the entry the project declares (the dropped
+folder's `fileToRun`, or the project's `entry`) when the cache holds it, else
+the harness's `projectEntry` rule, `main.js` or the file just written. A
+helper write therefore validates through the model that uses it, and an entry
+with no `main()` fails with the harness's error text, `model exports no
+main()`.
+
+`eval`, `measure` and `check` also carry `saved`: `true` when the open project
+still holds every text file the agent's last real eval used
+(`src/aiSaveTracker.js`), so an unwritten draft, a later change to any of
+those files, or a switch to another project reads `false`.
+
+An `eval` of a script with no `main` is a scratch run: `createEvaluate` sets
+`allowScratch` on its `jscadScript`, and the frame answers the run's console
+and leaves the drawn model alone (`docs/WORKER_PROTOCOL.md`). The editor's
+own runs do not set it, so a user's script with no `main` shows `no main
+function exported`.
 
 `view` (page, from the live canvas) is not offered to the model: its PNG data
 URL gets JSON-encoded into a text tool result that no provider adapter turns
@@ -773,9 +787,8 @@ back into an image block, so the model never sees a picture, only hundreds of
 KB of base64 text. The handler stays for other callers.
 
 `params` calls `paramsUI.runParamChange`, which re-runs `jscadMain` against
-whatever the frame last loaded — the agent's `eval` source or the editor's,
-whichever ran last. `writeModel` only fills the editor buffer; nothing compiles
-until the user runs it.
+whatever the frame last loaded: the agent's `eval` source, the project a
+`writeModel` re-ran, or the editor's run, whichever ran last.
 
 ### Unknown-option warnings
 
@@ -797,8 +810,8 @@ during the require, keeps each `fn`+`option` once, holds at most 20, and
 `jscadMain` returns them as `warnings`.
 
 A grid run's answer merges every member's warnings the same way. The chat's
-`eval` result passes them on as `{ entityCount, warnings }`; the editor's own
-runs ignore them.
+`eval` result passes them on as `{ entityCount, warnings }` and `writeModel`'s
+as `{ ok, entry, warnings }`; the editor's own runs ignore them.
 
 The same wrappers check more than option names (`packages/agent-loop/README.md`
 has the rules): a number option given an array or the reverse, a rotate angle
