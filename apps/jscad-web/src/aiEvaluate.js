@@ -36,6 +36,7 @@ export const createEvaluate = (workerApi, handleEntities, getApi = () => DEFAULT
       url: PROJECT_BASE + entry,
       base: PROJECT_BASE,
       root: PROJECT_BASE,
+      allowScratch: true,
     }, api)
   } catch (error) {
     return toError(error, api, loadIndex)

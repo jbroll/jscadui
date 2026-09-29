@@ -11,7 +11,7 @@ const consoleCollector = () => {
   return { reset: () => (list = []), list: () => list, log: (line) => list.push(line) }
 }
 
-describe('a script with no main', () => {
+describe('a script with no main, run for the chat (allowScratch)', () => {
   afterEach(() => {
     setRunConsole(null)
     delete globalThis.__runConsole
@@ -29,7 +29,7 @@ describe('a script with no main', () => {
     workerState.solids = marker
 
     const script = "globalThis.__runConsole.log('expected volume 42')\nmodule.exports = {}"
-    const result = await jscadScript({ script, url: 'http://project.local/scratch.js' })
+    const result = await jscadScript({ script, url: 'http://project.local/scratch.js', allowScratch: true })
 
     expect(result).toMatchObject({
       scratch: true,
@@ -40,7 +40,7 @@ describe('a script with no main', () => {
   })
 
   it('is a scratch run for an object export with no main too', async () => {
-    const result = await jscadScript({ script: 'module.exports = { size: 10 }', url: 'http://project.local/scratch2.js' })
+    const result = await jscadScript({ script: 'module.exports = { size: 10 }', url: 'http://project.local/scratch2.js', allowScratch: true })
     expect(result.scratch).toBe(true)
   })
 
@@ -50,7 +50,7 @@ describe('a script with no main', () => {
     workerState.userInteracted = interacted
     workerState.currentUiValues = uiValues
 
-    await jscadScript({ script: 'module.exports = {}', url: 'http://project.local/scratch3.js' })
+    await jscadScript({ script: 'module.exports = {}', url: 'http://project.local/scratch3.js', allowScratch: true })
 
     expect(workerState.userInteracted).toBe(interacted)
     expect(workerState.currentUiValues).toBe(uiValues)
@@ -58,11 +58,17 @@ describe('a script with no main', () => {
 
   it('leaves nothing behind for the next normal run, whose own geometry replaces the marker', async () => {
     workerState.solids = [{ id: 'previous-solid' }]
-    await jscadScript({ script: 'module.exports = {}', url: 'http://project.local/scratch4.js' })
+    await jscadScript({ script: 'module.exports = {}', url: 'http://project.local/scratch4.js', allowScratch: true })
 
     const result = await jscadScript({ script: 'module.exports = { main: () => [] }', url: 'http://project.local/normal.js' })
 
     expect(result.scratch).toBeUndefined()
     expect(currentSolids()).toEqual([])
+  })
+})
+
+describe('a script with no main, run from the editor', () => {
+  it('fails with an error the user sees', async () => {
+    await expect(jscadScript({ script: 'module.exports = {}', url: 'http://project.local/editor.js' })).rejects.toThrow('no main function exported')
   })
 })

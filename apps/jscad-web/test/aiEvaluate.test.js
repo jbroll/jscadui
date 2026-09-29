@@ -25,6 +25,12 @@ describe('createEvaluate', () => {
     expect(handleEntities).not.toHaveBeenCalled()
   })
 
+  it('asks the frame for a scratch answer, which an editor run does not get', async () => {
+    const api = workerApi(async () => ({ entities: [{}] }))
+    await createEvaluate(api, vi.fn())('1', 'main.js')
+    expect(api.jscadScript.mock.calls[0][0].allowScratch).toBe(true)
+  })
+
   it('omits console from a scratch answer when the run logged nothing', async () => {
     const api = workerApi(async () => ({ scratch: true, console: [], message: 'no main(): nothing rendered, current model unchanged' }))
     const res = await createEvaluate(api, vi.fn())('1', 'main.js')

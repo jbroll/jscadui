@@ -22,6 +22,7 @@ import { createClaims } from './src/claims.js'
  @prop {string} url - script url/name
  @prop {string} base - base url 
  @prop {string} [root] - root (do not allow paths below that root)  
+ @prop {boolean} [allowScratch] - answer a script with no main as a scratch run instead of failing
 
  @typedef ExportDataOptions
  @prop {string} format
@@ -459,7 +460,7 @@ const exportReg = /export.*from/
  * @param {{script:string,url?:string,base?:string,root?:string,useGpuNormals?:boolean,runId?:unknown,held?:string[],runMain?:boolean}} param0
  * @returns {Promise<import('@jscadui/format-common').JscadScriptResultWithParams>}
  */
-export const jscadScript = async ({ script, url='jscad.js', base=workerState.globalBase, root=base, useGpuNormals: gpuNormals, runId, held, runMain = true }) => {
+export const jscadScript = async ({ script, url='jscad.js', base=workerState.globalBase, root=base, useGpuNormals: gpuNormals, runId, held, runMain = true, allowScratch = false }) => {
   // I1 fix: Increment generation to invalidate any timed-out scripts still running
   const myGeneration = workerState.nextGeneration()
   // An ALL.js grid yields between cells and reads this to stop once it is stale
@@ -550,10 +551,10 @@ export const jscadScript = async ({ script, url='jscad.js', base=workerState.glo
     // Promotion loads the spare with the last script ahead of time, without running main
     if (!runMain) return { def: [], params: {} }
 
-    // A script with no main is a scratch run (console-only debugging, say): report
-    // its console output and leave workerState.solids (the current model) alone,
-    // rather than failing and losing what it printed.
+    // For the chat's eval, a script with no main is a scratch run (console-only
+    // debugging, say): report its console output and leave the current model alone.
     if (!workerState.main) {
+      if (!allowScratch) throw new Error('no main function exported')
       Object.assign(workerState, previousModelState)
       return {
         def: [],

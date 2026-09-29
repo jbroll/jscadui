@@ -31,6 +31,7 @@ interface RunScriptOptions {
   held?: string[]   // passed to the main run; see jscadMain
   runMain?: boolean // default true
   supersede?: boolean // read and stripped by the frame; see supersede below
+  allowScratch?: boolean // default false; see scratch runs below
 }
 
 interface JscadScriptResult {
@@ -39,14 +40,60 @@ interface JscadScriptResult {
   entities: Entity[]
   mainTime: number
   convertTime: number
+  warnings?: OptionWarning[] // see warnings and console below
+  console?: string[]
+}
+
+interface JscadScratchResult {
+  def: []
+  params: {}
+  scratch: true
+  console: string[]
+  message: string   // 'no main(): nothing rendered, current model unchanged'
 }
 ```
+
+A script that exports no `main` fails with `no main function exported`,
+which the editor shows as an error. With `allowScratch: true` (the chat's
+`eval` sets it) the same script is a scratch run instead: `jscadScript`
+answers a `JscadScratchResult` and restores the loaded model, its solids and
+its parameter state, so the chat can run console-only code without losing
+what is drawn.
 
 With `runMain: false`, `jscadScript` loads the module and waits for WASM to be
 ready, same as a normal load, but resolves `{ def: [], params: {} }` without
 calling `main`. The frame uses this on one of its idle workers, one being
 promoted to active or joining a grid run, to have the last script loaded and
 ready before it runs, then sends `jscadMain` separately.
+
+### jscadSetFiles
+Frame only. Sets the project file map the next load reads from, and the
+chat's API style.
+
+```typescript
+interface SetFilesOptions {
+  files: Record<string, string | ArrayBuffer> // bare project paths, resolved against PROJECT_BASE
+  api?: 'fluent' | 'modeling'                  // names the form option warnings suggest; default fluent
+}
+```
+
+The app sends it in the same turn as the `jscadScript` that uses it
+(`sendScript` in `apps/jscad-web/src/scriptRuns.js`), so no other run's map
+lands between them. The frame mirrors it to every worker in the pool.
+
+### Warnings and console
+
+A `jscadScript` or `jscadMain` result carries `warnings` when the model passed
+an option the checks flag: an unknown name, the wrong type, or an angle that
+looks like degrees (the checks in
+`packages/agent-loop/src/optionChecks.js`, installed by
+`src_frame/optionWarnings.js`), and `console` when the model logged anything.
+Both are left out when empty. `jscadScript` clears both before the module
+loads; `jscadMain` does not, so a parameter change reports the load's
+warnings plus its own, with duplicates dropped. The worker holds no
+agent-loop code for this: the frame installs the collectors through
+`setRunWarnings` and `setRunConsole` (see
+[packages/worker/README.md](../packages/worker/README.md)).
 
 ### jscadMain
 Re-run main() with new parameters.
@@ -69,6 +116,15 @@ interface JscadMainResult {
   runId?: unknown    // set only when streamed
   trapped?: true     // set when the worker's WASM instance has trapped
   lost?: { url: string, reason: string }[]  // set on a run that fanned out; see jscadClaim
+  warnings?: OptionWarning[] // see warnings and console above
+  console?: string[]
+}
+
+interface OptionWarning {
+  fn: string              // e.g. 'primitives.cuboid' or 'FluentGeom3.translate'
+  option: string          // the option the check flagged
+  suggestions?: string[]  // near spellings the function does take
+  hint?: string           // what to write instead, in the chat's API style
 }
 ```
 
