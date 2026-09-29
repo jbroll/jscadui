@@ -13,6 +13,15 @@
 - `log/`: the chat log reader and the data-dir lookup (`log-dir.js`).
 - `eval/`: the live eval. Not shipped.
 
+## Tool protocol
+
+All model interaction is a tool call (`eval`, `params`, `measure`, `check`,
+`view`, `export`, `writeModel`, `docs`): `runTurn` streams `text` events as
+chat prose and never parses them for code, so model source travels only in a
+`tool_use` input (`eval.source`, `writeModel.source`). No markdown-fence
+extractor exists anywhere in the app or the eval, and none is wanted — a
+model that wants to run code has to call a tool.
+
 ## Model code in the eval
 
 The eval runs model code through `@jscadui/require` with the compute frame's

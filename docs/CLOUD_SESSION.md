@@ -71,7 +71,7 @@ npm install                    # refresh the lockfile
 ```
 
 `fetch-sources:update` moves every pinned source to the tip of its own `ref`
-(OpenJSCAD.org's `fork-main`, jscad-fluent's `modeling-parity`,
+(OpenJSCAD.org's `fork-main`, jscad-fluent's `main`,
 jscad-anchors' `local-packages`), so it also rebuilds jscad-fluent and jscad-anchors if
 their tip moved.
 

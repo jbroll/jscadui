@@ -276,7 +276,7 @@ Async module loading is the breaking one; the rest are extractions.
   copying dropped `ManifoldGeom2`/`ManifoldGeom3`'s prototype getters). Fixed
   by pinning jscad-fluent through `scripts/deps/sources.json`
   (`.deps-cache/jscad-fluent`, built by `fetch-sources.js`) instead of the npm
-  0.6.1 release; the pin is now bfe6941 on `modeling-parity`, which also adds
+  0.6.1 release; the pin is now bfe6941 on `main`, which also adds
   the `@jscad/modeling` parity surface. Remaining work: publish jscad-fluent
   0.7.0 from that branch to npm, then point `apps/jscad-web/package.json` and
   `packages/agent-loop/package.json` back at the npm version and remove the

@@ -49,7 +49,12 @@ sources) use; it runs unsandboxed. Tests may start a plain permission-model
 child instead of crt (`sandboxFrom(env, { live: false })` with
 `EVAL_SANDBOX=child`, or `startExecutor` with `{ kind: 'child' }`).
 `eval/sandbox-crt.test.js` runs model code in the real sandbox and skips when
-crt or the rootfs is missing. `test/warningCases.js` holds the option-warning
+crt or the rootfs is missing: it needs `EVAL_CRT` (or `crt` on `PATH`) plus the
+rootfs from `scripts/eval-sandbox-setup.sh`. Locally, set `CRT_HOME` outside
+`$HOME` and `/tmp` — e.g. `/var/tmp/claude-jscad-eval/crt-home`, or
+`/data/crt/home/$USER` on a host with the `/data/crt` layout — then run
+`scripts/eval-sandbox-setup.sh` to create the rootfs there before the suite
+picks it up. `test/warningCases.js` holds the option-warning
 cases the eval backend and the app's `createEvaluate` must answer alike, and
 `eval/fluent-guard.test.js` fails on any warning from the repo's fluent
 examples.
