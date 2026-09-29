@@ -1,6 +1,6 @@
 // packages/agent-loop/test/providers.test.js
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createProvider, parseAnthropicStream, parseOpenAIStream } from '../src/providers.js'
+import { createProvider, fetchWithRetry, parseAnthropicStream, parseOpenAIStream } from '../src/providers.js'
 import { parseResponsesStream } from '../src/responses.js'
 import { buildMessages } from '../src/context.js'
 
@@ -236,6 +236,123 @@ describe('providers', () => {
     const p = createProvider({ kind: 'meta', apiKey: 'k', model: 'some-chat-model', effort: 'xhigh' })
     for await (const e of p.send([{ role: 'user', content: 'hi' }], [])) void e
     expect(JSON.parse(fetchMock.mock.calls[0][1].body).reasoning_effort).toBe('xhigh')
+  })
+})
+
+describe('fetchWithRetry', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('retries once after an overloaded response, then succeeds', async () => {
+    vi.useFakeTimers()
+    const overloaded = new Response(JSON.stringify({ error: { code: 'service_overloaded', message: 'busy' } }), { status: 503 })
+    const ok = new Response('done')
+    const fetchImpl = vi.fn().mockResolvedValueOnce(overloaded).mockResolvedValueOnce(ok)
+    const onRetry = vi.fn()
+    const promise = fetchWithRetry(fetchImpl, 'https://x.test', {}, { onRetry })
+    await vi.advanceTimersByTimeAsync(3000)
+    const res = await promise
+    expect(res).toBe(ok)
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+    expect(onRetry).toHaveBeenCalledTimes(1)
+    expect(onRetry.mock.calls[0][0]).toEqual(expect.objectContaining({ attempt: 1, maxAttempts: 4, status: 503 }))
+  })
+
+  it('honors Retry-After on a 429, capped and exact, then succeeds', async () => {
+    vi.useFakeTimers()
+    const limited = new Response(JSON.stringify({ error: { message: 'slow down' } }), { status: 429, headers: { 'retry-after': '1' } })
+    const ok = new Response('done')
+    const fetchImpl = vi.fn().mockResolvedValueOnce(limited).mockResolvedValueOnce(ok)
+    const onRetry = vi.fn()
+    const promise = fetchWithRetry(fetchImpl, 'https://x.test', {}, { onRetry })
+    await vi.advanceTimersByTimeAsync(1000)
+    const res = await promise
+    expect(res).toBe(ok)
+    expect(onRetry.mock.calls[0][0].delayMs).toBe(1000)
+  })
+
+  it('does not retry a 401 (auth error)', async () => {
+    const unauthorized = new Response(JSON.stringify({ error: { code: 'invalid_api_key', message: 'bad key' } }), { status: 401 })
+    const fetchImpl = vi.fn().mockResolvedValue(unauthorized)
+    const onRetry = vi.fn()
+    const res = await fetchWithRetry(fetchImpl, 'https://x.test', {}, { onRetry })
+    expect(res.ok).toBe(false)
+    expect(res.status).toBe(401)
+    expect(res.text).toContain('bad key')
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    expect(onRetry).not.toHaveBeenCalled()
+  })
+
+  it('gives up after 4 attempts and returns the last failure', async () => {
+    vi.useFakeTimers()
+    const failing = () => new Response(JSON.stringify({ error: { code: 'overloaded_error', message: 'still busy' } }), { status: 503 })
+    const fetchImpl = vi.fn().mockImplementation(async () => failing())
+    const onRetry = vi.fn()
+    const promise = fetchWithRetry(fetchImpl, 'https://x.test', {}, { onRetry })
+    await vi.advanceTimersByTimeAsync(30_000)
+    const res = await promise
+    expect(res.ok).toBe(false)
+    expect(res.status).toBe(503)
+    expect(fetchImpl).toHaveBeenCalledTimes(4)
+    expect(onRetry).toHaveBeenCalledTimes(3)
+  })
+
+  it('retries a network error (fetch rejection), then succeeds', async () => {
+    vi.useFakeTimers()
+    const ok = new Response('done')
+    const fetchImpl = vi.fn().mockRejectedValueOnce(new TypeError('fetch failed')).mockResolvedValueOnce(ok)
+    const onRetry = vi.fn()
+    const promise = fetchWithRetry(fetchImpl, 'https://x.test', {}, { onRetry })
+    await vi.advanceTimersByTimeAsync(3000)
+    const res = await promise
+    expect(res).toBe(ok)
+    expect(onRetry.mock.calls[0][0]).toEqual(expect.objectContaining({ attempt: 1, status: null }))
+  })
+})
+
+describe('providers: retry wiring', () => {
+  it('anthropic: does not retry a mid-stream error, even with zero prior output', async () => {
+    const midStreamError = `data: {"type":"error","error":{"code":"service_overloaded","message":"overloaded mid-stream"}}\n\n`
+    fetchMock.mockResolvedValue(new Response(sseBody(midStreamError)))
+    const provider = createProvider({ kind: 'anthropic', apiKey: 'k', model: 'm', baseUrl: 'https://relay.test' })
+    const drain = async () => {
+      for await (const e of provider.send([{ role: 'user', content: 'hi' }], [])) void e
+    }
+    await expect(drain()).rejects.toThrow(/overloaded mid-stream/)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('openai: surfaces a retry event before streaming, then completes', async () => {
+    vi.useFakeTimers()
+    try {
+      const limited = new Response(JSON.stringify({ error: { code: 'rate_limit_exceeded', message: 'slow down' } }), { status: 429 })
+      const body = `data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n` + `data: [DONE]\n\n`
+      fetchMock.mockResolvedValueOnce(limited).mockResolvedValueOnce(new Response(sseBody(body)))
+      const provider = createProvider({ kind: 'openai', apiKey: 'k', model: 'm', baseUrl: 'https://relay.test' })
+      const promise = (async () => {
+        const events = []
+        for await (const e of provider.send([{ role: 'user', content: 'hi' }], [])) events.push(e)
+        return events
+      })()
+      await vi.advanceTimersByTimeAsync(3000)
+      const events = await promise
+      expect(events[0]).toEqual(expect.objectContaining({ type: 'retry', attempt: 1, status: 429 }))
+      expect(events[events.length - 1]).toEqual({ type: 'done', stopReason: 'stop' })
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not retry a 401 through the provider (no retry event, one fetch)', async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ error: { code: 'invalid_api_key', message: 'bad key' } }), { status: 401 }))
+    const provider = createProvider({ kind: 'openai', apiKey: 'k', model: 'm', baseUrl: 'https://relay.test' })
+    const drain = async () => {
+      for await (const e of provider.send([{ role: 'user', content: 'hi' }], [])) void e
+    }
+    await expect(drain()).rejects.toThrow(/bad key/)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 })
 

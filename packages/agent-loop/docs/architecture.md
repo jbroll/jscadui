@@ -14,6 +14,26 @@
 - `log/`: the chat log reader and the data-dir lookup (`log-dir.js`).
 - `eval/`: the live eval. Not shipped.
 
+## Providers
+
+`fetchWithRetry` in `providers.js` wraps the initial request for the Anthropic,
+OpenAI chat-completions and Responses adapters alike: on a 429/5xx status, a
+provider error code meaning overloaded or rate-limited (`service_overloaded`,
+`overloaded_error`, `rate_limit_exceeded`, and similar), or a network error
+(fetch rejecting), it retries up to 4 attempts total with backoff around 2s,
+5s, 12s (jittered +/-20%, capped at 30s), honoring a `Retry-After` header when
+present. A 4xx auth or invalid-request error never retries. Retrying happens
+only before the response body starts streaming, so a retry can never duplicate
+output already sent to the caller — an error surfacing while `parseXStream` is
+reading the SSE body ends the call immediately, retried or not. Each retry
+yields a `{type: 'retry', attempt, maxAttempts, status, reason, delayMs}` event
+into the provider's stream, the same way a `usage` event rides alongside
+`text`/`tool_use`/`done`; `runTurn` (`loop.js`) ignores event types it doesn't
+know, so the app sees nothing beyond the eventual success or the final error.
+The eval's `withTurnCap` (`eval/run-eval.js`) counts these into
+`metrics.providerRetries` and logs one live-log line per retry
+([user-manual.md](user-manual.md#metrics)).
+
 ## Tool protocol
 
 All model interaction is a tool call (`eval`, `params`, `measure`, `check`,

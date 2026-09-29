@@ -18,6 +18,11 @@ export function formatToolCall(name, input) {
   return `→ ${name}${rest}`
 }
 
+export function formatRetry({ attempt, maxAttempts, status, reason, delayMs }) {
+  const cause = status != null ? `status ${status}` : 'network error'
+  return `retry ${attempt}/${maxAttempts} after ${cause}: ${clip(reason ?? '', 200)} (waiting ${delayMs}ms)`
+}
+
 export function formatToolResult(resultString) {
   let parsed
   try {

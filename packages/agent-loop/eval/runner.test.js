@@ -8,6 +8,33 @@ const scripted = (rounds) => ({
   },
 })
 
+describe('runSuite provider retries', () => {
+  it('counts retry events in metrics.providerRetries and forwards them via onProviderRetry', async () => {
+    const backend = createEvalBackend()
+    const seen = []
+    const provider = scripted([
+      [
+        { type: 'retry', attempt: 1, maxAttempts: 4, status: 503, reason: 'overloaded', delayMs: 2000 },
+        { type: 'text', text: 'a 20mm cube' },
+        { type: 'done', stopReason: 'end_turn' },
+      ],
+    ])
+    const fixture = { name: 'x', prompt: 'p', requires: ['eval'], verifyBeforeWrite: false, maxTurns: 8, checks: () => [] }
+    const [result] = await runSuite([fixture], { provider, backend, onProviderRetry: (event) => seen.push(event) })
+    expect(result.metrics.providerRetries).toBe(1)
+    expect(seen).toEqual([{ type: 'retry', attempt: 1, maxAttempts: 4, status: 503, reason: 'overloaded', delayMs: 2000 }])
+    expect(result.providerError).toBeUndefined()
+  })
+
+  it('metrics.providerRetries is 0 when the provider never retries', async () => {
+    const backend = createEvalBackend()
+    const fixture = { name: 'x', prompt: 'p', requires: ['eval'], verifyBeforeWrite: false, maxTurns: 8, checks: () => [] }
+    const provider = scripted([[{ type: 'text', text: 'done' }, { type: 'done', stopReason: 'end_turn' }]])
+    const [result] = await runSuite([fixture], { provider, backend })
+    expect(result.metrics.providerRetries).toBe(0)
+  })
+})
+
 describe('runSuite', () => {
   it('runs a fixture against a scripted provider and grades it', async () => {
     const backend = createEvalBackend()

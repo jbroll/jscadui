@@ -334,8 +334,8 @@ run limit) keeps the transcript up to that point.
 ### Live log
 
 Every run appends the same conversation lines `EVAL_VERBOSE` prints — run
-headers, prompts, tool calls with source, tool results, per-run summaries,
-and the final tables and speed line — to
+headers, prompts, tool calls with source, tool results, provider retries,
+per-run summaries, and the final tables and speed line — to
 `~/.local/state/jscad-chat/eval-live.log` (`eval/live-log.js`), whether or not
 `EVAL_VERBOSE` is set; that variable only controls stdout. A conversation's
 lines, on stdout and in the log, are prefixed `[<model>/<api> <fixture>#<run>] ` so
@@ -398,7 +398,10 @@ even when it streamed reasoning and a `usage` event; the run records
 `error: "empty provider reply"`. The turn cap's own closing round is not one.
 Each run records its provider calls' stop reasons in order as `stopReasons`
 (`end_turn`, `tool_use`, `length`, ...). An empty reply and any error the provider's stream
-throws (HTTP, network, auth, rate limit) also set `providerError: true`.
+throws (HTTP, network, auth, rate limit) also set `providerError: true`. A
+transient overload or rate limit retries first ([architecture.md](architecture.md#providers)
+metrics under `providerRetries`); only an error that survives every retry
+reaches the run as a `providerError`.
 
 The summary gives, per fixture, the mean `firstAttemptFailures`, the pass rate
 of its geometry checks, the mean total and the count of runs with an `error`.
@@ -428,6 +431,9 @@ tend to max out once a prompt clears the bar:
   `usage.completion_tokens_details.reasoning_tokens` or the Responses API's
   `usage.output_tokens_details.reasoning_tokens`; `null` when the provider
   never reports it (Anthropic never does).
+- `providerRetries`: retries the provider wrapper made across the run's calls
+  (see [architecture.md](architecture.md#providers)); 0 when none happened.
+  Transcript-independent, so `--regrade` leaves it as stored.
 - `seconds`: wall time of the run.
 - `geometryError`: relative error against an optional fixture `target`
   (`{ volume?, dimensions? }`): the max of `|volume - target| / target` and,

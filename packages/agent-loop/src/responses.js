@@ -2,7 +2,7 @@
 // Grok, GPT Luna) are served here instead of `/v1/chat/completions`. Shape
 // follows the public Responses API; verified against mocks only until budget
 // allows a live run.
-import { PROVIDER_BASE_URLS, ssePayloads } from './providers.js'
+import { fetchWithRetry, PROVIDER_BASE_URLS, ssePayloads } from './providers.js'
 
 const toResponsesTool = (tool) => ({
   type: 'function',
@@ -93,14 +93,16 @@ export const responsesProvider = (config) => {
       }
       if (config.kind === 'opencode-go') headers['x-opencode-session'] = sessionId
       if (config.chatId) headers['x-jscad-chat-id'] = config.chatId
-      const res = await fetch(`${config.baseUrl ?? PROVIDER_BASE_URLS[config.kind]}/v1/responses`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(body),
-      })
+      const retries = []
+      const res = await fetchWithRetry(
+        fetch,
+        `${config.baseUrl ?? PROVIDER_BASE_URLS[config.kind]}/v1/responses`,
+        { method: 'POST', headers, body: JSON.stringify(body) },
+        { onRetry: (event) => retries.push(event) },
+      )
+      for (const event of retries) yield { type: 'retry', ...event }
       if (!res.ok) {
-        const detail = await res.text()
-        throw new Error(`responses: ${detail} (status ${res.status})`)
+        throw new Error(`responses: ${res.text} (status ${res.status})`)
       }
       yield* parseResponsesStream(res.body)
     },

@@ -18,7 +18,7 @@ import { computeSpeed, formatComparison, formatSummary, summarize } from './repo
 import { NO_GRADE } from './executor-protocol.js'
 import { CALL_TIMEOUT_MS, createSandboxedBackend, gradeInFreshExecutor, READY_TIMEOUT_MS } from './sandboxed-backend.js'
 import { concurrencyCap, killExecutors, sandboxFrom, sandboxProblem, startExecutor } from './sandbox.js'
-import { formatRunHeader, formatText, formatToolCall, formatToolResult } from './verbose.js'
+import { formatRetry, formatRunHeader, formatText, formatToolCall, formatToolResult } from './verbose.js'
 
 const FIXTURES = new URL('./fixtures/', import.meta.url)
 const MODELS = JSON.parse(readFileSync(new URL('./models.json', import.meta.url), 'utf8'))
@@ -89,7 +89,7 @@ const isContentEvent = (event) => event.type === 'text' || event.type === 'tool_
 // (reasoning and usage alone are no reply), records each call's stop reason,
 // notes whether the provider itself threw, and times each call against an
 // injected clock so the caller can read rounds/usage/speed once the run ends.
-const withTurnCap = (provider, maxTurns, now = () => performance.now()) => {
+const withTurnCap = (provider, maxTurns, now = () => performance.now(), onRetry) => {
   let rounds = 0
   let emptyReplies = 0
   const stopReasons = []
@@ -99,6 +99,7 @@ const withTurnCap = (provider, maxTurns, now = () => performance.now()) => {
   let reasoningTokens = null
   let providerSeconds = 0
   const firstTokenSeconds = []
+  let providerRetries = 0
   return {
     async *send(messages, tools) {
       rounds += 1
@@ -121,6 +122,10 @@ const withTurnCap = (provider, maxTurns, now = () => performance.now()) => {
             if (typeof event.outputTokens === 'number') outputTokens = (outputTokens ?? 0) + event.outputTokens
             if (typeof event.reasoningTokens === 'number') reasoningTokens = (reasoningTokens ?? 0) + event.reasoningTokens
           }
+          if (event.type === 'retry') {
+            providerRetries += 1
+            onRetry?.(event)
+          }
           if (event.type === 'done') {
             if (!replied) emptyReplies += 1
             stopReasons.push(event.stopReason ?? null)
@@ -141,6 +146,7 @@ const withTurnCap = (provider, maxTurns, now = () => performance.now()) => {
     stopReasons: () => [...stopReasons],
     providerFailed: () => providerFailed,
     usage: () => ({ inputTokens, outputTokens, reasoningTokens }),
+    retries: () => providerRetries,
     speed: () => ({
       providerSeconds,
       firstTokenSeconds: firstTokenSeconds.length
@@ -175,6 +181,7 @@ export async function runConversation(
     onToolCall,
     onToolResult,
     onText,
+    onProviderRetry,
   },
 ) {
   const messages = buildMessages({ systemPrompt, transcript: fixture.transcript ?? [], files: fixture.files ?? {}, message: fixture.prompt })
@@ -186,7 +193,7 @@ export async function runConversation(
     infraError = true
     error ??= err.message
   }
-  const cappedProvider = withTurnCap(provider, maxTurns, now)
+  const cappedProvider = withTurnCap(provider, maxTurns, now, onProviderRetry)
   const startedAt = Date.now()
   try {
     await backend.reset(fixture.files)
@@ -257,6 +264,7 @@ export async function runConversation(
       outputTokens,
       reasoningTokens,
       seconds,
+      providerRetries: cappedProvider.retries(),
       providerSeconds,
       firstTokenSeconds,
       outputTokensPerSecond,
@@ -305,6 +313,10 @@ export async function runJob(
       onToolResult: (_name, output) => onLog(formatToolResult(output)),
       onText: (text) => {
         pending += text
+      },
+      onProviderRetry: (event) => {
+        flush()
+        onLog(formatRetry(event))
       },
     })
     flush()

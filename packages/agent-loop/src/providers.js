@@ -19,6 +19,94 @@ export const PROVIDER_BASE_URLS = {
 export const RESPONSES_MODELS = new Set(['grok-4.6', 'gpt-5.6-luna', 'muse-spark-1.3-contributor', 'muse-spark-1.2-contributor', 'muse-spark-1.3'])
 export const MESSAGES_MODELS = new Set(['minimax-m3', 'minimax-m2.7', 'minimax-m2.5', 'qwen3.8-max', 'qwen3.8-flash', 'qwen3.7-max', 'qwen3.7-plus', 'qwen3.6-plus'])
 
+// Provider error bodies that mean "try again", across Anthropic/OpenAI/relay
+// shapes (`error.type` or `error.code`).
+const RETRYABLE_ERROR_CODES = new Set([
+  'service_overloaded',
+  'overloaded_error',
+  'rate_limit_exceeded',
+  'rate_limit_error',
+  'server_error',
+  'internal_server_error',
+])
+
+// Exponential backoff before retries 2/3/4; retry 1 is immediate (the first attempt).
+const RETRY_BACKOFF_MS = [2000, 5000, 12000]
+const MAX_RETRY_DELAY_MS = 30_000
+export const MAX_PROVIDER_ATTEMPTS = RETRY_BACKOFF_MS.length + 1
+
+// +/-20% so concurrent retries don't all land on the same tick.
+const jittered = (ms) => Math.round(ms * (0.8 + Math.random() * 0.4))
+
+const parseErrorCode = (text) => {
+  try {
+    const body = JSON.parse(text)
+    return body?.error?.code ?? body?.error?.type ?? null
+  } catch {
+    return null
+  }
+}
+
+const isRetryableStatus = (status, text) => {
+  if (status === 429) return true
+  if (status >= 500 && status <= 599) return true
+  const code = parseErrorCode(text)
+  return code != null && RETRYABLE_ERROR_CODES.has(code)
+}
+
+// fetch() rejects (never resolves to a Response) on a network failure: a
+// connection reset, DNS failure, or TLS error. `TypeError` is what both
+// undici and browser fetch throw for these; there's no HTTP status to read.
+const isRetryableNetworkError = (err) =>
+  err?.code === 'ECONNRESET' || err?.cause?.code === 'ECONNRESET' || err instanceof TypeError
+
+const retryAfterMs = (headers) => {
+  const raw = headers?.get?.('retry-after')
+  if (!raw) return null
+  const seconds = Number(raw)
+  if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000)
+  const at = Date.parse(raw)
+  return Number.isFinite(at) ? Math.max(0, at - Date.now()) : null
+}
+
+const backoffDelayMs = (attempt, headerDelayMs) => {
+  const base = headerDelayMs ?? jittered(RETRY_BACKOFF_MS[attempt - 1] ?? RETRY_BACKOFF_MS.at(-1))
+  return Math.min(base, MAX_RETRY_DELAY_MS)
+}
+
+const defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+/**
+ * Retries a fetch that has not yet produced a response body: a 429/5xx status,
+ * a provider error code meaning overloaded/rate-limited, or a network error.
+ * Never called once a stream is being read, so a retry here cannot duplicate
+ * any output the caller has already seen. On success returns the real
+ * Response (body unread, ready to stream); on a non-retryable or exhausted
+ * failure returns `{ok: false, status, text}` with the body already read, so
+ * callers format the same error message either way. `onRetry` fires once per
+ * retry, before the backoff sleep, so callers can trace and count retries.
+ */
+export async function fetchWithRetry(fetchImpl, url, init, { onRetry, sleep = defaultSleep, maxAttempts = MAX_PROVIDER_ATTEMPTS } = {}) {
+  for (let attempt = 1; ; attempt += 1) {
+    let res
+    try {
+      res = await fetchImpl(url, init)
+    } catch (err) {
+      if (attempt >= maxAttempts || !isRetryableNetworkError(err)) throw err
+      const delayMs = backoffDelayMs(attempt, null)
+      onRetry?.({ attempt, maxAttempts, status: null, reason: err.message, delayMs })
+      await sleep(delayMs)
+      continue
+    }
+    if (res.ok) return res
+    const text = await res.text()
+    if (attempt >= maxAttempts || !isRetryableStatus(res.status, text)) return { ok: false, status: res.status, text }
+    const delayMs = backoffDelayMs(attempt, retryAfterMs(res.headers))
+    onRetry?.({ attempt, maxAttempts, status: res.status, reason: text, delayMs })
+    await sleep(delayMs)
+  }
+}
+
 // Yields every `data:` payload of an SSE stream.
 export async function* ssePayloads(body) {
   if (!body) return
@@ -127,14 +215,16 @@ const anthropicProvider = (config) => {
       }
       if (config.kind === 'opencode-go') headers['x-opencode-session'] = sessionId
       if (config.chatId) headers['x-jscad-chat-id'] = config.chatId
-      const res = await fetch(`${config.baseUrl ?? PROVIDER_BASE_URLS[config.kind] ?? PROVIDER_BASE_URLS.anthropic}/v1/messages`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(body),
-      })
+      const retries = []
+      const res = await fetchWithRetry(
+        fetch,
+        `${config.baseUrl ?? PROVIDER_BASE_URLS[config.kind] ?? PROVIDER_BASE_URLS.anthropic}/v1/messages`,
+        { method: 'POST', headers, body: JSON.stringify(body) },
+        { onRetry: (event) => retries.push(event) },
+      )
+      for (const event of retries) yield { type: 'retry', ...event }
       if (!res.ok) {
-        const detail = await res.text()
-        throw new Error(`anthropic: ${detail} (status ${res.status})`)
+        throw new Error(`anthropic: ${res.text} (status ${res.status})`)
       }
       yield* parseAnthropicStream(res.body)
     },
@@ -232,14 +322,16 @@ const openaiProvider = (config) => {
       }
       if (config.kind === 'opencode-go') headers['x-opencode-session'] = sessionId
       if (config.chatId) headers['x-jscad-chat-id'] = config.chatId
-      const res = await fetch(`${config.baseUrl ?? PROVIDER_BASE_URLS[config.kind]}/v1/chat/completions`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(body),
-      })
+      const retries = []
+      const res = await fetchWithRetry(
+        fetch,
+        `${config.baseUrl ?? PROVIDER_BASE_URLS[config.kind]}/v1/chat/completions`,
+        { method: 'POST', headers, body: JSON.stringify(body) },
+        { onRetry: (event) => retries.push(event) },
+      )
+      for (const event of retries) yield { type: 'retry', ...event }
       if (!res.ok) {
-        const detail = await res.text()
-        throw new Error(`openai: ${detail} (status ${res.status})`)
+        throw new Error(`openai: ${res.text} (status ${res.status})`)
       }
       yield* parseOpenAIStream(res.body)
     },
