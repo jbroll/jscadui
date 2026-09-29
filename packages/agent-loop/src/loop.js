@@ -12,6 +12,13 @@ const DEFAULT_TOOL_TIMEOUT_MS = 120_000
 // so a few oversized results cannot overflow the provider's context.
 export const TOOL_RESULT_CHARS = CONTEXT_BUDGET
 
+// All of one turn's tool results together (an eval run is one turn); past
+// this each further result is a short note, so many capped results cannot
+// overflow the provider's context either.
+export const TOOL_RESULTS_PER_TURN_CHARS = 5 * TOOL_RESULT_CHARS
+
+const OVER_TURN_TOTAL = `[tool result omitted: this turn's tool results passed ${TOOL_RESULTS_PER_TURN_CHARS} characters]`
+
 export const capToolResult = (content) =>
   typeof content === 'string' && content.length > TOOL_RESULT_CHARS
     ? `${content.slice(0, TOOL_RESULT_CHARS)}\n… [tool result truncated: ${TOOL_RESULT_CHARS} of ${content.length} characters shown]`
@@ -109,6 +116,7 @@ export const runTurn = (options) => {
   const toolTimeoutMs = options.toolTimeoutMs ?? DEFAULT_TOOL_TIMEOUT_MS
   const tools = buildTools(options.api ?? DEFAULT_API)
   const messages = [...conversation.messages]
+  let resultChars = 0
 
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
@@ -162,7 +170,11 @@ export const runTurn = (options) => {
               signal,
               () => new ToolTimeoutError(call.id, call.name, toolTimeoutMs),
             )
-            messages.push({ role: 'tool', toolCallId: call.id, content: capToolResult(content) })
+            let capped = capToolResult(content)
+            const size = typeof capped === 'string' ? capped.length : 0
+            if (resultChars + size > TOOL_RESULTS_PER_TURN_CHARS) capped = OVER_TURN_TOTAL
+            else resultChars += size
+            messages.push({ role: 'tool', toolCallId: call.id, content: capped })
           }
         }
         resolve({ messages })

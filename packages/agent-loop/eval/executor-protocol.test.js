@@ -208,4 +208,41 @@ describe('forged executor replies', () => {
     for (const fn of handlers) fn({ type: 'reply', id: 0, ok: false, error: 'empty provider reply' })
     expect(await reset).toBeUndefined()
   })
+
+  it('kill the executor on any frame that answers no outstanding request', async () => {
+    const stray = [
+      { type: 'reply', id: 999, ok: true, value: 'x' },
+      { type: 'ready' },
+      { type: 'call', id: 0 },
+      { type: 'noise' },
+      42,
+      null,
+      [1],
+    ]
+    for (const message of stray) {
+      const { client, killed, exit } = transportPair()
+      const handlers = []
+      const executor = createExecutorClient({ ...client, onMessage: (fn) => handlers.push(fn) }, { api: 'fluent' })
+      for (const fn of handlers) fn({ type: 'ready' })
+      const pending = executor.requestTool('eval', {})
+      for (const fn of handlers) fn(message)
+      expect(killed()).toBe(true)
+      exit('signal SIGKILL')
+      await expect(pending).rejects.toThrow(/executor exited: the executor sent a frame that answers no request/)
+    }
+  })
+
+  it('accept exactly one ready and one reply per call', async () => {
+    const { client, killed } = transportPair()
+    const handlers = []
+    const executor = createExecutorClient({ ...client, onMessage: (fn) => handlers.push(fn) }, { api: 'fluent' })
+    for (const fn of handlers) fn({ type: 'ready' })
+    const answer = executor.requestTool('eval', {})
+    for (const fn of handlers) fn({ type: 'reply', id: 0, ok: true, value: 'fine' })
+    expect(await answer).toBe('fine')
+    expect(killed()).toBe(false)
+    for (const fn of handlers) fn({ type: 'reply', id: 0, ok: true, value: 'again' })
+    expect(killed()).toBe(true)
+  })
 })
+

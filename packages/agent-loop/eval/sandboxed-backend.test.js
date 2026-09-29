@@ -13,8 +13,8 @@ const SPINS = 'module.exports = { main: () => { for (;;); } }'
 const FRAME = `const frame = (m) => { const b = Buffer.from(JSON.stringify(m)); const h = Buffer.alloc(4); h.writeUInt32BE(b.length); return Buffer.concat([h, b]) }
 const fs = process.getBuiltinModule('fs')
 const put = (buf) => { let at = 0; while (at < buf.length) { try { at += fs.writeSync(3, buf, at) } catch (e) { if (e.code !== 'EAGAIN') throw e } } }`
-const forge = (value) =>
-  `${FRAME}\nmodule.exports = { main: () => { for (let id = 0; id < 64; id++) put(frame(${value})); return new Promise(() => {}) } }`
+// Answers the conversation executor's first tool call (id 1, after reset's 0).
+const forge = (value) => `${FRAME}\nmodule.exports = { main: () => { const id = 1; put(frame(${value})); return new Promise(() => {}) } }`
 
 const fixture = {
   name: 'box',
@@ -69,6 +69,15 @@ describe('replies model code forges from inside the executor', () => {
     expect(longError.transcript.find((m) => m.role === 'tool').content.length).toBeLessThan(5000)
     const bigResult = await run([tool('eval', { source: forge("{ type: 'reply', id, ok: true, value: 'x'.repeat(5e5) }") }), done()])
     expect(toolResults(bigResult)[0].error.name).toBe('ToolResultTooLarge')
+  }, 30_000)
+
+  it('that answer no outstanding request end the executor at the first one, and the model goes on', async () => {
+    const flood = `${FRAME}\nmodule.exports = { main: () => { for (let i = 0; i < 300; i++) put(frame({ type: 'noise', pad: 'x'.repeat(1e6) })); return new Promise(() => {}) } }`
+    const result = await run([tool('eval', { source: flood }), tool('eval', { source: CUBE }), done()])
+    const [ended, evaluated] = toolResults(result)
+    expect(ended.error.name).toBe('EvaluatorCrashed')
+    expect(ended.error.message).toMatch(/the executor sent a frame that answers no request/)
+    expect(evaluated.ok).toBe(true)
   }, 30_000)
 
   it('over the frame limit end the executor from the frame header, before the parent reads the body', async () => {
@@ -237,7 +246,9 @@ describe('a grade that breaks grading', () => {
   it('grades nothing and keeps the transcript and first-attempt failures', async () => {
     const result = await run([tool('eval', { source: THROWS }), tool('eval', { source: THROWS }), tool('writeModel', { source: FORGES_GRADE }), done()], {}, targeted)
     expect(result.report.checkRate).toBe(0)
-    expect(result.report.firstAttemptFailures).toBe(2)
+    // Its forged id 0 answers nothing in the conversation's executor, which ends there.
+    expect(toolResults(result)[2].error.name).toBe('EvaluatorCrashed')
+    expect(result.report.firstAttemptFailures).toBe(3)
     expect(result.transcript.filter((m) => m.role === 'tool')).toHaveLength(3)
     expect(result.metrics.geometryError).toBeNull()
     expect(result.error).toBeUndefined()

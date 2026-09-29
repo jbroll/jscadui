@@ -88,8 +88,11 @@ new message. The app and the eval both use it.
 (the same 24,000 characters) and ends a longer one with `… [tool result
 truncated: N of M characters shown]`, in the app and the eval alike, so a few
 oversized results (a big `export`, model code answering its own calls) cannot
-overflow the provider's context. A turn that rejects carries the messages so
-far as `error.messages`.
+overflow the provider's context. Past `TOOL_RESULTS_PER_TURN_CHARS` (120,000
+characters) of results in one turn (an eval run is one turn), each further
+result is replaced by `[tool result omitted: this turn's tool results passed
+120000 characters]` and the turn goes on. A turn that rejects carries the
+messages so far as `error.messages`.
 
 ## API index
 
@@ -539,7 +542,10 @@ goes to one as a request and comes back as a reply
 (`eval/executor-protocol.js`), in length-prefixed JSON frames (`eval/frames.js`)
 on a socket at the executor's fd 3. The parent refuses a frame over 1.06 MB
 from its 4-byte header, before reading its body, and kills the executor, so
-model code cannot make `run-eval` buffer more than that of one message. Each conversation gets its own executor, since
+model code cannot make `run-eval` buffer more than that of one message. The
+parent expects one `ready` and one reply per outstanding call; the first frame
+that answers no request (model code writing to the channel) kills the executor,
+which is then handled as a crash. Each conversation gets its own executor, since
 the backend keeps module-level and `globalThis` state, and each grade runs in
 another fresh one, so nothing model code left behind in the conversation's
 executor reaches the grade.
@@ -611,7 +617,7 @@ sudo crt setup                         # once per host, so crt can enforce the m
 `ci/jscad-eval.crt` is a Void rootfs with the `nodejs` package (Node 24.18 as
 of this writing), stored `root ro`. It needs a crt that keeps stored configs
 outside the rootfs (`$CRT_HOME/.config/<name>`), marks a rootfs pristine at
-create, and creates Void rootfs with the host's xbps keys (crt 5a8a7cc or
+create, and creates Void rootfs with the host's xbps keys (crt main, cff62c5 or
 later). That crt reads a rootfs's config only from `$CRT_HOME/.config/<name>`,
 moving a legacy `$CRT_HOME/<name>/config` there when it is absent; an older crt
 reads the legacy file. crt merges a config's `mount` and `env` lines into every

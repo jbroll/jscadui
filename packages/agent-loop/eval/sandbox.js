@@ -348,7 +348,7 @@ const realOr = (path) => {
   }
 }
 
-// crt (5a8a7cc) reads a rootfs's config only from $CRT_HOME/.config/<name>,
+// crt main (cff62c5) reads a rootfs's config only from $CRT_HOME/.config/<name>,
 // moving a legacy $CRT_HOME/<name>/config there when that is absent; an older
 // crt reads the legacy file. Either could hand the executor more of the host
 // through its mount and env lines, so the stored config must be the tracked

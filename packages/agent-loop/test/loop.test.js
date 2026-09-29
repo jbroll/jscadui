@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { CONTEXT_BUDGET } from '../src/context.js'
-import { runTurn, TOOL_RESULT_CHARS } from '../src/loop.js'
+import { runTurn, TOOL_RESULT_CHARS, TOOL_RESULTS_PER_TURN_CHARS } from '../src/loop.js'
 import { buildTools } from '../src/tools.js'
 
 const roundsProvider = (rounds) => {
@@ -116,6 +116,27 @@ describe('runTurn', () => {
     expect(capped.startsWith('x'.repeat(TOOL_RESULT_CHARS))).toBe(true)
     expect(capped.slice(TOOL_RESULT_CHARS)).toBe(`\n… [tool result truncated: ${TOOL_RESULT_CHARS} of ${big.length} characters shown]`)
     expect(small).toBe('{"volume": 42}')
+  })
+
+  it('replaces tool results past the turn total with a short note and goes on', async () => {
+    const calls = Math.ceil(TOOL_RESULTS_PER_TURN_CHARS / TOOL_RESULT_CHARS) + 2
+    const provider = roundsProvider([
+      ...Array.from({ length: calls }, (_, i) => [{ type: 'tool_use', id: `t${i}`, name: 'export', input: {} }, { type: 'done', stopReason: 'tool_use' }]),
+      [{ type: 'text', text: 'done' }, { type: 'done', stopReason: 'end_turn' }],
+    ])
+    const { messages } = await runTurn({
+      conversation: { messages: [{ role: 'user', content: 'export it' }] },
+      provider,
+      requestTool: () => Promise.resolve('x'.repeat(TOOL_RESULT_CHARS)),
+    })
+    const results = messages.filter((m) => m.role === 'tool').map((m) => m.content)
+    expect(results).toHaveLength(calls)
+    const kept = results.filter((r) => r === 'x'.repeat(TOOL_RESULT_CHARS))
+    expect(kept.length * TOOL_RESULT_CHARS).toBeLessThanOrEqual(TOOL_RESULTS_PER_TURN_CHARS)
+    for (const note of results.slice(kept.length)) {
+      expect(note).toBe(`[tool result omitted: this turn's tool results passed ${TOOL_RESULTS_PER_TURN_CHARS} characters]`)
+    }
+    expect(messages.at(-1)).toMatchObject({ role: 'assistant', content: 'done' })
   })
 
   it('carries the messages so far on a rejected turn', async () => {

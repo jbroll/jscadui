@@ -64,9 +64,9 @@ after the build and fails before any provider call when crt, the rootfs, its
 stored config or cgroup delegation is missing. Once, as the user the job runs
 as:
 
-1. Install crt 5a8a7cc or later (stored configs outside the rootfs, a
-   pristine mark at create) on that user's `PATH` (or set `EVAL_CRT` to its
-   absolute path in the job's environment):
+1. Install crt from its `main` branch, cff62c5 or later (stored configs
+   outside the rootfs, a pristine mark at create), on that user's `PATH` (or
+   set `EVAL_CRT` to its absolute path in the job's environment):
    ```sh
    sudo cp crt /usr/local/bin/crt && sudo chmod 755 /usr/local/bin/crt
    ```

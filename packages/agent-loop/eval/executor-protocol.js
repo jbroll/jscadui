@@ -111,11 +111,18 @@ export const createExecutorClient = (transport, { api, graceMs = 10_000 }) => {
     transport.kill?.()
   }
 
+  // Only the first ready and one reply per outstanding call are expected;
+  // anything else is model code writing to the channel, so the executor ends
+  // at its first stray frame and a flood costs the parent one frame.
+  let isReady = false
   transport.onMessage((message) => {
-    if (message?.type === 'ready') markReady(api)
-    if (message?.type !== 'reply') return
-    const call = pending.get(message.id)
-    if (!call) return
+    if (message?.type === 'ready' && !isReady) {
+      isReady = true
+      markReady(api)
+      return
+    }
+    const call = message?.type === 'reply' ? pending.get(message.id) : undefined
+    if (!call) return kill('the executor sent a frame that answers no request')
     pending.delete(message.id)
     call.resolve(REPLIES[call.method](message))
   })

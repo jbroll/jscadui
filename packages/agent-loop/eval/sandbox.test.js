@@ -3,7 +3,7 @@ import { EventEmitter } from 'node:events'
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, relative } from 'node:path'
-import { PassThrough } from 'node:stream'
+import { Duplex, PassThrough } from 'node:stream'
 import { decodeFrames } from './frames.js'
 import { pathToFileURL } from 'node:url'
 import {
@@ -43,9 +43,14 @@ const executable = (path) => {
 // the frames written to its fd 3 channel.
 const fakeChild = ({ stdout = '', stderr = '', code = 0, stays = false } = {}) => {
   const child = new EventEmitter()
-  const channel = new PassThrough()
   const written = []
-  channel.on('data', (chunk) => written.push(chunk))
+  const channel = new Duplex({
+    read() {},
+    write(chunk, _encoding, callback) {
+      written.push(chunk)
+      callback()
+    },
+  })
   child.stdin = new PassThrough()
   child.stdout = new PassThrough()
   child.stderr = new PassThrough()
