@@ -7,6 +7,12 @@ const OUTLINE_NOTE = 'watertight and manifold apply to 3D solids; closed covers 
 const INSIDE_OUT_NOTE =
   'solid is inside out (volume < 0); a 2D outline given clockwise usually causes this; reverse its points'
 
+// A relative epsilon against the model's own scale, so floating-point summation
+// noise on a legitimately thin or tiny solid doesn't read as inside out.
+const INSIDE_OUT_REL_EPS = 1e-9
+export const isInsideOut = (volume, dimensions) =>
+  volume < -Math.abs(dimensions[0] * dimensions[1] * dimensions[2]) * INSIDE_OUT_REL_EPS
+
 export const BEDS = {
   mk3: [250, 210, 210],
   mk4: [250, 210, 220],
@@ -83,7 +89,7 @@ const checkSolid = (geom, bed) => {
     }
   }
   const mesh = analyzeMesh(polygons)
-  const insideOut = geom.measureVolume() < 0
+  const insideOut = isInsideOut(geom.measureVolume(), geom.measureDimensions())
   return {
     empty: false,
     watertight: mesh.openEdges === 0 && !insideOut,

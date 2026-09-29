@@ -1,6 +1,7 @@
 import { anchors } from './anchors.js'
 import { measureArray, wrapOne } from './array-geom.js'
 import { axisRelation, symmetryAxis } from './axis.js'
+import { isInsideOut } from './check.js'
 import { sectionOutline } from './section.js'
 
 const INSIDE_OUT_NOTE =
@@ -16,7 +17,7 @@ export const measureGeom = (geom, geomType) => {
   if (geomType === 'geom3') {
     out.volume = geom.measureVolume()
     out.polygonCount = geom.toPolygons().length
-    if (out.volume < 0) out.notes = [INSIDE_OUT_NOTE]
+    if (isInsideOut(out.volume, out.dimensions)) out.notes = [INSIDE_OUT_NOTE]
   } else if (geomType === 'geom2') {
     out.area = geom.measureArea()
     out.polygonCount = geom.toOutlines().length
@@ -139,14 +140,22 @@ const normalizeBetween = (between) => {
 }
 
 const SECTION_FORMAT = /^([xyz])(?:=(-?[\d.]+(?:e-?\d+)?))?$/i
+const SECTION_ERROR = 'section must be an axis "x", "y", "z", or an offset like "z=5"'
+const VALID_AXES = new Set(['x', 'y', 'z'])
 
 const normalizeSection = (section) => {
-  if (section && typeof section === 'object' && 'axis' in section) return section
+  if (section && typeof section === 'object' && 'axis' in section) {
+    const { axis, offset } = section
+    if (VALID_AXES.has(axis) && (offset === undefined || (typeof offset === 'number' && Number.isFinite(offset)))) {
+      return section
+    }
+    throw new Error(SECTION_ERROR)
+  }
   if (typeof section === 'string') {
     const m = SECTION_FORMAT.exec(section.trim())
     if (m) return { axis: m[1].toLowerCase(), offset: m[2] === undefined ? undefined : Number(m[2]) }
   }
-  throw new Error('section must be an axis "x", "y", "z", or an offset like "z=5"')
+  throw new Error(SECTION_ERROR)
 }
 
 export const measure = (geometry, options = {}) => {

@@ -142,6 +142,25 @@ test('measure rejects a section that is not an axis or axis=offset', () => {
   )
 })
 
+test('measure accepts a well-formed section object', () => {
+  const cube20 = cuboid({ size: [20, 20, 20] })
+  expect(measure(cube20, { section: { axis: 'z' } }).section.offset).toBe(0)
+  expect(measure(cube20, { section: { axis: 'z', offset: 5 } }).section.offset).toBe(5)
+})
+
+test('measure rejects a section object with a bad axis or a non-finite offset', () => {
+  const cube10 = cuboid({ size: [10, 10, 10] })
+  expect(() => measure(cube10, { section: { axis: 'q' } })).toThrow(
+    'section must be an axis "x", "y", "z", or an offset like "z=5"',
+  )
+  expect(() => measure(cube10, { section: { axis: 'z', offset: Infinity } })).toThrow(
+    'section must be an axis "x", "y", "z", or an offset like "z=5"',
+  )
+  expect(() => measure(cube10, { section: { axis: 'z', offset: 'far' } })).toThrow(
+    'section must be an axis "x", "y", "z", or an offset like "z=5"',
+  )
+})
+
 test('measure notes a negative-volume solid as inside out', () => {
   const reversedCube = { ...cuboid({ size: [10, 10, 10] }) }
   reversedCube.polygons = reversedCube.polygons.map((p) => ({ ...p, vertices: [...p.vertices].reverse() }))
@@ -151,3 +170,4 @@ test('measure notes a negative-volume solid as inside out', () => {
     'solid is inside out (volume < 0); a 2D outline given clockwise usually causes this; reverse its points',
   )
 })
+

@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest'
 import jscad from '@jscad/modeling'
 import { check, BEDS } from '../index.js'
+import { isInsideOut } from '../src/check.js'
 
 const { booleans, geometries, primitives, transforms } = jscad
 const { geom3 } = geometries
@@ -168,6 +169,17 @@ test('inside-out and mixed winding give consistentNormals false', () => {
   expect(check(inverted).consistentNormals).toBe(false)
   const mixed = polyhedron(cubePoints([0, 0, 0]), [reversed[0], ...cubeFaces(0).slice(1)])
   expect(check(mixed)).toMatchObject({ watertight: true, consistentNormals: false })
+})
+
+test('isInsideOut uses an epsilon relative to the solid\'s own scale', () => {
+  // A 10x10x10 solid's floating-point summation noise is nowhere near its own
+  // scale (1000 mm^3), so a hair below zero must not read as inside out.
+  expect(isInsideOut(-1e-9, [10, 10, 10])).toBe(false)
+  expect(isInsideOut(-1e-6, [10, 10, 10])).toBe(false)
+  // A volume comparable to (or larger in magnitude than) the solid's own
+  // scale is a real inversion, not noise.
+  expect(isInsideOut(-500, [10, 10, 10])).toBe(true)
+  expect(isInsideOut(0, [10, 10, 10])).toBe(false)
 })
 
 test('a fully inverted solid is reported inside out, never watertight', () => {
