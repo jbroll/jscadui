@@ -332,6 +332,19 @@ Async module loading is the breaking one; the rest are extractions.
   toolbar roles, keyboard navigation for the param and file trees, modal
   focus trap and `aria-expanded` on collapsibles.
   (`packages/params-ui`, `apps/jscad-web`)
+- **Adopt org-hooks `sci-tiered` for the commit gate.** org-hooks has the
+  monorepo scan-root and coverage knobs (2026-09-27); jscadui still runs
+  `.git-hooks/pre-commit`. Remaining: `lefthook.yml` from the org-hooks stub
+  on `profiles/sci-tiered.yml`; biome, knip and dpdm scoped to own-origin
+  packages (demo apps and `file-format/*` exempt, still tested); a
+  `ci/before-test-push` that lists `apps/` and `file-format/` changes; lcov
+  from `ci/test`; a `ci/e2e` shim running the full render sweep; a Playwright
+  json reporter; then seed the coverage baseline and retire `.git-hooks/`.
+  The render sweep emits no lcov, so the tier-2 coverage ratchet needs e2e
+  V8 coverage or an upstream knob for a regression-only e2e.
+- **3MF export claim.** The root README says `file-format/3mf-export` is
+  also used by manifold, but neither `packages/manifold` nor
+  `apps/jscad-web/src/exporter.js` references it. Wire it or fix the README.
 - **Params memory follow-up.** Child-proxy eviction recreates the child with
   fresh per-proxy defaults; only matters if 500 distinct properties are
   probed on one proxy between a set and a read of the same child.

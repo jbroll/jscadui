@@ -158,11 +158,10 @@ fi
 (cd "$worktree/apps/jscad-web" && npm run sync-examples)
 
 # The openscad bundle entry imports @jscadui/openscad, whose package main is
-# the tsc-built esm/ output, absent in a fresh worktree. Build it before the
-# web bundles, which resolve it through the worktree's own packages.
-if [ ! -d "$worktree/packages/openscad/esm" ]; then
-  (cd "$worktree/packages/openscad" && npm run build)
-fi
+# the tsc-built esm/ output, absent in a fresh worktree and stale in a reused
+# one. Build it before the web bundles, which resolve it through the
+# worktree's own packages.
+(cd "$worktree/packages/openscad" && npm run build)
 
 # Bundle artifacts are gitignored and cannot be symlinked usefully, so build
 # them once per worktree. This is the fast esbuild script (not a full turbo
