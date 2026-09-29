@@ -11,7 +11,7 @@ as `@jscad/modeling/primitives` are not served and fail to load.
 | Package | Import | Holds |
 |---|---|---|
 | `@jscad/modeling` | `const { primitives, booleans, transforms } = require('@jscad/modeling')` | `primitives`, `booleans`, `transforms`, `extrusions`, `expansions`, `hulls`, `minkowski`, `modifiers`, `colors`, `measurements`, `maths`, `geometries`, `curves`, `text`, `utils` |
-| `@jbroll/jscad-fluent` | `const jf = require('@jbroll/jscad-fluent')` | chainable shapes: `jf.cuboid({ size: [4, 4, 5] }).translate([18, 0, 0])`, `jf.subtract(a, b)`, `jf.polygon([[x, y], ...]).extrudeLinear({ height })`; the same primitives as `@jscad/modeling` with the same options |
+| `@jbroll/jscad-fluent` | `const jf = require('@jbroll/jscad-fluent')` | chainable shapes: `jf.cuboid({ size: [4, 4, 5] }).translate([18, 0, 0])`, `a.subtract(b, c)`, `jf.polygon([[x, y], ...]).extrudeLinear({ height })`; the same primitives as `@jscad/modeling` with the same options |
 | `@jscadui/jscad-text` | `const jscadText = require('@jscadui/jscad-text')` | TTF and Hershey text outlines |
 
 Shapes such as `sphere` and `cube` are members of `primitives`, not packages:
@@ -24,6 +24,19 @@ uses `export` is accepted only when it also has an `import ... from` line;
 `export const main` on its own fails with `Unexpected token 'export'`.
 
 `main(params)` returns one geometry or an array of them.
+
+Build from primitives, transforms and booleans. Compute points only for a
+shape no primitive or hull covers, such as gear teeth or a custom profile.
+
+## jscad-fluent style
+
+When the request asks for jscad-fluent, write each logical shape as one
+method chain from a `jf.*` factory, and combine shapes with methods:
+`base.subtract(hole)`, `a.union(b, c)`. Name a part in a local only when the
+name makes the model clearer. Do not mix in `@jscad/modeling` calls.
+Measuring is a method too: `shape.measureDimensions()`,
+`.measureBoundingBox()`, `.measureCenter()`, `.measureVolume()` (3D),
+`.measureArea()` (2D).
 
 Option names are exact, and a misspelled option is ignored without an error:
 rounded primitives take `roundRadius`, not `radius`. After `measure`, check
@@ -48,5 +61,7 @@ params.radius = { type: 'slider', default: 5, min: 1, max: 20, step: 0.5 }
   a result, persist with `writeModel`.
 - Look up an unfamiliar function's options and defaults with `docs` before
   using it.
+- To see a value while debugging, `console.log` it: `eval` returns the
+  output. Do not throw errors to inspect values.
 - A tool failure is a JSON result, not a dead end: read `error.message` and
   try again with corrected input.
