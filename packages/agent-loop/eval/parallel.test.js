@@ -117,6 +117,19 @@ describe('runSuiteParallel', () => {
     expect(result.maxTurns).toBe(8)
   })
 
+  it('names a crashed run as such and records its api', async () => {
+    const [result] = await runSuiteParallel([fixture('a')], {
+      runs: 1,
+      concurrency: 1,
+      api: 'modeling',
+      runJob: async () => {
+        throw new Error('boom')
+      },
+    })
+    expect(result.error).toBe('run crashed: boom')
+    expect(result.api).toBe('modeling')
+  })
+
   it('routes each job log line with its job', async () => {
     const lines = []
     await runSuiteParallel([fixture('a')], {

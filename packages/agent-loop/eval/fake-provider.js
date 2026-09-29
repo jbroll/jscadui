@@ -1,5 +1,5 @@
-// Test-only scripted provider for eval/job.test.js: a conversation with an
-// executor and no network.
+// Test-only scripted provider for eval/executor.test.js and
+// eval/sandbox-crt.test.js: a conversation with an executor and no network.
 import { KEYLESS_SOURCES } from './keyless.js'
 
 // Model code that tries every way out of the sandbox and reports only error

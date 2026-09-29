@@ -9,11 +9,13 @@ Join us on Discord: https://discord.gg/6PB7qZ4HC7
 # Packages
 
 - [@jscadui/3mf-export](./file-format/3mf-export) - 3MF export (also used by manifold)
+- [@jscadui/agent-loop](./packages/agent-loop) - Agent loop, prompt, `docs` tool and live eval behind the AI Chat
 - [@jscadui/html-gizmo](./packages/html-gizmo) - Camera direction gizmo
 - [@jscadui/key-store](./packages/key-store) - Provider-key custody for apps (session, device, synced modes)
 - [@jscadui/model-tools](./packages/model-tools) - Browser-safe measure and check for JSCAD geometry
 - [@jscadui/orbit](./packages/orbit) - Orbit controls for multiple 3D engines
 - [@jscadui/postmessage](./packages/postmessage) - postMessage utilities
+- [@jscadui/worker](./packages/worker) - Web worker that runs JSCAD model scripts
 
 # jscad.app
 

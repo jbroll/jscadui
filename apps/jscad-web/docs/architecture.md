@@ -738,7 +738,7 @@ warning collector (`setApi`). The editor's own runs send it too, so the
 mirrored and replayed `jscadSetFiles` always carries the current style. The
 eval sets the same value with `EVAL_API` and hands it to
 `createEvalBackend({ api })`, where the docs answer and the warnings for a run
-are built (`packages/agent-loop/README.md`). A shared case table,
+are built (`packages/agent-loop/docs/user-manual.md`). A shared case table,
 `packages/agent-loop/test/warningCases.js`, runs through both the eval backend
 and the app's `createEvaluate` over the frame's option-checked modules, so the
 two give the model the same warnings and hints.
@@ -813,7 +813,7 @@ A grid run's answer merges every member's warnings the same way. The chat's
 `eval` result passes them on as `{ entityCount, warnings }` and `writeModel`'s
 as `{ ok, entry, warnings }`; the editor's own runs ignore them.
 
-The same wrappers check more than option names (`packages/agent-loop/README.md`
+The same wrappers check more than option names (`packages/agent-loop/docs/user-manual.md`
 has the rules): a number option given an array or the reverse, a rotate angle
 over 2π, and an unknown option another function takes, each reported with a
 `hint`. The collector writes the hint for the chat's API style, and when the
@@ -837,7 +837,13 @@ too, because the fluent prompt teaches chaining. Fluent exports no classes, so
 `wrapFluentMethods` finds each prototype from an object a factory makes and
 wraps the methods the option table lists (`methods`, `methodTypes`,
 `methodAngles`) in place, once,
-the first time a project file requires fluent. A warning names the class,
+the first time a project file requires fluent. The prototypes outlive any
+one copy of `optionChecks.js` (another bundle, a test's fresh import), so a
+wrapped method carries the mark `Symbol.for('jscadui.optionChecks.wrapped')`,
+which stops a second copy from wrapping it again, and reports to the warn
+target on `globalThis[Symbol.for('jscadui.optionChecks.methodWarn')]`, which
+each `wrapFluentMethods` call sets through `setMethodWarn` to its own
+collector. A warning names the class,
 `FluentGeom2.extrudeLinear`, and goes to the run's collector. Unlike the
 exports copy, this reaches every caller in the worker, fluent's own code
 included. That is safe because fluent never calls its own option-taking
@@ -869,11 +875,17 @@ protocol has one SSE parser. Logs and eval result files live in the private
 in jscadui; `evalResultsDir` (same module) resolves the eval's write target
 and `run-eval` refuses to run without one. The `chat-review` project skill
 (`.claude/skills/chat-review/`) groups the stumbles by cause, reproduces each
-group as an eval fixture, and keeps a prompt or example change only when the
-eval shows fewer first-attempt failures on the new fixtures and no fixture's
-mean total falls by more than 0.5, comparing result files of one API style.
+group as an eval fixture, and keeps a prompt or example change only when it
+passes the keep rule in step 6 of `.claude/skills/chat-review/SKILL.md`,
+comparing result files of one API style.
 
-The eval runs model code through `@jscadui/require` with the frame's
+The eval never runs model code in `run-eval`'s own process. Each
+conversation gets an executor process under `crt run`, with no network, no
+home, a clean environment and a read-only root filesystem, and Node's
+permission model inside that; the conversation and its provider key stay in
+`run-eval` and send tool calls to the executor over a socket
+(`packages/agent-loop/docs/architecture.md`). The executor runs model code
+through `@jscadui/require` with the frame's
 transform rule and URL scheme, mapping `https://cdn.jsdelivr.net/npm/<pkg>` to
 local `node_modules`, so a bad import fails with the same `failed to load
 module` / `file not found` text the model gets in the app. It imports the

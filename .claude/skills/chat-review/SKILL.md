@@ -17,7 +17,7 @@ Edit only `packages/agent-loop/prompt.md`, `packages/agent-loop/prompt/`
 
 The chat teaches one API style at a time, `fluent` (the default) or
 `modeling`, set by the user's settings and by `EVAL_API` in the eval (see
-`packages/agent-loop/README.md`, "API style"). A log conversation ran under
+`packages/agent-loop/docs/user-manual.md`, "API style"). A log conversation ran under
 one style: the logged request body carries the system prompt, whose
 `## jscad-fluent style` or `## @jscad/modeling style` heading tells which.
 Log lines from before the setting carry the older prompt that taught both.
@@ -153,8 +153,8 @@ the user the fixture count times `EVAL_RUNS` and get a yes.
    conversation's lines in the live log are prefixed
    `[<model> <fixture>#<run>] `. Model code runs in a crt sandbox, and the
    eval (and `--regrade`) refuses to start without it: run
-   `scripts/eval-sandbox-setup.sh` once first (packages/agent-loop/README.md,
-   Sandbox).
+   `scripts/eval-sandbox-setup.sh` once first
+   (`packages/agent-loop/docs/user-manual.md`, "Sandbox setup").
 
    The turn budget is per model: `packages/agent-loop/eval/models.json` sets
    `maxTurns` for a model, `EVAL_MAX_TURNS` overrides it for one run, and a

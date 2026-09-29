@@ -58,7 +58,7 @@ that model's next style.
 
 Model code from the models runs only in a crt container with no network, no
 home directory, no provider key and a 2G memory limit
-(`packages/agent-loop/README.md`, Sandbox). The job runs
+(`packages/agent-loop/docs/architecture.md`, Sandbox). The job runs
 `scripts/eval-sandbox-setup.sh --check` with `EVAL_REQUIRE_MEMORY_LIMIT=1`
 after the build and fails before any provider call when crt, the rootfs, its
 stored config or cgroup delegation is missing. Once, as the user the job runs

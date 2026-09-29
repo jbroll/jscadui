@@ -1,0 +1,55 @@
+# @jscadui/agent-loop development
+
+## System prompt
+
+`prompt.md` holds the prose both styles share, with two slots:
+`{{imports}}` and `{{style}}`. `prompt/fluent.md` and `prompt/modeling.md`
+fill them: each starts with its rows of the imports table and notes, and its
+style section starts at its first `## ` heading. Example models live in
+`prompt/examples/fluent/` and `prompt/examples/modeling/`, each opening with a
+one-line comment naming the request it answers (never the API), and are
+listed per style in `prompt/index.js`. Both folders answer the same requests
+under the same file names. `buildSystemPrompt(api)` is the filled prose
+followed by an `## Examples` section with that style's examples fenced, in
+file-name order. Tests check the order, that each prompt carries only its own
+style's examples, that neither prompt names the other API (apart from the
+jscad-text `init` line), and that every example evaluates with no warnings.
+
+The files are imported as `?raw` text. Vitest reads that natively, jscad-web's
+esbuild build uses `src_build/rawImport.js`, and a Node script that imports
+`index.js` needs the loader hook:
+
+```bash
+node --import ./text-loader.js eval/run-eval.js
+```
+
+## API index
+
+`api/index.json` and `api/optionTable.js`
+([architecture.md](architecture.md#api-index)) are generated and committed:
+
+    npm run api-index -w @jscadui/agent-loop
+
+A test fails when either differs from a fresh generation, so a
+`@jscad/modeling` pin update or a fluent upgrade needs a regeneration in the
+same commit. Where JSDoc misses an option the generator adds it: a function's
+`defaults` literal keys (`extrudeLinear`'s `repair`), and the options
+`PASS_THROUGH` in `api/build-index.js` names (`extrudeRectangular` hands its
+options to `expand` and `extrudeLinear`).
+
+## Tests
+
+```bash
+npx vitest run --root packages/agent-loop
+```
+
+No test calls a provider. `runSuite` in `eval/run-eval.js` is the sequential
+in-process path the unit tests and `eval:keyless` (scripted known-good
+sources) use; it runs unsandboxed. Tests may start a plain permission-model
+child instead of crt (`sandboxFrom(env, { live: false })` with
+`EVAL_SANDBOX=child`, or `startExecutor` with `{ kind: 'child' }`).
+`eval/sandbox-crt.test.js` runs model code in the real sandbox and skips when
+crt or the rootfs is missing. `test/warningCases.js` holds the option-warning
+cases the eval backend and the app's `createEvaluate` must answer alike, and
+`eval/fluent-guard.test.js` fails on any warning from the repo's fluent
+examples.

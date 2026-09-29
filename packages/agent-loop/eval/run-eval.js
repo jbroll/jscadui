@@ -541,7 +541,7 @@ const main = async (argv, env) => {
       onJobLog,
     )
 
-  const results = await runSuiteParallel(fixtures, { runs, concurrency, maxTurns, runJob: runSandboxedJob, onLog, onRun })
+  const results = await runSuiteParallel(fixtures, { runs, concurrency, maxTurns, api, runJob: runSandboxedJob, onLog, onRun })
   const { summary, speed } = save(results)
   logLine(formatSummary(summary, { ...speed, model: EVAL_MODEL, provider: EVAL_PROVIDER }), { toStdout: true })
   const infra = results.filter((r) => r.infraError).length

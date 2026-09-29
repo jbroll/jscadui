@@ -17,22 +17,23 @@ export async function runPool(items, concurrency, run) {
   return results
 }
 
-const crashResult = ({ fixture, run, maxTurns }, error) => ({
+const crashResult = ({ fixture, run, maxTurns }, api, error) => ({
   fixture: fixture.name,
   run,
+  ...(api ? { api } : {}),
   maxTurns,
   report: gradeFixture(fixture, [], null, { params: [], solid: null }),
   turns: 0,
   transcript: [],
   metrics: {},
-  error: `child crashed: ${error?.message ?? String(error)}`,
+  error: `run crashed: ${error?.message ?? String(error)}`,
 })
 
 // Runs every fixture x run job through `runJob` (in the CLI, one conversation
 // with its own sandboxed executor). onRun gets each result as it finishes plus every finished result so
 // far, ordered by fixture then run. `maxTurns` is the model's turn cap; null
-// leaves each fixture its own.
-export async function runSuiteParallel(fixtures, { runs = 1, concurrency = DEFAULT_CONCURRENCY, maxTurns = null, runJob, onLog, onRun }) {
+// leaves each fixture its own. `api` labels a run that crashed.
+export async function runSuiteParallel(fixtures, { runs = 1, concurrency = DEFAULT_CONCURRENCY, maxTurns = null, api, runJob, onLog, onRun }) {
   const jobs = fixtures.flatMap((fixture) =>
     Array.from({ length: runs }, (_, i) => ({ fixture, run: i + 1, runs, maxTurns: maxTurns ?? fixture.maxTurns })),
   )
@@ -42,7 +43,7 @@ export async function runSuiteParallel(fixtures, { runs = 1, concurrency = DEFAU
     try {
       result = await runJob(job, (text) => onLog?.(job, text))
     } catch (error) {
-      result = crashResult(job, error)
+      result = crashResult(job, api, error)
     }
     finished[index] = result
     onRun?.(result, finished.filter(Boolean))
