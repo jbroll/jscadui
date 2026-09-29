@@ -56,6 +56,14 @@ describe('eval backend', () => {
     expect(res.error.name).toBe('SyntaxError')
   })
 
+  it('reports line, column and the offending line for a syntax error with no import to trigger transform', async () => {
+    const res = await evalSource('const x = 1\nconst main (params) => {}\nmodule.exports = { main }')
+    expect(res.ok).toBe(false)
+    expect(res.error.name).toBe('SyntaxError')
+    expect(res.error.message).toMatch(/\(2:\d+\)/)
+    expect(res.error.message).toContain('const main (params) => {}')
+  })
+
   it('uses the same transform test as the worker', () => {
     const worker = readFileSync(new URL('../../worker/worker.js', import.meta.url), 'utf8')
     expect(worker).toContain(`const importReg = ${IMPORT_REG}`)
@@ -86,6 +94,24 @@ describe('eval backend', () => {
       expect(res.error.message).toContain('file not found')
     },
   )
+
+  it('treats an eval with no main as a scratch run, keeping console and the current geometry', async () => {
+    const backend = createEvalBackend()
+    await backend.requestTool('eval', { source: CUBE })
+    const res = JSON.parse(await backend.requestTool('eval', { source: "console.log('expected volume', 42)" }))
+    expect(res.ok).toBe(true)
+    expect(res.scratch).toBe(true)
+    expect(res.console).toEqual(['expected volume 42'])
+    expect(res.message).toMatch(/no main/)
+    const measured = JSON.parse(await backend.requestTool('measure', {}))
+    expect(measured.volume).toBeGreaterThan(7900)
+  })
+
+  it('writeModel still fails when the project entry exports no main', async () => {
+    const res = JSON.parse(await createEvalBackend().requestTool('writeModel', { source: 'module.exports = {}' }))
+    expect(res.ok).toBe(false)
+    expect(res.error.message).toMatch(/no main/)
+  })
 
   it('answers measure with an error result when nothing was evaled', async () => {
     const res = JSON.parse(await createEvalBackend().requestTool('measure', {}))
@@ -162,6 +188,17 @@ module.exports = { main: () => { load('fs'); return [] } }`)
   it('gradeProject gives up on a model that never finishes', async () => {
     const hang = { files: { 'main.js': 'module.exports = { main: () => new Promise(() => {}) }' }, entry: 'main.js' }
     expect(await createEvalBackend().gradeProject(hang, { timeoutMs: 20 })).toEqual({ measure: null, solid: null, params: [] })
+  })
+
+  it('marks eval, measure and check unsaved until writeModel matches the evaluated source', async () => {
+    const backend = createEvalBackend()
+    const evalRes = JSON.parse(await backend.requestTool('eval', { source: CUBE }))
+    expect(evalRes.saved).toBe(false)
+    expect(JSON.parse(await backend.requestTool('measure', {})).saved).toBe(false)
+    expect(JSON.parse(await backend.requestTool('check', { bed: 'mk3' })).saved).toBe(false)
+    await backend.requestTool('writeModel', { source: CUBE })
+    expect(JSON.parse(await backend.requestTool('measure', {})).saved).toBe(true)
+    expect(JSON.parse(await backend.requestTool('check', { bed: 'mk3' })).saved).toBe(true)
   })
 
   it('writeModel persists to the memory project', async () => {

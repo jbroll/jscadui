@@ -743,6 +743,11 @@ Tools and where they run:
 | `writeModel` | editor buffer plus a version row (also returns `warnings` and `console`) |
 | `docs` | page: `docsTool` over `@jscadui/agent-loop/api/index.json` for the chat's API style, no frame round trip |
 
+`eval`, `measure` and `check` also carry `saved: false` when the agent's last
+`eval` source does not match what `writeModel` last saved (`true` when it
+does), tracked client-side in `main.js`'s `aiSaveTracker.js` (mirrors the
+eval harness's `saved`, see `packages/agent-loop/README.md`).
+
 `view` (page, from the live canvas) is not offered to the model: its PNG data
 URL gets JSON-encoded into a text tool result that no provider adapter turns
 back into an image block, so the model never sees a picture, only hundreds of

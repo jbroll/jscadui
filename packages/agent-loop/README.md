@@ -359,6 +359,14 @@ tend to max out once a prompt clears the bar:
 - `warnings`: unknown-option warnings returned on the run's `eval` and
   `writeModel` results, summed. Transcript-derived.
 - `docsCalls`: `docs` calls in the run. Transcript-derived.
+
+`eval`, `measure` and `check` results also carry `saved: false` when the
+current geometry does not match the source of the last `writeModel` (`true`
+when it does), so the model can tell an unsaved change apart from a saved
+one without asking. An `eval` of a script with no `main()` is a scratch run:
+it answers `{ ok: true, scratch: true, console, message }` and leaves the
+current model and geometry unchanged, rather than failing and dropping the
+console output (`writeModel` still requires a runnable `main()`).
 - `inputTokens` / `outputTokens`: summed over the run's provider calls from a
   `usage` stream event (Anthropic's `message_start`/`message_delta`, OpenAI's
   `stream_options.include_usage` final chunk, or the Responses API's

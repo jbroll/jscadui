@@ -94,9 +94,17 @@ const runModel = async (files, entry) => {
   const transform = shouldTransform(url, source) ? transformcjs : undefined
   const capture = installConsoleCapture()
   try {
-    const exports = jscadRequire({ url, script: source }, transform, createReadFile(files), PROJECT_BASE, PROJECT_BASE)
+    let exports
+    try {
+      exports = jscadRequire({ url, script: source }, transform, createReadFile(files), PROJECT_BASE, PROJECT_BASE)
+    } catch (e) {
+      // Indirect eval's SyntaxError carries no location; the frame worker hits the
+      // same gap, so re-parse with Babel (same as worker.js) to get one.
+      if (e.name === 'SyntaxError') transformcjs(source, url)
+      throw e
+    }
     const main = exports.main ?? (typeof exports === 'function' ? exports : undefined)
-    if (typeof main !== 'function') throw new Error('model exports no main()')
+    if (typeof main !== 'function') return { scratch: true, warnings: warnings.list(), console: capture.list() }
     const state = createProxyState({}, new Set(), { mode: 'hierarchical' })
     const out = await main(createParamsProxy(state))
     return { geometry: [out].flat(Infinity), params: toParamDefinitions(state.discovered), warnings: warnings.list(), console: capture.list() }
@@ -120,6 +128,10 @@ export function createEvalBackend({ api = DEFAULT_API } = {}) {
   let params = []
   let lastWarnings = []
   let lastConsole = []
+  // The entry and source of the last geometry-producing eval, to tell the model
+  // whether writeModel has since caught up with what it is looking at.
+  let lastEntry = null
+  let lastSource = null
   const project = new Map()
   // A model run that outlives a reset (gradeProject gave up on it) must not
   // overwrite the state of the run after it.
@@ -127,14 +139,23 @@ export function createEvalBackend({ api = DEFAULT_API } = {}) {
 
   const projectFiles = () => Object.fromEntries([...project].map(([path, file]) => [path, file.source]))
 
-  const load = async (files, entry) => {
+  const isSaved = () => lastEntry !== null && project.get(lastEntry)?.source === lastSource
+
+  const load = async (files, entry, { allowScratch = false } = {}) => {
     const started = generation
     const loaded = await runModel(files, entry)
-    if (started !== generation) return
-    geometry = loaded.geometry
-    params = loaded.params
+    if (started !== generation) return null
     lastWarnings = loaded.warnings
     lastConsole = loaded.console
+    if (loaded.scratch) {
+      if (!allowScratch) throw new Error('model exports no main()')
+      return { scratch: true }
+    }
+    geometry = loaded.geometry
+    params = loaded.params
+    lastEntry = entry
+    lastSource = files[entry]
+    return { scratch: false }
   }
 
   const withWarnings = (result) => {
@@ -149,11 +170,16 @@ export function createEvalBackend({ api = DEFAULT_API } = {}) {
       const args = input ?? {}
       if (name === 'eval') {
         const entry = args.entry ?? PROJECT_ENTRY
-        await load({ ...projectFiles(), [entry]: args.source }, entry)
-        return JSON.stringify(withWarnings({ ok: true, params, entities: geometry.length }))
+        const result = await load({ ...projectFiles(), [entry]: args.source }, entry, { allowScratch: true })
+        if (result?.scratch) {
+          return JSON.stringify(
+            withWarnings({ ok: true, scratch: true, message: 'no main(): nothing rendered, current model unchanged' }),
+          )
+        }
+        return JSON.stringify(withWarnings({ ok: true, params, entities: geometry.length, saved: isSaved() }))
       }
-      if (name === 'measure') return geometry ? JSON.stringify({ ok: true, ...measure(geometry, args) }) : noGeometry()
-      if (name === 'check') return geometry ? JSON.stringify({ ok: true, ...check(geometry, args) }) : noGeometry()
+      if (name === 'measure') return geometry ? JSON.stringify({ ok: true, ...measure(geometry, args), saved: isSaved() }) : noGeometry()
+      if (name === 'check') return geometry ? JSON.stringify({ ok: true, ...check(geometry, args), saved: isSaved() }) : noGeometry()
       if (name === 'params') return JSON.stringify({ ok: true, params })
       if (name === 'docs') return docsTool(API_INDEX, args.query, { api })
       if (name === 'writeModel') {
@@ -180,6 +206,8 @@ export function createEvalBackend({ api = DEFAULT_API } = {}) {
     params = []
     lastWarnings = []
     lastConsole = []
+    lastEntry = null
+    lastSource = null
     project.clear()
     for (const [path, source] of Object.entries(files)) project.set(path, { source, message: '' })
   }
