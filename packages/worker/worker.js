@@ -100,7 +100,7 @@ export const setScriptLockTimeout = (ms) => {
   scriptLockTimeout = ms
 }
 
-/** @type {{reset: () => void, list: () => Array<{fn: string, option: string, suggestions: string[]}>} | null} */
+/** @type {{reset: () => void, list: () => Array<{fn: string, option: string, suggestions?: string[], hint?: string}>} | null} */
 let runWarnings = null
 
 /**

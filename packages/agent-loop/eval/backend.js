@@ -10,6 +10,7 @@ import { OPTION_TABLES } from '../api/optionTable.js'
 import { DEFAULT_API } from '../src/api.js'
 import { installConsoleCapture } from '../src/consoleCapture.js'
 import { docsTool } from '../src/docs.js'
+import { withErrorHint } from '../src/hints.js'
 import { createWarningCollector, withOptionChecks, wrapFluentMethods } from '../src/optionChecks.js'
 import { PROJECT_ENTRY, projectEntry } from './grade.js'
 
@@ -79,13 +80,14 @@ export const createReadFile = (files) => (path) => {
   throw new Error(`file not found ${path}`)
 }
 
-const errorResult = (error) => ({
+const errorResult = (error, api) => ({
   ok: false,
-  error: { name: error?.name ?? 'Error', message: error?.message ?? String(error) },
+  error: { name: error?.name ?? 'Error', message: withErrorHint(error?.message ?? String(error), { api, index: API_INDEX }) },
 })
 
-const runModel = async (files, entry) => {
+const runModel = async (files, entry, api) => {
   warnings.reset()
+  warnings.setApi(api)
   clearAllCaches()
   moduleResolver.clearCache()
   const url = PROJECT_BASE + entry
@@ -143,7 +145,7 @@ export function createEvalBackend({ api = DEFAULT_API } = {}) {
 
   const load = async (files, entry, { allowScratch = false } = {}) => {
     const started = generation
-    const loaded = await runModel(files, entry)
+    const loaded = await runModel(files, entry, api)
     if (started !== generation) return null
     lastWarnings = loaded.warnings
     lastConsole = loaded.console
@@ -195,7 +197,7 @@ export function createEvalBackend({ api = DEFAULT_API } = {}) {
       }
       return JSON.stringify(errorResult({ name: 'UnknownToolError', message: `unknown tool ${name}` }))
     } catch (error) {
-      return JSON.stringify(errorResult(error))
+      return JSON.stringify(errorResult(error, api))
     }
   }
 

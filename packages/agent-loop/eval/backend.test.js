@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { builtinModules, createRequire } from 'node:module'
 import { CDN_BASE, createEvalBackend, createReadFile, EXPORT_REG, IMPORT_REG } from './backend.js'
+import { expectCase, WARNING_CASES } from '../test/warningCases.js'
 
 const CUBE = `const jf = require('@jbroll/jscad-fluent')
 function main() { return [jf.cube({ size: 20 })] }
@@ -300,4 +301,13 @@ module.exports = { main: () => jf.circle({ radius: 5 }).extrudeLinear({ hieght: 
     await evalSource(`const { primitives } = require('@jscad/modeling')\nmodule.exports = { main: () => primitives.roundedCuboid({ radius: 1 }) }`)
     expect(modeling.primitives.roundedCuboid).toBe(before)
   })
+})
+
+describe('eval backend warnings and error hints follow the api', () => {
+  for (const c of WARNING_CASES) {
+    it(c.name, async () => {
+      const res = JSON.parse(await createEvalBackend({ api: c.api }).requestTool('eval', { source: c.source }))
+      expectCase(expect, c, res)
+    })
+  }
 })

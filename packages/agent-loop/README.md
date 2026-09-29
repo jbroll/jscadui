@@ -96,15 +96,49 @@ or function: `name` (`primitives.roundedCuboid`, `jf.cube`,
 first, `optionsFirst` and `options` (name, type, default, description). A
 fluent entry whose options are a modeling function's names it in `sameAs`
 instead of copying them, and the fluent array classes name their base class
-in `extends`. `api/optionTable.js` holds only the option names, for the
-unknown-option checks: `options` for functions reached from the exports
-(`primitives.roundedCuboid`, `cube` for `jf.cube`), and `methods` for the
-fluent class methods whose first parameter is an options object, keyed by
-class (`FluentGeom2.extrudeLinear`).
+in `extends`. `api/optionTable.js` holds what the option checks need:
+`options` for functions reached from the exports (`primitives.roundedCuboid`,
+`cube` for `jf.cube`) and `methods` for the fluent class methods whose first
+parameter is an options object, keyed by class (`FluentGeom2.extrudeLinear`);
+`types` and `methodTypes` with each option's JSDoc type reduced to `number` or
+`array` (other types are not checked); and `angles` and `methodAngles`, every
+function or method whose first parameter is named `angle` or `angles`
+(`transforms.rotateX`, `FluentGeom3.rotate`). All of it comes from the index,
+so a new fluent method gets the checks on regeneration.
+
+## Option warnings and error hints
+
+The checks (`src/optionChecks.js`) report facts; the run's warning collector
+turns each into the warning the model sees, worded for the chat's API style
+(`setApi`), by `explainWarning` in `src/hints.js`:
+
+| fact | warning |
+|---|---|
+| unknown option | `{ fn, option, suggestions }`, plus `hint` when a sibling function takes it |
+| number option given an array, or the reverse | `{ fn, option, hint }` naming the sibling that takes that type (`cube` size array → `cuboid`) |
+| rotate angle with magnitude over 2π | `{ fn, option: 'angle', hint }`: "90 looks like degrees; angles are radians, so use 90 * Math.PI / 180" |
 
 An unknown key's `suggestions` are known options within edit distance 3, plus
 either name containing the other (`radius` → `roundRadius`, 5 edits apart,
-matches by containment instead).
+matches by containment instead). A sibling is a function of the chosen API
+whose name contains the other's or shares the first three letters of its last
+word (`cube`, `cuboid`, `roundedCuboid`); it matches when it takes the option,
+or the same words in another order (`radiusStart`, `startRadius`), which
+clears the suggestions. A taper option on `cylinder` (`radiusStart`, `r1`,
+`radiusTop`, ...) and an array `cylinder` radius get the taper form instead:
+`jf.cylinder({ radius: [start, end], height })` in fluent,
+`primitives.cylinderElliptic({ startRadius, endRadius, height })` in
+modeling, with start at the -Z end.
+
+When the wrapped call throws, its hints and the limit a `roundRadius` error
+leaves out ("roundRadius 2 is too big: it must be under half the smallest
+size, 2.4 / 2 = 1.2") go on new lines of the error's message. A "X is not a
+function" error gets a hint from `withErrorHint`, applied where the error
+result is built (`eval/backend.js`, the app's `createEvaluate`): in fluent, X
+as a method of the named classes, called on a jf shape; in modeling, the
+functional call from the index signature (`transforms.translate(offset,
+shape)`). `cone` gets the taper form. `test/warningCases.js` holds the cases
+both the eval backend and the app must answer alike.
 
 Both files are generated and committed:
 
@@ -173,9 +207,10 @@ in base64 whatever `format` asks for, since the app's worker writes STL only.
 `view` fails with `UnavailableError`.
 
 The CDN stub hands model code a copy of `@jscad/modeling` and
-`@jbroll/jscad-fluent` with the unknown-option checks (`src/optionChecks.js`,
+`@jbroll/jscad-fluent` with the option checks (`src/optionChecks.js`,
 `api/optionTable.js`), so `eval` and `writeModel` results carry
-`warnings: [{ fn, option, suggestions }]` like the app's. Node's modeling
+`warnings: [{ fn, option, suggestions, hint }]` like the app's, worded for the
+backend's `api`. Node's modeling
 module object is never changed: fluent and model-tools require the same one.
 
 `eval` and `writeModel` also capture the model run's `console.log/info/warn/error/debug`
@@ -188,10 +223,11 @@ always forwarding to the real console too so the editor's own runs still log
 to devtools; a grid run concatenates every member's console lines in member
 order under the same cap.
 
-Fluent class methods that take options (`.extrudeLinear({...})`) are checked
-by wrapping them once on Node's fluent prototypes, since fluent exports no
-classes; that reaches fluent's own calls too, which is safe because fluent
-never calls those methods itself and passes modeling only valid options.
+Fluent class methods that take options (`.extrudeLinear({...})`) or an angle
+(`.rotateX`) are checked by wrapping them once on Node's fluent prototypes,
+since fluent exports no classes; that reaches fluent's own calls too, which is
+safe because fluent never calls those methods itself and passes modeling only
+valid options.
 `eval/fluent-guard.test.js` runs every fluent example in the repo with the
 wraps on and fails on any warning.
 

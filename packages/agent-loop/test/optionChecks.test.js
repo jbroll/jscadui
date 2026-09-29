@@ -139,6 +139,61 @@ describe('withOptionChecks', () => {
   })
 })
 
+describe('withOptionChecks: types, angles and thrown errors', () => {
+  const typed = {
+    prefix: '',
+    options: { 'primitives.cube': ['center', 'size'], 'primitives.roundedCuboid': ['roundRadius', 'size'] },
+    types: { 'primitives.cube': { center: 'array', size: 'number' } },
+    angles: ['transforms.rotateX'],
+  }
+
+  it('reports a number option given an array, and the reverse', () => {
+    const warn = vi.fn()
+    const cube = withOptionChecks({ primitives: { cube: () => 'c' } }, typed, warn).primitives.cube
+    cube({ size: [1, 2, 3] })
+    cube({ center: 5, size: 2 })
+    cube({ size: '2' })
+    expect(warn.mock.calls.map(([w]) => w)).toEqual([
+      { fn: 'primitives.cube', option: 'size', expected: 'number', got: 'array' },
+      { fn: 'primitives.cube', option: 'center', expected: 'array', got: 'number' },
+    ])
+  })
+
+  it('reports an angle over 2π in a number or an array, and wraps functions with no options', () => {
+    const rotateX = vi.fn((angle, shape) => shape)
+    const warn = vi.fn()
+    const wrapped = withOptionChecks({ transforms: { rotateX } }, typed, warn).transforms.rotateX
+    expect(wrapped(90, 's')).toBe('s')
+    wrapped([0, -180, 0], 's')
+    wrapped(Math.PI * 2, 's')
+    wrapped(-Math.PI, 's')
+    expect(warn.mock.calls.map(([w]) => w)).toEqual([
+      { fn: 'transforms.rotateX', option: 'angle', value: 90 },
+      { fn: 'transforms.rotateX', option: 'angle', value: -180 },
+    ])
+    expect(rotateX).toHaveBeenCalledTimes(4)
+  })
+
+  it('adds the hints of its call to an error the function throws', () => {
+    const cube = () => { throw new Error('size must be positive') }
+    const warn = (fact) => ({ ...fact, hint: `hint for ${fact.option}` })
+    const wrapped = withOptionChecks({ primitives: { cube } }, typed, warn).primitives.cube
+    expect(() => wrapped({ size: [1, 2, 3] })).toThrow('size must be positive\nhint for size')
+  })
+
+  it('adds the limit a roundRadius error leaves out', () => {
+    const roundedCuboid = () => { throw new Error('roundRadius must be smaller than the radius of all dimensions') }
+    const wrapped = withOptionChecks({ primitives: { roundedCuboid } }, typed, vi.fn()).primitives.roundedCuboid
+    expect(() => wrapped({ size: [40, 30, 2.4], roundRadius: 2 })).toThrow(/\nroundRadius 2 is too big: .* 2\.4 \/ 2 = 1\.2$/)
+  })
+
+  it('rethrows a thrown value that is not an Error unchanged', () => {
+    const cube = () => { throw 'plain' }
+    const wrapped = withOptionChecks({ primitives: { cube } }, typed, () => ({ hint: 'h' })).primitives.cube
+    expect(() => wrapped({ size: [1] })).toThrow('plain')
+  })
+})
+
 describe('suggestOptions', () => {
   it('suggests near spellings and names that contain the key', () => {
     expect(suggestOptions('hieght', ['height', 'twistAngle'])).toEqual(['height'])
@@ -168,6 +223,21 @@ describe('createWarningCollector', () => {
     const c = createWarningCollector()
     c.list().push({})
     expect(c.list()).toEqual([])
+  })
+
+  it('explains each fact for the api it was set to, keeping the api across resets', () => {
+    const c = createWarningCollector()
+    const fact = { fn: 'primitives.cylinder', option: 'radiusStart', suggestions: ['radius'] }
+    expect(c.warn(fact).hint).toContain('jf.cylinder')
+    c.setApi('modeling')
+    c.reset()
+    const warning = c.warn(fact)
+    expect(warning.hint).toContain('primitives.cylinderElliptic')
+    expect(c.list()).toEqual([warning])
+    expect(c.warn(fact)).toEqual(warning)
+    expect(c.list()).toHaveLength(1)
+    c.setApi('bogus')
+    expect(c.warn({ ...fact, option: 'r1' }).hint).toContain('jf.cylinder')
   })
 })
 
@@ -264,6 +334,23 @@ describe('wrapFluentMethods', () => {
     const options = { hieght: 1 }
     const result = shape.extrudeLinear(options)
     expect(result.options).toBe(options)
+  })
+
+  it('checks angle and option types on methods the tables name', () => {
+    const { jf, Geom2 } = fakeFluent()
+    Geom2.prototype.rotateZ = function (angle) { return angle }
+    const warn = vi.fn()
+    wrapFluentMethods(jf, {
+      ...methodTable,
+      methodTypes: { FluentGeom2: { extrudeLinear: { height: 'number' } } },
+      methodAngles: { FluentGeom2: ['rotateZ'] },
+    }, warn)
+    expect(new Geom2().rotateZ(45)).toBe(45)
+    new Geom2().extrudeLinear({ height: [1, 2] })
+    expect(warn.mock.calls.map(([w]) => w)).toEqual([
+      { fn: 'FluentGeom2.rotateZ', option: 'angle', value: 45 },
+      { fn: 'FluentGeom2.extrudeLinear', option: 'height', expected: 'number', got: 'array' },
+    ])
   })
 
   it('checks the real fluent classes against the generated table', () => {

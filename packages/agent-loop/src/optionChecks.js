@@ -1,4 +1,6 @@
+import { APIS, DEFAULT_API } from './api.js'
 import { editDistance } from './editDistance.js'
+import { explainThrow, explainWarning } from './hints.js'
 
 export const MAX_WARNINGS = 20
 
@@ -18,23 +20,102 @@ export const suggestOptions = (option, known) => {
     .map(({ name }) => name)
 }
 
-const checked = (fnName, fn, known, warn) => {
-  const allowed = new Set(known)
+const TAU = Math.PI * 2
+const EPS = 1e-9
+
+const kindOf = (value) => (Array.isArray(value) ? 'array' : typeof value === 'number' ? 'number' : null)
+
+const degreeLike = (angle) => [angle].flat().find((a) => typeof a === 'number' && Math.abs(a) > TAU + EPS)
+
+// A mistyped option or an overlarge roundRadius often makes the function throw
+// a message that names neither; the error then carries the hint too.
+const annotate = (error, hints) => {
+  try {
+    if (typeof error?.message !== 'string') return
+    const added = [...new Set(hints)].filter((hint) => hint && !error.message.includes(hint))
+    if (added.length) error.message = `${error.message}\n${added.join('\n')}`
+  } catch {
+    // A frozen error goes out as it came.
+  }
+}
+
+/**
+ * @param {string} fnName
+ * @param {Function} fn
+ * @param {{ known?: string[], types?: Record<string, string>, angle?: boolean }} spec
+ * @param {(fact: object) => ({ hint?: string } | void)} warn
+ */
+const checked = (fnName, fn, spec, warn) => {
+  const allowed = spec.known && new Set(spec.known)
   return function (...args) {
+    const hints = []
+    const report = (fact) => {
+      const warning = warn(fact)
+      if (warning?.hint) hints.push(warning.hint)
+    }
     // A hostile or revoked options argument, or a throwing warn, must never
     // stop the wrapped call: warnings are reported, never thrown.
     try {
       const [first] = args
-      if (isPlainObject(first)) {
+      if ((allowed || spec.types) && isPlainObject(first)) {
         for (const option of Object.keys(first)) {
-          if (!allowed.has(option)) warn({ fn: fnName, option, suggestions: suggestOptions(option, known) })
+          if (allowed && !allowed.has(option)) {
+            report({ fn: fnName, option, suggestions: suggestOptions(option, spec.known) })
+            continue
+          }
+          const expected = spec.types?.[option]
+          const got = kindOf(first[option])
+          if (expected && got && got !== expected) report({ fn: fnName, option, expected, got })
         }
+      }
+      if (spec.angle) {
+        const value = degreeLike(first)
+        if (value !== undefined) report({ fn: fnName, option: 'angle', value })
       }
     } catch {
       // Ignored — the original call below still runs.
     }
-    return fn.apply(this, args)
+    try {
+      return fn.apply(this, args)
+    } catch (error) {
+      annotate(error, [...hints, explainThrow(error?.message ?? '', args[0])])
+      throw error
+    }
   }
+}
+
+const specsOf = (table) => {
+  /** @type {Map<string, { known?: string[], types?: Record<string, string>, angle?: boolean }>} */
+  const specs = new Map()
+  const spec = (path) => {
+    if (!specs.has(path)) specs.set(path, {})
+    return specs.get(path)
+  }
+  for (const [path, known] of Object.entries(table.options ?? {})) spec(path).known = known
+  for (const [path, types] of Object.entries(table.types ?? {})) spec(path).types = types
+  for (const path of table.angles ?? []) spec(path).angle = true
+  return specs
+}
+
+const methodSpecsOf = (table) => {
+  /** @type {Map<string, Map<string, { known?: string[], types?: Record<string, string>, angle?: boolean }>>} */
+  const classes = new Map()
+  const spec = (cls, name) => {
+    if (!classes.has(cls)) classes.set(cls, new Map())
+    const methods = classes.get(cls)
+    if (!methods.has(name)) methods.set(name, {})
+    return methods.get(name)
+  }
+  for (const [cls, methods] of Object.entries(table.methods ?? {})) {
+    for (const [name, known] of Object.entries(methods)) spec(cls, name).known = known
+  }
+  for (const [cls, methods] of Object.entries(table.methodTypes ?? {})) {
+    for (const [name, types] of Object.entries(methods)) spec(cls, name).types = types
+  }
+  for (const [cls, names] of Object.entries(table.methodAngles ?? {})) {
+    for (const name of names) spec(cls, name).angle = true
+  }
+  return classes
 }
 
 // esbuild's CJS namespaces export non-configurable getters, so the copy
@@ -54,7 +135,7 @@ export const withOptionChecks = (api, table, warn) => {
   if (!table || api === null || typeof api !== 'object') return api
   const copies = new Map([[api, copyOf(api)]])
   const root = copies.get(api)
-  for (const [path, known] of Object.entries(table.options)) {
+  for (const [path, spec] of specsOf(table)) {
     const keys = path.split('.')
     const last = keys.pop()
     let original = api
@@ -71,7 +152,7 @@ export const withOptionChecks = (api, table, warn) => {
       copy = copies.get(child)
     }
     if (typeof original?.[last] === 'function') {
-      const wrapped = checked(table.prefix + path, original[last], known, warn)
+      const wrapped = checked(table.prefix + path, original[last], spec, warn)
       setValue(copy, last, wrapped)
       // Manifold also re-exports namespaced functions at the top level as the
       // same function object; keep both bindings pointing at one wrapper.
@@ -125,30 +206,38 @@ const reportMethod = (warning) => globalThis[METHOD_WARN]?.(warning)
 
 export const wrapFluentMethods = (jf, table, warn) => {
   setMethodWarn(warn)
-  if (!table?.methods || jf === null || typeof jf !== 'object') return
+  if (!table || jf === null || typeof jf !== 'object') return
   const protos = fluentPrototypes(jf)
-  for (const [cls, methods] of Object.entries(table.methods)) {
+  for (const [cls, methods] of methodSpecsOf(table)) {
     const proto = protos[cls]
     if (!proto) continue
-    for (const [name, known] of Object.entries(methods)) {
+    for (const [name, spec] of methods) {
       const descriptor = Object.getOwnPropertyDescriptor(proto, name)
       if (typeof descriptor?.value !== 'function' || descriptor.value[WRAPPED]) continue
-      const wrapped = checked(`${cls}.${name}`, descriptor.value, known, reportMethod)
+      const wrapped = checked(`${cls}.${name}`, descriptor.value, spec, reportMethod)
       wrapped[WRAPPED] = true
       Object.defineProperty(proto, name, { ...descriptor, value: wrapped })
     }
   }
 }
 
+// The collector knows the chat's API style, so it turns each fact the checks
+// report into the warning the model sees; warn returns it for the thrown-error hint.
 export const createWarningCollector = (cap = MAX_WARNINGS) => {
   let seen = new Set()
   let list = []
+  let api = DEFAULT_API
   return {
-    warn: (warning) => {
+    warn: (fact) => {
+      const warning = explainWarning(fact, api)
       const key = `${warning.fn}\u0000${warning.option}`
-      if (seen.has(key) || list.length >= cap) return
+      if (seen.has(key) || list.length >= cap) return warning
       seen.add(key)
       list.push(warning)
+      return warning
+    },
+    setApi: (next) => {
+      api = APIS.includes(next) ? next : DEFAULT_API
     },
     reset: () => {
       seen = new Set()

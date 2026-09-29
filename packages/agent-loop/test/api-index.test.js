@@ -85,6 +85,25 @@ describe('API index', () => {
     expect(Object.keys(modeling.options)).not.toContain('transforms.translate')
   })
 
+  it('tables number and array option types, the only ones checked', () => {
+    const modeling = OPTION_TABLES['@jscad/modeling']
+    expect(modeling.types['primitives.cube']).toEqual({ center: 'array', size: 'number' })
+    expect(modeling.types['primitives.cylinder'].radius).toBe('number')
+    expect(modeling.types['text.vectorText'].height).toBe('number')
+    expect(modeling.types['text.vectorText']).not.toHaveProperty('input')
+    const fluent = OPTION_TABLES['@jbroll/jscad-fluent']
+    expect(fluent.types.cuboid).toEqual({ center: 'array', size: 'array' })
+    expect(fluent.types.cylinder).toEqual({ angle: 'array', center: 'array', height: 'number', segments: 'number' })
+    expect(fluent.methodTypes.FluentGeom2.extrudeLinear).toEqual({ height: 'number', twistAngle: 'number', twistSteps: 'number' })
+  })
+
+  it('tables the functions and methods whose first parameter is an angle', () => {
+    expect(OPTION_TABLES['@jscad/modeling'].angles).toEqual(['transforms.rotate', 'transforms.rotateX', 'transforms.rotateY', 'transforms.rotateZ'])
+    const fluent = OPTION_TABLES['@jbroll/jscad-fluent']
+    expect(fluent.methodAngles.FluentGeom3).toEqual(['rotate', 'rotateX', 'rotateY', 'rotateZ'])
+    expect(Object.keys(fluent.methodAngles).sort()).toEqual(['FluentGeom2', 'FluentGeom3', 'FluentGeometryArray', 'FluentPath2'])
+  })
+
   it('matches a fresh generation', () => {
     expect(readFileSync(new URL('../api/index.json', import.meta.url), 'utf8')).toBe(formatIndex(entries))
     expect(readFileSync(new URL('../api/optionTable.js', import.meta.url), 'utf8')).toBe(formatOptionTable(optionTables(entries)))
