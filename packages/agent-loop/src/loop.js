@@ -2,7 +2,8 @@
 // the caller's requestTool, feeds string results back, repeats until the
 // provider answers with no tool calls. Ported from the studio server loop;
 // the only runtime needs are AbortSignal/clearTimeout plus the fetch in providers.
-import { TOOLS } from './tools.js'
+import { DEFAULT_API } from './api.js'
+import { buildTools } from './tools.js'
 
 const DEFAULT_TOOL_TIMEOUT_MS = 120_000
 
@@ -90,12 +91,13 @@ const withTimeout = (promise, timeoutMs, signal, makeTimeoutError) =>
   })
 
 /**
- * @param {{conversation:{messages:Array<object>},provider:{send:Function},requestTool:Function,onText?:Function,signal?:AbortSignal,toolTimeoutMs?:number}} options
+ * @param {{conversation:{messages:Array<object>},provider:{send:Function},requestTool:Function,onText?:Function,signal?:AbortSignal,toolTimeoutMs?:number,api?:'fluent'|'modeling'}} options
  * @returns {Promise<{messages:Array<object>}>} a NEW conversation; the input is never mutated.
  */
 export const runTurn = (options) => {
   const { conversation, provider, requestTool, onText, signal } = options
   const toolTimeoutMs = options.toolTimeoutMs ?? DEFAULT_TOOL_TIMEOUT_MS
+  const tools = buildTools(options.api ?? DEFAULT_API)
   const messages = [...conversation.messages]
 
   return new Promise((resolve, reject) => {
@@ -117,7 +119,7 @@ export const runTurn = (options) => {
         for (;;) {
           const text = []
           const toolCalls = []
-          iterator = provider.send(messages, TOOLS)[Symbol.asyncIterator]()
+          iterator = provider.send(messages, tools)[Symbol.asyncIterator]()
           try {
             for (;;) {
               const { done, value } = await nextOrAbort(iterator, signal)

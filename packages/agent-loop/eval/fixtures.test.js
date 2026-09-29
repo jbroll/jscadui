@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { readdirSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { check, measure } from '@jscadui/model-tools'
+import { APIS } from '../src/api.js'
 import { TOOLS } from '../src/tools.js'
 import { loadFixtures } from './run-eval.js'
 
@@ -30,7 +31,17 @@ describe('eval fixtures', () => {
       expect(typeof fixture.checks).toBe('function')
       expect(typeof fixture.maxTurns).toBe('number')
     })
+
+    it(`${fixture.name}: leaves the API to the setting`, () => {
+      if (fixture.api !== undefined) expect(APIS).toContain(fixture.api)
+      expect(fixture.prompt).not.toMatch(/fluent|@jscad|modeling|\bjf\b/i)
+    })
   }
+
+  it('runs the fluent style checks only under the fluent api', () => {
+    expect(byName['fluent-chain'].api).toBe('fluent')
+    expect(fixtures.filter((f) => f.api).map((f) => f.name)).toEqual(['fluent-chain'])
+  })
 
   it.each([
     ['single-sphere', () => primitives.sphere({ radius: 10 }), {}],

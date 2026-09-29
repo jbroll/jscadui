@@ -12,8 +12,18 @@ conversations; the eval measures a prompt change before it is kept.
 ## Scope
 
 Edit only `packages/agent-loop/prompt.md`, `packages/agent-loop/prompt/`
-(examples and `prompt/index.js`) and `packages/agent-loop/eval/fixtures/` in
-jscadui. Logs and eval result files live in the private `jscad-chat-evals`
+(`fluent.md`, `modeling.md`, the examples and `prompt/index.js`) and
+`packages/agent-loop/eval/fixtures/` in jscadui.
+
+The chat teaches one API style at a time, `fluent` (the default) or
+`modeling`, set by the user's settings and by `EVAL_API` in the eval (see
+`packages/agent-loop/README.md`, "API style"). A log conversation ran under
+one style: the logged request body carries the system prompt, whose
+`## jscad-fluent style` or `## @jscad/modeling style` heading tells which.
+Log lines from before the setting carry the older prompt that taught both.
+Shared prose goes
+in `prompt.md`, one style's prose in its own file, and one style's examples in
+`prompt/examples/<api>/`, keeping both folders to the same requests. Logs and eval result files live in the private `jscad-chat-evals`
 repo, `$JSCAD_CHAT_DATA` (default `~/src/jscad-chat-evals`); new result files
 go there, not in jscadui. A stumble whose cause is in the runtime, the tools
 or the app goes to `docs/backlog.md` as an item instead, with the
@@ -28,10 +38,15 @@ the user the fixture count times `EVAL_RUNS` and get a yes.
   log, verbatim, or, for a new fixture, a casual, possibly underspecified
   request. Never write a prompt like a spec so a band can grade it, and never
   phrase a prompt to provoke or steer the model toward a particular answer.
+- A fixture's `prompt` never names the API ("in jscad-fluent", "using
+  @jscad/modeling"): the setting picks it, as a user's radio button does.
+  A fixture whose checks test one style's code (method chaining, which
+  package it requires) declares `api: '<style>'` and runs only under that
+  style; every other fixture leaves `api` out and runs under both.
 - `checks` test properties any reasonable answer has: plausible size, hollow
   where the object should be hollow, watertight (via the `solid` context), a
-  size the prompt actually states, and, for a jscad-fluent request, the
-  chaining style. No exact-answer volume band unless the prompt pins the
+  size the prompt actually states, and, for a fixture with `api: 'fluent'`,
+  the chaining style. No exact-answer volume band unless the prompt pins the
   geometry.
 - A prompt or example change is general guidance that holds across requests.
   Never add a line to `prompt.md` or an example to fix one fixture's failure;
@@ -93,10 +108,11 @@ the user the fixture count times `EVAL_RUNS` and get a yes.
    }
    ```
 
-   Run the new fixtures on the current prompt:
+   Run the new fixtures on the current prompt, under the style the log
+   conversation used (`EVAL_API`, default `fluent`):
 
    ```bash
-   EVAL_PROVIDER=meta EVAL_MODEL=muse-spark-1.3-contributor EVAL_FIXTURES=<name>,<name> npm run eval -w @jscadui/agent-loop
+   EVAL_API=<style> EVAL_PROVIDER=meta EVAL_MODEL=muse-spark-1.3-contributor EVAL_FIXTURES=<name>,<name> npm run eval -w @jscadui/agent-loop
    ```
 
    Confirm each fails the way the log shows: a nonzero mean `firstFail`, and
@@ -110,10 +126,11 @@ the user the fixture count times `EVAL_RUNS` and get a yes.
    few-shot reference (`references/few-shot-learning.md`). If that skill is
    not available, prefer a short example file over added prose, and keep
    prose edits to the Imports and Tool policy sections. Prefer a short
-   example model in `prompt/examples/NN-<name>.js` that shows the right form
-   over more prose. Each example opens with a one-line comment naming the
-   request it answers, and must be listed in `prompt/index.js` in file-name
-   order. Keep `prompt.md` prose short and concrete.
+   example model in `prompt/examples/<api>/NN-<name>.js` that shows the right
+   form over more prose, with its counterpart under the same name in the
+   other style's folder. Each example opens with a one-line comment naming
+   the request it answers (never the API), and must be listed in
+   `prompt/index.js` in file-name order. Keep the prose short and concrete.
 
 6. **Measure the candidate.** Run the suite on the candidate. Prefer
    `sci push jscadui/eval` (`ci/eval`, `ci/eval.conf`) for a full-suite run
@@ -143,10 +160,16 @@ the user the fixture count times `EVAL_RUNS` and get a yes.
    one-shot answer, so judge a change by multi-turn success and `rounds`
    rather than by first-attempt failures alone.
 
-   The baseline is the newest result file in `<data>/results/` (`$JSCAD_CHAT_DATA`,
-   default `~/src/jscad-chat-evals`) for the current prompt (its `promptSha256`
-   matches the committed prompt); run one if none exists.
-   Keep the change only if all of these hold, for every model measured:
+   Baselines compare within one API style. Each result file records its
+   `api` and names it (`<time>-<model>-<api>-<sha8>.json`), each style's
+   prompt has its own `promptSha256`, and `--compare` refuses two files of
+   different styles. The baseline for a style is the newest result file in
+   `<data>/results/` (`$JSCAD_CHAT_DATA`, default `~/src/jscad-chat-evals`)
+   for that style and its current prompt (its `promptSha256` matches the
+   committed prompt for that style); run one if none exists. A change to
+   shared prose (`prompt.md`) changes both prompts, so measure it under both
+   styles; `ci/eval` runs every model under every style in `EVAL_APIS`.
+   Keep the change only if all of these hold, for every model and style measured:
    - the target fixtures improve (fewer first-attempt or total failed calls,
      fewer rounds, or lower `geometryError`);
    - the suite-wide sum of mean totals does not fall;

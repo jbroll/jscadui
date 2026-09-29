@@ -7,8 +7,25 @@ the prompt from real sessions: a reader for the launcher's chat log and a
 live eval.
 
 ```js
-import { createProvider, runTurn, SYSTEM_PROMPT } from '@jscadui/agent-loop'
+import { buildSystemPrompt, createProvider, runTurn } from '@jscadui/agent-loop'
 ```
+
+## API style
+
+The chat teaches exactly one modeling API, set by `api`: `'fluent'`
+(`@jbroll/jscad-fluent`, the default, `DEFAULT_API`) or `'modeling'`
+(`@jscad/modeling`). `@jscadui/jscad-text` is part of both. The setting picks
+the system prompt (`buildSystemPrompt(api)`), the tool list
+(`buildTools(api)`, via `runTurn({ api })`; only the `docs` description
+differs) and the entries `docs` answers from (`docsTool(index, query, { api })`).
+It does not change the runtime: model code may still require either package.
+Every function takes `api` as an option and defaults to `'fluent'`; an unknown
+value throws. `APIS` lists both.
+
+The fluent prompt names `@jscad/modeling` only to rule it out, with one
+exception: jscad-text needs `jscadText.init(require('@jscad/modeling'))`, and
+its outline becomes chainable as `new jf.FluentGeom2(outline)`. The modeling
+prompt never mentions jscad-fluent.
 
 ## Chat log reader
 
@@ -35,11 +52,18 @@ It reads the directory the launcher writes (`JSCAD_CHAT_LOG` when set).
 
 ## System prompt
 
-`prompt.md` is the only copy of the prose. Example models live in
-`prompt/examples/*.js`, each opening with a one-line comment naming the
-request it answers, and are listed in `prompt/index.js`. `SYSTEM_PROMPT` is
-`prompt.md` followed by an `## Examples` section with each example fenced, in
-file-name order. Tests check the order and that every example evaluates.
+`prompt.md` holds the prose both styles share, with two slots:
+`{{imports}}` and `{{style}}`. `prompt/fluent.md` and `prompt/modeling.md`
+fill them: each starts with its rows of the imports table and notes, and its
+style section starts at its first `## ` heading. Example models live in
+`prompt/examples/fluent/` and `prompt/examples/modeling/`, each opening with a
+one-line comment naming the request it answers (never the API), and are
+listed per style in `prompt/index.js`. Both folders answer the same requests
+under the same file names. `buildSystemPrompt(api)` is the filled prose
+followed by an `## Examples` section with that style's examples fenced, in
+file-name order. Tests check the order, that each prompt carries only its own
+style's examples, that neither prompt names the other API (apart from the
+jscad-text `init` line), and that every example evaluates with no warnings.
 
 The files are imported as `?raw` text. Vitest reads that natively, jscad-web's
 esbuild build uses `src_build/rawImport.js`, and a Node script that imports
@@ -95,23 +119,36 @@ options to `expand` and `extrudeLinear`).
 
 ## docs tool
 
-`docs({ query })` answers from the index with `docsTool(index, query)`
-(`src/docs.js`), the same pure function in the page and in the eval. A query
-is a qualified name (`primitives.roundedCuboid`, `jf.polygon`,
-`FluentGeom2.extrudeLinear`), a bare name (`roundedCuboid`) or a namespace or
-class (`primitives`, `FluentGeom2`). A function answers with its signature,
-description, options with type and default, and example; a fluent entry adds
-`Same options as <modeling name>`. A namespace or class answers with its
-members and one-line summaries, and a class method missing from an array
-class is looked up on the class it extends. A bare name that matches in
-several packages answers the `@jscad/modeling` entry with the others on an
-`Also:` line, or lists the candidates. A package name (`@jbroll/jscad-fluent`,
-`@jscadui/jscad-text`, `@jscad/modeling`) resolves to that package's top entry,
-or, for `@jscad/modeling`, a listing of its namespaces (`primitives`,
-`booleans`, `transforms`, …) with one-line descriptions. A miss is a failed result,
+`docs({ query })` answers from the index with
+`docsTool(index, query, { api })` (`src/docs.js`), the same pure function in
+the page and in the eval. It searches only the chosen API's entries plus
+`@jscadui/jscad-text`'s. A query is a qualified name
+(`primitives.roundedCuboid`, `jf.polygon`, `FluentGeom2.extrudeLinear`), a
+bare name (`roundedCuboid`) or a namespace or class (`primitives`,
+`FluentGeom2`). A function answers with its signature, description, options
+with type and default, and example; a fluent entry whose options are a
+modeling function's lists them without naming that function. A namespace or
+class answers with its members and one-line summaries, and a class method
+missing from an array class is looked up on the class it extends. A bare name
+with several hits answers the preferred one with the others on an `Also:`
+line (under fluent, the `jf.*` factory, then the `FluentGeom3`, `FluentGeom2`
+and `FluentPath2` method), or lists the candidates. A package name resolves to
+that package's top entry, or, for `@jscad/modeling`, a listing of its
+namespaces (`primitives`, `booleans`, `transforms`, …) with one-line
+descriptions.
+
+A query only the other API answers never shows that API's entry. When the
+chosen API has an equivalent (a `sameAs` link, the same function name, or
+`EQUIVALENT` in `src/docs.js` for namespaces and renamed functions), the
+answer is `<name> is not part of the <api> API; the <api> form is <entry>.`
+followed by that entry; otherwise it is `<name> is not available in the <api>
+API.` The one exception is `extrusions.extrudeHelical` under fluent, which has
+no helical extrusion: the answer permits that single modeling import, wrapped
+as `new jf.FluentGeom3(extrudeHelical(options, outline))`, and shows its
+options. A miss in both is a failed result,
 `{ ok: false, error: { name: 'NotFoundError', message: 'no entry <query>; closest: a, b, c' } }`,
-with the three nearest names by edit distance. Answers are cut at 3,000
-characters.
+with the three nearest names in the chosen API by edit distance. Answers are
+cut at 3,000 characters.
 
 ## Eval
 
@@ -160,6 +197,7 @@ wraps on and fails on any warning.
 
 ```bash
 EVAL_PROVIDER=meta EVAL_MODEL=muse-spark-1.3-contributor npm run eval -w @jscadui/agent-loop
+EVAL_API=modeling EVAL_PROVIDER=meta EVAL_MODEL=muse-spark-1.3-contributor npm run eval -w @jscadui/agent-loop
 npm run eval -w @jscadui/agent-loop -- --compare eval/results/a.json eval/results/b.json
 npm run eval -w @jscadui/agent-loop -- --regrade eval/results/a.json eval/results/b.json
 npm run eval:keyless -w @jscadui/agent-loop
@@ -173,6 +211,14 @@ whatever it names, fixture names and group names both, e.g. `EVAL_FIXTURES=profi
 runs every fixture in that group, `EVAL_FIXTURES=gear,fluent-chain` runs one named
 fixture plus one grouped fixture, and `EVAL_FIXTURES=all` runs every fixture
 regardless of group.
+
+`EVAL_API` (`fluent` by default, or `modeling`) picks the API style a run
+teaches: its prompt, tools and docs. A fixture may declare `api`; it then runs
+only under that style, even when `EVAL_FIXTURES` names it. Give it `api` when
+its checks test one style's code (`fluent-chain` checks method chaining);
+leave it out when its checks judge only geometry, so it runs under both. A
+fixture prompt never names the API: the setting does, as the chat's settings
+will for a user.
 
 `--regrade` rewrites each result file in place with no provider calls; the evals
 repo's git history keeps the old version. It recomputes `discipline`, `recovery`,
@@ -194,6 +240,7 @@ without spending API budget.
 |---|---|
 | `EVAL_PROVIDER` | provider kind: `anthropic`, `openai`, `opencode-go`, `meta` |
 | `EVAL_MODEL` | model id |
+| `EVAL_API` | API style to teach: `fluent` (default) or `modeling`; anything else exits with an error |
 | `EVAL_API_KEY` | provider key; overrides everything below |
 | `EVAL_BASE_URL` | provider base URL, without `/v1` |
 | `EVAL_RUNS` | runs per fixture, default 3 |
@@ -231,7 +278,8 @@ the sandbox denies; the sandbox needs Node 22.15 or later.
 
 `eval/parallel.js` keeps up to `EVAL_CONCURRENCY` children busy. The main
 process resolves the provider key once and sends each child the provider
-config over IPC, in memory only. It collects each result as it finishes,
+config and the run's `api` over IPC, in memory only; the child's empty
+environment carries neither. It collects each result as it finishes,
 prints its per-run line, and rewrites the result file with every finished run
 ordered by fixture then run, whatever order they finished in. An error stays
 on its run's `error`; a child that dies before sending a result records
@@ -245,11 +293,11 @@ headers, prompts, tool calls with source, tool results, per-run summaries,
 and the final tables and speed line — to
 `~/.local/state/jscad-chat/eval-live.log` (`eval/live-log.js`), whether or not
 `EVAL_VERBOSE` is set; that variable only controls stdout. A conversation's
-lines, on stdout and in the log, are prefixed `[<model> <fixture>#<run>] ` so
+lines, on stdout and in the log, are prefixed `[<model>/<api> <fixture>#<run>] ` so
 concurrent conversations stay legible; the header, summary tables and speed
-line are prefixed `[<model>] `. A multi-line block (a model source, a
+line are prefixed `[<model>/<api>] `. A multi-line block (a model source, a
 multi-line error) gets the prefix on every line. The file starts with one header line: time, provider,
-model, the prompt hash's first 8 characters, the fixture names, the run
+model and api (`model=<model>/<api>`), the prompt hash's first 8 characters, the fixture names, the run
 count, the model turn cap (`maxTurns=fixture` when there is none) and the
 result file path. Past 10 MB the file rotates to
 `eval-live.log.1` (replacing an older one) before the next write, so
@@ -353,9 +401,12 @@ keeps the stored `wallSeconds`. `formatSummary` prints one line from it, e.g.
 first token 1.8s (median)  94 tok/s (median)`; `formatComparison` prints one
 such line per file.
 
-Each result file, `eval/results/<YYYY-MM-DD>T<HHMMSS>Z-<model>-<sha8>.json`,
-records the SHA-256 of the assembled system prompt, so `--compare` can set two
-prompt versions side by side. The result dir is `evalResultsDir()`: `EVAL_RESULTS_DIR`
+Each result file, `eval/results/<YYYY-MM-DD>T<HHMMSS>Z-<model>-<api>-<sha8>.json`,
+records its `api` (also on each run) and the SHA-256 of that style's assembled
+system prompt, so `--compare` can set two prompt versions side by side. The
+two styles' prompts hash differently, and `--compare` refuses two files of
+different styles; a file written before the setting has no `api`, and
+comparing it prints a warning and goes on. The result dir is `evalResultsDir()`: `EVAL_RESULTS_DIR`
 when set, else `<data>/results` when the evals repo is present; with neither,
 `run-eval` exits 1 before calling any provider. `--compare` always takes
 explicit paths. The file is rewritten after every run, so an
@@ -365,7 +416,7 @@ that caused it. The eval prints one line per run as each finishes. The key is
 never printed or written.
 
 A fixture is one file exporting `fixture`:
-`{ name, prompt, requires, verifyBeforeWrite, maxTurns, checks(measure, { params, source, solid }), transcript?, files?, target? }`.
+`{ name, prompt, requires, verifyBeforeWrite, maxTurns, checks(measure, { params, source, solid }), api?, transcript?, files?, target? }`.
 `name` matches the file name; `transcript` (prior `{ role, content }` turns)
 and `files` (`{ path: source }`) test follow-up requests through the same
 `buildMessages` the app uses. `target` (`{ volume?, dimensions? }`) feeds
@@ -391,7 +442,8 @@ geometry precisely.
 
 `sci push jscadui/eval` (`ci/eval`, `ci/eval.conf`) runs this eval against
 live models on the CI host instead of locally, one process per model in
-`EVAL_MODELS`. Provider keys come from the CI host user's
+`EVAL_MODELS` and style in `EVAL_APIS`: models run concurrently, each model's
+styles one after the other. Provider keys come from the CI host user's
 `~/.config/jscad-chat/keys.json`, placed there by hand; a model whose
 provider has no key there fails on its own. Results land in the job's
 `eval-results/`; fetch them into `$JSCAD_CHAT_DATA/results` with

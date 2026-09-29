@@ -1,4 +1,4 @@
-// A 40 by 20 by 6 plate with two 4mm mounting holes 28mm apart, in jscad-fluent
+// A 40 by 20 by 6 plate with two 4mm mounting holes 28mm apart
 const jf = require('@jbroll/jscad-fluent')
 
 const main = () => {

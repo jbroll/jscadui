@@ -1,6 +1,7 @@
 // apps/jscad-web/test/aiChat.test.js
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest'
+import { buildSystemPrompt } from '@jscadui/agent-loop'
 import { initChat, relayBaseUrl } from '../src/aiChat.js'
 
 describe('browser chat turn', () => {
@@ -218,6 +219,29 @@ describe('conversation context', () => {
     ])
     expect(messages[3].content).toContain('### main.js')
     expect(messages.at(-1)).toEqual({ role: 'user', content: 'second' })
+  })
+
+  it('sends the chosen API prompt and passes the API to the loop, fluent by default', async () => {
+    const run = async (getApi) => {
+      document.body.innerHTML = '<div id="chat"></div>'
+      const container = document.getElementById('chat')
+      const runTurnFn = vi.fn(async () => ({ messages: [] }))
+      initChat({
+        container,
+        requestTool: async () => '{}',
+        getProvider: () => ({ kind: 'openai', model: 'm', apiKey: 'k', baseUrl: 'https://relay.test' }),
+        runTurnFn,
+        ...(getApi ? { getApi } : {}),
+      })
+      await submit(container, 'a cube', 1, runTurnFn)
+      return runTurnFn.mock.calls[0][0]
+    }
+    const byDefault = await run()
+    expect(byDefault.api).toBe('fluent')
+    expect(byDefault.conversation.messages[0].content).toBe(buildSystemPrompt('fluent'))
+    const modeling = await run(() => 'modeling')
+    expect(modeling.api).toBe('modeling')
+    expect(modeling.conversation.messages[0].content).toBe(buildSystemPrompt('modeling'))
   })
 
   it('sends x-jscad-chat-id through the relay but not to a custom base URL', async () => {

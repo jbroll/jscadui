@@ -2,7 +2,7 @@
 // from the account panel, runs runTurn directly, executes each tool request
 // through requestTool, and renders streamed text. Provider HTTP targets the
 // relay, which proxies path-preserving to the provider and stores nothing.
-import { buildMessages, createProvider, runTurn as defaultRunTurn, SYSTEM_PROMPT } from '@jscadui/agent-loop'
+import { buildMessages, buildSystemPrompt, createProvider, DEFAULT_API, runTurn as defaultRunTurn } from '@jscadui/agent-loop'
 
 /* global __RELAY_ORIGIN__ */
 const RELAY_OVERRIDE_KEY = 'jscad-ai.relay'
@@ -23,9 +23,9 @@ const el = (tag, className, text) => {
 }
 
 /**
- * @param {{container:HTMLElement,requestTool:Function,getProvider:Function,runTurnFn?:Function,storage?:{readConversation:Function,writeConversation:Function},projectId?:string|(()=>string),getProjectFiles?:()=>Promise<Record<string,string|ArrayBuffer>>}} options
+ * @param {{container:HTMLElement,requestTool:Function,getProvider:Function,getApi?:()=>'fluent'|'modeling',runTurnFn?:Function,storage?:{readConversation:Function,writeConversation:Function},projectId?:string|(()=>string),getProjectFiles?:()=>Promise<Record<string,string|ArrayBuffer>>}} options
  */
-export const initChat = ({ container, requestTool, getProvider, runTurnFn = defaultRunTurn, storage, projectId, getProjectFiles = async () => ({}) }) => {
+export const initChat = ({ container, requestTool, getProvider, getApi = () => DEFAULT_API, runTurnFn = defaultRunTurn, storage, projectId, getProjectFiles = async () => ({}) }) => {
   const header = el('div', 'chat-header', 'AI Chat')
   const messagesEl = el('div', 'chat-messages')
   const form = el('form', 'chat-form')
@@ -138,10 +138,12 @@ export const initChat = ({ container, requestTool, getProvider, runTurnFn = defa
         ...(selection.baseUrl ? {} : { chatId: sessionId() }),
       })
       const files = await projectFiles()
+      const api = getApi()
       let assistantText = ''
       await runTurnFn({
-        conversation: { messages: buildMessages({ systemPrompt: SYSTEM_PROMPT, transcript: prior, files, message }) },
+        conversation: { messages: buildMessages({ systemPrompt: buildSystemPrompt(api), transcript: prior, files, message }) },
         provider,
+        api,
         requestTool: handleTool,
         onText: (text) => {
           assistantText += text

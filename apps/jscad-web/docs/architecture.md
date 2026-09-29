@@ -713,13 +713,32 @@ from `src/aiEffort.js`: Anthropic's list carries per-model effort support, the
 other kinds get their documented level set, and Meta Muse models drop `none`,
 which Meta answers with a 400.
 
+### API style
+
+The chat teaches one modeling API: `fluent` (`@jbroll/jscad-fluent`, the
+default) or `modeling` (`@jscad/modeling`), with `@jscadui/jscad-text` in
+both. Teaching one keeps a model from calling fluent methods on plain
+modeling geometry, which the two-API prompt invited. `getChatApi()` in
+`src/aiAccount.js` reads it per turn from the selection's `api`, falling back
+to `DEFAULT_API`; a settings radio button will write it there. From there it
+flows two ways in `main.js`: `initChat({ getApi })` builds the turn's system
+prompt with `buildSystemPrompt(api)` and passes `api` to `runTurn`, which
+sends `buildTools(api)`; and the `docs` dependency calls
+`docsTool(apiIndex, query, { api })`, which answers only from that API's
+index entries and jscad-text's, and points a query for the other API at its
+equivalent or says it is not available. The runtime does not change: model
+code may still require either package, and option warnings are built as
+before, in the frame without the setting. The eval sets the same value with
+`EVAL_API` and hands it to `createEvalBackend({ api })`, where the docs answer
+and the warnings for a run are built (`packages/agent-loop/README.md`).
+
 Tools and where they run:
 
 | Tool | Runs |
 |---|---|
 | `eval`, `measure`, `check`, `export`, `params` | compute frame (`eval` also returns `warnings` and `console`) |
 | `writeModel` | editor buffer plus a version row (also returns `warnings` and `console`) |
-| `docs` | page: `docsTool` over `@jscadui/agent-loop/api/index.json`, no frame round trip |
+| `docs` | page: `docsTool` over `@jscadui/agent-loop/api/index.json` for the chat's API style, no frame round trip |
 
 `view` (page, from the live canvas) is not offered to the model: its PNG data
 URL gets JSON-encoded into a text tool result that no provider adapter turns
@@ -765,7 +784,7 @@ dedupe), capped at 50 lines and 4,000 characters total with a trailing
 
 Fluent class methods that take an options object (`.extrudeLinear({...})`,
 `.center`, `.mirror`, `.expand`, `.offset`, `.extrudeRotate`) are checked
-too, because the chat prompt teaches chaining. Fluent exports no classes, so
+too, because the fluent prompt teaches chaining. Fluent exports no classes, so
 `wrapFluentMethods` finds each prototype from an object a factory makes and
 wraps the methods listed under `methods` in the option table in place, once,
 the first time a project file requires fluent. A warning names the class,
@@ -802,7 +821,7 @@ and `run-eval` refuses to run without one. The `chat-review` project skill
 (`.claude/skills/chat-review/`) groups the stumbles by cause, reproduces each
 group as an eval fixture, and keeps a prompt or example change only when the
 eval shows fewer first-attempt failures on the new fixtures and no fixture's
-mean total falls by more than 0.5.
+mean total falls by more than 0.5, comparing result files of one API style.
 
 The eval runs model code through `@jscadui/require` with the frame's
 transform rule and URL scheme, mapping `https://cdn.jsdelivr.net/npm/<pkg>` to
@@ -818,10 +837,13 @@ shared with fluent's and model-tools' own requires. It wraps the fluent
 methods on Node's fluent prototypes with the same `wrapFluentMethods` the
 frame uses.
 
-`prompt.md` is the only copy of the prompt prose; examples are separate files
-in `prompt/examples/`, listed in `prompt/index.js`. They are imported as `?raw`
-text, which Vitest reads natively, jscad-web's build reads through
-`src_build/rawImport.js`, and Node reads through `text-loader.js`.
+`prompt.md` holds the prompt prose both API styles share, and
+`prompt/fluent.md` and `prompt/modeling.md` fill its imports and style slots;
+examples are separate files in `prompt/examples/fluent/` and
+`prompt/examples/modeling/`, the same requests in each, listed in
+`prompt/index.js`. They are imported as `?raw` text, which Vitest reads
+natively, jscad-web's build reads through `src_build/rawImport.js`, and Node
+reads through `text-loader.js`.
 
 Logging stays in the local launcher. The production relay forwards by
 allowlist, so it drops the chat id header and records nothing.

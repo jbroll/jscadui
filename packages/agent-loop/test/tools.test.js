@@ -1,6 +1,8 @@
 // packages/agent-loop/test/tools.test.js
 import { describe, expect, it } from 'vitest'
-import { TOOLS } from '../src/tools.js'
+import { buildTools, TOOLS } from '../src/tools.js'
+
+const docsDescription = (api) => buildTools(api).find((t) => t.name === 'docs').description
 
 describe('agent tools', () => {
   it('exposes the seven browser tools with input schemas', async () => {
@@ -14,5 +16,24 @@ describe('agent tools', () => {
 
   it('does not offer view to the model', () => {
     expect(TOOLS.map((t) => t.name)).not.toContain('view')
+  })
+
+  it('offers the same tools under either API', () => {
+    expect(buildTools('modeling').map((t) => t.name)).toEqual(buildTools('fluent').map((t) => t.name))
+    expect(TOOLS).toEqual(buildTools('fluent'))
+  })
+
+  it('names only fluent entries in the fluent docs description', () => {
+    expect(docsDescription('fluent')).toMatch(/jf\.polygon/)
+    expect(docsDescription('fluent')).not.toMatch(/primitives|booleans|@jscad\/modeling/)
+  })
+
+  it('names only modeling entries in the modeling docs description', () => {
+    expect(docsDescription('modeling')).toMatch(/primitives\.roundedCuboid/)
+    expect(docsDescription('modeling')).not.toMatch(/fluent|\bjf\b/i)
+  })
+
+  it('refuses an unknown API', () => {
+    expect(() => buildTools('scad')).toThrow(/unknown api scad/)
   })
 })

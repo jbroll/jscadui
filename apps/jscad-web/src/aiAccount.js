@@ -3,6 +3,7 @@
 // provider · model summary; every setting lives in the gear dialog.
 // Non-secret selection lives in localStorage; the key itself lives in
 // @jscadui/key-store and attaches per request.
+import { APIS, DEFAULT_API } from '@jscadui/agent-loop'
 import { createKeyStore } from '@jscadui/key-store'
 import { relayBaseUrl } from './aiChat.js'
 import { effortOptionsForModel } from './aiEffort.js'
@@ -42,6 +43,13 @@ export const getSelection = () => {
 
 const setSelection = (selection) => {
   localStorage.setItem(SELECTION_KEY, JSON.stringify(selection))
+}
+
+// The modeling API the chat teaches, read per turn; the settings radio button
+// will store it as the selection's `api`.
+export const getChatApi = () => {
+  const { api } = getSelection()
+  return APIS.includes(api) ? api : DEFAULT_API
 }
 
 // The provider config the chat POSTs per turn, or null when incomplete.

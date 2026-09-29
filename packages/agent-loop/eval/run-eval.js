@@ -1,11 +1,12 @@
 // Usage (from packages/agent-loop):
-//   EVAL_PROVIDER=meta EVAL_MODEL=muse-spark-1.3-contributor npm run eval
+//   EVAL_PROVIDER=meta EVAL_MODEL=muse-spark-1.3-contributor [EVAL_API=modeling] npm run eval
 //   npm run eval -- --compare eval/results/a.json eval/results/b.json
 // Runs the suite live. Never in CI: every run spends real API budget.
 import { createHash } from 'node:crypto'
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { buildMessages, createProvider, runTurn, SYSTEM_PROMPT } from '../index.js'
+import { buildMessages, buildSystemPrompt, createProvider, DEFAULT_API, runTurn } from '../index.js'
+import { checkApi } from '../src/api.js'
 import { evalResultsDir } from '../log/log-dir.js'
 import { isMainModule } from '../src/mainModule.js'
 import { resolveCredentials } from './credentials.js'
@@ -28,20 +29,33 @@ export const modelMaxTurns = (env, model, models = MODELS) => {
 
 export const promptHash = (prompt) => createHash('sha256').update(prompt).digest('hex')
 
+export const evalApi = (env) => checkApi(env.EVAL_API || DEFAULT_API)
+
 // Sortable UTC timestamp so two runs on the same day and prompt don't collide:
-// <YYYY-MM-DD>T<HHMMSS>Z-<model>-<sha8>.json
-export const resultFileName = (model, promptSha256, now = new Date()) => {
+// <YYYY-MM-DD>T<HHMMSS>Z-<model>-<api>-<sha8>.json
+export const resultFileName = (model, api, promptSha256, now = new Date()) => {
   const timestamp = now.toISOString().replace(/\.\d{3}Z$/, 'Z').replace(/:/g, '')
-  return `${timestamp}-${model}-${promptSha256.slice(0, 8)}.json`
+  return `${timestamp}-${model}-${api}-${promptSha256.slice(0, 8)}.json`
 }
 
 // `only`: null runs every ungrouped fixture (the default CSG suite); a list of
-// fixture and/or group names runs their union; ['all'] runs everything.
-export function selectFixtures(fixtures, only) {
-  if (!only) return fixtures.filter((f) => !f.group)
-  if (only.includes('all')) return fixtures
+// fixture and/or group names runs their union; ['all'] runs everything. A
+// fixture that declares an `api` runs only under that api.
+export function selectFixtures(fixtures, only, api = DEFAULT_API) {
+  const forApi = fixtures.filter((f) => !f.api || f.api === api)
+  if (!only) return forApi.filter((f) => !f.group)
+  if (only.includes('all')) return forApi
   const wanted = new Set(only)
-  return fixtures.filter((f) => wanted.has(f.name) || (f.group && wanted.has(f.group)))
+  return forApi.filter((f) => wanted.has(f.name) || (f.group && wanted.has(f.group)))
+}
+
+const noApi = (label) => `${label} has no api (written before the api setting)`
+
+// Two result files compare only within one API style.
+export const compareApis = (a, b) => {
+  if (a.api && b.api) return a.api === b.api ? {} : { error: `run-eval: cannot compare a ${a.api} result with a ${b.api} result` }
+  if (!a.api && !b.api) return {}
+  return { warning: `run-eval: ${a.api ? `a is ${a.api}` : noApi('a')}; ${b.api ? `b is ${b.api}` : noApi('b')}` }
 }
 
 export async function loadFixtures(dir = FIXTURES) {
@@ -124,7 +138,19 @@ export const EMPTY_REPLY = 'empty provider reply'
 export async function runConversation(
   fixture,
   run,
-  { provider, backend, systemPrompt = SYSTEM_PROMPT, now, maxTurns = fixture.maxTurns, toolTimeoutMs, gradeTimeoutMs, onToolCall, onToolResult, onText },
+  {
+    provider,
+    backend,
+    api = DEFAULT_API,
+    systemPrompt = buildSystemPrompt(api),
+    now,
+    maxTurns = fixture.maxTurns,
+    toolTimeoutMs,
+    gradeTimeoutMs,
+    onToolCall,
+    onToolResult,
+    onText,
+  },
 ) {
   backend.reset(fixture.files)
   const messages = buildMessages({ systemPrompt, transcript: fixture.transcript ?? [], files: fixture.files ?? {}, message: fixture.prompt })
@@ -136,6 +162,7 @@ export async function runConversation(
     const turn = await runTurn({
       conversation: { messages },
       provider: cappedProvider,
+      api,
       requestTool: async (name, input) => {
         onToolCall?.(name, input)
         const result = await backend.requestTool(name, input)
@@ -162,6 +189,7 @@ export async function runConversation(
   return {
     fixture: fixture.name,
     run,
+    api,
     maxTurns,
     report,
     turns: transcript.length,
@@ -259,14 +287,14 @@ export async function regradeResults(file, fixturesByName, { grader }) {
 // Rewritten after every run so an interrupted eval keeps every finished run.
 // `wallSeconds` is the elapsed suite time; without it, the runs' seconds are summed.
 // `maxTurns` is the model's turn cap, null when each fixture kept its own.
-export function saveResults(writeFile, filePath, { model, provider, runs, maxTurns = null, promptSha256, results, wallSeconds }) {
+export function saveResults(writeFile, filePath, { model, provider, api, runs, maxTurns = null, promptSha256, results, wallSeconds }) {
   const summary = summarize(results)
   const speed = computeSpeed(results)
   if (typeof wallSeconds === 'number') speed.wallSeconds = wallSeconds
   writeFile(
     filePath,
     JSON.stringify(
-      { model, provider, runs, maxTurns, promptSha256, date: new Date().toISOString(), summary, speed, results },
+      { model, provider, api, runs, maxTurns, promptSha256, date: new Date().toISOString(), summary, speed, results },
       null,
       2,
     ),
@@ -277,7 +305,14 @@ export function saveResults(writeFile, filePath, { model, provider, runs, maxTur
 const main = async (argv, env) => {
   const at = argv.indexOf('--compare')
   if (at !== -1) {
-    console.log(formatComparison(readJson(argv[at + 1]), readJson(argv[at + 2])))
+    const [a, b] = [readJson(argv[at + 1]), readJson(argv[at + 2])]
+    const { error, warning } = compareApis(a, b)
+    if (error) {
+      console.error(error)
+      process.exit(1)
+    }
+    if (warning) console.error(warning)
+    console.log(formatComparison(a, b))
     return
   }
   const regradeAt = argv.indexOf('--regrade')
@@ -306,32 +341,34 @@ const main = async (argv, env) => {
     console.error('run-eval: set EVAL_PROVIDER, EVAL_MODEL and EVAL_API_KEY (EVAL_PROVIDER=meta reads ~/.config/muse/auth.json)')
     process.exit(1)
   }
+  const api = evalApi(env)
   const runs = Number(env.EVAL_RUNS) || 3
   const only = env.EVAL_FIXTURES ? env.EVAL_FIXTURES.split(',') : null
-  const fixtures = selectFixtures(await loadFixtures(), only)
+  const fixtures = selectFixtures(await loadFixtures(), only, api)
   const providerConfig = { kind: EVAL_PROVIDER, model: EVAL_MODEL, apiKey, baseUrl }
   createProvider(providerConfig)
   const concurrency = concurrencyFrom(env)
   const maxTurns = modelMaxTurns(env, EVAL_MODEL)
-  const promptSha256 = promptHash(SYSTEM_PROMPT)
+  const promptSha256 = promptHash(buildSystemPrompt(api))
   mkdirSync(resultsDir, { recursive: true })
-  const filePath = join(resultsDir, resultFileName(EVAL_MODEL, promptSha256))
+  const filePath = join(resultsDir, resultFileName(EVAL_MODEL, api, promptSha256))
   console.log(
-    `run-eval: writing ${filePath}  (${fixtures.length * runs} conversations, ${concurrency} at a time, maxTurns ${maxTurns ?? 'per fixture'})`,
+    `run-eval: writing ${filePath}  (api ${api}, ${fixtures.length * runs} conversations, ${concurrency} at a time, maxTurns ${maxTurns ?? 'per fixture'})`,
   )
 
   const verbose = env.EVAL_VERBOSE === '1'
   // Always written to the live log so a second terminal can `tail -F` it;
   // EVAL_VERBOSE only controls whether conversation lines also go to stdout.
   const liveLog = createLiveLog(liveLogPath(env))
-  const logLine = (text, { tag = EVAL_MODEL, toStdout = false } = {}) => {
+  const label = `${EVAL_MODEL}/${api}`
+  const logLine = (text, { tag = label, toStdout = false } = {}) => {
     liveLog.write(prefixBlock(tag, text))
     if (toStdout) console.log(text)
   }
-  logLine(formatLiveHeader({ provider: EVAL_PROVIDER, model: EVAL_MODEL, promptSha256, fixtureNames: fixtures.map((f) => f.name), runs, maxTurns, filePath }), { toStdout: verbose })
+  logLine(formatLiveHeader({ provider: EVAL_PROVIDER, model: label, promptSha256, fixtureNames: fixtures.map((f) => f.name), runs, maxTurns, filePath }), { toStdout: verbose })
 
   const onLog = (job, text) => {
-    const block = prefixBlock(conversationTag(EVAL_MODEL, job.fixture.name, job.run), text)
+    const block = prefixBlock(conversationTag(label, job.fixture.name, job.run), text)
     liveLog.write(block)
     if (verbose) process.stdout.write(block)
   }
@@ -341,6 +378,7 @@ const main = async (argv, env) => {
     saveResults(writeFileSync, filePath, {
       model: EVAL_MODEL,
       provider: EVAL_PROVIDER,
+      api,
       runs,
       maxTurns,
       promptSha256,
@@ -349,11 +387,11 @@ const main = async (argv, env) => {
     })
   const onRun = (result, finished) => {
     const line = `${result.fixture} run ${result.run}/${runs}  firstFail ${result.report.firstAttemptFailures}  total ${result.report.total}`
-    logLine(result.error ? `${line}  error: ${result.error}` : line, { tag: conversationTag(EVAL_MODEL, result.fixture, result.run), toStdout: true })
+    logLine(result.error ? `${line}  error: ${result.error}` : line, { tag: conversationTag(label, result.fixture, result.run), toStdout: true })
     save(finished)
   }
   const runJob = (job, onJobLog) =>
-    runInChild({ fixtureName: job.fixture.name, run: job.run, runs, maxTurns: job.maxTurns, provider: providerConfig }, onJobLog)
+    runInChild({ fixtureName: job.fixture.name, run: job.run, runs, maxTurns: job.maxTurns, api, provider: providerConfig }, onJobLog)
 
   const results = await runSuiteParallel(fixtures, { runs, concurrency, maxTurns, runJob, onLog, onRun })
   const { summary, speed } = save(results)

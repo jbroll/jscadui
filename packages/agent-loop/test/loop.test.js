@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { runTurn } from '../src/loop.js'
+import { buildTools } from '../src/tools.js'
 
 const roundsProvider = (rounds) => {
   const sent = []
@@ -32,6 +33,20 @@ describe('runTurn', () => {
       { role: 'user', content: 'hi' },
       { role: 'assistant', content: 'Hello there', toolCalls: [] },
     ])
+  })
+
+  it('sends the tools of the chosen API, fluent by default', async () => {
+    const seen = []
+    const provider = {
+      async *send(_messages, tools) {
+        seen.push(tools)
+        yield { type: 'done', stopReason: 'end_turn' }
+      },
+    }
+    const conversation = { messages: [{ role: 'user', content: 'hi' }] }
+    await runTurn({ conversation, provider, requestTool: vi.fn() })
+    await runTurn({ conversation, provider, requestTool: vi.fn(), api: 'modeling' })
+    expect(seen).toEqual([buildTools('fluent'), buildTools('modeling')])
   })
 
   it('resolves a tool call through requestTool and continues', async () => {

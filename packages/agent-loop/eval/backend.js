@@ -7,6 +7,7 @@ import { clearAllCaches, moduleResolver, require as jscadRequire } from '@jscadu
 import { transformcjs } from '@jscadui/transform-babel/esm/transform-babel.js'
 import { exportStlText } from '@jscadui/worker/src/exportStlText.js'
 import { OPTION_TABLES } from '../api/optionTable.js'
+import { DEFAULT_API } from '../src/api.js'
 import { installConsoleCapture } from '../src/consoleCapture.js'
 import { docsTool } from '../src/docs.js'
 import { createWarningCollector, withOptionChecks, wrapFluentMethods } from '../src/optionChecks.js'
@@ -114,7 +115,7 @@ const exportModel = (geometry, format) => {
   return { format, size: data.byteLength, data: data.toString('base64') }
 }
 
-export function createEvalBackend() {
+export function createEvalBackend({ api = DEFAULT_API } = {}) {
   let geometry = null
   let params = []
   let lastWarnings = []
@@ -154,7 +155,7 @@ export function createEvalBackend() {
       if (name === 'measure') return geometry ? JSON.stringify({ ok: true, ...measure(geometry, args) }) : noGeometry()
       if (name === 'check') return geometry ? JSON.stringify({ ok: true, ...check(geometry, args) }) : noGeometry()
       if (name === 'params') return JSON.stringify({ ok: true, params })
-      if (name === 'docs') return docsTool(API_INDEX, args.query)
+      if (name === 'docs') return docsTool(API_INDEX, args.query, { api })
       if (name === 'writeModel') {
         const entry = args.entry ?? PROJECT_ENTRY
         project.set(entry, { source: args.source, message: args.message ?? '' })

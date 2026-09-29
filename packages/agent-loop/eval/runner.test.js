@@ -381,8 +381,8 @@ describe('runSuite runs and context', () => {
 describe('resultFileName', () => {
   it('names the file with a sortable UTC date and time so same-day reruns do not collide', () => {
     const now = new Date('2026-09-28T14:05:07.123Z')
-    expect(resultFileName('muse-spark-1.3', 'abcd1234ef567890', now)).toBe(
-      '2026-09-28T140507Z-muse-spark-1.3-abcd1234.json',
+    expect(resultFileName('muse-spark-1.3', 'fluent', 'abcd1234ef567890', now)).toBe(
+      '2026-09-28T140507Z-muse-spark-1.3-fluent-abcd1234.json',
     )
   })
 })

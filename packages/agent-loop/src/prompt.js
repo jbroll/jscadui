@@ -1,8 +1,21 @@
-import { EXAMPLES, PROSE } from '../prompt/index.js'
+import { API_PROSE, EXAMPLES, PROSE } from '../prompt/index.js'
+import { APIS, checkApi, DEFAULT_API } from './api.js'
 
 const fenced = (source) => `\`\`\`javascript\n${source.trim()}\n\`\`\``
 
-export const assemblePrompt = (prose, examples) =>
-  `${[prose.trim(), '## Examples', ...examples.map(({ source }) => fenced(source))].join('\n\n')}\n`
+// An API file holds its import table rows, then its style section from its
+// first `## ` heading on; the shared prose has one slot for each.
+const splitApiProse = (text) => {
+  const at = text.indexOf('\n## ')
+  return { imports: text.slice(0, at).trim(), style: text.slice(at).trim() }
+}
 
-export const SYSTEM_PROMPT = assemblePrompt(PROSE, EXAMPLES)
+export const assemblePrompt = (prose, apiProse, examples) => {
+  const { imports, style } = splitApiProse(apiProse)
+  const filled = prose.trim().replace('{{imports}}', imports).replace('{{style}}', style)
+  return `${[filled, '## Examples', ...examples.map(({ source }) => fenced(source))].join('\n\n')}\n`
+}
+
+const PROMPTS = Object.fromEntries(APIS.map((api) => [api, assemblePrompt(PROSE, API_PROSE[api], EXAMPLES[api])]))
+
+export const buildSystemPrompt = (api = DEFAULT_API) => PROMPTS[checkApi(api)]

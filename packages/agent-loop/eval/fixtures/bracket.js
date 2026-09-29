@@ -1,7 +1,7 @@
 // L-bracket: shape (L, not a slab) matters more than any one exact dimension.
 export const fixture = {
   name: 'bracket',
-  prompt: 'An L-bracket for a shelf, about 60mm wide, using jscad-fluent',
+  prompt: 'An L-bracket for a shelf, about 60mm wide',
   requires: ['eval', 'writeModel'],
   verifyBeforeWrite: true,
   maxTurns: 10,

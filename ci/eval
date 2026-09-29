@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# Runs the agent-loop live-model eval suite on the CI host, one process per
-# model, all running concurrently.
+# Runs the agent-loop live-model eval suite on the CI host for every model x
+# API style pair: models run concurrently, and each model runs its styles one
+# after the other, so at most models x EVAL_CONCURRENCY conversations run at
+# once.
 #
 #   sci push jscadui/eval
 #
-# Settings come from ci/eval.conf (EVAL_MODELS, EVAL_FIXTURES, EVAL_RUNS,
-# EVAL_CONCURRENCY); edit it in the working tree before pushing — sci push
+# Settings come from ci/eval.conf (EVAL_MODELS, EVAL_APIS, EVAL_FIXTURES,
+# EVAL_RUNS, EVAL_CONCURRENCY); edit it in the working tree before pushing — sci push
 # runs the tree as-is, uncommitted changes included. Provider keys come from
 # the CI host user's ~/.config/jscad-chat/keys.json (placed there once,
 # mode 600, outside this repo); see ci/README.md.
@@ -63,16 +65,26 @@ for pair in $EVAL_MODELS; do
     continue
   fi
 
-  echo "ci/eval: starting $provider/$model"
-  EVAL_PROVIDER="$provider" EVAL_MODEL="$model" \
-    npm run eval -w @jscadui/agent-loop &
+  echo "ci/eval: starting $provider/$model ($EVAL_APIS)"
+  (
+    lane_failed=0
+    # shellcheck disable=SC2086
+    for api in $EVAL_APIS; do
+      if ! EVAL_PROVIDER="$provider" EVAL_MODEL="$model" EVAL_API="$api" \
+        npm run eval -w @jscadui/agent-loop; then
+        echo "ci/eval: $provider/$model/$api — eval process failed" >&2
+        lane_failed=1
+      fi
+    done
+    exit "$lane_failed"
+  ) &
   pids+=("$!")
   labels+=("$provider/$model")
 done
 
 for i in "${!pids[@]}"; do
   if ! wait "${pids[$i]}"; then
-    echo "ci/eval: ${labels[$i]} — eval process failed" >&2
+    echo "ci/eval: ${labels[$i]} — at least one API style failed" >&2
     job_failed=1
   fi
 done

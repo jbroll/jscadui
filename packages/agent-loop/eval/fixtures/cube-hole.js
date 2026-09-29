@@ -1,7 +1,7 @@
 // 20mm cube with a through-hole: boolean correctness plus net volume.
 export const fixture = {
   name: 'cube-hole',
-  prompt: 'A 20mm cube with a hole through the middle, using jscad-fluent',
+  prompt: 'A 20mm cube with a hole through the middle',
   requires: ['eval', 'measure', 'writeModel'],
   verifyBeforeWrite: true,
   maxTurns: 8,

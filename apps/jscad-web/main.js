@@ -69,7 +69,7 @@ import { handleToolRequest } from './src/aiBridge.js'
 import { docsTool } from '@jscadui/agent-loop'
 import apiIndex from '@jscadui/agent-loop/api/index.json'
 import { initChat } from './src/aiChat.js'
-import { initAccount, getProviderConfig, getSession } from './src/aiAccount.js'
+import { initAccount, getChatApi, getProviderConfig, getSession } from './src/aiAccount.js'
 
 /**
  * @typedef {import('@jscadui/worker').UserParameters} UserParameters
@@ -851,7 +851,7 @@ const aiDeps = {
     await recordEdit(source, entry)
     return { ok: true, entry }
   },
-  docs: (query) => docsTool(apiIndex, query),
+  docs: (query) => docsTool(apiIndex, query, { api: getChatApi() }),
 }
 
 if (byId('ai-account')) initAccount(byId('ai-account'))
@@ -864,6 +864,7 @@ if (byId('ai-chat')) {
     container: byId('ai-chat'),
     requestTool: (name, input) => handleToolRequest(name, input, aiDeps),
     getProvider: getProviderConfig,
+    getApi: getChatApi,
     storage: chatStorage,
     projectId: () => currentProjectId,
     getProjectFiles: () => collectProjectFiles(fileSystem.getSwHandler()),

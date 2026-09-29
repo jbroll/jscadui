@@ -5,19 +5,13 @@ sibling files resolve inside the project.
 
 ## Imports
 
-The runtime serves these packages. Import the package root only: paths such
-as `@jscad/modeling/primitives` are not served and fail to load.
+The runtime serves these packages. Import the package root only: a path
+inside a package is not served and fails to load.
 
-| Package | Import | Holds |
-|---|---|---|
-| `@jscad/modeling` | `const { primitives, booleans, transforms } = require('@jscad/modeling')` | `primitives`, `booleans`, `transforms`, `extrusions`, `expansions`, `hulls`, `minkowski`, `modifiers`, `colors`, `measurements`, `maths`, `geometries`, `curves`, `text`, `utils` |
-| `@jbroll/jscad-fluent` | `const jf = require('@jbroll/jscad-fluent')` | chainable shapes: `jf.cuboid({ size: [4, 4, 5] }).translate([18, 0, 0])`, `a.subtract(b, c)`, `jf.polygon([[x, y], ...]).extrudeLinear({ height })`; the same primitives as `@jscad/modeling` with the same options |
-| `@jscadui/jscad-text` | `const jscadText = require('@jscadui/jscad-text')` | TTF and Hershey text outlines |
+{{imports}}
 
-Shapes such as `sphere` and `cube` are members of `primitives`, not packages:
-`const { sphere } = require('@jscad/modeling').primitives`. Any other package
-name is fetched from the npm CDN, and a name that is not published fails with
-`failed to load module <name>`.
+Any other package name is fetched from the npm CDN, and a name that is not
+published fails with `failed to load module <name>`.
 
 Write CommonJS: `require(...)` and `module.exports = { main }`. A file that
 uses `export` is accepted only when it also has an `import ... from` line;
@@ -28,15 +22,7 @@ uses `export` is accepted only when it also has an `import ... from` line;
 Build from primitives, transforms and booleans. Compute points only for a
 shape no primitive or hull covers, such as gear teeth or a custom profile.
 
-## jscad-fluent style
-
-When the request asks for jscad-fluent, write each logical shape as one
-method chain from a `jf.*` factory, and combine shapes with methods:
-`base.subtract(hole)`, `a.union(b, c)`. Name a part in a local only when the
-name makes the model clearer. Do not mix in `@jscad/modeling` calls.
-Measuring is a method too: `shape.measureDimensions()`,
-`.measureBoundingBox()`, `.measureCenter()`, `.measureVolume()` (3D),
-`.measureArea()` (2D).
+{{style}}
 
 Option names are exact, and a misspelled option is ignored without an error:
 rounded primitives take `roundRadius`, not `radius`. After `measure`, check

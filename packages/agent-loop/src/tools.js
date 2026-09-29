@@ -1,6 +1,15 @@
+import { checkApi, DEFAULT_API } from './api.js'
+
+const DOCS_DESCRIPTION = {
+  fluent:
+    "Look up a jscad-fluent function's signature, options and defaults, or list a class's methods. Query a name (roundedCuboid, jf.polygon, FluentGeom2.extrudeLinear, jscadText.text2d) or a namespace or class (jf, FluentGeom3, FluentGeom2).",
+  modeling:
+    "Look up a JSCAD function's signature, options and defaults, or list a namespace. Query a name (roundedCuboid, primitives.roundedCuboid, extrusions.extrudeLinear, jscadText.text2d) or a namespace (primitives, booleans, transforms).",
+}
+
 // Tool definitions the browser loop hands to the provider. Schemas match the
 // studio server so prompts behave the same against either loop.
-export const TOOLS = [
+export const buildTools = (api = DEFAULT_API) => [
   {
     name: 'eval',
     description: 'Evaluate a new model source and return the resulting parameter definitions and geometry.',
@@ -72,8 +81,7 @@ export const TOOLS = [
   },
   {
     name: 'docs',
-    description:
-      "Look up a JSCAD function's signature, options and defaults, or list a namespace. Query a name (roundedCuboid, primitives.roundedCuboid, jf.polygon, FluentGeom2.extrudeLinear) or a namespace (primitives, booleans, FluentGeom2).",
+    description: DOCS_DESCRIPTION[checkApi(api)],
     inputSchema: {
       type: 'object',
       properties: { query: { type: 'string', description: 'A function, class or namespace name' } },
@@ -81,3 +89,5 @@ export const TOOLS = [
     },
   },
 ]
+
+export const TOOLS = buildTools()

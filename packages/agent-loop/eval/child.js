@@ -19,7 +19,7 @@ const { formatRunHeader, formatText, formatToolCall, formatToolResult } = await 
 
 const send = (message) => new Promise((resolve) => process.send(message, resolve))
 
-const conversation = async ({ fixtureName, run, runs, maxTurns, provider: providerConfig, providerModule = '../index.js' }) => {
+const conversation = async ({ fixtureName, run, runs, maxTurns, api, provider: providerConfig, providerModule = '../index.js' }) => {
   const log = (text) => send({ type: 'log', text })
   const fixture = (await loadFixtures()).find((f) => f.name === fixtureName)
   if (!fixture) throw new Error(`no fixture named ${fixtureName}`)
@@ -34,7 +34,8 @@ const conversation = async ({ fixtureName, run, runs, maxTurns, provider: provid
   log(formatRunHeader(fixture, run, runs))
   const result = await runConversation(fixture, run, {
     provider: createProvider(providerConfig),
-    backend: createEvalBackend(),
+    backend: createEvalBackend({ api }),
+    api,
     maxTurns,
     onToolCall: (name, input) => {
       flush()

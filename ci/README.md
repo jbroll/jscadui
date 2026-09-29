@@ -18,10 +18,16 @@ reach simple-ci. Local terminal sessions verify with `sci push jscadui/test`
 
 `sci push jscadui/eval` runs the agent-loop eval suite (`packages/agent-loop/eval/`)
 against live models on the CI host, one process per model in `ci/eval.conf`'s
-`EVAL_MODELS`. Edit that file in the working tree before pushing — `sci push`
-carries no arguments of its own, so the conf file is the only knob:
-`EVAL_MODELS` (space-separated `provider:model` pairs), `EVAL_FIXTURES`,
-`EVAL_RUNS`, `EVAL_CONCURRENCY`.
+`EVAL_MODELS` and API style in `EVAL_APIS` (`fluent modeling`). Models run
+concurrently; each model runs its styles one after the other, so at most
+models × `EVAL_CONCURRENCY` conversations run at once (12 with the shipped
+conf). Each model and style writes its own result file, named with both. The
+default suite is 12 fixtures under fluent and 11 under modeling
+(`fluent-chain` is fluent-only), so at 3 runs and 2 models a job is
+(12 + 11) × 3 × 2 = 138 conversations. Edit the conf file in the working tree
+before pushing — `sci push` carries no arguments of its own, so the conf file
+is the only knob: `EVAL_MODELS` (space-separated `provider:model` pairs),
+`EVAL_APIS`, `EVAL_FIXTURES`, `EVAL_RUNS`, `EVAL_CONCURRENCY`.
 
 Provider keys come from the CI host user's `~/.config/jscad-chat/keys.json`
 (`{ "<provider>": "<key>" }`, mode 600) — place it there once, by hand; the
@@ -45,7 +51,8 @@ skipping any file already there. `SCI` overrides the `sci` binary path
 
 The job exits non-zero only when a model's eval process failed outright (a
 crash, or a missing/unset key) — provider errors inside individual runs are
-recorded in the result file, not job failures.
+recorded in the result file, not job failures. A failed style does not stop
+that model's next style.
 
 ## gpu-poll
 

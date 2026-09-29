@@ -1,5 +1,6 @@
-export { TOOLS } from './src/tools.js'
-export { SYSTEM_PROMPT } from './src/prompt.js'
+export { APIS, DEFAULT_API } from './src/api.js'
+export { buildTools, TOOLS } from './src/tools.js'
+export { buildSystemPrompt } from './src/prompt.js'
 export { runTurn, ToolTimeoutError } from './src/loop.js'
 export { createProvider } from './src/providers.js'
 export { buildMessages, CONTEXT_BUDGET } from './src/context.js'

@@ -5,7 +5,8 @@ const FREE_COMBINE = /\bjf\.(subtract|union|intersect)\(/
 
 export const fixture = {
   name: 'fluent-chain',
-  prompt: 'A 30mm cube with holes through it along all three axes, in jscad-fluent',
+  prompt: 'A 30mm cube with holes through it along all three axes',
+  api: 'fluent',
   requires: ['eval', 'writeModel'],
   verifyBeforeWrite: true,
   maxTurns: 8,

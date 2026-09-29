@@ -36,6 +36,15 @@ describe('account header', () => {
     expect(getProviderConfig()).toBeNull()
   })
 
+  it('teaches the fluent API unless the selection names another', async () => {
+    const { getChatApi } = await loadAccount()
+    expect(getChatApi()).toBe('fluent')
+    localStorage.setItem('jscad-ai.selection', JSON.stringify({ api: 'modeling' }))
+    expect(getChatApi()).toBe('modeling')
+    localStorage.setItem('jscad-ai.selection', JSON.stringify({ api: 'scad' }))
+    expect(getChatApi()).toBe('fluent')
+  })
+
   it('fetches the model list through the relay on dialog open with a key', async () => {
     const { initAccount, keyStore } = await loadAccount()
     await keyStore.set('sk-x', 'session')

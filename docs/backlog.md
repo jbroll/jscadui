@@ -210,6 +210,25 @@ model with `display-check.js --engine jscad`.
 - JSDoc gaps in `@jscad/modeling` are patched in `api/build-index.js`
   (`PASS_THROUGH`, `defaults` keys). A false warning from a real call means
   another entry belongs there, or upstream JSDoc needs the option.
+- API style radio button (jscad-web). `getChatApi()` in `src/aiAccount.js`
+  reads the selection's `api`; the gear dialog needs the control, and
+  `persistSelection` there must carry `api`, since it rewrites the selection
+  from its own fields and would drop it.
+- Style-aware option warnings and error hints. The eval backend has `api`
+  where a run's warnings are built; the app builds them in the frame worker,
+  which does not have the setting yet (`sendScript` in `src/aiEvaluate.js`
+  would carry it).
+- The studio server's tool list (`apps/jscad-web/server/src/agent/tools.ts`)
+  still carries the old `docs` description that names both APIs.
+- jscad-fluent gaps against `@jscad/modeling`, answered "not available" by the
+  fluent `docs`: `extrudeFromSlices`, `extrudeRectangular`, `project`,
+  `scission`, `modifiers.*`, `curves.bezier.*`, `hullPoints2/3`,
+  `measureAggregate*`, `measureCenterOfMass`, `measureEpsilon`,
+  `transforms.align`, `utils.*`, `text.vectorChar`, and `maths` and
+  `geometries` (in neither index). `extrudeHelical` is the one modeling
+  import the fluent `docs` permits. Upstream: `FluentPath2.expand` returns a
+  `FluentPath2` holding geom2 sides, typed `path2`, with no `extrudeLinear`,
+  so a path cannot be thickened and extruded in one chain.
 
 ## Refactoring
 

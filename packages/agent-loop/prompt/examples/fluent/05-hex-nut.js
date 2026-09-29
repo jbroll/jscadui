@@ -1,4 +1,4 @@
-// An M10 hex nut, 17mm across flats and 8mm thick, in jscad-fluent
+// An M10 hex nut, 17mm across flats and 8mm thick
 const jf = require('@jbroll/jscad-fluent')
 
 // A 6-segment cylinder is a hexagonal prism; its radius is the corner radius.
