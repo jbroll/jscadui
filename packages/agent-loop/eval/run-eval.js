@@ -8,12 +8,11 @@ import { join } from 'node:path'
 import { buildMessages, createProvider, runTurn, SYSTEM_PROMPT } from '../index.js'
 import { evalResultsDir } from '../log/log-dir.js'
 import { isMainModule } from '../src/mainModule.js'
-import { createEvalBackend } from './backend.js'
 import { resolveCredentials } from './credentials.js'
 import { gradeFixture, gradeTranscript, geometryError, transcriptMetrics } from './grade.js'
-import { createLiveLog, formatLiveHeader, liveLogPath, prefixBlock } from './live-log.js'
+import { conversationTag, createLiveLog, formatLiveHeader, liveLogPath, prefixBlock } from './live-log.js'
+import { concurrencyFrom, runInWorker, runSuiteParallel } from './parallel.js'
 import { computeSpeed, formatComparison, formatSummary, summarize } from './report.js'
-import { formatRunHeader, formatText, formatToolCall, formatToolResult } from './verbose.js'
 
 const FIXTURES = new URL('./fixtures/', import.meta.url)
 
@@ -93,71 +92,80 @@ const withTurnCap = (provider, maxTurns, now = () => performance.now()) => {
   }
 }
 
-export async function runSuite(
-  fixtures,
-  { provider, backend, runs = 1, systemPrompt = SYSTEM_PROMPT, now, onRun, onRunStart, onToolCall, onToolResult, onText },
+// One conversation: a fresh backend state, the fixture's prompt, then grading
+// on the final geometry. A provider error lands on the result, never thrown.
+export async function runConversation(
+  fixture,
+  run,
+  { provider, backend, systemPrompt = SYSTEM_PROMPT, now, onToolCall, onToolResult, onText },
 ) {
+  backend.reset()
+  const messages = buildMessages({ systemPrompt, transcript: fixture.transcript ?? [], files: fixture.files ?? {}, message: fixture.prompt })
+  let transcript = messages
+  let error
+  const cappedProvider = withTurnCap(provider, fixture.maxTurns, now)
+  const startedAt = Date.now()
+  try {
+    const turn = await runTurn({
+      conversation: { messages },
+      provider: cappedProvider,
+      requestTool: async (name, input) => {
+        onToolCall?.(name, input)
+        const result = await backend.requestTool(name, input)
+        onToolResult?.(name, result)
+        return result
+      },
+      onText: (text) => onText?.(text),
+    })
+    transcript = turn.messages
+  } catch (err) {
+    error = err.message
+  }
+  const seconds = (Date.now() - startedAt) / 1000
+  const finalMeasure = JSON.parse(await backend.requestTool('measure', {}))
+  const measure = finalMeasure.ok ? finalMeasure : null
+  const finalCheck = JSON.parse(await backend.requestTool('check', {}))
+  const solid = finalCheck.ok ? finalCheck : null
+  const report = gradeFixture(fixture, transcript, measure, { params: backend.params(), solid })
+  const { toolCalls, failedCalls, warnings, docsCalls } = transcriptMetrics(transcript)
+  const { inputTokens, outputTokens, reasoningTokens } = cappedProvider.usage()
+  const { providerSeconds, firstTokenSeconds } = cappedProvider.speed()
+  const outputTokensPerSecond =
+    outputTokens != null && providerSeconds > 0 ? outputTokens / providerSeconds : null
+  return {
+    fixture: fixture.name,
+    run,
+    report,
+    turns: transcript.length,
+    transcript: transcript.filter((m) => m.role !== 'system'),
+    metrics: {
+      rounds: cappedProvider.rounds(),
+      toolCalls,
+      failedCalls,
+      warnings,
+      docsCalls,
+      inputTokens,
+      outputTokens,
+      reasoningTokens,
+      seconds,
+      providerSeconds,
+      firstTokenSeconds,
+      outputTokensPerSecond,
+      geometryError: geometryError(fixture.target, measure),
+    },
+    ...(error ? { error } : {}),
+  }
+}
+
+// Sequential, in this thread: the unit tests and the keyless baseline. The CLI
+// runs conversations in worker threads instead (eval/parallel.js).
+export async function runSuite(fixtures, { provider, backend, runs = 1, onRun, onRunStart, ...options }) {
   if (!provider) throw new Error('runSuite: provider is required (set EVAL_PROVIDER/EVAL_MODEL/EVAL_API_KEY)')
   const results = []
   for (const fixture of fixtures) {
     for (let run = 1; run <= runs; run += 1) {
       onRunStart?.(fixture, run, runs)
-      backend.reset()
-      const messages = buildMessages({ systemPrompt, transcript: fixture.transcript ?? [], files: fixture.files ?? {}, message: fixture.prompt })
-      let transcript = messages
-      let error
-      const cappedProvider = withTurnCap(provider, fixture.maxTurns, now)
-      const startedAt = Date.now()
-      try {
-        const turn = await runTurn({
-          conversation: { messages },
-          provider: cappedProvider,
-          requestTool: async (name, input) => {
-            onToolCall?.(name, input)
-            const result = await backend.requestTool(name, input)
-            onToolResult?.(name, result)
-            return result
-          },
-          onText: (text) => onText?.(text),
-        })
-        transcript = turn.messages
-      } catch (err) {
-        error = err.message
-      }
-      const seconds = (Date.now() - startedAt) / 1000
-      const finalMeasure = JSON.parse(await backend.requestTool('measure', {}))
-      const measure = finalMeasure.ok ? finalMeasure : null
-      const finalCheck = JSON.parse(await backend.requestTool('check', {}))
-      const solid = finalCheck.ok ? finalCheck : null
-      const report = gradeFixture(fixture, transcript, measure, { params: backend.params(), solid })
-      const { toolCalls, failedCalls, warnings, docsCalls } = transcriptMetrics(transcript)
-      const { inputTokens, outputTokens, reasoningTokens } = cappedProvider.usage()
-      const { providerSeconds, firstTokenSeconds } = cappedProvider.speed()
-      const outputTokensPerSecond =
-        outputTokens != null && providerSeconds > 0 ? outputTokens / providerSeconds : null
-      const result = {
-        fixture: fixture.name,
-        run,
-        report,
-        turns: transcript.length,
-        transcript: transcript.filter((m) => m.role !== 'system'),
-        metrics: {
-          rounds: cappedProvider.rounds(),
-          toolCalls,
-          failedCalls,
-          warnings,
-          docsCalls,
-          inputTokens,
-          outputTokens,
-          reasoningTokens,
-          seconds,
-          providerSeconds,
-          firstTokenSeconds,
-          outputTokensPerSecond,
-          geometryError: geometryError(fixture.target, measure),
-        },
-        ...(error ? { error } : {}),
-      }
+      const result = await runConversation(fixture, run, { provider, backend, ...options })
       results.push(result)
       onRun?.(result)
     }
@@ -186,13 +194,17 @@ export function regradeResults(file, fixturesByName) {
       metrics: { ...result.metrics, ...transcriptMetrics(result.transcript) },
     }
   })
-  return { ...file, results, summary: summarize(results), speed: computeSpeed(results) }
+  const speed = computeSpeed(results)
+  if (typeof file.speed?.wallSeconds === 'number') speed.wallSeconds = file.speed.wallSeconds
+  return { ...file, results, summary: summarize(results), speed }
 }
 
 // Rewritten after every run so an interrupted eval keeps every finished run.
-export function saveResults(writeFile, filePath, { model, provider, runs, promptSha256, results }) {
+// `wallSeconds` is the elapsed suite time; without it, the runs' seconds are summed.
+export function saveResults(writeFile, filePath, { model, provider, runs, promptSha256, results, wallSeconds }) {
   const summary = summarize(results)
   const speed = computeSpeed(results)
+  if (typeof wallSeconds === 'number') speed.wallSeconds = wallSeconds
   writeFile(
     filePath,
     JSON.stringify(
@@ -234,57 +246,50 @@ const main = async (argv, env) => {
   const runs = Number(env.EVAL_RUNS) || 3
   const only = env.EVAL_FIXTURES ? env.EVAL_FIXTURES.split(',') : null
   const fixtures = selectFixtures(await loadFixtures(), only)
-  const provider = createProvider({ kind: EVAL_PROVIDER, model: EVAL_MODEL, apiKey, baseUrl })
+  const providerConfig = { kind: EVAL_PROVIDER, model: EVAL_MODEL, apiKey, baseUrl }
+  createProvider(providerConfig)
+  const concurrency = concurrencyFrom(env)
   const promptSha256 = promptHash(SYSTEM_PROMPT)
   mkdirSync(resultsDir, { recursive: true })
   const filePath = join(resultsDir, resultFileName(EVAL_MODEL, promptSha256))
-  console.log(`run-eval: writing ${filePath}`)
+  console.log(`run-eval: writing ${filePath}  (${fixtures.length * runs} conversations, ${concurrency} at a time)`)
 
   const verbose = env.EVAL_VERBOSE === '1'
   // Always written to the live log so a second terminal can `tail -F` it;
-  // EVAL_VERBOSE only controls whether these lines also go to stdout.
+  // EVAL_VERBOSE only controls whether conversation lines also go to stdout.
   const liveLog = createLiveLog(liveLogPath(env))
-  const logLine = (text, { toStdout = verbose } = {}) => {
-    liveLog.write(prefixBlock(EVAL_MODEL, text))
+  const logLine = (text, { tag = EVAL_MODEL, toStdout = false } = {}) => {
+    liveLog.write(prefixBlock(tag, text))
     if (toStdout) console.log(text)
   }
-  logLine(formatLiveHeader({ provider: EVAL_PROVIDER, model: EVAL_MODEL, promptSha256, fixtureNames: fixtures.map((f) => f.name), runs, filePath }))
+  logLine(formatLiveHeader({ provider: EVAL_PROVIDER, model: EVAL_MODEL, promptSha256, fixtureNames: fixtures.map((f) => f.name), runs, filePath }), { toStdout: verbose })
 
-  let pending = ''
-  const flush = () => {
-    if (pending) logLine(formatText(pending))
-    pending = ''
+  const onLog = (job, text) => {
+    const block = prefixBlock(conversationTag(EVAL_MODEL, job.fixture.name, job.run), text)
+    liveLog.write(block)
+    if (verbose) process.stdout.write(block)
   }
 
-  const collected = []
-  const onRun = (result) => {
-    flush()
+  const startedAt = Date.now()
+  const save = (results) =>
+    saveResults(writeFileSync, filePath, {
+      model: EVAL_MODEL,
+      provider: EVAL_PROVIDER,
+      runs,
+      promptSha256,
+      results,
+      wallSeconds: (Date.now() - startedAt) / 1000,
+    })
+  const onRun = (result, finished) => {
     const line = `${result.fixture} run ${result.run}/${runs}  firstFail ${result.report.firstAttemptFailures}  total ${result.report.total}`
-    logLine(result.error ? `${line}  error: ${result.error}` : line, { toStdout: true })
-    collected.push(result)
-    saveResults(writeFileSync, filePath, { model: EVAL_MODEL, provider: EVAL_PROVIDER, runs, promptSha256, results: collected })
+    logLine(result.error ? `${line}  error: ${result.error}` : line, { tag: conversationTag(EVAL_MODEL, result.fixture, result.run), toStdout: true })
+    save(finished)
   }
+  const runJob = (job, onJobLog) =>
+    runInWorker({ fixtureName: job.fixture.name, run: job.run, runs, provider: providerConfig }, onJobLog)
 
-  const hooks = {
-    onRunStart: (fixture, run, n) => logLine(formatRunHeader(fixture, run, n)),
-    onToolCall: (name, input) => {
-      flush()
-      logLine(formatToolCall(name, input))
-    },
-    onToolResult: (_name, result) => logLine(formatToolResult(result)),
-    onText: (text) => {
-      pending += text
-    },
-  }
-
-  await runSuite(fixtures, { provider, backend: createEvalBackend(), runs, onRun, ...hooks })
-  const { summary, speed } = saveResults(writeFileSync, filePath, {
-    model: EVAL_MODEL,
-    provider: EVAL_PROVIDER,
-    runs,
-    promptSha256,
-    results: collected,
-  })
+  const results = await runSuiteParallel(fixtures, { runs, concurrency, runJob, onLog, onRun })
+  const { summary, speed } = save(results)
   logLine(formatSummary(summary, { ...speed, model: EVAL_MODEL, provider: EVAL_PROVIDER }), { toStdout: true })
 }
 

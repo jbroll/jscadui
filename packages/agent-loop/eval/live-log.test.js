@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createLiveLog, formatLiveHeader, liveLogPath, prefixBlock } from './live-log.js'
+import { conversationTag, createLiveLog, formatLiveHeader, liveLogPath, prefixBlock } from './live-log.js'
 
 describe('liveLogPath', () => {
   it('defaults to the jscad-chat state dir', () => {
@@ -22,6 +22,12 @@ describe('prefixBlock', () => {
 
   it('prefixes every line of a multi-line block', () => {
     expect(prefixBlock('gpt-5', 'line one\nline two')).toBe('[gpt-5] line one\n[gpt-5] line two\n')
+  })
+})
+
+describe('conversationTag', () => {
+  it('names the model, fixture and run so interleaved conversations stay apart', () => {
+    expect(prefixBlock(conversationTag('gpt-5', 'cube-hole', 2), 'a\nb')).toBe('[gpt-5 cube-hole#2] a\n[gpt-5 cube-hole#2] b\n')
   })
 })
 

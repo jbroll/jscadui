@@ -99,6 +99,23 @@ describe('regradeResults', () => {
     expect(out.speed).toEqual({ wallSeconds: 4, providerSeconds: 3, toolSeconds: 1, medianFirstTokenSeconds: 0.4, medianOutputTokensPerSecond: 50, runs: 1 })
   })
 
+  it('keeps a stored suite wallSeconds, which a parallel run measures as elapsed time', () => {
+    const file = {
+      model: 'm',
+      speed: { wallSeconds: 5 },
+      results: [1, 2].map((run) => ({
+        fixture: 'cube-hole',
+        run,
+        transcript: [],
+        report: { dimensions: { discipline: 2, recovery: 2, geometry: 2, conservation: 2 }, total: 8, firstAttemptFailures: 0, checkRate: 1 },
+        metrics: { seconds: 4, providerSeconds: 3 },
+      })),
+    }
+    const out = regradeResults(file, new Map([['cube-hole', fixture]]))
+    expect(out.speed.wallSeconds).toBe(5)
+    expect(out.speed.providerSeconds).toBe(6)
+  })
+
   it('leaves a result untouched when its fixture no longer exists', () => {
     const file = {
       results: [

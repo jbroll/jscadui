@@ -383,4 +383,15 @@ describe('saveResults', () => {
     expect(writes).toHaveLength(2)
     expect(JSON.parse(writes[1].content).results).toHaveLength(2)
   })
+
+  it('writes the elapsed suite time as speed.wallSeconds when given', () => {
+    const writes = []
+    const result = { fixture: 'x', run: 1, report: { firstAttemptFailures: 0, checkRate: 1, total: 8 }, metrics: { seconds: 40, providerSeconds: 30 } }
+    const { speed } = saveResults((_path, content) => writes.push(content), '/fake/path.json', {
+      model: 'm', provider: 'p', runs: 2, promptSha256: 'sha', results: [result, { ...result, run: 2 }], wallSeconds: 45,
+    })
+    expect(speed.wallSeconds).toBe(45)
+    expect(speed.providerSeconds).toBe(60)
+    expect(JSON.parse(writes[0]).speed.wallSeconds).toBe(45)
+  })
 })

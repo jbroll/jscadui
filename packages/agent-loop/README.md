@@ -177,6 +177,7 @@ files without spending API budget.
 | `EVAL_API_KEY` | provider key; overrides everything below |
 | `EVAL_BASE_URL` | provider base URL, without `/v1` |
 | `EVAL_RUNS` | runs per fixture, default 3 |
+| `EVAL_CONCURRENCY` | conversations run at once, each in its own worker thread, default 6 |
 | `EVAL_FIXTURES` | comma-separated fixture and/or group names to run; default: ungrouped fixtures only; `all` runs everything |
 | `EVAL_VERBOSE` | `1` also prints the live log's lines to stdout, turn by turn: the header and prompt, tool calls with full input, tool results, and streamed assistant text |
 | `JSCAD_CHAT_DATA` | path to the `jscad-chat-evals` clone, default `~/src/jscad-chat-evals` |
@@ -184,14 +185,29 @@ files without spending API budget.
 | `JSCAD_CHAT_KEYS` | overrides the path to `keys.json` below |
 | `EVAL_LIVE_LOG` | overrides the live log path; `0` disables it |
 
+Each fixture × run is one conversation, run in its own worker thread
+(`eval/worker.js`, loaded with the same `--import ./text-loader.js` hook as the
+CLI) with its own backend and provider instance; the backend keeps module-level
+and `globalThis` state, so two conversations never share a JS realm.
+`eval/parallel.js` keeps up to `EVAL_CONCURRENCY` workers busy. The main
+thread resolves the provider key once and hands each worker the provider
+config in `workerData`, in memory only. It collects each result as it
+finishes, prints its per-run line, and rewrites the result file with every
+finished run ordered by fixture then run, whatever order they finished in. A
+provider error stays on its run's `error`; a worker that dies before sending
+a result records `error: "worker crashed: …"` on that run, and the suite goes
+on. `runSuite` in `eval/run-eval.js` is the sequential in-thread path the unit
+tests and `eval:keyless` use.
+
 Every run appends the same conversation lines `EVAL_VERBOSE` prints — run
 headers, prompts, tool calls with source, tool results, per-run summaries,
 and the final tables and speed line — to
 `~/.local/state/jscad-chat/eval-live.log` (`eval/live-log.js`), whether or not
-`EVAL_VERBOSE` is set; that variable only controls stdout. Each line is
-prefixed `[<model>] ` so two models' concurrent runs stay legible in one
-file, and a multi-line block (a model source, a multi-line error) gets the
-prefix on every line. The file starts with one header line: time, provider,
+`EVAL_VERBOSE` is set; that variable only controls stdout. A conversation's
+lines, on stdout and in the log, are prefixed `[<model> <fixture>#<run>] ` so
+concurrent conversations stay legible; the header, summary tables and speed
+line are prefixed `[<model>] `. A multi-line block (a model source, a
+multi-line error) gets the prefix on every line. The file starts with one header line: time, provider,
 model, the prompt hash's first 8 characters, the fixture names, the run
 count and the result file path. Past 10 MB the file rotates to
 `eval-live.log.1` (replacing an older one) before the next write, so
@@ -266,10 +282,12 @@ provider run.
 
 Each result file also carries a top-level `speed` object, summed/medianed
 over every run in the file: `{ wallSeconds, providerSeconds, toolSeconds,
-medianFirstTokenSeconds, medianOutputTokensPerSecond, runs }`. `toolSeconds`
-is `seconds - providerSeconds` per run, summed: wall time not spent waiting
-on the provider. `saveResults` and `--regrade` recompute it from the file's
-results on every write. `formatSummary` prints one line from it, e.g.
+medianFirstTokenSeconds, medianOutputTokensPerSecond, runs }`. `wallSeconds`
+is the elapsed suite time, less than the sum of the runs' `seconds` when
+conversations overlap. `toolSeconds` is `seconds - providerSeconds` per run,
+summed: wall time not spent waiting on the provider. `saveResults` and
+`--regrade` recompute it from the file's results on every write; `--regrade`
+keeps the stored `wallSeconds`. `formatSummary` prints one line from it, e.g.
 `speed: model muse-spark-1.3 via meta  wall 812s  provider 640s  tools 172s
 first token 1.8s (median)  94 tok/s (median)`; `formatComparison` prints one
 such line per file.
@@ -282,8 +300,8 @@ when set, else `<data>/results` when the evals repo is present; with neither,
 explicit paths. The file is rewritten after every run, so an
 interrupted eval keeps every run that finished. Each result also carries `transcript`, the run's
 messages minus the system prompt, for tracing a stumble back to the tool calls
-that caused it. The eval prints one line per run as it goes. The key is never
-printed or written.
+that caused it. The eval prints one line per run as each finishes. The key is
+never printed or written.
 
 A fixture is one file exporting `fixture`:
 `{ name, prompt, requires, verifyBeforeWrite, maxTurns, checks(measure, { params, source, solid }), transcript?, files?, target? }`.

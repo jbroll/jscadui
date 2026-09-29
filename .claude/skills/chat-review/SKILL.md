@@ -127,6 +127,11 @@ the user the fixture count times `EVAL_RUNS` and get a yes.
    npm run eval -w @jscadui/agent-loop -- --compare <data>/results/<baseline>.json <data>/results/<candidate>.json
    ```
 
+   Conversations run in parallel worker threads, `EVAL_CONCURRENCY` at a time
+   (default 6), so the default suite at 3 runs takes minutes rather than an
+   hour; a conversation's lines in the live log are prefixed
+   `[<model> <fixture>#<run>] `.
+
    The baseline is the newest result file in `<data>/results/` (`$JSCAD_CHAT_DATA`,
    default `~/src/jscad-chat-evals`) for the current prompt (its `promptSha256`
    matches the committed prompt); run one if none exists.

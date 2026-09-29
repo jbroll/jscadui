@@ -15,6 +15,8 @@ export const liveLogPath = (env = process.env) => {
 // Every line of a block gets the model prefix so two models' concurrent runs stay legible.
 export const prefixBlock = (model, text) => `${text.split('\n').map((line) => `[${model}] ${line}`).join('\n')}\n`
 
+export const conversationTag = (model, fixture, run) => `${model} ${fixture}#${run}`
+
 export const formatLiveHeader = ({ provider, model, promptSha256, fixtureNames, runs, filePath, now = new Date() }) =>
   `${now.toISOString()} provider=${provider} model=${model} promptSha=${promptSha256.slice(0, 8)} fixtures=${fixtureNames.join(',')} runs=${runs} file=${filePath}`
 
