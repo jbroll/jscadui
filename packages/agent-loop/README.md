@@ -266,7 +266,9 @@ Each fixture × run is one conversation, run in its own child process
 provider instance; the backend keeps module-level and `globalThis` state, so
 two conversations never share a JS realm. The child runs under Node's
 permission model (`--permission`): it may read only `packages/`,
-`node_modules/` and `.deps-cache/` (and their symlink targets), and may not
+`node_modules/` and `.deps-cache/` (and their symlink targets; in a linked
+worktree also the targets of each package's linked `node_modules` and the main
+checkout's `node_modules`, which code there resolves through), and may not
 write files, start processes or worker threads, or load addons, so model code
 cannot reach `~/.config` or `keys.json` even through `process.getBuiltinModule`.
 Its environment is empty. Node 22's permission model does not restrict the

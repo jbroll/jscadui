@@ -4,25 +4,56 @@
 // 22's permission model has no network control. The child gets an empty
 // environment; provider credentials reach it over IPC.
 import { fork } from 'node:child_process'
-import { realpathSync } from 'node:fs'
+import { readdirSync, realpathSync } from 'node:fs'
 import * as nodeModule from 'node:module'
+import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const CHILD = fileURLToPath(new URL('./child.js', import.meta.url))
 const TEXT_LOADER = fileURLToPath(new URL('../text-loader.js', import.meta.url))
 const REPO = new URL('../../../', import.meta.url)
 
-// A linked worktree reaches node_modules and .deps-cache through symlinks, so
-// both the link and its target are granted.
+// A linked worktree (scripts/setup-worktree.sh) reaches node_modules,
+// .deps-cache and each package's node_modules through symlinks into the main
+// checkout, so the link targets are granted, and so is the main checkout's
+// node_modules, which code in those targets resolves its requires through.
 export const readableDirs = (repo = REPO) => {
   const dirs = new Set()
+  const grantTarget = (link) => {
+    try {
+      const real = realpathSync(link)
+      dirs.add(real)
+      if (real !== link) dirs.add(join(dirname(real), 'node_modules'))
+    } catch {
+      // absent in this checkout
+    }
+  }
   for (const name of ['packages', 'node_modules', '.deps-cache']) {
     const dir = fileURLToPath(new URL(name, repo))
     dirs.add(dir)
+    grantTarget(dir)
+  }
+  const bin = fileURLToPath(new URL('node_modules/.bin', repo))
+  try {
+    const real = realpathSync(bin)
+    if (real !== bin) dirs.add(dirname(real))
+  } catch {
+    // no .bin
+  }
+  const packages = fileURLToPath(new URL('packages', repo))
+  let names = []
+  try {
+    names = readdirSync(packages)
+  } catch {
+    // no packages dir
+  }
+  for (const name of names) {
+    const own = join(packages, name, 'node_modules')
     try {
-      dirs.add(realpathSync(dir))
+      const real = realpathSync(own)
+      if (real !== own) dirs.add(real)
     } catch {
-      // absent in this checkout
+      // package without node_modules
     }
   }
   return [...dirs]
