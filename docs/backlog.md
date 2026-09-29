@@ -218,8 +218,6 @@ model with `display-check.js --engine jscad`.
   where a run's warnings are built; the app builds them in the frame worker,
   which does not have the setting yet (`sendScript` in `src/aiEvaluate.js`
   would carry it).
-- The studio server's tool list (`apps/jscad-web/server/src/agent/tools.ts`)
-  still carries the old `docs` description that names both APIs.
 - jscad-fluent gaps against `@jscad/modeling`, answered "not available" by the
   fluent `docs`: `extrudeFromSlices`, `extrudeRectangular`, `project`,
   `scission`, `modifiers.*`, `curves.bezier.*`, `hullPoints2/3`,

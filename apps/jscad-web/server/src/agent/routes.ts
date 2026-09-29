@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { Express, Request, Response } from 'express'
 import { createProvider, type Provider, type ProviderConfig } from '../providers/types.js'
 import { runTurn, type Conversation } from './loop.js'
+import { APIS, DEFAULT_API, isApi } from './tools.js'
 
 interface PendingToolCall {
   author: string | null
@@ -57,12 +58,17 @@ export function mountAgentRoutes(app: Express, options: AgentRouteOptions = {}):
       res.status(409).json({ error: 'a turn is already running for this project' })
       return
     }
-    const { message, provider: providerConfig } = (req.body ?? {}) as {
+    const { message, provider: providerConfig, api = DEFAULT_API } = (req.body ?? {}) as {
       message?: unknown
       provider?: ProviderConfig
+      api?: unknown
     }
     if (typeof message !== 'string' || message.length === 0) {
       res.status(400).json({ error: 'message is required' })
+      return
+    }
+    if (!isApi(api)) {
+      res.status(400).json({ error: `api must be one of ${APIS.join(', ')}` })
       return
     }
     if (!providerConfig) {
@@ -110,6 +116,7 @@ export function mountAgentRoutes(app: Express, options: AgentRouteOptions = {}):
           }),
         onText: (text) => send('text', { text }),
         signal: ac.signal,
+        api,
       })
       store.save(key, next)
       send('done', {})

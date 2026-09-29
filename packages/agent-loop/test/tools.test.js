@@ -24,7 +24,7 @@ describe('agent tools', () => {
   })
 
   it('names only fluent entries in the fluent docs description', () => {
-    expect(docsDescription('fluent')).toMatch(/jf\.polygon/)
+    expect(docsDescription('fluent')).toMatch(/jf\.cuboid/)
     expect(docsDescription('fluent')).not.toMatch(/primitives|booleans|@jscad\/modeling/)
   })
 

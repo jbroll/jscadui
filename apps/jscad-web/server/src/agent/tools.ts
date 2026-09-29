@@ -1,10 +1,24 @@
 import type { ToolDefinition } from '../providers/types.js'
 
+// The modeling API the chat teaches; mirrors packages/agent-loop/src/api.js.
+export const APIS = ['fluent', 'modeling'] as const
+export type Api = (typeof APIS)[number]
+export const DEFAULT_API: Api = 'fluent'
+export const isApi = (value: unknown): value is Api => APIS.includes(value as Api)
+
+// Kept equal to packages/agent-loop/src/tools.js by test/tools.test.ts.
+const DOCS_DESCRIPTION: Record<Api, string> = {
+  fluent:
+    "Look up a jscad-fluent function's signature, options and defaults, or list a class's methods. Query a name (roundedCuboid, jf.cuboid, FluentGeom2.extrudeLinear, jscadText.text2d) or a namespace or class (jf, FluentGeom3, FluentGeom2).",
+  modeling:
+    "Look up a JSCAD function's signature, options and defaults, or list a namespace. Query a name (roundedCuboid, primitives.roundedCuboid, extrusions.extrudeLinear, jscadText.text2d) or a namespace (primitives, booleans, transforms).",
+}
+
 // The tools the agent may ask the browser to run. Every one executes in the user's browser: eval,
 // params, measure, check and export through the compute frame, writeModel against the project
 // storage, and docs from the page's API index. `view` is not offered here; see
 // docs/architecture.md's tool table. The server only relays inputs and results.
-export const TOOLS: ToolDefinition[] = [
+export const buildTools = (api: Api = DEFAULT_API): ToolDefinition[] => [
   {
     name: 'eval',
     description: 'Evaluate a new model source and return the resulting parameter definitions and geometry.',
@@ -76,8 +90,7 @@ export const TOOLS: ToolDefinition[] = [
   },
   {
     name: 'docs',
-    description:
-      "Look up a JSCAD function's signature, options and defaults, or list a namespace. Query a name (roundedCuboid, primitives.roundedCuboid, jf.polygon, FluentGeom2.extrudeLinear) or a namespace (primitives, booleans, FluentGeom2).",
+    description: DOCS_DESCRIPTION[api],
     inputSchema: {
       type: 'object',
       properties: { query: { type: 'string', description: 'A function, class or namespace name' } },
@@ -85,3 +98,5 @@ export const TOOLS: ToolDefinition[] = [
     },
   },
 ]
+
+export const TOOLS = buildTools()

@@ -726,7 +726,10 @@ prompt with `buildSystemPrompt(api)` and passes `api` to `runTurn`, which
 sends `buildTools(api)`; and the `docs` dependency calls
 `docsTool(apiIndex, query, { api })`, which answers only from that API's
 index entries and jscad-text's, and points a query for the other API at its
-equivalent or says it is not available. The runtime does not change: model
+equivalent or says it is not available. The studio server's chat route takes
+`api` in its POST body next to `provider` (default `fluent`, anything else is
+a 400) and sends the same per-style tool list (`server/src/agent/tools.ts`,
+kept equal to agent-loop's by a test). The runtime does not change: model
 code may still require either package, and option warnings are built as
 before, in the frame without the setting. The eval sets the same value with
 `EVAL_API` and hands it to `createEvalBackend({ api })`, where the docs answer

@@ -1,5 +1,5 @@
 import type { Provider, ProviderEvent, ProviderMessage, ToolCall } from '../providers/types.js'
-import { TOOLS } from './tools.js'
+import { buildTools, DEFAULT_API, type Api } from './tools.js'
 
 export interface Conversation {
   messages: ProviderMessage[]
@@ -13,6 +13,8 @@ export interface RunTurnOptions {
   onText?(text: string): void
   signal?: AbortSignal
   toolTimeoutMs?: number
+  /** The modeling API the chat teaches; picks the docs tool description. */
+  api?: Api
 }
 
 const DEFAULT_TOOL_TIMEOUT_MS = 120_000
@@ -119,6 +121,7 @@ function withTimeout<T>(
 export function runTurn(options: RunTurnOptions): Promise<Conversation> {
   const { conversation, provider, requestTool, onText, signal } = options
   const toolTimeoutMs = options.toolTimeoutMs ?? DEFAULT_TOOL_TIMEOUT_MS
+  const tools = buildTools(options.api ?? DEFAULT_API)
   const messages: ProviderMessage[] = [...conversation.messages]
 
   return new Promise<Conversation>((resolve, reject) => {
@@ -140,7 +143,7 @@ export function runTurn(options: RunTurnOptions): Promise<Conversation> {
         for (;;) {
           const text: string[] = []
           const toolCalls: ToolCall[] = []
-          iterator = provider.send(messages, TOOLS)[Symbol.asyncIterator]()
+          iterator = provider.send(messages, tools)[Symbol.asyncIterator]()
           try {
             for (;;) {
               const { done, value } = await nextOrAbort(iterator, signal)
