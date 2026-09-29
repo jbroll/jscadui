@@ -128,6 +128,11 @@ turns each into the warning the model sees, worded for the chat's API style
 | number option given an array, or the reverse | `{ fn, option, hint }` naming the sibling that takes that type (`cube` size array → `cuboid`) |
 | rotate angle with magnitude over 2π | `{ fn, option: 'angle', hint }`: "90 looks like degrees; angles are radians, so use 90 * Math.PI / 180" |
 
+A hint names only the chosen API's forms, even when the model code called the
+other package: `primitives.cube({ size: [x, y, z] })` under fluent reads
+"jf.cube takes size as a number; for an array size use jf.cuboid". The `fn`
+field still names what was called.
+
 An unknown key's `suggestions` are known options within edit distance 3, plus
 either name containing the other (`radius` → `roundRadius`, 5 edits apart,
 matches by containment instead). A sibling is a function of the chosen API

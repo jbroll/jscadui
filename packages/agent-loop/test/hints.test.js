@@ -51,6 +51,19 @@ describe('explainWarning: option types', () => {
     )
   })
 
+  it('names the chosen API form of the called function, whichever package was called', () => {
+    expect(explainWarning({ fn: 'primitives.cube', option: 'size', expected: 'number', got: 'array' }, 'fluent').hint).toBe(
+      'jf.cube takes size as a number; for an array size use jf.cuboid',
+    )
+    expect(explainWarning({ fn: 'FluentGeom2.extrudeLinear', option: 'height', expected: 'number', got: 'array' }, 'modeling').hint).toBe(
+      'extrusions.extrudeLinear takes height as a number',
+    )
+    expect(explainWarning({ fn: 'FluentGeom2.extrudeLinear', option: 'height', expected: 'number', got: 'array' }, 'fluent').hint).toBe(
+      'FluentGeom2.extrudeLinear takes height as a number',
+    )
+    expect(explainWarning({ fn: 'primitives.cylinder', option: 'radius', expected: 'number', got: 'array' }, 'fluent').hint).toBe(TAPER.fluent)
+  })
+
   it('says only the expected type when no sibling fits', () => {
     expect(explainWarning({ fn: 'primitives.sphere', option: 'radius', expected: 'number', got: 'array' }, 'modeling').hint).toBe(
       'primitives.sphere takes radius as a number',

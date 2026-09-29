@@ -121,4 +121,77 @@ module.exports = { main: () => primitives.cube({ size: 2 }).translate([1, 0, 0])
     source: fluent('module.exports = { main: () => { jf.measureVolume(jf.cube({ size: 2 })); return jf.cube() } }'),
     error: ['jf.measureVolume is not a function', 'measureVolume is a method of FluentGeom3, FluentGeom3Array: use shape.measureVolume(...)'],
   },
+  // Code that calls the other API's package: hints still name the chosen API only.
+  {
+    name: 'cross D: a modeling taper option under fluent names the jf radius pair',
+    api: 'fluent',
+    source: modeling('module.exports = { main: () => primitives.cylinder({ radiusStart: 5, height: 10 }) }'),
+    warnings: [{ fn: 'primitives.cylinder', option: 'radiusStart', suggestions: [], hints: ['jf.cylinder({ radius: [start, end]'] }],
+  },
+  {
+    name: 'cross D: a jf taper option under modeling names cylinderElliptic',
+    api: 'modeling',
+    source: fluent('module.exports = { main: () => jf.cylinder({ startRadius: 5, height: 10 }) }'),
+    warnings: [{ fn: 'jf.cylinder', option: 'startRadius', suggestions: [], hints: ['primitives.cylinderElliptic({ startRadius'] }],
+  },
+  {
+    name: 'cross D: a modeling sibling option under fluent names the jf sibling',
+    api: 'fluent',
+    source: modeling('module.exports = { main: () => primitives.cube({ size: 10, roundRadius: 1 }) }'),
+    warnings: [{ fn: 'primitives.cube', option: 'roundRadius', suggestions: [], hints: ['jf.roundedCuboid takes roundRadius'] }],
+  },
+  {
+    name: 'cross D: a jf sibling option under modeling names the modeling sibling',
+    api: 'modeling',
+    source: fluent('module.exports = { main: () => jf.cube({ size: 10, roundRadius: 1 }) }'),
+    warnings: [{ fn: 'jf.cube', option: 'roundRadius', suggestions: [], hints: ['primitives.roundedCuboid takes roundRadius'] }],
+  },
+  {
+    name: 'cross E: a degree angle to a modeling rotate under fluent',
+    api: 'fluent',
+    source: modeling('module.exports = { main: () => transforms.rotateZ(45, primitives.cube({ size: 2 })) }'),
+    warnings: [{ fn: 'transforms.rotateZ', option: 'angle', hints: ['45 looks like degrees'] }],
+  },
+  {
+    name: 'cross E: a degree angle to a fluent method under modeling',
+    api: 'modeling',
+    source: fluent('module.exports = { main: () => jf.cube({ size: 2 }).rotateY(90) }'),
+    warnings: [{ fn: 'FluentGeom3.rotateY', option: 'angle', hints: ['90 looks like degrees'] }],
+  },
+  {
+    name: 'cross J: an array modeling cube size under fluent names jf forms only',
+    api: 'fluent',
+    source: modeling('module.exports = { main: () => primitives.cube({ size: [10, 20, 30] }) }'),
+    error: ['size must be positive', 'jf.cube takes size as a number; for an array size use jf.cuboid'],
+  },
+  {
+    name: 'cross J: an array jf.cube size under modeling names modeling forms only',
+    api: 'modeling',
+    source: fluent('module.exports = { main: () => jf.cube({ size: [10, 20, 30] }) }'),
+    error: ['primitives.cube takes size as a number; for an array size use primitives.cuboid'],
+  },
+  {
+    name: 'cross J: an array modeling cylinder radius under fluent gives the jf taper',
+    api: 'fluent',
+    source: modeling('module.exports = { main: () => primitives.cylinder({ radius: [5, 3], height: 10 }) }'),
+    error: ['radius must be positive', 'jf.cylinder({ radius: [start, end]'],
+  },
+  {
+    name: 'cross J: a number jf method option given an array under modeling',
+    api: 'modeling',
+    source: fluent('module.exports = { main: () => jf.circle({ radius: 2 }).extrudeLinear({ height: [1, 2] }) }'),
+    error: ['extrusions.extrudeLinear takes height as a number'],
+  },
+  {
+    name: 'cross H: roundRadius too big in modeling code under fluent',
+    api: 'fluent',
+    source: modeling('module.exports = { main: () => primitives.roundedCuboid({ size: [40, 30, 2.4], roundRadius: 2 }) }'),
+    error: ['roundRadius 2 is too big: it must be under half the smallest size, 2.4 / 2 = 1.2'],
+  },
+  {
+    name: 'cross I: a method used as a jf function under modeling',
+    api: 'modeling',
+    source: fluent('module.exports = { main: () => { jf.measureVolume(jf.cube({ size: 2 })); return jf.cube() } }'),
+    error: ['jf.measureVolume is not a function', 'use measurements.measureVolume(shape)'],
+  },
 ]

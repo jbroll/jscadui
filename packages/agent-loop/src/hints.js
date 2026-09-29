@@ -62,12 +62,25 @@ const explainUnknown = ({ fn, option, suggestions }, api) => {
 
 const article = (type) => (type === 'array' ? 'an array' : 'a number')
 
+// The chosen API's function with the called one's name, when it takes the
+// option with the same type (jf.cylinder's radius takes an array too).
+const counterpart = (fn, option, expected, api) => {
+  const table = tableFor(api)
+  const [cls, method] = fn.split('.')
+  if (table.methodTypes?.[cls]?.[method]?.[option] === expected) return fn
+  const base = baseName(fn)
+  const path = Object.keys(table.types ?? {}).find((p) => baseName(p) === base && table.types[p][option] === expected)
+  return path === undefined ? null : table.prefix + path
+}
+
 const typeHint = ({ fn, option, expected, got }, api) => {
-  const head = `${fn} takes ${option} as ${article(expected)}`
-  if (baseName(fn) === 'cylinder' && option === 'radius' && got === 'array') return `${head}; ${taperFor(api)}`
+  const own = counterpart(fn, option, expected, api)
+  const parts = own ? [`${own} takes ${option} as ${article(expected)}`] : []
+  if (baseName(fn) === 'cylinder' && option === 'radius' && got === 'array') return [...parts, taperFor(api)].join('; ')
   const table = tableFor(api)
   const sibling = siblings(fn, api).find(({ path }) => table.types?.[path]?.[option] === got)
-  return sibling ? `${head}; for ${article(got)} ${option} use ${sibling.name}` : head
+  if (sibling) parts.push(`for ${article(got)} ${option} use ${sibling.name}`)
+  return parts.length ? parts.join('; ') : `${option} takes ${article(expected)}`
 }
 
 const angleHint = ({ value }) => `${value} looks like degrees; angles are radians, so use ${value} * Math.PI / 180`
