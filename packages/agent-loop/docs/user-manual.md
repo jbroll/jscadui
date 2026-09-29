@@ -267,7 +267,7 @@ without spending API budget.
 | `JSCAD_CHAT_KEYS` | overrides the path to `keys.json` below |
 | `EVAL_LIVE_LOG` | overrides the live log path; `0` disables it |
 | `EVAL_CRT` | absolute path of the crt binary; default: `crt` on `PATH` |
-| `CRT_HOME` | where crt keeps its rootfs dirs, passed to crt; crt's default is `/home/crt`; must be outside `$HOME`, `/tmp` and the repo |
+| `CRT_HOME` | where crt keeps its rootfs dirs, passed to crt; when unset, the eval asks `crt home` for its resolved default (`/data/crt/home/$USER` if it exists, else `/home/crt`); must be outside `$HOME`, `/tmp` and the repo |
 | `EVAL_SANDBOX_ROOTFS` | crt rootfs the executor runs in, default `jscad-eval` |
 | `EVAL_SANDBOX_MEMORY` | executor memory limit in crt's grammar (`2G`, `1536M`, a bare number is bytes), at least 512M, default `2G`; V8's heap gets three quarters of it |
 | `EVAL_SANDBOX` | `crt` (default); anything else is refused by `run-eval` |
@@ -473,15 +473,18 @@ it up. `EVAL_SANDBOX=none` or
 as:
 
 ```bash
+sudo crt install                       # once per host
+sudo crt setup s-ci                    # once per job user, so crt can enforce the memory limit
+crt doctor --limits                    # check the install and cgroup delegation
 scripts/eval-sandbox-setup.sh          # crt create jscad-eval ci/jscad-eval.crt if absent, then check it
 scripts/eval-sandbox-setup.sh --check  # check only
-sudo crt setup                         # once per host, so crt can enforce the memory limit
 ```
 
-`CRT_HOME` (crt's default `/home/crt`) must lie outside `$HOME`, `/tmp` and the
-repo dirs the eval binds; crt refuses hardened runs otherwise, and the setup
-script and `run-eval` say so first. `/home/crt` or `/var/lib/crt`, owned by the
-user the eval runs as, both work.
+`CRT_HOME`, when unset, resolves to whatever `crt home` prints: on the
+`/data/crt` layout that's `/data/crt/home/<user>`, else `/home/crt`. It must
+lie outside `$HOME`, `/tmp` and the repo dirs the eval binds; crt refuses
+hardened runs otherwise, and the setup script and `run-eval` say so first
+(`crt doctor --limits` diagnoses a failed check).
 
 What the rootfs holds, how the memory limit is checked, and why the rootfs must
 never run writable are in [architecture.md](architecture.md#sandbox).
@@ -491,9 +494,10 @@ never run writable are in [architecture.md](architecture.md#sandbox).
 `sci push jscadui/eval` (`ci/eval`, `ci/eval.conf`) runs this eval against
 live models on the CI host instead of locally, one process per model in
 `EVAL_MODELS` and style in `EVAL_APIS`: models run concurrently, each model's
-styles one after the other. Provider keys come from the CI host user's
-`~/.config/jscad-chat/keys.json`, placed there by hand; a model whose
-provider has no key there fails on its own. The job runs
+styles one after the other. Provider keys come from the job user's
+`$HOME/.config/jscad-chat/keys.json` (for the `s-ci` host user under the
+`/data/crt` layout, `/data/ci/.config/jscad-chat/keys.json`, mode 600), placed
+there by hand; a model whose provider has no key there fails on its own. The job runs
 `scripts/eval-sandbox-setup.sh --check` first and fails when the host has no
 crt, no rootfs or no cgroup delegation for the memory limit; host setup is in
 `ci/README.md`. Results land in the job's

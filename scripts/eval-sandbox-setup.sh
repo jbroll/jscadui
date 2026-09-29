@@ -8,7 +8,8 @@
 # Reads EVAL_CRT, EVAL_SANDBOX_ROOTFS, EVAL_SANDBOX_MEMORY, CRT_HOME and
 # EVAL_REQUIRE_MEMORY_LIMIT like the eval does. Run it as the user the eval
 # runs as: crt is rootless and the rootfs is per CRT_HOME, which must lie
-# outside $HOME, /tmp and the repo (default /home/crt).
+# outside $HOME, /tmp and the repo. When CRT_HOME isn't set, this asks
+# `crt home` for its resolved default (/data/crt/home/$USER, else /home/crt).
 #
 # The rootfs is part of the trusted base. An existing one is only checked,
 # never changed, and only ever run read-only; its stored config
@@ -33,18 +34,29 @@ if [ ! -f "$CRT" ] || [ ! -x "$CRT" ]; then
   exit 1
 fi
 
+# Ask crt for its resolved CRT_HOME rather than guessing: $CRT_HOME, else
+# /data/crt/home/$USER if it exists, else /home/crt.
+RESOLVED_HOME="$("$CRT" home)" || {
+  echo "eval-sandbox-setup: $CRT home failed; run 'crt doctor --limits' to check the install" >&2
+  exit 1
+}
+if [ -z "$RESOLVED_HOME" ]; then
+  echo "eval-sandbox-setup: $CRT home printed nothing; run 'crt doctor --limits' to check the install" >&2
+  exit 1
+fi
+
 # crt refuses hardened runs from a CRT_HOME inside $HOME, /tmp or a bind source.
-HOME_DIR="$(realpath -m -- "${CRT_HOME:-/home/crt}")"
+HOME_DIR="$(realpath -m -- "$RESOLVED_HOME")"
 for root in "$HOME" /tmp "$ROOT"; do
   root="$(realpath -m -- "$root")"
   case "$HOME_DIR/" in
     "$root"/*)
-      echo "eval-sandbox-setup: CRT_HOME $HOME_DIR is inside $root; put it outside \$HOME, /tmp and the repo (e.g. /home/crt or /var/lib/crt)" >&2
+      echo "eval-sandbox-setup: CRT_HOME $HOME_DIR is inside $root; put it outside \$HOME, /tmp and the repo (e.g. /data/crt/home/\$USER); run 'crt doctor --limits' to check the install" >&2
       exit 1 ;;
   esac
 done
 
-if [ "${1:-}" != --check ] && [ ! -e "${CRT_HOME:-/home/crt}/$ROOTFS" ]; then
+if [ "${1:-}" != --check ] && [ ! -e "$RESOLVED_HOME/$ROOTFS" ]; then
   "$CRT" create "$ROOTFS" "$ROOT/ci/jscad-eval.crt"
 fi
 

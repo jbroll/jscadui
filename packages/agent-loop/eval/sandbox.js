@@ -21,7 +21,6 @@ const REPO = new URL('../../../', import.meta.url)
 export const TRUSTED_PATH = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
 export const DEFAULT_ROOTFS = 'jscad-eval'
 export const DEFAULT_MEMORY = '2G'
-const CRT_HOME_DEFAULT = '/home/crt'
 const MIN_NODE = [22, 15]
 const SETUP = 'scripts/eval-sandbox-setup.sh'
 
@@ -382,8 +381,27 @@ const configProblem = (home, rootfs) => {
 const placementProblem = (home, roots) => {
   const real = realOr(home)
   const clash = roots.map(realOr).find((root) => within(real, root) || within(root, real))
-  return clash ? `CRT_HOME ${home} overlaps ${clash}; crt needs it outside $HOME, /tmp and the repo dirs the eval binds (e.g. /home/crt or /var/lib/crt)` : null
+  return clash
+    ? `CRT_HOME ${home} overlaps ${clash}; crt needs it outside $HOME, /tmp and the repo dirs the eval binds (e.g. /data/crt/home/$USER)`
+    : null
 }
+
+// crt's own default: $CRT_HOME, else /data/crt/home/$USER if it exists, else
+// /home/crt (`crt home`). Asking it keeps the eval in step with whichever
+// layout the host actually has instead of guessing one.
+const crtHomeFrom = (spawn, crt) =>
+  new Promise((resolve, reject) => {
+    const child = spawn(crt, ['home'], { stdio: ['ignore', 'pipe', 'pipe'] })
+    let stdout = ''
+    let stderr = ''
+    child.stdout.on('data', (chunk) => (stdout += chunk))
+    child.stderr?.on('data', (chunk) => (stderr += chunk))
+    child.on('error', (error) => reject(error))
+    child.on('close', (code) => {
+      if (code !== 0) reject(new Error(`exit ${code}${stderr.trim() ? `: ${stderr.trim()}` : ''}`))
+      else resolve(stdout.trim())
+    })
+  })
 
 const notEnforced = (memory) =>
   `crt cannot enforce the executor's ${memory} memory limit on this host, so model code can take all of its memory; run 'sudo crt setup' once to delegate a cgroup`
@@ -404,7 +422,15 @@ export const sandboxProblem = async (
 ) => {
   if (sandbox.kind !== 'crt') return null
   if (!sandbox.crt) return `no crt binary: install crt on PATH or set EVAL_CRT to its absolute path, then run ${SETUP}`
-  const home = sandbox.crtHome ?? CRT_HOME_DEFAULT
+  let home = sandbox.crtHome
+  if (!home) {
+    try {
+      home = await crtHomeFrom(spawn, sandbox.crt)
+    } catch (error) {
+      return `could not resolve CRT_HOME: ${sandbox.crt} home failed (${error.message}); set CRT_HOME explicitly`
+    }
+    if (!home) return `${sandbox.crt} home printed nothing; set CRT_HOME explicitly`
+  }
   const placement = placementProblem(home, placementRoots)
   if (placement) return placement
   if (!existsSync(join(home, sandbox.rootfs, 'bin'))) return `no crt rootfs "${sandbox.rootfs}" in ${home}: run ${SETUP} (CRT_HOME=${home})`

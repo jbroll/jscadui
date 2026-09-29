@@ -29,10 +29,12 @@ before pushing — `sci push` carries no arguments of its own, so the conf file
 is the only knob: `EVAL_MODELS` (space-separated `provider:model` pairs),
 `EVAL_APIS`, `EVAL_FIXTURES`, `EVAL_RUNS`, `EVAL_CONCURRENCY`.
 
-Provider keys come from the CI host user's `~/.config/jscad-chat/keys.json`
+Provider keys come from the job user's `$HOME/.config/jscad-chat/keys.json`
 (`{ "<provider>": "<key>" }`, mode 600) — place it there once, by hand; the
-job never receives or copies it. A model whose provider has no key there
-fails on its own, without blocking the others.
+job never receives or copies it. On the host, the CI server runs as `s-ci`
+under the `/data/crt` layout, so that file is `/data/ci/.config/jscad-chat/keys.json`.
+A model whose provider has no key there fails on its own, without blocking
+the others.
 
 Results land in the job's worktree at `eval-results/`: `index.txt` lists the
 result files, `eval-live.log` holds the live conversation log. Both are
@@ -61,25 +63,29 @@ home directory, no provider key and a 2G memory limit
 (`packages/agent-loop/docs/architecture.md`, Sandbox). The job runs
 `scripts/eval-sandbox-setup.sh --check` with `EVAL_REQUIRE_MEMORY_LIMIT=1`
 after the build and fails before any provider call when crt, the rootfs, its
-stored config or cgroup delegation is missing. Once, as the user the job runs
-as:
+stored config or cgroup delegation is missing. The host uses the `/data/crt`
+layout: `/data/crt/bin/crt`, `/usr/local/bin/crt` symlinked to it, and a
+per-user home at `/data/crt/home/<user>`. Once, as root:
 
-1. Install crt from its `main` branch, cff62c5 or later (stored configs
-   outside the rootfs, a pristine mark at create), on that user's `PATH` (or
-   set `EVAL_CRT` to its absolute path in the job's environment):
+1. Install crt and delegate the `s-ci` job user's cgroup:
    ```sh
-   sudo cp crt /usr/local/bin/crt && sudo chmod 755 /usr/local/bin/crt
+   sudo crt install
+   sudo crt setup s-ci
    ```
-2. Delegate a cgroup so crt enforces the memory limit (required):
+2. Check the install and cgroup delegation:
    ```sh
-   sudo crt setup
+   crt doctor --limits
    ```
-3. Create the rootfs (`ci/jscad-eval.crt`: Void, `nodejs`) and check that an
-   executor starts in it and that the memory limit is in force inside it. It
-   lands in `CRT_HOME` (crt's default `/home/crt`), which that user must be
-   able to write and which must lie outside `$HOME`, `/tmp` and the job's
-   worktree (crt refuses hardened runs otherwise); set `CRT_HOME` for both
-   this step and the job if it is not the default, e.g. `/var/lib/crt`.
+3. Start the CI server itself under crt's cgroup so the memory limits it
+   delegates apply to the server's children (its runit `run` script):
+   ```sh
+   exec /usr/local/bin/crt cgroup-exec s-ci --leaf ci-server -- chpst -u s-ci ...
+   ```
+4. As `s-ci`, create the rootfs (`ci/jscad-eval.crt`: Void, `nodejs`) and
+   check that an executor starts in it and that the memory limit is in force
+   inside it. `CRT_HOME` resolves on its own ($CRT_HOME, else
+   `/data/crt/home/s-ci`, else `/home/crt`), so it needs no override on this
+   layout:
    ```sh
    EVAL_REQUIRE_MEMORY_LIMIT=1 scripts/eval-sandbox-setup.sh
    ```

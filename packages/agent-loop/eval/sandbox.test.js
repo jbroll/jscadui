@@ -271,6 +271,18 @@ describe('sandboxProblem', () => {
     expect(await sandboxProblem({ kind: 'crt', crt: null, rootfs: 'jscad-eval', memory: '2G' }, options())).toMatch(/no crt binary.*EVAL_CRT/)
   })
 
+  it('asks crt for CRT_HOME when none is set, then checks the resolved home', async () => {
+    const spawn = (command, args) => (args[0] === 'home' ? fakeChild({ stdout: `${scratch}\n` }) : fakeChild({ stdout: probeOutput() }))
+    const sandbox = { kind: 'crt', crt: '/opt/crt/crt', rootfs: 'jscad-eval', memory: '2G' }
+    expect(await sandboxProblem(sandbox, options({ spawn }))).toMatch(new RegExp(`no crt rootfs "jscad-eval" in ${scratch}.*scripts/eval-sandbox-setup.sh`))
+  })
+
+  it('reports a problem when crt home fails instead of falling back to a guessed default', async () => {
+    const spawn = (command, args) => (args[0] === 'home' ? fakeChild({ code: 1, stderr: 'boom\n' }) : fakeChild({}))
+    const sandbox = { kind: 'crt', crt: '/opt/crt/crt', rootfs: 'jscad-eval', memory: '2G' }
+    expect(await sandboxProblem(sandbox, options({ spawn }))).toMatch(/could not resolve CRT_HOME: \/opt\/crt\/crt home failed \(exit 1: boom\)/)
+  })
+
   it('refuses a CRT_HOME inside $HOME, /tmp or a bound repo dir', async () => {
     const sandbox = rootfs()
     expect(await sandboxProblem(sandbox, options({ placementRoots: [scratch] }))).toMatch(new RegExp(`CRT_HOME ${scratch} overlaps ${scratch}; crt needs it outside`))
