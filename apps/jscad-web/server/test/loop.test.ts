@@ -130,7 +130,7 @@ describe('runTurn', () => {
     expect(afterFirst).not.toBe(input)
     expect(input.messages).toHaveLength(1)
 
-    const second = roundsProvider([[]])
+    const second = roundsProvider([[{ type: 'text', text: 'second answer' }, { type: 'done', stopReason: 'end_turn' }]])
     const afterSecond = await runTurn({
       conversation: { messages: [...afterFirst.messages, { role: 'user', content: 'q2' }] },
       provider: second,
@@ -147,7 +147,35 @@ describe('runTurn', () => {
       { role: 'user', content: 'q1' },
       { role: 'assistant', content: 'first answer', toolCalls: [] },
       { role: 'user', content: 'q2' },
+      { role: 'assistant', content: 'second answer', toolCalls: [] },
     ])
+  })
+
+  it('rejects a round with neither text nor a tool call as an empty reply, with its stop reason', async () => {
+    const provider = roundsProvider([
+      [
+        { type: 'tool_use', id: 't1', name: 'params', input: {} },
+        { type: 'done', stopReason: 'tool_use' },
+      ],
+      [{ type: 'done', stopReason: 'length' }],
+    ])
+    const conversation: Conversation = { messages: [{ role: 'user', content: 'hi' }] }
+    const error = await runTurn({ conversation, provider, requestTool: vi.fn(async () => '{"ok":true}') }).catch((e) => e)
+    expect(error).toMatchObject({
+      name: 'EmptyReplyError',
+      stopReason: 'length',
+      message: 'the model stopped without answering (stop reason: length)',
+    })
+    expect(error.messages.map((m: ProviderMessage) => m.role)).toEqual(['user', 'assistant', 'tool'])
+  })
+
+  it('names no stop reason when the stream ends without a done event', async () => {
+    const provider = roundsProvider([[]])
+    const conversation: Conversation = { messages: [{ role: 'user', content: 'hi' }] }
+    await expect(runTurn({ conversation, provider, requestTool: vi.fn() })).rejects.toMatchObject({
+      name: 'EmptyReplyError',
+      message: 'the model stopped without answering (stop reason: none)',
+    })
   })
 
   it('a disconnect cancels an in-flight turn', async () => {
@@ -297,6 +325,17 @@ describe('chat routes', () => {
     expect(res.text).toContain('event: text')
     expect(res.text).toContain('event: done')
     expect(res.text.match(/event: done/g)).toHaveLength(1)
+  })
+
+  it('reports an empty provider reply as an error event, not a silent done', async () => {
+    const provider = roundsProvider([[{ type: 'done', stopReason: 'end_turn' }]])
+    const res = await request(chatApp(provider))
+      .post('/api/chat/proj1')
+      .send({ message: 'hi', provider: PROVIDER_BODY })
+
+    expect(res.text).toContain('event: error')
+    expect(res.text).toContain('the model stopped without answering (stop reason: end_turn)')
+    expect(res.text).not.toContain('event: done')
   })
 
   it('accepts a tool result POSTed to /tool/:callId and completes the turn', async () => {

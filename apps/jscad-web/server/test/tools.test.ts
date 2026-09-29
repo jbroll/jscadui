@@ -15,6 +15,7 @@ const recordingProvider = () => {
   const provider: Provider = {
     async *send(_messages: ProviderMessage[], tools: ToolDefinition[]) {
       seen.push(tools)
+      yield { type: 'text', text: 'ok' }
       yield { type: 'done', stopReason: 'end_turn' }
     },
   }

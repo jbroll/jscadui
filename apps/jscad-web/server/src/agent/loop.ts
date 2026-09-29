@@ -26,6 +26,17 @@ export class ToolTimeoutError extends Error {
   }
 }
 
+// A provider round with neither text nor a tool call (a reply that is all reasoning, or a stop on
+// the length limit) leaves the user with nothing.
+export class EmptyReplyError extends Error {
+  stopReason: string | undefined
+  constructor(stopReason: string | undefined) {
+    super(`the model stopped without answering (stop reason: ${stopReason ?? 'none'})`)
+    this.name = 'EmptyReplyError'
+    this.stopReason = stopReason
+  }
+}
+
 function abortError(message: string): Error {
   const err = new Error(message)
   err.name = 'AbortError'
@@ -117,7 +128,8 @@ function withTimeout<T>(
 // One agent turn: send the conversation and tool definitions to the provider, stream text out as
 // it arrives, and when the provider asks for a tool, hand the request to the browser and feed the
 // result back, repeating until the provider answers. Returns a NEW conversation; the input is
-// never mutated, so a second turn on the same conversation starts from the prior messages.
+// never mutated, so a second turn on the same conversation starts from the prior messages. A
+// rejection carries the messages so far as `error.messages`.
 export function runTurn(options: RunTurnOptions): Promise<Conversation> {
   const { conversation, provider, requestTool, onText, signal } = options
   const toolTimeoutMs = options.toolTimeoutMs ?? DEFAULT_TOOL_TIMEOUT_MS
@@ -143,6 +155,7 @@ export function runTurn(options: RunTurnOptions): Promise<Conversation> {
         for (;;) {
           const text: string[] = []
           const toolCalls: ToolCall[] = []
+          let stopReason: string | undefined
           iterator = provider.send(messages, tools)[Symbol.asyncIterator]()
           try {
             for (;;) {
@@ -154,6 +167,7 @@ export function runTurn(options: RunTurnOptions): Promise<Conversation> {
               } else if (value.type === 'tool_use') {
                 toolCalls.push({ id: value.id, name: value.name, input: value.input })
               } else if (value.type === 'done') {
+                stopReason = value.stopReason
                 break
               }
             }
@@ -163,13 +177,12 @@ export function runTurn(options: RunTurnOptions): Promise<Conversation> {
             iterator.return?.(undefined).catch(() => {})
           }
           if (cancelled) throw abortError('turn aborted')
-          if (text.length > 0 || toolCalls.length > 0) {
-            messages.push({
-              role: 'assistant',
-              content: text.length > 0 ? text.join('') : null,
-              toolCalls,
-            })
-          }
+          if (text.length === 0 && toolCalls.length === 0) throw new EmptyReplyError(stopReason)
+          messages.push({
+            role: 'assistant',
+            content: text.length > 0 ? text.join('') : null,
+            toolCalls,
+          })
           if (toolCalls.length === 0) break
           for (const call of toolCalls) {
             const content = await withTimeout(
@@ -183,6 +196,7 @@ export function runTurn(options: RunTurnOptions): Promise<Conversation> {
         }
         resolve({ messages })
       } catch (err) {
+        if (err !== null && typeof err === 'object') (err as { messages?: ProviderMessage[] }).messages ??= messages
         reject(err)
       } finally {
         signal?.removeEventListener('abort', cancel)

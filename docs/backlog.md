@@ -245,10 +245,6 @@ model with `display-check.js --engine jscad`.
   geometry, and `shape.subtract` of it returns without an error. The
   constructor should reject anything that is not a geom3. The option checks
   now warn when a boolean gets mesh data (`src/optionChecks.js`).
-- The studio server's loop (`apps/jscad-web/server/src/agent/loop.ts`) still
-  ends a turn silently on a provider round with neither text nor a tool call;
-  the browser loop (`packages/agent-loop/src/loop.js`) rejects it with
-  `EmptyReplyError`.
 - Option checks on transpiled OpenSCAD code. A `.scad` file gets the plain
   `@jscad/modeling` exports, not the option-checked copy
   (`apps/jscad-web/docs/architecture.md`, Unknown-option warnings), since the
