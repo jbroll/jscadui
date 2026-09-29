@@ -2,8 +2,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { EventEmitter } from 'node:events'
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, relative } from 'node:path'
+import { dirname, join, relative } from 'node:path'
 import { PassThrough } from 'node:stream'
+import { decodeFrames } from './frames.js'
 import { pathToFileURL } from 'node:url'
 import {
   bindDirs,
@@ -11,6 +12,7 @@ import {
   crtEnv,
   crtRunArgs,
   heapMiB,
+  memoryBytes,
   memoryMiB,
   readableDirs,
   resolveCrt,
@@ -37,18 +39,23 @@ const executable = (path) => {
   return path
 }
 
-// A child process that prints `stdout`, then closes with `code`; `send` records IPC messages.
-const fakeChild = ({ stdout = '', code = 0, stays = false } = {}) => {
+// A child process that prints `stdout`, then closes with `code`. `sent` holds
+// the frames written to its fd 3 channel.
+const fakeChild = ({ stdout = '', stderr = '', code = 0, stays = false } = {}) => {
   const child = new EventEmitter()
+  const channel = new PassThrough()
+  const written = []
+  channel.on('data', (chunk) => written.push(chunk))
+  child.stdin = new PassThrough()
   child.stdout = new PassThrough()
   child.stderr = new PassThrough()
-  child.sent = []
-  child.send = (message) => child.sent.push(message)
+  child.stdio = [child.stdin, child.stdout, child.stderr, channel]
+  Object.defineProperty(child, 'sent', { get: () => decodeFrames(Buffer.concat(written)) })
   child.kill = () => child.emit('close', null, 'SIGKILL')
   if (!stays) {
     setTimeout(() => {
       child.stdout.end(stdout)
-      child.stderr.end()
+      child.stderr.end(stderr)
       child.emit('close', code, null)
     }, 0)
   }
@@ -133,9 +140,8 @@ describe('crtRunArgs', () => {
     mkdirSync(join(scratch, 'node_modules'))
     const dirs = [join(scratch, 'packages'), join(scratch, 'node_modules')]
     const args = crtRunArgs(sandbox, { dirs, entry: '/repo/eval/executor-child.js' })
-    expect(args.slice(0, 9)).toEqual(['run', '--net', 'none', '--no-home', '--tmp', 'private', '--clean-env', '--ro-root', '-e'])
-    expect(args).toContain('NODE_CHANNEL_FD')
-    expect(args).toContain('NODE_CHANNEL_SERIALIZATION_MODE')
+    expect(args.slice(0, 10)).toEqual(['run', '--net', 'none', '--no-home', '--tmp', 'private', '--clean-env', '--ro-root', '--keep-fd', '3'])
+    expect(args).not.toContain('-e')
     expect(args.join(' ')).toContain('-m 2G')
     for (const dir of dirs) expect(args.join(' ')).toContain(`-v ${dir}:${dir}:ro`)
     const tail = args.slice(args.indexOf('--'))
@@ -161,13 +167,21 @@ describe('crtRunArgs', () => {
 })
 
 describe('memory', () => {
-  it('reads crt sizes in MiB and keeps the V8 heap at three quarters of the limit', () => {
+  it('reads exactly the sizes crt reads, a bare number as bytes', () => {
+    expect(memoryBytes('2G')).toBe(2 * 1024 ** 3)
+    expect(memoryBytes('2g')).toBe(2 * 1024 ** 3)
+    expect(memoryBytes('1536M')).toBe(1536 * 1024 ** 2)
+    expect(memoryBytes('524288k')).toBe(512 * 1024 ** 2)
+    expect(memoryBytes('1073741824')).toBe(1024 ** 3)
+    for (const bad of ['1.5G', '1T', '2GB', ' 2G', '-1G', '', 'lots']) expect(() => memoryBytes(bad)).toThrow(/EVAL_SANDBOX_MEMORY: crt cannot read/)
+  })
+
+  it('keeps the V8 heap at three quarters of the limit, and refuses a limit under 512M', () => {
     expect(memoryMiB('2G')).toBe(2048)
-    expect(memoryMiB('1536M')).toBe(1536)
-    expect(memoryMiB('512')).toBe(512)
-    expect(() => memoryMiB('lots')).toThrow(/EVAL_SANDBOX_MEMORY/)
     expect(heapMiB('2G')).toBe(1536)
-    expect(heapMiB('256M')).toBe(256)
+    expect(heapMiB('512M')).toBe(384)
+    expect(() => sandboxFrom({ EVAL_SANDBOX_MEMORY: '256M', PATH: '' })).toThrow(/needs at least 512M/)
+    expect(() => sandboxFrom({ EVAL_SANDBOX_MEMORY: '1.5G', PATH: '' })).toThrow(/crt cannot read 1.5G/)
   })
 
   it('caps concurrency so executors x limit fit in three quarters of the host, across processes', () => {
@@ -201,9 +215,21 @@ describe('startExecutor', () => {
     expect(command).toBe('/opt/crt/crt')
     expect(options.env).toEqual({ PATH: TRUSTED_PATH })
     expect(options.detached).toBe(true)
-    expect(options.stdio.at(-1)).toBe('ipc')
+    expect(options.stdio).toEqual(['ignore', 'ignore', 'pipe', 'pipe'])
     expect(JSON.stringify([args, options.env, child.sent])).not.toContain(KEY)
     expect(child.sent).toEqual([{ type: 'init', api: 'fluent' }])
+  })
+
+  it('kills an executor whose frame is over the limit, from its header', async () => {
+    const child = fakeChild({ stays: true })
+    let killed = false
+    const executor = startExecutor({ api: 'fluent', sandbox: { kind: 'child' }, spawn: () => Object.assign(child, { kill: () => (killed = true) }) })
+    const header = Buffer.alloc(4)
+    header.writeUInt32BE(2 ** 31)
+    child.stdio[3].emit('data', header)
+    expect(killed).toBe(true)
+    child.emit('close', null, 'SIGKILL')
+    await expect(executor.ready).rejects.toThrow(/executor exited: the executor sent a frame of 2147483648 bytes, over the \d+-byte limit/)
   })
 
   it('reports why the executor exited', async () => {
@@ -226,13 +252,29 @@ describe('sandboxProblem', () => {
     storedConfig(name)
     return { kind: 'crt', crt: '/opt/crt/crt', rootfs: name, memory: '2G', crtHome: scratch, ...overrides }
   }
+  // The cgroup crt puts the probe in, seen from the host, holding `max` as its memory.max.
+  const cgroupRoot = (max) => {
+    const root = join(scratch, 'cgroup')
+    mkdirSync(join(root, 'user-1000', 'crt-7'), { recursive: true })
+    if (max !== undefined) writeFileSync(join(root, 'user-1000', 'crt-7', 'memory.max'), `${max}\n`)
+    return root
+  }
+  const probeOutput = (node = '24.18.0') => `${JSON.stringify({ node, cgroup: '0::/user-1000/crt-7\n' })}\n`
+  const options = (extra = {}) => ({ placementRoots: [], cgroupRoot: extra.cgroupRoot ?? cgroupRoot(2 * 1024 ** 3), readyTimeoutMs: 20, ...extra })
 
   it('names a missing crt binary and how to provide one', async () => {
-    expect(await sandboxProblem({ kind: 'crt', crt: null, rootfs: 'jscad-eval', memory: '2G' })).toMatch(/no crt binary.*EVAL_CRT/)
+    expect(await sandboxProblem({ kind: 'crt', crt: null, rootfs: 'jscad-eval', memory: '2G' }, options())).toMatch(/no crt binary.*EVAL_CRT/)
+  })
+
+  it('refuses a CRT_HOME inside $HOME, /tmp or a bound repo dir', async () => {
+    const sandbox = rootfs()
+    expect(await sandboxProblem(sandbox, options({ placementRoots: [scratch] }))).toMatch(new RegExp(`CRT_HOME ${scratch} overlaps ${scratch}; crt needs it outside`))
+    expect(await sandboxProblem(sandbox, options({ placementRoots: [join(scratch, 'jscad-eval')] }))).toMatch(/overlaps/)
+    expect(await sandboxProblem(sandbox, options({ placementRoots: [dirname(scratch)] }))).toMatch(/overlaps/)
   })
 
   it('names a missing rootfs and the setup script', async () => {
-    expect(await sandboxProblem({ kind: 'crt', crt: '/opt/crt/crt', rootfs: 'jscad-eval', memory: '2G', crtHome: scratch })).toMatch(
+    expect(await sandboxProblem({ kind: 'crt', crt: '/opt/crt/crt', rootfs: 'jscad-eval', memory: '2G', crtHome: scratch }, options())).toMatch(
       new RegExp(`no crt rootfs "jscad-eval" in ${scratch}.*scripts/eval-sandbox-setup.sh`),
     )
   })
@@ -240,21 +282,34 @@ describe('sandboxProblem', () => {
   it('refuses a rootfs without a stored config outside it', async () => {
     const sandbox = rootfs()
     rmSync(join(scratch, '.config', 'jscad-eval'))
-    expect(await sandboxProblem(sandbox)).toMatch(/no stored crt config for "jscad-eval".*crt rm jscad-eval/)
+    expect(await sandboxProblem(sandbox, options())).toMatch(/no stored crt config for "jscad-eval".*crt rm jscad-eval/)
+  })
+
+  it('refuses a legacy config inside the rootfs, which an older crt reads, even beside a matching stored one', async () => {
+    const sandbox = rootfs()
+    writeFileSync(join(scratch, 'jscad-eval', 'config'), tracked)
+    expect(await sandboxProblem(sandbox, options())).toMatch(/a legacy crt config .*jscad-eval\/config exists.*crt rm jscad-eval/)
+    rmSync(join(scratch, 'jscad-eval', 'config'))
+    symlinkSync('/nonexistent', join(scratch, 'jscad-eval', 'config'))
+    expect(await sandboxProblem(sandbox, options())).toMatch(/a legacy crt config/)
   })
 
   it('refuses a stored config that differs from ci/jscad-eval.crt in any way', async () => {
     const sandbox = rootfs()
     for (const text of [`${tracked}mount /home:/home:ro\n`, tracked.replace('net       none', 'net       host'), `${tracked}\n`]) {
       storedConfig('jscad-eval', text)
-      expect(await sandboxProblem(sandbox)).toMatch(/differs from ci\/jscad-eval.crt.*crt rm jscad-eval/)
+      expect(await sandboxProblem(sandbox, options())).toMatch(/differs from ci\/jscad-eval.crt.*crt rm jscad-eval/)
     }
   })
 
+  it('finds no mount, env or keep-fd line in the tracked config', () => {
+    expect(tracked).not.toMatch(/^\s*(mount|env|keep-fd)\s/m)
+  })
+
   it('names a rootfs Node too old for the executor', async () => {
-    const { spawn, calls } = recordingSpawn({ stdout: 'v22.14.0\n' })
-    expect(await sandboxProblem(rootfs(), { spawn })).toMatch(/Node 22.14.0 in rootfs "jscad-eval".*22.15/)
-    expect(calls[0].args.slice(-3)).toEqual(['jscad-eval', 'node', '--version'])
+    const { spawn, calls } = recordingSpawn({ stdout: probeOutput('22.14.0') })
+    expect(await sandboxProblem(rootfs(), options({ spawn }))).toMatch(/Node 22.14.0 in rootfs "jscad-eval".*22.15/)
+    expect(calls[0].args.slice(-4, -1)).toEqual(['jscad-eval', 'node', '-e'])
     expect(calls[0].args).toContain('--ro-root')
     expect(calls[0].args.join(' ')).toContain('-m 2G')
     expect(calls[0].options.env).toEqual({ PATH: TRUSTED_PATH, CRT_HOME: scratch })
@@ -262,31 +317,41 @@ describe('sandboxProblem', () => {
 
   it('names a rootfs without Node', async () => {
     const { spawn } = recordingSpawn({ stdout: '', code: 127 })
-    expect(await sandboxProblem(rootfs(), { spawn })).toMatch(/node does not run in rootfs "jscad-eval".*nodejs/)
+    expect(await sandboxProblem(rootfs(), options({ spawn }))).toMatch(/node does not run in rootfs "jscad-eval".*nodejs/)
   })
 
   it('gives up on a crt that never answers', async () => {
     const { spawn } = recordingSpawn({ stays: true })
-    expect(await sandboxProblem(rootfs(), { spawn, probeTimeoutMs: 20 })).toMatch(/node does not run.*no answer within 0.02 s/)
+    expect(await sandboxProblem(rootfs(), options({ spawn, probeTimeoutMs: 20 }))).toMatch(/node does not run.*no answer within 0.02 s/)
   })
 
-  const unlimited = () => {
-    const child = fakeChild({ stays: true })
-    setTimeout(() => {
-      child.stdout.end('v24.18.0\n')
-      child.stderr.end('Warning: cgroup not delegated for your user, resource limits not applied\n')
-      child.emit('close', 0, null)
-    }, 0)
-    return child
-  }
-
-  it('refuses an unenforced memory limit when the sandbox requires one', async () => {
-    expect(await sandboxProblem(rootfs('jscad-eval', { requireMemoryLimit: true }), { spawn: unlimited })).toMatch(/cannot enforce the executor's 2G memory limit.*sudo crt setup/)
+  it('reads the limit crt set from the probe container’s own cgroup', async () => {
+    const required = rootfs('jscad-eval', { requireMemoryLimit: true })
+    const cases = [
+      [2 * 1024 ** 3, false],
+      [1024 ** 3, false],
+      ['max', true],
+      [undefined, true],
+      [3 * 1024 ** 3, true],
+    ]
+    for (const [max, refused] of cases) {
+      const { spawn } = recordingSpawn({ stdout: probeOutput() })
+      const problem = await sandboxProblem(required, options({ spawn, cgroupRoot: cgroupRoot(max) }))
+      if (refused) expect(problem).toMatch(/cannot enforce the executor's 2G memory limit.*sudo crt setup/)
+      else expect(problem ?? '').not.toMatch(/cannot enforce/)
+      rmSync(join(scratch, 'cgroup'), { recursive: true, force: true })
+    }
   })
 
-  it('otherwise warns about it', async () => {
+  it('refuses when the probe reports no cgroup, whatever crt printed', async () => {
+    const { spawn } = recordingSpawn({ stdout: `${JSON.stringify({ node: '24.18.0', cgroup: '' })}\n`, stderr: "Warning: failed to set memory limit to 2G\n" })
+    expect(await sandboxProblem(rootfs('jscad-eval', { requireMemoryLimit: true }), options({ spawn }))).toMatch(/cannot enforce/)
+  })
+
+  it('otherwise warns about an unenforced limit', async () => {
     const warnings = []
-    await sandboxProblem(rootfs(), { spawn: unlimited, readyTimeoutMs: 20, onWarning: (text) => warnings.push(text) })
+    const { spawn } = recordingSpawn({ stdout: probeOutput() })
+    await sandboxProblem(rootfs(), options({ spawn, cgroupRoot: cgroupRoot('max'), onWarning: (text) => warnings.push(text) }))
     expect(warnings).toEqual([expect.stringMatching(/cannot enforce the executor's 2G memory limit.*sudo crt setup/)])
   })
 })

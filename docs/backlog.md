@@ -199,8 +199,10 @@ model with `display-check.js --engine jscad`.
   geometry in a second process would close it; left as is because the model
   gains only a false score for its own run, and a fresh executor per grade
   already stops one run affecting another.
-- crt: give the private `/tmp` and `/dev/shm` tmpfs a `size=`, and have the
-  eval pass a `cpus` limit. The permission model already denies writes there,
+- crt: give the private `/tmp` and `/dev/shm` tmpfs a `size=`, set
+  `memory.swap.max` with `memory.max` (on a host with swap the eval's limit
+  now bounds only resident memory), fail a run whose requested limit cannot
+  be applied instead of warning, and have the eval pass a `cpus` limit. The permission model already denies writes there,
   and cgroup v2 charges tmpfs pages to the executor's memory limit, so this is
   a second layer only; not verified on a host with a delegated cgroup.
 - Stack-gated fluent method checks, if `eval/fluent-guard.test.js` ever finds

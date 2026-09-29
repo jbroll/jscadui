@@ -1,16 +1,20 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createExecutorClient } from './executor-protocol.js'
 import { summarize } from './report.js'
 import { regradeResults, freshExecutorGrader, runJob } from './run-eval.js'
 import { createSandboxedBackend } from './sandboxed-backend.js'
-import { startExecutor } from './sandbox.js'
+import { liveExecutors, startExecutor } from './sandbox.js'
 
 const CUBE = 'const jf = require("@jbroll/jscad-fluent")\nmodule.exports = { main: () => [jf.cube({ size: 20 })] }'
 const EXITS = 'module.exports = { main: () => process.exit(3) }'
 const THROWS = 'module.exports = { main: () => { throw new Error("bad model") } }'
 const SPINS = 'module.exports = { main: () => { for (;;); } }'
+// Model code writing its own frames to the executor's channel, fd 3.
+const FRAME = `const frame = (m) => { const b = Buffer.from(JSON.stringify(m)); const h = Buffer.alloc(4); h.writeUInt32BE(b.length); return Buffer.concat([h, b]) }
+const fs = process.getBuiltinModule('fs')
+const put = (buf) => { let at = 0; while (at < buf.length) { try { at += fs.writeSync(3, buf, at) } catch (e) { if (e.code !== 'EAGAIN') throw e } } }`
 const forge = (value) =>
-  `module.exports = { main: () => { for (let id = 0; id < 64; id++) process.send(${value}); return new Promise(() => {}) } }`
+  `${FRAME}\nmodule.exports = { main: () => { for (let id = 0; id < 64; id++) put(frame(${value})); return new Promise(() => {}) } }`
 
 const fixture = {
   name: 'box',
@@ -54,17 +58,26 @@ describe('replies model code forges from inside the executor', () => {
   }, 30_000)
 
   it('become a tool error when not a string, and the result serializes on the capped last round', async () => {
-    const result = await run([tool('eval', { source: forge("{ type: 'reply', id, ok: true, value: { x: 1n } }") })], {}, { ...fixture, maxTurns: 1 })
+    const result = await run([tool('eval', { source: forge("{ type: 'reply', id, ok: true, value: { x: 1 } }") })], {}, { ...fixture, maxTurns: 1 })
     expect(() => JSON.stringify(result)).not.toThrow()
     expect(result.providerError).toBeUndefined()
     expect(toolResults(result)[0].error.name).toBe('EvaluatorError')
   }, 30_000)
 
-  it('cap a huge error and a huge result', async () => {
-    const hugeError = await run([tool('eval', { source: forge("{ type: 'reply', id, ok: false, error: 'x'.repeat(1e7) }") }), done()])
-    expect(hugeError.transcript.find((m) => m.role === 'tool').content.length).toBeLessThan(5000)
-    const hugeResult = await run([tool('eval', { source: forge("{ type: 'reply', id, ok: true, value: 'x'.repeat(1e7) }") }), done()])
-    expect(toolResults(hugeResult)[0].error.name).toBe('ToolResultTooLarge')
+  it('cap a long error and replace a result over the tool result limit', async () => {
+    const longError = await run([tool('eval', { source: forge("{ type: 'reply', id, ok: false, error: 'x'.repeat(5e5) }") }), done()])
+    expect(longError.transcript.find((m) => m.role === 'tool').content.length).toBeLessThan(5000)
+    const bigResult = await run([tool('eval', { source: forge("{ type: 'reply', id, ok: true, value: 'x'.repeat(5e5) }") }), done()])
+    expect(toolResults(bigResult)[0].error.name).toBe('ToolResultTooLarge')
+  }, 30_000)
+
+  it('over the frame limit end the executor from the frame header, before the parent reads the body', async () => {
+    const claim = `${FRAME}\nmodule.exports = { main: () => { const h = Buffer.alloc(4); h.writeUInt32BE(4e9); put(h); return new Promise(() => {}) } }`
+    const result = await run([tool('eval', { source: claim }), tool('eval', { source: CUBE }), done()])
+    const [ended, evaluated] = toolResults(result)
+    expect(ended.error.name).toBe('EvaluatorCrashed')
+    expect(ended.error.message).toMatch(/the executor sent a frame of 4000000000 bytes, over the \d+-byte limit/)
+    expect(evaluated.ok).toBe(true)
   }, 30_000)
 
   it('a model error of any size comes back capped', async () => {
@@ -212,3 +225,66 @@ describe('createSandboxedBackend', () => {
     }
   }, 30_000)
 })
+
+// Model code that answers its own grade with a well-formed but nonsense measure.
+const FORGES_GRADE = `${FRAME}
+put(frame({ type: 'reply', id: 0, ok: true, value: { measure: { dimensions: 1, volume: 'x' }, solid: null, params: [] } }))
+${CUBE}`
+
+describe('a grade that breaks grading', () => {
+  const targeted = { ...fixture, target: { dimensions: [20, 20, 20] }, checks: (m) => [{ name: 'size', pass: m ? m.dimensions.every((d) => d > 10) : false }] }
+
+  it('grades nothing and keeps the transcript and first-attempt failures', async () => {
+    const result = await run([tool('eval', { source: THROWS }), tool('eval', { source: THROWS }), tool('writeModel', { source: FORGES_GRADE }), done()], {}, targeted)
+    expect(result.report.checkRate).toBe(0)
+    expect(result.report.firstAttemptFailures).toBe(2)
+    expect(result.transcript.filter((m) => m.role === 'tool')).toHaveLength(3)
+    expect(result.metrics.geometryError).toBeNull()
+    expect(result.error).toBeUndefined()
+  }, 30_000)
+
+  it('in --regrade grades that run as a failure and goes on', async () => {
+    const stored = (source) => ({
+      fixture: 'box',
+      run: 1,
+      maxTurns: 8,
+      report: { dimensions: { discipline: 2, recovery: 2, geometry: 2, conservation: 2 }, total: 8, firstAttemptFailures: 0, checkRate: 1 },
+      metrics: {},
+      transcript: [
+        { role: 'user', content: fixture.prompt },
+        { role: 'assistant', content: null, toolCalls: [{ id: 't1', name: 'writeModel', input: { source } }] },
+        { role: 'tool', toolCallId: 't1', content: '{"ok":true}' },
+        { role: 'assistant', content: 'done', toolCalls: [] },
+      ],
+    })
+    const file = { api: 'fluent', results: [stored(FORGES_GRADE), stored(CUBE)] }
+    const out = await regradeResults(file, new Map([['box', targeted]]), { grader: freshExecutorGrader(startChild) })
+    expect(out.results.map((r) => r.report.checkRate)).toEqual([0, 1])
+  }, 30_000)
+})
+
+describe('a restart still starting when the run ends', () => {
+  it('is closed as soon as it is ready, and no executor outlives the run', async () => {
+    let started = 0
+    let releaseRestart
+    const start = () => {
+      started += 1
+      const executor = startChild()
+      if (started !== 2) return executor
+      const ready = executor.ready
+      executor.ready = new Promise((resolve, reject) => {
+        releaseRestart = () => ready.then(resolve, reject)
+      })
+      return executor
+    }
+    const backend = createSandboxedBackend({ start })
+    await backend.reset({})
+    const crashed = backend.requestTool('eval', { source: EXITS })
+    await vi.waitFor(() => expect(releaseRestart).toBeTypeOf('function'))
+    await backend.gradeProject(null)
+    releaseRestart()
+    expect(JSON.parse(await crashed).error.name).toBe('EvaluatorCrashed')
+    await vi.waitFor(() => expect(liveExecutors()).toBe(0))
+  }, 30_000)
+})
+

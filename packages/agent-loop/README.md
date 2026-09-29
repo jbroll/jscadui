@@ -84,6 +84,13 @@ characters (24,000 by default), a user message with every text file in
 `files` under `### <path>` (outside the budget, omitted when empty), and the
 new message. The app and the eval both use it.
 
+`runTurn` caps each tool result it hands the provider at `TOOL_RESULT_CHARS`
+(the same 24,000 characters) and ends a longer one with `… [tool result
+truncated: N of M characters shown]`, in the app and the eval alike, so a few
+oversized results (a big `export`, model code answering its own calls) cannot
+overflow the provider's context. A turn that rejects carries the messages so
+far as `error.messages`.
+
 ## API index
 
 `api/index.json` describes the public API of `@jscad/modeling`, from the
@@ -330,9 +337,9 @@ without spending API budget.
 | `JSCAD_CHAT_KEYS` | overrides the path to `keys.json` below |
 | `EVAL_LIVE_LOG` | overrides the live log path; `0` disables it |
 | `EVAL_CRT` | absolute path of the crt binary; default: `crt` on `PATH` |
-| `CRT_HOME` | where crt keeps its rootfs dirs, passed to crt; crt's default is `/home/crt` |
+| `CRT_HOME` | where crt keeps its rootfs dirs, passed to crt; crt's default is `/home/crt`; must be outside `$HOME`, `/tmp` and the repo |
 | `EVAL_SANDBOX_ROOTFS` | crt rootfs the executor runs in, default `jscad-eval` |
-| `EVAL_SANDBOX_MEMORY` | executor memory limit, default `2G`; V8's heap gets three quarters of it |
+| `EVAL_SANDBOX_MEMORY` | executor memory limit in crt's grammar (`2G`, `1536M`, a bare number is bytes), at least 512M, default `2G`; V8's heap gets three quarters of it |
 | `EVAL_SANDBOX` | `crt` (default); anything else is refused by `run-eval` |
 | `EVAL_REQUIRE_MEMORY_LIMIT` | `1` refuses to start when crt cannot enforce the memory limit (`ci/eval` sets it); otherwise a loud warning |
 | `EVAL_PROCESSES` | run-eval processes sharing the host (`ci/eval` sets the model count), for the concurrency cap below; default 1 |
@@ -528,8 +535,11 @@ which holds the key. Model code runs in executor processes
 (`eval/executor-child.js`, started by `eval/sandbox.js` `startExecutor`) that
 never receive the key or the parent's environment: every tool call (`eval`,
 `measure`, `check`, `writeModel`, `export`, `params`, `docs`) and every grade
-goes to one over IPC as a request and comes back as a reply
-(`eval/executor-protocol.js`). Each conversation gets its own executor, since
+goes to one as a request and comes back as a reply
+(`eval/executor-protocol.js`), in length-prefixed JSON frames (`eval/frames.js`)
+on a socket at the executor's fd 3. The parent refuses a frame over 1.06 MB
+from its 4-byte header, before reading its body, and kills the executor, so
+model code cannot make `run-eval` buffer more than that of one message. Each conversation gets its own executor, since
 the backend keeps module-level and `globalThis` state, and each grade runs in
 another fresh one, so nothing model code left behind in the conversation's
 executor reaches the grade.
@@ -539,7 +549,10 @@ the parent trusts no reply's shape. A tool result must be a string of at most
 256 KB, else the model gets an `EvaluatorError` or `ToolResultTooLarge` tool
 error; an error reply becomes an `EvaluatorError` tool result capped at 4,000
 characters; a grade must be plain JSON data shaped `{ measure, solid, params }`
-under 1 MB, else it grades nothing. `providerError` is set only by the
+under 1 MB, else it grades nothing, and so does one the fixture's checks or
+`geometryError` cannot read (a grade model code shaped): the transcript and
+first-attempt failures are kept, and `--regrade` goes on. `providerError` is
+set only by the
 provider wrapper in `run-eval`, never from a tool result's text. Model code can
 still answer its own tool calls, and can lie about the geometry of the grade
 it is being measured in, since measuring runs beside it; a fresh executor per
@@ -560,8 +573,8 @@ run in its own executor, so a stored model that ends it grades nothing and the
 file is still written.
 
 The executor is `crt run` with `--net none --no-home --tmp private
---clean-env --ro-root`, a memory limit, `-e NODE_CHANNEL_FD` and
-`-e NODE_CHANNEL_SERIALIZATION_MODE` for the IPC channel, and read-only binds,
+--clean-env --ro-root`, a memory limit, `--keep-fd 3` for the channel, and
+read-only binds,
 at their host paths so absolute symlinks resolve, of `packages/`,
 `node_modules/`, `.deps-cache/` and their symlink targets (in a linked worktree
 also the targets of each package's linked `node_modules` and the main
@@ -584,7 +597,8 @@ dynamic `import()` from model code with `failed to load module <name>`.
 `crt` in an absolute `PATH` entry) and refuses to start, live or `--regrade`,
 until an executor starts in the sandbox: the error names what is missing (the
 crt binary, the rootfs, a stored config equal to `ci/jscad-eval.crt`, Node
-22.15 or later in the rootfs) and how to set it up. `EVAL_SANDBOX=none` or
+22.15 or later in the rootfs, a CRT_HOME in an allowed place) and how to set
+it up. `EVAL_SANDBOX=none` or
 `child` is refused for both. Set up the rootfs once, as the user the eval runs
 as:
 
@@ -596,15 +610,30 @@ sudo crt setup                         # once per host, so crt can enforce the m
 
 `ci/jscad-eval.crt` is a Void rootfs with the `nodejs` package (Node 24.18 as
 of this writing), stored `root ro`. It needs a crt that keeps stored configs
-outside the rootfs (`$CRT_HOME/.config/<name>`) and creates Void rootfs with
-the host's xbps keys. crt merges a stored config's `mount` and `env` lines into
-every run, so the eval refuses to start unless that file equals
-`ci/jscad-eval.crt` byte for byte; a change to the tracked file means
-recreating the rootfs.
+outside the rootfs (`$CRT_HOME/.config/<name>`), marks a rootfs pristine at
+create, and creates Void rootfs with the host's xbps keys (crt 5a8a7cc or
+later). That crt reads a rootfs's config only from `$CRT_HOME/.config/<name>`,
+moving a legacy `$CRT_HOME/<name>/config` there when it is absent; an older crt
+reads the legacy file. crt merges a config's `mount` and `env` lines into every
+run, so the eval refuses to start unless `.config/<name>` equals
+`ci/jscad-eval.crt` byte for byte and no legacy `config` exists in the rootfs;
+the tracked file itself has no `mount`, `env` or `keep-fd` line (a test checks).
+A change to the tracked file means recreating the rootfs.
 
-Without `sudo crt setup`, crt cannot enforce the memory limit: `run-eval`
-prints a loud warning and goes on, and `ci/eval` (`EVAL_REQUIRE_MEMORY_LIMIT=1`)
-refuses to start. With it, the limit covers everything the executor's cgroup
+`CRT_HOME` (crt's default `/home/crt`) must lie outside `$HOME`, `/tmp` and the
+repo dirs the eval binds; crt refuses hardened runs otherwise, and the setup
+script and `run-eval` say so first. `/home/crt` or `/var/lib/crt`, owned by the
+user the eval runs as, both work.
+
+`EVAL_SANDBOX_MEMORY` takes crt's grammar exactly: digits with an optional
+`K`, `M` or `G` (a bare number is bytes), at least 512M. At startup a probe
+container runs under that limit and reports its own cgroup; `run-eval` reads
+that cgroup's `memory.max` on the host and counts the limit in force only when
+it is a number no larger than the one asked for, whatever crt printed. Without
+`sudo crt setup` it is not: `run-eval` prints a loud warning and goes on, and
+`ci/eval` (`EVAL_REQUIRE_MEMORY_LIMIT=1`) refuses to start. crt sets
+`memory.max` only, not `memory.swap.max`, so on a host with swap the limit
+bounds resident memory. With it, the limit covers everything the executor's cgroup
 is charged for, including tmpfs pages (`/tmp`, `/dev/shm`), which cgroup v2
 charges to the writer's memory; the permission model already denies writes
 there. `run-eval` also lowers `EVAL_CONCURRENCY` so that executors × memory
@@ -615,7 +644,8 @@ The rootfs is part of the trusted base: the `node`, `timeout` and `setpriv`
 inside it run before and around the sandboxed code. The eval and the setup
 script only ever run it with `--ro-root`, and the setup script creates it when
 absent and otherwise only checks it. crt refuses hardened runs of a rootfs
-that has ever run writable. Never run it writable (`crt run` or `crt enter`
+that `crt create` did not mark pristine, or that has run writable since.
+Never run it writable (`crt run` or `crt enter`
 without `--ro-root`, or installing into it); to change it, remove it
 (`crt rm jscad-eval`) and recreate it with the setup script.
 

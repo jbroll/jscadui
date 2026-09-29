@@ -3,13 +3,16 @@
 // home, a private /tmp, a clean environment, a read-only rootfs and read-only
 // binds of the code the backend loads, and Node's permission model inside that
 // as a second layer. The conversation and its provider calls stay in the
-// calling process and reach the executor over IPC (eval/executor-protocol.js).
-import { fork, spawn as nodeSpawn } from 'node:child_process'
-import { accessSync, constants, existsSync, readdirSync, readFileSync, realpathSync } from 'node:fs'
+// calling process and reach the executor through length-capped frames on a
+// socket at the executor's fd 3 (eval/frames.js, eval/executor-protocol.js).
+import { spawn as nodeSpawn } from 'node:child_process'
+import { accessSync, constants, existsSync, lstatSync, readdirSync, readFileSync, realpathSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { dirname, isAbsolute, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isMainModule } from '../src/mainModule.js'
-import { createExecutorClient } from './executor-protocol.js'
+import { createExecutorClient, MAX_REPLY_BYTES } from './executor-protocol.js'
+import { createFrameReader, encodeFrame } from './frames.js'
 
 const EXECUTOR = fileURLToPath(new URL('./executor-child.js', import.meta.url))
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url))
@@ -100,11 +103,13 @@ export const resolveCrt = (env) => {
 export const sandboxFrom = (env, { live = true } = {}) => {
   const kind = env.EVAL_SANDBOX ?? 'crt'
   if (kind === 'crt') {
+    const memory = env.EVAL_SANDBOX_MEMORY || DEFAULT_MEMORY
+    if (memoryMiB(memory) < MIN_MEMORY_MIB) throw new Error(`EVAL_SANDBOX_MEMORY=${memory}: the executor needs at least ${MIN_MEMORY_MIB}M`)
     return {
       kind,
       crt: resolveCrt(env),
       rootfs: env.EVAL_SANDBOX_ROOTFS || DEFAULT_ROOTFS,
-      memory: env.EVAL_SANDBOX_MEMORY || DEFAULT_MEMORY,
+      memory,
       crtHome: env.CRT_HOME || undefined,
       requireMemoryLimit: env.EVAL_REQUIRE_MEMORY_LIMIT === '1',
     }
@@ -120,18 +125,23 @@ export const bindDirs = (dirs) => {
 }
 
 const ISOLATION = ['--net', 'none', '--no-home', '--tmp', 'private', '--clean-env', '--ro-root']
+const CHANNEL_FD = 3
 
-const UNITS = { K: 1 / 1024, M: 1, G: 1024, T: 1024 * 1024 }
+const UNITS = { '': 1, K: 1024, M: 1024 ** 2, G: 1024 ** 3 }
+const MIN_MEMORY_MIB = 512
 
-// crt's memory syntax (512M, 2G) in MiB.
-export const memoryMiB = (memory) => {
-  const match = /^(\d+(?:\.\d+)?)([KMGT])?$/i.exec(String(memory).trim())
-  if (!match) throw new Error(`EVAL_SANDBOX_MEMORY: cannot read ${memory} (use e.g. 2G or 1536M)`)
-  return Number(match[1]) * UNITS[(match[2] ?? 'M').toUpperCase()]
+// crt's memory grammar exactly (parse_memory): digits and an optional K, M or
+// G; a bare number is bytes.
+export const memoryBytes = (memory) => {
+  const match = /^(\d+)([GgMmKk]?)$/.exec(String(memory))
+  if (!match) throw new Error(`EVAL_SANDBOX_MEMORY: crt cannot read ${memory} (use digits and K, M or G, e.g. 2G or 1536M)`)
+  return Number(match[1]) * UNITS[match[2].toUpperCase()]
 }
 
+export const memoryMiB = (memory) => memoryBytes(memory) / 1024 ** 2
+
 // V8's heap stays under the cgroup limit, leaving a quarter for everything else.
-export const heapMiB = (memory) => Math.max(256, Math.floor(memoryMiB(memory) * 0.75))
+export const heapMiB = (memory) => Math.floor(memoryMiB(memory) * 0.75)
 
 export const DEFAULT_LIFETIME_S = 1800
 
@@ -152,10 +162,8 @@ export const crtRunArgs = ({ rootfs, memory }, { dirs, entry, permission = true,
   return [
     'run',
     ...ISOLATION,
-    '-e',
-    'NODE_CHANNEL_FD',
-    '-e',
-    'NODE_CHANNEL_SERIALIZATION_MODE',
+    '--keep-fd',
+    String(CHANNEL_FD),
     '-m',
     memory,
     ...binds.flatMap((dir) => ['-v', `${dir}:${dir}:ro`]),
@@ -184,12 +192,16 @@ export const killExecutors = () => {
 
 const STDERR_TAIL = 2000
 
+// Frames from the executor are refused past MAX_REPLY_BYTES from their header,
+// and the executor is killed: model code can write to the channel too.
 const childTransport = (child, killChild) => {
+  const channel = child.stdio[CHANNEL_FD]
   let stderr = ''
   child.stderr?.on('data', (chunk) => {
     stderr = (stderr + chunk).slice(-STDERR_TAIL)
   })
   let gone = false
+  let violation = null
   const kill = () => {
     if (gone) return
     try {
@@ -199,33 +211,50 @@ const childTransport = (child, killChild) => {
     }
   }
   live.add(kill)
+  const messageHandlers = []
   const exitHandlers = []
+  channel.on(
+    'data',
+    createFrameReader({
+      maxBytes: MAX_REPLY_BYTES,
+      onFrame: (message) => {
+        for (const fn of messageHandlers) fn(message)
+      },
+      onViolation: (reason) => {
+        violation = `the executor sent ${reason}`
+        kill()
+      },
+    }),
+  )
+  channel.on('error', () => {})
   const exited = (reason) => {
+    if (gone) return
     gone = true
     live.delete(kill)
-    for (const fn of exitHandlers) fn(reason)
+    channel.destroy()
+    for (const fn of exitHandlers) fn(violation ?? reason)
   }
   child.on('close', (code, signal) => exited([code === null ? `signal ${signal}` : `code ${code}`, stderr.trim()].filter(Boolean).join(': ')))
   child.on('error', (error) => exited(error.message))
   return {
     send: (message) => {
-      try {
-        child.send(message)
-      } catch {
-        // channel closed; the close handler reports the exit
-      }
+      if (!gone) channel.write(encodeFrame(message))
     },
-    onMessage: (fn) => child.on('message', fn),
+    onMessage: (fn) => messageHandlers.push(fn),
     onExit: (fn) => exitHandlers.push(fn),
     kill,
   }
 }
 
+export const liveExecutors = () => live.size
+
+const STDIO = ['ignore', 'ignore', 'pipe', 'pipe']
+
 // `permission: false` drops Node's permission model inside crt, so a test can
 // show what crt alone blocks. `graceMs`: eval/executor-protocol.js.
 export const startExecutor = ({ api, sandbox, spawn = nodeSpawn, permission = true, graceMs, lifetimeS }) => {
   if (sandbox.kind === 'child') {
-    const child = fork(EXECUTOR, [], { execArgv: sandboxExecArgv(), env: {}, serialization: 'advanced', stdio: ['ignore', 'ignore', 'pipe', 'ipc'] })
+    const child = spawn(process.execPath, [...sandboxExecArgv(), EXECUTOR], { env: {}, stdio: STDIO })
     return createExecutorClient(childTransport(child, () => child.kill('SIGKILL')), { api, graceMs })
   }
   if (sandbox.kind !== 'crt' || !sandbox.crt) throw new Error('startExecutor: no crt sandbox')
@@ -235,17 +264,24 @@ export const startExecutor = ({ api, sandbox, spawn = nodeSpawn, permission = tr
     cwd: PACKAGE,
     env: crtEnv(sandbox),
     detached: true,
-    serialization: 'advanced',
-    stdio: ['ignore', 'ignore', 'pipe', 'ipc'],
+    stdio: STDIO,
   })
   return createExecutorClient(childTransport(child, () => process.kill(-child.pid, 'SIGKILL')), { api, graceMs })
 }
 
-const capture = (spawn, command, args, options, timeoutMs) =>
+// Runs `script` in the rootfs with node and no permission model, under the
+// memory limit. It prints one JSON line and waits for stdin to close, so the
+// container's cgroup still exists while `inspect(line)` runs.
+const probe = (spawn, sandbox, script, inspect, timeoutMs) =>
   new Promise((resolve) => {
-    const child = spawn(command, args, { ...options, detached: true, stdio: ['ignore', 'pipe', 'pipe'] })
+    const child = spawn(sandbox.crt, ['run', ...ISOLATION, '-m', sandbox.memory, '--', sandbox.rootfs, 'node', '-e', script], {
+      env: crtEnv(sandbox),
+      detached: true,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
     let stdout = ''
     let stderr = ''
+    let inspected
     const timer = setTimeout(() => {
       stderr += `no answer within ${timeoutMs / 1000} s`
       try {
@@ -254,29 +290,78 @@ const capture = (spawn, command, args, options, timeoutMs) =>
         child.kill?.('SIGKILL')
       }
     }, timeoutMs)
-    child.stdout.on('data', (chunk) => (stdout += chunk))
+    child.stdin.on('error', () => {})
+    child.stdout.on('data', (chunk) => {
+      stdout += chunk
+      if (inspected !== undefined || !stdout.includes('\n')) return
+      try {
+        inspected = inspect(JSON.parse(stdout.slice(0, stdout.indexOf('\n'))))
+      } catch {
+        inspected = null
+      }
+      child.stdin.end()
+    })
     child.stderr.on('data', (chunk) => (stderr += chunk))
+    const done = (code) => {
+      clearTimeout(timer)
+      resolve({ code, stderr, inspected: inspected ?? null })
+    }
     child.on('error', (error) => {
-      clearTimeout(timer)
-      resolve({ code: -1, stdout, stderr: error.message })
+      stderr += error.message
+      done(-1)
     })
-    child.on('close', (code) => {
-      clearTimeout(timer)
-      resolve({ code, stdout, stderr })
-    })
+    child.on('close', done)
   })
+
+const PROBE = `let cgroup = ''
+try { cgroup = require('fs').readFileSync('/proc/self/cgroup', 'utf8') } catch {}
+process.stdout.write(JSON.stringify({ node: process.versions.node, cgroup }) + '\\n')
+process.stdin.resume()
+process.stdin.on('end', () => process.exit(0))`
+
+// The limit crt set, read from the host side of the probe's own cgroup.
+const limitInForce = (cgroupRoot, cgroup, bytes) => {
+  const path = /^0::(\/.*)$/m.exec(cgroup ?? '')?.[1]
+  if (!path) return false
+  try {
+    const max = readFileSync(join(cgroupRoot, path, 'memory.max'), 'utf8').trim()
+    return /^\d+$/.test(max) && Number(max) > 0 && Number(max) <= bytes
+  } catch {
+    return false
+  }
+}
+
+export const TRACKED_CONFIG = fileURLToPath(new URL('ci/jscad-eval.crt', REPO))
 
 const nodeTooOld = (version) => {
   const [major, minor] = version.split('.').map(Number)
   return major < MIN_NODE[0] || (major === MIN_NODE[0] && minor < MIN_NODE[1])
 }
 
-export const TRACKED_CONFIG = fileURLToPath(new URL('ci/jscad-eval.crt', REPO))
+const within = (path, root) => path === root || path.startsWith(`${root}/`)
 
-// crt keeps a rootfs's stored config outside it, at $CRT_HOME/.config/<name>,
-// and merges its mount and env lines into every run: anything beyond the
-// tracked file could hand the executor more of the host.
+const realOr = (path) => {
+  try {
+    return realpathSync(path)
+  } catch {
+    return path
+  }
+}
+
+// crt (5a8a7cc) reads a rootfs's config only from $CRT_HOME/.config/<name>,
+// moving a legacy $CRT_HOME/<name>/config there when that is absent; an older
+// crt reads the legacy file. Either could hand the executor more of the host
+// through its mount and env lines, so the stored config must be the tracked
+// file and no legacy file may exist.
 const configProblem = (home, rootfs) => {
+  const legacy = join(home, rootfs, 'config')
+  let legacyExists = true
+  try {
+    lstatSync(legacy)
+  } catch {
+    legacyExists = false
+  }
+  if (legacyExists) return `a legacy crt config ${legacy} exists inside the rootfs, which an older crt reads: crt rm ${rootfs}, then run ${SETUP}`
   const stored = join(home, '.config', rootfs)
   let text
   try {
@@ -284,37 +369,65 @@ const configProblem = (home, rootfs) => {
   } catch {
     return `no stored crt config for "${rootfs}" at ${stored} (a crt that keeps configs outside the rootfs creates it): crt rm ${rootfs}, then run ${SETUP}`
   }
-  if (text !== readFileSync(TRACKED_CONFIG, 'utf8')) {
+  const tracked = readFileSync(TRACKED_CONFIG, 'utf8')
+  if (text !== tracked) {
     return `the stored crt config ${stored} differs from ci/jscad-eval.crt; the eval runs only under the tracked config: crt rm ${rootfs}, then run ${SETUP}`
   }
+  const widening = /^\s*(mount|env|keep-fd)\s/m.exec(tracked)
+  if (widening) return `ci/jscad-eval.crt has a ${widening[1]} line; the eval's config must add nothing to the run`
   return null
 }
 
-const LIMITS_NOT_APPLIED = /limits not applied/
+// crt refuses a CRT_HOME inside $HOME, /tmp or a bind source; say so up front.
+const placementProblem = (home, roots) => {
+  const real = realOr(home)
+  const clash = roots.map(realOr).find((root) => within(real, root) || within(root, real))
+  return clash ? `CRT_HOME ${home} overlaps ${clash}; crt needs it outside $HOME, /tmp and the repo dirs the eval binds (e.g. /home/crt or /var/lib/crt)` : null
+}
+
+const notEnforced = (memory) =>
+  `crt cannot enforce the executor's ${memory} memory limit on this host, so model code can take all of its memory; run 'sudo crt setup' once to delegate a cgroup`
 
 // null when an executor starts in `sandbox`; otherwise what is missing and how
 // to set it up. An unenforced memory limit is a problem when the sandbox
 // requires one (ci/eval), else reported through `onWarning`.
-export const sandboxProblem = async (sandbox, { spawn = nodeSpawn, readyTimeoutMs = 60_000, probeTimeoutMs = 60_000, onWarning = () => {} } = {}) => {
+export const sandboxProblem = async (
+  sandbox,
+  {
+    spawn = nodeSpawn,
+    readyTimeoutMs = 60_000,
+    probeTimeoutMs = 60_000,
+    onWarning = () => {},
+    cgroupRoot = '/sys/fs/cgroup',
+    placementRoots = [homedir(), '/tmp', ...readableDirs()],
+  } = {},
+) => {
   if (sandbox.kind !== 'crt') return null
   if (!sandbox.crt) return `no crt binary: install crt on PATH or set EVAL_CRT to its absolute path, then run ${SETUP}`
   const home = sandbox.crtHome ?? CRT_HOME_DEFAULT
+  const placement = placementProblem(home, placementRoots)
+  if (placement) return placement
   if (!existsSync(join(home, sandbox.rootfs, 'bin'))) return `no crt rootfs "${sandbox.rootfs}" in ${home}: run ${SETUP} (CRT_HOME=${home})`
   const config = configProblem(home, sandbox.rootfs)
   if (config) return config
-  const env = crtEnv(sandbox)
-  const { code, stdout, stderr } = await capture(spawn, sandbox.crt, ['run', ...ISOLATION, '-m', sandbox.memory, '--', sandbox.rootfs, 'node', '--version'], { env }, probeTimeoutMs)
-  const version = /^v(\d+\.\d+\.\d+)/.exec(stdout.trim())?.[1]
+  const bytes = memoryBytes(sandbox.memory)
+  const { code, stderr, inspected } = await probe(
+    spawn,
+    sandbox,
+    PROBE,
+    ({ node, cgroup }) => ({ node: String(node), limited: limitInForce(cgroupRoot, cgroup, bytes) }),
+    probeTimeoutMs,
+  )
+  const version = /^\d+\.\d+\.\d+$/.exec(inspected?.node ?? '')?.[0]
   if (code !== 0 || !version) {
     return `node does not run in rootfs "${sandbox.rootfs}" (exit ${code}${stderr.trim() ? `: ${stderr.trim().slice(-STDERR_TAIL)}` : ''}): install the nodejs package in it (ci/jscad-eval.crt) or recreate it with ${SETUP}`
   }
-  if (LIMITS_NOT_APPLIED.test(stderr)) {
-    const text = `crt cannot enforce the executor's ${sandbox.memory} memory limit on this host, so model code can take all of its memory; run 'sudo crt setup' once to delegate a cgroup`
-    if (sandbox.requireMemoryLimit) return text
-    onWarning(text)
-  }
   if (nodeTooOld(version)) {
     return `Node ${version} in rootfs "${sandbox.rootfs}": the executor needs Node ${MIN_NODE.join('.')} or later (module.registerHooks); recreate the rootfs with ${SETUP}`
+  }
+  if (!inspected.limited) {
+    if (sandbox.requireMemoryLimit) return notEnforced(sandbox.memory)
+    onWarning(notEnforced(sandbox.memory))
   }
   const executor = startExecutor({ api: undefined, sandbox, spawn })
   let timer

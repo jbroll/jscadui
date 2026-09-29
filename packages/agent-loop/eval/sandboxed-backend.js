@@ -9,7 +9,7 @@ import { GRADE_TIMEOUT_MS, PROJECT_ENTRY } from './grade.js'
 
 export const MAX_RESTARTS = 3
 export const CALL_TIMEOUT_MS = 110_000
-const READY_TIMEOUT_MS = 60_000
+export const READY_TIMEOUT_MS = 60_000
 
 // The sandbox failed, not the model: the run is left out of the means like a provider error.
 export class InfrastructureError extends Error {
@@ -86,7 +86,12 @@ export const createSandboxedBackend = ({ start, maxRestarts = MAX_RESTARTS, call
       if (crashes > maxRestarts) {
         return toolError('EvaluatorCrashed', `model code ended the evaluator (${error.reason}); it has now ended it ${crashes} times and is not restarted again`)
       }
-      executor = await launch()
+      const next = await launch()
+      if (ended) {
+        next.close()
+        return toolError('EvaluatorCrashed', 'the run ended')
+      }
+      executor = next
       return toolError('EvaluatorCrashed', `model code ended the evaluator (${error.reason}); a new one holds the project as last written, with nothing evaluated yet`)
     }
   }

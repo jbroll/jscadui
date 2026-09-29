@@ -16,7 +16,7 @@ import { conversationTag, createLiveLog, formatLiveHeader, liveLogPath, prefixBl
 import { concurrencyFrom, runSuiteParallel } from './parallel.js'
 import { computeSpeed, formatComparison, formatSummary, summarize } from './report.js'
 import { NO_GRADE } from './executor-protocol.js'
-import { createSandboxedBackend, gradeInFreshExecutor } from './sandboxed-backend.js'
+import { CALL_TIMEOUT_MS, createSandboxedBackend, gradeInFreshExecutor, READY_TIMEOUT_MS } from './sandboxed-backend.js'
 import { concurrencyCap, killExecutors, sandboxFrom, sandboxProblem, startExecutor } from './sandbox.js'
 import { formatRunHeader, formatText, formatToolCall, formatToolResult } from './verbose.js'
 
@@ -68,6 +68,18 @@ export async function loadFixtures(dir = FIXTURES) {
     fixtures.push((await import(new URL(file, dir).href)).fixture)
   }
   return fixtures
+}
+
+// A grade the fixture's checks or geometryError cannot read (model code can
+// shape the one it is measured in) grades nothing, as a model failure.
+const scoreGrade = (fixture, transcript, graded) => {
+  try {
+    const { measure, solid, params } = graded
+    return { report: gradeFixture(fixture, transcript, measure, { params, solid }), geometryError: geometryError(fixture.target, measure) }
+  } catch {
+    const { measure, solid, params } = NO_GRADE()
+    return { report: gradeFixture(fixture, transcript, measure, { params, solid }), geometryError: geometryError(fixture.target, measure) }
+  }
 }
 
 const isContentEvent = (event) => event.type === 'text' || event.type === 'tool_use'
@@ -210,8 +222,7 @@ export async function runConversation(
       noteInfra(err)
     }
   }
-  const { measure, solid, params } = graded
-  const report = gradeFixture(fixture, transcript, measure, { params, solid })
+  const { report, geometryError: geometry } = scoreGrade(fixture, transcript, graded)
   const { toolCalls, failedCalls, warnings, docsCalls } = transcriptMetrics(transcript)
   const { inputTokens, outputTokens, reasoningTokens } = cappedProvider.usage()
   const { providerSeconds, firstTokenSeconds } = cappedProvider.speed()
@@ -238,7 +249,7 @@ export async function runConversation(
       providerSeconds,
       firstTokenSeconds,
       outputTokensPerSecond,
-      geometryError: geometryError(fixture.target, measure),
+      geometryError: geometry,
     },
     ...(error ? { error } : {}),
     ...(providerError ? { providerError: true } : {}),
@@ -263,6 +274,8 @@ export async function runJob(
     pending = ''
   }
   const backend = createSandboxedBackend({ start, maxRestarts, callTimeoutMs })
+  // Past a call's own limit the backend still needs to kill, restart and reseed.
+  const toolTimeoutMs = (callTimeoutMs ?? CALL_TIMEOUT_MS) + READY_TIMEOUT_MS + 30_000
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(new Error(`run time limit of ${runTimeoutMs / 1000} s reached`)), runTimeoutMs)
   try {
@@ -272,6 +285,7 @@ export async function runJob(
       backend,
       api,
       maxTurns,
+      toolTimeoutMs,
       signal: controller.signal,
       onToolCall: (name, input) => {
         flush()
@@ -325,9 +339,9 @@ async function regradeRun(result, fixture, grader) {
   let report
   let regradeNote = samePrompt ? undefined : 'prompt differs from the current fixture; graded as unsaved'
   if (samePrompt || !model) {
-    const { measure, solid, params } = await grader.gradeProject(model)
-    report = gradeFixture(fixture, transcript, measure, { params, solid })
-    metrics.geometryError = geometryError(fixture.target, measure)
+    const scored = scoreGrade(fixture, transcript, await grader.gradeProject(model))
+    report = scored.report
+    metrics.geometryError = scored.geometryError
   } else {
     const { dimensions, firstAttemptFailures } = gradeTranscript(fixture, transcript)
     const { geometry } = result.report.dimensions
@@ -530,6 +544,11 @@ const main = async (argv, env) => {
   const results = await runSuiteParallel(fixtures, { runs, concurrency, maxTurns, runJob: runSandboxedJob, onLog, onRun })
   const { summary, speed } = save(results)
   logLine(formatSummary(summary, { ...speed, model: EVAL_MODEL, provider: EVAL_PROVIDER }), { toStdout: true })
+  const infra = results.filter((r) => r.infraError).length
+  if (infra) {
+    logLine(`run-eval: ${infra} of ${results.length} runs failed in the sandbox (infraError) and are left out of the means`, { toStdout: true })
+    process.exitCode = 1
+  }
 }
 
 if (isMainModule(process.argv[1], import.meta.url)) {

@@ -3,9 +3,19 @@
 // provider answers with no tool calls. Ported from the studio server loop;
 // the only runtime needs are AbortSignal/clearTimeout plus the fetch in providers.
 import { DEFAULT_API } from './api.js'
+import { CONTEXT_BUDGET } from './context.js'
 import { buildTools } from './tools.js'
 
 const DEFAULT_TOOL_TIMEOUT_MS = 120_000
+
+// One tool result may fill at most the budget buildMessages keeps for history,
+// so a few oversized results cannot overflow the provider's context.
+export const TOOL_RESULT_CHARS = CONTEXT_BUDGET
+
+export const capToolResult = (content) =>
+  typeof content === 'string' && content.length > TOOL_RESULT_CHARS
+    ? `${content.slice(0, TOOL_RESULT_CHARS)}\n… [tool result truncated: ${TOOL_RESULT_CHARS} of ${content.length} characters shown]`
+    : content
 
 export class ToolTimeoutError extends Error {
   constructor(callId, name, timeoutMs) {
@@ -152,7 +162,7 @@ export const runTurn = (options) => {
               signal,
               () => new ToolTimeoutError(call.id, call.name, toolTimeoutMs),
             )
-            messages.push({ role: 'tool', toolCallId: call.id, content })
+            messages.push({ role: 'tool', toolCallId: call.id, content: capToolResult(content) })
           }
         }
         resolve({ messages })

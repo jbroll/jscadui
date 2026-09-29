@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { runTurn } from '../src/loop.js'
+import { CONTEXT_BUDGET } from '../src/context.js'
+import { runTurn, TOOL_RESULT_CHARS } from '../src/loop.js'
 import { buildTools } from '../src/tools.js'
 
 const roundsProvider = (rounds) => {
@@ -96,6 +97,25 @@ describe('runTurn', () => {
         toolTimeoutMs: 25,
       }),
     ).rejects.toMatchObject({ name: 'ToolTimeoutError' })
+  })
+
+  it('caps a tool result at the context budget and tells the model', async () => {
+    const provider = roundsProvider([
+      [{ type: 'tool_use', id: 'tool_1', name: 'export', input: {} }, { type: 'done', stopReason: 'tool_use' }],
+      [{ type: 'tool_use', id: 'tool_2', name: 'measure', input: {} }, { type: 'done', stopReason: 'tool_use' }],
+      [{ type: 'text', text: 'ok' }, { type: 'done', stopReason: 'end_turn' }],
+    ])
+    const big = 'x'.repeat(TOOL_RESULT_CHARS + 500)
+    const { messages } = await runTurn({
+      conversation: { messages: [{ role: 'user', content: 'export it' }] },
+      provider,
+      requestTool: (name) => Promise.resolve(name === 'export' ? big : '{"volume": 42}'),
+    })
+    const [capped, small] = messages.filter((m) => m.role === 'tool').map((m) => m.content)
+    expect(TOOL_RESULT_CHARS).toBe(CONTEXT_BUDGET)
+    expect(capped.startsWith('x'.repeat(TOOL_RESULT_CHARS))).toBe(true)
+    expect(capped.slice(TOOL_RESULT_CHARS)).toBe(`\n… [tool result truncated: ${TOOL_RESULT_CHARS} of ${big.length} characters shown]`)
+    expect(small).toBe('{"volume": 42}')
   })
 
   it('carries the messages so far on a rejected turn', async () => {

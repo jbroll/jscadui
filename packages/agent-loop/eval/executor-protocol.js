@@ -10,6 +10,8 @@ const METHODS = new Set(['reset', 'requestTool', 'gradeProject'])
 export const MAX_TOOL_RESULT_BYTES = 256 * 1024
 export const MAX_ERROR_CHARS = 4000
 const MAX_GRADE_BYTES = 1024 * 1024
+// A reply frame larger than any valid reply is refused before it is read.
+export const MAX_REPLY_BYTES = MAX_GRADE_BYTES + 64 * 1024
 const MAX_REASON_CHARS = 500
 
 export const NO_GRADE = () => ({ measure: null, solid: null, params: [] })

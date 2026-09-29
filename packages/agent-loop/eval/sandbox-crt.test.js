@@ -1,11 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { spawn as nodeSpawn } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
-import { existsSync, rmSync, writeFileSync } from 'node:fs'
-import { homedir } from 'node:os'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createProvider } from './fake-provider.js'
+import { decodeFrames } from './frames.js'
 import { loadFixtures, runJob } from './run-eval.js'
 import { memoryMiB, sandboxFrom, sandboxProblem, startExecutor } from './sandbox.js'
 
@@ -20,6 +21,9 @@ const sandbox = (() => {
 const problem = sandbox ? await sandboxProblem(sandbox) : 'no crt sandbox configured'
 
 const KEY = 'sk-test-provider-key-canary'
+const RUN_EVAL = fileURLToPath(new URL('./run-eval.js', import.meta.url))
+const TEXT_LOADER = fileURLToPath(new URL('../text-loader.js', import.meta.url))
+const cubeHole = (await loadFixtures()).find((f) => f.name === 'cube-hole')
 const REPO = fileURLToPath(new URL('../../../', import.meta.url)).replace(/\/$/, '')
 const CANARY = join(homedir(), `.jscad-eval-sandbox-canary-${randomBytes(6).toString('hex')}`)
 const WRITE_TARGETS = [join(REPO, 'packages/agent-loop/eval/.sandbox-probe'), join(REPO, 'node_modules/.sandbox-probe')]
@@ -54,17 +58,19 @@ const probe = async (options) => {
   }
 }
 
+// Records the frames the parent writes to each executor's channel.
 const recordingSpawn = () => {
   const calls = []
   const spawn = (command, args, options) => {
     const child = nodeSpawn(command, args, options)
-    const sent = []
-    const send = child.send.bind(child)
-    child.send = (message, ...rest) => {
-      sent.push(message)
-      return send(message, ...rest)
+    const written = []
+    const channel = child.stdio[3]
+    const write = channel.write.bind(channel)
+    channel.write = (chunk, ...rest) => {
+      written.push(Buffer.from(chunk))
+      return write(chunk, ...rest)
     }
-    calls.push({ command, args, env: options.env, sent })
+    calls.push({ command, args, env: options.env, sent: () => decodeFrames(Buffer.concat(written)) })
     return child
   }
   return { spawn, calls }
@@ -158,9 +164,46 @@ describe.skipIf(problem)('the crt executor', () => {
     for (const call of calls) {
       expect(call.command).toBe(sandbox.crt)
       expect(Object.keys(call.env).sort()).toEqual(sandbox.crtHome ? ['CRT_HOME', 'PATH'] : ['PATH'])
-      expect(JSON.stringify([call.args, call.env, call.sent])).not.toContain(KEY)
+      expect(JSON.stringify([call.args, call.env, call.sent()])).not.toContain(KEY)
     }
-    expect(calls[0].sent.map((m) => m.method ?? m.type)).toEqual(['init', 'reset', 'requestTool', 'requestTool', 'requestTool'])
-    expect(calls[1].sent.map((m) => m.method ?? m.type)).toEqual(['init', 'gradeProject'])
+    expect(calls[0].sent().map((m) => m.method ?? m.type)).toEqual(['init', 'reset', 'requestTool', 'requestTool', 'requestTool'])
+    expect(calls[1].sent().map((m) => m.method ?? m.type)).toEqual(['init', 'gradeProject'])
+  }, 60_000)
+
+  it('lets --regrade exit promptly after a stored model ends its executor, with the file written', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'regrade-exit-'))
+    const file = join(dir, 'result.json')
+    const stored = (source) => ({
+      fixture: 'cube-hole',
+      run: 1,
+      maxTurns: 8,
+      report: { dimensions: { discipline: 2, recovery: 2, geometry: 2, conservation: 2 }, total: 8, firstAttemptFailures: 0, checkRate: 1 },
+      metrics: {},
+      transcript: [
+        { role: 'user', content: cubeHole.prompt },
+        { role: 'assistant', content: null, toolCalls: [{ id: 't1', name: 'writeModel', input: { source } }] },
+        { role: 'tool', toolCallId: 't1', content: '{"ok":true}' },
+        { role: 'assistant', content: 'done', toolCalls: [] },
+      ],
+    })
+    writeFileSync(file, JSON.stringify({ api: 'fluent', results: [stored('module.exports = { main: () => process.exit(3) }'), stored(CUBE)] }))
+    try {
+      const started = Date.now()
+      const code = await new Promise((resolve) => {
+        const child = nodeSpawn(process.execPath, ['--import', TEXT_LOADER, RUN_EVAL, '--regrade', file], {
+          env: { PATH: process.env.PATH, EVAL_CRT: sandbox.crt, ...(sandbox.crtHome ? { CRT_HOME: sandbox.crtHome } : {}) },
+          stdio: 'ignore',
+        })
+        child.on('close', resolve)
+      })
+      expect(code).toBe(0)
+      expect(Date.now() - started).toBeLessThan(30_000)
+      const regraded = JSON.parse(readFileSync(file, 'utf8'))
+      expect(regraded.regradedAt).toBeTypeOf('string')
+      expect(regraded.results[0].report.checkRate).toBe(0)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   }, 60_000)
 })
+

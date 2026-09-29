@@ -64,8 +64,9 @@ after the build and fails before any provider call when crt, the rootfs, its
 stored config or cgroup delegation is missing. Once, as the user the job runs
 as:
 
-1. Install a crt that keeps stored configs outside the rootfs on that user's
-   `PATH` (or set `EVAL_CRT` to its absolute path in the job's environment):
+1. Install crt 5a8a7cc or later (stored configs outside the rootfs, a
+   pristine mark at create) on that user's `PATH` (or set `EVAL_CRT` to its
+   absolute path in the job's environment):
    ```sh
    sudo cp crt /usr/local/bin/crt && sudo chmod 755 /usr/local/bin/crt
    ```
@@ -74,9 +75,11 @@ as:
    sudo crt setup
    ```
 3. Create the rootfs (`ci/jscad-eval.crt`: Void, `nodejs`) and check that an
-   executor starts in it. It lands in `CRT_HOME` (crt's default
-   `/home/crt`), which that user must be able to write; set `CRT_HOME` for
-   both this step and the job otherwise.
+   executor starts in it and that the memory limit is in force inside it. It
+   lands in `CRT_HOME` (crt's default `/home/crt`), which that user must be
+   able to write and which must lie outside `$HOME`, `/tmp` and the job's
+   worktree (crt refuses hardened runs otherwise); set `CRT_HOME` for both
+   this step and the job if it is not the default, e.g. `/var/lib/crt`.
    ```sh
    EVAL_REQUIRE_MEMORY_LIMIT=1 scripts/eval-sandbox-setup.sh
    ```
