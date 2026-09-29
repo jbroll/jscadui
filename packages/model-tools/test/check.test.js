@@ -170,6 +170,24 @@ test('inside-out and mixed winding give consistentNormals false', () => {
   expect(check(mixed)).toMatchObject({ watertight: true, consistentNormals: false })
 })
 
+test('a fully inverted solid is reported inside out, never watertight', () => {
+  const reversed = cubeFaces(0).map((f) => [...f].reverse())
+  const inverted = polyhedron(cubePoints([0, 0, 0]), reversed)
+  const c = check(inverted)
+  expect(c.insideOut).toBe(true)
+  expect(c.watertight).toBe(false)
+  expect(c.notes).toContain(
+    'solid is inside out (volume < 0); a 2D outline given clockwise usually causes this; reverse its points',
+  )
+})
+
+test('an array aggregates insideOut like selfIntersecting', () => {
+  const reversed = cubeFaces(0).map((f) => [...f].reverse())
+  const inverted = polyhedron(cubePoints([0, 0, 0]), reversed)
+  expect(check([inverted, cuboid({ size: [5, 5, 5] })]).insideOut).toBe(true)
+  expect(check([cuboid({ size: [5, 5, 5] })]).insideOut).toBe(false)
+})
+
 test('geom2 reports closed outlines and marks solid checks not applicable', () => {
   const c = check(rectangle({ size: [30, 30] }), { bed: [10, 10, 10] })
   expect(c).toMatchObject({

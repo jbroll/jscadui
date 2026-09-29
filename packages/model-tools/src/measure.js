@@ -3,6 +3,9 @@ import { measureArray, wrapOne } from './array-geom.js'
 import { axisRelation, symmetryAxis } from './axis.js'
 import { sectionOutline } from './section.js'
 
+const INSIDE_OUT_NOTE =
+  'solid is inside out (volume < 0); a 2D outline given clockwise usually causes this; reverse its points'
+
 export const measureGeom = (geom, geomType) => {
   if (geomType === 'array') return measureArray(geom)
   const out = {
@@ -13,6 +16,7 @@ export const measureGeom = (geom, geomType) => {
   if (geomType === 'geom3') {
     out.volume = geom.measureVolume()
     out.polygonCount = geom.toPolygons().length
+    if (out.volume < 0) out.notes = [INSIDE_OUT_NOTE]
   } else if (geomType === 'geom2') {
     out.area = geom.measureArea()
     out.polygonCount = geom.toOutlines().length
@@ -29,7 +33,14 @@ const classify = (g) => {
 // Index the array as the model returns it, the same items `check` numbers.
 const itemsOf = (geom, geomType) => (geomType === 'array' ? geom : [geom])
 
+const SELECTOR_FORMAT = /^\d+(-\d+)?$/
+
 export const selectorRange = (selector, length) => {
+  if (typeof selector !== 'string' || !SELECTOR_FORMAT.test(selector)) {
+    throw new Error(
+      `part ${JSON.stringify(selector)} must be an index like "0" or a range like "1-3" — parts are indexes into the array main() returns`,
+    )
+  }
   const [from, to = from] = selector.split('-').map(Number)
   if (to >= length) {
     const count = `${length} item${length === 1 ? '' : 's'}`
@@ -112,14 +123,40 @@ export const measureBetween = (geom, geomType, [a, b]) => {
   }
 }
 
+// A bare selector reads more naturally than a one-element array; "all" stays a string.
+const normalizeParts = (parts) => {
+  if (parts === undefined) return undefined
+  if (parts === 'all' || Array.isArray(parts)) return parts
+  if (typeof parts === 'string') return [parts]
+  throw new Error(
+    'parts must be "all" or a selector like "0" or "1-3" (indexes into the array main() returns), or an array of them',
+  )
+}
+
+const normalizeBetween = (between) => {
+  if (Array.isArray(between) && between.length === 2 && between.every((s) => typeof s === 'string')) return between
+  throw new Error('between needs exactly two part selectors, e.g. ["0", "1"]')
+}
+
+const SECTION_FORMAT = /^([xyz])(?:=(-?[\d.]+(?:e-?\d+)?))?$/i
+
+const normalizeSection = (section) => {
+  if (section && typeof section === 'object' && 'axis' in section) return section
+  if (typeof section === 'string') {
+    const m = SECTION_FORMAT.exec(section.trim())
+    if (m) return { axis: m[1].toLowerCase(), offset: m[2] === undefined ? undefined : Number(m[2]) }
+  }
+  throw new Error('section must be an axis "x", "y", "z", or an offset like "z=5"')
+}
+
 export const measure = (geometry, options = {}) => {
   const wrapped = Array.isArray(geometry) ? geometry : wrapOne(geometry)
   const geomType = Array.isArray(geometry) ? 'array' : classify(geometry)
   const { parts, between, anchors: wantAnchors, section } = options
   const out = measureGeom(wrapped, geomType)
-  if (parts) out.parts = measureParts(wrapped, geomType, parts)
-  if (between) out.between = measureBetween(wrapped, geomType, between)
+  if (parts !== undefined) out.parts = measureParts(wrapped, geomType, normalizeParts(parts))
+  if (between !== undefined) out.between = measureBetween(wrapped, geomType, normalizeBetween(between))
   if (wantAnchors) out.anchors = measureAnchors(wrapped, geomType)
-  if (section) out.section = sectionOutline(wrapped, geomType, section)
+  if (section !== undefined) out.section = sectionOutline(wrapped, geomType, normalizeSection(section))
   return out
 }

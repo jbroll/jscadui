@@ -431,8 +431,8 @@ the geometry it produced (a style check on a fluent chain, for example).
 `solid` is the parsed result of the backend's `check` tool on that model
 (`eval/backend.js`, `@jscadui/model-tools`), or `null` when it produced no
 geometry; checks use it for `watertight` since `measure` alone doesn't report
-it. `watertight` holds for an inside-out solid too, so a check that bounds
-volume from above (`volume < bboxVolume * k`) also requires `volume > 0`.
+it. `check` reports `watertight: false` and `insideOut: true` for a
+negative-volume (inside-out) solid.
 
 A fixture's `prompt` is a request a real user would type: casual and often
 underspecified, never a specification written to be graded, and never phrased

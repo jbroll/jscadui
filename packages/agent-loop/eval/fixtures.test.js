@@ -256,8 +256,7 @@ describe('CSG fixture reference models', () => {
     expect(passes('phone-stand', p.cuboid({ size: [80, 100, 100] }))).toBe(false)
   })
 
-  // A clockwise 2D outline extrudes to an inside-out solid: negative volume, yet
-  // `check` still calls it watertight.
+  // A clockwise 2D outline extrudes to an inside-out solid: negative volume.
   it.each([
     ['bracket', () => lBracket()],
     ['shelf-bracket', () => lBracket({ w: 50, arm: 40, t: 5 })],
@@ -269,7 +268,8 @@ describe('CSG fixture reference models', () => {
   ])('%s fails its reference model turned inside out', (name, shape) => {
     const inverted = geometries.geom3.invert(shape())
     expect(measure([inverted], {}).volume).toBeLessThan(0)
-    expect(check([inverted]).watertight).toBe(true)
+    expect(check([inverted]).watertight).toBe(false)
+    expect(check([inverted]).insideOut).toBe(true)
     expect(passes(name, inverted)).toBe(false)
   })
 })

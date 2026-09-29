@@ -107,3 +107,47 @@ test('the public measure takes geometry plus options', () => {
   const between = measure([cube(0), cube(10)], { between: ['0', '1'] }).between
   expect(between.distance).toBe(5)
 })
+
+test('measure accepts a bare selector string for parts, as a one-element list', () => {
+  const parts = measure([cube(0), cube(10)], { parts: '1' }).parts
+  expect(parts.map((p) => p.part)).toEqual(['1'])
+})
+
+test('measure rejects a parts value that is not a selector, a range, or an array', () => {
+  expect(() => measure(cube(0), { parts: true })).toThrow(/parts must be "all"/)
+})
+
+test('measure rejects a non-numeric part selector with a clear error', () => {
+  expect(() => measure(cube(0), { parts: 'base' })).toThrow(
+    'part "base" must be an index like "0" or a range like "1-3" — parts are indexes into the array main() returns',
+  )
+})
+
+test('measure rejects a between that is not exactly two selectors', () => {
+  expect(() => measure([cube(0), cube(10)], { between: [] })).toThrow(
+    'between needs exactly two part selectors, e.g. ["0", "1"]',
+  )
+  expect(() => measure([cube(0), cube(10)], { between: ['0'] })).toThrow('between needs exactly two part selectors')
+})
+
+test('measure accepts a section as "z" or "z=<offset>"', () => {
+  const cube20 = cuboid({ size: [20, 20, 20] })
+  expect(measure(cube20, { section: 'z' }).section.offset).toBe(0)
+  expect(measure(cube20, { section: 'z=5' }).section.offset).toBe(5)
+})
+
+test('measure rejects a section that is not an axis or axis=offset', () => {
+  expect(() => measure(cuboid({ size: [10, 10, 10] }), { section: 'sideways' })).toThrow(
+    'section must be an axis "x", "y", "z", or an offset like "z=5"',
+  )
+})
+
+test('measure notes a negative-volume solid as inside out', () => {
+  const reversedCube = { ...cuboid({ size: [10, 10, 10] }) }
+  reversedCube.polygons = reversedCube.polygons.map((p) => ({ ...p, vertices: [...p.vertices].reverse() }))
+  const m = measure(reversedCube)
+  expect(m.volume).toBeLessThan(0)
+  expect(m.notes).toContain(
+    'solid is inside out (volume < 0); a 2D outline given clockwise usually causes this; reverse its points',
+  )
+})

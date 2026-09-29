@@ -4,6 +4,8 @@ import { findSelfIntersections } from './self-intersect.js'
 
 const SOLID_NOTE = 'wall thickness and overhangs: run jscad-work dfm'
 const OUTLINE_NOTE = 'watertight and manifold apply to 3D solids; closed covers 2D outlines'
+const INSIDE_OUT_NOTE =
+  'solid is inside out (volume < 0); a 2D outline given clockwise usually causes this; reverse its points'
 
 export const BEDS = {
   mk3: [250, 210, 210],
@@ -81,14 +83,16 @@ const checkSolid = (geom, bed) => {
     }
   }
   const mesh = analyzeMesh(polygons)
+  const insideOut = geom.measureVolume() < 0
   return {
     empty: false,
-    watertight: mesh.openEdges === 0,
+    watertight: mesh.openEdges === 0 && !insideOut,
     manifold: mesh.nonManifoldEdges === 0 && mesh.nonManifoldVertices === 0,
+    insideOut,
     ...mesh,
     ...findSelfIntersections(weldedTriangles(polygons)),
     ...extent(geom, bed),
-    notes: [SOLID_NOTE],
+    notes: insideOut ? [SOLID_NOTE, INSIDE_OUT_NOTE] : [SOLID_NOTE],
   }
 }
 
@@ -132,6 +136,7 @@ const checkArray = (arr, bed) => {
     watertight: allOf(items.map((it) => it.watertight)),
     manifold: allOf(items.map((it) => it.manifold)),
     selfIntersecting: anyOf(items.map((it) => it.selfIntersecting)),
+    insideOut: anyOf(items.map((it) => it.insideOut)),
     openEdges: items.reduce((n, it) => n + (it.openEdges ?? 0), 0),
     fitsBed: fitsBed(dimensions, bed),
     bbox: boundingBox,

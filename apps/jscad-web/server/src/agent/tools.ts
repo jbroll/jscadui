@@ -42,10 +42,19 @@ export const buildTools = (api: Api = DEFAULT_API): ToolDefinition[] => [
     inputSchema: {
       type: 'object',
       properties: {
-        parts: { type: 'string', description: 'The part or parts to measure' },
-        between: { type: 'array', items: { type: 'string' }, description: 'Measure between named parts' },
-        anchors: { type: 'array', items: { type: 'string' }, description: 'Anchor points to include' },
-        section: { type: 'string', description: 'Section to measure' },
+        parts: {
+          description:
+            'Index selectors into the array main() returns: "0", "1-3", "all", or an array of them',
+        },
+        between: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Exactly two index selectors to measure the gap between',
+        },
+        anchors: { type: 'boolean', description: "Include each part's named anchor frames" },
+        section: {
+          description: 'An axis cross-section: "x", "y", "z", or an offset like "z=5"',
+        },
       },
     },
   },

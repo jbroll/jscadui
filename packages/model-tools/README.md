@@ -11,12 +11,16 @@ measure(model) // { boundingBox, dimensions, center, volume, polygonCount, ... }
 check(model, { bed: 'mk3' }) // { watertight, manifold, fitsBed, ... }
 ```
 
-`measure` options: `parts` (selectors like `"0"` or `"1-3"`), `between`,
-`anchors`, `section`.
+`measure` options: `parts` (an index selector like `"0"` or `"1-3"`, `"all"`,
+or an array of selectors — they index the array `main()` returns), `between`
+(exactly two selectors), `anchors` (boolean), `section` (an axis `"x"`/`"y"`/
+`"z"`, an offset like `"z=5"`, or `{axis, offset}`). A negative-volume geom3
+gets a `notes` entry saying it is inside out.
 
 `check` options: `bed`, one of the named beds in `BEDS` (`mk3`, `mk4`,
 `mini`, `x1`, `p1`, `a1mini`, `ender3`, case-insensitive) or its size in mm
 as `[x, y, z]`, `{x, y, z}`, or a JSON array string (`"[x, y, z]"`). It
 reports `watertight`, `manifold`, `openEdges`, `nonManifoldEdges`,
-`selfIntersecting` and `fitsBed` for solids, and `closed`/`outlines` for 2D
-profiles.
+`selfIntersecting`, `insideOut` and `fitsBed` for solids, and
+`closed`/`outlines` for 2D profiles. A negative-volume solid is never
+`watertight`; `insideOut` and a `notes` entry say why.
