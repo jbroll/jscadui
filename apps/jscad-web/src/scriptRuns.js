@@ -27,8 +27,9 @@ export const createScriptRuns = () => {
  * @param {{jscadSetFiles: Function, jscadScript: Function}} workerApi
  * @param {Record<string, string>} files
  * @param {object} request jscadScript options
+ * @param {string} [api] the chat's API style, which the frame's option warnings name
  */
-export const sendScript = async (workerApi, files, request) => {
-  const [, result] = await Promise.all([workerApi.jscadSetFiles({ files }), workerApi.jscadScript(request)])
+export const sendScript = async (workerApi, files, request, api) => {
+  const [, result] = await Promise.all([workerApi.jscadSetFiles(api ? { files, api } : { files }), workerApi.jscadScript(request)])
   return result
 }

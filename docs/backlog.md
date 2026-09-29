@@ -214,10 +214,10 @@ model with `display-check.js --engine jscad`.
   reads the selection's `api`; the gear dialog needs the control, and
   `persistSelection` there must carry `api`, since it rewrites the selection
   from its own fields and would drop it.
-- Style-aware option warnings and error hints. The eval backend has `api`
-  where a run's warnings are built; the app builds them in the frame worker,
-  which does not have the setting yet (`sendScript` in `src/aiEvaluate.js`
-  would carry it).
+- Sibling hints pair functions by name only (`cube`/`cuboid`,
+  `cylinder`/`cylinderElliptic`), so `square({ size: [x, y] })` does not
+  point at `rectangle`, nor `circle` at `ellipse`. A small alias list in
+  `src/hints.js` would cover them.
 - jscad-fluent gaps against `@jscad/modeling`, answered "not available" by the
   fluent `docs`: `extrudeFromSlices`, `extrudeRectangular`, `project`,
   `scission`, `modifiers.*`, `curves.bezier.*`, `hullPoints2/3`,

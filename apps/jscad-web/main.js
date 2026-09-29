@@ -575,7 +575,7 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
     const useGpuNormals = viewState.viewer?.supportsGpuNormals ?? false
     const files = await collectProjectFiles(fileSystem.getSwHandler())
     if (isStale()) return
-    const result = await sendScript(workerApi, files, { script, url, base, root, useGpuNormals, runId, held: meshRefs.held(), supersede: true })
+    const result = await sendScript(workerApi, files, { script, url, base, root, useGpuNormals, runId, held: meshRefs.held(), supersede: true }, getChatApi())
     if (isStale()) return
 
     if (result.proxyState && useParamsProxy) {
@@ -826,7 +826,7 @@ const toBase64 = (buffers) => {
 // evaluate/measure/check/save track `saved` per file across the whole
 // project, and save re-validates like the eval harness's writeModel; see
 // aiDeps.js.
-const savedDeps = createSavedDeps({ workerApi, handleEntities, editor, recordEdit })
+const savedDeps = createSavedDeps({ workerApi, handleEntities, editor, recordEdit, getApi: getChatApi })
 
 const aiDeps = {
   evaluate: savedDeps.evaluate,

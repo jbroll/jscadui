@@ -70,10 +70,12 @@ requireHandlers.set('scad', scad.handle)
 // The project file map the frame's load command carries. readFileWeb (which the
 // loader uses for every read) is replaced at build time by readFileFrame.js,
 // which consults this map before fetching over the network. A file that failed
-// to read may exist now, so the failed reads go with the old map.
-export const jscadSetFiles = ({ files }) => {
+// to read may exist now, so the failed reads go with the old map. The chat's
+// API style rides along so the run's warnings name that API's form.
+export const jscadSetFiles = ({ files, api }) => {
   self.__PROJECT_FILES__ = files
   scad.clearFailures()
+  runWarnings.setApi(api)
 }
 
 // ── measure, check and export ─────────────────────────────────────────────
@@ -135,7 +137,7 @@ const importData = {
   },
 }
 
-installOptionWarnings({ setUserModuleWrapper, setRunWarnings })
+const runWarnings = installOptionWarnings({ setUserModuleWrapper, setRunWarnings })
 installRunConsole({ setRunConsole })
 
 initWorker({
