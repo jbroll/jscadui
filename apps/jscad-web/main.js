@@ -314,6 +314,7 @@ const fsDeps = {
   setError,
   onAliasFound: alias => workerApi.jscadInit({ alias }),
   onScriptReady: (script, url) => {
+    currentEntry = url
     jscadScript(projectUrls(url))
     editor.setSource(script, url)
   },
@@ -338,6 +339,7 @@ const recordEdit = (script, path) =>
   storageSession.writeThrough(currentProjectId, path, script, { message: 'edit', entry: path }).catch((err) => console.warn('storage write failed:', err))
 
 let currentProjectId = 'default'
+// The entry of whatever was opened last: a stored project or a dropped folder.
 let currentEntry
 
 const toEditorFiles = (files) =>
@@ -728,8 +730,9 @@ editor.init(
     } else {
       const fullUrl = path.startsWith('http') ? path : new URL(path, appBase).toString()
       const base = new URL('./', fullUrl).toString()
-      // The chat's writeModel validates against the file cache, so it must hold this edit.
-      const projectPath = projectPathOf(path)
+      // The chat's writeModel validates against the file cache, so it must hold
+      // this edit. With no project opened the path is the editor's placeholder.
+      const projectPath = currentEntry === undefined ? null : projectPathOf(path)
       if (projectPath) await fileSystem.addToCacheWrapper(projectPath, script)
       await recordEdit(script, path)
       jscadScript({ script, url: path, base })
@@ -840,7 +843,7 @@ const savedDeps = createSavedDeps({
     await fileSystem.addToCacheWrapper(path, source)
     await workerApi.jscadClearFileCache({ files: [path], root: PROJECT_BASE })
   },
-  getProjectEntry: () => fileSystem.getSwHandler()?.fileToRun ?? currentEntry,
+  getProjectEntry: () => currentEntry,
   getApi: getChatApi,
   loadIndex: loadApiIndex,
 })

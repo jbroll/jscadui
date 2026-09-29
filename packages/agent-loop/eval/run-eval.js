@@ -1,7 +1,7 @@
 // Usage (from packages/agent-loop):
 //   EVAL_PROVIDER=meta EVAL_MODEL=muse-spark-1.3-contributor [EVAL_API=modeling] npm run eval
-//   npm run eval -- --compare eval/results/a.json eval/results/b.json
-// Runs the suite live. Never in CI: every run spends real API budget.
+//   npm run eval -- --compare <data>/results/a.json <data>/results/b.json
+// Runs the suite live and spends real API budget, so CI runs it only on request (ci/eval).
 import { createHash } from 'node:crypto'
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { totalmem } from 'node:os'

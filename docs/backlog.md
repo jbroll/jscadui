@@ -229,6 +229,13 @@ model with `display-check.js --engine jscad`.
   fluent `docs`: compact binary, `poly2`/`poly3`, the `geometries` functions
   with no same-named fluent method, and the internal `utils` helpers
   (`areAllShapesTheSameType`, `fnNumberSort`, `insertSorted`).
+- Project-switch guard on the chat's `writeModel` (jscad-web). A turn builds
+  its context from the project open when it started, but `writeModel` writes
+  into whatever project is open when the call arrives, so a switch mid-turn
+  puts project A's file into project B's editor, cache and version rows, and
+  re-runs B. A write can also land between `replaceProjectFiles`' clear and
+  refill. Capture the project id at turn start and refuse `writeModel` with an
+  error result when it has changed. (`src/aiChat.js`, `src/aiDeps.js`)
 - In-app API help page for users (jscad-web). The `docs` tool answers only
   the chat's model; a page or panel over the same `api/index.json` and
   `docsTool` would let a user look up a function, its options and an example
