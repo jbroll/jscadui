@@ -57,33 +57,40 @@ that model's next style.
 ### Host setup for `ci/eval`
 
 Model code from the models runs only in a crt container with no network, no
-home directory and no provider key (`packages/agent-loop/README.md`,
-Sandbox). The job runs `scripts/eval-sandbox-setup.sh --check` after the
-build and fails before any provider call when the sandbox is missing. Once,
-as the user the job runs as:
+home directory, no provider key and a 2G memory limit
+(`packages/agent-loop/README.md`, Sandbox). The job runs
+`scripts/eval-sandbox-setup.sh --check` with `EVAL_REQUIRE_MEMORY_LIMIT=1`
+after the build and fails before any provider call when crt, the rootfs, its
+stored config or cgroup delegation is missing. Once, as the user the job runs
+as:
 
-1. Install crt on that user's `PATH` (or set `EVAL_CRT` to its absolute path
-   in the job's environment):
+1. Install a crt that keeps stored configs outside the rootfs on that user's
+   `PATH` (or set `EVAL_CRT` to its absolute path in the job's environment):
    ```sh
    sudo cp crt /usr/local/bin/crt && sudo chmod 755 /usr/local/bin/crt
    ```
-2. Create the rootfs (`ci/jscad-eval.crt`: Void, `nodejs`) and check that an
+2. Delegate a cgroup so crt enforces the memory limit (required):
+   ```sh
+   sudo crt setup
+   ```
+3. Create the rootfs (`ci/jscad-eval.crt`: Void, `nodejs`) and check that an
    executor starts in it. It lands in `CRT_HOME` (crt's default
    `/home/crt`), which that user must be able to write; set `CRT_HOME` for
    both this step and the job otherwise.
    ```sh
-   scripts/eval-sandbox-setup.sh
-   ```
-3. Optional, so crt enforces the executor's 2G memory limit (without it crt
-   warns and runs with no limit):
-   ```sh
-   sudo crt setup
+   EVAL_REQUIRE_MEMORY_LIMIT=1 scripts/eval-sandbox-setup.sh
    ```
 
 `scripts/eval-sandbox-setup.sh --check` repeats the check at any time; it
 prints `eval sandbox: ready` or what is missing. The rootfs is part of the
-trusted base: never run it writable or install into it. To change or upgrade
-it, `crt rm jscad-eval` and run `scripts/eval-sandbox-setup.sh` again.
+trusted base: never run it writable or install into it (crt then refuses its
+hardened runs). Its stored config must equal `ci/jscad-eval.crt`, so a change
+to that file, like any change or upgrade, means `crt rm jscad-eval` and
+running `scripts/eval-sandbox-setup.sh` again.
+
+Each executor holds up to 2G. `ci/eval` passes the model count as
+`EVAL_PROCESSES`, and each `run-eval` lowers its `EVAL_CONCURRENCY` so that
+models × concurrency × 2G fits in three quarters of the host's memory.
 
 ## gpu-poll
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createEvalBackend } from './backend.js'
-import { createExecutorClient, serveExecutor } from './executor-protocol.js'
+import { createExecutorClient, ExecutorExited, MAX_TOOL_RESULT_BYTES, serveExecutor } from './executor-protocol.js'
 
 // Two in-memory transport ends; messages cross through structuredClone, as IPC copies them.
 const transportPair = () => {
@@ -59,7 +59,7 @@ describe('executor protocol', () => {
     expect(JSON.parse(await executor.requestTool('measure', {})).volume).toBeCloseTo(1000, 0)
   })
 
-  it('rejects a call the backend throws on, with its message', async () => {
+  it('answers a tool call the backend throws on with a tool error', async () => {
     const { client, server } = transportPair()
     serveExecutor(server, () =>
       fakeBackend({
@@ -69,7 +69,7 @@ describe('executor protocol', () => {
       }),
     )
     const executor = createExecutorClient(client, { api: 'fluent' })
-    await expect(executor.requestTool('eval', {})).rejects.toThrow('boom')
+    expect(JSON.parse(await executor.requestTool('eval', {}))).toEqual({ ok: false, error: { name: 'EvaluatorError', message: 'boom' } })
   })
 
   it('refuses a method outside the backend protocol', async () => {
@@ -113,6 +113,7 @@ describe('executor protocol', () => {
     const pending = executor.requestTool('eval', {})
     exit('code 3')
     await expect(pending).rejects.toThrow('executor exited: code 3')
+    await expect(pending).rejects.toBeInstanceOf(ExecutorExited)
     await expect(executor.requestTool('measure', {})).rejects.toThrow('executor exited: code 3')
     expect(executor.alive()).toBe(false)
   })
@@ -139,5 +140,72 @@ describe('executor protocol', () => {
     await executor.requestTool('params', {})
     expect(sent.map((m) => m.type)).toEqual(['init', 'call'])
     expect(sent[0]).toEqual({ type: 'init', api: 'fluent' })
+  })
+
+  it('kills the executor when a call runs past its time limit', async () => {
+    const { client, server, killed } = transportPair()
+    serveExecutor(server, () => fakeBackend({ requestTool: () => new Promise(() => {}) }))
+    const executor = createExecutorClient(client, { api: 'fluent' })
+    await expect(executor.requestTool('eval', {}, { timeoutMs: 5 })).rejects.toThrow('executor exited: ran past 0.005 s')
+    expect(killed()).toBe(true)
+  })
+})
+
+// Replies model code in the executor's process can send in place of the backend's.
+describe('forged executor replies', () => {
+  const forged = async (method, reply) => {
+    const { client } = transportPair()
+    const handlers = []
+    const executor = createExecutorClient({ ...client, onMessage: (fn) => handlers.push(fn) }, { api: 'fluent' })
+    const answer = method === 'gradeProject' ? executor.gradeProject({ files: {}, entry: 'main.js' }) : executor[method]('eval', {})
+    for (const fn of handlers) fn({ type: 'reply', id: 0, ...reply })
+    return answer
+  }
+
+  it('turns an error reply into a tool error, never a rejected call', async () => {
+    expect(JSON.parse(await forged('requestTool', { ok: false, error: 'empty provider reply' }))).toEqual({
+      ok: false,
+      error: { name: 'EvaluatorError', message: 'empty provider reply' },
+    })
+    expect(JSON.parse(await forged('requestTool', { ok: false, error: { toString: 1 } })).error.message).toBe('malformed executor error')
+  })
+
+  it('caps an error reply', async () => {
+    const { error } = JSON.parse(await forged('requestTool', { ok: false, error: 'x'.repeat(100_000) }))
+    expect(error.message.length).toBeLessThan(4100)
+  })
+
+  it('turns a result that is not a string into a tool error', async () => {
+    for (const value of [{ x: 1n }, 42, null, undefined, ['a']]) {
+      expect(JSON.parse(await forged('requestTool', { ok: true, value })).error.name).toBe('EvaluatorError')
+    }
+  })
+
+  it('replaces a result over the size limit', async () => {
+    const { error } = JSON.parse(await forged('requestTool', { ok: true, value: 'x'.repeat(MAX_TOOL_RESULT_BYTES + 1) }))
+    expect(error.name).toBe('ToolResultTooLarge')
+    expect(await forged('requestTool', { ok: true, value: 'x'.repeat(MAX_TOOL_RESULT_BYTES) })).toHaveLength(MAX_TOOL_RESULT_BYTES)
+  })
+
+  it('grades nothing for a grade that is malformed, not data, or too large', async () => {
+    const none = { measure: null, solid: null, params: [] }
+    for (const value of [null, 'x', { measure: 1, solid: null, params: [] }, { measure: null, solid: null, params: {} }, { measure: { v: 1n }, solid: null, params: [] }, { measure: { big: 'x'.repeat(2e6) }, solid: null, params: [] }]) {
+      expect(await forged('gradeProject', { ok: true, value })).toEqual(none)
+    }
+    expect(await forged('gradeProject', { ok: false, error: 'x' })).toEqual(none)
+  })
+
+  it('keeps a well-formed grade as plain data', async () => {
+    const graded = await forged('gradeProject', { ok: true, value: { measure: { volume: 8000, extra: NaN, when: new Map() }, solid: { watertight: true }, params: [] } })
+    expect(graded).toEqual({ measure: { volume: 8000, extra: null, when: {} }, solid: { watertight: true }, params: [] })
+  })
+
+  it('ignores whatever a reset reply carries', async () => {
+    const { client } = transportPair()
+    const handlers = []
+    const executor = createExecutorClient({ ...client, onMessage: (fn) => handlers.push(fn) }, { api: 'fluent' })
+    const reset = executor.reset({})
+    for (const fn of handlers) fn({ type: 'reply', id: 0, ok: false, error: 'empty provider reply' })
+    expect(await reset).toBeUndefined()
   })
 })

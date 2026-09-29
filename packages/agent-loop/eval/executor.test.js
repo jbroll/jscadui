@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { createEvalBackend } from './backend.js'
 import { createExecutorClient, serveExecutor } from './executor-protocol.js'
 import { createProvider } from './fake-provider.js'
-import { loadFixtures, restartingGrader, runJob } from './run-eval.js'
+import { loadFixtures, runJob } from './run-eval.js'
 import { startExecutor } from './sandbox.js'
 
 const KEY = 'sk-test-provider-key-canary'
@@ -46,28 +46,12 @@ describe('an executor child', () => {
   }, 30_000)
 })
 
-describe('restartingGrader', () => {
-  it('starts an executor on first use and again after one dies', async () => {
-    const started = []
-    const grader = restartingGrader(() => {
-      const executor = { dead: false, alive: () => !executor.dead, gradeProject: async () => started.indexOf(executor), close: () => {} }
-      started.push(executor)
-      return executor
-    })
-    expect(await grader.gradeProject(null)).toBe(0)
-    expect(await grader.gradeProject(null)).toBe(0)
-    started[0].dead = true
-    expect(await grader.gradeProject(null)).toBe(1)
-    expect(started).toHaveLength(2)
-  })
-})
-
 describe('runJob', () => {
   it('never sends the executor the provider key', async () => {
     const sent = []
     const result = await runJob(job(), { provider: createProvider({ kind: 'fake', model: 'ok', apiKey: KEY }), api: 'fluent', startExecutor: recordedExecutor(sent) }, () => {})
     expect(result.error).toBeUndefined()
-    expect(sent.map((m) => m.method ?? m.type)).toEqual(['init', 'reset', 'requestTool', 'requestTool', 'requestTool', 'gradeProject'])
+    expect(sent.map((m) => m.method ?? m.type)).toEqual(['init', 'reset', 'requestTool', 'requestTool', 'requestTool', 'init', 'gradeProject'])
     expect(JSON.stringify(sent)).not.toContain(KEY)
   })
 
@@ -117,7 +101,9 @@ describe('runJob', () => {
     expect(probe).not.toContain('JSCAD_EVAL_CANARY')
   }, 30_000)
 
-  it('rejects when model code takes the executor down', async () => {
-    await expect(inChild('exit')).rejects.toThrow(/executor exited: code 3/)
+  it('answers model code that takes the executor down with an EvaluatorCrashed tool error', async () => {
+    const result = await inChild('exit')
+    expect(JSON.parse(result.transcript.find((m) => m.role === 'tool').content).error.name).toBe('EvaluatorCrashed')
+    expect(result.error).toBeUndefined()
   }, 30_000)
 })

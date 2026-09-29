@@ -4,17 +4,20 @@
 // Runs the suite live. Never in CI: every run spends real API budget.
 import { createHash } from 'node:crypto'
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { totalmem } from 'node:os'
 import { join } from 'node:path'
 import { buildMessages, buildSystemPrompt, createProvider, DEFAULT_API, runTurn } from '../index.js'
 import { checkApi } from '../src/api.js'
 import { evalResultsDir } from '../log/log-dir.js'
 import { isMainModule } from '../src/mainModule.js'
 import { resolveCredentials } from './credentials.js'
-import { endedWithoutReply, gradedModel, gradeFixture, gradeTranscript, geometryError, transcriptMetrics } from './grade.js'
+import { endedWithoutReply, GRADE_TIMEOUT_MS, gradedModel, gradeFixture, gradeTranscript, geometryError, transcriptMetrics } from './grade.js'
 import { conversationTag, createLiveLog, formatLiveHeader, liveLogPath, prefixBlock } from './live-log.js'
 import { concurrencyFrom, runSuiteParallel } from './parallel.js'
 import { computeSpeed, formatComparison, formatSummary, summarize } from './report.js'
-import { killExecutors, sandboxFrom, sandboxProblem, startExecutor } from './sandbox.js'
+import { NO_GRADE } from './executor-protocol.js'
+import { createSandboxedBackend, gradeInFreshExecutor } from './sandboxed-backend.js'
+import { concurrencyCap, killExecutors, sandboxFrom, sandboxProblem, startExecutor } from './sandbox.js'
 import { formatRunHeader, formatText, formatToolCall, formatToolResult } from './verbose.js'
 
 const FIXTURES = new URL('./fixtures/', import.meta.url)
@@ -135,7 +138,10 @@ export const EMPTY_REPLY = 'empty provider reply'
 // One conversation: a fresh backend state, the fixture's prompt, then grading
 // on the saved project's geometry, evaluated again in a fresh state so nothing
 // the run evaluated after its last save leaks into the grade. An error lands
-// on the result, never thrown; `providerError` marks one the provider caused.
+// on the result, never thrown. `providerError` marks one the provider caused,
+// judged only by the provider wrapper here, never by what a tool returned;
+// `infraError` one the sandbox caused (a backend error with `infrastructure`).
+// Both leave the run out of the means. `signal` aborts the run.
 export async function runConversation(
   fixture,
   run,
@@ -148,39 +154,63 @@ export async function runConversation(
     maxTurns = fixture.maxTurns,
     toolTimeoutMs,
     gradeTimeoutMs,
+    signal,
     onToolCall,
     onToolResult,
     onText,
   },
 ) {
-  await backend.reset(fixture.files)
   const messages = buildMessages({ systemPrompt, transcript: fixture.transcript ?? [], files: fixture.files ?? {}, message: fixture.prompt })
   let transcript = messages
   let error
+  let infraError = false
+  const noteInfra = (err) => {
+    if (!err?.infrastructure) throw err
+    infraError = true
+    error ??= err.message
+  }
   const cappedProvider = withTurnCap(provider, maxTurns, now)
   const startedAt = Date.now()
   try {
-    const turn = await runTurn({
-      conversation: { messages },
-      provider: cappedProvider,
-      api,
-      requestTool: async (name, input) => {
-        onToolCall?.(name, input)
-        const result = await backend.requestTool(name, input)
-        onToolResult?.(name, result)
-        return result
-      },
-      onText: (text) => onText?.(text),
-      toolTimeoutMs,
-    })
-    transcript = turn.messages
+    await backend.reset(fixture.files)
   } catch (err) {
-    error = err.message
+    noteInfra(err)
+  }
+  if (!infraError) {
+    try {
+      const turn = await runTurn({
+        conversation: { messages },
+        provider: cappedProvider,
+        api,
+        requestTool: async (name, input) => {
+          onToolCall?.(name, input)
+          const result = await backend.requestTool(name, input)
+          onToolResult?.(name, result)
+          return result
+        },
+        onText: (text) => onText?.(text),
+        toolTimeoutMs,
+        signal,
+      })
+      transcript = turn.messages
+    } catch (err) {
+      error = signal?.aborted && signal.reason instanceof Error ? signal.reason.message : err.message
+      if (Array.isArray(err?.messages)) transcript = err.messages
+      if (err?.infrastructure) infraError = true
+    }
   }
   if (!error && cappedProvider.emptyReplies() > 0) error = EMPTY_REPLY
-  const providerError = cappedProvider.providerFailed() || error === EMPTY_REPLY
+  const providerError = cappedProvider.providerFailed() || cappedProvider.emptyReplies() > 0
   const seconds = (Date.now() - startedAt) / 1000
-  const { measure, solid, params } = await backend.gradeProject(gradedModel(fixture, transcript), { timeoutMs: gradeTimeoutMs })
+  let graded = NO_GRADE()
+  if (!infraError) {
+    try {
+      graded = await backend.gradeProject(gradedModel(fixture, transcript), { timeoutMs: gradeTimeoutMs })
+    } catch (err) {
+      noteInfra(err)
+    }
+  }
+  const { measure, solid, params } = graded
   const report = gradeFixture(fixture, transcript, measure, { params, solid })
   const { toolCalls, failedCalls, warnings, docsCalls } = transcriptMetrics(transcript)
   const { inputTokens, outputTokens, reasoningTokens } = cappedProvider.usage()
@@ -212,26 +242,37 @@ export async function runConversation(
     },
     ...(error ? { error } : {}),
     ...(providerError ? { providerError: true } : {}),
+    ...(infraError ? { infraError: true } : {}),
   }
 }
 
+export const RUN_TIMEOUT_MS = 20 * 60_000
+
 // One fixture x run for eval/parallel.js: the conversation and its provider
-// calls run in this process, model code in the executor `startExecutor()`
-// returns (eval/sandbox.js), closed when the run ends.
-export async function runJob({ fixture, run, runs, maxTurns }, { provider, api, startExecutor: start }, onLog) {
+// calls run in this process, model code in executors from `startExecutor()`
+// (eval/sandbox.js) behind eval/sandboxed-backend.js. `runTimeoutMs` caps the
+// conversation; grading still follows.
+export async function runJob(
+  { fixture, run, runs, maxTurns },
+  { provider, api, startExecutor: start, runTimeoutMs = RUN_TIMEOUT_MS, maxRestarts, callTimeoutMs },
+  onLog,
+) {
   let pending = ''
   const flush = () => {
     if (pending) onLog(formatText(pending))
     pending = ''
   }
-  const executor = start()
+  const backend = createSandboxedBackend({ start, maxRestarts, callTimeoutMs })
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(new Error(`run time limit of ${runTimeoutMs / 1000} s reached`)), runTimeoutMs)
   try {
     onLog(formatRunHeader(fixture, run, runs))
     const result = await runConversation(fixture, run, {
       provider,
-      backend: executor,
+      backend,
       api,
       maxTurns,
+      signal: controller.signal,
       onToolCall: (name, input) => {
         flush()
         onLog(formatToolCall(name, input))
@@ -242,9 +283,11 @@ export async function runJob({ fixture, run, runs, maxTurns }, { provider, api, 
       },
     })
     flush()
+    if (backend.exhausted() && !result.error) result.error = `model code ended the evaluator ${backend.crashes()} times`
     return result
   } finally {
-    executor.close()
+    clearTimeout(timer)
+    backend.close()
   }
 }
 
@@ -339,26 +382,30 @@ export function saveResults(writeFile, filePath, { model, provider, api, runs, m
   return { summary, speed }
 }
 
-// A grader whose executor is started again after one is killed (a grade that
-// never finished), so one stuck project does not end the regrade.
-export const restartingGrader = (start) => {
-  let executor = null
-  return {
-    gradeProject: (model) => {
-      if (!executor?.alive()) executor = start()
-      return executor.gradeProject(model)
-    },
-    close: () => executor?.close(),
-  }
+// A hard lifetime for each executor (crt runs it under `timeout -s KILL`), so
+// one survives a SIGKILLed run-eval only that long.
+const GRADE_LIFETIME_S = GRADE_TIMEOUT_MS / 1000 + 60
+const conversationLifetimeS = (runTimeoutMs) => Math.ceil(runTimeoutMs / 1000) + 60
+
+export const runTimeoutFrom = (env) => {
+  const seconds = Number(env.EVAL_RUN_TIMEOUT)
+  return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : RUN_TIMEOUT_MS
 }
+
+// Grades each stored project in its own executor, so one stored model can
+// neither end the regrade nor forge a later run's grade.
+export const freshExecutorGrader = (start) => ({ gradeProject: (model) => gradeInFreshExecutor(start, model) })
+
+const LOUD = '!'.repeat(72)
 
 // Fails closed: model code runs only once the crt sandbox is known to start.
 const requireSandbox = async (env) => {
   let sandbox
   let problem
+  const warnings = []
   try {
     sandbox = sandboxFrom(env)
-    problem = await sandboxProblem(sandbox)
+    problem = await sandboxProblem(sandbox, { onWarning: (text) => warnings.push(text) })
   } catch (error) {
     problem = error.message
   }
@@ -366,6 +413,7 @@ const requireSandbox = async (env) => {
     console.error(`run-eval: the eval sandbox is not available: ${problem}`)
     process.exit(1)
   }
+  for (const text of warnings) console.error(`${LOUD}\nrun-eval: WARNING: ${text}\n${LOUD}`)
   process.on('exit', killExecutors)
   for (const [signal, code] of [
     ['SIGINT', 130],
@@ -398,17 +446,13 @@ const main = async (argv, env) => {
     const fixturesByName = new Map((await loadFixtures()).map((f) => [f.name, f]))
     const graders = new Map()
     const graderFor = (api) => {
-      if (!graders.has(api)) graders.set(api, restartingGrader(() => startExecutor({ api, sandbox })))
+      if (!graders.has(api)) graders.set(api, freshExecutorGrader(() => startExecutor({ api, sandbox, lifetimeS: GRADE_LIFETIME_S })))
       return graders.get(api)
     }
-    try {
-      for (const path of argv.slice(regradeAt + 1)) {
-        const regraded = await regradeResults(readJson(path), fixturesByName, { graderFor })
-        writeFileSync(path, JSON.stringify(regraded, null, 2))
-        console.log(`run-eval: regraded ${path}`)
-      }
-    } finally {
-      for (const grader of graders.values()) grader.close()
+    for (const path of argv.slice(regradeAt + 1)) {
+      const regraded = await regradeResults(readJson(path), fixturesByName, { graderFor })
+      writeFileSync(path, JSON.stringify(regraded, null, 2))
+      console.log(`run-eval: regraded ${path}`)
     }
     return
   }
@@ -430,7 +474,10 @@ const main = async (argv, env) => {
   const fixtures = selectFixtures(await loadFixtures(), only, api)
   const providerConfig = { kind: EVAL_PROVIDER, model: EVAL_MODEL, apiKey, baseUrl }
   createProvider(providerConfig)
-  const concurrency = concurrencyFrom(env)
+  const asked = concurrencyFrom(env)
+  const concurrency = concurrencyCap({ concurrency: asked, memory: sandbox.memory, totalBytes: totalmem(), processes: Number(env.EVAL_PROCESSES) || 1 })
+  if (concurrency < asked) console.error(`run-eval: EVAL_CONCURRENCY ${asked} lowered to ${concurrency} so executors x ${sandbox.memory} fit in this host's memory`)
+  const runTimeoutMs = runTimeoutFrom(env)
   const maxTurns = modelMaxTurns(env, EVAL_MODEL)
   const promptSha256 = promptHash(buildSystemPrompt(api))
   mkdirSync(resultsDir, { recursive: true })
@@ -474,7 +521,11 @@ const main = async (argv, env) => {
     save(finished)
   }
   const runSandboxedJob = (job, onJobLog) =>
-    runJob(job, { provider: createProvider(providerConfig), api, startExecutor: () => startExecutor({ api, sandbox }) }, onJobLog)
+    runJob(
+      job,
+      { provider: createProvider(providerConfig), api, runTimeoutMs, startExecutor: () => startExecutor({ api, sandbox, lifetimeS: conversationLifetimeS(runTimeoutMs) }) },
+      onJobLog,
+    )
 
   const results = await runSuiteParallel(fixtures, { runs, concurrency, maxTurns, runJob: runSandboxedJob, onLog, onRun })
   const { summary, speed } = save(results)

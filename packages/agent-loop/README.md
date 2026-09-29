@@ -332,8 +332,11 @@ without spending API budget.
 | `EVAL_CRT` | absolute path of the crt binary; default: `crt` on `PATH` |
 | `CRT_HOME` | where crt keeps its rootfs dirs, passed to crt; crt's default is `/home/crt` |
 | `EVAL_SANDBOX_ROOTFS` | crt rootfs the executor runs in, default `jscad-eval` |
-| `EVAL_SANDBOX_MEMORY` | executor memory limit, default `2G` |
+| `EVAL_SANDBOX_MEMORY` | executor memory limit, default `2G`; V8's heap gets three quarters of it |
 | `EVAL_SANDBOX` | `crt` (default); anything else is refused by `run-eval` |
+| `EVAL_REQUIRE_MEMORY_LIMIT` | `1` refuses to start when crt cannot enforce the memory limit (`ci/eval` sets it); otherwise a loud warning |
+| `EVAL_PROCESSES` | run-eval processes sharing the host (`ci/eval` sets the model count), for the concurrency cap below; default 1 |
+| `EVAL_RUN_TIMEOUT` | seconds a conversation may run before it is stopped and graded, default 1200 |
 
 A conversation's turn cap (provider calls) is `EVAL_MAX_TURNS` when set, else
 `maxTurns` from the model's entry in `eval/models.json`
@@ -344,13 +347,15 @@ its effective cap as `maxTurns`; the result file's top-level `maxTurns` is the
 model-level cap, or `null` when every fixture kept its own.
 
 Each fixture × run is one conversation with its own provider instance and its
-own sandboxed executor (see Sandbox below). `eval/parallel.js` keeps up to
+own sandboxed executors (see Sandbox below). `eval/parallel.js` keeps up to
 `EVAL_CONCURRENCY` conversations going. It collects each result as it
 finishes, prints its per-run line, and rewrites the result file with every
-finished run ordered by fixture then run, whatever order they finished in. An error stays on its run's `error`; a run whose
-executor dies before it can be graded records `error: "child crashed: …"`,
-and the suite goes on. `--regrade` evaluates saved projects in one executor
-per API style, started again if one is killed. `runSuite` in
+finished run ordered by fixture then run, whatever order they finished in. An
+error stays on its run's `error`; a run that throws outright records
+`error: "child crashed: …"`, and the suite goes on. A conversation stops at
+`EVAL_RUN_TIMEOUT` seconds (default 1200) with `error: "run time limit of …
+reached"` and is graded on what it saved. A rejected turn (a tool timeout, the
+run limit) keeps the transcript up to that point. `runSuite` in
 `eval/run-eval.js` is the sequential in-process path the unit tests and
 `eval:keyless` (scripted known-good sources) use; it runs unsandboxed. Tests
 may start a plain permission-model child instead of crt (`sandboxFrom(env,
@@ -409,10 +414,10 @@ throws (HTTP, network, auth, rate limit) also set `providerError: true`.
 
 The summary gives, per fixture, the mean `firstAttemptFailures`, the pass rate
 of its geometry checks, the mean total and the count of runs with an `error`.
-A `providerError` run has no answer to score, so those three means leave it
-out; they are `null` (printed `-`) when every run had one. Errors the model
-caused (a tool timeout from a model that never finishes, a crashed executor)
-score like any other run. The metric means below include every run.
+A `providerError` or `infraError` run has no answer to score, so those three
+means leave it out; they are `null` (printed `-`) when every run had one.
+Errors the model caused (a tool timeout from a model that never finishes, an
+executor its code ended) score like any other run. The metric means below include every run.
 
 Each result also carries `metrics`, degrading gradually where the 0-2 grades
 tend to max out once a prompt clears the bar:
@@ -519,13 +524,40 @@ geometry precisely.
 ### Sandbox
 
 The conversation loop and the provider calls run in the `run-eval` process,
-which holds the key. Model code runs in an executor process
+which holds the key. Model code runs in executor processes
 (`eval/executor-child.js`, started by `eval/sandbox.js` `startExecutor`) that
-never receives the key or the parent's environment: every tool call (`eval`,
+never receive the key or the parent's environment: every tool call (`eval`,
 `measure`, `check`, `writeModel`, `export`, `params`, `docs`) and every grade
-goes to it over IPC as a request and comes back as a reply
-(`eval/executor-protocol.js`). Each fixture × run gets its own executor, since
-the backend keeps module-level and `globalThis` state.
+goes to one over IPC as a request and comes back as a reply
+(`eval/executor-protocol.js`). Each conversation gets its own executor, since
+the backend keeps module-level and `globalThis` state, and each grade runs in
+another fresh one, so nothing model code left behind in the conversation's
+executor reaches the grade.
+
+Model code shares the executor's process and can send replies of its own, so
+the parent trusts no reply's shape. A tool result must be a string of at most
+256 KB, else the model gets an `EvaluatorError` or `ToolResultTooLarge` tool
+error; an error reply becomes an `EvaluatorError` tool result capped at 4,000
+characters; a grade must be plain JSON data shaped `{ measure, solid, params }`
+under 1 MB, else it grades nothing. `providerError` is set only by the
+provider wrapper in `run-eval`, never from a tool result's text. Model code can
+still answer its own tool calls, and can lie about the geometry of the grade
+it is being measured in, since measuring runs beside it; a fresh executor per
+grade stops it carrying anything over from the conversation or another run.
+
+When model code ends the executor (`process.exit`, an out of memory kill, a
+tool call running past 110 s), `eval/sandboxed-backend.js` starts a fresh one
+holding the fixture's files and every file written so far, and the model gets
+`{ ok: false, error: { name: "EvaluatorCrashed", message } }` and can go on;
+the call counts as a failed call. After three restarts in a run every further
+call gets `EvaluatorCrashed` and the run records `error: "model code ended the
+evaluator 4 times"`, transcript kept. An executor that dies during the grade
+grades nothing, scored as the model's failure. An executor that never becomes
+ready (crt cannot start it, at the start, on a restart or for the grade) is
+an infrastructure failure: the run gets `infraError: true` and, like a
+`providerError` run, stays out of the means. `--regrade` grades each stored
+run in its own executor, so a stored model that ends it grades nothing and the
+file is still written.
 
 The executor is `crt run` with `--net none --no-home --tmp private
 --clean-env --ro-root`, a memory limit, `-e NODE_CHANNEL_FD` and
@@ -535,22 +567,26 @@ at their host paths so absolute symlinks resolve, of `packages/`,
 also the targets of each package's linked `node_modules` and the main
 checkout's `node_modules`). Nothing else of the host is in its mount tree:
 not `$HOME`, not `~/.config`, not the repo's `apps/` (a `node_modules`
-workspace link into `apps/` dangles), not the host `/tmp`. Node inside comes
-from the rootfs and runs under its permission model too, reading only those
-binds, with no writes, processes, worker threads or addons. A path that climbs
-out of a granted dir through a symlink and `..`, which the permission model
-lets by, finds nothing there. The environment inside is `PATH` and
-`HOME=/tmp`; crt itself gets only a fixed `PATH` and `CRT_HOME`. Code-level
-blocks sit in front of that: the CDN stub serves no built-ins, and a resolve
-hook in the executor refuses every dynamic `import()` from model code with
-`failed to load module <name>`.
+workspace link into `apps/` dangles), not the host `/tmp`. Inside, the rootfs's
+`timeout --foreground -s KILL <lifetime>` runs node, so an executor ends by
+itself even when `run-eval` is SIGKILLed and cannot kill it (lifetime: the run
+limit plus 60 s for a conversation, the grade timeout plus 60 s for a grade).
+Node runs with `--max-old-space-size` at three quarters of the memory limit
+and under its permission model, reading only those binds, with no writes,
+processes, worker threads or addons. A path that climbs out of a granted dir
+through a symlink and `..`, which the permission model lets by, finds nothing
+there. The environment inside is `PATH` and `HOME=/tmp`; crt itself gets only
+a fixed `PATH` and `CRT_HOME`. Code-level blocks sit in front of that: the CDN
+stub serves no built-ins, and a resolve hook in the executor refuses every
+dynamic `import()` from model code with `failed to load module <name>`.
 
 `run-eval` resolves the crt binary once at startup (`EVAL_CRT`, else the first
 `crt` in an absolute `PATH` entry) and refuses to start, live or `--regrade`,
 until an executor starts in the sandbox: the error names what is missing (the
-crt binary, the rootfs, Node 22.15 or later in the rootfs) and how to set it
-up. `EVAL_SANDBOX=none` or `child` is refused for both. Set up the rootfs once,
-as the user the eval runs as:
+crt binary, the rootfs, a stored config equal to `ci/jscad-eval.crt`, Node
+22.15 or later in the rootfs) and how to set it up. `EVAL_SANDBOX=none` or
+`child` is refused for both. Set up the rootfs once, as the user the eval runs
+as:
 
 ```bash
 scripts/eval-sandbox-setup.sh          # crt create jscad-eval ci/jscad-eval.crt if absent, then check it
@@ -559,22 +595,34 @@ sudo crt setup                         # once per host, so crt can enforce the m
 ```
 
 `ci/jscad-eval.crt` is a Void rootfs with the `nodejs` package (Node 24.18 as
-of this writing), stored `root ro`. Without `sudo crt setup`, crt warns and
-runs the executor with no memory limit.
+of this writing), stored `root ro`. It needs a crt that keeps stored configs
+outside the rootfs (`$CRT_HOME/.config/<name>`) and creates Void rootfs with
+the host's xbps keys. crt merges a stored config's `mount` and `env` lines into
+every run, so the eval refuses to start unless that file equals
+`ci/jscad-eval.crt` byte for byte; a change to the tracked file means
+recreating the rootfs.
 
-The rootfs is part of the trusted base: the `node` and `setpriv` inside it run
-before and around the sandboxed code. The eval and the setup script only ever
-run it with `--ro-root`, and the setup script creates it when absent and
-otherwise only checks it. Never run it writable (`crt run` or `crt enter`
-without `--ro-root` and the stored `root ro`, or installing into it); to
-change it, remove it (`crt rm jscad-eval`) and recreate it with the setup
-script.
+Without `sudo crt setup`, crt cannot enforce the memory limit: `run-eval`
+prints a loud warning and goes on, and `ci/eval` (`EVAL_REQUIRE_MEMORY_LIMIT=1`)
+refuses to start. With it, the limit covers everything the executor's cgroup
+is charged for, including tmpfs pages (`/tmp`, `/dev/shm`), which cgroup v2
+charges to the writer's memory; the permission model already denies writes
+there. `run-eval` also lowers `EVAL_CONCURRENCY` so that executors × memory
+limit × `EVAL_PROCESSES` fit in three quarters of the host's memory, and says
+so when it does.
+
+The rootfs is part of the trusted base: the `node`, `timeout` and `setpriv`
+inside it run before and around the sandboxed code. The eval and the setup
+script only ever run it with `--ro-root`, and the setup script creates it when
+absent and otherwise only checks it. crt refuses hardened runs of a rootfs
+that has ever run writable. Never run it writable (`crt run` or `crt enter`
+without `--ro-root`, or installing into it); to change it, remove it
+(`crt rm jscad-eval`) and recreate it with the setup script.
 
 A grade the executor has not answered 10 s past its own timeout (model code
 stuck in a synchronous loop never lets the executor's timer fire) kills the
 executor's process group, which takes the whole container with it, and grades
-nothing. Model code that takes the executor down (`process.exit`, an out of
-memory kill) fails its tool call and then the run.
+nothing.
 
 ### Running on CI
 
@@ -585,7 +633,8 @@ styles one after the other. Provider keys come from the CI host user's
 `~/.config/jscad-chat/keys.json`, placed there by hand; a model whose
 provider has no key there fails on its own. The job runs
 `scripts/eval-sandbox-setup.sh --check` first and fails when the host has no
-crt or rootfs; host setup is in `ci/README.md`. Results land in the job's
+crt, no rootfs or no cgroup delegation for the memory limit; host setup is in
+`ci/README.md`. Results land in the job's
 `eval-results/`; fetch them into `$JSCAD_CHAT_DATA/results` with
 `node eval/fetch-ci-results.js JOB-ID`. Details: `ci/README.md`.
 

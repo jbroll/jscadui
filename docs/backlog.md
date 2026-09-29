@@ -192,10 +192,17 @@ model with `display-check.js --engine jscad`.
   parent environment (`eval/sandbox.js`, read-only binds of `packages/`,
   `node_modules/` and `.deps-cache/`), but the CDN stub still serves any
   installed package in those binds, not the frame's allowlist. Restrict the
-  stub to the frame's allowlist. An executor that dies mid-conversation (an
-  out of memory kill, `process.exit`) ends the run; restarting it and
-  replaying the project would let the model recover instead. Runs started
-  from a Claude session are still reaped under memory pressure.
+  stub to the frame's allowlist. Runs started from a Claude session are
+  still reaped under memory pressure.
+- Eval grades can be forged by model code during its own grade, since
+  `measure` and `check` run in the executor beside it. Measuring serialized
+  geometry in a second process would close it; left as is because the model
+  gains only a false score for its own run, and a fresh executor per grade
+  already stops one run affecting another.
+- crt: give the private `/tmp` and `/dev/shm` tmpfs a `size=`, and have the
+  eval pass a `cpus` limit. The permission model already denies writes there,
+  and cgroup v2 charges tmpfs pages to the executor's memory limit, so this is
+  a second layer only; not verified on a host with a delegated cgroup.
 - Stack-gated fluent method checks, if `eval/fluent-guard.test.js` ever finds
   a false warning from fluent's internals. The method checks wrap the shared
   prototypes, so they see fluent's own calls as well as the model's; a

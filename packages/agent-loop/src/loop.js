@@ -92,7 +92,7 @@ const withTimeout = (promise, timeoutMs, signal, makeTimeoutError) =>
 
 /**
  * @param {{conversation:{messages:Array<object>},provider:{send:Function},requestTool:Function,onText?:Function,signal?:AbortSignal,toolTimeoutMs?:number,api?:'fluent'|'modeling'}} options
- * @returns {Promise<{messages:Array<object>}>} a NEW conversation; the input is never mutated.
+ * @returns {Promise<{messages:Array<object>}>} a NEW conversation; the input is never mutated. A rejection carries the messages so far as `error.messages`.
  */
 export const runTurn = (options) => {
   const { conversation, provider, requestTool, onText, signal } = options
@@ -157,6 +157,7 @@ export const runTurn = (options) => {
         }
         resolve({ messages })
       } catch (err) {
+        if (err !== null && typeof err === 'object') err.messages ??= messages
         reject(err)
       } finally {
         signal?.removeEventListener('abort', cancel)

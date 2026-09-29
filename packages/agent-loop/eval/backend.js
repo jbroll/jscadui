@@ -80,10 +80,12 @@ export const createReadFile = (files) => (path) => {
   throw new Error(`file not found ${path}`)
 }
 
-const errorResult = (error, api) => ({
-  ok: false,
-  error: { name: error?.name ?? 'Error', message: withErrorHint(error?.message ?? String(error), { api, index: API_INDEX }) },
-})
+const MAX_MESSAGE = 4000
+
+const errorResult = (error, api) => {
+  const message = withErrorHint(String(error?.message ?? error).slice(0, MAX_MESSAGE), { api, index: API_INDEX })
+  return { ok: false, error: { name: String(error?.name ?? 'Error').slice(0, 200), message } }
+}
 
 const runModel = async (files, entry, api) => {
   warnings.reset()

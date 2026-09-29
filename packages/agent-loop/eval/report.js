@@ -64,10 +64,11 @@ export function summarize(results) {
     if (!byFixture.has(r.fixture)) byFixture.set(r.fixture, [])
     byFixture.get(r.fixture).push(r)
   }
-  // A run the provider failed (an HTTP error, an empty reply) has no answer to
-  // score, so it stays out of the means; an error the model caused scores.
+  // A run the provider or the sandbox failed (an HTTP error, an empty reply, an
+  // evaluator that never started) has no answer to score, so it stays out of
+  // the means; an error the model caused scores.
   return [...byFixture].map(([fixture, runs]) => {
-    const scored = runs.filter((r) => !r.providerError)
+    const scored = runs.filter((r) => !r.providerError && !r.infraError)
     return {
       fixture,
       runs: runs.length,

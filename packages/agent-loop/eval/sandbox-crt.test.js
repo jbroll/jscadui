@@ -7,7 +7,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createProvider } from './fake-provider.js'
 import { loadFixtures, runJob } from './run-eval.js'
-import { sandboxFrom, sandboxProblem, startExecutor } from './sandbox.js'
+import { memoryMiB, sandboxFrom, sandboxProblem, startExecutor } from './sandbox.js'
 
 // Needs crt (on PATH or EVAL_CRT) and its jscad-eval rootfs (scripts/eval-sandbox-setup.sh); skips without them.
 const sandbox = (() => {
@@ -115,8 +115,27 @@ describe.skipIf(problem)('the crt executor', () => {
     const stuck = executor.requestTool('eval', { source: 'module.exports = { main: () => { for (;;); } }' })
     expect(await executor.gradeProject({ files: { 'main.js': CUBE }, entry: 'main.js' }, { timeoutMs: 500 })).toEqual({ measure: null, solid: null, params: [] })
     // The channel closes only once node inside the container, which holds its end, is gone.
-    await expect(stuck).rejects.toThrow(/executor exited: signal SIGKILL/)
+    await expect(stuck).rejects.toThrow(/executor exited: grading ran past 0.7 s/)
     expect(executor.alive()).toBe(false)
+  }, 60_000)
+
+  it('ends an executor that outlives its lifetime, with no help from the parent', async () => {
+    const executor = startExecutor({ api: 'fluent', sandbox, lifetimeS: 2 })
+    const started = Date.now()
+    await expect(executor.requestTool('eval', { source: 'module.exports = { main: () => { for (;;); } }' })).rejects.toThrow(/executor exited/)
+    expect(Date.now() - started).toBeLessThan(10_000)
+  }, 60_000)
+
+  it('caps the V8 heap under the memory limit', async () => {
+    const executor = startExecutor({ api: 'fluent', sandbox })
+    try {
+      const source = `module.exports = { main: () => { throw new Error('heap:' + process.getBuiltinModule('v8').getHeapStatistics().heap_size_limit) } }`
+      const message = JSON.parse(await executor.requestTool('eval', { source })).error.message
+      const limitMiB = Number(/heap:(\d+)/.exec(message)[1]) / 2 ** 20
+      expect(limitMiB).toBeLessThan(memoryMiB(sandbox.memory))
+    } finally {
+      executor.close()
+    }
   }, 60_000)
 
   it('runs a conversation without passing the provider key to crt or the executor', async () => {
@@ -135,10 +154,13 @@ describe.skipIf(problem)('the crt executor', () => {
     }
     expect(result.error).toBeUndefined()
     expect(result.report.checkRate).toBeGreaterThan(0)
-    const [call] = calls
-    expect(call.command).toBe(sandbox.crt)
-    expect(Object.keys(call.env).sort()).toEqual(sandbox.crtHome ? ['CRT_HOME', 'PATH'] : ['PATH'])
-    expect(call.sent.map((m) => m.method ?? m.type)).toEqual(['init', 'reset', 'requestTool', 'requestTool', 'requestTool', 'gradeProject'])
-    expect(JSON.stringify([call.args, call.env, call.sent])).not.toContain(KEY)
+    expect(calls).toHaveLength(2)
+    for (const call of calls) {
+      expect(call.command).toBe(sandbox.crt)
+      expect(Object.keys(call.env).sort()).toEqual(sandbox.crtHome ? ['CRT_HOME', 'PATH'] : ['PATH'])
+      expect(JSON.stringify([call.args, call.env, call.sent])).not.toContain(KEY)
+    }
+    expect(calls[0].sent.map((m) => m.method ?? m.type)).toEqual(['init', 'reset', 'requestTool', 'requestTool', 'requestTool'])
+    expect(calls[1].sent.map((m) => m.method ?? m.type)).toEqual(['init', 'gradeProject'])
   }, 60_000)
 })

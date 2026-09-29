@@ -97,4 +97,19 @@ describe('runTurn', () => {
       }),
     ).rejects.toMatchObject({ name: 'ToolTimeoutError' })
   })
+
+  it('carries the messages so far on a rejected turn', async () => {
+    const provider = roundsProvider([
+      [{ type: 'tool_use', id: 'tool_1', name: 'measure', input: {} }, { type: 'done', stopReason: 'tool_use' }],
+      [{ type: 'tool_use', id: 'tool_2', name: 'check', input: {} }, { type: 'done', stopReason: 'tool_use' }],
+    ])
+    const error = await runTurn({
+      conversation: { messages: [{ role: 'user', content: 'measure it' }] },
+      provider,
+      requestTool: (name) => (name === 'measure' ? Promise.resolve('{"volume": 42}') : new Promise(() => {})),
+      toolTimeoutMs: 25,
+    }).catch((e) => e)
+    expect(error.name).toBe('ToolTimeoutError')
+    expect(error.messages.map((m) => m.toolCallId ?? m.role)).toEqual(['user', 'assistant', 'tool_1', 'assistant'])
+  })
 })

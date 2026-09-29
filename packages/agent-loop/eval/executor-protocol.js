@@ -1,12 +1,31 @@
 // Request/response between the eval's conversation process, which holds the
 // provider key, and the sandboxed executor that runs model code. A transport is
 // { send(message), onMessage(fn), onExit?(fn), kill?() }; the executor side
-// needs only send and onMessage.
+// needs only send and onMessage. Model code shares the executor's process and
+// can send replies of its own, so the client trusts no reply's shape.
 import { GRADE_TIMEOUT_MS } from './grade.js'
 
 const METHODS = new Set(['reset', 'requestTool', 'gradeProject'])
 
-const NO_GRADE = () => ({ measure: null, solid: null, params: [] })
+export const MAX_TOOL_RESULT_BYTES = 256 * 1024
+export const MAX_ERROR_CHARS = 4000
+const MAX_GRADE_BYTES = 1024 * 1024
+const MAX_REASON_CHARS = 500
+
+export const NO_GRADE = () => ({ measure: null, solid: null, params: [] })
+
+export const toolError = (name, message) => JSON.stringify({ ok: false, error: { name, message } })
+
+const capped = (text, max) => (text.length > max ? `${text.slice(0, max)}… (${text.length - max} more characters)` : text)
+
+// The executor ended while a call was outstanding (model code exited, was
+// killed, or ran past a call's time limit).
+export class ExecutorExited extends Error {
+  constructor(reason) {
+    super(reason ? `executor exited: ${reason}` : 'executor exited')
+    this.reason = capped(reason ?? '', MAX_REASON_CHARS)
+  }
+}
 
 // Each call is answered as soon as it settles, not in arrival order, so a grade
 // can run while an earlier eval waits on a main() that never resolves.
@@ -31,14 +50,52 @@ export const serveExecutor = (transport, createBackend) => {
   })
 }
 
+const isRecord = (value) => value !== null && typeof value === 'object' && !Array.isArray(value)
+
+// Plain JSON data (no BigInt, Map, NaN or cycles) of at most `maxBytes`, or undefined.
+const jsonData = (value, maxBytes) => {
+  try {
+    const text = JSON.stringify(value)
+    if (text === undefined || text.length > maxBytes) return undefined
+    return JSON.parse(text)
+  } catch {
+    return undefined
+  }
+}
+
+const toolReply = (message) => {
+  if (!message.ok) {
+    const error = typeof message.error === 'string' ? message.error : 'malformed executor error'
+    return toolError('EvaluatorError', capped(error, MAX_ERROR_CHARS))
+  }
+  if (typeof message.value !== 'string') return toolError('EvaluatorError', 'the evaluator returned a malformed tool result')
+  const bytes = Buffer.byteLength(message.value)
+  if (bytes > MAX_TOOL_RESULT_BYTES) {
+    return toolError('ToolResultTooLarge', `the tool result was ${bytes} bytes, over the ${MAX_TOOL_RESULT_BYTES}-byte limit`)
+  }
+  return message.value
+}
+
+const gradeReply = (message) => {
+  const data = message.ok ? jsonData(message.value, MAX_GRADE_BYTES) : undefined
+  if (!isRecord(data)) return NO_GRADE()
+  const { measure, solid, params } = data
+  if (!(measure === null || isRecord(measure)) || !(solid === null || isRecord(solid)) || !Array.isArray(params)) return NO_GRADE()
+  return { measure, solid, params }
+}
+
+const REPLIES = { reset: () => undefined, requestTool: toolReply, gradeProject: gradeReply }
+
 // The eval backend's interface (reset, requestTool, gradeProject), every method
-// async. A grade gets `graceMs` past its own timeout: model code stuck in a
-// synchronous loop never lets the executor's timer fire, so the client kills
-// it and grades nothing.
+// async. requestTool always resolves with a string and gradeProject with a
+// grade; a call rejects only with ExecutorExited. A grade gets `graceMs` past
+// its own timeout: model code stuck in a synchronous loop never lets the
+// executor's timer fire, so the client kills it and grades nothing.
 export const createExecutorClient = (transport, { api, graceMs = 10_000 }) => {
   const pending = new Map()
   let nextId = 0
   let exited = null
+  let killReason = null
   let markReady
   let failReady
   const ready = new Promise((resolve, reject) => {
@@ -47,28 +104,38 @@ export const createExecutorClient = (transport, { api, graceMs = 10_000 }) => {
   })
   ready.catch(() => {})
 
+  const kill = (reason) => {
+    killReason ??= reason
+    transport.kill?.()
+  }
+
   transport.onMessage((message) => {
-    if (message?.type === 'ready') markReady(message.api)
+    if (message?.type === 'ready') markReady(api)
     if (message?.type !== 'reply') return
     const call = pending.get(message.id)
     if (!call) return
     pending.delete(message.id)
-    if (message.ok) call.resolve(message.value)
-    else call.reject(new Error(message.error))
+    call.resolve(REPLIES[call.method](message))
   })
   transport.onExit?.((reason) => {
     if (exited) return
-    exited = new Error(reason ? `executor exited: ${reason}` : 'executor exited')
+    exited = new ExecutorExited(killReason ?? reason)
     failReady(exited)
     for (const call of pending.values()) call.reject(exited)
     pending.clear()
   })
 
-  const call = (method, ...args) =>
+  const call = (method, args, { timeoutMs } = {}) =>
     new Promise((resolve, reject) => {
       if (exited) return reject(exited)
       const id = nextId++
-      pending.set(id, { resolve, reject })
+      let timer
+      const settle = (fn) => (value) => {
+        clearTimeout(timer)
+        fn(value)
+      }
+      pending.set(id, { method, resolve: settle(resolve), reject: settle(reject) })
+      if (timeoutMs) timer = setTimeout(() => kill(`ran past ${timeoutMs / 1000} s`), timeoutMs)
       transport.send({ type: 'call', id, method, args })
     })
 
@@ -78,9 +145,9 @@ export const createExecutorClient = (transport, { api, graceMs = 10_000 }) => {
       timer = setTimeout(resolve, timeoutMs + graceMs, null)
     })
     try {
-      const graded = await Promise.race([call('gradeProject', model, { timeoutMs }), gaveUp])
+      const graded = await Promise.race([call('gradeProject', [model, { timeoutMs }]), gaveUp])
       if (graded !== null) return graded
-      transport.kill?.()
+      kill(`grading ran past ${(timeoutMs + graceMs) / 1000} s`)
       return NO_GRADE()
     } finally {
       clearTimeout(timer)
@@ -90,10 +157,10 @@ export const createExecutorClient = (transport, { api, graceMs = 10_000 }) => {
   transport.send({ type: 'init', api })
   return {
     ready,
-    reset: (files) => call('reset', files),
-    requestTool: (name, input) => call('requestTool', name, input),
+    reset: (files) => call('reset', [files]),
+    requestTool: (name, input, { timeoutMs } = {}) => call('requestTool', [name, input], { timeoutMs }),
     gradeProject,
     alive: () => !exited,
-    close: () => transport.kill?.(),
+    close: () => kill('closed'),
   }
 }

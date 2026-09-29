@@ -27,8 +27,10 @@ npm install
 # package's build failure doesn't mask agent-loop's own build.
 npm run build -- --continue || echo "workspace build had failures (continuing)"
 
-# Model code runs only in the crt sandbox; fail the job before any provider
-# call when the host lacks crt or its rootfs (ci/README.md, host setup).
+# Model code runs only in the crt sandbox, under an enforced memory limit;
+# fail the job before any provider call when the host lacks crt, its rootfs
+# or cgroup delegation (ci/README.md, host setup).
+export EVAL_REQUIRE_MEMORY_LIMIT=1
 if ! scripts/eval-sandbox-setup.sh --check; then
   echo "ci/eval: the eval sandbox is not set up on this host; see ci/README.md (Live model eval, host setup)" >&2
   exit 1
@@ -42,6 +44,11 @@ mkdir -p "$RESULTS_DIR"
 export EVAL_RESULTS_DIR="$RESULTS_DIR"
 export EVAL_LIVE_LOG="$RESULTS_DIR/eval-live.log"
 export EVAL_RUNS EVAL_CONCURRENCY
+# Models run at once; each run-eval sizes its concurrency so all executors'
+# memory limits together fit the host.
+# shellcheck disable=SC2086
+set -- $EVAL_MODELS
+export EVAL_PROCESSES=$#
 [ -n "$EVAL_FIXTURES" ] && export EVAL_FIXTURES
 
 KEYS_FILE="$HOME/.config/jscad-chat/keys.json"
