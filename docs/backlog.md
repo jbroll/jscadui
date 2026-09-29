@@ -229,6 +229,16 @@ model with `display-check.js --engine jscad`.
   fluent `docs`: compact binary, `poly2`/`poly3`, the `geometries` functions
   with no same-named fluent method, and the internal `utils` helpers
   (`areAllShapesTheSameType`, `fnNumberSort`, `insertSorted`).
+- In-app API help page for users (jscad-web). The `docs` tool answers only
+  the chat's model; a page or panel over the same `api/index.json` and
+  `docsTool` would let a user look up a function, its options and an example
+  without asking the chat.
+- Option checks on transpiled OpenSCAD code. A `.scad` file gets the plain
+  `@jscad/modeling` exports, not the option-checked copy
+  (`apps/jscad-web/docs/architecture.md`, Unknown-option warnings), since the
+  transpiler's calls are not the user's. Checking them would need warnings
+  mapped back to the `.scad` source, and options the transpiler itself passes
+  kept out.
 
 ## Refactoring
 
@@ -259,7 +269,7 @@ Async module loading is the breaking one; the rest are extractions.
   copying dropped `ManifoldGeom2`/`ManifoldGeom3`'s prototype getters). Fixed
   by pinning jscad-fluent through `scripts/deps/sources.json`
   (`.deps-cache/jscad-fluent`, built by `fetch-sources.js`) instead of the npm
-  0.6.1 release; the pin is now 6c6996f on `modeling-parity`, which also adds
+  0.6.1 release; the pin is now bfe6941 on `modeling-parity`, which also adds
   the `@jscad/modeling` parity surface. Remaining work: publish jscad-fluent
   0.7.0 from that branch to npm, then point `apps/jscad-web/package.json` and
   `packages/agent-loop/package.json` back at the npm version and remove the
