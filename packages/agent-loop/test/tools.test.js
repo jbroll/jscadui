@@ -33,6 +33,13 @@ describe('agent tools', () => {
     expect(docsDescription('modeling')).not.toMatch(/fluent|\bjf\b/i)
   })
 
+  it('says the docs query takes several names', () => {
+    for (const api of ['fluent', 'modeling']) {
+      const docs = buildTools(api).find((t) => t.name === 'docs')
+      expect(docs.inputSchema.properties.query.description).toMatch(/several names, separated by commas/)
+    }
+  })
+
   it('refuses an unknown API', () => {
     expect(() => buildTools('scad')).toThrow(/unknown api scad/)
   })

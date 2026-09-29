@@ -93,8 +93,10 @@ lists its values), `@jbroll/jscad-fluent`, from its installed `dist/*.d.ts`, and
 `@jscadui/jscad-text`, from its JSDoc. It has one entry per namespace, class
 or function: `name` (`primitives.roundedCuboid`, `jf.cube`,
 `FluentGeom2.extrudeLinear`, `jscadText.text2d`), `pkg`, `kind`, `signature`,
-`description`, `example`, and for a function that takes an options object
-first, `optionsFirst` and `options` (name, type, default, description). A
+`description`, `example`, `params` (the positional parameters' name, type and
+JSDoc text, left out for `maths`, where nearly all are `out`), and for a
+function that takes an options object first, `optionsFirst` and `options`
+(name, type, default, description). A
 fluent entry whose options are a modeling function's names it in `sameAs`
 instead of copying them, and the fluent array classes name their base class
 in `extends`. A fluent class method takes its description, example and (with
@@ -167,11 +169,23 @@ the page and in the eval. It searches only the chosen API's entries plus
 `@jscadui/jscad-text`'s. A query is a qualified name
 (`primitives.roundedCuboid`, `jf.polygon`, `FluentGeom2.extrudeLinear`), a
 bare name (`roundedCuboid`) or a namespace or class (`primitives`,
-`FluentGeom2`). A function answers with its signature, description, options
-with type and default, and example; a fluent entry whose options are a
-modeling function's lists them without naming that function. A namespace or
-class answers with its members and one-line summaries, and a class method
-missing from an array class is looked up on the class it extends. A bare name
+`FluentGeom2`), or several of these separated by commas or plus signs (at
+most 8, answered in order in up to 9,000 characters, a miss among them
+answered by its closest names). A function answers with its signature,
+description, positional parameters with their JSDoc text, options with type
+and default, and example; a fluent entry whose options are a modeling
+function's lists them without naming that function. Any function whose first
+parameter is an angle (`rotate*`) adds that angles are radians and which way
+a positive angle turns (right-hand rule: `rotateX(Math.PI / 2)` turns +Y into
++Z). `cylinder`, `cylinderElliptic` and `jf.cylinder` add a line on tapers and
+which end is the start (-Z), and `cone`, `taper` or `frustum` (bare or
+qualified) answers with the taper form, `jf.cylinder` under fluent and
+`primitives.cylinderElliptic` under modeling. A namespace or class answers
+with one line per member, `cylinder({ center = [0,0,0], height = 2, radius =
+1, segments = 32 })`, a method's own call part, or a value's name, followed
+by its one-line summary; when that passes the cap it drops the summaries,
+then the option defaults, then the call forms. A class method missing from an
+array class is looked up on the class it extends. A bare name
 with several hits answers the preferred one with the others on an `Also:`
 line (under fluent, the `jf.*` factory, then the `FluentGeom3`, `FluentGeom2`
 and `FluentPath2` method, then the array classes and nested `jf.maths`-style

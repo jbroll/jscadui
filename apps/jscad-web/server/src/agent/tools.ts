@@ -102,7 +102,7 @@ export const buildTools = (api: Api = DEFAULT_API): ToolDefinition[] => [
     description: DOCS_DESCRIPTION[api],
     inputSchema: {
       type: 'object',
-      properties: { query: { type: 'string', description: 'A function, class or namespace name' } },
+      properties: { query: { type: 'string', description: 'A function, class or namespace name, or several names, separated by commas' } },
       required: ['query'],
     },
   },

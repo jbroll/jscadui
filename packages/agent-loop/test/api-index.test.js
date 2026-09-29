@@ -226,7 +226,12 @@ describe('fluent entries', () => {
     expect(Object.keys(fluent.options)).not.toContain('polygon')
   })
 
-  it('stays under 260 KB', () => {
-    expect(formatIndex(entries).length).toBeLessThan(260_000)
+  it('stays under 280 KB', () => {
+    expect(formatIndex(entries).length).toBeLessThan(280_000)
+  })
+
+  it('keeps positional parameter text, except for maths', () => {
+    expect(entry('transforms.rotateX').params[0]).toEqual({ name: 'angle', type: 'Number', description: 'angle (RADIANS) of rotations about X' })
+    expect(entry('maths.vec3.add').params).toBeUndefined()
   })
 })

@@ -72,6 +72,9 @@ export const functionEntry = ({ name, pkg, kind, doc, extraDefaults = [] }) => {
   }
   if (optionsFirst) entry.optionsFirst = true
   if (options.length) entry.options = options
+  // maths params are nearly all `out - the receiving vector`, 22 KB of them.
+  const positional = name.startsWith('maths.') ? [] : top.filter((p) => p.name !== 'options' && p.description)
+  if (positional.length) entry.params = positional.map((p) => ({ name: p.name, type: p.type, description: p.description }))
   if (doc?.example) entry.example = doc.example
   return entry
 }

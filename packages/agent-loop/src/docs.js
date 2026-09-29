@@ -1,36 +1,118 @@
 import { firstSentence } from '../api/jsdoc.js'
 import { checkApi, DEFAULT_API } from './api.js'
 import { editDistance } from './editDistance.js'
+import { TAPER } from './hints.js'
 
 export const MAX_ANSWER = 3000
 const TRUNCATED = '\n[truncated: query a qualified name for less]'
 
-const cap = (text) => (text.length <= MAX_ANSWER ? text : text.slice(0, MAX_ANSWER - TRUNCATED.length) + TRUNCATED)
+// A query of several names may answer up to three answers' worth.
+export const MAX_LIST_ANSWER = 3 * MAX_ANSWER
+
+const cap = (text, max = MAX_ANSWER) => (text.length <= max ? text : text.slice(0, max - TRUNCATED.length) + TRUNCATED)
 const lastSegment = (name) => name.slice(name.lastIndexOf('.') + 1)
+const CLASS_OWNER = /^Fluent\w+\.[\w$]+$/
 
 const optionLine = (o) =>
   `  ${o.name}${o.type ? `: ${o.type}` : ''}${o.default != null ? ` = ${o.default}` : ''}${o.description ? ` - ${o.description}` : ''}`
 
-const memberLine = (m) => `  ${m.name}${m.summary ? ` - ${m.summary}` : ''}`
+const paramLine = (p) => `  ${p.name}${p.type ? `: ${p.type}` : ''}${p.description ? ` - ${p.description}` : ''}`
+
+const ANGLE_FIRST = /^\w+\(angles?\b/
+const RIGHT_HAND =
+  'Angles are radians (Math.PI / 2 is a quarter turn). A positive angle turns counter-clockwise seen from the + end of the axis (right-hand rule): ' +
+  'rotateX(Math.PI / 2) turns +Y into +Z, rotateY(Math.PI / 2) turns +Z into +X, rotateZ(Math.PI / 2) turns +X into +Y.'
+
+const START_AT_MINUS_Z = 'startRadius is the -Z end, endRadius the +Z end.'
+const NOTES = {
+  'primitives.cylinder': 'For a taper or cone use primitives.cylinderElliptic.',
+  'primitives.cylinderElliptic': START_AT_MINUS_Z,
+  'jf.cylinder': 'radius: [start, end] makes a taper or cone; start is the -Z end.',
+  'jf.cylinderElliptic': START_AT_MINUS_Z,
+}
 
 // A fluent entry borrows a modeling function's options through sameAs; the
-// answer lists them without naming the modeling function.
+// answer lists them without naming the modeling function. A method's sameAs
+// params would name the shape argument the method does not take.
 const renderFunction = (entry, byName) => {
   const lines = [`${entry.name} (${entry.pkg})`, entry.signature]
   if (entry.description) lines.push(entry.description)
+  if (NOTES[entry.name]) lines.push(NOTES[entry.name])
+  if (ANGLE_FIRST.test(entry.signature ?? '')) lines.push(RIGHT_HAND)
   const source = entry.sameAs ? byName.get(entry.sameAs) : entry
+  const params = entry.params ?? (CLASS_OWNER.test(entry.name) ? undefined : source?.params)
+  if (params?.length) lines.push('Parameters:', ...params.map(paramLine))
   if (source?.options?.length) lines.push('Options:', ...source.options.map(optionLine))
   if (entry.example) lines.push('Example:', ...entry.example.split('\n').map((l) => `  ${l}`))
   return lines.join('\n')
 }
 
+const optionsOf = (entry, byName) => (entry.sameAs ? byName.get(entry.sameAs) : entry)?.options ?? []
+
+// The text between a signature's parentheses, and where its first top-level comma is.
+const paramsText = (signature) => {
+  const open = signature.indexOf('(')
+  let depth = 0
+  for (let i = open; i < signature.length; i += 1) {
+    if ('([{'.includes(signature[i])) depth += 1
+    else if (')]}'.includes(signature[i]) && --depth === 0) return signature.slice(open + 1, i)
+  }
+  return ''
+}
+
+const firstComma = (text) => {
+  let depth = 0
+  for (let i = 0; i < text.length; i += 1) {
+    if ('([{'.includes(text[i])) depth += 1
+    else if (')]}'.includes(text[i])) depth -= 1
+    else if (text[i] === ',' && depth === 0) return i
+  }
+  return -1
+}
+
+// cylinder({ radius = 1, height = 2 }) for an options-first function (without
+// the defaults when `defaults` is false), the signature's call part otherwise.
+const callForm = (entry, byName, defaults) => {
+  const bare = lastSegment(entry.name)
+  if (entry.kind !== 'function' || !entry.signature) return bare
+  const options = optionsOf(entry, byName)
+  if (!entry.optionsFirst || !options.length) return entry.signature.replace(/\s*→[\s\S]*$/, '')
+  const params = paramsText(entry.signature)
+  const comma = firstComma(params)
+  const rest = comma === -1 ? '' : params.slice(comma)
+  const list = options.map((o) => (defaults && o.default != null && o.default !== '' ? `${o.name} = ${o.default}` : o.name)).join(', ')
+  return `${bare}({ ${list} }${rest})`
+}
+
+const memberLines = (owner, members, byName, { calls, defaults, summaries }) =>
+  members.map((m) => {
+    const entry = byName.get(`${owner}.${m.name}`)
+    const head = calls && entry ? callForm(entry, byName, defaults) : m.name
+    return `  ${head}${summaries && m.summary ? ` - ${m.summary}` : ''}`
+  })
+
+// The fullest listing that fits the cap, dropping first the summaries, then
+// the option defaults, then the call forms.
+const LISTINGS = [
+  { calls: true, defaults: true, summaries: true },
+  { calls: true, defaults: true, summaries: false },
+  { calls: true, defaults: false, summaries: false },
+  { calls: false, summaries: true },
+  { calls: false, summaries: false },
+]
+
 const renderMembers = (entry, byName) => {
-  const lines = [`${entry.name} (${entry.pkg}) ${entry.kind}`]
-  if (entry.description) lines.push(entry.description)
-  lines.push('Members:', ...(entry.members ?? byName.get(entry.sameAs)?.members ?? []).map(memberLine))
+  const target = entry.members ? entry : byName.get(entry.sameAs)
   const parent = entry.extends && byName.get(entry.extends)
-  if (parent) lines.push(`Inherited from ${parent.name}:`, ...parent.members.map(memberLine))
-  return lines.join('\n')
+  const listing = (style) => {
+    const lines = [`${entry.name} (${entry.pkg}) ${entry.kind}`]
+    if (entry.description) lines.push(entry.description)
+    lines.push('Members:', ...memberLines(target?.name, target?.members ?? [], byName, style))
+    if (parent) lines.push(`Inherited from ${parent.name}:`, ...memberLines(parent.name, parent.members, byName, style))
+    return lines.join('\n')
+  }
+  const texts = LISTINGS.map(listing)
+  return texts.find((t) => t.length <= MAX_ANSWER) ?? texts.at(-1)
 }
 
 const render = (entry, byName) => (entry.members || entry.kind === 'namespace' ? renderMembers(entry, byName) : renderFunction(entry, byName))
@@ -210,7 +292,6 @@ const preferred = (hits, api) => {
   return best.length === 1 ? best[0] : null
 }
 
-const CLASS_OWNER = /^Fluent\w+\.[\w$]+$/
 const classMethods = (own, name) => byFluentRank(own.filter((e) => e.kind === 'function' && lastSegment(e.name) === name && CLASS_OWNER.test(e.name)))
 
 // jf.rotateX is a method, and FluentGeom3.extrudeLinear lives on FluentGeom2.
@@ -238,17 +319,14 @@ const missing = (q, api) => {
   return MISSING[key] ? `${q} is not available in the ${api} API: ${MISSING[key]}.` : null
 }
 
-/**
- * @param {Array<object>} index api/index.json
- * @param {string} query
- * @param {{api?:'fluent'|'modeling'}} [options] the API to answer from; @jscadui/jscad-text is in both
- */
-export const lookupDocs = (index, query, { api = DEFAULT_API } = {}) => {
-  checkApi(api)
-  // "primitives.cylinderElliptic startRadius" looks up its first word.
-  const q = typeof query === 'string' ? query.trim().split(/\s+/)[0] : ''
-  if (!q) return { ok: false, error: { name: 'QueryError', message: 'docs needs a query: a function, class or namespace name' } }
+const TAPER_QUERY = /^(?:[\w$]+\.)?(cone|taper|frustum)$/i
+const TAPER_TARGET = { fluent: 'jf.cylinder', modeling: 'primitives.cylinderElliptic' }
+
+const taperAnswer = (byName, api) => `${TAPER[api][0].toUpperCase()}${TAPER[api].slice(1)}.\n\n${render(byName.get(TAPER_TARGET[api]), byName)}`
+
+const lookupOne = (index, q, api) => {
   const { all, byName } = withAliases(index)
+  if (TAPER_QUERY.test(q)) return { ok: true, text: cap(taperAnswer(byName, api)) }
   const ownPackage = API_PACKAGE[api]
   const own = all.filter((e) => e.pkg === ownPackage || e.pkg === TEXT)
   const other = all.filter((e) => e.pkg === API_PACKAGE[OTHER[api]])
@@ -281,6 +359,26 @@ export const lookupDocs = (index, query, { api = DEFAULT_API } = {}) => {
   if (starts.length === 1) return { ok: true, text: cap(render(starts[0], byName)) }
   if (starts.length) return { ok: true, text: cap(`${q} matches several entries; query one of: ${starts.slice(0, MAX_PREFIX).map((e) => e.name).join(', ')}`) }
   return { ok: false, error: { name: 'NotFoundError', message: `no entry ${q}; closest: ${closest(own, q).join(', ')}` } }
+}
+
+export const MAX_NAMES = 8
+
+/**
+ * @param {Array<object>} index api/index.json
+ * @param {string} query one name, or several separated by commas or plus signs;
+ *   a name followed by other words ("cylinderElliptic startRadius") looks up the name
+ * @param {{api?:'fluent'|'modeling'}} [options] the API to answer from; @jscadui/jscad-text is in both
+ */
+export const lookupDocs = (index, query, { api = DEFAULT_API } = {}) => {
+  checkApi(api)
+  const names = typeof query === 'string' ? [...new Set(query.split(/[,+]/).map((part) => part.trim().split(/\s+/)[0]).filter(Boolean))] : []
+  if (!names.length) return { ok: false, error: { name: 'QueryError', message: 'docs needs a query: a function, class or namespace name' } }
+  if (names.length === 1) return lookupOne(index, names[0], api)
+  const results = names.slice(0, MAX_NAMES).map((name) => lookupOne(index, name, api))
+  if (!results.some((r) => r.ok)) return { ok: false, error: { name: 'NotFoundError', message: results.map((r) => r.error.message).join('\n') } }
+  const parts = results.map((r) => (r.ok ? r.text : r.error.message))
+  if (names.length > MAX_NAMES) parts.push(`[${names.length - MAX_NAMES} more names left out: query at most ${MAX_NAMES} at once]`)
+  return { ok: true, text: cap(parts.join('\n\n'), MAX_LIST_ANSWER) }
 }
 
 export const docsTool = (index, query, options) => {

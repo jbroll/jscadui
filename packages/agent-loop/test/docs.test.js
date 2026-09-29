@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { docsTool, lookupDocs, MAX_ANSWER } from '../src/docs.js'
 import { editDistance } from '../src/editDistance.js'
+import { TAPER } from '../src/hints.js'
 import { createEvalBackend } from '../eval/backend.js'
+
+const require = createRequire(import.meta.url)
 
 const index = JSON.parse(readFileSync(new URL('../api/index.json', import.meta.url), 'utf8'))
 const text = (query, api) => {
@@ -234,8 +238,12 @@ describe('docs lookup, modeling API', () => {
   it('lists a namespace', () => {
     const answer = modeling('primitives')
     expect(answer.startsWith('primitives (@jscad/modeling) namespace')).toBe(true)
-    expect(answer).toContain('Members:\n  arc - ')
-    expect(answer).toContain('  roundedCuboid - Construct an axis-aligned solid cuboid')
+    expect(answer).toContain('Members:\n  arc({ center = [0,0], ')
+    expect(answer).toContain('\n  roundedCuboid({ center = [0,0,0], size = [2,2,2], roundRadius = 0.2, segments = 32 })\n')
+  })
+
+  it('keeps member summaries when they fit', () => {
+    expect(modeling('booleans')).toMatch(/\n {2}union\(\.\.\.geometries\) - /)
   })
 
   it('lists the @jscad/modeling namespaces for a package-name query', () => {
@@ -290,5 +298,98 @@ describe('docs lookup, modeling API', () => {
     const res = lookupDocs(index, 'roundedCube', { api: 'modeling' })
     expect(res.error.message).toMatch(/^no entry roundedCube; closest: primitives\.roundedCuboid, /)
     expect(res.error.message).not.toMatch(/jf\./)
+  })
+})
+
+describe('docs answers in one round', () => {
+  const lineOf = (answer, start) => answer.split('\n').find((l) => l.startsWith(start))
+
+  it('lists each namespace function with its options and defaults on one line', () => {
+    const answer = modeling('primitives')
+    expect(answer).not.toContain('[truncated')
+    const cylinder = lineOf(answer, '  cylinder({ ')
+    expect(cylinder).toMatch(/radius = 1\b/)
+    expect(cylinder).toMatch(/height = 2\b/)
+    expect(lineOf(answer, '  polygon({ ')).toMatch(/points/)
+    expect(lineOf(modeling('transforms'), '  translate(')).toMatch(/^ {2}translate\(offset, \.\.\.objects\)/)
+  })
+
+  it('lists class methods with their options', () => {
+    const answer = fluent('FluentGeom2')
+    expect(lineOf(answer, '  extrudeLinear(')).toMatch(/^ {2}extrudeLinear\(\{ height = 1, twistAngle = 0, twistSteps = 1, repair = true \}\)/)
+    expect(lineOf(answer, '  translate(')).toMatch(/^ {2}translate\(offset: Vec3\)/)
+  })
+
+  it.each([['fluent', 'jf'], ['fluent', 'FluentGeom3'], ['fluent', 'FluentGeom3Array'], ['modeling', 'primitives'], ['modeling', 'transforms']])(
+    '%s %s lists every member within the cap',
+    (api, query) => {
+      const answer = text(query, api)
+      expect(answer.length).toBeLessThanOrEqual(MAX_ANSWER)
+      expect(answer).not.toContain('[truncated')
+      const entry = index.find((e) => e.name === query)
+      for (const m of entry.members) expect(answer).toMatch(new RegExp(`\\n {2}${m.name.replace('$', '\\$')}\\b`))
+    },
+  )
+
+  it('answers several names separated by commas or plus signs', () => {
+    const answer = fluent('cuboid, jf.cylinder + roundedCuboid')
+    const heads = ['jf.cuboid (@jbroll/jscad-fluent)', 'jf.cylinder (@jbroll/jscad-fluent)', 'jf.roundedCuboid (@jbroll/jscad-fluent)']
+    const at = heads.map((h) => answer.indexOf(h))
+    expect(at.every((i) => i >= 0)).toBe(true)
+    expect([...at].sort((a, b) => a - b)).toEqual(at)
+  })
+
+  it('keeps the hits of a list with a miss in it, and fails a list of misses', () => {
+    const answer = modeling('cube, nope')
+    expect(answer).toContain('primitives.cube (@jscad/modeling)')
+    expect(answer).toContain('no entry nope; closest: ')
+    expect(lookupDocs(index, 'nope, nada', { api: 'modeling' })).toMatchObject({ ok: false, error: { name: 'NotFoundError' } })
+  })
+})
+
+describe('docs answers on angles and tapers', () => {
+  it('keeps the JSDoc text of positional parameters', () => {
+    expect(modeling('transforms.rotateX')).toContain('Parameters:\n  angle: Number - angle (RADIANS) of rotations about X')
+    expect(modeling('transforms.translate')).toContain('  offset: Array - offset (vector) of which to translate the objects')
+  })
+
+  it('says rotations are radians and which way they turn', () => {
+    for (const answer of [modeling('transforms.rotateX'), fluent('rotateX'), fluent('FluentGeom2.rotate'), modeling('rotateZ')]) {
+      expect(answer).toContain('Angles are radians')
+      expect(answer).toContain('rotateX(Math.PI / 2) turns +Y into +Z')
+    }
+    expect(fluent('translate')).not.toContain('Angles are radians')
+  })
+
+  it('turns as the note says', () => {
+    const { measurements, primitives, transforms } = require('@jscad/modeling')
+    const at = (point) => transforms.translate(point, primitives.cube({ size: 1 }))
+    const center = (shape) => measurements.measureCenter(shape).map((v) => Math.round(v * 1e6) / 1e6 + 0)
+    expect(center(transforms.rotateX(Math.PI / 2, at([0, 10, 0])))).toEqual([0, 0, 10])
+    expect(center(transforms.rotateY(Math.PI / 2, at([0, 0, 10])))).toEqual([10, 0, 0])
+    expect(center(transforms.rotateZ(Math.PI / 2, at([10, 0, 0])))).toEqual([0, 10, 0])
+  })
+
+  it.each(['cone', 'taper', 'jf.cone'])('fluent: %s answers with the jf.cylinder radius pair', (query) => {
+    expect(fluent(query).startsWith(`${TAPER.fluent[0].toUpperCase()}${TAPER.fluent.slice(1)}.\n\njf.cylinder (@jbroll/jscad-fluent)`)).toBe(true)
+  })
+
+  it.each(['cone', 'taper', 'primitives.cone'])('modeling: %s answers with cylinderElliptic', (query) => {
+    expect(modeling(query).startsWith('A taper (cone) is primitives.cylinderElliptic({ startRadius: [r, r], endRadius: [r, r], height }); start is the -Z end.\n\nprimitives.cylinderElliptic (@jscad/modeling)')).toBe(true)
+  })
+
+  it('points cylinder at the taper form and says which end starts', () => {
+    expect(modeling('primitives.cylinder')).toContain('For a taper or cone use primitives.cylinderElliptic.')
+    expect(modeling('cylinderElliptic')).toContain('startRadius is the -Z end, endRadius the +Z end.')
+    expect(fluent('jf.cylinder')).toContain('radius: [start, end] makes a taper or cone; start is the -Z end.')
+  })
+
+  it('starts a cylinderElliptic at -Z, as the note says', () => {
+    const { geometries, primitives } = require('@jscad/modeling')
+    const shape = primitives.cylinderElliptic({ startRadius: [5, 5], endRadius: [1, 1], height: 10 })
+    const points = geometries.geom3.toPoints(shape).flat()
+    const widest = (z) => Math.max(...points.filter((p) => Math.abs(p[2] - z) < 1e-9).map((p) => Math.hypot(p[0], p[1])))
+    expect(widest(-5)).toBeCloseTo(5)
+    expect(widest(5)).toBeCloseTo(1)
   })
 })
