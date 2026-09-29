@@ -11,7 +11,7 @@ export const fixture = {
     const volume = m?.volume ?? 0
     const bboxVolume = dims[0] * dims[1] * dims[2]
     return [
-      { name: 'L-shaped, not a flat plate', pass: bboxVolume > 0 && volume < bboxVolume * 0.5 },
+      { name: 'L-shaped, not a flat plate', pass: volume > 0 && volume < bboxVolume * 0.5 },
       { name: 'plausible size', pass: dims.every((d) => d >= 20 && d <= 250) },
       { name: 'watertight', pass: solid?.watertight === true },
     ]

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { createRequire } from 'node:module'
-import { createEvalBackend, createReadFile, EXPORT_REG, IMPORT_REG } from './backend.js'
+import { builtinModules, createRequire } from 'node:module'
+import { CDN_BASE, createEvalBackend, createReadFile, EXPORT_REG, IMPORT_REG } from './backend.js'
 
 const CUBE = `const jf = require('@jbroll/jscad-fluent')
 function main() { return [jf.cube({ size: 20 })] }
@@ -70,6 +70,23 @@ describe('eval backend', () => {
     expect(() => read('https://cdn.jsdelivr.net/npm/no-such-package-xyz')).toThrow('file not found https://cdn.jsdelivr.net/npm/no-such-package-xyz')
   })
 
+  it('refuses every Node built-in as a CDN package, like an unpublished one', () => {
+    const read = createReadFile({})
+    for (const name of builtinModules) {
+      expect(() => read(CDN_BASE + name), name).toThrow(`file not found ${CDN_BASE}${name}`)
+    }
+  })
+
+  it.each(['fs', 'child_process', 'net', 'http', 'https', 'os', 'process', 'worker_threads', 'node:fs', 'fs/promises'])(
+    'fails model code that requires %s with the failed-to-load text',
+    async (spec) => {
+      const res = await evalSource(`const m = require(${JSON.stringify(spec)})\nmodule.exports = { main: () => { throw new Error('loaded ' + typeof m) } }`)
+      expect(res.ok).toBe(false)
+      expect(res.error.message).toContain(`failed to load module ${spec}`)
+      expect(res.error.message).toContain('file not found')
+    },
+  )
+
   it('answers measure with an error result when nothing was evaled', async () => {
     const res = JSON.parse(await createEvalBackend().requestTool('measure', {}))
     expect(res.ok).toBe(false)
@@ -82,13 +99,28 @@ describe('eval backend', () => {
     expect(res.error.message).toMatch(/^boom/)
   })
 
-  it('stubs view and export as unavailable without throwing', async () => {
+  it('stubs view as unavailable without throwing', async () => {
+    const res = JSON.parse(await createEvalBackend().requestTool('view', {}))
+    expect(res.ok).toBe(false)
+    expect(res.error.name).toBe('UnavailableError')
+  })
+
+  it('exports the current model as base64 STL text in the app result shape', async () => {
     const backend = createEvalBackend()
-    for (const name of ['view', 'export']) {
-      const res = JSON.parse(await backend.requestTool(name, {}))
-      expect(res.ok).toBe(false)
-      expect(res.error.name).toBe('UnavailableError')
-    }
+    await backend.requestTool('eval', { source: CUBE })
+    const res = JSON.parse(await backend.requestTool('export', { format: 'stl' }))
+    expect(res.ok).not.toBe(false)
+    expect(res.format).toBe('stl')
+    const stl = Buffer.from(res.data, 'base64')
+    expect(res.size).toBe(stl.byteLength)
+    expect(stl.toString('utf8')).toMatch(/^solid JSCAD\n/)
+    expect(stl.toString('utf8').match(/^facet normal/gm)).toHaveLength(12)
+  })
+
+  it('answers export with an error result when nothing was evaled', async () => {
+    const res = JSON.parse(await createEvalBackend().requestTool('export', { format: 'stl' }))
+    expect(res.ok).toBe(false)
+    expect(res.error.message).toMatch(/no geometry/)
   })
 
   it('writeModel persists to the memory project', async () => {

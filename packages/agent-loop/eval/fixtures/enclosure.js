@@ -10,9 +10,10 @@ export const fixture = {
     const volume = m?.volume ?? 0
     const bboxVolume = height * mid * largest
     return [
-      { name: 'fits an Uno footprint', pass: largest >= 70 && largest <= 200 && mid >= 55 && mid <= 200 },
+      // 250 leaves room for a lid printed beside the base.
+      { name: 'fits an Uno footprint', pass: largest >= 70 && largest <= 250 && mid >= 55 && mid <= 200 },
       { name: 'height 15-100mm', pass: height >= 15 && height <= 100 },
-      { name: 'hollow enclosure, not a solid block', pass: bboxVolume > 0 && volume < bboxVolume * 0.5 },
+      { name: 'hollow enclosure, not a solid block', pass: volume > 0 && volume < bboxVolume * 0.5 },
       { name: 'watertight', pass: solid?.watertight === true },
     ]
   },

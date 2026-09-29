@@ -21,11 +21,22 @@ export function firstAttemptFailures(transcript) {
   return count
 }
 
-// The last writeModel source in the run, else the last eval source, else ''.
-export function lastSource(transcript) {
+const requiresWrite = (fixture) => fixture.requires?.includes('writeModel') === true
+
+// The model a run is graded on: its last writeModel, or, for a fixture that
+// does not require one, its last eval. Null when the run has neither.
+export function gradedModel(fixture, transcript) {
   const calls = toolCallsOf(transcript)
-  const named = (name) => [...calls].reverse().find((c) => c.name === name)
-  return named('writeModel')?.input?.source ?? named('eval')?.input?.source ?? ''
+  const last = (name) => calls.findLast((c) => c.name === name)
+  const call = last('writeModel') ?? (requiresWrite(fixture) ? undefined : last('eval'))
+  return call ? { source: call.input?.source, entry: call.input?.entry ?? 'main.js' } : null
+}
+
+// A run that stopped without a final reply before its turn cap: the provider
+// sent nothing back. A capped run ends on a tool result after maxTurns replies.
+export function endedWithoutReply(transcript, maxTurns) {
+  if (transcript.length === 0 || transcript.at(-1).role === 'assistant') return false
+  return transcript.filter((m) => m.role === 'assistant').length < maxTurns
 }
 
 // The transcript-based dimensions: everything except geometry, which needs the final measure.
@@ -109,12 +120,19 @@ export function geometryError(target, measure) {
   return maxError
 }
 
+// `finalMeasure` and `context` describe the gradedModel's geometry. A fixture
+// that requires writeModel gets geometry 0 and checkRate 0 without one.
 export function gradeFixture(fixture, transcript, finalMeasure, context = {}) {
   const { dimensions, firstAttemptFailures: faf } = gradeTranscript(fixture, transcript)
+  const model = gradedModel(fixture, transcript)
+  const unsaved = requiresWrite(fixture) && !model
 
-  const checksContext = { ...context, source: lastSource(transcript) }
-  const outcomes = fixture.checks(finalMeasure, checksContext).map((c) => (c.pass ? 1 : 0))
-  const rate = outcomes.length === 0 ? 0 : outcomes.reduce((a, b) => a + b, 0) / outcomes.length
+  let rate = 0
+  if (!unsaved) {
+    const checksContext = { ...context, source: model?.source ?? '' }
+    const outcomes = fixture.checks(finalMeasure, checksContext).map((c) => (c.pass ? 1 : 0))
+    rate = outcomes.length === 0 ? 0 : outcomes.reduce((a, b) => a + b, 0) / outcomes.length
+  }
   const geometry = rate === 1 ? 2 : rate >= 0.5 ? 1 : 0
 
   return {
@@ -122,5 +140,6 @@ export function gradeFixture(fixture, transcript, finalMeasure, context = {}) {
     total: dimensions.discipline + dimensions.recovery + geometry + dimensions.conservation,
     firstAttemptFailures: faf,
     checkRate: rate,
+    ...(unsaved ? { saved: false } : {}),
   }
 }

@@ -9,7 +9,7 @@ const names = new Set(TOOLS.map((t) => t.name))
 const files = readdirSync(new URL('./fixtures/', import.meta.url)).filter((f) => f.endsWith('.js')).sort()
 const fixtures = await loadFixtures()
 const byName = Object.fromEntries(fixtures.map((f) => [f.name, f]))
-const { primitives, booleans, transforms } = createRequire(import.meta.url)('@jscad/modeling')
+const { primitives, booleans, transforms, geometries } = createRequire(import.meta.url)('@jscad/modeling')
 
 // A fixture whose checks read `solid` needs it built the same way the eval backend
 // builds it: `check()` on the single-entity geometry array.
@@ -162,6 +162,17 @@ describe('CSG fixture reference models', () => {
     expect(passes('enclosure', enclosurePlaceholder(segments))).toBe(true)
   })
 
+  it('enclosure passes a base with its lid printed beside it', () => {
+    const lid = transforms.translateX(126, p.cuboid({ size: [76, 60, 2] }))
+    const layout = booleans.union(enclosurePlaceholder(32), lid)
+    expect(Math.max(...measure([layout], {}).dimensions)).toBeCloseTo(202)
+    expect(passes('enclosure', layout)).toBe(true)
+  })
+
+  it('enclosure fails a box too big for a desk', () => {
+    expect(passes('enclosure', enclosurePlaceholder(32, { w: 300, h: 60 }))).toBe(false)
+  })
+
   it('enclosure fails a solid box (no cavity)', () => {
     expect(passes('enclosure', p.cuboid({ size: [76, 60, 25] }))).toBe(false)
   })
@@ -209,6 +220,13 @@ describe('CSG fixture reference models', () => {
     expect(passes('pegboard', pegboardPanel(32, { holes: false }))).toBe(false)
   })
 
+  it('pegboard passes 5mm holes on a 1 inch pitch, which remove only about 3% of the plate', () => {
+    const board = pegboardPanel(32, { w: 304.8, h: 203.2, pitch: 25.4, inset: 25.4, holeR: 2.5 })
+    const { volume, dimensions } = measure([board], {})
+    expect(volume / (dimensions[0] * dimensions[1] * dimensions[2])).toBeGreaterThan(0.97)
+    expect(passes('pegboard', board)).toBe(true)
+  })
+
   // Base plate, a back plate leaning off vertical hinged at the base's rear edge, and a front lip.
   function phoneStand(leanDeg) {
     const base = transforms.translateZ(2.5, p.cuboid({ size: [80, 70, 5] }))
@@ -225,5 +243,22 @@ describe('CSG fixture reference models', () => {
 
   it('phone-stand fails a solid block', () => {
     expect(passes('phone-stand', p.cuboid({ size: [80, 100, 100] }))).toBe(false)
+  })
+
+  // A clockwise 2D outline extrudes to an inside-out solid: negative volume, yet
+  // `check` still calls it watertight.
+  it.each([
+    ['bracket', () => lBracket()],
+    ['shelf-bracket', () => lBracket({ w: 50, arm: 40, t: 5 })],
+    ['enclosure', () => enclosurePlaceholder(32)],
+    ['pipe-tee', () => pipeTee(32)],
+    ['pegboard', () => pegboardPanel(32)],
+    ['phone-stand', () => phoneStand(20)],
+    ['gear', () => p.cylinder({ radius: 20, height: 5 })],
+  ])('%s fails its reference model turned inside out', (name, shape) => {
+    const inverted = geometries.geom3.invert(shape())
+    expect(measure([inverted], {}).volume).toBeLessThan(0)
+    expect(check([inverted]).watertight).toBe(true)
+    expect(passes(name, inverted)).toBe(false)
   })
 })

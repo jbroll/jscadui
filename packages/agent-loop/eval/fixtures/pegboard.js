@@ -12,7 +12,8 @@ export const fixture = {
     return [
       { name: 'flat panel', pass: mid > 0 && thickness < mid * 0.15 },
       { name: 'panel-sized', pass: mid >= 100 && mid <= 1000 && largest >= 100 && largest <= 1000 },
-      { name: 'has holes', pass: bboxVolume > 0 && volume < bboxVolume * 0.97 },
+      // 5mm holes on a 1 inch pitch remove only about 3% of the plate.
+      { name: 'has holes', pass: volume > 0 && volume < bboxVolume * 0.99 },
       { name: 'watertight', pass: solid?.watertight === true },
     ]
   },

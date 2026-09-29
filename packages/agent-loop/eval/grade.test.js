@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { firstAttemptFailures, geometryError, gradeFixture, lastSource, transcriptMetrics } from './grade.js'
+import { endedWithoutReply, firstAttemptFailures, geometryError, gradedModel, gradeFixture, transcriptMetrics } from './grade.js'
 
 const fixture = {
   name: 'cube-hole',
@@ -57,9 +57,29 @@ describe('grader', () => {
   })
 
   it('scores geometry on check pass rate', () => {
-    const transcript = [{ role: 'user', content: 'make it' }]
+    const transcript = [{ role: 'user', content: 'make it' }, toolMsg('t1', 'writeModel', { source: 'x' })]
     expect(gradeFixture(fixture, transcript, { volume: 100 }).dimensions.geometry).toBe(1)
     expect(gradeFixture(fixture, transcript, null).dimensions.geometry).toBe(0)
+  })
+
+  it('gives no geometry credit, and runs no checks, when a fixture that requires writeModel never got one', () => {
+    const transcript = [toolMsg('t1', 'eval', { source: 'x' }), resultMsg('t1', JSON.stringify({ ok: true, entities: 1 }))]
+    let ran = false
+    const spy = { ...fixture, checks: () => ((ran = true), [{ name: 'any', pass: true }]) }
+    const report = gradeFixture(spy, transcript, { volume: 6400 })
+    expect(ran).toBe(false)
+    expect(report.dimensions).toEqual({ discipline: 2, recovery: 2, geometry: 0, conservation: 2 })
+    expect(report.total).toBe(6)
+    expect(report.checkRate).toBe(0)
+    expect(report.saved).toBe(false)
+  })
+
+  it('grades the last eval when the fixture does not require writeModel', () => {
+    const noWrite = { ...fixture, requires: ['eval'] }
+    const transcript = [toolMsg('t1', 'eval', { source: 'x' }), resultMsg('t1', JSON.stringify({ ok: true }))]
+    const report = gradeFixture(noWrite, transcript, { volume: 6400 })
+    expect(report.dimensions.geometry).toBe(2)
+    expect(report).not.toHaveProperty('saved')
   })
 })
 
@@ -83,7 +103,7 @@ describe('firstAttemptFailures', () => {
   })
 
   it('is zero for a clean run and lands on the report', () => {
-    const transcript = [toolMsg('t1', 'eval'), ok('t1')]
+    const transcript = [toolMsg('t1', 'eval'), ok('t1'), toolMsg('t2', 'writeModel', { source: 'x' }), ok('t2')]
     expect(firstAttemptFailures(transcript)).toBe(0)
     const report = gradeFixture(fixture, transcript, { volume: 6400 })
     expect(report.firstAttemptFailures).toBe(0)
@@ -91,7 +111,7 @@ describe('firstAttemptFailures', () => {
   })
 
   it('passes the context to the checks', () => {
-    const withParams = { ...fixture, checks: (_m, { params = [] } = {}) => [{ name: 'slider', pass: params.length === 1 }] }
+    const withParams = { ...fixture, requires: ['eval'], checks: (_m, { params = [] } = {}) => [{ name: 'slider', pass: params.length === 1 }] }
     expect(gradeFixture(withParams, [], null, { params: [{ type: 'slider' }] }).checkRate).toBe(1)
   })
 
@@ -108,27 +128,63 @@ describe('firstAttemptFailures', () => {
 
   it('falls back to the last eval source when writeModel was never called', () => {
     const transcript = [toolMsg('t1', 'eval', { source: 'const a = 1' }), resultMsg('t1', JSON.stringify({ ok: true }))]
-    const withSource = { ...fixture, checks: (_m, { source }) => [{ name: 'source', pass: source === 'const a = 1' }] }
+    const withSource = { ...fixture, requires: ['eval'], checks: (_m, { source }) => [{ name: 'source', pass: source === 'const a = 1' }] }
     expect(gradeFixture(withSource, transcript, null).checkRate).toBe(1)
   })
 })
 
-describe('lastSource', () => {
-  it('is the last writeModel source in the run', () => {
+describe('gradedModel', () => {
+  const requiresWrite = { requires: ['eval', 'writeModel'] }
+  const evalOnly = { requires: ['eval'] }
+
+  it('is the last writeModel call, whatever was evaled after it', () => {
     const transcript = [
       toolMsg('t1', 'eval', { source: 'a' }),
-      toolMsg('t2', 'writeModel', { source: 'b' }),
+      toolMsg('t2', 'writeModel', { source: 'b', entry: 'part.js' }),
       toolMsg('t3', 'writeModel', { source: 'c' }),
+      toolMsg('t4', 'eval', { source: 'probe' }),
     ]
-    expect(lastSource(transcript)).toBe('c')
+    expect(gradedModel(requiresWrite, transcript)).toEqual({ source: 'c', entry: 'main.js' })
+    expect(gradedModel(evalOnly, transcript)).toEqual({ source: 'c', entry: 'main.js' })
   })
 
-  it('falls back to the last eval source when there is no writeModel', () => {
-    expect(lastSource([toolMsg('t1', 'eval', { source: 'a' }), toolMsg('t2', 'eval', { source: 'b' })])).toBe('b')
+  it('keeps the writeModel entry', () => {
+    expect(gradedModel(requiresWrite, [toolMsg('t1', 'writeModel', { source: 'b', entry: 'part.js' })])).toEqual({ source: 'b', entry: 'part.js' })
   })
 
-  it('is an empty string when neither was called', () => {
-    expect(lastSource([toolMsg('t1', 'measure', {})])).toBe('')
+  it('is null without a writeModel when the fixture requires one', () => {
+    expect(gradedModel(requiresWrite, [toolMsg('t1', 'eval', { source: 'a' })])).toBeNull()
+  })
+
+  it('falls back to the last eval when the fixture does not require writeModel', () => {
+    expect(gradedModel(evalOnly, [toolMsg('t1', 'eval', { source: 'a' }), toolMsg('t2', 'eval', { source: 'b' })])).toEqual({ source: 'b', entry: 'main.js' })
+  })
+
+  it('is null when neither was called', () => {
+    expect(gradedModel(evalOnly, [toolMsg('t1', 'measure', {})])).toBeNull()
+  })
+})
+
+describe('endedWithoutReply', () => {
+  const user = { role: 'user', content: 'p' }
+  const reply = { role: 'assistant', content: 'done', toolCalls: [] }
+
+  it('is true when the provider never replied', () => {
+    expect(endedWithoutReply([user], 8)).toBe(true)
+  })
+
+  it('is true when a reply stopped coming after a tool result, under the turn cap', () => {
+    expect(endedWithoutReply([user, toolMsg('t1', 'eval'), resultMsg('t1', '{}')], 8)).toBe(true)
+  })
+
+  it('is false when the run ended on a reply', () => {
+    expect(endedWithoutReply([user, toolMsg('t1', 'eval'), resultMsg('t1', '{}'), reply], 8)).toBe(false)
+  })
+
+  it('is false when the turn cap cut the run off', () => {
+    const capped = [user]
+    for (let i = 0; i < 2; i += 1) capped.push(toolMsg(`t${i}`, 'eval'), resultMsg(`t${i}`, '{}'))
+    expect(endedWithoutReply(capped, 2)).toBe(false)
   })
 })
 

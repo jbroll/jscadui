@@ -9,7 +9,7 @@ import { buildMessages, createProvider, runTurn, SYSTEM_PROMPT } from '../index.
 import { evalResultsDir } from '../log/log-dir.js'
 import { isMainModule } from '../src/mainModule.js'
 import { resolveCredentials } from './credentials.js'
-import { gradeFixture, gradeTranscript, geometryError, transcriptMetrics } from './grade.js'
+import { endedWithoutReply, gradedModel, gradeFixture, gradeTranscript, geometryError, transcriptMetrics } from './grade.js'
 import { conversationTag, createLiveLog, formatLiveHeader, liveLogPath, prefixBlock } from './live-log.js'
 import { concurrencyFrom, runInWorker, runSuiteParallel } from './parallel.js'
 import { computeSpeed, formatComparison, formatSummary, summarize } from './report.js'
@@ -54,10 +54,12 @@ export async function loadFixtures(dir = FIXTURES) {
 const isContentEvent = (event) => event.type === 'text' || event.type === 'tool_use'
 
 // Wraps the provider for one run: caps the number of send() calls (rounds),
-// tallies usage events, and times each call against an injected clock so the
-// caller can read rounds/usage/speed once the run ends.
+// tallies usage events, counts calls that sent neither content nor usage, and
+// times each call against an injected clock so the caller can read
+// rounds/usage/speed once the run ends.
 const withTurnCap = (provider, maxTurns, now = () => performance.now()) => {
   let rounds = 0
+  let emptyReplies = 0
   let inputTokens = null
   let outputTokens = null
   let reasoningTokens = null
@@ -72,17 +74,20 @@ const withTurnCap = (provider, maxTurns, now = () => performance.now()) => {
       }
       const startedAt = now()
       let firstContentAt = null
+      let replied = false
       // The caller (runTurn) calls iterator.return() right after 'done' instead of exhausting
       // the generator, without awaiting it, so bookkeeping can't wait for a trailing finally to
       // run; it finalizes on 'done' itself, before that event is yielded.
       for await (const event of provider.send(messages, tools)) {
         if (firstContentAt === null && isContentEvent(event)) firstContentAt = now()
+        if (isContentEvent(event) || event.type === 'usage') replied = true
         if (event.type === 'usage') {
           if (typeof event.inputTokens === 'number') inputTokens = (inputTokens ?? 0) + event.inputTokens
           if (typeof event.outputTokens === 'number') outputTokens = (outputTokens ?? 0) + event.outputTokens
           if (typeof event.reasoningTokens === 'number') reasoningTokens = (reasoningTokens ?? 0) + event.reasoningTokens
         }
         if (event.type === 'done') {
+          if (!replied) emptyReplies += 1
           const endedAt = now()
           providerSeconds += (endedAt - startedAt) / 1000
           if (firstContentAt !== null) firstTokenSeconds.push((firstContentAt - startedAt) / 1000)
@@ -91,6 +96,7 @@ const withTurnCap = (provider, maxTurns, now = () => performance.now()) => {
       }
     },
     rounds: () => rounds,
+    emptyReplies: () => emptyReplies,
     usage: () => ({ inputTokens, outputTokens, reasoningTokens }),
     speed: () => ({
       providerSeconds,
@@ -101,8 +107,21 @@ const withTurnCap = (provider, maxTurns, now = () => performance.now()) => {
   }
 }
 
+export const EMPTY_REPLY = 'empty provider reply'
+
+// Evaluates the model a run is graded on in a fresh backend state, so nothing
+// the run evaluated after it (a probe, a failed eval) leaks into the grade.
+async function measureGradedModel(backend, model) {
+  backend.reset()
+  if (!model) return { measure: null, solid: null, params: [] }
+  await backend.requestTool('eval', model)
+  const measured = JSON.parse(await backend.requestTool('measure', {}))
+  const checked = JSON.parse(await backend.requestTool('check', {}))
+  return { measure: measured.ok ? measured : null, solid: checked.ok ? checked : null, params: backend.params() }
+}
+
 // One conversation: a fresh backend state, the fixture's prompt, then grading
-// on the final geometry. A provider error lands on the result, never thrown.
+// on the saved model's geometry. A provider error lands on the result, never thrown.
 export async function runConversation(
   fixture,
   run,
@@ -130,12 +149,10 @@ export async function runConversation(
   } catch (err) {
     error = err.message
   }
+  if (!error && cappedProvider.emptyReplies() > 0) error = EMPTY_REPLY
   const seconds = (Date.now() - startedAt) / 1000
-  const finalMeasure = JSON.parse(await backend.requestTool('measure', {}))
-  const measure = finalMeasure.ok ? finalMeasure : null
-  const finalCheck = JSON.parse(await backend.requestTool('check', {}))
-  const solid = finalCheck.ok ? finalCheck : null
-  const report = gradeFixture(fixture, transcript, measure, { params: backend.params(), solid })
+  const { measure, solid, params } = await measureGradedModel(backend, gradedModel(fixture, transcript))
+  const report = gradeFixture(fixture, transcript, measure, { params, solid })
   const { toolCalls, failedCalls, warnings, docsCalls } = transcriptMetrics(transcript)
   const { inputTokens, outputTokens, reasoningTokens } = cappedProvider.usage()
   const { providerSeconds, firstTokenSeconds } = cappedProvider.speed()
@@ -185,28 +202,55 @@ export async function runSuite(fixtures, { provider, backend, runs = 1, onRun, o
 
 const readJson = (path) => JSON.parse(readFileSync(path, 'utf8'))
 
-// Recomputes the transcript-based grading fields in a result file with no provider calls.
-// Geometry and checkRate need the final measure, which the file doesn't store, so they're kept as-is.
-export function regradeResults(file, fixturesByName) {
-  const results = file.results.map((result) => {
-    const fixture = fixturesByName.get(result.fixture)
-    if (!fixture) return result
-    const { dimensions, firstAttemptFailures } = gradeTranscript(fixture, result.transcript)
+const promptOf = (fixture, transcript) => transcript.some((m) => m.role === 'user' && m.content === fixture.prompt)
+
+// Regrades one stored run with no provider calls. Geometry comes from
+// re-evaluating the saved model in `backend`, unless the run answered a
+// different prompt than the current fixture, whose checks then do not apply.
+async function regradeRun(result, fixture, backend) {
+  if (!fixture) return { ...result, regradeNote: 'fixture no longer exists; kept stored grading' }
+  if (!Array.isArray(result.transcript)) return { ...result, regradeNote: 'no transcript; kept stored grading' }
+  const { transcript } = result
+  const { regradeNote: _stale, ...rest } = result
+  const metrics = { ...result.metrics, ...transcriptMetrics(transcript) }
+  const model = gradedModel(fixture, transcript)
+  const samePrompt = promptOf(fixture, transcript)
+  let report
+  let regradeNote = samePrompt ? undefined : 'prompt differs from the current fixture; graded as unsaved'
+  if (samePrompt || !model) {
+    const { measure, solid, params } = await measureGradedModel(backend, model)
+    report = gradeFixture(fixture, transcript, measure, { params, solid })
+    metrics.geometryError = geometryError(fixture.target, measure)
+  } else {
+    const { dimensions, firstAttemptFailures } = gradeTranscript(fixture, transcript)
     const { geometry } = result.report.dimensions
-    return {
-      ...result,
-      report: {
-        dimensions: { ...dimensions, geometry },
-        total: dimensions.discipline + dimensions.recovery + geometry + dimensions.conservation,
-        firstAttemptFailures,
-        checkRate: result.report.checkRate,
-      },
-      metrics: { ...result.metrics, ...transcriptMetrics(result.transcript) },
+    report = {
+      dimensions: { ...dimensions, geometry },
+      total: dimensions.discipline + dimensions.recovery + geometry + dimensions.conservation,
+      firstAttemptFailures,
+      checkRate: result.report.checkRate,
     }
-  })
+    regradeNote = 'prompt differs from the current fixture; kept stored geometry'
+  }
+  const empty = !result.error && endedWithoutReply(transcript, result.maxTurns ?? fixture.maxTurns)
+  return {
+    ...rest,
+    report,
+    metrics,
+    ...(empty ? { error: EMPTY_REPLY } : {}),
+    ...(regradeNote ? { regradeNote } : {}),
+  }
+}
+
+// Recomputes every grading field in a result file with no provider calls.
+// `backend` is an eval backend (eval/backend.js) to re-evaluate saved models in.
+export async function regradeResults(file, fixturesByName, { backend }) {
+  const results = []
+  for (const result of file.results) results.push(await regradeRun(result, fixturesByName.get(result.fixture), backend))
+  if (!file.results.some((r) => Array.isArray(r.transcript))) return { ...file, results }
   const speed = computeSpeed(results)
   if (typeof file.speed?.wallSeconds === 'number') speed.wallSeconds = file.speed.wallSeconds
-  return { ...file, results, summary: summarize(results), speed }
+  return { ...file, regradedAt: new Date().toISOString(), results, summary: summarize(results), speed }
 }
 
 // Rewritten after every run so an interrupted eval keeps every finished run.
@@ -236,8 +280,10 @@ const main = async (argv, env) => {
   const regradeAt = argv.indexOf('--regrade')
   if (regradeAt !== -1) {
     const fixturesByName = new Map((await loadFixtures()).map((f) => [f.name, f]))
+    const { createEvalBackend } = await import('./backend.js')
+    const backend = createEvalBackend()
     for (const path of argv.slice(regradeAt + 1)) {
-      const regraded = regradeResults(readJson(path), fixturesByName)
+      const regraded = await regradeResults(readJson(path), fixturesByName, { backend })
       writeFileSync(path, JSON.stringify(regraded, null, 2))
       console.log(`run-eval: regraded ${path}`)
     }

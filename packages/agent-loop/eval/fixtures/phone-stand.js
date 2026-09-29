@@ -11,7 +11,7 @@ export const fixture = {
     const bboxVolume = dims[0] * dims[1] * dims[2]
     return [
       { name: 'desk-scale', pass: dims.every((d) => d >= 40 && d <= 250) },
-      { name: 'not a solid block', pass: bboxVolume > 0 && volume < bboxVolume * 0.6 },
+      { name: 'not a solid block', pass: volume > 0 && volume < bboxVolume * 0.6 },
       { name: 'watertight', pass: solid?.watertight === true },
     ]
   },

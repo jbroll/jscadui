@@ -120,8 +120,14 @@ grades the transcript. Model code runs through `@jscadui/require` with the
 compute frame's transform rule and CDN URL scheme; `https://cdn.jsdelivr.net/npm/<pkg>`
 maps to the package in local `node_modules`, and a package that is not
 installed fails with the frame's `failed to load module <name>` /
-`file not found <url>` text. `@jscadui/jscad-text` (ESM-only) and
-`@jbroll/jscad-anchors` (not installed) fail here though the app serves them.
+`file not found <url>` text. Node built-ins (`fs`, `child_process`, `process`,
+any name `isBuiltin` accepts) fail the same way, since the browser has none.
+`@jscadui/jscad-text` (ESM-only) and `@jbroll/jscad-anchors` (not installed)
+fail here though the app serves them.
+
+`export` answers like the app: `{ format, size, data }`, the model as STL text
+in base64 whatever `format` asks for, since the app's worker writes STL only.
+`view` fails with `UnavailableError`.
 
 The CDN stub hands model code a copy of `@jscad/modeling` and
 `@jbroll/jscad-fluent` with the unknown-option checks (`src/optionChecks.js`,
@@ -162,13 +168,20 @@ runs every fixture in that group, `EVAL_FIXTURES=gear,fluent-chain` runs one nam
 fixture plus one grouped fixture, and `EVAL_FIXTURES=all` runs every fixture
 regardless of group.
 
-`--regrade` rewrites each result file in place with no provider calls: it recomputes
-`discipline`, `recovery`, `conservation` and `firstAttemptFailures` from the stored
-`transcript` against the current grading code and fixtures, keeps the stored `geometry`
-and `checkRate` (they need the final measure, which isn't stored), recomputes each
-run's `total`, and rebuilds the file's `summary`. A result whose fixture no longer
-exists is left as it was. Use it after a grading-rule change to update old result
-files without spending API budget.
+`--regrade` rewrites each result file in place with no provider calls; the evals
+repo's git history keeps the old version. It recomputes `discipline`, `recovery`,
+`conservation` and `firstAttemptFailures` from the stored `transcript`, re-evaluates
+the saved model (the last `writeModel` source in the transcript) in a fresh eval
+backend to recompute `geometry`, `checkRate` and `geometryError` against the current
+checks, recomputes each run's `total`, marks a run that ended with no provider reply
+as `error: "empty provider reply"`, and rebuilds the file's `summary` and `speed`.
+Transcripts, speed metrics and every other stored field stay as they were, and the
+file gets `regradedAt`. A run it cannot fully regrade keeps its stored grading and
+gets a `regradeNote`: no `transcript` (the file is otherwise left alone), a fixture
+that no longer exists, or a transcript whose prompt differs from the current
+fixture's, whose checks then do not apply (stored `geometry` kept, unless the run
+saved nothing). Use it after a grading-rule change to update old result files
+without spending API budget.
 
 | Variable | Meaning |
 |---|---|
@@ -239,11 +252,27 @@ A missing or unreadable `keys.json` falls through silently to the provider auth 
 telling you to add the key to `keys.json` instead.
 
 Each run is graded on discipline, recovery, geometry and conservation (0-2
-each) and on `firstAttemptFailures`: the failed tool results before the first
-successful `eval`, or before the end of the run if none succeeds. The summary
-gives, per fixture, the mean `firstAttemptFailures`, the pass rate of its
-geometry checks, the mean total and the count of runs that ended in a
-provider error.
+each, total 8) and on `firstAttemptFailures`: the failed tool results before the first
+successful `eval`, or before the end of the run if none succeeds.
+
+Geometry grades the model the run saved, since that is what the app's user
+keeps: the last `writeModel` source, evaluated again in a fresh backend state
+after the run ends, so a probe `eval` after the save changes nothing. A fixture
+whose `requires` lists `writeModel` gives a run that never called it geometry 0
+and `checkRate` 0 without running its checks, and marks the report
+`saved: false`; the other three grades still count, so such a run scores at
+most 6. A fixture that does not require `writeModel` is graded on the last
+`writeModel`, else the last `eval`.
+
+A provider call that streams neither content nor a `usage` event is an empty
+reply; the run records `error: "empty provider reply"`. The turn cap's own
+closing round is not one.
+
+The summary gives, per fixture, the mean `firstAttemptFailures`, the pass rate
+of its geometry checks, the mean total and the count of runs with an `error`
+(provider failure, empty reply, worker crash). An errored run has no answer to
+score, so those three means leave it out; they are `null` (printed `-`) when
+every run errored. The metric means below still include it.
 
 Each result also carries `metrics`, degrading gradually where the 0-2 grades
 tend to max out once a prompt clears the bar:
@@ -286,9 +315,9 @@ when none exist), and `formatSummary`/`formatComparison` print them in a
 second and third table alongside the existing one, showing `-` for a result
 file written before `metrics` existed. `reasoningTokens` appears only in
 `formatSummary`'s third table, not in `formatComparison`. `--regrade` fills
-only `toolCalls`, `failedCalls`, `warnings` and `docsCalls`; the rest,
-including the speed fields, are left as stored, since they need the original
-provider run.
+only `toolCalls`, `failedCalls`, `warnings`, `docsCalls` and `geometryError`;
+the rest, including the speed fields, are left as stored, since they need the
+original provider run.
 
 Each result file also carries a top-level `speed` object, summed/medianed
 over every run in the file: `{ wallSeconds, providerSeconds, toolSeconds,
@@ -318,15 +347,15 @@ A fixture is one file exporting `fixture`:
 `name` matches the file name; `transcript` (prior `{ role, content }` turns)
 and `files` (`{ path: source }`) test follow-up requests through the same
 `buildMessages` the app uses. `target` (`{ volume?, dimensions? }`) feeds
-`geometryError` for a fixture whose prompt fixes the geometry. `source` is the
-last `writeModel` source in the run, else the last `eval` source, else `''`
-(`lastSource` in `eval/grade.js`), so a check can inspect the code the model
-wrote as well as the geometry it produced (a style check on a fluent chain,
-for example). `solid` is the parsed result of the backend's `check` tool run
-on the final geometry after the run ends (`eval/backend.js`, `@jscadui/model-tools`),
-or `null` when no geometry was produced; checks use it for `watertight` since
-`measure` alone doesn't report it. `--regrade` still leaves geometry and
-`checkRate` as stored, since it has no live measure to re-run `checks` against.
+`geometryError` for a fixture whose prompt fixes the geometry. `measure`,
+`params`, `source` and `solid` all describe the graded model (`gradedModel` in
+`eval/grade.js`), so a check can inspect the code the model saved as well as
+the geometry it produced (a style check on a fluent chain, for example).
+`solid` is the parsed result of the backend's `check` tool on that model
+(`eval/backend.js`, `@jscadui/model-tools`), or `null` when it produced no
+geometry; checks use it for `watertight` since `measure` alone doesn't report
+it. `watertight` holds for an inside-out solid too, so a check that bounds
+volume from above (`volume < bboxVolume * k`) also requires `volume > 0`.
 
 A fixture's `prompt` is a request a real user would type: casual and often
 underspecified, never a specification written to be graded, and never phrased

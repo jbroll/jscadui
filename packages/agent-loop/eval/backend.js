@@ -1,9 +1,11 @@
 import { readFileSync } from 'node:fs'
-import { createRequire } from 'node:module'
+import { createRequire, isBuiltin } from 'node:module'
+import { JscadToCommon } from '@jscadui/format-jscad'
 import { check, measure } from '@jscadui/model-tools'
 import { createParamsProxy, createProxyState, toParamDefinitions } from '@jscadui/params-core'
 import { clearAllCaches, moduleResolver, require as jscadRequire } from '@jscadui/require/esm/index.js'
 import { transformcjs } from '@jscadui/transform-babel/esm/transform-babel.js'
+import { exportStlText } from '@jscadui/worker/src/exportStlText.js'
 import { OPTION_TABLES } from '../api/optionTable.js'
 import { installConsoleCapture } from '../src/consoleCapture.js'
 import { docsTool } from '../src/docs.js'
@@ -45,19 +47,26 @@ export const shouldTransform = (url, script) =>
 
 const packageSpec = (url) => url.slice(CDN_BASE.length).replace(/^((?:@[^/]+\/)?[^/@]+)@[^/]+/, '$1')
 
+const installed = (spec) => {
+  try {
+    globalThis[NODE_REQUIRE].resolve(spec)
+    return true
+  } catch {
+    return false
+  }
+}
+
 // The frame fetches CDN packages; here they come from node_modules, and a
-// missing one throws the text the frame's fetch gives a 404.
+// missing one throws the text the frame's fetch gives a 404. Node resolves its
+// built-ins too, which the browser has none of.
 export const createReadFile = (files) => (path) => {
   if (path.startsWith(PROJECT_BASE)) {
     const projectPath = path.slice(PROJECT_BASE.length)
     if (Object.hasOwn(files, projectPath)) return files[projectPath]
   } else if (path.startsWith(CDN_BASE)) {
     const spec = packageSpec(path)
-    try {
-      globalThis[NODE_REQUIRE].resolve(spec)
+    if (!isBuiltin(spec) && installed(spec)) {
       return `module.exports = globalThis[Symbol.for('jscadui.eval.userModule')](${JSON.stringify(spec)})`
-    } catch {
-      // falls through to the frame's 404 text
     }
   }
   throw new Error(`file not found ${path}`)
@@ -88,6 +97,14 @@ const runModel = async (source, entry) => {
 }
 
 const noGeometry = () => JSON.stringify({ ok: false, error: { name: 'NoGeometryError', message: 'no geometry: eval a model first' } })
+
+// The app's worker writes STL text whatever format is asked for, and the app
+// answers { format, size, data } with the bytes in base64.
+const exportModel = (geometry, format) => {
+  JscadToCommon.clearCache()
+  const data = Buffer.from(exportStlText(JscadToCommon.ConvertMulti(geometry, [], false)).join(''))
+  return { format, size: data.byteLength, data: data.toString('base64') }
+}
 
 export function createEvalBackend() {
   let geometry = null
@@ -128,7 +145,8 @@ export function createEvalBackend() {
         await load(args.source, entry)
         return JSON.stringify(withWarnings({ ok: true, entry }))
       }
-      if (name === 'view' || name === 'export') {
+      if (name === 'export') return geometry ? JSON.stringify(exportModel(geometry, args.format)) : noGeometry()
+      if (name === 'view') {
         return JSON.stringify({ ok: false, error: { name: 'UnavailableError', message: `${name} is unavailable in the eval harness` } })
       }
       return JSON.stringify(errorResult({ name: 'UnknownToolError', message: `unknown tool ${name}` }))

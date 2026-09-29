@@ -203,6 +203,81 @@ describe('runSuite', () => {
   })
 })
 
+const FLUENT_CUBE = 'const jf = require("@jbroll/jscad-fluent")\nfunction main() { return [jf.cube({ size: 20 })] }\nmodule.exports = { main }'
+const PROBE = 'const jf = require("@jbroll/jscad-fluent")\nfunction main() { return [jf.sphere({ radius: 1 })] }\nmodule.exports = { main }'
+const toolRound = (id, name, input) => [{ type: 'tool_use', id, name, input }, { type: 'done', stopReason: 'tool_use' }]
+const endRound = [{ type: 'text', text: 'done' }, { type: 'done', stopReason: 'end_turn' }]
+const saving = {
+  name: 'saving',
+  prompt: 'make a cube',
+  requires: ['eval', 'writeModel'],
+  verifyBeforeWrite: false,
+  maxTurns: 8,
+  checks: (m, { solid, source } = {}) => [
+    { name: 'volume', pass: (m?.volume ?? 0) > 7000 },
+    { name: 'watertight', pass: solid?.watertight === true },
+    { name: 'source', pass: source === FLUENT_CUBE },
+  ],
+}
+
+describe('runSuite grades the saved model', () => {
+  it('grades the writeModel source, not a probe evaled after it', async () => {
+    const provider = scripted([
+      toolRound('t1', 'eval', { source: FLUENT_CUBE }),
+      toolRound('t2', 'writeModel', { source: FLUENT_CUBE }),
+      toolRound('t3', 'eval', { source: PROBE }),
+      endRound,
+    ])
+    const [result] = await runSuite([saving], { provider, backend: createEvalBackend() })
+    expect(result.report.checkRate).toBe(1)
+    expect(result.report.dimensions.geometry).toBe(2)
+  })
+
+  it('gives no geometry credit to a run that never called writeModel', async () => {
+    const provider = scripted([toolRound('t1', 'eval', { source: FLUENT_CUBE }), endRound])
+    const [result] = await runSuite([saving], { provider, backend: createEvalBackend() })
+    expect(result.report.dimensions.geometry).toBe(0)
+    expect(result.report.checkRate).toBe(0)
+    expect(result.report.saved).toBe(false)
+  })
+
+  it('grades a saved model that fails to evaluate as no geometry', async () => {
+    const provider = scripted([
+      toolRound('t1', 'eval', { source: FLUENT_CUBE }),
+      toolRound('t2', 'writeModel', { source: 'throw new Error("broken")' }),
+      endRound,
+    ])
+    const [result] = await runSuite([saving], { provider, backend: createEvalBackend() })
+    expect(result.report.checkRate).toBe(0)
+    expect(result.metrics.geometryError).toBeNull()
+  })
+})
+
+describe('runSuite empty provider replies', () => {
+  it('records a round with no reply and no usage as a run error', async () => {
+    const provider = {
+      async *send() {
+        yield { type: 'done', stopReason: 'end_turn' }
+      },
+    }
+    const fixture = { name: 'x', prompt: 'p', requires: ['eval'], verifyBeforeWrite: false, maxTurns: 8, checks: () => [] }
+    const [result] = await runSuite([fixture], { provider, backend: createEvalBackend() })
+    expect(result.error).toBe('empty provider reply')
+  })
+
+  it('does not count a round that only reported usage as empty', async () => {
+    const provider = {
+      async *send() {
+        yield { type: 'usage', inputTokens: 10, outputTokens: 0 }
+        yield { type: 'done', stopReason: 'end_turn' }
+      },
+    }
+    const fixture = { name: 'x', prompt: 'p', requires: ['eval'], verifyBeforeWrite: false, maxTurns: 8, checks: () => [] }
+    const [result] = await runSuite([fixture], { provider, backend: createEvalBackend() })
+    expect(result.error).toBeUndefined()
+  })
+})
+
 describe('runSuite runs and context', () => {
   it('runs each fixture `runs` times and sends prior turns and files', async () => {
     const seen = []
@@ -443,10 +518,11 @@ describe('runSuite turn cap', () => {
   }
   const fixture = { name: 'x', prompt: 'p', requires: ['eval'], verifyBeforeWrite: false, maxTurns: 4, checks: () => [] }
 
-  it('caps rounds at the fixture maxTurns and records it', async () => {
+  it('caps rounds at the fixture maxTurns and records it, without calling the cap an empty reply', async () => {
     const [result] = await runSuite([fixture], { provider: endless, backend: createEvalBackend() })
     expect(result.maxTurns).toBe(4)
     expect(result.metrics.rounds).toBe(5)
+    expect(result.error).toBeUndefined()
   })
 
   it('a maxTurns option overrides the fixture cap', async () => {

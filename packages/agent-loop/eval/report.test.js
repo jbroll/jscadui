@@ -11,11 +11,11 @@ const run = (fixture, firstAttemptFailures, checkRate, total, error, metrics) =>
 })
 
 describe('eval report', () => {
-  it('summarizes runs per fixture as means', () => {
+  it('summarizes runs per fixture as means, leaving errored runs out of the score', () => {
     const summary = summarize([run('a', 2, 0.5, 4), run('a', 0, 1, 8, 'status 500'), run('b', 1, 1, 7)])
     expect(summary).toEqual([
       {
-        fixture: 'a', runs: 2, firstAttemptFailures: 1, checkPassRate: 0.75, total: 6, errors: 1,
+        fixture: 'a', runs: 2, firstAttemptFailures: 2, checkPassRate: 0.5, total: 4, errors: 1,
         rounds: null, failedCalls: null, inputTokens: null, outputTokens: null, seconds: null, geometryError: null, warnings: null, docsCalls: null,
         providerSeconds: null, firstTokenSeconds: null, outputTokensPerSecond: null, reasoningTokens: null,
       },
@@ -25,7 +25,13 @@ describe('eval report', () => {
         providerSeconds: null, firstTokenSeconds: null, outputTokensPerSecond: null, reasoningTokens: null,
       },
     ])
-    expect(formatSummary(summary)).toContain('a  2  1.00  0.75  6.00  1')
+    expect(formatSummary(summary)).toContain('a  2  2.00  0.50  4.00  1')
+  })
+
+  it('scores a fixture whose every run errored as null, printed as -', () => {
+    const [s] = summarize([run('a', 0, 0, 4, 'empty provider reply')])
+    expect(s).toEqual(expect.objectContaining({ runs: 1, errors: 1, firstAttemptFailures: null, checkPassRate: null, total: null }))
+    expect(formatSummary([s])).toContain('a  1  -  -  -  1')
   })
 
   it('means the new metrics, tolerating results with no metrics', () => {

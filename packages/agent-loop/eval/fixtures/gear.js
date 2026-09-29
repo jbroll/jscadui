@@ -9,9 +9,11 @@ export const fixture = {
   checks: (m, { solid } = {}) => {
     const dims = [...(m?.dimensions ?? [0, 0, 0])].sort((a, b) => a - b)
     const [thickness, mid, largest] = dims
+    const volume = m?.volume ?? 0
     return [
       { name: 'about 40mm across', pass: largest >= 36 && largest <= 44 && mid >= 36 && mid <= 44 },
       { name: 'thickness 2-20mm', pass: thickness >= 2 && thickness <= 20 },
+      { name: 'solid, not inside out', pass: volume > 0 },
       { name: 'watertight', pass: solid?.watertight === true },
     ]
   },

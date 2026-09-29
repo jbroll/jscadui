@@ -64,26 +64,31 @@ export function summarize(results) {
     if (!byFixture.has(r.fixture)) byFixture.set(r.fixture, [])
     byFixture.get(r.fixture).push(r)
   }
-  return [...byFixture].map(([fixture, runs]) => ({
-    fixture,
-    runs: runs.length,
-    firstAttemptFailures: mean(runs.map((r) => r.report.firstAttemptFailures)),
-    checkPassRate: mean(runs.map((r) => r.report.checkRate)),
-    total: mean(runs.map((r) => r.report.total)),
-    errors: runs.filter((r) => r.error).length,
-    rounds: meanOf(runs, (r) => r.metrics?.rounds),
-    failedCalls: meanOf(runs, (r) => r.metrics?.failedCalls),
-    inputTokens: meanOf(runs, (r) => r.metrics?.inputTokens),
-    outputTokens: meanOf(runs, (r) => r.metrics?.outputTokens),
-    seconds: meanOf(runs, (r) => r.metrics?.seconds),
-    geometryError: meanOf(runs, (r) => r.metrics?.geometryError),
-    warnings: meanOf(runs, (r) => r.metrics?.warnings),
-    docsCalls: meanOf(runs, (r) => r.metrics?.docsCalls),
-    providerSeconds: meanOf(runs, (r) => r.metrics?.providerSeconds),
-    firstTokenSeconds: meanOf(runs, (r) => r.metrics?.firstTokenSeconds),
-    outputTokensPerSecond: meanOf(runs, (r) => r.metrics?.outputTokensPerSecond),
-    reasoningTokens: meanOf(runs, (r) => r.metrics?.reasoningTokens),
-  }))
+  // A run with an error (provider failure, empty reply, worker crash) has no
+  // answer to score, so it counts under `errors` and stays out of the means.
+  return [...byFixture].map(([fixture, runs]) => {
+    const scored = runs.filter((r) => !r.error)
+    return {
+      fixture,
+      runs: runs.length,
+      firstAttemptFailures: meanOf(scored, (r) => r.report.firstAttemptFailures),
+      checkPassRate: meanOf(scored, (r) => r.report.checkRate),
+      total: meanOf(scored, (r) => r.report.total),
+      errors: runs.length - scored.length,
+      rounds: meanOf(runs, (r) => r.metrics?.rounds),
+      failedCalls: meanOf(runs, (r) => r.metrics?.failedCalls),
+      inputTokens: meanOf(runs, (r) => r.metrics?.inputTokens),
+      outputTokens: meanOf(runs, (r) => r.metrics?.outputTokens),
+      seconds: meanOf(runs, (r) => r.metrics?.seconds),
+      geometryError: meanOf(runs, (r) => r.metrics?.geometryError),
+      warnings: meanOf(runs, (r) => r.metrics?.warnings),
+      docsCalls: meanOf(runs, (r) => r.metrics?.docsCalls),
+      providerSeconds: meanOf(runs, (r) => r.metrics?.providerSeconds),
+      firstTokenSeconds: meanOf(runs, (r) => r.metrics?.firstTokenSeconds),
+      outputTokensPerSecond: meanOf(runs, (r) => r.metrics?.outputTokensPerSecond),
+      reasoningTokens: meanOf(runs, (r) => r.metrics?.reasoningTokens),
+    }
+  })
 }
 
 const n2or = (x) => (x === null || x === undefined ? '-' : n2(x))
@@ -91,7 +96,7 @@ const n2or = (x) => (x === null || x === undefined ? '-' : n2(x))
 export function formatSummary(summary, speed) {
   const lines = ['fixture  runs  firstFail  checks  total  errors']
   for (const s of summary) {
-    lines.push(`${s.fixture}  ${s.runs}  ${n2(s.firstAttemptFailures)}  ${n2(s.checkPassRate)}  ${n2(s.total)}  ${s.errors}`)
+    lines.push(`${s.fixture}  ${s.runs}  ${n2or(s.firstAttemptFailures)}  ${n2or(s.checkPassRate)}  ${n2or(s.total)}  ${s.errors}`)
   }
   lines.push('', 'fixture  rounds  failedCalls  inputTokens  outputTokens  seconds  geometryError  warnings  docsCalls')
   for (const s of summary) {
