@@ -14,6 +14,39 @@ reach simple-ci. Local terminal sessions verify with `sci push jscadui/test`
 | Results | streamed to your terminal | `openscad-gpu` commit status + a PR comment with the log tail |
 | Host needs | simple-ci | simple-ci + a GitHub token for the poller |
 
+## Live model eval (`ci/eval`)
+
+`sci push jscadui/eval` runs the agent-loop eval suite (`packages/agent-loop/eval/`)
+against live models on the CI host, one process per model in `ci/eval.conf`'s
+`EVAL_MODELS`. Edit that file in the working tree before pushing — `sci push`
+carries no arguments of its own, so the conf file is the only knob:
+`EVAL_MODELS` (space-separated `provider:model` pairs), `EVAL_FIXTURES`,
+`EVAL_RUNS`, `EVAL_CONCURRENCY`.
+
+Provider keys come from the CI host user's `~/.config/jscad-chat/keys.json`
+(`{ "<provider>": "<key>" }`, mode 600) — place it there once, by hand; the
+job never receives or copies it. A model whose provider has no key there
+fails on its own, without blocking the others.
+
+Results land in the job's worktree at `eval-results/`: `index.txt` lists the
+result files, `eval-live.log` holds the live conversation log. Both are
+readable with `sci artifact JOB PATH` while the job runs; `sci log JOB`
+streams the job's own stdout, which carries each model's summary tables and
+speed line. Fetch the result files into the local evals data dir with:
+
+```bash
+node packages/agent-loop/eval/fetch-ci-results.js JOB-ID
+```
+
+It reads `eval-results/index.txt` via `sci artifact`, then copies each listed
+file into `$JSCAD_CHAT_DATA/results` (default `~/src/jscad-chat-evals/results`),
+skipping any file already there. `SCI` overrides the `sci` binary path
+(default: beside this checkout, `../simple-ci/sci`).
+
+The job exits non-zero only when a model's eval process failed outright (a
+crash, or a missing/unset key) — provider errors inside individual runs are
+recorded in the result file, not job failures.
+
 ## gpu-poll
 
 The GPU host polls GitHub (outbound HTTPS only; no runner, no inbound ports).

@@ -336,6 +336,16 @@ hollow, watertight, a size the prompt actually states) rather than one exact
 shape; an exact-volume band is only for a fixture whose prompt pins the
 geometry precisely.
 
+### Running on CI
+
+`sci push jscadui/eval` (`ci/eval`, `ci/eval.conf`) runs this eval against
+live models on the CI host instead of locally, one process per model in
+`EVAL_MODELS`. Provider keys come from the CI host user's
+`~/.config/jscad-chat/keys.json`, placed there by hand; a model whose
+provider has no key there fails on its own. Results land in the job's
+`eval-results/`; fetch them into `$JSCAD_CHAT_DATA/results` with
+`node eval/fetch-ci-results.js JOB-ID`. Details: `ci/README.md`.
+
 ## Review loop
 
 The `chat-review` project skill (`.claude/skills/chat-review/SKILL.md`) runs

@@ -115,12 +115,16 @@ the user the fixture count times `EVAL_RUNS` and get a yes.
    request it answers, and must be listed in `prompt/index.js` in file-name
    order. Keep `prompt.md` prose short and concrete.
 
-6. **Measure the candidate.** Run the suite on the candidate. The default run
-   (no `EVAL_FIXTURES`) is the CSG suite: primitives and boolean operations,
-   which is what most real requests exercise. `gear` sits in the `profiles`
-   group and is opt-in (`EVAL_FIXTURES=profiles` or `EVAL_FIXTURES=all`)
-   since it tests computing a point-list profile, not representative of most
-   requests and prone to dominating run time:
+6. **Measure the candidate.** Run the suite on the candidate. Prefer
+   `sci push jscadui/eval` (`ci/eval`, `ci/eval.conf`) for a full-suite run
+   across every model — it runs on the CI host, not this machine, and keeps
+   the models running concurrently; use a local run for a quick check of one
+   model or a handful of fixtures. The default run (no `EVAL_FIXTURES`) is
+   the CSG suite: primitives and boolean operations, which is what most real
+   requests exercise. `gear` sits in the `profiles` group and is opt-in
+   (`EVAL_FIXTURES=profiles` or `EVAL_FIXTURES=all`) since it tests computing
+   a point-list profile, not representative of most requests and prone to
+   dominating run time:
 
    ```bash
    EVAL_PROVIDER=meta EVAL_MODEL=muse-spark-1.3-contributor npm run eval -w @jscadui/agent-loop
