@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import index from '@jscadui/agent-loop/api/index.json'
 import { createSavedDeps } from '../src/aiDeps.js'
 
 // A minimal but real CommonJS runner over whatever files jscadSetFiles last
@@ -122,7 +123,7 @@ describe('createSavedDeps: writeModel parity with the eval harness', () => {
 describe('createSavedDeps: api style', () => {
   it('sends the chat api with the files on eval and save, and hints a thrown error in that api', async () => {
     const workerApi = fakeFrame()
-    const d = createSavedDeps({ workerApi, handleEntities: vi.fn(), editor: fakeEditor(), recordEdit: vi.fn(async () => {}), getApi: () => 'modeling' })
+    const d = createSavedDeps({ workerApi, handleEntities: vi.fn(), editor: fakeEditor(), recordEdit: vi.fn(async () => {}), getApi: () => 'modeling', loadIndex: async () => index })
     const res = await d.evaluate('module.exports = { main: () => [{}.translate([1, 0, 0])] }', 'main.js')
     expect(res.error.message).toContain('use transforms.translate(offset, shape)')
     await d.save(MAIN_V1, 'main.js')

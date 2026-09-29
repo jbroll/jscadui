@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createRequire } from 'node:module'
 import { expectCase, WARNING_CASES } from '@jscadui/agent-loop/test/warningCases.js'
+import index from '@jscadui/agent-loop/api/index.json'
 import { createEvaluate } from '../src/aiEvaluate.js'
 import { installOptionWarnings } from '../src_frame/optionWarnings.js'
 
@@ -29,7 +30,7 @@ describe('app eval warnings and error hints follow the chat api', () => {
   for (const c of WARNING_CASES) {
     it(c.name, async () => {
       const worker = frameWorker()
-      const res = await createEvaluate(worker, vi.fn(), () => c.api)(c.source, 'main.js')
+      const res = await createEvaluate(worker, vi.fn(), () => c.api, async () => index)(c.source, 'main.js')
       expect(worker.jscadSetFiles).toHaveBeenCalledWith({ files: { 'main.js': c.source }, api: c.api })
       expectCase(expect, c, res)
     })

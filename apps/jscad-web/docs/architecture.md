@@ -723,8 +723,8 @@ modeling geometry, which the two-API prompt invited. `getChatApi()` in
 to `DEFAULT_API`; a settings radio button will write it there. From there it
 flows two ways in `main.js`: `initChat({ getApi })` builds the turn's system
 prompt with `buildSystemPrompt(api)` and passes `api` to `runTurn`, which
-sends `buildTools(api)`; and the `docs` dependency calls
-`docsTool(apiIndex, query, { api })`, which answers only from that API's
+sends `buildTools(api)`; and the `docs` dependency (`createDocs` in
+`src/apiIndex.js`) calls `docsTool(index, query, { api })`, which answers only from that API's
 index entries and jscad-text's, and points a query for the other API at its
 equivalent or says it is not available. The studio server's chat route takes
 `api` in its POST body next to `provider` (default `fluent`, anything else is
@@ -750,6 +750,12 @@ Tools and where they run:
 | `eval`, `measure`, `check`, `export`, `params` | compute frame (`eval` also returns `warnings` and `console`) |
 | `writeModel` | editor buffer plus a version row (also returns `warnings` and `console`) |
 | `docs` | page: `docsTool` over `@jscadui/agent-loop/api/index.json` for the chat's API style, no frame round trip |
+
+The index (about 260 KB) is not in the app entry: `build.js` bundles it as
+`build/bundle.api-index.js` (content-hashed like the other leaf bundles), and
+`src/apiIndex.js` imports it on the first `docs` call or the first eval error
+that needs a hint, then keeps it. A failed load is retried on the next call;
+an eval error goes out without its hint meanwhile.
 
 `eval`, `measure` and `check` also carry `saved: false` when any file the
 agent's last real eval used does not match what `writeModel` has saved for

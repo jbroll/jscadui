@@ -15,11 +15,11 @@ const projectEntry = (files, lastWritten) => (Object.hasOwn(files, PROJECT_ENTRY
  * just the one it last touched — the way the eval harness's `saved` does.
  * `save` re-runs the project the same way writeModel does in the harness, so
  * an entry with no main() fails to save with the same error text.
- * @param {{workerApi:object, handleEntities:Function, editor:{setSource:Function}, recordEdit:(source:string,entry:string)=>Promise<unknown>, getApi?:() => string}} args
+ * @param {{workerApi:object, handleEntities:Function, editor:{setSource:Function}, recordEdit:(source:string,entry:string)=>Promise<unknown>, getApi?:() => string, loadIndex?:() => Promise<Array<object>>}} args
  */
-export const createSavedDeps = ({ workerApi, handleEntities, editor, recordEdit, getApi }) => {
+export const createSavedDeps = ({ workerApi, handleEntities, editor, recordEdit, getApi, loadIndex }) => {
   const saveTracker = createSaveTracker()
-  const evaluateModel = createEvaluate(workerApi, handleEntities, getApi)
+  const evaluateModel = createEvaluate(workerApi, handleEntities, getApi, loadIndex)
 
   const evaluate = async (source, entry = PROJECT_ENTRY) => {
     const files = { ...saveTracker.files(), [entry]: source }

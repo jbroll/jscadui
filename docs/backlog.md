@@ -205,8 +205,6 @@ model with `display-check.js --engine jscad`.
 - Option checks for options passed in a non-first position: fluent's
   `subtract` (a variadic operand list), `attachTo` and `alignTo` (options
   follow an anchor argument).
-- `api/index.json` is about 130 KB in the app's main bundle. Load it on the
-  first `docs` call if bundle size starts to matter.
 - JSDoc gaps in `@jscad/modeling` are patched in `api/build-index.js`
   (`PASS_THROUGH`, `defaults` keys). A false warning from a real call means
   another entry belongs there, or upstream JSDoc needs the option.

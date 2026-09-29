@@ -110,6 +110,8 @@ if(!skipDocs && !(dev & existsSync(outDir + "/docs"))){
 
 /**************************** BUILD JS bundles - watched in dev mode *************/
 await buildBundle(outDir + '/build', 'bundle.threejs.js', { globalName: 'THREE', watch: dev })
+// The chat's docs index, loaded on first use (src/apiIndex.js).
+await buildBundle(outDir + '/build', 'bundle.api-index.js', { format: 'esm', watch: dev })
 await buildBundle(outDir + '/build', 'bundle.regl.js', { globalName: 'regl', watch: dev })
 // render-regl bundle needs CJS loader for gl-mat4/gl-vec3 dependencies
 await buildBundle(outDir + '/build', 'bundle.render-regl.js', {

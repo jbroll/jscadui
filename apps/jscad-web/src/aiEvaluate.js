@@ -1,15 +1,23 @@
 import { DEFAULT_API, withErrorHint } from '@jscadui/agent-loop'
-import apiIndex from '@jscadui/agent-loop/api/index.json'
 import { capGeometry, DEFAULT_CAPS } from './caps.js'
 import { PROJECT_BASE } from '../src_frame/fileMap.js'
 import { sendScript } from './scriptRuns.js'
 
 const DEFAULT_ENTRY = './jscad.model.js'
 
-const toError = (error, api) => ({
-  ok: false,
-  error: { name: error?.name ?? 'Error', message: withErrorHint(error?.message ?? String(error), { api, index: apiIndex }) },
-})
+// With no index the error goes out without its hint.
+const indexFor = async (loadIndex) => {
+  try {
+    return await loadIndex()
+  } catch {
+    return undefined
+  }
+}
+
+const toError = async (error, api, loadIndex) => {
+  const message = error?.message ?? String(error)
+  return { ok: false, error: { name: error?.name ?? 'Error', message: withErrorHint(message, { api, index: await indexFor(loadIndex) }) } }
+}
 
 /**
  * The agent's eval tool: run the source in the sandboxed frame, draw what came
@@ -17,8 +25,9 @@ const toError = (error, api) => ({
  * @param {{jscadSetFiles:Function,jscadScript:Function}} workerApi
  * @param {(result:any, options:{skipLog?:boolean}) => void} handleEntities
  * @param {() => string} [getApi] the chat's API style, which warnings and error hints name
+ * @param {() => Promise<Array<object>|undefined>} [loadIndex] api/index.json, loaded only for an error hint
  */
-export const createEvaluate = (workerApi, handleEntities, getApi = () => DEFAULT_API) => async (source, entry = DEFAULT_ENTRY, files = { [entry]: source }) => {
+export const createEvaluate = (workerApi, handleEntities, getApi = () => DEFAULT_API, loadIndex = async () => undefined) => async (source, entry = DEFAULT_ENTRY, files = { [entry]: source }) => {
   const api = getApi()
   let result
   try {
@@ -29,7 +38,7 @@ export const createEvaluate = (workerApi, handleEntities, getApi = () => DEFAULT
       root: PROJECT_BASE,
     }, api)
   } catch (error) {
-    return toError(error, api)
+    return toError(error, api, loadIndex)
   }
   if (result.scratch) {
     let out = { ok: true, scratch: true, message: result.message }
@@ -44,7 +53,7 @@ export const createEvaluate = (workerApi, handleEntities, getApi = () => DEFAULT
   try {
     capGeometry(entities, DEFAULT_CAPS)
   } catch (error) {
-    return toError(error, api)
+    return toError(error, api, loadIndex)
   }
   let out = { entityCount: entities.length }
   if (result.warnings?.length) out = { ...out, warnings: result.warnings }

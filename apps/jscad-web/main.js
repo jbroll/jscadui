@@ -66,8 +66,7 @@ import { clearReloadTimestamp } from './src/reloadDetection.js'
 import { missingSaveHandleMessage } from './src/saveFile.js'
 import { installStudioBridge } from './src/studioBridge.js'
 import { handleToolRequest } from './src/aiBridge.js'
-import { docsTool } from '@jscadui/agent-loop'
-import apiIndex from '@jscadui/agent-loop/api/index.json'
+import { createDocs, createIndexLoader } from './src/apiIndex.js'
 import { initChat } from './src/aiChat.js'
 import { initAccount, getChatApi, getProviderConfig, getSession } from './src/aiAccount.js'
 
@@ -826,7 +825,8 @@ const toBase64 = (buffers) => {
 // evaluate/measure/check/save track `saved` per file across the whole
 // project, and save re-validates like the eval harness's writeModel; see
 // aiDeps.js.
-const savedDeps = createSavedDeps({ workerApi, handleEntities, editor, recordEdit, getApi: getChatApi })
+const loadApiIndex = createIndexLoader()
+const savedDeps = createSavedDeps({ workerApi, handleEntities, editor, recordEdit, getApi: getChatApi, loadIndex: loadApiIndex })
 
 const aiDeps = {
   evaluate: savedDeps.evaluate,
@@ -852,7 +852,7 @@ const aiDeps = {
     return { ok: true, image, camera: viewState.viewer.getCamera() }
   },
   save: savedDeps.save,
-  docs: (query) => docsTool(apiIndex, query, { api: getChatApi() }),
+  docs: createDocs(loadApiIndex, getChatApi),
 }
 
 if (byId('ai-account')) initAccount(byId('ai-account'))

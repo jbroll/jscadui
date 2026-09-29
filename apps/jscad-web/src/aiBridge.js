@@ -23,7 +23,7 @@ export const handleToolRequest = async (name, input, deps) => {
     if (name === 'check') return await deps.check(args)
     if (name === 'export') return await deps.exportModel(args)
     if (name === 'view') return await deps.view(args)
-    if (name === 'docs') return deps.docs(args.query)
+    if (name === 'docs') return await deps.docs(args.query)
     if (name === 'writeModel') {
       const entry = args.entry ?? DEFAULT_ENTRY
       await deps.save(args.source, entry)
