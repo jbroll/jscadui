@@ -164,8 +164,8 @@ score.
   `fetchWithRetry`. It runs no code and gets no tools, so it needs no
   executor. Its key never reaches an executor, like the agent's.
 - Configuration: `EVAL_USER_PROVIDER` and `EVAL_USER_MODEL`, defaulting to a
-  pinned entry in `eval/models.json` (`"user": { provider, model,
-  temperature }`). The key comes from the same lookup as `EVAL_PROVIDER`'s
+  pinned entry in `eval/models.json` (`"user": { provider: "opencode-go",
+  model: "deepseek-v4.1-flash", temperature: 0 }`). The key comes from the same lookup as `EVAL_PROVIDER`'s
   (`keys.json`, then the provider's auth file). On CI the job user's
   `keys.json` needs that provider's key.
 - A user-model reply that is not valid JSON is retried once; a second failure,
@@ -389,10 +389,14 @@ the assembly fixtures only.
 
 ## Open questions
 
-1. **Which user model.** A cheap model not under test (a small Anthropic or
-   OpenAI model) avoids the agent and the user sharing habits, but needs its
-   key in the CI job's `keys.json`. `deepseek-v4.1-flash` through
-   `opencode-go` has a key there already but is one of the models under test.
+1. **Which user model.** Decided: `deepseek-v4.1-flash` through
+   `opencode-go`, the cheap model, whose key is already in the CI job's
+   `keys.json`. It is also under test, so when it plays both sides the two can
+   share habits. Three things limit that: acceptance comes from the checks,
+   not the user model's judgement; the user model answers only from the
+   hidden intent, under its own system prompt, at temperature 0 with no tools;
+   and result files record the user model, so a later switch to another model
+   shows up in `--compare`.
 2. **Cost per CI run.** The four latest single-shot files used about 4.5M input
    and 1.8M output agent tokens (138 runs). A dialogue pass of 5 fixtures ×
    5 runs × 2 models × 2 styles is 100 conversations of up to 4 user turns;
