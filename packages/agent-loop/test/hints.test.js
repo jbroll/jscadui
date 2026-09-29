@@ -176,10 +176,9 @@ describe('explainWarning: winding, empty booleans and mesh data', () => {
     )
   })
 
-  it('points { points, faces } data at the polyhedron factory', () => {
-    expect(explainWarning({ fn: 'FluentGeom3.union', meshOperand: true }, 'fluent').hint).toBe(
-      'an operand is { points, faces } data, not a shape: make it one with jf.polyhedron(data), e.g. jf.polyhedron(jf.hullPoints3(points))',
-    )
+  it('points { points, faces } data at the polyhedron factory, modeling only', () => {
+    // Fluent's own constructor/boolean throws a TypeError naming jf.polyhedron already.
+    expect(explainWarning({ fn: 'FluentGeom3.union', meshOperand: true }, 'fluent').hint).toBeUndefined()
     expect(explainWarning({ fn: 'booleans.union', meshOperand: true }, 'modeling').hint).toBe(
       'an operand is { points, faces } data, not a shape: make it one with primitives.polyhedron({ points, faces })',
     )

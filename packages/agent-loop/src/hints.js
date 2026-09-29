@@ -104,11 +104,11 @@ const EMPTY_CAUSE = {
 const emptyHint = ({ empty }, api) =>
   `${empty} returned an empty shape: ${EMPTY_CAUSE[empty]}; compare their bounding boxes with ${BOUNDING_BOX[api] ?? BOUNDING_BOX[DEFAULT_API]}`
 
-const MESH_FIX = {
-  fluent: 'jf.polyhedron(data), e.g. jf.polyhedron(jf.hullPoints3(points))',
-  modeling: 'primitives.polyhedron({ points, faces })',
-}
-const meshHint = (api) => `an operand is { points, faces } data, not a shape: make it one with ${MESH_FIX[api] ?? MESH_FIX[DEFAULT_API]}`
+// Fluent's own constructors and booleans already throw a TypeError naming
+// jf.polyhedron; only modeling's throw ("only unions of the same type are
+// supported") leaves the fix unstated.
+const meshHint = (api) =>
+  api === 'modeling' ? 'an operand is { points, faces } data, not a shape: make it one with primitives.polyhedron({ points, faces })' : undefined
 
 /**
  * The warning a model sees for a fact the option checks found: an unknown
