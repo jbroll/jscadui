@@ -17,8 +17,8 @@ export const prefixBlock = (model, text) => `${text.split('\n').map((line) => `[
 
 export const conversationTag = (model, fixture, run) => `${model} ${fixture}#${run}`
 
-export const formatLiveHeader = ({ provider, model, promptSha256, fixtureNames, runs, filePath, now = new Date() }) =>
-  `${now.toISOString()} provider=${provider} model=${model} promptSha=${promptSha256.slice(0, 8)} fixtures=${fixtureNames.join(',')} runs=${runs} file=${filePath}`
+export const formatLiveHeader = ({ provider, model, promptSha256, fixtureNames, runs, maxTurns, filePath, now = new Date() }) =>
+  `${now.toISOString()} provider=${provider} model=${model} promptSha=${promptSha256.slice(0, 8)} fixtures=${fixtureNames.join(',')} runs=${runs} maxTurns=${maxTurns ?? 'fixture'} file=${filePath}`
 
 const defaultFs = { appendFileSync, mkdirSync, renameSync, statSync }
 

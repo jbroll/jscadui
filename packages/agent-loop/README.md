@@ -178,12 +178,21 @@ files without spending API budget.
 | `EVAL_BASE_URL` | provider base URL, without `/v1` |
 | `EVAL_RUNS` | runs per fixture, default 3 |
 | `EVAL_CONCURRENCY` | conversations run at once, each in its own worker thread, default 6 |
+| `EVAL_MAX_TURNS` | turn cap for every conversation; overrides `eval/models.json` and the fixture's `maxTurns` |
 | `EVAL_FIXTURES` | comma-separated fixture and/or group names to run; default: ungrouped fixtures only; `all` runs everything |
 | `EVAL_VERBOSE` | `1` also prints the live log's lines to stdout, turn by turn: the header and prompt, tool calls with full input, tool results, and streamed assistant text |
 | `JSCAD_CHAT_DATA` | path to the `jscad-chat-evals` clone, default `~/src/jscad-chat-evals` |
 | `EVAL_RESULTS_DIR` | overrides where results are written, regardless of `JSCAD_CHAT_DATA` |
 | `JSCAD_CHAT_KEYS` | overrides the path to `keys.json` below |
 | `EVAL_LIVE_LOG` | overrides the live log path; `0` disables it |
+
+A conversation's turn cap (provider calls) is `EVAL_MAX_TURNS` when set, else
+`maxTurns` from the model's entry in `eval/models.json`
+(`{ "<model id>": { "maxTurns": 8 } }`), else the fixture's own `maxTurns`.
+The cap a model gets is a budget for fixing its own mistakes across turns, so
+set it per model rather than tuning it to one-shot answers. Each result records
+its effective cap as `maxTurns`; the result file's top-level `maxTurns` is the
+model-level cap, or `null` when every fixture kept its own.
 
 Each fixture × run is one conversation, run in its own worker thread
 (`eval/worker.js`, loaded with the same `--import ./text-loader.js` hook as the
@@ -209,7 +218,8 @@ concurrent conversations stay legible; the header, summary tables and speed
 line are prefixed `[<model>] `. A multi-line block (a model source, a
 multi-line error) gets the prefix on every line. The file starts with one header line: time, provider,
 model, the prompt hash's first 8 characters, the fixture names, the run
-count and the result file path. Past 10 MB the file rotates to
+count, the model turn cap (`maxTurns=fixture` when there is none) and the
+result file path. Past 10 MB the file rotates to
 `eval-live.log.1` (replacing an older one) before the next write, so
 `tail -F ~/.local/state/jscad-chat/eval-live.log` in a second terminal
 follows a run live across the rotation. The log never receives anything
@@ -239,7 +249,7 @@ Each result also carries `metrics`, degrading gradually where the 0-2 grades
 tend to max out once a prompt clears the bar:
 
 - `rounds`: provider calls in the run (one per `send()` on the wrapped
-  provider, capped at `fixture.maxTurns`).
+  provider, capped at the run's `maxTurns`).
 - `toolCalls` / `failedCalls`: every tool call and every failed tool result in
   the run, not just the ones before the first success. Transcript-derived, so
   `--regrade` recomputes them from the stored transcript.

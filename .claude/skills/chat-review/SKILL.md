@@ -132,6 +132,13 @@ the user the fixture count times `EVAL_RUNS` and get a yes.
    hour; a conversation's lines in the live log are prefixed
    `[<model> <fixture>#<run>] `.
 
+   The turn budget is per model: `packages/agent-loop/eval/models.json` sets
+   `maxTurns` for a model, `EVAL_MAX_TURNS` overrides it for one run, and a
+   model with no entry gets each fixture's own `maxTurns`. The goal is a
+   correct model within the budget, fixing mistakes across turns, not a
+   one-shot answer, so judge a change by multi-turn success and `rounds`
+   rather than by first-attempt failures alone.
+
    The baseline is the newest result file in `<data>/results/` (`$JSCAD_CHAT_DATA`,
    default `~/src/jscad-chat-evals`) for the current prompt (its `promptSha256`
    matches the committed prompt); run one if none exists.

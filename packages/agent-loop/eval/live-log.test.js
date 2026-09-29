@@ -32,19 +32,24 @@ describe('conversationTag', () => {
 })
 
 describe('formatLiveHeader', () => {
-  it('includes time, provider, model, prompt hash, fixtures, runs and the result file', () => {
-    const line = formatLiveHeader({
-      provider: 'anthropic',
-      model: 'claude-x',
-      promptSha256: 'abcdef0123456789',
-      fixtureNames: ['cube-hole', 'gear'],
-      runs: 3,
-      filePath: '/data/results/x.json',
-      now: new Date('2026-09-28T12:00:00.000Z'),
-    })
-    expect(line).toBe(
-      '2026-09-28T12:00:00.000Z provider=anthropic model=claude-x promptSha=abcdef01 fixtures=cube-hole,gear runs=3 file=/data/results/x.json',
+  const header = {
+    provider: 'anthropic',
+    model: 'claude-x',
+    promptSha256: 'abcdef0123456789',
+    fixtureNames: ['cube-hole', 'gear'],
+    runs: 3,
+    filePath: '/data/results/x.json',
+    now: new Date('2026-09-28T12:00:00.000Z'),
+  }
+
+  it('includes time, provider, model, prompt hash, fixtures, runs, turn cap and the result file', () => {
+    expect(formatLiveHeader({ ...header, maxTurns: 8 })).toBe(
+      '2026-09-28T12:00:00.000Z provider=anthropic model=claude-x promptSha=abcdef01 fixtures=cube-hole,gear runs=3 maxTurns=8 file=/data/results/x.json',
     )
+  })
+
+  it('says maxTurns=fixture when each fixture keeps its own cap', () => {
+    expect(formatLiveHeader(header)).toContain(' maxTurns=fixture ')
   })
 })
 

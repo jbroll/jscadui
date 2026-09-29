@@ -5,7 +5,7 @@ import { createEvalBackend } from './backend.js'
 import { loadFixtures, runConversation } from './run-eval.js'
 import { formatRunHeader, formatText, formatToolCall, formatToolResult } from './verbose.js'
 
-const { fixtureName, run, runs, provider: providerConfig, providerModule = '../index.js' } = workerData
+const { fixtureName, run, runs, maxTurns, provider: providerConfig, providerModule = '../index.js' } = workerData
 const log = (text) => parentPort.postMessage({ type: 'log', text })
 
 const fixture = (await loadFixtures()).find((f) => f.name === fixtureName)
@@ -22,6 +22,7 @@ log(formatRunHeader(fixture, run, runs))
 const result = await runConversation(fixture, run, {
   provider: createProvider(providerConfig),
   backend: createEvalBackend(),
+  maxTurns,
   onToolCall: (name, input) => {
     flush()
     log(formatToolCall(name, input))

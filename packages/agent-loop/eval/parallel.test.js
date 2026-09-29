@@ -96,6 +96,29 @@ describe('runSuiteParallel', () => {
     expect(results[0].error).toBeUndefined()
   })
 
+  it('gives every job the model turn cap, or its fixture cap when there is none', async () => {
+    const seen = []
+    const runJob = async (job) => {
+      seen.push(job.maxTurns)
+      return fakeResult(job)
+    }
+    await runSuiteParallel([fixture('a')], { runs: 1, concurrency: 1, runJob, maxTurns: 8 })
+    await runSuiteParallel([fixture('a')], { runs: 1, concurrency: 1, runJob, maxTurns: null })
+    expect(seen).toEqual([8, 4])
+  })
+
+  it('records the turn cap on a crashed run', async () => {
+    const [result] = await runSuiteParallel([fixture('a')], {
+      runs: 1,
+      concurrency: 1,
+      maxTurns: 8,
+      runJob: async () => {
+        throw new Error('boom')
+      },
+    })
+    expect(result.maxTurns).toBe(8)
+  })
+
   it('routes each job log line with its job', async () => {
     const lines = []
     await runSuiteParallel([fixture('a')], {
@@ -128,6 +151,15 @@ describe('runInWorker', () => {
     expect(lines).toContain('assistant: building it')
     expect(lines.some((l) => l.startsWith('→ eval'))).toBe(true)
     expect(lines.at(-1)).toBe('assistant: done')
+  }, 30_000)
+
+  it('caps the conversation at the maxTurns it is given', async () => {
+    const result = await runInWorker(
+      { fixtureName: 'cube-hole', run: 1, runs: 1, maxTurns: 1, provider: { kind: 'fake', model: 'ok' }, providerModule: FAKE_PROVIDER },
+      () => {},
+    )
+    expect(result.maxTurns).toBe(1)
+    expect(result.metrics.toolCalls).toBe(1)
   }, 30_000)
 
   it('keeps a provider error on the result', async () => {

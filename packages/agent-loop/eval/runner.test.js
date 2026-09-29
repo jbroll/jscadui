@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createEvalBackend } from './backend.js'
-import { promptHash, resultFileName, runSuite, saveResults, selectFixtures } from './run-eval.js'
+import { modelMaxTurns, promptHash, resultFileName, runSuite, saveResults, selectFixtures } from './run-eval.js'
 
 const scripted = (rounds) => ({
   async *send() {
@@ -393,5 +393,65 @@ describe('saveResults', () => {
     expect(speed.wallSeconds).toBe(45)
     expect(speed.providerSeconds).toBe(60)
     expect(JSON.parse(writes[0]).speed.wallSeconds).toBe(45)
+  })
+
+  it('writes the model turn cap in the header, null when each fixture keeps its own', () => {
+    const writes = []
+    const write = (_path, content) => writes.push(JSON.parse(content))
+    const base = { model: 'm', provider: 'p', runs: 1, promptSha256: 'sha', results: [] }
+    saveResults(write, '/fake/path.json', { ...base, maxTurns: 8 })
+    saveResults(write, '/fake/path.json', base)
+    expect(writes[0].maxTurns).toBe(8)
+    expect(writes[1].maxTurns).toBeNull()
+  })
+})
+
+describe('modelMaxTurns', () => {
+  const models = { 'slow-model': { maxTurns: 8 } }
+
+  it('ships a cap of 8 for muse-spark-1.3-contributor and deepseek-v4.1-flash', () => {
+    expect(modelMaxTurns({}, 'muse-spark-1.3-contributor')).toBe(8)
+    expect(modelMaxTurns({}, 'deepseek-v4.1-flash')).toBe(8)
+  })
+
+  it('reads the model entry from models.json', () => {
+    expect(modelMaxTurns({}, 'slow-model', models)).toBe(8)
+  })
+
+  it('is null for a model with no entry, so each fixture keeps its own cap', () => {
+    expect(modelMaxTurns({}, 'other', models)).toBeNull()
+  })
+
+  it('EVAL_MAX_TURNS overrides models.json', () => {
+    expect(modelMaxTurns({ EVAL_MAX_TURNS: '3' }, 'slow-model', models)).toBe(3)
+    expect(modelMaxTurns({ EVAL_MAX_TURNS: '3' }, 'other', models)).toBe(3)
+  })
+
+  it('ignores an EVAL_MAX_TURNS that is not a positive integer', () => {
+    expect(modelMaxTurns({ EVAL_MAX_TURNS: 'x' }, 'slow-model', models)).toBe(8)
+  })
+})
+
+describe('runSuite turn cap', () => {
+  let id = 0
+  const endless = {
+    async *send() {
+      id += 1
+      yield { type: 'tool_use', id: `t${id}`, name: 'params', input: {} }
+      yield { type: 'done', stopReason: 'tool_use' }
+    },
+  }
+  const fixture = { name: 'x', prompt: 'p', requires: ['eval'], verifyBeforeWrite: false, maxTurns: 4, checks: () => [] }
+
+  it('caps rounds at the fixture maxTurns and records it', async () => {
+    const [result] = await runSuite([fixture], { provider: endless, backend: createEvalBackend() })
+    expect(result.maxTurns).toBe(4)
+    expect(result.metrics.rounds).toBe(5)
+  })
+
+  it('a maxTurns option overrides the fixture cap', async () => {
+    const [result] = await runSuite([fixture], { provider: endless, backend: createEvalBackend(), maxTurns: 2 })
+    expect(result.maxTurns).toBe(2)
+    expect(result.metrics.rounds).toBe(3)
   })
 })

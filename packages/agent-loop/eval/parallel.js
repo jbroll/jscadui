@@ -22,9 +22,10 @@ export async function runPool(items, concurrency, run) {
   return results
 }
 
-const crashResult = ({ fixture, run }, error) => ({
+const crashResult = ({ fixture, run, maxTurns }, error) => ({
   fixture: fixture.name,
   run,
+  maxTurns,
   report: gradeFixture(fixture, [], null, { params: [], solid: null }),
   turns: 0,
   transcript: [],
@@ -34,9 +35,12 @@ const crashResult = ({ fixture, run }, error) => ({
 
 // Runs every fixture x run job through `runJob` (one worker per conversation in
 // the CLI). onRun gets each result as it finishes plus every finished result so
-// far, ordered by fixture then run.
-export async function runSuiteParallel(fixtures, { runs = 1, concurrency = DEFAULT_CONCURRENCY, runJob, onLog, onRun }) {
-  const jobs = fixtures.flatMap((fixture) => Array.from({ length: runs }, (_, i) => ({ fixture, run: i + 1, runs })))
+// far, ordered by fixture then run. `maxTurns` is the model's turn cap; null
+// leaves each fixture its own.
+export async function runSuiteParallel(fixtures, { runs = 1, concurrency = DEFAULT_CONCURRENCY, maxTurns = null, runJob, onLog, onRun }) {
+  const jobs = fixtures.flatMap((fixture) =>
+    Array.from({ length: runs }, (_, i) => ({ fixture, run: i + 1, runs, maxTurns: maxTurns ?? fixture.maxTurns })),
+  )
   const finished = new Array(jobs.length)
   return runPool(jobs, concurrency, async (job, index) => {
     let result
@@ -51,7 +55,7 @@ export async function runSuiteParallel(fixtures, { runs = 1, concurrency = DEFAU
   })
 }
 
-// `data`: { fixtureName, run, runs, provider: createProvider config, providerModule? }.
+// `data`: { fixtureName, run, runs, maxTurns?, provider: createProvider config, providerModule? }.
 // Resolves with the conversation's result; rejects if the worker dies first.
 export const runInWorker = (data, onLog) =>
   new Promise((resolve, reject) => {

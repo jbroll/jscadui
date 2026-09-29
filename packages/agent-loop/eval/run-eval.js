@@ -15,6 +15,15 @@ import { concurrencyFrom, runInWorker, runSuiteParallel } from './parallel.js'
 import { computeSpeed, formatComparison, formatSummary, summarize } from './report.js'
 
 const FIXTURES = new URL('./fixtures/', import.meta.url)
+const MODELS = JSON.parse(readFileSync(new URL('./models.json', import.meta.url), 'utf8'))
+
+// The model-level turn cap: EVAL_MAX_TURNS, else models.json; null leaves each
+// fixture its own maxTurns.
+export const modelMaxTurns = (env, model, models = MODELS) => {
+  const fromEnv = Number(env.EVAL_MAX_TURNS)
+  if (Number.isInteger(fromEnv) && fromEnv > 0) return fromEnv
+  return models[model]?.maxTurns ?? null
+}
 
 export const promptHash = (prompt) => createHash('sha256').update(prompt).digest('hex')
 
@@ -97,13 +106,13 @@ const withTurnCap = (provider, maxTurns, now = () => performance.now()) => {
 export async function runConversation(
   fixture,
   run,
-  { provider, backend, systemPrompt = SYSTEM_PROMPT, now, onToolCall, onToolResult, onText },
+  { provider, backend, systemPrompt = SYSTEM_PROMPT, now, maxTurns = fixture.maxTurns, onToolCall, onToolResult, onText },
 ) {
   backend.reset()
   const messages = buildMessages({ systemPrompt, transcript: fixture.transcript ?? [], files: fixture.files ?? {}, message: fixture.prompt })
   let transcript = messages
   let error
-  const cappedProvider = withTurnCap(provider, fixture.maxTurns, now)
+  const cappedProvider = withTurnCap(provider, maxTurns, now)
   const startedAt = Date.now()
   try {
     const turn = await runTurn({
@@ -135,6 +144,7 @@ export async function runConversation(
   return {
     fixture: fixture.name,
     run,
+    maxTurns,
     report,
     turns: transcript.length,
     transcript: transcript.filter((m) => m.role !== 'system'),
@@ -201,14 +211,15 @@ export function regradeResults(file, fixturesByName) {
 
 // Rewritten after every run so an interrupted eval keeps every finished run.
 // `wallSeconds` is the elapsed suite time; without it, the runs' seconds are summed.
-export function saveResults(writeFile, filePath, { model, provider, runs, promptSha256, results, wallSeconds }) {
+// `maxTurns` is the model's turn cap, null when each fixture kept its own.
+export function saveResults(writeFile, filePath, { model, provider, runs, maxTurns = null, promptSha256, results, wallSeconds }) {
   const summary = summarize(results)
   const speed = computeSpeed(results)
   if (typeof wallSeconds === 'number') speed.wallSeconds = wallSeconds
   writeFile(
     filePath,
     JSON.stringify(
-      { model, provider, runs, promptSha256, date: new Date().toISOString(), summary, speed, results },
+      { model, provider, runs, maxTurns, promptSha256, date: new Date().toISOString(), summary, speed, results },
       null,
       2,
     ),
@@ -249,10 +260,13 @@ const main = async (argv, env) => {
   const providerConfig = { kind: EVAL_PROVIDER, model: EVAL_MODEL, apiKey, baseUrl }
   createProvider(providerConfig)
   const concurrency = concurrencyFrom(env)
+  const maxTurns = modelMaxTurns(env, EVAL_MODEL)
   const promptSha256 = promptHash(SYSTEM_PROMPT)
   mkdirSync(resultsDir, { recursive: true })
   const filePath = join(resultsDir, resultFileName(EVAL_MODEL, promptSha256))
-  console.log(`run-eval: writing ${filePath}  (${fixtures.length * runs} conversations, ${concurrency} at a time)`)
+  console.log(
+    `run-eval: writing ${filePath}  (${fixtures.length * runs} conversations, ${concurrency} at a time, maxTurns ${maxTurns ?? 'per fixture'})`,
+  )
 
   const verbose = env.EVAL_VERBOSE === '1'
   // Always written to the live log so a second terminal can `tail -F` it;
@@ -262,7 +276,7 @@ const main = async (argv, env) => {
     liveLog.write(prefixBlock(tag, text))
     if (toStdout) console.log(text)
   }
-  logLine(formatLiveHeader({ provider: EVAL_PROVIDER, model: EVAL_MODEL, promptSha256, fixtureNames: fixtures.map((f) => f.name), runs, filePath }), { toStdout: verbose })
+  logLine(formatLiveHeader({ provider: EVAL_PROVIDER, model: EVAL_MODEL, promptSha256, fixtureNames: fixtures.map((f) => f.name), runs, maxTurns, filePath }), { toStdout: verbose })
 
   const onLog = (job, text) => {
     const block = prefixBlock(conversationTag(EVAL_MODEL, job.fixture.name, job.run), text)
@@ -276,6 +290,7 @@ const main = async (argv, env) => {
       model: EVAL_MODEL,
       provider: EVAL_PROVIDER,
       runs,
+      maxTurns,
       promptSha256,
       results,
       wallSeconds: (Date.now() - startedAt) / 1000,
@@ -286,9 +301,9 @@ const main = async (argv, env) => {
     save(finished)
   }
   const runJob = (job, onJobLog) =>
-    runInWorker({ fixtureName: job.fixture.name, run: job.run, runs, provider: providerConfig }, onJobLog)
+    runInWorker({ fixtureName: job.fixture.name, run: job.run, runs, maxTurns: job.maxTurns, provider: providerConfig }, onJobLog)
 
-  const results = await runSuiteParallel(fixtures, { runs, concurrency, runJob, onLog, onRun })
+  const results = await runSuiteParallel(fixtures, { runs, concurrency, maxTurns, runJob, onLog, onRun })
   const { summary, speed } = save(results)
   logLine(formatSummary(summary, { ...speed, model: EVAL_MODEL, provider: EVAL_PROVIDER }), { toStdout: true })
 }
