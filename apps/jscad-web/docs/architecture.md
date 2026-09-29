@@ -791,6 +791,9 @@ URL gets JSON-encoded into a text tool result that no provider adapter turns
 back into an image block, so the model never sees a picture, only hundreds of
 KB of base64 text. The handler stays for other callers.
 
+`export` answers `{ ok, format, size }` (`src/aiExport.js`): the model learns
+the export worked and how big it is, and the bytes stay out of its context.
+
 `params` calls `paramsUI.runParamChange`, which re-runs `jscadMain` against
 whatever the frame last loaded: the agent's `eval` source, the project a
 `writeModel` re-ran, or the editor's run, whichever ran last.

@@ -133,16 +133,13 @@ describe('eval backend', () => {
     expect(res.error.name).toBe('UnavailableError')
   })
 
-  it('exports the current model as base64 STL text in the app result shape', async () => {
+  it('exports the current model as the STL byte size in the app result shape, without the bytes', async () => {
     const backend = createEvalBackend()
     await backend.requestTool('eval', { source: CUBE })
     const res = JSON.parse(await backend.requestTool('export', { format: 'stl' }))
-    expect(res.ok).not.toBe(false)
-    expect(res.format).toBe('stl')
-    const stl = Buffer.from(res.data, 'base64')
-    expect(res.size).toBe(stl.byteLength)
-    expect(stl.toString('utf8')).toMatch(/^solid JSCAD\n/)
-    expect(stl.toString('utf8').match(/^facet normal/gm)).toHaveLength(12)
+    expect(Object.keys(res).sort()).toEqual(['format', 'ok', 'size'])
+    expect(res).toMatchObject({ ok: true, format: 'stl' })
+    expect(res.size).toBeGreaterThan(12 * 'facet normal'.length)
   })
 
   it('answers export with an error result when nothing was evaled', async () => {

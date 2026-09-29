@@ -122,11 +122,11 @@ const runModel = async (files, entry, api) => {
 const noGeometry = () => JSON.stringify({ ok: false, error: { name: 'NoGeometryError', message: 'no geometry: eval a model first' } })
 
 // The app's worker writes STL text whatever format is asked for, and the app
-// answers { format, size, data } with the bytes in base64.
+// answers { ok, format, size } without the bytes.
 const exportModel = (geometry, format) => {
   JscadToCommon.clearCache()
   const data = Buffer.from(exportStlText(JscadToCommon.ConvertMulti(geometry, [], false)).join(''))
-  return { format, size: data.byteLength, data: data.toString('base64') }
+  return { ok: true, format, size: data.byteLength }
 }
 
 export function createEvalBackend({ api = DEFAULT_API } = {}) {

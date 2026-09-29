@@ -34,7 +34,7 @@ new message. The app and the eval both use it.
 `runTurn` caps each tool result it hands the provider at `TOOL_RESULT_CHARS`
 (the same 24,000 characters) and ends a longer one with `… [tool result
 truncated: N of M characters shown]`, in the app and the eval alike, so a few
-oversized results (a big `export`, model code answering its own calls) cannot
+oversized results (model code answering its own calls) cannot
 overflow the provider's context. Past `TOOL_RESULTS_PER_TURN_CHARS` (120,000
 characters) of results in one turn (an eval run is one turn), each further
 result is replaced by `[tool result omitted: this turn's tool results passed
@@ -213,8 +213,9 @@ re-runs the model that requires it. `eval` runs its source as its entry with
 the project's other files beside it. The app's `writeModel` follows the same
 rule over the open project's files.
 
-`export` answers like the app: `{ format, size, data }`, the model as STL text
-in base64 whatever `format` asks for, since the app's worker writes STL only.
+`export` answers like the app: `{ ok, format, size }`, the byte size of the
+model as STL text whatever `format` asks for, since the app's worker writes STL
+only. The bytes never reach the model; the user downloads from the app.
 `view` fails with `UnavailableError`.
 
 `eval` and `writeModel` results carry

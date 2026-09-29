@@ -45,6 +45,7 @@ import { showDemoBrowser, demoBrowserStyles } from './src/demoBrowser.js'
 import { updatePipelineStats, countGeometry, createProgressHandler } from './src/stats.js'
 import { capGeometry, DEFAULT_CAPS } from './src/caps.js'
 import { createSavedDeps } from './src/aiDeps.js'
+import { createExport } from './src/aiExport.js'
 // Leaf imports, not ./src/storage/index.js: the index re-exports schema.js,
 // whose zod 4 types the root TS 4.9 gate cannot parse (see root tsconfig).
 import { createLocalStorage } from './src/storage/local.js'
@@ -821,15 +822,6 @@ if ('serviceWorker' in navigator && !navigator.serviceWorker.controller) {
 // ============== AI Chat ==============
 // The agent loop runs server-side; the browser executes each tool request
 // against the local worker, viewer and editor, then POSTs the result back.
-const toBase64 = (buffers) => {
-  let binary = ''
-  for (const chunk of buffers) {
-    const bytes = new Uint8Array(chunk)
-    for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
-  }
-  return btoa(binary)
-}
-
 // The agent works on the open project's files, the file cache every run
 // sends the frame; see aiDeps.js.
 const loadApiIndex = createIndexLoader()
@@ -858,12 +850,7 @@ const aiDeps = {
   },
   measure: savedDeps.measure,
   check: savedDeps.check,
-  exportModel: async ({ format }) => {
-    const { data = [] } = await workerApi.jscadExportData({ format })
-    const chunks = (data instanceof Array ? data : [data]).filter((v) => v instanceof ArrayBuffer)
-    const size = chunks.reduce((n, v) => n + v.byteLength, 0)
-    return { format, size, data: toBase64(chunks) }
-  },
+  exportModel: createExport((args) => workerApi.jscadExportData(args)),
   view: async (input) => {
     if (input?.camera) viewState.setCamera(input.camera)
     const canvas = document.querySelector('#viewer canvas')
