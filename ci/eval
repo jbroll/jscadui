@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Runs the agent-loop live-model eval suite on the CI host, one model at a time.
+# Runs the agent-loop live-model eval suite on the CI host, one process per
+# model, all running concurrently.
 #
 #   sci push jscadui/eval
 #
