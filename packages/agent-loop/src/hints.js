@@ -130,7 +130,8 @@ const lookupFor = (index) => {
     const name = e.name.slice(dot + 1)
     const owner = e.name.slice(0, dot)
     if (classes.has(owner)) methods.set(name, [...(methods.get(name) ?? []), owner])
-    else if (e.pkg === '@jscad/modeling') functions.set(name, [...(functions.get(name) ?? []), e])
+    // Nested helpers (maths.vec3.scale, extrusions.slice.transform) share the operations' names.
+    else if (e.pkg === '@jscad/modeling' && !owner.includes('.')) functions.set(name, [...(functions.get(name) ?? []), e])
   }
   const lookup = { methods, functions }
   lookups.set(index, lookup)

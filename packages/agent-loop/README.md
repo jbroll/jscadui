@@ -87,8 +87,9 @@ new message. The app and the eval both use it.
 ## API index
 
 `api/index.json` describes the public API of `@jscad/modeling`, from the
-pinned checkout's JSDoc (every namespace but `maths` and `geometries`),
-`@jbroll/jscad-fluent`, from its installed `dist/*.d.ts`, and
+pinned checkout's JSDoc (every namespace, with `maths` and `geometries` last
+so a bare name reaches the operation before the helper; `maths.constants`
+lists its values), `@jbroll/jscad-fluent`, from its installed `dist/*.d.ts`, and
 `@jscadui/jscad-text`, from its JSDoc. It has one entry per namespace, class
 or function: `name` (`primitives.roundedCuboid`, `jf.cube`,
 `FluentGeom2.extrudeLinear`, `jscadText.text2d`), `pkg`, `kind`, `signature`,
@@ -98,7 +99,12 @@ fluent entry whose options are a modeling function's names it in `sameAs`
 instead of copying them, and the fluent array classes name their base class
 in `extends`. A fluent class method takes its description, example and (with
 no modeling counterpart, as `appendArc`) its options from its own JSDoc in
-the `.d.ts`, and falls back to the same-named modeling function's summary. `api/optionTable.js` holds what the option checks need:
+the `.d.ts`, and falls back to the summary of its type's `geometries`
+function (`FluentGeom3.toPolygons` from `geometries.geom3.toPolygons`), then
+the same-named modeling function's. `jf.maths.vec3` and its siblings are
+namespaces with `sameAs: 'maths.vec3'` and no members of their own.
+`api/optionTable.js` holds what the option checks need, leaving out `maths`
+and `geometries`:
 `options` for functions reached from the exports (`primitives.roundedCuboid`,
 `cube` for `jf.cube`) and `methods` for the fluent class methods whose first
 parameter is an options object, keyed by class (`FluentGeom2.extrudeLinear`);
@@ -168,17 +174,32 @@ class answers with its members and one-line summaries, and a class method
 missing from an array class is looked up on the class it extends. A bare name
 with several hits answers the preferred one with the others on an `Also:`
 line (under fluent, the `jf.*` factory, then the `FluentGeom3`, `FluentGeom2`
-and `FluentPath2` method), or lists the candidates. A package name resolves to
+and `FluentPath2` method, then the array classes and nested `jf.maths`-style
+helpers; under modeling, the `namespace.function` operation before a `maths`
+or `geometries` helper), or lists the candidates. A package name resolves to
 that package's top entry, or, for `@jscad/modeling`, a listing of its
 namespaces (`primitives`, `booleans`, `transforms`, …) with one-line
-descriptions.
+descriptions. Under fluent, each function of a namespace `jf.maths` points at
+answers under its fluent name (`maths.vec3.add` answers as
+`jf.maths.vec3.add`). A query of several words looks up its first.
+
+Under fluent, `jf.rotateX` answers "jf.rotateX is a method, not a jf
+function: call shape.rotateX(...)." with the `FluentGeom3.rotateX` entry, and
+a method queried on a class that lacks it (`FluentGeom3.extrudeLinear`) names
+the classes that have it. A query that is the start of names one segment
+longer (`FluentGeom`) lists them.
 
 A query only the other API answers never shows that API's entry. When the
-chosen API has an equivalent (a `sameAs` link, the same function name, or
-`EQUIVALENT` in `src/docs.js` for namespaces and renamed functions), the
-answer is `<name> is not part of the <api> API; the <api> form is <entry>.`
-followed by that entry; otherwise it is `<name> is not available in the <api>
-API.` A miss in both is a failed result,
+chosen API has an equivalent (a `sameAs` link, the same function name, a
+`geometries.<type>` function and the same-named method of that type's class,
+or `EQUIVALENT` in `src/docs.js` for namespaces and renamed functions, such as
+`geometries.geom2.reverse` and `FluentGeom2.invert`), the answer is `<name>
+is not part of the <api> API; the <api> form is <entry>.` followed by that
+entry; otherwise it is `<name> is not available in the <api> API.`, with the
+reason for a name in `MISSING` (`maths.vec1`: modeling has no vec1
+functions). Under fluent, what is left out is compact binary, `poly2` and
+`poly3`, a few `geometries` accessors, and the internal `utils` helpers. A
+miss in both is a failed result,
 `{ ok: false, error: { name: 'NotFoundError', message: 'no entry <query>; closest: a, b, c' } }`,
 with the three nearest names in the chosen API by edit distance. Answers are
 cut at 3,000 characters.

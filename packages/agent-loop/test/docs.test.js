@@ -72,7 +72,7 @@ describe('docs lookup, fluent API', () => {
   })
 
   it('prefers the jf factory, then the FluentGeom3 method, for a bare name', () => {
-    expect(fluent('subtract')).toMatch(/^jf\.subtract \(@jbroll\/jscad-fluent\)[\s\S]*\nAlso: FluentGeom2\.subtract, FluentGeom3\.subtract$/)
+    expect(fluent('subtract')).toMatch(/^jf\.subtract \(@jbroll\/jscad-fluent\)[\s\S]*\nAlso: FluentGeom2\.subtract, FluentGeom3\.subtract, jf\.maths\.vec2\.subtract, /)
     expect(fluent('translate').startsWith('FluentGeom3.translate (@jbroll/jscad-fluent)')).toBe(true)
   })
 
@@ -109,6 +109,67 @@ describe('docs lookup, fluent API', () => {
     const head = answer.startsWith(`${form} `) ? '' : `${query} is not part of the fluent API; the fluent form is ${form}.\n\n`
     expect(answer.startsWith(`${head}${form} (@jbroll/jscad-fluent)\n`)).toBe(true)
     expect(answer).not.toContain('(@jscad/modeling)')
+  })
+
+  it('answers maths through jf.maths, in fluent names', () => {
+    expect(fluent('maths.vec3.add').startsWith('jf.maths.vec3.add (@jbroll/jscad-fluent)\nadd(out, a, b) → vec3\n')).toBe(true)
+    expect(fluent('jf.maths.vec3.add')).toBe(fluent('maths.vec3.add'))
+    const listing = fluent('jf.maths.vec3')
+    expect(listing.startsWith('jf.maths.vec3 (@jbroll/jscad-fluent) namespace')).toBe(true)
+    expect(listing).toContain('\n  cross')
+    expect(listing).not.toContain('@jscad/modeling')
+    expect(fluent('jf.maths.constants')).toContain('  TAU')
+    expect(fluent('maths').startsWith('jf.maths (@jbroll/jscad-fluent) namespace')).toBe(true)
+  })
+
+  it('keeps shape methods ahead of jf.maths helpers of the same name', () => {
+    expect(fluent('scale').startsWith('FluentGeom3.scale (@jbroll/jscad-fluent)')).toBe(true)
+    expect(fluent('rotateX').startsWith('FluentGeom3.rotateX (@jbroll/jscad-fluent)')).toBe(true)
+    expect(modeling('scale').startsWith('transforms.scale (@jscad/modeling)')).toBe(true)
+  })
+
+  it('answers geometries with the fluent method or factory', () => {
+    const cases = {
+      'geometries.path2.appendArc': 'FluentPath2.appendArc',
+      'geometries.path2.close': 'FluentPath2.close',
+      'geometries.geom3.invert': 'FluentGeom3.invert',
+      'geometries.geom2.reverse': 'FluentGeom2.invert',
+      'geometries.geom2.toSides': 'FluentGeom2.toSides',
+      'geometries.geom3.clone': 'FluentGeom3.clone',
+      'geometries.path2.fromPoints': 'jf.path',
+      'geometries.geom2.fromPoints': 'jf.polygon',
+      'geometries.geom3.fromPoints': 'jf.polyhedron',
+      'geometries.geom3.isA': 'jf.isGeom3',
+      'geometries.geom2': 'FluentGeom2',
+    }
+    for (const [query, form] of Object.entries(cases)) {
+      expect(fluent(query), query).toMatch(new RegExp(`^${query.replaceAll('.', '\\.')} is not part of the fluent API; the fluent form is ${form.replaceAll('.', '\\.')}\\.\n\n${form.replaceAll('.', '\\.')} \\(@jbroll/jscad-fluent\\)`))
+    }
+  })
+
+  it('says what fluent still leaves out is not available', () => {
+    expect(fluent('geometries.geom3.toCompactBinary')).toBe('geometries.geom3.toCompactBinary is not available in the fluent API.')
+    expect(fluent('geometries.poly3.create')).toBe('geometries.poly3.create is not available in the fluent API.')
+    expect(fluent('jf.maths.vec1')).toMatch(/^jf\.maths\.vec1 is not available in the fluent API: @jscad\/modeling has no vec1 functions/)
+    expect(fluent('maths.vec1')).toMatch(/^maths\.vec1 is not available in the fluent API/)
+  })
+
+  it('answers jf.<method> with the method and how to call it', () => {
+    const answer = fluent('jf.rotateX')
+    expect(answer.startsWith('jf.rotateX is a method, not a jf function: call shape.rotateX(...).\n\nFluentGeom3.rotateX (@jbroll/jscad-fluent)')).toBe(true)
+  })
+
+  it('names the class that has a method the queried class lacks', () => {
+    const answer = fluent('FluentGeom3.extrudeLinear')
+    expect(answer.startsWith('FluentGeom3 has no extrudeLinear; it is a method of FluentGeom2, FluentGeom2Array.\n\nFluentGeom2.extrudeLinear (@jbroll/jscad-fluent)')).toBe(true)
+  })
+
+  it('lists the names a prefix starts', () => {
+    expect(fluent('FluentGeom')).toMatch(/^FluentGeom matches several entries; query one of: FluentGeom2, FluentGeom3, FluentGeometryArray/)
+  })
+
+  it('looks up the first word of a query with several words', () => {
+    expect(modeling('primitives.cylinderElliptic startRadius').startsWith('primitives.cylinderElliptic (@jscad/modeling)')).toBe(true)
   })
 
   it('answers jf.vectorText, and keeps jscadText.text2d for filled text', () => {
@@ -206,8 +267,23 @@ describe('docs lookup, modeling API', () => {
     expect(modeling('FluentGeom3')).toBe('FluentGeom3 is not available in the modeling API.')
   })
 
+  it('answers maths and geometries', () => {
+    expect(modeling('maths.vec3.add').startsWith('maths.vec3.add (@jscad/modeling)\nadd(out, a, b) → vec3')).toBe(true)
+    expect(modeling('maths.constants')).toContain('  TAU - ')
+    expect(modeling('geometries.geom2').startsWith('geometries.geom2 (@jscad/modeling) namespace')).toBe(true)
+    expect(modeling('@jscad/modeling')).toContain('  maths - ')
+  })
+
+  it('redirects fluent forms that have a maths or geometries counterpart', () => {
+    expect(modeling('jf.maths.vec3.add')).toMatch(/^jf\.maths\.vec3\.add is not part of the modeling API; the modeling form is maths\.vec3\.add\./)
+    expect(modeling('jf.maths.vec3')).toMatch(/the modeling form is maths\.vec3\./)
+    expect(modeling('FluentGeom3.invert')).toMatch(/the modeling form is geometries\.geom3\.invert\./)
+    expect(modeling('FluentPath2.appendArc')).toMatch(/the modeling form is geometries\.path2\.appendArc\./)
+    expect(modeling('jf.path')).toMatch(/the modeling form is geometries\.path2\.fromPoints\./)
+  })
+
   it('lists the candidates when a bare name matches several entries', () => {
-    expect(modeling('create')).toMatch(/^create matches several entries; query one of: extrusions\.slice\.create, curves\.bezier\.create$/)
+    expect(modeling('create')).toMatch(/^create matches several entries; query one of: extrusions\.slice\.create, curves\.bezier\.create, maths\.line2\.create, /)
   })
 
   it('suggests the closest modeling names on a miss', () => {

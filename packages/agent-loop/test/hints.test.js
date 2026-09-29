@@ -116,6 +116,11 @@ describe('explainError', () => {
     expect(modeling('translate is not a function')).toBe('use transforms.translate(offset, shape)')
   })
 
+  it('points only at modeling operations, never maths or geometries helpers of the same name', () => {
+    expect(modeling('shape.scale is not a function')).toBe('@jscad/modeling shapes have no methods; use transforms.scale(factors, shape)')
+    expect(modeling('shape.transform is not a function')).toBe('@jscad/modeling shapes have no methods; use transforms.transform(matrix, shape)')
+  })
+
   it('answers a cone with the taper form', () => {
     expect(modeling('cone is not a function')).toBe(TAPER.modeling)
     expect(fluent('jf.cone is not a function')).toBe(TAPER.fluent)

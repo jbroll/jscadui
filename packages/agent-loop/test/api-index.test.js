@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { buildIndex, formatIndex, formatOptionTable, optionTables } from '../api/build-index.js'
-import { declarationOf, parseParam } from '../api/jsdoc.js'
+import { declarationOf, firstSentence, parseParam } from '../api/jsdoc.js'
 import { OPTION_TABLES } from '../api/optionTable.js'
 
 const entries = buildIndex()
@@ -24,6 +24,10 @@ describe('JSDoc parsing', () => {
     expect(parseParam('{...Object} objects - the objects to translate')).toEqual({
       type: '...Object', name: 'objects', default: null, description: 'the objects to translate',
     })
+  })
+
+  it('does not end a first sentence at e.g. or i.e.', () => {
+    expect(firstSentence('Shapes can be measured, e.g. volume, i.e. size. More text.')).toBe('Shapes can be measured, e.g. volume, i.e. size.')
   })
 
   it('finds the block right above a declaration', () => {
@@ -57,8 +61,17 @@ describe('API index', () => {
     expect(entry('transforms.translate').signature).toBe('translate(offset, ...objects) → Object|Array')
   })
 
-  it('leaves out maths and geometries', () => {
-    expect(entries.some((e) => /^(maths|geometries)(\.|$)/.test(e.name))).toBe(false)
+  it('indexes maths and geometries', () => {
+    expect(entry('maths.vec3.add')).toMatchObject({ kind: 'function', signature: 'add(out, a, b) → vec3' })
+    expect(entry('geometries.path2.appendArc')).toMatchObject({ optionsFirst: true })
+    expect(entry('geometries.geom2').members.map((m) => m.name)).toContain('toSides')
+  })
+
+  it('lists the maths constants as values', () => {
+    expect(entry('maths.constants')).toMatchObject({ kind: 'namespace' })
+    expect(entry('maths.constants').members.map((m) => m.name).sort()).toEqual(['EPS', 'NEPS', 'TAU', 'spatialResolution'])
+    expect(entry('maths.constants.TAU')).toMatchObject({ kind: 'value', signature: 'TAU' })
+    expect(entry('maths.constants.TAU').description).toMatch(/circumference of a circle to its radius/)
   })
 
   it('adds the options JSDoc omits', () => {
@@ -172,6 +185,25 @@ describe('fluent entries', () => {
       expect(entry(name).description, name).not.toMatch(/slice/)
     }
     expect(entry('FluentGeometryArray.measureArea').description).toMatch(/^Each item's area, in order/)
+  })
+
+  it('gives an undocumented method the text of its own geometry type first', () => {
+    expect(entry('FluentGeom3.toPolygons').description).toMatch(/polygons/)
+    expect(entry('FluentGeom3.toPolygons').description).not.toMatch(/slice/)
+    expect(entry('FluentGeom2.toOutlines').description).not.toBe('')
+  })
+
+  it('points jf.maths namespaces at the modeling namespace instead of copying it', () => {
+    expect(entry('jf.maths.vec3')).toEqual({ name: 'jf.maths.vec3', pkg: '@jbroll/jscad-fluent', kind: 'namespace', description: expect.stringMatching(/^3D vector functions/), sameAs: 'maths.vec3' })
+    expect(entry('jf.maths.constants').members.map((m) => m.name)).toEqual(['TAU', 'EPS', 'NEPS', 'spatialResolution'])
+  })
+
+  it('leaves maths and geometries out of the option checks', () => {
+    const modeling = OPTION_TABLES['@jscad/modeling']
+    const internal = (path) => /^(maths|geometries)\./.test(path)
+    expect(Object.keys(modeling.options).filter(internal)).toEqual([])
+    expect(Object.keys(modeling.types).filter(internal)).toEqual([])
+    expect(modeling.angles.filter(internal)).toEqual([])
   })
 
   it('tables fluent factories added for modeling parity', () => {

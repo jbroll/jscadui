@@ -77,8 +77,10 @@ const method = (text) => {
 
 export const fluentEntries = (distDir, modeling) => {
   const modelingFn = new Map()
+  // geometries' JSDoc has slips (appendBezier's `options.segment`); fluent's own
+  // JSDoc documents the methods that wrap it.
   for (const e of modeling) {
-    if (e.kind !== 'function') continue
+    if (e.kind !== 'function' || /^(maths|geometries)\./.test(e.name)) continue
     const bare = e.name.slice(e.name.lastIndexOf('.') + 1)
     if (!modelingFn.has(bare)) modelingFn.set(bare, e)
   }
@@ -100,8 +102,11 @@ export const fluentEntries = (distDir, modeling) => {
     return target ? sameAs(target) : {}
   }
 
-  const fromModeling = (bare) => {
-    const target = modelingFn.get(bare)
+  // A method of FluentGeom3 reads geometries.geom3's text before another
+  // namespace's function of the same name (extrusions.slice.toPolygons).
+  const fromModeling = (bare, cls) => {
+    const type = cls && /^Fluent(Geom2|Geom3|Path2)$/.exec(cls)?.[1].toLowerCase()
+    const target = (type && byName.get(`geometries.${type}.${bare}`)) || modelingFn.get(bare)
     return target ? firstSentence(target.description) : ''
   }
 
@@ -135,6 +140,9 @@ export const fluentEntries = (distDir, modeling) => {
       const fn = declared.get(ref)
       if (fn) return { name: qualified, pkg: FLUENT, kind: 'function', signature: `${name}(${fn.params}) → ${fn.returns}`, description: doc?.description || fromModeling(name) }
       const target = byName.get(ref)
+      if (target?.kind === 'namespace') {
+        return { name: qualified, pkg: FLUENT, kind: 'namespace', description: doc?.description || target.description, sameAs: target.name }
+      }
       if (target) {
         return {
           name: qualified, pkg: FLUENT, kind: target.kind, signature: target.signature.replace(/^\w+/, name),
@@ -188,7 +196,7 @@ export const fluentEntries = (distDir, modeling) => {
         return {
           name: `${cls}.${m.name}`, pkg: FLUENT, kind: 'function',
           signature: `${m.name}(${squash(m.params)}) → ${m.returns}`,
-          description: doc?.description || fromModeling(m.name),
+          description: doc?.description || fromModeling(m.name, cls),
           ...(shared.sameAs ? shared : docOptions(doc) ?? shared),
           ...(doc?.example ? { example: doc.example } : {}),
         }

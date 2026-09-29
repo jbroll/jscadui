@@ -219,9 +219,9 @@ model with `display-check.js --engine jscad`.
   point at `rectangle`, nor `circle` at `ellipse`. A small alias list in
   `src/hints.js` would cover them.
 - jscad-fluent gaps against `@jscad/modeling`, answered "not available" by the
-  fluent `docs`: the internal `utils` helpers (`areAllShapesTheSameType`,
-  `fnNumberSort`, `insertSorted`), and `maths` and `geometries` (in neither
-  index).
+  fluent `docs`: compact binary, `poly2`/`poly3`, the `geometries` functions
+  with no same-named fluent method, and the internal `utils` helpers
+  (`areAllShapesTheSameType`, `fnNumberSort`, `insertSorted`).
 
 ## Refactoring
 

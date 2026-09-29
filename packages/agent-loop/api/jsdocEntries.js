@@ -2,10 +2,11 @@ import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { declarationOf, firstSentence, leadingBlock } from './jsdoc.js'
 
-// maths and geometries are internals the chat model should not build with.
+// maths and geometries come last so a bare name (transform, create) still
+// resolves to the modeling operation first.
 export const MODELING_NAMESPACES = [
   'primitives', 'booleans', 'transforms', 'extrusions', 'expansions', 'hulls', 'minkowski',
-  'modifiers', 'colors', 'measurements', 'curves', 'text', 'utils',
+  'modifiers', 'colors', 'measurements', 'curves', 'text', 'utils', 'maths', 'geometries',
 ]
 
 const MODELING = '@jscad/modeling'
@@ -20,6 +21,21 @@ const moduleFile = (dir, rel) => {
 }
 
 const soleExport = (source) => /^module\.exports\s*=\s*([A-Za-z_$][\w$]*)\s*$/m.exec(source)?.[1]
+
+// maths/constants.js exports an object of values: `module.exports = { EPS, TAU }`.
+const objectExport = (source) => {
+  const body = /^module\.exports\s*=\s*\{([^}]*)\}/m.exec(source)?.[1]
+  return body ? body.split(',').map((name) => name.trim()).filter((name) => /^[A-Za-z_$][\w$]*$/.test(name)) : null
+}
+
+const valuesNamespace = (source, name) => {
+  const entries = objectExport(source).map((member) => {
+    const decl = declarationOf(source, member) ?? { kind: 'value', doc: null }
+    return functionEntry({ name: `${name}.${member}`, pkg: MODELING, kind: decl.kind, doc: decl.doc })
+  })
+  const members = entries.map((e) => ({ name: e.name.slice(name.length + 1), summary: firstSentence(e.description) }))
+  return [{ name, pkg: MODELING, kind: 'namespace', description: '', members }, ...entries]
+}
 
 // Options the function reads from its defaults literal but its JSDoc omits
 // (extrudeLinear's repair), so a correct call never draws a warning.
@@ -75,6 +91,12 @@ const namespaceEntries = (indexFile, name) => {
       continue
     }
     const fileSource = read(file)
+    if (!prop && !soleExport(fileSource) && objectExport(fileSource)) {
+      const nested = valuesNamespace(fileSource, qualified)
+      members.push({ name: member, summary: '' })
+      entries.push(...nested)
+      continue
+    }
     const local = prop ?? soleExport(fileSource) ?? member
     const decl = declarationOf(fileSource, local) ?? { kind: 'function', doc: null }
     const extraDefaults = !prop && soleExport(fileSource) ? defaultsOf(fileSource) : []

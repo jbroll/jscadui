@@ -74,6 +74,10 @@ const optionTypes = (e, byName) => {
 
 const ANGLE_FIRST = /^\w+\(angles?\b/
 
+// Data helpers, not modeling operations: wrapping them would only widen the
+// sibling hints (arc → appendArc) and the frame bundle.
+const UNCHECKED = /^(maths|geometries)\./
+
 export const optionTables = (entries) => {
   const byName = new Map(entries.map((e) => [e.name, e]))
   const classes = new Set(entries.filter((e) => e.kind === 'class').map((e) => e.name))
@@ -86,7 +90,7 @@ export const optionTables = (entries) => {
     const angles = []
     const methodAngles = {}
     for (const e of entries) {
-      if (e.pkg !== pkg || e.kind !== 'function') continue
+      if (e.pkg !== pkg || e.kind !== 'function' || UNCHECKED.test(e.name)) continue
       const dot = e.name.indexOf('.')
       const owner = e.name.slice(0, dot)
       const isMethod = classes.has(owner)

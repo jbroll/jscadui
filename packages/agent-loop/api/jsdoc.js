@@ -71,7 +71,7 @@ export const leadingBlock = (source) => {
 }
 
 export const firstSentence = (text) => {
-  const end = text.search(/\.(\s|$)/)
+  const end = text.search(/(?<!\b(?:e\.g|i\.e))\.(\s|$)/)
   const sentence = end === -1 ? text : text.slice(0, end + 1)
   return sentence.length > 120 ? `${sentence.slice(0, 117)}...` : sentence
 }
