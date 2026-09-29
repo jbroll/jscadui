@@ -186,7 +186,7 @@ export const createGridRuns = ({ state, pool, slotOps, post, answerError }) => {
     const message = merged(run)
     post(message)
     if (run.method === 'jscadMain' && run.options) state.lastMain = run.options
-    else if (!message.error) {
+    else if (!message.error && !message.params?.scratch) {
       state.lastScript = run.options
       state.lastMain = undefined
     } else if (state.sentScript === run.options) state.sentScript = state.lastScript
@@ -198,7 +198,7 @@ export const createGridRuns = ({ state, pool, slotOps, post, answerError }) => {
     if (!member) return
     run.members.delete(slot)
     run.answers.push({ data, primary: slot === run.primary, order: member.order })
-    if (!data.error && run.method === 'jscadScript') slot.script = run.options
+    if (!data.error && !data.params?.scratch && run.method === 'jscadScript') slot.script = run.options
     // A trapped worker stops walking the grid, so its unclaimed leaves need a
     // replacement even after its trapped leaf streamed; each trap uses up a leaf.
     const retiring = trapped(data) ? 'the model trapped in WebAssembly'

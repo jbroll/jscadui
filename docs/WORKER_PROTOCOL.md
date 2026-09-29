@@ -56,9 +56,17 @@ interface JscadScratchResult {
 A script that exports no `main` fails with `no main function exported`,
 which the editor shows as an error. With `allowScratch: true` (the chat's
 `eval` sets it) the same script is a scratch run instead: `jscadScript`
-answers a `JscadScratchResult` and restores the loaded model, its solids and
-its parameter state, so the chat can run console-only code without losing
+answers a `JscadScratchResult` and puts the loaded model back as it was: its
+module and `main`, its solids, and its parameter and UI state, so a later
+`jscadMain` runs the model. The chat can run console-only code without losing
 what is drawn.
+
+The frame and the app's replay treat a scratch answer as no load. The frame
+keeps the loaded script as the one a promoted or restarted worker reloads,
+and sends every worker the file map the loaded model was answered with
+again, unless the app has sent a newer map since the scratch run's.
+`createReplay` in `apps/jscad-web/src/frameSetup.js` likewise keeps the model's
+script, last `jscadMain` and file map for a frame reload.
 
 With `runMain: false`, `jscadScript` loads the module and waits for WASM to be
 ready, same as a normal load, but resolves `{ def: [], params: {} }` without

@@ -480,6 +480,8 @@ export const jscadScript = async ({ script, url='jscad.js', base=workerState.glo
     // A scratch run (no main) restores all of this instead of running with the
     // current model's param and solid state wiped out from under it.
     const previousModelState = {
+      main: workerState.main,
+      scriptModule: workerState.scriptModule,
       userInteracted: workerState.userInteracted,
       currentUiValues: workerState.currentUiValues,
       legacyProxyDefs: workerState.legacyProxyDefs,

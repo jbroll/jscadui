@@ -136,15 +136,20 @@ export const createFrameHost = ({
     if (slot === state.active && trapped(data)) pool.retire(slot, 'the model trapped in WebAssembly')
   }
 
-  const answered = (slot, { method, options, onAnswer }, data) => {
+  const answered = (slot, { method, options, onAnswer, files: sentFiles }, data) => {
     // The export replay runs what the user last set, even when that run
     // failed: replaying older successful params would export stale state.
     if (method === 'jscadMain' && options) state.lastMain = options
     if (method !== 'jscadScript') return
-    if (!data.error) {
+    if (data.params?.scratch) {
+      // The worker kept the loaded model, so every worker keeps its file map too.
+      if (state.sentScript === options) state.sentScript = state.lastScript
+      if (sentFiles === mirroredFiles()) restoreFiles()
+    } else if (!data.error) {
       state.lastScript = options
       state.lastMain = undefined
       slot.script = options
+      modelFiles = mirroredFiles()
     } else if (state.sentScript === options) state.sentScript = state.lastScript
     if (!onAnswer) flushHeld(slot)
     pool.ensureSpare()
@@ -226,6 +231,19 @@ export const createFrameHost = ({
 
   const setupOf = new WeakMap()
 
+  const mirroredFiles = () => state.mirrored.find((m) => m.method === 'jscadSetFiles')
+  // The file map the loaded model was answered with.
+  let modelFiles
+
+  const restoreFiles = () => {
+    if (!modelFiles) return
+    const restored = structuredClone(modelFiles)
+    state.mirrored = state.mirrored.map((m) => (m.method === 'jscadSetFiles' ? restored : m))
+    modelFiles = restored
+    pool.mirror(restored)
+    pool.relay(state.active, structuredClone(restored), null)
+  }
+
   // A file map replaces the one before it, and the cache clears before it
   // cleared state that map already replaced.
   const mirror = (message) => {
@@ -247,6 +265,7 @@ export const createFrameHost = ({
       // A run held behind a reload opens late, after a later load may have been sent;
       // workers that join it must load the script sent before it.
       script: message.method === 'jscadMain' ? state.sentScript : undefined,
+      files: message.method === 'jscadScript' ? mirroredFiles() : undefined,
     }
     : null
 

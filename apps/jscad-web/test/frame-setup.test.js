@@ -206,6 +206,27 @@ describe('worker restart', () => {
     expect(methods(frame.sent)).toEqual(['jscadInit'])
   })
 
+  it("replays the loaded model, not a chat scratch run, with the model's files", async () => {
+    const frame = await boot()
+    await loadModel(frame)
+    const files = frame.workerApi.jscadSetFiles({ files: { 'a.js': 'scratch' } })
+    const scratch = frame.workerApi.jscadScript({ script: 'scratch', url: 'http://project.local/a.js', allowScratch: true })
+    await settleAll(frame, (m) => (m.method === 'jscadScript' ? { scratch: true, console: [] } : {}))
+    await Promise.all([files, scratch])
+    frame.sent.length = 0
+
+    terminate(frame)
+    const next = frame.workerApi.jscadMain({ params: { size: 4 } })
+    await settleAll(frame)
+    await next
+    expect(methods(frame.sent)).toEqual([
+      'jscadInit', 'jscadInit', 'jscadSetFiles', 'jscadScript', 'jscadMain', 'jscadMain',
+    ])
+    expect(frame.sent[2].params[0]).toEqual({ files: { 'a.js': 'x' } })
+    expect(frame.sent[3].params[0]).toEqual({ script: 'main', url: 'http://project.local/a.js' })
+    expect(frame.sent[4].params[0]).toEqual({ params: { size: 3 } })
+  })
+
   it('sends requests straight through when nothing needs replaying', async () => {
     const frame = await boot()
     frame.workerApi.jscadMain({ params: {} }).catch(() => {})

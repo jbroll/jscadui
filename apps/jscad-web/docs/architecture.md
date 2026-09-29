@@ -777,9 +777,12 @@ those files, or a switch to another project reads `false`.
 
 An `eval` of a script with no `main` is a scratch run: `createEvaluate` sets
 `allowScratch` on its `jscadScript`, and the frame answers the run's console
-and leaves the drawn model alone (`docs/WORKER_PROTOCOL.md`). The editor's
-own runs do not set it, so a user's script with no `main` shows `no main
-function exported`.
+and leaves the loaded model as it was: the worker keeps its module, `main`,
+solids and parameter state, and the frame and the app's replay keep the
+model's script and file map for a restarted or promoted worker
+(`docs/WORKER_PROTOCOL.md`). A param change or the chat's `params` after it
+runs the model. The editor's own runs do not set `allowScratch`, so a user's
+script with no `main` shows `no main function exported`.
 
 `view` (page, from the live canvas) is not offered to the model: its PNG data
 URL gets JSON-encoded into a text tool result that no provider adapter turns

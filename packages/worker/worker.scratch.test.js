@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 // worker.js registers self.addEventListener at import time.
 globalThis.self = { addEventListener() {}, postMessage: () => {} }
 
-const { jscadScript, currentSolids, setRunConsole } = await import('./worker.js')
+const { jscadMain, jscadScript, currentSolids, setRunConsole } = await import('./worker.js')
 const { workerState } = await import('./src/state/workerState.js')
 
 const consoleCollector = () => {
@@ -64,6 +64,31 @@ describe('a script with no main, run for the chat (allowScratch)', () => {
 
     expect(result.scratch).toBeUndefined()
     expect(currentSolids()).toEqual([])
+  })
+})
+
+describe('the loaded model after a scratch run', () => {
+  const MODEL = 'module.exports = { main: (params) => [{ id: `size-${params?.size ?? 1}` }] }'
+
+  afterEach(() => {
+    workerState.main = undefined
+    workerState.scriptModule = {}
+    workerState.solids = []
+  })
+
+  it('keeps its main and module', async () => {
+    await jscadScript({ script: MODEL, url: 'http://project.local/model.js' })
+    const { main, scriptModule } = workerState
+    await jscadScript({ script: 'module.exports = {}', url: 'http://project.local/model.js', allowScratch: true })
+    expect(workerState.main).toBe(main)
+    expect(workerState.scriptModule).toBe(scriptModule)
+  })
+
+  it('still runs a param change, the path the chat params tool takes too', async () => {
+    await jscadScript({ script: MODEL, url: 'http://project.local/model.js' })
+    await jscadScript({ script: 'module.exports = {}', url: 'http://project.local/scratch5.js', allowScratch: true })
+    await jscadMain({ params: { size: 3 }, stream: false })
+    expect(currentSolids()).toEqual([{ id: 'size-3' }])
   })
 })
 

@@ -25,6 +25,8 @@ const createReplay = (proxy) => {
   let lastInit = null
   const aliasInits = new Map()
   let files = null
+  // The file map the loaded model came with, for when a chat scratch run sent another.
+  let modelFiles = null
   let script = null
   let main = null
   let restoring = null
@@ -40,7 +42,17 @@ const createReplay = (proxy) => {
       lastInit = args
     },
     jscadSetFiles: (args) => { files = args },
-    jscadScript: (args) => { script = args; main = null; lost = false },
+    jscadScript: (args, result) => {
+      // A scratch run left the loaded model in place, so the replay keeps it.
+      if (result?.scratch) {
+        files = modelFiles
+        return
+      }
+      script = args
+      modelFiles = files
+      main = null
+      lost = false
+    },
     jscadMain: (args) => { main = args },
   }
 
@@ -54,7 +66,7 @@ const createReplay = (proxy) => {
     if (!onSuccess) return
     if (method === 'jscadScript') everLoaded = true
     if (method === 'jscadInit' && args[0]?.engine) attemptedEngineInit = args
-    result.then(() => onSuccess(args), () => {
+    result.then((value) => onSuccess(args, value), () => {
       if (method === 'jscadScript') script = main = null
     })
   }
