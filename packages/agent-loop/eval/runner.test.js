@@ -253,6 +253,63 @@ describe('runSuite grades the saved model', () => {
   })
 })
 
+const MAIN_WITH_HELPER = 'const jf = require("@jbroll/jscad-fluent")\nconst { size } = require("./helper.js")\nmodule.exports = { main: () => [jf.cube({ size })] }'
+const twoFile = {
+  name: 'two-file',
+  prompt: 'make a cube',
+  requires: ['eval', 'writeModel'],
+  verifyBeforeWrite: false,
+  maxTurns: 8,
+  checks: (m, { source } = {}) => [
+    { name: 'volume', pass: (m?.volume ?? 0) > 7000 },
+    { name: 'source', pass: source.includes('size: 20') && source.includes('./helper.js') },
+  ],
+}
+
+describe('runSuite grades the whole project', () => {
+  it('evaluates main.js with every written file when the last write is the helper', async () => {
+    const provider = scripted([
+      toolRound('t1', 'writeModel', { source: MAIN_WITH_HELPER }),
+      toolRound('t2', 'writeModel', { source: 'module.exports = { size: 20 }', entry: 'helper.js' }),
+      endRound,
+    ])
+    const [result] = await runSuite([twoFile], { provider, backend: createEvalBackend() })
+    const helperWrite = JSON.parse(result.transcript.findLast((m) => m.role === 'tool').content)
+    expect(helperWrite.ok).toBe(true)
+    expect(result.report.checkRate).toBe(1)
+  })
+})
+
+describe('runSuite error sources', () => {
+  const fixture = { name: 'x', prompt: 'p', requires: ['eval'], verifyBeforeWrite: false, maxTurns: 8, checks: () => [] }
+
+  it('marks an error thrown by the provider as a provider error', async () => {
+    const provider = {
+      send: () => ({ [Symbol.asyncIterator]: () => ({ next: async () => { throw new Error('status 429 rate limited') } }) }),
+    }
+    const [result] = await runSuite([fixture], { provider, backend: createEvalBackend() })
+    expect(result.error).toBe('status 429 rate limited')
+    expect(result.providerError).toBe(true)
+  })
+
+  it('marks a tool timeout from a hanging model as the model\'s failure, not the provider\'s', async () => {
+    const hang = 'module.exports = { main: () => new Promise(() => {}) }'
+    const provider = scripted([toolRound('t1', 'eval', { source: hang }), endRound])
+    const [result] = await runSuite([{ ...fixture, requires: ['eval', 'writeModel'] }], { provider, backend: createEvalBackend(), toolTimeoutMs: 50 })
+    expect(result.error).toMatch(/timed out/)
+    expect(result).not.toHaveProperty('providerError')
+  })
+
+  it('stops grading a saved model that never finishes', async () => {
+    const hang = 'module.exports = { main: () => new Promise(() => {}) }'
+    const provider = scripted([toolRound('t1', 'writeModel', { source: hang }), endRound])
+    const [result] = await runSuite([{ ...fixture, requires: ['eval', 'writeModel'] }], {
+      provider, backend: createEvalBackend(), toolTimeoutMs: 50, gradeTimeoutMs: 50,
+    })
+    expect(result.report.checkRate).toBe(0)
+  })
+})
+
 describe('runSuite empty provider replies', () => {
   it('records a round with no reply and no usage as a run error', async () => {
     const provider = {
@@ -263,6 +320,7 @@ describe('runSuite empty provider replies', () => {
     const fixture = { name: 'x', prompt: 'p', requires: ['eval'], verifyBeforeWrite: false, maxTurns: 8, checks: () => [] }
     const [result] = await runSuite([fixture], { provider, backend: createEvalBackend() })
     expect(result.error).toBe('empty provider reply')
+    expect(result.providerError).toBe(true)
   })
 
   it('does not count a round that only reported usage as empty', async () => {

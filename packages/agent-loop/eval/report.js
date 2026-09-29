@@ -64,17 +64,17 @@ export function summarize(results) {
     if (!byFixture.has(r.fixture)) byFixture.set(r.fixture, [])
     byFixture.get(r.fixture).push(r)
   }
-  // A run with an error (provider failure, empty reply, worker crash) has no
-  // answer to score, so it counts under `errors` and stays out of the means.
+  // A run the provider failed (an HTTP error, an empty reply) has no answer to
+  // score, so it stays out of the means; an error the model caused scores.
   return [...byFixture].map(([fixture, runs]) => {
-    const scored = runs.filter((r) => !r.error)
+    const scored = runs.filter((r) => !r.providerError)
     return {
       fixture,
       runs: runs.length,
       firstAttemptFailures: meanOf(scored, (r) => r.report.firstAttemptFailures),
       checkPassRate: meanOf(scored, (r) => r.report.checkRate),
       total: meanOf(scored, (r) => r.report.total),
-      errors: runs.length - scored.length,
+      errors: runs.filter((r) => r.error).length,
       rounds: meanOf(runs, (r) => r.metrics?.rounds),
       failedCalls: meanOf(runs, (r) => r.metrics?.failedCalls),
       inputTokens: meanOf(runs, (r) => r.metrics?.inputTokens),

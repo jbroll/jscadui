@@ -1,17 +1,23 @@
 import { describe, expect, it } from 'vitest'
 import { computeSpeed, formatComparison, formatSummary, summarize } from './report.js'
 
-const run = (fixture, firstAttemptFailures, checkRate, total, error, metrics) => ({
+const run = (fixture, firstAttemptFailures, checkRate, total, error, metrics, providerError = !!error) => ({
   fixture,
   run: 1,
   report: { firstAttemptFailures, checkRate, total, dimensions: {} },
   turns: 3,
   ...(metrics ? { metrics } : {}),
   ...(error ? { error } : {}),
+  ...(providerError ? { providerError } : {}),
 })
 
 describe('eval report', () => {
-  it('summarizes runs per fixture as means, leaving errored runs out of the score', () => {
+  it('scores a run the model itself broke, such as a tool timeout, like any other run', () => {
+    const [s] = summarize([run('a', 0, 1, 8), run('a', 3, 0, 2, 'tool eval (t1) timed out after 120000ms', undefined, false)])
+    expect(s).toEqual(expect.objectContaining({ runs: 2, errors: 1, total: 5, checkPassRate: 0.5, firstAttemptFailures: 1.5 }))
+  })
+
+  it('summarizes runs per fixture as means, leaving provider failures out of the score', () => {
     const summary = summarize([run('a', 2, 0.5, 4), run('a', 0, 1, 8, 'status 500'), run('b', 1, 1, 7)])
     expect(summary).toEqual([
       {

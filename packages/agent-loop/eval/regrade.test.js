@@ -39,7 +39,7 @@ describe('regradeResults', () => {
         },
       ],
     }
-    const out = await regradeResults(file, new Map([['cube-hole', fixture]]), { backend })
+    const out = await regradeResults(file, new Map([['cube-hole', fixture]]), { grader: backend })
     expect(out.results[0].report.dimensions).toEqual({ discipline: 1, recovery: 2, geometry: 2, conservation: 2 })
     expect(out.results[0].report.total).toBe(7)
     expect(out.results[0].report.checkRate).toBe(1)
@@ -63,7 +63,7 @@ describe('regradeResults', () => {
         },
       ],
     }
-    const out = await regradeResults(file, new Map([['cube-hole', fixture]]), { backend })
+    const out = await regradeResults(file, new Map([['cube-hole', fixture]]), { grader: backend })
     expect(out.results[0].metrics).toEqual({ toolCalls: 2, failedCalls: 1, warnings: 0, docsCalls: 0, geometryError: null })
   })
 
@@ -81,7 +81,7 @@ describe('regradeResults', () => {
         },
       ],
     }
-    const out = await regradeResults(file, new Map([['cube-hole', fixture]]), { backend })
+    const out = await regradeResults(file, new Map([['cube-hole', fixture]]), { grader: backend })
     expect(out.results[0].metrics).toEqual({
       rounds: 5, toolCalls: 1, failedCalls: 0, warnings: 0, docsCalls: 0, inputTokens: 100, outputTokens: 20, seconds: 3.5, geometryError: null,
     })
@@ -101,7 +101,7 @@ describe('regradeResults', () => {
         },
       ],
     }
-    const out = await regradeResults(file, new Map([['cube-hole', fixture]]), { backend })
+    const out = await regradeResults(file, new Map([['cube-hole', fixture]]), { grader: backend })
     expect(out.results[0].metrics).toEqual(
       expect.objectContaining({ seconds: 4, providerSeconds: 3, firstTokenSeconds: 0.4, outputTokensPerSecond: 50 }),
     )
@@ -120,7 +120,7 @@ describe('regradeResults', () => {
         metrics: { seconds: 4, providerSeconds: 3 },
       })),
     }
-    const out = await regradeResults(file, new Map([['cube-hole', fixture]]), { backend })
+    const out = await regradeResults(file, new Map([['cube-hole', fixture]]), { grader: backend })
     expect(out.speed.wallSeconds).toBe(5)
     expect(out.speed.providerSeconds).toBe(6)
   })
@@ -136,7 +136,7 @@ describe('regradeResults', () => {
         },
       ],
     }
-    const out = await regradeResults(file, new Map(), { backend })
+    const out = await regradeResults(file, new Map(), { grader: backend })
     expect(out.results[0].report.total).toBe(1)
     expect(out.results[0].report.dimensions.recovery).toBe(1)
     expect(out.results[0].regradeNote).toBe('fixture no longer exists; kept stored grading')
@@ -164,7 +164,7 @@ const fileOf = (transcript, extra = {}) => ({
   model: 'm',
   results: [{ fixture: 'saving', run: 1, transcript, report: stored, metrics: { rounds: 4, seconds: 9, geometryError: 0.9 }, ...extra }],
 })
-const regrade = (file) => regradeResults(file, new Map([['saving', saving]]), { backend })
+const regrade = (file) => regradeResults(file, new Map([['saving', saving]]), { grader: backend })
 const prompt = { role: 'user', content: 'make a cube' }
 const done = { role: 'assistant', content: 'done', toolCalls: [] }
 
@@ -199,16 +199,36 @@ describe('regradeResults on the saved model', () => {
     expect(report.saved).toBe(false)
   })
 
+  it('regrades a two-file project through main.js when the last write is the helper', async () => {
+    const main = 'const jf = require("@jbroll/jscad-fluent")\nconst { size } = require("./helper.js")\nmodule.exports = { main: () => [jf.cube({ size })] }'
+    const out = await regrade(fileOf([
+      prompt,
+      toolMsg('t1', 'writeModel', { source: main }), resultMsg('t1', JSON.stringify({ ok: false })),
+      toolMsg('t2', 'writeModel', { source: 'module.exports = { size: 20 }', entry: 'helper.js' }), resultMsg('t2', JSON.stringify({ ok: true })),
+      done,
+    ]))
+    const { report } = out.results[0]
+    expect(report.checkRate).toBe(0.75)
+    expect(out.results[0].metrics.geometryError).toBeCloseTo(0)
+  })
+
+  it('marks a stored empty-reply error as a provider error', async () => {
+    const out = await regrade(fileOf([prompt], { error: 'empty provider reply' }))
+    expect(out.results[0].providerError).toBe(true)
+  })
+
   it('marks a run whose provider never replied as an errored run', async () => {
     const out = await regrade(fileOf([prompt]))
+    expect(out.results[0].providerError).toBe(true)
     expect(out.results[0].error).toBe('empty provider reply')
     expect(out.summary[0].errors).toBe(1)
     expect(out.summary[0].total).toBeNull()
   })
 
-  it('keeps an error the run already recorded', async () => {
+  it('keeps an error the run already recorded, without guessing its source', async () => {
     const out = await regrade(fileOf([prompt], { error: 'status 500' }))
     expect(out.results[0].error).toBe('status 500')
+    expect(out.results[0]).not.toHaveProperty('providerError')
   })
 
   it('keeps the transcript, turns and other run data', async () => {

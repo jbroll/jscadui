@@ -10,24 +10,39 @@ import { OPTION_TABLES } from '../api/optionTable.js'
 import { installConsoleCapture } from '../src/consoleCapture.js'
 import { docsTool } from '../src/docs.js'
 import { createWarningCollector, withOptionChecks, wrapFluentMethods } from '../src/optionChecks.js'
+import { PROJECT_ENTRY, projectEntry } from './grade.js'
 
 const API_INDEX = JSON.parse(readFileSync(new URL('../api/index.json', import.meta.url), 'utf8'))
 
 export const PROJECT_BASE = 'http://project.local/'
 export const CDN_BASE = 'https://cdn.jsdelivr.net/npm/'
-const NODE_REQUIRE = Symbol.for('jscadui.eval.nodeRequire')
-globalThis[NODE_REQUIRE] = createRequire(import.meta.url)
+export const GRADE_TIMEOUT_MS = 120_000
+const nodeRequire = createRequire(import.meta.url)
+
+const installed = (spec) => {
+  try {
+    nodeRequire.resolve(spec)
+    return true
+  } catch {
+    return false
+  }
+}
+
+// What the frame could fetch from the CDN: an installed package, never a Node built-in.
+const servable = (spec) => !isBuiltin(spec) && installed(spec)
 
 // Node's module object for @jscad/modeling is the one fluent's and
 // model-tools' own requires get, so model code gets a wrapped copy instead.
 // Fluent's classes are not exported; their methods are wrapped on the shared
-// prototypes, once.
+// prototypes, once. The CDN stub reaches this through a global, so model code
+// can call it too, and it serves nothing a CDN require would not.
 const USER_MODULE = Symbol.for('jscadui.eval.userModule')
 const FLUENT = '@jbroll/jscad-fluent'
 const warnings = createWarningCollector()
 const wrapped = new WeakMap()
 globalThis[USER_MODULE] = (spec) => {
-  const real = globalThis[NODE_REQUIRE](spec)
+  if (!servable(spec)) throw new Error(`failed to load module ${spec}`)
+  const real = nodeRequire(spec)
   const table = OPTION_TABLES[spec]
   if (!table) return real
   if (!wrapped.has(real)) {
@@ -47,15 +62,6 @@ export const shouldTransform = (url, script) =>
 
 const packageSpec = (url) => url.slice(CDN_BASE.length).replace(/^((?:@[^/]+\/)?[^/@]+)@[^/]+/, '$1')
 
-const installed = (spec) => {
-  try {
-    globalThis[NODE_REQUIRE].resolve(spec)
-    return true
-  } catch {
-    return false
-  }
-}
-
 // The frame fetches CDN packages; here they come from node_modules, and a
 // missing one throws the text the frame's fetch gives a 404. Node resolves its
 // built-ins too, which the browser has none of.
@@ -65,7 +71,7 @@ export const createReadFile = (files) => (path) => {
     if (Object.hasOwn(files, projectPath)) return files[projectPath]
   } else if (path.startsWith(CDN_BASE)) {
     const spec = packageSpec(path)
-    if (!isBuiltin(spec) && installed(spec)) {
+    if (servable(spec)) {
       return `module.exports = globalThis[Symbol.for('jscadui.eval.userModule')](${JSON.stringify(spec)})`
     }
   }
@@ -77,15 +83,17 @@ const errorResult = (error) => ({
   error: { name: error?.name ?? 'Error', message: error?.message ?? String(error) },
 })
 
-const runModel = async (source, entry) => {
+const runModel = async (files, entry) => {
   warnings.reset()
   clearAllCaches()
   moduleResolver.clearCache()
   const url = PROJECT_BASE + entry
+  const source = files[entry]
+  if (typeof source !== 'string') throw new Error(`file not found ${url}`)
   const transform = shouldTransform(url, source) ? transformcjs : undefined
   const capture = installConsoleCapture()
   try {
-    const exports = jscadRequire({ url, script: source }, transform, createReadFile({ [entry]: source }), PROJECT_BASE, PROJECT_BASE)
+    const exports = jscadRequire({ url, script: source }, transform, createReadFile(files), PROJECT_BASE, PROJECT_BASE)
     const main = exports.main ?? (typeof exports === 'function' ? exports : undefined)
     if (typeof main !== 'function') throw new Error('model exports no main()')
     const state = createProxyState({}, new Set(), { mode: 'hierarchical' })
@@ -112,9 +120,16 @@ export function createEvalBackend() {
   let lastWarnings = []
   let lastConsole = []
   const project = new Map()
+  // A model run that outlives a reset (gradeProject gave up on it) must not
+  // overwrite the state of the run after it.
+  let generation = 0
 
-  const load = async (source, entry) => {
-    const loaded = await runModel(source, entry)
+  const projectFiles = () => Object.fromEntries([...project].map(([path, file]) => [path, file.source]))
+
+  const load = async (files, entry) => {
+    const started = generation
+    const loaded = await runModel(files, entry)
+    if (started !== generation) return
     geometry = loaded.geometry
     params = loaded.params
     lastWarnings = loaded.warnings
@@ -132,7 +147,8 @@ export function createEvalBackend() {
     try {
       const args = input ?? {}
       if (name === 'eval') {
-        await load(args.source, args.entry ?? 'main.js')
+        const entry = args.entry ?? PROJECT_ENTRY
+        await load({ ...projectFiles(), [entry]: args.source }, entry)
         return JSON.stringify(withWarnings({ ok: true, params, entities: geometry.length }))
       }
       if (name === 'measure') return geometry ? JSON.stringify({ ok: true, ...measure(geometry, args) }) : noGeometry()
@@ -140,9 +156,10 @@ export function createEvalBackend() {
       if (name === 'params') return JSON.stringify({ ok: true, params })
       if (name === 'docs') return docsTool(API_INDEX, args.query)
       if (name === 'writeModel') {
-        const entry = args.entry ?? 'main.js'
+        const entry = args.entry ?? PROJECT_ENTRY
         project.set(entry, { source: args.source, message: args.message ?? '' })
-        await load(args.source, entry)
+        const files = projectFiles()
+        await load(files, projectEntry(files, entry))
         return JSON.stringify(withWarnings({ ok: true, entry }))
       }
       if (name === 'export') return geometry ? JSON.stringify(exportModel(geometry, args.format)) : noGeometry()
@@ -155,13 +172,36 @@ export function createEvalBackend() {
     }
   }
 
-  const reset = () => {
+  // `files` seeds the project, as a fixture's files seed the app's.
+  const reset = (files = {}) => {
+    generation += 1
     geometry = null
     params = []
     lastWarnings = []
     lastConsole = []
     project.clear()
+    for (const [path, source] of Object.entries(files)) project.set(path, { source, message: '' })
   }
 
-  return { requestTool, reset, project, params: () => params }
+  // Measures `{ files, entry }` (grade.js gradedModel) in a fresh state.
+  const gradeProject = async (model, { timeoutMs = GRADE_TIMEOUT_MS } = {}) => {
+    const none = { measure: null, solid: null, params: [] }
+    reset(model?.files)
+    if (!model) return none
+    let timer
+    const timedOut = new Promise((resolve) => {
+      timer = setTimeout(resolve, timeoutMs, none)
+    })
+    const evaluated = await Promise.race([requestTool('eval', { source: model.files[model.entry], entry: model.entry }), timedOut])
+    clearTimeout(timer)
+    if (evaluated === none) {
+      reset()
+      return none
+    }
+    const measured = JSON.parse(await requestTool('measure', {}))
+    const checked = JSON.parse(await requestTool('check', {}))
+    return { measure: measured.ok ? measured : null, solid: checked.ok ? checked : null, params }
+  }
+
+  return { requestTool, reset, gradeProject, project, params: () => params }
 }

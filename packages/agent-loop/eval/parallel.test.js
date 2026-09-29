@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { concurrencyFrom, runInWorker, runPool, runSuiteParallel } from './parallel.js'
+import { concurrencyFrom, runPool, runSuiteParallel } from './parallel.js'
+import { createSandboxedGrader, runInChild } from './sandbox.js'
 
 const FAKE_PROVIDER = new URL('./fake-provider.js', import.meta.url).href
 
@@ -134,10 +135,10 @@ describe('runSuiteParallel', () => {
   })
 })
 
-describe('runInWorker', () => {
-  it('runs one conversation in a worker thread and streams its log lines', async () => {
+describe('runInChild', () => {
+  it('runs one conversation in a sandboxed child process and streams its log lines', async () => {
     const lines = []
-    const result = await runInWorker(
+    const result = await runInChild(
       { fixtureName: 'cube-hole', run: 2, runs: 3, provider: { kind: 'fake', model: 'ok' }, providerModule: FAKE_PROVIDER },
       (text) => lines.push(text),
     )
@@ -154,7 +155,7 @@ describe('runInWorker', () => {
   }, 30_000)
 
   it('caps the conversation at the maxTurns it is given', async () => {
-    const result = await runInWorker(
+    const result = await runInChild(
       { fixtureName: 'cube-hole', run: 1, runs: 1, maxTurns: 1, provider: { kind: 'fake', model: 'ok' }, providerModule: FAKE_PROVIDER },
       () => {},
     )
@@ -163,16 +164,49 @@ describe('runInWorker', () => {
   }, 30_000)
 
   it('keeps a provider error on the result', async () => {
-    const result = await runInWorker(
+    const result = await runInChild(
       { fixtureName: 'cube-hole', run: 1, runs: 1, provider: { kind: 'fake', model: 'fail' }, providerModule: FAKE_PROVIDER },
       () => {},
     )
     expect(result.error).toBe('status 500')
+    expect(result.providerError).toBe(true)
   }, 30_000)
 
-  it('rejects when the worker exits before sending a result', async () => {
+  it('runs model code under the permission model, with no way to the home dir, keys, writes, processes or imports', async () => {
+    process.env.JSCAD_EVAL_CANARY = '1'
+    let result
+    try {
+      result = await runInChild(
+        { fixtureName: 'cube-hole', run: 1, runs: 1, provider: { kind: 'fake', model: 'sandbox-probe', apiKey: 'test-only' }, providerModule: FAKE_PROVIDER },
+        () => {},
+      )
+    } finally {
+      delete process.env.JSCAD_EVAL_CANARY
+    }
+    const probe = JSON.parse(result.transcript.find((m) => m.role === 'tool').content).error.message
+    for (const denied of ['config', 'keys', 'write', 'spawn', 'worker']) expect(probe).toContain(`${denied}:ERR_ACCESS_DENIED`)
+    expect(probe).toContain('import:failed to load module node:fs')
+    expect(probe).not.toContain('JSCAD_EVAL_CANARY')
+  }, 30_000)
+
+  it('rejects when the child exits before sending a result', async () => {
     await expect(
-      runInWorker({ fixtureName: 'cube-hole', run: 1, runs: 1, provider: { kind: 'fake', model: 'exit' }, providerModule: FAKE_PROVIDER }, () => {}),
+      runInChild({ fixtureName: 'cube-hole', run: 1, runs: 1, provider: { kind: 'fake', model: 'exit' }, providerModule: FAKE_PROVIDER }, () => {}),
     ).rejects.toThrow(/code 3/)
+  }, 30_000)
+})
+
+describe('createSandboxedGrader', () => {
+  it('grades a project in a sandboxed child', async () => {
+    const grader = createSandboxedGrader()
+    try {
+      const source = 'const jf = require("@jbroll/jscad-fluent")\nmodule.exports = { main: () => [jf.cube({ size: 20 })] }'
+      const graded = await grader.gradeProject({ files: { 'main.js': source }, entry: 'main.js' })
+      expect(graded.measure.volume).toBeCloseTo(8000, 0)
+      expect(graded.solid.watertight).toBe(true)
+      expect(await grader.gradeProject(null)).toEqual({ measure: null, solid: null, params: [] })
+    } finally {
+      grader.close()
+    }
   }, 30_000)
 })

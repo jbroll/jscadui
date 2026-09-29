@@ -125,6 +125,12 @@ any name `isBuiltin` accepts) fail the same way, since the browser has none.
 `@jscadui/jscad-text` (ESM-only) and `@jbroll/jscad-anchors` (not installed)
 fail here though the app serves them.
 
+A project is every file `writeModel` has written, seeded with the fixture's
+`files`. `writeModel` runs the project through `main.js`, or through the file
+it just wrote when the project has no `main.js`, so a write to a helper file
+re-runs the model that requires it. `eval` runs its source as its entry with
+the project's other files beside it.
+
 `export` answers like the app: `{ format, size, data }`, the model as STL text
 in base64 whatever `format` asks for, since the app's worker writes STL only.
 `view` fails with `UnavailableError`.
@@ -170,11 +176,12 @@ regardless of group.
 
 `--regrade` rewrites each result file in place with no provider calls; the evals
 repo's git history keeps the old version. It recomputes `discipline`, `recovery`,
-`conservation` and `firstAttemptFailures` from the stored `transcript`, re-evaluates
-the saved model (the last `writeModel` source in the transcript) in a fresh eval
-backend to recompute `geometry`, `checkRate` and `geometryError` against the current
-checks, recomputes each run's `total`, marks a run that ended with no provider reply
-as `error: "empty provider reply"`, and rebuilds the file's `summary` and `speed`.
+`conservation` and `firstAttemptFailures` from the stored `transcript`, rebuilds
+the saved project from the transcript's `writeModel` calls and evaluates it in a
+sandboxed grader child (see below) to recompute `geometry`, `checkRate` and
+`geometryError` against the current checks, recomputes each run's `total`, marks
+a run that ended with no provider reply as `error: "empty provider reply"` with
+`providerError: true`, and rebuilds the file's `summary` and `speed`.
 Transcripts, speed metrics and every other stored field stay as they were, and the
 file gets `regradedAt`. A run it cannot fully regrade keeps its stored grading and
 gets a `regradeNote`: no `transcript` (the file is otherwise left alone), a fixture
@@ -190,7 +197,7 @@ without spending API budget.
 | `EVAL_API_KEY` | provider key; overrides everything below |
 | `EVAL_BASE_URL` | provider base URL, without `/v1` |
 | `EVAL_RUNS` | runs per fixture, default 3 |
-| `EVAL_CONCURRENCY` | conversations run at once, each in its own worker thread, default 6 |
+| `EVAL_CONCURRENCY` | conversations run at once, each in its own sandboxed child process, default 6 |
 | `EVAL_MAX_TURNS` | turn cap for every conversation; overrides `eval/models.json` and the fixture's `maxTurns` |
 | `EVAL_FIXTURES` | comma-separated fixture and/or group names to run; default: ungrouped fixtures only; `all` runs everything |
 | `EVAL_VERBOSE` | `1` also prints the live log's lines to stdout, turn by turn: the header and prompt, tool calls with full input, tool results, and streamed assistant text |
@@ -207,19 +214,31 @@ set it per model rather than tuning it to one-shot answers. Each result records
 its effective cap as `maxTurns`; the result file's top-level `maxTurns` is the
 model-level cap, or `null` when every fixture kept its own.
 
-Each fixture × run is one conversation, run in its own worker thread
-(`eval/worker.js`, loaded with the same `--import ./text-loader.js` hook as the
-CLI) with its own backend and provider instance; the backend keeps module-level
-and `globalThis` state, so two conversations never share a JS realm.
-`eval/parallel.js` keeps up to `EVAL_CONCURRENCY` workers busy. The main
-thread resolves the provider key once and hands each worker the provider
-config in `workerData`, in memory only. It collects each result as it
-finishes, prints its per-run line, and rewrites the result file with every
-finished run ordered by fixture then run, whatever order they finished in. A
-provider error stays on its run's `error`; a worker that dies before sending
-a result records `error: "worker crashed: …"` on that run, and the suite goes
-on. `runSuite` in `eval/run-eval.js` is the sequential in-thread path the unit
-tests and `eval:keyless` use.
+Each fixture × run is one conversation, run in its own child process
+(`eval/child.js`, started by `eval/sandbox.js`) with its own backend and
+provider instance; the backend keeps module-level and `globalThis` state, so
+two conversations never share a JS realm. The child runs under Node's
+permission model (`--permission`): it may read only `packages/`,
+`node_modules/` and `.deps-cache/` (and their symlink targets), and may not
+write files, start processes or worker threads, or load addons, so model code
+cannot reach `~/.config` or `keys.json` even through `process.getBuiltinModule`.
+Its environment is empty. Node 22's permission model does not restrict the
+network. Code-level blocks sit in front of that: the CDN stub serves no
+built-ins, and a resolve hook in the child refuses every dynamic `import()`
+from model code with `failed to load module <name>`. `text-loader.js` uses the
+in-thread `module.registerHooks`, since `module.register` needs a hooks worker
+the sandbox denies; the sandbox needs Node 22.15 or later.
+
+`eval/parallel.js` keeps up to `EVAL_CONCURRENCY` children busy. The main
+process resolves the provider key once and sends each child the provider
+config over IPC, in memory only. It collects each result as it finishes,
+prints its per-run line, and rewrites the result file with every finished run
+ordered by fixture then run, whatever order they finished in. An error stays
+on its run's `error`; a child that dies before sending a result records
+`error: "child crashed: …"` on that run, and the suite goes on. `--regrade`
+evaluates saved projects in one long-lived child under the same sandbox.
+`runSuite` in `eval/run-eval.js` is the sequential in-process path the unit
+tests and `eval:keyless` use; it runs unsandboxed.
 
 Every run appends the same conversation lines `EVAL_VERBOSE` prints — run
 headers, prompts, tool calls with source, tool results, per-run summaries,
@@ -255,24 +274,27 @@ Each run is graded on discipline, recovery, geometry and conservation (0-2
 each, total 8) and on `firstAttemptFailures`: the failed tool results before the first
 successful `eval`, or before the end of the run if none succeeds.
 
-Geometry grades the model the run saved, since that is what the app's user
-keeps: the last `writeModel` source, evaluated again in a fresh backend state
-after the run ends, so a probe `eval` after the save changes nothing. A fixture
+Geometry grades the project the run saved, since that is what the app's user
+keeps: every file written, evaluated again through its entry in a fresh backend
+state after the run ends, so a probe `eval` after the save changes nothing. A
+model that has not finished after 120 s at grading time gets no geometry. A fixture
 whose `requires` lists `writeModel` gives a run that never called it geometry 0
 and `checkRate` 0 without running its checks, and marks the report
 `saved: false`; the other three grades still count, so such a run scores at
-most 6. A fixture that does not require `writeModel` is graded on the last
-`writeModel`, else the last `eval`.
+most 6. A fixture that does not require `writeModel` is graded on the saved
+project, else the last `eval`.
 
 A provider call that streams neither content nor a `usage` event is an empty
 reply; the run records `error: "empty provider reply"`. The turn cap's own
-closing round is not one.
+closing round is not one. An empty reply and any error the provider's stream
+throws (HTTP, network, auth, rate limit) also set `providerError: true`.
 
 The summary gives, per fixture, the mean `firstAttemptFailures`, the pass rate
-of its geometry checks, the mean total and the count of runs with an `error`
-(provider failure, empty reply, worker crash). An errored run has no answer to
-score, so those three means leave it out; they are `null` (printed `-`) when
-every run errored. The metric means below still include it.
+of its geometry checks, the mean total and the count of runs with an `error`.
+A `providerError` run has no answer to score, so those three means leave it
+out; they are `null` (printed `-`) when every run had one. Errors the model
+caused (a tool timeout from a model that never finishes, a crashed child)
+score like any other run. The metric means below include every run.
 
 Each result also carries `metrics`, degrading gradually where the 0-2 grades
 tend to max out once a prompt clears the bar:
@@ -348,8 +370,8 @@ A fixture is one file exporting `fixture`:
 and `files` (`{ path: source }`) test follow-up requests through the same
 `buildMessages` the app uses. `target` (`{ volume?, dimensions? }`) feeds
 `geometryError` for a fixture whose prompt fixes the geometry. `measure`,
-`params`, `source` and `solid` all describe the graded model (`gradedModel` in
-`eval/grade.js`), so a check can inspect the code the model saved as well as
+`params`, `source` and `solid` all describe the graded project (`gradedModel` in
+`eval/grade.js`; `source` is every file joined), so a check can inspect the code the model saved as well as
 the geometry it produced (a style check on a fluent chain, for example).
 `solid` is the parsed result of the backend's `check` tool on that model
 (`eval/backend.js`, `@jscadui/model-tools`), or `null` when it produced no

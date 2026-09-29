@@ -126,6 +126,18 @@ describe('firstAttemptFailures', () => {
     expect(gradeFixture(withSource, transcript, null).checkRate).toBe(1)
   })
 
+  it('passes every project file to the checks as source', () => {
+    const transcript = [
+      toolMsg('t1', 'writeModel', { source: 'const main = 1' }),
+      toolMsg('t2', 'writeModel', { source: 'const helper = 2', entry: 'helper.js' }),
+    ]
+    let seen
+    const spy = { ...fixture, checks: (_m, { source }) => ((seen = source), []) }
+    gradeFixture(spy, transcript, null)
+    expect(seen).toContain('const main = 1')
+    expect(seen).toContain('const helper = 2')
+  })
+
   it('falls back to the last eval source when writeModel was never called', () => {
     const transcript = [toolMsg('t1', 'eval', { source: 'const a = 1' }), resultMsg('t1', JSON.stringify({ ok: true }))]
     const withSource = { ...fixture, requires: ['eval'], checks: (_m, { source }) => [{ name: 'source', pass: source === 'const a = 1' }] }
@@ -137,27 +149,48 @@ describe('gradedModel', () => {
   const requiresWrite = { requires: ['eval', 'writeModel'] }
   const evalOnly = { requires: ['eval'] }
 
-  it('is the last writeModel call, whatever was evaled after it', () => {
+  it('is the project after the last writeModel, whatever was evaled after it', () => {
     const transcript = [
       toolMsg('t1', 'eval', { source: 'a' }),
       toolMsg('t2', 'writeModel', { source: 'b', entry: 'part.js' }),
       toolMsg('t3', 'writeModel', { source: 'c' }),
       toolMsg('t4', 'eval', { source: 'probe' }),
     ]
-    expect(gradedModel(requiresWrite, transcript)).toEqual({ source: 'c', entry: 'main.js' })
-    expect(gradedModel(evalOnly, transcript)).toEqual({ source: 'c', entry: 'main.js' })
+    const project = { files: { 'part.js': 'b', 'main.js': 'c' }, entry: 'main.js' }
+    expect(gradedModel(requiresWrite, transcript)).toEqual(project)
+    expect(gradedModel(evalOnly, transcript)).toEqual(project)
   })
 
-  it('keeps the writeModel entry', () => {
-    expect(gradedModel(requiresWrite, [toolMsg('t1', 'writeModel', { source: 'b', entry: 'part.js' })])).toEqual({ source: 'b', entry: 'part.js' })
+  it('evaluates through main.js when the last write is another file', () => {
+    const transcript = [
+      toolMsg('t1', 'writeModel', { source: 'main v1' }),
+      toolMsg('t2', 'writeModel', { source: 'helper v1', entry: 'helper.js' }),
+      toolMsg('t3', 'writeModel', { source: 'main v2', entry: 'main.js' }),
+      toolMsg('t4', 'writeModel', { source: 'helper v2', entry: 'helper.js' }),
+    ]
+    expect(gradedModel(requiresWrite, transcript)).toEqual({ files: { 'main.js': 'main v2', 'helper.js': 'helper v2' }, entry: 'main.js' })
+  })
+
+  it('evaluates the last written file when the project has no main.js', () => {
+    const transcript = [toolMsg('t1', 'writeModel', { source: 'a', entry: 'a.js' }), toolMsg('t2', 'writeModel', { source: 'b', entry: 'b.js' })]
+    expect(gradedModel(requiresWrite, transcript)).toEqual({ files: { 'a.js': 'a', 'b.js': 'b' }, entry: 'b.js' })
+  })
+
+  it('starts from the fixture files', () => {
+    const withFiles = { ...requiresWrite, files: { 'main.js': 'old main', 'helper.js': 'old helper' } }
+    expect(gradedModel(withFiles, [toolMsg('t1', 'writeModel', { source: 'new helper', entry: 'helper.js' })])).toEqual({
+      files: { 'main.js': 'old main', 'helper.js': 'new helper' },
+      entry: 'main.js',
+    })
   })
 
   it('is null without a writeModel when the fixture requires one', () => {
     expect(gradedModel(requiresWrite, [toolMsg('t1', 'eval', { source: 'a' })])).toBeNull()
   })
 
-  it('falls back to the last eval when the fixture does not require writeModel', () => {
-    expect(gradedModel(evalOnly, [toolMsg('t1', 'eval', { source: 'a' }), toolMsg('t2', 'eval', { source: 'b' })])).toEqual({ source: 'b', entry: 'main.js' })
+  it('falls back to the last eval over the fixture files when the fixture does not require writeModel', () => {
+    const transcript = [toolMsg('t1', 'eval', { source: 'a' }), toolMsg('t2', 'eval', { source: 'b' })]
+    expect(gradedModel({ ...evalOnly, files: { 'helper.js': 'h' } }, transcript)).toEqual({ files: { 'helper.js': 'h', 'main.js': 'b' }, entry: 'main.js' })
   })
 
   it('is null when neither was called', () => {

@@ -23,13 +23,26 @@ export function firstAttemptFailures(transcript) {
 
 const requiresWrite = (fixture) => fixture.requires?.includes('writeModel') === true
 
-// The model a run is graded on: its last writeModel, or, for a fixture that
-// does not require one, its last eval. Null when the run has neither.
+export const PROJECT_ENTRY = 'main.js'
+
+// The project runs through main.js; one without it runs the file written last.
+export const projectEntry = (files, lastWritten) => (Object.hasOwn(files, PROJECT_ENTRY) ? PROJECT_ENTRY : lastWritten)
+
+// The project a run is graded on, `{ files, entry }`: the fixture's files with
+// every writeModel applied, or, for a fixture that does not require one and
+// has none, the last eval over the fixture's files. Null when there is neither.
 export function gradedModel(fixture, transcript) {
   const calls = toolCallsOf(transcript)
-  const last = (name) => calls.findLast((c) => c.name === name)
-  const call = last('writeModel') ?? (requiresWrite(fixture) ? undefined : last('eval'))
-  return call ? { source: call.input?.source, entry: call.input?.entry ?? 'main.js' } : null
+  const files = { ...fixture.files }
+  const writes = calls.filter((c) => c.name === 'writeModel')
+  if (writes.length > 0) {
+    for (const { input } of writes) files[input?.entry ?? PROJECT_ENTRY] = input?.source
+    return { files, entry: projectEntry(files, writes.at(-1).input?.entry ?? PROJECT_ENTRY) }
+  }
+  const lastEval = requiresWrite(fixture) ? undefined : calls.findLast((c) => c.name === 'eval')
+  if (!lastEval) return null
+  const entry = lastEval.input?.entry ?? PROJECT_ENTRY
+  return { files: { ...files, [entry]: lastEval.input?.source }, entry }
 }
 
 // A run that stopped without a final reply before its turn cap: the provider
@@ -129,7 +142,8 @@ export function gradeFixture(fixture, transcript, finalMeasure, context = {}) {
 
   let rate = 0
   if (!unsaved) {
-    const checksContext = { ...context, source: model?.source ?? '' }
+    const source = model ? Object.values(model.files).filter((f) => typeof f === 'string').join('\n') : ''
+    const checksContext = { ...context, source }
     const outcomes = fixture.checks(finalMeasure, checksContext).map((c) => (c.pass ? 1 : 0))
     rate = outcomes.length === 0 ? 0 : outcomes.reduce((a, b) => a + b, 0) / outcomes.length
   }

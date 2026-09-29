@@ -1,11 +1,6 @@
-import { Worker } from 'node:worker_threads'
 import { gradeFixture } from './grade.js'
 
 export const DEFAULT_CONCURRENCY = 6
-
-const WORKER = new URL('./worker.js', import.meta.url)
-// Workers import the prompt's `?raw` files, so they need the CLI's loader hook.
-const TEXT_LOADER = new URL('../text-loader.js', import.meta.url).href
 
 export const concurrencyFrom = (env) => {
   const n = Number(env.EVAL_CONCURRENCY)
@@ -30,10 +25,10 @@ const crashResult = ({ fixture, run, maxTurns }, error) => ({
   turns: 0,
   transcript: [],
   metrics: {},
-  error: `worker crashed: ${error?.message ?? String(error)}`,
+  error: `child crashed: ${error?.message ?? String(error)}`,
 })
 
-// Runs every fixture x run job through `runJob` (one worker per conversation in
+// Runs every fixture x run job through `runJob` (one sandboxed child per conversation in
 // the CLI). onRun gets each result as it finishes plus every finished result so
 // far, ordered by fixture then run. `maxTurns` is the model's turn cap; null
 // leaves each fixture its own.
@@ -54,25 +49,3 @@ export async function runSuiteParallel(fixtures, { runs = 1, concurrency = DEFAU
     return result
   })
 }
-
-// `data`: { fixtureName, run, runs, maxTurns?, provider: createProvider config, providerModule? }.
-// Resolves with the conversation's result; rejects if the worker dies first.
-export const runInWorker = (data, onLog) =>
-  new Promise((resolve, reject) => {
-    const worker = new Worker(WORKER, { workerData: data, execArgv: ['--import', TEXT_LOADER] })
-    let settled = false
-    const settle = (fn, value) => {
-      if (settled) return
-      settled = true
-      fn(value)
-    }
-    worker.on('message', (message) => {
-      if (message.type === 'log') onLog(message.text)
-      if (message.type === 'result') {
-        settle(resolve, message.result)
-        worker.terminate()
-      }
-    })
-    worker.on('error', (error) => settle(reject, error))
-    worker.on('exit', (code) => settle(reject, new Error(`worker exited with code ${code} before a result`)))
-  })

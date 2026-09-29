@@ -123,6 +123,47 @@ describe('eval backend', () => {
     expect(res.error.message).toMatch(/no geometry/)
   })
 
+  it('hands model code no real Node require through a global symbol', async () => {
+    expect(globalThis[Symbol.for('jscadui.eval.nodeRequire')]).toBeUndefined()
+    const res = await evalSource(`const load = globalThis[Symbol.for('jscadui.eval.userModule')]
+module.exports = { main: () => { load('fs'); return [] } }`)
+    expect(res.ok).toBe(false)
+    expect(res.error.message).toContain('failed to load module fs')
+  })
+
+  it('writeModel runs the project through main.js with every file written so far', async () => {
+    const backend = createEvalBackend()
+    const main = `const jf = require('@jbroll/jscad-fluent')\nconst { size } = require('./helper.js')\nmodule.exports = { main: () => [jf.cube({ size })] }`
+    expect(JSON.parse(await backend.requestTool('writeModel', { source: main })).ok).toBe(false)
+    const res = JSON.parse(await backend.requestTool('writeModel', { source: 'module.exports = { size: 20 }', entry: 'helper.js' }))
+    expect(res).toEqual(expect.objectContaining({ ok: true, entry: 'helper.js' }))
+    expect(JSON.parse(await backend.requestTool('measure', {})).volume).toBeCloseTo(8000, 0)
+  })
+
+  it('eval sees the project files, and reset seeds them', async () => {
+    const backend = createEvalBackend()
+    backend.reset({ 'helper.js': 'module.exports = { size: 10 }' })
+    const main = `const jf = require('@jbroll/jscad-fluent')\nconst { size } = require('./helper.js')\nmodule.exports = { main: () => [jf.cube({ size })] }`
+    expect(JSON.parse(await backend.requestTool('eval', { source: main })).ok).toBe(true)
+    expect(JSON.parse(await backend.requestTool('measure', {})).volume).toBeCloseTo(1000, 0)
+  })
+
+  it('gradeProject measures a project in a fresh state', async () => {
+    const backend = createEvalBackend()
+    await backend.requestTool('eval', { source: CUBE })
+    const graded = await backend.gradeProject({ files: { 'main.js': ESM_SPHERE }, entry: 'main.js' })
+    expect(graded.measure.volume).toBeGreaterThan(480)
+    expect(graded.measure.volume).toBeLessThan(530)
+    expect(graded.solid.watertight).toBe(true)
+    expect(graded.params).toContainEqual(expect.objectContaining({ name: 'radius' }))
+    expect(await backend.gradeProject(null)).toEqual({ measure: null, solid: null, params: [] })
+  })
+
+  it('gradeProject gives up on a model that never finishes', async () => {
+    const hang = { files: { 'main.js': 'module.exports = { main: () => new Promise(() => {}) }' }, entry: 'main.js' }
+    expect(await createEvalBackend().gradeProject(hang, { timeoutMs: 20 })).toEqual({ measure: null, solid: null, params: [] })
+  })
+
   it('writeModel persists to the memory project', async () => {
     const backend = createEvalBackend()
     const res = JSON.parse(await backend.requestTool('writeModel', { source: CUBE, entry: 'main.js', message: 'first' }))
