@@ -1,5 +1,5 @@
-// Test-only provider module for eval/parallel.test.js: runInChild loads it in
-// place of ../index.js so a sandboxed conversation runs with no network.
+// Test-only scripted provider for eval/job.test.js: a conversation with an
+// executor and no network.
 import { KEYLESS_SOURCES } from './keyless.js'
 
 // Model code that tries every way out of the sandbox and reports only error
@@ -19,10 +19,12 @@ module.exports = { main: async () => {
   throw new Error(out.join(' '))
 } }`
 
-const probeRounds = () => [
-  [{ type: 'tool_use', id: 't1', name: 'eval', input: { source: SANDBOX_PROBE } }, { type: 'done', stopReason: 'tool_use' }],
+const evalRounds = (source) => [
+  [{ type: 'tool_use', id: 't1', name: 'eval', input: { source } }, { type: 'done', stopReason: 'tool_use' }],
   [{ type: 'text', text: 'done' }, { type: 'done', stopReason: 'end_turn' }],
 ]
+
+const EXITS = 'module.exports = { main: () => process.exit(3) }'
 
 const rounds = () => [
   [{ type: 'text', text: 'building it' }, { type: 'tool_use', id: 't1', name: 'eval', input: { source: KEYLESS_SOURCES['cube-hole'] } }, { type: 'done', stopReason: 'tool_use' }],
@@ -32,8 +34,7 @@ const rounds = () => [
 ]
 
 export const createProvider = (config) => {
-  if (config.model === 'exit') process.exit(3)
-  const script = config.model === 'sandbox-probe' ? probeRounds() : rounds()
+  const script = { 'sandbox-probe': () => evalRounds(SANDBOX_PROBE), exit: () => evalRounds(EXITS) }[config.model]?.() ?? rounds()
   return {
     async *send() {
       if (config.model === 'fail') throw new Error('status 500')

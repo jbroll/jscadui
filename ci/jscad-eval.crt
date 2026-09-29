@@ -1,0 +1,12 @@
+# crt create-config for the agent-loop eval sandbox (packages/agent-loop/eval/executor.js).
+#   scripts/eval-sandbox-setup.sh   # runs: crt create jscad-eval ci/jscad-eval.crt
+# The eval passes the isolation flags on every run; they are repeated here so
+# a hand `crt run jscad-eval ...` is isolated too.
+image     void
+packages  nodejs
+memory    2G
+net       none
+home      no
+tmp       private
+env-clean yes
+root      ro

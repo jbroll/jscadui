@@ -28,8 +28,8 @@ const crashResult = ({ fixture, run, maxTurns }, error) => ({
   error: `child crashed: ${error?.message ?? String(error)}`,
 })
 
-// Runs every fixture x run job through `runJob` (one sandboxed child per conversation in
-// the CLI). onRun gets each result as it finishes plus every finished result so
+// Runs every fixture x run job through `runJob` (in the CLI, one conversation
+// with its own sandboxed executor). onRun gets each result as it finishes plus every finished result so
 // far, ordered by fixture then run. `maxTurns` is the model's turn cap; null
 // leaves each fixture its own.
 export async function runSuiteParallel(fixtures, { runs = 1, concurrency = DEFAULT_CONCURRENCY, maxTurns = null, runJob, onLog, onRun }) {

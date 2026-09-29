@@ -12,13 +12,13 @@ import { installConsoleCapture } from '../src/consoleCapture.js'
 import { docsTool } from '../src/docs.js'
 import { withErrorHint } from '../src/hints.js'
 import { createWarningCollector, withOptionChecks, wrapFluentMethods } from '../src/optionChecks.js'
-import { PROJECT_ENTRY, projectEntry } from './grade.js'
+import { GRADE_TIMEOUT_MS, PROJECT_ENTRY, projectEntry } from './grade.js'
 
 const API_INDEX = JSON.parse(readFileSync(new URL('../api/index.json', import.meta.url), 'utf8'))
 
 export const PROJECT_BASE = 'http://project.local/'
 export const CDN_BASE = 'https://cdn.jsdelivr.net/npm/'
-export const GRADE_TIMEOUT_MS = 120_000
+export { GRADE_TIMEOUT_MS }
 const nodeRequire = createRequire(import.meta.url)
 
 const installed = (spec) => {

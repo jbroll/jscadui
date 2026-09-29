@@ -14,7 +14,8 @@ import { endedWithoutReply, gradedModel, gradeFixture, gradeTranscript, geometry
 import { conversationTag, createLiveLog, formatLiveHeader, liveLogPath, prefixBlock } from './live-log.js'
 import { concurrencyFrom, runSuiteParallel } from './parallel.js'
 import { computeSpeed, formatComparison, formatSummary, summarize } from './report.js'
-import { createSandboxedGrader, runInChild } from './sandbox.js'
+import { killExecutors, sandboxFrom, sandboxProblem, startExecutor } from './sandbox.js'
+import { formatRunHeader, formatText, formatToolCall, formatToolResult } from './verbose.js'
 
 const FIXTURES = new URL('./fixtures/', import.meta.url)
 const MODELS = JSON.parse(readFileSync(new URL('./models.json', import.meta.url), 'utf8'))
@@ -152,7 +153,7 @@ export async function runConversation(
     onText,
   },
 ) {
-  backend.reset(fixture.files)
+  await backend.reset(fixture.files)
   const messages = buildMessages({ systemPrompt, transcript: fixture.transcript ?? [], files: fixture.files ?? {}, message: fixture.prompt })
   let transcript = messages
   let error
@@ -214,8 +215,41 @@ export async function runConversation(
   }
 }
 
-// Sequential, in this thread: the unit tests and the keyless baseline. The CLI
-// runs conversations in worker threads instead (eval/parallel.js).
+// One fixture x run for eval/parallel.js: the conversation and its provider
+// calls run in this process, model code in the executor `startExecutor()`
+// returns (eval/sandbox.js), closed when the run ends.
+export async function runJob({ fixture, run, runs, maxTurns }, { provider, api, startExecutor: start }, onLog) {
+  let pending = ''
+  const flush = () => {
+    if (pending) onLog(formatText(pending))
+    pending = ''
+  }
+  const executor = start()
+  try {
+    onLog(formatRunHeader(fixture, run, runs))
+    const result = await runConversation(fixture, run, {
+      provider,
+      backend: executor,
+      api,
+      maxTurns,
+      onToolCall: (name, input) => {
+        flush()
+        onLog(formatToolCall(name, input))
+      },
+      onToolResult: (_name, output) => onLog(formatToolResult(output)),
+      onText: (text) => {
+        pending += text
+      },
+    })
+    flush()
+    return result
+  } finally {
+    executor.close()
+  }
+}
+
+// Sequential, with one in-process backend: the unit tests and the keyless
+// baseline. The CLI runs each conversation against its own sandboxed executor.
 export async function runSuite(fixtures, { provider, backend, runs = 1, onRun, onRunStart, ...options }) {
   if (!provider) throw new Error('runSuite: provider is required (set EVAL_PROVIDER/EVAL_MODEL/EVAL_API_KEY)')
   const results = []
@@ -305,6 +339,46 @@ export function saveResults(writeFile, filePath, { model, provider, api, runs, m
   return { summary, speed }
 }
 
+// A grader whose executor is started again after one is killed (a grade that
+// never finished), so one stuck project does not end the regrade.
+export const restartingGrader = (start) => {
+  let executor = null
+  return {
+    gradeProject: (model) => {
+      if (!executor?.alive()) executor = start()
+      return executor.gradeProject(model)
+    },
+    close: () => executor?.close(),
+  }
+}
+
+// Fails closed: model code runs only once the crt sandbox is known to start.
+const requireSandbox = async (env) => {
+  let sandbox
+  let problem
+  try {
+    sandbox = sandboxFrom(env)
+    problem = await sandboxProblem(sandbox)
+  } catch (error) {
+    problem = error.message
+  }
+  if (problem) {
+    console.error(`run-eval: the eval sandbox is not available: ${problem}`)
+    process.exit(1)
+  }
+  process.on('exit', killExecutors)
+  for (const [signal, code] of [
+    ['SIGINT', 130],
+    ['SIGTERM', 143],
+  ]) {
+    process.on(signal, () => {
+      killExecutors()
+      process.exit(code)
+    })
+  }
+  return sandbox
+}
+
 const main = async (argv, env) => {
   const at = argv.indexOf('--compare')
   if (at !== -1) {
@@ -320,10 +394,11 @@ const main = async (argv, env) => {
   }
   const regradeAt = argv.indexOf('--regrade')
   if (regradeAt !== -1) {
+    const sandbox = await requireSandbox(env)
     const fixturesByName = new Map((await loadFixtures()).map((f) => [f.name, f]))
     const graders = new Map()
     const graderFor = (api) => {
-      if (!graders.has(api)) graders.set(api, createSandboxedGrader({ api }))
+      if (!graders.has(api)) graders.set(api, restartingGrader(() => startExecutor({ api, sandbox })))
       return graders.get(api)
     }
     try {
@@ -348,6 +423,7 @@ const main = async (argv, env) => {
     console.error('run-eval: set EVAL_PROVIDER, EVAL_MODEL and EVAL_API_KEY (EVAL_PROVIDER=meta reads ~/.config/muse/auth.json)')
     process.exit(1)
   }
+  const sandbox = await requireSandbox(env)
   const api = evalApi(env)
   const runs = Number(env.EVAL_RUNS) || 3
   const only = env.EVAL_FIXTURES ? env.EVAL_FIXTURES.split(',') : null
@@ -397,10 +473,10 @@ const main = async (argv, env) => {
     logLine(result.error ? `${line}  error: ${result.error}` : line, { tag: conversationTag(label, result.fixture, result.run), toStdout: true })
     save(finished)
   }
-  const runJob = (job, onJobLog) =>
-    runInChild({ fixtureName: job.fixture.name, run: job.run, runs, maxTurns: job.maxTurns, api, provider: providerConfig }, onJobLog)
+  const runSandboxedJob = (job, onJobLog) =>
+    runJob(job, { provider: createProvider(providerConfig), api, startExecutor: () => startExecutor({ api, sandbox }) }, onJobLog)
 
-  const results = await runSuiteParallel(fixtures, { runs, concurrency, maxTurns, runJob, onLog, onRun })
+  const results = await runSuiteParallel(fixtures, { runs, concurrency, maxTurns, runJob: runSandboxedJob, onLog, onRun })
   const { summary, speed } = save(results)
   logLine(formatSummary(summary, { ...speed, model: EVAL_MODEL, provider: EVAL_PROVIDER }), { toStdout: true })
 }

@@ -4,10 +4,9 @@ import { APIS } from '../src/api.js'
 import { buildSystemPrompt } from '../src/prompt.js'
 import { buildTools } from '../src/tools.js'
 import { createEvalBackend } from './backend.js'
-import { createSandboxedGrader, runInChild } from './sandbox.js'
+import { startExecutor } from './sandbox.js'
 import { compareApis, evalApi, regradeResults, resultFileName, runSuite, saveResults, selectFixtures } from './run-eval.js'
 
-const FAKE_PROVIDER = new URL('./fake-provider.js', import.meta.url).href
 const fixture = { name: 'x', prompt: 'p', requires: ['eval'], verifyBeforeWrite: false, maxTurns: 2, checks: () => [] }
 
 describe('EVAL_API', () => {
@@ -96,8 +95,8 @@ describe('regrade under the recorded api', () => {
     expect(asked).toEqual(['modeling', 'fluent'])
   })
 
-  it('a sandboxed grader child gets its api over IPC', async () => {
-    const grader = createSandboxedGrader({ api: 'modeling' })
+  it('an executor child gets its api over IPC', async () => {
+    const grader = startExecutor({ api: 'modeling', sandbox: { kind: 'child' } })
     try {
       expect(await grader.ready).toBe('modeling')
     } finally {
@@ -138,12 +137,4 @@ describe('a conversation under an api', () => {
     expect(await createEvalBackend({ api: 'modeling' }).requestTool('docs', { query: 'jf.cube' })).toMatch(/^jf\.cube is not part of the modeling API/)
     expect(await createEvalBackend().requestTool('docs', { query: 'cube' })).toMatch(/^jf\.cube \(@jbroll\/jscad-fluent\)/)
   })
-
-  it('runs in a sandboxed child, whose empty env cannot carry it, under the api it is given', async () => {
-    const result = await runInChild(
-      { fixtureName: 'cube-hole', run: 1, runs: 1, api: 'modeling', provider: { kind: 'fake', model: 'ok' }, providerModule: FAKE_PROVIDER },
-      () => {},
-    )
-    expect(result.api).toBe('modeling')
-  }, 30_000)
 })

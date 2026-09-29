@@ -24,6 +24,7 @@ export function firstAttemptFailures(transcript) {
 const requiresWrite = (fixture) => fixture.requires?.includes('writeModel') === true
 
 export const PROJECT_ENTRY = 'main.js'
+export const GRADE_TIMEOUT_MS = 120_000
 
 // The project runs through main.js; one without it runs the file written last.
 export const projectEntry = (files, lastWritten) => (Object.hasOwn(files, PROJECT_ENTRY) ? PROJECT_ENTRY : lastWritten)

@@ -4,7 +4,7 @@ import * as nodeModule from 'node:module'
 const RAW = '?raw'
 
 // registerHooks runs in this thread; register needs a hooks worker thread,
-// which the eval sandbox (eval/sandbox.js) does not allow.
+// which Node's permission model denies.
 if (nodeModule.registerHooks) {
   nodeModule.registerHooks({
     load(url, context, nextLoad) {

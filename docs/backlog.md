@@ -188,14 +188,14 @@ model with `display-check.js --engine jscad`.
 
 ## Chat API help
 
-- Eval model code now runs in a child under Node's permission model
-  (`eval/sandbox.js`: read-only access to the repo's code, no writes,
-  processes or threads, empty environment), but the CDN stub still serves any
-  installed package, not the frame's allowlist, and Node 22's permission model
-  cannot deny the network, so model code can still `fetch`. Restrict the stub
-  to the frame's allowlist, and deny the network once the CI host runs a Node
-  with `--allow-net`. Runs started from a Claude session are still reaped
-  under memory pressure.
+- Eval model code now runs in a crt container with no network, home, key or
+  parent environment (`eval/sandbox.js`, read-only binds of `packages/`,
+  `node_modules/` and `.deps-cache/`), but the CDN stub still serves any
+  installed package in those binds, not the frame's allowlist. Restrict the
+  stub to the frame's allowlist. An executor that dies mid-conversation (an
+  out of memory kill, `process.exit`) ends the run; restarting it and
+  replaying the project would let the model recover instead. Runs started
+  from a Claude session are still reaped under memory pressure.
 - Stack-gated fluent method checks, if `eval/fluent-guard.test.js` ever finds
   a false warning from fluent's internals. The method checks wrap the shared
   prototypes, so they see fluent's own calls as well as the model's; a

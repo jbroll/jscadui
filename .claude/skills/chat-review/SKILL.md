@@ -148,10 +148,13 @@ the user the fixture count times `EVAL_RUNS` and get a yes.
    npm run eval -w @jscadui/agent-loop -- --compare <data>/results/<baseline>.json <data>/results/<candidate>.json
    ```
 
-   Conversations run in parallel worker threads, `EVAL_CONCURRENCY` at a time
-   (default 6), so the default suite at 3 runs takes minutes rather than an
-   hour; a conversation's lines in the live log are prefixed
-   `[<model> <fixture>#<run>] `.
+   Conversations run concurrently, `EVAL_CONCURRENCY` at a time (default 6),
+   so the default suite at 3 runs takes minutes rather than an hour; a
+   conversation's lines in the live log are prefixed
+   `[<model> <fixture>#<run>] `. Model code runs in a crt sandbox, and the
+   eval (and `--regrade`) refuses to start without it: run
+   `scripts/eval-sandbox-setup.sh` once first (packages/agent-loop/README.md,
+   Sandbox).
 
    The turn budget is per model: `packages/agent-loop/eval/models.json` sets
    `maxTurns` for a model, `EVAL_MAX_TURNS` overrides it for one run, and a

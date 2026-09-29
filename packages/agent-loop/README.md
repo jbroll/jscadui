@@ -297,11 +297,11 @@ will for a user.
 
 `--regrade` rewrites each result file in place with no provider calls; the evals
 repo's git history keeps the old version. It grades each file under the `api`
-the file records, in a grader child per style; a file written before the
+the file records, in a sandboxed executor per style; a file written before the
 setting has no `api` and is graded as `fluent`. It recomputes `discipline`, `recovery`,
 `conservation` and `firstAttemptFailures` from the stored `transcript`, rebuilds
 the saved project from the transcript's `writeModel` calls and evaluates it in a
-sandboxed grader child (see below) to recompute `geometry`, `checkRate` and
+sandboxed executor (see Sandbox below) to recompute `geometry`, `checkRate` and
 `geometryError` against the current checks, recomputes each run's `total`, marks
 a run that ended with no provider reply as `error: "empty provider reply"` with
 `providerError: true`, and rebuilds the file's `summary` and `speed`.
@@ -321,7 +321,7 @@ without spending API budget.
 | `EVAL_API_KEY` | provider key; overrides everything below |
 | `EVAL_BASE_URL` | provider base URL, without `/v1` |
 | `EVAL_RUNS` | runs per fixture, default 3 |
-| `EVAL_CONCURRENCY` | conversations run at once, each in its own sandboxed child process, default 6 |
+| `EVAL_CONCURRENCY` | conversations run at once, each with its own sandboxed executor, default 6 |
 | `EVAL_MAX_TURNS` | turn cap for every conversation; overrides `eval/models.json` and the fixture's `maxTurns` |
 | `EVAL_FIXTURES` | comma-separated fixture and/or group names to run; default: ungrouped fixtures only; `all` runs everything |
 | `EVAL_VERBOSE` | `1` also prints the live log's lines to stdout, turn by turn: the header and prompt, tool calls with full input, tool results, and streamed assistant text |
@@ -329,6 +329,11 @@ without spending API budget.
 | `EVAL_RESULTS_DIR` | overrides where results are written, regardless of `JSCAD_CHAT_DATA` |
 | `JSCAD_CHAT_KEYS` | overrides the path to `keys.json` below |
 | `EVAL_LIVE_LOG` | overrides the live log path; `0` disables it |
+| `EVAL_CRT` | absolute path of the crt binary; default: `crt` on `PATH` |
+| `CRT_HOME` | where crt keeps its rootfs dirs, passed to crt; crt's default is `/home/crt` |
+| `EVAL_SANDBOX_ROOTFS` | crt rootfs the executor runs in, default `jscad-eval` |
+| `EVAL_SANDBOX_MEMORY` | executor memory limit, default `2G` |
+| `EVAL_SANDBOX` | `crt` (default); anything else is refused by `run-eval` |
 
 A conversation's turn cap (provider calls) is `EVAL_MAX_TURNS` when set, else
 `maxTurns` from the model's entry in `eval/models.json`
@@ -338,34 +343,20 @@ set it per model rather than tuning it to one-shot answers. Each result records
 its effective cap as `maxTurns`; the result file's top-level `maxTurns` is the
 model-level cap, or `null` when every fixture kept its own.
 
-Each fixture × run is one conversation, run in its own child process
-(`eval/child.js`, started by `eval/sandbox.js`) with its own backend and
-provider instance; the backend keeps module-level and `globalThis` state, so
-two conversations never share a JS realm. The child runs under Node's
-permission model (`--permission`): it may read only `packages/`,
-`node_modules/` and `.deps-cache/` (and their symlink targets; in a linked
-worktree also the targets of each package's linked `node_modules` and the main
-checkout's `node_modules`, which code there resolves through), and may not
-write files, start processes or worker threads, or load addons, so model code
-cannot reach `~/.config` or `keys.json` even through `process.getBuiltinModule`.
-Its environment is empty. Node 22's permission model does not restrict the
-network. Code-level blocks sit in front of that: the CDN stub serves no
-built-ins, and a resolve hook in the child refuses every dynamic `import()`
-from model code with `failed to load module <name>`. `text-loader.js` uses the
-in-thread `module.registerHooks`, since `module.register` needs a hooks worker
-the sandbox denies; the sandbox needs Node 22.15 or later.
-
-`eval/parallel.js` keeps up to `EVAL_CONCURRENCY` children busy. The main
-process resolves the provider key once and sends each child the provider
-config and the run's `api` over IPC, in memory only; the child's empty
-environment carries neither. It collects each result as it finishes,
-prints its per-run line, and rewrites the result file with every finished run
-ordered by fixture then run, whatever order they finished in. An error stays
-on its run's `error`; a child that dies before sending a result records
-`error: "child crashed: …"` on that run, and the suite goes on. `--regrade`
-evaluates saved projects in one long-lived child under the same sandbox.
-`runSuite` in `eval/run-eval.js` is the sequential in-process path the unit
-tests and `eval:keyless` use; it runs unsandboxed.
+Each fixture × run is one conversation with its own provider instance and its
+own sandboxed executor (see Sandbox below). `eval/parallel.js` keeps up to
+`EVAL_CONCURRENCY` conversations going. It collects each result as it
+finishes, prints its per-run line, and rewrites the result file with every
+finished run ordered by fixture then run, whatever order they finished in. An error stays on its run's `error`; a run whose
+executor dies before it can be graded records `error: "child crashed: …"`,
+and the suite goes on. `--regrade` evaluates saved projects in one executor
+per API style, started again if one is killed. `runSuite` in
+`eval/run-eval.js` is the sequential in-process path the unit tests and
+`eval:keyless` (scripted known-good sources) use; it runs unsandboxed. Tests
+may start a plain permission-model child instead of crt (`sandboxFrom(env,
+{ live: false })` with `EVAL_SANDBOX=child`, or `startExecutor` with
+`{ kind: 'child' }`). `eval/sandbox-crt.test.js` runs model code in the real
+sandbox and skips when crt or the rootfs is missing.
 
 Every run appends the same conversation lines `EVAL_VERBOSE` prints — run
 headers, prompts, tool calls with source, tool results, per-run summaries,
@@ -420,7 +411,7 @@ The summary gives, per fixture, the mean `firstAttemptFailures`, the pass rate
 of its geometry checks, the mean total and the count of runs with an `error`.
 A `providerError` run has no answer to score, so those three means leave it
 out; they are `null` (printed `-`) when every run had one. Errors the model
-caused (a tool timeout from a model that never finishes, a crashed child)
+caused (a tool timeout from a model that never finishes, a crashed executor)
 score like any other run. The metric means below include every run.
 
 Each result also carries `metrics`, degrading gradually where the 0-2 grades
@@ -525,6 +516,58 @@ hollow, watertight, a size the prompt actually states) rather than one exact
 shape; an exact-volume band is only for a fixture whose prompt pins the
 geometry precisely.
 
+### Sandbox
+
+The conversation loop and the provider calls run in the `run-eval` process,
+which holds the key. Model code runs in an executor process
+(`eval/executor-child.js`, started by `eval/sandbox.js` `startExecutor`) that
+never receives the key or the parent's environment: every tool call (`eval`,
+`measure`, `check`, `writeModel`, `export`, `params`, `docs`) and every grade
+goes to it over IPC as a request and comes back as a reply
+(`eval/executor-protocol.js`). Each fixture × run gets its own executor, since
+the backend keeps module-level and `globalThis` state.
+
+The executor is `crt run` with `--net none --no-home --tmp private
+--clean-env --ro-root`, a memory limit, `-e NODE_CHANNEL_FD` and
+`-e NODE_CHANNEL_SERIALIZATION_MODE` for the IPC channel, and read-only binds,
+at their host paths so absolute symlinks resolve, of `packages/`,
+`node_modules/`, `.deps-cache/` and their symlink targets (in a linked worktree
+also the targets of each package's linked `node_modules` and the main
+checkout's `node_modules`). Nothing else of the host is in its mount tree:
+not `$HOME`, not `~/.config`, not the repo's `apps/` (a `node_modules`
+workspace link into `apps/` dangles), not the host `/tmp`. Node inside comes
+from the rootfs and runs under its permission model too, reading only those
+binds, with no writes, processes, worker threads or addons. A path that climbs
+out of a granted dir through a symlink and `..`, which the permission model
+lets by, finds nothing there. The environment inside is `PATH` and
+`HOME=/tmp`; crt itself gets only a fixed `PATH` and `CRT_HOME`. Code-level
+blocks sit in front of that: the CDN stub serves no built-ins, and a resolve
+hook in the executor refuses every dynamic `import()` from model code with
+`failed to load module <name>`.
+
+`run-eval` resolves the crt binary once at startup (`EVAL_CRT`, else the first
+`crt` in an absolute `PATH` entry) and refuses to start, live or `--regrade`,
+until an executor starts in the sandbox: the error names what is missing (the
+crt binary, the rootfs, Node 22.15 or later in the rootfs) and how to set it
+up. `EVAL_SANDBOX=none` or `child` is refused for both. Set up the rootfs once,
+as the user the eval runs as:
+
+```bash
+scripts/eval-sandbox-setup.sh          # crt create jscad-eval ci/jscad-eval.crt if absent, then check it
+scripts/eval-sandbox-setup.sh --check  # check only
+sudo crt setup                         # once per host, so crt can enforce the memory limit
+```
+
+`ci/jscad-eval.crt` is a Void rootfs with the `nodejs` package (Node 24.18 as
+of this writing). Without `sudo crt setup`, crt warns and runs the executor
+with no memory limit.
+
+A grade the executor has not answered 10 s past its own timeout (model code
+stuck in a synchronous loop never lets the executor's timer fire) kills the
+executor's process group, which takes the whole container with it, and grades
+nothing. Model code that takes the executor down (`process.exit`, an out of
+memory kill) fails its tool call and then the run.
+
 ### Running on CI
 
 `sci push jscadui/eval` (`ci/eval`, `ci/eval.conf`) runs this eval against
@@ -532,7 +575,9 @@ live models on the CI host instead of locally, one process per model in
 `EVAL_MODELS` and style in `EVAL_APIS`: models run concurrently, each model's
 styles one after the other. Provider keys come from the CI host user's
 `~/.config/jscad-chat/keys.json`, placed there by hand; a model whose
-provider has no key there fails on its own. Results land in the job's
+provider has no key there fails on its own. The job runs
+`scripts/eval-sandbox-setup.sh --check` first and fails when the host has no
+crt or rootfs; host setup is in `ci/README.md`. Results land in the job's
 `eval-results/`; fetch them into `$JSCAD_CHAT_DATA/results` with
 `node eval/fetch-ci-results.js JOB-ID`. Details: `ci/README.md`.
 
