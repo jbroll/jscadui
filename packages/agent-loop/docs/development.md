@@ -9,11 +9,26 @@ style section starts at its first `## ` heading. Example models live in
 `prompt/examples/fluent/` and `prompt/examples/modeling/`, each opening with a
 one-line comment naming the request it answers (never the API), and are
 listed per style in `prompt/index.js`. Both folders answer the same requests
-under the same file names. `buildSystemPrompt(api)` is the filled prose
-followed by an `## Examples` section with that style's examples fenced, in
-file-name order. Tests check the order, that each prompt carries only its own
-style's examples, that neither prompt names the other API (apart from the
-jscad-text `init` line), and that every example evaluates with no warnings.
+under the same file names. `buildSystemPrompt(api)` is the filled prose, then
+that style's API reference sheet (`prompt/sheet-<api>.md`, under
+`## API reference`), then an `## Examples` section with that style's examples
+fenced, in file-name order. Tests check the order, that each prompt carries
+only its own style's examples, that neither prompt names the other API (apart
+from the jscad-text `init` line), and that every example evaluates with no
+warnings.
+
+The sheet lists one call form per line with its option defaults, grouped as
+3D shapes, 2D shapes, booleans, transforms, extrusions, expansions, hulls,
+color and measurement, and other (`snap`, and fluent's `clone`), with
+`// radians` on any call that takes an angle. Fluent lines are `jf.*` factories or methods (`.translate(offset: Vec3)`);
+modeling lines are `namespace.fn(options, ...objects)`. It is generated from
+the API index by `api/sheet.js`, whose `SECTIONS` lists the functions per
+style: those the eval's saved models used (counted over the `writeModel`
+sources in `$JSCAD_CHAT_DATA/results`) plus every primitive, boolean,
+transform, extrusion, expansion and hull. Never edit the `.md` files by hand;
+change `SECTIONS` and regenerate ([API index](#api-index)). A test holds each
+sheet to 5,000 tokens by `estimateTokens` (one per word or punctuation
+mark); past that, drop the least-used functions first.
 
 The files are imported as `?raw` text. Vitest reads that natively, jscad-web's
 esbuild build uses `src_build/rawImport.js`, and a Node script that imports
@@ -25,12 +40,14 @@ node --import ./text-loader.js eval/run-eval.js
 
 ## API index
 
-`api/index.json` and `api/optionTable.js`
-([architecture.md](architecture.md#api-index)) are generated and committed:
+`api/index.json`, `api/optionTable.js`
+([architecture.md](architecture.md#api-index)) and the prompt's API reference
+sheets (`prompt/sheet-fluent.md`, `prompt/sheet-modeling.md`) are generated
+and committed:
 
     npm run api-index -w @jscadui/agent-loop
 
-A test fails when either differs from a fresh generation, so a
+A test fails when any of them differs from a fresh generation, so a
 `@jscad/modeling` pin update or a fluent upgrade needs a regeneration in the
 same commit. Where JSDoc misses an option the generator adds it: a function's
 `defaults` literal keys (`extrudeLinear`'s `repair`), and the options

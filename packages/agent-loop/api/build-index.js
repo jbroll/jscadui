@@ -4,6 +4,8 @@ import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { fluentEntries } from './fluent.js'
 import { jscadTextEntries, modelingEntries } from './jsdocEntries.js'
+import { buildSheet } from './sheet.js'
+import { APIS } from '../src/api.js'
 import { isMainModule } from '../src/mainModule.js'
 
 const require = createRequire(import.meta.url)
@@ -154,5 +156,6 @@ if (isMainModule(process.argv[1], import.meta.url)) {
   const entries = buildIndex()
   writeFileSync(new URL('./index.json', import.meta.url), formatIndex(entries))
   writeFileSync(new URL('./optionTable.js', import.meta.url), formatOptionTable(optionTables(entries)))
+  for (const api of APIS) writeFileSync(new URL(`../prompt/sheet-${api}.md`, import.meta.url), buildSheet(entries, api))
   console.log(`api-index: ${entries.length} entries`)
 }

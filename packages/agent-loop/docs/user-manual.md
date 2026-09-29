@@ -9,6 +9,9 @@ the system prompt (`buildSystemPrompt(api)`), the tool list
 (`buildTools(api)`, via `runTurn({ api })`; only the `docs` description
 differs) and the entries `docs` answers from (`docsTool(index, query, { api })`).
 It does not change the runtime: model code may still require either package.
+Each style's prompt carries an `## API reference` sheet of that style's
+common calls with their option defaults
+([development.md](development.md#system-prompt)).
 Every function takes `api` as an option and defaults to `'fluent'`; an unknown
 value throws. `APIS` lists both.
 

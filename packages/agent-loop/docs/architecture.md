@@ -7,9 +7,10 @@
   (`buildTools(api)`), `prompt.js` (`buildSystemPrompt(api)`), `context.js`
   (`buildMessages`), `docs.js` (`docsTool`), `optionChecks.js` and `hints.js`
   (option warnings and error hints), `consoleCapture.js`.
-- `api/`: the generated API index and option table, and their generator.
-- `prompt.md`, `prompt/`: the system prompt prose and examples
-  ([development.md](development.md#system-prompt)).
+- `api/`: the generated API index and option table, and their generator,
+  which also writes the prompt's API reference sheets (`api/sheet.js`).
+- `prompt.md`, `prompt/`: the system prompt prose, API reference sheets and
+  examples ([development.md](development.md#system-prompt)).
 - `log/`: the chat log reader and the data-dir lookup (`log-dir.js`).
 - `eval/`: the live eval. Not shipped.
 
