@@ -10,8 +10,6 @@ const DOCS_DESCRIPTION = {
 const BUILDS =
   'builds the project and returns the build report: saved (the file written, kept even when the build fails), ok, entry, error with its file, line and column, warnings, console output, params and, when it builds, the geometry (parts, boundingBox, dimensions in mm, volume in mm³, watertight, manifold, selfIntersecting).'
 
-// Tool definitions the browser loop hands to the provider. Schemas match the
-// studio server so prompts behave the same against either loop.
 export const buildTools = (api = DEFAULT_API) => [
   {
     name: 'list',

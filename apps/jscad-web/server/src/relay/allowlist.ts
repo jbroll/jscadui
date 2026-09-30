@@ -1,6 +1,13 @@
 import { readFileSync } from 'node:fs'
 import { isIP } from 'node:net'
-import { PROVIDER_BASE_URLS } from '../providers/types.js'
+
+// Default allowlist; mirrors PROVIDER_BASE_URLS in packages/agent-loop/src/providers.js.
+export const PROVIDER_BASE_URLS: Record<string, string> = {
+  anthropic: 'https://api.anthropic.com',
+  openai: 'https://api.openai.com',
+  'opencode-go': 'https://opencode.ai/zen/go',
+  meta: 'https://api.meta.ai',
+}
 
 // Literal-IP ranges refused at load; hostnames are resolved and re-checked at
 // forward time, since DNS can change between load and request.

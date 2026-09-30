@@ -1,7 +1,7 @@
 // Browser-safe agent turn: streams provider text out, hands each tool_use to
 // the caller's requestTool, feeds string results back, repeats until the
-// provider answers with no tool calls. Ported from the studio server loop;
-// the only runtime needs are AbortSignal/clearTimeout plus the fetch in providers.
+// provider answers with no tool calls. The only runtime needs are
+// AbortSignal/clearTimeout plus the fetch in providers.
 import { DEFAULT_API } from './api.js'
 import { CONTEXT_BUDGET } from './context.js'
 import { argumentsError } from './toolArguments.js'

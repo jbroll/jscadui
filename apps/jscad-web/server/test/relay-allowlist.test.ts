@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { isPublicHttpsUrl, loadAllowlistFile, resolveUpstream } from '../src/relay/allowlist.js'
-import { PROVIDER_BASE_URLS } from '../src/providers/types.js'
+import { PROVIDER_BASE_URLS } from '../../../../packages/agent-loop/src/providers.js'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -26,7 +26,7 @@ describe('allowlist', () => {
     expect(() => loadAllowlistFile(file('d.json', 'not json'))).toThrow(/JSON|parse/)
   })
 
-  it('falls back to the built-in provider table when the file is missing', () => {
+  it("falls back to agent-loop's provider table when the file is missing", () => {
     expect(loadAllowlistFile(join(dir, 'missing.json'))).toEqual(PROVIDER_BASE_URLS)
   })
 

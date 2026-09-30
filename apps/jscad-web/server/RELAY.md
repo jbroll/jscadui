@@ -9,7 +9,9 @@ JSON `{kind: upstreamBase}`, default `/etc/jscad-relay/providers.json`,
 override with `RELAY_ALLOWLIST`. Entries must be public `https:` URLs without
 ports; re-read at most every 5s, so edits apply without restart. When the file
 does not exist the relay serves the built-in table below
-(`PROVIDER_BASE_URLS` in `src/providers/types.ts`); any other read or parse
+(`PROVIDER_BASE_URLS` in `src/relay/allowlist.ts`, a copy of agent-loop's
+table in `packages/agent-loop/src/providers.js` that
+`test/relay-allowlist.test.ts` checks against it); any other read or parse
 failure is a `500`.
 
 ```json
