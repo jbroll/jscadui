@@ -32,6 +32,36 @@ describe('local server', () => {
     }
   })
 
+  it('mounts the fs api for the app origin only, ahead of the static routes', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'jscad-local-'))
+    mkdirSync(join(root, 'frame'), { recursive: true })
+    mkdirSync(join(root, 'models'), { recursive: true })
+    mkdirSync(join(root, 'api', 'fs'), { recursive: true })
+    writeFileSync(join(root, 'api', 'fs', 'main.js'), 'static copy')
+    writeFileSync(join(root, 'models', 'main.js'), 'model')
+    const relayHandler = createRelayHandler({ allowlist: {}, trustedOrigins: [] })
+    const { appServer, frameServer, url } = await startLocal({
+      appDir: root, frameDir: join(root, 'frame'), modelDir: join(root, 'models'),
+      relayHandler, port: 0,
+    })
+    const frameUrl = url.replace(/:(\d+)$/, (_, p) => `:${Number(p) + 1}`)
+    try {
+      const list = await fetch(`${url}/api/fs`, { headers: { origin: url } })
+      expect(list.status).toBe(200)
+      expect((await list.json()).files.map((f) => f.path)).toEqual(['main.js'])
+      const file = await fetch(`${url}/api/fs/main.js`, { headers: { origin: url } })
+      expect(await file.text()).toBe('model')
+      const put = await fetch(`${url}/api/fs/lib/part.js`, { method: 'PUT', body: 'part', headers: { origin: url } })
+      expect(put.status).toBe(204)
+      expect(await (await fetch(`${url}/models/lib/part.js`)).text()).toBe('part')
+      const framed = await fetch(`${url}/api/fs/main.js`, { headers: { origin: frameUrl } })
+      expect(framed.status).toBe(403)
+      expect(framed.headers.get('access-control-allow-origin')).toBeNull()
+    } finally {
+      appServer.close(); frameServer.close()
+    }
+  })
+
   it('sends CORS on missing and forbidden files so the frame sees the status', async () => {
     const root = mkdtempSync(join(tmpdir(), 'jscad-local-'))
     mkdirSync(join(root, 'frame'), { recursive: true })
