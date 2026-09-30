@@ -497,6 +497,7 @@ provider call, starts no describer and renders nothing.
 | `EVAL_PROCESSES` | run-eval processes sharing the host (`ci/eval` sets the model × API lane count), for the concurrency cap in [architecture.md](architecture.md#sandbox); default 1 |
 | `EVAL_RUN_TIMEOUT` | seconds a conversation may run before it is stopped and graded, default 1200 |
 | `GRADER_VALIDATION_DIR` | where `grader-validate` writes its file and renders, default `~/.local/state/jscad-chat/grader-validation` |
+| `DESCRIBER_HOME` | the describer's venv (`venv/`) and weights (`hf/`), default `/data/moondream3` |
 
 ### Turn cap
 
@@ -928,6 +929,49 @@ result file. Each complex run adds:
 - `description: null` and `verdict: null`, filled in by the describe and
   judge stages.
 
+### Describe and judge
+
+A complex pass's runs are described and judged after the lanes finish, once
+over every result file:
+
+```bash
+npm run describe -w @jscadui/agent-loop -- [--all] <result files>
+```
+
+npm runs it in `packages/agent-loop`, so give absolute paths. It frees the
+GPU first: it asks Ollama on `127.0.0.1:11434` to unload every model it holds
+(`keep_alive: 0`), then reads the card's free memory from `nvidia-smi`. Below
+11,800 MiB it stops, naming the free amount and the processes holding the
+card, and leaves the runs undescribed; running it again on the same files
+finishes them. Then one describer process (`DESCRIBER_HOME/venv`, default
+`/data/moondream3`; setup in `ci/README.md`) loads Moondream 3.1 once and
+describes each view of every rendered run with no description:
+
+> This is the {front three-quarter view | back three-quarter view | side
+> view}. Overall size {W}×{D}×{H} mm, {N} parts.
+>
+> Describe the object in these renders: what it most likely is, its main
+> parts and how they're arranged, colours, and anything that looks broken or
+> odd. Plain text, under 150 words. Do not guess a purpose you can't see.
+
+`N` is the `bodies` probe's count. The run's `description` is `{ text, views:
+[{ name, text, ms, inputTokens, outputTokens }] }`, `text` the three replies
+one per line as `{view label}: {reply}`. A run with a view that failed gets
+`describeError` naming it and no description; the judge skips it, and the
+next `npm run describe` on the file tries it again. The file records
+`describer: { model, kestrel, promptSha256, blockedConnections }`; the
+describer refuses every outside connection. `--all` describes every rendered
+run again and clears its votes and verdict, so run the judge on the same
+files after it. The describer never sees the prompt, the transcript, the
+source, file names or parameter names, since any of them can name the object.
+
+It exits 0 when every pending run was described, and 1 when it finished but
+a view failed; the judge can run after either. It exits 2 when it stopped in
+a way the judge must not run after: no files given, less than 11,800 MiB
+free, a describer that did not start or died before it finished (its
+refused-connection count is then unknown, `blockedConnections: null`), or any
+refused outside connection. The descriptions already written are kept.
+
 ### Grader validation
 
 `eval/grader-validation/cases.js` holds known answers for the describer and
@@ -945,9 +989,12 @@ judge: model source, the user's messages and the expected result.
 npm run grader-validate -w @jscadui/agent-loop
 ```
 
-builds each case in the crt sandbox with the `bodies` probe, renders it, and
-prints each case's failed gates against the expected result and where its
-renders are; it exits 1 when `exploded` does not fail `connected`. It writes
+builds each case in the crt sandbox with the `bodies` probe, renders it,
+describes it, and prints each case's failed gates against the expected result
+and its description; it exits 1 when `exploded` does not fail `connected`,
+when a view fails to describe, or when the describe stage stops (a crash or a
+refused connection, which it prints). `--until render` stops after rendering.
+It writes
 `<time>-grader-validation.json` and its renders to `GRADER_VALIDATION_DIR`
 (default `~/.local/state/jscad-chat/grader-validation/`). A case may give
 `files` and `entry` in place of `source`, and `api` (default `fluent`).

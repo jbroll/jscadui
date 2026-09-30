@@ -271,6 +271,23 @@ model with `display-check.js --engine jscad`.
   transpiler's calls are not the user's. Checking them would need warnings
   mapped back to the `.scad` source, and options the transpiler itself passes
   kept out.
+- GPU sharing on the CI host (agent-loop eval). The describer needs about
+  11.8 GB of the 12 GB card, so `npm run describe` stops while
+  chatterbox-tts, an Ollama model it could not unload, or a CI job holds it.
+  A lease the describer, Ollama, chatterbox-tts and CI jobs take turns on
+  would let a complex pass describe without a person freeing the card.
+- The describer's blind spot for open or missing tops (agent-loop eval).
+  Moondream called the caboose with its roofs removed intact
+  (`no-roof` in `eval/grader-validation/cases.js`), and asking it about
+  missing or floating parts made it call broken models intact. No gate
+  catches an open top either; a gate on the top cut, a ring where a closed
+  object has a solid, would, for requests whose objects are closed.
+- A cap on the `bodies` probe (agent-loop eval, `eval/probe.js`). It lists
+  every body with no limit, so a model of about 5,000 bodies pushes the grade
+  reply past the executor's 1 MiB cap; the whole grade becomes `NO_GRADE` and
+  a complex run fails `builds` with no word on why. A cap that reports the
+  count and drops the list past it would keep the grade and name the cause.
+  No complex fixture comes near it.
 
 ## Refactoring
 

@@ -20,7 +20,8 @@
     "read-log": "node log/read-log.js",
     "eval": "node --import ./text-loader.js eval/run-eval.js",
     "eval:keyless": "node --import ./text-loader.js eval/keyless.js",
-    "grader-validate": "node --import ./text-loader.js eval/grader-validate.js"
+    "grader-validate": "node --import ./text-loader.js eval/grader-validate.js",
+    "describe": "node --import ./text-loader.js eval/describe.js"
   },
   "dependencies": {
     "@jscadui/format-common": "*"

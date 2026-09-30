@@ -309,7 +309,19 @@ or empty on its own rounds.
 ## Complex grading
 
 A `complex` fixture's geometry grade comes from a verdict on renders of the
-result ([user-manual.md](user-manual.md#complex-fixtures)).
+result ([user-manual.md](user-manual.md#complex-fixtures)), in three stages.
+Stage A runs in each `run-eval` lane: the conversation, the grade in a fresh
+executor with the `bodies` probe, the same executor's `mesh` reply, the gates,
+and three renders. Stage B (`eval/describe.js`) runs once over the pass's
+result files: one describer process loads the model once and describes every
+rendered run. Stage C (`eval/judge.js`) judges every described run. Keeping
+B out of the lanes keeps the GPU out of them: the model loads once per pass
+and no lane waits on it. It also makes describing and judging again the same
+commands on older files.
+
+The describer sees only the renders, the model's size and its part count,
+never the prompt, transcript, source, file names or parameter names, since any
+of them can name the object (`cupolaHeight`).
 
 ### Rendering
 
