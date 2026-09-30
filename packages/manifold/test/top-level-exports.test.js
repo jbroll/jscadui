@@ -1,5 +1,16 @@
 import { describe, it, expect } from 'vitest'
 import * as manifold from '../src/index.js'
+import * as jscadModule from '@jscad/modeling-for-manifold'
+
+const jscad = jscadModule.default || jscadModule
+
+describe('maths namespace', () => {
+  it('carries every member of modeling maths, constants included', () => {
+    expect(Object.keys(manifold.maths)).toEqual(expect.arrayContaining(Object.keys(jscad.maths)))
+    expect(manifold.maths.constants).toBe(jscad.maths.constants)
+    expect(manifold.maths.constants.TAU).toBe(manifold.TAU)
+  })
+})
 
 describe('top-level export identity', () => {
   it('top-level functions are the same objects as namespaced versions', () => {

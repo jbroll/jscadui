@@ -51,17 +51,28 @@ const findFluentBundle = () => {
 
 // Eval the bundle source as CJS, exactly how the worker's require() evals
 // bundle-aliased sources (no transform; require/module/exports in scope).
-const loadFluentBundle = (bundlePath) => {
-  const source = readFileSync(bundlePath, 'utf8')
+const evalCjs = (source, deps) => {
   const module = { exports: {} }
   const require = (name) => {
-    if (name === '@jbroll/jscad-anchors') return nodeRequire(anchorsDist)
-    if (name === '@jscad/modeling' || name === '@jscad/modeling-for-anchors') return modeling
+    if (name in deps) return deps[name]
     throw new Error(`cannot require ${name}`)
   }
   const fn = new Function('require', 'module', 'exports', source)
   fn(require, module, module.exports)
   return module.exports
+}
+
+// `engine` stands in for the frame's '@jscad/modeling-for-anchors' alias:
+// the modeling bundle or, for the manifold engine, the manifold bundle.
+const loadFluentBundle = (bundlePath, engine = modeling) => {
+  const anchors = engine === modeling
+    ? nodeRequire(anchorsDist)
+    : evalCjs(readFileSync(anchorsDist, 'utf8'), { '@jscad/modeling-for-anchors': engine })
+  return evalCjs(readFileSync(bundlePath, 'utf8'), {
+    '@jbroll/jscad-anchors': anchors,
+    '@jscad/modeling': engine,
+    '@jscad/modeling-for-anchors': engine,
+  })
 }
 
 const runFluentSource = (source, fluentBundle) => {
@@ -107,6 +118,14 @@ describe('fluent worker bundle', () => {
     const { volume } = measure(geometry.length === 1 ? geometry[0] : geometry, {})
     expect(volume).toBeGreaterThan(7900)
     expect(volume).toBeLessThan(8100)
+  })
+
+  it('loads and builds a cube on the manifold engine, the app default', async () => {
+    const manifold = await import('@jscadui/manifold')
+    await manifold.init()
+    const fluentBundle = loadFluentBundle(findFluentBundle(), manifold)
+    expect(fluentBundle.maths.constants.TAU).toBeCloseTo(Math.PI * 2)
+    expect(fluentBundle.cube({ size: 20 })).toBeTruthy()
   })
 
   it('a fluent model with an @jscad-params block yields defs through the existing params path', () => {
