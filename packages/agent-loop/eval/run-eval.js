@@ -396,6 +396,8 @@ const readJson = (path) => JSON.parse(readFileSync(path, 'utf8'))
 
 const promptOf = (fixture, transcript) => transcript.some((m) => m.role === 'user' && m.content === fixture.prompt)
 
+const sameMessages = (a, b) => a.length === b.length && a.every((message, i) => message === b[i])
+
 // Regrades one stored run with no provider calls. Geometry comes from
 // rebuilding the saved project with `grader`, unless the run answered a
 // different prompt than the current fixture, whose checks then do not apply.
@@ -406,12 +408,17 @@ const renamedSaved = (result) => {
   return { ...result, report: { ...report, ...(saved === false && !result.providerError ? { wrote: false } : {}) } }
 }
 
+// Views are empty only on a render record made at regrade for a run that never rendered.
+const staleNote = (record) =>
+  record.views.length > 0 ? 'the mesh changed; its renders and verdict are stale' : 'the run was never rendered; render it before describing'
+
 // A complex run's gates again, and its verdict kept only while its mesh is the one that was judged.
+// A stale run stays stale until a rerender clears `renderStale`.
 async function regradeComplex(run, fixture, grader, { transcript, maxTurns, providerError, metrics }) {
   const graded = await grader.gradeProject(gradedModel(fixture, transcript), { probe: complexProbe(fixture), mesh: true })
   const gates = complexGates(fixture, graded)
   const report = complexReport(fixture, transcript, gates, { maxTurns, providerError })
-  const { description, votes, verdict, graderError, describeError, render, renderError: _error, renderStale: _stale, ...kept } = run
+  const { description, votes, verdict, graderError, describeError, render, renderError: _error, renderStale: stale, ...kept } = run
   const base = { ...kept, gates, report, metrics: { ...metrics, geometryError: geometryError(fixture.target, graded.measure) } }
   const cleared = { ...base, description: null, verdict: null }
   if (!gates[0].pass) return settleRun(render ? { ...cleared, regradeNote: 'the project no longer builds' } : cleared)
@@ -423,6 +430,7 @@ async function regradeComplex(run, fixture, grader, { transcript, maxTurns, prov
     return settleRun({ ...cleared, renderError: 'the grade could not be read' })
   }
   if (render && fresh.meshSha256 === render.meshSha256) {
+    if (stale) return settleRun({ ...cleared, render, renderStale: true, regradeNote: staleNote(render) })
     return settleRun({
       ...base,
       render,
@@ -437,7 +445,7 @@ async function regradeComplex(run, fixture, grader, { transcript, maxTurns, prov
     ...cleared,
     render: fresh,
     renderStale: true,
-    regradeNote: 'the mesh changed; its renders and verdict are stale',
+    regradeNote: staleNote(fresh),
   })
 }
 
@@ -451,13 +459,15 @@ async function regradeRun(stored, fixture, grader) {
   const { regradeNote: _stale, ...rest } = result
   const metrics = { ...result.metrics, ...transcriptMetrics(transcript) }
   const model = gradedModel(fixture, transcript)
-  const samePrompt = promptOf(fixture, transcript)
+  const samePrompt =
+    isComplex(fixture) && Array.isArray(result.userMessages) ? sameMessages(result.userMessages, userMessagesOf(fixture)) : promptOf(fixture, transcript)
   if (isComplex(fixture) && (samePrompt || !model)) {
     const regraded = await regradeComplex(rest, fixture, grader, { transcript, maxTurns, providerError, metrics })
     const empty = !result.error && endedWithoutReply(transcript, maxTurns)
+    const notes = [regraded.regradeNote, samePrompt ? undefined : 'prompt differs from the current fixture; graded as unsaved'].filter(Boolean)
     return {
       ...regraded,
-      ...(samePrompt ? {} : { regradeNote: 'prompt differs from the current fixture; graded as unsaved' }),
+      ...(notes.length ? { regradeNote: notes.join('; ') } : {}),
       ...(empty ? { error: EMPTY_REPLY } : {}),
       ...(empty || result.error === EMPTY_REPLY ? { providerError: true } : {}),
     }
@@ -690,8 +700,12 @@ const main = async (argv, env) => {
       onJobLog,
     )
 
-  const results = await runSuiteParallel(fixtures, { runs, concurrency, maxTurns, api, runJob: runSandboxedJob, onLog, onRun })
-  await renders?.close()
+  let results
+  try {
+    results = await runSuiteParallel(fixtures, { runs, concurrency, maxTurns, api, runJob: runSandboxedJob, onLog, onRun })
+  } finally {
+    await renders?.close()
+  }
   const { summary, speed } = save(results)
   logLine(formatSummary(summary, { ...speed, model: EVAL_MODEL, provider: EVAL_PROVIDER }), { toStdout: true })
   const infra = results.filter((r) => r.infraError).length

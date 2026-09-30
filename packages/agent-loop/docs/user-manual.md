@@ -462,8 +462,13 @@ recomputed and the mesh hashed. When the hash matches `render.meshSha256`, the
 stored verdict stands and geometry is recomputed from it and the new gates.
 When it differs, the description, votes and verdict are cleared and the run
 gets `renderStale: true`, `verdictPending: true` and a `regradeNote`; a project
-that no longer builds loses them too and scores geometry 0. `--regrade` makes
-no provider call, starts no describer and renders nothing.
+that no longer builds loses them too and scores geometry 0. A run stored with a
+`renderError` that now builds is marked the same way, with a note that it was
+never rendered. A stale run stays stale through later regrades until
+`npm run describe -- --rerender` draws it again. A complex run's prompt is its
+stored `userMessages`, so a changed follow-up also counts as a different
+prompt; that note is joined to any other with `; `. `--regrade` makes no
+provider call, starts no describer and renders nothing.
 
 ### Environment variables
 

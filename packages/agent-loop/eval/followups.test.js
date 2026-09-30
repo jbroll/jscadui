@@ -66,12 +66,14 @@ describe('follow-ups', () => {
     const provider = {
       async *send(messages) {
         seen.push([...messages])
-        if (seen.length > 0) throw new Error('status 500')
-        yield done('end_turn')
+        if (seen.length > 1) throw new Error('status 500')
+        yield write('t1', CUBE)
+        yield done('tool_use')
       },
     }
     const [result] = await runSuite([fixture], { provider, backend: createEvalBackend() })
-    expect(seen).toHaveLength(1)
+    expect(seen).toHaveLength(2)
+    expect(seen.flat().some((m) => m.content === 'make it taller')).toBe(false)
     expect(result.error).toBe('status 500')
     expect(result.providerError).toBe(true)
   })

@@ -159,6 +159,65 @@ describe('--regrade of a complex run', () => {
     expect(out.render.views).toEqual(stored.render.views)
     expect(out.report.dimensions.geometry).toBe(0)
   })
+
+  it('keeps the renders stale through a second regrade', async () => {
+    const backend = createEvalBackend()
+    const [stored] = await runSuite([fixture], { provider: writes(CUBE), backend, render: fakeRender().render })
+    const {
+      results: [once],
+    } = await regrade(judged(stored, '0'.repeat(64)), backend)
+    const {
+      results: [twice],
+    } = await regrade(once, backend)
+    expect(twice.renderStale).toBe(true)
+    expect(twice.verdictPending).toBe(true)
+    expect(twice.regradeNote).toMatch(/mesh changed/)
+    expect(twice.render).toEqual(once.render)
+  })
+
+  it('marks a run that was never rendered, and keeps it marked', async () => {
+    const backend = createEvalBackend()
+    const failing = async () => {
+      throw new Error('no chromium')
+    }
+    const [stored] = await runSuite([fixture], { provider: writes(CUBE), backend, render: failing })
+    const {
+      results: [once],
+    } = await regrade(stored, backend)
+    expect(once).not.toHaveProperty('renderError')
+    expect(once.renderStale).toBe(true)
+    expect(once.verdictPending).toBe(true)
+    expect(once.regradeNote).toMatch(/never rendered/)
+    expect(once.render.views).toEqual([])
+    const {
+      results: [twice],
+    } = await regrade(once, backend)
+    expect(twice.renderStale).toBe(true)
+    expect(twice.regradeNote).toMatch(/never rendered/)
+  })
+
+  const regradeAgainst = (run, changed, backend) =>
+    regradeResults({ model: 'm', api: 'fluent', suite: 'complex', results: [run] }, new Map([[changed.name, changed]]), { grader: backend })
+
+  it('keeps both notes when the prompt changed and the project no longer builds', async () => {
+    const backend = createEvalBackend()
+    const [stored] = await runSuite([fixture], { provider: writes(CUBE), backend, render: fakeRender().render })
+    const unsaved = { ...stored, transcript: stored.transcript.filter((m) => m.role === 'user') }
+    const {
+      results: [out],
+    } = await regradeAgainst(unsaved, { ...fixture, prompt: 'a sphere please' }, backend)
+    expect(out.regradeNote).toMatch(/no longer builds/)
+    expect(out.regradeNote).toMatch(/prompt differs/)
+  })
+
+  it('reads a changed follow-up as a different prompt', async () => {
+    const backend = createEvalBackend()
+    const [stored] = await runSuite([fixture], { provider: writes(CUBE), backend, render: fakeRender().render })
+    const {
+      results: [out],
+    } = await regradeAgainst(judged(stored), { ...fixture, followUps: [{ message: 'make it red' }] }, backend)
+    expect(out.regradeNote).toMatch(/prompt differs/)
+  })
 })
 
 describe('complex result files', () => {
