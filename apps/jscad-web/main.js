@@ -47,8 +47,8 @@ import { capGeometry, DEFAULT_CAPS } from './src/caps.js'
 import { createProjectTools } from './src/aiDeps.js'
 import { createProjectBuilds, projectEntry } from './src/projectBuild.js'
 import { createExport } from './src/aiExport.js'
-// Leaf imports, not ./src/storage/index.js: the index re-exports schema.js,
-// whose zod 4 types the root TS 4.9 gate cannot parse (see root tsconfig).
+// Nothing here may import ./src/storage/schema.js: its zod 4 types are more
+// than the root TS 4.9 gate can parse (see root tsconfig).
 import { createLocalStorage } from './src/storage/local.js'
 import { assembleFileMap } from './src/storage/map.js'
 import { createProjectManager } from './src/storage/projects.js'

@@ -1072,10 +1072,9 @@ Local-first with per-project version history (`src/storage/`). Every editor
 compile records a version row and file hashes, and so does each chat turn
 that wrote files, once, with the turn's final state.
 Backends: the service-worker FS and file handles (`local`, the default and the
-only mode for anonymous users), rowboat blobs and tables (`rowboat`, after
-sign-in, synced with a 15-minute JWT from `GET /api/sync-token`), and a linked
-local folder through `showDirectoryPicker()`. A folder that is a git checkout
-stays the user's to commit. Under the local launcher a fourth, `disk`
+only mode for anonymous users) and rowboat blobs and tables (`rowboat`, after
+sign-in, synced with a 15-minute JWT from `GET /api/sync-token`). Under the
+local launcher a third, `disk`
 (`src/storage/disk.js`), holds one project, id `disk`: the model directory,
 read and written over the launcher's `/api/fs` and followed through its
 `/api/fs/events` stream. It keeps no versions; the directory's git does. A GitHub App backend that read and committed
@@ -1085,8 +1084,7 @@ A mixed project merges at load: each manifest path names exactly one backend,
 and an unlisted sibling resolves local-first then rowboat.
 `src/storage/manifest.js` is generated from `schema.js` by
 `node scripts/gen-manifest.js`, and a parity test fails on drift. `main.js`
-imports the storage leaves directly rather than the index, because the index
-re-exports zod-typed schema the root TS 4.9 gate cannot parse.
+never imports `schema.js`, whose zod types the root TS 4.9 gate cannot parse.
 
 No storage access crosses into the frame: no session, no directory handle, no
 repository token. A project's file contents do cross, because a model's

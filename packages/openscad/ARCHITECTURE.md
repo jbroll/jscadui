@@ -348,9 +348,6 @@ viewport's entity cap. It never reads `$preview`.
 # Transpile single file
 node bin/transpile-file.js model.scad
 
-# Test with file resolver (multi-file)
-node bin/test-transpile.js
-
 # Run full test harness (compare with OpenSCAD output)
 node bin/test-harness.js --corpus
 ```

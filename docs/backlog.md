@@ -368,9 +368,11 @@ Async module loading is the breaking one; the rest are extractions.
   json reporter; then seed the coverage baseline and retire `.git-hooks/`.
   The render sweep emits no lcov, so the tier-2 coverage ratchet needs e2e
   V8 coverage or an upstream knob for a regression-only e2e.
-- **3MF export claim.** The root README says `file-format/3mf-export` is
-  also used by manifold, but neither `packages/manifold` nor
-  `apps/jscad-web/src/exporter.js` references it. Wire it or fix the README.
+- **3MF export workspace.** Nothing in this repo imports
+  `file-format/3mf-export`; the only consumer is the `manifold-3d` npm
+  package (`lib/export-3mf.js`), whose `@jscadui/3mf-export ^0.5.0`
+  dependency the workspace satisfies. npm has the same 0.5.0, so the
+  workspace can go once resolving that copy from the registry is accepted.
 - **Params memory follow-up.** Child-proxy eviction recreates the child with
   fresh per-proxy defaults; only matters if 500 distinct properties are
   probed on one proxy between a set and a read of the same child.

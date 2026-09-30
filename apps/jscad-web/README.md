@@ -163,20 +163,15 @@ stored when the turn ends, including any edit you made in the editor meanwhile:
 - Mixed projects merge at load time: each manifest path names exactly one
   backend, and unlisted sibling requires resolve local-first, then rowboat.
 - Chat conversations persist per project and resume on revisit.
-- Any project exports or imports as a zip (`exportZip`/`importZip`). Its
-  name and entry ride in `.jscad-web.json`, the same dotfile a linked folder
-  keeps. Zips and folders that carry jscad-studio's
-  `.jscad-studio.json` still read; writes use the new name.
 
 `src/storage/manifest.js` is generated from `schema.js`; regenerate with
 `node scripts/gen-manifest.js` after editing the schema (a parity test fails
-on drift). `main.js` imports the storage leaves directly, never the index,
-because the index re-exports zod-typed schema the root TS 4.9 gate cannot
-parse (see root `tsconfig.json`).
+on drift). `main.js` never imports `schema.js`, whose zod types the root
+TS 4.9 gate cannot parse (see root `tsconfig.json`).
 
 Tests: `npx vitest run test/storage-` covers the interface contract, the
-rowboat backend against a recorded sync transcript, map assembly, zip round
-trip, write-through session, sync loop, and manifest parity.
+rowboat backend against a recorded sync transcript, map assembly,
+write-through session, sync loop, and manifest parity.
 
 The Projects drawer lists projects across both backends, with per-project
 version history (restore appends a new row) and a local/rowboat mode toggle

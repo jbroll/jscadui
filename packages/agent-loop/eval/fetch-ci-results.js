@@ -10,7 +10,7 @@ import { isMainModule } from '../src/mainModule.js'
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 
-// sci lives beside the repo checkout (ci/README.md, packages/openscad/bin/test-ci.sh); SCI overrides it.
+// sci lives beside the repo checkout (ci/README.md, test:ci in packages/openscad/package.json); SCI overrides it.
 export const sciPath = (env = process.env, repoRoot = REPO_ROOT) => env.SCI || join(repoRoot, '..', 'simple-ci', 'sci')
 
 export const parseIndex = (text) => text.split('\n').map((line) => line.trim()).filter(Boolean)
