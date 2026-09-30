@@ -66,7 +66,7 @@ export const buildTools = (api = DEFAULT_API) => [
   },
   {
     name: 'export',
-    description: 'Export the current model in the given format.',
+    description: 'Export the current model in the given format; the result gives its size, not the file. The user downloads it from the app.',
     inputSchema: {
       type: 'object',
       properties: {

@@ -46,6 +46,11 @@ describe('agent tools', () => {
     expect(check.description).toMatch(/Pass a bed only when the user names a printer/)
   })
 
+  it('says export gives the size, not the file', () => {
+    const exportTool = TOOLS.find((t) => t.name === 'export')
+    expect(exportTool.description).toMatch(/gives its size, not the file/)
+  })
+
   it('refuses an unknown API', () => {
     expect(() => buildTools('scad')).toThrow(/unknown api scad/)
   })
