@@ -409,8 +409,9 @@ or a success followed the last failure, else 0; a run the turn cap ended
 (its last round's results got no reply) leaves that round's failures out,
 since it had no turn left to recover in. Conservation is 2 for at most 12
 counted calls, 1 for at most 24, else 0. It counts every call except a
-`write` or `edit` whose build succeeded (and an older file's `writeModel`),
-so failed builds and failed calls count and saving often never costs a point.
+successful `write`, `edit`, `read` or `list` (and an older file's
+`writeModel`), so failed builds and failed calls count, and saving often or
+reading before editing never costs a point.
 
 Geometry grades the project's final state, since that is what the app's user
 keeps: the fixture's files with every `write` and `edit` replayed (one the

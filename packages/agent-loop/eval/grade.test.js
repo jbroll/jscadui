@@ -72,6 +72,20 @@ describe('grader on project-tool transcripts', () => {
     expect(run(5, 20, 5)).toBe(0)
   })
 
+  it('never costs conservation for a successful read or list; a failed one counts', () => {
+    const run = (reads, badReads) => {
+      const transcript = [{ role: 'user', content: 'make it' }, toolMsg('w', 'write', {}), resultMsg('w', built())]
+      for (let i = 0; i < reads; i += 1) {
+        const name = i % 2 ? 'list' : 'read'
+        transcript.push(toolMsg(`r${i}`, name, {}), resultMsg(`r${i}`, JSON.stringify({ ok: true })))
+      }
+      for (let i = 0; i < badReads; i += 1) transcript.push(toolMsg(`x${i}`, 'read', {}), resultMsg(`x${i}`, JSON.stringify({ ok: false, error: { message: 'no such file' } })))
+      return gradeFixture(fixture, transcript, { volume: 6400 }).dimensions.conservation
+    }
+    expect(run(40, 0)).toBe(2)
+    expect(run(0, 13)).toBe(1)
+  })
+
   it('counts failures before the first successful build', () => {
     const transcript = [
       toolMsg('t1', 'edit', {}), resultMsg('t1', JSON.stringify({ ok: false, error: { name: 'EditError', message: 'oldString is not in main.js' } })),

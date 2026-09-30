@@ -138,9 +138,10 @@ export function gradeTranscript(fixture, transcript, { maxTurns } = {}) {
     recovery = laterSuccess ? 2 : 0
   }
 
-  // Saving often is wanted: a write or edit counts only when its build (or the
-  // edit itself) failed, and a legacy writeModel never does.
-  const spent = calls.filter((c) => (SAVES.has(c.name) ? c.name !== 'writeModel' && failed(resultOf.get(c.id)?.content) : true)).length
+  // Saving often and reading before editing are wanted: a write, edit, read or
+  // list counts only when it failed, and a legacy writeModel never does.
+  const free = (c) => SAVES.has(c.name) || c.name === 'read' || c.name === 'list'
+  const spent = calls.filter((c) => (free(c) ? c.name !== 'writeModel' && failed(resultOf.get(c.id)?.content) : true)).length
   const conservation = spent <= 12 ? 2 : spent <= 24 ? 1 : 0
 
   return {
