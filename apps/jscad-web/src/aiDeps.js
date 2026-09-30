@@ -1,4 +1,4 @@
-import { withSaveState } from '@jscadui/agent-loop'
+import { checksClean, withSaveState } from '@jscadui/agent-loop'
 import { createEvaluate } from './aiEvaluate.js'
 import { createSaveTracker } from './aiSaveTracker.js'
 
@@ -29,7 +29,8 @@ const projectEntry = (files, declared, lastWritten) => {
 export const createSavedDeps = ({ workerApi, handleEntities, editor, recordEdit, getProjectFiles, writeProjectFile, getProjectEntry = () => undefined, getApi, loadIndex }) => {
   const saveTracker = createSaveTracker()
   const evaluateModel = createEvaluate(workerApi, handleEntities, getApi, loadIndex)
-  const withSaved = async (result) => withSaveState(result, saveTracker.isUnsaved(await getProjectFiles()))
+  const withSaved = async (result, clean = false) =>
+    withSaveState(result, saveTracker.isUnsaved(await getProjectFiles()), { evals: saveTracker.evalsSinceSave(), clean })
 
   const evaluate = async (source, entry = PROJECT_ENTRY) => {
     const files = { ...(await getProjectFiles()), [entry]: source }
@@ -42,7 +43,10 @@ export const createSavedDeps = ({ workerApi, handleEntities, editor, recordEdit,
 
   const measure = async (options) => withSaved(await workerApi.jscadMeasure({ options }))
 
-  const check = async (input) => withSaved(await workerApi.jscadCheck({ bed: input?.bed, options: input ?? {} }))
+  const check = async (input) => {
+    const result = await workerApi.jscadCheck({ bed: input?.bed, options: input ?? {} })
+    return withSaved(result, checksClean(result))
+  }
 
   const save = async (source, entry = PROJECT_ENTRY) => {
     editor.setSource(source, entry)
@@ -54,7 +58,7 @@ export const createSavedDeps = ({ workerApi, handleEntities, editor, recordEdit,
     const result = await evaluateModel(files[realEntry], realEntry, files)
     if (result.scratch) throw new Error('model exports no main()')
     if (result.ok === false) throw Object.assign(new Error(result.error.message), { name: result.error.name })
-    saveTracker.recordEval(files)
+    saveTracker.recordSave(files)
     let out = { ok: true, entry }
     if (result.warnings) out = { ...out, warnings: result.warnings }
     if (result.console) out = { ...out, console: result.console }

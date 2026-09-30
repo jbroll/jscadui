@@ -3,7 +3,6 @@ import { readFileSync } from 'node:fs'
 import { builtinModules, createRequire } from 'node:module'
 import { CDN_BASE, createEvalBackend, createReadFile, EXPORT_REG, IMPORT_REG } from './backend.js'
 import { expectCase, WARNING_CASES } from '../test/warningCases.js'
-import { NOT_SAVED } from '../src/saveState.js'
 
 const CUBE = `const jf = require('@jbroll/jscad-fluent')
 function main() { return [jf.cube({ size: 20 })] }
@@ -202,7 +201,7 @@ module.exports = { main: () => { load('fs'); return [] } }`)
     const backend = createEvalBackend()
     expect(JSON.parse(await backend.requestTool('eval', { source: 'console.log(1)' }))).not.toHaveProperty('notSaved')
     await backend.requestTool('eval', { source: CUBE })
-    expect(JSON.parse(await backend.requestTool('eval', { source: 'console.log(1)' })).notSaved).toBe(NOT_SAVED)
+    expect(JSON.parse(await backend.requestTool('eval', { source: 'console.log(1)' })).notSaved).toMatch(/not saved/)
     await backend.requestTool('writeModel', { source: CUBE })
     expect(JSON.parse(await backend.requestTool('eval', { source: 'console.log(1)' }))).not.toHaveProperty('notSaved')
   })
@@ -210,12 +209,26 @@ module.exports = { main: () => { load('fs'); return [] } }`)
   it('marks eval, measure and check unsaved until writeModel matches the evaluated source', async () => {
     const backend = createEvalBackend()
     const evalRes = JSON.parse(await backend.requestTool('eval', { source: CUBE }))
-    expect(evalRes.notSaved).toBe(NOT_SAVED)
-    expect(JSON.parse(await backend.requestTool('measure', {})).notSaved).toBe(NOT_SAVED)
-    expect(JSON.parse(await backend.requestTool('check', { bed: 'mk3' })).notSaved).toBe(NOT_SAVED)
+    expect(evalRes.notSaved).toMatch(/not saved/)
+    expect(JSON.parse(await backend.requestTool('measure', {})).notSaved).toMatch(/not saved/)
+    expect(JSON.parse(await backend.requestTool('check', { bed: 'mk3' })).notSaved).toMatch(/not saved/)
     await backend.requestTool('writeModel', { source: CUBE })
     expect(JSON.parse(await backend.requestTool('measure', {}))).not.toHaveProperty('notSaved')
     expect(JSON.parse(await backend.requestTool('check', { bed: 'mk3' }))).not.toHaveProperty('notSaved')
+  })
+
+  it('counts the model evals since the last save, and says to save now when a check comes back clean', async () => {
+    const backend = createEvalBackend()
+    await backend.requestTool('eval', { source: CUBE })
+    await backend.requestTool('eval', { source: 'console.log(1)' })
+    expect(JSON.parse(await backend.requestTool('eval', { source: CUBE })).notSaved).toBe('not saved (2 evals since the last save); call writeModel to keep it')
+    expect(JSON.parse(await backend.requestTool('measure', {})).notSaved).toBe('not saved (2 evals since the last save); call writeModel to keep it')
+    expect(JSON.parse(await backend.requestTool('check', {})).notSaved).toBe(
+      'checks clean and not saved (2 evals since the last save): save it now with writeModel, then refine',
+    )
+    await backend.requestTool('writeModel', { source: CUBE })
+    await backend.requestTool('eval', { source: CUBE.replace('size: 20', 'size: 30') })
+    expect(JSON.parse(await backend.requestTool('check', { bed: [10, 10, 10] })).notSaved).toBe('not saved (1 eval since the last save); call writeModel to keep it')
   })
 
   // Same scenario table as apps/jscad-web/test/aiDeps.test.js: `notSaved` is
@@ -229,8 +242,8 @@ module.exports = { main: () => { load('fs'); return [] } }`)
 
     // eval an unsaved entry draft that now uses the helper: unsaved.
     const evalRes = JSON.parse(await backend.requestTool('eval', { source: main }))
-    expect(evalRes.notSaved).toBe(NOT_SAVED)
-    expect(JSON.parse(await backend.requestTool('measure', {})).notSaved).toBe(NOT_SAVED)
+    expect(evalRes.notSaved).toMatch(/not saved/)
+    expect(JSON.parse(await backend.requestTool('measure', {})).notSaved).toMatch(/not saved/)
 
     // writing the draft: saved.
     await backend.requestTool('writeModel', { source: main })

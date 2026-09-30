@@ -227,11 +227,16 @@ capped at 50 lines and 4,000 characters total with a trailing `… (N more
 lines)` note).
 
 `eval`, `measure` and `check` results, and scratch runs, also carry
-`notSaved: "this model is not saved; call writeModel to keep it"` (`NOT_SAVED`,
-`withSaveState` in `src/saveState.js`) while the current geometry is not the
+`notSaved: "not saved (2 evals since the last save); call writeModel to keep it"`
+(`withSaveState` in `src/saveState.js`) while the current geometry is not the
 source of the last `writeModel`, and nothing when it is, so the model reads an
-instruction rather than a flag. The app adds it the same way
-(`apps/jscad-web/src/aiDeps.js`), from the agent's first eval on. An `eval`
+instruction rather than a flag. The count is of model evals (not scratch
+runs) since the last `writeModel` that ran. A `check` that comes back clean
+(`checksClean`: a solid that is watertight, manifold, not inside out, not
+self-intersecting and fits the bed it was given) says instead
+`"checks clean and not saved (2 evals since the last save): save it now with writeModel, then refine"`.
+The app adds it the same way (`apps/jscad-web/src/aiDeps.js`), from the
+agent's first eval on. An `eval`
 of a script with no `main()` is a scratch run: it answers
 `{ ok: true, scratch: true, console, message }` and leaves the current model
 and geometry unchanged, rather than failing and dropping the console output

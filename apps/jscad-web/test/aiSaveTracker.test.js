@@ -32,6 +32,16 @@ describe('createSaveTracker', () => {
     expect(t.isUnsaved({ 'main.js': 'a' })).toBe(true)
   })
 
+  it('counts the evals since the last save, and a save holds what it ran', () => {
+    const t = createSaveTracker()
+    t.recordEval({ 'main.js': 'a' })
+    t.recordEval({ 'main.js': 'b' })
+    expect(t.evalsSinceSave()).toBe(2)
+    t.recordSave({ 'main.js': 'b' })
+    expect(t.evalsSinceSave()).toBe(0)
+    expect(t.isUnsaved({ 'main.js': 'b' })).toBe(false)
+  })
+
   it('skips binary files, which the agent cannot write and each read copies anew', () => {
     const t = createSaveTracker()
     t.recordEval({ 'main.js': 'a', 'part.stl': new ArrayBuffer(4) })

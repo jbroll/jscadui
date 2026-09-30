@@ -12,7 +12,7 @@ import { installConsoleCapture } from '../src/consoleCapture.js'
 import { docsTool } from '../src/docs.js'
 import { withErrorHint } from '../src/hints.js'
 import { createWarningCollector, withOptionChecks, wrapFluentMethods } from '../src/optionChecks.js'
-import { withSaveState } from '../src/saveState.js'
+import { checksClean, withSaveState } from '../src/saveState.js'
 import { GRADE_TIMEOUT_MS, PROJECT_ENTRY, projectEntry } from './grade.js'
 import { runProbe } from './probe.js'
 
@@ -138,6 +138,7 @@ export function createEvalBackend({ api = DEFAULT_API } = {}) {
   // whether writeModel has since caught up with what it is looking at.
   let lastEntry = null
   let lastSource = null
+  let evalsSinceSave = 0
   const project = new Map()
   // A model run that outlives a reset (gradeProject gave up on it) must not
   // overwrite the state of the run after it.
@@ -146,6 +147,7 @@ export function createEvalBackend({ api = DEFAULT_API } = {}) {
   const projectFiles = () => Object.fromEntries([...project].map(([path, file]) => [path, file.source]))
 
   const unsaved = () => lastEntry !== null && project.get(lastEntry)?.source !== lastSource
+  const saveState = (result, clean = false) => withSaveState(result, unsaved(), { evals: evalsSinceSave, clean })
 
   const load = async (files, entry, { allowScratch = false } = {}) => {
     const started = generation
@@ -179,12 +181,17 @@ export function createEvalBackend({ api = DEFAULT_API } = {}) {
         const result = await load({ ...projectFiles(), [entry]: args.source }, entry, { allowScratch: true })
         if (result?.scratch) {
           const scratch = { ok: true, scratch: true, message: 'no main(): nothing rendered, current model unchanged' }
-          return JSON.stringify(withSaveState(withWarnings(scratch), unsaved()))
+          return JSON.stringify(saveState(withWarnings(scratch)))
         }
-        return JSON.stringify(withSaveState(withWarnings({ ok: true, params, entities: geometry.length }), unsaved()))
+        if (result) evalsSinceSave += 1
+        return JSON.stringify(saveState(withWarnings({ ok: true, params, entities: geometry.length })))
       }
-      if (name === 'measure') return geometry ? JSON.stringify(withSaveState({ ok: true, ...measure(geometry, args) }, unsaved())) : noGeometry()
-      if (name === 'check') return geometry ? JSON.stringify(withSaveState({ ok: true, ...check(geometry, args) }, unsaved())) : noGeometry()
+      if (name === 'measure') return geometry ? JSON.stringify(saveState({ ok: true, ...measure(geometry, args) })) : noGeometry()
+      if (name === 'check') {
+        if (!geometry) return noGeometry()
+        const checked = { ok: true, ...check(geometry, args) }
+        return JSON.stringify(saveState(checked, checksClean(checked)))
+      }
       if (name === 'params') return JSON.stringify({ ok: true, params })
       if (name === 'docs') return docsTool(API_INDEX, args.query, { api })
       if (name === 'writeModel') {
@@ -192,6 +199,7 @@ export function createEvalBackend({ api = DEFAULT_API } = {}) {
         project.set(entry, { source: args.source, message: args.message ?? '' })
         const files = projectFiles()
         await load(files, projectEntry(files, entry))
+        evalsSinceSave = 0
         return JSON.stringify(withWarnings({ ok: true, entry }))
       }
       if (name === 'export') return geometry ? JSON.stringify(exportModel(geometry, args.format)) : noGeometry()
@@ -213,6 +221,7 @@ export function createEvalBackend({ api = DEFAULT_API } = {}) {
     lastConsole = []
     lastEntry = null
     lastSource = null
+    evalsSinceSave = 0
     project.clear()
     for (const [path, source] of Object.entries(files)) project.set(path, { source, message: '' })
   }

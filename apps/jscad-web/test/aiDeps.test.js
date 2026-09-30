@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
 import index from '@jscadui/agent-loop/api/index.json'
-import { NOT_SAVED } from '@jscadui/agent-loop'
 import { createSavedDeps } from '../src/aiDeps.js'
 
 // A minimal but real CommonJS runner over whatever files jscadSetFiles last
@@ -29,7 +28,7 @@ const fakeFrame = () => {
     jscadSetFiles: vi.fn(async ({ files: f }) => { files = f }),
     jscadScript,
     jscadMeasure: vi.fn(async () => ({ ok: true, volume: 1 })),
-    jscadCheck: vi.fn(async () => ({ ok: true, watertight: true })),
+    jscadCheck: vi.fn(async ({ bed }) => ({ ok: true, empty: false, watertight: true, manifold: true, insideOut: false, ...(bed ? { fitsBed: false } : {}) })),
   }
 }
 
@@ -79,9 +78,21 @@ describe('createSavedDeps: saved across a multi-file project', () => {
   it('a fresh eval is unsaved, and measure/check report it', async () => {
     const d = deps()
     const evalRes = await d.evaluate(MAIN_V1, 'main.js')
-    expect(evalRes.notSaved).toBe(NOT_SAVED)
-    expect((await d.measure({})).notSaved).toBe(NOT_SAVED)
-    expect((await d.check({})).notSaved).toBe(NOT_SAVED)
+    expect(evalRes.notSaved).toMatch(/not saved/)
+    expect((await d.measure({})).notSaved).toMatch(/not saved/)
+    expect((await d.check({})).notSaved).toMatch(/not saved/)
+  })
+
+  it('counts the model evals since the last save, and says to save now when a check comes back clean', async () => {
+    const d = deps()
+    await d.evaluate(MAIN_V1, 'main.js')
+    await d.evaluate(NO_MAIN, 'scratch.js')
+    expect((await d.evaluate(MAIN_V1, 'main.js')).notSaved).toBe('not saved (2 evals since the last save); call writeModel to keep it')
+    expect((await d.measure({})).notSaved).toBe('not saved (2 evals since the last save); call writeModel to keep it')
+    expect((await d.check({})).notSaved).toBe('checks clean and not saved (2 evals since the last save): save it now with writeModel, then refine')
+    await d.save(MAIN_V1, 'main.js')
+    await d.evaluate(MAIN_V2_USES_HELPER.replace("require('./helpers.js')", '{ n: 3 }'), 'main.js')
+    expect((await d.check({ bed: [10, 10, 10] })).notSaved).toBe('not saved (1 eval since the last save); call writeModel to keep it')
   })
 
   it('says nothing about saving before the agent evaluates anything, as the open project is its own saved model', async () => {
@@ -94,7 +105,7 @@ describe('createSavedDeps: saved across a multi-file project', () => {
     const d = deps()
     expect(await d.evaluate(NO_MAIN, 'main.js')).not.toHaveProperty('notSaved')
     await d.evaluate(MAIN_V1, 'main.js')
-    expect((await d.evaluate(NO_MAIN, 'scratch.js')).notSaved).toBe(NOT_SAVED)
+    expect((await d.evaluate(NO_MAIN, 'scratch.js')).notSaved).toMatch(/not saved/)
     await d.save(MAIN_V1, 'main.js')
     expect(await d.evaluate(NO_MAIN, 'scratch.js')).not.toHaveProperty('notSaved')
   })
@@ -118,8 +129,8 @@ describe('createSavedDeps: saved across a multi-file project', () => {
     await d.save(MAIN_V1, 'main.js')
     await d.save(HELPER_V1, 'helpers.js')
     const evalRes = await d.evaluate(MAIN_V2_USES_HELPER, 'main.js')
-    expect(evalRes.notSaved).toBe(NOT_SAVED)
-    expect((await d.measure({})).notSaved).toBe(NOT_SAVED)
+    expect(evalRes.notSaved).toMatch(/not saved/)
+    expect((await d.measure({})).notSaved).toMatch(/not saved/)
   })
 
   it('writing the entry draft makes it saved', async () => {
@@ -146,7 +157,7 @@ describe('createSavedDeps: saved across a multi-file project', () => {
     const d = deps({ project })
     expect(await d.evaluate(MAIN_V2_USES_HELPER, 'main.js')).not.toHaveProperty('notSaved')
     await project.writeProjectFile('helpers.js', HELPER_V2)
-    expect((await d.measure({})).notSaved).toBe(NOT_SAVED)
+    expect((await d.measure({})).notSaved).toMatch(/not saved/)
   })
 })
 
@@ -205,7 +216,7 @@ describe('createSavedDeps: the open project', () => {
     await d.save(MAIN_V1, 'main.js')
     expect(await d.measure({})).not.toHaveProperty('notSaved')
     project.open({ 'main.js': MAIN_V2_USES_HELPER, 'helpers.js': HELPER_V1 }, 'main.js')
-    expect((await d.measure({})).notSaved).toBe(NOT_SAVED)
+    expect((await d.measure({})).notSaved).toMatch(/not saved/)
   })
 })
 
