@@ -317,9 +317,9 @@ a cleat, and a drawer in a frame. Their checks test fit, not process: the lid
 covers the base's opening, the drawer clears the frame by a plausible gap, the
 posts sit inside the walls. A single-file answer that fits passes. Grading
 needs one change for these: the grade measures each part as well as the whole
-(`m.parts`), so checks can test fit between parts. Conservation already leaves
-`writeModel` calls out, so a three-part build that saves each part costs
-nothing there.
+(`m.parts`), so checks can test fit between parts. Conservation does not
+count `write` and `edit` calls, so a three-part build that writes each part
+costs nothing there.
 
 The `assembly` group gets its own baseline on the current prompt before the
 procedure is added. Whether it joins the default suite later is open
@@ -327,12 +327,9 @@ question 7.
 
 ### verify-before-done
 
-Done on the chat-review-4 branch: the Tool policy says to save as soon as
-the model builds and checks clean and to save again after each fix, and
-`notSaved` counts the evals since the last save and, on a clean `check`, says
-`"checks clean and not saved (…): save it now with writeModel, then refine"`
-(`packages/agent-loop/src/saveState.js`). Measured by the `saved: false` rate
-on `phone-stand`, `shelf-bracket` and `enclosure`.
+Superseded on the chat-review-4 branch by the project environment: every
+`write` and `edit` saves and builds, so nothing is left unsaved, and its build
+report (size, volume, watertightness) counts as verification in grading.
 
 ## Part 4: rollout
 

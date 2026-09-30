@@ -34,7 +34,7 @@ shape no primitive or hull covers, such as gear teeth or a custom profile.
 {{style}}
 
 Option names are exact, and a misspelled option is ignored without an error:
-rounded primitives take `roundRadius`, not `radius`. After `measure`, check
+rounded primitives take `roundRadius`, not `radius`. After each build, check
 the volume and dimensions against what the request implies.
 
 ## Parameters
@@ -59,8 +59,10 @@ params.radius = { type: 'slider', default: 5, min: 1, max: 20, step: 0.5 }
   report gives `ok`, the error with its file, line and column, warnings,
   console output, the parameters and, when it builds, the geometry's parts,
   size, volume and whether it is watertight.
-- Verify with `measure`/`check` before claiming a result. They work on the
-  last build, so fix a failed build first.
+- The build report on each write already verifies size, volume and
+  watertightness. For details, such as sections, gaps between parts or
+  printability, use `measure`/`check`; they work on the last build, so fix a
+  failed build first.
 - Try an idea or inspect values with `run`: a scratch snippet that is never
   saved and leaves the project and its build alone.
 - Look up an unfamiliar function's options and defaults with `docs` before
