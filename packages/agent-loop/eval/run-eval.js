@@ -76,13 +76,13 @@ export async function loadFixtures(dir = FIXTURES) {
 
 // A grade the fixture's checks or geometryError cannot read (model code can
 // shape the one it is measured in) grades nothing, as a model failure.
-const scoreGrade = (fixture, transcript, graded, maxTurns) => {
+const scoreGrade = (fixture, transcript, graded, maxTurns, providerError) => {
   try {
     const { measure, solid, params, probe } = graded
-    return { report: gradeFixture(fixture, transcript, measure, { params, solid, probe }, { maxTurns }), geometryError: geometryError(fixture.target, measure) }
+    return { report: gradeFixture(fixture, transcript, measure, { params, solid, probe }, { maxTurns, providerError }), geometryError: geometryError(fixture.target, measure) }
   } catch {
     const { measure, solid, params } = NO_GRADE()
-    return { report: gradeFixture(fixture, transcript, measure, { params, solid }, { maxTurns }), geometryError: geometryError(fixture.target, measure) }
+    return { report: gradeFixture(fixture, transcript, measure, { params, solid }, { maxTurns, providerError }), geometryError: geometryError(fixture.target, measure) }
   }
 }
 
@@ -245,7 +245,7 @@ export async function runConversation(
       noteInfra(err)
     }
   }
-  const { report, geometryError: geometry } = scoreGrade(fixture, transcript, graded, maxTurns)
+  const { report, geometryError: geometry } = scoreGrade(fixture, transcript, graded, maxTurns, providerError)
   const { toolCalls, failedCalls, warnings, docsCalls } = transcriptMetrics(transcript)
   const { inputTokens, outputTokens, reasoningTokens } = cappedProvider.usage()
   const { providerSeconds, firstTokenSeconds } = cappedProvider.speed()
@@ -357,11 +357,20 @@ const promptOf = (fixture, transcript) => transcript.some((m) => m.role === 'use
 // Regrades one stored run with no provider calls. Geometry comes from
 // rebuilding the saved project with `grader`, unless the run answered a
 // different prompt than the current fixture, whose checks then do not apply.
-async function regradeRun(result, fixture, grader) {
+// Before the file tools a run that never wrote was marked `saved: false`.
+const renamedSaved = (result) => {
+  const { saved, ...report } = result.report ?? {}
+  if (saved === undefined) return result
+  return { ...result, report: { ...report, ...(saved === false && !result.providerError ? { wrote: false } : {}) } }
+}
+
+async function regradeRun(stored, fixture, grader) {
+  const result = renamedSaved(stored)
   if (!fixture) return { ...result, regradeNote: 'fixture no longer exists; kept stored grading' }
   if (!Array.isArray(result.transcript)) return { ...result, regradeNote: 'no transcript; kept stored grading' }
   const { transcript } = result
   const maxTurns = result.maxTurns ?? fixture.maxTurns
+  const providerError = result.providerError === true || result.error === EMPTY_REPLY || (!result.error && endedWithoutReply(transcript, maxTurns))
   const { regradeNote: _stale, ...rest } = result
   const metrics = { ...result.metrics, ...transcriptMetrics(transcript) }
   const model = gradedModel(fixture, transcript)
@@ -369,7 +378,7 @@ async function regradeRun(result, fixture, grader) {
   let report
   let regradeNote = samePrompt ? undefined : 'prompt differs from the current fixture; graded as unsaved'
   if (samePrompt || !model) {
-    const scored = scoreGrade(fixture, transcript, await grader.gradeProject(model, { probe: fixture.probe }), maxTurns)
+    const scored = scoreGrade(fixture, transcript, await grader.gradeProject(model, { probe: fixture.probe }), maxTurns, providerError)
     report = scored.report
     metrics.geometryError = scored.geometryError
   } else {

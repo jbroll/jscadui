@@ -126,13 +126,16 @@ export function gradeTranscript(fixture, transcript, { maxTurns } = {}) {
   }
 
   // No failures means nothing to recover from: full marks, same as a recovered run.
-  // The capped last round had no turn left to recover in.
+  // The capped last round had no turn left to recover in. A scratch `run`
+  // neither fails nor recovers the project, so only builds and the other tools count.
   const lastRound = hitCap(transcript, maxTurns) ? transcript.slice(transcript.findLastIndex((m) => m.role === 'assistant')) : []
+  const nameOf = new Map(calls.map((c) => [c.id, c.name]))
+  const counted = results.filter((r) => nameOf.get(r.toolCallId) !== 'run')
   let recovery = 2
-  const failures = results.filter((r) => failed(r.content) && !lastRound.includes(r))
+  const failures = counted.filter((r) => failed(r.content) && !lastRound.includes(r))
   if (failures.length > 0) {
     const lastFailureAt = transcript.lastIndexOf(failures[failures.length - 1])
-    const laterSuccess = results
+    const laterSuccess = counted
       .filter((r) => transcript.indexOf(r) > lastFailureAt)
       .some((r) => !failed(r.content))
     recovery = laterSuccess ? 2 : 0
@@ -194,14 +197,15 @@ export function geometryError(target, measure) {
 }
 
 // `finalMeasure` and `context` describe the gradedModel's geometry. A fixture
-// that requires a write gets geometry 0 and checkRate 0 without one.
-export function gradeFixture(fixture, transcript, finalMeasure, context = {}, { maxTurns } = {}) {
+// that requires a write gets geometry 0 and checkRate 0 without one, and
+// `wrote: false` unless the provider ended the run, which is its fault.
+export function gradeFixture(fixture, transcript, finalMeasure, context = {}, { maxTurns, providerError = false } = {}) {
   const { dimensions, firstAttemptFailures: faf } = gradeTranscript(fixture, transcript, { maxTurns })
   const model = gradedModel(fixture, transcript)
-  const unsaved = requiresWrite(fixture) && !model
+  const unwritten = requiresWrite(fixture) && !model
 
   let rate = 0
-  if (!unsaved) {
+  if (!unwritten) {
     const source = model ? Object.values(model.files).filter((f) => typeof f === 'string').join('\n') : ''
     const checksContext = { ...context, source }
     const outcomes = fixture.checks(finalMeasure, checksContext).map((c) => (c.pass ? 1 : 0))
@@ -214,6 +218,6 @@ export function gradeFixture(fixture, transcript, finalMeasure, context = {}, { 
     total: dimensions.discipline + dimensions.recovery + geometry + dimensions.conservation,
     firstAttemptFailures: faf,
     checkRate: rate,
-    ...(unsaved ? { saved: false } : {}),
+    ...(unwritten && !providerError ? { wrote: false } : {}),
   }
 }

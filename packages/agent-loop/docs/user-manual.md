@@ -311,7 +311,9 @@ setting has no `api` and is graded as `fluent`. It recomputes `discipline`, `rec
 the project from the transcript's `write` and `edit` calls, or an older file's
 `writeModel` calls, and builds it in a
 sandboxed executor to recompute `geometry`, `checkRate` and
-`geometryError` against the current checks, recomputes each run's `total`, marks
+`geometryError` against the current checks, recomputes each run's `total`,
+renames an older report's `saved: false` to `wrote: false` (dropping it from a
+provider-error run), marks
 a run that ended with no provider reply as `error: "empty provider reply"` with
 `providerError: true`, and rebuilds the file's `summary` and `speed`.
 Transcripts, speed metrics and every other stored field stay as they were, and the
@@ -428,7 +430,9 @@ when the fixture has no `verifyBeforeWrite`, when it never writes, or when it
 verifies before or after its first `write` or `edit`, else 1; a save builds the
 model, so measuring after it counts. A run with no `run` gets 2 when it
 verifies after a save, else 0. Recovery is 2 when no tool call failed
-or a success followed the last failure, else 0; a run the turn cap ended
+or a success followed the last failure, else 0, counting every call but a
+scratch `run`, which neither breaks nor fixes the project (a failed `run`
+still counts toward conservation); a run the turn cap ended
 (its last round's results got no reply) leaves that round's failures out,
 since it had no turn left to recover in. Conservation is 2 for at most 12
 counted calls, 1 for at most 24, else 0. It counts every call except a
@@ -445,8 +449,9 @@ file with no entry file builds the file its last `writeModel` wrote). A
 model that has not finished after 120 s at grading time gets no geometry. A
 fixture whose `requires` lists `write` gives a run that neither wrote nor
 edited a file geometry 0 and `checkRate` 0 without running its checks, and
-marks the report `saved: false`; the other three grades still count, so such
-a run scores at most 6. A fixture that does not require `write` is graded on
+marks the report `wrote: false`, unless the provider ended the run
+(`providerError`); the other three grades still count, so such a run scores
+at most 6. A fixture that does not require `write` is graded on
 the saved project, else an older file's last `eval`, else its own files.
 
 A provider call that streams neither text nor a tool call is an empty reply,

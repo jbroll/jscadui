@@ -183,6 +183,26 @@ describe('grader', () => {
     expect(gradeFixture(fixture, earlier, { volume: 6400 }, {}, { maxTurns: 2 }).dimensions.recovery).toBe(0)
   })
 
+  it('judges recovery on builds and project tools, never on a failed scratch run', () => {
+    const geometry = { parts: 1, dimensions: [10, 10, 10], volume: 1000 }
+    const transcript = [
+      { role: 'user', content: 'make it' },
+      toolMsg('t1', 'write', { path: 'main.js', content: 'x' }),
+      resultMsg('t1', built({ geometry })),
+      toolMsg('t2', 'run', { source: "require('./main.js').main({})" }),
+      resultMsg('t2', JSON.stringify({ ok: false, error: { message: 'boom' } })),
+    ]
+    expect(gradeFixture(fixture, transcript, { volume: 6400 }).dimensions.recovery).toBe(2)
+    const brokenThenRun = [
+      { role: 'user', content: 'make it' },
+      toolMsg('t1', 'write', { path: 'main.js', content: 'x' }),
+      resultMsg('t1', brokenBuild),
+      toolMsg('t2', 'run', { source: 'console.log(1)' }),
+      resultMsg('t2', JSON.stringify({ ok: true, console: ['1'] })),
+    ]
+    expect(gradeFixture(fixture, brokenThenRun, null).dimensions.recovery).toBe(0)
+  })
+
   it('rewards recovery and punishes abandonment', () => {
     const recovered = [
       { role: 'user', content: 'make it' },
@@ -211,7 +231,9 @@ describe('grader', () => {
     expect(report.dimensions).toEqual({ discipline: 2, recovery: 2, geometry: 0, conservation: 2 })
     expect(report.total).toBe(6)
     expect(report.checkRate).toBe(0)
-    expect(report.saved).toBe(false)
+    expect(report.wrote).toBe(false)
+    expect(report).not.toHaveProperty('saved')
+    expect(gradeFixture(spy, transcript, { volume: 6400 }, {}, { providerError: true })).not.toHaveProperty('wrote')
   })
 
   it('never costs conservation for saving: legacy writeModel calls are not counted', () => {
@@ -233,7 +255,7 @@ describe('grader', () => {
     const transcript = [toolMsg('t1', 'eval', { source: 'x' }), resultMsg('t1', JSON.stringify({ ok: true }))]
     const report = gradeFixture(noWrite, transcript, { volume: 6400 })
     expect(report.dimensions.geometry).toBe(2)
-    expect(report).not.toHaveProperty('saved')
+    expect(report).not.toHaveProperty('wrote')
   })
 })
 

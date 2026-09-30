@@ -267,7 +267,7 @@ describe('runSuite grades the saved model', () => {
     const [result] = await runSuite([saving], { provider, backend: createEvalBackend() })
     expect(result.report.dimensions.geometry).toBe(0)
     expect(result.report.checkRate).toBe(0)
-    expect(result.report.saved).toBe(false)
+    expect(result.report.wrote).toBe(false)
   })
 
   it('grades a project whose final state does not build as no geometry', async () => {

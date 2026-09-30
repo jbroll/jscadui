@@ -194,6 +194,7 @@ describe('regradeResults on a project-tool run', () => {
     ]))
     expect(out.results[0].report.dimensions.geometry).toBe(0)
     expect(out.results[0].report).not.toHaveProperty('saved')
+    expect(out.results[0].report).not.toHaveProperty('wrote')
   })
 })
 
@@ -225,7 +226,8 @@ describe('regradeResults on a legacy writeModel run', () => {
     const { report } = out.results[0]
     expect(report.dimensions.geometry).toBe(0)
     expect(report.checkRate).toBe(0)
-    expect(report.saved).toBe(false)
+    expect(report.wrote).toBe(false)
+    expect(report).not.toHaveProperty('saved')
   })
 
   it('regrades a two-file project through main.js when the last write is the helper', async () => {
@@ -276,6 +278,23 @@ describe('regradeResults on a legacy writeModel run', () => {
     expect(out.results[0].transcript).toEqual(transcript)
     expect(out.results[0].turns).toBe(5)
     expect(out.results[0].maxTurns).toBe(8)
+  })
+
+  it("renames an old report's saved: false to wrote: false, and drops it from a provider-error run", async () => {
+    const unsaved = { ...stored, saved: false }
+    const file = {
+      model: 'm',
+      results: [
+        { fixture: 'saving', report: unsaved },
+        { fixture: 'saving', report: unsaved, error: 'terminated', providerError: true },
+        { fixture: 'saving', run: 1, transcript: [prompt, done], report: unsaved, error: 'terminated', providerError: true },
+      ],
+    }
+    const [kept, keptProvider, regraded] = (await regrade(file)).results
+    expect(kept.report).toEqual({ ...stored, wrote: false })
+    expect(keptProvider.report).toEqual(stored)
+    expect(regraded.report).not.toHaveProperty('saved')
+    expect(regraded.report).not.toHaveProperty('wrote')
   })
 
   it('notes and keeps a result with no transcript', async () => {
