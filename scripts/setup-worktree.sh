@@ -148,24 +148,11 @@ if ! node -e '
   exit 1
 fi
 
-# Example corpora, test fixtures and ALL.js grids are gitignored, so a fresh
-# worktree lacks them until the generate pipeline runs. This mirrors root
-# `npm run generate-all`, scoped to the worktree (the cache hits the
-# parent's checkouts, so there are no clones). It must run before the web
-# bundles below, which copy examples/ into build/.
-(cd "$worktree" && node scripts/fetch-deps.js --if-missing)
-(cd "$worktree" && node packages/openscad/bin/generate-all-files.js --no-rename)
-(cd "$worktree/apps/jscad-web" && npm run sync-examples)
-
-# The openscad bundle entry imports @jscadui/openscad, whose package main is
-# the tsc-built esm/ output, absent in a fresh worktree and stale in a reused
-# one. Build it before the web bundles, which resolve it through the
-# worktree's own packages.
-(cd "$worktree/packages/openscad" && npm run build)
-
-# Bundle artifacts are gitignored and cannot be symlinked usefully, so build
-# them once per worktree. This is the fast esbuild script (not a full turbo
-# build); fluent-worker tests and the pre-commit gate need it.
-(cd "$worktree/apps/jscad-web" && node build.js)
+# The generate pipeline (`npm run generate-all`) plus the openscad esm/ and
+# the web bundles that fluent-worker tests and the pre-commit gate need; the
+# cache is the parent's, so fetch-deps clones nothing.
+# shellcheck source=ci/lib/bootstrap.sh
+. "$(dirname "${BASH_SOURCE[0]}")/../ci/lib/bootstrap.sh"
+bootstrap --root "$worktree" deps grids examples openscad app
 
 echo "done."

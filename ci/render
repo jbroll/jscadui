@@ -25,26 +25,17 @@ export JSCAD_WEB_PORT="${JSCAD_WEB_PORT:-5120}"
 PORT=$JSCAD_WEB_PORT
 DEV_LOG="/tmp/jscad-dev-$PORT.log"
 
-cd "$WORKTREE"
-# file: dependencies (@jscad/modeling) point into .deps-cache; check out their
-# pinned source repos before npm install resolves them.
-node scripts/fetch-sources.js
-npm install
-# Third-party OpenSCAD sources are not committed; fetch-deps populates them
-# (a no-op when they are already current).
-node scripts/fetch-deps.js --if-missing
-# ALL.js grids are gitignored build artifacts (the sweep probes text/ALL.js);
-# a cached host with current fetch-deps records skips organize-corpus, so
-# regenerate them here the same way deploy-full.sh does.
-node packages/openscad/bin/generate-all-files.js --no-rename
-# Build workspace packages so the web bundle can resolve @jscadui/* esm outputs.
-# --continue: an unrelated package (e.g. engine-test) failing must not abort the
-# openscad build the web bundle depends on.
-npm run build -- --continue || echo "build had failures (continuing — checking esm below)"
-if [ ! -f packages/openscad/esm/index.js ]; then
+# shellcheck source=ci/lib/bootstrap.sh
+. "$WORKTREE/ci/lib/bootstrap.sh"
+# ALL.js grids are gitignored (the sweep probes text/ALL.js); a cached host
+# with current fetch-deps records skips organize-corpus, so grids regenerates
+# them. The web bundle resolves the @jscadui/* esm outputs the workspace build
+# writes; that build tolerates unrelated failures, so check openscad's here.
+bootstrap sources install deps grids workspace || { echo "✖ bootstrap failed"; exit 2; }
+if [ ! -f "$WORKTREE/packages/openscad/esm/index.js" ]; then
   echo "✖ packages/openscad/esm not built"; exit 2
 fi
-( cd "$APP" && npm run build ) || { echo "✖ jscad-web build failed"; exit 2; }
+bootstrap app || { echo "✖ jscad-web build failed"; exit 2; }
 # A production build content-hashes its entry, so the artifact is main.<hash>.js
 # and index.html points at it; build/main.js never survives hashAssets.
 if ! ls "$APP"/build/main.*.js >/dev/null 2>&1; then

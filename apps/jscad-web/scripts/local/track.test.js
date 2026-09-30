@@ -1,6 +1,8 @@
 // apps/jscad-web/scripts/local/track.test.js
+import { spawnSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { trackUpstream } from './track.js'
+import { BOOTSTRAP, refreshSteps, trackUpstream } from './track.js'
 
 const HEAD = 'aaa111'
 const TIP = 'bbb222'
@@ -67,31 +69,38 @@ describe('trackUpstream', () => {
   it('moves to the tip and refreshes generated state without reinstalling', () => {
     const s = setup()
     expect(trackUpstream(s.opts)).toEqual({ tracked: true, moved: true })
-    expect(s.lines().slice(-5)).toEqual([
-      'node scripts/fetch-sources.js',
-      'node scripts/fetch-deps.js --if-missing',
-      'node packages/openscad/bin/generate-all-files.js --no-rename',
-      'npm run sync-examples',
-      'npm run build',
-    ])
     expect(s.lines()).toContain(`checkout --quiet --detach ${TIP}`)
-    expect(s.calls.at(-2).cwd).toBe('/r/apps/jscad-web')
-    expect(s.calls.at(-1).cwd).toBe('/r/packages/openscad')
+    expect(s.lines().at(-1)).toBe(`bash ${BOOTSTRAP} sources deps grids examples openscad`)
+    expect(s.calls.at(-1).cwd).toBe('/r')
   })
-  it('reinstalls after fetching sources when the lockfile changed', () => {
+  it('reinstalls when the lockfile changed', () => {
     const s = setup({ git: { [`diff --name-only ${HEAD} ${TIP}`]: 'package-lock.json\n' } })
     trackUpstream(s.opts)
-    const lines = s.lines()
-    expect(lines.indexOf('npm ci')).toBeGreaterThan(lines.indexOf('node scripts/fetch-sources.js'))
-    expect(lines.indexOf('npm ci')).toBeLessThan(lines.indexOf('node scripts/fetch-deps.js --if-missing'))
+    expect(s.lines().at(-1)).toBe(`bash ${BOOTSTRAP} sources ci deps grids examples openscad`)
   })
   it('reinstalls when a workspace package.json changed', () => {
     const s = setup({ git: { [`diff --name-only ${HEAD} ${TIP}`]: 'packages/scene/package.json\n' } })
     trackUpstream(s.opts)
-    expect(s.lines()).toContain('npm ci')
+    expect(s.lines().at(-1).split(' ')).toContain('ci')
   })
-  it('throws when a refresh step fails', () => {
-    const s = setup({ failing: ['node scripts/fetch-deps.js --if-missing'] })
-    expect(() => trackUpstream(s.opts)).toThrow(/fetch-deps/)
+  it('throws when the refresh fails', () => {
+    const s = setup({ failing: [`bash ${BOOTSTRAP} sources deps grids examples openscad`] })
+    expect(() => trackUpstream(s.opts)).toThrow(/bootstrap/)
+  })
+})
+
+describe('refresh steps through the real bootstrap helper', () => {
+  it('fetches sources before npm ci and npm ci before fetch-deps', () => {
+    const root = fileURLToPath(new URL('../../../..', import.meta.url))
+    const r = spawnSync('bash', [BOOTSTRAP, '--dry-run', ...refreshSteps(['package-lock.json'])], { cwd: root, encoding: 'utf-8' })
+    expect(r.status).toBe(0)
+    expect(r.stdout.trim().split('\n')).toEqual([
+      'bootstrap: node scripts/fetch-sources.js',
+      'bootstrap: npm ci',
+      'bootstrap: node scripts/fetch-deps.js --if-missing',
+      'bootstrap: node packages/openscad/bin/generate-all-files.js --no-rename',
+      'bootstrap: (apps/jscad-web) npm run sync-examples',
+      'bootstrap: (packages/openscad) npm run build',
+    ])
   })
 })

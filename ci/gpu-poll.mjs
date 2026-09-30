@@ -227,9 +227,8 @@ async function waitJob(id, deadline) {
     const job = await sci('GET', `/job/${id}`)
     if (['pass', 'fail', 'killed', 'stale'].includes(job.status)) return job
     if (Date.now() > deadline) {
-      try {
-        await sci('POST', `/job/${id}/kill`)
-      } catch {}
+      // Best effort: the GET below reports what state the job ended in.
+      await sci('POST', `/job/${id}/kill`).catch(() => {})
       const jobAfter = await sci('GET', `/job/${id}`).catch(() => null)
       return { ...jobAfter, status: 'killed', timeout: true }
     }

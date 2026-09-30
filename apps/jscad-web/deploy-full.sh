@@ -56,14 +56,11 @@ echo ""
 # fires (the apache module only runs it when APACHE_CONTENT_DIR has a
 # package.json, and build/frame has none). Build once, here, before either.
 echo "[0/4] Building the workspace..."
-node ../../scripts/fetch-sources.js
-npm --prefix ../.. install --no-audit --no-fund
-# Regenerate the ALL.js example grids: most are gitignored build artifacts, so a
-# fresh checkout has the .scad corpus but no grids. --no-rename keeps numeric
-# prefixes, which the render baselines depend on.
-node ../../scripts/fetch-deps.js --if-missing
-node ../../packages/openscad/bin/generate-all-files.js --no-rename
-npm run build
+# shellcheck source=ci/lib/bootstrap.sh
+. ../../ci/lib/bootstrap.sh
+# Most ALL.js example grids are gitignored, so a fresh checkout has the .scad
+# corpus but no grids until grids runs.
+bootstrap sources install deps grids app
 echo "✓ Build complete"
 echo ""
 

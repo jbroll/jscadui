@@ -82,14 +82,16 @@ For the parser, change the commit in `packages/openscad/package.json` and run
 
 `.claude/settings.json` registers `.claude/hooks/session-start.sh`. It exits
 immediately unless `CLAUDE_CODE_REMOTE=true`, so it never runs on a dev
-machine. In a cloud session it:
+machine. In a cloud session it runs steps 1 to 4 as
+`ci/lib/bootstrap.sh sources install deps openscad` (the step list is in
+`ci/README.md`), then step 5:
 
 1. `node scripts/fetch-sources.js`
-2. `npm install`. This also builds the parser and runs `prepare`, which sets
-   `core.hooksPath=.git-hooks`, so the pre-commit hook (build, lint staged
-   files, typecheck, openscad unit tests) is active.
+2. `npm install --no-audit --no-fund`. This also builds the parser and runs
+   `prepare`, which sets `core.hooksPath=.git-hooks`, so the pre-commit hook
+   (build, lint staged files, typecheck, openscad unit tests) is active.
 3. `node scripts/fetch-deps.js --if-missing`
-4. `npm run build --workspace=@jscadui/openscad`
+4. `npm run build` in `packages/openscad`
 5. Installs the latest OpenSCAD nightly AppImage into `~/.local/bin/openscad`
    unless an `openscad` with `--backend` support is already on `PATH`, and
    adds `~/.local/bin` to the session `PATH`. The distro package (2021.01)

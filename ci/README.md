@@ -14,6 +14,46 @@ reach simple-ci. Local terminal sessions verify with `sci push jscadui/test`
 | Results | streamed to your terminal | `openscad-gpu` commit status + a PR comment with the log tail |
 | Host needs | simple-ci | simple-ci + a GitHub token for the poller |
 
+## Bootstrap steps (`ci/lib/bootstrap.sh`)
+
+Every entry that brings a checkout's gitignored state up to date names its
+steps to one helper, so each step has one definition. The helper runs them in
+a fixed order whatever order they are named in, and stops at the first
+failure with its status.
+
+```bash
+ci/lib/bootstrap.sh [--root DIR] [--dry-run] STEP...
+. ci/lib/bootstrap.sh; bootstrap [--root DIR] [--dry-run] STEP...
+```
+
+| Step | Command (from `--root`, default the helper's own checkout) |
+|---|---|
+| `sources` | `node scripts/fetch-sources.js` (`file:` deps resolve into `.deps-cache`, so it runs before any install) |
+| `install` | `npm install --no-audit --no-fund` |
+| `ci` | `npm ci`, in place of `install` |
+| `deps` | `node scripts/fetch-deps.js --if-missing` |
+| `grids` | `node packages/openscad/bin/generate-all-files.js --no-rename` |
+| `examples` | `npm run sync-examples` in `apps/jscad-web` |
+| `openscad` | `npm run build` in `packages/openscad` |
+| `workspace` | `npm run build -- --continue`; a failure is printed, not fatal |
+| `app` | `npm run build` in `apps/jscad-web` |
+
+| Caller | Steps | Then, on its own |
+|---|---|---|
+| `ci/test` | `sources install deps` | fonts, `test:local` |
+| `ci/web` | `sources install deps grids workspace` | vitest, server install, playwright |
+| `ci/render` (and `render-grids`, `render-jscad`) | `sources install deps grids workspace`, then `app` | checks `packages/openscad/esm` between the two; exits 2 if either fails |
+| `ci/eval` | `sources install workspace` | sandbox check, eval lanes |
+| `apps/jscad-web/deploy-full.sh` | `sources install deps grids app` | deploy stages |
+| `scripts/setup-worktree.sh` | `--root <worktree> deps grids examples openscad app` | `node_modules`/`.deps-cache` links and the pin-drift check, before the steps |
+| `.claude/hooks/session-start.sh` | `sources install deps openscad` | OpenSCAD AppImage and libraries |
+| `npm run setup` | `sources install deps` | |
+| `npm run generate-all` | `deps grids examples` | |
+| `apps/jscad-web/scripts/local/track.js` | `sources [ci] deps grids examples openscad`, `ci` only when a `package.json` or the lockfile changed | runs the moved checkout's own helper |
+
+The npm scripts call the helper rather than the other way round: callers need
+different subsets, which one npm script per subset would not express.
+
 ## Live model eval (`ci/eval`)
 
 `sci push jscadui/eval` runs the agent-loop eval suite (`packages/agent-loop/eval/`)

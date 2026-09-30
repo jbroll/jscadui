@@ -24,7 +24,7 @@
  */
 
 import {
-  readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync, readdirSync, rmSync,
+  readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync, rmSync,
 } from 'fs'
 import { join, dirname, basename } from 'path'
 import { fileURLToPath } from 'url'

@@ -8,14 +8,9 @@ if [ "${CLAUDE_CODE_REMOTE:-}" != "true" ]; then
   exit 0
 fi
 
-cd "$CLAUDE_PROJECT_DIR"
-
-# Pinned source checkouts that package.json file: deps point into.
-node scripts/fetch-sources.js
-npm install --no-audit --no-fund
-# Third-party OpenSCAD corpora (gitignored); no-op when current.
-node scripts/fetch-deps.js --if-missing
-npm run build --workspace=@jscadui/openscad
+# shellcheck source=ci/lib/bootstrap.sh
+. "$CLAUDE_PROJECT_DIR/ci/lib/bootstrap.sh"
+bootstrap sources install deps openscad
 
 # The OpenSCAD AppImage links libEGL and libOpenGL, which the base image lacks;
 # without them every run fails with "error while loading shared libraries".

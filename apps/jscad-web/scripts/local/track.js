@@ -1,7 +1,7 @@
 // Keeps a checkout that holds a .jscad-track file (e.g. `origin/main`) on the
 // tip of that ref: fetch, fast-forward a clean detached HEAD, then refresh the
-// gitignored state the build needs, as scripts/setup-worktree.sh does. Other
-// checkouts are left alone.
+// gitignored state the build needs with ci/lib/bootstrap.sh. Other checkouts
+// are left alone.
 import { readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { join } from 'node:path'
@@ -19,6 +19,10 @@ const defaultReadTrack = (root) => {
 const defaultRun = (cmd, args, opts = {}) => spawnSync(cmd, args, { encoding: 'utf-8', ...opts })
 
 const needsInstall = (changed) => changed.some((f) => f === 'package-lock.json' || f.endsWith('/package.json') || f === 'package.json')
+
+export const BOOTSTRAP = 'ci/lib/bootstrap.sh'
+
+export const refreshSteps = (changed) => ['sources', ...(needsInstall(changed) ? ['ci'] : []), 'deps', 'grids', 'examples', 'openscad']
 
 export const trackUpstream = ({ root, run = defaultRun, readTrack = defaultReadTrack, log = console.log }) => {
   const ref = readTrack(root)
@@ -53,15 +57,8 @@ export const trackUpstream = ({ root, run = defaultRun, readTrack = defaultReadT
   const changed = out('diff', '--name-only', head, tip).split('\n').filter(Boolean)
   log(`jscad: moving ${root} from ${head.slice(0, 8)} to ${ref} ${tip.slice(0, 8)}`)
   out('checkout', '--quiet', '--detach', tip)
-  const step = (cmd, args, cwd = root) => {
-    if (run(cmd, args, { cwd, stdio: 'inherit' }).status !== 0) throw new Error(`jscad: ${cmd} ${args.join(' ')} failed in ${cwd}`)
-  }
-  // fetch-sources first: npm ci resolves file: deps inside .deps-cache.
-  step('node', ['scripts/fetch-sources.js'])
-  if (needsInstall(changed)) step('npm', ['ci'])
-  step('node', ['scripts/fetch-deps.js', '--if-missing'])
-  step('node', ['packages/openscad/bin/generate-all-files.js', '--no-rename'])
-  step('npm', ['run', 'sync-examples'], join(root, 'apps/jscad-web'))
-  step('npm', ['run', 'build'], join(root, 'packages/openscad'))
+  // The tip's own helper, so steps it adds or reorders apply to this refresh.
+  const args = [BOOTSTRAP, ...refreshSteps(changed)]
+  if (run('bash', args, { cwd: root, stdio: 'inherit' }).status !== 0) throw new Error(`jscad: bash ${args.join(' ')} failed in ${root}`)
   return { tracked: true, moved: true }
 }

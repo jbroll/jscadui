@@ -18,13 +18,10 @@ set -euo pipefail
 WORKTREE="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$WORKTREE"
 
-# file: dependencies (@jscad/modeling) point into .deps-cache; check out their
-# pinned source repos before npm install resolves them.
-node scripts/fetch-sources.js
-npm install
-# The eval imports @jscadui/* esm outputs; --continue so an unrelated
-# package's build failure doesn't mask agent-loop's own build.
-npm run build -- --continue || echo "workspace build had failures (continuing)"
+# shellcheck source=ci/lib/bootstrap.sh
+. "$WORKTREE/ci/lib/bootstrap.sh"
+# The eval imports @jscadui/* esm outputs and needs no OpenSCAD corpora.
+bootstrap sources install workspace
 
 # Model code runs only in the crt sandbox, under an enforced memory limit;
 # fail the job before any provider call when the host lacks crt, its rootfs

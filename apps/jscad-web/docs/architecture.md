@@ -1144,10 +1144,9 @@ build stamps `false` and opens a `#/models/` hash as a plain script, as before.
 A checkout with a `.jscad-track` file at its root (`origin/main`) follows that
 branch (`scripts/local/track.js`). Before anything else the launcher fetches
 it, and when HEAD is behind the tip and no tracked file is modified,
-fast-forwards to the tip detached and refreshes what `scripts/setup-worktree.sh` would: `fetch-sources`,
-`npm ci` when a `package.json` or the lockfile changed, `fetch-deps
---if-missing`, the `ALL.js` grids, `sync-examples` and the `@jscadui/openscad`
-build. The moved checkout's own `jscad.mjs` then runs in a new process, with
+fast-forwards to the tip detached and runs the tip's `ci/lib/bootstrap.sh`
+with `sources`, `ci` when a `package.json` or the lockfile changed, `deps`,
+`grids`, `examples` and `openscad`. The moved checkout's own `jscad.mjs` then runs in a new process, with
 `JSCAD_TRACKED=1` so it does not track again, because the running one loaded
 the old code. A failed fetch, a dirty tree, or a HEAD with commits the tip
 lacks prints why and launches the current HEAD, so a checkout seeded from an
