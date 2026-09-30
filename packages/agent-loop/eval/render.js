@@ -1,5 +1,4 @@
 // Draws a model's triangles in the run-eval process, never in an executor: the crt sandbox has no WebGL.
-// Playwright's bundled chromium is launched as apps/jscad-web/e2e/render-all.mjs launches it.
 import { createHash } from 'node:crypto'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
@@ -8,7 +7,8 @@ import { chromium } from '@playwright/test'
 import { VIEWS } from './views.js'
 
 export const RENDER_SIZE = 768
-export const LAUNCH_ARGS = ['--use-gl=angle', '--ignore-gpu-blocklist']
+// SwiftShader from the start: with no display, the hardware GPU process exits during startup and takes the first WebGL context with it.
+export const LAUNCH_ARGS = ['--use-gl=angle', '--use-angle=swiftshader']
 
 const nodeRequire = createRequire(import.meta.url)
 // three 0.147's `exports` has no ./build/*; its main entry sits beside three.min.js.

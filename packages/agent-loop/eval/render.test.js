@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createRequire } from 'node:module'
+import { inflateSync } from 'node:zlib'
 import { chromium } from '@playwright/test'
 import { collectMesh, meshPage, meshPages } from './mesh.js'
 import { createRenderer, createRunRenderer, RENDER_SIZE } from './render.js'
@@ -18,6 +19,37 @@ const hasChromium = (() => {
     return false
   }
 })()
+
+// The red pixels in an 8-bit RGB or RGBA PNG; a blank or broken canvas has none.
+const redPixels = (png) => {
+  const [width, height] = [png.readUInt32BE(16), png.readUInt32BE(20)]
+  const channels = { 2: 3, 6: 4 }[png[25]]
+  const idat = []
+  for (let at = 8; at < png.length; at += 12 + png.readUInt32BE(at)) {
+    if (png.toString('latin1', at + 4, at + 8) === 'IDAT') idat.push(png.subarray(at + 8, at + 8 + png.readUInt32BE(at)))
+  }
+  const raw = inflateSync(Buffer.concat(idat))
+  const stride = width * channels
+  let prior = Buffer.alloc(stride)
+  let count = 0
+  for (let y = 0; y < height; y += 1) {
+    const filter = raw[y * (stride + 1)]
+    const row = Buffer.from(raw.subarray(y * (stride + 1) + 1, (y + 1) * (stride + 1)))
+    for (let i = 0; i < stride; i += 1) {
+      const a = i >= channels ? row[i - channels] : 0
+      const b = prior[i]
+      const c = i >= channels ? prior[i - channels] : 0
+      const p = a + b - c
+      const paeth = Math.abs(p - a) <= Math.abs(p - b) && Math.abs(p - a) <= Math.abs(p - c) ? a : Math.abs(p - b) <= Math.abs(p - c) ? b : c
+      row[i] = (row[i] + [0, a, b, (a + b) >> 1, paeth][filter]) & 0xff
+    }
+    for (let i = 0; i < stride; i += channels) {
+      if (row[i] > row[i + 1] + 40 && row[i] > row[i + 2] + 40) count += 1
+    }
+    prior = row
+  }
+  return count
+}
 
 const partsOf = async (geometry) => {
   const mesh = meshPages(geometry)
@@ -72,6 +104,29 @@ describe.skipIf(!hasChromium)('createRenderer', () => {
       }
       expect(new Set(views.map((v) => v.sha256)).size).toBe(3)
       expect(renderer.refused()).toBe(0)
+    } finally {
+      await renderer.close()
+    }
+  }, 60_000)
+
+  // On a host with no display, chromium's hardware GPU process exits during startup and the
+  // first WebGL context goes with it: the first models came out as empty canvases.
+  it('draws the first model on SwiftShader, whatever GPU and display the host has', async () => {
+    let browser = null
+    const renderer = await createRenderer({
+      launch: async (options) => (browser = await chromium.launch(options)),
+    })
+    try {
+      const parts = await partsOf([colors.colorize([0.78, 0.14, 0.13], primitives.cuboid({ size: [80, 30, 28] }))])
+      const views = await renderer.render(parts, mkdtempSync(join(tmpdir(), 'render-test-')))
+      for (const view of views) expect(redPixels(readFileSync(view.path))).toBeGreaterThan(RENDER_SIZE * RENDER_SIZE * 0.05)
+      const [page] = browser.contexts()[0].pages()
+      const gl = await page.evaluate(() => {
+        const context = document.getElementById('c').getContext('webgl2')
+        return { lost: context.isContextLost(), renderer: context.getParameter(context.getExtension('WEBGL_debug_renderer_info').UNMASKED_RENDERER_WEBGL) }
+      })
+      expect(gl.lost).toBe(false)
+      expect(gl.renderer).toMatch(/SwiftShader/)
     } finally {
       await renderer.close()
     }

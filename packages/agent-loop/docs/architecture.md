@@ -315,8 +315,11 @@ result ([user-manual.md](user-manual.md#complex-fixtures)).
 
 Rendering needs WebGL, which the crt sandbox does not have and should not get,
 so `eval/render.js` draws in the `run-eval` process, in Playwright's bundled
-chromium launched as `apps/jscad-web/e2e/render-all.mjs` launches it
-(`--use-gl=angle --ignore-gpu-blocklist`). The page, `eval/render/page.html`,
+chromium on SwiftShader (`--use-gl=angle --use-angle=swiftshader`). With the
+hardware default, a host with no display (the CI host) fails GPU process
+startup, and the WebGL context the page created meanwhile is lost: the first
+models rendered as an empty canvas and then a broken-image icon. SwiftShader
+also makes a render the same on every host. The page, `eval/render/page.html`,
 is set as content with the workspace's three.js added inline; it gets only
 triangles and colours from the `mesh` request (Sandbox below), loads no model
 code, and every request it makes is refused. Each process starts one chromium
