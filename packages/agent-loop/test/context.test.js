@@ -14,32 +14,33 @@ describe('buildMessages', () => {
   })
 
   it('keeps the newest whole turns that fit', () => {
-    expect(heads(buildMessages({ systemPrompt: 'S', transcript: three, message: 'new', budget: 200 }))).toEqual(['S', 'u2', 'a2', 'u3', 'a3', 'ne'])
+    expect(heads(buildMessages({ systemPrompt: 'S', transcript: three, message: 'new', budget: 200 }))).toEqual(['S', 'u2', 'a2', 'u3', 'a3', 'Th', 'ne'])
   })
 
   it('keeps a turn that lands exactly on the budget', () => {
-    expect(heads(buildMessages({ systemPrompt: 'S', transcript: three, message: 'new', budget: 300 }))).toEqual(['S', 'u1', 'a1', 'u2', 'a2', 'u3', 'a3', 'ne'])
+    expect(heads(buildMessages({ systemPrompt: 'S', transcript: three, message: 'new', budget: 300 }))).toEqual(['S', 'u1', 'a1', 'u2', 'a2', 'u3', 'a3', 'Th', 'ne'])
   })
 
   it('drops a turn whole rather than splitting it', () => {
-    expect(heads(buildMessages({ systemPrompt: 'S', transcript: three, message: 'new', budget: 250 }))).toEqual(['S', 'u2', 'a2', 'u3', 'a3', 'ne'])
+    expect(heads(buildMessages({ systemPrompt: 'S', transcript: three, message: 'new', budget: 250 }))).toEqual(['S', 'u2', 'a2', 'u3', 'a3', 'Th', 'ne'])
   })
 
   it('stops at the first turn that does not fit', () => {
     const transcript = [...turn(1, 10), ...turn(2, 500), ...turn(3, 10)]
-    expect(heads(buildMessages({ systemPrompt: 'S', transcript, message: 'new', budget: 100 }))).toEqual(['S', 'u3', 'a3', 'ne'])
+    expect(heads(buildMessages({ systemPrompt: 'S', transcript, message: 'new', budget: 100 }))).toEqual(['S', 'u3', 'a3', 'Th', 'ne'])
   })
 
   it('always sends the new message, even past the budget', () => {
     expect(buildMessages({ systemPrompt: 'S', transcript: three, message: 'new', budget: 0 })).toEqual([
       { role: 'system', content: 'S' },
+      { role: 'user', content: 'The project is empty; no build yet.' },
       { role: 'user', content: 'new' },
     ])
   })
 
   it('counts a user message without a reply as its own turn', () => {
     const transcript = [{ role: 'user', content: 'x' }, { role: 'user', content: 'y' }, { role: 'assistant', content: 'z' }]
-    expect(heads(buildMessages({ systemPrompt: 'S', transcript, message: 'new', budget: 2 }))).toEqual(['S', 'y', 'z', 'ne'])
+    expect(heads(buildMessages({ systemPrompt: 'S', transcript, message: 'new', budget: 2 }))).toEqual(['S', 'y', 'z', 'Th', 'ne'])
   })
 
   it('puts project files after the history, outside the budget, sorted by path', () => {
@@ -51,8 +52,14 @@ describe('buildMessages', () => {
     expect(messages[2]).toEqual({ role: 'user', content: 'new' })
   })
 
-  it('omits the files message for an empty project and skips binary files', () => {
-    expect(buildMessages({ systemPrompt: 'S', files: { 'part.stl': new ArrayBuffer(4) }, message: 'new' })).toHaveLength(2)
+  it('says an empty project is empty, so the model need not list it', () => {
+    const [, project] = buildMessages({ systemPrompt: 'S', message: 'new' })
+    expect(project).toEqual({ role: 'user', content: 'The project is empty; no build yet.' })
+  })
+
+  it('skips binary files and says when no text file is left', () => {
+    const [, project] = buildMessages({ systemPrompt: 'S', files: { 'part.stl': new ArrayBuffer(4) }, message: 'new' })
+    expect(project.content).toBe('The project has no text files; list shows every file.\n\nThe project has not been built yet.')
   })
 
   it('fences a file containing backticks with a longer fence', () => {
@@ -68,8 +75,9 @@ describe('buildMessages', () => {
     expect(project.content.indexOf('### main.js')).toBeLessThan(project.content.indexOf('Last build'))
   })
 
-  it('leaves the build out when there is none', () => {
+  it('says when the project has not been built', () => {
     const [, project] = buildMessages({ systemPrompt: 'S', files: { 'main.js': 'M' }, message: 'new' })
     expect(project.content).not.toContain('Last build')
+    expect(project.content).toMatch(/The project has not been built yet\.$/)
   })
 })

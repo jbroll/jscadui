@@ -10,7 +10,7 @@ The project builds from its entry file: the file `package.json` names in
 `main`, else `index.js`, else `main.js`. Other files load from it with
 `require('./part.js')`. Each user message comes with the project's files and
 the report of its last build, which may show a failure from the user's own
-edits.
+edits, or says the project is empty.
 
 ## Imports
 

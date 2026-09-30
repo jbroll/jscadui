@@ -25,10 +25,18 @@ const filesSection = (files) => {
   return `Current project files:\n\n${blocks.join('\n\n')}`
 }
 
+export const EMPTY_PROJECT = 'The project is empty; no build yet.'
+
+// Sent every turn, so the model knows the project's state without a `list`.
 // `build` is the project's last build report (src/buildReport.js), or null.
 export const projectMessage = (files = {}, build = null) => {
-  const sections = [filesSection(files), build ? `Last build of the project:\n\n\`\`\`json\n${JSON.stringify(build)}\n\`\`\`` : null].filter(Boolean)
-  return sections.length > 0 ? { role: 'user', content: sections.join('\n\n') } : null
+  const listed = filesSection(files)
+  if (!listed && !build && Object.keys(files).length === 0) return { role: 'user', content: EMPTY_PROJECT }
+  const sections = [
+    listed ?? (Object.keys(files).length > 0 ? 'The project has no text files; list shows every file.' : 'The project has no files.'),
+    build ? `Last build of the project:\n\n\`\`\`json\n${JSON.stringify(build)}\n\`\`\`` : 'The project has not been built yet.',
+  ]
+  return { role: 'user', content: sections.join('\n\n') }
 }
 
 export const buildMessages = ({ systemPrompt, transcript = [], files = {}, build = null, message, budget = CONTEXT_BUDGET }) => {
@@ -40,6 +48,5 @@ export const buildMessages = ({ systemPrompt, transcript = [], files = {}, build
     used += size
     kept.unshift(...turn)
   }
-  const project = projectMessage(files, build)
-  return [{ role: 'system', content: systemPrompt }, ...kept, ...(project ? [project] : []), { role: 'user', content: message }]
+  return [{ role: 'system', content: systemPrompt }, ...kept, projectMessage(files, build), { role: 'user', content: message }]
 }

@@ -362,7 +362,7 @@ describe('runSuite empty provider replies', () => {
     expect(result.error).toBe('empty provider reply')
     expect(result.providerError).toBe(true)
     expect(result.stopReasons).toEqual(['tool_use', 'length'])
-    expect(result.transcript.map((m) => m.role)).toEqual(['user', 'assistant', 'tool'])
+    expect(result.transcript.map((m) => m.role)).toEqual(['user', 'user', 'assistant', 'tool'])
   })
 })
 
@@ -432,7 +432,10 @@ describe('runSuite transcript', () => {
     const fixture = { name: 'smoke', prompt: 'make a cube', requires: [], verifyBeforeWrite: false, maxTurns: 8, checks: () => [] }
     const [result] = await runSuite([fixture], { provider, backend })
     expect(result.transcript.some((m) => m.role === 'system')).toBe(false)
-    expect(result.transcript[0]).toEqual({ role: 'user', content: 'make a cube' })
+    expect(result.transcript.slice(0, 2)).toEqual([
+      { role: 'user', content: 'The project is empty; no build yet.' },
+      { role: 'user', content: 'make a cube' },
+    ])
     expect(result.transcript.some((m) => m.toolCalls?.some((c) => c.name === 'run'))).toBe(true)
     expect(result.transcript.some((m) => m.role === 'tool')).toBe(true)
   })
@@ -444,7 +447,7 @@ describe('runSuite transcript', () => {
     const fixture = { name: 'x', prompt: 'p', requires: [], verifyBeforeWrite: false, maxTurns: 2, checks: () => [] }
     const [result] = await runSuite([fixture], { provider, backend: createEvalBackend() })
     expect(result.transcript.some((m) => m.role === 'system')).toBe(false)
-    expect(result.transcript[0]).toEqual({ role: 'user', content: 'p' })
+    expect(result.transcript[1]).toEqual({ role: 'user', content: 'p' })
   })
 
   it('calls onRun once per run with the result', async () => {

@@ -92,7 +92,9 @@ answers `run` through the same `summarizeRun` and the same messages.
 The per-turn header (`buildMessages`) sends the project files and then the
 project's last build report, so each turn starts knowing whether the project
 builds and what it produces, including breakage from the user's own editor
-changes. The files and the report sit outside the 24,000-character history
+changes. It is sent every turn, an empty project included (`The project is
+empty; no build yet.`), since without it models opened most runs with a
+`list` and guessed at files to read. The files and the report sit outside the 24,000-character history
 budget.
 
 ## Model code in the eval

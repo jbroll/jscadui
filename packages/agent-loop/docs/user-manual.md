@@ -29,8 +29,11 @@ buildMessages({ systemPrompt, transcript, files, build, message, budget = CONTEX
 Returns the system prompt, the newest whole prior turns that fit in `budget`
 characters (24,000 by default), a user message with every text file in
 `files` under `### <path>` followed by `build`, the project's last build
-report, under `Last build of the project:` (both outside the budget; each
-omitted when empty or null), and the new message. The app and the eval both
+report, under `Last build of the project:` (both outside the budget), and the
+new message. The project message is always sent: an empty project with no
+build is `The project is empty; no build yet.`, and a missing part says
+`The project has no files.` or `The project has not been built yet.`, so the
+model needs no `list` to learn the project's state. The app and the eval both
 use it.
 
 `runTurn` caps each tool result it hands the provider at `TOOL_RESULT_CHARS`
