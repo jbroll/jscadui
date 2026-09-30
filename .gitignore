@@ -200,8 +200,9 @@ deploy.conf
 apps/jscad-web/e2e/render-report.json
 packages/agent-loop/eval/results/
 
-# ci/regrade output; regrade-input/ stays tracked so `sci push` sends it, but
-# empty or remove it once you're done — see ci/README.md.
+# ci/regrade output; regrade-input/ is deliberately left out of both git and
+# this file, untracked and not ignored, so `sci push` carries whatever you
+# copy there. Empty or remove it once you're done — see ci/README.md.
 /regrade-output/
 
 # Local git worktrees (all locations)

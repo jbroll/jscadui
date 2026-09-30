@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createHash } from 'node:crypto'
-import { fetchCiResults, parseIndex, renderViews, sciPath } from './fetch-ci-results.js'
+import { exitCode, fetchCiResults, parseIndex, renderViews, sciPath } from './fetch-ci-results.js'
 
 describe('parseIndex', () => {
   it('splits lines, trims and drops blanks', () => {
@@ -31,6 +31,7 @@ const fakeFs = (existing = []) => {
       writeFileSync: (path, content) => {
         written[path] = content
       },
+      readFileSync: () => '',
     },
   }
 }
@@ -130,6 +131,16 @@ describe('fetchCiResults', () => {
   })
 })
 
+describe('exitCode', () => {
+  it('is non-zero for a mismatched render or the scp fallback, zero otherwise', () => {
+    expect(exitCode({ renders: { mismatched: ['c.renders/toy-caboose-1/side.png'] } })).toBe(1)
+    expect(exitCode({ fallback: 'scp' })).toBe(1)
+    expect(exitCode({ renders: { mismatched: [] } })).toBe(0)
+    expect(exitCode({ fallback: 'listed', renders: { mismatched: [] } })).toBe(0)
+    expect(exitCode({})).toBe(0)
+  })
+})
+
 describe('a complex pass', () => {
   const png = Buffer.from('png bytes')
   const sha = createHash('sha256').update(png).digest('hex')
@@ -165,6 +176,38 @@ describe('a complex pass', () => {
     expect(out.renders).toEqual({ fetched: 1, mismatched: ['c.renders/toy-caboose-1/side.png'] })
     expect(removed).toEqual(['/data/results/a.renders'])
     expect(log).toHaveBeenCalledWith(expect.stringContaining('did not match their sha256'))
+  })
+
+  it('names the path and logs the expected and actual hash for each mismatched render', () => {
+    const wrongSha = 'f'.repeat(64)
+    const run = (_sci, args) => (args[2] === 'eval-results/index.txt' ? 'c.json\n' : complexFile([view('side', wrongSha)]))
+    const runBytes = vi.fn(() => png)
+    const { fs } = fakeFs()
+    const log = vi.fn()
+    const out = fetchCiResults('job1', { sci: '/bin/sci', dataDir: '/data/results', run, runBytes, fs, log })
+    expect(out.renders.mismatched).toEqual(['c.renders/toy-caboose-1/side.png'])
+    expect(log).toHaveBeenCalledWith(expect.stringContaining(`c.renders/toy-caboose-1/side.png did not match its sha256 (expected ${wrongSha}, got ${sha})`))
+  })
+
+  it('keeps a complex file\'s renders dir on a resumed fetch (the file already exists) and still fetches a missing render', () => {
+    const run = (_sci, args) => (args[2] === 'eval-results/index.txt' ? 'c.json\n' : (() => { throw new Error(`unexpected fetch of ${args[2]}`) })())
+    const runBytes = vi.fn(() => png)
+    const written = {}
+    const removed = []
+    const fs = {
+      existsSync: (path) => path === '/data/results/c.json',
+      mkdirSync: vi.fn(),
+      writeFileSync: (path, content) => {
+        written[path] = content
+      },
+      readFileSync: () => complexFile([view('iso-front')]),
+      readdirSync: () => ['a.renders', 'c.renders', 'c.json'],
+      rmSync: (path) => removed.push(path),
+    }
+    const out = fetchCiResults('job1', { sci: '/bin/sci', dataDir: '/data/results', run, runBytes, fs })
+    expect(out.fetched).toEqual([])
+    expect(written['/data/results/c.renders/toy-caboose-1/iso-front.png']).toBe(png)
+    expect(removed).toEqual(['/data/results/a.renders'])
   })
 
   it('never fetches a render path that leaves the results directory', () => {
