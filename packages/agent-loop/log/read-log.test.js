@@ -19,6 +19,9 @@ const responsesCall = (callId, name, args) =>
 
 const rec = (ts, chatId, path, request, response, status = 200) => ({ ts, chatId, kind: 'k', path, status, request, response, ms: 5 })
 const sys = { role: 'system', content: 'S' }
+const fluentPrompt = '# Prompt\n\n## jscad-fluent style\n\nChain methods.'
+const modelingPrompt = '# Prompt\n\n## @jscad/modeling style\n\nPass shapes in.'
+const bothStylesPrompt = '# Prompt\n\n## jscad-fluent style\n\n## @jscad/modeling style\n'
 const ask = { role: 'user', content: 'A single sphere' }
 const call = (id, name, args) => ({ role: 'assistant', content: null, tool_calls: [{ id, type: 'function', function: { name, arguments: JSON.stringify(args) } }] })
 const result = (id, body) => ({ role: 'tool', tool_call_id: id, content: JSON.stringify(body) })
@@ -125,6 +128,57 @@ describe('readConversations', () => {
 
   it('returns nothing for a missing dir', async () => {
     expect(await readConversations(join(tmpdir(), 'no-such-chat-log-dir'))).toEqual([])
+  })
+})
+
+describe('conversation api style', () => {
+  it('reads the anthropic system field', async () => {
+    const request = { model: 'claude', system: fluentPrompt, messages: [ask] }
+    const dir = writeLog({ '2026-09-27.jsonl': [rec('2026-09-27T10:00:00.000Z', 'c', 'v1/messages', request, anthropicText('Ok.'))] })
+    const [conversation] = await readConversations(dir)
+    expect(conversation.api).toBe('fluent')
+  })
+
+  it('reads the leading system message for chat completions', async () => {
+    const request = { model: 'm', messages: [{ role: 'system', content: modelingPrompt }, ask] }
+    const dir = writeLog({ '2026-09-27.jsonl': [rec('2026-09-27T10:00:00.000Z', 'c', OAI, request, openaiText('Ok.'))] })
+    const [conversation] = await readConversations(dir)
+    expect(conversation.api).toBe('modeling')
+  })
+
+  it('reads request.instructions for the responses api', async () => {
+    const request = { model: 'muse', instructions: fluentPrompt, input: [{ role: 'user', content: 'A sphere' }] }
+    const dir = writeLog({ '2026-09-27.jsonl': [rec('2026-09-27T10:00:00.000Z', 'c', 'v1/responses', request, responsesCall('r1', 'eval', { source: 'y' }))] })
+    const [conversation] = await readConversations(dir)
+    expect(conversation.api).toBe('fluent')
+  })
+
+  it('reads a leading system item in responses input', async () => {
+    const request = { model: 'muse', input: [{ role: 'system', content: modelingPrompt }, { role: 'user', content: 'A sphere' }] }
+    const dir = writeLog({ '2026-09-27.jsonl': [rec('2026-09-27T10:00:00.000Z', 'c', 'v1/responses', request, responsesCall('r1', 'eval', { source: 'y' }))] })
+    const [conversation] = await readConversations(dir)
+    expect(conversation.api).toBe('modeling')
+  })
+
+  it('is unknown for a pre-split prompt that taught both styles', async () => {
+    const request = { model: 'm', messages: [{ role: 'system', content: bothStylesPrompt }, ask] }
+    const dir = writeLog({ '2026-09-27.jsonl': [rec('2026-09-27T10:00:00.000Z', 'c', OAI, request, openaiText('Ok.'))] })
+    const [conversation] = await readConversations(dir)
+    expect(conversation.api).toBe('unknown')
+  })
+
+  it('is unknown for a log with no system prompt at all', async () => {
+    const request = { model: 'm', messages: [ask] }
+    const dir = writeLog({ '2026-09-27.jsonl': [rec('2026-09-27T10:00:00.000Z', 'c', OAI, request, openaiText('Ok.'))] })
+    const [conversation] = await readConversations(dir)
+    expect(conversation.api).toBe('unknown')
+  })
+
+  it('prints the style in the summary header', async () => {
+    const request = { model: 'claude', system: fluentPrompt, messages: [ask] }
+    const dir = writeLog({ '2026-09-27.jsonl': [rec('2026-09-27T10:00:00.000Z', 'c', 'v1/messages', request, anthropicText('Ok.'))] })
+    const text = formatConversations(await readConversations(dir))
+    expect(text).toContain('== c  claude  fluent  2026-09-27T10:00:00.000Z')
   })
 })
 

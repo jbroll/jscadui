@@ -71,7 +71,10 @@ the user the fixture count times `EVAL_RUNS` and get a yes.
    ```
 
    Drop `--since` when the file does not exist. Add `--json` when you need a
-   tool call's full input or result.
+   tool call's full input or result. Each conversation's summary header names
+   the style it ran under (`fluent`, `modeling`, or `unknown` for a log from
+   before the two-style split); the `--json` output carries the same value as
+   `api`.
 
 2. **List the stumbles.** For each conversation:
    - every failed tool call, with its error message and the source that

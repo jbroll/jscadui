@@ -45,6 +45,7 @@ const fromOpenAI = (request) =>
 
 const fromResponses = (request) => {
   const out = []
+  if (request.instructions) out.push({ role: 'system', content: request.instructions })
   for (const item of request.input ?? []) {
     if (item.type === 'function_call_output') {
       out.push({ role: 'tool', toolCallId: item.call_id, content: item.output })
@@ -73,6 +74,22 @@ const READERS = { anthropic: fromAnthropic, openai: fromOpenAI, responses: fromR
 const PARSERS = { anthropic: parseAnthropicStream, openai: parseOpenAIStream, responses: parseResponsesStream }
 
 export const requestMessages = (record) => READERS[protocolOf(record.path)]?.(record.request) ?? []
+
+// The prompt's own first `## ` heading names the style it teaches
+// (packages/agent-loop/prompt/fluent.md, modeling.md); a log from before the
+// two-style split carries the older prompt that taught both, and matches
+// neither.
+const STYLE_HEADINGS = {
+  fluent: /^## jscad-fluent style$/m,
+  modeling: /^## @jscad\/modeling style$/m,
+}
+
+export const apiStyleOf = (record) => {
+  const system = requestMessages(record).find((m) => m.role === 'system')?.content
+  if (typeof system !== 'string') return 'unknown'
+  const matches = Object.keys(STYLE_HEADINGS).filter((api) => STYLE_HEADINGS[api].test(system))
+  return matches.length === 1 ? matches[0] : 'unknown'
+}
 
 export const responseMessage = async (record) => {
   const parse = PARSERS[protocolOf(record.path)]

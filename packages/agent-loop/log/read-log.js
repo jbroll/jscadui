@@ -2,7 +2,7 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { chatLogDir } from './log-dir.js'
-import { requestMessages, responseMessage } from './wire.js'
+import { apiStyleOf, requestMessages, responseMessage } from './wire.js'
 
 const listLogFiles = (dir) => {
   try {
@@ -92,7 +92,7 @@ export const readConversations = async (dir, { since } = {}) => {
   }
   const conversations = []
   for (const [key, list] of groups) {
-    conversations.push({ chatId: typeof key === 'string' ? key : null, model: list[0].request.model ?? null, turns: await turnsOf(list) })
+    conversations.push({ chatId: typeof key === 'string' ? key : null, model: list[0].request.model ?? null, api: apiStyleOf(list[0]), turns: await turnsOf(list) })
   }
   return conversations
 }
@@ -114,7 +114,7 @@ const codeOf = ({ path, source, content, oldString, newString }) => {
 export const formatConversations = (conversations) => {
   const lines = []
   for (const c of conversations) {
-    lines.push(`== ${c.chatId ?? '(no chat id)'}  ${c.model ?? ''}  ${c.turns[0]?.ts ?? ''}`)
+    lines.push(`== ${c.chatId ?? '(no chat id)'}  ${c.model ?? ''}  ${c.api}  ${c.turns[0]?.ts ?? ''}`)
     for (const turn of c.turns) {
       lines.push(`  > ${clip(turn.user ?? '', 200)}`)
       for (const step of turn.steps) {

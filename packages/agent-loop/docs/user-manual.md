@@ -213,12 +213,18 @@ npm run read-log -w @jscadui/agent-loop -- --since 2026-09-27T00:00:00Z
 npm run read-log -w @jscadui/agent-loop -- --json
 ```
 
-The summary prints one block per conversation: each user message, each tool
-call as `ok`, `FAILED` or `no result`, the error message and code of each
-failed call (a `write`'s path and content, an `edit`'s path and its `-`/`+`
-strings, a `run`'s source), and the final assistant text. `readConversations(dir, { since })`
-in `log/read-log.js` returns
-`[{ chatId, model, turns: [{ ts, user, steps: [{ name, input, result, ok, error? }], final, error? }] }]`.
+The summary prints one block per conversation, headed by its chat id, model
+and API style, then each user message, each tool call as `ok`, `FAILED` or
+`no result`, the error message and code of each failed call (a `write`'s path
+and content, an `edit`'s path and its `-`/`+` strings, a `run`'s source), and
+the final assistant text. The style comes from the system prompt's own
+heading (`## jscad-fluent style` or `## @jscad/modeling style`, wherever the
+provider carries it — `request.system` for Anthropic, `request.instructions`
+or a leading `input` item for Responses, a leading message for chat
+completions); a log from before the two-style split, whose prompt taught
+both, reports `unknown`. `readConversations(dir, { since })` in
+`log/read-log.js` returns
+`[{ chatId, model, api, turns: [{ ts, user, steps: [{ name, input, result, ok, error? }], final, error? }] }]`.
 It reads the directory the launcher writes (`JSCAD_CHAT_LOG` when set).
 
 ## Eval
