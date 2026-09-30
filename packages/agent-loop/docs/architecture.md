@@ -282,6 +282,30 @@ function or method whose first parameter is named `angle` or `angles`
 so a new fluent method gets the checks on regeneration
 ([development.md](development.md#api-index)).
 
+## Eval conversations
+
+`runConversation` (`eval/run-eval.js`) runs one fixture run: a fresh backend
+state seeded with the fixture's files, whose build report joins the files in
+the first message, the prompt, then each of the fixture's `followUps` in
+order, then a grade of the project's final state, built again in a fresh state
+so no scratch `run` leaks into the grade. A follow-up goes through
+`buildMessages` as the app sends one: the earlier turns as text, then the
+project as it stands, built. An error lands on the result, never thrown, and
+ends the conversation. `providerError` marks one the provider caused, judged
+only by the provider wrapper, never by what a tool returned; `infraError` one
+the sandbox caused (a backend error with `infrastructure`). Both leave the run
+out of the means. A complex fixture is graded by its gates, and a model that
+builds is drawn by the lane's renderer ([Complex grading](#complex-grading)).
+
+The provider wrapper (`withTurnCap`) caps the rounds in each user turn,
+tallies usage events, counts calls that sent neither text nor a tool call
+(reasoning and usage alone are no reply), records each call's stop reason,
+notes whether the provider itself threw, and times each call against an
+injected clock, so the run's rounds, usage and speed are read once it ends.
+`hitCap` and `endedWithoutReply` in `eval/grade.js` count only the assistant
+messages after the last user message, so a follow-up's turn reads as capped
+or empty on its own rounds.
+
 ## Complex grading
 
 A `complex` fixture's geometry grade comes from a verdict on renders of the

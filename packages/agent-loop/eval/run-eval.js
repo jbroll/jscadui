@@ -11,6 +11,7 @@ import { checkApi } from '../src/api.js'
 import { evalResultsDir } from '../log/log-dir.js'
 import { isMainModule } from '../src/mainModule.js'
 import { resolveCredentials } from './credentials.js'
+import { complexGates, complexProbe, complexReport, isComplex, renderRecord, scoreComplex, settleRun, userMessagesOf } from './complex.js'
 import { endedWithoutReply, GRADE_TIMEOUT_MS, gradedModel, gradeFixture, gradeTranscript, geometryError, transcriptMetrics } from './grade.js'
 import { conversationTag, createLiveLog, formatLiveHeader, liveLogPath, prefixBlock } from './live-log.js'
 import { concurrencyFrom, runSuiteParallel } from './parallel.js'
@@ -35,12 +36,12 @@ export const promptHash = (prompt) => createHash('sha256').update(prompt).digest
 
 export const evalApi = (env) => checkApi(env.EVAL_API || DEFAULT_API)
 
+export const fileStamp = (now = new Date()) => now.toISOString().replace(/\.\d{3}Z$/, 'Z').replace(/:/g, '')
+
 // Sortable UTC timestamp so two runs on the same day and prompt don't collide:
-// <YYYY-MM-DD>T<HHMMSS>Z-<model>-<api>-<sha8>.json
-export const resultFileName = (model, api, promptSha256, now = new Date()) => {
-  const timestamp = now.toISOString().replace(/\.\d{3}Z$/, 'Z').replace(/:/g, '')
-  return `${timestamp}-${model}-${api}-${promptSha256.slice(0, 8)}.json`
-}
+// <YYYY-MM-DD>T<HHMMSS>Z-<model>-<api>[-complex]-<sha8>.json
+export const resultFileName = (model, api, promptSha256, now = new Date(), suite) =>
+  `${fileStamp(now)}-${model}-${api}${suite === 'complex' ? '-complex' : ''}-${promptSha256.slice(0, 8)}.json`
 
 // A fixture whose starting project differs by api declares `apiFiles`
 // ({ fluent: files, modeling: files }); under an api it starts from that api's files.
@@ -51,12 +52,12 @@ export const DEFAULT_GROUPS = new Set(['harder'])
 
 // `only`: null runs the default suite, every ungrouped fixture and every
 // fixture in DEFAULT_GROUPS; a list of fixture and/or group names runs their
-// union; ['all'] runs everything. A fixture that declares an `api` runs only
-// under that api.
+// union; ['all'] runs everything but the complex group, which runs only when
+// named. A fixture that declares an `api` runs only under that api.
 export function selectFixtures(fixtures, only, api = DEFAULT_API) {
   const forApi = fixtures.filter((f) => !f.api || f.api === api).map((f) => fixtureForApi(f, api))
   if (!only) return forApi.filter((f) => !f.group || DEFAULT_GROUPS.has(f.group))
-  if (only.includes('all')) return forApi
+  if (only.includes('all')) return forApi.filter((f) => f.group !== 'complex')
   const wanted = new Set(only)
   return forApi.filter((f) => wanted.has(f.name) || (f.group && wanted.has(f.group)))
 }
@@ -68,6 +69,19 @@ export const compareApis = (a, b) => {
   if (a.api && b.api) return a.api === b.api ? {} : { error: `run-eval: cannot compare a ${a.api} result with a ${b.api} result` }
   if (!a.api && !b.api) return {}
   return { warning: `run-eval: ${a.api ? `a is ${a.api}` : noApi('a')}; ${b.api ? `b is ${b.api}` : noApi('b')}` }
+}
+
+// Verdicts compare only between files that used the same describer and judge.
+export const compareSuites = (a, b) => {
+  const [aComplex, bComplex] = [a, b].map((f) => f.suite === 'complex')
+  if (aComplex !== bComplex) return { error: 'run-eval: cannot compare a complex result with a single-shot one' }
+  if (!aComplex) return {}
+  for (const stage of ['describer', 'judge']) {
+    if (a[stage]?.model !== b[stage]?.model || a[stage]?.promptSha256 !== b[stage]?.promptSha256) {
+      return { error: `run-eval: the two complex results used a different ${stage} model or prompt; run that stage with --all on one of them first` }
+    }
+  }
+  return {}
 }
 
 export async function loadFixtures(dir = FIXTURES) {
@@ -92,13 +106,11 @@ const scoreGrade = (fixture, transcript, graded, maxTurns, providerError) => {
 
 const isContentEvent = (event) => event.type === 'text' || event.type === 'tool_use'
 
-// Wraps the provider for one run: caps the number of send() calls (rounds),
-// tallies usage events, counts calls that sent neither text nor a tool call
-// (reasoning and usage alone are no reply), records each call's stop reason,
-// notes whether the provider itself threw, and times each call against an
-// injected clock so the caller can read rounds/usage/speed once the run ends.
+// Caps the rounds in each user turn (`startTurn()` begins the next) and keeps the run's
+// rounds, usage, empty replies, stop reasons, provider failure and timing (docs/architecture.md).
 const withTurnCap = (provider, maxTurns, now = () => performance.now(), onRetry) => {
   let rounds = 0
+  let turnRounds = 0
   let emptyReplies = 0
   const stopReasons = []
   let providerFailed = false
@@ -111,7 +123,8 @@ const withTurnCap = (provider, maxTurns, now = () => performance.now(), onRetry)
   return {
     async *send(messages, tools) {
       rounds += 1
-      if (rounds > maxTurns) {
+      turnRounds += 1
+      if (turnRounds > maxTurns) {
         yield { type: 'done', stopReason: 'end_turn' }
         return
       }
@@ -148,8 +161,11 @@ const withTurnCap = (provider, maxTurns, now = () => performance.now(), onRetry)
         throw error
       }
     },
+    startTurn: () => {
+      turnRounds = 0
+    },
     rounds: () => rounds,
-    capped: () => rounds > maxTurns,
+    capped: () => turnRounds > maxTurns,
     emptyReplies: () => emptyReplies,
     stopReasons: () => [...stopReasons],
     providerFailed: () => providerFailed,
@@ -166,14 +182,15 @@ const withTurnCap = (provider, maxTurns, now = () => performance.now(), onRetry)
 
 export const EMPTY_REPLY = 'empty provider reply'
 
-// One conversation: a fresh backend state seeded with the fixture's files, whose
-// build report joins the files in the first message, the fixture's prompt, then
-// grading on the project's final state, built again in a fresh state so no
-// scratch run leaks into the grade. An error lands
-// on the result, never thrown. `providerError` marks one the provider caused,
-// judged only by the provider wrapper here, never by what a tool returned;
-// `infraError` one the sandbox caused (a backend error with `infrastructure`).
-// Both leave the run out of the means. `signal` aborts the run.
+// The text a turn's replies showed the user, as the app keeps it for later turns.
+const replyText = (messages) =>
+  messages
+    .filter((m) => m.role === 'assistant' && typeof m.content === 'string')
+    .map((m) => m.content)
+    .join('')
+
+// One run: the prompt and each follow-up, then a grade of the final project in a fresh state.
+// Errors land on the result, never thrown (docs/architecture.md, Eval conversations).
 export async function runConversation(
   fixture,
   run,
@@ -187,6 +204,7 @@ export async function runConversation(
     toolTimeoutMs,
     gradeTimeoutMs,
     signal,
+    render,
     onToolCall,
     onToolResult,
     onText,
@@ -202,54 +220,72 @@ export async function runConversation(
   }
   const cappedProvider = withTurnCap(provider, maxTurns, now, onProviderRetry)
   const startedAt = Date.now()
-  let build = null
-  try {
-    build = await backend.reset(fixture.files, { build: true })
-  } catch (err) {
-    noteInfra(err)
-  }
-  const messages = buildMessages({ systemPrompt, transcript: fixture.transcript ?? [], files: fixture.files ?? {}, build, message: fixture.prompt })
-  let transcript = messages
-  if (!infraError) {
+  let transcript = []
+  let prior = fixture.transcript ?? []
+  let files = fixture.files ?? {}
+  for (const [turn, message] of userMessagesOf(fixture).entries()) {
+    let build = null
     try {
-      const turn = await runTurn({
-        conversation: { messages },
-        provider: cappedProvider,
-        api,
-        requestTool: async (name, input) => {
-          onToolCall?.(name, input)
-          const result = await backend.requestTool(name, input)
-          onToolResult?.(name, result)
-          return result
-        },
-        onText: (text) => onText?.(text),
-        toolTimeoutMs,
-        signal,
-      })
-      transcript = turn.messages
+      build = await backend.reset(files, { build: true })
     } catch (err) {
-      if (Array.isArray(err?.messages)) transcript = err.messages
-      // The cap's own closing round sends nothing back, which runTurn reads as an empty reply.
-      if (err?.name === 'EmptyReplyError') {
-        if (!cappedProvider.capped()) error = EMPTY_REPLY
-      } else {
-        error = signal?.aborted && signal.reason instanceof Error ? signal.reason.message : err.message
-        if (err?.infrastructure) infraError = true
+      noteInfra(err)
+    }
+    const messages = buildMessages({ systemPrompt, transcript: prior, files, build, message })
+    let turnMessages = messages
+    if (!infraError) {
+      cappedProvider.startTurn()
+      try {
+        const finished = await runTurn({
+          conversation: { messages },
+          provider: cappedProvider,
+          api,
+          requestTool: async (name, input) => {
+            onToolCall?.(name, input)
+            const result = await backend.requestTool(name, input)
+            onToolResult?.(name, result)
+            return result
+          },
+          onText: (text) => onText?.(text),
+          toolTimeoutMs,
+          signal,
+        })
+        turnMessages = finished.messages
+      } catch (err) {
+        if (Array.isArray(err?.messages)) turnMessages = err.messages
+        // The cap's own closing round sends nothing back, which runTurn reads as an empty reply.
+        if (err?.name === 'EmptyReplyError') {
+          if (!cappedProvider.capped()) error = EMPTY_REPLY
+        } else {
+          error = signal?.aborted && signal.reason instanceof Error ? signal.reason.message : err.message
+          if (err?.infrastructure) infraError = true
+        }
       }
     }
+    // A later turn keeps what it added: its project note, its message and the reply.
+    transcript = turn === 0 ? turnMessages : [...transcript, ...turnMessages.slice(messages.length - 2)]
+    if (error || infraError) break
+    const reply = replyText(turnMessages.slice(messages.length))
+    prior = [...prior, { role: 'user', content: message }, ...(reply ? [{ role: 'assistant', content: reply }] : [])]
+    files = gradedModel(fixture, transcript)?.files ?? files
   }
   if (!error && cappedProvider.emptyReplies() > 0) error = EMPTY_REPLY
   const providerError = cappedProvider.providerFailed() || cappedProvider.emptyReplies() > 0
   const seconds = (Date.now() - startedAt) / 1000
+  const complex = isComplex(fixture)
   let graded = NO_GRADE()
   if (!infraError) {
     try {
-      graded = await backend.gradeProject(gradedModel(fixture, transcript), { timeoutMs: gradeTimeoutMs, probe: fixture.probe })
+      const options = complex ? { timeoutMs: gradeTimeoutMs, probe: complexProbe(fixture), mesh: true } : { timeoutMs: gradeTimeoutMs, probe: fixture.probe }
+      graded = await backend.gradeProject(gradedModel(fixture, transcript), options)
     } catch (err) {
       noteInfra(err)
     }
   }
-  const { report, geometryError: geometry } = scoreGrade(fixture, transcript, graded, maxTurns, providerError)
+  const {
+    report,
+    fields = {},
+    geometryError: geometry,
+  } = complex ? await scoreComplex(fixture, run, transcript, graded, { maxTurns, providerError, render }) : scoreGrade(fixture, transcript, graded, maxTurns, providerError)
   const { toolCalls, failedCalls, warnings, docsCalls } = transcriptMetrics(transcript)
   const { inputTokens, outputTokens, reasoningTokens } = cappedProvider.usage()
   const { providerSeconds, firstTokenSeconds } = cappedProvider.speed()
@@ -280,6 +316,7 @@ export async function runConversation(
       outputTokensPerSecond,
       geometryError: geometry,
     },
+    ...fields,
     ...(error ? { error } : {}),
     ...(providerError ? { providerError: true } : {}),
     ...(infraError ? { infraError: true } : {}),
@@ -294,7 +331,7 @@ export const RUN_TIMEOUT_MS = 20 * 60_000
 // conversation; grading still follows.
 export async function runJob(
   { fixture, run, runs, maxTurns },
-  { provider, api, startExecutor: start, runTimeoutMs = RUN_TIMEOUT_MS, maxRestarts, callTimeoutMs, runToolTimeoutMs },
+  { provider, api, startExecutor: start, runTimeoutMs = RUN_TIMEOUT_MS, maxRestarts, callTimeoutMs, runToolTimeoutMs, render },
   onLog,
 ) {
   let pending = ''
@@ -316,6 +353,7 @@ export async function runJob(
       maxTurns,
       toolTimeoutMs,
       signal: controller.signal,
+      render,
       onToolCall: (name, input) => {
         flush()
         onLog(formatToolCall(name, input))
@@ -368,6 +406,41 @@ const renamedSaved = (result) => {
   return { ...result, report: { ...report, ...(saved === false && !result.providerError ? { wrote: false } : {}) } }
 }
 
+// A complex run's gates again, and its verdict kept only while its mesh is the one that was judged.
+async function regradeComplex(run, fixture, grader, { transcript, maxTurns, providerError, metrics }) {
+  const graded = await grader.gradeProject(gradedModel(fixture, transcript), { probe: complexProbe(fixture), mesh: true })
+  const gates = complexGates(fixture, graded)
+  const report = complexReport(fixture, transcript, gates, { maxTurns, providerError })
+  const { description, votes, verdict, graderError, describeError, render, renderError: _error, renderStale: _stale, ...kept } = run
+  const base = { ...kept, gates, report, metrics: { ...metrics, geometryError: geometryError(fixture.target, graded.measure) } }
+  const cleared = { ...base, description: null, verdict: null }
+  if (!gates[0].pass) return settleRun(render ? { ...cleared, regradeNote: 'the project no longer builds' } : cleared)
+  if (!graded.mesh || graded.mesh.error) return settleRun({ ...cleared, renderError: graded.mesh?.error ?? 'no mesh came back with the grade' })
+  let fresh
+  try {
+    fresh = renderRecord(graded, render?.views ?? [])
+  } catch {
+    return settleRun({ ...cleared, renderError: 'the grade could not be read' })
+  }
+  if (render && fresh.meshSha256 === render.meshSha256) {
+    return settleRun({
+      ...base,
+      render,
+      description: description ?? null,
+      ...(votes ? { votes } : {}),
+      verdict: verdict ?? null,
+      ...(graderError ? { graderError } : {}),
+      ...(describeError ? { describeError } : {}),
+    })
+  }
+  return settleRun({
+    ...cleared,
+    render: fresh,
+    renderStale: true,
+    regradeNote: 'the mesh changed; its renders and verdict are stale',
+  })
+}
+
 async function regradeRun(stored, fixture, grader) {
   const result = renamedSaved(stored)
   if (!fixture) return { ...result, regradeNote: 'fixture no longer exists; kept stored grading' }
@@ -379,6 +452,16 @@ async function regradeRun(stored, fixture, grader) {
   const metrics = { ...result.metrics, ...transcriptMetrics(transcript) }
   const model = gradedModel(fixture, transcript)
   const samePrompt = promptOf(fixture, transcript)
+  if (isComplex(fixture) && (samePrompt || !model)) {
+    const regraded = await regradeComplex(rest, fixture, grader, { transcript, maxTurns, providerError, metrics })
+    const empty = !result.error && endedWithoutReply(transcript, maxTurns)
+    return {
+      ...regraded,
+      ...(samePrompt ? {} : { regradeNote: 'prompt differs from the current fixture; graded as unsaved' }),
+      ...(empty ? { error: EMPTY_REPLY } : {}),
+      ...(empty || result.error === EMPTY_REPLY ? { providerError: true } : {}),
+    }
+  }
   let report
   let regradeNote = samePrompt ? undefined : 'prompt differs from the current fixture; graded as unsaved'
   if (samePrompt || !model) {
@@ -425,14 +508,14 @@ export async function regradeResults(file, fixturesByName, { grader, graderFor =
 // Rewritten after every run so an interrupted eval keeps every finished run.
 // `wallSeconds` is the elapsed suite time; without it, the runs' seconds are summed.
 // `maxTurns` is the model's turn cap, null when each fixture kept its own.
-export function saveResults(writeFile, filePath, { model, provider, api, runs, maxTurns = null, promptSha256, results, wallSeconds }) {
+export function saveResults(writeFile, filePath, { model, provider, api, runs, maxTurns = null, promptSha256, suite, results, wallSeconds }) {
   const summary = summarize(results)
   const speed = computeSpeed(results)
   if (typeof wallSeconds === 'number') speed.wallSeconds = wallSeconds
   writeFile(
     filePath,
     JSON.stringify(
-      { model, provider, api, runs, maxTurns, promptSha256, date: new Date().toISOString(), summary, speed, results },
+      { model, provider, api, runs, maxTurns, promptSha256, ...(suite ? { suite } : {}), date: new Date().toISOString(), summary, speed, results },
       null,
       2,
     ),
@@ -442,7 +525,7 @@ export function saveResults(writeFile, filePath, { model, provider, api, runs, m
 
 // A hard lifetime for each executor (crt runs it under `timeout -s KILL`), so
 // one survives a SIGKILLed run-eval only that long.
-const GRADE_LIFETIME_S = GRADE_TIMEOUT_MS / 1000 + 60
+export const GRADE_LIFETIME_S = GRADE_TIMEOUT_MS / 1000 + 60
 const conversationLifetimeS = (runTimeoutMs) => Math.ceil(runTimeoutMs / 1000) + 60
 
 export const runTimeoutFrom = (env) => {
@@ -457,7 +540,7 @@ export const freshExecutorGrader = (start) => ({ gradeProject: (model, options) 
 const LOUD = '!'.repeat(72)
 
 // Fails closed: model code runs only once the crt sandbox is known to start.
-const requireSandbox = async (env) => {
+export const requireSandbox = async (env) => {
   let sandbox
   let problem
   const warnings = []
@@ -485,13 +568,27 @@ const requireSandbox = async (env) => {
   return sandbox
 }
 
+// Chromium starts before any provider call, so a host without it fails first.
+const startRenders = async (filePath) => {
+  const { createRunRenderer } = await import('./render.js')
+  const renders = createRunRenderer(filePath)
+  try {
+    await renders.start()
+  } catch (error) {
+    console.error(`run-eval: chromium did not start for the renders (npx playwright install chromium): ${error.message}`)
+    process.exit(1)
+  }
+  return renders
+}
+
 const main = async (argv, env) => {
   const at = argv.indexOf('--compare')
   if (at !== -1) {
     const [a, b] = [readJson(argv[at + 1]), readJson(argv[at + 2])]
     const { error, warning } = compareApis(a, b)
-    if (error) {
-      console.error(error)
+    const suites = compareSuites(a, b)
+    if (error || suites.error) {
+      console.error(error ?? suites.error)
       process.exit(1)
     }
     if (warning) console.error(warning)
@@ -530,6 +627,11 @@ const main = async (argv, env) => {
   const runs = Number(env.EVAL_RUNS) || 3
   const only = env.EVAL_FIXTURES ? env.EVAL_FIXTURES.split(',') : null
   const fixtures = selectFixtures(await loadFixtures(), only, api)
+  const complexPass = fixtures.some(isComplex)
+  if (complexPass && !fixtures.every(isComplex)) {
+    console.error('run-eval: complex fixtures run in a pass of their own; set EVAL_FIXTURES=complex')
+    process.exit(1)
+  }
   const providerConfig = { kind: EVAL_PROVIDER, model: EVAL_MODEL, apiKey, baseUrl }
   createProvider(providerConfig)
   const asked = concurrencyFrom(env)
@@ -539,7 +641,9 @@ const main = async (argv, env) => {
   const maxTurns = modelMaxTurns(env, EVAL_MODEL)
   const promptSha256 = promptHash(buildSystemPrompt(api))
   mkdirSync(resultsDir, { recursive: true })
-  const filePath = join(resultsDir, resultFileName(EVAL_MODEL, api, promptSha256))
+  const suite = complexPass ? 'complex' : undefined
+  const filePath = join(resultsDir, resultFileName(EVAL_MODEL, api, promptSha256, new Date(), suite))
+  const renders = complexPass ? await startRenders(filePath) : null
   console.log(
     `run-eval: writing ${filePath}  (api ${api}, ${fixtures.length * runs} conversations, ${concurrency} at a time, maxTurns ${maxTurns ?? 'per fixture'})`,
   )
@@ -570,22 +674,24 @@ const main = async (argv, env) => {
       runs,
       maxTurns,
       promptSha256,
+      suite,
       results,
       wallSeconds: (Date.now() - startedAt) / 1000,
     })
   const onRun = (result, finished) => {
-    const line = `${result.fixture} run ${result.run}/${runs}  firstFail ${result.report.firstAttemptFailures}  total ${result.report.total}`
+    const line = `${result.fixture} run ${result.run}/${runs}  firstFail ${result.report.firstAttemptFailures}  total ${result.report.total}${result.verdictPending ? '  verdict pending' : ''}`
     logLine(result.error ? `${line}  error: ${result.error}` : line, { tag: conversationTag(label, result.fixture, result.run), toStdout: true })
     save(finished)
   }
   const runSandboxedJob = (job, onJobLog) =>
     runJob(
       job,
-      { provider: createProvider(providerConfig), api, runTimeoutMs, startExecutor: () => startExecutor({ api, sandbox, lifetimeS: conversationLifetimeS(runTimeoutMs) }) },
+      { provider: createProvider(providerConfig), api, runTimeoutMs, startExecutor: () => startExecutor({ api, sandbox, lifetimeS: conversationLifetimeS(runTimeoutMs) }), render: renders?.render },
       onJobLog,
     )
 
   const results = await runSuiteParallel(fixtures, { runs, concurrency, maxTurns, api, runJob: runSandboxedJob, onLog, onRun })
+  await renders?.close()
   const { summary, speed } = save(results)
   logLine(formatSummary(summary, { ...speed, model: EVAL_MODEL, provider: EVAL_PROVIDER }), { toStdout: true })
   const infra = results.filter((r) => r.infraError).length

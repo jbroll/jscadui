@@ -473,3 +473,23 @@ describe('geometryError', () => {
     expect(geometryError({ volume: 100, dimensions: [10, 20] }, { volume: 105, dimensions: [10, 24] })).toBeCloseTo(0.2)
   })
 })
+
+describe('the turn cap with a follow-up', () => {
+  const boom = JSON.stringify({ ok: false, error: { message: 'boom' } })
+  const firstTurn = [
+    { role: 'user', content: 'make it' },
+    toolMsg('t1', 'writeModel', { source: 'x' }),
+    resultMsg('t1', JSON.stringify({ ok: true, entry: 'main.js' })),
+    { role: 'assistant', content: 'done', toolCalls: [] },
+    { role: 'user', content: 'make it taller' },
+  ]
+
+  it('counts only the rounds after the last user message', () => {
+    const stopped = [...firstTurn, toolMsg('t2', 'eval', { source: 'y' }), resultMsg('t2', boom)]
+    expect(endedWithoutReply(stopped, 2)).toBe(true)
+    expect(gradeFixture(fixture, stopped, { volume: 6400 }, {}, { maxTurns: 2 }).dimensions.recovery).toBe(0)
+    const capped = [...firstTurn, toolMsg('t2', 'eval', { source: 'y' }), resultMsg('t2', JSON.stringify({ ok: true })), toolMsg('t3', 'eval', { source: 'z' }), resultMsg('t3', boom)]
+    expect(endedWithoutReply(capped, 2)).toBe(false)
+    expect(gradeFixture(fixture, capped, { volume: 6400 }, {}, { maxTurns: 2 }).dimensions.recovery).toBe(2)
+  })
+})

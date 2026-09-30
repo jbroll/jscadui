@@ -78,16 +78,18 @@ export function gradedModel(fixture, transcript) {
   return Object.keys(files).length > 0 ? { files, entry: resolveEntry(files) } : null
 }
 
+// The cap is per user message, so only the rounds after the last one count.
+const lastTurnReplies = (transcript) => transcript.slice(transcript.findLastIndex((m) => m.role === 'user') + 1).filter((m) => m.role === 'assistant').length
+
 // A run that stopped without a final reply before its turn cap: the provider
 // sent nothing back. A capped run ends on a tool result after maxTurns replies.
 export function endedWithoutReply(transcript, maxTurns) {
   if (transcript.length === 0 || transcript.at(-1).role === 'assistant') return false
-  return transcript.filter((m) => m.role === 'assistant').length < maxTurns
+  return lastTurnReplies(transcript) < maxTurns
 }
 
 // A run the turn cap ended: its last round's tool results got no reply.
-const hitCap = (transcript, maxTurns) =>
-  maxTurns !== undefined && transcript.at(-1)?.role === 'tool' && transcript.filter((m) => m.role === 'assistant').length >= maxTurns
+const hitCap = (transcript, maxTurns) => maxTurns !== undefined && transcript.at(-1)?.role === 'tool' && lastTurnReplies(transcript) >= maxTurns
 
 // measureDimensions() and measureVolume() in the model code, as fluent.md
 // teaches, with the numbers logged back to the model.

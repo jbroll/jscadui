@@ -423,7 +423,8 @@ computed shapes (`spur-gears`, `twisted-vase`, `bottle-cap`'s helix).
 whatever it names, fixture names and group names both, e.g. `EVAL_FIXTURES=profiles`
 runs every fixture in that group, `EVAL_FIXTURES=gear,fluent-chain` runs one named
 fixture plus one grouped fixture, and `EVAL_FIXTURES=all` runs every fixture
-regardless of group.
+regardless of group except `complex`, which runs only when named, in a pass of
+its own ([Complex fixtures](#complex-fixtures)).
 
 `EVAL_API` (`fluent` by default, or `modeling`) picks the API style a run
 teaches: its prompt, tools and docs. A fixture may declare `api`; it then runs
@@ -456,6 +457,14 @@ fixture's, whose checks then do not apply (stored `geometry` kept, unless the ru
 saved nothing). Use it after a grading-rule change to update old result files
 without spending API budget.
 
+A complex run is rebuilt with the `bodies` probe and its mesh: the gates are
+recomputed and the mesh hashed. When the hash matches `render.meshSha256`, the
+stored verdict stands and geometry is recomputed from it and the new gates.
+When it differs, the description, votes and verdict are cleared and the run
+gets `renderStale: true`, `verdictPending: true` and a `regradeNote`; a project
+that no longer builds loses them too and scores geometry 0. `--regrade` makes
+no provider call, starts no describer and renders nothing.
+
 ### Environment variables
 
 | Variable | Meaning |
@@ -468,7 +477,7 @@ without spending API budget.
 | `EVAL_RUNS` | runs per fixture, default 3 |
 | `EVAL_CONCURRENCY` | conversations run at once, each with its own sandboxed executor, default 6 |
 | `EVAL_MAX_TURNS` | turn cap for every conversation; overrides `eval/models.json` and the fixture's `maxTurns` |
-| `EVAL_FIXTURES` | comma-separated fixture and/or group names to run; default: ungrouped fixtures and the `harder` group; `all` runs everything |
+| `EVAL_FIXTURES` | comma-separated fixture and/or group names to run; default: ungrouped fixtures and the `harder` group; `all` runs everything but the `complex` group |
 | `EVAL_VERBOSE` | `1` also prints the live log's lines to stdout, turn by turn: the header and prompt, tool calls with full input, tool results, and streamed assistant text |
 | `JSCAD_CHAT_DATA` | path to the `jscad-chat-evals` clone, default `~/src/jscad-chat-evals` |
 | `EVAL_RESULTS_DIR` | overrides where results are written, regardless of `JSCAD_CHAT_DATA` |
@@ -485,7 +494,7 @@ without spending API budget.
 
 ### Turn cap
 
-A conversation's turn cap (provider calls) is `EVAL_MAX_TURNS` when set, else
+A conversation's turn cap (provider calls for each user message) is `EVAL_MAX_TURNS` when set, else
 `maxTurns` from the model's entry in `eval/models.json`
 (`{ "<model id>": { "maxTurns": 8 } }`), else the fixture's own `maxTurns`.
 The cap a model gets is a budget for fixing its own mistakes across turns, so
@@ -691,10 +700,15 @@ also carries `transcript`, the run's messages minus the system prompt, for
 tracing a stumble back to the tool calls that caused it. The eval prints one
 line per run as each finishes. The key is never printed or written.
 
+A complex pass's file is `<YYYY-MM-DD>T<HHMMSS>Z-<model>-<api>-complex-<sha8>.json`
+and records `suite: 'complex'`. `--compare` refuses a complex file against a
+single-shot one, and two complex files whose describer or judge model or
+prompt hash differ.
+
 ### Fixtures
 
 A fixture is one file exporting `fixture`:
-`{ name, prompt, requires, verifyBeforeWrite, maxTurns, checks(measure, { params, source, solid, probe }), api?, transcript?, files?, apiFiles?, target?, probe? }`.
+`{ name, prompt, requires, verifyBeforeWrite, maxTurns, checks(measure, { params, source, solid, probe }), api?, transcript?, files?, apiFiles?, target?, probe?, followUps? }`.
 `requires` names tools the task needs (`['write']`, `['measure', 'write']`;
 `write` is satisfied by a `write` or an `edit`); only `write` changes grading.
 `name` matches the file name; `transcript` (prior `{ role, content }` turns)
@@ -713,6 +727,18 @@ the geometry it produced (a style check on a fluent chain, for example).
 geometry; checks use it for `watertight` since `measure` alone doesn't report
 it. `check` reports `watertight: false` and `insideOut: true` for a
 negative-volume (inside-out) solid.
+
+`followUps: [{ message }]` sends later user messages in order, each after the
+turn before it ends, whatever that turn built, through `buildMessages` as the
+app sends a later message: the earlier messages and the text of each reply
+(tool calls left out), then the project's files and its build, after the
+backend is reset to the project as it stands and built. The turn cap applies
+to each message, and grading reads it that way: whether a run was capped or
+ended without a reply counts only the rounds after the last user message. An
+error (provider, empty reply, run time limit, sandbox)
+ends the conversation, and no later follow-up is sent. The stored `transcript`
+keeps the first turn whole and, for each later turn, its project note, its
+message and its reply, so the grade replays every write and edit in order.
 
 `probe` asks the grader for facts `measure` does not give (`eval/probe.js`),
 computed on the same geometry and passed to `checks` as `probe`, `null` when
@@ -879,6 +905,22 @@ with a verdict that succeeded); `formatSummary` prints them in a
 `fixture  verdictRate  pending` table and `formatComparison` compares them. A
 project that does not build is not rendered, described or judged, and scores
 geometry 0.
+
+A complex pass runs with `EVAL_FIXTURES=complex` (or complex fixture names)
+and nothing else: a selection that mixes complex and other fixtures exits
+with an error. It starts Playwright's chromium before any provider call
+(`npx playwright install chromium` in `apps/jscad-web` installs it). After
+each run's grade, the grade executor sends the model's mesh and `run-eval`
+renders three views into `<file stem>.renders/<fixture>-<run>/` beside the
+result file. Each complex run adds:
+
+- `userMessages`: the prompt and each follow-up, what the judge reads.
+- `gates`: `[{ name, pass }]`, with `groups` on `connected`.
+- `render`: `{ meshSha256, facts: { dimensions, bodies }, views: [{ name, path, sha256 }] }`,
+  each `path` relative to the result file's directory; or `renderError` when
+  the mesh was refused or the render failed.
+- `description: null` and `verdict: null`, filled in by the describe and
+  judge stages.
 
 ### Sandbox setup
 
