@@ -388,7 +388,9 @@ trial run and `writeModel` a save of `source` to `entry` (`main.js` by
 default), and each counts below where `run` and `write` do.
 
 Discipline asks whether the model checked its model. Verification is a
-`measure` or `check` call, or a `run` whose source calls a `measure*`
+`measure` or `check` call, a `write` or `edit` whose build report came back
+`ok` with `geometry` and no error (the report already carries the measured
+geometry), or a `run` whose source calls a `measure*`
 function (`shape.measureDimensions()`, `measureVolume()`, as `fluent.md`
 teaches) and whose result carries console output. A run with a `run` gets 2
 when the fixture has no `verifyBeforeWrite`, when it never writes, or when it

@@ -43,6 +43,18 @@ describe('grader on project-tool transcripts', () => {
     expect(gradeFixture({ ...fixture, verifyBeforeWrite: false }, unmeasured, { volume: 6400 }).dimensions.discipline).toBe(2)
   })
 
+  it('credits a write or edit whose build report came back with geometry and no error, as a measure call', () => {
+    const geometry = { parts: 1, boundingBox: [[0, 0, 0], [10, 10, 10]], dimensions: [10, 10, 10], volume: 1000, watertight: true }
+    const saves = (name, content) => [{ role: 'user', content: 'make it' }, toolMsg('t1', name, { path: 'main.js', content: 'x' }), resultMsg('t1', content)]
+    expect(gradeFixture(fixture, saves('write', built({ geometry })), { volume: 6400 }).dimensions.discipline).toBe(2)
+    expect(gradeFixture(fixture, saves('edit', built({ geometry })), { volume: 6400 }).dimensions.discipline).toBe(2)
+    expect(gradeFixture(fixture, saves('write', built()), { volume: 6400 }).dimensions.discipline).toBe(0)
+    expect(gradeFixture(fixture, saves('write', brokenBuild), { volume: 6400 }).dimensions.discipline).toBe(0)
+    const unmeasuredRun = [toolMsg('r1', 'run', { source: 'console.log(1)' }), resultMsg('r1', JSON.stringify({ ok: true, console: ['1'] }))]
+    expect(gradeFixture(fixture, [...unmeasuredRun, ...saves('write', built({ geometry }))], { volume: 6400 }).dimensions.discipline).toBe(2)
+    expect(gradeFixture(fixture, [...unmeasuredRun, ...saves('write', brokenBuild)], { volume: 6400 }).dimensions.discipline).toBe(1)
+  })
+
   it('counts failed builds and failed calls against conservation, never a successful write or edit', () => {
     const run = (goodWrites, badWrites, measures) => {
       const transcript = [{ role: 'user', content: 'make it' }]

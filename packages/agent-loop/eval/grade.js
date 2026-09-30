@@ -95,8 +95,16 @@ const MEASURES_IN_CODE = /\bmeasure[A-Z]\w*\s*\(/
 const measuringRun = (call, result) =>
   TRIALS.has(call.name) && MEASURES_IN_CODE.test(call.input?.source ?? '') && parsed(result?.content)?.console?.length > 0
 
-// A measure or check call, or a run (legacy eval) that measures in code and logs it.
-const verifies = (call, resultOf) => call.name === 'measure' || call.name === 'check' || measuringRun(call, resultOf.get(call.id))
+// A write or edit whose build report carries the model's geometry already did what a measure call would.
+const measuredSave = (call, result) => {
+  if (call.name !== 'write' && call.name !== 'edit') return false
+  const report = parsed(result?.content)
+  return report?.ok === true && !report.error && report.geometry !== undefined && report.geometry !== null
+}
+
+// A measure or check call, a clean write or edit, or a run (legacy eval) that measures in code and logs it.
+const verifies = (call, resultOf) =>
+  call.name === 'measure' || call.name === 'check' || measuredSave(call, resultOf.get(call.id)) || measuringRun(call, resultOf.get(call.id))
 
 // The transcript-based dimensions: everything except geometry, which needs the final measure.
 // `maxTurns` is the run's turn cap, when known.
@@ -109,7 +117,7 @@ export function gradeTranscript(fixture, transcript, { maxTurns } = {}) {
   // Measuring after a save verifies as well as measuring before it: a save builds the model too.
   const firstWrite = names.findIndex((n) => SAVES.has(n))
   const verifiedBefore = calls.slice(0, firstWrite === -1 ? calls.length : firstWrite).some((c) => verifies(c, resultOf))
-  const verifiedAfter = firstWrite !== -1 && calls.slice(firstWrite + 1).some((c) => verifies(c, resultOf))
+  const verifiedAfter = firstWrite !== -1 && calls.slice(firstWrite).some((c) => verifies(c, resultOf))
   let discipline = 0
   if (names.some((n) => TRIALS.has(n))) {
     discipline = !fixture.verifyBeforeWrite || firstWrite === -1 || verifiedBefore || verifiedAfter ? 2 : 1
