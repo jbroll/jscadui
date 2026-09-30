@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { createRequire } from 'node:module'
-import { footprint, holeLoops, outerLoops, runProbe } from './probe.js'
+import { footprint, holeLoops, nesting, outerLoops, runProbe, turnOf } from './probe.js'
 
-const { booleans, primitives: p, transforms } = createRequire(import.meta.url)('@jscad/modeling')
+const { booleans, extrusions, primitives: p, transforms } = createRequire(import.meta.url)('@jscad/modeling')
 
 const cup = booleans.subtract(p.cuboid({ size: [40, 30, 20] }), transforms.translateZ(2, p.cuboid({ size: [36, 26, 20] })))
 
@@ -54,6 +54,74 @@ describe('runProbe', () => {
     const touching = runProbe([a, p.cube({ size: 10, center: [10, 0, 0] })], { bodies: { overlaps: true } })
     expect(touching.overlaps).toEqual([])
     expect(runProbe([a], { bodies: {} })).not.toHaveProperty('overlaps')
+  })
+
+  it("gives each loop of an outline cut its centroid, perimeter, radius range about the cut's largest loop, and lobe count", () => {
+    const square = transforms.translate([5, -3, 0], p.cuboid({ size: [20, 20, 10] }))
+    const [section] = runProbe([square], { sections: [{ axis: 'z', at: [0.5], outline: true }] }).sections
+    const [loop] = section.loops
+    expect(section.centre).toEqual([expect.closeTo(5, 6), expect.closeTo(-3, 6)])
+    expect(loop.centroid).toEqual([expect.closeTo(5, 6), expect.closeTo(-3, 6)])
+    expect(loop.perimeter).toBeCloseTo(80, 6)
+    expect(loop.radius).toEqual([expect.closeTo(10, 6), expect.closeTo(Math.SQRT2 * 10, 6)])
+    expect(loop.lobes).toBe(4)
+    expect(runProbe([cup], { sections: [{ axis: 'z', at: [0.5] }] }).sections[0].loops[0]).not.toHaveProperty('lobes')
+  })
+
+  it('counts the teeth of a star outline as lobes, and none on a round one', () => {
+    const star = (n) => extrusions.extrudeLinear({ height: 5 }, p.star({ vertices: n, outerRadius: 20, innerRadius: 16 }))
+    const lobes = (shape) => runProbe([shape], { sections: [{ axis: 'z', at: [0.5], outline: true }] }).sections[0].loops[0].lobes
+    expect(lobes(star(20))).toBe(20)
+    expect(lobes(star(7))).toBe(7)
+    expect(lobes(p.cylinder({ radius: 10, height: 5, segments: 64 }))).toBe(0)
+  })
+
+  it("points a hole's first harmonic about the cut's largest loop toward the side the hole is offset", () => {
+    const offset = (x, y) => booleans.subtract(p.cylinder({ radius: 15, height: 10, segments: 64 }), p.cylinder({ radius: 5, height: 20, center: [x, y, 0], segments: 64 }))
+    const firstHarmonic = (shape) => holeLoops(runProbe([shape], { sections: [{ axis: 'z', at: [0.5], outline: true }] }).sections[0])[0].harmonics[0]
+    expect(firstHarmonic(offset(3, 0))).toMatchObject({ k: 1, magnitude: expect.closeTo(0.375, 2), angle: expect.closeTo(0, 3) })
+    expect(firstHarmonic(offset(0, 3)).angle).toBeCloseTo(90, 3)
+  })
+
+  it('follows a twisted outline through its cuts as a steady turn', () => {
+    const twisted = extrusions.extrudeLinear({ height: 40, twistAngle: Math.PI / 2, twistSteps: 40 }, p.rectangle({ size: [30, 10] }))
+    const at = Array.from({ length: 19 }, (_, k) => 0.05 + k * 0.05)
+    const sections = runProbe([twisted], { sections: [{ axis: 'z', at, outline: true }] }).sections
+    const turn = turnOf(sections.map((s) => s.loops[0]))
+    expect(turn.k).toBe(2)
+    expect(turn.degrees[0]).toBe(0)
+    expect(turn.degrees.at(-1)).toBeCloseTo(81, 0)
+    expect(turnOf(runProbe([p.cuboid({ size: [30, 10, 40] })], { sections: [{ axis: 'z', at, outline: true }] }).sections.map((s) => s.loops[0])).degrees.at(-1)).toBeCloseTo(0, 6)
+  })
+
+  it('finds how deep one tray nests into another and the play left around it', () => {
+    const at = Array.from({ length: 50 }, (_, k) => 0.01 + k * 0.02)
+    const bodies = (...shapes) => runProbe(shapes, { bodies: { sections: [{ axis: 'z', at }] } }).bodies
+    const cavity = transforms.translateZ(12.5, p.cuboid({ size: [36, 36, 15] }))
+    const footed = (foot) =>
+      booleans.subtract(booleans.union(transforms.translateZ(11.5, p.cuboid({ size: [40, 40, 17] })), transforms.translateZ(1.5, p.cuboid({ size: [foot, foot, 3] }))), cavity)
+    const [a, b] = bodies(footed(35.4), transforms.translateX(60, footed(35.4)))
+    const fit = nesting(a, b, 'z')
+    expect(fit.depth).toBeGreaterThanOrEqual(2.6)
+    expect(fit.depth).toBeLessThanOrEqual(3.6)
+    expect(fit.play).toEqual([expect.closeTo(0.6, 6), expect.closeTo(0.6, 6)])
+    const [plainA, plainB] = bodies(footed(40), transforms.translateX(60, footed(40)))
+    expect(nesting(plainA, plainB, 'z')).toEqual({ depth: 0, play: null })
+    const [tightA, tightB] = bodies(footed(36.2), transforms.translateX(60, footed(36.2)))
+    expect(nesting(tightA, tightB, 'z').depth).toBe(0)
+  })
+
+  it('nests a tray whose recessed bottom fits over the rim of the one below', () => {
+    const at = Array.from({ length: 50 }, (_, k) => 0.01 + k * 0.02)
+    const tray = booleans.subtract(
+      booleans.union(transforms.translateZ(8.5, p.cuboid({ size: [44, 44, 17] })), transforms.translateZ(18.5, p.cuboid({ size: [40, 40, 3] }))),
+      transforms.translateZ(1.5, p.cuboid({ size: [40.6, 40.6, 3] })),
+      transforms.translateZ(13, p.cuboid({ size: [36, 36, 16] })),
+    )
+    const [a, b] = runProbe([tray, transforms.translateX(60, tray)], { bodies: { sections: [{ axis: 'z', at }] } }).bodies
+    const fit = nesting(a, b, 'z')
+    expect(fit.depth).toBeGreaterThanOrEqual(2.6)
+    expect(fit.play).toEqual([expect.closeTo(0.6, 6), expect.closeTo(0.6, 6)])
   })
 
   it('reads geometry an array nests', () => {

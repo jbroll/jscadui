@@ -318,15 +318,18 @@ note, naming the part for an array (`@jscadui/model-tools`).
 
 ### Choosing fixtures and API style
 
-A fixture may declare `group` (string), such as `'profiles'` for fixtures whose
-correct answer requires computing a point-list profile (`gear`).
+A fixture may declare `group` (string), such as `'profiles'`, an opt-in group
+kept for experiments (`gear`).
 The default run, with no `EVAL_FIXTURES`, runs the ungrouped fixtures, the CSG
 suite of primitives and boolean operations, and the `harder` group
 (`DEFAULT_GROUPS` in `eval/run-eval.js`): one message asking for several
-changes to a saved model (`stand-bigger-slots`, `box-thicker-lid`), a
-correction mid-conversation (`holes-through-side`), assemblies of parts that
-fit (`sliding-lid-box`, `hinge`), parameters the user names
-(`bracket-params`) and a name cut through a part (`luggage-tag`).
+changes to a saved model (`stand-bigger-slots`, `box-thicker-lid`,
+`bracket-m5`), a correction mid-conversation (`holes-through-side`),
+assemblies of parts that fit (`sliding-lid-box`, `hinge`, `stacking-trays`),
+parameters the user names (`bracket-params`), a name cut through a part
+(`luggage-tag`), a real part the model must know the sizes of
+(`pi-enclosure`, `bottle-cap`), a stated opening and clearance (`drawer`), and
+computed shapes (`spur-gears`, `twisted-vase`, `bottle-cap`'s helix).
 `profiles` stays opt-in. `EVAL_FIXTURES` runs the union of
 whatever it names, fixture names and group names both, e.g. `EVAL_FIXTURES=profiles`
 runs every fixture in that group, `EVAL_FIXTURES=gear,fluent-chain` runs one named
@@ -634,14 +637,29 @@ there is no geometry:
   `groupGap` (mm), each cut also has `groups`: the loops whose bounding boxes
   lie within that distance of each other, each group `{ loopCount, area,
   hullArea }`, where `hullArea` is its convex hull's area, so a hull larger
-  than the area shows material cut out of a part.
+  than the area shows material cut out of a part. With `outline: true`, each
+  cut also has `centre`, the centroid of its largest loop, and each loop adds
+  `centroid` (in-plane), `perimeter`, `radius: [nearest, farthest]` from
+  `centre`, `lobes`, the bumps around its own centroid (teeth, star points;
+  0 for a round loop), and `harmonics: [{ k, magnitude, angle }]` for k = 1 to
+  12, the mean of (z − centre)^k over the loop's region, z = u + iv, with
+  `magnitude` its size over farthest^k and `angle` its argument over k in
+  degrees. `turnOf(loops)` reads one loop per cut, in order: it picks the
+  lowest harmonic at least half as strong as the strongest in every loop and
+  unwraps its angle from cut to cut, `{ k, magnitude, degrees }`, so a twisted
+  outline or a helical thread shows as steadily growing degrees.
 - `bodies: { sections?, overlaps? }` lists the separate solids, each array
   item split into the parts that share no vertex: `{ boundingBox, dimensions,
   volume, polygonCount, sections? }`, with `sections` cut through that body
   alone. With `overlaps: true` the probe also has `overlaps: [{ a, b, volume
   }]`, the volume bodies `a` and `b` (indexes into `bodies`) share, for each
   pair whose bounding boxes overlap, at most 45 pairs; touching parts share
-  none.
+  none. `nesting(upper, lower, axis)` reads two bodies cut densely along
+  `axis`: `{ depth, play }`, how far `upper`'s bottom goes into `lower`'s top
+  with every cut of `upper` inside `lower`'s largest hole at that height (a
+  foot) or around `lower`'s outline in a hole of its own (a skirt), and the
+  least gap across each footprint dimension over that depth, `play: null`
+  when it does not go in.
 - `paramVariants: true` rebuilds the model once per number parameter (up to
   12, each started only while twice the slowest build so far fits in the
   grade's time limit) with that one parameter set 20% above
@@ -677,6 +695,40 @@ clearance, a 12 mm slot through a base widened from 70 to 80 mm).
 wrong answer for each check: a follow-up's starting model, one of several
 changes left out, overlapping or fused parts, a pin with no clearance, a
 parameter the model never reads, raised lettering.
+`eval/harder-fit-answers.test.js` covers the fixtures that need outline facts
+or `nesting`, with wrong answers such as half the twist, a round vase, 20 and
+30 teeth, mixed modules, gears meshed 3.5 mm too far apart, a drawer with no
+clearance, a tray foot too big or too loose, rings in place of a helix, a
+thread sized for a 30 mm neck, ports in the wrong end wall, and holes the
+size of the bolt.
+
+In those fixtures, `twisted-vase` takes the height axis as the size nearest
+120 mm, the wall as ring area over mean perimeter in cuts from 30% to 80% up,
+and the twist from `turnOf` on the outer loops of cuts from 2% to 98%, scaled
+to the full height (80 to 100 degrees). `spur-gears` counts teeth as `lobes`
+on each body's cut across its thinnest size, takes the module from the tip
+diameters' difference over 20 (so any addendum both gears share passes, from
+0.5 to 1.5 module), and, when the gears are engaged (centres closer than the
+tip radii's sum), wants the centre distance within 5% of 30 module and no
+overlap; a pair laid out apart passes. `drawer` finds the slide axis as one
+whose middle cut is two of 100, 80 and 50 less 0.3 to 1.2 mm each (0.5 mm a
+side, or 0.5 mm in all), a handle as a cut past one end under half the
+cross-section or a 100 mm² notch in the front wall, and an open top as a
+middle hole covered on one side only. `stacking-trays` wants `nesting` at
+least 1 mm deep with 0 to 1 mm of play, either tray into the other along any
+axis. `bottle-cap` takes the cap's axis from a round ring at mid-height, the
+thread from the longest run of cuts whose hole reaches in and out by 0.4 mm,
+its crest and root diameters (medians, 24.8 to 27.2 mm and 27.3 to 30.5 mm
+for a PCO neck with a 27.4 mm thread), and a helix from `turnOf` on those
+holes: at least 180 degrees, 80% of steps one way, 45 to 200 degrees per mm.
+`pi-enclosure` finds four post-sized islands in one cut whose six distances
+match 49, 49, 58, 58 and the diagonals (1 mm, 1.5 mm on diagonals), places
+the 85 x 56 board on them with its ports toward either short end, wants a
+placement inside the smallest hole around the posts (0.3 mm tolerance, the
+hole at least 0.5 mm larger than the board), and 150 mm² missing from a cut
+through that end's wall past the cavity. `bracket-m5` wants every hole up to
+15 mm across, narrowest over the cuts through it, 5.15 to 6.1 mm (an inscribed
+5.3 mm polygon reads 5.2), at least two holes, and the height 60 mm or less.
 
 A fixture's `prompt` is a request a real user would type: casual and often
 underspecified, never a specification written to be graded, and never phrased

@@ -56,9 +56,11 @@ the user the fixture count times `EVAL_RUNS` and get a yes.
   side first — `docs`, warnings, clearer error text — and record it in
   `docs/backlog.md`, over changing prompt text.
 - The default suite tests CSG primitives and booleans, plus the `harder`
-  group (multi-change follow-ups, corrections, assemblies, parameters, text).
-  A fixture whose correct answer needs a computed point-list profile belongs
-  in the opt-in `profiles` group, not the default suite.
+  group: multi-change follow-ups, corrections, assemblies, parameters, text,
+  and tasks that combine several constraints, stated tolerances, real-world
+  sizes the model must know, parts that must fit, and computed shapes
+  (point-list profiles, helices, twists). The opt-in `profiles` group is for
+  experiments.
 
 ## Steps
 
@@ -144,10 +146,8 @@ the user the fixture count times `EVAL_RUNS` and get a yes.
    model or a handful of fixtures. The default run (no `EVAL_FIXTURES`) is
    the CSG suite, primitives and boolean operations, which is what most real
    requests exercise, and the `harder` group, which always runs with it.
-   `gear` sits in the `profiles` group and is opt-in
-   (`EVAL_FIXTURES=profiles` or `EVAL_FIXTURES=all`) since it tests computing
-   a point-list profile, not representative of most requests and prone to
-   dominating run time:
+   `gear` sits in the opt-in `profiles` group, kept for experiments
+   (`EVAL_FIXTURES=profiles` or `EVAL_FIXTURES=all`):
 
    ```bash
    EVAL_PROVIDER=meta EVAL_MODEL=muse-spark-1.3-contributor npm run eval -w @jscadui/agent-loop
