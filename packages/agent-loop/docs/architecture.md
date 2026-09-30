@@ -78,9 +78,15 @@ first `<base><path>:<line>:<column>` frame of a stack. `measure`, `check` and
 (`noGeometryError`) when it failed.
 `run` is a scratch runner: the snippet runs beside the project's files as
 `__run__.js` and is never saved, and neither the project nor its build
-changes; it answers its console output, a `geometry` summary of what its
-`main()` returned or a `returned` preview of `module.exports`
-(`summarizeRun`), and an error with its location. The app's frame worker
+changes. A project module the snippet requires hands back its `main` wrapped
+(params-core `withProjectMains`), so `main({ width: 30 })` runs as a build
+would with `width` set as a user's edit and every other parameter at its
+default; a model's `params.width = { type: 'slider', … }` never overwrites
+the value given. It answers its console output, a `geometry` summary of what
+its `main()` returned or a `returned` preview of `module.exports`
+(`summarizeRun`), and an error with its location, without the loader's
+` / failed loading module …` note (`withoutLoaderNote`), which builds drop
+too. The app's frame worker
 answers `run` through the same `summarizeRun` and the same messages.
 
 The per-turn header (`buildMessages`) sends the project files and then the

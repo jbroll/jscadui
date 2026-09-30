@@ -69,3 +69,29 @@ describe('user module wrapper', () => {
     expect(m.primitives.cube()).toBe('cube')
   })
 })
+
+describe('wrapRequire on the given source', () => {
+  const HELPER = `${ROOT}helper.js`
+
+  beforeEach(() => {
+    files[HELPER] = 'module.exports = { n: 1, inner: require("./leaf.js") }'
+    files[`${ROOT}leaf.js`] = 'module.exports = { leaf: true }'
+  })
+
+  afterEach(() => {
+    delete files[HELPER]
+    delete files[`${ROOT}leaf.js`]
+  })
+
+  it("wraps only that module's own require", () => {
+    const seen = []
+    const wrapRequire = (req) => (spec) => {
+      seen.push(spec)
+      return { ...req(spec), wrapped: true }
+    }
+    const out = jscadRequire({ url: `${ROOT}__run__.js`, script: 'module.exports = require("./helper.js")', wrapRequire }, null, readFile, ROOT, ROOT)
+    expect(out).toMatchObject({ n: 1, wrapped: true, inner: { leaf: true } })
+    expect(out.inner.wrapped).toBeUndefined()
+    expect(seen).toEqual(['./helper.js'])
+  })
+})

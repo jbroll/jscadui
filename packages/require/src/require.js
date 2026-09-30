@@ -79,6 +79,7 @@ const forCaller = (name, exports, base, root) => {
  * @typedef SourceWithUrl
  * @prop {string} url
  * @prop {string} script
+ * @prop {(require: (spec: string) => unknown) => (spec: string) => unknown} [wrapRequire] - wraps the require this module's own code calls, not its dependencies'
  */
 
 /**
@@ -101,11 +102,13 @@ export const require = (urlOrSource, transform, readFile, base, root, importData
   let isRelativeFile
   let cacheUrl
   let bundleAlias
+  let wrapRequire
   if (typeof urlOrSource === 'string') {//Only the URL is given
     url = urlOrSource
   } else { //URL and source are given (this is the main file)
     source = urlOrSource.script
     url = urlOrSource.url
+    wrapRequire = urlOrSource.wrapRequire
     isRelativeFile = true
   }
   let exports
@@ -220,7 +223,8 @@ export const require = (urlOrSource, transform, readFile, base, root, importData
         }
       }
       // construct require function relative to resolvedUrl
-      const requireFunc = newUrl => require(newUrl, transform, readFile, resolvedUrl, root, importData, moduleBase)
+      const plainRequire = newUrl => require(newUrl, transform, readFile, resolvedUrl, root, importData, moduleBase)
+      const requireFunc = wrapRequire ? wrapRequire(plainRequire) : plainRequire
       // CommonJS cycle semantics: cache the exports object before running the
       // module, so a require that comes back around gets the partial exports.
       // The OpenSCAD transpiler emits mutual `use` requires (NopSCADlib's

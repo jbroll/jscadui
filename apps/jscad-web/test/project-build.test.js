@@ -89,6 +89,11 @@ describe('reportError', () => {
     expect(reportError(error)).toMatchObject({ name: 'SyntaxError', file: 'main.js', line: 2, column: 36 })
   })
 
+  it("drops the loader's failed-loading-module note, since the location names the file", () => {
+    const error = { name: 'RangeError', message: 'too big / failed loading module ./part.js / failed loading module http://project.local/__run__.js', stack: 'RangeError: too big\n    at main (http://project.local/part.js:3:9)' }
+    expect(reportError(error)).toEqual({ name: 'RangeError', message: 'too big', file: 'part.js', line: 3, column: 9 })
+  })
+
   it('adds the hint for the chat api', () => {
     const error = { name: 'TypeError', message: 'jf.measureVolume is not a function' }
     expect(reportError(error, { api: 'fluent', index }).message).toContain('measureVolume is a method of FluentGeom3')

@@ -64,7 +64,11 @@ with the error.
 With `scratch: true` (the chat's `run` sets it) the script is a scratch run:
 `jscadScript` loads it, calls its `main` with fresh default parameters when it
 has one, and answers a `JscadScratchResult`, handing the value `main` returned
-(or the module's exports) to the host's run summary. It never throws: an
+(or the module's exports) to the host's run summary. A project module the
+script itself requires hands back its `main` wrapped (params-core
+`withProjectMains`): called with plain values, or none, it runs with a params
+proxy where those values win, as a user's edits do, and every other parameter
+takes its default. It never throws: an
 error is answered in `error`. Either way it puts the loaded model back as it
 was: its module and `main`, its solids, and its parameter and UI state, so a
 later `jscadMain` runs the model. The chat can try code without losing what

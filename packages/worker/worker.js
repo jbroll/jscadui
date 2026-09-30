@@ -1,7 +1,7 @@
 import { JscadToCommon } from '@jscadui/format-jscad'
 import { messageProxy, withTransferable } from '@jscadui/postmessage'
 import { clearAllCaches, clearFileCache, jscadClearTempCache, readFileWeb, require, requireCache, resolveUrl } from '@jscadui/require'
-import { createParamsProxy, createProxyState, buildParamTree, toParamDefinitions, extractDefaults as extractProxyDefaults, convertLegacyDefs, injectLegacyDefs } from '@jscadui/params-core'
+import { createParamsProxy, createProxyState, buildParamTree, toParamDefinitions, extractDefaults as extractProxyDefaults, convertLegacyDefs, injectLegacyDefs, withProjectMains } from '@jscadui/params-core'
 
 import { exportStlText } from './src/exportStlText.js'
 import { combineParameterDefinitions, getParameterDefinitionsFromSource } from './src/getParameterDefinitionsFromSource.js'
@@ -525,7 +525,9 @@ export const jscadScript = async ({ script, url='jscad.js', base=workerState.glo
     let def = []
 
     try{
-      const loadedModule = require({url,script}, shouldTransform ? workerState.transformFunc : undefined, readFileWeb, base, root, workerState.importData)
+      // A snippet that calls a project file's main() hands it values, which that main gets as a build's params would carry them.
+      const wrapRequire = scratch ? withProjectMains : undefined
+      const loadedModule = require({url,script,wrapRequire}, shouldTransform ? workerState.transformFunc : undefined, readFileWeb, base, root, workerState.importData)
       // I1 fix: Check generation before setting shared state
       if (myGeneration !== workerState.getGeneration()) {
         throw new Error('Script execution superseded by newer script during module load')

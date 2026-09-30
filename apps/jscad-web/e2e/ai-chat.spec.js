@@ -23,6 +23,14 @@ const ROUNDS = [
 
 // The same calls through the app and the eval backend, which must answer alike.
 const RUNTIME_ERROR = "const main = () => {\n  const s = null\n  return s.size\n}\nmodule.exports = { main }\n"
+const SLIDER_BOX = `const { cuboid } = require('@jscad/modeling').primitives
+const main = (params) => {
+  params.width = { type: 'slider', default: 60, min: 10, max: 100 }
+  params.depth = { type: 'slider', default: 20 }
+  return cuboid({ size: [params.width, params.depth, 5] })
+}
+module.exports = { main }
+`
 const PARITY_ROUNDS = [
   { name: 'write', args: { path: 'main.js', content: RUNTIME_ERROR } },
   { name: 'write', args: { path: 'main.js', content: 'module.exports = { size: 1 }\n' } },
@@ -42,6 +50,9 @@ const PARITY_ROUNDS = [
   { name: 'export', args: { format: 'step' } },
   { name: 'measure', args: { parts: 'all', between: ['0', 'all'] } },
   { name: 'measure', args: {} },
+  { name: 'write', args: { path: 'main.js', content: SLIDER_BOX } },
+  { name: 'run', args: { source: "const { main } = require('./main.js')\nmodule.exports = { main: () => main({ width: 30 }) }" } },
+  { name: 'run', args: { source: "require('./main.js').main({ width: -1 })" } },
 ]
 
 const startStubRelay = (rounds = ROUNDS) =>

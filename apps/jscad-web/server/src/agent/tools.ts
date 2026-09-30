@@ -70,7 +70,7 @@ export const buildTools = (api: Api = DEFAULT_API): ToolDefinition[] => [
   {
     name: 'run',
     description:
-      'Run a scratch JavaScript snippet beside the project files, to try an idea or log values. It is never saved and changes neither the project nor its build. Returns its console output, a summary of what its main() returns (or of module.exports without a main), and an error with its file, line and column.',
+      "Run a scratch JavaScript snippet beside the project files, to try an idea or log values. It is never saved and changes neither the project nor its build. A project file's main(values) runs with the other parameters at their defaults. Returns its console output, a summary of what its main() returns (or of module.exports without a main), and an error with its file, line and column.",
     inputSchema: {
       type: 'object',
       properties: { source: { type: 'string', description: 'The snippet, CommonJS like a project file' } },

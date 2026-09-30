@@ -42,6 +42,10 @@ export const errorLocation = (error, base) => {
   return at ? { file: at[1], line: Number(at[2]), column: Number(at[3]) } : {}
 }
 
+// The loader appends this to an error thrown while a module loads; the
+// location already names the file, and a snippet's own name misleads.
+export const withoutLoaderNote = (message) => String(message).replace(/ \/ failed loading module \S+/g, '')
+
 const reportError = ({ name, message, file, line, column }) => ({
   ...(name ? { name: String(name) } : {}),
   message: String(message ?? ''),

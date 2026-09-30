@@ -287,7 +287,7 @@ describe('eval backend project', () => {
     await writeMain('throw new Error("broken")', backend)
     for (const name of ['measure', 'check', 'export']) {
       const res = await call(backend, name, { format: 'stl' })
-      expect(res).toEqual({ ok: false, error: { name: 'NoGeometryError', message: expect.stringMatching(/^no geometry: the last build failed \(broken .*\); fix it first$/) } })
+      expect(res).toEqual({ ok: false, error: { name: 'NoGeometryError', message: expect.stringMatching(/^no geometry: the last build failed \(broken\); fix it first$/) } })
     }
   })
 })
@@ -324,6 +324,31 @@ describe('eval backend run', () => {
 
   it('needs source', async () => {
     expect((await call(createEvalBackend(), 'run', {})).error.message).toMatch(/source must be/)
+  })
+
+  const SLIDER_BOX = `const { cuboid } = require('@jscad/modeling').primitives
+const main = (params) => {
+  params.width = { type: 'slider', default: 60, min: 10, max: 100 }
+  params.depth = { type: 'slider', default: 20 }
+  return cuboid({ size: [params.width, params.depth, 5] })
+}
+module.exports = { main }`
+
+  it("runs a project main() with the snippet's values over its defaults, as a build would", async () => {
+    const backend = createEvalBackend()
+    await writeMain(SLIDER_BOX, backend)
+    const given = await call(backend, 'run', { source: "const { main } = require('./main.js')\nmodule.exports = { main: () => main({ width: 30 }) }" })
+    expect(given).toMatchObject({ ok: true, geometry: { dimensions: [30, 20, 5] } })
+    const none = await call(backend, 'run', { source: "const { main } = require('./main.js')\nmodule.exports = { main: () => main() }" })
+    expect(none).toMatchObject({ ok: true, geometry: { dimensions: [60, 20, 5] } })
+  })
+
+  it('names the failing file and line with no loader suffix on the message', async () => {
+    const backend = createEvalBackend()
+    await writeMain("const main = (params) => { throw new RangeError('too big') }\nmodule.exports = { main }", backend)
+    const res = await call(backend, 'run', { source: "require('./main.js').main({})" })
+    expect(res).toMatchObject({ ok: false, error: { name: 'RangeError', file: 'main.js', line: 1 } })
+    expect(res.error.message).not.toMatch(/failed loading module/)
   })
 })
 

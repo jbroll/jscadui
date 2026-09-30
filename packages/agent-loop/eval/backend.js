@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { createRequire, isBuiltin } from 'node:module'
 import { check, measure } from '@jscadui/model-tools'
-import { createParamsProxy, createProxyState, toParamDefinitions } from '@jscadui/params-core'
+import { createParamsProxy, createProxyState, toParamDefinitions, withProjectMains } from '@jscadui/params-core'
 import { clearAllCaches, moduleResolver, require as jscadRequire } from '@jscadui/require/esm/index.js'
 import { transformcjs } from '@jscadui/transform-babel/esm/transform-babel.js'
 import * as jscadText from '@jscadui/jscad-text'
@@ -13,7 +13,7 @@ import { installConsoleCapture } from '../src/consoleCapture.js'
 import { docsTool } from '../src/docs.js'
 import { withErrorHint } from '../src/hints.js'
 import { createWarningCollector, withOptionChecks, wrapFluentMethods } from '../src/optionChecks.js'
-import { asGeometry, buildReport, errorLocation, noGeometryError, noMainError, notGeometryError, summarizeRun } from '../src/buildReport.js'
+import { asGeometry, buildReport, errorLocation, noGeometryError, noMainError, notGeometryError, summarizeRun, withoutLoaderNote } from '../src/buildReport.js'
 import { exportConfig, exportedSize } from '../src/exportFormat.js'
 import { applyEdit, applyWrite, listFiles, NO_ENTRY, readFile, resolveEntry } from '../src/project.js'
 import { withUnits } from '../src/units.js'
@@ -103,7 +103,7 @@ const MAX_MESSAGE = 4000
 export const RUN_FILE = '__run__.js'
 
 const located = (error, api) => {
-  const message = withErrorHint(String(error?.message ?? error).slice(0, MAX_MESSAGE), { api, index: API_INDEX })
+  const message = withErrorHint(withoutLoaderNote(String(error?.message ?? error)).slice(0, MAX_MESSAGE), { api, index: API_INDEX })
   return { name: String(error?.name ?? 'Error').slice(0, 200), message, ...errorLocation(error, PROJECT_BASE) }
 }
 
@@ -130,7 +130,8 @@ const locateSyntaxError = (files, entry, error) => {
 }
 
 // Runs `entry` over `files` and, when it exports one, its main(). Never throws.
-const runModel = async (files, entry, api) => {
+// `wrapRequire` wraps the require the entry's own code calls.
+const runModel = async (files, entry, api, { wrapRequire } = {}) => {
   warnings.reset()
   warnings.setApi(api)
   clearAllCaches()
@@ -144,7 +145,7 @@ const runModel = async (files, entry, api) => {
     const transform = shouldTransform(url, source) ? transformcjs : undefined
     let exports
     try {
-      exports = jscadRequire({ url, script: source }, transform, createReadFile(files), PROJECT_BASE, PROJECT_BASE)
+      exports = jscadRequire({ url, script: source, wrapRequire }, transform, createReadFile(files), PROJECT_BASE, PROJECT_BASE)
     } catch (e) {
       throw e?.name === 'SyntaxError' ? locateSyntaxError(files, entry, e) : e
     }
@@ -215,7 +216,7 @@ export function createEvalBackend({ api = DEFAULT_API } = {}) {
   // A scratch snippet beside the project: the project, its build and its geometry stay as they were.
   const run = async (source) => {
     if (typeof source !== 'string') throw Object.assign(new Error('source must be the snippet text, a string'), { name: 'TypeError' })
-    const loaded = await runModel({ ...files, [RUN_FILE]: source }, RUN_FILE, api)
+    const loaded = await runModel({ ...files, [RUN_FILE]: source }, RUN_FILE, api, { wrapRequire: withProjectMains })
     const { warnings: warned, console: lines } = loaded
     if (loaded.error) return { ok: false, error: located(loaded.error, api), warnings: warned, console: lines }
     const summary = summarizeRun({ hasMain: loaded.hasMain, value: loaded.hasMain ? loaded.value : loaded.exports }, measure)

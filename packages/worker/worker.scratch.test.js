@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { clearAllCaches } from '@jscadui/require'
 
 // worker.js registers self.addEventListener at import time.
 globalThis.self = { addEventListener() {}, postMessage: () => {} }
@@ -94,6 +95,44 @@ describe('a scratch run for the chat (scratch: true)', () => {
 
     expect(workerState.userInteracted).toBe(interacted)
     expect(workerState.currentUiValues).toBe(uiValues)
+  })
+})
+
+describe("a scratch run calling a project module's main", () => {
+  const PROJECT = {
+    'http://project.local/main.js':
+      "module.exports = { main: (params) => { params.width = { type: 'slider', default: 60 }; params.depth = { type: 'slider', default: 20 }; return [{ width: params.width, depth: params.depth }] } }",
+  }
+
+  beforeEach(() => {
+    globalThis.self.location = { origin: 'http://project.local' }
+    globalThis.XMLHttpRequest = class {
+      open(_method, url) {
+        this.url = url
+      }
+      send() {
+        this.status = this.url in PROJECT ? 200 : 404
+        this.responseText = PROJECT[this.url]
+      }
+    }
+  })
+
+  afterEach(() => {
+    reset()
+    delete globalThis.XMLHttpRequest
+    delete globalThis.self.location
+    clearAllCaches()
+  })
+
+  it('hands it the values given over its defaults, as a build would', async () => {
+    const seen = []
+    setRunSummary((run) => {
+      seen.push(run)
+      return {}
+    })
+    const script = "const { main } = require('./main.js')\nmodule.exports = { main: () => main({ width: 30 }) }"
+    await jscadScript({ script, url: 'http://project.local/__run__.js', base: 'http://project.local/', root: 'http://project.local/', scratch: true })
+    expect(seen[0].value).toEqual([{ width: 30, depth: 20 }])
   })
 })
 

@@ -35,3 +35,5 @@ export {
   // Utilities
   toMap,
 } from './src/createParamsProxy.js'
+
+export { paramsFromValues, withProjectMains, withValueParams } from './src/valueParams.js'

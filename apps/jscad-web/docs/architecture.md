@@ -812,8 +812,9 @@ A failed build keeps the last good render on screen: a load draws only what
 it returns, so a failure leaves the viewer as it was and shows the error bar.
 
 `run` sends its source as `__run__.js` beside the project's files, with
-`scratch: true` on its `jscadScript`. The worker runs it and its `main`, and
-answers the console, the warnings, an error, and `summarizeRun`'s `geometry`
+`scratch: true` on its `jscadScript`. The worker runs it and its `main`
+(a project file's `main(values)` the snippet calls gets a build's params
+proxy with those values set), and answers the console, the warnings, an error, and `summarizeRun`'s `geometry`
 or `returned` preview, then puts the loaded model back: its module, `main`,
 solids and parameter state. The frame and the app's replay keep the model's
 script and file map for a restarted or promoted worker
