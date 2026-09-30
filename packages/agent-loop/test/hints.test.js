@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { explainError, explainThrow, explainWarning, TAPER, withErrorHint } from '../src/hints.js'
+import { explainError, explainWarning, TAPER, withErrorHint } from '../src/hints.js'
 
 const index = JSON.parse(readFileSync(new URL('../api/index.json', import.meta.url), 'utf8'))
 
@@ -84,24 +84,23 @@ describe('explainWarning: angles', () => {
   })
 })
 
-describe('explainThrow', () => {
-  it('gives the roundRadius limit from the smallest size', () => {
-    const message = 'roundRadius must be smaller than the radius of all dimensions'
-    expect(explainThrow(message, { size: [40, 30, 2.4], roundRadius: 2 })).toBe(
-      'roundRadius 2 is too big: it must be under half the smallest size, 2.4 / 2 = 1.2',
+describe('explainWarning for a fixed option', () => {
+  it('says what limit a clamped roundRadius met and what was used', () => {
+    expect(explainWarning({ fn: 'jf.roundedCuboid', option: 'roundRadius', clamped: true, from: 2, to: 1.199, least: 2.4 }, 'fluent').hint).toBe(
+      'roundRadius 2 is too big: it must be under half the smallest size, 2.4 / 2 = 1.2; used 1.199',
     )
-    expect(explainThrow(message, { size: [10, 2.5], roundRadius: 2 })).toContain('2.5 / 2 = 1.25')
-  })
-
-  it('gives the roundRadius limit from a rounded cylinder height', () => {
-    expect(explainThrow('height must be larger than twice roundRadius', { height: 3, radius: 5, roundRadius: 2 })).toBe(
-      'roundRadius 2 is too big: it must be under half the height, 3 / 2 = 1.5',
+    expect(explainWarning({ fn: 'primitives.roundedCylinder', option: 'roundRadius', clamped: true, from: 2, to: 1.499, height: 3 }).hint).toBe(
+      'roundRadius 2 is too big: it must be under half the height, 3 / 2 = 1.5; used 1.499',
+    )
+    expect(explainWarning({ fn: 'primitives.roundedCylinder', option: 'roundRadius', clamped: true, from: 6, to: 4.999, radius: 5 }).hint).toBe(
+      'roundRadius 6 is too big: it must be at most the radius, 5; used 4.999',
     )
   })
 
-  it('adds nothing for other errors or options it cannot read', () => {
-    expect(explainThrow('size must be positive', { size: 1 })).toBeUndefined()
-    expect(explainThrow('roundRadius must be smaller than the radius of all dimensions', undefined)).toBeUndefined()
+  it('says a number radius became a pair', () => {
+    expect(explainWarning({ fn: 'jf.cylinderElliptic', option: 'endRadius', coerced: true, from: 2, to: [2, 2] }, 'fluent')).toEqual({
+      fn: 'jf.cylinderElliptic', option: 'endRadius', hint: 'endRadius takes an [x, y] pair of radii; used [2, 2] for 2',
+    })
   })
 })
 

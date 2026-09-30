@@ -887,9 +887,12 @@ none of them.
 The same wrappers check more than option names (`packages/agent-loop/docs/user-manual.md`
 has the rules): a number option given an array or the reverse, a rotate angle
 over 2π, and an unknown option another function takes, each reported with a
-`hint`. The collector writes the hint for the chat's API style, and when the
-wrapped call throws, the hints of that call, plus the limit a `roundRadius`
-error leaves out, are added to the error's message. `reportError` adds a
+`hint`. A few slips with one sensible reading are fixed before the call, with
+a warning: a `roundRadius` past its limit is lowered to fit, and a number
+`cylinderElliptic` radius becomes a pair. The collector writes the hint for
+the chat's API style, and when the wrapped call throws, the hints of that
+call, plus the cause of a NaN or object size, are added to the error's
+message. `reportError` adds a
 hint to a "X is not a function" error on the page (`withErrorHint`), since
 that error comes from model code, not a wrapped call.
 

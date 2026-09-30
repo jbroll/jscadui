@@ -58,6 +58,14 @@ const { geom3 } = geometries
 const main = () => geom3.fromPoints(geom3.toPolygons(primitives.cuboid({ size: [10, 10, 10] })).slice(1).map((p) => p.vertices))
 module.exports = { main }
 `
+const FIXED_OPTIONS = `const { roundedCuboid, cylinderElliptic } = require('@jscad/modeling').primitives
+const { translate } = require('@jscad/modeling').transforms
+const main = () => [
+  roundedCuboid({ size: [40, 30, 2.4], roundRadius: 2 }),
+  translate([50, 0, 0], cylinderElliptic({ height: 10, startRadius: 5, endRadius: 2 })),
+]
+module.exports = { main }
+`
 const PARITY_ROUNDS = [
   { name: 'write', args: { path: 'main.js', content: RUNTIME_ERROR } },
   { name: 'write', args: { path: 'main.js', content: 'module.exports = { size: 1 }\n' } },
@@ -85,6 +93,7 @@ const PARITY_ROUNDS = [
   { name: 'write', args: { path: 'main.js', content: SECTION_BOX } },
   { name: 'write', args: { path: 'main.js', content: MIXED_SECTION } },
   { name: 'write', args: { path: 'main.js', content: NAN_HEIGHT } },
+  { name: 'write', args: { path: 'main.js', content: FIXED_OPTIONS } },
   { name: 'write', args: { path: 'main.js', content: OPEN_BOX } },
   { name: 'check', args: { bed: 'mk3' } },
   { name: 'run', args: { source: "const { main } = require('./main.js')\nmodule.exports = { main }" } },
@@ -258,6 +267,13 @@ test.describe('AI chat', () => {
     expect(answerTo((a) => a.content === SECTION_BOX)).toMatchObject({ ok: true, geometry: { dimensions: [40, 20, 5] }, params: [{ name: 'box.width' }, { name: 'box.depth' }] })
     expect(answerTo((a) => a.content === MIXED_SECTION).error.message).toContain('params.box was given an object mixing parameter definitions and plain values')
     expect(answerTo((a) => a.content === NAN_HEIGHT).error.message).toContain('height is NaN: a parameter read back as NaN or an object')
+    const fixed = answerTo((a) => a.content === FIXED_OPTIONS)
+    expect(fixed).toMatchObject({ ok: true, geometry: { parts: 2 } })
+    expect(fixed.warnings.map(({ fn, option, line }) => [fn, option, line])).toEqual([
+      ['primitives.roundedCuboid', 'roundRadius', 4],
+      ['primitives.cylinderElliptic', 'startRadius', 5],
+      ['primitives.cylinderElliptic', 'endRadius', 5],
+    ])
     expect(answerTo((a) => a.bed === 'mk3')).toMatchObject({ ok: true, watertight: false, openEdges: 4, openEdgeSamples: expect.any(Array) })
     expect(answerTo((a) => a.bed === 'mk3')).not.toHaveProperty('notes')
     expect(answerTo((a) => a.source?.includes("require('./main.js')\nmodule.exports = { main }"))).toMatchObject({ ok: true, geometry: { watertight: false } })

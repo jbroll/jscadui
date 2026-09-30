@@ -102,10 +102,39 @@ export const WARNING_CASES = [
     error: ['radius must be positive', 'primitives.cylinderElliptic({ startRadius'],
   },
   {
-    name: 'H: roundRadius too big for a thin side gives the limit',
+    name: 'H: roundRadius too big for a thin side is clamped under the limit, with a warning',
     api: 'fluent',
     source: fluent('module.exports = { main: () => jf.roundedCuboid({ size: [40, 30, 2.4], roundRadius: 2 }) }'),
-    error: ['roundRadius must be smaller', 'roundRadius 2 is too big: it must be under half the smallest size, 2.4 / 2 = 1.2'],
+    warnings: [{ fn: 'jf.roundedCuboid', option: 'roundRadius', hints: ['roundRadius 2 is too big: it must be under half the smallest size, 2.4 / 2 = 1.2; used 1.199'] }],
+  },
+  {
+    name: 'H: roundRadius too big for a modeling rounded cylinder is clamped under half its height',
+    api: 'modeling',
+    source: modeling('module.exports = { main: () => primitives.roundedCylinder({ radius: 5, height: 4, roundRadius: 3 }) }'),
+    warnings: [{ fn: 'primitives.roundedCylinder', option: 'roundRadius', hints: ['roundRadius 3 is too big: it must be under half the height, 4 / 2 = 2; used 1.999'] }],
+  },
+  {
+    name: 'H: roundRadius too big for a 2D rounded rectangle is clamped, and one that fits is left alone',
+    api: 'modeling',
+    source: modeling(
+      'module.exports = { main: () => [primitives.roundedRectangle({ size: [10, 5], roundRadius: 4 }), primitives.roundedRectangle({ size: [10, 5], roundRadius: 2 })] }',
+    ),
+    warnings: [{ fn: 'primitives.roundedRectangle', option: 'roundRadius', hints: ['roundRadius 4 is too big: it must be under half the smallest size, 5 / 2 = 2.5; used 2.499'] }],
+  },
+  {
+    name: 'C: a number startRadius to a modeling cylinderElliptic becomes a pair, with a warning',
+    api: 'modeling',
+    source: modeling('module.exports = { main: () => primitives.cylinderElliptic({ height: 10, startRadius: 5, endRadius: [2, 2] }) }'),
+    warnings: [{ fn: 'primitives.cylinderElliptic', option: 'startRadius', hints: ['startRadius takes an [x, y] pair of radii; used [5, 5] for 5'] }],
+  },
+  {
+    name: 'C: number radii to jf.cylinderElliptic become pairs, with a warning each',
+    api: 'fluent',
+    source: fluent('module.exports = { main: () => jf.cylinderElliptic({ height: 10, startRadius: 5, endRadius: 2 }) }'),
+    warnings: [
+      { fn: 'jf.cylinderElliptic', option: 'startRadius', hints: ['used [5, 5] for 5'] },
+      { fn: 'jf.cylinderElliptic', option: 'endRadius', hints: ['used [2, 2] for 2'] },
+    ],
   },
   {
     name: 'I: a method on plain modeling geometry, fluent mode',
@@ -264,7 +293,7 @@ module.exports = { main: () => primitives.cube({ size: 2 }).translate([1, 0, 0])
     name: 'cross H: roundRadius too big in modeling code under fluent',
     api: 'fluent',
     source: modeling('module.exports = { main: () => primitives.roundedCuboid({ size: [40, 30, 2.4], roundRadius: 2 }) }'),
-    error: ['roundRadius 2 is too big: it must be under half the smallest size, 2.4 / 2 = 1.2'],
+    warnings: [{ fn: 'primitives.roundedCuboid', option: 'roundRadius', hints: ['roundRadius 2 is too big: it must be under half the smallest size, 2.4 / 2 = 1.2; used 1.199'] }],
   },
   {
     name: 'cross W: an explicit clockwise modeling polygon under fluent names jf.polygon',

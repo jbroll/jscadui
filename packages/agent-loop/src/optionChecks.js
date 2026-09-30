@@ -1,7 +1,7 @@
 import { APIS, DEFAULT_API } from './api.js'
 import { errorLocation } from './buildReport.js'
 import { editDistance } from './editDistance.js'
-import { explainNaN, explainThrow, explainWarning } from './hints.js'
+import { explainNaN, explainWarning } from './hints.js'
 
 export const MAX_WARNINGS = 20
 
@@ -80,19 +80,71 @@ const loneOuter = ([options]) =>
     ? { option: 'outer', hint: 'outer takes effect only with inner or wall; use radius for a solid cylinder' }
     : undefined
 
+const isNumbers = (value, n) => Array.isArray(value) && value.length >= n && value.slice(0, n).every(Number.isFinite)
+
+// Modeling's own defaults, which a call that leaves the size out gets.
+const ROUNDED_DEFAULTS = { roundedCuboid: { size: [2, 2, 2] }, roundedRectangle: { size: [2, 2] }, roundedCylinder: { height: 2, radius: 1 } }
+
+// The largest roundRadius a rounded primitive takes, and the size that sets it.
+const roundRadiusLimit = (kind, options) => {
+  const o = { ...ROUNDED_DEFAULTS[kind], ...options }
+  if (kind === 'roundedCylinder') {
+    if (!Number.isFinite(o.height) || !Number.isFinite(o.radius)) return undefined
+    return o.height / 2 < o.radius ? { limit: o.height / 2, height: o.height } : { limit: o.radius, radius: o.radius }
+  }
+  const n = kind === 'roundedCuboid' ? 3 : 2
+  if (!isNumbers(o.size, n)) return undefined
+  const least = Math.min(...o.size.slice(0, n))
+  return { limit: least / 2, least }
+}
+
+// Modeling refuses a roundRadius within its EPS (1e-5) of the limit, so a
+// radius past that becomes the largest one in thousandths it takes.
+const LIMIT_EPS = 1e-5
+const clampRoundRadius = (kind) => ([options, ...rest]) => {
+  if (!isPlainObject(options) || !Number.isFinite(options.roundRadius) || options.roundRadius <= 0) return undefined
+  const found = roundRadiusLimit(kind, options)
+  if (!found || found.limit <= 0 || options.roundRadius <= found.limit - LIMIT_EPS) return undefined
+  const { limit, ...rule } = found
+  const to = Math.max(0, Math.floor((limit - LIMIT_EPS) * 1000) / 1000)
+  return { args: [{ ...options, roundRadius: to }, ...rest], facts: [{ option: 'roundRadius', clamped: true, from: options.roundRadius, to, ...rule }] }
+}
+
+// cylinderElliptic takes each end's radii as an [x, y] pair.
+const pairRadii = ([options, ...rest]) => {
+  if (!isPlainObject(options)) return undefined
+  const fixed = { ...options }
+  const facts = []
+  for (const option of ['startRadius', 'endRadius']) {
+    const r = options[option]
+    if (!Number.isFinite(r)) continue
+    fixed[option] = [r, r]
+    facts.push({ option, coerced: true, from: r, to: [r, r] })
+  }
+  return facts.length ? { args: [fixed, ...rest], facts } : undefined
+}
+
+const fixSpecs = (prefix) => ({
+  [`${prefix}roundedCuboid`]: { fix: clampRoundRadius('roundedCuboid') },
+  [`${prefix}roundedRectangle`]: { fix: clampRoundRadius('roundedRectangle') },
+  [`${prefix}roundedCylinder`]: { fix: clampRoundRadius('roundedCylinder') },
+  [`${prefix}cylinderElliptic`]: { fix: pairRadii },
+})
+
 const BOOLEANS = ['union', 'subtract', 'intersect']
 const booleanSpecs = (prefix) => Object.fromEntries(BOOLEANS.map((op) => [`${prefix}${op}`, { boolean: op }]))
 
 // Checks the generated option table cannot describe, keyed by the table's
 // prefix ('' is @jscad/modeling, 'jf.' jscad-fluent): where a 2D outline
-// enters as points, and the booleans.
+// enters as points, the booleans, and the options fixed before the call.
 const EXTRA_SPECS = {
   '': {
     'primitives.polygon': { outline: polygonOptionsArea, reverse: reversedPolygonOptions },
     'geometries.geom2.fromPoints': { outline: pointsArea, reverse: reversedPoints },
     ...booleanSpecs('booleans.'),
+    ...fixSpecs('primitives.'),
   },
-  'jf.': { polygon: { outline: pointsArea, reverse: reversedPoints }, cylinder: { ignored: loneOuter }, ...booleanSpecs('') },
+  'jf.': { polygon: { outline: pointsArea, reverse: reversedPoints }, cylinder: { ignored: loneOuter }, ...booleanSpecs(''), ...fixSpecs('') },
 }
 const EXTRA_METHOD_SPECS = {
   FluentGeom3: Object.fromEntries(BOOLEANS.map((op) => [op, { boolean: op, method: true }])),
@@ -115,8 +167,8 @@ const isMeshData = (value) =>
 
 const operandsOf = (spec, self, args) => (spec.method ? [self, ...args] : args).flat(Infinity)
 
-// A mistyped option or an overlarge roundRadius often makes the function throw
-// a message that names neither; the error then carries the hint too.
+// A mistyped option or a NaN size often makes the function throw a message
+// that names neither; the error then carries the hint too.
 const annotate = (error, hints) => {
   try {
     if (typeof error?.message !== 'string') return
@@ -147,6 +199,13 @@ const checked = (fnName, fn, spec, warn) => {
     // A hostile or revoked options argument, or a throwing warn, must never
     // stop the wrapped call: warnings are reported, never thrown.
     try {
+      // A slip with one sensible reading (a roundRadius past its limit, a
+      // number radius where a pair is taken) is fixed, with a warning.
+      const fixed = spec.fix?.(args)
+      if (fixed) {
+        args = fixed.args
+        for (const fact of fixed.facts) report({ fn: fnName, ...fact })
+      }
       const [first] = args
       if ((allowed || spec.types) && isPlainObject(first)) {
         for (const option of Object.keys(first)) {
@@ -180,7 +239,7 @@ const checked = (fnName, fn, spec, warn) => {
     try {
       result = fn.apply(this, args)
     } catch (error) {
-      annotate(error, [...hints, explainThrow(error?.message ?? '', args[0]), explainNaN(args[0], spec.types)])
+      annotate(error, [...hints, explainNaN(args[0], spec.types)])
       throw error
     }
     try {

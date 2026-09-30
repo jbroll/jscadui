@@ -181,10 +181,16 @@ describe('withOptionChecks: types, angles and thrown errors', () => {
     expect(() => wrapped({ size: [1, 2, 3] })).toThrow('size must be positive\nhint for size')
   })
 
-  it('adds the limit a roundRadius error leaves out', () => {
-    const roundedCuboid = () => { throw new Error('roundRadius must be smaller than the radius of all dimensions') }
-    const wrapped = withOptionChecks({ primitives: { roundedCuboid } }, typed, vi.fn()).primitives.roundedCuboid
-    expect(() => wrapped({ size: [40, 30, 2.4], roundRadius: 2 })).toThrow(/\nroundRadius 2 is too big: .* 2\.4 \/ 2 = 1\.2$/)
+  it('clamps a roundRadius past its limit before the call, and reports it', () => {
+    const roundedCuboid = vi.fn(() => 'made')
+    const warn = vi.fn()
+    const wrapped = withOptionChecks({ primitives: { roundedCuboid } }, typed, warn).primitives.roundedCuboid
+    expect(wrapped({ size: [40, 30, 2.4], roundRadius: 2 })).toBe('made')
+    expect(roundedCuboid).toHaveBeenCalledWith({ size: [40, 30, 2.4], roundRadius: 1.199 })
+    expect(warn).toHaveBeenCalledWith(expect.objectContaining({ fn: 'primitives.roundedCuboid', option: 'roundRadius', clamped: true, from: 2, to: 1.199, least: 2.4 }))
+    wrapped({ size: [40, 30, 2.4], roundRadius: 1.1995 })
+    expect(roundedCuboid).toHaveBeenLastCalledWith({ size: [40, 30, 2.4], roundRadius: 1.1995 })
+    expect(warn).toHaveBeenCalledTimes(1)
   })
 
   it('rethrows a thrown value that is not an Error unchanged', () => {

@@ -149,6 +149,8 @@ turns each into the warning the model sees, worded for the chat's API style
 | a `subtract` or `intersect` (modeling `booleans`, `jf`, or a `FluentGeom3`/`FluentGeom2` method) that returns an empty shape from a non-empty first shape | `{ fn, hint }`: what emptied it, and the bounding-box measure to compare the shapes with |
 | `{ points, faces }` data (what `jf.hullPoints3` returns) given to a boolean | `{ fn, hint }`: make it a shape with `jf.polyhedron(...)` or `primitives.polyhedron({ points, faces })` |
 | `jf.cylinder` given `outer` with neither `inner` nor `wall`, which fluent ignores | `{ fn, option: 'outer', hint }`: "outer takes effect only with inner or wall; use radius for a solid cylinder" |
+| a `roundRadius` to `roundedCuboid`, `roundedRectangle` or `roundedCylinder` (modeling or `jf`) past the limit modeling throws at (half the smallest size; for a cylinder half the height or the radius): the check lowers it to the largest value in thousandths modeling accepts before the call | `{ fn, option: 'roundRadius', hint }`: "roundRadius 2 is too big: it must be under half the smallest size, 2.4 / 2 = 1.2; used 1.199" |
+| a number `startRadius` or `endRadius` to `cylinderElliptic` (modeling or `jf`), which takes an `[x, y]` pair: the check makes it `[r, r]` before the call | `{ fn, option, hint }`: "startRadius takes an [x, y] pair of radii; used [5, 5] for 5" |
 
 Each warning also names the `file` and `line` of the model's call, taken
 from the stack when the collector has the project base, as the eval and the
@@ -172,10 +174,8 @@ clears the suggestions. A taper option on `cylinder` (`radiusStart`, `r1`,
 `primitives.cylinderElliptic({ startRadius, endRadius, height })` in
 modeling, with start at the -Z end.
 
-When the wrapped call throws, its hints and the limit a `roundRadius` error
-leaves out ("roundRadius 2 is too big: it must be under half the smallest
-size, 2.4 / 2 = 1.2") go on new lines of the error's message, and so does
-the cause of a number or array option that is NaN or an object ("height is
+When the wrapped call throws, its hints go on new lines of the error's
+message, and so does the cause of a number or array option that is NaN or an object ("height is
 NaN: a parameter read back as NaN or an object often causes this; docs params
 shows how to define and read one"), since modeling's own error ("height must
 be greater then zero") hides it. params-core defines a section assigned as

@@ -160,7 +160,12 @@ clockwise on purpose, and an explicit `orientation: 'clockwise'` is the
 caller's choice, so both are left as given),
 and the booleans (`booleans.*`, `jf.*`, the `FluentGeom3` and `FluentGeom2`
 methods), which report `{ points, faces }` operands before the call and an
-empty `subtract` or `intersect` result after it. `EXTRA_SPECS` and
+empty `subtract` or `intersect` result after it, and the `fix` specs of the
+rounded primitives and `cylinderElliptic`, which change the arguments before
+the call: a `roundRadius` past the limit modeling throws at becomes the
+largest value in thousandths it accepts, and a number radius becomes
+`[r, r]`, since each slip was the most common failed build with one sensible
+reading and cost a round every time. `EXTRA_SPECS` and
 `EXTRA_METHOD_SPECS` in `src/optionChecks.js` add them to the table's specs,
 keyed by the table's prefix. The empty check asks a shape's `isEmpty()` first,
 because a manifold shape converts its polygons only when they are read.

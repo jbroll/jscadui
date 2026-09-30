@@ -117,10 +117,14 @@ const meshHint = (api) =>
  * option `{ fn, option, suggestions }`, a mistyped one `{ fn, option, expected, got }`,
  * an angle over 2π `{ fn, option, value }`, clockwise outline points
  * `{ fn, option, area, reversed? }`, an empty boolean result `{ fn, empty }` or
- * `{ points, faces }` data given to a boolean `{ fn, meshOperand }`.
+ * `{ points, faces }` data given to a boolean `{ fn, meshOperand }`, a
+ * roundRadius reduced to fit `{ fn, option, clamped, from, to, least | height | radius }`
+ * or a number radius made a pair `{ fn, option, coerced, from, to }`.
  */
 export const explainWarning = (fact, api = DEFAULT_API) => {
   const { fn, option } = fact
+  if (fact.clamped) return { fn, option, hint: clampHint(fact) }
+  if (fact.coerced) return { fn, option, hint: pairHint(fact) }
   if (Array.isArray(fact.suggestions)) return explainUnknown(fact, api)
   if (fact.expected) return { fn, option, hint: typeHint(fact, api) }
   if ('value' in fact) return { fn, option, hint: angleHint(fact) }
@@ -131,32 +135,17 @@ export const explainWarning = (fact, api = DEFAULT_API) => {
   return fact
 }
 
-const LIMITS = [
-  [
-    /roundRadius must be smaller than the radius of all dimensions/,
-    ({ size, roundRadius }) => {
-      if (!Array.isArray(size) || typeof roundRadius !== 'number') return undefined
-      const least = Math.min(...size)
-      return `roundRadius ${roundRadius} is too big: it must be under half the smallest size, ${least} / 2 = ${round(least / 2)}`
-    },
-  ],
-  [
-    /height must be larger than twice roundRadius/,
-    ({ height, roundRadius }) => {
-      if (typeof height !== 'number' || typeof roundRadius !== 'number') return undefined
-      return `roundRadius ${roundRadius} is too big: it must be under half the height, ${height} / 2 = ${round(height / 2)}`
-    },
-  ],
-]
+const halfOf = (what, value) => `under half the ${what}, ${value} / 2 = ${round(value / 2)}`
+const tooBig = (roundRadius, rule) => `roundRadius ${roundRadius} is too big: it must be ${rule}`
 
-/** The limit a modeling error states only in words, from the options the call was given. */
-export const explainThrow = (message, options) => {
-  if (options === null || typeof options !== 'object') return undefined
-  for (const [pattern, explain] of LIMITS) {
-    if (pattern.test(message)) return explain(options)
-  }
-  return undefined
+// A roundRadius the checks reduced to fit: `least` (the smallest size),
+// `height` or `radius` names the limit it met.
+const clampHint = ({ from, to, least, height, radius }) => {
+  const rule = least !== undefined ? halfOf('smallest size', least) : height !== undefined ? halfOf('height', height) : `at most the radius, ${radius}`
+  return `${tooBig(from, rule)}; used ${to}`
 }
+
+const pairHint = ({ option, from, to }) => `${option} takes an [x, y] pair of radii; used [${to.join(', ')}] for ${from}`
 
 const NAN_CAUSE = 'a parameter read back as NaN or an object often causes this; docs params shows how to define and read one'
 
