@@ -18,16 +18,19 @@ reach simple-ci. Local terminal sessions verify with `sci push jscadui/test`
 
 `sci push jscadui/eval` runs the agent-loop eval suite (`packages/agent-loop/eval/`)
 against live models on the CI host, one process per model in `ci/eval.conf`'s
-`EVAL_MODELS` and API style in `EVAL_APIS` (`fluent modeling`). Models run
-concurrently; each model runs its styles one after the other, so at most
-models × `EVAL_CONCURRENCY` conversations run at once (12 with the shipped
-conf). Each model and style writes its own result file, named with both. The
+`EVAL_MODELS` × API style in `EVAL_APIS` (`fluent modeling`) pair. Every pair
+is its own lane, all running concurrently, so at most (models × APIs) ×
+`EVAL_CONCURRENCY` conversations run at once (16 with the shipped conf: 2
+models × 2 APIs × 4 — the host has 43G available and each sandbox is capped
+at 2G). Each model and style writes its own result file, named with both. The
 default suite is 12 fixtures under fluent and 11 under modeling
 (`fluent-chain` is fluent-only), so at 3 runs and 2 models a job is
-(12 + 11) × 3 × 2 = 138 conversations. Edit the conf file in the working tree
-before pushing — `sci push` carries no arguments of its own, so the conf file
-is the only knob: `EVAL_MODELS` (space-separated `provider:model` pairs),
-`EVAL_APIS`, `EVAL_FIXTURES`, `EVAL_RUNS`, `EVAL_CONCURRENCY`.
+(12 + 11) × 3 × 2 = 138 conversations; running every model × API pair
+concurrently instead of one model's styles after another roughly halves the
+wall time per model. Edit the conf file in the working tree before pushing —
+`sci push` carries no arguments of its own, so the conf file is the only
+knob: `EVAL_MODELS` (space-separated `provider:model` pairs), `EVAL_APIS`,
+`EVAL_FIXTURES`, `EVAL_RUNS`, `EVAL_CONCURRENCY`.
 
 Provider keys come from the job user's `$HOME/.config/jscad-chat/keys.json`
 (`{ "<provider>": "<key>" }`, mode 600) — place it there once, by hand; the
@@ -37,10 +40,12 @@ A model whose provider has no key there fails on its own, without blocking
 the others.
 
 Results land in the job's worktree at `eval-results/`: `index.txt` lists the
-result files, `eval-live.log` holds the live conversation log. Both are
-readable with `sci artifact JOB PATH` while the job runs; `sci log JOB`
-streams the job's own stdout, which carries each model's summary tables and
-speed line. Fetch the result files into the local evals data dir with:
+result files and is rewritten after every lane finishes (not only at the
+end), so a killed job still leaves an index of whatever completed.
+`eval-live.log` holds the live conversation log. Both are readable with `sci
+artifact JOB PATH` while the job runs; `sci log JOB` streams the job's own
+stdout, which carries each model's summary tables and speed line. Fetch the
+result files into the local evals data dir with:
 
 ```bash
 node packages/agent-loop/eval/fetch-ci-results.js JOB-ID
@@ -49,12 +54,16 @@ node packages/agent-loop/eval/fetch-ci-results.js JOB-ID
 It reads `eval-results/index.txt` via `sci artifact`, then copies each listed
 file into `$JSCAD_CHAT_DATA/results` (default `~/src/jscad-chat-evals/results`),
 skipping any file already there. `SCI` overrides the `sci` binary path
-(default: beside this checkout, `../simple-ci/sci`).
+(default: beside this checkout, `../simple-ci/sci`). If a job left no
+`index.txt` (killed before its first lane finished), it falls back to a
+directory listing over `sci artifact`; `sci artifact` only ever serves a
+single file, so that fails too, and the script instead prints an `scp`
+command built from `sci path JOB-ID`'s worktree path for you to run by hand.
 
 The job exits non-zero only when a model's eval process failed outright (a
 crash, or a missing/unset key) — provider errors inside individual runs are
-recorded in the result file, not job failures. A failed style does not stop
-that model's next style.
+recorded in the result file, not job failures. A failed lane does not stop
+any other model × API lane.
 
 ### Host setup for `ci/eval`
 
@@ -97,9 +106,9 @@ hardened runs). Its stored config must equal `ci/jscad-eval.crt`, so a change
 to that file, like any change or upgrade, means `crt rm jscad-eval` and
 running `scripts/eval-sandbox-setup.sh` again.
 
-Each executor holds up to 2G. `ci/eval` passes the model count as
-`EVAL_PROCESSES`, and each `run-eval` lowers its `EVAL_CONCURRENCY` so that
-models × concurrency × 2G fits in three quarters of the host's memory.
+Each executor holds up to 2G. `ci/eval` passes the lane count (models × APIs)
+as `EVAL_PROCESSES`, and each `run-eval` lowers its `EVAL_CONCURRENCY` so that
+lanes × concurrency × 2G fits in three quarters of the host's memory.
 
 ## gpu-poll
 

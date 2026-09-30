@@ -83,4 +83,48 @@ describe('fetchCiResults', () => {
     expect(files).toEqual([])
     expect(fetched).toEqual([])
   })
+
+  it('falls back to a directory listing when eval-results/index.txt is missing but sci artifact can list it', () => {
+    const run = vi.fn((sci, args) => {
+      if (args[2] === 'eval-results/index.txt') throw new Error('404 Not Found: eval-results/index.txt')
+      if (args[2] === 'eval-results') return 'a.json\nb.json\n'
+      throw new Error(`unexpected args ${args}`)
+    })
+    const { fs } = fakeFs()
+    const { files, fetched, fallback } = fetchCiResults('job1', { sci: '/bin/sci', dataDir: '/data/results', run, fs })
+    expect(fallback).toBe('listed')
+    expect(files).toEqual(['a.json', 'b.json'])
+    expect(fetched).toEqual([])
+  })
+
+  it('prints an scp message naming the job worktree when sci artifact cannot list the directory', () => {
+    const run = vi.fn((sci, args) => {
+      if (args[0] === 'artifact') throw new Error('404 Not Found: not a file')
+      if (args[0] === 'path') return '/data/ci-workspace/jscadui-job1\n'
+      throw new Error(`unexpected args ${args}`)
+    })
+    const { fs } = fakeFs()
+    const log = vi.fn()
+    const { files, fetched, fallback, worktree } = fetchCiResults('job1', { sci: '/bin/sci', dataDir: '/data/results', run, fs, log })
+
+    expect(fallback).toBe('scp')
+    expect(files).toEqual([])
+    expect(fetched).toEqual([])
+    expect(worktree).toBe('/data/ci-workspace/jscadui-job1')
+    expect(run).toHaveBeenCalledWith('/bin/sci', ['path', 'job1'])
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('scp <ci-host>:/data/ci-workspace/jscadui-job1/eval-results/*.json'))
+  })
+
+  it('still prints a usable message when sci path also fails', () => {
+    const run = vi.fn(() => {
+      throw new Error('server unreachable')
+    })
+    const { fs } = fakeFs()
+    const log = vi.fn()
+    const { fallback, worktree } = fetchCiResults('job1', { sci: '/bin/sci', dataDir: '/data/results', run, fs, log })
+
+    expect(fallback).toBe('scp')
+    expect(worktree).toBe('')
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("job job1's worktree"))
+  })
 })

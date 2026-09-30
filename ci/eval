@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Runs the agent-loop live-model eval suite on the CI host for every model x
-# API style pair: models run concurrently, and each model runs its styles one
-# after the other, so at most models x EVAL_CONCURRENCY conversations run at
-# once.
+# API style pair: each pair is its own lane, all running concurrently, so at
+# most (models x APIs) x EVAL_CONCURRENCY conversations run at once.
 #
 #   sci push jscadui/eval
 #
@@ -44,14 +43,32 @@ mkdir -p "$RESULTS_DIR"
 export EVAL_RESULTS_DIR="$RESULTS_DIR"
 export EVAL_LIVE_LOG="$RESULTS_DIR/eval-live.log"
 export EVAL_RUNS EVAL_CONCURRENCY
-# Models run at once; each run-eval sizes its concurrency so all executors'
-# memory limits together fit the host.
+# Every model x API pair is its own concurrent run-eval process; each sizes
+# its own concurrency so all executors' memory limits together fit the host.
 # shellcheck disable=SC2086
 set -- $EVAL_MODELS
-export EVAL_PROCESSES=$#
+model_count=$#
+# shellcheck disable=SC2086
+set -- $EVAL_APIS
+api_count=$#
+export EVAL_PROCESSES=$((model_count * api_count))
 [ -n "$EVAL_FIXTURES" ] && export EVAL_FIXTURES
 
 KEYS_FILE="$HOME/.config/jscad-chat/keys.json"
+
+# Rewritten under a lock after every lane finishes, so a killed job still
+# leaves an index of whatever completed.
+write_index() {
+  (
+    flock -x 200
+    (
+      shopt -s nullglob
+      cd "$RESULTS_DIR"
+      printf '%s\n' *.json
+    ) > "$RESULTS_DIR/index.txt"
+  ) 200>"$RESULTS_DIR/.index.lock"
+}
+write_index
 
 pids=()
 labels=()
@@ -79,35 +96,31 @@ for pair in $EVAL_MODELS; do
     continue
   fi
 
-  echo "ci/eval: starting $provider/$model ($EVAL_APIS)"
-  (
-    lane_failed=0
-    # shellcheck disable=SC2086
-    for api in $EVAL_APIS; do
-      if ! EVAL_PROVIDER="$provider" EVAL_MODEL="$model" EVAL_API="$api" \
+  # shellcheck disable=SC2086
+  for api in $EVAL_APIS; do
+    echo "ci/eval: starting $provider/$model/$api"
+    (
+      if EVAL_PROVIDER="$provider" EVAL_MODEL="$model" EVAL_API="$api" \
         npm run eval -w @jscadui/agent-loop; then
+        write_index
+        exit 0
+      else
+        write_index
         echo "ci/eval: $provider/$model/$api — eval process failed" >&2
-        lane_failed=1
+        exit 1
       fi
-    done
-    exit "$lane_failed"
-  ) &
-  pids+=("$!")
-  labels+=("$provider/$model")
+    ) &
+    pids+=("$!")
+    labels+=("$provider/$model/$api")
+  done
 done
 
 for i in "${!pids[@]}"; do
   if ! wait "${pids[$i]}"; then
-    echo "ci/eval: ${labels[$i]} — at least one API style failed" >&2
+    echo "ci/eval: ${labels[$i]} — eval process failed" >&2
     job_failed=1
   fi
 done
-
-(
-  shopt -s nullglob
-  cd "$RESULTS_DIR"
-  printf '%s\n' *.json
-) > "$RESULTS_DIR/index.txt"
 
 echo "ci/eval: results in $RESULTS_DIR"
 cat "$RESULTS_DIR/index.txt"

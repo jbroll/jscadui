@@ -348,7 +348,7 @@ without spending API budget.
 | `EVAL_SANDBOX_MEMORY` | executor memory limit in crt's grammar (`2G`, `1536M`, a bare number is bytes), at least 512M, default `2G`; V8's heap gets three quarters of it |
 | `EVAL_SANDBOX` | `crt` (default); anything else is refused by `run-eval` |
 | `EVAL_REQUIRE_MEMORY_LIMIT` | `1` refuses to start when crt cannot enforce the memory limit (`ci/eval` sets it); otherwise a loud warning |
-| `EVAL_PROCESSES` | run-eval processes sharing the host (`ci/eval` sets the model count), for the concurrency cap in [architecture.md](architecture.md#sandbox); default 1 |
+| `EVAL_PROCESSES` | run-eval processes sharing the host (`ci/eval` sets the model × API lane count), for the concurrency cap in [architecture.md](architecture.md#sandbox); default 1 |
 | `EVAL_RUN_TIMEOUT` | seconds a conversation may run before it is stopped and graded, default 1200 |
 
 ### Turn cap
@@ -632,8 +632,8 @@ never run writable are in [architecture.md](architecture.md#sandbox).
 
 `sci push jscadui/eval` (`ci/eval`, `ci/eval.conf`) runs this eval against
 live models on the CI host instead of locally, one process per model in
-`EVAL_MODELS` and style in `EVAL_APIS`: models run concurrently, each model's
-styles one after the other. Provider keys come from the job user's
+`EVAL_MODELS` × style in `EVAL_APIS` pair: every pair is its own lane, all
+running concurrently. Provider keys come from the job user's
 `$HOME/.config/jscad-chat/keys.json` (for the `s-ci` host user under the
 `/data/crt` layout, `/data/ci/.config/jscad-chat/keys.json`, mode 600), placed
 there by hand; a model whose provider has no key there fails on its own. The job runs
