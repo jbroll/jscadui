@@ -220,6 +220,18 @@ test.describe('AI chat', () => {
     for (const { name, args } of PARITY_ROUNDS) evaluated.push(parsed(await backend.requestTool(name, args)))
     expect(app).toHaveLength(PARITY_ROUNDS.length)
     PARITY_ROUNDS.forEach(({ name, args }, i) => expect(app[i], `${i}: ${name} ${JSON.stringify(args)}`).toEqual(evaluated[i]))
+
+    // Equal answers could still both be wrong; these rounds answer as intended.
+    const answerTo = (pred) => app[PARITY_ROUNDS.findIndex(({ args }) => pred(args))]
+    expect(answerTo((a) => a.source?.includes('width: 30'))).toMatchObject({ ok: true, geometry: { dimensions: [30, 20, 5] } })
+    expect(answerTo((a) => a.source?.includes('width: -1')).error.message).not.toMatch(/failed loading module/)
+    expect(answerTo((a) => a.content === WARNED).warnings).toEqual([
+      expect.objectContaining({ fn: 'jf.cube', option: 'sise', file: 'main.js', line: 2 }),
+      expect.objectContaining({ fn: 'jf.cylinder', option: 'outer', file: 'main.js', line: 3 }),
+      expect.objectContaining({ fn: 'jf.cube', option: 'sise', file: 'main.js', line: 4 }),
+    ])
+    expect(app.at(-1)).toMatchObject({ saved: 'main.js', ok: false, note: 'main.js is saved; the build of main.js failed' })
+    expect(app.at(-1).error.message).toContain('call init(jscad) before using text2d()')
   })
 
   test('a failed build keeps the last render on screen and shows the error', async ({ page }) => {

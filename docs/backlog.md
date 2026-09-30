@@ -258,6 +258,18 @@ model with `display-check.js --engine jscad`.
   the chat's model; a page or panel over the same `api/index.json` and
   `docsTool` would let a user look up a function, its options and an example
   without asking the chat.
+- Retry a provider round whose stream dies before any text or tool call
+  (agent-loop `src/providers.js`). Muse's `terminated` streams (cut off near
+  300 s, no stop reason) end the run as a provider error; the chat review of
+  the project-environment run lost three enclosure runs to it.
+- The studio server's providers (`apps/jscad-web/server/src/providers/`)
+  still throw on tool arguments that are not JSON; the browser loop and the
+  eval now answer such a call with an `ArgumentsError` tool result. Port it if
+  the server loop is used again.
+- Conservation no longer separates runs (eval grader): with `maxTurns` 8 and
+  free saves, reads and lists, no run passed 12 counted calls, and
+  discipline is 2 whenever a clean write verifies. Consider a lower threshold
+  or counting wasted rounds.
 - Option checks on transpiled OpenSCAD code. A `.scad` file gets the plain
   `@jscad/modeling` exports, not the option-checked copy
   (`apps/jscad-web/docs/architecture.md`, Unknown-option warnings), since the
