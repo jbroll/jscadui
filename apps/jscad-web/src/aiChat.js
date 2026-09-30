@@ -263,8 +263,12 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
   }
   setRunning(false)
 
-  send.addEventListener('click', () => {
-    if (running) aborter?.abort()
+  // The abort can end the turn, and turn this back into a submit button, before
+  // the click's default action runs, which would then send the draft in the input.
+  send.addEventListener('click', (event) => {
+    if (!running) return
+    event.preventDefault()
+    aborter?.abort()
   })
 
   // Renders the tool line, then hands the result back to the loop as JSON.

@@ -326,9 +326,12 @@ test.describe('AI chat', () => {
 
     await expect(page.locator('.chat-status-phase')).toHaveText('Writing…')
     await expect(page.locator('.chat-msg.assistant')).toHaveText('Working on the cube')
+    await page.locator('.chat-input').fill('then make it 20 mm')
     await send.click()
     await expect(send).toHaveText('Send')
     await expect(page.locator('.chat-msg.stopped')).toHaveText('Stopped')
+    await expect(page.locator('.chat-input')).toHaveValue('then make it 20 mm')
+    await expect(page.locator('.chat-msg.user')).toHaveCount(1)
     await expect(page.locator('.chat-msg.assistant')).toHaveText('Working on the cube')
     await expect(page.locator('.chat-status-phase')).toHaveText('')
     await expect(page.locator('.chat-msg.error')).toHaveCount(0)
