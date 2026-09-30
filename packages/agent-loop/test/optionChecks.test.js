@@ -377,14 +377,18 @@ describe('outline winding and boolean results', () => {
 
   afterEach(() => setMethodWarn(null))
 
-  it('reports clockwise points given to primitives.polygon and geometries.geom2.fromPoints, which extrude inside out', () => {
+  it('reverses clockwise points given to primitives.polygon and geometries.geom2.fromPoints, and says so', () => {
     const warn = vi.fn()
     const m = modelingWith(warn)
-    expect(insideOut(m.primitives.polygon({ points: CW }))).toBe(true)
-    expect(insideOut(m.geometries.geom2.fromPoints(CW))).toBe(true)
+    const points = CW.map((p) => [...p])
+    expect(insideOut(m.primitives.polygon({ points }))).toBe(false)
+    expect(insideOut(m.primitives.polygon({ points, orientation: 'counterclockwise' }))).toBe(false)
+    expect(insideOut(m.geometries.geom2.fromPoints(points))).toBe(false)
+    expect(points).toEqual(CW)
     expect(facts(warn)).toEqual([
-      { fn: 'primitives.polygon', option: 'points', area: -50 },
-      { fn: 'geometries.geom2.fromPoints', option: 'points', area: -50 },
+      { fn: 'primitives.polygon', option: 'points', area: -50, reversed: true },
+      { fn: 'primitives.polygon', option: 'points', area: -50, reversed: true },
+      { fn: 'geometries.geom2.fromPoints', option: 'points', area: -50, reversed: true },
     ])
   })
 
@@ -399,12 +403,27 @@ describe('outline winding and boolean results', () => {
     expect(warn).not.toHaveBeenCalled()
   })
 
-  it('reports clockwise points given to jf.polygon', () => {
+  it('never reverses the paths of an outline with holes', () => {
+    const warn = vi.fn()
+    const m = modelingWith(warn)
+    const outer = [[0, 0], [0, 10], [10, 10], [10, 0]]
+    const hole = [[2, 2], [8, 2], [8, 8], [2, 8]]
+    const outline = m.primitives.polygon({ points: [outer, hole] })
+    expect(realModeling.geometries.geom2.toOutlines(outline).map((o) => o.length)).toEqual([4, 4])
+    expect(realModeling.measurements.measureArea(outline)).toBeCloseTo(-64, 6)
+    const jfWarn = vi.fn()
+    const wrapped = withOptionChecks(jf, OPTION_TABLES['@jbroll/jscad-fluent'], jfWarn)
+    expect(wrapped.polygon([outer, hole]).measureArea()).toBeCloseTo(-64, 6)
+    expect(warn).not.toHaveBeenCalled()
+    expect(jfWarn).not.toHaveBeenCalled()
+  })
+
+  it('reverses clockwise points given to jf.polygon, and says so', () => {
     const warn = vi.fn()
     const wrapped = withOptionChecks(jf, OPTION_TABLES['@jbroll/jscad-fluent'], warn)
-    expect(wrapped.polygon(CW).extrudeLinear({ height: 1 }).measureVolume()).toBeLessThan(0)
+    expect(wrapped.polygon(CW).extrudeLinear({ height: 1 }).measureVolume()).toBeGreaterThan(0)
     wrapped.polygon(CCW)
-    expect(facts(warn)).toEqual([{ fn: 'jf.polygon', option: 'points', area: -50 }])
+    expect(facts(warn)).toEqual([{ fn: 'jf.polygon', option: 'points', area: -50, reversed: true }])
   })
 
   it('reports a subtract or intersect that leaves nothing of a shape', () => {

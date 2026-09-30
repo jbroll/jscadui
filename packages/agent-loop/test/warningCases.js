@@ -130,19 +130,19 @@ module.exports = { main: () => primitives.cube({ size: 2 }).translate([1, 0, 0])
     name: 'W: clockwise jf.polygon points',
     api: 'fluent',
     source: fluent('module.exports = { main: () => jf.polygon([[0, 0], [0, 10], [10, 0]]).extrudeLinear({ height: 2 }) }'),
-    warnings: [{ fn: 'jf.polygon', option: 'points', hints: ['points run clockwise (area -50)', 'inside out', 'jf.polygon([...points].reverse())'] }],
+    warnings: [{ fn: 'jf.polygon', option: 'points', hints: ['points ran clockwise (area -50); reversed them so extrusions come out right side out'] }],
   },
   {
     name: 'W: clockwise primitives.polygon points',
     api: 'modeling',
     source: modeling('module.exports = { main: () => extrusions.extrudeLinear({ height: 2 }, primitives.polygon({ points: [[0, 0], [0, 10], [10, 0]] })) }'),
-    warnings: [{ fn: 'primitives.polygon', option: 'points', hints: ['points run clockwise (area -50)', 'primitives.polygon({ points: [...points].reverse() })'] }],
+    warnings: [{ fn: 'primitives.polygon', option: 'points', hints: ['points ran clockwise (area -50); reversed them'] }],
   },
   {
     name: 'W: clockwise geom2.fromPoints points',
     api: 'modeling',
     source: `const { geometries } = require('@jscad/modeling')\nmodule.exports = { main: () => geometries.geom2.fromPoints([[0, 0], [0, 10], [10, 0]]) }`,
-    warnings: [{ fn: 'geometries.geom2.fromPoints', option: 'points', hints: ['points run clockwise', 'geometries.geom2.fromPoints([...points].reverse())'] }],
+    warnings: [{ fn: 'geometries.geom2.fromPoints', option: 'points', hints: ['points ran clockwise (area -50); reversed them'] }],
   },
   {
     name: 'W: counter-clockwise points warn nothing',
@@ -267,10 +267,10 @@ module.exports = { main: () => primitives.cube({ size: 2 }).translate([1, 0, 0])
     error: ['roundRadius 2 is too big: it must be under half the smallest size, 2.4 / 2 = 1.2'],
   },
   {
-    name: 'cross W: clockwise modeling polygon points under fluent name jf.polygon',
+    name: 'cross W: an explicit clockwise modeling polygon under fluent names jf.polygon',
     api: 'fluent',
-    source: modeling('module.exports = { main: () => primitives.polygon({ points: [[0, 0], [0, 10], [10, 0]] }) }'),
-    warnings: [{ fn: 'primitives.polygon', option: 'points', hints: ['jf.polygon([...points].reverse())'] }],
+    source: modeling("module.exports = { main: () => primitives.polygon({ points: [[0, 0], [10, 0], [0, 10]], orientation: 'clockwise' }) }"),
+    warnings: [{ fn: 'primitives.polygon', option: 'points', hints: ['points run clockwise (area -50)', 'jf.polygon([...points].reverse())'] }],
   },
   {
     name: 'cross I: a method used as a jf function under modeling',

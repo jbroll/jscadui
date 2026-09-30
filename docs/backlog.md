@@ -227,6 +227,11 @@ model with `display-check.js --engine jscad`.
   `cylinder`/`cylinderElliptic`), so `square({ size: [x, y] })` does not
   point at `rectangle`, nor `circle` at `ellipse`. A small alias list in
   `src/hints.js` would cover them.
+- `jf.polygon` in jscad-fluent should list a single flat outline
+  counter-clockwise itself. The chat's option checks reverse clockwise points
+  before the call (`src/optionChecks.js`), but a fluent user outside the chat
+  still gets an inside-out extrusion from clockwise points. A list of paths
+  must stay as given, since a clockwise path there may be a hole.
 - jscad-fluent gaps against `@jscad/modeling`, answered "not available" by the
   fluent `docs`: compact binary, `poly2`/`poly3`, the `geometries` functions
   with no same-named fluent method, and the internal `utils` helpers

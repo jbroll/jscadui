@@ -153,6 +153,14 @@ describe('explainError', () => {
 })
 
 describe('explainWarning: winding, empty booleans and mesh data', () => {
+  it('says clockwise points were reversed', () => {
+    expect(explainWarning({ fn: 'jf.polygon', option: 'points', area: -50, reversed: true }, 'fluent')).toEqual({
+      fn: 'jf.polygon',
+      option: 'points',
+      hint: 'points ran clockwise (area -50); reversed them so extrusions come out right side out',
+    })
+  })
+
   it('says clockwise points extrude inside out, in the chosen API form', () => {
     expect(explainWarning({ fn: 'jf.polygon', option: 'points', area: -50 }, 'fluent')).toEqual({
       fn: 'jf.polygon',

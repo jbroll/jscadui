@@ -93,8 +93,10 @@ const reversedCall = (fn, api) => {
   return 'primitives.polygon({ points: [...points].reverse() })'
 }
 
-const windingHint = ({ fn, area }, api) =>
-  `points run clockwise (area ${round(area)}), so an extrusion of this outline comes out inside out: list them counter-clockwise, e.g. ${reversedCall(fn, api)}`
+const windingHint = ({ fn, area, reversed }, api) =>
+  reversed
+    ? `points ran clockwise (area ${round(area)}); reversed them so extrusions come out right side out`
+    : `points run clockwise (area ${round(area)}), so an extrusion of this outline comes out inside out: list them counter-clockwise, e.g. ${reversedCall(fn, api)}`
 
 const BOUNDING_BOX = { fluent: 'shape.measureBoundingBox()', modeling: 'measurements.measureBoundingBox(shape)' }
 const EMPTY_CAUSE = {
@@ -114,7 +116,7 @@ const meshHint = (api) =>
  * The warning a model sees for a fact the option checks found: an unknown
  * option `{ fn, option, suggestions }`, a mistyped one `{ fn, option, expected, got }`,
  * an angle over 2π `{ fn, option, value }`, clockwise outline points
- * `{ fn, option, area }`, an empty boolean result `{ fn, empty }` or
+ * `{ fn, option, area, reversed? }`, an empty boolean result `{ fn, empty }` or
  * `{ points, faces }` data given to a boolean `{ fn, meshOperand }`.
  */
 export const explainWarning = (fact, api = DEFAULT_API) => {

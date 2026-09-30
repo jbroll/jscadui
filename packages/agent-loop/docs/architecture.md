@@ -76,6 +76,10 @@ wraps on and fails on any warning.
 
 Some checks come from no option table: clockwise points where a 2D outline
 enters (`primitives.polygon`, `geometries.geom2.fromPoints`, `jf.polygon`),
+which the check reverses when they form one flat outline, since no request
+wants an inside-out extrusion (a list of paths may hold a hole wound
+clockwise on purpose, and an explicit `orientation: 'clockwise'` is the
+caller's choice, so both are left as given),
 and the booleans (`booleans.*`, `jf.*`, the `FluentGeom3` and `FluentGeom2`
 methods), which report `{ points, faces }` operands before the call and an
 empty `subtract` or `intersect` result after it. `EXTRA_SPECS` and

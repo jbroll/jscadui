@@ -122,7 +122,8 @@ turns each into the warning the model sees, worded for the chat's API style
 | unknown option | `{ fn, option, suggestions }`, plus `hint` when a sibling function takes it |
 | number option given an array, or the reverse | `{ fn, option, hint }` naming the sibling that takes that type (`cube` size array → `cuboid`) |
 | rotate angle with magnitude over 2π | `{ fn, option: 'angle', hint }`: "90 looks like degrees; angles are radians, so use 90 * Math.PI / 180" |
-| clockwise points (negative signed area) to `jf.polygon`, `primitives.polygon` (after its `orientation`; not with `paths`) or `geometries.geom2.fromPoints` | `{ fn, option: 'points', hint }`: "points run clockwise (area -50), so an extrusion of this outline comes out inside out: list them counter-clockwise, e.g. jf.polygon([...points].reverse())" |
+| clockwise points (negative signed area) in one flat outline to `jf.polygon`, `primitives.polygon` (no `paths`, no `orientation: 'clockwise'`) or `geometries.geom2.fromPoints`: the check reverses them before the call | `{ fn, option: 'points', hint }`: "points ran clockwise (area -50); reversed them so extrusions come out right side out" |
+| clockwise points it leaves alone: `primitives.polygon` with `orientation: 'clockwise'` turning counter-clockwise points clockwise | "points run clockwise (area -50), so an extrusion of this outline comes out inside out: list them counter-clockwise, e.g. jf.polygon([...points].reverse())" |
 | a `subtract` or `intersect` (modeling `booleans`, `jf`, or a `FluentGeom3`/`FluentGeom2` method) that returns an empty shape from a non-empty first shape | `{ fn, hint }`: what emptied it, and the bounding-box measure to compare the shapes with |
 | `{ points, faces }` data (what `jf.hullPoints3` returns) given to a boolean | `{ fn, hint }`: make it a shape with `jf.polyhedron(...)` or `primitives.polyhedron({ points, faces })` |
 

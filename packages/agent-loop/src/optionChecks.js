@@ -62,6 +62,17 @@ const polygonOptionsArea = ([options]) => {
 
 const pointsArea = ([points]) => (isPlainObject(points) ? polygonOptionsArea([points]) : outlineArea(points))
 
+// Only a single flat outline is reversed: in a list of paths a clockwise one
+// may be a hole, and an explicit clockwise orientation is the caller's choice.
+const isFlatOutline = (points) => Array.isArray(points) && points.length >= 3 && typeof points[0]?.[0] === 'number'
+
+const reversedPolygonOptions = ([options, ...rest]) =>
+  isPlainObject(options) && options.paths === undefined && options.orientation !== 'clockwise' && isFlatOutline(options.points)
+    ? [{ ...options, points: [...options.points].reverse() }, ...rest]
+    : undefined
+
+const reversedPoints = ([points, ...rest]) => (isFlatOutline(points) ? [[...points].reverse(), ...rest] : undefined)
+
 const BOOLEANS = ['union', 'subtract', 'intersect']
 const booleanSpecs = (prefix) => Object.fromEntries(BOOLEANS.map((op) => [`${prefix}${op}`, { boolean: op }]))
 
@@ -70,11 +81,11 @@ const booleanSpecs = (prefix) => Object.fromEntries(BOOLEANS.map((op) => [`${pre
 // enters as points, and the booleans.
 const EXTRA_SPECS = {
   '': {
-    'primitives.polygon': { outline: polygonOptionsArea },
-    'geometries.geom2.fromPoints': { outline: pointsArea },
+    'primitives.polygon': { outline: polygonOptionsArea, reverse: reversedPolygonOptions },
+    'geometries.geom2.fromPoints': { outline: pointsArea, reverse: reversedPoints },
     ...booleanSpecs('booleans.'),
   },
-  'jf.': { polygon: { outline: pointsArea }, ...booleanSpecs('') },
+  'jf.': { polygon: { outline: pointsArea, reverse: reversedPoints }, ...booleanSpecs('') },
 }
 const EXTRA_METHOD_SPECS = {
   FluentGeom3: Object.fromEntries(BOOLEANS.map((op) => [op, { boolean: op, method: true }])),
@@ -112,12 +123,13 @@ const annotate = (error, hints) => {
 /**
  * @param {string} fnName
  * @param {Function} fn
- * @param {{ known?: string[], types?: Record<string, string>, angle?: boolean, outline?: Function, boolean?: string, method?: boolean }} spec
+ * @param {{ known?: string[], types?: Record<string, string>, angle?: boolean, outline?: Function, reverse?: Function, boolean?: string, method?: boolean }} spec
  * @param {(fact: object) => ({ hint?: string } | void)} warn
  */
 const checked = (fnName, fn, spec, warn) => {
   const allowed = spec.known && new Set(spec.known)
-  return function (...args) {
+  return function (...given) {
+    let args = given
     const hints = []
     const report = (fact) => {
       const warning = warn(fact)
@@ -144,7 +156,10 @@ const checked = (fnName, fn, spec, warn) => {
       }
       if (spec.outline) {
         const area = spec.outline(args)
-        if (area < 0) report({ fn: fnName, option: 'points', area })
+        // An inside-out extrusion is never what a request wants.
+        const reversed = area < 0 ? spec.reverse?.(args) : undefined
+        if (reversed) args = reversed
+        if (area < 0) report({ fn: fnName, option: 'points', area, ...(reversed ? { reversed: true } : {}) })
       }
       if (spec.boolean && operandsOf(spec, this, args).some(isMeshData)) report({ fn: fnName, meshOperand: true })
     } catch {
