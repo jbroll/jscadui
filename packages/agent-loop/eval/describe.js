@@ -1,4 +1,4 @@
-// Usage: npm run describe -w @jscadui/agent-loop -- [--all] <result files>
+// Usage: npm run describe -w @jscadui/agent-loop -- [--all] [--rerender] <result files>
 // Stage B of the complex eval (docs/user-manual.md, Describe and judge); npm runs it in packages/agent-loop, so give absolute paths.
 import { execFileSync, spawn as nodeSpawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
@@ -224,7 +224,7 @@ export const runDescribe = async (paths, { all = false, env = process.env, log =
   }
 }
 
-const USAGE = 'Usage: npm run describe -w @jscadui/agent-loop -- [--all] <result files>'
+const USAGE = 'Usage: npm run describe -w @jscadui/agent-loop -- [--all] [--rerender] <result files>'
 
 // Exit 2 is a stop the judge must not run after; 1 only means some views failed (docs/user-manual.md).
 const main = async (argv, env) => {
@@ -234,6 +234,10 @@ const main = async (argv, env) => {
     process.exit(2)
   }
   try {
+    if (argv.includes('--rerender')) {
+      const { rerenderFiles } = await import('./rerender.js')
+      console.log(`describe: rendered ${await rerenderFiles(paths, env)} runs again`)
+    }
     const outcome = await runDescribe(paths, { all: argv.includes('--all'), env })
     console.log(`describe: ${outcome.described} described, ${outcome.failed} failed`)
     const stop = describeStop(outcome)

@@ -468,7 +468,10 @@ never rendered. A stale run stays stale through later regrades until
 `npm run describe -- --rerender` draws it again. A complex run's prompt is its
 stored `userMessages`, so a changed follow-up also counts as a different
 prompt; that note is joined to any other with `; `. `--regrade` makes no
-provider call, starts no describer and renders nothing.
+provider call, starts no describer and renders nothing:
+`npm run describe -- --rerender <files>` builds each `renderStale` run again
+in the sandbox, renders it and describes it, and `npm run judge` on the same
+files judges it.
 
 ### Environment variables
 
@@ -962,7 +965,9 @@ next `npm run describe` on the file tries it again. The file records
 `describer: { model, kestrel, promptSha256, blockedConnections }`; the
 describer refuses every outside connection. `--all` describes every rendered
 run again and clears its votes and verdict, so run the judge on the same
-files after it. The describer never sees the prompt, the transcript, the
+files after it. `--rerender` first builds and renders again each run
+`--regrade` marked `renderStale`, which needs the crt sandbox and chromium as
+`run-eval` does. The describer never sees the prompt, the transcript, the
 source, file names or parameter names, since any of them can name the object.
 
 It exits 0 when every pending run was described, and 1 when it finished but
