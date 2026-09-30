@@ -15,7 +15,8 @@ export const sciPath = (env = process.env, repoRoot = REPO_ROOT) => env.SCI || j
 
 export const parseIndex = (text) => text.split('\n').map((line) => line.trim()).filter(Boolean)
 
-const defaultRun = (sci, args) => execFileSync(sci, args, { encoding: 'utf8' })
+// Result files pass 1 MB (execFileSync's default buffer) once a suite has ~18 fixtures.
+const defaultRun = (sci, args) => execFileSync(sci, args, { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 })
 
 // `run(sci, args)` returns the text `sci` prints (an artifact's content); a fake in tests, never sci itself.
 export function fetchCiResults(jobId, { sci, dataDir, run = defaultRun, fs = { existsSync, mkdirSync, writeFileSync }, log = () => {} }) {
