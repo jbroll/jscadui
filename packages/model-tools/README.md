@@ -12,8 +12,9 @@ check(model, { bed: 'mk3' }) // { watertight, manifold, fitsBed, ... }
 ```
 
 `measure` options: `parts` (an index selector like `"0"` or `"1-3"`, `"all"`,
-or an array of selectors — they index the array `main()` returns), `between`
-(exactly two selectors), `anchors` (boolean), `section` (an axis `"x"`/`"y"`/
+an array of selectors, or that array as a JSON string; they index the array
+`main()` returns, and a whole number stands for its index), `between`
+(exactly two selectors; `"all"` is refused there), `anchors` (boolean), `section` (an axis `"x"`/`"y"`/
 `"z"`, an offset like `"z=5"`, or `{axis, offset}`). A negative-volume geom3
 gets `insideOut: true` and a `notes` entry saying it is inside out; for an
 array, the note names each such part.

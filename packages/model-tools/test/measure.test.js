@@ -113,6 +113,15 @@ test('measure accepts a bare selector string for parts, as a one-element list', 
   expect(parts.map((p) => p.part)).toEqual(['1'])
 })
 
+test('measure accepts parts as a JSON array string, and index numbers', () => {
+  const scene = [cube(0), cube(10), cube(20)]
+  expect(measure(scene, { parts: '["0", "2"]' }).parts.map((p) => p.part)).toEqual(['0', '2'])
+  expect(measure(scene, { parts: ' ["1-2"] ' }).parts.map((p) => p.part)).toEqual(['1-2'])
+  expect(measure(scene, { parts: [0, '2'] }).parts.map((p) => p.part)).toEqual(['0', '2'])
+  expect(measure(scene, { parts: '[1]' }).parts.map((p) => p.part)).toEqual(['1'])
+  expect(() => measure(scene, { parts: '["0"' })).toThrow(/parts must be "all"/)
+})
+
 test('measure rejects a parts value that is not a selector, a range, or an array', () => {
   expect(() => measure(cube(0), { parts: true })).toThrow(/parts must be "all"/)
 })
@@ -125,9 +134,15 @@ test('measure rejects a non-numeric part selector with a clear error', () => {
 
 test('measure rejects a between that is not exactly two selectors', () => {
   expect(() => measure([cube(0), cube(10)], { between: [] })).toThrow(
-    'between needs exactly two part selectors, e.g. ["0", "1"]',
+    'between needs exactly two part selectors like "0" or "1-3", e.g. ["0", "1"]',
   )
   expect(() => measure([cube(0), cube(10)], { between: ['0'] })).toThrow('between needs exactly two part selectors')
+})
+
+test('measure rejects "all" in between, naming the forms it takes', () => {
+  expect(() => measure([cube(0), cube(10)], { between: ['0', 'all'] })).toThrow(
+    'between needs exactly two part selectors like "0" or "1-3", e.g. ["0", "1"]; "all" works only in parts',
+  )
 })
 
 test('measure accepts a section as "z" or "z=<offset>"', () => {

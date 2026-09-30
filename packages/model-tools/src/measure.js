@@ -124,19 +124,38 @@ export const measureBetween = (geom, geomType, [a, b]) => {
   }
 }
 
+const PARTS_ERROR =
+  'parts must be "all" or a selector like "0" or "1-3" (indexes into the array main() returns), an array of them, or a JSON array string'
+const BETWEEN_ERROR = 'between needs exactly two part selectors like "0" or "1-3", e.g. ["0", "1"]'
+
+const asSelector = (s) => (Number.isInteger(s) && s >= 0 ? String(s) : s)
+
+// Tool-call arguments sometimes arrive stringified, as check's bed does.
+const jsonArray = (text) => {
+  try {
+    const value = JSON.parse(text)
+    return Array.isArray(value) ? value : undefined
+  } catch {
+    return undefined
+  }
+}
+
 // A bare selector reads more naturally than a one-element array; "all" stays a string.
 const normalizeParts = (parts) => {
   if (parts === undefined) return undefined
-  if (parts === 'all' || Array.isArray(parts)) return parts
-  if (typeof parts === 'string') return [parts]
-  throw new Error(
-    'parts must be "all" or a selector like "0" or "1-3" (indexes into the array main() returns), or an array of them',
-  )
+  if (parts === 'all') return parts
+  const list = typeof parts === 'string' && parts.trim().startsWith('[') ? jsonArray(parts) : parts
+  if (Array.isArray(list)) return list.map(asSelector)
+  if (typeof list === 'string' || Number.isInteger(list)) return [asSelector(list)]
+  throw new Error(PARTS_ERROR)
 }
 
 const normalizeBetween = (between) => {
-  if (Array.isArray(between) && between.length === 2 && between.every((s) => typeof s === 'string')) return between
-  throw new Error('between needs exactly two part selectors, e.g. ["0", "1"]')
+  if (!Array.isArray(between) || between.length !== 2) throw new Error(BETWEEN_ERROR)
+  const pair = between.map(asSelector)
+  if (pair.includes('all')) throw new Error(`${BETWEEN_ERROR}; "all" works only in parts`)
+  if (!pair.every((s) => typeof s === 'string')) throw new Error(BETWEEN_ERROR)
+  return pair
 }
 
 const SECTION_FORMAT = /^([xyz])(?:=(-?[\d.]+(?:e-?\d+)?))?$/i

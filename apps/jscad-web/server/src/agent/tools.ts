@@ -44,12 +44,12 @@ export const buildTools = (api: Api = DEFAULT_API): ToolDefinition[] => [
       properties: {
         parts: {
           description:
-            'Index selectors into the array main() returns: "0", "1-3", "all", or an array of them',
+            'Index selectors into the array main() returns: "0", "1-3", "all", or an array of them (a JSON array string works too)',
         },
         between: {
           type: 'array',
           items: { type: 'string' },
-          description: 'Exactly two index selectors to measure the gap between',
+          description: 'Exactly two index selectors ("0" or "1-3") to measure the gap between; "all" works only in parts',
         },
         anchors: { type: 'boolean', description: "Include each part's named anchor frames" },
         section: {

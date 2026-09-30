@@ -50,6 +50,13 @@ describe('agent tools', () => {
     for (const name of ['measure', 'check']) expect(TOOLS.find((t) => t.name === name).description).toMatch(/\bmm\b/)
   })
 
+  it('describes the measure selector forms the code accepts', () => {
+    const { parts, between } = TOOLS.find((t) => t.name === 'measure').inputSchema.properties
+    expect(parts.description).toMatch(/"all"/)
+    expect(parts.description).toMatch(/JSON array string/)
+    expect(between.description).toMatch(/"all" works only in parts/)
+  })
+
   it('says export gives the size, not the file', () => {
     const exportTool = TOOLS.find((t) => t.name === 'export')
     expect(exportTool.description).toMatch(/gives its size, not the file/)
