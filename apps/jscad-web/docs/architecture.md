@@ -1013,7 +1013,10 @@ Backends: the service-worker FS and file handles (`local`, the default and the
 only mode for anonymous users), rowboat blobs and tables (`rowboat`, after
 sign-in, synced with a 15-minute JWT from `GET /api/sync-token`), and a linked
 local folder through `showDirectoryPicker()`. A folder that is a git checkout
-stays the user's to commit. A GitHub App backend that read and committed
+stays the user's to commit. Under the local launcher a fourth, `disk`
+(`src/storage/disk.js`), holds one project, id `disk`: the model directory,
+read and written over the launcher's `/api/fs` and followed through its
+`/api/fs/events` stream. It keeps no versions; the directory's git does. A GitHub App backend that read and committed
 through the server is parked on the `park/github-app-storage` branch.
 
 A mixed project merges at load: each manifest path names exactly one backend,
@@ -1036,6 +1039,24 @@ git HEAD, plus a hash of `git diff HEAD` and the untracked file names when the
 tree is dirty. The launcher reuses the build only when all three match, so a
 checkout, pull or edit rebuilds on the next launch. Outside git the stamp is
 null and only the ports count.
+
+That build sets `JSCAD_LOCAL_FS=1`, which `build.js` stamps as
+`__LOCAL_FS__`; only then does `main.js` load the disk store. The server's
+`/api/fs` (`scripts/local/fsApi.js`) lists, reads and writes the model
+directory and streams change events, and answers only the app page on a
+`localhost` or `127.0.0.1` host: the frame origin and any other page get 403.
+A `#/models/<entry>` hash then opens the directory through the same project
+switch a stored project uses (`src/diskProject.js`, `createProjectSwitch` in
+`src/projectFiles.js`), so the file cache holds the whole directory, binary
+files as bytes. Every agent tool, the per-turn project context and a model's
+`require` of a sibling read that cache, as for any project; chat writes and
+editor runs reach disk through the session's write-through, Ctrl+S through the
+store, and `export` writes `<entry base name>.<format>` at the root. The store
+does not report its own writes back. Other changes update the cache, clear the
+frame's copy, refresh the editor's file list, reload the open file when its
+buffer matches the cache (an editor run writes the buffer to the cache, so a
+buffer that differs holds unsaved edits and stays), and rebuild. The deployed
+build stamps `false` and opens a `#/models/` hash as a plain script, as before.
 
 A checkout with a `.jscad-track` file at its root (`origin/main`) follows that
 branch (`scripts/local/track.js`). Before anything else the launcher fetches

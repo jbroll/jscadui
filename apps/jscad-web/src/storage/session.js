@@ -1,7 +1,10 @@
-export function createSession({ local, rowboat, getRowboat, getBackend }) {
+export function createSession({ local, rowboat, getRowboat, getBackend, disk = null }) {
   const resolveRowboat = getRowboat ?? (() => rowboat ?? null)
-  const backendFor = (projectId, path) =>
-    getBackend?.(projectId, path) === 'rowboat' && resolveRowboat() ? resolveRowboat() : local
+  const backendFor = (projectId, path) => {
+    const mode = getBackend?.(projectId, path)
+    if (mode === 'disk' && disk) return disk
+    return mode === 'rowboat' && resolveRowboat() ? resolveRowboat() : local
+  }
 
   const readThrough = async (projectId, path) => {
     const store = backendFor(projectId, path)

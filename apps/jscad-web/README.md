@@ -88,6 +88,8 @@ Tests: `npx vitest run test/aiChat.test.js` for the chat turn, `npx playwright t
 
 From any model folder: `npm run jscad-chat -- [dir|file] [--port N] [--build|--no-build] [--no-open]` (root) or `node scripts/jscad.mjs` from `apps/jscad-web`. Serves the app on `:7377`, the frame on `:7378`, your folder at `/models/`, and a same-origin `/api/relay` so AI Chat works with your own key. `RELAY_ALLOWLIST` overrides the default allowlist (anthropic, openai, opencode-go, meta).
 
+The folder is the open project, listed as the `disk` project in the Projects drawer. The editor shows its files, and the chat's `list`, `read`, `write`, `edit` and `run` work on them. A chat `write` or `edit`, a run from the editor (Shift+Enter) and Ctrl+S write the file back into the folder. `export` writes `<entry name>.<format>` (`main.js` → `main.stl`) at the folder's root and answers its `path`. An edit made outside the app, in another editor or by `git checkout`, reloads: the file list updates, the open file reloads unless you have edits in the buffer you have not run or saved (those stay, with a console warning), and the model rebuilds. The app keeps no version history for the folder; commit it with git. Files git ignores, dot files and `node_modules` stay out of the project, which lists at most 2000 files.
+
 The bundles are built into `build_local/` and reused while the ports and the checkout's source match. A new commit, a checkout or an uncommitted edit rebuilds them on the next launch. `--build` forces a rebuild.
 
 To keep a `jscad-chat` on your PATH that runs the latest `origin/main`, give it its own checkout and mark it:

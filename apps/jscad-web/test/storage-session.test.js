@@ -3,6 +3,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createLocalStorage } from '../src/storage/local.js'
 import { createSession } from '../src/storage/session.js'
+import { createDiskStorage } from '../src/storage/disk.js'
+import { fakeServer } from './fakeDiskServer.js'
 
 describe('mode write-through', () => {
   it('writes a local path to the local backend and versions it', async () => {
@@ -41,6 +43,36 @@ describe('mode write-through', () => {
     const session = createSession({ local, rowboat, getBackend: (projectId) => (projectId === 'p1' ? 'local' : 'rowboat') })
     expect(await session.readThrough('p1', 'main.js')).toBe('local-main')
     expect(await session.readThrough('p2', 'main.js')).toBe('rowboat-main')
+  })
+})
+
+describe('disk mode', () => {
+  const withDisk = () => {
+    const local = createLocalStorage()
+    const server = fakeServer({ 'main.js': 'm' })
+    const disk = createDiskStorage({ fetch: server.fetch, EventSource: server.EventSource })
+    const session = createSession({ local, disk, getBackend: (projectId) => (projectId === 'disk' ? 'disk' : 'local') })
+    return { local, server, session }
+  }
+
+  it('writes a disk project into the directory and nowhere else', async () => {
+    const { local, server, session } = withDisk()
+    await session.writeThrough('disk', 'lib/part.js', 'p', { message: 'chat', version: false })
+    expect(server.puts()).toEqual(['/api/fs/lib/part.js'])
+    expect(server.text('lib/part.js')).toBe('p')
+    expect(await local.listProjects()).toEqual([])
+  })
+
+  it('reads through the directory', async () => {
+    const { session } = withDisk()
+    expect(await session.readThrough('disk', 'main.js')).toBe('m')
+  })
+
+  it("snapshots nothing: the directory's git keeps history", async () => {
+    const { server, session } = withDisk()
+    server.clear()
+    await expect(session.snapshot('disk', { message: 'chat' })).resolves.toBeUndefined()
+    expect(server.requests).toEqual([])
   })
 })
 

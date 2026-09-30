@@ -56,7 +56,8 @@ import { createSession } from './src/storage/session.js'
 import { initProjects } from './src/projects.js'
 import { extractEntries, readAsText, readDir } from '@jscadui/fs-provider'
 import { createFrame, createJobTracker } from './src/frameSetup.js'
-import { projectPathOf, replaceProjectFiles } from './src/projectFiles.js'
+import { createProjectSwitch, projectPathOf, toEditorFiles } from './src/projectFiles.js'
+import { createDiskProject, diskEntryFromHash, DISK_ID } from './src/diskProject.js'
 import { createScriptRuns, sendScript } from './src/scriptRuns.js'
 import { createStreamRuns } from './src/streamRuns.js'
 import { newRunId } from './src/runId.js'
@@ -353,32 +354,46 @@ async function reloadProject() {
 // live project; the session routes by the manager's per-project mode.
 const localStore = createLocalStorage()
 let rowboatStore = null
-const projectManager = createProjectManager({ local: localStore, getRowboat: () => rowboatStore })
-const storageSession = createSession({ local: localStore, getRowboat: () => rowboatStore, getBackend: (projectId) => projectManager.peekMode(projectId) })
+// Only the launcher's build (JSCAD_LOCAL_FS=1) has /api/fs, the model directory it serves.
+/* global __LOCAL_FS__ */
+const diskStore = __LOCAL_FS__ ? (await import('./src/storage/disk.js')).createDiskStorage() : null
+const projectManager = createProjectManager({ local: localStore, disk: diskStore, getRowboat: () => rowboatStore })
+const storageSession = createSession({ local: localStore, disk: diskStore, getRowboat: () => rowboatStore, getBackend: (projectId) => projectManager.peekMode(projectId) })
 
 // Editing a helper leaves the entry as it is; `entry` names a model the user ran on its own.
-const recordEdit = (script, path, { entry } = {}) =>
-  storageSession.writeThrough(currentProjectId, path, script, { message: 'edit', ...(entry ? { entry } : {}) }).catch((err) => console.warn('storage write failed:', err))
+const recordEdit = async (script, path, { entry } = {}) => {
+  // An example opened over the model directory is no file of it.
+  if (currentProjectId === DISK_ID && projectPathOf(path) === null) return
+  await storageSession.writeThrough(currentProjectId, path, script, { message: 'edit', ...(entry ? { entry } : {}) }).catch((err) => console.warn('storage write failed:', err))
+}
 
 let currentProjectId = 'default'
 // The entry of whatever was opened last: a stored project or a dropped folder.
 let currentEntry
 
-const toEditorFiles = (files) =>
-  Object.entries(files).map(([path, content]) =>
-    Object.assign(new File([content], path.split('/').pop()), { fullPath: `/${path}` }),
-  )
+const switchProject = createProjectSwitch({
+  manager: projectManager,
+  fileSystem,
+  editor,
+  clearTempCache: () => workerApi.jscadClearTempCache(),
+  build: (entry) => buildProject(entry),
+  onOpen: (id, entry) => {
+    currentProjectId = id
+    currentEntry = entry
+  },
+  onError: setError,
+})
 
-const switchProject = async (id) => {
-  const { project, files } = await projectManager.readForSwitch(id)
-  currentProjectId = id
-  currentEntry = project.entry
-  workerApi.jscadClearTempCache()
-  await replaceProjectFiles(fileSystem, files)
-  editor.setFiles(toEditorFiles(files))
-  editor.setSource(files[project.entry] ?? '', project.entry)
-  buildProject(project.entry).catch(setError)
-}
+const diskProject = diskStore && createDiskProject({
+  store: diskStore,
+  switchProject,
+  isOpen: () => currentProjectId === DISK_ID,
+  getEntry: () => currentEntry,
+  fileSystem,
+  clearFileCache: (files) => workerApi.jscadClearFileCache({ files, root: PROJECT_BASE }),
+  editor,
+  rebuild: () => buildProject().catch(setError),
+})
 
 // Lazy rowboat backend: built once a session exists, so anonymous users stay
 // local-only and never load the rowboat client. Dynamic imports keep the
@@ -801,6 +816,12 @@ editor.init(
     }
   },
   async (script, path) => {
+    try {
+      if (await diskProject?.save(path, script)) return
+    } catch (err) {
+      setError(err)
+      return
+    }
     const swHandler = fileSystem.getSwHandler()
     const pathArr = path.split('/')
     let fileHandle = (await swHandler?.getFile(path))?.handle
@@ -837,23 +858,27 @@ editor.init(
   path => fileSystem.getSwHandler()?.getFile(path),
 )
 
-let hasRemoteScript
-try {
-  hasRemoteScript = await remote.init(
-    (script, url) => {
-      const fullUrl = new URL(url, appBase).toString()
-      editor.setSource(script, fullUrl)
-      jscadScript({ script, url, base: appBase })
-      welcome.dismiss()
-    },
-    err => {
-      loadDefault = false
-      setError(err)
-      welcome.dismiss()
-    },
-  )
-} catch (e) {
-  console.error(e)
+// Under the launcher a #/models/<entry> hash opens the model directory as the project.
+const diskEntry = diskProject ? diskEntryFromHash(location.hash) : null
+let hasRemoteScript = diskEntry !== null
+if (diskEntry === null) {
+  try {
+    hasRemoteScript = await remote.init(
+      (script, url) => {
+        const fullUrl = new URL(url, appBase).toString()
+        editor.setSource(script, fullUrl)
+        jscadScript({ script, url, base: appBase })
+        welcome.dismiss()
+      },
+      err => {
+        loadDefault = false
+        setError(err)
+        welcome.dismiss()
+      },
+    )
+  } catch (e) {
+    console.error(e)
+  }
 }
 
 await exporter.init(workerApi)
@@ -880,6 +905,12 @@ if ('serviceWorker' in navigator && !navigator.serviceWorker.controller) {
   console.warn('file service worker not controlling this page; dropped-file watching is off')
 }
 
+// Opened only now: files cached before the service worker registers land in a memory map it no longer reads.
+if (diskEntry !== null) {
+  welcome.dismiss()
+  await diskProject.open(diskEntry).catch(setError)
+}
+
 // ============== AI Chat ==============
 // The agent loop runs in the page; each tool request is served against the
 // open project's files (the file cache every run sends the frame), the
@@ -901,7 +932,7 @@ const chatTools = createProjectTools({
   },
   noGeometry: projectBuilds.noGeometry,
   workerApi,
-  exportModel: createExport((args) => workerApi.jscadExportData(args)),
+  exportModel: createExport((args) => workerApi.jscadExportData(args), { save: diskProject?.saveExport }),
   getProjectId: () => currentProjectId,
   // Stored at once, so a reload mid-turn keeps it; the turn's version comes from its end.
   storeFile: (projectId, path, content) =>
@@ -984,5 +1015,6 @@ window.addEventListener('unload', () => {
   viewState.viewer?.destroy?.()
   ctrl.destroy() // M5 fix: Clean up OrbitControl event listeners and animation frame
   destroyFrame() // explicit terminate path: rejects pending frame requests and removes the frame
+  diskProject?.stop()
   fileWatcher.cleanup() // I8 fix: Explicit cleanup (complements internal beforeunload fallback)
 })

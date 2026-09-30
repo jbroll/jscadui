@@ -3,6 +3,8 @@
 import { describe, expect, it } from 'vitest'
 import { createLocalStorage } from '../src/storage/local.js'
 import { createProjectManager } from '../src/storage/projects.js'
+import { createDiskStorage } from '../src/storage/disk.js'
+import { fakeServer } from './fakeDiskServer.js'
 
 const stores = () => {
   const local = createLocalStorage()
@@ -71,5 +73,43 @@ describe('project manager', () => {
     const created = await manager.createFromDrop(entries, { readDir, readAsText })
     expect(created.name).toBe('car')
     expect(created.entry).toBe('car/index.js')
+  })
+})
+
+describe('project manager with a disk directory', () => {
+  const withDisk = async () => {
+    const local = createLocalStorage()
+    const server = fakeServer({ 'main.js': 'm', 'lib/part.js': 'p' })
+    const disk = createDiskStorage({ fetch: server.fetch, EventSource: server.EventSource })
+    return { local, disk, server, manager: createProjectManager({ local, disk, getRowboat: () => null }) }
+  }
+
+  it("routes the 'disk' project to the disk store", async () => {
+    const { manager } = await withDisk()
+    expect(manager.peekMode('disk')).toBe('disk')
+    const { project, files } = await manager.readForSwitch('disk')
+    expect(project).toMatchObject({ id: 'disk', mode: 'disk', entry: 'main.js' })
+    expect(files).toEqual({ 'main.js': 'm', 'lib/part.js': 'p' })
+  })
+
+  it('lists the disk row first, though it has no created or updated time', async () => {
+    const { manager } = await withDisk()
+    await manager.createProject('A', { files: { 'main.js': 'a' } })
+    await manager.createProject('B', { files: { 'main.js': 'b' } })
+    const all = await manager.listAll()
+    expect(all.map((p) => p.backend)).toEqual(['disk', 'local', 'local'])
+    expect(all.slice(1).map((p) => p.name)).toEqual(['B', 'A'])
+  })
+
+  it('keeps the disk project on disk', async () => {
+    const { manager, local } = await withDisk()
+    await expect(manager.flipMode('disk')).rejects.toThrow(/disk/)
+    expect(await local.listProjects()).toEqual([])
+  })
+
+  it('has no disk row without a disk store', async () => {
+    const manager = createProjectManager({ local: createLocalStorage(), getRowboat: () => null })
+    expect(await manager.listAll()).toEqual([])
+    expect(manager.peekMode('disk')).toBe('local')
   })
 })

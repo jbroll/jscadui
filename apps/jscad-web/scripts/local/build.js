@@ -52,7 +52,7 @@ export const ensureLocalBuild = async ({ webDir, port, force = false, noBuild = 
   const status = spawnFn('node', ['build.js', '--skipDocs'], {
     cwd: webDir,
     stdio: 'inherit',
-    env: { ...process.env, JSCAD_OUT_DIR: 'build_local', FRAME_APP_ORIGIN: appOrigin, FRAME_RUN_ORIGIN: runOrigin },
+    env: { ...process.env, JSCAD_OUT_DIR: 'build_local', FRAME_APP_ORIGIN: appOrigin, FRAME_RUN_ORIGIN: runOrigin, JSCAD_LOCAL_FS: '1' },
   })
   if (status !== 0) throw new Error('jscad: web build failed')
   writeMarker(out, { appOrigin, runOrigin, source })

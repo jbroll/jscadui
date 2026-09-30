@@ -286,7 +286,10 @@ memory; try a smaller case`.
 model as the frame's `@jscad/io` serializer for that format writes it
 (`exportConfig` in `src/exportFormat.js`; `stl` is binary STL). A format with
 no serializer fails with `ExportFormatError` in both. The bytes never reach
-the model; the user downloads from the app. `read` of a binary project file
+the model; the user downloads from the app. Under the local launcher, where
+the project is a directory on disk, the app also writes the file there and
+adds its `path` (`main.stl` for `main.js`); the eval writes nothing and
+answers no `path`. `read` of a binary project file
 fails with `BinaryFileError`.
 `view` fails with `UnavailableError`, and any other name, `eval`,
 `writeModel` and `params` included, with `UnknownToolError`.

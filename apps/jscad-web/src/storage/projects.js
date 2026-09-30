@@ -32,10 +32,19 @@ const detectEntry = (paths, folder) => {
   return [...paths].sort().find((p) => p.endsWith('.js')) ?? paths[0]
 }
 
-export function createProjectManager({ local, getRowboat }) {
-  const modes = new Map()
+// The disk store holds one project, the launcher's model directory, under this id.
+const DISK_ID = 'disk'
+
+// Rows without an update time, the disk project's, sort first.
+const updatedOf = (p) => p.updated ?? Infinity
+
+export function createProjectManager({ local, getRowboat, disk = null }) {
+  const modes = new Map(disk ? [[DISK_ID, 'disk']] : [])
   const rowboat = () => getRowboat?.() ?? null
-  const storeFor = (mode) => (mode === 'rowboat' && rowboat() ? rowboat() : local)
+  const storeFor = (mode) => {
+    if (mode === 'disk' && disk) return disk
+    return mode === 'rowboat' && rowboat() ? rowboat() : local
+  }
 
   const remember = (id, mode) => {
     modes.set(id, mode)
@@ -58,13 +67,14 @@ export function createProjectManager({ local, getRowboat }) {
 
   const listAll = async () => {
     const all = (await local.listProjects()).map((p) => ({ ...p, backend: 'local' }))
+    if (disk) for (const p of await disk.listProjects()) all.push({ ...p, backend: 'disk' })
     if (rowboat()) {
       for (const p of await rowboat().listProjects()) all.push({ ...p, backend: 'rowboat' })
     }
     for (const p of all) {
       if (!modes.has(p.id)) modes.set(p.id, p.mode)
     }
-    all.sort((a, b) => b.updated - a.updated)
+    all.sort((a, b) => (updatedOf(a) === updatedOf(b) ? 0 : updatedOf(b) > updatedOf(a) ? 1 : -1))
     return all
   }
 
@@ -118,6 +128,7 @@ export function createProjectManager({ local, getRowboat }) {
   const flipMode = async (id) => {
     const from = await ownerOf(id)
     const project = await from.readProject(id)
+    if (project.mode === 'disk') throw new Error('the disk project is the model directory; it cannot change mode')
     const toMode = project.mode === 'rowboat' ? 'local' : 'rowboat'
     const to = storeFor(toMode)
     if (to === from) throw new Error('rowboat unavailable')

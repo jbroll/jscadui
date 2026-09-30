@@ -185,6 +185,15 @@ export async function addToCacheWrapper(path, content) {
 }
 
 /**
+ * Drop one file from the cache.
+ * @param {string} path
+ */
+export async function removeFromCache(path) {
+  memoryFiles.delete(path.replace(/^\//, ''))
+  if (sw) await sw.cache.delete(new Request(path))
+}
+
+/**
  * Empty the file cache. The frame is sent whatever the cache holds, so a
  * project's files have to go before the next project's arrive.
  */

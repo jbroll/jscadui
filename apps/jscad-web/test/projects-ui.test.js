@@ -100,4 +100,15 @@ describe('mode toggle', () => {
     await vi.waitFor(() => expect(onFlip).toHaveBeenCalledWith(id, 'rowboat'))
     expect(manager.peekMode(id)).toBe('rowboat')
   })
+
+  it('stays disabled on the disk project', async () => {
+    document.body.innerHTML = '<div id="panel"></div>'
+    const disk = { listProjects: async () => [{ id: 'disk', name: 'main.js', entry: 'main.js', mode: 'disk' }], listVersions: async () => [] }
+    const manager = createProjectManager({ local: createLocalStorage(), disk, getRowboat: () => createLocalStorage() })
+    const panel = initProjects({ container: document.getElementById('panel'), manager, onSwitch: async () => {}, canUseRowboat: true })
+    await panel.select('disk')
+    const toggle = document.querySelector('.mode-toggle')
+    expect(toggle.textContent).toBe('disk')
+    expect(toggle.disabled).toBe(true)
+  })
 })

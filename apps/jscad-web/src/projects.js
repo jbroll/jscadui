@@ -60,8 +60,8 @@ export const initProjects = ({ container, manager, onSwitch, onDropOnProject, on
     }
     const mode = manager.peekMode ? manager.peekMode(selectedId) : 'local'
     modeBtn.textContent = mode
-    modeBtn.disabled = !canUseRowboat
-    modeBtn.title = canUseRowboat ? '' : 'Sign in to use rowboat mode'
+    modeBtn.disabled = !canUseRowboat || mode === 'disk'
+    modeBtn.title = mode === 'disk' ? 'The model directory stays on disk' : canUseRowboat ? '' : 'Sign in to use rowboat mode'
   }
 
   modeBtn.addEventListener('click', async () => {

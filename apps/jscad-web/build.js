@@ -189,7 +189,7 @@ const loader = {
   '.js': 'tsx',
   '.jsx': 'tsx',
 }
-await buildOne('.', outDir, 'main.js', watch, { format: 'esm', loader, plugins: [rawImportPlugin], define: { __FRAME_ORIGIN__: JSON.stringify(runOrigin), __RELAY_ORIGIN__: JSON.stringify(relayOrigin({ dev, appOrigin })) } })
+await buildOne('.', outDir, 'main.js', watch, { format: 'esm', loader, plugins: [rawImportPlugin], define: { __FRAME_ORIGIN__: JSON.stringify(runOrigin), __RELAY_ORIGIN__: JSON.stringify(relayOrigin({ dev, appOrigin })), __LOCAL_FS__: JSON.stringify(process.env.JSCAD_LOCAL_FS === '1') } })
 
 /******************************* COMPUTE FRAME (/frame) ***********************/
 // The only place model code runs. Bundle set mirrors the app's src_bundle

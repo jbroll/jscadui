@@ -146,6 +146,9 @@ export const init = (defaultCode, fn, _saveFn, _getFileFn) => {
 /** @returns {string} */
 export const getSource = () => view.state.doc.toString()
 
+/** @returns {string} the path of the file in the editor */
+export const getPath = () => currentFile
+
 /** 
  * @param {string} source 
  * @param {string} path 

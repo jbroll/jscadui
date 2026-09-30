@@ -39,6 +39,38 @@ export const replaceProjectFiles = async (fileSystem, files) => {
   }
 }
 
+/**
+ * The editor's file list: each file named by its leading-slash path.
+ * @param {Record<string,unknown>} files
+ */
+export const toEditorFiles = (files) =>
+  Object.entries(files).map(([path, content]) =>
+    Object.assign(new File([/** @type {BlobPart} */ (content)], path.split('/').pop()), { fullPath: `/${path}` }),
+  )
+
+/**
+ * Open a stored project: the cache, the editor and the caller's open-project
+ * state all hold it, then its entry builds.
+ * @param {{
+ *   manager: { readForSwitch: (id:string) => Promise<{ project: { entry: string }, files: Record<string,unknown> }> },
+ *   fileSystem: Parameters<typeof replaceProjectFiles>[0],
+ *   editor: { setFiles: (files:File[]) => void, setSource: (source:unknown, path:string) => void },
+ *   clearTempCache: () => void,
+ *   build: (entry:string) => Promise<unknown>,
+ *   onOpen: (id:string, entry:string) => void,
+ *   onError: (err:unknown) => void,
+ * }} deps
+ */
+export const createProjectSwitch = ({ manager, fileSystem, editor, clearTempCache, build, onOpen, onError }) => async (id) => {
+  const { project, files } = await manager.readForSwitch(id)
+  onOpen(id, project.entry)
+  clearTempCache()
+  await replaceProjectFiles(fileSystem, files)
+  editor.setFiles(toEditorFiles(files))
+  editor.setSource(files[project.entry] ?? '', project.entry)
+  build(project.entry).catch(onError)
+}
+
 export const collectProjectFiles = async (sw) => {
   if (!sw?.cache) return {}
   const files = {}

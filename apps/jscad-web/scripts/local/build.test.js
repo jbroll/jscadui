@@ -37,7 +37,7 @@ const setup = (marker, indexExists = true, stamp = 'abc123') => {
     readMarker: () => marker,
     writeMarker: (out, m) => { written.out = out; written.marker = m },
     spawnFn: (cmd, args, opts) => {
-      spawned.push({ cmd, args, env: { JSCAD_OUT_DIR: opts.env.JSCAD_OUT_DIR, FRAME_APP_ORIGIN: opts.env.FRAME_APP_ORIGIN, FRAME_RUN_ORIGIN: opts.env.FRAME_RUN_ORIGIN } })
+      spawned.push({ cmd, args, env: { JSCAD_OUT_DIR: opts.env.JSCAD_OUT_DIR, FRAME_APP_ORIGIN: opts.env.FRAME_APP_ORIGIN, FRAME_RUN_ORIGIN: opts.env.FRAME_RUN_ORIGIN, JSCAD_LOCAL_FS: opts.env.JSCAD_LOCAL_FS } })
       return 0
     },
   }
@@ -74,6 +74,7 @@ describe('ensureLocalBuild', () => {
       JSCAD_OUT_DIR: 'build_local',
       FRAME_APP_ORIGIN: 'http://localhost:7377',
       FRAME_RUN_ORIGIN: 'http://localhost:7378',
+      JSCAD_LOCAL_FS: '1',
     })
     expect(s.written.marker).toEqual({ ...origins, source: 'abc123' })
   })

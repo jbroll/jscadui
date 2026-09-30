@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { collectProjectFiles, isBinaryPath, projectPathOf, replaceProjectFiles } from '../src/projectFiles.js'
+import { describe, it, expect, vi } from 'vitest'
+import { collectProjectFiles, createProjectSwitch, isBinaryPath, projectPathOf, replaceProjectFiles, toEditorFiles } from '../src/projectFiles.js'
 
 // Mirrors what the real Cache API does: addToCache() calls cache.put(new
 // Request(path), ...) with a leading-slash, project-relative path, which
@@ -78,6 +78,39 @@ describe('replaceProjectFiles', () => {
     }
     await replaceProjectFiles(fs, { 'a.js': '', 'b.js': '' })
     expect(order).toEqual(['clear', 'add a.js', 'add b.js'])
+  })
+})
+
+describe('createProjectSwitch', () => {
+  it('fills the cache and the editor with the project, then builds its entry', async () => {
+    const cached = new Map([['stale.js', 'x']])
+    const fileSystem = {
+      clearProjectCache: async () => cached.clear(),
+      addToCacheWrapper: async (path, content) => { cached.set(path, content) },
+    }
+    const editor = { setFiles: vi.fn(), setSource: vi.fn() }
+    const files = { 'main.js': 'm', 'lib/part.js': 'p' }
+    const manager = { readForSwitch: async () => ({ project: { entry: 'main.js' }, files }) }
+    const opened = vi.fn()
+    const build = vi.fn(async () => ({}))
+    const clearTempCache = vi.fn()
+    await createProjectSwitch({ manager, fileSystem, editor, clearTempCache, build, onOpen: opened, onError: vi.fn() })('p1')
+    expect(opened).toHaveBeenCalledWith('p1', 'main.js')
+    expect(clearTempCache).toHaveBeenCalled()
+    expect(Object.fromEntries(cached)).toEqual(files)
+    expect(editor.setFiles.mock.calls[0][0].map((f) => f.fullPath)).toEqual(['/main.js', '/lib/part.js'])
+    expect(editor.setSource).toHaveBeenCalledWith('m', 'main.js')
+    expect(build).toHaveBeenCalledWith('main.js')
+  })
+})
+
+describe('toEditorFiles', () => {
+  it('names each file by its leading-slash path and keeps binary bytes', async () => {
+    const [text, bin] = toEditorFiles({ 'lib/part.js': 'p', 'part.stl': new Uint8Array([0, 1]) })
+    expect(text.name).toBe('part.js')
+    expect(text.fullPath).toBe('/lib/part.js')
+    expect(await text.text()).toBe('p')
+    expect([...new Uint8Array(await bin.arrayBuffer())]).toEqual([0, 1])
   })
 })
 
