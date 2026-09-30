@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# Regrades every result file copied into regrade-input/ (untracked; copy
+# files there before pushing) with no provider calls, writing each regraded
+# copy to regrade-output/ and never touching the input, then diffs each pair
+# with regrade-diff.js.
+#
+#   sci push jscadui/regrade
+#
+# Empty or remove regrade-input/ once you're done; sci push sends it as is.
+# Exits non-zero when a run's grading changed, a file failed to regrade, or
+# there was nothing in regrade-input/.
+set -uo pipefail
+
+WORKTREE="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$WORKTREE"
+
+node scripts/fetch-sources.js || exit 1
+npm install || exit 1
+npm run build -- --continue || echo "workspace build had failures (continuing)"
+
+export EVAL_REQUIRE_MEMORY_LIMIT=1
+if ! scripts/eval-sandbox-setup.sh --check; then
+  echo "ci/regrade: the eval sandbox is not set up on this host; see ci/README.md (Live model eval, host setup)" >&2
+  exit 1
+fi
+
+INPUT_DIR="$WORKTREE/regrade-input"
+OUTPUT_DIR="$WORKTREE/regrade-output"
+mkdir -p "$OUTPUT_DIR"
+
+shopt -s nullglob
+files=("$INPUT_DIR"/*.json)
+if [ ${#files[@]} -eq 0 ]; then
+  echo "ci/regrade: no result files in regrade-input/" >&2
+  exit 1
+fi
+
+status=0
+for original in "${files[@]}"; do
+  name="$(basename "$original")"
+  copy="$OUTPUT_DIR/$name"
+  cp "$original" "$copy"
+  if ! npm run eval -w @jscadui/agent-loop -- --regrade "$copy"; then
+    echo "ci/regrade: $name — regrade failed" >&2
+    status=1
+    continue
+  fi
+  if ! node packages/agent-loop/eval/regrade-diff.js "$original" "$copy"; then
+    status=1
+  fi
+done
+
+exit "$status"

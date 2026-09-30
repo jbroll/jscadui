@@ -217,6 +217,26 @@ pushing. Output lands in the job's `grader-validation/`; fetch a render with
 `sci artifact JOB grader-validation/<file>.renders/<case>-1/iso-front.png`
 or copy the directory with `scp`.
 
+## Regrade check (`ci/regrade`)
+
+Copy the result files you want regraded into `regrade-input/` at the repo
+root (untracked; `sci push` sends untracked files that are not gitignored, so
+this is the only way to hand it files), then:
+
+```sh
+sci push jscadui/regrade
+```
+
+runs `--regrade` (`packages/agent-loop/docs/user-manual.md`, Regrading) on a
+copy of each file in the crt sandbox (same check as `ci/eval`,
+`scripts/eval-sandbox-setup.sh --check`), writing each regraded copy to
+`regrade-output/` and leaving `regrade-input/` untouched, then diffs each
+pair with `eval/regrade-diff.js`, printing one line per run whose grading
+changed (old → new) and a final count. It exits non-zero when any run's
+grading changed, a file failed to regrade, or `regrade-input/` was empty.
+Empty or remove `regrade-input/` once you're done with it; `regrade-output/`
+is gitignored.
+
 ## gpu-poll
 
 The GPU host polls GitHub (outbound HTTPS only; no runner, no inbound ports).
