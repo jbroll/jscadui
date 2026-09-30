@@ -21,6 +21,7 @@ import { applyEdit, applyWrite, listFiles, readFile, resolveEntry } from '../src
 import { createReadFile, PROJECT_BASE, RUN_FILE } from '../src/projectUrl.js'
 import { withUnits } from '../src/units.js'
 import { GRADE_TIMEOUT_MS } from './grade.js'
+import { collectMesh, meshPage, meshPages } from './mesh.js'
 import { runProbe } from './probe.js'
 
 const API_INDEX = JSON.parse(readFileSync(new URL('../api/index.json', import.meta.url), 'utf8'))
@@ -175,9 +176,12 @@ export function createEvalBackend({ api = DEFAULT_API } = {}) {
   // A build that outlives a reset (gradeProject gave up on it) must not
   // overwrite the state of the run after it.
   let generation = 0
+  // The last build's mesh pages, made on the first `mesh` request after it.
+  let meshed = null
 
   const build = async (entry = resolveEntry(files)) => {
     const started = generation
+    meshed = null
     if (!entry) {
       current = { report: noEntryReport() }
       return current.report
@@ -239,6 +243,7 @@ export function createEvalBackend({ api = DEFAULT_API } = {}) {
   const seed = (seeded = {}) => {
     generation += 1
     current = null
+    meshed = null
     files = { ...seeded }
   }
 
@@ -295,9 +300,16 @@ export function createEvalBackend({ api = DEFAULT_API } = {}) {
     }
   }
 
+  // The last build's triangles, a page at a time (eval/mesh.js).
+  const mesh = async (index = 0) => {
+    if (!current?.geometry) return { pages: 0, bytes: 0 }
+    meshed ??= meshPages(current.geometry)
+    return meshPage(meshed, index)
+  }
+
   // Builds `{ files, entry }` (grade.js gradedModel) in a fresh state and
   // measures it, plus the fixture's `probe` when it has one.
-  const gradeProject = async (model, { timeoutMs = GRADE_TIMEOUT_MS, probe } = {}) => {
+  const gradeProject = async (model, { timeoutMs = GRADE_TIMEOUT_MS, probe, mesh: wantsMesh = false } = {}) => {
     const none = { measure: null, solid: null, params: [], ...(probe ? { probe: null } : {}) }
     seed(model?.files)
     if (!model?.entry) return none
@@ -318,8 +330,9 @@ export function createEvalBackend({ api = DEFAULT_API } = {}) {
     const measured = JSON.parse(await requestTool('measure', {}))
     const checked = JSON.parse(await requestTool('check', {}))
     const graded = { measure: measured.ok ? measured : null, solid: checked.ok ? checked : null, params: current.params }
-    return probe ? { ...graded, probe: await probed(probe, model, deadline, buildMs) } : graded
+    const withProbe = probe ? { ...graded, probe: await probed(probe, model, deadline, buildMs) } : graded
+    return wantsMesh ? { ...withProbe, mesh: await collectMesh(mesh) } : withProbe
   }
 
-  return { requestTool, reset, gradeProject, files: () => ({ ...files }), lastBuild: () => current?.report ?? null }
+  return { requestTool, reset, gradeProject, mesh, files: () => ({ ...files }), lastBuild: () => current?.report ?? null }
 }

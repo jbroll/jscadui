@@ -316,6 +316,26 @@ still answer its own tool calls, and can lie about the geometry of the grade
 it is being measured in, since measuring runs beside it; a fresh executor per
 grade stops it carrying anything over from the conversation or another run.
 
+A `complex` fixture's grade executor then answers `mesh` requests
+(`eval/mesh.js`): each part `main()` returned, with its colour (`[r, g, b]` in
+0 to 1, or null) and its triangles as base64 Float32 positions. The parts go
+out in order as pieces packed into pages: consecutive parts share a page, and
+a part that does not fit in what is left of one goes on over the next. A page
+holds at most 960 KiB of JSON, each piece charged 128 characters on top of its
+data, so every reply stays under the 1 MiB cap however many parts there are.
+A model over 24 MiB of triangles (about 700,000) gets no pages, only its size,
+counted before anything is allocated. Every page but the last is full to
+within one piece and every part has at least one triangle, so 24 MiB fits in
+127 pages whatever the part count; a 62-part caboose fits in one. The parent
+checks every page: a page count of at most 127 that never changes, parts in
+order, a part carried over to the next page keeping its colour, colours in
+range, whole triangles of finite numbers, and a running total under 24 MiB.
+Anything else, or an executor that ends mid-mesh, becomes the run's
+`renderError`. Model code shares that executor and can send a different mesh,
+as it can forge its grade; that only changes how its own model looks. In an
+executor the client asks for the pages itself after the grade; the backend's
+`gradeProject` option `mesh: true` collects them for an in-process grade.
+
 When model code ends the executor (`process.exit`, an out of memory kill, a
 tool call running past 110 s), `eval/sandboxed-backend.js` starts a fresh one
 holding the fixture's files and every write and edit so far (applied with the

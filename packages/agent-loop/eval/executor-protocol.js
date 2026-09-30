@@ -6,7 +6,7 @@
 import { toolError as toolErrorResult } from '../src/dispatchTool.js'
 import { GRADE_TIMEOUT_MS } from './grade.js'
 
-const METHODS = new Set(['reset', 'requestTool', 'gradeProject'])
+const METHODS = new Set(['reset', 'requestTool', 'gradeProject', 'mesh'])
 
 export const MAX_TOOL_RESULT_BYTES = 256 * 1024
 export const MAX_ERROR_CHARS = 4000
@@ -54,7 +54,7 @@ export const serveExecutor = (transport, createBackend) => {
   })
 }
 
-const isRecord = (value) => value !== null && typeof value === 'object' && !Array.isArray(value)
+export const isRecord = (value) => value !== null && typeof value === 'object' && !Array.isArray(value)
 
 // Plain JSON data (no BigInt, Map, NaN or cycles) of at most `maxBytes`, or undefined.
 const jsonData = (value, maxBytes) => {
@@ -95,11 +95,17 @@ const resetReply = (message) => {
   return isRecord(data) ? data : null
 }
 
-const REPLIES = { reset: resetReply, requestTool: toolReply, gradeProject: gradeReply }
+// A mesh page of plain JSON data, or null; eval/mesh.js checks its shape.
+const meshReply = (message) => {
+  const data = message.ok ? jsonData(message.value, MAX_GRADE_BYTES) : undefined
+  return isRecord(data) ? data : null
+}
 
-// The eval backend's interface (reset, requestTool, gradeProject), every method
-// async. reset resolves with a build report or null, requestTool always with a
-// string and gradeProject with a grade; a call rejects only with ExecutorExited. A grade gets `graceMs` past
+const REPLIES = { reset: resetReply, requestTool: toolReply, gradeProject: gradeReply, mesh: meshReply }
+
+// The eval backend's interface (reset, requestTool, gradeProject, mesh), every method
+// async: a build report or null, a string, a grade, a mesh page or null; a call rejects
+// only with ExecutorExited. A grade gets `graceMs` past
 // its own timeout: model code stuck in a synchronous loop never lets the
 // executor's timer fire, so the client kills it and grades nothing.
 export const createExecutorClient = (transport, { api, graceMs = 10_000 }) => {
@@ -178,6 +184,7 @@ export const createExecutorClient = (transport, { api, graceMs = 10_000 }) => {
     reset: (files, options = {}) => call('reset', [files, options]),
     requestTool: (name, input, { timeoutMs } = {}) => call('requestTool', [name, input], { timeoutMs }),
     gradeProject,
+    mesh: (index, { timeoutMs } = {}) => call('mesh', [index], { timeoutMs }),
     alive: () => !exited,
     close: () => kill('closed'),
   }

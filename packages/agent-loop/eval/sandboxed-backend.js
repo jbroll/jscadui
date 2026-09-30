@@ -8,10 +8,12 @@ import { memoryMessage, OUT_OF_MEMORY, RUN_TOOL_TIMEOUT_MS, runTimeoutError } fr
 import { applyEdit, applyWrite } from '../src/project.js'
 import { ExecutorExited, NO_GRADE, toolError } from './executor-protocol.js'
 import { GRADE_TIMEOUT_MS } from './grade.js'
+import { collectMesh } from './mesh.js'
 
 export const MAX_RESTARTS = 3
 export const CALL_TIMEOUT_MS = 110_000
 export const READY_TIMEOUT_MS = 60_000
+export const MESH_PAGE_TIMEOUT_MS = 30_000
 
 // The sandbox failed, not the model: the run is left out of the means like a provider error.
 export class InfrastructureError extends Error {
@@ -35,13 +37,25 @@ const whenReady = async (executor, readyTimeoutMs) => {
   }
 }
 
-// A death during the grade grades nothing: the model's code caused it.
-export const gradeInFreshExecutor = async (start, model, { timeoutMs = GRADE_TIMEOUT_MS, readyTimeoutMs = READY_TIMEOUT_MS, probe } = {}) => {
+const meshFrom = async (executor) => {
+  try {
+    return await collectMesh((index) => executor.mesh(index, { timeoutMs: MESH_PAGE_TIMEOUT_MS }))
+  } catch (error) {
+    if (error instanceof ExecutorExited) return { error: `the evaluator ended while sending the mesh (${error.reason})` }
+    throw error
+  }
+}
+
+// A death during the grade grades nothing: the model's code caused it. With
+// `mesh`, the same executor then sends the triangles of a model that built.
+export const gradeInFreshExecutor = async (start, model, { timeoutMs = GRADE_TIMEOUT_MS, readyTimeoutMs = READY_TIMEOUT_MS, probe, mesh = false } = {}) => {
   if (!model) return NO_GRADE()
   const executor = start()
   try {
     await whenReady(executor, readyTimeoutMs)
-    return await executor.gradeProject(model, probe ? { timeoutMs, probe } : { timeoutMs })
+    const graded = await executor.gradeProject(model, probe ? { timeoutMs, probe } : { timeoutMs })
+    if (!mesh || !graded.measure) return graded
+    return { ...graded, mesh: await meshFrom(executor) }
   } catch (error) {
     if (error instanceof ExecutorExited) return NO_GRADE()
     throw error

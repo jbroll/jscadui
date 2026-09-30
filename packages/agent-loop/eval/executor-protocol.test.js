@@ -270,3 +270,15 @@ describe('forged executor replies', () => {
   })
 })
 
+describe('the mesh request', () => {
+  it('passes a mesh page through and answers a reply that is not a page with null', async () => {
+    const { client, server } = transportPair()
+    let reply = { pages: 1, bytes: 36, pieces: [{ part: 0, color: null, data: 'AAAA' }] }
+    serveExecutor(server, () => fakeBackend({ mesh: async () => reply }))
+    const executor = createExecutorClient(client, { api: 'fluent' })
+    expect(await executor.mesh(0)).toEqual(reply)
+    reply = 'not a page'
+    expect(await executor.mesh(0)).toBeNull()
+  })
+})
+
