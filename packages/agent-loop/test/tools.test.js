@@ -46,6 +46,10 @@ describe('agent tools', () => {
     expect(check.description).toMatch(/Pass a bed only when the user names a printer/)
   })
 
+  it('says measure and check sizes are millimetres', () => {
+    for (const name of ['measure', 'check']) expect(TOOLS.find((t) => t.name === name).description).toMatch(/\bmm\b/)
+  })
+
   it('says export gives the size, not the file', () => {
     const exportTool = TOOLS.find((t) => t.name === 'export')
     expect(exportTool.description).toMatch(/gives its size, not the file/)

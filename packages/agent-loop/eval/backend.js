@@ -13,6 +13,7 @@ import { docsTool } from '../src/docs.js'
 import { withErrorHint } from '../src/hints.js'
 import { createWarningCollector, withOptionChecks, wrapFluentMethods } from '../src/optionChecks.js'
 import { checksClean, withSaveState } from '../src/saveState.js'
+import { withUnits } from '../src/units.js'
 import { GRADE_TIMEOUT_MS, PROJECT_ENTRY, projectEntry } from './grade.js'
 import { runProbe } from './probe.js'
 
@@ -186,10 +187,10 @@ export function createEvalBackend({ api = DEFAULT_API } = {}) {
         if (result) evalsSinceSave += 1
         return JSON.stringify(saveState(withWarnings({ ok: true, params, entities: geometry.length })))
       }
-      if (name === 'measure') return geometry ? JSON.stringify(saveState({ ok: true, ...measure(geometry, args) })) : noGeometry()
+      if (name === 'measure') return geometry ? JSON.stringify(saveState(withUnits({ ok: true, ...measure(geometry, args) }))) : noGeometry()
       if (name === 'check') {
         if (!geometry) return noGeometry()
-        const checked = { ok: true, ...check(geometry, args) }
+        const checked = withUnits({ ok: true, ...check(geometry, args) })
         return JSON.stringify(saveState(checked, checksClean(checked)))
       }
       if (name === 'params') return JSON.stringify({ ok: true, params })

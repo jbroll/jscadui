@@ -1,4 +1,4 @@
-import { checksClean, withSaveState } from '@jscadui/agent-loop'
+import { checksClean, withSaveState, withUnits } from '@jscadui/agent-loop'
 import { createEvaluate } from './aiEvaluate.js'
 import { createSaveTracker } from './aiSaveTracker.js'
 
@@ -41,10 +41,10 @@ export const createSavedDeps = ({ workerApi, handleEntities, editor, recordEdit,
     return withSaved(result)
   }
 
-  const measure = async (options) => withSaved(await workerApi.jscadMeasure({ options }))
+  const measure = async (options) => withSaved(withUnits(await workerApi.jscadMeasure({ options })))
 
   const check = async (input) => {
-    const result = await workerApi.jscadCheck({ bed: input?.bed, options: input ?? {} })
+    const result = withUnits(await workerApi.jscadCheck({ bed: input?.bed, options: input ?? {} }))
     return withSaved(result, checksClean(result))
   }
 

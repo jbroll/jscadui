@@ -197,6 +197,13 @@ module.exports = { main: () => { load('fs'); return [] } }`)
     expect(await createEvalBackend().gradeProject(hang, { timeoutMs: 20 })).toEqual({ measure: null, solid: null, params: [] })
   })
 
+  it('labels measure and check sizes as millimetres', async () => {
+    const backend = createEvalBackend()
+    await backend.requestTool('eval', { source: CUBE })
+    expect(JSON.parse(await backend.requestTool('measure', {})).units).toBe('mm')
+    expect(JSON.parse(await backend.requestTool('check', {})).units).toBe('mm')
+  })
+
   it('tells the model a scratch run leaves the current model unsaved', async () => {
     const backend = createEvalBackend()
     expect(JSON.parse(await backend.requestTool('eval', { source: 'console.log(1)' }))).not.toHaveProperty('notSaved')

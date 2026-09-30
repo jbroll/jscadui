@@ -778,7 +778,8 @@ files, or a switch to another project. Before the agent's first eval they
 carry nothing, since the open project is then its own saved model. The
 notice counts the model evals since the last successful `writeModel`, and a
 clean `check` (`checksClean`) says to save now, as in the eval harness
-(`packages/agent-loop/docs/user-manual.md`, "Tools in the eval").
+(`packages/agent-loop/docs/user-manual.md`, "Tools in the eval"). `measure`
+and `check` results carry `units: "mm"` (`withUnits`).
 
 An `eval` of a script with no `main` is a scratch run: `createEvaluate` sets
 `allowScratch` on its `jscadScript`, and the frame answers the run's console

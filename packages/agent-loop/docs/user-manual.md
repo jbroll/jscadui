@@ -242,6 +242,10 @@ of a script with no `main()` is a scratch run: it answers
 and geometry unchanged, rather than failing and dropping the console output
 (`writeModel` still requires a runnable `main()`).
 
+`measure` and `check` results carry `units: "mm"` (`withUnits`,
+`src/units.js`; the app's `aiDeps.js` adds it the same way), and both tool
+descriptions say their sizes are millimetres.
+
 `check` takes a `bed` only when the user names a printer: without one it
 reports watertight, manifold, inside out, self-intersecting and size, with no
 `fitsBed`. `measure` gives a negative-volume solid `insideOut: true` and a

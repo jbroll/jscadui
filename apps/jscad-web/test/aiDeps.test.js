@@ -95,6 +95,12 @@ describe('createSavedDeps: saved across a multi-file project', () => {
     expect((await d.check({ bed: [10, 10, 10] })).notSaved).toBe('not saved (1 eval since the last save); call writeModel to keep it')
   })
 
+  it('labels measure and check sizes as millimetres, as the eval harness does', async () => {
+    const d = deps()
+    expect((await d.measure({})).units).toBe('mm')
+    expect((await d.check({})).units).toBe('mm')
+  })
+
   it('says nothing about saving before the agent evaluates anything, as the open project is its own saved model', async () => {
     const d = deps({ project: fakeProject({ 'main.js': MAIN_V1 }, 'main.js') })
     expect(await d.measure({})).not.toHaveProperty('notSaved')

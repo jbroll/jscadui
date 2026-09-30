@@ -29,7 +29,7 @@ export const buildTools = (api = DEFAULT_API) => [
   },
   {
     name: 'measure',
-    description: 'Measure the current model geometry.',
+    description: 'Measure the current model geometry. Sizes, positions and gaps are in mm, volume in mm³, area in mm².',
     inputSchema: {
       type: 'object',
       properties: {
@@ -52,7 +52,7 @@ export const buildTools = (api = DEFAULT_API) => [
   {
     name: 'check',
     description:
-      'Check the current model: watertight, manifold, inside out, self-intersecting, size. With a bed, also whether it fits. Pass a bed only when the user names a printer.',
+      'Check the current model: watertight, manifold, inside out, self-intersecting, size in mm. With a bed, also whether it fits. Pass a bed only when the user names a printer.',
     inputSchema: {
       type: 'object',
       properties: {

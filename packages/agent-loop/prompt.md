@@ -3,6 +3,8 @@
 You write JSCAD models as JavaScript. The entry file defaults to `main.js`;
 sibling files resolve inside the project.
 
+Model in millimetres; 1 inch = 25.4 mm.
+
 ## Imports
 
 The runtime serves these packages. Import the package root only: a path
