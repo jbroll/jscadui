@@ -153,6 +153,25 @@ Each executor holds up to 2G. `ci/eval` passes the lane count (models × APIs)
 as `EVAL_PROCESSES`, and each `run-eval` lowers its `EVAL_CONCURRENCY` so that
 lanes × concurrency × 2G fits in three quarters of the host's memory.
 
+## Describer
+
+The complex eval describes renders with Moondream 3.1 9B A2B
+(`moondream/moondream3.1-9B-A2B`, the 10.5 GB fp8 build) through Photon,
+`moondream==2.6.1` and `kestrel==0.9.1` pinned in a venv. It needs the whole
+12 GB card (peak 11.7 GB). Once, as a user who can write `/data`:
+
+```sh
+scripts/describer-setup.sh
+```
+
+makes `DESCRIBER_HOME` (default `/data/moondream3`: `venv/`, `hf/`), installs
+the pinned packages and fetches the model and its tokenizer
+(`moondream/starmie-v1`). The CI job user must be able to read it.
+`scripts/describer-setup.sh --check` repeats the check without changing
+anything and prints `describer: ready` or what is missing: the venv, a pin,
+CUDA in torch, the weights, `nvidia-smi`. If pip picks a torch without CUDA,
+install the CUDA build into the venv by hand.
+
 ## Grader validation (`ci/grader-validate`)
 
 `sci push jscadui/grader-validate` runs `npm run grader-validate` on the CI

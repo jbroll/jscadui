@@ -82,3 +82,6 @@ cases the eval backend and the app's `run` and build report must answer alike, a
 examples.
 `eval/render.test.js` draws in Playwright's bundled chromium and skips when
 it is not installed (`npx playwright install chromium` in `apps/jscad-web`).
+`eval/describer.test.js` checks `describe.py`'s connection guard with
+`python3` and skips that check when there is none; it needs no kestrel, GPU or
+weights.

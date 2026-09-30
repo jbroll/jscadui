@@ -53,6 +53,10 @@ typings/
 # Optional eslint cache
 .eslintcache
 
+# Python bytecode cache (packages/agent-loop/eval/describer)
+__pycache__/
+*.pyc
+
 # Microbundle cache
 .rpt2_cache/
 .rts2_cache_cjs/

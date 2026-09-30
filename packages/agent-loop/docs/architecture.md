@@ -335,6 +335,38 @@ hemisphere light and a key light above-left of the camera; each part has its
 own colour (an unset one is neutral grey `#b0b0b0`), flat shading, and dark
 lines at 35% opacity on edges where faces meet at more than 30°.
 
+### The describer
+
+`eval/describer/describe.py` runs Moondream 3.1 9B A2B (the 10.5 GB fp8
+build) through Photon in the venv from `scripts/describer-setup.sh`. It loads
+the model once, then reads one JSON request per line on stdin and writes one
+JSON reply per line on stdout; everything a library prints goes to stderr, so
+stdout carries only the protocol. It asks per view with reasoning off,
+temperature 0 and at most 300 output tokens.
+
+A request is `{ id, image, prompt }`, `image` an absolute PNG path. The first
+line out is `{ ready: true, model, kestrel, loadMs }` once the model has
+loaded; each request gets `{ id, text, ms, inputTokens, outputTokens }` or
+`{ id, error }`, and one image that fails does not stop the rest. After stdin
+closes the last line is `{ done: true, blockedConnections }`. A start that
+cannot go on (the wrong kestrel, a model that does not load) writes
+`{ fatal, blockedConnections }` and exits 2.
+
+Kestrel 0.9.1 does not fit the CI host's 12 GB card as shipped, so
+`describe.py` patches it at runtime, as the trial did: no bf16 placeholders
+for the MoE experts before the fp8 weights replace them, per-layer
+up-projection weights in place of the padded slab, `decode_path="native"`,
+`kv_cache_pages=4096`, `max_batch_size=1`, and the prefix cache off. The
+patches reach into kestrel's internals, so it refuses to start on any other
+kestrel version, naming the pin.
+
+Kestrel posts telemetry (instance id, model, hostname, token counts, GPU) to
+`api.moondream.ai` at start, every 60 s and at shutdown, with no setting to
+turn it off. `describe.py` replaces the reporter's start and flush with
+no-ops, skips the Hugging Face config probe, runs with `HF_HUB_OFFLINE=1`, and
+refuses every socket connection to an address other than loopback
+(`connect` and `connect_ex`). It reports the refused connections when it ends.
+
 ## Sandbox
 
 The conversation loop and the provider calls run in the `run-eval` process,
