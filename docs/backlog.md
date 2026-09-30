@@ -244,6 +244,16 @@ model with `display-check.js --engine jscad`.
   can also land between `replaceProjectFiles`' clear and refill. Capture the
   project id at turn start and refuse `write` and `edit` with an error result
   when it has changed. (`src/aiChat.js`, `src/aiDeps.js`)
+- A `delete` tool for the chat (agent-loop, jscad-web). `write` with empty
+  content leaves an empty file, not a deleted one. Add `delete` to both tool
+  lists and the eval's backend when a fixture needs a file removed.
+- CI eval run for the project environment (agent-loop). The file tools
+  (`write`, `edit`, `run`) have passed the unit and e2e suites but no live
+  run: run the 18-fixture suite on CI and compare with the regraded baseline.
+- Chat writes whose storage write fails (jscad-web). `storeFile` only warns,
+  so a failed rowboat write leaves the file in the cache, and the next load's
+  rowboat merge can put the older stored copy back. Retry, or report the
+  failure in the build report.
 - In-app API help page for users (jscad-web). The `docs` tool answers only
   the chat's model; a page or panel over the same `api/index.json` and
   `docsTool` would let a user look up a function, its options and an example
