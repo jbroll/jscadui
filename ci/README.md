@@ -20,9 +20,10 @@ reach simple-ci. Local terminal sessions verify with `sci push jscadui/test`
 against live models on the CI host, one process per model in `ci/eval.conf`'s
 `EVAL_MODELS` × API style in `EVAL_APIS` (`fluent modeling`) pair. Every pair
 is its own lane, all running concurrently, so at most (models × APIs) ×
-`EVAL_CONCURRENCY` conversations run at once (16 with the shipped conf: 2
-models × 2 APIs × 4 — the host has 43G available and each sandbox is capped
-at 2G). Each model and style writes its own result file, named with both. The
+`EVAL_CONCURRENCY` conversations run at once (24 with the shipped conf: 2
+models × 2 APIs × 6. Each sandbox is capped at 2G but typically uses far
+less; the host has 43G available). A job must finish inside simple-ci's
+60-minute `CI_JOB_TIMEOUT`. Each model and style writes its own result file, named with both. The
 default suite, the ungrouped fixtures plus the `harder` group, is 25
 fixtures under fluent and 24 under modeling (`fluent-chain` is fluent-only),
 so at 3 runs and 2 models a job is (25 + 24) × 3 × 2 = 294 conversations;
