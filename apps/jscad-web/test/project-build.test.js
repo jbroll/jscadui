@@ -24,6 +24,58 @@ describe('projectEntry', () => {
     expect(projectEntry({ 'gear.js': '' }, 'missing.js')).toBe(null)
     expect(projectEntry({ 'gear.js': '' })).toBe(null)
   })
+
+  const MODEL = 'module.exports = { main }'
+
+  it('runs the open file when it is a model of its own beside the entry', () => {
+    const files = { 'main.js': MODEL, 'bracket/index.js': MODEL }
+    expect(projectEntry(files, 'main.js', 'bracket/index.js')).toBe('bracket/index.js')
+    expect(projectEntry(files, 'main.js', '/bracket/index.js')).toBe('bracket/index.js')
+    expect(projectEntry(files, 'main.js')).toBe('main.js')
+  })
+
+  it('opens a project on the model its declared entry names', () => {
+    const files = { 'main.js': MODEL, 'model2.js': MODEL }
+    expect(projectEntry(files, 'model2.js', 'model2.js')).toBe('model2.js')
+  })
+
+  it('recognises each way a file exports main', () => {
+    const exporting = [
+      'module.exports = { size, main }',
+      'module.exports = main',
+      'module.exports.main = () => 1',
+      'exports.main = () => 1',
+      'export function main () {}',
+      'export async function main () {}',
+      'export const main = () => 1',
+      'const main = () => 1\nexport { main }',
+    ]
+    for (const text of exporting) expect(projectEntry({ 'main.js': MODEL, 'b.js': text }, 'main.js', 'b.js'), text).toBe('b.js')
+  })
+
+  it('runs the entry when the open file exports no main', () => {
+    const files = { 'main.js': MODEL, 'lib.js': 'module.exports = { bolt }' }
+    expect(projectEntry(files, 'main.js', 'lib.js')).toBe('main.js')
+  })
+
+  it('runs the entry when the open file is one it requires or imports, directly or not', () => {
+    const files = {
+      'main.js': "const { part } = require('./parts')\nimport x from \"./lib/x.js\"\nmodule.exports = { main }",
+      'parts/index.js': "module.exports = { part: require('../shared/p'), main }",
+      'shared/p.js': MODEL,
+      'lib/x.js': 'export const main = () => 1',
+    }
+    for (const open of ['parts/index.js', 'shared/p.js', 'lib/x.js']) expect(projectEntry(files, 'main.js', open), open).toBe('main.js')
+  })
+
+  it('ignores an open file that is not in the project', () => {
+    expect(projectEntry({ 'main.js': MODEL }, 'main.js', 'https://example.com/a.js')).toBe('main.js')
+    expect(projectEntry({ 'main.js': MODEL }, 'main.js', '../a.js')).toBe('main.js')
+  })
+
+  it('runs an open model in a project with no entry', () => {
+    expect(projectEntry({ 'gear.js': MODEL }, undefined, 'gear.js')).toBe('gear.js')
+  })
 })
 
 describe('reportError', () => {

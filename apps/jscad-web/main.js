@@ -359,9 +359,9 @@ let rowboatStore = null
 const projectManager = createProjectManager({ local: localStore, getRowboat: () => rowboatStore })
 const storageSession = createSession({ local: localStore, getRowboat: () => rowboatStore, getBackend: (projectId) => projectManager.peekMode(projectId) })
 
-// The project keeps the entry it has: editing a helper does not make it the entry.
-const recordEdit = (script, path) =>
-  storageSession.writeThrough(currentProjectId, path, script, { message: 'edit' }).catch((err) => console.warn('storage write failed:', err))
+// Editing a helper leaves the entry as it is; `entry` names a model the user ran on its own.
+const recordEdit = (script, path, { entry } = {}) =>
+  storageSession.writeThrough(currentProjectId, path, script, { message: 'edit', ...(entry ? { entry } : {}) }).catch((err) => console.warn('storage write failed:', err))
 
 let currentProjectId = 'default'
 // The entry of whatever was opened last: a stored project or a dropped folder.
@@ -380,7 +380,7 @@ const switchProject = async (id) => {
   await replaceProjectFiles(fileSystem, files)
   editor.setFiles(toEditorFiles(files))
   editor.setSource(files[project.entry] ?? '', project.entry)
-  buildProject().catch(setError)
+  buildProject(project.entry).catch(setError)
 }
 
 // Lazy rowboat backend: built once a session exists, so anonymous users stay
@@ -702,11 +702,14 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
 /**
  * Build the open project: its entry (see projectEntry) run through the load
  * path above. The editor, a project switch and the chat's writes all build
- * this way, so each leaves the same report.
+ * this way, so each leaves the same report. The editor and a switch name the
+ * file they open, which runs when it is a model of its own; the chat's builds
+ * name none.
+ * @param {string} [open]
  */
-const buildProject = async () => {
+const buildProject = async (open) => {
   const files = await collectProjectFiles(fileSystem.getSwHandler())
-  const entry = projectEntry(files, currentEntry)
+  const entry = projectEntry(files, currentEntry, open)
   if (!entry) {
     projectBuilds.recordNoEntry()
     const error = Object.assign(new Error(NO_ENTRY), { name: 'NoEntryError' })
@@ -788,8 +791,12 @@ editor.init(
     if (cachePath) {
       await fileSystem.addToCacheWrapper(cachePath, script)
       await workerApi.jscadClearFileCache({ files: [cachePath], root: PROJECT_BASE })
-      await recordEdit(script, cachePath)
-      buildProject().catch(setError)
+      const open = projectPathOf(path)
+      // A model of its own that the user runs becomes the project's entry, so the project reopens on it.
+      const standalone = projectEntry(await collectProjectFiles(fileSystem.getSwHandler()), currentEntry, open) === open
+      if (standalone) currentEntry = cachePath
+      await recordEdit(script, cachePath, standalone ? { entry: cachePath } : {})
+      buildProject(open).catch(setError)
     } else {
       // With no project opened the path is an example's URL or the editor's placeholder.
       const fullUrl = path.startsWith('http') ? path : new URL(path, appBase).toString()

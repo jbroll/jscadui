@@ -779,8 +779,14 @@ load. `projectEntry` is agent-loop's `resolveEntry` (package.json `main`, else
 `index.js`, else `main.js`), falling back to the entry the project declares
 when none of those exist: a dropped folder's `fileToRun` or a stored
 project's `entry`, both named by the drop rules (`index.ts`, `<folder>.js`).
-The editor's run of a project file, a project switch and the chat all build
-through it, so they agree on the entry. A project with none reports
+The editor's run and a project switch also name the file they open (the
+edited file, or the stored `entry`). That file runs instead when it is a
+model of its own: it exports a `main`, and the entry neither requires nor
+imports it, directly or through other files. A stored project can hold such
+models beside `main.js`: a folder dropped on its row, or a second model the
+chat wrote. An editor run of one records it as the project's `entry`, so the
+project reopens on it. The chat's builds name no file and always run the
+Node entry, the one the prompt teaches. A project with no entry reports
 `NoEntryError`. Files the chat writes into an empty cache are the open
 project from then on.
 

@@ -3,19 +3,75 @@ import { PROJECT_BASE } from '../src_frame/fileMap.js'
 
 const MAX_MESSAGE = 4000
 
+const textFile = (files, path) => {
+  if (!path) return null
+  try {
+    const file = projectPath(path)
+    return typeof files[file] === 'string' ? file : null
+  } catch {
+    return null
+  }
+}
+
+const EXPORTS_MAIN = [
+  /\bmodule\.exports\s*=\s*\{[^}]*\bmain\b/,
+  /\bmodule\.exports\s*=\s*main\b/,
+  /\b(?:module\.)?exports\.main\s*=/,
+  /\bexport\s+(?:async\s+)?function\s*\*?\s*main\b/,
+  /\bexport\s+(?:const|let|var)\s+main\b/,
+  /\bexport\s*\{[^}]*\bmain\b[^}]*\}/,
+]
+
+const exportsMain = (text) => EXPORTS_MAIN.some((pattern) => pattern.test(text))
+
+const RELATIVE_SPEC = /(?:\brequire\s*\(\s*|\bfrom\s*|\bimport\s*)(['"])(\.{1,2}\/[^'"]*)\1/g
+
+const joinPath = (dir, spec) => {
+  const parts = []
+  for (const part of [...dir.split('/'), ...spec.split('/')]) {
+    if (part === '' || part === '.') continue
+    if (part === '..') parts.pop()
+    else parts.push(part)
+  }
+  return parts.join('/')
+}
+
+// The project files `entry` requires or imports, directly or through others.
+const requireClosure = (files, entry) => {
+  const seen = new Set([entry])
+  const queue = [entry]
+  while (queue.length > 0) {
+    const file = queue.shift()
+    const text = files[file]
+    if (typeof text !== 'string') continue
+    const dir = file.includes('/') ? file.slice(0, file.lastIndexOf('/')) : ''
+    for (const [, , spec] of text.matchAll(RELATIVE_SPEC)) {
+      const base = joinPath(dir, spec)
+      const found = [base, `${base}.js`, `${base}/index.js`].find((path) => typeof files[path] === 'string')
+      if (found && !seen.has(found)) {
+        seen.add(found)
+        queue.push(found)
+      }
+    }
+  }
+  return seen
+}
+
 /**
- * The file a project build runs: Node's rule (package.json main, index.js,
- * main.js), else the entry the project declares, which a dropped folder names
- * by fs-provider's own rule (index.ts, <folder>.js).
+ * The file a project build runs. Node's rule (package.json main, index.js,
+ * main.js) picks the entry, else the entry the project declares, which a
+ * dropped folder names by fs-provider's own rule (index.ts, <folder>.js).
+ * `open`, the file the user runs, wins when it is a model of its own: it
+ * exports a main and the entry neither requires nor imports it.
  * @param {Record<string, unknown>} files
  * @param {string} [declared]
+ * @param {string} [open]
  */
-export const projectEntry = (files, declared) => {
-  const entry = resolveEntry(files)
-  if (entry) return entry
-  if (!declared) return null
-  const path = projectPath(declared)
-  return typeof files[path] === 'string' ? path : null
+export const projectEntry = (files, declared, open) => {
+  const entry = resolveEntry(files) ?? textFile(files, declared)
+  const standalone = textFile(files, open)
+  if (standalone && standalone !== entry && exportsMain(files[standalone]) && !(entry && requireClosure(files, entry).has(standalone))) return standalone
+  return entry
 }
 
 const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')

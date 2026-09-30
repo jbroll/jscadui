@@ -161,6 +161,13 @@ version history (restore appends a new row) and a local/rowboat mode toggle
 subfolder; dropping onto the page creates a project. Drawer tabs stack
 vertically so the editor, project, and AI panels stay reachable together.
 
+Which file runs: the project's entry is `package.json` `main`, else
+`index.js`, else `main.js`, else the entry the project declares. Running a
+file from the editor (Shift+Enter) runs that file instead when it exports its
+own `main` and the entry does not require it, such as `bracket/index.js`
+dropped beside `main.js`; the project then reopens on it. Editing a helper the
+entry requires runs the entry. The chat's builds always run the entry.
+
 ## Deployment
 
 To start the production server run:
