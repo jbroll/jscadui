@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { builtinModules, createRequire } from 'node:module'
 import { NO_ENTRY_NOTE, notGeometryError } from '../src/buildReport.js'
-import { CDN_BASE, createEvalBackend, createReadFile, EXPORT_REG, IMPORT_REG } from './backend.js'
+import { CDN_BASE, createEvalBackend, createReadFile, EXPORT_REG, IMPORT_REG, variantValue } from './backend.js'
 import { expectCase, WARNING_CASES } from '../test/warningCases.js'
 import { everyFont, FONT_NAMES, UNKNOWN_FONT } from './fontCases.js'
 
@@ -505,6 +505,48 @@ describe('eval backend grading', () => {
     expect(graded.probe.bodies).toHaveLength(1)
     expect(await createEvalBackend().gradeProject(box)).not.toHaveProperty('probe')
     expect(await createEvalBackend().gradeProject(null, { probe: { bodies: {} } })).toEqual({ measure: null, solid: null, params: [], probe: null })
+  })
+
+  it('gradeProject rebuilds with each number parameter changed when the probe asks for paramVariants', async () => {
+    const source = `const { cuboid } = require('@jscad/modeling').primitives
+const main = (params) => {
+  params.box = { _type: 'Box', width: { type: 'slider', default: 40, min: 10, max: 80 }, depth: { default: 20 } }
+  params.unused = { type: 'slider', default: 5, min: 1, max: 10 }
+  params.label = { default: 'A' }
+  return cuboid({ size: [params.box.width, params.box.depth, 5] })
+}
+module.exports = { main }`
+    const { probe } = await createEvalBackend().gradeProject({ files: { 'main.js': source }, entry: 'main.js' }, { probe: { paramVariants: true } })
+    expect(probe.paramVariants).toEqual([
+      { name: 'unused', label: 'unused', from: 5, to: 6, dimensions: [40, 20, 5], volume: expect.closeTo(4000, 6), changed: false },
+      { name: 'box.width', label: 'width', from: 40, to: 48, dimensions: [48, 20, 5], volume: expect.closeTo(4800, 6), changed: true },
+      { name: 'box.depth', label: 'depth', from: 20, to: 24, dimensions: [40, 24, 5], volume: expect.closeTo(4800, 6), changed: true },
+    ])
+  })
+
+  it('gradeProject leaves out the parameter rebuilds that would not fit in its time limit', async () => {
+    const slow = `const { cuboid } = require('@jscad/modeling').primitives
+const main = (params) => {
+  params.width = { type: 'slider', default: 40, min: 10, max: 80 }
+  const until = Date.now() + 40
+  while (Date.now() < until);
+  return cuboid({ size: [params.width, 20, 5] })
+}
+module.exports = { main }`
+    const graded = await createEvalBackend().gradeProject({ files: { 'main.js': slow }, entry: 'main.js' }, { timeoutMs: 100, probe: { paramVariants: true } })
+    expect(graded.measure.dimensions).toEqual([40, 20, 5])
+    expect(graded.probe.paramVariants).toEqual([])
+  })
+
+  it.each([
+    [{ initial: 10, min: 0, max: 100 }, 12],
+    [{ initial: 10, min: 0, max: 11 }, 8],
+    [{ initial: 10, min: 9, max: 11 }, 11],
+    [{ initial: 0 }, 1],
+    [{ initial: 3, type: 'int' }, 4],
+    [{ initial: 5, min: 5, max: 5 }, null],
+  ])('variantValue(%o) is %s', (param, value) => {
+    expect(variantValue(param)).toBe(value)
   })
 
   it('gradeProject gives up on a model that never finishes', async () => {

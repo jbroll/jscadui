@@ -23,9 +23,10 @@ is its own lane, all running concurrently, so at most (models × APIs) ×
 `EVAL_CONCURRENCY` conversations run at once (16 with the shipped conf: 2
 models × 2 APIs × 4 — the host has 43G available and each sandbox is capped
 at 2G). Each model and style writes its own result file, named with both. The
-default suite is 18 fixtures under fluent and 17 under modeling
-(`fluent-chain` is fluent-only), so at 3 runs and 2 models a job is
-(18 + 17) × 3 × 2 = 210 conversations; running every model × API pair
+default suite, the ungrouped fixtures plus the `harder` group, is 25
+fixtures under fluent and 24 under modeling (`fluent-chain` is fluent-only),
+so at 3 runs and 2 models a job is (25 + 24) × 3 × 2 = 294 conversations;
+running every model × API pair
 concurrently instead of one model's styles after another roughly halves the
 wall time per model. Edit the conf file in the working tree before pushing —
 `sci push` carries no arguments of its own, so the conf file is the only

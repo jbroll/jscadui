@@ -46,6 +46,16 @@ describe('runProbe', () => {
     expect(runProbe([cup], { sections: [{ axis: 'z', at: [0.5] }] }).sections[0].groups).toBeUndefined()
   })
 
+  it("counts each body's polygons, and the volume each pair of bodies with overlapping boxes shares", () => {
+    const [a, b, far] = [p.cube({ size: 10 }), p.cube({ size: 10, center: [8, 0, 0] }), p.cube({ size: 10, center: [40, 0, 0] })]
+    const { bodies, overlaps } = runProbe([a, b, far], { bodies: { overlaps: true } })
+    expect(bodies.map((body) => body.polygonCount)).toEqual([6, 6, 6])
+    expect(overlaps).toEqual([{ a: 0, b: 1, volume: expect.closeTo(200, 6) }])
+    const touching = runProbe([a, p.cube({ size: 10, center: [10, 0, 0] })], { bodies: { overlaps: true } })
+    expect(touching.overlaps).toEqual([])
+    expect(runProbe([a], { bodies: {} })).not.toHaveProperty('overlaps')
+  })
+
   it('reads geometry an array nests', () => {
     expect(runProbe([[cup]], { bodies: {} }).bodies).toHaveLength(1)
     expect(runProbe([], { sections: [{ axis: 'z', at: [0.5] }], bodies: {} })).toEqual({ sections: [], bodies: [] })

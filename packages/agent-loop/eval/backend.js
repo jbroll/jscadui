@@ -133,8 +133,9 @@ const locateSyntaxError = (files, entry, error) => {
 }
 
 // Runs `entry` over `files` and, when it exports one, its main(). Never throws.
-// `wrapRequire` wraps the require the entry's own code calls.
-const runModel = async (files, entry, api, { wrapRequire } = {}) => {
+// `wrapRequire` wraps the require the entry's own code calls; `values` sets
+// parameters by name, as the user's form does.
+const runModel = async (files, entry, api, { wrapRequire, values = {} } = {}) => {
   // One jscad-text serves every run, so an init() a snippet made must not carry into a build.
   jscadText.reset()
   warnings.reset()
@@ -156,7 +157,7 @@ const runModel = async (files, entry, api, { wrapRequire } = {}) => {
     }
     const main = exports?.main ?? (typeof exports === 'function' ? exports : undefined)
     if (typeof main !== 'function') return settle({ exports, hasMain: false })
-    const state = createProxyState({}, new Set(), { mode: 'hierarchical' })
+    const state = createProxyState(values, new Set(Object.keys(values)), { mode: 'hierarchical' })
     const value = await main(createParamsProxy(state))
     return settle({ hasMain: true, value, params: toParamDefinitions(state.discovered) })
   } catch (error) {
@@ -172,6 +173,20 @@ const exportModel = (geometry, format) => {
   const config = exportConfig(format)
   return { ok: true, format, size: exportedSize(jscadIo[config.serializerKey].serialize({ ...config.defaultOptions }, geometry)) }
 }
+
+const MAX_VARIANTS = 12
+
+const isNumberParam = (p) => typeof p.initial === 'number' && Number.isFinite(p.initial) && !Array.isArray(p.values)
+
+// A value 20% off the initial one inside the parameter's range, else the range's far end.
+export const variantValue = ({ initial, min = -Infinity, max = Infinity, type }) => {
+  const step = initial === 0 ? 1 : Math.abs(initial) * 0.2
+  const tidy = (v) => (type === 'int' ? Math.round(v) : v)
+  const candidates = [initial + step, initial - step, max, min].map(tidy)
+  return candidates.find((v) => Number.isFinite(v) && v !== initial && v >= min && v <= max) ?? null
+}
+
+const differs = (a, b) => Math.abs(a - b) > 1e-6 * Math.max(1, Math.abs(a), Math.abs(b))
 
 export function createEvalBackend({ api = DEFAULT_API } = {}) {
   let files = {}
@@ -263,10 +278,47 @@ export function createEvalBackend({ api = DEFAULT_API } = {}) {
     return buildNow && Object.keys(files).length > 0 ? build() : null
   }
 
-  const probed = (spec) => {
+  // Each number parameter set to variantValue() in a rebuild of its own, with
+  // what that did to the model's size and volume. A synchronous main() cannot
+  // be cut short, so a rebuild starts only while twice the slowest build so
+  // far still fits before `deadline`.
+  const paramVariants = async (model, deadline, buildMs) => {
+    const base = measure(asGeometry(current.geometry))
+    const out = []
+    let slowest = buildMs
+    for (const param of current.params.filter(isNumberParam).slice(0, MAX_VARIANTS)) {
+      const value = variantValue(param)
+      const left = deadline - Date.now()
+      if (left <= 2 * slowest) break
+      if (value === null) continue
+      const variant = { name: param.name, label: param.label, from: param.initial, to: value }
+      const started = Date.now()
+      let timer
+      const late = new Promise((resolve) => {
+        timer = setTimeout(resolve, left, null)
+      })
+      const loaded = await Promise.race([runModel(model.files, model.entry, api, { values: { [param.name]: value } }), late])
+      clearTimeout(timer)
+      slowest = Math.max(slowest, Date.now() - started)
+      try {
+        if (!loaded) throw new Error('timed out')
+        if (loaded.error) throw loaded.error
+        const { dimensions, volume } = measure(asGeometry([loaded.value].flat(Infinity)))
+        const changed = dimensions.some((d, k) => differs(d, base.dimensions[k])) || differs(volume ?? 0, base.volume ?? 0)
+        out.push({ ...variant, dimensions, volume, changed })
+      } catch (error) {
+        out.push({ ...variant, error: String(error?.message ?? error).slice(0, 200), changed: false })
+      }
+    }
+    return out
+  }
+
+  const probed = async (spec, model, deadline, buildMs) => {
     if (!current?.geometry) return null
+    const { paramVariants: wantsVariants, ...geometrySpec } = spec
     try {
-      return runProbe(current.geometry, spec)
+      const out = runProbe(current.geometry, geometrySpec)
+      return wantsVariants ? { ...out, paramVariants: await paramVariants(model, deadline, buildMs) } : out
     } catch {
       return null
     }
@@ -278,11 +330,14 @@ export function createEvalBackend({ api = DEFAULT_API } = {}) {
     const none = { measure: null, solid: null, params: [], ...(probe ? { probe: null } : {}) }
     seed(model?.files)
     if (!model?.entry) return none
+    const started = Date.now()
+    const deadline = started + timeoutMs
     let timer
     const timedOut = new Promise((resolve) => {
       timer = setTimeout(resolve, timeoutMs, none)
     })
     const report = await Promise.race([build(model.entry), timedOut])
+    const buildMs = Date.now() - started
     clearTimeout(timer)
     if (report === none) {
       seed()
@@ -292,7 +347,7 @@ export function createEvalBackend({ api = DEFAULT_API } = {}) {
     const measured = JSON.parse(await requestTool('measure', {}))
     const checked = JSON.parse(await requestTool('check', {}))
     const graded = { measure: measured.ok ? measured : null, solid: checked.ok ? checked : null, params: current.params }
-    return probe ? { ...graded, probe: probed(probe) } : graded
+    return probe ? { ...graded, probe: await probed(probe, model, deadline, buildMs) } : graded
   }
 
   return { requestTool, reset, gradeProject, files: () => ({ ...files }), lastBuild: () => current?.report ?? null }

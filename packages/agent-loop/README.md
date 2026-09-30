@@ -19,4 +19,5 @@ import { buildSystemPrompt, createProvider, runTurn } from '@jscadui/agent-loop'
   its parent/executor split, and the API index.
 - [Development](docs/development.md): the system prompt files, regenerating
   the API index, tests.
-- The prompt review loop: `.claude/skills/chat-review/SKILL.md`.
+- The prompt review loop, and how a prompt change is judged against the
+  previous run: `.claude/skills/chat-review/SKILL.md`.

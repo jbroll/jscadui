@@ -189,7 +189,7 @@ stage's checks. The dialogue adds:
 | `assumptionsStated` | of the `ask: false` fields the agent guessed, the fraction it named in its text |
 | `askedWithoutBuilding` | turns that ended with a question and no saved model |
 
-Proposed dialogue total, 0 to 8, so the keep rule can use a sum of means:
+Proposed dialogue total, 0 to 8, so the chat-review comparison can use a sum of means:
 
 - outcome: 2 accepted, else 0;
 - turns: 2 for 0 or 1 user replies before acceptance, 1 for 2, else 0;
@@ -230,7 +230,7 @@ since recomputing them needs provider calls.
 
 The default run (ungrouped fixtures) is not changed: same prompts, checks,
 grades and caps. The `dialogue` group is opt-in (`EVAL_FIXTURES=dialogue`), as
-`profiles` is. Every step below must pass the chat-review keep rule on the
+`profiles` is. Every step below must hold up under the chat-review step 6 judgement on the
 single-shot suite as well as improve its own target. `ci/eval` runs the
 dialogue suite as a separate pass per model and style, writing its own result
 file.
@@ -334,10 +334,9 @@ report (size, volume, watertightness) counts as verification in grading.
 ## Part 4: rollout
 
 Each step is measured under both styles and both models, and kept only if it
-passes the chat-review keep rule (target fixtures improve; the suite-wide sum
-of mean totals does not fall; no fixture's mean total falls by more than 1.0
-or its mean `rounds` rises by more than 2.0) on the single-shot suite, plus
-the step's own gate.
+holds up under the chat-review step 6 judgement (the per-fixture comparison
+against the previous run, what is within noise at 3 runs, the transcripts
+behind each change) on the single-shot suite, plus the step's own gate.
 
 1. **Harness and dialogue fixtures, no prompt change.** 4 to 6 dialogue
    fixtures: at least one where every field is defaultable (`pegboard`'s
@@ -349,15 +348,15 @@ the step's own gate.
    plausible.
 2. **`skill` tool with clarify-or-default, app handler included.** Gate:
    dialogue `unnecessaryQuestions` and `askedWithoutBuilding` fall, `accepted`
-   does not fall, `assumptionsStated` rises; single-shot keep rule.
+   does not fall, `assumptionsStated` rises; single-shot step 6 judgement.
 3. **`assembly` fixtures and the grading change**, baselined on the
    current prompt. Gate: `--regrade` of the existing baselines moves no
    single-shot fixture's total.
 4. **plan-then-build.** Gate: on `assembly`, fewer unsaved runs and fewer
    rounds, `checkRate` not lower; on `phone-stand`, `shelf-bracket` and
-   `enclosure`, `saved: false` falls for DeepSeek; single-shot keep rule.
+   `enclosure`, `saved: false` falls for DeepSeek; single-shot step 6 judgement.
 5. **verify-before-done notice.** Gate: `saved: false` falls on the same three
-   fixtures; single-shot keep rule.
+   fixtures; single-shot step 6 judgement.
 
 Steps 4 and 5 target the same unsaved runs, so they are measured apart, not
 together; if step 5 alone fixes the saving, step 4 is judged by rounds and
@@ -372,7 +371,7 @@ the assembly fixtures only.
   from checks.
 - `packages/agent-loop/docs/development.md`: `prompt/skills/` and its rules.
 - `.claude/skills/chat-review/SKILL.md`: corrected conversations become
-  dialogue fixtures; the keep rule covers the dialogue total.
+  dialogue fixtures; the step 6 comparison covers the dialogue total.
 
 ## Open questions
 
@@ -394,7 +393,7 @@ the assembly fixtures only.
 3. **Runs per dialogue fixture**: 5, or 3 to match the single-shot suite and
    halve the cost.
 4. **Acceptance by checks** (proposed) or by the user model's judgement.
-5. **One dialogue total** for the keep rule (proposed), or the separate
+5. **One dialogue total** for the step 6 comparison (proposed), or the separate
    metrics judged one by one.
 6. **Procedures across user turns in the app**: reload on demand (proposed),
    or the app remembers loaded procedures and adds them to the next turn's

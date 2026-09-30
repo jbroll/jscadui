@@ -19,7 +19,7 @@ const fitClearance = (box, lid) => {
 
 // A skirt lid is as wide as the box plus its own wall and clearance on each
 // side; its wall is taken to be at most the box's own.
-const covers = (box, lid) => {
+export const covers = (box, lid) => {
   const lidPrint = [lid.dimensions[0], lid.dimensions[1]].sort((a, b) => a - b)
   const outer = [box.dimensions[0], box.dimensions[1]].sort((a, b) => a - b)
   const top = box.sections?.findLast((s) => holeLoops(s).length > 0)

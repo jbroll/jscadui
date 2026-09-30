@@ -1,20 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { createEvalBackend } from './backend.js'
 import { ORIGINAL } from './fixtures/followup-edit.js'
-import { fixtureForApi, loadFixtures } from './run-eval.js'
-
-const byName = Object.fromEntries((await loadFixtures()).map((f) => [f.name, f]))
-const backends = { fluent: createEvalBackend({ api: 'fluent' }), modeling: createEvalBackend({ api: 'modeling' }) }
-
-// Grades a source as the eval does: the fixture's files with main.js written, then its checks.
-const grade = async (name, source, api) => {
-  const fixture = fixtureForApi(byName[name], api)
-  const files = { ...fixture.files, 'main.js': source }
-  const graded = await backends[api].gradeProject({ files, entry: 'main.js' }, { probe: fixture.probe })
-  const context = { params: graded.params, solid: graded.solid, probe: graded.probe, source: Object.values(files).join('\n') }
-  return { graded, results: fixture.checks(graded.measure, context) }
-}
-const failing = ({ results }) => results.filter((c) => !c.pass).map((c) => c.name)
+import { failing, grade, startingFiles } from './reference-grade.js'
 
 const JF = "const jf = require('@jbroll/jscad-fluent')\n"
 const JSCAD = "const { booleans, primitives, transforms } = require('@jscad/modeling')\nconst { subtract, union } = booleans\nconst { cuboid, cylinder } = primitives\nconst { rotateX, rotateZ, translate } = transforms\n"
@@ -150,7 +136,7 @@ describe('new fixtures against reference answers', () => {
   })
 
   it.each(['fluent', 'modeling'])("followup-edit: the %s starting model matches ORIGINAL, failing the checks", async (api) => {
-    const starting = fixtureForApi(byName['followup-edit'], api).files['main.js']
+    const starting = startingFiles('followup-edit', api)
     expect(starting).toContain(api === 'fluent' ? '@jbroll/jscad-fluent' : '@jscad/modeling')
     expect(starting).not.toContain(api === 'fluent' ? '@jscad/modeling' : 'jscad-fluent')
     const { graded, results } = await grade('followup-edit', starting, api)
@@ -179,7 +165,7 @@ module.exports = { main }`
   })
 
   it('followup-edit fails a taller model with no slot', async () => {
-    const taller = fixtureForApi(byName['followup-edit'], 'fluent').files['main.js'].replace('default: 90', 'default: 130')
+    const taller = startingFiles('followup-edit', 'fluent').replace('default: 90', 'default: 130')
     expect(failing(await grade('followup-edit', taller, 'fluent'))).toEqual(['a slot removes material'])
   })
 

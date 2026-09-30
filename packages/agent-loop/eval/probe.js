@@ -1,7 +1,11 @@
 // Extra geometry facts a fixture's checks can ask for (`fixture.probe`),
 // computed by the grader next to `measure` and `check`: planar sections split
-// into their separate loops, and the separate bodies of the model.
+// into their separate loops, the separate bodies of the model, and the volume
+// each pair of bodies shares.
+import jscad from '@jscad/modeling'
 import { wrapOne } from '@jscadui/model-tools/src/array-geom.js'
+
+const { booleans, geometries, measurements } = jscad
 
 const AXES = ['x', 'y', 'z']
 // Right-handed in-plane axes (u, v) for a cut normal to each axis, as in model-tools' section.js.
@@ -13,6 +17,7 @@ const PLANE = [
 const WELD = 1e-4
 const MIN_LOOP_AREA = 0.01
 const MAX_LOOPS = 64
+const MAX_OVERLAP_PAIRS = 45
 // Keeps a cut off the round-number faces of a model built from round numbers.
 const NUDGE = 1.234e-4
 
@@ -246,21 +251,41 @@ const bodiesOf = (items) =>
     return [...groups.values()]
   })
 
+const boxesOverlap = ([aLo, aHi], [bLo, bHi]) => [0, 1, 2].every((k) => aLo[k] < bHi[k] && bLo[k] < aHi[k])
+
+// Volume two bodies share, for each pair whose bounding boxes overlap; a pair
+// left out shares none.
+const overlapsOf = (groups, boxes) => {
+  const solids = groups.map((polygons) => geometries.geom3.fromPoints(polygons))
+  const out = []
+  for (let a = 0; a < groups.length; a++) {
+    for (let b = a + 1; b < groups.length; b++) {
+      if (!boxesOverlap(boxes[a], boxes[b])) continue
+      if (out.length === MAX_OVERLAP_PAIRS) return out
+      out.push({ a, b, volume: measurements.measureVolume(booleans.intersect(solids[a], solids[b])) })
+    }
+  }
+  return out
+}
+
 /**
  * @param {unknown} geometry what main() returned
- * @param {{ sections?: Array<{axis:'x'|'y'|'z', at?:number[], above?:number[], groupGap?:number}>, bodies?: { sections?: Array<object> } }} spec
+ * @param {{ sections?: Array<{axis:'x'|'y'|'z', at?:number[], above?:number[], groupGap?:number}>, bodies?: { sections?: Array<object>, overlaps?: boolean } }} spec
  */
 export const runProbe = (geometry, spec) => {
   const items = polygonsOf(geometry)
   const out = {}
   if (spec.sections) out.sections = items.length ? sectionsOf(items.flat(), spec.sections) : []
   if (spec.bodies) {
-    out.bodies = bodiesOf(items).map((polygons) => {
-      const [lo, hi] = boxOf(polygons)
-      const body = { boundingBox: [lo, hi], dimensions: hi.map((h, k) => h - lo[k]), volume: volumeOf(polygons) }
+    const groups = bodiesOf(items)
+    const boxes = groups.map(boxOf)
+    out.bodies = groups.map((polygons, n) => {
+      const [lo, hi] = boxes[n]
+      const body = { boundingBox: [lo, hi], dimensions: hi.map((h, k) => h - lo[k]), volume: volumeOf(polygons), polygonCount: polygons.length }
       if (spec.bodies.sections) body.sections = sectionsOf(polygons, spec.bodies.sections)
       return body
     })
+    if (spec.bodies.overlaps) out.overlaps = overlapsOf(groups, boxes)
   }
   return out
 }

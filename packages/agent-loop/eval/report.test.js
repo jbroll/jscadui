@@ -78,6 +78,16 @@ describe('eval report', () => {
     expect(text).toContain('a: m aaaaaaaa  b: m bbbbbbbb')
     expect(text).toContain('single-sphere  1.00 → 0.00  0.50 → 1.00  4.00 → 7.00')
     expect(text).toContain('gear  - → 0.00')
+    expect(text).toContain('suite total over 1 fixtures  4.00 → 7.00')
+  })
+
+  it('compares mean input and output tokens', () => {
+    const metrics = { inputTokens: 100, outputTokens: 20 }
+    const a = { model: 'm', summary: summarize([run('a', 0, 1, 8, undefined, metrics)]) }
+    const b = { model: 'm', summary: summarize([run('a', 0, 1, 8, undefined, { inputTokens: 300, outputTokens: 40 })]) }
+    const text = formatComparison(a, b)
+    expect(text).toContain('inputTokens a → b  outputTokens a → b')
+    expect(text).toContain('100.00 → 300.00  20.00 → 40.00')
   })
 
   it('compares the new metrics too, "-" on either side when missing', () => {

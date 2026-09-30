@@ -55,9 +55,10 @@ the user the fixture count times `EVAL_RUNS` and get a yes.
   `[x, y, z]` fails with "size must be positive"), prefer fixing the tool
   side first — `docs`, warnings, clearer error text — and record it in
   `docs/backlog.md`, over changing prompt text.
-- The default suite tests CSG primitives and booleans. A fixture whose
-  correct answer needs a computed point-list profile belongs in the opt-in
-  `profiles` group, not the default suite.
+- The default suite tests CSG primitives and booleans, plus the `harder`
+  group (multi-change follow-ups, corrections, assemblies, parameters, text).
+  A fixture whose correct answer needs a computed point-list profile belongs
+  in the opt-in `profiles` group, not the default suite.
 
 ## Steps
 
@@ -138,8 +139,9 @@ the user the fixture count times `EVAL_RUNS` and get a yes.
    across every model — it runs on the CI host, not this machine, and keeps
    the models running concurrently; use a local run for a quick check of one
    model or a handful of fixtures. The default run (no `EVAL_FIXTURES`) is
-   the CSG suite: primitives and boolean operations, which is what most real
-   requests exercise. `gear` sits in the `profiles` group and is opt-in
+   the CSG suite, primitives and boolean operations, which is what most real
+   requests exercise, and the `harder` group, which always runs with it.
+   `gear` sits in the `profiles` group and is opt-in
    (`EVAL_FIXTURES=profiles` or `EVAL_FIXTURES=all`) since it tests computing
    a point-list profile, not representative of most requests and prone to
    dominating run time:
@@ -173,19 +175,26 @@ the user the fixture count times `EVAL_RUNS` and get a yes.
    committed prompt for that style); run one if none exists. A change to
    shared prose (`prompt.md`) changes both prompts, so measure it under both
    styles; `ci/eval` runs every model under every style in `EVAL_APIS`.
-   Keep the change only if all of these hold, for every model and style measured:
-   - the target fixtures improve (fewer first-attempt or total failed calls,
-     fewer rounds, or lower `geometryError`);
-   - the suite-wide sum of mean totals does not fall;
-   - no fixture regresses. At 3 runs one bad run moves a fixture's mean total
-     by 0.67, so a fixture regresses only if its mean total falls by more than
-     1.0 or its mean `rounds` rises by more than 2.0. A smaller drop counts
-     only if it repeats when that fixture is rerun on its own.
-   Otherwise revise and measure again, or drop the change.
 
-7. **Show and commit.** Show the user the prompt/example diff and the
-   comparison table. On approval, commit the prompt, examples and fixtures in
-   jscadui; then, in the evals repo, `git -C <data> add logs results` and
+   Whether to keep a change is a judgement, made fresh each round and shown
+   to the user. For every model and style measured:
+   - Show the per-fixture comparison against the previous run
+     (`--compare <previous> <candidate>`): mean total, `rounds`, input and
+     output tokens and seconds for each fixture, and the suite total.
+   - Say which differences are within noise. At 3 runs one bad run moves a
+     fixture's mean total by about 0.67, so a move of that size on one
+     fixture, or a suite total that moves by a few such steps spread across
+     fixtures, may be one run going the other way. Rerun a fixture on its own
+     when the decision hangs on it.
+   - Read the transcripts behind every change that matters, better or worse
+     (`results[].transcript` in both files): what the model did differently,
+     and whether the prompt or example change caused it or the run was luck.
+   - State the decision, keep, revert or revise, with its reason: which
+     fixtures moved, why, and what the transcripts showed.
+
+7. **Show and commit.** Show the user the prompt/example diff, the
+   comparison and the decision from step 6. On approval, commit the prompt,
+   examples and fixtures in jscadui; then, in the evals repo, `git -C <data> add logs results` and
    commit the new log and result files, with a message naming the jscadui
    commit it goes with. Push the evals repo (`jbroll/jscad-chat-evals`, the
    user's private repo). Never push jscadui without asking, and never open a

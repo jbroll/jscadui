@@ -955,9 +955,10 @@ protocol has one SSE parser. Logs and eval result files live in the private
 in jscadui; `evalResultsDir` (same module) resolves the eval's write target
 and `run-eval` refuses to run without one. The `chat-review` project skill
 (`.claude/skills/chat-review/`) groups the stumbles by cause, reproduces each
-group as an eval fixture, and keeps a prompt or example change only when it
-passes the keep rule in step 6 of `.claude/skills/chat-review/SKILL.md`,
-comparing result files of one API style.
+group as an eval fixture, and decides whether to keep, revert or revise a
+prompt or example change in step 6 of `.claude/skills/chat-review/SKILL.md`,
+from a per-fixture comparison of result files of one API style and the
+transcripts behind each change.
 
 The eval never runs model code in `run-eval`'s own process. Each
 conversation gets an executor process under `crt run`, with no network, no

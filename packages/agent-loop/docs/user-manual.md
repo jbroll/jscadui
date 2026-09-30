@@ -311,8 +311,14 @@ note, naming the part for an array (`@jscadui/model-tools`).
 
 A fixture may declare `group` (string), such as `'profiles'` for fixtures whose
 correct answer requires computing a point-list profile (`gear`).
-The default run, with no `EVAL_FIXTURES`, runs only ungrouped fixtures: the CSG
-suite of primitives and boolean operations. `EVAL_FIXTURES` runs the union of
+The default run, with no `EVAL_FIXTURES`, runs the ungrouped fixtures, the CSG
+suite of primitives and boolean operations, and the `harder` group
+(`DEFAULT_GROUPS` in `eval/run-eval.js`): one message asking for several
+changes to a saved model (`stand-bigger-slots`, `box-thicker-lid`), a
+correction mid-conversation (`holes-through-side`), assemblies of parts that
+fit (`sliding-lid-box`, `hinge`), parameters the user names
+(`bracket-params`) and a name cut through a part (`luggage-tag`).
+`profiles` stays opt-in. `EVAL_FIXTURES` runs the union of
 whatever it names, fixture names and group names both, e.g. `EVAL_FIXTURES=profiles`
 runs every fixture in that group, `EVAL_FIXTURES=gear,fluent-chain` runs one named
 fixture plus one grouped fixture, and `EVAL_FIXTURES=all` runs every fixture
@@ -361,7 +367,7 @@ without spending API budget.
 | `EVAL_RUNS` | runs per fixture, default 3 |
 | `EVAL_CONCURRENCY` | conversations run at once, each with its own sandboxed executor, default 6 |
 | `EVAL_MAX_TURNS` | turn cap for every conversation; overrides `eval/models.json` and the fixture's `maxTurns` |
-| `EVAL_FIXTURES` | comma-separated fixture and/or group names to run; default: ungrouped fixtures only; `all` runs everything |
+| `EVAL_FIXTURES` | comma-separated fixture and/or group names to run; default: ungrouped fixtures and the `harder` group; `all` runs everything |
 | `EVAL_VERBOSE` | `1` also prints the live log's lines to stdout, turn by turn: the header and prompt, tool calls with full input, tool results, and streamed assistant text |
 | `JSCAD_CHAT_DATA` | path to the `jscad-chat-evals` clone, default `~/src/jscad-chat-evals` |
 | `EVAL_RESULTS_DIR` | overrides where results are written, regardless of `JSCAD_CHAT_DATA` |
@@ -541,7 +547,9 @@ tend to max out once a prompt clears the bar:
 when none exist), and `formatSummary`/`formatComparison` print them in a
 second and third table alongside the existing one, showing `-` for a result
 file written before `metrics` existed. `reasoningTokens` appears only in
-`formatSummary`'s third table, not in `formatComparison`. `--regrade` fills
+`formatSummary`'s third table, not in `formatComparison`, which compares mean
+`inputTokens` and `outputTokens` and ends with the suite total: the sum of
+mean totals over the fixtures both files scored. `--regrade` fills
 only `toolCalls`, `failedCalls`, `warnings`, `docsCalls` and `geometryError`;
 the rest, including the speed fields, are left as stored, since they need the
 original provider run.
@@ -611,13 +619,33 @@ there is no geometry:
   lie within that distance of each other, each group `{ loopCount, area,
   hullArea }`, where `hullArea` is its convex hull's area, so a hull larger
   than the area shows material cut out of a part.
-- `bodies: { sections? }` lists the separate solids, each array item split into
-  the parts that share no vertex: `{ boundingBox, dimensions, volume,
-  sections? }`, with `sections` cut through that body alone.
+- `bodies: { sections?, overlaps? }` lists the separate solids, each array
+  item split into the parts that share no vertex: `{ boundingBox, dimensions,
+  volume, polygonCount, sections? }`, with `sections` cut through that body
+  alone. With `overlaps: true` the probe also has `overlaps: [{ a, b, volume
+  }]`, the volume bodies `a` and `b` (indexes into `bodies`) share, for each
+  pair whose bounding boxes overlap, at most 45 pairs; touching parts share
+  none.
+- `paramVariants: true` rebuilds the model once per number parameter (up to
+  12, each started only while twice the slowest build so far fits in the
+  grade's time limit) with that one parameter set 20% above
+  its initial value, else 20% below, else to the far end of its range, as the
+  user's form would, and lists `{ name, label, from, to, dimensions, volume,
+  changed }` for each, `changed` when the size or volume moved, or `{ ...,
+  error, changed: false }` when the rebuild failed.
 
 `followup-edit`, `pencil-cup`, `hook-rack`, `nameplate` and `box-with-lid` use
 it for a slot, wall thickness, an open top, a hook count, lettering and a lid's
-fit. `box-with-lid` passes a lid whose footprint reaches from 2 mm inside the
+fit. In the `harder` group, `stand-bigger-slots` counts slots as runs of cuts
+across the width whose area falls 5% below the median and takes rounded edges
+from a polygon count at least three times the starting stand's;
+`holes-through-side` wants no hole in any horizontal cut and two 8 mm holes in
+a cut across x or y; `sliding-lid-box` and `hinge` read `overlaps`, and
+`hinge` wants the pin's narrowest round cut 0.02 to 1 mm per side inside a
+round bore in both leaves; `bracket-params` reads `paramVariants` for a width,
+a height and a hole-size parameter that each change the model; `luggage-tag`
+wants three holes (the letters) in every cut across its thickness, and a
+fourth, near an end, for the strap. `box-with-lid` passes a lid whose footprint reaches from 2 mm inside the
 box's opening to the box's outer size plus twice (its wall + 1 mm), and at
 least 6 mm more, so a skirt lid as thick as the box wall fits.
 `followup-edit` finds the slot in the saved model's own sections: a group of
@@ -629,6 +657,10 @@ edit that also resizes the base is judged the same.
 those fixtures in both API styles through the backend, and a plain block that
 must fail, plus cases a past run misgraded (a 3 mm skirt lid with 0.3 mm
 clearance, a 12 mm slot through a base widened from 70 to 80 mm).
+`eval/harder-answers.test.js` does the same for the `harder` group, plus a
+wrong answer for each check: a follow-up's starting model, one of several
+changes left out, overlapping or fused parts, a pin with no clearance, a
+parameter the model never reads, raised lettering.
 
 A fixture's `prompt` is a request a real user would type: casual and often
 underspecified, never a specification written to be graded, and never phrased
@@ -689,5 +721,6 @@ place and leaves clean files alone.
 The `chat-review` project skill (`.claude/skills/chat-review/SKILL.md`) runs
 the loop: read new conversations since the last review, group the stumbles by
 cause, reproduce each group as a fixture, change the prompt or its examples,
-and keep the change only when it passes the keep rule in step 6 of that
-skill.
+and decide in step 6 of that skill, from each fixture's comparison against
+the previous run and the transcripts behind any change, whether to keep,
+revert or revise it.

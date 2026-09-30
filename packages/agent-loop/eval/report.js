@@ -131,15 +131,19 @@ export function formatComparison(a, b) {
   }
   lines.push(
     '',
-    'fixture  rounds a → b  failedCalls a → b  seconds a → b  geometryError a → b  warnings a → b  docsCalls a → b  providerSeconds a → b  outputTokensPerSecond a → b',
+    'fixture  rounds a → b  failedCalls a → b  seconds a → b  geometryError a → b  warnings a → b  docsCalls a → b  providerSeconds a → b  outputTokensPerSecond a → b  inputTokens a → b  outputTokens a → b',
   )
   for (const name of names) {
     const sa = a.summary.find((s) => s.fixture === name)
     const sb = b.summary.find((s) => s.fixture === name)
     lines.push(
-      `${name}  ${cell(sa, 'rounds')} → ${cell(sb, 'rounds')}  ${cell(sa, 'failedCalls')} → ${cell(sb, 'failedCalls')}  ${cell(sa, 'seconds')} → ${cell(sb, 'seconds')}  ${cell(sa, 'geometryError')} → ${cell(sb, 'geometryError')}  ${cell(sa, 'warnings')} → ${cell(sb, 'warnings')}  ${cell(sa, 'docsCalls')} → ${cell(sb, 'docsCalls')}  ${cell(sa, 'providerSeconds')} → ${cell(sb, 'providerSeconds')}  ${cell(sa, 'outputTokensPerSecond')} → ${cell(sb, 'outputTokensPerSecond')}`,
+      `${name}  ${cell(sa, 'rounds')} → ${cell(sb, 'rounds')}  ${cell(sa, 'failedCalls')} → ${cell(sb, 'failedCalls')}  ${cell(sa, 'seconds')} → ${cell(sb, 'seconds')}  ${cell(sa, 'geometryError')} → ${cell(sb, 'geometryError')}  ${cell(sa, 'warnings')} → ${cell(sb, 'warnings')}  ${cell(sa, 'docsCalls')} → ${cell(sb, 'docsCalls')}  ${cell(sa, 'providerSeconds')} → ${cell(sb, 'providerSeconds')}  ${cell(sa, 'outputTokensPerSecond')} → ${cell(sb, 'outputTokensPerSecond')}  ${cell(sa, 'inputTokens')} → ${cell(sb, 'inputTokens')}  ${cell(sa, 'outputTokens')} → ${cell(sb, 'outputTokens')}`,
     )
   }
+  // Summed over the fixtures both files scored, so an added or dropped fixture does not move it.
+  const shared = names.filter((name) => [a, b].every((f) => typeof f.summary.find((s) => s.fixture === name)?.total === 'number'))
+  const suiteTotal = (f) => shared.reduce((sum, name) => sum + f.summary.find((s) => s.fixture === name).total, 0)
+  lines.push('', `suite total over ${shared.length} fixtures  ${n2or(suiteTotal(a))} → ${n2or(suiteTotal(b))}`)
   lines.push('', formatSpeedLine(a.speed, a.model, a.provider), formatSpeedLine(b.speed, b.model, b.provider))
   return lines.join('\n')
 }

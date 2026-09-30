@@ -46,12 +46,16 @@ export const resultFileName = (model, api, promptSha256, now = new Date()) => {
 // ({ fluent: files, modeling: files }); under an api it starts from that api's files.
 export const fixtureForApi = (fixture, api) => (fixture?.apiFiles ? { ...fixture, files: fixture.apiFiles[api] ?? {} } : fixture)
 
-// `only`: null runs every ungrouped fixture (the default CSG suite); a list of
-// fixture and/or group names runs their union; ['all'] runs everything. A
-// fixture that declares an `api` runs only under that api.
+// Groups the default suite runs beside the ungrouped fixtures.
+export const DEFAULT_GROUPS = new Set(['harder'])
+
+// `only`: null runs the default suite, every ungrouped fixture and every
+// fixture in DEFAULT_GROUPS; a list of fixture and/or group names runs their
+// union; ['all'] runs everything. A fixture that declares an `api` runs only
+// under that api.
 export function selectFixtures(fixtures, only, api = DEFAULT_API) {
   const forApi = fixtures.filter((f) => !f.api || f.api === api).map((f) => fixtureForApi(f, api))
-  if (!only) return forApi.filter((f) => !f.group)
+  if (!only) return forApi.filter((f) => !f.group || DEFAULT_GROUPS.has(f.group))
   if (only.includes('all')) return forApi
   const wanted = new Set(only)
   return forApi.filter((f) => wanted.has(f.name) || (f.group && wanted.has(f.group)))

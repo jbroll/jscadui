@@ -508,10 +508,16 @@ describe('selectFixtures', () => {
   const ungrouped = { name: 'cube-hole' }
   const grouped = { name: 'gear', group: 'profiles' }
   const otherGrouped = { name: 'gear-module', group: 'profiles' }
+  const harder = { name: 'hinge', group: 'harder' }
   const all = [ungrouped, grouped, otherGrouped]
 
-  it('with no EVAL_FIXTURES, runs only fixtures without a group', () => {
+  it('with no EVAL_FIXTURES, runs fixtures without a group', () => {
     expect(selectFixtures(all, null)).toEqual([ungrouped])
+  })
+
+  it('with no EVAL_FIXTURES, also runs the harder group, and EVAL_FIXTURES=harder runs it alone', () => {
+    expect(selectFixtures([...all, harder], null)).toEqual([ungrouped, harder])
+    expect(selectFixtures([...all, harder], ['harder'])).toEqual([harder])
   })
 
   it('EVAL_FIXTURES names a fixture regardless of group', () => {
