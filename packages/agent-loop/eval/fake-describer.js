@@ -8,7 +8,8 @@ if (process.env.FAKE_DESCRIBER_FATAL) {
   send({ fatal: process.env.FAKE_DESCRIBER_FATAL, blockedConnections: 0 })
   process.exit(2)
 }
-send({ ready: true, model: 'fake', kestrel: '0.9.1', loadMs: 0 })
+// FAKE_DESCRIBER_HANG never sends ready, simulating a model load that never finishes.
+if (!process.env.FAKE_DESCRIBER_HANG) send({ ready: true, model: 'fake', kestrel: '0.9.1', loadMs: 0 })
 for await (const line of createInterface({ input: process.stdin })) {
   if (process.env.FAKE_DESCRIBER_CRASH) process.exit(3)
   const { id, image, prompt } = JSON.parse(line)

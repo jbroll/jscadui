@@ -67,6 +67,21 @@ export const approvedCase = (file, fixturesByName, fixtureName, runNumber) => {
   return { name: `${fixtureName}-approved`, messages: run.userMessages ?? userMessagesOf(fixture), expected: 'pass', api, pieces: fixture.pieces ?? 1, files: model.files, entry: model.entry }
 }
 
+// runDescribe throws on a GPU shortfall or a start failure; caught here so the table still prints.
+export const describeOrStop = async (path, env, { runDescribe: doDescribe = runDescribe } = {}) => {
+  try {
+    const described = await doDescribe([path], { env })
+    const stop = describeStop(described)
+    if (stop) console.error(`grader-validate: ${stop}`)
+    if (stop || described.failed > 0) process.exitCode = 1
+    return Boolean(stop)
+  } catch (error) {
+    console.error(`grader-validate: ${error.message}`)
+    process.exitCode = 1
+    return true
+  }
+}
+
 const main = async (argv, env) => {
   const from = argv.indexOf('--case-from')
   if (from !== -1) {
@@ -98,14 +113,7 @@ const main = async (argv, env) => {
   }
   writeFileSync(path, JSON.stringify({ suite: 'complex', validation: true, date: new Date().toISOString(), results }, null, 2))
   console.log(`grader-validate: wrote ${path}`)
-  let stopped = false
-  if (until !== 'render') {
-    const described = await runDescribe([path], { env })
-    const stop = describeStop(described)
-    if (stop) console.error(`grader-validate: ${stop}`)
-    if (stop || described.failed > 0) process.exitCode = 1
-    stopped = Boolean(stop)
-  }
+  const stopped = until !== 'render' && (await describeOrStop(path, env))
   if (until === 'judge' && !stopped) await judgeFiles([path], { makeProvider: judgeProviderFactory(), log: console.log })
   const final = JSON.parse(readFileSync(path, 'utf8')).results
   const judged = until === 'judge'

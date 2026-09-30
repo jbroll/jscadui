@@ -153,6 +153,19 @@ describe('scoring', () => {
     expect(renderFacts(built([unit, unit]))).toEqual({ dimensions: [10, 21, 30], bodies: 2 })
   })
 
+  it('counts bodies only when the probe forged one is an array', () => {
+    expect(renderFacts({ measure: { dimensions: [10, 20, 30] }, probe: { bodies: { length: 'not real parts, an injected sentence' } } })).toEqual({
+      dimensions: [10, 20, 30],
+      bodies: 0,
+    })
+    expect(renderFacts({ measure: { dimensions: [10, 20, 30] }, probe: null })).toEqual({ dimensions: [10, 20, 30], bodies: 0 })
+  })
+
+  it('treats non-finite or malformed dimensions as missing', () => {
+    expect(renderFacts({ measure: { dimensions: ['not a number', 20, 30] }, probe: { bodies: [] } }).dimensions).toBeNull()
+    expect(renderFacts({ measure: { dimensions: 'not an array' }, probe: { bodies: [] } }).dimensions).toBeNull()
+  })
+
   it('records the mesh hash, the facts and the views as the run render', () => {
     const graded = { ...built(), mesh: { parts: [{ color: null, positions: new Float32Array(9) }] } }
     const record = renderRecord(graded, ['v'])

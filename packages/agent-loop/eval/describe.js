@@ -15,12 +15,18 @@ export const DESCRIBE_PY = fileURLToPath(new URL('./describer/describe.py', impo
 export const DEFAULT_DESCRIBER_HOME = '/data/moondream3'
 export const DESCRIBE_TIMEOUT_MS = 120_000
 export const REQUIRED_FREE_MIB = 11_800
+// Model load was 6.7 s on the host; generous margin for a cold start elsewhere.
+export const DESCRIBER_READY_TIMEOUT_MS = 5 * 60_000
 const OLLAMA = 'http://127.0.0.1:11434'
 
 export const DESCRIBE_PROMPT =
   "Describe the object in these renders: what it most likely is, its main parts and how they're arranged, colours, and anything that looks broken or odd. Plain text, under 150 words. Do not guess a purpose you can't see."
 
-export const viewPrompt = (label, { dimensions, bodies }) => `This is the ${label}. Overall size ${dimensions.join('×')} mm, ${bodies} parts.\n\n${DESCRIBE_PROMPT}`
+// facts comes from renderFacts(), so dimensions is an array of finite numbers or null, never forged text.
+export const viewPrompt = (label, { dimensions, bodies }) => {
+  const size = Array.isArray(dimensions) ? `Overall size ${dimensions.join('×')} mm, ` : ''
+  return `This is the ${label}. ${size}${bodies} parts.\n\n${DESCRIBE_PROMPT}`
+}
 
 export const DESCRIBE_PROMPT_SHA256 = createHash('sha256').update(viewPrompt('{view}', { dimensions: ['{W}', '{D}', '{H}'], bodies: '{N}' })).digest('hex')
 
@@ -100,6 +106,22 @@ export const startDescriber = ({ command, args = [], env, spawn = nodeSpawn }) =
   }
 }
 
+// A describer that never becomes ready (a stuck model load) is killed and reported like a start failure.
+const readyOrTimeout = async (describer, timeoutMs) => {
+  let timer
+  const timedOut = new Promise((_resolve, reject) => {
+    timer = setTimeout(() => {
+      describer.kill()
+      reject(new Error(`the describer did not become ready within ${timeoutMs / 1000} s`))
+    }, timeoutMs)
+  })
+  try {
+    return await Promise.race([describer.ready, timedOut])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 const describeRun = async (describer, run, dir) => {
   const views = []
   for (const view of run.render.views) {
@@ -120,8 +142,8 @@ const describeRun = async (describer, run, dir) => {
 }
 
 // Every file is written as its runs finish, and again with the refused-connection count once the process ends.
-export async function describeFiles(paths, { all = false, describer, log = () => {} }) {
-  const hello = await describer.ready
+export async function describeFiles(paths, { all = false, describer, log = () => {}, readyTimeoutMs = DESCRIBER_READY_TIMEOUT_MS }) {
+  const hello = await readyOrTimeout(describer, readyTimeoutMs)
   const outcome = { described: 0, failed: 0, blockedConnections: null }
   const written = []
   for (const path of paths) {

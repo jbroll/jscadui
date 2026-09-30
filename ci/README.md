@@ -111,10 +111,8 @@ the results dir, since the evals repo keeps only the newest complex pass's
 renders (git history keeps the older ones): commit the removal with the new
 pass.
 
-`sci artifact` currently returns binary files UTF-8-mangled (`0x89` becomes
-`c2 89`), so every render's `sha256` check fails until the CI host runs a
-simple-ci build with the fix (committed there, not yet deployed) that serves
-artifacts byte for byte; until then, copy renders with `scp` instead.
+Renders are fetched byte for byte through `sci artifact` and checked against
+each render's `sha256`.
 
 The job exits non-zero only when a model's eval process failed outright (a
 crash, or a missing/unset key) — provider errors inside individual runs are
@@ -187,6 +185,14 @@ cause is dealt with. The job exits non-zero when a lane, the describer or the
 judge failed. The renders sit beside the result files in
 `eval-results/<file stem>.renders/`, and `fetch-ci-results.js` copies them
 with the files.
+
+Fetch a complex pass's results and renders only after the whole job has
+ended: describe and judge both run inside it, and a copy pulled while either
+is still running is not a finished pass, which a later fetch does not
+refresh (`fetch-ci-results.js` skips a file already present). The job's
+worktree, and its artifacts, are removed `CI_WORKTREE_TTL` after it ends
+(3600 s on gpu); a failed job is kept longer (`CI_FAILED_WORKTREE_TTL`). Fetch
+within that window.
 
 ## Describer
 

@@ -90,9 +90,12 @@ export const settleRun = (run) => {
   }
 }
 
+// Model code shapes `measure` and `probe`, so a non-array `bodies` or a non-finite dimension is forged, not data.
+const finiteDimensions = (dimensions) => (Array.isArray(dimensions) && dimensions.every(Number.isFinite) ? dimensions.map((d) => Math.round(d)) : null)
+
 export const renderFacts = (graded) => ({
-  dimensions: graded.measure.dimensions.map((d) => Math.round(d)),
-  bodies: graded.probe?.bodies?.length ?? 0,
+  dimensions: finiteDimensions(graded.measure?.dimensions),
+  bodies: Array.isArray(graded.probe?.bodies) ? graded.probe.bodies.length : 0,
 })
 
 export const renderRecord = (graded, views) => ({ meshSha256: meshSha256(graded.mesh.parts), facts: renderFacts(graded), views })

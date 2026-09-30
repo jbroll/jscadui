@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { NO_GRADE } from './executor-protocol.js'
-import { approvedCase, expectedMatch, formatValidation, validationRun } from './grader-validate.js'
+import { approvedCase, describeOrStop, expectedMatch, formatValidation, validationRun } from './grader-validate.js'
 import { VIEWS } from './views.js'
 
 const unit = { boundingBox: [[0, 0, 0], [1, 1, 1]] }
@@ -40,6 +40,29 @@ describe('expectedMatch', () => {
     expect(expectedMatch({ expected: 'gate', gates: connected(false), verdict: { success: true } })).toBe(true)
     expect(expectedMatch({ expected: 'gate', gates: connected(true), verdict: null })).toBe(false)
     expect(expectedMatch({ expected: 'known-miss', gates: connected(true), verdict: { success: true } })).toBeNull()
+  })
+})
+
+describe('describeOrStop', () => {
+  it('catches a thrown GPU shortfall or start failure, prints it and stops before judging', async () => {
+    const errors = []
+    const originalError = console.error
+    const originalExitCode = process.exitCode
+    console.error = (line) => errors.push(line)
+    try {
+      const stopped = await describeOrStop('path.json', {}, { runDescribe: async () => { throw new Error('8000 MiB free on the GPU; the describer needs 11800') } })
+      expect(stopped).toBe(true)
+      expect(errors).toEqual(['grader-validate: 8000 MiB free on the GPU; the describer needs 11800'])
+      expect(process.exitCode).toBe(1)
+    } finally {
+      console.error = originalError
+      process.exitCode = originalExitCode
+    }
+  })
+
+  it('does not stop when the describer finished with nothing to report', async () => {
+    const stopped = await describeOrStop('path.json', {}, { runDescribe: async () => ({ described: 0, failed: 0, blockedConnections: 0 }) })
+    expect(stopped).toBe(false)
   })
 })
 

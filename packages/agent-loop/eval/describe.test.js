@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { DESCRIBE_PROMPT_SHA256, describeFiles, describerEnv, describeStop, freeGpu, pendingRuns, REQUIRED_FREE_MIB, startDescriber, viewPrompt } from './describe.js'
+import { DESCRIBE_PROMPT_SHA256, DESCRIBER_READY_TIMEOUT_MS, describeFiles, describerEnv, describeStop, freeGpu, pendingRuns, REQUIRED_FREE_MIB, startDescriber, viewPrompt } from './describe.js'
 import { VIEWS } from './views.js'
 
 const FAKE = fileURLToPath(new URL('./fake-describer.js', import.meta.url))
@@ -42,6 +42,12 @@ describe('the describer prompt', () => {
       "This is the side view. Overall size 111×41×67 mm, 62 parts.\n\nDescribe the object in these renders: what it most likely is, its main parts and how they're arranged, colours, and anything that looks broken or odd. Plain text, under 150 words. Do not guess a purpose you can't see.",
     )
     expect(DESCRIBE_PROMPT_SHA256).toMatch(/^[0-9a-f]{64}$/)
+  })
+
+  it('drops the size clause when the facts have no dimensions', () => {
+    expect(viewPrompt('side view', { dimensions: null, bodies: 3 })).toBe(
+      "This is the side view. 3 parts.\n\nDescribe the object in these renders: what it most likely is, its main parts and how they're arranged, colours, and anything that looks broken or odd. Plain text, under 150 words. Do not guess a purpose you can't see.",
+    )
   })
 })
 
@@ -94,6 +100,17 @@ describe('describeFiles', () => {
     const outcome = await describeFiles([path], { describer: fake({ FAKE_DESCRIBER_BLOCKED: '2' }) })
     expect(outcome.blockedConnections).toBe(2)
     expect(read(path).describer.blockedConnections).toBe(2)
+  })
+
+  it('stops like a start failure, and kills the child, when the describer never becomes ready', async () => {
+    const { path } = resultFile([rendered()])
+    const describer = fake({ FAKE_DESCRIBER_HANG: '1' })
+    await expect(describeFiles([path], { describer, readyTimeoutMs: 20 })).rejects.toThrow(/did not become ready within 0.02 s/)
+    expect(read(path).results[0].description).toBeNull()
+  })
+
+  it('names a generous default ready timeout', () => {
+    expect(DESCRIBER_READY_TIMEOUT_MS).toBe(5 * 60_000)
   })
 
   it('fails with the describer own message when it cannot start', async () => {

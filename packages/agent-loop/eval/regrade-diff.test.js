@@ -58,8 +58,29 @@ describe('regradeDiff', () => {
     expect(regradeDiff(before, after)).toEqual([])
   })
 
-  it('skips a run missing from the regraded file rather than reporting it as changed', () => {
-    expect(regradeDiff(file([run(), run({ fixture: 'other', run: 1 })]), file([run()]))).toEqual([])
+  it('reports a run present only in the original file', () => {
+    const changes = regradeDiff(file([run(), run({ fixture: 'other' })]), file([run()]))
+    expect(changes).toEqual([{ run: 'other#1', only: 'original' }])
+  })
+
+  it('reports a run present only in the regraded file', () => {
+    const changes = regradeDiff(file([run()]), file([run(), run({ fixture: 'other' })]))
+    expect(changes).toEqual([{ run: 'other#1', only: 'regraded' }])
+  })
+
+  it('reports a changed renderError or description text for a complex run', () => {
+    const before = run({ description: { text: 'a cube', views: [] } })
+    const after = run({ renderError: 'render failed: no chromium', description: null })
+    const changes = regradeDiff(file([before]), file([after]))
+    expect(changes).toEqual([
+      {
+        run: 'cube-hole#1',
+        fields: [
+          { field: 'renderError', before: undefined, after: 'render failed: no chromium' },
+          { field: 'description.text', before: 'a cube', after: undefined },
+        ],
+      },
+    ])
   })
 
   it('matches runs by fixture and run number, not array position', () => {
@@ -84,5 +105,10 @@ describe('formatRegradeDiff', () => {
 
   it('reports zero runs changed', () => {
     expect(formatRegradeDiff([])).toBe('0 runs changed')
+  })
+
+  it('prints which file a one-sided run is only in', () => {
+    const text = formatRegradeDiff([{ run: 'other#1', only: 'original' }])
+    expect(text).toContain('other#1: only in the original file')
   })
 })

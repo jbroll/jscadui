@@ -928,7 +928,10 @@ result file. Each complex run adds:
 - `gates`: `[{ name, pass }]`, with `groups` on `connected`.
 - `render`: `{ meshSha256, facts: { dimensions, bodies }, views: [{ name, path, sha256 }] }`,
   each `path` relative to the result file's directory; or `renderError` when
-  the mesh was refused or the render failed.
+  the mesh was refused or the render failed. If chromium dies partway through
+  a pass, every run rendered after it also gets `renderError`; recover with
+  `--regrade` (marks a run that still builds `renderStale`), then
+  `npm run describe -- --rerender`.
 - `description: null` and `verdict: null`, filled in by the describe and
   judge stages.
 
