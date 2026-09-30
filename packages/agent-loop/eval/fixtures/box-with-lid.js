@@ -17,12 +17,17 @@ const fitClearance = (box, lid) => {
   return pairs.some((g) => g.every((c) => c > 0 && c <= 1))
 }
 
+// A skirt lid is as wide as the box plus its own wall and clearance on each
+// side; its wall is taken to be at most the box's own.
 const covers = (box, lid) => {
   const lidPrint = [lid.dimensions[0], lid.dimensions[1]].sort((a, b) => a - b)
   const outer = [box.dimensions[0], box.dimensions[1]].sort((a, b) => a - b)
   const top = box.sections?.findLast((s) => holeLoops(s).length > 0)
   const opening = top ? footprint(holeLoops(top)[0], 'z') : outer
-  return lidPrint.every((d, k) => d >= opening[k] - 2 && d <= outer[k] + 6)
+  return lidPrint.every((d, k) => {
+    const wall = (outer[k] - opening[k]) / 2
+    return d >= opening[k] - 2 && d <= outer[k] + Math.max(6, 2 * (wall + 1))
+  })
 }
 
 export const fixture = {

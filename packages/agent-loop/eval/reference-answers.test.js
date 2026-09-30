@@ -177,6 +177,24 @@ describe('new fixtures against reference answers', () => {
     expect(failing(await grade('pencil-cup', closed, 'fluent'))).toContain('open top')
   })
 
+  // DS modeling box-with-lid#1: a lid over the outside of a box with 3 mm walls.
+  const SKIRT_LID = `${JSCAD}
+const main = () => {
+  const box = subtract(cuboid({ size: [60, 40, 30] }), translate([0, 0, 3], cuboid({ size: [54, 34, 30] })))
+  const lid = subtract(cuboid({ size: [66.6, 46.6, 9] }), translate([0, 0, -3], cuboid({ size: [60.6, 40.6, 9] })))
+  return [box, translate([80, 0, -10.5], lid)]
+}
+module.exports = { main }`
+
+  it('box-with-lid passes a lid with a 3 mm skirt and 0.3 mm clearance over a 3 mm wall', async () => {
+    expect(failing(await grade('box-with-lid', SKIRT_LID, 'modeling'))).toEqual([])
+  })
+
+  it('box-with-lid fails a skirt wider than the box wall allows', async () => {
+    const wide = SKIRT_LID.replace('[66.6, 46.6, 9]', '[70.6, 50.6, 9]')
+    expect(failing(await grade('box-with-lid', wide, 'modeling'))).toEqual(['lid covers the opening'])
+  })
+
   it('box-with-lid fails a lid with no clearance', async () => {
     const tight = REFERENCES['box-with-lid'].modeling.replace('[55.6, 35.6, 4]', '[56, 36, 4]')
     expect(failing(await grade('box-with-lid', tight, 'modeling'))).toEqual(['fit clearance 0-1mm'])

@@ -601,9 +601,13 @@ there is no geometry:
 
 `followup-edit`, `pencil-cup`, `hook-rack`, `nameplate` and `box-with-lid` use
 it for a slot, wall thickness, an open top, a hook count, lettering and a lid's
-fit. `eval/reference-answers.test.js` grades a reference answer for each of
+fit. `box-with-lid` passes a lid whose footprint reaches from 2 mm inside the
+box's opening to the box's outer size plus twice (its wall + 1 mm), and at
+least 6 mm more, so a skirt lid as thick as the box wall fits.
+`eval/reference-answers.test.js` grades a reference answer for each of
 those fixtures in both API styles through the backend, and a plain block that
-must fail.
+must fail, plus cases a past run misgraded (a 3 mm skirt lid with 0.3 mm
+clearance).
 
 A fixture's `prompt` is a request a real user would type: casual and often
 underspecified, never a specification written to be graded, and never phrased
