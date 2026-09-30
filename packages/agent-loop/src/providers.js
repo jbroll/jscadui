@@ -322,6 +322,7 @@ export async function* parseOpenAIStream(body) {
     // opencode's open models stream their reasoning as `reasoning_content`, some routers as `reasoning`.
     const reasoning = delta.reasoning_content || delta.reasoning
     if (typeof reasoning === 'string' && reasoning !== '') yield { type: 'reasoning', text: reasoning }
+    if (typeof delta.refusal === 'string' && delta.refusal !== '') yield { type: 'refusal', text: delta.refusal }
     if (typeof delta.content === 'string' && delta.content !== '') {
       yield { type: 'text', text: delta.content }
     }

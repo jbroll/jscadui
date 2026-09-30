@@ -81,6 +81,22 @@ describe('runTurn', () => {
     expect(error.messages.map((m) => m.role)).toEqual(['user', 'assistant', 'tool'])
   })
 
+  it('rejects a refused round with the provider refusal, not as an empty reply', async () => {
+    const provider = roundsProvider([
+      [{ type: 'refusal', text: "I'm sorry, " }, { type: 'refusal', text: "but I can't help with that request." }, { type: 'done', stopReason: 'completed' }],
+    ])
+    const conversation = { messages: [{ role: 'user', content: 'hi' }] }
+    const error = await runTurn({ conversation, provider, requestTool: vi.fn() }).catch((e) => e)
+    expect(error).toMatchObject({ name: 'RefusalError', refusal: "I'm sorry, but I can't help with that request.", message: "the provider refused: I'm sorry, but I can't help with that request." })
+    expect(error.messages.map((m) => m.role)).toEqual(['user'])
+  })
+
+  it('reads an anthropic refusal stop reason as a refusal', async () => {
+    const provider = roundsProvider([[{ type: 'done', stopReason: 'refusal' }]])
+    const error = await runTurn({ conversation: { messages: [{ role: 'user', content: 'hi' }] }, provider, requestTool: vi.fn() }).catch((e) => e)
+    expect(error).toMatchObject({ name: 'RefusalError', message: 'the provider refused to answer' })
+  })
+
   it('resolves a tool call through requestTool and continues', async () => {
     const provider = roundsProvider([
       [

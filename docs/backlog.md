@@ -190,6 +190,13 @@ model with `display-check.js --engine jscad`.
 
 ## Chat API help
 
+- The studio server's own loop (`apps/jscad-web/server/src/agent/loop.ts` and
+  its provider parsers) still reports a provider refusal as `EmptyReplyError`
+  ("stopped without answering"); `packages/agent-loop` raises `RefusalError`
+  with the provider's text. Port the refusal events and error there.
+- A refused or failed chat turn stores the user message and no reply, so a
+  retry resends every refused message and a safety filter that flagged one
+  keeps refusing. Drop or mark refused turns in the transcript sent back.
 - Eval model code now runs in a crt container with no network, home, key or
   parent environment (`eval/sandbox.js`, read-only binds of `packages/`,
   `node_modules/` and `.deps-cache/`), but the CDN stub still serves any

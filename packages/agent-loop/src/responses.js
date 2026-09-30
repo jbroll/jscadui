@@ -29,8 +29,12 @@ const toResponsesInput = (messages) => {
   return input
 }
 
+const refusalsIn = (response) =>
+  (response?.output ?? []).flatMap((item) => (item.content ?? []).filter((c) => c.type === 'refusal' && typeof c.refusal === 'string').map((c) => c.refusal))
+
 export async function* parseResponsesStream(body) {
   const calls = new Map()
+  let refusalStreamed = false
   for await (const payload of ssePayloads(body)) {
     let event
     try {
@@ -42,6 +46,9 @@ export async function* parseResponsesStream(body) {
       yield { type: 'text', text: event.delta }
     } else if ((event.type === 'response.reasoning_summary_text.delta' || event.type === 'response.reasoning_text.delta') && typeof event.delta === 'string' && event.delta !== '') {
       yield { type: 'reasoning', text: event.delta }
+    } else if (event.type === 'response.refusal.delta' && typeof event.delta === 'string' && event.delta !== '') {
+      refusalStreamed = true
+      yield { type: 'refusal', text: event.delta }
     } else if (event.type === 'response.output_item.added' && event.item?.type === 'function_call') {
       calls.set(event.item.id, { id: event.item.call_id ?? event.item.id, name: event.item.name ?? '', args: '' })
     } else if (event.type === 'response.function_call_arguments.delta') {
@@ -49,6 +56,8 @@ export async function* parseResponsesStream(body) {
       acc.args += event.delta ?? ''
       calls.set(event.item_id, acc)
     } else if (event.type === 'response.completed') {
+      // Meta's safety filter answers with refusal content in the completed output and no deltas.
+      if (!refusalStreamed) for (const text of refusalsIn(event.response)) yield { type: 'refusal', text }
       const usage = event.response?.usage
       if (usage) {
         yield {

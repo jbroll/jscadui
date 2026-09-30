@@ -1,7 +1,7 @@
 export { APIS, DEFAULT_API } from './src/api.js'
 export { buildTools, TOOLS } from './src/tools.js'
 export { buildSystemPrompt } from './src/prompt.js'
-export { capToolResult, EmptyReplyError, runTurn, TOOL_RESULT_CHARS, TOOL_RESULTS_PER_TURN_CHARS, toolDetail, ToolTimeoutError } from './src/loop.js'
+export { capToolResult, EmptyReplyError, RefusalError, runTurn, TOOL_RESULT_CHARS, TOOL_RESULTS_PER_TURN_CHARS, toolDetail, ToolTimeoutError } from './src/loop.js'
 export { createProvider } from './src/providers.js'
 export { buildMessages, CONTEXT_BUDGET, projectMessage } from './src/context.js'
 export { docsTool, lookupDocs } from './src/docs.js'

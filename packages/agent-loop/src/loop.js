@@ -42,6 +42,15 @@ export class EmptyReplyError extends Error {
   }
 }
 
+// A provider's safety filter can answer with a refusal instead of a reply.
+export class RefusalError extends Error {
+  constructor(refusal) {
+    super(refusal ? `the provider refused: ${refusal}` : 'the provider refused to answer')
+    this.name = 'RefusalError'
+    this.refusal = refusal
+  }
+}
+
 const abortError = (message) => {
   const err = new Error(message)
   err.name = 'AbortError'
@@ -173,6 +182,7 @@ export const runTurn = (options) => {
           const text = []
           const toolCalls = []
           const badCalls = new Map()
+          const refusal = []
           let stopReason
           let reasoningChars = 0
           report({ phase: 'thinking' })
@@ -189,6 +199,8 @@ export const runTurn = (options) => {
                 reasoningChars += value.text.length
                 report({ phase: 'thinking', reasoningChars })
                 onReasoning?.(value.text)
+              } else if (value.type === 'refusal') {
+                refusal.push(value.text)
               } else if (value.type === 'retry') {
                 report({ phase: 'retry', attempt: value.attempt + 1, maxAttempts: value.maxAttempts })
               } else if (value.type === 'tool_use') {
@@ -204,7 +216,10 @@ export const runTurn = (options) => {
             iterator.return?.(undefined).catch(() => {})
           }
           if (cancelled) throw abortError('turn aborted')
-          if (text.length === 0 && toolCalls.length === 0) throw new EmptyReplyError(stopReason)
+          if (text.length === 0 && toolCalls.length === 0) {
+            if (refusal.length > 0 || stopReason === 'refusal') throw new RefusalError(refusal.join(''))
+            throw new EmptyReplyError(stopReason)
+          }
           messages.push({
             role: 'assistant',
             content: text.length > 0 ? text.join('') : null,

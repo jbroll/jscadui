@@ -603,6 +603,34 @@ describe('stream parsers', () => {
     ])
   })
 
+  it('yields a refusal from each provider as a refusal event', async () => {
+    // Meta's Responses API refuses with no deltas, only refusal content in the completed output.
+    const completedRefusal =
+      `data: {"type":"response.created","response":{"status":"in_progress","output":[]}}\n\n` +
+      `data: {"type":"response.completed","response":{"status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"refusal","refusal":"I'm sorry, but I can't help with that request."}]}]}}\n\n` +
+      `data: [DONE]\n\n`
+    const streamedRefusal =
+      `data: {"type":"response.refusal.delta","delta":"I can't "}\n\n` +
+      `data: {"type":"response.refusal.delta","delta":"help."}\n\n` +
+      `data: {"type":"response.completed","response":{"output":[{"type":"message","content":[{"type":"refusal","refusal":"I can't help."}]}]}}\n\n`
+    const openai =
+      `data: {"choices":[{"delta":{"refusal":"I can't help."}}]}\n\n` +
+      `data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n`
+    expect(await collect(parseResponsesStream(sseBody(completedRefusal)))).toEqual([
+      { type: 'refusal', text: "I'm sorry, but I can't help with that request." },
+      { type: 'done', stopReason: 'completed' },
+    ])
+    expect(await collect(parseResponsesStream(sseBody(streamedRefusal)))).toEqual([
+      { type: 'refusal', text: "I can't " },
+      { type: 'refusal', text: 'help.' },
+      { type: 'done', stopReason: 'completed' },
+    ])
+    expect(await collect(parseOpenAIStream(sseBody(openai)))).toEqual([
+      { type: 'refusal', text: "I can't help." },
+      { type: 'done', stopReason: 'stop' },
+    ])
+  })
+
   it('openai: hands on arguments that are not JSON with their text and finish_reason, never throwing', async () => {
     const body =
       `data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","function":{"name":"measure","arguments":"{\\"parts\\":[\\"0\\"]}{\\"x"}}]}}]}\n\n` +

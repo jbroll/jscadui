@@ -52,7 +52,13 @@ messages so far as `error.messages`. A provider round with neither text nor a
 tool call (only reasoning, or a stop at the length limit) rejects the turn
 with `EmptyReplyError`, whose `stopReason` is the provider's and whose message
 is `the model stopped without answering (stop reason: length)`; the app shows
-it in the chat as an error. A tool call whose arguments are not JSON (a
+it in the chat as an error. A round the provider refused instead rejects with
+`RefusalError`, whose `refusal` is the provider's text and whose message is
+`the provider refused: <text>` (`the provider refused to answer` when it gave
+none). The adapters read a refusal from Responses `response.refusal.delta`
+events or, when none streamed, the `refusal` content of the completed output
+(Meta's safety filter answers that way, in about 2 s), from chat-completions
+`delta.refusal`, and from Anthropic's `refusal` stop reason. A tool call whose arguments are not JSON (a
 stream cut off mid-arguments, or two calls run together) does not end the
 turn: the provider adapters hand it on with `badArguments`, its first 300
 characters, and `runTurn` answers it without running the tool, as
