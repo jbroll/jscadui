@@ -371,8 +371,14 @@ Async module loading is the breaking one; the rest are extractions.
 - **3MF export workspace.** Nothing in this repo imports
   `file-format/3mf-export`; the only consumer is the `manifold-3d` npm
   package (`lib/export-3mf.js`), whose `@jscadui/3mf-export ^0.5.0`
-  dependency the workspace satisfies. npm has the same 0.5.0, so the
-  workspace can go once resolving that copy from the registry is accepted.
+  dependency the workspace satisfies. The workspace is not the published
+  0.5.0: it carries the unpublished fast-xml-parser rewrite (#131), XML
+  escaping and input validation under the same version number. Its
+  `matrix2str` turns non-number entries into `0`, and manifold passes
+  transforms as `toFixed` strings, so under the workspace copy manifold's
+  component transforms serialize as all zeros; the registry 0.5.0 passes
+  them through. Publish the rewrite as 0.6.0 (with string transforms kept)
+  or drop the workspace and resolve 0.5.0 from the registry.
 - **Params memory follow-up.** Child-proxy eviction recreates the child with
   fresh per-proxy defaults; only matters if 500 distinct properties are
   probed on one proxy between a set and a read of the same child.

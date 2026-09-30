@@ -3,7 +3,11 @@ import { conversationTag, createLiveLog, formatLiveHeader, liveLogPath, prefixBl
 
 describe('liveLogPath', () => {
   it('defaults to the jscad-chat state dir', () => {
-    expect(liveLogPath({})).toMatch(/\.local\/state\/jscad-chat\/eval-live\.log$/)
+    expect(liveLogPath({}, '/home/u')).toBe('/home/u/.local/state/jscad-chat/eval-live.log')
+  })
+
+  it('honours XDG_STATE_HOME', () => {
+    expect(liveLogPath({ XDG_STATE_HOME: '/state' }, '/home/u')).toBe('/state/jscad-chat/eval-live.log')
   })
 
   it('is overridden by EVAL_LIVE_LOG', () => {

@@ -1,15 +1,14 @@
 import { appendFileSync, mkdirSync, renameSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
+import { chatStateDir } from '../log/log-dir.js'
 
 export const ROTATE_BYTES = 10 * 1024 * 1024
 
-const defaultPath = () => join(homedir(), '.local', 'state', 'jscad-chat', 'eval-live.log')
-
 // EVAL_LIVE_LOG overrides the path; '0' disables the live log entirely.
-export const liveLogPath = (env = process.env) => {
+export const liveLogPath = (env = process.env, home = homedir()) => {
   if (env.EVAL_LIVE_LOG === '0') return null
-  return env.EVAL_LIVE_LOG || defaultPath()
+  return env.EVAL_LIVE_LOG || join(chatStateDir(env, home), 'eval-live.log')
 }
 
 // Every line of a block gets the model prefix so two models' concurrent runs stay legible.

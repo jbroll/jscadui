@@ -1,4 +1,6 @@
+import { realpathSync } from 'node:fs';
 import type { Server } from 'node:http';
+import { fileURLToPath } from 'node:url';
 import { remoteGroupBackend } from '@jbroll/rowboat-auth';
 import { createIdentity, type Identity } from '@jbroll/rowboat-auth-betterauth';
 import Database from 'better-sqlite3';
@@ -116,9 +118,16 @@ export async function createServer(config: ServerConfig): Promise<StudioServer> 
 
 // Only run as the process entrypoint (`node dist/index.js` / `tsx watch src/index.ts`) — importing
 // this module (e.g. from health.test.ts) must not also open the production db or bind the port.
-const isMainModule =
-  process.argv[1] !== undefined && import.meta.url === `file://${process.argv[1]}`;
-if (isMainModule) {
+// realpath so a symlinked invocation still matches import.meta.url, which reports the resolved path.
+const isMainModule = (argv1: string | undefined, moduleUrl: string): boolean => {
+  if (!argv1) return false;
+  try {
+    return realpathSync(argv1) === fileURLToPath(moduleUrl);
+  } catch {
+    return false;
+  }
+};
+if (isMainModule(process.argv[1], import.meta.url)) {
   const server = await createServer(configFromEnv());
   server.start();
 }

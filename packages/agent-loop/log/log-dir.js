@@ -8,13 +8,16 @@ export const chatDataDir = (env = process.env, home = homedir(), exists = exists
   return exists(fallback) ? fallback : null
 }
 
+export const chatStateDir = (env = process.env, home = homedir()) =>
+  join(env.XDG_STATE_HOME || join(home, '.local', 'state'), 'jscad-chat')
+
 export const chatLogDir = (env = process.env, home = homedir(), exists = existsSync) => {
   const setting = env.JSCAD_CHAT_LOG
   if (setting === '0') return null
   if (setting) return setting
   const data = chatDataDir(env, home, exists)
   if (data) return join(data, 'logs')
-  return join(env.XDG_STATE_HOME || join(home, '.local', 'state'), 'jscad-chat', 'logs')
+  return join(chatStateDir(env, home), 'logs')
 }
 
 export const evalResultsDir = (env = process.env, home = homedir(), exists = existsSync) => {

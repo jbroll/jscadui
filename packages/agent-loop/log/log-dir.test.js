@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { chatDataDir, chatLogDir, evalResultsDir } from './log-dir.js'
+import { chatDataDir, chatLogDir, chatStateDir, evalResultsDir } from './log-dir.js'
 
 const exists = (yes) => () => yes
 
@@ -12,6 +12,15 @@ describe('chatDataDir', () => {
   })
   it('is null when nothing is set and the default dir is missing', () => {
     expect(chatDataDir({}, '/home/u', exists(false))).toBeNull()
+  })
+})
+
+describe('chatStateDir', () => {
+  it('defaults to ~/.local/state/jscad-chat', () => {
+    expect(chatStateDir({}, '/home/u')).toBe('/home/u/.local/state/jscad-chat')
+  })
+  it('uses XDG_STATE_HOME when set', () => {
+    expect(chatStateDir({ XDG_STATE_HOME: '/state' }, '/home/u')).toBe('/state/jscad-chat')
   })
 })
 

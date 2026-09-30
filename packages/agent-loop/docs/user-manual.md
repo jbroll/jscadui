@@ -512,7 +512,8 @@ run limit) keeps the transcript up to that point.
 Every run appends the same conversation lines `EVAL_VERBOSE` prints — run
 headers, prompts, tool calls with source, tool results, provider retries,
 per-run summaries, and the final tables and speed line — to
-`~/.local/state/jscad-chat/eval-live.log` (`eval/live-log.js`), whether or not
+`$XDG_STATE_HOME/jscad-chat/eval-live.log` (default `~/.local/state`;
+`eval/live-log.js`), whether or not
 `EVAL_VERBOSE` is set; that variable only controls stdout. A conversation's
 lines, on stdout and in the log, are prefixed `[<model>/<api> <fixture>#<run>] ` so
 concurrent conversations stay legible; the header, summary tables and speed
