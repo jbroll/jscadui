@@ -211,6 +211,9 @@ if (existsSync(frameDir)) {
   rmSync(frameDir + '/build', { recursive: true, force: true })
 }
 const frameCjs = { '.js': 'js', '.jsx': 'jsx' }
+// jscad-text's FontMap reads import.meta.url only where XMLHttpRequest is
+// missing (Node), a branch these browser bundles never take.
+const nodeOnlyImportMeta = { 'empty-import-meta': 'silent' }
 await buildBundle(frameBuildDir, 'bundle.jscad_modeling.js', { format: 'cjs', watch: dev, loader: frameCjs })
 await buildOne('src_bundle', frameBuildDir, 'bundle.manifold_modeling.js', watch, {
   format: 'cjs',
@@ -244,12 +247,14 @@ await buildBundle(frameBuildDir, 'bundle.openscad.js', {
   // runtime JS), so the plain js loader is safe.
   loader: frameCjs,
   plugins: [nodeBuiltinStubPlugin],
+  logOverride: nodeOnlyImportMeta,
 })
 await buildBundle(frameBuildDir, 'bundle.jscad_text.js', {
   format: 'cjs',
   watch: dev,
   loader: frameCjs,
   plugins: [nodeBuiltinStubPlugin],
+  logOverride: nodeOnlyImportMeta,
 })
 // Frame worker: readFileWeb (origin-based) cannot work in the blob worker,
 // so substitute the map-aware loader — same shim pattern as the run app.
