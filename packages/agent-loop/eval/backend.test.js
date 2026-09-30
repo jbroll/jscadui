@@ -478,14 +478,25 @@ describe('eval backend warnings', () => {
 const main = () => primitives.roundedCuboid({ size: [30, 20, 10], radius: 2 })
 module.exports = { main }`)
     expect(res.ok).toBe(true)
-    expect(res.warnings).toEqual([{ fn: 'primitives.roundedCuboid', option: 'radius', suggestions: ['roundRadius'] }])
+    expect(res.warnings).toEqual([{ fn: 'primitives.roundedCuboid', option: 'radius', suggestions: ['roundRadius'], file: 'main.js', line: 2 }])
+  })
+
+  it('names the line of each call site of a slip', async () => {
+    const res = await writeMain(`const jf = require('@jbroll/jscad-fluent')
+const a = () => jf.cube({ sise: 10 })
+const b = () => jf.cube({ sise: 20 }).translate([30, 0, 0])
+module.exports = { main: () => [a(), b(), a()] }`)
+    expect(res.warnings).toEqual([
+      { fn: 'jf.cube', option: 'sise', suggestions: ['size'], file: 'main.js', line: 2 },
+      { fn: 'jf.cube', option: 'sise', suggestions: ['size'], file: 'main.js', line: 3 },
+    ])
   })
 
   it('names fluent factories and stays quiet for fluent internals', async () => {
     const fluent = await writeMain(`const jf = require('@jbroll/jscad-fluent')
 const main = () => [jf.cube({ sise: 10 }), jf.circle({ radius: 5 }).extrudeLinear({ height: 10 }).translate([1, 2, 3])]
 module.exports = { main }`)
-    expect(fluent.warnings).toEqual([{ fn: 'jf.cube', option: 'sise', suggestions: ['size'] }])
+    expect(fluent.warnings).toEqual([{ fn: 'jf.cube', option: 'sise', suggestions: ['size'], file: 'main.js', line: 2 }])
   })
 
   it('names fluent methods called on shapes', async () => {
@@ -493,8 +504,8 @@ module.exports = { main }`)
 module.exports = { main: () => jf.circle({ radius: 5 }).extrudeLinear({ hieght: 10 }).center({ axis: [true, true, false] }) }`)
     expect(res.ok).toBe(true)
     expect(res.warnings).toEqual([
-      { fn: 'FluentGeom2.extrudeLinear', option: 'hieght', suggestions: ['height'] },
-      { fn: 'FluentGeom3.center', option: 'axis', suggestions: ['axes'] },
+      { fn: 'FluentGeom2.extrudeLinear', option: 'hieght', suggestions: ['height'], file: 'main.js', line: 2 },
+      { fn: 'FluentGeom3.center', option: 'axis', suggestions: ['axes'], file: 'main.js', line: 2 },
     ])
   })
 

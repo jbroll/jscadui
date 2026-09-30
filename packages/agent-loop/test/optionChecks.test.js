@@ -211,6 +211,19 @@ describe('createWarningCollector', () => {
     expect(c.list().map((w) => w.fn)).toEqual(['a', 'b'])
   })
 
+  it('names the call site from the stack, keeping each site of the same slip once', () => {
+    const c = createWarningCollector({ base: 'http://project.local/' })
+    const at = (line) => `Error\n    at checked (file:///lib/optionChecks.js:150:20)\n    at main (http://project.local/parts/lid.js:${line}:9)`
+    c.warn({ fn: 'a', option: 'x', suggestions: [], stack: at(3) })
+    c.warn({ fn: 'a', option: 'x', suggestions: [], stack: at(3) })
+    c.warn({ fn: 'a', option: 'x', suggestions: [], stack: at(7) })
+    expect(c.list()).toEqual([
+      expect.objectContaining({ fn: 'a', option: 'x', file: 'parts/lid.js', line: 3 }),
+      expect.objectContaining({ fn: 'a', option: 'x', file: 'parts/lid.js', line: 7 }),
+    ])
+    expect(c.list()[0]).not.toHaveProperty('stack')
+  })
+
   it('stops at the cap and starts over on reset', () => {
     const c = createWarningCollector()
     for (let i = 0; i < MAX_WARNINGS + 5; i += 1) c.warn({ fn: 'f', option: `o${i}`, suggestions: [] })

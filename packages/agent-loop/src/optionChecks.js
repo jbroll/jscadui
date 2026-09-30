@@ -1,4 +1,5 @@
 import { APIS, DEFAULT_API } from './api.js'
+import { errorLocation } from './buildReport.js'
 import { editDistance } from './editDistance.js'
 import { explainThrow, explainWarning } from './hints.js'
 
@@ -73,6 +74,12 @@ const reversedPolygonOptions = ([options, ...rest]) =>
 
 const reversedPoints = ([points, ...rest]) => (isFlatOutline(points) ? [[...points].reverse(), ...rest] : undefined)
 
+// Fluent's cylinder reads outer only for a hollow one, so alone it leaves radius 1.
+const loneOuter = ([options]) =>
+  isPlainObject(options) && options.outer !== undefined && options.inner === undefined && options.wall === undefined
+    ? { option: 'outer', hint: 'outer takes effect only with inner or wall; use radius for a solid cylinder' }
+    : undefined
+
 const BOOLEANS = ['union', 'subtract', 'intersect']
 const booleanSpecs = (prefix) => Object.fromEntries(BOOLEANS.map((op) => [`${prefix}${op}`, { boolean: op }]))
 
@@ -85,7 +92,7 @@ const EXTRA_SPECS = {
     'geometries.geom2.fromPoints': { outline: pointsArea, reverse: reversedPoints },
     ...booleanSpecs('booleans.'),
   },
-  'jf.': { polygon: { outline: pointsArea, reverse: reversedPoints }, ...booleanSpecs('') },
+  'jf.': { polygon: { outline: pointsArea, reverse: reversedPoints }, cylinder: { ignored: loneOuter }, ...booleanSpecs('') },
 }
 const EXTRA_METHOD_SPECS = {
   FluentGeom3: Object.fromEntries(BOOLEANS.map((op) => [op, { boolean: op, method: true }])),
@@ -123,7 +130,7 @@ const annotate = (error, hints) => {
 /**
  * @param {string} fnName
  * @param {Function} fn
- * @param {{ known?: string[], types?: Record<string, string>, angle?: boolean, outline?: Function, reverse?: Function, boolean?: string, method?: boolean }} spec
+ * @param {{ known?: string[], types?: Record<string, string>, angle?: boolean, outline?: Function, reverse?: Function, ignored?: Function, boolean?: string, method?: boolean }} spec
  * @param {(fact: object) => ({ hint?: string } | void)} warn
  */
 const checked = (fnName, fn, spec, warn) => {
@@ -132,7 +139,9 @@ const checked = (fnName, fn, spec, warn) => {
     let args = given
     const hints = []
     const report = (fact) => {
-      const warning = warn(fact)
+      // The stack names the model's call site for the collector; kept off the
+      // fact's own keys, which stay the plain data a warning is made of.
+      const warning = warn(Object.defineProperty({ ...fact }, 'stack', { value: new Error().stack }))
       if (warning?.hint) hints.push(warning.hint)
     }
     // A hostile or revoked options argument, or a throwing warn, must never
@@ -161,6 +170,8 @@ const checked = (fnName, fn, spec, warn) => {
         if (reversed) args = reversed
         if (area < 0) report({ fn: fnName, option: 'points', area, ...(reversed ? { reversed: true } : {}) })
       }
+      const ignored = spec.ignored?.(args)
+      if (ignored) report({ fn: fnName, ...ignored, ignored: true })
       if (spec.boolean && operandsOf(spec, this, args).some(isMeshData)) report({ fn: fnName, meshOperand: true })
     } catch {
       // Ignored — the original call below still runs.
@@ -326,14 +337,17 @@ export const wrapFluentMethods = (jf, table, warn) => {
 
 // The collector knows the chat's API style, so it turns each fact the checks
 // report into the warning the model sees; warn returns it for the thrown-error hint.
-export const createWarningCollector = (cap = MAX_WARNINGS) => {
+// With `base`, the project URL model code runs under, each warning names the
+// file and line of its call, and each call site of a slip is listed once.
+export const createWarningCollector = ({ cap = MAX_WARNINGS, base } = {}) => {
   let seen = new Set()
   let list = []
   let api = DEFAULT_API
   return {
-    warn: (fact) => {
-      const warning = explainWarning(fact, api)
-      const key = `${warning.fn}\u0000${warning.option}`
+    warn: ({ stack, ...fact }) => {
+      const { file, line } = base && typeof stack === 'string' ? errorLocation({ stack }, base) : {}
+      const warning = { ...explainWarning(fact, api), ...(file ? { file, line } : {}) }
+      const key = [warning.fn, warning.option, file, line].join('\u0000')
       if (seen.has(key) || list.length >= cap) return warning
       seen.add(key)
       list.push(warning)

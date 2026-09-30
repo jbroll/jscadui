@@ -278,4 +278,10 @@ module.exports = { main: () => primitives.cube({ size: 2 }).translate([1, 0, 0])
     source: fluent('module.exports = { main: () => { jf.measureVolume(jf.cube({ size: 2 })); return jf.cube() } }'),
     error: ['jf.measureVolume is not a function', 'use measurements.measureVolume(shape)'],
   },
+  {
+    name: 'O: a lone outer on jf.cylinder, which fluent ignores, names radius',
+    api: 'fluent',
+    source: fluent('module.exports = { main: () => [jf.cylinder({ outer: 6, height: 10 }), jf.cylinder({ outer: 6, inner: 4, height: 10 })] }'),
+    warnings: [{ fn: 'jf.cylinder', option: 'outer', hints: ['outer takes effect only with inner or wall', 'use radius for a solid cylinder'] }],
+  },
 ]

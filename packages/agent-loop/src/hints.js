@@ -127,6 +127,7 @@ export const explainWarning = (fact, api = DEFAULT_API) => {
   if ('area' in fact) return { fn, option, hint: windingHint(fact, api) }
   if (fact.empty) return { fn, hint: emptyHint(fact, api) }
   if (fact.meshOperand) return { fn, hint: meshHint(api) }
+  if (fact.ignored) return { fn, option, hint: fact.hint }
   return fact
 }
 

@@ -9,9 +9,9 @@ export const isApi = (value: unknown): value is Api => APIS.includes(value as Ap
 // Kept equal to packages/agent-loop/src/tools.js by test/tools.test.ts.
 const DOCS_DESCRIPTION: Record<Api, string> = {
   fluent:
-    "Look up a jscad-fluent function's signature, options and defaults, or list a class's methods. Query a name (roundedCuboid, jf.cuboid, FluentGeom2.extrudeLinear, jscadText.text2d) or a namespace or class (jf, FluentGeom3, FluentGeom2).",
+    "Look up a jscad-fluent function's signature, options and defaults, or list a class's methods. Query a name (roundedCuboid, jf.cuboid, FluentGeom2.extrudeLinear, jscadText.text2d) or a namespace or class (jf, FluentGeom3, FluentGeom2), or params for the parameter conventions.",
   modeling:
-    "Look up a JSCAD function's signature, options and defaults, or list a namespace. Query a name (roundedCuboid, primitives.roundedCuboid, extrusions.extrudeLinear, jscadText.text2d) or a namespace (primitives, booleans, transforms).",
+    "Look up a JSCAD function's signature, options and defaults, or list a namespace. Query a name (roundedCuboid, primitives.roundedCuboid, extrusions.extrudeLinear, jscadText.text2d) or a namespace (primitives, booleans, transforms), or params for the parameter conventions.",
 }
 
 const BUILDS =

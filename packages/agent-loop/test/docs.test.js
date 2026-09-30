@@ -430,3 +430,23 @@ describe('docs answers on angles and tapers', () => {
     expect(widest(5)).toBeCloseTo(1)
   })
 })
+
+describe('docs answers on parameters', () => {
+  const prompt = readFileSync(new URL('../prompt.md', import.meta.url), 'utf8')
+  const example = /^params\.radius = .*$/m.exec(prompt)[0]
+
+  it.each(['params', 'parameters', 'Params', 'params.radius'])('%s answers with the prompt\'s parameter conventions, in either API', (query) => {
+    for (const answer of [fluent(query), modeling(query)]) {
+      expect(answer.startsWith('params: the model\'s parameters')).toBe(true)
+      expect(answer).toContain(example)
+      expect(answer).toContain("params._type = 'Name'")
+    }
+  })
+
+  it('names only types params-core keeps', async () => {
+    const { extractDefinition } = await import('@jscadui/params-core')
+    const types = /^Types: (.*)\.$/m.exec(fluent('params'))[1].split(', ')
+    expect(types.length).toBeGreaterThan(5)
+    for (const type of types) expect(extractDefinition({ type, default: 0 }).type).toBe(type)
+  })
+})

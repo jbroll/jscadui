@@ -9,7 +9,7 @@ A line starting with `.` is a method: `shape.translate([0, 0, 5])`.
 jf.cube({ center = [0,0,0], size = 2 })
 jf.cuboid({ center = [0,0,0], size = [2,2,2] })
 jf.roundedCuboid({ center = [0,0,0], size = [2,2,2], roundRadius = 0.2, segments = 32 })
-jf.cylinder({ height = 1, segments = 32, center = [0,0,0], angle = [0,TAU], radius = 1, outer = radius, inner, wall }) // radians
+jf.cylinder({ height = 1, segments = 32, center = [0,0,0], angle = [0,TAU], radius = 1, outer, inner, wall }) // radians
 jf.cylinderElliptic({ center = [0,0,0], height = 2, startRadius = [1,1], startAngle = 0, endRadius = [1,1], endAngle = TAU, segments = 32 }) // radians
 jf.roundedCylinder({ center = [0,0,0], height = 2, radius = 1, roundRadius = 0.2, segments = 32 })
 jf.sphere({ center = [0,0,0], radius = 1, segments = 32, axes })

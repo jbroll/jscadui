@@ -78,7 +78,12 @@ which end is the start (-Z); `jf.polygon`, `primitives.polygon` and
 `geometries.geom2.fromPoints` add that the points go counter-clockwise, since
 clockwise points extrude inside out; and `cone`, `taper` or `frustum` (bare or
 qualified) answers with the taper form, `jf.cylinder` under fluent and
-`primitives.cylinderElliptic` under modeling. A namespace or class answers
+`primitives.cylinderElliptic` under modeling. `params` or `parameters`
+(also `params.<name>`) answers with the prompt's parameter conventions
+(`PARAMS_ANSWER`): the proxy assignment, the types params-core keeps and
+their fields, `_type` sections and hidden names. `jf.cylinder`'s `outer` has
+no default in the index, since fluent reads it only with `inner` or `wall`,
+and a lone `outer` warns. A namespace or class answers
 with one line per member, `cylinder({ center = [0,0,0], height = 2, radius =
 1, segments = 32 })`, a method's own call part, or a value's name, followed
 by its one-line summary; when that passes the cap it drops the summaries,
@@ -137,6 +142,12 @@ turns each into the warning the model sees, worded for the chat's API style
 | clockwise points it leaves alone: `primitives.polygon` with `orientation: 'clockwise'` turning counter-clockwise points clockwise | "points run clockwise (area -50), so an extrusion of this outline comes out inside out: list them counter-clockwise, e.g. jf.polygon([...points].reverse())" |
 | a `subtract` or `intersect` (modeling `booleans`, `jf`, or a `FluentGeom3`/`FluentGeom2` method) that returns an empty shape from a non-empty first shape | `{ fn, hint }`: what emptied it, and the bounding-box measure to compare the shapes with |
 | `{ points, faces }` data (what `jf.hullPoints3` returns) given to a boolean | `{ fn, hint }`: make it a shape with `jf.polyhedron(...)` or `primitives.polyhedron({ points, faces })` |
+| `jf.cylinder` given `outer` with neither `inner` nor `wall`, which fluent ignores | `{ fn, option: 'outer', hint }`: "outer takes effect only with inner or wall; use radius for a solid cylinder" |
+
+Each warning also names the `file` and `line` of the model's call, taken
+from the stack when the collector has the project base, as the eval and the
+frame give it. The collector keeps one warning per function, option and call
+site, so a slip made at three calls lists all three.
 
 A hint names only the chosen API's forms, even when the model code called the
 other package: `primitives.cube({ size: [x, y, z] })` under fluent reads
@@ -255,7 +266,7 @@ fails with `BinaryFileError`.
 `writeModel` and `params` included, with `UnknownToolError`.
 
 Build reports and `run` results carry
-`warnings: [{ fn, option, suggestions, hint }]` like the app's, worded for the
+`warnings: [{ fn, option, suggestions, hint, file, line }]` like the app's, worded for the
 backend's `api`, and `console: [lines]` with what the model run logged
 (`console.log/info/warn/error/debug`, formatted like Node's `util.format`,
 objects via `JSON.stringify`, falling back to `String` on a circular one,

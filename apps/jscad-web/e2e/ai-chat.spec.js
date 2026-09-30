@@ -31,6 +31,11 @@ const main = (params) => {
 }
 module.exports = { main }
 `
+const WARNED = `const jf = require('@jbroll/jscad-fluent')
+const a = () => jf.cube({ sise: 10 })
+const b = () => jf.cylinder({ outer: 6, height: 10 })
+module.exports = { main: () => [a(), b().translate([20, 0, 0]), jf.cube({ sise: 4 }).translate([0, 20, 0])] }
+`
 const TEXT_WITHOUT_INIT = `const { extrudeLinear } = require('@jscad/modeling').extrusions
 const { text2d } = require('@jscadui/jscad-text')
 const main = () => extrudeLinear({ height: 2 }, text2d('A', { size: 10 }))
@@ -59,6 +64,8 @@ const PARITY_ROUNDS = [
   { name: 'write', args: { path: 'main.js', content: SLIDER_BOX } },
   { name: 'run', args: { source: "const { main } = require('./main.js')\nmodule.exports = { main: () => main({ width: 30 }) }" } },
   { name: 'run', args: { source: "require('./main.js').main({ width: -1 })" } },
+  { name: 'write', args: { path: 'main.js', content: WARNED } },
+  { name: 'docs', args: { query: 'params' } },
   { name: 'run', args: { source: "const t = require('@jscadui/jscad-text')\nt.init(require('@jscad/modeling'))\nconsole.log(t.text2d('A') !== null)" } },
   { name: 'write', args: { path: 'main.js', content: TEXT_WITHOUT_INIT } },
 ]

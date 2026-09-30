@@ -378,6 +378,19 @@ const missing = (q, api) => {
   return MISSING[key] ? `${q} is not available in the ${api} API: ${MISSING[key]}.` : null
 }
 
+// The prompt's parameter conventions, for a model that asks docs about them.
+const PARAMS_QUERY = /^(?:params|parameters?)(?:\.[\w$]+)?$/i
+export const PARAMS_ANSWER = `params: the model's parameters, which the app shows as UI controls.
+main(params) defines each one by assigning its definition to params, then reads the value back:
+params.radius = { type: 'slider', default: 5, min: 1, max: 20, step: 0.5 }
+const r = params.radius // 5, or the value the user set
+Types: slider, int, number, checkbox, text, choice, radio, color.
+slider, int and number take min, max and step; checkbox a true or false default; text a string default; choice and radio take values: [...] and optional captions: [...].
+Without a type, values makes a choice, and otherwise the default's kind picks one (true/false checkbox, whole number int, number, string text).
+params._type = 'Name' labels a UI section, and params.lid.height = { ... } puts height in the lid section.
+An underscore-prefixed name (params._foo) is hidden from the UI.
+The build report lists the parameters main() defined.`
+
 const TAPER_QUERY = /^(?:[\w$]+\.)?(cone|taper|frustum)$/i
 const TAPER_TARGET = { fluent: 'jf.cylinder', modeling: 'primitives.cylinderElliptic' }
 
@@ -386,6 +399,7 @@ const taperAnswer = (byName, api) => `${TAPER[api][0].toUpperCase()}${TAPER[api]
 const lookupOne = (index, q, api) => {
   const { all, byName } = withAliases(index)
   if (TAPER_QUERY.test(q)) return { ok: true, text: cap(taperAnswer(byName, api)) }
+  if (PARAMS_QUERY.test(q)) return { ok: true, text: PARAMS_ANSWER }
   const ownPackage = API_PACKAGE[api]
   const own = all.filter((e) => e.pkg === ownPackage || e.pkg === TEXT)
   const other = all.filter((e) => e.pkg === API_PACKAGE[OTHER[api]])

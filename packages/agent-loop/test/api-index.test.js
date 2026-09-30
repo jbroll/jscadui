@@ -143,9 +143,9 @@ describe('fluent entries', () => {
     expect(entry('jf.polygon').optionsFirst).toBeUndefined()
   })
 
-  it('takes jf.cylinder option defaults from its JSDoc', () => {
+  it('takes jf.cylinder option defaults from its JSDoc, but for outer, which a lone outer does not set', () => {
     const defaults = Object.fromEntries(entry('jf.cylinder').options.map((o) => [o.name, o.default]))
-    expect(defaults).toMatchObject({ height: '1', segments: '32', center: '[0,0,0]', angle: '[0,TAU]', radius: '1', outer: 'radius', inner: null, wall: null })
+    expect(defaults).toMatchObject({ height: '1', segments: '32', center: '[0,0,0]', angle: '[0,TAU]', radius: '1', outer: null, inner: null, wall: null })
     expect(entry('jf.cylinder').options.find((o) => o.name === 'radius').description).toMatch(/start at the -Z end/)
   })
 

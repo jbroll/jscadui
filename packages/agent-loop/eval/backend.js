@@ -57,7 +57,7 @@ const servable = (spec) => !isBuiltin(spec) && installed(spec)
 // can call it too, and it serves nothing a CDN require would not.
 const USER_MODULE = Symbol.for('jscadui.eval.userModule')
 const FLUENT = '@jbroll/jscad-fluent'
-const warnings = createWarningCollector()
+const warnings = createWarningCollector({ base: PROJECT_BASE })
 const wrapped = new WeakMap()
 globalThis[USER_MODULE] = (spec) => {
   if (!servable(spec)) throw new Error(`failed to load module ${spec}`)

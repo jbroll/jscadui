@@ -45,6 +45,25 @@ const addExtraOptions = (entries) => {
   return entries
 }
 
+// Where an upstream JSDoc misleads. Fluent documents cylinder's outer as
+// defaulting to radius, but it reads outer only with inner or wall, so a lone
+// outer leaves radius 1.
+const OPTION_FIXES = {
+  'jf.cylinder': {
+    outer: {
+      default: null,
+      description: 'outer radius of a hollow cylinder, in the same forms as radius; it takes effect only with inner or wall, so use radius for a solid one',
+    },
+  },
+}
+
+const fixOptions = (entries) => {
+  for (const entry of entries) {
+    for (const [name, fix] of Object.entries(OPTION_FIXES[entry.name] ?? {})) Object.assign(entry.options.find((o) => o.name === name), fix)
+  }
+  return entries
+}
+
 // So a model picks a font by name instead of guessing a URL.
 const addFontNames = (entries) => {
   const font = entries.find((e) => e.name === 'jscadText.text2d').options.find((o) => o.name === 'font')
@@ -54,7 +73,7 @@ const addFontNames = (entries) => {
 
 export const buildIndex = () => {
   const modeling = addExtraOptions(addPassThrough(modelingEntries(dirname(require.resolve('@jscad/modeling')))))
-  const fluent = fluentEntries(dirname(require.resolve('@jbroll/jscad-fluent')), modeling)
+  const fluent = fixOptions(fluentEntries(dirname(require.resolve('@jbroll/jscad-fluent')), modeling))
   const text = addFontNames(jscadTextEntries(fileURLToPath(new URL('../../jscad-text/src', import.meta.url))))
   return [...modeling, ...fluent, ...text]
 }

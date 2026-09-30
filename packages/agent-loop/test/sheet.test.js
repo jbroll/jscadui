@@ -27,6 +27,12 @@ describe('API reference sheet', () => {
     for (const name of SHEET_NAMES[api]) expect(names.has(name), name).toBe(true)
   })
 
+  it('fluent: never gives jf.cylinder outer the default radius, which a lone outer does not set', () => {
+    expect(line(committed('fluent'), 'jf.cylinder(')).toContain('radius = 1, outer, inner, wall')
+    const outer = entries.find((e) => e.name === 'jf.cylinder').options.find((o) => o.name === 'outer')
+    expect(outer.description).toMatch(/only with inner or wall/)
+  })
+
   it('fluent: gives jf factories and methods with option defaults', () => {
     const sheet = committed('fluent')
     expect(line(sheet, 'jf.cube(')).toBe('jf.cube({ center = [0,0,0], size = 2 })')
