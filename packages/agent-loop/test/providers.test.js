@@ -787,3 +787,21 @@ describe('chat id header', () => {
     expect(fetchMock.mock.calls[0][1].headers).not.toHaveProperty('x-jscad-chat-id')
   })
 })
+
+describe('openai request settings', () => {
+  const empty = `data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n` + `data: [DONE]\n\n`
+
+  it('sends temperature and max_tokens only when the config sets them', async () => {
+    fetchMock.mockResolvedValue(new Response(sseBody(empty)))
+    const judge = createProvider({ kind: 'opencode-go', apiKey: 'k', model: 'deepseek-v4.1-flash', baseUrl: 'https://relay.test', effort: 'none', temperature: 0, maxTokens: 150 })
+    for await (const e of judge.send([{ role: 'user', content: 'hi' }], [])) void e
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({ reasoning_effort: 'none', temperature: 0, max_tokens: 150 })
+    fetchMock.mockClear()
+    fetchMock.mockResolvedValue(new Response(sseBody(empty)))
+    const plain = createProvider({ kind: 'opencode-go', apiKey: 'k', model: 'deepseek-v4.1-flash', baseUrl: 'https://relay.test' })
+    for await (const e of plain.send([{ role: 'user', content: 'hi' }], [])) void e
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body)
+    expect(body).not.toHaveProperty('temperature')
+    expect(body).not.toHaveProperty('max_tokens')
+  })
+})

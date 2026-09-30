@@ -1,5 +1,5 @@
-// Usage: npm run grader-validate -w @jscadui/agent-loop [-- --until render]
-// Builds and renders each case in eval/grader-validation/cases.js in the crt sandbox (docs/user-manual.md, Grader validation).
+// Usage: npm run grader-validate -w @jscadui/agent-loop [-- --until render|describe]
+// Builds, renders, describes and judges each case in eval/grader-validation/cases.js (docs/user-manual.md, Grader validation).
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -7,12 +7,13 @@ import { isMainModule } from '../src/mainModule.js'
 import { harnessGates, renderRecord, settleRun } from './complex.js'
 import { describeStop, runDescribe } from './describe.js'
 import { CASES } from './grader-validation/cases.js'
+import { judgeFiles, judgeProviderFactory } from './judge.js'
 import { createRunRenderer } from './render.js'
 import { fileStamp, GRADE_LIFETIME_S, requireSandbox } from './run-eval.js'
 import { gradeInFreshExecutor } from './sandboxed-backend.js'
 import { startExecutor } from './sandbox.js'
 
-export const STAGES = ['render', 'describe']
+export const STAGES = ['render', 'describe', 'judge']
 const DEFAULT_DIR = join(homedir(), '.local', 'state', 'jscad-chat', 'grader-validation')
 
 export const validationRun = async (c, graded, render) => {
@@ -77,12 +78,15 @@ const main = async (argv, env) => {
   }
   writeFileSync(path, JSON.stringify({ suite: 'complex', validation: true, date: new Date().toISOString(), results }, null, 2))
   console.log(`grader-validate: wrote ${path}`)
+  let stopped = false
   if (until !== 'render') {
     const described = await runDescribe([path], { env })
     const stop = describeStop(described)
     if (stop) console.error(`grader-validate: ${stop}`)
     if (stop || described.failed > 0) process.exitCode = 1
+    stopped = Boolean(stop)
   }
+  if (until === 'judge' && !stopped) await judgeFiles([path], { makeProvider: judgeProviderFactory(), log: console.log })
   const final = JSON.parse(readFileSync(path, 'utf8')).results
   const judged = until === 'judge'
   console.log(formatValidation(final, { judged }))

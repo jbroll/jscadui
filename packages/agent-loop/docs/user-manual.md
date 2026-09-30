@@ -972,6 +972,42 @@ free, a describer that did not start or died before it finished (its
 refused-connection count is then unknown, `blockedConnections: null`), or any
 refused outside connection. The descriptions already written are kept.
 
+```bash
+npm run judge -w @jscadui/agent-loop -- [--all] <result files>
+```
+
+makes three calls per described run with no verdict to DeepSeek v4.1 flash
+through opencode-go (`reasoning_effort: "none"`, temperature 0, at most 150
+output tokens), with the key from the same `keys.json` lookup as the eval's
+providers ([Provider keys](#provider-keys)):
+
+> The user's message(s):
+> "{message 1}"
+> "{message 2}"
+>
+> A description of the result:
+> {description}
+>
+> Did the result succeed at what the user asked for? Answer SUCCESS only if
+> the user who made the request would accept the model as what they asked
+> for. A generic shape, missing major parts, or parts floating apart are
+> FAILURE. Answer SUCCESS or FAILURE, then one line why.
+
+The user's messages are the run's `userMessages`. A vote is the first
+`SUCCESS` or `FAILURE` in the reply and the rest, trimmed to 200 characters,
+its reason; a reply with neither word, or a provider error, is asked again up
+to twice, then the vote is null. The run gets `votes: [{ success, reason, ms
+}]` and `verdict: { success, votes: [for, against] }`, the majority of three
+non-null votes; with fewer than two agreeing votes it gets `graderError: true`
+and `verdict: null`, and stays out of the means. Geometry, `checkRate`, the
+total and the file's summary are recomputed, and the file records `judge: {
+provider, model, promptSha256 }`. `--all` judges every described run again,
+after a change to the judge's prompt or model. The judge never sees the
+assistant's text, tool calls, source or renders: a model that writes "here is
+your caboose" over a box gains nothing. It exits 1 when it cannot run (no
+`opencode-go` key, a file it cannot read) and 0 otherwise; a run with no
+majority is a `graderError`, not a failed stage.
+
 ### Grader validation
 
 `eval/grader-validation/cases.js` holds known answers for the describer and
@@ -990,10 +1026,14 @@ npm run grader-validate -w @jscadui/agent-loop
 ```
 
 builds each case in the crt sandbox with the `bodies` probe, renders it,
-describes it, and prints each case's failed gates against the expected result
-and its description; it exits 1 when `exploded` does not fail `connected`,
-when a view fails to describe, or when the describe stage stops (a crash or a
-refused connection, which it prints). `--until render` stops after rendering.
+describes and judges it (three judge calls), and prints each case's failed
+gates, verdict and votes against the expected result, then its description;
+it exits 1 when a scored case does not match or a view fails to describe. When
+the describe stage stops (a crash or a refused connection, which it prints) it
+exits 1 without judging. `--until render` or `--until describe` stops early.
+It needs the GPU, so it runs on the CI host (`sci push
+jscadui/grader-validate`, `ci/README.md`). Every scored case must match before
+a change to either prompt, either model or the renderer is kept.
 It writes
 `<time>-grader-validation.json` and its renders to `GRADER_VALIDATION_DIR`
 (default `~/.local/state/jscad-chat/grader-validation/`). A case may give

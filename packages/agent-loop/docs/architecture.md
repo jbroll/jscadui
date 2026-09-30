@@ -76,6 +76,10 @@ session, so later requests leave it out. Any other refusal ends the call as
 before. `streamWithRetry` gives the refusal's `status` and `body` on the
 Error it throws, which is what the adapter reads.
 
+The chat-completions adapter also sends `temperature` and `max_tokens` when
+the config sets `temperature` and `maxTokens`. Only the eval's judge does; no
+chat or tested model's request carries them.
+
 ## Tool protocol
 
 All model interaction is a tool call (`list`, `read`, `write`, `edit`, `run`,
@@ -378,6 +382,21 @@ turn it off. `describe.py` replaces the reporter's start and flush with
 no-ops, skips the Hugging Face config probe, runs with `HF_HUB_OFFLINE=1`, and
 refuses every socket connection to an address other than loopback
 (`connect` and `connect_ex`). It reports the refused connections when it ends.
+
+### The judge
+
+`eval/judge.js` asks DeepSeek v4.1 flash through opencode-go, the path
+`src/providers.js` already takes for it, in the Node process with the key from
+`keys.json`, never in an executor. It reads only the user's messages and the
+blind description. DeepSeek is also a model under test; judging only the
+request and a blind description of the result, it cannot favour its own
+habits beyond its idea of the object, and in the trial that idea agreed with
+qwen3.5:9b's on every case with a clear answer. Neither judge passed the
+delivery-truck control in 70 tries; with this prompt neither passed the plain
+box, and the real caboose passed 6 of 6 on Moondream's per-view descriptions.
+On Moondream's shorter `caption` output DeepSeek failed the real caboose
+("views inconsistent"), which is why the describer answers the per-view
+prompt.
 
 ## Sandbox
 

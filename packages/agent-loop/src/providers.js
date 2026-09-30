@@ -364,6 +364,8 @@ const openaiProvider = (config) => {
       }
       if (tools.length > 0) body.tools = tools.map(toOpenAITool)
       if (config.effort) body.reasoning_effort = config.effort
+      if (config.temperature !== undefined) body.temperature = config.temperature
+      if (config.maxTokens !== undefined) body.max_tokens = config.maxTokens
       if (config.kind === 'openai' || config.kind === 'opencode-go') body.stream_options = { include_usage: true }
       const headers = {
         'content-type': 'application/json',
@@ -382,7 +384,7 @@ const openaiProvider = (config) => {
 }
 
 /**
- * @param {{kind:'anthropic'|'openai'|'opencode-go'|'meta',apiKey:string,model:string,baseUrl?:string,sessionId?:string,effort?:string,chatId?:string}} config
+ * @param {{kind:'anthropic'|'openai'|'opencode-go'|'meta',apiKey:string,model:string,baseUrl?:string,sessionId?:string,effort?:string,chatId?:string,temperature?:number,maxTokens?:number}} config
  */
 export const createProvider = (config) => {
   if (!config.apiKey) throw new Error('createProvider: apiKey is required')

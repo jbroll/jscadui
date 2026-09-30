@@ -21,7 +21,8 @@
     "eval": "node --import ./text-loader.js eval/run-eval.js",
     "eval:keyless": "node --import ./text-loader.js eval/keyless.js",
     "grader-validate": "node --import ./text-loader.js eval/grader-validate.js",
-    "describe": "node --import ./text-loader.js eval/describe.js"
+    "describe": "node --import ./text-loader.js eval/describe.js",
+    "judge": "node --import ./text-loader.js eval/judge.js"
   },
   "dependencies": {
     "@jscadui/format-common": "*"

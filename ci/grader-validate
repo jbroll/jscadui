@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds, renders (and in later stages describes and judges) the
+# Builds, renders, describes and judges the
 # grader-validation cases on the CI host (packages/agent-loop/eval/grader-validation/)
 # and fails when a scored case does not match.
 #
@@ -10,7 +10,7 @@
 # worktree (sci artifact JOB grader-validation/<file>.renders/<case>-1/<view>.png).
 set -uo pipefail
 
-UNTIL="${GRADER_VALIDATE_UNTIL:-render}"
+UNTIL="${GRADER_VALIDATE_UNTIL:-judge}"
 WORKTREE="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$WORKTREE"
 
