@@ -614,6 +614,9 @@ crt, no rootfs or no cgroup delegation for the memory limit; host setup is in
 `ci/README.md`. Results land in the job's
 `eval-results/`; fetch them into `$JSCAD_CHAT_DATA/results` with
 `node eval/fetch-ci-results.js JOB-ID`. Details: `ci/README.md`.
+Files fetched before simple-ci served artifacts as UTF-8 hold mojibake
+(`→` as `â\u0086\u0092`); `node eval/fix-mojibake.js PATH...` repairs them in
+place and leaves clean files alone.
 
 ## Review loop
 
