@@ -242,11 +242,6 @@ model with `display-check.js --engine jscad`.
   the chat's model; a page or panel over the same `api/index.json` and
   `docsTool` would let a user look up a function, its options and an example
   without asking the chat.
-- jscad-fluent accepts `{ points, faces }` mesh data where a shape belongs:
-  `new jf.FluentGeom3(jf.hullPoints3(points))` builds an object that is not
-  geometry, and `shape.subtract` of it returns without an error. The
-  constructor should reject anything that is not a geom3. The option checks
-  now warn when a boolean gets mesh data (`src/optionChecks.js`).
 - Option checks on transpiled OpenSCAD code. A `.scad` file gets the plain
   `@jscad/modeling` exports, not the option-checked copy
   (`apps/jscad-web/docs/architecture.md`, Unknown-option warnings), since the
@@ -291,7 +286,8 @@ Async module loading is the breaking one; the rest are extractions.
   copying dropped `ManifoldGeom2`/`ManifoldGeom3`'s prototype getters). Fixed
   by pinning jscad-fluent through `scripts/deps/sources.json`
   (`.deps-cache/jscad-fluent`, built by `fetch-sources.js`) instead of the npm
-  0.6.1 release; the pin is now bfe6941 on `main`, which also adds
+  0.6.1 release; the pin is now 90bd6e7 on `main`, which also rejects raw
+  `{ points, faces }` data in constructors and booleans, and adds
   the `@jscad/modeling` parity surface. Remaining work: publish jscad-fluent
   0.7.0 from that branch to npm, then point `apps/jscad-web/package.json` and
   `packages/agent-loop/package.json` back at the npm version and remove the
