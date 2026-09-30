@@ -1,3 +1,4 @@
+import { pickEntry } from '@jscadui/agent-loop'
 import { kindFromEntry } from './local.js'
 
 export { kindFromEntry }
@@ -22,14 +23,6 @@ const namespaceDrop = async (entries, readDir, readAsText) => {
   const files = await walkFiles(roots, readDir, readAsText, `${folder}/`, {})
   if (Object.keys(files).length === 0) throw new Error('empty drop')
   return { folder, files }
-}
-
-const detectEntry = (paths, folder) => {
-  const candidates = ['index.js', 'index.ts', `${folder}.js`, `${folder}.ts`]
-  for (const candidate of candidates) {
-    if (paths.includes(candidate)) return candidate
-  }
-  return [...paths].sort().find((p) => p.endsWith('.js')) ?? paths[0]
 }
 
 // The disk store holds one project, the launcher's model directory, under this id.
@@ -111,7 +104,8 @@ export function createProjectManager({ local, getRowboat, disk = null }) {
   const createFromDrop = async (entries, fns) => {
     const { folder, files } = await namespaceDrop(entries, fns.readDir, fns.readAsText)
     const paths = Object.keys(files).map((p) => p.replace(`${folder}/`, ''))
-    const entry = `${folder}/${detectEntry(paths, folder)}`
+    const picked = pickEntry(paths, { folder, packageJson: files[`${folder}/package.json`], anyJs: true })
+    const entry = `${folder}/${picked ?? paths[0]}`
     const created = await createProject(folder, { entry, files })
     return { ...created, name: folder, entry }
   }

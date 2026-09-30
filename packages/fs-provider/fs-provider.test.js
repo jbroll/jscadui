@@ -12,6 +12,8 @@ import {
   clearCache,
   clearFs,
   findByFullPath,
+  fileDropped,
+  analyzeProject,
 } from './fs-provider.js'
 
 import {
@@ -685,5 +687,54 @@ describe('Edge Cases', () => {
       expect(result.filename).toBe('')
       expect(result.ext).toBe('')
     })
+  })
+})
+
+describe('fileDropped', () => {
+  const fileHandle = (name, text = '') => ({ kind: 'file', name, getFile: async () => new File([text], name) })
+  const dirHandle = (name, kids) => ({ kind: 'directory', name, values: async function* () { yield* kids } })
+  const folder = (name, kids) => ({ name, isDirectory: true, isFile: false, fullPath: '', fsDir: '', handle: dirHandle(name, kids) })
+  const newSw = () => ({ roots: [], filesToCheck: [], cache: { keys: async () => [], delete: async () => true, put: async () => {} }, defProjectName: 'project' })
+
+  beforeEach(() => {
+    vi.stubGlobal('Request', class { constructor(url) { this.url = url } })
+    vi.stubGlobal('Response', class { constructor(body) { this.body = body } })
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('runs the file pickEntry names from the top-level file names and the folder', async () => {
+    const sw = newSw()
+    const pickEntry = vi.fn(() => 'main.js')
+    await fileDropped(sw, [folder('car', [fileHandle('main.js'), fileHandle('car.js'), dirHandle('lib', [])])], pickEntry)
+    expect(pickEntry).toHaveBeenCalledWith(['main.js', 'car.js'], { folder: 'car' })
+    expect(sw.fileToRun).toBe('main.js')
+  })
+
+  it('runs index.js when pickEntry names nothing or is not given', async () => {
+    const sw = newSw()
+    await fileDropped(sw, [folder('car', [fileHandle('car.js')])], () => null)
+    expect(sw.fileToRun).toBe('index.js')
+    await fileDropped(sw, [folder('car', [fileHandle('car.js')])])
+    expect(sw.fileToRun).toBe('index.js')
+  })
+
+  it('runs a single dropped file itself', async () => {
+    const sw = newSw()
+    const pickEntry = vi.fn(() => 'other.js')
+    const file = { name: 'gear.scad', isDirectory: false, isFile: true, fullPath: '/gear.scad', fsDir: '/', handle: fileHandle('gear.scad') }
+    await fileDropped(sw, [file], pickEntry)
+    expect(sw.fileToRun).toBe('gear.scad')
+    expect(pickEntry).not.toHaveBeenCalled()
+  })
+
+  it('asks pickEntry again with package.json when the project is analyzed', async () => {
+    const sw = newSw()
+    const pkg = '{"main":"src/box.js"}'
+    const pickEntry = vi.fn((names, { packageJson }) => (packageJson ? 'box.js' : 'index.js'))
+    await fileDropped(sw, [folder('car', [fileHandle('index.js', 'i'), fileHandle('box.js', 'b'), fileHandle('package.json', pkg)])], pickEntry)
+    const { script } = await analyzeProject(sw)
+    expect(pickEntry).toHaveBeenLastCalledWith(['index.js', 'box.js', 'package.json'], { folder: 'car', packageJson: pkg })
+    expect(sw.fileToRun).toBe('/box.js')
+    expect(script).toBe('b')
   })
 })

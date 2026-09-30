@@ -55,9 +55,8 @@ const requireClosure = (files, entry) => {
 }
 
 /**
- * The file a project build runs. Node's rule (package.json main, index.js,
- * main.js) picks the entry, else the entry the project declares, which a
- * dropped folder names by fs-provider's own rule (index.ts, <folder>.js).
+ * The file a project build runs: agent-loop's resolveEntry, else the entry the
+ * project declares, such as a dropped folder's `<folder>/<entry>`.
  * `open`, the file the user runs, wins when it is a model of its own: it
  * exports a main and the entry neither requires nor imports it.
  * @param {Record<string, unknown>} files

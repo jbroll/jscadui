@@ -14,6 +14,7 @@ import {
   getFileContent,
   registerServiceWorker,
 } from '@jscadui/fs-provider'
+import { pickEntry } from '@jscadui/agent-loop'
 import { collectProjectFiles } from './projectFiles.js'
 import { shouldAllowReload } from './reloadDetection.js'
 
@@ -144,6 +145,9 @@ export async function reloadProject(deps) {
   setEditorFiles(sw.filesToCheck)
 }
 
+/** @type {import('@jscadui/fs-provider').PickEntry} */
+const pickDroppedEntry = (names, context) => pickEntry(names, { ...context, anyJs: true })
+
 /**
  * Handle file drop
  * @param {DataTransfer} dataTransfer
@@ -158,7 +162,7 @@ export async function handleFileDrop(dataTransfer, deps) {
 
     await resetFileRefs(setEditorFiles)
     if (!sw) await initFs(deps)
-    await fileDropped(sw, files)
+    await fileDropped(sw, files, pickDroppedEntry)
     onFilesChange()
   } catch (error) {
     setError(error)

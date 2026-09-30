@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyEdit, applyWrite, listFiles, NO_ENTRY, projectPath, readFile, resolveEntry } from '../src/project.js'
+import { applyEdit, applyWrite, listFiles, NO_ENTRY, pickEntry, projectPath, readFile, resolveEntry } from '../src/project.js'
 
 const thrown = (fn) => {
   try {
@@ -25,12 +25,59 @@ describe('projectPath', () => {
   })
 })
 
+describe('pickEntry', () => {
+  const pkg = (main) => JSON.stringify({ main })
+  const all = ['a.js', 'car.js', 'car.ts', 'index.js', 'index.ts', 'main.js', 'package.json', 'src/box.js']
+
+  it('takes package.json main before every named file', () => {
+    expect(pickEntry(all, { folder: 'car', packageJson: pkg('src/box.js'), anyJs: true })).toBe('src/box.js')
+  })
+
+  it('resolves main as the path, then <main>.js, then <main>/index.js', () => {
+    expect(pickEntry(['box', 'box.js'], { packageJson: pkg('box') })).toBe('box')
+    expect(pickEntry(['box.js', 'box/index.js'], { packageJson: pkg('./box') })).toBe('box.js')
+    expect(pickEntry(['lib/index.js'], { packageJson: pkg('lib') })).toBe('lib/index.js')
+  })
+
+  it('keeps a main that names no file', () => {
+    expect(pickEntry(['index.js'], { packageJson: pkg('gone.js'), anyJs: true })).toBe('gone.js')
+  })
+
+  it('ignores a package.json that is not JSON, has no main, or whose main leaves the folder', () => {
+    expect(pickEntry(['main.js'], { packageJson: 'not json' })).toBe('main.js')
+    expect(pickEntry(['main.js'], { packageJson: '{"name":"x"}' })).toBe('main.js')
+    expect(pickEntry(['main.js'], { packageJson: pkg('../x.js') })).toBe('main.js')
+  })
+
+  it('then index.js, index.ts, main.js, <folder>.js, <folder>.ts, in that order', () => {
+    const order = ['index.js', 'index.ts', 'main.js', 'car.js', 'car.ts']
+    order.forEach((expected, i) => expect(pickEntry(order.slice(i), { folder: 'car' })).toBe(expected))
+  })
+
+  it('names <folder> files only when a folder is given, and only at the top level', () => {
+    expect(pickEntry(['car.js'])).toBeNull()
+    expect(pickEntry(['parts/car.js', 'parts/index.js'], { folder: 'car' })).toBeNull()
+  })
+
+  it('with anyJs falls back to the shallowest .js, then the first by name', () => {
+    expect(pickEntry(['lib/a.js', 'z.js', 'b.js', 'b.ts'], { anyJs: true })).toBe('b.js')
+    expect(pickEntry(['x/z.js', 'x/y/a.js', 'w/b.js'], { anyJs: true })).toBe('w/b.js')
+    expect(pickEntry(['part.js'])).toBeNull()
+    expect(pickEntry(['part.scad', 'README.md'], { anyJs: true })).toBeNull()
+  })
+})
+
 describe('resolveEntry', () => {
   it('takes package.json main first, then index.js, then main.js', () => {
     const files = { 'main.js': 'm', 'index.js': 'i', 'src/box.js': 'b', 'package.json': '{"main":"./src/box.js"}' }
     expect(resolveEntry(files)).toBe('src/box.js')
     expect(resolveEntry({ 'main.js': 'm', 'index.js': 'i' })).toBe('index.js')
     expect(resolveEntry({ 'main.js': 'm', 'part.js': 'p' })).toBe('main.js')
+    expect(resolveEntry({ 'main.js': 'm', 'index.ts': 'i' })).toBe('index.ts')
+  })
+
+  it('passes over binary files', () => {
+    expect(resolveEntry({ 'index.js': new ArrayBuffer(1), 'main.js': 'm' })).toBe('main.js')
   })
 
   it('resolves a main without its extension, or a directory, as Node does', () => {

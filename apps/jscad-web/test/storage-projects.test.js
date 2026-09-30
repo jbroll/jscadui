@@ -74,6 +74,18 @@ describe('project manager', () => {
     expect(created.name).toBe('car')
     expect(created.entry).toBe('car/index.js')
   })
+
+  it("names a dropped folder's entry by agent-loop's pickEntry", async () => {
+    const { manager } = stores()
+    const file = (name, text = '') => ({ name, isDirectory: false, text })
+    const dir = (name, kids) => ({ name, isDirectory: true, kids })
+    const drop = async (kids) => (await manager.createFromDrop([dir('car', kids)], { readDir: async (d) => d.kids, readAsText: async (f) => f.text })).entry
+    expect(await drop([file('car.js'), file('a.js'), file('package.json', '{"main":"src/box"}'), dir('src', [file('box.js')])])).toBe('car/src/box.js')
+    expect(await drop([file('car.js'), file('main.js')])).toBe('car/main.js')
+    expect(await drop([file('car.js'), file('a.js')])).toBe('car/car.js')
+    expect(await drop([dir('lib', [file('a.js')]), file('z.js')])).toBe('car/z.js')
+    expect(await drop([file('car.scad'), file('README.md')])).toBe('car/car.scad')
+  })
 })
 
 describe('project manager with a disk directory', () => {

@@ -41,13 +41,16 @@ You can edit your jscad scripts/projects in editor of your own choice and have j
 
 Just save your jscad script/project on your drive, and use drag&drop to drop the project folder or single script onto jscad.app. It will check file changes periodicaly and reload changed files.
 
-For projects, you must drag&drop the folder and jscad.app will look into `package.json` for `main`. If you
-do not have `package.json` then jscad.app will try following.
+For projects, drag&drop the folder. jscad.app runs the first of these it finds
+(agent-loop's `pickEntry`):
 
+- `package.json` `main` (also as `<main>.js` or `<main>/index.js`)
 - index.js
 - index.ts
+- main.js
 - FOLDER_NAME.js
 - FOLDER_NAME.ts
+- the first `.js` file by name, preferring the top level
 
 jscad.app does not read node_modules for now, but loads dependencies from jsdelivr, and some modules may be bundled with jscad.app to avoid going to jsdelivr. `@jscad/modeling` itself is loaded through the `@jbroll/jscad-anchors` CDN build, which wraps the engine's own modeling bundle (`@jscad/modeling-for-anchors`) and re-exports it plus `anchors`.
 
@@ -91,6 +94,8 @@ Tests: `npx vitest run test/aiChat.test.js` for the chat turn, `npx playwright t
 ## Local model directory
 
 From any model folder: `npm run jscad-chat -- [dir|file] [--port N] [--build|--no-build] [--no-open]` (root) or `node scripts/jscad.mjs` from `apps/jscad-web`. Serves the app on `:7377`, the frame on `:7378`, your folder at `/models/`, and a same-origin `/api/relay` so AI Chat works with your own key. `RELAY_ALLOWLIST` overrides the default allowlist (anthropic, openai, opencode-go, meta) with a JSON `{name: url}` file whose entries are public `https:` URLs without a port, the same rules as the production relay ([server/RELAY.md](server/RELAY.md)).
+
+Given a folder, it opens the file a dropped folder runs (see [External editor](#external-editor)), from the folder's top-level files, with the folder's name as FOLDER_NAME. A folder with no `.js` file and no `package.json` gets a starter `index.js`.
 
 The folder is the open project, listed as the `disk` project in the Projects drawer. The editor shows its files, and the chat's `list`, `read`, `write`, `edit` and `run` work on them. A chat `write` or `edit`, a run from the editor (Shift+Enter) and Ctrl+S write the file back into the folder. `export` writes `<entry name>.<format>` (`main.js` → `main.stl`) at the folder's root and answers its `path`. An edit made outside the app, in another editor or by `git checkout`, reloads: the file list updates, the open file reloads unless you have edits in the buffer you have not run or saved (those stay, with a console warning), and the model rebuilds. The app keeps no version history for the folder; commit it with git. Files git ignores, dot files and `node_modules` stay out of the project, which lists at most 2000 files.
 
@@ -180,7 +185,8 @@ subfolder; dropping onto the page creates a project. Drawer tabs stack
 vertically so the editor, project, and AI panels stay reachable together.
 
 Which file runs: the project's entry is `package.json` `main`, else
-`index.js`, else `main.js`, else the entry the project declares. Running a
+`index.js`, `index.ts` or `main.js`, else the entry the project declares (a
+dropped folder's is named by the rule above). Running a
 file from the editor (Shift+Enter) runs that file instead when it exports its
 own `main` and the entry does not require it, such as `bracket/index.js`
 dropped beside `main.js`; the project then reopens on it. Editing a helper the

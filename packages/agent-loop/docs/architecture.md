@@ -106,9 +106,15 @@ operations live in `src/project.js`, which the eval backend and the app both
 call, so both refuse the same input with the same text.
 
 A write is a save: every `write` and `edit` stores the file and builds the
-project, with no separate save step. The build runs the entry, resolved as
-Node does (`resolveEntry`): `package.json` `main` (also as `<main>.js` or
-`<main>/index.js`), else `index.js`, else `main.js`. Model code stays CommonJS
+project, with no separate save step. The build runs the entry
+(`resolveEntry`): `package.json` `main` (also as `<main>.js` or
+`<main>/index.js`), else `index.js`, else `index.ts`, else `main.js`.
+`resolveEntry` is `pickEntry` over the project's text files, the rule the
+app's folder drop and its launcher share (`src/project.js`); they also pass
+the folder's name, which adds `<folder>.js` and `<folder>.ts` after
+`main.js`, and `anyJs`, which falls back to the shallowest `.js` by name.
+The project build passes neither, so a project with only helpers has no
+entry rather than running one. Model code stays CommonJS
 with `module.exports = { main }`. The result is the build report
 (`src/buildReport.js` `buildReport`, the same shape in the app and the eval):
 

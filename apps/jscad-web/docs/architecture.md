@@ -857,10 +857,9 @@ project and answers the build report. The build is `buildProject` in
 through `jscadScript`, the load path the editor and a project switch take, so
 a chat build draws, builds the params UI and shows its error like any other
 load. `projectEntry` is agent-loop's `resolveEntry` (package.json `main`, else
-`index.js`, else `main.js`), falling back to the entry the project declares
-when none of those exist: a dropped folder's `fileToRun` or a stored
-project's `entry`, both named by the drop rules (`index.ts`, `<folder>.js`).
-The editor's run and a project switch also name the file they open (the
+`index.js`, `index.ts`, `main.js`), falling back to the entry the project
+declares when none of those exist: a dropped folder's `fileToRun` or a stored
+project's `entry`. The editor's run and a project switch also name the file they open (the
 edited file, or the stored `entry`). That file runs instead when it is a
 model of its own: it exports a `main`, and the entry neither requires nor
 imports it, directly or through other files. A stored project can hold such
@@ -873,6 +872,17 @@ Node entry, the one the prompt teaches. A project with no entry shows
 written before its entry is no failure. A chat write answers the report
 headed by `saved` (`writeReport`). Files the chat writes into an empty cache are the open
 project from then on.
+
+One rule names every entry: agent-loop's `pickEntry(paths, { folder,
+packageJson, anyJs })`. A dropped folder's `fileToRun`
+(`fileSystem.handleFileDrop` hands the rule to fs-provider's `fileDropped`,
+which asks again with `package.json` on each `analyzeProject`), the entry
+`createFromDrop` stores, and the launcher's model directory
+(`scripts/local/resolveEntry.js`) all pass the folder's name and `anyJs`, so
+each falls back to the first `.js`. `resolveEntry` passes neither, so a
+project without an entry reports it instead of running a helper. fs-provider
+takes the rule as a parameter rather than importing agent-loop, and keeps no
+dependency on the app's packages.
 
 `createProjectBuilds` (`src/projectBuild.js`) keeps the report of the last
 build, whichever of those started it: `jscadScript` records each load's

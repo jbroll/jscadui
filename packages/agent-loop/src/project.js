@@ -25,21 +25,43 @@ const textOf = (files, path) => {
 
 const mainCandidates = (main) => [main, `${main}.js`, `${main}/index.js`]
 
-// Node's rule: package.json `main`, else index.js, else main.js. A `main`
-// naming no file is still the entry, so the build says it is missing.
-export const resolveEntry = (files) => {
-  const pkg = files[PACKAGE_JSON]
-  if (typeof pkg === 'string') {
-    let main
-    try {
-      main = projectPath(JSON.parse(pkg)?.main)
-    } catch {
-      main = undefined
-    }
-    if (main) return mainCandidates(main).find((path) => typeof files[path] === 'string') ?? main
+const packageMain = (packageJson) => {
+  if (typeof packageJson !== 'string') return undefined
+  try {
+    return projectPath(JSON.parse(packageJson)?.main)
+  } catch {
+    return undefined
   }
-  return ['index.js', 'main.js'].find((path) => typeof files[path] === 'string') ?? null
 }
+
+const depth = (path) => path.split('/').length
+const byName = (a, b) => (a < b ? -1 : a > b ? 1 : 0)
+
+/**
+ * The entry among `paths`, first match wins: package.json `main` (also as
+ * `<main>.js` or `<main>/index.js`; kept when it names no file, so the build
+ * says it is missing), index.js, index.ts, main.js, `<folder>.js`,
+ * `<folder>.ts`, then with `anyJs` the shallowest .js by name. Else null.
+ * @param {Array<string>} paths
+ * @param {{folder?: string, packageJson?: string, anyJs?: boolean}} [options]
+ * @returns {string | null}
+ */
+export const pickEntry = (paths, { folder, packageJson, anyJs = false } = {}) => {
+  const has = new Set(paths)
+  const main = packageMain(packageJson)
+  if (main) return mainCandidates(main).find((path) => has.has(path)) ?? main
+  const named = ['index.js', 'index.ts', 'main.js', ...(folder ? [`${folder}.js`, `${folder}.ts`] : [])].find((path) => has.has(path))
+  if (named) return named
+  if (!anyJs) return null
+  return paths.filter((path) => path.endsWith('.js')).sort((a, b) => depth(a) - depth(b) || byName(a, b))[0] ?? null
+}
+
+// A project's entry: pickEntry over its text files, without guessing at a .js.
+export const resolveEntry = (files) =>
+  pickEntry(
+    Object.keys(files).filter((path) => typeof files[path] === 'string'),
+    { packageJson: files[PACKAGE_JSON] },
+  )
 
 const byteSize = (content) => (typeof content === 'string' ? new TextEncoder().encode(content).length : (content?.byteLength ?? 0))
 

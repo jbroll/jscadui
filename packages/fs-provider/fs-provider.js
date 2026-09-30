@@ -23,7 +23,15 @@ import { safariGetAsHandle } from './src/safariFileHandles.js'
  * @prop {Cache} cache
  * @prop {OnFilesChangeHandler} onfileschange
  * @prop {(path:string)=>Promise<FSFileEntry | undefined>} getFile
- * 
+ * @prop {PickEntry} [pickEntry] the entry rule fileDropped was given
+ * @prop {Array<string>} [entryNames] the dropped top-level file names it picks from
+ * @prop {string} [entryFolder] the dropped folder's name
+ *
+ * @callback PickEntry
+ * @param {Array<string>} names
+ * @param {{folder?: string, packageJson?: string}} context
+ * @returns {string | null | undefined}
+ *
  * @callback OnFilesChangeHandler
  * @param {Array<string>} files
  * @returns {void}
@@ -397,38 +405,40 @@ export const checkFiles = async sw => {
 }
 
 /**
- * 
- * @param {SwHandler} sw 
- * @param {Array<FSEntry>} files 
+ * A single dropped file runs itself. A dropped folder or set of files runs the
+ * file `pickEntry` names from the top-level file names, and analyzeProject asks
+ * it again with package.json's text; without `pickEntry`, index.js or
+ * package.json `main`.
+ * @param {SwHandler} sw
+ * @param {Array<FSEntry>} files
+ * @param {PickEntry} [pickEntry]
  */
-export async function fileDropped(sw, files) {
+export async function fileDropped(sw, files, pickEntry) {
   sw.filesToCheck.length = 0
-  const candidates = ['index.js', 'index.ts']
-  sw.fileToRun = candidates[0]
+  sw.fileToRun = 'index.js'
+  sw.pickEntry = undefined
   await clearFs(sw)
   /** @type {Array<FSEntry>}*/
   let rootFiles = []
-  if (files.length === 1) {
-    const file = files[0]
-    if (file.isDirectory) {
-      sw.folderName = file.name
-      file.fullPath = ''
-      candidates.push(sw.folderName + '.js')
-      candidates.push(sw.folderName + '.ts')
-      rootFiles = await readDir(file)
-      for (const candidate of candidates) {
-        const found = await findFileInRoots([rootFiles], candidate)
-        if (found) {
-          sw.fileToRun = candidate
-          break
-        }
-      }
-    } else {
-      rootFiles.push(file)
-      sw.fileToRun = file.name
-    }
+  if (files.length === 1 && !files[0].isDirectory) {
+    rootFiles.push(files[0])
+    sw.fileToRun = files[0].name
   } else {
-    rootFiles = Array.from(files)
+    let folder
+    if (files.length === 1) {
+      const file = files[0]
+      folder = sw.folderName = file.name
+      file.fullPath = ''
+      rootFiles = await readDir(file)
+    } else {
+      rootFiles = Array.from(files)
+    }
+    if (pickEntry) {
+      sw.pickEntry = pickEntry
+      sw.entryNames = rootFiles.filter(f => f.isFile).map(f => f.name)
+      sw.entryFolder = folder
+      sw.fileToRun = pickEntry(sw.entryNames, { folder }) ?? sw.fileToRun
+    }
   }
   sw.roots.push(rootFiles)
 }
@@ -491,8 +501,10 @@ const getWorkspaceAliases = async sw => {
   if (pkgFile) {
     try {
       sw.filesToCheck.push(pkgFile)
-      const pack = JSON.parse(await readAsText(pkgFile))
-      if (pack.main) sw.fileToRun = sanitizePath(pack.main)
+      const text = await readAsText(pkgFile)
+      const pack = JSON.parse(text)
+      if (sw.pickEntry) sw.fileToRun = sw.pickEntry(sw.entryNames ?? [], { folder: sw.entryFolder, packageJson: text }) ?? sw.fileToRun
+      else if (pack.main) sw.fileToRun = sanitizePath(pack.main)
       if (pack.workspaces)
         for (const workspace of pack.workspaces) {
           // H10 fix: Sanitize workspace path early to prevent path traversal
