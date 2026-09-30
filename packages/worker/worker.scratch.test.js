@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { clearAllCaches } from '@jscadui/require'
+import { clearAllCaches, requireCache } from '@jscadui/require'
 
 // worker.js registers self.addEventListener at import time.
 globalThis.self = { addEventListener() {}, postMessage: () => {} }
 
-const { jscadMain, jscadScript, currentSolids, setRunConsole, setRunSummary } = await import('./worker.js')
+const { jscadMain, jscadScript, currentSolids, setModelIsolation, setRunConsole, setRunSummary } = await import('./worker.js')
 const { workerState } = await import('./src/state/workerState.js')
 
 const consoleCollector = () => {
@@ -13,6 +13,7 @@ const consoleCollector = () => {
 }
 
 const reset = () => {
+  setModelIsolation(null)
   setRunConsole(null)
   setRunSummary(null)
   delete globalThis.__runConsole
@@ -133,6 +134,49 @@ describe("a scratch run calling a project module's main", () => {
     const script = "const { main } = require('./main.js')\nmodule.exports = { main: () => main({ width: 30 }) }"
     await jscadScript({ script, url: 'http://project.local/__run__.js', base: 'http://project.local/', root: 'http://project.local/', scratch: true })
     expect(seen[0].value).toEqual([{ width: 30, depth: 20 }])
+  })
+
+  it('leaves the project module cache as it found it', async () => {
+    const before = { ...requireCache.local }
+    await jscadScript({ script: "require('./main.js')\nmodule.exports = {}", url: 'http://project.local/__run__.js', base: 'http://project.local/', root: 'http://project.local/', scratch: true })
+    expect({ ...requireCache.local }).toEqual(before)
+  })
+})
+
+describe('module state a model sets up (setModelIsolation)', () => {
+  const text = { state: null }
+  const MODEL = "globalThis.__text.state = 'model'\nmodule.exports = { main: () => [{ id: String(globalThis.__text.state) }] }"
+  const NO_SETUP = 'module.exports = { main: () => [{ id: String(globalThis.__text.state) }] }'
+
+  beforeEach(() => {
+    globalThis.__text = text
+    text.state = null
+    setModelIsolation(() => {
+      const saved = text.state
+      text.state = null
+      return () => {
+        text.state = saved
+      }
+    })
+  })
+
+  afterEach(() => {
+    reset()
+    delete globalThis.__text
+  })
+
+  it('starts every load clean, so a build never sees what a scratch run set up', async () => {
+    await jscadScript({ script: "globalThis.__text.state = 'run'\nmodule.exports = {}", url: 'http://project.local/__run__.js', scratch: true })
+    await jscadScript({ script: NO_SETUP, url: 'http://project.local/main.js' })
+    expect(currentSolids()).toEqual([{ id: 'null' }])
+  })
+
+  it("puts the loaded model's setup back after a scratch run, so a param change still runs", async () => {
+    await jscadScript({ script: MODEL, url: 'http://project.local/main.js' })
+    await jscadScript({ script: "globalThis.__text.state = 'run'\nmodule.exports = {}", url: 'http://project.local/__run__.js', scratch: true })
+    expect(text.state).toBe('model')
+    await jscadMain({ params: {}, stream: false })
+    expect(currentSolids()).toEqual([{ id: 'model' }])
   })
 })
 

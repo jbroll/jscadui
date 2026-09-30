@@ -105,7 +105,9 @@ installed fails with the frame's `failed to load module <name>` /
 any name `isBuiltin` accepts) fail the same way, since the browser has none.
 `@jscadui/jscad-text`, ESM-only, which Node's `require` cannot resolve, is
 imported by `eval/backend.js` and handed over as a plain copy of its exports,
-as the frame's `bundle.jscad_text.js` hands them. The frame loads the static
+as the frame's `bundle.jscad_text.js` hands them. It is one module for every
+run, so each build and each `run` starts with its `reset()`, as each frame
+load does: an `init` a snippet made never reaches a later build. The frame loads the static
 font map's fonts from jsDelivr URLs of pinned `@typopro/dtp-*` npm packages;
 the backend registers the same files from `node_modules`
 (`registerInstalledFonts`, a devDependency of this package), inside the

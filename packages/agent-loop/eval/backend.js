@@ -132,6 +132,8 @@ const locateSyntaxError = (files, entry, error) => {
 // Runs `entry` over `files` and, when it exports one, its main(). Never throws.
 // `wrapRequire` wraps the require the entry's own code calls.
 const runModel = async (files, entry, api, { wrapRequire } = {}) => {
+  // One jscad-text serves every run, so an init() a snippet made must not carry into a build.
+  jscadText.reset()
   warnings.reset()
   warnings.setApi(api)
   clearAllCaches()

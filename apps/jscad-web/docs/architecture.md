@@ -816,7 +816,10 @@ it returns, so a failure leaves the viewer as it was and shows the error bar.
 (a project file's `main(values)` the snippet calls gets a build's params
 proxy with those values set), and answers the console, the warnings, an error, and `summarizeRun`'s `geometry`
 or `returned` preview, then puts the loaded model back: its module, `main`,
-solids and parameter state. The frame and the app's replay keep the model's
+solids, parameter state, cached project modules and jscad-text state. Every
+load, a build or a run, starts with jscad-text reset (`modelIsolation.js`,
+through the worker's `setModelIsolation`), so a model that uses `text2d`
+without `init` fails however many runs called `init` before it. The frame and the app's replay keep the model's
 script and file map for a restarted or promoted worker
 (`docs/WORKER_PROTOCOL.md`). Nothing is drawn or saved. The editor's own runs
 do not set `scratch`, so a user's script with no `main` shows `no main

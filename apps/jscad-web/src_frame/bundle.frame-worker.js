@@ -15,6 +15,7 @@ import {
   lastRunStreamed,
   postProgress,
   releaseSolids,
+  setModelIsolation,
   setRunConsole,
   setRunSummary,
   setRunWarnings,
@@ -29,6 +30,7 @@ import { sealMessageListeners } from './sealMessages.js'
 import { createWithSolids } from './withSolids.js'
 import { installOptionWarnings } from './optionWarnings.js'
 import { installRunConsole } from './consoleCapture.js'
+import { createModelIsolation } from './modelIsolation.js'
 
 // The frame adds appOrigin to every jscadInit: this worker's own origin is
 // opaque, so include urls with no origin of their own have no other base.
@@ -134,7 +136,17 @@ const jscadGetExportFormats = () =>
 
 const importData = createImportData(() => require('@jscad/io', null, readFileWeb).deserializers)
 
-const runWarnings = installOptionWarnings({ setUserModuleWrapper, setRunWarnings })
+// Every load starts with jscad-text as no model set it up; a scratch run puts the loaded model's back.
+const isolation = createModelIsolation()
+setModelIsolation(isolation.isolate)
+const runWarnings = installOptionWarnings({
+  setUserModuleWrapper: (wrap) =>
+    setUserModuleWrapper((name, api) => {
+      isolation.seen(name, api)
+      return wrap(name, api)
+    }),
+  setRunWarnings,
+})
 installRunConsole({ setRunConsole })
 
 initWorker({

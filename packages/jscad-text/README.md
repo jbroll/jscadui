@@ -86,6 +86,15 @@ registerFontFile(bytes)  // → ['Liberation Sans', 'Liberation Sans:style=Regul
 text2d('Hi', { font: 'Liberation Sans:style=Regular' })
 ```
 
+### `saveState()`, `restoreState(state)`, `reset()`
+
+For a host that runs one model after another in the same module instance.
+`reset()` forgets `init` and every font registered at run time, leaving the
+static font map; `saveState()` and `restoreState()` keep and put back what a
+model set up. Parsed fonts stay cached across them. The jscad-web frame and
+the agent-loop eval reset before each model load, so a model that never
+calls `init` fails the same way whatever ran before it.
+
 ## Font specifier
 
 The `font` option accepts:

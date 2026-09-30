@@ -43,13 +43,13 @@ export const requireHandlers = new Map()
 // purpose of executing user-provided CAD modeling scripts. This is by design.
 export const runModule = globalThis.eval('(require, exports, module, source)=>eval(source)')
 
-const USER_MODULES = new Set(['@jscad/modeling', '@jscad/modeling-for-anchors', '@jbroll/jscad-fluent'])
+const USER_MODULES = new Set(['@jscad/modeling', '@jscad/modeling-for-anchors', '@jbroll/jscad-fluent', '@jscadui/jscad-text'])
 let userModuleWrapper = null
 let wrappedModules = new WeakMap()
 
 /**
  * Registers the function that gives project files their own copy of the
- * modeling and fluent exports. Pass null to turn it off.
+ * modeling, fluent and jscad-text exports. Pass null to turn it off.
  * @param {((name: string, exports: object) => object) | null} fn
  */
 export const setUserModuleWrapper = (fn) => {

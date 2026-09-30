@@ -295,6 +295,26 @@ export function registerFontFile(bytes) {
 }
 
 /**
+ * The runtime font map's entries and whether system fonts were loaded, for
+ * restoreFontMap.
+ * @returns {{entries: Array<[string, unknown]>, systemFontsLoaded: boolean}}
+ */
+export function fontMapState() {
+  return { entries: [...runtimeMap], systemFontsLoaded }
+}
+
+/**
+ * Put the runtime font map back as fontMapState took it; with no state, as
+ * the static map alone.
+ * @param {{entries: Array<[string, unknown]>, systemFontsLoaded: boolean}} [state]
+ */
+export function restoreFontMap(state = { entries: Object.entries(STATIC_FONT_MAP), systemFontsLoaded: false }) {
+  runtimeMap.clear()
+  for (const [name, source] of state.entries) runtimeMap.set(name, source)
+  systemFontsLoaded = state.systemFontsLoaded
+}
+
+/**
  * Get a read-only snapshot of all currently registered font names.
  *
  * @returns {string[]}

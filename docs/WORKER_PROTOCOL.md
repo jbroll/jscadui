@@ -70,8 +70,15 @@ script itself requires hands back its `main` wrapped (params-core
 proxy where those values win, as a user's edits do, and every other parameter
 takes its default. It never throws: an
 error is answered in `error`. Either way it puts the loaded model back as it
-was: its module and `main`, its solids, and its parameter and UI state, so a
-later `jscadMain` runs the model. The chat can try code without losing what
+was: its module and `main`, its solids, its parameter and UI state, the
+project modules the loader had cached, and the library state the model set
+up, so a later `jscadMain` runs the model.
+
+Every load first calls the hook `setModelIsolation` registered, which resets
+the state library modules keep for a model (the frame's resets jscad-text's
+`init` and registered fonts), so no load sees what an earlier load or scratch
+run set up. A scratch run calls the restore function the hook returned when
+it ends. The chat can try code without losing what
 is drawn.
 
 The frame and the app's replay treat a scratch answer as no load. The frame

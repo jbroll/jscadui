@@ -34,7 +34,7 @@ import { initStrokeExpander, expandLines } from './geometry/StrokeExpander.js'
 import { initTTFToGeom2, ttfLinesToGeom2 } from './geometry/TTFToGeom2.js'
 import { computeValignOffset } from './layout/Alignment.js'
 import { defaultLoader } from './fonts/TTFLoader.js'
-import { resolveFont } from './fonts/FontMap.js'
+import { fontMapState, resolveFont, restoreFontMap } from './fonts/FontMap.js'
 
 // Injected JSCAD reference
 let jscad = null
@@ -50,6 +50,28 @@ export function init(jscadRef) {
   initHershey(jscadRef)
   initStrokeExpander(jscadRef)
   initTTFToGeom2(jscadRef)
+}
+
+/**
+ * What a model set up: the jscad init was given and the fonts it registered.
+ * A host that runs one model after another saves, resets and restores it, so
+ * no model sees another's setup. Parsed fonts stay cached: a font URL loads
+ * to the same font either way. Arrow functions, so the chat's docs index,
+ * which lists `export function`s, leaves these host calls out.
+ * @returns {{jscad: object|null, fonts: object}}
+ */
+export const saveState = () => ({ jscad, fonts: fontMapState() })
+
+/** @param {{jscad: object|null, fonts: object}} state from saveState */
+export const restoreState = (state) => {
+  init(state.jscad)
+  restoreFontMap(state.fonts)
+}
+
+/** Back to the state before any init or font registration. */
+export const reset = () => {
+  init(null)
+  restoreFontMap()
 }
 
 /**

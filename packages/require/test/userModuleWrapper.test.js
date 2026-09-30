@@ -57,6 +57,14 @@ describe('user module wrapper', () => {
     expect(real.primitives.cube()).toBe('cube')
   })
 
+  it('hands jscad-text to the wrapper too', () => {
+    files['http://bundles.test/text.js'] = 'module.exports = { text2d: () => null }'
+    requireCache.bundleAlias['@jscadui/jscad-text'] = 'http://bundles.test/text.js'
+    const { t } = project(`${ROOT}a.js`, 'module.exports = { t: require("@jscadui/jscad-text") }')
+    delete requireCache.bundleAlias['@jscadui/jscad-text']
+    expect(t.wrappedAs).toBe('@jscadui/jscad-text')
+  })
+
   it('passes everything through with no wrapper registered', () => {
     setUserModuleWrapper(null)
     expect(project(`${ROOT}a.js`, 'module.exports = { m: require("@jscad/modeling") }').m.wrappedAs).toBeUndefined()

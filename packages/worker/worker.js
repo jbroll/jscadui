@@ -125,6 +125,20 @@ export const setRunConsole = (collector) => {
   runConsole = collector
 }
 
+/** @type {(() => (() => void)) | null} */
+let isolateModel = null
+
+/**
+ * Registers what resets the state library modules keep for the model that
+ * set it up (jscad-text's init, say). jscadScript calls it before each load,
+ * so every model starts clean; a scratch run calls the function it returns
+ * afterwards, putting the loaded model's state back.
+ * @param {(() => (() => void)) | null} isolate
+ */
+export const setModelIsolation = (isolate) => {
+  isolateModel = isolate
+}
+
 const noMainError = () => Object.assign(new Error('no main function exported'), { name: 'NoMainError' })
 
 /** @type {((run: {hasMain: boolean, value: unknown}) => object) | null} */
@@ -487,6 +501,8 @@ export const jscadScript = async ({ script, url='jscad.js', base=workerState.glo
   // Acquire lock to prevent race conditions with concurrent script executions
   const release = await acquireScriptLock()
   let previousModelState = null
+  let restoreModel = null
+  let cachedProjectModules = null
   try {
     // I1 fix: Check if we're still the current generation after acquiring lock
     // A timeout may have released the lock and allowed another script to start
@@ -518,6 +534,9 @@ export const jscadScript = async ({ script, url='jscad.js', base=workerState.glo
     // Top-level model code runs during the require below.
     runWarnings?.reset()
     runConsole?.reset()
+    restoreModel = isolateModel?.() ?? null
+    // The project modules a scratch run loads must not stay cached for the next build.
+    if (scratch) cachedProjectModules = { ...requireCache.local }
 
     if(!script) script = readFileWeb(resolveUrl(url, base, root).url)
 
@@ -617,6 +636,11 @@ export const jscadScript = async ({ script, url='jscad.js', base=workerState.glo
     throw error
   } finally {
     if (scratch && previousModelState) Object.assign(workerState, previousModelState)
+    if (scratch) restoreModel?.()
+    if (cachedProjectModules) {
+      for (const key of Object.keys(requireCache.local)) delete requireCache.local[key]
+      Object.assign(requireCache.local, cachedProjectModules)
+    }
     release()
   }
 }

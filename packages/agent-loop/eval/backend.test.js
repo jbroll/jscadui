@@ -326,6 +326,16 @@ describe('eval backend run', () => {
     expect((await call(createEvalBackend(), 'run', {})).error.message).toMatch(/source must be/)
   })
 
+  it('leaves no module state behind: a build after a run that set up jscad-text fails as a fresh build does', async () => {
+    const withoutInit = nameplate().replace("jscadText.init(require('@jscad/modeling'))\n", '')
+    const fresh = await writeMain(withoutInit)
+    expect(fresh).toMatchObject({ ok: false, error: { message: expect.stringContaining('call init(jscad) before using text2d()') } })
+    const backend = createEvalBackend()
+    const ran = await call(backend, 'run', { source: "const jscadText = require('@jscadui/jscad-text')\njscadText.init(require('@jscad/modeling'))\nconsole.log(jscadText.text2d('A') !== null)" })
+    expect(ran).toMatchObject({ ok: true, console: ['true'] })
+    expect(await writeMain(withoutInit, backend)).toEqual(fresh)
+  })
+
   const SLIDER_BOX = `const { cuboid } = require('@jscad/modeling').primitives
 const main = (params) => {
   params.width = { type: 'slider', default: 60, min: 10, max: 100 }
