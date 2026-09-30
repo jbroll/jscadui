@@ -53,7 +53,11 @@ A test fails when any of them differs from a fresh generation, so a
 same commit. Where JSDoc misses an option the generator adds it: a function's
 `defaults` literal keys (`extrudeLinear`'s `repair`), and the options
 `PASS_THROUGH` in `api/build-index.js` names (`extrudeRectangular` hands its
-options to `expand` and `extrudeLinear`).
+options to `expand` and `extrudeLinear`). Where JSDoc misleads, `OPTION_FIXES`
+in `api/build-index.js` corrects it (`jf.cylinder`'s `outer`, whose JSDoc
+default is `radius` though fluent reads it only with `inner` or `wall`). The
+`jscadText.text2d` `font` option's description gets the static font map's
+names appended (`addFontNames`), so a model can pick a font by name.
 
 ## Tests
 
