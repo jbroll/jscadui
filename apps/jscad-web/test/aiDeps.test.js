@@ -202,7 +202,7 @@ describe('measure, check and export', () => {
     const { deps, tools: t } = tools()
     expect(await t.measure({})).toEqual({ ok: true, volume: 1000, units: 'mm' })
     expect(await t.check({ bed: [10, 10, 10] })).toEqual({ ok: true, watertight: true, fitsBed: false, units: 'mm' })
-    expect(deps.workerApi.jscadCheck).toHaveBeenCalledWith({ bed: [10, 10, 10], options: { bed: [10, 10, 10] } })
+    expect(deps.workerApi.jscadCheck).toHaveBeenCalledWith({ bed: [10, 10, 10] })
     expect(await t.exportModel({ format: 'stla' })).toEqual({ ok: true, format: 'stla', size: 10 })
   })
 

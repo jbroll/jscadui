@@ -12,14 +12,15 @@ check(model, { bed: 'mk3' }) // { watertight, manifold, fitsBed, ... }
 ```
 
 `measure` options: `parts` (an index selector like `"0"` or `"1-3"`, `"all"`,
-an array of selectors, or that array as a JSON string; they index the array
+an array of selectors, where `"all"` stands for every part, or that array as a
+JSON string; they index the array
 `main()` returns, and a whole number stands for its index), `between`
 (exactly two selectors; `"all"` is refused there), `anchors` (boolean), `section` (an axis `"x"`/`"y"`/
 `"z"`, an offset like `"z=5"`, or `{axis, offset}`). A negative-volume geom3
 gets `insideOut: true` and a `notes` entry saying it is inside out; for an
 array, the note names each such part.
 
-`check` options: `bed` (optional), one of the named beds in `BEDS` (`mk3`, `mk4`,
+`check`'s only option: `bed` (optional), one of the named beds in `BEDS` (`mk3`, `mk4`,
 `mini`, `x1`, `p1`, `a1mini`, `ender3`, case-insensitive) or its size in mm
 as `[x, y, z]`, `{x, y, z}`, or a JSON array string (`"[x, y, z]"`). It
 reports `watertight`, `manifold`, `openEdges`, `nonManifoldEdges`,

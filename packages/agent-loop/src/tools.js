@@ -103,7 +103,6 @@ export const buildTools = (api = DEFAULT_API) => [
           description:
             'Printer bed: a name (mk3, mk4, mini, x1, p1, a1mini, ender3) or its size in mm as [x, y, z], {x, y, z}, or a JSON array string',
         },
-        options: { type: 'object', description: 'Check options' },
       },
     },
   },

@@ -140,12 +140,13 @@ const jsonArray = (text) => {
   }
 }
 
-// A bare selector reads more naturally than a one-element array; "all" stays a string.
+// A bare selector reads more naturally than a one-element array; "all", alone
+// or in an array, stays the string.
 const normalizeParts = (parts) => {
   if (parts === undefined) return undefined
   if (parts === 'all') return parts
   const list = typeof parts === 'string' && parts.trim().startsWith('[') ? jsonArray(parts) : parts
-  if (Array.isArray(list)) return list.map(asSelector)
+  if (Array.isArray(list)) return list.includes('all') ? 'all' : list.map(asSelector)
   if (typeof list === 'string' || Number.isInteger(list)) return [asSelector(list)]
   throw new Error(PARTS_ERROR)
 }

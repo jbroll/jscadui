@@ -122,6 +122,12 @@ test('measure accepts parts as a JSON array string, and index numbers', () => {
   expect(() => measure(scene, { parts: '["0"' })).toThrow(/parts must be "all"/)
 })
 
+test('measure takes "all" inside a parts array as every part', () => {
+  const scene = [cube(0), cube(10)]
+  expect(measure(scene, { parts: ['all'] }).parts.map((p) => p.part)).toEqual(['0', '1'])
+  expect(measure(scene, { parts: '["all"]' }).parts.map((p) => p.part)).toEqual(['0', '1'])
+})
+
 test('measure rejects a parts value that is not a selector, a range, or an array', () => {
   expect(() => measure(cube(0), { parts: true })).toThrow(/parts must be "all"/)
 })

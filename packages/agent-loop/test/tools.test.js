@@ -40,8 +40,9 @@ describe('agent tools', () => {
     }
   })
 
-  it('makes the check bed optional, for a printer the user names', () => {
+  it('makes the check bed optional, for a printer the user names, and takes nothing else', () => {
     const check = TOOLS.find((t) => t.name === 'check')
+    expect(Object.keys(check.inputSchema.properties)).toEqual(['bed'])
     expect(check.inputSchema.required ?? []).not.toContain('bed')
     expect(check.description).toMatch(/Pass a bed only when the user names a printer/)
   })

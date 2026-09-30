@@ -55,6 +55,7 @@ const PARITY_ROUNDS = [
   { name: 'export', args: { format: 'step' } },
   { name: 'measure', args: { parts: 'all', between: ['0', 'all'] } },
   { name: 'measure', args: {} },
+  { name: 'measure', args: { parts: ['all'] } },
   { name: 'write', args: { path: 'main.js', content: SLIDER_BOX } },
   { name: 'run', args: { source: "const { main } = require('./main.js')\nmodule.exports = { main: () => main({ width: 30 }) }" } },
   { name: 'run', args: { source: "require('./main.js').main({ width: -1 })" } },

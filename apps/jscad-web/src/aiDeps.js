@@ -89,7 +89,7 @@ export const createProjectTools = ({
     edit: async (args) => save(applyEdit(await getProjectFiles(), args)),
     run,
     measure: onBuild(async (options) => withUnits({ ok: true, ...(await workerApi.jscadMeasure({ options })) })),
-    check: onBuild(async (input) => withUnits({ ok: true, ...(await workerApi.jscadCheck({ bed: input?.bed, options: input ?? {} })) })),
+    check: onBuild(async (input) => withUnits({ ok: true, ...(await workerApi.jscadCheck({ bed: input?.bed })) })),
     exportModel: onBuild(exportModel),
     endTurn: async () => {
       for (const projectId of [...written]) {
