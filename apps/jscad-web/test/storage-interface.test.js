@@ -32,6 +32,18 @@ describe('storage interface (local backend)', () => {
     expect(latest.files).toEqual({ 'main.js': 'v2' })
   })
 
+  it('writes without a version row when asked, and snapshots the stored files as one', async () => {
+    const store = createLocalStorage()
+    await store.writeFiles('p4', { 'main.js': 'v1' }, { message: 'create', name: 'P4', entry: 'main.js' })
+    await store.writeFiles('p4', { 'main.js': 'v2', 'lib.js': 'l' }, { message: 'chat', version: false })
+    expect((await store.readProject('p4')).files).toEqual({ 'main.js': 'v2', 'lib.js': 'l' })
+    expect((await store.listVersions('p4')).map((v) => v.message)).toEqual(['create'])
+    await store.snapshot('p4', { message: 'chat' })
+    const versions = await store.listVersions('p4')
+    expect(versions.map((v) => v.message)).toEqual(['chat', 'create'])
+    expect(await store.readVersion('p4', versions[0].versionId)).toEqual({ files: { 'main.js': 'v2', 'lib.js': 'l' }, entry: 'main.js' })
+  })
+
   it('stores a conversation per project and returns null when absent', async () => {
     const store = createLocalStorage()
     expect(await store.readConversation('missing')).toBeNull()

@@ -74,8 +74,20 @@ export function createRowboatStorage(options) {
     return { id, name: row.name, entry: row.entry, kind: row.kind, mode: row.mode, created: row.created, updated: row.updated, files }
   }
 
+  const addVersion = (id, manifest, message, created) =>
+    db.create('versions', {
+      id: crypto.randomUUID(),
+      owner_group_id: identity,
+      projectId: id,
+      versionId: crypto.randomUUID(),
+      created,
+      message,
+      manifest,
+    })
+
+  // `version: false` stores the files with no version row; `snapshot` records one later.
   const writeFiles = async (id, files, options = {}) => {
-    const { message = '', name, entry } = options
+    const { message = '', name, entry, version = true } = options
     const existing = await db.table('projects').get(id)
     const entryPath = entry ?? existing?.entry ?? 'main.js'
     const ts = now()
@@ -111,16 +123,14 @@ export function createRowboatStorage(options) {
         hash: fileManifest[path],
       })),
     )
-    await db.create('versions', {
-      id: crypto.randomUUID(),
-      owner_group_id: identity,
-      projectId: id,
-      versionId: crypto.randomUUID(),
-      created: ts,
-      message,
-      manifest: Object.entries(fileManifest).map(([path, media]) => ({ path, hash: media })),
-    })
+    if (version) await addVersion(id, Object.entries(fileManifest).map(([path, media]) => ({ path, hash: media })), message, ts)
     return { id, entry: entryPath, kind: kindFromEntry(entryPath) }
+  }
+
+  const snapshot = async (id, { message = '' } = {}) => {
+    await readRow('projects', id)
+    const manifest = (await rowsFor('files', id)).map(({ path, hash }) => ({ path, hash }))
+    await addVersion(id, manifest, message, now())
   }
 
   const listVersions = async (id) => {
@@ -167,5 +177,5 @@ export function createRowboatStorage(options) {
     await globalThis.indexedDB?.deleteDatabase?.(dbName)
   }
 
-  return { sync, close, listProjects, readProject, writeFiles, listVersions, readVersion, readConversation, writeConversation }
+  return { sync, close, listProjects, readProject, writeFiles, snapshot, listVersions, readVersion, readConversation, writeConversation }
 }

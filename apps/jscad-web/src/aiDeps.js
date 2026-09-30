@@ -18,9 +18,10 @@ const indexFor = async (loadIndex) => {
 /**
  * The chat's tools over the open project: the file cache every run sends the
  * frame, read at each call so it follows project switches and the user's
- * edits. A write or edit is a save: it lands in the cache and the editor,
- * then `build` runs the project the way the editor does and answers its
- * report. Storage gets one version per turn, from `endTurn`.
+ * edits. A write or edit is a save: it lands in the cache, in storage and in
+ * the editor, then `build` runs the project the way the editor does and
+ * answers its report. `storeFile` writes with no version row; `endTurn`
+ * snapshots each project the turn wrote to as one version.
  * @param {{
  *   getProjectFiles: () => Promise<Record<string, string|ArrayBuffer>>,
  *   writeProjectFile: (path:string, content:string) => Promise<void>,
@@ -30,7 +31,8 @@ const indexFor = async (loadIndex) => {
  *   workerApi: object,
  *   exportModel: (args:object) => Promise<object>,
  *   getProjectId: () => string,
- *   saveVersion: (projectId:string, files:Record<string,string>) => Promise<unknown>,
+ *   storeFile: (projectId:string, path:string, content:string) => Promise<unknown>,
+ *   snapshot: (projectId:string) => Promise<unknown>,
  *   getApi?: () => string,
  *   loadIndex?: () => Promise<Array<object>|undefined>,
  * }} deps
@@ -44,19 +46,20 @@ export const createProjectTools = ({
   workerApi,
   exportModel,
   getProjectId,
-  saveVersion,
+  storeFile,
+  snapshot,
   getApi = () => DEFAULT_API,
   loadIndex = async () => undefined,
 }) => {
-  // project id → path → content written this turn
-  const pending = new Map()
+  // The projects this turn wrote to.
+  const written = new Set()
 
   const save = async ({ files, path }) => {
     const content = files[path]
-    await writeProjectFile(path, content)
     const projectId = getProjectId()
-    if (!pending.has(projectId)) pending.set(projectId, new Map())
-    pending.get(projectId).set(path, content)
+    await writeProjectFile(path, content)
+    await storeFile(projectId, path, content)
+    written.add(projectId)
     showFile(path, content, files)
     return build()
   }
@@ -88,12 +91,11 @@ export const createProjectTools = ({
     measure: onBuild(async (options) => withUnits({ ok: true, ...(await workerApi.jscadMeasure({ options })) })),
     check: onBuild(async (input) => withUnits({ ok: true, ...(await workerApi.jscadCheck({ bed: input?.bed, options: input ?? {} })) })),
     exportModel: onBuild(exportModel),
-    // Paths this turn wrote and has not saved yet, which a load's storage merge must not overwrite.
-    pendingPaths: (projectId) => new Set(pending.get(projectId)?.keys() ?? []),
     endTurn: async () => {
-      const turns = [...pending]
-      pending.clear()
-      for (const [projectId, files] of turns) await saveVersion(projectId, Object.fromEntries(files))
+      for (const projectId of [...written]) {
+        written.delete(projectId)
+        await snapshot(projectId)
+      }
     },
   }
 }

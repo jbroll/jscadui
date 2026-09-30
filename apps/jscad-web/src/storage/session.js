@@ -9,28 +9,20 @@ export function createSession({ local, rowboat, getRowboat, getBackend }) {
     return project.files[path]
   }
 
-  // One write, so one version row, per backend the changed paths belong to.
-  const writeManyThrough = async (projectId, changed, options = {}) => {
-    const byStore = new Map()
-    for (const [path, content] of Object.entries(changed)) {
-      const store = backendFor(projectId, path)
-      if (!byStore.has(store)) byStore.set(store, {})
-      byStore.get(store)[path] = content
+  const writeThrough = async (projectId, path, content, options = {}) => {
+    const store = backendFor(projectId, path)
+    let files
+    try {
+      files = { ...(await store.readProject(projectId)).files }
+    } catch {
+      files = {}
     }
-    let written
-    for (const [store, files] of byStore) {
-      let current
-      try {
-        current = (await store.readProject(projectId)).files
-      } catch {
-        current = {}
-      }
-      written = await store.writeFiles(projectId, { ...current, ...files }, options)
-    }
-    return written
+    files[path] = content
+    return store.writeFiles(projectId, files, options)
   }
 
-  const writeThrough = (projectId, path, content, options = {}) => writeManyThrough(projectId, { [path]: content }, options)
+  // A version row of what the project's backend holds now.
+  const snapshot = (projectId, options = {}) => backendFor(projectId).snapshot(projectId, options)
 
-  return { readThrough, writeThrough, writeManyThrough }
+  return { readThrough, writeThrough, snapshot }
 }

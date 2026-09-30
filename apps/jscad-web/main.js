@@ -56,7 +56,7 @@ import { createSession } from './src/storage/session.js'
 import { initProjects } from './src/projects.js'
 import { extractEntries, readAsText, readDir } from '@jscadui/fs-provider'
 import { createFrame, createJobTracker } from './src/frameSetup.js'
-import { collectProjectFiles, projectPathOf, replaceProjectFiles } from './src/projectFiles.js'
+import { projectPathOf, replaceProjectFiles } from './src/projectFiles.js'
 import { createScriptRuns, sendScript } from './src/scriptRuns.js'
 import { createStreamRuns } from './src/streamRuns.js'
 import { newRunId } from './src/runId.js'
@@ -308,9 +308,6 @@ const projectBuilds = createProjectBuilds({
   loadIndex: loadApiIndex,
 })
 
-// The chat's project tools, built with the chat below; a load's storage merge reads their unsaved writes.
-let chatTools = null
-
 // The frame names its own bundles; the app names only the engine.
 const initFrame = () =>
   workerApi
@@ -352,8 +349,8 @@ async function reloadProject() {
   await fileSystem.reloadProject(fsDeps)
 }
 
-// Version/hash record for every editor compile and writeModel save against
-// the live project; the session routes by the manager's per-project mode.
+// Version/hash record for every editor compile and chat turn against the
+// live project; the session routes by the manager's per-project mode.
 const localStore = createLocalStorage()
 let rowboatStore = null
 const projectManager = createProjectManager({ local: localStore, getRowboat: () => rowboatStore })
@@ -603,10 +600,8 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
         if (project) {
           const manifest = Object.fromEntries(Object.keys(project.files).map((path) => [path, 'rowboat']))
           const merged = assembleFileMap(manifest, { local: {}, rowboat: project.files })
-          // The chat saves its writes when the turn ends, so the stored copy is older until then.
-          const unsaved = chatTools?.pendingPaths(currentProjectId) ?? new Set()
           for (const [path, content] of Object.entries(merged)) {
-            if (!unsaved.has(path)) await fileSystem.addToCacheWrapper(path, content)
+            await fileSystem.addToCacheWrapper(path, content)
           }
         }
       }
@@ -615,7 +610,7 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
     }
     // Query renderer capability for GPU normals support
     const useGpuNormals = viewState.viewer?.supportsGpuNormals ?? false
-    const files = await collectProjectFiles(fileSystem.getSwHandler())
+    const files = await fileSystem.projectFiles()
     if (isStale()) return STALE
     const result = await sendScript(workerApi, files, { script, url, base, root, useGpuNormals, runId, held: meshRefs.held(), supersede: true }, getChatApi())
     if (isStale()) return STALE
@@ -708,7 +703,7 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
  * @param {string} [open]
  */
 const buildProject = async (open) => {
-  const files = await collectProjectFiles(fileSystem.getSwHandler())
+  const files = await fileSystem.projectFiles()
   const entry = projectEntry(files, currentEntry, open)
   if (!entry) {
     projectBuilds.recordNoEntry()
@@ -793,7 +788,7 @@ editor.init(
       await workerApi.jscadClearFileCache({ files: [cachePath], root: PROJECT_BASE })
       const open = projectPathOf(path)
       // A model of its own that the user runs becomes the project's entry, so the project reopens on it.
-      const standalone = projectEntry(await collectProjectFiles(fileSystem.getSwHandler()), currentEntry, open) === open
+      const standalone = projectEntry(await fileSystem.projectFiles(), currentEntry, open) === open
       if (standalone) currentEntry = cachePath
       await recordEdit(script, cachePath, standalone ? { entry: cachePath } : {})
       buildProject(open).catch(setError)
@@ -889,8 +884,8 @@ if ('serviceWorker' in navigator && !navigator.serviceWorker.controller) {
 // The agent loop runs in the page; each tool request is served against the
 // open project's files (the file cache every run sends the frame), the
 // editor, the viewer and the frame. See aiDeps.js.
-chatTools = createProjectTools({
-  getProjectFiles: () => collectProjectFiles(fileSystem.getSwHandler()),
+const chatTools = createProjectTools({
+  getProjectFiles: () => fileSystem.projectFiles(),
   writeProjectFile: async (path, content) => {
     await fileSystem.addToCacheWrapper(path, content)
     await workerApi.jscadClearFileCache({ files: [path], root: PROJECT_BASE })
@@ -908,7 +903,10 @@ chatTools = createProjectTools({
   workerApi,
   exportModel: createExport((args) => workerApi.jscadExportData(args)),
   getProjectId: () => currentProjectId,
-  saveVersion: (projectId, files) => storageSession.writeManyThrough(projectId, files, { message: 'chat' }),
+  // Stored at once, so a reload mid-turn keeps it; the turn's version comes from its end.
+  storeFile: (projectId, path, content) =>
+    storageSession.writeThrough(projectId, path, content, { message: 'chat', version: false }).catch((err) => console.warn('storage write failed:', err)),
+  snapshot: (projectId) => storageSession.snapshot(projectId, { message: 'chat' }),
   getApi: getChatApi,
   loadIndex: loadApiIndex,
 })
@@ -938,7 +936,7 @@ if (byId('ai-chat')) {
     getApi: getChatApi,
     storage: chatStorage,
     projectId: () => currentProjectId,
-    getProjectFiles: () => collectProjectFiles(fileSystem.getSwHandler()),
+    getProjectFiles: () => fileSystem.projectFiles(),
     getBuild: projectBuilds.report,
     endTurn: chatTools.endTurn,
   })

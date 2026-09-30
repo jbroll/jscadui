@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import index from '@jscadui/agent-loop/api/index.json'
 import { createProjectTools } from '../src/aiDeps.js'
+import { createLocalStorage } from '../src/storage/local.js'
+import { createSession } from '../src/storage/session.js'
 
 // The open project as main.js sees it: the file cache every run sends the
 // frame. `open` is a project switch.
@@ -39,7 +41,8 @@ const tools = ({ project = fakeProject(), workerApi = {}, ...rest } = {}) => {
       ...workerApi,
     },
     exportModel: vi.fn(async () => ({ ok: true, format: 'stla', size: 10 })),
-    saveVersion: vi.fn(async () => {}),
+    storeFile: vi.fn(async () => {}),
+    snapshot: vi.fn(async () => {}),
     ...rest,
   }
   return { deps, tools: createProjectTools(deps) }
@@ -87,41 +90,75 @@ describe('write and edit', () => {
   })
 })
 
-describe('versions', () => {
-  it("saves one version per turn, with each written file's final content", async () => {
-    const project = fakeProject({ 'main.js': 'v0' })
-    const { deps, tools: t } = tools({ project })
+describe('storage', () => {
+  // The app's storage: each chat write goes through at once, with no version
+  // row; the turn's version is a snapshot of the stored project at its end.
+  const stored = async () => {
+    const local = createLocalStorage()
+    await local.writeFiles('p1', { 'main.js': 'v0' }, { message: 'create', name: 'P', entry: 'main.js' })
+    const session = createSession({ local, getBackend: () => 'local' })
+    return {
+      local,
+      session,
+      storeFile: vi.fn((projectId, path, content) => session.writeThrough(projectId, path, content, { message: 'chat', version: false })),
+      snapshot: vi.fn((projectId) => session.snapshot(projectId, { message: 'chat' })),
+    }
+  }
+  const messages = async (local, id = 'p1') => (await local.listVersions(id)).map((v) => v.message)
+
+  it('stores each write before it builds, so a reload mid-turn loses nothing', async () => {
+    const { local, storeFile, snapshot } = await stored()
+    const { deps, tools: t } = tools({ project: fakeProject({ 'main.js': 'v0' }), storeFile, snapshot })
     await t.write({ path: 'main.js', content: 'v1' })
     await t.write({ path: 'lib.js', content: 'lib' })
+    expect(storeFile.mock.invocationCallOrder[0]).toBeLessThan(deps.build.mock.invocationCallOrder[0])
+    expect((await local.readProject('p1')).files).toEqual({ 'main.js': 'v1', 'lib.js': 'lib' })
+    expect(await messages(local)).toEqual(['create'])
+  })
+
+  it("saves one version per turn, of the project's final state", async () => {
+    const { local, storeFile, snapshot } = await stored()
+    const { tools: t } = tools({ project: fakeProject({ 'main.js': 'v0' }), storeFile, snapshot })
+    await t.write({ path: 'main.js', content: 'v1' })
     await t.edit({ path: 'main.js', oldString: 'v1', newString: 'v2' })
-    expect(deps.saveVersion).not.toHaveBeenCalled()
     await t.endTurn()
-    expect(deps.saveVersion).toHaveBeenCalledTimes(1)
-    expect(deps.saveVersion).toHaveBeenCalledWith('p1', { 'main.js': 'v2', 'lib.js': 'lib' })
+    const versions = await local.listVersions('p1')
+    expect(versions.map((v) => v.message)).toEqual(['chat', 'create'])
+    expect((await local.readVersion('p1', versions[0].versionId)).files).toEqual({ 'main.js': 'v2' })
     await t.endTurn()
-    expect(deps.saveVersion).toHaveBeenCalledTimes(1)
+    expect(snapshot).toHaveBeenCalledTimes(1)
+  })
+
+  it("keeps the user's editor edit of a file the chat wrote earlier in the turn", async () => {
+    const { local, session, storeFile, snapshot } = await stored()
+    const { tools: t } = tools({ project: fakeProject({ 'main.js': 'v0' }), storeFile, snapshot })
+    await t.write({ path: 'main.js', content: 'chat' })
+    await session.writeThrough('p1', 'main.js', 'user', { message: 'edit' })
+    await t.endTurn()
+    expect((await local.readProject('p1')).files['main.js']).toBe('user')
+    const [latest] = await local.listVersions('p1')
+    expect((await local.readVersion('p1', latest.versionId)).files['main.js']).toBe('user')
   })
 
   it('saves nothing for a turn that wrote nothing', async () => {
     const { deps, tools: t } = tools()
     await t.run('console.log(1)')
     await t.endTurn()
-    expect(deps.saveVersion).not.toHaveBeenCalled()
+    expect(deps.snapshot).not.toHaveBeenCalled()
   })
 
-  it('keeps writes with the project they were made in when the project switches mid-turn', async () => {
+  it('stores writes in the project they were made in, and snapshots each project the turn wrote to', async () => {
     const project = fakeProject({ 'main.js': 'a' }, 'p1')
     const { deps, tools: t } = tools({ project })
     await t.write({ path: 'main.js', content: 'a2' })
-    expect(t.pendingPaths('p1')).toEqual(new Set(['main.js']))
     project.open({ 'main.js': 'b' }, 'p2')
     await t.write({ path: 'part.js', content: 'part' })
-    await t.endTurn()
-    expect(deps.saveVersion.mock.calls).toEqual([
-      ['p1', { 'main.js': 'a2' }],
-      ['p2', { 'part.js': 'part' }],
+    expect(deps.storeFile.mock.calls).toEqual([
+      ['p1', 'main.js', 'a2'],
+      ['p2', 'part.js', 'part'],
     ])
-    expect(t.pendingPaths('p1').size).toBe(0)
+    await t.endTurn()
+    expect(deps.snapshot.mock.calls).toEqual([['p1'], ['p2']])
   })
 })
 

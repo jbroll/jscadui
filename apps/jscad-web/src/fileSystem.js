@@ -14,6 +14,7 @@ import {
   getFileContent,
   registerServiceWorker,
 } from '@jscadui/fs-provider'
+import { collectProjectFiles } from './projectFiles.js'
 import { shouldAllowReload } from './reloadDetection.js'
 
 /**
@@ -38,6 +39,10 @@ let sw
 
 /** @type {Object.<string, FileSystemFileHandle>} */
 let saveMap = {}
+
+// The project's files when no service worker registered, so models still run.
+/** @type {Map<string, unknown>} */
+const memoryFiles = new Map()
 
 /**
  * Reset file references
@@ -175,9 +180,8 @@ export function getSwHandler() {
  * @param {string} content
  */
 export async function addToCacheWrapper(path, content) {
-  if (sw) {
-    await addToCache(sw.cache, path, content)
-  }
+  if (sw) await addToCache(sw.cache, path, content)
+  else memoryFiles.set(path.replace(/^\//, ''), content)
 }
 
 /**
@@ -185,7 +189,16 @@ export async function addToCacheWrapper(path, content) {
  * project's files have to go before the next project's arrive.
  */
 export async function clearProjectCache() {
+  memoryFiles.clear()
   if (sw) await clearCache(sw.cache)
+}
+
+/**
+ * The open project's files, keyed by bare path: what every run sends the frame.
+ * @returns {Promise<Record<string, unknown>>}
+ */
+export async function projectFiles() {
+  return sw ? collectProjectFiles(sw) : Object.fromEntries(memoryFiles)
 }
 
 /**

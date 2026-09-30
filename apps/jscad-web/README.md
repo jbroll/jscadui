@@ -129,7 +129,9 @@ carries.
 
 Model files are local-first with per-project version history (`src/storage/`).
 Every editor compile, and every chat turn that wrote files, records a version
-row plus file hashes, in both modes:
+row plus file hashes, in both modes. The chat stores each file it writes at
+once, so a reload mid-turn keeps it, and the turn's version is the project as
+stored when the turn ends, including any edit you made in the editor meanwhile:
 
 - `local` mode (default) keeps bytes in the service-worker FS and file
   handles, as before. Anonymous users are local-only.

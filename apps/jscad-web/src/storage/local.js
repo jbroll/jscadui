@@ -26,8 +26,15 @@ export function createLocalStorage() {
     return { ...row, files: { ...row.files } }
   }
 
+  const addVersion = (id, { files, entry }, message, created) => {
+    const list = versions.get(id) ?? []
+    list.unshift({ versionId: crypto.randomUUID(), created, message, files: { ...files }, entry })
+    versions.set(id, list)
+  }
+
+  // `version: false` stores the files with no version row; `snapshot` records one later.
   const writeFiles = async (id, files, options = {}) => {
-    const { message = '', name, entry, mode = 'local' } = options
+    const { message = '', name, entry, mode = 'local', version = true } = options
     const existing = projects.get(id)
     const entryPath = entry ?? existing?.entry ?? 'main.js'
     const ts = now()
@@ -42,10 +49,14 @@ export function createLocalStorage() {
       files: { ...files },
     }
     projects.set(id, row)
-    const list = versions.get(id) ?? []
-    list.unshift({ versionId: crypto.randomUUID(), created: ts, message, files: { ...files }, entry: entryPath })
-    versions.set(id, list)
+    if (version) addVersion(id, row, message, ts)
     return { id, entry: entryPath, kind: row.kind }
+  }
+
+  const snapshot = async (id, { message = '' } = {}) => {
+    const row = projects.get(id)
+    if (!row) throw new Error(`projects: not found (${id})`)
+    addVersion(id, row, message, now())
   }
 
   const listVersions = async (id) =>
@@ -66,5 +77,5 @@ export function createLocalStorage() {
     conversations.set(projectId, { messages, updated: now() })
   }
 
-  return { listProjects, readProject, writeFiles, listVersions, readVersion, readConversation, writeConversation }
+  return { listProjects, readProject, writeFiles, snapshot, listVersions, readVersion, readConversation, writeConversation }
 }

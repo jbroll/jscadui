@@ -52,6 +52,18 @@ describe('rowboat backend', () => {
     await store.close()
   })
 
+  it('writes without a version row when asked, and snapshots the stored files as one', async () => {
+    const store = transcriptStorage(vi.fn(async () => new Response('{}')))
+    await store.writeFiles('p4', { 'main.js': 'v1' }, { message: 'create', name: 'P4', entry: 'main.js' })
+    await store.writeFiles('p4', { 'main.js': 'v2!', 'lib.js': 'l' }, { message: 'chat', version: false })
+    expect((await store.listVersions('p4')).map((v) => v.message)).toEqual(['create'])
+    await store.snapshot('p4', { message: 'chat' })
+    const versions = await store.listVersions('p4')
+    expect(versions.map((v) => v.message)).toEqual(['chat', 'create'])
+    expect((await store.readVersion('p4', versions[0].versionId)).files).toEqual({ 'main.js': 'v2!', 'lib.js': 'l' })
+    await store.close()
+  })
+
   it('persists a conversation per project', async () => {
     const store = transcriptStorage(vi.fn(async () => new Response('{}')))
     const messages = [{ role: 'user', content: 'make a gear' }]

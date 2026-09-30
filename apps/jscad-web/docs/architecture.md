@@ -698,7 +698,7 @@ holding every text file of the current project under `### <path>` in a fenced
 block and then the project's last build report, outside the budget and
 omitted when both are empty; then the new message. Prior turns carry only what the transcript stores, the user text and
 the assistant's streamed text, so earlier tool calls are not replayed. The
-project files come from the file cache the frame runs (`collectProjectFiles`).
+project files come from the file cache the frame runs (`fileSystem.projectFiles`).
 The chat sends its per-project session id as `x-jscad-chat-id` when it goes
 through the relay, and not to a custom base URL. The eval builds its messages
 with the same function.
@@ -763,7 +763,7 @@ that needs a hint, then keeps it. A failed load is retried on the next call;
 an error goes out without its hint meanwhile.
 
 The agent works on the open project's files: the file cache every run sends
-the frame (`collectProjectFiles`), which `switchProject` refills and the
+the frame (`fileSystem.projectFiles`), which `switchProject` refills and the
 editor's own run of a project file writes to. `src/aiDeps.js`
 (`createProjectTools`) reads it at each call, so it follows project switches
 and the user's edits, and answers through the helpers the eval's backend
@@ -821,12 +821,18 @@ script and file map for a restarted or promoted worker
 do not set `scratch`, so a user's script with no `main` shows `no main
 function exported`.
 
-Storage gets one version per chat turn. A write records its file as pending
-for the project it was made in; when the turn ends, however it ends,
-`initChat`'s `endTurn` saves each project's pending files in one write
-(`writeManyThrough`), a version holding the turn's final state. Until then a
-load's rowboat merge skips those paths, so the older stored copy cannot
-overwrite them in the cache.
+Storage gets one version per chat turn, not one per write. Each write is
+stored at once, in the project it was made in, with no version row
+(`writeThrough` with `version: false`), before its build: a reload mid-turn
+loses nothing, and a load's rowboat merge finds the stored copy current. When
+the turn ends, however it ends, `initChat`'s `endTurn` snapshots each project
+the turn wrote to (`snapshot`, a version row of what the backend holds). The
+snapshot reads storage, not the turn's writes, so a user's editor edit made
+during the turn, stored after the chat's write, is what the version keeps.
+
+With no service worker the file cache is an in-memory map in
+`src/fileSystem.js` (`projectFiles`), so a project switch, an editor run and
+the chat's builds still run.
 
 `view` (page, from the live canvas) is not offered to the model: its PNG data
 URL gets JSON-encoded into a text tool result that no provider adapter turns
