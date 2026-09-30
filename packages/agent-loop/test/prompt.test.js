@@ -65,10 +65,16 @@ describe('system prompt', () => {
     expect(buildSystemPrompt(api)).toContain("const jscadText = require('@jscadui/jscad-text')")
   })
 
-  it('fluent: names @jscad/modeling only to rule it out or to init jscad-text', () => {
+  it('fluent: names @jscad/modeling only to rule it out', () => {
     const mentions = lines(buildSystemPrompt('fluent'), '@jscad/modeling')
     expect(mentions.length).toBeGreaterThan(0)
-    for (const line of mentions) expect(line).toMatch(/Do not require|jscadText\.init\(require\('@jscad\/modeling'\)\)/)
+    for (const line of mentions) expect(line).toMatch(/Do not require/)
+  })
+
+  it.each(APIS)('%s: says jscad-text needs no init', (api) => {
+    const prompt = buildSystemPrompt(api)
+    expect(prompt).toContain('with no `init` needed')
+    expect(prompt).not.toContain('jscadText.init(')
   })
 
   it('fluent: teaches one method chain per shape and no modeling calls', () => {

@@ -1,7 +1,7 @@
 | Package | Import | Holds |
 |---|---|---|
 | `@jscad/modeling` | `const { primitives, booleans, transforms } = require('@jscad/modeling')` | `primitives`, `booleans`, `transforms`, `extrusions`, `expansions`, `hulls`, `minkowski`, `modifiers`, `colors`, `measurements`, `maths`, `geometries`, `curves`, `text`, `utils` |
-| `@jscadui/jscad-text` | `const jscadText = require('@jscadui/jscad-text')` | TTF and Hershey text outlines |
+| `@jscadui/jscad-text` | `const jscadText = require('@jscadui/jscad-text')` | TTF and Hershey text outlines: `jscadText.text2d('Hi', { size: 10 })`, with no `init` needed |
 
 Shapes such as `sphere` and `cube` are members of `primitives`, not packages:
 `const { sphere } = require('@jscad/modeling').primitives`.

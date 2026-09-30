@@ -34,6 +34,7 @@ const NOTES = {
   'primitives.cylinderElliptic': START_AT_MINUS_Z,
   'jf.cylinder': 'radius: [start, end] makes a taper or cone; start is the -Z end.',
   'jf.cylinderElliptic': START_AT_MINUS_Z,
+  'jscadText.text2d': 'Needs no init: the runtime has already set jscad-text up with @jscad/modeling.',
 }
 
 // A fluent entry borrows a modeling function's options through sameAs; the
@@ -396,9 +397,21 @@ const TAPER_TARGET = { fluent: 'jf.cylinder', modeling: 'primitives.cylinderElli
 
 const taperAnswer = (byName, api) => `${TAPER[api][0].toUpperCase()}${TAPER[api].slice(1)}.\n\n${render(byName.get(TAPER_TARGET[api]), byName)}`
 
+// @jscad/modeling's text namespace gives stroke segments only; filled text is jscad-text's.
+const TEXT_QUERY = /^text$/i
+const TEXT_USE = {
+  fluent: 'wrap the outline as new jf.FluentGeom2(outline) to chain on it, e.g. .extrudeLinear({ height })',
+  modeling: 'extrude the outline with extrusions.extrudeLinear({ height }, outline)',
+}
+const TEXT_TAIL = { modeling: "\n\n@jscad/modeling's own text namespace (vectorChar, vectorText) gives only stroke segments: query text.vectorText." }
+
+const textAnswer = (byName, api) =>
+  `Filled text outlines come from jscadText.text2d (@jscadui/jscad-text); ${TEXT_USE[api]}.\n\n${render(byName.get('jscadText.text2d'), byName)}${TEXT_TAIL[api] ?? ''}`
+
 const lookupOne = (index, q, api) => {
   const { all, byName } = withAliases(index)
   if (TAPER_QUERY.test(q)) return { ok: true, text: cap(taperAnswer(byName, api)) }
+  if (TEXT_QUERY.test(q)) return { ok: true, text: cap(textAnswer(byName, api)) }
   if (PARAMS_QUERY.test(q)) return { ok: true, text: PARAMS_ANSWER }
   const ownPackage = API_PACKAGE[api]
   const own = all.filter((e) => e.pkg === ownPackage || e.pkg === TEXT)

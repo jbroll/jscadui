@@ -13,8 +13,8 @@ under the same file names. `buildSystemPrompt(api)` is the filled prose, then
 that style's API reference sheet (`prompt/sheet-<api>.md`, under
 `## API reference`), then an `## Examples` section with that style's examples
 fenced, in file-name order. Tests check the order, that each prompt carries
-only its own style's examples, that neither prompt names the other API (apart
-from the jscad-text `init` line), and that every example builds in the eval
+only its own style's examples, that neither prompt names the other API, and
+that every example builds in the eval
 backend with no warnings. Examples stay single-file `main.js` models and never
 call a tool: the prompt's Project section teaches the file layout.
 

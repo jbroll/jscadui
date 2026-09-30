@@ -1,12 +1,11 @@
 | Package | Import | Holds |
 |---|---|---|
 | `@jbroll/jscad-fluent` | `const jf = require('@jbroll/jscad-fluent')` | shapes with chainable methods: `jf.cuboid({ size: [4, 4, 5] }).translate([18, 0, 0])`, `a.subtract(b, c)`, `jf.polygon([[x, y], ...]).extrudeLinear({ height })`, `shape.hull()`, `shape.colorize([r, g, b])` |
-| `@jscadui/jscad-text` | `const jscadText = require('@jscadui/jscad-text')` | TTF and Hershey text outlines |
+| `@jscadui/jscad-text` | `const jscadText = require('@jscadui/jscad-text')` | TTF and Hershey text outlines: `jscadText.text2d('Hi', { size: 10 })`, with no `init` needed |
 
-Do not require `@jscad/modeling` or mix in its calls. The one exception:
-jscad-text needs `jscadText.init(require('@jscad/modeling'))` before
-`jscadText.text2d(...)`; wrap the outline it returns as
-`new jf.FluentGeom2(outline)` to chain on it.
+Do not require `@jscad/modeling` or mix in its calls. Wrap the outline
+`jscadText.text2d(...)` returns as `new jf.FluentGeom2(outline)` to chain on
+it.
 
 ## jscad-fluent style
 

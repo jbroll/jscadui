@@ -178,7 +178,18 @@ describe('docs lookup, fluent API', () => {
 
   it('answers jf.vectorText, and keeps jscadText.text2d for filled text', () => {
     expect(fluent('vectorText').startsWith('jf.vectorText (@jbroll/jscad-fluent)')).toBe(true)
-    expect(fluent('text')).toMatch(/the fluent form is jscadText\./)
+  })
+
+  it.each(['fluent', 'modeling'])('%s: text leads to jscadText.text2d, which needs no init', (api) => {
+    const answer = text('text', api)
+    expect(answer.startsWith('Filled text outlines come from jscadText.text2d')).toBe(true)
+    expect(answer).toContain('jscadText.text2d (@jscadui/jscad-text)')
+    expect(answer).toContain("require('@jscadui/jscad-text')")
+    expect(answer).not.toMatch(/call init|before text2d/)
+    expect(answer).not.toContain('[truncated')
+    if (api === 'modeling') expect(answer).toContain('text.vectorText')
+    else expect(answer).toContain('new jf.FluentGeom2(outline)')
+    for (const query of ['jscadText', 'jscadText.init', 'text2d']) expect(text(query, api)).toMatch(/needs no init/i)
   })
 
   it('never shows the modeling entry for a redirect', () => {

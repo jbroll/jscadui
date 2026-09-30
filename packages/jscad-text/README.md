@@ -47,7 +47,10 @@ const solid = jscad.extrusions.extrudeLinear({ height: 5 }, geom)
 
 ### `init(jscad)`
 
-Must be called once before any `text2d()` calls, passing your JSCAD modeling instance.
+Must be called once before any `text2d()` calls, passing your JSCAD modeling
+instance. Model code run by the jscad-web frame or the agent-loop eval needs
+none: they call it with the `@jscad/modeling` they serve, and a model's own
+call is harmless.
 
 ### `text2d(text, options?)`  /  `text2d(options)`
 
@@ -92,8 +95,8 @@ For a host that runs one model after another in the same module instance.
 `reset()` forgets `init` and every font registered at run time, leaving the
 static font map; `saveState()` and `restoreState()` keep and put back what a
 model set up. Parsed fonts stay cached across them. The jscad-web frame and
-the agent-loop eval reset before each model load, so a model that never
-calls `init` fails the same way whatever ran before it.
+the agent-loop eval reset and then `init` before each model load, so every
+model starts from the same state whatever ran before it.
 
 ## Font specifier
 

@@ -117,7 +117,12 @@ any name `isBuiltin` accepts) fail the same way, since the browser has none.
 imported by `eval/backend.js` and handed over as a plain copy of its exports,
 as the frame's `bundle.jscad_text.js` hands them. It is one module for every
 run, so each build and each `run` starts with its `reset()`, as each frame
-load does: an `init` a snippet made never reaches a later build. The frame loads the static
+load does: an `init` a snippet made never reaches a later build. Model code's
+first require of it in a run then initialises it with Node's own
+`@jscad/modeling` (not the option-checked copy, whose warnings would name
+jscad-text's internal calls), as the frame sets it up with the engine's, so
+`text2d` needs no `init` and a model's own `init` changes nothing it would
+notice. The frame loads the static
 font map's fonts from jsDelivr URLs of pinned `@typopro/dtp-*` npm packages;
 the backend registers the same files from `node_modules`
 (`registerInstalledFonts`, a devDependency of this package), inside the

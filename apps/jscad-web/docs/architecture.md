@@ -820,9 +820,11 @@ it returns, so a failure leaves the viewer as it was and shows the error bar.
 proxy with those values set), and answers the console, the warnings, an error, and `summarizeRun`'s `geometry`
 or `returned` preview, then puts the loaded model back: its module, `main`,
 solids, parameter state, cached project modules and jscad-text state. Every
-load, a build or a run, starts with jscad-text reset (`modelIsolation.js`,
-through the worker's `setModelIsolation`), so a model that uses `text2d`
-without `init` fails however many runs called `init` before it. The frame and the app's replay keep the model's
+load, a build or a run, starts with jscad-text reset and then initialised
+with the engine's `@jscad/modeling` (`modelIsolation.js`'s `setUp`, through
+the worker's `setModelIsolation`; the first require of it is set up the same
+way), so `text2d` needs no `init`, and whatever a run did to it never reaches
+a later build. The frame and the app's replay keep the model's
 script and file map for a restarted or promoted worker
 (`docs/WORKER_PROTOCOL.md`). Nothing is drawn or saved. The editor's own runs
 do not set `scratch`, so a user's script with no `main` shows `no main

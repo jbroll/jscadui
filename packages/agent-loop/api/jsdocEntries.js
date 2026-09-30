@@ -133,7 +133,7 @@ export const jscadTextEntries = (srcDir) => {
     if (decl?.kind !== 'function' || !decl.doc) return []
     return [functionEntry({ name: `jscadText.${name}`, pkg: JSCAD_TEXT, kind: 'function', doc: decl.doc })]
   })
-  const description = 'Text as 2D geometry: Hershey stroke fonts and TTF/OTF outline fonts. Call init(jscad) before text2d.'
+  const description = 'Text as 2D geometry: Hershey stroke fonts and TTF/OTF outline fonts. text2d needs no init: the runtime sets jscad-text up with @jscad/modeling.'
   const members = entries.map((e) => ({ name: e.name.slice('jscadText.'.length), summary: firstSentence(e.description) }))
   return [{ name: 'jscadText', pkg: JSCAD_TEXT, kind: 'namespace', description, members }, ...entries]
 }

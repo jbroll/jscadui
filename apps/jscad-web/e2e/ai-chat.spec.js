@@ -67,7 +67,9 @@ const PARITY_ROUNDS = [
   { name: 'write', args: { path: 'main.js', content: WARNED } },
   { name: 'docs', args: { query: 'params' } },
   { name: 'run', args: { source: "const t = require('@jscadui/jscad-text')\nt.init(require('@jscad/modeling'))\nconsole.log(t.text2d('A') !== null)" } },
+  { name: 'run', args: { source: "const t = require('@jscadui/jscad-text')\nt.init(null)\nt.text2d('A')" } },
   { name: 'write', args: { path: 'main.js', content: TEXT_WITHOUT_INIT } },
+  { name: 'docs', args: { query: 'text' } },
 ]
 
 const startStubRelay = (rounds = ROUNDS) =>
@@ -230,8 +232,8 @@ test.describe('AI chat', () => {
       expect.objectContaining({ fn: 'jf.cylinder', option: 'outer', file: 'main.js', line: 3 }),
       expect.objectContaining({ fn: 'jf.cube', option: 'sise', file: 'main.js', line: 4 }),
     ])
-    expect(app.at(-1)).toMatchObject({ saved: 'main.js', ok: false, note: 'main.js is saved; the build of main.js failed' })
-    expect(app.at(-1).error.message).toContain('call init(jscad) before using text2d()')
+    expect(answerTo((a) => a.content === TEXT_WITHOUT_INIT)).toMatchObject({ saved: 'main.js', ok: true, geometry: { parts: 1 } })
+    expect(answerTo((a) => a.query === 'text')).toContain('jscadText.text2d')
   })
 
   test('a failed build keeps the last render on screen and shows the error', async ({ page }) => {

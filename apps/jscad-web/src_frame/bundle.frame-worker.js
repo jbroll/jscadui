@@ -136,8 +136,11 @@ const jscadGetExportFormats = () =>
 
 const importData = createImportData(() => require('@jscad/io', null, readFileWeb).deserializers)
 
-// Every load starts with jscad-text as no model set it up; a scratch run puts the loaded model's back.
-const isolation = createModelIsolation()
+// Every load starts with jscad-text set up with the engine's modeling, as no
+// model changed it, so text2d needs no init; a scratch run puts the loaded model's back.
+const isolation = createModelIsolation({
+  setUp: { '@jscadui/jscad-text': (text) => text.init(require('@jscad/modeling', null, readFileWeb)) },
+})
 setModelIsolation(isolation.isolate)
 const runWarnings = installOptionWarnings({
   setUserModuleWrapper: (wrap) =>

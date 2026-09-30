@@ -15,10 +15,12 @@ common calls with their option defaults
 Every function takes `api` as an option and defaults to `'fluent'`; an unknown
 value throws. `APIS` lists both.
 
-The fluent prompt names `@jscad/modeling` only to rule it out, with one
-exception: jscad-text needs `jscadText.init(require('@jscad/modeling'))`, and
-its outline becomes chainable as `new jf.FluentGeom2(outline)`. The modeling
-prompt never mentions jscad-fluent.
+The fluent prompt names `@jscad/modeling` only to rule it out; a jscad-text
+outline becomes chainable as `new jf.FluentGeom2(outline)`. The modeling
+prompt never mentions jscad-fluent. Both say `jscadText.text2d` needs no
+`init`: the app and the eval set jscad-text up with the `@jscad/modeling` they
+serve before model code sees it
+([architecture.md](architecture.md#model-code-in-the-eval)).
 
 ## Conversation context
 
@@ -78,7 +80,10 @@ which end is the start (-Z); `jf.polygon`, `primitives.polygon` and
 `geometries.geom2.fromPoints` add that the points go counter-clockwise, since
 clockwise points extrude inside out; and `cone`, `taper` or `frustum` (bare or
 qualified) answers with the taper form, `jf.cylinder` under fluent and
-`primitives.cylinderElliptic` under modeling. `params` or `parameters`
+`primitives.cylinderElliptic` under modeling. `text` answers with
+`jscadText.text2d` in both APIs, with how to extrude its outline, and under
+modeling a pointer to `@jscad/modeling`'s stroke-only `text` namespace; the
+`text2d` entry says it needs no `init`. `params` or `parameters`
 (also `params.<name>`) answers with the prompt's parameter conventions
 (`PARAMS_ANSWER`): the proxy assignment, the types params-core keeps and
 their fields, `_type` sections and hidden names. `jf.cylinder`'s `outer` has

@@ -41,7 +41,9 @@ let jscad = null
 
 /**
  * Initialize jscad-text with a JSCAD modeling instance.
- * Must be called before text2d().
+ * The jscadui runtime does this with the @jscad/modeling it serves before
+ * model code runs, so a model needs no init; calling it again is harmless.
+ * Elsewhere, call it before text2d().
  *
  * @param {object} jscadRef - JSCAD modeling object (from @jscad/modeling or equivalent)
  */
@@ -106,6 +108,9 @@ function defaultStrokeWidth(size) {
  * @param {number} [options.strokeWidth] - Hershey stroke width (default: size*0.12)
  *
  * @returns {import('@jscad/modeling').geometries.geom2 | null} a JSCAD geom2, or null for empty text
+ * @example
+ * const jscadText = require('@jscadui/jscad-text')
+ * const outline = jscadText.text2d('HELLO', { size: 10, font: 'Liberation Sans:style=Bold', halign: 'center', valign: 'center' })
  */
 export function text2d(textOrOptions, options = {}) {
   if (!jscad) throw new Error('jscad-text: call init(jscad) before using text2d()')

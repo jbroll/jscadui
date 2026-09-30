@@ -15,11 +15,13 @@ const fakeText = () => {
   return text
 }
 
+const TEXT = '@jscadui/jscad-text'
+
 describe('frame model isolation', () => {
   it('resets jscad-text once a model has required it, and restores what it held', () => {
     const isolation = createModelIsolation()
     const text = fakeText()
-    isolation.seen('@jscadui/jscad-text', text)
+    isolation.seen(TEXT, text)
     text.state = 'model'
     const restore = isolation.isolate()
     expect(text.state).toBe('clean')
@@ -32,7 +34,7 @@ describe('frame model isolation', () => {
     const isolation = createModelIsolation()
     const restore = isolation.isolate()
     const text = fakeText()
-    isolation.seen('@jscadui/jscad-text', text)
+    isolation.seen(TEXT, text)
     text.state = 'run'
     restore()
     expect(text.state).toBe('clean')
@@ -45,5 +47,24 @@ describe('frame model isolation', () => {
     other.state = 'model'
     isolation.isolate()
     expect(other.state).toBe('model')
+  })
+
+  it('sets a module up when first required and after every reset', () => {
+    const isolation = createModelIsolation({ setUp: { [TEXT]: (text) => (text.state = 'set up') } })
+    const text = fakeText()
+    isolation.seen(TEXT, text)
+    expect(text.state).toBe('set up')
+    text.state = 'model'
+    const restore = isolation.isolate()
+    expect(text.state).toBe('set up')
+    restore()
+    expect(text.state).toBe('model')
+
+    const later = fakeText()
+    const restoreRun = isolation.isolate()
+    isolation.seen(TEXT, later)
+    later.state = 'run'
+    restoreRun()
+    expect(later.state).toBe('set up')
   })
 })
