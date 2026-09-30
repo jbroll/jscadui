@@ -278,6 +278,14 @@ Async module loading is the breaking one; the rest are extractions.
 
 ## Remaining issues
 
+- **`npm install` inside a workspace crashes on the CI host.** npm 11.16.0
+  (node 24.18) fails in `packages/openscad` with `TypeError: Cannot read
+  properties of null (reading 'package')` in arborist's `set root`, on main
+  and on consolidate alike since 2026-09-29; the root install succeeds.
+  `ci/test` no longer runs the redundant member install. Not caused by the
+  lockfile or agent-loop's new devDependencies (both ruled out on a CI
+  scratch tree); the `@jscad/modeling` and `@jscad/modeling-for-manifold`
+  links share one realpath, which is where arborist's link lookup runs.
 - **jscad-fluent 0.7.0 not yet published.** `extrudeLinear`/`extrudeRotate`/`offset`
   on a `FluentGeom2` used to crash under the manifold engine (`Object.assign`
   copying dropped `ManifoldGeom2`/`ManifoldGeom3`'s prototype getters). Fixed

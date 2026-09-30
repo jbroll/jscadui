@@ -15,8 +15,9 @@ npm install
 # (a no-op when they are already current).
 node scripts/fetch-deps.js --if-missing
 
+# The root install covers this workspace; a second `npm install` from inside it
+# crashes npm 11.16's arborist ("reading 'package'") on the CI host.
 cd "$WORKTREE/packages/openscad"
-npm install
 # Pre-download Liberation fonts so text() works in Node.js (CDN fonts can't load synchronously)
 node bin/download-fonts.js
 export JSCADUI_CI=1
