@@ -289,7 +289,10 @@ lines)` note).
 
 `measure` and `check` results carry `units: "mm"` (`withUnits`,
 `src/units.js`; the app's `aiDeps.js` adds it the same way), and both tool
-descriptions say their sizes are millimetres.
+descriptions say their sizes are millimetres. A `measure` with `section`
+gives each loop's outline as points in the section plane, holes marked
+(`@jscadui/model-tools`' README has the caps), since models otherwise sliced
+the model with thin slabs in `run` to see a profile.
 
 `check` takes a `bed` only when the user names a printer: without one it
 reports watertight, manifold, inside out, self-intersecting and size, with no

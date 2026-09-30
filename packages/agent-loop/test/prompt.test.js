@@ -71,6 +71,10 @@ describe('system prompt', () => {
     for (const line of mentions) expect(line).toMatch(/Do not require/)
   })
 
+  it.each(APIS)('%s: replies once a build meets the request', (api) => {
+    expect(buildSystemPrompt(api)).toMatch(/Once a build meets the request, reply; refine further only when the user\s+asks\./)
+  })
+
   it.each(APIS)('%s: says jscad-text needs no init', (api) => {
     const prompt = buildSystemPrompt(api)
     expect(prompt).toContain('with no `init` needed')

@@ -20,6 +20,13 @@ JSON string; they index the array
 gets `insideOut: true` and a `notes` entry saying it is inside out; for an
 array, the note names each such part.
 
+A section answers its net `area`, `boundingBox` and `dimensions`, `plane`
+(the two axes its points use: `["y", "z"]` for x, `["x", "z"]` for y,
+`["x", "y"]` for z) and `loops`, largest first: each `{ area, hole, points }`
+with its outline cut to at most 40 points (collinear points dropped, then the
+least significant ones) and rounded to 0.001 mm. At most 12 loops are listed;
+`loopsLeftOut` counts the rest.
+
 `check`'s only option: `bed` (optional), one of the named beds in `BEDS` (`mk3`, `mk4`,
 `mini`, `x1`, `p1`, `a1mini`, `ender3`, case-insensitive) or its size in mm
 as `[x, y, z]`, `{x, y, z}`, or a JSON array string (`"[x, y, z]"`). It

@@ -86,6 +86,7 @@ const PARITY_ROUNDS = [
   { name: 'measure', args: { parts: 'all', between: ['0', 'all'] } },
   { name: 'measure', args: {} },
   { name: 'measure', args: { parts: ['all'] } },
+  { name: 'measure', args: { section: 'z=1' } },
   { name: 'write', args: { path: 'main.js', content: SLIDER_BOX } },
   { name: 'run', args: { source: "const { main } = require('./main.js')\nmodule.exports = { main: () => main({ width: 30 }) }" } },
   { name: 'run', args: { source: "require('./main.js').main({ width: -1 })" } },
@@ -267,6 +268,7 @@ test.describe('AI chat', () => {
     expect(answerTo((a) => a.content === SECTION_BOX)).toMatchObject({ ok: true, geometry: { dimensions: [40, 20, 5] }, params: [{ name: 'box.width' }, { name: 'box.depth' }] })
     expect(answerTo((a) => a.content === MIXED_SECTION).error.message).toContain('params.box was given an object mixing parameter definitions and plain values')
     expect(answerTo((a) => a.content === NAN_HEIGHT).error.message).toContain('height is NaN: a parameter read back as NaN or an object')
+    expect(answerTo((a) => a.section === 'z=1').section).toMatchObject({ plane: ['x', 'y'], loops: [{ area: 100, hole: false, points: expect.any(Array) }] })
     const fixed = answerTo((a) => a.content === FIXED_OPTIONS)
     expect(fixed).toMatchObject({ ok: true, geometry: { parts: 2 } })
     expect(fixed.warnings.map(({ fn, option, line }) => [fn, option, line])).toEqual([

@@ -73,3 +73,5 @@ params.radius = { type: 'slider', default: 5, min: 1, max: 20, step: 0.5 }
   `run` return the output. Do not throw errors to inspect values.
 - A tool failure is a JSON result, not a dead end: read `error.message` and
   try again with corrected input.
+- Once a build meets the request, reply; refine further only when the user
+  asks.

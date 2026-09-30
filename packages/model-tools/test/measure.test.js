@@ -212,3 +212,37 @@ test('measure flags an array holding an inside-out solid, naming the part', () =
   ])
   expect(measure([cuboid({ size: [2, 2, 2] })])).not.toHaveProperty('insideOut')
 })
+
+const sortedPoints = (points) => [...points].map((p) => p.join(',')).sort()
+
+test('a section gives each loop as an outline in the plane, holes marked', () => {
+  const cup = booleans.subtract(cuboid({ size: [40, 30, 20] }), transforms.translate([0, 0, 2], cuboid({ size: [36, 26, 20] })))
+  const { section } = measure(cup, { section: 'z=1' })
+  expect(section.area).toBeCloseTo(264, 6)
+  expect(section.plane).toEqual(['x', 'y'])
+  expect(section.loops).toHaveLength(2)
+  const [outer, hole] = section.loops
+  expect(outer).toMatchObject({ hole: false, area: 1200 })
+  expect(sortedPoints(outer.points)).toEqual(sortedPoints([[-20, -15], [20, -15], [20, 15], [-20, 15]]))
+  expect(hole).toMatchObject({ hole: true, area: 936 })
+  expect(sortedPoints(hole.points)).toEqual(sortedPoints([[-18, -13], [18, -13], [18, 13], [-18, 13]]))
+  expect(measure(cup, { section: 'x' }).section.plane).toEqual(['y', 'z'])
+  expect(measure(cup, { section: 'y' }).section.plane).toEqual(['x', 'z'])
+})
+
+test('a section outline keeps at most 40 points, on the shape', () => {
+  const { section } = measure(cylinder({ radius: 10, height: 4, segments: 200 }), { section: 'z' })
+  const [loop] = section.loops
+  expect(loop.points.length).toBeLessThanOrEqual(40)
+  expect(loop.points.length).toBeGreaterThanOrEqual(12)
+  for (const [x, y] of loop.points) expect(Math.hypot(x, y)).toBeCloseTo(10, 2)
+  expect(loop.area).toBeCloseTo(Math.PI * 100, 0)
+})
+
+test('a section lists at most 12 loops, largest first, and says how many it left out', () => {
+  const pins = Array.from({ length: 25 }, (_, i) => transforms.translate([i * 10, 0, 0], cuboid({ size: [2 + i * 0.1, 2, 4] })))
+  const { section } = measure(pins, { section: 'z' })
+  expect(section.loops).toHaveLength(12)
+  expect(section.loopsLeftOut).toBe(13)
+  expect(section.loops[0].area).toBeGreaterThan(section.loops[11].area)
+})

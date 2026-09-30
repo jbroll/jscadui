@@ -86,7 +86,7 @@ export const buildTools = (api = DEFAULT_API) => [
         anchors: { type: 'boolean', description: "Include each part's named anchor frames" },
         section: {
           type: 'string',
-          description: 'An axis cross-section: "x", "y", "z", or an offset like "z=5"',
+          description: 'An axis cross-section: "x", "y", "z", or an offset like "z=5". Gives its area, size and each loop\'s outline as points in the section plane, holes marked, so no slicing in run is needed',
         },
       },
     },
