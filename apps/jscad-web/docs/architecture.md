@@ -786,8 +786,11 @@ imports it, directly or through other files. A stored project can hold such
 models beside `main.js`: a folder dropped on its row, or a second model the
 chat wrote. An editor run of one records it as the project's `entry`, so the
 project reopens on it. The chat's builds name no file and always run the
-Node entry, the one the prompt teaches. A project with no entry reports
-`NoEntryError`. Files the chat writes into an empty cache are the open
+Node entry, the one the prompt teaches. A project with no entry shows
+`NoEntryError` in the error bar and reports `ok: true, entry: null` with
+`note: "no entry yet (…)"` to the chat (`noEntryReport`), since a helper
+written before its entry is no failure. A chat write answers the report
+headed by `saved` (`writeReport`). Files the chat writes into an empty cache are the open
 project from then on.
 
 `createProjectBuilds` (`src/projectBuild.js`) keeps the report of the last

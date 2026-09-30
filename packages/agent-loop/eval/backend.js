@@ -13,9 +13,9 @@ import { installConsoleCapture } from '../src/consoleCapture.js'
 import { docsTool } from '../src/docs.js'
 import { withErrorHint } from '../src/hints.js'
 import { createWarningCollector, withOptionChecks, wrapFluentMethods } from '../src/optionChecks.js'
-import { asGeometry, buildReport, errorLocation, noGeometryError, noMainError, notGeometryError, summarizeRun, withoutLoaderNote } from '../src/buildReport.js'
+import { asGeometry, buildReport, errorLocation, noEntryReport, noGeometryError, noMainError, notGeometryError, summarizeRun, withoutLoaderNote, writeReport } from '../src/buildReport.js'
 import { exportConfig, exportedSize } from '../src/exportFormat.js'
-import { applyEdit, applyWrite, listFiles, NO_ENTRY, readFile, resolveEntry } from '../src/project.js'
+import { applyEdit, applyWrite, listFiles, readFile, resolveEntry } from '../src/project.js'
 import { withUnits } from '../src/units.js'
 import { GRADE_TIMEOUT_MS } from './grade.js'
 import { runProbe } from './probe.js'
@@ -181,7 +181,7 @@ export function createEvalBackend({ api = DEFAULT_API } = {}) {
   const build = async (entry = resolveEntry(files)) => {
     const started = generation
     if (!entry) {
-      current = { report: buildReport({ entry: null, error: { name: 'NoEntryError', message: NO_ENTRY } }) }
+      current = { report: noEntryReport() }
       return current.report
     }
     const loaded = await runModel(files, entry, api)
@@ -212,7 +212,7 @@ export function createEvalBackend({ api = DEFAULT_API } = {}) {
   const saved = async (next) => {
     files = next.files
     const report = await build()
-    return report ? JSON.stringify(report) : toolError('ResetError', 'the run was reset before the build finished')
+    return report ? JSON.stringify(writeReport(next.path, report)) : toolError('ResetError', 'the run was reset before the build finished')
   }
 
   // A scratch snippet beside the project: the project, its build and its geometry stay as they were.

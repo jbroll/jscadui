@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import index from '@jscadui/agent-loop/api/index.json'
-import { NO_ENTRY, noMainError, notGeometryError } from '@jscadui/agent-loop'
+import { NO_ENTRY_NOTE, noEntryReport, noMainError, notGeometryError } from '@jscadui/agent-loop'
 import { createProjectBuilds, projectEntry, reportError } from '../src/projectBuild.js'
 
 const measured = { entityCount: 1, boundingBox: [[0, 0, 0], [10, 20, 30]], dimensions: [10, 20, 30], volume: 6000 }
-const checked = { ok: true, watertight: true, manifold: true }
+const checked = { ok: true, watertight: true, manifold: true, selfIntersecting: false }
 
 const builds = (overrides = {}) =>
   createProjectBuilds({
@@ -116,7 +116,7 @@ describe('createProjectBuilds', () => {
       warnings: [{ fn: 'cuboid', option: 'radius' }],
       console: ['hi'],
       params: [{ name: 'width', type: 'number', default: 10 }],
-      geometry: { parts: 1, boundingBox: [[0, 0, 0], [10, 20, 30]], dimensions: [10, 20, 30], volume: 6000, watertight: true },
+      geometry: { parts: 1, boundingBox: [[0, 0, 0], [10, 20, 30]], dimensions: [10, 20, 30], volume: 6000, watertight: true, manifold: true, selfIntersecting: false },
     })
   })
 
@@ -148,7 +148,8 @@ describe('createProjectBuilds', () => {
   it('reports a project with no entry file', async () => {
     const b = builds()
     b.recordNoEntry()
-    expect(await b.report()).toMatchObject({ ok: false, entry: null, error: { name: 'NoEntryError', message: NO_ENTRY } })
+    expect(await b.report()).toEqual(noEntryReport())
+    expect((await b.noGeometry()).error.message).toBe(`no geometry: ${NO_ENTRY_NOTE}`)
   })
 
   it('forgets the project build when something else is loaded, since the frame no longer holds it', async () => {

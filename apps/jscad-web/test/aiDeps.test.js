@@ -65,7 +65,7 @@ describe('write and edit', () => {
   it('write puts the file in the project, shows it in the editor and answers the build report', async () => {
     const project = fakeProject({ 'main.js': 'old' })
     const { deps, tools: t } = tools({ project })
-    expect(await t.write({ path: './parts/gear.js', content: 'gear' })).toBe(REPORT)
+    expect(await t.write({ path: './parts/gear.js', content: 'gear' })).toEqual({ saved: 'parts/gear.js', ...REPORT })
     expect(project.files()).toEqual({ 'main.js': 'old', 'parts/gear.js': 'gear' })
     expect(deps.showFile).toHaveBeenCalledWith('parts/gear.js', 'gear', { 'main.js': 'old', 'parts/gear.js': 'gear' })
     expect(deps.build).toHaveBeenCalledTimes(1)

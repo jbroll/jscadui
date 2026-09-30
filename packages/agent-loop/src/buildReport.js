@@ -1,6 +1,8 @@
 // The build report every write and edit returns, in the app and the eval:
 // { ok, entry, error?: { name, message, file, line, column }, warnings,
-//   console, params, geometry?: { parts, boundingBox, dimensions, volume, watertight } }.
+//   console, params, geometry?: { parts, boundingBox, dimensions, volume,
+//   watertight, manifold, selfIntersecting } }, which writeReport heads with
+// the file saved.
 // `measured` and `checked` are @jscadui/model-tools measure() and check()
 // results for the geometry main() returned.
 
@@ -12,7 +14,7 @@ export const geometrySummary = (measured, checked) => ({
   boundingBox: roundAll(measured.boundingBox),
   dimensions: roundAll(measured.dimensions),
   ...(typeof measured.volume === 'number' ? { volume: round(measured.volume) } : {}),
-  ...(checked ? { watertight: checked.watertight ?? null } : {}),
+  ...(checked ? { watertight: checked.watertight ?? null, manifold: checked.manifold ?? null, selfIntersecting: checked.selfIntersecting ?? null } : {}),
 })
 
 const PARAM_FIELDS = ['min', 'max', 'step', 'values']
@@ -61,6 +63,20 @@ const reportError = ({ name, message, file, line, column }) => ({
 export const buildReport = ({ entry = null, error, warnings = [], console: lines = [], params = [], measured, checked }) => {
   if (error) return { ok: false, entry, error: reportError(error), warnings, console: lines, params: [] }
   return { ok: true, entry, warnings, console: lines, params: reportParams(params), ...(measured ? { geometry: geometrySummary(measured, checked) } : {}) }
+}
+
+export const NO_ENTRY_NOTE = 'no entry yet (main.js, index.js or package.json main)'
+
+// A project of helper modules only builds nothing and fails nothing.
+export const noEntryReport = () => ({ ok: true, entry: null, note: NO_ENTRY_NOTE, warnings: [], console: [], params: [] })
+
+// What a write or edit answers: its build report, headed by the file saved,
+// so a failed build never reads as a lost write.
+export const writeReport = (path, report) => {
+  let note
+  if (report.ok && report.entry === null) note = `saved; ${report.note}`
+  else if (!report.ok && typeof report.entry === 'string') note = `${path} is saved; the build of ${report.entry} failed`
+  return { saved: path, ...report, ...(note ? { note } : {}) }
 }
 
 const describeFunction = (fn) => `[Function ${fn.name || 'anonymous'}]`
@@ -123,6 +139,10 @@ export const noGeometryError = (report) => ({
   ok: false,
   error: {
     name: 'NoGeometryError',
-    message: report ? `no geometry: the last build failed (${String(report.error?.message ?? '').split('\n')[0]}); fix it first` : 'no geometry: write the model first',
+    message: !report
+      ? 'no geometry: write the model first'
+      : report.ok && report.entry === null
+        ? `no geometry: ${report.note}`
+        : `no geometry: the last build failed (${String(report.error?.message ?? '').split('\n')[0]}); fix it first`,
   },
 })

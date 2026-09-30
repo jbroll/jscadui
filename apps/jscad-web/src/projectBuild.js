@@ -1,4 +1,4 @@
-import { buildReport, DEFAULT_API, errorLocation, NO_ENTRY, noGeometryError, noMainError, notGeometryError, projectPath, resolveEntry, withErrorHint, withoutLoaderNote } from '@jscadui/agent-loop'
+import { buildReport, DEFAULT_API, errorLocation, noEntryReport, noGeometryError, noMainError, notGeometryError, projectPath, resolveEntry, withErrorHint, withoutLoaderNote } from '@jscadui/agent-loop'
 import { PROJECT_BASE } from '../src_frame/fileMap.js'
 
 const MAX_MESSAGE = 4000
@@ -149,7 +149,7 @@ export const createProjectBuilds = ({ measure, check, getApi = () => DEFAULT_API
 
   const report = async () => {
     if (!last) return null
-    last.report ??= last.error ? failed(last) : built(last)
+    last.report ??= last.entry === null ? Promise.resolve(noEntryReport()) : last.error ? failed(last) : built(last)
     return last.report
   }
 
@@ -162,13 +162,13 @@ export const createProjectBuilds = ({ measure, check, getApi = () => DEFAULT_API
       last = typeof url === 'string' && url.startsWith(PROJECT_BASE) ? { entry: url.slice(PROJECT_BASE.length), ...outcome, report: null } : null
     },
     recordNoEntry: () => {
-      last = { entry: null, error: { name: 'NoEntryError', message: NO_ENTRY }, report: null }
+      last = { entry: null, report: null }
     },
     report,
     // Null when the last build has geometry for measure, check and export; else their answer.
     noGeometry: async () => {
       const built = await report()
-      return built?.ok ? null : noGeometryError(built)
+      return built?.ok && built.entry !== null ? null : noGeometryError(built)
     },
   }
 }

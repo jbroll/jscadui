@@ -15,7 +15,7 @@ const DOCS_DESCRIPTION: Record<Api, string> = {
 }
 
 const BUILDS =
-  'builds the project and returns the build report: ok, entry, error with its file, line and column, warnings, console output, params and, when it builds, the geometry (parts, boundingBox, dimensions in mm, volume in mm³, watertight).'
+  'builds the project and returns the build report: saved (the file written, kept even when the build fails), ok, entry, error with its file, line and column, warnings, console output, params and, when it builds, the geometry (parts, boundingBox, dimensions in mm, volume in mm³, watertight, manifold, selfIntersecting).'
 
 // The tools the agent may ask the browser to run. Every one executes in the user's browser: list,
 // read, write and edit against the project files, the builds after write and edit and the run
@@ -104,7 +104,7 @@ export const buildTools = (api: Api = DEFAULT_API): ToolDefinition[] => [
   {
     name: 'check',
     description:
-      'Check the current model: watertight, manifold, inside out, self-intersecting, size in mm. With a bed, also whether it fits. Pass a bed only when the user names a printer.',
+      'Check the current model: watertight, manifold, inside out, self-intersecting, open and non-manifold edge counts and size in mm, for each part of an array too; the build report already gives watertight, manifold and self-intersecting for the whole. With a bed, also whether it fits. Pass a bed only when the user names a printer.',
     inputSchema: {
       type: 'object',
       properties: {

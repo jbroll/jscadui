@@ -1,4 +1,4 @@
-import { applyEdit, applyWrite, DEFAULT_API, listFiles, readFile, withUnits } from '@jscadui/agent-loop'
+import { applyEdit, applyWrite, DEFAULT_API, listFiles, readFile, withUnits, writeReport } from '@jscadui/agent-loop'
 import { PROJECT_BASE } from '../src_frame/fileMap.js'
 import { reportError } from './projectBuild.js'
 import { sendScript } from './scriptRuns.js'
@@ -61,7 +61,7 @@ export const createProjectTools = ({
     await storeFile(projectId, path, content)
     written.add(projectId)
     showFile(path, content, files)
-    return build()
+    return writeReport(path, await build())
   }
 
   const run = async (source) => {

@@ -56,13 +56,15 @@ params.radius = { type: 'slider', default: 5, min: 1, max: 20, step: 0.5 }
   `oldString` must match the file exactly, once. Create a file, or replace
   most of one, with `write`.
 - Every `write` and `edit` saves the file and builds the project. Its build
-  report gives `ok`, the error with its file, line and column, warnings,
-  console output, the parameters and, when it builds, the geometry's parts,
-  size, volume and whether it is watertight.
-- The build report on each write already verifies size, volume and
-  watertightness. For details, such as sections, gaps between parts or
-  printability, use `measure`/`check`; they work on the last build, so fix a
-  failed build first.
+  report names the file `saved`, which stays saved when the build fails, and
+  gives `ok`, the error with its file, line and column, warnings, console
+  output, the parameters and, when it builds, the geometry's parts, size,
+  volume and whether it is watertight, manifold and self-intersecting.
+- The build report on each write already verifies size, volume,
+  watertightness, manifoldness and self-intersection. For details, such as
+  sections, gaps between parts, each part's checks or printability, use
+  `measure`/`check`; they work on the last build, so fix a failed build
+  first.
 - Try an idea or inspect values with `run`: a scratch snippet that is never
   saved and leaves the project and its build alone.
 - Look up an unfamiliar function's options and defaults with `docs` before

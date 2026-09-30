@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { builtinModules, createRequire } from 'node:module'
-import { NO_ENTRY } from '../src/project.js'
-import { notGeometryError } from '../src/buildReport.js'
+import { NO_ENTRY_NOTE, notGeometryError } from '../src/buildReport.js'
 import { CDN_BASE, createEvalBackend, createReadFile, EXPORT_REG, IMPORT_REG } from './backend.js'
 import { expectCase, WARNING_CASES } from '../test/warningCases.js'
 import { everyFont, FONT_NAMES, UNKNOWN_FONT } from './fontCases.js'
@@ -43,6 +42,7 @@ describe('eval backend builds', () => {
     const backend = createEvalBackend()
     const report = await writeMain(CUBE, backend)
     expect(report).toEqual({
+      saved: 'main.js',
       ok: true,
       entry: 'main.js',
       warnings: [],
@@ -57,6 +57,8 @@ describe('eval backend builds', () => {
         dimensions: [20, 20, 20],
         volume: 8000,
         watertight: true,
+        manifold: true,
+        selfIntersecting: false,
       },
     })
     const measured = await call(backend, 'measure')
@@ -238,9 +240,16 @@ describe('eval backend project', () => {
     expect(report).toMatchObject({ ok: true, entry: 'box.js', geometry: { dimensions: [10, 10, 10] } })
   })
 
-  it('fails a project with no entry file', async () => {
-    const res = await call(createEvalBackend(), 'write', { path: 'helper.js', content: 'module.exports = {}' })
-    expect(res).toEqual({ ok: false, entry: null, error: { name: 'NoEntryError', message: NO_ENTRY }, warnings: [], console: [], params: [] })
+  it('saves a helper written before any entry, with nothing to build and nothing failed', async () => {
+    const backend = createEvalBackend()
+    const res = await call(backend, 'write', { path: 'helper.js', content: 'module.exports = {}' })
+    expect(res).toEqual({ saved: 'helper.js', ok: true, entry: null, note: `saved; ${NO_ENTRY_NOTE}`, warnings: [], console: [], params: [] })
+    expect((await call(backend, 'measure')).error.message).toBe(`no geometry: ${NO_ENTRY_NOTE}`)
+  })
+
+  it('says a write whose build failed is saved', async () => {
+    const res = await writeMain('throw new Error("broken")')
+    expect(res).toMatchObject({ saved: 'main.js', ok: false, entry: 'main.js', note: 'main.js is saved; the build of main.js failed' })
   })
 
   it('edits a file and builds', async () => {

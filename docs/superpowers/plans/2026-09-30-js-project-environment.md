@@ -44,11 +44,15 @@ Node style: `package.json` `main` if present, else `index.js`, else
 Short, JSON:
 
 ```
-{ ok, entry, error?: { message, file, line, column },
+{ saved, ok, entry, error?: { message, file, line, column }, note?,
   warnings: [...], console: [...],
   params: [{ name, type, default, ... }],
-  geometry?: { parts, boundingBox, dimensions, volume, watertight } }
+  geometry?: { parts, boundingBox, dimensions, volume, watertight, manifold, selfIntersecting } }
 ```
+
+`saved` (the file written) heads a write's or edit's report, not the
+header's; a failed build adds a `note` saying the file is saved. No entry
+file is `ok: true, entry: null` with a note, not a failure.
 
 `geometry` only when the build succeeds. Units mm. Same shape in the app and
 the eval.

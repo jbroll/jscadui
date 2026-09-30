@@ -8,7 +8,7 @@ const DOCS_DESCRIPTION = {
 }
 
 const BUILDS =
-  'builds the project and returns the build report: ok, entry, error with its file, line and column, warnings, console output, params and, when it builds, the geometry (parts, boundingBox, dimensions in mm, volume in mm³, watertight).'
+  'builds the project and returns the build report: saved (the file written, kept even when the build fails), ok, entry, error with its file, line and column, warnings, console output, params and, when it builds, the geometry (parts, boundingBox, dimensions in mm, volume in mm³, watertight, manifold, selfIntersecting).'
 
 // Tool definitions the browser loop hands to the provider. Schemas match the
 // studio server so prompts behave the same against either loop.
@@ -94,7 +94,7 @@ export const buildTools = (api = DEFAULT_API) => [
   {
     name: 'check',
     description:
-      'Check the current model: watertight, manifold, inside out, self-intersecting, size in mm. With a bed, also whether it fits. Pass a bed only when the user names a printer.',
+      'Check the current model: watertight, manifold, inside out, self-intersecting, open and non-manifold edge counts and size in mm, for each part of an array too; the build report already gives watertight, manifold and self-intersecting for the whole. With a bed, also whether it fits. Pass a bed only when the user names a printer.',
     inputSchema: {
       type: 'object',
       properties: {

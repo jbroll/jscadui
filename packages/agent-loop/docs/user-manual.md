@@ -225,8 +225,11 @@ entry rule and the build report). A run's project starts as the fixture's
 `files`; when there are any, the backend builds them before the first
 message, and that build report goes into the header with the files.
 
-`write` and `edit` answer with the build report. A build fails with
-`NoEntryError` when the project has no entry file, `NoMainError` when the
+`write` and `edit` answer with the build report, headed by `saved`, the
+file written, and with a `note` saying it is saved when the build failed. A
+project with no entry file builds nothing and answers `ok: true, entry: null`
+with `note: "saved; no entry yet (main.js, index.js or package.json main)"`.
+A build fails with `NoMainError` when the
 entry exports no `main()` (`<entry> exports no main()`), `NoGeometryError`
 when `main()` returns something `measure` cannot read (`main() returned
 something that is not geometry; ...`), and otherwise with the model code's own

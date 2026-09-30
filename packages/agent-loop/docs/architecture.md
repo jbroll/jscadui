@@ -67,11 +67,19 @@ with `module.exports = { main }`. The result is the build report
 ```
 { ok, entry, error?: { name, message, file, line, column },
   warnings, console, params: [{ name, type, default, min?, max?, step?, values? }],
-  geometry?: { parts, boundingBox, dimensions, volume, watertight } }
+  geometry?: { parts, boundingBox, dimensions, volume, watertight, manifold,
+               selfIntersecting } }
 ```
 
 `geometry` comes only with a build that succeeds, from model-tools' `measure`
-and `check` on what `main()` returned, rounded to 1e-4 mm. `errorLocation`
+and `check` on what `main()` returned, rounded to 1e-4 mm. A `write` or
+`edit` answers the report headed by `saved`, the file written
+(`writeReport`); when the build fails it adds `note: "main.js is saved; the
+build of main.js failed"`, since models read a bare `ok: false` as a lost
+write and rewrote the file from scratch. A project with no entry file builds
+nothing and fails nothing: `{ ok: true, entry: null, note: "no entry yet
+(main.js, index.js or package.json main)" }` (`noEntryReport`), and the write
+that saved a helper first says `saved; no entry yet (…)`. `errorLocation`
 finds `file`, `line` and `column` (1-based) in a Babel error's `loc` or the
 first `<base><path>:<line>:<column>` frame of a stack. `measure`, `check` and
 `export` work on the last build and fail with `NoGeometryError`

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildReport, errorLocation, previewValue, reportParams, noGeometryError, summarizeRun } from '../src/buildReport.js'
+import { buildReport, errorLocation, NO_ENTRY_NOTE, noEntryReport, previewValue, reportParams, noGeometryError, summarizeRun, writeReport } from '../src/buildReport.js'
 
 const BASE = 'http://project.local/'
 
@@ -23,7 +23,7 @@ describe('buildReport', () => {
       console: ['hi'],
       params: [{ name: 'size', type: 'slider', label: 'size', initial: 5, min: 1, max: 9, step: undefined }],
       measured,
-      checked: { watertight: true, manifold: true },
+      checked: { watertight: true, manifold: true, selfIntersecting: false },
     })
     expect(report).toEqual({
       ok: true,
@@ -40,6 +40,8 @@ describe('buildReport', () => {
         dimensions: [20, 20, 20],
         volume: 8000,
         watertight: true,
+        manifold: true,
+        selfIntersecting: false,
       },
     })
     expect(Object.keys(report)).toEqual(['ok', 'entry', 'warnings', 'console', 'params', 'geometry'])
@@ -57,8 +59,9 @@ describe('buildReport', () => {
     })
   })
 
-  it('reports a project with no entry', () => {
-    expect(buildReport({ error: { message: 'no entry' } })).toEqual({ ok: false, entry: null, error: { message: 'no entry' }, warnings: [], console: [], params: [] })
+  it('reports a project with no entry as built, with nothing to build', () => {
+    expect(noEntryReport()).toEqual({ ok: true, entry: null, note: NO_ENTRY_NOTE, warnings: [], console: [], params: [] })
+    expect(NO_ENTRY_NOTE).toBe('no entry yet (main.js, index.js or package.json main)')
   })
 
   it('leaves out group rows and unset fields from the params', () => {
@@ -123,7 +126,29 @@ describe('summarizeRun', () => {
   })
 })
 
+describe('writeReport', () => {
+  const failed = buildReport({ entry: 'main.js', error: { name: 'RangeError', message: 'too big' } })
+
+  it('names the file saved ahead of the build report', () => {
+    const built = buildReport({ entry: 'main.js' })
+    expect(writeReport('parts/lid.js', built)).toEqual({ saved: 'parts/lid.js', ...built })
+    expect(Object.keys(writeReport('main.js', built))[0]).toBe('saved')
+  })
+
+  it('says the write stuck when the build failed', () => {
+    expect(writeReport('main.js', failed)).toEqual({ saved: 'main.js', ...failed, note: 'main.js is saved; the build of main.js failed' })
+  })
+
+  it('says a helper written before any entry is saved', () => {
+    expect(writeReport('layout.js', noEntryReport())).toMatchObject({ saved: 'layout.js', ok: true, entry: null, note: `saved; ${NO_ENTRY_NOTE}` })
+  })
+})
+
 describe('noGeometryError', () => {
+  it('names the missing entry when nothing was built', () => {
+    expect(noGeometryError(noEntryReport()).error.message).toBe(`no geometry: ${NO_ENTRY_NOTE}`)
+  })
+
   it('asks for a model before any build, and names the failed build after one', () => {
     expect(noGeometryError(null)).toEqual({ ok: false, error: { name: 'NoGeometryError', message: 'no geometry: write the model first' } })
     const failed = buildReport({ entry: 'main.js', error: { name: 'TypeError', message: 'x is not a function\n  at main.js:2' } })
