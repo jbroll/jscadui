@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# The complex eval pass on the CI host: ci/eval's lanes on the complex
+# fixtures (settings in ci/eval-complex.conf), then the describer once over
+# every result file, then the judge unless the describer stopped (exit 2).
+# Exits non-zero when a lane, the describer or the judge failed.
+#
+#   sci push jscadui/eval-complex
+#
+# Never runs on author trust alone for a ci/ or scripts/ diff (ci/README.md's
+# harness-pin gate), since it spends real API budget.
+set -uo pipefail
+
+WORKTREE="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$WORKTREE"
+
+node scripts/fetch-sources.js || exit 1
+npm install || exit 1
+
+# The describer and the renderer must be ready before any provider call.
+if ! scripts/describer-setup.sh --check; then
+  echo "ci/eval-complex: the describer is not set up on this host; see ci/README.md (Describer)" >&2
+  exit 1
+fi
+( cd apps/jscad-web && npx playwright install chromium ) || exit 1
+
+status=0
+EVAL_CONF="$WORKTREE/ci/eval-complex.conf" ci/eval || status=1
+
+shopt -s nullglob
+files=("$WORKTREE"/eval-results/*-complex-*.json)
+if [ ${#files[@]} -eq 0 ]; then
+  echo "ci/eval-complex: no complex result files to describe" >&2
+  exit 1
+fi
+npm run describe -w @jscadui/agent-loop -- "${files[@]}"
+described=$?
+# 2 is a stop (GPU short, a describer crash, a refused connection): the judge must not run.
+if [ "$described" -eq 2 ]; then
+  echo "ci/eval-complex: the describe stage stopped; the judge did not run" >&2
+  exit 1
+fi
+[ "$described" -eq 0 ] || status=1
+npm run judge -w @jscadui/agent-loop -- "${files[@]}" || status=1
+exit "$status"

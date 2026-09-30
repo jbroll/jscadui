@@ -1,9 +1,9 @@
 // Usage: node eval/fetch-ci-results.js JOB-ID
-// Fetches ci/eval's result files, listed in the job's eval-results/index.txt,
-// from a simple-ci job's worktree into the local jscad-chat-evals results dir.
+// Fetches ci/eval's result files (eval-results/index.txt), and a complex pass's renders, into the local results dir.
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { createHash } from 'node:crypto'
+import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { evalResultsDir } from '../log/log-dir.js'
 import { isMainModule } from '../src/mainModule.js'
@@ -17,6 +17,32 @@ export const parseIndex = (text) => text.split('\n').map((line) => line.trim()).
 
 // Result files pass 1 MB (execFileSync's default buffer) once a suite has ~18 fixtures.
 const defaultRun = (sci, args) => execFileSync(sci, args, { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 })
+const defaultRunBytes = (sci, args) => execFileSync(sci, args, { maxBuffer: 256 * 1024 * 1024 })
+
+const RENDER_PATH = /^[\w.-]+\.renders\/[\w.-]+\/[\w-]+\.png$/
+
+// A complex result file's views, which sit beside it in the job's eval-results/.
+export const renderViews = (text) => {
+  let file
+  try {
+    file = JSON.parse(text)
+  } catch {
+    return []
+  }
+  if (file?.suite !== 'complex' || !Array.isArray(file.results)) return []
+  return file.results
+    .flatMap((r) => r?.render?.views ?? [])
+    .filter((v) => typeof v?.path === 'string' && RENDER_PATH.test(v.path) && !v.path.split('/').includes('..') && typeof v.sha256 === 'string')
+}
+
+// The evals repo keeps only the newest complex pass's renders; git history keeps the rest.
+const pruneRenders = (dataDir, keep, { fs, log }) => {
+  for (const name of fs.readdirSync(dataDir)) {
+    if (!name.endsWith('.renders') || keep.includes(name)) continue
+    fs.rmSync(join(dataDir, name), { recursive: true, force: true })
+    log(`fetch-ci-results: removed ${name}, an older complex pass's renders`)
+  }
+}
 
 // index.txt is missing — a job killed before its first lane finished (ci/eval
 // writes it as each lane completes, not only at the end) leaves none. `sci
@@ -45,7 +71,10 @@ function noIndexFallback(jobId, { sci, run, log }) {
 }
 
 // `run(sci, args)` returns the text `sci` prints (an artifact's content); a fake in tests, never sci itself.
-export function fetchCiResults(jobId, { sci, dataDir, run = defaultRun, fs = { existsSync, mkdirSync, writeFileSync }, log = () => {} }) {
+export function fetchCiResults(
+  jobId,
+  { sci, dataDir, run = defaultRun, runBytes = defaultRunBytes, fs = { existsSync, mkdirSync, writeFileSync, readdirSync, rmSync }, log = () => {} },
+) {
   let index
   try {
     index = run(sci, ['artifact', jobId, 'eval-results/index.txt'])
@@ -55,17 +84,38 @@ export function fetchCiResults(jobId, { sci, dataDir, run = defaultRun, fs = { e
   const files = parseIndex(index)
   fs.mkdirSync(dataDir, { recursive: true })
   const fetched = []
+  const renders = { fetched: 0, mismatched: [] }
+  const kept = []
   for (const file of files) {
     const dest = join(dataDir, file)
     if (fs.existsSync(dest)) {
       log(`fetch-ci-results: ${file} already exists, skipping`)
       continue
     }
-    fs.writeFileSync(dest, run(sci, ['artifact', jobId, `eval-results/${file}`]))
+    const text = run(sci, ['artifact', jobId, `eval-results/${file}`])
+    fs.writeFileSync(dest, text)
     fetched.push(file)
     log(`fetch-ci-results: wrote ${dest}`)
+    const views = renderViews(text)
+    if (views.length) kept.push(`${basename(file, '.json')}.renders`)
+    for (const view of views) {
+      const target = join(dataDir, view.path)
+      if (fs.existsSync(target)) continue
+      const bytes = runBytes(sci, ['artifact', jobId, `eval-results/${view.path}`])
+      if (createHash('sha256').update(bytes).digest('hex') !== view.sha256) {
+        renders.mismatched.push(view.path)
+        continue
+      }
+      fs.mkdirSync(dirname(target), { recursive: true })
+      fs.writeFileSync(target, bytes)
+      renders.fetched += 1
+    }
   }
-  return { files, fetched }
+  if (kept.length) pruneRenders(dataDir, kept, { fs, log })
+  if (renders.mismatched.length) {
+    log(`fetch-ci-results: ${renders.mismatched.length} renders did not match their sha256 (sci artifact may not pass binary files through); copy them with scp from the job's eval-results/`)
+  }
+  return { files, fetched, renders }
 }
 
 const main = async (argv, env) => {

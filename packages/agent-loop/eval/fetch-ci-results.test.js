@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { fetchCiResults, parseIndex, sciPath } from './fetch-ci-results.js'
+import { createHash } from 'node:crypto'
+import { fetchCiResults, parseIndex, renderViews, sciPath } from './fetch-ci-results.js'
 
 describe('parseIndex', () => {
   it('splits lines, trims and drops blanks', () => {
@@ -126,5 +127,49 @@ describe('fetchCiResults', () => {
     expect(fallback).toBe('scp')
     expect(worktree).toBe('')
     expect(log).toHaveBeenCalledWith(expect.stringContaining("job job1's worktree"))
+  })
+})
+
+describe('a complex pass', () => {
+  const png = Buffer.from('png bytes')
+  const sha = createHash('sha256').update(png).digest('hex')
+  const complexFile = (views) => JSON.stringify({ suite: 'complex', results: [{ render: { views } }] })
+  const view = (name, digest = sha) => ({ name, path: `c.renders/toy-caboose-1/${name}.png`, sha256: digest })
+  const fakeFs = () => {
+    const written = {}
+    const removed = []
+    return {
+      written,
+      removed,
+      fs: {
+        existsSync: () => false,
+        mkdirSync: vi.fn(),
+        writeFileSync: (path, content) => {
+          written[path] = content
+        },
+        readdirSync: () => ['a.renders', 'c.renders', 'c.json'],
+        rmSync: (path) => removed.push(path),
+      },
+    }
+  }
+
+  it('copies each view checked against its sha256 and removes an older pass renders', () => {
+    const run = (_sci, args) => (args[2] === 'eval-results/index.txt' ? 'c.json\n' : complexFile([view('iso-front'), view('side', 'f'.repeat(64))]))
+    const runBytes = vi.fn(() => png)
+    const { fs, written, removed } = fakeFs()
+    const log = vi.fn()
+    const out = fetchCiResults('job1', { sci: '/bin/sci', dataDir: '/data/results', run, runBytes, fs, log })
+    expect(runBytes).toHaveBeenCalledWith('/bin/sci', ['artifact', 'job1', 'eval-results/c.renders/toy-caboose-1/iso-front.png'])
+    expect(written['/data/results/c.renders/toy-caboose-1/iso-front.png']).toBe(png)
+    expect(Object.keys(written)).not.toContain('/data/results/c.renders/toy-caboose-1/side.png')
+    expect(out.renders).toEqual({ fetched: 1, mismatched: ['c.renders/toy-caboose-1/side.png'] })
+    expect(removed).toEqual(['/data/results/a.renders'])
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('did not match their sha256'))
+  })
+
+  it('never fetches a render path that leaves the results directory', () => {
+    expect(renderViews(complexFile([{ name: 'x', path: '../../etc/passwd', sha256: sha }, { name: 'y', path: 'c.renders/../x.png', sha256: sha }]))).toEqual([])
+    expect(renderViews('{"results":[]}')).toEqual([])
+    expect(renderViews('not json')).toEqual([])
   })
 })

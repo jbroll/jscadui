@@ -103,6 +103,19 @@ directory listing over `sci artifact`; `sci artifact` only ever serves a
 single file, so that fails too, and the script instead prints an `scp`
 command built from `sci path JOB-ID`'s worktree path for you to run by hand.
 
+For a complex pass it also copies each run's renders (`<file
+stem>.renders/<fixture>-<run>/<view>.png`, listed in the file's `render.views`)
+and checks each against its `sha256`; one that does not match is reported, not
+written, and needs `scp`. It then removes other `*.renders` directories from
+the results dir, since the evals repo keeps only the newest complex pass's
+renders (git history keeps the older ones): commit the removal with the new
+pass.
+
+`sci artifact` currently returns binary files UTF-8-mangled (`0x89` becomes
+`c2 89`), so every render's `sha256` check fails until the CI host runs a
+simple-ci build with the fix (committed there, not yet deployed) that serves
+artifacts byte for byte; until then, copy renders with `scp` instead.
+
 The job exits non-zero only when a model's eval process failed outright (a
 crash, or a missing/unset key) — provider errors inside individual runs are
 recorded in the result file, not job failures. A failed lane does not stop
@@ -152,6 +165,28 @@ running `scripts/eval-sandbox-setup.sh` again.
 Each executor holds up to 2G. `ci/eval` passes the lane count (models × APIs)
 as `EVAL_PROCESSES`, and each `run-eval` lowers its `EVAL_CONCURRENCY` so that
 lanes × concurrency × 2G fits in three quarters of the host's memory.
+
+## Complex eval (`ci/eval-complex`)
+
+`sci push jscadui/eval-complex` runs the complex fixtures
+(`packages/agent-loop/docs/user-manual.md`, Complex fixtures) as their own job,
+never with `ci/eval`. It checks the describer install
+(`scripts/describer-setup.sh --check`) and installs Playwright's chromium
+before any provider call, runs `ci/eval` with `EVAL_CONF=ci/eval-complex.conf`
+(the same variables as `ci/eval.conf`, `EVAL_FIXTURES="complex"`), then
+`npm run describe` once over every `*-complex-*.json` in `eval-results/`, then
+`npm run judge` over the same files. `npm run describe` exits 1 when views
+failed to describe (those runs wait for the next describe; the judge still
+runs on the rest) and 2 when it stopped: the GPU had less than 11,800 MiB
+free after Ollama unloads (chatterbox-tts holds 3.5 GB while it runs: `sudo
+sv down chatterbox-tts`, then `sudo sv up chatterbox-tts` after), the
+describer did not start or died, or it tried an outside connection. After a 2
+the job does not run the judge; run `npm run describe` and `npm run judge` on
+the job's files in its worktree (`sci path JOB`) to finish them once the
+cause is dealt with. The job exits non-zero when a lane, the describer or the
+judge failed. The renders sit beside the result files in
+`eval-results/<file stem>.renders/`, and `fetch-ci-results.js` copies them
+with the files.
 
 ## Describer
 

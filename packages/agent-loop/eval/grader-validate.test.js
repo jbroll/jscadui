@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { NO_GRADE } from './executor-protocol.js'
-import { expectedMatch, formatValidation, validationRun } from './grader-validate.js'
+import { approvedCase, expectedMatch, formatValidation, validationRun } from './grader-validate.js'
 import { VIEWS } from './views.js'
 
 const unit = { boundingBox: [[0, 0, 0], [1, 1, 1]] }
@@ -50,5 +50,31 @@ describe('formatValidation', () => {
     expect(text).toContain('caboose  pass  -  -  -  -')
     expect(text).toContain('exploded  gate  connected  -  -  yes')
     expect(text).toContain('caboose: v.renders/caboose-1')
+  })
+})
+
+describe('approvedCase', () => {
+  const fixture = { name: 'rocket-revised', group: 'complex', prompt: 'a model rocket about 20cm tall', followUps: [{ message: 'two stages' }], requires: ['write'], pieces: 1, gates: () => [] }
+  const transcript = [
+    { role: 'user', content: 'a model rocket about 20cm tall' },
+    { role: 'assistant', content: null, toolCalls: [{ id: 't1', name: 'write', input: { path: 'main.js', content: 'rocket' } }] },
+    { role: 'tool', toolCallId: 't1', content: '{"ok":true}' },
+  ]
+  const file = { api: 'modeling', results: [{ fixture: 'rocket-revised', run: 2, userMessages: ['a model rocket about 20cm tall', 'two stages'], transcript }] }
+
+  it('makes a validation case from a run the user approved', () => {
+    expect(approvedCase(file, new Map([[fixture.name, fixture]]), 'rocket-revised', 2)).toEqual({
+      name: 'rocket-revised-approved',
+      messages: ['a model rocket about 20cm tall', 'two stages'],
+      expected: 'pass',
+      api: 'modeling',
+      pieces: 1,
+      files: { 'main.js': 'rocket' },
+      entry: 'main.js',
+    })
+  })
+
+  it('names a run that is not in the file', () => {
+    expect(() => approvedCase(file, new Map([[fixture.name, fixture]]), 'rocket-revised', 3)).toThrow(/no run rocket-revised#3/)
   })
 })

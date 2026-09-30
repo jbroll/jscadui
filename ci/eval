@@ -32,8 +32,9 @@ if ! scripts/eval-sandbox-setup.sh --check; then
   exit 1
 fi
 
+# ci/eval-complex points EVAL_CONF at ci/eval-complex.conf.
 # shellcheck source=ci/eval.conf
-. "$WORKTREE/ci/eval.conf"
+. "${EVAL_CONF:-$WORKTREE/ci/eval.conf}"
 
 RESULTS_DIR="$WORKTREE/eval-results"
 mkdir -p "$RESULTS_DIR"

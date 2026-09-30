@@ -1070,6 +1070,12 @@ It writes
 (default `~/.local/state/jscad-chat/grader-validation/`). A case may give
 `files` and `entry` in place of `source`, and `api` (default `fluent`).
 
+Once a complex pass exists, one approved answer per complex fixture joins the
+cases: after the user reads a run's renders and accepts it,
+`npm run grader-validate -w @jscadui/agent-loop -- --case-from <result file>
+<fixture> <run>` prints the case (the run's saved project, messages, api and
+pieces, `expected: 'pass'`) to add to `CASES`.
+
 ### Sandbox setup
 
 `run-eval` resolves the crt binary once at startup (`EVAL_CRT`, else the first
@@ -1112,6 +1118,12 @@ crt, no rootfs or no cgroup delegation for the memory limit; host setup is in
 `ci/README.md`. Results land in the job's
 `eval-results/`; fetch them into `$JSCAD_CHAT_DATA/results` with
 `node eval/fetch-ci-results.js JOB-ID`. Details: `ci/README.md`.
+`sci push jscadui/eval-complex` (`ci/eval-complex`, `ci/eval-complex.conf`)
+runs the complex group the same way, then describes and judges every result
+file on the host, skipping the judge when the describe stage stops (exit 2,
+[Describe and judge](#describe-and-judge)); `fetch-ci-results.js` copies each
+file's renders beside it and removes an older complex pass's renders from the
+results dir.
 Files fetched before simple-ci served artifacts as UTF-8 hold mojibake
 (`→` as `â\u0086\u0092`); `node eval/fix-mojibake.js PATH...` repairs them in
 place and leaves clean files alone.
