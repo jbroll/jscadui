@@ -1184,6 +1184,26 @@ its own config file. Because a no-op stage leaves the previous build serving,
 which passes every other check, the smoke gate also compares the served build
 against the one just built.
 
+### Local servers and remote scripts
+
+Apache serves production. Locally, `serve.js` serves `build/` for
+`npm run serve` and runs the frame host (`serveFrame`) for `npm run dev`,
+`npm run serve` and the launcher. `npm run dev` serves the app host with
+live-server, and the launcher serves it with `scripts/local/server.js`. The
+Node servers take content types from one table and confine paths with one
+`safeJoin`, both in `scripts/static.js`. The launcher's `/api/fs`
+(`scripts/local/fsApi.js`) shares the table but keeps its own stricter path
+rules: no dot segments, no `node_modules`, and a realpath check against the
+model directory.
+
+A `#https://…` hash loads the script with a direct browser fetch
+(`src/remote.js`), so the script's host must send CORS. No server proxies the
+fetch. Apache's SPA fallback answers an unknown path such as `/remote` with
+`index.html` and a 200, and the launcher has no such route, so a proxy would
+work only under `npm run serve`. `isValidRemoteUrl` rejects non-http(s)
+schemes and loopback, private and link-local hosts, IPv6 included, so a shared
+link cannot point the viewer's browser at their own network.
+
 ### Smoke gate
 
 `e2e/smoke-deploy.mjs` is the only check that runs against the live site

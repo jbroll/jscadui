@@ -3,18 +3,12 @@
 import { execFile } from 'node:child_process'
 import { watch as fsWatch } from 'node:fs'
 import { lstat, mkdir, readdir, readFile, realpath, stat, writeFile } from 'node:fs/promises'
-import { dirname, extname, isAbsolute, join, sep } from 'node:path'
+import { dirname, isAbsolute, join, sep } from 'node:path'
+import { mimeOf } from '../static.js'
 
 const MAX_BYTES = 50 * 1024 * 1024
 const MAX_FILES = 2000
 const DEBOUNCE_MS = 100
-
-const MIME = {
-  '.js': 'application/javascript', '.mjs': 'application/javascript', '.cjs': 'application/javascript', '.jscad': 'application/javascript',
-  '.json': 'application/json', '.scad': 'text/plain', '.txt': 'text/plain', '.md': 'text/markdown',
-  '.html': 'text/html', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg',
-  '.stl': 'model/stl', '.obj': 'model/obj', '.3mf': 'model/3mf', '.dxf': 'image/vnd.dxf', '.wasm': 'application/wasm',
-}
 
 const hiddenSegment = (s) => s.startsWith('.') || s === 'node_modules'
 
@@ -155,7 +149,7 @@ export const createFsHandler = ({ modelDir, appOrigin, watch = fsWatch }) => {
     if (req.method === 'GET') {
       try {
         const content = await readFile(abs)
-        return send(res, 200, content, { 'content-type': MIME[extname(abs).toLowerCase()] ?? 'application/octet-stream' })
+        return send(res, 200, content, { 'content-type': mimeOf(abs) })
       } catch (e) {
         if (['ENOENT', 'EISDIR', 'ENOTDIR'].includes(e.code)) return send(res, 404, 'not found')
         throw e

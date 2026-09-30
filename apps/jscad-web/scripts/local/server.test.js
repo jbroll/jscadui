@@ -87,6 +87,33 @@ describe('local server', () => {
     }
   })
 
+  it('serves fonts, source maps and OpenSCAD files with their MIME types', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'jscad-local-'))
+    mkdirSync(join(root, 'frame'), { recursive: true })
+    mkdirSync(join(root, 'models'), { recursive: true })
+    writeFileSync(join(root, 'font.woff2'), 'w')
+    writeFileSync(join(root, 'font.ttf'), 't')
+    writeFileSync(join(root, 'bundle.js.map'), '{}')
+    writeFileSync(join(root, 'models', 'part.scad'), 'cube(1);')
+    const relayHandler = createRelayHandler({ allowlist: {}, trustedOrigins: [] })
+    const { appServer, frameServer, url } = await startLocal({
+      appDir: root, frameDir: join(root, 'frame'), modelDir: join(root, 'models'),
+      relayHandler, port: 0,
+    })
+    try {
+      for (const [path, type] of [
+        ['/font.woff2', 'font/woff2'],
+        ['/font.ttf', 'font/ttf'],
+        ['/bundle.js.map', 'application/json'],
+        ['/models/part.scad', 'text/plain'],
+      ]) {
+        expect((await fetch(`${url}${path}`)).headers.get('content-type')).toBe(type)
+      }
+    } finally {
+      appServer.close(); frameServer.close()
+    }
+  })
+
   it('answers 500 and keeps serving when a handler throws', async () => {
     const root = mkdtempSync(join(tmpdir(), 'jscad-local-'))
     mkdirSync(join(root, 'frame'), { recursive: true })

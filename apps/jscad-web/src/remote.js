@@ -74,7 +74,6 @@ export const loadFromUrl = (compileFn, setError) => async () => {
       // If user chose trust_url or trust_domain, rule was already saved by dialog
     }
 
-    // load from /remote
     try {
       const script = await fetchUrl(url)
       compileFn(script, url)
@@ -88,11 +87,13 @@ export const loadFromUrl = (compileFn, setError) => async () => {
 }
 
 /**
- * Validates that a URL is safe to fetch (no localhost, private IPs, or non-http protocols)
+ * Rejects non-http(s) URLs and loopback, private and link-local hosts, so a
+ * shared link cannot make the viewer's browser send requests into their own
+ * network.
  * @param {string} urlString
  * @returns {boolean}
  */
-const isValidRemoteUrl = (urlString) => {
+export const isValidRemoteUrl = (urlString) => {
   try {
     const url = new URL(urlString)
 
@@ -171,11 +172,11 @@ const isValidRemoteUrl = (urlString) => {
 }
 
 /**
- * Try to fetch a url directly, but if that fails (due to CORS)
- * then fallback to fetching via server proxy.
+ * Fetch a script by url. There is no server proxy: production Apache answers
+ * any unknown path with the SPA's index.html, so a remote host must send CORS.
  * @param {string} url
  */
-const fetchUrl = async (url) => {
+export const fetchUrl = async (url) => {
   if (url.startsWith(gzipPrefix)) {
     const bytes = base64ToArrayBuffer(url.substring(gzipPrefix.length))
     const dec = fflate.gunzipSync(new Uint8Array(bytes))
@@ -185,16 +186,12 @@ const fetchUrl = async (url) => {
   // Allow relative URLs (same-origin, safe)
   const isRelativeUrl = url.startsWith('./') || url.startsWith('/') || !url.includes('://')
 
-  // Validate remote URLs to prevent SSRF attacks
   if (!isRelativeUrl && !isValidRemoteUrl(url)) {
     throw new Error('Invalid URL: only public http/https URLs are allowed')
   }
 
-  // Try to fetch url directly
-  const res = await fetch(url).catch(() => {
-    // Failed to fetch directly, try proxy
-    // URL encode the parameter to prevent injection
-    return fetch(`/remote?url=${encodeURIComponent(url)}`)
+  const res = await fetch(url).catch((cause) => {
+    throw new Error(`could not fetch ${url}: the host must allow cross-origin requests (CORS)`, { cause })
   })
   if (res.ok) {
     return await res.text()

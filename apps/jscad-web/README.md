@@ -188,7 +188,8 @@ entry requires runs the entry. The chat's builds always run the entry.
 
 ## Deployment
 
-To start the production server run:
+Production is Apache (see [architecture](docs/architecture.md#deployment)).
+To preview the production build locally run:
 
 ```
 npm run serve
@@ -196,10 +197,9 @@ npm run serve
 
 # using url to load external script and CORS
 
-If you want to share a script from your website you should setup CORS, and make sure to use HTTPS!
-
-if you do not setup CORS [jscad.rkroll.com](https://jscad.rkroll.com) can fallback to `/remote` to download the script, but this workaround  may not be available forever (such enpoint could be abused to hide IP for attacks).
-
+The browser fetches a `#https://…` script directly, so the host serving it must
+send CORS headers. There is no proxy fallback. Use HTTPS. Loopback, private and
+link-local hosts are refused.
 
 For hostings (that are uaually cheap and abundant) on CPanel adding .htaccess to your folder should work.
 ```

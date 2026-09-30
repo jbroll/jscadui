@@ -2,17 +2,9 @@
 // the /api/fs file API. The compute frame is served via serveFrame on port+1.
 import http from 'node:http'
 import { readFile } from 'node:fs/promises'
-import { extname, join, resolve, sep } from 'node:path'
 import { serveFrame } from '../../serve.js'
+import { mimeOf, safeJoin } from '../static.js'
 import { createFsHandler } from './fsApi.js'
-
-const MIME = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.json': 'application/json', '.wasm': 'application/wasm', '.png': 'image/png', '.svg': 'image/svg+xml' }
-
-const safeJoin = (root, rel) => {
-  const p = resolve(join(root, rel))
-  if (p !== root && !p.startsWith(root + sep)) return null
-  return p
-}
 
 export const startLocal = async ({ appDir, frameDir, modelDir, relayHandler, port }) => {
   let fsHandler = null
@@ -34,7 +26,7 @@ export const startLocal = async ({ appDir, frameDir, modelDir, relayHandler, por
     if (!file) { res.writeHead(403, cors); res.end('forbidden'); return }
     try {
       const content = await readFile(file)
-      res.writeHead(200, { 'content-type': MIME[extname(file)] ?? 'application/octet-stream', ...cors })
+      res.writeHead(200, { 'content-type': mimeOf(file), ...cors })
       res.end(content)
     } catch {
       res.writeHead(404, cors); res.end('not found')
