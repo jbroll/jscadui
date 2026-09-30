@@ -2,7 +2,7 @@
 export const fixture = {
   name: 'phone-stand',
   prompt: 'A phone stand for my desk',
-  requires: ['eval', 'writeModel'],
+  requires: ['write'],
   verifyBeforeWrite: false,
   maxTurns: 8,
   checks: (m, { solid } = {}) => {

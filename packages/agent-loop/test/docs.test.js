@@ -216,13 +216,12 @@ describe('docs lookup, fluent API', () => {
     expect(JSON.parse(docsTool(index, 'nope', { api: 'fluent' }))).toMatchObject({ ok: false, error: { name: 'NotFoundError' } })
   })
 
-  it('documents a helical extrusion that evaluates with no warnings', async () => {
+  it('documents a helical extrusion that builds with no warnings', async () => {
     const source = `const jf = require('@jbroll/jscad-fluent')
 const main = () => jf.circle({ radius: 1, center: [5, 0] }).extrudeHelical({ angle: Math.PI * 4, pitch: 10 }).translateZ(2)
 module.exports = { main }`
-    const res = JSON.parse(await createEvalBackend().requestTool('eval', { source }))
-    expect(res).toMatchObject({ ok: true })
-    expect(res).not.toHaveProperty('warnings')
+    const res = JSON.parse(await createEvalBackend().requestTool('write', { path: 'main.js', content: source }))
+    expect(res).toMatchObject({ ok: true, warnings: [] })
   })
 })
 

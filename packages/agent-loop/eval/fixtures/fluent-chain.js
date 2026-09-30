@@ -7,7 +7,7 @@ export const fixture = {
   name: 'fluent-chain',
   prompt: 'A 30mm cube with holes through it along all three axes',
   api: 'fluent',
-  requires: ['eval', 'writeModel'],
+  requires: ['write'],
   verifyBeforeWrite: true,
   maxTurns: 8,
   target: { dimensions: [30, 30, 30] },

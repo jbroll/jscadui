@@ -2,7 +2,7 @@
 export const fixture = {
   name: 'pipe-tee',
   prompt: 'A T fitting for 20mm pipe',
-  requires: ['eval', 'writeModel'],
+  requires: ['write'],
   verifyBeforeWrite: false,
   maxTurns: 8,
   checks: (m, { solid } = {}) => {

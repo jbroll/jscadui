@@ -52,7 +52,7 @@ export const ORIGINAL = {
 export const fixture = {
   name: 'followup-edit',
   prompt: 'make it taller and add a slot for the cable',
-  requires: ['eval', 'writeModel'],
+  requires: ['write'],
   verifyBeforeWrite: false,
   maxTurns: 8,
   transcript: [

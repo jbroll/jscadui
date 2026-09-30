@@ -2,7 +2,7 @@
 export const fixture = {
   name: 'bracket',
   prompt: 'An L-bracket for a shelf, about 60mm wide',
-  requires: ['eval', 'writeModel'],
+  requires: ['write'],
   verifyBeforeWrite: true,
   maxTurns: 10,
   checks: (m, { solid } = {}) => {

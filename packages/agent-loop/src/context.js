@@ -13,7 +13,7 @@ const sizeOf = (turn) => turn.reduce((n, m) => n + (m.content?.length ?? 0), 0)
 
 const fence = (content) => '`'.repeat(Math.max(3, ...(content.match(/`+/g) ?? []).map((run) => run.length + 1)))
 
-export const filesMessage = (files = {}) => {
+const filesSection = (files) => {
   const entries = Object.entries(files)
     .filter(([, content]) => typeof content === 'string')
     .sort(([a], [b]) => a.localeCompare(b))
@@ -22,10 +22,16 @@ export const filesMessage = (files = {}) => {
     const f = fence(content)
     return `### ${path}\n\n${f}${path.split('.').pop()}\n${content}\n${f}`
   })
-  return { role: 'user', content: `Current project files:\n\n${blocks.join('\n\n')}` }
+  return `Current project files:\n\n${blocks.join('\n\n')}`
 }
 
-export const buildMessages = ({ systemPrompt, transcript = [], files = {}, message, budget = CONTEXT_BUDGET }) => {
+// `build` is the project's last build report (src/buildReport.js), or null.
+export const projectMessage = (files = {}, build = null) => {
+  const sections = [filesSection(files), build ? `Last build of the project:\n\n\`\`\`json\n${JSON.stringify(build)}\n\`\`\`` : null].filter(Boolean)
+  return sections.length > 0 ? { role: 'user', content: sections.join('\n\n') } : null
+}
+
+export const buildMessages = ({ systemPrompt, transcript = [], files = {}, build = null, message, budget = CONTEXT_BUDGET }) => {
   const kept = []
   let used = 0
   for (const turn of turnsOf(transcript).reverse()) {
@@ -34,6 +40,6 @@ export const buildMessages = ({ systemPrompt, transcript = [], files = {}, messa
     used += size
     kept.unshift(...turn)
   }
-  const project = filesMessage(files)
+  const project = projectMessage(files, build)
   return [{ role: 'system', content: systemPrompt }, ...kept, ...(project ? [project] : []), { role: 'user', content: message }]
 }

@@ -2,7 +2,7 @@
 export const fixture = {
   name: 'single-sphere',
   prompt: 'A single sphere',
-  requires: ['eval', 'writeModel'],
+  requires: ['write'],
   verifyBeforeWrite: false,
   maxTurns: 8,
   checks: (m) => {

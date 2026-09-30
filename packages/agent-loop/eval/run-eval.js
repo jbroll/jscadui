@@ -162,9 +162,10 @@ const withTurnCap = (provider, maxTurns, now = () => performance.now(), onRetry)
 
 export const EMPTY_REPLY = 'empty provider reply'
 
-// One conversation: a fresh backend state, the fixture's prompt, then grading
-// on the saved project's geometry, evaluated again in a fresh state so nothing
-// the run evaluated after its last save leaks into the grade. An error lands
+// One conversation: a fresh backend state seeded with the fixture's files, whose
+// build report joins the files in the first message, the fixture's prompt, then
+// grading on the project's final state, built again in a fresh state so no
+// scratch run leaks into the grade. An error lands
 // on the result, never thrown. `providerError` marks one the provider caused,
 // judged only by the provider wrapper here, never by what a tool returned;
 // `infraError` one the sandbox caused (a backend error with `infrastructure`).
@@ -188,8 +189,6 @@ export async function runConversation(
     onProviderRetry,
   },
 ) {
-  const messages = buildMessages({ systemPrompt, transcript: fixture.transcript ?? [], files: fixture.files ?? {}, message: fixture.prompt })
-  let transcript = messages
   let error
   let infraError = false
   const noteInfra = (err) => {
@@ -199,11 +198,14 @@ export async function runConversation(
   }
   const cappedProvider = withTurnCap(provider, maxTurns, now, onProviderRetry)
   const startedAt = Date.now()
+  let build = null
   try {
-    await backend.reset(fixture.files)
+    build = await backend.reset(fixture.files, { build: true })
   } catch (err) {
     noteInfra(err)
   }
+  const messages = buildMessages({ systemPrompt, transcript: fixture.transcript ?? [], files: fixture.files ?? {}, build, message: fixture.prompt })
+  let transcript = messages
   if (!infraError) {
     try {
       const turn = await runTurn({
@@ -353,7 +355,7 @@ const readJson = (path) => JSON.parse(readFileSync(path, 'utf8'))
 const promptOf = (fixture, transcript) => transcript.some((m) => m.role === 'user' && m.content === fixture.prompt)
 
 // Regrades one stored run with no provider calls. Geometry comes from
-// re-evaluating the saved project with `grader`, unless the run answered a
+// rebuilding the saved project with `grader`, unless the run answered a
 // different prompt than the current fixture, whose checks then do not apply.
 async function regradeRun(result, fixture, grader) {
   if (!fixture) return { ...result, regradeNote: 'fixture no longer exists; kept stored grading' }

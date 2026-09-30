@@ -66,7 +66,7 @@ describe('runJob', () => {
     expect(result.report.checkRate).toBeGreaterThan(0)
     expect(lines[0]).toMatch(/^== cube-hole run 2\/3/)
     expect(lines).toContain('assistant: building it')
-    expect(lines.some((l) => l.startsWith('→ eval'))).toBe(true)
+    expect(lines.some((l) => l.startsWith('→ write'))).toBe(true)
     expect(lines.at(-1)).toBe('assistant: done')
   }, 30_000)
 

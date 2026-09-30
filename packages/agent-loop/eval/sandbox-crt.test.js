@@ -52,7 +52,7 @@ module.exports = { main: async () => {
 const probe = async (options) => {
   const executor = startExecutor({ api: 'fluent', sandbox, ...options })
   try {
-    return JSON.parse(await executor.requestTool('eval', { source: PROBE })).error.message
+    return JSON.parse(await executor.requestTool('write', { path: 'main.js', content: PROBE })).error.message
   } finally {
     executor.close()
   }
@@ -102,11 +102,11 @@ describe.skipIf(problem)('the crt executor', () => {
     expect(out).toContain('env:HOME|PATH')
   }, 60_000)
 
-  it('evaluates, measures, checks and grades a normal model', async () => {
+  it('builds, measures, checks and grades a normal model', async () => {
     const executor = startExecutor({ api: 'fluent', sandbox })
     try {
       await executor.reset({})
-      expect(JSON.parse(await executor.requestTool('eval', { source: CUBE })).ok).toBe(true)
+      expect(JSON.parse(await executor.requestTool('write', { path: 'main.js', content: CUBE })).ok).toBe(true)
       expect(JSON.parse(await executor.requestTool('measure', {})).volume).toBeCloseTo(8000, 0)
       expect(JSON.parse(await executor.requestTool('check', {})).watertight).toBe(true)
       const graded = await executor.gradeProject({ files: { 'main.js': CUBE }, entry: 'main.js' })
@@ -121,7 +121,7 @@ describe.skipIf(problem)('the crt executor', () => {
     try {
       await executor.reset({})
       const text = "const jscadText = require('@jscadui/jscad-text')\njscadText.init(require('@jscad/modeling'))\nmodule.exports = { main: () => jscadText.text2d('JOHN', { size: 12, font: 'Liberation Sans' }) }"
-      expect(JSON.parse(await executor.requestTool('eval', { source: text })).ok).toBe(true)
+      expect(JSON.parse(await executor.requestTool('write', { path: 'main.js', content: text })).ok).toBe(true)
     } finally {
       executor.close()
     }
@@ -129,7 +129,7 @@ describe.skipIf(problem)('the crt executor', () => {
 
   it('kills the whole container when model code never yields, and grades nothing', async () => {
     const executor = startExecutor({ api: 'fluent', sandbox, graceMs: 200 })
-    const stuck = executor.requestTool('eval', { source: 'module.exports = { main: () => { for (;;); } }' })
+    const stuck = executor.requestTool('write', { path: 'main.js', content: 'module.exports = { main: () => { for (;;); } }' })
     expect(await executor.gradeProject({ files: { 'main.js': CUBE }, entry: 'main.js' }, { timeoutMs: 500 })).toEqual({ measure: null, solid: null, params: [] })
     // The channel closes only once node inside the container, which holds its end, is gone.
     await expect(stuck).rejects.toThrow(/executor exited: grading ran past 0.7 s/)
@@ -139,7 +139,7 @@ describe.skipIf(problem)('the crt executor', () => {
   it('ends an executor that outlives its lifetime, with no help from the parent', async () => {
     const executor = startExecutor({ api: 'fluent', sandbox, lifetimeS: 2 })
     const started = Date.now()
-    await expect(executor.requestTool('eval', { source: 'module.exports = { main: () => { for (;;); } }' })).rejects.toThrow(/executor exited/)
+    await expect(executor.requestTool('write', { path: 'main.js', content: 'module.exports = { main: () => { for (;;); } }' })).rejects.toThrow(/executor exited/)
     expect(Date.now() - started).toBeLessThan(10_000)
   }, 60_000)
 
@@ -147,7 +147,7 @@ describe.skipIf(problem)('the crt executor', () => {
     const executor = startExecutor({ api: 'fluent', sandbox })
     try {
       const source = `module.exports = { main: () => { throw new Error('heap:' + process.getBuiltinModule('v8').getHeapStatistics().heap_size_limit) } }`
-      const message = JSON.parse(await executor.requestTool('eval', { source })).error.message
+      const message = JSON.parse(await executor.requestTool('write', { path: 'main.js', content: source })).error.message
       const limitMiB = Number(/heap:(\d+)/.exec(message)[1]) / 2 ** 20
       expect(limitMiB).toBeLessThan(memoryMiB(sandbox.memory))
     } finally {

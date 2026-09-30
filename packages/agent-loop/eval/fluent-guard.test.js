@@ -25,13 +25,13 @@ describe('fluent method checks on real models', () => {
     const warned = []
     let ran = 0
     for (const { name, source } of corpus()) {
-      const res = JSON.parse(await createEvalBackend().requestTool('eval', { source }))
+      const res = JSON.parse(await createEvalBackend().requestTool('write', { path: 'main.js', content: source }))
       if (!res.ok) {
         skipped.push(`${name}: ${res.error.message}`)
         continue
       }
       ran += 1
-      if (res.warnings) warned.push({ name, warnings: res.warnings })
+      if (res.warnings.length) warned.push({ name, warnings: res.warnings })
     }
     if (skipped.length) console.warn(`fluent guard skipped ${skipped.length}:\n${skipped.join('\n')}`)
     expect(warned).toEqual([])

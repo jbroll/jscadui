@@ -14,27 +14,68 @@ const DOCS_DESCRIPTION: Record<Api, string> = {
     "Look up a JSCAD function's signature, options and defaults, or list a namespace. Query a name (roundedCuboid, primitives.roundedCuboid, extrusions.extrudeLinear, jscadText.text2d) or a namespace (primitives, booleans, transforms).",
 }
 
-// The tools the agent may ask the browser to run. Every one executes in the user's browser: eval,
-// params, measure, check and export through the compute frame, writeModel against the project
-// storage, and docs from the page's API index. `view` is not offered here; see
-// docs/architecture.md's tool table. The server only relays inputs and results.
+const BUILDS =
+  'builds the project and returns the build report: ok, entry, error with its file, line and column, warnings, console output, params and, when it builds, the geometry (parts, boundingBox, dimensions in mm, volume in mm³, watertight).'
+
+// The tools the agent may ask the browser to run. Every one executes in the user's browser: list,
+// read, write and edit against the project files, the builds after write and edit and the run
+// snippets through the compute frame, measure, check and export on the current build, and docs
+// from the page's API index. `view` is not offered here; see docs/architecture.md's tool table.
+// The server only relays inputs and results.
 export const buildTools = (api: Api = DEFAULT_API): ToolDefinition[] => [
   {
-    name: 'eval',
-    description: 'Evaluate a new model source and return the resulting parameter definitions and geometry.',
+    name: 'list',
+    description: 'List the project files with their sizes in bytes.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+  },
+  {
+    name: 'read',
+    description: 'Read a project file, its lines numbered.',
     inputSchema: {
       type: 'object',
       properties: {
-        source: { type: 'string', description: 'The model source code to evaluate' },
-        entry: { type: 'string', description: 'The entry file name (defaults to the current entry)' },
+        path: { type: 'string', description: 'The project file path, such as main.js' },
+        offset: { type: 'integer', description: 'The first line to show, from 1' },
+        limit: { type: 'integer', description: 'How many lines to show' },
       },
-      required: ['source'],
+      required: ['path'],
     },
   },
   {
-    name: 'params',
-    description: 'Return the current model parameter definitions and their values.',
-    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    name: 'write',
+    description: `Write a whole project file, creating or replacing it; the write is saved. Then ${BUILDS}`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'The project file path, such as main.js' },
+        content: { type: 'string', description: 'The full file text' },
+      },
+      required: ['path', 'content'],
+    },
+  },
+  {
+    name: 'edit',
+    description: `Replace oldString with newString in a project file; the edit is saved. oldString must match the file exactly, whitespace included, exactly once, unless replaceAll is true. Then ${BUILDS}`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'The project file path, such as main.js' },
+        oldString: { type: 'string', description: 'The text to replace, copied exactly from the file' },
+        newString: { type: 'string', description: 'The text to put in its place' },
+        replaceAll: { type: 'boolean', description: 'Replace every occurrence of oldString' },
+      },
+      required: ['path', 'oldString', 'newString'],
+    },
+  },
+  {
+    name: 'run',
+    description:
+      'Run a scratch JavaScript snippet beside the project files, to try an idea or log values. It is never saved and changes neither the project nor its build. Returns its console output, a summary of what its main() returns (or of module.exports without a main), and an error with its file, line and column.',
+    inputSchema: {
+      type: 'object',
+      properties: { source: { type: 'string', description: 'The snippet, CommonJS like a project file' } },
+      required: ['source'],
+    },
   },
   {
     name: 'measure',
@@ -82,19 +123,6 @@ export const buildTools = (api: Api = DEFAULT_API): ToolDefinition[] => [
         format: { type: 'string', enum: ['stl', '3mf', 'obj', 'svg'], description: 'The export format' },
       },
       required: ['format'],
-    },
-  },
-  {
-    name: 'writeModel',
-    description: 'Replace the model source and create a new version.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        source: { type: 'string', description: 'The full model source code' },
-        entry: { type: 'string', description: 'The entry file name' },
-        message: { type: 'string', description: 'A version message describing the change' },
-      },
-      required: ['source'],
     },
   },
   {

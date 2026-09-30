@@ -3,7 +3,7 @@ import { endedWithoutReply, firstAttemptFailures, geometryError, gradedModel, gr
 
 const fixture = {
   name: 'cube-hole',
-  requires: ['eval', 'measure', 'writeModel'],
+  requires: ['measure', 'write'],
   verifyBeforeWrite: true,
   maxTurns: 8,
   checks: (m) => [
@@ -14,6 +14,70 @@ const fixture = {
 
 const toolMsg = (id, name, input = {}) => ({ role: 'assistant', content: null, toolCalls: [{ id, name, input }] })
 const resultMsg = (id, content) => ({ role: 'tool', toolCallId: id, content })
+
+const built = (extra = {}) => JSON.stringify({ ok: true, entry: 'main.js', warnings: [], console: [], params: [], ...extra })
+const brokenBuild = JSON.stringify({ ok: false, entry: 'main.js', error: { message: 'boom', file: 'main.js', line: 1, column: 1 }, warnings: [], console: [], params: [] })
+
+describe('grader on project-tool transcripts', () => {
+  it('scores a write that is measured afterwards at full marks', () => {
+    const transcript = [
+      { role: 'user', content: 'make it' },
+      toolMsg('t1', 'write', { path: 'main.js', content: 'x' }),
+      resultMsg('t1', built()),
+      toolMsg('t2', 'measure', {}),
+      resultMsg('t2', JSON.stringify({ ok: true, volume: 6400 })),
+    ]
+    const report = gradeFixture(fixture, transcript, { volume: 6400 })
+    expect(report.dimensions).toEqual({ discipline: 2, recovery: 2, geometry: 2, conservation: 2 })
+    expect(report.firstAttemptFailures).toBe(0)
+  })
+
+  it('gives no discipline to writes never verified, and credits a measuring run as a trial', () => {
+    const writes = [toolMsg('t1', 'write', { path: 'main.js', content: 'x' }), resultMsg('t1', built())]
+    expect(gradeFixture(fixture, writes, { volume: 6400 }).dimensions.discipline).toBe(0)
+    const measuring = "const s = jf.cube({ size: 10 })\nconsole.log(s.measureDimensions())"
+    const withRun = [toolMsg('r1', 'run', { source: measuring }), resultMsg('r1', JSON.stringify({ ok: true, console: ['[10,10,10]'] })), ...writes]
+    expect(gradeFixture(fixture, withRun, { volume: 6400 }).dimensions.discipline).toBe(2)
+    const unmeasured = [toolMsg('r1', 'run', { source: 'console.log(1)' }), resultMsg('r1', JSON.stringify({ ok: true, console: ['1'] })), ...writes]
+    expect(gradeFixture(fixture, unmeasured, { volume: 6400 }).dimensions.discipline).toBe(1)
+    expect(gradeFixture({ ...fixture, verifyBeforeWrite: false }, unmeasured, { volume: 6400 }).dimensions.discipline).toBe(2)
+  })
+
+  it('counts failed builds and failed calls against conservation, never a successful write or edit', () => {
+    const run = (goodWrites, badWrites, measures) => {
+      const transcript = [{ role: 'user', content: 'make it' }]
+      for (let i = 0; i < goodWrites; i += 1) {
+        const name = i % 2 ? 'edit' : 'write'
+        transcript.push(toolMsg(`w${i}`, name, {}), resultMsg(`w${i}`, built()))
+      }
+      for (let i = 0; i < badWrites; i += 1) transcript.push(toolMsg(`b${i}`, 'write', {}), resultMsg(`b${i}`, brokenBuild))
+      for (let i = 0; i < measures; i += 1) transcript.push(toolMsg(`m${i}`, 'measure', {}), resultMsg(`m${i}`, JSON.stringify({ ok: true })))
+      return gradeFixture(fixture, transcript, { volume: 6400 }).dimensions.conservation
+    }
+    expect(run(40, 0, 2)).toBe(2)
+    expect(run(40, 10, 2)).toBe(2)
+    expect(run(0, 11, 2)).toBe(1)
+    expect(run(5, 20, 5)).toBe(0)
+  })
+
+  it('counts failures before the first successful build', () => {
+    const transcript = [
+      toolMsg('t1', 'edit', {}), resultMsg('t1', JSON.stringify({ ok: false, error: { name: 'EditError', message: 'oldString is not in main.js' } })),
+      toolMsg('t2', 'write', {}), resultMsg('t2', brokenBuild),
+      toolMsg('t3', 'list', {}), resultMsg('t3', JSON.stringify({ ok: true, files: [] })),
+      toolMsg('t4', 'write', {}), resultMsg('t4', built()),
+      toolMsg('t5', 'measure', {}), resultMsg('t5', JSON.stringify({ ok: false })),
+    ]
+    expect(firstAttemptFailures(transcript)).toBe(2)
+  })
+
+  it('satisfies a required write with an edit', () => {
+    const transcript = [toolMsg('t1', 'edit', { path: 'main.js', oldString: 'old', newString: 'new' }), resultMsg('t1', built())]
+    const report = gradeFixture({ ...fixture, files: { 'main.js': 'old main' } }, transcript, { volume: 6400 })
+    expect(report).not.toHaveProperty('saved')
+    expect(report.dimensions.geometry).toBe(2)
+  })
+})
 
 describe('grader', () => {
   it('scores a clean verified run at full marks, including recovery (nothing to recover from)', () => {
@@ -124,7 +188,7 @@ describe('grader', () => {
     expect(report.saved).toBe(false)
   })
 
-  it('never costs conservation for saving: writeModel calls are not counted', () => {
+  it('never costs conservation for saving: legacy writeModel calls are not counted', () => {
     const run = (evals, writes) => {
       const transcript = [{ role: 'user', content: 'make it' }]
       for (let i = 0; i < evals; i += 1) transcript.push(toolMsg(`e${i}`, 'eval', { source: 'x' }), resultMsg(`e${i}`, JSON.stringify({ ok: true })))
@@ -210,7 +274,7 @@ describe('firstAttemptFailures', () => {
 })
 
 describe('gradedModel', () => {
-  const requiresWrite = { requires: ['eval', 'writeModel'] }
+  const requiresWrite = { requires: ['write'] }
   const evalOnly = { requires: ['eval'] }
 
   it('is the project after the last writeModel, whatever was evaled after it', () => {
@@ -238,6 +302,32 @@ describe('gradedModel', () => {
   it('evaluates the last written file when the project has no main.js', () => {
     const transcript = [toolMsg('t1', 'writeModel', { source: 'a', entry: 'a.js' }), toolMsg('t2', 'writeModel', { source: 'b', entry: 'b.js' })]
     expect(gradedModel(requiresWrite, transcript)).toEqual({ files: { 'a.js': 'a', 'b.js': 'b' }, entry: 'b.js' })
+  })
+
+  it('replays writes and edits over the fixture files, skipping an edit the backend refused', () => {
+    const withFiles = { ...requiresWrite, files: { 'main.js': 'size = 10' } }
+    const transcript = [
+      toolMsg('t1', 'write', { path: './helper.js', content: 'h1' }),
+      toolMsg('t2', 'edit', { path: 'main.js', oldString: 'size = 10', newString: 'size = 20' }),
+      toolMsg('t3', 'edit', { path: 'main.js', oldString: 'size = 99', newString: 'size = 30' }),
+      toolMsg('t4', 'edit', { path: 'helper.js', oldString: 'h1', newString: 'h2' }),
+    ]
+    expect(gradedModel(withFiles, transcript)).toEqual({ files: { 'main.js': 'size = 20', 'helper.js': 'h2' }, entry: 'main.js' })
+    expect(withFiles.files).toEqual({ 'main.js': 'size = 10' })
+  })
+
+  it('resolves the entry Node style, and has none when no entry file exists', () => {
+    const pkg = [toolMsg('t1', 'write', { path: 'box.js', content: 'b' }), toolMsg('t2', 'write', { path: 'package.json', content: '{"main":"box.js"}' })]
+    expect(gradedModel(requiresWrite, pkg).entry).toBe('box.js')
+    expect(gradedModel(requiresWrite, [toolMsg('t1', 'write', { path: 'part.js', content: 'p' })])).toEqual({ files: { 'part.js': 'p' }, entry: null })
+  })
+
+  it('is null when every write was refused and a write is required', () => {
+    expect(gradedModel(requiresWrite, [toolMsg('t1', 'write', { path: '../x.js', content: 'x' })])).toBeNull()
+  })
+
+  it('grades the fixture files as they are when a write is not required and none was made', () => {
+    expect(gradedModel({ ...evalOnly, files: { 'main.js': 'm' } }, [toolMsg('t1', 'measure', {})])).toEqual({ files: { 'main.js': 'm' }, entry: 'main.js' })
   })
 
   it('starts from the fixture files', () => {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { builtinModules, createRequire } from 'node:module'
+import { NO_ENTRY } from '../src/project.js'
 import { CDN_BASE, createEvalBackend, createReadFile, EXPORT_REG, IMPORT_REG } from './backend.js'
 import { expectCase, WARNING_CASES } from '../test/warningCases.js'
 
@@ -25,32 +26,53 @@ const main = () => {
 }
 module.exports = { main }`
 
-const evalSource = async (source) => JSON.parse(await createEvalBackend().requestTool('eval', { source }))
+const writeMain = async (source, backend = createEvalBackend()) => JSON.parse(await backend.requestTool('write', { path: 'main.js', content: source }))
+const call = async (backend, name, input = {}) => {
+  const out = await backend.requestTool(name, input)
+  try {
+    return JSON.parse(out)
+  } catch {
+    return out
+  }
+}
 
-describe('eval backend', () => {
-  it('evals fluent source and measures real volume', async () => {
+describe('eval backend builds', () => {
+  it('builds on write and reports the geometry, then measures it', async () => {
     const backend = createEvalBackend()
-    const evalRes = JSON.parse(await backend.requestTool('eval', { source: CUBE }))
-    expect(evalRes.ok).toBe(true)
-    expect(evalRes.entities).toBe(1)
-    const measureRes = JSON.parse(await backend.requestTool('measure', {}))
-    expect(measureRes.volume).toBeGreaterThan(7900)
-    expect(measureRes.volume).toBeLessThan(8100)
+    const report = await writeMain(CUBE, backend)
+    expect(report).toEqual({
+      ok: true,
+      entry: 'main.js',
+      warnings: [],
+      console: [],
+      params: [],
+      geometry: {
+        parts: 1,
+        boundingBox: [
+          [-10, -10, -10],
+          [10, 10, 10],
+        ],
+        dimensions: [20, 20, 20],
+        volume: 8000,
+        watertight: true,
+      },
+    })
+    const measured = await call(backend, 'measure')
+    expect(measured.volume).toBeCloseTo(8000, 0)
   })
 
   it('runs an ES module that imports @jscad/modeling and reports its slider', async () => {
     const backend = createEvalBackend()
-    const res = JSON.parse(await backend.requestTool('eval', { source: ESM_SPHERE }))
-    expect(res.ok).toBe(true)
-    expect(res.params).toContainEqual(expect.objectContaining({ name: 'radius', type: 'slider', initial: 5 }))
-    expect(backend.params()).toEqual(res.params)
-    const volume = JSON.parse(await backend.requestTool('measure', {})).volume
+    const report = await writeMain(ESM_SPHERE, backend)
+    expect(report.ok).toBe(true)
+    expect(report.params).toEqual([{ name: 'radius', type: 'slider', default: 5, min: 1, max: 10 }])
+    const volume = (await call(backend, 'measure')).volume
     expect(volume).toBeGreaterThan(480)
     expect(volume).toBeLessThan(530)
   })
 
   it('fails a package that is not installed with the frame CDN error text', async () => {
-    const res = await evalSource(`import { sphere } from '@jscad/primitives'\nexport const main = () => sphere()`)
+    const res = await writeMain(`import { sphere } from '@jscad/primitives'\nexport const main = () => sphere()`)
     expect(res.ok).toBe(false)
     expect(res.error.message).toContain('failed to load module @jscad/primitives')
     expect(res.error.message).toContain('file not found https://cdn.jsdelivr.net/npm/@jscad/primitives')
@@ -59,36 +81,54 @@ describe('eval backend', () => {
   it.each([
     ['a Hershey', ''],
     ['a TTF', ", font: 'Liberation Sans'"],
-  ])('serves @jscadui/jscad-text, as the frame does: a nameplate with %s font evaluates', async (_, font) => {
+  ])('serves @jscadui/jscad-text, as the frame does: a nameplate with %s font builds', async (_, font) => {
     const backend = createEvalBackend()
-    const res = JSON.parse(await backend.requestTool('eval', { source: nameplate(font) }))
+    const res = await writeMain(nameplate(font), backend)
     expect(res.error).toBeUndefined()
-    expect(res).toMatchObject({ ok: true, entities: 1 })
-    expect(res.warnings).toBeUndefined()
-    const m = JSON.parse(await backend.requestTool('measure', {}))
+    expect(res).toMatchObject({ ok: true, warnings: [], geometry: { parts: 1 } })
+    const m = await call(backend, 'measure')
     expect(m.dimensions[0]).toBeCloseTo(120, 3)
     expect(m.dimensions[2]).toBeCloseTo(6, 3)
     expect(m.volume).toBeGreaterThan(120 * 30 * 4 + 50)
   })
 
   it('fails a package subpath the frame does not alias', async () => {
-    const res = await evalSource(`import { sphere } from '@jscad/modeling/primitives'\nexport const main = () => sphere()`)
+    const res = await writeMain(`import { sphere } from '@jscad/modeling/primitives'\nexport const main = () => sphere()`)
     expect(res.ok).toBe(false)
     expect(res.error.message).toContain('file not found https://cdn.jsdelivr.net/npm/@jscad/modeling/primitives.js')
   })
 
   it('rejects export without an import line, as the frame does', async () => {
-    const res = await evalSource('export const main = () => []')
+    const res = await writeMain('export const main = () => []')
     expect(res.ok).toBe(false)
     expect(res.error.name).toBe('SyntaxError')
   })
 
-  it('reports line, column and the offending line for a syntax error with no import to trigger transform', async () => {
-    const res = await evalSource('const x = 1\nconst main (params) => {}\nmodule.exports = { main }')
+  it('reports the file, line, column and offending line of a syntax error', async () => {
+    const res = await writeMain('const x = 1\nconst main (params) => {}\nmodule.exports = { main }')
     expect(res.ok).toBe(false)
-    expect(res.error.name).toBe('SyntaxError')
+    expect(res.error).toMatchObject({ name: 'SyntaxError', file: 'main.js', line: 2, column: 11 })
     expect(res.error.message).toMatch(/\(2:\d+\)/)
     expect(res.error.message).toContain('const main (params) => {}')
+  })
+
+  it('names the helper file a syntax error is in', async () => {
+    const backend = createEvalBackend()
+    await backend.reset({ 'helper.js': 'module.exports = {\n  size: 20\n  x: 1 }' })
+    const res = await writeMain("const { size } = require('./helper.js')\nmodule.exports = { main: () => [] }", backend)
+    expect(res.error).toMatchObject({ name: 'SyntaxError', file: 'helper.js', line: 3 })
+  })
+
+  it('reports where a runtime error was thrown', async () => {
+    const res = await writeMain("const jf = require('@jbroll/jscad-fluent')\nconst main = () => {\n  return jf.cube({ size: 2 }).nope()\n}\nmodule.exports = { main }")
+    expect(res).toMatchObject({ ok: false, entry: 'main.js', error: { name: 'TypeError', file: 'main.js', line: 3 } })
+    expect(res.error.column).toBeGreaterThan(0)
+  })
+
+  it('fails a model whose main returns something that is not geometry', async () => {
+    const res = await writeMain('module.exports = { main: () => 42 }')
+    expect(res.ok).toBe(false)
+    expect(res.error.name).toBe('NoGeometryError')
   })
 
   it('uses the same transform test as the worker', () => {
@@ -115,98 +155,223 @@ describe('eval backend', () => {
   it.each(['fs', 'child_process', 'net', 'http', 'https', 'os', 'process', 'worker_threads', 'node:fs', 'fs/promises'])(
     'fails model code that requires %s with the failed-to-load text',
     async (spec) => {
-      const res = await evalSource(`const m = require(${JSON.stringify(spec)})\nmodule.exports = { main: () => { throw new Error('loaded ' + typeof m) } }`)
+      const res = await writeMain(`const m = require(${JSON.stringify(spec)})\nmodule.exports = { main: () => { throw new Error('loaded ' + typeof m) } }`)
       expect(res.ok).toBe(false)
       expect(res.error.message).toContain(`failed to load module ${spec}`)
       expect(res.error.message).toContain('file not found')
     },
   )
 
-  it('treats an eval with no main as a scratch run, keeping console and the current geometry', async () => {
-    const backend = createEvalBackend()
-    await backend.requestTool('eval', { source: CUBE })
-    const res = JSON.parse(await backend.requestTool('eval', { source: "console.log('expected volume', 42)" }))
-    expect(res.ok).toBe(true)
-    expect(res.scratch).toBe(true)
-    expect(res.console).toEqual(['expected volume 42'])
-    expect(res.message).toMatch(/no main/)
-    const measured = JSON.parse(await backend.requestTool('measure', {}))
-    expect(measured.volume).toBeGreaterThan(7900)
+  it('fails the build when the entry exports no main', async () => {
+    const res = await writeMain('module.exports = {}')
+    expect(res).toMatchObject({ ok: false, entry: 'main.js', error: { name: 'NoMainError', message: 'main.js exports no main()' } })
   })
 
-  it('writeModel still fails when the project entry exports no main', async () => {
-    const res = JSON.parse(await createEvalBackend().requestTool('writeModel', { source: 'module.exports = {}' }))
-    expect(res.ok).toBe(false)
-    expect(res.error.message).toMatch(/no main/)
-  })
-
-  it('answers measure with an error result when nothing was evaled', async () => {
-    const res = JSON.parse(await createEvalBackend().requestTool('measure', {}))
-    expect(res.ok).toBe(false)
-    expect(res.error.message).toMatch(/no geometry/)
-  })
-
-  it('turns a throwing model into an error result, never a throw', async () => {
-    const res = await evalSource('throw new Error("boom")')
+  it('turns a throwing model into a failed build, never a throw', async () => {
+    const res = await writeMain('throw new Error("boom")')
     expect(res.ok).toBe(false)
     expect(res.error.message).toMatch(/^boom/)
   })
 
-  it('stubs view as unavailable without throwing', async () => {
-    const res = JSON.parse(await createEvalBackend().requestTool('view', {}))
-    expect(res.ok).toBe(false)
-    expect(res.error.name).toBe('UnavailableError')
-  })
-
-  it('exports the current model as the STL byte size in the app result shape, without the bytes', async () => {
-    const backend = createEvalBackend()
-    await backend.requestTool('eval', { source: CUBE })
-    const res = JSON.parse(await backend.requestTool('export', { format: 'stl' }))
-    expect(Object.keys(res).sort()).toEqual(['format', 'ok', 'size'])
-    expect(res).toMatchObject({ ok: true, format: 'stl' })
-    expect(res.size).toBeGreaterThan(12 * 'facet normal'.length)
-  })
-
-  it('answers export with an error result when nothing was evaled', async () => {
-    const res = JSON.parse(await createEvalBackend().requestTool('export', { format: 'stl' }))
-    expect(res.ok).toBe(false)
-    expect(res.error.message).toMatch(/no geometry/)
-  })
-
   it('hands model code no real Node require through a global symbol', async () => {
     expect(globalThis[Symbol.for('jscadui.eval.nodeRequire')]).toBeUndefined()
-    const res = await evalSource(`const load = globalThis[Symbol.for('jscadui.eval.userModule')]
+    const res = await writeMain(`const load = globalThis[Symbol.for('jscadui.eval.userModule')]
 module.exports = { main: () => { load('fs'); return [] } }`)
     expect(res.ok).toBe(false)
     expect(res.error.message).toContain('failed to load module fs')
   })
 
-  it('writeModel runs the project through main.js with every file written so far', async () => {
-    const backend = createEvalBackend()
-    const main = `const jf = require('@jbroll/jscad-fluent')\nconst { size } = require('./helper.js')\nmodule.exports = { main: () => [jf.cube({ size })] }`
-    expect(JSON.parse(await backend.requestTool('writeModel', { source: main })).ok).toBe(false)
-    const res = JSON.parse(await backend.requestTool('writeModel', { source: 'module.exports = { size: 20 }', entry: 'helper.js' }))
-    expect(res).toEqual(expect.objectContaining({ ok: true, entry: 'helper.js' }))
-    expect(JSON.parse(await backend.requestTool('measure', {})).volume).toBeCloseTo(8000, 0)
+  it('returns console output on the build report, empty when the run logs nothing', async () => {
+    expect((await writeMain(`console.log('hi', { a: 1 })\nmodule.exports = { main: () => [] }`)).console).toEqual(['hi {"a":1}'])
+    expect((await writeMain(CUBE)).console).toEqual([])
   })
 
-  it('eval sees the project files, and reset seeds them', async () => {
-    const backend = createEvalBackend()
-    backend.reset({ 'helper.js': 'module.exports = { size: 10 }' })
-    const main = `const jf = require('@jbroll/jscad-fluent')\nconst { size } = require('./helper.js')\nmodule.exports = { main: () => [jf.cube({ size })] }`
-    expect(JSON.parse(await backend.requestTool('eval', { source: main })).ok).toBe(true)
-    expect(JSON.parse(await backend.requestTool('measure', {})).volume).toBeCloseTo(1000, 0)
+  it('restores the real console after a throw', async () => {
+    const originalLog = console.log
+    await writeMain('throw new Error("boom")')
+    expect(console.log).toBe(originalLog)
   })
 
+  it('never mutates the modeling module object fluent and model-tools share', async () => {
+    const modeling = createRequire(import.meta.url)('@jscad/modeling')
+    const before = modeling.primitives.roundedCuboid
+    await writeMain(`const { primitives } = require('@jscad/modeling')\nmodule.exports = { main: () => primitives.roundedCuboid({ radius: 1 }) }`)
+    expect(modeling.primitives.roundedCuboid).toBe(before)
+  })
+})
+
+describe('eval backend project', () => {
+  const MAIN_WITH_HELPER = `const jf = require('@jbroll/jscad-fluent')\nconst { size } = require('./helper.js')\nmodule.exports = { main: () => [jf.cube({ size })] }`
+
+  it('builds the project through its entry with every file written so far', async () => {
+    const backend = createEvalBackend()
+    expect((await writeMain(MAIN_WITH_HELPER, backend)).ok).toBe(false)
+    const res = await call(backend, 'write', { path: 'helper.js', content: 'module.exports = { size: 20 }' })
+    expect(res).toMatchObject({ ok: true, entry: 'main.js' })
+    expect((await call(backend, 'measure')).volume).toBeCloseTo(8000, 0)
+    expect(backend.files()).toEqual({ 'main.js': MAIN_WITH_HELPER, 'helper.js': 'module.exports = { size: 20 }' })
+  })
+
+  it('resolves the entry Node style: package.json main, then index.js, then main.js', async () => {
+    const backend = createEvalBackend()
+    await backend.reset({ 'main.js': CUBE, 'index.js': ESM_SPHERE })
+    expect((await call(backend, 'write', { path: 'box.js', content: CUBE.replace('size: 20', 'size: 10') })).entry).toBe('index.js')
+    const report = await call(backend, 'write', { path: 'package.json', content: '{ "main": "./box.js" }' })
+    expect(report).toMatchObject({ ok: true, entry: 'box.js', geometry: { dimensions: [10, 10, 10] } })
+  })
+
+  it('fails a project with no entry file', async () => {
+    const res = await call(createEvalBackend(), 'write', { path: 'helper.js', content: 'module.exports = {}' })
+    expect(res).toEqual({ ok: false, entry: null, error: { name: 'NoEntryError', message: NO_ENTRY }, warnings: [], console: [], params: [] })
+  })
+
+  it('edits a file and builds', async () => {
+    const backend = createEvalBackend()
+    await writeMain(CUBE, backend)
+    const res = await call(backend, 'edit', { path: 'main.js', oldString: 'size: 20', newString: 'size: 30' })
+    expect(res.geometry.dimensions).toEqual([30, 30, 30])
+    expect(backend.files()['main.js']).toContain('size: 30')
+  })
+
+  it('refuses an edit whose oldString is missing or not unique, and keeps the file and build', async () => {
+    const backend = createEvalBackend()
+    await writeMain(CUBE, backend)
+    const missing = await call(backend, 'edit', { path: 'main.js', oldString: 'size: 99', newString: 'size: 30' })
+    expect(missing).toMatchObject({ ok: false, error: { name: 'EditError', message: expect.stringMatching(/oldString is not in main.js/) } })
+    const twice = await call(backend, 'edit', { path: 'main.js', oldString: 'jf', newString: 'fluent' })
+    expect(twice.error.message).toMatch(/oldString occurs \d+ times in main.js/)
+    expect(backend.files()['main.js']).toBe(CUBE)
+    expect((await call(backend, 'measure')).volume).toBeCloseTo(8000, 0)
+  })
+
+  it('lists and reads the project files', async () => {
+    const backend = createEvalBackend()
+    await backend.reset({ 'main.js': 'a\nb\n', 'lib/part.js': 'p' })
+    expect(await call(backend, 'list')).toEqual({ ok: true, files: [{ path: 'lib/part.js', size: 1 }, { path: 'main.js', size: 4 }] })
+    expect(await call(backend, 'read', { path: 'main.js' })).toBe('     1\ta\n     2\tb')
+    expect((await call(backend, 'read', { path: 'gone.js' })).error.name).toBe('FileNotFoundError')
+  })
+
+  it('reset seeds the project, and builds it when asked', async () => {
+    const backend = createEvalBackend()
+    expect(await backend.reset({ 'main.js': CUBE })).toBeNull()
+    expect((await call(backend, 'measure')).error.message).toMatch(/no geometry: write the model first/)
+    const report = await backend.reset({ 'main.js': CUBE }, { build: true })
+    expect(report).toMatchObject({ ok: true, entry: 'main.js' })
+    expect(backend.lastBuild()).toEqual(report)
+    expect((await call(backend, 'measure')).volume).toBeCloseTo(8000, 0)
+    expect(await backend.reset({}, { build: true })).toBeNull()
+  })
+
+  it('answers measure, check and export on a failed last build with that failure', async () => {
+    const backend = createEvalBackend()
+    await writeMain(CUBE, backend)
+    await writeMain('throw new Error("broken")', backend)
+    for (const name of ['measure', 'check', 'export']) {
+      const res = await call(backend, name, { format: 'stl' })
+      expect(res).toEqual({ ok: false, error: { name: 'NoGeometryError', message: expect.stringMatching(/^no geometry: the last build failed \(broken .*\); fix it first$/) } })
+    }
+  })
+})
+
+describe('eval backend run', () => {
+  it('returns console output and leaves the project and its build alone', async () => {
+    const backend = createEvalBackend()
+    await writeMain(CUBE, backend)
+    const res = await call(backend, 'run', { source: "console.log('expected volume', 42)" })
+    expect(res).toEqual({ ok: true, warnings: [], console: ['expected volume 42'] })
+    expect(backend.files()).toEqual({ 'main.js': CUBE })
+    expect((await call(backend, 'measure')).volume).toBeCloseTo(8000, 0)
+  })
+
+  it('summarizes the geometry a snippet main() returns without touching the build', async () => {
+    const backend = createEvalBackend()
+    await writeMain(CUBE, backend)
+    const res = await call(backend, 'run', { source: CUBE.replace('size: 20', 'size: 4') })
+    expect(res.geometry).toMatchObject({ parts: 1, dimensions: [4, 4, 4], volume: 64 })
+    expect((await call(backend, 'measure')).volume).toBeCloseTo(8000, 0)
+  })
+
+  it('previews a value that is not geometry, and a snippet can require project files', async () => {
+    const backend = createEvalBackend()
+    await backend.reset({ 'helper.js': 'module.exports = { size: 20 }' })
+    expect(await call(backend, 'run', { source: "module.exports = require('./helper.js')" })).toMatchObject({ ok: true, returned: '{"size":20}' })
+    expect(await call(backend, 'run', { source: 'module.exports = { main: () => ({ a: 1 }) }' })).toMatchObject({ returned: '{"a":1}' })
+  })
+
+  it('reports an error with its line and column, and the console before it', async () => {
+    const res = await call(createEvalBackend(), 'run', { source: "console.log('before')\nconst x = 1\nx()" })
+    expect(res).toMatchObject({ ok: false, console: ['before'], error: { name: 'TypeError', file: '__run__.js', line: 3 } })
+  })
+
+  it('needs source', async () => {
+    expect((await call(createEvalBackend(), 'run', {})).error.message).toMatch(/source must be/)
+  })
+})
+
+describe('eval backend tools', () => {
+  it('labels measure and check sizes as millimetres', async () => {
+    const backend = createEvalBackend()
+    await writeMain(CUBE, backend)
+    expect((await call(backend, 'measure')).units).toBe('mm')
+    expect((await call(backend, 'check')).units).toBe('mm')
+  })
+
+  it('answers measure with an error result when nothing was built', async () => {
+    const res = await call(createEvalBackend(), 'measure')
+    expect(res.ok).toBe(false)
+    expect(res.error.message).toMatch(/no geometry/)
+  })
+
+  it('stubs view as unavailable without throwing', async () => {
+    const res = await call(createEvalBackend(), 'view')
+    expect(res.ok).toBe(false)
+    expect(res.error.name).toBe('UnavailableError')
+  })
+
+  it('exports the current build as the STL byte size in the app result shape, without the bytes', async () => {
+    const backend = createEvalBackend()
+    await writeMain(CUBE, backend)
+    const res = await call(backend, 'export', { format: 'stl' })
+    expect(Object.keys(res).sort()).toEqual(['format', 'ok', 'size'])
+    expect(res).toMatchObject({ ok: true, format: 'stl' })
+    expect(res.size).toBeGreaterThan(12 * 'facet normal'.length)
+  })
+
+  it('answers export with an error result when nothing was built', async () => {
+    const res = await call(createEvalBackend(), 'export', { format: 'stl' })
+    expect(res.ok).toBe(false)
+    expect(res.error.message).toMatch(/no geometry/)
+  })
+
+  it.each(['teleport', 'eval', 'writeModel', 'params'])('answers the unknown tool %s with an error result', async (name) => {
+    const res = await call(createEvalBackend(), name, { source: CUBE })
+    expect(res).toEqual({ ok: false, error: { name: 'UnknownToolError', message: `unknown tool ${name}` } })
+  })
+
+  it('answers docs from the API index', async () => {
+    const backend = createEvalBackend()
+    expect(await backend.requestTool('docs', { query: 'roundedCuboid' })).toContain('roundRadius: Number = 0.2')
+    expect(JSON.parse(await backend.requestTool('docs', { query: 'roundedCube' })).error.name).toBe('NotFoundError')
+  })
+})
+
+describe('eval backend grading', () => {
   it('gradeProject measures a project in a fresh state', async () => {
     const backend = createEvalBackend()
-    await backend.requestTool('eval', { source: CUBE })
+    await writeMain(CUBE, backend)
     const graded = await backend.gradeProject({ files: { 'main.js': ESM_SPHERE }, entry: 'main.js' })
     expect(graded.measure.volume).toBeGreaterThan(480)
     expect(graded.measure.volume).toBeLessThan(530)
     expect(graded.solid.watertight).toBe(true)
-    expect(graded.params).toContainEqual(expect.objectContaining({ name: 'radius' }))
+    expect(graded.params).toContainEqual(expect.objectContaining({ name: 'radius', initial: 5 }))
     expect(await backend.gradeProject(null)).toEqual({ measure: null, solid: null, params: [] })
+  })
+
+  it('gradeProject grades nothing for a project with no entry or a failed build', async () => {
+    const backend = createEvalBackend()
+    expect(await backend.gradeProject({ files: { 'part.js': CUBE }, entry: null })).toEqual({ measure: null, solid: null, params: [] })
+    expect(await backend.gradeProject({ files: { 'main.js': 'throw 1' }, entry: 'main.js' })).toEqual({ measure: null, solid: null, params: [] })
   })
 
   it('gradeProject adds the probe a fixture asks for, and only then', async () => {
@@ -222,93 +387,11 @@ module.exports = { main: () => { load('fs'); return [] } }`)
     const hang = { files: { 'main.js': 'module.exports = { main: () => new Promise(() => {}) }' }, entry: 'main.js' }
     expect(await createEvalBackend().gradeProject(hang, { timeoutMs: 20 })).toEqual({ measure: null, solid: null, params: [] })
   })
+})
 
-  it('labels measure and check sizes as millimetres', async () => {
-    const backend = createEvalBackend()
-    await backend.requestTool('eval', { source: CUBE })
-    expect(JSON.parse(await backend.requestTool('measure', {})).units).toBe('mm')
-    expect(JSON.parse(await backend.requestTool('check', {})).units).toBe('mm')
-  })
-
-  it('tells the model a scratch run leaves the current model unsaved', async () => {
-    const backend = createEvalBackend()
-    expect(JSON.parse(await backend.requestTool('eval', { source: 'console.log(1)' }))).not.toHaveProperty('notSaved')
-    await backend.requestTool('eval', { source: CUBE })
-    expect(JSON.parse(await backend.requestTool('eval', { source: 'console.log(1)' })).notSaved).toMatch(/not saved/)
-    await backend.requestTool('writeModel', { source: CUBE })
-    expect(JSON.parse(await backend.requestTool('eval', { source: 'console.log(1)' }))).not.toHaveProperty('notSaved')
-  })
-
-  it('marks eval, measure and check unsaved until writeModel matches the evaluated source', async () => {
-    const backend = createEvalBackend()
-    const evalRes = JSON.parse(await backend.requestTool('eval', { source: CUBE }))
-    expect(evalRes.notSaved).toMatch(/not saved/)
-    expect(JSON.parse(await backend.requestTool('measure', {})).notSaved).toMatch(/not saved/)
-    expect(JSON.parse(await backend.requestTool('check', { bed: 'mk3' })).notSaved).toMatch(/not saved/)
-    await backend.requestTool('writeModel', { source: CUBE })
-    expect(JSON.parse(await backend.requestTool('measure', {}))).not.toHaveProperty('notSaved')
-    expect(JSON.parse(await backend.requestTool('check', { bed: 'mk3' }))).not.toHaveProperty('notSaved')
-  })
-
-  it('counts the model evals since the last save, and says to save now when a check comes back clean', async () => {
-    const backend = createEvalBackend()
-    await backend.requestTool('eval', { source: CUBE })
-    await backend.requestTool('eval', { source: 'console.log(1)' })
-    expect(JSON.parse(await backend.requestTool('eval', { source: CUBE })).notSaved).toBe('not saved (2 evals since the last save); call writeModel to keep it')
-    expect(JSON.parse(await backend.requestTool('measure', {})).notSaved).toBe('not saved (2 evals since the last save); call writeModel to keep it')
-    expect(JSON.parse(await backend.requestTool('check', {})).notSaved).toBe(
-      'checks clean and not saved (2 evals since the last save): save it now with writeModel, then refine',
-    )
-    await backend.requestTool('writeModel', { source: CUBE })
-    await backend.requestTool('eval', { source: CUBE.replace('size: 20', 'size: 30') })
-    expect(JSON.parse(await backend.requestTool('check', { bed: [10, 10, 10] })).notSaved).toBe('not saved (1 eval since the last save); call writeModel to keep it')
-  })
-
-  // Same scenario table as apps/jscad-web/test/aiDeps.test.js: `notSaved` is
-  // decided against every file the eval used, not just the one last written.
-  it('marks a multi-file project unsaved and saved the same way, across an entry and a helper', async () => {
-    const backend = createEvalBackend()
-    const main = `const { primitives } = require('@jscad/modeling')\nconst { size } = require('./helper.js')\nmodule.exports = { main: () => [primitives.cuboid({ size: [size, size, size] })] }`
-    await backend.requestTool('writeModel', { source: 'module.exports = { main: () => [] }' })
-    await backend.requestTool('writeModel', { source: 'module.exports = { size: 10 }', entry: 'helper.js' })
-    expect(JSON.parse(await backend.requestTool('measure', {}))).not.toHaveProperty('notSaved')
-
-    // eval an unsaved entry draft that now uses the helper: unsaved.
-    const evalRes = JSON.parse(await backend.requestTool('eval', { source: main }))
-    expect(evalRes.notSaved).toMatch(/not saved/)
-    expect(JSON.parse(await backend.requestTool('measure', {})).notSaved).toMatch(/not saved/)
-
-    // writing the draft: saved.
-    await backend.requestTool('writeModel', { source: main })
-    expect(JSON.parse(await backend.requestTool('measure', {}))).not.toHaveProperty('notSaved')
-
-    // editing the helper re-runs main.js through it (writeModel always does),
-    // so the freshly-rendered geometry is saved again, not stale.
-    await backend.requestTool('writeModel', { source: 'module.exports = { size: 20 }', entry: 'helper.js' })
-    expect(JSON.parse(await backend.requestTool('measure', {}))).not.toHaveProperty('notSaved')
-  })
-
-  it('writeModel persists to the memory project', async () => {
-    const backend = createEvalBackend()
-    const res = JSON.parse(await backend.requestTool('writeModel', { source: CUBE, entry: 'main.js', message: 'first' }))
-    expect(res.ok).toBe(true)
-    expect(res.entry).toBe('main.js')
-    expect(backend.project.get('main.js').message).toBe('first')
-  })
-
-  it('answers unknown tools with an error result', async () => {
-    const res = JSON.parse(await createEvalBackend().requestTool('teleport', {}))
-    expect(res.ok).toBe(false)
-  })
-
-  it('answers docs from the API index', async () => {
-    const backend = createEvalBackend()
-    expect(await backend.requestTool('docs', { query: 'roundedCuboid' })).toContain('roundRadius: Number = 0.2')
-    expect(JSON.parse(await backend.requestTool('docs', { query: 'roundedCube' })).error.name).toBe('NotFoundError')
-  })
-
+describe('eval backend warnings', () => {
   it('returns a warning for an option the function does not take', async () => {
-    const res = await evalSource(`const { primitives } = require('@jscad/modeling')
+    const res = await writeMain(`const { primitives } = require('@jscad/modeling')
 const main = () => primitives.roundedCuboid({ size: [30, 20, 10], radius: 2 })
 module.exports = { main }`)
     expect(res.ok).toBe(true)
@@ -316,14 +399,14 @@ module.exports = { main }`)
   })
 
   it('names fluent factories and stays quiet for fluent internals', async () => {
-    const fluent = await evalSource(`const jf = require('@jbroll/jscad-fluent')
+    const fluent = await writeMain(`const jf = require('@jbroll/jscad-fluent')
 const main = () => [jf.cube({ sise: 10 }), jf.circle({ radius: 5 }).extrudeLinear({ height: 10 }).translate([1, 2, 3])]
 module.exports = { main }`)
     expect(fluent.warnings).toEqual([{ fn: 'jf.cube', option: 'sise', suggestions: ['size'] }])
   })
 
   it('names fluent methods called on shapes', async () => {
-    const res = await evalSource(`const jf = require('@jbroll/jscad-fluent')
+    const res = await writeMain(`const jf = require('@jbroll/jscad-fluent')
 module.exports = { main: () => jf.circle({ radius: 5 }).extrudeLinear({ hieght: 10 }).center({ axis: [true, true, false] }) }`)
     expect(res.ok).toBe(true)
     expect(res.warnings).toEqual([
@@ -333,7 +416,7 @@ module.exports = { main: () => jf.circle({ radius: 5 }).extrudeLinear({ hieght: 
   })
 
   it('names unknown options on fluent functions and methods added for modeling parity', async () => {
-    const res = await evalSource(`const jf = require('@jbroll/jscad-fluent')
+    const res = await writeMain(`const jf = require('@jbroll/jscad-fluent')
 module.exports = { main: () => [
   jf.circle({ radius: 1, center: [5, 0] }).extrudeHelical({ pitchh: 10 }),
   jf.path({ closd: false }, [[0, 0], [10, 0]]).appendArc({ endpoint: [10, 10], radius: [5, 5], clockwize: true }).expand({ delta: 1 }).extrudeLinear({ height: 1 }),
@@ -350,43 +433,19 @@ module.exports = { main: () => [
     ])
   })
 
-  it('starts each run with no warnings and reports them on writeModel too', async () => {
+  it('starts each build with no warnings, and reports them on run too', async () => {
     const backend = createEvalBackend()
     const bad = `const { primitives } = require('@jscad/modeling')\nmodule.exports = { main: () => primitives.cube({ sise: 3 }) }`
-    expect(JSON.parse(await backend.requestTool('writeModel', { source: bad })).warnings).toHaveLength(1)
-    expect(JSON.parse(await backend.requestTool('eval', { source: CUBE }))).not.toHaveProperty('warnings')
-  })
-
-  it('returns console output from the model run on eval and writeModel', async () => {
-    const backend = createEvalBackend()
-    const source = `console.log('hi', { a: 1 })\nmodule.exports = { main: () => [] }`
-    const evalRes = JSON.parse(await backend.requestTool('eval', { source }))
-    expect(evalRes.console).toEqual(['hi {"a":1}'])
-    const writeRes = JSON.parse(await backend.requestTool('writeModel', { source }))
-    expect(writeRes.console).toEqual(['hi {"a":1}'])
-  })
-
-  it('omits console when the run logs nothing, and restores the real console after a throw', async () => {
-    const originalLog = console.log
-    const res = await evalSource('throw new Error("boom")')
-    expect(res.ok).toBe(false)
-    expect(console.log).toBe(originalLog)
-    const clean = JSON.parse(await createEvalBackend().requestTool('eval', { source: CUBE }))
-    expect(clean).not.toHaveProperty('console')
-  })
-
-  it('never mutates the modeling module object fluent and model-tools share', async () => {
-    const modeling = createRequire(import.meta.url)('@jscad/modeling')
-    const before = modeling.primitives.roundedCuboid
-    await evalSource(`const { primitives } = require('@jscad/modeling')\nmodule.exports = { main: () => primitives.roundedCuboid({ radius: 1 }) }`)
-    expect(modeling.primitives.roundedCuboid).toBe(before)
+    expect((await writeMain(bad, backend)).warnings).toHaveLength(1)
+    expect((await call(backend, 'run', { source: bad })).warnings).toHaveLength(1)
+    expect((await writeMain(CUBE, backend)).warnings).toEqual([])
   })
 })
 
 describe('eval backend warnings and error hints follow the api', () => {
   for (const c of WARNING_CASES) {
     it(c.name, async () => {
-      const res = JSON.parse(await createEvalBackend({ api: c.api }).requestTool('eval', { source: c.source }))
+      const res = JSON.parse(await createEvalBackend({ api: c.api }).requestTool('write', { path: 'main.js', content: c.source }))
       expectCase(expect, c, res)
     })
   }

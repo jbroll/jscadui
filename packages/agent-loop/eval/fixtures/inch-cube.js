@@ -5,7 +5,7 @@ const HOLE = Math.PI * (25.4 / 4) ** 2 * SIDE
 export const fixture = {
   name: 'inch-cube',
   prompt: 'a 2 inch cube with a 1/2 inch hole through it',
-  requires: ['eval', 'writeModel'],
+  requires: ['write'],
   verifyBeforeWrite: false,
   maxTurns: 8,
   target: { dimensions: [SIDE, SIDE, SIDE] },

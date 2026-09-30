@@ -1,6 +1,6 @@
-import { checksClean, withSaveState, withUnits } from '@jscadui/agent-loop'
+import { withUnits } from '@jscadui/agent-loop'
 import { createEvaluate } from './aiEvaluate.js'
-import { createSaveTracker } from './aiSaveTracker.js'
+import { checksClean, createSaveTracker, withSaveState } from './aiSaveTracker.js'
 
 const PROJECT_ENTRY = 'main.js'
 

@@ -9,7 +9,7 @@ const backend = createEvalBackend()
 
 const fixture = {
   name: 'cube-hole',
-  requires: ['eval', 'measure', 'writeModel'],
+  requires: ['measure', 'write'],
   verifyBeforeWrite: true,
   maxTurns: 8,
   checks: () => [],
@@ -148,7 +148,7 @@ const PROBE = 'const jf = require("@jbroll/jscad-fluent")\nmodule.exports = { ma
 const saving = {
   name: 'saving',
   prompt: 'make a cube',
-  requires: ['eval', 'writeModel'],
+  requires: ['write'],
   verifyBeforeWrite: false,
   maxTurns: 8,
   target: { volume: 8000 },
@@ -168,7 +168,36 @@ const regrade = (file) => regradeResults(file, new Map([['saving', saving]]), { 
 const prompt = { role: 'user', content: 'make a cube' }
 const done = { role: 'assistant', content: 'done', toolCalls: [] }
 
-describe('regradeResults on the saved model', () => {
+describe('regradeResults on a project-tool run', () => {
+  it('rebuilds the project from its writes and edits, ignoring a later scratch run', async () => {
+    const out = await regrade(fileOf([
+      prompt,
+      toolMsg('t1', 'write', { path: 'main.js', content: CUBE.replace('size: 20', 'size: 5') }), resultMsg('t1', JSON.stringify({ ok: true })),
+      toolMsg('t2', 'edit', { path: 'main.js', oldString: 'size: 5', newString: 'size: 20' }), resultMsg('t2', JSON.stringify({ ok: true })),
+      toolMsg('t3', 'measure', {}), resultMsg('t3', JSON.stringify({ ok: true, volume: 8000 })),
+      toolMsg('t4', 'run', { source: PROBE }), resultMsg('t4', JSON.stringify({ ok: true })),
+      done,
+    ]))
+    const [result] = out.results
+    expect(result.report.checkRate).toBe(1)
+    expect(result.report.dimensions).toEqual({ discipline: 2, recovery: 2, geometry: 2, conservation: 2 })
+    expect(result.metrics.geometryError).toBeCloseTo(0)
+    expect(result).not.toHaveProperty('regradeNote')
+  })
+
+  it('gives no geometry to a project whose final state does not build', async () => {
+    const out = await regrade(fileOf([
+      prompt,
+      toolMsg('t1', 'write', { path: 'main.js', content: CUBE }), resultMsg('t1', JSON.stringify({ ok: true })),
+      toolMsg('t2', 'write', { path: 'main.js', content: 'throw new Error("broken")' }), resultMsg('t2', JSON.stringify({ ok: false, error: { message: 'broken' } })),
+      done,
+    ]))
+    expect(out.results[0].report.dimensions.geometry).toBe(0)
+    expect(out.results[0].report).not.toHaveProperty('saved')
+  })
+})
+
+describe('regradeResults on a legacy writeModel run', () => {
   it('re-evaluates the writeModel source from the transcript, ignoring a later probe', async () => {
     const out = await regrade(fileOf([
       prompt,

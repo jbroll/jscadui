@@ -2,7 +2,7 @@
 export const fixture = {
   name: 'cube-hole',
   prompt: 'A 20mm cube with a hole through the middle',
-  requires: ['eval', 'measure', 'writeModel'],
+  requires: ['measure', 'write'],
   verifyBeforeWrite: true,
   maxTurns: 8,
   target: { dimensions: [20, 20, 20] },

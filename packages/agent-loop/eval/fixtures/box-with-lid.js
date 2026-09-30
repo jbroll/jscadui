@@ -28,7 +28,7 @@ const covers = (box, lid) => {
 export const fixture = {
   name: 'box-with-lid',
   prompt: 'a box with a lid that fits',
-  requires: ['eval', 'writeModel'],
+  requires: ['write'],
   verifyBeforeWrite: false,
   maxTurns: 8,
   probe: { bodies: { sections: [{ axis: 'z', at: FRACTIONS }] } },

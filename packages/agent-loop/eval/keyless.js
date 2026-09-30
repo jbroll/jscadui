@@ -40,9 +40,8 @@ module.exports = { main }`
 export const KEYLESS_SOURCES = { 'cube-hole': CUBE_HOLE, gear: GEAR, bracket: BRACKET }
 
 const roundsFor = (source, verify) => [
-  [{ type: 'tool_use', id: 't1', name: 'eval', input: { source } }, { type: 'done', stopReason: 'tool_use' }],
+  [{ type: 'tool_use', id: 't1', name: 'write', input: { path: 'main.js', content: source } }, { type: 'done', stopReason: 'tool_use' }],
   [{ type: 'tool_use', id: 't2', name: verify, input: verify === 'check' ? { bed: [250, 210, 200] } : {} }, { type: 'done', stopReason: 'tool_use' }],
-  [{ type: 'tool_use', id: 't3', name: 'writeModel', input: { source, entry: 'main.js', message: 'baseline' } }, { type: 'done', stopReason: 'tool_use' }],
   [{ type: 'text', text: 'done' }, { type: 'done', stopReason: 'end_turn' }],
 ]
 

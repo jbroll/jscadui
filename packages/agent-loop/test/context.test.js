@@ -59,4 +59,17 @@ describe('buildMessages', () => {
     const [, files] = buildMessages({ systemPrompt: 'S', files: { 'n.md': 'a\n```\nb' }, message: 'new' })
     expect(files.content).toContain('````md\na\n```\nb\n````')
   })
+
+  it('adds the last build report after the files', () => {
+    const build = { ok: false, entry: 'main.js', error: { message: 'boom', file: 'main.js', line: 2, column: 3 }, warnings: [], console: [], params: [] }
+    const [, project] = buildMessages({ systemPrompt: 'S', files: { 'main.js': 'M' }, build, message: 'new' })
+    expect(project.content).toContain('### main.js')
+    expect(project.content).toContain(`Last build of the project:\n\n\`\`\`json\n${JSON.stringify(build)}\n\`\`\``)
+    expect(project.content.indexOf('### main.js')).toBeLessThan(project.content.indexOf('Last build'))
+  })
+
+  it('leaves the build out when there is none', () => {
+    const [, project] = buildMessages({ systemPrompt: 'S', files: { 'main.js': 'M' }, message: 'new' })
+    expect(project.content).not.toContain('Last build')
+  })
 })

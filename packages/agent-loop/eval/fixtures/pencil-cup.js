@@ -11,7 +11,7 @@ const wall = (section) => {
 export const fixture = {
   name: 'pencil-cup',
   prompt: 'a small pencil cup with 2mm walls',
-  requires: ['eval', 'writeModel'],
+  requires: ['write'],
   verifyBeforeWrite: false,
   maxTurns: 8,
   probe: { sections: [{ axis: 'z', at: [0.5, 0.99] }] },

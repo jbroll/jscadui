@@ -2,7 +2,7 @@
 export const fixture = {
   name: 'cylinder-param',
   prompt: 'A cylinder with a slider for its height',
-  requires: ['eval', 'writeModel'],
+  requires: ['write'],
   verifyBeforeWrite: false,
   maxTurns: 8,
   checks: (m, { params = [] } = {}) => {

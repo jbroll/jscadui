@@ -27,7 +27,7 @@ const transportPair = () => {
 }
 
 const fakeBackend = (overrides = {}) => ({
-  reset: () => undefined,
+  reset: () => null,
   requestTool: async (name, input) => JSON.stringify({ name, input }),
   gradeProject: async (model) => ({ measure: { model }, solid: null, params: [] }),
   ...overrides,
@@ -44,8 +44,8 @@ describe('executor protocol', () => {
     const executor = createExecutorClient(client, { api: 'modeling' })
     expect(await executor.ready).toBe('modeling')
     expect(apis).toEqual(['modeling'])
-    expect(await executor.reset({ 'main.js': 'x' })).toBeUndefined()
-    expect(JSON.parse(await executor.requestTool('eval', { source: 's' }))).toEqual({ name: 'eval', input: { source: 's' } })
+    expect(await executor.reset({ 'main.js': 'x' })).toBeNull()
+    expect(JSON.parse(await executor.requestTool('run', { source: 's' }))).toEqual({ name: 'run', input: { source: 's' } })
     expect(await executor.gradeProject({ files: {}, entry: 'main.js' })).toEqual({ measure: { model: { files: {}, entry: 'main.js' } }, solid: null, params: [] })
   })
 
@@ -54,9 +54,9 @@ describe('executor protocol', () => {
     serveExecutor(server, createEvalBackend)
     const executor = createExecutorClient(client, { api: 'fluent' })
     const source = 'const jf = require("@jbroll/jscad-fluent")\nmodule.exports = { main: () => [jf.cube({ size: 10 })] }'
-    await executor.reset({})
-    expect(JSON.parse(await executor.requestTool('eval', { source })).ok).toBe(true)
-    expect(JSON.parse(await executor.requestTool('measure', {})).volume).toBeCloseTo(1000, 0)
+    expect(await executor.reset({ 'main.js': source }, { build: true })).toMatchObject({ ok: true, entry: 'main.js', geometry: { volume: 1000 } })
+    expect(JSON.parse(await executor.requestTool('write', { path: 'main.js', content: source.replace('size: 10', 'size: 20') })).ok).toBe(true)
+    expect(JSON.parse(await executor.requestTool('measure', {})).volume).toBeCloseTo(8000, 0)
   })
 
   it('answers a tool call the backend throws on with a tool error', async () => {
@@ -69,7 +69,7 @@ describe('executor protocol', () => {
       }),
     )
     const executor = createExecutorClient(client, { api: 'fluent' })
-    expect(JSON.parse(await executor.requestTool('eval', {}))).toEqual({ ok: false, error: { name: 'EvaluatorError', message: 'boom' } })
+    expect(JSON.parse(await executor.requestTool('run', {}))).toEqual({ ok: false, error: { name: 'EvaluatorError', message: 'boom' } })
   })
 
   it('refuses a method outside the backend protocol', async () => {
@@ -99,7 +99,7 @@ describe('executor protocol', () => {
       }),
     )
     const executor = createExecutorClient(client, { api: 'fluent' })
-    const slow = executor.requestTool('eval', {})
+    const slow = executor.requestTool('run', {})
     expect(await executor.gradeProject(null)).toEqual({ measure: { model: null }, solid: null, params: [] })
     release()
     expect(await slow).toBe('slow')
@@ -110,7 +110,7 @@ describe('executor protocol', () => {
     serveExecutor(server, () => fakeBackend({ requestTool: () => new Promise(() => {}) }))
     const executor = createExecutorClient(client, { api: 'fluent' })
     await executor.ready
-    const pending = executor.requestTool('eval', {})
+    const pending = executor.requestTool('run', {})
     exit('code 3')
     await expect(pending).rejects.toThrow('executor exited: code 3')
     await expect(pending).rejects.toBeInstanceOf(ExecutorExited)
@@ -146,7 +146,7 @@ describe('executor protocol', () => {
     const { client, server, killed } = transportPair()
     serveExecutor(server, () => fakeBackend({ requestTool: () => new Promise(() => {}) }))
     const executor = createExecutorClient(client, { api: 'fluent' })
-    await expect(executor.requestTool('eval', {}, { timeoutMs: 5 })).rejects.toThrow('executor exited: ran past 0.005 s')
+    await expect(executor.requestTool('run', {}, { timeoutMs: 5 })).rejects.toThrow('executor exited: ran past 0.005 s')
     expect(killed()).toBe(true)
   })
 })
@@ -157,7 +157,7 @@ describe('forged executor replies', () => {
     const { client } = transportPair()
     const handlers = []
     const executor = createExecutorClient({ ...client, onMessage: (fn) => handlers.push(fn) }, { api: 'fluent' })
-    const answer = method === 'gradeProject' ? executor.gradeProject({ files: {}, entry: 'main.js' }) : executor[method]('eval', {})
+    const answer = method === 'gradeProject' ? executor.gradeProject({ files: {}, entry: 'main.js' }) : executor[method]('run', {})
     for (const fn of handlers) fn({ type: 'reply', id: 0, ...reply })
     return answer
   }
@@ -218,13 +218,19 @@ describe('forged executor replies', () => {
     expect((await forged('gradeProject', { ok: true, value: { measure: null, solid: null, params: [], probe: 'x' } })).probe).toBeNull()
   })
 
-  it('ignores whatever a reset reply carries', async () => {
-    const { client } = transportPair()
-    const handlers = []
-    const executor = createExecutorClient({ ...client, onMessage: (fn) => handlers.push(fn) }, { api: 'fluent' })
-    const reset = executor.reset({})
-    for (const fn of handlers) fn({ type: 'reply', id: 0, ok: false, error: 'empty provider reply' })
-    expect(await reset).toBeUndefined()
+  it('takes a reset reply only as a plain JSON record, else null', async () => {
+    const replying = async (reply) => {
+      const { client } = transportPair()
+      const handlers = []
+      const executor = createExecutorClient({ ...client, onMessage: (fn) => handlers.push(fn) }, { api: 'fluent' })
+      const reset = executor.reset({})
+      for (const fn of handlers) fn({ type: 'reply', id: 0, ...reply })
+      return reset
+    }
+    expect(await replying({ ok: false, error: 'empty provider reply' })).toBeNull()
+    expect(await replying({ ok: true, value: 'x' })).toBeNull()
+    expect(await replying({ ok: true, value: { ok: true, pad: 'x'.repeat(MAX_TOOL_RESULT_BYTES) } })).toBeNull()
+    expect(await replying({ ok: true, value: { ok: true, entry: 'main.js' } })).toEqual({ ok: true, entry: 'main.js' })
   })
 
   it('kill the executor on any frame that answers no outstanding request', async () => {
@@ -242,7 +248,7 @@ describe('forged executor replies', () => {
       const handlers = []
       const executor = createExecutorClient({ ...client, onMessage: (fn) => handlers.push(fn) }, { api: 'fluent' })
       for (const fn of handlers) fn({ type: 'ready' })
-      const pending = executor.requestTool('eval', {})
+      const pending = executor.requestTool('run', {})
       for (const fn of handlers) fn(message)
       expect(killed()).toBe(true)
       exit('signal SIGKILL')
@@ -255,7 +261,7 @@ describe('forged executor replies', () => {
     const handlers = []
     const executor = createExecutorClient({ ...client, onMessage: (fn) => handlers.push(fn) }, { api: 'fluent' })
     for (const fn of handlers) fn({ type: 'ready' })
-    const answer = executor.requestTool('eval', {})
+    const answer = executor.requestTool('run', {})
     for (const fn of handlers) fn({ type: 'reply', id: 0, ok: true, value: 'fine' })
     expect(await answer).toBe('fine')
     expect(killed()).toBe(false)

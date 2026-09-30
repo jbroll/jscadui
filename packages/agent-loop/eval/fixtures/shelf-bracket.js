@@ -3,7 +3,7 @@
 export const fixture = {
   name: 'shelf-bracket',
   prompt: 'An L bracket to hold a shelf, with countersunk screw holes',
-  requires: ['eval', 'writeModel'],
+  requires: ['write'],
   verifyBeforeWrite: false,
   maxTurns: 8,
   checks: (m, { solid } = {}) => {

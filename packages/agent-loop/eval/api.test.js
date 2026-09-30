@@ -7,7 +7,7 @@ import { createEvalBackend } from './backend.js'
 import { startExecutor } from './sandbox.js'
 import { compareApis, evalApi, regradeResults, resultFileName, runSuite, saveResults, selectFixtures } from './run-eval.js'
 
-const fixture = { name: 'x', prompt: 'p', requires: ['eval'], verifyBeforeWrite: false, maxTurns: 2, checks: () => [] }
+const fixture = { name: 'x', prompt: 'p', requires: ['write'], verifyBeforeWrite: false, maxTurns: 2, checks: () => [] }
 
 describe('EVAL_API', () => {
   it('defaults to fluent and reads EVAL_API', () => {
@@ -104,7 +104,7 @@ describe('regrade under the recorded api', () => {
   it("grades a fixture with per-api files over the file's api files", async () => {
     const seen = []
     const graderFor = () => ({ gradeProject: async (model) => (seen.push(model.files), { measure: null, solid: null, params: [] }) })
-    const perApi = { ...fixture, name: 'x', requires: ['eval'], apiFiles: { fluent: { 'main.js': 'F', 'part.js': 'f' }, modeling: { 'main.js': 'M', 'part.js': 'm' } } }
+    const perApi = { ...fixture, name: 'x', requires: ['write'], apiFiles: { fluent: { 'main.js': 'F', 'part.js': 'f' }, modeling: { 'main.js': 'M', 'part.js': 'm' } } }
     const written = (api) => ({ api, results: [{ fixture: 'x', run: 1, transcript: [{ role: 'user', content: 'p' }, { role: 'assistant', content: null, toolCalls: [{ id: 't', name: 'writeModel', input: { source: 'new' } }] }], report: { dimensions: {} }, metrics: {} }] })
     await regradeResults(written('modeling'), new Map([['x', perApi]]), { graderFor })
     await regradeResults(written('fluent'), new Map([['x', perApi]]), { graderFor })

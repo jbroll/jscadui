@@ -2,7 +2,7 @@
 export const fixture = {
   name: 'rounded-box',
   prompt: 'A 30 by 20 by 10 box with rounded edges',
-  requires: ['eval', 'writeModel'],
+  requires: ['write'],
   verifyBeforeWrite: false,
   maxTurns: 8,
   target: { dimensions: [10, 20, 30] },

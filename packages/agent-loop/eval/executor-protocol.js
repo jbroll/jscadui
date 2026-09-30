@@ -87,11 +87,17 @@ const gradeReply = (message) => {
   return { measure, solid, params, probe: isRecord(probe) ? probe : null }
 }
 
-const REPLIES = { reset: () => undefined, requestTool: toolReply, gradeProject: gradeReply }
+// A build report of plain JSON data, or null.
+const resetReply = (message) => {
+  const data = message.ok ? jsonData(message.value, MAX_TOOL_RESULT_BYTES) : undefined
+  return isRecord(data) ? data : null
+}
+
+const REPLIES = { reset: resetReply, requestTool: toolReply, gradeProject: gradeReply }
 
 // The eval backend's interface (reset, requestTool, gradeProject), every method
-// async. requestTool always resolves with a string and gradeProject with a
-// grade; a call rejects only with ExecutorExited. A grade gets `graceMs` past
+// async. reset resolves with a build report or null, requestTool always with a
+// string and gradeProject with a grade; a call rejects only with ExecutorExited. A grade gets `graceMs` past
 // its own timeout: model code stuck in a synchronous loop never lets the
 // executor's timer fire, so the client kills it and grades nothing.
 export const createExecutorClient = (transport, { api, graceMs = 10_000 }) => {
@@ -167,7 +173,7 @@ export const createExecutorClient = (transport, { api, graceMs = 10_000 }) => {
   transport.send({ type: 'init', api })
   return {
     ready,
-    reset: (files) => call('reset', [files]),
+    reset: (files, options = {}) => call('reset', [files, options]),
     requestTool: (name, input, { timeoutMs } = {}) => call('requestTool', [name, input], { timeoutMs }),
     gradeProject,
     alive: () => !exited,

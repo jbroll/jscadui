@@ -18,9 +18,18 @@ describe('formatText', () => {
 
 describe('formatToolCall', () => {
   it('indents a source input by four spaces, in full', () => {
-    expect(formatToolCall('eval', { source: 'line one\nline two' })).toBe(
-      '→ eval\n    line one\n    line two',
+    expect(formatToolCall('run', { source: 'line one\nline two' })).toBe(
+      '→ run\n    line one\n    line two',
     )
+  })
+
+  it('names the file a write goes to and indents its content', () => {
+    expect(formatToolCall('write', { path: 'main.js', content: 'a\nb' })).toBe('→ write main.js\n    a\n    b')
+  })
+
+  it('shows an edit as its removed and added lines', () => {
+    expect(formatToolCall('edit', { path: 'main.js', oldString: 'a\nb', newString: 'c' })).toBe('→ edit main.js\n    - a\n    - b\n    + c')
+    expect(formatToolCall('edit', { path: 'main.js', oldString: 'a', newString: 'c', replaceAll: true })).toBe('→ edit main.js (every occurrence)\n    - a\n    + c')
   })
 
   it('prints other inputs as compact JSON on the same line', () => {

@@ -9,7 +9,7 @@ const deferred = () => {
   return { promise, resolve }
 }
 
-const fixture = (name) => ({ name, prompt: `make ${name}`, requires: ['eval'], verifyBeforeWrite: false, maxTurns: 4, checks: () => [] })
+const fixture = (name) => ({ name, prompt: `make ${name}`, requires: ['write'], verifyBeforeWrite: false, maxTurns: 4, checks: () => [] })
 
 const fakeResult = ({ fixture: f, run }) => ({
   fixture: f.name,

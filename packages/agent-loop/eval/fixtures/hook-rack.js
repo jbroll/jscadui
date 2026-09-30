@@ -8,7 +8,7 @@ const AXES = ['x', 'y', 'z']
 export const fixture = {
   name: 'hook-rack',
   prompt: 'a wall rack with 5 hooks in a row',
-  requires: ['eval', 'writeModel'],
+  requires: ['write'],
   verifyBeforeWrite: false,
   maxTurns: 8,
   probe: { sections: AXES.map((axis) => ({ axis, at: FRACTIONS })) },

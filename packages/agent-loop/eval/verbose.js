@@ -12,9 +12,16 @@ export function formatText(text) {
   return `assistant: ${text}`
 }
 
+const marked = (mark, s) => s.split('\n').map((l) => `${mark}${l}`).join('\n')
+
 export function formatToolCall(name, input) {
-  if (input && typeof input.source === 'string') return `→ ${name}\n${indent(input.source)}`
-  const rest = input && Object.keys(input).length > 0 ? ` ${JSON.stringify(input)}` : ''
+  const args = input ?? {}
+  if (typeof args.source === 'string') return `→ ${name}\n${indent(args.source)}`
+  if (typeof args.content === 'string') return `→ ${name} ${args.path}\n${indent(args.content)}`
+  if (typeof args.oldString === 'string' && typeof args.newString === 'string') {
+    return `→ ${name} ${args.path}${args.replaceAll ? ' (every occurrence)' : ''}\n${indent(marked('- ', args.oldString))}\n${indent(marked('+ ', args.newString))}`
+  }
+  const rest = Object.keys(args).length > 0 ? ` ${JSON.stringify(args)}` : ''
   return `→ ${name}${rest}`
 }
 

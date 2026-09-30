@@ -3,7 +3,7 @@ export const fixture = {
   name: 'gear',
   group: 'profiles',
   prompt: 'A 12-tooth gear, about 40mm across',
-  requires: ['eval', 'measure', 'writeModel'],
+  requires: ['measure', 'write'],
   verifyBeforeWrite: true,
   maxTurns: 10,
   checks: (m, { solid } = {}) => {

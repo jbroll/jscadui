@@ -19,7 +19,7 @@ describe('runSuite provider retries', () => {
         { type: 'done', stopReason: 'end_turn' },
       ],
     ])
-    const fixture = { name: 'x', prompt: 'p', requires: ['eval'], verifyBeforeWrite: false, maxTurns: 8, checks: () => [] }
+    const fixture = { name: 'x', prompt: 'p', requires: [], verifyBeforeWrite: false, maxTurns: 8, checks: () => [] }
     const [result] = await runSuite([fixture], { provider, backend, onProviderRetry: (event) => seen.push(event) })
     expect(result.metrics.providerRetries).toBe(1)
     expect(seen).toEqual([{ type: 'retry', attempt: 1, maxAttempts: 4, status: 503, reason: 'overloaded', delayMs: 2000 }])
@@ -28,7 +28,7 @@ describe('runSuite provider retries', () => {
 
   it('metrics.providerRetries is 0 when the provider never retries', async () => {
     const backend = createEvalBackend()
-    const fixture = { name: 'x', prompt: 'p', requires: ['eval'], verifyBeforeWrite: false, maxTurns: 8, checks: () => [] }
+    const fixture = { name: 'x', prompt: 'p', requires: [], verifyBeforeWrite: false, maxTurns: 8, checks: () => [] }
     const provider = scripted([[{ type: 'text', text: 'done' }, { type: 'done', stopReason: 'end_turn' }]])
     const [result] = await runSuite([fixture], { provider, backend })
     expect(result.metrics.providerRetries).toBe(0)
@@ -40,7 +40,7 @@ describe('runSuite', () => {
     const backend = createEvalBackend()
     const provider = scripted([
       [
-        { type: 'tool_use', id: 't1', name: 'eval', input: { source: 'const jf = require("@jbroll/jscad-fluent")\nfunction main() { return [jf.cube({ size: 20 })] }\nmodule.exports = { main }' } },
+        { type: 'tool_use', id: 't1', name: 'write', input: { path: 'main.js', content: 'const jf = require("@jbroll/jscad-fluent")\nfunction main() { return [jf.cube({ size: 20 })] }\nmodule.exports = { main }' } },
         { type: 'done', stopReason: 'tool_use' },
       ],
       [
@@ -52,7 +52,7 @@ describe('runSuite', () => {
     const fixture = {
       name: 'smoke',
       prompt: 'make a cube',
-      requires: ['eval', 'measure'],
+      requires: ['measure'],
       verifyBeforeWrite: false,
       maxTurns: 8,
       target: { volume: 8000 },
@@ -81,7 +81,7 @@ describe('runSuite', () => {
         this.calls += 1
         if (this.calls === 1) {
           yield { type: 'usage', inputTokens: 100, outputTokens: 20 }
-          yield { type: 'tool_use', id: 't1', name: 'eval', input: { source: 'x' } }
+          yield { type: 'tool_use', id: 't1', name: 'run', input: { source: 'x' } }
           yield { type: 'done', stopReason: 'tool_use' }
         } else {
           yield { type: 'usage', inputTokens: 50, outputTokens: 5 }
@@ -90,7 +90,7 @@ describe('runSuite', () => {
         }
       },
     }
-    const fixture = { name: 'x', prompt: 'p', requires: ['eval'], verifyBeforeWrite: false, maxTurns: 8, checks: () => [] }
+    const fixture = { name: 'x', prompt: 'p', requires: [], verifyBeforeWrite: false, maxTurns: 8, checks: () => [] }
     const [result] = await runSuite([fixture], { provider, backend })
     expect(result.metrics.inputTokens).toBe(150)
     expect(result.metrics.outputTokens).toBe(25)
@@ -110,7 +110,7 @@ describe('runSuite', () => {
         calls += 1
         if (calls === 1) {
           yield { type: 'text', text: 'thinking' }
-          yield { type: 'tool_use', id: 't1', name: 'eval', input: { source: 'x' } }
+          yield { type: 'tool_use', id: 't1', name: 'run', input: { source: 'x' } }
           yield { type: 'done', stopReason: 'tool_use' }
         } else {
           yield { type: 'usage', outputTokens: 30 }
@@ -119,7 +119,7 @@ describe('runSuite', () => {
         }
       },
     }
-    const fixture = { name: 'x', prompt: 'p', requires: ['eval'], verifyBeforeWrite: false, maxTurns: 8, checks: () => [] }
+    const fixture = { name: 'x', prompt: 'p', requires: [], verifyBeforeWrite: false, maxTurns: 8, checks: () => [] }
     const [result] = await runSuite([fixture], { provider, backend, now })
     // call 1: start 100, first content 200, end 300 -> providerSeconds 0.2, firstToken 0.1
     // call 2: start 400, first content (usage doesn't count) 500 (text), end 600 -> providerSeconds 0.2, firstToken 0.1
@@ -139,7 +139,7 @@ describe('runSuite', () => {
         yield { type: 'done', stopReason: 'end_turn' }
       },
     }
-    const fixture = { name: 'x', prompt: 'p', requires: ['eval'], verifyBeforeWrite: false, maxTurns: 8, checks: () => [] }
+    const fixture = { name: 'x', prompt: 'p', requires: [], verifyBeforeWrite: false, maxTurns: 8, checks: () => [] }
     const [result] = await runSuite([fixture], { provider, backend })
     expect(result.metrics.reasoningTokens).toBeNull()
   })
@@ -152,7 +152,7 @@ describe('runSuite', () => {
         calls += 1
         if (calls === 1) {
           yield { type: 'usage', outputTokens: 20, reasoningTokens: 15 }
-          yield { type: 'tool_use', id: 't1', name: 'eval', input: { source: 'x' } }
+          yield { type: 'tool_use', id: 't1', name: 'run', input: { source: 'x' } }
           yield { type: 'done', stopReason: 'tool_use' }
         } else {
           yield { type: 'usage', outputTokens: 5, reasoningTokens: 3 }
@@ -161,7 +161,7 @@ describe('runSuite', () => {
         }
       },
     }
-    const fixture = { name: 'x', prompt: 'p', requires: ['eval'], verifyBeforeWrite: false, maxTurns: 8, checks: () => [] }
+    const fixture = { name: 'x', prompt: 'p', requires: [], verifyBeforeWrite: false, maxTurns: 8, checks: () => [] }
     const [result] = await runSuite([fixture], { provider, backend })
     expect(result.metrics.reasoningTokens).toBe(18)
   })
@@ -175,7 +175,7 @@ describe('runSuite', () => {
         yield { type: 'done', stopReason: 'end_turn' }
       },
     }
-    const fixture = { name: 'x', prompt: 'p', requires: ['eval'], verifyBeforeWrite: false, maxTurns: 8, checks: () => [] }
+    const fixture = { name: 'x', prompt: 'p', requires: [], verifyBeforeWrite: false, maxTurns: 8, checks: () => [] }
     const [result] = await runSuite([fixture], { provider, backend, now })
     expect(result.metrics.firstTokenSeconds).toBeNull()
     expect(result.metrics.outputTokensPerSecond).toBeNull()
@@ -186,7 +186,7 @@ describe('runSuite', () => {
     const backend = createEvalBackend()
     const provider = scripted([
       [
-        { type: 'tool_use', id: 't1', name: 'eval', input: { source: 'const jf = require("@jbroll/jscad-fluent")\nfunction main() { return [jf.cube({ size: 20 })] }\nmodule.exports = { main }' } },
+        { type: 'tool_use', id: 't1', name: 'write', input: { path: 'main.js', content: 'const jf = require("@jbroll/jscad-fluent")\nfunction main() { return [jf.cube({ size: 20 })] }\nmodule.exports = { main }' } },
         { type: 'done', stopReason: 'tool_use' },
       ],
       [{ type: 'text', text: 'done' }, { type: 'done', stopReason: 'end_turn' }],
@@ -195,7 +195,7 @@ describe('runSuite', () => {
     const fixture = {
       name: 'solid-context',
       prompt: 'p',
-      requires: ['eval'],
+      requires: [],
       verifyBeforeWrite: false,
       maxTurns: 8,
       checks: (m, { solid } = {}) => {
@@ -217,7 +217,7 @@ describe('runSuite', () => {
     const fixture = {
       name: 'x',
       prompt: 'p',
-      requires: ['eval'],
+      requires: [],
       verifyBeforeWrite: false,
       maxTurns: 2,
       checks: (m, { solid } = {}) => {
@@ -237,7 +237,7 @@ const endRound = [{ type: 'text', text: 'done' }, { type: 'done', stopReason: 'e
 const saving = {
   name: 'saving',
   prompt: 'make a cube',
-  requires: ['eval', 'writeModel'],
+  requires: ['write'],
   verifyBeforeWrite: false,
   maxTurns: 8,
   checks: (m, { solid, source } = {}) => [
@@ -247,12 +247,14 @@ const saving = {
   ],
 }
 
+const writeMain = (id, content) => toolRound(id, 'write', { path: 'main.js', content })
+
 describe('runSuite grades the saved model', () => {
-  it('grades the writeModel source, not a probe evaled after it', async () => {
+  it('grades the written source, not a snippet run after it', async () => {
     const provider = scripted([
-      toolRound('t1', 'eval', { source: FLUENT_CUBE }),
-      toolRound('t2', 'writeModel', { source: FLUENT_CUBE }),
-      toolRound('t3', 'eval', { source: PROBE }),
+      toolRound('t1', 'run', { source: FLUENT_CUBE }),
+      writeMain('t2', FLUENT_CUBE),
+      toolRound('t3', 'run', { source: PROBE }),
       endRound,
     ])
     const [result] = await runSuite([saving], { provider, backend: createEvalBackend() })
@@ -260,18 +262,18 @@ describe('runSuite grades the saved model', () => {
     expect(result.report.dimensions.geometry).toBe(2)
   })
 
-  it('gives no geometry credit to a run that never called writeModel', async () => {
-    const provider = scripted([toolRound('t1', 'eval', { source: FLUENT_CUBE }), endRound])
+  it('gives no geometry credit to a run that never wrote a file', async () => {
+    const provider = scripted([toolRound('t1', 'run', { source: FLUENT_CUBE }), endRound])
     const [result] = await runSuite([saving], { provider, backend: createEvalBackend() })
     expect(result.report.dimensions.geometry).toBe(0)
     expect(result.report.checkRate).toBe(0)
     expect(result.report.saved).toBe(false)
   })
 
-  it('grades a saved model that fails to evaluate as no geometry', async () => {
+  it('grades a project whose final state does not build as no geometry', async () => {
     const provider = scripted([
-      toolRound('t1', 'eval', { source: FLUENT_CUBE }),
-      toolRound('t2', 'writeModel', { source: 'throw new Error("broken")' }),
+      writeMain('t1', FLUENT_CUBE),
+      writeMain('t2', 'throw new Error("broken")'),
       endRound,
     ])
     const [result] = await runSuite([saving], { provider, backend: createEvalBackend() })
@@ -284,7 +286,7 @@ const MAIN_WITH_HELPER = 'const jf = require("@jbroll/jscad-fluent")\nconst { si
 const twoFile = {
   name: 'two-file',
   prompt: 'make a cube',
-  requires: ['eval', 'writeModel'],
+  requires: ['write'],
   verifyBeforeWrite: false,
   maxTurns: 8,
   checks: (m, { source } = {}) => [
@@ -294,10 +296,10 @@ const twoFile = {
 }
 
 describe('runSuite grades the whole project', () => {
-  it('evaluates main.js with every written file when the last write is the helper', async () => {
+  it('builds main.js with every written file when the last write is the helper', async () => {
     const provider = scripted([
-      toolRound('t1', 'writeModel', { source: MAIN_WITH_HELPER }),
-      toolRound('t2', 'writeModel', { source: 'module.exports = { size: 20 }', entry: 'helper.js' }),
+      writeMain('t1', MAIN_WITH_HELPER),
+      toolRound('t2', 'write', { path: 'helper.js', content: 'module.exports = { size: 20 }' }),
       endRound,
     ])
     const [result] = await runSuite([twoFile], { provider, backend: createEvalBackend() })
@@ -308,7 +310,7 @@ describe('runSuite grades the whole project', () => {
 })
 
 describe('runSuite error sources', () => {
-  const fixture = { name: 'x', prompt: 'p', requires: ['eval'], verifyBeforeWrite: false, maxTurns: 8, checks: () => [] }
+  const fixture = { name: 'x', prompt: 'p', requires: [], verifyBeforeWrite: false, maxTurns: 8, checks: () => [] }
 
   it('marks an error thrown by the provider as a provider error', async () => {
     const provider = {
@@ -321,16 +323,16 @@ describe('runSuite error sources', () => {
 
   it('marks a tool timeout from a hanging model as the model\'s failure, not the provider\'s', async () => {
     const hang = 'module.exports = { main: () => new Promise(() => {}) }'
-    const provider = scripted([toolRound('t1', 'eval', { source: hang }), endRound])
-    const [result] = await runSuite([{ ...fixture, requires: ['eval', 'writeModel'] }], { provider, backend: createEvalBackend(), toolTimeoutMs: 50 })
+    const provider = scripted([writeMain('t1', hang), endRound])
+    const [result] = await runSuite([{ ...fixture, requires: ['write'] }], { provider, backend: createEvalBackend(), toolTimeoutMs: 50, gradeTimeoutMs: 50 })
     expect(result.error).toMatch(/timed out/)
     expect(result).not.toHaveProperty('providerError')
   })
 
   it('stops grading a saved model that never finishes', async () => {
     const hang = 'module.exports = { main: () => new Promise(() => {}) }'
-    const provider = scripted([toolRound('t1', 'writeModel', { source: hang }), endRound])
-    const [result] = await runSuite([{ ...fixture, requires: ['eval', 'writeModel'] }], {
+    const provider = scripted([writeMain('t1', hang), endRound])
+    const [result] = await runSuite([{ ...fixture, requires: ['write'] }], {
       provider, backend: createEvalBackend(), toolTimeoutMs: 50, gradeTimeoutMs: 50,
     })
     expect(result.report.checkRate).toBe(0)
@@ -344,7 +346,7 @@ describe('runSuite empty provider replies', () => {
         yield { type: 'done', stopReason: 'end_turn' }
       },
     }
-    const fixture = { name: 'x', prompt: 'p', requires: ['eval'], verifyBeforeWrite: false, maxTurns: 8, checks: () => [] }
+    const fixture = { name: 'x', prompt: 'p', requires: [], verifyBeforeWrite: false, maxTurns: 8, checks: () => [] }
     const [result] = await runSuite([fixture], { provider, backend: createEvalBackend() })
     expect(result.error).toBe('empty provider reply')
     expect(result.providerError).toBe(true)
@@ -352,10 +354,10 @@ describe('runSuite empty provider replies', () => {
 
   it('counts a round with only reasoning and usage as empty, and records each round\'s stop reason', async () => {
     const provider = scripted([
-      toolRound('t1', 'params', {}),
+      toolRound('t1', 'list', {}),
       [{ type: 'usage', inputTokens: 10, outputTokens: 4000, reasoningTokens: 4000 }, { type: 'done', stopReason: 'length' }],
     ])
-    const fixture = { name: 'x', prompt: 'p', requires: ['eval'], verifyBeforeWrite: false, maxTurns: 8, checks: () => [] }
+    const fixture = { name: 'x', prompt: 'p', requires: [], verifyBeforeWrite: false, maxTurns: 8, checks: () => [] }
     const [result] = await runSuite([fixture], { provider, backend: createEvalBackend() })
     expect(result.error).toBe('empty provider reply')
     expect(result.providerError).toBe(true)
@@ -379,7 +381,7 @@ describe('runSuite runs and context', () => {
       prompt: 'make it taller',
       transcript: [{ role: 'user', content: 'a cube' }, { role: 'assistant', content: 'done' }],
       files: { 'main.js': 'module.exports = {}' },
-      requires: ['eval'],
+      requires: [],
       verifyBeforeWrite: false,
       maxTurns: 2,
       checks: () => [],
@@ -388,6 +390,8 @@ describe('runSuite runs and context', () => {
     expect(results.map((r) => r.run)).toEqual([1, 2, 3])
     expect(seen[0].map((m) => m.role)).toEqual(['system', 'user', 'assistant', 'user', 'user'])
     expect(seen[0][3].content).toContain('### main.js')
+    expect(seen[0][3].content).toContain('Last build of the project:')
+    expect(seen[0][3].content).toContain('"error":{"name":"NoMainError","message":"main.js exports no main()"}')
     expect(seen[0].at(-1).content).toBe('make it taller')
   })
 
@@ -395,7 +399,7 @@ describe('runSuite runs and context', () => {
     const provider = {
       send: () => ({ [Symbol.asyncIterator]: () => ({ next: async () => { throw new Error('status 500') } }) }),
     }
-    const fixture = { name: 'x', prompt: 'p', requires: ['eval'], verifyBeforeWrite: false, maxTurns: 2, checks: () => [] }
+    const fixture = { name: 'x', prompt: 'p', requires: [], verifyBeforeWrite: false, maxTurns: 2, checks: () => [] }
     const [result] = await runSuite([fixture], { provider, backend: createEvalBackend() })
     expect(result.error).toBe('status 500')
     expect(result.report.firstAttemptFailures).toBe(0)
@@ -420,16 +424,16 @@ describe('runSuite transcript', () => {
     const backend = createEvalBackend()
     const provider = scripted([
       [
-        { type: 'tool_use', id: 't1', name: 'eval', input: { source: 'x' } },
+        { type: 'tool_use', id: 't1', name: 'run', input: { source: 'x' } },
         { type: 'done', stopReason: 'tool_use' },
       ],
       [{ type: 'text', text: 'done' }, { type: 'done', stopReason: 'end_turn' }],
     ])
-    const fixture = { name: 'smoke', prompt: 'make a cube', requires: ['eval'], verifyBeforeWrite: false, maxTurns: 8, checks: () => [] }
+    const fixture = { name: 'smoke', prompt: 'make a cube', requires: [], verifyBeforeWrite: false, maxTurns: 8, checks: () => [] }
     const [result] = await runSuite([fixture], { provider, backend })
     expect(result.transcript.some((m) => m.role === 'system')).toBe(false)
     expect(result.transcript[0]).toEqual({ role: 'user', content: 'make a cube' })
-    expect(result.transcript.some((m) => m.toolCalls?.some((c) => c.name === 'eval'))).toBe(true)
+    expect(result.transcript.some((m) => m.toolCalls?.some((c) => c.name === 'run'))).toBe(true)
     expect(result.transcript.some((m) => m.role === 'tool')).toBe(true)
   })
 
@@ -437,7 +441,7 @@ describe('runSuite transcript', () => {
     const provider = {
       send: () => ({ [Symbol.asyncIterator]: () => ({ next: async () => { throw new Error('status 500') } }) }),
     }
-    const fixture = { name: 'x', prompt: 'p', requires: ['eval'], verifyBeforeWrite: false, maxTurns: 2, checks: () => [] }
+    const fixture = { name: 'x', prompt: 'p', requires: [], verifyBeforeWrite: false, maxTurns: 2, checks: () => [] }
     const [result] = await runSuite([fixture], { provider, backend: createEvalBackend() })
     expect(result.transcript.some((m) => m.role === 'system')).toBe(false)
     expect(result.transcript[0]).toEqual({ role: 'user', content: 'p' })
@@ -450,7 +454,7 @@ describe('runSuite transcript', () => {
         yield { type: 'done', stopReason: 'end_turn' }
       },
     }
-    const fixture = { name: 'x', prompt: 'p', requires: ['eval'], verifyBeforeWrite: false, maxTurns: 2, checks: () => [] }
+    const fixture = { name: 'x', prompt: 'p', requires: [], verifyBeforeWrite: false, maxTurns: 2, checks: () => [] }
     const seen = []
     await runSuite([fixture], { provider, backend: createEvalBackend(), runs: 2, onRun: (result) => seen.push(result) })
     expect(seen).toHaveLength(2)
@@ -467,7 +471,7 @@ describe('runSuite verbose hooks', () => {
         calls += 1
         if (calls === 1) {
           yield { type: 'text', text: 'thinking' }
-          yield { type: 'tool_use', id: 't1', name: 'eval', input: { source: 'const x=1' } }
+          yield { type: 'tool_use', id: 't1', name: 'run', input: { source: 'const x=1' } }
           yield { type: 'done', stopReason: 'tool_use' }
         } else {
           yield { type: 'text', text: 'done now' }
@@ -475,7 +479,7 @@ describe('runSuite verbose hooks', () => {
         }
       },
     }
-    const fixture = { name: 'smoke', prompt: 'p', requires: ['eval'], verifyBeforeWrite: false, maxTurns: 8, checks: () => [] }
+    const fixture = { name: 'smoke', prompt: 'p', requires: [], verifyBeforeWrite: false, maxTurns: 8, checks: () => [] }
     await runSuite([fixture], {
       provider: scriptedProvider,
       backend: createEvalBackend(),
@@ -488,9 +492,9 @@ describe('runSuite verbose hooks', () => {
     expect(events[0]).toEqual(['start', 'smoke', 1, 1])
     expect(events[1]).toEqual(['text', 'thinking'])
     expect(events[2][0]).toBe('call')
-    expect(events[2][1]).toBe('eval')
+    expect(events[2][1]).toBe('run')
     expect(events[3][0]).toBe('result')
-    expect(events[3][1]).toBe('eval')
+    expect(events[3][1]).toBe('run')
     expect(typeof events[3][2]).toBe('string')
     expect(events[4]).toEqual(['text', 'done now'])
   })
@@ -598,11 +602,11 @@ describe('runSuite turn cap', () => {
   const endless = {
     async *send() {
       id += 1
-      yield { type: 'tool_use', id: `t${id}`, name: 'params', input: {} }
+      yield { type: 'tool_use', id: `t${id}`, name: 'list', input: {} }
       yield { type: 'done', stopReason: 'tool_use' }
     },
   }
-  const fixture = { name: 'x', prompt: 'p', requires: ['eval'], verifyBeforeWrite: false, maxTurns: 4, checks: () => [] }
+  const fixture = { name: 'x', prompt: 'p', requires: [], verifyBeforeWrite: false, maxTurns: 4, checks: () => [] }
 
   it('caps rounds at the fixture maxTurns and records it, without calling the cap an empty reply', async () => {
     const [result] = await runSuite([fixture], { provider: endless, backend: createEvalBackend() })
@@ -615,7 +619,7 @@ describe('runSuite turn cap', () => {
   })
 
   it('scores no recovery penalty for a failure in the capped last round', async () => {
-    const failing = scripted([toolRound('t1', 'params', {}), toolRound('t2', 'eval', { source: 'nope(' })])
+    const failing = scripted([toolRound('t1', 'list', {}), writeMain('t2', 'nope(')])
     const [result] = await runSuite([fixture], { provider: failing, backend: createEvalBackend(), maxTurns: 2 })
     expect(result.report.dimensions.recovery).toBe(2)
   })

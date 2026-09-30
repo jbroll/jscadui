@@ -2,7 +2,7 @@
 export const fixture = {
   name: 'pegboard',
   prompt: 'A pegboard panel for my workbench wall',
-  requires: ['eval', 'writeModel'],
+  requires: ['write'],
   verifyBeforeWrite: false,
   maxTurns: 8,
   checks: (m, { solid } = {}) => {

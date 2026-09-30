@@ -56,14 +56,9 @@ describe('system prompt', () => {
     else expect(source).not.toMatch(/fluent|\bjf\b/)
   })
 
-  it.each(examples)('%s/%s evaluates in the eval backend', async (api, file) => {
-    const res = JSON.parse(await createEvalBackend().requestTool('eval', { source: read(api, file) }))
-    expect(res).toMatchObject({ ok: true })
-  })
-
-  it.each(examples)('%s/%s raises no option warnings', async (api, file) => {
-    const res = JSON.parse(await createEvalBackend().requestTool('eval', { source: read(api, file) }))
-    expect(res.warnings).toBeUndefined()
+  it.each(examples)('%s/%s builds in the eval backend with no option warnings', async (api, file) => {
+    const res = JSON.parse(await createEvalBackend({ api }).requestTool('write', { path: 'main.js', content: read(api, file) }))
+    expect(res).toMatchObject({ ok: true, warnings: [] })
   })
 
   it.each(APIS)('%s: keeps @jscadui/jscad-text', (api) => {
@@ -95,10 +90,19 @@ describe('system prompt', () => {
     expect(buildSystemPrompt(api)).toMatch(/- Look up an unfamiliar function's options and defaults with `docs` before\s+using it\./)
   })
 
-  it.each(APIS)('%s: says to save as soon as the model checks clean, and to save often', (api) => {
+  it.each(APIS)('%s: explains the project layout and its entry rule', (api) => {
+    expect(buildSystemPrompt(api)).toMatch(/the file `package\.json` names in\s+`main`, else `index\.js`, else `main\.js`/)
+  })
+
+  it.each(APIS)('%s: teaches the project tools, with no save step and no old tools', (api) => {
     const prompt = buildSystemPrompt(api)
-    expect(prompt).toMatch(/- Save with `writeModel` as soon as the model builds and checks clean,\s+then refine, and save again after each fix; saving often is expected\./)
-    expect(prompt).not.toMatch(/once the model measures right/)
+    for (const tool of ['edit', 'write', 'run', 'measure', 'check', 'docs']) expect(prompt).toContain(`\`${tool}\``)
+    expect(prompt).toMatch(/Every `write` and `edit` saves the file and builds the project/)
+    expect(prompt).not.toMatch(/writeModel|notSaved|`eval`|[Ss]ave with|save often/)
+  })
+
+  it.each(APIS)('%s: keeps the millimetre line', (api) => {
+    expect(buildSystemPrompt(api)).toContain('Model in millimetres; 1 inch = 25.4 mm.')
   })
 
   it.each(APIS)('%s: fills every slot of the shared prose', (api) => {

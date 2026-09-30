@@ -2,7 +2,7 @@
 export const fixture = {
   name: 'enclosure',
   prompt: 'A small project box for an Arduino Uno, with screw posts in the corners to mount the board',
-  requires: ['eval', 'writeModel'],
+  requires: ['write'],
   verifyBeforeWrite: false,
   maxTurns: 8,
   checks: (m, { solid } = {}) => {

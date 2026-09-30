@@ -4,8 +4,9 @@
 // EvaluatorCrashed tool error, as the app's user would see the frame fail and
 // could go on. Every grade runs in its own fresh executor, so nothing model
 // code left behind in the conversation's executor reaches the grade.
+import { applyEdit, applyWrite } from '../src/project.js'
 import { ExecutorExited, NO_GRADE, toolError } from './executor-protocol.js'
-import { GRADE_TIMEOUT_MS, PROJECT_ENTRY } from './grade.js'
+import { GRADE_TIMEOUT_MS } from './grade.js'
 
 export const MAX_RESTARTS = 3
 export const CALL_TIMEOUT_MS = 110_000
@@ -54,27 +55,40 @@ export const createSandboxedBackend = ({ start, maxRestarts = MAX_RESTARTS, call
   let crashes = 0
   let ended = false
 
-  const launch = async () => {
+  // A restart only reseeds: building the project again could end it again.
+  const launch = async (options = {}) => {
     const next = start()
     await whenReady(next, readyTimeoutMs)
     try {
-      await next.reset({ ...project })
+      return { next, report: await next.reset({ ...project }, options) }
     } catch (error) {
       next.close()
       throw new InfrastructureError(`the evaluator did not start: ${error.message}`)
     }
-    return next
   }
 
-  const reset = async (files = {}) => {
+  // With `build`, the seeded project's build report, for the conversation's first message.
+  const reset = async (files = {}, options = {}) => {
     project = { ...files }
     executor?.close()
     executor = null
-    executor = await launch()
+    const { next, report } = await launch(options)
+    executor = next
+    return report
+  }
+
+  // The executor applies the same write or edit, or refuses it the same way.
+  const track = (name, input) => {
+    try {
+      if (name === 'write') project = applyWrite(project, input).files
+      else if (name === 'edit') project = applyEdit(project, input).files
+    } catch {
+      // refused
+    }
   }
 
   const requestTool = async (name, input) => {
-    if (name === 'writeModel' && typeof input?.source === 'string') project[input.entry ?? PROJECT_ENTRY] = input.source
+    track(name, input)
     if (!executor) return toolError('EvaluatorCrashed', `model code ended the evaluator ${crashes} times; it is not restarted again`)
     try {
       return await executor.requestTool(name, input, { timeoutMs: callTimeoutMs })
@@ -86,13 +100,13 @@ export const createSandboxedBackend = ({ start, maxRestarts = MAX_RESTARTS, call
       if (crashes > maxRestarts) {
         return toolError('EvaluatorCrashed', `model code ended the evaluator (${error.reason}); it has now ended it ${crashes} times and is not restarted again`)
       }
-      const next = await launch()
+      const { next } = await launch()
       if (ended) {
         next.close()
         return toolError('EvaluatorCrashed', 'the run ended')
       }
       executor = next
-      return toolError('EvaluatorCrashed', `model code ended the evaluator (${error.reason}); a new one holds the project as last written, with nothing evaluated yet`)
+      return toolError('EvaluatorCrashed', `model code ended the evaluator (${error.reason}); a new one holds the project as last written, with nothing built yet`)
     }
   }
 

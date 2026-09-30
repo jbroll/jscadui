@@ -19,22 +19,22 @@ module.exports = { main: async () => {
   throw new Error(out.join(' '))
 } }`
 
-const evalRounds = (source) => [
-  [{ type: 'tool_use', id: 't1', name: 'eval', input: { source } }, { type: 'done', stopReason: 'tool_use' }],
+const writeRounds = (source) => [
+  [{ type: 'tool_use', id: 't1', name: 'write', input: { path: 'main.js', content: source } }, { type: 'done', stopReason: 'tool_use' }],
   [{ type: 'text', text: 'done' }, { type: 'done', stopReason: 'end_turn' }],
 ]
 
 const EXITS = 'module.exports = { main: () => process.exit(3) }'
 
 const rounds = () => [
-  [{ type: 'text', text: 'building it' }, { type: 'tool_use', id: 't1', name: 'eval', input: { source: KEYLESS_SOURCES['cube-hole'] } }, { type: 'done', stopReason: 'tool_use' }],
+  [{ type: 'text', text: 'building it' }, { type: 'tool_use', id: 't1', name: 'write', input: { path: 'main.js', content: KEYLESS_SOURCES['cube-hole'] } }, { type: 'done', stopReason: 'tool_use' }],
   [{ type: 'tool_use', id: 't2', name: 'measure', input: {} }, { type: 'done', stopReason: 'tool_use' }],
-  [{ type: 'tool_use', id: 't3', name: 'writeModel', input: { source: KEYLESS_SOURCES['cube-hole'] } }, { type: 'done', stopReason: 'tool_use' }],
+  [{ type: 'tool_use', id: 't3', name: 'check', input: {} }, { type: 'done', stopReason: 'tool_use' }],
   [{ type: 'text', text: 'done' }, { type: 'done', stopReason: 'end_turn' }],
 ]
 
 export const createProvider = (config) => {
-  const script = { 'sandbox-probe': () => evalRounds(SANDBOX_PROBE), exit: () => evalRounds(EXITS) }[config.model]?.() ?? rounds()
+  const script = { 'sandbox-probe': () => writeRounds(SANDBOX_PROBE), exit: () => writeRounds(EXITS) }[config.model]?.() ?? rounds()
   return {
     async *send() {
       if (config.model === 'fail') throw new Error('status 500')
