@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Builds, renders (and in later stages describes and judges) the
+# grader-validation cases on the CI host (packages/agent-loop/eval/grader-validation/)
+# and fails when a scored case does not match.
+#
+#   sci push jscadui/grader-validate
+#
+# UNTIL is the last stage to run. sci push carries no arguments, so edit it in
+# the working tree before pushing. Output: grader-validation/ in the job's
+# worktree (sci artifact JOB grader-validation/<file>.renders/<case>-1/<view>.png).
+set -uo pipefail
+
+UNTIL="${GRADER_VALIDATE_UNTIL:-render}"
+WORKTREE="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$WORKTREE"
+
+node scripts/fetch-sources.js || exit 1
+npm install || exit 1
+npm run build -- --continue || echo "workspace build had failures (continuing)"
+
+export EVAL_REQUIRE_MEMORY_LIMIT=1
+if ! scripts/eval-sandbox-setup.sh --check; then
+  echo "ci/grader-validate: the eval sandbox is not set up on this host; see ci/README.md" >&2
+  exit 1
+fi
+if [ "$UNTIL" != render ] && ! scripts/describer-setup.sh --check; then
+  echo "ci/grader-validate: the describer is not set up on this host; see ci/README.md (Describer)" >&2
+  exit 1
+fi
+( cd apps/jscad-web && npx playwright install chromium ) || exit 1
+
+export GRADER_VALIDATION_DIR="$WORKTREE/grader-validation"
+npm run grader-validate -w @jscadui/agent-loop -- --until "$UNTIL"

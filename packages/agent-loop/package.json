@@ -19,7 +19,8 @@
     "api-index": "node api/build-index.js",
     "read-log": "node log/read-log.js",
     "eval": "node --import ./text-loader.js eval/run-eval.js",
-    "eval:keyless": "node --import ./text-loader.js eval/keyless.js"
+    "eval:keyless": "node --import ./text-loader.js eval/keyless.js",
+    "grader-validate": "node --import ./text-loader.js eval/grader-validate.js"
   },
   "dependencies": {
     "@jscadui/format-common": "*"

@@ -153,6 +153,16 @@ Each executor holds up to 2G. `ci/eval` passes the lane count (models × APIs)
 as `EVAL_PROCESSES`, and each `run-eval` lowers its `EVAL_CONCURRENCY` so that
 lanes × concurrency × 2G fits in three quarters of the host's memory.
 
+## Grader validation (`ci/grader-validate`)
+
+`sci push jscadui/grader-validate` runs `npm run grader-validate` on the CI
+host (`packages/agent-loop/docs/user-manual.md`, Grader validation) after the
+same sandbox check as `ci/eval` and a `npx playwright install chromium`. The
+script's `UNTIL` picks the last stage; edit it in the working tree before
+pushing. Output lands in the job's `grader-validation/`; fetch a render with
+`sci artifact JOB grader-validation/<file>.renders/<case>-1/iso-front.png`
+or copy the directory with `scp`.
+
 ## gpu-poll
 
 The GPU host polls GitHub (outbound HTTPS only; no runner, no inbound ports).

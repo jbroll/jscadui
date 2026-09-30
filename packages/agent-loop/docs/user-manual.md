@@ -496,6 +496,7 @@ provider call, starts no describer and renders nothing.
 | `EVAL_REQUIRE_MEMORY_LIMIT` | `1` refuses to start when crt cannot enforce the memory limit (`ci/eval` sets it); otherwise a loud warning |
 | `EVAL_PROCESSES` | run-eval processes sharing the host (`ci/eval` sets the model × API lane count), for the concurrency cap in [architecture.md](architecture.md#sandbox); default 1 |
 | `EVAL_RUN_TIMEOUT` | seconds a conversation may run before it is stopped and graded, default 1200 |
+| `GRADER_VALIDATION_DIR` | where `grader-validate` writes its file and renders, default `~/.local/state/jscad-chat/grader-validation` |
 
 ### Turn cap
 
@@ -926,6 +927,30 @@ result file. Each complex run adds:
   the mesh was refused or the render failed.
 - `description: null` and `verdict: null`, filled in by the describe and
   judge stages.
+
+### Grader validation
+
+`eval/grader-validation/cases.js` holds known answers for the describer and
+judge: model source, the user's messages and the expected result.
+
+| case | expected |
+|---|---|
+| `caboose`, the chat-built toy caboose | pass |
+| `delivery-truck` | fail |
+| `plain-box`, the caboose's red body on its wheels only | fail |
+| `exploded`, the caboose's roof, cupola, chimney and wheels moved 15 to 30 mm apart | fails `connected`, whatever the verdict |
+| `no-roof`, the caboose with its roofs removed | a known miss: recorded, not scored |
+
+```bash
+npm run grader-validate -w @jscadui/agent-loop
+```
+
+builds each case in the crt sandbox with the `bodies` probe, renders it, and
+prints each case's failed gates against the expected result and where its
+renders are; it exits 1 when `exploded` does not fail `connected`. It writes
+`<time>-grader-validation.json` and its renders to `GRADER_VALIDATION_DIR`
+(default `~/.local/state/jscad-chat/grader-validation/`). A case may give
+`files` and `entry` in place of `source`, and `api` (default `fluent`).
 
 ### Sandbox setup
 
