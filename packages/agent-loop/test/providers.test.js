@@ -362,6 +362,132 @@ const collect = async (iterable) => {
   return out
 }
 
+// undici's body read rejects this way when the socket closes mid-stream.
+const terminated = () => new TypeError('terminated', { cause: Object.assign(new Error('other side closed'), { code: 'UND_ERR_SOCKET' }) })
+
+// Sends `text` (if any), then fails the next read with `error`.
+const dyingBody = (text, error = terminated()) => {
+  let sent = !text
+  return new ReadableStream({
+    pull(controller) {
+      if (sent) controller.error(error)
+      else {
+        sent = true
+        controller.enqueue(new TextEncoder().encode(text))
+      }
+    },
+  })
+}
+
+const STREAMS = [
+  {
+    name: 'anthropic',
+    config: { kind: 'anthropic', model: 'm' },
+    metadata:
+      `data: {"type":"message_start","message":{"usage":{"input_tokens":9}}}\n\n` +
+      `data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}\n\n` +
+      `data: {"type":"ping"}\n\n`,
+    content: `data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hi"}}\n\n`,
+    complete: `data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hi"}}\n\ndata: {"type":"message_delta","delta":{"stop_reason":"end_turn"}}\n\n`,
+  },
+  {
+    name: 'openai',
+    config: { kind: 'openai', model: 'm' },
+    metadata: `data: {"choices":[{"delta":{"role":"assistant","content":""}}]}\n\n`,
+    content: `data: {"choices":[{"delta":{"content":"Hi"}}]}\n\n`,
+    complete: `data: {"choices":[{"delta":{"content":"Hi"}}]}\n\ndata: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n`,
+  },
+  {
+    name: 'responses',
+    config: { kind: 'meta', model: 'muse-spark-1.3-contributor' },
+    metadata:
+      `data: {"type":"response.created","response":{"id":"r1"}}\n\n` +
+      `data: {"type":"response.in_progress","response":{"id":"r1"}}\n\n` +
+      `data: {"type":"response.output_item.added","item":{"id":"m1","type":"message"}}\n\n`,
+    content: `data: {"type":"response.output_text.delta","delta":"Hi"}\n\n`,
+    complete: `data: {"type":"response.output_text.delta","delta":"Hi"}\n\ndata: {"type":"response.completed"}\n\n`,
+  },
+]
+
+describe.each(STREAMS)('$name: a stream that dies', ({ config, metadata, content, complete }) => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  const send = () => {
+    const provider = createProvider({ ...config, apiKey: 'k', baseUrl: 'https://relay.test' })
+    const events = []
+    const done = (async () => {
+      for await (const e of provider.send([{ role: 'user', content: 'hi' }], TOOLS)) events.push(e)
+    })()
+    done.catch(() => {})
+    return { events, done }
+  }
+
+  it('before any event is retried, then completes', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(dyingBody(''))).mockResolvedValueOnce(new Response(sseBody(complete)))
+    const { events, done } = send()
+    await vi.advanceTimersByTimeAsync(30_000)
+    await done
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    const retries = events.filter((e) => e.type === 'retry')
+    expect(retries).toEqual([expect.objectContaining({ attempt: 1, maxAttempts: 4, status: null, reason: 'stream terminated before content (terminated)' })])
+    expect(events.filter((e) => e.type === 'text')).toEqual([{ type: 'text', text: 'Hi' }])
+    expect(events.at(-1).type).toBe('done')
+  })
+
+  it('after only metadata events is retried, then completes', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(dyingBody(metadata))).mockResolvedValueOnce(new Response(sseBody(complete)))
+    const { events, done } = send()
+    await vi.advanceTimersByTimeAsync(30_000)
+    await done
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(events.filter((e) => e.type === 'retry')).toHaveLength(1)
+    expect(events.filter((e) => e.type === 'text')).toEqual([{ type: 'text', text: 'Hi' }])
+  })
+
+  it('on a connection reset before content is retried too', async () => {
+    const reset = Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' })
+    fetchMock.mockResolvedValueOnce(new Response(dyingBody(metadata, reset))).mockResolvedValueOnce(new Response(sseBody(complete)))
+    const { done } = send()
+    await vi.advanceTimersByTimeAsync(30_000)
+    await done
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('after content is not retried and names the cut-off reply', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(dyingBody(metadata + content)))
+    const { events, done } = send()
+    await vi.advanceTimersByTimeAsync(30_000)
+    await expect(done).rejects.toThrow(/stream terminated after the reply began \(terminated\)/)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(events.filter((e) => e.type === 'retry')).toEqual([])
+  })
+
+  it('every attempt gives up after the attempt budget', async () => {
+    fetchMock.mockImplementation(async () => new Response(dyingBody(metadata)))
+    const { events, done } = send()
+    await vi.advanceTimersByTimeAsync(60_000)
+    await expect(done).rejects.toThrow(/stream terminated before content on all 4 attempts \(terminated\)/)
+    expect(fetchMock).toHaveBeenCalledTimes(4)
+    expect(events.filter((e) => e.type === 'retry').map((e) => e.attempt)).toEqual([1, 2, 3])
+  })
+
+  it('shares the attempt budget with retries before the response', async () => {
+    fetchMock
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: { code: 'service_overloaded' } }), { status: 503 }))
+      .mockImplementation(async () => new Response(dyingBody('')))
+    const { events, done } = send()
+    await vi.advanceTimersByTimeAsync(60_000)
+    await expect(done).rejects.toThrow(/stream terminated before content/)
+    expect(fetchMock).toHaveBeenCalledTimes(4)
+    expect(events.filter((e) => e.type === 'retry').map((e) => [e.attempt, e.status])).toEqual([[1, 503], [2, null], [3, null]])
+  })
+})
+
 describe('stream parsers', () => {
   it('anthropic: parses a recorded body without fetch', async () => {
     expect(await collect(parseAnthropicStream(sseBody(anthropicToolUse)))).toEqual([

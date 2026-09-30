@@ -731,7 +731,12 @@ equivalent or says it is not available. The studio server's chat route takes
 a 400) and sends the same per-style tool list (`server/src/agent/tools.ts`,
 kept equal to agent-loop's by a test). Its loop (`server/src/agent/loop.ts`)
 hands every tool call to the browser by name and feeds back the answer, so
-it serves the file tools without knowing them. The runtime does not change: model
+it serves the file tools without knowing them. Its providers
+(`server/src/providers/`) are a TypeScript port of agent-loop's adapters, not a
+proxy to them: `retry.ts` carries the same request and stream retries
+(`packages/agent-loop/docs/architecture.md`, Providers) and `toolArguments.ts`
+the same `ArgumentsError` answer to arguments that are not JSON, so a change
+to one side needs the other. The runtime does not change: model
 code may still require either package. Warnings and error hints name only the
 chosen API's form: every load, the editor's and the chat's builds alike, and
 the chat's `run` send it with the files (`jscadSetFiles({ files, api })`), so

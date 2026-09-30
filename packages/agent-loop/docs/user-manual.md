@@ -491,9 +491,11 @@ even when it streamed reasoning and a `usage` event; the run records
 Each run records its provider calls' stop reasons in order as `stopReasons`
 (`end_turn`, `tool_use`, `length`, ...). An empty reply and any error the provider's stream
 throws (HTTP, network, auth, rate limit) also set `providerError: true`. A
-transient overload or rate limit retries first ([architecture.md](architecture.md#providers)
-metrics under `providerRetries`); only an error that survives every retry
-reaches the run as a `providerError`.
+transient overload, a rate limit, or a stream cut off before any text or tool
+call retries first ([architecture.md](architecture.md#providers), counted in
+`providerRetries`); only an error that survives every retry reaches the run as
+a `providerError`. A stream cut off after the reply began is not retried and
+ends the run with `error: "<adapter>: stream terminated after the reply began (terminated)"`.
 
 The summary gives, per fixture, the mean `firstAttemptFailures`, the pass rate
 of its geometry checks, the mean total and the count of runs with an `error`.
@@ -524,8 +526,13 @@ tend to max out once a prompt clears the bar:
   `usage.output_tokens_details.reasoning_tokens`; `null` when the provider
   never reports it (Anthropic never does).
 - `providerRetries`: retries the provider wrapper made across the run's calls
-  (see [architecture.md](architecture.md#providers)); 0 when none happened.
-  Transcript-independent, so `--regrade` leaves it as stored.
+  (see [architecture.md](architecture.md#providers)): after a 429/5xx or
+  overload status, a failed connection, or a stream cut off before any text
+  or tool call. 0 when none happened. The live log prints each one, for
+  example `retry 1/4 after network error: stream terminated before content
+  (terminated) (waiting 2000ms)`. A cut-off attempt's `usage` events still
+  count toward the token metrics. Transcript-independent, so `--regrade`
+  leaves it as stored.
 - `seconds`: wall time of the run.
 - `geometryError`: relative error against an optional fixture `target`
   (`{ volume?, dimensions? }`): the max of `|volume - target| / target` and,

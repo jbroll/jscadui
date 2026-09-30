@@ -1,3 +1,4 @@
+import { argumentsError } from '../providers/toolArguments.js'
 import type { Provider, ProviderEvent, ProviderMessage, ToolCall } from '../providers/types.js'
 import { buildTools, DEFAULT_API, type Api } from './tools.js'
 
@@ -155,6 +156,7 @@ export function runTurn(options: RunTurnOptions): Promise<Conversation> {
         for (;;) {
           const text: string[] = []
           const toolCalls: ToolCall[] = []
+          const badCalls = new Map<ToolCall, { name: string; badArguments?: string; finishReason?: string | null }>()
           let stopReason: string | undefined
           iterator = provider.send(messages, tools)[Symbol.asyncIterator]()
           try {
@@ -165,7 +167,9 @@ export function runTurn(options: RunTurnOptions): Promise<Conversation> {
                 text.push(value.text)
                 onText?.(value.text)
               } else if (value.type === 'tool_use') {
-                toolCalls.push({ id: value.id, name: value.name, input: value.input })
+                const call = { id: value.id, name: value.name, input: value.input }
+                if (value.badArguments !== undefined) badCalls.set(call, value)
+                toolCalls.push(call)
               } else if (value.type === 'done') {
                 stopReason = value.stopReason
                 break
@@ -185,12 +189,15 @@ export function runTurn(options: RunTurnOptions): Promise<Conversation> {
           })
           if (toolCalls.length === 0) break
           for (const call of toolCalls) {
-            const content = await withTimeout(
-              requestTool(call.name, call.input),
-              toolTimeoutMs,
-              signal,
-              () => new ToolTimeoutError(call.id, call.name, toolTimeoutMs),
-            )
+            const bad = badCalls.get(call)
+            const content = bad
+              ? argumentsError(bad, stopReason)
+              : await withTimeout(
+                  requestTool(call.name, call.input),
+                  toolTimeoutMs,
+                  signal,
+                  () => new ToolTimeoutError(call.id, call.name, toolTimeoutMs),
+                )
             messages.push({ role: 'tool', toolCallId: call.id, content })
           }
         }

@@ -71,10 +71,20 @@ export interface ToolDefinition {
   inputSchema: Record<string, unknown>
 }
 
+export interface RetryEvent {
+  type: 'retry'
+  attempt: number
+  maxAttempts: number
+  status: number | null
+  reason: string
+  delayMs: number
+}
+
 export type ProviderEvent =
   | { type: 'text'; text: string }
-  | { type: 'tool_use'; id: string; name: string; input: unknown }
+  | { type: 'tool_use'; id: string; name: string; input: unknown; badArguments?: string; finishReason?: string | null }
   | { type: 'done'; stopReason: string }
+  | RetryEvent
 
 export interface Provider {
   send(messages: ProviderMessage[], tools: ToolDefinition[]): AsyncIterable<ProviderEvent>

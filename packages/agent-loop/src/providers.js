@@ -80,15 +80,15 @@ const defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 /**
  * Retries a fetch that has not yet produced a response body: a 429/5xx status,
  * a provider error code meaning overloaded/rate-limited, or a network error.
- * Never called once a stream is being read, so a retry here cannot duplicate
- * any output the caller has already seen. On success returns the real
- * Response (body unread, ready to stream); on a non-retryable or exhausted
- * failure returns `{ok: false, status, text}` with the body already read, so
- * callers format the same error message either way. `onRetry` fires once per
- * retry, before the backoff sleep, so callers can trace and count retries.
+ * On success returns the real Response (body unread, ready to stream); on a
+ * non-retryable or exhausted failure returns `{ok: false, status, text}` with
+ * the body already read, so callers format the same error message either way.
+ * `onRetry` fires once per retry, before the backoff sleep, so callers can
+ * trace and count retries. `firstAttempt` continues a budget `streamWithRetry`
+ * has partly spent.
  */
-export async function fetchWithRetry(fetchImpl, url, init, { onRetry, sleep = defaultSleep, maxAttempts = MAX_PROVIDER_ATTEMPTS } = {}) {
-  for (let attempt = 1; ; attempt += 1) {
+export async function fetchWithRetry(fetchImpl, url, init, { onRetry, sleep = defaultSleep, maxAttempts = MAX_PROVIDER_ATTEMPTS, firstAttempt = 1 } = {}) {
+  for (let attempt = firstAttempt; ; attempt += 1) {
     let res
     try {
       res = await fetchImpl(url, init)
@@ -105,6 +105,45 @@ export async function fetchWithRetry(fetchImpl, url, init, { onRetry, sleep = de
     const delayMs = backoffDelayMs(attempt, retryAfterMs(res.headers))
     onRetry?.({ attempt, maxAttempts, status: res.status, reason: text, delayMs })
     await sleep(delayMs)
+  }
+}
+
+export const STREAM_TERMINATED = 'stream terminated before content'
+
+const isContent = (event) => event.type === 'text' || event.type === 'tool_use'
+
+/**
+ * POSTs through `fetchWithRetry` and yields `parse(res.body)`. A body that
+ * fails with a network error (undici's `TypeError: terminated`, a reset)
+ * before any text or tool call has been yielded is requested again, within
+ * the same attempt budget and backoff; one that fails after is not, since the
+ * caller has already shown that output. Every retry is yielded as a `retry`
+ * event.
+ */
+export async function* streamWithRetry(label, url, init, parse, { fetchImpl = fetch, sleep = defaultSleep, maxAttempts = MAX_PROVIDER_ATTEMPTS } = {}) {
+  let attempt = 1
+  for (;;) {
+    const retries = []
+    const res = await fetchWithRetry(fetchImpl, url, init, { onRetry: (event) => retries.push(event), sleep, maxAttempts, firstAttempt: attempt })
+    attempt += retries.length
+    for (const event of retries) yield { type: 'retry', ...event }
+    if (!res.ok) throw new Error(`${label}: ${res.text} (status ${res.status})`)
+    let replied = false
+    try {
+      for await (const event of parse(res.body)) {
+        if (isContent(event)) replied = true
+        yield event
+      }
+      return
+    } catch (err) {
+      if (!isRetryableNetworkError(err)) throw err
+      if (replied) throw new Error(`${label}: stream terminated after the reply began (${err.message})`, { cause: err })
+      if (attempt >= maxAttempts) throw new Error(`${label}: ${STREAM_TERMINATED} on all ${maxAttempts} attempts (${err.message})`, { cause: err })
+      const delayMs = backoffDelayMs(attempt, null)
+      yield { type: 'retry', attempt, maxAttempts, status: null, reason: `${STREAM_TERMINATED} (${err.message})`, delayMs }
+      await sleep(delayMs)
+      attempt += 1
+    }
   }
 }
 
@@ -210,18 +249,12 @@ const anthropicProvider = (config) => {
       }
       if (config.kind === 'opencode-go') headers['x-opencode-session'] = sessionId
       if (config.chatId) headers['x-jscad-chat-id'] = config.chatId
-      const retries = []
-      const res = await fetchWithRetry(
-        fetch,
+      yield* streamWithRetry(
+        'anthropic',
         `${config.baseUrl ?? PROVIDER_BASE_URLS[config.kind] ?? PROVIDER_BASE_URLS.anthropic}/v1/messages`,
         { method: 'POST', headers, body: JSON.stringify(body) },
-        { onRetry: (event) => retries.push(event) },
+        parseAnthropicStream,
       )
-      for (const event of retries) yield { type: 'retry', ...event }
-      if (!res.ok) {
-        throw new Error(`anthropic: ${res.text} (status ${res.status})`)
-      }
-      yield* parseAnthropicStream(res.body)
     },
   }
 }
@@ -312,18 +345,12 @@ const openaiProvider = (config) => {
       }
       if (config.kind === 'opencode-go') headers['x-opencode-session'] = sessionId
       if (config.chatId) headers['x-jscad-chat-id'] = config.chatId
-      const retries = []
-      const res = await fetchWithRetry(
-        fetch,
+      yield* streamWithRetry(
+        'openai',
         `${config.baseUrl ?? PROVIDER_BASE_URLS[config.kind]}/v1/chat/completions`,
         { method: 'POST', headers, body: JSON.stringify(body) },
-        { onRetry: (event) => retries.push(event) },
+        parseOpenAIStream,
       )
-      for (const event of retries) yield { type: 'retry', ...event }
-      if (!res.ok) {
-        throw new Error(`openai: ${res.text} (status ${res.status})`)
-      }
-      yield* parseOpenAIStream(res.body)
     },
   }
 }

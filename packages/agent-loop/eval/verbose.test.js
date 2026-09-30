@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { formatRunHeader, formatText, formatToolCall, formatToolResult } from './verbose.js'
+import { formatRetry, formatRunHeader, formatText, formatToolCall, formatToolResult } from './verbose.js'
+
+describe('formatRetry', () => {
+  it('names a stream cut off before content', () => {
+    const event = { attempt: 1, maxAttempts: 4, status: null, reason: 'stream terminated before content (terminated)', delayMs: 2000 }
+    expect(formatRetry(event)).toBe('retry 1/4 after network error: stream terminated before content (terminated) (waiting 2000ms)')
+  })
+})
 
 describe('formatRunHeader', () => {
   it('prints the fixture, run count and prompt', () => {

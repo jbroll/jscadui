@@ -1,5 +1,7 @@
+import { streamWithRetry } from './retry.js'
+import { parseToolArguments } from './toolArguments.js'
 import { PROVIDER_BASE_URLS, ssePayloads } from './types.js'
-import type { Provider, ProviderConfig, ProviderMessage, ToolDefinition } from './types.js'
+import type { Provider, ProviderConfig, ProviderEvent, ProviderMessage, ToolDefinition } from './types.js'
 
 function toResponsesTool(tool: ToolDefinition) {
   return {
@@ -54,59 +56,51 @@ export function responsesProvider(config: ProviderConfig): Provider {
       }
       if (config.kind === 'opencode-go') headers['x-opencode-session'] = sessionId
 
-      const res = await fetch(`${config.baseUrl ?? PROVIDER_BASE_URLS[config.kind]}/v1/responses`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(body),
-      })
-      if (!res.ok) {
-        const detail = await res.text()
-        throw new Error(`responses: ${detail} (status ${res.status})`)
-      }
-      const calls = new Map<string, { id: string; name: string; args: string }>()
-      let completed = false
-      for await (const payload of ssePayloads(res.body)) {
-        let event: ResponsesEvent
-        try {
-          event = JSON.parse(payload)
-        } catch {
-          continue
-        }
-        if (event.type === 'response.output_text.delta' && typeof event.delta === 'string') {
-          yield { type: 'text', text: event.delta }
-        } else if (event.type === 'response.output_item.added' && event.item?.type === 'function_call') {
-          calls.set(event.item.id ?? '', {
-            id: event.item.call_id ?? event.item.id ?? '',
-            name: event.item.name ?? '',
-            args: '',
-          })
-        } else if (event.type === 'response.function_call_arguments.delta') {
-          const key = event.item_id ?? ''
-          const acc = calls.get(key) ?? { id: key, name: '', args: '' }
-          acc.args += event.delta ?? ''
-          calls.set(key, acc)
-        } else if (event.type === 'response.completed') {
-          completed = true
-          break
-        } else if (event.type === 'response.failed') {
-          throw new Error(`responses: ${event.response?.error?.message ?? 'response failed'}`)
-        } else if (event.type === 'response.incomplete') {
-          throw new Error(`responses: incomplete (${event.response?.incomplete_details?.reason ?? 'unknown reason'})`)
-        } else if (event.type === 'error') {
-          throw new Error(`responses: ${event.message ?? 'provider error'}`)
-        }
-      }
-      if (!completed) throw new Error('responses: stream ended before response.completed')
-      for (const acc of calls.values()) {
-        let input: unknown
-        try {
-          input = JSON.parse(acc.args || '{}')
-        } catch {
-          throw new Error(`responses: unparseable tool arguments for ${acc.name}`)
-        }
-        yield { type: 'tool_use', id: acc.id, name: acc.name, input }
-      }
-      yield { type: 'done', stopReason: 'completed' }
+      yield* streamWithRetry(
+        'responses',
+        `${config.baseUrl ?? PROVIDER_BASE_URLS[config.kind]}/v1/responses`,
+        { method: 'POST', headers, body: JSON.stringify(body) },
+        parseResponsesStream,
+      )
     },
   }
+}
+
+async function* parseResponsesStream(body: ReadableStream<Uint8Array> | null): AsyncGenerator<ProviderEvent> {
+  const calls = new Map<string, { id: string; name: string; args: string }>()
+  let completed = false
+  for await (const payload of ssePayloads(body)) {
+    let event: ResponsesEvent
+    try {
+      event = JSON.parse(payload)
+    } catch {
+      continue
+    }
+    if (event.type === 'response.output_text.delta' && typeof event.delta === 'string') {
+      yield { type: 'text', text: event.delta }
+    } else if (event.type === 'response.output_item.added' && event.item?.type === 'function_call') {
+      calls.set(event.item.id ?? '', {
+        id: event.item.call_id ?? event.item.id ?? '',
+        name: event.item.name ?? '',
+        args: '',
+      })
+    } else if (event.type === 'response.function_call_arguments.delta') {
+      const key = event.item_id ?? ''
+      const acc = calls.get(key) ?? { id: key, name: '', args: '' }
+      acc.args += event.delta ?? ''
+      calls.set(key, acc)
+    } else if (event.type === 'response.completed') {
+      completed = true
+      break
+    } else if (event.type === 'response.failed') {
+      throw new Error(`responses: ${event.response?.error?.message ?? 'response failed'}`)
+    } else if (event.type === 'response.incomplete') {
+      throw new Error(`responses: incomplete (${event.response?.incomplete_details?.reason ?? 'unknown reason'})`)
+    } else if (event.type === 'error') {
+      throw new Error(`responses: ${event.message ?? 'provider error'}`)
+    }
+  }
+  if (!completed) throw new Error('responses: stream ended before response.completed')
+  for (const acc of calls.values()) yield { type: 'tool_use', id: acc.id, name: acc.name, ...parseToolArguments(acc.args) }
+  yield { type: 'done', stopReason: 'completed' }
 }

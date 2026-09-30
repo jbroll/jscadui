@@ -178,6 +178,31 @@ describe('runTurn', () => {
     })
   })
 
+  it('answers a call whose arguments are not JSON with an ArgumentsError result, without running it', async () => {
+    const provider = roundsProvider([
+      [
+        { type: 'tool_use', id: 't1', name: 'check', input: {}, badArguments: '{"bed', finishReason: 'length' },
+        { type: 'done', stopReason: 'length' },
+      ],
+      [
+        { type: 'text', text: 'retrying' },
+        { type: 'done', stopReason: 'end_turn' },
+      ],
+    ])
+    const requestTool = vi.fn()
+    const result = await runTurn({ conversation: { messages: [{ role: 'user', content: 'hi' }] }, provider, requestTool })
+    expect(requestTool).not.toHaveBeenCalled()
+    const toolMessage = result.messages[2]
+    expect(toolMessage).toMatchObject({ role: 'tool', toolCallId: 't1' })
+    expect(JSON.parse((toolMessage as { content: string }).content)).toEqual({
+      ok: false,
+      error: {
+        name: 'ArgumentsError',
+        message: 'arguments for check were not valid JSON (finish_reason length); call it again with a JSON object: {"bed',
+      },
+    })
+  })
+
   it('a disconnect cancels an in-flight turn', async () => {
     const provider: Provider = {
       async *send() {

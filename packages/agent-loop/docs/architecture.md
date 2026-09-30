@@ -24,11 +24,27 @@ provider error code meaning overloaded or rate-limited (`service_overloaded`,
 `overloaded_error`, `rate_limit_exceeded`, and similar), or a network error
 (fetch rejecting), it retries up to 4 attempts total with backoff around 2s,
 5s, 12s (jittered +/-20%, capped at 30s), honoring a `Retry-After` header when
-present. A 4xx auth or invalid-request error never retries. Retrying happens
-only before the response body starts streaming, so a retry can never duplicate
-output already sent to the caller — an error surfacing while `parseXStream` is
-reading the SSE body ends the call immediately, retried or not. Each retry
+present. A 4xx auth or invalid-request error never retries.
+
+`streamWithRetry` wraps `fetchWithRetry` and the adapter's `parseXStream`, and
+also retries a body that fails mid-stream with a network error: undici's
+`TypeError: terminated` when the socket closes (Muse on the Responses API cuts
+streams off this way, sometimes near 300 s), a connection reset, or a
+browser's body-stream `TypeError`. It requests the whole call again only when
+no `text` or `tool_use` event has reached the caller yet; metadata such as
+`response.created`, `message_start` or a `usage` event does not count, and the
+parsers yield a tool call only once its arguments are complete. Both kinds of
+retry share the 4-attempt budget and backoff. A stream that fails after
+content was yielded is not retried: the app has already appended that text
+to the chat bubble and the eval to its live log, and neither can take it
+back, so a second attempt would show the reply twice. It ends the call with
+`<adapter>: stream terminated after the reply began (<cause>)`, and an
+exhausted budget with `<adapter>: stream terminated before content on all 4
+attempts (<cause>)`. An error event the provider sends inside the stream
+(`error`, `response.failed`) is never retried. Each retry
 yields a `{type: 'retry', attempt, maxAttempts, status, reason, delayMs}` event
+(for a cut stream `status` is `null` and `reason` is
+`stream terminated before content (<cause>)`)
 into the provider's stream, the same way a `usage` event rides alongside
 `text`/`tool_use`/`done`; `runTurn` (`loop.js`) ignores event types it doesn't
 know, so the app sees nothing beyond the eventual success or the final error.

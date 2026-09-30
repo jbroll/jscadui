@@ -438,6 +438,166 @@ describe('anthropic provider', () => {
   })
 })
 
+// undici's body read rejects this way when the socket closes mid-stream.
+function terminated(): TypeError {
+  return new TypeError('terminated', { cause: Object.assign(new Error('other side closed'), { code: 'UND_ERR_SOCKET' }) })
+}
+
+// Sends `text` (if any), then fails the next read with `error`.
+function dyingResponse(text: string, error: Error = terminated()): Response {
+  let sent = !text
+  const body = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (sent) controller.error(error)
+      else {
+        sent = true
+        controller.enqueue(new TextEncoder().encode(text))
+      }
+    },
+  })
+  return new Response(body, { headers: { 'content-type': 'text/event-stream' } })
+}
+
+const STREAMS = [
+  {
+    name: 'anthropic',
+    config: { kind: 'anthropic' as const, model: 'm' },
+    metadata:
+      anthropicEvent({ type: 'message_start', message: { id: 'msg_01' } }) +
+      anthropicEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } }) +
+      anthropicEvent({ type: 'ping' }),
+    content: anthropicEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'Hi' } }),
+    complete:
+      anthropicEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'Hi' } }) +
+      anthropicEvent({ type: 'message_delta', delta: { stop_reason: 'end_turn' } }),
+    badArguments:
+      anthropicEvent({ type: 'content_block_start', index: 0, content_block: { type: 'tool_use', id: 't1', name: 'check' } }) +
+      anthropicEvent({ type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: '{"bed' } }) +
+      anthropicEvent({ type: 'content_block_stop', index: 0 }) +
+      anthropicEvent({ type: 'message_delta', delta: { stop_reason: 'tool_use' } }),
+  },
+  {
+    name: 'openai',
+    config: { kind: 'openai' as const, model: 'm' },
+    metadata: openaiChunk({ choices: [{ delta: { role: 'assistant', content: '' } }] }),
+    content: openaiChunk({ choices: [{ delta: { content: 'Hi' } }] }),
+    complete:
+      openaiChunk({ choices: [{ delta: { content: 'Hi' } }] }) +
+      openaiChunk({ choices: [{ delta: {}, finish_reason: 'stop' }] }) +
+      'data: [DONE]\n\n',
+    badArguments:
+      openaiChunk({ choices: [{ delta: { tool_calls: [{ index: 0, id: 't1', function: { name: 'check', arguments: '{"bed' } }] } }] }) +
+      openaiChunk({ choices: [{ delta: {}, finish_reason: 'length' }] }) +
+      'data: [DONE]\n\n',
+  },
+  {
+    name: 'responses',
+    config: { kind: 'meta' as const, model: 'muse-spark-1.3-contributor' },
+    metadata:
+      openaiChunk({ type: 'response.created', response: { id: 'r1' } }) +
+      openaiChunk({ type: 'response.in_progress', response: { id: 'r1' } }) +
+      openaiChunk({ type: 'response.output_item.added', item: { id: 'm1', type: 'message' } }),
+    content: openaiChunk({ type: 'response.output_text.delta', delta: 'Hi' }),
+    complete: openaiChunk({ type: 'response.output_text.delta', delta: 'Hi' }) + openaiChunk({ type: 'response.completed' }),
+    badArguments:
+      openaiChunk({ type: 'response.output_item.added', item: { id: 'i1', type: 'function_call', call_id: 't1', name: 'check' } }) +
+      openaiChunk({ type: 'response.function_call_arguments.delta', item_id: 'i1', delta: '{"bed' }) +
+      openaiChunk({ type: 'response.completed' }),
+  },
+]
+
+describe.each(STREAMS)('$name provider: a stream that dies', ({ config, metadata, content, complete }) => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  function send() {
+    const provider = createProvider({ ...config, apiKey: 'sk-test', baseUrl: 'https://provider.test' })
+    const events: ProviderEvent[] = []
+    const done = (async () => {
+      for await (const event of provider.send(MESSAGES, TOOLS)) events.push(event)
+    })()
+    done.catch(() => {})
+    return { events, done }
+  }
+
+  it('before any event is retried, then completes', async () => {
+    fetchMock.mockResolvedValueOnce(dyingResponse('')).mockResolvedValueOnce(streamResponse(complete))
+    const { events, done } = send()
+    await vi.advanceTimersByTimeAsync(30_000)
+    await done
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(events.filter((e) => e.type === 'retry')).toEqual([
+      expect.objectContaining({ attempt: 1, maxAttempts: 4, status: null, reason: 'stream terminated before content (terminated)' }),
+    ])
+    expect(events.filter((e) => e.type === 'text')).toEqual([{ type: 'text', text: 'Hi' }])
+    expect(events.at(-1)?.type).toBe('done')
+  })
+
+  it('after only metadata events is retried, then completes', async () => {
+    fetchMock.mockResolvedValueOnce(dyingResponse(metadata)).mockResolvedValueOnce(streamResponse(complete))
+    const { events, done } = send()
+    await vi.advanceTimersByTimeAsync(30_000)
+    await done
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(events.filter((e) => e.type === 'text')).toEqual([{ type: 'text', text: 'Hi' }])
+  })
+
+  it('on a connection reset before content is retried too', async () => {
+    const reset = Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' })
+    fetchMock.mockResolvedValueOnce(dyingResponse(metadata, reset)).mockResolvedValueOnce(streamResponse(complete))
+    const { done } = send()
+    await vi.advanceTimersByTimeAsync(30_000)
+    await done
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('after content is not retried and names the cut-off reply', async () => {
+    fetchMock.mockResolvedValueOnce(dyingResponse(metadata + content))
+    const { events, done } = send()
+    await vi.advanceTimersByTimeAsync(30_000)
+    await expect(done).rejects.toThrow(/stream terminated after the reply began \(terminated\)/)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(events.filter((e) => e.type === 'retry')).toEqual([])
+  })
+
+  it('every attempt gives up after the attempt budget', async () => {
+    fetchMock.mockImplementation(async () => dyingResponse(metadata))
+    const { events, done } = send()
+    await vi.advanceTimersByTimeAsync(60_000)
+    await expect(done).rejects.toThrow(/stream terminated before content on all 4 attempts \(terminated\)/)
+    expect(fetchMock).toHaveBeenCalledTimes(4)
+    expect(events.filter((e) => e.type === 'retry').map((e) => (e.type === 'retry' ? e.attempt : 0))).toEqual([1, 2, 3])
+  })
+
+  it('shares the attempt budget with a retried 503', async () => {
+    fetchMock
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: { code: 'service_overloaded' } }), { status: 503 }))
+      .mockImplementation(async () => dyingResponse(''))
+    const { events, done } = send()
+    await vi.advanceTimersByTimeAsync(60_000)
+    await expect(done).rejects.toThrow(/stream terminated before content/)
+    expect(fetchMock).toHaveBeenCalledTimes(4)
+    expect(events.filter((e) => e.type === 'retry').map((e) => (e.type === 'retry' ? [e.attempt, e.status] : []))).toEqual([
+      [1, 503],
+      [2, null],
+      [3, null],
+    ])
+  })
+})
+
+describe.each(STREAMS)('$name provider: tool arguments that are not JSON', ({ config, badArguments }) => {
+  it('hands the call on with its text instead of throwing', async () => {
+    fetchMock.mockResolvedValueOnce(streamResponse(badArguments))
+    const provider = createProvider({ ...config, apiKey: 'sk-test', baseUrl: 'https://provider.test' })
+    const events = await collect(provider)
+    expect(events).toContainEqual(expect.objectContaining({ type: 'tool_use', id: 't1', name: 'check', input: {}, badArguments: '{"bed' }))
+  })
+})
+
 describe('openai provider', () => {
   const provider = createProvider({
     kind: 'openai',

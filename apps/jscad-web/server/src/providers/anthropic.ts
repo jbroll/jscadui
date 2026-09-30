@@ -1,5 +1,7 @@
+import { streamWithRetry } from './retry.js'
+import { parseToolArguments } from './toolArguments.js'
 import { PROVIDER_BASE_URLS, ssePayloads } from './types.js'
-import type { Provider, ProviderConfig, ProviderMessage, ToolDefinition } from './types.js'
+import type { Provider, ProviderConfig, ProviderEvent, ProviderMessage, ToolDefinition } from './types.js'
 
 const API_VERSION = '2023-06-01'
 
@@ -58,56 +60,48 @@ export function anthropicProvider(config: ProviderConfig): Provider {
       }
       if (config.kind === 'opencode-go') headers['x-opencode-session'] = sessionId
 
-      const res = await fetch(`${config.baseUrl ?? PROVIDER_BASE_URLS[config.kind] ?? PROVIDER_BASE_URLS.anthropic}/v1/messages`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(body),
-      })
-      if (!res.ok) {
-        const detail = await res.text()
-        throw new Error(`anthropic: ${detail} (status ${res.status})`)
-      }
-
-      // Tool input JSON arrives split across input_json_delta events; hold it per block until stop.
-      const toolInputs = new Map<number, { id: string; name: string; json: string }>()
-      for await (const payload of ssePayloads(res.body)) {
-        let event: StreamEvent
-        try {
-          event = JSON.parse(payload)
-        } catch {
-          continue
-        }
-        if (event.type === 'content_block_start' && event.content_block?.type === 'tool_use') {
-          toolInputs.set(event.index ?? 0, {
-            id: event.content_block.id ?? '',
-            name: event.content_block.name ?? '',
-            json: '',
-          })
-        } else if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
-          const text = event.delta.text
-          if (typeof text === 'string') yield { type: 'text', text }
-        } else if (event.type === 'content_block_delta' && event.delta?.type === 'input_json_delta') {
-          const acc = toolInputs.get(event.index ?? 0)
-          if (acc) acc.json += event.delta.partial_json ?? ''
-        } else if (event.type === 'content_block_stop') {
-          const acc = toolInputs.get(event.index ?? 0)
-          if (acc) {
-            toolInputs.delete(event.index ?? 0)
-            let input: unknown
-            try {
-              input = JSON.parse(acc.json || '{}')
-            } catch {
-              throw new Error(`anthropic: unparseable tool input for ${acc.name}`)
-            }
-            yield { type: 'tool_use', id: acc.id, name: acc.name, input }
-          }
-        } else if (event.type === 'message_delta' && event.delta?.stop_reason) {
-          const stopReason = event.delta.stop_reason
-          yield { type: 'done', stopReason }
-        } else if (event.type === 'error') {
-          throw new Error(`anthropic: ${event.error?.message ?? 'provider error'}`)
-        }
-      }
+      yield* streamWithRetry(
+        'anthropic',
+        `${config.baseUrl ?? PROVIDER_BASE_URLS[config.kind] ?? PROVIDER_BASE_URLS.anthropic}/v1/messages`,
+        { method: 'POST', headers, body: JSON.stringify(body) },
+        parseAnthropicStream,
+      )
     },
+  }
+}
+
+async function* parseAnthropicStream(body: ReadableStream<Uint8Array> | null): AsyncGenerator<ProviderEvent> {
+  // Tool input JSON arrives split across input_json_delta events; hold it per block until stop.
+  const toolInputs = new Map<number, { id: string; name: string; json: string }>()
+  for await (const payload of ssePayloads(body)) {
+    let event: StreamEvent
+    try {
+      event = JSON.parse(payload)
+    } catch {
+      continue
+    }
+    if (event.type === 'content_block_start' && event.content_block?.type === 'tool_use') {
+      toolInputs.set(event.index ?? 0, {
+        id: event.content_block.id ?? '',
+        name: event.content_block.name ?? '',
+        json: '',
+      })
+    } else if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
+      const text = event.delta.text
+      if (typeof text === 'string') yield { type: 'text', text }
+    } else if (event.type === 'content_block_delta' && event.delta?.type === 'input_json_delta') {
+      const acc = toolInputs.get(event.index ?? 0)
+      if (acc) acc.json += event.delta.partial_json ?? ''
+    } else if (event.type === 'content_block_stop') {
+      const acc = toolInputs.get(event.index ?? 0)
+      if (acc) {
+        toolInputs.delete(event.index ?? 0)
+        yield { type: 'tool_use', id: acc.id, name: acc.name, ...parseToolArguments(acc.json) }
+      }
+    } else if (event.type === 'message_delta' && event.delta?.stop_reason) {
+      yield { type: 'done', stopReason: event.delta.stop_reason }
+    } else if (event.type === 'error') {
+      throw new Error(`anthropic: ${event.error?.message ?? 'provider error'}`)
+    }
   }
 }
