@@ -688,9 +688,12 @@ that repo is cloned at `~/src/jscad-chat-evals` or `$JSCAD_CHAT_DATA`, else
 `x-jscad-chat-id` header the chat sends, provider kind, sub-path, status, the
 request body without `tools`, the response text and the elapsed ms. Headers
 are never written. The response is teed while it streams, and a failed write
-warns once without failing the request. A stream that fails after the headers
-went out (undici's 300 s body timeout on a stalled provider, a dropped
-connection) cuts the page's response off and logs an `error`; a page that
+warns once without failing the request. The relay forwards with undici's own
+`fetch` and an `Agent` whose header and body timeouts are 15 minutes
+(`PROVIDER_BODY_TIMEOUT_MS`): a reasoning model can send nothing for longer
+than undici's default 5. A stream that fails after the headers went out (that
+timeout, a dropped connection) cuts the page's response off and logs an
+`error`; a page that
 closes aborts the upstream request. `server.js` answers 500 to any handler
 that throws, so one bad request cannot end the launcher. Neither relay forwards
 `x-jscad-chat-id`, and the production relay does not log.

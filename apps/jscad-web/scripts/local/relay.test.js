@@ -70,6 +70,28 @@ describe('relay streaming failures', () => {
     expect(records[0].error).toMatch(/upstream stream failed/)
   })
 
+  it('waits out a silent stream up to the body timeout, then logs it', async () => {
+    // undici checks body timeouts on a timer that ticks about every half second.
+    const silentFor = (ms) => (_req, res) => {
+      res.writeHead(200, { 'content-type': 'text/event-stream' })
+      res.write('data: started\n\n')
+      const t = setTimeout(() => res.end('data: done\n\n'), ms)
+      res.on('close', () => clearTimeout(t))
+    }
+    const patient = []
+    await withServers(async (base) => {
+      expect(await (await post(base, {})).text()).toContain('data: done')
+    }, { log: { write: (r) => patient.push(r) }, bodyTimeoutMs: 3000 }, silentFor(300))
+    expect(patient[0].error).toBeUndefined()
+
+    const impatient = []
+    await withServers(async (base, _seen, outcomes) => {
+      await (await post(base, {})).text().catch(() => {})
+      expect(await outcomes[0]).toBe('resolved')
+    }, { log: { write: (r) => impatient.push(r) }, bodyTimeoutMs: 200 }, silentFor(5000))
+    expect(impatient[0].error).toMatch(/UND_ERR_BODY_TIMEOUT/)
+  }, 15000)
+
   it('aborts the upstream request when the client goes away', async () => {
     let upstreamClosed
     const closed = new Promise((r) => { upstreamClosed = r })

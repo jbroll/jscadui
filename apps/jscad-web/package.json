@@ -22,12 +22,12 @@
   },
   "dependencies": {
     "@codemirror/lang-javascript": "^6.1.9",
+    "@jbroll/jscad-fluent": "file:../../.deps-cache/jscad-fluent",
     "@jbroll/rowboat-client": "file:../../../rowboat/packages/client",
     "@jbroll/rowboat-schema": "file:../../../rowboat/packages/schema",
     "@jscad/csg": "0.7.0",
     "@jscad/io": "2.4.7",
     "@jscad/modeling": "file:../../.deps-cache/OpenJSCAD.org/packages/modeling",
-    "@jbroll/jscad-fluent": "file:../../.deps-cache/jscad-fluent",
     "@jscadui/agent-loop": "*",
     "@jscadui/format-common": "*",
     "@jscadui/format-jscad": "*",
@@ -55,6 +55,7 @@
     "gl-matrix": "^3.4.0",
     "regl": "^2.1.0",
     "three": "^0.147.0",
+    "undici": "^7.30.0",
     "zod": "4.4.3"
   },
   "devDependencies": {

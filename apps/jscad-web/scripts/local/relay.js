@@ -2,7 +2,11 @@
 // streams responses back, stores nothing except the optional chat log. Plain
 // node:http so the startup script needs no express/TS build.
 import { readFileSync } from 'node:fs'
+import { Agent, fetch } from 'undici'
 import { toLogRequest } from './chatLog.js'
+
+// A reasoning model can stream nothing for minutes; undici's default gives up after 5.
+export const PROVIDER_BODY_TIMEOUT_MS = 15 * 60_000
 
 const FORWARD = new Set(['content-type', 'accept', 'authorization', 'x-api-key', 'anthropic-version', 'anthropic-beta', 'x-opencode-session'])
 
@@ -19,8 +23,9 @@ export const defaultAllowlist = () => ({
   meta: 'https://api.meta.ai',
 })
 
-export const createRelayHandler = ({ allowlist, trustedOrigins, allowPrivateUpstream = false, log = null }) => {
+export const createRelayHandler = ({ allowlist, trustedOrigins, allowPrivateUpstream = false, log = null, bodyTimeoutMs = PROVIDER_BODY_TIMEOUT_MS }) => {
   const allowed = new Set(trustedOrigins)
+  const dispatcher = new Agent({ bodyTimeout: bodyTimeoutMs, headersTimeout: bodyTimeoutMs })
   const hits = new Map()
   return async (req, res) => {
     const m = (req.url ?? '').match(/^\/api\/relay\/([^/]+)(\/.*)?$/)
@@ -86,7 +91,7 @@ export const createRelayHandler = ({ allowlist, trustedOrigins, allowPrivateUpst
     res.on('close', () => { if (!res.writableFinished) abort.abort() })
     let up
     try {
-      up = await fetch(upstream, { method: req.method, headers, signal: abort.signal, ...(req.method === 'POST' ? { body: Buffer.concat(chunks) } : {}) })
+      up = await fetch(upstream, { method: req.method, headers, signal: abort.signal, dispatcher, ...(req.method === 'POST' ? { body: Buffer.concat(chunks) } : {}) })
     } catch {
       res.writeHead(502, { 'content-type': 'application/json' })
       res.end(JSON.stringify({ error: 'upstream unreachable' }))
