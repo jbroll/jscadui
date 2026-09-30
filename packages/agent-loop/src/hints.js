@@ -158,6 +158,36 @@ export const explainThrow = (message, options) => {
   return undefined
 }
 
+const NAN_CAUSE = 'a parameter read back as NaN or an object often causes this; docs params shows how to define and read one'
+
+const isNaNNumber = (value) => typeof value === 'number' && Number.isNaN(value)
+const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value)
+
+const nanOf = (value, type) => {
+  if (type === 'number' && isNaNNumber(value)) return 'is NaN'
+  if (type === 'number' && isObject(value)) return 'is an object, not a number'
+  if (type === 'array' && Array.isArray(value)) {
+    if (value.some(isNaNNumber)) return 'holds NaN'
+    if (value.some(isObject)) return 'holds an object'
+  }
+  return undefined
+}
+
+/**
+ * Why a call's number or array option is NaN or an object, for the error the
+ * call threw. `types` maps each option to 'number' or 'array'.
+ * @param {unknown} options
+ * @param {Record<string, string> | undefined} types
+ */
+export const explainNaN = (options, types) => {
+  if (!isObject(options) || !types) return undefined
+  for (const [option, type] of Object.entries(types)) {
+    const what = nanOf(options[option], type)
+    if (what) return `${option} ${what}: ${NAN_CAUSE}`
+  }
+  return undefined
+}
+
 const lookups = new WeakMap()
 
 const lookupFor = (index) => {

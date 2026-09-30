@@ -451,6 +451,8 @@ describe('docs answers on parameters', () => {
       expect(answer.startsWith('params: the model\'s parameters')).toBe(true)
       expect(answer).toContain(example)
       expect(answer).toContain("params._type = 'Name'")
+      expect(answer).toContain('params.lid.height = {')
+      expect(answer).toContain('const h = params.lid.height')
     }
   })
 

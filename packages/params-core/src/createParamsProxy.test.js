@@ -76,6 +76,46 @@ describe('createParamsProxy', () => {
     })
   })
 
+  describe('a section assigned as one object', () => {
+    it('assigns each definition in it, and takes its _type', () => {
+      params.box = {
+        _type: 'Box',
+        clearance: { type: 'slider', default: 2, min: 0.5, max: 8, step: 0.5 },
+        wall: { default: 3 },
+      }
+      expect(params.box.clearance).toBe(2)
+      expect(params.box.wall).toBe(3)
+      expect(params.box._type).toBe('Box')
+      expect(state.discovered.find((d) => d.path === 'box.clearance')).toMatchObject({ type: 'slider', default: 2, min: 0.5, max: 8, parent: 'box' })
+      expect(state.discovered.find((d) => d.path === 'box')).toBeUndefined()
+    })
+
+    it('nests sections', () => {
+      params.box = { lid: { height: { default: 4 } } }
+      expect(params.box.lid.height).toBe(4)
+    })
+
+    it("keeps a user's value over the section's default", () => {
+      state.uiValues['box.wall'] = 5
+      state.userInteracted.add('box.wall')
+      params.box = { wall: { default: 3 } }
+      expect(params.box.wall).toBe(5)
+    })
+
+    it('refuses an object mixing definitions and plain values, naming the parameter and the form', () => {
+      expect(() => {
+        params.box = { clearance: { default: 2 }, count: 3 }
+      }).toThrow(
+        'params.box was given an object mixing parameter definitions and plain values; assign each parameter on its own: params.box.clearance = { ... }, then read it back as params.box.clearance',
+      )
+    })
+
+    it('keeps a plain object with no definitions as one value', () => {
+      params.offset = { x: 1, y: 2 }
+      expect(params.offset).toEqual({ x: 1, y: 2 })
+    })
+  })
+
   describe('hidden params', () => {
     it('should mark params starting with _ as hidden', () => {
       params._offset = 10

@@ -1,7 +1,7 @@
 import { APIS, DEFAULT_API } from './api.js'
 import { errorLocation } from './buildReport.js'
 import { editDistance } from './editDistance.js'
-import { explainThrow, explainWarning } from './hints.js'
+import { explainNaN, explainThrow, explainWarning } from './hints.js'
 
 export const MAX_WARNINGS = 20
 
@@ -180,7 +180,7 @@ const checked = (fnName, fn, spec, warn) => {
     try {
       result = fn.apply(this, args)
     } catch (error) {
-      annotate(error, [...hints, explainThrow(error?.message ?? '', args[0])])
+      annotate(error, [...hints, explainThrow(error?.message ?? '', args[0]), explainNaN(args[0], spec.types)])
       throw error
     }
     try {

@@ -41,6 +41,18 @@ const { text2d } = require('@jscadui/jscad-text')
 const main = () => extrudeLinear({ height: 2 }, text2d('A', { size: 10 }))
 module.exports = { main }
 `
+const SECTION_BOX = `const { cuboid } = require('@jscad/modeling').primitives
+const main = (params) => {
+  params.box = { _type: 'Box', width: { type: 'slider', default: 40, min: 10, max: 80 }, depth: { default: 20 } }
+  return cuboid({ size: [params.box.width, params.box.depth, 5] })
+}
+module.exports = { main }
+`
+const MIXED_SECTION = SECTION_BOX.replace('depth: { default: 20 }', 'depth: 20')
+const NAN_HEIGHT = `const { cylinderElliptic } = require('@jscad/modeling').primitives
+const box = { clearance: { default: 2 } }
+module.exports = { main: () => cylinderElliptic({ height: box.clearance * 2, startRadius: [2, 2], endRadius: [1, 1] }) }
+`
 const PARITY_ROUNDS = [
   { name: 'write', args: { path: 'main.js', content: RUNTIME_ERROR } },
   { name: 'write', args: { path: 'main.js', content: 'module.exports = { size: 1 }\n' } },
@@ -65,6 +77,9 @@ const PARITY_ROUNDS = [
   { name: 'run', args: { source: "const { main } = require('./main.js')\nmodule.exports = { main: () => main({ width: 30 }) }" } },
   { name: 'run', args: { source: "require('./main.js').main({ width: -1 })" } },
   { name: 'write', args: { path: 'main.js', content: WARNED } },
+  { name: 'write', args: { path: 'main.js', content: SECTION_BOX } },
+  { name: 'write', args: { path: 'main.js', content: MIXED_SECTION } },
+  { name: 'write', args: { path: 'main.js', content: NAN_HEIGHT } },
   { name: 'docs', args: { query: 'params' } },
   { name: 'run', args: { source: "const t = require('@jscadui/jscad-text')\nt.init(require('@jscad/modeling'))\nconsole.log(t.text2d('A') !== null)" } },
   { name: 'run', args: { source: "const t = require('@jscadui/jscad-text')\nt.init(null)\nt.text2d('A')" } },
@@ -232,6 +247,9 @@ test.describe('AI chat', () => {
       expect.objectContaining({ fn: 'jf.cylinder', option: 'outer', file: 'main.js', line: 3 }),
       expect.objectContaining({ fn: 'jf.cube', option: 'sise', file: 'main.js', line: 4 }),
     ])
+    expect(answerTo((a) => a.content === SECTION_BOX)).toMatchObject({ ok: true, geometry: { dimensions: [40, 20, 5] }, params: [{ name: 'box.width' }, { name: 'box.depth' }] })
+    expect(answerTo((a) => a.content === MIXED_SECTION).error.message).toContain('params.box was given an object mixing parameter definitions and plain values')
+    expect(answerTo((a) => a.content === NAN_HEIGHT).error.message).toContain('height is NaN: a parameter read back as NaN or an object')
     expect(answerTo((a) => a.content === TEXT_WITHOUT_INIT)).toMatchObject({ saved: 'main.js', ok: true, geometry: { parts: 1 } })
     expect(answerTo((a) => a.query === 'text')).toContain('jscadText.text2d')
   })

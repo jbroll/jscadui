@@ -196,6 +196,41 @@ export const extractDefinition = (value) => {
   return result
 }
 
+const isPlainObject = (value) => {
+  if (value === null || typeof value !== 'object') return false
+  const proto = Object.getPrototypeOf(value)
+  return proto === Object.prototype || proto === null
+}
+
+const LABEL_KEYS = new Set(['_type', '_class'])
+
+/**
+ * The entries of a UI section written as one object,
+ * `params.box = { _type: 'Box', wall: { default: 3 }, lid: { ... } }`: an
+ * object with no default of its own whose values are definitions, nested
+ * sections, or a `_type`/`_class` label. Null for anything else; an object
+ * that mixes definitions with plain values is ambiguous and throws.
+ * @param {unknown} value
+ * @param {string} fullPath
+ * @returns {Array<[string, unknown]> | null}
+ */
+const sectionEntries = (value, fullPath) => {
+  if (!isPlainObject(value) || value._isParamsProxy === true || 'default' in value) return null
+  const entries = Object.entries(value)
+  const isLabel = ([key, item]) => LABEL_KEYS.has(key) && typeof item === 'string'
+  const isMember = ([key, item]) => isDefinition(item) || sectionEntries(item, `${fullPath}.${key}`) !== null
+  const members = entries.filter((entry) => !isLabel(entry) && isMember(entry))
+  if (!members.length) return null
+  if (entries.some((entry) => !isLabel(entry) && !isMember(entry))) {
+    const [name] = members[0]
+    throw new Error(
+      `params.${fullPath} was given an object mixing parameter definitions and plain values; ` +
+        `assign each parameter on its own: params.${fullPath}.${name} = { ... }, then read it back as params.${fullPath}.${name}`,
+    )
+  }
+  return entries
+}
+
 /**
  * Get value from flat object using dot-notation path
  * @param {Object} obj
@@ -313,6 +348,16 @@ export const createParamsProxy = (state, path = '') => {
           discoveredByPath.set(fullPath, entry)
         }
         return true
+      }
+
+      // A section in one assignment defines each of its members on the child proxy.
+      const section = sealed ? null : sectionEntries(value, fullPath)
+      if (section) {
+        const child = proxy[propStr]
+        if (child?._isParamsProxy === true) {
+          for (const [key, item] of section) child[key] = item
+          return true
+        }
       }
 
       // Extract the actual value and definition

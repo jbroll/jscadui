@@ -113,6 +113,19 @@ params.radius = {
 
 **Type-specific:** `values`/`captions` (choice, radio), `palette` (color), `placeholder`/`size`/`maxLength` (text), `live` (slider)
 
+**A section in one assignment:** an object with no `default` of its own whose
+values are all definitions, nested sections, or a `_type`/`_class` label
+defines each member under that name, as separate assignments would:
+
+```javascript
+params.box = { _type: 'Box', wall: { type: 'slider', default: 3, min: 1, max: 6 } }
+const wall = params.box.wall // 3
+```
+
+An object that mixes definitions with plain values throws, naming the
+parameter and the per-member form. An object with no definitions stays one
+plain value.
+
 ## Special Properties
 
 - `_type` - Labels parts in the UI tree (e.g., `params._type = 'Wheel'`)

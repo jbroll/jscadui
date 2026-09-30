@@ -75,6 +75,25 @@ describe('eval backend builds', () => {
     expect(volume).toBeLessThan(530)
   })
 
+  const SECTION_BOX = `const { cuboid } = require('@jscad/modeling').primitives
+const main = (params) => {
+  params.box = { _type: 'Box', width: { type: 'slider', default: 40, min: 10, max: 80 }, depth: { default: 20 } }
+  return cuboid({ size: [params.box.width, params.box.depth, 5] })
+}
+module.exports = { main }`
+
+  it('builds a parameter section assigned as one object, and refuses one mixing in plain values', async () => {
+    const report = await writeMain(SECTION_BOX)
+    expect(report).toMatchObject({ ok: true, geometry: { dimensions: [40, 20, 5] } })
+    expect(report.params).toEqual([
+      { name: 'box.width', type: 'slider', default: 40, min: 10, max: 80 },
+      { name: 'box.depth', type: 'int', default: 20, step: 1 },
+    ])
+    const mixed = await writeMain(SECTION_BOX.replace('depth: { default: 20 }', 'depth: 20'))
+    expect(mixed).toMatchObject({ ok: false, error: { file: 'main.js', line: 3 } })
+    expect(mixed.error.message).toContain('params.box was given an object mixing parameter definitions and plain values; assign each parameter on its own: params.box.width = { ... }')
+  })
+
   it('fails a package that is not installed with the frame CDN error text', async () => {
     const res = await writeMain(`import { sphere } from '@jscad/primitives'\nexport const main = () => sphere()`)
     expect(res.ok).toBe(false)

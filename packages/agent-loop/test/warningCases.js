@@ -279,6 +279,20 @@ module.exports = { main: () => primitives.cube({ size: 2 }).translate([1, 0, 0])
     error: ['jf.measureVolume is not a function', 'use measurements.measureVolume(shape)'],
   },
   {
+    name: 'NaN: a height computed from a definition object names the parameter mix-up',
+    api: 'modeling',
+    source: modeling(
+      'const box = { clearance: { default: 2 } }\nmodule.exports = { main: () => primitives.cylinderElliptic({ height: box.clearance * 2, startRadius: [2, 2], endRadius: [1, 1] }) }',
+    ),
+    error: ['height must be greater then zero', 'height is NaN', 'a parameter read back as NaN or an object'],
+  },
+  {
+    name: 'NaN: a size holding NaN in fluent names the parameter mix-up',
+    api: 'fluent',
+    source: fluent('const box = { clearance: { default: 2 } }\nmodule.exports = { main: () => jf.cuboid({ size: [10, box.clearance * 2, 5] }) }'),
+    error: ['size holds NaN', 'a parameter read back as NaN or an object'],
+  },
+  {
     name: 'O: a lone outer on jf.cylinder, which fluent ignores, names radius',
     api: 'fluent',
     source: fluent('module.exports = { main: () => [jf.cylinder({ outer: 6, height: 10 }), jf.cylinder({ outer: 6, inner: 4, height: 10 })] }'),

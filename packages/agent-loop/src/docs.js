@@ -388,7 +388,10 @@ const r = params.radius // 5, or the value the user set
 Types: slider, int, number, checkbox, text, choice, radio, color.
 slider, int and number take min, max and step; checkbox a true or false default; text a string default; choice and radio take values: [...] and optional captions: [...].
 Without a type, values makes a choice, and otherwise the default's kind picks one (true/false checkbox, whole number int, number, string text).
-params._type = 'Name' labels a UI section, and params.lid.height = { ... } puts height in the lid section.
+params._type = 'Name' labels a UI section. A section is a name under params; define and read each of its parameters through it:
+params.lid._type = 'Lid'
+params.lid.height = { type: 'slider', default: 8, min: 2, max: 20 }
+const h = params.lid.height // 8, or the value the user set
 An underscore-prefixed name (params._foo) is hidden from the UI.
 The build report lists the parameters main() defined.`
 

@@ -86,7 +86,8 @@ modeling a pointer to `@jscad/modeling`'s stroke-only `text` namespace; the
 `text2d` entry says it needs no `init`. `params` or `parameters`
 (also `params.<name>`) answers with the prompt's parameter conventions
 (`PARAMS_ANSWER`): the proxy assignment, the types params-core keeps and
-their fields, `_type` sections and hidden names. `jf.cylinder`'s `outer` has
+their fields, `_type` sections with how a section's parameter is defined and
+read back (`params.lid.height`), and hidden names. `jf.cylinder`'s `outer` has
 no default in the index, since fluent reads it only with `inner` or `wall`,
 and a lone `outer` warns. A namespace or class answers
 with one line per member, `cylinder({ center = [0,0,0], height = 2, radius =
@@ -173,7 +174,14 @@ modeling, with start at the -Z end.
 
 When the wrapped call throws, its hints and the limit a `roundRadius` error
 leaves out ("roundRadius 2 is too big: it must be under half the smallest
-size, 2.4 / 2 = 1.2") go on new lines of the error's message. A "X is not a
+size, 2.4 / 2 = 1.2") go on new lines of the error's message, and so does
+the cause of a number or array option that is NaN or an object ("height is
+NaN: a parameter read back as NaN or an object often causes this; docs params
+shows how to define and read one"), since modeling's own error ("height must
+be greater then zero") hides it. params-core defines a section assigned as
+one object (`params.box = { wall: { default: 3 } }`) member by member, and
+throws for one that mixes definitions with plain values, naming the
+parameter and the per-member form. A "X is not a
 function" error gets a hint from `withErrorHint`, applied where the error
 result is built (`eval/backend.js`, the app's `reportError` in `src/projectBuild.js`): in fluent, X
 as a method of the named classes, called on a jf shape; in modeling, the
