@@ -22,8 +22,9 @@ against live models on the CI host, one process per model in `ci/eval.conf`'s
 is its own lane, all running concurrently, so at most (models × APIs) ×
 `EVAL_CONCURRENCY` conversations run at once (32 with the shipped conf: 2
 models × 2 APIs × 8. Each sandbox is capped at 2G but typically uses far
-less; the host has 43G available). A job must finish inside simple-ci's
-60-minute `CI_JOB_TIMEOUT`. Each model and style writes its own result file, named with both. The
+less; the host has 43G available). A job must finish inside the CI host's
+`CI_JOB_TIMEOUT`, set to 7200 (2 hours) in `/etc/ci-server/env.sh` because the
+full suite runs past an hour. Each model and style writes its own result file, named with both. The
 default suite, the ungrouped fixtures plus the `harder` group, is 32
 fixtures under fluent and 31 under modeling (`fluent-chain` is fluent-only),
 so at 3 runs and 2 models a job is (32 + 31) × 3 × 2 = 378 conversations;
@@ -197,9 +198,10 @@ jscad-fluent and jscad-anchors forks into the worktree's `.deps-cache/`, so no
 sibling checkouts of any of them are needed either (`docs/CLOUD_SESSION.md`).
 Reference STLs are cached in the service user's `~/.cache/jscadui/openscad-stl/`.
 
-If runs can exceed the server's `CI_JOB_TIMEOUT` (default 3600s), raise it on
-the host — the poller's own timeout only kills via the API, it cannot extend
-the runner's `timeout`.
+If runs can exceed the server's `CI_JOB_TIMEOUT` (simple-ci's default is
+3600s; this host sets 7200 in `/etc/ci-server/env.sh`), raise it on the host
+and restart `ci-server`; a job keeps the limit it started with. The poller's
+own timeout only kills via the API, it cannot extend the runner's `timeout`.
 
 Options (environment): `CI_REPO`, `CI_TRUSTED_USERS`, `CI_SCI_REPO` (default
 repo basename), `CI_SCRIPT` (default `gpu-test`), `CI_WORKSPACE` (default
