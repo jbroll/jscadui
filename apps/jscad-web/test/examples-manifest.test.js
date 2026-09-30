@@ -24,6 +24,8 @@ describe('buildExamplesManifest', () => {
     for (const f of ['ALL.js', 'ALL.small.js', 'ALL.big.js', 'a.scad', 'b.scad', 'c.scad', 'd.scad', 'loose.scad']) write(`lib-b/tests/${f}`)
     write('lib-b/tests/skip.txt', 'd.scad\n')
     write('lib-b/tests/categories.json', JSON.stringify({ small: ['a', 'b'], big: ['c'], gone: ['d'] }))
+    for (const f of ['helper.scad', 'model.scad', 'deep/helper.scad', 'deep/part.scad', 'vendor/x.scad', 'src/y.scad']) write(`lib-c/${f}`)
+    write('lib-c/exclude.txt', 'helper.scad\nvendor/\n/src/\n')
     tree = buildExamplesManifest(root, '/examples')
   })
 
@@ -44,6 +46,11 @@ describe('buildExamplesManifest', () => {
       files: ['ALL.js', 'a.scad', 'b.scad'],
       href: { 'ALL.js': '../ALL.small.js', 'a.scad': '../a.scad', 'b.scad': '../b.scad' },
     })
+  })
+
+  it('reads exclude.txt anchored: a bare name hides one file, a trailing / a directory', () => {
+    expect(tree['/examples/lib-c/']).toEqual({ dirs: ['deep'], files: ['model.scad'] })
+    expect(tree['/examples/lib-c/deep/']).toEqual({ dirs: [], files: ['helper.scad', 'part.scad'] })
   })
 
   it('drops a category whose models are all skipped', () => {

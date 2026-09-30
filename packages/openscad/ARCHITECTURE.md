@@ -356,10 +356,12 @@ node bin/test-harness.js --corpus
 
 `bin/pattern-files.js` reads and matches `skip.txt`, `compare-skip.txt`,
 `echo-skip.txt` and `exclude.txt` for `test-harness.js`, `generate-all-files.js`,
-`customizer-survey.js` and `organize-corpus.js`. The pattern syntax is in
-`TESTING.md`. `generate-all-files.js` reads `exclude.txt` with every pattern
-anchored, as the demo browser does (`apps/jscad-web/src_build/exampleExclusions.js`),
-so the grids and the browser list the same models.
+`customizer-survey.js` and `organize-corpus.js`, and, exported as
+`@jscadui/openscad/pattern-files`, for the demo browser's examples manifest
+(`apps/jscad-web/src_build/exampleExclusions.js`). The pattern syntax is in
+`TESTING.md`. `generate-all-files.js` and the demo browser both read
+`exclude.txt` with every pattern anchored, so the grids and the browser list
+the same models.
 
 ### Test Corpus
 

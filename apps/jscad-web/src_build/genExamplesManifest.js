@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'fs'
 import { join, relative } from 'path'
-import { isExcluded } from './exampleExclusions.js'
+import { exampleExclusions } from './exampleExclusions.js'
 
 /** ALL.js, or a per-category grid such as ALL.printed.js. */
 export const isGridFile = (name) => /^ALL(\.[^/]+)?\.js$/.test(name)
@@ -32,6 +32,7 @@ export function genExamplesManifest(srcDir, outFile, urlBase = '/examples') {
 export function buildExamplesManifest(srcDir, urlBase = '/examples') {
   const tree = {}
   const base = urlBase.replace(/\/$/, '')
+  const isExcluded = exampleExclusions(srcDir)
 
   // Returns true if the directory (or a descendant) has any visible content.
   const walk = (absDir) => {
@@ -43,7 +44,7 @@ export function buildExamplesManifest(srcDir, urlBase = '/examples') {
       if (e.name.startsWith('.') || e.name === 'lib') continue
       const abs = join(absDir, e.name)
       // Hide non-model files/dirs (exclude.txt) and problematic models (skip.txt).
-      if (!isGridFile(e.name) && isExcluded(abs, srcDir)) continue
+      if (!isGridFile(e.name) && isExcluded(e.isDirectory() ? `${abs}/` : abs)) continue
       if (e.isDirectory()) { if (walk(abs)) dirs.push(e.name) }
       else if (e.name.endsWith('.js') || e.name.endsWith('.scad')) files.push(e.name)
     }

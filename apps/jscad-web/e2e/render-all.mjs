@@ -55,7 +55,7 @@ import { chromium } from '@playwright/test'
 import { readdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { join, relative, basename, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { isExcluded } from '../src_build/exampleExclusions.js'
+import { exampleExclusions } from '../src_build/exampleExclusions.js'
 import { diffAgainstBaseline, toFailure } from './baseline-diff.mjs'
 import { APP_ORIGIN } from './ports.mjs'
 import { splitAggregateGrids, isGridFile } from './grid-order.mjs'
@@ -122,6 +122,7 @@ function walk(dir, acc = []) {
 function collectFiles(opts) {
   const exts = opts.jscad ? ['.scad', '.js'] : ['.scad']
   const out = []
+  const isExcluded = opts.skip ? exampleExclusions(EXAMPLES_ROOT) : () => false
   for (const d of opts.dirs) {
     const absDir = join(EXAMPLES_ROOT, d)
     if (!existsSync(absDir)) { console.warn(`skip missing dir: ${d}`); continue }
@@ -132,7 +133,7 @@ function collectFiles(opts) {
       } else {
         if (!exts.includes(f.slice(f.lastIndexOf('.')))) continue
         if (isGridFile(basename(f))) continue
-        if (opts.skip && isExcluded(f, EXAMPLES_ROOT)) continue
+        if (isExcluded(f)) continue
       }
       const relFromExamples = relative(EXAMPLES_ROOT, f)
       out.push({ url: '/examples/' + relFromExamples, rel: relFromExamples })
