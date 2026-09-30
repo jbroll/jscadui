@@ -100,8 +100,9 @@ export function gradeTranscript(fixture, transcript, { maxTurns } = {}) {
     recovery = laterSuccess ? 2 : 0
   }
 
-  const writes = names.filter((n) => n === 'writeModel').length
-  const conservation = calls.length <= 12 && writes <= 2 ? 2 : calls.length <= 24 ? 1 : 0
+  // Saving often is wanted, so writeModel calls never count against conservation.
+  const spent = names.filter((n) => n !== 'writeModel').length
+  const conservation = spent <= 12 ? 2 : spent <= 24 ? 1 : 0
 
   return {
     dimensions: { discipline, recovery, conservation },

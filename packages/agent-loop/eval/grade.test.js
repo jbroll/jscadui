@@ -124,6 +124,20 @@ describe('grader', () => {
     expect(report.saved).toBe(false)
   })
 
+  it('never costs conservation for saving: writeModel calls are not counted', () => {
+    const run = (evals, writes) => {
+      const transcript = [{ role: 'user', content: 'make it' }]
+      for (let i = 0; i < evals; i += 1) transcript.push(toolMsg(`e${i}`, 'eval', { source: 'x' }), resultMsg(`e${i}`, JSON.stringify({ ok: true })))
+      for (let i = 0; i < writes; i += 1) transcript.push(toolMsg(`w${i}`, 'writeModel', { source: 'x' }), resultMsg(`w${i}`, JSON.stringify({ ok: true })))
+      return gradeFixture(fixture, transcript, { volume: 6400 }).dimensions.conservation
+    }
+    expect(run(2, 6)).toBe(2)
+    expect(run(12, 20)).toBe(2)
+    expect(run(13, 0)).toBe(1)
+    expect(run(24, 30)).toBe(1)
+    expect(run(25, 0)).toBe(0)
+  })
+
   it('grades the last eval when the fixture does not require writeModel', () => {
     const noWrite = { ...fixture, requires: ['eval'] }
     const transcript = [toolMsg('t1', 'eval', { source: 'x' }), resultMsg('t1', JSON.stringify({ ok: true }))]

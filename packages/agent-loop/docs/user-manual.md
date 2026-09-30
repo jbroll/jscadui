@@ -382,7 +382,9 @@ model, so measuring after the save counts. A run with no `eval` gets 2 when it
 verifies after a `writeModel`, else 0. Recovery is 2 when no tool call failed
 or a success followed the last failure, else 0; a run the turn cap ended
 (its last round's results got no reply) leaves that round's failures out,
-since it had no turn left to recover in.
+since it had no turn left to recover in. Conservation is 2 for at most 12 tool
+calls, 1 for at most 24, else 0, counting every call except `writeModel`, so
+saving often never costs a point.
 
 Geometry grades the project the run saved, since that is what the app's user
 keeps: every file written, evaluated again through its entry in a fresh backend

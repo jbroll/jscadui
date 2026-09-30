@@ -316,12 +316,10 @@ example an enclosure with a lid and board posts, a pair of shelf brackets with
 a cleat, and a drawer in a frame. Their checks test fit, not process: the lid
 covers the base's opening, the drawer clears the frame by a plausible gap, the
 posts sit inside the walls. A single-file answer that fits passes. Grading
-needs two changes for these:
-
-- the grade measures each part as well as the whole (`m.parts`), so checks can
-  test fit between parts;
-- conservation counts `writeModel` calls per file, not in total, since
-  `writes <= 2` would penalise a three-part build that saves each part once.
+needs one change for these: the grade measures each part as well as the whole
+(`m.parts`), so checks can test fit between parts. Conservation already leaves
+`writeModel` calls out, so a three-part build that saves each part costs
+nothing there.
 
 The `assembly` group gets its own baseline on the current prompt before the
 procedure is added. Whether it joins the default suite later is open
@@ -362,10 +360,9 @@ the step's own gate.
 2. **`skill` tool with clarify-or-default, app handler included.** Gate:
    dialogue `unnecessaryQuestions` and `askedWithoutBuilding` fall, `accepted`
    does not fall, `assumptionsStated` rises; single-shot keep rule.
-3. **`assembly` fixtures and the two grading changes**, baselined on the
+3. **`assembly` fixtures and the grading change**, baselined on the
    current prompt. Gate: `--regrade` of the existing baselines moves no
-   single-shot fixture's total (conservation per file only matters where a
-   run wrote several files).
+   single-shot fixture's total.
 4. **plan-then-build.** Gate: on `assembly`, fewer unsaved runs and fewer
    rounds, `checkRate` not lower; on `phone-stand`, `shelf-bracket` and
    `enclosure`, `saved: false` falls for DeepSeek; single-shot keep rule.
