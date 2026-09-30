@@ -570,9 +570,9 @@ describe('saveResults', () => {
 describe('modelMaxTurns', () => {
   const models = { 'slow-model': { maxTurns: 8 } }
 
-  it('ships a cap of 8 for muse-spark-1.3-contributor and 12 for deepseek-v4.1-flash', () => {
+  it('ships a cap of 8 for muse-spark-1.3-contributor and deepseek-v4.1-flash', () => {
     expect(modelMaxTurns({}, 'muse-spark-1.3-contributor')).toBe(8)
-    expect(modelMaxTurns({}, 'deepseek-v4.1-flash')).toBe(12)
+    expect(modelMaxTurns({}, 'deepseek-v4.1-flash')).toBe(8)
   })
 
   it('reads the model entry from models.json', () => {
