@@ -1,7 +1,10 @@
 // apps/jscad-web/scripts/local/relay.test.js
 import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
 import http from 'node:http'
-import { createRelayHandler } from './relay.js'
+import { PROVIDER_BASE_URLS as AGENT_LOOP_BASE_URLS } from '../../../../packages/agent-loop/src/providers.js'
+import { FORWARD_HEADERS, PROVIDER_BASE_URLS } from '../../server/src/relay/policy.js'
+import { createRelayHandler, defaultAllowlist } from './relay.js'
 
 const echo = (req, res) => {
   let b = ''
@@ -40,6 +43,26 @@ const withServers = async (t, options = {}, answer = echo) => {
   } finally {
     front.closeAllConnections(); upstream.closeAllConnections()
     front.close(); upstream.close()
+  }
+}
+
+// Drives a handler without an upstream server, for requests the policy decides.
+// node:http sends the path as written; fetch would resolve %2e%2e first.
+const callHandler = async (handler, path = '/api/relay/p/v1/chat') => {
+  const front = http.createServer((req, res) => { handler(req, res) })
+  await new Promise((r) => front.listen(0, '127.0.0.1', r))
+  try {
+    return await new Promise((resolve, reject) => {
+      const req = http.request({ port: front.address().port, host: '127.0.0.1', path, method: 'POST', headers: { origin: 'http://app.test', 'content-type': 'application/json' } }, (res) => {
+        let body = ''
+        res.on('data', (c) => (body += c))
+        res.on('end', () => resolve({ status: res.statusCode, body }))
+      })
+      req.on('error', reject)
+      req.end('{}')
+    })
+  } finally {
+    front.closeAllConnections(); front.close()
   }
 }
 
@@ -149,6 +172,54 @@ describe('relay', () => {
       })
       expect(res.status).toBe(404)
     })
+  })
+})
+
+describe('relay policy shared with the production relay', () => {
+  it('uses the same default allowlist as the server and agent-loop, and the account dialog offers the same kinds', () => {
+    expect(defaultAllowlist()).toEqual(PROVIDER_BASE_URLS)
+    expect(defaultAllowlist()).toEqual(AGENT_LOOP_BASE_URLS)
+    const account = readFileSync(new URL('../../src/aiAccount.js', import.meta.url), 'utf-8')
+    const kinds = JSON.parse(account.match(/const KINDS = (\[[^\]]*\])/)[1].replaceAll("'", '"'))
+    expect(kinds).toEqual(Object.keys(PROVIDER_BASE_URLS))
+  })
+
+  it('forwards exactly the server header set', async () => {
+    const leaky = { cookie: 'session=secret', referer: 'http://app.test/p', 'x-forwarded-for': '203.0.113.9', 'x-jscad-chat-id': 'chat-1' }
+    const provider = Object.fromEntries(FORWARD_HEADERS.map((name) => [name, name === 'content-type' ? 'application/json' : `v-${name}`]))
+    await withServers(async (base, seen) => {
+      await (await post(base, { ...provider, ...leaky })).text()
+      for (const name of FORWARD_HEADERS) expect(seen[0][name], name).toBe(provider[name])
+      for (const name of [...Object.keys(leaky), 'origin']) expect(seen[0][name], name).toBeUndefined()
+    })
+  })
+
+  it('refuses an upstream that resolves to a private address', async () => {
+    for (const address of ['10.0.0.5', '172.16.0.1', '192.168.1.1', '127.0.0.1', '::1', 'fc00::1', 'fe80::1']) {
+      const handler = createRelayHandler({ allowlist: { p: 'https://api.example.com' }, trustedOrigins: ['http://app.test'], dnsLookup: async () => [{ address }] })
+      const res = await callHandler(handler)
+      expect(res.status, address).toBe(400)
+      expect(res.body, address).toMatch(/private address/)
+    }
+  })
+
+  it('lets a public hostname containing "10." through the address check', async () => {
+    const handler = createRelayHandler({ allowlist: { p: 'https://api.10.example.invalid' }, trustedOrigins: ['http://app.test'], dnsLookup: async () => [{ address: '93.184.216.34' }] })
+    const res = await callHandler(handler)
+    // Past the policy, the fetch itself fails: the name does not exist.
+    expect(res.status).toBe(502)
+  })
+
+  it('refuses %2e%2e traversal that the URL parser would resolve', async () => {
+    const handler = createRelayHandler({ allowlist: { p: 'https://opencode.ai/zen/go' }, trustedOrigins: ['http://app.test'], dnsLookup: async () => [{ address: '93.184.216.34' }] })
+    const res = await callHandler(handler, '/api/relay/p/%2e%2e/v1/x')
+    expect(res.status).toBe(400)
+    expect(res.body).toMatch(/traversal/)
+  })
+
+  it('404s a kind that is only an Object prototype property', async () => {
+    const handler = createRelayHandler({ allowlist: {}, trustedOrigins: ['http://app.test'] })
+    expect((await callHandler(handler, '/api/relay/constructor/v1/x')).status).toBe(404)
   })
 })
 

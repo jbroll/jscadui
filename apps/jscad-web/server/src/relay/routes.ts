@@ -1,8 +1,6 @@
-import { lookup } from 'node:dns/promises'
-import { isIP } from 'node:net'
 import type { Express, Request, Response } from 'express'
-import { loadAllowlistFile, resolveUpstream } from './allowlist.js'
-import { createLimiter } from './limiter.js'
+import { loadAllowlistFile } from './allowlist.js'
+import { RATE_PER_MIN, RelayRefusal, createLimiter, isTrustedRequest, pickForwardHeaders, resolveTarget } from './policy.js'
 
 export interface RelayRouteOptions {
   allowlistPath: string
@@ -11,46 +9,6 @@ export interface RelayRouteOptions {
   fetchFn?: typeof fetch
   /** DNS seam: defaults to `node:dns` lookup; tests inject fakes. */
   dnsLookup?: (host: string) => Promise<Array<{ address: string }>>
-}
-
-// The app shares this origin, so the browser attaches its session cookie;
-// anything not needed by a provider stays here.
-const FORWARD_HEADERS = new Set([
-  'content-type',
-  'accept',
-  'authorization',
-  'x-api-key',
-  'anthropic-version',
-  'anthropic-beta',
-  'x-opencode-session',
-])
-
-const pickHeaders = (req: Request): Record<string, string> => {
-  const out: Record<string, string> = {}
-  for (const [name, value] of Object.entries(req.headers)) {
-    const key = name.toLowerCase()
-    if (FORWARD_HEADERS.has(key) && typeof value === 'string') out[key] = value
-  }
-  return out
-}
-
-const isPrivateAddr = (addr: string): boolean => {
-  if (addr.includes(':')) return /^(::1|fc|fd|fe[89ab])/i.test(addr)
-  return /^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|127\.|169\.254\.|0\.)/.test(addr)
-}
-
-// Hostnames are resolved here, at forward time: DNS between allowlist load
-// and this request could otherwise point a permitted name at a private IP.
-const assertPublicHost = async (
-  url: string,
-  dnsLookup: (host: string) => Promise<Array<{ address: string }>>,
-): Promise<void> => {
-  const host = new URL(url).hostname
-  if (isIP(host)) return
-  const records = await dnsLookup(host)
-  if (records.some((r) => isPrivateAddr(r.address))) {
-    throw new Error('relay: upstream resolves to a private address')
-  }
 }
 
 let cached: { at: number; path: string; table: Record<string, string> } | null = null
@@ -66,21 +24,19 @@ const readAllowlist = (path: string): Record<string, string> => {
 export function mountRelayRoutes(app: Express, options: RelayRouteOptions): void {
   const logger = options.logger ?? ((entry) => console.log(JSON.stringify(entry)))
   const fetchFn = options.fetchFn ?? fetch
-  const dnsLookup = options.dnsLookup ?? ((host) => lookup(host, { all: true }))
-  const limiter = createLimiter({ ratePerMin: 60, burst: 10 })
+  const { dnsLookup } = options
+  // Many browsers share this relay, so a client gets a small burst.
+  const limiter = createLimiter({ ratePerMin: RATE_PER_MIN, burst: 10 })
   const allowed = new Set(options.trustedOrigins)
 
-  // Browsers omit Origin on a same-origin GET, so the model list from the
-  // app's own origin arrives with only Sec-Fetch-Site to vouch for it.
   const corsFor = (req: Request, res: Response): boolean => {
+    if (!isTrustedRequest(req.headers, allowed)) return false
     const origin = req.headers.origin
     if (typeof origin === 'string') {
-      if (!allowed.has(origin)) return false
       res.setHeader('Access-Control-Allow-Origin', origin)
       res.setHeader('Vary', 'Origin')
-      return true
     }
-    return req.headers['sec-fetch-site'] === 'same-origin'
+    return true
   }
 
   app.options('/api/relay/*splat', (req, res) => {
@@ -113,27 +69,21 @@ export function mountRelayRoutes(app: Express, options: RelayRouteOptions): void
       res.status(500).json({ error: (err as Error).message })
       return
     }
-    const { kind } = req.params as unknown as { kind: string }
-    const base = table[kind]
-    if (!base) {
-      res.status(404).json({ error: 'unknown provider' })
-      return
-    }
-    const { splat } = req.params as unknown as { splat?: string[] | string }
+    const { kind, splat } = req.params as unknown as { kind: string; splat?: string[] | string }
     const subPath = Array.isArray(splat) ? splat.join('/') : String(splat ?? '')
     let upstream: string
     try {
-      upstream = resolveUpstream(base, subPath)
-      await assertPublicHost(upstream, dnsLookup)
+      upstream = await resolveTarget({ allowlist: table, kind, subPath, dnsLookup })
     } catch (err) {
-      res.status(400).json({ error: (err as Error).message })
+      if (!(err instanceof RelayRefusal)) throw err
+      res.status(err.status).json({ error: err.message })
       return
     }
     let upstreamRes: globalThis.Response
     try {
       upstreamRes = await fetchFn(upstream, {
         method,
-        headers: pickHeaders(req),
+        headers: pickForwardHeaders(req.headers),
         ...(method === 'GET' ? {} : { body: JSON.stringify(req.body ?? {}) }),
       })
     } catch {

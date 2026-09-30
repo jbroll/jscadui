@@ -679,6 +679,20 @@ same-origin GET, so the model-list GET from the app's own origin passes on
 headers (content type, accept, provider auth and version, the opencode
 session), so the session cookie never reaches a provider.
 
+Two relays implement this: production's Express routes (`server/src/relay/`)
+and the `jscad-chat` launcher's `node:http` handler. Both take the header set,
+origin rule, default allowlist, allowlist validation, sub-path join,
+private-address check and token-bucket limiter from one file,
+`server/src/relay/policy.js`. It lives in the server tree because the server
+builds and deploys on its own with `tsc` and cannot import from outside it,
+and it is plain JS with JSDoc because the launcher runs under plain `node`,
+which cannot load the server's TypeScript. The server's `tsconfig.json` sets
+`allowJs` and `checkJs`, so `tsc` type-checks the file and emits it into
+`dist/`. `scripts/local/relay.test.js` fails if agent-loop's
+`PROVIDER_BASE_URLS` or the account dialog's provider list drifts from the
+shared default allowlist. The limits differ only in burst: 10 per client in
+production, 60 for the launcher's one user.
+
 The `jscad-chat` launcher's relay (`scripts/local/relay.js`) also appends each
 forwarded POST to `<dir>/YYYY-MM-DD.jsonl` (`chatLogDir` in
 `packages/agent-loop/log/log-dir.js`: `<jscad-chat-evals clone>/logs` when

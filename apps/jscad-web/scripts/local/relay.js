@@ -1,76 +1,65 @@
 // Same-origin relay for local startup: forwards user-keyed provider requests,
 // streams responses back, stores nothing except the optional chat log. Plain
-// node:http so the startup script needs no express/TS build.
+// node:http so the startup script needs no express/TS build. Access policy is
+// the production relay's, from its plain-JS policy module.
 import { readFileSync } from 'node:fs'
 import { Agent, fetch } from 'undici'
+import {
+  PROVIDER_BASE_URLS,
+  RATE_PER_MIN,
+  RelayRefusal,
+  createLimiter,
+  isTrustedRequest,
+  parseAllowlist,
+  pickForwardHeaders,
+  resolveTarget,
+} from '../../server/src/relay/policy.js'
 import { toLogRequest } from './chatLog.js'
 
 // A reasoning model can stream nothing for minutes; undici's default gives up after 5.
 export const PROVIDER_BODY_TIMEOUT_MS = 15 * 60_000
 
-const FORWARD = new Set(['content-type', 'accept', 'authorization', 'x-api-key', 'anthropic-version', 'anthropic-beta', 'x-opencode-session'])
+// One user, whose agent loop can fire steps back to back: a full minute of burst.
+const LOCAL_BURST = RATE_PER_MIN
 
-export const loadAllowlist = (path) => {
-  const parsed = JSON.parse(readFileSync(path, 'utf-8'))
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) throw new Error('relay: allowlist must be a {name: url} object')
-  return parsed
+export const loadAllowlist = (path) => parseAllowlist(readFileSync(path, 'utf-8'), path)
+
+export const defaultAllowlist = () => ({ ...PROVIDER_BASE_URLS })
+
+const refuse = (res, status, error, extra = {}) => {
+  res.writeHead(status, { 'content-type': 'application/json', ...extra })
+  res.end(JSON.stringify({ error }))
 }
 
-export const defaultAllowlist = () => ({
-  anthropic: 'https://api.anthropic.com',
-  openai: 'https://api.openai.com',
-  'opencode-go': 'https://opencode.ai/zen/go',
-  meta: 'https://api.meta.ai',
-})
-
-export const createRelayHandler = ({ allowlist, trustedOrigins, allowPrivateUpstream = false, log = null, bodyTimeoutMs = PROVIDER_BODY_TIMEOUT_MS }) => {
+export const createRelayHandler = ({ allowlist, trustedOrigins, allowPrivateUpstream = false, log = null, bodyTimeoutMs = PROVIDER_BODY_TIMEOUT_MS, dnsLookup }) => {
   const allowed = new Set(trustedOrigins)
   const dispatcher = new Agent({ bodyTimeout: bodyTimeoutMs, headersTimeout: bodyTimeoutMs })
-  const hits = new Map()
+  const limiter = createLimiter({ ratePerMin: RATE_PER_MIN, burst: LOCAL_BURST })
   return async (req, res) => {
     const m = (req.url ?? '').match(/^\/api\/relay\/([^/]+)(\/.*)?$/)
     if (!m || (req.method !== 'POST' && req.method !== 'GET')) return false
     const ts = new Date().toISOString()
     const started = Date.now()
     const origin = req.headers.origin
-    // Browsers omit Origin on a same-origin GET.
-    const sameOrigin = origin === undefined && req.headers['sec-fetch-site'] === 'same-origin'
-    if (!sameOrigin && (typeof origin !== 'string' || !allowed.has(origin))) {
-      res.writeHead(403, { 'content-type': 'application/json' })
-      res.end(JSON.stringify({ error: 'untrusted origin' }))
+    if (!isTrustedRequest(req.headers, allowed)) {
+      refuse(res, 403, 'untrusted origin')
       return true
     }
-    const now = Date.now()
-    const seen = (hits.get(req.socket.remoteAddress ?? '') ?? []).filter((t) => now - t < 60_000)
-    if (seen.length >= 60) {
-      res.writeHead(429, { 'content-type': 'application/json', 'retry-after': '60' })
-      res.end(JSON.stringify({ error: 'rate limited' }))
-      return true
-    }
-    seen.push(now)
-    hits.set(req.socket.remoteAddress ?? '', seen)
-    const base = allowlist[m[1]]
-    if (!base) {
-      res.writeHead(404, { 'content-type': 'application/json' })
-      res.end(JSON.stringify({ error: 'unknown provider' }))
+    const limited = limiter.check(req.socket.remoteAddress ?? '')
+    if (!limited.ok) {
+      refuse(res, 429, 'rate limited', { 'retry-after': String(limited.retryAfterSec) })
       return true
     }
     const sub = (m[2] ?? '').replace(/^\/+/, '')
-    if (sub.split('/').includes('..')) {
-      res.writeHead(400, { 'content-type': 'application/json' })
-      res.end(JSON.stringify({ error: 'path traversal refused' }))
+    let upstream
+    try {
+      upstream = await resolveTarget({ allowlist, kind: m[1], subPath: sub, dnsLookup, allowPrivate: allowPrivateUpstream })
+    } catch (err) {
+      if (!(err instanceof RelayRefusal)) throw err
+      refuse(res, err.status, err.message)
       return true
     }
-    const upstream = `${base.replace(/\/+$/, '')}/${sub}`
-    if (!allowPrivateUpstream && /127\.|localhost|10\.|192\.168\./.test(new URL(upstream).hostname)) {
-      res.writeHead(400, { 'content-type': 'application/json' })
-      res.end(JSON.stringify({ error: 'private upstream refused' }))
-      return true
-    }
-    const headers = {}
-    for (const [k, v] of Object.entries(req.headers)) {
-      if (FORWARD.has(k.toLowerCase()) && typeof v === 'string') headers[k] = v
-    }
+    const headers = pickForwardHeaders(req.headers)
     const chunks = []
     for await (const c of req) chunks.push(c)
     const logging = log !== null && req.method === 'POST'

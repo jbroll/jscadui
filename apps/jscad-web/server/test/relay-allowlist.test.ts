@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { isPublicHttpsUrl, loadAllowlistFile, resolveUpstream } from '../src/relay/allowlist.js'
+import { loadAllowlistFile } from '../src/relay/allowlist.js'
+import { isPublicHttpsUrl, resolveUpstream } from '../src/relay/policy.js'
 import { PROVIDER_BASE_URLS } from '../../../../packages/agent-loop/src/providers.js'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -23,6 +24,7 @@ describe('allowlist', () => {
     expect(() => loadAllowlistFile(file('a.json', JSON.stringify({ x: 'http://api.anthropic.com' })))).toThrow(/https/)
     expect(() => loadAllowlistFile(file('b.json', JSON.stringify({ x: 'https://api.anthropic.com:8443' })))).toThrow(/port/)
     expect(() => loadAllowlistFile(file('c.json', JSON.stringify({ x: 'https://127.0.0.1/x' })))).toThrow(/private|loopback/)
+    expect(() => loadAllowlistFile(file('e.json', JSON.stringify({ x: 'https://[::1]/x' })))).toThrow(/private|loopback/)
     expect(() => loadAllowlistFile(file('d.json', 'not json'))).toThrow(/JSON|parse/)
   })
 

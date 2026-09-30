@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createLimiter } from '../src/relay/limiter.js'
+import { createLimiter } from '../src/relay/policy.js'
 
 describe('limiter', () => {
   it('allows burst then refuses with retry-after', () => {
