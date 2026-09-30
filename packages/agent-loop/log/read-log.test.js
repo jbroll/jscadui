@@ -139,4 +139,29 @@ describe('formatConversations', () => {
     expect(text).toContain("| import { sphere } from '@jscad/primitives'")
     expect(text).toContain('< Here is a sphere.')
   })
+
+  it('prints the code of a failed write, edit or run', () => {
+    const failed = (name, input) => ({ name, input, result: null, ok: false, error: 'boom' })
+    const conversations = [
+      {
+        chatId: 'c',
+        model: 'm',
+        turns: [
+          {
+            ts: 't',
+            user: 'u',
+            steps: [
+              failed('write', { path: 'main.js', content: 'const a = 1' }),
+              failed('edit', { path: 'main.js', oldString: 'a = 1', newString: 'a = 2' }),
+              failed('run', { source: 'console.log(a)' }),
+            ],
+          },
+        ],
+      },
+    ]
+    const text = formatConversations(conversations)
+    expect(text).toContain('    write FAILED\n      error: boom\n      main.js\n      | const a = 1')
+    expect(text).toContain('    edit FAILED\n      error: boom\n      main.js\n      - a = 1\n      + a = 2')
+    expect(text).toContain('    run FAILED\n      error: boom\n      | console.log(a)')
+  })
 })

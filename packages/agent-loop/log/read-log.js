@@ -99,6 +99,18 @@ export const readConversations = async (dir, { since } = {}) => {
 
 const clip = (text, n) => (text.length > n ? `${text.slice(0, n)}…` : text)
 
+const marked = (mark, text) => text.split('\n').map((line) => `      ${mark} ${line}`)
+
+// The code a failed call carried: a run's or older eval's source, a write's
+// content, an edit's replacement.
+const codeOf = ({ path, source, content, oldString, newString }) => {
+  const file = typeof path === 'string' ? [`      ${path}`] : []
+  if (typeof source === 'string') return marked('|', source)
+  if (typeof content === 'string') return [...file, ...marked('|', content)]
+  if (typeof oldString === 'string' && typeof newString === 'string') return [...file, ...marked('-', oldString), ...marked('+', newString)]
+  return []
+}
+
 export const formatConversations = (conversations) => {
   const lines = []
   for (const c of conversations) {
@@ -109,9 +121,7 @@ export const formatConversations = (conversations) => {
         lines.push(`    ${step.name} ${step.ok === false ? 'FAILED' : step.ok === null ? 'no result' : 'ok'}`)
         if (step.ok !== false) continue
         lines.push(`      error: ${step.error}`)
-        if (typeof step.input?.source === 'string') {
-          for (const line of step.input.source.split('\n')) lines.push(`      | ${line}`)
-        }
+        lines.push(...codeOf(step.input ?? {}))
       }
       if (turn.error) lines.push(`  ! ${clip(turn.error, 300)}`)
       if (turn.final) lines.push(`  < ${clip(turn.final, 200)}`)
