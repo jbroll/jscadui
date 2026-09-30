@@ -104,7 +104,10 @@ project's last build report, so each turn starts knowing whether the project
 builds and what it produces, including breakage from the user's own editor
 changes. It is sent every turn, an empty project included (`The project is
 empty; no build yet.`), since without it models opened most runs with a
-`list` and guessed at files to read. The files and the report sit outside the 24,000-character history
+`list` and guessed at files to read. It ends saying that every message
+carries it, so `list` is rarely needed (`PROJECT_NOTE`); the `list`
+description says the same, since Muse still listed a project the header had
+just called empty. The files and the report sit outside the 24,000-character history
 budget.
 
 ## Model code in the eval
@@ -254,7 +257,15 @@ holding the fixture's files and every write and edit so far (applied with the
 same `src/project.js` operations the executor uses), without building them,
 since that build could end it again, and the model gets
 `{ ok: false, error: { name: "EvaluatorCrashed", message } }` and can go on;
-the call counts as a failed call. After three restarts in a run every further
+the call counts as a failed call. Its message names the exit (`code 3`,
+`ran past 110 s`), or `out of memory` for a V8 heap exit, whose heap log
+tells the model nothing (`memoryMessage` in `src/buildReport.js`, which also
+rewords an in-process allocation failure in the eval and the app alike). A
+`run` gets 30 s (`RUN_TOOL_TIMEOUT_MS`, the frame's limit for a scratch run
+too); past it the executor is replaced the same way, but the project is
+built again, since the snippet never touched it and the app's frame reloads
+the model, and the run answers `run stopped after 30 s; try a smaller case`.
+After three restarts in a run every further
 call gets `EvaluatorCrashed` and the run records `error: "model code ended the
 evaluator 4 times"`, transcript kept. An executor that dies during the grade
 grades nothing, scored as the model's failure. An executor that never becomes

@@ -354,6 +354,11 @@ describe('eval backend run', () => {
     expect(open.geometry).toMatchObject({ watertight: false })
   })
 
+  it('says out of memory for a failed allocation, as the app does', async () => {
+    const res = await call(createEvalBackend(), 'run', { source: 'const big = new ArrayBuffer(1e15)' })
+    expect(res).toMatchObject({ ok: false, error: { name: 'RangeError', message: 'out of memory; try a smaller case', file: '__run__.js', line: 1 } })
+  })
+
   it('reports an error with its line and column, and the console before it', async () => {
     const res = await call(createEvalBackend(), 'run', { source: "console.log('before')\nconst x = 1\nx()" })
     expect(res).toMatchObject({ ok: false, console: ['before'], error: { name: 'TypeError', file: '__run__.js', line: 3 } })

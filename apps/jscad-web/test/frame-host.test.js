@@ -287,6 +287,31 @@ describe('per-request timeouts', () => {
     expect(posted.filter((m) => m.error)).toEqual([])
   })
 
+  it("gives a chat scratch run 30 s, within the model's budget, and a load the whole budget", () => {
+    const { posted, workers, send } = setup()
+    init(send, { timeoutMs: 120_000 }, 1)
+    answer(workers[0])
+    send({ method: 'jscadScript', id: 2, params: [{ script: 'while (true) {}', url: '__run__.js', scratch: true }] })
+    vi.advanceTimersByTime(29_999)
+    expect(posted.find((m) => m.id === 2)).toBeUndefined()
+    vi.advanceTimersByTime(2)
+    expect(posted.find((m) => m.id === 2)?.error).toMatchObject({ name: 'TimeoutError', message: 'model exceeded 30000 ms' })
+
+    const load = setup()
+    init(load.send, { timeoutMs: 120_000 }, 1)
+    answer(load.workers[0])
+    load.send({ method: 'jscadScript', id: 2, params: [{ script: 'slow', url: 'main.js' }] })
+    vi.advanceTimersByTime(60_000)
+    expect(load.posted.find((m) => m.id === 2)).toBeUndefined()
+
+    const short = setup()
+    init(short.send, { timeoutMs: 1000 }, 1)
+    answer(short.workers[0])
+    short.send({ method: 'jscadScript', id: 2, params: [{ script: 'x', url: '__run__.js', scratch: true }] })
+    vi.advanceTimersByTime(1001)
+    expect(short.posted.find((m) => m.id === 2)?.error?.name).toBe('TimeoutError')
+  })
+
   it('starts a fresh worker for the request after a kill', () => {
     const { workers, send } = setup()
     init(send, { timeoutMs: 1000 }, 1)

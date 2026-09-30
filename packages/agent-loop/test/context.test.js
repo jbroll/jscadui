@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildMessages, CONTEXT_BUDGET } from '../src/context.js'
+import { buildMessages, CONTEXT_BUDGET, EMPTY_PROJECT, PROJECT_NOTE } from '../src/context.js'
 
 const turn = (n, size) => [
   { role: 'user', content: `u${n}`.padEnd(size / 2, '.') },
@@ -33,7 +33,7 @@ describe('buildMessages', () => {
   it('always sends the new message, even past the budget', () => {
     expect(buildMessages({ systemPrompt: 'S', transcript: three, message: 'new', budget: 0 })).toEqual([
       { role: 'system', content: 'S' },
-      { role: 'user', content: 'The project is empty; no build yet.' },
+      { role: 'user', content: EMPTY_PROJECT },
       { role: 'user', content: 'new' },
     ])
   })
@@ -54,12 +54,20 @@ describe('buildMessages', () => {
 
   it('says an empty project is empty, so the model need not list it', () => {
     const [, project] = buildMessages({ systemPrompt: 'S', message: 'new' })
-    expect(project).toEqual({ role: 'user', content: 'The project is empty; no build yet.' })
+    expect(project).toEqual({ role: 'user', content: `The project is empty; no build yet.\n\n${PROJECT_NOTE}` })
+    expect(PROJECT_NOTE).toBe('Every message comes with this note on the project: its text files and its last build, so list is rarely needed.')
+  })
+
+  it('ends every project note saying it comes with every message', () => {
+    const build = { ok: true, entry: 'main.js', warnings: [], console: [], params: [] }
+    for (const [files, b] of [[{}, null], [{ 'main.js': 'M' }, null], [{ 'main.js': 'M' }, build], [{ 'part.stl': new ArrayBuffer(4) }, null]]) {
+      expect(buildMessages({ systemPrompt: 'S', files, build: b, message: 'new' })[1].content.endsWith(`\n\n${PROJECT_NOTE}`)).toBe(true)
+    }
   })
 
   it('skips binary files and says when no text file is left', () => {
     const [, project] = buildMessages({ systemPrompt: 'S', files: { 'part.stl': new ArrayBuffer(4) }, message: 'new' })
-    expect(project.content).toBe('The project has no text files; list shows every file.\n\nThe project has not been built yet.')
+    expect(project.content).toBe(`The project has no text files; list shows every file.\n\nThe project has not been built yet.\n\n${PROJECT_NOTE}`)
   })
 
   it('fences a file containing backticks with a longer fence', () => {
@@ -78,6 +86,6 @@ describe('buildMessages', () => {
   it('says when the project has not been built', () => {
     const [, project] = buildMessages({ systemPrompt: 'S', files: { 'main.js': 'M' }, message: 'new' })
     expect(project.content).not.toContain('Last build')
-    expect(project.content).toMatch(/The project has not been built yet\.$/)
+    expect(project.content).toContain('The project has not been built yet.')
   })
 })

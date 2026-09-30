@@ -13,7 +13,7 @@ import { installConsoleCapture } from '../src/consoleCapture.js'
 import { docsTool } from '../src/docs.js'
 import { withErrorHint } from '../src/hints.js'
 import { createWarningCollector, withOptionChecks, wrapFluentMethods } from '../src/optionChecks.js'
-import { asGeometry, buildReport, errorLocation, noEntryReport, noGeometryError, noMainError, notGeometryError, summarizeRun, withoutLoaderNote, writeReport } from '../src/buildReport.js'
+import { asGeometry, buildReport, errorLocation, memoryMessage, noEntryReport, noGeometryError, noMainError, notGeometryError, summarizeRun, withoutLoaderNote, writeReport } from '../src/buildReport.js'
 import { exportConfig, exportedSize } from '../src/exportFormat.js'
 import { applyEdit, applyWrite, listFiles, readFile, resolveEntry } from '../src/project.js'
 import { withUnits } from '../src/units.js'
@@ -106,7 +106,7 @@ const MAX_MESSAGE = 4000
 export const RUN_FILE = '__run__.js'
 
 const located = (error, api) => {
-  const message = withErrorHint(withoutLoaderNote(String(error?.message ?? error)).slice(0, MAX_MESSAGE), { api, index: API_INDEX })
+  const message = withErrorHint(memoryMessage(withoutLoaderNote(String(error?.message ?? error))).slice(0, MAX_MESSAGE), { api, index: API_INDEX })
   return { name: String(error?.name ?? 'Error').slice(0, 200), message, ...errorLocation(error, PROJECT_BASE) }
 }
 

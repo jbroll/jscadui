@@ -1,4 +1,4 @@
-import { buildReport, DEFAULT_API, errorLocation, noEntryReport, noGeometryError, noMainError, notGeometryError, projectPath, resolveEntry, withErrorHint, withoutLoaderNote } from '@jscadui/agent-loop'
+import { buildReport, DEFAULT_API, errorLocation, memoryMessage, noEntryReport, noGeometryError, noMainError, notGeometryError, projectPath, resolveEntry, withErrorHint, withoutLoaderNote } from '@jscadui/agent-loop'
 import { PROJECT_BASE } from '../src_frame/fileMap.js'
 
 const MAX_MESSAGE = 4000
@@ -94,7 +94,7 @@ const syntaxLoc = (error) => {
  * @param {{api?:string,index?:Array<object>}} [options]
  */
 export const reportError = (error, { api = DEFAULT_API, index } = {}) => {
-  const raw = withoutLoaderNote(String(error?.message ?? error).replace(/^jscadMain failed: /, '')).slice(0, MAX_MESSAGE)
+  const raw = memoryMessage(withoutLoaderNote(String(error?.message ?? error).replace(/^jscadMain failed: /, ''))).slice(0, MAX_MESSAGE)
   const located = errorLocation(syntaxLoc({ name: error?.name, message: raw, stack: error?.stack, loc: error?.loc, file: error?.file }), PROJECT_BASE)
   return { name: String(error?.name ?? 'Error'), message: withErrorHint(raw, { api, index }), ...located }
 }

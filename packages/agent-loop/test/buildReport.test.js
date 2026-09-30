@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildReport, errorLocation, NO_ENTRY_NOTE, noEntryReport, previewValue, reportParams, noGeometryError, summarizeRun, writeReport } from '../src/buildReport.js'
+import { buildReport, errorLocation, memoryMessage, NO_ENTRY_NOTE, runTimeoutError, noEntryReport, previewValue, reportParams, noGeometryError, summarizeRun, writeReport } from '../src/buildReport.js'
 
 const BASE = 'http://project.local/'
 
@@ -160,5 +160,17 @@ describe('noGeometryError', () => {
     expect(noGeometryError(null)).toEqual({ ok: false, error: { name: 'NoGeometryError', message: 'no geometry: write the model first' } })
     const failed = buildReport({ entry: 'main.js', error: { name: 'TypeError', message: 'x is not a function\n  at main.js:2' } })
     expect(noGeometryError(failed).error.message).toBe('no geometry: the last build failed (x is not a function); fix it first')
+  })
+})
+
+describe('memoryMessage and runTimeoutError', () => {
+  it('reads an allocation failure or a V8 heap log as out of memory, and leaves other messages', () => {
+    expect(memoryMessage('Array buffer allocation failed')).toBe('out of memory; try a smaller case')
+    expect(memoryMessage('<--- Last few GCs ---> [116:0x55] 142531 ms: Scavenge ... JavaScript heap out of memory')).toBe('out of memory; try a smaller case')
+    expect(memoryMessage('x is not defined')).toBe('x is not defined')
+  })
+
+  it('names the time limit a run stopped at', () => {
+    expect(runTimeoutError()).toEqual({ ok: false, error: { name: 'TimeoutError', message: 'run stopped after 30 s; try a smaller case' } })
   })
 })

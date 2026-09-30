@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import index from '@jscadui/agent-loop/api/index.json'
+import { runTimeoutError } from '@jscadui/agent-loop'
 import { createProjectTools } from '../src/aiDeps.js'
 import { createLocalStorage } from '../src/storage/local.js'
 import { createSession } from '../src/storage/session.js'
@@ -194,6 +195,14 @@ describe('run', () => {
 
   it('refuses a source that is not text', async () => {
     await expect(tools().tools.run(undefined)).rejects.toMatchObject({ name: 'TypeError' })
+  })
+
+  it('answers a run the frame stopped at its time limit with the time limit, as the eval does', async () => {
+    const timedOut = Object.assign(new Error('model exceeded 30000 ms'), { name: 'TimeoutError' })
+    const { tools: t } = tools({ workerApi: { jscadScript: vi.fn(async () => { throw timedOut }) } })
+    expect(await t.run('while (true) {}')).toEqual(runTimeoutError())
+    const other = tools({ workerApi: { jscadScript: vi.fn(async () => { throw new Error('frame reloaded') }) } })
+    await expect(other.tools.run('x')).rejects.toThrow('frame reloaded')
   })
 })
 

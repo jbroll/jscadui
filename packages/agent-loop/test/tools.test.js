@@ -92,6 +92,11 @@ describe('agent tools', () => {
     expect(description('run')).toMatch(/never saved/)
   })
 
+  it('says list is rarely needed, since every message carries the files and the last build', () => {
+    const list = TOOLS.find((t) => t.name === 'list').description
+    expect(list).toMatch(/Every message already comes with the project's text files and last build/)
+  })
+
   it('refuses an unknown API', () => {
     expect(() => buildTools('scad')).toThrow(/unknown api scad/)
   })

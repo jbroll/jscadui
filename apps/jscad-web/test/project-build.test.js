@@ -94,6 +94,11 @@ describe('reportError', () => {
     expect(reportError(error)).toEqual({ name: 'RangeError', message: 'too big', file: 'part.js', line: 3, column: 9 })
   })
 
+  it('says out of memory for a failed allocation', () => {
+    const error = { name: 'RangeError', message: 'jscadMain failed: Array buffer allocation failed', stack: 'RangeError: x\n    at main (http://project.local/main.js:2:5)' }
+    expect(reportError(error)).toEqual({ name: 'RangeError', message: 'out of memory; try a smaller case', file: 'main.js', line: 2, column: 5 })
+  })
+
   it('adds the hint for the chat api', () => {
     const error = { name: 'TypeError', message: 'jf.measureVolume is not a function' }
     expect(reportError(error, { api: 'fluent', index }).message).toContain('measureVolume is a method of FluentGeom3')

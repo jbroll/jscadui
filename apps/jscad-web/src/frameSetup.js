@@ -67,7 +67,10 @@ const createReplay = (proxy) => {
     if (method === 'jscadScript') everLoaded = true
     if (method === 'jscadInit' && args[0]?.engine) attemptedEngineInit = args
     result.then((value) => onSuccess(args, value), () => {
-      if (method === 'jscadScript') script = main = null
+      if (method !== 'jscadScript') return
+      // A chat scratch run the frame killed never replaced the loaded model.
+      if (args[0]?.scratch) files = modelFiles
+      else script = main = null
     })
   }
 

@@ -4,6 +4,7 @@
 // EvaluatorCrashed tool error, as the app's user would see the frame fail and
 // could go on. Every grade runs in its own fresh executor, so nothing model
 // code left behind in the conversation's executor reaches the grade.
+import { memoryMessage, OUT_OF_MEMORY, RUN_TOOL_TIMEOUT_MS, runTimeoutError } from '../src/buildReport.js'
 import { applyEdit, applyWrite } from '../src/project.js'
 import { ExecutorExited, NO_GRADE, toolError } from './executor-protocol.js'
 import { GRADE_TIMEOUT_MS } from './grade.js'
@@ -49,7 +50,16 @@ export const gradeInFreshExecutor = async (start, model, { timeoutMs = GRADE_TIM
   }
 }
 
-export const createSandboxedBackend = ({ start, maxRestarts = MAX_RESTARTS, callTimeoutMs = CALL_TIMEOUT_MS, readyTimeoutMs = READY_TIMEOUT_MS }) => {
+// The heap log a V8 out-of-memory exit prints tells the model nothing.
+const exitReason = (reason) => (memoryMessage(reason) === reason ? reason : OUT_OF_MEMORY)
+
+export const createSandboxedBackend = ({
+  start,
+  maxRestarts = MAX_RESTARTS,
+  callTimeoutMs = CALL_TIMEOUT_MS,
+  readyTimeoutMs = READY_TIMEOUT_MS,
+  runToolTimeoutMs = RUN_TOOL_TIMEOUT_MS,
+}) => {
   let executor = null
   let project = {}
   let crashes = 0
@@ -90,23 +100,28 @@ export const createSandboxedBackend = ({ start, maxRestarts = MAX_RESTARTS, call
   const requestTool = async (name, input) => {
     track(name, input)
     if (!executor) return toolError('EvaluatorCrashed', `model code ended the evaluator ${crashes} times; it is not restarted again`)
+    const timeoutMs = name === 'run' ? Math.min(runToolTimeoutMs, callTimeoutMs) : callTimeoutMs
     try {
-      return await executor.requestTool(name, input, { timeoutMs: callTimeoutMs })
+      return await executor.requestTool(name, input, { timeoutMs })
     } catch (error) {
       if (!(error instanceof ExecutorExited)) throw error
       if (ended) return toolError('EvaluatorCrashed', 'the run ended')
       crashes += 1
       executor = null
+      const reason = exitReason(error.reason)
       if (crashes > maxRestarts) {
-        return toolError('EvaluatorCrashed', `model code ended the evaluator (${error.reason}); it has now ended it ${crashes} times and is not restarted again`)
+        return toolError('EvaluatorCrashed', `model code ended the evaluator (${reason}); it has now ended it ${crashes} times and is not restarted again`)
       }
-      const { next } = await launch()
+      // A scratch run never touched the project, so its build comes back, as the app's frame reloads it.
+      const runTimedOut = name === 'run' && error.reason === `ran past ${timeoutMs / 1000} s`
+      const { next } = await launch(runTimedOut ? { build: true } : {})
       if (ended) {
         next.close()
         return toolError('EvaluatorCrashed', 'the run ended')
       }
       executor = next
-      return toolError('EvaluatorCrashed', `model code ended the evaluator (${error.reason}); a new one holds the project as last written, with nothing built yet`)
+      if (runTimedOut) return JSON.stringify(runTimeoutError(timeoutMs))
+      return toolError('EvaluatorCrashed', `model code ended the evaluator (${reason}); a new one holds the project as last written, with nothing built yet`)
     }
   }
 

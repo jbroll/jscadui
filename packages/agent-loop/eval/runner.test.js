@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { EMPTY_PROJECT } from '../src/context.js'
 import { createEvalBackend } from './backend.js'
 import { modelMaxTurns, promptHash, resultFileName, runSuite, saveResults, selectFixtures } from './run-eval.js'
 
@@ -433,7 +434,7 @@ describe('runSuite transcript', () => {
     const [result] = await runSuite([fixture], { provider, backend })
     expect(result.transcript.some((m) => m.role === 'system')).toBe(false)
     expect(result.transcript.slice(0, 2)).toEqual([
-      { role: 'user', content: 'The project is empty; no build yet.' },
+      { role: 'user', content: EMPTY_PROJECT },
       { role: 'user', content: 'make a cube' },
     ])
     expect(result.transcript.some((m) => m.toolCalls?.some((c) => c.name === 'run'))).toBe(true)

@@ -826,7 +826,11 @@ the worker's `setModelIsolation`; the first require of it is set up the same
 way), so `text2d` needs no `init`, and whatever a run did to it never reaches
 a later build. The frame and the app's replay keep the model's
 script and file map for a restarted or promoted worker
-(`docs/WORKER_PROTOCOL.md`). Nothing is drawn or saved. The editor's own runs
+(`docs/WORKER_PROTOCOL.md`), a scratch run the frame killed included. A
+scratch `jscadScript` gets 30 s of the model budget (`workerSlot.js`, agent-loop's
+`RUN_TOOL_TIMEOUT_MS`); past it the frame kills the worker as for any
+timeout, and `aiDeps.js` answers the `TimeoutError` with agent-loop's
+`runTimeoutError()`, the eval's words. Nothing is drawn or saved. The editor's own runs
 do not set `scratch`, so a user's script with no `main` shows `no main
 function exported`.
 

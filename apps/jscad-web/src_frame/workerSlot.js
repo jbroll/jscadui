@@ -1,3 +1,5 @@
+import { RUN_TOOL_TIMEOUT_MS } from '@jscadui/agent-loop/src/buildReport.js'
+
 /**
  * One worker and the requests it holds, each with its own kill timer.
  *
@@ -49,9 +51,11 @@ export const createSlots = ({ createWorker, randomId, timeoutMs, answerError, on
    */
   const track = (slot, entry) => {
     const workerId = randomId()
+    // The chat's scratch run gets less time than a load: it is a quick try.
+    const limit = () => (entry.options?.scratch ? Math.min(RUN_TOOL_TIMEOUT_MS, timeoutMs()) : timeoutMs())
     const arm = () => setTimeout(() => {
-      onKill(slot, workerId, `model exceeded ${timeoutMs()} ms`, 'TimeoutError')
-    }, timeoutMs())
+      onKill(slot, workerId, `model exceeded ${limit()} ms`, 'TimeoutError')
+    }, limit())
     slot.pending.set(workerId, { ...entry, startedAt: Date.now(), arm, timer: arm() })
     return workerId
   }

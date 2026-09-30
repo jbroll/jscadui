@@ -126,6 +126,20 @@ export const summarizeRun = ({ hasMain, value }, measure, check) => {
   return empty ? {} : { returned: previewValue(shown) }
 }
 
+// A scratch `run` stops after this long, in the app's frame and the eval's executor alike.
+export const RUN_TOOL_TIMEOUT_MS = 30_000
+
+export const runTimeoutError = (ms = RUN_TOOL_TIMEOUT_MS) => ({
+  ok: false,
+  error: { name: 'TimeoutError', message: `run stopped after ${ms / 1000} s; try a smaller case` },
+})
+
+export const OUT_OF_MEMORY = 'out of memory'
+const MEMORY_ERROR = /JavaScript heap out of memory|Reached heap limit|Last few GCs|Array buffer allocation failed|could not allocate memory/i
+
+// An allocation failure or a V8 heap log reads as what it is.
+export const memoryMessage = (message) => (MEMORY_ERROR.test(String(message)) ? `${OUT_OF_MEMORY}; try a smaller case` : message)
+
 // The build errors the app and the eval word alike, with no API hint.
 export const noMainError = (entry) => ({ name: 'NoMainError', message: `${entry} exports no main()` })
 

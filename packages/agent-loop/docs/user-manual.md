@@ -35,7 +35,9 @@ report, under `Last build of the project:` (both outside the budget), and the
 new message. The project message is always sent: an empty project with no
 build is `The project is empty; no build yet.`, and a missing part says
 `The project has no files.` or `The project has not been built yet.`, so the
-model needs no `list` to learn the project's state. The app and the eval both
+model needs no `list` to learn the project's state. Every header ends with
+`PROJECT_NOTE`: "Every message comes with this note on the project: its text
+files and its last build, so list is rarely needed." The app and the eval both
 use it.
 
 `runTurn` caps each tool result it hands the provider at `TOOL_RESULT_CHARS`
@@ -268,7 +270,11 @@ model first`) and after a failed one (`no geometry: the last build failed
 (<message>); fix it first`). `run` answers
 `{ ok, warnings, console, geometry? | returned? }`, or
 `{ ok: false, error, warnings, console }`; its `geometry` has the build
-report's fields, `watertight`, `manifold` and `selfIntersecting` included.
+report's fields, `watertight`, `manifold` and `selfIntersecting` included. A
+`run` stops after 30 s with `{ ok: false, error: { name: "TimeoutError",
+message: "run stopped after 30 s; try a smaller case" } }`, in the app and the
+live eval alike, and an allocation failure in a run or a build reads `out of
+memory; try a smaller case`.
 
 `export` answers like the app: `{ ok, format, size }`, the byte size of the
 model as the frame's `@jscad/io` serializer for that format writes it

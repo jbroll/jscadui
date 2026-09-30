@@ -227,6 +227,29 @@ describe('worker restart', () => {
     expect(frame.sent[4].params[0]).toEqual({ params: { size: 3 } })
   })
 
+  it('replays the loaded model after a chat scratch run the frame killed', async () => {
+    const frame = await boot()
+    await loadModel(frame)
+    const files = frame.workerApi.jscadSetFiles({ files: { 'a.js': 'x', '__run__.js': 'while (true) {}' } })
+    const scratch = frame.workerApi.jscadScript({ script: 'while (true) {}', url: 'http://project.local/__run__.js', scratch: true })
+    await frame.flush()
+    frame.answer(frame.sent.find((m) => m.method === 'jscadSetFiles' && m.params[0].files['__run__.js']))
+    frame.fail(frame.sent.find((m) => m.method === 'jscadScript' && m.params[0].scratch), 'TimeoutError', 'model exceeded 30000 ms')
+    await files
+    await expect(scratch).rejects.toThrow()
+    frame.sent.length = 0
+
+    terminate(frame)
+    const next = frame.workerApi.jscadMain({ params: { size: 4 } })
+    await settleAll(frame)
+    await next
+    expect(methods(frame.sent)).toEqual([
+      'jscadInit', 'jscadInit', 'jscadSetFiles', 'jscadScript', 'jscadMain', 'jscadMain',
+    ])
+    expect(frame.sent[2].params[0]).toEqual({ files: { 'a.js': 'x' } })
+    expect(frame.sent[3].params[0]).toEqual({ script: 'main', url: 'http://project.local/a.js' })
+  })
+
   it('sends requests straight through when nothing needs replaying', async () => {
     const frame = await boot()
     frame.workerApi.jscadMain({ params: {} }).catch(() => {})

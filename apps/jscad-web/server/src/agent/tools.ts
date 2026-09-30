@@ -25,7 +25,7 @@ const BUILDS =
 export const buildTools = (api: Api = DEFAULT_API): ToolDefinition[] => [
   {
     name: 'list',
-    description: 'List the project files with their sizes in bytes.',
+    description: "List the project files with their sizes in bytes. Every message already comes with the project's text files and last build, so list only for sizes or a file that is not text.",
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   },
   {

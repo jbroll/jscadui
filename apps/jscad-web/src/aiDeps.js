@@ -1,4 +1,4 @@
-import { applyEdit, applyWrite, DEFAULT_API, listFiles, readFile, withUnits, writeReport } from '@jscadui/agent-loop'
+import { applyEdit, applyWrite, DEFAULT_API, listFiles, readFile, runTimeoutError, withUnits, writeReport } from '@jscadui/agent-loop'
 import { PROJECT_BASE } from '../src_frame/fileMap.js'
 import { reportError } from './projectBuild.js'
 import { sendScript } from './scriptRuns.js'
@@ -69,7 +69,14 @@ export const createProjectTools = ({
     const api = getApi()
     const files = { ...(await getProjectFiles()), [RUN_FILE]: source }
     const request = { script: source, url: PROJECT_BASE + RUN_FILE, base: PROJECT_BASE, root: PROJECT_BASE, scratch: true }
-    const result = await sendScript(workerApi, files, request, api)
+    let result
+    try {
+      result = await sendScript(workerApi, files, request, api)
+    } catch (error) {
+      // The frame stops a scratch run at RUN_TOOL_TIMEOUT_MS; the eval answers the same.
+      if (error?.name === 'TimeoutError') return runTimeoutError()
+      throw error
+    }
     const out = { warnings: result.warnings ?? [], console: result.console ?? [] }
     if (result.error) return { ok: false, error: reportError(result.error, { api, index: await indexFor(loadIndex) }), ...out }
     return {

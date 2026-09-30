@@ -4,6 +4,7 @@ import { summarize } from './report.js'
 import { regradeResults, freshExecutorGrader, runJob } from './run-eval.js'
 import { fixture as nameplateFixture } from './fixtures/nameplate.js'
 import { createSandboxedBackend } from './sandboxed-backend.js'
+import { runTimeoutError } from '../src/buildReport.js'
 import { liveExecutors, startExecutor } from './sandbox.js'
 import { everyFont, FONT_NAMES } from './fontCases.js'
 
@@ -50,6 +51,23 @@ const neverReady = () => {
   const executor = createExecutorClient({ send: () => {}, onMessage: () => {}, onExit: (fn) => (exit = fn), kill: () => {} }, { api: 'fluent' })
   exit("code 1: Error: Chroot 'jscad-eval' not found")
   return executor
+}
+
+// An executor that answers ready and reset, then ends with `reason` at its first tool call.
+const exitsOnCall = (reason) => () => {
+  let exit
+  let deliver
+  const transport = {
+    send: (message) => {
+      if (message.type === 'init') queueMicrotask(() => deliver({ type: 'ready', api: 'fluent' }))
+      else if (message.method === 'reset') queueMicrotask(() => deliver({ type: 'reply', id: message.id, ok: true, value: null }))
+      else queueMicrotask(() => exit(reason))
+    },
+    onMessage: (fn) => (deliver = fn),
+    onExit: (fn) => (exit = fn),
+    kill: () => {},
+  }
+  return createExecutorClient(transport, { api: 'fluent' })
 }
 
 describe('replies model code forges from inside the executor', () => {
@@ -164,6 +182,25 @@ describe('an executor that model code ends', () => {
     expect(spun.error.message).toMatch(/ran past 0.5 s/)
     expect(evaluated.ok).toBe(true)
   }, 30_000)
+
+  it('in a run past its own time limit is replaced, the project built again, and the run answered with the limit', async () => {
+    const result = await run([write(CUBE), tool('run', { source: SPINS }), tool('measure', {}), done()], { runToolTimeoutMs: 500 })
+    const [, spun, measured] = toolResults(result)
+    expect(spun).toEqual(runTimeoutError(500))
+    expect(measured.volume).toBeCloseTo(8000, 0)
+  }, 30_000)
+
+  it('by running out of memory says so, not the heap log', async () => {
+    const heapLog = 'code 134: <--- Last few GCs ---> [116:0x5597165fa000] 142531 ms: Scavenge ... FATAL ERROR: Reached heap limit Allocation failed - JavaScript heap out of memory'
+    const backend = createSandboxedBackend({ start: exitsOnCall(heapLog) })
+    try {
+      await backend.reset({})
+      const { error } = JSON.parse(await backend.requestTool('run', { source: 'x' }))
+      expect(error).toEqual({ name: 'EvaluatorCrashed', message: 'model code ended the evaluator (out of memory); a new one holds the project as last written, with nothing built yet' })
+    } finally {
+      backend.close()
+    }
+  })
 
   it('while grading grades nothing, and the run still scores', async () => {
     const PRIMES = 'globalThis.loads = 1\n' + CUBE

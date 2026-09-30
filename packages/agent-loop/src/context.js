@@ -25,7 +25,10 @@ const filesSection = (files) => {
   return `Current project files:\n\n${blocks.join('\n\n')}`
 }
 
-export const EMPTY_PROJECT = 'The project is empty; no build yet.'
+// Models listed a project the note had just described, a round each.
+export const PROJECT_NOTE = 'Every message comes with this note on the project: its text files and its last build, so list is rarely needed.'
+
+export const EMPTY_PROJECT = `The project is empty; no build yet.\n\n${PROJECT_NOTE}`
 
 // Sent every turn, so the model knows the project's state without a `list`.
 // `build` is the project's last build report (src/buildReport.js), or null.
@@ -35,6 +38,7 @@ export const projectMessage = (files = {}, build = null) => {
   const sections = [
     listed ?? (Object.keys(files).length > 0 ? 'The project has no text files; list shows every file.' : 'The project has no files.'),
     build ? `Last build of the project:\n\n\`\`\`json\n${JSON.stringify(build)}\n\`\`\`` : 'The project has not been built yet.',
+    PROJECT_NOTE,
   ]
   return { role: 'user', content: sections.join('\n\n') }
 }

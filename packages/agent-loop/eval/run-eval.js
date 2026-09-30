@@ -290,7 +290,7 @@ export const RUN_TIMEOUT_MS = 20 * 60_000
 // conversation; grading still follows.
 export async function runJob(
   { fixture, run, runs, maxTurns },
-  { provider, api, startExecutor: start, runTimeoutMs = RUN_TIMEOUT_MS, maxRestarts, callTimeoutMs },
+  { provider, api, startExecutor: start, runTimeoutMs = RUN_TIMEOUT_MS, maxRestarts, callTimeoutMs, runToolTimeoutMs },
   onLog,
 ) {
   let pending = ''
@@ -298,7 +298,7 @@ export async function runJob(
     if (pending) onLog(formatText(pending))
     pending = ''
   }
-  const backend = createSandboxedBackend({ start, maxRestarts, callTimeoutMs })
+  const backend = createSandboxedBackend({ start, maxRestarts, callTimeoutMs, runToolTimeoutMs })
   // Past a call's own limit the backend still needs to kill, restart and reseed.
   const toolTimeoutMs = (callTimeoutMs ?? CALL_TIMEOUT_MS) + READY_TIMEOUT_MS + 30_000
   const controller = new AbortController()
