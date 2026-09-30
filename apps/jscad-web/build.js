@@ -6,8 +6,7 @@ import liveServer from 'live-server'
 import {serve, serveFrame} from './serve.js'
 import { fillFrameHtml } from './src_build/frameHtml.js'
 import { genExamplesManifest } from './src_build/genExamplesManifest.js'
-import { hashAssets } from './src_build/hashAssets.js'
-import { hashFrameAssets } from './src_build/hashFrameAssets.js'
+import { hashAssetGraph } from './src_build/hashAssets.js'
 import { relayOrigin } from './src_build/relayOrigin.js'
 
 import { buildBundle, buildOne } from './src_build/esbuildUtil.js'
@@ -277,8 +276,12 @@ await buildOne('src_frame', frameDir, 'frame.js', watch, {
 })
 
 // Content-hash entry assets in production so 1-year-cached bundles bust on change.
-if (!dev) hashAssets(outDir)
-if (!dev) hashFrameAssets(frameDir)
+if (!dev) {
+  hashAssetGraph(outDir, { assets: 'build', entries: ['main.css', 'main.js'], htmlRefs: ['main.js', 'main.css'] })
+  // The worker importScripts the hashed transform-babel and openscad leaves.
+  const worker = 'bundle.frame-worker.js'
+  hashAssetGraph(frameDir, { assets: 'assets', exclude: [worker], entries: [`assets/${worker}`, 'frame.js'], htmlRefs: ['frame.js'] })
+}
 
 
 /**************************** LIVE SERVER if in dev mode *************/

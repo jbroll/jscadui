@@ -4,16 +4,11 @@
 // bodies of the model, and the volume each pair of bodies shares.
 import jscad from '@jscad/modeling'
 import { wrapOne } from '@jscadui/model-tools/src/array-geom.js'
+import { PLANE, axisCross, createWelder, cross2, crossing, newellNormal, signedArea } from '@jscadui/model-tools/src/section-geom.js'
 
 const { booleans, geometries, measurements } = jscad
 
 const AXES = ['x', 'y', 'z']
-// Right-handed in-plane axes (u, v) for a cut normal to each axis, as in model-tools' section.js.
-const PLANE = [
-  [1, 2],
-  [2, 0],
-  [0, 1],
-]
 const WELD = 1e-4
 const MIN_LOOP_AREA = 0.01
 const MAX_LOOPS = 64
@@ -42,37 +37,6 @@ const boxOf = (polygons) => {
   return [lo, hi]
 }
 
-// Welds points closer than WELD into one id.
-const createWelder = (dims) => {
-  const cells = new Map()
-  const points = []
-  const cellKey = (c) => c.join(',')
-  const neighbors = (c, k = 0, acc = [...c]) => {
-    if (k === c.length) return [cellKey(acc)]
-    const out = []
-    for (const d of [-1, 0, 1]) {
-      acc[k] = c[k] + d
-      out.push(...neighbors(c, k + 1, acc))
-    }
-    return out
-  }
-  return (p) => {
-    const q = dims.map((k) => p[k])
-    const c = q.map((x) => Math.floor(x / WELD))
-    for (const key of neighbors(c)) {
-      for (const id of cells.get(key) ?? []) {
-        if (points[id].every((x, i) => Math.abs(x - q[i]) <= WELD)) return id
-      }
-    }
-    const id = points.length
-    points.push(q)
-    const key = cellKey(c)
-    if (!cells.has(key)) cells.set(key, [])
-    cells.get(key).push(id)
-    return id
-  }
-}
-
 const createUnionFind = () => {
   const parent = []
   const find = (i) => {
@@ -86,46 +50,17 @@ const createUnionFind = () => {
   return { find, union: (a, b) => (parent[find(a)] = find(b)) }
 }
 
-const newellNormal = (vertices) => {
-  const n = [0, 0, 0]
-  for (let j = 0; j < vertices.length; j++) {
-    const [x1, y1, z1] = vertices[j]
-    const [x2, y2, z2] = vertices[(j + 1) % vertices.length]
-    n[0] += (y1 - y2) * (z1 + z2)
-    n[1] += (z1 - z2) * (x1 + x2)
-    n[2] += (x1 - x2) * (y1 + y2)
-  }
-  return n
-}
-
-const crossing = (vertices, i, at) => {
-  const points = []
-  for (let j = 0; j < vertices.length; j++) {
-    const p = vertices[j]
-    const q = vertices[(j + 1) % vertices.length]
-    const sp = p[i] - at
-    const sq = q[i] - at
-    if (sp >= 0 === sq >= 0) continue
-    const t = sp / (sp - sq)
-    points.push(p.map((c, k) => (k === i ? at : c + t * (q[k] - c))))
-  }
-  return points.length === 2 ? points : null
-}
-
 // The section's closed loops, each with its signed area (outer loops positive,
 // holes negative) and bounding box.
 const sectionLoops = (polygons, i, at) => {
   const [u, v] = PLANE[i]
-  const weld = createWelder([0, 1, 2])
+  const weld = createWelder(WELD)
   const uf = createUnionFind()
   const segments = []
   for (const vertices of polygons) {
     const seg = crossing(vertices, i, at)
     if (!seg) continue
-    const n = newellNormal(vertices)
-    const a = [0, 0, 0]
-    a[i] = 1
-    const t = [a[1] * n[2] - a[2] * n[1], a[2] * n[0] - a[0] * n[2], a[0] * n[1] - a[1] * n[0]]
+    const t = axisCross(i, newellNormal(vertices))
     let [p, q] = seg
     if ((q[u] - p[u]) * t[u] + (q[v] - p[v]) * t[v] < 0) [p, q] = [q, p]
     const ids = [weld(p), weld(q)]
@@ -257,8 +192,6 @@ const outlineFacts = ({ area, edges }, centre) => {
   }
 }
 
-const cross2 = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
-
 // Andrew's monotone chain.
 const hullArea = (points) => {
   const sorted = [...points].sort((a, b) => a[0] - b[0] || a[1] - b[1])
@@ -272,14 +205,7 @@ const hullArea = (points) => {
     out.pop()
     return out
   }
-  const hull = [...half(sorted), ...half([...sorted].reverse())]
-  let area = 0
-  for (let i = 0; i < hull.length; i++) {
-    const [x0, y0] = hull[i]
-    const [x1, y1] = hull[(i + 1) % hull.length]
-    area += x0 * y1 - x1 * y0
-  }
-  return Math.abs(area) / 2
+  return Math.abs(signedArea([...half(sorted), ...half([...sorted].reverse())]))
 }
 
 // Loops whose in-plane bounding boxes lie within `gap` of each other form one
@@ -346,7 +272,7 @@ const volumeOf = (polygons) => {
 // Polygons sharing a vertex belong to one body; each item of an array is its own.
 const bodiesOf = (items) =>
   items.flatMap((polygons) => {
-    const weld = createWelder([0, 1, 2])
+    const weld = createWelder(WELD)
     const uf = createUnionFind()
     const firstIds = polygons.map((vertices) => {
       const ids = vertices.map(weld)

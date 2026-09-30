@@ -1,13 +1,8 @@
 import { measureArray, wrapOne } from './array-geom.js'
+import { PLANE, axisCross, createWelder, cross2, crossing, newellNormal, signedArea } from './section-geom.js'
 
 const AXES = ['x', 'y', 'z']
 
-// Right-handed in-plane axes (u, v) for a cut normal to each axis.
-const PLANE = [
-  [1, 2],
-  [2, 0],
-  [0, 1],
-]
 // The in-plane axes an outline's points are given in, in axis order.
 const OUTLINE_PLANE = [
   [1, 2],
@@ -20,79 +15,11 @@ const MAX_POINTS = 40
 const MIN_LOOP_AREA = 1e-4
 const WELD = 1e-5
 
-const newellNormal = (vertices) => {
-  const n = [0, 0, 0]
-  for (let j = 0; j < vertices.length; j++) {
-    const [x1, y1, z1] = vertices[j]
-    const [x2, y2, z2] = vertices[(j + 1) % vertices.length]
-    n[0] += (y1 - y2) * (z1 + z2)
-    n[1] += (z1 - z2) * (x1 + x2)
-    n[2] += (x1 - x2) * (y1 + y2)
-  }
-  return n
-}
-
-// One segment per convex polygon crossing the plane. A vertex on the plane
-// counts as above it, so each crossing polygon yields exactly two points.
-const crossing = (vertices, i, at) => {
-  const points = []
-  for (let j = 0; j < vertices.length; j++) {
-    const p = vertices[j]
-    const q = vertices[(j + 1) % vertices.length]
-    const sp = p[i] - at
-    const sq = q[i] - at
-    if (sp >= 0 === sq >= 0) continue
-    const t = sp / (sp - sq)
-    points.push(p.map((c, k) => (k === i ? at : c + t * (q[k] - c))))
-  }
-  return points.length === 2 ? points : null
-}
-
-const axisCross = (i, n) => {
-  const a = [0, 0, 0]
-  a[i] = 1
-  return [a[1] * n[2] - a[2] * n[1], a[2] * n[0] - a[0] * n[2], a[0] * n[1] - a[1] * n[0]]
-}
-
 const round3 = (v) => Math.round(v * 1000) / 1000 + 0
-
-// Ids for points, the same id for points within WELD of each other.
-const createWelder = () => {
-  const cells = new Map()
-  const points = []
-  return (p) => {
-    const c = p.map((x) => Math.floor(x / WELD))
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dy = -1; dy <= 1; dy++) {
-        for (const id of cells.get(`${c[0] + dx},${c[1] + dy}`) ?? []) {
-          if (Math.abs(points[id][0] - p[0]) <= WELD && Math.abs(points[id][1] - p[1]) <= WELD) return id
-        }
-      }
-    }
-    const id = points.length
-    points.push(p)
-    const key = `${c[0]},${c[1]}`
-    if (!cells.has(key)) cells.set(key, [])
-    cells.get(key).push(id)
-    return id
-  }
-}
-
-const cross2 = (a, b, c) => (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
-
-const signedArea = (points) => {
-  let area = 0
-  for (let k = 0; k < points.length; k++) {
-    const [x0, y0] = points[k]
-    const [x1, y1] = points[(k + 1) % points.length]
-    area += x0 * y1 - x1 * y0
-  }
-  return area / 2
-}
 
 // Joins the oriented segments end to start into closed loops of (u, v) points.
 const chainLoops = (segments) => {
-  const weld = createWelder()
+  const weld = createWelder(WELD)
   const edges = segments.map(([p, q]) => ({ from: weld(p), to: weld(q), p }))
   const leaving = new Map()
   edges.forEach((edge, n) => {
