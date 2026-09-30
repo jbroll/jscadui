@@ -236,13 +236,14 @@ model with `display-check.js --engine jscad`.
   fluent `docs`: compact binary, `poly2`/`poly3`, the `geometries` functions
   with no same-named fluent method, and the internal `utils` helpers
   (`areAllShapesTheSameType`, `fnNumberSort`, `insertSorted`).
-- Project-switch guard on the chat's `writeModel` (jscad-web). A turn builds
-  its context from the project open when it started, but `writeModel` writes
-  into whatever project is open when the call arrives, so a switch mid-turn
-  puts project A's file into project B's editor, cache and version rows, and
-  re-runs B. A write can also land between `replaceProjectFiles`' clear and
-  refill. Capture the project id at turn start and refuse `writeModel` with an
-  error result when it has changed. (`src/aiChat.js`, `src/aiDeps.js`)
+- Project-switch guard on the chat's `write` and `edit` (jscad-web). A turn
+  builds its context from the project open when it started, but a write lands
+  in whatever project is open when the call arrives, so a switch mid-turn
+  puts project A's file into project B's editor and cache, and builds B (the
+  turn's version still goes to the project each write was made in). A write
+  can also land between `replaceProjectFiles`' clear and refill. Capture the
+  project id at turn start and refuse `write` and `edit` with an error result
+  when it has changed. (`src/aiChat.js`, `src/aiDeps.js`)
 - In-app API help page for users (jscad-web). The `docs` tool answers only
   the chat's model; a page or panel over the same `api/index.json` and
   `docsTool` would let a user look up a function, its options and an example
@@ -308,7 +309,7 @@ Async module loading is the breaking one; the rest are extractions.
   for unknown option keys and unknown function names, plus Lezer's syntax
   errors; autocomplete function and option names with defaults; hover shows
   the `docs` entry. The lint rules are a pure function over a Lezer tree, so
-  the `eval` tool runs the same check on the submitted source and returns
+  `write`, `edit` and `run` run the same check on the source and return
   static warnings beside the runtime ones. Static checks see only inline
   literals; the runtime wrapper still covers built or spread options.
   (`apps/jscad-web/src/editor.js`, `packages/agent-loop/api/index.json`)

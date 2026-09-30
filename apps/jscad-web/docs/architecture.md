@@ -392,9 +392,8 @@ a typical mesh (about half a vertex, 12 bytes, plus 12 bytes of indices), so
 the 256 MB cap covers about 15M triangles. A streamed run, a grid or a
 multi-part model sent with a `runId`, is capped per batch at `DEFAULT_CAPS`
 (256 MB, 2,000 entities) and in total at `STREAM_CAPS` (1.5 GB, 20,000
-entities); see Streamed runs. `aiEvaluate.js`
-re-checks the same caps so the agent cannot be told a model evaluated when
-nothing was drawn.
+entities); see Streamed runs. A load the caps refuse is a failed build, so
+the chat's build report cannot say a model built when nothing was drawn.
 
 ### Indexed meshes and GPU normals
 
@@ -460,8 +459,9 @@ sub-grid is walked by every worker regardless of claims, so every worker
 requires every grid file in the tree but transpiles only the leaf files it
 wins. A sub-grid whose grid file fails to load is claimed under its own key
 before it is marked, so only one worker draws its skull and logs the failure.
-A `stream: false` run, such as export's re-run, an animation frame or agent
-evaluation, has no claim hook and runs every leaf itself.
+A `stream: false` run, such as export's re-run or an animation frame, has no
+claim hook and runs every leaf itself, as does the chat's scratch `run`,
+which calls `main` without the stream hook.
 
 Every streaming `jscadMain` or `jscadScript` is a run. Its first won claim
 fans it out: the same request goes to up to `poolSize - 1` more workers,
@@ -599,13 +599,13 @@ Nothing produces the same geometry objects across runs: plain jscad, Manifold
 and the OpenSCAD runtime rebuild every part, so reuse is by content, not by
 object. `src/meshRefs.js` keeps the meshes the last completed run drew, keyed by the
 `hash` the worker puts on each mesh, plus the previous map: a `remember` from
-an agent evaluation or animation frame no longer strands an in-flight run's
+an animation frame no longer strands an in-flight run's
 refs, which resolve against the map before it. Every request that carries a
 `runId` also
 sends `held`, the list of those hashes, and the worker sends a mesh whose hash
 is listed as a `ref` with no buffers (see `docs/WORKER_PROTOCOL.md`). The worker
 hashes meshes only for a request that carries `held`, so a run without it (an
-animation frame, an agent evaluation) returns meshes with no `hash`. The app
+animation frame) returns meshes with no `hash`. The app
 resolves each ref before the cap checks, in both the whole-result and the
 streamed path, so a resolved mesh's bytes count toward the caps as if the
 worker had sent them. A ref whose `color`, `transforms`, `isTransparent` and
@@ -695,8 +695,8 @@ Each turn sends `buildMessages` (`packages/agent-loop/src/context.js`): the
 system prompt; prior turns, newest first, as whole user/assistant pairs until
 the next would pass `CONTEXT_BUDGET` (24,000 characters); one user message
 holding every text file of the current project under `### <path>` in a fenced
-block, outside the budget and omitted when the project is empty; then the new
-message. Prior turns carry only what the transcript stores, the user text and
+block and then the project's last build report, outside the budget and
+omitted when both are empty; then the new message. Prior turns carry only what the transcript stores, the user text and
 the assistant's streamed text, so earlier tool calls are not replayed. The
 project files come from the file cache the frame runs (`collectProjectFiles`).
 The chat sends its per-project session id as `x-jscad-chat-id` when it goes
@@ -729,66 +729,98 @@ index entries and jscad-text's, and points a query for the other API at its
 equivalent or says it is not available. The studio server's chat route takes
 `api` in its POST body next to `provider` (default `fluent`, anything else is
 a 400) and sends the same per-style tool list (`server/src/agent/tools.ts`,
-kept equal to agent-loop's by a test). The runtime does not change: model
+kept equal to agent-loop's by a test). Its loop (`server/src/agent/loop.ts`)
+hands every tool call to the browser by name and feeds back the answer, so
+it serves the file tools without knowing them. The runtime does not change: model
 code may still require either package. Warnings and error hints name only the
-chosen API's form: `createSavedDeps({ getApi })` hands the style to
-`createEvaluate`, whose `sendScript` sends it with the files
-(`jscadSetFiles({ files, api })`), and the frame worker passes it to the run's
-warning collector (`setApi`). The editor's own runs send it too, so the
-mirrored and replayed `jscadSetFiles` always carries the current style. The
+chosen API's form: every load, the editor's and the chat's builds alike, and
+the chat's `run` send it with the files (`jscadSetFiles({ files, api })`), so
+the mirrored and replayed `jscadSetFiles` always carries the current style,
+and the frame worker passes it to the run's warning collector (`setApi`).
+`createProjectBuilds` and `createProjectTools` take it too, for the error
+hints they add (`reportError`). The
 eval sets the same value with `EVAL_API` and hands it to
 `createEvalBackend({ api })`, where the docs answer and the warnings for a run
 are built (`packages/agent-loop/docs/user-manual.md`). A shared case table,
-`packages/agent-loop/test/warningCases.js`, runs through both the eval backend
-and the app's `createEvaluate` over the frame's option-checked modules, so the
-two give the model the same warnings and hints.
+`packages/agent-loop/test/warningCases.js`, runs through the eval backend and
+through the app's `run` and build report over the frame's option-checked
+modules, so the two give the model the same warnings and hints.
 
 Tools and where they run:
 
 | Tool | Runs |
 |---|---|
-| `eval`, `measure`, `check`, `export`, `params` | compute frame (`eval` also returns `warnings` and `console`) |
-| `writeModel` | the project's file cache, the editor buffer and a version row, then the compute frame re-runs the project (returns `warnings` and `console` like `eval`) |
+| `list`, `read` | page: the project's file cache, through agent-loop's `listFiles` and `readFile` |
+| `write`, `edit` | page: the file cache and the editor (`applyWrite`, `applyEdit`), then a build of the project in the compute frame; answers the build report |
+| `run` | compute frame: a scratch run beside the project's files that leaves the project, its build and the drawn model alone |
+| `measure`, `check`, `export` | compute frame, on the current build |
 | `docs` | page: `docsTool` over `@jscadui/agent-loop/api/index.json` for the chat's API style, no frame round trip |
 
 The index (about 260 KB) is not in the app entry: `build.js` bundles it as
 `build/bundle.api-index.js` (content-hashed like the other leaf bundles), and
-`src/apiIndex.js` imports it on the first `docs` call or the first eval error
+`src/apiIndex.js` imports it on the first `docs` call or the first model error
 that needs a hint, then keeps it. A failed load is retried on the next call;
-an eval error goes out without its hint meanwhile.
+an error goes out without its hint meanwhile.
 
 The agent works on the open project's files: the file cache every run sends
 the frame (`collectProjectFiles`), which `switchProject` refills and the
-editor's own run of a project file writes to. `src/aiDeps.js` reads it at
-each call, so it follows project switches and the user's edits. `eval` runs
-its source over those files, as the eval harness's `eval` runs over its
-project. `writeModel` writes the file into the cache, then re-runs the
-project through its entry: the entry the project declares (the dropped
-folder's `fileToRun`, or the project's `entry`) when the cache holds it, else
-the harness's `projectEntry` rule, `main.js` or the file just written. A
-helper write therefore validates through the model that uses it, and an entry
-with no `main()` fails with the harness's error text, `model exports no
-main()`.
+editor's own run of a project file writes to. `src/aiDeps.js`
+(`createProjectTools`) reads it at each call, so it follows project switches
+and the user's edits, and answers through the helpers the eval's backend
+uses, so a tool answers the same way in both.
 
-`eval` (scratch runs too), `measure` and `check` also carry `notSaved`
-(`withSaveState` from `@jscadui/agent-loop`) once the open project no longer
-holds every text file the agent's last real eval used
-(`src/aiSaveTracker.js`): an unwritten draft, a later change to any of those
-files, or a switch to another project. Before the agent's first eval they
-carry nothing, since the open project is then its own saved model. The
-notice counts the model evals since the last successful `writeModel`, and a
-clean `check` (`checksClean`) says to save now, as in the eval harness
-(`packages/agent-loop/docs/user-manual.md`, "Tools in the eval"). `measure`
-and `check` results carry `units: "mm"` (`withUnits`).
+A `write` or `edit` is a save. It puts the file in the cache, clears the
+frame's copy of that module, shows the file in the editor, then builds the
+project and answers the build report. The build is `buildProject` in
+`main.js`: the entry, resolved by `projectEntry` (`src/projectBuild.js`), runs
+through `jscadScript`, the load path the editor and a project switch take, so
+a chat build draws, builds the params UI and shows its error like any other
+load. `projectEntry` is agent-loop's `resolveEntry` (package.json `main`, else
+`index.js`, else `main.js`), falling back to the entry the project declares
+when none of those exist: a dropped folder's `fileToRun` or a stored
+project's `entry`, both named by the drop rules (`index.ts`, `<folder>.js`).
+The editor's run of a project file, a project switch and the chat all build
+through it, so they agree on the entry. A project with none reports
+`NoEntryError`. Files the chat writes into an empty cache are the open
+project from then on.
 
-An `eval` of a script with no `main` is a scratch run: `createEvaluate` sets
-`allowScratch` on its `jscadScript`, and the frame answers the run's console
-and leaves the loaded model as it was: the worker keeps its module, `main`,
-solids and parameter state, and the frame and the app's replay keep the
-model's script and file map for a restarted or promoted worker
-(`docs/WORKER_PROTOCOL.md`). A param change or the chat's `params` after it
-runs the model. The editor's own runs do not set `allowScratch`, so a user's
-script with no `main` shows `no main function exported`.
+`createProjectBuilds` (`src/projectBuild.js`) keeps the report of the last
+build, whichever of those started it: `jscadScript` records each load's
+outcome, and a load of anything else (an example, a remote model) drops it,
+since the frame no longer holds the project's model. The report is built
+only when asked for, with `jscadMeasure` and `jscadCheck` for its geometry, so
+the editor's own runs cost no measure or check unless the chat reads them. A
+write's build asks at once; the chat asks at the start of each turn and sends
+the report after the project files (`buildMessages({ build })`). A failed
+load's error carries the run's console and warnings (`output`, see
+`docs/WORKER_PROTOCOL.md`), and `reportError` drops the worker's
+`jscadMain failed: ` prefix, adds the hint for the chat's API, and finds the
+file, line and column in the stack or, for a syntax error, in Babel's message.
+
+`measure`, `check` and `export` run only on a build that succeeded. Before
+any build, or after a failed one, they answer agent-loop's `noGeometryError`,
+which names the failed build's error, as the eval does. `measure` and `check`
+results carry `ok: true` and `units: "mm"` (`withUnits`).
+
+A failed build keeps the last good render on screen: a load draws only what
+it returns, so a failure leaves the viewer as it was and shows the error bar.
+
+`run` sends its source as `__run__.js` beside the project's files, with
+`scratch: true` on its `jscadScript`. The worker runs it and its `main`, and
+answers the console, the warnings, an error, and `summarizeRun`'s `geometry`
+or `returned` preview, then puts the loaded model back: its module, `main`,
+solids and parameter state. The frame and the app's replay keep the model's
+script and file map for a restarted or promoted worker
+(`docs/WORKER_PROTOCOL.md`). Nothing is drawn or saved. The editor's own runs
+do not set `scratch`, so a user's script with no `main` shows `no main
+function exported`.
+
+Storage gets one version per chat turn. A write records its file as pending
+for the project it was made in; when the turn ends, however it ends,
+`initChat`'s `endTurn` saves each project's pending files in one write
+(`writeManyThrough`), a version holding the turn's final state. Until then a
+load's rowboat merge skips those paths, so the older stored copy cannot
+overwrite them in the cache.
 
 `view` (page, from the live canvas) is not offered to the model: its PNG data
 URL gets JSON-encoded into a text tool result that no provider adapter turns
@@ -797,10 +829,6 @@ KB of base64 text. The handler stays for other callers.
 
 `export` answers `{ ok, format, size }` (`src/aiExport.js`): the model learns
 the export worked and how big it is, and the bytes stay out of its context.
-
-`params` calls `paramsUI.runParamChange`, which re-runs `jscadMain` against
-whatever the frame last loaded: the agent's `eval` source, the project a
-`writeModel` re-ran, or the editor's run, whichever ran last.
 
 ### Unknown-option warnings
 
@@ -822,15 +850,15 @@ during the require, keeps each `fn`+`option` once, holds at most 20, and
 `jscadMain` returns them as `warnings`.
 
 A grid run's answer merges every member's warnings the same way. The chat's
-`eval` result passes them on as `{ entityCount, warnings }` and `writeModel`'s
-as `{ ok, entry, warnings }`; the editor's own runs ignore them.
+build report and `run` result pass them on as `warnings`; the editor shows
+none of them.
 
 The same wrappers check more than option names (`packages/agent-loop/docs/user-manual.md`
 has the rules): a number option given an array or the reverse, a rotate angle
 over 2π, and an unknown option another function takes, each reported with a
 `hint`. The collector writes the hint for the chat's API style, and when the
 wrapped call throws, the hints of that call, plus the limit a `roundRadius`
-error leaves out, are added to the error's message. `createEvaluate` adds a
+error leaves out, are added to the error's message. `reportError` adds a
 hint to a "X is not a function" error on the page (`withErrorHint`), since
 that error comes from model code, not a wrapped call.
 
@@ -842,8 +870,8 @@ parameter change resets it again before `main`, so its result carries only
 that run's lines. A grid run's
 answer concatenates every member's console lines in member order (no
 dedupe), capped at 50 lines and 4,000 characters total with a trailing
-`… (N more lines)` note. The chat's `eval` result adds it to
-`{ entityCount, warnings, console }` when non-empty.
+`… (N more lines)` note. The chat's build report and `run` result carry it
+as `console`, a failed build's too.
 
 Fluent class methods that take an options object (`.extrudeLinear({...})`,
 `.center`, `.mirror`, `.expand`, `.offset`, `.extrudeRotate`) are checked
@@ -935,7 +963,8 @@ logged, and never sent into the frame.
 ## Storage
 
 Local-first with per-project version history (`src/storage/`). Every editor
-compile and every `writeModel` records a version row and file hashes.
+compile records a version row and file hashes, and so does each chat turn
+that wrote files, once, with the turn's final state.
 Backends: the service-worker FS and file handles (`local`, the default and the
 only mode for anonymous users), rowboat blobs and tables (`rowboat`, after
 sign-in, synced with a 15-minute JWT from `GET /api/sync-token`), and a linked

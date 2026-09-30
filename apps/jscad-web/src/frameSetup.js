@@ -127,7 +127,7 @@ const createReplay = (proxy) => {
  * cookies, no storage and no same-origin fetch.
  * @param {object} options
  * @param {(error: unknown) => void} options.onError
- * @param {(result: unknown, options: {skipLog?: boolean}) => void} options.onEntities
+ * @param {(result: unknown, options: {skipLog?: boolean}) => unknown} options.onEntities
  * @param {(jobs: number) => void} options.onJobCount
  * @param {() => void} [options.onTerminated] - the frame lost its worker; the replay already re-inits it
  * @param {(entities: unknown[], runId: unknown) => void} [options.onCells] - one batch of a streamed grid's cells, tagged with the runId of the request that made it
@@ -194,16 +194,15 @@ export const createFrame = async ({ onError, onEntities, onJobCount, onTerminate
   clearTimeout(timer)
 
   // Not messages: main.js's own sink for whatever produced geometry, called
-  // directly for restores and cached results as well as for a fresh render.
+  // directly for restores and cached results as well as for a fresh render. It
+  // answers the error when it refused to draw.
   const handlers = {
     ...notifications,
     /**
      * @param {{entities:unknown | Array<unknown>,treeTime:number,execTime:number,convTime:number}} result
      * @param {{skipLog?:boolean }} options
      */
-    entities: (result, options = {}) => {
-      onEntities(result, options)
-    },
+    entities: (result, options = {}) => onEntities(result, options),
   }
 
   // A frame that never loaded cannot answer, and the message proxy would wait

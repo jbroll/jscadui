@@ -154,7 +154,7 @@ describe('runTurn', () => {
   it('rejects a round with neither text nor a tool call as an empty reply, with its stop reason', async () => {
     const provider = roundsProvider([
       [
-        { type: 'tool_use', id: 't1', name: 'params', input: {} },
+        { type: 'tool_use', id: 't1', name: 'list', input: {} },
         { type: 'done', stopReason: 'tool_use' },
       ],
       [{ type: 'done', stopReason: 'length' }],

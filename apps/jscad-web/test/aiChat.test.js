@@ -221,6 +221,51 @@ describe('conversation context', () => {
     expect(messages.at(-1)).toEqual({ role: 'user', content: 'second' })
   })
 
+  it("sends the project's last build report after its files", async () => {
+    document.body.innerHTML = '<div id="chat"></div>'
+    const container = document.getElementById('chat')
+    const runTurnFn = vi.fn(async () => ({ messages: [] }))
+    const report = { ok: false, entry: 'main.js', error: { message: 'boom', file: 'main.js', line: 2, column: 5 }, warnings: [], console: [], params: [] }
+    initChat({
+      container,
+      requestTool: async () => '{}',
+      getProvider: () => ({ kind: 'openai', model: 'm', apiKey: 'k', baseUrl: 'https://relay.test' }),
+      runTurnFn,
+      getProjectFiles: async () => ({ 'main.js': 'module.exports = {}' }),
+      getBuild: async () => report,
+    })
+    await submit(container, 'fix it', 1, runTurnFn)
+    const header = runTurnFn.mock.calls[0][0].conversation.messages.at(-2).content
+    expect(header).toContain('### main.js')
+    expect(header).toContain('Last build of the project')
+    expect(header).toContain('"message":"boom"')
+  })
+
+  it('ends each turn once, after the loop, even when it fails', async () => {
+    document.body.innerHTML = '<div id="chat"></div>'
+    const container = document.getElementById('chat')
+    const endTurn = vi.fn(async () => {})
+    let fail = false
+    const runTurnFn = vi.fn(async ({ requestTool }) => {
+      await requestTool('write', { path: 'main.js', content: 'x' })
+      expect(endTurn).not.toHaveBeenCalled()
+      if (fail) throw new Error('provider down')
+      return { messages: [] }
+    })
+    initChat({
+      container,
+      requestTool: async () => ({ ok: true }),
+      getProvider: () => ({ kind: 'openai', model: 'm', apiKey: 'k', baseUrl: 'https://relay.test' }),
+      runTurnFn,
+      endTurn,
+    })
+    await submit(container, 'one', 1, runTurnFn)
+    expect(endTurn).toHaveBeenCalledTimes(1)
+    fail = true
+    await submit(container, 'two', 2, runTurnFn)
+    expect(endTurn).toHaveBeenCalledTimes(2)
+  })
+
   it('sends the chosen API prompt and passes the API to the loop, fluent by default', async () => {
     const run = async (getApi) => {
       document.body.innerHTML = '<div id="chat"></div>'

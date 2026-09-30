@@ -1,268 +1,181 @@
 import { describe, expect, it, vi } from 'vitest'
 import index from '@jscadui/agent-loop/api/index.json'
-import { createSavedDeps } from '../src/aiDeps.js'
+import { createProjectTools } from '../src/aiDeps.js'
 
-// A minimal but real CommonJS runner over whatever files jscadSetFiles last
-// received, so multi-file require() and "no main" are genuinely exercised —
-// the same shape of fake the eval harness's own tests use for the real thing.
-const fakeFrame = () => {
-  let files = {}
-  const run = (source) => {
-    const mod = { exports: {} }
-    const req = (spec) => {
-      const rel = spec.replace(/^\.\//, '')
-      if (!Object.hasOwn(files, rel)) throw new Error(`file not found ${rel}`)
-      return run(files[rel])
-    }
-    new Function('module', 'exports', 'require', source)(mod, mod.exports, req)
-    return mod.exports
-  }
-  const jscadScript = vi.fn(async ({ script }) => {
-    const exports = run(script)
-    if (typeof exports.main !== 'function') {
-      return { scratch: true, console: [], message: 'no main(): nothing rendered, current model unchanged' }
-    }
-    return { entities: [exports.main()].flat(Infinity) }
-  })
-  return {
-    jscadSetFiles: vi.fn(async ({ files: f }) => { files = f }),
-    jscadScript,
-    jscadMeasure: vi.fn(async () => ({ ok: true, volume: 1 })),
-    jscadCheck: vi.fn(async ({ bed }) => ({ ok: true, empty: false, watertight: true, manifold: true, insideOut: false, ...(bed ? { fitsBed: false } : {}) })),
-  }
-}
-
-// The open project as main.js sees it: the files every run sends the frame,
-// and the entry the editor runs. `open` is a project switch.
-const fakeProject = (initial = {}, initialEntry) => {
+// The open project as main.js sees it: the file cache every run sends the
+// frame. `open` is a project switch.
+const fakeProject = (initial = {}, id = 'p1') => {
   let files = { ...initial }
-  let entry = initialEntry
+  let projectId = id
   return {
     getProjectFiles: async () => ({ ...files }),
-    writeProjectFile: async (path, source) => {
-      files[path] = source
-    },
-    getProjectEntry: () => entry,
-    open: (next, nextEntry) => {
+    writeProjectFile: vi.fn(async (path, content) => {
+      files[path] = content
+    }),
+    getProjectId: () => projectId,
+    open: (next, nextId) => {
       files = { ...next }
-      entry = nextEntry
+      projectId = nextId
     },
     files: () => files,
   }
 }
 
-const fakeEditor = () => ({ setSource: vi.fn() })
+const REPORT = { ok: true, entry: 'main.js', warnings: [], console: [], params: [], geometry: { parts: 1 } }
 
-const MAIN_V1 = 'module.exports = { main: () => [1] }'
-const MAIN_V2_USES_HELPER = "const { n } = require('./helpers.js')\nmodule.exports = { main: () => [n] }"
-const HELPER_V1 = 'module.exports = { n: 1 }'
-const HELPER_V2 = 'module.exports = { n: 2 }'
-const NO_MAIN = 'module.exports = { n: 1 }'
-
-const deps = ({ project = fakeProject(), workerApi = fakeFrame(), handleEntities = vi.fn(), ...rest } = {}) =>
-  createSavedDeps({
-    workerApi,
-    handleEntities,
-    editor: fakeEditor(),
-    recordEdit: vi.fn(async () => {}),
+const tools = ({ project = fakeProject(), workerApi = {}, ...rest } = {}) => {
+  const deps = {
     getProjectFiles: project.getProjectFiles,
     writeProjectFile: project.writeProjectFile,
-    getProjectEntry: project.getProjectEntry,
-    ...rest,
-  })
-
-const lastScript = (workerApi) => workerApi.jscadScript.mock.calls.at(-1)[0]
-const lastDrawn = (handleEntities) => handleEntities.mock.calls.at(-1)[0].entities
-
-describe('createSavedDeps: saved across a multi-file project', () => {
-  it('a fresh eval is unsaved, and measure/check report it', async () => {
-    const d = deps()
-    const evalRes = await d.evaluate(MAIN_V1, 'main.js')
-    expect(evalRes.notSaved).toMatch(/not saved/)
-    expect((await d.measure({})).notSaved).toMatch(/not saved/)
-    expect((await d.check({})).notSaved).toMatch(/not saved/)
-  })
-
-  it('counts the model evals since the last save, and says to save now when a check comes back clean', async () => {
-    const d = deps()
-    await d.evaluate(MAIN_V1, 'main.js')
-    await d.evaluate(NO_MAIN, 'scratch.js')
-    expect((await d.evaluate(MAIN_V1, 'main.js')).notSaved).toBe('not saved (2 evals since the last save); call writeModel to keep it')
-    expect((await d.measure({})).notSaved).toBe('not saved (2 evals since the last save); call writeModel to keep it')
-    expect((await d.check({})).notSaved).toBe('checks clean and not saved (2 evals since the last save): save it now with writeModel, then refine')
-    await d.save(MAIN_V1, 'main.js')
-    await d.evaluate(MAIN_V2_USES_HELPER.replace("require('./helpers.js')", '{ n: 3 }'), 'main.js')
-    expect((await d.check({ bed: [10, 10, 10] })).notSaved).toBe('not saved (1 eval since the last save); call writeModel to keep it')
-  })
-
-  it('labels measure and check sizes as millimetres, as the eval harness does', async () => {
-    const d = deps()
-    expect((await d.measure({})).units).toBe('mm')
-    expect((await d.check({})).units).toBe('mm')
-  })
-
-  it('says nothing about saving before the agent evaluates anything, as the open project is its own saved model', async () => {
-    const d = deps({ project: fakeProject({ 'main.js': MAIN_V1 }, 'main.js') })
-    expect(await d.measure({})).not.toHaveProperty('notSaved')
-    expect(await d.check({})).not.toHaveProperty('notSaved')
-  })
-
-  it('a scratch run after an unsaved eval says the model is not saved', async () => {
-    const d = deps()
-    expect(await d.evaluate(NO_MAIN, 'main.js')).not.toHaveProperty('notSaved')
-    await d.evaluate(MAIN_V1, 'main.js')
-    expect((await d.evaluate(NO_MAIN, 'scratch.js')).notSaved).toMatch(/not saved/)
-    await d.save(MAIN_V1, 'main.js')
-    expect(await d.evaluate(NO_MAIN, 'scratch.js')).not.toHaveProperty('notSaved')
-  })
-
-  it('writing the evaluated source makes it saved', async () => {
-    const d = deps()
-    await d.evaluate(MAIN_V1, 'main.js')
-    await d.save(MAIN_V1, 'main.js')
-    expect(await d.measure({})).not.toHaveProperty('notSaved')
-  })
-
-  it('writing a helper the entry does not use yet leaves the saved entry saved', async () => {
-    const d = deps()
-    await d.save(MAIN_V1, 'main.js')
-    await d.save(HELPER_V1, 'helpers.js')
-    expect(await d.measure({})).not.toHaveProperty('notSaved')
-  })
-
-  it('write helper, then eval an unsaved entry draft that uses it: measure reports unsaved', async () => {
-    const d = deps()
-    await d.save(MAIN_V1, 'main.js')
-    await d.save(HELPER_V1, 'helpers.js')
-    const evalRes = await d.evaluate(MAIN_V2_USES_HELPER, 'main.js')
-    expect(evalRes.notSaved).toMatch(/not saved/)
-    expect((await d.measure({})).notSaved).toMatch(/not saved/)
-  })
-
-  it('writing the entry draft makes it saved', async () => {
-    const d = deps()
-    await d.save(MAIN_V1, 'main.js')
-    await d.save(HELPER_V1, 'helpers.js')
-    await d.evaluate(MAIN_V2_USES_HELPER, 'main.js')
-    await d.save(MAIN_V2_USES_HELPER, 'main.js')
-    expect(await d.measure({})).not.toHaveProperty('notSaved')
-  })
-
-  it('editing a helper the entry uses re-validates against the entry and stays saved', async () => {
-    const d = deps()
-    await d.save(MAIN_V1, 'main.js')
-    await d.save(HELPER_V1, 'helpers.js')
-    await d.evaluate(MAIN_V2_USES_HELPER, 'main.js')
-    await d.save(MAIN_V2_USES_HELPER, 'main.js')
-    await d.save(HELPER_V2, 'helpers.js')
-    expect(await d.measure({})).not.toHaveProperty('notSaved')
-  })
-
-  it('a file the eval used that changes in the project reads unsaved', async () => {
-    const project = fakeProject({ 'main.js': MAIN_V2_USES_HELPER, 'helpers.js': HELPER_V1 }, 'main.js')
-    const d = deps({ project })
-    expect(await d.evaluate(MAIN_V2_USES_HELPER, 'main.js')).not.toHaveProperty('notSaved')
-    await project.writeProjectFile('helpers.js', HELPER_V2)
-    expect((await d.measure({})).notSaved).toMatch(/not saved/)
-  })
-})
-
-describe('createSavedDeps: the open project', () => {
-  it("evaluates against the project's files", async () => {
-    const project = fakeProject({ 'main.js': MAIN_V1, 'helpers.js': HELPER_V2 }, 'main.js')
-    const d = deps({ project })
-    expect(await d.evaluate(MAIN_V2_USES_HELPER, 'main.js')).toMatchObject({ entityCount: 1 })
-  })
-
-  it("writes into the project's files, where the editor's next run reads them", async () => {
-    const project = fakeProject({ 'main.js': MAIN_V1 }, 'main.js')
-    await deps({ project }).save(HELPER_V1, 'helpers.js')
-    expect(project.files()).toEqual({ 'main.js': MAIN_V1, 'helpers.js': HELPER_V1 })
-  })
-
-  it("validates a helper write in an existing project through the project's main.js", async () => {
-    const project = fakeProject({ 'main.js': MAIN_V2_USES_HELPER, 'helpers.js': HELPER_V1 }, 'main.js')
-    const workerApi = fakeFrame()
-    const handleEntities = vi.fn()
-    const d = deps({ project, workerApi, handleEntities })
-    expect(await d.save(HELPER_V2, 'helpers.js')).toEqual({ ok: true, entry: 'helpers.js' })
-    expect(lastScript(workerApi).script).toBe(MAIN_V2_USES_HELPER)
-    expect(lastDrawn(handleEntities)).toEqual([2])
-  })
-
-  it("validates a helper write through the project's declared entry when it has no main.js", async () => {
-    const entry = "const { n } = require('./gear.js')\nmodule.exports = { main: () => [n] }"
-    const project = fakeProject({ 'index.js': entry, 'gear.js': HELPER_V1 }, 'index.js')
-    const workerApi = fakeFrame()
-    const d = deps({ project, workerApi })
-    await d.save(HELPER_V2, 'gear.js')
-    expect(lastScript(workerApi).url).toMatch(/index\.js$/)
-  })
-
-  it("after a project switch, a write runs the new project, never the old one's main.js", async () => {
-    const project = fakeProject({ 'main.js': MAIN_V1 }, 'main.js')
-    const workerApi = fakeFrame()
-    const handleEntities = vi.fn()
-    const d = deps({ project, workerApi, handleEntities })
-    await d.save(MAIN_V1, 'main.js')
-
-    const bMain = "const { n } = require('./part.js')\nmodule.exports = { main: () => [n * 10] }"
-    project.open({ 'main.js': bMain, 'part.js': HELPER_V1, 'other.js': '' }, 'main.js')
-    await d.save(HELPER_V2, 'part.js')
-
-    expect(lastScript(workerApi).script).toBe(bMain)
-    expect(workerApi.jscadSetFiles.mock.calls.at(-1)[0].files).toEqual({ 'main.js': bMain, 'part.js': HELPER_V2, 'other.js': '' })
-    expect(lastDrawn(handleEntities)).toEqual([20])
-  })
-
-  it('an eval saved in one project reads unsaved after switching to another', async () => {
-    const project = fakeProject({}, 'main.js')
-    const d = deps({ project })
-    await d.evaluate(MAIN_V1, 'main.js')
-    await d.save(MAIN_V1, 'main.js')
-    expect(await d.measure({})).not.toHaveProperty('notSaved')
-    project.open({ 'main.js': MAIN_V2_USES_HELPER, 'helpers.js': HELPER_V1 }, 'main.js')
-    expect((await d.measure({})).notSaved).toMatch(/not saved/)
-  })
-})
-
-describe('createSavedDeps: writeModel parity with the eval harness', () => {
-  it('fails to save an entry with no main(), with the harness error text', async () => {
-    const d = deps()
-    await expect(d.save(NO_MAIN, 'main.js')).rejects.toThrow('model exports no main()')
-  })
-
-  it('fails when the written entry imports a file that does not exist yet, like the harness', async () => {
-    const d = deps()
-    await expect(d.save(MAIN_V2_USES_HELPER, 'main.js')).rejects.toThrow('file not found helpers.js')
-  })
-
-  it('persists a write that fails validation, so writing the missing helper next re-runs and succeeds', async () => {
-    const d = deps()
-    await expect(d.save(MAIN_V2_USES_HELPER, 'main.js')).rejects.toThrow('file not found helpers.js')
-    const res = await d.save(HELPER_V1, 'helpers.js')
-    expect(res).toEqual({ ok: true, entry: 'helpers.js' })
-    expect(await d.measure({})).not.toHaveProperty('notSaved')
-  })
-
-  it("answers with the run's warnings and console", async () => {
-    const warnings = [{ fn: 'primitives.cuboid', option: 'radius', suggestions: ['roundRadius'] }]
-    const workerApi = {
+    getProjectId: project.getProjectId,
+    showFile: vi.fn(),
+    build: vi.fn(async () => REPORT),
+    noGeometry: vi.fn(async () => null),
+    workerApi: {
       jscadSetFiles: vi.fn(async () => {}),
-      jscadScript: vi.fn(async () => ({ entities: [{}], warnings, console: ['hi'] })),
-    }
-    const res = await deps({ workerApi }).save(MAIN_V1, 'main.js')
-    expect(res).toEqual({ ok: true, entry: 'main.js', warnings, console: ['hi'] })
+      jscadScript: vi.fn(async () => ({ scratch: true, console: [], warnings: [] })),
+      jscadMeasure: vi.fn(async () => ({ volume: 1000 })),
+      jscadCheck: vi.fn(async ({ bed }) => ({ watertight: true, ...(bed ? { fitsBed: false } : {}) })),
+      ...workerApi,
+    },
+    exportModel: vi.fn(async () => ({ ok: true, format: 'stla', size: 10 })),
+    saveVersion: vi.fn(async () => {}),
+    ...rest,
+  }
+  return { deps, tools: createProjectTools(deps) }
+}
+
+describe('list and read', () => {
+  it('list answers the project files with their sizes, as the eval does', async () => {
+    const { tools: t } = tools({ project: fakeProject({ 'main.js': 'abc', 'lib/a.js': '' }) })
+    expect(await t.list()).toEqual({ ok: true, files: [{ path: 'lib/a.js', size: 0 }, { path: 'main.js', size: 3 }] })
+  })
+
+  it('read answers numbered lines, and a missing file is an error', async () => {
+    const { tools: t } = tools({ project: fakeProject({ 'main.js': 'a\nb\n' }) })
+    expect(await t.read({ path: 'main.js' })).toBe('     1\ta\n     2\tb')
+    await expect(t.read({ path: 'nope.js' })).rejects.toMatchObject({ name: 'FileNotFoundError' })
   })
 })
 
-describe('createSavedDeps: api style', () => {
-  it('sends the chat api with the files on eval and save, and hints a thrown error in that api', async () => {
-    const workerApi = fakeFrame()
-    const d = deps({ workerApi, getApi: () => 'modeling', loadIndex: async () => index })
-    const res = await d.evaluate('module.exports = { main: () => [{}.translate([1, 0, 0])] }', 'main.js')
-    expect(res.error.message).toContain('use transforms.translate(offset, shape)')
-    await d.save(MAIN_V1, 'main.js')
-    expect(workerApi.jscadSetFiles.mock.calls.map(([args]) => args.api)).toEqual(['modeling', 'modeling'])
+describe('write and edit', () => {
+  it('write puts the file in the project, shows it in the editor and answers the build report', async () => {
+    const project = fakeProject({ 'main.js': 'old' })
+    const { deps, tools: t } = tools({ project })
+    expect(await t.write({ path: './parts/gear.js', content: 'gear' })).toBe(REPORT)
+    expect(project.files()).toEqual({ 'main.js': 'old', 'parts/gear.js': 'gear' })
+    expect(deps.showFile).toHaveBeenCalledWith('parts/gear.js', 'gear', { 'main.js': 'old', 'parts/gear.js': 'gear' })
+    expect(deps.build).toHaveBeenCalledTimes(1)
+    expect(deps.writeProjectFile.mock.invocationCallOrder[0]).toBeLessThan(deps.build.mock.invocationCallOrder[0])
+  })
+
+  it('edit replaces one exact occurrence and builds', async () => {
+    const project = fakeProject({ 'main.js': 'const size = 10\n' })
+    const { deps, tools: t } = tools({ project })
+    await t.edit({ path: 'main.js', oldString: '10', newString: '20' })
+    expect(project.files()['main.js']).toBe('const size = 20\n')
+    expect(deps.build).toHaveBeenCalledTimes(1)
+  })
+
+  it('a refused edit changes nothing and builds nothing', async () => {
+    const project = fakeProject({ 'main.js': 'a a' })
+    const { deps, tools: t } = tools({ project })
+    await expect(t.edit({ path: 'main.js', oldString: 'a', newString: 'b' })).rejects.toMatchObject({ name: 'EditError' })
+    await expect(t.write({ path: '../x.js', content: '' })).rejects.toMatchObject({ name: 'PathError' })
+    expect(project.files()).toEqual({ 'main.js': 'a a' })
+    expect(deps.build).not.toHaveBeenCalled()
+  })
+})
+
+describe('versions', () => {
+  it("saves one version per turn, with each written file's final content", async () => {
+    const project = fakeProject({ 'main.js': 'v0' })
+    const { deps, tools: t } = tools({ project })
+    await t.write({ path: 'main.js', content: 'v1' })
+    await t.write({ path: 'lib.js', content: 'lib' })
+    await t.edit({ path: 'main.js', oldString: 'v1', newString: 'v2' })
+    expect(deps.saveVersion).not.toHaveBeenCalled()
+    await t.endTurn()
+    expect(deps.saveVersion).toHaveBeenCalledTimes(1)
+    expect(deps.saveVersion).toHaveBeenCalledWith('p1', { 'main.js': 'v2', 'lib.js': 'lib' })
+    await t.endTurn()
+    expect(deps.saveVersion).toHaveBeenCalledTimes(1)
+  })
+
+  it('saves nothing for a turn that wrote nothing', async () => {
+    const { deps, tools: t } = tools()
+    await t.run('console.log(1)')
+    await t.endTurn()
+    expect(deps.saveVersion).not.toHaveBeenCalled()
+  })
+
+  it('keeps writes with the project they were made in when the project switches mid-turn', async () => {
+    const project = fakeProject({ 'main.js': 'a' }, 'p1')
+    const { deps, tools: t } = tools({ project })
+    await t.write({ path: 'main.js', content: 'a2' })
+    expect(t.pendingPaths('p1')).toEqual(new Set(['main.js']))
+    project.open({ 'main.js': 'b' }, 'p2')
+    await t.write({ path: 'part.js', content: 'part' })
+    await t.endTurn()
+    expect(deps.saveVersion.mock.calls).toEqual([
+      ['p1', { 'main.js': 'a2' }],
+      ['p2', { 'part.js': 'part' }],
+    ])
+    expect(t.pendingPaths('p1').size).toBe(0)
+  })
+})
+
+describe('run', () => {
+  it('runs the snippet beside the project files as a scratch run and never writes it', async () => {
+    const project = fakeProject({ 'main.js': 'm', 'lib.js': 'l' })
+    const jscadScript = vi.fn(async () => ({ scratch: true, console: ['1'], warnings: [], returned: '{"a":1}' }))
+    const { deps, tools: t } = tools({ project, workerApi: { jscadScript }, getApi: () => 'modeling' })
+    expect(await t.run('console.log(1)')).toEqual({ ok: true, warnings: [], console: ['1'], returned: '{"a":1}' })
+    expect(jscadScript).toHaveBeenCalledWith(expect.objectContaining({ script: 'console.log(1)', url: 'http://project.local/__run__.js', scratch: true }))
+    expect(deps.workerApi.jscadSetFiles).toHaveBeenCalledWith({ files: { 'main.js': 'm', 'lib.js': 'l', '__run__.js': 'console.log(1)' }, api: 'modeling' })
+    expect(project.files()).toEqual({ 'main.js': 'm', 'lib.js': 'l' })
+    expect(deps.build).not.toHaveBeenCalled()
+    expect(deps.showFile).not.toHaveBeenCalled()
+  })
+
+  it('answers the geometry a main returned', async () => {
+    const geometry = { parts: 1, boundingBox: [[0, 0, 0], [1, 1, 1]], dimensions: [1, 1, 1], volume: 1 }
+    const { tools: t } = tools({ workerApi: { jscadScript: vi.fn(async () => ({ scratch: true, console: [], warnings: [], geometry })) } })
+    expect(await t.run('module.exports = { main }')).toEqual({ ok: true, warnings: [], console: [], geometry })
+  })
+
+  it('answers an error with its line and column, its console and a hint for the chat api', async () => {
+    const error = { name: 'TypeError', message: 'jf.measureVolume is not a function', stack: 'TypeError: x\n    at main (http://project.local/__run__.js:3:7)' }
+    const { tools: t } = tools({
+      workerApi: { jscadScript: vi.fn(async () => ({ scratch: true, error, console: ['before'], warnings: [] })) },
+      loadIndex: async () => index,
+    })
+    const res = await t.run('x')
+    expect(res).toMatchObject({ ok: false, console: ['before'], warnings: [], error: { name: 'TypeError', file: '__run__.js', line: 3, column: 7 } })
+    expect(res.error.message).toContain('measureVolume is a method of FluentGeom3')
+  })
+
+  it('refuses a source that is not text', async () => {
+    await expect(tools().tools.run(undefined)).rejects.toMatchObject({ name: 'TypeError' })
+  })
+})
+
+describe('measure, check and export', () => {
+  it('work on the current build, in millimetres', async () => {
+    const { deps, tools: t } = tools()
+    expect(await t.measure({})).toEqual({ ok: true, volume: 1000, units: 'mm' })
+    expect(await t.check({ bed: [10, 10, 10] })).toEqual({ ok: true, watertight: true, fitsBed: false, units: 'mm' })
+    expect(deps.workerApi.jscadCheck).toHaveBeenCalledWith({ bed: [10, 10, 10], options: { bed: [10, 10, 10] } })
+    expect(await t.exportModel({ format: 'stla' })).toEqual({ ok: true, format: 'stla', size: 10 })
+  })
+
+  it('fail with the failed build named when the project does not build', async () => {
+    const none = { ok: false, error: { name: 'NoGeometryError', message: 'no geometry: the last build failed (boom); fix it first' } }
+    const { deps, tools: t } = tools({ noGeometry: vi.fn(async () => none) })
+    expect(await t.measure({})).toBe(none)
+    expect(await t.check({})).toBe(none)
+    expect(await t.exportModel({ format: 'stla' })).toBe(none)
+    expect(deps.workerApi.jscadMeasure).not.toHaveBeenCalled()
+    expect(deps.exportModel).not.toHaveBeenCalled()
   })
 })

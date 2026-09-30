@@ -150,7 +150,7 @@ When the wrapped call throws, its hints and the limit a `roundRadius` error
 leaves out ("roundRadius 2 is too big: it must be under half the smallest
 size, 2.4 / 2 = 1.2") go on new lines of the error's message. A "X is not a
 function" error gets a hint from `withErrorHint`, applied where the error
-result is built (`eval/backend.js`, the app's `createEvaluate`): in fluent, X
+result is built (`eval/backend.js`, the app's `reportError` in `src/projectBuild.js`): in fluent, X
 as a method of the named classes, called on a jf shape; in modeling, the
 functional call from the index signature (`transforms.translate(offset,
 shape)`). `cone` gets the taper form. An "X is not defined" error, X a

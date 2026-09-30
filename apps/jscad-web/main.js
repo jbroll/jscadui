@@ -44,7 +44,8 @@ import { showDemoBrowser, demoBrowserStyles } from './src/demoBrowser.js'
 // Extracted modules
 import { updatePipelineStats, countGeometry, createProgressHandler } from './src/stats.js'
 import { capGeometry, DEFAULT_CAPS } from './src/caps.js'
-import { createSavedDeps } from './src/aiDeps.js'
+import { createProjectTools } from './src/aiDeps.js'
+import { createProjectBuilds, projectEntry } from './src/projectBuild.js'
 import { createExport } from './src/aiExport.js'
 // Leaf imports, not ./src/storage/index.js: the index re-exports schema.js,
 // whose zod 4 types the root TS 4.9 gate cannot parse (see root tsconfig).
@@ -69,6 +70,7 @@ import { installStudioBridge } from './src/studioBridge.js'
 import { handleToolRequest } from './src/aiBridge.js'
 import { createDocs, createIndexLoader } from './src/apiIndex.js'
 import { initChat } from './src/aiChat.js'
+import { NO_ENTRY } from '@jscadui/agent-loop'
 import { initAccount, getChatApi, getProviderConfig, getSession } from './src/aiAccount.js'
 
 /**
@@ -159,12 +161,13 @@ let lastRunParams
  * Handle entities from worker
  * @param {{entities:unknown | Array<unknown>,treeTime:number,execTime:number,convTime:number}} result
  * @param {{skipLog?:boolean }} options
+ * @returns {unknown} the error, when the result was refused rather than drawn
  */
 const handleEntities = (result, { skipLog } = {}) => {
   if (result?.streamed) {
     // null for another run's result, or one a cap error already ended
     const totals = streamRuns.finish(result.runId, result.lost)
-    if (!totals) return
+    if (!totals) return streamError ?? undefined
     meshRefs.remember(streamDrawn)
     onProgress(undefined)
     document.documentElement.dataset.vertices = String(totals.vertices)
@@ -183,7 +186,7 @@ const handleEntities = (result, { skipLog } = {}) => {
   } catch (error) {
     setError(error)
     onProgress(undefined)
-    return
+    return error
   }
 
   // Track render time
@@ -227,12 +230,16 @@ const drawStream = (entities, box) => {
   }
 }
 
+// The error that ended the current streamed run, which its load reports as the build's.
+let streamError = null
+
 const streamRuns = createStreamRuns({
   draw: drawStream,
   resolve: meshRefs.resolve,
   // Read by the render sweep, which restarts its hang guard on each cell
   onCells: count => { document.documentElement.dataset.cells = String(count) },
   onError: error => {
+    streamError = error
     setError(error)
     onProgress(undefined)
   },
@@ -245,6 +252,7 @@ const streamRuns = createStreamRuns({
 const beginStream = isStale => {
   const runId = newRunId()
   delete document.documentElement.dataset.cells
+  streamError = null
   streamRuns.begin(isStale, runId)
   return runId
 }
@@ -287,6 +295,21 @@ const POOL_SIZE = (() => {
     return undefined
   }
 })()
+
+// The api index loads on the first docs call or error hint that needs it.
+const loadApiIndex = createIndexLoader()
+
+// The report of the open project's last build, for the chat's header and its
+// measure, check and export; see src/projectBuild.js.
+const projectBuilds = createProjectBuilds({
+  measure: () => workerApi.jscadMeasure({ options: {} }),
+  check: () => workerApi.jscadCheck({ options: {} }),
+  getApi: getChatApi,
+  loadIndex: loadApiIndex,
+})
+
+// The chat's project tools, built with the chat below; a load's storage merge reads their unsaved writes.
+let chatTools = null
 
 // The frame names its own bundles; the app names only the engine.
 const initFrame = () =>
@@ -336,8 +359,9 @@ let rowboatStore = null
 const projectManager = createProjectManager({ local: localStore, getRowboat: () => rowboatStore })
 const storageSession = createSession({ local: localStore, getRowboat: () => rowboatStore, getBackend: (projectId) => projectManager.peekMode(projectId) })
 
+// The project keeps the entry it has: editing a helper does not make it the entry.
 const recordEdit = (script, path) =>
-  storageSession.writeThrough(currentProjectId, path, script, { message: 'edit', entry: path }).catch((err) => console.warn('storage write failed:', err))
+  storageSession.writeThrough(currentProjectId, path, script, { message: 'edit' }).catch((err) => console.warn('storage write failed:', err))
 
 let currentProjectId = 'default'
 // The entry of whatever was opened last: a stored project or a dropped folder.
@@ -356,7 +380,7 @@ const switchProject = async (id) => {
   await replaceProjectFiles(fileSystem, files)
   editor.setFiles(toEditorFiles(files))
   editor.setSource(files[project.entry] ?? '', project.entry)
-  jscadScript({ script: files[project.entry] ?? '', ...projectUrls(project.entry) })
+  buildProject().catch(setError)
 }
 
 // Lazy rowboat backend: built once a session exists, so anonymous users stay
@@ -535,9 +559,21 @@ viewState.onRequireReRender = () => paramChangeCallback(ctrl.params)
 
 let lastScriptUrl
 
-/** @param {{script?:string,url?:string,base?:string,root?:string}} options*/
+const STALE = { stale: true }
+
+/**
+ * Load a script and draw it. Resolves to the load's outcome, `{ result }` or
+ * `{ error }`, or `{ stale: true }` when a newer load replaced it; a load of a
+ * project file is recorded as the project's build.
+ * @param {{script?:string,url?:string,base?:string,root?:string}} options
+ */
 const jscadScript = async ({ script, url = './jscad.model.js', base = currentBase, root }) => {
   const isStale = scriptRuns.load()
+  const settled = (outcome) => {
+    if (isStale()) return STALE
+    projectBuilds.recordLoad(url, outcome)
+    return outcome
+  }
   if (url !== lastScriptUrl) meshRefs.forget()
   lastScriptUrl = url
   let runId = beginStream(isStale)
@@ -567,8 +603,10 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
         if (project) {
           const manifest = Object.fromEntries(Object.keys(project.files).map((path) => [path, 'rowboat']))
           const merged = assembleFileMap(manifest, { local: {}, rowboat: project.files })
+          // The chat saves its writes when the turn ends, so the stored copy is older until then.
+          const unsaved = chatTools?.pendingPaths(currentProjectId) ?? new Set()
           for (const [path, content] of Object.entries(merged)) {
-            await fileSystem.addToCacheWrapper(path, content)
+            if (!unsaved.has(path)) await fileSystem.addToCacheWrapper(path, content)
           }
         }
       }
@@ -578,9 +616,9 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
     // Query renderer capability for GPU normals support
     const useGpuNormals = viewState.viewer?.supportsGpuNormals ?? false
     const files = await collectProjectFiles(fileSystem.getSwHandler())
-    if (isStale()) return
+    if (isStale()) return STALE
     const result = await sendScript(workerApi, files, { script, url, base, root, useGpuNormals, runId, held: meshRefs.held(), supersede: true }, getChatApi())
-    if (isStale()) return
+    if (isStale()) return STALE
 
     if (result.proxyState && useParamsProxy) {
       paramsCtrl.initFromResult(result)
@@ -631,9 +669,9 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
         // Re-run model with restored params
         runId = beginStream(isStale)
         const restoreResult = await workerApi.jscadMain({ ...paramsCtrl.getWorkerParams(), runId, held: meshRefs.held(), supersede: true })
-        if (isStale()) return
-        handlers.entities(restoreResult)
-        return
+        if (isStale()) return STALE
+        const refused = handlers.entities(restoreResult)
+        return settled(refused ? { error: refused } : { result })
       }
     } else {
       // Traditional flat params form
@@ -643,7 +681,7 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
       lastRunParams = result.params
     }
 
-    handlers.entities(result)
+    const refused = handlers.entities(result)
     if (result.def) {
       result.def.find(def => {
         if (def.type === "slider" && def.fps && def.autostart) {
@@ -652,10 +690,32 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
         }
       })
     }
+    return settled(refused ? { error: refused } : { result })
   } catch (err) {
     streamRuns.end(runId)
-    if (!isStale() && err?.name !== 'SupersededError') setError(err)
+    if (isStale() || err?.name === 'SupersededError') return STALE
+    setError(err)
+    return settled({ error: err })
   }
+}
+
+/**
+ * Build the open project: its entry (see projectEntry) run through the load
+ * path above. The editor, a project switch and the chat's writes all build
+ * this way, so each leaves the same report.
+ */
+const buildProject = async () => {
+  const files = await collectProjectFiles(fileSystem.getSwHandler())
+  const entry = projectEntry(files, currentEntry)
+  if (!entry) {
+    projectBuilds.recordNoEntry()
+    const error = Object.assign(new Error(NO_ENTRY), { name: 'NoEntryError' })
+    setError(error)
+    return { error }
+  }
+  // Files the chat wrote into an empty cache are the open project from then on.
+  currentEntry ??= entry
+  return jscadScript({ script: typeof files[entry] === 'string' ? files[entry] : undefined, ...projectUrls(entry) })
 }
 
 // ============== Engine Initialization ==============
@@ -723,18 +783,17 @@ editor.init(
   defaultCode,
   async (script, path) => {
     const swHandler = fileSystem.getSwHandler()
-    if (swHandler && swHandler.fileToRun) {
-      await fileSystem.addToCacheWrapper(path, script)
-      await workerApi.jscadClearFileCache({ files: [path], root: PROJECT_BASE })
-      await recordEdit(script, path)
-      if (swHandler.fileToRun) jscadScript(projectUrls(swHandler.fileToRun))
+    // A dropped folder's editor paths keep their leading slash in the cache.
+    const cachePath = swHandler?.fileToRun ? path : currentEntry === undefined ? null : projectPathOf(path)
+    if (cachePath) {
+      await fileSystem.addToCacheWrapper(cachePath, script)
+      await workerApi.jscadClearFileCache({ files: [cachePath], root: PROJECT_BASE })
+      await recordEdit(script, cachePath)
+      buildProject().catch(setError)
     } else {
+      // With no project opened the path is an example's URL or the editor's placeholder.
       const fullUrl = path.startsWith('http') ? path : new URL(path, appBase).toString()
       const base = new URL('./', fullUrl).toString()
-      // The chat's writeModel validates against the file cache, so it must hold
-      // this edit. With no project opened the path is the editor's placeholder.
-      const projectPath = currentEntry === undefined ? null : projectPathOf(path)
-      if (projectPath) await fileSystem.addToCacheWrapper(projectPath, script)
       await recordEdit(script, path)
       jscadScript({ script, url: path, base })
     }
@@ -820,37 +879,35 @@ if ('serviceWorker' in navigator && !navigator.serviceWorker.controller) {
 }
 
 // ============== AI Chat ==============
-// The agent loop runs server-side; the browser executes each tool request
-// against the local worker, viewer and editor, then POSTs the result back.
-// The agent works on the open project's files, the file cache every run
-// sends the frame; see aiDeps.js.
-const loadApiIndex = createIndexLoader()
-const savedDeps = createSavedDeps({
-  workerApi,
-  handleEntities,
-  editor,
-  recordEdit,
+// The agent loop runs in the page; each tool request is served against the
+// open project's files (the file cache every run sends the frame), the
+// editor, the viewer and the frame. See aiDeps.js.
+chatTools = createProjectTools({
   getProjectFiles: () => collectProjectFiles(fileSystem.getSwHandler()),
-  writeProjectFile: async (path, source) => {
-    await fileSystem.addToCacheWrapper(path, source)
+  writeProjectFile: async (path, content) => {
+    await fileSystem.addToCacheWrapper(path, content)
     await workerApi.jscadClearFileCache({ files: [path], root: PROJECT_BASE })
   },
-  getProjectEntry: () => currentEntry,
+  showFile: (path, content, files) => {
+    editor.setSource(content, path)
+    editor.setFiles(toEditorFiles(files))
+  },
+  build: async () => {
+    const outcome = await buildProject()
+    if (outcome.stale) return { ok: false, error: { name: 'SupersededError', message: 'a newer run replaced this build before it finished; write or edit again to build' } }
+    return projectBuilds.report()
+  },
+  noGeometry: projectBuilds.noGeometry,
+  workerApi,
+  exportModel: createExport((args) => workerApi.jscadExportData(args)),
+  getProjectId: () => currentProjectId,
+  saveVersion: (projectId, files) => storageSession.writeManyThrough(projectId, files, { message: 'chat' }),
   getApi: getChatApi,
   loadIndex: loadApiIndex,
 })
 
 const aiDeps = {
-  evaluate: savedDeps.evaluate,
-  setParams: async (values) => {
-    Object.assign(paramsCtrl.params, values)
-    for (const key of Object.keys(values)) paramsCtrl.userInteracted.add(key)
-    await paramChangeCallback(paramsCtrl.params)
-    return { updated: Object.keys(values) }
-  },
-  measure: savedDeps.measure,
-  check: savedDeps.check,
-  exportModel: createExport((args) => workerApi.jscadExportData(args)),
+  ...chatTools,
   view: async (input) => {
     if (input?.camera) viewState.setCamera(input.camera)
     const canvas = document.querySelector('#viewer canvas')
@@ -858,7 +915,6 @@ const aiDeps = {
     if (!image) throw new Error('no rendered canvas to capture')
     return { ok: true, image, camera: viewState.viewer.getCamera() }
   },
-  save: savedDeps.save,
   docs: createDocs(loadApiIndex, getChatApi),
 }
 
@@ -876,6 +932,8 @@ if (byId('ai-chat')) {
     storage: chatStorage,
     projectId: () => currentProjectId,
     getProjectFiles: () => collectProjectFiles(fileSystem.getSwHandler()),
+    getBuild: projectBuilds.report,
+    endTurn: chatTools.endTurn,
   })
 }
 const aiDrawer = byId('ai-drawer')

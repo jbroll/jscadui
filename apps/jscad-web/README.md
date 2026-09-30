@@ -74,7 +74,7 @@ Modeling Engine in the menu switches it, and the choice is remembered.
 
 ## AI Chat
 
-The app has an agent chat drawer (AI Chat in the menu) layered on the normal editor, viewer and examples. Describe a part, and the browser-local agent loop writes and measures models by calling tools that run in the browser: `eval`, `params`, `measure`, `check`, `export` and `writeModel` (`packages/agent-loop/src/tools.js`). The ones that execute model code go through the sandboxed compute frame below, the same one the editor uses. Provider HTTP goes through the relay at `https://jscad.rkroll.com`, overridable via `localStorage 'jscad-ai.relay'`.
+The app has an agent chat drawer (AI Chat in the menu) layered on the normal editor, viewer and examples. Describe a part, and the browser-local agent loop works on the open project the way a coding agent does, with tools that run in the browser: `list`, `read`, `write`, `edit`, `run`, `measure`, `check`, `export` and `docs` (`packages/agent-loop/src/tools.js`). Every `write` and `edit` saves the file, shows it in the editor and builds the project the way the editor does, answering a build report; `run` tries a snippet without saving it. Model code runs in the sandboxed compute frame below, the same one the editor uses. Provider HTTP goes through the relay at `https://jscad.rkroll.com`, overridable via `localStorage 'jscad-ai.relay'`.
 
 Account setup lives in the drawer above the chat:
 
@@ -128,8 +128,8 @@ carries.
 ## Storage
 
 Model files are local-first with per-project version history (`src/storage/`).
-Every editor compile and `writeModel` save records a version row plus file
-hashes, in both modes:
+Every editor compile, and every chat turn that wrote files, records a version
+row plus file hashes, in both modes:
 
 - `local` mode (default) keeps bytes in the service-worker FS and file
   handles, as before. Anonymous users are local-only.

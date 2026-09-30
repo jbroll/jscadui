@@ -72,6 +72,6 @@ rootfs from `scripts/eval-sandbox-setup.sh`. Locally, set `CRT_HOME` outside
 `/data/crt/home/$USER` on a host with the `/data/crt` layout — then run
 `scripts/eval-sandbox-setup.sh` to create the rootfs there before the suite
 picks it up. `test/warningCases.js` holds the option-warning
-cases the eval backend and the app's `createEvaluate` must answer alike, and
+cases the eval backend and the app's `run` and build report must answer alike, and
 `eval/fluent-guard.test.js` fails on any warning from the repo's fluent
 examples.

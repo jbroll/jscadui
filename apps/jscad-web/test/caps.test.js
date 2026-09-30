@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest'
 import { capGeometry, checkLimits, DEFAULT_CAPS, geometryBytes, STREAM_CAPS } from '../src/caps.js'
-import { createEvaluate } from '../src/aiEvaluate.js'
 
 const smallEntity = () => ({
   type: 'mesh',
@@ -40,65 +39,6 @@ describe('capGeometry', () => {
     const result = capGeometry(entities, DEFAULT_CAPS)
     expect(result[0].vertices).toBe(vertices)
     expect(result[0].indices).toBe(indices)
-  })
-})
-
-describe('agent evaluate', () => {
-  const apiReturning = (entities) => ({
-    jscadSetFiles: async () => {},
-    jscadScript: async () => ({ entities }),
-  })
-
-  it('reports an over-cap result as a failure to the agent', async () => {
-    const drawn = []
-    const entities = Array.from({ length: DEFAULT_CAPS.entities + 1 }, smallEntity)
-    const evaluate = createEvaluate(apiReturning(entities), (result) => drawn.push(result))
-
-    const result = await evaluate('module.exports = { main: () => [] }')
-
-    expect(result.ok).toBe(false)
-    expect(result.error.message).toMatch(/entity cap/)
-    expect(result.entityCount).toBeUndefined()
-    expect(drawn.length).toBe(1)
-  })
-
-  it('reports the entity count when the result is under the caps', async () => {
-    const evaluate = createEvaluate(apiReturning([smallEntity()]), () => {})
-
-    expect(await evaluate('module.exports = { main: () => [] }')).toEqual({ entityCount: 1 })
-  })
-
-  it('passes the run warnings on to the agent', async () => {
-    const warnings = [{ fn: 'primitives.roundedCuboid', option: 'radius', suggestions: ['roundRadius'] }]
-    const evaluate = createEvaluate({
-      jscadSetFiles: async () => {},
-      jscadScript: async () => ({ entities: [smallEntity()], warnings }),
-    }, () => {})
-
-    expect(await evaluate('module.exports = { main: () => [] }')).toEqual({ entityCount: 1, warnings })
-  })
-
-  it('passes the run console output on to the agent', async () => {
-    const consoleLines = ['hi {"a":1}']
-    const evaluate = createEvaluate({
-      jscadSetFiles: async () => {},
-      jscadScript: async () => ({ entities: [smallEntity()], console: consoleLines }),
-    }, () => {})
-
-    expect(await evaluate('module.exports = { main: () => [] }')).toEqual({ entityCount: 1, console: consoleLines })
-  })
-
-  it('turns a frame rejection into a failure result', async () => {
-    const error = Object.assign(new Error('boom'), { name: 'ModelError' })
-    const evaluate = createEvaluate({
-      jscadSetFiles: async () => {},
-      jscadScript: async () => { throw error },
-    }, () => {})
-
-    expect(await evaluate('module.exports = {}')).toEqual({
-      ok: false,
-      error: { name: 'ModelError', message: 'boom' },
-    })
   })
 })
 
