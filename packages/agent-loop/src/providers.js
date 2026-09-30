@@ -118,7 +118,7 @@ const isContent = (event) => event.type === 'text' || event.type === 'tool_use'
  * before any text or tool call has been yielded is requested again, within
  * the same attempt budget and backoff; one that fails after is not, since the
  * caller has already shown that output. Every retry is yielded as a `retry`
- * event.
+ * event. A refused request throws an Error carrying its `status` and `body`.
  */
 export async function* streamWithRetry(label, url, init, parse, { fetchImpl = fetch, sleep = defaultSleep, maxAttempts = MAX_PROVIDER_ATTEMPTS } = {}) {
   let attempt = 1
@@ -146,7 +146,7 @@ export async function* streamWithRetry(label, url, init, parse, { fetchImpl = fe
         yield { type: 'retry', ...retries.shift() }
       }
     }
-    if (!res.ok) throw new Error(`${label}: ${res.text} (status ${res.status})`)
+    if (!res.ok) throw Object.assign(new Error(`${label}: ${res.text} (status ${res.status})`), { status: res.status, body: res.text })
     let replied = false
     try {
       for await (const event of parse(res.body)) {

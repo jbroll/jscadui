@@ -227,7 +227,43 @@ describe('providers', () => {
     fetchMock.mockResolvedValue(new Response(sseBody(body)))
     const p = createProvider({ kind: 'meta', apiKey: 'k', model: 'muse-spark-1.3', effort: 'low' })
     for await (const e of p.send([{ role: 'user', content: 'hi' }], [])) void e
-    expect(JSON.parse(fetchMock.mock.calls[0][1].body).reasoning).toEqual({ effort: 'low' })
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).reasoning).toEqual({ effort: 'low', summary: 'auto' })
+    fetchMock.mockClear()
+    fetchMock.mockResolvedValue(new Response(sseBody(body)))
+    const q = createProvider({ kind: 'meta', apiKey: 'k', model: 'muse-spark-1.3' })
+    for await (const e of q.send([{ role: 'user', content: 'hi' }], [])) void e
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).not.toHaveProperty('reasoning')
+  })
+
+  it.each([400, 422])('responses: a %i naming summary is sent again without it, and the config stays without it', async (status) => {
+    const completed = `data: {"type":"response.output_text.delta","delta":"Hi"}\n\ndata: {"type":"response.completed"}\n\n`
+    const refusal = JSON.stringify({ error: { message: "Unsupported parameter: 'reasoning.summary'", code: 'unsupported_parameter' } })
+    fetchMock.mockImplementation(async (_url, init) =>
+      JSON.parse(init.body).reasoning.summary ? new Response(refusal, { status }) : new Response(sseBody(completed)))
+    const config = { kind: 'opencode-go', apiKey: 'k', model: 'grok-4.6', effort: 'high', baseUrl: `https://summary-${status}.test` }
+    const drain = async (provider) => {
+      const events = []
+      for await (const e of provider.send([{ role: 'user', content: 'hi' }], [])) events.push(e)
+      return events
+    }
+    expect(await drain(createProvider(config))).toContainEqual({ type: 'text', text: 'Hi' })
+    const sent = () => fetchMock.mock.calls.map(([, init]) => JSON.parse(init.body).reasoning)
+    expect(sent()).toEqual([{ effort: 'high', summary: 'auto' }, { effort: 'high' }])
+    await drain(createProvider(config))
+    expect(sent().at(-1)).toEqual({ effort: 'high' })
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    await drain(createProvider({ ...config, model: 'gpt-5.6-luna' }))
+    expect(sent().at(-2)).toEqual({ effort: 'high', summary: 'auto' })
+  })
+
+  it('responses: a 400 that does not name summary ends the call without a second request', async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ error: { message: 'bad model' } }), { status: 400 }))
+    const provider = createProvider({ kind: 'opencode-go', apiKey: 'k', model: 'grok-4.6', effort: 'high', baseUrl: 'https://no-summary.test' })
+    const drain = async () => {
+      for await (const e of provider.send([{ role: 'user', content: 'hi' }], [])) void e
+    }
+    await expect(drain()).rejects.toThrow(/bad model.*status 400/)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
   it('meta chat path: maps effort to reasoning_effort', async () => {

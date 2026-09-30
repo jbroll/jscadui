@@ -63,15 +63,23 @@ object: {"parts":…' } }`, which the transcript keeps.
 ## Turn status
 
 ```js
-runTurn({ conversation, provider, requestTool, onText, onStatus, signal, toolTimeoutMs, api })
+runTurn({ conversation, provider, requestTool, onText, onReasoning, onStatus, signal, toolTimeoutMs, api })
 ```
+
+`onText(delta)` hears each chunk of reply text and `onReasoning(delta)` each
+chunk of reasoning the provider streams, in the order they arrive. Reasoning
+never enters the returned messages, so it is never sent back to the model.
+A step's reasoning ends when its text starts (`text` phase), its tool runs
+(`tool` phase), the next request starts (`thinking` with no
+`reasoningChars`), or the turn ends (`done`); the app's chat closes its
+reasoning block on each of these.
 
 `onStatus`, when given, hears where the turn is:
 
 | Status | When |
 |---|---|
 | `{ phase: 'thinking' }` | each provider request starts |
-| `{ phase: 'thinking', reasoningChars }` | each `reasoning` event, with the characters of reasoning so far in this request |
+| `{ phase: 'thinking', reasoningChars }` | each `reasoning` event, with the characters of reasoning so far in this request, just before `onReasoning` hears it |
 | `{ phase: 'text' }` | text starts streaming (once per run of text, not per chunk) |
 | `{ phase: 'tool', tool, detail? }` | before a tool runs; `detail` is its `path`, `query` or `format`, cut to 40 characters |
 | `{ phase: 'retry', attempt, maxAttempts }` | the provider is retried; `attempt` is the one about to start |

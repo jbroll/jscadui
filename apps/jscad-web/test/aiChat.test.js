@@ -229,6 +229,206 @@ describe('running turn', () => {
     }
   })
 })
+describe('model reasoning', () => {
+  // vi.waitFor would advance the fake clock; a macrotask lets the turn start without moving it.
+  const started = async (turn) => {
+    while (turn.runTurnFn.mock.calls.length === 0) await new Promise((resolve) => setImmediate(resolve))
+  }
+  const withClock = async (fn) => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
+    try {
+      await fn()
+    } finally {
+      vi.useRealTimers()
+    }
+  }
+
+  it('streams each step into a collapsed block, Thinking… with its seconds, then Thought for Ns when text starts', () =>
+    withClock(async () => {
+      const turn = heldTurn()
+      const { q, container, type } = openChat({ runTurnFn: turn.runTurnFn })
+      type('a cube')
+      await started(turn)
+      const { onReasoning, onStatus, onText } = turn.args()
+      onStatus({ phase: 'thinking', reasoningChars: 4 })
+      onReasoning('hmm ')
+      const block = q('.chat-reasoning')
+      expect(block.tagName).toBe('DETAILS')
+      expect(block.open).toBe(false)
+      expect(block.querySelector('summary').textContent).toBe('Thinking… 0s')
+      onReasoning('a cube')
+      expect(q('.chat-reasoning-text').textContent).toBe('hmm a cube')
+      vi.advanceTimersByTime(3100)
+      expect(block.querySelector('summary').textContent).toBe('Thinking… 3s')
+      onStatus({ phase: 'text' })
+      onText('Here it is')
+      expect(block.querySelector('summary').textContent).toBe('Thought for 3s')
+      expect(block.compareDocumentPosition(q('.chat-msg.assistant')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      vi.advanceTimersByTime(5000)
+      expect(block.querySelector('summary').textContent).toBe('Thought for 3s')
+      expect(container.querySelectorAll('[aria-live]')).toHaveLength(1)
+      turn.release()
+    }))
+
+  it('opens a new block for each model step and closes the last one when the turn ends', () =>
+    withClock(async () => {
+      const turn = heldTurn()
+      const { q, container, type } = openChat({ runTurnFn: turn.runTurnFn })
+      type('a cube')
+      await started(turn)
+      const { onReasoning, onStatus, requestTool } = turn.args()
+      onReasoning('write it')
+      onStatus({ phase: 'tool', tool: 'write', detail: 'main.js' })
+      await requestTool('write', { path: 'main.js', content: 'x' })
+      onStatus({ phase: 'thinking' })
+      vi.advanceTimersByTime(1000)
+      onReasoning('check it')
+      const blocks = container.querySelectorAll('.chat-reasoning')
+      expect(blocks).toHaveLength(2)
+      expect(blocks[0].querySelector('summary').textContent).toBe('Thought for 1s')
+      expect(blocks[1].querySelector('summary').textContent).toBe('Thinking… 0s')
+      expect(q('.chat-tool').compareDocumentPosition(blocks[1]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      vi.advanceTimersByTime(2000)
+      turn.release()
+      await vi.waitFor(() => expect(q('.chat-send').textContent).toBe('Send'))
+      expect(blocks[1].querySelector('summary').textContent).toBe('Thought for 2s')
+    }))
+
+  it('closes the block when the turn fails or is stopped', async () => {
+    const failing = openChat({
+      runTurnFn: async ({ onReasoning }) => {
+        onReasoning('hmm')
+        throw new Error('provider down')
+      },
+    })
+    failing.type('a cube')
+    await vi.waitFor(() => expect(failing.q('.chat-msg.error')?.textContent).toBe('provider down'))
+    expect(failing.q('.chat-reasoning summary').textContent).toMatch(/^Thought for \d+s$/)
+
+    const turn = heldTurn()
+    const stopped = openChat({ runTurnFn: turn.runTurnFn })
+    stopped.type('a cube')
+    await vi.waitFor(() => expect(turn.runTurnFn).toHaveBeenCalledTimes(1))
+    turn.args().onReasoning('hmm')
+    stopped.q('.chat-send').click()
+    await vi.waitFor(() => expect(stopped.q('.chat-msg.stopped')).not.toBeNull())
+    expect(stopped.q('.chat-reasoning summary').textContent).toMatch(/^Thought for \d+s$/)
+  })
+
+  it('stores the reasoning with the reply, shows it on reload, and never sends it to the model', async () => {
+    const fetchMock = vi.fn(async () => new Response('data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n'))
+    vi.stubGlobal('fetch', fetchMock)
+    try {
+      const writeConversation = vi.fn(async () => {})
+      const first = openChat({
+        runTurnFn: async ({ onReasoning, onStatus, onText }) => {
+          onReasoning('secret plan')
+          onStatus({ phase: 'text' })
+          onText('hi')
+          return { messages: [] }
+        },
+        storage: { readConversation: async () => null, writeConversation },
+        projectId: 'p1',
+      })
+      first.type('hello')
+      await vi.waitFor(() => expect(writeConversation.mock.calls.at(-1)?.[1]).toHaveLength(2))
+      const stored = writeConversation.mock.calls.at(-1)[1]
+      expect(stored[1]).toEqual({ role: 'assistant', content: 'hi', reasoning: [{ text: 'secret plan', seconds: expect.any(Number) }] })
+
+      const runTurnFn = vi.fn(async ({ provider }) => {
+        for await (const e of provider.send(runTurnFn.mock.calls[0][0].conversation.messages, [])) void e
+        return { messages: [] }
+      })
+      const resumed = [stored[0], { ...stored[1], reasoning: [{ text: 'secret plan', seconds: 4 }] }]
+      const second = openChat({ runTurnFn, storage: { readConversation: async () => ({ messages: resumed, updated: 1 }), writeConversation }, projectId: 'p1' })
+      await vi.waitFor(() => expect(second.q('.chat-reasoning')).not.toBeNull())
+      const block = second.q('.chat-reasoning')
+      expect(block.open).toBe(false)
+      expect(block.querySelector('summary').textContent).toBe('Thought for 4s')
+      expect(block.querySelector('.chat-reasoning-text').textContent).toBe('secret plan')
+      expect(block.compareDocumentPosition(second.q('.chat-msg.assistant')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+
+      second.type('again')
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+      expect(runTurnFn.mock.calls[0][0].conversation.messages.slice(1, 3)).toEqual([
+        { role: 'user', content: 'hello' },
+        { role: 'assistant', content: 'hi' },
+      ])
+      expect(fetchMock.mock.calls[0][1].body).not.toContain('secret plan')
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('stores the reasoning of a stopped reply too', async () => {
+    const turn = heldTurn()
+    const writeConversation = vi.fn(async () => {})
+    const { q, type } = openChat({ runTurnFn: turn.runTurnFn, storage: { readConversation: async () => null, writeConversation }, projectId: 'p1' })
+    type('a cube')
+    await vi.waitFor(() => expect(turn.runTurnFn).toHaveBeenCalledTimes(1))
+    turn.args().onReasoning('hmm')
+    q('.chat-send').click()
+    await vi.waitFor(() => expect(q('.chat-send').textContent).toBe('Send'))
+    expect(writeConversation.mock.calls.at(-1)[1][1]).toEqual({ role: 'assistant', content: '', stopped: true, reasoning: [{ text: 'hmm', seconds: expect.any(Number) }] })
+  })
+})
+
+describe('message kinds', () => {
+  it('marks user, reply, tool and error rows apart', async () => {
+    const { container, q, type } = openChat({
+      requestTool: async (name) => {
+        if (name === 'measure') throw new Error('no geometry')
+        if (name === 'check') return { ok: false, error: { message: 'open edges' } }
+        if (name === 'docs') return 'cuboid(options)'
+        return { ok: true }
+      },
+      runTurnFn: async ({ requestTool, onText }) => {
+        onText('Writing it')
+        await requestTool('write', { path: 'main.js', content: 'x' })
+        await requestTool('docs', { query: 'cuboid' })
+        await requestTool('measure', {})
+        await requestTool('check', {})
+        throw new Error('provider down')
+      },
+    })
+    type('a cube')
+    await vi.waitFor(() => expect(q('.chat-msg.error')).not.toBeNull())
+    expect(q('.chat-msg.user').textContent).toBe('a cube')
+    expect(q('.chat-msg.assistant').textContent).toBe('Writing it')
+    const rows = [...container.querySelectorAll('.chat-tool')]
+    const summary = (row) => ['.chat-tool-name', '.chat-tool-target', '.chat-tool-mark'].map((s) => row.querySelector(`summary ${s}`)?.textContent ?? null)
+    expect(rows.map(summary)).toEqual([
+      ['write', 'main.js', 'ok'],
+      ['docs', 'cuboid', 'ok'],
+      ['measure', null, 'failed'],
+      ['check', null, 'failed'],
+    ])
+    expect(rows.map((row) => row.classList.contains('failed'))).toEqual([false, false, true, true])
+    expect(rows.every((row) => row.tagName === 'DETAILS' && !row.open)).toBe(true)
+    expect(JSON.parse(rows[0].querySelector('.chat-tool-input').textContent)).toEqual({ path: 'main.js', content: 'x' })
+    expect(rows[1].querySelector('.chat-tool-result').textContent).toBe('cuboid(options)')
+    expect(q('.chat-msg.error').textContent).toBe('provider down')
+  })
+
+  it('shows a running tool as pending until it answers', async () => {
+    let answer
+    const { q, type } = openChat({
+      requestTool: () => new Promise((resolve) => { answer = resolve }),
+      runTurnFn: async ({ requestTool }) => {
+        await requestTool('export', { format: 'stl' })
+        return { messages: [] }
+      },
+    })
+    type('export it')
+    await vi.waitFor(() => expect(q('.chat-tool')).not.toBeNull())
+    expect(q('.chat-tool-target').textContent).toBe('stl')
+    expect(q('.chat-tool-mark').textContent).toBe('…')
+    expect(q('.chat-tool').classList.contains('running')).toBe(true)
+    answer({ ok: true })
+    await vi.waitFor(() => expect(q('.chat-tool-mark').textContent).toBe('ok'))
+    expect(q('.chat-tool').classList.contains('running')).toBe(false)
+  })
+})
 describe('stored conversation', () => {
   it('loads a stored conversation and persists the turn', async () => {
     document.body.innerHTML = '<div id="chat"></div>'

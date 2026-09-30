@@ -203,6 +203,29 @@ describe('runTurn', () => {
     ])
   })
 
+  it('hands each reasoning delta to onReasoning, in order with the text, and keeps it out of the messages', async () => {
+    const provider = roundsProvider([
+      [
+        { type: 'reasoning', text: 'let me see' },
+        { type: 'reasoning', text: ' more' },
+        { type: 'tool_use', id: 't1', name: 'measure', input: {} },
+        { type: 'done', stopReason: 'tool_use' },
+      ],
+      [{ type: 'reasoning', text: 'fits' }, { type: 'text', text: 'Done' }, { type: 'done', stopReason: 'end_turn' }],
+    ])
+    const heard = []
+    const { messages } = await runTurn({
+      conversation: { messages: [{ role: 'user', content: 'hi' }] },
+      provider,
+      requestTool: async () => '{"ok":true}',
+      onText: (t) => heard.push(['text', t]),
+      onReasoning: (t) => heard.push(['reasoning', t]),
+    })
+    expect(heard).toEqual([['reasoning', 'let me see'], ['reasoning', ' more'], ['reasoning', 'fits'], ['text', 'Done']])
+    expect(JSON.stringify(messages)).not.toMatch(/let me see|fits/)
+    expect(provider.sent[1].some((m) => 'reasoning' in m)).toBe(false)
+  })
+
   it('reports a provider retry with the attempt it is making, then the output that follows', async () => {
     const provider = roundsProvider([
       [

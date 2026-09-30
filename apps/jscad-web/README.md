@@ -78,6 +78,8 @@ The app has an agent chat drawer (AI Chat in the menu) layered on the normal edi
 
 While the model works, a status line above the input says what it is doing (`Thinking…`, `Writing…`, `write main.js…`, `Provider busy, retrying (2/4)…`) and for how many seconds, and Send becomes Stop. Stop ends the turn and keeps what the model had written so far, marked `Stopped`. You can type the next message during a turn and send it once the turn ends.
 
+Your messages sit in tinted bubbles on the right; the model's reply is plain text. Reasoning the model streams shows above each step's reply as a collapsed `Thinking… 3s` block that becomes `Thought for 3s` when the step moves on; open it to read the reasoning, live while it streams. It is saved with the conversation but never sent back to the model. Each tool call is one compact row (`write main.js ok`, `measure failed`) that opens to show its input and result; errors show in a red block.
+
 Account setup lives in the drawer above the chat:
 
 - Sign in with Google (session via the API at `/api`).

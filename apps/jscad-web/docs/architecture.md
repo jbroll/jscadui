@@ -703,8 +703,10 @@ system prompt; prior turns, newest first, as whole user/assistant pairs until
 the next would pass `CONTEXT_BUDGET` (24,000 characters); one user message
 holding every text file of the current project under `### <path>` in a fenced
 block and then the project's last build report, outside the budget and
-omitted when both are empty; then the new message. Prior turns carry only what the transcript stores, the user text and
+omitted when both are empty; then the new message. Prior turns carry only the user text and
 the assistant's streamed text, so earlier tool calls are not replayed. The
+transcript also stores the reply's reasoning, which `forModel` in
+`src/aiChat.js` drops before `buildMessages` sees it. The
 project files come from the file cache the frame runs (`fileSystem.projectFiles`).
 The chat sends its per-project session id as `x-jscad-chat-id` when it goes
 through the relay, and not to a custom base URL. The eval builds its messages
@@ -743,10 +745,39 @@ not each tick. The line empties when the turn ends.
 The input stays editable during a turn. Enter submits the form, which a
 running turn ignores, so the next message waits in the input.
 
+The message list shows each kind of row differently, light and dark alike
+(`--chat-*` variables on `#ai-chat`, redefined under `.dark`):
+
+| Row | Element | Look |
+|---|---|---|
+| User message | `.chat-msg.user` | right-aligned bubble tinted from the drawer's blue toggle |
+| Reply text | `.chat-msg.assistant` | plain text on the panel |
+| Reasoning | `<details class="chat-reasoning">` | smaller muted text behind a thin left rule, collapsed |
+| Tool call | `<details class="chat-tool">` | one monospace row: tool, its path, query or format (`toolDetail` from agent-loop), and `…`, `ok` or `failed`; opening it shows the input and the result |
+| Error | `.chat-msg.error` | red-tinted block with a red left rule |
+| Stopped | `.chat-msg.stopped` | small muted italic `Stopped`, not an error |
+
+A tool row is `failed` (red rule and text) when the tool threw or answered
+`{ ok: false }`, as an object or as JSON text.
+
+Reasoning arrives through `runTurn`'s `onReasoning`. The first delta of a
+model step opens a reasoning block above that step's text, its summary
+`Thinking… Ns` counting from that delta on the status line's ticker; the
+text streams into it, visible when opened. The block ends, and its summary
+becomes `Thought for Ns` (at least 1), when the step's text or tool call
+starts, the next request starts, or the turn ends, fails or is stopped.
+Each step gets its own block. The summary is a native `<summary>`, so it
+takes focus and opens with Enter or Space; the block is not `aria-live`, only
+the status phase is. The reply is stored as `{ role: 'assistant', content,
+reasoning: [{ text, seconds }] }` (with `stopped: true` for a stopped one;
+no `reasoning` key when there was none), so a resumed conversation shows
+each step's block, closed, above the reply text. Tool rows are not stored,
+so after a reload the blocks of a turn sit together above its text.
+
 Stop aborts the turn's `AbortController`, and `runTurn` rejects with
 `AbortError` at once, whether it was waiting on the provider or on a tool. The
 chat keeps the streamed text, adds a `Stopped` marker, and stores the reply as
-`{ role: 'assistant', content, stopped: true }`, so a resumed conversation
+`{ role: 'assistant', content, stopped: true }` (plus its `reasoning`), so a resumed conversation
 shows the marker too. The next turn sends it to the model as its text followed
 by `[stopped by the user]`, or the note alone when nothing was said, since
 providers refuse an empty assistant message. `endTurn` still runs, so the

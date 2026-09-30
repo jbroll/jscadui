@@ -120,8 +120,8 @@ const withTimeout = (promise, timeoutMs, signal, makeTimeoutError) =>
 
 const STATUS_DETAIL_CHARS = 40
 
-// The argument that tells one call of a tool from another, for a status line.
-const toolDetail = (input) => {
+// The argument that tells one call of a tool from another, for a status line or a chat tool row.
+export const toolDetail = (input) => {
   const value = [input?.path, input?.query, input?.format].find((v) => typeof v === 'string' && v !== '')
   if (value === undefined) return undefined
   return value.length > STATUS_DETAIL_CHARS ? `${value.slice(0, STATUS_DETAIL_CHARS - 1)}…` : value
@@ -132,12 +132,13 @@ const toolDetail = (input) => {
  * from each request until its first output, `{phase: 'text'}` when text
  * starts, `{phase: 'tool', tool, detail?}` before each tool runs,
  * `{phase: 'retry', attempt, maxAttempts}` when the provider is retried, and
- * `{phase: 'done'}` once the turn has ended, however it ended.
- * @param {{conversation:{messages:Array<object>},provider:{send:Function},requestTool:Function,onText?:Function,onStatus?:Function,signal?:AbortSignal,toolTimeoutMs?:number,api?:'fluent'|'modeling'}} options
+ * `{phase: 'done'}` once the turn has ended, however it ended. `onText` and
+ * `onReasoning` hear each streamed delta; reasoning never enters the messages.
+ * @param {{conversation:{messages:Array<object>},provider:{send:Function},requestTool:Function,onText?:Function,onReasoning?:Function,onStatus?:Function,signal?:AbortSignal,toolTimeoutMs?:number,api?:'fluent'|'modeling'}} options
  * @returns {Promise<{messages:Array<object>}>} a NEW conversation; the input is never mutated. A rejection carries the messages so far as `error.messages`.
  */
 export const runTurn = (options) => {
-  const { conversation, provider, requestTool, onText, signal } = options
+  const { conversation, provider, requestTool, onText, onReasoning, signal } = options
   const toolTimeoutMs = options.toolTimeoutMs ?? DEFAULT_TOOL_TIMEOUT_MS
   const tools = buildTools(options.api ?? DEFAULT_API)
   const messages = [...conversation.messages]
@@ -187,6 +188,7 @@ export const runTurn = (options) => {
               } else if (value.type === 'reasoning') {
                 reasoningChars += value.text.length
                 report({ phase: 'thinking', reasoningChars })
+                onReasoning?.(value.text)
               } else if (value.type === 'retry') {
                 report({ phase: 'retry', attempt: value.attempt + 1, maxAttempts: value.maxAttempts })
               } else if (value.type === 'tool_use') {

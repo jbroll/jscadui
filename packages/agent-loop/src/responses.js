@@ -71,8 +71,15 @@ export async function* parseResponsesStream(body) {
   yield { type: 'done', stopReason: 'completed' }
 }
 
+// Provider configs that refused `reasoning.summary`, for the rest of the page session.
+const refusedSummary = new Set()
+
+const rejectsSummary = (err) => (err?.status === 400 || err?.status === 422) && typeof err.body === 'string' && /summary/i.test(err.body)
+
 export const responsesProvider = (config) => {
   const sessionId = config.sessionId ?? crypto.randomUUID()
+  const url = `${config.baseUrl ?? PROVIDER_BASE_URLS[config.kind]}/v1/responses`
+  const configKey = `${config.kind}|${url}|${config.model}`
   return {
     async *send(messages, tools) {
       const body = {
@@ -81,19 +88,22 @@ export const responsesProvider = (config) => {
         input: toResponsesInput(messages),
       }
       if (tools.length > 0) body.tools = tools.map(toResponsesTool)
-      if (config.effort) body.reasoning = { effort: config.effort }
+      const summary = Boolean(config.effort) && !refusedSummary.has(configKey)
+      if (config.effort) body.reasoning = summary ? { effort: config.effort, summary: 'auto' } : { effort: config.effort }
       const headers = {
         'content-type': 'application/json',
         authorization: `Bearer ${config.apiKey}`,
       }
       if (config.kind === 'opencode-go') headers['x-opencode-session'] = sessionId
       if (config.chatId) headers['x-jscad-chat-id'] = config.chatId
-      yield* streamWithRetry(
-        'responses',
-        `${config.baseUrl ?? PROVIDER_BASE_URLS[config.kind]}/v1/responses`,
-        { method: 'POST', headers, body: JSON.stringify(body) },
-        parseResponsesStream,
-      )
+      const post = (payload) => streamWithRetry('responses', url, { method: 'POST', headers, body: JSON.stringify(payload) }, parseResponsesStream)
+      try {
+        yield* post(body)
+      } catch (err) {
+        if (!summary || !rejectsSummary(err)) throw err
+        refusedSummary.add(configKey)
+        yield* post({ ...body, reasoning: { effort: config.effort } })
+      }
     },
   }
 }

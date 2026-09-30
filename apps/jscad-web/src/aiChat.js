@@ -2,7 +2,7 @@
 // from the account panel, runs runTurn directly, executes each tool request
 // through requestTool, and renders streamed text. Provider HTTP targets the
 // relay, which proxies path-preserving to the provider and stores nothing.
-import { buildMessages, buildSystemPrompt, createProvider, DEFAULT_API, runTurn as defaultRunTurn } from '@jscadui/agent-loop'
+import { buildMessages, buildSystemPrompt, createProvider, DEFAULT_API, runTurn as defaultRunTurn, toolDetail } from '@jscadui/agent-loop'
 
 /* global __RELAY_ORIGIN__ */
 const RELAY_OVERRIDE_KEY = 'jscad-ai.relay'
@@ -25,7 +25,24 @@ const el = (tag, className, text) => {
 const STOPPED_NOTE = '[stopped by the user]'
 
 // A stopped reply may be empty, and providers refuse an empty assistant message.
-const forModel = (m) => (m.stopped ? { role: 'assistant', content: m.content ? `${m.content}\n\n${STOPPED_NOTE}` : STOPPED_NOTE } : m)
+// Stored reasoning stays on the page: the model never gets it back.
+const forModel = (m) =>
+  m.stopped ? { role: 'assistant', content: m.content ? `${m.content}\n\n${STOPPED_NOTE}` : STOPPED_NOTE } : { role: m.role, content: m.content }
+
+const thinkingLabel = (seconds) => `Thinking… ${seconds}s`
+const thoughtLabel = (seconds) => `Thought for ${seconds}s`
+
+// A tool answers failure as {ok:false}, as an object or as its JSON text.
+const toolFailed = (result) => {
+  if (typeof result === 'string') {
+    try {
+      result = JSON.parse(result)
+    } catch {
+      return false
+    }
+  }
+  return result !== null && typeof result === 'object' && result.ok === false
+}
 
 const phaseLabel = (status) => {
   switch (status.phase) {
@@ -73,6 +90,9 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
   let startedAt = 0
   let ticker = null
   let assistantEl = null
+  // The step's open reasoning block, and the steps this turn has finished.
+  let reasoning = null
+  let turnReasoning = []
   let transcript = []
   const pid = () => (typeof projectId === 'function' ? projectId() : projectId)
   // opencode groups a conversation's requests by this id, so it must outlive one message.
@@ -123,6 +143,7 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
       if (!resumed) return
       transcript = resumed.messages.filter((m) => m.role === 'user' || m.role === 'assistant')
       for (const m of transcript) {
+        for (const step of m.reasoning ?? []) addReasoningBlock(thoughtLabel(step.seconds), step.text)
         if (m.role === 'user') addMessage(m.content, 'user')
         else if (m.content) addMessage(m.content, 'assistant')
         if (m.stopped) addStopped()
@@ -139,6 +160,41 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
 
   const addStopped = () => addMessage('Stopped', 'stopped')
 
+  const addReasoningBlock = (label, text) => {
+    const details = el('details', 'chat-reasoning')
+    const summary = el('summary', 'chat-reasoning-summary', label)
+    const textEl = el('div', 'chat-reasoning-text', text)
+    details.append(summary, textEl)
+    messagesEl.append(details)
+    messagesEl.scrollTop = messagesEl.scrollHeight
+    return { summary, textEl }
+  }
+
+  const reasoningSeconds = () => Math.floor((Date.now() - reasoning.startedAt) / 1000)
+
+  const addReasoning = (text) => {
+    if (!reasoning) {
+      reasoning = { ...addReasoningBlock(thinkingLabel(0), ''), startedAt: Date.now(), text: '' }
+      assistantEl = null
+    }
+    reasoning.text += text
+    reasoning.textEl.textContent += text
+    messagesEl.scrollTop = messagesEl.scrollHeight
+  }
+
+  const renderReasoning = () => {
+    if (reasoning) reasoning.summary.textContent = thinkingLabel(reasoningSeconds())
+  }
+
+  // A step's reasoning ends when its text or tool call starts, or the turn ends.
+  const endReasoning = () => {
+    if (!reasoning) return
+    const seconds = Math.max(1, reasoningSeconds())
+    reasoning.summary.textContent = thoughtLabel(seconds)
+    turnReasoning.push({ text: reasoning.text, seconds })
+    reasoning = null
+  }
+
   const renderStatus = () => {
     if (!status) {
       statusEl.classList.remove('active')
@@ -154,20 +210,38 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
     statusEl.classList.add('active')
   }
 
+  // A bare `thinking` is a new provider request, so a new model step.
   const setStatus = (next) => {
+    if (next?.phase !== 'thinking' || next.reasoningChars === undefined) endReasoning()
     status = next?.phase === 'done' ? null : next
     renderStatus()
   }
 
+  const tick = () => {
+    renderStatus()
+    renderReasoning()
+  }
+
   const addToolLine = (name, inputJson) => {
-    const details = el('details', 'chat-tool')
-    details.append(el('summary', 'chat-tool-name', name))
+    const details = el('details', 'chat-tool running')
+    const summary = el('summary', 'chat-tool-summary')
+    summary.append(el('span', 'chat-tool-name', name))
+    const target = toolDetail(inputJson)
+    if (target !== undefined) summary.append(el('span', 'chat-tool-target', target))
+    const mark = el('span', 'chat-tool-mark', '…')
+    summary.append(mark)
+    details.append(summary)
     details.append(el('pre', 'chat-tool-input', JSON.stringify(inputJson, null, 2)))
     const resultEl = el('pre', 'chat-tool-result', 'running...')
     details.append(resultEl)
     messagesEl.append(details)
     messagesEl.scrollTop = messagesEl.scrollHeight
-    return resultEl
+    return (result, failed) => {
+      resultEl.textContent = typeof result === 'string' ? result : JSON.stringify(result, null, 2)
+      mark.textContent = failed ? 'failed' : 'ok'
+      details.classList.remove('running')
+      details.classList.toggle('failed', failed)
+    }
   }
 
   // A running turn's button stops it. As type=button it is no default button,
@@ -181,7 +255,7 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
     clearInterval(ticker)
     if (value) {
       startedAt = Date.now()
-      ticker = setInterval(renderStatus, 1000)
+      ticker = setInterval(tick, 1000)
       setStatus({ phase: 'thinking' })
     } else {
       setStatus(null)
@@ -197,15 +271,16 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
   // Never throws: a rejection becomes an {ok:false} result so the turn
   // always has content to feed back.
   const handleTool = async (name, input) => {
+    endReasoning()
     assistantEl = null
-    const resultEl = addToolLine(name, input)
+    const finish = addToolLine(name, input)
     try {
       const result = await requestTool(name, input)
-      resultEl.textContent = typeof result === 'string' ? result : JSON.stringify(result, null, 2)
+      finish(result, toolFailed(result))
       return typeof result === 'string' ? result : JSON.stringify(result ?? null)
     } catch (err) {
       const errorResult = { ok: false, error: { name: err.name, message: err.message } }
-      resultEl.textContent = JSON.stringify(errorResult, null, 2)
+      finish(errorResult, true)
       return JSON.stringify(errorResult)
     }
   }
@@ -226,6 +301,8 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
     const { signal } = aborter
     let assistantText = ''
     let stopped = false
+    turnReasoning = []
+    const reply = (fields) => ({ role: 'assistant', content: assistantText, ...fields, ...(turnReasoning.length > 0 ? { reasoning: turnReasoning } : {}) })
     try {
       const provider = createProvider({
         ...selection,
@@ -248,20 +325,23 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
           assistantEl.textContent += text
           messagesEl.scrollTop = messagesEl.scrollHeight
         },
+        onReasoning: addReasoning,
         onStatus: setStatus,
         signal,
       })
+      endReasoning()
       if (assistantText) {
-        transcript = [...transcript, { role: 'assistant', content: assistantText }]
+        transcript = [...transcript, reply()]
         persistTranscript()
       }
     } catch (err) {
+      endReasoning()
       if (signal.aborted) stopped = true
       else addMessage(err.message, 'error')
     } finally {
       if (stopped) {
         addStopped()
-        transcript = [...transcript, { role: 'assistant', content: assistantText, stopped: true }]
+        transcript = [...transcript, reply({ stopped: true })]
         persistTranscript()
       }
       await finishTurn()

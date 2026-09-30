@@ -106,6 +106,7 @@ const PARITY_ROUNDS = [
 ]
 
 // A round `{ text, hold: true }` streams its text and then keeps the reply open; `delayMs` holds back every reply's start.
+// A round with `reasoning` streams it first as `reasoning_content`, then waits `pauseMs`; one without `name` answers `text`.
 const startStubRelay = (rounds = ROUNDS, { delayMs = 0 } = {}) =>
   new Promise((resolve) => {
     const requests = []
@@ -136,12 +137,16 @@ const startStubRelay = (rounds = ROUNDS, { delayMs = 0 } = {}) =>
           res.write(chunk({ choices: [{ delta: { content: round.text } }] }))
           return
         }
-        if (round) {
+        if (round?.reasoning) {
+          res.write(chunk({ choices: [{ delta: { reasoning_content: round.reasoning } }] }))
+          await new Promise((r) => setTimeout(r, round.pauseMs ?? 0))
+        }
+        if (round?.name) {
           const call = { index: 0, id: `call-${requests.length}`, function: { name: round.name, arguments: JSON.stringify(round.args) } }
           res.write(chunk({ choices: [{ delta: { tool_calls: [call] } }] }))
           res.write(chunk({ choices: [{ delta: {}, finish_reason: 'tool_calls' }] }))
         } else {
-          res.write(chunk({ choices: [{ delta: { content: 'Done.' } }] }))
+          res.write(chunk({ choices: [{ delta: { content: round?.text ?? 'Done.' } }] }))
           res.write(chunk({ choices: [{ delta: {}, finish_reason: 'stop' }] }))
         }
         res.write('data: [DONE]\n\n')
@@ -329,6 +334,57 @@ test.describe('AI chat', () => {
     await expect(page.locator('.chat-msg.error')).toHaveCount(0)
     expect(stub.requests).toHaveLength(1)
     stub.server.closeAllConnections()
+    stub.server.close()
+  })
+
+  test('streams reasoning into a collapsed block per step that the model never gets back', async ({ page }) => {
+    test.setTimeout(60_000)
+    await page.locator('#menu-button').click()
+    await page.locator('#ai-chat-btn').click()
+    await page.locator('.ai-gear').click()
+    await page.locator('.ai-provider-select').selectOption('openai')
+    await page.locator('.ai-model-input').fill('stub-model')
+    await page.locator('.ai-model-input').dispatchEvent('change')
+    await page.getByLabel('Keep').selectOption('device')
+    await page.locator('.ai-key-input').fill('sk-test')
+    await page.locator('.ai-save-key').click()
+
+    const stub = await startStubRelay([
+      { reasoning: 'Plan: write a 10mm cube.', pauseMs: 2500, name: 'write', args: { path: 'main.js', content: CUBE } },
+      { reasoning: 'It built cleanly.', text: 'Wrote the cube.' },
+    ])
+    await page.addInitScript((port) => {
+      window.localStorage.setItem('jscad-ai.relay', `http://127.0.0.1:${port}`)
+    }, stub.port)
+    await page.reload()
+    await dismissWelcome(page)
+    await waitForRender(page)
+    await page.locator('#menu-button').click()
+    await page.locator('#ai-chat-btn').click()
+    await page.locator('.chat-input').fill('model a cube')
+    await page.locator('.chat-send').click()
+
+    const first = page.locator('.chat-reasoning').first()
+    await expect(first.locator('summary')).toHaveText(/^Thinking… \d+s$/)
+    expect(await first.evaluate((d) => d.open)).toBe(false)
+    await expect(page.locator('.chat-msg.assistant')).toHaveText('Wrote the cube.', { timeout: 30_000 })
+    await expect(page.locator('.chat-reasoning')).toHaveCount(2)
+    await expect(first.locator('summary')).toHaveText(/^Thought for \d+s$/)
+    await expect(page.locator('.chat-tool').first().locator('.chat-tool-mark')).toHaveText('ok')
+    await expect(page.locator('.chat-tool-target').first()).toHaveText('main.js')
+
+    await first.locator('summary').focus()
+    await page.keyboard.press('Enter')
+    await expect(first.locator('.chat-reasoning-text')).toBeVisible()
+    await expect(first.locator('.chat-reasoning-text')).toHaveText('Plan: write a 10mm cube.')
+    expect(JSON.stringify(stub.requests)).not.toContain('Plan: write')
+
+    // Signed out, the conversation lives in memory, so a reload is covered by test/aiChat.test.js.
+    await page.locator('.chat-input').fill('again')
+    await page.locator('.chat-send').click()
+    await expect.poll(() => stub.requests.length, { timeout: 30_000 }).toBe(3)
+    expect(JSON.stringify(stub.requests[2])).not.toMatch(/Plan: write|It built cleanly/)
+    expect(stub.requests[2].messages).toContainEqual({ role: 'assistant', content: 'Wrote the cube.' })
     stub.server.close()
   })
 

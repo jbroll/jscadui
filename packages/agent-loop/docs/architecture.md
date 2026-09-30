@@ -59,8 +59,20 @@ streams: Anthropic's `thinking_delta`, a chat-completions delta's
 `reasoning_content` or `reasoning`, and the Responses API's
 `response.reasoning_summary_text.delta` and `response.reasoning_text.delta`.
 It is no content: it neither blocks a stream retry nor counts as a reply.
-`runTurn` adds up its characters for `onStatus`; token counts come only in the
-`usage` event at the end of a stream.
+`runTurn` adds up its characters for `onStatus` and hands each delta to
+`onReasoning`, but never puts it in the messages it returns, so no adapter
+sends it back; token counts come only in the `usage` event at the end of a
+stream.
+
+OpenAI-style Responses endpoints stream reasoning only as a summary, and only
+when asked, so the Responses adapter sends `reasoning: { effort, summary:
+'auto' }` whenever an effort is set (no `reasoning` at all without one). A
+provider that refuses the field answers 400 or 422 with a body naming
+`summary`; the adapter then sends the same request once more without it, and
+remembers that provider (kind, URL and model) for the rest of the page
+session, so later requests leave it out. Any other refusal ends the call as
+before. `streamWithRetry` gives the refusal's `status` and `body` on the
+Error it throws, which is what the adapter reads.
 
 ## Tool protocol
 
