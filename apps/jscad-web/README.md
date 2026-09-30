@@ -109,7 +109,7 @@ npm run build -w @jscadui/openscad
 
 Each launch then fetches `origin/main`, moves the checkout to it, refreshes dependencies and generated files, and rebuilds the bundles when anything changed. Offline, or with uncommitted changes in that checkout, it says so and launches what it has.
 
-The launcher's relay logs each chat request to `YYYY-MM-DD.jsonl` (UTC date): time, chat id, provider, path, status, the request body without its tool list, the response and the elapsed time. Headers, and so API keys, are never written. The log dir is `<jscad-chat-evals clone>/logs` when that repo is cloned at `~/src/jscad-chat-evals` (or `$JSCAD_CHAT_DATA`), else `~/.local/state/jscad-chat/logs` (`$XDG_STATE_HOME` when set). `JSCAD_CHAT_LOG=<dir>` moves the log regardless, `JSCAD_CHAT_LOG=0` turns it off. `npm run read-log -w @jscadui/agent-loop` prints the logged conversations.
+The launcher's relay logs each chat request to `YYYY-MM-DD.jsonl` (UTC date): time, chat id, provider, path, status, the request body without its tool list, the response and the elapsed time, plus an `error` when the stream broke off (the provider stalled or dropped, or the page closed). Headers, and so API keys, are never written. The log dir is `<jscad-chat-evals clone>/logs` when that repo is cloned at `~/src/jscad-chat-evals` (or `$JSCAD_CHAT_DATA`), else `~/.local/state/jscad-chat/logs` (`$XDG_STATE_HOME` when set). `JSCAD_CHAT_LOG=<dir>` moves the log regardless, `JSCAD_CHAT_LOG=0` turns it off. `npm run read-log -w @jscadui/agent-loop` prints the logged conversations.
 
 ## Compute frame
 

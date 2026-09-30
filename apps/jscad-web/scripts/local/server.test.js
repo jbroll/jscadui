@@ -86,4 +86,21 @@ describe('local server', () => {
       appServer.close(); frameServer.close()
     }
   })
+
+  it('answers 500 and keeps serving when a handler throws', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'jscad-local-'))
+    mkdirSync(join(root, 'frame'), { recursive: true })
+    mkdirSync(join(root, 'models'), { recursive: true })
+    const relayHandler = async () => { throw new TypeError('terminated') }
+    const { appServer, frameServer, url } = await startLocal({
+      appDir: root, frameDir: join(root, 'frame'), modelDir: join(root, 'models'),
+      relayHandler, port: 0,
+    })
+    try {
+      expect((await fetch(`${url}/api/relay/x/y`, { method: 'POST' })).status).toBe(500)
+      expect((await fetch(`${url}/models/missing.scad`)).status).toBe(404)
+    } finally {
+      appServer.close(); frameServer.close()
+    }
+  })
 })

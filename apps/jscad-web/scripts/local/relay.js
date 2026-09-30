@@ -70,7 +70,7 @@ export const createRelayHandler = ({ allowlist, trustedOrigins, allowPrivateUpst
     for await (const c of req) chunks.push(c)
     const logging = log !== null && req.method === 'POST'
     const chatId = req.headers['x-jscad-chat-id']
-    const record = (status, response) => log.write({
+    const record = (status, response, error) => log.write({
       ts,
       chatId: typeof chatId === 'string' ? chatId : null,
       kind: m[1],
@@ -79,10 +79,14 @@ export const createRelayHandler = ({ allowlist, trustedOrigins, allowPrivateUpst
       request: toLogRequest(Buffer.concat(chunks)),
       response,
       ms: Date.now() - started,
+      ...(error ? { error } : {}),
     })
+    // A page that goes away mid-answer must not leave the provider streaming to nobody.
+    const abort = new AbortController()
+    res.on('close', () => { if (!res.writableFinished) abort.abort() })
     let up
     try {
-      up = await fetch(upstream, { method: req.method, headers, ...(req.method === 'POST' ? { body: Buffer.concat(chunks) } : {}) })
+      up = await fetch(upstream, { method: req.method, headers, signal: abort.signal, ...(req.method === 'POST' ? { body: Buffer.concat(chunks) } : {}) })
     } catch {
       res.writeHead(502, { 'content-type': 'application/json' })
       res.end(JSON.stringify({ error: 'upstream unreachable' }))
@@ -96,14 +100,21 @@ export const createRelayHandler = ({ allowlist, trustedOrigins, allowPrivateUpst
     })
     const decoder = new TextDecoder()
     let text = ''
-    if (up.body) {
-      for await (const c of up.body) {
-        res.write(c)
-        if (logging) text += decoder.decode(c, { stream: true })
+    let failure = null
+    try {
+      if (up.body) {
+        for await (const c of up.body) {
+          res.write(c)
+          if (logging) text += decoder.decode(c, { stream: true })
+        }
       }
+    } catch (err) {
+      failure = abort.signal.aborted ? 'client closed' : `upstream stream failed: ${err?.cause?.code ?? err?.message ?? err}`
     }
-    res.end()
-    if (logging) record(up.status, text + decoder.decode())
+    // Headers are already sent, so a failed stream can only be cut off.
+    if (failure) res.destroy()
+    else res.end()
+    if (logging) record(up.status, text + decoder.decode(), failure)
     return true
   }
 }

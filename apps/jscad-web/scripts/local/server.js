@@ -16,7 +16,7 @@ const safeJoin = (root, rel) => {
 
 export const startLocal = async ({ appDir, frameDir, modelDir, relayHandler, port }) => {
   let fsHandler = null
-  const server = http.createServer(async (req, res) => {
+  const route = async (req, res) => {
     const path = (req.url ?? '/').split('?')[0]
     if (path.startsWith('/api/relay/')) {
       if (await relayHandler(req, res)) return
@@ -39,6 +39,13 @@ export const startLocal = async ({ appDir, frameDir, modelDir, relayHandler, por
     } catch {
       res.writeHead(404, cors); res.end('not found')
     }
+  }
+  // An unhandled rejection would end the process, taking the page's session with it.
+  const server = http.createServer((req, res) => {
+    route(req, res).catch((err) => {
+      console.error(`jscad: ${req.method} ${req.url} failed:`, err)
+      if (!res.headersSent) { res.writeHead(500); res.end() } else res.destroy()
+    })
   })
   await new Promise((r) => server.listen(port, '127.0.0.1', r))
   const actual = server.address().port
