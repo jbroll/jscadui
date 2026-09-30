@@ -10,19 +10,21 @@ import * as jscadIo from '@jscad/io'
 import { OPTION_TABLES } from '../api/optionTable.js'
 import { DEFAULT_API } from '../src/api.js'
 import { installConsoleCapture } from '../src/consoleCapture.js'
+import { shouldTransform } from '@jscadui/worker/src/shouldTransform.js'
 import { docsTool } from '../src/docs.js'
-import { withErrorHint } from '../src/hints.js'
+import { dispatchTool, toolError } from '../src/dispatchTool.js'
+import { reportError } from '../src/modelError.js'
 import { createWarningCollector, withOptionChecks, wrapFluentMethods } from '../src/optionChecks.js'
-import { asGeometry, buildReport, errorLocation, memoryMessage, noEntryReport, noGeometryError, noMainError, notGeometryError, summarizeRun, withoutLoaderNote, writeReport } from '../src/buildReport.js'
+import { asGeometry, assembleReport, noEntryReport, noGeometryError, noMainError, summarizeRun, writeReport } from '../src/buildReport.js'
 import { exportConfig, exportedSize } from '../src/exportFormat.js'
 import { applyEdit, applyWrite, listFiles, readFile, resolveEntry } from '../src/project.js'
+import { createReadFile, PROJECT_BASE, RUN_FILE } from '../src/projectUrl.js'
 import { withUnits } from '../src/units.js'
 import { GRADE_TIMEOUT_MS } from './grade.js'
 import { runProbe } from './probe.js'
 
 const API_INDEX = JSON.parse(readFileSync(new URL('../api/index.json', import.meta.url), 'utf8'))
 
-export const PROJECT_BASE = 'http://project.local/'
 export const CDN_BASE = 'https://cdn.jsdelivr.net/npm/'
 export { GRADE_TIMEOUT_MS }
 const nodeRequire = createRequire(import.meta.url)
@@ -74,24 +76,13 @@ globalThis[USER_MODULE] = (spec) => {
   return wrapped.get(real)
 }
 
-// Copied from packages/worker/worker.js (a test keeps them equal): the frame
-// transforms the entry only when it has an import or an export-from line.
-export const IMPORT_REG = /import(?:(?:(?:[ \n\t]+([^ *\n\t{},]+)[ \n\t]*(?:,|[ \n\t]+))?([ \n\t]*\{(?:[ \n\t]*[^ \n\t"'{}]+[ \n\t]*,?)+\})?[ \n\t]*)|[ \n\t]*\*[ \n\t]*as[ \n\t]+([^ \n\t{}]+)[ \n\t]+)from[ \n\t]*(?:['"])([^'"\n]+)(['"])/
-export const EXPORT_REG = /export.*from/
-
-export const shouldTransform = (url, script) =>
-  url.endsWith('.ts') || (script.includes('import') && (IMPORT_REG.test(script) || EXPORT_REG.test(script)))
-
 const packageSpec = (url) => url.slice(CDN_BASE.length).replace(/^((?:@[^/]+\/)?[^/@]+)@[^/]+/, '$1')
 
 // The frame fetches CDN packages; here they come from node_modules, and a
 // missing one throws the text the frame's fetch gives a 404. Node resolves its
 // built-ins too, which the browser has none of.
-export const createReadFile = (files) => (path) => {
-  if (path.startsWith(PROJECT_BASE)) {
-    const projectPath = path.slice(PROJECT_BASE.length)
-    if (Object.hasOwn(files, projectPath)) return files[projectPath]
-  } else if (path.startsWith(CDN_BASE)) {
+const readPackage = (path) => {
+  if (path.startsWith(CDN_BASE)) {
     const spec = packageSpec(path)
     if (servable(spec)) {
       return `module.exports = globalThis[Symbol.for('jscadui.eval.userModule')](${JSON.stringify(spec)})`
@@ -100,23 +91,13 @@ export const createReadFile = (files) => (path) => {
   throw new Error(`file not found ${path}`)
 }
 
-const MAX_MESSAGE = 4000
+export const createEvalReadFile = (files) => createReadFile(files, readPackage)
 
-// The file a scratch `run` snippet runs as, beside the project's files.
-export const RUN_FILE = '__run__.js'
-
-const located = (error, api) => {
-  const message = withErrorHint(memoryMessage(withoutLoaderNote(String(error?.message ?? error))).slice(0, MAX_MESSAGE), { api, index: API_INDEX })
-  return { name: String(error?.name ?? 'Error').slice(0, 200), message, ...errorLocation(error, PROJECT_BASE) }
-}
-
-const errorResult = (error, api) => ({ ok: false, error: located(error, api) })
-
-const toolError = (name, message) => JSON.stringify({ ok: false, error: { name, message } })
+const modelError = (error, api) => reportError(error, { api, index: API_INDEX })
 
 // Indirect eval's SyntaxError carries no location; the frame worker hits the
-// same gap, so re-parse with Babel (as worker.js does) to find the file and
-// line. Its wrapper drops Babel's `loc`, which its message still ends with.
+// same gap, so re-parse with Babel (as worker.js does), entry first, and let
+// reportError read the file and line from the first parse error's message.
 const locateSyntaxError = (files, entry, error) => {
   const paths = [entry, ...Object.keys(files).filter((p) => p !== entry && p.endsWith('.js')).sort()]
   for (const path of paths) {
@@ -124,8 +105,7 @@ const locateSyntaxError = (files, entry, error) => {
     try {
       transformcjs(files[path], PROJECT_BASE + path)
     } catch (parseError) {
-      const at = /\((\d+):(\d+)\)/.exec(String(parseError?.message).split('\n')[0])
-      if (at) return Object.assign(parseError, { file: path, loc: { line: Number(at[1]), column: Number(at[2]) } })
+      return { name: parseError?.name, message: parseError?.message }
     }
   }
   // The stack would name the require call site, not the error.
@@ -151,7 +131,7 @@ const runModel = async (files, entry, api, { wrapRequire, values = {} } = {}) =>
     const transform = shouldTransform(url, source) ? transformcjs : undefined
     let exports
     try {
-      exports = jscadRequire({ url, script: source, wrapRequire }, transform, createReadFile(files), PROJECT_BASE, PROJECT_BASE)
+      exports = jscadRequire({ url, script: source, wrapRequire }, transform, createEvalReadFile(files), PROJECT_BASE, PROJECT_BASE)
     } catch (e) {
       throw e?.name === 'SyntaxError' ? locateSyntaxError(files, entry, e) : e
     }
@@ -204,33 +184,25 @@ export function createEvalBackend({ api = DEFAULT_API } = {}) {
     }
     const loaded = await runModel(files, entry, api)
     if (started !== generation) return null
-    const { warnings: warned, console: lines } = loaded
-    let error = loaded.error ? located(loaded.error, api) : null
-    if (!error && !loaded.hasMain) error = noMainError(entry)
-    let geometry
-    let measured
-    let checked
-    if (!error) {
-      geometry = [loaded.value].flat(Infinity)
-      try {
-        measured = measure(asGeometry(geometry))
-        checked = check(asGeometry(geometry))
-      } catch {
-        error = notGeometryError()
-      }
-    }
-    if (error) {
-      current = { report: buildReport({ entry, error, warnings: warned, console: lines }) }
-      return current.report
-    }
-    current = { report: buildReport({ entry, warnings: warned, console: lines, params: loaded.params, measured, checked }), geometry, params: loaded.params }
-    return current.report
+    const error = loaded.error ? modelError(loaded.error, api) : loaded.hasMain ? undefined : noMainError(entry)
+    const geometry = [loaded.value].flat(Infinity)
+    const report = await assembleReport({
+      entry,
+      error,
+      warnings: loaded.warnings,
+      console: loaded.console,
+      params: loaded.params,
+      measure: () => measure(asGeometry(geometry)),
+      check: () => check(asGeometry(geometry)),
+    })
+    current = report.ok ? { report, geometry, params: loaded.params } : { report }
+    return report
   }
 
   const saved = async (next) => {
     files = next.files
     const report = await build()
-    return report ? JSON.stringify(writeReport(next.path, report)) : toolError('ResetError', 'the run was reset before the build finished')
+    return report ? writeReport(next.path, report) : toolError('ResetError', 'the run was reset before the build finished')
   }
 
   // A scratch snippet beside the project: the project, its build and its geometry stay as they were.
@@ -238,31 +210,30 @@ export function createEvalBackend({ api = DEFAULT_API } = {}) {
     if (typeof source !== 'string') throw Object.assign(new Error('source must be the snippet text, a string'), { name: 'TypeError' })
     const loaded = await runModel({ ...files, [RUN_FILE]: source }, RUN_FILE, api, { wrapRequire: withProjectMains })
     const { warnings: warned, console: lines } = loaded
-    if (loaded.error) return { ok: false, error: located(loaded.error, api), warnings: warned, console: lines }
+    if (loaded.error) return { ok: false, error: modelError(loaded.error, api), warnings: warned, console: lines }
     const summary = summarizeRun({ hasMain: loaded.hasMain, value: loaded.hasMain ? loaded.value : loaded.exports }, measure, check)
     return { ok: true, warnings: warned, console: lines, ...summary }
   }
 
-  const noGeometry = () => JSON.stringify(noGeometryError(current?.report ?? null))
+  const onBuild = (tool) => (args) => (current?.geometry ? tool(current.geometry, args) : noGeometryError(current?.report ?? null))
 
+  const tools = {
+    list: () => listFiles(files),
+    read: (args) => readFile(files, args),
+    write: (args) => saved(applyWrite(files, args)),
+    edit: (args) => saved(applyEdit(files, args)),
+    run,
+    measure: onBuild((geometry, args) => withUnits({ ok: true, ...measure(asGeometry(geometry), args) })),
+    check: onBuild((geometry, args) => withUnits({ ok: true, ...check(asGeometry(geometry), args) })),
+    exportModel: onBuild((geometry, args) => exportModel(geometry, args.format)),
+    view: () => toolError('UnavailableError', 'view is unavailable in the eval harness'),
+    docs: (query) => docsTool(API_INDEX, query, { api }),
+  }
+
+  // The executor protocol carries tool results as text.
   const requestTool = async (name, input) => {
-    try {
-      const args = input ?? {}
-      if (name === 'list') return JSON.stringify(listFiles(files))
-      if (name === 'read') return readFile(files, args)
-      if (name === 'write') return await saved(applyWrite(files, args))
-      if (name === 'edit') return await saved(applyEdit(files, args))
-      if (name === 'run') return JSON.stringify(await run(args.source))
-      const geometry = current?.geometry
-      if (name === 'measure') return geometry ? JSON.stringify(withUnits({ ok: true, ...measure(asGeometry(geometry), args) })) : noGeometry()
-      if (name === 'check') return geometry ? JSON.stringify(withUnits({ ok: true, ...check(asGeometry(geometry), args) })) : noGeometry()
-      if (name === 'export') return geometry ? JSON.stringify(exportModel(geometry, args.format)) : noGeometry()
-      if (name === 'docs') return docsTool(API_INDEX, args.query, { api })
-      if (name === 'view') return toolError('UnavailableError', `${name} is unavailable in the eval harness`)
-      return toolError('UnknownToolError', `unknown tool ${name}`)
-    } catch (error) {
-      return JSON.stringify(errorResult(error, api))
-    }
+    const out = await dispatchTool(name, input, tools)
+    return typeof out === 'string' ? out : JSON.stringify(out)
   }
 
   const seed = (seeded = {}) => {

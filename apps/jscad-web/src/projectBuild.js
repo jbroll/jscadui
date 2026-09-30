@@ -1,7 +1,4 @@
-import { buildReport, DEFAULT_API, errorLocation, memoryMessage, noEntryReport, noGeometryError, noMainError, notGeometryError, projectPath, resolveEntry, withErrorHint, withoutLoaderNote } from '@jscadui/agent-loop'
-import { PROJECT_BASE } from '../src_frame/fileMap.js'
-
-const MAX_MESSAGE = 4000
+import { assembleReport, DEFAULT_API, noEntryReport, noGeometryError, noMainError, notGeometryError, PROJECT_BASE, projectPath, reportError, resolveEntry } from '@jscadui/agent-loop'
 
 const textFile = (files, path) => {
   if (!path) return null
@@ -74,33 +71,8 @@ export const projectEntry = (files, declared, open) => {
   return entry
 }
 
-const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-const PROJECT_FILE = new RegExp(`${escapeRegExp(PROJECT_BASE)}([^\\s:()]+):`)
-
-// Babel's message names the file and ends its first line with (line:column);
-// the worker's re-parse keeps only the message.
-const syntaxLoc = (error) => {
-  if (error?.name !== 'SyntaxError' || error.loc) return error
-  const first = String(error.message ?? '').split('\n')[0]
-  const at = /\((\d+):(\d+)\)\s*$/.exec(first)
-  const file = PROJECT_FILE.exec(first)?.[1]
-  return at && file ? { ...error, file, loc: { line: Number(at[1]), column: Number(at[2]) } } : error
-}
-
-/**
- * A model error as the build report and `run` carry it: the eval backend's
- * shape, with the frame worker's `jscadMain failed: ` prefix dropped.
- * @param {{name?:string,message?:string,stack?:string}} error
- * @param {{api?:string,index?:Array<object>}} [options]
- */
-export const reportError = (error, { api = DEFAULT_API, index } = {}) => {
-  const raw = memoryMessage(withoutLoaderNote(String(error?.message ?? error).replace(/^jscadMain failed: /, ''))).slice(0, MAX_MESSAGE)
-  const located = errorLocation(syntaxLoc({ name: error?.name, message: raw, stack: error?.stack, loc: error?.loc, file: error?.file }), PROJECT_BASE)
-  return { name: String(error?.name ?? 'Error'), message: withErrorHint(raw, { api, index }), ...located }
-}
-
 // With no index the error goes out without its hint.
-const indexFor = async (loadIndex) => {
+export const indexFor = async (loadIndex) => {
   try {
     return await loadIndex()
   } catch {
@@ -125,31 +97,14 @@ export const createProjectBuilds = ({ measure, check, getApi = () => DEFAULT_API
     return reportError(error, { api: getApi(), index: await indexFor(loadIndex) })
   }
 
-  const failed = async ({ entry, error }) =>
-    buildReport({
-      entry,
-      error: await buildError(entry, error),
-      warnings: error?.output?.warnings ?? [],
-      console: error?.output?.console ?? [],
-    })
-
-  const built = async ({ entry, result }) => {
-    const warnings = result?.warnings ?? []
-    const lines = result?.console ?? []
-    let measured
-    let checked
-    try {
-      measured = await measure()
-      checked = await check()
-    } catch {
-      return buildReport({ entry, error: notGeometryError(), warnings, console: lines })
-    }
-    return buildReport({ entry, warnings, console: lines, params: result?.def ?? [], measured, checked })
+  const assemble = async ({ entry, error, result }) => {
+    if (error) return assembleReport({ entry, error: await buildError(entry, error), warnings: error.output?.warnings, console: error.output?.console, measure, check })
+    return assembleReport({ entry, warnings: result?.warnings, console: result?.console, params: result?.def, measure, check })
   }
 
   const report = async () => {
     if (!last) return null
-    last.report ??= last.entry === null ? Promise.resolve(noEntryReport()) : last.error ? failed(last) : built(last)
+    last.report ??= last.entry === null ? Promise.resolve(noEntryReport()) : assemble(last)
     return last.report
   }
 

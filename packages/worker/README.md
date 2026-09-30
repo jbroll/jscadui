@@ -12,6 +12,14 @@ import { initWorker } from '@jscadui/worker'
 initWorker({ transform, customHandlers: { jscadSetFiles } })
 ```
 
+## Transform rule
+
+`jscadScript` passes a script through the host's `transform` only when
+`shouldTransform(url, script)` (`src/shouldTransform.js`) holds: the URL ends
+in `.ts`, or the script contains `import` and has an import line or an
+`export … from` line. The chat's eval backend imports the same function, so
+it loads model code as the frame does.
+
 ## Run hooks
 
 The worker reports what a run logged and which options it misused without

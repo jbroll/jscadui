@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import index from '@jscadui/agent-loop/api/index.json'
 import { NO_ENTRY_NOTE, noEntryReport, noMainError, notGeometryError } from '@jscadui/agent-loop'
-import { createProjectBuilds, projectEntry, reportError } from '../src/projectBuild.js'
+import { createProjectBuilds, projectEntry } from '../src/projectBuild.js'
 
 const measured = { entityCount: 1, boundingBox: [[0, 0, 0], [10, 20, 30]], dimensions: [10, 20, 30], volume: 6000 }
 const checked = { ok: true, watertight: true, manifold: true, selfIntersecting: false }
@@ -75,33 +75,6 @@ describe('projectEntry', () => {
 
   it('runs an open model in a project with no entry', () => {
     expect(projectEntry({ 'gear.js': MODEL }, undefined, 'gear.js')).toBe('gear.js')
-  })
-})
-
-describe('reportError', () => {
-  it("drops the worker's jscadMain prefix and locates the error in the project from its stack", () => {
-    const error = { name: 'TypeError', message: 'jscadMain failed: x is not a function', stack: 'TypeError: x\n    at main (http://project.local/parts/gear.js:4:11)' }
-    expect(reportError(error)).toEqual({ name: 'TypeError', message: 'x is not a function', file: 'parts/gear.js', line: 4, column: 11 })
-  })
-
-  it("locates a syntax error from the line and column Babel's message names", () => {
-    const error = { name: 'SyntaxError', message: 'Babel transform failed for http://project.local/main.js: /http:/project.local/main.js: Unexpected token, expected "," (2:35)\n\n> 2 | x' }
-    expect(reportError(error)).toMatchObject({ name: 'SyntaxError', file: 'main.js', line: 2, column: 36 })
-  })
-
-  it("drops the loader's failed-loading-module note, since the location names the file", () => {
-    const error = { name: 'RangeError', message: 'too big / failed loading module ./part.js / failed loading module http://project.local/__run__.js', stack: 'RangeError: too big\n    at main (http://project.local/part.js:3:9)' }
-    expect(reportError(error)).toEqual({ name: 'RangeError', message: 'too big', file: 'part.js', line: 3, column: 9 })
-  })
-
-  it('says out of memory for a failed allocation', () => {
-    const error = { name: 'RangeError', message: 'jscadMain failed: Array buffer allocation failed', stack: 'RangeError: x\n    at main (http://project.local/main.js:2:5)' }
-    expect(reportError(error)).toEqual({ name: 'RangeError', message: 'out of memory; try a smaller case', file: 'main.js', line: 2, column: 5 })
-  })
-
-  it('adds the hint for the chat api', () => {
-    const error = { name: 'TypeError', message: 'jf.measureVolume is not a function' }
-    expect(reportError(error, { api: 'fluent', index }).message).toContain('measureVolume is a method of FluentGeom3')
   })
 })
 

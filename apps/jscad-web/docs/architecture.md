@@ -67,7 +67,7 @@ hands back. The app origin has to answer examples and OpenSCAD includes with
 A project's files travel to the frame in a map keyed by bare path
 (`src/projectFiles.js`), so a project script names itself against
 `PROJECT_BASE` (`http://project.local/`) and every sibling `require` resolves
-from the map (`src_frame/fileMap.js`). The app origin's `/swfs/` service-worker
+from the map (`src_frame/fileMap.js`, over agent-loop's `createReadFile`, which the eval uses too). The app origin's `/swfs/` service-worker
 URLs never cross, because a service worker only serves clients it controls and
 the frame is not one — that is why the map exists at all, in place of the
 serving role a same-origin service worker would otherwise play.
@@ -666,7 +666,7 @@ models from the menu.
 
 The loop runs in the browser (`packages/agent-loop`), not on the server. The
 page holds the conversation, calls the provider, and serves each tool request
-itself through `src/aiBridge.js`. Provider HTTP goes through `/api/relay` on
+itself through agent-loop's `dispatchTool`, called from `main.js`. Provider HTTP goes through `/api/relay` on
 the origin `build.js` stamps in as `__RELAY_ORIGIN__` (`src_build/relayOrigin.js`):
 the app's own origin for a deployed or `jscad-chat` launcher build, production
 for the `:5120` dev server, `RELAY_ORIGIN` when set, and
@@ -819,7 +819,7 @@ the chat's `run` send it with the files (`jscadSetFiles({ files, api })`), so
 the mirrored and replayed `jscadSetFiles` always carries the current style,
 and the frame worker passes it to the run's warning collector (`setApi`).
 `createProjectBuilds` and `createProjectTools` take it too, for the error
-hints they add (`reportError`). The
+hints agent-loop's `reportError` adds. The
 eval sets the same value with `EVAL_API` and hands it to
 `createEvalBackend({ api })`, where the docs answer and the warnings for a run
 are built (`packages/agent-loop/docs/user-manual.md`). A shared case table,
@@ -883,9 +883,12 @@ the editor's own runs cost no measure or check unless the chat reads them. A
 write's build asks at once; the chat asks at the start of each turn and sends
 the report after the project files (`buildMessages({ build })`). A failed
 load's error carries the run's console and warnings (`output`, see
-`docs/WORKER_PROTOCOL.md`), and `reportError` drops the worker's
+`docs/WORKER_PROTOCOL.md`), and agent-loop's `reportError`, the eval's too,
+drops the worker's
 `jscadMain failed: ` prefix, adds the hint for the chat's API, and finds the
 file, line and column in the stack or, for a syntax error, in Babel's message.
+agent-loop's `assembleReport`, which the eval's builds go through too, puts
+the report together from that error or from `jscadMeasure` and `jscadCheck`.
 
 `measure`, `check` and `export` run only on a build that succeeded. Before
 any build, or after a failed one, they answer agent-loop's `noGeometryError`,
@@ -895,7 +898,7 @@ results carry `ok: true` and `units: "mm"` (`withUnits`).
 A failed build keeps the last good render on screen: a load draws only what
 it returns, so a failure leaves the viewer as it was and shows the error bar.
 
-`run` sends its source as `__run__.js` beside the project's files, with
+`run` sends its source as `__run__.js` (agent-loop's `RUN_FILE`) beside the project's files, with
 `scratch: true` on its `jscadScript`. The worker runs it and its `main`
 (a project file's `main(values)` the snippet calls gets a build's params
 proxy with those values set), and answers the console, the warnings, an error, and `summarizeRun`'s `geometry`
@@ -939,7 +942,13 @@ The tool's `stl` asks the frame for binary STL (`stlb`), and a format with no
 serializer is refused before the frame is asked, with agent-loop's
 `exportConfig`, the check the eval makes.
 
-The eval's backend answers every tool as the app does: the `ai-chat` e2e runs
+The eval's backend answers every tool as the app does. Both route calls
+through `dispatchTool`, assemble reports with `assembleReport`, format model
+errors with `reportError`, load project files with `createReadFile` under
+`PROJECT_BASE`, and transform by the worker's `shouldTransform`, one copy of
+each in `packages/agent-loop` (the last in `packages/worker/src`). They differ
+only in how the model runs: the frame worker here, `@jscadui/require` in a
+Node process there. The `ai-chat` e2e runs
 one set of calls through the app, on the jscad engine, and through
 `createEvalBackend`, and compares the results. The worker's no-main error
 (`NoMainError`) and format-jscad's `invalid jscad geometry, not an object` are
@@ -1048,7 +1057,7 @@ permission model inside that; the conversation and its provider key stay in
 `run-eval` and send tool calls to the executor over a socket
 (`packages/agent-loop/docs/architecture.md`). The executor runs model code
 through `@jscadui/require` with the frame's
-transform rule and URL scheme, mapping `https://cdn.jsdelivr.net/npm/<pkg>` to
+transform rule (`shouldTransform`) and URL scheme, mapping `https://cdn.jsdelivr.net/npm/<pkg>` to
 local `node_modules`, so a bad import fails with the same `failed to load
 module` / `file not found` text the model gets in the app. It imports the
 prebuilt `esm/` bundles of `@jscadui/require` and `@jscadui/transform-babel`,

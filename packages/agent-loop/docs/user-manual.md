@@ -222,7 +222,7 @@ one object (`params.box = { wall: { default: 3 } }`) member by member, and
 throws for one that mixes definitions with plain values, naming the
 parameter and the per-member form. A "X is not a
 function" error gets a hint from `withErrorHint`, applied where the error
-result is built (`eval/backend.js`, the app's `reportError` in `src/projectBuild.js`): in fluent, X
+result is built (`reportError`, [Tool routing and build reports](#tool-routing-and-build-reports)): in fluent, X
 as a method of the named classes, called on a jf shape; in modeling, the
 functional call from the index signature (`transforms.translate(offset,
 shape)`). `cone` gets the taper form. An "X is not defined" error, X a
@@ -233,6 +233,57 @@ require('@jscad/modeling')`), and in fluent `jf.X(...)` or `shape.X(...)`.
 The boolean hint for `{ points, faces }` data also lands on the error the
 boolean throws ("only unions of the same type are supported"). `test/warningCases.js` holds the cases
 both the eval backend and the app must answer alike.
+
+## Tool routing and build reports
+
+The app and the eval answer tool calls through the same functions, each over
+its own way of running the model.
+
+```js
+dispatchTool(name, input, { list, read, write, edit, run, measure, check, exportModel, view, docs })
+```
+
+Calls the handler for `name` and returns what it answers: `list()`,
+`read(args)`, `write(args)`, `edit(args)`, `run(args.source)`,
+`measure(args)`, `check(args)`, `exportModel(args)` for `export`,
+`view(args)` and `docs(args.query)`, with `input` defaulting to `{}`. A name
+outside that list answers `toolError('UnknownToolError', 'unknown tool
+<name>')`; a handler that throws or rejects answers `toolError(error.name,
+error.message)` (`Error` and the thrown value's text for a non-error). It
+never throws. `toolError(name, message)` is `{ ok: false, error: { name,
+message } }`. The eval sends each answer on as JSON text; the app's chat
+stringifies it.
+
+```js
+assembleReport({ entry, error, warnings, console, params, measure, check })
+```
+
+The build report (`buildReport`) of a build that ran. With `error` it is the
+failed report and `measure` and `check` are not called; otherwise both are
+called (sync or async) for the geometry `main()` returned, and a throw from
+either gives the `notGeometryError()` report. `params` are params-core
+definitions.
+
+```js
+reportError(error, { api, index })
+```
+
+A model error as a report or `run` result carries it:
+`{ name, message, file?, line?, column? }`, the name cut to 200 characters
+and the message to 4,000, without the frame worker's `jscadMain failed: `
+prefix or the loader's ` / failed loading module …` note, `out of memory;
+try a smaller case` for an allocation failure, and the error hint for `api`
+when `index` (the API index) is given. The location comes from `errorLocation`
+with `PROJECT_BASE`, or from a Babel message whose first line names
+`<PROJECT_BASE><path>:` and ends with `(line:column)`.
+
+`PROJECT_BASE` (`http://project.local/`) is the URL base project files load
+under, and `RUN_FILE` (`__run__.js`) the file a `run` snippet runs as beside
+them. `createReadFile(files, fetchFile)` is the readFile `@jscadui/require`
+gets: a URL under `PROJECT_BASE` answers from `files`, or throws `file not
+found <url>`; a key of `files` answers as given; any other path goes to
+`fetchFile(path, options)`. The frame's fetch reads the CDN, the eval's
+serves installed packages.
 
 ## Chat log reader
 
@@ -307,7 +358,8 @@ error. The app words the first two the same (`noMainError`,
 measured, checked and exported as itself, more as an array, as the frame
 does (`asGeometry`). A syntax
 error is located by parsing each project file with Babel, entry first, since
-the eval's `SyntaxError` carries no location. `measure`, `check` and `export`
+the eval's `SyntaxError` carries no location; `reportError` reads the file,
+line and column from the first parse error's message, as it does for the frame's. `measure`, `check` and `export`
 fail with `NoGeometryError` before the first build (`no geometry: write the
 model first`) and after a failed one (`no geometry: the last build failed
 (<message>); fix it first`). `run` answers

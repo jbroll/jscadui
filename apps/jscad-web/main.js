@@ -68,10 +68,9 @@ import * as paramsUI from './src/paramsUI.js'
 import { clearReloadTimestamp } from './src/reloadDetection.js'
 import { missingSaveHandleMessage } from './src/saveFile.js'
 import { installStudioBridge } from './src/studioBridge.js'
-import { handleToolRequest } from './src/aiBridge.js'
 import { createDocs, createIndexLoader } from './src/apiIndex.js'
 import { initChat } from './src/aiChat.js'
-import { NO_ENTRY } from '@jscadui/agent-loop'
+import { dispatchTool, NO_ENTRY } from '@jscadui/agent-loop'
 import { initAccount, getChatApi, getProviderConfig, getSession } from './src/aiAccount.js'
 
 /**
@@ -962,7 +961,7 @@ if (byId('ai-chat')) {
   }
   initChat({
     container: byId('ai-chat'),
-    requestTool: (name, input) => handleToolRequest(name, input, aiDeps),
+    requestTool: (name, input) => dispatchTool(name, input, aiDeps),
     getProvider: getProviderConfig,
     getApi: getChatApi,
     storage: chatStorage,

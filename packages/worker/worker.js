@@ -11,6 +11,7 @@ import { workerState } from './src/state/workerState.js'
 import { toRefs } from './src/meshRefs.js'
 import { createStreamHook, withCopies, withStreamHook } from './src/stream.js'
 import { createClaims } from './src/claims.js'
+import { shouldTransform } from './src/shouldTransform.js'
 
 /**
 @typedef Alias
@@ -481,10 +482,6 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
   }
 }
 
-// https://stackoverflow.com/questions/52086611/regex-for-matching-js-import-statements
-const importReg = /import(?:(?:(?:[ \n\t]+([^ *\n\t{},]+)[ \n\t]*(?:,|[ \n\t]+))?([ \n\t]*\{(?:[ \n\t]*[^ \n\t"'{}]+[ \n\t]*,?)+\})?[ \n\t]*)|[ \n\t]*\*[ \n\t]*as[ \n\t]+([^ \n\t{}]+)[ \n\t]+)from[ \n\t]*(?:['"])([^'"\n]+)(['"])/
-const exportReg = /export.*from/
-
 /**
  * A failed load's error carries `output`, the run's console and warnings. A
  * scratch run never throws: its error is part of the answer, since the frame
@@ -540,13 +537,13 @@ export const jscadScript = async ({ script, url='jscad.js', base=workerState.glo
 
     if(!script) script = readFileWeb(resolveUrl(url, base, root).url)
 
-    const shouldTransform = url.endsWith('.ts') || script.includes('import') && (importReg.test(script) || exportReg.test(script))
+    const transform = shouldTransform(url, script)
     let def = []
 
     try{
       // A snippet that calls a project file's main() hands it values, which that main gets as a build's params would carry them.
       const wrapRequire = scratch ? withProjectMains : undefined
-      const loadedModule = require({url,script,wrapRequire}, shouldTransform ? workerState.transformFunc : undefined, readFileWeb, base, root, workerState.importData)
+      const loadedModule = require({url,script,wrapRequire}, transform ? workerState.transformFunc : undefined, readFileWeb, base, root, workerState.importData)
       // I1 fix: Check generation before setting shared state
       if (myGeneration !== workerState.getGeneration()) {
         throw new Error('Script execution superseded by newer script during module load')

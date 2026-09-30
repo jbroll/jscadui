@@ -3,6 +3,7 @@
 // { send(message), onMessage(fn), onExit?(fn), kill?() }; the executor side
 // needs only send and onMessage. Model code shares the executor's process and
 // can send replies of its own, so the client trusts no reply's shape.
+import { toolError as toolErrorResult } from '../src/dispatchTool.js'
 import { GRADE_TIMEOUT_MS } from './grade.js'
 
 const METHODS = new Set(['reset', 'requestTool', 'gradeProject'])
@@ -16,7 +17,8 @@ const MAX_REASON_CHARS = 500
 
 export const NO_GRADE = () => ({ measure: null, solid: null, params: [] })
 
-export const toolError = (name, message) => JSON.stringify({ ok: false, error: { name, message } })
+// Tool results cross the executor channel as text.
+export const toolError = (name, message) => JSON.stringify(toolErrorResult(name, message))
 
 const capped = (text, max) => (text.length > max ? `${text.slice(0, max)}… (${text.length - max} more characters)` : text)
 

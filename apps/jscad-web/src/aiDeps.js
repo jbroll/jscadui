@@ -1,19 +1,6 @@
-import { applyEdit, applyWrite, DEFAULT_API, listFiles, readFile, runTimeoutError, withUnits, writeReport } from '@jscadui/agent-loop'
-import { PROJECT_BASE } from '../src_frame/fileMap.js'
-import { reportError } from './projectBuild.js'
+import { applyEdit, applyWrite, DEFAULT_API, listFiles, PROJECT_BASE, readFile, reportError, RUN_FILE, runTimeoutError, withUnits, writeReport } from '@jscadui/agent-loop'
+import { indexFor } from './projectBuild.js'
 import { sendScript } from './scriptRuns.js'
-
-// The file a scratch `run` snippet runs as, beside the project's files, as in the eval's backend.
-const RUN_FILE = '__run__.js'
-
-// With no index the error goes out without its hint.
-const indexFor = async (loadIndex) => {
-  try {
-    return await loadIndex()
-  } catch {
-    return undefined
-  }
-}
 
 /**
  * The chat's tools over the open project: the file cache every run sends the

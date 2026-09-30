@@ -65,7 +65,27 @@ export const buildReport = ({ entry = null, error, warnings = [], console: lines
   return { ok: true, entry, warnings, console: lines, params: reportParams(params), ...(measured ? { geometry: geometrySummary(measured, checked) } : {}) }
 }
 
-export const NO_ENTRY_NOTE = 'no entry yet (main.js, index.js or package.json main)'
+/**
+ * The report of a build that ran, in the app and the eval, which each run the
+ * model their own way: `error` failed it; else `measure` and `check` (sync or
+ * async) read what main() returned, and a throw from either means it was not geometry.
+ * @param {{entry:string, error?:object, warnings?:Array<object>, console?:Array<string>, params?:Array<object>,
+ *   measure:() => object|Promise<object>, check:() => object|Promise<object>}} build
+ */
+export const assembleReport = async ({ entry, error, warnings = [], console: lines = [], params = [], measure, check }) => {
+  if (error) return buildReport({ entry, error, warnings, console: lines })
+  let measured
+  let checked
+  try {
+    measured = await measure()
+    checked = await check()
+  } catch {
+    return buildReport({ entry, error: notGeometryError(), warnings, console: lines })
+  }
+  return buildReport({ entry, warnings, console: lines, params, measured, checked })
+}
+
+export const NO_ENTRY_NOTE ='no entry yet (main.js, index.js or package.json main)'
 
 // A project of helper modules only builds nothing and fails nothing.
 export const noEntryReport = () => ({ ok: true, entry: null, note: NO_ENTRY_NOTE, warnings: [], console: [], params: [] })

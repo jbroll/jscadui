@@ -1,7 +1,6 @@
-// Project files live under a synthetic base so the loader can tell a project
-// file from a CDN package by URL alone. The worker resolves every sibling
-// require to an absolute URL against this base before calling readFile.
-export const PROJECT_BASE = 'http://project.local/'
+import { createReadFile as readFrom } from '@jscadui/agent-loop/src/projectUrl.js'
+
+export { PROJECT_BASE } from '@jscadui/agent-loop/src/projectUrl.js'
 
 /**
  * Synchronous fetch for paths outside the project (bare packages resolve to
@@ -29,19 +28,10 @@ const fetchText = (path, { output = 'text' } = {}) => {
 }
 
 /**
- * Build the readFile the worker passes into require. A project path resolves
- * from the file map; a missing one throws in the shape require expects; any
- * other path (bare package name, absolute CDN URL) falls through to fetchFile.
+ * The readFile the worker passes into require: agent-loop's, the eval's too,
+ * with any path outside the project (bare package name, absolute CDN URL) fetched.
  * @param {Record<string, string>} files
  * @param {(path: string, options?: { output?: string }) => string} [fetchFile]
  * @returns {(path: string, options?: { output?: string }) => string}
  */
-export const createReadFile = (files, fetchFile = fetchText) => (path, options) => {
-  if (path.startsWith(PROJECT_BASE)) {
-    const projectPath = path.slice(PROJECT_BASE.length)
-    if (Object.hasOwn(files, projectPath)) return files[projectPath]
-    throw new Error(`file not found ${path}`)
-  }
-  if (Object.hasOwn(files, path)) return files[path]
-  return fetchFile(path, options)
-}
+export const createReadFile = (files, fetchFile = fetchText) => readFrom(files, fetchFile)

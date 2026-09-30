@@ -6,7 +6,9 @@
   `responses.js` (the provider adapters and their stream parsers), `tools.js`
   (`buildTools(api)`), `prompt.js` (`buildSystemPrompt(api)`), `context.js`
   (`buildMessages`), `project.js` (the file tools' operations and entry
-  resolution), `buildReport.js` (the build report), `docs.js` (`docsTool`),
+  resolution), `projectUrl.js` (`PROJECT_BASE`, `RUN_FILE` and the loader's
+  `createReadFile`), `dispatchTool.js` (tool routing), `buildReport.js` (the
+  build report), `modelError.js` (`reportError`), `docs.js` (`docsTool`),
   `optionChecks.js` and `hints.js` (option warnings and error hints),
   `consoleCapture.js`.
 - `api/`: the generated API index and option table, and their generator,
@@ -83,6 +85,14 @@ travels only in a `tool_use` input (`write.content`, `edit.newString`,
 `run.source`). No markdown-fence extractor exists anywhere in the app or the
 eval, and none is wanted — a model that wants to run code has to call a tool.
 
+The app and the eval route a call the same way, through `dispatchTool` over
+their own handlers: the app's run in the page and the compute frame, the
+eval's in Node. What differs between the two is only how a model runs (the
+frame worker against `require` in the executor process), so each keeps its
+own handlers and shares the routing, the report assembly (`assembleReport`),
+the error formatting (`reportError`), the loader's `createReadFile` and the
+transform rule (`@jscadui/worker/src/shouldTransform.js`).
+
 ## Project model
 
 The model works in a JavaScript project the way a coding agent does, with
@@ -117,13 +127,19 @@ build of main.js failed"`, since models read a bare `ok: false` as a lost
 write and rewrote the file from scratch. A project with no entry file builds
 nothing and fails nothing: `{ ok: true, entry: null, note: "no entry yet
 (main.js, index.js or package.json main)" }` (`noEntryReport`), and the write
-that saved a helper first says `saved; no entry yet (…)`. `errorLocation`
-finds `file`, `line` and `column` (1-based) in a Babel error's `loc` or the
+that saved a helper first says `saved; no entry yet (…)`. A model error goes
+into the report through `reportError` (`src/modelError.js`): the message
+capped at 4,000 characters, the frame worker's `jscadMain failed: ` prefix
+and the loader note dropped, an allocation failure worded as `out of memory`,
+and the error hint for the API style added. `errorLocation` then
+finds `file`, `line` and `column` (1-based) in a Babel error's `loc`, the
+`<base><path>: … (line:column)` that ends the first line of a Babel message
+whose `loc` a wrapper dropped, or the
 first `<base><path>:<line>:<column>` frame of a stack. `measure`, `check` and
 `export` work on the last build and fail with `NoGeometryError`
 (`noGeometryError`) when it failed.
 `run` is a scratch runner: the snippet runs beside the project's files as
-`__run__.js` and is never saved, and neither the project nor its build
+`__run__.js` (`RUN_FILE`) and is never saved, and neither the project nor its build
 changes. A project module the snippet requires hands back its `main` wrapped
 (params-core `withProjectMains`), so `main({ width: 30 })` runs as a build
 would with `width` set as a user's edit and every other parameter at its
@@ -151,10 +167,15 @@ budget.
 ## Model code in the eval
 
 The eval runs model code through `@jscadui/require` with the compute frame's
-transform rule and CDN URL scheme; `https://cdn.jsdelivr.net/npm/<pkg>`
-maps to the package in local `node_modules`, and a package that is not
+transform rule (`shouldTransform`, imported from `@jscadui/worker`), project
+base and CDN URL scheme. Its readFile is `createReadFile` with a fetch that
+maps `https://cdn.jsdelivr.net/npm/<pkg>` to the package in local
+`node_modules`, and a package that is not
 installed fails with the frame's `failed to load module <name>` /
-`file not found <url>` text. Node built-ins (`fs`, `child_process`, `process`,
+`file not found <url>` text. It imports the prebuilt `esm/` bundles of
+`@jscadui/require` and `@jscadui/transform-babel`, since their sources use
+extensionless relative imports that Node's ESM loader refuses, so a change to
+either needs its `npm run build` before `npm run eval` sees it. Node built-ins (`fs`, `child_process`, `process`,
 any name `isBuiltin` accepts) fail the same way, since the browser has none.
 `@jscadui/jscad-text`, ESM-only, which Node's `require` cannot resolve, is
 imported by `eval/backend.js` and handed over as a plain copy of its exports,

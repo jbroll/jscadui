@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { readFileSync } from 'node:fs'
 import { builtinModules, createRequire } from 'node:module'
 import { NO_ENTRY_NOTE, notGeometryError } from '../src/buildReport.js'
-import { CDN_BASE, createEvalBackend, createReadFile, EXPORT_REG, IMPORT_REG, variantValue } from './backend.js'
+import { CDN_BASE, createEvalBackend, createEvalReadFile, variantValue } from './backend.js'
 import { expectCase, WARNING_CASES } from '../test/warningCases.js'
 import { everyFont, FONT_NAMES, UNKNOWN_FONT } from './fontCases.js'
 
@@ -170,14 +169,8 @@ module.exports = { main }`
     }
   })
 
-  it('uses the same transform test as the worker', () => {
-    const worker = readFileSync(new URL('../../worker/worker.js', import.meta.url), 'utf8')
-    expect(worker).toContain(`const importReg = ${IMPORT_REG}`)
-    expect(worker).toContain(`const exportReg = ${EXPORT_REG}`)
-  })
-
   it('maps project and CDN URLs like the frame', () => {
-    const read = createReadFile({ 'main.js': 'X' })
+    const read = createEvalReadFile({ 'main.js': 'X' })
     expect(read('http://project.local/main.js')).toBe('X')
     expect(() => read('http://project.local/other.js')).toThrow('file not found http://project.local/other.js')
     expect(read('https://cdn.jsdelivr.net/npm/@jscad/modeling@2.12.0')).toContain('"@jscad/modeling"')
@@ -185,7 +178,7 @@ module.exports = { main }`
   })
 
   it('refuses every Node built-in as a CDN package, like an unpublished one', () => {
-    const read = createReadFile({})
+    const read = createEvalReadFile({})
     for (const name of builtinModules) {
       expect(() => read(CDN_BASE + name), name).toThrow(`file not found ${CDN_BASE}${name}`)
     }

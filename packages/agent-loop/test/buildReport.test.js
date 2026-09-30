@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { buildReport, errorLocation, memoryMessage, NO_ENTRY_NOTE, runTimeoutError, noEntryReport, previewValue, reportParams, noGeometryError, summarizeRun, writeReport } from '../src/buildReport.js'
+import { describe, expect, it, vi } from 'vitest'
+import { assembleReport, buildReport, errorLocation, notGeometryError, memoryMessage, NO_ENTRY_NOTE, runTimeoutError, noEntryReport, previewValue, reportParams, noGeometryError, summarizeRun, writeReport } from '../src/buildReport.js'
 
 const BASE = 'http://project.local/'
 
@@ -62,6 +62,37 @@ describe('buildReport', () => {
   it('reports a project with no entry as built, with nothing to build', () => {
     expect(noEntryReport()).toEqual({ ok: true, entry: null, note: NO_ENTRY_NOTE, warnings: [], console: [], params: [] })
     expect(NO_ENTRY_NOTE).toBe('no entry yet (main.js, index.js or package.json main)')
+  })
+
+  it('assembles a failed build without reading its geometry', async () => {
+    const measure = vi.fn()
+    const error = { name: 'TypeError', message: 'x is not a function' }
+    expect(await assembleReport({ entry: 'main.js', error, warnings: [{ fn: 'f' }], console: ['a'], params: [{ name: 'n' }], measure, check: measure })).toEqual(
+      buildReport({ entry: 'main.js', error, warnings: [{ fn: 'f' }], console: ['a'] }),
+    )
+    expect(measure).not.toHaveBeenCalled()
+  })
+
+  it('assembles a build from what measure and check answer, sync or async', async () => {
+    const checked = { watertight: true, manifold: true, selfIntersecting: false }
+    const params = [{ name: 'size', type: 'slider', initial: 5 }]
+    const expected = buildReport({ entry: 'main.js', console: ['hi'], params, measured, checked })
+    expect(await assembleReport({ entry: 'main.js', console: ['hi'], params, measure: () => measured, check: () => checked })).toEqual(expected)
+    expect(await assembleReport({ entry: 'main.js', console: ['hi'], params, measure: async () => measured, check: async () => checked })).toEqual(expected)
+  })
+
+  it('fails a build whose geometry measure or check cannot read as not geometry', async () => {
+    const fail = () => {
+      throw new Error('not a geometry')
+    }
+    for (const [measure, check] of [
+      [fail, () => ({})],
+      [() => measured, fail],
+    ]) {
+      expect(await assembleReport({ entry: 'main.js', warnings: [{ fn: 'f' }], params: [{ name: 'n' }], measure, check })).toEqual(
+        buildReport({ entry: 'main.js', error: notGeometryError(), warnings: [{ fn: 'f' }] }),
+      )
+    }
   })
 
   it('leaves out group rows and unset fields from the params', () => {
