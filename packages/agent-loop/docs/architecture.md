@@ -282,6 +282,32 @@ function or method whose first parameter is named `angle` or `angles`
 so a new fluent method gets the checks on regeneration
 ([development.md](development.md#api-index)).
 
+## Complex grading
+
+A `complex` fixture's geometry grade comes from a verdict on renders of the
+result ([user-manual.md](user-manual.md#complex-fixtures)).
+
+### Rendering
+
+Rendering needs WebGL, which the crt sandbox does not have and should not get,
+so `eval/render.js` draws in the `run-eval` process, in Playwright's bundled
+chromium launched as `apps/jscad-web/e2e/render-all.mjs` launches it
+(`--use-gl=angle --ignore-gpu-blocklist`). The page, `eval/render/page.html`,
+is set as content with the workspace's three.js added inline; it gets only
+triangles and colours from the `mesh` request (Sandbox below), loads no model
+code, and every request it makes is refused. Each process starts one chromium
+and one page and draws one model at a time.
+
+The three orthographic 768 x 768 views (`eval/views.js`) are framed to the
+model's bounding box with a 3% margin on each side (half the larger extent
+times 1.06, as the trial renderer framed them): `iso-front` from (1, -1, 0.7),
+`iso-back` from (-1, 1, 0.7) and `side` from (0, -1, 0.05), +Z up. There is no
+top view: in the trial Moondream read the caboose's top view as "an electronic
+module" and it flipped the judge. The background is `#ececec`, lit by a
+hemisphere light and a key light above-left of the camera; each part has its
+own colour (an unset one is neutral grey `#b0b0b0`), flat shading, and dark
+lines at 35% opacity on edges where faces meet at more than 30°.
+
 ## Sandbox
 
 The conversation loop and the provider calls run in the `run-eval` process,

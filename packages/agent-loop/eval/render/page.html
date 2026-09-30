@@ -1,0 +1,112 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>eval render</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #ececec;
+      }
+      canvas {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="c" width="768" height="768"></canvas>
+    <script>
+      // eval/render.js adds three.js, then passes triangles and colours, never model code.
+      const NEUTRAL = 0xb0b0b0
+      let renderer = null
+      let scene = null
+      let box = null
+      let key = null
+
+      const decode = (data) => {
+        const binary = atob(data)
+        const bytes = new Uint8Array(binary.length)
+        for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i)
+        return new Float32Array(bytes.buffer)
+      }
+
+      const dispose = (old) => {
+        old?.traverse((node) => {
+          node.geometry?.dispose()
+          node.material?.dispose()
+        })
+      }
+
+      window.drawModel = (parts) => {
+        const T = window.THREE
+        renderer ??= new T.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true, preserveDrawingBuffer: true })
+        renderer.setSize(768, 768, false)
+        renderer.setClearColor(0xececec, 1)
+        renderer.outputEncoding = T.sRGBEncoding
+        dispose(scene)
+        scene = new T.Scene()
+        box = new T.Box3()
+        for (const { color, data } of parts) {
+          const geometry = new T.BufferGeometry()
+          geometry.setAttribute('position', new T.Float32BufferAttribute(decode(data), 3))
+          geometry.computeVertexNormals()
+          const tint = color ? new T.Color().setRGB(color[0], color[1], color[2]) : new T.Color(NEUTRAL)
+          tint.convertSRGBToLinear()
+          const surface = new T.MeshStandardMaterial({
+            color: tint,
+            roughness: 0.75,
+            metalness: 0,
+            flatShading: true,
+            polygonOffset: true,
+            polygonOffsetFactor: 1,
+            polygonOffsetUnits: 1,
+          })
+          scene.add(new T.Mesh(geometry, surface))
+          scene.add(new T.LineSegments(new T.EdgesGeometry(geometry, 30), new T.LineBasicMaterial({ color: 0x222222, transparent: true, opacity: 0.35 })))
+          geometry.computeBoundingBox()
+          box.union(geometry.boundingBox)
+        }
+        scene.add(new T.HemisphereLight(0xffffff, 0x9a9a9a, 1.6))
+        key = new T.DirectionalLight(0xffffff, 1.4)
+        scene.add(key)
+        scene.add(key.target)
+      }
+
+      // Orthographic, framed to the bounding box's corners in view space with a 3% margin on each side.
+      window.renderView = (dir, up) => {
+        const T = window.THREE
+        const center = box.getCenter(new T.Vector3())
+        const d = new T.Vector3(...dir).normalize()
+        const radius = box.getSize(new T.Vector3()).length()
+        const camera = new T.OrthographicCamera(-1, 1, 1, -1, 0.1, radius * 10)
+        camera.up.set(...up)
+        camera.position.copy(center).addScaledVector(d, radius * 3)
+        camera.lookAt(center)
+        camera.updateMatrixWorld()
+        const inverse = camera.matrixWorldInverse
+        let [x0, x1, y0, y1] = [Infinity, -Infinity, Infinity, -Infinity]
+        for (const x of [box.min.x, box.max.x]) {
+          for (const y of [box.min.y, box.max.y]) {
+            for (const z of [box.min.z, box.max.z]) {
+              const p = new T.Vector3(x, y, z).applyMatrix4(inverse)
+              x0 = Math.min(x0, p.x)
+              x1 = Math.max(x1, p.x)
+              y0 = Math.min(y0, p.y)
+              y1 = Math.max(y1, p.y)
+            }
+          }
+        }
+        const half = (Math.max(x1 - x0, y1 - y0) / 2) * 1.06
+        const cx = (x0 + x1) / 2
+        const cy = (y0 + y1) / 2
+        Object.assign(camera, { left: cx - half, right: cx + half, top: cy + half, bottom: cy - half })
+        camera.updateProjectionMatrix()
+        const right = new T.Vector3().crossVectors(d, camera.up).normalize()
+        key.position.copy(center).addScaledVector(d, radius).addScaledVector(right, radius * 0.6).addScaledVector(camera.up, radius)
+        key.target.position.copy(center)
+        renderer.render(scene, camera)
+      }
+    </script>
+  </body>
+</html>

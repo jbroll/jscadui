@@ -80,3 +80,5 @@ picks it up. `test/warningCases.js` holds the option-warning
 cases the eval backend and the app's `run` and build report must answer alike, and
 `eval/fluent-guard.test.js` fails on any warning from the repo's fluent
 examples.
+`eval/render.test.js` draws in Playwright's bundled chromium and skips when
+it is not installed (`npx playwright install chromium` in `apps/jscad-web`).
