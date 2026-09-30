@@ -39,15 +39,21 @@ const main = (params) => {
 module.exports = { main }
 `
 
-// Heights above the bottom whose section area the original model fixes; making
-// it taller leaves them alone, so a slot shows as less area at one of them.
+// Heights above the bottom to look for the slot at.
 const LEVELS = [1, 2.5, 4, 6, 8, 10, 15, 20, 30, 45, 60, 75]
 
-// The saved model as graded (fixtures.test.js checks these against it).
+// The starting model as graded (reference-answers.test.js checks these against it).
 export const ORIGINAL = {
   height: 90.5804,
   areas: [5600, 5600, 5600, 1054.1105, 1054.1105, 1054.1105, 414.1105, 414.1105, 414.1105, 414.1105, 414.1105, 414.1105],
 }
+
+// Loops closer than a slot is wide are one part of the stand; the starting
+// model's parts (base, back rest, lip) each fill their convex hull, so a slot
+// shows as a group's area falling short of its hull, whatever else the edit
+// resized.
+const SLOT_GAP = 20
+const cutInto = (group) => group.hullArea - group.area >= Math.max(25, 0.02 * group.hullArea)
 
 export const fixture = {
   name: 'followup-edit',
@@ -60,15 +66,14 @@ export const fixture = {
     { role: 'assistant', content: 'I saved a phone stand to main.js: a base, a back rest leaning back 15°, and a lip at the front. The Height slider sets the back rest.' },
   ],
   apiFiles: { fluent: { 'main.js': PHONE_STAND }, modeling: { 'main.js': PHONE_STAND_MODELING } },
-  probe: { sections: [{ axis: 'z', above: LEVELS }] },
+  probe: { sections: [{ axis: 'z', above: LEVELS, groupGap: SLOT_GAP }] },
   checks: (m, { solid, source = '', probe } = {}) => {
     const height = m?.dimensions?.[2] ?? 0
-    const areas = (probe?.sections ?? []).map((s) => s.loops.reduce((sum, l) => sum + l.area, 0))
-    const lessArea = ORIGINAL.areas.some((a, k) => areas[k] > 0 && areas[k] < a - Math.max(10, a * 0.03))
+    const slotted = (probe?.sections ?? []).some((s) => (s.groups ?? []).some(cutInto))
     return [
       { name: 'taller than before', pass: height >= ORIGINAL.height + 10 },
       { name: 'watertight', pass: solid?.watertight === true },
-      { name: 'a slot removes material', pass: lessArea },
+      { name: 'a slot removes material', pass: slotted },
       { name: 'saved', pass: source.trim().length > 0 && source !== PHONE_STAND && source !== PHONE_STAND_MODELING },
     ]
   },

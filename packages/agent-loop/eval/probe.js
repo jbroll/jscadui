@@ -130,9 +130,10 @@ const sectionLoops = (polygons, i, at) => {
   const loops = new Map()
   for (const { p, q, id } of segments) {
     const root = uf.find(id)
-    if (!loops.has(root)) loops.set(root, { area: 0, lo: [Infinity, Infinity, Infinity], hi: [-Infinity, -Infinity, -Infinity] })
+    if (!loops.has(root)) loops.set(root, { area: 0, lo: [Infinity, Infinity, Infinity], hi: [-Infinity, -Infinity, -Infinity], points: [] })
     const loop = loops.get(root)
     loop.area += (p[u] * q[v] - q[u] * p[v]) / 2
+    loop.points.push([p[u], p[v]])
     for (const pt of [p, q]) {
       for (let k = 0; k < 3; k++) {
         loop.lo[k] = Math.min(loop.lo[k], pt[k])
@@ -140,17 +141,64 @@ const sectionLoops = (polygons, i, at) => {
       }
     }
   }
-  return [...loops.values()]
-    .filter((l) => Math.abs(l.area) >= MIN_LOOP_AREA)
-    .sort((a, b) => Math.abs(b.area) - Math.abs(a.area))
-    .map(({ area, lo, hi }) => ({ area, boundingBox: [lo, hi], dimensions: hi.map((h, k) => h - lo[k]) }))
+  return [...loops.values()].filter((l) => Math.abs(l.area) >= MIN_LOOP_AREA).sort((a, b) => Math.abs(b.area) - Math.abs(a.area))
+}
+
+const loopFacts = ({ area, lo, hi }) => ({ area, boundingBox: [lo, hi], dimensions: hi.map((h, k) => h - lo[k]) })
+
+const cross2 = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+
+// Andrew's monotone chain.
+const hullArea = (points) => {
+  const sorted = [...points].sort((a, b) => a[0] - b[0] || a[1] - b[1])
+  if (sorted.length < 3) return 0
+  const half = (list) => {
+    const out = []
+    for (const p of list) {
+      while (out.length >= 2 && cross2(out.at(-2), out.at(-1), p) <= 0) out.pop()
+      out.push(p)
+    }
+    out.pop()
+    return out
+  }
+  const hull = [...half(sorted), ...half([...sorted].reverse())]
+  let area = 0
+  for (let i = 0; i < hull.length; i++) {
+    const [x0, y0] = hull[i]
+    const [x1, y1] = hull[(i + 1) % hull.length]
+    area += x0 * y1 - x1 * y0
+  }
+  return Math.abs(area) / 2
+}
+
+// Loops whose in-plane bounding boxes lie within `gap` of each other form one
+// group; a group's hull less its area is what a cut took out of it.
+const loopGroups = (loops, i, gap) => {
+  const [u, v] = PLANE[i]
+  const uf = createUnionFind()
+  const apart = (a, b) =>
+    Math.hypot(...[u, v].map((k) => Math.max(0, a.lo[k] - b.hi[k], b.lo[k] - a.hi[k])))
+  for (let a = 0; a < loops.length; a++) {
+    for (let b = a + 1; b < loops.length; b++) if (apart(loops[a], loops[b]) <= gap) uf.union(a, b)
+  }
+  const groups = new Map()
+  loops.forEach((loop, n) => {
+    const root = uf.find(n)
+    if (!groups.has(root)) groups.set(root, [])
+    groups.get(root).push(loop)
+  })
+  return [...groups.values()].map((members) => ({
+    loopCount: members.length,
+    area: members.reduce((sum, l) => sum + l.area, 0),
+    hullArea: hullArea(members.flatMap((l) => l.points)),
+  }))
 }
 
 // `at` are fractions of the extent along the axis, `above` millimetres above its minimum.
 const sectionsOf = (polygons, specs) => {
   const [lo, hi] = boxOf(polygons)
   const out = []
-  for (const { axis, at = [], above = [] } of specs) {
+  for (const { axis, at = [], above = [], groupGap } of specs) {
     const i = AXES.indexOf(axis)
     const cuts = [
       ...at.map((f) => ({ at: f, offset: lo[i] + f * (hi[i] - lo[i]) })),
@@ -160,7 +208,9 @@ const sectionsOf = (polygons, specs) => {
       const nudged = offset + NUDGE
       const inside = nudged > lo[i] && nudged < hi[i]
       const loops = inside ? sectionLoops(polygons, i, nudged) : []
-      out.push({ axis, ...where, offset: nudged, loopCount: loops.length, loops: loops.slice(0, MAX_LOOPS) })
+      const section = { axis, ...where, offset: nudged, loopCount: loops.length, loops: loops.slice(0, MAX_LOOPS).map(loopFacts) }
+      if (groupGap !== undefined) section.groups = loopGroups(loops, i, groupGap)
+      out.push(section)
     }
   }
   return out
@@ -198,7 +248,7 @@ const bodiesOf = (items) =>
 
 /**
  * @param {unknown} geometry what main() returned
- * @param {{ sections?: Array<{axis:'x'|'y'|'z', at?:number[], above?:number[]}>, bodies?: { sections?: Array<object> } }} spec
+ * @param {{ sections?: Array<{axis:'x'|'y'|'z', at?:number[], above?:number[], groupGap?:number}>, bodies?: { sections?: Array<object> } }} spec
  */
 export const runProbe = (geometry, spec) => {
   const items = polygonsOf(geometry)

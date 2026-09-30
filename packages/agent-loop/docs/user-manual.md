@@ -594,7 +594,11 @@ there is no geometry:
   and splits each cut into loops: `{ axis, at | above, offset, loopCount,
   loops: [{ area, boundingBox, dimensions }] }`, largest first, with outer
   loops' `area` positive and holes' negative. `outerLoops`, `holeLoops` and
-  `footprint` (a loop's two in-plane sizes, smaller first) read them.
+  `footprint` (a loop's two in-plane sizes, smaller first) read them. With
+  `groupGap` (mm), each cut also has `groups`: the loops whose bounding boxes
+  lie within that distance of each other, each group `{ loopCount, area,
+  hullArea }`, where `hullArea` is its convex hull's area, so a hull larger
+  than the area shows material cut out of a part.
 - `bodies: { sections? }` lists the separate solids, each array item split into
   the parts that share no vertex: `{ boundingBox, dimensions, volume,
   sections? }`, with `sections` cut through that body alone.
@@ -604,10 +608,15 @@ it for a slot, wall thickness, an open top, a hook count, lettering and a lid's
 fit. `box-with-lid` passes a lid whose footprint reaches from 2 mm inside the
 box's opening to the box's outer size plus twice (its wall + 1 mm), and at
 least 6 mm more, so a skirt lid as thick as the box wall fits.
+`followup-edit` finds the slot in the saved model's own sections: a group of
+loops within 20 mm of each other whose area falls short of its convex hull by
+at least 25 mm² and 2% of the hull, since every part of the starting stand
+fills its hull. It never compares with the starting model's areas, so an
+edit that also resizes the base is judged the same.
 `eval/reference-answers.test.js` grades a reference answer for each of
 those fixtures in both API styles through the backend, and a plain block that
 must fail, plus cases a past run misgraded (a 3 mm skirt lid with 0.3 mm
-clearance).
+clearance, a 12 mm slot through a base widened from 70 to 80 mm).
 
 A fixture's `prompt` is a request a real user would type: casual and often
 underspecified, never a specification written to be graded, and never phrased

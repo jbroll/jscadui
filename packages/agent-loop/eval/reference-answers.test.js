@@ -160,6 +160,24 @@ describe('new fixtures against reference answers', () => {
     expect(results.filter((c) => !c.pass).map((c) => c.name)).toEqual(['taller than before', 'a slot removes material', 'saved'])
   })
 
+  // DS fluent followup-edit#2: the base widened 70 -> 80 and a 12 mm slot through its full depth.
+  it('followup-edit passes a slot cut through a base the edit also widened', async () => {
+    const widened = `${JF}
+const main = (params) => {
+  params.height = { type: 'slider', default: 130, min: 60, max: 200, step: 5, label: 'Height' }
+  const base = jf.cuboid({ size: [80, 80, 5] }).translateZ(2.5)
+  const back = jf.cuboid({ size: [80, 5, params.height] })
+    .translateZ(params.height / 2)
+    .rotateX((-15 * Math.PI) / 180)
+    .translate([0, 30, 3])
+  const lip = jf.cuboid({ size: [80, 8, 12] }).translate([0, -31, 6])
+  const slot = jf.cuboid({ size: [12, 90, 10] })
+  return base.union(back, lip).subtract(slot)
+}
+module.exports = { main }`
+    expect(failing(await grade('followup-edit', widened, 'fluent'))).toEqual([])
+  })
+
   it('followup-edit fails a taller model with no slot', async () => {
     const taller = fixtureForApi(byName['followup-edit'], 'fluent').files['main.js'].replace('default: 90', 'default: 130')
     expect(failing(await grade('followup-edit', taller, 'fluent'))).toEqual(['a slot removes material'])

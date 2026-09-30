@@ -33,6 +33,19 @@ describe('runProbe', () => {
     expect(bodies[0].sections[0].loops).toHaveLength(1)
   })
 
+  it('groups nearby loops, each group with its area and the area of its convex hull', () => {
+    const plate = p.cuboid({ size: [80, 80, 5] })
+    const slotted = booleans.subtract(plate, p.cuboid({ size: [12, 90, 10] }))
+    const far = transforms.translateY(100, p.cuboid({ size: [80, 8, 5] }))
+    const [section] = runProbe([slotted, far], { sections: [{ axis: 'z', at: [0.5], groupGap: 20 }] }).sections
+    expect(section.loops).toHaveLength(3)
+    const groups = [...section.groups].sort((a, b) => b.area - a.area)
+    expect(groups).toHaveLength(2)
+    expect(groups[0]).toMatchObject({ loopCount: 2, area: expect.closeTo(5440, 6), hullArea: expect.closeTo(6400, 6) })
+    expect(groups[1]).toMatchObject({ loopCount: 1, area: expect.closeTo(640, 6), hullArea: expect.closeTo(640, 6) })
+    expect(runProbe([cup], { sections: [{ axis: 'z', at: [0.5] }] }).sections[0].groups).toBeUndefined()
+  })
+
   it('reads geometry an array nests', () => {
     expect(runProbe([[cup]], { bodies: {} }).bodies).toHaveLength(1)
     expect(runProbe([], { sections: [{ axis: 'z', at: [0.5] }], bodies: {} })).toEqual({ sections: [], bodies: [] })
