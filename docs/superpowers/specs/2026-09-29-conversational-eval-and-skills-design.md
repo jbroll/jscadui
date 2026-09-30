@@ -338,10 +338,10 @@ report (size, volume, watertightness) counts as verification in grading.
 
 ## Part 4: grading complex requests by blind description
 
-Superseded by `2026-09-30-blind-description-grading-design.md`, which sets
-the describer (Moondream 3.1 on the CI host), the judge (DeepSeek v4.1
-flash), three views, the `connected` gate and the staged pipeline from the
-2026-09-30 trials. The text below is the earlier draft.
+Superseded and built: see `packages/agent-loop/docs/user-manual.md` (Complex
+fixtures, Describe and judge, Grader validation) and
+`packages/agent-loop/docs/architecture.md` (Complex grading). The rest of this
+part is kept only as history of the earlier design.
 
 Real sessions ask for whole objects. Muse answered "we need a model of a toy
 caboose" with a red cabin on a black chassis, end beams, an overhanging roof
