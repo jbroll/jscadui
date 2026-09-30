@@ -39,11 +39,6 @@ params.radius = { type: 'slider', default: 5, min: 1, max: 20, step: 0.5 }
 `params._type = 'Name'` labels a UI section. Underscore-prefixed properties
 (`params._foo`) hide a parameter from the UI.
 
-When a request leaves sizes open, build a sensible default first instead of
-asking: pick typical dimensions, expose the key ones as `params`, and say in
-one sentence what you assumed. Ask only when a wrong guess would make the
-model useless.
-
 ## Tool policy
 
 - Model code travels only in tool-call arguments, never in chat prose, and
