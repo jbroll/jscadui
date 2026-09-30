@@ -85,3 +85,32 @@ export const previewValue = (value, max = 1000) => {
   }
   return text.length > max ? `${text.slice(0, max)}… (${text.length - max} more characters)` : text
 }
+
+// The loader gives every module's exports a `default` pointing back at them.
+const withoutSelfDefault = (exports) => {
+  if (exports === null || typeof exports !== 'object' || exports.default !== exports) return exports
+  const { default: _self, ...rest } = exports
+  return rest
+}
+
+const isGeometry = (item) => item !== null && typeof item === 'object' && ('polygons' in item || 'sides' in item)
+
+// What a scratch `run` answers about its value: `value` is what main()
+// returned, or the module's exports when it has no main. `measure` is
+// @jscadui/model-tools measure, which the eval and the frame each load their own way.
+export const summarizeRun = ({ hasMain, value }, measure) => {
+  const shown = hasMain ? value : withoutSelfDefault(value)
+  const items = [shown].flat(Infinity)
+  if (hasMain && items.length > 0 && items.every(isGeometry)) return { geometry: geometrySummary(measure(items)) }
+  const empty = !hasMain && shown !== null && typeof shown === 'object' && Object.keys(shown).length === 0
+  return empty ? {} : { returned: previewValue(shown) }
+}
+
+// Why measure, check and export have nothing to work on: no build yet, or `report` failed.
+export const noGeometryError = (report) => ({
+  ok: false,
+  error: {
+    name: 'NoGeometryError',
+    message: report ? `no geometry: the last build failed (${String(report.error?.message ?? '').split('\n')[0]}); fix it first` : 'no geometry: write the model first',
+  },
+})

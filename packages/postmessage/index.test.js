@@ -355,6 +355,27 @@ describe('initMessaging', () => {
     })
   })
 
+  describe('error output', () => {
+    it("carries a failed run's output from the sender to the rejected error", async () => {
+      const sender = { postMessage: vi.fn() }
+      const error = Object.assign(new Error('boom'), { output: { console: ['got here'], warnings: [] } })
+      initMessaging(sender, {}).sendError(error, 7)
+      const sent = sender.postMessage.mock.calls[0][0]
+      expect(sent.error.output).toEqual({ console: ['got here'], warnings: [] })
+
+      messaging = initMessaging(mockSelf, {})
+      const promise = messaging.sendCmd('run', [])
+      mockSelf.simulateMessage({ ...sent, id: mockSelf.postMessage.mock.calls[0][0].id })
+      await expect(promise).rejects.toMatchObject({ message: 'boom', output: { console: ['got here'], warnings: [] } })
+    })
+
+    it('adds no output to an error that had none', () => {
+      const sender = { postMessage: vi.fn() }
+      initMessaging(sender, {}).sendError(new Error('plain'), 8)
+      expect(sender.postMessage.mock.calls[0][0].error).not.toHaveProperty('output')
+    })
+  })
+
   describe('error handling', () => {
     it('should reject promise when error response is received', async () => {
       messaging = initMessaging(mockSelf, {})

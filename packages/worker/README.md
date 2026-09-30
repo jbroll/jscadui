@@ -21,6 +21,10 @@ collectors, each `{ reset(), list() }`:
 - `setRunWarnings(collector)`: option warnings. The frame passes the
   collector from `@jscadui/agent-loop`'s `createWarningCollector`.
 - `setRunConsole(collector)`: the model's console lines.
+- `setRunSummary(summarize)`: turns a scratch run's `{ hasMain, value }` into
+  plain data for its answer. The frame passes `@jscadui/agent-loop`'s
+  `summarizeRun` with `@jscadui/model-tools`' `measure`, so the chat's `run`
+  answers `geometry` or a `returned` preview as the eval does.
 
 `jscadScript` resets both before the module loads. A `jscadMain` re-run (a
 parameter change) resets the console before `main` runs, so it reports only

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildReport, errorLocation, previewValue, reportParams } from '../src/buildReport.js'
+import { buildReport, errorLocation, previewValue, reportParams, noGeometryError, summarizeRun } from '../src/buildReport.js'
 
 const BASE = 'http://project.local/'
 
@@ -95,5 +95,38 @@ describe('previewValue', () => {
     loop.self = loop
     expect(previewValue(loop)).toBe('{"a":1,"self":"[Circular]"}')
     expect(previewValue([1, 2, 3, 4, 5, 6], 5)).toBe('[1,2,… (8 more characters)')
+  })
+})
+
+describe('summarizeRun', () => {
+  const cube = { polygons: [] }
+  const measure = (items) => ({ entityCount: items.length, boundingBox: [[0, 0, 0], [10, 10, 10]], dimensions: [10, 10, 10], volume: 1000 })
+
+  it("summarizes geometry a main returned with the measure it is given", () => {
+    expect(summarizeRun({ hasMain: true, value: [cube, [cube]] }, measure)).toEqual({
+      geometry: { parts: 2, boundingBox: [[0, 0, 0], [10, 10, 10]], dimensions: [10, 10, 10], volume: 1000 },
+    })
+  })
+
+  it('previews any other value a main returned', () => {
+    expect(summarizeRun({ hasMain: true, value: { width: 3 } }, measure)).toEqual({ returned: '{"width":3}' })
+    expect(summarizeRun({ hasMain: true, value: [] }, measure)).toEqual({ returned: '[]' })
+  })
+
+  it("previews a module's exports without the loader's self default, and nothing for empty exports", () => {
+    const exports = { size: 10 }
+    exports.default = exports
+    expect(summarizeRun({ hasMain: false, value: exports }, measure)).toEqual({ returned: '{"size":10}' })
+    const empty = {}
+    empty.default = empty
+    expect(summarizeRun({ hasMain: false, value: empty }, measure)).toEqual({})
+  })
+})
+
+describe('noGeometryError', () => {
+  it('asks for a model before any build, and names the failed build after one', () => {
+    expect(noGeometryError(null)).toEqual({ ok: false, error: { name: 'NoGeometryError', message: 'no geometry: write the model first' } })
+    const failed = buildReport({ entry: 'main.js', error: { name: 'TypeError', message: 'x is not a function\n  at main.js:2' } })
+    expect(noGeometryError(failed).error.message).toBe('no geometry: the last build failed (x is not a function); fix it first')
   })
 })

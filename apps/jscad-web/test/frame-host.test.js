@@ -535,7 +535,7 @@ describe('trap retirement', () => {
     const { workers, send } = withSpare()
     send({ method: 'jscadSetFiles', id: 4, params: [{ files: { 'main.js': 'scratch' } }] })
     answerLast(workers[0])
-    send({ method: 'jscadScript', id: 5, params: [{ script: 'scratch', url: 'main.js', allowScratch: true }] })
+    send({ method: 'jscadScript', id: 5, params: [{ script: 'scratch', url: 'main.js', scratch: true }] })
     answerLast(workers[0], { def: [], params: {}, scratch: true, console: [] })
     expect(lastSent(workers[0])).toMatchObject({ method: 'jscadSetFiles', params: [{ files: { 'main.js': 'x' } }] })
     expect(lastSent(workers[1])).toMatchObject({ method: 'jscadSetFiles', params: [{ files: { 'main.js': 'x' } }] })
@@ -552,9 +552,9 @@ describe('trap retirement', () => {
   it('keeps a file map sent after the scratch run', () => {
     const { workers, send } = withSpare()
     send({ method: 'jscadSetFiles', id: 4, params: [{ files: { 'main.js': 'scratch' } }] })
-    send({ method: 'jscadScript', id: 5, params: [{ script: 'scratch', url: 'main.js', allowScratch: true }] })
+    send({ method: 'jscadScript', id: 5, params: [{ script: 'scratch', url: 'main.js', scratch: true }] })
     send({ method: 'jscadSetFiles', id: 6, params: [{ files: { 'main.js': 'newer' } }] })
-    const scratchId = workers[0].postMessage.mock.calls.find(([m]) => m.method === 'jscadScript' && m.params[0].allowScratch)[0].id
+    const scratchId = workers[0].postMessage.mock.calls.find(([m]) => m.method === 'jscadScript' && m.params[0].scratch)[0].id
     workers[0].onmessage({ data: { method: RESPONSE, id: scratchId, params: { scratch: true } } })
     expect(lastSent(workers[0])).toMatchObject({ method: 'jscadSetFiles', params: [{ files: { 'main.js': 'newer' } }] })
   })

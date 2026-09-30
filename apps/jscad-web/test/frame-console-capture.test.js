@@ -41,7 +41,7 @@ describe('frame console capture', () => {
     const scratch = await jscadScript({
       script: "console.log('scratch output')\nmodule.exports = {}",
       url: 'http://project.local/scratch.js',
-      allowScratch: true,
+      scratch: true,
     })
     expect(scratch.console).toEqual(['scratch output'])
 

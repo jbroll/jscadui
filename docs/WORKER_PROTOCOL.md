@@ -31,7 +31,7 @@ interface RunScriptOptions {
   held?: string[]   // passed to the main run; see jscadMain
   runMain?: boolean // default true
   supersede?: boolean // read and stripped by the frame; see supersede below
-  allowScratch?: boolean // default false; see scratch runs below
+  scratch?: boolean // default false; see scratch runs below
 }
 
 interface JscadScriptResult {
@@ -49,17 +49,25 @@ interface JscadScratchResult {
   params: {}
   scratch: true
   console: string[]
-  message: string   // 'no main(): nothing rendered, current model unchanged'
+  warnings: OptionWarning[]
+  error?: { name: string, message: string, stack?: string }
+  // plus whatever the host's run summary answers (packages/worker/README.md)
 }
 ```
 
 A script that exports no `main` fails with `no main function exported`,
-which the editor shows as an error. With `allowScratch: true` (the chat's
-`eval` sets it) the same script is a scratch run instead: `jscadScript`
-answers a `JscadScratchResult` and puts the loaded model back as it was: its
-module and `main`, its solids, and its parameter and UI state, so a later
-`jscadMain` runs the model. The chat can run console-only code without losing
-what is drawn.
+which the editor shows as an error. A failed load's error carries `output`,
+the run's `{ console, warnings }`, which `@jscadui/postmessage` passes across
+with the error.
+
+With `scratch: true` (the chat's `run` sets it) the script is a scratch run:
+`jscadScript` loads it, calls its `main` with fresh default parameters when it
+has one, and answers a `JscadScratchResult`, handing the value `main` returned
+(or the module's exports) to the host's run summary. It never throws: an
+error is answered in `error`. Either way it puts the loaded model back as it
+was: its module and `main`, its solids, and its parameter and UI state, so a
+later `jscadMain` runs the model. The chat can try code without losing what
+is drawn.
 
 The frame and the app's replay treat a scratch answer as no load. The frame
 keeps the loaded script as the one a promoted or restarted worker reloads,

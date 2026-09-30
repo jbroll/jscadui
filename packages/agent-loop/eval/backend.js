@@ -13,7 +13,7 @@ import { installConsoleCapture } from '../src/consoleCapture.js'
 import { docsTool } from '../src/docs.js'
 import { withErrorHint } from '../src/hints.js'
 import { createWarningCollector, withOptionChecks, wrapFluentMethods } from '../src/optionChecks.js'
-import { buildReport, errorLocation, geometrySummary, previewValue } from '../src/buildReport.js'
+import { buildReport, errorLocation, noGeometryError, summarizeRun } from '../src/buildReport.js'
 import { applyEdit, applyWrite, listFiles, NO_ENTRY, readFile, resolveEntry } from '../src/project.js'
 import { withUnits } from '../src/units.js'
 import { GRADE_TIMEOUT_MS } from './grade.js'
@@ -154,15 +154,6 @@ const runModel = async (files, entry, api) => {
   }
 }
 
-// The loader gives every module's exports a `default` pointing back at them.
-const withoutSelfDefault = (exports) => {
-  if (exports === null || typeof exports !== 'object' || exports.default !== exports) return exports
-  const { default: _self, ...rest } = exports
-  return rest
-}
-
-const isGeometry = (item) => item !== null && typeof item === 'object' && ('polygons' in item || 'sides' in item)
-
 // The app's worker writes STL text whatever format is asked for, and the app
 // answers { ok, format, size } without the bytes.
 const exportModel = (geometry, format) => {
@@ -222,21 +213,11 @@ export function createEvalBackend({ api = DEFAULT_API } = {}) {
     const loaded = await runModel({ ...files, [RUN_FILE]: source }, RUN_FILE, api)
     const { warnings: warned, console: lines } = loaded
     if (loaded.error) return { ok: false, error: located(loaded.error, api), warnings: warned, console: lines }
-    const value = loaded.hasMain ? loaded.value : withoutSelfDefault(loaded.exports)
-    const items = [value].flat(Infinity)
-    const empty = !loaded.hasMain && value !== null && typeof value === 'object' && Object.keys(value).length === 0
-    let result = {}
-    if (loaded.hasMain && items.length > 0 && items.every(isGeometry)) result = { geometry: geometrySummary(measure(items)) }
-    else if (!empty) result = { returned: previewValue(value) }
-    return { ok: true, warnings: warned, console: lines, ...result }
+    const summary = summarizeRun({ hasMain: loaded.hasMain, value: loaded.hasMain ? loaded.value : loaded.exports }, measure)
+    return { ok: true, warnings: warned, console: lines, ...summary }
   }
 
-  const noGeometry = () => {
-    const message = !current
-      ? 'no geometry: write the model first'
-      : `no geometry: the last build failed (${current.report.error.message.split('\n')[0]}); fix it first`
-    return toolError('NoGeometryError', message)
-  }
+  const noGeometry = () => JSON.stringify(noGeometryError(current?.report ?? null))
 
   const requestTool = async (name, input) => {
     try {

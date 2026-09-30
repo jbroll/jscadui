@@ -210,7 +210,7 @@ describe('worker restart', () => {
     const frame = await boot()
     await loadModel(frame)
     const files = frame.workerApi.jscadSetFiles({ files: { 'a.js': 'scratch' } })
-    const scratch = frame.workerApi.jscadScript({ script: 'scratch', url: 'http://project.local/a.js', allowScratch: true })
+    const scratch = frame.workerApi.jscadScript({ script: 'scratch', url: 'http://project.local/a.js', scratch: true })
     await settleAll(frame, (m) => (m.method === 'jscadScript' ? { scratch: true, console: [] } : {}))
     await Promise.all([files, scratch])
     frame.sent.length = 0

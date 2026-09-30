@@ -74,12 +74,14 @@ with `module.exports = { main }`. The result is the build report
 and `check` on what `main()` returned, rounded to 1e-4 mm. `errorLocation`
 finds `file`, `line` and `column` (1-based) in a Babel error's `loc` or the
 first `<base><path>:<line>:<column>` frame of a stack. `measure`, `check` and
-`export` work on the last build and fail with `NoGeometryError` when it failed.
+`export` work on the last build and fail with `NoGeometryError`
+(`noGeometryError`) when it failed.
 `run` is a scratch runner: the snippet runs beside the project's files as
 `__run__.js` and is never saved, and neither the project nor its build
 changes; it answers its console output, a `geometry` summary of what its
-`main()` returned or a `returned` preview of `module.exports`, and an error
-with its location.
+`main()` returned or a `returned` preview of `module.exports`
+(`summarizeRun`), and an error with its location. The app's frame worker
+answers `run` through the same `summarizeRun` and the same messages.
 
 The per-turn header (`buildMessages`) sends the project files and then the
 project's last build report, so each turn starts knowing whether the project

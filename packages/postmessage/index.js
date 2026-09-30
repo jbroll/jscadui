@@ -65,7 +65,9 @@ export const initMessaging = (_self, handlers, { onJobCount, debug, allowedOrigi
       // serialize stacktrace so it isn't lost in transit
       const stack = error.stack
       if (debug) console.log(debug, 'sendError', id, error)
-      ___self.postMessage({ method: RESPONSE, error: { message: error.message, name: error.name, stack }, id })
+      // A failed model run's console and warnings (see @jscadui/worker jscadScript).
+      const output = error.output === undefined ? {} : { output: error.output }
+      ___self.postMessage({ method: RESPONSE, error: { message: error.message, name: error.name, stack, ...output }, id })
     } catch (error) {
       console.error((debug || '') + 'failed to send ', error)
       throw error
@@ -134,6 +136,7 @@ export const initMessaging = (_self, handlers, { onJobCount, debug, allowedOrigi
         const _error = new Error(error.message)
         _error.stack = error.stack
         _error.name = error.name
+        if (error.output !== undefined) _error.output = error.output
         reject(_error)
       } else {
         resolve(params)

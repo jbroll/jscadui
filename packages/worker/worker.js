@@ -22,7 +22,7 @@ import { createClaims } from './src/claims.js'
  @prop {string} url - script url/name
  @prop {string} base - base url 
  @prop {string} [root] - root (do not allow paths below that root)  
- @prop {boolean} [allowScratch] - answer a script with no main as a scratch run instead of failing
+ @prop {boolean} [scratch] - the chat's scratch run: run the script and its main, answer what it printed and returned, and leave the loaded model as it was
 
  @typedef ExportDataOptions
  @prop {string} format
@@ -124,6 +124,20 @@ let runConsole = null
 export const setRunConsole = (collector) => {
   runConsole = collector
 }
+
+/** @type {((run: {hasMain: boolean, value: unknown}) => object) | null} */
+let runSummary = null
+
+/**
+ * Turns what a scratch run's main returned (or its module exports, with no
+ * main) into plain data for the answer; the host knows how to measure it.
+ * @param {((run: {hasMain: boolean, value: unknown}) => object) | null} summarize
+ */
+export const setRunSummary = (summarize) => {
+  runSummary = summarize
+}
+
+const runOutput = () => ({ console: runConsole?.list() ?? [], warnings: runWarnings?.list() ?? [] })
 
 // The plain jscad engine has no getModule, so it reports 0.
 const wasmHeap = () => {
@@ -460,10 +474,13 @@ const importReg = /import(?:(?:(?:[ \n\t]+([^ *\n\t{},]+)[ \n\t]*(?:,|[ \n\t]+))
 const exportReg = /export.*from/
 
 /**
- * @param {{script:string,url?:string,base?:string,root?:string,useGpuNormals?:boolean,runId?:unknown,held?:string[],runMain?:boolean}} param0
+ * A failed load's error carries `output`, the run's console and warnings. A
+ * scratch run never throws: its error is part of the answer, since the frame
+ * and the app's replay treat a failed load as the loss of the model.
+ * @param {{script:string,url?:string,base?:string,root?:string,useGpuNormals?:boolean,runId?:unknown,held?:string[],runMain?:boolean,scratch?:boolean}} param0
  * @returns {Promise<import('@jscadui/format-common').JscadScriptResultWithParams>}
  */
-export const jscadScript = async ({ script, url='jscad.js', base=workerState.globalBase, root=base, useGpuNormals: gpuNormals, runId, held, runMain = true, allowScratch = false }) => {
+export const jscadScript = async ({ script, url='jscad.js', base=workerState.globalBase, root=base, useGpuNormals: gpuNormals, runId, held, runMain = true, scratch = false }) => {
   // I1 fix: Increment generation to invalidate any timed-out scripts still running
   const myGeneration = workerState.nextGeneration()
   // An ALL.js grid yields between cells and reads this to stop once it is stale
@@ -471,6 +488,7 @@ export const jscadScript = async ({ script, url='jscad.js', base=workerState.glo
 
   // Acquire lock to prevent race conditions with concurrent script executions
   const release = await acquireScriptLock()
+  let previousModelState = null
   try {
     // I1 fix: Check if we're still the current generation after acquiring lock
     // A timeout may have released the lock and allowed another script to start
@@ -480,9 +498,9 @@ export const jscadScript = async ({ script, url='jscad.js', base=workerState.glo
 
     console.log('run script with base:', base, workerState.useParamsProxy ? '(proxy mode)' : '')
 
-    // A scratch run (no main) restores all of this instead of running with the
+    // A scratch run restores all of this instead of running with the
     // current model's param and solid state wiped out from under it.
-    const previousModelState = {
+    previousModelState = {
       main: workerState.main,
       scriptModule: workerState.scriptModule,
       userInteracted: workerState.userInteracted,
@@ -556,19 +574,14 @@ export const jscadScript = async ({ script, url='jscad.js', base=workerState.glo
     // Promotion loads the spare with the last script ahead of time, without running main
     if (!runMain) return { def: [], params: {} }
 
-    // For the chat's eval, a script with no main is a scratch run (console-only
-    // debugging, say): report its console output and leave the current model alone.
-    if (!workerState.main) {
-      if (!allowScratch) throw new Error('no main function exported')
-      Object.assign(workerState, previousModelState)
-      return {
-        def: [],
-        params: {},
-        scratch: true,
-        console: runConsole?.list() ?? [],
-        message: 'no main(): nothing rendered, current model unchanged',
-      }
+    if (scratch) {
+      const hasMain = typeof workerState.main === 'function'
+      const value = hasMain ? await workerState.main(scratchParams()) : workerState.scriptModule
+      const summary = runSummary?.({ hasMain, value }) ?? {}
+      return { def: [], params: {}, scratch: true, ...runOutput(), ...summary }
     }
+
+    if (!workerState.main) throw new Error('no main function exported')
 
     let params = {}
     if (workerState.useParamsProxy) {
@@ -595,10 +608,22 @@ export const jscadScript = async ({ script, url='jscad.js', base=workerState.glo
         ...out,
       }
     }
+  } catch (error) {
+    if (scratch) {
+      const failure = { name: error?.name ?? 'Error', message: error?.message ?? String(error), stack: error?.stack }
+      return { def: [], params: {}, scratch: true, error: failure, ...runOutput() }
+    }
+    if (error && typeof error === 'object') error.output = runOutput()
+    throw error
   } finally {
+    if (scratch && previousModelState) Object.assign(workerState, previousModelState)
     release()
   }
 }
+
+// A scratch run's main sees only its own defaults, never the model's param state.
+const scratchParams = () =>
+  workerState.useParamsProxy ? createParamsProxy(createProxyState({}, new Set(), { mode: 'hierarchical' })) : {}
 
 // TODO remove, or move to another package, along with exportStlText
 // this is interesting in regards to exporting to stl, and 3mf which actually need vertex data, 

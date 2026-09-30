@@ -71,7 +71,7 @@ describe('run console', () => {
     const model = "module.exports = { main: () => { globalThis.__runConsole.push('main ran'); return [] } }"
     await jscadScript({ script: model, url: 'http://project.local/model.js' })
     const scratch = "globalThis.__runConsole.push('scratch output')\nmodule.exports = {}"
-    const scratchResult = await jscadScript({ script: scratch, url: 'http://project.local/scratch.js', allowScratch: true })
+    const scratchResult = await jscadScript({ script: scratch, url: 'http://project.local/scratch.js', scratch: true })
     expect(scratchResult.console).toEqual(['scratch output'])
 
     const first = await jscadMain({ params: {} })

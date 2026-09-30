@@ -16,8 +16,10 @@ import {
   postProgress,
   releaseSolids,
   setRunConsole,
+  setRunSummary,
   setRunWarnings,
 } from '@jscadui/worker'
+import { summarizeRun } from '@jscadui/agent-loop/src/buildReport.js'
 import { readFileWeb, require, requireHandlers, jscadClearTempCache, clearFileCache, setUserModuleWrapper } from '@jscadui/require'
 import { withTransferable } from '@jscadui/postmessage'
 import { defaultSerializerConfigs } from '@jscadui/format-common/src/exportFormats.js'
@@ -96,6 +98,9 @@ const modelTools = () => {
 }
 
 const jscadMeasure = ({ options = {} }) => withSolids((solids) => modelTools().measure(asGeometry(solids), options))
+
+// The chat's scratch `run` answers with this, as the eval's backend does.
+setRunSummary((run) => summarizeRun(run, (items) => modelTools().measure(items)))
 
 const jscadCheck = ({ bed, options = {} }) => withSolids((solids) => modelTools().check(asGeometry(solids), { ...options, bed }))
 
