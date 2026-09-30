@@ -24,6 +24,7 @@
   "devDependencies": {
     "@jbroll/jscad-fluent": "file:../../.deps-cache/jscad-fluent",
     "@jscadui/format-jscad": "*",
+    "@jscadui/jscad-text": "*",
     "@jscadui/model-tools": "*",
     "@jscadui/params-core": "*",
     "@jscadui/require": "*",

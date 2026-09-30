@@ -5,6 +5,7 @@ import { check, measure } from '@jscadui/model-tools'
 import { createParamsProxy, createProxyState, toParamDefinitions } from '@jscadui/params-core'
 import { clearAllCaches, moduleResolver, require as jscadRequire } from '@jscadui/require/esm/index.js'
 import { transformcjs } from '@jscadui/transform-babel/esm/transform-babel.js'
+import * as jscadText from '@jscadui/jscad-text'
 import { exportStlText } from '@jscadui/worker/src/exportStlText.js'
 import { OPTION_TABLES } from '../api/optionTable.js'
 import { DEFAULT_API } from '../src/api.js'
@@ -24,7 +25,13 @@ export const CDN_BASE = 'https://cdn.jsdelivr.net/npm/'
 export { GRADE_TIMEOUT_MS }
 const nodeRequire = createRequire(import.meta.url)
 
+// ESM-only packages the frame serves from its own bundles; Node's require
+// cannot resolve an `exports` with only an `import` condition. A plain copy,
+// as the frame's CJS bundle gives, since the loader adds `default` to it.
+const ESM_MODULES = { '@jscadui/jscad-text': { ...jscadText } }
+
 const installed = (spec) => {
+  if (Object.hasOwn(ESM_MODULES, spec)) return true
   try {
     nodeRequire.resolve(spec)
     return true
@@ -47,7 +54,7 @@ const warnings = createWarningCollector()
 const wrapped = new WeakMap()
 globalThis[USER_MODULE] = (spec) => {
   if (!servable(spec)) throw new Error(`failed to load module ${spec}`)
-  const real = nodeRequire(spec)
+  const real = ESM_MODULES[spec] ?? nodeRequire(spec)
   const table = OPTION_TABLES[spec]
   if (!table) return real
   if (!wrapped.has(real)) {

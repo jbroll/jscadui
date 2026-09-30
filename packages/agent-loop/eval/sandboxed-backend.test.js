@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { createExecutorClient } from './executor-protocol.js'
 import { summarize } from './report.js'
 import { regradeResults, freshExecutorGrader, runJob } from './run-eval.js'
+import { fixture as nameplateFixture } from './fixtures/nameplate.js'
 import { createSandboxedBackend } from './sandboxed-backend.js'
 import { liveExecutors, startExecutor } from './sandbox.js'
 
@@ -92,6 +93,24 @@ describe('replies model code forges from inside the executor', () => {
   it('a model error of any size comes back capped', async () => {
     const result = await run([tool('eval', { source: 'module.exports = { main: () => { throw new Error("x".repeat(1e7)) } }' }), done()])
     expect(toolResults(result)[0].error.message.length).toBeLessThan(5000)
+  }, 30_000)
+})
+
+const NAMEPLATE = `const jf = require('@jbroll/jscad-fluent')
+const jscadText = require('@jscadui/jscad-text')
+jscadText.init(require('@jscad/modeling'))
+const main = () => {
+  const plate = jf.cuboid({ size: [120, 30, 4] }).translateZ(2)
+  const outline = jscadText.text2d('JOHN', { size: 12, halign: 'center', valign: 'center', font: 'Liberation Sans' })
+  return plate.union(new jf.FluentGeom2(outline).extrudeLinear({ height: 2 }).translateZ(4))
+}
+module.exports = { main }`
+
+describe('@jscadui/jscad-text in the sandboxed executor', () => {
+  it('loads with its bundled font under the permission model, and a nameplate grades in full', async () => {
+    const result = await run([tool('writeModel', { source: NAMEPLATE }), done()], {}, nameplateFixture)
+    expect(toolResults(result)[0]).toMatchObject({ ok: true, entry: 'main.js' })
+    expect(result.report.checkRate).toBe(1)
   }, 30_000)
 })
 

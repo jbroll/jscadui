@@ -319,10 +319,9 @@ Async module loading is the breaking one; the rest are extractions.
 - **Production relay chat logging (jscad-web server).** Only the launcher
   relay logs conversations. Logging in `server/src/relay` needs the user's
   opt-in before anything is written.
-- **Eval cannot load ESM-only or CDN-only packages (agent-loop).**
-  `@jscadui/jscad-text` (its `exports` has only an `import` condition) and
-  `@jbroll/jscad-anchors` (not installed) fail in `eval/backend.js` while the
-  frame serves them.
+- **Eval cannot load `@jbroll/jscad-anchors` (agent-loop).** It is not
+  installed, so model code requiring it fails in `eval/backend.js` while the
+  frame serves it from the CDN.
 - **Image tool results for `view` (agent-loop).** Send the screenshot as an
   image block (Anthropic `tool_result` image content, Responses `input_image`;
   chat completions cannot carry images in tool results) and offer `view`

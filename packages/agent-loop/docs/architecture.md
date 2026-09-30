@@ -51,8 +51,13 @@ maps to the package in local `node_modules`, and a package that is not
 installed fails with the frame's `failed to load module <name>` /
 `file not found <url>` text. Node built-ins (`fs`, `child_process`, `process`,
 any name `isBuiltin` accepts) fail the same way, since the browser has none.
-`@jscadui/jscad-text` (ESM-only) and `@jbroll/jscad-anchors` (not installed)
-fail here though the app serves them.
+`@jscadui/jscad-text`, ESM-only, which Node's `require` cannot resolve, is
+imported by `eval/backend.js` and handed over as a plain copy of its exports,
+as the frame's `bundle.jscad_text.js` hands them; its bundled Liberation Sans
+font sits under `packages/`, inside the sandbox's read-only binds. Under Node
+it reads that font file where the frame fetches it from the CDN, and a font
+the frame would fetch by URL fails, since the eval has no network.
+`@jbroll/jscad-anchors` (not installed) fails here though the app serves it.
 
 The CDN stub hands model code a copy of `@jscad/modeling` and
 `@jbroll/jscad-fluent` with the option checks (`src/optionChecks.js`,

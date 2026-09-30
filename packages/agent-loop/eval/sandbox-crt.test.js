@@ -116,6 +116,17 @@ describe.skipIf(problem)('the crt executor', () => {
     }
   }, 60_000)
 
+  it('serves @jscadui/jscad-text with its bundled font inside the binds', async () => {
+    const executor = startExecutor({ api: 'fluent', sandbox })
+    try {
+      await executor.reset({})
+      const text = "const jscadText = require('@jscadui/jscad-text')\njscadText.init(require('@jscad/modeling'))\nmodule.exports = { main: () => jscadText.text2d('JOHN', { size: 12, font: 'Liberation Sans' }) }"
+      expect(JSON.parse(await executor.requestTool('eval', { source: text })).ok).toBe(true)
+    } finally {
+      executor.close()
+    }
+  }, 60_000)
+
   it('kills the whole container when model code never yields, and grades nothing', async () => {
     const executor = startExecutor({ api: 'fluent', sandbox, graceMs: 200 })
     const stuck = executor.requestTool('eval', { source: 'module.exports = { main: () => { for (;;); } }' })

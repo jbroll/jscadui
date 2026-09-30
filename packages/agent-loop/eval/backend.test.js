@@ -14,6 +14,17 @@ export const main = (params) => {
   return primitives.sphere({ radius: params.radius })
 }`
 
+const nameplate = (font = '') => `const jf = require('@jbroll/jscad-fluent')
+const jscadText = require('@jscadui/jscad-text')
+jscadText.init(require('@jscad/modeling'))
+const main = () => {
+  const plate = jf.cuboid({ size: [120, 30, 4] }).translateZ(2)
+  const outline = jscadText.text2d('JOHN', { size: 12, halign: 'center', valign: 'center'${font} })
+  const text = new jf.FluentGeom2(outline).extrudeLinear({ height: 2 }).translateZ(4)
+  return plate.union(text)
+}
+module.exports = { main }`
+
 const evalSource = async (source) => JSON.parse(await createEvalBackend().requestTool('eval', { source }))
 
 describe('eval backend', () => {
@@ -43,6 +54,21 @@ describe('eval backend', () => {
     expect(res.ok).toBe(false)
     expect(res.error.message).toContain('failed to load module @jscad/primitives')
     expect(res.error.message).toContain('file not found https://cdn.jsdelivr.net/npm/@jscad/primitives')
+  })
+
+  it.each([
+    ['a Hershey', ''],
+    ['a TTF', ", font: 'Liberation Sans'"],
+  ])('serves @jscadui/jscad-text, as the frame does: a nameplate with %s font evaluates', async (_, font) => {
+    const backend = createEvalBackend()
+    const res = JSON.parse(await backend.requestTool('eval', { source: nameplate(font) }))
+    expect(res.error).toBeUndefined()
+    expect(res).toMatchObject({ ok: true, entities: 1 })
+    expect(res.warnings).toBeUndefined()
+    const m = JSON.parse(await backend.requestTool('measure', {}))
+    expect(m.dimensions[0]).toBeCloseTo(120, 3)
+    expect(m.dimensions[2]).toBeCloseTo(6, 3)
+    expect(m.volume).toBeGreaterThan(120 * 30 * 4 + 50)
   })
 
   it('fails a package subpath the frame does not alias', async () => {
