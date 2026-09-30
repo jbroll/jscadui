@@ -42,11 +42,15 @@ export const resultFileName = (model, api, promptSha256, now = new Date()) => {
   return `${timestamp}-${model}-${api}-${promptSha256.slice(0, 8)}.json`
 }
 
+// A fixture whose starting project differs by api declares `apiFiles`
+// ({ fluent: files, modeling: files }); under an api it starts from that api's files.
+export const fixtureForApi = (fixture, api) => (fixture?.apiFiles ? { ...fixture, files: fixture.apiFiles[api] ?? {} } : fixture)
+
 // `only`: null runs every ungrouped fixture (the default CSG suite); a list of
 // fixture and/or group names runs their union; ['all'] runs everything. A
 // fixture that declares an `api` runs only under that api.
 export function selectFixtures(fixtures, only, api = DEFAULT_API) {
-  const forApi = fixtures.filter((f) => !f.api || f.api === api)
+  const forApi = fixtures.filter((f) => !f.api || f.api === api).map((f) => fixtureForApi(f, api))
   if (!only) return forApi.filter((f) => !f.group)
   if (only.includes('all')) return forApi
   const wanted = new Set(only)
@@ -393,9 +397,10 @@ async function regradeRun(result, fixture, grader) {
 // one); `graderFor(api)` instead picks one for the file's api. A file written
 // before the api setting has none and is graded as fluent.
 export async function regradeResults(file, fixturesByName, { grader, graderFor = () => grader }) {
-  const fileGrader = graderFor(file.api ?? DEFAULT_API)
+  const api = file.api ?? DEFAULT_API
+  const fileGrader = graderFor(api)
   const results = []
-  for (const result of file.results) results.push(await regradeRun(result, fixturesByName.get(result.fixture), fileGrader))
+  for (const result of file.results) results.push(await regradeRun(result, fixtureForApi(fixturesByName.get(result.fixture), api), fileGrader))
   if (!file.results.some((r) => Array.isArray(r.transcript))) return { ...file, results }
   const speed = computeSpeed(results)
   if (typeof file.speed?.wallSeconds === 'number') speed.wallSeconds = file.speed.wallSeconds

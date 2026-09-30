@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { createEvalBackend } from './backend.js'
 import { ORIGINAL } from './fixtures/followup-edit.js'
-import { loadFixtures } from './run-eval.js'
+import { fixtureForApi, loadFixtures } from './run-eval.js'
 
 const byName = Object.fromEntries((await loadFixtures()).map((f) => [f.name, f]))
 const backends = { fluent: createEvalBackend({ api: 'fluent' }), modeling: createEvalBackend({ api: 'modeling' }) }
 
 // Grades a source as the eval does: the fixture's files with main.js written, then its checks.
 const grade = async (name, source, api) => {
-  const fixture = byName[name]
+  const fixture = fixtureForApi(byName[name], api)
   const files = { ...fixture.files, 'main.js': source }
   const graded = await backends[api].gradeProject({ files, entry: 'main.js' }, { probe: fixture.probe })
   const context = { params: graded.params, solid: graded.solid, probe: graded.probe, source: Object.values(files).join('\n') }
@@ -149,8 +149,11 @@ describe('new fixtures against reference answers', () => {
     expect(failing(await grade(name, source, 'fluent')).length).toBeGreaterThan(0)
   })
 
-  it.each(['fluent', 'modeling'])('followup-edit: the saved model runs under %s and matches ORIGINAL, failing the checks', async (api) => {
-    const { graded, results } = await grade('followup-edit', byName['followup-edit'].files['main.js'], api)
+  it.each(['fluent', 'modeling'])("followup-edit: the %s starting model matches ORIGINAL, failing the checks", async (api) => {
+    const starting = fixtureForApi(byName['followup-edit'], api).files['main.js']
+    expect(starting).toContain(api === 'fluent' ? '@jbroll/jscad-fluent' : '@jscad/modeling')
+    expect(starting).not.toContain(api === 'fluent' ? '@jscad/modeling' : 'jscad-fluent')
+    const { graded, results } = await grade('followup-edit', starting, api)
     expect(graded.measure.dimensions[2]).toBeCloseTo(ORIGINAL.height, 3)
     const areas = graded.probe.sections.map((s) => s.loops.reduce((sum, l) => sum + l.area, 0))
     areas.forEach((a, k) => expect(a).toBeCloseTo(ORIGINAL.areas[k], 2))
@@ -158,7 +161,7 @@ describe('new fixtures against reference answers', () => {
   })
 
   it('followup-edit fails a taller model with no slot', async () => {
-    const taller = byName['followup-edit'].files['main.js'].replace('default: 90', 'default: 130')
+    const taller = fixtureForApi(byName['followup-edit'], 'fluent').files['main.js'].replace('default: 90', 'default: 130')
     expect(failing(await grade('followup-edit', taller, 'fluent'))).toEqual(['a slot removes material'])
   })
 

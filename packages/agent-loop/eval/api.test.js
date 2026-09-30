@@ -40,6 +40,12 @@ describe('selectFixtures by api', () => {
   it('drops a named fixture of the other api', () => {
     expect(selectFixtures(all, ['fluent-chain', 'cube-hole'], 'modeling')).toEqual([neutral])
   })
+
+  it("starts a fixture with per-api files from the chosen api's files", () => {
+    const perApi = { name: 'edit', apiFiles: { fluent: { 'main.js': 'fluent' }, modeling: { 'main.js': 'modeling' } } }
+    expect(selectFixtures([perApi], null, 'fluent')[0].files).toEqual({ 'main.js': 'fluent' })
+    expect(selectFixtures([perApi], null, 'modeling')[0].files).toEqual({ 'main.js': 'modeling' })
+  })
 })
 
 describe('result files', () => {
@@ -93,6 +99,16 @@ describe('regrade under the recorded api', () => {
     await regradeResults(file('modeling'), fixtures, { graderFor })
     await regradeResults(file(), fixtures, { graderFor })
     expect(asked).toEqual(['modeling', 'fluent'])
+  })
+
+  it("grades a fixture with per-api files over the file's api files", async () => {
+    const seen = []
+    const graderFor = () => ({ gradeProject: async (model) => (seen.push(model.files), { measure: null, solid: null, params: [] }) })
+    const perApi = { ...fixture, name: 'x', requires: ['eval'], apiFiles: { fluent: { 'main.js': 'F', 'part.js': 'f' }, modeling: { 'main.js': 'M', 'part.js': 'm' } } }
+    const written = (api) => ({ api, results: [{ fixture: 'x', run: 1, transcript: [{ role: 'user', content: 'p' }, { role: 'assistant', content: null, toolCalls: [{ id: 't', name: 'writeModel', input: { source: 'new' } }] }], report: { dimensions: {} }, metrics: {} }] })
+    await regradeResults(written('modeling'), new Map([['x', perApi]]), { graderFor })
+    await regradeResults(written('fluent'), new Map([['x', perApi]]), { graderFor })
+    expect(seen).toEqual([{ 'main.js': 'new', 'part.js': 'm' }, { 'main.js': 'new', 'part.js': 'f' }])
   })
 
   it('an executor child gets its api over IPC', async () => {

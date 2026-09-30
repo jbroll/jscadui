@@ -504,10 +504,14 @@ line per run as each finishes. The key is never printed or written.
 ### Fixtures
 
 A fixture is one file exporting `fixture`:
-`{ name, prompt, requires, verifyBeforeWrite, maxTurns, checks(measure, { params, source, solid, probe }), api?, transcript?, files?, target?, probe? }`.
+`{ name, prompt, requires, verifyBeforeWrite, maxTurns, checks(measure, { params, source, solid, probe }), api?, transcript?, files?, apiFiles?, target?, probe? }`.
 `name` matches the file name; `transcript` (prior `{ role, content }` turns)
 and `files` (`{ path: source }`) test follow-up requests through the same
-`buildMessages` the app uses. `target` (`{ volume?, dimensions? }`) feeds
+`buildMessages` the app uses. A follow-up whose starting project is written in
+one API style gives each style its own instead, as
+`apiFiles: { fluent: files, modeling: files }` (`followup-edit`): a run, and
+`--regrade` of a result file, start from the files of their API
+(`fixtureForApi` in `eval/run-eval.js`). `target` (`{ volume?, dimensions? }`) feeds
 `geometryError` for a fixture whose prompt fixes the geometry. `measure`,
 `params`, `source` and `solid` all describe the graded project (`gradedModel` in
 `eval/grade.js`; `source` is every file joined), so a check can inspect the code the model saved as well as
