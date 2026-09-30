@@ -91,7 +91,9 @@ changes. A project module the snippet requires hands back its `main` wrapped
 would with `width` set as a user's edit and every other parameter at its
 default; a model's `params.width = { type: 'slider', … }` never overwrites
 the value given. It answers its console output, a `geometry` summary of what
-its `main()` returned or a `returned` preview of `module.exports`
+its `main()` returned, shaped like the build report's with `watertight`,
+`manifold` and `selfIntersecting` from model-tools' `check`, so a run can
+test a fix for open edges, or a `returned` preview of `module.exports`
 (`summarizeRun`), and an error with its location, without the loader's
 ` / failed loading module …` note (`withoutLoaderNote`), which builds drop
 too. The app's frame worker

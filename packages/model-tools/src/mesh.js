@@ -221,20 +221,31 @@ export const weldedTriangles = (polygons) => {
   return { points, tris: Uint32Array.from(tris) }
 }
 
+const MAX_OPEN_SAMPLES = 5
+const round3 = (v) => Math.round(v * 1000) / 1000 + 0
+
 export const analyzeMesh = (polygons) => {
   const { points, loops } = weldLoops(polygons)
+  const n = points.length
   let openEdges = 0
   let nonManifoldEdges = 0
   let sameWayEdges = 0
-  for (const e of countEdges(loops, points.length).values()) {
-    if (e.count === 1) openEdges++
-    else if (e.count > 2) nonManifoldEdges++
+  const openEdgeSamples = []
+  for (const [key, e] of countEdges(loops, n)) {
+    if (e.count === 1) {
+      openEdges++
+      if (openEdgeSamples.length < MAX_OPEN_SAMPLES) {
+        const [a, b] = [points[Math.floor(key / n)], points[key % n]]
+        openEdgeSamples.push(a.map((v, k) => round3((v + b[k]) / 2)))
+      }
+    } else if (e.count > 2) nonManifoldEdges++
     else if (e.forward !== 1) sameWayEdges++
   }
   const nonManifoldVertices = countNonManifoldVertices(loops)
   const inverted = openEdges === 0 && signedVolume(loops, points) < 0
   return {
     openEdges,
+    ...(openEdges ? { openEdgeSamples } : {}),
     nonManifoldEdges,
     nonManifoldVertices,
     consistentNormals: sameWayEdges === 0 && !inverted,

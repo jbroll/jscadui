@@ -60,7 +60,7 @@ export const buildTools = (api = DEFAULT_API) => [
   {
     name: 'run',
     description:
-      "Run a scratch JavaScript snippet beside the project files, to try an idea or log values. It is never saved and changes neither the project nor its build. A project file's main(values) runs with the other parameters at their defaults. Returns its console output, a summary of what its main() returns (or of module.exports without a main), and an error with its file, line and column.",
+      "Run a scratch JavaScript snippet beside the project files, to try an idea or log values. It is never saved and changes neither the project nor its build. A project file's main(values) runs with the other parameters at their defaults. Returns its console output, a summary of what its main() returns (parts, size, volume, and whether it is watertight, manifold and self-intersecting) or of module.exports without a main, and an error with its file, line and column.",
     inputSchema: {
       type: 'object',
       properties: { source: { type: 'string', description: 'The snippet, CommonJS like a project file' } },
@@ -94,7 +94,7 @@ export const buildTools = (api = DEFAULT_API) => [
   {
     name: 'check',
     description:
-      'Check the current model: watertight, manifold, inside out, self-intersecting, open and non-manifold edge counts and size in mm, for each part of an array too; the build report already gives watertight, manifold and self-intersecting for the whole. With a bed, also whether it fits. Pass a bed only when the user names a printer.',
+      'Check the current model: watertight, manifold, inside out, self-intersecting, open and non-manifold edge counts, where a few open edges are, and size in mm, for each part of an array too; the build report already gives watertight, manifold and self-intersecting for the whole. With a bed, also whether it fits. Pass a bed only when the user names a printer.',
     inputSchema: {
       type: 'object',
       properties: {

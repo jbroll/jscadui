@@ -111,6 +111,13 @@ describe('summarizeRun', () => {
     })
   })
 
+  it('adds watertight, manifold and selfIntersecting from the check it is given, as a build report does', () => {
+    const check = (items) => ({ watertight: items.length === 1, manifold: true, selfIntersecting: false, openEdges: 0 })
+    expect(summarizeRun({ hasMain: true, value: cube }, measure, check)).toEqual({
+      geometry: { parts: 1, boundingBox: [[0, 0, 0], [10, 10, 10]], dimensions: [10, 10, 10], volume: 1000, watertight: true, manifold: true, selfIntersecting: false },
+    })
+  })
+
   it('previews any other value a main returned', () => {
     expect(summarizeRun({ hasMain: true, value: { width: 3 } }, measure)).toEqual({ returned: '{"width":3}' })
     expect(summarizeRun({ hasMain: true, value: [] }, measure)).toEqual({ returned: '[]' })

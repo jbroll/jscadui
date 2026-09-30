@@ -116,12 +116,12 @@ const withoutSelfDefault = (exports) => {
 const isGeometry = (item) => item !== null && typeof item === 'object' && ('polygons' in item || 'sides' in item)
 
 // What a scratch `run` answers about its value: `value` is what main()
-// returned, or the module's exports when it has no main. `measure` is
-// @jscadui/model-tools measure, which the eval and the frame each load their own way.
-export const summarizeRun = ({ hasMain, value }, measure) => {
+// returned, or the module's exports when it has no main. `measure` and
+// `check` are @jscadui/model-tools', which the eval and the frame each load their own way.
+export const summarizeRun = ({ hasMain, value }, measure, check) => {
   const shown = hasMain ? value : withoutSelfDefault(value)
   const items = [shown].flat(Infinity)
-  if (hasMain && items.length > 0 && items.every(isGeometry)) return { geometry: geometrySummary(measure(items)) }
+  if (hasMain && items.length > 0 && items.every(isGeometry)) return { geometry: geometrySummary(measure(items), check?.(items)) }
   const empty = !hasMain && shown !== null && typeof shown === 'object' && Object.keys(shown).length === 0
   return empty ? {} : { returned: previewValue(shown) }
 }

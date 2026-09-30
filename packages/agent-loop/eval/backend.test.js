@@ -345,6 +345,15 @@ describe('eval backend run', () => {
     expect(await call(backend, 'run', { source: 'module.exports = { main: () => ({ a: 1 }) }' })).toMatchObject({ returned: '{"a":1}' })
   })
 
+  it("says whether a run's geometry is watertight, manifold and self-intersecting, as a build report does", async () => {
+    const closed = await call(createEvalBackend(), 'run', { source: CUBE })
+    expect(closed.geometry).toMatchObject({ parts: 1, watertight: true, manifold: true, selfIntersecting: false })
+    const open = await call(createEvalBackend(), 'run', {
+      source: "const { geom3 } = require('@jscad/modeling').geometries\nmodule.exports = { main: () => geom3.fromPoints([[[0, 0, 0], [10, 0, 0], [0, 10, 0]]]) }",
+    })
+    expect(open.geometry).toMatchObject({ watertight: false })
+  })
+
   it('reports an error with its line and column, and the console before it', async () => {
     const res = await call(createEvalBackend(), 'run', { source: "console.log('before')\nconst x = 1\nx()" })
     expect(res).toMatchObject({ ok: false, console: ['before'], error: { name: 'TypeError', file: '__run__.js', line: 3 } })

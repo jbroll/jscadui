@@ -224,7 +224,7 @@ export function createEvalBackend({ api = DEFAULT_API } = {}) {
     const loaded = await runModel({ ...files, [RUN_FILE]: source }, RUN_FILE, api, { wrapRequire: withProjectMains })
     const { warnings: warned, console: lines } = loaded
     if (loaded.error) return { ok: false, error: located(loaded.error, api), warnings: warned, console: lines }
-    const summary = summarizeRun({ hasMain: loaded.hasMain, value: loaded.hasMain ? loaded.value : loaded.exports }, measure)
+    const summary = summarizeRun({ hasMain: loaded.hasMain, value: loaded.hasMain ? loaded.value : loaded.exports }, measure, check)
     return { ok: true, warnings: warned, console: lines, ...summary }
   }
 

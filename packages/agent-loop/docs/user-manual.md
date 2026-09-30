@@ -267,7 +267,8 @@ fail with `NoGeometryError` before the first build (`no geometry: write the
 model first`) and after a failed one (`no geometry: the last build failed
 (<message>); fix it first`). `run` answers
 `{ ok, warnings, console, geometry? | returned? }`, or
-`{ ok: false, error, warnings, console }`.
+`{ ok: false, error, warnings, console }`; its `geometry` has the build
+report's fields, `watertight`, `manifold` and `selfIntersecting` included.
 
 `export` answers like the app: `{ ok, format, size }`, the byte size of the
 model as the frame's `@jscad/io` serializer for that format writes it
@@ -292,7 +293,9 @@ descriptions say their sizes are millimetres.
 
 `check` takes a `bed` only when the user names a printer: without one it
 reports watertight, manifold, inside out, self-intersecting and size, with no
-`fitsBed`. `measure` gives a negative-volume solid `insideOut: true` and a
+`fitsBed`. A solid with open edges gets `openEdgeSamples`, the midpoints of up
+to five of them, so the model can find where the gap is. No result names a
+tool the model cannot run. `measure` gives a negative-volume solid `insideOut: true` and a
 note, naming the part for an array (`@jscadui/model-tools`).
 
 ### Choosing fixtures and API style

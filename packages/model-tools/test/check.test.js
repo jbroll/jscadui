@@ -146,6 +146,26 @@ test('a boolean result with one polygon removed is still open', () => {
   expect(c.openEdges).toBeGreaterThan(0)
 })
 
+test('an open solid lists the midpoints of a few open edges, and a closed one none', () => {
+  const [removed, ...rest] = geom3.toPolygons(cuboid({ size: [10, 10, 10] }))
+  const c = check(fromPolygons(rest))
+  expect(c.openEdges).toBe(4)
+  const mid = (a, b) => a.map((v, k) => (v + b[k]) / 2)
+  const edges = removed.vertices.map((v, i) => mid(v, removed.vertices[(i + 1) % removed.vertices.length]))
+  const sorted = (points) => [...points].map((p) => p.map((v) => Math.round(v * 1000) / 1000 + 0)).sort()
+  expect(sorted(c.openEdgeSamples)).toEqual(sorted(edges))
+  const plate = check(fromPolygons(geom3.toPolygons(plateHole()).slice(1)))
+  expect(plate.openEdges).toBeGreaterThan(5)
+  expect(plate.openEdgeSamples).toHaveLength(5)
+  expect(check(cuboid())).not.toHaveProperty('openEdgeSamples')
+})
+
+test('no result names a tool its caller cannot run', () => {
+  for (const c of [check(cuboid()), check(openMesh()), check([cuboid(), rectangle()]), check(geom3.create())]) {
+    expect(JSON.stringify(c)).not.toContain('jscad-work')
+  }
+})
+
 test('solids sharing only an edge have a non-manifold edge', () => {
   expect(check(twoCubes([1, 1, 0]))).toMatchObject({
     watertight: true,

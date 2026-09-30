@@ -24,6 +24,8 @@ array, the note names each such part.
 `mini`, `x1`, `p1`, `a1mini`, `ender3`, case-insensitive) or its size in mm
 as `[x, y, z]`, `{x, y, z}`, or a JSON array string (`"[x, y, z]"`). It
 reports `watertight`, `manifold`, `openEdges`, `nonManifoldEdges`,
-`selfIntersecting`, `insideOut`, `bbox` and `dimensions` for solids, and
+`selfIntersecting`, `insideOut`, `bbox` and `dimensions` for solids, with
+`openEdgeSamples` (the midpoints of up to 5 open edges, to 0.001 mm) when
+there are open edges and `intersectionSamples` likewise, and
 `closed`/`outlines` for 2D profiles; `fitsBed` only when a bed is given. A negative-volume solid is never
 `watertight`; `insideOut` and a `notes` entry say why.

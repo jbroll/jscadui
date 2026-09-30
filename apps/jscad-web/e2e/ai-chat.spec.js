@@ -53,6 +53,11 @@ const NAN_HEIGHT = `const { cylinderElliptic } = require('@jscad/modeling').prim
 const box = { clearance: { default: 2 } }
 module.exports = { main: () => cylinderElliptic({ height: box.clearance * 2, startRadius: [2, 2], endRadius: [1, 1] }) }
 `
+const OPEN_BOX = `const { primitives, geometries } = require('@jscad/modeling')
+const { geom3 } = geometries
+const main = () => geom3.fromPoints(geom3.toPolygons(primitives.cuboid({ size: [10, 10, 10] })).slice(1).map((p) => p.vertices))
+module.exports = { main }
+`
 const PARITY_ROUNDS = [
   { name: 'write', args: { path: 'main.js', content: RUNTIME_ERROR } },
   { name: 'write', args: { path: 'main.js', content: 'module.exports = { size: 1 }\n' } },
@@ -80,6 +85,9 @@ const PARITY_ROUNDS = [
   { name: 'write', args: { path: 'main.js', content: SECTION_BOX } },
   { name: 'write', args: { path: 'main.js', content: MIXED_SECTION } },
   { name: 'write', args: { path: 'main.js', content: NAN_HEIGHT } },
+  { name: 'write', args: { path: 'main.js', content: OPEN_BOX } },
+  { name: 'check', args: { bed: 'mk3' } },
+  { name: 'run', args: { source: "const { main } = require('./main.js')\nmodule.exports = { main }" } },
   { name: 'docs', args: { query: 'params' } },
   { name: 'run', args: { source: "const t = require('@jscadui/jscad-text')\nt.init(require('@jscad/modeling'))\nconsole.log(t.text2d('A') !== null)" } },
   { name: 'run', args: { source: "const t = require('@jscadui/jscad-text')\nt.init(null)\nt.text2d('A')" } },
@@ -250,6 +258,9 @@ test.describe('AI chat', () => {
     expect(answerTo((a) => a.content === SECTION_BOX)).toMatchObject({ ok: true, geometry: { dimensions: [40, 20, 5] }, params: [{ name: 'box.width' }, { name: 'box.depth' }] })
     expect(answerTo((a) => a.content === MIXED_SECTION).error.message).toContain('params.box was given an object mixing parameter definitions and plain values')
     expect(answerTo((a) => a.content === NAN_HEIGHT).error.message).toContain('height is NaN: a parameter read back as NaN or an object')
+    expect(answerTo((a) => a.bed === 'mk3')).toMatchObject({ ok: true, watertight: false, openEdges: 4, openEdgeSamples: expect.any(Array) })
+    expect(answerTo((a) => a.bed === 'mk3')).not.toHaveProperty('notes')
+    expect(answerTo((a) => a.source?.includes("require('./main.js')\nmodule.exports = { main }"))).toMatchObject({ ok: true, geometry: { watertight: false } })
     expect(answerTo((a) => a.content === TEXT_WITHOUT_INIT)).toMatchObject({ saved: 'main.js', ok: true, geometry: { parts: 1 } })
     expect(answerTo((a) => a.query === 'text')).toContain('jscadText.text2d')
   })

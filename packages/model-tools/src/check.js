@@ -2,7 +2,6 @@ import { measureArray, wrapOne } from './array-geom.js'
 import { analyzeMesh, outlinesClosed, weldedTriangles } from './mesh.js'
 import { findSelfIntersections } from './self-intersect.js'
 
-const SOLID_NOTE = 'wall thickness and overhangs: run jscad-work dfm'
 const OUTLINE_NOTE = 'watertight and manifold apply to 3D solids; closed covers 2D outlines'
 export const INSIDE_OUT_NOTE =
   'solid is inside out (volume < 0); a 2D outline given clockwise usually causes this; reverse its points'
@@ -88,7 +87,6 @@ const checkSolid = (geom, bed) => {
       consistentNormals: null,
       selfIntersecting: null,
       ...extent(geom, bed),
-      notes: [SOLID_NOTE],
     }
   }
   const mesh = analyzeMesh(polygons)
@@ -101,7 +99,7 @@ const checkSolid = (geom, bed) => {
     ...mesh,
     ...findSelfIntersections(weldedTriangles(polygons)),
     ...extent(geom, bed),
-    notes: insideOut ? [SOLID_NOTE, INSIDE_OUT_NOTE] : [SOLID_NOTE],
+    ...(insideOut ? { notes: [INSIDE_OUT_NOTE] } : {}),
   }
 }
 
@@ -139,7 +137,7 @@ const checkArray = (arr, bed) => {
   })
   const measurable = arr.filter((_, i) => items[i].geomType !== 'unknown')
   const { boundingBox, dimensions } = measureArray(measurable)
-  const notes = [...new Set(items.flatMap((it) => it.notes))]
+  const notes = [...new Set(items.flatMap((it) => it.notes ?? []))]
   return {
     empty: items.every((it) => it.empty),
     watertight: allOf(items.map((it) => it.watertight)),
@@ -152,7 +150,7 @@ const checkArray = (arr, bed) => {
     dimensions,
     entityCount: items.length,
     items: items.map(({ notes: _, ...it }) => it),
-    notes,
+    ...(notes.length ? { notes } : {}),
   }
 }
 
