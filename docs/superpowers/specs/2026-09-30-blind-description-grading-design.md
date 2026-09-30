@@ -142,7 +142,8 @@ and the run is left out of the verdict means, like an `infraError`.
 ### Views
 
 Three orthographic views, 768 x 768 PNG, framed to the model's bounding box
-with a 6% margin:
+with a 3% margin on each side (half the larger extent times 1.06, as the trial
+renderer framed them):
 
 | view | camera direction (toward the model's centre from) | up |
 |---|---|---|

@@ -26,7 +26,7 @@
 - Never open a pull request, never create or push to a fork, never read or touch GitHub issues.
 - Pinned values from the spec, verbatim:
   - mesh: colours `[r, g, b]` in 0 to 1 or null; base64 Float32 positions; each reply under the 1 MB cap; up to 24 MB in all (about 700,000 triangles).
-  - views: 768 x 768 PNG, orthographic, 6% margin; `iso-front` (1, -1, 0.7), `iso-back` (-1, 1, 0.7), `side` (0, -1, 0.05), all +Z up; background `#ececec`; unset colour `#b0b0b0`; edges at 35% opacity where faces meet at more than 30°.
+  - views: 768 x 768 PNG, orthographic, a 3% margin on each side (the trial renderer's half-extent x 1.06); `iso-front` (1, -1, 0.7), `iso-back` (-1, 1, 0.7), `side` (0, -1, 0.05), all +Z up; background `#ececec`; unset colour `#b0b0b0`; edges at 35% opacity where faces meet at more than 30°.
   - `connected`: bounding boxes grown by 0.5 mm on every side; passes with at most `pieces` groups.
   - describer: `moondream/moondream3.1-9B-A2B`, `moondream==2.6.1`, `kestrel==0.9.1`, `DESCRIBER_HOME` default `/data/moondream3` (`venv/`, `hf/`), tokenizer `moondream/starmie-v1`; runtime `decode_path="native"`, `kv_cache_pages=4096`, `max_batch_size=1`, prefix cache off; reasoning off, temperature 0, at most 300 output tokens; needs 11,800 MiB free.
   - judge: `opencode-go` / `deepseek-v4.1-flash`, `reasoning_effort: "none"`, `temperature: 0`, at most 150 output tokens, three calls, reason trimmed to 200 characters, up to two retries of a reply with neither word.
@@ -38,20 +38,37 @@ Where the spec left a choice open, this plan decides as follows. Implementers fo
 
 1. The description line prefix `{view name}` is the view's label (`front three-quarter view`), as in the trial whose judge results the spec reports.
 2. The mesh sends one entry per item `main()` returned (the part that carries a colour); the `N parts` in the describer prompt is the `bodies` probe count, as the spec says.
-3. `maxTurns` caps each user message's turn, not the whole conversation. A follow-up is sent after any turn that ended without an error; an error (provider, empty reply, run time limit, sandbox) ends the conversation. Before each follow-up the backend is reset to the project as it stands and built, as the app's frame holds it.
+3. `maxTurns` caps each user message's turn, not the whole conversation, and grading reads it the same way: `hitCap` and `endedWithoutReply` count the assistant messages after the last user message. A follow-up is sent after any turn that ended without an error; an error (provider, empty reply, run time limit, sandbox) ends the conversation. Before each follow-up the backend is reset to the project as it stands and built, as the app's frame holds it.
 4. A run with `verdictPending`, `renderError` or `graderError` stays out of the `total` and `checkPassRate` means (its `firstAttemptFailures` still counts). `verdictRate` is over runs that have a verdict.
 5. The Regrading section's "rendering again happens with `--redescribe`" is `npm run describe -- --rerender`: `--regrade` marks a run whose mesh changed `renderStale`, and `--rerender` renders it again before describing.
 6. Complex fixtures run only when named (`EVAL_FIXTURES=complex` or a fixture name); `EVAL_FIXTURES=all` leaves them out, and a selection mixing complex and other fixtures exits with an error.
-7. When `blockedConnections` is not 0 the descriptions are kept, the stage exits 1, and `ci/eval-complex` stops before the judge.
-8. A run with any failed view gets `describeError` and no description; the judge skips it and a later `npm run describe` retries it.
+7. When `blockedConnections` is not 0, or the describer died so the count is unknown, the descriptions are kept, the stage exits 2, and `ci/eval-complex` stops before the judge. The same exit 2 covers the GPU check stopping it and a describer that does not start.
+8. A run with any failed view gets `describeError` and no description; the judge skips it and a later `npm run describe` retries it. Failed views alone make the stage exit 1, and the judge still runs on the other runs.
 9. A vote is the first uppercase `SUCCESS` or `FAILURE` in the reply (the trial's replies were always uppercase). A provider error counts as an unanswered attempt and is retried like a reply with neither word.
 10. Each complex run stores `userMessages` (the prompt and each follow-up) at stage A, so stages B and C and the validation file need no fixture lookup.
 11. Validation cases live in `eval/grader-validation/cases.js` as source strings (the trial sources as files would fail ESLint on unused variables); `no-roof` and `exploded` are derived from the caboose by exact-text patches, checked by a test against the trial's sizes and part counts. Output goes to `GRADER_VALIDATION_DIR`, default `~/.local/state/jscad-chat/grader-validation/`.
 12. `fetch-ci-results.js` copies a complex file's renders (checked against each view's `sha256`) and removes older `*.renders` directories from the results dir, so the user's next evals-repo commit drops them.
 13. "At most 150 output tokens" becomes `max_tokens: 150` through new `temperature` and `maxTokens` fields on the openai provider config, sent only when set, so no tested model's request changes.
-14. `ci/eval-complex` reuses `ci/eval` through a new `EVAL_CONF` variable, runs the describer and judge even when one lane failed, and exits non-zero when any stage failed.
+14. `ci/eval-complex` reuses `ci/eval` through a new `EVAL_CONF` variable, runs the describer and judge even when one lane failed, skips the judge only when the describe stage exits 2, and exits non-zero when any stage failed.
 15. The spec's `docs/install.md` does not exist; the describer's host setup goes in `ci/README.md`.
-16. The older spec `2026-09-29-conversational-eval-and-skills-design.md` still covers unimplemented Parts 1-3 and 5, so the last task does not delete it; it only marks Part 4 as superseded. The last task deletes the new spec and this plan.
+16. The older spec `2026-09-29-conversational-eval-and-skills-design.md` still covers unimplemented Parts 1-3 and 5, so the last task does not delete it; it replaces Part 4's existing superseded note with one that points at the permanent docs. The last task deletes the new spec and this plan.
+
+A pre-flight review (`.superpowers/sdd/2026-09-30-blind-description-grading/preflight.md`, rulings P1-P16 in its `progress.md`) amended this plan before any task ran:
+
+- P1 (Task 1): mesh pages pack consecutive parts and split a part across pages; the page cap, 127, follows from the 24 MiB byte cap, so the 62-part caboose fits in one page.
+- P2 (Task 2): `render.js` reads `three.min.js` beside `require.resolve('three')`, since three 0.147 exports no `./build/*`.
+- P3 (Task 12): the old spec's Part 4 note is replaced, not added to.
+- P4 (Tasks 5, 11): `cases.test.js` builds only the five trial cases; approved answers are model-written code and build only in the sandbox.
+- P5, P12 (Tasks 7, 11): `npm run describe` exits 2 on a stop (GPU short, a describer that did not start or died, a refused connection) and 1 when only views failed; `ci/eval-complex` skips the judge only after a 2. A dead describer is reported as a crash, and its stdin gets an `'error'` handler.
+- P6, P7 (Tasks 10, 11): two tests that asserted nothing now assert.
+- P8 (Tasks 1, 3, 4, 5, 6, 7, 9): one `renderRecord`, one exported `isRecord`, one `weights` function in `describer-setup.sh`, one `describeStop` message.
+- P9: plan code comments cut to one or two lines; what they said moved to `architecture.md` (Eval conversations, the describer protocol) or the user manual.
+- P10: the `--regrade` check joins the gates after Tasks 7 and 11 as well.
+- P11 (Task 4): `hitCap` and `endedWithoutReply` count from the last user message.
+- P13 (Task 7): `grader-validate` fails when a view fails to describe, and does not judge after a stop.
+- P14 (Global Constraints, Task 2, spec): the margin is 3% on each side, the trial renderer's half-extent x 1.06.
+- P15: `development.md` notes the python3 skip (Task 6), the trial reference in `cases.test.js` is marked optional, `--rerender` counts only runs it rendered and recomputes the summary (Task 9), and the executor client's comment names `mesh` (Task 1).
+- P16 (Task 7): the uncapped `bodies` probe goes in the backlog.
 
 ## File map
 
@@ -81,9 +98,11 @@ Where the spec left a choice open, this plan decides as follows. Implementers fo
 The spec gates each rollout step on the CI host. These need the GPU host and, for reading renders and descriptions, the user. The executor stops at each gate, runs what it can (`sci push`), and asks the user for the read.
 
 - After Task 5 (spec step 1): `sci push jscadui/grader-validate` with `UNTIL=render`; the user reads the five validation cases' renders against the trial's. Also `--regrade` a copy of the current baseline result files on the CI host and check that only `regradedAt` changed.
-- After Task 7 (spec step 2): `ci/grader-validate` with `UNTIL=describe`; descriptions match the trial's texts (Task 7 lists them).
-- After Task 9 (spec step 3): `ci/grader-validate` with `UNTIL=judge`; every scored case matches.
-- After Task 11 (spec step 4): one `sci push jscadui/eval-complex`; the user reads ten descriptions beside their renders; approved answers join the validation set (Task 11, step 9).
+- After Task 7 (spec step 2): `ci/grader-validate` with `UNTIL=describe`; descriptions match the trial's texts (Task 7 lists them). Also the `--regrade` check on the baseline files.
+- After Task 9 (spec step 3): `ci/grader-validate` with `UNTIL=judge`; every scored case matches. Also the `--regrade` check on the baseline files.
+- After Task 11 (spec step 4): one `sci push jscadui/eval-complex`; the user reads ten descriptions beside their renders; approved answers join the validation set (Task 11, step 9). Also the `--regrade` check on the baseline files.
+
+The `--regrade` check is the spec's "each step's gate includes a `--regrade` of the current baseline files changing nothing": copy the current baseline result files to a scratch directory on the CI host, `npm run eval -w @jscadui/agent-loop -- --regrade <copies>`, and `git diff --no-index` against the originals shows only `regradedAt` changed.
 
 ---
 
@@ -104,7 +123,8 @@ The spec gates each rollout step on the CI host. These need the GPU host and, fo
 **Interfaces:**
 - Consumes: `wrapOne` from `@jscadui/model-tools/src/array-geom.js`; `ExecutorExited`, `createExecutorClient`, `serveExecutor` in `eval/executor-protocol.js`.
 - Produces:
-  - `eval/mesh.js`: `MESH_PAGE_FLOATS = 184_320`, `MAX_MESH_BYTES = 25_165_824`, `MAX_MESH_PAGES = 35`, `meshPages(geometry) → { bytes, pages: [{ part, color, data }] }`, `meshPage(mesh, index) → { pages, bytes, part?, color?, data? }`, `collectMesh(fetchPage: (index) => Promise<unknown>) → Promise<{ parts: [{ color: [r,g,b]|null, positions: Float32Array }] } | { error: string }>`, `meshSha256(parts) → string` (64 hex).
+  - `eval/mesh.js`: `MAX_MESH_BYTES = 25_165_824`, `MESH_PAGE_CHARS = 983_040`, `MAX_MESH_PAGES = 127` (derived from `MAX_MESH_BYTES`), `meshPages(geometry) → { bytes, pages: [[{ part, color, data }]] }` (each page a list of pieces: consecutive parts share a page, a part that does not fit goes on over the next), `meshPage(mesh, index) → { pages, bytes, pieces? }`, `collectMesh(fetchPage: (index) => Promise<unknown>) → Promise<{ parts: [{ color: [r,g,b]|null, positions: Float32Array }] } | { error: string }>`, `meshSha256(parts) → string` (64 hex).
+  - `eval/executor-protocol.js`: `isRecord` exported (Tasks 1 and 3 import it instead of defining their own).
   - backend (`createEvalBackend()`): new method `mesh(index) → page`; `gradeProject(model, { timeoutMs, probe, mesh: true })` adds `mesh: { parts } | { error }` when the model built.
   - executor client: `mesh(index, { timeoutMs }) → Promise<object|null>`.
   - `gradeInFreshExecutor(start, model, { timeoutMs, readyTimeoutMs, probe, mesh })` adds `mesh` to a grade that built; `createSandboxedBackend().gradeProject(model, { ..., mesh: true })` passes it through. `MESH_PAGE_TIMEOUT_MS = 30_000`.
@@ -123,7 +143,8 @@ const { colors, primitives } = createRequire(import.meta.url)('@jscad/modeling')
 const served = (mesh) => async (index) => meshPage(mesh, index)
 const floats = (values) => Buffer.from(new Float32Array(values).buffer).toString('base64')
 const TRIANGLE = [0, 0, 0, 1, 0, 0, 0, 1, 0]
-const page = (data, extra = {}) => ({ pages: 1, bytes: 36, part: 0, color: null, data, ...extra })
+const page = (piece = {}, extra = {}) => ({ pages: 1, bytes: 36, pieces: [{ part: 0, color: null, data: floats(TRIANGLE), ...piece }], ...extra })
+const BIG = () => primitives.sphere({ radius: 10, segments: 256 })
 
 describe('meshPages and collectMesh', () => {
   it('sends each part with its colour and whole triangles', async () => {
@@ -137,12 +158,37 @@ describe('meshPages and collectMesh', () => {
     expect(parts[1].positions.length % 9).toBe(0)
   })
 
+  it('packs many small parts into one page, each with its own colour', async () => {
+    const cubes = Array.from({ length: 62 }, (_, i) => colors.colorize([i / 62, 0, 0], primitives.cuboid({ size: [1, 1, 1], center: [i * 2, 0, 0] })))
+    const mesh = meshPages(cubes)
+    expect(mesh.pages).toHaveLength(1)
+    const { parts } = await collectMesh(served(mesh))
+    expect(parts.map((p) => p.color)).toEqual(cubes.map((_, i) => [i / 62, 0, 0]))
+    expect(parts.every((p) => p.positions.length === 12 * 9)).toBe(true)
+  })
+
   it('splits a large part across pages and joins it back in order', async () => {
-    const mesh = meshPages(primitives.sphere({ radius: 10, segments: 256 }))
+    const mesh = meshPages(BIG())
     expect(mesh.pages.length).toBeGreaterThan(1)
     const { parts } = await collectMesh(served(mesh))
     expect(parts).toHaveLength(1)
     expect(parts[0].positions.length).toBe(mesh.bytes / 4)
+  })
+
+  it('splits a part that crosses a page and keeps the parts either side of it', async () => {
+    const mesh = meshPages([primitives.cuboid({ size: [1, 1, 1] }), BIG(), primitives.cuboid({ size: [2, 2, 2] })])
+    expect(mesh.pages[0].map((p) => p.part)).toEqual([0, 1])
+    expect(mesh.pages.at(-1).map((p) => p.part)).toEqual([1, 2])
+    const { parts } = await collectMesh(served(mesh))
+    expect(parts.map((p) => p.positions.length)).toEqual([12 * 9, mesh.bytes / 4 - 24 * 9, 12 * 9])
+  })
+
+  it('keeps every page of one-triangle parts under the reply cap', () => {
+    const color = [0.1234567890123456, 0.7803921568627451, 1e-7]
+    const tiny = Array.from({ length: 30_000 }, (_, i) => ({ color, toPolygons: () => [{ vertices: [[i, 0, 0], [i + 1, 0, 0], [i, 1, 0]] }] }))
+    const mesh = meshPages(tiny)
+    expect(mesh.pages.length).toBeGreaterThan(1)
+    for (let index = 0; index < mesh.pages.length; index += 1) expect(JSON.stringify(meshPage(mesh, index)).length).toBeLessThan(1024 * 1024)
   })
 
   it('hashes the same model the same way and a moved one differently', async () => {
@@ -165,13 +211,23 @@ describe('meshPages and collectMesh', () => {
     ['a size over the limit', [{ pages: 0, bytes: MAX_MESH_BYTES + 1 }], /over the/],
     ['too many pages', [{ pages: MAX_MESH_PAGES + 1, bytes: 36 }], /page limit/],
     ['no triangles', [{ pages: 0, bytes: 0 }], /no triangles/],
-    ['a count that is not whole triangles', [page(floats([0, 0, 0, 1, 0, 0, 0, 1]))], /whole triangles/],
-    ['a NaN', [page(floats([NaN, 0, 0, 1, 0, 0, 0, 1, 0]))], /finite/],
-    ['text that is not base64', [page('not base64!')], /whole triangles/],
-    ['a colour out of range', [page(floats(TRIANGLE), { color: [2, 0, 0] })], /malformed/],
-    ['a page count that changes', [page(floats(TRIANGLE), { pages: 2, bytes: 72 }), page(floats(TRIANGLE), { pages: 3 })], /malformed/],
+    ['a page with no pieces', [page({}, { pieces: [] })], /malformed/],
+    ['a count that is not whole triangles', [page({ data: floats([0, 0, 0, 1, 0, 0, 0, 1]) })], /whole triangles/],
+    ['a NaN', [page({ data: floats([NaN, 0, 0, 1, 0, 0, 0, 1, 0]) })], /finite/],
+    ['text that is not base64', [page({ data: 'not base64!' })], /whole triangles/],
+    ['a colour out of range', [page({ color: [2, 0, 0] })], /malformed/],
+    ['a page count that changes', [page({}, { pages: 2, bytes: 72 }), page({}, { pages: 3 })], /malformed/],
+    ['a part out of order', [page({ part: 1 }, { pages: 2, bytes: 72 }), page({ part: 0 }, { pages: 2 })], /malformed/],
+    ['a part whose colour changes between pages', [page({}, { pages: 2, bytes: 72 }), page({ color: [1, 0, 0] }, { pages: 2 })], /malformed/],
   ])('refuses %s', async (_name, replies, error) => {
     expect((await collectMesh(async (index) => replies[index])).error).toMatch(error)
+  })
+
+  it('joins a part carried over from one page to the next', async () => {
+    const replies = [page({}, { pages: 2, bytes: 72 }), page({}, { pages: 2 })]
+    const { parts } = await collectMesh(async (index) => replies[index])
+    expect(parts).toHaveLength(1)
+    expect(parts[0].positions.length).toBe(18)
   })
 })
 
@@ -257,7 +313,7 @@ Append to the end of `packages/agent-loop/eval/executor-protocol.test.js` (it al
 describe('the mesh request', () => {
   it('passes a mesh page through and answers a reply that is not a page with null', async () => {
     const { client, server } = transportPair()
-    let reply = { pages: 1, bytes: 36, part: 0, color: null, data: 'AAAA' }
+    let reply = { pages: 1, bytes: 36, pieces: [{ part: 0, color: null, data: 'AAAA' }] }
     serveExecutor(server, () => fakeBackend({ mesh: async () => reply }))
     const executor = createExecutorClient(client, { api: 'fluent' })
     expect(await executor.mesh(0)).toEqual(reply)
@@ -275,17 +331,20 @@ Expected: FAIL, `mesh.js` cannot be resolved and `executor.mesh is not a functio
 - [ ] **Step 3: Write `eval/mesh.js`**
 
 ```js
-// The grade executor's `mesh` request: each part's colour and triangles in
-// pages under the reply cap, so the parent can draw the model without running
-// its code (eval/render.js). The parent trusts no page and checks each one.
+// The grade executor's `mesh` request: each part's colour and triangles in pages under the reply cap.
 import { createHash } from 'node:crypto'
 import { wrapOne } from '@jscadui/model-tools/src/array-geom.js'
+import { isRecord } from './executor-protocol.js'
 
-// 720 KiB of Float32, a whole number of triangles: about 960 KB of base64 per reply.
-export const MESH_PAGE_FLOATS = 184_320
 export const MAX_MESH_BYTES = 24 * 1024 * 1024
-export const MAX_MESH_PAGES = Math.ceil(MAX_MESH_BYTES / (MESH_PAGE_FLOATS * 4))
 const TRIANGLE_BYTES = 9 * 4
+const TRIANGLE_CHARS = (TRIANGLE_BYTES / 3) * 4
+// A page's pieces in JSON characters, under the 1 MiB reply cap; a piece's JSON besides its data stays under PIECE_CHARS.
+export const MESH_PAGE_CHARS = 960 * 1024
+const PIECE_CHARS = 128
+// Every page but the last is full to within one piece and every part has a triangle, so the byte cap bounds the pages.
+const MAX_TRIANGLES = Math.floor(MAX_MESH_BYTES / TRIANGLE_BYTES)
+export const MAX_MESH_PAGES = Math.ceil((MAX_TRIANGLES * (TRIANGLE_CHARS + PIECE_CHARS)) / (MESH_PAGE_CHARS - 2 * PIECE_CHARS - TRIANGLE_CHARS)) + 1
 const BASE64 = /^[A-Za-z0-9+/]*={0,2}$/
 
 const colorOf = (color) =>
@@ -293,14 +352,15 @@ const colorOf = (color) =>
     ? color.slice(0, 3).map((c) => Math.min(1, Math.max(0, c)))
     : null
 
+const triangleCount = (polygons) => polygons.reduce((n, { vertices }) => n + Math.max(0, vertices.length - 2), 0)
+
 const partsOf = (geometry) =>
   [geometry]
     .flat(Infinity)
     .map(wrapOne)
     .filter((g) => typeof g?.toPolygons === 'function')
     .map((g) => ({ color: colorOf(g.color), polygons: g.toPolygons() }))
-
-const triangleCount = (polygons) => polygons.reduce((n, { vertices }) => n + Math.max(0, vertices.length - 2), 0)
+    .filter((p) => triangleCount(p.polygons) > 0)
 
 // Each polygon fanned from its first vertex.
 const positionsOf = (polygons) => {
@@ -317,30 +377,46 @@ const positionsOf = (polygons) => {
   return positions
 }
 
-// Executor side. A model over MAX_MESH_BYTES is counted before any array is
-// allocated, so a huge one cannot run the executor out of memory here.
+const toBase64 = (chunk) => Buffer.from(chunk.buffer, chunk.byteOffset, chunk.byteLength).toString('base64')
+
+// Consecutive parts share a page; a part that does not fit in what is left of one goes on over the next.
+const pack = (parts) => {
+  const pages = []
+  let page = []
+  let room = MESH_PAGE_CHARS
+  parts.forEach(({ color, polygons }, part) => {
+    const positions = positionsOf(polygons)
+    for (let at = 0; at < positions.length; ) {
+      const fits = Math.floor((room - PIECE_CHARS) / TRIANGLE_CHARS) * 9
+      if (fits <= 0) {
+        pages.push(page)
+        page = []
+        room = MESH_PAGE_CHARS
+        continue
+      }
+      const chunk = positions.subarray(at, at + fits)
+      page.push({ part, color, data: toBase64(chunk) })
+      room -= PIECE_CHARS + (chunk.length / 9) * TRIANGLE_CHARS
+      at += chunk.length
+    }
+  })
+  return page.length ? [...pages, page] : pages
+}
+
+// Executor side. The size is counted before any array is allocated, so a huge model cannot run the executor out of memory here.
 export const meshPages = (geometry) => {
   const parts = partsOf(geometry)
   const bytes = parts.reduce((n, p) => n + triangleCount(p.polygons) * TRIANGLE_BYTES, 0)
-  if (bytes > MAX_MESH_BYTES) return { bytes, pages: [] }
-  const pages = []
-  parts.forEach(({ color, polygons }, part) => {
-    const positions = positionsOf(polygons)
-    for (let at = 0; at < positions.length; at += MESH_PAGE_FLOATS) {
-      const chunk = positions.subarray(at, at + MESH_PAGE_FLOATS)
-      pages.push({ part, color, data: Buffer.from(chunk.buffer, chunk.byteOffset, chunk.byteLength).toString('base64') })
-    }
-  })
-  return { bytes, pages }
+  return bytes > MAX_MESH_BYTES ? { bytes, pages: [] } : { bytes, pages: pack(parts) }
 }
 
-export const meshPage = ({ bytes, pages }, index) => ({ pages: pages.length, bytes, ...(pages[index] ?? {}) })
-
-const isRecord = (value) => value !== null && typeof value === 'object' && !Array.isArray(value)
+export const meshPage = ({ bytes, pages }, index) => ({ pages: pages.length, bytes, ...(pages[index] ? { pieces: pages[index] } : {}) })
 
 const isColor = (color) => color === null || (Array.isArray(color) && color.length === 3 && color.every((c) => typeof c === 'number' && c >= 0 && c <= 1))
 
-// Whole triangles of finite Float32 numbers from a page's base64, or null.
+const sameColor = (a, b) => (a === null ? b === null : b !== null && a.every((c, i) => c === b[i]))
+
+// Whole triangles of finite Float32 numbers from a piece's base64, or null.
 const decodeTriangles = (data) => {
   if (typeof data !== 'string' || data.length % 4 !== 0 || !BASE64.test(data)) return null
   const bytes = Buffer.from(data, 'base64')
@@ -359,30 +435,40 @@ const concat = (chunks) => {
   return out
 }
 
-// Parent side: every page through `fetchPage(index)`, checked, joined per part.
+// A piece that goes on the part before it must keep its colour; any other must start a later part.
+const pieceFits = (piece, last) =>
+  isRecord(piece) &&
+  Number.isInteger(piece.part) &&
+  piece.part >= (last?.part ?? 0) &&
+  isColor(piece.color) &&
+  (piece.part !== last?.part || sameColor(last.color, piece.color))
+
+// Parent side: every page through `fetchPage(index)`, each piece checked, parts joined in order.
 export const collectMesh = async (fetchPage) => {
   const first = await fetchPage(0)
   if (!isRecord(first) || !Number.isInteger(first.pages) || !Number.isInteger(first.bytes)) return { error: 'the mesh reply was malformed' }
   if (first.bytes > MAX_MESH_BYTES) return { error: `the mesh is ${first.bytes} bytes, over the ${MAX_MESH_BYTES}-byte limit` }
   if (first.pages > MAX_MESH_PAGES) return { error: `the mesh came in ${first.pages} pages, over the ${MAX_MESH_PAGES}-page limit` }
   if (first.pages < 1) return { error: 'the model has no triangles' }
-  const parts = new Map()
+  const parts = []
   let bytes = 0
   for (let index = 0; index < first.pages; index += 1) {
     const page = index === 0 ? first : await fetchPage(index)
-    if (!isRecord(page) || page.pages !== first.pages || !Number.isInteger(page.part) || page.part < 0 || !isColor(page.color)) {
+    if (!isRecord(page) || page.pages !== first.pages || !Array.isArray(page.pieces) || page.pieces.length === 0) {
       return { error: `mesh page ${index} was malformed` }
     }
-    const triangles = decodeTriangles(page.data)
-    if (!triangles) return { error: `mesh page ${index} is not whole triangles of finite numbers` }
-    bytes += triangles.byteLength
-    if (bytes > MAX_MESH_BYTES) return { error: `the mesh passed the ${MAX_MESH_BYTES}-byte limit` }
-    if (!parts.has(page.part)) parts.set(page.part, { color: page.color, chunks: [] })
-    parts.get(page.part).chunks.push(triangles)
+    for (const piece of page.pieces) {
+      const last = parts.at(-1)
+      if (!pieceFits(piece, last)) return { error: `mesh page ${index} was malformed` }
+      const triangles = decodeTriangles(piece.data)
+      if (!triangles) return { error: `mesh page ${index} is not whole triangles of finite numbers` }
+      bytes += triangles.byteLength
+      if (bytes > MAX_MESH_BYTES) return { error: `the mesh passed the ${MAX_MESH_BYTES}-byte limit` }
+      if (piece.part === last?.part) last.chunks.push(triangles)
+      else parts.push({ part: piece.part, color: piece.color, chunks: [triangles] })
+    }
   }
-  return {
-    parts: [...parts].sort(([a], [b]) => a - b).map(([, { color, chunks }]) => ({ color, positions: concat(chunks) })),
-  }
+  return { parts: parts.map(({ color, chunks }) => ({ color, positions: concat(chunks) })) }
 }
 
 export const meshSha256 = (parts) => {
@@ -466,8 +552,7 @@ with
   }
 
   // Builds `{ files, entry }` (grade.js gradedModel) in a fresh state and
-  // measures it, plus the fixture's `probe` when it has one. `mesh` is for an
-  // in-process grade; in an executor the client asks for the pages itself.
+  // measures it, plus the fixture's `probe` when it has one.
   const gradeProject = async (model, { timeoutMs = GRADE_TIMEOUT_MS, probe, mesh: wantsMesh = false } = {}) => {
 ```
 
@@ -504,6 +589,24 @@ with
 
 ```js
 const METHODS = new Set(['reset', 'requestTool', 'gradeProject', 'mesh'])
+```
+
+Replace `const isRecord = (value) =>` with `export const isRecord = (value) =>` (`eval/mesh.js` and, in Task 3, `eval/complex.js` import it).
+
+Replace
+
+```js
+// The eval backend's interface (reset, requestTool, gradeProject), every method
+// async. reset resolves with a build report or null, requestTool always with a
+// string and gradeProject with a grade; a call rejects only with ExecutorExited. A grade gets `graceMs` past
+```
+
+with
+
+```js
+// The eval backend's interface (reset, requestTool, gradeProject, mesh), every method
+// async: a build report or null, a string, a grade, a mesh page or null; a call rejects
+// only with ExecutorExited. A grade gets `graceMs` past
 ```
 
 Replace
@@ -603,15 +706,23 @@ In `packages/agent-loop/docs/architecture.md`, Sandbox section, insert after the
 ```markdown
 A `complex` fixture's grade executor then answers `mesh` requests
 (`eval/mesh.js`): each part `main()` returned, with its colour (`[r, g, b]` in
-0 to 1, or null) and its triangles as base64 Float32 positions, at most 720 KiB
-of floats per reply so every reply stays under the 1 MB cap. A model over
-24 MiB of triangles (about 700,000) gets no pages, only its size, counted
-before anything is allocated. The parent checks every page: a page count of at
-most 35 that never changes, a colour in range, whole triangles of finite
-numbers, and a running total under 24 MiB. Anything else, or an executor that
-ends mid-mesh, becomes the run's `renderError`. Model code shares that
-executor and can send a different mesh, as it can forge its grade; that only
-changes how its own model looks.
+0 to 1, or null) and its triangles as base64 Float32 positions. The parts go
+out in order as pieces packed into pages: consecutive parts share a page, and
+a part that does not fit in what is left of one goes on over the next. A page
+holds at most 960 KiB of JSON, each piece charged 128 characters on top of its
+data, so every reply stays under the 1 MiB cap however many parts there are.
+A model over 24 MiB of triangles (about 700,000) gets no pages, only its size,
+counted before anything is allocated. Every page but the last is full to
+within one piece and every part has at least one triangle, so 24 MiB fits in
+127 pages whatever the part count; a 62-part caboose fits in one. The parent
+checks every page: a page count of at most 127 that never changes, parts in
+order, a part carried over to the next page keeping its colour, colours in
+range, whole triangles of finite numbers, and a running total under 24 MiB.
+Anything else, or an executor that ends mid-mesh, becomes the run's
+`renderError`. Model code shares that executor and can send a different mesh,
+as it can forge its grade; that only changes how its own model looks. In an
+executor the client asks for the pages itself after the grade; the backend's
+`gradeProject` option `mesh: true` collects them for an in-process grade.
 ```
 
 - [ ] **Step 9: Commit**
@@ -661,6 +772,9 @@ In `packages/agent-loop/package.json` `devDependencies`, add (keeping alphabetic
 
 Run: `npm install`
 Expected: exits 0; `package-lock.json` gains the two entries for `packages/agent-loop` (both packages are already hoisted in the root `node_modules`).
+
+Run: `node -e "const { dirname, join } = require('node:path'); const r = require('node:module').createRequire(process.cwd() + '/packages/agent-loop/'); console.log(join(dirname(r.resolve('three')), 'three.min.js'))"`
+Expected: a path ending `node_modules/three/build/three.min.js`. three 0.147's `exports` has no `./build/*` (`resolve('three/build/three.min.js')` throws `ERR_PACKAGE_PATH_NOT_EXPORTED`), so `render.js` resolves the package's main entry, `build/three.cjs`, and reads the file beside it.
 
 - [ ] **Step 2: Write the failing renderer tests**
 
@@ -845,7 +959,7 @@ export const VIEW_LABELS = Object.fromEntries(VIEWS.map((v) => [v.name, v.label]
         scene.add(key.target)
       }
 
-      // Orthographic, framed to the bounding box's corners in view space with a 6% margin.
+      // Orthographic, framed to the bounding box's corners in view space with a 3% margin on each side.
       window.renderView = (dir, up) => {
         const T = window.THREE
         const center = box.getCenter(new T.Vector3())
@@ -887,9 +1001,8 @@ export const VIEW_LABELS = Object.fromEntries(VIEWS.map((v) => [v.name, v.label]
 - [ ] **Step 6: Write `eval/render.js`**
 
 ```js
-// Draws a model's triangles in the run-eval process, never in an executor: the
-// crt sandbox has no WebGL and should not get it. Playwright's bundled
-// chromium is launched as apps/jscad-web/e2e/render-all.mjs launches it.
+// Draws a model's triangles in the run-eval process, never in an executor: the crt sandbox has no WebGL.
+// Playwright's bundled chromium is launched as apps/jscad-web/e2e/render-all.mjs launches it.
 import { createHash } from 'node:crypto'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
@@ -901,7 +1014,8 @@ export const RENDER_SIZE = 768
 export const LAUNCH_ARGS = ['--use-gl=angle', '--ignore-gpu-blocklist']
 
 const nodeRequire = createRequire(import.meta.url)
-const THREE = readFileSync(nodeRequire.resolve('three/build/three.min.js'), 'utf8')
+// three 0.147's `exports` has no ./build/*; its main entry sits beside three.min.js.
+const THREE = readFileSync(join(dirname(nodeRequire.resolve('three')), 'three.min.js'), 'utf8')
 const PAGE = readFileSync(new URL('./render/page.html', import.meta.url), 'utf8')
 
 const toBase64 = (positions) => Buffer.from(positions.buffer, positions.byteOffset, positions.byteLength).toString('base64')
@@ -995,7 +1109,8 @@ code, and every request it makes is refused. Each process starts one chromium
 and one page and draws one model at a time.
 
 The three orthographic 768 x 768 views (`eval/views.js`) are framed to the
-model's bounding box with a 6% margin: `iso-front` from (1, -1, 0.7),
+model's bounding box with a 3% margin on each side (half the larger extent
+times 1.06, as the trial renderer framed them): `iso-front` from (1, -1, 0.7),
 `iso-back` from (-1, 1, 0.7) and `side` from (0, -1, 0.05), +Z up. There is no
 top view: in the trial Moondream read the caboose's top view as "an electronic
 module" and it flipped the judge. The background is `#ececec`, lit by a
@@ -1040,7 +1155,7 @@ Claude-Session: https://claude.ai/code/session_01UHngnCmdqG3AKiiGGC9mbv"
 **Model:** `sonnet` — pure functions with full code; scoring rules must match the spec exactly.
 
 **Interfaces:**
-- Consumes: `NO_GRADE` (executor-protocol.js), `geometryError`, `gradedModel`, `gradeTranscript` (grade.js), `meshSha256` (Task 1).
+- Consumes: `isRecord` (Task 1), `NO_GRADE` (executor-protocol.js), `geometryError`, `gradedModel`, `gradeTranscript` (grade.js), `meshSha256` (Task 1).
 - Produces (`eval/complex.js`):
   - `isComplex(fixture) → boolean` (true when `fixture.gates` is a function)
   - `GROW_MM = 0.5`
@@ -1054,6 +1169,7 @@ Claude-Session: https://claude.ai/code/session_01UHngnCmdqG3AKiiGGC9mbv"
   - `complexReport(fixture, transcript, gates, { maxTurns, providerError }) → report` (geometry 0)
   - `settleRun(run) → run` (sets or clears `verdictPending`, recomputes `report` when present)
   - `renderFacts(graded) → { dimensions: number[3] (rounded), bodies }`
+  - `renderRecord(graded, views) → { meshSha256, facts, views }`: a run's `render` field, from a grade that has `mesh.parts`; the one place Tasks 4, 5 and 9 build it
   - `scoreComplex(fixture, run, transcript, graded, { maxTurns, providerError, render }) → Promise<{ report, fields, geometryError }>`; `render(parts, { fixture, run }) → Promise<views>`; `fields` holds `userMessages`, `gates`, `description: null`, `verdict: null`, and `render`/`verdictPending` or `renderError`.
   - `grade.js`: `requiresWrite(fixture)` exported.
   - `summarize` adds `pending` and `verdictRate` to a fixture whose runs have `gates`.
@@ -1074,6 +1190,7 @@ import {
   harnessGates,
   isComplex,
   renderFacts,
+  renderRecord,
   scoreComplex,
   settledReport,
   settleRun,
@@ -1216,6 +1333,12 @@ describe('scoring', () => {
   it('rounds the render facts', () => {
     expect(renderFacts(built([unit, unit]))).toEqual({ dimensions: [10, 21, 30], bodies: 2 })
   })
+
+  it('records the mesh hash, the facts and the views as the run render', () => {
+    const graded = { ...built(), mesh: { parts: [{ color: null, positions: new Float32Array(9) }] } }
+    const record = renderRecord(graded, ['v'])
+    expect(record).toEqual({ meshSha256: expect.stringMatching(/^[0-9a-f]{64}$/), facts: { dimensions: [10, 21, 30], bodies: 1 }, views: ['v'] })
+  })
 })
 
 describe('scoreComplex', () => {
@@ -1339,10 +1462,9 @@ export const requiresWrite = (fixture) => fixture.requires?.some((name) => name 
 - [ ] **Step 4: Write `eval/complex.js`**
 
 ```js
-// Grading for `complex` fixtures, which declare `gates` in place of `checks`:
-// the harness gates and the fixture's own, then geometry from a verdict on a
-// blind description of the model's renders (eval/describe.js, eval/judge.js).
-import { NO_GRADE } from './executor-protocol.js'
+// Grading for `complex` fixtures, which declare `gates` in place of `checks`: the gates,
+// then geometry from a verdict on a blind description of the renders (eval/describe.js, eval/judge.js).
+import { isRecord, NO_GRADE } from './executor-protocol.js'
 import { geometryError, gradedModel, gradeTranscript, requiresWrite } from './grade.js'
 import { meshSha256 } from './mesh.js'
 
@@ -1354,8 +1476,6 @@ export const GROW_MM = 0.5
 export const complexProbe = (fixture) => ({ ...fixture.probe, bodies: fixture.probe?.bodies ?? {} })
 
 export const userMessagesOf = (fixture) => [fixture.prompt, ...(fixture.followUps ?? []).map((f) => f.message)]
-
-const isRecord = (value) => value !== null && typeof value === 'object' && !Array.isArray(value)
 
 const overlap = ([aLo, aHi], [bLo, bHi], grow) => [0, 1, 2].every((k) => aLo[k] - grow < bHi[k] + grow && bLo[k] - grow < aHi[k] + grow)
 
@@ -1439,6 +1559,8 @@ export const renderFacts = (graded) => ({
   bodies: graded.probe?.bodies?.length ?? 0,
 })
 
+export const renderRecord = (graded, views) => ({ meshSha256: meshSha256(graded.mesh.parts), facts: renderFacts(graded), views })
+
 // Gates, then three renders of a model that built, drawn by `render(parts, { fixture, run })`.
 export async function scoreComplex(fixture, run, transcript, graded, { maxTurns, providerError = false, render } = {}) {
   const gates = complexGates(fixture, graded)
@@ -1450,8 +1572,7 @@ export async function scoreComplex(fixture, run, transcript, graded, { maxTurns,
     else if (!render) fields.renderError = 'no renderer'
     else {
       try {
-        const facts = renderFacts(graded)
-        fields.render = { meshSha256: meshSha256(mesh.parts), facts, views: await render(mesh.parts, { fixture: fixture.name, run }) }
+        fields.render = renderRecord(graded, await render(mesh.parts, { fixture: fixture.name, run }))
       } catch (error) {
         fields.renderError = `render failed: ${error.message}`
       }
@@ -1660,14 +1781,16 @@ Claude-Session: https://claude.ai/code/session_01UHngnCmdqG3AKiiGGC9mbv"
 
 **Files:**
 - Modify: `packages/agent-loop/eval/run-eval.js`
+- Modify: `packages/agent-loop/eval/grade.js` (`hitCap`, `endedWithoutReply`), `packages/agent-loop/eval/grade.test.js` (append)
 - Create: `packages/agent-loop/eval/followups.test.js`
 - Create: `packages/agent-loop/eval/complex-run.test.js`
-- Modify: `packages/agent-loop/docs/user-manual.md`
+- Modify: `packages/agent-loop/docs/user-manual.md`, `packages/agent-loop/docs/architecture.md` (new Eval conversations section)
 
 **Model:** `opus` — rewrites `runConversation` and `regradeRun`, where single-shot behaviour, result files and prompt hashes must stay exactly as they are.
 
 **Interfaces:**
-- Consumes: Task 1 (`gradeProject` option `mesh`, `meshSha256`), Task 2 (`createRunRenderer`), Task 3 (everything in `eval/complex.js`).
+- Consumes: Task 1 (`gradeProject` option `mesh`), Task 2 (`createRunRenderer`), Task 3 (everything in `eval/complex.js`, `renderRecord` for the render field).
+- Produces (`eval/grade.js`): `hitCap` and `endedWithoutReply` count the assistant messages after the last user message, so a follow-up's turn reads capped or empty on its own rounds. A single-shot run's last user message is its prompt, so its grade is unchanged; a fixture that seeds a `transcript` stops counting that transcript's assistant message, which changes a grade only for a run that ended on a tool result one round short of the cap.
 - Produces (`eval/run-eval.js`):
   - `fileStamp(now = new Date()) → 'YYYY-MM-DDTHHMMSSZ'`
   - `resultFileName(model, api, promptSha256, now = new Date(), suite)`; `suite === 'complex'` adds `-complex` before the hash
@@ -1760,6 +1883,30 @@ describe('follow-ups', () => {
     expect(seen).toHaveLength(1)
     expect(result.error).toBe('status 500')
     expect(result.providerError).toBe(true)
+  })
+})
+```
+
+Append to the end of `packages/agent-loop/eval/grade.test.js` (`toolMsg`, `resultMsg`, `fixture`, `endedWithoutReply` and `gradeFixture` are in scope):
+
+```js
+describe('the turn cap with a follow-up', () => {
+  const boom = JSON.stringify({ ok: false, error: { message: 'boom' } })
+  const firstTurn = [
+    { role: 'user', content: 'make it' },
+    toolMsg('t1', 'writeModel', { source: 'x' }),
+    resultMsg('t1', JSON.stringify({ ok: true, entry: 'main.js' })),
+    { role: 'assistant', content: 'done', toolCalls: [] },
+    { role: 'user', content: 'make it taller' },
+  ]
+
+  it('counts only the rounds after the last user message', () => {
+    const stopped = [...firstTurn, toolMsg('t2', 'eval', { source: 'y' }), resultMsg('t2', boom)]
+    expect(endedWithoutReply(stopped, 2)).toBe(true)
+    expect(gradeFixture(fixture, stopped, { volume: 6400 }, {}, { maxTurns: 2 }).dimensions.recovery).toBe(0)
+    const capped = [...firstTurn, toolMsg('t2', 'eval', { source: 'y' }), resultMsg('t2', JSON.stringify({ ok: true })), toolMsg('t3', 'eval', { source: 'z' }), resultMsg('t3', boom)]
+    expect(endedWithoutReply(capped, 2)).toBe(false)
+    expect(gradeFixture(fixture, capped, { volume: 6400 }, {}, { maxTurns: 2 }).dimensions.recovery).toBe(2)
   })
 })
 ```
@@ -1937,21 +2084,15 @@ describe('complex result files', () => {
 
 - [ ] **Step 3: Run the tests to see them fail**
 
-Run: `npx vitest run --root packages/agent-loop eval/followups.test.js eval/complex-run.test.js`
-Expected: FAIL: the follow-up is never sent, `result.gates` is undefined, `compareSuites` is not exported.
+Run: `npx vitest run --root packages/agent-loop eval/followups.test.js eval/complex-run.test.js eval/grade.test.js`
+Expected: FAIL: the follow-up is never sent, `result.gates` is undefined, `compareSuites` is not exported, and the follow-up transcript reads as capped (`endedWithoutReply` false, recovery 2).
 
 - [ ] **Step 4: Imports, file names, fixture selection and comparison**
 
 In `packages/agent-loop/eval/run-eval.js`, after `import { resolveCredentials } from './credentials.js'` add:
 
 ```js
-import { complexGates, complexProbe, complexReport, isComplex, renderFacts, scoreComplex, settleRun, userMessagesOf } from './complex.js'
-```
-
-After `import { concurrencyFrom, runSuiteParallel } from './parallel.js'` add:
-
-```js
-import { meshSha256 } from './mesh.js'
+import { complexGates, complexProbe, complexReport, isComplex, renderRecord, scoreComplex, settleRun, userMessagesOf } from './complex.js'
 ```
 
 Replace
@@ -1995,8 +2136,7 @@ with
 // `only`: null runs the default suite, every ungrouped fixture and every
 // fixture in DEFAULT_GROUPS; a list of fixture and/or group names runs their
 // union; ['all'] runs everything but the complex group, which runs only when
-// named, in a pass of its own. A fixture that declares an `api` runs only
-// under that api.
+// named. A fixture that declares an `api` runs only under that api.
 export function selectFixtures(fixtures, only, api = DEFAULT_API) {
   const forApi = fixtures.filter((f) => !f.api || f.api === api).map((f) => fixtureForApi(f, api))
   if (!only) return forApi.filter((f) => !f.group || DEFAULT_GROUPS.has(f.group))
@@ -2022,15 +2162,43 @@ export const compareSuites = (a, b) => {
 
 - [ ] **Step 5: A turn cap per user message**
 
-Replace the whole `withTurnCap` definition (from the comment `// Wraps the provider for one run: caps the number of send() calls (rounds),` down to its closing `}` before `export const EMPTY_REPLY`) with:
+In `packages/agent-loop/eval/grade.js`, replace
 
 ```js
-// Wraps the provider for one run: caps the number of send() calls (rounds)
-// in each user turn (`startTurn()` begins the next), tallies usage events,
-// counts calls that sent neither text nor a tool call (reasoning and usage
-// alone are no reply), records each call's stop reason, notes whether the
-// provider itself threw, and times each call against an injected clock so the
-// caller can read rounds/usage/speed once the run ends.
+// A run that stopped without a final reply before its turn cap: the provider
+// sent nothing back. A capped run ends on a tool result after maxTurns replies.
+export function endedWithoutReply(transcript, maxTurns) {
+  if (transcript.length === 0 || transcript.at(-1).role === 'assistant') return false
+  return transcript.filter((m) => m.role === 'assistant').length < maxTurns
+}
+
+// A run the turn cap ended: its last round's tool results got no reply.
+const hitCap = (transcript, maxTurns) =>
+  maxTurns !== undefined && transcript.at(-1)?.role === 'tool' && transcript.filter((m) => m.role === 'assistant').length >= maxTurns
+```
+
+with
+
+```js
+// The cap is per user message, so only the rounds after the last one count.
+const lastTurnReplies = (transcript) => transcript.slice(transcript.findLastIndex((m) => m.role === 'user') + 1).filter((m) => m.role === 'assistant').length
+
+// A run that stopped without a final reply before its turn cap: the provider
+// sent nothing back. A capped run ends on a tool result after maxTurns replies.
+export function endedWithoutReply(transcript, maxTurns) {
+  if (transcript.length === 0 || transcript.at(-1).role === 'assistant') return false
+  return lastTurnReplies(transcript) < maxTurns
+}
+
+// A run the turn cap ended: its last round's tool results got no reply.
+const hitCap = (transcript, maxTurns) => maxTurns !== undefined && transcript.at(-1)?.role === 'tool' && lastTurnReplies(transcript) >= maxTurns
+```
+
+In `packages/agent-loop/eval/run-eval.js`, replace the whole `withTurnCap` definition (from the comment `// Wraps the provider for one run: caps the number of send() calls (rounds),` down to its closing `}` before `export const EMPTY_REPLY`) with:
+
+```js
+// Caps the rounds in each user turn (`startTurn()` begins the next) and keeps the run's
+// rounds, usage, empty replies, stop reasons, provider failure and timing (docs/architecture.md).
 const withTurnCap = (provider, maxTurns, now = () => performance.now(), onRetry) => {
   let rounds = 0
   let turnRounds = 0
@@ -2116,18 +2284,8 @@ const replyText = (messages) =>
     .map((m) => m.content)
     .join('')
 
-// One conversation: a fresh backend state seeded with the fixture's files, whose
-// build report joins the files in the first message, the fixture's prompt,
-// then each of its `followUps` in order, then grading on the project's final
-// state, built again in a fresh state so no scratch run leaks into the grade.
-// A follow-up goes through buildMessages as the app sends one: earlier turns
-// as text, the project as it stands, built. An error lands on the result,
-// never thrown, and ends the conversation. `providerError` marks one the
-// provider caused, judged only by the provider wrapper here, never by what a
-// tool returned; `infraError` one the sandbox caused (a backend error with
-// `infrastructure`). Both leave the run out of the means. `signal` aborts the
-// run. A complex fixture is graded by its gates, and a model that builds is
-// drawn by `render(parts, { fixture, run })` (eval/complex.js).
+// One run: the prompt and each follow-up, then a grade of the final project in a fresh state.
+// Errors land on the result, never thrown (docs/architecture.md, Eval conversations).
 export async function runConversation(
   fixture,
   run,
@@ -2311,15 +2469,13 @@ async function regradeComplex(run, fixture, grader, { transcript, maxTurns, prov
   const cleared = { ...base, description: null, verdict: null }
   if (!gates[0].pass) return settleRun(render ? { ...cleared, regradeNote: 'the project no longer builds' } : cleared)
   if (!graded.mesh || graded.mesh.error) return settleRun({ ...cleared, renderError: graded.mesh?.error ?? 'no mesh came back with the grade' })
-  let sha
-  let facts
+  let fresh
   try {
-    sha = meshSha256(graded.mesh.parts)
-    facts = renderFacts(graded)
+    fresh = renderRecord(graded, render?.views ?? [])
   } catch {
     return settleRun({ ...cleared, renderError: 'the grade could not be read' })
   }
-  if (render && sha === render.meshSha256) {
+  if (render && fresh.meshSha256 === render.meshSha256) {
     return settleRun({
       ...base,
       render,
@@ -2332,7 +2488,7 @@ async function regradeComplex(run, fixture, grader, { transcript, maxTurns, prov
   }
   return settleRun({
     ...cleared,
-    render: { meshSha256: sha, facts, views: render?.views ?? [] },
+    render: fresh,
     renderStale: true,
     regradeNote: 'the mesh changed; its renders and verdict are stale',
   })
@@ -2524,11 +2680,11 @@ with
 
 - [ ] **Step 10: Run the tests to see them pass**
 
-Run: `npx vitest run --root packages/agent-loop eval/followups.test.js eval/complex-run.test.js`
+Run: `npx vitest run --root packages/agent-loop eval/followups.test.js eval/complex-run.test.js eval/grade.test.js`
 Expected: PASS.
 
 Run: `npx vitest run --root packages/agent-loop`
-Expected: PASS, every existing test unchanged (single-shot runs, result files and prompt hashes behave as before).
+Expected: PASS, every existing test unchanged (single-shot runs, result files, prompt hashes and the existing `endedWithoutReply` and capped-recovery tests behave as before).
 
 - [ ] **Step 11: Document follow-ups, the complex pass and complex regrading**
 
@@ -2590,7 +2746,9 @@ turn before it ends, whatever that turn built, through `buildMessages` as the
 app sends a later message: the earlier messages and the text of each reply
 (tool calls left out), then the project's files and its build, after the
 backend is reset to the project as it stands and built. The turn cap applies
-to each message. An error (provider, empty reply, run time limit, sandbox)
+to each message, and grading reads it that way: whether a run was capped or
+ended without a reply counts only the rounds after the last user message. An
+error (provider, empty reply, run time limit, sandbox)
 ends the conversation, and no later follow-up is sent. The stored `transcript`
 keeps the first turn whole and, for each later turn, its project note, its
 message and its reply, so the grade replays every write and edit in order.
@@ -2616,10 +2774,38 @@ result file. Each complex run adds:
   judge stages.
 ```
 
+In `packages/agent-loop/docs/architecture.md`, insert before `## Complex grading`:
+
+```markdown
+## Eval conversations
+
+`runConversation` (`eval/run-eval.js`) runs one fixture run: a fresh backend
+state seeded with the fixture's files, whose build report joins the files in
+the first message, the prompt, then each of the fixture's `followUps` in
+order, then a grade of the project's final state, built again in a fresh state
+so no scratch `run` leaks into the grade. A follow-up goes through
+`buildMessages` as the app sends one: the earlier turns as text, then the
+project as it stands, built. An error lands on the result, never thrown, and
+ends the conversation. `providerError` marks one the provider caused, judged
+only by the provider wrapper, never by what a tool returned; `infraError` one
+the sandbox caused (a backend error with `infrastructure`). Both leave the run
+out of the means. A complex fixture is graded by its gates, and a model that
+builds is drawn by the lane's renderer ([Complex grading](#complex-grading)).
+
+The provider wrapper (`withTurnCap`) caps the rounds in each user turn,
+tallies usage events, counts calls that sent neither text nor a tool call
+(reasoning and usage alone are no reply), records each call's stop reason,
+notes whether the provider itself threw, and times each call against an
+injected clock, so the run's rounds, usage and speed are read once it ends.
+`hitCap` and `endedWithoutReply` in `eval/grade.js` count only the assistant
+messages after the last user message, so a follow-up's turn reads as capped
+or empty on its own rounds.
+```
+
 - [ ] **Step 12: Commit**
 
 ```bash
-git add packages/agent-loop/eval/run-eval.js packages/agent-loop/eval/followups.test.js packages/agent-loop/eval/complex-run.test.js packages/agent-loop/docs/user-manual.md
+git add packages/agent-loop/eval/run-eval.js packages/agent-loop/eval/grade.js packages/agent-loop/eval/grade.test.js packages/agent-loop/eval/followups.test.js packages/agent-loop/eval/complex-run.test.js packages/agent-loop/docs/user-manual.md packages/agent-loop/docs/architecture.md
 ```
 
 ```bash
@@ -2645,9 +2831,9 @@ Claude-Session: https://claude.ai/code/session_01UHngnCmdqG3AKiiGGC9mbv"
 **Model:** `sonnet` — transcription of the trial sources plus a small CLI.
 
 **Interfaces:**
-- Consumes: `gradeInFreshExecutor` (Task 1), `createRunRenderer` (Task 2), `harnessGates`, `renderFacts`, `settleRun` (Task 3), `fileStamp`, `GRADE_LIFETIME_S`, `requireSandbox` (Task 4), `meshSha256` (Task 1), `startExecutor` (`eval/sandbox.js`).
+- Consumes: `gradeInFreshExecutor` (Task 1), `createRunRenderer` (Task 2), `harnessGates`, `renderRecord`, `settleRun` (Task 3), `fileStamp`, `GRADE_LIFETIME_S`, `requireSandbox` (Task 4), `startExecutor` (`eval/sandbox.js`).
 - Produces:
-  - `cases.js`: `CASES: [{ name, messages: string[], expected: 'pass'|'fail'|'gate'|'known-miss', source?: string, files?: object, entry?: string, api?: string, pieces?: number }]`, `patched(source, [[from, to], ...]) → string`, `CABOOSE_MESSAGE`.
+  - `cases.js`: `CASES: [{ name, messages: string[], expected: 'pass'|'fail'|'gate'|'known-miss', source?: string, files?: object, entry?: string, api?: string, pieces?: number }]`, `patched(source, [[from, to], ...]) → string`, `CABOOSE_MESSAGE`. The five trial cases come first; approved answers (Task 11) are model-written code, so `cases.test.js` builds only the trial cases in-process and `grader-validate` builds every case in the crt sandbox.
   - `grader-validate.js`: `validationRun(case, graded, render) → Promise<run>`, `expectedMatch(run) → boolean|null`, `formatValidation(runs, { judged }) → string`, `STAGES` (this task: `['render']`; Task 7 adds `'describe'`, Task 8 `'judge'`). A validation file is `{ suite: 'complex', validation: true, date, results }`.
 
 - [ ] **Step 1: Write the failing tests**
@@ -2663,7 +2849,7 @@ import { CABOOSE_MESSAGE, CASES, patched } from './cases.js'
 const backend = createEvalBackend({ api: 'fluent' })
 const grade = (c) => backend.gradeProject({ files: { 'main.js': c.source }, entry: 'main.js' }, { probe: { bodies: {} } })
 
-// The trial's sizes and part counts (describer-trial/nearmiss/run_nearmiss.py), so a patch that drifts shows.
+// The trial's sizes and part counts, so a patch that drifts shows (optional reference: the trial's run_nearmiss.py, not in the repo).
 const TRIAL = {
   caboose: { dimensions: [111, 41, 67], bodies: 62, connected: true },
   'delivery-truck': { dimensions: [116, 46, 50], bodies: 18, connected: true },
@@ -2671,20 +2857,22 @@ const TRIAL = {
   exploded: { dimensions: [111, 71, 117], bodies: 62, connected: false },
   'no-roof': { dimensions: [111, 41, 62], bodies: 58, connected: true },
 }
+// Approved answers (Task 11) are model-written code: only grader-validate builds them, in the sandbox.
+const TRIAL_CASES = CASES.filter((c) => c.name in TRIAL)
 
 describe('grader-validation cases', () => {
-  it('scores four cases and records the known miss', () => {
-    expect(CASES.map((c) => [c.name, c.expected])).toEqual([
+  it('scores four trial cases and records the known miss', () => {
+    expect(TRIAL_CASES.map((c) => [c.name, c.expected])).toEqual([
       ['caboose', 'pass'],
       ['delivery-truck', 'fail'],
       ['plain-box', 'fail'],
       ['exploded', 'gate'],
       ['no-roof', 'known-miss'],
     ])
-    for (const c of CASES) expect(c.messages).toEqual([CABOOSE_MESSAGE])
+    for (const c of TRIAL_CASES) expect(c.messages).toEqual([CABOOSE_MESSAGE])
   })
 
-  for (const c of CASES) {
+  for (const c of TRIAL_CASES) {
     it(`${c.name} builds as the trial's model did`, async () => {
       const graded = await grade(c)
       const gates = harnessGates(graded)
@@ -2769,10 +2957,8 @@ Expected: FAIL, `cases.js` and `grader-validate.js` cannot be resolved.
 The caboose is the chat-built one from chat 554c84a4, verbatim; `no-roof` and `exploded` are the trial's edits of it, applied as exact-text patches.
 
 ````js
-// Known answers for the describer and judge (npm run grader-validate): model
-// source, the user's messages and the expected result. `expected` is 'pass' or
-// 'fail' for the verdict, 'gate' for a case that must fail `connected`
-// whatever the verdict, and 'known-miss' for a case recorded but not scored.
+// Known answers for the describer and judge (npm run grader-validate; `expected` is
+// explained in docs/user-manual.md, Grader validation).
 
 export const CABOOSE_MESSAGE = 'we need a model of a toy caboose'
 
@@ -3144,16 +3330,13 @@ The `CABOOSE` template literal must match the trial file byte for byte in the li
 
 ```js
 // Usage: npm run grader-validate -w @jscadui/agent-loop [-- --until render]
-// Builds each case in eval/grader-validation/cases.js in the crt sandbox,
-// renders it, and prints its gates against the expected result. Writes
-// <time>-grader-validation.json and its renders to GRADER_VALIDATION_DIR.
+// Builds and renders each case in eval/grader-validation/cases.js in the crt sandbox (docs/user-manual.md, Grader validation).
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { isMainModule } from '../src/mainModule.js'
-import { harnessGates, renderFacts, settleRun } from './complex.js'
+import { harnessGates, renderRecord, settleRun } from './complex.js'
 import { CASES } from './grader-validation/cases.js'
-import { meshSha256 } from './mesh.js'
 import { createRunRenderer } from './render.js'
 import { fileStamp, GRADE_LIFETIME_S, requireSandbox } from './run-eval.js'
 import { gradeInFreshExecutor } from './sandboxed-backend.js'
@@ -3166,8 +3349,7 @@ export const validationRun = async (c, graded, render) => {
   const gates = harnessGates(graded, c.pieces ?? 1)
   const run = { fixture: c.name, run: 1, expected: c.expected, userMessages: c.messages, gates, description: null, verdict: null }
   if (!graded.mesh?.parts) return settleRun({ ...run, renderError: graded.mesh?.error ?? 'the case did not build' })
-  const views = await render(graded.mesh.parts, { fixture: c.name, run: 1 })
-  return settleRun({ ...run, render: { meshSha256: meshSha256(graded.mesh.parts), facts: renderFacts(graded), views } })
+  return settleRun({ ...run, render: renderRecord(graded, await render(graded.mesh.parts, { fixture: c.name, run: 1 })) })
 }
 
 export const expectedMatch = (run) => {
@@ -3368,7 +3550,7 @@ Stop and report to the user before Task 6.
 - Create: `scripts/describer-setup.sh` (mode 755)
 - Create: `packages/agent-loop/eval/describer/describe.py`
 - Create: `packages/agent-loop/eval/describer.test.js`
-- Modify: `ci/README.md`, `packages/agent-loop/docs/architecture.md`
+- Modify: `ci/README.md`, `packages/agent-loop/docs/architecture.md`, `packages/agent-loop/docs/development.md` (Tests)
 
 **Model:** `sonnet` — Python and bash derived from the proven trial script; the kestrel patches must be copied exactly.
 
@@ -3444,15 +3626,8 @@ Expected: FAIL, neither file exists.
 - [ ] **Step 3: Write `packages/agent-loop/eval/describer/describe.py`**
 
 ```python
-"""Moondream 3.1 describer for the agent-loop eval (eval/describe.js starts it).
-
-Runs in the venv scripts/describer-setup.sh builds. Reads one JSON request per
-line on stdin, {"id", "image", "prompt"}, and writes one JSON line per request
-on stdout, {"id", "text", "ms", "inputTokens", "outputTokens"} or
-{"id", "error"}. The first line is {"ready": true, ...} once the model has
-loaded, the last {"done": true, "blockedConnections": N} after stdin closes. A
-start that cannot go on writes {"fatal": "..."} and exits 2.
-"""
+# Moondream 3.1 describer for the agent-loop eval, started by eval/describe.js in the venv from
+# scripts/describer-setup.sh; its JSON-lines protocol is in docs/architecture.md (The describer).
 
 import errno
 import ipaddress
@@ -3641,10 +3816,8 @@ fail() {
   exit 1
 }
 
-if [ "${1:-}" != --check ]; then
-  mkdir -p "$HOME_DIR"
-  [ -x "$PY" ] || "${DESCRIBER_PYTHON:-python3}" -m venv "$VENV"
-  "$PY" -m pip install --quiet "moondream==$MOONDREAM" "kestrel==$KESTREL"
+# Fetches the model and its tokenizer into HF_HOME; with HF_HUB_OFFLINE=1 it only checks they are there.
+weights() {
   "$PY" - <<'PY'
 from huggingface_hub import snapshot_download
 from kestrel.model_download import ensure_model_weights
@@ -3652,6 +3825,13 @@ from kestrel.model_download import ensure_model_weights
 ensure_model_weights("moondream3.1-9B-A2B")
 snapshot_download("moondream/starmie-v1")
 PY
+}
+
+if [ "${1:-}" != --check ]; then
+  mkdir -p "$HOME_DIR"
+  [ -x "$PY" ] || "${DESCRIBER_PYTHON:-python3}" -m venv "$VENV"
+  "$PY" -m pip install --quiet "moondream==$MOONDREAM" "kestrel==$KESTREL"
+  weights
 fi
 
 [ -x "$PY" ] || fail "no venv at $VENV: run scripts/describer-setup.sh (DESCRIBER_HOME=$HOME_DIR)"
@@ -3662,13 +3842,7 @@ for pin in "moondream==$MOONDREAM" "kestrel==$KESTREL"; do
   [ "$have" = "$want" ] || fail "$name $have is installed, the pin is $want: run scripts/describer-setup.sh"
 done
 "$PY" -c 'import sys, torch; sys.exit(0 if torch.cuda.is_available() else 1)' 2>/dev/null || fail "torch in $VENV cannot see a CUDA device"
-HF_HUB_OFFLINE=1 "$PY" - <<'PY' 2>/dev/null || fail "the weights are not in $HF_HOME: run scripts/describer-setup.sh"
-from huggingface_hub import snapshot_download
-from kestrel.model_download import ensure_model_weights
-
-ensure_model_weights("moondream3.1-9B-A2B")
-snapshot_download("moondream/starmie-v1")
-PY
+HF_HUB_OFFLINE=1 weights 2>/dev/null || fail "the weights are not in $HF_HOME: run scripts/describer-setup.sh"
 command -v nvidia-smi >/dev/null || fail "no nvidia-smi on PATH"
 echo "describer: ready"
 ```
@@ -3719,6 +3893,14 @@ JSON reply per line on stdout; everything a library prints goes to stderr, so
 stdout carries only the protocol. It asks per view with reasoning off,
 temperature 0 and at most 300 output tokens.
 
+A request is `{ id, image, prompt }`, `image` an absolute PNG path. The first
+line out is `{ ready: true, model, kestrel, loadMs }` once the model has
+loaded; each request gets `{ id, text, ms, inputTokens, outputTokens }` or
+`{ id, error }`, and one image that fails does not stop the rest. After stdin
+closes the last line is `{ done: true, blockedConnections }`. A start that
+cannot go on (the wrong kestrel, a model that does not load) writes
+`{ fatal, blockedConnections }` and exits 2.
+
 Kestrel 0.9.1 does not fit the CI host's 12 GB card as shipped, so
 `describe.py` patches it at runtime, as the trial did: no bf16 placeholders
 for the MoE experts before the fp8 weights replace them, per-layer
@@ -3735,10 +3917,18 @@ refuses every socket connection to an address other than loopback
 (`connect` and `connect_ex`). It reports the refused connections when it ends.
 ```
 
+In `packages/agent-loop/docs/development.md`, Tests section, append to the paragraph that ends with the `eval/render.test.js` sentence (Task 2):
+
+```markdown
+`eval/describer.test.js` checks `describe.py`'s connection guard with
+`python3` and skips that check when there is none; it needs no kestrel, GPU or
+weights.
+```
+
 - [ ] **Step 7: Commit**
 
 ```bash
-git add scripts/describer-setup.sh packages/agent-loop/eval/describer packages/agent-loop/eval/describer.test.js ci/README.md packages/agent-loop/docs/architecture.md
+git add scripts/describer-setup.sh packages/agent-loop/eval/describer packages/agent-loop/eval/describer.test.js ci/README.md packages/agent-loop/docs/architecture.md packages/agent-loop/docs/development.md
 ```
 
 ```bash
@@ -3767,10 +3957,12 @@ Claude-Session: https://claude.ai/code/session_01UHngnCmdqG3AKiiGGC9mbv"
 - Produces (`eval/describe.js`):
   - `DESCRIBE_PROMPT`, `DESCRIBE_PROMPT_SHA256`, `viewPrompt(label, { dimensions, bodies }) → string`, `describedText(views: [{ label, reply }]) → string`
   - `pendingRuns(file, { all }) → runs`
-  - `startDescriber({ command, args, env, spawn }) → { ready: Promise<hello>, describe(request, timeoutMs) → Promise<reply>, close() → Promise<{ done, blockedConnections }>, kill() }`
-  - `describeFiles(paths, { all, describer, log }) → Promise<{ described, failed, blockedConnections }>`
+  - `startDescriber({ command, args, env, spawn }) → { ready: Promise<hello>, describe(request, timeoutMs) → Promise<reply>, close() → Promise<{ done: true, blockedConnections } | { done: false, blockedConnections: null, error }>, kill() }`; a describer that exits before `done` resolves `close()` with `done: false` and the exit as `error`
+  - `describeFiles(paths, { all, describer, log }) → Promise<{ described, failed, blockedConnections, crashed? }>`; `crashed` is the exit message of a describer that died before `done`, and `blockedConnections` is then null
+  - `describeStop(outcome) → string | null`: why the judge must not run after this outcome (a crash, or any refused connection), or null; `describe.js` and `grader-validate.js` both print it
   - `REQUIRED_FREE_MIB = 11_800`, `unloadOllama({ fetch, settleMs, pollMs }) → Promise<string[]>`, `freeGpu({ fetch, exec, settleMs, pollMs }) → Promise<{ ok, free, holders?, unloaded }>`
-  - `describerHome(env)`, `describerEnv(env, home)`, `runDescribe(paths, { all, env, log }) → Promise<outcome>` (GPU check, start, describe; throws with a message when the card is short)
+  - `describerHome(env)`, `describerEnv(env, home)`, `runDescribe(paths, { all, env, log }) → Promise<outcome>` (GPU check, start, describe; throws with a message when the card is short or the describer does not start)
+  - CLI exit codes: 0 when every pending run was described; 1 when it finished but a view failed (those runs keep `describeError` and a later run retries them); 2 when it stopped in a way that must keep the judge from running: no files given, the GPU check stopped it, the describer did not start or died, or it tried an outside connection. `ci/eval-complex` (Task 11) runs the judge after 0 or 1, never after 2.
   - A described run gains `description: { text, views: [{ name, text, ms, inputTokens, outputTokens }] }` or `describeError`; the file gains `describer: { model, kestrel, promptSha256, blockedConnections }`.
 
 - [ ] **Step 1: Write the fake describer**
@@ -3790,6 +3982,7 @@ if (process.env.FAKE_DESCRIBER_FATAL) {
 }
 send({ ready: true, model: 'fake', kestrel: '0.9.1', loadMs: 0 })
 for await (const line of createInterface({ input: process.stdin })) {
+  if (process.env.FAKE_DESCRIBER_CRASH) process.exit(3)
   const { id, image, prompt } = JSON.parse(line)
   if (!existsSync(image)) send({ id, error: `no image at ${image}` })
   else send({ id, text: ` described ${prompt.split('.')[0]} `, ms: 1, inputTokens: 10, outputTokens: 5 })
@@ -3807,7 +4000,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { DESCRIBE_PROMPT_SHA256, describeFiles, describerEnv, freeGpu, pendingRuns, REQUIRED_FREE_MIB, startDescriber, viewPrompt } from './describe.js'
+import { DESCRIBE_PROMPT_SHA256, describeFiles, describerEnv, describeStop, freeGpu, pendingRuns, REQUIRED_FREE_MIB, startDescriber, viewPrompt } from './describe.js'
 import { VIEWS } from './views.js'
 
 const FAKE = fileURLToPath(new URL('./fake-describer.js', import.meta.url))
@@ -3905,12 +4098,29 @@ describe('describeFiles', () => {
     await expect(describeFiles([path], { describer: fake({ FAKE_DESCRIBER_FATAL: 'describe.py patches kestrel 0.9.1 and found 0.9.2' }) })).rejects.toThrow('found 0.9.2')
   })
 
+  it('reports a describer that dies as a crash, not as refused connections', async () => {
+    const { path } = resultFile([rendered()])
+    const outcome = await describeFiles([path], { describer: fake({ FAKE_DESCRIBER_CRASH: '1' }) })
+    expect(outcome).toMatchObject({ described: 0, failed: 1, blockedConnections: null, crashed: 'the describer exited (code 3)' })
+    const file = read(path)
+    expect(file.results[0].describeError).toMatch(/^iso-front: the describer exited \(code 3\)/)
+    expect(file.describer.blockedConnections).toBeNull()
+  })
+
   it('skips a file that is not a complex pass', async () => {
     const { path } = resultFile([rendered()], { suite: undefined })
     const log = []
     await describeFiles([path], { describer: fake(), log: (line) => log.push(line) })
     expect(read(path).results[0].description).toBeNull()
     expect(log[0]).toMatch(/not a complex result file/)
+  })
+})
+
+describe('describeStop', () => {
+  it('stops the judge after a crash or a refused connection, not after a failed view', () => {
+    expect(describeStop({ described: 1, failed: 1, blockedConnections: 0 })).toBeNull()
+    expect(describeStop({ described: 1, failed: 0, blockedConnections: 2 })).toMatch(/tried 2 outside connections, all refused/)
+    expect(describeStop({ described: 0, failed: 1, blockedConnections: null, crashed: 'the describer exited (code 3)' })).toMatch(/exited \(code 3\).*unknown/)
   })
 })
 
@@ -3965,9 +4175,7 @@ Expected: FAIL, `describe.js` cannot be resolved.
 
 ```js
 // Usage: npm run describe -w @jscadui/agent-loop -- [--all] <result files>
-// Stage B of the complex eval: one describer process (eval/describer/describe.py)
-// describes every rendered run with no description and writes it into its
-// file. npm runs this in packages/agent-loop, so give absolute paths.
+// Stage B of the complex eval (docs/user-manual.md, Describe and judge); npm runs it in packages/agent-loop, so give absolute paths.
 import { execFileSync, spawn as nodeSpawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
@@ -4037,10 +4245,12 @@ export const startDescriber = ({ command, args = [], env, spawn = nodeSpawn }) =
     failReady(exited)
     for (const settle of waiting.values()) settle({ error: exited.message })
     waiting.clear()
-    markDone({ done: false, blockedConnections: null })
+    markDone({ done: false, blockedConnections: null, error: exited.message })
   }
   child.on('error', (error) => end(error.message))
   child.on('close', (code, signal) => end(code === null ? `signal ${signal}` : `code ${code}`))
+  // A write to a describer that has died (EPIPE) fails here; its 'close' settles the waiting requests.
+  child.stdin.on('error', () => {})
   const describe = (request, timeoutMs = DESCRIBE_TIMEOUT_MS) =>
     new Promise((resolveReply) => {
       if (exited) return resolveReply({ id: request.id, error: exited.message })
@@ -4109,13 +4319,21 @@ export async function describeFiles(paths, { all = false, describer, log = () =>
     writeFileSync(path, JSON.stringify(file, null, 2))
     written.push([path, file])
   }
-  const { blockedConnections } = await describer.close()
-  outcome.blockedConnections = blockedConnections
+  const closed = await describer.close()
+  outcome.blockedConnections = closed.blockedConnections
+  if (!closed.done) outcome.crashed = closed.error
   for (const [path, file] of written) {
-    file.describer.blockedConnections = blockedConnections
+    file.describer.blockedConnections = closed.blockedConnections
     writeFileSync(path, JSON.stringify(file, null, 2))
   }
   return outcome
+}
+
+// A crash leaves the refused-connection count unknown, so it stops the judge as a refused connection does.
+export const describeStop = ({ blockedConnections, crashed }) => {
+  if (crashed) return `${crashed}; the outside connections it tried are unknown, so check kestrel before trusting it again`
+  if (blockedConnections !== 0) return `the describer tried ${blockedConnections} outside connections, all refused; check kestrel before trusting it again`
+  return null
 }
 
 const execText = (command, args) => execFileSync(command, args, { encoding: 'utf8' })
@@ -4184,23 +4402,25 @@ export const runDescribe = async (paths, { all = false, env = process.env, log =
 
 const USAGE = 'Usage: npm run describe -w @jscadui/agent-loop -- [--all] <result files>'
 
+// Exit 2 is a stop the judge must not run after; 1 only means some views failed (docs/user-manual.md).
 const main = async (argv, env) => {
   const paths = argv.filter((arg) => !arg.startsWith('--'))
   if (paths.length === 0) {
     console.error(USAGE)
-    process.exit(1)
+    process.exit(2)
   }
   try {
     const outcome = await runDescribe(paths, { all: argv.includes('--all'), env })
     console.log(`describe: ${outcome.described} described, ${outcome.failed} failed`)
-    if (outcome.blockedConnections !== 0) {
-      console.error(`describe: the describer tried ${outcome.blockedConnections ?? 'an unknown number of'} outside connections, all refused; check kestrel before trusting it again`)
-      process.exitCode = 1
+    const stop = describeStop(outcome)
+    if (stop) {
+      console.error(`describe: ${stop}`)
+      process.exit(2)
     }
     if (outcome.failed > 0) process.exitCode = 1
   } catch (error) {
     console.error(`describe: ${error.message}`)
-    process.exit(1)
+    process.exit(2)
   }
 }
 
@@ -4225,7 +4445,7 @@ Expected: PASS.
 In `packages/agent-loop/eval/grader-validate.js`, after `import { createRunRenderer } from './render.js'` add:
 
 ```js
-import { runDescribe } from './describe.js'
+import { describeStop, runDescribe } from './describe.js'
 ```
 
 Replace `export const STAGES = ['render']` with `export const STAGES = ['render', 'describe']`.
@@ -4241,15 +4461,18 @@ with
 
 ```js
   console.log(`grader-validate: wrote ${path}`)
+  let stopped = false
   if (until !== 'render') {
     const described = await runDescribe([path], { env })
-    if (described.blockedConnections !== 0) {
-      console.error(`grader-validate: the describer tried ${described.blockedConnections ?? 'an unknown number of'} outside connections, all refused`)
-      process.exitCode = 1
-    }
+    const stop = describeStop(described)
+    if (stop) console.error(`grader-validate: ${stop}`)
+    if (stop || described.failed > 0) process.exitCode = 1
+    stopped = stop !== null
   }
   const final = JSON.parse(readFileSync(path, 'utf8')).results
 ```
+
+A view that failed to describe fails the job (exit 1), and a stop (a crash or a refused connection) also keeps the judge stage (Task 8) from running.
 
 In `ci/grader-validate` nothing changes; its `UNTIL` default stays `render` until Task 8.
 
@@ -4286,13 +4509,20 @@ describes each view of every rendered run with no description:
 `N` is the `bodies` probe's count. The run's `description` is `{ text, views:
 [{ name, text, ms, inputTokens, outputTokens }] }`, `text` the three replies
 one per line as `{view label}: {reply}`. A run with a view that failed gets
-`describeError` naming it and no description. The file records `describer: {
-model, kestrel, promptSha256, blockedConnections }`; the describer refuses
-every outside connection and the stage exits 1 when it tried any. `--all`
-describes every rendered run again and clears its votes and verdict, so run
-the judge on the same files after it. The describer never sees the prompt,
-the transcript, the source, file names or parameter names, since any of them
-can name the object.
+`describeError` naming it and no description; the judge skips it, and the
+next `npm run describe` on the file tries it again. The file records
+`describer: { model, kestrel, promptSha256, blockedConnections }`; the
+describer refuses every outside connection. `--all` describes every rendered
+run again and clears its votes and verdict, so run the judge on the same
+files after it. The describer never sees the prompt, the transcript, the
+source, file names or parameter names, since any of them can name the object.
+
+It exits 0 when every pending run was described, and 1 when it finished but
+a view failed; the judge can run after either. It exits 2 when it stopped in
+a way the judge must not run after: no files given, less than 11,800 MiB
+free, a describer that did not start or died before it finished (its
+refused-connection count is then unknown, `blockedConnections: null`), or any
+refused outside connection. The descriptions already written are kept.
 ````
 
 In the `### Environment variables` table, after the `GRADER_VALIDATION_DIR` row add:
@@ -4314,8 +4544,9 @@ with
 ```markdown
 builds each case in the crt sandbox with the `bodies` probe, renders it,
 describes it, and prints each case's failed gates against the expected result
-and its description; it exits 1 when `exploded` does not fail `connected`.
-`--until render` stops after rendering.
+and its description; it exits 1 when `exploded` does not fail `connected`,
+when a view fails to describe, or when the describe stage stops (a crash or a
+refused connection, which it prints). `--until render` stops after rendering.
 ```
 
 In `packages/agent-loop/docs/architecture.md`, `## Complex grading`, replace its opening paragraph
@@ -4344,7 +4575,7 @@ never the prompt, transcript, source, file names or parameter names, since any
 of them can name the object (`cupolaHeight`).
 ```
 
-In `docs/backlog.md`, `## Chat API help`, append two items at the end of its list (before `## Refactoring`):
+In `docs/backlog.md`, `## Chat API help`, append three items at the end of its list (before `## Refactoring`):
 
 ```markdown
 - GPU sharing on the CI host (agent-loop eval). The describer needs about
@@ -4358,6 +4589,12 @@ In `docs/backlog.md`, `## Chat API help`, append two items at the end of its lis
   missing or floating parts made it call broken models intact. No gate
   catches an open top either; a gate on the top cut, a ring where a closed
   object has a solid, would, for requests whose objects are closed.
+- A cap on the `bodies` probe (agent-loop eval, `eval/probe.js`). It lists
+  every body with no limit, so a model of about 5,000 bodies pushes the grade
+  reply past the executor's 1 MiB cap; the whole grade becomes `NO_GRADE` and
+  a complex run fails `builds` with no word on why. A cap that reports the
+  count and drops the list past it would keep the grade and name the cause.
+  No complex fixture comes near it.
 ```
 
 - [ ] **Step 8: Commit**
@@ -4375,7 +4612,7 @@ Claude-Session: https://claude.ai/code/session_01UHngnCmdqG3AKiiGGC9mbv"
 
 - [ ] **Step 9: Rollout gate (spec step 2, on the CI host)**
 
-Run `scripts/describer-setup.sh` on the host once (as the user who owns `/data`), then `sci push jscadui/grader-validate` with `UNTIL=describe` edited into `ci/grader-validate`. Expected: `describer: ready`, the stage exits 0 with no refused connections, and each case's per-view texts equal the trial's (Moondream is deterministic at temperature 0; the trial's renders came from the same renderer, with `front-34`/`back-34` for `iso-front`/`iso-back`). The trial's texts, `front three-quarter`, `back three-quarter`, `side` in order:
+Run `scripts/describer-setup.sh` on the host once (as the user who owns `/data`), then `sci push jscadui/grader-validate` with `UNTIL=describe` edited into `ci/grader-validate`. Expected: `describer: ready`, the job exits 0 (no failed view, no refused connection, no crash), and each case's per-view texts equal the trial's (Moondream is deterministic at temperature 0; the trial's renders came from the same renderer, with `front-34`/`back-34` for `iso-front`/`iso-back`). The trial's texts, `front three-quarter`, `back three-quarter`, `side` in order:
 
 - caboose: "This is a red caboose with black trim, light blue windows, and a brown door. The roof is dark gray and angled. The wheels are black with red rims. The image is a 3D isometric view with no visible parts broken or odd." / "This is a red caboose with black wheels, a dark gray roof, and white-framed windows. A brown door is visible on the side. The caboose has a black chimney and a small black step at the rear. The overall design is isometric and stylized." / "This is a stylized caboose rendered in pixel art style. It has a red body with a gray roof and dark gray wheels with red hubs. Two light blue windows are visible on the front, and a brown door is centered. The caboose is positioned horizontally on a light gray background."
 - delivery-truck: "This is a 3D isometric rendering of a delivery truck. The cab is blue with a light blue windshield and headlights. The cargo area is white and rectangular. The truck has black wheels with silver rims and tires. The background is plain gray." / "This is a 3D isometric render of a delivery truck. The cab is blue with a light blue window. The cargo area is white. The truck has black wheels and dark gray undercarriage. The background is light gray. No visible parts are broken or odd." / "This is a side view of a blue delivery truck. The cab is blue with a single window on the side. The truck bed is white and rectangular. The wheels are black with gray rims. The truck is positioned horizontally on a light gray background."
@@ -4383,7 +4620,9 @@ Run `scripts/describer-setup.sh` on the host once (as the user who owns `/data`)
 - exploded: "This is a red caboose-style vehicle with a two-story gray roof and four black wheels with red hubs. The body is a single, continuous red structure with four rectangular windows and a brown door. The roof is angled and flat. The wheels are positioned under the vehicle’s body. The image is a 3D isometric rendering with no visible mechanical parts or damage." / "This is a red caboose-style vehicle with a dark gray roof and roof rails. It has four black wheels with red hubs, a brown door in the center, and four windows arranged symmetrically. The roof has a small black chimney or vent. The vehicle is angled slightly, presenting a three-quarter view." / "This is a side view of a red train car with four windows and a brown door. The car is positioned horizontally on a light gray background. Above the car is a gray roof section with small windows and a black chimney-like protrusion. The wheels are black with red rims. The overall design is simple and blocky, with flat colors and minimal detail."
 - no-roof: "This is a red toy train with black wheels, red lights, and light blue windows. The roof is two-tiered with small windows and a black chimney. The front has a brown door and side windows. The overall design is isometric and stylized." / "This is a red, two-story cabin with black wheels, a brown door, and white-framed windows. A black chimney is visible on the roof. The cabin is angled slightly, viewed from a side-angled perspective." / "This is a side view of a red caboose with black wheels and a brown door. The caboose has four light blue windows arranged symmetrically, a black chimney, and black fenders at the front and back. The overall dimensions are 111×41×62 mm, with 58 visible parts."
 
-A text that differs is not by itself a failure (the trial's 768-token cap is 300 here), but a different object name is: report it to the user. Stop and report before Task 8.
+A text that differs is not by itself a failure (the trial's 768-token cap is 300 here), but a different object name is: report it to the user.
+
+Then repeat the Task 5 regrade check: on the CI host, copy the current baseline result files to a scratch directory, run `npm run eval -w @jscadui/agent-loop -- --regrade <copies>` there, and confirm with `git diff --no-index` against the originals that only `regradedAt` changed. Stop and report before Task 8.
 
 ---
 
@@ -4599,11 +4838,7 @@ with
 
 ```js
 // Usage: npm run judge -w @jscadui/agent-loop -- [--all] <result files>
-// Stage C of the complex eval: three judge calls per described run, the
-// majority verdict, then geometry and the summary again. The judge reads only
-// the user's messages and the blind description, never the assistant's text,
-// tool calls, source or renders. npm runs this in packages/agent-loop, so give
-// absolute paths.
+// Stage C of the complex eval (docs/architecture.md, The judge); npm runs it in packages/agent-loop, so give absolute paths.
 import { createHash } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { isMainModule } from '../src/mainModule.js'
@@ -4767,25 +5002,22 @@ Replace
 with
 
 ```js
-  if (until === 'judge') await judgeFiles([path], { makeProvider: judgeProviderFactory(), log: console.log })
+  if (until === 'judge' && !stopped) await judgeFiles([path], { makeProvider: judgeProviderFactory(), log: console.log })
   const final = JSON.parse(readFileSync(path, 'utf8')).results
 ```
 
-Update the usage comment at the top of the file to:
+Replace the two-line usage comment at the top of the file with:
 
 ```js
 // Usage: npm run grader-validate -w @jscadui/agent-loop [-- --until render|describe]
-// Builds each case in eval/grader-validation/cases.js in the crt sandbox,
-// renders, describes and judges it, and prints the expected result against the
-// actual one. Writes <time>-grader-validation.json and its renders to
-// GRADER_VALIDATION_DIR.
+// Builds, renders, describes and judges each case in eval/grader-validation/cases.js (docs/user-manual.md, Grader validation).
 ```
 
 In `ci/grader-validate`, replace `UNTIL="${GRADER_VALIDATE_UNTIL:-render}"` with `UNTIL="${GRADER_VALIDATE_UNTIL:-judge}"`, and in its header comment replace `# Builds, renders (and in later stages describes and judges) the` with `# Builds, renders, describes and judges the`.
 
 - [ ] **Step 7: Document the judge**
 
-In `packages/agent-loop/docs/user-manual.md`, `### Describe and judge`, append after its last paragraph (ending `can name the object.`):
+In `packages/agent-loop/docs/user-manual.md`, `### Describe and judge`, append after its last paragraph (ending `The descriptions already written are kept.`):
 
 ````markdown
 ```bash
@@ -4820,7 +5052,9 @@ total and the file's summary are recomputed, and the file records `judge: {
 provider, model, promptSha256 }`. `--all` judges every described run again,
 after a change to the judge's prompt or model. The judge never sees the
 assistant's text, tool calls, source or renders: a model that writes "here is
-your caboose" over a box gains nothing.
+your caboose" over a box gains nothing. It exits 1 when it cannot run (no
+`opencode-go` key, a file it cannot read) and 0 otherwise; a run with no
+majority is a `graderError`, not a failed stage.
 ````
 
 In `### Grader validation`, replace
@@ -4828,8 +5062,9 @@ In `### Grader validation`, replace
 ```markdown
 builds each case in the crt sandbox with the `bodies` probe, renders it,
 describes it, and prints each case's failed gates against the expected result
-and its description; it exits 1 when `exploded` does not fail `connected`.
-`--until render` stops after rendering.
+and its description; it exits 1 when `exploded` does not fail `connected`,
+when a view fails to describe, or when the describe stage stops (a crash or a
+refused connection, which it prints). `--until render` stops after rendering.
 ```
 
 with
@@ -4838,8 +5073,10 @@ with
 builds each case in the crt sandbox with the `bodies` probe, renders it,
 describes and judges it (three judge calls), and prints each case's failed
 gates, verdict and votes against the expected result, then its description;
-it exits 1 when a scored case does not match. `--until render` or `--until
-describe` stops early. It needs the GPU, so it runs on the CI host (`sci push
+it exits 1 when a scored case does not match or a view fails to describe. When
+the describe stage stops (a crash or a refused connection, which it prints) it
+exits 1 without judging. `--until render` or `--until describe` stops early.
+It needs the GPU, so it runs on the CI host (`sci push
 jscadui/grader-validate`, `ci/README.md`). Every scored case must match before
 a change to either prompt, either model or the renderer is kept.
 ```
@@ -4897,8 +5134,8 @@ Claude-Session: https://claude.ai/code/session_01UHngnCmdqG3AKiiGGC9mbv"
 **Model:** `sonnet` — small module over pieces that exist.
 
 **Interfaces:**
-- Consumes: `complexProbe`, `renderFacts`, `settleRun` (Task 3), `gradedModel` (grade.js), `meshSha256` (Task 1), `createRunRenderer` (Task 2), `fixtureForApi`, `freshExecutorGrader`, `GRADE_LIFETIME_S`, `loadFixtures`, `requireSandbox` (run-eval.js), `startExecutor` (sandbox.js).
-- Produces: `rerenderFile(file, { grader, renderer, fixturesByName }) → Promise<file>` (each `renderStale` run built again with its mesh and rendered; `renderStale` and `regradeNote` cleared; `verdictPending` stays), `rerenderFiles(paths, env) → Promise<number>` (count re-rendered).
+- Consumes: `complexProbe`, `renderRecord`, `settleRun` (Task 3), `gradedModel` (grade.js), `summarize` (report.js), `createRunRenderer` (Task 2), `fixtureForApi`, `freshExecutorGrader`, `GRADE_LIFETIME_S`, `loadFixtures`, `requireSandbox` (run-eval.js), `startExecutor` (sandbox.js).
+- Produces: `rerenderFile(file, { grader, renderer, fixturesByName }) → Promise<file>` (each `renderStale` run built again with its mesh and rendered; `renderStale` and `regradeNote` cleared; `verdictPending` stays; a file with a `summary` gets it recomputed, since a run that no longer builds gains `renderError` and leaves the pending count), `rerenderedCount(before, after) → number` (stale runs that now have renders), `rerenderFiles(paths, env) → Promise<number>` (the runs rendered again, not counting ones that could not be).
 
 - [ ] **Step 1: Write the failing test**
 
@@ -4907,10 +5144,12 @@ Create `packages/agent-loop/eval/rerender.test.js`:
 ```js
 import { describe, expect, it } from 'vitest'
 import { createEvalBackend } from './backend.js'
-import { rerenderFile } from './rerender.js'
+import { summarize } from './report.js'
+import { rerenderedCount, rerenderFile } from './rerender.js'
 import { VIEWS } from './views.js'
 
 const CUBE = 'const jf = require("@jbroll/jscad-fluent")\nmodule.exports = { main: () => [jf.cube({ size: 20 })] }'
+const BROKEN = 'module.exports = { main: () => { throw new Error("nope") } }'
 const fixture = { name: 'cube', group: 'complex', prompt: 'a cube please', requires: ['write'], verifyBeforeWrite: false, maxTurns: 8, gates: () => [] }
 const transcript = [
   { role: 'user', content: 'a cube please' },
@@ -4923,6 +5162,7 @@ const stale = {
   run: 1,
   transcript,
   gates: [{ name: 'builds', pass: true }],
+  report: { dimensions: { discipline: 2, recovery: 2, geometry: 0, conservation: 2 }, total: 6, firstAttemptFailures: 0, checkRate: 0.5 },
   render: { meshSha256: 'new', facts: { dimensions: [20, 20, 20], bodies: 1 }, views: [] },
   renderStale: true,
   regradeNote: 'the mesh changed; its renders and verdict are stale',
@@ -4962,6 +5202,17 @@ describe('rerenderFile', () => {
     expect(out.results[0].regradeNote).toMatch(/cannot render again/)
     expect(out.results[0].renderStale).toBe(true)
   })
+
+  it('counts only the runs rendered again and recomputes the summary', async () => {
+    const broken = { ...stale, run: 2, transcript: transcript.map((m) => (m.toolCalls?.length ? { ...m, toolCalls: [{ ...m.toolCalls[0], input: { path: 'main.js', content: BROKEN } }] } : m)) }
+    const missing = { ...stale, run: 3, fixture: 'gone' }
+    const file = { suite: 'complex', api: 'fluent', summary: [], results: [stale, broken, missing] }
+    const out = await rerenderFile(file, { grader: createEvalBackend(), renderer: renderer(), fixturesByName: new Map([['cube', fixture]]) })
+    expect(out.results[1].renderError).toBeDefined()
+    expect(out.results[1].verdictPending).toBeUndefined()
+    expect(rerenderedCount(file, out)).toBe(1)
+    expect(out.summary).toEqual(summarize(out.results))
+  })
 })
 ```
 
@@ -4973,15 +5224,14 @@ Expected: FAIL, `rerender.js` cannot be resolved.
 - [ ] **Step 3: Write `eval/rerender.js`**
 
 ```js
-// `npm run describe -- --rerender`: builds again, in the sandbox, each run
-// whose mesh changed at --regrade (`renderStale`) and renders it, before the
-// describe stage describes it.
+// `npm run describe -- --rerender`: builds again, in the sandbox, and renders each run
+// whose mesh changed at --regrade (`renderStale`), before the describe stage describes it.
 import { readFileSync, writeFileSync } from 'node:fs'
 import { DEFAULT_API } from '../src/api.js'
-import { complexProbe, renderFacts, settleRun } from './complex.js'
+import { complexProbe, renderRecord, settleRun } from './complex.js'
 import { gradedModel } from './grade.js'
-import { meshSha256 } from './mesh.js'
 import { createRunRenderer } from './render.js'
+import { summarize } from './report.js'
 import { fixtureForApi, freshExecutorGrader, GRADE_LIFETIME_S, loadFixtures, requireSandbox } from './run-eval.js'
 import { startExecutor } from './sandbox.js'
 
@@ -5005,10 +5255,12 @@ export async function rerenderFile(file, { grader, renderer, fixturesByName }) {
       continue
     }
     const views = await renderer.render(graded.mesh.parts, { fixture: run.fixture, run: run.run })
-    results.push(settleRun({ ...rest, render: { meshSha256: meshSha256(graded.mesh.parts), facts: renderFacts(graded), views } }))
+    results.push(settleRun({ ...rest, render: renderRecord(graded, views) }))
   }
-  return { ...file, results }
+  return { ...file, results, ...(file.summary ? { summary: summarize(results) } : {}) }
 }
+
+export const rerenderedCount = (before, after) => after.results.filter((r, i) => before.results[i].renderStale && !r.renderStale && !r.renderError).length
 
 export async function rerenderFiles(paths, env) {
   const stale = paths.filter((path) => JSON.parse(readFileSync(path, 'utf8')).results?.some((r) => r.renderStale))
@@ -5022,8 +5274,9 @@ export async function rerenderFiles(paths, env) {
     const grader = freshExecutorGrader(() => startExecutor({ api, sandbox, lifetimeS: GRADE_LIFETIME_S }))
     const renderer = createRunRenderer(path)
     try {
-      writeFileSync(path, JSON.stringify(await rerenderFile(file, { grader, renderer, fixturesByName }), null, 2))
-      count += file.results.filter((r) => r.renderStale).length
+      const next = await rerenderFile(file, { grader, renderer, fixturesByName })
+      writeFileSync(path, JSON.stringify(next, null, 2))
+      count += rerenderedCount(file, next)
     } finally {
       await renderer.close()
     }
@@ -5090,7 +5343,7 @@ in the sandbox, renders it and describes it, and `npm run judge` on the same
 files judges it.
 ```
 
-In `### Describe and judge`, after the sentence ending `so run\nthe judge on the same files after it.` insert:
+In `### Describe and judge`, after the sentence that ends `so run the judge on the same files after it.` (Task 7 wraps it across a line break) insert:
 
 ```markdown
 `--rerender` first builds and renders again each run `--regrade` marked
@@ -5170,11 +5423,11 @@ describe('complex fixtures', () => {
     expect(byName['rocket-revised'].followUps).toEqual([{ message: 'can you make it two stages, with fins only on the bottom one' }])
   })
 
-  for (const name of COMPLEX) {
-    it(`${name}: its gates fail a grade with no geometry`, () => {
-      expect(byName[name].gates(null, { solid: null, probe: null, params: [] }).every((g) => g.pass === false)).toBe(true)
-    })
-  }
+  it('state as many gates as the requests do, and each fails a grade with no geometry', () => {
+    const gates = COMPLEX.map((name) => byName[name].gates(null, { solid: null, probe: null, params: [] }))
+    expect(gates.map((list) => list.length)).toEqual([0, 1, 1, 0, 1, 1, 1, 1, 0, 1])
+    expect(gates.flat().map((g) => g.pass)).toEqual(Array(7).fill(false))
+  })
 
   it.each([
     ['birdhouse', 'at least two bodies', true, model('[jf.cuboid({ size: [100, 100, 100] }).translateZ(50), jf.cuboid({ size: [110, 110, 5] }).translateZ(102.5)]')],
@@ -5593,7 +5846,7 @@ describe('a complex pass', () => {
     const out = fetchCiResults('job1', { sci: '/bin/sci', dataDir: '/data/results', run, runBytes, fs, log })
     expect(runBytes).toHaveBeenCalledWith('/bin/sci', ['artifact', 'job1', 'eval-results/c.renders/toy-caboose-1/iso-front.png'])
     expect(written['/data/results/c.renders/toy-caboose-1/iso-front.png']).toBe(png)
-    expect(written).not.toHaveProperty('/data/results/c.renders/toy-caboose-1/side.png')
+    expect(Object.keys(written)).not.toContain('/data/results/c.renders/toy-caboose-1/side.png')
     expect(out.renders).toEqual({ fetched: 1, mismatched: ['c.renders/toy-caboose-1/side.png'] })
     expect(removed).toEqual(['/data/results/a.renders'])
     expect(log).toHaveBeenCalledWith(expect.stringContaining('did not match their sha256'))
@@ -5783,13 +6036,11 @@ with
 }
 ```
 
-Update the file's header comment to:
+Replace the file's three-line header comment with:
 
 ```js
 // Usage: node eval/fetch-ci-results.js JOB-ID
-// Fetches ci/eval's result files, listed in the job's eval-results/index.txt,
-// from a simple-ci job's worktree into the local jscad-chat-evals results dir,
-// with a complex pass's renders beside them.
+// Fetches ci/eval's result files (eval-results/index.txt), and a complex pass's renders, into the local results dir.
 ```
 
 - [ ] **Step 4: Add `--case-from` to `grader-validate`**
@@ -5803,13 +6054,13 @@ import { DEFAULT_API } from '../src/api.js'
 replace
 
 ```js
-import { harnessGates, renderFacts, settleRun } from './complex.js'
+import { harnessGates, renderRecord, settleRun } from './complex.js'
 ```
 
 with
 
 ```js
-import { harnessGates, renderFacts, settleRun, userMessagesOf } from './complex.js'
+import { harnessGates, renderRecord, settleRun, userMessagesOf } from './complex.js'
 import { gradedModel } from './grade.js'
 ```
 
@@ -5852,7 +6103,7 @@ At the top of `main`, before `const at = argv.indexOf('--until')`, add:
   }
 ```
 
-Update the usage line in its header comment to `// Usage: npm run grader-validate -w @jscadui/agent-loop [-- --until render|describe | --case-from <result file> <fixture> <run>]`.
+Replace the usage line in its header comment (the first of its two lines) with `// Usage: npm run grader-validate -w @jscadui/agent-loop [-- --until render|describe | --case-from <result file> <fixture> <run>]`.
 
 - [ ] **Step 5: Run the tests to see them pass**
 
@@ -5904,7 +6155,8 @@ Create `ci/eval-complex` (then `chmod 755 ci/eval-complex`):
 #!/usr/bin/env bash
 # The complex eval pass on the CI host: ci/eval's lanes on the complex
 # fixtures (settings in ci/eval-complex.conf), then the describer once over
-# every result file, then the judge.
+# every result file, then the judge unless the describer stopped (exit 2).
+# Exits non-zero when a lane, the describer or the judge failed.
 #
 #   sci push jscadui/eval-complex
 #
@@ -5934,10 +6186,19 @@ if [ ${#files[@]} -eq 0 ]; then
   echo "ci/eval-complex: no complex result files to describe" >&2
   exit 1
 fi
-npm run describe -w @jscadui/agent-loop -- "${files[@]}" || exit 1
-npm run judge -w @jscadui/agent-loop -- "${files[@]}" || exit 1
+npm run describe -w @jscadui/agent-loop -- "${files[@]}"
+described=$?
+# 2 is a stop (GPU short, a describer crash, a refused connection): the judge must not run.
+if [ "$described" -eq 2 ]; then
+  echo "ci/eval-complex: the describe stage stopped; the judge did not run" >&2
+  exit 1
+fi
+[ "$described" -eq 0 ] || status=1
+npm run judge -w @jscadui/agent-loop -- "${files[@]}" || status=1
 exit "$status"
 ```
+
+`npm run` exits with the script's own code, so the describe stage's 2 reaches the check. A 1 from it (views that failed) leaves those runs undescribed; the judge skips them and judges the rest.
 
 - [ ] **Step 7: Document the job and the fetch**
 
@@ -5953,14 +6214,18 @@ never with `ci/eval`. It checks the describer install
 before any provider call, runs `ci/eval` with `EVAL_CONF=ci/eval-complex.conf`
 (the same variables as `ci/eval.conf`, `EVAL_FIXTURES="complex"`), then
 `npm run describe` once over every `*-complex-*.json` in `eval-results/`, then
-`npm run judge` over the same files. The describe stage stops when the GPU has
-less than 11,800 MiB free after Ollama unloads (chatterbox-tts holds 3.5 GB
-while it runs: `sudo sv down chatterbox-tts`, then `sudo sv up
-chatterbox-tts` after); run `npm run describe` and `npm run judge` on the
-job's files in its worktree (`sci path JOB`) to finish them. The job exits
-non-zero when a lane, the describer or the judge failed. The renders sit
-beside the result files in `eval-results/<file stem>.renders/`, and
-`fetch-ci-results.js` copies them with the files.
+`npm run judge` over the same files. `npm run describe` exits 1 when views
+failed to describe (those runs wait for the next describe; the judge still
+runs on the rest) and 2 when it stopped: the GPU had less than 11,800 MiB
+free after Ollama unloads (chatterbox-tts holds 3.5 GB while it runs: `sudo
+sv down chatterbox-tts`, then `sudo sv up chatterbox-tts` after), the
+describer did not start or died, or it tried an outside connection. After a 2
+the job does not run the judge; run `npm run describe` and `npm run judge` on
+the job's files in its worktree (`sci path JOB`) to finish them once the
+cause is dealt with. The job exits non-zero when a lane, the describer or the
+judge failed. The renders sit beside the result files in
+`eval-results/<file stem>.renders/`, and `fetch-ci-results.js` copies them
+with the files.
 ````
 
 In `ci/README.md`, `## Live model eval (\`ci/eval\`)`, after the paragraph that starts `It reads \`eval-results/index.txt\` via \`sci artifact\`,` and ends `for you to run by hand.`, add:
@@ -5980,8 +6245,10 @@ In `packages/agent-loop/docs/user-manual.md`, `### Running on CI`, append after 
 ```markdown
 `sci push jscadui/eval-complex` (`ci/eval-complex`, `ci/eval-complex.conf`)
 runs the complex group the same way, then describes and judges every result
-file on the host; `fetch-ci-results.js` copies each file's renders beside it
-and removes an older complex pass's renders from the results dir.
+file on the host, skipping the judge when the describe stage stops (exit 2,
+[Describe and judge](#describe-and-judge)); `fetch-ci-results.js` copies each
+file's renders beside it and removes an older complex pass's renders from the
+results dir.
 ```
 
 In `### Grader validation`, append:
@@ -6012,8 +6279,9 @@ Claude-Session: https://claude.ai/code/session_01UHngnCmdqG3AKiiGGC9mbv"
 1. `sci push jscadui/eval-complex`, then `sci wait JOB` under Bash `run_in_background` (one notification at the end; no polling). Expected: exit 0, or a describe stop naming what holds the GPU (free it with the user, then finish the stages on the host).
 2. `node packages/agent-loop/eval/fetch-ci-results.js JOB`.
 3. Put ten descriptions (one per fixture) beside their renders for the user; the user judges whether they are fair.
-4. For each fixture, the user picks one run whose renders they accept. For each pick run `npm run grader-validate -w @jscadui/agent-loop -- --case-from <absolute result file> <fixture> <run>` and add the printed object to `CASES` in `eval/grader-validation/cases.js`; extend `cases.test.js`'s first test to expect the new names. Commit (`test(eval): approved complex answers join the grader validation set`, with the two attribution lines).
+4. For each fixture, the user picks one run whose renders they accept. For each pick run `npm run grader-validate -w @jscadui/agent-loop -- --case-from <absolute result file> <fixture> <run>` and add the printed object to the end of `CASES` in `eval/grader-validation/cases.js`. Leave `cases.test.js` as it is: it checks and builds only the five trial cases (`TRIAL_CASES`), since an approved case is model-written code and must build only in the crt sandbox, which `grader-validate` does. Run `npx vitest run --root packages/agent-loop eval/grader-validation/cases.test.js` (expected: PASS, unchanged) and commit (`test(eval): approved complex answers join the grader validation set`, with the two attribution lines).
 5. `sci push jscadui/grader-validate`; every scored case, the approved ones included, must match.
+6. On the CI host, repeat the Task 5 regrade check on a copy of the current baseline result files: `npm run eval -w @jscadui/agent-loop -- --regrade <copies>`, then `git diff --no-index` against the originals shows only `regradedAt` changed.
 
 Stop and report to the user before Task 12.
 
@@ -6024,7 +6292,7 @@ Stop and report to the user before Task 12.
 **Files:**
 - Delete: `docs/superpowers/specs/2026-09-30-blind-description-grading-design.md`
 - Delete: `docs/superpowers/plans/2026-09-30-blind-description-grading.md` (this plan)
-- Modify: `docs/superpowers/specs/2026-09-29-conversational-eval-and-skills-design.md` (Part 4 marked superseded; the file stays, since its Parts 1-3 and 5 are not implemented)
+- Modify: `docs/superpowers/specs/2026-09-29-conversational-eval-and-skills-design.md` (Part 4's superseded note replaced; the file stays, since its Parts 1-3 and 5 are not implemented)
 - Modify: `packages/agent-loop/README.md`
 
 **Model:** `sonnet` — a read of the spec against the permanent docs, then deletions.
@@ -6037,10 +6305,11 @@ Stop and report to the user before Task 12.
 
 Read the spec's "Where it lands in the permanent docs" list and confirm each item has a home:
 
-- `packages/agent-loop/docs/user-manual.md`: Complex fixtures (gates, `pieces`, `followUps`, scoring, `verdictRate`, the fixture table), Describe and judge (both commands, the prompts, verdict fields, `--all`, `--rerender`), Grader validation, Regrading, Result files, the environment variables `DESCRIBER_HOME` and `GRADER_VALIDATION_DIR`.
-- `packages/agent-loop/docs/architecture.md`: Complex grading (the three stages and why they are split, why describer and judge are blind, Rendering, The describer with its patches and connection block, The judge), the `mesh` request in Sandbox, the provider's `temperature`/`maxTokens`.
-- `ci/README.md`: Complex eval, Describer (install), Grader validation, render fetching.
-- `docs/backlog.md`: GPU sharing, the open-top blind spot.
+- `packages/agent-loop/docs/user-manual.md`: Complex fixtures (gates, `pieces`, `followUps`, scoring, `verdictRate`, the fixture table), Describe and judge (both commands, the prompts, verdict fields, `--all`, `--rerender`, the describe exit codes 0/1/2), Grader validation, Regrading, Result files, the environment variables `DESCRIBER_HOME` and `GRADER_VALIDATION_DIR`.
+- `packages/agent-loop/docs/architecture.md`: Eval conversations (follow-ups, the per-message turn cap), Complex grading (the three stages and why they are split, why describer and judge are blind, Rendering with its 3% margin on each side, The describer with its protocol, patches and connection block, The judge), the `mesh` request and its packed pages in Sandbox, the provider's `temperature`/`maxTokens`.
+- `packages/agent-loop/docs/development.md`: the chromium and python3 skips.
+- `ci/README.md`: Complex eval (with the describe exit codes and the judge skip), Describer (install), Grader validation, render fetching.
+- `docs/backlog.md`: GPU sharing, the open-top blind spot, the `bodies` probe cap.
 
 Anything missing: add it to the document listed, in plain words, in this commit.
 
@@ -6065,7 +6334,16 @@ with
 
 - [ ] **Step 3: Mark Part 4 of the older spec superseded**
 
-In `docs/superpowers/specs/2026-09-29-conversational-eval-and-skills-design.md`, directly under the heading `## Part 4: grading complex requests by blind description`, insert:
+In `docs/superpowers/specs/2026-09-29-conversational-eval-and-skills-design.md`, under the heading `## Part 4: grading complex requests by blind description`, replace the existing paragraph
+
+```markdown
+Superseded by `2026-09-30-blind-description-grading-design.md`, which sets
+the describer (Moondream 3.1 on the CI host), the judge (DeepSeek v4.1
+flash), three views, the `connected` gate and the staged pipeline from the
+2026-09-30 trials. The text below is the earlier draft.
+```
+
+with
 
 ```markdown
 Superseded and built: see `packages/agent-loop/docs/user-manual.md` (Complex
@@ -6074,7 +6352,7 @@ fixtures, Describe and judge, Grader validation) and
 part is kept only as history of the earlier design.
 ```
 
-Do not delete this spec: its Parts 1-3 and 5 are not implemented yet.
+It is the only note on Part 4, and it no longer names the new spec, which this task deletes. Do not delete this spec: its Parts 1-3 and 5 are not implemented yet.
 
 - [ ] **Step 4: Delete the new spec and this plan**
 
@@ -6082,7 +6360,7 @@ Run: `git rm docs/superpowers/specs/2026-09-30-blind-description-grading-design.
 Expected: both removed.
 
 Run: `git grep -n "2026-09-30-blind-description-grading"`
-Expected: no output.
+Expected: no output (the old spec's Part 4 note named the new spec until Step 3 replaced it).
 
 - [ ] **Step 5: Run the whole agent-loop suite**
 
