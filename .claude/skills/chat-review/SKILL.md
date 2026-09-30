@@ -77,7 +77,8 @@ the user the fixture count times `EVAL_RUNS` and get a yes.
      caused it;
    - every turn where the user corrected the model ("no", "that's wrong",
      a repeat of the request, a changed dimension);
-   - every turn that ended without a `writeModel`.
+   - every turn that ended without a `write` or `edit` that built, or with
+     the project's last build failing.
 
 3. **Group by cause.** Stumbles with the same cause across conversations are
    one group: the same bad import, the same misread parameter style, the same
@@ -96,7 +97,7 @@ the user the fixture count times `EVAL_RUNS` and get a yes.
    export const fixture = {
      name: '<name>',
      prompt: '<the user message from the log, verbatim>',
-     requires: ['eval', 'writeModel'],
+     requires: ['write'],
      verifyBeforeWrite: false,
      maxTurns: 8,
      checks: (m, { params = [], solid } = {}) => [

@@ -23,13 +23,15 @@ prompt never mentions jscad-fluent.
 ## Conversation context
 
 ```js
-buildMessages({ systemPrompt, transcript, files, message, budget = CONTEXT_BUDGET })
+buildMessages({ systemPrompt, transcript, files, build, message, budget = CONTEXT_BUDGET })
 ```
 
 Returns the system prompt, the newest whole prior turns that fit in `budget`
 characters (24,000 by default), a user message with every text file in
-`files` under `### <path>` (outside the budget, omitted when empty), and the
-new message. The app and the eval both use it.
+`files` under `### <path>` followed by `build`, the project's last build
+report, under `Last build of the project:` (both outside the budget; each
+omitted when empty or null), and the new message. The app and the eval both
+use it.
 
 `runTurn` caps each tool result it hands the provider at `TOOL_RESULT_CHARS`
 (the same 24,000 characters) and ends a longer one with `… [tool result
@@ -177,8 +179,9 @@ npm run read-log -w @jscadui/agent-loop -- --json
 ```
 
 The summary prints one block per conversation: each user message, each tool
-call as `ok`, `FAILED` or `no result`, the error message and source of each
-failed call, and the final assistant text. `readConversations(dir, { since })`
+call as `ok`, `FAILED` or `no result`, the error message and code of each
+failed call (a `write`'s path and content, an `edit`'s path and its `-`/`+`
+strings, a `run`'s source), and the final assistant text. `readConversations(dir, { since })`
 in `log/read-log.js` returns
 `[{ chatId, model, turns: [{ ts, user, steps: [{ name, input, result, ok, error? }], final, error? }] }]`.
 It reads the directory the launcher writes (`JSCAD_CHAT_LOG` when set).
@@ -207,41 +210,37 @@ writes to `eval/results/`.
 
 ### Tools in the eval
 
-A project is every file `writeModel` has written, seeded with the fixture's
-`files`. `writeModel` runs the project through `main.js`, or through the file
-it just wrote when the project has no `main.js`, so a write to a helper file
-re-runs the model that requires it. `eval` runs its source as its entry with
-the project's other files beside it. The app's `writeModel` follows the same
-rule over the open project's files.
+The eval backend (`eval/backend.js`) answers the chat's tools the way the app
+does ([architecture.md](architecture.md#project-model) has the tools, the
+entry rule and the build report). A run's project starts as the fixture's
+`files`; when there are any, the backend builds them before the first
+message, and that build report goes into the header with the files.
+
+`write` and `edit` answer with the build report. A build fails with
+`NoEntryError` when the project has no entry file, `NoMainError` when the
+entry exports no `main()`, `NoGeometryError` when `main()` returns something
+`measure` cannot read, and otherwise with the model code's own error; a syntax
+error is located by parsing each project file with Babel, entry first, since
+the eval's `SyntaxError` carries no location. `measure`, `check` and `export`
+fail with `NoGeometryError` before the first build (`no geometry: write the
+model first`) and after a failed one (`no geometry: the last build failed
+(<message>); fix it first`). `run` answers
+`{ ok, warnings, console, geometry? | returned? }`, or
+`{ ok: false, error, warnings, console }`.
 
 `export` answers like the app: `{ ok, format, size }`, the byte size of the
 model as STL text whatever `format` asks for, since the app's worker writes STL
 only. The bytes never reach the model; the user downloads from the app.
-`view` fails with `UnavailableError`.
+`view` fails with `UnavailableError`, and any other name, `eval`,
+`writeModel` and `params` included, with `UnknownToolError`.
 
-`eval` and `writeModel` results carry
+Build reports and `run` results carry
 `warnings: [{ fn, option, suggestions, hint }]` like the app's, worded for the
-backend's `api`, and `console: [lines]` when the model run logged anything
+backend's `api`, and `console: [lines]` with what the model run logged
 (`console.log/info/warn/error/debug`, formatted like Node's `util.format`,
 objects via `JSON.stringify`, falling back to `String` on a circular one,
 capped at 50 lines and 4,000 characters total with a trailing `… (N more
 lines)` note).
-
-`eval`, `measure` and `check` results, and scratch runs, also carry
-`notSaved: "not saved (2 evals since the last save); call writeModel to keep it"`
-(`withSaveState` in `src/saveState.js`) while the current geometry is not the
-source of the last `writeModel`, and nothing when it is, so the model reads an
-instruction rather than a flag. The count is of model evals (not scratch
-runs) since the last `writeModel` that ran. A `check` that comes back clean
-(`checksClean`: a solid that is watertight, manifold, not inside out, not
-self-intersecting and fits the bed it was given) says instead
-`"checks clean and not saved (2 evals since the last save): save it now with writeModel, then refine"`.
-The app adds it the same way (`apps/jscad-web/src/aiDeps.js`), from the
-agent's first eval on. An `eval`
-of a script with no `main()` is a scratch run: it answers
-`{ ok: true, scratch: true, console, message }` and leaves the current model
-and geometry unchanged, rather than failing and dropping the console output
-(`writeModel` still requires a runnable `main()`).
 
 `measure` and `check` results carry `units: "mm"` (`withUnits`,
 `src/units.js`; the app's `aiDeps.js` adds it the same way), and both tool
@@ -278,7 +277,8 @@ repo's git history keeps the old version. It grades each file under the `api`
 the file records, in a sandboxed executor per style; a file written before the
 setting has no `api` and is graded as `fluent`. It recomputes `discipline`, `recovery`,
 `conservation` and `firstAttemptFailures` from the stored `transcript`, rebuilds
-the saved project from the transcript's `writeModel` calls and evaluates it in a
+the project from the transcript's `write` and `edit` calls, or an older file's
+`writeModel` calls, and builds it in a
 sandboxed executor to recompute `geometry`, `checkRate` and
 `geometryError` against the current checks, recomputes each run's `total`, marks
 a run that ended with no provider reply as `error: "empty provider reply"` with
@@ -379,32 +379,41 @@ telling you to add the key to `keys.json` instead.
 ### Grading
 
 Each run is graded on discipline, recovery, geometry and conservation (0-2
-each, total 8) and on `firstAttemptFailures`: the failed tool results before the first
-successful `eval`, or before the end of the run if none succeeds.
+each, total 8) and on `firstAttemptFailures`: the failed tool results before the
+first successful build (a `write` or `edit` whose report is `ok`, or an older
+file's successful `eval`), or before the end of the run if none succeeds.
+
+Grading reads result files from before the file tools too: there `eval` was a
+trial run and `writeModel` a save of `source` to `entry` (`main.js` by
+default), and each counts below where `run` and `write` do.
 
 Discipline asks whether the model checked its model. Verification is a
-`measure` or `check` call, or an `eval` whose source calls a `measure*`
+`measure` or `check` call, or a `run` whose source calls a `measure*`
 function (`shape.measureDimensions()`, `measureVolume()`, as `fluent.md`
-teaches) and whose result carries console output. A run with an `eval` gets 2
+teaches) and whose result carries console output. A run with a `run` gets 2
 when the fixture has no `verifyBeforeWrite`, when it never writes, or when it
-verifies before or after its first `writeModel`, else 1; `writeModel` runs the
-model, so measuring after the save counts. A run with no `eval` gets 2 when it
-verifies after a `writeModel`, else 0. Recovery is 2 when no tool call failed
+verifies before or after its first `write` or `edit`, else 1; a save builds the
+model, so measuring after it counts. A run with no `run` gets 2 when it
+verifies after a save, else 0. Recovery is 2 when no tool call failed
 or a success followed the last failure, else 0; a run the turn cap ended
 (its last round's results got no reply) leaves that round's failures out,
-since it had no turn left to recover in. Conservation is 2 for at most 12 tool
-calls, 1 for at most 24, else 0, counting every call except `writeModel`, so
-saving often never costs a point.
+since it had no turn left to recover in. Conservation is 2 for at most 12
+counted calls, 1 for at most 24, else 0. It counts every call except a
+`write` or `edit` whose build succeeded (and an older file's `writeModel`),
+so failed builds and failed calls count and saving often never costs a point.
 
-Geometry grades the project the run saved, since that is what the app's user
-keeps: every file written, evaluated again through its entry in a fresh backend
-state after the run ends, so a probe `eval` after the save changes nothing. A
-model that has not finished after 120 s at grading time gets no geometry. A fixture
-whose `requires` lists `writeModel` gives a run that never called it geometry 0
-and `checkRate` 0 without running its checks, and marks the report
-`saved: false`; the other three grades still count, so such a run scores at
-most 6. A fixture that does not require `writeModel` is graded on the saved
-project, else the last `eval`.
+Geometry grades the project's final state, since that is what the app's user
+keeps: the fixture's files with every `write` and `edit` replayed (one the
+backend refused changes nothing), built through its entry in a fresh backend
+state after the run ends, so a scratch `run` changes nothing. A project with
+no entry file, or whose final state does not build, gets geometry 0 (an older
+file with no entry file builds the file its last `writeModel` wrote). A
+model that has not finished after 120 s at grading time gets no geometry. A
+fixture whose `requires` lists `write` gives a run that neither wrote nor
+edited a file geometry 0 and `checkRate` 0 without running its checks, and
+marks the report `saved: false`; the other three grades still count, so such
+a run scores at most 6. A fixture that does not require `write` is graded on
+the saved project, else an older file's last `eval`, else its own files.
 
 A provider call that streams neither text nor a tool call is an empty reply,
 even when it streamed reasoning and a `usage` event; the run records
@@ -433,8 +442,8 @@ tend to max out once a prompt clears the bar:
 - `toolCalls` / `failedCalls`: every tool call and every failed tool result in
   the run, not just the ones before the first success. Transcript-derived, so
   `--regrade` recomputes them from the stored transcript.
-- `warnings`: unknown-option warnings returned on the run's `eval` and
-  `writeModel` results, summed. Transcript-derived.
+- `warnings`: unknown-option warnings returned on the run's tool results
+  (build reports and `run` results), summed. Transcript-derived.
 - `docsCalls`: `docs` calls in the run. Transcript-derived.
 - `inputTokens` / `outputTokens`: summed over the run's provider calls from a
   `usage` stream event (Anthropic's `message_start`/`message_delta`, OpenAI's
@@ -505,6 +514,8 @@ line per run as each finishes. The key is never printed or written.
 
 A fixture is one file exporting `fixture`:
 `{ name, prompt, requires, verifyBeforeWrite, maxTurns, checks(measure, { params, source, solid, probe }), api?, transcript?, files?, apiFiles?, target?, probe? }`.
+`requires` names tools the task needs (`['write']`, `['measure', 'write']`;
+`write` is satisfied by a `write` or an `edit`); only `write` changes grading.
 `name` matches the file name; `transcript` (prior `{ role, content }` turns)
 and `files` (`{ path: source }`) test follow-up requests through the same
 `buildMessages` the app uses. A follow-up whose starting project is written in

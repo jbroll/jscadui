@@ -14,8 +14,8 @@ that style's API reference sheet (`prompt/sheet-<api>.md`, under
 `## API reference`), then an `## Examples` section with that style's examples
 fenced, in file-name order. Tests check the order, that each prompt carries
 only its own style's examples, that neither prompt names the other API (apart
-from the jscad-text `init` line), and that every example evaluates with no
-warnings.
+from the jscad-text `init` line), and that every example builds in the eval
+backend with no warnings.
 
 The sheet lists one call form per line with its option defaults, grouped as
 3D shapes, 2D shapes, booleans, transforms, extrusions, expansions, hulls,
@@ -23,8 +23,8 @@ color and measurement, and other (`snap`, and fluent's `clone`), with
 `// radians` on any call that takes an angle. Fluent lines are `jf.*` factories or methods (`.translate(offset: Vec3)`);
 modeling lines are `namespace.fn(options, ...objects)`. It is generated from
 the API index by `api/sheet.js`, whose `SECTIONS` lists the functions per
-style: those the eval's saved models used (counted over the `writeModel`
-sources in `$JSCAD_CHAT_DATA/results`) plus every primitive, boolean,
+style: those the eval's saved models used (counted over the sources saved in
+`$JSCAD_CHAT_DATA/results`) plus every primitive, boolean,
 transform, extrusion, expansion and hull. Never edit the `.md` files by hand;
 change `SECTIONS` and regenerate ([API index](#api-index)). A test holds each
 sheet to 5,000 tokens by `estimateTokens` (one per word or punctuation

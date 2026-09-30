@@ -5,8 +5,10 @@
 - `src/`: what the app ships, chiefly `loop.js` (`runTurn`), `providers.js` and
   `responses.js` (the provider adapters and their stream parsers), `tools.js`
   (`buildTools(api)`), `prompt.js` (`buildSystemPrompt(api)`), `context.js`
-  (`buildMessages`), `docs.js` (`docsTool`), `optionChecks.js` and `hints.js`
-  (option warnings and error hints), `consoleCapture.js`.
+  (`buildMessages`), `project.js` (the file tools' operations and entry
+  resolution), `buildReport.js` (the build report), `docs.js` (`docsTool`),
+  `optionChecks.js` and `hints.js` (option warnings and error hints),
+  `consoleCapture.js`.
 - `api/`: the generated API index and option table, and their generator,
   which also writes the prompt's API reference sheets (`api/sheet.js`).
 - `prompt.md`, `prompt/`: the system prompt prose, API reference sheets and
@@ -36,12 +38,54 @@ The eval's `withTurnCap` (`eval/run-eval.js`) counts these into
 
 ## Tool protocol
 
-All model interaction is a tool call (`eval`, `params`, `measure`, `check`,
-`view`, `export`, `writeModel`, `docs`): `runTurn` streams `text` events as
-chat prose and never parses them for code, so model source travels only in a
-`tool_use` input (`eval.source`, `writeModel.source`). No markdown-fence
-extractor exists anywhere in the app or the eval, and none is wanted — a
-model that wants to run code has to call a tool.
+All model interaction is a tool call (`list`, `read`, `write`, `edit`, `run`,
+`measure`, `check`, `export`, `docs`, and the app's `view`): `runTurn` streams
+`text` events as chat prose and never parses them for code, so model source
+travels only in a `tool_use` input (`write.content`, `edit.newString`,
+`run.source`). No markdown-fence extractor exists anywhere in the app or the
+eval, and none is wanted — a model that wants to run code has to call a tool.
+
+## Project model
+
+The model works in a JavaScript project the way a coding agent does, with
+tools named and shaped like the common coding-agent ones, so models use them
+without teaching. `list` gives the paths and byte sizes, `read` a file
+numbered like `cat -n` (`offset`, `limit` in lines), `write` a whole file,
+and `edit` one exact replacement (`oldString` must occur once unless
+`replaceAll`; a missing or repeated one fails with `EditError` and changes
+nothing). Paths are project-relative and cannot leave the project. The
+operations live in `src/project.js`, which the eval backend and the app both
+call, so both refuse the same input with the same text.
+
+A write is a save: every `write` and `edit` stores the file and builds the
+project, with no separate save step. The build runs the entry, resolved as
+Node does (`resolveEntry`): `package.json` `main` (also as `<main>.js` or
+`<main>/index.js`), else `index.js`, else `main.js`. Model code stays CommonJS
+with `module.exports = { main }`. The result is the build report
+(`src/buildReport.js` `buildReport`, the same shape in the app and the eval):
+
+```
+{ ok, entry, error?: { name, message, file, line, column },
+  warnings, console, params: [{ name, type, default, min?, max?, step?, values? }],
+  geometry?: { parts, boundingBox, dimensions, volume, watertight } }
+```
+
+`geometry` comes only with a build that succeeds, from model-tools' `measure`
+and `check` on what `main()` returned, rounded to 1e-4 mm. `errorLocation`
+finds `file`, `line` and `column` (1-based) in a Babel error's `loc` or the
+first `<base><path>:<line>:<column>` frame of a stack. `measure`, `check` and
+`export` work on the last build and fail with `NoGeometryError` when it failed.
+`run` is a scratch runner: the snippet runs beside the project's files as
+`__run__.js` and is never saved, and neither the project nor its build
+changes; it answers its console output, a `geometry` summary of what its
+`main()` returned or a `returned` preview of `module.exports`, and an error
+with its location.
+
+The per-turn header (`buildMessages`) sends the project files and then the
+project's last build report, so each turn starts knowing whether the project
+builds and what it produces, including breakage from the user's own editor
+changes. The files and the report sit outside the 24,000-character history
+budget.
 
 ## Model code in the eval
 
@@ -61,11 +105,11 @@ the frame would fetch by URL fails, since the eval has no network.
 
 The CDN stub hands model code a copy of `@jscad/modeling` and
 `@jbroll/jscad-fluent` with the option checks (`src/optionChecks.js`,
-`api/optionTable.js`), so `eval` and `writeModel` results carry the same
+`api/optionTable.js`), so build reports and `run` results carry the same
 warnings as the app's. Node's modeling module object is never changed:
 fluent and model-tools require the same one.
 
-`eval` and `writeModel` capture the model run's console calls with
+Builds and `run` capture the model run's console calls with
 `src/consoleCapture.js`. The frame worker captures the same way for the app
 (`apps/jscad-web/src_frame/consoleCapture.js`), always forwarding to the real
 console too so the editor's own runs still log to devtools; a grid run
@@ -141,8 +185,9 @@ so a new fluent method gets the checks on regeneration
 The conversation loop and the provider calls run in the `run-eval` process,
 which holds the key. Model code runs in executor processes
 (`eval/executor-child.js`, started by `eval/sandbox.js` `startExecutor`) that
-never receive the key or the parent's environment: every tool call (`eval`,
-`measure`, `check`, `writeModel`, `export`, `params`, `docs`) and every grade
+never receive the key or the parent's environment: every tool call (`list`,
+`read`, `write`, `edit`, `run`, `measure`, `check`, `export`, `docs`), the
+first reset that builds the fixture's files for the header, and every grade
 goes to one as a request and comes back as a reply
 (`eval/executor-protocol.js`), in length-prefixed JSON frames (`eval/frames.js`)
 on a socket at the executor's fd 3. The parent refuses a frame over 1.06 MB
@@ -171,7 +216,9 @@ grade stops it carrying anything over from the conversation or another run.
 
 When model code ends the executor (`process.exit`, an out of memory kill, a
 tool call running past 110 s), `eval/sandboxed-backend.js` starts a fresh one
-holding the fixture's files and every file written so far, and the model gets
+holding the fixture's files and every write and edit so far (applied with the
+same `src/project.js` operations the executor uses), without building them,
+since that build could end it again, and the model gets
 `{ ok: false, error: { name: "EvaluatorCrashed", message } }` and can go on;
 the call counts as a failed call. After three restarts in a run every further
 call gets `EvaluatorCrashed` and the run records `error: "model code ended the
