@@ -84,6 +84,7 @@ export const buildTools = (api: Api = DEFAULT_API): ToolDefinition[] => [
       type: 'object',
       properties: {
         parts: {
+          anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
           description:
             'Index selectors into the array main() returns: "0", "1-3", "all", or an array of them (a JSON array string works too)',
         },
@@ -94,6 +95,7 @@ export const buildTools = (api: Api = DEFAULT_API): ToolDefinition[] => [
         },
         anchors: { type: 'boolean', description: "Include each part's named anchor frames" },
         section: {
+          type: 'string',
           description: 'An axis cross-section: "x", "y", "z", or an offset like "z=5"',
         },
       },
@@ -107,6 +109,7 @@ export const buildTools = (api: Api = DEFAULT_API): ToolDefinition[] => [
       type: 'object',
       properties: {
         bed: {
+          anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'number' } }, { type: 'object' }],
           description:
             'Printer bed: a name (mk3, mk4, mini, x1, p1, a1mini, ender3) or its size in mm as [x, y, z], {x, y, z}, or a JSON array string',
         },

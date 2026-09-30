@@ -45,7 +45,13 @@ messages so far as `error.messages`. A provider round with neither text nor a
 tool call (only reasoning, or a stop at the length limit) rejects the turn
 with `EmptyReplyError`, whose `stopReason` is the provider's and whose message
 is `the model stopped without answering (stop reason: length)`; the app shows
-it in the chat as an error.
+it in the chat as an error. A tool call whose arguments are not JSON (a
+stream cut off mid-arguments, or two calls run together) does not end the
+turn: the provider adapters hand it on with `badArguments`, its first 300
+characters, and `runTurn` answers it without running the tool, as
+`{ ok: false, error: { name: 'ArgumentsError', message: 'arguments for
+measure were not valid JSON (finish_reason length); call it again with a JSON
+object: {"parts":…' } }`, which the transcript keeps.
 
 ## docs tool
 

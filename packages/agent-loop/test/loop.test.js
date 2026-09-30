@@ -51,6 +51,25 @@ describe('runTurn', () => {
     expect(seen).toEqual([buildTools('fluent'), buildTools('modeling')])
   })
 
+  it('answers a call whose arguments were not JSON with a tool error the model can retry, and goes on', async () => {
+    const provider = roundsProvider([
+      [{ type: 'tool_use', id: 't1', name: 'measure', input: {}, badArguments: '{"parts":["0"]}{"x', finishReason: 'length' }, { type: 'done', stopReason: 'length' }],
+      [{ type: 'tool_use', id: 't2', name: 'check', input: {}, badArguments: '{"bed' }, { type: 'done', stopReason: 'tool_use' }],
+      [{ type: 'text', text: 'done' }, { type: 'done', stopReason: 'end_turn' }],
+    ])
+    const requestTool = vi.fn()
+    const conversation = { messages: [{ role: 'user', content: 'hi' }] }
+    const { messages } = await runTurn({ conversation, provider, requestTool })
+    expect(requestTool).not.toHaveBeenCalled()
+    const results = messages.filter((m) => m.role === 'tool').map((m) => JSON.parse(m.content))
+    expect(results).toEqual([
+      { ok: false, error: { name: 'ArgumentsError', message: 'arguments for measure were not valid JSON (finish_reason length); call it again with a JSON object: {"parts":["0"]}{"x' } },
+      { ok: false, error: { name: 'ArgumentsError', message: 'arguments for check were not valid JSON (finish_reason tool_use); call it again with a JSON object: {"bed' } },
+    ])
+    expect(messages[1]).toEqual({ role: 'assistant', content: null, toolCalls: [{ id: 't1', name: 'measure', input: {} }] })
+    expect(messages.at(-1)).toMatchObject({ role: 'assistant', content: 'done' })
+  })
+
   it('rejects a round with neither text nor a tool call as an empty reply, with its stop reason', async () => {
     const provider = roundsProvider([
       [{ type: 'tool_use', id: 't1', name: 'params', input: {} }, { type: 'done', stopReason: 'tool_calls' }],

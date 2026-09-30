@@ -3,6 +3,7 @@
 // follows the public Responses API; verified against mocks only until budget
 // allows a live run.
 import { fetchWithRetry, PROVIDER_BASE_URLS, ssePayloads } from './providers.js'
+import { parseToolArguments } from './toolArguments.js'
 
 const toResponsesTool = (tool) => ({
   type: 'function',
@@ -64,15 +65,7 @@ export async function* parseResponsesStream(body) {
       throw new Error(`responses: ${event.message ?? 'provider error'}`)
     }
   }
-  for (const acc of calls.values()) {
-    let input
-    try {
-      input = JSON.parse(acc.args || '{}')
-    } catch {
-      throw new Error(`responses: unparseable tool arguments for ${acc.name}`)
-    }
-    yield { type: 'tool_use', id: acc.id, name: acc.name, input }
-  }
+  for (const acc of calls.values()) yield { type: 'tool_use', id: acc.id, name: acc.name, ...parseToolArguments(acc.args) }
   yield { type: 'done', stopReason: 'completed' }
 }
 

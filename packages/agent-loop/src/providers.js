@@ -3,6 +3,7 @@
 // path-preserving to the provider host, so no relay-specific code lives here.
 // Anthropic default base is the provider itself for non-browser use.
 import { responsesProvider } from './responses.js'
+import { parseToolArguments } from './toolArguments.js'
 
 const ANTHROPIC_API_VERSION = '2023-06-01'
 
@@ -176,13 +177,7 @@ export async function* parseAnthropicStream(body) {
       const acc = toolInputs.get(event.index ?? 0)
       if (acc) {
         toolInputs.delete(event.index ?? 0)
-        let input
-        try {
-          input = JSON.parse(acc.json || '{}')
-        } catch {
-          throw new Error(`anthropic: unparseable tool input for ${acc.name}`)
-        }
-        yield { type: 'tool_use', id: acc.id, name: acc.name, input }
+        yield { type: 'tool_use', id: acc.id, name: acc.name, ...parseToolArguments(acc.json) }
       }
     } else if (event.type === 'message_delta' && event.delta?.stop_reason) {
       const outputTokens = event.usage?.output_tokens
@@ -293,13 +288,8 @@ export async function* parseOpenAIStream(body) {
     }
   }
   for (const acc of toolCalls.values()) {
-    let input
-    try {
-      input = JSON.parse(acc.args || '{}')
-    } catch {
-      throw new Error(`openai: unparseable tool arguments for ${acc.name}`)
-    }
-    yield { type: 'tool_use', id: acc.id, name: acc.name, input }
+    const parsed = parseToolArguments(acc.args)
+    yield { type: 'tool_use', id: acc.id, name: acc.name, ...parsed, ...(parsed.badArguments !== undefined ? { finishReason: stopReason || null } : {}) }
   }
   yield { type: 'done', stopReason: stopReason || 'stop' }
 }

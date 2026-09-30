@@ -396,6 +396,41 @@ describe('stream parsers', () => {
     ])
   })
 
+  it('openai: hands on arguments that are not JSON with their text and finish_reason, never throwing', async () => {
+    const body =
+      `data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","function":{"name":"measure","arguments":"{\\"parts\\":[\\"0\\"]}{\\"x"}}]}}]}\n\n` +
+      `data: {"choices":[{"delta":{},"finish_reason":"length"}]}\n\n` +
+      `data: [DONE]\n\n`
+    expect(await collect(parseOpenAIStream(sseBody(body)))).toEqual([
+      { type: 'tool_use', id: 'call_1', name: 'measure', input: {}, badArguments: '{"parts":["0"]}{"x', finishReason: 'length' },
+      { type: 'done', stopReason: 'length' },
+    ])
+  })
+
+  it('openai: keeps the first 300 characters of bad arguments, and names a missing finish_reason', async () => {
+    const args = JSON.stringify('{' + 'a'.repeat(400)).slice(1, -1)
+    const body = `data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"c","function":{"name":"run","arguments":"${args}"}}]}}]}\n\n`
+    const [call] = await collect(parseOpenAIStream(sseBody(body)))
+    expect(call.badArguments).toBe(`${'{' + 'a'.repeat(299)}… (101 more characters)`)
+    expect(call.finishReason).toBeNull()
+  })
+
+  it('anthropic and responses: hand on bad arguments too', async () => {
+    const anthropic =
+      `data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"t1","name":"check"}}\n\n` +
+      `data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\\"bed"}}\n\n` +
+      `data: {"type":"content_block_stop","index":0}\n\n`
+    expect(await collect(parseAnthropicStream(sseBody(anthropic)))).toEqual([{ type: 'tool_use', id: 't1', name: 'check', input: {}, badArguments: '{"bed' }])
+    const responses =
+      `data: {"type":"response.output_item.added","item":{"id":"i1","type":"function_call","call_id":"c1","name":"check"}}\n\n` +
+      `data: {"type":"response.function_call_arguments.delta","item_id":"i1","delta":"{\\"bed"}\n\n` +
+      `data: {"type":"response.completed"}\n\n`
+    expect(await collect(parseResponsesStream(sseBody(responses)))).toEqual([
+      { type: 'tool_use', id: 'c1', name: 'check', input: {}, badArguments: '{"bed' },
+      { type: 'done', stopReason: 'completed' },
+    ])
+  })
+
   it('anthropic: yields usage from message_start and message_delta', async () => {
     const body =
       `data: {"type":"message_start","message":{"usage":{"input_tokens":42,"output_tokens":0}}}\n\n` +

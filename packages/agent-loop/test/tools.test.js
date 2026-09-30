@@ -57,6 +57,17 @@ describe('agent tools', () => {
     expect(between.description).toMatch(/"all" works only in parts/)
   })
 
+  it('gives every argument a JSON type', () => {
+    for (const tool of TOOLS) {
+      for (const [name, schema] of Object.entries(tool.inputSchema.properties)) {
+        expect(schema.type ?? schema.anyOf?.map((s) => s.type), `${tool.name}.${name}`).toBeDefined()
+      }
+    }
+    const { parts, section } = TOOLS.find((t) => t.name === 'measure').inputSchema.properties
+    expect(parts.anyOf).toEqual([{ type: 'string' }, { type: 'array', items: { type: 'string' } }])
+    expect(section.type).toBe('string')
+  })
+
   it('says export gives the size, not the file', () => {
     const exportTool = TOOLS.find((t) => t.name === 'export')
     expect(exportTool.description).toMatch(/gives its size, not the file/)

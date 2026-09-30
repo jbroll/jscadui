@@ -4,6 +4,7 @@
 // the only runtime needs are AbortSignal/clearTimeout plus the fetch in providers.
 import { DEFAULT_API } from './api.js'
 import { CONTEXT_BUDGET } from './context.js'
+import { argumentsError } from './toolArguments.js'
 import { buildTools } from './tools.js'
 
 const DEFAULT_TOOL_TIMEOUT_MS = 120_000
@@ -147,6 +148,7 @@ export const runTurn = (options) => {
         for (;;) {
           const text = []
           const toolCalls = []
+          const badCalls = new Map()
           let stopReason
           iterator = provider.send(messages, tools)[Symbol.asyncIterator]()
           try {
@@ -157,7 +159,9 @@ export const runTurn = (options) => {
                 text.push(value.text)
                 onText?.(value.text)
               } else if (value.type === 'tool_use') {
-                toolCalls.push({ id: value.id, name: value.name, input: value.input })
+                const call = { id: value.id, name: value.name, input: value.input }
+                if (value.badArguments !== undefined) badCalls.set(call, value)
+                toolCalls.push(call)
               } else if (value.type === 'done') {
                 stopReason = value.stopReason
                 break
@@ -175,12 +179,14 @@ export const runTurn = (options) => {
           })
           if (toolCalls.length === 0) break
           for (const call of toolCalls) {
-            const content = await withTimeout(
-              requestTool(call.name, call.input),
-              toolTimeoutMs,
-              signal,
-              () => new ToolTimeoutError(call.id, call.name, toolTimeoutMs),
-            )
+            const content = badCalls.has(call)
+              ? argumentsError(badCalls.get(call), stopReason)
+              : await withTimeout(
+                  requestTool(call.name, call.input),
+                  toolTimeoutMs,
+                  signal,
+                  () => new ToolTimeoutError(call.id, call.name, toolTimeoutMs),
+                )
             let capped = capToolResult(content)
             const size = typeof capped === 'string' ? capped.length : 0
             if (resultChars + size > TOOL_RESULTS_PER_TURN_CHARS) capped = OVER_TURN_TOTAL
