@@ -25,6 +25,9 @@ describe('generate-all-files', () => {
     for (const name of ['a', 'b', 'c', 'loose']) touch(`lib-c/tests/${name}.scad`)
     writeFileSync(join(root, 'lib-c/tests/categories.json'), JSON.stringify({ small: ['a', 'b'], big: ['c'], none: ['z'] }))
     touch('lib-c/tests/ALL.stale.js')
+    for (const rel of ['model', 'helper', 'sub/helper', 'sub/broken', 'parts/gear']) touch(`lib-d/${rel}.scad`)
+    writeFileSync(join(root, 'lib-d/exclude.txt'), 'helper.scad\nparts/\n')
+    writeFileSync(join(root, 'lib-d/skip.txt'), 'broken.scad\n')
     execFileSync('node', [generator, '--no-rename', '--examples-dir', root], { stdio: 'pipe', timeout: 30_000 })
   })
 
@@ -37,7 +40,13 @@ describe('generate-all-files', () => {
   })
 
   it('points the parent at the grid a wrapper would have held', () => {
-    expect(itemsOf(join(root, 'ALL.js'))).toEqual(['./lib-a/outer/tests/ALL.js', './lib-b/ALL.js', './lib-c/tests/ALL.js'])
+    expect(itemsOf(join(root, 'ALL.js'))).toEqual(['./lib-a/outer/tests/ALL.js', './lib-b/ALL.js', './lib-c/tests/ALL.js', './lib-d/ALL.js'])
+  })
+
+  it('leaves out exclude.txt entries, anchored to their directory, and skip.txt entries by name', () => {
+    expect(itemsOf(join(root, 'lib-d', 'ALL.js'))).toEqual(['./model.scad', './sub/ALL.js'])
+    expect(itemsOf(join(root, 'lib-d', 'sub', 'ALL.js'))).toEqual(['./helper.scad'])
+    expect(existsSync(join(root, 'lib-d', 'parts', 'ALL.js'))).toBe(false)
   })
 
   it('writes one grid per category beside the models', () => {

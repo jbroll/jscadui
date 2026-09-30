@@ -32,6 +32,7 @@ import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parse } from '../esm/parser/parse.js'
 import { transpile } from '../esm/transpiler/transpile.js'
+import { discoverPatternFiles, matchesScopes } from './pattern-files.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const DEFAULT_ROOT = resolve(here, '../../../apps/jscad-web/examples/openscad')
@@ -62,42 +63,6 @@ function walk(dir, out = []) {
     else if (e.name.endsWith('.scad')) out.push(p)
   }
   return out
-}
-
-/** skip.txt / exclude.txt patterns scoped to their directory (same rules as test-harness.js) */
-function loadDirPatterns(root, filename) {
-  const scoped = []
-  const visit = dir => {
-    const f = join(dir, filename)
-    if (existsSync(f)) {
-      const patterns = readFileSync(f, 'utf8').split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'))
-      if (patterns.length) scoped.push({ dir, patterns })
-    }
-    for (const e of readdirSync(dir, { withFileTypes: true })) {
-      if (e.isDirectory() && !e.name.startsWith('.')) visit(join(dir, e.name))
-    }
-  }
-  visit(root)
-  return scoped
-}
-
-function matchesDirPatterns(file, scoped) {
-  for (const { dir, patterns } of scoped) {
-    if (!file.startsWith(dir + '/')) continue
-    const rel = relative(dir, file)
-    const name = rel.split('/').pop()
-    for (const p of patterns) {
-      const anchored = p.startsWith('/')
-      const raw = anchored ? p.slice(1) : p
-      const pattern = raw.endsWith('/') ? raw + '*' : raw
-      const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&')
-      const re = new RegExp('^' + (anchored
-        ? escaped.replace(/\*\*/g, '.*').replace(/(?<!\*)\*(?!\*)/g, '[^/]*')
-        : escaped.replace(/\*/g, '.*')) + '$')
-      if (re.test(rel) || (!anchored && re.test(name))) return true
-    }
-  }
-  return false
 }
 
 function surveyFile(file, libRoot, includes) {
@@ -144,14 +109,14 @@ function libraryOf(root, file) {
 function survey(opts) {
   const files = []
   for (const root of opts.roots) {
-    const skips = loadDirPatterns(root, 'skip.txt')
-    const excludes = loadDirPatterns(root, 'exclude.txt')
+    const skips = discoverPatternFiles(root, 'skip.txt')
+    const excludes = discoverPatternFiles(root, 'exclude.txt')
     for (const file of walk(root).sort()) {
       const library = libraryOf(root, file)
       const libRoot = library === '.' ? root : join(root, library)
-      const skipped = matchesDirPatterns(file, skips)
+      const skipped = matchesScopes(file, skips)
       const r = surveyFile(file, libRoot, opts.includes)
-      if (matchesDirPatterns(file, excludes) && r.category !== 'error' && r.category !== 'unresolved') {
+      if (matchesScopes(file, excludes) && r.category !== 'error' && r.category !== 'unresolved') {
         r.category = 'library'
       }
       // Report skip status separately so a known-failing file with parameters is visible

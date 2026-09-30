@@ -48,6 +48,18 @@ apps/jscad-web/examples/openscad/
 
 To add a file to a skip list, append to the relevant file with a comment explaining why.
 
+`exclude.txt` lists library sources that are not models; the harness, the grids and the Customizer survey leave them out. `echo-skip.txt` lists models whose geometry is graded but whose `echo()` output is not compared.
+
+All four files share one syntax, implemented in `bin/pattern-files.js`. One pattern per line; blank lines and `#` comments are ignored. A file applies to the paths below its own directory, relative to that directory:
+
+| Pattern | Matches |
+|---------|---------|
+| `name.scad` | the relative path, or the basename at any depth. `*` matches anything, `/` included |
+| `/name.scad` | the relative path only. `*` stays within one path segment, `**` crosses segments |
+| `dir/` | the directory and everything below it |
+
+`generate-all-files.js` reads every `exclude.txt` pattern as if it began with `/`, so a bare name there hides only the file at that level from the grids.
+
 ---
 
 ## 2. Test Harness (Direct CLI)

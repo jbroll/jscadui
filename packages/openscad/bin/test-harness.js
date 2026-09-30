@@ -33,6 +33,7 @@ const __dirname = dirname(__filename)
 // ~/.cache/jscadui/openscad-stl/ so it persists across CI worktrees.
 import { StlCache } from './stl-cache.js'
 import { parseEchoExport, compareEcho, describeEchoMismatch } from './echo-compare.js'
+import { discoverPatternFiles, matchesAny, matchesScopes, readPatternFile } from './pattern-files.js'
 
 // OpenSCAD's message when the STL export has nothing to write
 const EMPTY_TOP_LEVEL = 'Current top level object is empty.'
@@ -44,21 +45,6 @@ const OPENSCAD_TIMEOUT = 60_000
 const MEM_PER_WORKER = 3e9
 const JSCAD_TIMEOUT = 120_000
 const DEFAULT_CONCURRENCY = Math.min(Math.max(1, cpus().length - 1), Math.max(1, Math.floor(totalmem() / MEM_PER_WORKER)))
-
-/**
- * Check if a path matches any skip pattern.
- * Patterns: exact match, filename only, or glob with * wildcards.
- */
-function matchesSkipPattern(relativePath, patterns) {
-  for (const pattern of patterns) {
-    // Simple glob: convert * to regex .*
-    const regex = new RegExp('^' + pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$')
-    if (regex.test(relativePath) || regex.test(basename(relativePath))) {
-      return true
-    }
-  }
-  return false
-}
 
 function parseArgs(args) {
   const options = {
@@ -139,17 +125,9 @@ Options:
     } else if (arg === '--no-dir-skips') {
       options.noDirSkips = true
     } else if (arg === '--skip-file') {
-      try {
-        const content = readFileSync(args[++i], 'utf8')
-        for (const line of content.split('\n')) {
-          const pattern = line.trim()
-          if (pattern && !pattern.startsWith('#')) {
-            options.skipPatterns.push(pattern)
-          }
-        }
-      } catch (_err) {
-        console.error(`Warning: Could not read skip file: ${args[i]}`)
-      }
+      const file = args[++i]
+      if (existsSync(file) && statSync(file).isFile()) options.skipPatterns.push(...readPatternFile(file))
+      else console.error(`Warning: Could not read skip file: ${file}`)
     } else if (arg === '--match') {
       options.matchPatterns.push(args[++i])
     } else if (!arg.startsWith('-')) {
@@ -367,7 +345,7 @@ async function testFile(scadPath, options) {
       result.error = `OpenSCAD: ${evalError}`
       return result
     }
-    const compareText = options.echo && !isSkippedByDirPatterns(scadPath, options.echoSkips)
+    const compareText = options.echo && !matchesScopes(scadPath, options.echoSkips)
     if (openscadResult.empty && !compareText) {
       // Nothing left to grade: counted with the models that have no reference
       result.error = `OpenSCAD: ${EMPTY_TOP_LEVEL} (echo not compared)`
@@ -475,84 +453,15 @@ function collectScadFiles(dirPath, files) {
   }
 }
 
-/**
- * Auto-discover named pattern files (skip.txt or exclude.txt) within directories.
- * Each file adds its patterns scoped to the directory it lives in.
- * Patterns support * wildcards and trailing / as a directory shorthand.
- */
-function discoverDirPatterns(dirs, filename) {
-  const dirPatterns = []  // [{dir, patterns}]
-
-  function walk(dirPath) {
-    const patternFile = join(dirPath, filename)
-    if (existsSync(patternFile)) {
-      try {
-        const content = readFileSync(patternFile, 'utf8')
-        const patterns = []
-        for (const line of content.split('\n')) {
-          const pattern = line.trim()
-          if (pattern && !pattern.startsWith('#')) {
-            patterns.push(pattern)
-          }
-        }
-        if (patterns.length > 0) {
-          dirPatterns.push({ dir: resolve(dirPath), patterns })
-        }
-      } catch { /* ignore unreadable files */ }
-    }
-    for (const entry of readdirSync(dirPath, { withFileTypes: true })) {
-      if (entry.isDirectory() && !entry.name.startsWith('.')) {
-        walk(join(dirPath, entry.name))
-      }
-    }
-  }
-
-  for (const dir of dirs) {
-    const abs = resolve(dir)
-    if (existsSync(abs) && !abs.endsWith('.scad')) walk(abs)
-  }
-  return dirPatterns
-}
-
-/** Convenience wrappers */
 // skip.txt: does not render, so every sweep skips it. compare-skip.txt: renders,
 // but its reference STL cannot grade it, so only this harness skips it.
 const discoverSkipPatterns = dirs => [
-  ...discoverDirPatterns(dirs, 'skip.txt'),
-  ...discoverDirPatterns(dirs, 'compare-skip.txt'),
+  ...discoverPatternFiles(dirs, 'skip.txt'),
+  ...discoverPatternFiles(dirs, 'compare-skip.txt'),
 ]
-const discoverExcludePatterns = dirs => discoverDirPatterns(dirs, 'exclude.txt')
+const discoverExcludePatterns = dirs => discoverPatternFiles(dirs, 'exclude.txt')
 // echo-skip.txt: the geometry is graded, the echo() output is not compared.
-const discoverEchoSkipPatterns = dirs => discoverDirPatterns(dirs, 'echo-skip.txt')
-
-/**
- * Check if a file should be skipped based on directory-scoped skip patterns.
- */
-function isSkippedByDirPatterns(filePath, dirSkips) {
-  const resolvedFile = resolve(filePath)
-  for (const { dir, patterns } of dirSkips) {
-    // Only apply patterns from a skip.txt to files under that directory
-    if (!resolvedFile.startsWith(dir + '/') && resolvedFile !== dir) continue
-    const relPath = relative(dir, resolvedFile)
-    for (const p of patterns) {
-      // Leading / means "anchored to this directory": match only against relative path,
-      // and * does not cross directory boundaries (matches [^/]* not .*)
-      const anchored = p.startsWith('/')
-      const rawPattern = anchored ? p.slice(1) : p
-      // Trailing slash is a directory shorthand: "lib/" skips all files under lib/
-      const pattern = rawPattern.endsWith('/') ? rawPattern + '*' : rawPattern
-      const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&')
-      const regexStr = anchored
-        ? escaped.replace(/\*\*/g, '.*').replace(/(?<!\*)\*(?!\*)/g, '[^/]*')
-        : escaped.replace(/\*/g, '.*')
-      const regex = new RegExp('^' + regexStr + '$')
-      if (anchored ? regex.test(relPath) : (regex.test(basename(resolvedFile)) || regex.test(relPath))) {
-        return true
-      }
-    }
-  }
-  return false
-}
+const discoverEchoSkipPatterns = dirs => discoverPatternFiles(dirs, 'echo-skip.txt')
 
 function getTestFiles(dirs, matchPatterns = []) {
   const files = []
@@ -568,7 +477,7 @@ function getTestFiles(dirs, matchPatterns = []) {
   // Apply exclude.txt patterns — silently remove structural/library files before any counting
   const dirExcludes = discoverExcludePatterns(dirs)
   const included = dirExcludes.length > 0
-    ? files.filter(f => !isSkippedByDirPatterns(f, dirExcludes))
+    ? files.filter(f => !matchesScopes(f, dirExcludes))
     : files
 
   if (matchPatterns.length > 0) {
@@ -626,7 +535,7 @@ async function main() {
     const dirSkips = options.noDirSkips ? [] : discoverSkipPatterns(options.dirs)
     const cwd = process.cwd()
     for (const f of getTestFiles(options.dirs, options.matchPatterns)) {
-      if (!matchesSkipPattern(relative(cwd, f), options.skipPatterns) && !isSkippedByDirPatterns(f, dirSkips)) {
+      if (!matchesAny(relative(cwd, f), options.skipPatterns) && !matchesScopes(f, dirSkips)) {
         console.log(relative(cwd, f))
       }
     }
@@ -663,8 +572,8 @@ async function main() {
   // Filter out skipped files: explicit --skip-file patterns OR auto-discovered skip.txt patterns
   const cwd = process.cwd()
   const filesToTest = files.filter(f =>
-    !matchesSkipPattern(relative(cwd, f), options.skipPatterns) &&
-    !isSkippedByDirPatterns(f, dirSkips)
+    !matchesAny(relative(cwd, f), options.skipPatterns) &&
+    !matchesScopes(f, dirSkips)
   )
   const skipped = files.length - filesToTest.length
 

@@ -35,6 +35,7 @@
 import { writeFileSync, readFileSync, readdirSync, renameSync, existsSync, unlinkSync } from 'fs'
 import { join, basename, dirname, relative } from 'path'
 import { fileURLToPath } from 'url'
+import { discoverPatternFiles, matchesScopes } from './pattern-files.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -93,50 +94,24 @@ function loadCategories(dir) {
   return existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : null
 }
 
-function loadPatternFile(dir, name) {
-  const file = join(dir, name)
-  if (!existsSync(file)) return []
-  return readFileSync(file, 'utf8').split('\n')
-    .map(l => l.trim()).filter(l => l && !l.startsWith('#'))
-}
-
-/**
- * Build an exclusion scope for a directory from its exclude.txt (non-model
- * files/dirs) and skip.txt (problematic models). Patterns are relative to dir.
- */
-function makeScope(dir) {
-  const exclude = loadPatternFile(dir, 'exclude.txt')
-  const skip = loadPatternFile(dir, 'skip.txt')
-  return (exclude.length || skip.length) ? { baseDir: dir, exclude, skip } : null
-}
-
-// exclude.txt: trailing '/' = directory subtree, leading '/' = root-anchored,
-// '*' does not cross '/'. Always anchored to the scope baseDir.
-function matchesExclude(relPath, patterns) {
-  for (const raw of patterns) {
-    let p = raw.startsWith('/') ? raw.slice(1) : raw
-    const dirOnly = p.endsWith('/')
-    if (dirOnly) p = p.slice(0, -1)
-    const rx = new RegExp('^' + p.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '[^/]*') + (dirOnly ? '(/.*)?$' : '$'))
-    if (rx.test(relPath)) return true
+/** exclude.txt (non-model files and directories) and skip.txt (models that do not render). */
+function loadPatternScopes(examplesDir) {
+  return {
+    exclude: discoverPatternFiles(examplesDir, 'exclude.txt'),
+    skip: discoverPatternFiles(examplesDir, 'skip.txt'),
   }
-  return false
 }
 
-// skip.txt: matched against the relative path or basename (mirrors test-harness).
-function matchesSkip(relPath, patterns) {
-  const base = basename(relPath)
-  for (const raw of patterns) {
-    const rx = new RegExp('^' + raw.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$')
-    if (rx.test(relPath) || rx.test(base)) return true
-  }
-  return false
+/** `path` ends in / for a directory. */
+function isExcluded(path, scopes) {
+  // exclude.txt is read with every pattern anchored, as the demo browser reads it
+  // (apps/jscad-web/src_build/exampleExclusions.js): a bare name hides one file.
+  return matchesScopes(path, scopes.exclude, { anchored: true }) || matchesScopes(path, scopes.skip)
 }
 
 /**
  * Find all model files in a directory (non-recursive)
  * Includes .scad, .js (but not ALL.js, index.js in certain cases)
- * Excludes files listed in skip.txt
  */
 function findModelFiles(dir) {
   if (!existsSync(dir)) return []
@@ -303,19 +278,11 @@ function categoryGridItems(dir, categories, items, examplesRoot, stats) {
 /**
  * Process directory manifest-driven: generate ALL.js for any directory with models
  */
-function processDirectory(dir, examplesRoot, depth = 0, scopes = []) {
+function processDirectory(dir, examplesRoot, scopes, depth = 0) {
   if (!existsSync(dir)) {
     console.warn(`Warning: Directory not found: ${dir}`)
     return { dirs: 0, files: 0, renamed: 0, hasModels: false }
   }
-
-  // exclude.txt / skip.txt at this dir add a scope applied to its whole subtree.
-  const own = makeScope(dir)
-  if (own) scopes = [...scopes, own]
-  const excluded = (p) => scopes.some(s => {
-    const rel = relative(s.baseDir, p)
-    return matchesExclude(rel, s.exclude) || matchesSkip(rel, s.skip)
-  })
 
   const indent = '  '.repeat(depth)
   const stats = { dirs: 0, files: 0, renamed: 0, hasModels: false, gridRef: 'ALL.js' }
@@ -323,9 +290,9 @@ function processDirectory(dir, examplesRoot, depth = 0, scopes = []) {
   try {
     const entries = readdirSync(dir, { withFileTypes: true })
     const subdirs = entries
-      .filter(e => e.isDirectory() && !e.name.startsWith('.') && e.name !== 'lib' && !excluded(join(dir, e.name)))
+      .filter(e => e.isDirectory() && !e.name.startsWith('.') && e.name !== 'lib' && !isExcluded(join(dir, e.name) + '/', scopes))
       .sort((a, b) => a.name.localeCompare(b.name))
-    const modelFiles = findModelFiles(dir).filter(f => !excluded(join(dir, f)))
+    const modelFiles = findModelFiles(dir).filter(f => !isExcluded(join(dir, f), scopes))
 
     console.log(`${indent}${basename(dir)}/`)
 
@@ -333,7 +300,7 @@ function processDirectory(dir, examplesRoot, depth = 0, scopes = []) {
     const subdirResults = []
     for (const subdir of subdirs) {
       const subdirPath = join(dir, subdir.name)
-      const result = processDirectory(subdirPath, examplesRoot, depth + 1, scopes)
+      const result = processDirectory(subdirPath, examplesRoot, scopes, depth + 1)
       subdirResults.push({ name: subdir.name, path: subdirPath, ...result })
       stats.dirs += result.dirs
       stats.files += result.files
@@ -467,7 +434,7 @@ function main() {
     }
   }
 
-  const stats = processDirectory(options.examplesDir, options.examplesDir)
+  const stats = processDirectory(options.examplesDir, options.examplesDir, loadPatternScopes(options.examplesDir))
 
   console.log(`\n✓ Done!`)
   console.log(`  Generated ALL.js for ${stats.dirs} directories (${stats.files} total items)`)

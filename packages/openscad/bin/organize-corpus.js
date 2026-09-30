@@ -17,6 +17,7 @@ import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, existsSy
 import { spawnSync } from 'child_process'
 import { join, relative, dirname } from 'path'
 import { fileURLToPath } from 'url'
+import { matchesAny, readPatternFile } from './pattern-files.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -45,23 +46,11 @@ try {
 }
 
 /**
- * Find all .scad files in a directory, excluding specified patterns and skip.txt entries
+ * Find all .scad files in a directory. Manifest `exclude` entries drop any path
+ * containing them; skip patterns follow the pattern-file rules.
  */
-function findScadFiles(dir, excludePatterns = []) {
+function findScadFiles(dir, excludePatterns, skipPatterns) {
   const files = []
-
-  // Read skip.txt if it exists
-  const skipFile = join(dir, 'skip.txt')
-  const skipList = new Set()
-  if (existsSync(skipFile)) {
-    const skipContent = readFileSync(skipFile, 'utf8')
-    for (const line of skipContent.split('\n')) {
-      const trimmed = line.trim()
-      if (trimmed && !trimmed.startsWith('#')) {
-        skipList.add(trimmed)
-      }
-    }
-  }
 
   function scan(currentDir) {
     const entries = readdirSync(currentDir)
@@ -78,12 +67,7 @@ function findScadFiles(dir, excludePatterns = []) {
 
       if (stat.isDirectory()) {
         scan(fullPath)
-      } else if (entry.endsWith('.scad')) {
-        // Skip if in skip.txt
-        if (skipList.has(entry)) {
-          continue
-        }
-
+      } else if (entry.endsWith('.scad') && !matchesAny(relativePath, skipPatterns)) {
         files.push({
           path: fullPath,
           relativePath,
@@ -186,23 +170,12 @@ function processCategory(categoryName) {
     return
   }
 
-  // Find all .scad files (excluding lib/, skip.txt, and other patterns)
   const excludePatterns = sourceInfo.exclude || []
-  const files = findScadFiles(sourceDir, excludePatterns)
+  const skipPatterns = readPatternFile(join(sourceDir, 'skip.txt'))
+  const files = findScadFiles(sourceDir, excludePatterns, skipPatterns)
 
-  // Count skipped files
-  const skipFile = join(sourceDir, 'skip.txt')
-  let skippedCount = 0
-  if (existsSync(skipFile)) {
-    const skipContent = readFileSync(skipFile, 'utf8')
-    skippedCount = skipContent.split('\n').filter(line => {
-      const trimmed = line.trim()
-      return trimmed && !trimmed.startsWith('#')
-    }).length
-  }
-
-  if (skippedCount > 0) {
-    console.log(`  Found ${files.length} .scad files (expected: ${sourceInfo.fileCount}, skipped: ${skippedCount})`)
+  if (skipPatterns.length > 0) {
+    console.log(`  Found ${files.length} .scad files (expected: ${sourceInfo.fileCount}, skipped: ${skipPatterns.length})`)
   } else {
     console.log(`  Found ${files.length} .scad files (expected: ${sourceInfo.fileCount})`)
   }
