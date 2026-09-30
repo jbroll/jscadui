@@ -95,6 +95,12 @@ describe('system prompt', () => {
     expect(buildSystemPrompt(api)).toMatch(/- Look up an unfamiliar function's options and defaults with `docs` before\s+using it\./)
   })
 
+  it.each(APIS)('%s: says to save as soon as the model checks clean, and to save often', (api) => {
+    const prompt = buildSystemPrompt(api)
+    expect(prompt).toMatch(/- Save with `writeModel` as soon as the model builds and checks clean,\s+then refine, and save again after each fix; saving often is expected\./)
+    expect(prompt).not.toMatch(/once the model measures right/)
+  })
+
   it.each(APIS)('%s: fills every slot of the shared prose', (api) => {
     expect(buildSystemPrompt(api)).not.toMatch(/\{\{\w+\}\}/)
   })

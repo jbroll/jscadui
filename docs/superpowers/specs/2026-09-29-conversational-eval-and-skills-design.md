@@ -327,19 +327,12 @@ question 7.
 
 ### verify-before-done
 
-Mostly there already: the Tool policy says to verify with `measure` and
-`check` before claiming a result and to save once the model measures right,
-and `eval`, `measure` and `check` results carry `notSaved`. It stays in the
-base prompt; it is short and applies to every request, so it is not a
-procedure.
-
-The gap is the one the DeepSeek runs show: a clean, unsaved model gets refined
-until the cap. Following the chat-review rule of fixing the tool side first,
-the addition is a stronger notice: when `check` reports a watertight model and
-the geometry is not saved, the result says
-`"this model checks clean and is not saved; call writeModel now, then refine"`.
-Measured by the `saved: false` rate on `phone-stand`, `shelf-bracket` and
-`enclosure`.
+Done on the chat-review-4 branch: the Tool policy says to save as soon as
+the model builds and checks clean and to save again after each fix, and
+`notSaved` counts the evals since the last save and, on a clean `check`, says
+`"checks clean and not saved (…): save it now with writeModel, then refine"`
+(`packages/agent-loop/src/saveState.js`). Measured by the `saved: false` rate
+on `phone-stand`, `shelf-bracket` and `enclosure`.
 
 ## Part 4: rollout
 

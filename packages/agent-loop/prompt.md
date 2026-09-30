@@ -53,4 +53,5 @@ params.radius = { type: 'slider', default: 5, min: 1, max: 20, step: 0.5 }
   output. Do not throw errors to inspect values.
 - A tool failure is a JSON result, not a dead end: read `error.message` and
   try again with corrected input.
-- Save with `writeModel` once the model measures right; refine after that.
+- Save with `writeModel` as soon as the model builds and checks clean,
+  then refine, and save again after each fix; saving often is expected.
