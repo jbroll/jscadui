@@ -200,3 +200,6 @@ packages/agent-loop/eval/results/
 .claude/worktrees/
 .worktrees/
 worktrees/
+
+# Marks a checkout the jscad-chat launcher keeps on a remote branch
+/.jscad-track

@@ -88,7 +88,22 @@ Tests: `npx vitest run test/aiChat.test.js` for the chat turn, `npx playwright t
 
 From any model folder: `npm run jscad-chat -- [dir|file] [--port N] [--build|--no-build] [--no-open]` (root) or `node scripts/jscad.mjs` from `apps/jscad-web`. Serves the app on `:7377`, the frame on `:7378`, your folder at `/models/`, and a same-origin `/api/relay` so AI Chat works with your own key. `RELAY_ALLOWLIST` overrides the default allowlist (anthropic, openai, opencode-go, meta).
 
-The bundles are built once into `build_local/` and reused while the ports match, so after pulling app or frame changes pass `--build` to rebuild them.
+The bundles are built into `build_local/` and reused while the ports and the checkout's source match. A new commit, a checkout or an uncommitted edit rebuilds them on the next launch. `--build` forces a rebuild.
+
+To keep a `jscad-chat` on your PATH that runs the latest `origin/main`, give it its own checkout and mark it:
+
+```sh
+git -C ~/src/jscadui worktree add --detach ~/src/jscad-chat-local origin/main
+cd ~/src/jscad-chat-local
+echo origin/main > .jscad-track
+npm run fetch-sources
+npm ci
+npm run generate-all
+npm run build -w @jscadui/openscad
+(cd apps/jscad-web && npm link)
+```
+
+Each launch then fetches `origin/main`, moves the checkout to it, refreshes dependencies and generated files, and rebuilds the bundles when anything changed. Offline, or with uncommitted changes in that checkout, it says so and launches what it has.
 
 The launcher's relay logs each chat request to `YYYY-MM-DD.jsonl` (UTC date): time, chat id, provider, path, status, the request body without its tool list, the response and the elapsed time. Headers, and so API keys, are never written. The log dir is `<jscad-chat-evals clone>/logs` when that repo is cloned at `~/src/jscad-chat-evals` (or `$JSCAD_CHAT_DATA`), else `~/.local/state/jscad-chat/logs` (`$XDG_STATE_HOME` when set). `JSCAD_CHAT_LOG=<dir>` moves the log regardless, `JSCAD_CHAT_LOG=0` turns it off. `npm run read-log -w @jscadui/agent-loop` prints the logged conversations.
 

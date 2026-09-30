@@ -1027,6 +1027,28 @@ No storage access crosses into the frame: no session, no directory handle, no
 repository token. A project's file contents do cross, because a model's
 `require` of a sibling has to resolve inside the frame.
 
+## Local launcher
+
+`scripts/jscad.mjs` builds into `build_local/` with the frame origins baked in
+for the ports it serves (`scripts/local/build.js`). The marker
+`build_local/.jscad-local.json` records those origins and a source stamp: the
+git HEAD, plus a hash of `git diff HEAD` and the untracked file names when the
+tree is dirty. The launcher reuses the build only when all three match, so a
+checkout, pull or edit rebuilds on the next launch. Outside git the stamp is
+null and only the ports count.
+
+A checkout with a `.jscad-track` file at its root (`origin/main`) follows that
+branch (`scripts/local/track.js`). Before anything else the launcher fetches
+it, and when HEAD is behind the tip and no tracked file is modified,
+fast-forwards to the tip detached and refreshes what `scripts/setup-worktree.sh` would: `fetch-sources`,
+`npm ci` when a `package.json` or the lockfile changed, `fetch-deps
+--if-missing`, the `ALL.js` grids, `sync-examples` and the `@jscadui/openscad`
+build. The moved checkout's own `jscad.mjs` then runs in a new process, with
+`JSCAD_TRACKED=1` so it does not track again, because the running one loaded
+the old code. A failed fetch, a dirty tree, or a HEAD with commits the tip
+lacks prints why and launches the current HEAD, so a checkout seeded from an
+unmerged branch waits until the branch lands. A checkout without the file is never moved.
+
 ## Deployment
 
 Two hosts, both required — an app with no frame has no engine, so the run

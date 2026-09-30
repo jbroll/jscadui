@@ -1,6 +1,7 @@
 node_modules
 build
 build_dev
+build_local
 /jscad
 /deploy/*
 !/deploy/hooks/

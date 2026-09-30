@@ -3,6 +3,7 @@
 //   jscad [dir|file] [--port N] [--build|--no-build] [--no-open]
 // Serves the app on :7377, the compute frame on :7378, the model dir at
 // /models/, and a same-origin /api/relay so AI Chat works with your own key.
+import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { stat } from 'node:fs/promises'
 import { basename, dirname, join, resolve } from 'node:path'
@@ -15,10 +16,24 @@ import { createRelayHandler, defaultAllowlist, loadAllowlist } from './local/rel
 import { startLocal } from './local/server.js'
 import { chatLogDir } from '@jscadui/agent-loop/log/log-dir.js'
 import { createChatLog } from './local/chatLog.js'
+import { trackUpstream } from './local/track.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
-const webDir = process.env.JSCADUI_WEB_DIR ?? resolve(here, '..')
 const args = process.argv.slice(2)
+
+if (!process.env.JSCAD_TRACKED) {
+  let tracked
+  try {
+    tracked = trackUpstream({ root: resolve(here, '../../..') })
+  } catch (e) { console.error(e.message); process.exit(1) }
+  // This process loaded the old code; run the checked-out version instead.
+  if (tracked.moved) {
+    const r = spawnSync(process.execPath, [fileURLToPath(import.meta.url), ...args], { stdio: 'inherit', env: { ...process.env, JSCAD_TRACKED: '1' } })
+    process.exit(r.status ?? 1)
+  }
+}
+
+const webDir = process.env.JSCADUI_WEB_DIR ?? resolve(here, '..')
 const portFlag = args.indexOf('--port')
 const port = portFlag === -1 ? Number(process.env.JSCAD_PORT) || 7377 : Number(args[portFlag + 1])
 const flagValues = portFlag === -1 ? [] : [args[portFlag + 1]]
