@@ -12,13 +12,32 @@ export interface RunTurnOptions {
   /** Returns a promise the caller resolves when the browser answers the tool call. */
   requestTool(name: string, input: unknown): Promise<string>
   onText?(text: string): void
+  /** Where the turn is; the same phases as agent-loop's runTurn, which also reports reasoning. */
+  onStatus?(status: TurnStatus): void
   signal?: AbortSignal
   toolTimeoutMs?: number
   /** The modeling API the chat teaches; picks the docs tool description. */
   api?: Api
 }
 
+export type TurnStatus =
+  | { phase: 'thinking' }
+  | { phase: 'text' }
+  | { phase: 'tool'; tool: string; detail?: string }
+  | { phase: 'retry'; attempt: number; maxAttempts: number }
+  | { phase: 'done' }
+
 const DEFAULT_TOOL_TIMEOUT_MS = 120_000
+
+const STATUS_DETAIL_CHARS = 40
+
+// The argument that tells one call of a tool from another, for a status line.
+function toolDetail(input: unknown): string | undefined {
+  const args = (input ?? {}) as Record<string, unknown>
+  const value = [args.path, args.query, args.format].find((v): v is string => typeof v === 'string' && v !== '')
+  if (value === undefined) return undefined
+  return value.length > STATUS_DETAIL_CHARS ? `${value.slice(0, STATUS_DETAIL_CHARS - 1)}…` : value
+}
 
 export class ToolTimeoutError extends Error {
   constructor(callId: string, name: string, timeoutMs: number) {
@@ -136,6 +155,15 @@ export function runTurn(options: RunTurnOptions): Promise<Conversation> {
   const toolTimeoutMs = options.toolTimeoutMs ?? DEFAULT_TOOL_TIMEOUT_MS
   const tools = buildTools(options.api ?? DEFAULT_API)
   const messages: ProviderMessage[] = [...conversation.messages]
+  let phase: TurnStatus['phase'] | undefined
+  const report = (status: TurnStatus) => {
+    phase = status.phase
+    try {
+      options.onStatus?.(status)
+    } catch {
+      // A status display that throws must not end the turn.
+    }
+  }
 
   return new Promise<Conversation>((resolve, reject) => {
     if (signal?.aborted) {
@@ -158,14 +186,18 @@ export function runTurn(options: RunTurnOptions): Promise<Conversation> {
           const toolCalls: ToolCall[] = []
           const badCalls = new Map<ToolCall, { name: string; badArguments?: string; finishReason?: string | null }>()
           let stopReason: string | undefined
+          report({ phase: 'thinking' })
           iterator = provider.send(messages, tools)[Symbol.asyncIterator]()
           try {
             for (;;) {
               const { done, value } = await nextOrAbort(iterator, signal)
               if (done) break
               if (value.type === 'text') {
+                if (phase !== 'text') report({ phase: 'text' })
                 text.push(value.text)
                 onText?.(value.text)
+              } else if (value.type === 'retry') {
+                report({ phase: 'retry', attempt: value.attempt + 1, maxAttempts: value.maxAttempts })
               } else if (value.type === 'tool_use') {
                 const call = { id: value.id, name: value.name, input: value.input }
                 if (value.badArguments !== undefined) badCalls.set(call, value)
@@ -190,6 +222,10 @@ export function runTurn(options: RunTurnOptions): Promise<Conversation> {
           if (toolCalls.length === 0) break
           for (const call of toolCalls) {
             const bad = badCalls.get(call)
+            if (!bad) {
+              const detail = toolDetail(call.input)
+              report({ phase: 'tool', tool: call.name, ...(detail === undefined ? {} : { detail }) })
+            }
             const content = bad
               ? argumentsError(bad, stopReason)
               : await withTimeout(
@@ -201,9 +237,11 @@ export function runTurn(options: RunTurnOptions): Promise<Conversation> {
             messages.push({ role: 'tool', toolCallId: call.id, content })
           }
         }
+        report({ phase: 'done' })
         resolve({ messages })
       } catch (err) {
         if (err !== null && typeof err === 'object') (err as { messages?: ProviderMessage[] }).messages ??= messages
+        report({ phase: 'done' })
         reject(err)
       } finally {
         signal?.removeEventListener('abort', cancel)

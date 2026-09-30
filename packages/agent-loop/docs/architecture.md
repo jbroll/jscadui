@@ -46,11 +46,21 @@ yields a `{type: 'retry', attempt, maxAttempts, status, reason, delayMs}` event
 (for a cut stream `status` is `null` and `reason` is
 `stream terminated before content (<cause>)`)
 into the provider's stream, the same way a `usage` event rides alongside
-`text`/`tool_use`/`done`; `runTurn` (`loop.js`) ignores event types it doesn't
-know, so the app sees nothing beyond the eventual success or the final error.
-The eval's `withTurnCap` (`eval/run-eval.js`) counts these into
+`text`/`tool_use`/`done`. A retry is yielded when it happens, before its
+backoff sleep, not after the retried request answers. `runTurn` (`loop.js`)
+reports it through `onStatus` as `{phase: 'retry', attempt, maxAttempts}`,
+`attempt` being the one about to start, and ignores event types it doesn't
+know. The eval's `withTurnCap` (`eval/run-eval.js`) counts these into
 `metrics.providerRetries` and logs one live-log line per retry
 ([user-manual.md](user-manual.md#metrics)).
+
+The parsers also yield `{type: 'reasoning', text}` for reasoning the provider
+streams: Anthropic's `thinking_delta`, a chat-completions delta's
+`reasoning_content` or `reasoning`, and the Responses API's
+`response.reasoning_summary_text.delta` and `response.reasoning_text.delta`.
+It is no content: it neither blocks a stream retry nor counts as a reply.
+`runTurn` adds up its characters for `onStatus`; token counts come only in the
+`usage` event at the end of a stream.
 
 ## Tool protocol
 

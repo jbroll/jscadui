@@ -22,6 +22,27 @@ const el = (tag, className, text) => {
   return node
 }
 
+const STOPPED_NOTE = '[stopped by the user]'
+
+// A stopped reply may be empty, and providers refuse an empty assistant message.
+const forModel = (m) => (m.stopped ? { role: 'assistant', content: m.content ? `${m.content}\n\n${STOPPED_NOTE}` : STOPPED_NOTE } : m)
+
+const phaseLabel = (status) => {
+  switch (status.phase) {
+    case 'text':
+      return 'Writing…'
+    case 'tool':
+      return `${status.tool}${status.detail ? ` ${status.detail}` : ''}…`
+    case 'retry':
+      return `Provider busy, retrying (${status.attempt}/${status.maxAttempts})…`
+    default:
+      return 'Thinking…'
+  }
+}
+
+// Providers stream reasoning text, not its token count; about four characters make a token.
+const CHARS_PER_TOKEN = 4
+
 /**
  * `getBuild` answers the open project's last build report, whichever run made
  * it; `endTurn` runs once after every turn, when its writes are final.
@@ -37,9 +58,20 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
   input.autocomplete = 'off'
   const send = el('button', 'chat-send', 'Send')
   form.append(input, send)
-  container.append(header, messagesEl, form)
+  // Only the phase is live: screen readers hear each change, not each second.
+  const statusEl = el('div', 'chat-status')
+  const statusPhase = el('span', 'chat-status-phase')
+  statusPhase.setAttribute('aria-live', 'polite')
+  const statusTime = el('span', 'chat-status-time')
+  statusTime.setAttribute('aria-hidden', 'true')
+  statusEl.append(statusPhase, statusTime)
+  container.append(header, messagesEl, statusEl, form)
 
   let running = false
+  let aborter = null
+  let status = null
+  let startedAt = 0
+  let ticker = null
   let assistantEl = null
   let transcript = []
   const pid = () => (typeof projectId === 'function' ? projectId() : projectId)
@@ -90,7 +122,11 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
     storage.readConversation(pid()).then((resumed) => {
       if (!resumed) return
       transcript = resumed.messages.filter((m) => m.role === 'user' || m.role === 'assistant')
-      for (const m of transcript) addMessage(m.content, m.role === 'user' ? 'user' : 'assistant')
+      for (const m of transcript) {
+        if (m.role === 'user') addMessage(m.content, 'user')
+        else if (m.content) addMessage(m.content, 'assistant')
+        if (m.stopped) addStopped()
+      }
     }).catch((err) => console.warn('chat resume failed:', err))
   }
 
@@ -99,6 +135,28 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
     messagesEl.append(node)
     messagesEl.scrollTop = messagesEl.scrollHeight
     return node
+  }
+
+  const addStopped = () => addMessage('Stopped', 'stopped')
+
+  const renderStatus = () => {
+    if (!status) {
+      statusEl.classList.remove('active')
+      statusPhase.textContent = ''
+      statusTime.textContent = ''
+      return
+    }
+    const label = phaseLabel(status)
+    if (statusPhase.textContent !== label) statusPhase.textContent = label
+    const seconds = Math.floor((Date.now() - startedAt) / 1000)
+    const tokens = status.phase === 'thinking' && status.reasoningChars ? `~${Math.round(status.reasoningChars / CHARS_PER_TOKEN)} tokens · ` : ''
+    statusTime.textContent = `${tokens}${seconds}s`
+    statusEl.classList.add('active')
+  }
+
+  const setStatus = (next) => {
+    status = next?.phase === 'done' ? null : next
+    renderStatus()
   }
 
   const addToolLine = (name, inputJson) => {
@@ -112,11 +170,28 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
     return resultEl
   }
 
+  // A running turn's button stops it. As type=button it is no default button,
+  // so Enter in the input submits the form, which a running turn ignores.
   const setRunning = (value) => {
     running = value
-    input.disabled = value
-    send.disabled = value
+    send.type = value ? 'button' : 'submit'
+    send.textContent = value ? 'Stop' : 'Send'
+    send.setAttribute('aria-label', value ? 'Stop the reply' : 'Send the message')
+    send.classList.toggle('running', value)
+    clearInterval(ticker)
+    if (value) {
+      startedAt = Date.now()
+      ticker = setInterval(renderStatus, 1000)
+      setStatus({ phase: 'thinking' })
+    } else {
+      setStatus(null)
+    }
   }
+  setRunning(false)
+
+  send.addEventListener('click', () => {
+    if (running) aborter?.abort()
+  })
 
   // Renders the tool line, then hands the result back to the loop as JSON.
   // Never throws: a rejection becomes an {ok:false} result so the turn
@@ -147,7 +222,10 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
     transcript = [...transcript, { role: 'user', content: message }]
     persistTranscript()
     assistantEl = null
-    const aborter = new AbortController()
+    aborter = new AbortController()
+    const { signal } = aborter
+    let assistantText = ''
+    let stopped = false
     try {
       const provider = createProvider({
         ...selection,
@@ -159,9 +237,8 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
       const files = await projectFiles()
       const build = await lastBuild()
       const api = getApi()
-      let assistantText = ''
       await runTurnFn({
-        conversation: { messages: buildMessages({ systemPrompt: buildSystemPrompt(api), transcript: prior, files, build, message }) },
+        conversation: { messages: buildMessages({ systemPrompt: buildSystemPrompt(api), transcript: prior.map(forModel), files, build, message }) },
         provider,
         api,
         requestTool: handleTool,
@@ -171,17 +248,25 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
           assistantEl.textContent += text
           messagesEl.scrollTop = messagesEl.scrollHeight
         },
-        signal: aborter.signal,
+        onStatus: setStatus,
+        signal,
       })
       if (assistantText) {
         transcript = [...transcript, { role: 'assistant', content: assistantText }]
         persistTranscript()
       }
     } catch (err) {
-      addMessage(err.message, 'error')
+      if (signal.aborted) stopped = true
+      else addMessage(err.message, 'error')
     } finally {
+      if (stopped) {
+        addStopped()
+        transcript = [...transcript, { role: 'assistant', content: assistantText, stopped: true }]
+        persistTranscript()
+      }
       await finishTurn()
       assistantEl = null
+      aborter = null
       setRunning(false)
     }
   }

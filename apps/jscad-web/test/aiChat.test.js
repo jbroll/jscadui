@@ -83,6 +83,152 @@ describe('browser chat turn', () => {
     expect(tool.compareDocumentPosition(assistants[1]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 })
+const abortError = () => Object.assign(new Error('turn aborted'), { name: 'AbortError' })
+
+// A turn that waits until the test releases it or the chat aborts it.
+const heldTurn = () => {
+  let release
+  let args
+  const runTurnFn = vi.fn((options) => {
+    args = options
+    return new Promise((resolve, reject) => {
+      release = () => resolve({ messages: [] })
+      options.signal.addEventListener('abort', () => reject(abortError()), { once: true })
+    })
+  })
+  return { runTurnFn, release: () => release(), args: () => args }
+}
+
+const openChat = (options = {}) => {
+  document.body.innerHTML = '<div id="chat"></div>'
+  const container = document.getElementById('chat')
+  initChat({
+    container,
+    requestTool: async () => '{}',
+    getProvider: () => ({ kind: 'openai', model: 'm', apiKey: 'k', baseUrl: 'https://relay.test' }),
+    ...options,
+  })
+  const q = (selector) => container.querySelector(selector)
+  const type = (text) => {
+    q('.chat-input').value = text
+    q('.chat-form').dispatchEvent(new Event('submit', { cancelable: true }))
+  }
+  return { container, q, type }
+}
+
+describe('running turn', () => {
+  it('turns Send into Stop while a turn runs and back when it ends', async () => {
+    const turn = heldTurn()
+    const { q, type } = openChat({ runTurnFn: turn.runTurnFn })
+    const send = q('.chat-send')
+    expect([send.textContent, send.getAttribute('aria-label'), send.type]).toEqual(['Send', 'Send the message', 'submit'])
+    type('a cube')
+    expect([send.textContent, send.getAttribute('aria-label'), send.type]).toEqual(['Stop', 'Stop the reply', 'button'])
+    expect(send.classList.contains('running')).toBe(true)
+    await vi.waitFor(() => expect(turn.runTurnFn).toHaveBeenCalledTimes(1))
+    turn.release()
+    await vi.waitFor(() => expect(send.textContent).toBe('Send'))
+    expect([send.getAttribute('aria-label'), send.type, send.classList.contains('running')]).toEqual(['Send the message', 'submit', false])
+  })
+
+  it('keeps the input editable while a turn runs, and Enter does not send until it ends', async () => {
+    const turn = heldTurn()
+    const { q, type } = openChat({ runTurnFn: turn.runTurnFn })
+    type('first')
+    await vi.waitFor(() => expect(turn.runTurnFn).toHaveBeenCalledTimes(1))
+    expect(q('.chat-input').disabled).toBe(false)
+    type('second')
+    expect(q('.chat-input').value).toBe('second')
+    expect(turn.runTurnFn).toHaveBeenCalledTimes(1)
+    turn.release()
+    await vi.waitFor(() => expect(q('.chat-send').textContent).toBe('Send'))
+    q('.chat-form').dispatchEvent(new Event('submit', { cancelable: true }))
+    await vi.waitFor(() => expect(turn.runTurnFn).toHaveBeenCalledTimes(2))
+    expect(turn.runTurnFn.mock.calls[1][0].conversation.messages.at(-1)).toEqual({ role: 'user', content: 'second' })
+  })
+
+  it('Stop aborts the turn, keeps the partial reply marked stopped, persists it and still ends the turn', async () => {
+    const turn = heldTurn()
+    const endTurn = vi.fn(async () => {})
+    const storage = { readConversation: async () => null, writeConversation: vi.fn(async () => {}) }
+    const { q, type } = openChat({ runTurnFn: turn.runTurnFn, endTurn, storage, projectId: 'p1' })
+    type('a cube')
+    await vi.waitFor(() => expect(turn.runTurnFn).toHaveBeenCalledTimes(1))
+    turn.args().onText('Writing the cu')
+    q('.chat-send').click()
+    await vi.waitFor(() => expect(q('.chat-send').textContent).toBe('Send'))
+    expect(turn.args().signal.aborted).toBe(true)
+    expect(q('.chat-msg.assistant').textContent).toBe('Writing the cu')
+    expect(q('.chat-msg.stopped').textContent).toBe('Stopped')
+    expect(q('.chat-msg.error')).toBeNull()
+    expect(endTurn).toHaveBeenCalledTimes(1)
+    expect(storage.writeConversation.mock.calls.at(-1)[1]).toEqual([
+      { role: 'user', content: 'a cube' },
+      { role: 'assistant', content: 'Writing the cu', stopped: true },
+    ])
+  })
+
+  it('tells the model a stopped reply was stopped, and shows it stopped on resume', async () => {
+    const stored = [{ role: 'user', content: 'a cube' }, { role: 'assistant', content: '', stopped: true }]
+    const runTurnFn = vi.fn(async () => ({ messages: [] }))
+    const storage = { readConversation: async () => ({ messages: stored, updated: 1 }), writeConversation: vi.fn(async () => {}) }
+    const { q, type } = openChat({ runTurnFn, storage, projectId: 'p1' })
+    await vi.waitFor(() => expect(q('.chat-msg.stopped')?.textContent).toBe('Stopped'))
+    expect(q('.chat-msg.assistant')).toBeNull()
+    type('go on')
+    await vi.waitFor(() => expect(runTurnFn).toHaveBeenCalledTimes(1))
+    expect(runTurnFn.mock.calls[0][0].conversation.messages.slice(1, 3)).toEqual([
+      { role: 'user', content: 'a cube' },
+      { role: 'assistant', content: '[stopped by the user]' },
+    ])
+  })
+
+  it('shows the phase of the turn above the input and hides it when the turn ends', async () => {
+    const turn = heldTurn()
+    const { q, type } = openChat({ runTurnFn: turn.runTurnFn })
+    const status = q('.chat-status')
+    const phase = q('.chat-status-phase')
+    expect(phase.getAttribute('aria-live')).toBe('polite')
+    expect(q('.chat-status-time').getAttribute('aria-hidden')).toBe('true')
+    expect(status.nextElementSibling).toBe(q('.chat-form'))
+    type('a cube')
+    expect(status.classList.contains('active')).toBe(true)
+    expect(phase.textContent).toBe('Thinking…')
+    await vi.waitFor(() => expect(turn.runTurnFn).toHaveBeenCalledTimes(1))
+    const { onStatus } = turn.args()
+    onStatus({ phase: 'thinking', reasoningChars: 400 })
+    expect(phase.textContent).toBe('Thinking…')
+    expect(q('.chat-status-time').textContent).toMatch(/^~100 tokens · \d+s$/)
+    onStatus({ phase: 'text' })
+    expect(phase.textContent).toBe('Writing…')
+    expect(q('.chat-status-time').textContent).toMatch(/^\d+s$/)
+    onStatus({ phase: 'tool', tool: 'write', detail: 'main.js' })
+    expect(phase.textContent).toBe('write main.js…')
+    onStatus({ phase: 'tool', tool: 'measure' })
+    expect(phase.textContent).toBe('measure…')
+    onStatus({ phase: 'retry', attempt: 2, maxAttempts: 4 })
+    expect(phase.textContent).toBe('Provider busy, retrying (2/4)…')
+    turn.release()
+    await vi.waitFor(() => expect(status.classList.contains('active')).toBe(false))
+    expect(phase.textContent).toBe('')
+    expect(q('.chat-status-time').textContent).toBe('')
+  })
+
+  it('counts the seconds of the turn about once a second', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
+    try {
+      const turn = heldTurn()
+      const { q, type } = openChat({ runTurnFn: turn.runTurnFn })
+      type('a cube')
+      expect(q('.chat-status-time').textContent).toBe('0s')
+      vi.advanceTimersByTime(2100)
+      expect(q('.chat-status-time').textContent).toBe('2s')
+      expect(q('.chat-status-phase').textContent).toBe('Thinking…')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
 describe('stored conversation', () => {
   it('loads a stored conversation and persists the turn', async () => {
     document.body.innerHTML = '<div id="chat"></div>'
@@ -130,7 +276,7 @@ describe('opencode session', () => {
       container.querySelector('.chat-input').value = text
       container.querySelector('.chat-form').dispatchEvent(new Event('submit', { cancelable: true }))
       await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(turns))
-      await vi.waitFor(() => expect(container.querySelector('.chat-input').disabled).toBe(false))
+      await vi.waitFor(() => expect(container.querySelector('.chat-send').textContent).toBe('Send'))
     }
     await submit('one', 1)
     await submit('two', 2)
@@ -192,7 +338,7 @@ describe('conversation context', () => {
     container.querySelector('.chat-input').value = text
     container.querySelector('.chat-form').dispatchEvent(new Event('submit', { cancelable: true }))
     await vi.waitFor(() => expect(runTurnFn).toHaveBeenCalledTimes(calls))
-    await vi.waitFor(() => expect(container.querySelector('.chat-input').disabled).toBe(false))
+    await vi.waitFor(() => expect(container.querySelector('.chat-send').textContent).toBe('Send'))
   }
 
   it('sends prior turns and the project files ahead of the new message', async () => {

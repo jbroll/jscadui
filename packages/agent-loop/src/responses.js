@@ -40,6 +40,8 @@ export async function* parseResponsesStream(body) {
     }
     if (event.type === 'response.output_text.delta' && typeof event.delta === 'string') {
       yield { type: 'text', text: event.delta }
+    } else if ((event.type === 'response.reasoning_summary_text.delta' || event.type === 'response.reasoning_text.delta') && typeof event.delta === 'string' && event.delta !== '') {
+      yield { type: 'reasoning', text: event.delta }
     } else if (event.type === 'response.output_item.added' && event.item?.type === 'function_call') {
       calls.set(event.item.id, { id: event.item.call_id ?? event.item.id, name: event.item.name ?? '', args: '' })
     } else if (event.type === 'response.function_call_arguments.delta') {

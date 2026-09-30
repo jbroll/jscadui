@@ -1,6 +1,6 @@
 // packages/agent-loop/test/providers.test.js
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createProvider, fetchWithRetry, parseAnthropicStream, parseOpenAIStream } from '../src/providers.js'
+import { createProvider, fetchWithRetry, parseAnthropicStream, parseOpenAIStream, streamWithRetry } from '../src/providers.js'
 import { parseResponsesStream } from '../src/responses.js'
 import { buildMessages } from '../src/context.js'
 
@@ -345,6 +345,15 @@ describe('providers: retry wiring', () => {
     }
   })
 
+  it('yields a retry event while its backoff is still running, not after the retried request', async () => {
+    const limited = new Response(JSON.stringify({ error: { code: 'rate_limit_exceeded' } }), { status: 429 })
+    const fetchImpl = vi.fn().mockResolvedValueOnce(limited)
+    const iterator = streamWithRetry('openai', 'https://relay.test', {}, parseOpenAIStream, { fetchImpl, sleep: () => new Promise(() => {}) })
+    const { value } = await iterator.next()
+    expect(value).toEqual(expect.objectContaining({ type: 'retry', attempt: 1, maxAttempts: 4, status: 429 }))
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+  })
+
   it('does not retry a 401 through the provider (no retry event, one fetch)', async () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ error: { code: 'invalid_api_key', message: 'bad key' } }), { status: 401 }))
     const provider = createProvider({ kind: 'openai', apiKey: 'k', model: 'm', baseUrl: 'https://relay.test' })
@@ -518,6 +527,42 @@ describe('stream parsers', () => {
     expect(await collect(parseResponsesStream(sseBody(body)))).toEqual([
       { type: 'text', text: 'Hi' },
       { type: 'tool_use', id: 'call_1', name: 'measure', input: { target: 'p' } },
+      { type: 'done', stopReason: 'completed' },
+    ])
+  })
+
+  it('yields streamed reasoning as reasoning events, apart from the reply text', async () => {
+    const anthropic =
+      `data: {"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":""}}\n\n` +
+      `data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"hmm"}}\n\n` +
+      `data: {"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"abc"}}\n\n` +
+      `data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Hi"}}\n\n` +
+      `data: {"type":"message_delta","delta":{"stop_reason":"end_turn"}}\n\n`
+    const openai =
+      `data: {"choices":[{"delta":{"reasoning_content":"hmm"}}]}\n\n` +
+      `data: {"choices":[{"delta":{"reasoning":"ok"}}]}\n\n` +
+      `data: {"choices":[{"delta":{"content":"Hi","reasoning_content":""}}]}\n\n` +
+      `data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n`
+    const responses =
+      `data: {"type":"response.reasoning_summary_text.delta","delta":"hmm"}\n\n` +
+      `data: {"type":"response.reasoning_text.delta","delta":"ok"}\n\n` +
+      `data: {"type":"response.output_text.delta","delta":"Hi"}\n\n` +
+      `data: {"type":"response.completed"}\n\n`
+    expect(await collect(parseAnthropicStream(sseBody(anthropic)))).toEqual([
+      { type: 'reasoning', text: 'hmm' },
+      { type: 'text', text: 'Hi' },
+      { type: 'done', stopReason: 'end_turn' },
+    ])
+    expect(await collect(parseOpenAIStream(sseBody(openai)))).toEqual([
+      { type: 'reasoning', text: 'hmm' },
+      { type: 'reasoning', text: 'ok' },
+      { type: 'text', text: 'Hi' },
+      { type: 'done', stopReason: 'stop' },
+    ])
+    expect(await collect(parseResponsesStream(sseBody(responses)))).toEqual([
+      { type: 'reasoning', text: 'hmm' },
+      { type: 'reasoning', text: 'ok' },
+      { type: 'text', text: 'Hi' },
       { type: 'done', stopReason: 'completed' },
     ])
   })

@@ -108,15 +108,29 @@ export async function* streamWithRetry(
 ): AsyncGenerator<ProviderEvent> {
   let attempt = 1
   for (;;) {
+    // Each retry is yielded as it happens, during its backoff, so a caller can show it.
     const retries: RetryInfo[] = []
-    const res = await fetchWithRetry(fetch, url, init, {
-      onRetry: (event) => retries.push(event),
+    let wake = () => {}
+    const response = fetchWithRetry(fetch, url, init, {
+      onRetry: (event) => {
+        retries.push(event)
+        wake()
+      },
       sleep,
       maxAttempts,
       firstAttempt: attempt,
-    })
-    attempt += retries.length
-    for (const event of retries) yield { type: 'retry', ...event }
+    }).then((value) => ({ value }))
+    let res: Awaited<ReturnType<typeof fetchWithRetry>> | undefined
+    while (!res) {
+      const woken = new Promise<undefined>((resolve) => {
+        wake = () => resolve(undefined)
+      })
+      if (retries.length === 0) res = (await Promise.race([response, woken]))?.value
+      while (retries.length > 0) {
+        attempt += 1
+        yield { type: 'retry', ...retries.shift()! }
+      }
+    }
     if (!(res instanceof Response)) throw new Error(`${label}: ${res.text} (status ${res.status})`)
     let replied = false
     try {

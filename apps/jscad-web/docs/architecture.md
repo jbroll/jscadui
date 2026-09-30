@@ -713,6 +713,40 @@ from `src/aiEffort.js`: Anthropic's list carries per-model effort support, the
 other kinds get their documented level set, and Meta Muse models drop `none`,
 which Meta answers with a 400.
 
+### Chat UI states
+
+While a turn runs, `initChat` (`src/aiChat.js`) turns the Send button into
+Stop: its label, its `aria-label` (`Stop the reply`), the `running` class
+with a pulse that `prefers-reduced-motion` turns off, and `type="button"`, so
+it is no longer the form's default button. A status line above the input
+shows the phase `runTurn` reports through `onStatus` and the seconds since the
+turn began, redrawn once a second:
+
+| Phase | Status line |
+|---|---|
+| `thinking` | `Thinking…`, plus `~N tokens` when the provider streams its reasoning (characters / 4) |
+| `text` | `Writing…` |
+| `tool` | the tool and its path, query or format: `write main.js…`, `docs params…`, `measure…` |
+| `retry` | `Provider busy, retrying (2/4)…` |
+
+Only the phase text is `aria-live="polite"`. The seconds and the token count
+sit in an `aria-hidden` span, so a screen reader hears each phase change and
+not each tick. The line empties when the turn ends.
+
+The input stays editable during a turn. Enter submits the form, which a
+running turn ignores, so the next message waits in the input.
+
+Stop aborts the turn's `AbortController`, and `runTurn` rejects with
+`AbortError` at once, whether it was waiting on the provider or on a tool. The
+chat keeps the streamed text, adds a `Stopped` marker, and stores the reply as
+`{ role: 'assistant', content, stopped: true }`, so a resumed conversation
+shows the marker too. The next turn sends it to the model as its text followed
+by `[stopped by the user]`, or the note alone when nothing was said, since
+providers refuse an empty assistant message. `endTurn` still runs, so the
+writes the turn made get their version. A tool call already running is not
+cancelled: its line fills in when it answers, and a write it stores after the
+snapshot is versioned with the next turn.
+
 ### API style
 
 The chat teaches one modeling API: `fluent` (`@jbroll/jscad-fluent`, the
@@ -731,7 +765,9 @@ equivalent or says it is not available. The studio server's chat route takes
 a 400) and sends the same per-style tool list (`server/src/agent/tools.ts`,
 kept equal to agent-loop's by a test). Its loop (`server/src/agent/loop.ts`)
 hands every tool call to the browser by name and feeds back the answer, so
-it serves the file tools without knowing them. Its providers
+it serves the file tools without knowing them. It reports the same `onStatus`
+phases as agent-loop's, without the reasoning count, since its providers do
+not parse reasoning, and the route streams each as a `status` SSE event. Its providers
 (`server/src/providers/`) are a TypeScript port of agent-loop's adapters, not a
 proxy to them: `retry.ts` carries the same request and stream retries
 (`packages/agent-loop/docs/architecture.md`, Providers) and `toolArguments.ts`

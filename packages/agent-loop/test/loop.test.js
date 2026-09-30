@@ -170,6 +170,92 @@ describe('runTurn', () => {
     expect(messages.at(-1)).toMatchObject({ role: 'assistant', content: 'done' })
   })
 
+  it('reports thinking, text, tool and done through onStatus as the turn moves', async () => {
+    const provider = roundsProvider([
+      [
+        { type: 'reasoning', text: 'let me see' },
+        { type: 'reasoning', text: ' more' },
+        { type: 'text', text: 'Writing' },
+        { type: 'text', text: ' it' },
+        { type: 'tool_use', id: 't1', name: 'write', input: { path: 'main.js', content: 'x' } },
+        { type: 'tool_use', id: 't2', name: 'measure', input: {} },
+        { type: 'done', stopReason: 'tool_use' },
+      ],
+      [{ type: 'text', text: 'Done' }, { type: 'done', stopReason: 'end_turn' }],
+    ])
+    const statuses = []
+    await runTurn({
+      conversation: { messages: [{ role: 'user', content: 'hi' }] },
+      provider,
+      requestTool: async () => '{"ok":true}',
+      onStatus: (s) => statuses.push(s),
+    })
+    expect(statuses).toEqual([
+      { phase: 'thinking' },
+      { phase: 'thinking', reasoningChars: 10 },
+      { phase: 'thinking', reasoningChars: 15 },
+      { phase: 'text' },
+      { phase: 'tool', tool: 'write', detail: 'main.js' },
+      { phase: 'tool', tool: 'measure' },
+      { phase: 'thinking' },
+      { phase: 'text' },
+      { phase: 'done' },
+    ])
+  })
+
+  it('reports a provider retry with the attempt it is making, then the output that follows', async () => {
+    const provider = roundsProvider([
+      [
+        { type: 'retry', attempt: 1, maxAttempts: 4, status: 503, reason: 'busy', delayMs: 2000 },
+        { type: 'retry', attempt: 2, maxAttempts: 4, status: 503, reason: 'busy', delayMs: 5000 },
+        { type: 'text', text: 'ok' },
+        { type: 'done', stopReason: 'end_turn' },
+      ],
+    ])
+    const statuses = []
+    await runTurn({ conversation: { messages: [{ role: 'user', content: 'hi' }] }, provider, requestTool: vi.fn(), onStatus: (s) => statuses.push(s) })
+    expect(statuses).toEqual([
+      { phase: 'thinking' },
+      { phase: 'retry', attempt: 2, maxAttempts: 4 },
+      { phase: 'retry', attempt: 3, maxAttempts: 4 },
+      { phase: 'text' },
+      { phase: 'done' },
+    ])
+  })
+
+  it('shortens a long tool argument in the status and reports done on a failed turn too', async () => {
+    const provider = roundsProvider([
+      [{ type: 'tool_use', id: 't1', name: 'docs', input: { query: 'q'.repeat(60) } }, { type: 'done', stopReason: 'tool_use' }],
+    ])
+    const statuses = []
+    const error = await runTurn({
+      conversation: { messages: [{ role: 'user', content: 'hi' }] },
+      provider,
+      requestTool: () => new Promise(() => {}),
+      toolTimeoutMs: 25,
+      onStatus: (s) => statuses.push(s),
+    }).catch((e) => e)
+    expect(error.name).toBe('ToolTimeoutError')
+    expect(statuses).toEqual([
+      { phase: 'thinking' },
+      { phase: 'tool', tool: 'docs', detail: `${'q'.repeat(39)}…` },
+      { phase: 'done' },
+    ])
+  })
+
+  it('goes on when an onStatus callback throws', async () => {
+    const provider = roundsProvider([[{ type: 'text', text: 'hi' }, { type: 'done', stopReason: 'end_turn' }]])
+    const { messages } = await runTurn({
+      conversation: { messages: [{ role: 'user', content: 'hi' }] },
+      provider,
+      requestTool: vi.fn(),
+      onStatus: () => {
+        throw new Error('display broke')
+      },
+    })
+    expect(messages.at(-1)).toMatchObject({ role: 'assistant', content: 'hi' })
+  })
+
   it('carries the messages so far on a rejected turn', async () => {
     const provider = roundsProvider([
       [{ type: 'tool_use', id: 'tool_1', name: 'measure', input: {} }, { type: 'done', stopReason: 'tool_use' }],

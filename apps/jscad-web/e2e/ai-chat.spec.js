@@ -105,7 +105,8 @@ const PARITY_ROUNDS = [
   { name: 'docs', args: { query: 'text' } },
 ]
 
-const startStubRelay = (rounds = ROUNDS) =>
+// A round `{ text, hold: true }` streams its text and then keeps the reply open; `delayMs` holds back every reply's start.
+const startStubRelay = (rounds = ROUNDS, { delayMs = 0 } = {}) =>
   new Promise((resolve) => {
     const requests = []
     const cors = {
@@ -121,15 +122,20 @@ const startStubRelay = (rounds = ROUNDS) =>
       }
       let body = ''
       req.on('data', (c) => (body += c))
-      req.on('end', () => {
+      req.on('end', async () => {
         if (req.url !== '/api/relay/openai/v1/chat/completions' || req.method !== 'POST') {
           res.writeHead(404)
           res.end()
           return
         }
         requests.push(JSON.parse(body))
-        res.writeHead(200, { ...cors, 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' })
         const round = rounds[requests.length - 1]
+        await new Promise((r) => setTimeout(r, delayMs))
+        res.writeHead(200, { ...cors, 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' })
+        if (round?.hold) {
+          res.write(chunk({ choices: [{ delta: { content: round.text } }] }))
+          return
+        }
         if (round) {
           const call = { index: 0, id: `call-${requests.length}`, function: { name: round.name, arguments: JSON.stringify(round.args) } }
           res.write(chunk({ choices: [{ delta: { tool_calls: [call] } }] }))
@@ -281,6 +287,49 @@ test.describe('AI chat', () => {
     expect(answerTo((a) => a.source?.includes("require('./main.js')\nmodule.exports = { main }"))).toMatchObject({ ok: true, geometry: { watertight: false } })
     expect(answerTo((a) => a.content === TEXT_WITHOUT_INIT)).toMatchObject({ saved: 'main.js', ok: true, geometry: { parts: 1 } })
     expect(answerTo((a) => a.query === 'text')).toContain('jscadText.text2d')
+  })
+
+  test('shows the turn working and Stop ends it, keeping the partial reply', async ({ page }) => {
+    await page.locator('#menu-button').click()
+    await page.locator('#ai-chat-btn').click()
+    await page.locator('.ai-gear').click()
+    await page.locator('.ai-provider-select').selectOption('openai')
+    await page.locator('.ai-model-input').fill('stub-model')
+    await page.locator('.ai-model-input').dispatchEvent('change')
+    await page.getByLabel('Keep').selectOption('device')
+    await page.locator('.ai-key-input').fill('sk-test')
+    await page.locator('.ai-save-key').click()
+
+    const stub = await startStubRelay([{ text: 'Working on the cube', hold: true }], { delayMs: 1500 })
+    await page.addInitScript((port) => {
+      window.localStorage.setItem('jscad-ai.relay', `http://127.0.0.1:${port}`)
+    }, stub.port)
+    await page.reload()
+    await dismissWelcome(page)
+    await waitForRender(page)
+    await page.locator('#menu-button').click()
+    await page.locator('#ai-chat-btn').click()
+
+    const send = page.locator('.chat-send')
+    await page.locator('.chat-input').fill('model a cube')
+    await send.click()
+    await expect(send).toHaveText('Stop')
+    await expect(send).toHaveAttribute('aria-label', 'Stop the reply')
+    await expect(page.locator('.chat-status-phase')).toHaveText('Thinking…')
+    await expect(page.locator('.chat-status-time')).toHaveText(/^\d+s$/)
+    await expect(page.locator('.chat-input')).toBeEditable()
+
+    await expect(page.locator('.chat-status-phase')).toHaveText('Writing…')
+    await expect(page.locator('.chat-msg.assistant')).toHaveText('Working on the cube')
+    await send.click()
+    await expect(send).toHaveText('Send')
+    await expect(page.locator('.chat-msg.stopped')).toHaveText('Stopped')
+    await expect(page.locator('.chat-msg.assistant')).toHaveText('Working on the cube')
+    await expect(page.locator('.chat-status-phase')).toHaveText('')
+    await expect(page.locator('.chat-msg.error')).toHaveCount(0)
+    expect(stub.requests).toHaveLength(1)
+    stub.server.closeAllConnections()
+    stub.server.close()
   })
 
   test('a failed build keeps the last render on screen and shows the error', async ({ page }) => {

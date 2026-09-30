@@ -123,10 +123,29 @@ const isContent = (event) => event.type === 'text' || event.type === 'tool_use'
 export async function* streamWithRetry(label, url, init, parse, { fetchImpl = fetch, sleep = defaultSleep, maxAttempts = MAX_PROVIDER_ATTEMPTS } = {}) {
   let attempt = 1
   for (;;) {
+    // Each retry is yielded as it happens, during its backoff, so a caller can show it.
     const retries = []
-    const res = await fetchWithRetry(fetchImpl, url, init, { onRetry: (event) => retries.push(event), sleep, maxAttempts, firstAttempt: attempt })
-    attempt += retries.length
-    for (const event of retries) yield { type: 'retry', ...event }
+    let wake = () => {}
+    const response = fetchWithRetry(fetchImpl, url, init, {
+      onRetry: (event) => {
+        retries.push(event)
+        wake()
+      },
+      sleep,
+      maxAttempts,
+      firstAttempt: attempt,
+    }).then((value) => ({ value }))
+    let res
+    while (!res) {
+      const woken = new Promise((resolve) => {
+        wake = resolve
+      })
+      if (retries.length === 0) res = (await Promise.race([response, woken]))?.value
+      while (retries.length > 0) {
+        attempt += 1
+        yield { type: 'retry', ...retries.shift() }
+      }
+    }
     if (!res.ok) throw new Error(`${label}: ${res.text} (status ${res.status})`)
     let replied = false
     try {
@@ -209,6 +228,9 @@ export async function* parseAnthropicStream(body) {
     } else if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
       const text = event.delta.text
       if (typeof text === 'string') yield { type: 'text', text }
+    } else if (event.type === 'content_block_delta' && event.delta?.type === 'thinking_delta') {
+      const text = event.delta.thinking
+      if (typeof text === 'string' && text !== '') yield { type: 'reasoning', text }
     } else if (event.type === 'content_block_delta' && event.delta?.type === 'input_json_delta') {
       const acc = toolInputs.get(event.index ?? 0)
       if (acc) acc.json += event.delta.partial_json ?? ''
@@ -297,6 +319,9 @@ export async function* parseOpenAIStream(body) {
     }
     const choice = chunk.choices?.[0]
     const delta = choice?.delta ?? {}
+    // opencode's open models stream their reasoning as `reasoning_content`, some routers as `reasoning`.
+    const reasoning = delta.reasoning_content || delta.reasoning
+    if (typeof reasoning === 'string' && reasoning !== '') yield { type: 'reasoning', text: reasoning }
     if (typeof delta.content === 'string' && delta.content !== '') {
       yield { type: 'text', text: delta.content }
     }

@@ -26,7 +26,7 @@ export interface AgentRouteOptions {
   conversationStore?: ConversationStore
 }
 
-// The chat transport. A turn streams SSE events (text, tool_request, done, error) to the browser;
+// The chat transport. A turn streams SSE events (status, text, tool_request, done, error) to the browser;
 // the browser executes the tool and POSTs the result back to /tool/:callId, which resolves the
 // promise the loop is awaiting. Conversations and pending tool calls are keyed per author so one
 // user's turns never see another's.
@@ -115,6 +115,7 @@ export function mountAgentRoutes(app: Express, options: AgentRouteOptions = {}):
             send('tool_request', { callId, name, input })
           }),
         onText: (text) => send('text', { text }),
+        onStatus: (status) => send('status', status),
         signal: ac.signal,
         api,
       })

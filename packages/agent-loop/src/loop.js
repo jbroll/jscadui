@@ -118,8 +118,22 @@ const withTimeout = (promise, timeoutMs, signal, makeTimeoutError) =>
     )
   })
 
+const STATUS_DETAIL_CHARS = 40
+
+// The argument that tells one call of a tool from another, for a status line.
+const toolDetail = (input) => {
+  const value = [input?.path, input?.query, input?.format].find((v) => typeof v === 'string' && v !== '')
+  if (value === undefined) return undefined
+  return value.length > STATUS_DETAIL_CHARS ? `${value.slice(0, STATUS_DETAIL_CHARS - 1)}…` : value
+}
+
 /**
- * @param {{conversation:{messages:Array<object>},provider:{send:Function},requestTool:Function,onText?:Function,signal?:AbortSignal,toolTimeoutMs?:number,api?:'fluent'|'modeling'}} options
+ * `onStatus` hears where the turn is: `{phase: 'thinking', reasoningChars?}`
+ * from each request until its first output, `{phase: 'text'}` when text
+ * starts, `{phase: 'tool', tool, detail?}` before each tool runs,
+ * `{phase: 'retry', attempt, maxAttempts}` when the provider is retried, and
+ * `{phase: 'done'}` once the turn has ended, however it ended.
+ * @param {{conversation:{messages:Array<object>},provider:{send:Function},requestTool:Function,onText?:Function,onStatus?:Function,signal?:AbortSignal,toolTimeoutMs?:number,api?:'fluent'|'modeling'}} options
  * @returns {Promise<{messages:Array<object>}>} a NEW conversation; the input is never mutated. A rejection carries the messages so far as `error.messages`.
  */
 export const runTurn = (options) => {
@@ -128,6 +142,15 @@ export const runTurn = (options) => {
   const tools = buildTools(options.api ?? DEFAULT_API)
   const messages = [...conversation.messages]
   let resultChars = 0
+  let phase
+  const report = (status) => {
+    phase = status.phase
+    try {
+      options.onStatus?.(status)
+    } catch {
+      // A status display that throws must not end the turn.
+    }
+  }
 
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
@@ -150,14 +173,22 @@ export const runTurn = (options) => {
           const toolCalls = []
           const badCalls = new Map()
           let stopReason
+          let reasoningChars = 0
+          report({ phase: 'thinking' })
           iterator = provider.send(messages, tools)[Symbol.asyncIterator]()
           try {
             for (;;) {
               const { done, value } = await nextOrAbort(iterator, signal)
               if (done) break
               if (value.type === 'text') {
+                if (phase !== 'text') report({ phase: 'text' })
                 text.push(value.text)
                 onText?.(value.text)
+              } else if (value.type === 'reasoning') {
+                reasoningChars += value.text.length
+                report({ phase: 'thinking', reasoningChars })
+              } else if (value.type === 'retry') {
+                report({ phase: 'retry', attempt: value.attempt + 1, maxAttempts: value.maxAttempts })
               } else if (value.type === 'tool_use') {
                 const call = { id: value.id, name: value.name, input: value.input }
                 if (value.badArguments !== undefined) badCalls.set(call, value)
@@ -179,6 +210,10 @@ export const runTurn = (options) => {
           })
           if (toolCalls.length === 0) break
           for (const call of toolCalls) {
+            if (!badCalls.has(call)) {
+              const detail = toolDetail(call.input)
+              report({ phase: 'tool', tool: call.name, ...(detail === undefined ? {} : { detail }) })
+            }
             const content = badCalls.has(call)
               ? argumentsError(badCalls.get(call), stopReason)
               : await withTimeout(
@@ -194,9 +229,11 @@ export const runTurn = (options) => {
             messages.push({ role: 'tool', toolCallId: call.id, content: capped })
           }
         }
+        report({ phase: 'done' })
         resolve({ messages })
       } catch (err) {
         if (err !== null && typeof err === 'object') err.messages ??= messages
+        report({ phase: 'done' })
         reject(err)
       } finally {
         signal?.removeEventListener('abort', cancel)

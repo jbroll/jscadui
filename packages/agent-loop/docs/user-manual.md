@@ -60,6 +60,29 @@ characters, and `runTurn` answers it without running the tool, as
 measure were not valid JSON (finish_reason length); call it again with a JSON
 object: {"parts":…' } }`, which the transcript keeps.
 
+## Turn status
+
+```js
+runTurn({ conversation, provider, requestTool, onText, onStatus, signal, toolTimeoutMs, api })
+```
+
+`onStatus`, when given, hears where the turn is:
+
+| Status | When |
+|---|---|
+| `{ phase: 'thinking' }` | each provider request starts |
+| `{ phase: 'thinking', reasoningChars }` | each `reasoning` event, with the characters of reasoning so far in this request |
+| `{ phase: 'text' }` | text starts streaming (once per run of text, not per chunk) |
+| `{ phase: 'tool', tool, detail? }` | before a tool runs; `detail` is its `path`, `query` or `format`, cut to 40 characters |
+| `{ phase: 'retry', attempt, maxAttempts }` | the provider is retried; `attempt` is the one about to start |
+| `{ phase: 'done' }` | the turn has ended, resolved or rejected |
+
+A call whose arguments are not JSON reports no `tool` phase, since it does not
+run. An `onStatus` that throws does not end the turn. The app's chat draws its
+status line and Stop button from it
+(`apps/jscad-web/docs/architecture.md`, Chat UI states); the eval leaves it
+out. Aborting `signal` rejects the turn with `AbortError`.
+
 ## docs tool
 
 `docs({ query })` answers from the API index (`api/index.json`, see

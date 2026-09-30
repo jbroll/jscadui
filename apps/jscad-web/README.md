@@ -76,6 +76,8 @@ Modeling Engine in the menu switches it, and the choice is remembered.
 
 The app has an agent chat drawer (AI Chat in the menu) layered on the normal editor, viewer and examples. Describe a part, and the browser-local agent loop works on the open project the way a coding agent does, with tools that run in the browser: `list`, `read`, `write`, `edit`, `run`, `measure`, `check`, `export` and `docs` (`packages/agent-loop/src/tools.js`). Every `write` and `edit` saves the file, shows it in the editor and builds the project the way the editor does, answering a build report; `run` tries a snippet without saving it. Model code runs in the sandboxed compute frame below, the same one the editor uses. Provider HTTP goes through the relay at `https://jscad.rkroll.com`, overridable via `localStorage 'jscad-ai.relay'`.
 
+While the model works, a status line above the input says what it is doing (`Thinking…`, `Writing…`, `write main.js…`, `Provider busy, retrying (2/4)…`) and for how many seconds, and Send becomes Stop. Stop ends the turn and keeps what the model had written so far, marked `Stopped`. You can type the next message during a turn and send it once the turn ends.
+
 Account setup lives in the drawer above the chat:
 
 - Sign in with Google (session via the API at `/api`).

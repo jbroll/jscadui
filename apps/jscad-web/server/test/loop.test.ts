@@ -4,7 +4,7 @@ import express, { type Express } from 'express'
 import request from 'supertest'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Provider, ProviderEvent, ProviderMessage } from '../src/providers/types.js'
-import { runTurn, type Conversation } from '../src/agent/loop.js'
+import { runTurn, type Conversation, type TurnStatus } from '../src/agent/loop.js'
 import { mountAgentRoutes, type ConversationStore } from '../src/agent/routes.js'
 
 // Fake provider driving the loop with recorded event rounds — one round per send() call, so a
@@ -203,6 +203,40 @@ describe('runTurn', () => {
     })
   })
 
+  it('reports thinking, text, tool, retry and done through onStatus as the turn moves', async () => {
+    const provider = roundsProvider([
+      [
+        { type: 'text', text: 'Writing' },
+        { type: 'text', text: ' it' },
+        { type: 'tool_use', id: 't1', name: 'write', input: { path: 'main.js', content: 'x' } },
+        { type: 'tool_use', id: 't2', name: 'measure', input: {} },
+        { type: 'done', stopReason: 'tool_use' },
+      ],
+      [
+        { type: 'retry', attempt: 1, maxAttempts: 4, status: 503, reason: 'busy', delayMs: 2000 },
+        { type: 'text', text: 'Done' },
+        { type: 'done', stopReason: 'end_turn' },
+      ],
+    ])
+    const statuses: TurnStatus[] = []
+    await runTurn({
+      conversation: { messages: [{ role: 'user', content: 'hi' }] },
+      provider,
+      requestTool: async () => '{"ok":true}',
+      onStatus: (s) => statuses.push(s),
+    })
+    expect(statuses).toEqual([
+      { phase: 'thinking' },
+      { phase: 'text' },
+      { phase: 'tool', tool: 'write', detail: 'main.js' },
+      { phase: 'tool', tool: 'measure' },
+      { phase: 'thinking' },
+      { phase: 'retry', attempt: 2, maxAttempts: 4 },
+      { phase: 'text' },
+      { phase: 'done' },
+    ])
+  })
+
   it('a disconnect cancels an in-flight turn', async () => {
     const provider: Provider = {
       async *send() {
@@ -393,8 +427,16 @@ describe('chat routes', () => {
     expect(toolRes.status).toBe(200)
 
     await stream.closed
-    expect(stream.frames.map((f) => f.event)).toEqual(['tool_request', 'text', 'done'])
-    expect(JSON.parse(stream.frames[2].data)).toEqual({})
+    const events = stream.frames.filter((f) => f.event !== 'status')
+    expect(events.map((f) => f.event)).toEqual(['tool_request', 'text', 'done'])
+    expect(JSON.parse(events[2].data)).toEqual({})
+    expect(stream.frames.filter((f) => f.event === 'status').map((f) => JSON.parse(f.data))).toEqual([
+      { phase: 'thinking' },
+      { phase: 'tool', tool: 'measure' },
+      { phase: 'thinking' },
+      { phase: 'text' },
+      { phase: 'done' },
+    ])
   })
 
   it('answers 404 for an unknown tool call id', async () => {
@@ -439,7 +481,7 @@ describe('chat routes', () => {
     })
     expect(ok.status).toBe(200)
     await stream.closed
-    expect(stream.frames.map((f) => f.event)).toEqual(['tool_request', 'text', 'done'])
+    expect(stream.frames.map((f) => f.event).filter((e) => e !== 'status')).toEqual(['tool_request', 'text', 'done'])
   })
 
   it('rejects a second turn while one is running', async () => {

@@ -537,6 +537,18 @@ describe.each(STREAMS)('$name provider: a stream that dies', ({ config, metadata
     expect(events.at(-1)?.type).toBe('done')
   })
 
+  it('yields a retry event while its backoff is still running', async () => {
+    const busy = new Response(JSON.stringify({ error: { code: 'service_overloaded' } }), { status: 503 })
+    fetchMock.mockResolvedValueOnce(busy).mockResolvedValueOnce(streamResponse(complete))
+    const { events, done } = send()
+    await vi.advanceTimersByTimeAsync(10)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(events).toEqual([expect.objectContaining({ type: 'retry', attempt: 1, status: 503 })])
+    await vi.advanceTimersByTimeAsync(30_000)
+    await done
+    expect(events.at(-1)?.type).toBe('done')
+  })
+
   it('after only metadata events is retried, then completes', async () => {
     fetchMock.mockResolvedValueOnce(dyingResponse(metadata)).mockResolvedValueOnce(streamResponse(complete))
     const { events, done } = send()

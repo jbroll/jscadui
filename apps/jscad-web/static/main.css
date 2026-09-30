@@ -1125,6 +1125,57 @@ p {
   flex: 1;
   min-width: 0;
 }
+.chat-status {
+  display: flex;
+  gap: 8px;
+  padding: 0 10px;
+  font-size: 9pt;
+  color: #555;
+}
+.chat-status.active {
+  padding-top: 4px;
+}
+.dark .chat-status {
+  color: #aaa;
+}
+.chat-status-phase {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-status-time {
+  margin-left: auto;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.chat-send.running,
+.chat-send.running:hover {
+  border-color: #a33;
+  background-color: #fbeaea;
+  color: #a33;
+  animation: chat-send-pulse 1.6s ease-in-out infinite;
+}
+.dark .chat-send.running,
+.dark .chat-send.running:hover {
+  border-color: #f88;
+  background-color: #3a1f1f;
+  color: #f88;
+}
+@keyframes chat-send-pulse {
+  50% {
+    box-shadow: 0 0 0 3px rgba(170, 51, 51, 0.3);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-send.running {
+    animation: none;
+  }
+}
+.chat-msg.stopped {
+  font-size: 9pt;
+  font-style: italic;
+  color: #777;
+}
 .chat-msg {
   margin: 4px 0;
   white-space: pre-wrap;
