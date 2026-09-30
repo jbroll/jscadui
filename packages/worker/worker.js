@@ -125,6 +125,8 @@ export const setRunConsole = (collector) => {
   runConsole = collector
 }
 
+const noMainError = () => Object.assign(new Error('no main function exported'), { name: 'NoMainError' })
+
 /** @type {((run: {hasMain: boolean, value: unknown}) => object) | null} */
 let runSummary = null
 
@@ -307,16 +309,12 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
 
   workerState.lastParams = params
 
-  // Store UI values for proxy
-  if (workerState.useParamsProxy) {
-    console.log('[STORE] Storing currentUiValues:', params)
-    workerState.currentUiValues = params
-  }
+  if (workerState.useParamsProxy) workerState.currentUiValues = params
 
   /** @type {import('@jscadui/format-common').JscadTransferable []} */
   const transferable = []
 
-  if (!workerState.main) throw new Error('no main function exported')
+  if (!workerState.main) throw noMainError()
 
   let time = performance.now()
   let treeTime = 0
@@ -581,7 +579,7 @@ export const jscadScript = async ({ script, url='jscad.js', base=workerState.glo
       return { def: [], params: {}, scratch: true, ...runOutput(), ...summary }
     }
 
-    if (!workerState.main) throw new Error('no main function exported')
+    if (!workerState.main) throw noMainError()
 
     let params = {}
     if (workerState.useParamsProxy) {

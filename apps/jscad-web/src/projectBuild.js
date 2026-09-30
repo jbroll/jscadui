@@ -1,4 +1,4 @@
-import { buildReport, DEFAULT_API, errorLocation, NO_ENTRY, noGeometryError, projectPath, resolveEntry, withErrorHint } from '@jscadui/agent-loop'
+import { buildReport, DEFAULT_API, errorLocation, NO_ENTRY, noGeometryError, noMainError, notGeometryError, projectPath, resolveEntry, withErrorHint } from '@jscadui/agent-loop'
 import { PROJECT_BASE } from '../src_frame/fileMap.js'
 
 const MAX_MESSAGE = 4000
@@ -118,15 +118,20 @@ const indexFor = async (loadIndex) => {
 export const createProjectBuilds = ({ measure, check, getApi = () => DEFAULT_API, loadIndex = async () => undefined }) => {
   let last = null
 
-  const failed = async ({ entry, error }) => {
-    const index = await indexFor(loadIndex)
-    return buildReport({
+  // The worker's own wording of these two, as the eval words them.
+  const buildError = async (entry, error) => {
+    if (error?.name === 'NoMainError') return noMainError(entry)
+    if (/invalid jscad geometry, not an object/.test(String(error?.message))) return notGeometryError()
+    return reportError(error, { api: getApi(), index: await indexFor(loadIndex) })
+  }
+
+  const failed = async ({ entry, error }) =>
+    buildReport({
       entry,
-      error: reportError(error, { api: getApi(), index }),
+      error: await buildError(entry, error),
       warnings: error?.output?.warnings ?? [],
       console: error?.output?.console ?? [],
     })
-  }
 
   const built = async ({ entry, result }) => {
     const warnings = result?.warnings ?? []
@@ -136,9 +141,8 @@ export const createProjectBuilds = ({ measure, check, getApi = () => DEFAULT_API
     try {
       measured = await measure()
       checked = await check()
-    } catch (e) {
-      const error = { name: 'NoGeometryError', message: `main() returned something that is not geometry: ${e?.message ?? e}` }
-      return buildReport({ entry, error, warnings, console: lines })
+    } catch {
+      return buildReport({ entry, error: notGeometryError(), warnings, console: lines })
     }
     return buildReport({ entry, warnings, console: lines, params: result?.def ?? [], measured, checked })
   }
@@ -163,8 +167,8 @@ export const createProjectBuilds = ({ measure, check, getApi = () => DEFAULT_API
     report,
     // Null when the last build has geometry for measure, check and export; else their answer.
     noGeometry: async () => {
-      if (!last) return noGeometryError(null)
-      return last.error ? noGeometryError(await report()) : null
+      const built = await report()
+      return built?.ok ? null : noGeometryError(built)
     },
   }
 }

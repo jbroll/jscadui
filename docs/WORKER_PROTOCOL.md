@@ -55,7 +55,8 @@ interface JscadScratchResult {
 }
 ```
 
-A script that exports no `main` fails with `no main function exported`,
+A script that exports no `main` fails with `no main function exported`
+(`name: 'NoMainError'`),
 which the editor shows as an error. A failed load's error carries `output`,
 the run's `{ console, warnings }`, which `@jscadui/postmessage` passes across
 with the error.

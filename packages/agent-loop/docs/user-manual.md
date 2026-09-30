@@ -218,8 +218,13 @@ message, and that build report goes into the header with the files.
 
 `write` and `edit` answer with the build report. A build fails with
 `NoEntryError` when the project has no entry file, `NoMainError` when the
-entry exports no `main()`, `NoGeometryError` when `main()` returns something
-`measure` cannot read, and otherwise with the model code's own error; a syntax
+entry exports no `main()` (`<entry> exports no main()`), `NoGeometryError`
+when `main()` returns something `measure` cannot read (`main() returned
+something that is not geometry; ...`), and otherwise with the model code's own
+error. The app words the first two the same (`noMainError`,
+`notGeometryError` in `src/buildReport.js`), with no API hint. One part is
+measured, checked and exported as itself, more as an array, as the frame
+does (`asGeometry`). A syntax
 error is located by parsing each project file with Babel, entry first, since
 the eval's `SyntaxError` carries no location. `measure`, `check` and `export`
 fail with `NoGeometryError` before the first build (`no geometry: write the
@@ -229,8 +234,11 @@ model first`) and after a failed one (`no geometry: the last build failed
 `{ ok: false, error, warnings, console }`.
 
 `export` answers like the app: `{ ok, format, size }`, the byte size of the
-model as STL text whatever `format` asks for, since the app's worker writes STL
-only. The bytes never reach the model; the user downloads from the app.
+model as the frame's `@jscad/io` serializer for that format writes it
+(`exportConfig` in `src/exportFormat.js`; `stl` is binary STL). A format with
+no serializer fails with `ExportFormatError` in both. The bytes never reach
+the model; the user downloads from the app. `read` of a binary project file
+fails with `BinaryFileError`.
 `view` fails with `UnavailableError`, and any other name, `eval`,
 `writeModel` and `params` included, with `UnknownToolError`.
 

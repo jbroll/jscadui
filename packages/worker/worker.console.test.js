@@ -50,6 +50,20 @@ describe('run console', () => {
     expect(result).not.toHaveProperty('console')
   })
 
+  it("keeps the worker's own logging out of a params-proxy run's console", async () => {
+    const c = collector()
+    setRunConsole(c)
+    const log = vi.spyOn(console, 'log').mockImplementation((...args) => c.push(args.join(' ')))
+    workerState.useParamsProxy = true
+    try {
+      const result = await jscadScript({ script: 'module.exports = { main: () => [] }', url: 'http://project.local/proxy.js' })
+      expect(result).not.toHaveProperty('console')
+    } finally {
+      log.mockRestore()
+      workerState.useParamsProxy = undefined
+    }
+  })
+
   it('keeps top-level lines together with the first main run of a script', async () => {
     const c = collector()
     setRunConsole(c)

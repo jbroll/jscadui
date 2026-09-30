@@ -21,8 +21,12 @@
     "eval": "node --import ./text-loader.js eval/run-eval.js",
     "eval:keyless": "node --import ./text-loader.js eval/keyless.js"
   },
+  "dependencies": {
+    "@jscadui/format-common": "*"
+  },
   "devDependencies": {
     "@jbroll/jscad-fluent": "file:../../.deps-cache/jscad-fluent",
+    "@jscad/io": "*",
     "@jscadui/format-jscad": "*",
     "@jscadui/jscad-text": "*",
     "@jscadui/model-tools": "*",

@@ -19,7 +19,7 @@ import {
   setRunSummary,
   setRunWarnings,
 } from '@jscadui/worker'
-import { summarizeRun } from '@jscadui/agent-loop/src/buildReport.js'
+import { asGeometry, summarizeRun } from '@jscadui/agent-loop/src/buildReport.js'
 import { readFileWeb, require, requireHandlers, jscadClearTempCache, clearFileCache, setUserModuleWrapper } from '@jscadui/require'
 import { withTransferable } from '@jscadui/postmessage'
 import { defaultSerializerConfigs } from '@jscadui/format-common/src/exportFormats.js'
@@ -82,10 +82,9 @@ export const jscadSetFiles = ({ files, api }) => {
 }
 
 // ── measure, check and export ─────────────────────────────────────────────
-// jscadMain flattens the model's return into solids, so one solid is a single
-// geometry and more are a scene array — the CLI's classification rule, kept so
-// frame output stays identical to jscad-work.
-const asGeometry = (solids) => solids.length === 1 ? solids[0] : solids
+// jscadMain flattens the model's return into solids; asGeometry makes one solid
+// a single geometry and more a scene array, the CLI's classification rule, kept
+// so frame output stays identical to jscad-work and the eval.
 
 const withSolids = createWithSolids({ lastRunStreamed, postProgress, releaseSolids, currentParams, jscadMain, currentSolids })
 

@@ -1,19 +1,19 @@
 import { readFileSync } from 'node:fs'
 import { createRequire, isBuiltin } from 'node:module'
-import { JscadToCommon } from '@jscadui/format-jscad'
 import { check, measure } from '@jscadui/model-tools'
 import { createParamsProxy, createProxyState, toParamDefinitions } from '@jscadui/params-core'
 import { clearAllCaches, moduleResolver, require as jscadRequire } from '@jscadui/require/esm/index.js'
 import { transformcjs } from '@jscadui/transform-babel/esm/transform-babel.js'
 import * as jscadText from '@jscadui/jscad-text'
-import { exportStlText } from '@jscadui/worker/src/exportStlText.js'
+import * as jscadIo from '@jscad/io'
 import { OPTION_TABLES } from '../api/optionTable.js'
 import { DEFAULT_API } from '../src/api.js'
 import { installConsoleCapture } from '../src/consoleCapture.js'
 import { docsTool } from '../src/docs.js'
 import { withErrorHint } from '../src/hints.js'
 import { createWarningCollector, withOptionChecks, wrapFluentMethods } from '../src/optionChecks.js'
-import { buildReport, errorLocation, noGeometryError, summarizeRun } from '../src/buildReport.js'
+import { asGeometry, buildReport, errorLocation, noGeometryError, noMainError, notGeometryError, summarizeRun } from '../src/buildReport.js'
+import { exportConfig, exportedSize } from '../src/exportFormat.js'
 import { applyEdit, applyWrite, listFiles, NO_ENTRY, readFile, resolveEntry } from '../src/project.js'
 import { withUnits } from '../src/units.js'
 import { GRADE_TIMEOUT_MS } from './grade.js'
@@ -154,12 +154,11 @@ const runModel = async (files, entry, api) => {
   }
 }
 
-// The app's worker writes STL text whatever format is asked for, and the app
+// The frame's serializer for the format, over the model's parts; the app
 // answers { ok, format, size } without the bytes.
 const exportModel = (geometry, format) => {
-  JscadToCommon.clearCache()
-  const data = Buffer.from(exportStlText(JscadToCommon.ConvertMulti(geometry, [], false)).join(''))
-  return { ok: true, format, size: data.byteLength }
+  const config = exportConfig(format)
+  return { ok: true, format, size: exportedSize(jscadIo[config.serializerKey].serialize({ ...config.defaultOptions }, geometry)) }
 }
 
 export function createEvalBackend({ api = DEFAULT_API } = {}) {
@@ -179,22 +178,22 @@ export function createEvalBackend({ api = DEFAULT_API } = {}) {
     const loaded = await runModel(files, entry, api)
     if (started !== generation) return null
     const { warnings: warned, console: lines } = loaded
-    let error = loaded.error
-    if (!error && !loaded.hasMain) error = { name: 'NoMainError', message: `${entry} exports no main()` }
+    let error = loaded.error ? located(loaded.error, api) : null
+    if (!error && !loaded.hasMain) error = noMainError(entry)
     let geometry
     let measured
     let checked
     if (!error) {
       geometry = [loaded.value].flat(Infinity)
       try {
-        measured = measure(geometry)
-        checked = check(geometry)
-      } catch (e) {
-        error = { name: 'NoGeometryError', message: `main() returned something that is not geometry: ${e?.message ?? e}` }
+        measured = measure(asGeometry(geometry))
+        checked = check(asGeometry(geometry))
+      } catch {
+        error = notGeometryError()
       }
     }
     if (error) {
-      current = { report: buildReport({ entry, error: located(error, api), warnings: warned, console: lines }) }
+      current = { report: buildReport({ entry, error, warnings: warned, console: lines }) }
       return current.report
     }
     current = { report: buildReport({ entry, warnings: warned, console: lines, params: loaded.params, measured, checked }), geometry, params: loaded.params }
@@ -228,8 +227,8 @@ export function createEvalBackend({ api = DEFAULT_API } = {}) {
       if (name === 'edit') return await saved(applyEdit(files, args))
       if (name === 'run') return JSON.stringify(await run(args.source))
       const geometry = current?.geometry
-      if (name === 'measure') return geometry ? JSON.stringify(withUnits({ ok: true, ...measure(geometry, args) })) : noGeometry()
-      if (name === 'check') return geometry ? JSON.stringify(withUnits({ ok: true, ...check(geometry, args) })) : noGeometry()
+      if (name === 'measure') return geometry ? JSON.stringify(withUnits({ ok: true, ...measure(asGeometry(geometry), args) })) : noGeometry()
+      if (name === 'check') return geometry ? JSON.stringify(withUnits({ ok: true, ...check(asGeometry(geometry), args) })) : noGeometry()
       if (name === 'export') return geometry ? JSON.stringify(exportModel(geometry, args.format)) : noGeometry()
       if (name === 'docs') return docsTool(API_INDEX, args.query, { api })
       if (name === 'view') return toolError('UnavailableError', `${name} is unavailable in the eval harness`)

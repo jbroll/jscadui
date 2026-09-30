@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { builtinModules, createRequire } from 'node:module'
 import { NO_ENTRY } from '../src/project.js'
+import { notGeometryError } from '../src/buildReport.js'
 import { CDN_BASE, createEvalBackend, createReadFile, EXPORT_REG, IMPORT_REG } from './backend.js'
 import { expectCase, WARNING_CASES } from '../test/warningCases.js'
 
@@ -126,9 +127,10 @@ describe('eval backend builds', () => {
   })
 
   it('fails a model whose main returns something that is not geometry', async () => {
-    const res = await writeMain('module.exports = { main: () => 42 }')
-    expect(res.ok).toBe(false)
-    expect(res.error.name).toBe('NoGeometryError')
+    for (const value of ['42', '{ a: 1 }', 'undefined']) {
+      const res = await writeMain(`module.exports = { main: () => (${value}) }`)
+      expect(res, value).toMatchObject({ ok: false, error: notGeometryError() })
+    }
   })
 
   it('uses the same transform test as the worker', () => {
@@ -329,13 +331,34 @@ describe('eval backend tools', () => {
     expect(res.error.name).toBe('UnavailableError')
   })
 
-  it('exports the current build as the STL byte size in the app result shape, without the bytes', async () => {
+  it("exports the current build with the app's serializer for the format, answering its byte size without the bytes", async () => {
     const backend = createEvalBackend()
     await writeMain(CUBE, backend)
     const res = await call(backend, 'export', { format: 'stl' })
     expect(Object.keys(res).sort()).toEqual(['format', 'ok', 'size'])
-    expect(res).toMatchObject({ ok: true, format: 'stl' })
-    expect(res.size).toBeGreaterThan(12 * 'facet normal'.length)
+    // Binary STL: an 84-byte header and 50 bytes per triangle of the cube's 12.
+    expect(res).toEqual({ ok: true, format: 'stl', size: 84 + 12 * 50 })
+    expect((await call(backend, 'export', { format: 'stla' })).size).toBeGreaterThan(12 * 'facet normal'.length)
+    expect((await call(backend, 'export', { format: '3mf' })).ok).toBe(true)
+  })
+
+  it('refuses a format the app has no serializer for', async () => {
+    const backend = createEvalBackend()
+    await writeMain(CUBE, backend)
+    expect(await call(backend, 'export', { format: 'step' })).toEqual({
+      ok: false,
+      error: { name: 'ExportFormatError', message: 'Unknown export format: step; use stl, 3mf, obj or svg' },
+    })
+  })
+
+  it('measures and checks a one-part model as that part, as the frame does', async () => {
+    const backend = createEvalBackend()
+    await writeMain(CUBE, backend)
+    const measured = await call(backend, 'measure')
+    const checked = await call(backend, 'check')
+    expect(measured).not.toHaveProperty('entityCount')
+    expect(checked).not.toHaveProperty('items')
+    expect(checked).toMatchObject({ nonManifoldEdges: 0, consistentNormals: true })
   })
 
   it('answers export with an error result when nothing was built', async () => {

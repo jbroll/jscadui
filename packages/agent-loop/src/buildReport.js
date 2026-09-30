@@ -106,6 +106,14 @@ export const summarizeRun = ({ hasMain, value }, measure) => {
   return empty ? {} : { returned: previewValue(shown) }
 }
 
+// The build errors the app and the eval word alike, with no API hint.
+export const noMainError = (entry) => ({ name: 'NoMainError', message: `${entry} exports no main()` })
+
+export const notGeometryError = () => ({ name: 'NoGeometryError', message: 'main() returned something that is not geometry; return a shape or an array of shapes' })
+
+// The frame measures, checks and exports one part as itself and more as an array.
+export const asGeometry = (items) => (items.length === 1 ? items[0] : items)
+
 // Why measure, check and export have nothing to work on: no build yet, or `report` failed.
 export const noGeometryError = (report) => ({
   ok: false,

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import index from '@jscadui/agent-loop/api/index.json'
-import { NO_ENTRY } from '@jscadui/agent-loop'
+import { NO_ENTRY, noMainError, notGeometryError } from '@jscadui/agent-loop'
 import { createProjectBuilds, projectEntry, reportError } from '../src/projectBuild.js'
 
 const measured = { entityCount: 1, boundingBox: [[0, 0, 0], [10, 20, 30]], dimensions: [10, 20, 30], volume: 6000 }
@@ -162,9 +162,18 @@ describe('createProjectBuilds', () => {
     expect(await b.noGeometry()).toBe(null)
   })
 
-  it('reports a build whose geometry cannot be measured as having none', async () => {
+  it('reports a build whose geometry cannot be measured with the eval\'s error, and lets nothing measure it', async () => {
     const b = builds({ measure: vi.fn(async () => { throw new Error('not a geometry') }) })
     b.recordLoad('http://project.local/main.js', { result: {} })
-    expect(await b.report()).toMatchObject({ ok: false, error: { name: 'NoGeometryError', message: 'main() returned something that is not geometry: not a geometry' } })
+    expect(await b.report()).toMatchObject({ ok: false, error: notGeometryError() })
+    expect(await b.noGeometry()).toMatchObject({ ok: false, error: { name: 'NoGeometryError', message: expect.stringMatching(/^no geometry: the last build failed \(main\(\) returned something that is not geometry/) } })
+  })
+
+  it("words the worker's no-main and non-object failures as the eval does, with no hint", async () => {
+    const b = builds({ loadIndex: async () => index, getApi: () => 'fluent' })
+    b.recordLoad('http://project.local/parts/gear.js', { error: Object.assign(new Error('no main function exported'), { name: 'NoMainError' }) })
+    expect((await b.report()).error).toEqual(noMainError('parts/gear.js'))
+    b.recordLoad('http://project.local/main.js', { error: new Error('jscadMain failed: invalid jscad geometry, not an object') })
+    expect((await b.report()).error).toEqual(notGeometryError())
   })
 })

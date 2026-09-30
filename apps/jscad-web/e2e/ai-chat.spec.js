@@ -4,6 +4,7 @@
 // localStorage jscad-ai.relay, so no /api/chat server exists.
 import { test, expect } from '@playwright/test'
 import http from 'node:http'
+import { createEvalBackend } from '../../../packages/agent-loop/eval/backend.js'
 import { dismissWelcome, waitForRender, assertNoError } from './helpers.js'
 
 const chunk = (json) => `data: ${JSON.stringify(json)}\n\n`
@@ -20,7 +21,30 @@ const ROUNDS = [
   { name: 'run', args: { source: "console.log('scratch', 6 * 7)" } },
 ]
 
-const startStubRelay = () =>
+// The same calls through the app and the eval backend, which must answer alike.
+const RUNTIME_ERROR = "const main = () => {\n  const s = null\n  return s.size\n}\nmodule.exports = { main }\n"
+const PARITY_ROUNDS = [
+  { name: 'write', args: { path: 'main.js', content: RUNTIME_ERROR } },
+  { name: 'write', args: { path: 'main.js', content: 'module.exports = { size: 1 }\n' } },
+  { name: 'write', args: { path: 'main.js', content: 'module.exports = { main: () => 5 }\n' } },
+  { name: 'measure', args: {} },
+  { name: 'write', args: { path: 'main.js', content: CUBE } },
+  { name: 'list', args: {} },
+  { name: 'read', args: { path: 'main.js' } },
+  { name: 'read', args: { path: 'nope.js' } },
+  { name: 'edit', args: { path: 'main.js', oldString: 'zzz', newString: 'y' } },
+  { name: 'write', args: { path: '../x.js', content: 'x' } },
+  { name: 'run', args: { source: "const { cube } = require('@jscad/modeling').primitives\nconsole.log('hi')\nmodule.exports = { main: () => cube({ size: 3 }) }" } },
+  { name: 'run', args: { source: 'module.exports = { a: 1 }' } },
+  { name: 'run', args: { source: 'const x = null\nx.y' } },
+  { name: 'check', args: {} },
+  { name: 'export', args: { format: 'stl' } },
+  { name: 'export', args: { format: 'step' } },
+  { name: 'measure', args: { parts: 'all', between: ['0', 'all'] } },
+  { name: 'measure', args: {} },
+]
+
+const startStubRelay = (rounds = ROUNDS) =>
   new Promise((resolve) => {
     const requests = []
     const cors = {
@@ -44,7 +68,7 @@ const startStubRelay = () =>
         }
         requests.push(JSON.parse(body))
         res.writeHead(200, { ...cors, 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' })
-        const round = ROUNDS[requests.length - 1]
+        const round = rounds[requests.length - 1]
         if (round) {
           const call = { index: 0, id: `call-${requests.length}`, function: { name: round.name, arguments: JSON.stringify(round.args) } }
           res.write(chunk({ choices: [{ delta: { tool_calls: [call] } }] }))
@@ -127,6 +151,49 @@ test.describe('AI chat', () => {
     expect(header).toContain('"dimensions":[20,20,20]')
 
     stub.server.close()
+  })
+
+  test('answers each tool call as the eval backend does', async ({ page }) => {
+    test.setTimeout(120_000)
+    await page.locator('#menu-button').click()
+    await page.locator('#ai-chat-btn').click()
+    await page.locator('.ai-gear').click()
+    await page.locator('.ai-provider-select').selectOption('openai')
+    await page.locator('.ai-model-input').fill('stub-model')
+    await page.locator('.ai-model-input').dispatchEvent('change')
+    await page.getByLabel('Keep').selectOption('device')
+    await page.locator('.ai-key-input').fill('sk-test')
+    await page.locator('.ai-save-key').click()
+
+    const stub = await startStubRelay(PARITY_ROUNDS)
+    // The eval models with @jscad/modeling, the jscad engine, not manifold.
+    await page.addInitScript((port) => {
+      window.localStorage.setItem('jscad-ai.relay', `http://127.0.0.1:${port}`)
+      window.localStorage.setItem('engine.modelingEngine', 'jscad')
+    }, stub.port)
+    await page.reload()
+    await dismissWelcome(page)
+    await waitForRender(page)
+    await page.locator('#menu-button').click()
+    await page.locator('#ai-chat-btn').click()
+    await page.locator('.chat-input').fill('go')
+    await page.locator('.chat-send').click()
+    await expect(page.locator('.chat-messages')).toContainText('Done.', { timeout: 100_000 })
+    stub.server.close()
+
+    const parsed = (text) => {
+      try {
+        return JSON.parse(text)
+      } catch {
+        return text
+      }
+    }
+    const app = stub.requests.at(-1).messages.filter((m) => m.role === 'tool').map((m) => parsed(m.content))
+    const backend = createEvalBackend()
+    const evaluated = []
+    for (const { name, args } of PARITY_ROUNDS) evaluated.push(parsed(await backend.requestTool(name, args)))
+    expect(app).toHaveLength(PARITY_ROUNDS.length)
+    PARITY_ROUNDS.forEach(({ name, args }, i) => expect(app[i], `${i}: ${name} ${JSON.stringify(args)}`).toEqual(evaluated[i]))
   })
 
   test('a failed build keeps the last render on screen and shows the error', async ({ page }) => {

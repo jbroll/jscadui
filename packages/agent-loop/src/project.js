@@ -18,8 +18,9 @@ export const projectPath = (path) => {
 
 const textOf = (files, path) => {
   const text = files[path]
-  if (typeof text !== 'string') throw named('FileNotFoundError', `no file ${path} in the project; list shows the files`)
-  return text
+  if (typeof text === 'string') return text
+  if (text !== undefined) throw named('BinaryFileError', `${path} is a binary file; read and edit work on text files`)
+  throw named('FileNotFoundError', `no file ${path} in the project; list shows the files`)
 }
 
 const mainCandidates = (main) => [main, `${main}.js`, `${main}/index.js`]

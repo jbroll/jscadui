@@ -134,6 +134,6 @@ describe('a failed load', () => {
 
 describe('a script with no main, run from the editor', () => {
   it('fails with an error the user sees', async () => {
-    await expect(jscadScript({ script: 'module.exports = {}', url: 'http://project.local/editor.js' })).rejects.toThrow('no main function exported')
+    await expect(jscadScript({ script: 'module.exports = {}', url: 'http://project.local/editor.js' })).rejects.toMatchObject({ name: 'NoMainError', message: 'no main function exported' })
   })
 })

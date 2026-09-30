@@ -835,6 +835,16 @@ KB of base64 text. The handler stays for other callers.
 
 `export` answers `{ ok, format, size }` (`src/aiExport.js`): the model learns
 the export worked and how big it is, and the bytes stay out of its context.
+The tool's `stl` asks the frame for binary STL (`stlb`), and a format with no
+serializer is refused before the frame is asked, with agent-loop's
+`exportConfig`, the check the eval makes.
+
+The eval's backend answers every tool as the app does: the `ai-chat` e2e runs
+one set of calls through the app, on the jscad engine, and through
+`createEvalBackend`, and compares the results. The worker's no-main error
+(`NoMainError`) and format-jscad's `invalid jscad geometry, not an object` are
+reported with the eval's wording (`noMainError`, `notGeometryError`) in
+`createProjectBuilds`.
 
 ### Unknown-option warnings
 

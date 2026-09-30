@@ -84,6 +84,11 @@ describe('readFile', () => {
     expect(thrown(() => readFile(files, { path: 'gone.js' }))).toEqual({ name: 'FileNotFoundError', message: 'no file gone.js in the project; list shows the files' })
     expect(thrown(() => readFile(files, { path: 'main.js', offset: 9 })).message).toMatch(/past the end of main.js, which has 3 lines/)
   })
+
+  it('refuses a binary file that list shows, saying why', () => {
+    const withFont = { 'main.js': 'x', 'fonts/Sans.ttf': new ArrayBuffer(8) }
+    expect(thrown(() => readFile(withFont, { path: 'fonts/Sans.ttf' }))).toEqual({ name: 'BinaryFileError', message: 'fonts/Sans.ttf is a binary file; read and edit work on text files' })
+  })
 })
 
 describe('applyWrite', () => {
