@@ -289,7 +289,7 @@ Async module loading is the breaking one; the rest are extractions.
   0.6.1 release; the pin is now 90bd6e7 on `main`, which also rejects raw
   `{ points, faces }` data in constructors and booleans, and adds
   the `@jscad/modeling` parity surface. Remaining work: publish jscad-fluent
-  0.7.0 from that branch to npm, then point `apps/jscad-web/package.json` and
+  0.7.0 from jscad-fluent's `main` to npm, then point `apps/jscad-web/package.json` and
   `packages/agent-loop/package.json` back at the npm version and remove the
   `sources.json` entry (also its `jscad-anchors` entry, if fluent no longer
   needs it). Until then, the eval resolves fluent's `@jbroll/jscad-anchors`
