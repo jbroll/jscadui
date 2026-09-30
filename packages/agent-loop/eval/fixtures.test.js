@@ -22,19 +22,26 @@ describe('eval fixtures', () => {
   })
 
   for (const fixture of fixtures) {
-    it(`${fixture.name}: declares known tools, a prompt, and function checks`, () => {
+    it(`${fixture.name}: declares known tools, a prompt, and function checks, or gates for a complex one`, () => {
       expect(fixture.prompt.trim().length).toBeGreaterThan(0)
       expect(fixture.requires.length).toBeGreaterThan(0)
       for (const tool of fixture.requires) expect(names.has(tool)).toBe(true)
       expect(fixture.requires).not.toContain('view')
       expect(fixture.requires).not.toContain('export')
-      expect(typeof fixture.checks).toBe('function')
+      if (fixture.group === 'complex') {
+        expect(typeof fixture.gates).toBe('function')
+        expect(fixture.checks).toBeUndefined()
+        expect(Number.isInteger(fixture.pieces ?? 1) && (fixture.pieces ?? 1) >= 1).toBe(true)
+      } else {
+        expect(typeof fixture.checks).toBe('function')
+      }
+      for (const followUp of fixture.followUps ?? []) expect(followUp.message.trim().length).toBeGreaterThan(0)
       expect(typeof fixture.maxTurns).toBe('number')
     })
 
     it(`${fixture.name}: leaves the API to the setting`, () => {
       if (fixture.api !== undefined) expect(APIS).toContain(fixture.api)
-      expect(fixture.prompt).not.toMatch(/fluent|@jscad|modeling|\bjf\b/i)
+      for (const message of [fixture.prompt, ...(fixture.followUps ?? []).map((f) => f.message)]) expect(message).not.toMatch(/fluent|@jscad|modeling|\bjf\b/i)
     })
   }
 

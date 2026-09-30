@@ -932,6 +932,32 @@ result file. Each complex run adds:
 - `description: null` and `verdict: null`, filled in by the describe and
   judge stages.
 
+The complex group; `builds`, `watertight` and `connected` apply to all:
+
+| fixture | user messages | pieces | stated gates |
+|---|---|---|---|
+| `toy-caboose` | "we need a model of a toy caboose" | 1 | none |
+| `birdhouse` | "a birdhouse with a removable roof" | 1 | at least two bodies |
+| `desk-organizer` | "a desk organizer with spots for pens, my phone and sticky notes (the 3 inch square ones)" | 1 | a pocket at least 77 x 77 mm in a horizontal cut |
+| `dump-truck` | "a toy dump truck where the bed tips up" | 1 | none |
+| `lamp-shade` | "a lamp shade for a standard E27 bulb holder" | 1 | a round hole 40 to 44 mm across in a horizontal cut |
+| `planter` | "a small planter with a saucer for the water to drain into" | 2 | at least two bodies |
+| `chess-pieces` | "a chess pawn and a knight" | 2 | exactly two groups |
+| `cable-clip` | "a clip to run cables along the edge of my desk, the desk is 20mm thick" | 1 | a slot 20 to 21.5 mm wide in a cut through the clip |
+| `toothbrush-holder` | "a holder for two toothbrushes and a tube of toothpaste" | 1 | none |
+| `rocket-revised` | "a model rocket about 20cm tall", then "can you make it two stages, with fins only on the bottom one" | 1 | tallest size 180 to 220 mm |
+
+A roof resting on its walls touches them, so `birdhouse` is one group of at
+least two bodies. `rocket-revised` is the multi-turn case: the judge reads
+both messages, so a single-stage rocket with fins all round fails.
+`dump-truck` has no gate for motion; the judge rules on the whole object. The
+pocket gate wants a hole loop at least 77 mm both ways in a horizontal cut (a
+3 inch pad is 76 mm); the lamp-shade gate a hole loop 40 to 44 mm across,
+within 1 mm of round; the clip gate two loops of one cut, in any of the three
+directions, 20 to 21.5 mm apart along one in-plane axis while facing each
+other along the other. `eval/complex-fixtures.test.js` passes and fails a
+simple model against each stated gate.
+
 ### Describe and judge
 
 A complex pass's runs are described and judged after the lanes finish, once
