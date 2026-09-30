@@ -24,30 +24,20 @@
 import { defaultLoader } from './TTFLoader.js'
 
 /**
- * In Node.js, Liberation Sans is resolved from the bundled TTF (same font OpenSCAD ships).
- * In browser, the actual Liberation Sans is fetched from jsDelivr (sync XHR in Web Workers).
- *
- * We use import.meta.url + URL constructor to build the absolute path portably.
- * In browser, XMLHttpRequest is defined (even in Web Workers); in Node.js it is not.
- */
-const LIBERATION_SANS_SOURCE =
-  typeof XMLHttpRequest !== 'undefined'
-    // Browser (Web Worker): actual Liberation Sans via jsDelivr npm CDN
-    ? 'https://cdn.jsdelivr.net/npm/@typopro/dtp-liberation@3.7.5/TypoPRO-LiberationSans-Regular.ttf'
-    // Node.js: use the bundled Liberation Sans that OpenSCAD ships (file:// URL → path)
-    : new URL('./data/LiberationSans-Regular.ttf', import.meta.url).pathname
-
-/**
- * jsDelivr npm CDN for the actual Liberation fonts (not substitutes).
- * @typopro/dtp-liberation bundles the Liberation font family as TTF files.
- * These are the same fonts OpenSCAD ships, ensuring geometry compatibility.
+ * Every CDN URL names an exact version of an npm package (TypoPRO's TTF
+ * packages), so the browser fetches pinned files and Node can serve the same
+ * files from node_modules (registerInstalledFonts in fontCache.js).
  */
 const LIB = 'https://cdn.jsdelivr.net/npm/@typopro/dtp-liberation@3.7.5/TypoPRO'
+const typopro = (pkg, file) => `https://cdn.jsdelivr.net/npm/@typopro/dtp-${pkg}@3.7.5/TypoPRO-${file}.ttf`
 
-/**
- * jsDelivr GitHub CDN for Google Fonts repository.
- */
-const BASE = 'https://cdn.jsdelivr.net/gh/google/fonts@main'
+export const LIBERATION_SANS_URL = `${LIB}-LiberationSans-Regular.ttf`
+
+// Node has no synchronous URL load, so the OpenSCAD copy of the default font ships in data/.
+const LIBERATION_SANS_SOURCE =
+  typeof XMLHttpRequest !== 'undefined'
+    ? LIBERATION_SANS_URL
+    : new URL('./data/LiberationSans-Regular.ttf', import.meta.url).pathname
 
 export const STATIC_FONT_MAP = {
   // ── OpenSCAD standard fonts (bundled in every OpenSCAD installation) ──────
@@ -136,40 +126,40 @@ export const STATIC_FONT_MAP = {
   'monospace:style=Bold Italic': `${LIB}-LiberationMono-BoldItalic.ttf`,
 
   // ── Noto Sans — common on Linux systems with OpenSCAD ────────────────────
-  'Noto Sans':                   `${BASE}/ofl/notosans/NotoSans-Regular.ttf`,
-  'Noto Sans:style=Bold':        `${BASE}/ofl/notosans/NotoSans-Bold.ttf`,
-  'Noto Sans:style=Italic':      `${BASE}/ofl/notosans/NotoSans-Italic.ttf`,
-  'Noto Sans:style=Bold Italic': `${BASE}/ofl/notosans/NotoSans-BoldItalic.ttf`,
+  'Noto Sans':                   typopro('noto', 'NotoSans-Regular'),
+  'Noto Sans:style=Bold':        typopro('noto', 'NotoSans-Bold'),
+  'Noto Sans:style=Italic':      typopro('noto', 'NotoSans-Italic'),
+  'Noto Sans:style=Bold Italic': typopro('noto', 'NotoSans-BoldItalic'),
 
   // Common Google Fonts
-  'Roboto':              `${BASE}/apache/roboto/static/Roboto-Regular.ttf`,
-  'Roboto:style=Bold':   `${BASE}/apache/roboto/static/Roboto-Bold.ttf`,
-  'Roboto:style=Italic': `${BASE}/apache/roboto/static/Roboto-Italic.ttf`,
+  'Roboto':              typopro('roboto', 'Roboto-Regular'),
+  'Roboto:style=Bold':   typopro('roboto', 'Roboto-Bold'),
+  'Roboto:style=Italic': typopro('roboto', 'Roboto-Italic'),
 
-  'Open Sans':              `${BASE}/apache/opensans/static/OpenSans-Regular.ttf`,
-  'Open Sans:style=Bold':   `${BASE}/apache/opensans/static/OpenSans-Bold.ttf`,
-  'Open Sans:style=Italic': `${BASE}/apache/opensans/static/OpenSans-Italic.ttf`,
+  'Open Sans':              typopro('open-sans', 'OpenSans-Regular'),
+  'Open Sans:style=Bold':   typopro('open-sans', 'OpenSans-Bold'),
+  'Open Sans:style=Italic': typopro('open-sans', 'OpenSans-Italic'),
 
-  'Lato':              `${BASE}/ofl/lato/Lato-Regular.ttf`,
-  'Lato:style=Bold':   `${BASE}/ofl/lato/Lato-Bold.ttf`,
-  'Lato:style=Italic': `${BASE}/ofl/lato/Lato-Italic.ttf`,
+  'Lato':              typopro('lato', 'Lato-Regular'),
+  'Lato:style=Bold':   typopro('lato', 'Lato-Bold'),
+  'Lato:style=Italic': typopro('lato', 'Lato-Italic'),
 
-  'Montserrat':              `${BASE}/ofl/montserrat/static/Montserrat-Regular.ttf`,
-  'Montserrat:style=Bold':   `${BASE}/ofl/montserrat/static/Montserrat-Bold.ttf`,
-  'Montserrat:style=Italic': `${BASE}/ofl/montserrat/static/Montserrat-Italic.ttf`,
+  'Montserrat':              typopro('montserrat', 'Montserrat-Regular'),
+  'Montserrat:style=Bold':   typopro('montserrat', 'Montserrat-Bold'),
+  'Montserrat:style=Italic': typopro('montserrat', 'Montserrat-Italic'),
 
-  'Oswald':              `${BASE}/ofl/oswald/static/Oswald-Regular.ttf`,
-  'Oswald:style=Bold':   `${BASE}/ofl/oswald/static/Oswald-Bold.ttf`,
+  'Oswald':              typopro('oswald', 'Oswald-Regular'),
+  'Oswald:style=Bold':   typopro('oswald', 'Oswald-Bold'),
 
-  'Source Code Pro':            `${BASE}/ofl/sourcecodepro/static/SourceCodePro-Regular.ttf`,
-  'Source Code Pro:style=Bold': `${BASE}/ofl/sourcecodepro/static/SourceCodePro-Bold.ttf`,
+  'Source Code Pro':            typopro('source-code-pro', 'SourceCodePro-Regular'),
+  'Source Code Pro:style=Bold': typopro('source-code-pro', 'SourceCodePro-Bold'),
 
-  'Ubuntu':              `${BASE}/ufl/ubuntu/Ubuntu-R.ttf`,
-  'Ubuntu:style=Bold':   `${BASE}/ufl/ubuntu/Ubuntu-B.ttf`,
-  'Ubuntu:style=Italic': `${BASE}/ufl/ubuntu/Ubuntu-RI.ttf`,
+  'Ubuntu':              typopro('ubuntu', 'Ubuntu-Regular'),
+  'Ubuntu:style=Bold':   typopro('ubuntu', 'Ubuntu-Bold'),
+  'Ubuntu:style=Italic': typopro('ubuntu', 'Ubuntu-Italic'),
 
-  'Inconsolata':            `${BASE}/ofl/inconsolata/static/Inconsolata-Regular.ttf`,
-  'Inconsolata:style=Bold': `${BASE}/ofl/inconsolata/static/Inconsolata-Bold.ttf`,
+  'Inconsolata':            typopro('inconsolata', 'Inconsolata-Regular'),
+  'Inconsolata:style=Bold': typopro('inconsolata', 'Inconsolata-Bold'),
 }
 
 /**
@@ -183,7 +173,7 @@ const runtimeMap = new Map(Object.entries(STATIC_FONT_MAP))
 
 /**
  * Node.js font cache: maps CDN URLs to local file paths.
- * Populated by ensureLiberationFonts() from fontCache.js.
+ * Populated by ensureLiberationFonts() or registerInstalledFonts() from fontCache.js.
  * Allows synchronous TTF loading in Node.js without bundling font files.
  *
  * @type {Map<string, string>}
@@ -192,7 +182,7 @@ const nodeFontCache = new Map()
 
 /**
  * Register a local file path as a cached version of a CDN URL.
- * Called by ensureLiberationFonts() after downloading fonts to the local cache.
+ * Called by fontCache.js once it has a local copy of the URL's file.
  *
  * @param {string} url - CDN URL (e.g. "https://cdn.jsdelivr.net/npm/...")
  * @param {string} localPath - local file path (e.g. "/home/user/.cache/jscadui/fonts/...")
@@ -248,13 +238,29 @@ export function resolveFont(nameOrUrl) {
     return source
   }
 
-  // Build a helpful error message
-  const available = [...runtimeMap.keys()].filter(k => !k.includes(':')).sort()
   throw new Error(
-    `Font "${nameOrUrl}" not found.\n` +
-    `Available font families: ${available.join(', ')}\n` +
-    `Use loadSystemFonts() to add system-installed fonts, or provide a URL/path directly.`
+    `Font "${nameOrUrl}" not found. Available font families, with their styles ` +
+    `(write a style as "Liberation Sans:style=Bold"): ${fontList([...runtimeMap.keys()])}`
   )
+}
+
+/**
+ * Describe font map names as their families, each with its styles.
+ *
+ * @param {string[]} names - map keys: `Family` and `Family:style=Style`
+ * @returns {string} e.g. `Lato (Bold, Italic), Oswald`
+ */
+export function fontList(names) {
+  const families = new Map()
+  for (const name of names) {
+    const [family, style] = name.split(':style=')
+    if (!families.has(family)) families.set(family, [])
+    if (style) families.get(family).push(style)
+  }
+  return [...families.keys()]
+    .sort((a, b) => a.localeCompare(b))
+    .map((family) => (families.get(family).length ? `${family} (${families.get(family).join(', ')})` : family))
+    .join(', ')
 }
 
 

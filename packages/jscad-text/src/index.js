@@ -73,13 +73,9 @@ function defaultStrokeWidth(size) {
  *
  * @param {string} options.text - text to render (or first arg)
  * @param {number} [options.size=10] - cap height in user units (matches OpenSCAD size)
- * @param {string | ArrayBuffer | Buffer | Uint8Array} [options.font] - font specifier:
- *   - omit/undefined: use Hershey simplex (default, no network needed)
- *   - Name string: looked up in font map (e.g. "Liberation Sans", "Roboto:style=Bold")
- *   - URL string: loaded directly via fetch (http/https/file://)
- *   - File path string: load TTF via fs.readFile (Node.js)
- *   - ArrayBuffer/Buffer/Uint8Array: parse directly (e.g., from require() plugin)
- *   - throws if name not found in map
+ * @param {string | ArrayBuffer | Buffer | Uint8Array} [options.font] - omit for the Hershey stroke font.
+ *   A font name, "Family" or "Family:style=Style" (e.g. "Liberation Sans:style=Bold"); an unknown name
+ *   throws, listing the names. Also a TTF/OTF URL or file path, or the font file's bytes.
  * @param {string} [options.halign='left'] - 'left' | 'center' | 'right'
  * @param {string} [options.valign='baseline'] - 'baseline' | 'top' | 'center' | 'bottom'
  * @param {number} [options.spacing=1] - character spacing multiplier
@@ -253,4 +249,4 @@ function renderTTF(text, { size, font, halign, valign, spacing }) {
 export { defaultLoader as fontLoader } from './fonts/TTFLoader.js'
 export { TTFFont, TTFLoader, isClockwise } from './fonts/TTFLoader.js'
 export { computeValignOffset } from './layout/Alignment.js'
-export { resolveFont, registerFonts, registerFontFile, registerNodeFont, listFonts, loadSystemFonts, STATIC_FONT_MAP } from './fonts/FontMap.js'
+export { resolveFont, registerFonts, registerFontFile, registerNodeFont, listFonts, fontList, loadSystemFonts, STATIC_FONT_MAP } from './fonts/FontMap.js'

@@ -8,6 +8,9 @@
   "exports": {
     ".": {
       "import": "./src/index.js"
+    },
+    "./fontCache": {
+      "import": "./src/fonts/fontCache.js"
     }
   },
   "files": [
@@ -23,6 +26,16 @@
   },
   "devDependencies": {
     "@jscad/modeling": "file:../../.deps-cache/OpenJSCAD.org/packages/modeling",
+    "@typopro/dtp-inconsolata": "3.7.5",
+    "@typopro/dtp-lato": "3.7.5",
+    "@typopro/dtp-liberation": "3.7.5",
+    "@typopro/dtp-montserrat": "3.7.5",
+    "@typopro/dtp-noto": "3.7.5",
+    "@typopro/dtp-open-sans": "3.7.5",
+    "@typopro/dtp-oswald": "3.7.5",
+    "@typopro/dtp-roboto": "3.7.5",
+    "@typopro/dtp-source-code-pro": "3.7.5",
+    "@typopro/dtp-ubuntu": "3.7.5",
     "vitest": "^4.0.18"
   },
   "license": "MIT",

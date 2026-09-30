@@ -9,6 +9,7 @@ import { createProvider } from './fake-provider.js'
 import { decodeFrames } from './frames.js'
 import { loadFixtures, runJob } from './run-eval.js'
 import { memoryMiB, sandboxFrom, sandboxProblem, startExecutor } from './sandbox.js'
+import { everyFont, FONT_NAMES } from './fontCases.js'
 
 // Needs crt (on PATH or EVAL_CRT) and its jscad-eval rootfs (scripts/eval-sandbox-setup.sh); skips without them.
 const sandbox = (() => {
@@ -122,6 +123,18 @@ describe.skipIf(problem)('the crt executor', () => {
       await executor.reset({})
       const text = "const jscadText = require('@jscadui/jscad-text')\njscadText.init(require('@jscad/modeling'))\nmodule.exports = { main: () => jscadText.text2d('JOHN', { size: 12, font: 'Liberation Sans' }) }"
       expect(JSON.parse(await executor.requestTool('write', { path: 'main.js', content: text })).ok).toBe(true)
+    } finally {
+      executor.close()
+    }
+  }, 60_000)
+
+  it('serves every font of the static font map from the bound node_modules, bold included', async () => {
+    const executor = startExecutor({ api: 'fluent', sandbox })
+    try {
+      await executor.reset({})
+      const res = JSON.parse(await executor.requestTool('write', { path: 'main.js', content: everyFont() }))
+      expect(res.error).toBeUndefined()
+      expect(res).toMatchObject({ ok: true, geometry: { parts: FONT_NAMES.length } })
     } finally {
       executor.close()
     }

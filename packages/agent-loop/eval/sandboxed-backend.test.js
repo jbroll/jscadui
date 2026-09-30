@@ -5,6 +5,7 @@ import { regradeResults, freshExecutorGrader, runJob } from './run-eval.js'
 import { fixture as nameplateFixture } from './fixtures/nameplate.js'
 import { createSandboxedBackend } from './sandboxed-backend.js'
 import { liveExecutors, startExecutor } from './sandbox.js'
+import { everyFont, FONT_NAMES } from './fontCases.js'
 
 const CUBE = 'const jf = require("@jbroll/jscad-fluent")\nmodule.exports = { main: () => [jf.cube({ size: 20 })] }'
 const EXITS = 'module.exports = { main: () => process.exit(3) }'
@@ -113,6 +114,18 @@ describe('@jscadui/jscad-text in the sandboxed executor', () => {
     expect(toolResults(result)[0]).toMatchObject({ ok: true, entry: 'main.js' })
     expect(result.report.checkRate).toBe(1)
   }, 30_000)
+
+  it('serves every font of the static font map from local files, bold included', async () => {
+    const executor = startChild()
+    try {
+      await executor.reset({})
+      const res = JSON.parse(await executor.requestTool('write', { path: 'main.js', content: everyFont() }))
+      expect(res.error).toBeUndefined()
+      expect(res).toMatchObject({ ok: true, geometry: { parts: FONT_NAMES.length } })
+    } finally {
+      executor.close()
+    }
+  }, 60_000)
 })
 
 describe('an executor that model code ends', () => {

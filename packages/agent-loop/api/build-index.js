@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { fluentEntries } from './fluent.js'
 import { jscadTextEntries, modelingEntries } from './jsdocEntries.js'
 import { buildSheet } from './sheet.js'
+import { fontList, STATIC_FONT_MAP } from '@jscadui/jscad-text'
 import { APIS } from '../src/api.js'
 import { isMainModule } from '../src/mainModule.js'
 
@@ -44,10 +45,17 @@ const addExtraOptions = (entries) => {
   return entries
 }
 
+// So a model picks a font by name instead of guessing a URL.
+const addFontNames = (entries) => {
+  const font = entries.find((e) => e.name === 'jscadText.text2d').options.find((o) => o.name === 'font')
+  font.description += ` Font names: ${fontList(Object.keys(STATIC_FONT_MAP))}`
+  return entries
+}
+
 export const buildIndex = () => {
   const modeling = addExtraOptions(addPassThrough(modelingEntries(dirname(require.resolve('@jscad/modeling')))))
   const fluent = fluentEntries(dirname(require.resolve('@jbroll/jscad-fluent')), modeling)
-  const text = jscadTextEntries(fileURLToPath(new URL('../../jscad-text/src', import.meta.url)))
+  const text = addFontNames(jscadTextEntries(fileURLToPath(new URL('../../jscad-text/src', import.meta.url))))
   return [...modeling, ...fluent, ...text]
 }
 

@@ -5,6 +5,7 @@ import { createParamsProxy, createProxyState, toParamDefinitions } from '@jscadu
 import { clearAllCaches, moduleResolver, require as jscadRequire } from '@jscadui/require/esm/index.js'
 import { transformcjs } from '@jscadui/transform-babel/esm/transform-babel.js'
 import * as jscadText from '@jscadui/jscad-text'
+import { registerInstalledFonts } from '@jscadui/jscad-text/fontCache'
 import * as jscadIo from '@jscad/io'
 import { OPTION_TABLES } from '../api/optionTable.js'
 import { DEFAULT_API } from '../src/api.js'
@@ -25,6 +26,11 @@ export const PROJECT_BASE = 'http://project.local/'
 export const CDN_BASE = 'https://cdn.jsdelivr.net/npm/'
 export { GRADE_TIMEOUT_MS }
 const nodeRequire = createRequire(import.meta.url)
+
+// The frame loads the static font map's fonts from the CDN; here they come
+// from the same pinned npm packages in node_modules, which the sandbox binds.
+const fonts = registerInstalledFonts(import.meta.url)
+if (fonts.missing.length) throw new Error(`eval backend: font packages not installed (run npm install): ${fonts.missing.join(' ')}`)
 
 // ESM-only packages the frame serves from its own bundles; Node's require
 // cannot resolve an `exports` with only an `import` condition. A plain copy,

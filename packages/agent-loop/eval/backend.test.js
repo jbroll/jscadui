@@ -5,6 +5,7 @@ import { NO_ENTRY } from '../src/project.js'
 import { notGeometryError } from '../src/buildReport.js'
 import { CDN_BASE, createEvalBackend, createReadFile, EXPORT_REG, IMPORT_REG } from './backend.js'
 import { expectCase, WARNING_CASES } from '../test/warningCases.js'
+import { everyFont, FONT_NAMES, UNKNOWN_FONT } from './fontCases.js'
 
 const CUBE = `const jf = require('@jbroll/jscad-fluent')
 function main() { return [jf.cube({ size: 20 })] }
@@ -91,6 +92,21 @@ describe('eval backend builds', () => {
     expect(m.dimensions[0]).toBeCloseTo(120, 3)
     expect(m.dimensions[2]).toBeCloseTo(6, 3)
     expect(m.volume).toBeGreaterThan(120 * 30 * 4 + 50)
+  })
+
+  it('serves every font of the static font map from local files, bold included', async () => {
+    const res = await writeMain(everyFont())
+    expect(res.error).toBeUndefined()
+    expect(res).toMatchObject({ ok: true, geometry: { parts: FONT_NAMES.length } })
+    expect(FONT_NAMES).toContain('Liberation Sans:style=Bold')
+  }, 60_000)
+
+  it('names the available fonts when a model asks for an unknown one', async () => {
+    const res = await writeMain(UNKNOWN_FONT)
+    expect(res.ok).toBe(false)
+    expect(res.error.message).toContain('Font "Comic Sans MS" not found')
+    expect(res.error.message).toContain('Liberation Sans (Bold, Italic, Bold Italic)')
+    expect(res.error.message).toContain('Roboto (Bold, Italic)')
   })
 
   it('fails a package subpath the frame does not alias', async () => {

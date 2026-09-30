@@ -1,26 +1,65 @@
 /**
- * fontCache.js — Node.js font cache utility.
+ * fontCache.js — Node.js local copies of the static font map's CDN fonts.
  *
- * Downloads Liberation fonts from CDN to ~/.cache/jscadui/fonts/ on first use,
- * then registers the local paths with FontMap so TTFLoader can load them synchronously.
+ * Node cannot load a URL synchronously, so text2d there needs each CDN URL
+ * registered against a local file (registerNodeFont). Two sources:
  *
- * Usage (e.g. in run-jscad.js or a vitest globalSetup):
- *
- *   import { ensureLiberationFonts } from '@jscadui/jscad-text/fontCache'
- *   await ensureLiberationFonts()
- *   // Now resolveFont('Liberation Serif') returns a local file path
+ *   registerInstalledFonts()   every static map font, from the npm packages the
+ *                              CDN URLs name (no network; needs them installed)
+ *   ensureLiberationFonts()    the Liberation fonts, downloaded once to
+ *                              ~/.cache/jscadui/fonts/ (run-jscad.js, ci/test)
  *
  * This module is Node.js-only. Do not import it in browser code.
  */
 
 import { homedir } from 'node:os'
-import { join } from 'node:path'
-import { existsSync, mkdirSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { writeFile } from 'node:fs/promises'
-import { STATIC_FONT_MAP, registerNodeFont } from './FontMap.js'
+import { createRequire } from 'node:module'
+import { LIBERATION_SANS_URL, STATIC_FONT_MAP, registerNodeFont } from './FontMap.js'
 
 /** Default cache directory: ~/.cache/jscadui/fonts/ */
 export const DEFAULT_CACHE_DIR = join(homedir(), '.cache', 'jscadui', 'fonts')
+
+const LIBERATION_PREFIX = 'https://cdn.jsdelivr.net/npm/@typopro/dtp-liberation@'
+const NPM_CDN = /^https:\/\/cdn\.jsdelivr\.net\/npm\/((?:@[^/]+\/)?[^/@]+)@([^/]+)\/(.+)$/
+
+const liberationUrls = () =>
+  [...new Set(Object.values(STATIC_FONT_MAP))].filter((url) => typeof url === 'string' && url.startsWith(LIBERATION_PREFIX))
+
+/**
+ * Register the installed copy of every jsDelivr npm URL in the static font
+ * map, so text2d loads each font synchronously from node_modules. A package
+ * counts only at the exact version its URL names.
+ *
+ * @param {string} [from] - module URL whose node_modules resolution finds the packages
+ * @returns {{registered: string[], missing: string[]}} the URLs served locally and those not
+ */
+export function registerInstalledFonts(from = import.meta.url) {
+  const require = createRequire(from)
+  const registered = []
+  const missing = []
+  for (const url of new Set([LIBERATION_SANS_URL, ...Object.values(STATIC_FONT_MAP)])) {
+    const match = typeof url === 'string' && NPM_CDN.exec(url)
+    if (!match) continue
+    const [, name, version, file] = match
+    let path = null
+    try {
+      const manifest = require.resolve(`${name}/package.json`)
+      if (JSON.parse(readFileSync(manifest, 'utf8')).version === version) path = join(dirname(manifest), file)
+    } catch {
+      // not installed
+    }
+    if (path && existsSync(path)) {
+      registerNodeFont(url, path)
+      registered.push(url)
+    } else {
+      missing.push(url)
+    }
+  }
+  return { registered, missing }
+}
 
 /**
  * Ensure all Liberation font variants are available locally.
@@ -40,9 +79,7 @@ export async function ensureLiberationFonts(cacheDir = DEFAULT_CACHE_DIR) {
   const downloaded = []
   const cached = []
 
-  for (const [, url] of Object.entries(STATIC_FONT_MAP)) {
-    if (typeof url !== 'string' || !url.startsWith('https://cdn.jsdelivr.net/npm/@typopro/')) continue
-
+  for (const url of liberationUrls()) {
     const filename = url.split('/').pop()
     const localPath = join(cacheDir, filename)
 
@@ -73,9 +110,7 @@ export async function ensureLiberationFonts(cacheDir = DEFAULT_CACHE_DIR) {
 export function registerCachedFonts(cacheDir = DEFAULT_CACHE_DIR) {
   const registered = []
 
-  for (const [, url] of Object.entries(STATIC_FONT_MAP)) {
-    if (typeof url !== 'string' || !url.startsWith('https://cdn.jsdelivr.net/npm/@typopro/')) continue
-
+  for (const url of liberationUrls()) {
     const filename = url.split('/').pop()
     const localPath = join(cacheDir, filename)
 

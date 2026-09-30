@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { buildIndex, formatIndex, formatOptionTable, optionTables } from '../api/build-index.js'
 import { declarationOf, firstSentence, parseParam } from '../api/jsdoc.js'
 import { OPTION_TABLES } from '../api/optionTable.js'
+import { fontList, STATIC_FONT_MAP } from '@jscadui/jscad-text'
 
 const entries = buildIndex()
 const entry = (name) => entries.find((e) => e.name === name)
@@ -89,6 +90,13 @@ describe('API index', () => {
   it('documents jscad-text', () => {
     expect(entry('jscadText.text2d').options.map((o) => o.name)).toContain('halign')
     expect(entry('jscadText').kind).toBe('namespace')
+  })
+
+  it('lists every font name of the static font map under text2d font', () => {
+    const font = entry('jscadText.text2d').options.find((o) => o.name === 'font').description
+    expect(font).toContain(`Font names: ${fontList(Object.keys(STATIC_FONT_MAP))}`)
+    expect(font).toContain('Liberation Sans (Bold, Italic, Bold Italic)')
+    expect(font).toContain('"Liberation Sans:style=Bold"')
   })
 
   it('tables the option names of optionsFirst functions', () => {

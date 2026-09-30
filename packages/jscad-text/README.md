@@ -100,7 +100,11 @@ The `font` option accepts:
 
 ## Font map
 
-Built-in font names resolve to Google Fonts CDN URLs:
+Built-in font names (`STATIC_FONT_MAP`) resolve to jsDelivr URLs of pinned
+TypoPRO npm packages (`@typopro/dtp-liberation@3.7.5`, `dtp-roboto`,
+`dtp-noto`, ...). In Node, `Liberation Sans` resolves to the bundled
+`src/fonts/data/LiberationSans-Regular.ttf`. An unknown name throws, listing
+each family with its styles (`fontList`).
 
 ```javascript
 import { resolveFont, registerFonts, listFonts } from '@jscadui/jscad-text'
@@ -116,8 +120,21 @@ registerFonts({
 })
 
 // Resolve name → URL
-resolveFont('Liberation Sans')  // → 'https://fonts.gstatic.com/...'
-resolveFont('Liberation Sans:style=Bold')  // → bold variant URL
+resolveFont('Liberation Sans:style=Bold')
+// → 'https://cdn.jsdelivr.net/npm/@typopro/dtp-liberation@3.7.5/TypoPRO-LiberationSans-Bold.ttf'
+```
+
+Node cannot load a URL synchronously, so `@jscadui/jscad-text/fontCache`
+registers local copies of the map's URLs:
+
+```javascript
+import { registerInstalledFonts, ensureLiberationFonts } from '@jscadui/jscad-text/fontCache'
+
+// Every map font, from the @typopro packages in node_modules (no network)
+registerInstalledFonts(import.meta.url)  // → { registered: [...urls], missing: [] }
+
+// The Liberation fonts only, downloaded once to ~/.cache/jscadui/fonts/
+await ensureLiberationFonts()
 ```
 
 ## Font loading in detail

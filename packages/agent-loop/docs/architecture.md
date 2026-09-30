@@ -99,10 +99,12 @@ installed fails with the frame's `failed to load module <name>` /
 any name `isBuiltin` accepts) fail the same way, since the browser has none.
 `@jscadui/jscad-text`, ESM-only, which Node's `require` cannot resolve, is
 imported by `eval/backend.js` and handed over as a plain copy of its exports,
-as the frame's `bundle.jscad_text.js` hands them; its bundled Liberation Sans
-font sits under `packages/`, inside the sandbox's read-only binds. Under Node
-it reads that font file where the frame fetches it from the CDN, and a font
-the frame would fetch by URL fails, since the eval has no network.
+as the frame's `bundle.jscad_text.js` hands them. The frame loads the static
+font map's fonts from jsDelivr URLs of pinned `@typopro/dtp-*` npm packages;
+the backend registers the same files from `node_modules`
+(`registerInstalledFonts`, a devDependency of this package), inside the
+sandbox's read-only binds, and refuses to start when one is missing. A font
+URL outside the map fails, since the eval has no network.
 `@jbroll/jscad-anchors` (not installed) fails here though the app serves it.
 
 The CDN stub hands model code a copy of `@jscad/modeling` and
