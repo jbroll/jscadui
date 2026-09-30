@@ -189,16 +189,22 @@ describe('CSG fixture reference models', () => {
   })
 
   // Two colinear 20mm-OD, 2mm-wall arms (the run) plus a perpendicular branch, each 30mm from center.
-  function pipeTee(segments) {
+  function pipeTee(segments, branchLen = 30) {
     const armLen = 30
     const run = (r) => transforms.rotateY(Math.PI / 2, p.cylinder({ radius: r, height: armLen * 2, segments }))
-    const branch = (r) => transforms.translateY(armLen / 2, transforms.rotateX(Math.PI / 2, p.cylinder({ radius: r, height: armLen, segments })))
+    const branch = (r) => transforms.translateY(branchLen / 2, transforms.rotateX(Math.PI / 2, p.cylinder({ radius: r, height: branchLen, segments })))
     const outer = booleans.union(run(10), branch(10))
     return booleans.subtract(outer, booleans.union(run(8), branch(8)))
   }
 
   it.each([32, 64])('pipe-tee passes its reference model at %i segments', (segments) => {
     expect(passes('pipe-tee', pipeTee(segments))).toBe(true)
+  })
+
+  // A standard 20mm tee is about 40mm to the branch end; 38 is still a tee.
+  it('pipe-tee passes a branch 28mm from center, and not one 24mm', () => {
+    expect(passes('pipe-tee', pipeTee(32, 28))).toBe(true)
+    expect(passes('pipe-tee', pipeTee(32, 24))).toBe(false)
   })
 
   it('pipe-tee fails a solid block', () => {

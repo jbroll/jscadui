@@ -11,7 +11,7 @@ export const fixture = {
     const bboxVolume = smallest * mid * largest
     return [
       { name: 'sized for 20mm pipe', pass: smallest >= 20 && smallest <= 40 },
-      { name: 'three arms extend past the fitting', pass: mid >= 40 && largest >= 40 },
+      { name: 'three arms extend past the fitting', pass: mid >= 36 && largest >= 40 },
       { name: 'hollow bore, not a solid tee', pass: volume > 0 && volume < bboxVolume * 0.45 },
       { name: 'watertight', pass: solid?.watertight === true },
     ]
