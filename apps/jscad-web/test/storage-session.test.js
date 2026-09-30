@@ -23,6 +23,16 @@ describe('mode write-through', () => {
     expect((await rowboat.readProject('p1')).files['lib/gear.js']).toBe('gear')
   })
 
+  it('writes several files as one version, keeping the files it did not name', async () => {
+    const local = createLocalStorage()
+    await local.writeFiles('p1', { 'main.js': 'v0', 'README.md': 'r' }, { entry: 'main.js' })
+    const session = createSession({ local, getBackend: () => 'local' })
+    await session.writeManyThrough('p1', { 'main.js': 'v2', 'lib.js': 'lib' }, { message: 'chat' })
+    expect((await local.readProject('p1')).files).toEqual({ 'main.js': 'v2', 'README.md': 'r', 'lib.js': 'lib' })
+    expect((await local.readProject('p1')).entry).toBe('main.js')
+    expect((await local.listVersions('p1')).map((v) => v.message)).toEqual(['chat', ''])
+  })
+
   it('reads through the tagged backend per project', async () => {
     const local = createLocalStorage()
     const rowboat = createLocalStorage()
