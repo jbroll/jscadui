@@ -1,3 +1,4 @@
+import { complexReport, isComplex } from './complex.js'
 import { gradeFixture } from './grade.js'
 
 export const DEFAULT_CONCURRENCY = 6
@@ -22,7 +23,8 @@ const crashResult = ({ fixture, run, maxTurns }, api, error) => ({
   run,
   ...(api ? { api } : {}),
   maxTurns,
-  report: gradeFixture(fixture, [], null, { params: [], solid: null }),
+  report: isComplex(fixture) ? complexReport(fixture, [], []) : gradeFixture(fixture, [], null, { params: [], solid: null }),
+  ...(isComplex(fixture) ? { gates: [] } : {}),
   turns: 0,
   transcript: [],
   metrics: {},

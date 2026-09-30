@@ -34,7 +34,7 @@ export function firstAttemptFailures(transcript) {
 }
 
 // A fixture requiring `write` is satisfied by a write or an edit (or a legacy writeModel).
-const requiresWrite = (fixture) => fixture.requires?.some((name) => name === 'write' || name === 'writeModel') === true
+export const requiresWrite = (fixture) => fixture.requires?.some((name) => name === 'write' || name === 'writeModel') === true
 
 export const GRADE_TIMEOUT_MS = 120_000
 

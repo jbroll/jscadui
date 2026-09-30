@@ -174,3 +174,36 @@ describe('eval report', () => {
     expect(text).toContain('speed: model m via meta  -')
   })
 })
+
+describe('complex runs in the summary', () => {
+  const scored = (total, checkRate, firstAttemptFailures) => ({ firstAttemptFailures, checkRate, total, dimensions: {} })
+  const complexRun = (overrides) => ({ fixture: 'caboose', run: 1, gates: [], report: scored(8, 1, 0), ...overrides })
+  const runs = [
+    complexRun({ verdict: { success: true, votes: [3, 0] } }),
+    complexRun({ verdict: { success: false, votes: [0, 3] }, report: scored(6, 0.75, 2) }),
+    complexRun({ verdictPending: true, report: scored(4, 0.5, 4) }),
+    complexRun({ renderError: 'no mesh', report: scored(4, 0.5, 4) }),
+    complexRun({ graderError: true, report: scored(4, 0.5, 4) }),
+  ]
+
+  it('leaves pending, unrendered and split-judge runs out of the score means and counts the pending', () => {
+    const [s] = summarize(runs)
+    expect(s.total).toBe(7)
+    expect(s.checkPassRate).toBe(0.875)
+    expect(s.firstAttemptFailures).toBe(14 / 5)
+    expect(s.pending).toBe(1)
+    expect(s.verdictRate).toBe(0.5)
+  })
+
+  it('adds no complex fields to a single-shot fixture', () => {
+    const [s] = summarize([run('cube', 0, 1, 8)])
+    expect(s).not.toHaveProperty('verdictRate')
+    expect(s).not.toHaveProperty('pending')
+  })
+
+  it('prints and compares verdictRate and pending', () => {
+    expect(formatSummary(summarize(runs))).toContain('fixture  verdictRate  pending\ncaboose  0.50  1')
+    const file = { model: 'm', promptSha256: 'abcdef12', summary: summarize(runs) }
+    expect(formatComparison(file, file)).toContain('caboose  0.50 → 0.50  1 → 1')
+  })
+})

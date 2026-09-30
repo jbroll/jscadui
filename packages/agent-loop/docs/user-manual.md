@@ -828,6 +828,58 @@ hollow, watertight, a size the prompt actually states) rather than one exact
 shape; an exact-volume band is only for a fixture whose prompt pins the
 geometry precisely.
 
+### Complex fixtures
+
+A `complex` fixture asks for a whole object ("we need a model of a toy
+caboose"), which no set of checks can grade. It declares `gates` in place of
+`checks`, and its geometry grade comes from a verdict: a vision model
+describes renders of the result without seeing the request, and a text model
+judges that description against the user's messages
+([architecture.md](architecture.md#complex-grading)).
+
+```js
+export const fixture = {
+  name: 'toy-caboose',
+  group: 'complex',
+  prompt: 'we need a model of a toy caboose',
+  requires: ['write'],
+  maxTurns: 8,
+  pieces: 1,
+  followUps: [],
+  gates: (m, { solid, probe, params }) => [],
+}
+```
+
+`gates` lists only what the user's messages state, a size ("my desk is 20mm
+thick") or a count of separate parts, tested with a tolerance through the
+probes, never something the user left open. `pieces` (default 1) is how many
+separate pieces the request calls for. `followUps: [{ message }]` holds later
+user messages; they have no checks of their own, and the judge reads them
+all. A complex fixture is graded with the `bodies` probe added to its own
+`probe`, and gets three harness gates before its own:
+
+- `builds`: the project builds to geometry.
+- `watertight`: from `solid`.
+- `connected`: the probe's bodies, grouped so two bodies share a group when
+  their bounding boxes, each grown by 0.5 mm on every side, overlap. It passes
+  with at most `pieces` groups and reports `groups`. A roof lifted off its
+  walls or wheels hanging below their axles make a second group. It tests for
+  parts that float clear, not for contact: a part inside another's box joins
+  it without touching it.
+
+Geometry is 2 when the verdict is success and every gate passes, 1 when the
+verdict is success and a gate fails, and 0 when the verdict is failure or the
+project does not build. `checkRate` counts the gates plus the verdict as one
+entry. Until the judge has run, geometry is 0 and the run carries
+`verdictPending: true`. A run with `verdictPending`, a `renderError` or a
+`graderError` stays out of the `total` and `checkPassRate` means; its
+`firstAttemptFailures` still counts. The summary adds, per complex fixture,
+`pending` (runs waiting for a verdict) and `verdictRate` (the fraction of runs
+with a verdict that succeeded); `formatSummary` prints them in a
+`fixture  verdictRate  pending` table and `formatComparison` compares them. A
+project that does not build is not rendered, described or judged, and scores
+geometry 0.
+
 ### Sandbox setup
 
 `run-eval` resolves the crt binary once at startup (`EVAL_CRT`, else the first

@@ -58,6 +58,9 @@ const formatSpeedLine = (speed, model, provider) => {
   )
 }
 
+// Runs whose geometry is not settled (no verdict yet) or cannot be (no renders, a split judge).
+const unsettled = (r) => r.verdictPending === true || typeof r.renderError === 'string' || r.graderError === true
+
 export function summarize(results) {
   const byFixture = new Map()
   for (const r of results) {
@@ -69,12 +72,17 @@ export function summarize(results) {
   // the means; an error the model caused scores.
   return [...byFixture].map(([fixture, runs]) => {
     const scored = runs.filter((r) => !r.providerError && !r.infraError)
+    const settled = scored.filter((r) => !unsettled(r))
+    const complex = runs.some((r) => Array.isArray(r.gates))
     return {
       fixture,
       runs: runs.length,
       firstAttemptFailures: meanOf(scored, (r) => r.report.firstAttemptFailures),
-      checkPassRate: meanOf(scored, (r) => r.report.checkRate),
-      total: meanOf(scored, (r) => r.report.total),
+      checkPassRate: meanOf(settled, (r) => r.report.checkRate),
+      total: meanOf(settled, (r) => r.report.total),
+      ...(complex
+        ? { pending: runs.filter((r) => r.verdictPending === true).length, verdictRate: meanOf(settled.filter((r) => r.verdict), (r) => (r.verdict.success ? 1 : 0)) }
+        : {}),
       errors: runs.filter((r) => r.error).length,
       rounds: meanOf(runs, (r) => r.metrics?.rounds),
       failedCalls: meanOf(runs, (r) => r.metrics?.failedCalls),
@@ -111,6 +119,11 @@ export function formatSummary(summary, speed) {
       `${s.fixture}  ${n2or(s.providerSeconds)}  ${n2or(s.firstTokenSeconds)}  ${n2or(s.outputTokensPerSecond)}  ${n2or(s.reasoningTokens)}`,
     )
   }
+  const complex = summary.filter((s) => 'verdictRate' in s)
+  if (complex.length) {
+    lines.push('', 'fixture  verdictRate  pending')
+    for (const s of complex) lines.push(`${s.fixture}  ${n2or(s.verdictRate)}  ${s.pending}`)
+  }
   if (speed) lines.push('', formatSpeedLine(speed, speed.model, speed.provider))
   return lines.join('\n')
 }
@@ -139,6 +152,15 @@ export function formatComparison(a, b) {
     lines.push(
       `${name}  ${cell(sa, 'rounds')} → ${cell(sb, 'rounds')}  ${cell(sa, 'failedCalls')} → ${cell(sb, 'failedCalls')}  ${cell(sa, 'seconds')} → ${cell(sb, 'seconds')}  ${cell(sa, 'geometryError')} → ${cell(sb, 'geometryError')}  ${cell(sa, 'warnings')} → ${cell(sb, 'warnings')}  ${cell(sa, 'docsCalls')} → ${cell(sb, 'docsCalls')}  ${cell(sa, 'providerSeconds')} → ${cell(sb, 'providerSeconds')}  ${cell(sa, 'outputTokensPerSecond')} → ${cell(sb, 'outputTokensPerSecond')}  ${cell(sa, 'inputTokens')} → ${cell(sb, 'inputTokens')}  ${cell(sa, 'outputTokens')} → ${cell(sb, 'outputTokens')}`,
     )
+  }
+  const judged = names.filter((name) => [a, b].some((f) => 'verdictRate' in (f.summary.find((s) => s.fixture === name) ?? {})))
+  if (judged.length) {
+    lines.push('', 'fixture  verdictRate a → b  pending a → b')
+    for (const name of judged) {
+      const sa = a.summary.find((s) => s.fixture === name)
+      const sb = b.summary.find((s) => s.fixture === name)
+      lines.push(`${name}  ${cell(sa, 'verdictRate')} → ${cell(sb, 'verdictRate')}  ${sa?.pending ?? '-'} → ${sb?.pending ?? '-'}`)
+    }
   }
   // Summed over the fixtures both files scored, so an added or dropped fixture does not move it.
   const shared = names.filter((name) => [a, b].every((f) => typeof f.summary.find((s) => s.fixture === name)?.total === 'number'))
