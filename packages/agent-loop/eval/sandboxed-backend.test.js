@@ -146,6 +146,20 @@ describe('@jscadui/jscad-text in the sandboxed executor', () => {
   }, 60_000)
 })
 
+describe('OpenSCAD in the sandboxed executor', () => {
+  it('loads the transpiler on the first .scad require under the permission model', async () => {
+    const executor = startChild()
+    try {
+      await executor.reset({ 'part.scad': 'cube([20, 10, 5]);\n' })
+      const res = JSON.parse(await executor.requestTool('write', { path: 'main.js', content: "module.exports = require('./part.scad')\n" }))
+      expect(res.error).toBeUndefined()
+      expect(res).toMatchObject({ ok: true, geometry: { dimensions: [20, 10, 5] } })
+    } finally {
+      executor.close()
+    }
+  }, 60_000)
+})
+
 describe('an executor that model code ends', () => {
   it('is replaced by a fresh one holding the project, and the model goes on to a graded answer', async () => {
     const result = await run([write(EXITS), write(CUBE), tool('measure', {}), done()])

@@ -5,8 +5,6 @@ import { fileURLToPath } from 'node:url'
 import { check, measure } from '@jscadui/model-tools'
 import { createParamsProxy, createProxyState, toParamDefinitions, withProjectMains } from '@jscadui/params-core'
 import { clearAllCaches, moduleResolver, require as jscadRequire, requireHandlers, setLibraryPrefixes } from '@jscadui/require/esm/index.js'
-import { parse, transpile } from '@jscadui/openscad'
-import j$ from '@jscadui/openscad-runtime'
 import { transformcjs } from '@jscadui/transform-babel/esm/transform-babel.js'
 import * as jscadText from '@jscadui/jscad-text'
 import { registerInstalledFonts } from '@jscadui/jscad-text/fontCache'
@@ -84,9 +82,7 @@ globalThis[USER_MODULE] = (spec) => {
 
 const packageSpec = (url) => url.slice(CDN_BASE.length).replace(/^((?:@[^/]+\/)?[^/@]+)@[^/]+/, '$1')
 
-// The frame resolves a bare require('<library>/...') against the app's
-// deployed /libs/ tree (frameInit in bundle.frame-worker.js); here there is no
-// app server, so library .scad files come straight from disk.
+// The frame maps require('<library>/...') to the app's /libs/; with no app server here, library files come from disk.
 const APP_ORIGIN = 'http://app.local'
 const LIBS_PREFIX = `${APP_ORIGIN}/libs/`
 const LIBS_DIR = resolvePath(process.env.JSCAD_LIBS_DIR ?? fileURLToPath(new URL('../../../apps/jscad-web/libs/', import.meta.url)))
@@ -128,12 +124,15 @@ const readPackage = (path) => {
 
 export const createEvalReadFile = (files) => createReadFile(files, readPackage)
 
-// Lazy like the frame's getOpenscad (bundle.frame-worker.js:41-73): @jscad/modeling
-// loads once, and j$ becomes a process global because transpiled .scad runs
-// through indirect eval in global scope, with no module scope of its own.
+// Loaded on the first .scad require: executor start-up counts against the run time limit.
+// The scad handler is synchronous, hence require() of the ESM entry.
+const requireEsm = (spec) => nodeRequire(fileURLToPath(import.meta.resolve(spec)))
+
 let _openscad = null
 const getOpenscad = () => {
   if (!_openscad) {
+    const { parse, transpile } = requireEsm('@jscadui/openscad')
+    const j$ = requireEsm('@jscadui/openscad-runtime').default
     j$.init(nodeRequire('@jscad/modeling'))
     j$.setSpecialVar('$preview', true)
     globalThis.j$ = j$

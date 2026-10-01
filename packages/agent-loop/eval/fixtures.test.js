@@ -5,7 +5,7 @@ import { check, measure } from '@jscadui/model-tools'
 import { APIS } from '../src/api.js'
 import { TOOLS } from '../src/tools.js'
 import { runProbe } from './probe.js'
-import { loadFixtures } from './run-eval.js'
+import { loadFixtures, selectFixtures } from './run-eval.js'
 
 const names = new Set(TOOLS.map((t) => t.name))
 const files = readdirSync(new URL('./fixtures/', import.meta.url)).filter((f) => f.endsWith('.js')).sort()
@@ -45,6 +45,13 @@ describe('eval fixtures', () => {
       for (const message of [fixture.prompt, ...(fixture.followUps ?? []).map((f) => f.message)]) expect(message).not.toMatch(/fluent|@jscad|modeling|\bjf\b/i)
     })
   }
+
+  it('runs the parts group only when named, until the catalog has admitted entries', () => {
+    const parts = ['bearing-holder-608', 'nema17-mount']
+    expect(fixtures.filter((f) => f.group === 'parts').map((f) => f.name).sort()).toEqual(parts)
+    expect(selectFixtures(fixtures, null).some((f) => f.group === 'parts')).toBe(false)
+    expect(selectFixtures(fixtures, ['parts']).map((f) => f.name).sort()).toEqual(parts)
+  })
 
   it('runs the fluent style checks only under the fluent api', () => {
     expect(byName['fluent-chain'].api).toBe('fluent')
@@ -287,10 +294,8 @@ describe('CSG fixture reference models', () => {
     expect(passes(name, inverted)).toBe(false)
   })
 
-  // A 50 x 50 x 4mm plate with four M3 clearance holes on a square pitch and
-  // a centre hole for the stepper's boss. `require` imitates _catalog/ shim
-  // style; `vitamins/stepper_motor.scad` and `vitamins/screw.scad` are the
-  // catalog's actual call files.
+  // A 50 x 50 x 4mm plate: four M3 clearance holes on a 31mm square and a centre hole for the boss.
+  // The requires use the catalog's real _catalog/ shim paths.
   const STEPPER_REQUIRE = `const { NEMA, NEMA17_40 } = require('_catalog/NopSCADlib/vitamins/stepper_motor.scad')\n`
   const SCREW_REQUIRE = `const { screw, M3_cap_screw } = require('_catalog/NopSCADlib/vitamins/screw.scad')\n`
   const STEPPER_AND_SCREW_REQUIRE = STEPPER_REQUIRE + SCREW_REQUIRE

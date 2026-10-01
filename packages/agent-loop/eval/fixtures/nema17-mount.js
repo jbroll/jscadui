@@ -1,8 +1,7 @@
 import { footprint, holeLoops } from '../probe.js'
 
-// A NEMA 17 bolts to a square of M3 holes 31mm apart in both axes (the
-// "holes" column of NopSCADlib's stepper_motors.scad and the SCREW_SPACING
-// row of BOSL2's nema_steppers.scad agree), around a centre boss for the body.
+// A NEMA 17 bolts on through M3 holes on a 31mm square around a centre boss; NopSCADlib's
+// stepper_motors.scad and BOSL2's nema_steppers.scad agree on the 31mm.
 const AXES = ['x', 'y', 'z']
 const FRACTIONS = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
 
@@ -46,6 +45,7 @@ const isSquarePitch = (corners, pitch = 31, tol = 0.3) => {
 
 export const fixture = {
   name: 'nema17-mount',
+  group: 'parts',
   prompt: 'A mounting plate for a NEMA 17 stepper motor, with holes for the M3 screws that hold the motor on. Just the plate.',
   requires: ['measure', 'write'],
   verifyBeforeWrite: true,

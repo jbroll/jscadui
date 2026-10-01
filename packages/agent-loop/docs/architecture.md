@@ -252,6 +252,17 @@ wrapping it again. The wraps report to
 so a method wrapped by one copy reports to the collector of the run that
 wrapped last.
 
+A `.scad` require goes through `src/scadHandler.js`, the handler the frame
+uses. `@jscadui/openscad` and `@jscadui/openscad-runtime` load on the first
+one, not when `eval/backend.js` is imported: an executor's start-up counts
+against the run time limit, and most models never transpile. The handler is
+synchronous, so `getOpenscad` loads them with `require()` of their ESM
+entries. `j$` becomes a process global because transpiled code runs through
+indirect eval in global scope, with no module scope of its own. A bare
+`require('<library>/...')` reads `apps/jscad-web/libs/` from disk, standing
+in for the app's `/libs/`; a path that resolves outside that directory is
+refused as not found.
+
 ## API index
 
 `api/index.json` describes the public API of `@jscad/modeling`, from the

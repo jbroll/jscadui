@@ -435,7 +435,10 @@ parameters the user names (`bracket-params`), a name cut through a part
 (`luggage-tag`), a real part the model must know the sizes of
 (`pi-enclosure`, `bottle-cap`), a stated opening and clearance (`drawer`), and
 computed shapes (`spur-gears`, `twisted-vase`, `bottle-cap`'s helix).
-`profiles` stays opt-in. `EVAL_FIXTURES` runs the union of
+`profiles` stays opt-in. So does `parts` (`nema17-mount`,
+`bearing-holder-608`): both check that the model requires a catalog part,
+which the prompt offers only once the parts catalog has admitted entries
+(`packages/parts/docs/user-manual.md`, "Admission"). `EVAL_FIXTURES` runs the union of
 whatever it names, fixture names and group names both, e.g. `EVAL_FIXTURES=profiles`
 runs every fixture in that group, `EVAL_FIXTURES=gear,fluent-chain` runs one named
 fixture plus one grouped fixture, and `EVAL_FIXTURES=all` runs every fixture
