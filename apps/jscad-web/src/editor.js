@@ -146,6 +146,24 @@ export const init = (defaultCode, fn, _saveFn, _getFileFn) => {
 /** @returns {string} */
 export const getSource = () => view.state.doc.toString()
 
+/** @returns {number} the cursor position in the document */
+export const getCursor = () => view.state.selection.main.head
+
+/**
+ * Dispatch a set of changes in one transaction and move the cursor to a
+ * position in the resulting document (CodeMirror maps `changes` positions
+ * itself; `cursor` is given in post-edit coordinates, so it is not mapped).
+ * @param {{ changes: { from: number, to?: number, insert: string }[], cursor: number }} edit
+ */
+export const applyEdit = ({ changes, cursor }) => {
+  view.dispatch({
+    changes,
+    selection: { anchor: cursor },
+    scrollIntoView: true,
+  })
+  view.focus()
+}
+
 /** @returns {string} the path of the file in the editor */
 export const getPath = () => currentFile
 
