@@ -143,6 +143,9 @@ export const init = (defaultCode, fn, _saveFn, _getFileFn) => {
   document.addEventListener('click', documentClickHandler)
 }
 
+/** @returns {boolean} whether the CodeMirror view has been created */
+export const isReady = () => view !== undefined
+
 /** @returns {string} */
 export const getSource = () => view.state.doc.toString()
 

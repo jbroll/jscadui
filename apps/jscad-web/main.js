@@ -117,7 +117,9 @@ menu.init({
   }),
   onBrowseParts: () => showPartsBrowser({
     catalogUrl: new URL('./parts/catalog.json', appBase).toString(),
-    getEditor: () => editor,
+    // editor.init() runs later, after the frame boot above; Insert must not
+    // call into a CodeMirror view that doesn't exist yet.
+    getEditor: () => (editor.isReady() ? editor : null),
   })
 })
 welcome.init()

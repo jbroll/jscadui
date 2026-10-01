@@ -202,7 +202,15 @@ export const partsBrowserStyles = `
   color: #fff;
 }
 .parts-insert:hover { opacity: .9; }
+.parts-insert:disabled { cursor: default; opacity: .5; }
 .dark .parts-insert { border-color: #555; }
+
+.parts-not-ready {
+  margin: 8px 0 0;
+  font-size: 12px;
+  font-style: italic;
+  opacity: .7;
+}
 `
 
 // ──────────────────────────────────────────────────────────────────
@@ -326,8 +334,14 @@ function renderEntry(content, entry, { getEditor, onBack }) {
   const optionsEntries = Object.entries(entry.options || {})
   const measured = entry.measured || []
 
+  // Checked once at render time (for the disabled/note state shown up front)
+  // and again inside the handler (the editor can become ready, or stop being
+  // ready, while this view is open).
+  const editorReady = Boolean(getEditor?.())
+
   const insertBtn = el('button', {
     className: 'parts-insert',
+    ...(editorReady ? {} : { disabled: true }),
     onclick: () => {
       const editor = getEditor?.()
       if (!editor) return
@@ -361,6 +375,7 @@ function renderEntry(content, entry, { getEditor, onBack }) {
     el('div', { className: 'parts-field-label' }, 'Example'),
     el('pre', { className: 'parts-example' }, entry.example),
     insertBtn,
+    editorReady ? null : el('p', { className: 'parts-not-ready' }, 'Editor not ready yet.'),
   ))
 }
 
@@ -376,7 +391,12 @@ function closePanel() {
 }
 
 function onKey(e) {
-  if (e.key === 'Escape') closePanel()
+  if (e.key !== 'Escape') return
+  // Both panels can be open together (see partsBrowserStyles' left: 300px).
+  // Close only this one if focus was inside it, or the other isn't open.
+  const demoOpen = document.querySelector('.demo-panel')
+  if (demoOpen && panel && !panel.contains(e.target)) return
+  closePanel()
 }
 
 // ──────────────────────────────────────────────────────────────────

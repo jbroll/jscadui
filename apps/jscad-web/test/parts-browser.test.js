@@ -45,4 +45,55 @@ describe('parts browser', () => {
     await flush()
     expect(document.querySelector('.parts-error')).not.toBeNull()
   })
+
+  it('disables Insert and shows a not-ready note when no editor is available', async () => {
+    const { showPartsBrowser } = await import('../src/partsBrowser.js')
+    showPartsBrowser({ catalogUrl: '/parts/catalog.json', getEditor: () => null })
+    await flush()
+    document.querySelectorAll('.parts-entry')[0].click()
+    const insertBtn = document.querySelector('.parts-insert')
+    expect(insertBtn.disabled).toBe(true)
+    expect(document.querySelector('.parts-not-ready')).not.toBeNull()
+    expect(() => insertBtn.click()).not.toThrow()
+  })
+
+  it('inserts a numeric sizes.values entry as a bare number', async () => {
+    const motorCatalog = { entries: [
+      { id: 'a/motor', family: 'motor', library: 'A', license: 'MIT', call: 'nema_stepper_motor', summary: 'NEMA stepper', signature: { params: [{ name: 'size' }] }, sizes: { values: [17] }, sizeNames: [17], options: {}, measured: [], example: 'nema_stepper_motor(17)', thumb: 'thumbs/a/motor.png', require: 'A/motor.scad', scadIncludes: ['A/motor.scad'] },
+    ] }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(motorCatalog) }))
+    const { showPartsBrowser } = await import('../src/partsBrowser.js')
+    const applyEdit = vi.fn()
+    const editor = { getSource: () => '', getPath: () => '/main.js', getCursor: () => 0, applyEdit }
+    showPartsBrowser({ catalogUrl: '/parts/catalog.json', getEditor: () => editor })
+    await flush()
+    document.querySelector('.parts-entry').click()
+    document.querySelector('.parts-insert').click()
+    expect(applyEdit.mock.calls[0][0].changes.map((c) => c.insert).join('')).toContain('nema_stepper_motor(17)')
+  })
+
+  it('inserts a string sizes.values entry as a quoted JSON literal', async () => {
+    const { showPartsBrowser } = await import('../src/partsBrowser.js')
+    const applyEdit = vi.fn()
+    const editor = { getSource: () => '', getPath: () => '/main.js', getCursor: () => 0, applyEdit }
+    showPartsBrowser({ catalogUrl: '/parts/catalog.json', getEditor: () => editor })
+    await flush()
+    document.querySelectorAll('.parts-entry')[0].click() // entry B: preferred, sizes.values
+    document.querySelector('.parts-insert').click()
+    expect(applyEdit.mock.calls[0][0].changes.map((c) => c.insert).join('')).toContain('nut("M3")')
+  })
+
+  it('keeps catalog order for a family with no preferred entry', async () => {
+    const noPreferred = { entries: [
+      { id: 'x/washer', family: 'washer', library: 'X', license: 'MIT', call: 'washer', summary: 'Washer X', signature: { params: [{ name: 'size' }] }, sizes: { list: 'washers' }, sizeNames: ['M3_washer'], options: {}, measured: [], example: 'washer(M3_washer)', thumb: 'thumbs/x/washer.png', require: 'X/washer.scad', scadIncludes: ['X/washer.scad'] },
+      { id: 'y/washer', family: 'washer', library: 'Y', license: 'MIT', call: 'washer', summary: 'Washer Y', signature: { params: [{ name: 'size' }] }, sizes: { list: 'washers' }, sizeNames: ['M3_washer'], options: {}, measured: [], example: 'washer(M3_washer)', thumb: 'thumbs/y/washer.png', require: 'Y/washer.scad', scadIncludes: ['Y/washer.scad'] },
+    ] }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(noPreferred) }))
+    const { showPartsBrowser } = await import('../src/partsBrowser.js')
+    showPartsBrowser({ catalogUrl: '/parts/catalog.json', getEditor: () => null })
+    await flush()
+    const names = [...document.querySelectorAll('.parts-entry')].map((e) => e.textContent)
+    expect(names[0]).toContain('X')
+    expect(names[1]).toContain('Y')
+  })
 })

@@ -479,7 +479,12 @@ function closePanel() {
 }
 
 function onKey(e) {
-  if (e.key === 'Escape') closePanel()
+  if (e.key !== 'Escape') return
+  // Both panels can be open together (see partsBrowser.js' left: 300px).
+  // Close only this one if focus was inside it, or the other isn't open.
+  const partsOpen = document.querySelector('.parts-panel')
+  if (partsOpen && panel && !panel.contains(e.target)) return
+  closePanel()
 }
 
 // ──────────────────────────────────────────────────────────────────
