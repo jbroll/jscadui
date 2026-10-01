@@ -67,32 +67,61 @@ describe('circular require', () => {
 })
 
 describe('circular require across a library prefix', () => {
-  // A project file reaches a deployed library module by its bare specifier
-  // (library-prefix resolution); the transpiler's own `use` requires inside
-  // that module reach a sibling module by its absolute '/libs/...' path
-  // (NopSCADlib's mutual nut.scad/screw.scad `use`). Both forms must land in
-  // the same cache bucket, or the second path's re-entrant require sees no
-  // pending placeholder and throws instead of resolving the cycle.
-  const root = 'http://project.local/'
-  const files = {
-    'a.js': `
-      const b = require('/libs/Lib/b.js')
-      exports.name = 'a'
-      exports.callB = () => b.name
-    `,
-    'b.js': `
-      const a = require('/libs/Lib/a.js')
-      exports.name = 'b'
-      exports.callA = () => a.name
-    `,
-  }
+  // Reached one bare ('Lib/...') and one absolute ('/libs/Lib/...', as the
+  // transpiler emits), cross-origin like production (root vs. library base).
+  const libRoot = 'http://project.local/'
+  const libBase = 'https://app.test/libs/Lib/'
 
-  beforeEach(() => setLibraryPrefixes({ 'Lib/': 'http://project.local/libs/Lib/' }))
+  beforeEach(() => setLibraryPrefixes({ 'Lib/': libBase }))
   afterEach(() => setLibraryPrefixes({}))
 
   it('resolves the cycle instead of throwing', () => {
-    const a = jscadRequire('Lib/a.js', null, readerFor(files), 'http://project.local/main.js', root)
-    expect(a.name).toBe('a')
-    expect(a.callB()).toBe('b')
+    const files = {
+      'top.js': `
+        const a = require('/libs/Lib/a.js')
+        exports.callA = () => a.name
+      `,
+      'a.js': `
+        const b = require('/libs/Lib/b.js')
+        exports.name = 'a'
+        exports.callB = () => b.name
+      `,
+      'b.js': `
+        const a = require('/libs/Lib/a.js')
+        exports.name = 'b'
+        exports.callA = () => a.name
+      `,
+    }
+    const top = jscadRequire('Lib/top.js', null, readerFor(files), 'http://project.local/main.js', libRoot)
+    expect(top.callA()).toBe('a')
+  })
+
+  // MAX_MODULE_CACHE_SIZE is 50: a module mid-load must survive that many
+  // sibling loads, or the LRU evicts its placeholder and this throws.
+  it('does not evict a module mid-cycle behind 60 sibling loads', () => {
+    const leafCount = 60
+    const files = {
+      'top.js': `
+        const a = require('/libs/Lib/a.js')
+        exports.callA = () => a.name
+        exports.callBack = () => a.callBack()
+      `,
+      'a.js': `
+        ${Array.from({ length: leafCount }, (_, i) => `require('/libs/Lib/leaf${i}.js')`).join('\n')}
+        const back = require('/libs/Lib/back.js')
+        exports.name = 'a'
+        exports.callBack = () => back.name
+      `,
+      'back.js': `
+        const a = require('/libs/Lib/a.js')
+        exports.name = 'back'
+        exports.callA = () => a.name
+      `,
+    }
+    for (let i = 0; i < leafCount; i++) files[`leaf${i}.js`] = `exports.name = 'leaf${i}'`
+
+    const top = jscadRequire('Lib/top.js', null, readerFor(files), 'http://project.local/main.js', libRoot)
+    expect(top.callA()).toBe('a')
+    expect(top.callBack()).toBe('back')
   })
 })

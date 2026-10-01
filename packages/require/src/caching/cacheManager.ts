@@ -191,6 +191,11 @@ export class CacheManager {
   // Module cache with O(1) LRU eviction
   private moduleCache = new LRUCache(MAX_MODULE_CACHE_SIZE)
 
+  // Deployed library files: unbounded, and not cleared by clearTempCache.
+  // The LRU above would evict one still mid-load on a big `use` graph
+  // (NopSCADlib has ~100 files), reviving the circular-dependency throw.
+  private libraryCache: Record<string, unknown> = Object.create(null)
+
   // Dependency tracking: which modules depend on which
   private dependencies = new Map<string, Set<string>>()
 
@@ -207,10 +212,12 @@ export class CacheManager {
   private libraryPrefixes: Array<[string, string]> = []
 
   /**
-   * Get module from cache (local or module cache)
+   * Get module from cache (library, local, or module cache)
    */
   get(url: string, isRelativeFile: boolean): unknown | undefined {
-    if (isRelativeFile) {
+    if (this.isLibraryUrl(url)) {
+      return this.libraryCache[url]
+    } else if (isRelativeFile) {
       return this.localCache[url]
     } else {
       return this.moduleCache.get(url)
@@ -218,10 +225,12 @@ export class CacheManager {
   }
 
   /**
-   * Set module in cache (local or module cache)
+   * Set module in cache (library, local, or module cache)
    */
   set(url: string, value: unknown, isRelativeFile: boolean): void {
-    if (isRelativeFile) {
+    if (this.isLibraryUrl(url)) {
+      this.libraryCache[url] = value
+    } else if (isRelativeFile) {
       this.localCache[url] = value
     } else {
       const evictedKey = this.moduleCache.set(url, value)
@@ -238,7 +247,9 @@ export class CacheManager {
    * evaluation (for cycle handling) failed to evaluate.
    */
   unset(url: string, isRelativeFile: boolean): void {
-    if (isRelativeFile) {
+    if (this.isLibraryUrl(url)) {
+      delete this.libraryCache[url]
+    } else if (isRelativeFile) {
       delete this.localCache[url]
     } else {
       this.moduleCache.delete(url)
@@ -420,6 +431,7 @@ export class CacheManager {
     // Clear in place (see clearTempCache): preserve requireCache identity.
     for (const k of Object.keys(this.localCache)) delete this.localCache[k]
     for (const k of Object.keys(this.aliases)) delete this.aliases[k]
+    for (const k of Object.keys(this.libraryCache)) delete this.libraryCache[k]
     this.moduleCache.clear()
     this.dependencies.clear()
     this.loading.clear()
