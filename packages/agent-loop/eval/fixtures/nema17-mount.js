@@ -7,6 +7,14 @@ const AXES = ['x', 'y', 'z']
 const FRACTIONS = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
 
 const STEPPER_SOURCE = /(?:require\(['"]|include\s*<)(?:_catalog\/)?(?:NopSCADlib|BOSL2)\/[^'">]*(?:stepper|nema)/i
+const SCREW_SOURCE = /(?:require\(['"]|include\s*<)(?:_catalog\/)?(?:NopSCADlib|BOSL2)\/[^'">]*screw/i
+
+// Smallest dim is the plate thickness, the other two its footprint: wide
+// enough to carry the 42.3mm motor face, not an oversized placeholder.
+const sizeOk = (dims) => {
+  const [thickness, ...footprint] = [...dims].sort((a, b) => a - b)
+  return thickness >= 2 && thickness <= 15 && footprint.every((d) => d >= 42.3 && d <= 100)
+}
 
 // Holes a z-axis cut sees, grouped by (x, y) position with the narrowest width kept.
 const zHoles = (sections) => {
@@ -38,7 +46,7 @@ const isSquarePitch = (corners, pitch = 31, tol = 0.3) => {
 
 export const fixture = {
   name: 'nema17-mount',
-  prompt: 'A mounting plate for a NEMA 17 stepper motor with M3 screws holding the motor on',
+  prompt: 'A mounting plate for a NEMA 17 stepper motor, with holes for the M3 screws that hold the motor on. Just the plate.',
   requires: ['measure', 'write'],
   verifyBeforeWrite: true,
   maxTurns: 12,
@@ -49,8 +57,10 @@ export const fixture = {
     const centre = holes.find((h) => h.narrow >= 22)
     return [
       { name: 'requires a catalog stepper', pass: STEPPER_SOURCE.test(source ?? '') },
+      { name: 'requires a catalog screw', pass: SCREW_SOURCE.test(source ?? '') },
       { name: 'four M3 holes on a 31mm square', pass: isSquarePitch(corners) },
       { name: 'a centre hole at least 22mm wide for the boss', pass: !!centre },
+      { name: 'sized for the motor, not a placeholder', pass: sizeOk(m?.dimensions ?? [0, 0, 0]) },
       { name: 'watertight', pass: solid?.watertight === true },
     ]
   },

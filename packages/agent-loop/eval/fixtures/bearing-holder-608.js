@@ -10,6 +10,13 @@ const BEARING_SOURCE = /(?:require\(['"]|include\s*<)(?:_catalog\/)?(?:NopSCADli
 const hasBore = (sections) =>
   sections.some((s) => holeLoops(s).some((h) => footprint(h, s.axis)[0] >= 22.0 && footprint(h, s.axis)[0] <= 22.4))
 
+// The two largest dims must clear the 22mm bore with room for a wall; the
+// smallest must be thick enough to hold a 7mm-wide bearing, not a wafer.
+const sizeOk = (dims) => {
+  const [thin, ...rest] = [...dims].sort((a, b) => a - b)
+  return thin >= 3 && rest.every((d) => d >= 24 && d <= 80)
+}
+
 export const fixture = {
   name: 'bearing-holder-608',
   prompt: 'A holder for a 608 ball bearing',
@@ -20,6 +27,7 @@ export const fixture = {
   checks: (m, { solid, probe, source } = {}) => [
     { name: 'requires a catalog ball bearing', pass: BEARING_SOURCE.test(source ?? '') },
     { name: 'a 22mm bearing bore', pass: hasBore(probe?.sections ?? []) },
+    { name: 'sized for the bearing, not a placeholder', pass: sizeOk(m?.dimensions ?? [0, 0, 0]) },
     { name: 'watertight', pass: solid?.watertight === true },
   ],
 }
