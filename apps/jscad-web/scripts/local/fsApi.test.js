@@ -2,21 +2,27 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import http from 'node:http'
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createFsHandler } from './fsApi.js'
 
 const open = []
+const dirs = []
 
 afterEach(() => {
   for (const s of open.splice(0)) {
     s.closeAllConnections()
     s.close()
   }
+  for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true })
 })
 
-const tempDir = () => mkdtempSync(join(tmpdir(), 'jscad-fsapi-'))
+const tempDir = () => {
+  const dir = mkdtempSync(join(tmpdir(), 'jscad-fsapi-'))
+  dirs.push(dir)
+  return dir
+}
 
 const serve = async (modelDir) => {
   const server = http.createServer()
