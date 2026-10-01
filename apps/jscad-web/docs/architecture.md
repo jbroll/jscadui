@@ -670,28 +670,35 @@ models from the menu.
 
 ## Parts browser
 
-Browse Parts (`src/partsBrowser.js`) reads `parts/catalog.json` only — one
-fetch, no directory walking. The catalog is built by
-`packages/parts/bin/build.js` as part of the app build; `packages/parts/catalog/`
-holds the source records it reads, and `apps/jscad-web/parts/catalog.json`
-(plus `parts/thumbs/<id>.png`) is the build's output, served under
-`<app>/parts/`. An admitted record (Task 11's shape) carries `id`, `family`,
-`library`, `license`, `call`, `summary`, `sizes` (`{list}` for a named-constant
-family such as NopSCADlib's, `{values}` for a literal-size family such as
-BOSL2's), `options`, `example`, `signature`, `sizeNames` (the raw size names or
-values), `measured`, `thumb`, `require` and `scadIncludes`.
+Browse Parts (`src/partsBrowser.js`) reads `parts/catalog.json` only: one
+fetch, no directory walking, and a failed fetch is tried again the next time
+the panel opens. The app build calls `packages/parts/bin/build.js`'s
+`buildParts`, which reads the records in `packages/parts/catalog/` and writes
+`<outDir>/parts/catalog.json` and `<outDir>/parts/thumbs/<id>.png` (`outDir`
+is `build/`, or `build_dev/` in dev), served under `<app>/parts/`. An entry
+carries the record's fields (`id`, `family`, `library`, `license`, `call`,
+`summary`, `sizes`, optional `insertArgs`, `options`, `example`;
+`packages/parts/docs/user-manual.md`) plus `signature`, `sizeNames` (the raw
+size names or values), `measured`, `thumb`, `require` and `scadIncludes`.
 
 The panel groups entries by `family` and shows the preferred entry first
 (`preferred: true`); a family with no preferred entry keeps catalog order.
 Opening an entry and choosing a size turns that choice into the call argument
-text: the raw name verbatim for a `sizes.list` entry (already a valid
+text: the raw name verbatim for a `sizes.list` or `sizes.names` entry (an
 identifier, e.g. `M3_nut`), `JSON.stringify` of the raw value for a
 `sizes.values` entry (`"M3"`, or a bare number). Insert hands that text to
 `src/partsInsert.js`'s `planInsert`, along with the editor's current source,
 cursor and path, and applies the returned change set through
-`src/editor.js`'s `applyEdit`. `planInsert` adds a `.js` file's `require` names
-or a `.scad` file's `include` lines only when missing, then places the call at
-the cursor.
+`src/editor.js`'s `applyEdit`. `planInsert` adds the entry's `insertArgs`
+after the size (`screw(M3_cap_screw, 10)`), adds a `.js` file's `require`
+names or a `.scad` file's `include` lines only when missing, then places the
+call at the cursor. Replacing the panel's content moves focus to the panel
+itself, so Escape still finds it.
+
+The demo and parts panels can be open together. Escape closes the one holding
+focus; with focus in neither, it closes the one opened last
+(`src/panelEscape.js`). Under 640 px wide the parts panel spans the window
+instead of sitting beside the demo panel.
 
 ## Agent loop
 

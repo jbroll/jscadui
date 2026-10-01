@@ -46,9 +46,11 @@ what it only `use`s, it doesn't.
 ## Parts browser
 
 "Browse Parts…" in the menu opens a panel of catalog hardware — nuts, screws,
-washers, bearings, stepper mounts — pulled from NopSCADlib and BOSL2. Each
+washers, bearings, stepper motors — pulled from NopSCADlib and BOSL2. Each
 card is a part family; its entries are different library implementations of
-that part, preferred one first, each tagged with its license.
+that part, preferred one first, each tagged with its license. Escape closes
+the panel; with the demo browser open too, it closes the panel holding focus,
+or the one opened last.
 
 Opening an entry shows its call signature, a size picker, any options with
 what they do, measured dimensions where available, the license and an
@@ -56,10 +58,19 @@ example call. **Insert** writes the part into the open file at the cursor, for t
 chosen in the picker: a `.js` file gets a `require(...)` for the part's module
 (adding missing names to an existing `require` of the same file rather than
 duplicating it), plus a call such as `nut(M3_nut)`; a `.scad` file gets
-`include <...>` lines for the library files it needs, plus `nut(M3_nut);`. The
+`include <...>` lines for the library files it needs, plus `nut(M3_nut);`. A
+part whose call needs more than a size gets fixed values after it, such as
+the 10 mm length in `screw(M3_cap_screw, 10)`; change them by hand. The
 call lands on the current line if it's blank, or on its own new line
 otherwise. It never adds options — the example field shows how to pass them
 by hand.
+
+A `require` from Insert often names `_catalog/...`, as in
+`require('_catalog/NopSCADlib/vitamins/nut.scad')`. That is a small file the
+app build generates under `/libs/_catalog/` for a part whose module and size
+list live in separate library files: it `include`s both, so one `require`
+gets the module and its sizes. A `.scad` file gets the two `include` lines
+instead.
 
 ### Calling a transpiled module or function
 

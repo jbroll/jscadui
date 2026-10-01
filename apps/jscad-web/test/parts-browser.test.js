@@ -1,11 +1,10 @@
 /** @vitest-environment jsdom */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-// Controller ruling: sizeNames hold RAW values; the browser formats the call
-// argument from `sizes.list` (identifier) vs `sizes.values` (JSON literal).
 const catalog = { entries: [
   { id: 'b/nut', family: 'nut', preferred: true, library: 'B', license: 'BSD-2-Clause', call: 'nut', summary: 'Nut B', signature: { params: [{ name: 'spec' }] }, sizes: { values: ['M3'] }, sizeNames: ['M3'], options: {}, measured: [], example: 'nut("M3")', thumb: 'thumbs/b/nut.png', require: '_catalog/B/nuts.scad', scadIncludes: ['B/std.scad', 'B/nuts.scad'] },
-  { id: 'a/nut', family: 'nut', library: 'A', license: 'GPL-3.0', call: 'nut', summary: 'Nut A', signature: { params: [{ name: 'type' }] }, sizes: { list: 'nuts' }, sizeNames: ['M3_nut'], options: { nyloc: 'add the nylon insert' }, measured: [{ args: ['M3_nut'], size: [6.35, 5.5, 2.4] }], example: 'nut(M3_nut)', thumb: 'thumbs/a/nut.png', require: 'A/nuts.scad', scadIncludes: ['A/nuts.scad'] },
+  { id: 'a/nut', family: 'nut', library: 'A', license: 'GPL-3.0', call: 'nut', summary: 'Nut A', signature: { params: [{ name: 'type' }] }, sizes: { list: 'nuts' }, sizeNames: ['M3_nut'], options: { nyloc: 'add the nylon insert' }, measured: [{ args: ['M3_nut', { $fn: 72 }], size: [6.4000000059604645, 5.542562589049339, 2.4] }], example: 'nut(M3_nut)', thumb: 'thumbs/a/nut.png', require: 'A/nuts.scad', scadIncludes: ['A/nuts.scad'] },
+  { id: 'a/screw', family: 'screw', library: 'A', license: 'GPL-3.0', call: 'screw', summary: 'Screw A', signature: { params: [{ name: 'type' }, { name: 'length' }] }, sizes: { names: ['M3_cap_screw'] }, insertArgs: [10], sizeNames: ['M3_cap_screw'], options: {}, measured: [], example: 'screw(M3_cap_screw, 10)', thumb: 'thumbs/a/screw.png', require: '_catalog/A/screw.scad', scadIncludes: ['A/core.scad', 'A/screw.scad'] },
 ] }
 
 beforeEach(() => {
@@ -44,6 +43,40 @@ describe('parts browser', () => {
     showPartsBrowser({ catalogUrl: '/parts/catalog.json', getEditor: () => null })
     await flush()
     expect(document.querySelector('.parts-error')).not.toBeNull()
+  })
+
+  it('fetches the catalog again after a failed fetch', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce({ ok: false }).mockResolvedValue({ ok: true, json: () => Promise.resolve(catalog) })
+    vi.stubGlobal('fetch', fetchMock)
+    const { showPartsBrowser } = await import('../src/partsBrowser.js')
+    showPartsBrowser({ catalogUrl: '/parts/catalog.json', getEditor: () => null })
+    await flush()
+    showPartsBrowser({ catalogUrl: '/parts/catalog.json', getEditor: () => null })
+    showPartsBrowser({ catalogUrl: '/parts/catalog.json', getEditor: () => null })
+    await flush()
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(document.querySelector('.parts-entry')).not.toBeNull()
+  })
+
+  it('shows measured arguments as call text and sizes to 0.01 mm', async () => {
+    const { showPartsBrowser } = await import('../src/partsBrowser.js')
+    showPartsBrowser({ catalogUrl: '/parts/catalog.json', getEditor: () => null })
+    await flush()
+    document.querySelectorAll('.parts-entry')[1].click()
+    expect(document.querySelector('.parts-measured li').textContent).toBe('M3_nut, {"$fn":72} → 6.4 × 5.54 × 2.4 mm')
+  })
+
+  it('inserts a sizes.names entry as an identifier followed by its insertArgs', async () => {
+    const { showPartsBrowser } = await import('../src/partsBrowser.js')
+    const applyEdit = vi.fn()
+    const editor = { getSource: () => '', getPath: () => '/main.js', getCursor: () => 0, applyEdit }
+    showPartsBrowser({ catalogUrl: '/parts/catalog.json', getEditor: () => editor })
+    await flush()
+    document.querySelectorAll('.parts-entry')[2].click()
+    document.querySelector('.parts-insert').click()
+    const inserted = applyEdit.mock.calls[0][0].changes.map((c) => c.insert).join('')
+    expect(inserted).toContain("const { screw, M3_cap_screw } = require('_catalog/A/screw.scad')")
+    expect(inserted).toContain('screw(M3_cap_screw, 10)')
   })
 
   it('disables Insert and shows a not-ready note when no editor is available', async () => {

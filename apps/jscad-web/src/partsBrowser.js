@@ -1,26 +1,5 @@
-/**
- * partsBrowser - non-modal parts catalog side panel.
- *
- * Reads `<app>/parts/catalog.json` (built by packages/parts/bin/build.js) and
- * groups its entries by family. A family card lists its entries, preferred
- * first; opening an entry shows its signature, size choices, options,
- * measured dimensions, license and example, with an Insert button that plans
- * an edit (src/partsInsert.js) and applies it to the open editor file.
- *
- * Interactions:
- *   Click entry        → open its detail view
- *   Click ← Back        → return to the family list
- *   Click Insert        → insert the require/include and call into the editor
- *   Click ×             → close panel
- *   Escape               → close panel
- *   Browse Parts (2nd click) → toggle close
- */
-
+import { escapeCloses } from './panelEscape.js'
 import { planInsert } from './partsInsert.js'
-
-// ──────────────────────────────────────────────────────────────────
-// CSS
-// ──────────────────────────────────────────────────────────────────
 
 export const partsBrowserStyles = `
 .parts-panel {
@@ -40,6 +19,7 @@ export const partsBrowserStyles = `
   font-size: 14px;
   border-radius: 0 4px 4px 0;
 }
+.parts-panel:focus { outline: none; }
 .dark .parts-panel {
   background: #444;
   color: #ddd;
@@ -211,11 +191,11 @@ export const partsBrowserStyles = `
   font-style: italic;
   opacity: .7;
 }
-`
 
-// ──────────────────────────────────────────────────────────────────
-// DOM helper (copied from demoBrowser.js, not imported, per module pattern)
-// ──────────────────────────────────────────────────────────────────
+@media (max-width: 640px) {
+  .parts-panel { left: 10px; right: 10px; width: auto; }
+}
+`
 
 function el(tag, attrs = {}, ...children) {
   const e = document.createElement(tag)
@@ -231,10 +211,6 @@ function el(tag, attrs = {}, ...children) {
   return e
 }
 
-// ──────────────────────────────────────────────────────────────────
-// State
-// ──────────────────────────────────────────────────────────────────
-
 /** @type {Promise<{entries: object[]}|null>|null} */
 let catalogPromise = null
 
@@ -247,19 +223,20 @@ let panel = null
 function getCatalog(catalogUrl) {
   if (!catalogPromise || catalogPromiseUrl !== catalogUrl) {
     catalogPromiseUrl = catalogUrl
-    catalogPromise = fetch(catalogUrl)
+    const pending = fetch(catalogUrl)
       .then(r => (r.ok ? r.json() : null))
       .catch(() => null)
+      .then(catalog => {
+        if (!catalog && catalogPromise === pending) catalogPromise = null
+        return catalog
+      })
+    catalogPromise = pending
   }
   return catalogPromise
 }
 
-// ──────────────────────────────────────────────────────────────────
-// Catalog shaping
-// ──────────────────────────────────────────────────────────────────
-
 /**
- * Group entries by family, preferred entry first, catalog order otherwise.
+ * Preferred entry first, catalog order otherwise.
  * @param {object[]} entries
  * @returns {Map<string, object[]>}
  */
@@ -275,19 +252,14 @@ function familiesOf(entries) {
   return byFamily
 }
 
-/**
- * The call argument text for a size: the raw name verbatim for a `sizes.list`
- * entry (already a valid identifier), a JSON literal for a `sizes.values`
- * entry (numbers stay numbers, strings get quoted).
- */
-const formatSize = (entry, rawSize) => (entry.sizes?.list ? String(rawSize) : JSON.stringify(rawSize))
+/** Call argument text: `list` and `names` sizes are identifiers, `values` sizes JSON literals. */
+const formatSize = (entry, rawSize) => (entry.sizes?.list || entry.sizes?.names ? String(rawSize) : JSON.stringify(rawSize))
 
-/** Resolve a catalog-relative path (e.g. a thumb) against the catalog's own URL. */
+const formatArgs = (entry, [size, ...rest]) => [formatSize(entry, size), ...rest.map(a => JSON.stringify(a))].join(', ')
+
+const round2 = (n) => Math.round(n * 100) / 100
+
 const resolveCatalogPath = (path, catalogUrl) => new URL(path, new URL(catalogUrl, location.href)).toString()
-
-// ──────────────────────────────────────────────────────────────────
-// Rendering
-// ──────────────────────────────────────────────────────────────────
 
 function renderError(content) {
   content.innerHTML = ''
@@ -334,9 +306,7 @@ function renderEntry(content, entry, { getEditor, onBack }) {
   const optionsEntries = Object.entries(entry.options || {})
   const measured = entry.measured || []
 
-  // Checked once at render time (for the disabled/note state shown up front)
-  // and again inside the handler (the editor can become ready, or stop being
-  // ready, while this view is open).
+  // Checked again on click: the editor can become ready, or stop being ready, while this view is open.
   const editorReady = Boolean(getEditor?.())
 
   const insertBtn = el('button', {
@@ -369,7 +339,7 @@ function renderEntry(content, entry, { getEditor, onBack }) {
       : null,
     measured.length ? el('div', { className: 'parts-field-label' }, 'Measured') : null,
     measured.length
-      ? el('ul', { className: 'parts-measured' }, ...measured.map(m => el('li', {}, `${m.args.join(', ')} → ${m.size.join(' × ')} mm`)))
+      ? el('ul', { className: 'parts-measured' }, ...measured.map(m => el('li', {}, `${formatArgs(entry, m.args)} → ${m.size.map(round2).join(' × ')} mm`)))
       : null,
     el('p', { className: 'parts-entry-license' }, entry.license),
     el('div', { className: 'parts-field-label' }, 'Example'),
@@ -379,10 +349,6 @@ function renderEntry(content, entry, { getEditor, onBack }) {
   ))
 }
 
-// ──────────────────────────────────────────────────────────────────
-// Panel lifecycle
-// ──────────────────────────────────────────────────────────────────
-
 function closePanel() {
   if (!panel) return
   panel.remove()
@@ -391,34 +357,23 @@ function closePanel() {
 }
 
 function onKey(e) {
-  if (e.key !== 'Escape') return
-  // Both panels can be open together (see partsBrowserStyles' left: 300px).
-  // Close only this one if focus was inside it, or the other isn't open.
-  const demoOpen = document.querySelector('.demo-panel')
-  if (demoOpen && panel && !panel.contains(e.target)) return
-  closePanel()
+  if (escapeCloses(e, panel, '.demo-panel')) closePanel()
 }
 
-// ──────────────────────────────────────────────────────────────────
-// Public API
-// ──────────────────────────────────────────────────────────────────
-
 /**
- * Show (or toggle) the parts browser panel.
- *
+ * Show the parts browser panel, or close it when open.
  * @param {object} opts
  * @param {string} opts.catalogUrl - URL of `parts/catalog.json`
  * @param {() => {getSource: Function, getPath: Function, getCursor: Function, applyEdit: Function}|null} opts.getEditor
  *   Returns the editor to insert into, or null when none is available.
  */
 export function showPartsBrowser({ catalogUrl, getEditor }) {
-  // Toggle: if already open, close it
   if (panel) {
     closePanel()
     return
   }
 
-  panel = el('div', { className: 'parts-panel' })
+  panel = el('div', { className: 'parts-panel', tabindex: '-1' })
 
   const closeBtn = el('button', { className: 'parts-close-btn', title: 'Close', 'aria-label': 'Close' }, '×')
   closeBtn.addEventListener('click', closePanel)
@@ -439,8 +394,13 @@ export function showPartsBrowser({ catalogUrl, getEditor }) {
       return
     }
     const families = familiesOf(catalog.entries || [])
+    // Replacing the content drops focus to body; keep it in the panel so Escape still finds it.
+    const refocus = () => panel?.focus({ preventScroll: true })
     const showList = () => renderList(content, catalogUrl, families, {
-      onSelectEntry: entry => renderEntry(content, entry, { getEditor, onBack: showList }),
+      onSelectEntry: entry => {
+        renderEntry(content, entry, { getEditor, onBack: () => { showList(); refocus() } })
+        refocus()
+      },
     })
     showList()
   })

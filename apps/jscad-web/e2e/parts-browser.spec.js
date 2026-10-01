@@ -1,10 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { dismissWelcome, waitForRender } from './helpers.js'
 
-// Task 11 record shape plus the signature/sizeNames/measured fields the app
-// build adds; `require`/`scadIncludes`/`call` are real, so an inserted call
-// is runnable against the deployed NopSCADlib copy (not exercised here — this
-// test only checks the editor text planInsert produces).
+// A catalog.json entry as packages/parts/bin/build.js writes it, with the real nopscadlib/nut paths.
 const nutEntry = {
   id: 'nopscadlib/nut',
   family: 'nut',
@@ -54,6 +51,20 @@ test.describe('Parts browser panel', () => {
   })
 
   test('Escape key dismisses the panel', async ({ page }) => {
+    await page.keyboard.press('Escape')
+    await expect(page.locator('.parts-panel')).not.toBeVisible()
+  })
+
+  test('with both panels open, Escape from outside them closes the newer one first', async ({ page }) => {
+    await page.locator('#menu-button').click()
+    await page.locator('#menu-content').getByText('Browse Demos').click()
+    await expect(page.locator('.demo-panel')).toBeVisible()
+    await page.evaluate(() => /** @type {HTMLElement} */ (document.activeElement)?.blur())
+
+    await page.keyboard.press('Escape')
+    await expect(page.locator('.demo-panel')).not.toBeVisible()
+    await expect(page.locator('.parts-panel')).toBeVisible()
+
     await page.keyboard.press('Escape')
     await expect(page.locator('.parts-panel')).not.toBeVisible()
   })
