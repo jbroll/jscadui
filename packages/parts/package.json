@@ -10,6 +10,8 @@
     "build": "node bin/build.js"
   },
   "devDependencies": {
+    "@jscad/modeling": "file:../../.deps-cache/OpenJSCAD.org/packages/modeling",
+    "@jscadui/agent-loop": "*",
     "@jscadui/openscad": "*",
     "@jscadui/openscad-runtime": "*",
     "vitest": "^4"

@@ -66,7 +66,11 @@ the library file at check/build time, not hand-written.
   directories; `--write` merges each record's result (measured sizes,
   signature, size names, transpile and build timings) into `derived.json`,
   keyed by id. Exits 1 if any record fails.
-- `npm run render` — render a thumbnail per entry.
+- `npm run render` — `bin/render.js`. Builds the first `checks[]` entry for
+  each record and renders its iso-front view to `thumbs/<id>.png` (headless
+  Chromium via Playwright). Usage: `node bin/render.js <id>...` or `--all`;
+  `--catalog <dir>`, `--libs <dir>` and `--out <dir>` override the default
+  catalog, `/libs/` and `thumbs/` directories.
 - `npm run build` — write `catalog.json` (every record merged with its
   derived signature, size names, measured dimensions and thumbnail path) for
   the parts browser and the agent's docs index.
