@@ -20,7 +20,8 @@ const libraryDir = (contextFile) => {
  * @param {string} filename
  * @param {string|undefined} fromFile path or URL of the including file
  * @param {string} entryUrl URL of the file that started the transpile
- * @param {string} [fallbackOrigin] origin to use when entryUrl carries none
+ * @param {string} [fallbackOrigin] origin to use when entryUrl carries none,
+ *   and the app's origin for a last `/libs/` candidate
  * @returns {string[]}
  */
 export const includeCandidates = (filename, fromFile, entryUrl, fallbackOrigin) => {
@@ -47,6 +48,12 @@ export const includeCandidates = (filename, fromFile, entryUrl, fallbackOrigin) 
     // A filename with enough ../ resolves above the library it names, which
     // is not a path this fallback is entitled to reach.
     if (libUrl.startsWith(libRoot) && libUrl !== candidates[0]) candidates.push(libUrl)
+  }
+
+  if (fallbackOrigin && fallbackOrigin !== 'null') {
+    const libsRoot = new URL('/libs/', fallbackOrigin).toString()
+    const libsUrl = new URL(filename, libsRoot).toString()
+    if (libsUrl.startsWith(libsRoot) && !candidates.includes(libsUrl)) candidates.push(libsUrl)
   }
   return candidates
 }

@@ -53,6 +53,7 @@ describe('includeCandidates', () => {
     expect(includeCandidates('BOSL2/std.scad', fromFile, entry, 'http://localhost:5120')).toEqual([
       'http://localhost:5120/examples/openscad/bosl2/01-part1/BOSL2/std.scad',
       'http://localhost:5120/examples/openscad/bosl2/BOSL2/std.scad',
+      'http://localhost:5120/libs/BOSL2/std.scad',
     ])
   })
 
@@ -64,6 +65,29 @@ describe('includeCandidates', () => {
 
   it('gives up when neither the entry url nor a fallback carries an origin', () => {
     expect(includeCandidates('a.scad', '/b.scad', 'b.scad')).toEqual([])
+  })
+
+  it('falls back to the app libs tree for a library include from a project file', () => {
+    expect(includeCandidates('NopSCADlib/vitamins/nuts.scad', 'http://project.local/main.scad', 'http://project.local/main.scad', 'http://localhost:5121')).toEqual([
+      'http://project.local/NopSCADlib/vitamins/nuts.scad',
+      'http://localhost:5121/libs/NopSCADlib/vitamins/nuts.scad',
+    ])
+  })
+
+  it('falls back to the app libs tree after the suite fallback for an app file', () => {
+    const fromFile = '/examples/openscad/bosl2/01-part1/cube.scad'
+    expect(includeCandidates('BOSL2/std.scad', fromFile, ENTRY, 'http://localhost:5121').at(-1)).toBe('http://localhost:5121/libs/BOSL2/std.scad')
+  })
+
+  it('never offers a libs candidate that escapes the libs root', () => {
+    const c = includeCandidates('../../secret.scad', 'http://project.local/main.scad', 'http://project.local/main.scad', 'http://localhost:5121')
+    expect(c.some((u) => u.includes('/libs/'))).toBe(false)
+    expect(c.some((u) => u === 'http://localhost:5121/secret.scad')).toBe(false)
+  })
+
+  it('keeps a file inside a library resolving relative to itself first', () => {
+    const from = 'http://localhost:5121/libs/NopSCADlib/vitamins/nuts.scad'
+    expect(includeCandidates('nut.scad', from, 'http://project.local/main.scad', 'http://localhost:5121')[0]).toBe('http://localhost:5121/libs/NopSCADlib/vitamins/nut.scad')
   })
 })
 

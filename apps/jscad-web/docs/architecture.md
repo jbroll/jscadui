@@ -90,14 +90,18 @@ worker once the script lock times out; the worker bumps
 `__jscadScriptGeneration` and the grid stops at its next cell rather than
 share the WASM heap with it.
 
-An OpenSCAD `use`/`include` resolves through `src_frame/scadResolve.js`:
-against the directory of the file that asked for it, then against that file's
-library root (`/examples/openscad/<library>`) as an OPENSCADPATH-like
-fallback. The fallback is dropped when `../` in the filename would resolve
-above that root. It is the only copy of this logic; the loader in
+An OpenSCAD `use`/`include` resolves through `src_frame/scadResolve.js`, in
+order: against the directory of the file that asked for it; then against that
+file's library root (`/examples/openscad/<library>`) as an OPENSCADPATH-like
+fallback, dropped when `../` in the filename would resolve above that root;
+then, last, against `<app origin>/libs/` (NopSCADlib, BOSL2 — see Deployment
+below for the served tree), dropped the same way when it would resolve above
+`/libs/`. The third candidate applies for both a project-origin and an
+app-origin including file, since either can include a library the file map or
+example tree doesn't carry. It is the only copy of this logic; the loader in
 `@jscadui/require` has no origin to resolve against inside a blob worker.
-Resolving against `/libs/` (NopSCADlib, BOSL2) is a later addition to this
-logic, not yet wired in — see Deployment below for the served tree.
+App-origin files are fetched once per session, not re-read on a cache hit
+(`chainUnchanged` in `scadHandler.js`).
 `src_frame/scadHandler.js` remembers a failed read for 60 s so one transpile
 does not fetch the same missing file for every includer, and forgets them all
 whenever a new file map arrives or a cache is cleared.
