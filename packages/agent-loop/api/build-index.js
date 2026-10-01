@@ -1,4 +1,4 @@
-import { writeFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -75,7 +75,8 @@ export const buildIndex = () => {
   const modeling = addExtraOptions(addPassThrough(modelingEntries(dirname(require.resolve('@jscad/modeling')))))
   const fluent = fixOptions(fluentEntries(dirname(require.resolve('@jbroll/jscad-fluent')), modeling))
   const text = addFontNames(jscadTextEntries(fileURLToPath(new URL('../../jscad-text/src', import.meta.url))))
-  return [...modeling, ...fluent, ...text]
+  const parts = JSON.parse(readFileSync(new URL('./parts.json', import.meta.url), 'utf8'))
+  return [...modeling, ...fluent, ...text, ...parts]
 }
 
 const PACKAGE_PREFIX = { '@jscad/modeling': '', '@jbroll/jscad-fluent': 'jf.' }

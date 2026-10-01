@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { readdirSync, readFileSync } from 'node:fs'
 import { APIS, DEFAULT_API } from '../src/api.js'
-import { buildSystemPrompt } from '../src/prompt.js'
+import { assemblePrompt, buildSystemPrompt } from '../src/prompt.js'
 import { EXAMPLES } from '../prompt/index.js'
 import { createEvalBackend } from '../eval/backend.js'
 
@@ -117,5 +117,33 @@ describe('system prompt', () => {
 
   it.each(APIS)('%s: fills every slot of the shared prose', (api) => {
     expect(buildSystemPrompt(api)).not.toMatch(/\{\{\w+\}\}/)
+  })
+})
+
+describe('assemblePrompt Parts block', () => {
+  const prose = 'Prose {{imports}} end. {{style}}'
+  const apiProse = 'IMPORT_TABLE\n## Style\nStyle text'
+  const sheet = 'SHEET'
+  const examples = [{ source: 'console.log(1)' }]
+
+  it('adds no heading and no blank section for an empty block', () => {
+    const prompt = assemblePrompt(prose, apiProse, sheet, examples, '')
+    expect(prompt).not.toContain('## Parts')
+    expect(prompt).not.toMatch(/\n\n\n/)
+  })
+
+  it('defaults to no Parts block when none is given', () => {
+    expect(assemblePrompt(prose, apiProse, sheet, examples)).not.toContain('## Parts')
+  })
+
+  it('carries a non-empty Parts block between the sheet and the examples', () => {
+    const parts = '## Parts\n\n- nut: `const { nut } = require(\'A/nuts.scad\')` — nut(M3_nut)\n\nRules:\n- Use a catalog part for standard hardware instead of modeling it.'
+    const prompt = assemblePrompt(prose, apiProse, sheet, examples, parts)
+    const sheetAt = prompt.indexOf('SHEET')
+    const partsAt = prompt.indexOf('## Parts')
+    const examplesAt = prompt.indexOf('## Examples')
+    expect(partsAt).toBeGreaterThan(sheetAt)
+    expect(examplesAt).toBeGreaterThan(partsAt)
+    expect(prompt).toContain('Use a catalog part for standard hardware instead of modeling it.')
   })
 })

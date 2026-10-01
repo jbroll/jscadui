@@ -53,6 +53,23 @@ const renderFunction = (entry, byName) => {
   return lines.join('\n')
 }
 
+const measuredLine = (m) => `  ${JSON.stringify(m.args)} → [${m.size.join(', ')}] mm`
+
+// A catalog part: license, require/scad lines, signature, sizes, options (name
+// to meaning, not the {name, type, default} shape modeling/fluent entries use),
+// measured dimensions, example.
+const renderPart = (entry) => {
+  const lines = [`${entry.name} (${entry.license})`]
+  if (entry.description) lines.push(entry.description)
+  lines.push(entry.require, entry.scad, entry.signature)
+  if (entry.sizes?.length) lines.push(`Sizes: ${entry.sizes.join(', ')}`)
+  const options = Object.entries(entry.options ?? {})
+  if (options.length) lines.push('Options:', ...options.map(([name, desc]) => `  ${name} - ${desc}`))
+  if (entry.measured?.length) lines.push('Measured:', ...entry.measured.map(measuredLine))
+  if (entry.example) lines.push('Example:', `  ${entry.example}`)
+  return lines.join('\n')
+}
+
 const optionsOf = (entry, byName) => (entry.sameAs ? byName.get(entry.sameAs) : entry)?.options ?? []
 
 // The text between a signature's parentheses, and where its first top-level comma is.
@@ -175,7 +192,8 @@ const renderMembers = (entry, byName) => {
   return texts.find((t) => t.length <= MAX_ANSWER) ?? texts.at(-1)
 }
 
-const render = (entry, byName) => (entry.members || entry.kind === 'namespace' ? renderMembers(entry, byName) : renderFunction(entry, byName))
+const render = (entry, byName) =>
+  entry.kind === 'part' ? renderPart(entry) : entry.members || entry.kind === 'namespace' ? renderMembers(entry, byName) : renderFunction(entry, byName)
 
 // FluentGeom3Array.translate lives on FluentGeometryArray.
 const inherited = (index, query) => {
@@ -207,6 +225,7 @@ const closest = (index, query) => {
 const FLUENT = '@jbroll/jscad-fluent'
 const MODELING = '@jscad/modeling'
 const TEXT = '@jscadui/jscad-text'
+const PARTS = '@jscadui/parts'
 const API_PACKAGE = { fluent: FLUENT, modeling: MODELING }
 const OTHER = { fluent: 'modeling', modeling: 'fluent' }
 
@@ -411,13 +430,28 @@ const TEXT_TAIL = { modeling: "\n\n@jscad/modeling's own text namespace (vectorC
 const textAnswer = (byName, api) =>
   `Filled text outlines come from jscadText.text2d (@jscadui/jscad-text); ${TEXT_USE[api]}.\n\n${render(byName.get('jscadText.text2d'), byName)}${TEXT_TAIL[api] ?? ''}`
 
+// A part's call name, read off its signature ("nut(type)" → "nut") rather than
+// stored as its own field, so the docs entry shape matches the catalog's.
+const callOf = (e) => e.signature.slice(0, e.signature.indexOf('('))
+
+// Every part whose family or call matches the query, case-insensitively,
+// preferred entry first — so "nut" or "NEMA" answers with every library that
+// has one, and a family-wide query puts the agent's default first.
+const partsFamily = (all, q) => {
+  const lower = q.toLowerCase()
+  const hits = all.filter((e) => e.pkg === PARTS && (e.family?.toLowerCase() === lower || callOf(e).toLowerCase() === lower))
+  return [...hits].sort((a, b) => (b.preferred ? 1 : 0) - (a.preferred ? 1 : 0))
+}
+
 const lookupOne = (index, q, api) => {
   const { all, byName } = withAliases(index)
   if (TAPER_QUERY.test(q)) return { ok: true, text: cap(taperAnswer(byName, api)) }
   if (TEXT_QUERY.test(q)) return { ok: true, text: cap(textAnswer(byName, api)) }
   if (PARAMS_QUERY.test(q)) return { ok: true, text: PARAMS_ANSWER }
+  const family = partsFamily(all, q)
+  if (family.length) return { ok: true, text: cap(family.map(renderPart).join('\n\n')) }
   const ownPackage = API_PACKAGE[api]
-  const own = all.filter((e) => e.pkg === ownPackage || e.pkg === TEXT)
+  const own = all.filter((e) => e.pkg === ownPackage || e.pkg === TEXT || e.pkg === PARTS)
   const other = all.filter((e) => e.pkg === API_PACKAGE[OTHER[api]])
 
   if (q === ownPackage || q === TEXT) return { ok: true, text: cap(packageAnswer(index, byName, q)) }

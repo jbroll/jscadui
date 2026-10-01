@@ -463,3 +463,41 @@ describe('docs answers on parameters', () => {
     for (const type of types) expect(extractDefinition({ type, default: 0 }).type).toBe(type)
   })
 })
+
+describe('parts', () => {
+  const part = (over) => ({
+    name: 'parts.a.nut', pkg: '@jscadui/parts', kind: 'part', family: 'nut', description: 'Hex nut.',
+    require: "const { nut, M3_nut } = require('A/nuts.scad')", scad: 'include <A/nuts.scad>', signature: 'nut(type)',
+    sizes: ['M3_nut'], options: {}, license: 'MIT', measured: [{ args: ['M3_nut'], size: [6.35, 5.5, 2.4] }], example: 'nut(M3_nut)',
+    ...over,
+  })
+  const index = [part(), part({ name: 'parts.b.nut', preferred: true, license: 'GPL-3.0', require: "const { nut } = require('B/nuts.scad')" })]
+
+  it('answers a family name with every entry, preferred first', () => {
+    const text = lookupDocs(index, 'nut', { api: 'modeling' }).text
+    expect(text.indexOf('parts.b.nut')).toBeLessThan(text.indexOf('parts.a.nut'))
+    expect(text).toContain("require('A/nuts.scad')")
+    expect(text).toContain('MIT')
+    expect(text).toContain('6.35')
+  })
+
+  it('answers in both APIs', () => {
+    expect(lookupDocs(index, 'nut', { api: 'fluent' }).ok).toBe(true)
+  })
+
+  it('matches case-insensitively by call when the family differs from the call', () => {
+    const nema = part({ name: 'parts.nopscadlib.NEMA', family: 'stepper', signature: 'NEMA(type)', example: 'NEMA(NEMA17_40)' })
+    const text = lookupDocs([nema], 'nema', { api: 'fluent' }).text
+    expect(text).toContain('parts.nopscadlib.NEMA')
+  })
+
+  it('answers an exact entry name with just that entry, rendered by renderPart', () => {
+    const text = lookupDocs(index, 'parts.b.nut', { api: 'fluent' }).text
+    expect(text).toContain('parts.b.nut (GPL-3.0)')
+    expect(text).not.toContain('parts.a.nut')
+  })
+
+  it('answers nothing for a name no part has', () => {
+    expect(lookupDocs(index, 'washer', { api: 'fluent' }).ok).toBe(false)
+  })
+})

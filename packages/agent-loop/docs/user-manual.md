@@ -172,6 +172,15 @@ miss in both is a failed result,
 with the three nearest names in the chosen API by edit distance. Answers are
 cut at 3,000 characters.
 
+A catalog part's family or call name (`nut`, `NEMA`), matched
+case-insensitively, answers every library's entry for it, the one marked
+`preferred` first; an entry's own name (`parts.nopscadlib.nut`) answers just
+that one. Each (`renderPart` in `src/docs.js`) gives its license, `require`
+and `include` lines, signature, sizes, options, measured dimensions and
+example. The entries come from `api/parts.json`, appended to the index by
+`buildIndex` and generated, with the `## Parts` prompt block, by
+`packages/parts/bin/build.js` from the admitted catalog.
+
 ## Option warnings and error hints
 
 The checks (`src/optionChecks.js`) report facts; the run's warning collector

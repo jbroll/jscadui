@@ -3,6 +3,7 @@ import fluentProse from './fluent.md?raw'
 import modelingProse from './modeling.md?raw'
 import fluentSheet from './sheet-fluent.md?raw'
 import modelingSheet from './sheet-modeling.md?raw'
+import partsBlock from './parts.md?raw'
 import fluentSphereUnion from './examples/fluent/01-sphere-union.js?raw'
 import fluentHollowCube from './examples/fluent/02-hollow-cube.js?raw'
 import fluentCubeHole from './examples/fluent/03-cube-hole.js?raw'
@@ -21,6 +22,8 @@ export const PROSE = prose
 export const API_PROSE = { fluent: fluentProse, modeling: modelingProse }
 
 export const SHEETS = { fluent: fluentSheet, modeling: modelingSheet }
+
+export const PARTS = partsBlock
 
 export const EXAMPLES = {
   fluent: [

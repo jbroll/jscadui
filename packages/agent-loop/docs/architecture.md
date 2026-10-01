@@ -286,6 +286,11 @@ function or method whose first parameter is named `angle` or `angles`
 so a new fluent method gets the checks on regeneration
 ([development.md](development.md#api-index)).
 
+`api/parts.json` holds the catalog's docs entries (`pkg: '@jscadui/parts'`,
+`kind: 'part'`), appended to the index by `buildIndex`. `packages/parts/bin/build.js`
+writes it, and the `## Parts` prompt block (`prompt/parts.md`), from the
+admitted catalog entries; both are empty until an entry is admitted.
+
 ## Eval conversations
 
 `runConversation` (`eval/run-eval.js`) runs one fixture run: a fresh backend
