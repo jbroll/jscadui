@@ -195,6 +195,12 @@ describe('complex runs in the summary', () => {
     expect(s.verdictRate).toBe(0.5)
   })
 
+  it('counts an unbuilt run as a judged failure in verdictRate, since it already scores geometry 0', () => {
+    const unbuilt = complexRun({ gates: [{ name: 'builds', pass: false }], verdict: null, report: scored(0, 0, 0) })
+    const [s] = summarize([complexRun({ verdict: { success: true, votes: [3, 0] } }), complexRun({ verdict: { success: true, votes: [3, 0] } }), unbuilt])
+    expect(s.verdictRate).toBe(2 / 3)
+  })
+
   it('adds no complex fields to a single-shot fixture', () => {
     const [s] = summarize([run('cube', 0, 1, 8)])
     expect(s).not.toHaveProperty('verdictRate')

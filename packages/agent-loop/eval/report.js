@@ -81,7 +81,7 @@ export function summarize(results) {
       checkPassRate: meanOf(settled, (r) => r.report.checkRate),
       total: meanOf(settled, (r) => r.report.total),
       ...(complex
-        ? { pending: runs.filter((r) => r.verdictPending === true).length, verdictRate: meanOf(settled.filter((r) => r.verdict), (r) => (r.verdict.success ? 1 : 0)) }
+        ? { pending: runs.filter((r) => r.verdictPending === true).length, verdictRate: meanOf(settled, (r) => (r.verdict?.success ? 1 : 0)) }
         : {}),
       errors: runs.filter((r) => r.error).length,
       rounds: meanOf(runs, (r) => r.metrics?.rounds),

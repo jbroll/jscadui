@@ -913,11 +913,13 @@ entry. Until the judge has run, geometry is 0 and the run carries
 `verdictPending: true`. A run with `verdictPending`, a `renderError` or a
 `graderError` stays out of the `total` and `checkPassRate` means; its
 `firstAttemptFailures` still counts. The summary adds, per complex fixture,
-`pending` (runs waiting for a verdict) and `verdictRate` (the fraction of runs
-with a verdict that succeeded); `formatSummary` prints them in a
-`fixture  verdictRate  pending` table and `formatComparison` compares them. A
-project that does not build is not rendered, described or judged, and scores
-geometry 0.
+`pending` (runs waiting for a verdict) and `verdictRate` (the fraction of
+scored, non-pending runs that succeeded); a run whose `builds` gate failed has
+no verdict and never will, so it counts in `verdictRate` as a failure rather
+than being left out with the pending, render-error and grader-error runs.
+`formatSummary` prints them in a `fixture  verdictRate  pending` table and
+`formatComparison` compares them. A project that does not build is not
+rendered, described or judged, and scores geometry 0.
 
 A complex pass runs with `EVAL_FIXTURES=complex` (or complex fixture names)
 and nothing else: a selection that mixes complex and other fixtures exits
