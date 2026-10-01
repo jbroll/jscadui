@@ -1,6 +1,5 @@
 // Usage: node eval/grader-agreement.js <labels.json> <result files…>
-// Calibration check (docs/superpowers/plans/2026-09-30-grader-calibration.md, Task 4):
-// compares the complex grader's verdicts with a reviewed label set.
+// Compares the complex grader's outcomes with a reviewed label set (docs/user-manual.md, Grader agreement).
 import { readFileSync } from 'node:fs'
 import { basename } from 'node:path'
 import { isMainModule } from '../src/mainModule.js'

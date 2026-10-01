@@ -288,18 +288,22 @@ model with `display-check.js --engine jscad`.
   a complex run fails `builds` with no word on why. A cap that reports the
   count and drops the list past it would keep the grade and name the cause.
   No complex fixture comes near it.
-- Calibrate the complex grader (agent-loop eval). The first pass
-  (`2026-09-30T230517Z-*-complex-*` in the evals repo) judged 30 of 118 runs a
-  success; a read of 34 runs beside their renders found 21 failures where the
-  model meets the request, and 16 unfair descriptions. Causes: the judge never
-  sees the measured size or piece count, so a separate roof, saucer or second
-  chess piece cannot count; each view is described alone and the judge reads
-  disagreement between views as a defect (22 of 88 failures); uncoloured
-  models are described as wireframes (3 of 41 pass); the judge asks for
-  evidence a still render cannot show (removability, an E27 fitting), since
-  the rule that a visible hinge or separate part counts was left out of the
-  prompt; the `side` view is close to a silhouette; the describer sometimes
-  repeats words. Until this is done, complex verdicts are not a measure.
+- Calibrate the complex grader (agent-loop eval). Against the 39 reviewed
+  runs in the evals repo (`calibration/2026-09-30T230517Z-labels.json`,
+  labelled from renders, not yet reviewed by a person) the first grader agreed
+  on 17. Palette colours for uncoloured parts, a raised side view, a top view,
+  a describer prompt that asks about openings, and a judge that gets the
+  measured size, solid and group counts and is told the views were described
+  separately brought it to 23 to 25 over four rounds (`ci/regrade-complex`).
+  The rest is the describer: Moondream names functional objects by shape
+  ("modular furniture" for a cable clip, "two circular cutouts" for a
+  toothbrush holder with a paste slot) and misses pawns, so the judge fails
+  them fairly. Judge-wording changes now trade one error for another.
+  Measured next steps: qwen3.5:9b as describer scored 10 of the 20 hardest
+  runs against Moondream's 6 (about 3 s a view, 23 minutes a pass); DeepSeek
+  with reasoning on scored 27 of 39 but changed 16 verdicts at about 15
+  times the latency. Until agreement is well above this, complex verdicts are
+  not a measure.
 
 ## Refactoring
 
