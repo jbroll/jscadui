@@ -43,6 +43,24 @@ constants, not `nut`. Require `nut.scad` directly for `nut`, as above. When in
 doubt, open the library file: what it `include`s, a `require` of it gets too;
 what it only `use`s, it doesn't.
 
+## Parts browser
+
+"Browse Parts…" in the menu opens a panel of catalog hardware — nuts, screws,
+washers, bearings, stepper mounts — pulled from NopSCADlib and BOSL2. Each
+card is a part family; its entries are different library implementations of
+that part, preferred one first, each tagged with its license.
+
+Opening an entry shows its call signature, a size picker, any options with
+what they do, measured dimensions where available, the license and an
+example call. **Insert** writes the part into the open file at the cursor, for the size
+chosen in the picker: a `.js` file gets a `require(...)` for the part's module
+(adding missing names to an existing `require` of the same file rather than
+duplicating it), plus a call such as `nut(M3_nut)`; a `.scad` file gets
+`include <...>` lines for the library files it needs, plus `nut(M3_nut);`. The
+call lands on the current line if it's blank, or on its own new line
+otherwise. It never adds options — the example field shows how to pass them
+by hand.
+
 ### Calling a transpiled module or function
 
 A transpiled `.scad` file exposes a clean JS surface:

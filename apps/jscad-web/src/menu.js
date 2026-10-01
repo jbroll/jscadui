@@ -8,10 +8,15 @@ let cleanupFn = null
  */
 
 /**
+ * @callback OnBrowseParts
+ */
+
+/**
  * @param {object} opts
  * @param {OnBrowseDemos} [opts.onBrowseDemos] - called when user clicks "Browse Demos…"
+ * @param {OnBrowseParts} [opts.onBrowseParts] - called when user clicks "Browse Parts…"
  */
-export const init = ({ onBrowseDemos } = {}) => {
+export const init = ({ onBrowseDemos, onBrowseParts } = {}) => {
   const button = /** @type {HTMLElement} */ (document.getElementById('menu-button'))
   const content = /** @type {HTMLElement} */ (document.getElementById('menu-content'))
 
@@ -48,6 +53,20 @@ export const init = ({ onBrowseDemos } = {}) => {
     })
     const li = document.createElement('li')
     li.appendChild(browseBtn)
+    exampleDiv.appendChild(li)
+  }
+
+  // Add "Browse Parts…" button after "Browse Demos…"
+  if (exampleDiv && onBrowseParts) {
+    const browsePartsBtn = document.createElement('button')
+    browsePartsBtn.className = 'menu-link-btn'
+    browsePartsBtn.textContent = 'Browse Parts…'
+    browsePartsBtn.addEventListener('click', () => {
+      dismiss()
+      onBrowseParts()
+    })
+    const li = document.createElement('li')
+    li.appendChild(browsePartsBtn)
     exampleDiv.appendChild(li)
   }
 

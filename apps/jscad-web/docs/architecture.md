@@ -668,6 +668,31 @@ user: `apps/jscad-web/test/nopscadlib-categories.test.js` fails when a test is
 missing from the map or listed twice, so a refreshed vendor copy cannot drop
 models from the menu.
 
+## Parts browser
+
+Browse Parts (`src/partsBrowser.js`) reads `parts/catalog.json` only — one
+fetch, no directory walking. The catalog is built by
+`packages/parts/bin/build.js` as part of the app build; `packages/parts/catalog/`
+holds the source records it reads, and `apps/jscad-web/parts/catalog.json`
+(plus `parts/thumbs/<id>.png`) is the build's output, served under
+`<app>/parts/`. An admitted record (Task 11's shape) carries `id`, `family`,
+`library`, `license`, `call`, `summary`, `sizes` (`{list}` for a named-constant
+family such as NopSCADlib's, `{values}` for a literal-size family such as
+BOSL2's), `options`, `example`, `signature`, `sizeNames` (the raw size names or
+values), `measured`, `thumb`, `require` and `scadIncludes`.
+
+The panel groups entries by `family` and shows the preferred entry first
+(`preferred: true`); a family with no preferred entry keeps catalog order.
+Opening an entry and choosing a size turns that choice into the call argument
+text: the raw name verbatim for a `sizes.list` entry (already a valid
+identifier, e.g. `M3_nut`), `JSON.stringify` of the raw value for a
+`sizes.values` entry (`"M3"`, or a bare number). Insert hands that text to
+`src/partsInsert.js`'s `planInsert`, along with the editor's current source,
+cursor and path, and applies the returned change set through
+`src/editor.js`'s `applyEdit`. `planInsert` adds a `.js` file's `require` names
+or a `.scad` file's `include` lines only when missing, then places the call at
+the cursor.
+
 ## Agent loop
 
 The loop runs in the browser (`packages/agent-loop`), not on the server. The

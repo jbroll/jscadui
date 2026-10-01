@@ -40,6 +40,7 @@ import * as welcome from './src/welcome.js'
 import * as about from './src/about.js'
 import { showTrustedSourcesDialog, trustedSourcesStyles } from './src/trustedSourcesUI.js'
 import { showDemoBrowser, demoBrowserStyles } from './src/demoBrowser.js'
+import { showPartsBrowser, partsBrowserStyles } from './src/partsBrowser.js'
 
 // Extracted modules
 import { updatePipelineStats, countGeometry, createProgressHandler } from './src/stats.js'
@@ -113,6 +114,10 @@ menu.init({
       jscadScript({ script, url, base: new URL('./', new URL(url, appBase)).toString(), root: appBase })
       welcome.dismiss()
     },
+  }),
+  onBrowseParts: () => showPartsBrowser({
+    catalogUrl: new URL('./parts/catalog.json', appBase).toString(),
+    getEditor: () => editor,
   })
 })
 welcome.init()
@@ -126,7 +131,7 @@ if (trustedSourcesBtn) {
 
 // Inject dialog styles
 const trustedStyles = document.createElement('style')
-trustedStyles.textContent = trustedSourcesStyles + '\n' + demoBrowserStyles
+trustedStyles.textContent = trustedSourcesStyles + '\n' + demoBrowserStyles + '\n' + partsBrowserStyles
 document.head.appendChild(trustedStyles)
 
 const ctrl = new OrbitControl([byId('viewer')], { ...viewState.camera })
