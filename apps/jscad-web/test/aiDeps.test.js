@@ -148,18 +148,46 @@ describe('storage', () => {
     expect(deps.snapshot).not.toHaveBeenCalled()
   })
 
-  it('stores writes in the project they were made in, and snapshots each project the turn wrote to', async () => {
+  it('refuses write and edit once the user opens another project mid-turn, and touches neither project', async () => {
     const project = fakeProject({ 'main.js': 'a' }, 'p1')
     const { deps, tools: t } = tools({ project })
+    t.startTurn()
     await t.write({ path: 'main.js', content: 'a2' })
     project.open({ 'main.js': 'b' }, 'p2')
-    await t.write({ path: 'part.js', content: 'part' })
-    expect(deps.storeFile.mock.calls).toEqual([
-      ['p1', 'main.js', 'a2'],
-      ['p2', 'part.js', 'part'],
-    ])
+    await expect(t.write({ path: 'part.js', content: 'part' })).rejects.toMatchObject({ name: 'ProjectSwitchedError' })
+    await expect(t.edit({ path: 'main.js', oldString: 'b', newString: 'c' })).rejects.toMatchObject({ name: 'ProjectSwitchedError' })
+    expect(project.files()).toEqual({ 'main.js': 'b' })
+    expect(deps.storeFile.mock.calls).toEqual([['p1', 'main.js', 'a2']])
+    expect(deps.showFile).toHaveBeenCalledTimes(1)
+    expect(deps.build).toHaveBeenCalledTimes(1)
     await t.endTurn()
-    expect(deps.snapshot.mock.calls).toEqual([['p1'], ['p2']])
+    expect(deps.snapshot.mock.calls).toEqual([['p1']])
+  })
+
+  it('refuses a write whose project changed while its files were being read', async () => {
+    const project = fakeProject({ 'main.js': 'a' }, 'p1')
+    const read = project.getProjectFiles
+    project.getProjectFiles = async () => {
+      const files = await read()
+      project.open({}, 'p2')
+      return files
+    }
+    const { deps, tools: t } = tools({ project })
+    t.startTurn()
+    await expect(t.write({ path: 'main.js', content: 'a2' })).rejects.toMatchObject({ name: 'ProjectSwitchedError' })
+    expect(deps.writeProjectFile).not.toHaveBeenCalled()
+    expect(deps.storeFile).not.toHaveBeenCalled()
+  })
+
+  it('writes to the project open when the next turn starts', async () => {
+    const project = fakeProject({ 'main.js': 'a' }, 'p1')
+    const { deps, tools: t } = tools({ project })
+    t.startTurn()
+    project.open({ 'main.js': 'b' }, 'p2')
+    await t.endTurn()
+    t.startTurn()
+    await t.write({ path: 'main.js', content: 'b2' })
+    expect(deps.storeFile.mock.calls).toEqual([['p2', 'main.js', 'b2']])
   })
 })
 

@@ -62,10 +62,11 @@ const CHARS_PER_TOKEN = 4
 
 /**
  * `getBuild` answers the open project's last build report, whichever run made
- * it; `endTurn` runs once after every turn, when its writes are final.
- * @param {{container:HTMLElement,requestTool:Function,getProvider:Function,getApi?:()=>'fluent'|'modeling',runTurnFn?:Function,storage?:{readConversation:Function,writeConversation:Function},projectId?:string|(()=>string),getProjectFiles?:()=>Promise<Record<string,string|ArrayBuffer>>,getBuild?:()=>Promise<object|null>,endTurn?:()=>Promise<void>}} options
+ * it; `startTurn` runs before a turn reads the project for its context, and
+ * `endTurn` once after every turn, when its writes are final.
+ * @param {{container:HTMLElement,requestTool:Function,getProvider:Function,getApi?:()=>'fluent'|'modeling',runTurnFn?:Function,storage?:{readConversation:Function,writeConversation:Function},projectId?:string|(()=>string),getProjectFiles?:()=>Promise<Record<string,string|ArrayBuffer>>,getBuild?:()=>Promise<object|null>,startTurn?:()=>void,endTurn?:()=>Promise<void>}} options
  */
-export const initChat = ({ container, requestTool, getProvider, getApi = () => DEFAULT_API, runTurnFn = defaultRunTurn, storage, projectId, getProjectFiles = async () => ({}), getBuild = async () => null, endTurn = async () => {} }) => {
+export const initChat = ({ container, requestTool, getProvider, getApi = () => DEFAULT_API, runTurnFn = defaultRunTurn, storage, projectId, getProjectFiles = async () => ({}), getBuild = async () => null, startTurn = () => {}, endTurn = async () => {} }) => {
   const header = el('div', 'chat-header', 'AI Chat')
   const messagesEl = el('div', 'chat-messages')
   const form = el('form', 'chat-form')
@@ -315,6 +316,7 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
         // A custom base URL may be a provider called directly, whose CORS preflight would refuse this header.
         ...(selection.baseUrl ? {} : { chatId: sessionId() }),
       })
+      startTurn()
       const files = await projectFiles()
       const build = await lastBuild()
       const api = getApi()

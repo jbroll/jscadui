@@ -8,7 +8,9 @@ import { sendScript } from './scriptRuns.js'
  * edits. A write or edit is a save: it lands in the cache, in storage and in
  * the editor, then `build` runs the project the way the editor does and
  * answers its report. `storeFile` writes with no version row; `endTurn`
- * snapshots each project the turn wrote to as one version.
+ * snapshots each project the turn wrote to as one version. After `startTurn`,
+ * a write or edit is refused once another project is open: the turn's context
+ * came from the project open when it started.
  * @param {{
  *   getProjectFiles: () => Promise<Record<string, string|ArrayBuffer>>,
  *   writeProjectFile: (path:string, content:string) => Promise<void>,
@@ -40,10 +42,14 @@ export const createProjectTools = ({
 }) => {
   // The projects this turn wrote to.
   const written = new Set()
+  let turnProject
 
   const save = async ({ files, path }) => {
     const content = files[path]
     const projectId = getProjectId()
+    if (turnProject !== undefined && projectId !== turnProject) {
+      throw Object.assign(new Error('the user opened another project during this turn; nothing was written. Stop and tell the user.'), { name: 'ProjectSwitchedError' })
+    }
     await writeProjectFile(path, content)
     await storeFile(projectId, path, content)
     written.add(projectId)
@@ -85,6 +91,9 @@ export const createProjectTools = ({
     measure: onBuild(async (options) => withUnits({ ok: true, ...(await workerApi.jscadMeasure({ options })) })),
     check: onBuild(async (input) => withUnits({ ok: true, ...(await workerApi.jscadCheck({ bed: input?.bed })) })),
     exportModel: onBuild(exportModel),
+    startTurn: () => {
+      turnProject = getProjectId()
+    },
     endTurn: async () => {
       for (const projectId of [...written]) {
         written.delete(projectId)

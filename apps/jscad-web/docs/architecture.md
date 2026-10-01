@@ -937,6 +937,13 @@ the turn wrote to (`snapshot`, a version row of what the backend holds). The
 snapshot reads storage, not the turn's writes, so a user's editor edit made
 during the turn, stored after the chat's write, is what the version keeps.
 
+A turn writes only to the project open when it started, the one its context
+was built from. `initChat` calls `startTurn` before it reads the project, and
+once another project is open `write` and `edit` fail with
+`ProjectSwitchedError` and touch nothing. `switchProject` changes the open id
+before it clears and refills the cache, so the guard also covers a write that
+arrives while the new project's files are still being loaded.
+
 With no service worker the file cache is an in-memory map in
 `src/fileSystem.js` (`projectFiles`), so a project switch, an editor run and
 the chat's builds still run.

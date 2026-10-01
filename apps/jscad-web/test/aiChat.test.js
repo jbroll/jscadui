@@ -587,6 +587,24 @@ describe('conversation context', () => {
     expect(header).toContain('"message":"boom"')
   })
 
+  it('starts each turn before it reads the project for the context', async () => {
+    const calls = []
+    const { type } = openChat({
+      runTurnFn: vi.fn(async () => {
+        calls.push('runTurn')
+        return { messages: [] }
+      }),
+      startTurn: () => calls.push('startTurn'),
+      getProjectFiles: async () => {
+        calls.push('getProjectFiles')
+        return {}
+      },
+    })
+    type('a cube')
+    await vi.waitFor(() => expect(calls).toContain('runTurn'))
+    expect(calls).toEqual(['startTurn', 'getProjectFiles', 'runTurn'])
+  })
+
   it('ends each turn once, after the loop, even when it fails', async () => {
     document.body.innerHTML = '<div id="chat"></div>'
     const container = document.getElementById('chat')

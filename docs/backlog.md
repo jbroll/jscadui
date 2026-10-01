@@ -239,14 +239,6 @@ model with `display-check.js --engine jscad`.
   fluent `docs`: compact binary, `poly2`/`poly3`, the `geometries` functions
   with no same-named fluent method, and the internal `utils` helpers
   (`areAllShapesTheSameType`, `fnNumberSort`, `insertSorted`).
-- Project-switch guard on the chat's `write` and `edit` (jscad-web). A turn
-  builds its context from the project open when it started, but a write lands
-  in whatever project is open when the call arrives, so a switch mid-turn
-  puts project A's file into project B's editor and cache, and builds B (the
-  turn's version still goes to the project each write was made in). A write
-  can also land between `replaceProjectFiles`' clear and refill. Capture the
-  project id at turn start and refuse `write` and `edit` with an error result
-  when it has changed. (`src/aiChat.js`, `src/aiDeps.js`)
 - A `delete` tool for the chat (agent-loop, jscad-web). `write` with empty
   content leaves an empty file, not a deleted one. Add `delete` to both tool
   lists and the eval's backend when a fixture needs a file removed.

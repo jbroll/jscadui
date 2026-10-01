@@ -968,6 +968,7 @@ if (byId('ai-chat')) {
     projectId: () => currentProjectId,
     getProjectFiles: () => fileSystem.projectFiles(),
     getBuild: projectBuilds.report,
+    startTurn: chatTools.startTurn,
     endTurn: chatTools.endTurn,
   })
 }
