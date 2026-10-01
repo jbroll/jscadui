@@ -36,6 +36,7 @@ export const defaultPoolSize = (hardwareConcurrency = 2) => Math.max(1, Math.min
  * @param {object} options
  * @param {string} options.allowedOrigin the app origin; the only sender answered
  * @param {string} options.bundleBase absolute base the frame's own bundles live under
+ * @param {string[]} [options.libraries] deployed library directory names under /libs/
  * @param {() => Worker} options.createWorker
  * @param {(message: unknown, transfer?: Transferable[]) => void} options.post sends to the app
  * @param {Window} options.parentWindow the only window whose messages are accepted
@@ -45,6 +46,7 @@ export const defaultPoolSize = (hardwareConcurrency = 2) => Math.max(1, Math.min
 export const createFrameHost = ({
   allowedOrigin,
   bundleBase,
+  libraries = [],
   createWorker,
   post,
   parentWindow,
@@ -279,7 +281,7 @@ export const createFrameHost = ({
     if (Number.isInteger(wantedPool) && wantedPool > 0) state.poolSize = wantedPool
     // The worker's own origin is opaque, so it gets the app origin here; it is
     // the only base for include urls that arrive as bare pathnames.
-    const params = { ...init, claims: true, bundles: workerBundles(bundleBase, engine), appOrigin: allowedOrigin }
+    const params = { ...init, claims: true, bundles: workerBundles(bundleBase, engine), appOrigin: allowedOrigin, libraries }
     return { ...data, params: [params, ...rest] }
   }
 

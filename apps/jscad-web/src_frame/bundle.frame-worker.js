@@ -21,7 +21,7 @@ import {
   setRunWarnings,
 } from '@jscadui/worker'
 import { asGeometry, summarizeRun } from '@jscadui/agent-loop/src/buildReport.js'
-import { readFileWeb, require, requireHandlers, jscadClearTempCache, clearFileCache, setUserModuleWrapper } from '@jscadui/require'
+import { readFileWeb, require, requireHandlers, jscadClearTempCache, clearFileCache, setUserModuleWrapper, setLibraryPrefixes } from '@jscadui/require'
 import { withTransferable } from '@jscadui/postmessage'
 import { defaultSerializerConfigs } from '@jscadui/format-common/src/exportFormats.js'
 import { createScadHandler } from './scadHandler.js'
@@ -35,8 +35,13 @@ import { createModelIsolation } from './modelIsolation.js'
 // The frame adds appOrigin to every jscadInit: this worker's own origin is
 // opaque, so include urls with no origin of their own have no other base.
 let appOrigin = null
-const frameInit = ({ appOrigin: origin, ...options }) => {
+const frameInit = ({ appOrigin: origin, libraries, ...options }) => {
   if (origin) appOrigin = origin
+  // Bare requires of a deployed library (e.g. require('NopSCADlib/...'))
+  // resolve to the app's /libs/ tree instead of the CDN.
+  if (appOrigin && libraries) {
+    setLibraryPrefixes(Object.fromEntries(libraries.map((name) => [name + '/', new URL('/libs/' + name + '/', appOrigin).href])))
+  }
   return jscadInit(options)
 }
 

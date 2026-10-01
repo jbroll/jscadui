@@ -3,6 +3,7 @@ import { createFrameHost } from './frameHost.js'
 
 // Injected by esbuild at build time (see build.js).
 const ALLOWED_ORIGIN = __ALLOWED_ORIGIN__
+const LIBRARIES = __LIBRARIES__
 
 const BUNDLE_BASE = new URL('./assets/', location.href).href
 
@@ -16,6 +17,7 @@ const workerSource =
 const { handleMessage } = createFrameHost({
   allowedOrigin: ALLOWED_ORIGIN,
   bundleBase: BUNDLE_BASE,
+  libraries: LIBRARIES,
   createWorker: () =>
     createBlobWorker({
       source: workerSource,

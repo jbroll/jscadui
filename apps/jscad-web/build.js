@@ -104,6 +104,11 @@ genExamplesManifest('examples', outDir + '/examples/manifest.json')
 
 if (existsSync(outDir + '/libs')) rmSync(outDir + '/libs', { recursive: true, force: true })
 if (existsSync('libs')) copyTask('libs', outDir + '/libs', { include: [], exclude: [], watch, filters: [] })
+// Deployed library directory names, so the frame worker can map bare JS
+// requires of them (e.g. 'NopSCADlib/...') to /libs/ instead of the CDN.
+const libraries = existsSync('libs')
+  ? readdirSync('libs', { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name).sort()
+  : []
 //in dev mode dont try to sync docs, just copy the first time 
 if(!skipDocs && !(dev & existsSync(outDir + "/docs"))){
   // this task is heavy
@@ -275,7 +280,7 @@ await buildOne('src_frame', frameBuildDir, 'bundle.frame-worker.js', watch, {
 })
 await buildOne('src_frame', frameDir, 'frame.js', watch, {
   format: 'esm',
-  define: { __ALLOWED_ORIGIN__: JSON.stringify(appOrigin) },
+  define: { __ALLOWED_ORIGIN__: JSON.stringify(appOrigin), __LIBRARIES__: JSON.stringify(libraries) },
 })
 
 // Content-hash entry assets in production so 1-year-cached bundles bust on change.

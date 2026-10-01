@@ -201,6 +201,11 @@ export class CacheManager {
   private aliases: Record<string, string> = Object.create(null)
   private bundleAliases: Record<string, string> = Object.create(null)
 
+  // Deployed-library prefixes ('NopSCADlib/' -> base URL), longest first.
+  // Configuration like bundleAliases: left untouched by clearTempCache/
+  // clearAllCaches so a frame's library wiring survives a project reset.
+  private libraryPrefixes: Array<[string, string]> = []
+
   /**
    * Get module from cache (local or module cache)
    */
@@ -332,6 +337,24 @@ export class CacheManager {
    */
   getBundleAlias(url: string): string | undefined {
     return this.bundleAliases[url]
+  }
+
+  /**
+   * Set the library prefix map, sorted longest-prefix-first so the most
+   * specific match wins.
+   */
+  setLibraryPrefixes(map: Record<string, string>): void {
+    this.libraryPrefixes = Object.entries(map).sort((a, b) => b[0].length - a[0].length)
+  }
+
+  /**
+   * Resolve a url through the longest matching library prefix, if any.
+   */
+  resolveLibraryPrefix(url: string): string | undefined {
+    for (const [prefix, base] of this.libraryPrefixes) {
+      if (url.startsWith(prefix)) return base + url.slice(prefix.length)
+    }
+    return undefined
   }
 
   /**

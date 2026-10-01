@@ -13,6 +13,14 @@ import { resolveUrl as resolveUrlCore, MODULE_BASE } from '../resolveUrl.js'
 import { cacheManager } from '../caching/cacheManager.js'
 
 /**
+ * Map bare specifiers under a deployed library name to its base URL, e.g.
+ * { 'NopSCADlib/': 'https://app/libs/NopSCADlib/' }. Configuration, so it
+ * survives clearAllCaches the same way bundle aliases do.
+ * @param {Record<string, string>} map
+ */
+export const setLibraryPrefixes = (map) => cacheManager.setLibraryPrefixes(map)
+
+/**
  * ModuleResolver class with built-in memoization
  * Delegates alias management to cacheManager
  */
@@ -50,8 +58,11 @@ export class ModuleResolver {
     const bundleAlias = cacheManager.getBundleAlias(url)
     const aliasedUrl = bundleAlias ?? cacheManager.getAlias(url) ?? url
 
+    // Deployed-library prefix (e.g. 'NopSCADlib/...') after exact aliases miss
+    const mappedUrl = cacheManager.resolveLibraryPrefix(aliasedUrl) ?? aliasedUrl
+
     // Create cache key from all parameters
-    const cacheKey = `${aliasedUrl}|${base}|${root}|${moduleBase}`
+    const cacheKey = `${mappedUrl}|${base}|${root}|${moduleBase}`
 
     // Check memoization cache
     const cached = this.resolutionCache.get(cacheKey)
@@ -60,7 +71,7 @@ export class ModuleResolver {
     }
 
     // Resolve using core logic
-    const result = resolveUrlCore(aliasedUrl, base, root, moduleBase)
+    const result = resolveUrlCore(mappedUrl, base, root, moduleBase)
 
     // Cache the result for future lookups
     this.cacheResolution(cacheKey, result)
