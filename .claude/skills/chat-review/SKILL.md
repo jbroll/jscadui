@@ -146,9 +146,9 @@ the user the fixture count times `EVAL_RUNS` and get a yes.
    across every model — it runs on the CI host, not this machine, and keeps
    the models running concurrently; use a local run for a quick check of one
    model or a handful of fixtures. The default run (no `EVAL_FIXTURES`) is
-   the CSG suite, primitives and boolean operations, which is what most real
-   requests exercise, and the `harder` group, which always runs with it.
-   `gear` sits in the opt-in `profiles` group, kept for experiments
+   the fixtures that still lose points plus three guards (see Rules). Add
+   `EVAL_FIXTURES=regression` only when the change touches tools or the
+   runtime. `gear` sits in the opt-in `profiles` group, kept for experiments
    (`EVAL_FIXTURES=profiles` or `EVAL_FIXTURES=all`):
 
    ```bash
@@ -186,11 +186,15 @@ the user the fixture count times `EVAL_RUNS` and get a yes.
    - Show the per-fixture comparison against the previous run
      (`--compare <previous> <candidate>`): mean total, `rounds`, input and
      output tokens and seconds for each fixture, and the suite total.
-   - Say which differences are within noise. At 3 runs one bad run moves a
-     fixture's mean total by about 0.67, so a move of that size on one
-     fixture, or a suite total that moves by a few such steps spread across
-     fixtures, may be one run going the other way. Rerun a fixture on its own
-     when the decision hangs on it.
+   - Say which differences are within noise. Reruns of an unchanged prompt
+     (2026-09-29 and 2026-09-30) moved a lane's suite total by a median of
+     0.67 and up to 3.0, and one fixture's mean by up to 1.33. A suite move of
+     3 or less in a lane, or one that changes sign between lanes, is no
+     change. Rounds, output tokens and `firstAttemptFailures` move more
+     reliably than the total; judge by them when the totals sit at 8. Rerun a
+     fixture on its own when the decision hangs on it.
+   - Measure a prompt change on its own. A run that also changes tools, the
+     runtime or the grader cannot credit the prompt with what moved.
    - Read the transcripts behind every change that matters, better or worse
      (`results[].transcript` in both files): what the model did differently,
      and whether the prompt or example change caused it or the run was luck.
@@ -199,7 +203,9 @@ the user the fixture count times `EVAL_RUNS` and get a yes.
 
 7. **Show and commit.** Show the user the prompt/example diff, the
    comparison and the decision from step 6. On approval, commit the prompt,
-   examples and fixtures in jscadui; then, in the evals repo, `git -C <data> add logs results` and
+   examples and fixtures in jscadui, with a message naming the baseline and
+   candidate result files and the moves that decided it, or saying the change
+   is unmeasured and why; then, in the evals repo, `git -C <data> add logs results` and
    commit the new log and result files, with a message naming the jscadui
    commit it goes with. Push the evals repo (`jbroll/jscad-chat-evals`, the
    user's private repo). Never push jscadui without asking, and never open a
