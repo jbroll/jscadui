@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { includeCandidates, isSpaFallback } from '../src_frame/scadResolve.js'
-import { PROJECT_BASE } from '../src_frame/fileMap.js'
+import { includeCandidates, isSpaFallback } from '../src/scadResolve.js'
+import { PROJECT_BASE } from '../src/projectUrl.js'
 
 const ENTRY = 'http://localhost:5121/examples/openscad/nopscadlib/NopSCADlib/tests/sheets.scad'
 

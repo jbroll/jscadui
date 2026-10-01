@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { createScadHandler } from '../src_frame/scadHandler.js'
+import { createScadHandler } from '../src/scadHandler.js'
 
 const APP = 'https://app.example'
 

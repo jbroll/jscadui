@@ -1,5 +1,5 @@
 import { includeCandidates, isSpaFallback } from './scadResolve.js'
-import { PROJECT_BASE } from './fileMap.js'
+import { PROJECT_BASE } from './projectUrl.js'
 
 const FAILURE_CACHE_TTL = 60000
 

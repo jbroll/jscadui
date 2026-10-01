@@ -24,7 +24,7 @@ import { asGeometry, summarizeRun } from '@jscadui/agent-loop/src/buildReport.js
 import { readFileWeb, require, requireHandlers, jscadClearTempCache, clearFileCache, setUserModuleWrapper, setLibraryPrefixes } from '@jscadui/require'
 import { withTransferable } from '@jscadui/postmessage'
 import { defaultSerializerConfigs } from '@jscadui/format-common/src/exportFormats.js'
-import { createScadHandler } from './scadHandler.js'
+import { createScadHandler } from '@jscadui/agent-loop/src/scadHandler.js'
 import { createImportData } from './importData.js'
 import { sealMessageListeners } from './sealMessages.js'
 import { createWithSolids } from './withSolids.js'
