@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "@codemirror/lang-javascript": "^6.1.9",
+    "@codemirror/state": "^6.2.1",
     "@jbroll/jscad-fluent": "file:../../.deps-cache/jscad-fluent",
     "@jbroll/rowboat-client": "file:../../../rowboat/packages/client",
     "@jbroll/rowboat-schema": "file:../../../rowboat/packages/schema",
@@ -40,6 +41,7 @@
     "@jscadui/openscad": "*",
     "@jscadui/orbit": "^0.1.0",
     "@jscadui/params": "*",
+    "@jscadui/parts": "*",
     "@jscadui/params-controller": "*",
     "@jscadui/params-core": "*",
     "@jscadui/params-ui": "*",
