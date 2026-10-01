@@ -1,7 +1,7 @@
 import { performance } from 'node:perf_hooks'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
-import { initScadRuntime, requireScadSync } from '../../openscad/bin/run-jscad.js'
+import { initScadRuntime, requireScadSync } from '@jscadui/openscad/run'
 
 export const LIBS_DIR = process.env.JSCAD_LIBS_DIR ?? fileURLToPath(new URL('../../../apps/jscad-web/libs/', import.meta.url))
 
