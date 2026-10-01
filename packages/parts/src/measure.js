@@ -1,10 +1,4 @@
-import { exportedGeometry } from '@jscadui/openscad/run'
-
-const toSolids = (geometry) => {
-  const flattened = exportedGeometry(geometry)
-  if (flattened == null) return []
-  return Array.isArray(flattened) ? flattened : [flattened]
-}
+import { toSolids } from './solids.js'
 
 export function boundingSize(geometry, ctx) {
   const solids = toSolids(geometry)
