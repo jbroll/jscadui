@@ -134,6 +134,7 @@ describe('transpile with customizer option', () => {
       setSpecialVar() {},
       safeUnion: (parts: unknown[]) => parts[0],
       withOverlays: (g: unknown) => g,
+      exportClean() {},
     }
     const exports = {} as {
       main: (...args: unknown[]) => unknown
@@ -179,6 +180,7 @@ describe('transpile with customizer option', () => {
       setSpecialVar() {},
       safeUnion: (parts: unknown[]) => parts[0],
       withOverlays: (g: unknown) => g,
+      exportClean() {},
       echoMuted: false,
       echo(...args: unknown[]) { if (!this.echoMuted) calls.push(args) },
     }

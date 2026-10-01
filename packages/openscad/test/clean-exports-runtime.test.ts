@@ -3,26 +3,40 @@ import j$, { createJ$Instance } from '@jscadui/openscad-runtime'
 
 const rt = createJ$Instance()
 
+type Meta = { name: string; kind: string; params?: { name: string; default?: string }[]; lazy?: boolean }[]
+type Call<R = unknown> = (...args: unknown[]) => R
+interface Loaded {
+  washer: Call<{ opts: Record<string, unknown>; kids: unknown[] }>
+  area: Call<number>
+  fa: Call<number>
+  nut: Call
+  main: unknown
+  M3_washer: unknown
+  layer_height: unknown
+  fn: Record<string, Call>
+  vars: Record<string, unknown>
+  $meta: Meta
+}
+
 const washerParams = [{ name: 'type' }, { name: 'h', default: '2' }]
 const raw = () => ({
-  washer_$m: (opts = {}) => (children = []) => ({ opts, kids: children.map((c) => c()) }),
-  area_$f: (r) => Math.PI * r * r,
-  area_$f$obj: ({ r }) => Math.PI * r * r,
+  washer_$m: (opts = {}) => (children: (() => unknown)[] = []) => ({ opts, kids: children.map((c) => c()) }),
+  area_$f: (r: number) => Math.PI * r * r,
+  area_$f$obj: ({ r }: { r: number }) => Math.PI * r * r,
   fa_$f: () => rt.getSpecialVar('$fa'),
   M3_washer: [3, 7],
   layer_height: () => rt.getSpecialVar('$fn') * 0.1,
 })
-const meta = [
+const meta: Meta = [
   { name: 'washer', kind: 'module', params: washerParams },
   { name: 'area', kind: 'function', params: [{ name: 'r' }] },
   { name: 'fa', kind: 'function', params: [] },
   { name: 'M3_washer', kind: 'variable' },
   { name: 'layer_height', kind: 'variable', lazy: true },
 ]
-const load = (m = meta, r = raw()) => {
-  const exports = {}
+const load = (m: Meta = meta, r: object = raw(), exports: object = {}) => {
   rt.exportClean(exports, r, m)
-  return exports
+  return exports as Loaded
 }
 
 describe('exportClean', () => {
@@ -84,11 +98,24 @@ describe('exportClean', () => {
       { name: 'fn', kind: 'function', params: [] },
       { name: 'vars', kind: 'variable' },
     ]
-    const exports = { main: 'original' }
-    rt.exportClean(exports, r, m)
-    expect(exports.main).toBe('original')
-    expect(exports.fn.fn()).toBe('f')
-    expect(exports.vars.vars).toBe(1)
+    const e = load(m, r, { main: 'original' })
+    expect(e.main).toBe('original')
+    expect(e.fn.fn()).toBe('f')
+    expect(e.vars.vars).toBe(1)
+  })
+
+  it('leaves a raw lazy variable already on exports as its thunk', () => {
+    const thunk = () => rt.getSpecialVar('$fn') * 0.1
+    const e = load([{ name: 'layer_height', kind: 'variable', lazy: true }], { layer_height: thunk }, { layer_height: thunk })
+    expect(e.layer_height).toBe(thunk)
+    expect(rt.withScope({ $fn: 30 }, () => e.vars.layer_height)).toBeCloseTo(3)
+  })
+
+  it('does not replace a raw variable on exports with a module of the same name', () => {
+    const r = { nut_$m: () => () => 'module', nut: 'variable' }
+    const e = load([{ name: 'nut', kind: 'variable' }, { name: 'nut', kind: 'module', params: [] }], r, { ...r })
+    expect(e.nut).toBe('variable')
+    expect(e.vars.nut).toBe('variable')
   })
 
   it('publishes the metadata', () => {

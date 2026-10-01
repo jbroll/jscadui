@@ -40,6 +40,7 @@ import { buildJscadImports } from './helpers/index.js'
 // isStackSpecialVar no longer used - all $-prefixed vars use dynamic scoping universally
 import { deduplicateParamNames, mergeSetInto, importSymbolsFromFile } from './utils.js'
 import { splitDeclarationsByKind } from './bundling/mergeDeclarations.js'
+import { exportCleanLine } from './cleanExports.js'
 import type { Declaration } from './managers/DeclarationTracker.js'
 import { processDependency } from './dependencies/dependencyProcessor.js'
 import { extractCustomizerParameters, type CustomizerSchema } from '../customizer/extract.js'
@@ -523,6 +524,8 @@ function buildOutputCode(
   // actually *called* (at render time, after all modules load), the namespace object has
   // been populated via Object.assign. Lazy access through the namespace therefore always
   // sees the real exports regardless of module evaluation order or shared-cache reuse.
+  const nsByPath = new Map<string, string>()
+  const includeNamespaces = new Set<string>()
   if (ctx.useImports.length > 0) {
     let nsIdx = 0
     for (const imp of ctx.useImports) {
@@ -538,6 +541,7 @@ function buildOutputCode(
       for (const s of newSymbols) importedSymbols.add(s)
       if (newSymbols.length > 0) {
         const nsVar = `_ns${nsIdx++}`
+        nsByPath.set(scadPath, nsVar)
         parts.push(`const ${nsVar} = require('${scadPath}')`)
         for (const sym of newSymbols) {
           parts.push(`var ${sym} = (...a) => ${nsVar}.${sym}?.(...a)`)
@@ -545,6 +549,9 @@ function buildOutputCode(
       } else if (imp.symbols.length === 0) {
         parts.push(`var ${getModuleName(imp.filename)} = require('${scadPath}')`)
       }
+      // An optimized include is the same object in both lists; a `use` is not and is not re-exported.
+      const ns = nsByPath.get(scadPath)
+      if (ns && ctx.includeImports.includes(imp)) includeNamespaces.add(ns)
     }
     parts.push('')
   }
@@ -666,6 +673,7 @@ function buildOutputCode(
   // This ensures cyclic requires (where the caller got an empty {} placeholder)
   // will see the real exports once the module finishes loading.
   parts.push(`Object.assign(exports, { ${allExports.join(', ')} })`)
+  parts.push(exportCleanLine(ctx, allExports, [...includeNamespaces]))
 
   // Function preambles compare parameters against this; `var` because modules may share a global scope.
   const code = parts.join('\n')

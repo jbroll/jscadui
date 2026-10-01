@@ -313,7 +313,7 @@ describe('unknown module calls without imports', () => {
     // Module names are not variables, and declared variables get no stub
     expect(result.code).not.toMatch(/^var [^=\n]*\b(m|a)\b[^=\n]*$/m)
     const main = new Function('exports', 'require', 'j$', result.code + '\nreturn exports')
-    expect(() => main({}, () => ({}), {})).not.toThrow()
+    expect(() => main({}, () => ({}), { exportClean() {} })).not.toThrow()
   })
 })
 

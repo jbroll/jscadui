@@ -15,7 +15,18 @@ and a third that can reach its `Asset_SCAD/` includes. Pointing CI at the
 
 Similarity threshold: **0.99** (Jaccard index on vertex-deduplicated STL meshes).
 
-## Latest GPU run: 2026-09-28, `use <font.ttf>`
+## Latest GPU run: 2026-10-01, clean exports and `$meta`
+
+Branch `parts-catalog` (uncommitted on top of `672ad3ef`), simple-ci job
+`4a89fb9ad242b09c` (`sci push jscadui/test`), OpenSCAD 2026.08.30.fp. All
+21 suites pass, counts unchanged (bosl2 174, openscad-tests 239).
+
+Every transpiled file ends with `j$.exportClean(exports, { ...exports }, [...])`,
+which adds unsuffixed names, `fn`, `vars` and `$meta` beside the suffixed
+exports. A bare name that a raw binding already holds keeps it, so no name
+that generated code reads changes.
+
+## Previous GPU run: 2026-09-28, `use <font.ttf>`
 
 Branch `work/ttf-use` (uncommitted on top of `3c9bfb36`), simple-ci job
 `24a1e0936fa715ee` (`sci push jscadui/test`), OpenSCAD 2026.08.30.fp. All

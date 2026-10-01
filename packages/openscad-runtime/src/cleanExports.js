@@ -48,7 +48,10 @@ export function exportClean(rt, exports, raw, meta) {
     const f = raw[`${e.name}_$f`]
     if (typeof f === 'function') put(fn, e.name, { value: functionWrapper(rt, f, raw[`${e.name}_$f$obj`], e.params ?? []), writable: true })
   }
-  const bare = (name) => !RESERVED.has(name)
+  // Generated code reads raw bindings through a namespace (`_nsN.x?.()`), so a bare name never displaces one.
+  // Checked before any write, or a variable put by the first pass would block the later ones.
+  const held = new Set(Object.keys(exports).filter((name) => Object.hasOwn(raw, name) && exports[name] === raw[name]))
+  const bare = (name) => !RESERVED.has(name) && !held.has(name)
   for (const name of Object.keys(vars)) if (bare(name)) put(exports, name, Object.getOwnPropertyDescriptor(vars, name))
   for (const name of Object.keys(fn)) if (bare(name)) put(exports, name, { value: fn[name], writable: true })
   for (const e of of('module')) {

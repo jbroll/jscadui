@@ -113,6 +113,51 @@ whose guards test it. When a name is assigned both in the file and in an
 include, the file's value takes the included assignment's position (last
 value at first position).
 
+### Clean exports
+
+The suffixed exports (`washer_$m`, `area_$f`, `area_$f$obj`) are the calling
+convention between generated files. For JS callers, every file also ends with
+
+```javascript
+Object.assign(exports, { washer_$m, area_$f, area_$f$obj, M3_washer, main })
+j$.exportClean(exports, { ...exports }, [...(_ns0.$meta ?? []), { "name": "washer", "kind": "module", "params": [...] }, ...])
+```
+
+and `j$.exportClean` (`openscad-runtime/src/cleanExports.js`) adds unsuffixed
+names to `exports` at load time:
+
+- A module `washer(type, h)` becomes `washer(...args)`. Positional arguments
+  map to parameter names in declaration order. A trailing plain object
+  (prototype `Object.prototype`) holds named arguments, `$` keys included, and
+  its `children` key holds geometry (one value or an array), passed as child
+  thunks. It returns the module's geometry.
+- A function becomes `area(...args)`. Positional arguments alone call `area_$f`.
+  A trailing plain object with non-`$` keys calls `area_$f$obj` with positionals
+  mapped by name. `$` keys set special variables around the call
+  (`j$.withScope`).
+- A variable is its value. A lazy variable (one that reads a `$` special
+  variable, see `ctx.lazyVarNames`) is a getter on `vars` that evaluates it in
+  the caller's current scope.
+
+When a module, function and variable share a name, the bare name is the
+module, then the function, then the variable. `exports.fn` and `exports.vars`
+hold every function and variable whatever the clash. `main`,
+`getParameterDefinitions`, `fn`, `vars`, `$meta` and `$scad` are never bound
+as bare names. While the suffixed names and raw variables still sit on
+`exports`, a bare name a raw binding already holds keeps that binding: generated
+code calls a lazy variable's thunk through `_nsN.x?.()`. Variables are always
+reachable under `vars`, lazy ones as getters.
+
+The third argument is `exports.$meta`, one entry per module, function and
+variable: `{ name, kind: 'module' | 'function' | 'variable', params?: [{ name,
+default? }], lazy?: true }`. `params[i].name` is the SCAD parameter name and
+`default` is the default expression's source text. The transpiler
+(`src/transpiler/cleanExports.ts`) writes literal entries for local and bundled
+`include` declarations, and spreads `_nsN.$meta` for each `include` that became
+a `require()`, so an including file re-exports the included names. A `use`
+file's names are not re-exported. A later entry with the same kind and name
+replaces an earlier one, so local definitions win over included ones.
+
 ### Font files
 
 `use <font.ttf>` (or `.otf`, any case) registers a font rather than importing
