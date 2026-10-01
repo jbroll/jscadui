@@ -41,7 +41,12 @@ mkdir -p "$OUTPUT_DIR" || { echo "ci/regrade-complex: could not create $OUTPUT_D
 shopt -s nullglob
 files=()
 for f in "$INPUT_DIR"/*.json; do
-  [ "$(basename "$f")" = labels.json ] && continue
+  name="$(basename "$f")"
+  [ "$name" = labels.json ] && continue
+  if ! node -e 'process.exit(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).suite === "complex" ? 0 : 1)' "$f" 2>/dev/null; then
+    echo "ci/regrade-complex: $name is not a complex result file; skipped" >&2
+    continue
+  fi
   files+=("$f")
 done
 

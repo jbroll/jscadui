@@ -245,9 +245,9 @@ is gitignored.
 
 ## Regrade check (complex) (`ci/regrade-complex`)
 
-Recalibrates a complex pass: copy the complex result files you want
-recalibrated into `regrade-input/`, and a reviewed label set as
-`regrade-input/labels.json`
+Recalibrates a complex pass: copy the result files, not their `.renders/`
+directories (the host makes those again), into `regrade-input/`, and a
+reviewed label set as `regrade-input/labels.json`
 (`packages/agent-loop/docs/user-manual.md`, Grader agreement) if you want
 agreement checked, then:
 
@@ -255,9 +255,10 @@ agreement checked, then:
 sci push jscadui/regrade-complex
 ```
 
-copies each result file (not its `.renders/` directory, which the host makes
-again) into `regrade-output/`, leaving `regrade-input/` untouched, after the
-same sandbox and describer checks as `ci/eval-complex`
+copies each complex result file into `regrade-output/`, leaving
+`regrade-input/` untouched (a staged file whose `suite` is not `complex` is
+skipped, with a note, instead of copied), after the same sandbox and
+describer checks as `ci/eval-complex`
 (`scripts/eval-sandbox-setup.sh --check`, `scripts/describer-setup.sh
 --check`) and installing Playwright's chromium. It then runs `npm run
 describe -- --rerender --all` on the copies (rebuilds and renders every

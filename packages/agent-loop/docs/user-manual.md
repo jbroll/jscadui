@@ -1032,7 +1032,11 @@ providers ([Provider keys](#provider-keys)):
 > A describer looked at three renders of the result (front three-quarter,
 > back three-quarter and a raised side view) and described each view on its
 > own, without seeing the request. It can misread a single view, so the views
-> may disagree; judge the object they describe together.
+> may disagree; judge the object they describe together. The describer does
+> not know what the object is for and often names it by its shape alone ("a
+> box with holes", "a U-shaped bracket"); judge whether the shapes and parts
+> it describes would do what the user asked for, not whether it uses the
+> user's words.
 > {description}
 >
 > Did the result succeed at what the user asked for? Answer SUCCESS if the
@@ -1070,16 +1074,20 @@ run with no majority is a `graderError`, not a failed stage.
 node eval/grader-agreement.js <labels.json> <result files…>
 ```
 
-Checks the judge's verdicts against a reviewed label set:
+Checks a run's outcome against a reviewed label set:
 `[{ file, fixture, run, expected: 'success' | 'failure', note }]`, `file` the
-result file's name (not a path), `run` the run number. For each label it
-finds the matching file and run among the given result files, prints its
-verdict and whether it agrees with `expected`, or why it has none (no
-majority, not described, not rendered, `renderStale`, or the file or run was
-missing); a missing file or run is reported, never a crash. It then prints
-the agreement as `agree/labelled` and lists the disagreements. Always exits
-0: it is a report, not a gate. `graderAgreement` is exported for tests and
-other callers.
+result file's name (not a path), `run` the run number. A run's outcome is
+`success` only when its verdict is `success` and every gate passed (the same
+test as geometry 2, `eval/complex.js`); a passing verdict with a failed gate
+is a `failure` outcome. For each label it finds the matching file and run
+among the given result files and prints the run's verdict, its failed gates
+(if any), and whether the outcome agrees with `expected`, or why it has no
+verdict (no majority, not described, not rendered, `renderStale`, or the file
+or run was missing); a missing file or run is reported, never a crash. It
+then prints the agreement as `agree/labelled` and lists the disagreements.
+It exits 0 after reporting — a report, not a gate — and 1 only on bad usage
+(missing arguments). `graderAgreement` is exported for tests and other
+callers.
 
 ### Grader validation
 
