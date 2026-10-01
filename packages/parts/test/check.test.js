@@ -25,11 +25,19 @@ describe('checkRecord', () => {
     expect(result.failures[0]).toMatch(/M3_block.*z.*3.*4/)
   })
 
-  it('reports a size that builds empty geometry', async () => {
+  it('reports a size that throws', async () => {
     const [record] = readRecords(catalogDir)
-    const bad = { ...record, sizes: { values: ['nope'] } }
+    const bad = { ...record, call: 'strict', sizes: { values: ['nope'] } }
     const result = await checkRecord(bad, { libsDir })
     expect(result.ok).toBe(false)
     expect(result.failures.some((f) => f.includes('nope'))).toBe(true)
+  })
+
+  it('passes a sizes.values record whose literal values build fine', async () => {
+    const [record] = readRecords(catalogDir)
+    const good = { ...record, sizes: { values: [[1, 2]] } }
+    const result = await checkRecord(good, { libsDir })
+    expect(result.ok).toBe(true)
+    expect(result.failures).toEqual([])
   })
 })
