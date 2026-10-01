@@ -1,0 +1,7 @@
+M2_block = [2, 4];
+M3_block = [3, 6];
+blocks = [M2_block, M3_block];
+
+module block(type, tall = false) {
+  cube([type[1], type[1], tall ? 2 * type[0] : type[0]]);
+}

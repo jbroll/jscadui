@@ -679,6 +679,30 @@ export function evalScadSolidSync(scadPath, ctx, { fn = 0, libPaths = [], shared
   return Array.isArray(geometry) ? jscadModeling.booleans.union(geometry) : geometry
 }
 
+/**
+ * Synchronously transpile and require a .scad file as a CommonJS-style module,
+ * returning its exports (clean export surface, see openscad/ARCHITECTURE.md)
+ * instead of calling main(). Must be called after initScadRuntime() has resolved.
+ *
+ * @param {string} scadPath - Path to the .scad source file
+ * @param {{ jscadModeling, openscadRuntime }} ctx - Runtime context from initScadRuntime()
+ * @param {{ fn?: number, libPaths?: string[], sharedCache?: Map }} [opts]
+ * @returns {{ exports: object, j$: object }}
+ */
+export function requireScadSync(scadPath, ctx, { fn = 0, libPaths = [], sharedCache } = {}) {
+  const { jscadModeling, openscadRuntime } = ctx
+  const inputPath = resolve(scadPath)
+  const fileDir = dirname(inputPath)
+  const source = decodeScadSource(readFileSync(inputPath))
+  const { code, moduleCache } = transpileScad(source, inputPath, fileDir, fn, false, libPaths, sharedCache)
+  const j$Instance = createJ$Instance()
+  j$Instance.jscad = jscadModeling
+  const customRequire = createMakeRequire(jscadModeling, openscadRuntime, moduleCache, fn, libPaths, sharedCache, j$Instance)(fileDir)
+  const moduleObj = { exports: {} }
+  new Function('require', 'module', 'exports', 'j$', code)(customRequire, moduleObj, moduleObj.exports, j$Instance)
+  return { exports: moduleObj.exports, j$: j$Instance }
+}
+
 export { manifoldToGeom3 } from '../../manifold/src/conversions/index.js'
 
 /**
