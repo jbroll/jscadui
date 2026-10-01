@@ -1,0 +1,16 @@
+{
+  "id": "mini/block",
+  "family": "block",
+  "library": "Mini",
+  "license": "MIT",
+  "file": "Mini/mini.scad",
+  "call": "block",
+  "summary": "Test block.",
+  "sizes": { "list": "blocks" },
+  "options": { "tall": "double height" },
+  "example": "block(M3_block, {tall: true})",
+  "checks": [
+    { "args": ["M3_block"], "size": [6, 6, 3], "tol": 0.01, "source": "fixture" },
+    { "args": ["M3_block", { "tall": true }], "size": [6, null, 6], "tol": 0.01, "source": "fixture" }
+  ]
+}

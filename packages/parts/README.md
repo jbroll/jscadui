@@ -57,9 +57,15 @@ the library file at check/build time, not hand-written.
 
 ## Commands
 
-- `npm run check` — transpile and build every entry, compare each
-  `checks[]` bounding box, and build every size once to catch empty or
-  throwing geometry.
+- `npm run check` — `bin/check.js`. Transpiles and builds every entry,
+  compares each `checks[]` bounding box against its axis-aligned measurement
+  (an axis of `null` is skipped), and builds every name in `sizes` once to
+  catch a size that isn't an exported value, that throws, or that builds
+  empty geometry. Usage: `node bin/check.js <id>...` or `--all`; `--catalog
+  <dir>` and `--libs <dir>` override the default catalog and `/libs/`
+  directories; `--write` merges each record's result (measured sizes,
+  signature, size names, transpile and build timings) into `derived.json`,
+  keyed by id. Exits 1 if any record fails.
 - `npm run render` — render a thumbnail per entry.
 - `npm run build` — write `catalog.json` (every record merged with its
   derived signature, size names, measured dimensions and thumbnail path) for
