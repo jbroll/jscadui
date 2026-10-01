@@ -45,7 +45,9 @@ without a key) instead of a 403. Later on 2026-09-27: deployed `cb504202`,
 the build-stamped relay origin, so the `jscad-chat` launcher uses its own
 relay instead of production's, which never trusted its origin. Then
 `d1f328ea`, geom2 booleans on clipper-lib (modeling `ff759668`); smoke passed
-(app build `d651ba36`, frame `63973ab6`).
+(app build `d651ba36`, frame `63973ab6`). 2026-10-01: deployed `5b75dae1`, the
+chat's project-switch guard; smoke passed (app build `e3b23e20`, frame
+`da49cf0a`).
 See `apps/jscad-web/docs/architecture.md` for the
 deploy order and headers.
 
