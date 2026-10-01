@@ -1030,7 +1030,8 @@ providers ([Provider keys](#provider-keys)):
 > "{message 1}"
 > "{message 2}"
 >
-> Measured result: overall size {W} x {D} x {H} mm, {G} separate piece(s).
+> Measured result: overall size {W} x {D} x {H} mm; {B} separate solid(s), in
+> {G} group(s) not touching each other.
 >
 > A describer looked at four renders of the result (front three-quarter, back
 > three-quarter, a raised side view and a view from above) and described each
@@ -1052,11 +1053,15 @@ providers ([Provider keys](#provider-keys)):
 > one line why.
 
 The user's messages are the run's `userMessages`. `{W} x {D} x {H}` comes from
-the run's `render.facts.dimensions`, rounded to whole mm; `{G}` from the
-`connected` gate's `groups`. Either clause is left out when its value is
-missing, and the whole `Measured result` line when both are. `judgePrompt`
-takes the run itself (or `{ messages, description, facts, groups }`), so
-`JUDGE_PROMPT_SHA256` hashes the template with those names as placeholders. A
+the run's `render.facts.dimensions`, rounded to whole mm; `{B}` from
+`render.facts.bodies` (the bodies-probe count, only when it is a positive
+integer); `{G}` from the `connected` gate's `groups`, which merges bodies
+whose bounding boxes touch — a removable lid resting on a box is 2 bodies in
+1 group. Each clause is left out independently when its value is missing
+(the `in` before `{G}` goes with it), and the whole `Measured result` line
+when all three are. `judgePrompt` takes the run itself (or
+`{ messages, description, facts, groups, bodies }`), so `JUDGE_PROMPT_SHA256`
+hashes the template with those names as placeholders. A
 vote is the first `SUCCESS` or `FAILURE` in the reply and the rest, trimmed to
 200 characters, its reason; a reply with neither word, or a provider error, is
 asked again up to twice, then the vote is null. The run gets `votes: [{

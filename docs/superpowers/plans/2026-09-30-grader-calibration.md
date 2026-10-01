@@ -54,7 +54,7 @@ The user's message(s):
 "{message 1}"
 "{message 2}"
 
-Measured result: overall size {W} x {D} x {H} mm, {G} separate piece(s).
+Measured result: overall size {W} x {D} x {H} mm; {B} separate solid(s), in {G} group(s) not touching each other.
 
 A describer looked at four renders of the result (front three-quarter, back three-quarter, a raised side view and a view from above) and described each view on its own, without seeing the request. It can misread a single view, so the views may disagree; judge the object they describe together. The describer does not know what the object is for and often names it by its shape alone ("a box with holes", "a U-shaped bracket"); judge whether the shapes and parts it describes would do what the user asked for, not whether it uses the user's words.
 {description}
@@ -63,13 +63,15 @@ Did the result succeed at what the user asked for? Answer SUCCESS if the user wh
 ```
 
 - `{W} x {D} x {H}` from `run.render.facts.dimensions` rounded to whole mm;
-  `{G}` from the `connected` gate's `groups`. When either is missing, leave
-  out that clause (and the whole line if both are).
-- `judgePrompt` takes the run (or `{ messages, description, facts, groups }`)
-  rather than two strings; `JUDGE_PROMPT_SHA256` hashes the template with
-  placeholders.
-- Tests: the line appears with facts, is dropped without, and the hash
-  changes from the old prompt's.
+  `{B}` from `run.render.facts.bodies` (the bodies-probe count, only when a
+  positive integer); `{G}` from the `connected` gate's `groups`, which
+  merges bodies whose bounding boxes touch. When any is missing, leave out
+  that clause (and the whole line if all three are).
+- `judgePrompt` takes the run (or
+  `{ messages, description, facts, groups, bodies }`) rather than two
+  strings; `JUDGE_PROMPT_SHA256` hashes the template with placeholders.
+- Tests: the line appears with all three, with bodies but no groups, and is
+  dropped with nothing; the hash changes from the old prompt's.
 
 ## Task 3: unbuilt runs count against verdictRate
 

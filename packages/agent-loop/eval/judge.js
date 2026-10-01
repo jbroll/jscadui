@@ -23,25 +23,41 @@ const DESCRIBER_INTRO =
   'A describer looked at four renders of the result (front three-quarter, back three-quarter, a raised side view and a view from above) and described each view on its own, without seeing the request. It can misread a single view, so the views may disagree; judge the object they describe together. The describer does not know what the object is for and often names it by its shape alone ("a box with holes", "a U-shaped bracket"); judge whether the shapes and parts it describes would do what the user asked for, not whether it uses the user\'s words.'
 
 const groupsOf = (gates) => gates?.find((g) => g.name === 'connected')?.groups ?? null
+const isPositiveInt = (n) => Number.isInteger(n) && n > 0
+const bodiesOf = (facts) => (isPositiveInt(facts?.bodies) ? facts.bodies : null)
 
 // Takes a run ({ userMessages, description: { text }, render: { facts }, gates }) or the
-// plain shape ({ messages, description, facts, groups }) the sha below uses with placeholders.
+// plain shape ({ messages, description, facts, groups, bodies }) the sha below uses with placeholders.
+// `bodies` (the bodies-probe count) and `groups` (the connected gate's groups) can disagree: a lid
+// resting on a box is 2 bodies in 1 touching group, so both are reported rather than just one.
 export const judgePrompt = (run) => {
   const messages = run.messages ?? run.userMessages ?? []
   const description = typeof run.description === 'string' ? run.description : run.description?.text ?? ''
   const facts = 'facts' in run ? run.facts : run.render?.facts ?? null
   const groups = 'groups' in run ? run.groups : groupsOf(run.gates)
+  const bodies = 'bodies' in run ? run.bodies : bodiesOf(facts)
+  const solidsAndGroups = []
+  if (bodies != null) solidsAndGroups.push(`${bodies} separate solid(s)`)
+  if (groups != null) solidsAndGroups.push(`${bodies != null ? 'in ' : ''}${groups} group(s) not touching each other`)
   const clauses = []
   if (Array.isArray(facts?.dimensions) && facts.dimensions.length === 3) clauses.push(`overall size ${facts.dimensions.join(' x ')} mm`)
-  if (groups != null) clauses.push(`${groups} separate piece(s)`)
+  if (solidsAndGroups.length) clauses.push(solidsAndGroups.join(', '))
   const messagesBlock = `The user's message(s):\n${messages.map((m) => `"${m}"`).join('\n')}`
-  const measured = clauses.length ? `Measured result: ${clauses.join(', ')}.` : null
+  const measured = clauses.length ? `Measured result: ${clauses.join('; ')}.` : null
   const describerBlock = `${DESCRIBER_INTRO}\n${description}`
   return [messagesBlock, measured, describerBlock, JUDGE_QUESTION].filter(Boolean).join('\n\n')
 }
 
 export const JUDGE_PROMPT_SHA256 = createHash('sha256')
-  .update(judgePrompt({ messages: ['{message 1}', '{message 2}'], description: '{description}', facts: { dimensions: ['{W}', '{D}', '{H}'] }, groups: '{G}' }))
+  .update(
+    judgePrompt({
+      messages: ['{message 1}', '{message 2}'],
+      description: '{description}',
+      facts: { dimensions: ['{W}', '{D}', '{H}'] },
+      groups: '{G}',
+      bodies: '{B}',
+    }),
+  )
   .digest('hex')
 
 export const parseVote = (text) => {

@@ -51,14 +51,15 @@ describe('the judge prompt', () => {
     messages: ['a model rocket about 20cm tall'],
     description: 'side view: a rocket',
     facts: { dimensions: [100, 50, 300] },
+    bodies: 1,
     groups: 1,
     ...overrides,
   })
 
-  it('quotes each message, states the measured size and piece count, flags the separately-described views, then asks the question', () => {
-    expect(judgePrompt(run())).toBe(
+  it('quotes each message, states the measured size, solid and group counts, flags the separately-described views, then asks the question', () => {
+    expect(judgePrompt(run({ bodies: 2, groups: 1 }))).toBe(
       'The user\'s message(s):\n"a model rocket about 20cm tall"\n\n' +
-        'Measured result: overall size 100 x 50 x 300 mm, 1 separate piece(s).\n\n' +
+        'Measured result: overall size 100 x 50 x 300 mm; 2 separate solid(s), in 1 group(s) not touching each other.\n\n' +
         'A describer looked at four renders of the result (front three-quarter, back three-quarter, a raised side view and a view from above) and described each view on its own, without seeing the request. It can misread a single view, so the views may disagree; judge the object they describe together. The describer does not know what the object is for and often names it by its shape alone ("a box with holes", "a U-shaped bracket"); judge whether the shapes and parts it describes would do what the user asked for, not whether it uses the user\'s words.\n' +
         'side view: a rocket\n\n' +
         'Did the result succeed at what the user asked for? Answer SUCCESS if the user who made the request would accept the model as what they asked for. A generic shape, missing major parts, or parts floating apart are FAILURE. Still renders cannot show motion or removal: a visible hinge, pivot, or separate piece counts for a part that moves or comes off, and a fitting counts when its opening or shape is there. Do not fail it for colours, style, or details the user did not ask for. Answer SUCCESS or FAILURE, then one line why.',
@@ -71,27 +72,44 @@ describe('the judge prompt', () => {
     )
   })
 
-  it('drops the whole measured line when neither dimensions nor groups are known', () => {
-    expect(judgePrompt(run({ facts: null, groups: null }))).not.toContain('Measured result')
+  it('drops the whole measured line when dimensions, bodies and groups are all unknown', () => {
+    expect(judgePrompt(run({ facts: null, bodies: null, groups: null }))).not.toContain('Measured result')
   })
 
-  it('drops only the missing clause when one of dimensions or groups is known', () => {
-    expect(judgePrompt(run({ groups: null }))).toContain('Measured result: overall size 100 x 50 x 300 mm.\n\n')
-    expect(judgePrompt(run({ facts: null }))).toContain('Measured result: 1 separate piece(s).\n\n')
+  it('reports bodies without groups when a removable piece rests on another but both are one touching group', () => {
+    expect(judgePrompt(run({ bodies: 2, groups: null }))).toContain('Measured result: overall size 100 x 50 x 300 mm; 2 separate solid(s).\n\n')
   })
 
-  it('reads a real run: userMessages, description.text, render.facts.dimensions and the connected gate\'s groups', () => {
+  it('drops the bodies clause and the "in" when bodies is unknown but groups is known', () => {
+    expect(judgePrompt(run({ bodies: null, groups: 2 }))).toContain('Measured result: overall size 100 x 50 x 300 mm; 2 group(s) not touching each other.\n\n')
+  })
+
+  it('drops the size clause alone when only bodies and groups are known', () => {
+    expect(judgePrompt(run({ facts: null, bodies: 2, groups: 1 }))).toContain('Measured result: 2 separate solid(s), in 1 group(s) not touching each other.\n\n')
+  })
+
+  it('reads a real run: userMessages, description.text, render.facts.dimensions and bodies, and the connected gate\'s groups', () => {
     const fullRun = {
       userMessages: ['we need a model of a toy caboose'],
       description: { text: 'side view: a red caboose' },
-      render: { facts: { dimensions: [111, 41, 67] } },
+      render: { facts: { dimensions: [111, 41, 67], bodies: 2 } },
       gates: [
         { name: 'builds', pass: true },
         { name: 'connected', pass: true, groups: 1 },
       ],
     }
-    expect(judgePrompt(fullRun)).toContain('Measured result: overall size 111 x 41 x 67 mm, 1 separate piece(s).')
+    expect(judgePrompt(fullRun)).toContain('Measured result: overall size 111 x 41 x 67 mm; 2 separate solid(s), in 1 group(s) not touching each other.')
     expect(judgePrompt(fullRun)).toContain('side view: a red caboose')
+  })
+
+  it('ignores a non-positive-integer bodies count from render.facts', () => {
+    const zeroBodies = {
+      userMessages: ['x'],
+      description: { text: 'y' },
+      render: { facts: { dimensions: [1, 2, 3], bodies: 0 } },
+      gates: [{ name: 'connected', pass: true, groups: 1 }],
+    }
+    expect(judgePrompt(zeroBodies)).toContain('Measured result: overall size 1 x 2 x 3 mm; 1 group(s) not touching each other.')
   })
 
   it('hashes the template with placeholders, different from the old prompt\'s hash', () => {
