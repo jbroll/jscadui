@@ -113,6 +113,7 @@ dist
 packages/openscad/test/corpus/bosl/lib/
 packages/openscad/test/corpus/bosl2/lib/
 packages/openscad/test/corpus/snippet/
+apps/jscad-web/libs/
 
 # BOSL corpus examples are generated from lib/ by extract-bosl{1,2}-examples.js
 # Keep: skip.txt, manifest.json

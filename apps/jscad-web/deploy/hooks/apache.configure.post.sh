@@ -38,15 +38,15 @@ elif [[ "$APP_NAME" == "jscad-web" ]]; then
   # Allow-Credentials: it is incompatible with "*" and would undo the
   # boundary. The requests are GET with no custom headers and no
   # credentials, so they are simple requests and draw no preflight, so no
-  # Allow-Methods/-Headers are needed. Scoped to /examples/, the static
-  # paths the frame can name, so /api/ never gets a vhost-wide grant — the
-  # API and relay deliberately reject a null origin, and a wider header
+  # Allow-Methods/-Headers are needed. Scoped to /examples/ and /libs/, the
+  # static paths the frame can name, so /api/ never gets a vhost-wide grant —
+  # the API and relay deliberately reject a null origin, and a wider header
   # would make their responses readable from inside the sandbox. "always"
   # so a missing sibling's 404 carries the header too, not just a 200.
   MARKER="jscad-web example CORS headers"
   BLOCK=$(cat <<EOF | base64 -w0
     # jscad-web example CORS headers (managed by deploy hook; do not edit)
-    <LocationMatch "^/examples/">
+    <LocationMatch "^/(examples|libs)/">
         Header always set Access-Control-Allow-Origin "*"
     </LocationMatch>
     # end jscad-web example CORS headers

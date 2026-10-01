@@ -101,6 +101,9 @@ if (existsSync(outDir + '/examples')) {
 copyTask('examples', outDir+'/examples', { include: [], exclude: [], watch, filters: [] })
 // Static manifest so the demo browser works without server directory autoindex.
 genExamplesManifest('examples', outDir + '/examples/manifest.json')
+
+if (existsSync(outDir + '/libs')) rmSync(outDir + '/libs', { recursive: true, force: true })
+if (existsSync('libs')) copyTask('libs', outDir + '/libs', { include: [], exclude: [], watch, filters: [] })
 //in dev mode dont try to sync docs, just copy the first time 
 if(!skipDocs && !(dev & existsSync(outDir + "/docs"))){
   // this task is heavy

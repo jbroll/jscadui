@@ -96,6 +96,8 @@ library root (`/examples/openscad/<library>`) as an OPENSCADPATH-like
 fallback. The fallback is dropped when `../` in the filename would resolve
 above that root. It is the only copy of this logic; the loader in
 `@jscadui/require` has no origin to resolve against inside a blob worker.
+Resolving against `/libs/` (NopSCADlib, BOSL2) is a later addition to this
+logic, not yet wired in — see Deployment below for the served tree.
 `src_frame/scadHandler.js` remembers a failed read for 60 s so one transpile
 does not fetch the same missing file for every includer, and forgets them all
 whenever a new file map arrives or a cache is cleared.
@@ -1181,12 +1183,17 @@ host deploys first:
   `build/` child there would publish the bundles in place of the frame page.
 - `jscad.rkroll.com`, from `deploy.conf`: Apache serves the built bundle with
   SPA fallback and proxies `/api` to the Express service under systemd. Its
-  vhost also carries the `/examples/` CORS block from `apache.configure.post.sh`
-  (`Access-Control-Allow-Origin: *`, no `Access-Control-Allow-Credentials`,
-  scoped to `/examples/` and left off `/api/`) — a model in the frame reads an
-  example's sibling files and OpenSCAD includes as a cross-origin GET with a
-  `null` origin, which only `*` matches, and `/api/` and the relay deliberately
-  reject a `null` origin, so they must not inherit a vhost-wide grant.
+  vhost also carries the `/examples/` and `/libs/` CORS block from
+  `apache.configure.post.sh` (`Access-Control-Allow-Origin: *`, no
+  `Access-Control-Allow-Credentials`, scoped to `/examples/` and `/libs/` and
+  left off `/api/`) — a model in the frame reads an example's sibling files
+  and OpenSCAD includes as a cross-origin GET with a `null` origin, which only
+  `*` matches, and `/api/` and the relay deliberately reject a `null` origin,
+  so they must not inherit a vhost-wide grant. `/libs/` holds the unpatched
+  NopSCADlib and BOSL2 trees fetched by `fetch-deps.js`
+  (`scripts/deps/manifest.json`): gitignored, copied into the build by
+  `build.js` next to `examples/`, and served the same ACAO grant for the
+  same reason.
 
 The session cookie is host-only on `jscad.rkroll.com`, never `.rkroll.com`.
 `deploy-full.sh` regenerates the `ALL.js` example grids first (`fetch-deps

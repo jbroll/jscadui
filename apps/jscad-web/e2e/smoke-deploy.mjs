@@ -8,7 +8,7 @@
  *      and no `ALL: FAILED` cell in the grid)
  *   2. Browse Demos lists examples via manifest.json — NOT a directory listing
  *      (catches the prod autoindex 403)
- *   3. the CORS split the compute frame needs: examples carry
+ *   3. the CORS split the compute frame needs: examples and libs carry
  *      Access-Control-Allow-Origin, the API does not
  *   4. with --build, the app (and with --frame-url, the frame) serves the
  *      build in that directory, by the entry hash in each index.html
@@ -137,6 +137,9 @@ try {
   const ex = await acao('/examples/openscad/01-basics/cube.scad')
   check('examples send Access-Control-Allow-Origin: *', ex.status === 200 && ex.header === '*',
     `${ex.status}, ACAO ${ex.header ?? 'absent'}`)
+  const lib = await acao('/libs/NopSCADlib/vitamins/nuts.scad')
+  check('libs send Access-Control-Allow-Origin: *', lib.status === 200 && lib.header === '*',
+    `${lib.status}, ACAO ${lib.header ?? 'absent'}`)
   const api = await acao('/api/health')
   check('/api/health sends no Access-Control-Allow-Origin', api.header === null,
     api.header ? `ACAO ${api.header}` : '')
