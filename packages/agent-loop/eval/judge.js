@@ -20,7 +20,7 @@ export const JUDGE_QUESTION =
   'Did the result succeed at what the user asked for? Answer SUCCESS if the user who made the request would accept the model as what they asked for. A generic shape, missing major parts, or parts floating apart are FAILURE. Still renders cannot show motion or removal: a visible hinge, pivot, or separate piece counts for a part that moves or comes off, and a fitting counts when its opening or shape is there. Do not fail it for colours, style, or details the user did not ask for. Answer SUCCESS or FAILURE, then one line why.'
 
 const DESCRIBER_INTRO =
-  'A describer looked at three renders of the result (front three-quarter, back three-quarter and a raised side view) and described each view on its own, without seeing the request. It can misread a single view, so the views may disagree; judge the object they describe together. The describer does not know what the object is for and often names it by its shape alone ("a box with holes", "a U-shaped bracket"); judge whether the shapes and parts it describes would do what the user asked for, not whether it uses the user\'s words.'
+  'A describer looked at four renders of the result (front three-quarter, back three-quarter, a raised side view and a view from above) and described each view on its own, without seeing the request. It can misread a single view, so the views may disagree; judge the object they describe together. The describer does not know what the object is for and often names it by its shape alone ("a box with holes", "a U-shaped bracket"); judge whether the shapes and parts it describes would do what the user asked for, not whether it uses the user\'s words.'
 
 const groupsOf = (gates) => gates?.find((g) => g.name === 'connected')?.groups ?? null
 

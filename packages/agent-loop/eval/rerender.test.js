@@ -44,7 +44,7 @@ describe('rerenderFile', () => {
     const out = await rerenderFile(file, { grader: createEvalBackend(), renderer: r, fixturesByName: new Map([['cube', fixture]]) })
     expect(r.calls).toEqual([{ fixture: 'cube', run: 1 }])
     const [run, untouched] = out.results
-    expect(run.render.views).toHaveLength(3)
+    expect(run.render.views).toHaveLength(VIEWS.length)
     expect(run.render.meshSha256).toMatch(/^[0-9a-f]{64}$/)
     expect(run.render.facts).toEqual({ dimensions: [20, 20, 20], bodies: 1 })
     expect(run).not.toHaveProperty('renderStale')

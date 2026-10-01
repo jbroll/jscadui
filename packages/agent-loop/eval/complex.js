@@ -100,7 +100,7 @@ export const renderFacts = (graded) => ({
 
 export const renderRecord = (graded, views) => ({ meshSha256: meshSha256(graded.mesh.parts), facts: renderFacts(graded), views })
 
-// Gates, then three renders of a model that built, drawn by `render(parts, { fixture, run })`.
+// Gates, then the views of a model that built, drawn by `render(parts, { fixture, run })`.
 export async function scoreComplex(fixture, run, transcript, graded, { maxTurns, providerError = false, render } = {}) {
   const gates = complexGates(fixture, graded)
   const fields = { userMessages: userMessagesOf(fixture), gates, description: null, verdict: null }

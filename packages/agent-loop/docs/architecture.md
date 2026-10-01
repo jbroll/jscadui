@@ -316,7 +316,7 @@ A `complex` fixture's geometry grade comes from a verdict on renders of the
 result ([user-manual.md](user-manual.md#complex-fixtures)), in three stages.
 Stage A runs in each `run-eval` lane: the conversation, the grade in a fresh
 executor with the `bodies` probe, the same executor's `mesh` reply, the gates,
-and three renders. Stage B (`eval/describe.js`) runs once over the pass's
+and the renders. Stage B (`eval/describe.js`) runs once over the pass's
 result files: one describer process loads the model once and describes every
 rendered run. Stage C (`eval/judge.js`) judges every described run. Keeping
 B out of the lanes keeps the GPU out of them: the model loads once per pass
@@ -341,14 +341,19 @@ triangles and colours from the `mesh` request (Sandbox below), loads no model
 code, and every request it makes is refused. Each process starts one chromium
 and one page and draws one model at a time.
 
-The three orthographic 768 x 768 views (`eval/views.js`) are framed to the
+The four orthographic 768 x 768 views (`eval/views.js`) are framed to the
 model's bounding box with a 3% margin on each side (half the larger extent
 times 1.06, as the trial renderer framed them): `iso-front` from (1, -1, 0.7),
-`iso-back` from (-1, 1, 0.7) and `side` from (0.25, -1, 0.35), +Z up. There is
-no top view: in the trial Moondream read the caboose's top view as "an
-electronic module" and it flipped the judge. `side` is raised off the pure
-elevation (0, -1, 0) for the same reason: Moondream read a bare silhouette as
-"laptop", "no windows". The background is `#ececec`, lit by a hemisphere
+`iso-back` from (-1, 1, 0.7), `side` from (0.25, -1, 0.35) and `top` from
+(0.15, -0.35, 1), +Z up (`top` uses +Y up, since its view direction is nearly
++Z). `side` is raised off the pure elevation (0, -1, 0): in the trial Moondream
+read a bare silhouette as "laptop", "no windows". The trial also left `top`
+out, since Moondream read the caboose's top view as "an electronic module" and
+flipped the judge; round 3 put it back tilted rather than orthographic,
+because the three side-on views barely show an opening or slot cut into the
+top of a functional object (a toothbrush holder's paste slot, a cable clip's
+clamp), and the judge needs that opening to call a fitting a success. The
+background is `#ececec`, lit by a hemisphere
 light and a key light above-left of the camera; flat shading and dark lines
 at 35% opacity on edges where faces meet at more than 30°. Each part keeps
 its own colour; an uncoloured part gets one from a fixed eight-colour palette

@@ -69,13 +69,19 @@ const partsOf = async (geometry) => {
 }
 
 describe('views', () => {
-  it('are the three views the describer reads, top view left out', () => {
+  it('are the four views the describer reads', () => {
     expect(VIEWS.map((v) => [v.name, v.dir, v.up])).toEqual([
       ['iso-front', [1, -1, 0.7], [0, 0, 1]],
       ['iso-back', [-1, 1, 0.7], [0, 0, 1]],
       ['side', [0.25, -1, 0.35], [0, 0, 1]],
+      ['top', [0.15, -0.35, 1], [0, 1, 0]],
     ])
-    expect(VIEW_LABELS).toEqual({ 'iso-front': 'front three-quarter view', 'iso-back': 'back three-quarter view', side: 'side view' })
+    expect(VIEW_LABELS).toEqual({
+      'iso-front': 'front three-quarter view',
+      'iso-back': 'back three-quarter view',
+      side: 'side view',
+      top: 'top view',
+    })
   })
 })
 
@@ -98,7 +104,7 @@ describe('createRunRenderer', () => {
 })
 
 describe.skipIf(!hasChromium)('createRenderer', () => {
-  it('draws three 768 px views of a coloured model and refuses no request it never made', async () => {
+  it('draws four 768 px views of a coloured model and refuses no request it never made', async () => {
     const renderer = await createRenderer()
     try {
       const parts = await partsOf([
@@ -114,7 +120,7 @@ describe.skipIf(!hasChromium)('createRenderer', () => {
         expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([RENDER_SIZE, RENDER_SIZE])
         expect(view.sha256).toMatch(/^[0-9a-f]{64}$/)
       }
-      expect(new Set(views.map((v) => v.sha256)).size).toBe(3)
+      expect(new Set(views.map((v) => v.sha256)).size).toBe(VIEWS.length)
       expect(renderer.refused()).toBe(0)
     } finally {
       await renderer.close()

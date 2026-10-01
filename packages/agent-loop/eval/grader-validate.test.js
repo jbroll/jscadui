@@ -20,7 +20,7 @@ describe('validationRun', () => {
     expect(run).toMatchObject({ fixture: 'caboose', run: 1, expected: 'pass', userMessages: ['we need a model of a toy caboose'], description: null, verdict: null, verdictPending: true })
     expect(run.gates.map((g) => g.pass)).toEqual([true, true, true])
     expect(run.render.facts).toEqual({ dimensions: [111, 41, 67], bodies: 1 })
-    expect(run.render.views).toHaveLength(3)
+    expect(run.render.views).toHaveLength(VIEWS.length)
   })
 
   it('records a case that did not build', async () => {

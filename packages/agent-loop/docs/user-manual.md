@@ -926,8 +926,9 @@ and nothing else: a selection that mixes complex and other fixtures exits
 with an error. It starts Playwright's chromium before any provider call
 (`npx playwright install chromium` in `apps/jscad-web` installs it). After
 each run's grade, the grade executor sends the model's mesh and `run-eval`
-renders three views into `<file stem>.renders/<fixture>-<run>/` beside the
-result file. Each complex run adds:
+renders the four views (`eval/views.js`) into
+`<file stem>.renders/<fixture>-<run>/` beside the result file. Each complex
+run adds:
 
 - `userMessages`: the prompt and each follow-up, what the judge reads.
 - `gates`: `[{ name, pass }]`, with `groups` on `connected`.
@@ -984,15 +985,17 @@ finishes them. Then one describer process (`DESCRIBER_HOME/venv`, default
 `/data/moondream3`; setup in `ci/README.md`) loads Moondream 3.1 once and
 describes each view of every rendered run with no description:
 
-> This is the {front three-quarter view | back three-quarter view | side
-> view}. Overall size {W}×{D}×{H} mm, {N} parts.
+> This is the {front three-quarter view | back three-quarter view | side view
+> | top view}. Overall size {W}×{D}×{H} mm, {N} parts.
 >
 > Describe the object in these renders: what it most likely is, its main
-> parts and how they're arranged, colours, and anything that looks broken or
-> odd. Plain text, under 150 words. Do not guess a purpose you can't see.
+> parts and how they're arranged, every opening, hole, slot or hollow and
+> roughly how big it is next to the whole, colours, and anything that looks
+> broken or odd. Plain text, under 150 words. Do not guess a purpose you
+> can't see.
 
 `N` is the `bodies` probe's count. The run's `description` is `{ text, views:
-[{ name, text, ms, inputTokens, outputTokens }] }`, `text` the three replies
+[{ name, text, ms, inputTokens, outputTokens }] }`, `text` the four replies
 one per line as `{view label}: {reply}`. A run with a view that failed gets
 `describeError` naming it and no description; the judge skips it, and the
 next `npm run describe` on the file tries it again. The file records
@@ -1029,14 +1032,14 @@ providers ([Provider keys](#provider-keys)):
 >
 > Measured result: overall size {W} x {D} x {H} mm, {G} separate piece(s).
 >
-> A describer looked at three renders of the result (front three-quarter,
-> back three-quarter and a raised side view) and described each view on its
-> own, without seeing the request. It can misread a single view, so the views
-> may disagree; judge the object they describe together. The describer does
-> not know what the object is for and often names it by its shape alone ("a
-> box with holes", "a U-shaped bracket"); judge whether the shapes and parts
-> it describes would do what the user asked for, not whether it uses the
-> user's words.
+> A describer looked at four renders of the result (front three-quarter, back
+> three-quarter, a raised side view and a view from above) and described each
+> view on its own, without seeing the request. It can misread a single view,
+> so the views may disagree; judge the object they describe together. The
+> describer does not know what the object is for and often names it by its
+> shape alone ("a box with holes", "a U-shaped bracket"); judge whether the
+> shapes and parts it describes would do what the user asked for, not whether
+> it uses the user's words.
 > {description}
 >
 > Did the result succeed at what the user asked for? Answer SUCCESS if the

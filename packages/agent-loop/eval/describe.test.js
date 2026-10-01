@@ -39,14 +39,14 @@ const read = (path) => JSON.parse(readFileSync(path, 'utf8'))
 describe('the describer prompt', () => {
   it('names the view, the size and the part count, then asks for a plain description', () => {
     expect(viewPrompt('side view', { dimensions: [111, 41, 67], bodies: 62 })).toBe(
-      "This is the side view. Overall size 111×41×67 mm, 62 parts.\n\nDescribe the object in these renders: what it most likely is, its main parts and how they're arranged, colours, and anything that looks broken or odd. Plain text, under 150 words. Do not guess a purpose you can't see.",
+      "This is the side view. Overall size 111×41×67 mm, 62 parts.\n\nDescribe the object in these renders: what it most likely is, its main parts and how they're arranged, every opening, hole, slot or hollow and roughly how big it is next to the whole, colours, and anything that looks broken or odd. Plain text, under 150 words. Do not guess a purpose you can't see.",
     )
     expect(DESCRIBE_PROMPT_SHA256).toMatch(/^[0-9a-f]{64}$/)
   })
 
   it('drops the size clause when the facts have no dimensions', () => {
     expect(viewPrompt('side view', { dimensions: null, bodies: 3 })).toBe(
-      "This is the side view. 3 parts.\n\nDescribe the object in these renders: what it most likely is, its main parts and how they're arranged, colours, and anything that looks broken or odd. Plain text, under 150 words. Do not guess a purpose you can't see.",
+      "This is the side view. 3 parts.\n\nDescribe the object in these renders: what it most likely is, its main parts and how they're arranged, every opening, hole, slot or hollow and roughly how big it is next to the whole, colours, and anything that looks broken or odd. Plain text, under 150 words. Do not guess a purpose you can't see.",
     )
   })
 })

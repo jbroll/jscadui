@@ -64,7 +64,7 @@ describe('a complex run', () => {
     expect(result.userMessages).toEqual(['a cube please'])
     expect(result.render.facts).toEqual({ dimensions: [20, 20, 20], bodies: 1 })
     expect(result.render.meshSha256).toMatch(/^[0-9a-f]{64}$/)
-    expect(result.render.views.map((v) => v.name)).toEqual(['iso-front', 'iso-back', 'side'])
+    expect(result.render.views.map((v) => v.name)).toEqual(VIEWS.map((v) => v.name))
     expect(renders.calls[0].where).toEqual({ fixture: 'cube', run: 1 })
     expect(renders.calls[0].parts[0].positions.length).toBe(12 * 9)
     expect(result.verdictPending).toBe(true)

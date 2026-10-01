@@ -20,7 +20,7 @@ export const DESCRIBER_READY_TIMEOUT_MS = 5 * 60_000
 const OLLAMA = 'http://127.0.0.1:11434'
 
 export const DESCRIBE_PROMPT =
-  "Describe the object in these renders: what it most likely is, its main parts and how they're arranged, colours, and anything that looks broken or odd. Plain text, under 150 words. Do not guess a purpose you can't see."
+  "Describe the object in these renders: what it most likely is, its main parts and how they're arranged, every opening, hole, slot or hollow and roughly how big it is next to the whole, colours, and anything that looks broken or odd. Plain text, under 150 words. Do not guess a purpose you can't see."
 
 // facts comes from renderFacts(), so dimensions is an array of finite numbers or null, never forged text.
 export const viewPrompt = (label, { dimensions, bodies }) => {
