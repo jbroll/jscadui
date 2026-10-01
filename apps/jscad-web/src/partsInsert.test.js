@@ -1,8 +1,15 @@
+import { ChangeSet, Text } from '@codemirror/state'
 import { describe, it, expect } from 'vitest'
 import { planInsert } from './partsInsert.js'
 
 const entry = { call: 'nut', require: 'NopSCADlib/vitamins/nuts.scad', scadIncludes: ['NopSCADlib/vitamins/nuts.scad'] }
-const apply = (doc, { changes }) => [...changes].sort((a, b) => b.from - a.from).reduce((d, c) => d.slice(0, c.from) + c.insert + d.slice(c.to ?? c.from), doc)
+
+// The real CodeMirror change applier, not a hand-rolled one: this is what
+// editor.applyEdit actually dispatches, including its same-offset ordering.
+const apply = (doc, { changes }) =>
+  ChangeSet.of(changes, doc.length)
+    .apply(Text.of(doc.split('\n')))
+    .toString()
 
 describe('planInsert', () => {
   it('adds a require and the call to a js file', () => {
@@ -29,5 +36,43 @@ describe('planInsert', () => {
     const e = { call: 'nut', require: '_catalog/BOSL2/screws.scad', scadIncludes: ['BOSL2/std.scad', 'BOSL2/screws.scad'] }
     const out = apply(doc, planInsert({ doc, cursor: doc.length, path: '/main.scad', entry: e, size: '"M3"' }))
     expect(out).toBe('include <BOSL2/screws.scad>\ninclude <BOSL2/std.scad>\n\nnut("M3");')
+  })
+
+  it('does not duplicate an include written without a space', () => {
+    const doc = 'include<BOSL2/std.scad>\n\n'
+    const e = { call: 'nut', require: '_catalog/BOSL2/screws.scad', scadIncludes: ['BOSL2/std.scad', 'BOSL2/screws.scad'] }
+    const out = apply(doc, planInsert({ doc, cursor: doc.length, path: '/main.scad', entry: e, size: '"M3"' }))
+    expect(out).toBe('include <BOSL2/screws.scad>\ninclude<BOSL2/std.scad>\n\nnut("M3");')
+  })
+
+  it('preserves a multi-line destructuring when adding a missing name', () => {
+    const doc = "const {\n  nut,\n} = require('NopSCADlib/vitamins/nuts.scad')\n\n"
+    const out = apply(doc, planInsert({ doc, cursor: doc.length, path: '/main.js', entry, size: 'M4_nut' }))
+    expect(out).toBe("const {\n  nut, M4_nut,\n} = require('NopSCADlib/vitamins/nuts.scad')\n\nnut(M4_nut)")
+  })
+
+  it('puts the call on its own line when the cursor sits on non-blank code', () => {
+    const doc = 'cube()\n'
+    const out = apply(doc, planInsert({ doc, cursor: 6, path: '/main.js', entry, size: 'M3_nut' }))
+    expect(out).toBe("const { nut, M3_nut } = require('NopSCADlib/vitamins/nuts.scad')\ncube()\nnut(M3_nut)\n\n")
+  })
+
+  it('returns a cursor at the end of the inserted call', () => {
+    const screws = { call: 'nut', require: '_catalog/BOSL2/screws.scad', scadIncludes: ['BOSL2/std.scad', 'BOSL2/screws.scad'] }
+    const docA = 'const main = () => {\n  \n}\n'
+    const docB = "const { nut } = require('NopSCADlib/vitamins/nuts.scad')\n\n"
+    const docC = ''
+    const docD = 'include <BOSL2/std.scad>\n\n'
+    const cases = [
+      { doc: docA, cursor: 23, path: '/main.js', entry, size: 'M3_nut', call: 'nut(M3_nut)' },
+      { doc: docB, cursor: docB.length, path: '/main.js', entry, size: 'M4_nut', call: 'nut(M4_nut)' },
+      { doc: docC, cursor: 0, path: '/main.js', entry: screws, size: '"M3"', call: 'nut("M3")' },
+      { doc: docD, cursor: docD.length, path: '/main.scad', entry: screws, size: '"M3"', call: 'nut("M3");' },
+    ]
+    for (const { doc, cursor, path, entry: e, size, call } of cases) {
+      const plan = planInsert({ doc, cursor, path, entry: e, size })
+      const out = apply(doc, plan)
+      expect(out.slice(plan.cursor - call.length, plan.cursor)).toBe(call)
+    }
   })
 })

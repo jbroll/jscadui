@@ -48,19 +48,27 @@ const jsRequireChange = (doc, entry, size) => {
     return { from: 0, to: 0, insert: `const { ${needed.join(', ')} } = require('${entry.require}')\n` }
   }
 
-  const existing = match[1]
+  const group = match[1]
+  const existing = group
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean)
   const missing = needed.filter((n) => !existing.includes(n))
   if (missing.length === 0) return undefined
 
+  // Insert before the closing brace rather than rebuilding the group, so a
+  // multi-line destructuring (or a trailing comma) keeps its own formatting.
+  const core = group.replace(/[\s,]+$/, '')
+  const tail = group.slice(core.length)
   const [start, end] = match.indices[1]
-  return { from: start, to: end, insert: ` ${[...existing, ...missing].join(', ')} ` }
+  return { from: start, to: end, insert: `${core}, ${missing.join(', ')}${tail}` }
 }
 
+/** Whether `include`/`use <inc>` is already present, tolerant of spacing around `<...>`. */
+const scadDirectivePresent = (doc, inc) => new RegExp(`(include|use)\\s*<\\s*${escapeRegExp(inc)}\\s*>`).test(doc)
+
 const scadIncludesChange = (doc, entry) => {
-  const missing = entry.scadIncludes.filter((inc) => !doc.includes(`include <${inc}>`))
+  const missing = entry.scadIncludes.filter((inc) => !scadDirectivePresent(doc, inc))
   if (missing.length === 0) return undefined
   return { from: 0, to: 0, insert: missing.map((inc) => `include <${inc}>\n`).join('') }
 }
@@ -76,10 +84,24 @@ export const planInsert = ({ doc, cursor, path, entry, size }) => {
   const { change: callChange, endOffset } = callChangeAt(doc, cursor, callText)
   const prefixChange = scad ? scadIncludesChange(doc, entry) : jsRequireChange(doc, entry, size)
 
-  // callChange first: when both land at offset 0 (empty doc), sort ties keep
-  // array order, and prefixChange must end up first in the applied text.
-  const changes = prefixChange ? [callChange, prefixChange] : [callChange]
-  const newCursor = mapOffset(cursor, prefixChange ? [prefixChange] : []) + endOffset
+  if (!prefixChange) {
+    return { changes: [callChange], cursor: callChange.from + endOffset }
+  }
 
-  return { changes, cursor: newCursor }
+  // CodeMirror's ChangeSet applies same-offset changes in array order, with
+  // no gap between them (not a "last write wins" merge): two pure inserts at
+  // the same point concatenate in the order given. Merge them into one change
+  // instead of relying on array order, so the result is unambiguous.
+  const prefixIsInsert = (prefixChange.to ?? prefixChange.from) === prefixChange.from
+  if (prefixIsInsert && prefixChange.from === callChange.from) {
+    const insert = prefixChange.insert + callChange.insert
+    return {
+      changes: [{ from: prefixChange.from, to: prefixChange.from, insert }],
+      cursor: prefixChange.from + prefixChange.insert.length + endOffset,
+    }
+  }
+
+  const changes = [prefixChange, callChange].sort((a, b) => a.from - b.from)
+  const cursorPos = mapOffset(cursor, [prefixChange]) + endOffset
+  return { changes, cursor: cursorPos }
 }
