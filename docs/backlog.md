@@ -51,6 +51,147 @@ chat's project-switch guard; smoke passed (app build `e3b23e20`, frame
 See `apps/jscad-web/docs/architecture.md` for the
 deploy order and headers.
 
+## Security
+
+From the 2026-10-01 code review, each item checked against `main`
+(`2ec5b5a8`) by reading the code. None was tried in a browser. Paths are
+under `apps/jscad-web` unless given in full.
+
+- **A `#` hash naming an app path runs as model code with the user's
+  cookie.** `src/remote.js:53` and `:187` treat `/…`, `//host/…` and anything
+  without `://` as relative, so they skip the trust dialog and
+  `isValidRemoteUrl`. `:193` fetches with default credentials, and
+  `main.js:865-870` sends the text to the frame. An attacker page opens the
+  app with a `#data:` model that replaces `globalThis.eval` in the reused
+  worker (next item), then renavigates the window to
+  `#/api/auth/get-session`. The session JSON carries `session.token`, which
+  better-auth's `bearer()` accepts unsigned since `requireSignature` is off;
+  it reaches the poisoned worker, which sends it out over the frame's
+  `connect-src https:`. `#/api/sync-token` yields a rowboat JWT the same way.
+  The app sends no COOP, so the opener keeps its window handle. Fix: accept
+  only relative paths under `/examples/`, fetch with `credentials: 'omit'`,
+  and treat a leading `//` as remote. Unverified: that a cross-origin
+  opener's fragment-only navigation fires `hashchange` without a reload.
+- **Model code stays in the frame worker across projects.** Every load goes
+  to the same `state.active` slot (`src_frame/frameHost.js:315-336`,
+  `workerPool.js:151-155`). A worker is replaced only on a WASM trap, an
+  abandoned superseded run or a timeout. Model code shares the realm
+  (`packages/require/src/require.js:44`), and `self.__PROJECT_FILES__`
+  (`bundle.frame-worker.js:80-84`) is a plain configurable property, so a
+  shared model opened once sees every later project's files and scripts in
+  that tab. Fix: retire the worker when a load's source changes (another
+  project, or a hash, gist or remote script).
+- **The relay rate limit keys on a spoofable address and never evicts.**
+  `server/src/index.ts:69` sets `trust proxy` to `true`, so `req.ip` is the
+  leftmost `X-Forwarded-For` entry, which the Apache proxy block (deploy.sh
+  `modules/apache/build.sh:116-124`) passes through from the client. The
+  limiter (`relay/routes.ts:58-59`) runs before the unknown-kind 404, and
+  `createLimiter` (`relay/policy.js:251-268`) never drops a bucket. A curl
+  client with a forged `Origin` bypasses the 60/min limit and can grow the
+  map until the API process runs out of memory. Fix: `trust proxy`
+  `'loopback'` or key on `X-Real-IP`, evict idle buckets, and point
+  better-auth's IP header at the same value.
+- **The launcher's `/models/` serves dotfiles to any page.**
+  `scripts/local/server.js:22-29` serves the model directory through
+  `safeJoin`, which is lexical only, so symlinks are followed. There is no
+  dotfile filter and no Host or Origin check, and every response carries
+  `Access-Control-Allow-Origin: *`, on 127.0.0.1:7377 by default. While
+  `jscad ~/repo` runs, any site can read `.env` or `.git/config`. `fsApi.js`
+  already has the hidden-segment, realpath and Host/Origin checks
+  (`:13-39`, `:89-99`). Unverified: whether Chrome's Local Network Access
+  prompt blocks the cross-site fetch.
+- **The auth secret falls back to a public string.**
+  `server/src/config.ts:68` defaults `BETTER_AUTH_SECRET` to
+  `dev-secret-change-me` in production. It applies only when `secrets.env`
+  exists without the variable (a missing file aborts boot on
+  `ROWBOAT_DATABASE_ID`), but then anyone can forge the cookie-cache session,
+  which better-auth trusts without a database lookup. Fix: refuse to boot in
+  production without it.
+- **No CSP or COOP on the app origin.** The deploy's header block (deploy.sh
+  `modules/apache/build.sh:229-248`) sets neither, and `static/index.html`
+  has no CSP meta. Device-mode API keys sit in `localStorage` as plain JSON
+  (`packages/key-store/src/keys.js:60`), so any future script injection on
+  the app origin reads them. Add `Cross-Origin-Opener-Policy: same-origin`
+  and a CSP: `script-src 'self'`, `frame-src` the run host, `connect-src`
+  self, rowboat and the provider hosts.
+- **Smaller hardening.**
+  - `config.ts:69-73` trusts `http://localhost:5120` and
+    `https://appleid.apple.com` for credentialed CORS and the relay gate in
+    production. `SameSite=Lax` keeps the session cookie off, but a local
+    page can use the relay. Add the dev origin only outside production.
+  - `relay/routes.ts:69` returns allowlist read and parse errors, file paths
+    included, in a 500. Log them and return a fixed message.
+  - `src/remote.js:180-183` gunzips a `#data:` link on the main thread with
+    no output cap, so a link can hang the tab.
+  - `packages/params-form/src/params.js:114` writes `type="${inputType}"`
+    unescaped. Only cardboard-cutter uses params-form.
+
+## Projects and storage
+
+From the same review, with the same path convention.
+
+- **A failed project read during a save deletes the rest of the project.**
+  `src/storage/session.js:18-22` catches any `readProject` error and writes
+  back only the edited file. Rowboat's `readProject` throws when any blob
+  fetch fails (`rowboat.js:46-51`, `:70-75`), and its `writeFiles` replaces
+  the file set, deleting earlier rows (`:114-115`). One offline or 403 blob
+  fetch during an editor run or chat write leaves a one-file project. Fall
+  back to `{}` only on a typed not-found error. Rowboat also re-uploads every
+  file on every save (`:109-113`); rowboat-client's `blobs.upload` does not
+  dedupe.
+- **The local backend keeps nothing across a reload.**
+  `src/storage/local.js:4-6` holds projects, versions and conversations in
+  `Map`s, while `README.md:156-170` and `docs/architecture.md:1111-1116`
+  describe it as persistent. Anonymous work is lost on reload and on "Sign
+  in to Sync", whose full-page redirect (`src/aiAccount.js:130-139`) also
+  drops the hash, since `callbackURL` is the bare origin. Back it with
+  IndexedDB. Until then, warn before the redirect and on unload.
+- **Runs are recorded into the wrong project.** `main.js:369` starts
+  `currentProjectId` at the literal `'default'`, but the default project is
+  created under a UUID (`main.js:984-986`), so the first editor run or chat
+  write (`main.js:935-938`) creates a second "Untitled" project. A demo
+  opened from the browser while a project is open is stored into that
+  project with its URL as the path (`main.js:809-815`); `recordEdit` guards
+  only the disk project (`:365`). Use the id `createProject` returns, and
+  skip recording for URL paths.
+- **Editor edits are dropped without warning.** The file list reads `File`
+  snapshots taken when the project opened (`src/projectFiles.js:46-49`,
+  `src/editor.js:207-211`), so switching to another file and back shows the
+  pre-edit code, and the next run stores it. Project switch
+  (`projectFiles.js:69-70`), version restore (`src/projects.js:39`,
+  `main.js:997`), demo load (`main.js:112`) and chat writes
+  (`main.js:923-926`) replace the buffer with no confirm. `setSource`
+  (`editor.js:156-159`) never updates `#editor-file`, so after a project
+  switch the label names the previous file. Keep a per-path dirty buffer
+  and confirm before replacing one.
+- **The Projects panel acts on the wrong project.** `src/projects.js:109-111`
+  selects the first row on first render only. Row clicks (`:90`) call
+  `onSwitch`, and `select` is never called, so the version list and Restore
+  belong to whichever project was listed first, and Restore then switches to
+  it. The open row has no highlight, versions refresh only on rename, New,
+  drop or flip, New (`:117-121`) does not open what it creates, and there is
+  no delete.
+- **Chat history does not follow a project switch.** `src/aiChat.js:142-153`
+  reads the transcript once at init, `:301` sends it as `prior`, and
+  `:107-114` saves it under the current project, so project A's conversation
+  is sent with, and saved over, project B's. Conversations go to
+  `getActiveStore` (`main.js:958-961`), rowboat whenever signed in, rather
+  than the project's own mode. There is no New chat control.
+- **A folder dropped on a project row creates a new project.** The body
+  `dragover` (`src/fileSystem.js:291-294`) shows `#dropModal`, fixed
+  full-screen at z-index 5000 (`static/main.css:67-78`), which takes the
+  drop, so the row handlers never run. `e2e/project-ui.spec.js:24-31`
+  dispatches the drop on the row directly and misses this. `main.js:464-465`
+  also calls `extractEntries` a second time after awaits, when by the HTML
+  spec a real `DataTransfer` is empty, so `createFromDrop` may never run for
+  a real folder drop (not tried in a browser).
+- **Storage mode and sync state.** Flipping a project's mode copies it
+  (`src/storage/projects.js:122-131`) and `listAll` does not dedupe, so it is
+  listed twice. Sign-out (`aiAccount.js:141-144`) leaves the sync loop
+  (`main.js:442-454`) and the rowboat store running. Sync errors reach only
+  `console.warn` (`main.js:449`). Labels show `local` and `rowboat`
+  (`projects.js:16`, `:61-64`, `:88`) rather than what they mean.
+
 ## Render sweep
 
 Baseline 1226/1420 on manifold (CI job `94f275be0655e54b`), plus 75
@@ -133,6 +274,84 @@ disposes its two intermediate transforms per geometry.
 - **Ghosts are not drawn in ALL.js grid cells.** Cells drop `previewOnly`
   items before `normalizeAndPlace`; drawing them needs placement and the
   streaming claims to carry them.
+
+## Transpiler performance
+
+From the 2026-10-01 review, measured in Node; browser numbers are not taken.
+A cold transpile is 0.5–0.9 s for a BOSL2 example and 0.6–1.85 s for
+NopSCADlib `libtest.scad`, with parsing about 40% of it. Bare `.ts` names
+are under `packages/openscad/src/transpiler/` (`dependencies/` for
+`dependencyProcessor.ts`), and `src_frame/` is in `apps/jscad-web`.
+
+- **A project edit throws away every transpiled project file.** The editor
+  save and chat write (`apps/jscad-web/main.js:802`, `:921`) send
+  `jscadClearFileCache`, and `forgetFiles`
+  (`src_frame/scadHandler.js:215-228`) drops every project-origin entry from
+  both caches. A project switch or reload (`src/projectFiles.js:67`,
+  `main.js:348`) runs `clearTranspiled` (`scadHandler.js:202-208`), which
+  also drops the app's library caches. A project cannot include the app's
+  `/examples/openscad/<lib>` (`scadResolve.js:13-16`, `:26-51`), so a
+  project that carries BOSL2 or NopSCADlib transpiles cold on every edit.
+  Fix: drop only the changed files and their includers, and keep app-origin
+  entries in `clearTranspiled`. The fix must also handle sibling includers:
+  when `a` and `b` both include a changed `c`, resolving `a` refreshes
+  `readContent(c)` (`scadHandler.js:157`), so `b`'s `chainUnchanged` check
+  (`:154`) passes and stale `b` stays cached. Reproduced in Node. It cannot
+  bite today only because every edit wipes the project.
+- **Each file is read 3–5 times per cold transpile.** `transpile.ts:985` and
+  `dependencyProcessor.ts:67` resolve a file before checking the cache
+  (`:1003`, `:82`), and the frame resolver (`scadHandler.js:146-164`) keeps
+  no per-run memo. App-origin reads are sync XHRs with no cache
+  (`src_frame/fileMap.js:11-28`). `libtest.scad` makes 1,623 reads over 325
+  files. The read-before-check is how `scadHandler.js:151-154` notices a
+  changed file, so a per-run content memo has to keep that validation.
+- **`sphere()` and `polyhedron()` on manifold go through jscad polygons.**
+  The runtime's `_sphere` (`packages/openscad-runtime/src/primitives.js:68-107`)
+  calls manifold's `polyhedron` (`manifold/src/primitives/index.js:347-374`),
+  which builds a jscad geometry and converts it with `geom3ToManifold`
+  (`conversions/index.js:189-241`), keying every face vertex with three
+  `toFixed(9)` strings. That costs 6.6 ms per sphere at `$fn=30` against
+  0.7 ms for an indexed mesh straight to `Manifold.ofMesh`, and `_sphere`
+  is 43% of `packing_circles.scad`'s `main`. Add an indexed-mesh path that
+  keeps OpenSCAD's tessellation; `Manifold.sphere` does not match it.
+- **Customizer extraction re-lexes every dependency.** `transpile.ts:324`,
+  `:449-454` and `packages/openscad/src/customizer/extract.ts:108-109` run
+  on each file, since `processDependency` passes the entry's options down
+  (`dependencyProcessor.ts:173-174`, `context.ts:82-86`). Turning it off cuts
+  a cold transpile 25% for BOSL2 and 13% for `libtest`. Extract only for the
+  entry file, and rebuild a cached file when it is later opened as an entry.
+- **Parsed files are not kept across runs.** The frame calls `transpile`
+  without its fourth `sharedParsedFiles` argument (`scadHandler.js:167-173`),
+  so after a cache wipe every unchanged library file is parsed again (363 of
+  901 ms for BOSL2 cold). Within a run, `dependencyProcessor.ts:110-122`
+  parses without storing into `ctx.parsedFiles`, so the cycle path
+  (`:88-89`) re-parses: 4 extra parses in `libtest`. A cross-run AST cache
+  needs content validation.
+- **Output is built and regex-scanned for every file.**
+  `transpile.ts:909-910` runs `buildOutputCode` and `declareMissingSymbols`
+  (five `matchAll` passes, `:818-866`) on each dependency, whether or not its
+  code is ever required: 16% of a BOSL2 cold transpile and 20% of
+  `libtest`'s. On a warm BOSL2 edit the passes take about 29 of 35 ms,
+  scanning the entry's 2.1 MiB output with the library inlined. Build `code`
+  on first use and have each inlined part carry its own declared and
+  referenced names.
+- **Tail calls copy the whole scope stack on every bounce.**
+  `tailCall.ts:160` emits `scope: j$.scopeSnapshot()`, which copies every
+  frame (`openscad-runtime/src/index.js:377`), while `withScopeFrom`
+  (`:379-384`) uses only the frames from the loop's depth up. 200,000
+  bounces take 84 ms at scope depth 1 and 236 ms at depth 12, against 2.8 ms
+  for a plain loop. Snapshot only the frames above the entry depth, and skip
+  the snapshot when none were pushed.
+- **Each dependency copies the parent's symbol table.**
+  `dependencyProcessor.ts:139-155` rebuilds the module and function
+  parameter maps per dependency, `context.ts:231-245` registers them again in
+  the child, and `transpile.ts:926-935` stores `getAllWithParams` for every
+  file. About 7% of a `libtest` cold transpile and 4% of BOSL2's. Pass a
+  shared read-only parent table.
+- **Vector `+`, `-` and `/` allocate through `Array.from`.**
+  `openscad-runtime/src/vector.js:31`, `:46`, `:140` are 6–9x slower than a
+  preallocated loop, but only about 31 ms of `packing_circles.scad`. Low
+  priority.
 
 ## OpenSCAD comparison red on a clean tree (pre-existing, not PR112)
 
@@ -299,9 +518,53 @@ model with `display-check.js --engine jscad`.
   times the latency. Until agreement is well above this, complex verdicts are
   not a measure.
 
+## UI (jscad-web)
+
+From the 2026-10-01 review. Paths are under `apps/jscad-web` unless given in
+full.
+
+- **Long runs cannot be stopped.** The 120 s budget (`main.js:279-287`) is
+  the only kill, and progress is an indeterminate bar
+  (`src/frameSetup.js:246-263`). Streamed cell counts go only to
+  `dataset.cells` for the sweep. The Zoom To Fit and Smooth Render toggles
+  (`src/viewState.js:131-145`) re-run the model through `main.js:567`. Add
+  Stop and a cell count, and apply zoom in the viewer.
+- **Export gives no feedback.** `src/exporter.js:67-71` has no busy state and
+  no catch, so a failure is an unhandled rejection. An empty result does
+  nothing (`:98-99`). The file is named `jscad.<ext>` unless a folder was
+  dropped (`:109-111`), and the name never resets on a project switch.
+- **Number params clamp while typing.**
+  `packages/params-ui/src/inputs.js:113-131` snaps and clamps on every
+  `input` event: with `min: 10`, typing "50" gives "10" after the "5". Each
+  keystroke schedules a run. Clamp on `change`.
+- **Every code run resets parameters.** `main.js:601-603` resets the params
+  controller on each load, and the tree is rebuilt collapsed
+  (`packages/params-ui/src/ParamsTree.js:67-70`). Carry values and collapse
+  state by param path when the param survives, and add a Reset control.
+- **The drawers overlap.** `#ai-drawer` and `#project-drawer` are both fixed
+  `right: 0`, 360 px wide, at z-index 40 and 41
+  (`static/main.css:858-870`, `:904-916`), so opening chat with Projects open
+  shows nothing new. `#model-options` at z-index 2000 (`main.css:476-488`)
+  paints over both on phones.
+- **Chat input.** The draft is cleared (`src/aiChat.js:364`) before the
+  provider check (`:294-297`), so a missing key loses the message. Every
+  chunk forces the scroll to the bottom (`:158`, `:170`, `:183`, `:239`,
+  `:332`). The input is one line (`:73-74`). The error says "AI settings"
+  where the dialog is titled "Chat settings".
+- **Ctrl+S in a stored project opens a Save As picker**
+  (`src/editor.js:58-61`, `:104-105`, `main.js:817-856`), or an error where
+  the File System Access API is missing, though the run already stored the
+  edit. The hint is at `static/index.html:89`.
+- **Dark mode and the error bar.** `main.css:117-129` styles buttons and
+  inputs light with no `.dark` variant, beyond the chat settings dialog in
+  Remaining issues, and the project drawer borders (`main.css:957-986`) have none
+  either. `#error-message` is `white-space: pre` (`:721-723`) and has no
+  dismiss.
+
 ## Refactoring
 
-Async module loading is the breaking one; the rest are extractions.
+Async module loading is the breaking one. The items after params-core come
+from the 2026-10-01 review.
 
 - **Async module loading.** Replace sync XHR in `readFileWeb.js` with
   `fetch()`, make `require()` async, parallelize loads. Breaking: needs a
@@ -320,6 +583,79 @@ Async module loading is the breaking one; the rest are extractions.
 - **params-core proxy system (low priority).** `proxy/proxyHandlers.ts`,
   `proxy/discoveryTracker.ts`, `proxy/proxyFactory.ts`,
   `legacy/legacyConverter.ts`, `tree/treeBuilder.ts`.
+- **Proxy-only params in jscad-web.** `useParamsProxy` is hard-wired `true`
+  (`apps/jscad-web/main.js:153`), so the flat-form path (`:685-691`), the
+  false arms at `:562` and `:769`, `genParams` and `AnimRunner` are dead
+  there, and animation cannot start: `toParamDefinitions`
+  (`packages/params-core/src/createParamsProxy.js:536-546`) emits no `fps`
+  or `autostart`. `main.js:522` calls `setParamValues(times, true)` against a
+  `(name, value)` setter, and `:567` passes the `OrbitControl`'s nonexistent
+  `params`. The worker's non-proxy branches stay live for the demo apps.
+  Delete the jscad-web path or port animation to the params tree.
+- **Module state in `main.js` and `paramsUI.js`.** `apps/jscad-web/main.js`
+  is 1,020 lines with 14 module-level `let`s, mixing rowboat setup, script
+  loading, editor save, chat setup, the project panel and drop handling.
+  `src/paramsUI.js:53-80` keeps a scheduler in 10 module `let`s. Its
+  `runParamChange` re-entries (`:255`, `:313`) are not awaited and can reject
+  unhandled. `getParamsController`, `getParamsTreeView`,
+  `isModelUpdatePending` and `setModelUpdatePending` have no caller.
+- **Dead transpiler helpers.**
+  `packages/openscad/src/transpiler/helpers/{color,extrusions,imports,transforms,vector}.ts`
+  (354 lines) have no caller, and `extrusions.ts:92` emits an unbound
+  `_globalFn`. The `used*` sets in `CodeGenState` (about 50 writes, copy and
+  merge at `transpile.ts:292-300` and `:750-758`) are read only by them.
+- **Worker replay in two places.** `apps/jscad-web/src/frameSetup.js:23-125`
+  replays inits, files and script to a replacement worker, and the frame
+  does the same (`src_frame/workerPool.js:38-43`, `:177-205`). `NEEDS_MODEL`
+  is duplicated (`workerPool.js:6`, `frameSetup.js:100`). After a kill
+  `main()` runs twice and the replayed inits are mirrored to every spare.
+  Let the frame own replay.
+- **Three model runners.** The frame worker,
+  `packages/agent-loop/eval/backend.js:56-149` and
+  `packages/openscad/bin/run-jscad.js`. The last swallows module eval errors
+  (`:554-558`, `:589-590`), reports a `.js` eval error as "Module not found"
+  (`:611-616`), hand-lists the manifold API without `curves`, `modifiers`,
+  `utils` or the conversions (`createRuntime`, `:198-382`), and never resets
+  `setGlobalFn` between in-process runs (`:665`, `:780`).
+- **Worker loose ends.** `packages/worker/worker.js:312-316` reads a free
+  `importData` (the real one is `workerState.importData`), so a `File` param
+  throws `ReferenceError`. `WorkerState.clearParams`, `setScript`,
+  `configure`, `_lastProxyState` and `setScriptLockTimeout` are unused, and
+  `:78` names a `clearWorkerState` that does not exist.
+  `apps/jscad-web/src_frame/bundle.frame-worker.js:52-56` and `:115-130` flip
+  `scadPreview` around `await jscadMain` outside the `withSolids` queue.
+- **Superseded errors have two shapes.** The frame answers
+  `name: 'SupersededError'`, but the worker throws plain `Error`s saying
+  "superseded" (`worker.js:283`, `:507`, `:549`, `:574`), and the app checks
+  only the name (`main.js:705`, `:775`, `src/paramsUI.js:240`, `:299`).
+  `runModelUpdate` and `main.js:776` show worker-abandoned runs as errors.
+- **Package boundaries.** `packages/require/src/require.js:13,15` and
+  `packages/worker/worker.js:9` import sibling packages by relative path
+  without declaring them. There are 25 deep `@jscadui/<pkg>/(src|api|esm)/`
+  imports. The app imports frame modules: `src_frame/fileMap.js`
+  (`main.js:65`, `src/error.js:1`) and `src_frame/frameHost.js`
+  (`src/paramsUI.js:8`). The legacy `requireCache` getters `module` and
+  `moduleAccessOrder` (`packages/require/src/caching/cacheManager.ts:409-426`)
+  have no callers.
+- **Silent catches on the model path.** `worker.js:291` and `:567` (the
+  modeling bundle require), `apps/jscad-web/main.js:613`,
+  `src_frame/optionWarnings.js:19-21` and `:33`, and
+  `packages/agent-loop/eval/backend.js:298-300`. Each hides the cause behind
+  a later, different error.
+- **Leftovers.** 161 review-tracker labels ("C6 fix", "M11 fix") across 49
+  files. From jscad-studio: `apps/jscad-web/src/studioBridge.js`
+  (`globalThis.jscadStudio`, read only by its test), the `StudioServer` name
+  (`server/src/index.ts:37`, `:47`, `:72`), `package-lock.json` entries for
+  the removed apps, and the frame title "jscad studio compute frame"
+  (`static/frame/index.html:15`).
+- **Demo apps.** `observeResize.js` has 4 identical copies and `testThree.js`
+  3, `esbuildUtil.js` has 4 drifted ones, `apps/vue3-jscad/src/jscad/` holds
+  12 older copies of jscad-web modules, and `apps/linearcs/build_dev/` (784
+  KB of build output) is tracked.
+- **`params-ui` size.** `createParamsTree`
+  (`packages/params-ui/src/ParamsTree.js:30-618`) is one closure of about
+  590 lines. `createClassInput` (`:338-545`) and `inputs.js` (996 lines) are
+  the seams.
 
 ## Remaining issues
 
