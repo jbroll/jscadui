@@ -14,6 +14,7 @@ Join us on Discord: https://discord.gg/6PB7qZ4HC7
 - [@jscadui/key-store](./packages/key-store) - Provider-key custody for apps (session, device, synced modes)
 - [@jscadui/model-tools](./packages/model-tools) - Browser-safe measure and check for JSCAD geometry
 - [@jscadui/orbit](./packages/orbit) - Orbit controls for multiple 3D engines
+- [@jscadui/parts](./packages/parts) - Vetted catalog of standard hardware from OpenSCAD libraries
 - [@jscadui/postmessage](./packages/postmessage) - postMessage utilities
 - [@jscadui/worker](./packages/worker) - Web worker that runs JSCAD model scripts
 

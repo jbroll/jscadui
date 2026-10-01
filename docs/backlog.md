@@ -561,6 +561,37 @@ full.
   either. `#error-message` is `white-space: pre` (`:721-723`) and has no
   dismiss.
 
+## Parts catalog
+
+First entries are nuts, screws, washers, ball bearings and steppers
+(`packages/parts/README.md`). Remaining families: inserts, pulleys, belts,
+rails, extrusions, springs, and threadlib threads.
+
+- **A unified facade over preferred entries.** Each family's `preferred`
+  record uses its own library's call and size scheme (`nut(M3_nut)` vs.
+  `nut("M3")`); a facade that gives every family one call shape, built over
+  the preferred entries, is out of scope for now.
+- **Per-record sweep arguments.** `sizes` sweeps every listed size with the
+  same fixed non-swept arguments, so a check only measures what it varies:
+  BOSL2 `screw` sweeps `"M2,10"` .. `"M8,10"`, all at a fixed 10 mm length,
+  so the length dimension is never swept across sizes; NopSCADlib `screw`
+  sweeps head sizes only, with length fixed by the `example`. A record-level
+  way to sweep a second axis (length, say) would catch a bug that only shows
+  at a different length.
+- **`_$f$obj` destructures a renamed self-referencing parameter key.** A
+  function whose parameter shadows an outer name with the same default
+  (`function f(screw = screw, k = 1) = …`) renames the destructured binding
+  to avoid the collision but keeps the original key. A named call against
+  that key, `f({screw: 5})`, is read back under the old key and the argument
+  is silently ignored. Found while building the parts catalog's clean exports
+  (`packages/openscad/src/transpiler/cleanExports.ts`,
+  `buildDestructurePattern` in `statements.ts`); no catalog entry hits it
+  today.
+- **`exports.$meta` default text keeps inline comments.** A default written
+  as `h = 2 /* layer_height */` is reported in `$meta` with the comment still
+  in its `default` text, since `defaultText` (`cleanExports.ts`) slices raw
+  source between tokens rather than stripping comments.
+
 ## Refactoring
 
 Async module loading is the breaking one. The items after params-core come

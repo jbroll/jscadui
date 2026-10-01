@@ -114,44 +114,15 @@ option off.
 Done when: BOSL/BOSL2 examples, basics and text report ≥ 90% parameterized in
 the survey, and the GPU baseline is unchanged.
 
-## Phase 3 — Library modules as parts (BOSL2, BOSL)
+## Phase 3 — superseded by the parts catalog
 
-Makes every documented library module a part: `cuboid`, `prismoid`,
-`spur_gear`, `threaded_rod`, …
-
-Design:
-- `src/customizer/libdoc.ts`: parse BOSL-style doc blocks —
-  `// Module:` / `// Function&Module:`, `// Synopsis:`, `// Topics:`,
-  `// Arguments:` (`name = description. Default: x`, with `---` separating
-  positional from named), `// Example...:` blocks.
-- Join with the parsed `ModuleDeclarationStmt` signature for real parameter
-  names and literal defaults.
-- Defaults, in order:
-  1. literal default in the signature;
-  2. `Default:` value in the doc text, if it parses as a literal;
-  3. value from the first doc example that passes that argument;
-  4. otherwise mark the parameter required and not exposed. If a required
-     argument has no value, drop the part.
-- Types come from the default, or from the description (`number`, `vector`,
-  `boolean`, enumerated strings such as `"hex"`/`"square"` → choice).
-- Output: a generated catalogue — one virtual model per module:
-  `include <BOSL2/std.scad>` (or the module's own file, taken from the
-  extractor's `EXPLICIT_INCLUDES` list) plus the call, run through Phase 2's
-  call-arg machinery. Store it as JSON (`module`, `file`, `topics`, `params`,
-  `defaults`), not as `.scad` files.
-- Skip modules whose Topics or tags mark them as non-geometry (attachments,
-  transforms, `Anim`, `2D` unless 2D parts are wanted); configurable.
-
-jscad-web: a "Parts" browser listing catalogue entries by library/topic. It
-opens one as a model: synthesize the `.scad` text in the worker and transpile
-it with `customizer: { callArgs: true }`.
-
-Tests: doc parser on real BOSL2 excerpts; catalogue build over the BOSL2 lib
-(count of parts, count dropped with reasons); render the top-N parts on the
-GPU runner and compare with OpenSCAD (reuse test-harness).
-
-Done when: catalogue covers ≥ 250 BOSL2 modules and ≥ 150 BOSL modules; ≥ 95%
-of catalogued parts render and match OpenSCAD at their defaults.
+This phase (a generated catalogue of every documented BOSL2/BOSL library
+module, doc-block parsing, a jscad-web parts browser) is replaced by the
+hand-vetted catalog in `packages/parts`: one checked record per entry instead
+of a bulk extraction from doc comments. See `packages/parts/README.md` for the
+record format, the `check`/`render`/`catalog` commands, and admission; the
+parts browser is `apps/jscad-web/src/partsBrowser.js`
+(`apps/jscad-web/docs/architecture.md`, "Parts browser").
 
 ## Phase 4 — NopSCADlib type enumerations
 
@@ -168,7 +139,7 @@ Design:
   (`{ M3_cap_screw: M3_cap_screw, … }[_$cp('type', 'M3_cap_screw')]`).
 - The remaining parameters come from the signature (literal defaults) and
   `//!` doc comments (NopSCADlib's convention for module descriptions).
-- Add entries to the Phase 3 catalogue.
+- Add entries to `packages/parts` instead of a Phase 3 catalogue (see above).
 
 Done when: ≥ 50 NopSCADlib vitamins are browsable with a working type dropdown.
 
