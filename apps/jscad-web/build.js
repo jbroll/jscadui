@@ -3,6 +3,7 @@ import { execSync } from 'child_process'
 import { existsSync, mkdirSync, readFileSync, copyFileSync, rmSync, readdirSync } from 'fs'
 import { fileURLToPath } from 'url'
 import liveServer from 'live-server'
+import { buildParts } from '../../packages/parts/bin/build.js'
 import {serve, serveFrame} from './serve.js'
 import { fillFrameHtml } from './src_build/frameHtml.js'
 import { genExamplesManifest } from './src_build/genExamplesManifest.js'
@@ -101,6 +102,11 @@ if (existsSync(outDir + '/examples')) {
 copyTask('examples', outDir+'/examples', { include: [], exclude: [], watch, filters: [] })
 // Static manifest so the demo browser works without server directory autoindex.
 genExamplesManifest('examples', outDir + '/examples/manifest.json')
+
+// Writes catalog.json + thumbs under outDir/parts, and the _catalog/ library
+// shims into libs/ — must run before the libs copy and library list below so
+// _catalog is in the list on a clean build and _catalog/... requires map.
+buildParts(outDir + '/parts')
 
 if (existsSync(outDir + '/libs')) rmSync(outDir + '/libs', { recursive: true, force: true })
 if (existsSync('libs')) copyTask('libs', outDir + '/libs', { include: [], exclude: [], watch, filters: [] })

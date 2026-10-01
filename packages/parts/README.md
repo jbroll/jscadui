@@ -71,9 +71,14 @@ the library file at check/build time, not hand-written.
   Chromium via Playwright). Usage: `node bin/render.js <id>...` or `--all`;
   `--catalog <dir>`, `--libs <dir>` and `--out <dir>` override the default
   catalog, `/libs/` and `thumbs/` directories.
-- `npm run build` — write `catalog.json` (every record merged with its
-  derived signature, size names, measured dimensions and thumbnail path) for
-  the parts browser and the agent's docs index.
+- `npm run catalog` — `bin/build.js`. Writes `<dir>/catalog.json` (every
+  record merged with its derived signature, size names, measured dimensions
+  and thumbnail path; a record missing from `derived.json` is skipped with a
+  warning) and copies `thumbs/` to `<dir>/thumbs/`, for the parts browser and
+  the agent's docs index. Also (re)writes the `_catalog/` library shims for
+  every record with a `prelude`. Usage: `node bin/build.js --out <dir>
+  [--catalog <dir>] [--libs <dir>]`. The `apps/jscad-web` build calls this
+  directly before copying `libs/`, so the shims land there too.
 
 ## Admission
 

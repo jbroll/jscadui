@@ -7,7 +7,7 @@
     "test": "vitest run",
     "check": "node bin/check.js",
     "render": "node bin/render.js",
-    "build": "node bin/build.js"
+    "catalog": "node bin/build.js"
   },
   "devDependencies": {
     "@jscad/modeling": "file:../../.deps-cache/OpenJSCAD.org/packages/modeling",
