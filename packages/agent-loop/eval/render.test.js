@@ -20,8 +20,8 @@ const hasChromium = (() => {
   }
 })()
 
-// The red pixels in an 8-bit RGB or RGBA PNG; a blank or broken canvas has none.
-const redPixels = (png) => {
+// Unfilters an 8-bit RGB or RGBA PNG's scanlines (Paeth and friends) for pixel-level checks.
+const decodeRows = (png) => {
   const [width, height] = [png.readUInt32BE(16), png.readUInt32BE(20)]
   const channels = { 2: 3, 6: 4 }[png[25]]
   const idat = []
@@ -31,7 +31,7 @@ const redPixels = (png) => {
   const raw = inflateSync(Buffer.concat(idat))
   const stride = width * channels
   let prior = Buffer.alloc(stride)
-  let count = 0
+  const rows = []
   for (let y = 0; y < height; y += 1) {
     const filter = raw[y * (stride + 1)]
     const row = Buffer.from(raw.subarray(y * (stride + 1) + 1, (y + 1) * (stride + 1)))
@@ -43,13 +43,25 @@ const redPixels = (png) => {
       const paeth = Math.abs(p - a) <= Math.abs(p - b) && Math.abs(p - a) <= Math.abs(p - c) ? a : Math.abs(p - b) <= Math.abs(p - c) ? b : c
       row[i] = (row[i] + [0, a, b, (a + b) >> 1, paeth][filter]) & 0xff
     }
-    for (let i = 0; i < stride; i += channels) {
-      if (row[i] > row[i + 1] + 40 && row[i] > row[i + 2] + 40) count += 1
-    }
+    rows.push(row)
     prior = row
+  }
+  return { width, height, channels, rows }
+}
+
+const countPixels = (png, test) => {
+  const { width, channels, rows } = decodeRows(png)
+  let count = 0
+  for (const row of rows) {
+    for (let i = 0; i < width * channels; i += channels) {
+      if (test(row[i], row[i + 1], row[i + 2])) count += 1
+    }
   }
   return count
 }
+
+// The red pixels in an 8-bit RGB or RGBA PNG; a blank or broken canvas has none.
+const redPixels = (png) => countPixels(png, (r, g, b) => r > g + 40 && r > b + 40)
 
 const partsOf = async (geometry) => {
   const mesh = meshPages(geometry)
@@ -61,7 +73,7 @@ describe('views', () => {
     expect(VIEWS.map((v) => [v.name, v.dir, v.up])).toEqual([
       ['iso-front', [1, -1, 0.7], [0, 0, 1]],
       ['iso-back', [-1, 1, 0.7], [0, 0, 1]],
-      ['side', [0, -1, 0.05], [0, 0, 1]],
+      ['side', [0.25, -1, 0.35], [0, 0, 1]],
     ])
     expect(VIEW_LABELS).toEqual({ 'iso-front': 'front three-quarter view', 'iso-back': 'back three-quarter view', side: 'side view' })
   })
@@ -104,6 +116,20 @@ describe.skipIf(!hasChromium)('createRenderer', () => {
       }
       expect(new Set(views.map((v) => v.sha256)).size).toBe(3)
       expect(renderer.refused()).toBe(0)
+    } finally {
+      await renderer.close()
+    }
+  }, 60_000)
+
+  it('gives uncoloured parts different palette colours by their index among them', async () => {
+    const renderer = await createRenderer()
+    try {
+      const parts = await partsOf([primitives.cuboid({ size: [40, 40, 40], center: [-60, 0, 0] }), primitives.cuboid({ size: [40, 40, 40], center: [60, 0, 0] })])
+      const views = await renderer.render(parts, mkdtempSync(join(tmpdir(), 'render-test-')))
+      const png = readFileSync(views.find((v) => v.name === 'iso-front').path)
+      // palette[0] #c8553d is red-heavy, palette[1] #3d7cc8 is blue-heavy; both must show up.
+      expect(countPixels(png, (r, g, b) => r > g + 30 && r > b + 30)).toBeGreaterThan(RENDER_SIZE * RENDER_SIZE * 0.01)
+      expect(countPixels(png, (r, g, b) => b > r + 30 && b > g + 20)).toBeGreaterThan(RENDER_SIZE * RENDER_SIZE * 0.01)
     } finally {
       await renderer.close()
     }

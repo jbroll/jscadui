@@ -18,7 +18,8 @@
     <canvas id="c" width="768" height="768"></canvas>
     <script>
       // eval/render.js adds three.js, then passes triangles and colours, never model code.
-      const NEUTRAL = 0xb0b0b0
+      // An uncoloured part gets one of these by its index among the uncoloured parts, cycling.
+      const PALETTE = ['#c8553d', '#3d7cc8', '#5aa05a', '#d4a017', '#8e5bbf', '#3fb0b0', '#d07a3a', '#8a8a8a']
       let renderer = null
       let scene = null
       let box = null
@@ -47,11 +48,12 @@
         dispose(scene)
         scene = new T.Scene()
         box = new T.Box3()
+        let uncoloured = 0
         for (const { color, data } of parts) {
           const geometry = new T.BufferGeometry()
           geometry.setAttribute('position', new T.Float32BufferAttribute(decode(data), 3))
           geometry.computeVertexNormals()
-          const tint = color ? new T.Color().setRGB(color[0], color[1], color[2]) : new T.Color(NEUTRAL)
+          const tint = color ? new T.Color().setRGB(color[0], color[1], color[2]) : new T.Color(PALETTE[uncoloured++ % PALETTE.length])
           tint.convertSRGBToLinear()
           const surface = new T.MeshStandardMaterial({
             color: tint,

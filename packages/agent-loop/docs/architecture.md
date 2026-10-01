@@ -344,12 +344,16 @@ and one page and draws one model at a time.
 The three orthographic 768 x 768 views (`eval/views.js`) are framed to the
 model's bounding box with a 3% margin on each side (half the larger extent
 times 1.06, as the trial renderer framed them): `iso-front` from (1, -1, 0.7),
-`iso-back` from (-1, 1, 0.7) and `side` from (0, -1, 0.05), +Z up. There is no
-top view: in the trial Moondream read the caboose's top view as "an electronic
-module" and it flipped the judge. The background is `#ececec`, lit by a
-hemisphere light and a key light above-left of the camera; each part has its
-own colour (an unset one is neutral grey `#b0b0b0`), flat shading, and dark
-lines at 35% opacity on edges where faces meet at more than 30°.
+`iso-back` from (-1, 1, 0.7) and `side` from (0.25, -1, 0.35), +Z up. There is
+no top view: in the trial Moondream read the caboose's top view as "an
+electronic module" and it flipped the judge. `side` is raised off the pure
+elevation (0, -1, 0) for the same reason: Moondream read a bare silhouette as
+"laptop", "no windows". The background is `#ececec`, lit by a hemisphere
+light and a key light above-left of the camera; flat shading and dark lines
+at 35% opacity on edges where faces meet at more than 30°. Each part keeps
+its own colour; an uncoloured part gets one from a fixed eight-colour palette
+by its index among the uncoloured parts, cycling, instead of a single grey
+that reads as one piece.
 
 ### The describer
 
