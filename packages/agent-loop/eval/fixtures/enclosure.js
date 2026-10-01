@@ -1,6 +1,7 @@
 // Project box for an Arduino Uno (68.6 x 53.4mm board) with corner screw posts.
 export const fixture = {
   name: 'enclosure',
+  group: 'regression',
   prompt: 'A small project box for an Arduino Uno, with screw posts in the corners to mount the board',
   requires: ['write'],
   verifyBeforeWrite: false,

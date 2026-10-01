@@ -1,6 +1,7 @@
 // The first-time request that exposed Muse 1.3 contributor's import mistakes.
 export const fixture = {
   name: 'single-sphere',
+  group: 'regression',
   prompt: 'A single sphere',
   requires: ['write'],
   verifyBeforeWrite: false,

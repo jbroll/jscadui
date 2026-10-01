@@ -7,6 +7,7 @@ const AXES = ['x', 'y', 'z']
 
 export const fixture = {
   name: 'hook-rack',
+  group: 'regression',
   prompt: 'a wall rack with 5 hooks in a row',
   requires: ['write'],
   verifyBeforeWrite: false,

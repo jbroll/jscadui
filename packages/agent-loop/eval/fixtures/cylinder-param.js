@@ -1,6 +1,7 @@
 // The height must reach the UI as a slider, not a constant.
 export const fixture = {
   name: 'cylinder-param',
+  group: 'regression',
   prompt: 'A cylinder with a slider for its height',
   requires: ['write'],
   verifyBeforeWrite: false,

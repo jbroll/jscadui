@@ -57,6 +57,7 @@ const cutInto = (group) => group.hullArea - group.area >= Math.max(25, 0.02 * gr
 
 export const fixture = {
   name: 'followup-edit',
+  group: 'regression',
   prompt: 'make it taller and add a slot for the cable',
   requires: ['write'],
   verifyBeforeWrite: false,

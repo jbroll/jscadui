@@ -1,6 +1,7 @@
 // The option is roundRadius; a model that writes radius gets the 0.2 default.
 export const fixture = {
   name: 'misspelled-option',
+  group: 'regression',
   prompt: 'A 30 by 20 by 10 box with 3mm rounded edges',
   requires: ['write'],
   verifyBeforeWrite: false,

@@ -4,6 +4,7 @@ const HOLE = Math.PI * (25.4 / 4) ** 2 * SIDE
 
 export const fixture = {
   name: 'inch-cube',
+  group: 'regression',
   prompt: 'a 2 inch cube with a 1/2 inch hole through it',
   requires: ['write'],
   verifyBeforeWrite: false,

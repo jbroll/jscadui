@@ -77,11 +77,11 @@ is its own lane, all running concurrently, so at most (models × APIs) ×
 `EVAL_CONCURRENCY` conversations run at once (32 with the shipped conf: 2
 models × 2 APIs × 8. Each sandbox is capped at 2G but typically uses far
 less; the host has 43G available). A job must finish inside the CI host's
-`CI_JOB_TIMEOUT`, set to 7200 (2 hours) in `/etc/ci-server/env.sh` because the
-full suite runs past an hour. Each model and style writes its own result file, named with both. The
-default suite, the ungrouped fixtures plus the `harder` group, is 32
-fixtures under fluent and 31 under modeling (`fluent-chain` is fluent-only),
-so at 3 runs and 2 models a job is (32 + 31) × 3 × 2 = 378 conversations;
+`CI_JOB_TIMEOUT`, set to 7200 (2 hours) in `/etc/ci-server/env.sh` because
+`EVAL_FIXTURES=all` runs past an hour. Each model and style writes its own result file, named with both. The
+default suite, the ungrouped fixtures plus the `harder` group, is 14
+fixtures under fluent and 13 under modeling (`fluent-chain` is fluent-only),
+so at 3 runs and 2 models a job is (14 + 13) × 3 × 2 = 162 conversations;
 running every model × API pair
 concurrently instead of one model's styles after another roughly halves the
 wall time per model. Edit the conf file in the working tree before pushing —

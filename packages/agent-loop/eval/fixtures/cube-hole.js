@@ -1,6 +1,7 @@
 // 20mm cube with a through-hole: boolean correctness plus net volume.
 export const fixture = {
   name: 'cube-hole',
+  group: 'regression',
   prompt: 'A 20mm cube with a hole through the middle',
   requires: ['measure', 'write'],
   verifyBeforeWrite: true,

@@ -1,6 +1,7 @@
 // Pegboard panel: a flat plate with a grid of holes, size and pitch unstated.
 export const fixture = {
   name: 'pegboard',
+  group: 'regression',
   prompt: 'A pegboard panel for my workbench wall',
   requires: ['write'],
   verifyBeforeWrite: false,

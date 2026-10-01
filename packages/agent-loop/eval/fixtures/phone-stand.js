@@ -1,6 +1,7 @@
 // Phone stand: shape and lean unstated, so checks only judge plausible size and hollowness.
 export const fixture = {
   name: 'phone-stand',
+  group: 'regression',
   prompt: 'A phone stand for my desk',
   requires: ['write'],
   verifyBeforeWrite: false,

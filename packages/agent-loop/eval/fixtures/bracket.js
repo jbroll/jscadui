@@ -1,6 +1,7 @@
 // L-bracket: shape (L, not a slab) matters more than any one exact dimension.
 export const fixture = {
   name: 'bracket',
+  group: 'regression',
   prompt: 'An L-bracket for a shelf, about 60mm wide',
   requires: ['write'],
   verifyBeforeWrite: true,

@@ -10,6 +10,7 @@ const wall = (section) => {
 
 export const fixture = {
   name: 'pencil-cup',
+  group: 'regression',
   prompt: 'a small pencil cup with 2mm walls',
   requires: ['write'],
   verifyBeforeWrite: false,

@@ -1,6 +1,7 @@
 // Rounded edges must cost volume against the sharp 6000 mm³ box.
 export const fixture = {
   name: 'rounded-box',
+  group: 'regression',
   prompt: 'A 30 by 20 by 10 box with rounded edges',
   requires: ['write'],
   verifyBeforeWrite: false,

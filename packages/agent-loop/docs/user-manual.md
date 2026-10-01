@@ -425,20 +425,29 @@ becomes a library prefix, e.g. `require('NopSCADlib/core.scad')`. Set
 
 A fixture may declare `group` (string), such as `'profiles'`, an opt-in group
 kept for experiments (`gear`).
-The default run, with no `EVAL_FIXTURES`, runs the ungrouped fixtures, the CSG
-suite of primitives and boolean operations, and the `harder` group
-(`DEFAULT_GROUPS` in `eval/run-eval.js`): one message asking for several
-changes to a saved model (`stand-bigger-slots`, `box-thicker-lid`,
-`bracket-m5`), a correction mid-conversation (`holes-through-side`),
-assemblies of parts that fit (`sliding-lid-box`, `hinge`, `stacking-trays`),
-parameters the user names (`bracket-params`), a name cut through a part
-(`luggage-tag`), a real part the model must know the sizes of
-(`pi-enclosure`, `bottle-cap`), a stated opening and clearance (`drawer`), and
-computed shapes (`spur-gears`, `twisted-vase`, `bottle-cap`'s helix).
-`profiles` stays opt-in. `nema17-mount` and `bearing-holder-608` check that
-the model requires a catalog part; both run in the default suite now that the
-parts catalog has admitted entries (`packages/parts/docs/user-manual.md`,
-"Admission"). `EVAL_FIXTURES` runs the union of
+The default run, with no `EVAL_FIXTURES`, runs the ungrouped fixtures
+(`nameplate`, `pipe-tee`, `fluent-chain`) and the `harder` group
+(`DEFAULT_GROUPS` in `eval/run-eval.js`): several changes to a saved model in
+one message (`box-thicker-lid`), assemblies of parts that fit
+(`sliding-lid-box`, `hinge`, `stacking-trays`), parameters the user names
+(`bracket-params`), a name cut through a part (`luggage-tag`), a real part the
+model must know the sizes of (`pi-enclosure`, `bottle-cap`), a stated opening
+and clearance (`drawer`), and computed shapes (`spur-gears`, `twisted-vase`,
+`bottle-cap`'s helix). These are the fixtures that still lose points, plus
+`box-thicker-lid`, `fluent-chain` and `bracket-params`, kept as the only
+default tests of editing a saved project, of the fluent style and of
+parameters.
+
+The opt-in `regression` group holds the fixtures that scored 8 in nearly every
+run of the 2026-09-30 passes (at most 1 run in 24 below 8, across both models
+and styles): the CSG primitives and booleans, the other follow-up edits and
+the mid-conversation correction. They add cost without separating one prompt
+from another; run them (`EVAL_FIXTURES=regression`) after a change to the
+tools, the runtime or the build report, where a basic request could break.
+`nema17-mount` and `bearing-holder-608` check that the model requires a
+catalog part; both run in the default suite now that the parts catalog has
+admitted entries (`packages/parts/docs/user-manual.md`, "Admission").
+`profiles` stays opt-in too. `EVAL_FIXTURES` runs the union of
 whatever it names, fixture names and group names both, e.g. `EVAL_FIXTURES=profiles`
 runs every fixture in that group, `EVAL_FIXTURES=gear,fluent-chain` runs one named
 fixture plus one grouped fixture, and `EVAL_FIXTURES=all` runs every fixture

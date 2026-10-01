@@ -2,6 +2,7 @@
 // bbox/volume alone, so this only checks the bracket's shape and size.
 export const fixture = {
   name: 'shelf-bracket',
+  group: 'regression',
   prompt: 'An L bracket to hold a shelf, with countersunk screw holes',
   requires: ['write'],
   verifyBeforeWrite: false,

@@ -55,12 +55,14 @@ the user the fixture count times `EVAL_RUNS` and get a yes.
   `[x, y, z]` fails with "size must be positive"), prefer fixing the tool
   side first — `docs`, warnings, clearer error text — and record it in
   `docs/backlog.md`, over changing prompt text.
-- The default suite tests CSG primitives and booleans, plus the `harder`
-  group: multi-change follow-ups, corrections, assemblies, parameters, text,
-  and tasks that combine several constraints, stated tolerances, real-world
-  sizes the model must know, parts that must fit, and computed shapes
-  (point-list profiles, helices, twists). The opt-in `profiles` group is for
-  experiments.
+- The default suite holds only fixtures that still lose points, plus three
+  guards (`box-thicker-lid`, `fluent-chain`, `bracket-params`); the list is in
+  `packages/agent-loop/docs/user-manual.md`, "Choosing fixtures". Fixtures
+  that score 8 in nearly every run sit in the opt-in `regression` group: run
+  it after a tool, runtime or build-report change, not to judge a prompt. A
+  new fixture joins the default suite only if it fails on the current prompt
+  (step 4); one that later scores 8 in every run of two passes moves to
+  `regression`. The opt-in `profiles` group is for experiments.
 
 ## Steps
 

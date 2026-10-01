@@ -59,7 +59,7 @@ const slotCount = (sections) => {
 
 export const fixture = {
   name: 'stand-bigger-slots',
-  group: 'harder',
+  group: 'regression',
   prompt: 'make it 20% bigger, add a second cable slot and round the edges',
   requires: ['write'],
   verifyBeforeWrite: false,

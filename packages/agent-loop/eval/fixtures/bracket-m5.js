@@ -60,7 +60,7 @@ const boltHoles = (sections) => {
 
 export const fixture = {
   name: 'bracket-m5',
-  group: 'harder',
+  group: 'regression',
   prompt: 'it has to fit an M5 bolt, and the whole thing must stay under 60mm tall',
   requires: ['write'],
   verifyBeforeWrite: false,

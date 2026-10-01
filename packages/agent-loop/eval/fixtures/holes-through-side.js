@@ -31,7 +31,7 @@ const holesIn = (s) => holeLoops(s).filter((l) => footprint(l, s.axis).every((d)
 
 export const fixture = {
   name: 'holes-through-side',
-  group: 'harder',
+  group: 'regression',
   prompt: 'no, the holes should go through the side, not the top',
   requires: ['write'],
   verifyBeforeWrite: false,

@@ -32,6 +32,7 @@ export const covers = (box, lid) => {
 
 export const fixture = {
   name: 'box-with-lid',
+  group: 'regression',
   prompt: 'a box with a lid that fits',
   requires: ['write'],
   verifyBeforeWrite: false,
