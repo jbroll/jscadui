@@ -680,10 +680,8 @@ export function evalScadSolidSync(scadPath, ctx, { fn = 0, libPaths = [], shared
 }
 
 /**
- * Synchronously transpile and require a .scad file as a CommonJS-style module,
- * returning its exports (clean export surface, see openscad/ARCHITECTURE.md)
- * instead of calling main(). Must be called after initScadRuntime() has resolved.
- *
+ * Transpile and require a .scad file synchronously, returning its clean exports instead of calling main().
+ * Call after initScadRuntime() resolves.
  * @param {string} scadPath - Path to the .scad source file
  * @param {{ jscadModeling, openscadRuntime }} ctx - Runtime context from initScadRuntime()
  * @param {{ fn?: number, libPaths?: string[], sharedCache?: Map }} [opts]

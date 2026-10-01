@@ -55,9 +55,7 @@ const renderFunction = (entry, byName) => {
 
 const measuredLine = (m) => `  ${JSON.stringify(m.args)} → [${m.size.join(', ')}] mm`
 
-// A catalog part: license, require/scad lines, signature, sizes, options (name
-// to meaning, not the {name, type, default} shape modeling/fluent entries use),
-// measured dimensions, example.
+// A part's options map name to meaning, not the {name, type, default} list modeling and fluent entries carry.
 const renderPart = (entry) => {
   const lines = [`${entry.name} (${entry.license})`]
   if (entry.description) lines.push(entry.description)
@@ -434,9 +432,7 @@ const textAnswer = (byName, api) =>
 // stored as its own field, so the docs entry shape matches the catalog's.
 const callOf = (e) => e.signature.slice(0, e.signature.indexOf('('))
 
-// Every part whose family or call matches the query, case-insensitively,
-// preferred entry first — so "nut" or "NEMA" answers with every library that
-// has one, and a family-wide query puts the agent's default first.
+// A family or call name answers with every library's part, preferred first, so the agent sees its default and the alternatives.
 const partsFamily = (all, q) => {
   const lower = q.toLowerCase()
   const hits = all.filter((e) => e.pkg === PARTS && (e.family?.toLowerCase() === lower || callOf(e).toLowerCase() === lower))

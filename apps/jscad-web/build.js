@@ -103,9 +103,7 @@ copyTask('examples', outDir+'/examples', { include: [], exclude: [], watch, filt
 // Static manifest so the demo browser works without server directory autoindex.
 genExamplesManifest('examples', outDir + '/examples/manifest.json')
 
-// Writes catalog.json + thumbs under outDir/parts, and the _catalog/ library
-// shims into libs/ — must run before the libs copy and library list below so
-// _catalog is in the list on a clean build and _catalog/... requires map.
+// Before the libs copy: it writes the _catalog/ shims into libs/, which the copy and the library list must include.
 buildParts(outDir + '/parts')
 
 if (existsSync(outDir + '/libs')) rmSync(outDir + '/libs', { recursive: true, force: true })

@@ -1,6 +1,4 @@
-// nuts.scad only `use`s nut.scad (not `include`), so its clean export does
-// not re-export `nut` (see "Clean exports" in packages/openscad/ARCHITECTURE.md);
-// require it from nut.scad directly.
+// nuts.scad only `use`s nut.scad, so `nut` comes from nut.scad itself.
 const { nut } = require('NopSCADlib/vitamins/nut.scad')
 const { M3_nut } = require('NopSCADlib/vitamins/nuts.scad')
 

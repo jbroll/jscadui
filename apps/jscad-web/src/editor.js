@@ -153,9 +153,7 @@ export const getSource = () => view.state.doc.toString()
 export const getCursor = () => view.state.selection.main.head
 
 /**
- * Dispatch a set of changes in one transaction and move the cursor to a
- * position in the resulting document (CodeMirror maps `changes` positions
- * itself; `cursor` is given in post-edit coordinates, so it is not mapped).
+ * `cursor` is in post-edit coordinates, so unlike `changes` it is not mapped.
  * @param {{ changes: { from: number, to?: number, insert: string }[], cursor: number }} edit
  */
 export const applyEdit = ({ changes, cursor }) => {

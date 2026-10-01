@@ -419,9 +419,7 @@ test('a project scad file includes a NopSCADlib nut from /libs/', async ({ page 
   expect(vertexCount).toBeGreaterThan(0)
 })
 
-// nuts.scad only `use`s nut.scad (not `include`), so its clean export does not
-// re-export `nut` (see "Clean exports" in packages/openscad/ARCHITECTURE.md);
-// a JS requirer has to reach nut.scad directly for the module.
+// nuts.scad only `use`s nut.scad, so a JS requirer reaches `nut` through nut.scad itself.
 test('a project js file requires a NopSCADlib nut through its clean export', async ({ page }) => {
   await gotoHost(page)
   const res = await load(page, {
