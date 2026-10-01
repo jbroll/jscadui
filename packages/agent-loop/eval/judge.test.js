@@ -44,12 +44,59 @@ const fileWith = (runs) => {
 }
 const read = (path) => JSON.parse(readFileSync(path, 'utf8'))
 
+const OLD_JUDGE_PROMPT_SHA256 = '53b0d5725e4b35bfe5133bd65cd5806496851bbe7e519990b03077a91ed9e1e7'
+
 describe('the judge prompt', () => {
-  it('quotes each user message, then the description, then the question', () => {
-    expect(judgePrompt(['a model rocket about 20cm tall', 'can you make it two stages, with fins only on the bottom one'], 'side view: a rocket')).toBe(
-      'The user\'s message(s):\n"a model rocket about 20cm tall"\n"can you make it two stages, with fins only on the bottom one"\n\nA description of the result:\nside view: a rocket\n\nDid the result succeed at what the user asked for? Answer SUCCESS only if the user who made the request would accept the model as what they asked for. A generic shape, missing major parts, or parts floating apart are FAILURE. Answer SUCCESS or FAILURE, then one line why.',
+  const run = (overrides = {}) => ({
+    messages: ['a model rocket about 20cm tall'],
+    description: 'side view: a rocket',
+    facts: { dimensions: [100, 50, 300] },
+    groups: 1,
+    ...overrides,
+  })
+
+  it('quotes each message, states the measured size and piece count, flags the separately-described views, then asks the question', () => {
+    expect(judgePrompt(run())).toBe(
+      'The user\'s message(s):\n"a model rocket about 20cm tall"\n\n' +
+        'Measured result: overall size 100 x 50 x 300 mm, 1 separate piece(s).\n\n' +
+        'A describer looked at three renders of the result (front three-quarter, back three-quarter and a raised side view) and described each view on its own, without seeing the request. It can misread a single view, so the views may disagree; judge the object they describe together.\n' +
+        'side view: a rocket\n\n' +
+        'Did the result succeed at what the user asked for? Answer SUCCESS if the user who made the request would accept the model as what they asked for. A generic shape, missing major parts, or parts floating apart are FAILURE. Still renders cannot show motion or removal: a visible hinge, pivot, or separate piece counts for a part that moves or comes off, and a fitting counts when its opening or shape is there. Do not fail it for colours, style, or details the user did not ask for. Answer SUCCESS or FAILURE, then one line why.',
     )
+  })
+
+  it('quotes every message in order', () => {
+    expect(judgePrompt(run({ messages: ['a model rocket about 20cm tall', 'can you make it two stages, with fins only on the bottom one'] }))).toContain(
+      '"a model rocket about 20cm tall"\n"can you make it two stages, with fins only on the bottom one"',
+    )
+  })
+
+  it('drops the whole measured line when neither dimensions nor groups are known', () => {
+    expect(judgePrompt(run({ facts: null, groups: null }))).not.toContain('Measured result')
+  })
+
+  it('drops only the missing clause when one of dimensions or groups is known', () => {
+    expect(judgePrompt(run({ groups: null }))).toContain('Measured result: overall size 100 x 50 x 300 mm.\n\n')
+    expect(judgePrompt(run({ facts: null }))).toContain('Measured result: 1 separate piece(s).\n\n')
+  })
+
+  it('reads a real run: userMessages, description.text, render.facts.dimensions and the connected gate\'s groups', () => {
+    const fullRun = {
+      userMessages: ['we need a model of a toy caboose'],
+      description: { text: 'side view: a red caboose' },
+      render: { facts: { dimensions: [111, 41, 67] } },
+      gates: [
+        { name: 'builds', pass: true },
+        { name: 'connected', pass: true, groups: 1 },
+      ],
+    }
+    expect(judgePrompt(fullRun)).toContain('Measured result: overall size 111 x 41 x 67 mm, 1 separate piece(s).')
+    expect(judgePrompt(fullRun)).toContain('side view: a red caboose')
+  })
+
+  it('hashes the template with placeholders, different from the old prompt\'s hash', () => {
     expect(JUDGE_PROMPT_SHA256).toMatch(/^[0-9a-f]{64}$/)
+    expect(JUDGE_PROMPT_SHA256).not.toBe(OLD_JUDGE_PROMPT_SHA256)
   })
 })
 

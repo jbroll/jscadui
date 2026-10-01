@@ -17,12 +17,32 @@ const REASON_CHARS = 200
 const JUDGE_CONCURRENCY = 8
 
 export const JUDGE_QUESTION =
-  'Did the result succeed at what the user asked for? Answer SUCCESS only if the user who made the request would accept the model as what they asked for. A generic shape, missing major parts, or parts floating apart are FAILURE. Answer SUCCESS or FAILURE, then one line why.'
+  'Did the result succeed at what the user asked for? Answer SUCCESS if the user who made the request would accept the model as what they asked for. A generic shape, missing major parts, or parts floating apart are FAILURE. Still renders cannot show motion or removal: a visible hinge, pivot, or separate piece counts for a part that moves or comes off, and a fitting counts when its opening or shape is there. Do not fail it for colours, style, or details the user did not ask for. Answer SUCCESS or FAILURE, then one line why.'
 
-export const judgePrompt = (messages, description) =>
-  `The user's message(s):\n${messages.map((m) => `"${m}"`).join('\n')}\n\nA description of the result:\n${description}\n\n${JUDGE_QUESTION}`
+const DESCRIBER_INTRO =
+  'A describer looked at three renders of the result (front three-quarter, back three-quarter and a raised side view) and described each view on its own, without seeing the request. It can misread a single view, so the views may disagree; judge the object they describe together.'
 
-export const JUDGE_PROMPT_SHA256 = createHash('sha256').update(judgePrompt(['{message}'], '{description}')).digest('hex')
+const connectedGroups = (gates) => gates?.find((g) => g.name === 'connected')?.groups ?? null
+
+// Takes a run ({ userMessages, description: { text }, render: { facts }, gates }) or the
+// plain shape ({ messages, description, facts, groups }) the sha below uses with placeholders.
+export const judgePrompt = (run) => {
+  const messages = run.messages ?? run.userMessages ?? []
+  const description = typeof run.description === 'string' ? run.description : run.description?.text ?? ''
+  const facts = 'facts' in run ? run.facts : run.render?.facts ?? null
+  const groups = 'groups' in run ? run.groups : connectedGroups(run.gates)
+  const clauses = []
+  if (Array.isArray(facts?.dimensions) && facts.dimensions.length === 3) clauses.push(`overall size ${facts.dimensions.join(' x ')} mm`)
+  if (groups != null) clauses.push(`${groups} separate piece(s)`)
+  const messagesBlock = `The user's message(s):\n${messages.map((m) => `"${m}"`).join('\n')}`
+  const measured = clauses.length ? `Measured result: ${clauses.join(', ')}.` : null
+  const describerBlock = `${DESCRIBER_INTRO}\n${description}`
+  return [messagesBlock, measured, describerBlock, JUDGE_QUESTION].filter(Boolean).join('\n\n')
+}
+
+export const JUDGE_PROMPT_SHA256 = createHash('sha256')
+  .update(judgePrompt({ messages: ['{message 1}', '{message 2}'], description: '{description}', facts: { dimensions: ['{W}', '{D}', '{H}'] }, groups: '{G}' }))
+  .digest('hex')
 
 export const parseVote = (text) => {
   const found = /SUCCESS|FAILURE/.exec(text ?? '')
@@ -72,7 +92,7 @@ export const unjudgedRuns = (file, { all = false } = {}) =>
     : file.results.filter((r) => typeof r.description?.text === 'string' && !r.renderStale && (all || (r.verdict == null && !r.graderError)))
 
 export const judgeRun = async (run, { makeProvider, now }) => {
-  const prompt = judgePrompt(run.userMessages ?? [], run.description.text)
+  const prompt = judgePrompt(run)
   const votes = []
   for (let call = 0; call < JUDGE_CALLS; call += 1) votes.push(await castVote(makeProvider(), prompt, now))
   const verdict = verdictOf(votes)

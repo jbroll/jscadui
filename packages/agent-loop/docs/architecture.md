@@ -391,16 +391,24 @@ refuses every socket connection to an address other than loopback
 
 `eval/judge.js` asks DeepSeek v4.1 flash through opencode-go, the path
 `src/providers.js` already takes for it, in the Node process with the key from
-`keys.json`, never in an executor. It reads only the user's messages and the
-blind description. DeepSeek is also a model under test; judging only the
-request and a blind description of the result, it cannot favour its own
-habits beyond its idea of the object, and in the trial that idea agreed with
-qwen3.5:9b's on every case with a clear answer. Neither judge passed the
-delivery-truck control in 70 tries; with this prompt neither passed the plain
-box, and the real caboose passed 6 of 6 on Moondream's per-view descriptions.
-On Moondream's shorter `caption` output DeepSeek failed the real caboose
-("views inconsistent"), which is why the describer answers the per-view
-prompt.
+`keys.json`, never in an executor. It reads only the user's messages, the
+measured size and piece count, and the blind description. DeepSeek is also a
+model under test; judging only the request and a blind description of the
+result, it cannot favour its own habits beyond its idea of the object, and in
+the trial that idea agreed with qwen3.5:9b's on every case with a clear
+answer. Neither judge passed the delivery-truck control in 70 tries; with this
+prompt neither passed the plain box, and the real caboose passed 6 of 6 on
+Moondream's per-view descriptions. On Moondream's shorter `caption` output
+DeepSeek failed the real caboose ("views inconsistent"), which is why the
+describer answers the per-view prompt.
+
+The first live complex pass judged renders as if they showed motion and
+agreed with each other: it failed hinged and multi-piece results for not
+visibly moving, and treated one view's misreading as the whole verdict. The
+prompt now states the measured size and piece count so the judge is not
+guessing them from a render, says the views were described separately so they
+may disagree, and tells it a visible hinge, pivot or separate piece counts for
+a part that moves or comes off (`eval/judge.js`, `judgePrompt`).
 
 ## Sandbox
 
