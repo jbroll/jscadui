@@ -743,13 +743,58 @@ from the 2026-10-01 review.
 - **Eval cannot load `@jbroll/jscad-anchors` (agent-loop).** It is not
   installed, so model code requiring it fails in `eval/backend.js` while the
   frame serves it from the CDN.
-- **Image tool results for `view` (agent-loop).** Send the screenshot as an
-  image block (Anthropic `tool_result` image content, Responses `input_image`;
-  chat completions cannot carry images in tool results) and offer `view`
-  again only where supported. Add it when an eval fixture fails in a way only
-  a picture would catch, and measure it with the eval. Cost: each image is
-  roughly width×height/750 tokens on Anthropic and is resent on every later
-  round of a turn.
+- **Image tool results for `view` (agent-loop, jscad-web).** Send renders as
+  image blocks (Anthropic `tool_result` image content, Responses
+  `input_image`; chat completions put the images in a `user` message after
+  the `tool` message) and offer `view` only to a model known to read images:
+  `vision: true` in `eval/models.json`, or in the app the provider's model
+  metadata, else a `VISION_MODELS` table beside `RESPONSES_MODELS`
+  (`src/providers.js`). Draw from the mesh with the complex grader's views
+  (`eval/views.js`, `eval/render/page.html`) as one shared module, not from
+  the live canvas, so the user's camera does not change what the model sees.
+  Each image is roughly width×height/750 tokens on Anthropic and is resent
+  every later round, so `runTurn` keeps only the latest `view` result's
+  images. Gate: with a vision model in the eval, `complex` `verdictRate`
+  rises past the run-to-run spread and `harder` totals do not fall, which
+  waits on the complex grader's calibration.
+- **Simulated-user dialogue suite (agent-loop eval).** A run sends the prompt
+  and scripted `followUps` only (`runConversation`, `eval/run-eval.js`), so
+  the eval cannot tell a needed question from a wasted one and scores any
+  question as a failure. An opt-in `dialogue` group would give a fixture a
+  `persona` and a hidden `intent`, one entry per fact, each marked whether a
+  wrong guess wastes the build; a pinned cheap model at temperature 0, with no
+  tools and no executor, answers the agent from it. Acceptance comes from the
+  fixture's checks, never the user model, which an agent reply could talk
+  into accepting. Later turns go through `buildMessages` as in the app, so
+  tool results do not carry across user turns. Score acceptance, user turns
+  before it, necessary, unnecessary and missed questions, the share of guessed
+  defaults the agent stated, and turns that asked without building. Gate: two
+  runs on one prompt agree within 1.0 per fixture on a 0 to 8 total. Waits on
+  Calibrate the complex grader (Chat API help) reaching usable agreement,
+  since the user model is a second unvalidated model in grading.
+- **`skill` tool for short procedures (agent-loop, jscad-web).** `skill({ name
+  })` would return one procedure from `prompt/skills/<name>.md`, imported
+  `?raw` and served by a pure function like `docsTool` (`src/docs.js`), so the
+  app answers it with no worker call and the base prompt lists only names and
+  when each applies. Each stays under about 250 words, since the models under
+  test follow short text better and a load costs context in an 8-round turn.
+  Tool results do not survive to the next user turn, so a procedure is loaded
+  again when needed. First two: clarify-or-default (build a default from
+  common sizes, state the assumed values, expose them as params, ask only what
+  a wrong guess wastes the build on) and plan-then-build (one file per part,
+  `main.js` early, check each with `measure({ parts, between })`, edit one
+  part per step), judged on the dialogue suite and the `assembly` group. A
+  procedure rarely loaded where it applies is tried as two lines in the base
+  prompt instead.
+- **`assembly` fixture group (agent-loop eval).** Fixtures whose parts fit
+  together: an enclosure with a lid and board posts, two shelf brackets with
+  a cleat, a drawer in a frame. Checks test fit, not process (the lid covers
+  the opening, the drawer clears the frame, the posts sit inside the walls),
+  so a single-file answer that fits passes. `gradeProject`
+  (`eval/backend.js`) measures only the whole, so the grade needs each
+  part's measure, or a probe, first. Baseline the group on the current
+  prompt before plan-then-build is measured on it, by rounds and `checkRate`.
+  Gate: `--regrade` of the existing baselines moves no other fixture's total.
 
 - **Chat settings follow-ups (jscad-web).** `e2e/ai-chat.spec.js` was
   updated for the gear dialog but not yet run through simple-ci. The model

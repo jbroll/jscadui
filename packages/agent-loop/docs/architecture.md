@@ -341,7 +341,10 @@ commands on older files.
 
 The describer sees only the renders, the model's size and its part count,
 never the prompt, transcript, source, file names or parameter names, since any
-of them can name the object (`cupolaHeight`).
+of them can name the object (`cupolaHeight`). The judge sees the user's
+messages, the measured facts and the description, never the assistant's text,
+tool calls, source or renders, so a reply that calls a box a caboose gains
+nothing: the verdict rests on what was built, not on what the agent said.
 
 ### Rendering
 
@@ -355,7 +358,10 @@ also makes a render the same on every host. The page, `eval/render/page.html`,
 is set as content with the workspace's three.js added inline; it gets only
 triangles and colours from the `mesh` request (Sandbox below), loads no model
 code, and every request it makes is refused. Each process starts one chromium
-and one page and draws one model at a time.
+and one page and draws one model at a time. A renderer in Node was not
+chosen: headless-gl needs a native build on the CI host, the repo has no
+JavaScript rasterizer, and the CI host already installs Playwright's chromium
+for `ci/render`.
 
 The four orthographic 768 x 768 views (`eval/views.js`) are framed to the
 model's bounding box with a 3% margin on each side (half the larger extent
@@ -422,6 +428,11 @@ prompt neither passed the plain box, and the real caboose passed 6 of 6 on
 Moondream's per-view descriptions. On Moondream's shorter `caption` output
 DeepSeek failed the real caboose ("views inconsistent"), which is why the
 describer answers the per-view prompt.
+
+Each run is described once and judged `JUDGE_CALLS` (3) times. Describing is
+the costly stage, and judging several descriptions of one model would mix
+describer noise into the verdict. Every vote is stored, so a fixture whose
+votes often split shows up in review.
 
 The first live complex pass judged renders as if they showed motion and
 agreed with each other: it failed hinged and multi-piece results for not
