@@ -44,6 +44,7 @@ ci/lib/bootstrap.sh [--root DIR] [--dry-run] STEP...
 | `ci/web` | `sources install deps grids workspace` | vitest, server install, playwright |
 | `ci/render` (and `render-grids`, `render-jscad`) | `sources install deps grids workspace`, then `app` | checks `packages/openscad/esm` between the two; exits 2 if either fails |
 | `ci/eval` | `sources install workspace` | sandbox check, eval lanes |
+| `ci/parts` | `sources install deps` | `@jscadui/openscad` build, playwright chromium, `check.js --all --write`, `render.js --all` |
 | `apps/jscad-web/deploy-full.sh` | `sources install deps grids app` | deploy stages |
 | `scripts/setup-worktree.sh` | `--root <worktree> deps grids examples openscad app` | `node_modules`/`.deps-cache` links and the pin-drift check, before the steps |
 | `.claude/hooks/session-start.sh` | `sources install deps openscad` | OpenSCAD AppImage and libraries |
@@ -53,6 +54,19 @@ ci/lib/bootstrap.sh [--root DIR] [--dry-run] STEP...
 
 The npm scripts call the helper rather than the other way round: callers need
 different subsets, which one npm script per subset would not express.
+
+## Parts catalog (`ci/parts`)
+
+`sci push jscadui/parts` checks every `packages/parts/catalog/` record against
+its standard dimensions and renders its thumbnail
+(`packages/parts/README.md`). It runs the checks first and stops if any
+record fails, so a failed job leaves `derived.json` but no thumbnails. Fetch
+the results from the job's worktree:
+
+```sh
+sci artifact JOB packages/parts/derived.json
+sci artifact JOB packages/parts/thumbs/nopscadlib/nut.png
+```
 
 ## Live model eval (`ci/eval`)
 

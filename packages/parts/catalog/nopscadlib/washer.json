@@ -1,0 +1,20 @@
+{
+  "id": "nopscadlib/washer",
+  "family": "washer",
+  "library": "NopSCADlib",
+  "license": "GPL-3.0",
+  "file": "NopSCADlib/vitamins/washer.scad",
+  "prelude": ["NopSCADlib/vitamins/washers.scad"],
+  "call": "washer",
+  "summary": "ISO 7089 metric flat washer, plus an M3 rubber washer.",
+  "sizes": { "list": "washers" },
+  "example": "washer(M3_washer)",
+  "checks": [
+    {
+      "args": ["M3_washer"],
+      "size": [7, 7, 0.45],
+      "tol": 0.01,
+      "source": "ISO 7089 M3: d2 7, h 0.5. NopSCADlib extrudes the washer 0.05 short of its thickness, so h = 0.45"
+    }
+  ]
+}

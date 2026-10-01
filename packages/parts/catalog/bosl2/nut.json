@@ -1,0 +1,27 @@
+{
+  "id": "bosl2/nut",
+  "family": "nut",
+  "library": "BOSL2",
+  "license": "BSD-2-Clause",
+  "file": "BOSL2/screws.scad",
+  "prelude": ["BOSL2/std.scad"],
+  "call": "nut",
+  "summary": "ISO 4032 / UTS threaded hex or square nut, sized by spec string (\"M3\", \"1/4-20\").",
+  "sizes": { "values": ["M2", "M2.5", "M3", "M4", "M5", "M6", "M8"] },
+  "options": {
+    "shape": "\"hex\" (default) or \"square\"",
+    "thickness": "\"thin\", \"normal\" (default), \"thick\", \"DIN\", or a thickness in mm",
+    "thread": "\"coarse\" (default), \"fine\", \"none\", or a pitch in mm",
+    "bevel": "bevel the outer edges (default true for hex)",
+    "anchor": "attachment anchor (default BOTTOM)"
+  },
+  "example": "nut(\"M3\", {thickness: \"thin\"})",
+  "checks": [
+    {
+      "args": ["M3"],
+      "size": [5.5, 6.351, 2.4],
+      "tol": 0.01,
+      "source": "ISO 4032 M3: s 5.5, m 2.4; across corners 5.5 / cos 30° = 6.351 (BOSL2 puts the flats across x)"
+    }
+  ]
+}

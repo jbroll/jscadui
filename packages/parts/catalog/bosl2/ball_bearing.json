@@ -1,0 +1,24 @@
+{
+  "id": "bosl2/ball_bearing",
+  "family": "ball_bearing",
+  "library": "BOSL2",
+  "license": "BSD-2-Clause",
+  "file": "BOSL2/ball_bearings.scad",
+  "prelude": ["BOSL2/std.scad"],
+  "call": "ball_bearing",
+  "summary": "Deep groove ball bearing by trade size (\"608\", \"608ZZ\", \"6201\", \"R8\", flanged \"F\" series), axis on z, centered.",
+  "sizes": { "values": ["608", "608ZZ", "629", "635", "6000", "6200", "6201", "6800", "6900"] },
+  "options": {
+    "rounding": "edge rounding radius (none by default)",
+    "anchor": "attachment anchor (default CENTER)"
+  },
+  "example": "ball_bearing(\"608ZZ\", {$fn: 72})",
+  "checks": [
+    {
+      "args": ["608", { "$fn": 72 }],
+      "size": [22, 22, 7],
+      "tol": 0.01,
+      "source": "ISO 15 608: d 8, D 22, B 7"
+    }
+  ]
+}

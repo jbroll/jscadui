@@ -1,0 +1,26 @@
+{
+  "id": "nopscadlib/screw",
+  "family": "screw",
+  "library": "NopSCADlib",
+  "license": "GPL-3.0",
+  "file": "NopSCADlib/vitamins/screw.scad",
+  "prelude": ["NopSCADlib/core.scad"],
+  "call": "screw",
+  "summary": "ISO 4762 metric socket head cap screw, head on z = 0, shaft down; length is the second argument.",
+  "sizes": {
+    "values": ["M2_cap_screw", "M2p5_cap_screw", "M3_cap_screw", "M4_cap_screw", "M5_cap_screw", "M6_cap_screw", "M8_cap_screw"]
+  },
+  "options": {
+    "hob_point": "hob the thread this far from the end (extruder drive screw)",
+    "nylon": "nylon colour"
+  },
+  "example": "screw(M3_cap_screw, 10)",
+  "checks": [
+    {
+      "args": ["M3_cap_screw", 10],
+      "size": [5.5, 5.5, 13],
+      "tol": 0.01,
+      "source": "ISO 4762 M3x10: dk 5.5, k 3, length under head 10"
+    }
+  ]
+}

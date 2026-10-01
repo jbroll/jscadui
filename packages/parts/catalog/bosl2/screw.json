@@ -1,0 +1,27 @@
+{
+  "id": "bosl2/screw",
+  "family": "screw",
+  "library": "BOSL2",
+  "license": "BSD-2-Clause",
+  "file": "BOSL2/screws.scad",
+  "prelude": ["BOSL2/std.scad"],
+  "call": "screw",
+  "summary": "ISO / UTS threaded screw sized by spec string \"<size>,<length>\" (\"M3,10\"); head type by option, headless by default.",
+  "sizes": { "values": ["M2,10", "M2.5,10", "M3,10", "M4,10", "M5,10", "M6,10", "M8,10"] },
+  "options": {
+    "head": "\"socket\", \"hex\", \"button\", \"flat\", \"pan\", \"cheese\", or \"none\" (default)",
+    "drive": "\"hex\", \"slot\", \"phillips\", \"torx\", or \"none\"",
+    "length": "length under the head in mm, overriding the spec",
+    "thread": "\"coarse\" (default), \"fine\", \"none\", or a pitch in mm",
+    "anchor": "attachment anchor on the shaft"
+  },
+  "example": "screw(\"M3,10\", {head: \"socket\", drive: \"hex\"})",
+  "checks": [
+    {
+      "args": ["M3,10", { "head": "socket", "$fn": 72 }],
+      "size": [5.5, 5.5, 13],
+      "tol": 0.01,
+      "source": "ISO 4762 M3x10: dk 5.5, k 3, length under head 10"
+    }
+  ]
+}

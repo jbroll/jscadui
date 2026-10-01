@@ -42,7 +42,10 @@ One hand-written JSON record per entry, under `catalog/<library>/<entry>.json`:
   module split across files (e.g. NopSCADlib's `nut` module and its `nuts`
   size list live in separate files). When set, the loader requires a
   generated shim at `_catalog/<file>` that includes the prelude then `file`,
-  instead of `file` directly.
+  instead of `file` directly. Order matters: a variable read before its file
+  is included is `undef`, as in OpenSCAD. NopSCADlib's screw sizes read the
+  head-type constants from `core.scad`, so that entry's prelude is
+  `NopSCADlib/core.scad` (which includes `screws.scad`), not `screws.scad`.
 - `sizes` names the standard sizes the entry builds. `{ "list": "nuts" }`
   derives size names from every exported variable whose value is `===` an
   element of the library's `nuts` list, in list order. `{ "values": [...] }`

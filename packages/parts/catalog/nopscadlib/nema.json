@@ -1,0 +1,24 @@
+{
+  "id": "nopscadlib/nema",
+  "family": "stepper",
+  "library": "NopSCADlib",
+  "license": "GPL-3.0",
+  "file": "NopSCADlib/vitamins/stepper_motor.scad",
+  "prelude": ["NopSCADlib/vitamins/stepper_motors.scad"],
+  "call": "NEMA",
+  "summary": "NEMA 8, 14, 16, 17 and 23 stepper motor, face at z = 0, shaft up, body down.",
+  "sizes": { "list": "stepper_motors" },
+  "options": {
+    "shaft_angle": "rotate the shaft (and its flat) by this many degrees",
+    "jst_connector": "draw a JST connector instead of flying leads"
+  },
+  "example": "NEMA(NEMA17_40)",
+  "checks": [
+    {
+      "args": ["NEMA17_40"],
+      "size": [42.3, null, null],
+      "tol": 0.01,
+      "source": "NEMA 17 face 42.3 mm square. y skipped: the leads leave the +y side; z is body plus shaft length, which varies by model"
+    }
+  ]
+}

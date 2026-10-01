@@ -1,0 +1,26 @@
+{
+  "id": "nopscadlib/nut",
+  "family": "nut",
+  "library": "NopSCADlib",
+  "license": "GPL-3.0",
+  "file": "NopSCADlib/vitamins/nut.scad",
+  "prelude": ["NopSCADlib/vitamins/nuts.scad"],
+  "call": "nut",
+  "summary": "DIN 934 / ISO 4032 metric hex nut, optionally nyloc, brass, nylon or domed.",
+  "sizes": { "list": "nuts" },
+  "options": {
+    "nyloc": "add the nylon insert (taller nut)",
+    "brass": "brass colour",
+    "nylon": "nylon colour",
+    "dome": "domed acorn nut (sizes with dome data only)"
+  },
+  "example": "nut(M3_nut, {nyloc: true})",
+  "checks": [
+    {
+      "args": ["M3_nut"],
+      "size": [6.4, 5.543, 2.4],
+      "tol": 0.01,
+      "source": "ISO 4032 / DIN 934 M3: s 5.5, m 2.4. NopSCADlib M3_nut draws 6.4 across corners (corner on x), so s = 6.4 cos 30° = 5.543"
+    }
+  ]
+}

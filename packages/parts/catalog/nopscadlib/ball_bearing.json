@@ -1,0 +1,20 @@
+{
+  "id": "nopscadlib/ball_bearing",
+  "family": "ball_bearing",
+  "library": "NopSCADlib",
+  "license": "GPL-3.0",
+  "file": "NopSCADlib/vitamins/ball_bearing.scad",
+  "prelude": ["NopSCADlib/vitamins/ball_bearings.scad"],
+  "call": "ball_bearing",
+  "summary": "Deep groove ball bearing (608, 624, 6200, MR and flanged F series), axis on z.",
+  "sizes": { "list": "ball_bearings" },
+  "example": "ball_bearing(BB608)",
+  "checks": [
+    {
+      "args": ["BB608", { "$fn": 72 }],
+      "size": [22, 22, 7],
+      "tol": 0.01,
+      "source": "ISO 15 608: d 8, D 22, B 7"
+    }
+  ]
+}

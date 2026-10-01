@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Checks every parts catalog entry against its standard dimensions and renders
+# its thumbnail (packages/parts).
+#
+#   sci push jscadui/parts
+#
+# Output in the job's worktree: packages/parts/derived.json and
+# packages/parts/thumbs/<library>/<entry>.png, fetched with sci artifact.
+set -euo pipefail
+
+WORKTREE="$(cd "$(dirname "$0")/.." && pwd)"
+
+# shellcheck source=ci/lib/bootstrap.sh
+. "$WORKTREE/ci/lib/bootstrap.sh"
+bootstrap sources install deps
+
+npm run build -w @jscadui/openscad
+( cd "$WORKTREE/apps/jscad-web" && npx playwright install chromium )
+
+cd "$WORKTREE/packages/parts"
+node bin/check.js --all --write
+node bin/render.js --all

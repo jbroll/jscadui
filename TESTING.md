@@ -454,6 +454,7 @@ Heavy suites run on the CI/GPU host through simple-ci, not locally:
 sci push jscadui/test     # ci/test   — openscad transpiler suite
 sci push jscadui/web      # ci/web    — jscad-web + API unit suites, app/chat/frame e2e
 sci push jscadui/render   # ci/render — browser render sweep
+sci push jscadui/parts    # ci/parts  — parts catalog checks and thumbnails
 ```
 
 ---

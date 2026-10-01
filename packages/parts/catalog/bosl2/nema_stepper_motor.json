@@ -1,0 +1,26 @@
+{
+  "id": "bosl2/nema_stepper_motor",
+  "family": "stepper",
+  "library": "BOSL2",
+  "license": "BSD-2-Clause",
+  "file": "BOSL2/nema_steppers.scad",
+  "prelude": ["BOSL2/std.scad"],
+  "call": "nema_stepper_motor",
+  "summary": "NEMA 6 to 42 stepper motor by frame size (a number), face at z = 0, shaft up, body down.",
+  "sizes": { "values": [6, 8, 11, 14, 17, 23, 34, 42] },
+  "options": {
+    "h": "body length in mm (default 24)",
+    "shaft_len": "shaft length above the face in mm (default 20)",
+    "details": "false for a rough block suitable as a mask",
+    "anchor": "attachment anchor (default TOP of the body)"
+  },
+  "example": "nema_stepper_motor(17, {h: 40, shaft_len: 24})",
+  "checks": [
+    {
+      "args": [17],
+      "size": [42.3, 42.3, null],
+      "tol": 0.01,
+      "source": "NEMA 17 face 42.3 mm square. z skipped: body and shaft length are arguments, not part of the frame size"
+    }
+  ]
+}
