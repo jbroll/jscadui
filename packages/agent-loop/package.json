@@ -33,6 +33,8 @@
     "@jscadui/format-jscad": "*",
     "@jscadui/jscad-text": "*",
     "@jscadui/model-tools": "*",
+    "@jscadui/openscad": "*",
+    "@jscadui/openscad-runtime": "*",
     "@jscadui/params-core": "*",
     "@jscadui/require": "*",
     "@jscadui/transform-babel": "*",

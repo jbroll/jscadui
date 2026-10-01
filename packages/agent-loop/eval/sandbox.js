@@ -44,6 +44,10 @@ export const readableDirs = (repo = REPO) => {
     dirs.add(dir)
     grantTarget(dir)
   }
+  // Model .scad code requires library parts from here (backend.js readPackage).
+  // Only when present: a repo without the example corpora fetched has none.
+  const libsDir = fileURLToPath(new URL('apps/jscad-web/libs', repo))
+  if (existsSync(libsDir)) dirs.add(libsDir)
   const bin = fileURLToPath(new URL('node_modules/.bin', repo))
   try {
     const real = realpathSync(bin)

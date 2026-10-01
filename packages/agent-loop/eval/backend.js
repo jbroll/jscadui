@@ -1,8 +1,12 @@
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { createRequire, isBuiltin } from 'node:module'
+import { resolve as resolvePath, sep } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { check, measure } from '@jscadui/model-tools'
 import { createParamsProxy, createProxyState, toParamDefinitions, withProjectMains } from '@jscadui/params-core'
-import { clearAllCaches, moduleResolver, require as jscadRequire } from '@jscadui/require/esm/index.js'
+import { clearAllCaches, moduleResolver, require as jscadRequire, requireHandlers, setLibraryPrefixes } from '@jscadui/require/esm/index.js'
+import { parse, transpile } from '@jscadui/openscad'
+import j$ from '@jscadui/openscad-runtime'
 import { transformcjs } from '@jscadui/transform-babel/esm/transform-babel.js'
 import * as jscadText from '@jscadui/jscad-text'
 import { registerInstalledFonts } from '@jscadui/jscad-text/fontCache'
@@ -10,6 +14,7 @@ import * as jscadIo from '@jscad/io'
 import { OPTION_TABLES } from '../api/optionTable.js'
 import { DEFAULT_API } from '../src/api.js'
 import { installConsoleCapture } from '../src/consoleCapture.js'
+import { createScadHandler } from '../src/scadHandler.js'
 import { shouldTransform } from '@jscadui/worker/src/shouldTransform.js'
 import { docsTool } from '../src/docs.js'
 import { dispatchTool, toolError } from '../src/dispatchTool.js'
@@ -79,10 +84,39 @@ globalThis[USER_MODULE] = (spec) => {
 
 const packageSpec = (url) => url.slice(CDN_BASE.length).replace(/^((?:@[^/]+\/)?[^/@]+)@[^/]+/, '$1')
 
+// The frame resolves a bare require('<library>/...') against the app's
+// deployed /libs/ tree (frameInit in bundle.frame-worker.js); here there is no
+// app server, so library .scad files come straight from disk.
+const APP_ORIGIN = 'http://app.local'
+const LIBS_PREFIX = `${APP_ORIGIN}/libs/`
+const LIBS_DIR = resolvePath(process.env.JSCAD_LIBS_DIR ?? fileURLToPath(new URL('../../../apps/jscad-web/libs/', import.meta.url)))
+
+const libraryNames = () => {
+  try {
+    return readdirSync(LIBS_DIR, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name)
+  } catch {
+    return []
+  }
+}
+setLibraryPrefixes(Object.fromEntries(libraryNames().map((name) => [`${name}/`, `${LIBS_PREFIX}${name}/`])))
+
+// path is LIBS_PREFIX-rooted; resolving it and checking the result still
+// starts with LIBS_DIR refuses a `../` that would otherwise read outside it.
+const readLibFile = (path) => {
+  const target = resolvePath(LIBS_DIR, decodeURIComponent(path.slice(LIBS_PREFIX.length)))
+  if (target !== LIBS_DIR && !target.startsWith(LIBS_DIR + sep)) throw new Error(`file not found ${path}`)
+  try {
+    return readFileSync(target, 'utf8')
+  } catch {
+    throw new Error(`file not found ${path}`)
+  }
+}
+
 // The frame fetches CDN packages; here they come from node_modules, and a
 // missing one throws the text the frame's fetch gives a 404. Node resolves its
 // built-ins too, which the browser has none of.
 const readPackage = (path) => {
+  if (path.startsWith(LIBS_PREFIX)) return readLibFile(path)
   if (path.startsWith(CDN_BASE)) {
     const spec = packageSpec(path)
     if (servable(spec)) {
@@ -93,6 +127,22 @@ const readPackage = (path) => {
 }
 
 export const createEvalReadFile = (files) => createReadFile(files, readPackage)
+
+// Lazy like the frame's getOpenscad (bundle.frame-worker.js:41-73): @jscad/modeling
+// loads once, and j$ becomes a process global because transpiled .scad runs
+// through indirect eval in global scope, with no module scope of its own.
+let _openscad = null
+const getOpenscad = () => {
+  if (!_openscad) {
+    j$.init(nodeRequire('@jscad/modeling'))
+    j$.setSpecialVar('$preview', true)
+    globalThis.j$ = j$
+    _openscad = { parse, transpile, j$ }
+  }
+  return _openscad
+}
+
+requireHandlers.set('scad', createScadHandler({ getOpenscad, getAppOrigin: () => APP_ORIGIN }).handle)
 
 const modelError = (error, api) => reportError(error, { api, index: API_INDEX })
 

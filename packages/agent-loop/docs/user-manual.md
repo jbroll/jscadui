@@ -405,6 +405,13 @@ to five of them, so the model can find where the gap is. No result names a
 tool the model cannot run. `measure` gives a negative-volume solid `insideOut: true` and a
 note, naming the part for an array (`@jscadui/model-tools`).
 
+Model code may `require()` or `include <...>` a library `.scad` file, the way
+the app resolves one from its deployed `/libs/` tree (`createScadHandler`,
+shared with the frame). The eval has no app server, so library files are read
+straight from `apps/jscad-web/libs` on disk — each of its subdirectories
+becomes a library prefix, e.g. `require('NopSCADlib/core.scad')`. Set
+`JSCAD_LIBS_DIR` to point the eval at a different libs tree.
+
 ### Choosing fixtures and API style
 
 A fixture may declare `group` (string), such as `'profiles'`, an opt-in group
