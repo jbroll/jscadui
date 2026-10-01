@@ -33,6 +33,22 @@ describe('checkRecord', () => {
     expect(result.failures.some((f) => f.includes('nope'))).toBe(true)
   })
 
+  it('reports a sizes.names name that is not an exported variable', async () => {
+    const [record] = readRecords(catalogDir)
+    const bad = { ...record, sizes: { names: ['M3_block', 'M9_block'] } }
+    const result = await checkRecord(bad, { libsDir })
+    expect(result.ok).toBe(false)
+    expect(result.failures).toEqual(['mini/block M9_block: not an exported variable'])
+  })
+
+  it('sweeps each size with insertArgs after it', async () => {
+    const [record] = readRecords(catalogDir)
+    const rod = { ...record, call: 'rod', sizes: { names: ['M2_block', 'M3_block'] }, checks: [{ args: ['M3_block', 5], size: [6, 6, 5], tol: 0.01, source: 'fixture' }] }
+    expect((await checkRecord(rod, { libsDir })).ok).toBe(false)
+    const result = await checkRecord({ ...rod, insertArgs: [5] }, { libsDir })
+    expect(result.failures).toEqual([])
+  })
+
   it('passes a sizes.values record whose literal values build fine', async () => {
     const [record] = readRecords(catalogDir)
     const good = { ...record, sizes: { values: [[1, 2]] } }

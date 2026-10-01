@@ -60,7 +60,7 @@ A test fails when any of them differs from a fresh generation, so a
 `@jscad/modeling` pin update or a fluent upgrade needs a regeneration in the
 same commit. `buildIndex` appends `api/parts.json`, which `npm run api-index`
 does not write: it comes from `packages/parts/bin/build.js`
-([parts catalog docs](../../parts/README.md)), run by the app build and
+([parts user manual](../../parts/docs/user-manual.md)), run by the app build and
 checked for freshness by `packages/parts/test/agent-outputs.test.js`. Where JSDoc misses an option the generator adds it: a function's
 `defaults` literal keys (`extrudeLinear`'s `repair`), and the options
 `PASS_THROUGH` in `api/build-index.js` names (`extrudeRectangular` hands its

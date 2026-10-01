@@ -8,8 +8,9 @@
   "call": "screw",
   "summary": "ISO 4762 metric socket head cap screw, head on z = 0, shaft down; length is the second argument.",
   "sizes": {
-    "values": ["M2_cap_screw", "M2p5_cap_screw", "M3_cap_screw", "M4_cap_screw", "M5_cap_screw", "M6_cap_screw", "M8_cap_screw"]
+    "names": ["M2_cap_screw", "M2p5_cap_screw", "M3_cap_screw", "M4_cap_screw", "M5_cap_screw", "M6_cap_screw", "M8_cap_screw"]
   },
+  "insertArgs": [10],
   "options": {
     "hob_point": "hob the thread this far from the end (extruder drive screw)",
     "nylon": "nylon colour"

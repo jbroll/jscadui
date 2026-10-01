@@ -21,4 +21,17 @@ describe('derive', () => {
     const { exports } = await loadEntry(record, { libsDir })
     expect(sizeNames(exports, { values: ['M2', 'M3'] })).toEqual(['M2', 'M3'])
   })
+
+  it('passes listed size names through', async () => {
+    const { exports } = await loadEntry(record, { libsDir })
+    expect(sizeNames(exports, { names: ['M3_block'] })).toEqual(['M3_block'])
+  })
+
+  it('takes the last $meta entry for a name, as the local definition overrides an included one', () => {
+    const $meta = [
+      { name: 'nut', kind: 'module', params: [{ name: 'included' }] },
+      { name: 'nut', kind: 'module', params: [{ name: 'local' }] },
+    ]
+    expect(signature({ $meta }, 'nut')).toEqual({ params: [{ name: 'local' }] })
+  })
 })

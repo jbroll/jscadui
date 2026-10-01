@@ -1,9 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
-// NopSCADlib-style split: a module file `use`s a separate size-list file, so
-// a JS require of the module alone misses the sizes. The shim includes both,
-// prelude first, so one require exposes both.
+// A require of a module file that only `use`s its size list gets no sizes; the shim includes both, prelude first.
 export const shimSource = (record) => [...(record.prelude ?? []), record.file].map((f) => `include <${f}>`).join('\n') + '\n'
 
 export function writeShims(records, libsDir) {

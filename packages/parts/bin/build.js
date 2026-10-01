@@ -22,12 +22,25 @@ function compareEntries(a, b) {
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0
 }
 
+function checkPreferred(records) {
+  const preferred = new Map()
+  for (const record of records.filter((r) => r.preferred)) {
+    if (preferred.has(record.family)) throw new Error(`family ${record.family}: both ${preferred.get(record.family)} and ${record.id} are preferred`)
+    preferred.set(record.family, record.id)
+  }
+}
+
 export function buildCatalog(records, derived) {
+  checkPreferred(records)
   const entries = []
   for (const record of records) {
     const d = derived[record.id]
     if (!d) {
       console.error(`${record.id}: no derived data, skipping (run check.js --write first)`)
+      continue
+    }
+    if (d.ok === false) {
+      console.error(`${record.id}: failed its checks, skipping`)
       continue
     }
     entries.push({
@@ -46,10 +59,11 @@ export function buildCatalog(records, derived) {
   return { entries }
 }
 
-// A size name representative of the family, for the require destructuring. Only
-// a sizes.list entry needs one: its names are JS exports, not call arguments.
+// list and names sizes are exported identifiers, so the require destructures one; values are literals.
+const namedSizes = (entry) => Boolean(entry.sizes.list || entry.sizes.names)
+
 const repSizeName = (entry) => {
-  if (!entry.sizes.list) return null
+  if (!namedSizes(entry)) return null
   const arg = entry.measured[0]?.args[0]
   return typeof arg === 'string' ? arg : null
 }
@@ -58,7 +72,6 @@ function docsEntry(entry) {
   const call = entry.call
   const sizeName = repSizeName(entry)
   const requireNames = [call, sizeName].filter(Boolean).join(', ')
-  const list = Boolean(entry.sizes.list)
   const params = entry.signature.params.map((p) => (p.default != null ? `${p.name} = ${p.default}` : p.name)).join(', ')
   return {
     name: `parts.${entry.library.toLowerCase()}.${call}`,
@@ -70,7 +83,7 @@ function docsEntry(entry) {
     require: `const { ${requireNames} } = require('${entry.require}')`,
     scad: entry.scadIncludes.map((f) => `include <${f}>`).join('\n'),
     signature: `${call}(${params})`,
-    sizes: list ? [...entry.sizeNames] : entry.sizeNames.map((s) => JSON.stringify(s)),
+    sizes: namedSizes(entry) ? [...entry.sizeNames] : entry.sizeNames.map((s) => JSON.stringify(s)),
     options: entry.options ?? {},
     license: entry.license,
     measured: entry.measured,
@@ -110,18 +123,6 @@ export function buildAgentDocs(entries) {
   return { json, md: buildPartsPrompt(json) }
 }
 
-// readdirSync throws ENOENT before Task 12 adds real catalog entries; an
-// empty catalog still builds (an empty entries list) rather than failing
-// every app build until that task lands.
-function readCatalogRecords(catalogDir) {
-  try {
-    return readRecords(catalogDir)
-  } catch (err) {
-    if (err.code !== 'ENOENT') throw err
-    return []
-  }
-}
-
 function readDerived(path) {
   try {
     return JSON.parse(readFileSync(path, 'utf8'))
@@ -132,7 +133,7 @@ function readDerived(path) {
 }
 
 export function buildParts(outDir, { catalogDir = CATALOG_DIR, libsDir = LIBS_DIR } = {}) {
-  const records = readCatalogRecords(catalogDir)
+  const records = readRecords(catalogDir)
   writeShims(records, libsDir)
   const catalog = buildCatalog(records, readDerived(DERIVED_PATH))
   mkdirSync(outDir, { recursive: true })

@@ -1,8 +1,6 @@
 import { exportedGeometry } from '@jscadui/openscad/run'
 
-// Shared by measure.js and triangles.js: buildPart's raw result (one solid, or
-// a possibly-nested array carrying %/# previewOnly ghosts) needs the same
-// ghost-dropping, flattening normalization everywhere it's measured or drawn.
+// buildPart returns one solid or a nested array with %/# previewOnly ghosts; measuring and drawing want it flat, ghosts dropped.
 export const toSolids = (geometry) => {
   const flattened = exportedGeometry(geometry)
   if (flattened == null) return []

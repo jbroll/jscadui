@@ -8,8 +8,7 @@ const AGENT_API_PARTS_PATH = fileURLToPath(new URL('../../agent-loop/api/parts.j
 const AGENT_PROMPT_PARTS_PATH = fileURLToPath(new URL('../../agent-loop/prompt/parts.md', import.meta.url))
 const DERIVED_PATH = fileURLToPath(new URL('../derived.json', import.meta.url))
 
-// derived.json is not committed (Task 12's admission step); read it the same
-// way bin/build.js does, so this matches whatever a real build would write.
+// derived.json is committed only at admission; read it as bin/build.js does.
 function readDerived() {
   try {
     return JSON.parse(readFileSync(DERIVED_PATH, 'utf8'))

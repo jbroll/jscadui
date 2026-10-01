@@ -119,7 +119,7 @@ the survey, and the GPU baseline is unchanged.
 This phase (a generated catalogue of every documented BOSL2/BOSL library
 module, doc-block parsing, a jscad-web parts browser) is replaced by the
 hand-vetted catalog in `packages/parts`: one checked record per entry instead
-of a bulk extraction from doc comments. See `packages/parts/README.md` for the
+of a bulk extraction from doc comments. See `packages/parts/docs/user-manual.md` for the
 record format, the `check`/`render`/`catalog` commands, and admission; the
 parts browser is `apps/jscad-web/src/partsBrowser.js`
 (`apps/jscad-web/docs/architecture.md`, "Parts browser").

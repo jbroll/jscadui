@@ -10,3 +10,8 @@ module strict(type) {
   assert(is_list(type), "type must be a size");
   block(type);
 }
+
+module rod(type, length) {
+  assert(is_num(length), "length must be a number");
+  cube([type[1], type[1], length]);
+}

@@ -16,6 +16,16 @@ describe('buildCatalog', () => {
     expect(entries).toEqual([])
   })
 
+  it('leaves out an entry whose checks failed', () => {
+    const { entries } = buildCatalog([rec()], { 'a/nut': { ...derived['a/nut'], ok: false } })
+    expect(entries).toEqual([])
+  })
+
+  it('refuses a family with two preferred entries', () => {
+    const records = [rec({ preferred: true }), rec({ id: 'b/nut', library: 'B', preferred: true })]
+    expect(() => buildCatalog(records, derived)).toThrow(/family nut: both a\/nut and b\/nut are preferred/)
+  })
+
   it('points JS at the shim when the record has a prelude', () => {
     const { entries } = buildCatalog([rec({ prelude: ['A/std.scad'] })], derived)
     expect(entries[0].require).toBe('_catalog/A/nuts.scad')
@@ -77,6 +87,17 @@ describe('buildAgentDocs', () => {
       sizes: ['"M2"', '"M3"'],
     })
     expect(json[0].preferred).toBeUndefined()
+  })
+
+  it('names the require destructuring with the size name for a sizes.names entry and leaves its sizes unquoted', () => {
+    const namesRecord = { ...listRecord, id: 'c/screw', family: 'screw', call: 'screw', file: 'C/screw.scad', prelude: ['C/core.scad'], sizes: { names: ['M3_cap_screw'] }, insertArgs: [10], example: 'screw(M3_cap_screw, 10)' }
+    const namesDerived = { 'c/screw': { ...agentDerived['a/nut'], sizes: ['M3_cap_screw'], measured: [{ args: ['M3_cap_screw', 10], size: [5.5, 5.5, 13] }] } }
+    const { json } = buildAgentDocs(buildCatalog([namesRecord], namesDerived).entries)
+    expect(json[0]).toMatchObject({
+      require: "const { screw, M3_cap_screw } = require('_catalog/C/screw.scad')",
+      sizes: ['M3_cap_screw'],
+      example: 'screw(M3_cap_screw, 10)',
+    })
   })
 
   it('lists one line per family from its preferred entry, then the three rules', () => {

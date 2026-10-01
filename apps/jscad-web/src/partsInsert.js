@@ -1,5 +1,5 @@
 /**
- * @typedef {{ call: string, require: string, scadIncludes: string[] }} CatalogEntry
+ * @typedef {{ call: string, require: string, scadIncludes: string[], insertArgs?: unknown[] }} CatalogEntry
  * @typedef {{ from: number, to?: number, insert: string }} ChangeSpec
  */
 
@@ -17,11 +17,7 @@ const lineAt = (doc, pos) => {
   return { text, isBlank: /^\s*$/.test(text) }
 }
 
-/**
- * Where the call text lands: in place on a blank line, or wrapped onto its
- * own line otherwise. Returns the change plus the offset of the end of the
- * call text within `insert`, for cursor placement.
- */
+/** The call lands in place on a blank line, else on its own line; `endOffset` is where the call text ends in `insert`. */
 const callChangeAt = (doc, cursor, callText) => {
   const { text, isBlank } = lineAt(doc, cursor)
   if (isBlank) {
@@ -74,13 +70,13 @@ const scadIncludesChange = (doc, entry) => {
 }
 
 /**
- * Plan the edits to insert a catalog part's require/include and call.
- * @param {{ doc: string, cursor: number, path: string, entry: CatalogEntry, size: string }} args
+ * @param {{ doc: string, cursor: number, path: string, entry: CatalogEntry, size: string }} args `size` is call argument text
  * @returns {{ changes: ChangeSpec[], cursor: number }}
  */
 export const planInsert = ({ doc, cursor, path, entry, size }) => {
   const scad = isScadPath(path)
-  const callText = scad ? `${entry.call}(${size});` : `${entry.call}(${size})`
+  const args = [size, ...(entry.insertArgs ?? []).map((a) => JSON.stringify(a))].join(', ')
+  const callText = scad ? `${entry.call}(${args});` : `${entry.call}(${args})`
   const { change: callChange, endOffset } = callChangeAt(doc, cursor, callText)
   const prefixChange = scad ? scadIncludesChange(doc, entry) : jsRequireChange(doc, entry, size)
 
@@ -88,10 +84,7 @@ export const planInsert = ({ doc, cursor, path, entry, size }) => {
     return { changes: [callChange], cursor: callChange.from + endOffset }
   }
 
-  // CodeMirror's ChangeSet applies same-offset changes in array order, with
-  // no gap between them (not a "last write wins" merge): two pure inserts at
-  // the same point concatenate in the order given. Merge them into one change
-  // instead of relying on array order, so the result is unambiguous.
+  // CodeMirror concatenates same-offset inserts in array order; one merged change states that order outright.
   const prefixIsInsert = (prefixChange.to ?? prefixChange.from) === prefixChange.from
   if (prefixIsInsert && prefixChange.from === callChange.from) {
     const insert = prefixChange.insert + callChange.insert

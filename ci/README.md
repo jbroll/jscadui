@@ -59,7 +59,7 @@ different subsets, which one npm script per subset would not express.
 
 `sci push jscadui/parts` checks every `packages/parts/catalog/` record against
 its standard dimensions and renders its thumbnail
-(`packages/parts/README.md`). It runs the checks first and stops if any
+(`packages/parts/docs/user-manual.md`, "Admission"). It runs the checks first and stops if any
 record fails, so a failed job leaves `derived.json` but no thumbnails. Fetch
 the results from the job's worktree:
 

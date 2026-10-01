@@ -31,6 +31,14 @@ describe('planInsert', () => {
     expect(out).toBe("const { nut } = require('_catalog/BOSL2/screws.scad')\nnut(\"M3\")")
   })
 
+  it('appends the entry insertArgs after the size', () => {
+    const screw = { call: 'screw', require: '_catalog/NopSCADlib/vitamins/screw.scad', scadIncludes: ['NopSCADlib/core.scad', 'NopSCADlib/vitamins/screw.scad'], insertArgs: [10] }
+    const js = apply('', planInsert({ doc: '', cursor: 0, path: '/main.js', entry: screw, size: 'M3_cap_screw' }))
+    expect(js).toBe("const { screw, M3_cap_screw } = require('_catalog/NopSCADlib/vitamins/screw.scad')\nscrew(M3_cap_screw, 10)")
+    const scad = apply('', planInsert({ doc: '', cursor: 0, path: '/main.scad', entry: screw, size: 'M3_cap_screw' }))
+    expect(scad).toBe('include <NopSCADlib/core.scad>\ninclude <NopSCADlib/vitamins/screw.scad>\nscrew(M3_cap_screw, 10);')
+  })
+
   it('adds include lines and the call to a scad file', () => {
     const doc = 'include <BOSL2/std.scad>\n\n'
     const e = { call: 'nut', require: '_catalog/BOSL2/screws.scad', scadIncludes: ['BOSL2/std.scad', 'BOSL2/screws.scad'] }
