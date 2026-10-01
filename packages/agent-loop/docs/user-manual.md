@@ -824,7 +824,7 @@ there is no geometry:
 
 `followup-edit`, `pencil-cup`, `hook-rack`, `nameplate` and `box-with-lid` use
 it for a slot, wall thickness, an open top, a hook count, lettering and a lid's
-fit. In the `harder` group, `stand-bigger-slots` counts slots as runs of cuts
+fit. In the `harder` and `regression` groups, `stand-bigger-slots` counts slots as runs of cuts
 across the width whose area falls 5% below the median and takes rounded edges
 from a polygon count at least three times the starting stand's;
 `holes-through-side` wants no hole in any horizontal cut and two 8 mm holes in
@@ -841,6 +841,13 @@ loops within 20 mm of each other whose area falls short of its convex hull by
 at least 25 mm² and 2% of the hull, since every part of the starting stand
 fills its hull. It never compares with the starting model's areas, so an
 edit that also resizes the base is judged the same.
+`turret-lower` replays a logged conversation (2026-09-30, chat 8d3c5d92): two
+turns of transcript, the 229 mm water turret as it stood, and the user's
+request to lower it with a single-reduction azimuth drive. It wants the model
+at least 5% lower, 1 to 3 gears lying flat (a horizontal cut with 18 or more
+lobes; the starting model has 4), both pose sliders kept, and a watertight
+result. The provider refused the request three times in the log, so it sits
+in `regression` until a run shows the current prompt failing it.
 `eval/reference-answers.test.js` grades a reference answer for each of
 those fixtures in both API styles through the backend, and a plain block that
 must fail, plus cases a past run misgraded (a 3 mm skirt lid with 0.3 mm

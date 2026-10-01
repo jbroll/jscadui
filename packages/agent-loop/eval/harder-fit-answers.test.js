@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { ORIGINAL as TURRET, fixture as turret } from './fixtures/turret-lower.js'
 import { failing, grade, startingFiles } from './reference-grade.js'
 
 const GEAR_FLUENT = `const jf = require('@jbroll/jscad-fluent')
@@ -228,6 +229,79 @@ const main = () => {
 
 module.exports = { main }`,
   },
+  // A 200T azimuth gear driven in one step by a 20T pinion on the Pelton shaft outside it, and the altitude pinion behind the 100T.
+  'turret-lower': {
+    fluent: `const jf = require('@jbroll/jscad-fluent')
+
+const gear = (teeth, thickness) => {
+  const [tip, root, w] = [teeth / 2 + 0.9, teeth / 2 - 1, Math.PI / teeth]
+  const at = (r, a) => [r * Math.cos(a), r * Math.sin(a)]
+  const points = []
+  for (let n = 0; n < teeth; n++) {
+    const a = 2 * w * n
+    points.push(at(root, a - 0.6 * w), at(tip, a - 0.3 * w), at(tip, a + 0.3 * w), at(root, a + 0.6 * w))
+  }
+  return jf.polygon(points).extrudeLinear({ height: thickness }).translateZ(-thickness / 2)
+}
+
+const main = (params) => {
+  params.azimuth = { type: 'slider', default: 25, min: -180, max: 180, step: 1, label: 'Azimuth deg' }
+  params.altitude = { type: 'slider', default: 18, min: -10, max: 60, step: 1, label: 'Altitude deg' }
+  const az = (params.azimuth * Math.PI) / 180
+  const al = (params.altitude * Math.PI) / 180
+  const pivZ = 90
+  const base = jf.cuboid({ size: [300, 230, 8] }).translate([40, 0, 4])
+  const pinion = gear(20, 10).translate([110.25, 0, 16])
+  const pelton = jf.cylinder({ radius: 19, height: 7 }).translate([110.25, 0, 45])
+  const gun = [gear(100, 8).rotateX(Math.PI / 2), jf.cylinder({ radius: 8, height: 110 }).rotateY(Math.PI / 2).translateX(70)]
+  const turret = [
+    gear(200, 8).translate([0, 0, 16]),
+    jf.cuboid({ size: [150, 110, 8] }).translate([0, 0, 28]),
+    ...[-32, 32].map((y) => jf.cuboid({ size: [26, 10, pivZ - 32] }).translate([0, y, (pivZ + 32) / 2])),
+    gear(20, 10).rotateX(Math.PI / 2).translate([-60.25, 0, pivZ]),
+    ...gun.map((g) => g.rotateY(-al).translateZ(pivZ)),
+  ]
+  return [base, pinion, pelton, ...turret.map((g) => g.rotateZ(az))]
+}
+
+module.exports = { main }`,
+    modeling: `const { extrusions, primitives, transforms } = require('@jscad/modeling')
+const { cuboid, cylinder, polygon } = primitives
+const { rotateX, rotateY, rotateZ, translate, translateX, translateZ } = transforms
+
+const gear = (teeth, thickness) => {
+  const [tip, root, w] = [teeth / 2 + 0.9, teeth / 2 - 1, Math.PI / teeth]
+  const at = (r, a) => [r * Math.cos(a), r * Math.sin(a)]
+  const points = []
+  for (let n = 0; n < teeth; n++) {
+    const a = 2 * w * n
+    points.push(at(root, a - 0.6 * w), at(tip, a - 0.3 * w), at(tip, a + 0.3 * w), at(root, a + 0.6 * w))
+  }
+  return translateZ(-thickness / 2, extrusions.extrudeLinear({ height: thickness }, polygon({ points })))
+}
+
+const main = (params) => {
+  params.azimuth = { type: 'slider', default: 0, min: -180, max: 180, step: 1, label: 'Azimuth' }
+  params.elevation = { type: 'slider', default: 10, min: -10, max: 60, step: 1, label: 'Elevation' }
+  const az = (params.azimuth * Math.PI) / 180
+  const al = (params.elevation * Math.PI) / 180
+  const pivZ = 90
+  const base = translate([40, 0, 4], cuboid({ size: [300, 230, 8] }))
+  const pinion = translate([110.25, 0, 16], gear(20, 10))
+  const pelton = translate([110.25, 0, 45], cylinder({ radius: 22, height: 8 }))
+  const gun = [rotateX(Math.PI / 2, gear(100, 8)), translateX(70, rotateY(Math.PI / 2, cylinder({ radius: 8, height: 110 })))]
+  const turret = [
+    translate([0, 0, 16], gear(200, 8)),
+    translate([0, 0, 28], cuboid({ size: [150, 110, 8] })),
+    ...[-32, 32].map((y) => translate([0, y, (pivZ + 32) / 2], cuboid({ size: [26, 10, pivZ - 32] }))),
+    translate([-60.25, 0, pivZ], rotateX(Math.PI / 2, gear(20, 10))),
+    ...gun.map((g) => translateZ(pivZ, rotateY(-al, g))),
+  ]
+  return [base, pinion, pelton, ...turret.map((g) => rotateZ(az, g))]
+}
+
+module.exports = { main }`,
+  },
 }
 
 const block = (size) => `const jf = require('@jbroll/jscad-fluent')\nmodule.exports = { main: () => jf.cuboid({ size: [${size}] }) }\n`
@@ -240,11 +314,14 @@ const BLOCKS = {
   'bottle-cap': block('32, 32, 16'),
   'pi-enclosure': block('92, 63, 28'),
   'bracket-m5': block('40, 50, 55'),
+  'turret-lower': block('190, 150, 150'),
 }
 
 const cases = Object.entries(REFERENCES).flatMap(([name, sources]) => Object.entries(sources).map(([api, source]) => [name, api, source]))
 
-describe('harder fit and profile fixtures against reference answers', () => {
+// Each case builds and grades real geometry; under the full parallel suite a
+// 1 s grade can take over 5 s.
+describe('harder fit and profile fixtures against reference answers', { timeout: 30_000 }, () => {
   it.each(cases)('%s passes its %s reference answer', async (name, api, source) => {
     expect(failing(await grade(name, source, api))).toEqual([])
   })
@@ -322,4 +399,17 @@ describe('harder fit and profile fixtures against reference answers', () => {
     const tall = startingFiles('bracket-m5', 'fluent').replace('jf.cylinder({ radius: 2, height: 20 })', 'jf.cylinder({ radius: 2.75, height: 20 })')
     expect(failing(await grade('bracket-m5', tall, 'fluent'))).toEqual(['under 60mm tall'])
   })
+
+  it.each(['fluent', 'modeling'])('turret-lower: the %s starting turret from the log fails the height and the two-stage azimuth train', async (api) => {
+    const { graded, results } = await grade('turret-lower', turret.apiFiles[api]['index.js'], api)
+    expect(graded.measure.dimensions[2]).toBeCloseTo(TURRET.height, 3)
+    expect(failing({ results })).toEqual(['at least 5% lower', 'azimuth driven by one gear pair'])
+  }, 30000)
+
+  it('turret-lower fails a lowered deck over the two-stage azimuth train, and a single reduction left as tall', async () => {
+    const lowered = turret.apiFiles.fluent['index.js'].replace('deckZ = 68', 'deckZ = 40')
+    expect(failing(await grade('turret-lower', lowered, 'fluent'))).toEqual(['azimuth driven by one gear pair'])
+    const tall = REFERENCES['turret-lower'].modeling.replace('const pivZ = 90', 'const pivZ = 180')
+    expect(failing(await grade('turret-lower', tall, 'modeling'))).toEqual(['at least 5% lower'])
+  }, 30000)
 })

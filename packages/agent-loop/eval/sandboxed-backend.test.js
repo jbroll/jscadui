@@ -264,12 +264,12 @@ describe('the run time limit', () => {
           yield* write(CUBE)
           return
         }
-        await new Promise((resolve) => setTimeout(resolve, 2000))
+        await new Promise((resolve) => setTimeout(resolve, 8000))
         yield* done()
       },
     }
-    const result = await runJob({ fixture, run: 1, runs: 1, maxTurns: 8 }, { provider: slow, api: 'fluent', startExecutor: startChild, runTimeoutMs: 800 }, () => {})
-    expect(result.error).toBe('run time limit of 0.8 s reached')
+    const result = await runJob({ fixture, run: 1, runs: 1, maxTurns: 8 }, { provider: slow, api: 'fluent', startExecutor: startChild, runTimeoutMs: 4000 }, () => {})
+    expect(result.error).toBe('run time limit of 4 s reached')
     expect(result.report.checkRate).toBe(1)
   }, 30_000)
 })
