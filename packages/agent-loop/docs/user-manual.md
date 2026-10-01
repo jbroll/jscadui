@@ -871,7 +871,10 @@ caboose"), which no set of checks can grade. It declares `gates` in place of
 `checks`, and its geometry grade comes from a verdict: a vision model
 describes renders of the result without seeing the request, and a text model
 judges that description against the user's messages
-([architecture.md](architecture.md#complex-grading)).
+([architecture.md](architecture.md#complex-grading)). The grader is not yet
+calibrated: the first pass failed most runs that meet their request
+(`docs/backlog.md`, Calibrate the complex grader), so treat `verdictRate` as
+provisional.
 
 ```js
 export const fixture = {

@@ -288,6 +288,18 @@ model with `display-check.js --engine jscad`.
   a complex run fails `builds` with no word on why. A cap that reports the
   count and drops the list past it would keep the grade and name the cause.
   No complex fixture comes near it.
+- Calibrate the complex grader (agent-loop eval). The first pass
+  (`2026-09-30T230517Z-*-complex-*` in the evals repo) judged 30 of 118 runs a
+  success; a read of 34 runs beside their renders found 21 failures where the
+  model meets the request, and 16 unfair descriptions. Causes: the judge never
+  sees the measured size or piece count, so a separate roof, saucer or second
+  chess piece cannot count; each view is described alone and the judge reads
+  disagreement between views as a defect (22 of 88 failures); uncoloured
+  models are described as wireframes (3 of 41 pass); the judge asks for
+  evidence a still render cannot show (removability, an E27 fitting), since
+  the rule that a visible hinge or separate part counts was left out of the
+  prompt; the `side` view is close to a silhouette; the describer sometimes
+  repeats words. Until this is done, complex verdicts are not a measure.
 
 ## Refactoring
 
