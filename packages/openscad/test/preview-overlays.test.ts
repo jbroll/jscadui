@@ -217,7 +217,7 @@ const GEOMETRY_OPS = ['translate', 'rotate', 'scale', 'mirror', 'multmatrix', 'r
   'union', 'subtract', 'intersect', 'hull', 'minkowski', 'childrenAt', 'childrenAtRange', 'color', 'offset',
   'linearExtrude', 'rotateExtrude']
 const NOT_GEOMETRY_OPS: string[] = ['_list_pattern', 'applyPositionalArgs', 'assert', 'background', 'band', 'bnot',
-  'bor', 'chr', 'circle', 'cosDeg', 'cross', 'cube', 'cylinder', 'echo', 'enterScope', 'eq', 'exitScope',
+  'bor', 'chr', 'circle', 'cosDeg', 'cross', 'cube', 'cylinder', 'echo', 'enterScope', 'eq', 'exitScope', 'exportClean',
   'getSpecialVar', 'group', 'highlight', 'init', 'isTruthy', 'is_consistent', 'is_vector', 'iter', 'lookup', 'max', 'min',
   'norm', 'num', 'ord', 'parent_module', 'polygon', 'polyhedron', 'polyhedronHull', 'popScope', 'pushScope', 'rands',
   'range', 'recursionDetected', 'region', 'regular_polygon', 'resetRng', 'resetScope', 'resolveParams', 'reverse',

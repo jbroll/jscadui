@@ -18,6 +18,7 @@ import { initText, _text, _useFont } from './text.js'
 import { DEFAULT_SPECIAL_VARS } from './specialVars.js'
 import { consuming } from './consume.js'
 import { initOverlays, highlight as _highlight, background as _background, group as _group, withOverlays as _withOverlays, gathering } from './overlay.js'
+import { exportClean } from './cleanExports.js'
 
 /**
  * Sentinel for explicit undef passed as argument.
@@ -368,6 +369,8 @@ const j$ = {
     for (const [name, value] of Object.entries(vars)) this.setSpecialVar(name, value)
     try { return fn() } finally { this.popScope() }
   },
+
+  exportClean(exports, raw, meta) { exportClean(this, exports, raw, meta) },
 
   // Snapshot the scope stack for tail-call bounces: a bounce created inside
   // withScope frames must re-enter them on each trampoline continuation,
