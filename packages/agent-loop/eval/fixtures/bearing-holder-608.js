@@ -19,7 +19,6 @@ const sizeOk = (dims) => {
 
 export const fixture = {
   name: 'bearing-holder-608',
-  group: 'parts',
   prompt: 'A holder for a 608 ball bearing',
   requires: ['measure', 'write'],
   verifyBeforeWrite: true,

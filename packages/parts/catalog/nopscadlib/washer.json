@@ -1,6 +1,7 @@
 {
   "id": "nopscadlib/washer",
   "family": "washer",
+  "preferred": true,
   "library": "NopSCADlib",
   "license": "GPL-3.0",
   "file": "NopSCADlib/vitamins/washer.scad",

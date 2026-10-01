@@ -46,11 +46,11 @@ describe('eval fixtures', () => {
     })
   }
 
-  it('runs the parts group only when named, until the catalog has admitted entries', () => {
+  it('runs the admitted parts fixtures in the default suite, ungrouped', () => {
     const parts = ['bearing-holder-608', 'nema17-mount']
-    expect(fixtures.filter((f) => f.group === 'parts').map((f) => f.name).sort()).toEqual(parts)
-    expect(selectFixtures(fixtures, null).some((f) => f.group === 'parts')).toBe(false)
-    expect(selectFixtures(fixtures, ['parts']).map((f) => f.name).sort()).toEqual(parts)
+    for (const name of parts) expect(byName[name].group).toBeUndefined()
+    const defaultNames = selectFixtures(fixtures, null).map((f) => f.name)
+    for (const name of parts) expect(defaultNames).toContain(name)
   })
 
   it('runs the fluent style checks only under the fluent api', () => {

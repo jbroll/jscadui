@@ -45,7 +45,6 @@ const isSquarePitch = (corners, pitch = 31, tol = 0.3) => {
 
 export const fixture = {
   name: 'nema17-mount',
-  group: 'parts',
   prompt: 'A mounting plate for a NEMA 17 stepper motor, with holes for the M3 screws that hold the motor on. Just the plate.',
   requires: ['measure', 'write'],
   verifyBeforeWrite: true,

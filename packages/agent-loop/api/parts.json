@@ -1,1 +1,373 @@
-[]
+[
+  {
+    "name": "parts.bosl2.ball_bearing",
+    "pkg": "@jscadui/parts",
+    "kind": "part",
+    "family": "ball_bearing",
+    "preferred": true,
+    "description": "Deep groove ball bearing by trade size (\"608\", \"608ZZ\", \"6201\", \"R8\", flanged \"F\" series), axis on z, centered.",
+    "require": "const { ball_bearing } = require('_catalog/BOSL2/ball_bearings.scad')",
+    "scad": "include <BOSL2/std.scad>\ninclude <BOSL2/ball_bearings.scad>",
+    "signature": "ball_bearing(trade_size, id, od, width, shield = true, flange = false, fd, fw, rounding, anchor = CTR, spin = 0, orient = UP)",
+    "sizes": [
+      "\"608\"",
+      "\"608ZZ\"",
+      "\"629\"",
+      "\"635\"",
+      "\"6000\"",
+      "\"6200\"",
+      "\"6201\"",
+      "\"6800\"",
+      "\"6900\""
+    ],
+    "options": {
+      "rounding": "edge rounding radius (none by default)",
+      "anchor": "attachment anchor (default CENTER)"
+    },
+    "license": "BSD-2-Clause",
+    "measured": [
+      {
+        "args": [
+          "608",
+          {
+            "$fn": 72
+          }
+        ],
+        "size": [
+          22,
+          22,
+          7
+        ]
+      }
+    ],
+    "example": "ball_bearing(\"608ZZ\", {$fn: 72})"
+  },
+  {
+    "name": "parts.nopscadlib.ball_bearing",
+    "pkg": "@jscadui/parts",
+    "kind": "part",
+    "family": "ball_bearing",
+    "description": "Deep groove ball bearing (608, 624, 6200, MR and flanged F series), axis on z.",
+    "require": "const { ball_bearing, BB608 } = require('_catalog/NopSCADlib/vitamins/ball_bearing.scad')",
+    "scad": "include <NopSCADlib/vitamins/ball_bearings.scad>\ninclude <NopSCADlib/vitamins/ball_bearing.scad>",
+    "signature": "ball_bearing(type)",
+    "sizes": [
+      "BBF625",
+      "BBF693",
+      "BBF623",
+      "BBF695",
+      "BBMR63",
+      "BBMR83",
+      "BBMR85",
+      "BBMR93",
+      "BBMR95",
+      "BBSMR95",
+      "BB624",
+      "BB686",
+      "BB696",
+      "BB608",
+      "BB6200",
+      "BB6201",
+      "BB6808"
+    ],
+    "options": {},
+    "license": "GPL-3.0",
+    "measured": [
+      {
+        "args": [
+          "BB608",
+          {
+            "$fn": 72
+          }
+        ],
+        "size": [
+          22.000000005960462,
+          22.000000005960462,
+          7
+        ]
+      }
+    ],
+    "example": "ball_bearing(BB608)"
+  },
+  {
+    "name": "parts.bosl2.nut",
+    "pkg": "@jscadui/parts",
+    "kind": "part",
+    "family": "nut",
+    "preferred": true,
+    "description": "ISO 4032 / UTS threaded hex or square nut, sized by spec string (\"M3\", \"1/4-20\").",
+    "require": "const { nut } = require('_catalog/BOSL2/screws.scad')",
+    "scad": "include <BOSL2/std.scad>\ninclude <BOSL2/screws.scad>",
+    "signature": "nut(spec, shape, thickness, nutwidth, thread, tolerance, hole_oversize, bevel, bevel1, bevel2, bevang = 15, ibevel, ibevel1, ibevel2, blunt_start, blunt_start1, blunt_start2, anchor = BOTTOM, spin = 0, orient = UP, oversize = 0)",
+    "sizes": [
+      "\"M2\"",
+      "\"M2.5\"",
+      "\"M3\"",
+      "\"M4\"",
+      "\"M5\"",
+      "\"M6\"",
+      "\"M8\""
+    ],
+    "options": {
+      "shape": "\"hex\" (default) or \"square\"",
+      "thickness": "\"thin\", \"normal\" (default), \"thick\", \"DIN\", or a thickness in mm",
+      "thread": "\"coarse\" (default), \"fine\", \"none\", or a pitch in mm",
+      "bevel": "bevel the outer edges (default true for hex)",
+      "anchor": "attachment anchor (default BOTTOM)"
+    },
+    "license": "BSD-2-Clause",
+    "measured": [
+      {
+        "args": [
+          "M3"
+        ],
+        "size": [
+          5.5,
+          6.350852966308594,
+          2.4000000953674316
+        ]
+      }
+    ],
+    "example": "nut(\"M3\", {thickness: \"thin\"})"
+  },
+  {
+    "name": "parts.nopscadlib.nut",
+    "pkg": "@jscadui/parts",
+    "kind": "part",
+    "family": "nut",
+    "description": "DIN 934 / ISO 4032 metric hex nut, optionally nyloc, brass, nylon or domed.",
+    "require": "const { nut, M3_nut } = require('_catalog/NopSCADlib/vitamins/nut.scad')",
+    "scad": "include <NopSCADlib/vitamins/nuts.scad>\ninclude <NopSCADlib/vitamins/nut.scad>",
+    "signature": "nut(type, nyloc = false, brass = false, nylon = false, dome = false)",
+    "sizes": [
+      "M2_nut",
+      "M2p5_nut",
+      "M3_nut",
+      "M4_nut",
+      "M5_nut",
+      "M6_nut",
+      "M8_nut"
+    ],
+    "options": {
+      "nyloc": "add the nylon insert (taller nut)",
+      "brass": "brass colour",
+      "nylon": "nylon colour",
+      "dome": "domed acorn nut (sizes with dome data only)"
+    },
+    "license": "GPL-3.0",
+    "measured": [
+      {
+        "args": [
+          "M3_nut"
+        ],
+        "size": [
+          6.4000000059604645,
+          5.542562589049339,
+          2.4
+        ]
+      }
+    ],
+    "example": "nut(M3_nut, {nyloc: true})"
+  },
+  {
+    "name": "parts.bosl2.screw",
+    "pkg": "@jscadui/parts",
+    "kind": "part",
+    "family": "screw",
+    "preferred": true,
+    "description": "ISO / UTS threaded screw sized by spec string \"<size>,<length>\" (\"M3,10\"); head type by option, headless by default.",
+    "require": "const { screw } = require('_catalog/BOSL2/screws.scad')",
+    "scad": "include <BOSL2/std.scad>\ninclude <BOSL2/screws.scad>",
+    "signature": "screw(spec, head, drive, thread, drive_size, length, l, thread_len, tolerance, details = true, undersize, shaft_undersize, head_undersize, atype = \"screw\", anchor, spin = 0, orient = UP, _shoulder_diam = 0, _shoulder_len = 0, bevel, bevel1, bevel2, bevelsize, blunt_start, blunt_start1, blunt_start2, _internal = false, _counterbore, _teardrop = false)",
+    "sizes": [
+      "\"M2,10\"",
+      "\"M2.5,10\"",
+      "\"M3,10\"",
+      "\"M4,10\"",
+      "\"M5,10\"",
+      "\"M6,10\"",
+      "\"M8,10\""
+    ],
+    "options": {
+      "head": "\"socket\", \"hex\", \"button\", \"flat\", \"pan\", \"cheese\", or \"none\" (default)",
+      "drive": "\"hex\", \"slot\", \"phillips\", \"torx\", or \"none\"",
+      "length": "length under the head in mm, overriding the spec",
+      "thread": "\"coarse\" (default), \"fine\", \"none\", or a pitch in mm",
+      "anchor": "attachment anchor on the shaft"
+    },
+    "license": "BSD-2-Clause",
+    "measured": [
+      {
+        "args": [
+          "M3,10",
+          {
+            "head": "socket",
+            "$fn": 72
+          }
+        ],
+        "size": [
+          5.5,
+          5.5,
+          13.000000114440919
+        ]
+      }
+    ],
+    "example": "screw(\"M3,10\", {head: \"socket\", drive: \"hex\"})"
+  },
+  {
+    "name": "parts.nopscadlib.screw",
+    "pkg": "@jscadui/parts",
+    "kind": "part",
+    "family": "screw",
+    "description": "ISO 4762 metric socket head cap screw, head on z = 0, shaft down; length is the second argument.",
+    "require": "const { screw, M3_cap_screw } = require('_catalog/NopSCADlib/vitamins/screw.scad')",
+    "scad": "include <NopSCADlib/core.scad>\ninclude <NopSCADlib/vitamins/screw.scad>",
+    "signature": "screw(type, length, hob_point = 0, nylon = false)",
+    "sizes": [
+      "M2_cap_screw",
+      "M2p5_cap_screw",
+      "M3_cap_screw",
+      "M4_cap_screw",
+      "M5_cap_screw",
+      "M6_cap_screw",
+      "M8_cap_screw"
+    ],
+    "options": {
+      "hob_point": "hob the thread this far from the end (extruder drive screw)",
+      "nylon": "nylon colour"
+    },
+    "license": "GPL-3.0",
+    "measured": [
+      {
+        "args": [
+          "M3_cap_screw",
+          10
+        ],
+        "size": [
+          5.5,
+          5.5,
+          13
+        ]
+      }
+    ],
+    "example": "screw(M3_cap_screw, 10)"
+  },
+  {
+    "name": "parts.bosl2.nema_stepper_motor",
+    "pkg": "@jscadui/parts",
+    "kind": "part",
+    "family": "stepper",
+    "preferred": true,
+    "description": "NEMA 6 to 42 stepper motor by frame size (a number), face at z = 0, shaft up, body down.",
+    "require": "const { nema_stepper_motor } = require('_catalog/BOSL2/nema_steppers.scad')",
+    "scad": "include <BOSL2/std.scad>\ninclude <BOSL2/nema_steppers.scad>",
+    "signature": "nema_stepper_motor(size = 17, h = 24, shaft_len = 20, details = true, atype = \"body\", anchor = TOP, spin = 0, orient = UP)",
+    "sizes": [
+      "6",
+      "8",
+      "11",
+      "14",
+      "17",
+      "23",
+      "34",
+      "42"
+    ],
+    "options": {
+      "h": "body length in mm (default 24)",
+      "shaft_len": "shaft length above the face in mm (default 20)",
+      "details": "false for a rough block suitable as a mask",
+      "anchor": "attachment anchor (default TOP of the body)"
+    },
+    "license": "BSD-2-Clause",
+    "measured": [
+      {
+        "args": [
+          17
+        ],
+        "size": [
+          42.3,
+          42.3,
+          44
+        ]
+      }
+    ],
+    "example": "nema_stepper_motor(17, {h: 40, shaft_len: 24})"
+  },
+  {
+    "name": "parts.nopscadlib.NEMA",
+    "pkg": "@jscadui/parts",
+    "kind": "part",
+    "family": "stepper",
+    "description": "NEMA 8, 14, 16, 17 and 23 stepper motor, face at z = 0, shaft up, body down.",
+    "require": "const { NEMA, NEMA17_40 } = require('_catalog/NopSCADlib/vitamins/stepper_motor.scad')",
+    "scad": "include <NopSCADlib/vitamins/stepper_motors.scad>\ninclude <NopSCADlib/vitamins/stepper_motor.scad>",
+    "signature": "NEMA(type, shaft_angle = 0, jst_connector = false)",
+    "sizes": [
+      "NEMA8_30",
+      "NEMA8_30BH",
+      "NEMA14_36",
+      "NEMA16_19",
+      "NEMA17_27",
+      "NEMA17_34",
+      "NEMA17_40",
+      "NEMA17_47",
+      "NEMA17_47L80",
+      "NEMA23_51"
+    ],
+    "options": {
+      "shaft_angle": "rotate the shaft (and its flat) by this many degrees",
+      "jst_connector": "draw a JST connector instead of flying leads"
+    },
+    "license": "GPL-3.0",
+    "measured": [
+      {
+        "args": [
+          "NEMA17_40"
+        ],
+        "size": [
+          42.300000000000004,
+          48.3,
+          60.0078125
+        ]
+      }
+    ],
+    "example": "NEMA(NEMA17_40)"
+  },
+  {
+    "name": "parts.nopscadlib.washer",
+    "pkg": "@jscadui/parts",
+    "kind": "part",
+    "family": "washer",
+    "preferred": true,
+    "description": "ISO 7089 metric flat washer, plus an M3 rubber washer.",
+    "require": "const { washer, M3_washer } = require('_catalog/NopSCADlib/vitamins/washer.scad')",
+    "scad": "include <NopSCADlib/vitamins/washers.scad>\ninclude <NopSCADlib/vitamins/washer.scad>",
+    "signature": "washer(type)",
+    "sizes": [
+      "M2_washer",
+      "M2p5_washer",
+      "M3_washer",
+      "M3p5_washer",
+      "M4_washer",
+      "M5_washer",
+      "M6_washer",
+      "M8_washer",
+      "M3_rubber_washer"
+    ],
+    "options": {},
+    "license": "GPL-3.0",
+    "measured": [
+      {
+        "args": [
+          "M3_washer"
+        ],
+        "size": [
+          7,
+          7,
+          0.45
+        ]
+      }
+    ],
+    "example": "washer(M3_washer)"
+  }
+]

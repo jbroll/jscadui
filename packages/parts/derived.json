@@ -1,0 +1,632 @@
+{
+  "bosl2/ball_bearing": {
+    "id": "bosl2/ball_bearing",
+    "ok": true,
+    "failures": [],
+    "measured": [
+      {
+        "args": [
+          "608",
+          {
+            "$fn": 72
+          }
+        ],
+        "size": [
+          22,
+          22,
+          7
+        ]
+      }
+    ],
+    "sizes": [
+      "608",
+      "608ZZ",
+      "629",
+      "635",
+      "6000",
+      "6200",
+      "6201",
+      "6800",
+      "6900"
+    ],
+    "signature": {
+      "params": [
+        {
+          "name": "trade_size"
+        },
+        {
+          "name": "id"
+        },
+        {
+          "name": "od"
+        },
+        {
+          "name": "width"
+        },
+        {
+          "name": "shield",
+          "default": "true"
+        },
+        {
+          "name": "flange",
+          "default": "false"
+        },
+        {
+          "name": "fd"
+        },
+        {
+          "name": "fw"
+        },
+        {
+          "name": "rounding"
+        },
+        {
+          "name": "anchor",
+          "default": "CTR"
+        },
+        {
+          "name": "spin",
+          "default": "0"
+        },
+        {
+          "name": "orient",
+          "default": "UP"
+        }
+      ]
+    },
+    "transpileMs": 628.740237,
+    "buildMs": {
+      "max": 182.697225,
+      "mean": 25.6094658
+    }
+  },
+  "bosl2/nema_stepper_motor": {
+    "id": "bosl2/nema_stepper_motor",
+    "ok": true,
+    "failures": [],
+    "measured": [
+      {
+        "args": [
+          17
+        ],
+        "size": [
+          42.3,
+          42.3,
+          44
+        ]
+      }
+    ],
+    "sizes": [
+      6,
+      8,
+      11,
+      14,
+      17,
+      23,
+      34,
+      42
+    ],
+    "signature": {
+      "params": [
+        {
+          "name": "size",
+          "default": "17"
+        },
+        {
+          "name": "h",
+          "default": "24"
+        },
+        {
+          "name": "shaft_len",
+          "default": "20"
+        },
+        {
+          "name": "details",
+          "default": "true"
+        },
+        {
+          "name": "atype",
+          "default": "\"body\""
+        },
+        {
+          "name": "anchor",
+          "default": "TOP"
+        },
+        {
+          "name": "spin",
+          "default": "0"
+        },
+        {
+          "name": "orient",
+          "default": "UP"
+        }
+      ]
+    },
+    "transpileMs": 553.9510660000001,
+    "buildMs": {
+      "max": 23.96713200000022,
+      "mean": 13.41990844444447
+    }
+  },
+  "bosl2/nut": {
+    "id": "bosl2/nut",
+    "ok": true,
+    "failures": [],
+    "measured": [
+      {
+        "args": [
+          "M3"
+        ],
+        "size": [
+          5.5,
+          6.350852966308594,
+          2.4000000953674316
+        ]
+      }
+    ],
+    "sizes": [
+      "M2",
+      "M2.5",
+      "M3",
+      "M4",
+      "M5",
+      "M6",
+      "M8"
+    ],
+    "signature": {
+      "params": [
+        {
+          "name": "spec"
+        },
+        {
+          "name": "shape"
+        },
+        {
+          "name": "thickness"
+        },
+        {
+          "name": "nutwidth"
+        },
+        {
+          "name": "thread"
+        },
+        {
+          "name": "tolerance"
+        },
+        {
+          "name": "hole_oversize"
+        },
+        {
+          "name": "bevel"
+        },
+        {
+          "name": "bevel1"
+        },
+        {
+          "name": "bevel2"
+        },
+        {
+          "name": "bevang",
+          "default": "15"
+        },
+        {
+          "name": "ibevel"
+        },
+        {
+          "name": "ibevel1"
+        },
+        {
+          "name": "ibevel2"
+        },
+        {
+          "name": "blunt_start"
+        },
+        {
+          "name": "blunt_start1"
+        },
+        {
+          "name": "blunt_start2"
+        },
+        {
+          "name": "anchor",
+          "default": "BOTTOM"
+        },
+        {
+          "name": "spin",
+          "default": "0"
+        },
+        {
+          "name": "orient",
+          "default": "UP"
+        },
+        {
+          "name": "oversize",
+          "default": "0"
+        }
+      ]
+    },
+    "transpileMs": 512.4377949999998,
+    "buildMs": {
+      "max": 27.122122000000218,
+      "mean": 12.081727625000099
+    }
+  },
+  "bosl2/screw": {
+    "id": "bosl2/screw",
+    "ok": true,
+    "failures": [],
+    "measured": [
+      {
+        "args": [
+          "M3,10",
+          {
+            "head": "socket",
+            "$fn": 72
+          }
+        ],
+        "size": [
+          5.5,
+          5.5,
+          13.000000114440919
+        ]
+      }
+    ],
+    "sizes": [
+      "M2,10",
+      "M2.5,10",
+      "M3,10",
+      "M4,10",
+      "M5,10",
+      "M6,10",
+      "M8,10"
+    ],
+    "signature": {
+      "params": [
+        {
+          "name": "spec"
+        },
+        {
+          "name": "head"
+        },
+        {
+          "name": "drive"
+        },
+        {
+          "name": "thread"
+        },
+        {
+          "name": "drive_size"
+        },
+        {
+          "name": "length"
+        },
+        {
+          "name": "l"
+        },
+        {
+          "name": "thread_len"
+        },
+        {
+          "name": "tolerance"
+        },
+        {
+          "name": "details",
+          "default": "true"
+        },
+        {
+          "name": "undersize"
+        },
+        {
+          "name": "shaft_undersize"
+        },
+        {
+          "name": "head_undersize"
+        },
+        {
+          "name": "atype",
+          "default": "\"screw\""
+        },
+        {
+          "name": "anchor"
+        },
+        {
+          "name": "spin",
+          "default": "0"
+        },
+        {
+          "name": "orient",
+          "default": "UP"
+        },
+        {
+          "name": "_shoulder_diam",
+          "default": "0"
+        },
+        {
+          "name": "_shoulder_len",
+          "default": "0"
+        },
+        {
+          "name": "bevel"
+        },
+        {
+          "name": "bevel1"
+        },
+        {
+          "name": "bevel2"
+        },
+        {
+          "name": "bevelsize"
+        },
+        {
+          "name": "blunt_start"
+        },
+        {
+          "name": "blunt_start1"
+        },
+        {
+          "name": "blunt_start2"
+        },
+        {
+          "name": "_internal",
+          "default": "false"
+        },
+        {
+          "name": "_counterbore"
+        },
+        {
+          "name": "_teardrop",
+          "default": "false"
+        }
+      ]
+    },
+    "transpileMs": 503.63555199999973,
+    "buildMs": {
+      "max": 83.94221600000037,
+      "mean": 19.27170449999994
+    }
+  },
+  "nopscadlib/ball_bearing": {
+    "id": "nopscadlib/ball_bearing",
+    "ok": true,
+    "failures": [],
+    "measured": [
+      {
+        "args": [
+          "BB608",
+          {
+            "$fn": 72
+          }
+        ],
+        "size": [
+          22.000000005960462,
+          22.000000005960462,
+          7
+        ]
+      }
+    ],
+    "sizes": [
+      "BBF625",
+      "BBF693",
+      "BBF623",
+      "BBF695",
+      "BBMR63",
+      "BBMR83",
+      "BBMR85",
+      "BBMR93",
+      "BBMR95",
+      "BBSMR95",
+      "BB624",
+      "BB686",
+      "BB696",
+      "BB608",
+      "BB6200",
+      "BB6201",
+      "BB6808"
+    ],
+    "signature": {
+      "params": [
+        {
+          "name": "type"
+        }
+      ]
+    },
+    "transpileMs": 12.789140000000316,
+    "buildMs": {
+      "max": 39.12429800000018,
+      "mean": 9.485515055555576
+    }
+  },
+  "nopscadlib/nema": {
+    "id": "nopscadlib/nema",
+    "ok": true,
+    "failures": [],
+    "measured": [
+      {
+        "args": [
+          "NEMA17_40"
+        ],
+        "size": [
+          42.300000000000004,
+          48.3,
+          60.0078125
+        ]
+      }
+    ],
+    "sizes": [
+      "NEMA8_30",
+      "NEMA8_30BH",
+      "NEMA14_36",
+      "NEMA16_19",
+      "NEMA17_27",
+      "NEMA17_34",
+      "NEMA17_40",
+      "NEMA17_47",
+      "NEMA17_47L80",
+      "NEMA23_51"
+    ],
+    "signature": {
+      "params": [
+        {
+          "name": "type"
+        },
+        {
+          "name": "shaft_angle",
+          "default": "0"
+        },
+        {
+          "name": "jst_connector",
+          "default": "false"
+        }
+      ]
+    },
+    "transpileMs": 70.35612399999991,
+    "buildMs": {
+      "max": 61.394322999999986,
+      "mean": 40.22945036363638
+    }
+  },
+  "nopscadlib/nut": {
+    "id": "nopscadlib/nut",
+    "ok": true,
+    "failures": [],
+    "measured": [
+      {
+        "args": [
+          "M3_nut"
+        ],
+        "size": [
+          6.4000000059604645,
+          5.542562589049339,
+          2.4
+        ]
+      }
+    ],
+    "sizes": [
+      "M2_nut",
+      "M2p5_nut",
+      "M3_nut",
+      "M4_nut",
+      "M5_nut",
+      "M6_nut",
+      "M8_nut"
+    ],
+    "signature": {
+      "params": [
+        {
+          "name": "type"
+        },
+        {
+          "name": "nyloc",
+          "default": "false"
+        },
+        {
+          "name": "brass",
+          "default": "false"
+        },
+        {
+          "name": "nylon",
+          "default": "false"
+        },
+        {
+          "name": "dome",
+          "default": "false"
+        }
+      ]
+    },
+    "transpileMs": 39.75593200000003,
+    "buildMs": {
+      "max": 1.5121930000004795,
+      "mean": 0.7351678750001156
+    }
+  },
+  "nopscadlib/screw": {
+    "id": "nopscadlib/screw",
+    "ok": true,
+    "failures": [],
+    "measured": [
+      {
+        "args": [
+          "M3_cap_screw",
+          10
+        ],
+        "size": [
+          5.5,
+          5.5,
+          13
+        ]
+      }
+    ],
+    "sizes": [
+      "M2_cap_screw",
+      "M2p5_cap_screw",
+      "M3_cap_screw",
+      "M4_cap_screw",
+      "M5_cap_screw",
+      "M6_cap_screw",
+      "M8_cap_screw"
+    ],
+    "signature": {
+      "params": [
+        {
+          "name": "type"
+        },
+        {
+          "name": "length"
+        },
+        {
+          "name": "hob_point",
+          "default": "0"
+        },
+        {
+          "name": "nylon",
+          "default": "false"
+        }
+      ]
+    },
+    "transpileMs": 44.64644899999985,
+    "buildMs": {
+      "max": 4.187820000000102,
+      "mean": 3.015978749999931
+    }
+  },
+  "nopscadlib/washer": {
+    "id": "nopscadlib/washer",
+    "ok": true,
+    "failures": [],
+    "measured": [
+      {
+        "args": [
+          "M3_washer"
+        ],
+        "size": [
+          7,
+          7,
+          0.45
+        ]
+      }
+    ],
+    "sizes": [
+      "M2_washer",
+      "M2p5_washer",
+      "M3_washer",
+      "M3p5_washer",
+      "M4_washer",
+      "M5_washer",
+      "M6_washer",
+      "M8_washer",
+      "M3_rubber_washer"
+    ],
+    "signature": {
+      "params": [
+        {
+          "name": "type"
+        }
+      ]
+    },
+    "transpileMs": 15.919092000000092,
+    "buildMs": {
+      "max": 0.7100809999992634,
+      "mean": 0.45489210000005187
+    }
+  }
+}

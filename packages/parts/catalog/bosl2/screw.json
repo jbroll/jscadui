@@ -1,6 +1,7 @@
 {
   "id": "bosl2/screw",
   "family": "screw",
+  "preferred": true,
   "library": "BOSL2",
   "license": "BSD-2-Clause",
   "file": "BOSL2/screws.scad",

@@ -1,6 +1,7 @@
 {
   "id": "bosl2/ball_bearing",
   "family": "ball_bearing",
+  "preferred": true,
   "library": "BOSL2",
   "license": "BSD-2-Clause",
   "file": "BOSL2/ball_bearings.scad",

@@ -1,6 +1,7 @@
 {
   "id": "bosl2/nema_stepper_motor",
   "family": "stepper",
+  "preferred": true,
   "library": "BOSL2",
   "license": "BSD-2-Clause",
   "file": "BOSL2/nema_steppers.scad",
