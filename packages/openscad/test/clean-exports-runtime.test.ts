@@ -104,20 +104,6 @@ describe('exportClean', () => {
     expect(e.vars.vars).toBe(1)
   })
 
-  it('leaves a raw lazy variable already on exports as its thunk', () => {
-    const thunk = () => rt.getSpecialVar('$fn') * 0.1
-    const e = load([{ name: 'layer_height', kind: 'variable', lazy: true }], { layer_height: thunk }, { layer_height: thunk })
-    expect(e.layer_height).toBe(thunk)
-    expect(rt.withScope({ $fn: 30 }, () => e.vars.layer_height)).toBeCloseTo(3)
-  })
-
-  it('does not replace a raw variable on exports with a module of the same name', () => {
-    const r = { nut_$m: () => () => 'module', nut: 'variable' }
-    const e = load([{ name: 'nut', kind: 'variable' }, { name: 'nut', kind: 'module', params: [] }], r, { ...r })
-    expect(e.nut).toBe('variable')
-    expect(e.vars.nut).toBe('variable')
-  })
-
   it('publishes the metadata', () => {
     expect(load().$meta).toBe(meta)
   })

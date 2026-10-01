@@ -516,7 +516,7 @@ function buildOutputCode(
   }
 
   // Use imports (require statements for .scad files)
-  // We always use lazy namespace access (const _ns = require(...); var f = (...a) => _ns.f?.(...a))
+  // We always use lazy namespace access (const _ns = require(...); var f = (...a) => _ns.$scad?.f?.(...a))
   // instead of destructuring (var { f } = require(...)).
   //
   // Reason: mutual-dependency cycles (A uses B, B uses A) cause destructuring to capture
@@ -544,7 +544,7 @@ function buildOutputCode(
         nsByPath.set(scadPath, nsVar)
         parts.push(`const ${nsVar} = require('${scadPath}')`)
         for (const sym of newSymbols) {
-          parts.push(`var ${sym} = (...a) => ${nsVar}.${sym}?.(...a)`)
+          parts.push(`var ${sym} = (...a) => ${nsVar}.$scad?.${sym}?.(...a)`)
         }
       } else if (imp.symbols.length === 0) {
         parts.push(`var ${getModuleName(imp.filename)} = require('${scadPath}')`)
@@ -668,12 +668,15 @@ function buildOutputCode(
   const includeReExports = ctx.includeImports
     .flatMap(imp => imp.symbols)
     .filter(s => s !== 'getParameterDefinitions')
-  const allExports = [...new Set([...moduleExportNames, ...functionExportNames, ...ctx.variableNames, ...includeReExports, ...customizerExports, 'main'])]
+  const scadExports = [...new Set([...moduleExportNames, ...functionExportNames, ...ctx.variableNames, ...includeReExports])]
+  const jsExports = [...customizerExports, 'main']
+  const allExports = [...new Set([...scadExports, ...jsExports])]
   // Use Object.assign to mutate the pre-registered exports object in-place.
   // This ensures cyclic requires (where the caller got an empty {} placeholder)
   // will see the real exports once the module finishes loading.
-  parts.push(`Object.assign(exports, { ${allExports.join(', ')} })`)
-  parts.push(exportCleanLine(ctx, allExports, [...includeNamespaces]))
+  const scadObject = scadExports.length ? `{ ${scadExports.join(', ')} }` : '{}'
+  parts.push(`Object.assign(exports, { $scad: ${scadObject}, ${jsExports.join(', ')} })`)
+  parts.push(exportCleanLine(ctx, scadExports, [...includeNamespaces]))
 
   // Function preambles compare parameters against this; `var` because modules may share a global scope.
   const code = parts.join('\n')

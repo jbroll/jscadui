@@ -115,15 +115,21 @@ value at first position).
 
 ### Clean exports
 
-The suffixed exports (`washer_$m`, `area_$f`, `area_$f$obj`) are the calling
-convention between generated files. For JS callers, every file also ends with
+The suffixed names (`washer_$m`, `area_$f`, `area_$f$obj`) and raw variables
+are the calling convention between generated files. They live under
+`exports.$scad`, and every file ends with
 
 ```javascript
-Object.assign(exports, { washer_$m, area_$f, area_$f$obj, M3_washer, main })
-j$.exportClean(exports, { ...exports }, [...(_ns0.$meta ?? []), { "name": "washer", "kind": "module", "params": [...] }, ...])
+Object.assign(exports, { $scad: { washer_$m, area_$f, area_$f$obj, M3_washer, layer_height }, main })
+j$.exportClean(exports, exports.$scad, [...(_ns0.$meta ?? []), { "name": "washer", "kind": "module", "params": [...] }, ...])
 ```
 
-and `j$.exportClean` (`openscad-runtime/src/cleanExports.js`) adds unsuffixed
+`$scad` also holds the names an `include` re-exports; `main` and
+`getParameterDefinitions` stay top level. A `use` or optimized `include`
+reads another file through a forwarder, `var nut_$m = (...a) =>
+_ns0.$scad?.nut_$m?.(...a)`, which resolves at call time so a cyclic `use`
+that got the empty placeholder still works once the file finishes loading.
+`j$.exportClean` (`openscad-runtime/src/cleanExports.js`) adds unsuffixed
 names to `exports` at load time:
 
 - A module `washer(type, h)` becomes `washer(...args)`. Positional arguments
@@ -136,17 +142,16 @@ names to `exports` at load time:
   mapped by name. `$` keys set special variables around the call
   (`j$.withScope`).
 - A variable is its value. A lazy variable (one that reads a `$` special
-  variable, see `ctx.lazyVarNames`) is a getter on `vars` that evaluates it in
-  the caller's current scope.
+  variable, see `ctx.lazyVarNames`) is a getter, on `exports` and on `vars`,
+  that evaluates it in the caller's current scope. Its thunk stays under
+  `$scad` for the forwarders.
 
 When a module, function and variable share a name, the bare name is the
 module, then the function, then the variable. `exports.fn` and `exports.vars`
 hold every function and variable whatever the clash. `main`,
 `getParameterDefinitions`, `fn`, `vars`, `$meta` and `$scad` are never bound
-as bare names. While the suffixed names and raw variables still sit on
-`exports`, a bare name a raw binding already holds keeps that binding: generated
-code calls a lazy variable's thunk through `_nsN.x?.()`. Variables are always
-reachable under `vars`, lazy ones as getters.
+as bare names; a SCAD name that collides with one is still reachable under
+`$scad`, `fn` or `vars`.
 
 The third argument is `exports.$meta`, one entry per module, function and
 variable: `{ name, kind: 'module' | 'function' | 'variable', params?: [{ name,

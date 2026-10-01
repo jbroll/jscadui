@@ -54,5 +54,5 @@ export const metaEntries = (ctx: TranspileContext, exportNames: string[]): MetaE
 export const exportCleanLine = (ctx: TranspileContext, exportNames: string[], includeNamespaces: string[]): string => {
   const spreads = includeNamespaces.map((ns) => `...(${ns}.$meta ?? [])`)
   const literal = metaEntries(ctx, exportNames).map((e) => JSON.stringify(e))
-  return `j$.exportClean(exports, { ...exports }, [${[...spreads, ...literal].join(', ')}])`
+  return `j$.exportClean(exports, exports.$scad, [${[...spreads, ...literal].join(', ')}])`
 }

@@ -19,10 +19,11 @@ interface Loaded {
   twice: Call<number>
   half: Call<number>
   nut?: Call
-  washer_$m: unknown
-  area_$f: unknown
-  main: unknown
+  $scad: Record<string, unknown>
+  washer_$m?: unknown
+  main: Call
   M3_washer: unknown
+  layer_height: unknown
   other_d: unknown
   x: unknown
 }
@@ -75,16 +76,32 @@ describe('clean exports', () => {
     expect(j$.withScope({ $fn: 30 }, () => exports.vars.layer_height)).toBeCloseTo(3)
   })
 
+  it('exports a special-variable variable under its bare name as a getter', () => {
+    const { exports, j$ } = load({ '/main.scad': SRC })
+    expect(j$.withScope({ $fn: 30 }, () => exports.layer_height)).toBeCloseTo(3)
+  })
+
+  it('gives a name shared by a module and a variable to the module', () => {
+    const { exports } = load({ '/main.scad': 'module nut() cube(1);\nnut = 5;' })
+    expect(exports.nut?.()).toBeTruthy()
+    expect(exports.vars.nut).toBe(5)
+  })
+
+  // P transpiles F inside its include of X, so F inherits the variable as lazy and calls the forwarder.
+  const lazyChain = (name: string) => ({
+    '/L.scad': `${name} = $fn * 2;`,
+    '/U.scad': 'include <L.scad>\nmodule u() cube(1);',
+    '/F.scad': `use <U.scad>\nfunction g() = ${name};`,
+    '/X.scad': 'use <F.scad>\nx = g();',
+    '/P.scad': 'include <L.scad>\ninclude <X.scad>',
+  })
+
   it('keeps a lazy variable callable through a use forwarder', () => {
-    const files = {
-      '/L.scad': 'V = $fn * 2;',
-      '/U.scad': 'include <L.scad>\nmodule u() cube(1);',
-      '/F.scad': 'use <U.scad>\nfunction g() = V;',
-      // P transpiles F inside its include of X, so F inherits V as lazy and calls the forwarder.
-      '/X.scad': 'use <F.scad>\nx = g();',
-      '/P.scad': 'include <L.scad>\ninclude <X.scad>',
-    }
-    expect(load(files, '/P.scad').exports.x).toBe(0)
+    expect(load(lazyChain('V'), '/P.scad').exports.x).toBe(0)
+  })
+
+  it('keeps a lazy variable named like a reserved export callable through a use forwarder', () => {
+    expect(load(lazyChain('fn'), '/P.scad').exports.x).toBe(0)
   })
 
   it('calls a function by name', () => {
@@ -92,11 +109,29 @@ describe('clean exports', () => {
     expect(exports.area({ r: 1 })).toBeCloseTo(Math.PI)
   })
 
-  it('keeps the suffixed exports beside the clean ones', () => {
+  it('keeps the suffixed exports under $scad only', () => {
     const { exports } = load({ '/main.scad': SRC })
-    expect(typeof exports.washer_$m).toBe('function')
-    expect(typeof exports.area_$f).toBe('function')
+    expect(typeof exports.$scad.washer_$m).toBe('function')
+    expect(exports.washer_$m).toBeUndefined()
     expect(typeof exports.main).toBe('function')
+  })
+
+  it('forwards optimized-include calls through $scad', () => {
+    const files = {
+      '/pure.scad': 'module nut(d = 3) cylinder(d = d, h = 2); function half(x) = x / 2;',
+      '/main.scad': 'include <pure.scad>\nx = half(8);\nnut();',
+    }
+    const { exports } = load(files)
+    expect(exports.x).toBe(4)
+    expect(exports.main()).toBeTruthy()
+  })
+
+  it('forwards use calls through $scad', () => {
+    const files = {
+      '/pure.scad': 'function half(x) = x / 2;',
+      '/main.scad': 'use <pure.scad>\nx = half(8);',
+    }
+    expect(load(files).exports.x).toBe(4)
   })
 
   it('re-exports clean names through a bundled include', () => {

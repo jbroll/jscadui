@@ -15,7 +15,20 @@ and a third that can reach its `Asset_SCAD/` includes. Pointing CI at the
 
 Similarity threshold: **0.99** (Jaccard index on vertex-deduplicated STL meshes).
 
-## Latest GPU run: 2026-10-01, clean exports and `$meta`
+## Latest GPU run: 2026-10-01, suffixed exports under `$scad`
+
+Branch `parts-catalog` (uncommitted on top of `78084542`), simple-ci job
+`0712349f6ad87d8d` (`sci push jscadui/test`), OpenSCAD 2026.08.30.fp. All
+21 suites pass, counts unchanged (bosl2 174, openscad-tests 239). The parts
+catalog checks (`sci push jscadui/parts`, job `c3aca1e9de25af39`) pass all
+nine entries on the same tree.
+
+The suffixed names and raw variables move from `exports` to `exports.$scad`,
+and `use`/`include` forwarders call `_nsN.$scad?.x?.(...)`. `exportClean`
+reads `exports.$scad`, so bare clean names, lazy getters and clash priority
+apply without the transitional rule that kept raw bindings on `exports`.
+
+## Previous GPU run: 2026-10-01, clean exports and `$meta`
 
 Branch `parts-catalog` (uncommitted on top of `672ad3ef`), simple-ci job
 `4a89fb9ad242b09c` (`sci push jscadui/test`), OpenSCAD 2026.08.30.fp. All

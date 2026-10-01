@@ -55,12 +55,14 @@ A transpiled `.scad` file exposes a clean JS surface:
   in `.scad`. It returns the module's geometry.
 - A function `area(w, h)` becomes `area(w, h)`, or `area(w, { h })` with a
   trailing named object; `$` keys there set special variables for the call.
-- A variable is its value. One that reads a `$` special variable is a getter
-  on `exports.vars`, evaluated against the caller's current scope — read it
-  through `vars`, not as a bare name, if you need it to see your own `$fn` or
+- A variable is its value. One that reads a `$` special variable is a getter,
+  evaluated against the caller's current scope, so it sees your own `$fn` or
   similar.
 - `exports.fn` and `exports.vars` hold every function and variable the file
   declares, regardless of a bare-name clash with a module. `exports.$meta` has
   one entry per module, function and variable: `{ name, kind, params?, lazy? }`.
 - Reserved, never bound as a bare name: `main`, `getParameterDefinitions`,
   `fn`, `vars`, `$meta`, `$scad`.
+- `exports.$scad` holds the raw transpiled names (`washer_$m`, `area_$f`,
+  `area_$f$obj`, variables as values or `$`-reading thunks). Generated files
+  call each other through it; JS callers want the names above.

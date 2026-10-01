@@ -53,7 +53,7 @@ describe('undefined symbol handling — valid JS', () => {
 
   it('treats a name the exports list only mentions as declared', () => {
     const { code } = transpile(parse('function only(x) = x;').ast, { currentFile: '/e.scad' })
-    expect(code).toMatch(/Object\.assign\(exports, \{[^}]*only_\$f[^}]*\}\)/)
+    expect(code).toMatch(/Object\.assign\(exports, \{ \$scad: \{[^}]*only_\$f[^}]*\}/)
     expect(code).not.toMatch(/var only_\$f = \(\) =>/)
   })
 })
