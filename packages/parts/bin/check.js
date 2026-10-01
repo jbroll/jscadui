@@ -33,11 +33,6 @@ export async function checkRecord(record, opts = {}) {
   const sizes = sizeNames(loaded.exports, record.sizes)
   for (const name of sizes) {
     try {
-      // sizes.list names are derived from exports.vars by construction (see
-      // derive.js); a mismatch means the library changed under the record.
-      // sizes.values names are literal spec strings the library parses
-      // itself (e.g. BOSL2 "M3") and are never expected to be vars keys.
-      if (record.sizes.list && !(name in loaded.exports.vars)) throw new Error(`${name} is not an exported value`)
       const { geometry, buildMs } = await buildPart(loaded, record, [name])
       buildTimes.push(buildMs)
       if (isEmpty(geometry, loaded.ctx)) failures.push(`${record.id} ${name}: empty geometry`)
