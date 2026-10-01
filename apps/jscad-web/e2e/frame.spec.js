@@ -408,6 +408,36 @@ test('a project require of a .stl deserializes inside the frame', async ({ page 
   expect(vertexCount).toBeGreaterThan(0)
 })
 
+test('a project scad file includes a NopSCADlib nut from /libs/', async ({ page }) => {
+  await gotoHost(page)
+  const res = await load(page, {
+    entry: 'main.scad',
+    files: { 'main.scad': 'include <NopSCADlib/vitamins/nuts.scad>\nnut(M3_nut);\n' },
+  }, { timeoutMs: 120000 })
+  expect(res.ok).toBe(true)
+  const vertexCount = res.result.entities.reduce((n, e) => n + (e.vertices?.length ?? 0), 0)
+  expect(vertexCount).toBeGreaterThan(0)
+})
+
+// nuts.scad only `use`s nut.scad (not `include`), so its clean export does not
+// re-export `nut` (see "Clean exports" in packages/openscad/ARCHITECTURE.md);
+// a JS requirer has to reach nut.scad directly for the module.
+test('a project js file requires a NopSCADlib nut through its clean export', async ({ page }) => {
+  await gotoHost(page)
+  const res = await load(page, {
+    entry: 'main.js',
+    files: {
+      'main.js':
+        "const { nut } = require('NopSCADlib/vitamins/nut.scad')\n" +
+        "const { M3_nut } = require('NopSCADlib/vitamins/nuts.scad')\n" +
+        'module.exports = { main: () => nut(M3_nut) }\n',
+    },
+  }, { timeoutMs: 120000 })
+  expect(res.ok).toBe(true)
+  const vertexCount = res.result.entities.reduce((n, e) => n + (e.vertices?.length ?? 0), 0)
+  expect(vertexCount).toBeGreaterThan(0)
+})
+
 // The transpiler reports each resolved file's own path as fromFile, so an
 // include from a file two directories deep has to resolve against that file
 // rather than against the entry.

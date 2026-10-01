@@ -358,6 +358,13 @@ export class CacheManager {
   }
 
   /**
+   * Whether a resolved url falls under a deployed library's base.
+   */
+  isLibraryUrl(url: string): boolean {
+    return this.libraryPrefixes.some(([, base]) => url.startsWith(base))
+  }
+
+  /**
    * Clear file cache for specific files with dependency tracking
    */
   clearFileCache(files: string[], root?: string): void {

@@ -73,6 +73,16 @@ export class ModuleResolver {
     // Resolve using core logic
     const result = resolveUrlCore(mappedUrl, base, root, moduleBase)
 
+    // A deployed library's files are reachable two ways that must land in the
+    // same cache bucket: a bare 'Lib/...' specifier (resolved above, parsed as
+    // an http: url below so isRelativeFile comes back false) and the
+    // transpiler's own absolute '/libs/Lib/...' `use` requires (isRelativeFile
+    // true, from the leading slash). Left to disagree, a module reachable both
+    // ways (NopSCADlib's mutual nut.scad/screw.scad `use`) loads twice and the
+    // second load's re-entrant require sees no pending placeholder, tripping
+    // the circular-dependency guard instead of returning it.
+    if (cacheManager.isLibraryUrl(result.url)) result.isRelativeFile = false
+
     // Cache the result for future lookups
     this.cacheResolution(cacheKey, result)
 

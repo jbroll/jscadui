@@ -3,7 +3,8 @@
 This is the JSCAD web application hosted at https://jscad.rkroll.com
 
 How the page, the compute frame, the API and storage fit together:
-[docs/architecture.md](docs/architecture.md).
+[docs/architecture.md](docs/architecture.md). Writing models, including
+against the deployed OpenSCAD libraries: [docs/user-manual.md](docs/user-manual.md).
 
 If you want to discuss jscad or jscadui, please join us on discord: https://discord.gg/6PB7qZ4HC7
 

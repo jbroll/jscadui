@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 
 import { require as jscadRequire, clearAllCaches } from '../src/require.js'
+import { setLibraryPrefixes } from '../src/resolution/moduleResolver.js'
 
 const base = 'fs:/'
 
@@ -62,5 +63,36 @@ describe('circular require', () => {
     expect(second.attempt).toBe(2)
     expect(attempts).toBe(2)
     delete globalThis.__attempts
+  })
+})
+
+describe('circular require across a library prefix', () => {
+  // A project file reaches a deployed library module by its bare specifier
+  // (library-prefix resolution); the transpiler's own `use` requires inside
+  // that module reach a sibling module by its absolute '/libs/...' path
+  // (NopSCADlib's mutual nut.scad/screw.scad `use`). Both forms must land in
+  // the same cache bucket, or the second path's re-entrant require sees no
+  // pending placeholder and throws instead of resolving the cycle.
+  const root = 'http://project.local/'
+  const files = {
+    'a.js': `
+      const b = require('/libs/Lib/b.js')
+      exports.name = 'a'
+      exports.callB = () => b.name
+    `,
+    'b.js': `
+      const a = require('/libs/Lib/a.js')
+      exports.name = 'b'
+      exports.callA = () => a.name
+    `,
+  }
+
+  beforeEach(() => setLibraryPrefixes({ 'Lib/': 'http://project.local/libs/Lib/' }))
+  afterEach(() => setLibraryPrefixes({}))
+
+  it('resolves the cycle instead of throwing', () => {
+    const a = jscadRequire('Lib/a.js', null, readerFor(files), 'http://project.local/main.js', root)
+    expect(a.name).toBe('a')
+    expect(a.callB()).toBe('b')
   })
 })

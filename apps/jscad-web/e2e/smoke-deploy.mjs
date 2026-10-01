@@ -100,6 +100,8 @@ try {
     ['/examples/openscad/01-basics/cube.scad', 'cube.scad', 30000],
     ['/examples/openscad/mcad/examples/hardware_test.scad', 'hardware_test.scad (include resolution)', 30000],
     ['/examples/openscad/01-basics/ALL.js', '01-basics/ALL.js (grid)', 90000],
+    ['/examples/parts/nut.scad', 'parts/nut.scad (NopSCADlib include from /libs/)', 30000],
+    ['/examples/parts/nut.js', 'parts/nut.js (NopSCADlib require from /libs/)', 30000],
   ]) {
     const ctx = await browser.newContext()
     const pg = await ctx.newPage()
