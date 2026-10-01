@@ -9,6 +9,27 @@ finishes — CommonJS semantics. The OpenSCAD transpiler depends on this: two
 the top level and read the namespace lazily.
 
 
+## Library prefixes
+
+`setLibraryPrefixes({ 'NopSCADlib/': 'https://app.example/libs/NopSCADlib/' })`
+maps a bare specifier that starts with a prefix to that base URL, longest
+prefix first, after exact and bundle aliases miss: `require('NopSCADlib/vitamins/nut.scad')`
+loads `https://app.example/libs/NopSCADlib/vitamins/nut.scad`. The compute
+frame sets it from the app's deployed library list
+(`apps/jscad-web/src_frame/bundle.frame-worker.js`); the agent-loop eval
+backend sets it from `apps/jscad-web/libs/` on disk. Like the bundle aliases,
+the map is configuration: `clearTempCache` and `clearAllCaches` leave it in
+place. Setting it clears the memoized resolutions made under the old map.
+
+A module whose URL falls under a library base is cached apart from the
+50-entry module LRU, in a cache with no size limit that `clearTempCache`
+leaves alone; only `clearAllCaches` empties it. Library files change only on
+a redeploy, so nothing goes stale between runs, and a NopSCADlib or BOSL2
+`use` graph holds more files than the LRU does. Evicting a file still
+mid-load would lose its partial exports, and the next require of it in the
+cycle would throw a circular-dependency error.
+
+
 ## Wrapped modules for model code
 
 `setUserModuleWrapper(fn)` registers `fn(name, exports)`, called when a

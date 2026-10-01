@@ -150,8 +150,9 @@ When a module, function and variable share a name, the bare name is the
 module, then the function, then the variable. `exports.fn` and `exports.vars`
 hold every function and variable whatever the clash. `main`,
 `getParameterDefinitions`, `fn`, `vars`, `$meta` and `$scad` are never bound
-as bare names; a SCAD name that collides with one is still reachable under
-`$scad`, `fn` or `vars`.
+as bare names. A SCAD function or variable that collides with one is still
+reachable under `fn` or `vars`; a module only as its raw curried `<name>_$m`
+under `$scad`.
 
 The third argument is `exports.$meta`, one entry per module, function and
 variable: `{ name, kind: 'module' | 'function' | 'variable', params?: [{ name,

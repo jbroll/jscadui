@@ -13,10 +13,8 @@ import { resolveUrl as resolveUrlCore, MODULE_BASE } from '../resolveUrl.js'
 import { cacheManager } from '../caching/cacheManager.js'
 
 /**
- * Map bare specifiers under a deployed library name to its base URL, e.g.
- * { 'NopSCADlib/': 'https://app/libs/NopSCADlib/' }. Configuration, so it
- * survives clearAllCaches the same way bundle aliases do.
- * @param {Record<string, string>} map
+ * Map bare specifiers under a deployed library name to its base URL (README, "Library prefixes").
+ * @param {Record<string, string>} map e.g. { 'NopSCADlib/': 'https://app/libs/NopSCADlib/' }
  */
 export const setLibraryPrefixes = (map) => {
   cacheManager.setLibraryPrefixes(map)

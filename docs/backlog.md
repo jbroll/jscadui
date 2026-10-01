@@ -571,26 +571,35 @@ rails, extrusions, springs, and threadlib threads.
   record uses its own library's call and size scheme (`nut(M3_nut)` vs.
   `nut("M3")`); a facade that gives every family one call shape, built over
   the preferred entries, is out of scope for now.
-- **Per-record sweep arguments.** `sizes` sweeps every listed size with the
-  same fixed non-swept arguments, so a check only measures what it varies:
-  BOSL2 `screw` sweeps `"M2,10"` .. `"M8,10"`, all at a fixed 10 mm length,
-  so the length dimension is never swept across sizes; NopSCADlib `screw`
-  sweeps head sizes only, with length fixed by the `example`. A record-level
-  way to sweep a second axis (length, say) would catch a bug that only shows
-  at a different length.
+- **A second sweep axis.** The size sweep builds every listed size with the
+  same fixed arguments after it (`insertArgs`), so a length never varies:
+  BOSL2 `screw` sweeps `"M2,10"` .. `"M8,10"` and NopSCADlib `screw` sweeps
+  its seven cap screws, all at 10 mm. A record-level way to sweep a second
+  axis (length, say) would catch a bug that only shows at a different
+  length.
 - **`_$f$obj` destructures a renamed self-referencing parameter key.** A
   function whose parameter shadows an outer name with the same default
   (`function f(screw = screw, k = 1) = …`) renames the destructured binding
   to avoid the collision but keeps the original key. A named call against
   that key, `f({screw: 5})`, is read back under the old key and the argument
-  is silently ignored. Found while building the parts catalog's clean exports
-  (`packages/openscad/src/transpiler/cleanExports.ts`,
-  `buildDestructurePattern` in `statements.ts`); no catalog entry hits it
-  today.
+  is silently ignored (`buildDestructurePattern` in
+  `packages/openscad/src/transpiler/statements.ts`). No catalog entry hits
+  it.
 - **`exports.$meta` default text keeps inline comments.** A default written
   as `h = 2 /* layer_height */` is reported in `$meta` with the comment still
   in its `default` text, since `defaultText` (`cleanExports.ts`) slices raw
   source between tokens rather than stripping comments.
+- **`defaultText` returns `undefined` when a parameter's span has no file**
+  (`cleanExports.ts`), so `$meta` drops that default.
+- **Inserting a second library's part of the same name.** Insert adds a
+  second `const { nut } = require(...)` when the file already binds `nut`
+  from another library, a SyntaxError; detect the existing binding and alias
+  the new one.
+- **An entry view opened before the editor is ready** keeps Insert disabled
+  for as long as it stays open.
+- **The parts eval fixtures' probes are bounding-box relative.**
+  `nema17-mount` checks for a centre hole at least 22 mm wide, not that it
+  sits centred among the four screw holes.
 
 ## Refactoring
 

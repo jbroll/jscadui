@@ -18,6 +18,8 @@ Join us on Discord: https://discord.gg/6PB7qZ4HC7
 - [@jscadui/postmessage](./packages/postmessage) - postMessage utilities
 - [@jscadui/worker](./packages/worker) - Web worker that runs JSCAD model scripts
 
+How the packages fit together: [docs/architecture.md](docs/architecture.md).
+
 # jscad.app
 
 [apps/jscad-web](apps/jscad-web) powers [jscad.rkroll.com](https://jscad.rkroll.com), an improved version of [openjscad.xyz](https://openjscad.xyz).

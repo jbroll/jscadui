@@ -191,9 +191,7 @@ export class CacheManager {
   // Module cache with O(1) LRU eviction
   private moduleCache = new LRUCache(MAX_MODULE_CACHE_SIZE)
 
-  // Deployed library files: unbounded, and not cleared by clearTempCache.
-  // The LRU above would evict one still mid-load on a big `use` graph
-  // (NopSCADlib has ~100 files), reviving the circular-dependency throw.
+  // Unbounded and kept by clearTempCache: a library's `use` graph outgrows the LRU (README, "Library prefixes").
   private libraryCache: Record<string, unknown> = Object.create(null)
 
   // Dependency tracking: which modules depend on which
@@ -206,9 +204,7 @@ export class CacheManager {
   private aliases: Record<string, string> = Object.create(null)
   private bundleAliases: Record<string, string> = Object.create(null)
 
-  // Deployed-library prefixes ('NopSCADlib/' -> base URL), longest first.
-  // Configuration like bundleAliases: left untouched by clearTempCache/
-  // clearAllCaches so a frame's library wiring survives a project reset.
+  // Configuration like bundleAliases, so neither clear touches it.
   private libraryPrefixes: Array<[string, string]> = []
 
   /**
