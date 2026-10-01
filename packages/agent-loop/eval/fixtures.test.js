@@ -4,6 +4,7 @@ import { createRequire } from 'node:module'
 import { check, measure } from '@jscadui/model-tools'
 import { APIS } from '../src/api.js'
 import { TOOLS } from '../src/tools.js'
+import { runProbe } from './probe.js'
 import { loadFixtures } from './run-eval.js'
 
 const names = new Set(TOOLS.map((t) => t.name))
@@ -284,5 +285,79 @@ describe('CSG fixture reference models', () => {
     expect(check([inverted]).watertight).toBe(false)
     expect(check([inverted]).insideOut).toBe(true)
     expect(passes(name, inverted)).toBe(false)
+  })
+
+  // A 50 x 50 x 4mm plate with four M3 clearance holes on a square pitch and
+  // a centre hole for the stepper's boss. `require` imitates _catalog/ shim
+  // style; `vitamins/stepper_motor.scad` is the catalog's actual call file.
+  const STEPPER_REQUIRE = `const { NEMA, NEMA17_40 } = require('_catalog/NopSCADlib/vitamins/stepper_motor.scad')\n`
+  const NO_PARTS_REQUIRE = `const main = () => {}\n`
+
+  function nemaPlate({ pitch = 31, holes = true } = {}) {
+    const plate = p.cuboid({ size: [50, 50, 4] })
+    if (!holes) return plate
+    const half = pitch / 2
+    const corner = p.cylinder({ radius: 1.7, height: 10, segments: 64 })
+    const corners = [[half, half], [half, -half], [-half, half], [-half, -half]].map(([x, y]) =>
+      transforms.translate([x, y, 0], corner),
+    )
+    const centre = p.cylinder({ radius: 12, height: 10, segments: 64 })
+    return booleans.subtract(plate, booleans.union(...corners, centre))
+  }
+
+  it('nema17-mount passes a 50x50x4 plate with M3 holes on a 31mm square and a centre hole', () => {
+    const shape = nemaPlate()
+    const probe = runProbe(shape, byName['nema17-mount'].probe)
+    const results = byName['nema17-mount'].checks(measure([shape], {}), ctx(shape, { source: STEPPER_REQUIRE, probe }))
+    expect(results.every((c) => c.pass)).toBe(true)
+  })
+
+  it('nema17-mount fails a 30mm hole pitch', () => {
+    const shape = nemaPlate({ pitch: 30 })
+    const probe = runProbe(shape, byName['nema17-mount'].probe)
+    const results = byName['nema17-mount'].checks(measure([shape], {}), ctx(shape, { source: STEPPER_REQUIRE, probe }))
+    expect(results.every((c) => c.pass)).toBe(false)
+    expect(results.find((c) => c.name === 'four M3 holes on a 31mm square').pass).toBe(false)
+  })
+
+  it('nema17-mount fails a solid plate with no catalog require', () => {
+    const shape = nemaPlate({ holes: false })
+    const probe = runProbe(shape, byName['nema17-mount'].probe)
+    const results = byName['nema17-mount'].checks(measure([shape], {}), ctx(shape, { source: NO_PARTS_REQUIRE, probe }))
+    expect(results.every((c) => c.pass)).toBe(false)
+    expect(results.find((c) => c.name === 'requires a catalog stepper').pass).toBe(false)
+    expect(results.find((c) => c.name === 'four M3 holes on a 31mm square').pass).toBe(false)
+  })
+
+  // A ring (annulus) stands in for a bearing holder: the checks only read the bore.
+  const BEARING_REQUIRE = `const { ball_bearing, BB608 } = require('_catalog/NopSCADlib/vitamins/ball_bearing.scad')\n`
+
+  function bearingRing(bore) {
+    const outer = p.cylinder({ radius: 14, height: 8, segments: 64 })
+    const hole = p.cylinder({ radius: bore / 2, height: 12, segments: 64 })
+    return booleans.subtract(outer, hole)
+  }
+
+  it('bearing-holder-608 passes a ring with a 22.2mm bore', () => {
+    const shape = bearingRing(22.2)
+    const probe = runProbe(shape, byName['bearing-holder-608'].probe)
+    const results = byName['bearing-holder-608'].checks(measure([shape], {}), ctx(shape, { source: BEARING_REQUIRE, probe }))
+    expect(results.every((c) => c.pass)).toBe(true)
+  })
+
+  it('bearing-holder-608 fails a 20mm bore', () => {
+    const shape = bearingRing(20)
+    const probe = runProbe(shape, byName['bearing-holder-608'].probe)
+    const results = byName['bearing-holder-608'].checks(measure([shape], {}), ctx(shape, { source: BEARING_REQUIRE, probe }))
+    expect(results.every((c) => c.pass)).toBe(false)
+    expect(results.find((c) => c.name === 'a 22mm bearing bore').pass).toBe(false)
+  })
+
+  it('bearing-holder-608 fails without a catalog require', () => {
+    const shape = bearingRing(22.2)
+    const probe = runProbe(shape, byName['bearing-holder-608'].probe)
+    const results = byName['bearing-holder-608'].checks(measure([shape], {}), ctx(shape, { source: NO_PARTS_REQUIRE, probe }))
+    expect(results.every((c) => c.pass)).toBe(false)
+    expect(results.find((c) => c.name === 'requires a catalog ball bearing').pass).toBe(false)
   })
 })
