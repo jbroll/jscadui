@@ -243,6 +243,32 @@ grading changed, a file failed to regrade, or `regrade-input/` was empty.
 Empty or remove `regrade-input/` once you're done with it; `regrade-output/`
 is gitignored.
 
+## Regrade check (complex) (`ci/regrade-complex`)
+
+Recalibrates a complex pass: copy the complex result files you want
+recalibrated into `regrade-input/`, and a reviewed label set as
+`regrade-input/labels.json`
+(`packages/agent-loop/docs/user-manual.md`, Grader agreement) if you want
+agreement checked, then:
+
+```sh
+sci push jscadui/regrade-complex
+```
+
+copies each result file (not its `.renders/` directory, which the host makes
+again) into `regrade-output/`, leaving `regrade-input/` untouched, after the
+same sandbox and describer checks as `ci/eval-complex`
+(`scripts/eval-sandbox-setup.sh --check`, `scripts/describer-setup.sh
+--check`) and installing Playwright's chromium. It then runs `npm run
+describe -- --rerender --all` on the copies (rebuilds and renders every
+rendered or stale run, then describes every run), `npm run judge -- --all`,
+and, when `regrade-input/labels.json` is present, `eval/grader-agreement.js`
+against the copies. It exits non-zero when a build, either check, the
+describe stage or the judge stage fails, or `regrade-input/` held no complex
+result files; the judge is skipped when describe exits 2 (a stop, same as
+`ci/eval-complex`). Fetch `regrade-output/` within `CI_WORKTREE_TTL` of the
+job ending.
+
 ## gpu-poll
 
 The GPU host polls GitHub (outbound HTTPS only; no runner, no inbound ports).

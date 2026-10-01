@@ -258,7 +258,7 @@ const main = async (argv, env) => {
   try {
     if (argv.includes('--rerender')) {
       const { rerenderFiles } = await import('./rerender.js')
-      console.log(`describe: rendered ${await rerenderFiles(paths, env)} runs again`)
+      console.log(`describe: rendered ${await rerenderFiles(paths, env, { all: argv.includes('--all') })} runs again`)
     }
     const outcome = await runDescribe(paths, { all: argv.includes('--all'), env })
     console.log(`describe: ${outcome.described} described, ${outcome.failed} failed`)

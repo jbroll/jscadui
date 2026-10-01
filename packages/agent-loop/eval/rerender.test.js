@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createEvalBackend } from './backend.js'
 import { summarize } from './report.js'
-import { rerenderedCount, rerenderFile } from './rerender.js'
+import { needsRerender, rerenderedCount, rerenderFile } from './rerender.js'
 import { VIEWS } from './views.js'
 
 const CUBE = 'const jf = require("@jbroll/jscad-fluent")\nmodule.exports = { main: () => [jf.cube({ size: 20 })] }'
@@ -68,5 +68,18 @@ describe('rerenderFile', () => {
     expect(out.results[1].verdictPending).toBeUndefined()
     expect(rerenderedCount(file, out)).toBe(1)
     expect(out.summary).toEqual(summarize(out.results))
+  })
+
+  it('leaves an already-rendered run alone by default, and renders it again with all', async () => {
+    const good = { ...stale, run: 2, renderStale: undefined, render: { meshSha256: 'old', facts: { dimensions: [20, 20, 20], bodies: 1 }, views: [{ name: 'iso-front', path: 'old.png', sha256: 'd'.repeat(64) }] } }
+    expect(needsRerender(good)).toBe(false)
+    expect(needsRerender(good, { all: true })).toBe(true)
+    const r = renderer()
+    const file = { suite: 'complex', api: 'fluent', results: [stale, good] }
+    const out = await rerenderFile(file, { grader: createEvalBackend(), renderer: r, fixturesByName: new Map([['cube', fixture]]) }, { all: true })
+    expect(r.calls).toEqual([{ fixture: 'cube', run: 1 }, { fixture: 'cube', run: 2 }])
+    expect(out.results[1].render.meshSha256).not.toBe('old')
+    expect(rerenderedCount(file, out, { all: true })).toBe(2)
+    expect(rerenderedCount(file, out)).toBe(1)
   })
 })

@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+# Recalibrates a complex pass: copies every complex result file from
+# regrade-input/ into regrade-output/ (untracked; copy result files, and
+# labels.json for grader-agreement, there before pushing — regrade-input/
+# itself is never touched), re-renders every rendered or stale run,
+# re-describes and re-judges it, then compares verdicts against
+# regrade-input/labels.json when that file is present.
+#
+#   sci push jscadui/regrade-complex
+#
+# Exits non-zero when a build, the sandbox or describer check, the describe
+# stage or the judge stage fails, or regrade-input/ held no complex result
+# files. The judge is skipped when describe exits 2 (a stop the judge must
+# not run after; docs/user-manual.md, Describe and judge).
+set -uo pipefail
+
+WORKTREE="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$WORKTREE"
+
+# shellcheck source=ci/lib/bootstrap.sh
+. "$WORKTREE/ci/lib/bootstrap.sh"
+bootstrap sources install workspace || exit 1
+
+# Model code runs only in the crt sandbox (ci/README.md, host setup), and
+# the describer and chromium must be ready before any provider call.
+export EVAL_REQUIRE_MEMORY_LIMIT=1
+if ! scripts/eval-sandbox-setup.sh --check; then
+  echo "ci/regrade-complex: the eval sandbox is not set up on this host; see ci/README.md (Live model eval, host setup)" >&2
+  exit 1
+fi
+if ! scripts/describer-setup.sh --check; then
+  echo "ci/regrade-complex: the describer is not set up on this host; see ci/README.md (Describer)" >&2
+  exit 1
+fi
+( cd apps/jscad-web && npx playwright install chromium ) || exit 1
+
+INPUT_DIR="$WORKTREE/regrade-input"
+OUTPUT_DIR="$WORKTREE/regrade-output"
+mkdir -p "$OUTPUT_DIR" || { echo "ci/regrade-complex: could not create $OUTPUT_DIR" >&2; exit 1; }
+
+shopt -s nullglob
+files=()
+for f in "$INPUT_DIR"/*.json; do
+  [ "$(basename "$f")" = labels.json ] && continue
+  files+=("$f")
+done
+
+if [ ${#files[@]} -eq 0 ]; then
+  echo "ci/regrade-complex: no complex result files in regrade-input/" >&2
+  exit 1
+fi
+
+status=0
+copies=()
+for original in "${files[@]}"; do
+  name="$(basename "$original")"
+  copy="$OUTPUT_DIR/$name"
+  if cp "$original" "$copy"; then
+    copies+=("$copy")
+  else
+    echo "ci/regrade-complex: $name — could not copy to $OUTPUT_DIR" >&2
+    status=1
+  fi
+done
+
+if [ ${#copies[@]} -eq 0 ]; then
+  exit 1
+fi
+
+npm run describe -w @jscadui/agent-loop -- --rerender --all "${copies[@]}"
+described=$?
+# 2 is a stop (GPU short, a describer crash, a refused connection): the judge must not run.
+if [ "$described" -eq 2 ]; then
+  echo "ci/regrade-complex: the describe stage stopped; the judge did not run" >&2
+  exit 1
+fi
+[ "$described" -eq 0 ] || status=1
+
+npm run judge -w @jscadui/agent-loop -- --all "${copies[@]}" || status=1
+
+LABELS="$INPUT_DIR/labels.json"
+if [ -f "$LABELS" ]; then
+  node packages/agent-loop/eval/grader-agreement.js "$LABELS" "${copies[@]}" || status=1
+fi
+
+exit "$status"

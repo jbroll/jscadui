@@ -1001,8 +1001,11 @@ describer refuses every outside connection. `--all` describes every rendered
 run again and clears its votes and verdict, so run the judge on the same
 files after it. `--rerender` first builds and renders again each run
 `--regrade` marked `renderStale`, which needs the crt sandbox and chromium as
-`run-eval` does. The describer never sees the prompt, the transcript, the
-source, file names or parameter names, since any of them can name the object.
+`run-eval` does. `--rerender --all` together build and render again every
+rendered or stale run, not only the stale ones, then (with `--all`) describe
+every run; used to recalibrate a whole pass (`ci/README.md`, Regrade check
+(complex)). The describer never sees the prompt, the transcript, the source,
+file names or parameter names, since any of them can name the object.
 
 It exits 0 when every pending run was described, and 1 when it finished but
 a view failed; the judge can run after either. It exits 2 when it stopped in
@@ -1060,6 +1063,23 @@ never sees the assistant's text, tool calls, source or renders: a model that
 writes "here is your caboose" over a box gains nothing. It exits 1 when it
 cannot run (no `opencode-go` key, a file it cannot read) and 0 otherwise; a
 run with no majority is a `graderError`, not a failed stage.
+
+### Grader agreement
+
+```bash
+node eval/grader-agreement.js <labels.json> <result files…>
+```
+
+Checks the judge's verdicts against a reviewed label set:
+`[{ file, fixture, run, expected: 'success' | 'failure', note }]`, `file` the
+result file's name (not a path), `run` the run number. For each label it
+finds the matching file and run among the given result files, prints its
+verdict and whether it agrees with `expected`, or why it has none (no
+majority, not described, not rendered, `renderStale`, or the file or run was
+missing); a missing file or run is reported, never a crash. It then prints
+the agreement as `agree/labelled` and lists the disagreements. Always exits
+0: it is a report, not a gate. `graderAgreement` is exported for tests and
+other callers.
 
 ### Grader validation
 
