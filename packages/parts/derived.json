@@ -74,10 +74,10 @@
         }
       ]
     },
-    "transpileMs": 613.502956,
+    "transpileMs": 2356.0282549999997,
     "buildMs": {
-      "max": 184.61208699999997,
-      "mean": 25.730308900000022
+      "max": 386.7455749999999,
+      "mean": 50.220683999999935
     }
   },
   "bosl2/nema_stepper_motor": {
@@ -142,10 +142,10 @@
         }
       ]
     },
-    "transpileMs": 509.220421,
+    "transpileMs": 686.2230209999998,
     "buildMs": {
-      "max": 23.792997000000014,
-      "mean": 13.322561222222198
+      "max": 40.17196199999944,
+      "mean": 22.281217666666535
     }
   },
   "bosl2/nut": {
@@ -245,10 +245,10 @@
         }
       ]
     },
-    "transpileMs": 512.9951420000002,
+    "transpileMs": 783.2049390000002,
     "buildMs": {
-      "max": 26.71585399999958,
-      "mean": 12.056375999999943
+      "max": 40.99190499999986,
+      "mean": 19.145184749999885
     }
   },
   "bosl2/screw": {
@@ -379,10 +379,10 @@
         }
       ]
     },
-    "transpileMs": 501.4551269999997,
+    "transpileMs": 708.1185809999997,
     "buildMs": {
-      "max": 94.38543600000003,
-      "mean": 20.590717000000154
+      "max": 147.19913300000007,
+      "mean": 31.065715875000024
     }
   },
   "nopscadlib/ball_bearing": {
@@ -430,10 +430,54 @@
         }
       ]
     },
-    "transpileMs": 15.751348999999664,
+    "transpileMs": 20.337422999999944,
     "buildMs": {
-      "max": 39.05839300000025,
-      "mean": 9.484274000000015
+      "max": 54.607608000000255,
+      "mean": 13.833009611111265
+    }
+  },
+  "nopscadlib/battery": {
+    "id": "nopscadlib/battery",
+    "ok": true,
+    "failures": [],
+    "measured": [
+      {
+        "args": [
+          "S25R18650",
+          {
+            "$fn": 72
+          }
+        ],
+        "size": [
+          18.312619601386064,
+          18.3,
+          65.015625
+        ]
+      }
+    ],
+    "sizes": [
+      "AAACELL",
+      "AACELL",
+      "CCELL",
+      "DCELL",
+      "LUMINTOP",
+      "S25R18650",
+      "A23CELL",
+      "LI4680",
+      "LI32700",
+      "LI16340"
+    ],
+    "signature": {
+      "params": [
+        {
+          "name": "type"
+        }
+      ]
+    },
+    "transpileMs": 34.47814800000015,
+    "buildMs": {
+      "max": 215.40158599999995,
+      "mean": 103.71188563636365
     }
   },
   "nopscadlib/bearing_block": {
@@ -470,10 +514,10 @@
         }
       ]
     },
-    "transpileMs": 72.35793300000023,
+    "transpileMs": 298.00416700000005,
     "buildMs": {
-      "max": 82.31656699999985,
-      "mean": 61.983376199999974
+      "max": 320.617338,
+      "mean": 248.0202687000001
     }
   },
   "nopscadlib/blower": {
@@ -515,10 +559,61 @@
         }
       ]
     },
-    "transpileMs": 47.66548200000034,
+    "transpileMs": 88.04120000000148,
     "buildMs": {
-      "max": 128.94278599999961,
-      "mean": 91.47815666666641
+      "max": 204.50934899999993,
+      "mean": 139.41857683333365
+    }
+  },
+  "nopscadlib/circlip": {
+    "id": "nopscadlib/circlip",
+    "ok": true,
+    "failures": [],
+    "measured": [
+      {
+        "args": [
+          "circlip_12i"
+        ],
+        "size": [
+          12.49791544,
+          12.16143657,
+          1
+        ]
+      },
+      {
+        "args": [
+          "circlip_28i"
+        ],
+        "size": [
+          29.396928040000002,
+          28.40443029,
+          1.2
+        ]
+      }
+    ],
+    "sizes": [
+      "circlip_12i",
+      "circlip_15i",
+      "circlip_19i",
+      "circlip_21i",
+      "circlip_28i",
+      "circlip_28iw"
+    ],
+    "signature": {
+      "params": [
+        {
+          "name": "type"
+        },
+        {
+          "name": "open",
+          "default": "0"
+        }
+      ]
+    },
+    "transpileMs": 24.51280399999996,
+    "buildMs": {
+      "max": 4.807053000000451,
+      "mean": 3.7591457499997887
     }
   },
   "nopscadlib/extrusion": {
@@ -582,10 +677,10 @@
         }
       ]
     },
-    "transpileMs": 11.002043999999842,
+    "transpileMs": 17.340549000000465,
     "buildMs": {
-      "max": 3.9849429999994754,
-      "mean": 1.9073084666664726
+      "max": 4.488240000000587,
+      "mean": 2.79257200000017
     }
   },
   "nopscadlib/fan": {
@@ -634,10 +729,62 @@
         }
       ]
     },
-    "transpileMs": 42.20895300000029,
+    "transpileMs": 68.35533700000087,
     "buildMs": {
-      "max": 59.091715999999906,
-      "mean": 32.571187076923145
+      "max": 97.67950100000053,
+      "mean": 47.98580669230768
+    }
+  },
+  "nopscadlib/green_terminal": {
+    "id": "nopscadlib/green_terminal",
+    "ok": true,
+    "failures": [],
+    "measured": [
+      {
+        "args": [
+          "gt_5p08",
+          2,
+          {
+            "$fn": 72
+          }
+        ],
+        "size": [
+          7.9000000059604645,
+          10.16,
+          13.3
+        ]
+      }
+    ],
+    "sizes": [
+      "gt_2p54",
+      "gt_3p5",
+      "gt_5p08",
+      "gt_6p35",
+      "gt_5x11",
+      "gt_5x17"
+    ],
+    "signature": {
+      "params": [
+        {
+          "name": "type"
+        },
+        {
+          "name": "ways"
+        },
+        {
+          "name": "skip",
+          "default": "[]"
+        },
+        {
+          "name": "colour",
+          "default": "\"lime\""
+        }
+      ]
+    },
+    "transpileMs": 18.96437100000003,
+    "buildMs": {
+      "max": 42.75486799999999,
+      "mean": 28.40137799999996
     }
   },
   "nopscadlib/heat_set_insert": {
@@ -683,10 +830,10 @@
         }
       ]
     },
-    "transpileMs": 22.22363900000073,
+    "transpileMs": 31.834623000000647,
     "buildMs": {
-      "max": 1.4782600000007733,
-      "mean": 0.850730399999884
+      "max": 1.920509999999922,
+      "mean": 1.1401278000001185
     }
   },
   "nopscadlib/lead_nut": {
@@ -733,10 +880,10 @@
         }
       ]
     },
-    "transpileMs": 40.31297600000016,
+    "transpileMs": 58.70087699999931,
     "buildMs": {
-      "max": 2.7433230000006006,
-      "mean": 2.151229600000079
+      "max": 3.6142389999986335,
+      "mean": 3.0128427999996346
     }
   },
   "nopscadlib/lead_screw": {
@@ -784,10 +931,61 @@
         }
       ]
     },
-    "transpileMs": 18.057498000000123,
+    "transpileMs": 29.272446999999374,
     "buildMs": {
-      "max": 1.017322000000604,
-      "mean": 0.8065050000004703
+      "max": 1.553393000000142,
+      "mean": 1.2201814999998533
+    }
+  },
+  "nopscadlib/led": {
+    "id": "nopscadlib/led",
+    "ok": true,
+    "failures": [],
+    "measured": [
+      {
+        "args": [
+          "LED3mm",
+          {
+            "$fn": 72
+          }
+        ],
+        "size": [
+          3.0828125029802322,
+          3.1500000059604645,
+          9.6
+        ]
+      }
+    ],
+    "sizes": [
+      "LED3mm",
+      "LED5mm",
+      "LED8mm",
+      "LED10mm",
+      "LED5x2mm"
+    ],
+    "signature": {
+      "params": [
+        {
+          "name": "type"
+        },
+        {
+          "name": "colour",
+          "default": "\"red\""
+        },
+        {
+          "name": "lead",
+          "default": "5"
+        },
+        {
+          "name": "right_angle",
+          "default": "0"
+        }
+      ]
+    },
+    "transpileMs": 15.76333700000032,
+    "buildMs": {
+      "max": 10.694516999999905,
+      "mean": 6.3077949999997145
     }
   },
   "nopscadlib/linear_bearing": {
@@ -834,10 +1032,10 @@
         }
       ]
     },
-    "transpileMs": 14.56250799999998,
+    "transpileMs": 16.80099700000028,
     "buildMs": {
-      "max": 20.230100000000675,
-      "mean": 12.857327529411764
+      "max": 30.1164579999986,
+      "mean": 19.270243470587957
     }
   },
   "nopscadlib/linear_rail": {
@@ -885,10 +1083,10 @@
         }
       ]
     },
-    "transpileMs": 45.60408800000005,
+    "transpileMs": 66.31784100000004,
     "buildMs": {
-      "max": 2.9416210000008505,
-      "mean": 2.0866846666666685
+      "max": 4.429770999999164,
+      "mean": 3.051713999999669
     }
   },
   "nopscadlib/magnet": {
@@ -923,10 +1121,10 @@
         }
       ]
     },
-    "transpileMs": 11.084318000000167,
+    "transpileMs": 13.057186000000002,
     "buildMs": {
-      "max": 5.829883999999765,
-      "mean": 1.9149040000000241
+      "max": 8.30685899999844,
+      "mean": 2.784625999999844
     }
   },
   "nopscadlib/microswitch": {
@@ -957,10 +1155,10 @@
         }
       ]
     },
-    "transpileMs": 39.37624400000004,
+    "transpileMs": 72.18269400000099,
     "buildMs": {
-      "max": 1.9115460000002713,
-      "mean": 1.4284069999998792
+      "max": 2.8141019999984564,
+      "mean": 2.1066619999996874
     }
   },
   "nopscadlib/nema": {
@@ -1006,10 +1204,10 @@
         }
       ]
     },
-    "transpileMs": 55.89794600000005,
+    "transpileMs": 78.00134000000071,
     "buildMs": {
-      "max": 61.508232000000135,
-      "mean": 38.75067090909099
+      "max": 212.66967699999805,
+      "mean": 98.59835545454503
     }
   },
   "nopscadlib/nut": {
@@ -1060,10 +1258,10 @@
         }
       ]
     },
-    "transpileMs": 36.115718999999444,
+    "transpileMs": 130.8477039999998,
     "buildMs": {
-      "max": 1.4314019999992524,
-      "mean": 0.699801374999879
+      "max": 5.154404000000795,
+      "mean": 2.8469078750003973
     }
   },
   "nopscadlib/pillow_block": {
@@ -1095,10 +1293,61 @@
         }
       ]
     },
-    "transpileMs": 44.72462199999973,
+    "transpileMs": 169.96017199999915,
     "buildMs": {
-      "max": 33.1479989999998,
-      "mean": 23.99357880000007
+      "max": 123.58917599999768,
+      "mean": 92.3603725999994
+    }
+  },
+  "nopscadlib/potentiometer": {
+    "id": "nopscadlib/potentiometer",
+    "ok": true,
+    "failures": [],
+    "measured": [
+      {
+        "args": [
+          "KY_040_encoder",
+          {
+            "$fn": 72
+          }
+        ],
+        "size": [
+          12.000000002980233,
+          12,
+          26.5
+        ]
+      }
+    ],
+    "sizes": [
+      "BTT_encoder",
+      "KY_040_encoder",
+      "metric_pot",
+      "imperial_pot",
+      "imperial_pot_x2"
+    ],
+    "signature": {
+      "params": [
+        {
+          "name": "type"
+        },
+        {
+          "name": "thickness",
+          "default": "3"
+        },
+        {
+          "name": "shaft_length",
+          "default": "undef"
+        },
+        {
+          "name": "value",
+          "default": "false"
+        }
+      ]
+    },
+    "transpileMs": 165.07592300000033,
+    "buildMs": {
+      "max": 190.33592899999712,
+      "mean": 65.80913866666621
     }
   },
   "nopscadlib/pulley": {
@@ -1146,10 +1395,10 @@
         }
       ]
     },
-    "transpileMs": 47.1571270000004,
+    "transpileMs": 163.72987999999896,
     "buildMs": {
-      "max": 10.962290999999823,
-      "mean": 3.905987294117575
+      "max": 24.693664999998873,
+      "mean": 13.691671529411584
     }
   },
   "nopscadlib/rail_carriage": {
@@ -1196,10 +1445,10 @@
         }
       ]
     },
-    "transpileMs": 45.56468500000028,
+    "transpileMs": 63.47304500000246,
     "buildMs": {
-      "max": 3.8785539999998946,
-      "mean": 2.8436554166667825
+      "max": 5.525536999997712,
+      "mean": 4.003418166666354
     }
   },
   "nopscadlib/screw": {
@@ -1246,10 +1495,57 @@
         }
       ]
     },
-    "transpileMs": 37.74435799999992,
+    "transpileMs": 60.52736100000038,
     "buildMs": {
-      "max": 4.306741000000329,
-      "mean": 2.9727696249999553
+      "max": 5.748288999999204,
+      "mean": 4.1363667499995245
+    }
+  },
+  "nopscadlib/shaft_coupling": {
+    "id": "nopscadlib/shaft_coupling",
+    "ok": true,
+    "failures": [],
+    "measured": [
+      {
+        "args": [
+          "SC_5x8_rigid"
+        ],
+        "size": [
+          13.5,
+          13.5,
+          25
+        ]
+      },
+      {
+        "args": [
+          "SC_6x8_flex"
+        ],
+        "size": [
+          20,
+          20,
+          25
+        ]
+      }
+    ],
+    "sizes": [
+      "SC_5x8_rigid",
+      "SC_6x8_flex"
+    ],
+    "signature": {
+      "params": [
+        {
+          "name": "type"
+        },
+        {
+          "name": "colour",
+          "default": "\"silver\""
+        }
+      ]
+    },
+    "transpileMs": 55.839404000002105,
+    "buildMs": {
+      "max": 256.6807869999975,
+      "mean": 141.5871052499997
     }
   },
   "nopscadlib/shaft_support": {
@@ -1281,10 +1577,121 @@
         }
       ]
     },
-    "transpileMs": 41.469286999999895,
+    "transpileMs": 58.2541710000005,
     "buildMs": {
-      "max": 11.28723600000012,
-      "mean": 9.893447000000014
+      "max": 15.63395699999819,
+      "mean": 13.70293399999864
+    }
+  },
+  "nopscadlib/spring": {
+    "id": "nopscadlib/spring",
+    "ok": true,
+    "failures": [],
+    "measured": [
+      {
+        "args": [
+          "peg_spring"
+        ],
+        "size": [
+          6.383730411529541,
+          6.382623195648193,
+          15.47709846496582
+        ]
+      },
+      {
+        "args": [
+          "yellow_bed_spring"
+        ],
+        "size": [
+          7.984374523162842,
+          7.984313249588013,
+          19.98084831237793
+        ]
+      }
+    ],
+    "sizes": [
+      "peg_spring",
+      "batt_spring",
+      "yellow_bed_spring"
+    ],
+    "signature": {
+      "params": [
+        {
+          "name": "type"
+        },
+        {
+          "name": "l",
+          "default": "0"
+        },
+        {
+          "name": "center",
+          "default": "false"
+        }
+      ]
+    },
+    "transpileMs": 23.997777000000497,
+    "buildMs": {
+      "max": 96.0801449999999,
+      "mean": 75.20841580000051
+    }
+  },
+  "nopscadlib/square_button": {
+    "id": "nopscadlib/square_button",
+    "ok": true,
+    "failures": [],
+    "measured": [
+      {
+        "args": [
+          "button_6mm",
+          {
+            "$fn": 72
+          }
+        ],
+        "size": [
+          6,
+          6,
+          5
+        ]
+      },
+      {
+        "args": [
+          "button_12mm",
+          {
+            "$fn": 72
+          }
+        ],
+        "size": [
+          12.860000014305115,
+          12.860000014305115,
+          12.450000005960465
+        ]
+      }
+    ],
+    "sizes": [
+      "button_4p5mm",
+      "button_6mm",
+      "button_6mm_7",
+      "button_12mm"
+    ],
+    "signature": {
+      "params": [
+        {
+          "name": "type"
+        },
+        {
+          "name": "colour",
+          "default": "\"yellow\""
+        },
+        {
+          "name": "right_angle",
+          "default": "false"
+        }
+      ]
+    },
+    "transpileMs": 14.881417999997211,
+    "buildMs": {
+      "max": 22.392872000000352,
+      "mean": 10.66212983333268
     }
   },
   "nopscadlib/standoff": {
@@ -1320,10 +1727,10 @@
         }
       ]
     },
-    "transpileMs": 38.36434199999894,
+    "transpileMs": 59.218909999999596,
     "buildMs": {
-      "max": 7.060293000000456,
-      "mean": 4.064624000000145
+      "max": 9.794608000000153,
+      "mean": 5.851329555555923
     }
   },
   "nopscadlib/t_nut": {
@@ -1358,10 +1765,83 @@
         }
       ]
     },
-    "transpileMs": 34.81654200000048,
+    "transpileMs": 58.87494599999991,
     "buildMs": {
-      "max": 3.9241989999991347,
-      "mean": 1.4285709999999199
+      "max": 5.610891000000265,
+      "mean": 2.2249988750004377
+    }
+  },
+  "nopscadlib/tubing": {
+    "id": "nopscadlib/tubing",
+    "ok": true,
+    "failures": [],
+    "measured": [
+      {
+        "args": [
+          "PTFE2_4"
+        ],
+        "size": [
+          3.996206656098366,
+          3.9981028735637665,
+          15
+        ]
+      },
+      {
+        "args": [
+          "PTFE07"
+        ],
+        "size": [
+          1.2000000029802322,
+          1.2000000029802322,
+          15
+        ]
+      }
+    ],
+    "sizes": [
+      "PVC64",
+      "PVC85",
+      "NEOP85",
+      "PTFE07",
+      "PTFE20",
+      "PF7",
+      "PTFE2_3",
+      "PTFE2_4",
+      "PTFE4_6",
+      "HSHRNK16",
+      "HSHRNK24",
+      "HSHRNK64",
+      "HSHRNK100",
+      "STFE4_3p2_CLR",
+      "STFE4_6p4_CLR",
+      "CARBONFIBER10"
+    ],
+    "signature": {
+      "params": [
+        {
+          "name": "type"
+        },
+        {
+          "name": "length",
+          "default": "15"
+        },
+        {
+          "name": "forced_id",
+          "default": "0"
+        },
+        {
+          "name": "center",
+          "default": "true"
+        },
+        {
+          "name": "path",
+          "default": "[]"
+        }
+      ]
+    },
+    "transpileMs": 26.362535000000207,
+    "buildMs": {
+      "max": 87.70944299999974,
+      "mean": 5.336382944443863
     }
   },
   "nopscadlib/washer": {
@@ -1398,10 +1878,62 @@
         }
       ]
     },
-    "transpileMs": 14.481877999998687,
+    "transpileMs": 22.049927000000025,
     "buildMs": {
-      "max": 0.5915000000004511,
-      "mean": 0.41604389999993147
+      "max": 2.737737000003108,
+      "mean": 0.8130479999996169
+    }
+  },
+  "nopscadlib/ziptie": {
+    "id": "nopscadlib/ziptie",
+    "ok": true,
+    "failures": [],
+    "measured": [
+      {
+        "args": [
+          "small_ziptie"
+        ],
+        "size": [
+          12,
+          15,
+          4.25
+        ]
+      },
+      {
+        "args": [
+          "ziptie_3p6mm"
+        ],
+        "size": [
+          12.600000002980233,
+          16.90000000298023,
+          6.62
+        ]
+      }
+    ],
+    "sizes": [
+      "small_ziptie",
+      "ziptie_3mm",
+      "ziptie_3p6mm"
+    ],
+    "signature": {
+      "params": [
+        {
+          "name": "type"
+        },
+        {
+          "name": "r",
+          "default": "5"
+        },
+        {
+          "name": "t",
+          "default": "0"
+        }
+      ]
+    },
+    "transpileMs": 19.773818999998184,
+    "buildMs": {
+      "max": 3.2686590000012075,
+      "mean": 1.9321362000002409
     }
   }
 }

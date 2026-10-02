@@ -581,13 +581,20 @@ stands (inserts, pulleys, rails, extrusions, T-nuts, linear bearings, fans,
 microswitches, standoffs, magnets, lead nuts, shaft supports) is being added
 on `parts-group1`.
 
-- **More NopSCADlib hardware.** `comp_spring` (`springs`, 3), `shaft_coupling`
-  (2), `internal_circlip` (DIN 472, 6), `square_button` (6x6/12x12 tact, 4),
-  `led` (3–10 mm, list `LEDs`), `battery` (AA..18650..4680, 10), `tubing`
-  (PTFE 2x4 Bowden, 16), `ziptie` (3), `pcb` (Arduino, Raspberry Pi, Pico,
-  ESP32; `pcbs.scad` pulls in a large include web), `display`, `belt` (needs a
-  pulley path argument), `green_terminal`, `d_plug`, `toggle`, `rocker`,
-  `potentiometer`, `geared_stepper`, `gear_motor`.
+- **More NopSCADlib hardware.** Admitted on `parts-group1`: `comp_spring`
+  (`springs`, 3), `shaft_coupling` (2), `internal_circlip` (DIN 472, 6),
+  `square_button` (6x6/12x12 tact, 4), `led` (3–10 mm, list `LEDs`), `battery`
+  (AA..18650..4680, 10), `tubing` (PTFE 2x4 Bowden, 16), `ziptie` (3),
+  `green_terminal` (`insertArgs: [2]` for the required `ways`),
+  `potentiometer`. Vetted 2026-10-02, fit to admit next: `toggle`
+  (`insertArgs` for panel thickness), `rocker` (`insertArgs` colour; note
+  `neon_indicator` is an indicator, not a switch), `d_plug` in
+  `d_connector.scad` (booleans via `options`; sockets are a second record on
+  `d_socket`), `gear_motor` (needs a `core.scad` + screws prelude). Deferred:
+  `pcb` (per-product entries, no canonical size list, largest include web),
+  `display` (vendor assemblies, includes all of `pcbs.scad`), `belt` (needs a
+  per-model pulley path no fixed `insertArgs` can express), `geared_stepper`
+  (blocked on the leading-digit size names below).
 - **Size names that are not JS identifiers.** NopSCADlib names such as
   `28BYJ_48`, `2p54header`, `9DOF_stick` and the `7_segments` entries start
   with a digit, so the require line cannot destructure them. They need a

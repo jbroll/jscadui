@@ -90,6 +90,47 @@
     "example": "ball_bearing(BB608)"
   },
   {
+    "name": "parts.nopscadlib.battery",
+    "pkg": "@jscadui/parts",
+    "kind": "part",
+    "family": "battery",
+    "preferred": true,
+    "description": "Cylindrical battery cell (AAA, AA, C, D, A23, 16340, 18650, 32700, 4680 and the Lumintop USB 18650), axis on z with the origin at the centre of the total length including contacts, positive terminal at +z.",
+    "require": "const { battery, S25R18650 } = require('_catalog/NopSCADlib/vitamins/battery.scad')",
+    "scad": "include <NopSCADlib/vitamins/batteries.scad>\ninclude <NopSCADlib/vitamins/battery.scad>",
+    "signature": "battery(type)",
+    "sizes": [
+      "AAACELL",
+      "AACELL",
+      "CCELL",
+      "DCELL",
+      "LUMINTOP",
+      "S25R18650",
+      "A23CELL",
+      "LI4680",
+      "LI32700",
+      "LI16340"
+    ],
+    "options": {},
+    "license": "GPL-3.0",
+    "measured": [
+      {
+        "args": [
+          "S25R18650",
+          {
+            "$fn": 72
+          }
+        ],
+        "size": [
+          18.312619601386064,
+          18.3,
+          65.015625
+        ]
+      }
+    ],
+    "example": "battery(S25R18650)"
+  },
+  {
     "name": "parts.nopscadlib.scs_bearing_block",
     "pkg": "@jscadui/parts",
     "kind": "part",
@@ -167,6 +208,50 @@
       }
     ],
     "example": "blower(RB5015)"
+  },
+  {
+    "name": "parts.nopscadlib.internal_circlip",
+    "pkg": "@jscadui/parts",
+    "kind": "part",
+    "family": "circlip",
+    "preferred": true,
+    "description": "Internal circlip (DIN 472) for bores 12 to 28, drawn flat in the xy plane, thickness on z, centred; open=0 draws the installed (groove) size.",
+    "require": "const { internal_circlip, circlip_12i } = require('_catalog/NopSCADlib/vitamins/circlip.scad')",
+    "scad": "include <NopSCADlib/vitamins/circlips.scad>\ninclude <NopSCADlib/vitamins/circlip.scad>",
+    "signature": "internal_circlip(type, open = 0)",
+    "sizes": [
+      "circlip_12i",
+      "circlip_15i",
+      "circlip_19i",
+      "circlip_21i",
+      "circlip_28i",
+      "circlip_28iw"
+    ],
+    "options": {},
+    "license": "GPL-3.0",
+    "measured": [
+      {
+        "args": [
+          "circlip_12i"
+        ],
+        "size": [
+          12.49791544,
+          12.16143657,
+          1
+        ]
+      },
+      {
+        "args": [
+          "circlip_28i"
+        ],
+        "size": [
+          29.396928040000002,
+          28.40443029,
+          1.2
+        ]
+      }
+    ],
+    "example": "internal_circlip(circlip_12i)"
   },
   {
     "name": "parts.nopscadlib.extrusion",
@@ -272,6 +357,44 @@
       }
     ],
     "example": "fan(fan40x11)"
+  },
+  {
+    "name": "parts.nopscadlib.green_terminal",
+    "pkg": "@jscadui/parts",
+    "kind": "part",
+    "family": "green_terminal",
+    "preferred": true,
+    "description": "PCB-mount green screw terminal block (2.54 to 6.35 mm pitch), drawn 2-way by default; ways along y, depth along x, body on z from 0 with pins down to -3.3.",
+    "require": "const { green_terminal, gt_5p08 } = require('_catalog/NopSCADlib/vitamins/green_terminal.scad')",
+    "scad": "include <NopSCADlib/vitamins/green_terminals.scad>\ninclude <NopSCADlib/vitamins/green_terminal.scad>",
+    "signature": "green_terminal(type, ways, skip = [], colour = \"lime\")",
+    "sizes": [
+      "gt_2p54",
+      "gt_3p5",
+      "gt_5p08",
+      "gt_6p35",
+      "gt_5x11",
+      "gt_5x17"
+    ],
+    "options": {},
+    "license": "GPL-3.0",
+    "measured": [
+      {
+        "args": [
+          "gt_5p08",
+          2,
+          {
+            "$fn": 72
+          }
+        ],
+        "size": [
+          7.9000000059604645,
+          10.16,
+          13.3
+        ]
+      }
+    ],
+    "example": "green_terminal(gt_5p08, 2)"
   },
   {
     "name": "parts.nopscadlib.insert",
@@ -402,6 +525,42 @@
       }
     ],
     "example": "leadscrew(8, 100, 8, 4)"
+  },
+  {
+    "name": "parts.nopscadlib.led",
+    "pkg": "@jscadui/parts",
+    "kind": "part",
+    "family": "led",
+    "preferred": true,
+    "description": "Domed through-hole LED (3, 5, 8, 10 mm round plus 5 x 2 mm rectangular), body on z from 0 to its height with the dome on top, leads down to -lead (default 5); the rim at the base carries a flat notch on +x.",
+    "require": "const { led, LED3mm } = require('_catalog/NopSCADlib/vitamins/led.scad')",
+    "scad": "include <NopSCADlib/vitamins/leds.scad>\ninclude <NopSCADlib/vitamins/led.scad>",
+    "signature": "led(type, colour = \"red\", lead = 5, right_angle = 0)",
+    "sizes": [
+      "LED3mm",
+      "LED5mm",
+      "LED8mm",
+      "LED10mm",
+      "LED5x2mm"
+    ],
+    "options": {},
+    "license": "GPL-3.0",
+    "measured": [
+      {
+        "args": [
+          "LED3mm",
+          {
+            "$fn": 72
+          }
+        ],
+        "size": [
+          3.0828125029802322,
+          3.1500000059604645,
+          9.6
+        ]
+      }
+    ],
+    "example": "led(LED3mm)"
   },
   {
     "name": "parts.nopscadlib.linear_bearing",
@@ -669,6 +828,42 @@
     "example": "kp_pillow_block(KP08_15)"
   },
   {
+    "name": "parts.nopscadlib.potentiometer",
+    "pkg": "@jscadui/parts",
+    "kind": "part",
+    "family": "potentiometer",
+    "preferred": true,
+    "description": "Panel potentiometer or rotary encoder, body centred on the origin on z from 0 with the thread and shaft below (panel at z = 0); body diameter across x/y.",
+    "require": "const { potentiometer, KY_040_encoder } = require('_catalog/NopSCADlib/vitamins/potentiometer.scad')",
+    "scad": "include <NopSCADlib/vitamins/potentiometers.scad>\ninclude <NopSCADlib/vitamins/potentiometer.scad>",
+    "signature": "potentiometer(type, thickness = 3, shaft_length = undef, value = false)",
+    "sizes": [
+      "BTT_encoder",
+      "KY_040_encoder",
+      "metric_pot",
+      "imperial_pot",
+      "imperial_pot_x2"
+    ],
+    "options": {},
+    "license": "GPL-3.0",
+    "measured": [
+      {
+        "args": [
+          "KY_040_encoder",
+          {
+            "$fn": 72
+          }
+        ],
+        "size": [
+          12.000000002980233,
+          12,
+          26.5
+        ]
+      }
+    ],
+    "example": "potentiometer(metric_pot)"
+  },
+  {
     "name": "parts.nopscadlib.pulley",
     "pkg": "@jscadui/parts",
     "kind": "part",
@@ -840,6 +1035,46 @@
     "example": "screw(M3_cap_screw, 10)"
   },
   {
+    "name": "parts.nopscadlib.shaft_coupling",
+    "pkg": "@jscadui/parts",
+    "kind": "part",
+    "family": "shaft_coupling",
+    "preferred": true,
+    "description": "Rigid or flexible shaft coupling with two M3 grub screws, body centred on the origin with the bore axis on z.",
+    "require": "const { shaft_coupling, SC_5x8_rigid } = require('_catalog/NopSCADlib/vitamins/shaft_coupling.scad')",
+    "scad": "include <NopSCADlib/vitamins/shaft_couplings.scad>\ninclude <NopSCADlib/vitamins/shaft_coupling.scad>",
+    "signature": "shaft_coupling(type, colour = \"silver\")",
+    "sizes": [
+      "SC_5x8_rigid",
+      "SC_6x8_flex"
+    ],
+    "options": {},
+    "license": "GPL-3.0",
+    "measured": [
+      {
+        "args": [
+          "SC_5x8_rigid"
+        ],
+        "size": [
+          13.5,
+          13.5,
+          25
+        ]
+      },
+      {
+        "args": [
+          "SC_6x8_flex"
+        ],
+        "size": [
+          20,
+          20,
+          25
+        ]
+      }
+    ],
+    "example": "shaft_coupling(SC_5x8_rigid)"
+  },
+  {
     "name": "parts.nopscadlib.sk_bracket",
     "pkg": "@jscadui/parts",
     "kind": "part",
@@ -870,6 +1105,95 @@
       }
     ],
     "example": "sk_bracket(SK8)"
+  },
+  {
+    "name": "parts.nopscadlib.comp_spring",
+    "pkg": "@jscadui/parts",
+    "kind": "part",
+    "family": "spring",
+    "preferred": true,
+    "description": "Compression spring (helical, closed ends, optionally tapered or ground), axis on z, origin at the bottom end (center=false).",
+    "require": "const { comp_spring, peg_spring } = require('_catalog/NopSCADlib/vitamins/spring.scad')",
+    "scad": "include <NopSCADlib/vitamins/springs.scad>\ninclude <NopSCADlib/vitamins/spring.scad>",
+    "signature": "comp_spring(type, l = 0, center = false)",
+    "sizes": [
+      "peg_spring",
+      "batt_spring",
+      "yellow_bed_spring"
+    ],
+    "options": {},
+    "license": "GPL-3.0",
+    "measured": [
+      {
+        "args": [
+          "peg_spring"
+        ],
+        "size": [
+          6.383730411529541,
+          6.382623195648193,
+          15.47709846496582
+        ]
+      },
+      {
+        "args": [
+          "yellow_bed_spring"
+        ],
+        "size": [
+          7.984374523162842,
+          7.984313249588013,
+          19.98084831237793
+        ]
+      }
+    ],
+    "example": "comp_spring(peg_spring)"
+  },
+  {
+    "name": "parts.nopscadlib.square_button",
+    "pkg": "@jscadui/parts",
+    "kind": "part",
+    "family": "square_button",
+    "preferred": true,
+    "description": "PCB tact switch (4.5, 6, 6 x 7 and 12 mm with cap), square base centred on the origin on z from 0 with the plunger on top; the 12 mm size draws a coloured cap.",
+    "require": "const { square_button, button_6mm } = require('_catalog/NopSCADlib/vitamins/button.scad')",
+    "scad": "include <NopSCADlib/vitamins/buttons.scad>\ninclude <NopSCADlib/vitamins/button.scad>",
+    "signature": "square_button(type, colour = \"yellow\", right_angle = false)",
+    "sizes": [
+      "button_4p5mm",
+      "button_6mm",
+      "button_6mm_7",
+      "button_12mm"
+    ],
+    "options": {},
+    "license": "GPL-3.0",
+    "measured": [
+      {
+        "args": [
+          "button_6mm",
+          {
+            "$fn": 72
+          }
+        ],
+        "size": [
+          6,
+          6,
+          5
+        ]
+      },
+      {
+        "args": [
+          "button_12mm",
+          {
+            "$fn": 72
+          }
+        ],
+        "size": [
+          12.860000014305115,
+          12.860000014305115,
+          12.450000005960465
+        ]
+      }
+    ],
+    "example": "square_button(button_6mm)"
   },
   {
     "name": "parts.nopscadlib.pillar",
@@ -1024,6 +1348,60 @@
     "example": "sliding_t_nut(M4_sliding_t_nut)"
   },
   {
+    "name": "parts.nopscadlib.tubing",
+    "pkg": "@jscadui/parts",
+    "kind": "part",
+    "family": "tubing",
+    "preferred": true,
+    "description": "Straight tube or sleeving (PVC, PTFE, heatshrink, carbon fibre), OD x ID from the size list, axis on z, centred on the origin, 15 mm long (library default length).",
+    "require": "const { tubing, PTFE2_4 } = require('_catalog/NopSCADlib/vitamins/tubing.scad')",
+    "scad": "include <NopSCADlib/vitamins/tubings.scad>\ninclude <NopSCADlib/vitamins/tubing.scad>",
+    "signature": "tubing(type, length = 15, forced_id = 0, center = true, path = [])",
+    "sizes": [
+      "PVC64",
+      "PVC85",
+      "NEOP85",
+      "PTFE07",
+      "PTFE20",
+      "PF7",
+      "PTFE2_3",
+      "PTFE2_4",
+      "PTFE4_6",
+      "HSHRNK16",
+      "HSHRNK24",
+      "HSHRNK64",
+      "HSHRNK100",
+      "STFE4_3p2_CLR",
+      "STFE4_6p4_CLR",
+      "CARBONFIBER10"
+    ],
+    "options": {},
+    "license": "GPL-3.0",
+    "measured": [
+      {
+        "args": [
+          "PTFE2_4"
+        ],
+        "size": [
+          3.996206656098366,
+          3.9981028735637665,
+          15
+        ]
+      },
+      {
+        "args": [
+          "PTFE07"
+        ],
+        "size": [
+          1.2000000029802322,
+          1.2000000029802322,
+          15
+        ]
+      }
+    ],
+    "example": "tubing(PTFE2_4)"
+  },
+  {
     "name": "parts.nopscadlib.washer",
     "pkg": "@jscadui/parts",
     "kind": "part",
@@ -1059,5 +1437,46 @@
       }
     ],
     "example": "washer(M3_washer)"
+  },
+  {
+    "name": "parts.nopscadlib.ziptie",
+    "pkg": "@jscadui/parts",
+    "kind": "part",
+    "family": "ziptie",
+    "preferred": true,
+    "description": "Cable ziptie wrapped around a 10 mm bundle (r = 5, library default), strap width on z, latch head at the bottom.",
+    "require": "const { ziptie, small_ziptie } = require('_catalog/NopSCADlib/vitamins/ziptie.scad')",
+    "scad": "include <NopSCADlib/vitamins/zipties.scad>\ninclude <NopSCADlib/vitamins/ziptie.scad>",
+    "signature": "ziptie(type, r = 5, t = 0)",
+    "sizes": [
+      "small_ziptie",
+      "ziptie_3mm",
+      "ziptie_3p6mm"
+    ],
+    "options": {},
+    "license": "GPL-3.0",
+    "measured": [
+      {
+        "args": [
+          "small_ziptie"
+        ],
+        "size": [
+          12,
+          15,
+          4.25
+        ]
+      },
+      {
+        "args": [
+          "ziptie_3p6mm"
+        ],
+        "size": [
+          12.600000002980233,
+          16.90000000298023,
+          6.62
+        ]
+      }
+    ],
+    "example": "ziptie(small_ziptie)"
   }
 ]
