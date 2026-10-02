@@ -1,0 +1,26 @@
+{
+  "id": "nopscadlib/fan",
+  "family": "fan",
+  "library": "NopSCADlib",
+  "license": "GPL-3.0",
+  "file": "NopSCADlib/vitamins/fan.scad",
+  "prelude": ["NopSCADlib/core.scad", "NopSCADlib/vitamins/fans.scad"],
+  "call": "fan",
+  "summary": "Square axial fan (17 to 120 mm), centred on the origin with the axis on z.",
+  "sizes": { "list": "fans" },
+  "example": "fan(fan40x11)",
+  "checks": [
+    {
+      "args": ["fan40x11"],
+      "size": [40, 40, 11],
+      "tol": 0.01,
+      "source": "40 mm axial fan frame 40 x 40 (32 mm hole pitch); the library's fan40x11 is 11 deep"
+    },
+    {
+      "args": ["fan120x25"],
+      "size": [120, 120, 25],
+      "tol": 0.01,
+      "source": "120 mm axial fan 120 x 120 x 25 (105 mm hole pitch)"
+    }
+  ]
+}

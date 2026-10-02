@@ -1,0 +1,26 @@
+{
+  "id": "nopscadlib/blower",
+  "family": "blower",
+  "library": "NopSCADlib",
+  "license": "GPL-3.0",
+  "file": "NopSCADlib/vitamins/blower.scad",
+  "prelude": ["NopSCADlib/core.scad", "NopSCADlib/vitamins/blowers.scad"],
+  "call": "blower",
+  "summary": "Radial blower fan, square (3010, 4010) or spiral (4020, 5015), base on z = 0, corner at the origin, exit along -y.",
+  "sizes": { "list": "blowers" },
+  "example": "blower(RB5015)",
+  "checks": [
+    {
+      "args": ["RB5015"],
+      "size": [51.32, 51.02, 15],
+      "tol": 0.01,
+      "source": "5015 radial blower, Runda RB5015 51.3 x 51 x 15 as tabled in blowers.scad; the library's spiral casing, sampled at 1 degree, peaks 0.02 past the tabled 51.3 x 51"
+    },
+    {
+      "args": ["BL40x10"],
+      "size": [40, 40, 9.5],
+      "tol": 0.01,
+      "source": "4010 square radial fan, 40 x 40 x 10 nominal; the library models it 9.5 deep"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "id": "nopscadlib/microswitch",
+  "family": "microswitch",
+  "library": "NopSCADlib",
+  "license": "GPL-3.0",
+  "file": "NopSCADlib/vitamins/microswitch.scad",
+  "prelude": ["NopSCADlib/core.scad", "NopSCADlib/vitamins/microswitches.scad"],
+  "call": "microswitch",
+  "summary": "Button microswitch for limit switches (DM1 subminiature, SS-5GL, Saia G3), body centred on the origin, length on x, button at its operating point toward +y, legs toward -y.",
+  "sizes": { "list": "microswitches" },
+  "example": "microswitch(medium_microswitch)",
+  "checks": [
+    {
+      "args": ["medium_microswitch"],
+      "size": [19.8, 14.8, 6.4],
+      "tol": 0.01,
+      "source": "Omron SS-5GL body 19.8 x 10.2 x 6.4; y is the library's span from the leg tips (-9.0) to the button at its operating point (5.8)"
+    }
+  ]
+}
