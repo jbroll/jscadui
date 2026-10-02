@@ -6,7 +6,7 @@
   "file": "NopSCADlib/vitamins/extrusion.scad",
   "prelude": ["NopSCADlib/vitamins/extrusions.scad"],
   "call": "extrusion",
-  "summary": "Aluminium T-slot extrusion (20 and 30 and 40 series, MakerBeam), length along z and centred on the origin by default; length is the second argument.",
+  "summary": "Aluminium T-slot extrusion (15, 20, 30 and 40 series, MakerBeam and MakerBeamXL), length along z and centred on the origin by default; length is the second argument. `t` variants (E2020t, E4040t) add a recessed channel (`extrusion_channel_recess` in extrusions.scad) over the plain E2020/E4040 profile.",
   "sizes": {
     "names": ["Makerbeam", "MakerbeamXL", "E1515", "E2020", "E2020t", "E2040", "E2060", "E2080", "E3030", "E3060", "E4040", "E4040t", "E4080"]
   },

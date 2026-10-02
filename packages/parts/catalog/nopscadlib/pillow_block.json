@@ -14,7 +14,7 @@
       "args": ["KP08_15"],
       "size": [55, 29.5, 13],
       "tol": 0.01,
-      "source": "KP08 vendor drawing: L 55, A 13, H 15, H0 29, so height H + H0 / 2 = 29.5"
+      "source": "KP08 vendor drawing: L 55, A 13, H 15. KP08 overall height is commonly listed as 29; the library draws H0 as the boss diameter (pillow_block.scad tube(H0 / 2, …)), giving height H + H0 / 2 = 29.5"
     }
   ]
 }

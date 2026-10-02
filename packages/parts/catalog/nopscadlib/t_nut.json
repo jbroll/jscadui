@@ -6,7 +6,7 @@
   "file": "NopSCADlib/vitamins/nut.scad",
   "prelude": ["NopSCADlib/vitamins/nuts.scad"],
   "call": "sliding_t_nut",
-  "summary": "Extrusion slot nut: sliding T-nut, spring-ball T-nut or hammer nut, slot along x, stem up to z = 0 and the wings below.",
+  "summary": "Extrusion slot nut: sliding T-nut, spring-ball T-nut or hammer nut, slot along x, stem below z = 0, wings and plate above. The M6_sliding_t_nut row carries a stray extra element that shifts the hammer-nut flag on, so it draws with hammer-nut fillets (the size still builds).",
   "sizes": {
     "names": ["M3_sliding_t_nut", "M4_sliding_t_nut", "M5_sliding_t_nut", "M6_sliding_t_nut", "M8_sliding_ball_t_nut", "M3_hammer_nut", "M4_hammer_nut"]
   },
@@ -16,7 +16,7 @@
       "args": ["M3_sliding_t_nut"],
       "size": [10, 10, 4],
       "tol": 0.01,
-      "source": "M3 sliding T-nut for 20 series 6 mm slot: length 10, wing span 10, height 4 (nuts.scad M3_sliding_t_nut row)"
+      "source": "library row (M3_sliding_t_nut in nuts.scad): length 10, wing span 10, height 4; T-nuts have no standard to check this against"
     }
   ]
 }

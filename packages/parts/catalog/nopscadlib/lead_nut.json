@@ -8,13 +8,19 @@
   "call": "leadnut",
   "summary": "Flanged lead screw nut (T8 brass, SFU1610 ball nut), axis on z, flange top at z = 0, shank down.",
   "sizes": { "list": "leadnuts" },
-  "example": "leadnut(LSN8x2)",
+  "example": "leadnut(LSN8x8)",
   "checks": [
+    {
+      "args": ["LSN8x8", { "$fn": 72 }],
+      "size": [25.4, 25.4, 19],
+      "tol": 0.01,
+      "source": "library row (leadnuts.scad LSN8x8): flange D 25.4, overall height 19, shank D 12.75"
+    },
     {
       "args": ["LSN8x2", { "$fn": 72 }],
       "size": [22, 22, 15],
       "tol": 0.01,
-      "source": "T8 brass lead screw nut, common vendor drawing: flange D 22, overall length 15, shank D 10.2"
+      "source": "library row (leadnuts.scad LSN8x2): flange D 22, overall height 15, shank D 10.2"
     }
   ]
 }

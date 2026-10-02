@@ -14,7 +14,7 @@
       "args": ["RB5015"],
       "size": [51.32, 51.02, 15],
       "tol": 0.01,
-      "source": "5015 radial blower, Runda RB5015 51.3 x 51 x 15 as tabled in blowers.scad; the library's spiral casing, sampled at 1 degree, peaks 0.02 past the tabled 51.3 x 51"
+      "source": "library value (blowers.scad), no Runda datasheet checked: RB5015 row tables 51.3 x 51 x 15; the library's spiral casing, sampled at 1 degree, peaks 0.02 past the tabled 51.3 x 51"
     },
     {
       "args": ["BL40x10"],

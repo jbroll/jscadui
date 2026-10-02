@@ -5,7 +5,7 @@
   "license": "GPL-3.0",
   "file": "NopSCADlib/vitamins/rod.scad",
   "call": "leadscrew",
-  "summary": "Trapezoidal lead screw, axis on z, centred on the origin; arguments are diameter, length, lead and number of starts (T8x8: 8, length, 8, 4).",
+  "summary": "Trapezoidal lead screw, axis on z, centred on the origin; arguments are diameter, length, lead and number of starts (T8x8: 8, length, 8, 4). The thumbnail's plain-cylinder look is the library's default: NopSCADlib draws threads only when show_threads is on.",
   "sizes": { "values": [8] },
   "insertArgs": [100, 8, 4],
   "options": {
