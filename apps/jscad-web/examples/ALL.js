@@ -9,7 +9,8 @@ const { gridModule } = require('./lib/grid-utils.js')
 
 const items = [
   "./jscad/ALL.js",
-  "./openscad/ALL.js"
+  "./openscad/ALL.js",
+  "./parts/ALL.js"
 ]
 
 module.exports = gridModule(items, { spacing: 60, cellSize: 51 }, require)

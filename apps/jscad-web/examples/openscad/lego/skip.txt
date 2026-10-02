@@ -1,0 +1,6 @@
+# LEGO examples skip list
+# angle-plate.scad needs upstream LEGO-Angle-Plate.scad fixed first: its
+# `use <Lego.scad>` does not match the filename `LEGO.scad`, so the module
+# fails to resolve on case-sensitive filesystems. Remove this entry (or add
+# a fetch-deps patch) once upstream fixes the include.
+examples/angle-plate.scad
