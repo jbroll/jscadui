@@ -1,0 +1,3 @@
+# LEGO library files; examples/ holds the models
+/LEGO.scad
+/LEGO-Angle-Plate.scad
