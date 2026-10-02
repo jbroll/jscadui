@@ -1,0 +1,27 @@
+{
+  "id": "nopscadlib/tubing",
+  "family": "tubing",
+  "preferred": true,
+  "library": "NopSCADlib",
+  "license": "GPL-3.0",
+  "file": "NopSCADlib/vitamins/tubing.scad",
+  "prelude": ["NopSCADlib/vitamins/tubings.scad"],
+  "call": "tubing",
+  "summary": "Straight tube or sleeving (PVC, PTFE, heatshrink, carbon fibre), OD x ID from the size list, axis on z, centred on the origin, 15 mm long (library default length).",
+  "sizes": { "list": "tubings" },
+  "example": "tubing(PTFE2_4)",
+  "checks": [
+    {
+      "args": ["PTFE2_4"],
+      "size": [4, 4, 15],
+      "tol": 0.01,
+      "source": "PTFE 2 x 4 Bowden tube: OD 4, ID 2, drawn 15 mm long (library default length), centred"
+    },
+    {
+      "args": ["PTFE07"],
+      "size": [1.2, 1.2, 15],
+      "tol": 0.01,
+      "source": "PTFE sleeving: OD 1.2, ID 0.71, drawn 15 mm long, centred"
+    }
+  ]
+}

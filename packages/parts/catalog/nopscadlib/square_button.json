@@ -1,0 +1,27 @@
+{
+  "id": "nopscadlib/square_button",
+  "family": "square_button",
+  "preferred": true,
+  "library": "NopSCADlib",
+  "license": "GPL-3.0",
+  "file": "NopSCADlib/vitamins/button.scad",
+  "prelude": ["NopSCADlib/vitamins/buttons.scad"],
+  "call": "square_button",
+  "summary": "PCB tact switch (4.5, 6, 6 x 7 and 12 mm with cap), square base centred on the origin on z from 0 with the plunger on top; the 12 mm size draws a coloured cap.",
+  "sizes": { "list": "buttons" },
+  "example": "square_button(button_6mm)",
+  "checks": [
+    {
+      "args": ["button_6mm", { "$fn": 72 }],
+      "size": [6, 6, 5],
+      "tol": 0.01,
+      "source": "6 x 6 x 5 mm tact switch (Omron B3F-1000 style): base 6 x 6, total height 5"
+    },
+    {
+      "args": ["button_12mm", { "$fn": 72 }],
+      "size": [12.86, 12.86, 12.45],
+      "tol": 0.01,
+      "source": "12 x 12 mm tact switch with cap: base 12, cap flange 12.86, total height 12.45 (base 4 + 0.8 plunger + 8.15 cap)"
+    }
+  ]
+}

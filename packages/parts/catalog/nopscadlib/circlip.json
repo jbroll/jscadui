@@ -1,0 +1,27 @@
+{
+  "id": "nopscadlib/circlip",
+  "family": "circlip",
+  "preferred": true,
+  "library": "NopSCADlib",
+  "license": "GPL-3.0",
+  "file": "NopSCADlib/vitamins/circlip.scad",
+  "prelude": ["NopSCADlib/vitamins/circlips.scad"],
+  "call": "internal_circlip",
+  "summary": "Internal circlip (DIN 472) for bores 12 to 28, drawn flat in the xy plane, thickness on z, centred; open=0 draws the installed (groove) size.",
+  "sizes": { "list": "circlips" },
+  "example": "internal_circlip(circlip_12i)",
+  "checks": [
+    {
+      "args": ["circlip_12i"],
+      "size": [12.5, 12.161, 1.0],
+      "tol": 0.01,
+      "source": "DIN 472 internal circlip for bore 12: installed (groove) diameter d2 12.5, thickness s 1.0. x is the full groove diameter; y spans the opening side, where the lugs and gap cut inside the d2 rim (measured 12.161)"
+    },
+    {
+      "args": ["circlip_28i"],
+      "size": [29.4, 28.404, 1.2],
+      "tol": 0.01,
+      "source": "DIN 472 internal circlip for bore 28: groove diameter d2 29.4, thickness s 1.2; y across the opening measured 28.404"
+    }
+  ]
+}

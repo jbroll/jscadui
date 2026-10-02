@@ -1,0 +1,27 @@
+{
+  "id": "nopscadlib/spring",
+  "family": "spring",
+  "preferred": true,
+  "library": "NopSCADlib",
+  "license": "GPL-3.0",
+  "file": "NopSCADlib/vitamins/spring.scad",
+  "prelude": ["NopSCADlib/vitamins/springs.scad"],
+  "call": "comp_spring",
+  "summary": "Compression spring (helical, closed ends, optionally tapered or ground), axis on z, origin at the bottom end (center=false).",
+  "sizes": { "list": "springs" },
+  "example": "comp_spring(peg_spring)",
+  "checks": [
+    {
+      "args": ["peg_spring"],
+      "size": [6.4, 6.4, 15.5],
+      "tol": 0.03,
+      "source": "NopSCADlib's peg_spring: OD 6.4, wire 0.9, uncompressed length 15.5 (library list). The swept 16-sided wire uses radius wire/2 - eps (eps = 1/128) and its end faces land ~0.02 under nominal, so tol 0.03 covers the tessellation"
+    },
+    {
+      "args": ["yellow_bed_spring"],
+      "size": [8, 8, 20],
+      "tol": 0.03,
+      "source": "NopSCADlib's yellow_bed_spring: OD 8, wire 0.9, uncompressed length 20 (library list), same swept-wire tessellation note as peg_spring"
+    }
+  ]
+}

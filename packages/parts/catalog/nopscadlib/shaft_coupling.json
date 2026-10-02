@@ -1,0 +1,27 @@
+{
+  "id": "nopscadlib/shaft_coupling",
+  "family": "shaft_coupling",
+  "preferred": true,
+  "library": "NopSCADlib",
+  "license": "GPL-3.0",
+  "file": "NopSCADlib/vitamins/shaft_coupling.scad",
+  "prelude": ["NopSCADlib/vitamins/shaft_couplings.scad"],
+  "call": "shaft_coupling",
+  "summary": "Rigid or flexible shaft coupling with two M3 grub screws, body centred on the origin with the bore axis on z.",
+  "sizes": { "list": "shaft_couplings" },
+  "example": "shaft_coupling(SC_5x8_rigid)",
+  "checks": [
+    {
+      "args": ["SC_5x8_rigid"],
+      "size": [13.5, 13.5, 25],
+      "tol": 0.01,
+      "source": "SC 5x8 rigid coupling: body D 12.5, L 25, bores 5 and 8 (library list). M3 grub screws (3 mm long) sit 1 mm proud of the body at +y and -x, so x/y span body diameter + 1 mm of screw"
+    },
+    {
+      "args": ["SC_6x8_flex"],
+      "size": [20, 20, 25],
+      "tol": 0.01,
+      "source": "SC 6x8 flex coupling: body D 19, L 25, bores 6 and 8 (library list); M3 grub screws sit 1 mm proud at +y and -x"
+    }
+  ]
+}

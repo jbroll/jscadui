@@ -1,0 +1,21 @@
+{
+  "id": "nopscadlib/battery",
+  "family": "battery",
+  "preferred": true,
+  "library": "NopSCADlib",
+  "license": "GPL-3.0",
+  "file": "NopSCADlib/vitamins/battery.scad",
+  "prelude": ["NopSCADlib/vitamins/batteries.scad"],
+  "call": "battery",
+  "summary": "Cylindrical battery cell (AAA, AA, C, D, A23, 16340, 18650, 32700, 4680 and the Lumintop USB 18650), axis on z with the origin at the centre of the total length including contacts, positive terminal at +z.",
+  "sizes": { "list": "batteries" },
+  "example": "battery(S25R18650)",
+  "checks": [
+    {
+      "args": ["S25R18650", { "$fn": 72 }],
+      "size": [18.313, 18.3, 65.016],
+      "tol": 0.01,
+      "source": "Samsung 25R 18650 cell: 18.3 x 65.0 mm (datasheet), axis on z with the origin at the centre of the length; the drawn box is 18.313 x 65.016 because the wrapped label pokes 0.013 past the casing on x and the terminal contacts add eps = 1/128 at each end of z"
+    }
+  ]
+}

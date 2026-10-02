@@ -1,0 +1,21 @@
+{
+  "id": "nopscadlib/led",
+  "family": "led",
+  "preferred": true,
+  "library": "NopSCADlib",
+  "license": "GPL-3.0",
+  "file": "NopSCADlib/vitamins/led.scad",
+  "prelude": ["NopSCADlib/vitamins/leds.scad"],
+  "call": "led",
+  "summary": "Domed through-hole LED (3, 5, 8, 10 mm round plus 5 x 2 mm rectangular), body on z from 0 to its height with the dome on top, leads down to -lead (default 5); the rim at the base carries a flat notch on +x.",
+  "sizes": { "list": "LEDs" },
+  "example": "led(LED3mm)",
+  "checks": [
+    {
+      "args": ["LED3mm", { "$fn": 72 }],
+      "size": [3.08, 3.15, 9.6],
+      "tol": 0.01,
+      "source": "Standard 3 mm T-1 round LED: body 3, rim 3.15, body height 4.6, lead pitch 2.54, default 5 mm leads; the rim's +x notch trims x below the rim diameter"
+    }
+  ]
+}

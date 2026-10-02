@@ -1,0 +1,22 @@
+{
+  "id": "nopscadlib/green_terminal",
+  "family": "green_terminal",
+  "preferred": true,
+  "library": "NopSCADlib",
+  "license": "GPL-3.0",
+  "file": "NopSCADlib/vitamins/green_terminal.scad",
+  "prelude": ["NopSCADlib/vitamins/green_terminals.scad"],
+  "call": "green_terminal",
+  "insertArgs": [2],
+  "summary": "PCB-mount green screw terminal block (2.54 to 6.35 mm pitch), drawn 2-way by default; ways along y, depth along x, body on z from 0 with pins down to -3.3.",
+  "sizes": { "list": "green_terminals" },
+  "example": "green_terminal(gt_5p08, 2)",
+  "checks": [
+    {
+      "args": ["gt_5p08", 2, { "$fn": 72 }],
+      "size": [7.9, 10.16, 13.3],
+      "tol": 0.01,
+      "source": "5.08 mm pitch PCB screw terminal block, 2-way: width 10.16, depth 7.9, body height 10, pins 3.3 below the body"
+    }
+  ]
+}

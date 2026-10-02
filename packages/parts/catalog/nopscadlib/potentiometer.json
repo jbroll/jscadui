@@ -1,0 +1,21 @@
+{
+  "id": "nopscadlib/potentiometer",
+  "family": "potentiometer",
+  "preferred": true,
+  "library": "NopSCADlib",
+  "license": "GPL-3.0",
+  "file": "NopSCADlib/vitamins/potentiometer.scad",
+  "prelude": ["NopSCADlib/vitamins/potentiometers.scad"],
+  "call": "potentiometer",
+  "summary": "Panel potentiometer or rotary encoder, body centred on the origin on z from 0 with the thread and shaft below (panel at z = 0); body diameter across x/y.",
+  "sizes": { "list": "potentiometers" },
+  "example": "potentiometer(metric_pot)",
+  "checks": [
+    {
+      "args": ["KY_040_encoder", { "$fn": 72 }],
+      "size": [12, 12, 26.5],
+      "tol": 0.01,
+      "source": "KY-040 rotary encoder: 12 x 12 mm body, 6 mm shaft 13 mm long on a 7 mm threaded bushing (body 6.5 + thread 7 + shaft 13)"
+    }
+  ]
+}

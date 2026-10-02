@@ -1,0 +1,27 @@
+{
+  "id": "nopscadlib/ziptie",
+  "family": "ziptie",
+  "preferred": true,
+  "library": "NopSCADlib",
+  "license": "GPL-3.0",
+  "file": "NopSCADlib/vitamins/ziptie.scad",
+  "prelude": ["NopSCADlib/vitamins/zipties.scad"],
+  "call": "ziptie",
+  "summary": "Cable ziptie wrapped around a 10 mm bundle (r = 5, library default), strap width on z, latch head at the bottom.",
+  "sizes": { "list": "zipties" },
+  "example": "ziptie(small_ziptie)",
+  "checks": [
+    {
+      "args": ["small_ziptie"],
+      "size": [12, 15, 4.25],
+      "tol": 0.01,
+      "source": "2.5 mm ziptie on a 10 mm bundle (r = 5): strap 2.5 wide, latch 4.7 x 4.25 x 3.0 (library list). x spans the strap wrap (radius 5 + thickness, 6 each way); y spans the latch tongue (-9) to the strap top (+6); z is the latch depth"
+    },
+    {
+      "args": ["ziptie_3p6mm"],
+      "size": [12.6, 16.9, 6.62],
+      "tol": 0.01,
+      "source": "3.6 mm ziptie on a 10 mm bundle: strap 3.6 wide, latch 6.4 x 6.62 x 4.7 (library list). x spans strap wrap (-6.2) to latch tip (+6.4); y spans the latch tongue (-10.7) to the strap top (+6.2); z is the latch depth"
+    }
+  ]
+}
