@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "packageManager": "npm@10.9.4",
   "type": "module",
-  "description": "JS CAD UI",
+  "description": "Browser-based 3D CAD UI and libraries — source for jscad.rkroll.com",
   "main": "index.js",
   "workspaces": [
     "packages/*",
@@ -41,23 +41,22 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/hrgdavor/jscadui.git"
+    "url": "git@github.com:jbroll/jscadui.git"
   },
   "keywords": [
     "jscad",
-    "typescript",
-    "javascript",
-    "ui",
-    "web",
-    "regl",
-    "threejs"
+    "cad",
+    "3d",
+    "openscad",
+    "browser",
+    "monorepo"
   ],
-  "author": "",
+  "author": "John Roll <john@rkroll.com>",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/hrgdavor/jscadui/issues"
+    "url": "https://github.com/jbroll/jscadui/issues"
   },
-  "homepage": "https://github.com/hrgdavor/jscadui#readme",
+  "homepage": "https://jscad.rkroll.com",
   "overrides": {
     "@jscad/modeling": "$@jscad/modeling",
     "@jscad/modeling-for-manifold": "$@jscad/modeling-for-manifold"
