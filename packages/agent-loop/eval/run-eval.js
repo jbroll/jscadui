@@ -204,6 +204,7 @@ export async function runConversation(
     toolTimeoutMs,
     gradeTimeoutMs,
     signal,
+    runTimeoutMs,
     render,
     onToolCall,
     onToolResult,
@@ -213,6 +214,19 @@ export async function runConversation(
 ) {
   let error
   let infraError = false
+  // The run clock starts after the first reset: executor startup is
+  // provisioning, not conversation, so a slow spawn under load cannot spend
+  // the run's time before its first turn.
+  const controller = new AbortController()
+  if (signal?.aborted) controller.abort(signal.reason)
+  else signal?.addEventListener('abort', () => controller.abort(signal.reason), { once: true })
+  const runSignal = controller.signal
+  let timer
+  const armTimer = () => {
+    if (runTimeoutMs == null || timer) return
+    timer = setTimeout(() => controller.abort(new Error(`run time limit of ${runTimeoutMs / 1000} s reached`)), runTimeoutMs)
+  }
+  try {
   const noteInfra = (err) => {
     if (!err?.infrastructure) throw err
     infraError = true
@@ -230,6 +244,7 @@ export async function runConversation(
     } catch (err) {
       noteInfra(err)
     }
+    armTimer()
     const messages = buildMessages({ systemPrompt, transcript: prior, files, build, message })
     let turnMessages = messages
     if (!infraError) {
@@ -247,7 +262,7 @@ export async function runConversation(
           },
           onText: (text) => onText?.(text),
           toolTimeoutMs,
-          signal,
+          signal: runSignal,
         })
         turnMessages = finished.messages
       } catch (err) {
@@ -256,7 +271,7 @@ export async function runConversation(
         if (err?.name === 'EmptyReplyError') {
           if (!cappedProvider.capped()) error = EMPTY_REPLY
         } else {
-          error = signal?.aborted && signal.reason instanceof Error ? signal.reason.message : err.message
+          error = runSignal.aborted && runSignal.reason instanceof Error ? runSignal.reason.message : err.message
           if (err?.infrastructure) infraError = true
         }
       }
@@ -321,6 +336,9 @@ export async function runConversation(
     ...(providerError ? { providerError: true } : {}),
     ...(infraError ? { infraError: true } : {}),
   }
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 export const RUN_TIMEOUT_MS = 20 * 60_000
@@ -328,7 +346,7 @@ export const RUN_TIMEOUT_MS = 20 * 60_000
 // One fixture x run for eval/parallel.js: the conversation and its provider
 // calls run in this process, model code in executors from `startExecutor()`
 // (eval/sandbox.js) behind eval/sandboxed-backend.js. `runTimeoutMs` caps the
-// conversation; grading still follows.
+// conversation from the first reset; grading still follows.
 export async function runJob(
   { fixture, run, runs, maxTurns },
   { provider, api, startExecutor: start, runTimeoutMs = RUN_TIMEOUT_MS, maxRestarts, callTimeoutMs, runToolTimeoutMs, render },
@@ -342,8 +360,6 @@ export async function runJob(
   const backend = createSandboxedBackend({ start, maxRestarts, callTimeoutMs, runToolTimeoutMs })
   // Past a call's own limit the backend still needs to kill, restart and reseed.
   const toolTimeoutMs = (callTimeoutMs ?? CALL_TIMEOUT_MS) + READY_TIMEOUT_MS + 30_000
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(new Error(`run time limit of ${runTimeoutMs / 1000} s reached`)), runTimeoutMs)
   try {
     onLog(formatRunHeader(fixture, run, runs))
     const result = await runConversation(fixture, run, {
@@ -352,7 +368,7 @@ export async function runJob(
       api,
       maxTurns,
       toolTimeoutMs,
-      signal: controller.signal,
+      runTimeoutMs,
       render,
       onToolCall: (name, input) => {
         flush()
@@ -371,7 +387,6 @@ export async function runJob(
     if (backend.exhausted() && !result.error) result.error = `model code ended the evaluator ${backend.crashes()} times`
     return result
   } finally {
-    clearTimeout(timer)
     backend.close()
   }
 }
