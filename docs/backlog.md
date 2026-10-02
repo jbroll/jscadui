@@ -575,8 +575,60 @@ full.
 ## Parts catalog
 
 First entries are nuts, screws, washers, ball bearings and steppers
-(`packages/parts/README.md`). Remaining families: inserts, pulleys, belts,
-rails, extrusions, springs, and threadlib threads.
+(`packages/parts/README.md`). A survey of the corpus on 2026-10-01 found the
+candidates below; the NopSCADlib hardware that fits the record format as it
+stands (inserts, pulleys, rails, extrusions, T-nuts, linear bearings, fans,
+microswitches, standoffs, magnets, lead nuts, shaft supports) is being added
+on `parts-group1`.
+
+- **More NopSCADlib hardware.** `comp_spring` (`springs`, 3), `shaft_coupling`
+  (2), `internal_circlip` (DIN 472, 6), `square_button` (6x6/12x12 tact, 4),
+  `led` (3–10 mm, list `LEDs`), `battery` (AA..18650..4680, 10), `tubing`
+  (PTFE 2x4 Bowden, 16), `ziptie` (3), `pcb` (Arduino, Raspberry Pi, Pico,
+  ESP32; `pcbs.scad` pulls in a large include web), `display`, `belt` (needs a
+  pulley path argument), `green_terminal`, `d_plug`, `toggle`, `rocker`,
+  `potentiometer`, `geared_stepper`, `gear_motor`.
+- **Size names that are not JS identifiers.** NopSCADlib names such as
+  `28BYJ_48`, `2p54header`, `9DOF_stick` and the `7_segments` entries start
+  with a digit, so the require line cannot destructure them. They need a
+  mangled export name or a record form that passes the value without naming
+  it.
+- **Standard features you cut or print, not buy.** BOSL2 `screw_hole`
+  (clearance, counterbore, countersink or tapped, by `"M3,10"` and tolerance;
+  check against ISO 273 clearance, M3 normal = 3.4), `nut_trap_side` and
+  `nut_trap_inline`, `nema_mount_mask` (11–34), involute `spur_gear`, `rack`
+  and `ring_gear` (check `outer_radius` = m(z+2)/2), `pco1881_neck`/`_cap`,
+  `pco1810_*`, `sp_neck`/`sp_cap` (SPI 400/410/415), `npt_threaded_rod` and
+  `bspp_threaded_rod`, `trapezoidal_threaded_rod`/`_nut` (Tr8x8),
+  `snap_pin`/`snap_pin_socket`, `knuckle_hinge`, `modular_hose` (Loc-Line),
+  `manfrotto_rc2_plate`; and `lmXuu_bearing` and `shoulder_screw` as BSD
+  alternatives to NopSCADlib hardware. The record format needs a way to place
+  the size after other arguments (`nut_trap_side(trap_width, spec)`) or pass
+  an option set (`spur_gear({mod, teeth, thickness})`), and the catalog a
+  "feature" kind whose check measures the cut, not a bought part. Gears,
+  worms and long threaded rods are slow to build.
+- **Libraries not yet under `/libs/`.** Each needs a `scripts/deps/manifest.json`
+  mapping into `apps/jscad-web/libs/` with its license file.
+  - threads-scad (CC0): printable ISO metric `MetricBolt`, `MetricNut`,
+    `MetricWasher` (numeric size, length as an argument). Its `ScrewHole`,
+    `ClearanceHole` and countersunk variants subtract from `children()`, so
+    they need a wrapper. The file calls `Demo()` at top level, so `use` it.
+  - gridfinity-rebuilt (MIT): bins and baseplates on the 42 mm grid. A bin is
+    built with `new_bin(...)` and drawn with `bin_render(bin)`, so it needs a
+    wrapper module keyed by `[gx, gy]` and height units.
+  - threadlib (BSD-3): about 950 designators (ISO metric, UNC/UNF/UNEF, G
+    pipe, PCO-1810/1881, RMS) through `bolt`, `nut`, `tap`. It depends on
+    IoP-satellite `thread_profile.scad` and list-comprehension-demos
+    `skin.scad`, neither with a stated license; settle that first. Slow.
+  - MCAD: per-file licenses are mixed (LGPL-2.1, GPL-3/LGPL dual,
+    CC-BY-SA-3.0+LGPL, CC-BY-3.0, public domain). Useful: `bearing` (608..63xx,
+    MR series; the model is the third parameter and an unknown model silently
+    draws a 608), LEGO-compatible `block` (public domain), servos SG90/S3003/
+    DS420, `stepper_motor_mount`. `nuts_and_bolts.scad` misses a comma after
+    the M20 entries of two tables, so M20 and up read wrong values.
+  - Not suitable: yapp-box (global-variable driven), constructive (framework
+    bound), snippet (unitless props), the utility libraries (round-anything,
+    obiscad, relativity, closepoints, dotscad), gears (CC-BY-NC).
 
 - **A unified facade over preferred entries.** Each family's `preferred`
   record uses its own library's call and size scheme (`nut(M3_nut)` vs.
