@@ -1,0 +1,23 @@
+{
+  "id": "nopscadlib/pulley",
+  "family": "pulley",
+  "library": "NopSCADlib",
+  "license": "GPL-3.0",
+  "file": "NopSCADlib/vitamins/pulley.scad",
+  "prelude": ["NopSCADlib/core.scad", "NopSCADlib/vitamins/pulleys.scad"],
+  "call": "pulley",
+  "summary": "Timing belt pulley or idler (GT2, T2.5, T5; toothed or plain), axis on z, hub on z = 0 and the flanged belt channel above.",
+  "sizes": { "list": "pulleys" },
+  "options": {
+    "colour": "pulley colour"
+  },
+  "example": "pulley(GT2x20ob_pulley)",
+  "checks": [
+    {
+      "args": ["GT2x20ob_pulley"],
+      "size": [16, 16, 15],
+      "tol": 0.01,
+      "source": "GT2 20T 5 mm bore pulley: flange and hub OD 16, tooth OD 12.22. z is the library's OpenBuilds values: hub 5.5, two 1 mm flanges, 7.5 belt channel"
+    }
+  ]
+}

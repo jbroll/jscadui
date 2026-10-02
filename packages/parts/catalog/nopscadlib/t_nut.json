@@ -1,0 +1,22 @@
+{
+  "id": "nopscadlib/t_nut",
+  "family": "t_nut",
+  "library": "NopSCADlib",
+  "license": "GPL-3.0",
+  "file": "NopSCADlib/vitamins/nut.scad",
+  "prelude": ["NopSCADlib/vitamins/nuts.scad"],
+  "call": "sliding_t_nut",
+  "summary": "Extrusion slot nut: sliding T-nut, spring-ball T-nut or hammer nut, slot along x, stem up to z = 0 and the wings below.",
+  "sizes": {
+    "names": ["M3_sliding_t_nut", "M4_sliding_t_nut", "M5_sliding_t_nut", "M6_sliding_t_nut", "M8_sliding_ball_t_nut", "M3_hammer_nut", "M4_hammer_nut"]
+  },
+  "example": "sliding_t_nut(M4_sliding_t_nut)",
+  "checks": [
+    {
+      "args": ["M3_sliding_t_nut"],
+      "size": [10, 10, 4],
+      "tol": 0.01,
+      "source": "M3 sliding T-nut for 20 series 6 mm slot: length 10, wing span 10, height 4 (nuts.scad M3_sliding_t_nut row)"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "id": "nopscadlib/heat_set_insert",
+  "family": "heat_set_insert",
+  "library": "NopSCADlib",
+  "license": "GPL-3.0",
+  "file": "NopSCADlib/vitamins/insert.scad",
+  "prelude": ["NopSCADlib/vitamins/inserts.scad"],
+  "call": "insert",
+  "summary": "Brass heat-set threaded insert for thermoplastics, axis on z, top flush with z = 0 and the body below.",
+  "sizes": {
+    "names": ["F1BM2", "F1BM2p5", "F1BM3", "F1BM4", "CNCKM2p5", "CNCKM3", "CNCKM4", "CNCKM5"]
+  },
+  "example": "insert(F1BM3)",
+  "checks": [
+    {
+      "args": ["F1BM3"],
+      "size": [4.6, 4.6, 5.8],
+      "tol": 0.01,
+      "source": "M3 x 5.8 heat-set insert, top OD 4.6 for a 4.0 hole (inserts.scad F1BM3 row)"
+    },
+    {
+      "args": ["CNCKM3"],
+      "size": [4.6, 4.6, 3],
+      "tol": 0.01,
+      "source": "CNC Kitchen M3 short insert: length 3, OD 4.6, hole 4.0 (inserts.scad CNCKM3 row)"
+    }
+  ]
+}

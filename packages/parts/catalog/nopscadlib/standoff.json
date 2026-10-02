@@ -1,0 +1,20 @@
+{
+  "id": "nopscadlib/standoff",
+  "family": "standoff",
+  "library": "NopSCADlib",
+  "license": "GPL-3.0",
+  "file": "NopSCADlib/vitamins/pillar.scad",
+  "prelude": ["NopSCADlib/core.scad", "NopSCADlib/vitamins/pillars.scad"],
+  "call": "pillar",
+  "summary": "Threaded standoff (brass, steel or nylon, hex or round), body from z = 0 up, a male thread below z = 0 where the type has one.",
+  "sizes": { "list": "pillars" },
+  "example": "pillar(M3x20_hex_pillar)",
+  "checks": [
+    {
+      "args": ["M3x20_hex_pillar"],
+      "size": [5.774, 5, 28],
+      "tol": 0.01,
+      "source": "M3 x 20 hex standoff, male/female, 5 AF (5.774 across corners on x); z is the 20 body plus the library's 8 mm male thread"
+    }
+  ]
+}

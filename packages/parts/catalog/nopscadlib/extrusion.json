@@ -1,0 +1,33 @@
+{
+  "id": "nopscadlib/extrusion",
+  "family": "extrusion",
+  "library": "NopSCADlib",
+  "license": "GPL-3.0",
+  "file": "NopSCADlib/vitamins/extrusion.scad",
+  "prelude": ["NopSCADlib/vitamins/extrusions.scad"],
+  "call": "extrusion",
+  "summary": "Aluminium T-slot extrusion (20 and 30 and 40 series, MakerBeam), length along z and centred on the origin by default; length is the second argument.",
+  "sizes": {
+    "names": ["Makerbeam", "MakerbeamXL", "E1515", "E2020", "E2020t", "E2040", "E2060", "E2080", "E3030", "E3060", "E4040", "E4040t", "E4080"]
+  },
+  "insertArgs": [100],
+  "options": {
+    "center": "centre the length on z = 0 (default true); false puts one end on z = 0",
+    "cornerHole": "draw the corner holes where the profile has them"
+  },
+  "example": "extrusion(E2020, 100)",
+  "checks": [
+    {
+      "args": ["E2020", 100],
+      "size": [20, 20, 100],
+      "tol": 0.01,
+      "source": "2020 profile: 20 x 20 section; z is the 100 mm length argument"
+    },
+    {
+      "args": ["E2040", 100],
+      "size": [20, 40, 100],
+      "tol": 0.01,
+      "source": "2040 profile: 20 x 40 section, long side on y; z is the 100 mm length argument"
+    }
+  ]
+}
