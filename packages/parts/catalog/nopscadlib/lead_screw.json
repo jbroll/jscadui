@@ -1,0 +1,23 @@
+{
+  "id": "nopscadlib/lead_screw",
+  "family": "lead_screw",
+  "library": "NopSCADlib",
+  "license": "GPL-3.0",
+  "file": "NopSCADlib/vitamins/rod.scad",
+  "call": "leadscrew",
+  "summary": "Trapezoidal lead screw, axis on z, centred on the origin; arguments are diameter, length, lead and number of starts (T8x8: 8, length, 8, 4).",
+  "sizes": { "values": [8] },
+  "insertArgs": [100, 8, 4],
+  "options": {
+    "center": "false puts the bottom end on z = 0"
+  },
+  "example": "leadscrew(8, 100, 8, 4)",
+  "checks": [
+    {
+      "args": [8, 100, 8, 4, { "$fn": 72 }],
+      "size": [8, 8, 100],
+      "tol": 0.01,
+      "source": "T8 lead screw (Tr8x8, 4 starts): OD 8; z is the 100 mm length argument"
+    }
+  ]
+}

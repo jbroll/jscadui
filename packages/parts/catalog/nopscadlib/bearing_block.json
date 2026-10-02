@@ -1,0 +1,20 @@
+{
+  "id": "nopscadlib/bearing_block",
+  "family": "bearing_block",
+  "library": "NopSCADlib",
+  "license": "GPL-3.0",
+  "file": "NopSCADlib/vitamins/bearing_block.scad",
+  "prelude": ["NopSCADlib/core.scad", "NopSCADlib/vitamins/bearing_blocks.scad"],
+  "call": "scs_bearing_block",
+  "summary": "SCS..UU linear bearing housing with its LM..UU bearing, shaft axis on z through the origin, base down along -y.",
+  "sizes": { "list": "scs_bearing_blocks" },
+  "example": "scs_bearing_block(SCS8UU)",
+  "checks": [
+    {
+      "args": ["SCS8UU"],
+      "size": [36.2, 22, 30],
+      "tol": 0.01,
+      "source": "SCS8UU vendor drawing (Misumi-type SCS housing): W 34, F 22, L 30, h 11. NopSCADlib's foot chamfers (sized from the M4 clearance radius 2.2, an estimate the drawings do not give) reach 1.1 mm past each side, so the library draws x 36.2; OpenSCAD measures the same"
+    }
+  ]
+}

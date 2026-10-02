@@ -1,0 +1,20 @@
+{
+  "id": "nopscadlib/linear_bearing",
+  "family": "linear_bearing",
+  "library": "NopSCADlib",
+  "license": "GPL-3.0",
+  "file": "NopSCADlib/vitamins/linear_bearing.scad",
+  "prelude": ["NopSCADlib/vitamins/linear_bearings.scad"],
+  "call": "linear_bearing",
+  "summary": "LM..UU linear ball bushing, axis on z, centred on the origin.",
+  "sizes": { "list": "linear_bearings" },
+  "example": "linear_bearing(LM8UU)",
+  "checks": [
+    {
+      "args": ["LM8UU", { "$fn": 72 }],
+      "size": [15, 15, 24],
+      "tol": 0.01,
+      "source": "ISO 10285 / Misumi LM8UU: dr 8, D 15, L 24"
+    }
+  ]
+}

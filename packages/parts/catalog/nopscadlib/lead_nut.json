@@ -1,0 +1,20 @@
+{
+  "id": "nopscadlib/lead_nut",
+  "family": "lead_nut",
+  "library": "NopSCADlib",
+  "license": "GPL-3.0",
+  "file": "NopSCADlib/vitamins/leadnut.scad",
+  "prelude": ["NopSCADlib/core.scad", "NopSCADlib/vitamins/leadnuts.scad"],
+  "call": "leadnut",
+  "summary": "Flanged lead screw nut (T8 brass, SFU1610 ball nut), axis on z, flange top at z = 0, shank down.",
+  "sizes": { "list": "leadnuts" },
+  "example": "leadnut(LSN8x2)",
+  "checks": [
+    {
+      "args": ["LSN8x2", { "$fn": 72 }],
+      "size": [22, 22, 15],
+      "tol": 0.01,
+      "source": "T8 brass lead screw nut, common vendor drawing: flange D 22, overall length 15, shank D 10.2"
+    }
+  ]
+}

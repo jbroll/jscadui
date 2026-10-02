@@ -1,0 +1,25 @@
+{
+  "id": "nopscadlib/linear_rail",
+  "family": "linear_rail",
+  "library": "NopSCADlib",
+  "license": "GPL-3.0",
+  "file": "NopSCADlib/vitamins/rail.scad",
+  "prelude": ["NopSCADlib/vitamins/rails.scad"],
+  "call": "rail",
+  "summary": "Profile linear guide rail (MGN miniature, SSR, HGH), centred on the origin along x, base on z = 0; length is the second argument.",
+  "sizes": { "list": "rails" },
+  "insertArgs": [100],
+  "options": {
+    "colour": "rail colour",
+    "use_polycircles": "draw the screw holes as polyholes"
+  },
+  "example": "rail(MGN12, 100)",
+  "checks": [
+    {
+      "args": ["MGN12", 100],
+      "size": [100, 12, 8],
+      "tol": 0.01,
+      "source": "Hiwin MGN12 rail datasheet: WR 12, HR 8; x is the 100 mm length argument"
+    }
+  ]
+}

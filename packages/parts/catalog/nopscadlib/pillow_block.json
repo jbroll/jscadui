@@ -1,0 +1,20 @@
+{
+  "id": "nopscadlib/pillow_block",
+  "family": "pillow_block",
+  "library": "NopSCADlib",
+  "license": "GPL-3.0",
+  "file": "NopSCADlib/vitamins/pillow_block.scad",
+  "prelude": ["NopSCADlib/core.scad", "NopSCADlib/vitamins/pillow_blocks.scad"],
+  "call": "kp_pillow_block",
+  "summary": "KP zinc pillow block with its ball bearing, shaft axis on z through the origin, base down along -y.",
+  "sizes": { "list": "kp_pillow_blocks" },
+  "example": "kp_pillow_block(KP08_15)",
+  "checks": [
+    {
+      "args": ["KP08_15"],
+      "size": [55, 29.5, 13],
+      "tol": 0.01,
+      "source": "KP08 vendor drawing: L 55, A 13, H 15, H0 29, so height H + H0 / 2 = 29.5"
+    }
+  ]
+}

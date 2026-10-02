@@ -1,0 +1,20 @@
+{
+  "id": "nopscadlib/shaft_support",
+  "family": "shaft_support",
+  "library": "NopSCADlib",
+  "license": "GPL-3.0",
+  "file": "NopSCADlib/vitamins/sk_bracket.scad",
+  "prelude": ["NopSCADlib/core.scad", "NopSCADlib/vitamins/sk_brackets.scad"],
+  "call": "sk_bracket",
+  "summary": "SK shaft support bracket, shaft axis on z through the origin, base down along -y.",
+  "sizes": { "list": "sk_brackets" },
+  "example": "sk_bracket(SK8)",
+  "checks": [
+    {
+      "args": ["SK8"],
+      "size": [42, 32.8, 14],
+      "tol": 0.01,
+      "source": "SK8 vendor drawing (Misumi-type SK shaft support): W 42, F 32.8, L 14, h 20"
+    }
+  ]
+}

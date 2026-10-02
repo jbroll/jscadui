@@ -1,0 +1,30 @@
+{
+  "id": "nopscadlib/rail_carriage",
+  "family": "rail_carriage",
+  "library": "NopSCADlib",
+  "license": "GPL-3.0",
+  "file": "NopSCADlib/vitamins/rail.scad",
+  "prelude": ["NopSCADlib/vitamins/rails.scad"],
+  "call": "carriage",
+  "summary": "Linear guide carriage block (MGN C/H, SSR, HGH) in the rail's frame: centred on the origin along x, z = 0 at the rail base.",
+  "sizes": {
+    "names": [
+      "MGN5C_carriage", "MGN7C_carriage", "MGN7H_carriage", "MGN9C_carriage", "MGN9H_carriage",
+      "MGN12C_carriage", "MGN12H_carriage", "MGN15C_carriage", "SSR15_carriage",
+      "HGH15CA_carriage", "HGH20CA_carriage"
+    ]
+  },
+  "options": {
+    "end_colour": "colour of the end caps",
+    "wiper_colour": "colour of the end seals"
+  },
+  "example": "carriage(MGN12H_carriage)",
+  "checks": [
+    {
+      "args": ["MGN12H_carriage"],
+      "size": [45.4, 27, 10],
+      "tol": 0.01,
+      "source": "Hiwin MGN12H block datasheet: L 45.4, W 27, H 13, H1 3. The block spans z H1..H (3..13) above the rail base, so its own height is H - H1 = 10"
+    }
+  ]
+}
