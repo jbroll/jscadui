@@ -1,6 +1,7 @@
 {
   "id": "nopscadlib/linear_rail",
   "family": "linear_rail",
+  "preferred": true,
   "library": "NopSCADlib",
   "license": "GPL-3.0",
   "file": "NopSCADlib/vitamins/rail.scad",

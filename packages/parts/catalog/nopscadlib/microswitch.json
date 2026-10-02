@@ -1,6 +1,7 @@
 {
   "id": "nopscadlib/microswitch",
   "family": "microswitch",
+  "preferred": true,
   "library": "NopSCADlib",
   "license": "GPL-3.0",
   "file": "NopSCADlib/vitamins/microswitch.scad",

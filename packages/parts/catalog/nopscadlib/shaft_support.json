@@ -1,6 +1,7 @@
 {
   "id": "nopscadlib/shaft_support",
   "family": "shaft_support",
+  "preferred": true,
   "library": "NopSCADlib",
   "license": "GPL-3.0",
   "file": "NopSCADlib/vitamins/sk_bracket.scad",

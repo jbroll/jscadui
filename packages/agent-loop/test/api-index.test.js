@@ -240,8 +240,11 @@ describe('fluent entries', () => {
     expect(Object.keys(fluent.options)).not.toContain('polygon')
   })
 
-  it('stays under 280 KB', () => {
-    expect(formatIndex(entries).length).toBeLessThan(280_000)
+  // Parts entries grow with every catalog admission, so they get their own budget.
+  it('stays under 280 KB without the parts catalog, and the parts entries under 60 KB', () => {
+    const isPart = (e) => e.pkg === '@jscadui/parts'
+    expect(formatIndex(entries.filter((e) => !isPart(e))).length).toBeLessThan(280_000)
+    expect(formatIndex(entries.filter(isPart)).length).toBeLessThan(60_000)
   })
 
   it('keeps positional parameter text, except for maths', () => {

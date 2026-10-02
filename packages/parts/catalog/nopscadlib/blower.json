@@ -1,6 +1,7 @@
 {
   "id": "nopscadlib/blower",
   "family": "blower",
+  "preferred": true,
   "library": "NopSCADlib",
   "license": "GPL-3.0",
   "file": "NopSCADlib/vitamins/blower.scad",

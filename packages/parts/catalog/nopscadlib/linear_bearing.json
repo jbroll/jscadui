@@ -1,6 +1,7 @@
 {
   "id": "nopscadlib/linear_bearing",
   "family": "linear_bearing",
+  "preferred": true,
   "library": "NopSCADlib",
   "license": "GPL-3.0",
   "file": "NopSCADlib/vitamins/linear_bearing.scad",

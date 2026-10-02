@@ -1,6 +1,7 @@
 {
   "id": "nopscadlib/heat_set_insert",
   "family": "heat_set_insert",
+  "preferred": true,
   "library": "NopSCADlib",
   "license": "GPL-3.0",
   "file": "NopSCADlib/vitamins/insert.scad",

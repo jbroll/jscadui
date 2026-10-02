@@ -1,6 +1,7 @@
 {
   "id": "nopscadlib/lead_screw",
   "family": "lead_screw",
+  "preferred": true,
   "library": "NopSCADlib",
   "license": "GPL-3.0",
   "file": "NopSCADlib/vitamins/rod.scad",

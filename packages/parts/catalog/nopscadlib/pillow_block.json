@@ -1,6 +1,7 @@
 {
   "id": "nopscadlib/pillow_block",
   "family": "pillow_block",
+  "preferred": true,
   "library": "NopSCADlib",
   "license": "GPL-3.0",
   "file": "NopSCADlib/vitamins/pillow_block.scad",

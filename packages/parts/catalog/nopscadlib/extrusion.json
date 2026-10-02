@@ -1,6 +1,7 @@
 {
   "id": "nopscadlib/extrusion",
   "family": "extrusion",
+  "preferred": true,
   "library": "NopSCADlib",
   "license": "GPL-3.0",
   "file": "NopSCADlib/vitamins/extrusion.scad",

@@ -1,6 +1,7 @@
 {
   "id": "nopscadlib/t_nut",
   "family": "t_nut",
+  "preferred": true,
   "library": "NopSCADlib",
   "license": "GPL-3.0",
   "file": "NopSCADlib/vitamins/nut.scad",

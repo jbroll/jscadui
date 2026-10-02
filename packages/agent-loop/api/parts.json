@@ -90,6 +90,473 @@
     "example": "ball_bearing(BB608)"
   },
   {
+    "name": "parts.nopscadlib.scs_bearing_block",
+    "pkg": "@jscadui/parts",
+    "kind": "part",
+    "family": "bearing_block",
+    "preferred": true,
+    "description": "SCS..UU linear bearing housing with its LM..UU bearing, shaft axis on z through the origin, base down along -y.",
+    "require": "const { scs_bearing_block, SCS8UU } = require('_catalog/NopSCADlib/vitamins/bearing_block.scad')",
+    "scad": "include <NopSCADlib/core.scad>\ninclude <NopSCADlib/vitamins/bearing_blocks.scad>\ninclude <NopSCADlib/vitamins/bearing_block.scad>",
+    "signature": "scs_bearing_block(type)",
+    "sizes": [
+      "SCS6UU",
+      "SCS8UU",
+      "SCS10UU",
+      "SCS12UU",
+      "SCS16UU",
+      "SCS8LUU",
+      "SCS10LUU",
+      "SCS12LUU",
+      "SCS16LUU"
+    ],
+    "options": {},
+    "license": "GPL-3.0",
+    "measured": [
+      {
+        "args": [
+          "SCS8UU"
+        ],
+        "size": [
+          36.20000001788139,
+          22,
+          30
+        ]
+      }
+    ],
+    "example": "scs_bearing_block(SCS8UU)"
+  },
+  {
+    "name": "parts.nopscadlib.blower",
+    "pkg": "@jscadui/parts",
+    "kind": "part",
+    "family": "blower",
+    "preferred": true,
+    "description": "Radial blower fan, square (3010, 4010) or spiral (4020, 5015), base on z = 0, corner at the origin, exit along -y.",
+    "require": "const { blower, RB5015 } = require('_catalog/NopSCADlib/vitamins/blower.scad')",
+    "scad": "include <NopSCADlib/core.scad>\ninclude <NopSCADlib/vitamins/blowers.scad>\ninclude <NopSCADlib/vitamins/blower.scad>",
+    "signature": "blower(type)",
+    "sizes": [
+      "BL30x10",
+      "BL40x10",
+      "PE4020",
+      "RB5015"
+    ],
+    "options": {},
+    "license": "GPL-3.0",
+    "measured": [
+      {
+        "args": [
+          "RB5015"
+        ],
+        "size": [
+          51.31980410218239,
+          51.02098535746336,
+          15
+        ]
+      },
+      {
+        "args": [
+          "BL40x10"
+        ],
+        "size": [
+          40,
+          40,
+          9.5
+        ]
+      }
+    ],
+    "example": "blower(RB5015)"
+  },
+  {
+    "name": "parts.nopscadlib.extrusion",
+    "pkg": "@jscadui/parts",
+    "kind": "part",
+    "family": "extrusion",
+    "preferred": true,
+    "description": "Aluminium T-slot extrusion (15, 20, 30 and 40 series, MakerBeam and MakerBeamXL), length along z and centred on the origin by default; length is the second argument. `t` variants (E2020t, E4040t) add a recessed channel (`extrusion_channel_recess` in extrusions.scad) over the plain E2020/E4040 profile.",
+    "require": "const { extrusion, E2020 } = require('_catalog/NopSCADlib/vitamins/extrusion.scad')",
+    "scad": "include <NopSCADlib/vitamins/extrusions.scad>\ninclude <NopSCADlib/vitamins/extrusion.scad>",
+    "signature": "extrusion(type, length, center = true, cornerHole = true)",
+    "sizes": [
+      "Makerbeam",
+      "MakerbeamXL",
+      "E1515",
+      "E2020",
+      "E2020t",
+      "E2040",
+      "E2060",
+      "E2080",
+      "E3030",
+      "E3060",
+      "E4040",
+      "E4040t",
+      "E4080"
+    ],
+    "options": {
+      "center": "centre the length on z = 0 (default true); false puts one end on z = 0",
+      "cornerHole": "draw the corner holes where the profile has them"
+    },
+    "license": "GPL-3.0",
+    "measured": [
+      {
+        "args": [
+          "E2020",
+          100
+        ],
+        "size": [
+          20,
+          20,
+          100
+        ]
+      },
+      {
+        "args": [
+          "E2040",
+          100
+        ],
+        "size": [
+          20,
+          40,
+          100
+        ]
+      }
+    ],
+    "example": "extrusion(E2020, 100)"
+  },
+  {
+    "name": "parts.nopscadlib.fan",
+    "pkg": "@jscadui/parts",
+    "kind": "part",
+    "family": "fan",
+    "preferred": true,
+    "description": "Square axial fan (17 to 120 mm), centred on the origin with the axis on z (no 4010; fan40x11 is the 40 mm size).",
+    "require": "const { fan, fan40x11 } = require('_catalog/NopSCADlib/vitamins/fan.scad')",
+    "scad": "include <NopSCADlib/core.scad>\ninclude <NopSCADlib/vitamins/fans.scad>\ninclude <NopSCADlib/vitamins/fan.scad>",
+    "signature": "fan(type)",
+    "sizes": [
+      "fan17x8",
+      "fan25x10",
+      "fan30x10",
+      "fan40x11",
+      "fan50x15",
+      "fan60x15",
+      "fan60x25",
+      "fan70x15",
+      "fan80x25",
+      "fan80x38",
+      "fan120x25"
+    ],
+    "options": {},
+    "license": "GPL-3.0",
+    "measured": [
+      {
+        "args": [
+          "fan40x11"
+        ],
+        "size": [
+          40,
+          40,
+          11
+        ]
+      },
+      {
+        "args": [
+          "fan120x25"
+        ],
+        "size": [
+          120,
+          120,
+          25
+        ]
+      }
+    ],
+    "example": "fan(fan40x11)"
+  },
+  {
+    "name": "parts.nopscadlib.insert",
+    "pkg": "@jscadui/parts",
+    "kind": "part",
+    "family": "heat_set_insert",
+    "preferred": true,
+    "description": "Brass heat-set threaded insert for thermoplastics, axis on z, top flush with z = 0 and the body below. CNCK* are CNC Kitchen short inserts; F1BM* are standard length. The library has no row for CNC Kitchen's standard-length M3 (about 5.7 long).",
+    "require": "const { insert, F1BM3 } = require('_catalog/NopSCADlib/vitamins/insert.scad')",
+    "scad": "include <NopSCADlib/vitamins/inserts.scad>\ninclude <NopSCADlib/vitamins/insert.scad>",
+    "signature": "insert(type)",
+    "sizes": [
+      "F1BM2",
+      "F1BM2p5",
+      "F1BM3",
+      "F1BM4",
+      "CNCKM2p5",
+      "CNCKM3",
+      "CNCKM4",
+      "CNCKM5"
+    ],
+    "options": {},
+    "license": "GPL-3.0",
+    "measured": [
+      {
+        "args": [
+          "F1BM3"
+        ],
+        "size": [
+          4.5999999940395355,
+          4.5999999940395355,
+          5.799999997019768
+        ]
+      },
+      {
+        "args": [
+          "CNCKM3"
+        ],
+        "size": [
+          4.5999999940395355,
+          4.5999999940395355,
+          3
+        ]
+      }
+    ],
+    "example": "insert(F1BM3)"
+  },
+  {
+    "name": "parts.nopscadlib.leadnut",
+    "pkg": "@jscadui/parts",
+    "kind": "part",
+    "family": "lead_nut",
+    "preferred": true,
+    "description": "Flanged lead screw nut (T8 brass, SFU1610 ball nut), axis on z, flange top at z = 0, shank down.",
+    "require": "const { leadnut, LSN8x8 } = require('_catalog/NopSCADlib/vitamins/leadnut.scad')",
+    "scad": "include <NopSCADlib/core.scad>\ninclude <NopSCADlib/vitamins/leadnuts.scad>\ninclude <NopSCADlib/vitamins/leadnut.scad>",
+    "signature": "leadnut(type)",
+    "sizes": [
+      "LSN8x2",
+      "LSN8x8",
+      "SFU1610"
+    ],
+    "options": {},
+    "license": "GPL-3.0",
+    "measured": [
+      {
+        "args": [
+          "LSN8x8",
+          {
+            "$fn": 72
+          }
+        ],
+        "size": [
+          25.400000005960464,
+          25.400000005960464,
+          19
+        ]
+      },
+      {
+        "args": [
+          "LSN8x2",
+          {
+            "$fn": 72
+          }
+        ],
+        "size": [
+          22,
+          22,
+          15
+        ]
+      }
+    ],
+    "example": "leadnut(LSN8x8)"
+  },
+  {
+    "name": "parts.nopscadlib.leadscrew",
+    "pkg": "@jscadui/parts",
+    "kind": "part",
+    "family": "lead_screw",
+    "preferred": true,
+    "description": "Trapezoidal lead screw, axis on z, centred on the origin; arguments are diameter, length, lead and number of starts (T8x8: 8, length, 8, 4). The thumbnail's plain-cylinder look is the library's default: NopSCADlib draws threads only when show_threads is on.",
+    "require": "const { leadscrew } = require('NopSCADlib/vitamins/rod.scad')",
+    "scad": "include <NopSCADlib/vitamins/rod.scad>",
+    "signature": "leadscrew(d, l, lead, starts, center = true)",
+    "sizes": [
+      "8"
+    ],
+    "options": {
+      "center": "false puts the bottom end on z = 0"
+    },
+    "license": "GPL-3.0",
+    "measured": [
+      {
+        "args": [
+          8,
+          100,
+          8,
+          4,
+          {
+            "$fn": 72
+          }
+        ],
+        "size": [
+          8,
+          8,
+          100
+        ]
+      }
+    ],
+    "example": "leadscrew(8, 100, 8, 4)"
+  },
+  {
+    "name": "parts.nopscadlib.linear_bearing",
+    "pkg": "@jscadui/parts",
+    "kind": "part",
+    "family": "linear_bearing",
+    "preferred": true,
+    "description": "LM..UU linear ball bushing, axis on z, centred on the origin.",
+    "require": "const { linear_bearing, LM8UU } = require('_catalog/NopSCADlib/vitamins/linear_bearing.scad')",
+    "scad": "include <NopSCADlib/vitamins/linear_bearings.scad>\ninclude <NopSCADlib/vitamins/linear_bearing.scad>",
+    "signature": "linear_bearing(type)",
+    "sizes": [
+      "LM3UU",
+      "LM4UU",
+      "LM5UU",
+      "LM6UU",
+      "LM8UU",
+      "LM10UU",
+      "LM12UU",
+      "LM16UU",
+      "LM3LUU",
+      "LM4LUU",
+      "LM5LUU",
+      "LM6LUU",
+      "LM8LUU",
+      "LM10LUU",
+      "LM12LUU",
+      "LM16LUU"
+    ],
+    "options": {},
+    "license": "GPL-3.0",
+    "measured": [
+      {
+        "args": [
+          "LM8UU",
+          {
+            "$fn": 72
+          }
+        ],
+        "size": [
+          15,
+          15,
+          24
+        ]
+      }
+    ],
+    "example": "linear_bearing(LM8UU)"
+  },
+  {
+    "name": "parts.nopscadlib.rail",
+    "pkg": "@jscadui/parts",
+    "kind": "part",
+    "family": "linear_rail",
+    "preferred": true,
+    "description": "Profile linear guide rail (MGN miniature, SSR, HGH), centred on the origin along x, base on z = 0; length is the second argument.",
+    "require": "const { rail, MGN12 } = require('_catalog/NopSCADlib/vitamins/rail.scad')",
+    "scad": "include <NopSCADlib/vitamins/rails.scad>\ninclude <NopSCADlib/vitamins/rail.scad>",
+    "signature": "rail(type, length, colour = grey(90), use_polycircles = false)",
+    "sizes": [
+      "MGN5",
+      "MGN7",
+      "MGN9",
+      "MGN12",
+      "MGN15",
+      "SSR15",
+      "HGH15CA",
+      "HGH20CA"
+    ],
+    "options": {
+      "colour": "rail colour",
+      "use_polycircles": "draw the screw holes as polyholes"
+    },
+    "license": "GPL-3.0",
+    "measured": [
+      {
+        "args": [
+          "MGN12",
+          100
+        ],
+        "size": [
+          100,
+          12,
+          8
+        ]
+      }
+    ],
+    "example": "rail(MGN12, 100)"
+  },
+  {
+    "name": "parts.nopscadlib.magnet",
+    "pkg": "@jscadui/parts",
+    "kind": "part",
+    "family": "magnet",
+    "preferred": true,
+    "description": "Cylindrical disc or ring magnet with rounded edges, axis on z, base on z = 0.",
+    "require": "const { magnet, MAG8x4x4p2 } = require('_catalog/NopSCADlib/vitamins/magnet.scad')",
+    "scad": "include <NopSCADlib/vitamins/magnets.scad>\ninclude <NopSCADlib/vitamins/magnet.scad>",
+    "signature": "magnet(type)",
+    "sizes": [
+      "MAG8x4x4p2",
+      "MAG484",
+      "MAG5x8",
+      "MAGRE6x2p5"
+    ],
+    "options": {},
+    "license": "GPL-3.0",
+    "measured": [
+      {
+        "args": [
+          "MAG8x4x4p2",
+          {
+            "$fn": 72
+          }
+        ],
+        "size": [
+          8,
+          8,
+          4
+        ]
+      }
+    ],
+    "example": "magnet(MAG8x4x4p2)"
+  },
+  {
+    "name": "parts.nopscadlib.microswitch",
+    "pkg": "@jscadui/parts",
+    "kind": "part",
+    "family": "microswitch",
+    "preferred": true,
+    "description": "Button microswitch for limit switches (DM1 subminiature, SS-5GL, Saia G3), body centred on the origin, length on x, button at its operating point toward +y, legs toward -y.",
+    "require": "const { microswitch, medium_microswitch } = require('_catalog/NopSCADlib/vitamins/microswitch.scad')",
+    "scad": "include <NopSCADlib/core.scad>\ninclude <NopSCADlib/vitamins/microswitches.scad>\ninclude <NopSCADlib/vitamins/microswitch.scad>",
+    "signature": "microswitch(type)",
+    "sizes": [
+      "small_microswitch",
+      "medium_microswitch",
+      "large_microswitch"
+    ],
+    "options": {},
+    "license": "GPL-3.0",
+    "measured": [
+      {
+        "args": [
+          "medium_microswitch"
+        ],
+        "size": [
+          19.799999997019768,
+          14.800000002980234,
+          6.4
+        ]
+      }
+    ],
+    "example": "microswitch(medium_microswitch)"
+  },
+  {
     "name": "parts.bosl2.nut",
     "pkg": "@jscadui/parts",
     "kind": "part",
@@ -168,6 +635,126 @@
       }
     ],
     "example": "nut(M3_nut, {nyloc: true})"
+  },
+  {
+    "name": "parts.nopscadlib.kp_pillow_block",
+    "pkg": "@jscadui/parts",
+    "kind": "part",
+    "family": "pillow_block",
+    "preferred": true,
+    "description": "KP zinc pillow block with its ball bearing, shaft axis on z through the origin, base down along -y.",
+    "require": "const { kp_pillow_block, KP08_15 } = require('_catalog/NopSCADlib/vitamins/pillow_block.scad')",
+    "scad": "include <NopSCADlib/core.scad>\ninclude <NopSCADlib/vitamins/pillow_blocks.scad>\ninclude <NopSCADlib/vitamins/pillow_block.scad>",
+    "signature": "kp_pillow_block(type)",
+    "sizes": [
+      "KP08_15",
+      "KP08_18",
+      "KP000",
+      "KP001"
+    ],
+    "options": {},
+    "license": "GPL-3.0",
+    "measured": [
+      {
+        "args": [
+          "KP08_15"
+        ],
+        "size": [
+          55,
+          29.5,
+          13
+        ]
+      }
+    ],
+    "example": "kp_pillow_block(KP08_15)"
+  },
+  {
+    "name": "parts.nopscadlib.pulley",
+    "pkg": "@jscadui/parts",
+    "kind": "part",
+    "family": "pulley",
+    "preferred": true,
+    "description": "Timing belt pulley or idler (GT2, T2.5, T5; toothed or plain), axis on z, hub on z = 0 and the flanged belt channel above.",
+    "require": "const { pulley, GT2x20ob_pulley } = require('_catalog/NopSCADlib/vitamins/pulley.scad')",
+    "scad": "include <NopSCADlib/core.scad>\ninclude <NopSCADlib/vitamins/pulleys.scad>\ninclude <NopSCADlib/vitamins/pulley.scad>",
+    "signature": "pulley(type, colour = silver)",
+    "sizes": [
+      "T5x10_pulley",
+      "T2p5x16_pulley",
+      "GT2x20_pulley_9",
+      "GT2x20um_pulley",
+      "GT2x20ob_pulley",
+      "GT2x16_pulley_9",
+      "GT2x16_pulley",
+      "GT2x12_pulley",
+      "GT2x16_plain_idler",
+      "GT2x16x7_plain_idler",
+      "GT2x20_plain_idler",
+      "GT2x16_toothed_idler",
+      "GT2x16_toothed_idler_9",
+      "GT2x20_toothed_idler",
+      "GT2x20_toothed_idler_9",
+      "GT2x80_pulley"
+    ],
+    "options": {
+      "colour": "pulley colour"
+    },
+    "license": "GPL-3.0",
+    "measured": [
+      {
+        "args": [
+          "GT2x20ob_pulley"
+        ],
+        "size": [
+          16,
+          16,
+          15
+        ]
+      }
+    ],
+    "example": "pulley(GT2x20ob_pulley)"
+  },
+  {
+    "name": "parts.nopscadlib.carriage",
+    "pkg": "@jscadui/parts",
+    "kind": "part",
+    "family": "rail_carriage",
+    "preferred": true,
+    "description": "Linear guide carriage block (MGN C/H, SSR, HGH) in the rail's frame: centred on the origin along x, z = 0 at the rail base.",
+    "require": "const { carriage, MGN12H_carriage } = require('_catalog/NopSCADlib/vitamins/rail.scad')",
+    "scad": "include <NopSCADlib/vitamins/rails.scad>\ninclude <NopSCADlib/vitamins/rail.scad>",
+    "signature": "carriage(type, end_colour = grey(20), wiper_colour = grey(20))",
+    "sizes": [
+      "MGN5C_carriage",
+      "MGN7C_carriage",
+      "MGN7H_carriage",
+      "MGN9C_carriage",
+      "MGN9H_carriage",
+      "MGN12C_carriage",
+      "MGN12H_carriage",
+      "MGN15C_carriage",
+      "SSR15_carriage",
+      "HGH15CA_carriage",
+      "HGH20CA_carriage"
+    ],
+    "options": {
+      "end_colour": "colour of the end caps",
+      "wiper_colour": "colour of the end seals"
+    },
+    "license": "GPL-3.0",
+    "measured": [
+      {
+        "args": [
+          "MGN12H_carriage"
+        ],
+        "size": [
+          45.4,
+          27,
+          10
+        ]
+      }
+    ],
+    "example": "carriage(MGN12H_carriage)"
   },
   {
     "name": "parts.bosl2.screw",
@@ -253,6 +840,74 @@
     "example": "screw(M3_cap_screw, 10)"
   },
   {
+    "name": "parts.nopscadlib.sk_bracket",
+    "pkg": "@jscadui/parts",
+    "kind": "part",
+    "family": "shaft_support",
+    "preferred": true,
+    "description": "SK shaft support bracket, shaft axis on z through the origin, base down along -y.",
+    "require": "const { sk_bracket, SK8 } = require('_catalog/NopSCADlib/vitamins/sk_bracket.scad')",
+    "scad": "include <NopSCADlib/core.scad>\ninclude <NopSCADlib/vitamins/sk_brackets.scad>\ninclude <NopSCADlib/vitamins/sk_bracket.scad>",
+    "signature": "sk_bracket(type)",
+    "sizes": [
+      "SK8",
+      "SK10",
+      "SK12",
+      "SK16"
+    ],
+    "options": {},
+    "license": "GPL-3.0",
+    "measured": [
+      {
+        "args": [
+          "SK8"
+        ],
+        "size": [
+          42,
+          32.79999999701977,
+          14
+        ]
+      }
+    ],
+    "example": "sk_bracket(SK8)"
+  },
+  {
+    "name": "parts.nopscadlib.pillar",
+    "pkg": "@jscadui/parts",
+    "kind": "part",
+    "family": "standoff",
+    "preferred": true,
+    "description": "Threaded standoff (brass, steel or nylon, hex or round), body from z = 0 up; a male thread goes below z = 0 or above the body depending on the type (M2x16_brass_pillar's is on top). The library draws M4x17_nylon_pillar 20 mm tall despite its name.",
+    "require": "const { pillar, M3x20_hex_pillar } = require('_catalog/NopSCADlib/vitamins/pillar.scad')",
+    "scad": "include <NopSCADlib/core.scad>\ninclude <NopSCADlib/vitamins/pillars.scad>\ninclude <NopSCADlib/vitamins/pillar.scad>",
+    "signature": "pillar(type)",
+    "sizes": [
+      "M2x16_brass_pillar",
+      "M3x6_hex_pillar",
+      "M3x13_hex_pillar",
+      "M3x20_hex_pillar",
+      "M3x20_nylon_pillar",
+      "M4x17_nylon_pillar",
+      "M3x10_nylon_hex_pillar",
+      "M3x20_nylon_hex_pillar"
+    ],
+    "options": {},
+    "license": "GPL-3.0",
+    "measured": [
+      {
+        "args": [
+          "M3x20_hex_pillar"
+        ],
+        "size": [
+          5.773502692580223,
+          5,
+          27.9921875
+        ]
+      }
+    ],
+    "example": "pillar(M3x20_hex_pillar)"
+  },
+  {
     "name": "parts.bosl2.nema_stepper_motor",
     "pkg": "@jscadui/parts",
     "kind": "part",
@@ -332,6 +987,41 @@
       }
     ],
     "example": "NEMA(NEMA17_40)"
+  },
+  {
+    "name": "parts.nopscadlib.sliding_t_nut",
+    "pkg": "@jscadui/parts",
+    "kind": "part",
+    "family": "t_nut",
+    "preferred": true,
+    "description": "Extrusion slot nut: sliding T-nut, spring-ball T-nut or hammer nut, slot along x, stem below z = 0, wings and plate above. The M6_sliding_t_nut row carries a stray extra element that shifts the hammer-nut flag on, so it draws with hammer-nut fillets (the size still builds).",
+    "require": "const { sliding_t_nut, M3_sliding_t_nut } = require('_catalog/NopSCADlib/vitamins/nut.scad')",
+    "scad": "include <NopSCADlib/vitamins/nuts.scad>\ninclude <NopSCADlib/vitamins/nut.scad>",
+    "signature": "sliding_t_nut(type)",
+    "sizes": [
+      "M3_sliding_t_nut",
+      "M4_sliding_t_nut",
+      "M5_sliding_t_nut",
+      "M6_sliding_t_nut",
+      "M8_sliding_ball_t_nut",
+      "M3_hammer_nut",
+      "M4_hammer_nut"
+    ],
+    "options": {},
+    "license": "GPL-3.0",
+    "measured": [
+      {
+        "args": [
+          "M3_sliding_t_nut"
+        ],
+        "size": [
+          10,
+          10,
+          4
+        ]
+      }
+    ],
+    "example": "sliding_t_nut(M4_sliding_t_nut)"
   },
   {
     "name": "parts.nopscadlib.washer",
