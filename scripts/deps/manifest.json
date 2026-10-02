@@ -604,6 +604,31 @@
         }
       ],
       "patches": []
+    },
+    {
+      "name": "lego",
+      "description": "LEGO brick library: LEGO.scad, LEGO-Angle-Plate.scad and lego.js (jbroll/LEGO.js)",
+      "url": "https://github.com/jbroll/LEGO.js.git",
+      "ref": "master",
+      "commit": "5c0080ee507116013604c8b2b030e5cc23109908",
+      "license": "MIT",
+      "mappings": [
+        {
+          "srcDir": ".",
+          "destDir": "apps/jscad-web/examples/openscad/lego",
+          "include": ["LEGO.scad", "LEGO-Angle-Plate.scad"],
+          "exclude": [],
+          "skipFiles": []
+        },
+        {
+          "srcDir": ".",
+          "destDir": "apps/jscad-web/libs/LEGO",
+          "include": ["LEGO.scad", "LEGO-Angle-Plate.scad", "lego.js"],
+          "exclude": [],
+          "skipFiles": []
+        }
+      ],
+      "patches": []
     }
   ],
   "organize": {
