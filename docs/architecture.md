@@ -1,5 +1,7 @@
 # Architecture
 
+The full application architecture is documented in [apps/jscad-web/docs/architecture.md](../apps/jscad-web/docs/architecture.md). This file covers the parts catalog.
+
 ## Parts catalog
 
 A standard part (a nut, a screw, a bearing, a stepper) comes from an OpenSCAD
