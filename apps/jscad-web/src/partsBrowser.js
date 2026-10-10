@@ -306,15 +306,16 @@ function renderEntry(content, entry, { getEditor, onBack }) {
   const optionsEntries = Object.entries(entry.options || {})
   const measured = entry.measured || []
 
-  // Checked again on click: the editor can become ready, or stop being ready, while this view is open.
-  const editorReady = Boolean(getEditor?.())
-
+  const notReady = () => content.querySelector('.parts-not-ready')
   const insertBtn = el('button', {
     className: 'parts-insert',
-    ...(editorReady ? {} : { disabled: true }),
-    onclick: () => {
+    onclick: (e) => {
       const editor = getEditor?.()
-      if (!editor) return
+      if (!editor) {
+        if (!notReady()) e.target.after(el('p', { className: 'parts-not-ready' }, 'Editor not ready yet.'))
+        return
+      }
+      notReady()?.remove()
       const size = formatSize(entry, selectedSize)
       const plan = planInsert({
         doc: editor.getSource(),
@@ -345,7 +346,7 @@ function renderEntry(content, entry, { getEditor, onBack }) {
     el('div', { className: 'parts-field-label' }, 'Example'),
     el('pre', { className: 'parts-example' }, entry.example),
     insertBtn,
-    editorReady ? null : el('p', { className: 'parts-not-ready' }, 'Editor not ready yet.'),
+    getEditor?.() ? null : el('p', { className: 'parts-not-ready' }, 'Editor not ready yet.'),
   ))
 }
 

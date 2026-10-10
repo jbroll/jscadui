@@ -85,9 +85,23 @@ describe('parts browser', () => {
     await flush()
     document.querySelectorAll('.parts-entry')[0].click()
     const insertBtn = document.querySelector('.parts-insert')
-    expect(insertBtn.disabled).toBe(true)
+    expect(insertBtn.disabled).toBe(false)
     expect(document.querySelector('.parts-not-ready')).not.toBeNull()
     expect(() => insertBtn.click()).not.toThrow()
+  })
+
+  it('inserts once the editor arrives after the entry view opened', async () => {
+    const { showPartsBrowser } = await import('../src/partsBrowser.js')
+    let editor = null
+    const applyEdit = vi.fn()
+    showPartsBrowser({ catalogUrl: '/parts/catalog.json', getEditor: () => editor })
+    await flush()
+    document.querySelectorAll('.parts-entry')[0].click()
+    document.querySelector('.parts-insert').click()
+    expect(applyEdit).not.toHaveBeenCalled()
+    editor = { getSource: () => '', getPath: () => '/main.js', getCursor: () => 0, applyEdit }
+    document.querySelector('.parts-insert').click()
+    expect(applyEdit).toHaveBeenCalledOnce()
   })
 
   it('inserts a numeric sizes.values entry as a bare number', async () => {
