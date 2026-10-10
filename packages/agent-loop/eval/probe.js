@@ -290,10 +290,10 @@ const bodiesOf = (items) =>
 
 const boxesOverlap = ([aLo, aHi], [bLo, bHi]) => [0, 1, 2].every((k) => aLo[k] < bHi[k] && bLo[k] < aHi[k])
 
-// Volume two bodies share, for each pair whose bounding boxes overlap; a pair
-// left out shares none. The list stops at MAX_OVERLAP_PAIRS entries, but the
-// total pair count and a cap flag keep the caller from grading on a truncated
-// list.
+// Volume two bodies share, for each pair whose bounding boxes overlap; pairs
+// whose boxes do not overlap share none. The list stops at MAX_OVERLAP_PAIRS
+// entries, but the total pair count and a cap flag keep the caller from
+// grading on a truncated list.
 const overlapsOf = (groups, boxes) => {
   const solids = groups.map((polygons) => geometries.geom3.fromPoints(polygons))
   const pairs = []
