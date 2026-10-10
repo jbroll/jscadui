@@ -360,6 +360,25 @@ describe('model reasoning', () => {
     }
   })
 
+  it('drops a failed turn\u2019s user message so a retry sends it once', async () => {
+    const writeConversation = vi.fn(async () => {})
+    const runTurnFn = vi.fn()
+      .mockRejectedValueOnce(Object.assign(new Error('the provider refused to answer'), { name: 'RefusalError' }))
+      .mockImplementation(async ({ onText }) => {
+        onText('ok')
+        return { messages: [] }
+      })
+    const chat = openChat({ runTurnFn, storage: { readConversation: async () => null, writeConversation }, projectId: 'p1' })
+    chat.type('first')
+    await vi.waitFor(() => expect(chat.q('.chat-msg.error')?.textContent).toBe('the provider refused to answer'))
+    await vi.waitFor(() => expect(writeConversation.mock.calls.at(-1)?.[1]).toEqual([]))
+    chat.type('second')
+    await vi.waitFor(() => expect(runTurnFn).toHaveBeenCalledTimes(2))
+    const sent = runTurnFn.mock.calls[1][0].conversation.messages.filter((m) => m.role === 'user').map((m) => m.content)
+    expect(sent).not.toContain('first')
+    expect(sent.at(-1)).toBe('second')
+  })
+
   it('stores the reasoning of a stopped reply too', async () => {
     const turn = heldTurn()
     const writeConversation = vi.fn(async () => {})

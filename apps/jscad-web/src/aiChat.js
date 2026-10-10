@@ -343,7 +343,11 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
     } catch (err) {
       endReasoning()
       if (signal.aborted) stopped = true
-      else addMessage(err.message, 'error')
+      else {
+        transcript = prior
+        persistTranscript()
+        addMessage(err.message, 'error')
+      }
     } finally {
       if (stopped) {
         addStopped()
