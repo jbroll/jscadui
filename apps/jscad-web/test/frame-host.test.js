@@ -332,6 +332,8 @@ describe('jscadAbort', () => {
     expect(workers[0].terminate).toHaveBeenCalled()
     expect(posted.find((m) => m.id === 1)?.error?.name).toBe('AbortError')
     expect(posted.find((m) => m.id === 2)).toMatchObject({ method: '__RESPONSE__', params: { aborted: true } })
+    // No spare existed, so a fresh worker took over; still no termination notice.
+    expect(posted.filter((m) => m.method === 'frameWorkerTerminated')).toEqual([])
   })
 
   it('answers aborted:false when nothing runs, starting no worker', async () => {
