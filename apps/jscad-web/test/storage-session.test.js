@@ -45,9 +45,23 @@ describe('mode write-through', () => {
     expect((await local.readProject('p9')).files).toEqual({ 'main.js': 'v1' })
   })
 
-  it('names a missing project NotFoundError on both backends', async () => {
+  it('falls back to a fresh project on a typed rowboat not-found', async () => {
+    const local = createLocalStorage()
+    const rowboat = {
+      readProject: vi.fn(async () => {
+        throw Object.assign(new Error('projects: not found (p1)'), { name: 'NotFoundError' })
+      }),
+      writeFiles: vi.fn(async () => ({})),
+    }
+    const session = createSession({ local, rowboat, getBackend: () => 'rowboat' })
+    await session.writeThrough('p1', 'main.js', 'v1')
+    expect(rowboat.writeFiles).toHaveBeenCalledWith('p1', { 'main.js': 'v1' }, {})
+  })
+
+  it('names a missing project NotFoundError', async () => {
     const local = createLocalStorage()
     await expect(local.readProject('nope')).rejects.toMatchObject({ name: 'NotFoundError', message: 'projects: not found (nope)' })
+    await expect(local.snapshot('nope')).rejects.toMatchObject({ name: 'NotFoundError' })
   })
 
   it("snapshots a project's stored files as a version in its backend", async () => {

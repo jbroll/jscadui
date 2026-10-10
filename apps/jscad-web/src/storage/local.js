@@ -55,7 +55,7 @@ export function createLocalStorage() {
 
   const snapshot = async (id, { message = '' } = {}) => {
     const row = projects.get(id)
-    if (!row) throw new Error(`projects: not found (${id})`)
+    if (!row) throw Object.assign(new Error(`projects: not found (${id})`), { name: 'NotFoundError' })
     addVersion(id, row, message, now())
   }
 

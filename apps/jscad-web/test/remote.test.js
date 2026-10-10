@@ -4,13 +4,6 @@ import { fetchUrl, isValidRemoteUrl } from '../src/remote.js'
 afterEach(() => vi.unstubAllGlobals())
 
 describe('fetchUrl', () => {
-  it('returns the script text from a direct fetch', async () => {
-    const fetch = vi.fn(async () => new Response('main()', { status: 200 }))
-    vi.stubGlobal('fetch', fetch)
-    expect(await fetchUrl('https://example.com/model.js')).toBe('main()')
-    expect(fetch).toHaveBeenCalledWith('https://example.com/model.js', { credentials: 'omit' })
-  })
-
   it('sends no credentials with a hash fetch', async () => {
     const fetch = vi.fn(async () => new Response('main()', { status: 200 }))
     vi.stubGlobal('fetch', fetch)

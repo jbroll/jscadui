@@ -57,30 +57,6 @@ From the 2026-10-01 code review, each item checked against `main`
 (`2ec5b5a8`) by reading the code. None was tried in a browser. Paths are
 under `apps/jscad-web` unless given in full.
 
-- **A `#` hash naming an app path runs as model code with the user's
-  cookie.** `src/remote.js:53` and `:187` treat `/…`, `//host/…` and anything
-  without `://` as relative, so they skip the trust dialog and
-  `isValidRemoteUrl`. `:193` fetches with default credentials, and
-  `main.js:865-870` sends the text to the frame. An attacker page opens the
-  app with a `#data:` model that replaces `globalThis.eval` in the reused
-  worker (next item), then renavigates the window to
-  `#/api/auth/get-session`. The session JSON carries `session.token`, which
-  better-auth's `bearer()` accepts unsigned since `requireSignature` is off;
-  it reaches the poisoned worker, which sends it out over the frame's
-  `connect-src https:`. `#/api/sync-token` yields a rowboat JWT the same way.
-  The app sends no COOP, so the opener keeps its window handle. Fix: accept
-  only relative paths under `/examples/`, fetch with `credentials: 'omit'`,
-  and treat a leading `//` as remote. Unverified: that a cross-origin
-  opener's fragment-only navigation fires `hashchange` without a reload.
-- **Model code stays in the frame worker across projects.** Every load goes
-  to the same `state.active` slot (`src_frame/frameHost.js:315-336`,
-  `workerPool.js:151-155`). A worker is replaced only on a WASM trap, an
-  abandoned superseded run or a timeout. Model code shares the realm
-  (`packages/require/src/require.js:44`), and `self.__PROJECT_FILES__`
-  (`bundle.frame-worker.js:80-84`) is a plain configurable property, so a
-  shared model opened once sees every later project's files and scripts in
-  that tab. Fix: retire the worker when a load's source changes (another
-  project, or a hash, gist or remote script).
 - **The relay rate limit keys on a spoofable address and never evicts.**
   `server/src/index.ts:69` sets `trust proxy` to `true`, so `req.ip` is the
   leftmost `X-Forwarded-For` entry, which the Apache proxy block (deploy.sh
@@ -130,15 +106,8 @@ under `apps/jscad-web` unless given in full.
 
 From the same review, with the same path convention.
 
-- **A failed project read during a save deletes the rest of the project.**
-  `src/storage/session.js:18-22` catches any `readProject` error and writes
-  back only the edited file. Rowboat's `readProject` throws when any blob
-  fetch fails (`rowboat.js:46-51`, `:70-75`), and its `writeFiles` replaces
-  the file set, deleting earlier rows (`:114-115`). One offline or 403 blob
-  fetch during an editor run or chat write leaves a one-file project. Fall
-  back to `{}` only on a typed not-found error. Rowboat also re-uploads every
-  file on every save (`:109-113`); rowboat-client's `blobs.upload` does not
-  dedupe.
+- **Rowboat re-uploads every file on every save** (`rowboat.js:109-113`);
+  rowboat-client's `blobs.upload` does not dedupe.
 - **The local backend keeps nothing across a reload.**
   `src/storage/local.js:4-6` holds projects, versions and conversations in
   `Map`s, while `README.md:156-170` and `docs/architecture.md:1111-1116`
