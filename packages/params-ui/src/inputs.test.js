@@ -152,7 +152,7 @@ describe('createNumberInput', () => {
 
     const input = result.value.querySelector('input')
     input.value = '1.7'
-    input.oninput()
+    input.onchange()
     expect(onChange).toHaveBeenCalledWith(1.5)
     expect(input.value).toBe('1.5')
   })
@@ -167,7 +167,7 @@ describe('createNumberInput', () => {
 
     const input = result.value.querySelector('input')
     input.value = '4.2'
-    input.oninput()
+    input.onchange()
     expect(onChange).toHaveBeenCalledWith(5)
   })
 
@@ -195,8 +195,54 @@ describe('createNumberInput', () => {
 
     const input = result.value.querySelector('input')
     input.value = '0.35'
-    input.oninput()
+    input.onchange()
     expect(onChange).toHaveBeenCalledWith(0.4)
+  })
+
+  it('sends half-typed values raw without rewriting the display', () => {
+    const onChange = vi.fn()
+    const result = createNumberInput({
+      param: { path: 'test.x', name: 'x', type: 'number', min: 10 },
+      value: 10,
+      onChange
+    })
+
+    const input = result.value.querySelector('input')
+    input.value = '5'
+    input.oninput()
+    expect(onChange).toHaveBeenCalledWith(5)
+    expect(input.value).toBe('5')
+  })
+
+  it('clamps on commit, rewrites the display, and sends the final value once', () => {
+    const onChange = vi.fn()
+    const result = createNumberInput({
+      param: { path: 'test.x', name: 'x', type: 'number', min: 10 },
+      value: 10,
+      onChange
+    })
+
+    const input = result.value.querySelector('input')
+    input.value = '5'
+    input.oninput()
+    input.onchange()
+    expect(input.value).toBe('10')
+    expect(onChange).toHaveBeenLastCalledWith(10)
+  })
+
+  it('restores the last value when the commit is not a number', () => {
+    const onChange = vi.fn()
+    const result = createNumberInput({
+      param: { path: 'test.x', name: 'x', type: 'number', min: 10 },
+      value: 10,
+      onChange
+    })
+
+    const input = result.value.querySelector('input')
+    input.value = ''
+    input.onchange()
+    expect(input.value).toBe('10')
+    expect(onChange).not.toHaveBeenCalled()
   })
 })
 

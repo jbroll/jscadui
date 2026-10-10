@@ -106,26 +106,30 @@ export const createNumberInput = ({ param, value, onChange }) => {
     input.setAttribute('aria-label', param.label)
   }
 
-  // Use 'input' event for immediate response to spinner clicks
-  // Note: oninput fires on every keystroke and spinner click, providing continuous
-  // validation. Combined with HTML5 min/max attributes on the input element,
-  // this ensures values are properly constrained. No separate blur handler needed.
+  // Keystrokes send the raw parsed value and leave the display alone, so typing
+  // "50" into a min-10 field stays "50" until commit. The 'change' event
+  // (blur/Enter; spinner clicks fire both) snaps to step, clamps to min/max,
+  // rewrites the display, and sends the final value only when it changed.
+  let lastSent = value
   input.oninput = () => {
-    let val = type === 'int' ? parseInt(input.value) : parseFloat(input.value)
+    const val = type === 'int' ? parseInt(input.value) : parseFloat(input.value)
     if (!isNaN(val)) {
-      // Snap free-typed values to the step grid, then clamp to min/max.
-      val = snapToStep(val, effectiveStep, min)
-      if (val !== Number(input.value)) input.value = String(val)
-      // H23 fix: Validate against min/max constraints
-      // H1 fix: Also update input.value to keep UI in sync with clamped value
-      if (min !== undefined && val < min) {
-        val = min
-        input.value = String(min)
-      }
-      if (max !== undefined && val > max) {
-        val = max
-        input.value = String(max)
-      }
+      lastSent = val
+      onChange(val)
+    }
+  }
+  input.onchange = () => {
+    let val = type === 'int' ? parseInt(input.value) : parseFloat(input.value)
+    if (isNaN(val)) {
+      input.value = String(lastSent ?? '')
+      return
+    }
+    val = snapToStep(val, effectiveStep, min)
+    if (min !== undefined && val < min) val = min
+    if (max !== undefined && val > max) val = max
+    if (val !== Number(input.value)) input.value = String(val)
+    if (val !== lastSent) {
+      lastSent = val
       onChange(val)
     }
   }
@@ -144,7 +148,7 @@ export const createNumberInput = ({ param, value, onChange }) => {
     control: null,
     value: container,
     span: false,
-    updateValue: (newValue) => { input.value = String(newValue) }
+    updateValue: (newValue) => { lastSent = newValue; input.value = String(newValue) }
   }
 }
 
