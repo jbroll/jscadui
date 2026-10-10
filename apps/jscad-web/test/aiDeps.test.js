@@ -117,6 +117,16 @@ describe('storage', () => {
     expect(await messages(local)).toEqual(['create'])
   })
 
+  it('fails the write when storage fails, instead of answering a build', async () => {
+    const project = fakeProject({ 'main.js': 'v0' })
+    const storeFile = vi.fn(async () => {
+      throw new Error('offline')
+    })
+    const { deps, tools: t } = tools({ project, storeFile })
+    await expect(t.write({ path: 'main.js', content: 'v1' })).rejects.toThrow('offline')
+    expect(deps.build).not.toHaveBeenCalled()
+  })
+
   it("saves one version per turn, of the project's final state", async () => {
     const { local, storeFile, snapshot } = await stored()
     const { tools: t } = tools({ project: fakeProject({ 'main.js': 'v0' }), storeFile, snapshot })

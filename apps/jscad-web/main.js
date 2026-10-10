@@ -940,9 +940,11 @@ const chatTools = createProjectTools({
   workerApi,
   exportModel: createExport((args) => workerApi.jscadExportData(args), { save: diskProject?.saveExport }),
   getProjectId: () => currentProjectId,
-  // Stored at once, so a reload mid-turn keeps it; the turn's version comes from its end.
+  // Stored at once, so a reload mid-turn keeps it; a failure fails the
+  // write tool, so the model sees it and can retry instead of the cache
+  // silently running ahead of storage.
   storeFile: (projectId, path, content) =>
-    storageSession.writeThrough(projectId, path, content, { message: 'chat', version: false }).catch((err) => console.warn('storage write failed:', err)),
+    storageSession.writeThrough(projectId, path, content, { message: 'chat', version: false }),
   snapshot: (projectId) => storageSession.snapshot(projectId, { message: 'chat' }),
   getApi: getChatApi,
   loadIndex: loadApiIndex,
