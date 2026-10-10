@@ -266,6 +266,9 @@ const streamRuns = createStreamRuns({
 const beginStream = isStale => {
   const runId = newRunId()
   delete document.documentElement.dataset.cells
+  // A new run starts at zero cells: clearing the count stops the previous run's
+  // total from showing until the first batch of the new one arrives.
+  stopCtl?.setCells(null)
   streamError = null
   streamRuns.begin(isStale, runId)
   return runId

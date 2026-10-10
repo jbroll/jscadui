@@ -333,21 +333,15 @@ export const createFrameHost = ({
     }
 
     // Answered before ensureActive: an abort with nothing running must not
-    // start a worker (idle abort stays idle). kill answers every pending app
-    // request with AbortError, promotes a spare when one exists, and otherwise
-    // leaves no active worker, so a replay-only start follows to keep the next
-    // request off a dead frame. The stopped run stays stopped: the frame's
-    // mirror holds setup, not the script.
+    // start a worker (idle abort stays idle). Closing the open runs first keeps
+    // their members from recruiting replacements or answering after the
+    // workers go; abortActive then removes the active worker and answers what
+    // it held, without the frameWorkerTerminated that would make the app replay
+    // the script and the last run and restart the stopped model.
     if (data?.method === 'jscadAbort' && data?.id != null) {
       const had = state.active !== null
-      if (state.active) pool.kill(state.active, null, 'stopped by the user', 'AbortError')
-      if (had && !state.active) {
-        try {
-          state.active = pool.start({ replay: true })
-        } catch {
-          // Worker creation itself is blocked; the terminated post stands.
-        }
-      }
+      runs.park('AbortError', 'stopped by the user')
+      pool.abortActive('stopped by the user')
       post({ method: RESPONSE, id: data.id, params: { aborted: had } })
       return
     }

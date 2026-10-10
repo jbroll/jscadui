@@ -239,6 +239,21 @@ export const createGridRuns = ({ state, pool, slotOps, post, answerError }) => {
     }
   }
 
+  // The user stopped the run: no open run may answer or recruit after this. A
+  // fanned run the app waits on is answered now, since the workers that would
+  // settle it are being removed; a run that never fanned has its own relayed
+  // request answered by slotOps.end.
+  const park = (errorName, message) => {
+    for (const run of [...runs]) {
+      if (run.answered) continue
+      run.closed = true
+      if (!run.fanned) continue
+      run.answered = true
+      answerError(run.appId, errorName, message)
+      settle(run)
+    }
+  }
+
   const holdsLoad = (slot) => [...slot.pending.values()].some((r) => r.method === 'jscadScript' && !r.onAnswer)
 
   // A newer run replaces a grid run at once. A worker on a leaf it started
@@ -270,6 +285,7 @@ export const createGridRuns = ({ state, pool, slotOps, post, answerError }) => {
     relaysCells,
     answered,
     leave,
+    park,
     supersede,
     close: (run) => runs.delete(run),
     busy: (slot) => runsOf(slot).length > 0,

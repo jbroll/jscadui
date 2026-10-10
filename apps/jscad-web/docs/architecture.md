@@ -141,7 +141,9 @@ wraps the iframe in the `postMessage`, `addEventListener` and
 `removeEventListener` a `Worker` offers, so `messageProxy` drives it the way it
 drove the local worker. `jscadInit`, `jscadScript`, `jscadSetFiles`,
 `jscadMain`, `jscadMeasure`, `jscadCheck`, `jscadGetExportFormats`,
-`jscadExportData` and the cache clears all reach the frame's worker. Geometry
+`jscadExportData` and the cache clears all reach the frame's worker;
+`jscadAbort` is the frame's own, stopping the active run without reaching a
+worker (see the stop path below). Geometry
 buffers ride the transfer list on both hops, so they cross without a copy.
 
 Notifications relay the same way. The worker sends two, a grid's
@@ -232,7 +234,16 @@ telling the app when an answer it relays has `error.name === 'RuntimeError'` or
 `trapped: true`: a trapped WebAssembly instance is not trusted with the next
 run. The retired worker's other requests are answered `AbortError` and an idle
 worker is promoted the same way. If no replacement worker can start, the old
-worker keeps serving instead of leaving the frame with no active worker. A promoted worker has the setup but no model,
+worker keeps serving instead of leaving the frame with no active worker.
+
+The Stop button sends `jscadAbort`. The frame parks every open run first: a
+fanned run's app request is answered `AbortError` and the run is closed, so no
+surviving member is recruited back into it or answers it again. It then removes
+the active worker the way a kill does, minus the `frameWorkerTerminated`
+notice: that notice makes `frameSetup.js` replay the script and the last run and
+start the stopped model again. What the worker held is answered `AbortError`,
+the promoted spare or a fresh worker takes over, and an abort with no active
+worker starts none. A promoted worker has the setup but no model,
 so before it runs `jscadMain`, `jscadExportData`, `jscadMeasure` or
 `jscadCheck` the frame sends it the last script with `runMain: false`, and for
 the last three also the last `jscadMain` with `stream: false`, since they read

@@ -340,6 +340,21 @@ describe('jscadAbort', () => {
     expect(workers).toHaveLength(0)
     expect(posted).toEqual([{ method: '__RESPONSE__', id: 1, params: { aborted: false } }])
   })
+
+  it('stops a pending jscadMain without telling the app the worker died', () => {
+    const { workers, send, posted } = withSpare()
+    send({ method: 'jscadMain', id: 4, params: [{ params: {} }] })
+    send({ method: 'jscadAbort', id: 5 })
+
+    expect(workers[0].terminate).toHaveBeenCalled()
+    expect(posted.find((m) => m.id === 4)?.error?.name).toBe('AbortError')
+    // frameWorkerTerminated is what makes frameSetup replay the script and the
+    // last run; posting one here would restart the model the user just stopped.
+    expect(posted.filter((m) => m.method === 'frameWorkerTerminated')).toEqual([])
+    // The next script goes to the promoted spare, still set up and scriptless.
+    send({ method: 'jscadScript', id: 6, params: [{ script: 'next', url: 'next.js' }] })
+    expect(lastSent(workers[1])).toMatchObject({ method: 'jscadScript', params: [{ script: 'next' }] })
+  })
 })
 
 describe('streamed cells and progress', () => {
@@ -1531,6 +1546,21 @@ describe('grid runs', () => {
     vi.advanceTimersByTime(1001)
     expect(posted.filter((m) => m.method === 'frameWorkerTerminated')).toHaveLength(1)
     expect(posted.find((m) => m.id === 2)?.error?.name).toBe('AbortError')
+  })
+
+  it('stops a fanned run on abort: no termination notice, no new claims, answered once', () => {
+    const { workers, posted, send, host } = gridRun()
+    claimOn(workers[0], '0')
+    expect(workers).toHaveLength(4)
+    send({ method: 'jscadAbort', id: 5 })
+
+    expect(posted.find((m) => m.id === 4)?.error?.name).toBe('AbortError')
+    expect(posted.filter((m) => m.method === 'frameWorkerTerminated')).toEqual([])
+    expect(host.getPendingCount()).toBe(0)
+    // The run is closed: a surviving member cannot take another leaf.
+    expect(claimOn(workers[1], '1')).toBe(false)
+    const ids = posted.map((m) => m.id ?? m.method)
+    expect(new Set(ids).size).toBe(ids.length)
   })
 
   it('supersedes a grid run at once, retiring members on an old leaf and draining the rest', () => {

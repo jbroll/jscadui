@@ -14,10 +14,40 @@ describe('bindStopButton', () => {
     btn.click()
     expect(workerApi.jscadAbort).toHaveBeenCalledTimes(1)
     expect(btn.disabled).toBe(true)
+    // The stopped run ends, then the next run starts: usable again.
+    setRunning(false)
     setRunning(true)
     expect(btn.disabled).toBe(false)
     setRunning(false)
     expect(btn.style.display).toBe('none')
+  })
+
+  it('ignores a second click while an abort is in flight', () => {
+    document.body.innerHTML = '<button id="stop">Stop</button>'
+    let release
+    const workerApi = { jscadAbort: vi.fn(() => new Promise((resolve) => { release = resolve })) }
+    const { setRunning } = bindStopButton({ button: document.getElementById('stop'), workerApi, onError: vi.fn() })
+    const btn = document.getElementById('stop')
+    setRunning(true)
+    btn.click()
+    // A jobs update arrives before the abort settles: it must not re-enable the
+    // button, and the second click must not send a second abort.
+    setRunning(true)
+    expect(btn.disabled).toBe(true)
+    btn.click()
+    expect(workerApi.jscadAbort).toHaveBeenCalledTimes(1)
+    release({ aborted: true })
+  })
+
+  it('clears the cell count for a new run', () => {
+    document.body.innerHTML = '<button id="stop">Stop</button>'
+    const workerApi = { jscadAbort: vi.fn(async () => ({ aborted: true })) }
+    const { setCells } = bindStopButton({ button: document.getElementById('stop'), workerApi, onError: vi.fn() })
+    const btn = document.getElementById('stop')
+    setCells(1234)
+    expect(btn.textContent).toBe('Stop (1234 cells)')
+    setCells(null)
+    expect(btn.textContent).toBe('Stop')
   })
 
   it('shows the streamed cell count and reports an abort failure', async () => {

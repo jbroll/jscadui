@@ -141,6 +141,21 @@ export const createPool = ({ state, slotOps, post, answerError, busy, inGrid, op
     if (state.active) ensureSpare()
   }
 
+  // The user stopped the active run. Same removal as kill, minus the
+  // frameWorkerTerminated post: that notice makes the app replay the script
+  // and the last run, restarting the model the user just stopped. Answers
+  // what the worker held, promotes a spare or starts a fresh worker.
+  const abortActive = (reason) => {
+    if (!state.active) return false
+    const slot = state.active
+    remove(slot)
+    onExit(slot, reason)
+    slotOps.end(slot, null, reason, 'AbortError')
+    state.active = pickIdle() ?? tryStart()
+    if (state.active) ensureSpare()
+    return true
+  }
+
   const dispatch = (slot, message, entry) => {
     if (!entry) {
       slot.worker.postMessage(message, collectBuffers(message))
@@ -217,5 +232,5 @@ export const createPool = ({ state, slotOps, post, answerError, busy, inGrid, op
     next()
   }
 
-  return { start, tryStart, pickIdle, ensureSpare, trim, mirror, retire, reset, kill, relay }
+  return { start, tryStart, pickIdle, ensureSpare, trim, mirror, retire, reset, kill, abortActive, relay }
 }
