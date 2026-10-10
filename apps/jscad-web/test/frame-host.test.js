@@ -1563,6 +1563,22 @@ describe('grid runs', () => {
     expect(new Set(ids).size).toBe(ids.length)
   })
 
+  it('retires the pool when a load from another source follows a successfully answered grid load', () => {
+    const { workers, posted, send } = gridRun({ poolSize: 2 })
+    answerLastOf(workers[0], 'jscadMain')
+    // The grid load itself fans out and answers, so only its answer records the frame's last source.
+    send({ method: 'jscadScript', id: 5, params: [{ script: 'grid2', url: 'ALL.js', runId: 9, source: 'project:a' }] })
+    claimOn(workers[0], '0', { runId: 9 })
+    answerLastOf(workers[0], 'jscadScript', { def: [], params: {}, entities: [], streamed: true, runId: 9 })
+    answerLastOf(workers[1], 'jscadScript', { def: [], params: {}, entities: [], streamed: true, runId: 9 })
+    expect(posted.find((m) => m.id === 5)?.error).toBeUndefined()
+    // A load from another project must not reuse a worker that ran the old source.
+    send({ method: 'jscadScript', id: 6, params: [{ script: 'next', url: 'ALL.js', source: 'project:b' }] })
+    expect(workers[0].terminate).toHaveBeenCalled()
+    expect(workers[1].terminate).toHaveBeenCalled()
+    expect(lastSent(workers.at(-1))).toMatchObject({ method: 'jscadScript', params: [{ script: 'next', source: 'project:b' }] })
+  })
+
   it('leaves a grid load alone when a run supersedes it', () => {
     const { workers, posted, send } = gridRun()
     answerLastOf(workers[0], 'jscadMain')

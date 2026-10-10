@@ -16,7 +16,8 @@ const ignore = () => {}
  * @typedef {import('./workerSlot.js').Slot} Slot
  * @typedef {import('./workerSlot.js').Entry} Entry
  * @typedef {{slots: Slot[], active: Slot | null, mirrored: object[], lastScript: object | undefined,
- *   sentScript: object | undefined, lastMain: object | undefined, poolSize: number, timeoutMs: number}} State
+ *   sentScript: object | undefined, lastSource: string | undefined, lastMain: object | undefined,
+ *   poolSize: number, timeoutMs: number}} State
  * @param {object} options
  * @param {State} options.state
  * @param {ReturnType<typeof import('./workerSlot.js').createSlots>} options.slotOps
