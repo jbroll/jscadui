@@ -24,6 +24,20 @@ describe('planInsert', () => {
     expect(out).toBe("const { nut, M4_nut } = require('NopSCADlib/vitamins/nuts.scad')\n\nnut(M4_nut)")
   })
 
+  it('aliases the call when the name is already bound from another library', () => {
+    const doc = "const { nut } = require('NopSCADlib/vitamins/nuts.scad')\n\n"
+    const boslNut = { call: 'nut', require: '_catalog/BOSL2/screws.scad', scadIncludes: ['BOSL2/std.scad', 'BOSL2/screws.scad'] }
+    const out = apply(doc, planInsert({ doc, cursor: doc.length, path: '/main.js', entry: boslNut, size: '"M3"' }))
+    expect(out).toBe("const { nut } = require('NopSCADlib/vitamins/nuts.scad')\nconst { nut: nut2 } = require('_catalog/BOSL2/screws.scad')\n\nnut2(\"M3\")")
+  })
+
+  it('aliases into an existing require when the call name is bound elsewhere', () => {
+    const doc = "const { nut } = require('NopSCADlib/vitamins/nuts.scad')\nconst { screw } = require('_catalog/BOSL2/screws.scad')\n\n"
+    const boslNut = { call: 'nut', require: '_catalog/BOSL2/screws.scad', scadIncludes: ['BOSL2/std.scad', 'BOSL2/screws.scad'] }
+    const out = apply(doc, planInsert({ doc, cursor: doc.length, path: '/main.js', entry: boslNut, size: '"M3"' }))
+    expect(out).toBe("const { nut } = require('NopSCADlib/vitamins/nuts.scad')\nconst { screw, nut: nut2 } = require('_catalog/BOSL2/screws.scad')\n\nnut2(\"M3\")")
+  })
+
   it('quotes nothing for a string size and adds no name for it', () => {
     const doc = ''
     const e = { call: 'nut', require: '_catalog/BOSL2/screws.scad', scadIncludes: ['BOSL2/std.scad', 'BOSL2/screws.scad'] }
