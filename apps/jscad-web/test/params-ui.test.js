@@ -46,6 +46,25 @@ describe('runModelUpdate', () => {
     expect(d.setError).toHaveBeenCalledWith(error)
   })
 
+  it('drops partial cells on a stop instead of flushing them', async () => {
+    const abort = Object.assign(new Error('worker terminated before this request finished: stopped by the user'), { name: 'AbortError' })
+    const endRun = vi.fn()
+    const discardRun = vi.fn()
+    const d = deps(async () => { throw abort }, { beginRun: vi.fn(), endRun, discardRun })
+    await runModelUpdate(d)
+    expect(discardRun).toHaveBeenCalledOnce()
+    expect(endRun).not.toHaveBeenCalled()
+    expect(d.setError).toHaveBeenCalledWith(abort)
+  })
+
+  it('ends the run on a stop when no discard hook is wired', async () => {
+    const abort = Object.assign(new Error('stopped by the user'), { name: 'AbortError' })
+    const endRun = vi.fn()
+    const d = deps(async () => { throw abort }, { beginRun: vi.fn(), endRun })
+    await runModelUpdate(d)
+    expect(endRun).toHaveBeenCalledOnce()
+  })
+
   it('runs without the stream hooks', async () => {
     const d = deps(async () => ({ entities: [] }))
     await runModelUpdate(d)

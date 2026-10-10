@@ -113,8 +113,8 @@ const exportAsFile = async (formatName, formatExtension = formatName, onError = 
     onError(new Error('export produced no geometry'))
     return
   }
-    if (!(data instanceof Array)) data = [data]
-    let type = 'text/plain'
+  if (!(data instanceof Array)) data = [data]
+  let type = 'text/plain'
   if (formatName === ExportFormats.THREE_MF) type = 'application/zip'
 
   downloadBlob(new Blob(data, { type }), `${exportConfig.projectName}.${formatExtension}`)

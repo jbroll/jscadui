@@ -46,6 +46,7 @@ const mapsEqual = (a, b) => {
  * @property {() => boolean} stopCurrentAnim - Stop current animation
  * @property {() => unknown} [beginRun] - starts a streaming run; returns the runId jscadMain is tagged with
  * @property {() => void} [endRun] - the run failed; keep what it drew
+ * @property {() => void} [discardRun] - drop the run's partial cells instead (a stop); falls back to endRun
  * @property {() => string[]} [held] - hashes of the meshes the page draws, which the run may send as refs
  */
 
@@ -195,7 +196,7 @@ export function clearModelUpdateTimer() {
  * @param {ParamsUIDeps} deps
  */
 export async function runModelUpdate(deps) {
-  const { workerApi, handleEntities, setError, stopCurrentAnim, beginRun, endRun, held } = deps
+  const { workerApi, handleEntities, setError, stopCurrentAnim, beginRun, endRun, discardRun, held } = deps
 
   // H5 fix: Store deps for pending update to use the most recent deps
   if (mustWait()) {
@@ -236,7 +237,10 @@ export async function runModelUpdate(deps) {
 
     handleEntities(result, {})
   } catch (err) {
-    endRun?.()
+    // A stop drops the partial run it interrupted instead of flushing it,
+    // matching the jscadScript load path.
+    if (err?.name === 'AbortError' && discardRun) discardRun()
+    else endRun?.()
     if (err?.name !== 'SupersededError') {
       setError(err)
       console.error('Model update failed:', err)

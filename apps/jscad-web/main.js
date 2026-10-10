@@ -518,6 +518,7 @@ const modelUpdateDeps = () => {
       return runId
     },
     endRun: () => streamRuns.end(runId),
+    discardRun: () => streamRuns.discard(),
     held: meshRefs.held,
   }
 }
