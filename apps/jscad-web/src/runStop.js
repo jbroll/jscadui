@@ -28,7 +28,9 @@ export const bindStopButton = ({ button, workerApi, onError = console.error }) =
     if (aborting) return
     aborting = true
     button.disabled = true
-    workerApi.jscadAbort().catch(onError).finally(() => { aborting = false })
+    // Cleared only when the run ends (setRunning(false)): the abort response
+    // can settle while jobs drain, and a second abort then would kill the spare.
+    workerApi.jscadAbort().catch(onError)
   })
   return { setRunning, setCells }
 }

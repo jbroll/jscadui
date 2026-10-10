@@ -485,20 +485,9 @@ model with `display-check.js --engine jscad`.
 From the 2026-10-01 review. Paths are under `apps/jscad-web` unless given in
 full.
 
-- **Long runs cannot be stopped.** The 120 s budget (`main.js:279-287`) is
-  the only kill, and progress is an indeterminate bar
-  (`src/frameSetup.js:246-263`). Streamed cell counts go only to
-  `dataset.cells` for the sweep. The Zoom To Fit and Smooth Render toggles
-  (`src/viewState.js:131-145`) re-run the model through `main.js:567`. Add
-  Stop and a cell count, and apply zoom in the viewer.
-- **Export gives no feedback.** `src/exporter.js:67-71` has no busy state and
-  no catch, so a failure is an unhandled rejection. An empty result does
-  nothing (`:98-99`). The file is named `jscad.<ext>` unless a folder was
-  dropped (`:109-111`), and the name never resets on a project switch.
-- **Number params clamp while typing.**
-  `packages/params-ui/src/inputs.js:113-131` snaps and clamps on every
-  `input` event: with `min: 10`, typing "50" gives "10" after the "5". Each
-  keystroke schedules a run. Clamp on `change`.
+- **Zoom toggles re-run the model.** The Zoom To Fit and Smooth Render toggles
+  (`src/viewState.js:131-145`) re-run the model through `main.js:567`; apply
+  zoom in the viewer instead.
 - **Every code run resets parameters.** `main.js:601-603` resets the params
   controller on each load, and the tree is rebuilt collapsed
   (`packages/params-ui/src/ParamsTree.js:67-70`). Carry values and collapse

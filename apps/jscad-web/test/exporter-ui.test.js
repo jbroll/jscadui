@@ -11,11 +11,15 @@ const shell = () => {
 const formats = [{ id: 'stlb', label: 'STL', extension: 'stl' }]
 
 beforeEach(() => {
-  vi.resetModules()
+  // The scene mock instance survives resetModules (mock registry is separate),
+  // so clear its history here; load() re-imports exporter against fresh DOM.
+  vi.clearAllMocks()
   document.body.innerHTML = ''
 })
 
 const load = async (workerApi, opts) => {
+  // Re-import per load: exporter.js captures its button at import time, and
+  // shell() replaces the DOM it was bound to.
   vi.resetModules()
   shell()
   const exporter = await import('../src/exporter.js')

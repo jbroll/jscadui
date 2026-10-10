@@ -22,7 +22,7 @@ describe('bindStopButton', () => {
     expect(btn.style.display).toBe('none')
   })
 
-  it('ignores a second click while an abort is in flight', () => {
+  it('ignores a second click while an abort is in flight', async () => {
     document.body.innerHTML = '<button id="stop">Stop</button>'
     let release
     const workerApi = { jscadAbort: vi.fn(() => new Promise((resolve) => { release = resolve })) }
@@ -37,6 +37,13 @@ describe('bindStopButton', () => {
     btn.click()
     expect(workerApi.jscadAbort).toHaveBeenCalledTimes(1)
     release({ aborted: true })
+    // The abort settles while the run's jobs still drain: a jobs update must
+    // not re-enable the button into a second abort.
+    await Promise.resolve()
+    setRunning(true)
+    expect(btn.disabled).toBe(true)
+    btn.click()
+    expect(workerApi.jscadAbort).toHaveBeenCalledTimes(1)
   })
 
   it('clears the cell count for a new run', () => {
