@@ -241,13 +241,15 @@ export const createFrame = async ({ onError, onEntities, onJobCount, onTerminate
  * Create a job tracker for showing/hiding progress bar
  * @param {HTMLProgressElement} progress - The progress element
  * @param {(value?: number) => void} onProgress - Progress handler
+ * @param {(jobs: number) => void} [onJobs] - called with the job count on every change
  * @returns {(jobs: number) => void}
  */
-export function createJobTracker(progress, onProgress) {
+export function createJobTracker(progress, onProgress, onJobs) {
   /** @type {NodeJS.Timeout} */
   let firstJobTimer
 
   return (jobs) => {
+    onJobs?.(jobs)
     if (jobs === 1) {
       // Do not show progress for fast renders
       clearTimeout(firstJobTimer)

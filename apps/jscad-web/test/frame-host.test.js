@@ -324,6 +324,24 @@ describe('per-request timeouts', () => {
   })
 })
 
+describe('jscadAbort', () => {
+  it('aborts the active run on jscadAbort and answers the abort', async () => {
+    const { posted, workers, send } = setup()
+    send({ method: 'jscadMain', id: 1, params: [] })
+    send({ method: 'jscadAbort', id: 2 })
+    expect(workers[0].terminate).toHaveBeenCalled()
+    expect(posted.find((m) => m.id === 1)?.error?.name).toBe('AbortError')
+    expect(posted.find((m) => m.id === 2)).toMatchObject({ method: '__RESPONSE__', params: { aborted: true } })
+  })
+
+  it('answers aborted:false when nothing runs, starting no worker', async () => {
+    const { posted, workers, send } = setup()
+    send({ method: 'jscadAbort', id: 1 })
+    expect(workers).toHaveLength(0)
+    expect(posted).toEqual([{ method: '__RESPONSE__', id: 1, params: { aborted: false } }])
+  })
+})
+
 describe('streamed cells and progress', () => {
   beforeEach(() => vi.useFakeTimers())
   afterEach(() => vi.useRealTimers())

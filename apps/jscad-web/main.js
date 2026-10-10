@@ -62,6 +62,7 @@ import { createDiskProject, diskEntryFromHash, DISK_ID } from './src/diskProject
 import { createScriptRuns, sendScript } from './src/scriptRuns.js'
 import { createStreamRuns } from './src/streamRuns.js'
 import { newRunId } from './src/runId.js'
+import { bindStopButton } from './src/runStop.js'
 import { createMeshRefs } from './src/meshRefs.js'
 import { PROJECT_BASE } from './src_frame/fileMap.js'
 import * as fileSystem from './src/fileSystem.js'
@@ -155,6 +156,9 @@ const statsContent = byId('stats-content')
 const progress = /** @type {HTMLProgressElement} */ (byId('progress'))
 const onProgress = createProgressHandler(progress)
 
+/** @type {{ setRunning: (running: boolean) => void, setCells: (count: number) => void } | null} */
+let stopCtl = null
+
 // ============== Params Controller ==============
 const paramsCtrl = paramsUI.initParamsController()
 const useParamsProxy = true
@@ -244,7 +248,10 @@ const streamRuns = createStreamRuns({
   draw: drawStream,
   resolve: meshRefs.resolve,
   // Read by the render sweep, which restarts its hang guard on each cell
-  onCells: count => { document.documentElement.dataset.cells = String(count) },
+  onCells: count => {
+    document.documentElement.dataset.cells = String(count)
+    stopCtl?.setCells(count)
+  },
   onError: error => {
     streamError = error
     setError(error)
@@ -264,7 +271,7 @@ const beginStream = isStale => {
   return runId
 }
 
-const trackJobs = createJobTracker(progress, onProgress)
+const trackJobs = createJobTracker(progress, onProgress, (jobs) => stopCtl?.setRunning(jobs > 0))
 
 // Every model — the editor's and the agent's — runs in the sandboxed frame.
 // Its opaque origin means no cookies, no storage and no same-origin fetch.
@@ -278,6 +285,8 @@ const { workerApi, handlers, destroy: destroyFrame } = await createFrame({
   // sent on every restart loops forever when the init is what timed out.
   runOrigin: __FRAME_ORIGIN__,
 })
+
+stopCtl = bindStopButton({ button: byId('stop-button'), workerApi, onError: setError })
 
 // Twice the old agent cap: the heaviest examples in the corpus finish well
 // inside it, and a runaway model still dies rather than wedging the frame.
@@ -708,7 +717,10 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
     }
     return settled(refused ? { error: refused } : { result })
   } catch (err) {
-    streamRuns.end(runId)
+    // A stop's AbortError drops the partial grid it interrupted instead of
+    // flushing it; a stale run's stream already belongs to the newer run.
+    if (err?.name === 'AbortError' && !isStale()) streamRuns.discard()
+    else streamRuns.end(runId)
     if (isStale() || err?.name === 'SupersededError') return STALE
     setError(err)
     return settled({ error: err })
