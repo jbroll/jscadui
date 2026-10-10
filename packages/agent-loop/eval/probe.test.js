@@ -56,6 +56,22 @@ describe('runProbe', () => {
     expect(runProbe([a], { bodies: {} })).not.toHaveProperty('overlaps')
   })
 
+  it('reports the overlap total and cap past 45 pairs', () => {
+    const bodies = Array.from({ length: 11 }, () => p.cuboid({ size: [5, 5, 5] }))
+    const { overlaps, overlapCount, overlapsCapped } = runProbe(bodies, { bodies: { overlaps: true } })
+    expect(overlaps).toHaveLength(45)
+    expect(overlapCount).toBe(55)
+    expect(overlapsCapped).toBe(true)
+  })
+
+  it('reports an uncapped overlap count on a small model', () => {
+    const [a, b, far] = [p.cube({ size: 10 }), p.cube({ size: 10, center: [8, 0, 0] }), p.cube({ size: 10, center: [40, 0, 0] })]
+    const { overlaps, overlapCount, overlapsCapped } = runProbe([a, b, far], { bodies: { overlaps: true } })
+    expect(overlaps).toHaveLength(1)
+    expect(overlapCount).toBe(1)
+    expect(overlapsCapped).toBe(false)
+  })
+
   it("gives each loop of an outline cut its centroid, perimeter, radius range about the cut's largest loop, and lobe count", () => {
     const square = transforms.translate([5, -3, 0], p.cuboid({ size: [20, 20, 10] }))
     const [section] = runProbe([square], { sections: [{ axis: 'z', at: [0.5], outline: true }] }).sections

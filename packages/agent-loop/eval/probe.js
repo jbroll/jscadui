@@ -291,18 +291,22 @@ const bodiesOf = (items) =>
 const boxesOverlap = ([aLo, aHi], [bLo, bHi]) => [0, 1, 2].every((k) => aLo[k] < bHi[k] && bLo[k] < aHi[k])
 
 // Volume two bodies share, for each pair whose bounding boxes overlap; a pair
-// left out shares none.
+// left out shares none. The list stops at MAX_OVERLAP_PAIRS entries, but the
+// total pair count and a cap flag keep the caller from grading on a truncated
+// list.
 const overlapsOf = (groups, boxes) => {
   const solids = groups.map((polygons) => geometries.geom3.fromPoints(polygons))
-  const out = []
+  const pairs = []
+  let totalPairs = 0
   for (let a = 0; a < groups.length; a++) {
     for (let b = a + 1; b < groups.length; b++) {
       if (!boxesOverlap(boxes[a], boxes[b])) continue
-      if (out.length === MAX_OVERLAP_PAIRS) return out
-      out.push({ a, b, volume: measurements.measureVolume(booleans.intersect(solids[a], solids[b])) })
+      totalPairs++
+      if (pairs.length === MAX_OVERLAP_PAIRS) continue
+      pairs.push({ a, b, volume: measurements.measureVolume(booleans.intersect(solids[a], solids[b])) })
     }
   }
-  return out
+  return { pairs, totalPairs, capped: totalPairs > pairs.length }
 }
 
 /**
@@ -322,7 +326,12 @@ export const runProbe = (geometry, spec) => {
       if (spec.bodies.sections) body.sections = sectionsOf(polygons, spec.bodies.sections)
       return body
     })
-    if (spec.bodies.overlaps) out.overlaps = overlapsOf(groups, boxes)
+    if (spec.bodies.overlaps) {
+      const { pairs, totalPairs, capped } = overlapsOf(groups, boxes)
+      out.overlaps = pairs
+      out.overlapCount = totalPairs
+      out.overlapsCapped = capped
+    }
   }
   return out
 }
