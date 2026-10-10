@@ -8,7 +8,21 @@ describe('fetchUrl', () => {
     const fetch = vi.fn(async () => new Response('main()', { status: 200 }))
     vi.stubGlobal('fetch', fetch)
     expect(await fetchUrl('https://example.com/model.js')).toBe('main()')
-    expect(fetch).toHaveBeenCalledWith('https://example.com/model.js')
+    expect(fetch).toHaveBeenCalledWith('https://example.com/model.js', { credentials: 'omit' })
+  })
+
+  it('sends no credentials with a hash fetch', async () => {
+    const fetch = vi.fn(async () => new Response('main()', { status: 200 }))
+    vi.stubGlobal('fetch', fetch)
+    expect(await fetchUrl('https://example.com/model.js')).toBe('main()')
+    expect(fetch).toHaveBeenCalledWith('https://example.com/model.js', { credentials: 'omit' })
+  })
+
+  it('treats a protocol-relative hash as remote, never same-origin', async () => {
+    const fetch = vi.fn()
+    vi.stubGlobal('fetch', fetch)
+    await expect(fetchUrl('//evil.example/model.js')).rejects.toThrow(/Invalid URL/)
+    expect(fetch).not.toHaveBeenCalled()
   })
 
   it('fails with a CORS hint and never falls back to a /remote proxy', async () => {

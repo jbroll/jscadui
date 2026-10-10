@@ -49,6 +49,8 @@ export const destroy = () => {
 const needsTrustCheck = (url) => {
   // Gzip data URLs are user-provided content, don't need trust check
   if (url.startsWith(gzipPrefix)) return false
+  // A protocol-relative URL inherits the page scheme but names a remote host.
+  if (url.startsWith('//')) return true
   // Relative URLs are same-origin (safe)
   if (url.startsWith('./') || url.startsWith('/') || !url.includes('://')) return false
   return true
@@ -183,14 +185,15 @@ export const fetchUrl = async (url) => {
     return new TextDecoder("utf-8").decode(dec)
   }
 
-  // Allow relative URLs (same-origin, safe)
-  const isRelativeUrl = url.startsWith('./') || url.startsWith('/') || !url.includes('://')
+  // Allow relative URLs (same-origin, safe); a protocol-relative URL names a
+  // remote host and goes through the remote checks below.
+  const isRelativeUrl = (url.startsWith('./') || url.startsWith('/') || !url.includes('://')) && !url.startsWith('//')
 
   if (!isRelativeUrl && !isValidRemoteUrl(url)) {
     throw new Error('Invalid URL: only public http/https URLs are allowed')
   }
 
-  const res = await fetch(url).catch((cause) => {
+  const res = await fetch(url, { credentials: 'omit' }).catch((cause) => {
     throw new Error(`could not fetch ${url}: the host must allow cross-origin requests (CORS)`, { cause })
   })
   if (res.ok) {
