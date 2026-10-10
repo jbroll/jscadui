@@ -7,7 +7,7 @@
   "file": "NopSCADlib/vitamins/pillow_block.scad",
   "prelude": ["NopSCADlib/core.scad", "NopSCADlib/vitamins/pillow_blocks.scad"],
   "call": "kp_pillow_block",
-  "summary": "KP zinc pillow block with its ball bearing, shaft axis on z through the origin, base down along -y.",
+  "summary": "KP zinc pillow block with its ball bearing, shaft axis on z through the origin, base down along -y. Note: the library draws KP08 29.5 tall while it is commonly listed as 29.",
   "sizes": { "list": "kp_pillow_blocks" },
   "example": "kp_pillow_block(KP08_15)",
   "checks": [

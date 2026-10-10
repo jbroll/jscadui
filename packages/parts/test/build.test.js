@@ -116,4 +116,24 @@ describe('buildAgentDocs', () => {
     expect(md).toContain('Rules:')
     expect(md).not.toMatch(/^- nut:/m)
   })
+
+  it('carries drawn-vs-vendor deviations in the description', () => {
+    const deviated = {
+      id: 'n/bearing_block', family: 'bearing_block', library: 'N', license: 'GPL-3.0',
+      file: 'N/bearing_block.scad', call: 'scs_bearing_block',
+      summary: 'SCS..UU housing. Note: library draws x 36.2 while the vendor width is 34.',
+      sizes: { names: ['SCS8UU'] }, example: 'scs_bearing_block(SCS8UU)', checks: [],
+    }
+    const dd = { 'n/bearing_block': { signature: { params: [{ name: 'type' }] }, sizes: ['SCS8UU'], measured: [], transpileMs: 1, buildMs: { max: 1, mean: 1 } } }
+    const { json } = buildAgentDocs(buildCatalog([deviated], dd).entries)
+    expect(json[0].description).toContain('vendor width is 34')
+  })
+
+  it('real group1 deviation summaries name the vendor dimension', async () => {
+    const { readFileSync } = await import('node:fs')
+    const read = (p) => JSON.parse(readFileSync(new URL(p, import.meta.url), 'utf8'))
+    expect(read('../catalog/nopscadlib/bearing_block.json').summary).toMatch(/vendor.*34/)
+    expect(read('../catalog/nopscadlib/standoff.json').summary).toMatch(/5\.5 AF/)
+    expect(read('../catalog/nopscadlib/pillow_block.json').summary).toMatch(/commonly listed as 29/)
+  })
 })

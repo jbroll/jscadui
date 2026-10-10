@@ -7,7 +7,7 @@
   "file": "NopSCADlib/vitamins/bearing_block.scad",
   "prelude": ["NopSCADlib/core.scad", "NopSCADlib/vitamins/bearing_blocks.scad"],
   "call": "scs_bearing_block",
-  "summary": "SCS..UU linear bearing housing with its LM..UU bearing, shaft axis on z through the origin, base down along -y.",
+  "summary": "SCS..UU linear bearing housing with its LM..UU bearing, shaft axis on z through the origin, base down along -y. Note: the library draws SCS8UU 36.2 wide while the vendor width is 34.",
   "sizes": {
     "names": ["SCS6UU", "SCS8UU", "SCS10UU", "SCS12UU", "SCS16UU", "SCS8LUU", "SCS10LUU", "SCS12LUU", "SCS16LUU"]
   },

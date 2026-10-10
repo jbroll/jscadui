@@ -7,7 +7,7 @@
   "file": "NopSCADlib/vitamins/pillar.scad",
   "prelude": ["NopSCADlib/core.scad", "NopSCADlib/vitamins/pillars.scad"],
   "call": "pillar",
-  "summary": "Threaded standoff (brass, steel or nylon, hex or round), body from z = 0 up; a male thread goes below z = 0 or above the body depending on the type (M2x16_brass_pillar's is on top). The library draws M4x17_nylon_pillar 20 mm tall despite its name.",
+  "summary": "Threaded standoff (brass, steel or nylon, hex or round), body from z = 0 up; a male thread goes below z = 0 or above the body depending on the type (M2x16_brass_pillar's is on top). The library draws M4x17_nylon_pillar 20 mm tall despite its name. Note: the library draws the M3 hex standoff 5 AF while real M3 brass hex standoffs are 5.5 AF.",
   "sizes": { "list": "pillars" },
   "example": "pillar(M3x20_hex_pillar)",
   "checks": [
