@@ -38,7 +38,7 @@ export async function checkRecord(record, opts = {}) {
       continue
     }
     for (const extra of argSets) {
-      const argTag = record.sweepArgs ? ` ${JSON.stringify(extra)}` : ''
+      const argTag = record.sweepArgs?.length ? ` ${JSON.stringify(extra)}` : ''
       try {
         const { geometry, buildMs } = await buildPart(loaded, record, [name, ...extra])
         buildTimes.push(buildMs)
