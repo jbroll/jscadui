@@ -25,6 +25,9 @@ export function validateRecord(record, path = record.id) {
   }
   checkSizes(path, record.sizes)
   if ('insertArgs' in record && !Array.isArray(record.insertArgs)) throw new Error(`${path}: "insertArgs" must be an array`)
+  if ('sweepArgs' in record && !(Array.isArray(record.sweepArgs) && record.sweepArgs.every(Array.isArray))) {
+    throw new Error(`${path}: "sweepArgs" must be an array of arrays`)
+  }
   return record
 }
 

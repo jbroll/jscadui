@@ -49,6 +49,14 @@ describe('checkRecord', () => {
     expect(result.failures).toEqual([])
   })
 
+  it('sweeps each size once more per sweepArgs entry', async () => {
+    const [record] = readRecords(catalogDir)
+    const rod = { ...record, call: 'rod', sizes: { names: ['M2_block', 'M3_block'] }, checks: [{ args: ['M3_block', 5], size: [6, 6, 5], tol: 0.01, source: 'fixture' }], insertArgs: [5], sweepArgs: [['not-a-number']] }
+    const result = await checkRecord(rod, { libsDir })
+    expect(result.ok).toBe(false)
+    expect(result.failures.some((f) => f.includes('not-a-number') || f.includes('length must be a number'))).toBe(true)
+  })
+
   it('passes a sizes.values record whose literal values build fine', async () => {
     const [record] = readRecords(catalogDir)
     const good = { ...record, sizes: { values: [[1, 2]] } }

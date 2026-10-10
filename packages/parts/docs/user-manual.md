@@ -68,6 +68,10 @@ One hand-written JSON record per entry, under `catalog/<library>/<entry>.json`.
   makes, for a call that needs more than a size. `nopscadlib/screw` has
   `"insertArgs": [10]`, so the size sweep builds `screw(M3_cap_screw, 10)` and
   the parts browser inserts the same. Write `example` with them too.
+- `sweepArgs`: extra trailing-argument lists the size sweep builds each size
+  with, for catching bugs that only show at another setting (a second length,
+  say). `nopscadlib/screw` sweeps its insert length 10 plus `sweepArgs`
+  `[[25]]`. The parts browser still inserts `insertArgs`.
 - `checks[].size` is the built part's axis-aligned bounding box `[x, y, z]` in
   mm, compared within `tol` (absolute, mm). An axis may be `null` to skip it,
   such as a stepper's z, which depends on body and shaft length.

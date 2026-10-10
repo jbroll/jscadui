@@ -23,6 +23,10 @@ describe('validateRecord', () => {
     expect(() => validateRecord(rec({ insertArgs: 10 }))).toThrow(/"insertArgs" must be an array/)
   })
 
+  it('refuses sweepArgs that is not an array of arrays', () => {
+    expect(() => validateRecord(rec({ sweepArgs: [10] }))).toThrow(/"sweepArgs" must be an array of arrays/)
+  })
+
   it('accepts every committed catalog record', () => {
     expect(readRecords().length).toBeGreaterThan(0)
   })

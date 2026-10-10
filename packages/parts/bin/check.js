@@ -31,17 +31,20 @@ export async function checkRecord(record, opts = {}) {
   }
 
   const sizes = sizeNames(loaded.exports, record.sizes)
+  const argSets = [record.insertArgs ?? [], ...(record.sweepArgs ?? [])]
   for (const name of sizes) {
     if (record.sizes.names && !(name in loaded.exports.vars)) {
       failures.push(`${record.id} ${name}: not an exported variable`)
       continue
     }
-    try {
-      const { geometry, buildMs } = await buildPart(loaded, record, [name, ...(record.insertArgs ?? [])])
-      buildTimes.push(buildMs)
-      if (isEmpty(geometry, loaded.ctx)) failures.push(`${record.id} ${name}: empty geometry`)
-    } catch (err) {
-      failures.push(`${record.id} ${name}: ${err.message}`)
+    for (const extra of argSets) {
+      try {
+        const { geometry, buildMs } = await buildPart(loaded, record, [name, ...extra])
+        buildTimes.push(buildMs)
+        if (isEmpty(geometry, loaded.ctx)) failures.push(`${record.id} ${name}: empty geometry`)
+      } catch (err) {
+        failures.push(`${record.id} ${name}: ${err.message}`)
+      }
     }
   }
 
