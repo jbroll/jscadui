@@ -115,6 +115,18 @@ export const createPool = ({ state, slotOps, post, answerError, busy, inGrid, op
     if (state.active) ensureSpare()
   }
 
+  // All workers ran model code from the previous source: end them so the
+  // next load starts clean, answering what they held. Mirrored setup
+  // (inits, file map) stays for the fresh worker's replay.
+  const reset = (reason) => {
+    for (const slot of [...state.slots]) {
+      remove(slot)
+      onExit(slot, reason)
+      slotOps.end(slot, null, reason, null)
+    }
+    state.active = null
+  }
+
   const kill = (slot, expiredId, reason, errorName) => {
     const inGridRun = inGrid(slot)
     remove(slot)
@@ -204,5 +216,5 @@ export const createPool = ({ state, slotOps, post, answerError, busy, inGrid, op
     next()
   }
 
-  return { start, tryStart, pickIdle, ensureSpare, trim, mirror, retire, kill, relay }
+  return { start, tryStart, pickIdle, ensureSpare, trim, mirror, retire, reset, kill, relay }
 }

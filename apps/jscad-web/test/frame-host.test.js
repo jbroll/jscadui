@@ -503,6 +503,57 @@ describe('warm spare', () => {
   })
 })
 
+describe('source isolation', () => {
+  it('starts a fresh worker when a load arrives from another source', () => {
+    const { workers, send, posted } = setup()
+    send({ method: 'jscadScript', id: 1, params: [{ script: 'a', url: 'http://project.local/main.js', source: 'project:a' }] })
+    answer(workers[0], 0, {})
+    // The answered load leaves a warm spare beside the active worker.
+    const spare = workers[1]
+    expect(workers).toHaveLength(2)
+    send({ method: 'jscadScript', id: 2, params: [{ script: 'b', url: 'http://project.local/main.js', source: 'project:b' }] })
+    expect(workers[0].terminate).toHaveBeenCalled()
+    expect(spare.terminate).toHaveBeenCalled()
+    // The load runs on a worker started for it, never the promoted old-source spare.
+    const fresh = workers[2]
+    expect(fresh).not.toBe(spare)
+    const [message] = fresh.postMessage.mock.calls[0]
+    expect(message.method).toBe('jscadScript')
+    const ids = posted.map((m) => m.id)
+    expect(new Set(ids).size).toBe(ids.length)
+  })
+
+  it('keeps the worker on a same-source reload, a scratch run, or a sourceless load', () => {
+    const { workers, send } = setup()
+    send({ method: 'jscadScript', id: 1, params: [{ script: 'a', url: 'http://project.local/main.js', source: 'project:a' }] })
+    answer(workers[0], 0, {})
+    const before = workers.length
+    send({ method: 'jscadScript', id: 2, params: [{ script: 'a2', url: 'http://project.local/main.js', source: 'project:a' }] })
+    send({ method: 'jscadScript', id: 3, params: [{ script: 's', scratch: true, source: 'project:b' }] })
+    send({ method: 'jscadScript', id: 4, params: [{ script: 'old' }] })
+    expect(workers).toHaveLength(before)
+    expect(workers[0].terminate).not.toHaveBeenCalled()
+  })
+
+  it('answers each request the retired pool held once, with AbortError', () => {
+    const { workers, send, posted } = setup()
+    init(send, {}, 1)
+    answer(workers[0], 0)
+    send({ method: 'jscadSetFiles', id: 2, params: [{ files: { 'main.js': 'x' } }] })
+    answer(workers[0], 1)
+    send({ method: 'jscadScript', id: 3, params: [{ script: 'a', url: 'http://project.local/main.js', source: 'project:a' }] })
+    answer(workers[0], 2, { def: [], params: {} })
+    send({ method: 'jscadExportData', id: 4, params: [{ format: 'stla' }] })
+    send({ method: 'jscadMeasure', id: 5, params: [{}] })
+    send({ method: 'jscadScript', id: 6, params: [{ script: 'b', url: 'http://project.local/main.js', source: 'project:b' }] })
+
+    const aborted = posted.filter((m) => m.error?.name === 'AbortError').map((m) => m.id)
+    expect(aborted.sort()).toEqual([4, 5])
+    const ids = posted.map((m) => m.id)
+    expect(new Set(ids).size).toBe(ids.length)
+  })
+})
+
 describe('trap retirement', () => {
   it('relays a RuntimeError, retires the worker and loads the script into the promoted spare', () => {
     const { workers, send, posted } = withSpare()
@@ -1482,6 +1533,34 @@ describe('grid runs', () => {
     expect(claimOn(workers[1], '2')).toBe(false)
     workers[1].onmessage({ data: { method: 'jscadCells', params: [{ entities: [], runId: 7 }] } })
     expect(posted.filter((m) => m.method === 'jscadCells')).toEqual([])
+  })
+
+  it('ends the pool when a source-change load supersedes a fanned grid run, without recruiting into it', () => {
+    const { workers, send, posted } = setup()
+    init(send, { poolSize: 2 }, 1)
+    answer(workers[0], 0)
+    send({ method: 'jscadSetFiles', id: 2, params: [{ files: { 'ALL.js': 'grid' } }] })
+    answer(workers[0], 1)
+    // A plain load from project a, then a grid load from the same project.
+    send({ method: 'jscadScript', id: 3, params: [{ script: 'main', url: 'ALL.js', source: 'project:a' }] })
+    answer(workers[0], 2, { def: [], params: {} })
+    send({ method: 'jscadScript', id: 4, params: [{ script: 'grid', url: 'ALL.js', runId: 9, source: 'project:a' }] })
+    claimOn(workers[0], '0', { runId: 9 })
+    loadAll(workers[1])
+    // A load from another project supersedes the still-running grid.
+    send({ method: 'jscadScript', id: 5, params: [{ script: 'next', url: 'ALL.js', runId: 10, source: 'project:b', supersede: true }] })
+
+    expect(posted.filter((m) => m.id === 4)).toEqual([{ method: RESPONSE, id: 4, error: superseded }])
+    expect(workers[0].terminate).toHaveBeenCalled()
+    expect(workers[1].terminate).toHaveBeenCalled()
+    expect(workers[2].terminate).toHaveBeenCalled()
+    // Only the fresh worker appears: the supersede closed the grid run, so
+    // ending its members never recruited a replacement into it.
+    expect(workers).toHaveLength(4)
+    expect(posted.filter((m) => m.method === 'frameWorkerTerminated')).toEqual([])
+    expect(lastSent(workers[3])).toMatchObject({ method: 'jscadScript', params: [{ script: 'next', source: 'project:b' }] })
+    const ids = posted.map((m) => m.id)
+    expect(new Set(ids).size).toBe(ids.length)
   })
 
   it('leaves a grid load alone when a run supersedes it', () => {

@@ -66,6 +66,9 @@ export const createFrameHost = ({
     lastScript: undefined,
     // The newest script the app sent, answered or not.
     sentScript: undefined,
+    // Source of the last loaded non-scratch script; a sourced load from a
+    // different source retires the pool so one project never sees another's.
+    lastSource: undefined,
     lastMain: undefined,
     poolSize: defaultPoolSize(hardwareConcurrency),
     timeoutMs: DEFAULT_TIMEOUT_MS,
@@ -149,6 +152,7 @@ export const createFrameHost = ({
       if (sentFiles === mirroredFiles()) restoreFiles()
     } else if (!data.error) {
       state.lastScript = options
+      state.lastSource = options?.source
       state.lastMain = undefined
       slot.script = options
       modelFiles = mirroredFiles()
@@ -285,6 +289,20 @@ export const createFrameHost = ({
     return { ...data, params: [params, ...rest] }
   }
 
+  // Start the active worker if none is up. Replay the mirror: on a true
+  // first start it is empty, and after a dead worker or a source-change
+  // reset it restores the setup the app already sent.
+  const ensureActive = (id) => {
+    if (state.active) return true
+    try {
+      state.active = pool.start({ replay: true })
+      return true
+    } catch (error) {
+      if (id) answerError(id, 'Error', `could not start the model worker: ${error?.message ?? error}`)
+      return false
+    }
+  }
+
   const handleMessage = (event) => {
     if (event.origin !== allowedOrigin) return
     // Same origin is not the same window: another tab or frame on the app
@@ -314,19 +332,22 @@ export const createFrameHost = ({
       }
     }
 
-    if (!state.active) {
-      try {
-        // Replay the mirror: on a true first start it is empty, and after a
-        // dead worker it restores the setup the app already sent.
-        state.active = pool.start({ replay: true })
-      } catch (error) {
-        if (id) answerError(id, 'Error', `could not start the model worker: ${error?.message ?? error}`)
-        return
-      }
-    }
+    if (!ensureActive(id)) return
     if (MIRRORED.has(data?.method)) mirror(message)
     const entry = entryFor(message)
     if (entry?.method === 'jscadScript') state.sentScript = entry.options
+    // Model code from one source must not observe another's files or scripts:
+    // a sourced load that differs from the last loaded one ends the whole
+    // pool, and the start below brings up a fresh worker for it, never
+    // a promoted idle spare that ran the old source.
+    if (entry?.method === 'jscadScript' && !entry.options?.scratch) {
+      const source = entry.options?.source
+      if (source !== undefined && state.lastSource !== undefined && source !== state.lastSource && state.active) {
+        for (const slot of [...heldMains.keys()]) dropHeld(slot, 'AbortError', 'the loaded model changed')
+        pool.reset('the loaded model changed')
+      }
+    }
+    if (!ensureActive(id)) return
     // The app sends a superseding run every 500 ms while a load is pending;
     // queue it behind the load instead of running each one in full, and let a
     // newer one supersede it.

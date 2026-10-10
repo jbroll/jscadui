@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { collectProjectFiles, createProjectSwitch, isBinaryPath, projectPathOf, replaceProjectFiles, toEditorFiles } from '../src/projectFiles.js'
+import { collectProjectFiles, createProjectSwitch, isBinaryPath, loadSource, projectPathOf, replaceProjectFiles, toEditorFiles } from '../src/projectFiles.js'
 
 // Mirrors what the real Cache API does: addToCache() calls cache.put(new
 // Request(path), ...) with a leading-slash, project-relative path, which
@@ -123,5 +123,14 @@ describe('projectPathOf', () => {
   it('is null for an example or a remote script, which is not a project file', () => {
     expect(projectPathOf('http://localhost:5120/examples/jscad/01-two-cars.example.js')).toBeNull()
     expect(projectPathOf('https://example.com/model.js')).toBeNull()
+  })
+})
+
+describe('loadSource', () => {
+  it('labels project urls with the project and leaves other urls alone', () => {
+    expect(loadSource({ url: 'http://project.local/main.js', projectId: 'abc' })).toBe('project:abc')
+    expect(loadSource({ url: 'http://project.local/parts/gear.js', projectId: 'abc' })).toBe('project:abc')
+    expect(loadSource({ url: 'https://example.com/model.js', projectId: 'abc' })).toBe('https://example.com/model.js')
+    expect(loadSource({ url: 'data:application/gzip;base64,AAA', projectId: 'abc' })).toBe('data:application/gzip;base64,AAA')
   })
 })

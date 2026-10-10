@@ -1,3 +1,5 @@
+import { PROJECT_BASE } from '../src_frame/fileMap.js'
+
 // The frame worker's importData (src_frame/importData.js) reads these as
 // binary, so only these cross as ArrayBuffer.
 const BINARY_EXT = new Set(['stl', 'ttf', 'otf'])
@@ -11,6 +13,14 @@ export const isBinaryPath = (path) => BINARY_EXT.has(path.slice(path.lastIndexOf
  * @param {string} path
  */
 export const projectPathOf = (path) => (/^[a-z][a-z\d+.-]*:/i.test(path) ? null : path.replace(/^\//, ''))
+
+/**
+ * What the frame isolates one load from the next by: one project id for
+ * project urls, the url itself for examples, remote and data: scripts.
+ * @param {{url?: string, projectId?: string}} load
+ */
+export const loadSource = ({ url, projectId }) =>
+  (typeof url === 'string' && url.startsWith(PROJECT_BASE) ? `project:${projectId}` : url)
 
 /**
  * The frame's worker is on another origin, so the file service worker cannot

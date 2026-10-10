@@ -57,7 +57,7 @@ import { createSession } from './src/storage/session.js'
 import { initProjects } from './src/projects.js'
 import { extractEntries, readAsText, readDir } from '@jscadui/fs-provider'
 import { createFrame, createJobTracker } from './src/frameSetup.js'
-import { createProjectSwitch, projectPathOf, toEditorFiles } from './src/projectFiles.js'
+import { createProjectSwitch, loadSource, projectPathOf, toEditorFiles } from './src/projectFiles.js'
 import { createDiskProject, diskEntryFromHash, DISK_ID } from './src/diskProject.js'
 import { createScriptRuns, sendScript } from './src/scriptRuns.js'
 import { createStreamRuns } from './src/streamRuns.js'
@@ -583,7 +583,7 @@ const STALE = { stale: true }
  * Load a script and draw it. Resolves to the load's outcome, `{ result }` or
  * `{ error }`, or `{ stale: true }` when a newer load replaced it; a load of a
  * project file is recorded as the project's build.
- * @param {{script?:string,url?:string,base?:string,root?:string}} options
+ * @param {{script?:string,url?:string,base?:string,root?:string,source?:string}} options
  */
 const jscadScript = async ({ script, url = './jscad.model.js', base = currentBase, root }) => {
   const isStale = scriptRuns.load()
@@ -633,7 +633,7 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
     const useGpuNormals = viewState.viewer?.supportsGpuNormals ?? false
     const files = await fileSystem.projectFiles()
     if (isStale()) return STALE
-    const result = await sendScript(workerApi, files, { script, url, base, root, useGpuNormals, runId, held: meshRefs.held(), supersede: true }, getChatApi())
+    const result = await sendScript(workerApi, files, { script, url, base, root, source: loadSource({ url, projectId: currentProjectId }), useGpuNormals, runId, held: meshRefs.held(), supersede: true }, getChatApi())
     if (isStale()) return STALE
 
     if (result.proxyState && useParamsProxy) {
