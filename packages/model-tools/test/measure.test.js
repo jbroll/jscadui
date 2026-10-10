@@ -260,3 +260,8 @@ test('measure answers overlaps:true with the pair list', () => {
   expect(out.overlaps.totalPairs).toBe(1)
   expect(out.overlaps.pairs).toHaveLength(1)
 })
+
+test('measure ignores overlaps:false and rejects a non-boolean overlaps', () => {
+  expect(measure([cube(0), cube(3)], { overlaps: false }).overlaps).toBeUndefined()
+  expect(() => measure([cube(0), cube(3)], { overlaps: {} })).toThrow('overlaps takes no value')
+})

@@ -99,10 +99,8 @@ export const measureOverlaps = (geom, geomType) => {
 In `measure()`, destructure `overlaps` from options and add:
 
 ```js
-if (overlaps !== undefined) {
-  if (overlaps !== true) throw new Error('overlaps takes no value; pass overlaps: true to list box-overlapping part pairs')
-  out.overlaps = measureOverlaps(wrapped, geomType)
-}
+if (overlaps === true) out.overlaps = measureOverlaps(wrapped, geomType)
+else if (overlaps !== undefined && overlaps !== false) throw new Error('overlaps takes no value; pass overlaps: true to list box-overlapping part pairs')
 ```
 
 In `packages/agent-loop/src/tools.js`, in the measure properties after `between`, add:
@@ -316,7 +314,7 @@ it('sweeps each size once more per sweepArgs entry', async () => {
   const rod = { ...record, call: 'rod', sizes: { names: ['M2_block', 'M3_block'] }, insertArgs: [5], sweepArgs: [['not-a-number']] }
   const result = await checkRecord(rod, { libsDir })
   expect(result.ok).toBe(false)
-  expect(result.failures.some((f) => f.includes('not-a-number') || f.includes('length must be a number'))).toBe(true)
+  expect(result.failures.some((f) => f.includes('not-a-number'))).toBe(true)
 })
 ```
 
@@ -347,12 +345,13 @@ for (const name of sizes) {
     continue
   }
   for (const extra of argSets) {
+    const argTag = record.sweepArgs ? ` ${JSON.stringify(extra)}` : ''
     try {
       const { geometry, buildMs } = await buildPart(loaded, record, [name, ...extra])
       buildTimes.push(buildMs)
-      if (isEmpty(geometry, loaded.ctx)) failures.push(`${record.id} ${name}: empty geometry`)
+      if (isEmpty(geometry, loaded.ctx)) failures.push(`${record.id} ${name}${argTag}: empty geometry`)
     } catch (err) {
-      failures.push(`${record.id} ${name}: ${err.message}`)
+      failures.push(`${record.id} ${name}${argTag}: ${err.message}`)
     }
   }
 }

@@ -217,9 +217,7 @@ export const measure = (geometry, options = {}) => {
   if (between !== undefined) out.between = measureBetween(wrapped, geomType, normalizeBetween(between))
   if (wantAnchors) out.anchors = measureAnchors(wrapped, geomType)
   if (section !== undefined) out.section = sectionOutline(wrapped, geomType, normalizeSection(section))
-  if (overlaps !== undefined) {
-    if (overlaps !== true) throw new Error('overlaps takes no value; pass overlaps: true to list box-overlapping part pairs')
-    out.overlaps = measureOverlaps(wrapped, geomType)
-  }
+  if (overlaps === true) out.overlaps = measureOverlaps(wrapped, geomType)
+  else if (overlaps !== undefined && overlaps !== false) throw new Error('overlaps takes no value; pass overlaps: true to list box-overlapping part pairs')
   return out
 }

@@ -38,12 +38,13 @@ export async function checkRecord(record, opts = {}) {
       continue
     }
     for (const extra of argSets) {
+      const argTag = record.sweepArgs ? ` ${JSON.stringify(extra)}` : ''
       try {
         const { geometry, buildMs } = await buildPart(loaded, record, [name, ...extra])
         buildTimes.push(buildMs)
-        if (isEmpty(geometry, loaded.ctx)) failures.push(`${record.id} ${name}: empty geometry`)
+        if (isEmpty(geometry, loaded.ctx)) failures.push(`${record.id} ${name}${argTag}: empty geometry`)
       } catch (err) {
-        failures.push(`${record.id} ${name}: ${err.message}`)
+        failures.push(`${record.id} ${name}${argTag}: ${err.message}`)
       }
     }
   }
