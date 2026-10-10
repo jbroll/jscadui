@@ -661,12 +661,6 @@ batch (toggle, rocker, d_plug/d_socket, gear_motor).
   source between tokens rather than stripping comments.
 - **`defaultText` returns `undefined` when a parameter's span has no file**
   (`cleanExports.ts`), so `$meta` drops that default.
-- **Inserting a second library's part of the same name.** Insert adds a
-  second `const { nut } = require(...)` when the file already binds `nut`
-  from another library, a SyntaxError; detect the existing binding and alias
-  the new one.
-- **An entry view opened before the editor is ready** keeps Insert disabled
-  for as long as it stays open.
 - **The parts eval fixtures' probes are bounding-box relative.**
   `nema17-mount` checks for a centre hole at least 22 mm wide, not that it
   sits centred among the four screw holes.

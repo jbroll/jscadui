@@ -79,7 +79,7 @@ describe('parts browser', () => {
     expect(inserted).toContain('screw(M3_cap_screw, 10)')
   })
 
-  it('disables Insert and shows a not-ready note when no editor is available', async () => {
+  it('keeps Insert enabled and shows a not-ready note when no editor is available', async () => {
     const { showPartsBrowser } = await import('../src/partsBrowser.js')
     showPartsBrowser({ catalogUrl: '/parts/catalog.json', getEditor: () => null })
     await flush()

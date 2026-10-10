@@ -129,7 +129,7 @@ describe('buildAgentDocs', () => {
     expect(json[0].description).toContain('vendor width is 34')
   })
 
-  it('real group1 deviation summaries name the vendor dimension', async () => {
+  it('the three deviation summaries name their vendor dimension', async () => {
     const { readFileSync } = await import('node:fs')
     const read = (p) => JSON.parse(readFileSync(new URL(p, import.meta.url), 'utf8'))
     expect(read('../catalog/nopscadlib/bearing_block.json').summary).toMatch(/vendor.*34/)
