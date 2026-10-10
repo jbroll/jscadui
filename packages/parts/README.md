@@ -1,7 +1,8 @@
 # @jscadui/parts
 
-Vetted catalog of standard hardware (nuts, screws, washers, bearings,
-steppers) drawn from the OpenSCAD libraries deployed under
+Vetted catalog of standard hardware (fasteners, bearings, linear motion,
+extrusions, fans, switches, connectors, passives, steppers and gear motors)
+drawn from the OpenSCAD libraries deployed under
 `apps/jscad-web/libs/` (NopSCADlib, BOSL2). Each entry names a library call
 and the standard dimensions it must build to; the parts browser and the chat
 agent offer only admitted catalog entries, never raw library requires, so

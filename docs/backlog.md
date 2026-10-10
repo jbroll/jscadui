@@ -574,12 +574,12 @@ full.
 
 ## Parts catalog
 
-First entries are nuts, screws, washers, ball bearings and steppers
-(`packages/parts/README.md`). A survey of the corpus on 2026-10-01 found the
+The catalog covers 37 families (`packages/parts/README.md`): fasteners,
+bearings, linear motion, extrusions, fans, switches, connectors, passives and
+motors. A survey of the corpus on 2026-10-01 found the
 candidates below; the NopSCADlib hardware that fits the record format as it
-stands (inserts, pulleys, rails, extrusions, T-nuts, linear bearings, fans,
-microswitches, standoffs, magnets, lead nuts, shaft supports) is being added
-on `parts-group1`.
+stands was added on `parts-group1`, through the switch, connector and motor
+batch (toggle, rocker, d_plug/d_socket, gear_motor).
 
 - **More NopSCADlib hardware.** Admitted on `parts-group1`: `comp_spring`
   (`springs`, 3), `shaft_coupling` (2), `internal_circlip` (DIN 472, 6),
