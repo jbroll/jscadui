@@ -22,11 +22,17 @@ export const suggestOptions = (option, known) => {
 }
 
 const TAU = Math.PI * 2
-const EPS = 1e-9
+// Float noise lands just over a multiple of 2π (6.284386356666759 read as
+// degrees once); values that close to a multiple are radians, not degrees.
+const TAU_MARGIN = 0.01
+const nearMultipleOfTau = (a) => {
+  const r = Math.abs(a) % TAU
+  return Math.min(r, TAU - r) <= TAU_MARGIN
+}
 
 const kindOf = (value) => (Array.isArray(value) ? 'array' : typeof value === 'number' ? 'number' : null)
 
-const degreeLike = (angle) => [angle].flat().find((a) => typeof a === 'number' && Math.abs(a) > TAU + EPS)
+const degreeLike = (angle) => [angle].flat().find((a) => typeof a === 'number' && Math.abs(a) > TAU && !nearMultipleOfTau(a))
 
 // Twice the signed area of one closed path of [x, y] points (shoelace), or
 // NaN when it is not one.

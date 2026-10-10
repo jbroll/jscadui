@@ -174,6 +174,16 @@ describe('withOptionChecks: types, angles and thrown errors', () => {
     expect(rotateX).toHaveBeenCalledTimes(4)
   })
 
+  it('ignores an angle within float noise of 2π', () => {
+    const rotateX = vi.fn((angle, shape) => shape)
+    const warn = vi.fn()
+    const wrapped = withOptionChecks({ transforms: { rotateX } }, typed, warn).transforms.rotateX
+    wrapped(Math.PI * 2 + 0.0012, 's')
+    wrapped(6.5, 's')
+    expect(warn.mock.calls.map(([w]) => w)).toEqual([{ fn: 'transforms.rotateX', option: 'angle', value: 6.5 }])
+    expect(rotateX).toHaveBeenCalledTimes(2)
+  })
+
   it('adds the hints of its call to an error the function throws', () => {
     const cube = () => { throw new Error('size must be positive') }
     const warn = (fact) => ({ ...fact, hint: `hint for ${fact.option}` })
