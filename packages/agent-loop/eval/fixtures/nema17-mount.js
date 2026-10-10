@@ -54,11 +54,18 @@ export const fixture = {
     const holes = zHoles(probe?.sections ?? [])
     const corners = holes.filter((h) => h.narrow >= 3.2 && h.narrow <= 3.6)
     const centre = holes.find((h) => h.narrow >= 22)
+    const centred = (() => {
+      if (!centre || corners.length !== 4) return false
+      const mx = corners.reduce((s, c) => s + c.cx, 0) / 4
+      const my = corners.reduce((s, c) => s + c.cy, 0) / 4
+      return Math.hypot(centre.cx - mx, centre.cy - my) <= 1
+    })()
     return [
       { name: 'requires a catalog stepper', pass: STEPPER_SOURCE.test(source ?? '') },
       { name: 'requires a catalog screw', pass: SCREW_SOURCE.test(source ?? '') },
       { name: 'four M3 holes on a 31mm square', pass: isSquarePitch(corners) },
       { name: 'a centre hole at least 22mm wide for the boss', pass: !!centre },
+      { name: 'centre hole sits centred among the screw holes', pass: centred },
       { name: 'sized for the motor, not a placeholder', pass: sizeOk(m?.dimensions ?? [0, 0, 0]) },
       { name: 'watertight', pass: solid?.watertight === true },
     ]

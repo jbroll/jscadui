@@ -301,7 +301,7 @@ describe('CSG fixture reference models', () => {
   const STEPPER_AND_SCREW_REQUIRE = STEPPER_REQUIRE + SCREW_REQUIRE
   const NO_PARTS_REQUIRE = `const main = () => {}\n`
 
-  function nemaPlate({ pitch = 31, holes = true, size = 50, thickness = 4 } = {}) {
+  function nemaPlate({ pitch = 31, holes = true, size = 50, thickness = 4, centreAt = [0, 0] } = {}) {
     const plate = p.cuboid({ size: [size, size, thickness] })
     if (!holes) return plate
     const half = pitch / 2
@@ -309,7 +309,7 @@ describe('CSG fixture reference models', () => {
     const corners = [[half, half], [half, -half], [-half, half], [-half, -half]].map(([x, y]) =>
       transforms.translate([x, y, 0], corner),
     )
-    const centre = p.cylinder({ radius: 12, height: 10, segments: 64 })
+    const centre = transforms.translate([centreAt[0], centreAt[1], 0], p.cylinder({ radius: 12, height: 10, segments: 64 }))
     return booleans.subtract(plate, booleans.union(...corners, centre))
   }
 
@@ -326,6 +326,15 @@ describe('CSG fixture reference models', () => {
     const results = byName['nema17-mount'].checks(measure([shape], {}), ctx(shape, { source: STEPPER_AND_SCREW_REQUIRE, probe }))
     expect(results.every((c) => c.pass)).toBe(false)
     expect(results.find((c) => c.name === 'four M3 holes on a 31mm square').pass).toBe(false)
+  })
+
+  it('nema17-mount fails an off-centre boss hole', () => {
+    const shape = nemaPlate({ centreAt: [5, 0] })
+    const probe = runProbe(shape, byName['nema17-mount'].probe)
+    const results = byName['nema17-mount'].checks(measure([shape], {}), ctx(shape, { source: STEPPER_AND_SCREW_REQUIRE, probe }))
+    expect(results.find((c) => c.name === 'four M3 holes on a 31mm square').pass).toBe(true)
+    expect(results.find((c) => c.name === 'a centre hole at least 22mm wide for the boss').pass).toBe(true)
+    expect(results.find((c) => c.name === 'centre hole sits centred among the screw holes').pass).toBe(false)
   })
 
   it('nema17-mount fails a solid plate with no catalog require', () => {
