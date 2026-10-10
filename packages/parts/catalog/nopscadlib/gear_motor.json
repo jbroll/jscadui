@@ -1,0 +1,21 @@
+{
+  "id": "nopscadlib/gear_motor",
+  "family": "gear_motor",
+  "preferred": true,
+  "library": "NopSCADlib",
+  "license": "GPL-3.0",
+  "file": "NopSCADlib/vitamins/gear_motor.scad",
+  "prelude": ["NopSCADlib/core.scad", "NopSCADlib/vitamins/gear_motors.scad"],
+  "call": "gear_motor",
+  "summary": "DC gearmotor (DFRobot FIT0492-A, Nidec GMAG), shaft on +z, gearbox behind it, motor can and solder tags at the back.",
+  "sizes": { "list": "gear_motors" },
+  "example": "gear_motor(FIT0492_A)",
+  "checks": [
+    {
+      "args": ["FIT0492_A", { "$fn": 72 }],
+      "size": [37, 37, 83],
+      "tol": 0.01,
+      "source": "FIT0492-A: 37 mm round gearbox; z spans the 14.7 shaft above its 6 mm boss to the solder tags below the 32 mm motor can (gearbox 24.5 deep)"
+    }
+  ]
+}

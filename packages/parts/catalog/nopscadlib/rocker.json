@@ -1,0 +1,22 @@
+{
+  "id": "nopscadlib/rocker",
+  "family": "rocker",
+  "preferred": true,
+  "library": "NopSCADlib",
+  "license": "GPL-3.0",
+  "file": "NopSCADlib/vitamins/rocker.scad",
+  "prelude": ["NopSCADlib/vitamins/rockers.scad"],
+  "call": "rocker",
+  "summary": "Panel rocker switch (10x15 micro, PRASA 15x21), flange on the panel face, body behind it, spade terminals at the back; the second argument is the rocker colour.",
+  "sizes": { "names": ["micro_rocker", "small_rocker"] },
+  "insertArgs": ["red"],
+  "example": "rocker(micro_rocker, \"red\")",
+  "checks": [
+    {
+      "args": ["micro_rocker", "red", { "$fn": 72 }],
+      "size": [10.5, 15, 21.4],
+      "tol": 0.01,
+      "source": "micro_rocker 10x15: flange 10.5 x 15 x 1.5; body 8.2 x 14 x 9.3 behind the panel; z spans the spade terminals at the back to the rocker top (pivot 0.8, button 3.0)"
+    }
+  ]
+}

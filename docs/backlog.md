@@ -586,11 +586,11 @@ on `parts-group1`.
   `square_button` (6x6/12x12 tact, 4), `led` (3–10 mm, list `LEDs`), `battery`
   (AA..18650..4680, 10), `tubing` (PTFE 2x4 Bowden, 16), `ziptie` (3),
   `green_terminal` (`insertArgs: [2]` for the required `ways`),
-  `potentiometer`. Vetted 2026-10-02, fit to admit next: `toggle`
-  (`insertArgs` for panel thickness), `rocker` (`insertArgs` colour; note
-  `neon_indicator` is an indicator, not a switch), `d_plug` in
-  `d_connector.scad` (booleans via `options`; sockets are a second record on
-  `d_socket`), `gear_motor` (needs a `core.scad` + screws prelude). Deferred:
+  `potentiometer`, `toggle` (`insertArgs: [3]` for the panel thickness),
+  `rocker` (`insertArgs: ["red"]` for the colour; `names`, since
+  `neon_indicator` is an indicator, not a switch), `d_plug` and `d_socket` in
+  `d_connector.scad` (booleans via `options`), `gear_motor` (`core.scad` +
+  screws prelude). Deferred:
   `pcb` (per-product entries, no canonical size list, largest include web),
   `display` (vendor assemblies, includes all of `pcbs.scad`), `belt` (needs a
   per-model pulley path no fixed `insertArgs` can express), `geared_stepper`

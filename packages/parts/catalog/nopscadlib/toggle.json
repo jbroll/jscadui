@@ -1,0 +1,22 @@
+{
+  "id": "nopscadlib/toggle",
+  "family": "toggle",
+  "preferred": true,
+  "library": "NopSCADlib",
+  "license": "GPL-3.0",
+  "file": "NopSCADlib/vitamins/toggle.scad",
+  "prelude": ["NopSCADlib/core.scad", "NopSCADlib/vitamins/toggles.scad"],
+  "call": "toggle",
+  "summary": "Panel-mount toggle switch (CK7101 paddle, CK7105/AP5236 bat lever, MS332F), body below the panel, threaded barrel through it with the nut stack positioned for the panel thickness, paddle above, pins below.",
+  "sizes": { "list": "toggles" },
+  "insertArgs": [3],
+  "example": "toggle(CK7101, 3)",
+  "checks": [
+    {
+      "args": ["CK7101", 3, { "$fn": 72 }],
+      "size": [12, 12.7, 32.065],
+      "tol": 0.01,
+      "source": "CK7101 in a 3 mm panel: x is the 12 mm washer OD (toggle_washer in washers.scad), y the 12.7 mm body; z spans the 3.94 mm pins below the 8.89 mm body to the paddle ball above the barrel (paddle 10.67 long at 12.5 degrees, pivot 4.45)"
+    }
+  ]
+}

@@ -254,6 +254,82 @@
     "example": "internal_circlip(circlip_12i)"
   },
   {
+    "name": "parts.nopscadlib.d_plug",
+    "pkg": "@jscadui/parts",
+    "kind": "part",
+    "family": "d_plug",
+    "preferred": true,
+    "description": "D-sub connector plug (9, 15, 25 and 37-way), flange with mounting holes, D shell forward, solder buckets behind; pcb draws PCB-mount pins, idc the ribbon-cable block.",
+    "require": "const { d_plug, DCONN9 } = require('_catalog/NopSCADlib/vitamins/d_connector.scad')",
+    "scad": "include <NopSCADlib/vitamins/d_connectors.scad>\ninclude <NopSCADlib/vitamins/d_connector.scad>",
+    "signature": "d_plug(type, socket = false, pcb = false, idc = false)",
+    "sizes": [
+      "DCONN9",
+      "DCONN15",
+      "DCONN25",
+      "DCONN37"
+    ],
+    "options": {
+      "pcb": "draw PCB-mount pins with solder points instead of solder buckets",
+      "idc": "draw the IDC ribbon-cable block instead of solder buckets"
+    },
+    "license": "GPL-3.0",
+    "measured": [
+      {
+        "args": [
+          "DCONN9",
+          {
+            "$fn": 72
+          }
+        ],
+        "size": [
+          30.810000002384186,
+          12.549999997019768,
+          14.693
+        ]
+      }
+    ],
+    "example": "d_plug(DCONN9)"
+  },
+  {
+    "name": "parts.nopscadlib.d_socket",
+    "pkg": "@jscadui/parts",
+    "kind": "part",
+    "family": "d_socket",
+    "preferred": true,
+    "description": "D-sub connector socket (9, 15, 25 and 37-way), flange with mounting holes, D shell forward with pin holes, solder buckets behind; pcb draws PCB-mount pins, idc the ribbon-cable block.",
+    "require": "const { d_socket, DCONN9 } = require('_catalog/NopSCADlib/vitamins/d_connector.scad')",
+    "scad": "include <NopSCADlib/vitamins/d_connectors.scad>\ninclude <NopSCADlib/vitamins/d_connector.scad>",
+    "signature": "d_socket(connector, pcb = false, idc = false)",
+    "sizes": [
+      "DCONN9",
+      "DCONN15",
+      "DCONN25",
+      "DCONN37"
+    ],
+    "options": {
+      "pcb": "draw PCB-mount pins with solder points instead of solder buckets",
+      "idc": "draw IDC ribbon-cable block instead of solder buckets"
+    },
+    "license": "GPL-3.0",
+    "measured": [
+      {
+        "args": [
+          "DCONN9",
+          {
+            "$fn": 72
+          }
+        ],
+        "size": [
+          30.810000002384186,
+          12.549999997019768,
+          14.693
+        ]
+      }
+    ],
+    "example": "d_socket(DCONN9)"
+  },
+  {
     "name": "parts.nopscadlib.extrusion",
     "pkg": "@jscadui/parts",
     "kind": "part",
@@ -357,6 +433,39 @@
       }
     ],
     "example": "fan(fan40x11)"
+  },
+  {
+    "name": "parts.nopscadlib.gear_motor",
+    "pkg": "@jscadui/parts",
+    "kind": "part",
+    "family": "gear_motor",
+    "preferred": true,
+    "description": "DC gearmotor (DFRobot FIT0492-A, Nidec GMAG), shaft on +z, gearbox behind it, motor can and solder tags at the back.",
+    "require": "const { gear_motor, FIT0492_A } = require('_catalog/NopSCADlib/vitamins/gear_motor.scad')",
+    "scad": "include <NopSCADlib/core.scad>\ninclude <NopSCADlib/vitamins/gear_motors.scad>\ninclude <NopSCADlib/vitamins/gear_motor.scad>",
+    "signature": "gear_motor(type, alpha = 1)",
+    "sizes": [
+      "FIT0492_A",
+      "GMAG_404327"
+    ],
+    "options": {},
+    "license": "GPL-3.0",
+    "measured": [
+      {
+        "args": [
+          "FIT0492_A",
+          {
+            "$fn": 72
+          }
+        ],
+        "size": [
+          37,
+          37,
+          82.99999999701977
+        ]
+      }
+    ],
+    "example": "gear_motor(FIT0492_A)"
   },
   {
     "name": "parts.nopscadlib.green_terminal",
@@ -952,6 +1061,40 @@
     "example": "carriage(MGN12H_carriage)"
   },
   {
+    "name": "parts.nopscadlib.rocker",
+    "pkg": "@jscadui/parts",
+    "kind": "part",
+    "family": "rocker",
+    "preferred": true,
+    "description": "Panel rocker switch (10x15 micro, PRASA 15x21), flange on the panel face, body behind it, spade terminals at the back; the second argument is the rocker colour.",
+    "require": "const { rocker, micro_rocker } = require('_catalog/NopSCADlib/vitamins/rocker.scad')",
+    "scad": "include <NopSCADlib/vitamins/rockers.scad>\ninclude <NopSCADlib/vitamins/rocker.scad>",
+    "signature": "rocker(type, colour)",
+    "sizes": [
+      "micro_rocker",
+      "small_rocker"
+    ],
+    "options": {},
+    "license": "GPL-3.0",
+    "measured": [
+      {
+        "args": [
+          "micro_rocker",
+          "red",
+          {
+            "$fn": 72
+          }
+        ],
+        "size": [
+          10.5,
+          15,
+          21.40038294941187
+        ]
+      }
+    ],
+    "example": "rocker(micro_rocker, \"red\")"
+  },
+  {
     "name": "parts.bosl2.screw",
     "pkg": "@jscadui/parts",
     "kind": "part",
@@ -1346,6 +1489,42 @@
       }
     ],
     "example": "sliding_t_nut(M4_sliding_t_nut)"
+  },
+  {
+    "name": "parts.nopscadlib.toggle",
+    "pkg": "@jscadui/parts",
+    "kind": "part",
+    "family": "toggle",
+    "preferred": true,
+    "description": "Panel-mount toggle switch (CK7101 paddle, CK7105/AP5236 bat lever, MS332F), body below the panel, threaded barrel through it with the nut stack positioned for the panel thickness, paddle above, pins below.",
+    "require": "const { toggle, CK7101 } = require('_catalog/NopSCADlib/vitamins/toggle.scad')",
+    "scad": "include <NopSCADlib/core.scad>\ninclude <NopSCADlib/vitamins/toggles.scad>\ninclude <NopSCADlib/vitamins/toggle.scad>",
+    "signature": "toggle(type, thickness)",
+    "sizes": [
+      "CK7101",
+      "CK7105",
+      "AP5236",
+      "MS332F"
+    ],
+    "options": {},
+    "license": "GPL-3.0",
+    "measured": [
+      {
+        "args": [
+          "CK7101",
+          3,
+          {
+            "$fn": 72
+          }
+        ],
+        "size": [
+          12,
+          12.7,
+          32.065050900937045
+        ]
+      }
+    ],
+    "example": "toggle(CK7101, 3)"
   },
   {
     "name": "parts.nopscadlib.tubing",

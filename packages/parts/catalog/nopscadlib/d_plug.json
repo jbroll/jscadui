@@ -1,0 +1,25 @@
+{
+  "id": "nopscadlib/d_plug",
+  "family": "d_plug",
+  "preferred": true,
+  "library": "NopSCADlib",
+  "license": "GPL-3.0",
+  "file": "NopSCADlib/vitamins/d_connector.scad",
+  "prelude": ["NopSCADlib/vitamins/d_connectors.scad"],
+  "call": "d_plug",
+  "summary": "D-sub connector plug (9, 15, 25 and 37-way), flange with mounting holes, D shell forward, solder buckets behind; pcb draws PCB-mount pins, idc the ribbon-cable block.",
+  "sizes": { "list": "d_connectors" },
+  "options": {
+    "pcb": "draw PCB-mount pins with solder points instead of solder buckets",
+    "idc": "draw the IDC ribbon-cable block instead of solder buckets"
+  },
+  "example": "d_plug(DCONN9)",
+  "checks": [
+    {
+      "args": ["DCONN9", { "$fn": 72 }],
+      "size": [30.81, 12.55, 14.693],
+      "tol": 0.01,
+      "source": "DCONN9: flange 30.81 x 12.55 x 1.12; z is the 6.693 shell forward of the flange plus the 8 mm solder buckets behind"
+    }
+  ]
+}

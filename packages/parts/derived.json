@@ -616,6 +616,102 @@
       "mean": 3.7591457499997887
     }
   },
+  "nopscadlib/d_plug": {
+    "id": "nopscadlib/d_plug",
+    "ok": true,
+    "failures": [],
+    "measured": [
+      {
+        "args": [
+          "DCONN9",
+          {
+            "$fn": 72
+          }
+        ],
+        "size": [
+          30.810000002384186,
+          12.549999997019768,
+          14.693
+        ]
+      }
+    ],
+    "sizes": [
+      "DCONN9",
+      "DCONN15",
+      "DCONN25",
+      "DCONN37"
+    ],
+    "signature": {
+      "params": [
+        {
+          "name": "type"
+        },
+        {
+          "name": "socket",
+          "default": "false"
+        },
+        {
+          "name": "pcb",
+          "default": "false"
+        },
+        {
+          "name": "idc",
+          "default": "false"
+        }
+      ]
+    },
+    "transpileMs": 374.604628,
+    "buildMs": {
+      "max": 571.34652,
+      "mean": 340.80757800000003
+    }
+  },
+  "nopscadlib/d_socket": {
+    "id": "nopscadlib/d_socket",
+    "ok": true,
+    "failures": [],
+    "measured": [
+      {
+        "args": [
+          "DCONN9",
+          {
+            "$fn": 72
+          }
+        ],
+        "size": [
+          30.810000002384186,
+          12.549999997019768,
+          14.693
+        ]
+      }
+    ],
+    "sizes": [
+      "DCONN9",
+      "DCONN15",
+      "DCONN25",
+      "DCONN37"
+    ],
+    "signature": {
+      "params": [
+        {
+          "name": "connector"
+        },
+        {
+          "name": "pcb",
+          "default": "false"
+        },
+        {
+          "name": "idc",
+          "default": "false"
+        }
+      ]
+    },
+    "transpileMs": 212.79384200000004,
+    "buildMs": {
+      "max": 210.86901600000056,
+      "mean": 142.94176640000006
+    }
+  },
   "nopscadlib/extrusion": {
     "id": "nopscadlib/extrusion",
     "ok": true,
@@ -733,6 +829,46 @@
     "buildMs": {
       "max": 97.67950100000053,
       "mean": 47.98580669230768
+    }
+  },
+  "nopscadlib/gear_motor": {
+    "id": "nopscadlib/gear_motor",
+    "ok": true,
+    "failures": [],
+    "measured": [
+      {
+        "args": [
+          "FIT0492_A",
+          {
+            "$fn": 72
+          }
+        ],
+        "size": [
+          37,
+          37,
+          82.99999999701977
+        ]
+      }
+    ],
+    "sizes": [
+      "FIT0492_A",
+      "GMAG_404327"
+    ],
+    "signature": {
+      "params": [
+        {
+          "name": "type"
+        },
+        {
+          "name": "alpha",
+          "default": "1"
+        }
+      ]
+    },
+    "transpileMs": 209.43906100000004,
+    "buildMs": {
+      "max": 114.69394300000022,
+      "mean": 94.37960400000004
     }
   },
   "nopscadlib/green_terminal": {
@@ -1451,6 +1587,46 @@
       "mean": 4.003418166666354
     }
   },
+  "nopscadlib/rocker": {
+    "id": "nopscadlib/rocker",
+    "ok": true,
+    "failures": [],
+    "measured": [
+      {
+        "args": [
+          "micro_rocker",
+          "red",
+          {
+            "$fn": 72
+          }
+        ],
+        "size": [
+          10.5,
+          15,
+          21.40038294941187
+        ]
+      }
+    ],
+    "sizes": [
+      "micro_rocker",
+      "small_rocker"
+    ],
+    "signature": {
+      "params": [
+        {
+          "name": "type"
+        },
+        {
+          "name": "colour"
+        }
+      ]
+    },
+    "transpileMs": 52.40575699999954,
+    "buildMs": {
+      "max": 21.701600000000326,
+      "mean": 12.721622000000025
+    }
+  },
   "nopscadlib/screw": {
     "id": "nopscadlib/screw",
     "ok": true,
@@ -1769,6 +1945,48 @@
     "buildMs": {
       "max": 5.610891000000265,
       "mean": 2.2249988750004377
+    }
+  },
+  "nopscadlib/toggle": {
+    "id": "nopscadlib/toggle",
+    "ok": true,
+    "failures": [],
+    "measured": [
+      {
+        "args": [
+          "CK7101",
+          3,
+          {
+            "$fn": 72
+          }
+        ],
+        "size": [
+          12,
+          12.7,
+          32.065050900937045
+        ]
+      }
+    ],
+    "sizes": [
+      "CK7101",
+      "CK7105",
+      "AP5236",
+      "MS332F"
+    ],
+    "signature": {
+      "params": [
+        {
+          "name": "type"
+        },
+        {
+          "name": "thickness"
+        }
+      ]
+    },
+    "transpileMs": 205.65116599999965,
+    "buildMs": {
+      "max": 276.28223700000035,
+      "mean": 151.78513799999982
     }
   },
   "nopscadlib/tubing": {
