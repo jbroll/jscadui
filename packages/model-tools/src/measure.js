@@ -124,6 +124,29 @@ export const measureBetween = (geom, geomType, [a, b]) => {
   }
 }
 
+const OVERLAP_LIMIT = 50
+
+// Every index pair whose bounding boxes overlap, with the same gap/distance
+// shape as measureBetween. Bounding boxes only: cheap triage, not proof of
+// shared volume; follow up with between or section for an exact answer.
+export const measureOverlaps = (geom, geomType) => {
+  const items = itemsOf(geom, geomType)
+  const boxes = items.map((_, i) => measureSelection(items, String(i)).boundingBox)
+  const pairs = []
+  let totalPairs = 0
+  for (let a = 0; a < items.length; a++) {
+    for (let b = a + 1; b < items.length; b++) {
+      const gap = [0, 1, 2].map((k) => roundMicron(Math.max(boxes[b][0][k] - boxes[a][1][k], boxes[a][0][k] - boxes[b][1][k])))
+      if (!gap.every((g) => g < 0)) continue
+      totalPairs++
+      if (pairs.length === OVERLAP_LIMIT) continue
+      const between = measureBetween(geom, geomType, [String(a), String(b)])
+      pairs.push({ a: String(a), b: String(b), gap: between.gap, distance: between.distance })
+    }
+  }
+  return { pairs, totalPairs, capped: totalPairs > pairs.length }
+}
+
 const PARTS_ERROR =
   'parts must be "all" or a selector like "0" or "1-3" (indexes into the array main() returns), an array of them, or a JSON array string'
 const BETWEEN_ERROR = 'between needs exactly two part selectors like "0" or "1-3", e.g. ["0", "1"]'
@@ -181,7 +204,7 @@ const normalizeSection = (section) => {
 export const measure = (geometry, options = {}) => {
   const wrapped = Array.isArray(geometry) ? geometry : wrapOne(geometry)
   const geomType = Array.isArray(geometry) ? 'array' : classify(geometry)
-  const { parts, between, anchors: wantAnchors, section } = options
+  const { parts, between, anchors: wantAnchors, section, overlaps } = options
   const out = measureGeom(wrapped, geomType)
   if (geomType === 'array') {
     const insideOut = wrapped.flatMap((item, i) => (classify(item) === 'geom3' && measureGeom(wrapOne(item), 'geom3').insideOut ? [i] : []))
@@ -194,5 +217,9 @@ export const measure = (geometry, options = {}) => {
   if (between !== undefined) out.between = measureBetween(wrapped, geomType, normalizeBetween(between))
   if (wantAnchors) out.anchors = measureAnchors(wrapped, geomType)
   if (section !== undefined) out.section = sectionOutline(wrapped, geomType, normalizeSection(section))
+  if (overlaps !== undefined) {
+    if (overlaps !== true) throw new Error('overlaps takes no value; pass overlaps: true to list box-overlapping part pairs')
+    out.overlaps = measureOverlaps(wrapped, geomType)
+  }
   return out
 }

@@ -81,6 +81,7 @@ export const buildTools = (api = DEFAULT_API) => [
           items: { type: 'string' },
           description: 'Exactly two index selectors ("0" or "1-3") to measure the gap between; "all" works only in parts',
         },
+        overlaps: { type: 'boolean', description: 'List every pair of parts whose bounding boxes overlap, with per-axis gap and distance; pairs past 50 are counted but not listed' },
         anchors: { type: 'boolean', description: "Include each part's named anchor frames" },
         section: {
           type: 'string',

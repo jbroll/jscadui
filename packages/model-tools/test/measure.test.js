@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest'
 import jscad from '@jscad/modeling'
 import { measure } from '../index.js'
-import { measureAnchors, measureBetween, measureParts } from '../src/measure.js'
+import { measureAnchors, measureBetween, measureOverlaps, measureParts } from '../src/measure.js'
 
 const { booleans, primitives, transforms } = jscad
 const { cuboid, cylinder, rectangle } = primitives
@@ -245,4 +245,18 @@ test('a section lists at most 12 loops, largest first, and says how many it left
   expect(section.loops).toHaveLength(12)
   expect(section.loopsLeftOut).toBe(13)
   expect(section.loops[0].area).toBeGreaterThan(section.loops[11].area)
+})
+
+test('measureOverlaps lists every box-overlapping pair with its gap', () => {
+  const scene = [cube(0), cube(3), cube(10)]
+  const r = measureOverlaps(scene, 'array')
+  expect(r.totalPairs).toBe(1)
+  expect(r.capped).toBe(false)
+  expect(r.pairs).toEqual([{ a: '0', b: '1', gap: [-2, -5, -5], distance: 0 }])
+})
+
+test('measure answers overlaps:true with the pair list', () => {
+  const out = measure([cube(0), cube(3), cube(10)], { overlaps: true })
+  expect(out.overlaps.totalPairs).toBe(1)
+  expect(out.overlaps.pairs).toHaveLength(1)
 })
