@@ -769,6 +769,12 @@ from the 2026-10-01 review.
 
 ## Remaining issues
 
+- **`apps/jscad-web/test/storage-rowboat.test.js` stale push-response mock.**
+  The external `@jbroll/rowboat-client` now requires `rejected` on the push
+  response, and the test's recorded transcript omits it, so 1 of 4 tests fails
+  (`Push response missing rejected`). Pre-existing on `parts-group1`
+  (`ad875fa8`), unrelated to the parts work; found when Task 1's commit hit the
+  pre-commit gate. Fix the mock (add `rejected: []`) or pin the client.
 - **`npm install` inside a workspace crashes on the CI host.** npm 11.16.0
   (node 24.18) fails in `packages/openscad` with `TypeError: Cannot read
   properties of null (reading 'package')` in arborist's `set root`, on main
