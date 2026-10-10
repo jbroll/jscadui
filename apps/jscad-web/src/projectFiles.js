@@ -62,18 +62,18 @@ export const toEditorFiles = (files) =>
  * Open a stored project: the cache, the editor and the caller's open-project
  * state all hold it, then its entry builds.
  * @param {{
- *   manager: { readForSwitch: (id:string) => Promise<{ project: { entry: string }, files: Record<string,unknown> }> },
+ *   manager: { readForSwitch: (id:string) => Promise<{ project: { entry: string, name: string }, files: Record<string,unknown> }> },
  *   fileSystem: Parameters<typeof replaceProjectFiles>[0],
  *   editor: { setFiles: (files:File[]) => void, setSource: (source:unknown, path:string) => void },
  *   clearTempCache: () => void,
  *   build: (entry:string) => Promise<unknown>,
- *   onOpen: (id:string, entry:string) => void,
+ *   onOpen: (id:string, entry:string, name:string) => void,
  *   onError: (err:unknown) => void,
  * }} deps
  */
 export const createProjectSwitch = ({ manager, fileSystem, editor, clearTempCache, build, onOpen, onError }) => async (id) => {
   const { project, files } = await manager.readForSwitch(id)
-  onOpen(id, project.entry)
+  onOpen(id, project.entry, project.name)
   clearTempCache()
   await replaceProjectFiles(fileSystem, files)
   editor.setFiles(toEditorFiles(files))

@@ -395,9 +395,10 @@ const switchProject = createProjectSwitch({
   editor,
   clearTempCache: () => workerApi.jscadClearTempCache(),
   build: (entry) => buildProject(entry),
-  onOpen: (id, entry) => {
+  onOpen: (id, entry, name) => {
     currentProjectId = id
     currentEntry = entry
+    if (typeof name === 'string' && name) exporter.exportConfig.projectName = name
   },
   onError: setError,
 })
@@ -902,7 +903,7 @@ if (diskEntry === null) {
   }
 }
 
-await exporter.init(workerApi)
+await exporter.init(workerApi, { onError: setError })
 
 // ============== Default Script ==============
 if (loadDefault && !hasRemoteScript) {

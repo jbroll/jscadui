@@ -90,12 +90,12 @@ describe('createProjectSwitch', () => {
     }
     const editor = { setFiles: vi.fn(), setSource: vi.fn() }
     const files = { 'main.js': 'm', 'lib/part.js': 'p' }
-    const manager = { readForSwitch: async () => ({ project: { entry: 'main.js' }, files }) }
+    const manager = { readForSwitch: async () => ({ project: { entry: 'main.js', name: 'Gear' }, files }) }
     const opened = vi.fn()
     const build = vi.fn(async () => ({}))
     const clearTempCache = vi.fn()
     await createProjectSwitch({ manager, fileSystem, editor, clearTempCache, build, onOpen: opened, onError: vi.fn() })('p1')
-    expect(opened).toHaveBeenCalledWith('p1', 'main.js')
+    expect(opened).toHaveBeenCalledWith('p1', 'main.js', 'Gear')
     expect(clearTempCache).toHaveBeenCalled()
     expect(Object.fromEntries(cached)).toEqual(files)
     expect(editor.setFiles.mock.calls[0][0].map((f) => f.fullPath)).toEqual(['/main.js', '/lib/part.js'])

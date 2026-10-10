@@ -28,8 +28,9 @@ let workerApi
  * Initialize the exporter with the worker API.
  * Dynamically fetches available export formats from the worker.
  * @param {JscadWorker} newWorkerApi
+ * @param {{ onError?: (err: unknown) => void }} [options]
  */
-export const init = async (newWorkerApi) => {
+export const init = async (newWorkerApi, { onError = (err) => console.error(err) } = {}) => {
   workerApi = newWorkerApi
 
   // Fetch available formats from the worker (single source of truth). A frame
@@ -48,7 +49,7 @@ export const init = async (newWorkerApi) => {
       name: format.id,
       label: format.label,
       extension: format.extension,
-      execute: () => exportAsFile(format.id, format.extension),
+      execute: () => exportAsFile(format.id, format.extension, onError),
     })),
     { name: 'scriptUrl', label: 'Copy to clipboard script url', execute: () => exportToScriptUrl() },
   ]
@@ -65,9 +66,20 @@ export const init = async (newWorkerApi) => {
 
   // Bind export buttons
   exportButton.addEventListener('click', async () => {
-  // Export model in selected format
+    // Export model in selected format
     const format = /** @type {ExportFormatEntry} */ (exportFormats.find((f) => f.name === exportFormatSelect.value))
-    await format.execute()
+    if (!format) return
+    const label = exportButton.textContent
+    exportButton.disabled = true
+    exportButton.textContent = 'Exporting…'
+    try {
+      await format.execute()
+    } catch (err) {
+      onError(err)
+    } finally {
+      exportButton.disabled = false
+      exportButton.textContent = label
+    }
   })
 }
 
@@ -93,17 +105,20 @@ const exportToScriptUrl = async () => {
 /** 
  * @param {string} formatName
  * @param {string} formatExtension
+ * @param {(err: unknown) => void} [onError]
  */
-const exportAsFile = async (formatName, formatExtension = formatName) => {
+const exportAsFile = async (formatName, formatExtension = formatName, onError = (err) => console.error(err)) => {
   let { data } = (await workerApi.jscadExportData({ format: formatName })) || {}
-  if (data) {
-    if (!(data instanceof Array)) data = [data]
-    console.log('save', `${exportConfig.projectName}.${formatExtension}`, data)
-    let type = 'text/plain'
-    if (formatName === ExportFormats.THREE_MF) type = 'application/zip'
-
-    downloadBlob(new Blob(data, { type }), `${exportConfig.projectName}.${formatExtension}`)
+  if (!data) {
+    onError(new Error('export produced no geometry'))
+    return
   }
+  if (!(data instanceof Array)) data = [data]
+  console.log('save', `${exportConfig.projectName}.${formatExtension}`, data)
+  let type = 'text/plain'
+  if (formatName === ExportFormats.THREE_MF) type = 'application/zip'
+
+  downloadBlob(new Blob(data, { type }), `${exportConfig.projectName}.${formatExtension}`)
 }
 
 export const exportConfig = {
