@@ -411,20 +411,6 @@ model with `display-check.js --engine jscad`.
 
 ## Chat API help
 
-- The degrees hint fires on radians just over 2π (agent-loop,
-  `src/hints.js` `angleHint`). In chat 8d3c5d92 (2026-09-30) it called
-  `6.284386356666759` degrees, and the model spent three edits and a read
-  chasing it. Values within a small margin of a multiple of 2π should not
-  trigger it.
-- No tool lists which parts of a model overlap (agent-loop). The user of chat
-  8d3c5d92 reported "significant inter part interferences" and the model never
-  measured them; its edits cut 58 clashing part pairs to 46 by accident. The
-  eval's `overlaps` probe stops at 45 pairs (`MAX_OVERLAP_PAIRS`,
-  `eval/probe.js`) and that turret has 180 to 196 pairs to test, so neither a
-  `check` option nor a fixture for this turn exists yet.
-- A refused or failed chat turn stores the user message and no reply, so a
-  retry resends every refused message and a safety filter that flagged one
-  keeps refusing. Drop or mark refused turns in the transcript sent back.
 - Eval model code now runs in a crt container with no network, home, key or
   parent environment (`eval/sandbox.js`, read-only binds of `packages/`,
   `node_modules/` and `.deps-cache/`), but the CDN stub still serves any
@@ -477,10 +463,6 @@ model with `display-check.js --engine jscad`.
 - CI eval run for the project environment (agent-loop). The file tools
   (`write`, `edit`, `run`) have passed the unit and e2e suites but no live
   run: run the 18-fixture suite on CI and compare with the regraded baseline.
-- Chat writes whose storage write fails (jscad-web). `storeFile` only warns,
-  so a failed rowboat write leaves the file in the cache, and the next load's
-  rowboat merge can put the older stored copy back. Retry, or report the
-  failure in the build report.
 - In-app API help page for users (jscad-web). The `docs` tool answers only
   the chat's model; a page or panel over the same `api/index.json` and
   `docsTool` would let a user look up a function, its options and an example

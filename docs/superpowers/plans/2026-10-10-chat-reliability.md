@@ -50,7 +50,10 @@ it('drops a failed turn\u2019s user message so a retry sends it once', async () 
   chat.type('second')
   await vi.waitFor(() => expect(runTurnFn).toHaveBeenCalledTimes(2))
   const sent = runTurnFn.mock.calls[1][0].conversation.messages.filter((m) => m.role === 'user').map((m) => m.content)
-  expect(sent).toEqual(['second'])
+  // buildMessages prepends a role-user project note, so the sent user roles
+  // are [note, 'second'], not ['second'].
+  expect(sent).not.toContain('first')
+  expect(sent.at(-1)).toBe('second')
 })
 ```
 
