@@ -55,7 +55,7 @@ export function createRowboatStorage(options) {
 
   const readRow = async (table, id) => {
     const row = await db.table(table).get(id)
-    if (!row || row.__deleted) throw new Error(`${table}: not found (${id})`)
+    if (!row || row.__deleted) throw Object.assign(new Error(`${table}: not found (${id})`), { name: 'NotFoundError' })
     return row
   }
 

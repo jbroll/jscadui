@@ -17,7 +17,11 @@ export function createSession({ local, rowboat, getRowboat, getBackend, disk = n
     let files
     try {
       files = { ...(await store.readProject(projectId)).files }
-    } catch {
+    } catch (err) {
+      // A project the backend never saw starts fresh; any other read
+      // failure fails the save, so one offline blob fetch cannot delete
+      // the rest of the project.
+      if (err?.name !== 'NotFoundError') throw err
       files = {}
     }
     files[path] = content

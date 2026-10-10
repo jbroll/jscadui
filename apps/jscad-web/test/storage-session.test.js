@@ -25,6 +25,31 @@ describe('mode write-through', () => {
     expect((await rowboat.readProject('p1')).files['lib/gear.js']).toBe('gear')
   })
 
+  it('fails the save when the read fails for another reason, writing nothing', async () => {
+    const local = createLocalStorage()
+    const rowboat = {
+      readProject: vi.fn(async () => {
+        throw new Error('offline')
+      }),
+      writeFiles: vi.fn(async () => ({})),
+    }
+    const session = createSession({ local, rowboat, getBackend: () => 'rowboat' })
+    await expect(session.writeThrough('p1', 'main.js', 'v1')).rejects.toThrow('offline')
+    expect(rowboat.writeFiles).not.toHaveBeenCalled()
+  })
+
+  it('starts a project the backend has never seen', async () => {
+    const local = createLocalStorage()
+    const session = createSession({ local, getBackend: () => 'local' })
+    await session.writeThrough('p9', 'main.js', 'v1', { entry: 'main.js' })
+    expect((await local.readProject('p9')).files).toEqual({ 'main.js': 'v1' })
+  })
+
+  it('names a missing project NotFoundError on both backends', async () => {
+    const local = createLocalStorage()
+    await expect(local.readProject('nope')).rejects.toMatchObject({ name: 'NotFoundError', message: 'projects: not found (nope)' })
+  })
+
   it("snapshots a project's stored files as a version in its backend", async () => {
     const local = createLocalStorage()
     const rowboat = createLocalStorage()

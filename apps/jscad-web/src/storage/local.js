@@ -22,7 +22,7 @@ export function createLocalStorage() {
 
   const readProject = async (id) => {
     const row = projects.get(id)
-    if (!row) throw new Error(`projects: not found (${id})`)
+    if (!row) throw Object.assign(new Error(`projects: not found (${id})`), { name: 'NotFoundError' })
     return { ...row, files: { ...row.files } }
   }
 
