@@ -77,6 +77,33 @@ test.describe('Code editor', () => {
     await expect(page.locator('#error-bar')).toBeVisible({ timeout: 15_000 })
   })
 
+  test('dark mode restyles the form controls and the project drawer', async ({ page }) => {
+    await page.locator('#menu-button').click()
+    await page.locator('#dark-mode').check()
+    await expect(page.locator('body')).toHaveClass(/dark/)
+
+    const buttonBg = await page.locator('#export-button').evaluate((el) => getComputedStyle(el).backgroundColor)
+    expect(buttonBg).toBe('rgb(44, 44, 44)')
+
+    await page.locator('#project-toggle').click()
+    const headerBorder = await page.locator('.project-header').evaluate((el) => getComputedStyle(el).borderBottomColor)
+    const rowBorder = await page.locator('.project-row').first().evaluate((el) => getComputedStyle(el).borderBottomColor)
+    expect(headerBorder).toBe('rgb(85, 85, 85)')
+    expect(rowBorder).toBe('rgb(68, 68, 68)')
+  })
+
+  test('the error bar can be dismissed', async ({ page }) => {
+    const content = page.locator('.cm-content')
+    await content.click()
+    await page.keyboard.press('Control+a')
+    await page.keyboard.type('this is not valid javascript !!!@@@###')
+    await page.keyboard.press('Shift+Enter')
+
+    await expect(page.locator('#error-bar')).toBeVisible({ timeout: 15_000 })
+    await page.locator('#error-dismiss').click()
+    await expect(page.locator('#error-bar')).toBeHidden()
+  })
+
   test('editor hint text is visible', async ({ page }) => {
     // At least one of the hint elements should be present
     const hint1 = page.locator('#editor-hint')

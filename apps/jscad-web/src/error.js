@@ -9,6 +9,10 @@ const errorBar = document.getElementById('error-bar')
 const errorName = document.getElementById('error-name')
 const errorMessage = document.getElementById('error-message')
 
+// Dismissal is a UI action, not a model result: clear only the visible class
+// so the last render state (error included) stands until the next run.
+document.getElementById('error-dismiss')?.addEventListener('click', () => errorBar.classList.remove('visible'))
+
 /**
  * @param {unknown} error
  */

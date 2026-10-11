@@ -17,7 +17,6 @@ bullet each ID points at is the requirement text. Reserved for new findings:
 | UI2 | UI (jscad-web) | Med | `main.js`, `src/paramsUI.js`, `packages/params-ui` |
 | UI4 | UI (jscad-web) | Med | `src/aiChat.js` |
 | UI5 | UI (jscad-web) | Med | `src/editor.js`, `main.js` |
-| UI6 | UI (jscad-web) | Med | `static/main.css`, `src/error.js` |
 | API2 | Chat API help | Med | `apps/jscad-web/src/aiAccount.js` |
 | API4 | Chat API help | Low | `.deps-cache/jscad-fluent` (external) |
 | API5 | Chat API help | Med | `packages/agent-loop/src/tools.js`, `apps/jscad-web/src/aiDeps.js` |
@@ -453,11 +452,6 @@ full.
   (`src/editor.js:58-61`, `:104-105`, `main.js:817-856`), or an error where
   the File System Access API is missing, though the run already stored the
   edit. The hint is at `static/index.html:89`.
-- **Dark mode and the error bar.** `main.css:117-129` styles buttons and
-  inputs light with no `.dark` variant, beyond the chat settings dialog in
-  Remaining issues, and the project drawer borders (`main.css:957-986`) have none
-  either. `#error-message` is `white-space: pre` (`:721-723`) and has no
-  dismiss.
 
 ## Parts catalog
 

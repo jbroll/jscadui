@@ -962,6 +962,9 @@ results carry `ok: true` and `units: "mm"` (`withUnits`).
 
 A failed build keeps the last good render on screen: a load draws only what
 it returns, so a failure leaves the viewer as it was and shows the error bar.
+Its dismiss hides the bar without changing the render state (the failed run
+stays an error until the next run). The shell's form controls and the project
+drawer lines restyle under `.dark`, same as the panels and dialogs.
 
 `run` sends its source as `__run__.js` (agent-loop's `RUN_FILE`) beside the project's files, with
 `scratch: true` on its `jscadScript`. The worker runs it and its `main`
