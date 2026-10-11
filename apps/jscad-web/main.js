@@ -1047,10 +1047,13 @@ const projectPanel = initProjects({
     await projectManager.deleteProject(id)
     if (id === currentProjectId) {
       const next = pickBootProject(await projectManager.listAll())
-      if (next) await switchProject(next)
-      else {
+      if (next) {
+        await switchProject(next)
+        await projectPanel.select(next)
+      } else {
         const created = await projectManager.createProject('Untitled', { entry: 'main.js', files: { 'main.js': defaultCode } })
         await switchProject(created.id)
+        await projectPanel.select(created.id)
       }
     }
     await projectPanel.render()

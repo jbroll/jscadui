@@ -191,6 +191,26 @@ describe('delete', () => {
   })
 })
 
+describe('sync status', () => {
+  it('shows a message with a retry that calls onRetrySync, and hides on empty', async () => {
+    document.body.innerHTML = '<div id="panel"></div>'
+    const manager = createProjectManager({ local: createLocalStorage(), getRowboat: () => null })
+    await manager.createProject('Gear', { files: { 'main.js': 'v1' } })
+    const onRetrySync = vi.fn()
+    const panel = initProjects({ container: document.getElementById('panel'), manager, onSwitch: async () => {}, onRetrySync })
+    await vi.waitFor(() => expect(document.querySelector('.project-sync-status')).not.toBeNull())
+    const status = document.querySelector('.project-sync-status')
+    expect(status.style.display).toBe('none')
+    panel.setSyncStatus('Sync failed')
+    expect(status.style.display).not.toBe('none')
+    expect(status.textContent).toContain('Sync failed')
+    status.querySelector('.sync-retry').click()
+    expect(onRetrySync).toHaveBeenCalled()
+    panel.setSyncStatus('')
+    expect(status.style.display).toBe('none')
+  })
+})
+
 describe('mode labels', () => {
   it('names the modes for what they mean', async () => {
     document.body.innerHTML = '<div id="panel"></div>'
