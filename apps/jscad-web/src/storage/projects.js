@@ -59,11 +59,14 @@ export function createProjectManager({ local, getRowboat, disk = null }) {
   const ownerOf = async (id) => storeFor(await modeOf(id))
 
   const listAll = async () => {
-    const all = (await local.listProjects()).map((p) => ({ ...p, backend: 'local' }))
+    let all = (await local.listProjects()).map((p) => ({ ...p, backend: 'local' }))
     if (disk) for (const p of await disk.listProjects()) all.push({ ...p, backend: 'disk' })
     if (rowboat()) {
       for (const p of await rowboat().listProjects()) all.push({ ...p, backend: 'rowboat' })
     }
+    const byId = new Map()
+    for (const p of all) if (!byId.has(p.id)) byId.set(p.id, p)
+    all = [...byId.values()]
     for (const p of all) {
       if (!modes.has(p.id)) modes.set(p.id, p.mode)
     }
@@ -127,6 +130,7 @@ export function createProjectManager({ local, getRowboat, disk = null }) {
     const to = storeFor(toMode)
     if (to === from) throw new Error('rowboat unavailable')
     await to.writeFiles(id, project.files, { message: `mode to ${toMode}`, name: project.name, entry: project.entry, mode: toMode })
+    await from.deleteProject(id)
     return remember(id, toMode)
   }
 

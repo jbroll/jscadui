@@ -40,14 +40,25 @@ describe('project manager', () => {
     expect(await manager.listVersions(id)).toHaveLength(3)
   })
 
-  it('flips mode by copying current files, leaving old rows behind', async () => {
+  it('flips mode by moving the project to the other backend', async () => {
     const { manager, local, rowboat } = stores()
     const { id } = await manager.createProject('P', { files: { 'main.js': 'v1' } })
     expect(await manager.flipMode(id)).toBe('rowboat')
     expect((await rowboat.readProject(id)).files).toEqual({ 'main.js': 'v1' })
-    expect((await local.listVersions(id))).toHaveLength(1)
+    await expect(local.readProject(id)).rejects.toMatchObject({ name: 'NotFoundError' })
+    expect(await manager.listAll()).toHaveLength(1)
     expect(await manager.flipMode(id)).toBe('local')
     expect(manager.peekMode(id)).toBe('local')
+    await expect(rowboat.readProject(id)).rejects.toMatchObject({ name: 'NotFoundError' })
+  })
+
+  it('lists a project once even if both backends hold the id', async () => {
+    const { manager, rowboat } = stores()
+    const { id } = await manager.createProject('P', { files: { 'main.js': 'v1' } })
+    // Simulate a project that predates the flip fix: a stale copy in rowboat.
+    await rowboat.writeFiles(id, { 'main.js': 'v1' }, { message: 'stale', name: 'P', entry: 'main.js', mode: 'rowboat' })
+    const ids = (await manager.listAll()).map((p) => p.id)
+    expect(ids.filter((x) => x === id)).toHaveLength(1)
   })
 
   it('merges a dropped folder as a subfolder', async () => {
