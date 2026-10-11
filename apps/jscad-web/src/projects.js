@@ -46,8 +46,18 @@ export const initProjects = ({ container, manager, onSwitch, onDropOnProject, on
     }
   }
 
+  const paintSelection = () => {
+    for (const row of list.querySelectorAll('.project-row')) {
+      const on = row.dataset.projectId === selectedId
+      row.classList.toggle('selected', on)
+      if (on) row.setAttribute('aria-current', 'true')
+      else row.removeAttribute('aria-current')
+    }
+  }
+
   const select = async (id) => {
     selectedId = id
+    paintSelection()
     await refreshMode()
     await renderVersions()
   }
@@ -87,7 +97,7 @@ export const initProjects = ({ container, manager, onSwitch, onDropOnProject, on
       row.dataset.projectId = p.id
       const label = el('button', 'project-open', `${p.name} (${p.mode})`)
       label.type = 'button'
-      label.addEventListener('click', () => onSwitch(p.id))
+      label.addEventListener('click', async () => { await select(p.id); onSwitch(p.id) })
       const rename = el('button', 'project-rename', 'Rename')
       rename.type = 'button'
       rename.addEventListener('click', async (ev) => {
@@ -106,6 +116,7 @@ export const initProjects = ({ container, manager, onSwitch, onDropOnProject, on
       })
       list.append(row)
     }
+    paintSelection()
     if (!selectedId) {
       const first = list.querySelector('.project-row')
       if (first) await select(first.dataset.projectId)
@@ -116,7 +127,9 @@ export const initProjects = ({ container, manager, onSwitch, onDropOnProject, on
 
   newBtn.addEventListener('click', async () => {
     const { code, path } = readBuffer()
-    await manager.createProject('Untitled', { entry: path, files: { [path]: code } })
+    const created = await manager.createProject('Untitled', { entry: path, files: { [path]: code } })
+    await select(created.id)
+    onSwitch(created.id)
     render()
   })
 

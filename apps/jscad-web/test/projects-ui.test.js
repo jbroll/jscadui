@@ -33,7 +33,7 @@ describe('project panel', () => {
     const { onSwitch } = await setup()
     await vi.waitFor(() => expect(document.querySelector('.project-open')).not.toBeNull())
     document.querySelector('.project-open').click()
-    expect(onSwitch).toHaveBeenCalledWith(expect.any(String))
+    await vi.waitFor(() => expect(onSwitch).toHaveBeenCalledWith(expect.any(String)))
   })
 
   it('creates a project from the new button, seeded from the buffer', async () => {
@@ -56,6 +56,16 @@ describe('project panel', () => {
     expect(project.name).toBe('Renamed')
     vi.unstubAllGlobals()
   })
+
+  it('opens the project New creates', async () => {
+    const { manager, onSwitch } = await setup()
+    await vi.waitFor(() => expect(document.querySelector('.project-new')).not.toBeNull())
+    document.querySelector('.project-new').click()
+    const created = (await manager.listAll()).find((p) => p.name === 'Untitled')
+    expect(created).toBeDefined()
+    await vi.waitFor(() => expect(onSwitch).toHaveBeenCalledWith(created.id))
+    expect(document.querySelector('.project-row.selected')?.dataset.projectId).toBe(created.id)
+  })
 })
 
 describe('version history', () => {
@@ -76,6 +86,38 @@ describe('version history', () => {
     document.querySelector('.version-restore').click()
     await vi.waitFor(() => expect(onRestore).toHaveBeenCalledWith(project.id))
     expect(await manager.listVersions(project.id)).toHaveLength(3)
+  })
+
+  it('shows versions for the clicked project with a highlight', async () => {
+    const { manager, local, panel } = await setup()
+    const [first] = await manager.listAll()
+    const second = await manager.createProject('Bracket', { files: { 'main.js': 'b' } })
+    await local.writeFiles(second.id, { 'main.js': 'b2' }, { message: 'second-edit' })
+    // Touch the first project so it stays first-listed; rows sort by last update.
+    await local.writeFiles(first.id, { 'main.js': 'v1b' }, { message: 'first-edit' })
+    await panel.render()
+    const rows = [...document.querySelectorAll('.project-row')]
+    expect(rows).toHaveLength(2)
+    rows[1].querySelector('.project-open').click()
+    await vi.waitFor(() => expect(document.querySelector('.project-row.selected')).not.toBeNull())
+    expect(document.querySelector('.project-row.selected').dataset.projectId).toBe(second.id)
+    await vi.waitFor(() => expect(document.querySelector('.version-row')?.textContent).toMatch(/second-edit/))
+  })
+
+  it('restores the clicked project, not the first listed', async () => {
+    const { manager, local, onRestore, panel } = await setup()
+    const [first] = await manager.listAll()
+    const second = await manager.createProject('Bracket', { files: { 'main.js': 'b' } })
+    // Touch the first project so it stays first-listed; rows sort by last update.
+    await local.writeFiles(first.id, { 'main.js': 'v1b' }, { message: 'first-edit' })
+    await panel.render()
+    const rows = [...document.querySelectorAll('.project-row')]
+    rows[1].querySelector('.project-open').click()
+    await vi.waitFor(() => expect(document.querySelector('.project-row.selected')).not.toBeNull())
+    // Versions re-render for the clicked project; wait until the first project's rows are gone.
+    await vi.waitFor(() => expect(document.querySelector('.project-versions').textContent).not.toMatch(/first-edit/))
+    document.querySelector('.version-restore').click()
+    await vi.waitFor(() => expect(onRestore).toHaveBeenCalledWith(second.id))
   })
 })
 
