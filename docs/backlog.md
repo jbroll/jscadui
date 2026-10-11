@@ -681,6 +681,21 @@ from the 2026-10-01 review.
 
 ## Remaining issues
 
+- **The CI host has no `rowboat` sibling beside a job worktree, so
+  `ci/web` and `ci/render` fail at setup.** `apps/jscad-web/package.json` and
+  its `server/` link rowboat through `file:../../../rowboat/...` (three levels
+  up from `apps/jscad-web`), which resolves to a sibling of the repo root. The
+  simple-ci job worktree nests the repo one level deeper
+  (`/data/john/ci-worktrees/jscadui-<id>/jscadui/apps/jscad-web`), so
+  `../../../rowboat` lands at `jscadui-<id>/rowboat`, not the `/data/john/ci-worktrees/rowboat`
+  mirror. npm install silently omits the rowboat packages, then
+  `apps/jscad-web/build.js:30` fails reading the source path, the workspace
+  build falls back to "continuing", and every bundle-dependent and
+  rowboat-importing suite fails (`storage-rowboat`,
+  `storage-manifest`, `fluent-worker`). Fix on the host: give each job a
+  `rowboat` sibling (or have simple-ci place the worktree where the relative
+  link resolves). Observed 2026-10-11 on jobs `08550e54` (web) and `866480ec`
+  (render).
 - **`npm install` inside a workspace crashes on the CI host.** npm 11.16.0
   (node 24.18) fails in `packages/openscad` with `TypeError: Cannot read
   properties of null (reading 'package')` in arborist's `set root`, on main
