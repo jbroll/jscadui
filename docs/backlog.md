@@ -672,14 +672,16 @@ from the 2026-10-01 review.
   `rowboat` sibling (or have simple-ci place the worktree where the relative
   link resolves). Observed 2026-10-11 on jobs `08550e54` (web) and `866480ec`
   (render).
-- **`npm install` inside a workspace crashes on the CI host.** npm 11.16.0
-  (node 24.18) fails in `packages/openscad` with `TypeError: Cannot read
-  properties of null (reading 'package')` in arborist's `set root`, on main
-  and on consolidate alike since 2026-09-29; the root install succeeds.
-  `ci/test` no longer runs the redundant member install. Not caused by the
-  lockfile or agent-loop's new devDependencies (both ruled out on a CI
-  scratch tree); the `@jscad/modeling` and `@jscad/modeling-for-manifold`
-  links share one realpath, which is where arborist's link lookup runs.
+- **`npm install` inside a workspace crashes on the CI host.** Observed with
+  npm 11.16.0 (node 24.18) failing in `packages/openscad` with `TypeError:
+  Cannot read properties of null (reading 'package')` in arborist's `set root`,
+  on main and on consolidate alike since 2026-09-29; the root install succeeds.
+  The host's npm was upgraded to 12.2.0 (2026-10-11), so this needs re-checking
+  under that version. `ci/test` no longer runs the redundant member install.
+  Not caused by the lockfile or agent-loop's new devDependencies (both ruled
+  out on a CI scratch tree); the `@jscad/modeling` and
+  `@jscad/modeling-for-manifold` links share one realpath, which is where
+  arborist's link lookup runs.
 - **jscad-fluent 0.7.0 not yet published.** `extrudeLinear`/`extrudeRotate`/`offset`
   on a `FluentGeom2` used to crash under the manifold engine (`Object.assign`
   copying dropped `ManifoldGeom2`/`ManifoldGeom3`'s prototype getters). Fixed
