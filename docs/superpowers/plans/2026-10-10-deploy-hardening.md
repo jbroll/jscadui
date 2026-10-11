@@ -290,7 +290,7 @@ git add apps/jscad-web/server/src/relay/routes.ts apps/jscad-web/server/test/rel
 git commit -m "fix(relay): log allowlist read errors, return a fixed 500 body"
 ```
 
-### Task 4: Launcher `/models/` refuses dotfiles, symlink escapes, and foreign Hosts
+### Task 4: Launcher `/models/` refuses dotfiles and symlink escapes
 
 **Files:**
 - Modify: `apps/jscad-web/scripts/local/server.js` (`route` at `:11-34`)
