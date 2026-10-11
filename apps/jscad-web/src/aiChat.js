@@ -104,10 +104,10 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
     return sessions.get(key)
   }
 
-  const persistTranscript = async () => {
-    if (!storage || !pid()) return
+  const persistTranscript = async (id = pid(), messages = transcript) => {
+    if (!storage || !id) return
     try {
-      await storage.writeConversation(pid(), transcript)
+      await storage.writeConversation(id, messages)
     } catch (err) {
       console.warn('chat persist failed:', err)
     }
@@ -172,8 +172,8 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
   }
 
   // The open project changed: show its conversation, not the previous
-  // project's. A turn in flight keeps its own prior/messages and still
-  // persists under pid() — switching mid-turn is best-effort (residual).
+  // project's. An in-flight turn keeps its own messages and persists them
+  // under the project it started in.
   const switchTo = async (id) => {
     transcript = []
     messagesEl.innerHTML = ''
@@ -314,11 +314,23 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
       addMessage('Set your model and API key in AI settings first.', 'error')
       return
     }
+    const turnProject = pid()
+    const live = () => turnProject === pid()
+    let local = [...transcript, { role: 'user', content: message }]
+    const persist = (messages) => {
+      if (!storage || !turnProject) return
+      persistTranscript(turnProject, messages)
+    }
+    // Every phase persists under the project the turn started in; only the
+    // visible transcript and the DOM follow the live project.
+    const commit = (messages) => {
+      local = messages
+      persist(messages)
+      if (live()) transcript = messages
+    }
+    commit(local)
     setRunning(true)
-    addMessage(message, 'user')
-    const prior = transcript
-    transcript = [...transcript, { role: 'user', content: message }]
-    persistTranscript()
+    if (live()) addMessage(message, 'user')
     assistantEl = null
     aborter = new AbortController()
     const { signal } = aborter
@@ -339,38 +351,34 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
       const build = await lastBuild()
       const api = getApi()
       await runTurnFn({
-        conversation: { messages: buildMessages({ systemPrompt: buildSystemPrompt(api), transcript: prior.map(forModel), files, build, message }) },
+        conversation: { messages: buildMessages({ systemPrompt: buildSystemPrompt(api), transcript: local.slice(0, -1).map(forModel), files, build, message }) },
         provider,
         api,
         requestTool: handleTool,
         onText: (text) => {
           assistantText += text
+          if (!live()) return
           if (!assistantEl) assistantEl = addMessage('', 'assistant')
           assistantEl.textContent += text
           messagesEl.scrollTop = messagesEl.scrollHeight
         },
-        onReasoning: addReasoning,
-        onStatus: setStatus,
+        onReasoning: (text) => { if (live()) addReasoning(text) },
+        onStatus: (next) => { if (live()) setStatus(next) },
         signal,
       })
       endReasoning()
-      if (assistantText) {
-        transcript = [...transcript, reply()]
-        persistTranscript()
-      }
+      if (assistantText) commit([...local, reply()])
     } catch (err) {
       endReasoning()
       if (signal.aborted) stopped = true
       else {
-        transcript = prior
-        persistTranscript()
-        addMessage(err.message, 'error')
+        commit(local.slice(0, -1))
+        if (live()) addMessage(err.message, 'error')
       }
     } finally {
       if (stopped) {
-        addStopped()
-        transcript = [...transcript, reply({ stopped: true })]
-        persistTranscript()
+        if (live()) addStopped()
+        commit([...local, reply({ stopped: true })])
       }
       await finishTurn()
       assistantEl = null

@@ -521,6 +521,32 @@ describe('project switch', () => {
     expect(storage.readConversation).toHaveBeenCalledWith('slow')
     expect(chat.q('.chat-messages').textContent).toBe('')
   })
+
+  it('persists an in-flight turn under the project it started in, and keeps the new project view', async () => {
+    let release
+    const gate = new Promise((resolve) => { release = resolve })
+    const store = {}
+    const storage = {
+      readConversation: async (pid) => (store[pid] ? { messages: store[pid], updated: 1 } : null),
+      writeConversation: vi.fn(async (pid, messages) => { store[pid] = messages }),
+    }
+    const runTurnFn = vi.fn(async ({ onText }) => {
+      await gate
+      onText('late reply')
+      return { messages: [] }
+    })
+    let openId = 'p1'
+    const chat = openChat({ runTurnFn, storage, projectId: () => openId })
+    chat.type('hello p1')
+    await vi.waitFor(() => expect(storage.writeConversation).toHaveBeenCalled())
+    openId = 'p2'
+    await chat.controls.switchTo('p2')
+    release()
+    await vi.waitFor(() => expect(storage.writeConversation.mock.calls.at(-1)?.[1]).toContainEqual({ role: 'assistant', content: 'late reply' }))
+    expect(storage.writeConversation.mock.calls.at(-1)[0]).toBe('p1')
+    expect(store.p1).toContainEqual({ role: 'assistant', content: 'late reply' })
+    expect(chat.q('.chat-messages').textContent).not.toContain('late reply')
+  })
 })
 describe('opencode session', () => {
   it('keeps one x-opencode-session per project across messages', async () => {
