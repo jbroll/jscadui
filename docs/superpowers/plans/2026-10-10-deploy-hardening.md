@@ -34,7 +34,7 @@
 
 **Interfaces:**
 - Consumes: `createLimiter({ ratePerMin, burst, now? })` returning `{ check(key): LimitResult }`.
-- Produces: same shape plus an optional `maxBuckets` (default 10_000); when the map would exceed it and a new key arrives, fully-refilled (idle) buckets are dropped first, so a flood of distinct keys cannot grow the map without bound.
+- Produces: same shape plus an optional `maxBuckets` (default 10_000); when the map would exceed it and a new key arrives, fully-refilled (idle) buckets are dropped so a flood of distinct keys cannot grow the map past the cap once they idle. A still-draining bucket is never dropped: if every bucket is live the map may briefly exceed the cap rather than evict a live key.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -88,10 +88,7 @@ export const createLimiter = ({ ratePerMin, burst, now = Date.now, maxBuckets = 
   return {
     check(key) {
       const t = now()
-      if (!buckets.has(key) && buckets.size >= maxBuckets) {
-        evictIdle(t)
-        if (buckets.size >= maxBuckets) buckets.delete(buckets.keys().next().value)
-      }
+      if (!buckets.has(key) && buckets.size >= maxBuckets) evictIdle(t)
       const bucket = buckets.get(key) ?? { tokens: burst, at: t }
       const tokens = refilled(bucket, t)
       if (tokens >= 1) {
@@ -105,7 +102,7 @@ export const createLimiter = ({ ratePerMin, burst, now = Date.now, maxBuckets = 
 }
 ```
 
-(Update the JSDoc above it: the map is bounded at `maxBuckets`, idle buckets evicted on insert past the cap; a still-draining bucket is never dropped — the oldest key is the fallback once idle eviction cannot free space.)
+(Update the JSDoc above it: the map is bounded at `maxBuckets` by evicting fully-refilled idle buckets on insert past the cap; a still-draining bucket is never dropped, so the map may briefly exceed the cap when every bucket is live.)
 
 - [ ] **Step 4: Run tests to verify they pass**
 
