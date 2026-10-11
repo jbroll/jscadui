@@ -144,10 +144,12 @@ export function gradeTranscript(fixture, transcript, { maxTurns } = {}) {
   }
 
   // Saving often and reading before editing are wanted: a write, edit, read or
-  // list counts only when it failed, and a legacy writeModel never does.
+  // list counts only when it failed, and a legacy writeModel never does. The
+  // thresholds sit at half the old 12/24: with a maxTurns of 8 no run reached
+  // 12 counted calls, so full marks were free and conservation separated nothing.
   const free = (c) => SAVES.has(c.name) || c.name === 'read' || c.name === 'list'
   const spent = calls.filter((c) => (free(c) ? c.name !== 'writeModel' && failed(resultOf.get(c.id)?.content) : true)).length
-  const conservation = spent <= 12 ? 2 : spent <= 24 ? 1 : 0
+  const conservation = spent <= 6 ? 2 : spent <= 12 ? 1 : 0
 
   return {
     dimensions: { discipline, recovery, conservation },

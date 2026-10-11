@@ -67,8 +67,10 @@ describe('grader on project-tool transcripts', () => {
       return gradeFixture(fixture, transcript, { volume: 6400 }).dimensions.conservation
     }
     expect(run(40, 0, 2)).toBe(2)
-    expect(run(40, 10, 2)).toBe(2)
-    expect(run(0, 11, 2)).toBe(1)
+    expect(run(40, 4, 2)).toBe(2)
+    expect(run(40, 5, 2)).toBe(1)
+    expect(run(40, 10, 2)).toBe(1)
+    expect(run(0, 11, 2)).toBe(0)
     expect(run(5, 20, 5)).toBe(0)
   })
 
@@ -83,7 +85,9 @@ describe('grader on project-tool transcripts', () => {
       return gradeFixture(fixture, transcript, { volume: 6400 }).dimensions.conservation
     }
     expect(run(40, 0)).toBe(2)
-    expect(run(0, 13)).toBe(1)
+    expect(run(0, 6)).toBe(2)
+    expect(run(0, 7)).toBe(1)
+    expect(run(0, 13)).toBe(0)
   })
 
   it('counts failures before the first successful build', () => {
@@ -243,10 +247,11 @@ describe('grader', () => {
       for (let i = 0; i < writes; i += 1) transcript.push(toolMsg(`w${i}`, 'writeModel', { source: 'x' }), resultMsg(`w${i}`, JSON.stringify({ ok: true })))
       return gradeFixture(fixture, transcript, { volume: 6400 }).dimensions.conservation
     }
-    expect(run(2, 6)).toBe(2)
-    expect(run(12, 20)).toBe(2)
-    expect(run(13, 0)).toBe(1)
-    expect(run(24, 30)).toBe(1)
+    expect(run(6, 30)).toBe(2)
+    expect(run(6, 0)).toBe(2)
+    expect(run(7, 0)).toBe(1)
+    expect(run(12, 30)).toBe(1)
+    expect(run(13, 0)).toBe(0)
     expect(run(25, 0)).toBe(0)
   })
 

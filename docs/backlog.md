@@ -25,7 +25,6 @@ bullet each ID points at is the requirement text. Reserved for new findings:
 | API4 | Chat API help | Low | `.deps-cache/jscad-fluent` (external) |
 | API5 | Chat API help | Med | `packages/agent-loop/src/tools.js`, `apps/jscad-web/src/aiDeps.js` |
 | API6 | Chat API help | Med | `apps/jscad-web/src/apiIndex.js`, `packages/agent-loop/src/docs.js` |
-| API7 | Chat API help | Low | `packages/agent-loop/eval/grade.js` |
 | API10 | Chat API help | Low | `packages/agent-loop/eval/probe.js` |
 | REF1 | Refactoring | High | breaking, out of scope |
 | REF3 | Refactoring | Med | out of scope (`packages/worker`) |
@@ -409,10 +408,6 @@ model with `display-check.js --engine jscad`.
   the chat's model; a page or panel over the same `api/index.json` and
   `docsTool` would let a user look up a function, its options and an example
   without asking the chat.
-- Conservation no longer separates runs (eval grader): with `maxTurns` 8 and
-  free saves, reads and lists, no run passed 12 counted calls, and
-  discipline is 2 whenever a clean write verifies. Consider a lower threshold
-  or counting wasted rounds.
 - Option checks on transpiled OpenSCAD code. A `.scad` file gets the plain
   `@jscad/modeling` exports, not the option-checked copy
   (`apps/jscad-web/docs/architecture.md`, Unknown-option warnings), since the
