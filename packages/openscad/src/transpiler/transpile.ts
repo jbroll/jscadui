@@ -38,7 +38,7 @@ import {
 import { getModuleName } from './builtins.js'
 import { buildJscadImports } from './helpers/index.js'
 // isStackSpecialVar no longer used - all $-prefixed vars use dynamic scoping universally
-import { deduplicateParamNames, mergeSetInto, importSymbolsFromFile } from './utils.js'
+import { deduplicateParamNames, importSymbolsFromFile } from './utils.js'
 import { splitDeclarationsByKind } from './bundling/mergeDeclarations.js'
 import { exportCleanLine } from './cleanExports.js'
 import type { Declaration } from './managers/DeclarationTracker.js'
@@ -234,8 +234,6 @@ function processIncludeStatements(ctx: TranspileContext): BundledContent {
       }
       // Propagate use imports from included files
       propagateUseImportsFromInclude(ctx, parts)
-      // Merge JSCAD usage flags
-      mergeJscadUsageFlags(ctx, parts)
       // Propagate lazy var names so module bodies in this file call them as functions
       if (parts.lazyVarNames) {
         for (const name of parts.lazyVarNames) ctx.lazyVarNames.add(name)
@@ -284,21 +282,6 @@ function propagateUseImportsFromInclude(ctx: TranspileContext, parts: BundledPar
       })
     }
   }
-}
-
-/**
- * Merge JSCAD usage flags from bundled parts
- */
-function mergeJscadUsageFlags(ctx: TranspileContext, parts: BundledParts): void {
-  mergeSetInto(ctx.codeGen.usedPrimitives, parts.usedPrimitives)
-  mergeSetInto(ctx.codeGen.usedTransforms, parts.usedTransforms)
-  mergeSetInto(ctx.codeGen.usedBooleans, parts.usedBooleans)
-  mergeSetInto(ctx.codeGen.usedExtrusions, parts.usedExtrusions)
-  mergeSetInto(ctx.codeGen.usedHelpers, parts.usedHelpers)
-  if (parts.usedColors) ctx.codeGen.usedColors = true
-  if (parts.usedHulls) ctx.codeGen.usedHulls = true
-  if (parts.usedMaths) ctx.codeGen.usedMaths = true
-  if (parts.usedMinMax) ctx.codeGen.usedMinMax = true
 }
 
 /**
@@ -758,15 +741,6 @@ function createBundledParts(ctx: TranspileContext, transpiled: TranspiledStateme
     constants,
     constantNames: constDecls.map(d => d.name),
     useImports: [...ctx.useImports],
-    usedPrimitives: new Set(ctx.codeGen.usedPrimitives),
-    usedTransforms: new Set(ctx.codeGen.usedTransforms),
-    usedBooleans: new Set(ctx.codeGen.usedBooleans),
-    usedExtrusions: new Set(ctx.codeGen.usedExtrusions),
-    usedHelpers: new Set(ctx.codeGen.usedHelpers),
-    usedColors: ctx.codeGen.usedColors,
-    usedHulls: ctx.codeGen.usedHulls,
-    usedMaths: ctx.codeGen.usedMaths,
-    usedMinMax: ctx.codeGen.usedMinMax,
     lazyVarNames: ctx.lazyVarNames.size > 0 ? new Set(ctx.lazyVarNames) : undefined,
     // Store ONLY this file's own direct top-level geometry.
     // Do NOT collect transitive geometry from sub-includes — that caused BOSL2 regression.
@@ -909,12 +883,6 @@ export function transpile(
 
   // Second pass: transpile statements into separate categories
   const transpiled = transpileAllStatements(ast, ctx)
-
-  // Check if we need safeUnion for file-scope geometry (both bundled and local)
-  const totalGeometryCount = bundled.geometryStatements.length + transpiled.geometryParts.length
-  if (totalGeometryCount > 1) {
-    ctx.codeGen.usedHelpers.add('safeUnion')
-  }
 
   // Build the output code
   const built = buildOutputCode(ctx, bundled, transpiled)

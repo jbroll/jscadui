@@ -323,48 +323,38 @@ function transpileBinaryOpExpr(
 
   // Handle equality operators specially - need deep comparison for arrays
   if (expr.operation === TokenType.EqualEqual) {
-    ctx.codeGen.usedHelpers.add('eq')
     return `j$.eq(${left}, ${right})`
   }
   if (expr.operation === TokenType.BangEqual) {
-    ctx.codeGen.usedHelpers.add('eq')
     return `!j$.eq(${left}, ${right})`
   }
 
   // Handle arithmetic operators with vector support
   if (expr.operation === TokenType.Plus) {
-    ctx.codeGen.usedHelpers.add('vadd')
     return `j$.vadd(${left}, ${right})`
   }
   if (expr.operation === TokenType.Minus) {
-    ctx.codeGen.usedHelpers.add('vsub')
     return `j$.vsub(${left}, ${right})`
   }
   if (expr.operation === TokenType.Star) {
-    ctx.codeGen.usedHelpers.add('vmul')
     return `j$.vmul(${left}, ${right})`
   }
   if (expr.operation === TokenType.Slash) {
-    ctx.codeGen.usedHelpers.add('vdiv')
     return `j$.vdiv(${left}, ${right})`
   }
 
   // Bitwise operators are 64-bit in OpenSCAD but 32-bit in JavaScript (which
   // also coerces strings); route through the runtime helpers.
   if (expr.operation === TokenType.BitAnd) {
-    ctx.codeGen.usedHelpers.add('band')
     return `j$.band(${left}, ${right})`
   }
   if (expr.operation === TokenType.BitOr) {
-    ctx.codeGen.usedHelpers.add('bor')
     return `j$.bor(${left}, ${right})`
   }
   if (expr.operation === TokenType.Shl) {
-    ctx.codeGen.usedHelpers.add('shl')
     return `j$.shl(${left}, ${right})`
   }
   if (expr.operation === TokenType.Shr) {
-    ctx.codeGen.usedHelpers.add('shr')
     return `j$.shr(${left}, ${right})`
   }
 
@@ -373,11 +363,9 @@ function transpileBinaryOpExpr(
   // Using native JS && / || avoids duplicating the left-operand expression,
   // which would cause O(2^n) growth for chained operators.
   if (expr.operation === TokenType.AND) {
-    ctx.codeGen.usedHelpers.add('isTruthy')
     return `(j$.isTruthy(${left}) && j$.isTruthy(${right}))`
   }
   if (expr.operation === TokenType.OR) {
-    ctx.codeGen.usedHelpers.add('isTruthy')
     return `(j$.isTruthy(${left}) || j$.isTruthy(${right}))`
   }
 
@@ -441,20 +429,17 @@ function transpileUnaryOpExpr(
   // Unary minus on vectors needs special handling (negate each element)
   // But for literal numbers, we can use regular negation
   if (op === '-' && !isLiteralExpr(expr.right)) {
-    ctx.codeGen.usedHelpers.add('vneg')
     return `j$.vneg(${right})`
   }
 
   // Logical NOT needs OpenSCAD truthiness semantics
   // In OpenSCAD, empty arrays [] are falsy, but in JavaScript they're truthy
   if (op === '!') {
-    ctx.codeGen.usedHelpers.add('isTruthy')
     return `!j$.isTruthy(${right})`
   }
 
   // Bitwise NOT is 64-bit in OpenSCAD but 32-bit in JavaScript
   if (op === '~') {
-    ctx.codeGen.usedHelpers.add('bnot')
     return `j$.bnot(${right})`
   }
 
@@ -472,7 +457,6 @@ function transpileTernaryExpr(
   const ifExpr = transpileExpression(expr.ifExpr, ctx)
   const elseExpr = transpileExpression(expr.elseExpr, ctx)
   // Use j$.isTruthy() for OpenSCAD semantics (empty arrays are falsy)
-  ctx.codeGen.usedHelpers.add('isTruthy')
   return `(j$.isTruthy(${cond}) ? ${ifExpr} : ${elseExpr})`
 }
 
@@ -790,7 +774,6 @@ export function transpileExpression(expr: Expression, ctx: TranspileContext): st
     // Conditional in list comprehension: [for (i = range) if (cond) expr]
     // Returns j$.SKIP when condition is false, to be filtered out by LcForExpr
     const cond = transpileExpression(expr.cond, ctx)
-    ctx.codeGen.usedHelpers.add('isTruthy')
     const boolCond = `j$.isTruthy(${cond})`
     // If there's an else branch, use it; otherwise return undefined
     if (expr.elseExpr) {

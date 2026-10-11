@@ -116,48 +116,33 @@ export function transpileBuiltinPrimitive(
 
   switch (baseName) {
     case 'cube':
-      ctx.codeGen.usedPrimitives.add('cube')
-      ctx.codeGen.usedPrimitives.add('cuboid')
-      ctx.codeGen.usedTransforms.add('translate')
       return `j$.cube({ ${argsStr} })`
 
     case 'sphere':
-      ctx.codeGen.usedPrimitives.add('sphere')
-      ctx.codeGen.usedPrimitives.add('polyhedron')  // _sphere uses polyhedron internally
       return `j$.sphere({ ${argsStr} })`
 
     case 'cylinder':
-      ctx.codeGen.usedPrimitives.add('cylinder')
-      ctx.codeGen.usedTransforms.add('translate')
       return `j$.cylinder({ ${argsStr} })`
 
     case 'square':
-      ctx.codeGen.usedPrimitives.add('rectangle')
-      ctx.codeGen.usedTransforms.add('translate')
       return `j$.square({ ${argsStr} })`
 
     case 'circle':
-      ctx.codeGen.usedPrimitives.add('circle')
       return `j$.circle({ ${argsStr} })`
 
     case 'polygon':
-      ctx.codeGen.usedPrimitives.add('polygon')
       return `j$.polygon({ ${argsStr} })`
 
     case 'regular_polygon':
-      ctx.codeGen.usedPrimitives.add('regular_polygon')
-      ctx.codeGen.usedPrimitives.add('circle')  // Uses circle internally
       return `j$.regular_polygon({ ${argsStr} })`
 
     case 'polyhedron':
-      ctx.codeGen.usedPrimitives.add('polyhedron')
       return `j$.polyhedron({ ${argsStr} })`
 
     case 'text':
       return `j$.text({ ${argsStr} })`
 
     case 'region':
-      ctx.codeGen.usedPrimitives.add('region')
       return `j$.region({ ${argsStr} })`
 
     default:
@@ -244,8 +229,6 @@ export function transpileBuiltinTransform(
     case 'multmatrix': {
       // multmatrix(m) applies a 4x4 transformation matrix
       // The 'm' parameter is the matrix
-      ctx.codeGen.usedTransforms.add('transform')
-      ctx.codeGen.usedHelpers.add('multmatrix')
       const matrixArg = argsArray.find(a => a.name === 'm' || !a.name)?.value || '[[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]'
       return wrapWithSpecialVars(`j$.multmatrix(${matrixArg}, ${childCode})`)
     }
@@ -302,12 +285,9 @@ export function transpileBuiltinExtrusion(
 
   switch (baseName) {
     case 'linear_extrude':
-      ctx.codeGen.usedExtrusions.add('extrudeLinear')
-      ctx.codeGen.usedTransforms.add('translate')  // _linearExtrude helper uses translate for center
       return `j$.linearExtrude({ ${args} }, ${childCode})`
 
     case 'rotate_extrude':
-      ctx.codeGen.usedExtrusions.add('extrudeRotate')
       return `j$.rotateExtrude({ ${args} }, ${childCode})`
 
     default:

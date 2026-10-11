@@ -113,15 +113,6 @@ export interface BundledParts {
   constants: string[]      // Constant assignments
   constantNames: string[]  // Names extracted at generation time (parallel to constants array)
   useImports: UseImport[]  // Use imports to propagate when this file is included
-  usedPrimitives: Set<string>
-  usedTransforms: Set<string>
-  usedBooleans: Set<string>
-  usedExtrusions: Set<string>
-  usedHelpers: Set<string>
-  usedColors: boolean
-  usedHulls: boolean
-  usedMaths: boolean
-  usedMinMax: boolean
   // Variables that are lazy thunks (reference $special vars, so must be called as show_threads())
   lazyVarNames?: Set<string>
   // Top-level geometry statements from the included file itself (NOT transitive).

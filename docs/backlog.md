@@ -38,7 +38,6 @@ bullet each ID points at is the requirement text. Reserved for new findings:
 | REF5 | Refactoring | Low | out of scope (`params-core`) |
 | REF6 | Refactoring | Med | `apps/jscad-web/main.js`, `src/paramsUI.js` |
 | REF7 | Refactoring | Med | out of scope (`main.js`, `paramsUI.js`) |
-| REF8 | Refactoring | Low | `packages/openscad/src/transpiler/helpers/` |
 | REF9 | Refactoring | Med | out of scope (`src_frame`, `frameSetup.js`) |
 | REF10 | Refactoring | Med | out of scope (model runners) |
 | REF11 | Refactoring | Med | `packages/worker/worker.js` |
@@ -638,11 +637,6 @@ from the 2026-10-01 review.
   `runParamChange` re-entries (`:255`, `:313`) are not awaited and can reject
   unhandled. `getParamsController`, `getParamsTreeView`,
   `isModelUpdatePending` and `setModelUpdatePending` have no caller.
-- **Dead transpiler helpers.**
-  `packages/openscad/src/transpiler/helpers/{color,extrusions,imports,transforms,vector}.ts`
-  (354 lines) have no caller, and `extrusions.ts:92` emits an unbound
-  `_globalFn`. The `used*` sets in `CodeGenState` (about 50 writes, copy and
-  merge at `transpile.ts:292-300` and `:750-758`) are read only by them.
 - **Worker replay in two places.** `apps/jscad-web/src/frameSetup.js:23-125`
   replays inits, files and script to a replacement worker, and the frame
   does the same (`src_frame/workerPool.js:38-43`, `:177-205`). `NEEDS_MODEL`

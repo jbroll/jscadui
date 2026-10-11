@@ -88,7 +88,6 @@ export function transpileConditionalForSpread(
   ctx: TranspileContext
 ): string {
   const cond = transpileExpression(ifEx.cond, ctx)
-  ctx.codeGen.usedHelpers.add('isTruthy')
   const boolCond = `j$.isTruthy(${cond})`
   const body = transpileExpression(ifEx.ifExpr, ctx)
   if (!ifEx.elseExpr) {

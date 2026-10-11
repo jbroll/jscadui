@@ -146,7 +146,7 @@ export function transpileStatement(stmt: Statement, ctx: TranspileContext): stri
         const allRestores = specialRestores.join('; ')
         const geometryExpr = parts.length === 0 ? 'undefined'
           : parts.length === 1 ? parts[0]
-          : (ctx.codeGen.usedBooleans.add('union'), ctx.codeGen.usedHelpers.add('safeUnion'), `j$.safeUnion([${parts.join(', ')}])`)
+          : `j$.safeUnion([${parts.join(', ')}])`
 
         return `(() => { ${allSaves}; ${allSets}; try { return ${geometryExpr}; } finally { ${allRestores}; } })()`
       }
@@ -157,8 +157,6 @@ export function transpileStatement(stmt: Statement, ctx: TranspileContext): stri
       if (parts.length === 1) {
         return `(() => { ${assignStrs.join('; ')}; return ${parts[0]} })()`
       }
-      ctx.codeGen.usedBooleans.add('union')
-      ctx.codeGen.usedHelpers.add('safeUnion')
       return `(() => { ${assignStrs.join('; ')}; return j$.safeUnion([\n    ${parts.join(',\n    ')}\n  ]) })()`
     }
 
@@ -166,8 +164,6 @@ export function transpileStatement(stmt: Statement, ctx: TranspileContext): stri
     if (parts.length === 0) return null
 
     if (parts.length === 1) return parts[0]
-    ctx.codeGen.usedBooleans.add('union')
-    ctx.codeGen.usedHelpers.add('safeUnion')
     return `j$.safeUnion([\n${parts.map(p => `  ${p}`).join(',\n')}\n])`
   }
 
@@ -176,7 +172,6 @@ export function transpileStatement(stmt: Statement, ctx: TranspileContext): stri
     const cond = transpileExpression(stmt.cond, ctx)
     const thenPart = transpileStatement(stmt.thenBranch, ctx) || 'undefined'
     const elsePart = stmt.elseBranch ? transpileStatement(stmt.elseBranch, ctx) : 'j$.NO_CHILD'
-    ctx.codeGen.usedHelpers.add('isTruthy')
     let code = `(j$.isTruthy(${cond})) ? (${thenPart}) : (${elsePart})`
     if (yieldsBareBackground(stmt.thenBranch) || (stmt.elseBranch && yieldsBareBackground(stmt.elseBranch))) code = `j$.group(${code})`
     if (stmt.tagBackground) code = `j$.background(${code})`
@@ -325,10 +320,8 @@ function transpileAssertModule(
  */
 function transpileColorModule(
   argsArray: Array<{name: string | null, value: string}>,
-  childCode: string | null,
-  ctx: TranspileContext
+  childCode: string | null
 ): string {
-  ctx.codeGen.usedColors = true
   // color takes (colorName, alpha?) or ([r,g,b], alpha?)
   // When only 1 arg to color, alpha is undefined
   // Find color arg: named 'c' or first positional
@@ -598,7 +591,7 @@ function transpileModuleInstantiationBody(stmt: ModuleInstantiationStmt, ctx: Tr
   // (underscore names always map to the builtin), route `_color` to the color handler
   // too — otherwise it falls through to `undefined` and every BOSL2 attachable shape
   // loses its geometry.
-  if (stripUnderscorePrefix(name) === 'color') return transpileColorModule(argsArray, childCode, ctx)
+  if (stripUnderscorePrefix(name) === 'color') return transpileColorModule(argsArray, childCode)
   // render() forces CGAL rendering in OpenSCAD; in JSCAD we just pass children through
   if (name === 'render') return childCode || 'undefined'
   // import() loads external STL/DXF/SVG files — not supported, return undefined
@@ -806,7 +799,6 @@ function transpileBuiltinHull(child: Statement | null, ctx: TranspileContext): s
         })
 
         if (geomCodes.length === 0) return 'undefined'
-        ctx.codeGen.usedHulls = true
         if (specialSaves.length > 0) {
           const preamble = [...specialSaves, ...assignStrs].join('; ')
           return `j$.hull(\n  ...(() => { ${preamble}; try { return [${geomCodes.join(', ')}] } finally { ${specialRestores.join('; ')} } })()\n)`
@@ -829,7 +821,6 @@ function transpileBuiltinHull(child: Statement | null, ctx: TranspileContext): s
     return 'undefined'
   }
 
-  ctx.codeGen.usedHulls = true
   const args = childCodes.join(',\n  ')
   // Use runtime helper to avoid conflict with user-defined hull functions
   return `j$.hull(\n  ${args}\n)`
@@ -1465,7 +1456,6 @@ export function buildModuleBody(moduleStmt: Statement, ctx: TranspileContext, in
   const returnExpr = geomParts.length === 0 ? 'undefined' :
     geomParts.length === 1 ? (geometryStmts.length === 1 ? groupIfBareBackground(geometryStmts[0], geomParts[0]) : geomParts[0]) :
     `j$.safeUnion([\n${indent}  ${geomParts.join(',\n' + indent + '  ')}\n${indent}])`
-  if (geomParts.length > 1) ctx.codeGen.usedHelpers.add('safeUnion')
 
   // Special variable scoping is handled by j$.withScope() in the module wrapper (if special vars exist)
   bodyParts.push(`${indent}return ${returnExpr}`)
