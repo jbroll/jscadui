@@ -145,6 +145,32 @@ describe('account header', () => {
     signOutBtn.click()
     await vi.waitFor(() => expect(onSignOut).toHaveBeenCalled())
   })
+
+  it('awaits onSignOut before refreshing the session', async () => {
+    const { initAccount } = await loadAccount()
+    let releaseSignOut
+    const onSignOut = vi.fn(() => new Promise((resolve) => { releaseSignOut = resolve }))
+    let sessionCalls = 0
+    globalThis.fetch = vi.fn(async (url) => {
+      if (String(url).includes('/api/auth/get-session')) {
+        sessionCalls++
+        return new Response(JSON.stringify({ user: { id: 'u1', email: 'a@b.c' } }), { status: 200 })
+      }
+      return new Response('{}', { status: 200 })
+    })
+    document.body.innerHTML = '<div id="a"></div>'
+    initAccount(document.getElementById('a'), { onSignOut })
+    const signOutBtn = [...document.querySelectorAll('.ai-header-row .ai-button')].find((b) => b.textContent === 'Sign out')
+    await vi.waitFor(() => expect(signOutBtn.style.display).toBe(''))
+    const before = sessionCalls
+    signOutBtn.click()
+    await vi.waitFor(() => expect(onSignOut).toHaveBeenCalled())
+    await new Promise((r) => setTimeout(r, 10))
+    // The refresh is a second get-session; it must wait for the teardown.
+    expect(sessionCalls).toBe(before)
+    releaseSignOut()
+    await vi.waitFor(() => expect(sessionCalls).toBeGreaterThan(before))
+  })
 })
 
 describe('aiEffort', () => {

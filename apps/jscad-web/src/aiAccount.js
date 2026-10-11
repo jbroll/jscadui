@@ -141,7 +141,7 @@ export const initAccount = (container, { onSignOut = () => {} } = {}) => {
 
   signOut.addEventListener('click', async () => {
     await fetch('/api/auth/sign-out', { method: 'POST', credentials: 'include' }).catch(() => {})
-    onSignOut()
+    await onSignOut()
     refreshSession()
   })
 

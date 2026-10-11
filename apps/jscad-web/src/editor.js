@@ -21,7 +21,7 @@ import { createEditorBuffer } from './editorBuffer.js'
  * @callback GetFileFn
  * @param {string} path
  * @returns {Promise<FSFileEntry | undefined>}
- * 
+ *
  * @callback ConfirmFn
  * @param {{title:string,message:string,confirmLabel:string,cancelLabel:string}} options
  * @returns {Promise<boolean>}

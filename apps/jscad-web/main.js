@@ -1064,11 +1064,11 @@ projectPanel = initProjects({
     if (id === currentProjectId) {
       const next = pickBootProject(await projectManager.listAll())
       if (next) {
-        await switchProject(next)
+        await switchProject(next).catch(setError)
         await projectPanel.select(next)
       } else {
         const created = await projectManager.createProject('Untitled', { entry: 'main.js', files: { 'main.js': defaultCode } })
-        await switchProject(created.id)
+        await switchProject(created.id).catch(setError)
         await projectPanel.select(created.id)
       }
     }

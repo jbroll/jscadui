@@ -79,7 +79,7 @@ export const toEditorFiles = (files) =>
  * @param {{
  *   manager: { readForSwitch: (id:string) => Promise<{ project: { entry: string, name: string }, files: Record<string,unknown> }> },
  *   fileSystem: Parameters<typeof replaceProjectFiles>[0],
- *   editor: { setFiles: (files:File[]) => void, setSource: (source:unknown, path:string) => void, confirmDiscard?: () => Promise<boolean> },
+ *   editor: { setFiles: (files:File[], options?:{keepBuffers?:boolean}) => void, setSource: (source:unknown, path:string) => void, confirmDiscard?: () => Promise<boolean> },
  *   clearTempCache: () => void,
  *   build: (entry:string) => Promise<unknown>,
  *   onOpen: (id:string, entry:string, name:string) => void,
