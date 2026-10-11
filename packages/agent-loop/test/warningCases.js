@@ -39,7 +39,7 @@ export const expectCase = (expect, c, result) => {
     const got = warnings[i]
     if (want.suggestions) expect(got.suggestions).toEqual(want.suggestions)
     for (const text of want.hints) expect(got.hint).toContain(text)
-    for (const other of others) expect(got.hint).not.toContain(other)
+    if (got.hint) for (const other of others) expect(got.hint).not.toContain(other)
   })
 }
 
@@ -326,5 +326,20 @@ module.exports = { main: () => primitives.cube({ size: 2 }).translate([1, 0, 0])
     api: 'fluent',
     source: fluent('module.exports = { main: () => [jf.cylinder({ outer: 6, height: 10 }), jf.cylinder({ outer: 6, inner: 4, height: 10 })] }'),
     warnings: [{ fn: 'jf.cylinder', option: 'outer', hints: ['outer takes effect only with inner or wall', 'use radius for a solid cylinder'] }],
+  },
+  {
+    name: 'T: a typo in attachTo or alignTo options, which follow the anchors',
+    api: 'fluent',
+    source: fluent('module.exports = { main: () => { const base = jf.cube({ size: 2 }); base.attachTo(jf.cube(), "center", "center", { overrlap: 1 }); base.alignTo(jf.cube(), "center", { inste: 2 }); return base } }'),
+    warnings: [
+      { fn: 'FluentGeom3.attachTo', option: 'overrlap', suggestions: ['overlap'], hints: [] },
+      { fn: 'FluentGeom3.alignTo', option: 'inste', suggestions: ['inside', 'inset'], hints: [] },
+    ],
+  },
+  {
+    name: 'T: a valid trailing subtract options object warns nothing',
+    api: 'fluent',
+    source: fluent('module.exports = { main: () => [jf.cube({ size: 3 }).subtract(jf.cube({ size: 1 }), { carry: {} }), jf.cube()] }'),
+    warnings: [],
   },
 ]

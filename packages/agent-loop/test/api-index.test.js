@@ -125,6 +125,21 @@ describe('API index', () => {
     expect(Object.keys(fluent.methodAngles).sort()).toEqual(['FluentGeom2', 'FluentGeom3', 'FluentGeometryArray', 'FluentPath2'])
   })
 
+  it('tables options that come after a first argument, with their position', () => {
+    const fluent = OPTION_TABLES['@jbroll/jscad-fluent']
+    expect(fluent.methods.FluentGeom2.attachTo).toEqual(['flip', 'overlap', 'spin'])
+    expect(fluent.methods.FluentGeom3.alignTo).toEqual(['inside', 'inset'])
+    expect(fluent.methods.FluentGeom3.subtract).toEqual(['carry'])
+    expect(fluent.methodOptionsAt).toEqual({
+      FluentGeom2: { alignTo: 2, attachTo: 3, subtract: 'last' },
+      FluentGeom3: { alignTo: 2, attachTo: 3, subtract: 'last' },
+    })
+    expect(fluent.options.subtract).toEqual(['carry'])
+    expect(fluent.optionsAt).toEqual({ subtract: 'last' })
+    expect(OPTION_TABLES['@jscad/modeling'].optionsAt).toEqual({})
+    expect(OPTION_TABLES['@jscad/modeling'].methodOptionsAt).toEqual({})
+  })
+
   it('matches a fresh generation', () => {
     expect(readFileSync(new URL('../api/index.json', import.meta.url), 'utf8')).toBe(formatIndex(entries))
     expect(readFileSync(new URL('../api/optionTable.js', import.meta.url), 'utf8')).toBe(formatOptionTable(optionTables(entries)))
@@ -174,9 +189,9 @@ describe('fluent entries', () => {
     const { methods } = OPTION_TABLES['@jbroll/jscad-fluent']
     expect(Object.keys(methods).sort()).toEqual(['FluentGeom2', 'FluentGeom2Array', 'FluentGeom3', 'FluentGeometryArray', 'FluentPath2', 'FluentPath2Array'])
     expect(Object.keys(methods.FluentGeom2).sort()).toEqual([
-      'align', 'center', 'expand', 'extrudeFromSlices', 'extrudeHelical', 'extrudeLinear', 'extrudeRectangular', 'extrudeRotate', 'generalize', 'mirror', 'offset',
+      'align', 'alignTo', 'attachTo', 'center', 'expand', 'extrudeFromSlices', 'extrudeHelical', 'extrudeLinear', 'extrudeRectangular', 'extrudeRotate', 'generalize', 'mirror', 'offset', 'subtract',
     ])
-    expect(Object.keys(methods.FluentGeom3).sort()).toEqual(['align', 'center', 'expand', 'generalize', 'mirror', 'project'])
+    expect(Object.keys(methods.FluentGeom3).sort()).toEqual(['align', 'alignTo', 'attachTo', 'center', 'expand', 'generalize', 'mirror', 'project', 'subtract'])
     expect(Object.keys(methods.FluentPath2).sort()).toEqual([
       'align', 'appendArc', 'appendBezier', 'center', 'expand', 'extrudeRectangular', 'generalize', 'mirror', 'offset',
     ])

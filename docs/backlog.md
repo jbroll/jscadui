@@ -27,7 +27,6 @@ bullet each ID points at is the requirement text. Reserved for new findings:
 | API5 | Chat API help | Med | `packages/agent-loop/src/tools.js`, `apps/jscad-web/src/aiDeps.js` |
 | API6 | Chat API help | Med | `apps/jscad-web/src/apiIndex.js`, `packages/agent-loop/src/docs.js` |
 | API7 | Chat API help | Low | `packages/agent-loop/eval/grade.js` |
-| API8 | Chat API help | Med | `src/optionChecks.js`, `packages/agent-loop/api/build-index.js` |
 | API9 | Chat API help | Med | `packages/agent-loop/api/build-index.js` |
 | API10 | Chat API help | Low | `packages/agent-loop/eval/probe.js` |
 | REF1 | Refactoring | High | breaking, out of scope |
@@ -395,9 +394,6 @@ model with `display-check.js --engine jscad`.
   fluent release that calls its own option-taking methods with options the
   table lacks would need the check to warn only when the caller is project
   code.
-- Option checks for options passed in a non-first position: fluent's
-  `subtract` (a variadic operand list), `attachTo` and `alignTo` (options
-  follow an anchor argument).
 - JSDoc gaps in `@jscad/modeling` are patched in `api/build-index.js`
   (`PASS_THROUGH`, `defaults` keys). A false warning from a real call means
   another entry belongs there, or upstream JSDoc needs the option.

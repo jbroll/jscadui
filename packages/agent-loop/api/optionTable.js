@@ -40,6 +40,8 @@ export const OPTION_TABLES = {
       "text.vectorText": ["align","extrudeOffset","font","height","input","letterSpacing","lineSpacing","xOffset","yOffset"],
     },
     methods: {},
+    optionsAt: {},
+    methodOptionsAt: {},
     types: {
       "primitives.arc": {"center":"array","endAngle":"number","radius":"number","segments":"number","startAngle":"number"},
       "primitives.circle": {"center":"array","endAngle":"number","radius":"number","segments":"number","startAngle":"number"},
@@ -107,6 +109,7 @@ export const OPTION_TABLES = {
       "align": ["grouped","modes","relativeTo"],
       "vectorText": ["align","extrudeOffset","font","height","input","letterSpacing","lineSpacing","xOffset","yOffset"],
       "vectorChar": ["extrudeOffset","font","height","input","xOffset","yOffset"],
+      "subtract": ["carry"],
     },
     methods: {
       "FluentGeom2": {
@@ -121,6 +124,9 @@ export const OPTION_TABLES = {
         "extrudeRectangular": ["corners","delta","height","repair","segments","size","twistAngle","twistSteps"],
         "extrudeFromSlices": ["callback","capEnd","capStart","close","numberOfSlices","repair"],
         "generalize": ["simplify","snap","triangulate"],
+        "attachTo": ["flip","overlap","spin"],
+        "alignTo": ["inside","inset"],
+        "subtract": ["carry"],
       },
       "FluentGeom3": {
         "mirror": ["normal","origin"],
@@ -129,6 +135,9 @@ export const OPTION_TABLES = {
         "expand": ["corners","delta","segments"],
         "project": ["axis","origin"],
         "generalize": ["simplify","snap","triangulate"],
+        "attachTo": ["flip","overlap","spin"],
+        "alignTo": ["inside","inset"],
+        "subtract": ["carry"],
       },
       "FluentPath2": {
         "mirror": ["normal","origin"],
@@ -155,6 +164,21 @@ export const OPTION_TABLES = {
       "FluentPath2Array": {
         "expand": ["corners","delta","segments"],
         "extrudeRectangular": ["corners","delta","height","repair","segments","size","twistAngle","twistSteps"],
+      },
+    },
+    optionsAt: {
+      "subtract": "last",
+    },
+    methodOptionsAt: {
+      "FluentGeom2": {
+        "attachTo": 3,
+        "alignTo": 2,
+        "subtract": "last",
+      },
+      "FluentGeom3": {
+        "attachTo": 3,
+        "alignTo": 2,
+        "subtract": "last",
       },
     },
     types: {

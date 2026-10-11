@@ -290,6 +290,11 @@ and `geometries`:
 `options` for functions reached from the exports (`primitives.roundedCuboid`,
 `cube` for `jf.cube`) and `methods` for the fluent class methods whose first
 parameter is an options object, keyed by class (`FluentGeom2.extrudeLinear`);
+`optionsAt` and `methodOptionsAt` name the argument position when it is not
+the first (a number, or `'last'` for a trailing options object in a variadic
+list): `attachTo`/`alignTo` take their options after the anchors, and a
+trailing operand of `subtract` may be `SubtractOptions` — those option names
+come from jscad-anchors, which build-index names in `NON_FIRST_OPTIONS`;
 `types` and `methodTypes` with each option's JSDoc type reduced to `number` or
 `array` (other types are not checked); and `angles` and `methodAngles`, every
 function or method whose first parameter is named `angle` or `angles`

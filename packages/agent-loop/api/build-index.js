@@ -57,6 +57,20 @@ const OPTION_FIXES = {
   },
 }
 
+// Fluent methods and factories whose options object is not the first argument:
+// attachTo/alignTo take theirs after the anchors, and a trailing operand of
+// subtract may be SubtractOptions. The option names live in jscad-anchors,
+// whose types fluent's own JSDoc does not spell out, so they are kept here.
+const NON_FIRST_OPTIONS = {
+  'FluentGeom2.attachTo': { at: 3, options: ['flip', 'overlap', 'spin'] },
+  'FluentGeom3.attachTo': { at: 3, options: ['flip', 'overlap', 'spin'] },
+  'FluentGeom2.alignTo': { at: 2, options: ['inside', 'inset'] },
+  'FluentGeom3.alignTo': { at: 2, options: ['inside', 'inset'] },
+  'FluentGeom2.subtract': { at: 'last', options: ['carry'] },
+  'FluentGeom3.subtract': { at: 'last', options: ['carry'] },
+  'jf.subtract': { at: 'last', options: ['carry'] },
+}
+
 const fixOptions = (entries) => {
   for (const entry of entries) {
     for (const [name, fix] of Object.entries(OPTION_FIXES[entry.name] ?? {})) Object.assign(entry.options.find((o) => o.name === name), fix)
@@ -119,6 +133,8 @@ export const optionTables = (entries) => {
     const methodTypes = {}
     const angles = []
     const methodAngles = {}
+    const optionsAt = {}
+    const methodOptionsAt = {}
     for (const e of entries) {
       if (e.pkg !== pkg || e.kind !== 'function' || UNCHECKED.test(e.name)) continue
       const dot = e.name.indexOf('.')
@@ -146,7 +162,20 @@ export const optionTables = (entries) => {
         else angles.push(path)
       }
     }
-    tables[pkg] = { prefix, options, methods, types, methodTypes, angles, methodAngles }
+    for (const [fnName, { at, options: names }] of Object.entries(NON_FIRST_OPTIONS)) {
+      if (pkg !== '@jbroll/jscad-fluent') continue
+      const [owner, method] = fnName.split('.')
+      if (owner.startsWith('Fluent')) {
+        methods[owner] ??= {}
+        methods[owner][method] = names
+        methodOptionsAt[owner] ??= {}
+        methodOptionsAt[owner][method] = at
+      } else {
+        options[fnName.slice(prefix.length)] = names
+        optionsAt[fnName.slice(prefix.length)] = at
+      }
+    }
+    tables[pkg] = { prefix, options, methods, types, methodTypes, angles, methodAngles, optionsAt, methodOptionsAt }
   }
   return tables
 }
@@ -166,11 +195,13 @@ const byClass = (record) => {
 }
 
 export const formatOptionTable = (tables) => {
-  const packages = Object.entries(tables).map(([pkg, { prefix, options, methods, types, methodTypes, angles, methodAngles }]) => [
+  const packages = Object.entries(tables).map(([pkg, { prefix, options, methods, types, methodTypes, angles, methodAngles, optionsAt, methodOptionsAt }]) => [
     `  ${JSON.stringify(pkg)}: {`,
     `    prefix: ${JSON.stringify(prefix)},`,
     `    options: ${block(options, '    ')},`,
     `    methods: ${byClass(methods)},`,
+    `    optionsAt: ${block(optionsAt, '    ')},`,
+    `    methodOptionsAt: ${byClass(methodOptionsAt)},`,
     `    types: ${block(types, '    ')},`,
     `    methodTypes: ${byClass(methodTypes)},`,
     `    angles: ${JSON.stringify(angles)},`,

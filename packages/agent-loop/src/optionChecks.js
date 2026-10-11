@@ -185,10 +185,20 @@ const annotate = (error, hints) => {
   }
 }
 
+// The argument positions that may hold an options object: the first, the
+// index `optionsAt` names (attachTo/alignTo take options after their anchors),
+// or `'last'` for a trailing options object in a variadic list (subtract's).
+const optionIndices = (spec, args) => {
+  const at = spec.optionsAt
+  if (at === 'last') return args.length ? [args.length - 1] : []
+  if (typeof at === 'number') return [at]
+  return [0]
+}
+
 /**
  * @param {string} fnName
  * @param {Function} fn
- * @param {{ known?: string[], types?: Record<string, string>, angle?: boolean, outline?: Function, reverse?: Function, ignored?: Function, boolean?: string, method?: boolean }} spec
+ * @param {{ known?: string[], types?: Record<string, string>, angle?: boolean, outline?: Function, reverse?: Function, ignored?: Function, boolean?: string, method?: boolean, optionsAt?: number | 'last' }} spec
  * @param {(fact: object) => ({ hint?: string } | void)} warn
  */
 const checked = (fnName, fn, spec, warn) => {
@@ -213,15 +223,18 @@ const checked = (fnName, fn, spec, warn) => {
         for (const fact of fixed.facts) report({ fn: fnName, ...fact })
       }
       const [first] = args
-      if ((allowed || spec.types) && isPlainObject(first)) {
-        for (const option of Object.keys(first)) {
-          if (allowed && !allowed.has(option)) {
-            report({ fn: fnName, option, suggestions: suggestOptions(option, spec.known) })
-            continue
+      for (const i of optionIndices(spec, args)) {
+        const object = args[i]
+        if ((allowed || spec.types) && isPlainObject(object)) {
+          for (const option of Object.keys(object)) {
+            if (allowed && !allowed.has(option)) {
+              report({ fn: fnName, option, suggestions: suggestOptions(option, spec.known) })
+              continue
+            }
+            const expected = spec.types?.[option]
+            const got = kindOf(object[option])
+            if (expected && got && got !== expected) report({ fn: fnName, option, expected, got })
           }
-          const expected = spec.types?.[option]
-          const got = kindOf(first[option])
-          if (expected && got && got !== expected) report({ fn: fnName, option, expected, got })
         }
       }
       if (spec.angle) {
@@ -269,6 +282,7 @@ const specsOf = (table) => {
   for (const [path, known] of Object.entries(table.options ?? {})) spec(path).known = known
   for (const [path, types] of Object.entries(table.types ?? {})) spec(path).types = types
   for (const path of table.angles ?? []) spec(path).angle = true
+  for (const [path, at] of Object.entries(table.optionsAt ?? {})) spec(path).optionsAt = at
   for (const [path, extra] of Object.entries(EXTRA_SPECS[table.prefix] ?? {})) Object.assign(spec(path), extra)
   return specs
 }
@@ -290,6 +304,9 @@ const methodSpecsOf = (table) => {
   }
   for (const [cls, names] of Object.entries(table.methodAngles ?? {})) {
     for (const name of names) spec(cls, name).angle = true
+  }
+  for (const [cls, methods] of Object.entries(table.methodOptionsAt ?? {})) {
+    for (const [name, at] of Object.entries(methods)) spec(cls, name).optionsAt = at
   }
   for (const [cls, methods] of Object.entries(EXTRA_METHOD_SPECS)) {
     for (const [name, extra] of Object.entries(methods)) Object.assign(spec(cls, name), extra)

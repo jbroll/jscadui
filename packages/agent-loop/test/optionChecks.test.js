@@ -218,6 +218,66 @@ describe('suggestOptions', () => {
   })
 })
 
+describe('option checks in a non-first argument', () => {
+  const anchorsTable = {
+    prefix: 'jf.',
+    options: { subtract: ['carry'] },
+    optionsAt: { subtract: 'last' },
+    methods: {
+      FluentGeom3: { attachTo: ['flip', 'overlap', 'spin'], alignTo: ['inside', 'inset'], subtract: ['carry'] },
+    },
+    methodOptionsAt: { FluentGeom3: { attachTo: 3, alignTo: 2, subtract: 'last' } },
+  }
+
+  class Geom3 {
+    attachTo(parent, parentAnchor, childAnchor, options) { return options }
+    alignTo(parent, direction, options) { return options }
+    subtract(...others) { return others }
+  }
+
+  afterEach(() => setMethodWarn(null))
+
+  it('checks the option object after the anchors of attachTo and alignTo', () => {
+    const warn = vi.fn()
+    wrapFluentMethods({ cube: () => new Geom3() }, anchorsTable, warn)
+    const shape = new Geom3()
+    shape.attachTo('p', 'a', 'b', { overrlap: 1 })
+    shape.alignTo('p', 'd', { inste: 2 })
+    expect(warn.mock.calls.map(([w]) => w)).toEqual([
+      { fn: 'FluentGeom3.attachTo', option: 'overrlap', suggestions: ['overlap'] },
+      { fn: 'FluentGeom3.alignTo', option: 'inste', suggestions: ['inside', 'inset'] },
+    ])
+    expect(shape.attachTo('p', 'a', 'b', { overlap: 1, flip: true })).toEqual({ overlap: 1, flip: true })
+    expect(warn).toHaveBeenCalledTimes(2)
+  })
+
+  it('checks the trailing options object of a variadic function and method', () => {
+    const warn = vi.fn()
+    const jf = { subtract: vi.fn((...args) => args), cube: () => new Geom3() }
+    withOptionChecks(jf, anchorsTable, warn).subtract('a', 'b', { carr: {} })
+    wrapFluentMethods(jf, anchorsTable, warn)
+    new Geom3().subtract('a', { carr: {} })
+    expect(warn.mock.calls.map(([w]) => w)).toEqual([
+      { fn: 'jf.subtract', option: 'carr', suggestions: ['carry'] },
+      { fn: 'FluentGeom3.subtract', option: 'carr', suggestions: ['carry'] },
+    ])
+  })
+
+  it('checks the anchors options of the real fluent classes', () => {
+    const jf = createRequire(import.meta.url)('@jbroll/jscad-fluent')
+    const warn = vi.fn()
+    wrapFluentMethods(jf, OPTION_TABLES['@jbroll/jscad-fluent'], warn)
+    const base = jf.cube({ size: 2 })
+    base.attachTo(jf.cube(), 'center', 'center', { overrlap: 1 })
+    base.alignTo(jf.cube(), 'center', { inste: 2 })
+    jf.cube({ size: 3 }).subtract(jf.cube({ size: 1 }), { carry: {} })
+    expect(warn.mock.calls.map(([w]) => w)).toEqual([
+      { fn: 'FluentGeom3.attachTo', option: 'overrlap', suggestions: ['overlap'] },
+      { fn: 'FluentGeom3.alignTo', option: 'inste', suggestions: ['inside', 'inset'] },
+    ])
+  })
+})
+
 describe('createWarningCollector', () => {
   it('keeps each fn and option once', () => {
     const c = createWarningCollector()
