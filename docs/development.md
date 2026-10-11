@@ -10,6 +10,14 @@ npm workspaces monorepo:
 - `apps/*` — applications (`apps/jscad-web` is the production app)
 - `file-format/*` — model format exporters
 
+## Toolchain
+
+Node.js LTS (24 "Krypton") and a current npm. `package-lock.json` is
+lockfileVersion 3, so any npm 7+ reads and writes it without churn;
+`packageManager` names the current npm (turbo requires the field, so it stays,
+but at a current version rather than a stale one). Use `npm install` (or
+`npm ci`) directly — no `allow-remote` flag or pinned npm is needed.
+
 ## Common commands
 
 ```bash

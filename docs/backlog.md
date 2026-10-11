@@ -680,24 +680,6 @@ from the 2026-10-01 review.
   lockfile or agent-loop's new devDependencies (both ruled out on a CI
   scratch tree); the `@jscad/modeling` and `@jscad/modeling-for-manifold`
   links share one realpath, which is where arborist's link lookup runs.
-- **Local installs must use the pinned npm (10.9.4), not npm 12.** The repo
-  declares `"packageManager": "npm@10.9.4"`, but a plain system `npm` here is
-  12.0.2, and the two disagree:
-  - npm 12 refuses the install with `EALLOWREMOTE` ("Fetching packages of type
-    'remote' have been disabled"). Several jscad packages
-    (`@jscad/regl-renderer@2.6.3` pulled by `apps/react`, and others) declare
-    `@jscad/modeling` as a literal registry-tarball spec
-    (`https://registry.npmjs.org/@jscad/modeling/-/modeling-2.10.0.tgz`), which
-    npm 12's new `allow-remote="none"` default blocks. `deploy-full.sh`'s
-    bootstrap install then fails before the build.
-  - Worse, running npm 12 with `npm_config_allow_remote=all` and letting it
-    rewrite `package-lock.json` corrupts the lock: it writes the tarball URL
-    into the `"version"` field of the affected entries, which would break
-    `npm ci` and CI. Do not commit a lock written by npm 12 here.
-  The fix is the pinned toolchain: `npx npm@10.9.4 install` (or `corepack
-  enable`, which resolves `npm` to `packageManager`) installs cleanly with no
-  `allow-remote` flag and leaves `package-lock.json` unchanged. The URL specs
-  themselves are upstream packaging; trimming them is optional and separate.
 - **jscad-fluent 0.7.0 not yet published.** `extrudeLinear`/`extrudeRotate`/`offset`
   on a `FluentGeom2` used to crash under the manifold engine (`Object.assign`
   copying dropped `ManifoldGeom2`/`ManifoldGeom3`'s prototype getters). Fixed
