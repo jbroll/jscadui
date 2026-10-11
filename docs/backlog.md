@@ -27,7 +27,6 @@ bullet each ID points at is the requirement text. Reserved for new findings:
 | API5 | Chat API help | Med | `packages/agent-loop/src/tools.js`, `apps/jscad-web/src/aiDeps.js` |
 | API6 | Chat API help | Med | `apps/jscad-web/src/apiIndex.js`, `packages/agent-loop/src/docs.js` |
 | API7 | Chat API help | Low | `packages/agent-loop/eval/grade.js` |
-| API9 | Chat API help | Med | `packages/agent-loop/api/build-index.js` |
 | API10 | Chat API help | Low | `packages/agent-loop/eval/probe.js` |
 | REF1 | Refactoring | High | breaking, out of scope |
 | REF3 | Refactoring | Med | out of scope (`packages/worker`) |
@@ -394,9 +393,6 @@ model with `display-check.js --engine jscad`.
   fluent release that calls its own option-taking methods with options the
   table lacks would need the check to warn only when the caller is project
   code.
-- JSDoc gaps in `@jscad/modeling` are patched in `api/build-index.js`
-  (`PASS_THROUGH`, `defaults` keys). A false warning from a real call means
-  another entry belongs there, or upstream JSDoc needs the option.
 - API style radio button (jscad-web). `getChatApi()` in `src/aiAccount.js`
   reads the selection's `api`; the gear dialog needs the control, and
   `persistSelection` there must carry `api`, since it rewrites the selection

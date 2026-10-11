@@ -70,7 +70,7 @@ jf.align({ modes = ['center', 'center', 'min'], relativeTo = [0,0,0], grouped = 
 
 // Expansions
 .expand({ delta = 1, corners = 'edge', segments = 16 })
-.offset({ delta = 1, corners = 'edge', segments = 16 })
+.offset({ delta = 1, corners = 'edge', segments = 16, closed })
 
 // Hulls, of one shape or of an array
 jf.geom3Array(...items)

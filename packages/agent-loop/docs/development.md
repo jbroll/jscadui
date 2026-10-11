@@ -62,9 +62,11 @@ same commit. `buildIndex` appends `api/parts.json`, which `npm run api-index`
 does not write: it comes from `packages/parts/bin/build.js`
 ([parts user manual](../../parts/docs/user-manual.md)), run by the app build and
 checked for freshness by `packages/parts/test/agent-outputs.test.js`. Where JSDoc misses an option the generator adds it: a function's
-`defaults` literal keys (`extrudeLinear`'s `repair`), and the options
+`defaults` literal keys (`extrudeLinear`'s `repair`), the options
 `PASS_THROUGH` in `api/build-index.js` names (`extrudeRectangular` hands its
-options to `expand` and `extrudeLinear`). Where JSDoc misleads, `OPTION_FIXES`
+options to `expand` and `extrudeLinear`), and the `EXTRA_OPTIONS` names there
+(`text.vectorText`'s `font`; `expansions.offset`'s `closed`, which the path2
+variant reads but the JSDoc omits). Where JSDoc misleads, `OPTION_FIXES`
 in `api/build-index.js` corrects it (`jf.cylinder`'s `outer`, whose JSDoc
 default is `radius` though fluent reads it only with `inner` or `wall`). The
 `jscadText.text2d` `font` option's description gets the static font map's

@@ -29,11 +29,14 @@ const addPassThrough = (entries) => {
   return entries
 }
 
-// Options a function reads via a shared params helper (vectorText/vectorChar
-// via vectorParams's defaultsVectorParams), so its own JSDoc never lists them.
+// Options the JSDoc never lists: a function's own JSDoc omits them when it
+// reads them via a shared params helper (vectorText/vectorChar via
+// vectorParams's defaultsVectorParams) or when only an internal branch reads
+// them (offsetPath2 keeps a path open or closed via `closed`).
 const EXTRA_OPTIONS = {
   'text.vectorText': ['font'],
   'text.vectorChar': ['font'],
+  'expansions.offset': ['closed'],
 }
 
 const addExtraOptions = (entries) => {

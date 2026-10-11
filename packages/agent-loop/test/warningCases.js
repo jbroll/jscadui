@@ -342,4 +342,10 @@ module.exports = { main: () => primitives.cube({ size: 2 }).translate([1, 0, 0])
     source: fluent('module.exports = { main: () => [jf.cube({ size: 3 }).subtract(jf.cube({ size: 1 }), { carry: {} }), jf.cube()] }'),
     warnings: [],
   },
+  {
+    name: 'T: a path offset with closed, which the offset JSDoc omits, warns nothing',
+    api: 'modeling',
+    source: `const { expansions, geometries, primitives } = require('@jscad/modeling')\nmodule.exports = { main: () => { const p = geometries.path2.fromPoints({ closed: false }, [[0, 0], [10, 0], [10, 10], [0, 10]]); expansions.offset({ delta: 2, closed: true }, p); return primitives.cube({ size: 2 }) } }`,
+    warnings: [],
+  },
 ]

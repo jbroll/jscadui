@@ -87,6 +87,12 @@ describe('API index', () => {
     expect(entry('text.vectorChar').options.map((o) => o.name)).toContain('font')
   })
 
+  it('adds closed, which the path2 offset reads but the offset JSDoc omits, to the offset options', () => {
+    expect(entry('expansions.offset').options.map((o) => o.name)).toEqual(expect.arrayContaining(['closed']))
+    expect(OPTION_TABLES['@jscad/modeling'].options['expansions.offset']).toEqual(['closed', 'corners', 'delta', 'segments'])
+    expect(OPTION_TABLES['@jbroll/jscad-fluent'].methods.FluentGeom2.offset).toEqual(['closed', 'corners', 'delta', 'segments'])
+  })
+
   it('documents jscad-text', () => {
     expect(entry('jscadText.text2d').options.map((o) => o.name)).toContain('halign')
     expect(entry('jscadText').kind).toBe('namespace')

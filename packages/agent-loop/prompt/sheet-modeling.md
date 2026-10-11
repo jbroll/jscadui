@@ -65,7 +65,7 @@ extrusions.extrudeHelical({ angle = TAU, startAngle = 0, pitch = 10, height, end
 
 // Expansions
 expansions.expand({ delta = 1, corners = 'edge', segments = 16 }, ...objects)
-expansions.offset({ delta = 1, corners = 'edge', segments = 16 }, ...objects)
+expansions.offset({ delta = 1, corners = 'edge', segments = 16, closed }, ...objects)
 
 // Hulls
 hulls.hull(...geometries)
