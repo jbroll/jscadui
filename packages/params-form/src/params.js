@@ -111,7 +111,7 @@ export const genParams = ({
     let inputType = type
     if (type == 'int' || type == 'float') inputType = 'number'
     if (type == 'range' || type == 'slider') inputType = 'range'
-    let str = `<input _type="${escapeHtml(type)}" type="${inputType}" name="${escapeHtml(name)}"`
+    let str = `<input _type="${escapeHtml(type)}" type="${escapeHtml(inputType)}" name="${escapeHtml(name)}"`
     if (step !== undefined) str += ` step="${escapeHtml(step)}"`
     if (min !== undefined) str += ` min="${escapeHtml(min)}"`
     if (max !== undefined) str += ` max="${escapeHtml(max)}"`

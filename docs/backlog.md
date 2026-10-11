@@ -12,7 +12,6 @@ bullet each ID points at is the requirement text. Reserved for new findings:
 
 | ID | Section | Sev | Primary files |
 |---|---|---|---|
-| SEC2 | Security / Smaller hardening | Low | `packages/params-form/src/params.js` |
 | PRJ1 | Projects and storage | Med | `apps/jscad-web/src/storage/rowboat.js` |
 | PRJ2 | Projects and storage | High | `apps/jscad-web/src/storage/local.js`, `src/aiAccount.js` |
 | PRJ3 | Projects and storage | Med | `apps/jscad-web/src/fileSystem.js`, `main.js` |
@@ -134,9 +133,6 @@ under `apps/jscad-web` unless given in full.
   and a CSP: `script-src 'self'`, `frame-src` the run host, `connect-src`
   self, rowboat and the provider hosts. A deploy decision — `deploy.sh` is not
   in this repo.
-- **Smaller hardening.**
-  - `packages/params-form/src/params.js:114` writes `type="${inputType}"`
-    unescaped. Only cardboard-cutter uses params-form.
 
 ## Projects and storage
 
