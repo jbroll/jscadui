@@ -74,6 +74,21 @@ describe('account header', () => {
     expect(JSON.parse(localStorage.getItem('jscad-ai.selection')).api).toBe('modeling')
   })
 
+  it('does not change the API when the field heading is clicked', async () => {
+    const { initAccount, getChatApi } = await loadAccount()
+    localStorage.setItem('jscad-ai.selection', JSON.stringify({ api: 'modeling' }))
+    document.body.innerHTML = '<div id="a"></div>'
+    initAccount(document.getElementById('a'))
+    document.querySelector('.ai-gear').click()
+    const modeling = document.querySelector('input[name="ai-api"][value="modeling"]')
+    expect(modeling.checked).toBe(true)
+    const heading = [...document.querySelectorAll('.ai-settings .ai-field-name')].find((n) => n.textContent === 'API style')
+    expect(heading).toBeTruthy()
+    heading.click()
+    expect(modeling.checked).toBe(true)
+    expect(getChatApi()).toBe('modeling')
+  })
+
   it('fetches the model list through the relay on dialog open with a key', async () => {
     const { initAccount, keyStore } = await loadAccount()
     await keyStore.set('sk-x', 'session')

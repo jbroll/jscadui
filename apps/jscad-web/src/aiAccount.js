@@ -210,6 +210,8 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
   }
 
   const apiStyle = el('div', 'ai-api-radios')
+  apiStyle.setAttribute('role', 'radiogroup')
+  apiStyle.setAttribute('aria-label', 'API style')
   for (const value of APIS) {
     const label = el('label', 'ai-radio')
     const radio = el('input', 'ai-api-radio')
@@ -224,6 +226,9 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
     label.append(radio, el('span', '', value))
     apiStyle.append(label)
   }
+
+  const apiField = el('div', 'ai-field ai-api-field')
+  apiField.append(el('span', 'ai-field-name', 'API style'), apiStyle)
 
   const effortField = field('Effort', el('select', 'ai-input'))
   const effortSelect = effortField.querySelector('select')
@@ -285,7 +290,7 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
     field('Model', modelSelect),
     modelStatus,
     field('Custom model id', modelInput),
-    field('API style', apiStyle),
+    apiField,
     effortWrap,
     advanced,
     footer,
