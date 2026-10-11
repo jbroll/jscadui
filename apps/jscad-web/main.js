@@ -341,7 +341,7 @@ const dropModal = byId('dropModal')
 
 /** @type {import('./src/fileSystem.js').FileSystemDeps} */
 const fsDeps = {
-  onFilesChange: () => reloadProject().catch(err => setError(err)), // M9 fix: Handle floating promise
+  onFilesChange: () => reloadProject().catch(err => setError(err)), // Handle floating promise
   setEditorFiles: files => editor.setFiles(files, { keepBuffers: true }),
   onFilesChanged: files => editor.filesChanged(files),
   setError,
@@ -752,7 +752,7 @@ viewState.onRenderEngineChange = async (newEngine) => {
 paramsUI.injectParamsStyles()
 
 // ============== File Watching ==============
-// I8 fix: Store fileWatcher reference for explicit cleanup (fallback beforeunload also exists)
+// Store fileWatcher reference for explicit cleanup (fallback beforeunload also exists)
 const fileWatcher = fileSystem.createFileWatcher(
   files => editor.filesChanged(files),
   () => editor.runScript()
@@ -1051,8 +1051,8 @@ window.addEventListener('unload', () => {
   paramsUI.destroyParamsTreeView()
   editor.destroy()
   viewState.viewer?.destroy?.()
-  ctrl.destroy() // M5 fix: Clean up OrbitControl event listeners and animation frame
+  ctrl.destroy() // Clean up OrbitControl event listeners and animation frame
   destroyFrame() // explicit terminate path: rejects pending frame requests and removes the frame
   diskProject?.stop()
-  fileWatcher.cleanup() // I8 fix: Explicit cleanup (complements internal beforeunload fallback)
+  fileWatcher.cleanup() // Explicit cleanup (complements internal beforeunload fallback)
 })

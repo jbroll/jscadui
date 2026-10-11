@@ -552,8 +552,8 @@ from the 2026-10-01 review.
   (`:611-616`), hand-lists the manifold API without `curves`, `modifiers`,
   `utils` or the conversions (`createRuntime`, `:198-382`), and never resets
   `setGlobalFn` between in-process runs (`:665`, `:780`).
-- **Leftovers.** 59 review-tracker labels ("C6 fix", "M11 fix") across 29
-  files; remove them as each file is touched.
+- **Leftovers.** Review-tracker labels ("C6 fix", "M11 fix") remain in
+  source files; remove them as each file is touched.
 - **Shared demo-app homes.** `observeResize.js` has 4 identical copies and
   `testThree.js` 3, `esbuildUtil.js` has 4 drifted ones, and
   `apps/vue3-jscad/src/jscad/` holds 12 older copies of jscad-web modules.
