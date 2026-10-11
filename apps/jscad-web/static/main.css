@@ -1078,6 +1078,17 @@ p {
   flex: 1;
   min-width: 0;
 }
+.ai-api-radios {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.ai-radio {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
 .ai-session {
   margin: 4px 0;
   color: #666;

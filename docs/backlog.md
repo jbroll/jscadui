@@ -13,7 +13,6 @@ bullet each ID points at is the requirement text. Reserved for new findings:
 | ID | Section | Sev | Primary files |
 |---|---|---|---|
 | PRJ4 | Projects and storage | High | `apps/jscad-web/src/storage/local.js` |
-| API2 | Chat API help | Med | `apps/jscad-web/src/aiAccount.js` |
 | API4 | Chat API help | Low | `.deps-cache/jscad-fluent` (external) |
 | API5 | Chat API help | Med | `packages/agent-loop/src/tools.js`, `apps/jscad-web/src/aiDeps.js` |
 | API6 | Chat API help | Med | `apps/jscad-web/src/apiIndex.js`, `packages/agent-loop/src/docs.js` |
@@ -364,10 +363,6 @@ model with `display-check.js --engine jscad`.
   fluent release that calls its own option-taking methods with options the
   table lacks would need the check to warn only when the caller is project
   code.
-- API style radio button (jscad-web). `getChatApi()` in `src/aiAccount.js`
-  reads the selection's `api`; the gear dialog needs the control, and
-  `persistSelection` there must carry `api`, since it rewrites the selection
-  from its own fields and would drop it.
 - `jf.polygon` in jscad-fluent should list a single flat outline
   counter-clockwise itself. The chat's option checks reverse clockwise points
   before the call (`src/optionChecks.js`), but a fluent user outside the chat

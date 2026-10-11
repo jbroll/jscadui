@@ -803,14 +803,14 @@ and starts a fresh provider session, so the next turn is not grouped with the
 previous one.
 
 Chat settings live in the drawer's gear dialog (`src/aiAccount.js`), in the
-order a user fills them: provider, API key and its custody mode, model, effort,
-then base URL under Advanced. Saving a key, changing the provider or changing
-the base URL GETs `/v1/models` through the relay (or `{baseUrl}/v1/models`) and
-fills the model select; the status line under it shows the count or the HTTP
-failure, and a custom model id stays available either way. Effort options come
-from `src/aiEffort.js`: Anthropic's list carries per-model effort support, the
-other kinds get their documented level set, and Meta Muse models drop `none`,
-which Meta answers with a 400.
+order a user fills them: provider, API key and its custody mode, model, API
+style, effort, then base URL under Advanced. Saving a key, changing the
+provider or changing the base URL GETs `/v1/models` through the relay (or
+`{baseUrl}/v1/models`) and fills the model select; the status line under it
+shows the count or the HTTP failure, and a custom model id stays available
+either way. Effort options come from `src/aiEffort.js`: Anthropic's list
+carries per-model effort support, the other kinds get their documented level
+set, and Meta Muse models drop `none`, which Meta answers with a 400.
 
 ### Chat UI states
 
@@ -890,7 +890,8 @@ default) or `modeling` (`@jscad/modeling`), with `@jscadui/jscad-text` in
 both. Teaching one keeps a model from calling fluent methods on plain
 modeling geometry, which the two-API prompt invited. `getChatApi()` in
 `src/aiAccount.js` reads it per turn from the selection's `api`, falling back
-to `DEFAULT_API`; a settings radio button will write it there. From there it
+to `DEFAULT_API`; the gear dialog's API style radio writes it there, and
+`persistSelection` carries it alongside the other fields. From there it
 flows two ways in `main.js`: `initChat({ getApi })` builds the turn's system
 prompt with `buildSystemPrompt(api)` and passes `api` to `runTurn`, which
 sends `buildTools(api)`; and the `docs` dependency (`createDocs` in

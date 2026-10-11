@@ -45,6 +45,35 @@ describe('account header', () => {
     expect(getChatApi()).toBe('fluent')
   })
 
+  it('lets the gear dialog choose the API style and stores it in the selection', async () => {
+    const { initAccount, getChatApi } = await loadAccount()
+    document.body.innerHTML = '<div id="a"></div>'
+    initAccount(document.getElementById('a'))
+    document.querySelector('.ai-gear').click()
+    const fluent = document.querySelector('input[name="ai-api"][value="fluent"]')
+    const modeling = document.querySelector('input[name="ai-api"][value="modeling"]')
+    expect(fluent.checked).toBe(true)
+    expect(modeling.checked).toBe(false)
+    modeling.checked = true
+    modeling.dispatchEvent(new Event('change'))
+    expect(getChatApi()).toBe('modeling')
+    expect(JSON.parse(localStorage.getItem('jscad-ai.selection')).api).toBe('modeling')
+  })
+
+  it('keeps the chosen API style when another selection field changes', async () => {
+    const { initAccount, keyStore } = await loadAccount()
+    await keyStore.set('sk-x', 'session')
+    globalThis.fetch = modelsFetch({ openai: ['gpt-x'], meta: ['muse-a'] })
+    localStorage.setItem('jscad-ai.selection', JSON.stringify({ kind: 'openai', model: 'gpt-x', api: 'modeling' }))
+    document.body.innerHTML = '<div id="a"></div>'
+    initAccount(document.getElementById('a'))
+    document.querySelector('.ai-gear').click()
+    const provider = document.querySelector('.ai-provider-select')
+    provider.value = 'meta'
+    provider.dispatchEvent(new Event('change'))
+    expect(JSON.parse(localStorage.getItem('jscad-ai.selection')).api).toBe('modeling')
+  })
+
   it('fetches the model list through the relay on dialog open with a key', async () => {
     const { initAccount, keyStore } = await loadAccount()
     await keyStore.set('sk-x', 'session')
@@ -128,7 +157,7 @@ describe('account header', () => {
     document.body.innerHTML = '<div id="a"></div>'
     initAccount(document.getElementById('a'))
     const names = [...document.querySelectorAll('.ai-settings .ai-field-name')].map((n) => n.textContent)
-    expect(names).toEqual(['Provider', 'API key', 'Keep', 'Passphrase', 'Model', 'Custom model id', 'Effort', 'Base URL'])
+    expect(names).toEqual(['Provider', 'API key', 'Keep', 'Passphrase', 'Model', 'Custom model id', 'API style', 'Effort', 'Base URL'])
   })
 
   it('sends the current URL, hash included, as the sign-in callback', async () => {

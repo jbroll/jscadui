@@ -111,9 +111,10 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
     model: selection.model ?? '',
     baseUrl: selection.baseUrl ?? '',
     effort: selection.effort ?? '',
+    api: APIS.includes(selection.api) ? selection.api : DEFAULT_API,
     capabilities: new Map(),
   }
-  const persistSelection = () => setSelection({ kind: state.kind, model: state.model, baseUrl: state.baseUrl, ...(state.effort ? { effort: state.effort } : {}) })
+  const persistSelection = () => setSelection({ kind: state.kind, model: state.model, baseUrl: state.baseUrl, api: state.api, ...(state.effort ? { effort: state.effort } : {}) })
 
   // Header row: sign-in state on the left, gear on the right.
   const header = el('div', 'ai-header-row')
@@ -208,6 +209,22 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
     else modelInput.value = state.model
   }
 
+  const apiStyle = el('div', 'ai-api-radios')
+  for (const value of APIS) {
+    const label = el('label', 'ai-radio')
+    const radio = el('input', 'ai-api-radio')
+    radio.type = 'radio'
+    radio.name = 'ai-api'
+    radio.value = value
+    radio.checked = state.api === value
+    radio.addEventListener('change', () => {
+      state.api = value
+      persistSelection()
+    })
+    label.append(radio, el('span', '', value))
+    apiStyle.append(label)
+  }
+
   const effortField = field('Effort', el('select', 'ai-input'))
   const effortSelect = effortField.querySelector('select')
   effortSelect.classList.add('ai-effort-select')
@@ -268,6 +285,7 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
     field('Model', modelSelect),
     modelStatus,
     field('Custom model id', modelInput),
+    field('API style', apiStyle),
     effortWrap,
     advanced,
     footer,
