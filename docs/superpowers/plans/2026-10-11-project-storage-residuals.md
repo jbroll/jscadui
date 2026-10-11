@@ -80,7 +80,7 @@ Import `pickBootProject` in the `projectFiles` import list. Replace `main.js:101
 
 ```js
 // ============== Project Panel ==============
-const bootProjects = await projectManager.listAll().catch(() => [])
+const bootProjects = await projectManager.listAll()
 if (bootProjects.length === 0) {
   currentProjectId = (await projectManager.createProject('default', { entry: 'main.js', files: { 'main.js': defaultCode } })).id
 } else {
@@ -88,6 +88,7 @@ if (bootProjects.length === 0) {
   if (bootId) await switchProject(bootId).catch(setError)
 }
 ```
+(A throwing `listAll()` fails init as it does today; no catch. `pickBootProject` deliberately skips the disk row, which sorts first; the disk project opens from its `#/models` hash, not boot.)
 
 - [ ] **Step 6: Commit**
 
@@ -238,18 +239,7 @@ export const setSource = (source, path = '/index.js') => {
 }
 ```
 
-Replace the file-button click handler in `setFiles` (lines 226-230) with:
-```js
-      button.addEventListener('click', () => {
-        if (currentFile !== file.fullPath) buffer.edit(currentFile, view.state.doc.toString())
-        currentFile = file.fullPath
-        editorFile.textContent = currentFile
-        if (buffer.has(currentFile)) setSource(buffer.get(currentFile), currentFile)
-        else readSource(file, currentFile)
-      })
-```
-
-Change `setFiles` to accept a merge option and prune:
+Change `setFiles` to accept a merge option, prune stale buffers, and flush the live text on a file switch (replacing the current body at lines 213-236):
 ```js
 /**
  * @param {FSFileEntry[]} files
@@ -472,6 +462,15 @@ Expected: PASS.
 
 Add the import: `import { confirm } from './src/ui/dialog.js'` and pass it to the editor init (change `editor.init(defaultCode, compile, save, getFile)` at `main.js:822` — its call already spans lines 822-886 with the two function args; append `, confirm` as the last argument after the `path => fileSystem.getSwHandler()?.getFile(path),` line at 885).
 
+Gate the demo browser's `onLoad` (`main.js:113-117`):
+```js
+    onLoad: async (script, url) => {
+      if (!(await editor.confirmDiscard())) return
+      editor.setSource(script, url)
+      jscadScript({ script, url, base: new URL('./', new URL(url, appBase)).toString(), root: appBase })
+      welcome.dismiss()
+    },
+```
 Gate the two boot loads. `main.js:893-905` (remote init callback): change `editor.setSource(script, fullUrl)` to run only after a discard check:
 ```js
       async (script, url) => {
@@ -622,7 +621,18 @@ Replace `runTurnLocal` (lines 311-380) with a version that keeps its own transcr
     const turnProject = pid()
     const live = () => turnProject === pid()
     let local = [...transcript, { role: 'user', content: message }]
-    if (live()) { transcript = local; persistTranscript(turnProject) }
+    const persist = (messages) => {
+      if (!storage || !turnProject) return
+      storage.writeConversation(turnProject, messages).catch((err) => console.warn('chat persist failed:', err))
+    }
+    // Every phase persists under the project the turn started in; only the
+    // visible transcript and the DOM follow the live project.
+    const commit = (messages) => {
+      local = messages
+      persist(messages)
+      if (live()) transcript = messages
+    }
+    commit(local)
     setRunning(true)
     if (live()) addMessage(message, 'user')
     assistantEl = null
@@ -632,12 +642,6 @@ Replace `runTurnLocal` (lines 311-380) with a version that keeps its own transcr
     let stopped = false
     turnReasoning = []
     const reply = (fields) => ({ role: 'assistant', content: assistantText, ...fields, ...(turnReasoning.length > 0 ? { reasoning: turnReasoning } : {}) })
-    const commit = (messages) => {
-      local = messages
-      if (!live()) return
-      transcript = messages
-      persistTranscript(turnProject)
-    }
     try {
       const provider = createProvider({
         ...selection,
@@ -671,7 +675,7 @@ Replace `runTurnLocal` (lines 311-380) with a version that keeps its own transcr
       endReasoning()
       if (signal.aborted) stopped = true
       else {
-        commit([...transcript.slice(0, -1)])
+        commit(local.slice(0, -1))
         if (live()) addMessage(err.message, 'error')
       }
     } finally {
@@ -717,7 +721,7 @@ git commit -m "fix(chat): persist an in-flight turn under the project it started
 
 - [ ] **Step 1: Write the failing session test**
 
-Add to `apps/jscad-web/test/storage-session.test.js`:
+Add inside the existing `describe('mode write-through', ...)` block in `apps/jscad-web/test/storage-session.test.js`:
 
 ```js
   it('routes a conversation through the project mode backend', async () => {
@@ -761,23 +765,21 @@ Expected: PASS.
 
 - [ ] **Step 5: Add the New-chat test to `aiChat.test.js`**
 
-Add to `describe('stored conversation', ...)`:
+Add to `describe('stored conversation', ...)` in `apps/jscad-web/test/aiChat.test.js` (use the file's `openChat` helper at line 102, which owns the container):
 ```js
   it('New chat clears the view and persists an empty conversation for the open project', async () => {
-    document.body.innerHTML = '<div id="chat"></div>'
-    const container = document.getElementById('chat')
+    const store = { p1: [{ role: 'user', content: 'old' }] }
     const storage = {
-      readConversation: async () => ({ messages: [{ role: 'user', content: 'old' }], updated: 1 }),
-      writeConversation: vi.fn(async () => {}),
+      readConversation: async (pid) => (store[pid] ? { messages: store[pid], updated: 1 } : null),
+      writeConversation: vi.fn(async (pid, messages) => { store[pid] = messages }),
     }
     const chat = openChat({ runTurnFn: vi.fn(), storage, projectId: 'p1' })
-    await vi.waitFor(() => expect(container.querySelector('.chat-messages').textContent).toMatch(/old/))
-    container.querySelector('.chat-new').click()
+    await vi.waitFor(() => expect(chat.q('.chat-messages').textContent).toMatch(/old/))
+    chat.q('.chat-new').click()
     await vi.waitFor(() => expect(storage.writeConversation).toHaveBeenCalledWith('p1', []))
-    expect(container.querySelector('.chat-messages').textContent).toBe('')
+    expect(chat.q('.chat-messages').textContent).toBe('')
   })
 ```
-(Use the local `openChat` helper already defined in the file; if it does not exist for a case, initialise with `initChat` exactly as the neighbouring tests do.)
 
 - [ ] **Step 6: Run to verify it fails**
 
@@ -1101,7 +1103,12 @@ const projectPanel = initProjects({
   container: byId('project-drawer-body'),
   manager: projectManager,
   onSwitch: (id) => switchProject(id).catch(setError),
-  onDropOnProject: async (id, dataTransfer) => { /* unchanged */ },
+  onDropOnProject: async (id, dataTransfer) => {
+    const entries = await extractEntries(dataTransfer)
+    await projectManager.mergeDrop(id, entries, { readDir, readAsText }).catch(setError)
+    if (id === currentProjectId) await switchProject(id).catch(setError)
+    projectPanel.render()
+  },
   onRestore: (id) => switchProject(id).catch(setError),
   onError: setError,
   onFlip: () => projectPanel.render(),
@@ -1113,6 +1120,10 @@ const projectPanel = initProjects({
     if (id === currentProjectId) {
       const next = pickBootProject(await projectManager.listAll())
       if (next) await switchProject(next)
+      else {
+        const created = await projectManager.createProject('Untitled', { entry: 'main.js', files: { 'main.js': defaultCode } })
+        await switchProject(created.id)
+      }
     }
     await projectPanel.render()
   },
@@ -1242,23 +1253,24 @@ git commit -m "fix(storage): move a project on mode flip and dedupe the list"
 
 - [ ] **Step 1: Write the failing account test**
 
-Add to `apps/jscad-web/test/aiAccount.test.js` (it is jsdom; follow its existing setup and `fetch` stubbing):
+Add to `apps/jscad-web/test/aiAccount.test.js` (jsdom; it loads the module through its `loadAccount()` helper and stubs `fetch`):
 ```js
   it('calls onSignOut after a successful sign-out', async () => {
-    document.body.innerHTML = '<div id="acct"></div>'
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ user: null }), { status: 200 })))
+    const { initAccount } = await loadAccount()
+    globalThis.fetch = vi.fn(async (url) => {
+      if (String(url).includes('/api/auth/get-session')) return new Response(JSON.stringify({ user: { id: 'u1', email: 'a@b.c' } }), { status: 200 })
+      return new Response('{}', { status: 200 })
+    })
+    document.body.innerHTML = '<div id="a"></div>'
     const onSignOut = vi.fn()
-    initAccount(document.getElementById('acct'), { onSignOut })
-    document.querySelector('.ai-button') // sign-in button; sign-out is hidden until session known
-    await vi.waitFor(() => expect(document.querySelector('.ai-session')).not.toBeNull())
-    // The sign-out button is the third button in the header row.
+    initAccount(document.getElementById('a'), { onSignOut })
     const signOutBtn = [...document.querySelectorAll('.ai-header-row .ai-button')].find((b) => b.textContent === 'Sign out')
+    await vi.waitFor(() => expect(signOutBtn.style.display).toBe(''))
     signOutBtn.click()
     await vi.waitFor(() => expect(onSignOut).toHaveBeenCalled())
-    vi.unstubAllGlobals()
   })
 ```
-(Adjust selectors to the file's existing helpers if it has them; the intent is: clicking Sign out calls `onSignOut`.)
+(`beforeEach` at the top of the file already clears `localStorage` and stubs `fetch`; the test re-stubs it.)
 
 - [ ] **Step 2: Run to verify it fails**
 

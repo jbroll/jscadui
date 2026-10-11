@@ -64,10 +64,11 @@ their unit tests stay jsdom-only and can pass a stub.
 ### 1. Boot opens the most recently updated project
 
 `main.js` init: after `await projectManager.listAll()`, if the list is
-non-empty, call `switchProject(list[0].id)` (`listAll` is sorted updated-desc).
-Empty keeps today's behavior: create `'default'`. If `listAll()` throws, keep
-today's behavior (no boot switch). `currentProjectId` is then set by the normal
-`onOpen` path before any edit, run or chat turn.
+non-empty, call `switchProject(list[0].id)` (`listAll` is sorted updated-desc),
+skipping the disk row — it sorts first and opens from its own `#/models` hash,
+so the boot pick ignores it. Empty keeps today's behavior: create `'default'`.
+If `listAll()` throws, keep today's behavior (init fails). `currentProjectId`
+is then set by the normal `onOpen` path before any edit, run or chat turn.
 
 The choice is a pure `pickBootProject(projects) → id | null` helper (list[0]'s
 id, or null when empty), so it is unit-testable without driving `main.js`.
@@ -134,7 +135,9 @@ Backends gain `deleteProject(id)`:
 call the backend, drop the mode entry. `src/projects.js` adds a per-row delete
 control, disabled for disk mode, that opens the confirm dialog. `main.js`'s
 `onDelete`: delete, re-render the panel, and when the deleted id was the open
-project, `switchProject` to the next most recent (or the empty state if none).
+project, `switchProject` to the next most recent; if none remain, create a
+fresh `'Untitled'` project (entry `main.js`, the default script) and switch to
+it, so `currentProjectId` never dangles at a deleted id.
 
 ### 6. Mode flip, sign-out, sync status, labels
 
