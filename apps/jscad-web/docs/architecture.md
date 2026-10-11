@@ -832,8 +832,16 @@ Only the phase text is `aria-live="polite"`. The seconds and the token count
 sit in an `aria-hidden` span, so a screen reader hears each phase change and
 not each tick. The line empties when the turn ends.
 
-The input stays editable during a turn. Enter submits the form, which a
-running turn ignores, so the next message waits in the input.
+The input is a textarea that stays editable during a turn. Enter submits the
+form and Shift+Enter keeps a newline; a running turn ignores the submit, so
+the next message waits in the input. A missing provider leaves the draft in
+place and adds `Set your model and API key in Chat settings first.` to the
+message list, so nothing typed is lost.
+
+The message list follows new rows and streamed chunks to the end only while
+the reader is already there, within 40px of it; a reader who scrolled up to an
+earlier reply is left where they are. A conversation loaded on project switch
+still scrolls to its end.
 
 The message list shows each kind of row differently, light and dark alike
 (`--chat-*` variables on `#ai-chat`, redefined under `.dark`):

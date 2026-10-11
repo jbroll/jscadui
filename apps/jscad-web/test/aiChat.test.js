@@ -229,6 +229,46 @@ describe('running turn', () => {
     }
   })
 })
+describe('chat input', () => {
+  it('keeps the draft and points at Chat settings when the provider is not configured', () => {
+    const { q, type } = openChat({ getProvider: () => null })
+    type('make it bigger')
+    expect(q('.chat-msg.error').textContent).toBe('Set your model and API key in Chat settings first.')
+    expect(q('.chat-input').value).toBe('make it bigger')
+  })
+
+  it('takes multiple lines; Enter submits and Shift+Enter does not', async () => {
+    const runTurnFn = vi.fn(async () => ({ messages: [] }))
+    const { q } = openChat({ runTurnFn })
+    const input = q('.chat-input')
+    expect(input.tagName).toBe('TEXTAREA')
+    input.value = 'first line\nsecond line'
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, bubbles: true, cancelable: true }))
+    expect(runTurnFn).not.toHaveBeenCalled()
+    input.value = 'a cube'
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))
+    await vi.waitFor(() => expect(runTurnFn).toHaveBeenCalledTimes(1))
+    expect(runTurnFn.mock.calls[0][0].conversation.messages.at(-1)).toEqual({ role: 'user', content: 'a cube' })
+  })
+
+  it('follows the stream only while the reader is at the bottom', async () => {
+    const turn = heldTurn()
+    const { q, type } = openChat({ runTurnFn: turn.runTurnFn })
+    const messages = q('.chat-messages')
+    Object.defineProperty(messages, 'scrollHeight', { value: 1000, configurable: true })
+    Object.defineProperty(messages, 'clientHeight', { value: 100, configurable: true })
+    messages.scrollTop = 0
+    type('a cube')
+    await vi.waitFor(() => expect(turn.runTurnFn).toHaveBeenCalledTimes(1))
+    turn.args().onText('streaming…')
+    expect(messages.scrollTop).toBe(0)
+    messages.scrollTop = 1000
+    turn.args().onText(' more')
+    expect(messages.scrollTop).toBe(1000)
+    turn.release()
+  })
+})
+
 describe('model reasoning', () => {
   // vi.waitFor would advance the fake clock; a macrotask lets the turn start without moving it.
   const started = async (turn) => {

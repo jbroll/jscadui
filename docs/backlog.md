@@ -13,7 +13,6 @@ bullet each ID points at is the requirement text. Reserved for new findings:
 | ID | Section | Sev | Primary files |
 |---|---|---|---|
 | PRJ4 | Projects and storage | High | `apps/jscad-web/src/storage/local.js` |
-| UI4 | UI (jscad-web) | Med | `src/aiChat.js` |
 | API2 | Chat API help | Med | `apps/jscad-web/src/aiAccount.js` |
 | API4 | Chat API help | Low | `.deps-cache/jscad-fluent` (external) |
 | API5 | Chat API help | Med | `packages/agent-loop/src/tools.js`, `apps/jscad-web/src/aiDeps.js` |
@@ -427,17 +426,6 @@ model with `display-check.js --engine jscad`.
   with reasoning on scored 27 of 39 but changed 16 verdicts at about 15
   times the latency. Until agreement is well above this, complex verdicts are
   not a measure.
-
-## UI (jscad-web)
-
-From the 2026-10-01 review. Paths are under `apps/jscad-web` unless given in
-full.
-
-- **Chat input.** The draft is cleared (`src/aiChat.js:364`) before the
-  provider check (`:294-297`), so a missing key loses the message. Every
-  chunk forces the scroll to the bottom (`:158`, `:170`, `:183`, `:239`,
-  `:332`). The input is one line (`:73-74`). The error says "AI settings"
-  where the dialog is titled "Chat settings".
 
 ## Parts catalog
 

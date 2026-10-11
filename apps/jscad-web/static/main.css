@@ -1216,6 +1216,9 @@ p {
 .chat-input {
   flex: 1;
   min-width: 0;
+  resize: none;
+  font: inherit;
+  overflow-y: auto;
 }
 .chat-status {
   display: flex;

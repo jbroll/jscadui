@@ -75,8 +75,8 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
   header.append(newChatBtn)
   const messagesEl = el('div', 'chat-messages')
   const form = el('form', 'chat-form')
-  const input = el('input', 'chat-input')
-  input.type = 'text'
+  const input = el('textarea', 'chat-input')
+  input.rows = 2
   input.placeholder = 'Describe the part to build'
   input.autocomplete = 'off'
   const send = el('button', 'chat-send', 'Send')
@@ -148,22 +148,30 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
     }
   }
 
+  // Streaming must not yank a reader who scrolled up to an earlier reply, so
+  // new rows and chunks follow the end only while the reader is already there.
+  const NEAR_BOTTOM_PX = 40
+  const atBottom = () => messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight <= NEAR_BOTTOM_PX
+  const follow = (stick) => { if (stick) messagesEl.scrollTop = messagesEl.scrollHeight }
+
   const addMessage = (text, kind) => {
+    const stick = atBottom()
     const node = el('div', `chat-msg ${kind}`, text)
     messagesEl.append(node)
-    messagesEl.scrollTop = messagesEl.scrollHeight
+    follow(stick)
     return node
   }
 
   const addStopped = () => addMessage('Stopped', 'stopped')
 
   const addReasoningBlock = (label, text) => {
+    const stick = atBottom()
     const details = el('details', 'chat-reasoning')
     const summary = el('summary', 'chat-reasoning-summary', label)
     const textEl = el('div', 'chat-reasoning-text', text)
     details.append(summary, textEl)
     messagesEl.append(details)
-    messagesEl.scrollTop = messagesEl.scrollHeight
+    follow(stick)
     return { summary, textEl }
   }
 
@@ -178,6 +186,7 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
       else if (m.content) addMessage(m.content, 'assistant')
       if (m.stopped) addStopped()
     }
+    messagesEl.scrollTop = messagesEl.scrollHeight
   }
 
   // The open project changed: show its conversation, not the previous
@@ -219,13 +228,14 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
   const reasoningSeconds = () => Math.floor((Date.now() - reasoning.startedAt) / 1000)
 
   const addReasoning = (text) => {
+    const stick = atBottom()
     if (!reasoning) {
       reasoning = { ...addReasoningBlock(thinkingLabel(0), ''), startedAt: Date.now(), text: '' }
       assistantEl = null
     }
     reasoning.text += text
     reasoning.textEl.textContent += text
-    messagesEl.scrollTop = messagesEl.scrollHeight
+    follow(stick)
   }
 
   const renderReasoning = () => {
@@ -269,6 +279,7 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
   }
 
   const addToolLine = (name, inputJson) => {
+    const stick = atBottom()
     const details = el('details', 'chat-tool running')
     const summary = el('summary', 'chat-tool-summary')
     summary.append(el('span', 'chat-tool-name', name))
@@ -281,7 +292,7 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
     const resultEl = el('pre', 'chat-tool-result', 'running...')
     details.append(resultEl)
     messagesEl.append(details)
-    messagesEl.scrollTop = messagesEl.scrollHeight
+    follow(stick)
     return (result, failed) => {
       resultEl.textContent = typeof result === 'string' ? result : JSON.stringify(result, null, 2)
       mark.textContent = failed ? 'failed' : 'ok'
@@ -337,9 +348,10 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
   const runTurnLocal = async (message) => {
     const selection = getProvider()
     if (!selection) {
-      addMessage('Set your model and API key in AI settings first.', 'error')
+      addMessage('Set your model and API key in Chat settings first.', 'error')
       return
     }
+    input.value = ''
     turnProject = pid()
     let local = [...transcript, { role: 'user', content: message }]
     const persist = (messages) => {
@@ -383,9 +395,10 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
         onText: (text) => {
           assistantText += text
           if (!live()) return
+          const stick = atBottom()
           if (!assistantEl) assistantEl = addMessage('', 'assistant')
           assistantEl.textContent += text
-          messagesEl.scrollTop = messagesEl.scrollHeight
+          follow(stick)
         },
         onReasoning: (text) => { if (live()) addReasoning(text) },
         onStatus: (next) => { if (live()) setStatus(next) },
@@ -417,8 +430,14 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
     event.preventDefault()
     const message = input.value.trim()
     if (!message || running) return
-    input.value = ''
     runTurnLocal(message)
+  })
+
+  // A textarea does not submit on Enter; Shift+Enter keeps a newline.
+  input.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return
+    event.preventDefault()
+    form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }))
   })
 
   if (storage && pid()) switchTo(pid())
