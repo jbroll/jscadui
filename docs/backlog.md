@@ -8,7 +8,7 @@ commit that completes it.
 Stable IDs for the findings referenced by
 `docs/superpowers/plans/2026-10-11-review-remediation-plan.md`. The prose
 bullet each ID points at is the requirement text. Reserved for new findings:
-`SEC3+`, `PRJ4+`, `UI7+`, `API11+`, `REF18+`.
+`SEC3+`, `PRJ4+`, `UI7+`, `API11+`, `REF19+`.
 
 | ID | Section | Sev | Primary files |
 |---|---|---|---|
@@ -25,8 +25,8 @@ bullet each ID points at is the requirement text. Reserved for new findings:
 | REF7 | Refactoring | Med | out of scope (`main.js`, `paramsUI.js`) |
 | REF9 | Refactoring | Med | out of scope (`src_frame`, `frameSetup.js`) |
 | REF10 | Refactoring | Med | out of scope (model runners) |
-| REF16 | Refactoring | Low | `apps/*/src_build`, `apps/vue3-jscad/src/jscad/` |
 | REF17 | Refactoring | Low | `packages/params-ui/src/ParamsTree.js` |
+| REF18 | Refactoring | Low | demo-app copies: `observeResize.js`, `testThree.js`, `esbuildUtil.js`, `apps/vue3-jscad/src/jscad/` |
 
 ## Deploy
 
@@ -554,10 +554,11 @@ from the 2026-10-01 review.
   `setGlobalFn` between in-process runs (`:665`, `:780`).
 - **Leftovers.** 59 review-tracker labels ("C6 fix", "M11 fix") across 29
   files; remove them as each file is touched.
-- **Demo apps.** `observeResize.js` has 4 identical copies and `testThree.js`
-  3, `esbuildUtil.js` has 4 drifted ones, `apps/vue3-jscad/src/jscad/` holds
-  12 older copies of jscad-web modules, and `apps/linearcs/build_dev/` (784
-  KB of build output) is tracked.
+- **Shared demo-app homes.** `observeResize.js` has 4 identical copies and
+  `testThree.js` 3, `esbuildUtil.js` has 4 drifted ones, and
+  `apps/vue3-jscad/src/jscad/` holds 12 older copies of jscad-web modules.
+  Every copy has a live consumer, so dedupe them into one shared home per
+  module rather than deleting them.
 - **`params-ui` size.** `createParamsTree`
   (`packages/params-ui/src/ParamsTree.js:30-618`) is one closure of about
   590 lines. `createClassInput` (`:338-545`) and `inputs.js` (996 lines) are
