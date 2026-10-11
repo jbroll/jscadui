@@ -26,12 +26,20 @@ const isTaperOption = (fn, option) => {
   return ws.some((w) => TAPER_WORDS.has(w)) || (ws.some((w) => RADIUS_WORDS.has(w)) && ws.some((w) => END_WORDS.has(w)))
 }
 
+// Siblings the name alone does not pair (square→rectangle, circle→ellipse,
+// sphere→ellipsoid; cube→cuboid and cylinder→cylinderElliptic pair by name).
+const ALIASES = new Map([
+  ['square', 'rectangle'],
+  ['circle', 'ellipse'],
+  ['sphere', 'ellipsoid'],
+])
+
 // Siblings share a name (cylinder, cylinderElliptic) or the stem of their last
 // word (cube, cuboid, roundedCuboid).
 const related = (a, b) => {
   const x = a.toLowerCase()
   const y = b.toLowerCase()
-  return x.includes(y) || y.includes(x) || words(a).at(-1).slice(0, 3) === words(b).at(-1).slice(0, 3)
+  return ALIASES.get(x) === y || ALIASES.get(y) === x || x.includes(y) || y.includes(x) || words(a).at(-1).slice(0, 3) === words(b).at(-1).slice(0, 3)
 }
 
 const siblings = (fn, api) => {

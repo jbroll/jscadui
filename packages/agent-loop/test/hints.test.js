@@ -64,9 +64,27 @@ describe('explainWarning: option types', () => {
     expect(explainWarning({ fn: 'primitives.cylinder', option: 'radius', expected: 'number', got: 'array' }, 'fluent').hint).toBe(TAPER.fluent)
   })
 
-  it('says only the expected type when no sibling fits', () => {
+  it('pairs square and circle with rectangle and ellipse, and sphere with ellipsoid, via the alias list', () => {
+    expect(explainWarning({ fn: 'primitives.square', option: 'size', expected: 'number', got: 'array' }, 'modeling')).toEqual({
+      fn: 'primitives.square', option: 'size', hint: 'primitives.square takes size as a number; for an array size use primitives.rectangle',
+    })
+    expect(explainWarning({ fn: 'jf.square', option: 'size', expected: 'number', got: 'array' }, 'fluent').hint).toBe(
+      'jf.square takes size as a number; for an array size use jf.rectangle',
+    )
+    expect(explainWarning({ fn: 'jf.circle', option: 'radius', expected: 'number', got: 'array' }, 'fluent').hint).toBe(
+      'jf.circle takes radius as a number; for an array radius use jf.ellipse',
+    )
+    expect(explainWarning({ fn: 'primitives.circle', option: 'radius', expected: 'number', got: 'array' }, 'modeling').hint).toBe(
+      'primitives.circle takes radius as a number; for an array radius use primitives.ellipse',
+    )
     expect(explainWarning({ fn: 'primitives.sphere', option: 'radius', expected: 'number', got: 'array' }, 'modeling').hint).toBe(
-      'primitives.sphere takes radius as a number',
+      'primitives.sphere takes radius as a number; for an array radius use primitives.ellipsoid',
+    )
+  })
+
+  it('says only the expected type when no sibling fits', () => {
+    expect(explainWarning({ fn: 'primitives.sphere', option: 'segments', expected: 'number', got: 'array' }, 'modeling').hint).toBe(
+      'primitives.sphere takes segments as a number',
     )
   })
 

@@ -214,7 +214,8 @@ An unknown key's `suggestions` are known options within edit distance 3, plus
 either name containing the other (`radius` → `roundRadius`, 5 edits apart,
 matches by containment instead). A sibling is a function of the chosen API
 whose name contains the other's or shares the first three letters of its last
-word (`cube`, `cuboid`, `roundedCuboid`); it matches when it takes the option,
+word (`cube`, `cuboid`, `roundedCuboid`), or a listed alias (`square` →
+`rectangle`, `circle` → `ellipse`, `sphere` → `ellipsoid`); it matches when it takes the option,
 or the same words in another order (`radiusStart`, `startRadius`), which
 clears the suggestions. A taper option on `cylinder` (`radiusStart`, `r1`,
 `radiusTop`, ...) and an array `cylinder` radius get the taper form instead:

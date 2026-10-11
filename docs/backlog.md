@@ -23,7 +23,6 @@ bullet each ID points at is the requirement text. Reserved for new findings:
 | UI6 | UI (jscad-web) | Med | `static/main.css`, `src/error.js` |
 | API1 | Chat API help | Med | `packages/agent-loop/eval/backend.js` |
 | API2 | Chat API help | Med | `apps/jscad-web/src/aiAccount.js` |
-| API3 | Chat API help | Low | `packages/agent-loop/src/hints.js` |
 | API4 | Chat API help | Low | `.deps-cache/jscad-fluent` (external) |
 | API5 | Chat API help | Med | `packages/agent-loop/src/tools.js`, `apps/jscad-web/src/aiDeps.js` |
 | API6 | Chat API help | Med | `apps/jscad-web/src/apiIndex.js`, `packages/agent-loop/src/docs.js` |
@@ -406,10 +405,6 @@ model with `display-check.js --engine jscad`.
   reads the selection's `api`; the gear dialog needs the control, and
   `persistSelection` there must carry `api`, since it rewrites the selection
   from its own fields and would drop it.
-- Sibling hints pair functions by name only (`cube`/`cuboid`,
-  `cylinder`/`cylinderElliptic`), so `square({ size: [x, y] })` does not
-  point at `rectangle`, nor `circle` at `ellipse`. A small alias list in
-  `src/hints.js` would cover them.
 - `jf.polygon` in jscad-fluent should list a single flat outline
   counter-clockwise itself. The chat's option checks reverse clockwise points
   before the call (`src/optionChecks.js`), but a fluent user outside the chat
