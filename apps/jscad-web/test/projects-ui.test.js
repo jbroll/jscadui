@@ -150,7 +150,55 @@ describe('mode toggle', () => {
     const panel = initProjects({ container: document.getElementById('panel'), manager, onSwitch: async () => {}, canUseRowboat: true })
     await panel.select('disk')
     const toggle = document.querySelector('.mode-toggle')
-    expect(toggle.textContent).toBe('disk')
+    expect(toggle.textContent).toBe('Folder')
     expect(toggle.disabled).toBe(true)
+  })
+})
+
+describe('delete', () => {
+  it('asks for confirmation then calls onDelete', async () => {
+    document.body.innerHTML = '<div id="panel"></div>'
+    const local = createLocalStorage()
+    const manager = createProjectManager({ local, getRowboat: () => null })
+    const { id } = await manager.createProject('Gear', { files: { 'main.js': 'v1' } })
+    const onDelete = vi.fn()
+    initProjects({ container: document.getElementById('panel'), manager, onSwitch: async () => {}, onDelete, confirm: async () => true })
+    await vi.waitFor(() => expect(document.querySelector('.project-delete')).not.toBeNull())
+    document.querySelector('.project-delete').click()
+    await vi.waitFor(() => expect(onDelete).toHaveBeenCalledWith(id))
+  })
+
+  it('does not delete when the confirm is declined', async () => {
+    document.body.innerHTML = '<div id="panel"></div>'
+    const local = createLocalStorage()
+    const manager = createProjectManager({ local, getRowboat: () => null })
+    await manager.createProject('Gear', { files: { 'main.js': 'v1' } })
+    const onDelete = vi.fn()
+    initProjects({ container: document.getElementById('panel'), manager, onSwitch: async () => {}, onDelete, confirm: async () => false })
+    await vi.waitFor(() => expect(document.querySelector('.project-delete')).not.toBeNull())
+    document.querySelector('.project-delete').click()
+    await new Promise((r) => setTimeout(r, 0))
+    expect(onDelete).not.toHaveBeenCalled()
+  })
+
+  it('disables delete on the disk row', async () => {
+    document.body.innerHTML = '<div id="panel"></div>'
+    const disk = { listProjects: async () => [{ id: 'disk', name: 'main.js', entry: 'main.js', mode: 'disk' }], listVersions: async () => [] }
+    const manager = createProjectManager({ local: createLocalStorage(), disk, getRowboat: () => null })
+    initProjects({ container: document.getElementById('panel'), manager, onSwitch: async () => {}, onDelete: vi.fn(), confirm: async () => true })
+    await vi.waitFor(() => expect(document.querySelector('.project-delete')).not.toBeNull())
+    expect(document.querySelector('.project-delete').disabled).toBe(true)
+  })
+})
+
+describe('mode labels', () => {
+  it('names the modes for what they mean', async () => {
+    document.body.innerHTML = '<div id="panel"></div>'
+    const local = createLocalStorage()
+    const manager = createProjectManager({ local, getRowboat: () => null })
+    await manager.createProject('Gear', { files: { 'main.js': 'v1' } })
+    initProjects({ container: document.getElementById('panel'), manager, onSwitch: async () => {} })
+    await vi.waitFor(() => expect(document.querySelector('.project-open')).not.toBeNull())
+    expect(document.querySelector('.project-open').textContent).toBe('Gear (This device)')
   })
 })

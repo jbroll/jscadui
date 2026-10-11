@@ -424,6 +424,8 @@ const diskProject = diskStore && createDiskProject({
 // local-only and never load the rowboat client. Dynamic imports keep the
 // TS 4.9 gate green (see above) and the rowboat bundle out of anonymous loads.
 let rowboatStorePromise = null
+// eslint-disable-next-line prefer-const -- assigned once the sync loop starts
+let syncHandle = null
 
 const fetchSyncToken = async () => {
   try {
@@ -1040,6 +1042,20 @@ const projectPanel = initProjects({
   onFlip: () => projectPanel.render(),
   readBuffer: () => ({ code: editor.getSource(), path: 'main.js' }),
   canUseRowboat: (await getRowboatStore()) !== null,
+  confirm,
+  onDelete: async (id) => {
+    await projectManager.deleteProject(id)
+    if (id === currentProjectId) {
+      const next = pickBootProject(await projectManager.listAll())
+      if (next) await switchProject(next)
+      else {
+        const created = await projectManager.createProject('Untitled', { entry: 'main.js', files: { 'main.js': defaultCode } })
+        await switchProject(created.id)
+      }
+    }
+    await projectPanel.render()
+  },
+  onRetrySync: () => syncHandle?.syncNow(),
 })
 const projectDrawer = byId('project-drawer')
 byId('project-toggle')?.addEventListener('click', () => projectDrawer?.classList.toggle('closed'))

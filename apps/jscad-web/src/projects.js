@@ -5,10 +5,13 @@ const el = (tag, className, text) => {
   return node
 }
 
+const MODE_LABEL = { local: 'This device', rowboat: 'Synced', disk: 'Folder' }
+const modeLabel = (mode) => MODE_LABEL[mode] ?? mode
+
 /**
- * @param {{container:HTMLElement,manager:{listAll:Function,createProject:Function,renameProject:Function,listVersions:Function,restoreVersion:Function},onSwitch:Function,onDropOnProject:Function,onRestore?:Function,onError?:Function,readBuffer?:Function}} options
+ * @param {{container:HTMLElement,manager:{listAll:Function,createProject:Function,renameProject:Function,listVersions:Function,restoreVersion:Function},onSwitch:Function,onDropOnProject:Function,onRestore?:Function,onError?:Function,readBuffer?:Function,confirm?:Function,onDelete?:Function,onRetrySync?:Function}} options
  */
-export const initProjects = ({ container, manager, onSwitch, onDropOnProject, onRestore, onFlip, onError = () => {}, canUseRowboat = false, readBuffer = () => ({ code: '', path: 'main.js' }) }) => {
+export const initProjects = ({ container, manager, onSwitch, onDropOnProject, onRestore, onFlip, onError = () => {}, canUseRowboat = false, readBuffer = () => ({ code: '', path: 'main.js' }), confirm = async () => true, onDelete, onRetrySync }) => {
   const header = el('div', 'project-header', 'Projects')
   const newBtn = el('button', 'project-new', 'New')
   newBtn.type = 'button'
@@ -19,9 +22,24 @@ export const initProjects = ({ container, manager, onSwitch, onDropOnProject, on
   header.append(modeBtn)
   const list = el('div', 'project-rows')
   const versionsEl = el('div', 'project-versions')
-  container.append(header, list, versionsEl)
+  const syncEl = el('div', 'project-sync-status')
+  syncEl.style.display = 'none'
+  container.append(header, list, syncEl, versionsEl)
   let selectedId = null
   let versionGen = 0
+
+  const setSyncStatus = (text) => {
+    syncEl.textContent = ''
+    if (!text) { syncEl.style.display = 'none'; return }
+    syncEl.style.display = ''
+    syncEl.append(document.createTextNode(`${text} `))
+    if (onRetrySync) {
+      const retry = el('button', 'sync-retry', 'Retry')
+      retry.type = 'button'
+      retry.addEventListener('click', () => { onRetrySync() })
+      syncEl.append(retry)
+    }
+  }
 
   const renderVersions = async () => {
     const gen = ++versionGen
@@ -64,12 +82,12 @@ export const initProjects = ({ container, manager, onSwitch, onDropOnProject, on
 
   const refreshMode = async () => {
     if (!selectedId) {
-      modeBtn.textContent = 'local'
+      modeBtn.textContent = modeLabel('local')
       modeBtn.disabled = true
       return
     }
     const mode = manager.peekMode ? manager.peekMode(selectedId) : 'local'
-    modeBtn.textContent = mode
+    modeBtn.textContent = modeLabel(mode)
     modeBtn.disabled = !canUseRowboat || mode === 'disk'
     modeBtn.title = mode === 'disk' ? 'The model directory stays on disk' : canUseRowboat ? '' : 'Sign in to use rowboat mode'
   }
@@ -79,7 +97,7 @@ export const initProjects = ({ container, manager, onSwitch, onDropOnProject, on
     modeBtn.disabled = true
     try {
       const mode = await manager.flipMode(selectedId)
-      modeBtn.textContent = mode
+      modeBtn.textContent = modeLabel(mode)
       onFlip?.(selectedId, mode)
       render()
     } catch (err) {
@@ -95,7 +113,7 @@ export const initProjects = ({ container, manager, onSwitch, onDropOnProject, on
     for (const p of projects) {
       const row = el('div', 'project-row')
       row.dataset.projectId = p.id
-      const label = el('button', 'project-open', `${p.name} (${p.mode})`)
+      const label = el('button', 'project-open', `${p.name} (${modeLabel(p.mode)})`)
       label.type = 'button'
       label.addEventListener('click', async () => { await select(p.id); onSwitch(p.id) })
       const rename = el('button', 'project-rename', 'Rename')
@@ -107,7 +125,17 @@ export const initProjects = ({ container, manager, onSwitch, onDropOnProject, on
         await manager.renameProject(p.id, name)
         render()
       })
-      row.append(label, rename)
+      const del = el('button', 'project-delete', 'Delete')
+      del.type = 'button'
+      del.disabled = p.mode === 'disk'
+      del.title = del.disabled ? 'The model directory stays on disk' : 'Delete this project'
+      del.addEventListener('click', async (ev) => {
+        ev.stopPropagation()
+        const ok = await confirm({ title: 'Delete project?', message: `“${p.name}” and its history will be removed.`, confirmLabel: 'Delete', cancelLabel: 'Cancel' })
+        if (!ok) return
+        try { await onDelete?.(p.id) } catch (err) { onError(err) }
+      })
+      row.append(label, rename, del)
       row.addEventListener('dragover', (ev) => ev.preventDefault())
       row.addEventListener('drop', (ev) => {
         ev.preventDefault()
@@ -134,5 +162,5 @@ export const initProjects = ({ container, manager, onSwitch, onDropOnProject, on
   })
 
   render()
-  return { render, select }
+  return { render, select, setSyncStatus }
 }

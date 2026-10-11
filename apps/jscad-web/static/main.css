@@ -973,6 +973,12 @@ p {
   text-align: left;
   font-size: 10pt;
 }
+.project-sync-status {
+  padding: 6px 10px;
+  font-size: 0.8rem;
+  color: #b00020;
+}
+.project-delete { margin-left: 4px; }
 .project-versions {
   overflow-y: auto;
   border-top: 1px solid #ccc;
