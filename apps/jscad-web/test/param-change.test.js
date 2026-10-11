@@ -6,7 +6,6 @@ import { ViewState } from '../src/viewState.js'
 const runnerDeps = (jscadMain, extra = {}) => ({
   workerApi: { jscadMain },
   onEntities: vi.fn(),
-  stopCurrentAnim: () => false,
   paramChange: () => () => false,
   beginStream: () => 1,
   endStream: vi.fn(),
@@ -31,6 +30,23 @@ describe('runParamChange work token', () => {
     vi.useFakeTimers()
   })
   afterEach(() => vi.useRealTimers())
+
+  it('runs a param change without an animation hook', async () => {
+    const { jscadMain, runs } = pendingMain()
+    const d = {
+      workerApi: { jscadMain },
+      paramChange: () => () => false,
+      beginStream: () => 1,
+      endStream: vi.fn(),
+      getMainOptions: (params, runId) => ({ params, runId, supersede: true }),
+      noteParams: vi.fn(),
+      onEntities: vi.fn(),
+    }
+    const settled = runParamChange(d, { size: 1 })
+    runs[0].resolve({ entities: [] })
+    await settled
+    expect(d.onEntities).toHaveBeenCalledOnce()
+  })
 
   it('holds a second change 100 ms into a run until the first settles', async () => {
     const { jscadMain, runs } = pendingMain()
@@ -97,7 +113,7 @@ describe('runParamChange work token', () => {
   })
 })
 
-describe('paramChangeCallback and runModelUpdate together', () => {
+describe('runParamChange and runModelUpdate together', () => {
   beforeEach(() => {
     initParamsController()
     vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -109,7 +125,6 @@ describe('paramChangeCallback and runModelUpdate together', () => {
     workerApi: { jscadMain },
     handleEntities: vi.fn(),
     setError: vi.fn(),
-    stopCurrentAnim: () => false,
     ...extra,
   })
 

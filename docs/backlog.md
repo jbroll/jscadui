@@ -22,7 +22,6 @@ bullet each ID points at is the requirement text. Reserved for new findings:
 | REF3 | Refactoring | Med | out of scope (`packages/worker`) |
 | REF4 | Refactoring | Low | out of scope (`packages/require`) |
 | REF5 | Refactoring | Low | out of scope (`params-core`) |
-| REF6 | Refactoring | Med | `apps/jscad-web/main.js`, `src/paramsUI.js` |
 | REF7 | Refactoring | Med | out of scope (`main.js`, `paramsUI.js`) |
 | REF9 | Refactoring | Med | out of scope (`src_frame`, `frameSetup.js`) |
 | REF10 | Refactoring | Med | out of scope (model runners) |
@@ -534,15 +533,6 @@ from the 2026-10-01 review.
 - **params-core proxy system (low priority).** `proxy/proxyHandlers.ts`,
   `proxy/discoveryTracker.ts`, `proxy/proxyFactory.ts`,
   `legacy/legacyConverter.ts`, `tree/treeBuilder.ts`.
-- **Proxy-only params in jscad-web.** `useParamsProxy` is hard-wired `true`
-  (`apps/jscad-web/main.js:153`), so the flat-form path (`:685-691`), the
-  false arms at `:562` and `:769`, `genParams` and `AnimRunner` are dead
-  there, and animation cannot start: `toParamDefinitions`
-  (`packages/params-core/src/createParamsProxy.js:536-546`) emits no `fps`
-  or `autostart`. `main.js:522` calls `setParamValues(times, true)` against a
-  `(name, value)` setter, and `:567` passes the `OrbitControl`'s nonexistent
-  `params`. The worker's non-proxy branches stay live for the demo apps.
-  Delete the jscad-web path or port animation to the params tree.
 - **Module state in `main.js` and `paramsUI.js`.** `apps/jscad-web/main.js`
   is 1,020 lines with 14 module-level `let`s, mixing rowboat setup, script
   loading, editor save, chat setup, the project panel and drop handling.

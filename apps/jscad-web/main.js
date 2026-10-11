@@ -23,7 +23,6 @@ import { Gizmo } from '@jscadui/html-gizmo'
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- OrbitState used in JSDoc types
 import { OrbitControl, OrbitState } from '@jscadui/orbit'
 import { boundingBox } from '@jscadui/format-common'
-import { genParams, getParams } from '@jscadui/params'
 
 // Local modules
 import defaultCode from './examples/jscad/01-two-cars.example.js'
@@ -36,7 +35,6 @@ import * as menu from './src/menu.js'
 import * as remote from './src/remote.js'
 import { setError } from './src/error.js'
 import { ViewState } from './src/viewState.js'
-import { AnimRunner } from './src/animRunner.js'
 import * as welcome from './src/welcome.js'
 import * as about from './src/about.js'
 import { showTrustedSourcesDialog, trustedSourcesStyles } from './src/trustedSourcesUI.js'
@@ -77,7 +75,6 @@ import { dispatchTool, NO_ENTRY } from '@jscadui/agent-loop'
 import { initAccount, getChatApi, getProviderConfig, getSession } from './src/aiAccount.js'
 
 /**
- * @typedef {import('@jscadui/worker').UserParameters} UserParameters
  * @typedef {import('@jscadui/worker').JscadWorker} JscadWorker
  */
 
@@ -95,12 +92,6 @@ let currentBase = appBase
 const viewState = new ViewState()
 const gizmo = new Gizmo()
 byId('layout').append(gizmo)
-
-/** @type {(v:unknown,skipUndefined?:boolean)=>void} */
-let setParamValues
-
-/** @type {(status:"running" | "")=>void} */
-let setAnimStatus
 
 // Load default model unless another model was already loaded
 let loadDefault = true
@@ -163,10 +154,9 @@ let stopCtl = null
 
 // ============== Params Controller ==============
 const paramsCtrl = paramsUI.initParamsController()
+// The frame's worker defaults to the flat params form; the app always uses the
+// proxy, so it must say so on every init.
 const useParamsProxy = true
-
-/** @type {UserParameters} */
-let lastRunParams
 
 // ============== Compute Frame Setup ==============
 
@@ -505,18 +495,6 @@ fileSystem.setupDragDrop(dropModal, async (dataTransfer, target) => {
   }
 })
 
-// ============== Animation ==============
-/** @type {AnimRunner | null} */
-let currentAnim
-
-function stopCurrentAnim() {
-  if (!currentAnim) return false
-  currentAnim.pause()
-  currentAnim = null
-  setAnimStatus('')
-  return true
-}
-
 const scriptRuns = createScriptRuns()
 
 // A superseded update must not draw: a whole result would also discard the newer run.
@@ -527,7 +505,6 @@ const modelUpdateDeps = () => {
     workerApi,
     handleEntities: (result, options) => { if (!isStale()) handlers.entities(result, options) },
     setError,
-    stopCurrentAnim,
     beginRun: () => {
       isStale = scriptRuns.paramChange()
       runId = beginStream(isStale)
@@ -555,61 +532,6 @@ installStudioBridge({
   getParams: () => paramsCtrl.getState().params,
   runModel: () => paramsUI.runModelUpdate(modelUpdateDeps()),
 })
-
-/**
- * @param {Object} def
- * @param {string | number} value
- */
-const startAnimCallback = async (def, value) => {
-  if (stopCurrentAnim()) return
-  setAnimStatus('running')
-
-  const handleAnimEntities = (result, paramValues, times) => {
-    lastRunParams = paramValues
-    setParamValues(times || {}, true)
-    handlers.entities(result, { skipLog: true })
-  }
-
-  const handleEnd = () => stopCurrentAnim()
-
-  currentAnim = new AnimRunner(workerApi, { handleEntities: handleAnimEntities, handleEnd })
-  currentAnim.start(def, value, getParams(byId('paramsDiv')))
-}
-
-const pauseAnimCallback = async (_def, _value) => {
-  stopCurrentAnim()
-}
-
-// ============== Param Change Handling ==============
-// Coalescing (I7 note: keeps only the latest pending params) and the work
-// token live in paramsUI.runParamChange, shared with runModelUpdate so the
-// two paths drain each other's queue instead of stranding it.
-/**
- * @param {UserParameters} params
- * @param {string} [source]
- */
-const paramChangeCallback = (params, source) => paramsUI.runParamChange({
-  noteParams: (next) => {
-    // Track changed params in proxy mode
-    if (useParamsProxy && lastRunParams) {
-      for (const key in next) {
-        if (next[key] !== lastRunParams[key]) {
-          paramsCtrl.userInteracted.add(key)
-        }
-      }
-    }
-  },
-  stopCurrentAnim,
-  paramChange: () => scriptRuns.paramChange(),
-  beginStream: (isStale) => beginStream(isStale),
-  endStream: (runId) => streamRuns.end(runId),
-  workerApi,
-  getMainOptions: (next, runId) => useParamsProxy
-    ? { ...paramsCtrl.getWorkerParams(), runId, held: meshRefs.held(), supersede: true }
-    : { params: next, runId, held: meshRefs.held(), supersede: true },
-  noteRunParams: (next) => { lastRunParams = next },
-  onEntities: (result, options) => handlers.entities(result, options),
-}, params, source)
 
 // The zoom-to-fit toggle fits the camera to the model on screen; the model is
 // not re-run for a camera change.
@@ -694,7 +616,7 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
     const result = await sendScript(workerApi, files, { script, url, base, root, source: loadSource({ url, projectId: currentProjectId }), useGpuNormals, runId, held: meshRefs.held(), supersede: true }, getChatApi())
     if (isStale()) return STALE
 
-    if (result.proxyState && useParamsProxy) {
+    if (result.proxyState) {
       paramsCtrl.initFromResult(result)
 
       // Restore the user's edits where the new code still declares the param,
@@ -744,13 +666,6 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
         paramsTreeView?.setShowHidden(showHiddenCheckbox.checked)
       }
 
-      setParamValues = (name, value) => {
-        paramsCtrl.params[name] = value
-        paramsTreeView?.update({ values: paramsCtrl.params })
-      }
-      setAnimStatus = () => {}
-      lastRunParams = state.params
-
       // The run above drew the code's defaults; a carried value that differs
       // needs one more run to draw.
       const carriedChanged = Object.entries(carried.values).some(([path, value]) => value !== defaults[path])
@@ -761,23 +676,9 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
         const refused = handlers.entities(restoreResult)
         return settled(refused ? { error: refused } : { result })
       }
-    } else {
-      // Traditional flat params form
-      const tmp = genParams({ target: byId('paramsDiv'), params: result.def || [], callback: paramChangeCallback, pauseAnim: pauseAnimCallback, startAnim: startAnimCallback })
-      setParamValues = tmp.setValue
-      setAnimStatus = tmp.animStatus
-      lastRunParams = result.params
     }
 
     const refused = handlers.entities(result)
-    if (result.def) {
-      result.def.find(def => {
-        if (def.type === "slider" && def.fps && def.autostart) {
-          startAnimCallback(def, lastRunParams[def.name] || 0)
-          return true
-        }
-      })
-    }
     return settled(refused ? { error: refused } : { result })
   } catch (err) {
     // A stop's AbortError drops the partial grid it interrupted instead of
@@ -843,9 +744,7 @@ viewState.onRenderEngineChange = async (newEngine) => {
 
   // Re-run main with current params to regenerate geometry
   const useGpuNormals = viewState.viewer?.supportsGpuNormals ?? false
-  const mainOptions = useParamsProxy
-    ? { ...paramsCtrl.getWorkerParams(), useGpuNormals, runId, held: meshRefs.held(), supersede: true }
-    : { params: lastRunParams, useGpuNormals, runId, held: meshRefs.held(), supersede: true }
+  const mainOptions = { ...paramsCtrl.getWorkerParams(), useGpuNormals, runId, held: meshRefs.held(), supersede: true }
   let result
   try {
     result = await workerApi.jscadMain(mainOptions)
@@ -858,9 +757,7 @@ viewState.onRenderEngineChange = async (newEngine) => {
   handlers.entities(result)
 }
 
-if (useParamsProxy) {
-  paramsUI.injectParamsStyles()
-}
+paramsUI.injectParamsStyles()
 
 // ============== File Watching ==============
 // I8 fix: Store fileWatcher reference for explicit cleanup (fallback beforeunload also exists)

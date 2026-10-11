@@ -40,8 +40,8 @@ control around it, stays on the app origin, which is why the canvas is never
 tainted and a view capture is a local operation.
 
 `src/frameSetup.js` builds the frame and hands back a `workerApi` with the
-shape the local worker's proxy had, so the params UI, the animation runner and
-the exporter drive it unchanged.
+shape the local worker's proxy had, so the params UI and the exporter drive it
+unchanged.
 
 Creating the frame and the `jscadInit` that follows are top-level awaits, and
 everything below them in `main.js` waits about 1.5s on a live host. The chrome
@@ -497,7 +497,7 @@ sub-grid is walked by every worker regardless of claims, so every worker
 requires every grid file in the tree but transpiles only the leaf files it
 wins. A sub-grid whose grid file fails to load is claimed under its own key
 before it is marked, so only one worker draws its skull and logs the failure.
-A `stream: false` run, such as export's re-run or an animation frame, has no
+A `stream: false` run, such as export's re-run, has no
 claim hook and runs every leaf itself, as does the chat's scratch `run`,
 which calls `main` without the stream hook.
 
@@ -590,8 +590,6 @@ whole grid's solids in memory again, so exporting a large streamed grid can stil
 The worker answers concurrent requests freely, so concurrent re-runs serialize
 on a shared promise chain in `withSolids.js`: each runs whole before the next
 starts, since they share `__jscadProgress` and the solids store.
-Animation frames also run with `stream: false`, since each frame draws the
-result it returns.
 
 The frame relays `jscadCells` only while a `jscadScript` or `jscadMain` request
 is pending and `jscadProgress` only while a `jscadExportData`, `jscadMeasure`
@@ -636,14 +634,14 @@ counts accepted batches for the render sweep's per-cell hang guard.
 Nothing produces the same geometry objects across runs: plain jscad, Manifold
 and the OpenSCAD runtime rebuild every part, so reuse is by content, not by
 object. `src/meshRefs.js` keeps the meshes the last completed run drew, keyed by the
-`hash` the worker puts on each mesh, plus the previous map: a `remember` from
-an animation frame no longer strands an in-flight run's
+`hash` the worker puts on each mesh, plus the previous map: a newer run's
+`remember` no longer strands an in-flight run's
 refs, which resolve against the map before it. Every request that carries a
 `runId` also
 sends `held`, the list of those hashes, and the worker sends a mesh whose hash
 is listed as a `ref` with no buffers (see `docs/WORKER_PROTOCOL.md`). The worker
-hashes meshes only for a request that carries `held`, so a run without it (an
-animation frame) returns meshes with no `hash`. The app
+hashes meshes only for a request that carries `held`, so a run without it
+returns meshes with no `hash`. The app
 resolves each ref before the cap checks, in both the whole-result and the
 streamed path, so a resolved mesh's bytes count toward the caps as if the
 worker had sent them. A ref whose `color`, `transforms`, `isTransparent` and

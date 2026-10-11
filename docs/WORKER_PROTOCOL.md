@@ -193,7 +193,7 @@ its `vertices`, `indices`, `normals` and `colors` contents, 32-bit words at a
 time, each field prefixed by its name and byte length (`meshHash` in
 `@jscadui/format-common`). The hash is never stored, so the function can change
 between releases. Hashing 400K indexed triangles takes about 20 ms in Node, so a
-request without `held` (an animation frame, an export re-run, an agent
+request without `held` (an export re-run, an agent
 evaluation) gets meshes with no `hash`. The frame's replay on a promoted worker
 reuses the app's recorded options, `held` included, so it is hashed although
 the frame drops its answer. When `held` contains a mesh's hash, the

@@ -84,7 +84,6 @@ export const carriedFromPrevious = ({ sameModel, previous, userInteracted, expan
  * @property {JscadWorker} workerApi - Worker API
  * @property {(result: object, options?: object) => void} handleEntities - Entities handler
  * @property {(error: unknown) => void} setError - Error handler
- * @property {() => boolean} stopCurrentAnim - Stop current animation
  * @property {() => unknown} [beginRun] - starts a streaming run; returns the runId jscadMain is tagged with
  * @property {() => void} [endRun] - the run failed; keep what it drew
  * @property {() => void} [discardRun] - drop the run's partial cells instead (a stop); falls back to endRun
@@ -214,7 +213,7 @@ export function clearModelUpdateTimer() {
  * @param {ParamsUIDeps} deps
  */
 export async function runModelUpdate(deps) {
-  const { workerApi, handleEntities, setError, stopCurrentAnim, beginRun, endRun, discardRun, held } = deps
+  const { workerApi, handleEntities, setError, beginRun, endRun, discardRun, held } = deps
 
   // H5 fix: Store deps for pending update to use the most recent deps
   if (mustWait()) {
@@ -225,7 +224,6 @@ export async function runModelUpdate(deps) {
 
   modelUpdatePending = false
   pendingDeps = null
-  stopCurrentAnim()
   const work = beginWork()
 
   try {
@@ -289,7 +287,7 @@ export async function runModelUpdate(deps) {
  * Decision: no queue of intermediate values. Dragging a slider only needs
  * where the user stopped; noteParams still records every change so intent
  * tracking is complete even though only the latest runs.
- * @param {object} deps - workerApi, onEntities, stopCurrentAnim, paramChange,
+ * @param {object} deps - workerApi, onEntities, paramChange,
  *   beginStream, endStream, held, getMainOptions, noteParams, noteRunParams
  * @param {object} params - the changed params
  * @param {string} [source] - 'group' changes are ignored
@@ -297,7 +295,6 @@ export async function runModelUpdate(deps) {
 export async function runParamChange(deps, params, source) {
   if (source === 'group') return
   deps.noteParams?.(params)
-  deps.stopCurrentAnim()
   if (mustWait()) {
     // Intentionally keeps only the latest: dragging a slider processes where
     // the user stopped, not every intermediate value.

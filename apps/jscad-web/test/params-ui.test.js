@@ -7,7 +7,6 @@ const deps = (jscadMain, extra = {}) => ({
   workerApi: { jscadMain },
   handleEntities: vi.fn(),
   setError: vi.fn(),
-  stopCurrentAnim: () => false,
   ...extra,
 })
 
@@ -68,6 +67,12 @@ describe('runModelUpdate', () => {
 
   it('runs without the stream hooks', async () => {
     const d = deps(async () => ({ entities: [] }))
+    await runModelUpdate(d)
+    expect(d.handleEntities).toHaveBeenCalledOnce()
+  })
+
+  it('runs without an animation hook', async () => {
+    const d = { workerApi: { jscadMain: vi.fn(async () => ({ entities: [] })) }, handleEntities: vi.fn(), setError: vi.fn() }
     await runModelUpdate(d)
     expect(d.handleEntities).toHaveBeenCalledOnce()
   })
