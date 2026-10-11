@@ -100,6 +100,22 @@ module.exports = { main }`
     expect(res.error.message).toContain('file not found https://cdn.jsdelivr.net/npm/@jscad/primitives')
   })
 
+  it('serves only the frame package allowlist, not every installed package', () => {
+    const read = createEvalReadFile({})
+    expect(() => read(CDN_BASE + '@jscadui/transform-babel')).toThrow(`file not found ${CDN_BASE}@jscadui/transform-babel`)
+    expect(read(CDN_BASE + '@jscadui/model-tools')).toContain('"@jscadui/model-tools"')
+  })
+
+  it.each(['@jscadui/transform-babel', 'three'])(
+    'fails model code requiring the installed package %s, which the frame does not serve',
+    async (spec) => {
+      const res = await writeMain(`const m = require(${JSON.stringify(spec)})\nmodule.exports = { main: () => [] }`)
+      expect(res.ok).toBe(false)
+      expect(res.error.message).toContain(`failed to load module ${spec}`)
+      expect(res.error.message).toContain('file not found')
+    },
+  )
+
   it.each([
     ['a Hershey', ''],
     ['a TTF', ", font: 'Liberation Sans'"],

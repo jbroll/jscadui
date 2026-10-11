@@ -293,7 +293,7 @@ them. `createReadFile(files, fetchFile)` is the readFile `@jscadui/require`
 gets: a URL under `PROJECT_BASE` answers from `files`, or throws `file not
 found <url>`; a key of `files` answers as given; any other path goes to
 `fetchFile(path, options)`. The frame's fetch reads the CDN, the eval's
-serves installed packages.
+serves the frame's package allowlist from installed packages.
 
 ## Chat log reader
 

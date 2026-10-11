@@ -43,6 +43,23 @@ if (fonts.missing.length) throw new Error(`eval backend: font packages not insta
 // as the frame's CJS bundle gives, since the loader adds `default` to it.
 const ESM_MODULES = { '@jscadui/jscad-text': { ...jscadText } }
 
+// The packages the frame serves model code: its worker bundles
+// (apps/jscad-web/src_frame/frameHost.js workerBundles) plus the ones
+// packages/require/src/require.js gives project code a wrapped copy of
+// (USER_MODULES). The eval runs without either, so mirror the list here.
+const FRAME_PACKAGES = new Set([
+  '@jscad/modeling',
+  '@jscad/modeling-for-anchors',
+  '@jscad/modeling-for-manifold',
+  '@jbroll/jscad-anchors',
+  '@jscad/io',
+  '@jscadui/model-tools',
+  '@jbroll/jscad-fluent',
+  '@jscad/csg',
+  '@jscadui/params-core',
+  '@jscadui/jscad-text',
+])
+
 const installed = (spec) => {
   if (Object.hasOwn(ESM_MODULES, spec)) return true
   try {
@@ -53,8 +70,9 @@ const installed = (spec) => {
   }
 }
 
-// What the frame could fetch from the CDN: an installed package, never a Node built-in.
-const servable = (spec) => !isBuiltin(spec) && installed(spec)
+// What the frame could fetch from the CDN: one of its own packages and
+// installed, never a Node built-in or some other installed package.
+const servable = (spec) => !isBuiltin(spec) && FRAME_PACKAGES.has(spec) && installed(spec)
 
 // Node's module object for @jscad/modeling is the one fluent's and
 // model-tools' own requires get, so model code gets a wrapped copy instead.

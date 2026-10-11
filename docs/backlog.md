@@ -21,7 +21,6 @@ bullet each ID points at is the requirement text. Reserved for new findings:
 | UI4 | UI (jscad-web) | Med | `src/aiChat.js` |
 | UI5 | UI (jscad-web) | Med | `src/editor.js`, `main.js` |
 | UI6 | UI (jscad-web) | Med | `static/main.css`, `src/error.js` |
-| API1 | Chat API help | Med | `packages/agent-loop/eval/backend.js` |
 | API2 | Chat API help | Med | `apps/jscad-web/src/aiAccount.js` |
 | API4 | Chat API help | Low | `.deps-cache/jscad-fluent` (external) |
 | API5 | Chat API help | Med | `packages/agent-loop/src/tools.js`, `apps/jscad-web/src/aiDeps.js` |
@@ -370,12 +369,6 @@ model with `display-check.js --engine jscad`.
 
 ## Chat API help
 
-- Eval model code now runs in a crt container with no network, home, key or
-  parent environment (`eval/sandbox.js`, read-only binds of `packages/`,
-  `node_modules/` and `.deps-cache/`), but the CDN stub still serves any
-  installed package in those binds, not the frame's allowlist. Restrict the
-  stub to the frame's allowlist. Runs started from a Claude session are
-  still reaped under memory pressure.
 - Eval grades can be forged by model code during its own grade, since
   `measure` and `check` run in the executor beside it. Measuring serialized
   geometry in a second process would close it; left as is because the model

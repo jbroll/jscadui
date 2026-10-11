@@ -180,8 +180,11 @@ The eval runs model code through `@jscadui/require` with the compute frame's
 transform rule (`shouldTransform`, imported from `@jscadui/worker`), project
 base and CDN URL scheme. Its readFile is `createReadFile` with a fetch that
 maps `https://cdn.jsdelivr.net/npm/<pkg>` to the package in local
-`node_modules`, and a package that is not
-installed fails with the frame's `failed to load module <name>` /
+`node_modules`, but only for the packages the frame serves model code: its
+worker bundles (`src_frame/frameHost.js` `workerBundles`) and the wrapped ones
+(`packages/require/src/require.js` `USER_MODULES`), mirrored in `FRAME_PACKAGES`.
+Another installed package, or one that is not
+installed, fails with the frame's `failed to load module <name>` /
 `file not found <url>` text. It imports the prebuilt `esm/` bundles of
 `@jscadui/require` and `@jscadui/transform-babel`, since their sources use
 extensionless relative imports that Node's ESM loader refuses, so a change to
@@ -543,7 +546,8 @@ processes, worker threads or addons. A path that climbs out of a granted dir
 through a symlink and `..`, which the permission model lets by, finds nothing
 there. The environment inside is `PATH` and `HOME=/tmp`; crt itself gets only
 a fixed `PATH` and `CRT_HOME`. Code-level blocks sit in front of that: the CDN
-stub serves no built-ins, and a resolve hook in the executor refuses every
+stub serves only the frame's package allowlist (no built-ins, no other
+installed package), and a resolve hook in the executor refuses every
 dynamic `import()` from model code with `failed to load module <name>`.
 
 `ci/jscad-eval.crt` is a Void rootfs with the `nodejs` package (Node 24.18 as
