@@ -3,12 +3,11 @@
 Outstanding work, roughly in the order it should land. Delete an item in the
 commit that completes it.
 
-## Remediation finding IDs
+## Finding IDs
 
-Stable IDs for the findings referenced by
-`docs/superpowers/plans/2026-10-11-review-remediation-plan.md`. The prose
-bullet each ID points at is the requirement text. Reserved for new findings:
-`SEC3+`, `PRJ4+`, `UI7+`, `API11+`, `REF19+`.
+Stable IDs for the open review findings below; the prose bullet each ID points
+at is the requirement text. Reserved for new findings: `SEC3+`, `PRJ5+`,
+`UI7+`, `API15+`, `REF19+`.
 
 | ID | Section | Sev | Primary files |
 |---|---|---|---|
