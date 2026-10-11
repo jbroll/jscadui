@@ -40,6 +40,42 @@ test.describe('project drawer', () => {
     await expect(page.locator('#error-bar')).toContainText('bracket ran')
   })
 
+  test('a folder dropped on a row merges, with the drop modal over the page', async ({ page }) => {
+    await page.goto('/')
+    await dismissWelcome(page)
+    await waitForRender(page)
+    await page.locator('#project-toggle').click()
+    const row = page.locator('.project-row', { hasText: 'default' })
+    await row.locator('.project-open').click()
+
+    // The body dragover shows the full-screen #dropModal; it must not sit over
+    // the row, or a real drop there would be captured by the page instead of
+    // reaching the row handlers.
+    await page.evaluate(() => {
+      document.body.dispatchEvent(new Event('dragover', { bubbles: true, cancelable: true }))
+    })
+    await expect(page.locator('#dropModal')).toBeVisible()
+    const onRow = await row.evaluate((target) => {
+      const { x, y } = target.getBoundingClientRect()
+      const hit = document.elementFromPoint(x + 4, y + 4)
+      return target.contains(hit) || hit === target
+    })
+    expect(onRow).toBe(true)
+
+    // The drop at that point merges into the open project.
+    await row.evaluate((target) => {
+      const source = 'module.exports = { main: () => { throw new Error("row merge ran") } }\n'
+      const file = { kind: 'file', name: 'index.js', getFile: async () => new File([source], 'index.js') }
+      const dir = { kind: 'directory', name: 'widget', values: async function* () { yield file } }
+      const dataTransfer = { items: [{ kind: 'file', getAsFileSystemHandle: async () => dir }] }
+      const drop = new Event('drop', { bubbles: true, cancelable: true })
+      Object.defineProperty(drop, 'dataTransfer', { value: dataTransfer })
+      const { x, y } = target.getBoundingClientRect()
+      document.elementFromPoint(x + 4, y + 4).dispatchEvent(drop)
+    })
+    await expect(page.locator('#editor-files button', { hasText: '/widget/index.js' })).toBeAttached()
+  })
+
   test('deletes a project after confirmation', async ({ page }) => {
     await page.goto('/')
     await dismissWelcome(page)

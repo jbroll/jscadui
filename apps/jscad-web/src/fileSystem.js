@@ -152,12 +152,15 @@ const pickDroppedEntry = (names, context) => pickEntry(names, { ...context, anyJ
  * Handle file drop
  * @param {DataTransfer} dataTransfer
  * @param {FileSystemDeps} deps
+ * @param {Array<import('@jscadui/fs-provider').FSEntry>} [entries] entries already
+ *   read from `dataTransfer`. A real DataTransfer is cleared once the drop
+ *   event unwinds, so callers must extract once, up front, and pass them.
  */
-export async function handleFileDrop(dataTransfer, deps) {
+export async function handleFileDrop(dataTransfer, deps, entries) {
   const { setEditorFiles, setError, onFilesChange } = deps
 
   try {
-    const files = await extractEntries(dataTransfer)
+    const files = entries ?? await extractEntries(dataTransfer)
     if (!files.length) return
 
     await resetFileRefs(setEditorFiles)
@@ -290,6 +293,9 @@ export function setupDragDrop(dropModal, onDrop) {
 
   document.body.addEventListener('dragover', ev => {
     ev.preventDefault()
+    // A project row has its own drop handlers; the full-screen hint would
+    // cover it (and, without pointer-events: none, capture the drop).
+    if (ev.target?.closest?.('[data-project-id]')) { showDrop(false); return }
     showDrop(true)
   })
 

@@ -196,8 +196,9 @@ Folder and cannot be toggled), and a Delete control (a folder-backed project
 cannot be deleted). The app opens the most recently updated project on load,
 and a failed rowboat sync shows a status line with a Retry. Dropping files onto
 a project row merges them as a subfolder; dropping onto the page creates a
-project. Drawer tabs stack vertically so the editor, project, and AI panels
-stay reachable together.
+project. The full-screen drop hint is pointer-transparent, so a drop over a
+project row still reaches the row's merge handler. Drawer tabs stack vertically
+so the editor, project, and AI panels stay reachable together.
 
 Which file runs: the project's entry is `package.json` `main`, else
 `index.js`, `index.ts` or `main.js`, else the entry the project declares (a

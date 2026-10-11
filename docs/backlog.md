@@ -12,7 +12,6 @@ bullet each ID points at is the requirement text. Reserved for new findings:
 
 | ID | Section | Sev | Primary files |
 |---|---|---|---|
-| PRJ3 | Projects and storage | Med | `apps/jscad-web/src/fileSystem.js`, `main.js` |
 | PRJ4 | Projects and storage | High | `apps/jscad-web/src/storage/local.js` |
 | UI1 | UI (jscad-web) | Med | `src/viewState.js`, `main.js` |
 | UI2 | UI (jscad-web) | Med | `main.js`, `src/paramsUI.js`, `packages/params-ui` |
@@ -133,14 +132,6 @@ From the same review, with the same path convention.
   persistent. Anonymous work is lost on reload and on the "Sign in to Sync"
   full-page redirect. The app now warns before that redirect and on unload;
   back the backend with IndexedDB so the work survives.
-- **A folder dropped on a project row creates a new project.** The body
-  `dragover` (`src/fileSystem.js:291-294`) shows `#dropModal`, fixed
-  full-screen at z-index 5000 (`static/main.css:67-78`), which takes the
-  drop, so the row handlers never run. `e2e/project-ui.spec.js:24-31`
-  dispatches the drop on the row directly and misses this. `main.js:464-465`
-  also calls `extractEntries` a second time after awaits, when by the HTML
-  spec a real `DataTransfer` is empty, so `createFromDrop` may never run for
-  a real folder drop (not tried in a browser).
 
 ## Render sweep
 

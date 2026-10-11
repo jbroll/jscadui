@@ -1,5 +1,16 @@
-import { describe, expect, it } from 'vitest'
+// @vitest-environment jsdom
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as fileSystem from '../src/fileSystem.js'
+
+vi.mock('@jscadui/fs-provider', async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    extractEntries: vi.fn(async () => []),
+    fileDropped: vi.fn(async () => {}),
+    registerServiceWorker: vi.fn(async () => ({ roots: [], cache: { keys: async () => [], delete: async () => {} } })),
+  }
+})
 
 // No service worker registered: models still run, from files the app keeps in memory.
 describe('project files without a service worker', () => {
@@ -14,5 +25,39 @@ describe('project files without a service worker', () => {
     await fileSystem.addToCacheWrapper('main.js', 'x')
     await fileSystem.clearProjectCache()
     expect(await fileSystem.projectFiles()).toEqual({})
+  })
+})
+
+describe('drop routing', () => {
+  beforeEach(() => {
+    document.body.innerHTML = ''
+    vi.clearAllMocks()
+  })
+
+  const setup = () => {
+    document.body.innerHTML = '<div id="dropModal" style="display:none"></div><div class="project-row" data-project-id="p1">row</div>'
+    const modal = document.getElementById('dropModal')
+    fileSystem.setupDragDrop(modal, async () => {})
+    return { modal, row: document.querySelector('.project-row') }
+  }
+
+  it('does not cover a project row with the drop modal while dragging over it', () => {
+    const { modal, row } = setup()
+    row.dispatchEvent(new Event('dragover', { bubbles: true, cancelable: true }))
+    expect(modal.style.display).toBe('none')
+  })
+
+  it('shows the drop modal full-screen over the page', () => {
+    const { modal } = setup()
+    document.body.dispatchEvent(new Event('dragover', { bubbles: true, cancelable: true }))
+    expect(modal.style.display).not.toBe('none')
+  })
+
+  it('does not re-read a DataTransfer whose entries were already captured', async () => {
+    const { extractEntries, fileDropped } = await import('@jscadui/fs-provider')
+    const entries = [{ name: 'a.js', isDirectory: false }]
+    await fileSystem.handleFileDrop({}, { setEditorFiles: () => {}, onFilesChange: () => {}, setError: () => {} }, entries)
+    expect(extractEntries).not.toHaveBeenCalled()
+    expect(fileDropped).toHaveBeenCalledWith(expect.anything(), entries, expect.anything())
   })
 })

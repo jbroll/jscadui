@@ -489,15 +489,16 @@ const initSyncLoop = async () => {
 initSyncLoop()
 
 fileSystem.setupDragDrop(dropModal, async (dataTransfer, target) => {
+  // A real DataTransfer is cleared once the drop event's dispatch unwinds,
+  // so read it once, up front, and reuse the entries for every route.
+  const entries = await extractEntries(dataTransfer)
   const row = target?.closest?.('[data-project-id]')
   if (row) {
-    const entries = await extractEntries(dataTransfer)
     await projectManager.mergeDrop(row.dataset.projectId, entries, { readDir, readAsText }).catch(setError)
     if (row.dataset.projectId === currentProjectId) await switchProject(currentProjectId).catch(setError)
     return
   }
-  await fileSystem.handleFileDrop(dataTransfer, fsDeps)
-  const entries = await extractEntries(dataTransfer)
+  await fileSystem.handleFileDrop(dataTransfer, fsDeps, entries)
   if (entries.length === 1 && entries[0].isDirectory) {
     const created = await projectManager.createFromDrop(entries, { readDir, readAsText }).catch(setError)
     if (created) await switchProject(created.id).catch(setError)

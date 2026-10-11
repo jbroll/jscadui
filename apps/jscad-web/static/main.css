@@ -75,6 +75,9 @@ body.dark {
   height: 100%;
   background-color: rgba(0,0,0,0.5);
   z-index: 5000;
+  /* The modal is a hint, not a drop target: without this it would sit over a
+     project row and take the drop meant for the row's merge handler. */
+  pointer-events: none;
 }
 
 jscadui-gizmo {
