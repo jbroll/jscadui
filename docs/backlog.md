@@ -115,6 +115,10 @@ From the same review, with the same path convention.
   in to Sync", whose full-page redirect (`src/aiAccount.js:130-139`) also
   drops the hash, since `callbackURL` is the bare origin. Back it with
   IndexedDB. Until then, warn before the redirect and on unload.
+- **Boot with pre-existing projects opens none.** `currentProjectId` starts at
+  the literal `'default'` and only the fresh-create path resolves it to a real
+  id, so a placeholder run before the first switch still targets `'default'`.
+  Pick a boot-open project (most recent) or resolve the id on first use.
 - **Editor edits are dropped without warning.** The file list reads `File`
   snapshots taken when the project opened (`src/projectFiles.js:46-49`,
   `src/editor.js:207-211`), so switching to another file and back shows the
@@ -125,6 +129,15 @@ From the same review, with the same path convention.
   (`editor.js:156-159`) never updates `#editor-file`, so after a project
   switch the label names the previous file. Keep a per-path dirty buffer
   and confirm before replacing one.
+- **A turn in flight across a project switch persists under the new project.**
+  `switchTo` reloads the view, but a running turn's `prior`/`persistTranscript`
+  still follow the live `currentProjectId`. Capture the turn's project at
+  turn start and persist under it.
+- **Conversations ignore per-project storage modes, and there is no New chat
+  control.** Chat always uses `getActiveStore` (rowboat whenever signed in)
+  rather than the project's own mode; add a New-chat control per project.
+- **No project delete control.** The panel lists, opens, renames and restores
+  but cannot delete a project.
 - **A folder dropped on a project row creates a new project.** The body
   `dragover` (`src/fileSystem.js:291-294`) shows `#dropModal`, fixed
   full-screen at z-index 5000 (`static/main.css:67-78`), which takes the
