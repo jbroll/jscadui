@@ -46,8 +46,11 @@ test.describe('project drawer', () => {
     await waitForRender(page)
     await page.locator('#project-toggle').click()
     const rows = page.locator('.project-row')
+    // A second project, so deleting one leaves one behind and the app does not
+    // recreate a replacement (which it does when the last project is deleted).
+    await page.locator('.project-new').click()
+    await expect(rows).toHaveCount(2)
     const before = await rows.count()
-    expect(before).toBeGreaterThan(0)
     await rows.first().locator('.project-delete').click()
     await page.locator('.confirm-ok').click()
     await expect(rows).toHaveCount(before - 1)
