@@ -1,4 +1,4 @@
-export function createSyncLoop({ storage, getToken, intervalMs = 30000, onError = () => {} }) {
+export function createSyncLoop({ storage, getToken, intervalMs = 30000, onError = () => {}, onSync = () => {} }) {
   let timer = null
 
   const syncNow = async () => {
@@ -6,6 +6,7 @@ export function createSyncLoop({ storage, getToken, intervalMs = 30000, onError 
       const token = await getToken()
       if (!token) return
       await storage.sync()
+      onSync()
     } catch (err) {
       onError(err)
     }

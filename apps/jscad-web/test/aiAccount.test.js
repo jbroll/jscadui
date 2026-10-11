@@ -130,6 +130,21 @@ describe('account header', () => {
     const names = [...document.querySelectorAll('.ai-settings .ai-field-name')].map((n) => n.textContent)
     expect(names).toEqual(['Provider', 'API key', 'Keep', 'Passphrase', 'Model', 'Custom model id', 'Effort', 'Base URL'])
   })
+
+  it('calls onSignOut after a successful sign-out', async () => {
+    const { initAccount } = await loadAccount()
+    globalThis.fetch = vi.fn(async (url) => {
+      if (String(url).includes('/api/auth/get-session')) return new Response(JSON.stringify({ user: { id: 'u1', email: 'a@b.c' } }), { status: 200 })
+      return new Response('{}', { status: 200 })
+    })
+    document.body.innerHTML = '<div id="a"></div>'
+    const onSignOut = vi.fn()
+    initAccount(document.getElementById('a'), { onSignOut })
+    const signOutBtn = [...document.querySelectorAll('.ai-header-row .ai-button')].find((b) => b.textContent === 'Sign out')
+    await vi.waitFor(() => expect(signOutBtn.style.display).toBe(''))
+    signOutBtn.click()
+    await vi.waitFor(() => expect(onSignOut).toHaveBeenCalled())
+  })
 })
 
 describe('aiEffort', () => {

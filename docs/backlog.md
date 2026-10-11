@@ -101,29 +101,6 @@ From the same review, with the same path convention.
   in to Sync", whose full-page redirect (`src/aiAccount.js:130-139`) also
   drops the hash, since `callbackURL` is the bare origin. Back it with
   IndexedDB. Until then, warn before the redirect and on unload.
-- **Boot with pre-existing projects opens none.** `currentProjectId` starts at
-  the literal `'default'` and only the fresh-create path resolves it to a real
-  id, so a placeholder run before the first switch still targets `'default'`.
-  Pick a boot-open project (most recent) or resolve the id on first use.
-- **Editor edits are dropped without warning.** The file list reads `File`
-  snapshots taken when the project opened (`src/projectFiles.js:46-49`,
-  `src/editor.js:207-211`), so switching to another file and back shows the
-  pre-edit code, and the next run stores it. Project switch
-  (`projectFiles.js:69-70`), version restore (`src/projects.js:39`,
-  `main.js:997`), demo load (`main.js:112`) and chat writes
-  (`main.js:923-926`) replace the buffer with no confirm. `setSource`
-  (`editor.js:156-159`) never updates `#editor-file`, so after a project
-  switch the label names the previous file. Keep a per-path dirty buffer
-  and confirm before replacing one.
-- **A turn in flight across a project switch persists under the new project.**
-  `switchTo` reloads the view, but a running turn's `prior`/`persistTranscript`
-  still follow the live `currentProjectId`. Capture the turn's project at
-  turn start and persist under it.
-- **Conversations ignore per-project storage modes, and there is no New chat
-  control.** Chat always uses `getActiveStore` (rowboat whenever signed in)
-  rather than the project's own mode; add a New-chat control per project.
-- **No project delete control.** The panel lists, opens, renames and restores
-  but cannot delete a project.
 - **A folder dropped on a project row creates a new project.** The body
   `dragover` (`src/fileSystem.js:291-294`) shows `#dropModal`, fixed
   full-screen at z-index 5000 (`static/main.css:67-78`), which takes the
@@ -132,12 +109,6 @@ From the same review, with the same path convention.
   also calls `extractEntries` a second time after awaits, when by the HTML
   spec a real `DataTransfer` is empty, so `createFromDrop` may never run for
   a real folder drop (not tried in a browser).
-- **Storage mode and sync state.** Flipping a project's mode copies it
-  (`src/storage/projects.js:122-131`) and `listAll` does not dedupe, so it is
-  listed twice. Sign-out (`aiAccount.js:141-144`) leaves the sync loop
-  (`main.js:442-454`) and the rowboat store running. Sync errors reach only
-  `console.warn` (`main.js:449`). Labels show `local` and `rowboat`
-  (`projects.js:16`, `:61-64`, `:88`) rather than what they mean.
 
 ## Render sweep
 

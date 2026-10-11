@@ -424,7 +424,6 @@ const diskProject = diskStore && createDiskProject({
 // local-only and never load the rowboat client. Dynamic imports keep the
 // TS 4.9 gate green (see above) and the rowboat bundle out of anonymous loads.
 let rowboatStorePromise = null
-// eslint-disable-next-line prefer-const -- assigned once the sync loop starts
 let syncHandle = null
 
 const fetchSyncToken = async () => {
@@ -464,17 +463,24 @@ const getRowboatStore = async () => {
   return rowboatStorePromise
 }
 
+// Project panel mounts after the sync loop starts; callbacks reach it lazily.
+let projectPanel = null
+
 // Interval table sync while signed in; anonymous users never reach it.
 const initSyncLoop = async () => {
   const store = await getRowboatStore()
   if (!store) return
   const { createSyncLoop } = await import('./src/storage/sync.js')
-  const loop = createSyncLoop({
+  syncHandle = createSyncLoop({
     storage: store,
     getToken: async () => (await fetchSyncToken())?.token ?? null,
-    onError: (err) => console.warn('rowboat sync failed:', err),
+    onError: (err) => {
+      console.warn('rowboat sync failed:', err)
+      projectPanel?.setSyncStatus('Sync failed')
+    },
+    onSync: () => projectPanel?.setSyncStatus(''),
   })
-  loop.start()
+  syncHandle.start()
 }
 
 initSyncLoop()
@@ -992,7 +998,17 @@ const aiDeps = {
   docs: createDocs(loadApiIndex, getChatApi),
 }
 
-if (byId('ai-account')) initAccount(byId('ai-account'))
+if (byId('ai-account')) initAccount(byId('ai-account'), {
+  onSignOut: async () => {
+    syncHandle?.stop()
+    syncHandle = null
+    try { await rowboatStore?.close() } catch (err) { console.warn('rowboat close failed:', err) }
+    rowboatStore = null
+    rowboatStorePromise = null
+    projectPanel?.setSyncStatus('')
+    await projectPanel?.render()
+  },
+})
 if (byId('ai-chat')) {
   const chatStorage = {
     readConversation: (pid) => storageSession.readConversation(pid),
@@ -1027,7 +1043,7 @@ if (bootProjects.length === 0) {
   const bootId = pickBootProject(bootProjects)
   if (bootId) await switchProject(bootId).catch(setError)
 }
-const projectPanel = initProjects({
+projectPanel = initProjects({
   container: byId('project-drawer-body'),
   manager: projectManager,
   onSwitch: (id) => switchProject(id).catch(setError),

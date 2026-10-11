@@ -87,8 +87,9 @@ const modelsUrl = (kind, baseUrl) =>
 
 /**
  * @param {HTMLElement} container
+ * @param {{onSignOut?: Function}} [options]
  */
-export const initAccount = (container) => {
+export const initAccount = (container, { onSignOut = () => {} } = {}) => {
   const selection = getSelection()
   const state = {
     kind: selection.kind ?? 'anthropic',
@@ -140,6 +141,7 @@ export const initAccount = (container) => {
 
   signOut.addEventListener('click', async () => {
     await fetch('/api/auth/sign-out', { method: 'POST', credentials: 'include' }).catch(() => {})
+    onSignOut()
     refreshSession()
   })
 

@@ -28,4 +28,12 @@ describe('sync loop', () => {
     await loop.syncNow()
     expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: 'offline' }))
   })
+
+  it('calls onSync after a successful sync', async () => {
+    const storage = { sync: vi.fn(async () => {}) }
+    const onSync = vi.fn()
+    const loop = createSyncLoop({ storage, getToken: async () => 'jwt', intervalMs: 10, onSync })
+    await loop.syncNow()
+    expect(onSync).toHaveBeenCalled()
+  })
 })
