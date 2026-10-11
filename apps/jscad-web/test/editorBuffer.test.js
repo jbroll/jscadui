@@ -36,4 +36,16 @@ describe('editor buffer', () => {
     b.remember('/a.js', 'a3')
     expect(b.isDirty()).toBe(false)
   })
+
+  it('set updates text without changing the dirty flag', () => {
+    const b = createEditorBuffer()
+    b.remember('/a.js', 'a1')
+    b.set('/a.js', 'a2')
+    expect(b.get('/a.js')).toBe('a2')
+    expect(b.isDirty()).toBe(false)
+    b.edit('/b.js', 'b1')
+    b.set('/b.js', 'b2')
+    expect(b.get('/b.js')).toBe('b2')
+    expect(b.isDirty()).toBe(true)
+  })
 })

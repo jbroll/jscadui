@@ -40,6 +40,7 @@ let getFileFn
 // file selector
 let currentFile = '/index.js'
 const buffer = createEditorBuffer()
+let applying = false
 /** @type {HTMLElement} */
 let editorNav
 /** @type {HTMLElement} */
@@ -103,7 +104,7 @@ export const init = (defaultCode, fn, _saveFn, _getFileFn, _confirm) => {
       basicSetup,
       javascript(),
       EditorView.updateListener.of((update) => {
-        if (update.docChanged) buffer.edit(currentFile, update.state.doc.toString())
+        if (update.docChanged && !applying) buffer.edit(currentFile, update.state.doc.toString())
       }),
       keymap.of([
         {
@@ -200,16 +201,20 @@ export const confirmDiscard = async () => {
   })
 }
 
-/** 
- * @param {string} source 
- * @param {string} path 
+/**
+ * @param {string} source
+ * @param {string} [path]
+ * @param {{clean?: boolean}} [options] `clean` (default true) records the
+ *   content as authoritative; false displays buffered content and keeps its
+ *   dirty flag.
  */
-export const setSource = (source, path = '/index.js') => {
+export const setSource = (source, path = '/index.js', { clean = true } = {}) => {
   currentFile = path
+  applying = true
   view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: source } })
-  // The doc-change listener has run synchronously and marked the path dirty;
-  // this content is authoritative, so it is clean and the label names it.
-  buffer.remember(path, source)
+  applying = false
+  if (clean) buffer.remember(path, source)
+  else buffer.set(path, source)
   if (editorFile) editorFile.textContent = path
 }
 
@@ -262,10 +267,9 @@ export const setFiles = (files, { keepBuffers = false } = {}) => {
       const button = document.createElement('button')
       button.innerText = file.fullPath
       button.addEventListener('click', () => {
-        if (currentFile !== file.fullPath) buffer.edit(currentFile, view.state.doc.toString())
         currentFile = file.fullPath
         editorFile.textContent = currentFile
-        if (buffer.has(currentFile)) setSource(buffer.get(currentFile), currentFile)
+        if (buffer.has(currentFile)) setSource(buffer.get(currentFile), currentFile, { clean: false })
         else readSource(file, currentFile)
       })
       item.appendChild(button)

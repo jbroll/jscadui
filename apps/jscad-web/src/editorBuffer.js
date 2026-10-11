@@ -5,6 +5,7 @@
  * @returns {{
  *   has: (path:string) => boolean,
  *   get: (path:string) => string | undefined,
+ *   set: (path:string, text:string) => void,
  *   remember: (path:string, text:string) => void,
  *   edit: (path:string, text:string) => void,
  *   clear: () => void,
@@ -18,6 +19,7 @@ export function createEditorBuffer() {
   return {
     has: (path) => buffers.has(path),
     get: (path) => buffers.get(path),
+    set: (path, text) => { buffers.set(path, text) },
     remember: (path, text) => { buffers.set(path, text); dirty.delete(path) },
     edit: (path, text) => { buffers.set(path, text); dirty.add(path) },
     clear: () => { buffers.clear(); dirty.clear() },
