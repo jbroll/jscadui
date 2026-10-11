@@ -5,9 +5,9 @@ import { buildTools, TOOLS } from '../src/tools.js'
 const docsDescription = (api) => buildTools(api).find((t) => t.name === 'docs').description
 
 describe('agent tools', () => {
-  it('exposes the nine browser tools with input schemas', async () => {
+  it('exposes the ten browser tools with input schemas', async () => {
     const names = TOOLS.map((t) => t.name)
-    expect(names).toEqual(['list', 'read', 'write', 'edit', 'run', 'measure', 'check', 'export', 'docs'])
+    expect(names).toEqual(['list', 'read', 'write', 'edit', 'delete', 'run', 'measure', 'check', 'export', 'docs'])
     for (const tool of TOOLS) {
       expect(typeof tool.description).toBe('string')
       expect(tool.inputSchema.type).toBe('object')
@@ -89,6 +89,14 @@ describe('agent tools', () => {
     expect(Object.keys(schema('edit').properties)).toEqual(['path', 'oldString', 'newString', 'replaceAll'])
     expect(schema('edit').required).toEqual(['path', 'oldString', 'newString'])
     expect(schema('run').required).toEqual(['source'])
+    expect(Object.keys(schema('delete').properties)).toEqual(['path'])
+    expect(schema('delete').required).toEqual(['path'])
+  })
+
+  it('says delete removes the file, and a missing file answers ok and changes nothing', () => {
+    const description = TOOLS.find((t) => t.name === 'delete').description
+    expect(description).toMatch(/removing it from the project/)
+    expect(description).toMatch(/answers ok and changes nothing/)
   })
 
   it('says write and edit save and build, and run saves nothing', () => {

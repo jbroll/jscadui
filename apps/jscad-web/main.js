@@ -1009,12 +1009,19 @@ const chatTools = createProjectTools({
     await fileSystem.addToCacheWrapper(path, content)
     await workerApi.jscadClearFileCache({ files: [path], root: PROJECT_BASE })
   },
+  removeProjectFile: async (path) => {
+    await fileSystem.removeFromCache(path)
+    await workerApi.jscadClearFileCache({ files: [path], root: PROJECT_BASE })
+  },
   showFile: (path, content, files) => {
     editor.confirmDiscard().then((ok) => {
       if (!ok) return
       editor.setSource(content, path)
       editor.setFiles(toEditorFiles(files), { keepBuffers: true })
     })
+  },
+  showFiles: (files) => {
+    editor.setFiles(toEditorFiles(files), { keepBuffers: true })
   },
   build: async () => {
     const outcome = await buildProject()

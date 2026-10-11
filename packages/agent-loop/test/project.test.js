@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyEdit, applyWrite, listFiles, NO_ENTRY, pickEntry, projectPath, readFile, resolveEntry } from '../src/project.js'
+import { applyDelete, applyEdit, applyWrite, listFiles, NO_ENTRY, pickEntry, projectPath, readFile, resolveEntry } from '../src/project.js'
 
 const thrown = (fn) => {
   try {
@@ -149,6 +149,26 @@ describe('applyWrite', () => {
 
   it('refuses content that is not a string', () => {
     expect(thrown(() => applyWrite({}, { path: 'main.js' })).message).toMatch(/content must be/)
+  })
+})
+
+describe('applyDelete', () => {
+  const files = { 'main.js': 'm', 'helper.js': 'h' }
+
+  it('removes an existing file into a new map', () => {
+    expect(applyDelete(files, { path: './helper.js' })).toEqual({ files: { 'main.js': 'm' }, path: 'helper.js', deleted: true })
+    expect(files).toEqual({ 'main.js': 'm', 'helper.js': 'h' })
+    expect(applyDelete(files, { path: 'main.js' })).toEqual({ files: { 'helper.js': 'h' }, path: 'main.js', deleted: true })
+  })
+
+  it('is a success no-op for a missing file', () => {
+    expect(applyDelete(files, { path: 'gone.js' })).toEqual({ files: { 'main.js': 'm', 'helper.js': 'h' }, path: 'gone.js', deleted: false })
+  })
+
+  it('refuses a path that leaves the project or names no file', () => {
+    expect(thrown(() => applyDelete(files, { path: '../x.js' })).name).toBe('PathError')
+    expect(thrown(() => applyDelete(files, { path: '' })).name).toBe('PathError')
+    expect(thrown(() => applyDelete(files, {})).name).toBe('PathError')
   })
 })
 

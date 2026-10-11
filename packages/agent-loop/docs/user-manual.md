@@ -252,11 +252,12 @@ The app and the eval answer tool calls through the same functions, each over
 its own way of running the model.
 
 ```js
-dispatchTool(name, input, { list, read, write, edit, run, measure, check, exportModel, view, docs })
+dispatchTool(name, input, { list, read, write, edit, deleteFile, run, measure, check, exportModel, view, docs })
 ```
 
 Calls the handler for `name` and returns what it answers: `list()`,
-`read(args)`, `write(args)`, `edit(args)`, `run(args.source)`,
+`read(args)`, `write(args)`, `edit(args)`, `deleteFile(args)` for `delete`,
+`run(args.source)`,
 `measure(args)`, `check(args)`, `exportModel(args)` for `export`,
 `view(args)` and `docs(args.query)`, with `input` defaulting to `{}`. A name
 outside that list answers `toolError('UnknownToolError', 'unknown tool
@@ -361,7 +362,13 @@ message, and that build report goes into the header with the files.
 file written, and with a `note` saying it is saved when the build failed. A
 project with no entry file builds nothing and answers `ok: true, entry: null`
 with `note: "saved; no entry yet (main.js, index.js or package.json main)"`.
-A build fails with `NoMainError` when the
+`delete` answers the same report headed by `deleted`, the file removed:
+the file leaves the project's files and the project builds again, so a
+delete of the entry answers the no-entry report (`note: "deleted; no entry
+yet (…)"`) and a delete that breaks the build says the file is deleted but
+the build failed. A delete of a file that is not there answers `{ ok: true }`
+and builds nothing, so a stale path from the project note never fails the
+model. A build fails with `NoMainError` when the
 entry exports no `main()` (`<entry> exports no main()`), `NoGeometryError`
 when `main()` returns something `measure` cannot read (`main() returned
 something that is not geometry; ...`), and otherwise with the model code's own
@@ -610,7 +617,7 @@ geometry), or a `run` whose source calls a `measure*`
 function (`shape.measureDimensions()`, `measureVolume()`, as `fluent.md`
 teaches) and whose result carries console output. A run with a `run` gets 2
 when the fixture has no `verifyBeforeWrite`, when it never writes, or when it
-verifies before or after its first `write` or `edit`, else 1; a save builds the
+verifies before or after its first save (`write`, `edit` or `delete`), else 1; a save builds the
 model, so measuring after it counts. A run with no `run` gets 2 when it
 verifies after a save, else 0. Recovery is 2 when no tool call failed
 or a success followed the last failure, else 0, counting every call but a
@@ -619,13 +626,14 @@ still counts toward conservation); a run the turn cap ended
 (its last round's results got no reply) leaves that round's failures out,
 since it had no turn left to recover in. Conservation is 2 for at most 6
 counted calls, 1 for at most 12, else 0. It counts every call except a
-successful `write`, `edit`, `read` or `list` (and an older file's
+successful `write`, `edit`, `delete`, `read` or `list` (and an older file's
 `writeModel`), so failed builds and failed calls count, and saving often or
 reading before editing never costs a point.
 
 Geometry grades the project's final state, since that is what the app's user
-keeps: the fixture's files with every `write` and `edit` replayed (one the
-backend refused changes nothing), built through its entry in a fresh backend
+keeps: the fixture's files with every `write`, `edit` and `delete` replayed
+(one the backend refused changes nothing), built through its entry in a fresh
+backend
 state after the run ends, so a scratch `run` changes nothing. A project with
 no entry file, or whose final state does not build, gets geometry 0 (an older
 file with no entry file builds the file its last `writeModel` wrote). A
@@ -634,7 +642,8 @@ fixture whose `requires` lists `write` gives a run that neither wrote nor
 edited a file geometry 0 and `checkRate` 0 without running its checks, and
 marks the report `wrote: false`, unless the provider ended the run
 (`providerError`); the other three grades still count, so such a run scores
-at most 6. A fixture that does not require `write` is graded on
+at most 6; a `delete` alone is not a write, so it never satisfies that
+`requires`. A fixture that does not require `write` is graded on
 the saved project, else an older file's last `eval`, else its own files.
 
 A provider call that streams neither text nor a tool call is an empty reply,

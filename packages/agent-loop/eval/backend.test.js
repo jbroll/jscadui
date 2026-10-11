@@ -305,6 +305,42 @@ describe('eval backend project', () => {
     expect((await call(backend, 'measure')).volume).toBeCloseTo(8000, 0)
   })
 
+  it('deletes a file and rebuilds, answering the report headed by deleted', async () => {
+    const backend = createEvalBackend()
+    await writeMain(MAIN_WITH_HELPER, backend)
+    await call(backend, 'write', { path: 'helper.js', content: 'module.exports = { size: 20 }' })
+    const res = await call(backend, 'delete', { path: 'helper.js' })
+    expect(res).toMatchObject({ deleted: 'helper.js', ok: false, entry: 'main.js' })
+    expect(res.error.message).toContain('file not found http://project.local/helper.js')
+    expect(backend.files()).toEqual({ 'main.js': MAIN_WITH_HELPER })
+  })
+
+  it('answers the no-entry report when the delete removes the entry', async () => {
+    const backend = createEvalBackend()
+    await writeMain(CUBE, backend)
+    const res = await call(backend, 'delete', { path: 'main.js' })
+    expect(res).toMatchObject({ deleted: 'main.js', ok: true, entry: null })
+    expect(res.note).toMatch(/^deleted; /)
+    expect(backend.files()).toEqual({})
+  })
+
+  it('answers ok for a delete of a file that is not there, and builds nothing', async () => {
+    const backend = createEvalBackend()
+    await writeMain(CUBE, backend)
+    expect(await call(backend, 'delete', { path: 'gone.js' })).toEqual({ ok: true })
+    expect(backend.files()).toEqual({ 'main.js': CUBE })
+    expect((await call(backend, 'measure')).volume).toBeCloseTo(8000, 0)
+  })
+
+  it('refuses a delete whose path leaves the project, and keeps the file and build', async () => {
+    const backend = createEvalBackend()
+    await writeMain(CUBE, backend)
+    const res = await call(backend, 'delete', { path: '../x.js' })
+    expect(res).toMatchObject({ ok: false, error: { name: 'PathError' } })
+    expect(backend.files()).toEqual({ 'main.js': CUBE })
+    expect((await call(backend, 'measure')).volume).toBeCloseTo(8000, 0)
+  })
+
   it('lists and reads the project files', async () => {
     const backend = createEvalBackend()
     await backend.reset({ 'main.js': 'a\nb\n', 'lib/part.js': 'p' })

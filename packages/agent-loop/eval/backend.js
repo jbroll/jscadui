@@ -20,7 +20,7 @@ import { reportError } from '../src/modelError.js'
 import { createWarningCollector, withOptionChecks, wrapFluentMethods } from '../src/optionChecks.js'
 import { asGeometry, assembleReport, noEntryReport, noGeometryError, noMainError, summarizeRun, writeReport } from '../src/buildReport.js'
 import { exportConfig, exportedSize } from '../src/exportFormat.js'
-import { applyEdit, applyWrite, listFiles, readFile, resolveEntry } from '../src/project.js'
+import { applyDelete, applyEdit, applyWrite, deleteReport, listFiles, readFile, resolveEntry } from '../src/project.js'
 import { createReadFile, PROJECT_BASE, RUN_FILE } from '../src/projectUrl.js'
 import { withUnits } from '../src/units.js'
 import { GRADE_TIMEOUT_MS } from './grade.js'
@@ -276,6 +276,14 @@ export function createEvalBackend({ api = DEFAULT_API } = {}) {
     return report ? writeReport(next.path, report) : toolError('ResetError', 'the run was reset before the build finished')
   }
 
+  // A delete of a file that is not there answers ok: nothing changed, nothing
+  // to rebuild.
+  const removed = async (next) => {
+    files = next.files
+    const report = await build()
+    return report ? deleteReport(next.path, report) : toolError('ResetError', 'the run was reset before the build finished')
+  }
+
   // A scratch snippet beside the project: the project, its build and its geometry stay as they were.
   const run = async (source) => {
     if (typeof source !== 'string') throw Object.assign(new Error('source must be the snippet text, a string'), { name: 'TypeError' })
@@ -293,6 +301,10 @@ export function createEvalBackend({ api = DEFAULT_API } = {}) {
     read: (args) => readFile(files, args),
     write: (args) => saved(applyWrite(files, args)),
     edit: (args) => saved(applyEdit(files, args)),
+    deleteFile: (args) => {
+      const removal = applyDelete(files, args)
+      return removal.deleted ? removed(removal) : { ok: true }
+    },
     run,
     measure: onBuild((geometry, args) => withUnits({ ok: true, ...measure(asGeometry(geometry), args) })),
     check: onBuild((geometry, args) => withUnits({ ok: true, ...check(asGeometry(geometry), args) })),

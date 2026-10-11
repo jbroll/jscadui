@@ -1,4 +1,4 @@
-import { applyEdit, applyWrite, DEFAULT_API, listFiles, PROJECT_BASE, readFile, reportError, RUN_FILE, runTimeoutError, withUnits, writeReport } from '@jscadui/agent-loop'
+import { applyDelete, applyEdit, applyWrite, DEFAULT_API, deleteReport, listFiles, PROJECT_BASE, readFile, reportError, RUN_FILE, runTimeoutError, withUnits, writeReport } from '@jscadui/agent-loop'
 import { indexFor } from './projectBuild.js'
 import { sendScript } from './scriptRuns.js'
 
@@ -7,14 +7,19 @@ import { sendScript } from './scriptRuns.js'
  * frame, read at each call so it follows project switches and the user's
  * edits. A write or edit is a save: it lands in the cache, in storage and in
  * the editor, then `build` runs the project the way the editor does and
- * answers its report. `storeFile` writes with no version row; `endTurn`
- * snapshots each project the turn wrote to as one version. After `startTurn`,
- * a write or edit is refused once another project is open: the turn's context
- * came from the project open when it started.
+ * answers its report. `delete` removes a file the same way, out of the cache
+ * and the editor (the storage layer has no removal, so it is not stored; see
+ * docs/backlog.md, "Chat API help"); a delete of a file that is not there
+ * answers ok and changes nothing. `storeFile` writes with no version row;
+ * `endTurn` snapshots each project the turn wrote to as one version. After
+ * `startTurn`, a write, edit or delete is refused once another project is
+ * open: the turn's context came from the project open when it started.
  * @param {{
  *   getProjectFiles: () => Promise<Record<string, string|ArrayBuffer>>,
  *   writeProjectFile: (path:string, content:string) => Promise<void>,
+ *   removeProjectFile: (path:string) => Promise<void>,
  *   showFile: (path:string, content:string, files:Record<string, string|ArrayBuffer>) => void,
+ *   showFiles: (files:Record<string, string|ArrayBuffer>) => void,
  *   build: () => Promise<object>,
  *   noGeometry: () => Promise<object|null>,
  *   workerApi: object,
@@ -29,7 +34,9 @@ import { sendScript } from './scriptRuns.js'
 export const createProjectTools = ({
   getProjectFiles,
   writeProjectFile,
+  removeProjectFile,
   showFile,
+  showFiles,
   build,
   noGeometry,
   workerApi,
@@ -55,6 +62,18 @@ export const createProjectTools = ({
     written.add(projectId)
     showFile(path, content, files)
     return writeReport(path, await build())
+  }
+
+  const remove = async (args) => {
+    const removal = applyDelete(await getProjectFiles(), args)
+    if (!removal.deleted) return { ok: true }
+    const projectId = getProjectId()
+    if (turnProject !== undefined && projectId !== turnProject) {
+      throw Object.assign(new Error('the user opened another project during this turn; nothing was deleted. Stop and tell the user.'), { name: 'ProjectSwitchedError' })
+    }
+    await removeProjectFile(removal.path)
+    showFiles(removal.files)
+    return deleteReport(removal.path, await build())
   }
 
   const run = async (source) => {
@@ -87,6 +106,7 @@ export const createProjectTools = ({
     read: async (args) => readFile(await getProjectFiles(), args),
     write: async (args) => save(applyWrite(await getProjectFiles(), args)),
     edit: async (args) => save(applyEdit(await getProjectFiles(), args)),
+    deleteFile: remove,
     run,
     measure: onBuild(async (options) => withUnits({ ok: true, ...(await workerApi.jscadMeasure({ options })) })),
     check: onBuild(async (input) => withUnits({ ok: true, ...(await workerApi.jscadCheck({ bed: input?.bed })) })),

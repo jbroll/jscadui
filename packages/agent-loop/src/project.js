@@ -1,5 +1,5 @@
-// The project file operations behind the list, read, write and edit tools,
-// shared by the eval backend and the app so both answer the same way. A
+// The project file operations behind the list, read, write, edit and delete
+// tools, shared by the eval backend and the app so both answer the same way. A
 // project is a map of project-relative paths to file text.
 export const PACKAGE_JSON = 'package.json'
 export const READ_LIMIT = 2000
@@ -116,4 +116,23 @@ export const applyEdit = (files, { path, oldString, newString, replaceAll = fals
   const at = text.indexOf(oldString)
   const edited = replaceAll === true ? text.split(oldString).join(newString) : text.slice(0, at) + newString + text.slice(at + oldString.length)
   return { files: { ...files, [file]: edited }, path: file }
+}
+
+// A delete removes the file; one that is not there is a success no-op, so a
+// stale path from the project note never fails the model.
+export const applyDelete = (files, { path } = {}) => {
+  const file = projectPath(path)
+  if (!Object.hasOwn(files, file)) return { files: { ...files }, path: file, deleted: false }
+  const { [file]: _gone, ...rest } = files
+  return { files: rest, path: file, deleted: true }
+}
+
+// What a delete answers: its build report, headed by the file deleted, in the
+// app and the eval alike, so a failed build after the removal never reads as a
+// lost delete.
+export const deleteReport = (path, report) => {
+  let note
+  if (report.ok && report.entry === null) note = `deleted; ${report.note}`
+  else if (!report.ok && typeof report.entry === 'string') note = `${path} is deleted; the build of ${report.entry} failed`
+  return { deleted: path, ...report, ...(note ? { note } : {}) }
 }

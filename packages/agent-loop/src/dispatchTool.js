@@ -5,6 +5,7 @@ const ROUTES = {
   read: (deps, args) => deps.read(args),
   write: (deps, args) => deps.write(args),
   edit: (deps, args) => deps.edit(args),
+  delete: (deps, args) => deps.deleteFile(args),
   run: (deps, args) => deps.run(args.source),
   measure: (deps, args) => deps.measure(args),
   check: (deps, args) => deps.check(args),
@@ -19,7 +20,7 @@ const ROUTES = {
  * hand back to the model.
  * @param {string} name
  * @param {object} [input]
- * @param {{list:Function,read:Function,write:Function,edit:Function,run:Function,measure:Function,check:Function,exportModel:Function,view:Function,docs:Function}} deps
+ * @param {{list:Function,read:Function,write:Function,edit:Function,deleteFile:Function,run:Function,measure:Function,check:Function,exportModel:Function,view:Function,docs:Function}} deps
  */
 export const dispatchTool = async (name, input, deps) => {
   if (!Object.hasOwn(ROUTES, name)) return toolError('UnknownToolError', `unknown tool ${name}`)

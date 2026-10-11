@@ -15,6 +15,9 @@ const fakeProject = (initial = {}, id = 'p1') => {
     writeProjectFile: vi.fn(async (path, content) => {
       files[path] = content
     }),
+    removeProjectFile: vi.fn(async (path) => {
+      delete files[path]
+    }),
     getProjectId: () => projectId,
     open: (next, nextId) => {
       files = { ...next }
@@ -30,8 +33,10 @@ const tools = ({ project = fakeProject(), workerApi = {}, ...rest } = {}) => {
   const deps = {
     getProjectFiles: project.getProjectFiles,
     writeProjectFile: project.writeProjectFile,
+    removeProjectFile: project.removeProjectFile,
     getProjectId: project.getProjectId,
     showFile: vi.fn(),
+    showFiles: vi.fn(),
     build: vi.fn(async () => REPORT),
     noGeometry: vi.fn(async () => null),
     workerApi: {
@@ -87,6 +92,48 @@ describe('write and edit', () => {
     await expect(t.edit({ path: 'main.js', oldString: 'a', newString: 'b' })).rejects.toMatchObject({ name: 'EditError' })
     await expect(t.write({ path: '../x.js', content: '' })).rejects.toMatchObject({ name: 'PathError' })
     expect(project.files()).toEqual({ 'main.js': 'a a' })
+    expect(deps.build).not.toHaveBeenCalled()
+  })
+})
+
+describe('delete', () => {
+  it('removes the file from the project, clears its editor buffer and builds', async () => {
+    const project = fakeProject({ 'main.js': 'm', 'helper.js': 'h' })
+    const { deps, tools: t } = tools({ project })
+    expect(await t.deleteFile({ path: 'helper.js' })).toEqual({ deleted: 'helper.js', ...REPORT })
+    expect(project.files()).toEqual({ 'main.js': 'm' })
+    expect(deps.removeProjectFile).toHaveBeenCalledWith('helper.js')
+    expect(deps.showFiles).toHaveBeenCalledWith({ 'main.js': 'm' })
+    expect(deps.showFile).not.toHaveBeenCalled()
+    expect(deps.build).toHaveBeenCalledTimes(1)
+  })
+
+  it('answers ok for a missing file and changes nothing', async () => {
+    const project = fakeProject({ 'main.js': 'm' })
+    const { deps, tools: t } = tools({ project })
+    expect(await t.deleteFile({ path: 'nope.js' })).toEqual({ ok: true })
+    expect(project.files()).toEqual({ 'main.js': 'm' })
+    expect(deps.removeProjectFile).not.toHaveBeenCalled()
+    expect(deps.showFiles).not.toHaveBeenCalled()
+    expect(deps.build).not.toHaveBeenCalled()
+  })
+
+  it('refuses a path that leaves the project, and touches nothing', async () => {
+    const project = fakeProject({ 'main.js': 'm' })
+    const { deps, tools: t } = tools({ project })
+    await expect(t.deleteFile({ path: '../x.js' })).rejects.toMatchObject({ name: 'PathError' })
+    expect(project.files()).toEqual({ 'main.js': 'm' })
+    expect(deps.build).not.toHaveBeenCalled()
+  })
+
+  it('refuses a delete once the user opens another project mid-turn', async () => {
+    const project = fakeProject({ 'main.js': 'a', 'part.js': 'p' }, 'p1')
+    const { deps, tools: t } = tools({ project })
+    t.startTurn()
+    project.open({ 'main.js': 'b', 'part.js': 'p2' }, 'p2')
+    await expect(t.deleteFile({ path: 'part.js' })).rejects.toMatchObject({ name: 'ProjectSwitchedError' })
+    expect(project.files()).toEqual({ 'main.js': 'b', 'part.js': 'p2' })
+    expect(deps.removeProjectFile).not.toHaveBeenCalled()
     expect(deps.build).not.toHaveBeenCalled()
   })
 })

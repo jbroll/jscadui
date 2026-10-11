@@ -14,10 +14,10 @@ bullet each ID points at is the requirement text. Reserved for new findings:
 |---|---|---|---|
 | PRJ4 | Projects and storage | High | `apps/jscad-web/src/storage/local.js` |
 | API4 | Chat API help | Low | `.deps-cache/jscad-fluent` (external) |
-| API5 | Chat API help | Med | `packages/agent-loop/src/tools.js`, `apps/jscad-web/src/aiDeps.js` |
 | API11 | Chat API help | Low | `packages/agent-loop/eval/sandbox.js` |
 | API12 | Chat API help | Low | `packages/agent-loop/eval/complex.js` |
 | API13 | Chat API help | Low | `apps/jscad-web/src/apiIndex.js` |
+| API14 | Chat API help | Low | `apps/jscad-web/src/storage/session.js` |
 | REF1 | Refactoring | High | breaking, out of scope |
 | REF3 | Refactoring | Med | out of scope (`packages/worker`) |
 | REF4 | Refactoring | Low | out of scope (`packages/require`) |
@@ -372,9 +372,11 @@ model with `display-check.js --engine jscad`.
   fluent `docs`: compact binary, `poly2`/`poly3`, the `geometries` functions
   with no same-named fluent method, and the internal `utils` helpers
   (`areAllShapesTheSameType`, `fnNumberSort`, `insertSorted`).
-- A `delete` tool for the chat (agent-loop, jscad-web). `write` with empty
-  content leaves an empty file, not a deleted one. Add `delete` to both tool
-  lists and the eval's backend when a fixture needs a file removed.
+- The chat's `delete` tool is not persisted: a deletion leaves the live project
+  (the file cache) but the storage layer has no per-file removal, so a reload
+  mid-turn brings the file back. `session.writeThrough` only merges a path;
+  give the storage backends a remove (or accept a delete sentinel) and have
+  `createProjectTools` store a deletion the way it stores a write.
 - CI eval run for the project environment (agent-loop). The file tools
   (`write`, `edit`, `run`) have passed the unit and e2e suites but no live
   run: run the 18-fixture suite on CI and compare with the regraded baseline.

@@ -9,6 +9,7 @@ const deps = (overrides = {}) => ({
   read: vi.fn(async () => '     1\tabc'),
   write: vi.fn(async () => REPORT),
   edit: vi.fn(async () => REPORT),
+  deleteFile: vi.fn(async () => ({ deleted: 'main.js', ...REPORT })),
   run: vi.fn(async () => ({ ok: true, warnings: [], console: ['1'] })),
   measure: vi.fn(async () => ({ volume: 1000 })),
   check: vi.fn(async () => ({ watertight: true })),
@@ -40,6 +41,12 @@ describe('dispatchTool', () => {
     const edit = { path: 'main.js', oldString: 'a', newString: 'b', replaceAll: true }
     expect(await dispatchTool('edit', edit, d)).toBe(REPORT)
     expect(d.edit).toHaveBeenCalledWith(edit)
+  })
+
+  it('routes delete with its path', async () => {
+    const d = deps()
+    expect(await dispatchTool('delete', { path: 'helper.js' }, d)).toEqual({ deleted: 'main.js', ...REPORT })
+    expect(d.deleteFile).toHaveBeenCalledWith({ path: 'helper.js' })
   })
 
   it('routes run with its source', async () => {

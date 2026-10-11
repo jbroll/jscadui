@@ -405,6 +405,53 @@ describe('gradedModel', () => {
   })
 })
 
+describe('the delete tool', () => {
+  const deleted = (id, path = 'junk.js') => [toolMsg(id, 'delete', { path }), resultMsg(id, JSON.stringify({ deleted: path, ok: true }))]
+
+  it('never costs conservation for a successful delete; a failed one counts', () => {
+    const run = (good, bad) => {
+      const transcript = [{ role: 'user', content: 'make it' }, toolMsg('w', 'write', {}), resultMsg('w', built())]
+      for (let i = 0; i < good; i += 1) transcript.push(...deleted(`d${i}`))
+      for (let i = 0; i < bad; i += 1) transcript.push(toolMsg(`x${i}`, 'delete', {}), resultMsg(`x${i}`, JSON.stringify({ ok: false, error: { message: 'boom' } })))
+      return gradeFixture(fixture, transcript, { volume: 6400 }).dimensions.conservation
+    }
+    expect(run(40, 0)).toBe(2)
+    expect(run(40, 5)).toBe(2)
+    expect(run(0, 7)).toBe(1)
+  })
+
+  it('credits measuring after a delete as verifying the final state', () => {
+    const transcript = [...deleted('t1'), toolMsg('t2', 'measure', {}), resultMsg('t2', JSON.stringify({ ok: true, volume: 6400 }))]
+    expect(gradeFixture(fixture, transcript, { volume: 6400 }).dimensions.discipline).toBe(2)
+  })
+
+  it('does not count a delete build report as a measure call, as write and edit do', () => {
+    const geometry = { parts: 1, dimensions: [10, 10, 10], volume: 1000 }
+    const transcript = [toolMsg('t1', 'delete', { path: 'junk.js' }), resultMsg('t1', JSON.stringify({ deleted: 'junk.js', ...built({ geometry }) }))]
+    expect(gradeFixture(fixture, transcript, { volume: 6400 }).dimensions.discipline).toBe(0)
+  })
+
+  it('replays a successful delete over the fixture files, and skips one the backend refused', () => {
+    const withFiles = { requires: ['write'], files: { 'main.js': 'm', 'junk.js': 'junk' } }
+    const transcript = [toolMsg('t1', 'write', { path: 'main.js', content: 'm2' }), resultMsg('t1', built()), ...deleted('t2')]
+    expect(gradedModel(withFiles, transcript)).toEqual({ files: { 'main.js': 'm2' }, entry: 'main.js' })
+    const refused = [
+      toolMsg('t1', 'delete', { path: '../x.js' }),
+      resultMsg('t1', JSON.stringify({ ok: false, error: { name: 'PathError', message: 'path ../x.js leaves the project' } })),
+      toolMsg('t2', 'write', { path: 'main.js', content: 'm2' }),
+      resultMsg('t2', built()),
+    ]
+    expect(gradedModel(withFiles, refused)).toEqual({ files: { 'main.js': 'm2', 'junk.js': 'junk' }, entry: 'main.js' })
+  })
+
+  it('does not satisfy a required write with a delete alone', () => {
+    const transcript = [...deleted('t1')]
+    const withFiles = { ...fixture, requires: ['write'], files: { 'main.js': 'm', 'junk.js': 'junk' } }
+    expect(gradedModel(withFiles, transcript)).toBeNull()
+    expect(gradeFixture(withFiles, transcript, { volume: 6400 }).wrote).toBe(false)
+  })
+})
+
 describe('endedWithoutReply', () => {
   const user = { role: 'user', content: 'p' }
   const reply = { role: 'assistant', content: 'done', toolCalls: [] }

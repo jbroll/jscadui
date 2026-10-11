@@ -1,4 +1,4 @@
-import { applyEdit, applyWrite, resolveEntry } from '../src/project.js'
+import { applyDelete, applyEdit, applyWrite, resolveEntry } from '../src/project.js'
 
 const toolCallsOf = (transcript) =>
   transcript.filter((m) => m.role === 'assistant').flatMap((m) => m.toolCalls ?? [])
@@ -18,7 +18,7 @@ const failed = (content) => parsed(content)?.ok === false
 // Result files written before the project tools hold `eval` (a trial run) and
 // `writeModel` (a save of `source` to `entry`, main.js by default).
 const LEGACY_ENTRY = 'main.js'
-const SAVES = new Set(['write', 'edit', 'writeModel'])
+const SAVES = new Set(['write', 'edit', 'delete', 'writeModel'])
 const TRIALS = new Set(['eval', 'run'])
 const BUILDS = new Set(['eval', 'write', 'edit'])
 
@@ -39,7 +39,9 @@ export const requiresWrite = (fixture) => fixture.requires?.some((name) => name 
 export const GRADE_TIMEOUT_MS = 120_000
 
 // Replays the run's saves over the fixture's files, the same way the backend
-// applied them: a write or edit the backend refused changes nothing.
+// applied them: a write, edit or delete the backend refused changes nothing. A
+// delete is a save of the project's shape, applied to whatever was written, but
+// it never satisfies a fixture that requires a write.
 const replaySaves = (fixture, calls) => {
   let files = { ...fixture.files }
   let saved = false
@@ -48,11 +50,12 @@ const replaySaves = (fixture, calls) => {
     try {
       if (name === 'write') files = applyWrite(files, input).files
       else if (name === 'edit') files = applyEdit(files, input).files
+      else if (name === 'delete') files = applyDelete(files, input).files
       else if (name === 'writeModel') {
         legacyLast = input?.entry ?? LEGACY_ENTRY
         files = { ...files, [legacyLast]: input?.source }
       } else continue
-      saved = true
+      if (name !== 'delete') saved = true
     } catch {
       // refused: the project is as it was
     }

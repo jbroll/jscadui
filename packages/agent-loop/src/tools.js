@@ -56,6 +56,17 @@ export const buildTools = (api = DEFAULT_API) => [
     },
   },
   {
+    name: 'delete',
+    description: `Delete a project file, removing it from the project; the delete is saved. Then ${BUILDS} Deleting a file that is not there answers ok and changes nothing.`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'The project file path, such as main.js' },
+      },
+      required: ['path'],
+    },
+  },
+  {
     name: 'run',
     description:
       "Run a scratch JavaScript snippet beside the project files, to try an idea or log values. It is never saved and changes neither the project nor its build. A project file's main(values) runs with the other parameters at their defaults. Returns its console output, a summary of what its main() returns (parts, size, volume, and whether it is watertight, manifold and self-intersecting) or of module.exports without a main, and an error with its file, line and column.",

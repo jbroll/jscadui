@@ -921,6 +921,7 @@ Tools and where they run:
 |---|---|
 | `list`, `read` | page: the project's file cache, through agent-loop's `listFiles` and `readFile` |
 | `write`, `edit` | page: the file cache and the editor (`applyWrite`, `applyEdit`), then a build of the project in the compute frame; answers the build report |
+| `delete` | page: the file cache, the frame's copy of the module and the editor (`applyDelete`), then a build of the project in the compute frame; answers the build report headed by `deleted` |
 | `run` | compute frame: a scratch run beside the project's files that leaves the project, its build and the drawn model alone |
 | `measure`, `check`, `export` | compute frame, on the current build |
 | `docs` | page: `docsTool` over `@jscadui/agent-loop/api/index.json` for the chat's API style, no frame round trip |
@@ -940,7 +941,13 @@ uses, so a tool answers the same way in both.
 
 A `write` or `edit` is a save. It puts the file in the cache, clears the
 frame's copy of that module, shows the file in the editor, then builds the
-project and answers the build report. The build is `buildProject` in
+project and answers the build report. `delete` removes a file the same way:
+out of the cache, the frame's copy of the module and the editor's buffer
+(`applyDelete`, `removeFromCache`), then a build. A delete of a file that is
+not there answers `ok` and changes nothing, so a stale path from the project
+note never fails the model. The deletion is not stored: the storage layer
+has no per-file removal, so a reload mid-turn brings the file back
+(`docs/backlog.md`, "Chat API help"). The build is `buildProject` in
 `main.js`: the entry, resolved by `projectEntry` (`src/projectBuild.js`), runs
 through `jscadScript`, the load path the editor and a project switch take, so
 a chat build draws, builds the params UI and shows its error like any other
@@ -1030,7 +1037,7 @@ during the turn, stored after the chat's write, is what the version keeps.
 
 A turn writes only to the project open when it started, the one its context
 was built from. `initChat` calls `startTurn` before it reads the project, and
-once another project is open `write` and `edit` fail with
+once another project is open `write`, `edit` and `delete` fail with
 `ProjectSwitchedError` and touch nothing. `switchProject` changes the open id
 before it clears and refills the cache, so the guard also covers a write that
 arrives while the new project's files are still being loaded.
