@@ -1,6 +1,6 @@
 import request from 'supertest';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createServer, type StudioServer, type ServerConfig } from '../src/index.js';
+import { createServer, type AppServer, type ServerConfig } from '../src/index.js';
 import { configFromEnv } from '../src/config.js';
 
 const AUTH_SECRET = 'test-secret-test-secret-test-secret';
@@ -20,7 +20,7 @@ function testConfig(): ServerConfig {
   };
 }
 
-let server: StudioServer | undefined;
+let server: AppServer | undefined;
 
 afterEach(() => {
   server?.db.close();

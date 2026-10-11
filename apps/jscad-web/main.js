@@ -68,7 +68,6 @@ import * as fileSystem from './src/fileSystem.js'
 import * as paramsUI from './src/paramsUI.js'
 import { clearReloadTimestamp } from './src/reloadDetection.js'
 import { missingSaveHandleMessage, saveRoute } from './src/saveFile.js'
-import { installStudioBridge } from './src/studioBridge.js'
 import { createDocs, createIndexLoader, showApiHelp, apiHelpStyles } from './src/apiIndex.js'
 import { initChat } from './src/aiChat.js'
 import { dispatchTool, NO_ENTRY } from '@jscadui/agent-loop'
@@ -525,13 +524,6 @@ const resetParams = () => {
   paramsCtrl.userInteracted.clear()
   paramsUI.scheduleModelUpdate(() => paramsUI.runModelUpdate(modelUpdateDeps()))
 }
-
-// ============== Studio Bridge ==============
-installStudioBridge({
-  paramsCtrl,
-  getParams: () => paramsCtrl.getState().params,
-  runModel: () => paramsUI.runModelUpdate(modelUpdateDeps()),
-})
 
 // The zoom-to-fit toggle fits the camera to the model on screen; the model is
 // not re-run for a camera change.

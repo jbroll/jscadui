@@ -25,7 +25,6 @@ bullet each ID points at is the requirement text. Reserved for new findings:
 | REF7 | Refactoring | Med | out of scope (`main.js`, `paramsUI.js`) |
 | REF9 | Refactoring | Med | out of scope (`src_frame`, `frameSetup.js`) |
 | REF10 | Refactoring | Med | out of scope (model runners) |
-| REF15 | Refactoring | Low | `apps/jscad-web/src/studioBridge.js`, `server/src/index.ts` |
 | REF16 | Refactoring | Low | `apps/*/src_build`, `apps/vue3-jscad/src/jscad/` |
 | REF17 | Refactoring | Low | `packages/params-ui/src/ParamsTree.js` |
 
@@ -553,12 +552,8 @@ from the 2026-10-01 review.
   (`:611-616`), hand-lists the manifold API without `curves`, `modifiers`,
   `utils` or the conversions (`createRuntime`, `:198-382`), and never resets
   `setGlobalFn` between in-process runs (`:665`, `:780`).
-- **Leftovers.** 161 review-tracker labels ("C6 fix", "M11 fix") across 49
-  files. From jscad-studio: `apps/jscad-web/src/studioBridge.js`
-  (`globalThis.jscadStudio`, read only by its test), the `StudioServer` name
-  (`server/src/index.ts:37`, `:47`, `:72`), `package-lock.json` entries for
-  the removed apps, and the frame title "jscad studio compute frame"
-  (`static/frame/index.html:15`).
+- **Leftovers.** 59 review-tracker labels ("C6 fix", "M11 fix") across 29
+  files; remove them as each file is touched.
 - **Demo apps.** `observeResize.js` has 4 identical copies and `testThree.js`
   3, `esbuildUtil.js` has 4 drifted ones, `apps/vue3-jscad/src/jscad/` holds
   12 older copies of jscad-web modules, and `apps/linearcs/build_dev/` (784

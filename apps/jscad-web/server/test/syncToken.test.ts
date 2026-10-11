@@ -1,7 +1,7 @@
 import { createHmac } from 'node:crypto'
 import request from 'supertest'
 import { afterEach, describe, expect, it } from 'vitest'
-import { createServer, type ServerConfig, type StudioServer } from '../src/index.js'
+import { createServer, type ServerConfig, type AppServer } from '../src/index.js'
 
 const AUTH_SECRET = 'test-secret-test-secret-test-secret'
 
@@ -20,7 +20,7 @@ function testConfig(): ServerConfig {
   }
 }
 
-let server: StudioServer | undefined
+let server: AppServer | undefined
 
 afterEach(() => {
   server?.db.close()

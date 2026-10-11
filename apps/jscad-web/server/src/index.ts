@@ -34,7 +34,7 @@ function corsMiddleware(trustedOrigins: string[]) {
   };
 }
 
-export interface StudioServer {
+export interface AppServer {
   app: Express;
   db: Database.Database;
   signJWT: Identity['signJWT'];
@@ -44,7 +44,7 @@ export interface StudioServer {
 // Stands up the express app on ONE better-sqlite3 db: better-auth identity plus the health route
 // the deploy checks. No cookie domain is set anywhere — the session cookie must stay host-only on
 // jscad.rkroll.com, never .rkroll.com.
-export async function createServer(config: ServerConfig): Promise<StudioServer> {
+export async function createServer(config: ServerConfig): Promise<AppServer> {
   const db = new Database(config.dbPath);
 
   const identity = createIdentity({
@@ -69,7 +69,7 @@ export async function createServer(config: ServerConfig): Promise<StudioServer> 
   app.set('trust proxy', true);
   app.use(corsMiddleware(config.trustedOrigins));
 
-  // Group reads/writes go to hosted rowboat, authenticated AS THE ACTING USER. The studio does not
+  // Group reads/writes go to hosted rowboat, authenticated AS THE ACTING USER. The app does not
   // share anything yet, but mountAuthRoutes requires the backend for its account-merge routes.
   const groupBackend = remoteGroupBackend({
     baseUrl: `${config.rowboatUrl}/db/${config.rowboatDatabaseId}/api/sync`,

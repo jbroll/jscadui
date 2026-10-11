@@ -28,4 +28,10 @@ describe('fillFrameHtml', () => {
     const html = fillFrameHtml(template, { appOrigin: 'http://localhost:7377', runOrigin: 'http://localhost:7378', dev: false })
     expect(html).not.toMatch(/__[A-Z_]+__/)
   })
+
+  it('does not carry the retired jscad studio title', () => {
+    const html = fillFrameHtml(template, { appOrigin: 'https://jscad.rkroll.com', runOrigin: 'https://jscad-run.rkroll.com', dev: false })
+    expect(html).not.toContain('jscad studio compute frame')
+    expect(html).toContain('<title>jscad compute frame</title>')
+  })
 })
