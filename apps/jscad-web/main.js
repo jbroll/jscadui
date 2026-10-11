@@ -539,6 +539,16 @@ const modelUpdateDeps = () => {
   }
 }
 
+// The Reset control drops the user's edits: values return to the code's
+// defaults, the tree collapses, and the model redraws them.
+const resetParams = () => {
+  const tree = paramsUI.getParamsTreeView()
+  if (!tree) return
+  paramsCtrl.params = { ...tree.reset() }
+  paramsCtrl.userInteracted.clear()
+  paramsUI.scheduleModelUpdate(() => paramsUI.runModelUpdate(modelUpdateDeps()))
+}
+
 // ============== Studio Bridge ==============
 installStudioBridge({
   paramsCtrl,
@@ -640,10 +650,11 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
   document.documentElement.dataset.render = 'running'
   delete document.documentElement.dataset.vertices
 
-  // Save params if preserving across engine switch
-  const shouldPreserve = paramsUI.consumePreserveParams()
-  const savedParams = shouldPreserve ? { ...paramsCtrl.params } : null
-  const savedUserInteracted = shouldPreserve ? new Set(paramsCtrl.userInteracted) : null
+  // Carry the values and collapse state of the params that survive the run;
+  // the controller and tree are rebuilt from the new code below.
+  const savedParams = { ...paramsCtrl.params }
+  const savedUserInteracted = [...paramsCtrl.userInteracted]
+  const savedExpanded = paramsUI.getParamsTreeView()?.getExpandedPaths() ?? []
 
   // Reset controller and UI
   paramsCtrl.reset()
@@ -679,12 +690,21 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
     if (result.proxyState && useParamsProxy) {
       paramsCtrl.initFromResult(result)
 
+      // Restore the user's edits where the new code still declares the param,
+      // so running the model does not reset them to the code's defaults.
+      const defaults = { ...paramsCtrl.params }
+      const carried = paramsUI.carryParamValues(savedParams, defaults)
+      Object.assign(paramsCtrl.params, carried)
+      for (const path of savedUserInteracted) {
+        if (path in paramsCtrl.params) paramsCtrl.userInteracted.add(path)
+      }
+
       // Setup UI
       const paramsHeader = byId('paramsHeader')
       const paramsDiv = byId('paramsDiv')
       paramsDiv.innerHTML = ''
 
-      const { showHiddenCheckbox } = paramsUI.buildParamsHeader(paramsHeader)
+      const { showHiddenCheckbox } = paramsUI.buildParamsHeader(paramsHeader, { onReset: resetParams })
 
       // Tree container
       const treeContainer = document.createElement('div')
@@ -696,6 +716,7 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
         target: treeContainer,
         proxyState: result.proxyState,
         state,
+        expandedPaths: savedExpanded,
         onChange: (paramPath, value) => {
           paramsUI.handleTreeParamChange(paramPath, value, () => {
             paramsUI.scheduleModelUpdate(() => paramsUI.runModelUpdate(modelUpdateDeps()))
@@ -717,12 +738,10 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
       setAnimStatus = () => {}
       lastRunParams = state.params
 
-      // Restore params if we were preserving across engine switch
-      if (savedParams) {
-        Object.assign(paramsCtrl.params, savedParams)
-        savedUserInteracted.forEach(p => paramsCtrl.userInteracted.add(p))
-        paramsTreeView?.update({ values: paramsCtrl.params })
-        // Re-run model with restored params
+      // The run above drew the code's defaults; a carried value that differs
+      // needs one more run to draw.
+      const carriedChanged = Object.entries(carried).some(([path, value]) => value !== defaults[path])
+      if (carriedChanged) {
         runId = beginStream(isStale)
         const restoreResult = await workerApi.jscadMain({ ...paramsCtrl.getWorkerParams(), runId, held: meshRefs.held(), supersede: true })
         if (isStale()) return STALE
@@ -790,9 +809,6 @@ await initFrame()
 // Set up engine change handler
 viewState.onModelingEngineChange = async (newEngine) => {
   console.log('Switching modeling engine to:', newEngine)
-
-  // Set flag to preserve params across script re-run
-  paramsUI.setPreserveParams(Object.keys(paramsCtrl.params).length > 0)
 
   await initFrame()
 

@@ -439,6 +439,16 @@ viewer, not the model. Smooth Render re-sends the current scene with the new
 (`onZoomToFit`, wired in `main.js`). Neither sends a `jscadMain` run, so a
 toggle does not reset the parameters or rebuild the geometry.
 
+### Parameter panel
+
+The parameter tree (`packages/params-ui/src/ParamsTree.js`) is rebuilt whenever
+a run answers with a new proxy state. Values and the expanded nodes are carried
+by param path: a param the new code still declares keeps the user's value and
+expansion, one it removed is dropped, and a newly declared one starts at its
+default. The panel's Reset control (`buildParamsHeader` in `src/paramsUI.js`)
+returns every value to the code default, clears the user's edits and collapses
+the tree, then redraws the model.
+
 ### Streamed runs
 
 An `ALL.js` grid does not return its geometry. While the worker runs a model's

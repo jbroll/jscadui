@@ -13,7 +13,6 @@ bullet each ID points at is the requirement text. Reserved for new findings:
 | ID | Section | Sev | Primary files |
 |---|---|---|---|
 | PRJ4 | Projects and storage | High | `apps/jscad-web/src/storage/local.js` |
-| UI2 | UI (jscad-web) | Med | `main.js`, `src/paramsUI.js`, `packages/params-ui` |
 | UI4 | UI (jscad-web) | Med | `src/aiChat.js` |
 | UI5 | UI (jscad-web) | Med | `src/editor.js`, `main.js` |
 | API2 | Chat API help | Med | `apps/jscad-web/src/aiAccount.js` |
@@ -435,10 +434,6 @@ model with `display-check.js --engine jscad`.
 From the 2026-10-01 review. Paths are under `apps/jscad-web` unless given in
 full.
 
-- **Every code run resets parameters.** `main.js:601-603` resets the params
-  controller on each load, and the tree is rebuilt collapsed
-  (`packages/params-ui/src/ParamsTree.js:67-70`). Carry values and collapse
-  state by param path when the param survives, and add a Reset control.
 - **Chat input.** The draft is cleared (`src/aiChat.js:364`) before the
   provider check (`:294-297`), so a missing key loses the message. Every
   chunk forces the scroll to the bottom (`:158`, `:170`, `:183`, `:239`,

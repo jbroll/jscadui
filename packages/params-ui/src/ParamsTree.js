@@ -20,15 +20,18 @@ import { createInput as createInputComponent } from './inputs.js'
  * @property {(partPath: string, newClass: string, mode: ClassChangeMode) => void} [onClassChange] - Called when a class changes
  * @property {boolean} [showHidden=false] - Whether to show hidden params
  * @property {boolean} [startCollapsed=true] - Whether sub-levels start collapsed
+ * @property {string[]} [expandedPaths] - Node paths to start expanded, for a
+ *   rebuild that carries the previous tree's collapse state; every other node
+ *   collapses as `startCollapsed` would
  */
 
 /**
  * Create a tree-view parameter editor
  * @param {ParamsTreeOptions} options
- * @returns {{update: (options: Partial<ParamsTreeOptions>) => void, destroy: () => void}}
+ * @returns {{update: (options: Partial<ParamsTreeOptions>) => void, destroy: () => void, getExpandedPaths: () => string[], reset: () => Record<string, unknown>}}
  */
 export const createParamsTree = (options) => {
-  const { target, onChange, onClassChange, startCollapsed = true } = options
+  const { target, onChange, onClassChange, startCollapsed = true, expandedPaths } = options
   let { tree, values, types, classes, codeClasses, showHidden = false } = options
 
   // Convert to Maps if plain objects
@@ -57,17 +60,29 @@ export const createParamsTree = (options) => {
   }
 
   // Helper to collect all node paths for collapsing
-  const collectAllPaths = (node) => {
-    if (node.path) collapsed.add(node.path)
-    for (const child of Object.values(node.children)) {
-      collectAllPaths(child)
+  /** @param {import('@jscadui/params-core').PartNode} node @returns {string[]} */
+  const collectPaths = (node, paths = []) => {
+    if (node.path) paths.push(node.path)
+    for (const child of Object.values(node.children)) collectPaths(child, paths)
+    return paths
+  }
+
+  // Collapse all sub-levels by default, keeping the paths a rebuild carries.
+  const initializeCollapsed = () => {
+    collapsed.clear()
+    if (!tree) return
+    const all = collectPaths(tree)
+    if (expandedPaths) {
+      const expanded = new Set(expandedPaths)
+      for (const path of all) {
+        if (!expanded.has(path)) collapsed.add(path)
+      }
+    } else if (startCollapsed) {
+      for (const path of all) collapsed.add(path)
     }
   }
 
-  // Initialize collapsed state - collapse all sub-levels by default
-  if (startCollapsed && tree) {
-    collectAllPaths(tree)
-  }
+  initializeCollapsed()
 
   /**
    * Get a string key representing tree structure (paths only, not values)
@@ -601,18 +616,28 @@ export const createParamsTree = (options) => {
       render()
     },
     collapseAll: () => {
-      const collectPaths = (node) => {
-        if (node.path) collapsed.add(node.path)
-        for (const child of Object.values(node.children)) {
-          collectPaths(child)
-        }
-      }
-      collectPaths(tree)
+      for (const path of collectPaths(tree)) collapsed.add(path)
       render()
     },
     expandAll: () => {
       collapsed.clear()
       render()
+    },
+    getExpandedPaths: () => collectPaths(tree).filter((path) => !collapsed.has(path)),
+    reset: () => {
+      const defaults = {}
+      const walk = (node) => {
+        for (const param of node.params) defaults[param.path] = param.default
+        for (const child of Object.values(node.children)) walk(child)
+      }
+      if (tree) walk(tree)
+      values = { ...defaults }
+      collapsed.clear()
+      if (tree && startCollapsed) {
+        for (const path of collectPaths(tree)) collapsed.add(path)
+      }
+      render()
+      return defaults
     }
   }
 }

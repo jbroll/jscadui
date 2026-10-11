@@ -21,3 +21,40 @@ describe('createParamsTree group headings', () => {
     expect(order).toEqual(['param', '[Size]', 'param', 'param', '[Style]', 'param'])
   })
 })
+
+describe('createParamsTree collapse state', () => {
+  const tree = () => buildParamTree([
+    { path: 'part.size', name: 'size', parent: 'part', type: 'number', default: 1 },
+    { path: 'part.h', name: 'h', parent: 'part', type: 'number', default: 2 },
+  ])
+
+  const make = (options = {}, values = {}) => {
+    const target = document.createElement('div')
+    const view = createParamsTree({ target, tree: tree(), values, onChange: () => {}, ...options })
+    return { target, view }
+  }
+
+  it('reports the nodes the user expanded', () => {
+    const { target, view } = make()
+    expect(view.getExpandedPaths()).toEqual([])
+    target.querySelector('.params-tree-toggle').dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    expect(view.getExpandedPaths()).toEqual(['part'])
+  })
+
+  it('starts with the expanded paths it carries, and collapses the rest', () => {
+    const { target, view } = make({ expandedPaths: ['part'] })
+    expect(view.getExpandedPaths()).toEqual(['part'])
+    expect(target.querySelector('.params-tree-content--collapsed')).toBeNull()
+  })
+
+  it('drops a carried path the new tree no longer has', () => {
+    const { view } = make({ expandedPaths: ['gone'] })
+    expect(view.getExpandedPaths()).toEqual([])
+  })
+
+  it('reset restores the code defaults and collapses', () => {
+    const { view } = make({ expandedPaths: ['part'] }, { 'part.size': 9, 'part.h': 7 })
+    expect(view.reset()).toEqual({ 'part.size': 1, 'part.h': 2 })
+    expect(view.getExpandedPaths()).toEqual([])
+  })
+})

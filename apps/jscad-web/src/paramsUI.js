@@ -39,6 +39,22 @@ const mapsEqual = (a, b) => {
  */
 
 /**
+ * The values whose param path survives a code run. A run re-initialises the
+ * params to the new code's defaults; carrying these back keeps the user's edits
+ * for the params that still exist and drops the ones the new code removed.
+ * @param {Record<string, unknown>} previous
+ * @param {Record<string, unknown>} next
+ * @returns {Record<string, unknown>}
+ */
+export const carryParamValues = (previous, next) => {
+  const carried = {}
+  for (const [path, value] of Object.entries(previous)) {
+    if (path in next) carried[path] = value
+  }
+  return carried
+}
+
+/**
  * @typedef {object} ParamsUIDeps
  * @property {JscadWorker} workerApi - Worker API
  * @property {(result: object, options?: object) => void} handleEntities - Entities handler
@@ -74,11 +90,6 @@ let pendingParamChange = null
 let working = false
 let workingSince = 0
 let workToken = 0
-
-/**
- * Flag to preserve params when re-running script (e.g., modeling engine switch)
- */
-let preserveParamsOnScriptRun = false
 
 /**
  * Initialize the params controller
@@ -132,24 +143,6 @@ export function endWork(token) {
  */
 export function mustWait() {
   return working && Date.now() - workingSince < ABANDON_AFTER_MS
-}
-
-/**
- * Set preserve params flag
- * @param {boolean} value
- */
-export function setPreserveParams(value) {
-  preserveParamsOnScriptRun = value
-}
-
-/**
- * Get and reset preserve params flag
- * @returns {boolean}
- */
-export function consumePreserveParams() {
-  const value = preserveParamsOnScriptRun
-  preserveParamsOnScriptRun = false
-  return value
 }
 
 /**
@@ -371,8 +364,9 @@ export async function handleTreeClassChange(partPath, newClass, mode, deps) {
  * @param {object} options.state
  * @param {(paramPath: string, value: unknown) => void} options.onChange
  * @param {(partPath: string, newClass: string, mode: string) => void} options.onClassChange
+ * @param {string[]} [options.expandedPaths] - collapse state carried from the previous tree
  */
-export function createParamsTreeUI({ target, proxyState, state, onChange, onClassChange }) {
+export function createParamsTreeUI({ target, proxyState, state, onChange, onClassChange, expandedPaths }) {
   paramsTreeView = createParamsTree({
     target,
     tree: proxyState.tree,
@@ -382,7 +376,8 @@ export function createParamsTreeUI({ target, proxyState, state, onChange, onClas
     codeClasses: state.codeClasses,
     onChange,
     onClassChange,
-    showHidden: false
+    showHidden: false,
+    expandedPaths
   })
   return paramsTreeView
 }
@@ -409,9 +404,10 @@ export function injectParamsStyles() {
 /**
  * Build params header controls
  * @param {HTMLElement} paramsHeader
+ * @param {{onReset?: () => void}} [options]
  * @returns {{ showHiddenCheckbox: HTMLInputElement }}
  */
-export function buildParamsHeader(paramsHeader) {
+export function buildParamsHeader(paramsHeader, { onReset } = {}) {
   paramsHeader.innerHTML = ''
 
   const controls = document.createElement('div')
@@ -438,6 +434,15 @@ export function buildParamsHeader(paramsHeader) {
   collapseBtn.style.cssText = 'font-size:11px;padding:2px 6px;cursor:pointer;'
   collapseBtn.onclick = () => paramsTreeView?.collapseAll()
   controls.appendChild(collapseBtn)
+
+  if (onReset) {
+    const resetBtn = document.createElement('button')
+    resetBtn.id = 'params-reset'
+    resetBtn.textContent = 'Reset'
+    resetBtn.style.cssText = 'font-size:11px;padding:2px 6px;cursor:pointer;'
+    resetBtn.onclick = () => onReset()
+    controls.appendChild(resetBtn)
+  }
 
   paramsHeader.appendChild(controls)
 

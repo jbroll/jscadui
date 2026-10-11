@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { initParamsController, runModelUpdate } from '../src/paramsUI.js'
+import { buildParamsHeader, carryParamValues, initParamsController, runModelUpdate } from '../src/paramsUI.js'
 
 const deps = (jscadMain, extra = {}) => ({
   workerApi: { jscadMain },
@@ -150,5 +150,30 @@ describe('an update during a run', () => {
     runs[1].resolve({ entities: ['new'] })
     await second
     expect(d.handleEntities).toHaveBeenCalledExactlyOnceWith({ entities: ['new'] }, {})
+  })
+})
+
+describe('carryParamValues', () => {
+  it('keeps the values of params that survive the run and drops the rest', () => {
+    expect(carryParamValues(
+      { 'part.size': 3, 'gone.x': 1 },
+      { 'part.size': 1, 'other.y': 2 },
+    )).toEqual({ 'part.size': 3 })
+  })
+
+  it('is empty when nothing survives', () => {
+    expect(carryParamValues({ a: 1 }, { b: 2 })).toEqual({})
+  })
+})
+
+describe('buildParamsHeader', () => {
+  it('adds a Reset control that calls onReset', () => {
+    const header = document.createElement('div')
+    const onReset = vi.fn()
+    buildParamsHeader(header, { onReset })
+    const reset = header.querySelector('button#params-reset')
+    expect(reset).not.toBeNull()
+    reset.click()
+    expect(onReset).toHaveBeenCalledOnce()
   })
 })
