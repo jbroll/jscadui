@@ -5,6 +5,7 @@ import { EditorView, basicSetup } from 'codemirror'
 import { readAsText } from '@jscadui/fs-provider'
 
 import * as drawer from './drawer.js'
+import { createEditorBuffer } from './editorBuffer.js'
 
 /** 
  * @typedef {import('@jscadui/fs-provider').FSFileEntry} FSFileEntry
@@ -20,6 +21,10 @@ import * as drawer from './drawer.js'
  * @callback GetFileFn
  * @param {string} path
  * @returns {Promise<FSFileEntry | undefined>}
+ * 
+ * @callback ConfirmFn
+ * @param {{title:string,message:string,confirmLabel:string,cancelLabel:string}} options
+ * @returns {Promise<boolean>}
  */
 
 /** @type {EditorView} */
@@ -34,6 +39,7 @@ let getFileFn
 
 // file selector
 let currentFile = '/index.js'
+const buffer = createEditorBuffer()
 /** @type {HTMLElement} */
 let editorNav
 /** @type {HTMLElement} */
@@ -67,8 +73,9 @@ export const runScript = () => compile(view.state.doc.toString(), currentFile)
  * @param {CompileFn} fn 
  * @param {SaveFn} _saveFn 
  * @param {GetFileFn} _getFileFn 
+ * @param {ConfirmFn} [_confirm]
  */
-export const init = (defaultCode, fn, _saveFn, _getFileFn) => {
+export const init = (defaultCode, fn, _saveFn, _getFileFn, _confirm) => {
   // H3 fix: Clean up existing resources if init() called multiple times
   if (documentClickHandler) {
     document.removeEventListener('click', documentClickHandler)
@@ -88,12 +95,16 @@ export const init = (defaultCode, fn, _saveFn, _getFileFn) => {
   compileFn = fn
   saveFn = _saveFn
   getFileFn = _getFileFn
+  confirmFn = _confirm
   // Initialize codemirror
   const editorDiv = document.getElementById('editor-container')
   view = new EditorView({
     extensions: [
       basicSetup,
       javascript(),
+      EditorView.updateListener.of((update) => {
+        if (update.docChanged) buffer.edit(currentFile, update.state.doc.toString())
+      }),
       keymap.of([
         {
           key: 'Shift-Enter',
@@ -168,13 +179,38 @@ export const applyEdit = ({ changes, cursor }) => {
 /** @returns {string} the path of the file in the editor */
 export const getPath = () => currentFile
 
+/** @type {((options:{title:string,message:string,confirmLabel:string,cancelLabel:string}) => Promise<boolean>) | undefined} */
+let confirmFn
+
+/** @returns {boolean} whether any open path has unsaved edits */
+export const isDirty = () => buffer.isDirty()
+
+/**
+ * The gate before a whole-project replace: true to proceed. Clean buffers
+ * proceed silently; a dirty buffer asks the injected confirm dialog.
+ * @returns {Promise<boolean>}
+ */
+export const confirmDiscard = async () => {
+  if (!buffer.isDirty() || !confirmFn) return true
+  return confirmFn({
+    title: 'Discard unsaved edits?',
+    message: 'Opening this replaces the editor with the project’s saved files. Your unsaved edits will be lost.',
+    confirmLabel: 'Discard',
+    cancelLabel: 'Keep edits',
+  })
+}
+
 /** 
  * @param {string} source 
  * @param {string} path 
  */
 export const setSource = (source, path = '/index.js') => {
-  view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: source } })
   currentFile = path
+  view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: source } })
+  // The doc-change listener has run synchronously and marked the path dirty;
+  // this content is authoritative, so it is clean and the label names it.
+  buffer.remember(path, source)
+  if (editorFile) editorFile.textContent = path
 }
 
 export async function filesChanged(files) {
@@ -204,19 +240,21 @@ let editorFilesArr = []
 
 export const getEditorFiles = () => editorFilesArr
 
-/**
- * @param {FSFileEntry[]} files
- */
 // Track document-level click handler for cleanup
 let documentClickHandler
 
-export const setFiles = (files) => {
+/**
+ * @param {FSFileEntry[]} files
+ * @param {{keepBuffers?: boolean}} [options]
+ */
+export const setFiles = (files, { keepBuffers = false } = {}) => {
   const editorFiles = document.getElementById('editor-files')
   editorFilesArr = files
+  if (keepBuffers) buffer.prune(new Set(files.map((f) => f.fullPath)))
+  else buffer.clear()
   if (files.length < 2) {
     editorNav.classList.remove('visible')
   } else {
-    // Update spinner
     editorFile.textContent = currentFile
     editorFiles.innerHTML = ''
     files.forEach((file) => {
@@ -224,9 +262,11 @@ export const setFiles = (files) => {
       const button = document.createElement('button')
       button.innerText = file.fullPath
       button.addEventListener('click', () => {
+        if (currentFile !== file.fullPath) buffer.edit(currentFile, view.state.doc.toString())
         currentFile = file.fullPath
         editorFile.textContent = currentFile
-        readSource(file, currentFile)
+        if (buffer.has(currentFile)) setSource(buffer.get(currentFile), currentFile)
+        else readSource(file, currentFile)
       })
       item.appendChild(button)
       editorFiles.appendChild(item)
