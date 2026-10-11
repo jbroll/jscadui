@@ -36,7 +36,9 @@ describe('rowboat backend', () => {
     // push answers cursors plus an echo map, pull answers an empty page.
     const fetchFn = vi.fn(async (url) => {
       if (String(url).endsWith('/sync')) {
-        return new Response(JSON.stringify({ ok: true, serverCursor: 1, prePushCursor: 0, echo: {} }))
+        return new Response(
+          JSON.stringify({ ok: true, serverCursor: 1, prePushCursor: 0, echo: {}, rejected: [] }),
+        )
       }
       return new Response(JSON.stringify({ changes: {}, timestamp: 1, hasMore: false, maxPurgedCursor: 0 }))
     })
