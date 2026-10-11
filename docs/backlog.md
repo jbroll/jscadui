@@ -3,6 +3,54 @@
 Outstanding work, roughly in the order it should land. Delete an item in the
 commit that completes it.
 
+## Remediation finding IDs
+
+Stable IDs for the findings referenced by
+`docs/superpowers/plans/2026-10-11-review-remediation-plan.md`. The prose
+bullet each ID points at is the requirement text. Reserved for new findings:
+`SEC3+`, `PRJ4+`, `UI7+`, `API11+`, `REF18+`.
+
+| ID | Section | Sev | Primary files |
+|---|---|---|---|
+| SEC1 | Security / Smaller hardening | High | `apps/jscad-web/src/remote.js` |
+| SEC2 | Security / Smaller hardening | Low | `packages/params-form/src/params.js` |
+| PRJ1 | Projects and storage | Med | `apps/jscad-web/src/storage/rowboat.js` |
+| PRJ2 | Projects and storage | High | `apps/jscad-web/src/storage/local.js`, `src/aiAccount.js` |
+| PRJ3 | Projects and storage | Med | `apps/jscad-web/src/fileSystem.js`, `main.js` |
+| UI1 | UI (jscad-web) | Med | `src/viewState.js`, `main.js` |
+| UI2 | UI (jscad-web) | Med | `main.js`, `src/paramsUI.js`, `packages/params-ui` |
+| UI3 | UI (jscad-web) | Med | `static/main.css`, `static/index.html` |
+| UI4 | UI (jscad-web) | Med | `src/aiChat.js` |
+| UI5 | UI (jscad-web) | Med | `src/editor.js`, `main.js` |
+| UI6 | UI (jscad-web) | Med | `static/main.css`, `src/error.js` |
+| API1 | Chat API help | Med | `packages/agent-loop/eval/backend.js` |
+| API2 | Chat API help | Med | `apps/jscad-web/src/aiAccount.js` |
+| API3 | Chat API help | Low | `packages/agent-loop/src/hints.js` |
+| API4 | Chat API help | Low | `.deps-cache/jscad-fluent` (external) |
+| API5 | Chat API help | Med | `packages/agent-loop/src/tools.js`, `apps/jscad-web/src/aiDeps.js` |
+| API6 | Chat API help | Med | `apps/jscad-web/src/apiIndex.js`, `packages/agent-loop/src/docs.js` |
+| API7 | Chat API help | Low | `packages/agent-loop/eval/grade.js` |
+| API8 | Chat API help | Med | `src/optionChecks.js`, `packages/agent-loop/api/build-index.js` |
+| API9 | Chat API help | Med | `packages/agent-loop/api/build-index.js` |
+| API10 | Chat API help | Low | `packages/agent-loop/eval/probe.js` |
+| REF1 | Refactoring | High | breaking, out of scope |
+| REF2 | Refactoring | Med | `packages/openscad/src/transpiler/transpile.ts` |
+| REF3 | Refactoring | Med | out of scope (`packages/worker`) |
+| REF4 | Refactoring | Low | out of scope (`packages/require`) |
+| REF5 | Refactoring | Low | out of scope (`params-core`) |
+| REF6 | Refactoring | Med | `apps/jscad-web/main.js`, `src/paramsUI.js` |
+| REF7 | Refactoring | Med | out of scope (`main.js`, `paramsUI.js`) |
+| REF8 | Refactoring | Low | `packages/openscad/src/transpiler/helpers/` |
+| REF9 | Refactoring | Med | out of scope (`src_frame`, `frameSetup.js`) |
+| REF10 | Refactoring | Med | out of scope (model runners) |
+| REF11 | Refactoring | Med | `packages/worker/worker.js` |
+| REF12 | Refactoring | Med | `packages/worker/worker.js`, `src_frame/` |
+| REF13 | Refactoring | Med | `packages/require`, `packages/worker` |
+| REF14 | Refactoring | Low | `packages/worker/worker.js`, `src_frame/` |
+| REF15 | Refactoring | Low | `apps/jscad-web/src/studioBridge.js`, `server/src/index.ts` |
+| REF16 | Refactoring | Low | `apps/*/src_build`, `apps/vue3-jscad/src/jscad/` |
+| REF17 | Refactoring | Low | `packages/params-ui/src/ParamsTree.js` |
+
 ## Deploy
 
 jscad.rkroll.com runs `dev` with the AI chat folded in (2026-09-17): the
