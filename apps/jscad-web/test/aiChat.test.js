@@ -497,6 +497,30 @@ describe('project switch', () => {
     await chat.controls.switchTo('p1')
     await vi.waitFor(() => expect(chat.q('.chat-messages').textContent).toContain('for one'))
   })
+
+  it('ignores a conversation that resolves after another switch', async () => {
+    let release
+    const gate = new Promise((resolve) => { release = resolve })
+    const storage = {
+      readConversation: vi.fn(async (pid) => {
+        if (pid === 'slow') await gate
+        return null
+      }),
+      writeConversation: vi.fn(async () => {}),
+    }
+    let openId = 'p1'
+    const chat = openChat({
+      runTurnFn: vi.fn(async () => ({ messages: [] })),
+      storage,
+      projectId: () => openId,
+    })
+    const switching = chat.controls.switchTo('slow')
+    openId = 'p2'
+    release(null)
+    await switching
+    expect(storage.readConversation).toHaveBeenCalledWith('slow')
+    expect(chat.q('.chat-messages').textContent).toBe('')
+  })
 })
 describe('opencode session', () => {
   it('keeps one x-opencode-session per project across messages', async () => {

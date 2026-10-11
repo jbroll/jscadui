@@ -115,14 +115,6 @@ From the same review, with the same path convention.
   in to Sync", whose full-page redirect (`src/aiAccount.js:130-139`) also
   drops the hash, since `callbackURL` is the bare origin. Back it with
   IndexedDB. Until then, warn before the redirect and on unload.
-- **Runs are recorded into the wrong project.** `main.js:369` starts
-  `currentProjectId` at the literal `'default'`, but the default project is
-  created under a UUID (`main.js:984-986`), so the first editor run or chat
-  write (`main.js:935-938`) creates a second "Untitled" project. A demo
-  opened from the browser while a project is open is stored into that
-  project with its URL as the path (`main.js:809-815`); `recordEdit` guards
-  only the disk project (`:365`). Use the id `createProject` returns, and
-  skip recording for URL paths.
 - **Editor edits are dropped without warning.** The file list reads `File`
   snapshots taken when the project opened (`src/projectFiles.js:46-49`,
   `src/editor.js:207-211`), so switching to another file and back shows the
@@ -133,19 +125,6 @@ From the same review, with the same path convention.
   (`editor.js:156-159`) never updates `#editor-file`, so after a project
   switch the label names the previous file. Keep a per-path dirty buffer
   and confirm before replacing one.
-- **The Projects panel acts on the wrong project.** `src/projects.js:109-111`
-  selects the first row on first render only. Row clicks (`:90`) call
-  `onSwitch`, and `select` is never called, so the version list and Restore
-  belong to whichever project was listed first, and Restore then switches to
-  it. The open row has no highlight, versions refresh only on rename, New,
-  drop or flip, New (`:117-121`) does not open what it creates, and there is
-  no delete.
-- **Chat history does not follow a project switch.** `src/aiChat.js:142-153`
-  reads the transcript once at init, `:301` sends it as `prior`, and
-  `:107-114` saves it under the current project, so project A's conversation
-  is sent with, and saved over, project B's. Conversations go to
-  `getActiveStore` (`main.js:958-961`), rowboat whenever signed in, rather
-  than the project's own mode. There is no New chat control.
 - **A folder dropped on a project row creates a new project.** The body
   `dragover` (`src/fileSystem.js:291-294`) shows `#dropModal`, fixed
   full-screen at z-index 5000 (`static/main.css:67-78`), which takes the
