@@ -40,6 +40,19 @@ test.describe('project drawer', () => {
     await expect(page.locator('#error-bar')).toContainText('bracket ran')
   })
 
+  test('deletes a project after confirmation', async ({ page }) => {
+    await page.goto('/')
+    await dismissWelcome(page)
+    await waitForRender(page)
+    await page.locator('#project-toggle').click()
+    const rows = page.locator('.project-row')
+    const before = await rows.count()
+    expect(before).toBeGreaterThan(0)
+    await rows.first().locator('.project-delete').click()
+    await page.locator('.confirm-ok').click()
+    await expect(rows).toHaveCount(before - 1)
+  })
+
   test('drawer tabs do not overlap', async ({ page }) => {
     await page.goto('/')
     await dismissWelcome(page)
