@@ -85,6 +85,11 @@ test.describe('Code editor', () => {
     const buttonBg = await page.locator('#export-button').evaluate((el) => getComputedStyle(el).backgroundColor)
     expect(buttonBg).toBe('rgb(44, 44, 44)')
 
+    // Flat menu links stay flat: the global dark control rule must not fill
+    // the link-style buttons with a box.
+    const linkBg = await page.locator('#ai-chat-btn').evaluate((el) => getComputedStyle(el).backgroundColor)
+    expect(linkBg).toBe('rgba(0, 0, 0, 0)')
+
     await page.locator('#project-toggle').click()
     const headerBorder = await page.locator('.project-header').evaluate((el) => getComputedStyle(el).borderBottomColor)
     const rowBorder = await page.locator('.project-row').first().evaluate((el) => getComputedStyle(el).borderBottomColor)

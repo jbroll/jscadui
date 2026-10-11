@@ -145,6 +145,11 @@ test.describe('project drawer', () => {
     await page.locator('#ai-toggle').click()
     await expect(page.locator('#ai-drawer:not(.closed)')).toBeVisible()
     await expect(page.locator('#model-options')).toBeHidden()
+
+    // The rule has a branch per drawer; opening Projects must hide it too.
+    await page.locator('#project-toggle').click()
+    await expect(page.locator('#project-drawer:not(.closed)')).toBeVisible()
+    await expect(page.locator('#model-options')).toBeHidden()
   })
 })
 
