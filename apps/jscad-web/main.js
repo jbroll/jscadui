@@ -1003,9 +1003,10 @@ const aiDeps = {
 }
 
 if (byId('ai-account')) initAccount(byId('ai-account'), {
-  // A local-mode project lives only in memory: warn before the sign-in
-  // redirect and on unload, which would otherwise drop it silently.
-  hasLocalWork: () => projectManager.peekMode(currentProjectId) === 'local',
+  // The local backend is in-memory: a reload drops whatever this session
+  // wrote to it, in any project, open or not. `isDirty` stays false for a
+  // session that only booted the untouched default.
+  hasLocalWork: () => localStore.isDirty(),
   onSignOut: async () => {
     syncHandle?.stop()
     syncHandle = null
@@ -1050,6 +1051,9 @@ if (bootProjects.length === 0) {
   const bootId = pickBootProject(bootProjects)
   if (bootId) await switchProject(bootId).catch(setError)
 }
+// Boot is the baseline: everything the app itself created on load is not
+// "work", so the reload warning keys off writes that came after it.
+localStore.markClean()
 projectPanel = initProjects({
   container: byId('project-drawer-body'),
   manager: projectManager,

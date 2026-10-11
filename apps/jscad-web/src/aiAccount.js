@@ -14,8 +14,11 @@ const SELECTION_KEY = 'jscad-ai.selection'
 // synced. `hasLocalWork` is set per account panel; the browser's unload
 // prompt is the only warning that survives a full-page navigation.
 let warnOnUnload = () => false
+// The sign-in redirect reloads the page on purpose and already asked; the
+// native prompt would double-ask, so it is suppressed for that navigation.
+let suppressUnloadPrompt = false
 window.addEventListener('beforeunload', (ev) => {
-  if (!warnOnUnload()) return
+  if (suppressUnloadPrompt || !warnOnUnload()) return
   ev.preventDefault()
   ev.returnValue = ''
 })
@@ -101,6 +104,7 @@ const modelsUrl = (kind, baseUrl) =>
  */
 export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = () => false } = {}) => {
   warnOnUnload = hasLocalWork
+  suppressUnloadPrompt = false
   const selection = getSelection()
   const state = {
     kind: selection.kind ?? 'anthropic',
@@ -150,8 +154,15 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
       body: JSON.stringify({ provider: 'google', callbackURL: window.location.href }),
     })
     const body = await res.json().catch(() => ({}))
-    if (body?.url) window.location.assign(body.url)
-    else sessionLine.textContent = `Sign-in failed: ${body?.error ?? res.status}`
+    if (body?.url) {
+      // The redirect reloads the page after the confirm above; the native
+      // unload prompt would ask a second time, so silence it for this
+      // navigation (tab close and manual reload still warn).
+      suppressUnloadPrompt = true
+      window.location.assign(body.url)
+    } else {
+      sessionLine.textContent = `Sign-in failed: ${body?.error ?? res.status}`
+    }
   })
 
   signOut.addEventListener('click', async () => {

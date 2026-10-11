@@ -274,6 +274,7 @@ export function createFileWatcher(onFilesChanged, runScript) {
  * Setup drag and drop handlers
  * @param {HTMLElement} dropModal
  * @param {(dataTransfer: DataTransfer, target: EventTarget | null) => Promise<void>} onDrop
+ * @returns {() => void} removes the body listeners again
  */
 export function setupDragDrop(dropModal, onDrop) {
   /** @type {number | NodeJS.Timeout | undefined} */
@@ -284,20 +285,20 @@ export function setupDragDrop(dropModal, onDrop) {
     dropModal.style.display = show ? 'initial' : 'none'
   }
 
-  document.body.addEventListener('drop', async ev => {
+  const onBodyDrop = async ev => {
     ev.preventDefault()
     if (ev.dataTransfer === null) return
     showDrop(false)
     await onDrop(ev.dataTransfer, ev.target)
-  })
+  }
 
-  document.body.addEventListener('dragover', ev => {
+  const onBodyDragOver = ev => {
     ev.preventDefault()
     // A project row has its own drop handlers; the full-screen hint would
     // cover it (and, without pointer-events: none, capture the drop).
     if (ev.target?.closest?.('[data-project-id]')) { showDrop(false); return }
     showDrop(true)
-  })
+  }
 
   const dragEndOrLeave = () => {
     clearTimeout(showDropTimer)
@@ -306,6 +307,14 @@ export function setupDragDrop(dropModal, onDrop) {
     }, 300)
   }
 
+  document.body.addEventListener('drop', onBodyDrop)
+  document.body.addEventListener('dragover', onBodyDragOver)
   document.body.addEventListener('dragend', dragEndOrLeave)
   document.body.addEventListener('dragleave', dragEndOrLeave)
+  return () => {
+    document.body.removeEventListener('drop', onBodyDrop)
+    document.body.removeEventListener('dragover', onBodyDragOver)
+    document.body.removeEventListener('dragend', dragEndOrLeave)
+    document.body.removeEventListener('dragleave', dragEndOrLeave)
+  }
 }

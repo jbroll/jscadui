@@ -5,6 +5,13 @@ export function createLocalStorage() {
   const versions = new Map()
   const conversations = new Map()
 
+  // Whether the session has stored anything in this backend since the app's
+  // boot baseline (`markClean`): the signal that a reload would drop work.
+  // Writes that only remove content (delete) must not set it.
+  let dirty = false
+  const markClean = () => { dirty = false }
+  const isDirty = () => dirty
+
   let lastTs = 0
   const now = () => {
     const ts = Date.now()
@@ -49,6 +56,7 @@ export function createLocalStorage() {
       files: { ...files },
     }
     projects.set(id, row)
+    dirty = true
     if (version) addVersion(id, row, message, ts)
     return { id, entry: entryPath, kind: row.kind }
   }
@@ -75,6 +83,7 @@ export function createLocalStorage() {
 
   const writeConversation = async (projectId, messages) => {
     conversations.set(projectId, { messages, updated: now() })
+    dirty = true
   }
 
   const deleteProject = async (id) => {
@@ -83,5 +92,5 @@ export function createLocalStorage() {
     conversations.delete(id)
   }
 
-  return { listProjects, readProject, writeFiles, snapshot, listVersions, readVersion, readConversation, writeConversation, deleteProject }
+  return { listProjects, readProject, writeFiles, snapshot, listVersions, readVersion, readConversation, writeConversation, deleteProject, markClean, isDirty }
 }

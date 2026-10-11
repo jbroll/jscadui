@@ -1178,7 +1178,10 @@ A rowboat save re-uploads only files whose content hash differs from the file
 row's stored blob key, so unchanged files cost no upload.
 The `local` backend is in-memory, so a reload drops work that was never
 synced; until it is backed by IndexedDB the app asks before the sign-in
-redirect and on unload.
+redirect and on unload whenever the session wrote to it after boot (the
+boot-created default alone does not prompt). The redirect's confirm covers
+its own reload, so the native unload prompt is suppressed for that
+navigation and reserved for tab close and manual reload.
 
 A mixed project merges at load: each manifest path names exactly one backend,
 and an unlisted sibling resolves local-first then rowboat.

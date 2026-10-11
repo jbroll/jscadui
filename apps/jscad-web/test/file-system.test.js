@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as fileSystem from '../src/fileSystem.js'
 
 vi.mock('@jscadui/fs-provider', async (importOriginal) => {
@@ -29,15 +29,19 @@ describe('project files without a service worker', () => {
 })
 
 describe('drop routing', () => {
+  let cleanup
   beforeEach(() => {
     document.body.innerHTML = ''
     vi.clearAllMocks()
+  })
+  afterEach(() => {
+    cleanup?.()
   })
 
   const setup = () => {
     document.body.innerHTML = '<div id="dropModal" style="display:none"></div><div class="project-row" data-project-id="p1">row</div>'
     const modal = document.getElementById('dropModal')
-    fileSystem.setupDragDrop(modal, async () => {})
+    cleanup = fileSystem.setupDragDrop(modal, async () => {})
     return { modal, row: document.querySelector('.project-row') }
   }
 
@@ -59,5 +63,12 @@ describe('drop routing', () => {
     await fileSystem.handleFileDrop({}, { setEditorFiles: () => {}, onFilesChange: () => {}, setError: () => {} }, entries)
     expect(extractEntries).not.toHaveBeenCalled()
     expect(fileDropped).toHaveBeenCalledWith(expect.anything(), entries, expect.anything())
+  })
+
+  it('the cleanup removes the body listeners', () => {
+    const { modal } = setup()
+    cleanup()
+    document.body.dispatchEvent(new Event('dragover', { bubbles: true, cancelable: true }))
+    expect(modal.style.display).toBe('none')
   })
 })

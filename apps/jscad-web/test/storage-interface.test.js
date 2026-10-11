@@ -71,3 +71,29 @@ describe('storage interface (local backend)', () => {
     expect(await store.readConversation('p9')).toBeNull()
   })
 })
+
+describe('local work tracking', () => {
+  it('stays clean until the session writes content, and markClean resets it', async () => {
+    const store = createLocalStorage()
+    expect(store.isDirty()).toBe(false)
+    await store.writeFiles('w1', { 'main.js': 'v1' }, { message: 'create', name: 'W1', entry: 'main.js' })
+    expect(store.isDirty()).toBe(true)
+    store.markClean()
+    expect(store.isDirty()).toBe(false)
+  })
+
+  it('a delete alone is not work a reload would lose', async () => {
+    const store = createLocalStorage()
+    await store.writeFiles('w2', { 'main.js': 'v1' }, { message: 'create', name: 'W2', entry: 'main.js' })
+    store.markClean()
+    await store.deleteProject('w2')
+    expect(store.isDirty()).toBe(false)
+  })
+
+  it('conversations count as local work', async () => {
+    const store = createLocalStorage()
+    store.markClean()
+    await store.writeConversation('w3', [{ role: 'user', content: 'x' }])
+    expect(store.isDirty()).toBe(true)
+  })
+})

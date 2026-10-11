@@ -183,6 +183,38 @@ describe('account header', () => {
     expect(quiet.defaultPrevented).toBe(false)
   })
 
+  it('asks once: the sign-in redirect silences the native unload prompt', async () => {
+    const { initAccount } = await loadAccount()
+    vi.stubGlobal('confirm', vi.fn(() => true))
+    globalThis.fetch = vi.fn(async (url) => {
+      if (String(url).includes('/api/auth/get-session')) return new Response(JSON.stringify({}), { status: 401 })
+      return new Response(JSON.stringify({ url: 'https://accounts.example/continue' }), { status: 200 })
+    })
+    const originalLocation = Object.getOwnPropertyDescriptor(window, 'location')
+    const assign = vi.fn()
+    Object.defineProperty(window, 'location', {
+      value: { href: window.location.href, origin: window.location.origin, assign },
+      configurable: true,
+      writable: true,
+    })
+    document.body.innerHTML = '<div id="a"></div>'
+    initAccount(document.getElementById('a'), { hasLocalWork: () => true })
+
+    const armed = new Event('beforeunload', { cancelable: true })
+    window.dispatchEvent(armed)
+    expect(armed.defaultPrevented).toBe(true)
+
+    const signIn = [...document.querySelectorAll('.ai-header-row .ai-button')].find((b) => b.textContent === 'Sign in to Sync')
+    signIn.click()
+    await vi.waitFor(() => expect(assign).toHaveBeenCalled())
+
+    const redirected = new Event('beforeunload', { cancelable: true })
+    window.dispatchEvent(redirected)
+    expect(redirected.defaultPrevented).toBe(false)
+    Object.defineProperty(window, 'location', originalLocation)
+    vi.unstubAllGlobals()
+  })
+
   it('calls onSignOut after a successful sign-out', async () => {
     const { initAccount } = await loadAccount()
     globalThis.fetch = vi.fn(async (url) => {
