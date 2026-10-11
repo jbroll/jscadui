@@ -60,4 +60,14 @@ describe('storage interface (local backend)', () => {
     const ids = (await store.listProjects()).map((p) => p.id)
     expect(ids).toEqual(['b', 'a'])
   })
+
+  it('deletes a project, its versions and its conversation', async () => {
+    const store = createLocalStorage()
+    await store.writeFiles('p9', { 'main.js': 'v1' }, { message: 'one', name: 'P9', entry: 'main.js' })
+    await store.writeConversation('p9', [{ role: 'user', content: 'x' }])
+    await store.deleteProject('p9')
+    expect(await store.listProjects()).toEqual([])
+    expect(await store.listVersions('p9')).toEqual([])
+    expect(await store.readConversation('p9')).toBeNull()
+  })
 })

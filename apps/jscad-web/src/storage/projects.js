@@ -130,8 +130,15 @@ export function createProjectManager({ local, getRowboat, disk = null }) {
     return remember(id, toMode)
   }
 
+  const deleteProject = async (id) => {
+    if ((await modeOf(id)) === 'disk') throw new Error('the disk project is the model directory; it cannot be deleted')
+    const store = await ownerOf(id)
+    await store.deleteProject(id)
+    modes.delete(id)
+  }
+
   const getMode = (id) => modeOf(id)
   const peekMode = (id) => modes.get(id) ?? 'local'
 
-  return { listAll, createProject, renameProject, readForSwitch, mergeDrop, createFromDrop, listVersions, restoreVersion, flipMode, getMode, peekMode }
+  return { listAll, createProject, renameProject, readForSwitch, mergeDrop, createFromDrop, listVersions, restoreVersion, flipMode, deleteProject, getMode, peekMode }
 }

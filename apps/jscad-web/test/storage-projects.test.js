@@ -86,6 +86,21 @@ describe('project manager', () => {
     expect(await drop([dir('lib', [file('a.js')]), file('z.js')])).toBe('car/z.js')
     expect(await drop([file('car.scad'), file('README.md')])).toBe('car/car.scad')
   })
+
+  it('deletes the project from its owner backend', async () => {
+    const { manager } = stores()
+    const { id } = await manager.createProject('P', { files: { 'main.js': 'v1' } })
+    await manager.deleteProject(id)
+    expect(await manager.listAll()).toEqual([])
+    expect(manager.peekMode(id)).toBe('local')
+  })
+
+  it('refuses to delete the disk project', async () => {
+    const local = createLocalStorage()
+    const disk = createDiskStorage({ fetch: async () => new Response('{}'), EventSource: class {} })
+    const manager = createProjectManager({ local, disk, getRowboat: () => null })
+    await expect(manager.deleteProject('disk')).rejects.toThrow(/disk/)
+  })
 })
 
 describe('project manager with a disk directory', () => {

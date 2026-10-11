@@ -172,10 +172,19 @@ export function createRowboatStorage(options) {
     }
   }
 
+  const deleteProject = async (id) => {
+    const project = await db.table('projects').get(id)
+    if (project && !project.__deleted) await db.remove('projects', id)
+    for (const table of ['files', 'versions', 'conversations']) {
+      const rows = await rowsFor(table, id)
+      if (rows.length > 0) await db.remove(table, rows.map((r) => r.id))
+    }
+  }
+
   const close = async () => {
     db.close?.()
     await globalThis.indexedDB?.deleteDatabase?.(dbName)
   }
 
-  return { sync, close, listProjects, readProject, writeFiles, snapshot, listVersions, readVersion, readConversation, writeConversation }
+  return { sync, close, listProjects, readProject, writeFiles, snapshot, listVersions, readVersion, readConversation, writeConversation, deleteProject }
 }

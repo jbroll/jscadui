@@ -77,5 +77,11 @@ export function createLocalStorage() {
     conversations.set(projectId, { messages, updated: now() })
   }
 
-  return { listProjects, readProject, writeFiles, snapshot, listVersions, readVersion, readConversation, writeConversation }
+  const deleteProject = async (id) => {
+    projects.delete(id)
+    versions.delete(id)
+    conversations.delete(id)
+  }
+
+  return { listProjects, readProject, writeFiles, snapshot, listVersions, readVersion, readConversation, writeConversation, deleteProject }
 }

@@ -131,6 +131,9 @@ export function createDiskStorage(options = {}) {
     writeConversation: async (_projectId, messages) => {
       conversation = { messages, updated: Date.now() }
     },
+    deleteProject: async () => {
+      throw new Error('the disk project is the model directory; it cannot be deleted')
+    },
     watch,
   }
 }
