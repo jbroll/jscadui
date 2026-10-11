@@ -57,46 +57,32 @@ From the 2026-10-01 code review, each item checked against `main`
 (`2ec5b5a8`) by reading the code. None was tried in a browser. Paths are
 under `apps/jscad-web` unless given in full.
 
-- **The relay rate limit keys on a spoofable address and never evicts.**
-  `server/src/index.ts:69` sets `trust proxy` to `true`, so `req.ip` is the
-  leftmost `X-Forwarded-For` entry, which the Apache proxy block (deploy.sh
-  `modules/apache/build.sh:116-124`) passes through from the client. The
-  limiter (`relay/routes.ts:58-59`) runs before the unknown-kind 404, and
-  `createLimiter` (`relay/policy.js:251-268`) never drops a bucket. A curl
-  client with a forged `Origin` bypasses the 60/min limit and can grow the
-  map until the API process runs out of memory. Fix: `trust proxy`
-  `'loopback'` or key on `X-Real-IP`, evict idle buckets, and point
-  better-auth's IP header at the same value.
-- **The launcher's `/models/` serves dotfiles to any page.**
-  `scripts/local/server.js:22-29` serves the model directory through
-  `safeJoin`, which is lexical only, so symlinks are followed. There is no
-  dotfile filter and no Host or Origin check, and every response carries
-  `Access-Control-Allow-Origin: *`, on 127.0.0.1:7377 by default. While
-  `jscad ~/repo` runs, any site can read `.env` or `.git/config`. `fsApi.js`
-  already has the hidden-segment, realpath and Host/Origin checks
-  (`:13-39`, `:89-99`). Unverified: whether Chrome's Local Network Access
-  prompt blocks the cross-site fetch.
-- **The auth secret falls back to a public string.**
-  `server/src/config.ts:68` defaults `BETTER_AUTH_SECRET` to
-  `dev-secret-change-me` in production. It applies only when `secrets.env`
-  exists without the variable (a missing file aborts boot on
-  `ROWBOAT_DATABASE_ID`), but then anyone can forge the cookie-cache session,
-  which better-auth trusts without a database lookup. Fix: refuse to boot in
-  production without it.
+- **The relay rate limit keys on a spoofable address.** `server/src/index.ts:69`
+  sets `trust proxy` to `true`, so `req.ip` is the leftmost `X-Forwarded-For`
+  entry, which the Apache proxy block (deploy.sh `modules/apache/build.sh:116-124`)
+  passes through from the client. A curl client with a forged `Origin` bypasses
+  the 60/min limit. The merge that landed here added idle-bucket eviction
+  (`createLimiter`, `relay/policy.js`), so the map no longer grows without
+  bound, but the key itself is still spoofable. Fix: `trust proxy` `'loopback'`
+  or key on `X-Real-IP`, and point better-auth's IP header at the same value.
+  A deploy decision — `deploy.sh` is not in this repo.
+- **The launcher's `/models/` route skips the Host/Origin check.** The
+  dotfile and symlink-escape holes are closed (`scripts/local/server.js` now
+  reuses `fsApi.js`'s `hiddenSegment` and `resolvesInside`, and resolves the
+  model dir's realpath first), but every `/models/` response still carries
+  `Access-Control-Allow-Origin: *` with no Host or Origin gate, unlike
+  `/api/fs` (`fsApi.js:89-99`). While `jscad ~/repo` runs, any page that can
+  reach 127.0.0.1:7377 can read a model file. Unverified: whether Chrome's
+  Local Network Access prompt blocks the cross-site fetch.
 - **No CSP or COOP on the app origin.** The deploy's header block (deploy.sh
   `modules/apache/build.sh:229-248`) sets neither, and `static/index.html`
   has no CSP meta. Device-mode API keys sit in `localStorage` as plain JSON
   (`packages/key-store/src/keys.js:60`), so any future script injection on
   the app origin reads them. Add `Cross-Origin-Opener-Policy: same-origin`
   and a CSP: `script-src 'self'`, `frame-src` the run host, `connect-src`
-  self, rowboat and the provider hosts.
+  self, rowboat and the provider hosts. A deploy decision — `deploy.sh` is not
+  in this repo.
 - **Smaller hardening.**
-  - `config.ts:69-73` trusts `http://localhost:5120` and
-    `https://appleid.apple.com` for credentialed CORS and the relay gate in
-    production. `SameSite=Lax` keeps the session cookie off, but a local
-    page can use the relay. Add the dev origin only outside production.
-  - `relay/routes.ts:69` returns allowlist read and parse errors, file paths
-    included, in a 500. Log them and return a fixed message.
   - `src/remote.js:180-183` gunzips a `#data:` link on the main thread with
     no output cap, so a link can hang the tab.
   - `packages/params-form/src/params.js:114` writes `type="${inputType}"`
