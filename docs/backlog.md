@@ -13,7 +13,6 @@ bullet each ID points at is the requirement text. Reserved for new findings:
 | ID | Section | Sev | Primary files |
 |---|---|---|---|
 | PRJ4 | Projects and storage | High | `apps/jscad-web/src/storage/local.js` |
-| UI1 | UI (jscad-web) | Med | `src/viewState.js`, `main.js` |
 | UI2 | UI (jscad-web) | Med | `main.js`, `src/paramsUI.js`, `packages/params-ui` |
 | UI4 | UI (jscad-web) | Med | `src/aiChat.js` |
 | UI5 | UI (jscad-web) | Med | `src/editor.js`, `main.js` |
@@ -436,9 +435,6 @@ model with `display-check.js --engine jscad`.
 From the 2026-10-01 review. Paths are under `apps/jscad-web` unless given in
 full.
 
-- **Zoom toggles re-run the model.** The Zoom To Fit and Smooth Render toggles
-  (`src/viewState.js:131-145`) re-run the model through `main.js:567`; apply
-  zoom in the viewer instead.
 - **Every code run resets parameters.** `main.js:601-603` resets the params
   controller on each load, and the tree is rebuilt collapsed
   (`packages/params-ui/src/ParamsTree.js:67-70`). Carry values and collapse

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { initParamsController, runModelUpdate, runParamChange } from '../src/paramsUI.js'
+import { ViewState } from '../src/viewState.js'
 
 const runnerDeps = (jscadMain, extra = {}) => ({
   workerApi: { jscadMain },
@@ -140,5 +141,52 @@ describe('paramChangeCallback and runModelUpdate together', () => {
     runs[1].resolve({ entities: ['params'] })
     await vi.waitFor(() => expect(rd.onEntities).toHaveBeenCalledOnce())
     expect(md.handleEntities).toHaveBeenCalledOnce()
+  })
+})
+
+describe('view state toggles', () => {
+  const dom = () => {
+    document.body.innerHTML = ['dark-mode', 'show-axis', 'show-grid', 'smooth-render', 'zoom-to-fit', 'modeling-engine', 'render-engine']
+      .map((id) => `<input id="${id}">`)
+      .join('')
+  }
+
+  const viewer = () => ({
+    setBg: vi.fn(),
+    setMeshColor: vi.fn(),
+    setScene: vi.fn(),
+    setCamera: vi.fn(),
+    getCamera: () => ({ fov: 50, aspect: 1 }),
+  })
+
+  beforeEach(() => { dom(); localStorage.clear() })
+  afterEach(() => { document.body.innerHTML = '' })
+
+  it('smooth render redraws the scene instead of re-running the model', () => {
+    const view = new ViewState()
+    const engine = viewer()
+    view.setEngine(engine)
+    view.setModel([{ id: 'solid' }])
+    const rerun = vi.fn()
+    view.onRequireReRender = rerun
+
+    view.setSmoothRender(true)
+
+    expect(engine.setScene).toHaveBeenCalledWith(expect.anything(), { smooth: true })
+    expect(rerun).not.toHaveBeenCalled()
+  })
+
+  it('zoom to fit moves the camera instead of re-running the model', () => {
+    const view = new ViewState()
+    view.setEngine(viewer())
+    const fit = vi.fn()
+    const rerun = vi.fn()
+    view.onZoomToFit = fit
+    view.onRequireReRender = rerun
+
+    view.setZoomToFit(true)
+
+    expect(fit).toHaveBeenCalledOnce()
+    expect(rerun).not.toHaveBeenCalled()
   })
 })

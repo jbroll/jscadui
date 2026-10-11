@@ -601,7 +601,17 @@ const paramChangeCallback = (params, source) => paramsUI.runParamChange({
   onEntities: (result, options) => handlers.entities(result, options),
 }, params, source)
 
-viewState.onRequireReRender = () => paramChangeCallback(ctrl.params)
+// The zoom-to-fit toggle fits the camera to the model on screen; the model is
+// not re-run for a camera change.
+const fitViewToModel = () => {
+  const entities = viewState.model
+  if (!entities?.length) return
+  const { min, max } = boundingBox(entities)
+  const { fov, aspect } = viewState.viewer.getCamera()
+  ctrl.fit(min, max, fov, aspect, 1 / 0.6)
+}
+
+viewState.onZoomToFit = fitViewToModel
 
 // ============== Script Loading ==============
 

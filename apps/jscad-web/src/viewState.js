@@ -131,7 +131,7 @@ export class ViewState {
   setSmoothRender(smoothRender, fireEvent = true) {
     this.smoothRender = smoothRender
     this.saveState()
-    if (fireEvent) this.onRequireReRender()
+    if (fireEvent) this.updateScene()
   }
 
   /**
@@ -141,7 +141,7 @@ export class ViewState {
   setZoomToFit(zoomToFit, fireEvent = true) {
     this.zoomToFit = zoomToFit
     this.saveState()
-    if (fireEvent) this.onRequireReRender()
+    if (fireEvent) this.onZoomToFit()
   }
 
   /**
@@ -241,7 +241,7 @@ export class ViewState {
     localStorage.setItem('engine.renderEngine', this.renderEngine)
   }
 
-  onRequireReRender() { }
+  onZoomToFit() { }
 
   /** @param {string} _engine */
   onModelingEngineChange(_engine) { }

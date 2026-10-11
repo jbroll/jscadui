@@ -431,6 +431,14 @@ work from the solids' `polygons`, which the flag does not change, and
 `exportStlText` computes each facet normal from the triangle's positions and
 ignores any `normals`.
 
+### Viewer controls
+
+The Zoom To Fit and Smooth Render toggles (`src/viewState.js`) act on the
+viewer, not the model. Smooth Render re-sends the current scene with the new
+`smooth` option, and Zoom To Fit fits the camera to the model already drawn
+(`onZoomToFit`, wired in `main.js`). Neither sends a `jscadMain` run, so a
+toggle does not reset the parameters or rebuild the geometry.
+
 ### Streamed runs
 
 An `ALL.js` grid does not return its geometry. While the worker runs a model's
