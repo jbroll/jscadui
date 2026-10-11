@@ -4,6 +4,45 @@ import { showPermissionDialog } from './trustedSourcesUI.js'
 
 const gzipPrefix = 'data:application/gzip;base64,'
 
+/** Ceiling on the inflated size of a `#data:` gzip link, in bytes. */
+const GZIP_OUTPUT_LIMIT = 16 * 1024 * 1024
+
+/**
+ * Inflates a gzip payload with a hard ceiling on the output. The compressed
+ * input is fed to fflate in small slices and each inflated slice is counted, so
+ * a decompression bomb cannot allocate or spend time past the ceiling: the
+ * stream is abandoned as soon as the running total passes it. A 4 KiB slice
+ * inflates to at most ~4 MiB (deflate's ~1032:1 ceiling), so the work between
+ * checks stays bounded even for a crafted stream.
+ * @param {Uint8Array} data
+ * @returns {string}
+ */
+const gunzipWithinLimit = (data) => {
+  /** @type {Uint8Array[]} */
+  const chunks = []
+  let size = 0
+  const gunzip = new fflate.Gunzip((chunk) => {
+    size += chunk.length
+    if (size > GZIP_OUTPUT_LIMIT) {
+      throw new Error(`data: gzip payload inflates past the ${GZIP_OUTPUT_LIMIT / (1024 * 1024)} MiB limit`)
+    }
+    chunks.push(chunk)
+  })
+  const sliceSize = 4096
+  for (let offset = 0; offset < data.length; offset += sliceSize) {
+    gunzip.push(data.subarray(offset, offset + sliceSize), false)
+  }
+  gunzip.push(new Uint8Array(0), true)
+
+  const out = new Uint8Array(size)
+  let written = 0
+  for (const chunk of chunks) {
+    out.set(chunk, written)
+    written += chunk.length
+  }
+  return new TextDecoder('utf-8').decode(out)
+}
+
 /**
  * @callback CompileFn
  * @param {string} script
@@ -181,8 +220,7 @@ export const isValidRemoteUrl = (urlString) => {
 export const fetchUrl = async (url) => {
   if (url.startsWith(gzipPrefix)) {
     const bytes = base64ToArrayBuffer(url.substring(gzipPrefix.length))
-    const dec = fflate.gunzipSync(new Uint8Array(bytes))
-    return new TextDecoder("utf-8").decode(dec)
+    return gunzipWithinLimit(new Uint8Array(bytes))
   }
 
   // Allow relative URLs (same-origin, safe); a protocol-relative URL names a

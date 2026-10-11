@@ -1297,7 +1297,10 @@ fetch. Apache's SPA fallback answers an unknown path such as `/remote` with
 `index.html` and a 200, and the launcher has no such route, so a proxy would
 work only under `npm run serve`. `isValidRemoteUrl` rejects non-http(s)
 schemes and loopback, private and link-local hosts, IPv6 included, so a shared
-link cannot point the viewer's browser at their own network.
+link cannot point the viewer's browser at their own network. A
+`#data:application/gzip;base64,…` hash is inflated in the page
+(`gunzipWithinLimit`, same file) under a 16 MiB output cap, so a link cannot
+expand a decompression bomb large enough to hang the tab.
 
 ### Smoke gate
 

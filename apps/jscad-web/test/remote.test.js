@@ -1,9 +1,31 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { gzipSync } from 'fflate'
 import { fetchUrl, isValidRemoteUrl } from '../src/remote.js'
 
 afterEach(() => vi.unstubAllGlobals())
 
+const gzipDataUrl = (bytes) =>
+  'data:application/gzip;base64,' + Buffer.from(gzipSync(bytes)).toString('base64')
+
 describe('fetchUrl', () => {
+  it('decodes a gzip data URL', async () => {
+    const url = gzipDataUrl(new TextEncoder().encode('main()'))
+    expect(await fetchUrl(url)).toBe('main()')
+  })
+
+  it('rejects a gzip data URL that inflates past the output cap', async () => {
+    const url = gzipDataUrl(new Uint8Array(32 * 1024 * 1024))
+    // Catch by hand: on a missing cap fetchUrl resolves the whole inflated
+    // string, which is too large for the assertion reporter to format.
+    const error = await fetchUrl(url).then(
+      () => null,
+      (err) => err,
+    )
+    expect(error).toBeInstanceOf(Error)
+    expect(error.message).toMatch(/inflates past the 16 MiB limit/)
+  })
+
+
   it('sends no credentials with a hash fetch', async () => {
     const fetch = vi.fn(async () => new Response('main()', { status: 200 }))
     vi.stubGlobal('fetch', fetch)
