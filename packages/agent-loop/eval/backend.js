@@ -362,7 +362,8 @@ export function createEvalBackend({ api = DEFAULT_API } = {}) {
     try {
       const out = runProbe(current.geometry, geometrySpec)
       return wantsVariants ? { ...out, paramVariants: await paramVariants(model, deadline, buildMs) } : out
-    } catch {
+    } catch (error) {
+      console.warn('eval backend: probe failed', error)
       return null
     }
   }

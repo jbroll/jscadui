@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { builtinModules, createRequire } from 'node:module'
 import { NO_ENTRY_NOTE, notGeometryError } from '../src/buildReport.js'
 import { CDN_BASE, createEvalBackend, createEvalReadFile, variantValue } from './backend.js'
@@ -514,6 +514,19 @@ describe('eval backend grading', () => {
     expect(graded.probe.bodies).toHaveLength(1)
     expect(await createEvalBackend().gradeProject(box)).not.toHaveProperty('probe')
     expect(await createEvalBackend().gradeProject(null, { probe: { bodies: {} } })).toEqual({ measure: null, solid: null, params: [], probe: null })
+  })
+
+  it('names the cause when the probe throws, and grades without it', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const graded = await createEvalBackend().gradeProject({ files: { 'main.js': CUBE }, entry: 'main.js' }, { probe: { sections: [{ axis: 'q', at: [0.5], groupGap: 1 }] } })
+      expect(graded.probe).toBeNull()
+      expect(warn).toHaveBeenCalledTimes(1)
+      expect(warn.mock.calls[0][0]).toContain('probe failed')
+      expect(String(warn.mock.calls[0][1])).toContain('iterable')
+    } finally {
+      warn.mockRestore()
+    }
   })
 
   it('gradeProject rebuilds with each number parameter changed when the probe asks for paramVariants', async () => {

@@ -340,7 +340,10 @@ A `complex` fixture's geometry grade comes from a verdict on renders of the
 result ([user-manual.md](user-manual.md#complex-fixtures)), in three stages.
 Stage A runs in each `run-eval` lane: the conversation, the grade in a fresh
 executor with the `bodies` probe, the same executor's `mesh` reply, the gates,
-and the renders. Stage B (`eval/describe.js`) runs once over the pass's
+and the renders. A probe whose computation throws is reported as
+`probe: null` and logs one warning naming the cause, so a bad fixture spec is
+visible instead of silently grading without it. Stage B (`eval/describe.js`)
+runs once over the pass's
 result files: one describer process loads the model once and describes every
 rendered run. Stage C (`eval/judge.js`) judges every described run. Keeping
 B out of the lanes keeps the GPU out of them: the model loads once per pass
