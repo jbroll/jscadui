@@ -47,7 +47,12 @@ relay instead of production's, which never trusted its origin. Then
 `d1f328ea`, geom2 booleans on clipper-lib (modeling `ff759668`); smoke passed
 (app build `d651ba36`, frame `63973ab6`). 2026-10-01: deployed `5b75dae1`, the
 chat's project-switch guard; smoke passed (app build `e3b23e20`, frame
-`da49cf0a`).
+`da49cf0a`). 2026-10-11: deployed `5b2b059d`, the project and storage
+residuals batch (boot opens the most recent project; per-path dirty buffer
+with a discard confirm; an in-flight chat turn persists under its own project;
+conversations route by the project's mode with a New-chat reset; project
+delete; mode-flip moves the project; sign-out tears down sync) plus the earlier
+parts-group1 hardening; smoke passed (app build `f54c2112`, frame `0dceb65c`).
 See `apps/jscad-web/docs/architecture.md` for the
 deploy order and headers.
 
@@ -675,6 +680,15 @@ from the 2026-10-01 review.
   lockfile or agent-loop's new devDependencies (both ruled out on a CI
   scratch tree); the `@jscad/modeling` and `@jscad/modeling-for-manifold`
   links share one realpath, which is where arborist's link lookup runs.
+- **npm 12's `allow-remote=none` blocks the install for a local deploy.**
+  `apps/react` → `@jscad/regl-renderer@2.6.3` pulls `@jscad/modeling@2.10.0`
+  through a literal registry-tarball spec
+  (`https://registry.npmjs.org/@jscad/modeling/-/modeling-2.10.0.tgz`), which
+  npm 12.0.2 refuses with `EALLOWREMOTE` ("Fetching packages of type 'remote'
+  have been disabled"). `deploy-full.sh`'s bootstrap install then fails before
+  the build. Workaround: run the deploy with `npm_config_allow_remote=all` (the
+  URL is the configured registry, so allowing it is safe). A durable fix would
+  pin the dependency by name/range or otherwise drop the URL spec.
 - **jscad-fluent 0.7.0 not yet published.** `extrudeLinear`/`extrudeRotate`/`offset`
   on a `FluentGeom2` used to crash under the manifold engine (`Object.assign`
   copying dropped `ManifoldGeom2`/`ManifoldGeom3`'s prototype getters). Fixed
