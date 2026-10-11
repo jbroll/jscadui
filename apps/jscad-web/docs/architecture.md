@@ -442,12 +442,15 @@ toggle does not reset the parameters or rebuild the geometry.
 ### Parameter panel
 
 The parameter tree (`packages/params-ui/src/ParamsTree.js`) is rebuilt whenever
-a run answers with a new proxy state. Values and the expanded nodes are carried
-by param path: a param the new code still declares keeps the user's value and
-expansion, one it removed is dropped, and a newly declared one starts at its
-default. The panel's Reset control (`buildParamsHeader` in `src/paramsUI.js`)
-returns every value to the code default, clears the user's edits and collapses
-the tree, then redraws the model.
+a run answers with a new proxy state. A re-run of the same model keeps, by
+param path, the user's value, edits and expansion for the params the new code
+still declares; one it removed is dropped, and a newly declared one starts at
+its default. A freshly opened model — a different url, or a different
+`project:<id>` — starts from the new code's defaults (`loadSource`, in
+`src/projectFiles.js`, is the identity). The panel's Reset control
+(`buildParamsHeader` in `src/paramsUI.js`) returns every value to the code
+default, clears the user's edits and collapses the tree, then redraws the
+model.
 
 ### Streamed runs
 

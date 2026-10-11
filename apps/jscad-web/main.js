@@ -626,6 +626,7 @@ viewState.onZoomToFit = fitViewToModel
 // ============== Script Loading ==============
 
 let lastScriptUrl
+let lastLoadSource
 
 const STALE = { stale: true }
 
@@ -650,8 +651,14 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
   document.documentElement.dataset.render = 'running'
   delete document.documentElement.dataset.vertices
 
-  // Carry the values and collapse state of the params that survive the run;
-  // the controller and tree are rebuilt from the new code below.
+  // Capture the params, edits and expansion to carry: only a re-run of the
+  // same model carries, so a freshly opened one starts from the new code's
+  // defaults. The load identity is loadSource's: the url for a URL script,
+  // `project:<projectId>` for a project file.
+  const loadSourceId = loadSource({ url, projectId: currentProjectId })
+  const sameModel = loadSourceId === lastLoadSource
+  lastLoadSource = loadSourceId
+
   const savedParams = { ...paramsCtrl.params }
   const savedUserInteracted = [...paramsCtrl.userInteracted]
   const savedExpanded = paramsUI.getParamsTreeView()?.getExpandedPaths() ?? []
@@ -691,12 +698,18 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
       paramsCtrl.initFromResult(result)
 
       // Restore the user's edits where the new code still declares the param,
-      // so running the model does not reset them to the code's defaults.
+      // so running the same model does not reset them to the code's defaults.
       const defaults = { ...paramsCtrl.params }
-      const carried = paramsUI.carryParamValues(savedParams, defaults)
-      Object.assign(paramsCtrl.params, carried)
-      for (const path of savedUserInteracted) {
-        if (path in paramsCtrl.params) paramsCtrl.userInteracted.add(path)
+      const carried = paramsUI.carriedFromPrevious({
+        sameModel,
+        previous: savedParams,
+        userInteracted: savedUserInteracted,
+        expandedPaths: savedExpanded,
+        defaults,
+      })
+      Object.assign(paramsCtrl.params, carried.values)
+      for (const path of carried.userInteracted) {
+        paramsCtrl.userInteracted.add(path)
       }
 
       // Setup UI
@@ -716,7 +729,7 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
         target: treeContainer,
         proxyState: result.proxyState,
         state,
-        expandedPaths: savedExpanded,
+        expandedPaths: carried.expandedPaths,
         onChange: (paramPath, value) => {
           paramsUI.handleTreeParamChange(paramPath, value, () => {
             paramsUI.scheduleModelUpdate(() => paramsUI.runModelUpdate(modelUpdateDeps()))
@@ -740,7 +753,7 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
 
       // The run above drew the code's defaults; a carried value that differs
       // needs one more run to draw.
-      const carriedChanged = Object.entries(carried).some(([path, value]) => value !== defaults[path])
+      const carriedChanged = Object.entries(carried.values).some(([path, value]) => value !== defaults[path])
       if (carriedChanged) {
         runId = beginStream(isStale)
         const restoreResult = await workerApi.jscadMain({ ...paramsCtrl.getWorkerParams(), runId, held: meshRefs.held(), supersede: true })
@@ -962,7 +975,7 @@ if (loadDefault && !hasRemoteScript) {
   const fullUrl = new URL(defaultUrl, appBase).toString()
   if (await editor.confirmDiscard()) {
     editor.setSource(defaultCode, fullUrl)
-    jscadScript({ script: defaultCode, url: defaultUrl, base: appBase })
+    jscadScript({ script: defaultCode, url: fullUrl, base: appBase })
   }
 }
 

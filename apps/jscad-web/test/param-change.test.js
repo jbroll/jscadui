@@ -167,26 +167,33 @@ describe('view state toggles', () => {
     const engine = viewer()
     view.setEngine(engine)
     view.setModel([{ id: 'solid' }])
-    const rerun = vi.fn()
-    view.onRequireReRender = rerun
+    const hooks = { onZoomToFit: vi.fn(), onModelingEngineChange: vi.fn(), onRenderEngineChange: vi.fn() }
+    Object.assign(view, hooks)
 
     view.setSmoothRender(true)
 
     expect(engine.setScene).toHaveBeenCalledWith(expect.anything(), { smooth: true })
-    expect(rerun).not.toHaveBeenCalled()
+    // A toggle must fire no model-requesting hook: viewState's only hooks are
+    // the zoom fit and the two engine changes, and none may run a model.
+    expect(hooks.onZoomToFit).not.toHaveBeenCalled()
+    expect(hooks.onModelingEngineChange).not.toHaveBeenCalled()
+    expect(hooks.onRenderEngineChange).not.toHaveBeenCalled()
   })
 
   it('zoom to fit moves the camera instead of re-running the model', () => {
     const view = new ViewState()
     view.setEngine(viewer())
-    const fit = vi.fn()
-    const rerun = vi.fn()
-    view.onZoomToFit = fit
-    view.onRequireReRender = rerun
+    const onZoomToFit = vi.fn()
+    const onModelingEngineChange = vi.fn()
+    const onRenderEngineChange = vi.fn()
+    view.onZoomToFit = onZoomToFit
+    view.onModelingEngineChange = onModelingEngineChange
+    view.onRenderEngineChange = onRenderEngineChange
 
     view.setZoomToFit(true)
 
-    expect(fit).toHaveBeenCalledOnce()
-    expect(rerun).not.toHaveBeenCalled()
+    expect(onZoomToFit).toHaveBeenCalledOnce()
+    expect(onModelingEngineChange).not.toHaveBeenCalled()
+    expect(onRenderEngineChange).not.toHaveBeenCalled()
   })
 })

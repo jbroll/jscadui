@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { buildParamsHeader, carryParamValues, initParamsController, runModelUpdate } from '../src/paramsUI.js'
+import { buildParamsHeader, carriedFromPrevious, carryParamValues, initParamsController, runModelUpdate } from '../src/paramsUI.js'
+import { loadSource } from '../src/projectFiles.js'
 
 const deps = (jscadMain, extra = {}) => ({
   workerApi: { jscadMain },
@@ -163,6 +164,45 @@ describe('carryParamValues', () => {
 
   it('is empty when nothing survives', () => {
     expect(carryParamValues({ a: 1 }, { b: 2 })).toEqual({})
+  })
+})
+
+// The jscadScript carry wiring: sameModel comes from comparing the two loads'
+// loadSource identities (url, or project:<projectId> for a project file), then
+// carriedFromPrevious picks what the rebuilt tree keeps.
+describe('carriedFromPrevious (jscadScript carry wiring)', () => {
+  const previous = { 'part.size': 9, 'gone.x': 1 }
+  const userInteracted = ['part.size', 'gone.x']
+  const expandedPaths = ['part']
+  const defaults = { 'part.size': 1, 'other.y': 2 }
+
+  const carry = (firstLoad, secondLoad) => carriedFromPrevious({
+    sameModel: loadSource(secondLoad) === loadSource(firstLoad),
+    previous,
+    userInteracted,
+    expandedPaths,
+    defaults,
+  })
+
+  it('carries values, edits and expansion when the same model re-runs', () => {
+    const load = { url: 'https://example.com/gear.js', projectId: 'p1' }
+    expect(carry(load, { ...load })).toEqual({
+      values: { 'part.size': 9 },
+      userInteracted: ['part.size'],
+      expandedPaths: ['part'],
+    })
+  })
+
+  it('starts a freshly opened model at another url from its defaults', () => {
+    const first = { url: 'https://example.com/gear.js', projectId: 'p1' }
+    const other = { url: 'https://example.com/box.js', projectId: 'p1' }
+    expect(carry(first, other)).toEqual({ values: {}, userInteracted: [], expandedPaths: [] })
+  })
+
+  it('does not carry across projects for the same project-file path', () => {
+    const first = { url: 'http://project.local/main.js', projectId: 'p1' }
+    const other = { url: 'http://project.local/main.js', projectId: 'p2' }
+    expect(carry(first, other)).toEqual({ values: {}, userInteracted: [], expandedPaths: [] })
   })
 })
 

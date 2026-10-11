@@ -55,6 +55,31 @@ export const carryParamValues = (previous, next) => {
 }
 
 /**
+ * What a rebuilt params tree carries from the previous one: the values and
+ * user-interacted paths of the params the new code still declares, plus the
+ * expanded nodes. Only a re-run of the same model carries — a freshly opened
+ * model starts from the new code's defaults, so its params, edits and
+ * expansion are dropped. `sameModel` is the caller's load-identity comparison
+ * (`loadSource`, see `jscadScript`).
+ * @param {{
+ *   sameModel: boolean,
+ *   previous: Record<string, unknown>,
+ *   userInteracted: string[],
+ *   expandedPaths: string[],
+ *   defaults: Record<string, unknown>,
+ * }} args
+ * @returns {{ values: Record<string, unknown>, userInteracted: string[], expandedPaths: string[] }}
+ */
+export const carriedFromPrevious = ({ sameModel, previous, userInteracted, expandedPaths, defaults }) => {
+  if (!sameModel) return { values: {}, userInteracted: [], expandedPaths: [] }
+  return {
+    values: carryParamValues(previous, defaults),
+    userInteracted: userInteracted.filter((path) => path in defaults),
+    expandedPaths,
+  }
+}
+
+/**
  * @typedef {object} ParamsUIDeps
  * @property {JscadWorker} workerApi - Worker API
  * @property {(result: object, options?: object) => void} handleEntities - Entities handler
