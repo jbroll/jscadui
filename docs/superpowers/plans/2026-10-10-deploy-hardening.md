@@ -34,7 +34,7 @@
 
 **Interfaces:**
 - Consumes: `createLimiter({ ratePerMin, burst, now? })` returning `{ check(key): LimitResult }`.
-- Produces: same shape plus an optional `maxBuckets` (default 10_000); when the map would exceed it and a new key arrives, fully-refilled (idle) buckets are dropped so a flood of distinct keys cannot grow the map past the cap once they idle. A still-draining bucket is never dropped: if every bucket is live the map may briefly exceed the cap rather than evict a live key.
+- Produces: same shape plus `size()` (tracked key count) and an optional `maxBuckets` (default 10_000); when the map would exceed it and a new key arrives, fully-refilled (idle) buckets are dropped so a flood of distinct keys cannot grow the map past the cap once they idle. A still-draining bucket is never dropped: if every bucket is live the map may briefly exceed the cap rather than evict a live key. `size()` exists so the cap is observable in a test (the eviction is otherwise invisible: an evicted key and a refilled idle key both answer `ok: true`).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -48,7 +48,9 @@ it('evicts fully-refilled buckets once the map passes the cap', () => {
   // a, b, c idle back to a full token well before the next arrivals
   t += 120_000
   limiter.check('d'); limiter.check('e'); limiter.check('f')
-  // every key still works: eviction drops only idle buckets, never live ones
+  // the idle buckets were dropped, so the cap held
+  expect(limiter.size()).toBeLessThanOrEqual(3)
+  // and the live keys are still tracked: a second check is still refused
   expect(limiter.check('f')).toMatchObject({ ok: false })
   expect(limiter.check('e')).toMatchObject({ ok: false })
 })
@@ -97,6 +99,10 @@ export const createLimiter = ({ ratePerMin, burst, now = Date.now, maxBuckets = 
       }
       buckets.set(key, { tokens, at: t })
       return { ok: false, retryAfterSec: Math.max(1, Math.ceil((1 - tokens) / perMs / 1000)) }
+    },
+    // Tracked keys; the cap bound is only observable through this.
+    size() {
+      return buckets.size
     },
   }
 }
