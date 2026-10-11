@@ -60,14 +60,21 @@ export function configFromEnv(): ServerConfig {
     );
   }
 
+  const authSecret = process.env.BETTER_AUTH_SECRET;
+  if (isProd && !authSecret) {
+    throw new Error(
+      'BETTER_AUTH_SECRET is required in production; the dev placeholder would let anyone forge the session cookie',
+    );
+  }
+
   return {
     port: Number(process.env.PORT) || 3001,
     host: process.env.BIND_HOST || '::',
     dbPath: process.env.AUTH_DB_PATH || (isProd ? './data/auth.db' : './auth.db'),
     frontendUrl,
-    authSecret: process.env.BETTER_AUTH_SECRET || 'dev-secret-change-me',
+    authSecret: authSecret || 'dev-secret-change-me',
     trustedOrigins: [
-      'http://localhost:5120',
+      ...(isProd ? [] : ['http://localhost:5120']),
       'https://jscad.rkroll.com',
       'https://appleid.apple.com',
       ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []),
