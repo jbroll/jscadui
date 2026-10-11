@@ -314,7 +314,13 @@ export const clearAllCaches = () => {
 }
 
 /**
- * Legacy requireCache object for backward compatibility
- * @deprecated Use cacheManager methods directly
+ * The live maps workers and the frame write to: bundle aliases, workspace
+ * aliases and the local file cache. Each refers to the cacheManager's own
+ * objects, which the clears mutate in place, so the identity holds.
  */
-export const requireCache = cacheManager.getLegacyCacheObjects()
+export const requireCache = {
+  local: cacheManager.local,
+  alias: cacheManager.alias,
+  bundleAlias: cacheManager.bundleAlias,
+  knownDependencies: cacheManager.knownDependencies,
+}

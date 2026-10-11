@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "@jscadui/format-common": "*",
+    "@jscadui/fs-provider": "*",
     "@jscadui/params-core": "*",
     "@jscadui/postmessage": "*",
     "@jscadui/require": "*"

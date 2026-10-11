@@ -1,5 +1,12 @@
 # require
 
+## Package boundaries
+
+`src/require.js` imports `@jscadui/fs-provider` and `@jscadui/params-core` by
+relative path; both are declared in `package.json` so the sibling boundary is
+explicit. `@jscadui/worker` declares the same `fs-provider` dependency for its
+relative import.
+
 ## Cycles
 
 A module's `exports` object is cached before the module runs, so a require that

@@ -372,6 +372,27 @@ export class CacheManager {
   }
 
   /**
+   * Live caches the `requireCache` export in `src/require.js` mirrors; each
+   * clear mutates them in place so the export's identity holds and no write
+   * through it is orphaned.
+   */
+  get local(): Record<string, unknown> {
+    return this.localCache
+  }
+
+  get alias(): Record<string, string> {
+    return this.aliases
+  }
+
+  get bundleAlias(): Record<string, string> {
+    return this.bundleAliases
+  }
+
+  get knownDependencies(): Map<string, Set<string>> {
+    return this.dependencies
+  }
+
+  /**
    * Clear file cache for specific files with dependency tracking
    */
   clearFileCache(files: string[], root?: string): void {
@@ -403,9 +424,9 @@ export class CacheManager {
    * Keep module cache for reuse across script runs
    */
   clearTempCache(): void {
-    // Clear in place to preserve object identity: requireCache holds a
-    // snapshot of these objects (see getLegacyCacheObjects), so reassigning
-    // would orphan writes made via requireCache.alias after a clear.
+    // Clear in place to preserve object identity: the requireCache export in
+    // src/require.js mirrors these objects, so reassigning would orphan writes
+    // made via requireCache.alias after a clear.
     for (const k of Object.keys(this.localCache)) delete this.localCache[k]
     for (const k of Object.keys(this.aliases)) delete this.aliases[k]
     this.loading.clear()
@@ -431,39 +452,6 @@ export class CacheManager {
     this.moduleCache.clear()
     this.dependencies.clear()
     this.loading.clear()
-  }
-
-  /**
-   * Get legacy cache objects for backward compatibility
-   * TODO: Remove once all code migrated to CacheManager methods
-   */
-  getLegacyCacheObjects() {
-    return {
-      local: this.localCache,
-      alias: this.aliases,
-      bundleAlias: this.bundleAliases,
-      // Backward compatibility: allow setting module cache for tests
-      // but it's a no-op since we use LRU now
-      get module() {
-        // Return empty object for compatibility
-        return Object.create(null)
-      },
-      set module(_value: unknown) {
-        // Ignore attempts to set module cache directly
-        // Tests should use clearAllCaches() instead
-        console.warn('Setting requireCache.module is deprecated - use cacheManager.clearAllCaches()')
-      },
-      knownDependencies: this.dependencies,
-      // Backward compatibility: allow setting moduleAccessOrder for tests
-      get moduleAccessOrder() {
-        return []
-      },
-      set moduleAccessOrder(_value: unknown) {
-        // Ignore - LRU order is managed internally
-        console.warn('Setting requireCache.moduleAccessOrder is deprecated')
-      },
-      loading: this.loading,
-    }
   }
 }
 

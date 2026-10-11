@@ -35,7 +35,6 @@ bullet each ID points at is the requirement text. Reserved for new findings:
 | REF7 | Refactoring | Med | out of scope (`main.js`, `paramsUI.js`) |
 | REF9 | Refactoring | Med | out of scope (`src_frame`, `frameSetup.js`) |
 | REF10 | Refactoring | Med | out of scope (model runners) |
-| REF13 | Refactoring | Med | `packages/require`, `packages/worker` |
 | REF14 | Refactoring | Low | `packages/worker/worker.js`, `src_frame/` |
 | REF15 | Refactoring | Low | `apps/jscad-web/src/studioBridge.js`, `server/src/index.ts` |
 | REF16 | Refactoring | Low | `apps/*/src_build`, `apps/vue3-jscad/src/jscad/` |
@@ -620,14 +619,6 @@ from the 2026-10-01 review.
   (`:611-616`), hand-lists the manifold API without `curves`, `modifiers`,
   `utils` or the conversions (`createRuntime`, `:198-382`), and never resets
   `setGlobalFn` between in-process runs (`:665`, `:780`).
-- **Package boundaries.** `packages/require/src/require.js:13,15` and
-  `packages/worker/worker.js:9` import sibling packages by relative path
-  without declaring them. There are 25 deep `@jscadui/<pkg>/(src|api|esm)/`
-  imports. The app imports frame modules: `src_frame/fileMap.js`
-  (`main.js:65`, `src/error.js:1`) and `src_frame/frameHost.js`
-  (`src/paramsUI.js:8`). The legacy `requireCache` getters `module` and
-  `moduleAccessOrder` (`packages/require/src/caching/cacheManager.ts:409-426`)
-  have no callers.
 - **Silent catches on the model path.** `worker.js:291` and `:567` (the
   modeling bundle require), `apps/jscad-web/main.js:613`,
   `src_frame/optionWarnings.js:19-21` and `:33`, and

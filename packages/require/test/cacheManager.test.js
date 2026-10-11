@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { CacheManager } from '../src/caching/cacheManager.js'
+import { requireCache } from '../src/require.js'
 
 describe('CacheManager', () => {
   let cache
@@ -233,27 +234,17 @@ describe('CacheManager', () => {
     })
   })
 
-  describe('backward compatibility', () => {
-    it('should provide legacy cache objects', () => {
-      const legacy = cache.getLegacyCacheObjects()
-
-      expect(legacy).toHaveProperty('local')
-      expect(legacy).toHaveProperty('alias')
-      expect(legacy).toHaveProperty('bundleAlias')
-      expect(legacy).toHaveProperty('module')
-      expect(legacy).toHaveProperty('knownDependencies')
-      expect(legacy).toHaveProperty('moduleAccessOrder')
-      expect(legacy).toHaveProperty('loading')
+  describe('legacy requireCache view', () => {
+    it('no longer exposes the getLegacyCacheObjects method or the dead legacy getters', () => {
+      expect(typeof cache.getLegacyCacheObjects).toBe('undefined')
+      expect(requireCache).not.toHaveProperty('module')
+      expect(requireCache).not.toHaveProperty('moduleAccessOrder')
     })
 
-    it('should allow setting deprecated properties without throwing', () => {
-      const legacy = cache.getLegacyCacheObjects()
-
-      // Should not throw, but will warn
-      expect(() => {
-        legacy.module = {}
-        legacy.moduleAccessOrder = []
-      }).not.toThrow()
+    it('still exposes the live caches require consumers write to', () => {
+      expect(requireCache).toHaveProperty('local')
+      expect(requireCache).toHaveProperty('alias')
+      expect(requireCache).toHaveProperty('bundleAlias')
     })
   })
 
@@ -263,7 +254,7 @@ describe('CacheManager', () => {
         cache.trackDependency(`https://cdn.com/base${i}.js`, `https://cdn.com/dep${i}.js`)
       }
 
-      expect(cache.getLegacyCacheObjects().knownDependencies.size).toBeLessThanOrEqual(200)
+      expect(requireCache.knownDependencies.size).toBeLessThanOrEqual(200)
     })
 
     it('should cap per-module dependency sets', () => {
