@@ -15,7 +15,6 @@ bullet each ID points at is the requirement text. Reserved for new findings:
 | PRJ4 | Projects and storage | High | `apps/jscad-web/src/storage/local.js` |
 | API4 | Chat API help | Low | `.deps-cache/jscad-fluent` (external) |
 | API5 | Chat API help | Med | `packages/agent-loop/src/tools.js`, `apps/jscad-web/src/aiDeps.js` |
-| API6 | Chat API help | Med | `apps/jscad-web/src/apiIndex.js`, `packages/agent-loop/src/docs.js` |
 | API11 | Chat API help | Low | `packages/agent-loop/eval/sandbox.js` |
 | API12 | Chat API help | Low | `packages/agent-loop/eval/complex.js` |
 | REF1 | Refactoring | High | breaking, out of scope |
@@ -378,10 +377,6 @@ model with `display-check.js --engine jscad`.
 - CI eval run for the project environment (agent-loop). The file tools
   (`write`, `edit`, `run`) have passed the unit and e2e suites but no live
   run: run the 18-fixture suite on CI and compare with the regraded baseline.
-- In-app API help page for users (jscad-web). The `docs` tool answers only
-  the chat's model; a page or panel over the same `api/index.json` and
-  `docsTool` would let a user look up a function, its options and an example
-  without asking the chat.
 - Option checks on transpiled OpenSCAD code. A `.scad` file gets the plain
   `@jscad/modeling` exports, not the option-checked copy
   (`apps/jscad-web/docs/architecture.md`, Unknown-option warnings), since the

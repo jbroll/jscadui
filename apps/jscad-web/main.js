@@ -71,7 +71,7 @@ import * as paramsUI from './src/paramsUI.js'
 import { clearReloadTimestamp } from './src/reloadDetection.js'
 import { missingSaveHandleMessage, saveRoute } from './src/saveFile.js'
 import { installStudioBridge } from './src/studioBridge.js'
-import { createDocs, createIndexLoader } from './src/apiIndex.js'
+import { createDocs, createIndexLoader, showApiHelp, apiHelpStyles } from './src/apiIndex.js'
 import { initChat } from './src/aiChat.js'
 import { dispatchTool, NO_ENTRY } from '@jscadui/agent-loop'
 import { initAccount, getChatApi, getProviderConfig, getSession } from './src/aiAccount.js'
@@ -136,7 +136,7 @@ if (trustedSourcesBtn) {
 
 // Inject dialog styles
 const trustedStyles = document.createElement('style')
-trustedStyles.textContent = trustedSourcesStyles + '\n' + demoBrowserStyles + '\n' + partsBrowserStyles
+trustedStyles.textContent = trustedSourcesStyles + '\n' + demoBrowserStyles + '\n' + partsBrowserStyles + '\n' + apiHelpStyles
 document.head.appendChild(trustedStyles)
 
 const ctrl = new OrbitControl([byId('viewer')], { ...viewState.camera })
@@ -1093,6 +1093,10 @@ byId('ai-toggle')?.addEventListener('click', () => toggleDrawer(aiDrawer))
 byId('ai-chat-btn')?.addEventListener('click', () => {
   menu.dismiss()
   setDrawer(aiDrawer, true)
+})
+byId('api-help-btn')?.addEventListener('click', () => {
+  menu.dismiss()
+  showApiHelp({ loadIndex: loadApiIndex, getApi: getChatApi })
 })
 
 // ============== Project Panel ==============

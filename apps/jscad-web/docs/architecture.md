@@ -897,7 +897,10 @@ prompt with `buildSystemPrompt(api)` and passes `api` to `runTurn`, which
 sends `buildTools(api)`; and the `docs` dependency (`createDocs` in
 `src/apiIndex.js`) calls `docsTool(index, query, { api })`, which answers only from that API's
 index entries and jscad-text's, and points a query for the other API at its
-equivalent or says it is not available. The runtime does not change: model
+equivalent or says it is not available. The menu's API Help… panel
+(`showApiHelp` in `src/apiIndex.js`) answers through the same docs tool and
+`getChatApi()` style, so a user reads what the chat's model would for the
+name they look up. The runtime does not change: model
 code may still require either package. Warnings and error hints name only the
 chosen API's form: every load, the editor's and the chat's builds alike, and
 the chat's `run` send it with the files (`jscadSetFiles({ files, api })`), so

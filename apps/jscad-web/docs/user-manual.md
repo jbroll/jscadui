@@ -43,6 +43,16 @@ constants, not `nut`. Require `nut.scad` directly for `nut`, as above. When in
 doubt, open the library file: what it `include`s, a `require` of it gets too;
 what it only `use`s, it doesn't.
 
+## API help
+
+"API Help…" in the menu opens a panel that looks up a name the same way the
+chat's `docs` tool does. Type a function, class or namespace name — `cube`,
+`jf.polygon`, `FluentGeom2.extrudeLinear`, `primitives` — and it answers with
+the entry's signature, options and example. It answers in the API style
+chosen in the chat's settings: fluent (`@jbroll/jscad-fluent`) or modeling
+(`@jscad/modeling`). It needs no account or chat turn. Escape or the × closes
+the panel.
+
 ## Parts browser
 
 "Browse Parts…" in the menu opens a panel of catalog hardware — nuts, screws,

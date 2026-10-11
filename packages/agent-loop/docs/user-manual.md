@@ -102,7 +102,9 @@ out. Aborting `signal` rejects the turn with `AbortError`.
 `docs({ query })` answers from the API index (`api/index.json`, see
 [architecture.md](architecture.md#api-index)) with
 `docsTool(index, query, { api })` (`src/docs.js`), the same pure function in
-the page and in the eval. It searches only the chosen API's entries plus
+the page and in the eval. The app's menu API Help… panel calls it too, for a
+user's own lookups in the chat's current API style. It searches only the
+chosen API's entries plus
 `@jscadui/jscad-text`'s. A query is a qualified name
 (`primitives.roundedCuboid`, `jf.polygon`, `FluentGeom2.extrudeLinear`), a
 bare name (`roundedCuboid`) or a namespace or class (`primitives`,
