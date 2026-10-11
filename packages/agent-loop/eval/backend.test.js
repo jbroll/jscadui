@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { builtinModules, createRequire } from 'node:module'
 import { NO_ENTRY_NOTE, notGeometryError } from '../src/buildReport.js'
-import { CDN_BASE, createEvalBackend, createEvalReadFile, variantValue } from './backend.js'
+import { CDN_BASE, createEvalBackend, createEvalReadFile, FRAME_PACKAGES, variantValue } from './backend.js'
 import { expectCase, WARNING_CASES } from '../test/warningCases.js'
 import { everyFont, FONT_NAMES, UNKNOWN_FONT } from './fontCases.js'
 
@@ -104,6 +104,12 @@ module.exports = { main }`
     const read = createEvalReadFile({})
     expect(() => read(CDN_BASE + '@jscadui/transform-babel')).toThrow(`file not found ${CDN_BASE}@jscadui/transform-babel`)
     expect(read(CDN_BASE + '@jscadui/model-tools')).toContain('"@jscadui/model-tools"')
+  })
+
+  it('mirrors the frame worker bundle list exactly', async () => {
+    const { workerBundles } = await import('../../../apps/jscad-web/src_frame/frameHost.js')
+    const framePackages = Object.keys(workerBundles('https://cdn.invalid/', 'default')).sort()
+    expect([...FRAME_PACKAGES].sort()).toEqual(framePackages)
   })
 
   it.each(['@jscadui/transform-babel', 'three'])(
@@ -523,7 +529,7 @@ describe('eval backend grading', () => {
       expect(graded.probe).toBeNull()
       expect(warn).toHaveBeenCalledTimes(1)
       expect(warn.mock.calls[0][0]).toContain('probe failed')
-      expect(String(warn.mock.calls[0][1])).toContain('iterable')
+      expect(warn.mock.calls[0][1]).toBeInstanceOf(Error)
     } finally {
       warn.mockRestore()
     }

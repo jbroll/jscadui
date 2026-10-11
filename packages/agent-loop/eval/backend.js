@@ -47,7 +47,7 @@ const ESM_MODULES = { '@jscadui/jscad-text': { ...jscadText } }
 // (apps/jscad-web/src_frame/frameHost.js workerBundles) plus the ones
 // packages/require/src/require.js gives project code a wrapped copy of
 // (USER_MODULES). The eval runs without either, so mirror the list here.
-const FRAME_PACKAGES = new Set([
+export const FRAME_PACKAGES = new Set([
   '@jscad/modeling',
   '@jscad/modeling-for-anchors',
   '@jscad/modeling-for-manifold',
