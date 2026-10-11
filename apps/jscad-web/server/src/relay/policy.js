@@ -243,20 +243,31 @@ export const resolveTarget = async ({ allowlist, kind, subPath, dnsLookup, allow
 /** @typedef {{ ok: true } | { ok: false, retryAfterSec: number }} LimitResult */
 
 /**
- * Per-key token bucket. Refill is lazy on check; idle buckets stay in the map
- * (relay traffic is low-cardinality client IPs, so no eviction is needed).
- * @param {{ ratePerMin: number, burst: number, now?: () => number }} options
+ * Per-key token bucket. Refill is lazy on check. The map is bounded at
+ * `maxBuckets` by evicting fully-refilled (idle) buckets on insert past the
+ * cap; a still-draining bucket is never dropped, so the map may briefly
+ * exceed the cap when every bucket is live.
+ * @param {{ ratePerMin: number, burst: number, now?: () => number, maxBuckets?: number }} options
  * @returns {{ check(key: string): LimitResult }}
  */
-export const createLimiter = ({ ratePerMin, burst, now = Date.now }) => {
+export const createLimiter = ({ ratePerMin, burst, now = Date.now, maxBuckets = 10_000 }) => {
   const perMs = ratePerMin / 60_000
   /** @type {Map<string, { tokens: number, at: number }>} */
   const buckets = new Map()
+  const refilled = (/** @type {{ tokens: number, at: number }} */ bucket, /** @type {number} */ t) =>
+    Math.min(burst, bucket.tokens + (t - bucket.at) * perMs)
+  const evictIdle = (/** @type {number} */ t) => {
+    for (const [key, bucket] of buckets) {
+      if (refilled(bucket, t) >= burst) buckets.delete(key)
+      if (buckets.size < maxBuckets) break
+    }
+  }
   return {
     check(key) {
       const t = now()
+      if (!buckets.has(key) && buckets.size >= maxBuckets) evictIdle(t)
       const bucket = buckets.get(key) ?? { tokens: burst, at: t }
-      const tokens = Math.min(burst, bucket.tokens + (t - bucket.at) * perMs)
+      const tokens = refilled(bucket, t)
       if (tokens >= 1) {
         buckets.set(key, { tokens: tokens - 1, at: t })
         return { ok: true }
