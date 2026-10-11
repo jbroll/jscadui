@@ -48,7 +48,7 @@ export const exportPath = (entry, format) => {
  *     getSource: () => string,
  *     getPath: () => string,
  *     setSource: (source:string, path:string) => void,
- *     setFiles: (files:File[]) => void,
+ *     setFiles: (files:File[], options?:{keepBuffers?:boolean}) => void,
  *   },
  *   rebuild: () => unknown,
  *   warn?: (...args:unknown[]) => void,

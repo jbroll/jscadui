@@ -11,6 +11,7 @@
  *   clear: () => void,
  *   prune: (paths:Set<string>) => void,
  *   isDirty: () => boolean,
+ *   isDirtyPath: (path:string) => boolean,
  * }}
  */
 export function createEditorBuffer() {
@@ -28,5 +29,6 @@ export function createEditorBuffer() {
       for (const path of [...dirty]) if (!paths.has(path)) dirty.delete(path)
     },
     isDirty: () => dirty.size > 0,
+    isDirtyPath: (path) => dirty.has(path),
   }
 }

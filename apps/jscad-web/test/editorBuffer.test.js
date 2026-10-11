@@ -48,4 +48,14 @@ describe('editor buffer', () => {
     expect(b.get('/b.js')).toBe('b2')
     expect(b.isDirty()).toBe(true)
   })
+
+  it('reports per-path dirty state', () => {
+    const b = createEditorBuffer()
+    b.remember('/a.js', 'a1')
+    expect(b.isDirtyPath('/a.js')).toBe(false)
+    b.edit('/a.js', 'a2')
+    expect(b.isDirtyPath('/a.js')).toBe(true)
+    b.remember('/a.js', 'a3')
+    expect(b.isDirtyPath('/a.js')).toBe(false)
+  })
 })

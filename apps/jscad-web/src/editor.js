@@ -211,8 +211,11 @@ export const confirmDiscard = async () => {
 export const setSource = (source, path = '/index.js', { clean = true } = {}) => {
   currentFile = path
   applying = true
-  view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: source } })
-  applying = false
+  try {
+    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: source } })
+  } finally {
+    applying = false
+  }
   if (clean) buffer.remember(path, source)
   else buffer.set(path, source)
   if (editorFile) editorFile.textContent = path
@@ -269,7 +272,7 @@ export const setFiles = (files, { keepBuffers = false } = {}) => {
       button.addEventListener('click', () => {
         currentFile = file.fullPath
         editorFile.textContent = currentFile
-        if (buffer.has(currentFile)) setSource(buffer.get(currentFile), currentFile, { clean: false })
+        if (buffer.isDirtyPath(currentFile)) setSource(buffer.get(currentFile), currentFile, { clean: false })
         else readSource(file, currentFile)
       })
       item.appendChild(button)
