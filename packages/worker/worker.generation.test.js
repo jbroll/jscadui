@@ -26,4 +26,14 @@ describe('jscadMain staleness guard', () => {
 
     await expect(jscadMain({ params: {}, stream: false })).rejects.toThrow(/superseded/)
   })
+
+  it('names a superseded run SupersededError so the app name checks recognize it', async () => {
+    workerState.main = async () => {
+      workerState.nextGeneration()
+      return []
+    }
+
+    const error = await jscadMain({ params: {}, stream: false }).catch((e) => e)
+    expect(error.name).toBe('SupersededError')
+  })
 })

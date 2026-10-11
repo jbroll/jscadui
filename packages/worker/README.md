@@ -49,6 +49,15 @@ any `File` parameter through it before `main` runs: it reads the file (binary
 or text by extension) and replaces the parameter with the deserialized value.
 Without `importData`, a `File` parameter passes through untouched.
 
+## Superseded runs
+
+`jscadScript` and `jscadMain` guard against a newer script or run replacing
+them mid-flight: a `jscadMain` whose generation changed, and a `jscadScript`
+superseded before, during or after its module load, throw `SupersededError`,
+the same name the compute frame answers. The app's name checks therefore treat
+a worker-abandoned run like a frame-superseded one: no error is shown and the
+run draws nothing.
+
 ## Tests
 
 ```bash

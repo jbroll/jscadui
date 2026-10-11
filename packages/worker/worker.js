@@ -127,6 +127,19 @@ export const setModelIsolation = (isolate) => {
 
 const noMainError = () => Object.assign(new Error('no main function exported'), { name: 'NoMainError' })
 
+/**
+ * A run the worker abandoned because a newer script or run started. The name
+ * is the same one the frame answers (`SupersededError`), so the app's name
+ * checks treat a worker-abandoned run like a frame-superseded one: no error
+ * is shown and the run draws nothing.
+ */
+export class SupersededError extends Error {
+  constructor(message = 'superseded by a newer run') {
+    super(message)
+    this.name = 'SupersededError'
+  }
+}
+
 /** @type {((run: {hasMain: boolean, value: unknown}) => object) | null} */
 let runSummary = null
 
@@ -259,7 +272,7 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
   const myGeneration = workerState.getGeneration()
   const assertFresh = (stage) => {
     if (myGeneration !== workerState.getGeneration()) {
-      throw new Error(`jscadMain superseded by newer script ${stage}`)
+      throw new SupersededError(`jscadMain superseded by newer script ${stage}`)
     }
   }
   // Update GPU normals setting if provided (allows switching without re-running script)
@@ -479,10 +492,10 @@ export const jscadScript = async ({ script, url='jscad.js', base=workerState.glo
   let restoreModel = null
   let cachedProjectModules = null
   try {
-    // I1 fix: Check if we're still the current generation after acquiring lock
+    // Check if we're still the current generation after acquiring lock
     // A timeout may have released the lock and allowed another script to start
     if (myGeneration !== workerState.getGeneration()) {
-      throw new Error('Script execution superseded by newer script')
+      throw new SupersededError('Script execution superseded by newer script')
     }
 
     console.log('run script with base:', base, workerState.useParamsProxy ? '(proxy mode)' : '')
@@ -522,9 +535,9 @@ export const jscadScript = async ({ script, url='jscad.js', base=workerState.glo
       // A snippet that calls a project file's main() hands it values, which that main gets as a build's params would carry them.
       const wrapRequire = scratch ? withProjectMains : undefined
       const loadedModule = require({url,script,wrapRequire}, transform ? workerState.transformFunc : undefined, readFileWeb, base, root, workerState.importData)
-      // I1 fix: Check generation before setting shared state
+      // Check generation before setting shared state
       if (myGeneration !== workerState.getGeneration()) {
-        throw new Error('Script execution superseded by newer script during module load')
+        throw new SupersededError('Script execution superseded by newer script during module load')
       }
       workerState.scriptModule = loadedModule
     }catch(e){
@@ -547,9 +560,9 @@ export const jscadScript = async ({ script, url='jscad.js', base=workerState.glo
       if (gpuNormals !== undefined && modelingModule?.setUseGpuNormals) modelingModule.setUseGpuNormals(gpuNormals)
     }
 
-    // C1 fix: Check generation after async WASM init to prevent stale script from corrupting main
+    // Check generation after async WASM init to prevent a stale script from corrupting main
     if (myGeneration !== workerState.getGeneration()) {
-      throw new Error('Script execution superseded during WASM initialization')
+      throw new SupersededError('Script execution superseded during WASM initialization')
     }
 
     workerState.main = workerState.scriptModule.main
