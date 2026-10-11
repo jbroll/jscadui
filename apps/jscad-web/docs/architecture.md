@@ -775,6 +775,12 @@ The chat sends its per-project session id as `x-jscad-chat-id` when it goes
 through the relay, and not to a custom base URL. The eval builds its messages
 with the same function.
 
+A project's conversation is stored in that project's own storage mode
+(`local`, `rowboat` or `disk`, the same routing as its file writes, via
+`src/storage/session.js`). New chat clears the project's stored conversation
+and starts a fresh provider session, so the next turn is not grouped with the
+previous one.
+
 Chat settings live in the drawer's gear dialog (`src/aiAccount.js`), in the
 order a user fills them: provider, API key and its custody mode, model, effort,
 then base URL under Advanced. Saving a key, changing the provider or changing

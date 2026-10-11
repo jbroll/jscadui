@@ -1133,6 +1133,10 @@ p {
   --chat-focus: #7bc4ea;
 }
 .chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   padding: 6px 10px;
   font-weight: bold;
   border-bottom: 1px solid #ccc;

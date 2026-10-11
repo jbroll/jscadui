@@ -204,9 +204,11 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
     messagesEl.innerHTML = ''
     assistantEl = null
     turnReasoning = []
-    if (storage && pid()) {
+    const id = pid()
+    if (id) sessions.delete(id)
+    if (storage && id) {
       try {
-        await storage.writeConversation(pid(), [])
+        await storage.writeConversation(id, [])
       } catch (err) {
         console.warn('chat persist failed:', err)
       }

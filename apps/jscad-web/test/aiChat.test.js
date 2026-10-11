@@ -485,6 +485,20 @@ describe('stored conversation', () => {
     await vi.waitFor(() => expect(storage.writeConversation).toHaveBeenCalledWith('p1', []))
     expect(chat.q('.chat-messages').textContent).toBe('')
   })
+
+  it('does nothing on New chat while a turn runs', async () => {
+    const turn = heldTurn()
+    const writeConversation = vi.fn(async () => {})
+    const storage = { readConversation: async () => null, writeConversation }
+    const chat = openChat({ runTurnFn: turn.runTurnFn, storage, projectId: 'p1' })
+    chat.type('a cube')
+    await vi.waitFor(() => expect(turn.runTurnFn).toHaveBeenCalledTimes(1))
+    chat.q('.chat-new').click()
+    expect(chat.q('.chat-msg.user').textContent).toBe('a cube')
+    expect(writeConversation).not.toHaveBeenCalledWith('p1', [])
+    turn.release()
+    await vi.waitFor(() => expect(chat.q('.chat-send').textContent).toBe('Send'))
+  })
 })
 describe('project switch', () => {
   it('loads the new project conversation on switch and stores per project', async () => {
@@ -622,6 +636,37 @@ describe('opencode session', () => {
     expect(session(0)).toEqual(expect.any(String))
     expect(session(1)).toBe(session(0))
     expect(session(2)).not.toBe(session(0))
+    vi.unstubAllGlobals()
+  })
+
+  it('starts a fresh provider session after New chat', async () => {
+    const fetchMock = vi.fn(async () => new Response('data: [DONE]\n\n'))
+    vi.stubGlobal('fetch', fetchMock)
+    document.body.innerHTML = '<div id="chat"></div>'
+    const container = document.getElementById('chat')
+    const runTurnFn = vi.fn(async ({ provider }) => {
+      for await (const event of provider.send([], [])) void event
+      return { messages: [] }
+    })
+    initChat({
+      container,
+      requestTool: async () => '{}',
+      getProvider: () => ({ kind: 'opencode-go', model: 'm', apiKey: 'k', baseUrl: 'https://relay.test' }),
+      runTurnFn,
+      projectId: 'p1',
+    })
+    const submit = async (text, turns) => {
+      container.querySelector('.chat-input').value = text
+      container.querySelector('.chat-form').dispatchEvent(new Event('submit', { cancelable: true }))
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(turns))
+      await vi.waitFor(() => expect(container.querySelector('.chat-send').textContent).toBe('Send'))
+    }
+    await submit('one', 1)
+    container.querySelector('.chat-new').click()
+    await submit('two', 2)
+    const session = (i) => fetchMock.mock.calls[i][1].headers['x-opencode-session']
+    expect(session(0)).toEqual(expect.any(String))
+    expect(session(1)).not.toBe(session(0))
     vi.unstubAllGlobals()
   })
 })
