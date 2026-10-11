@@ -251,15 +251,33 @@ export const getEditorFiles = () => editorFilesArr
 // Track document-level click handler for cleanup
 let documentClickHandler
 
+// The chat's delete removed the file the editor shows: point the pane at the
+// first remaining file, or an empty source when none remain. The disk project
+// keeps a file removed on disk open on purpose, so setFiles does this only
+// when its caller asks (the chat's delete).
+const openReplacement = (files) => {
+  const open = currentFile.replace(/^\//, '')
+  if (files.some((file) => file.fullPath.replace(/^\//, '') === open)) return
+  const [next] = files
+  if (next) {
+    const path = next.fullPath
+    if (buffer.isDirtyPath(path)) setSource(buffer.get(path), path, { clean: false })
+    else readSource(next, path)
+  } else {
+    setSource('', '')
+  }
+}
+
 /**
  * @param {FSFileEntry[]} files
- * @param {{keepBuffers?: boolean}} [options]
+ * @param {{keepBuffers?: boolean, resetMissing?: boolean}} [options]
  */
-export const setFiles = (files, { keepBuffers = false } = {}) => {
+export const setFiles = (files, { keepBuffers = false, resetMissing = false } = {}) => {
   const editorFiles = document.getElementById('editor-files')
   editorFilesArr = files
   if (keepBuffers) buffer.prune(new Set(files.map((f) => f.fullPath)))
   else buffer.clear()
+  if (resetMissing) openReplacement(files)
   if (files.length < 2) {
     editorNav.classList.remove('visible')
   } else {

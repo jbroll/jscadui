@@ -54,12 +54,17 @@ params.radius = { type: 'slider', default: 5, min: 1, max: 20, step: 0.5 }
   prose is never parsed for code. Always use tools.
 - Change a file with `edit`, which replaces `oldString` with `newString`;
   `oldString` must match the file exactly, once. Create a file, or replace
-  most of one, with `write`.
+  most of one, with `write`. Remove a file with `delete`; its answer heads
+  with `deleted`, and deleting a file that is not there answers ok and
+  changes nothing.
 - Every `write` and `edit` saves the file and builds the project. Its build
   report names the file `saved`, which stays saved when the build fails, and
   gives `ok`, the error with its file, line and column, warnings, console
   output, the parameters and, when it builds, the geometry's parts, size,
   volume and whether it is watertight, manifold and self-intersecting.
+  Every `delete` builds the project too and answers the same report headed by
+  `deleted`; the app does not store a delete yet, so a reload brings the file
+  back.
 - The build report on each write already verifies size, volume,
   watertightness, manifoldness and self-intersection. For details, such as
   sections, gaps between parts, each part's checks or printability, use

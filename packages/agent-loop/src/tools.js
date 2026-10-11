@@ -57,7 +57,7 @@ export const buildTools = (api = DEFAULT_API) => [
   },
   {
     name: 'delete',
-    description: `Delete a project file, removing it from the project; the delete is saved. Then ${BUILDS} Deleting a file that is not there answers ok and changes nothing.`,
+    description: `Delete a project file, removing it from the project; the answer heads with deleted. The app does not store the deletion yet, so a reload brings the file back. Then ${BUILDS} Deleting a file that is not there answers ok and changes nothing.`,
     inputSchema: {
       type: 'object',
       properties: {

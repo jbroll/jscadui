@@ -97,6 +97,8 @@ describe('agent tools', () => {
     const description = TOOLS.find((t) => t.name === 'delete').description
     expect(description).toMatch(/removing it from the project/)
     expect(description).toMatch(/answers ok and changes nothing/)
+    expect(description).toMatch(/heads with deleted/)
+    expect(description).not.toMatch(/the delete is saved/)
   })
 
   it('says write and edit save and build, and run saves nothing', () => {

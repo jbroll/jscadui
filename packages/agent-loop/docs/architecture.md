@@ -82,7 +82,8 @@ chat or tested model's request carries them.
 
 ## Tool protocol
 
-All model interaction is a tool call (`list`, `read`, `write`, `edit`, `run`,
+All model interaction is a tool call (`list`, `read`, `write`, `edit`,
+`delete`, `run`,
 `measure`, `check`, `export`, `docs`, and the app's `view`): `runTurn` streams
 `text` events as chat prose and never parses them for code, so model source
 travels only in a `tool_use` input (`write.content`, `edit.newString`,
@@ -103,8 +104,9 @@ The model works in a JavaScript project the way a coding agent does, with
 tools named and shaped like the common coding-agent ones, so models use them
 without teaching. `list` gives the paths and byte sizes, `read` a file
 numbered like `cat -n` (`offset`, `limit` in lines), `write` a whole file,
-and `edit` one exact replacement (`oldString` must occur once unless
+`edit` one exact replacement (`oldString` must occur once unless
 `replaceAll`; a missing or repeated one fails with `EditError` and changes
+nothing), and `delete` a file (one that is not there answers ok and changes
 nothing). Paths are project-relative and cannot leave the project. The
 operations live in `src/project.js`, which the eval backend and the app both
 call, so both refuse the same input with the same text.
@@ -134,8 +136,10 @@ and `check` on what `main()` returned, rounded to 1e-4 mm. A `write` or
 `edit` answers the report headed by `saved`, the file written
 (`writeReport`); when the build fails it adds `note: "main.js is saved; the
 build of main.js failed"`, since models read a bare `ok: false` as a lost
-write and rewrote the file from scratch. A project with no entry file builds
-nothing and fails nothing: `{ ok: true, entry: null, note: "no entry yet
+write and rewrote the file from scratch. A `delete` answers the same report
+headed by `deleted` (`deleteReport`), the file removed; the app does not
+store a delete yet, so a reload brings the file back. A project with no
+entry file builds nothing and fails nothing: `{ ok: true, entry: null, note: "no entry yet
 (main.js, index.js or package.json main)" }` (`noEntryReport`), and the write
 that saved a helper first says `saved; no entry yet (…)`. A model error goes
 into the report through `reportError` (`src/modelError.js`): the message

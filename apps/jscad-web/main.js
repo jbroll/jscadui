@@ -1021,7 +1021,7 @@ const chatTools = createProjectTools({
     })
   },
   showFiles: (files) => {
-    editor.setFiles(toEditorFiles(files), { keepBuffers: true })
+    editor.setFiles(toEditorFiles(files), { keepBuffers: true, resetMissing: true })
   },
   build: async () => {
     const outcome = await buildProject()
