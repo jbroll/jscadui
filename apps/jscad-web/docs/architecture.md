@@ -1181,6 +1181,16 @@ and an unlisted sibling resolves local-first then rowboat.
 `node scripts/gen-manifest.js`, and a parity test fails on drift. `main.js`
 never imports `schema.js`, whose zod types the root TS 4.9 gate cannot parse.
 
+The project manager (`src/storage/projects.js`) routes each project to its
+owner backend and keeps a mode map. On load the app opens the most recently
+updated project, skipping the launcher's `disk` row (which opens from its own
+`#/models` hash). Flipping a project's mode copies it to the other backend and
+deletes the source row, so it is listed once; `listAll` also dedupes by id.
+Delete removes the project, its versions and its conversation from the owner
+backend (the `disk` project cannot be deleted). Signing out stops the sync loop
+and closes the rowboat store. The drawer labels the modes This device, Synced
+and Folder, and shows a status line with a Retry when a sync fails.
+
 No storage access crosses into the frame: no session, no directory handle, no
 repository token. A project's file contents do cross, because a model's
 `require` of a sibling has to resolve inside the frame.

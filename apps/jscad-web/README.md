@@ -160,15 +160,21 @@ row plus file hashes, in both modes. The chat stores each file it writes at
 once, so a reload mid-turn keeps it, and the turn's version is the project as
 stored when the turn ends, including any edit you made in the editor meanwhile:
 
-- `local` mode (default) keeps bytes in the service-worker FS and file
-  handles, as before. Anonymous users are local-only.
+- `local` mode (default) holds projects, versions and conversations in memory
+  for the session; reloading starts fresh. Anonymous users are local-only.
 - `rowboat` mode stores bytes as blobs through rowboat file routes, with
   projects, files, versions and conversations in rowboat tables compiled from
   `src/storage/schema.js`. Sign-in starts the interval sync loop with a
   short-lived JWT from the app API's `GET /api/sync-token` (15m expiry, served by `server/` in this dir).
 - Mixed projects merge at load time: each manifest path names exactly one
   backend, and unlisted sibling requires resolve local-first, then rowboat.
-- Chat conversations persist per project and resume on revisit.
+- Chat conversations are stored in the project's own mode and resume on
+  revisit; New chat clears the open project's stored conversation and starts a
+  fresh provider session.
+
+Unsaved editor edits are kept per file path: switching files and back keeps
+them, and a whole-project replace (project switch, version restore, demo or
+remote load, or a chat write) asks Keep edits or Discard first.
 
 `src/storage/manifest.js` is generated from `schema.js`; regenerate with
 `node scripts/gen-manifest.js` after editing the schema (a parity test fails
@@ -179,11 +185,15 @@ Tests: `npx vitest run test/storage-` covers the interface contract, the
 rowboat backend against a recorded sync transcript, map assembly,
 write-through session, sync loop, and manifest parity.
 
-The Projects drawer lists projects across both backends, with per-project
-version history (restore appends a new row) and a local/rowboat mode toggle
-(rowboat needs sign-in). Dropping files onto a project row merges them as a
-subfolder; dropping onto the page creates a project. Drawer tabs stack
-vertically so the editor, project, and AI panels stay reachable together.
+The Projects drawer lists projects across all backends, with per-project
+version history (restore appends a new row), a mode toggle labelled
+This device or Synced (rowboat needs sign-in; a launcher model directory shows
+Folder and cannot be toggled), and a Delete control (a folder-backed project
+cannot be deleted). The app opens the most recently updated project on load,
+and a failed rowboat sync shows a status line with a Retry. Dropping files onto
+a project row merges them as a subfolder; dropping onto the page creates a
+project. Drawer tabs stack vertically so the editor, project, and AI panels
+stay reachable together.
 
 Which file runs: the project's entry is `package.json` `main`, else
 `index.js`, `index.ts` or `main.js`, else the entry the project declares (a
