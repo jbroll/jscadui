@@ -76,9 +76,28 @@ The engine defaults to `manifold`, which renders 780 of the 789 bundled
 examples against `jscad`'s 623 and is the one the STL comparison suite checks.
 Modeling Engine in the menu switches it, and the choice is remembered.
 
+## Editor and parameters
+
+Running the model — Shift+Enter, a change to a parameter, or a chat build —
+rebuilds the parameter tree. Running the same model again keeps the values you
+set and the nodes you had open; opening a different model starts from its own
+defaults. Reset in the parameter header returns every parameter to its declared
+default.
+
+Ctrl+S saves the open project. A file with a dropped-folder handle is written
+back to disk through it; a file in an app-stored project needs no separate save
+— the run already stored it — so Ctrl+S does not open a Save As picker. Only a
+loose file with no project and no handle asks for a location (where the browser
+has the File System Access API).
+
+Dark Mode in the menu switches the theme and is remembered. The error bar has a
+dismiss (×) and returns on the next error.
+
 ## AI Chat
 
 The app has an agent chat drawer (AI Chat in the menu) layered on the normal editor, viewer and examples. Describe a part, and the browser-local agent loop works on the open project the way a coding agent does, with tools that run in the browser: `list`, `read`, `write`, `edit`, `delete`, `run`, `measure`, `check`, `export` and `docs` (`packages/agent-loop/src/tools.js`). Every `write` and `edit` saves the file, shows it in the editor and builds the project the way the editor does, answering a build report; `delete` removes a file from the project and its editor buffer (the app does not store a delete yet, so a reload brings it back); `run` tries a snippet without saving it. Model code runs in the sandboxed compute frame below, the same one the editor uses. Provider HTTP goes through the relay at `https://jscad.rkroll.com`, overridable via `localStorage 'jscad-ai.relay'`.
+
+"API Help…" in the menu opens a panel that answers the same lookup as the `docs` tool — a function, class or namespace name, with its signature, options and example — in the API style chosen in the chat settings, with no account or turn (see the [user manual](docs/user-manual.md#api-help)).
 
 While the model works, a status line above the input says what it is doing (`Thinking…`, `Writing…`, `write main.js…`, `Provider busy, retrying (2/4)…`) and for how many seconds, and Send becomes Stop. Stop ends the turn and keeps what the model had written so far, marked `Stopped`. You can type the next message during a turn and send it once the turn ends.
 
@@ -88,6 +107,7 @@ Account setup lives in the drawer above the chat:
 
 - Sign in with Google (session via the API at `/api`).
 - Pick the provider (`anthropic` or an OpenAI-compatible `baseUrl`) and model name.
+- Pick the API style the model writes in: fluent (`@jbroll/jscad-fluent`) or modeling (`@jscad/modeling`). The choice also sets the style the API Help… panel answers in.
 - Save the provider key with a custody mode: `session` (memory only), `device` (this browser), or `synced` (AES-GCM ciphertext only, needs a passphrase to unlock). The key rides the relay request to the provider per chat request; it is never stored server-side, never logged, and never sent into the compute frame.
 
 Tests: `npx vitest run test/aiChat.test.js` for the chat turn, `npx playwright test e2e/ai-chat.spec.js` for the full turn against a stub relay with real local measurements.
