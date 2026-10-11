@@ -388,6 +388,10 @@ let currentProjectId = 'default'
 // The entry of whatever was opened last: a stored project or a dropped folder.
 let currentEntry
 
+// Assigned below, after the switch callback is defined; null until the chat
+// mounts, so an early switch (a launcher model hash) skips it.
+let chatControls = null
+
 const switchProject = createProjectSwitch({
   manager: projectManager,
   fileSystem,
@@ -398,6 +402,7 @@ const switchProject = createProjectSwitch({
     currentProjectId = id
     currentEntry = entry
     if (typeof name === 'string' && name) exporter.exportConfig.projectName = name
+    chatControls?.switchTo(id)
   },
   onError: setError,
 })
@@ -984,7 +989,7 @@ if (byId('ai-chat')) {
     readConversation: (pid) => getActiveStore().then((store) => store.readConversation(pid)),
     writeConversation: (pid, messages) => getActiveStore().then((store) => store.writeConversation(pid, messages)),
   }
-  initChat({
+  chatControls = initChat({
     container: byId('ai-chat'),
     requestTool: (name, input) => dispatchTool(name, input, aiDeps),
     getProvider: getProviderConfig,

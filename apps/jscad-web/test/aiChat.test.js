@@ -102,7 +102,7 @@ const heldTurn = () => {
 const openChat = (options = {}) => {
   document.body.innerHTML = '<div id="chat"></div>'
   const container = document.getElementById('chat')
-  initChat({
+  const controls = initChat({
     container,
     requestTool: async () => '{}',
     getProvider: () => ({ kind: 'openai', model: 'm', apiKey: 'k', baseUrl: 'https://relay.test' }),
@@ -113,7 +113,7 @@ const openChat = (options = {}) => {
     q('.chat-input').value = text
     q('.chat-form').dispatchEvent(new Event('submit', { cancelable: true }))
   }
-  return { container, q, type }
+  return { container, q, type, controls }
 }
 
 describe('running turn', () => {
@@ -471,6 +471,31 @@ describe('stored conversation', () => {
     const persisted = storage.writeConversation.mock.calls.at(-1)[1]
     expect(persisted).toContainEqual({ role: 'user', content: 'hello' })
     expect(persisted).toContainEqual({ role: 'assistant', content: 'hi' })
+  })
+})
+describe('project switch', () => {
+  it('loads the new project conversation on switch and stores per project', async () => {
+    const store = {}
+    const storage = {
+      readConversation: async (pid) => (store[pid] ? { messages: store[pid], updated: 1 } : null),
+      writeConversation: vi.fn(async (pid, messages) => { store[pid] = messages }),
+    }
+    const runTurnFn = vi.fn(async ({ onText }) => {
+      onText('ok')
+      return { messages: [] }
+    })
+    let openId = 'p1'
+    const chat = openChat({ runTurnFn, storage, projectId: () => openId })
+    chat.type('for one')
+    await vi.waitFor(() => expect(storage.writeConversation.mock.calls.at(-1)?.[1]).toHaveLength(2))
+    openId = 'p2'
+    await chat.controls.switchTo('p2')
+    expect(chat.q('.chat-messages').textContent).not.toContain('for one')
+    chat.type('for two')
+    await vi.waitFor(() => expect(storage.writeConversation.mock.calls.at(-1)?.[0]).toBe('p2'))
+    openId = 'p1'
+    await chat.controls.switchTo('p1')
+    await vi.waitFor(() => expect(chat.q('.chat-messages').textContent).toContain('for one'))
   })
 })
 describe('opencode session', () => {

@@ -139,19 +139,6 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
     }
   }
 
-  if (storage && pid()) {
-    storage.readConversation(pid()).then((resumed) => {
-      if (!resumed) return
-      transcript = resumed.messages.filter((m) => m.role === 'user' || m.role === 'assistant')
-      for (const m of transcript) {
-        for (const step of m.reasoning ?? []) addReasoningBlock(thoughtLabel(step.seconds), step.text)
-        if (m.role === 'user') addMessage(m.content, 'user')
-        else if (m.content) addMessage(m.content, 'assistant')
-        if (m.stopped) addStopped()
-      }
-    }).catch((err) => console.warn('chat resume failed:', err))
-  }
-
   const addMessage = (text, kind) => {
     const node = el('div', `chat-msg ${kind}`, text)
     messagesEl.append(node)
@@ -169,6 +156,37 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
     messagesEl.append(details)
     messagesEl.scrollTop = messagesEl.scrollHeight
     return { summary, textEl }
+  }
+
+  const renderLoaded = (messages) => {
+    transcript = messages.filter((m) => m.role === 'user' || m.role === 'assistant')
+    messagesEl.innerHTML = ''
+    assistantEl = null
+    turnReasoning = []
+    for (const m of transcript) {
+      for (const step of m.reasoning ?? []) addReasoningBlock(thoughtLabel(step.seconds), step.text)
+      if (m.role === 'user') addMessage(m.content, 'user')
+      else if (m.content) addMessage(m.content, 'assistant')
+      if (m.stopped) addStopped()
+    }
+  }
+
+  // The open project changed: show its conversation, not the previous
+  // project's. A turn in flight keeps its own prior/messages and still
+  // persists under pid() — switching mid-turn is best-effort (residual).
+  const switchTo = async (id) => {
+    transcript = []
+    messagesEl.innerHTML = ''
+    assistantEl = null
+    turnReasoning = []
+    if (!storage || !id) return
+    try {
+      const resumed = await storage.readConversation(id)
+      if (!resumed || pid() !== id) return
+      renderLoaded(resumed.messages)
+    } catch (err) {
+      console.warn('chat resume failed:', err)
+    }
   }
 
   const reasoningSeconds = () => Math.floor((Date.now() - reasoning.startedAt) / 1000)
@@ -368,4 +386,8 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
     input.value = ''
     runTurnLocal(message)
   })
+
+  if (storage && pid()) switchTo(pid())
+
+  return { switchTo }
 }
