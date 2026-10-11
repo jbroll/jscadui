@@ -58,7 +58,7 @@ export const createDiskProject = ({ store, switchProject, isOpen, getEntry, file
   let stopWatch = null
   let queue = Promise.resolve()
 
-  const refreshEditorList = async () => editor.setFiles(toEditorFiles(await fileSystem.projectFiles()))
+  const refreshEditorList = async () => editor.setFiles(toEditorFiles(await fileSystem.projectFiles()), { keepBuffers: true })
 
   /** @param {{ changed: Record<string, string|Uint8Array>, removed: string[] }} change */
   const apply = async ({ changed, removed }) => {

@@ -225,6 +225,17 @@ describe('changes made outside the app', () => {
     expect(s.editor.source).toBe(MAIN)
   })
 
+  it('refreshes the editor list without clearing the per-path buffers', async () => {
+    const s = setup()
+    await s.project.open('main.js')
+    s.editor.setFiles.mockClear()
+    s.server.put('lib/new.js', 'n')
+    const rebuilt = s.nextRebuild()
+    s.server.sources[0].emit(['lib/new.js'])
+    await rebuilt
+    expect(s.editor.setFiles.mock.calls[0][1]).toEqual({ keepBuffers: true })
+  })
+
   it('drop a removed file from the cache', async () => {
     const s = setup()
     await s.project.open('main.js')

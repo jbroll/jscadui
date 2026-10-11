@@ -349,7 +349,7 @@ const dropModal = byId('dropModal')
 /** @type {import('./src/fileSystem.js').FileSystemDeps} */
 const fsDeps = {
   onFilesChange: () => reloadProject().catch(err => setError(err)), // M9 fix: Handle floating promise
-  setEditorFiles: files => editor.setFiles(files),
+  setEditorFiles: files => editor.setFiles(files, { keepBuffers: true }),
   onFilesChanged: files => editor.filesChanged(files),
   setError,
   onAliasFound: alias => workerApi.jscadInit({ alias }),
