@@ -106,4 +106,62 @@ test.describe('project drawer', () => {
       expect(sorted[i].top).toBeGreaterThanOrEqual(sorted[i - 1].bottom)
     }
   })
+
+  test('opening chat while Projects is open shows the chat drawer', async ({ page }) => {
+    await page.goto('/')
+    await dismissWelcome(page)
+    await waitForRender(page)
+    await page.locator('#project-toggle').click()
+    await expect(page.locator('#project-drawer:not(.closed)')).toBeVisible()
+
+    await page.locator('#ai-toggle').click()
+    await expect(page.locator('#ai-drawer:not(.closed)')).toBeVisible()
+    await settleDrawer(page, '#ai-drawer')
+    expect(await drawerOnTop(page, '#ai-drawer')).toBe(true)
+    await expect(page.locator('#project-drawer')).toHaveClass(/closed/)
+  })
+
+  test('opening Projects while chat is open shows the Projects drawer', async ({ page }) => {
+    await page.goto('/')
+    await dismissWelcome(page)
+    await waitForRender(page)
+    await page.locator('#ai-toggle').click()
+    await expect(page.locator('#ai-drawer:not(.closed)')).toBeVisible()
+
+    await page.locator('#project-toggle').click()
+    await expect(page.locator('#project-drawer:not(.closed)')).toBeVisible()
+    await settleDrawer(page, '#project-drawer')
+    expect(await drawerOnTop(page, '#project-drawer')).toBe(true)
+    await expect(page.locator('#ai-drawer')).toHaveClass(/closed/)
+  })
+
+  test('an open drawer steps the model-options menu aside on a narrow viewport', async ({ page }) => {
+    await page.setViewportSize({ width: 400, height: 800 })
+    await page.goto('/')
+    await dismissWelcome(page)
+    await waitForRender(page)
+    await expect(page.locator('#model-options')).toBeVisible()
+
+    await page.locator('#ai-toggle').click()
+    await expect(page.locator('#ai-drawer:not(.closed)')).toBeVisible()
+    await expect(page.locator('#model-options')).toBeHidden()
+  })
 })
+
+/** Wait out the slide-in transition so the drawer's box is final. */
+async function settleDrawer(page, selector) {
+  await page.waitForFunction((sel) => {
+    const { right, width } = document.querySelector(sel).getBoundingClientRect()
+    return Math.abs(right - innerWidth) < 1 && width > 100
+  }, selector)
+}
+
+/** True when the drawer covers the centre of its own box (nothing paints over it). */
+async function drawerOnTop(page, selector) {
+  return page.evaluate((sel) => {
+    const drawer = document.querySelector(sel)
+    const { x, y, width, height } = drawer.getBoundingClientRect()
+    const hit = document.elementFromPoint(x + width / 2, y + height / 2)
+    return drawer.contains(hit)
+  }, selector)
+}

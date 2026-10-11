@@ -1036,11 +1036,18 @@ if (byId('ai-chat')) {
   })
 }
 const aiDrawer = byId('ai-drawer')
-const toggleAi = () => aiDrawer?.classList.toggle('closed')
-byId('ai-toggle')?.addEventListener('click', toggleAi)
+const projectDrawer = byId('project-drawer')
+// The two right drawers share one column, so opening either closes the other;
+// otherwise the newest panel would stay behind the older one.
+const setDrawer = (drawer, open) => {
+  drawer?.classList.toggle('closed', !open)
+  if (open) (drawer === aiDrawer ? projectDrawer : aiDrawer)?.classList.add('closed')
+}
+const toggleDrawer = (drawer) => setDrawer(drawer, drawer?.classList.contains('closed'))
+byId('ai-toggle')?.addEventListener('click', () => toggleDrawer(aiDrawer))
 byId('ai-chat-btn')?.addEventListener('click', () => {
   menu.dismiss()
-  aiDrawer?.classList.remove('closed')
+  setDrawer(aiDrawer, true)
 })
 
 // ============== Project Panel ==============
@@ -1087,8 +1094,7 @@ projectPanel = initProjects({
   },
   onRetrySync: () => syncHandle?.syncNow(),
 })
-const projectDrawer = byId('project-drawer')
-byId('project-toggle')?.addEventListener('click', () => projectDrawer?.classList.toggle('closed'))
+byId('project-toggle')?.addEventListener('click', () => toggleDrawer(projectDrawer))
 
 // ============== Cleanup on Page Unload ==============
 // Call destroy functions to clean up event listeners and resources

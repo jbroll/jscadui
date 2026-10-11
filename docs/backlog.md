@@ -15,7 +15,6 @@ bullet each ID points at is the requirement text. Reserved for new findings:
 | PRJ4 | Projects and storage | High | `apps/jscad-web/src/storage/local.js` |
 | UI1 | UI (jscad-web) | Med | `src/viewState.js`, `main.js` |
 | UI2 | UI (jscad-web) | Med | `main.js`, `src/paramsUI.js`, `packages/params-ui` |
-| UI3 | UI (jscad-web) | Med | `static/main.css`, `static/index.html` |
 | UI4 | UI (jscad-web) | Med | `src/aiChat.js` |
 | UI5 | UI (jscad-web) | Med | `src/editor.js`, `main.js` |
 | UI6 | UI (jscad-web) | Med | `static/main.css`, `src/error.js` |
@@ -445,11 +444,6 @@ full.
   controller on each load, and the tree is rebuilt collapsed
   (`packages/params-ui/src/ParamsTree.js:67-70`). Carry values and collapse
   state by param path when the param survives, and add a Reset control.
-- **The drawers overlap.** `#ai-drawer` and `#project-drawer` are both fixed
-  `right: 0`, 360 px wide, at z-index 40 and 41
-  (`static/main.css:858-870`, `:904-916`), so opening chat with Projects open
-  shows nothing new. `#model-options` at z-index 2000 (`main.css:476-488`)
-  paints over both on phones.
 - **Chat input.** The draft is cleared (`src/aiChat.js:364`) before the
   provider check (`:294-297`), so a missing key loses the message. Every
   chunk forces the scroll to the bottom (`:158`, `:170`, `:183`, `:239`,

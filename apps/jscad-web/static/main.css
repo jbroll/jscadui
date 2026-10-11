@@ -502,6 +502,14 @@ p {
   background: rgba(40, 40, 40, 0.5);
   border: 1px solid #33333344;
 }
+/* On phones an open right drawer spans the width; the menu steps aside rather
+ * than painting over it and its toggle from its higher z-index. */
+@media (max-width: 767px) {
+  .container:has(#ai-drawer:not(.closed)) #model-options,
+  .container:has(#project-drawer:not(.closed)) #model-options {
+    display: none;
+  }
+}
 
 @layer reset{
   #paramsDiv {
@@ -901,9 +909,9 @@ p {
   content: "\27E9";
 }
 
-/* Project drawer: fixed right panel like the AI drawer, above it in z.
- * Toggle tabs stack vertically (project above middle, AI below) so an open
- * panel never strands another tab out of reach. */
+/* Project drawer: fixed right panel like the AI drawer, at the same z-index.
+ * The app opens at most one of the two at a time (main.js). Toggle tabs stack
+ * vertically (project above middle, AI below). */
 #project-drawer {
   position: fixed;
   right: 0;
@@ -913,7 +921,7 @@ p {
   height: 100vh;
   background: #fff;
   border-left: 1px solid #444;
-  z-index: 41;
+  z-index: 40;
   display: flex;
   transition: transform 0.3s;
 }
@@ -923,6 +931,12 @@ p {
 .dark #project-drawer {
   background: #222;
   border-left-color: #666;
+}
+/* A closed drawer keeps its toggle above the open panel on the right, so the
+ * other drawer stays reachable while one is open. */
+#ai-drawer.closed,
+#project-drawer.closed {
+  z-index: 41;
 }
 #project-toggle {
   position: absolute;
