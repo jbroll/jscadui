@@ -165,9 +165,9 @@ describe('local server', () => {
       port: 0,
     })
     try {
-      expect((await fetch(`${url}/models/.env`)).status).not.toBe(200)
-      expect((await fetch(`${url}/models/.git/config`)).status).not.toBe(200)
-      expect((await fetch(`${url}/models/link.txt`)).status).not.toBe(200)
+      expect((await fetch(`${url}/models/.env`)).status).toBe(404)
+      expect((await fetch(`${url}/models/.git/config`)).status).toBe(404)
+      expect((await fetch(`${url}/models/link.txt`)).status).toBe(404)
     } finally {
       appServer.close(); frameServer.close()
     }

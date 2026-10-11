@@ -173,7 +173,8 @@ describe('relay routes', () => {
     expect(res.status).toBe(500)
     expect(res.body).toEqual({ error: 'relay: allowlist unavailable' })
     expect(JSON.stringify(res.body)).not.toContain('does-not-exist')
-    expect(logs.some((l) => JSON.stringify(l).includes('allowlist'))).toBe(true)
+    // The real error (which carries the path) reaches the log, not the client.
+    expect(logs.some((l) => JSON.stringify(l).includes('does-not-exist'))).toBe(true)
   })
 
   it('uses the built-in providers when the allowlist file is absent', async () => {

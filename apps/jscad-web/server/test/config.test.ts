@@ -33,6 +33,7 @@ describe('configFromEnv', () => {
     process.env.NODE_ENV = 'production'
     process.env.BETTER_AUTH_SECRET = 'a-real-secret'
     const config = configFromEnv()
+    expect(config.authSecret).toBe('a-real-secret')
     expect(config.trustedOrigins).not.toContain('http://localhost:5120')
     expect(config.trustedOrigins).toContain('https://jscad.rkroll.com')
     expect(config.trustedOrigins).toContain('https://appleid.apple.com')
