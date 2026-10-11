@@ -57,7 +57,7 @@ import { createSession } from './src/storage/session.js'
 import { initProjects } from './src/projects.js'
 import { extractEntries, readAsText, readDir } from '@jscadui/fs-provider'
 import { createFrame, createJobTracker } from './src/frameSetup.js'
-import { createProjectSwitch, loadSource, projectPathOf, toEditorFiles } from './src/projectFiles.js'
+import { createProjectSwitch, isRecordablePath, loadSource, projectPathOf, toEditorFiles } from './src/projectFiles.js'
 import { createDiskProject, diskEntryFromHash, DISK_ID } from './src/diskProject.js'
 import { createScriptRuns, sendScript } from './src/scriptRuns.js'
 import { createStreamRuns } from './src/streamRuns.js'
@@ -380,8 +380,7 @@ const storageSession = createSession({ local: localStore, disk: diskStore, getRo
 
 // Editing a helper leaves the entry as it is; `entry` names a model the user ran on its own.
 const recordEdit = async (script, path, { entry } = {}) => {
-  // An example opened over the model directory is no file of it.
-  if (currentProjectId === DISK_ID && projectPathOf(path) === null) return
+  if (!isRecordablePath(path)) return
   await storageSession.writeThrough(currentProjectId, path, script, { message: 'edit', ...(entry ? { entry } : {}) }).catch((err) => console.warn('storage write failed:', err))
 }
 
@@ -1008,7 +1007,7 @@ byId('ai-chat-btn')?.addEventListener('click', () => {
 
 // ============== Project Panel ==============
 if ((await projectManager.listAll()).length === 0) {
-  await projectManager.createProject('default', { entry: 'main.js', files: { 'main.js': defaultCode } })
+  currentProjectId = (await projectManager.createProject('default', { entry: 'main.js', files: { 'main.js': defaultCode } })).id
 }
 const projectPanel = initProjects({
   container: byId('project-drawer-body'),

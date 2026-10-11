@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { collectProjectFiles, createProjectSwitch, isBinaryPath, loadSource, projectPathOf, replaceProjectFiles, toEditorFiles } from '../src/projectFiles.js'
+import { collectProjectFiles, createProjectSwitch, isBinaryPath, isRecordablePath, loadSource, projectPathOf, replaceProjectFiles, toEditorFiles } from '../src/projectFiles.js'
 
 // Mirrors what the real Cache API does: addToCache() calls cache.put(new
 // Request(path), ...) with a leading-slash, project-relative path, which
@@ -123,6 +123,16 @@ describe('projectPathOf', () => {
   it('is null for an example or a remote script, which is not a project file', () => {
     expect(projectPathOf('http://localhost:5120/examples/jscad/01-two-cars.example.js')).toBeNull()
     expect(projectPathOf('https://example.com/model.js')).toBeNull()
+  })
+})
+
+describe('isRecordablePath', () => {
+  it('marks URL scripts unrecordable and project paths recordable', () => {
+    expect(isRecordablePath('main.js')).toBe(true)
+    expect(isRecordablePath('/parts/gear.js')).toBe(true)
+    expect(isRecordablePath('http://localhost:5120/examples/jscad/01-two-cars.example.js')).toBe(false)
+    expect(isRecordablePath('https://example.com/model.js')).toBe(false)
+    expect(isRecordablePath('data:application/gzip;base64,AAA')).toBe(false)
   })
 })
 

@@ -14,6 +14,10 @@ export const isBinaryPath = (path) => BINARY_EXT.has(path.slice(path.lastIndexOf
  */
 export const projectPathOf = (path) => (/^[a-z][a-z\d+.-]*:/i.test(path) ? null : path.replace(/^\//, ''))
 
+// An editor run path that belongs to a project (record it) versus a URL —
+// an example, remote or data: script — that must never be stored into one.
+export const isRecordablePath = (path) => projectPathOf(path) !== null
+
 /**
  * What the frame isolates one load from the next by: one project id for
  * project urls, the url itself for examples, remote and data: scripts.
