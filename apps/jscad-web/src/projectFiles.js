@@ -30,6 +30,14 @@ export const loadSource = ({ url, projectId }) =>
   (typeof url === 'string' && url.startsWith(PROJECT_BASE) ? `project:${projectId}` : url)
 
 /**
+ * The project to open on load: the most recently updated one, skipping the
+ * disk row (it sorts first and opens from its own #/models hash).
+ * @param {{id:string, mode:string}[]} projects
+ * @returns {string | null}
+ */
+export const pickBootProject = (projects) => projects.find((p) => p.mode !== 'disk')?.id ?? null
+
+/**
  * The frame's worker is on another origin, so the file service worker cannot
  * serve it: a service worker only sees fetches from clients it controls. The
  * project travels in the message instead.

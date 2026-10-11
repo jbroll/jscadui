@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { collectProjectFiles, createProjectSwitch, isBinaryPath, isRecordablePath, loadSource, projectPathOf, replaceProjectFiles, toEditorFiles } from '../src/projectFiles.js'
+import { collectProjectFiles, createProjectSwitch, isBinaryPath, isRecordablePath, loadSource, pickBootProject, projectPathOf, replaceProjectFiles, toEditorFiles } from '../src/projectFiles.js'
 
 // Mirrors what the real Cache API does: addToCache() calls cache.put(new
 // Request(path), ...) with a leading-slash, project-relative path, which
@@ -142,5 +142,20 @@ describe('loadSource', () => {
     expect(loadSource({ url: 'http://project.local/parts/gear.js', projectId: 'abc' })).toBe('project:abc')
     expect(loadSource({ url: 'https://example.com/model.js', projectId: 'abc' })).toBe('https://example.com/model.js')
     expect(loadSource({ url: 'data:application/gzip;base64,AAA', projectId: 'abc' })).toBe('data:application/gzip;base64,AAA')
+  })
+})
+
+describe('pickBootProject', () => {
+  it('returns the first (most recently updated) non-disk project', () => {
+    expect(pickBootProject([{ id: 'a', mode: 'local' }, { id: 'b', mode: 'rowboat' }])).toBe('a')
+  })
+
+  it('skips the disk row, which sorts first and is opened by its own hash', () => {
+    expect(pickBootProject([{ id: 'disk', mode: 'disk' }, { id: 'b', mode: 'local' }])).toBe('b')
+  })
+
+  it('is null with no projects or only the disk project', () => {
+    expect(pickBootProject([])).toBeNull()
+    expect(pickBootProject([{ id: 'disk', mode: 'disk' }])).toBeNull()
   })
 })

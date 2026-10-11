@@ -57,7 +57,7 @@ import { createSession } from './src/storage/session.js'
 import { initProjects } from './src/projects.js'
 import { extractEntries, readAsText, readDir } from '@jscadui/fs-provider'
 import { createFrame, createJobTracker } from './src/frameSetup.js'
-import { createProjectSwitch, isRecordablePath, loadSource, projectPathOf, toEditorFiles } from './src/projectFiles.js'
+import { createProjectSwitch, isRecordablePath, loadSource, pickBootProject, projectPathOf, toEditorFiles } from './src/projectFiles.js'
 import { createDiskProject, diskEntryFromHash, DISK_ID } from './src/diskProject.js'
 import { createScriptRuns, sendScript } from './src/scriptRuns.js'
 import { createStreamRuns } from './src/streamRuns.js'
@@ -1011,8 +1011,12 @@ byId('ai-chat-btn')?.addEventListener('click', () => {
 })
 
 // ============== Project Panel ==============
-if ((await projectManager.listAll()).length === 0) {
+const bootProjects = await projectManager.listAll()
+if (bootProjects.length === 0) {
   currentProjectId = (await projectManager.createProject('default', { entry: 'main.js', files: { 'main.js': defaultCode } })).id
+} else {
+  const bootId = pickBootProject(bootProjects)
+  if (bootId) await switchProject(bootId).catch(setError)
 }
 const projectPanel = initProjects({
   container: byId('project-drawer-body'),
