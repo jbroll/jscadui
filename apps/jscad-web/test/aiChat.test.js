@@ -547,6 +547,35 @@ describe('project switch', () => {
     expect(store.p1).toContainEqual({ role: 'assistant', content: 'late reply' })
     expect(chat.q('.chat-messages').textContent).not.toContain('late reply')
   })
+
+  it('drops a tool line that arrives after a switch, and still completes the run', async () => {
+    let release
+    const gate = new Promise((resolve) => { release = resolve })
+    const store = { p2: [{ role: 'user', content: 'p2 earlier' }] }
+    const storage = {
+      readConversation: async (id) => (store[id] ? { messages: store[id], updated: 1 } : null),
+      writeConversation: vi.fn(async (id, messages) => { store[id] = messages }),
+    }
+    const requestTool = vi.fn(async () => ({ volume: 42 }))
+    const runTurnFn = vi.fn(async ({ requestTool: callTool, onText }) => {
+      await gate
+      await callTool('measure', {})
+      onText('done')
+      return { messages: [] }
+    })
+    let openId = 'p1'
+    const chat = openChat({ runTurnFn, requestTool, storage, projectId: () => openId })
+    chat.type('how big?')
+    await vi.waitFor(() => expect(runTurnFn).toHaveBeenCalledTimes(1))
+    openId = 'p2'
+    await chat.controls.switchTo('p2')
+    await vi.waitFor(() => expect(chat.q('.chat-messages').textContent).toContain('p2 earlier'))
+    release()
+    await vi.waitFor(() => expect(requestTool).toHaveBeenCalledWith('measure', {}))
+    await vi.waitFor(() => expect(chat.q('.chat-send').textContent).toBe('Send'))
+    expect(chat.q('.chat-tool')).toBeNull()
+    expect(chat.q('.chat-messages').textContent).toBe('p2 earlier')
+  })
 })
 describe('opencode session', () => {
   it('keeps one x-opencode-session per project across messages', async () => {

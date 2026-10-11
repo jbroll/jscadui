@@ -96,6 +96,10 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
   let turnReasoning = []
   let transcript = []
   const pid = () => (typeof projectId === 'function' ? projectId() : projectId)
+  // The running turn's project; set at turn start so module-scope helpers
+  // (handleTool) can skip DOM writes once another project is open.
+  let turnProject = null
+  const live = () => turnProject === pid()
   // opencode groups a conversation's requests by this id, so it must outlive one message.
   const sessions = new Map()
   const sessionId = () => {
@@ -294,9 +298,8 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
   // Never throws: a rejection becomes an {ok:false} result so the turn
   // always has content to feed back.
   const handleTool = async (name, input) => {
-    endReasoning()
-    assistantEl = null
-    const finish = addToolLine(name, input)
+    if (live()) { endReasoning(); assistantEl = null }
+    const finish = live() ? addToolLine(name, input) : () => {}
     try {
       const result = await requestTool(name, input)
       finish(result, toolFailed(result))
@@ -314,8 +317,7 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
       addMessage('Set your model and API key in AI settings first.', 'error')
       return
     }
-    const turnProject = pid()
-    const live = () => turnProject === pid()
+    turnProject = pid()
     let local = [...transcript, { role: 'user', content: message }]
     const persist = (messages) => {
       if (!storage || !turnProject) return
@@ -382,6 +384,7 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
       }
       await finishTurn()
       assistantEl = null
+      turnProject = null
       aborter = null
       setRunning(false)
     }
