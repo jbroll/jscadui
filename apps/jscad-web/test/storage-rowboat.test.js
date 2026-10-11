@@ -8,6 +8,9 @@ import { createRowboatStorage } from '../src/storage/rowboat.js'
 const dbOptions = { indexedDB: globalThis.indexedDB, IDBKeyRange: globalThis.IDBKeyRange }
 const MAIN = 'const gear = { teeth: 12 }'
 
+const sha256Hex = async (bytes) =>
+  Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)), (b) => b.toString(16).padStart(2, '0')).join('')
+
 const transcriptStorage = (fetchFn) =>
   createRowboatStorage({
     syncBase: 'http://fake/db/x/api/sync',
@@ -63,6 +66,31 @@ describe('rowboat backend', () => {
     const versions = await store.listVersions('p4')
     expect(versions.map((v) => v.message)).toEqual(['chat', 'create'])
     expect((await store.readVersion('p4', versions[0].versionId)).files).toEqual({ 'main.js': 'v2!', 'lib.js': 'l' })
+    await store.close()
+  })
+
+  it('skips the upload when a file is unchanged since its last write', async () => {
+    const uploads = []
+    const blobClient = {
+      upload: async (bytes) => {
+        uploads.push(bytes)
+        return { hash: await sha256Hex(bytes), size: bytes.byteLength }
+      },
+      fetch: async () => { throw new Error('unexpected blob fetch') },
+    }
+    const store = createRowboatStorage({
+      syncBase: 'http://fake/db/x/api/sync',
+      identity: 'u1',
+      getHeaders: async () => ({}),
+      dbOptions,
+      fetchFn: vi.fn(async () => new Response('{}')),
+      blobClient,
+    })
+    await store.writeFiles('p5', { 'main.js': 'same', 'lib.js': 'l1' }, { message: 'one', name: 'P5', entry: 'main.js' })
+    await store.writeFiles('p5', { 'main.js': 'same', 'lib.js': 'l2' }, { message: 'two' })
+    expect(uploads).toHaveLength(3)
+    expect(new TextDecoder().decode(uploads[0])).toBe('same')
+    expect((await store.readProject('p5')).files).toEqual({ 'main.js': 'same', 'lib.js': 'l2' })
     await store.close()
   })
 

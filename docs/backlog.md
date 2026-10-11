@@ -12,7 +12,6 @@ bullet each ID points at is the requirement text. Reserved for new findings:
 
 | ID | Section | Sev | Primary files |
 |---|---|---|---|
-| PRJ1 | Projects and storage | Med | `apps/jscad-web/src/storage/rowboat.js` |
 | PRJ2 | Projects and storage | High | `apps/jscad-web/src/storage/local.js`, `src/aiAccount.js` |
 | PRJ3 | Projects and storage | Med | `apps/jscad-web/src/fileSystem.js`, `main.js` |
 | UI1 | UI (jscad-web) | Med | `src/viewState.js`, `main.js` |
@@ -128,8 +127,6 @@ under `apps/jscad-web` unless given in full.
 
 From the same review, with the same path convention.
 
-- **Rowboat re-uploads every file on every save** (`rowboat.js:109-113`);
-  rowboat-client's `blobs.upload` does not dedupe.
 - **The local backend keeps nothing across a reload.**
   `src/storage/local.js:4-6` holds projects, versions and conversations in
   `Map`s, while `README.md:156-170` and `docs/architecture.md:1111-1116`

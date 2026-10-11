@@ -1174,6 +1174,8 @@ local launcher a third, `disk`
 read and written over the launcher's `/api/fs` and followed through its
 `/api/fs/events` stream. It keeps no versions; the directory's git does. A GitHub App backend that read and committed
 through the server is parked on the `park/github-app-storage` branch.
+A rowboat save re-uploads only files whose content hash differs from the file
+row's stored blob key, so unchanged files cost no upload.
 
 A mixed project merges at load: each manifest path names exactly one backend,
 and an unlisted sibling resolves local-first then rowboat.

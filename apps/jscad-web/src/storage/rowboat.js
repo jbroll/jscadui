@@ -33,6 +33,11 @@ export function createRowboatStorage(options) {
     return lastTs
   }
 
+  const sha256Hex = async (bytes) => {
+    const digest = await crypto.subtle.digest('SHA-256', bytes)
+    return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('')
+  }
+
   const sync = async () =>
     syncWithServer({
       db,
@@ -105,13 +110,25 @@ export function createRowboatStorage(options) {
         updated: ts,
       })
     }
+    const previous = await rowsFor('files', id)
+    const previousByPath = new Map(previous.map((r) => [r.path, r.hash]))
     const fileManifest = {}
     for (const [path, content] of Object.entries(files)) {
-      const { hash, size } = await blobs.upload(new TextEncoder().encode(content))
-      cache.set(hash, content)
-      fileManifest[path] = { hash, size }
+      const bytes = new TextEncoder().encode(content)
+      const hash = await sha256Hex(bytes)
+      const prior = previousByPath.get(path)
+      // The blob key is the content hash, so a row already pointing at it means
+      // the upload is done; re-uploading would duplicate the bytes.
+      const priorCell = typeof prior === 'string' ? JSON.parse(prior) : prior
+      if (priorCell?.hash === hash) {
+        fileManifest[path] = { hash: priorCell.hash, size: priorCell.size }
+        cache.set(hash, content)
+        continue
+      }
+      const uploaded = await blobs.upload(bytes)
+      cache.set(uploaded.hash, content)
+      fileManifest[path] = uploaded
     }
-    const previous = await rowsFor('files', id)
     if (previous.length > 0) await db.remove('files', previous.map((r) => r.id))
     await db.create(
       'files',

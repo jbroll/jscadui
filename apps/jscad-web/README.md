@@ -166,6 +166,8 @@ stored when the turn ends, including any edit you made in the editor meanwhile:
   projects, files, versions and conversations in rowboat tables compiled from
   `src/storage/schema.js`. Sign-in starts the interval sync loop with a
   short-lived JWT from the app API's `GET /api/sync-token` (15m expiry, served by `server/` in this dir).
+  A file whose content is unchanged since its last write is not uploaded
+  again: the blob key is the content's SHA-256, and the file row reuses it.
 - Mixed projects merge at load time: each manifest path names exactly one
   backend, and unlisted sibling requires resolve local-first, then rowboat.
 - Chat conversations are stored in the project's own mode and resume on
