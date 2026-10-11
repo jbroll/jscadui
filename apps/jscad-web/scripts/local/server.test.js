@@ -1,6 +1,6 @@
 // apps/jscad-web/scripts/local/server.test.js
 import { describe, expect, it } from 'vitest'
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createRelayHandler } from './relay.js'
@@ -126,6 +126,28 @@ describe('local server', () => {
     try {
       expect((await fetch(`${url}/api/relay/x/y`, { method: 'POST' })).status).toBe(500)
       expect((await fetch(`${url}/models/missing.scad`)).status).toBe(404)
+    } finally {
+      appServer.close(); frameServer.close()
+    }
+  })
+
+  it('refuses dotfiles and symlinks that leave the model directory', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'jscad-local-'))
+    mkdirSync(join(root, 'frame'), { recursive: true })
+    mkdirSync(join(root, 'models', '.git'), { recursive: true })
+    writeFileSync(join(root, 'models', '.env'), 'SECRET=1')
+    writeFileSync(join(root, 'models', '.git', 'config'), '[core]')
+    writeFileSync(join(root, 'outside.txt'), 'out')
+    symlinkSync(join(root, 'outside.txt'), join(root, 'models', 'link.txt'))
+    const { appServer, frameServer, url } = await startLocal({
+      appDir: root, frameDir: join(root, 'frame'), modelDir: join(root, 'models'),
+      relayHandler: createRelayHandler({ allowlist: {}, trustedOrigins: [] }),
+      port: 0,
+    })
+    try {
+      expect((await fetch(`${url}/models/.env`)).status).not.toBe(200)
+      expect((await fetch(`${url}/models/.git/config`)).status).not.toBe(200)
+      expect((await fetch(`${url}/models/link.txt`)).status).not.toBe(200)
     } finally {
       appServer.close(); frameServer.close()
     }

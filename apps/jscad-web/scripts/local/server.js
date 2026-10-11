@@ -4,7 +4,7 @@ import http from 'node:http'
 import { readFile } from 'node:fs/promises'
 import { serveFrame } from '../../serve.js'
 import { mimeOf, safeJoin } from '../static.js'
-import { createFsHandler } from './fsApi.js'
+import { createFsHandler, hiddenSegment, resolvesInside } from './fsApi.js'
 
 export const startLocal = async ({ appDir, frameDir, modelDir, relayHandler, port }) => {
   let fsHandler = null
@@ -18,11 +18,18 @@ export const startLocal = async ({ appDir, frameDir, modelDir, relayHandler, por
       if (await fsHandler(req, res)) return
       res.writeHead(404); res.end(); return
     }
-    let file = null
-    if (path.startsWith('/models/')) file = safeJoin(modelDir, decodeURIComponent(path.slice('/models/'.length)))
-    else file = safeJoin(appDir, decodeURIComponent(path === '/' ? '/index.html' : path))
     // Errors carry CORS too, or the frame sees a NetworkError instead of the status.
     const cors = { 'access-control-allow-origin': '*' }
+    let file = null
+    if (path.startsWith('/models/')) {
+      const segments = decodeURIComponent(path.slice('/models/'.length)).split(/[/\\]/)
+      if (segments.some((s) => hiddenSegment(s) || s === '')) { res.writeHead(404, cors); res.end('not found'); return }
+      const joined = safeJoin(modelDir, segments.join('/'))
+      if (!joined || !(await resolvesInside(modelDir, joined))) { res.writeHead(404, cors); res.end('not found'); return }
+      file = joined
+    } else {
+      file = safeJoin(appDir, decodeURIComponent(path === '/' ? '/index.html' : path))
+    }
     if (!file) { res.writeHead(403, cors); res.end('forbidden'); return }
     try {
       const content = await readFile(file)

@@ -10,7 +10,7 @@ const MAX_BYTES = 50 * 1024 * 1024
 const MAX_FILES = 2000
 const DEBOUNCE_MS = 100
 
-const hiddenSegment = (s) => s.startsWith('.') || s === 'node_modules'
+export const hiddenSegment = (s) => s.startsWith('.') || s === 'node_modules'
 
 const listable = (rel) => !rel.split('/').some(hiddenSegment)
 
@@ -26,7 +26,7 @@ const segmentsOf = (raw) => {
 const inside = (root, p) => p === root || p.startsWith(root + sep)
 
 // A dangling symlink has no realpath but would still be followed by a write.
-const resolvesInside = async (root, abs) => {
+export const resolvesInside = async (root, abs) => {
   for (let cur = abs; ; cur = dirname(cur)) {
     try {
       return inside(root, await realpath(cur))
