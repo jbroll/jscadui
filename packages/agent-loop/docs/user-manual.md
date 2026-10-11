@@ -806,8 +806,11 @@ there is no geometry:
 - `bodies: { sections?, overlaps? }` lists the separate solids, each array
   item split into the parts that share no vertex: `{ boundingBox, dimensions,
   volume, polygonCount, sections? }`, with `sections` cut through that body
-  alone. With `overlaps: true` the probe also has `overlaps: [{ a, b, volume
-  }]`, the volume bodies `a` and `b` (indexes into `bodies`) share, for each
+  alone. The list stops at 64 bodies; `bodyCount` is the true number and
+  `bodiesCapped` marks a list that was cut, so a many-body model keeps its
+  grade instead of blowing the executor's 1 MiB reply cap. With `overlaps:
+  true` the probe also has `overlaps: [{ a, b, volume }]`, the volume bodies
+  `a` and `b` (indexes into `bodies`) share, for each
   pair whose bounding boxes overlap, at most 45 pairs; touching parts share
   none. `nesting(upper, lower, axis)` reads two bodies cut densely along
   `axis`: `{ depth, play }`, how far `upper`'s bottom goes into `lower`'s top

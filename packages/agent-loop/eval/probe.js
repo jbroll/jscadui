@@ -13,6 +13,10 @@ const WELD = 1e-4
 const MIN_LOOP_AREA = 0.01
 const MAX_LOOPS = 64
 const MAX_OVERLAP_PAIRS = 45
+// The body list is replied over the executor protocol; a model with thousands
+// of bodies would blow the 1 MiB reply cap and turn the whole grade into
+// NO_GRADE. Cap the list and report the true count beside it.
+const MAX_BODIES = 64
 // Keeps a cut off the round-number faces of a model built from round numbers.
 const NUDGE = 1.234e-4
 
@@ -320,7 +324,9 @@ export const runProbe = (geometry, spec) => {
   if (spec.bodies) {
     const groups = bodiesOf(items)
     const boxes = groups.map(boxOf)
-    out.bodies = groups.map((polygons, n) => {
+    out.bodyCount = groups.length
+    out.bodiesCapped = groups.length > MAX_BODIES
+    out.bodies = groups.slice(0, MAX_BODIES).map((polygons, n) => {
       const [lo, hi] = boxes[n]
       const body = { boundingBox: [lo, hi], dimensions: hi.map((h, k) => h - lo[k]), volume: volumeOf(polygons), polygonCount: polygons.length }
       if (spec.bodies.sections) body.sections = sectionsOf(polygons, spec.bodies.sections)

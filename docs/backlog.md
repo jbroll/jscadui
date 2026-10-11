@@ -25,7 +25,6 @@ bullet each ID points at is the requirement text. Reserved for new findings:
 | API4 | Chat API help | Low | `.deps-cache/jscad-fluent` (external) |
 | API5 | Chat API help | Med | `packages/agent-loop/src/tools.js`, `apps/jscad-web/src/aiDeps.js` |
 | API6 | Chat API help | Med | `apps/jscad-web/src/apiIndex.js`, `packages/agent-loop/src/docs.js` |
-| API10 | Chat API help | Low | `packages/agent-loop/eval/probe.js` |
 | REF1 | Refactoring | High | breaking, out of scope |
 | REF3 | Refactoring | Med | out of scope (`packages/worker`) |
 | REF4 | Refactoring | Low | out of scope (`packages/require`) |
@@ -425,12 +424,6 @@ model with `display-check.js --engine jscad`.
   missing or floating parts made it call broken models intact. No gate
   catches an open top either; a gate on the top cut, a ring where a closed
   object has a solid, would, for requests whose objects are closed.
-- A cap on the `bodies` probe (agent-loop eval, `eval/probe.js`). It lists
-  every body with no limit, so a model of about 5,000 bodies pushes the grade
-  reply past the executor's 1 MiB cap; the whole grade becomes `NO_GRADE` and
-  a complex run fails `builds` with no word on why. A cap that reports the
-  count and drops the list past it would keep the grade and name the cause.
-  No complex fixture comes near it.
 - Calibrate the complex grader (agent-loop eval). Against the 39 reviewed
   runs in the evals repo (`calibration/2026-09-30T230517Z-labels.json`,
   labelled from renders, not yet reviewed by a person) the first grader agreed

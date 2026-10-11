@@ -142,6 +142,19 @@ describe('runProbe', () => {
 
   it('reads geometry an array nests', () => {
     expect(runProbe([[cup]], { bodies: {} }).bodies).toHaveLength(1)
-    expect(runProbe([], { sections: [{ axis: 'z', at: [0.5] }], bodies: {} })).toEqual({ sections: [], bodies: [] })
+    expect(runProbe([], { sections: [{ axis: 'z', at: [0.5] }], bodies: {} })).toEqual({ sections: [], bodies: [], bodyCount: 0, bodiesCapped: false })
+  })
+
+  it('caps the body list and reports the count, so a many-body model cannot blow the reply cap', () => {
+    const many = Array.from({ length: 70 }, (_, n) => transforms.translateX(n * 8, p.cube({ size: 4 })))
+    const capped = runProbe(many, { bodies: {} })
+    expect(capped.bodies).toHaveLength(64)
+    expect(capped.bodyCount).toBe(70)
+    expect(capped.bodiesCapped).toBe(true)
+    const few = runProbe([p.cube({ size: 4 })], { bodies: {} })
+    expect(few.bodies).toHaveLength(1)
+    expect(few.bodyCount).toBe(1)
+    expect(few.bodiesCapped).toBe(false)
+    expect(runProbe([p.cube({ size: 4 })], { sections: [{ axis: 'z', at: [0.5] }] })).not.toHaveProperty('bodyCount')
   })
 })
