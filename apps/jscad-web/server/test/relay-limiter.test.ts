@@ -29,7 +29,9 @@ describe('limiter', () => {
     // a, b, c idle back to a full token well before the next arrivals
     t += 120_000
     limiter.check('d'); limiter.check('e'); limiter.check('f')
-    // every key still works: eviction drops only idle buckets, never live ones
+    // the idle buckets were dropped, so the cap held
+    expect(limiter.size()).toBeLessThanOrEqual(3)
+    // and the live keys are still tracked: a second check is still refused
     expect(limiter.check('f')).toMatchObject({ ok: false })
     expect(limiter.check('e')).toMatchObject({ ok: false })
   })

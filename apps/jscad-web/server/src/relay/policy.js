@@ -248,7 +248,7 @@ export const resolveTarget = async ({ allowlist, kind, subPath, dnsLookup, allow
  * cap; a still-draining bucket is never dropped, so the map may briefly
  * exceed the cap when every bucket is live.
  * @param {{ ratePerMin: number, burst: number, now?: () => number, maxBuckets?: number }} options
- * @returns {{ check(key: string): LimitResult }}
+ * @returns {{ check(key: string): LimitResult, size(): number }}
  */
 export const createLimiter = ({ ratePerMin, burst, now = Date.now, maxBuckets = 10_000 }) => {
   const perMs = ratePerMin / 60_000
@@ -274,6 +274,10 @@ export const createLimiter = ({ ratePerMin, burst, now = Date.now, maxBuckets = 
       }
       buckets.set(key, { tokens, at: t })
       return { ok: false, retryAfterSec: Math.max(1, Math.ceil((1 - tokens) / perMs / 1000)) }
+    },
+    // Tracked keys; the cap bound is only observable through this.
+    size() {
+      return buckets.size
     },
   }
 }
