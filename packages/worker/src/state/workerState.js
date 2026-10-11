@@ -11,7 +11,6 @@
  * @typedef {import('@jscadui/format-common').JscadMainFunctionRaw} JscadMainFunctionRaw
  * @typedef {import('@jscadui/format-common').JscadModule} JscadModule
  * @typedef {import('@jscadui/format-common').JscadMainResultRaw} JscadMainResultRaw
- * @typedef {import('@jscadui/params-core').ProxyState} ProxyState
  * @typedef {(script:string,url:string)=>string} TransformFunction
  * @typedef ImportData
  * @prop {(ext:string) => boolean } isBinaryExt
@@ -71,9 +70,6 @@ export class WorkerState {
     /** @type {Object | null} */
     this.legacyProxyDefs = null
 
-    /** @type {ProxyState | null} */
-    this._lastProxyState = null
-
     // Script generation counter for timeout detection
     /** @type {number} */
     this.scriptGeneration = 0
@@ -91,7 +87,6 @@ export class WorkerState {
     this.currentUiValues = {}
     this.lastParams = {}
     this.legacyProxyDefs = null
-    this._lastProxyState = null
     this.scriptGeneration = 0
   }
 
@@ -102,54 +97,6 @@ export class WorkerState {
   clearGeometry() {
     this.solids = []
     this.lastRunStreamed = false
-    this._lastProxyState = null
-  }
-
-  /**
-   * Clear parameter state - called when starting fresh parameter discovery
-   */
-  clearParams() {
-    this.userInteracted = new Set()
-    this.currentUiValues = {}
-    this.legacyProxyDefs = null
-    this._lastProxyState = null
-  }
-
-  /**
-   * Update script module and main function
-   * @param {JscadModule} module
-   */
-  setScript(module) {
-    this.scriptModule = module
-    this.main = module.main
-  }
-
-  /**
-   * Update configuration from jscadInit
-   * @param {{
-   *   baseURI?: string,
-   *   userInstances?: boolean,
-   *   useParamsProxy?: boolean,
-   *   importData?: ImportData,
-   *   transformFunc?: TransformFunction
-   * }} config
-   */
-  configure(config) {
-    if (config.baseURI !== undefined) {
-      this.globalBase = config.baseURI
-    }
-    if (config.userInstances !== undefined) {
-      this.userInstances = config.userInstances
-    }
-    if (config.useParamsProxy !== undefined) {
-      this.useParamsProxy = config.useParamsProxy
-    }
-    if (config.importData !== undefined) {
-      this.importData = config.importData
-    }
-    if (config.transformFunc !== undefined) {
-      this.transformFunc = config.transformFunc
-    }
   }
 
   /**

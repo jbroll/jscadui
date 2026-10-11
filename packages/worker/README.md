@@ -41,6 +41,14 @@ the warnings, so a parameter change reports the load's warnings plus its own,
 with duplicates dropped by the collector. A result carries `warnings` and `console` only when
 they are non-empty.
 
+## File parameters
+
+`initWorker({ importData })` registers
+`{ isBinaryExt(ext), deserialize(info, content) }`. `jscadMain` deserializes
+any `File` parameter through it before `main` runs: it reads the file (binary
+or text by extension) and replaces the parameter with the deserialized value.
+Without `importData`, a `File` parameter passes through untouched.
+
 ## Tests
 
 ```bash

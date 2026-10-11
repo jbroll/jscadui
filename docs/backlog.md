@@ -35,7 +35,6 @@ bullet each ID points at is the requirement text. Reserved for new findings:
 | REF7 | Refactoring | Med | out of scope (`main.js`, `paramsUI.js`) |
 | REF9 | Refactoring | Med | out of scope (`src_frame`, `frameSetup.js`) |
 | REF10 | Refactoring | Med | out of scope (model runners) |
-| REF11 | Refactoring | Med | `packages/worker/worker.js` |
 | REF12 | Refactoring | Med | `packages/worker/worker.js`, `src_frame/` |
 | REF13 | Refactoring | Med | `packages/require`, `packages/worker` |
 | REF14 | Refactoring | Low | `packages/worker/worker.js`, `src_frame/` |
@@ -622,13 +621,6 @@ from the 2026-10-01 review.
   (`:611-616`), hand-lists the manifold API without `curves`, `modifiers`,
   `utils` or the conversions (`createRuntime`, `:198-382`), and never resets
   `setGlobalFn` between in-process runs (`:665`, `:780`).
-- **Worker loose ends.** `packages/worker/worker.js:312-316` reads a free
-  `importData` (the real one is `workerState.importData`), so a `File` param
-  throws `ReferenceError`. `WorkerState.clearParams`, `setScript`,
-  `configure`, `_lastProxyState` and `setScriptLockTimeout` are unused, and
-  `:78` names a `clearWorkerState` that does not exist.
-  `apps/jscad-web/src_frame/bundle.frame-worker.js:52-56` and `:115-130` flip
-  `scadPreview` around `await jscadMain` outside the `withSolids` queue.
 - **Superseded errors have two shapes.** The frame answers
   `name: 'SupersededError'`, but the worker throws plain `Error`s saying
   "superseded" (`worker.js:283`, `:507`, `:549`, `:574`), and the app checks

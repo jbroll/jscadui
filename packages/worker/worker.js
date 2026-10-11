@@ -65,17 +65,13 @@ globalThis.JSCAD_WORKER_ENV = {}
  */
 let scriptLock = Promise.resolve()
 
-/**
- * C6 fix: Reset script lock on catastrophic errors
- * This prevents one bad script from permanently deadlocking the worker
- */
+// Reset on catastrophic errors so one bad script cannot permanently deadlock
+// the worker.
 const resetScriptLock = () => {
   scriptLock = Promise.resolve()
 }
 
-// Global error handlers to reset lock on uncaught errors
-// M6 fix: Also clear geometry state to free memory after catastrophic errors
-// Note: clearWorkerState is defined later after variable declarations
+// Uncaught errors reset the lock and clear geometry to free memory.
 self.addEventListener('error', (event) => {
   console.error('Worker uncaught error:', event.error)
   resetScriptLock()
@@ -88,19 +84,8 @@ self.addEventListener('unhandledrejection', (event) => {
   workerState.clearGeometry()
 })
 
-/**
- * Timeout in ms to wait for script lock before giving up
- * Default: 30 seconds. Set to 0 to disable timeout.
- */
-let scriptLockTimeout = 30000
-
-/**
- * Configure the script lock timeout
- * @param {number} ms - Timeout in milliseconds (0 to disable)
- */
-export const setScriptLockTimeout = (ms) => {
-  scriptLockTimeout = ms
-}
+// Timeout in ms to wait for the script lock before giving up.
+const scriptLockTimeout = 30000
 
 /** @type {{reset: () => void, list: () => Array<{fn: string, option: string, suggestions?: string[], hint?: string}>} | null} */
 let runWarnings = null
@@ -183,13 +168,7 @@ const acquireScriptLock = async () => {
     release = resolve
   })
 
-  // If no timeout, wait indefinitely
-  if (scriptLockTimeout === 0) {
-    await previousLock
-    return release
-  }
-
-  // Race against timeout
+  // Race the previous script against the timeout
   const timeoutPromise = new Promise((_, reject) => {
     setTimeout(() => reject(new Error(
       `Script lock timeout: previous script did not complete within ${scriptLockTimeout}ms. ` +
@@ -306,8 +285,8 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
   }
 
   // Handle file params
-  // H25 fix: Wrap in try-catch with context about which parameter failed
   params = {...params}
+  const importData = workerState.importData
   for(const p in params){
     if(params[p] instanceof File && importData){
       try {
@@ -380,7 +359,6 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
 
         out = flatten(await runMain(proxyParams))
       }
-      workerState._lastProxyState = proxyState
     } else {
       out = flatten(await runMain(params || {}))
     }

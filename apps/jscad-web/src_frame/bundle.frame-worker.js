@@ -114,25 +114,28 @@ const jscadExportData = async ({ format, options = {} }) => {
   const jscadIo = require('@jscad/io', null, readFileWeb)
   const config = defaultSerializerConfigs.find((c) => c.id === format)
   if (!config) throw new Error(`Unknown export format: ${format}`)
+  const serialize = (solids) => {
+    const data = jscadIo[config.serializerKey].serialize({ ...config.defaultOptions, ...options }, solids)
+    return withTransferable({ data }, data.filter((v) => typeof v !== 'string'))
+  }
   // Only a model that reads $preview can differ between the two modes, and
   // re-running one is expensive, so ask the runtime whether it ever mattered.
   // A streamed grid is re-run for the export anyway, in preview mode.
   const renderMode = !lastRunStreamed() && _openscad?.j$.previewUsed
-  try {
-    if (renderMode) {
+  // The flip's re-runs rewrite the worker's solids, so they stay inside the
+  // withSolids queue; a measure or check in flight must not serialize a
+  // half-switched preview.
+  return await withSolids(async (solids) => {
+    if (!renderMode) return serialize(solids)
+    try {
       setScadPreview(false)
       await jscadMain({ params: currentParams() })
-    }
-    return await withSolids((solids) => {
-      const data = jscadIo[config.serializerKey].serialize({ ...config.defaultOptions, ...options }, solids)
-      return withTransferable({ data }, data.filter((v) => typeof v !== 'string'))
-    })
-  } finally {
-    if (renderMode) {
+      return serialize(currentSolids())
+    } finally {
       setScadPreview(true)
       await jscadMain({ params: currentParams() })
     }
-  }
+  })
 }
 
 // The export dropdown asks the engine which formats it has.
