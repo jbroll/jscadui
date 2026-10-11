@@ -83,6 +83,22 @@ describe('mode write-through', () => {
     expect(await session.readThrough('p1', 'main.js')).toBe('local-main')
     expect(await session.readThrough('p2', 'main.js')).toBe('rowboat-main')
   })
+
+  it('routes a conversation through the project mode backend', async () => {
+    const local = createLocalStorage()
+    const rowboat = createLocalStorage()
+    const session = createSession({ local, getRowboat: () => rowboat, getBackend: () => 'rowboat' })
+    await session.writeConversation('p1', [{ role: 'user', content: 'hi' }])
+    expect((await rowboat.readConversation('p1')).messages).toEqual([{ role: 'user', content: 'hi' }])
+    expect((await session.readConversation('p1')).messages).toEqual([{ role: 'user', content: 'hi' }])
+  })
+
+  it('falls back to local when the rowboat backend is unavailable', async () => {
+    const local = createLocalStorage()
+    const session = createSession({ local, getRowboat: () => null, getBackend: () => 'rowboat' })
+    await session.writeConversation('p2', [{ role: 'user', content: 'x' }])
+    expect((await local.readConversation('p2')).messages).toEqual([{ role: 'user', content: 'x' }])
+  })
 })
 
 describe('disk mode', () => {

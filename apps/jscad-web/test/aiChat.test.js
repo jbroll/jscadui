@@ -472,6 +472,19 @@ describe('stored conversation', () => {
     expect(persisted).toContainEqual({ role: 'user', content: 'hello' })
     expect(persisted).toContainEqual({ role: 'assistant', content: 'hi' })
   })
+
+  it('New chat clears the view and persists an empty conversation for the open project', async () => {
+    const store = { p1: [{ role: 'user', content: 'old' }] }
+    const storage = {
+      readConversation: async (pid) => (store[pid] ? { messages: store[pid], updated: 1 } : null),
+      writeConversation: vi.fn(async (pid, messages) => { store[pid] = messages }),
+    }
+    const chat = openChat({ runTurnFn: vi.fn(), storage, projectId: 'p1' })
+    await vi.waitFor(() => expect(chat.q('.chat-messages').textContent).toMatch(/old/))
+    chat.q('.chat-new').click()
+    await vi.waitFor(() => expect(storage.writeConversation).toHaveBeenCalledWith('p1', []))
+    expect(chat.q('.chat-messages').textContent).toBe('')
+  })
 })
 describe('project switch', () => {
   it('loads the new project conversation on switch and stores per project', async () => {

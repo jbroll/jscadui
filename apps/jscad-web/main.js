@@ -462,8 +462,6 @@ const getRowboatStore = async () => {
   return rowboatStorePromise
 }
 
-const getActiveStore = async () => (await getRowboatStore()) ?? localStore
-
 // Interval table sync while signed in; anonymous users never reach it.
 const initSyncLoop = async () => {
   const store = await getRowboatStore()
@@ -995,8 +993,8 @@ const aiDeps = {
 if (byId('ai-account')) initAccount(byId('ai-account'))
 if (byId('ai-chat')) {
   const chatStorage = {
-    readConversation: (pid) => getActiveStore().then((store) => store.readConversation(pid)),
-    writeConversation: (pid, messages) => getActiveStore().then((store) => store.writeConversation(pid, messages)),
+    readConversation: (pid) => storageSession.readConversation(pid),
+    writeConversation: (pid, messages) => storageSession.writeConversation(pid, messages),
   }
   chatControls = initChat({
     container: byId('ai-chat'),

@@ -67,7 +67,12 @@ const CHARS_PER_TOKEN = 4
  * @param {{container:HTMLElement,requestTool:Function,getProvider:Function,getApi?:()=>'fluent'|'modeling',runTurnFn?:Function,storage?:{readConversation:Function,writeConversation:Function},projectId?:string|(()=>string),getProjectFiles?:()=>Promise<Record<string,string|ArrayBuffer>>,getBuild?:()=>Promise<object|null>,startTurn?:()=>void,endTurn?:()=>Promise<void>}} options
  */
 export const initChat = ({ container, requestTool, getProvider, getApi = () => DEFAULT_API, runTurnFn = defaultRunTurn, storage, projectId, getProjectFiles = async () => ({}), getBuild = async () => null, startTurn = () => {}, endTurn = async () => {} }) => {
-  const header = el('div', 'chat-header', 'AI Chat')
+  const header = el('div', 'chat-header')
+  header.append(el('span', 'chat-title', 'AI Chat'))
+  const newChatBtn = el('button', 'chat-new', 'New chat')
+  newChatBtn.type = 'button'
+  newChatBtn.title = 'Start a new conversation'
+  header.append(newChatBtn)
   const messagesEl = el('div', 'chat-messages')
   const form = el('form', 'chat-form')
   const input = el('input', 'chat-input')
@@ -192,6 +197,22 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
       console.warn('chat resume failed:', err)
     }
   }
+
+  const newChat = async () => {
+    if (running) return
+    transcript = []
+    messagesEl.innerHTML = ''
+    assistantEl = null
+    turnReasoning = []
+    if (storage && pid()) {
+      try {
+        await storage.writeConversation(pid(), [])
+      } catch (err) {
+        console.warn('chat persist failed:', err)
+      }
+    }
+  }
+  newChatBtn.addEventListener('click', newChat)
 
   const reasoningSeconds = () => Math.floor((Date.now() - reasoning.startedAt) / 1000)
 
@@ -400,5 +421,5 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
 
   if (storage && pid()) switchTo(pid())
 
-  return { switchTo }
+  return { switchTo, newChat }
 }

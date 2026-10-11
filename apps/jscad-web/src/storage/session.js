@@ -31,5 +31,8 @@ export function createSession({ local, rowboat, getRowboat, getBackend, disk = n
   // A version row of what the project's backend holds now.
   const snapshot = (projectId, options = {}) => backendFor(projectId).snapshot(projectId, options)
 
-  return { readThrough, writeThrough, snapshot }
+  const readConversation = (projectId) => backendFor(projectId).readConversation(projectId)
+  const writeConversation = (projectId, messages) => backendFor(projectId).writeConversation(projectId, messages)
+
+  return { readThrough, writeThrough, snapshot, readConversation, writeConversation }
 }
