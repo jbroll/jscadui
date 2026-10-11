@@ -10,6 +10,9 @@ const dir = join(tmpdir(), `relay-routes-${process.pid}`)
 mkdirSync(dir, { recursive: true })
 const allowlistPath = join(dir, 'providers.json')
 writeFileSync(allowlistPath, JSON.stringify({ openai: 'https://upstream.test' }))
+// A directory under the file's name is a read failure (EISDIR), not the
+// missing-file case that falls back to the built-in providers.
+mkdirSync(join(dir, 'does-not-exist.json'), { recursive: true })
 
 let fetchMock: ReturnType<typeof vi.fn>
 beforeEach(() => {
@@ -152,6 +155,25 @@ describe('relay routes', () => {
     const res = await request(relayApp([])).get('/api/relay/openai/v1/models').set('Sec-Fetch-Site', 'cross-site')
     expect(res.status).toBe(403)
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('hides allowlist read errors from the response and logs them', async () => {
+    const logs: unknown[] = []
+    const app = express()
+    mountRelayRoutes(app, {
+      allowlistPath: join(dir, 'does-not-exist.json'),
+      trustedOrigins: ['https://app.test'],
+      logger: (entry) => logs.push(entry),
+      fetchFn: fetchMock,
+    })
+    const res = await request(app)
+      .post('/api/relay/openai/v1/chat/completions')
+      .set('Origin', 'https://app.test')
+      .send({})
+    expect(res.status).toBe(500)
+    expect(res.body).toEqual({ error: 'relay: allowlist unavailable' })
+    expect(JSON.stringify(res.body)).not.toContain('does-not-exist')
+    expect(logs.some((l) => JSON.stringify(l).includes('allowlist'))).toBe(true)
   })
 
   it('uses the built-in providers when the allowlist file is absent', async () => {

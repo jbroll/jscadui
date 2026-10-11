@@ -66,7 +66,8 @@ export function mountRelayRoutes(app: Express, options: RelayRouteOptions): void
     try {
       table = readAllowlist(options.allowlistPath)
     } catch (err) {
-      res.status(500).json({ error: (err as Error).message })
+      logger({ relay: 'allowlist-error', message: (err as Error).message })
+      res.status(500).json({ error: 'relay: allowlist unavailable' })
       return
     }
     const { kind, splat } = req.params as unknown as { kind: string; splat?: string[] | string }
