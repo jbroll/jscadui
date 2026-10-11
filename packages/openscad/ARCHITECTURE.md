@@ -113,6 +113,16 @@ whose guards test it. When a name is assigned both in the file and in an
 include, the file's value takes the included assignment's position (last
 value at first position).
 
+### Bundling modules
+
+Include handling lives in `src/transpiler/bundling/`. `outputBuilder.ts` builds
+the module string (`buildOutputCode`) and places local constants around the
+includes they sit among (`hoistAboveIncludes`). `deduplicator.ts` appends each
+included function, module and constant under its pre-extracted name, first one
+wins. `symbolMerger.ts` propagates an include's `use` imports
+(`propagateUseImportsFromInclude`) and imports its symbols
+(`mergeImportedSymbols`).
+
 ### Clean exports
 
 The suffixed names (`washer_$m`, `area_$f`, `area_$f$obj`) and raw variables

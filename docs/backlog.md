@@ -32,7 +32,6 @@ bullet each ID points at is the requirement text. Reserved for new findings:
 | API9 | Chat API help | Med | `packages/agent-loop/api/build-index.js` |
 | API10 | Chat API help | Low | `packages/agent-loop/eval/probe.js` |
 | REF1 | Refactoring | High | breaking, out of scope |
-| REF2 | Refactoring | Med | `packages/openscad/src/transpiler/transpile.ts` |
 | REF3 | Refactoring | Med | out of scope (`packages/worker`) |
 | REF4 | Refactoring | Low | out of scope (`packages/require`) |
 | REF5 | Refactoring | Low | out of scope (`params-core`) |
@@ -607,10 +606,6 @@ from the 2026-10-01 review.
 - **Async module loading.** Replace sync XHR in `readFileWeb.js` with
   `fetch()`, make `require()` async, parallelize loads. Breaking: needs a
   worker protocol update and a migration guide. 2–3 weeks.
-- **Transpiler extraction.** `buildOutputCode()` out of the output builder
-  (~170 lines); the 3 near-identical dedup loops in `processIncludeStatements()`
-  into `bundling/deduplicator.ts`; 3 merge functions into
-  `bundling/symbolMerger.ts` (~40 lines).
 - **Worker extraction.** 220 lines of parameter logic into
   `src/parameters/parameterHandler.ts`; lock/generation code (77 lines) into
   `src/locks/scriptLock.ts`; Manifold eval + format conversion into
