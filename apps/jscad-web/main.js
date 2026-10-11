@@ -302,7 +302,8 @@ const EDITOR_TIMEOUT_MS = (() => {
   try {
     const stored = Number(localStorage.getItem('engine.modelTimeoutMs'))
     return Number.isFinite(stored) && stored > 0 ? stored : DEFAULT_EDITOR_TIMEOUT_MS
-  } catch {
+  } catch (err) {
+    console.warn('could not read engine.modelTimeoutMs:', err)
     return DEFAULT_EDITOR_TIMEOUT_MS
   }
 })()
@@ -312,7 +313,8 @@ const POOL_SIZE = (() => {
   try {
     const stored = Number(localStorage.getItem('engine.poolSize'))
     return Number.isInteger(stored) && stored > 0 ? stored : undefined
-  } catch {
+  } catch (err) {
+    console.warn('could not read engine.poolSize:', err)
     return undefined
   }
 })()
@@ -432,7 +434,8 @@ const fetchSyncToken = async () => {
     if (!res.ok) return null
     const body = await res.json()
     return body?.token ? body : null
-  } catch {
+  } catch (err) {
+    console.warn('could not fetch the sync token:', err)
     return null
   }
 }

@@ -58,6 +58,13 @@ the same name the compute frame answers. The app's name checks therefore treat
 a worker-abandoned run like a frame-superseded one: no error is shown and the
 run draws nothing.
 
+## Modeling bundle failures
+
+A `@jscad/modeling` bundle that cannot be required on the model path (for
+GPU normals or WASM setup) is logged with its cause via `console.warn`
+instead of swallowed, so the later error is not the only trace of why the
+run failed.
+
 ## Tests
 
 ```bash

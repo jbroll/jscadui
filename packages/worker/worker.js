@@ -280,7 +280,11 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
     const modelingBundleUrl = requireCache.bundleAlias['@jscad/modeling']
     if (modelingBundleUrl) {
       let modelingModule
-      try { modelingModule = require(modelingBundleUrl, null, readFileWeb) } catch { /* ignore */ }
+      try {
+        modelingModule = require(modelingBundleUrl, null, readFileWeb)
+      } catch (err) {
+        console.warn('modeling bundle could not be required for GPU normals:', err)
+      }
       if (modelingModule?.setUseGpuNormals) modelingModule.setUseGpuNormals(useGpuNormals)
     }
   }
@@ -555,7 +559,11 @@ export const jscadScript = async ({ script, url='jscad.js', base=workerState.glo
       // require() returns the live cached bundle; requireCache.module is a no-op getter,
       // so the old lookup skipped this await → "Manifold WASM not initialized" on cold loads.
       let modelingModule
-      try { modelingModule = require(modelingBundleUrl, null, readFileWeb) } catch { /* ignore */ }
+      try {
+        modelingModule = require(modelingBundleUrl, null, readFileWeb)
+      } catch (err) {
+        console.warn('modeling bundle could not be required; WASM may not be ready:', err)
+      }
       if (modelingModule?.ready instanceof Promise) await modelingModule.ready
       if (gpuNormals !== undefined && modelingModule?.setUseGpuNormals) modelingModule.setUseGpuNormals(gpuNormals)
     }

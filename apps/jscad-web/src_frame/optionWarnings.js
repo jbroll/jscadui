@@ -16,7 +16,8 @@ const modelingReady = () => {
   if (!url) return null
   try {
     return jscadRequire(url, null, readFileWeb)?.ready ?? null
-  } catch {
+  } catch (err) {
+    console.warn('modeling bundle could not be required for option checks:', err)
     return null
   }
 }
@@ -30,7 +31,7 @@ export const installOptionWarnings = ({ setUserModuleWrapper, setRunWarnings }) 
     // shared prototypes, for every caller in the worker.
     if (name === FLUENT) {
       const ready = modelingReady()
-      if (ready instanceof Promise) ready.then(() => wrapFluentMethods(api, table, warnings.warn)).catch(() => {})
+      if (ready instanceof Promise) ready.then(() => wrapFluentMethods(api, table, warnings.warn)).catch((err) => console.warn('fluent option checks could not wrap the API after WASM load:', err))
       else wrapFluentMethods(api, table, warnings.warn)
     }
     return withOptionChecks(api, table, warnings.warn)
