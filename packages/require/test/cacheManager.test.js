@@ -254,7 +254,7 @@ describe('CacheManager', () => {
         cache.trackDependency(`https://cdn.com/base${i}.js`, `https://cdn.com/dep${i}.js`)
       }
 
-      expect(requireCache.knownDependencies.size).toBeLessThanOrEqual(200)
+      expect(cache.knownDependencies.size).toBeLessThanOrEqual(200)
     })
 
     it('should cap per-module dependency sets', () => {

@@ -556,8 +556,9 @@ export const jscadScript = async ({ script, url='jscad.js', base=workerState.glo
     // This ensures WASM is ready before user code runs
     const modelingBundleUrl = requireCache.bundleAlias['@jscad/modeling']
     if (modelingBundleUrl) {
-      // require() returns the live cached bundle; requireCache.module is a no-op getter,
-      // so the old lookup skipped this await → "Manifold WASM not initialized" on cold loads.
+      // require() returns the live cached bundle, so wait on its ready before
+      // user code runs; skipping this await left "Manifold WASM not
+      // initialized" errors on cold loads.
       let modelingModule
       try {
         modelingModule = require(modelingBundleUrl, null, readFileWeb)
