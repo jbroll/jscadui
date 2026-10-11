@@ -480,7 +480,7 @@ function closePanel() {
 }
 
 function onKey(e) {
-  if (escapeCloses(e, panel, '.parts-panel')) closePanel()
+  if (escapeCloses(e, panel, ['.parts-panel', '.api-help-panel'])) closePanel()
 }
 
 // ──────────────────────────────────────────────────────────────────

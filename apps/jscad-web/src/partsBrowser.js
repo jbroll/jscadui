@@ -358,7 +358,7 @@ function closePanel() {
 }
 
 function onKey(e) {
-  if (escapeCloses(e, panel, '.demo-panel')) closePanel()
+  if (escapeCloses(e, panel, ['.demo-panel', '.api-help-panel'])) closePanel()
 }
 
 /**

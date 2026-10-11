@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { TextDecoder as NodeTextDecoder, TextEncoder as NodeTextEncoder } from 'node:util'
+import { fileURLToPath, URL as NodeURL } from 'node:url'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import index from '@jscadui/agent-loop/api/index.json'
 import bundled from '../src_bundle/bundle.api-index.js'
@@ -13,8 +14,9 @@ globalThis.TextEncoder = class {
 }
 globalThis.TextDecoder = NodeTextDecoder
 
-// import.meta.url is a jsdom http URL here, so the app dir comes from vitest's cwd.
-const APP = process.cwd()
+// The jsdom URL global resolves file: against the dev-server origin, so use
+// node's URL for the app dir.
+const APP = fileURLToPath(new NodeURL('..', import.meta.url))
 
 describe('API index loading', () => {
   it('loads the index once, however often it is asked for', async () => {

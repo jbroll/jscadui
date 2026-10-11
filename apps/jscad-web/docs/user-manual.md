@@ -59,8 +59,8 @@ the panel.
 washers, bearings, stepper motors — pulled from NopSCADlib and BOSL2. Each
 card is a part family; its entries are different library implementations of
 that part, preferred one first, each tagged with its license. Escape closes
-the panel; with the demo browser open too, it closes the panel holding focus,
-or the one opened last.
+the panel; with the demo browser or API help open too, it closes the panel
+holding focus, or the one opened last.
 
 Opening an entry shows its call signature, a size picker, any options with
 what they do, measured dimensions where available, the license and an

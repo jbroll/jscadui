@@ -184,7 +184,7 @@ function closeHelp() {
 }
 
 function onHelpKey(e) {
-  if (escapeCloses(e, helpPanel, '.parts-panel')) closeHelp()
+  if (escapeCloses(e, helpPanel, ['.demo-panel', '.parts-panel'])) closeHelp()
 }
 
 /**
