@@ -1187,6 +1187,10 @@ logged, and never sent into the frame.
 Local-first with per-project version history (`src/storage/`). Every editor
 compile records a version row and file hashes, and so does each chat turn
 that wrote files, once, with the turn's final state.
+An editor Ctrl+S routes by the same rule (`saveRoute` in `src/saveFile.js`):
+a project file is already stored by the compile that ran it, a dropped file is
+written back through its handle, and only a path with neither opens the File
+System Access save picker.
 Backends: the service-worker FS and file handles (`local`, the default and the
 only mode for anonymous users) and rowboat blobs and tables (`rowboat`, after
 sign-in, synced with a 15-minute JWT from `GET /api/sync-token`). Under the

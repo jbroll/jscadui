@@ -14,7 +14,6 @@ bullet each ID points at is the requirement text. Reserved for new findings:
 |---|---|---|---|
 | PRJ4 | Projects and storage | High | `apps/jscad-web/src/storage/local.js` |
 | UI4 | UI (jscad-web) | Med | `src/aiChat.js` |
-| UI5 | UI (jscad-web) | Med | `src/editor.js`, `main.js` |
 | API2 | Chat API help | Med | `apps/jscad-web/src/aiAccount.js` |
 | API4 | Chat API help | Low | `.deps-cache/jscad-fluent` (external) |
 | API5 | Chat API help | Med | `packages/agent-loop/src/tools.js`, `apps/jscad-web/src/aiDeps.js` |
@@ -439,10 +438,6 @@ full.
   chunk forces the scroll to the bottom (`:158`, `:170`, `:183`, `:239`,
   `:332`). The input is one line (`:73-74`). The error says "AI settings"
   where the dialog is titled "Chat settings".
-- **Ctrl+S in a stored project opens a Save As picker**
-  (`src/editor.js:58-61`, `:104-105`, `main.js:817-856`), or an error where
-  the File System Access API is missing, though the run already stored the
-  edit. The hint is at `static/index.html:89`.
 
 ## Parts catalog
 

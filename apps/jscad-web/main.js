@@ -69,7 +69,7 @@ import { PROJECT_BASE } from './src_frame/fileMap.js'
 import * as fileSystem from './src/fileSystem.js'
 import * as paramsUI from './src/paramsUI.js'
 import { clearReloadTimestamp } from './src/reloadDetection.js'
-import { missingSaveHandleMessage } from './src/saveFile.js'
+import { missingSaveHandleMessage, saveRoute } from './src/saveFile.js'
 import { installStudioBridge } from './src/studioBridge.js'
 import { createDocs, createIndexLoader } from './src/apiIndex.js'
 import { initChat } from './src/aiChat.js'
@@ -894,6 +894,12 @@ editor.init(
 
     const saveMap = fileSystem.getSaveMap()
     if (!fileHandle) fileHandle = saveMap[path]
+
+    // A project path is already stored by the compile that ran it, so Ctrl+S
+    // must not open a Save As picker for it; a dropped file's handle still
+    // writes back to disk.
+    const route = saveRoute({ inProject: isRecordablePath(path), hasHandle: !!fileHandle })
+    if (route === 'project') return
 
     if (!fileHandle) {
       const opts = {
