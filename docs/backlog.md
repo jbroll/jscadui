@@ -12,8 +12,8 @@ bullet each ID points at is the requirement text. Reserved for new findings:
 
 | ID | Section | Sev | Primary files |
 |---|---|---|---|
-| PRJ2 | Projects and storage | High | `apps/jscad-web/src/storage/local.js`, `src/aiAccount.js` |
 | PRJ3 | Projects and storage | Med | `apps/jscad-web/src/fileSystem.js`, `main.js` |
+| PRJ4 | Projects and storage | High | `apps/jscad-web/src/storage/local.js` |
 | UI1 | UI (jscad-web) | Med | `src/viewState.js`, `main.js` |
 | UI2 | UI (jscad-web) | Med | `main.js`, `src/paramsUI.js`, `packages/params-ui` |
 | UI3 | UI (jscad-web) | Med | `static/main.css`, `static/index.html` |
@@ -127,13 +127,12 @@ under `apps/jscad-web` unless given in full.
 
 From the same review, with the same path convention.
 
-- **The local backend keeps nothing across a reload.**
-  `src/storage/local.js:4-6` holds projects, versions and conversations in
-  `Map`s, while `README.md:156-170` and `docs/architecture.md:1111-1116`
-  describe it as persistent. Anonymous work is lost on reload and on "Sign
-  in to Sync", whose full-page redirect (`src/aiAccount.js:130-139`) also
-  drops the hash, since `callbackURL` is the bare origin. Back it with
-  IndexedDB. Until then, warn before the redirect and on unload.
+- **The local backend keeps nothing across a reload.** `src/storage/local.js`
+  holds projects, versions and conversations in `Map`s, while
+  `README.md:156-170` and `docs/architecture.md:1111-1116` describe it as
+  persistent. Anonymous work is lost on reload and on the "Sign in to Sync"
+  full-page redirect. The app now warns before that redirect and on unload;
+  back the backend with IndexedDB so the work survives.
 - **A folder dropped on a project row creates a new project.** The body
   `dragover` (`src/fileSystem.js:291-294`) shows `#dropModal`, fixed
   full-screen at z-index 5000 (`static/main.css:67-78`), which takes the

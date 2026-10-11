@@ -162,6 +162,8 @@ stored when the turn ends, including any edit you made in the editor meanwhile:
 
 - `local` mode (default) holds projects, versions and conversations in memory
   for the session; reloading starts fresh. Anonymous users are local-only.
+  A reload that would drop this work — the sign-in redirect or closing the
+  tab — is confirmed first.
 - `rowboat` mode stores bytes as blobs through rowboat file routes, with
   projects, files, versions and conversations in rowboat tables compiled from
   `src/storage/schema.js`. Sign-in starts the interval sync loop with a

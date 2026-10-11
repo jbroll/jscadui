@@ -131,6 +131,58 @@ describe('account header', () => {
     expect(names).toEqual(['Provider', 'API key', 'Keep', 'Passphrase', 'Model', 'Custom model id', 'Effort', 'Base URL'])
   })
 
+  it('sends the current URL, hash included, as the sign-in callback', async () => {
+    const { initAccount } = await loadAccount()
+    window.location.hash = '#gear'
+    document.body.innerHTML = '<div id="a"></div>'
+    initAccount(document.getElementById('a'))
+    const signIn = [...document.querySelectorAll('.ai-header-row .ai-button')].find((b) => b.textContent === 'Sign in to Sync')
+    signIn.click()
+    await vi.waitFor(() => expect(globalThis.fetch.mock.calls.some(([u]) => String(u).includes('/api/auth/sign-in/social'))).toBe(true))
+    const call = globalThis.fetch.mock.calls.find(([u]) => String(u).includes('/api/auth/sign-in/social'))
+    expect(JSON.parse(call[1].body).callbackURL).toBe(window.location.href)
+    window.location.hash = ''
+  })
+
+  it('asks before the sign-in redirect when local work exists, and aborting skips the request', async () => {
+    const { initAccount } = await loadAccount()
+    const confirm = vi.fn(() => false)
+    vi.stubGlobal('confirm', confirm)
+    document.body.innerHTML = '<div id="a"></div>'
+    initAccount(document.getElementById('a'), { hasLocalWork: () => true })
+    const signIn = [...document.querySelectorAll('.ai-header-row .ai-button')].find((b) => b.textContent === 'Sign in to Sync')
+    signIn.click()
+    await vi.waitFor(() => expect(confirm).toHaveBeenCalled())
+    expect(globalThis.fetch.mock.calls.filter(([u]) => String(u).includes('/api/auth/sign-in/social'))).toHaveLength(0)
+    vi.unstubAllGlobals()
+  })
+
+  it('signs in without asking when no local work is at risk', async () => {
+    const { initAccount } = await loadAccount()
+    const confirm = vi.fn(() => true)
+    vi.stubGlobal('confirm', confirm)
+    document.body.innerHTML = '<div id="a"></div>'
+    initAccount(document.getElementById('a'), { hasLocalWork: () => false })
+    const signIn = [...document.querySelectorAll('.ai-header-row .ai-button')].find((b) => b.textContent === 'Sign in to Sync')
+    signIn.click()
+    await vi.waitFor(() => expect(globalThis.fetch.mock.calls.some(([u]) => String(u).includes('/api/auth/sign-in/social'))).toBe(true))
+    expect(confirm).not.toHaveBeenCalled()
+    vi.unstubAllGlobals()
+  })
+
+  it('warns on unload when local work exists, and stays quiet otherwise', async () => {
+    const { initAccount } = await loadAccount()
+    document.body.innerHTML = '<div id="a"></div>'
+    initAccount(document.getElementById('a'), { hasLocalWork: () => true })
+    const warn = new Event('beforeunload', { cancelable: true })
+    window.dispatchEvent(warn)
+    expect(warn.defaultPrevented).toBe(true)
+    initAccount(document.getElementById('a'), { hasLocalWork: () => false })
+    const quiet = new Event('beforeunload', { cancelable: true })
+    window.dispatchEvent(quiet)
+    expect(quiet.defaultPrevented).toBe(false)
+  })
+
   it('calls onSignOut after a successful sign-out', async () => {
     const { initAccount } = await loadAccount()
     globalThis.fetch = vi.fn(async (url) => {

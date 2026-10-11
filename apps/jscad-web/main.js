@@ -1002,6 +1002,9 @@ const aiDeps = {
 }
 
 if (byId('ai-account')) initAccount(byId('ai-account'), {
+  // A local-mode project lives only in memory: warn before the sign-in
+  // redirect and on unload, which would otherwise drop it silently.
+  hasLocalWork: () => projectManager.peekMode(currentProjectId) === 'local',
   onSignOut: async () => {
     syncHandle?.stop()
     syncHandle = null

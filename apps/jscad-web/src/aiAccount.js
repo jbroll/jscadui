@@ -10,6 +10,16 @@ import { effortOptionsForModel } from './aiEffort.js'
 
 const SELECTION_KEY = 'jscad-ai.selection'
 
+// The local backend is in-memory, so a reload drops work that was never
+// synced. `hasLocalWork` is set per account panel; the browser's unload
+// prompt is the only warning that survives a full-page navigation.
+let warnOnUnload = () => false
+window.addEventListener('beforeunload', (ev) => {
+  if (!warnOnUnload()) return
+  ev.preventDefault()
+  ev.returnValue = ''
+})
+
 const el = (tag, className, text) => {
   const node = document.createElement(tag)
   if (className) node.className = className
@@ -87,9 +97,10 @@ const modelsUrl = (kind, baseUrl) =>
 
 /**
  * @param {HTMLElement} container
- * @param {{onSignOut?: Function}} [options]
+ * @param {{onSignOut?: Function, hasLocalWork?: () => boolean}} [options]
  */
-export const initAccount = (container, { onSignOut = () => {} } = {}) => {
+export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = () => false } = {}) => {
+  warnOnUnload = hasLocalWork
   const selection = getSelection()
   const state = {
     kind: selection.kind ?? 'anthropic',
@@ -129,10 +140,14 @@ export const initAccount = (container, { onSignOut = () => {} } = {}) => {
   }
 
   signIn.addEventListener('click', async () => {
+    // The redirect reloads the page; confirm first so local-only work is not
+    // dropped silently. The callback is the full current URL so the hash
+    // (a #url= model) survives the round trip.
+    if (hasLocalWork() && !window.confirm('Signing in reloads the page, and work kept only on this device will be lost. Continue?')) return
     const res = await fetch('/api/auth/sign-in/social', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ provider: 'google', callbackURL: window.location.origin }),
+      body: JSON.stringify({ provider: 'google', callbackURL: window.location.href }),
     })
     const body = await res.json().catch(() => ({}))
     if (body?.url) window.location.assign(body.url)
