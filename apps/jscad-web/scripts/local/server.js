@@ -1,7 +1,7 @@
 // Single-process local server: app static + read-only /models mount + relay +
 // the /api/fs file API. The compute frame is served via serveFrame on port+1.
 import http from 'node:http'
-import { readFile } from 'node:fs/promises'
+import { readFile, realpath } from 'node:fs/promises'
 import { serveFrame } from '../../serve.js'
 import { mimeOf, safeJoin } from '../static.js'
 import { createFsHandler, hiddenSegment, resolvesInside } from './fsApi.js'
@@ -24,8 +24,12 @@ export const startLocal = async ({ appDir, frameDir, modelDir, relayHandler, por
     if (path.startsWith('/models/')) {
       const segments = decodeURIComponent(path.slice('/models/'.length)).split(/[/\\]/)
       if (segments.some((s) => hiddenSegment(s) || s === '')) { res.writeHead(404, cors); res.end('not found'); return }
-      const joined = safeJoin(modelDir, segments.join('/'))
-      if (!joined || !(await resolvesInside(modelDir, joined))) { res.writeHead(404, cors); res.end('not found'); return }
+      // modelDir may itself be reached through a symlink (macOS /var → /private/var);
+      // resolvesInside compares realpaths, so resolve the root once and use it for
+      // both the join and the containment check, like /api/fs's realRoot().
+      const root = await realpath(modelDir)
+      const joined = safeJoin(root, segments.join('/'))
+      if (!joined || !(await resolvesInside(root, joined))) { res.writeHead(404, cors); res.end('not found'); return }
       file = joined
     } else {
       file = safeJoin(appDir, decodeURIComponent(path === '/' ? '/index.html' : path))

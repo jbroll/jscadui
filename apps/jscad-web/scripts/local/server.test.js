@@ -131,6 +131,26 @@ describe('local server', () => {
     }
   })
 
+  it('serves /models through a symlinked model directory root', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'jscad-local-'))
+    mkdirSync(join(root, 'frame'), { recursive: true })
+    const realModels = join(root, 'real-models')
+    mkdirSync(realModels, { recursive: true })
+    writeFileSync(join(realModels, 'cube.js'), 'module.exports = {}')
+    const modelDir = join(root, 'models-link')
+    symlinkSync(realModels, modelDir, 'dir')
+    const { appServer, frameServer, url } = await startLocal({
+      appDir: root, frameDir: join(root, 'frame'), modelDir,
+      relayHandler: createRelayHandler({ allowlist: {}, trustedOrigins: [] }),
+      port: 0,
+    })
+    try {
+      expect((await fetch(`${url}/models/cube.js`)).status).toBe(200)
+    } finally {
+      appServer.close(); frameServer.close()
+    }
+  })
+
   it('refuses dotfiles and symlinks that leave the model directory', async () => {
     const root = mkdtempSync(join(tmpdir(), 'jscad-local-'))
     mkdirSync(join(root, 'frame'), { recursive: true })
