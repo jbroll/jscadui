@@ -102,6 +102,16 @@ describe('createProjectSwitch', () => {
     expect(editor.setSource).toHaveBeenCalledWith('m', 'main.js')
     expect(build).toHaveBeenCalledWith('main.js')
   })
+
+  it('aborts the switch when the editor refuses to discard', async () => {
+    const editor = { setFiles: vi.fn(), setSource: vi.fn(), confirmDiscard: async () => false }
+    const manager = { readForSwitch: vi.fn() }
+    const onOpen = vi.fn()
+    await createProjectSwitch({ manager, fileSystem: { clearProjectCache: async () => {}, addToCacheWrapper: async () => {} }, editor, clearTempCache: vi.fn(), build: vi.fn(), onOpen, onError: vi.fn() })('p1')
+    expect(manager.readForSwitch).not.toHaveBeenCalled()
+    expect(editor.setFiles).not.toHaveBeenCalled()
+    expect(onOpen).not.toHaveBeenCalled()
+  })
 })
 
 describe('toEditorFiles', () => {

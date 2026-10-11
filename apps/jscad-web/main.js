@@ -29,6 +29,7 @@ import { genParams, getParams } from '@jscadui/params'
 import defaultCode from './examples/jscad/01-two-cars.example.js'
 import { addV1Shim } from './src/addV1Shim.js'
 import * as editor from './src/editor.js'
+import { confirm } from './src/ui/dialog.js'
 import * as engine from './src/engine.js'
 import * as exporter from './src/exporter.js'
 import * as menu from './src/menu.js'
@@ -110,7 +111,8 @@ let loadDefault = true
 menu.init({
   onBrowseDemos: () => showDemoBrowser({
     baseUrl: new URL('./examples/', appBase).toString(),
-    onLoad: (script, url) => {
+    onLoad: async (script, url) => {
+      if (!(await editor.confirmDiscard())) return
       editor.setSource(script, url)
       jscadScript({ script, url, base: new URL('./', new URL(url, appBase)).toString(), root: appBase })
       welcome.dismiss()
@@ -883,6 +885,7 @@ editor.init(
     }
   },
   path => fileSystem.getSwHandler()?.getFile(path),
+  confirm,
 )
 
 // Under the launcher a #/models/<entry> hash opens the model directory as the project.
@@ -891,7 +894,8 @@ let hasRemoteScript = diskEntry !== null
 if (diskEntry === null) {
   try {
     hasRemoteScript = await remote.init(
-      (script, url) => {
+      async (script, url) => {
+        if (!(await editor.confirmDiscard())) return
         const fullUrl = new URL(url, appBase).toString()
         editor.setSource(script, fullUrl)
         jscadScript({ script, url, base: appBase })
@@ -914,8 +918,10 @@ await exporter.init(workerApi, { onError: setError })
 if (loadDefault && !hasRemoteScript) {
   const defaultUrl = './examples/jscad/01-two-cars.example.js'
   const fullUrl = new URL(defaultUrl, appBase).toString()
-  editor.setSource(defaultCode, fullUrl)
-  jscadScript({ script: defaultCode, url: defaultUrl, base: appBase })
+  if (await editor.confirmDiscard()) {
+    editor.setSource(defaultCode, fullUrl)
+    jscadScript({ script: defaultCode, url: defaultUrl, base: appBase })
+  }
 }
 
 // ============== Service Worker Check ==============
@@ -949,8 +955,11 @@ const chatTools = createProjectTools({
     await workerApi.jscadClearFileCache({ files: [path], root: PROJECT_BASE })
   },
   showFile: (path, content, files) => {
-    editor.setSource(content, path)
-    editor.setFiles(toEditorFiles(files))
+    editor.confirmDiscard().then((ok) => {
+      if (!ok) return
+      editor.setSource(content, path)
+      editor.setFiles(toEditorFiles(files), { keepBuffers: true })
+    })
   },
   build: async () => {
     const outcome = await buildProject()

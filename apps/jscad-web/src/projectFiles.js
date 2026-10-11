@@ -79,7 +79,7 @@ export const toEditorFiles = (files) =>
  * @param {{
  *   manager: { readForSwitch: (id:string) => Promise<{ project: { entry: string, name: string }, files: Record<string,unknown> }> },
  *   fileSystem: Parameters<typeof replaceProjectFiles>[0],
- *   editor: { setFiles: (files:File[]) => void, setSource: (source:unknown, path:string) => void },
+ *   editor: { setFiles: (files:File[]) => void, setSource: (source:unknown, path:string) => void, confirmDiscard?: () => Promise<boolean> },
  *   clearTempCache: () => void,
  *   build: (entry:string) => Promise<unknown>,
  *   onOpen: (id:string, entry:string, name:string) => void,
@@ -87,6 +87,7 @@ export const toEditorFiles = (files) =>
  * }} deps
  */
 export const createProjectSwitch = ({ manager, fileSystem, editor, clearTempCache, build, onOpen, onError }) => async (id) => {
+  if (editor.confirmDiscard && !(await editor.confirmDiscard())) return
   const { project, files } = await manager.readForSwitch(id)
   onOpen(id, project.entry, project.name)
   clearTempCache()
