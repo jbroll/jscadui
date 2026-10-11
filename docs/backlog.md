@@ -25,6 +25,7 @@ bullet each ID points at is the requirement text. Reserved for new findings:
 | API4 | Chat API help | Low | `.deps-cache/jscad-fluent` (external) |
 | API5 | Chat API help | Med | `packages/agent-loop/src/tools.js`, `apps/jscad-web/src/aiDeps.js` |
 | API6 | Chat API help | Med | `apps/jscad-web/src/apiIndex.js`, `packages/agent-loop/src/docs.js` |
+| API11 | Chat API help | Low | `packages/agent-loop/eval/sandbox.js` |
 | REF1 | Refactoring | High | breaking, out of scope |
 | REF3 | Refactoring | Med | out of scope (`packages/worker`) |
 | REF4 | Refactoring | Low | out of scope (`packages/require`) |
@@ -367,6 +368,7 @@ model with `display-check.js --engine jscad`.
 
 ## Chat API help
 
+- Runs started from a Claude session are still reaped under memory pressure.
 - Eval grades can be forged by model code during its own grade, since
   `measure` and `check` run in the executor beside it. Measuring serialized
   geometry in a second process would close it; left as is because the model
