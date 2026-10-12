@@ -14,7 +14,7 @@ WORKTREE="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$WORKTREE"
 
 node scripts/fetch-sources.js || exit 1
-npm install || exit 1
+npm install --no-audit --no-fund --allow-remote=all --allow-git=all || exit 1
 
 # The describer and the renderer must be ready before any provider call.
 if ! scripts/describer-setup.sh --check; then

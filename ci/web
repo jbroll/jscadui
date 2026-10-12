@@ -25,7 +25,7 @@ cd "$APP"
 npx vitest run
 
 cd "$APP/server"
-npm install
+npm install --no-audit --no-fund --allow-remote=all --allow-git=all
 npx vitest run
 
 # App, frame, marker and attacker origins take PORT..PORT+3 (e2e/ports.mjs),
