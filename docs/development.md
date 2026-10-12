@@ -16,7 +16,10 @@ Node.js LTS (24 "Krypton") and a current npm. `package-lock.json` is
 lockfileVersion 3, so any npm 7+ reads and writes it without churn;
 `packageManager` names the current npm (turbo requires the field, so it stays,
 but at a current version rather than a stale one). Use `npm install` (or
-`npm ci`) directly — no `allow-remote` flag or pinned npm is needed.
+`npm ci`) directly. A build whose npm denies registry and git fetches by
+default (npm 12.2.0 on Void ships `allow-remote=none`, `allow-git=none`) needs
+`--allow-remote=all --allow-git=all`; `ci/lib/bootstrap.sh` passes them, so CI
+and `npm run setup` are unaffected.
 
 ## Common commands
 

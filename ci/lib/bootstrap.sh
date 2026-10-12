@@ -9,8 +9,8 @@
 #
 # Named steps run in this order, whatever order they are given in:
 #   sources    node scripts/fetch-sources.js
-#   install    npm install --no-audit --no-fund
-#   ci         npm ci (in place of install)
+#   install    npm install --no-audit --no-fund --allow-remote=all --allow-git=all
+#   ci         npm ci --allow-remote=all --allow-git=all (in place of install)
 #   deps       node scripts/fetch-deps.js --if-missing
 #   grids      node packages/openscad/bin/generate-all-files.js --no-rename
 #   examples   npm run sync-examples in apps/jscad-web
@@ -38,8 +38,11 @@ _bootstrap_step() {
   local r=("$1" "$2")
   case "$3" in
     sources) _bootstrap_run "${r[@]}" "" node scripts/fetch-sources.js ;;
-    install) _bootstrap_run "${r[@]}" "" npm install --no-audit --no-fund ;;
-    ci) _bootstrap_run "${r[@]}" "" npm ci ;;
+    # --allow-remote/--allow-git are no-ops on npm builds without them; npm
+    # 12.2.0 (Void) denies both by default and the workspace needs the
+    # @jscad/modeling registry transitive and openscad-parser's git dep.
+    install) _bootstrap_run "${r[@]}" "" npm install --no-audit --no-fund --allow-remote=all --allow-git=all ;;
+    ci) _bootstrap_run "${r[@]}" "" npm ci --allow-remote=all --allow-git=all ;;
     deps) _bootstrap_run "${r[@]}" "" node scripts/fetch-deps.js --if-missing ;;
     # --no-rename keeps numeric prefixes, which the render baselines depend on.
     grids) _bootstrap_run "${r[@]}" "" node packages/openscad/bin/generate-all-files.js --no-rename ;;

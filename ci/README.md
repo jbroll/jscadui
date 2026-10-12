@@ -29,8 +29,8 @@ ci/lib/bootstrap.sh [--root DIR] [--dry-run] STEP...
 | Step | Command (from `--root`, default the helper's own checkout) |
 |---|---|
 | `sources` | `node scripts/fetch-sources.js` (`file:` deps resolve into `.deps-cache`, so it runs before any install) |
-| `install` | `npm install --no-audit --no-fund` |
-| `ci` | `npm ci`, in place of `install` |
+| `install` | `npm install --no-audit --no-fund --allow-remote=all --allow-git=all` |
+| `ci` | `npm ci --allow-remote=all --allow-git=all`, in place of `install` |
 | `deps` | `node scripts/fetch-deps.js --if-missing` |
 | `grids` | `node packages/openscad/bin/generate-all-files.js --no-rename` |
 | `examples` | `npm run sync-examples` in `apps/jscad-web` |
