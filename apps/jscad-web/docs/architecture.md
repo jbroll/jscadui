@@ -898,7 +898,7 @@ sends `buildTools(api)`; and the `docs` dependency (`createDocs` in
 `src/apiIndex.js`) calls `docsTool(index, query, { api })`, which answers only from that API's
 index entries and jscad-text's, and points a query for the other API at its
 equivalent or says it is not available. The menu's API Help… panel
-(`showApiHelp` in `src/apiIndex.js`) answers through the same docs tool and
+(`showApiHelp` in `src/apiHelp.js`) answers through the same docs tool and
 `getChatApi()` style, so a user reads what the chat's model would for the
 name they look up. The runtime does not change: model
 code may still require either package. Warnings and error hints name only the
@@ -929,8 +929,9 @@ Tools and where they run:
 The index (about 260 KB) is not in the app entry: `build.js` bundles it as
 `build/bundle.api-index.js` (content-hashed like the other leaf bundles), and
 `src/apiIndex.js` imports it on the first `docs` call or the first model error
-that needs a hint, then keeps it. A failed load is retried on the next call;
-an error goes out without its hint meanwhile.
+that needs a hint, then keeps it; the API help panel (`src/apiHelp.js`) reads
+through the same loader. A failed load is retried on the next call; an error
+goes out without its hint meanwhile.
 
 The agent works on the open project's files: the file cache every run sends
 the frame (`fileSystem.projectFiles`), which `switchProject` refills and the

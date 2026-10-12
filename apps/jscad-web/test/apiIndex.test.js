@@ -83,7 +83,8 @@ describe('in-app API help panel', () => {
   })
 
   const show = async () => {
-    const { showApiHelp, createIndexLoader } = await import('../src/apiIndex.js')
+    const { showApiHelp } = await import('../src/apiHelp.js')
+    const { createIndexLoader } = await import('../src/apiIndex.js')
     showApiHelp({ loadIndex: createIndexLoader(async () => index), getApi: () => api })
   }
 
@@ -120,7 +121,8 @@ describe('in-app API help panel', () => {
   })
 
   it('opens on one call and closes on the next', async () => {
-    const { showApiHelp, createIndexLoader } = await import('../src/apiIndex.js')
+    const { showApiHelp } = await import('../src/apiHelp.js')
+    const { createIndexLoader } = await import('../src/apiIndex.js')
     const args = { loadIndex: createIndexLoader(async () => index), getApi: () => 'fluent' }
     showApiHelp(args)
     expect(document.querySelector('.api-help-panel')).not.toBeNull()

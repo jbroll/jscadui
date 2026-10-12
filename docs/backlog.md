@@ -16,7 +16,6 @@ at is the requirement text. Reserved for new findings: `SEC3+`, `PRJ6+`,
 | API4 | Chat API help | Low | `.deps-cache/jscad-fluent` (external) |
 | API11 | Chat API help | Low | `packages/agent-loop/eval/sandbox.js` |
 | PRJ5 | Projects and storage | Low | `apps/jscad-web/scripts/local/fsApi.js` |
-| API13 | Chat API help | Low | `apps/jscad-web/src/apiIndex.js` |
 | API16 | Chat API help | Low | `apps/jscad-web/src/aiChat.js` |
 | REF1 | Refactoring | High | breaking, out of scope |
 | REF3 | Refactoring | Med | out of scope (`packages/worker`) |
@@ -359,9 +358,6 @@ model with `display-check.js --engine jscad`.
 - CI eval run for the project environment (agent-loop). The file tools
   (`write`, `edit`, `run`) have passed the unit and e2e suites but no live
   run: run the 18-fixture suite on CI and compare with the regraded baseline.
-- `apps/jscad-web/src/apiIndex.js` now carries the index loader, the in-app
-  API help panel's DOM and its CSS; extract the panel into its own module
-  (for example `src/apiHelp.js`) when the next API UI work lands.
 - Option checks on transpiled OpenSCAD code. A `.scad` file gets the plain
   `@jscad/modeling` exports, not the option-checked copy
   (`apps/jscad-web/docs/architecture.md`, Unknown-option warnings), since the
