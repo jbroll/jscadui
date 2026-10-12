@@ -574,19 +574,21 @@ A change to the tracked file means recreating the rootfs. Setup is in
 [user-manual.md](user-manual.md#sandbox-setup).
 
 `EVAL_SANDBOX_MEMORY` takes crt's grammar exactly: digits with an optional
-`K`, `M` or `G` (a bare number is bytes), at least 512M. At startup a probe
-container runs under that limit and reports its own cgroup; `run-eval` reads
-that cgroup's `memory.max` on the host and counts the limit in force only when
-it is a number no larger than the one asked for, whatever crt printed. Without
-`sudo crt setup` it is not: `run-eval` prints a loud warning and goes on, and
-`ci/eval` (`EVAL_REQUIRE_MEMORY_LIMIT=1`) refuses to start. crt sets
-`memory.max` only, not `memory.swap.max`, so on a host with swap the limit
-bounds resident memory. With it, the limit covers everything the executor's cgroup
-is charged for, including tmpfs pages (`/tmp`, `/dev/shm`), which cgroup v2
-charges to the writer's memory; the permission model already denies writes
-there. `run-eval` also lowers `EVAL_CONCURRENCY` so that executors × memory
-limit × `EVAL_PROCESSES` fit in three quarters of the host's memory, and says
-so when it does.
+`K`, `M` or `G` (a bare number is bytes), at least 512M. `EVAL_SANDBOX_CPUS`
+takes crt's cpus grammar, a positive number (`2`, `1.5`), defaulting to `2`.
+Both go to every run as `-m` and `-c`. At startup a probe container runs under
+those limits and reports its own cgroup; `run-eval` reads that cgroup on the
+host and counts the memory limit in force only when `memory.max` is a number
+no larger than the one asked for and, when the host has the file,
+`memory.swap.max` is `0`, so the limit bounds total usage including swap,
+whatever crt printed. Without `sudo crt setup` it is not, and `run-eval`
+refuses to start: a requested limit that cannot be applied is fatal, not a
+warning. `ci/jscad-eval.crt` also gives the private `/tmp` and `/dev/shm`
+tmpfs a size (`tmp-size 256M`, `shm-size 64M`); cgroup v2 charges those pages
+to the writer's cgroup, so they fall under the same memory limit, and the
+permission model already denies writes there. `run-eval` also lowers
+`EVAL_CONCURRENCY` so that executors × memory limit × `EVAL_PROCESSES` fit in
+three quarters of the host's memory, and says so when it does.
 
 The rootfs is part of the trusted base: the `node`, `timeout` and `setpriv`
 inside it run before and around the sandboxed code. The eval and the setup

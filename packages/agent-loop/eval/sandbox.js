@@ -21,6 +21,7 @@ const REPO = new URL('../../../', import.meta.url)
 export const TRUSTED_PATH = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
 export const DEFAULT_ROOTFS = 'jscad-eval'
 export const DEFAULT_MEMORY = '2G'
+export const DEFAULT_CPUS = '2'
 const MIN_NODE = [22, 15]
 const SETUP = 'scripts/eval-sandbox-setup.sh'
 
@@ -108,13 +109,15 @@ export const sandboxFrom = (env, { live = true } = {}) => {
   if (kind === 'crt') {
     const memory = env.EVAL_SANDBOX_MEMORY || DEFAULT_MEMORY
     if (memoryMiB(memory) < MIN_MEMORY_MIB) throw new Error(`EVAL_SANDBOX_MEMORY=${memory}: the executor needs at least ${MIN_MEMORY_MIB}M`)
+    const cpus = env.EVAL_SANDBOX_CPUS || DEFAULT_CPUS
+    cpusValue(cpus)
     return {
       kind,
       crt: resolveCrt(env),
       rootfs: env.EVAL_SANDBOX_ROOTFS || DEFAULT_ROOTFS,
       memory,
+      cpus,
       crtHome: env.CRT_HOME || undefined,
-      requireMemoryLimit: env.EVAL_REQUIRE_MEMORY_LIMIT === '1',
     }
   }
   if (kind !== 'child' && kind !== 'none') throw new Error(`EVAL_SANDBOX=${kind}: use crt (the default)`)
@@ -143,6 +146,14 @@ export const memoryBytes = (memory) => {
 
 export const memoryMiB = (memory) => memoryBytes(memory) / 1024 ** 2
 
+// crt's cpus grammar: a positive decimal (README: 2, 0.5), which it multiplies
+// by 100000 into cpu.max; a leading digit is required, as the docs show.
+export const cpusValue = (cpus) => {
+  if (!/^[0-9]+(\.[0-9]+)?$/.test(String(cpus)) || Number(cpus) <= 0)
+    throw new Error(`EVAL_SANDBOX_CPUS: crt cannot read ${cpus} (use a positive number of CPUs, e.g. 2 or 1.5)`)
+  return Number(cpus)
+}
+
 // V8's heap stays under the cgroup limit, leaving a quarter for everything else.
 export const heapMiB = (memory) => Math.floor(memoryMiB(memory) * 0.75)
 
@@ -158,7 +169,7 @@ export const concurrencyCap = ({ concurrency, memory, totalBytes, processes = 1 
 // Binds sit at their host paths so absolute symlinks in node_modules resolve.
 // `timeout -s KILL` ends an executor that outlives `lifetimeS`, whatever its
 // parent did; --foreground keeps it in crt's process group for the host-side kill.
-export const crtRunArgs = ({ rootfs, memory }, { dirs, entry, permission = true, lifetimeS = DEFAULT_LIFETIME_S }) => {
+export const crtRunArgs = ({ rootfs, memory, cpus }, { dirs, entry, permission = true, lifetimeS = DEFAULT_LIFETIME_S }) => {
   const binds = bindDirs(dirs)
   const unparsable = binds.find((dir) => dir.includes(':'))
   if (unparsable) throw new Error(`crt cannot bind a path containing ':': ${unparsable}`)
@@ -169,6 +180,8 @@ export const crtRunArgs = ({ rootfs, memory }, { dirs, entry, permission = true,
     String(CHANNEL_FD),
     '-m',
     memory,
+    '-c',
+    cpus,
     ...binds.flatMap((dir) => ['-v', `${dir}:${dir}:ro`]),
     '--',
     rootfs,
@@ -277,7 +290,7 @@ export const startExecutor = ({ api, sandbox, spawn = nodeSpawn, permission = tr
 // container's cgroup still exists while `inspect(line)` runs.
 const probe = (spawn, sandbox, script, inspect, timeoutMs) =>
   new Promise((resolve) => {
-    const child = spawn(sandbox.crt, ['run', ...ISOLATION, '-m', sandbox.memory, '--', sandbox.rootfs, 'node', '-e', script], {
+    const child = spawn(sandbox.crt, ['run', ...ISOLATION, '-m', sandbox.memory, '-c', sandbox.cpus, '--', sandbox.rootfs, 'node', '-e', script], {
       env: crtEnv(sandbox),
       detached: true,
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -322,13 +335,24 @@ process.stdout.write(JSON.stringify({ node: process.versions.node, cgroup }) + '
 process.stdin.resume()
 process.stdin.on('end', () => process.exit(0))`
 
-// The limit crt set, read from the host side of the probe's own cgroup.
+// The limit crt set, read from the host side of the probe's own cgroup. The
+// memory limit covers total usage only with swap pinned to zero; a host without
+// swap accounting has no memory.swap.max, which is fine.
 const limitInForce = (cgroupRoot, cgroup, bytes) => {
   const path = /^0::(\/.*)$/m.exec(cgroup ?? '')?.[1]
   if (!path) return false
+  const dir = join(cgroupRoot, path)
+  let max
   try {
-    const max = readFileSync(join(cgroupRoot, path, 'memory.max'), 'utf8').trim()
-    return /^\d+$/.test(max) && Number(max) > 0 && Number(max) <= bytes
+    max = readFileSync(join(dir, 'memory.max'), 'utf8').trim()
+  } catch {
+    return false
+  }
+  if (!(/^\d+$/.test(max) && Number(max) > 0 && Number(max) <= bytes)) return false
+  const swap = join(dir, 'memory.swap.max')
+  if (!existsSync(swap)) return true
+  try {
+    return readFileSync(swap, 'utf8').trim() === '0'
   } catch {
     return false
   }
@@ -376,6 +400,8 @@ const configProblem = (home, rootfs) => {
   if (text !== tracked) {
     return `the stored crt config ${stored} differs from ci/jscad-eval.crt; the eval runs only under the tracked config: crt rm ${rootfs}, then run ${SETUP}`
   }
+  // tmp-size/shm-size are deliberately absent from this list: they size the
+  // private tmpfs mounts without adding any host path or env to the run.
   const widening = /^\s*(mount|env|keep-fd)\s/m.exec(tracked)
   if (widening) return `ci/jscad-eval.crt has a ${widening[1]} line; the eval's config must add nothing to the run`
   return null
@@ -411,15 +437,14 @@ const notEnforced = (memory) =>
   `crt cannot enforce the executor's ${memory} memory limit on this host, so model code can take all of its memory; run 'sudo crt setup' once to delegate a cgroup`
 
 // null when an executor starts in `sandbox`; otherwise what is missing and how
-// to set it up. An unenforced memory limit is a problem when the sandbox
-// requires one (ci/eval), else reported through `onWarning`.
+// to set it up. The eval always asks for a memory limit, so one the host cannot
+// enforce is a problem, never a warning.
 export const sandboxProblem = async (
   sandbox,
   {
     spawn = nodeSpawn,
     readyTimeoutMs = 60_000,
     probeTimeoutMs = 60_000,
-    onWarning = () => {},
     cgroupRoot = '/sys/fs/cgroup',
     placementRoots = [homedir(), '/tmp', ...readableDirs()],
   } = {},
@@ -455,10 +480,7 @@ export const sandboxProblem = async (
   if (nodeTooOld(version)) {
     return `Node ${version} in rootfs "${sandbox.rootfs}": the executor needs Node ${MIN_NODE.join('.')} or later (module.registerHooks); recreate the rootfs with ${SETUP}`
   }
-  if (!inspected.limited) {
-    if (sandbox.requireMemoryLimit) return notEnforced(sandbox.memory)
-    onWarning(notEnforced(sandbox.memory))
-  }
+  if (!inspected.limited) return notEnforced(sandbox.memory)
   const executor = startExecutor({ api: undefined, sandbox, spawn })
   let timer
   try {
@@ -480,7 +502,7 @@ export const sandboxProblem = async (
 if (isMainModule(process.argv[1], import.meta.url) && process.argv[2] === '--check') {
   let problem
   try {
-    problem = await sandboxProblem(sandboxFrom(process.env), { onWarning: (text) => console.error(`eval sandbox: WARNING: ${text}`) })
+    problem = await sandboxProblem(sandboxFrom(process.env))
   } catch (error) {
     problem = error.message
   }

@@ -5,9 +5,10 @@
 #   scripts/eval-sandbox-setup.sh          create the rootfs if absent, then check it
 #   scripts/eval-sandbox-setup.sh --check  check only (ci/eval)
 #
-# Reads EVAL_CRT, EVAL_SANDBOX_ROOTFS, EVAL_SANDBOX_MEMORY, CRT_HOME and
-# EVAL_REQUIRE_MEMORY_LIMIT like the eval does. Run it as the user the eval
-# runs as: crt is rootless and the rootfs is per CRT_HOME, which must lie
+# Reads EVAL_CRT, EVAL_SANDBOX_ROOTFS, EVAL_SANDBOX_MEMORY, EVAL_SANDBOX_CPUS
+# and CRT_HOME like the eval does; a limit the host cannot enforce fails the
+# check. Run it as the user the eval runs as: crt is rootless and the rootfs
+# is per CRT_HOME, which must lie
 # outside $HOME, /tmp and the repo. When CRT_HOME isn't set, this asks
 # `crt home` for its resolved default (/data/crt/home/$USER, else /home/crt).
 #

@@ -14,7 +14,6 @@ at is the requirement text. Reserved for new findings: `SEC3+`, `PRJ6+`,
 | ID | Section | Sev | Primary files |
 |---|---|---|---|
 | API4 | Chat API help | Low | `.deps-cache/jscad-fluent` (external) |
-| API11 | Chat API help | Low | `packages/agent-loop/eval/sandbox.js` |
 | PRJ5 | Projects and storage | Low | `apps/jscad-web/scripts/local/fsApi.js` |
 | API16 | Chat API help | Low | `apps/jscad-web/src/aiChat.js` |
 | REF1 | Refactoring | High | breaking, out of scope |
@@ -334,12 +333,6 @@ model with `display-check.js --engine jscad`.
   geometry in a second process would close it; left as is because the model
   gains only a false score for its own run, and a fresh executor per grade
   already stops one run affecting another.
-- crt: give the private `/tmp` and `/dev/shm` tmpfs a `size=`, set
-  `memory.swap.max` with `memory.max` (on a host with swap the eval's limit
-  now bounds only resident memory), fail a run whose requested limit cannot
-  be applied instead of warning, and have the eval pass a `cpus` limit. The permission model already denies writes there,
-  and cgroup v2 charges tmpfs pages to the executor's memory limit, so this is
-  a second layer only; not verified on a host with a delegated cgroup.
 - Stack-gated fluent method checks, if `eval/fluent-guard.test.js` ever finds
   a false warning from fluent's internals. The method checks wrap the shared
   prototypes, so they see fluent's own calls as well as the model's; a
