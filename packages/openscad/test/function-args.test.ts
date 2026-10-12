@@ -1,6 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import { transpile } from '../src/transpiler/transpile.js'
 import { parse } from '../src/parser/parse.js'
+import j$ from '@jscadui/openscad-runtime'
+
+const run = (src: string, call: string) => {
+  const { code: js } = transpile(parse(src).ast, { currentFile: '/t.scad' })
+  const fn = new Function('require', 'module', 'exports', 'j$', `${js}\nreturn ${call}`)
+  return fn(() => ({}), { exports: {} }, {}, j$)
+}
 
 describe('Function argument handling', () => {
   it('should generate dual-mode functions (positional and object)', () => {
@@ -164,6 +171,26 @@ describe('_$f$obj delegation calling conventions', () => {
     // _$f$obj should destructure using the renamed param and delegate
     expect(code).toContain('_$f$obj')
     expect(code).toMatch(/return f_\$f\(/)
+  })
+
+  it('self-referencing defaults destructure the original key into the renamed binding', () => {
+    // `screw = screw` renames the binding to screw$1 for TDZ avoidance, but a
+    // named call passes the key `screw`, so the destructure must alias it back.
+    const code = transpileCode(`
+      screw = "M3";
+      function f(screw = screw) = screw;
+    `)
+    expect(code).toMatch(/let \{ screw: screw\$\d+ \} = _opts; return f_\$f\(screw\$\d+\)/)
+  })
+
+  it('a named call against a self-referencing param returns the passed value', () => {
+    const src = `
+      screw = "M3";
+      function f(screw = screw) = screw;
+    `
+    expect(run(src, 'f_$f$obj({ screw: 5 })')).toBe(5)
+    // Omitting the key still falls back to the outer variable's value.
+    expect(run(src, 'f_$f$obj({})')).toBe('M3')
   })
 
   it('all-positional calls bypass _$f$obj entirely', () => {

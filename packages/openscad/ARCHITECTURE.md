@@ -149,8 +149,11 @@ names to `exports` at load time:
   thunks. It returns the module's geometry.
 - A function becomes `area(...args)`. Positional arguments alone call `area_$f`.
   A trailing plain object with non-`$` keys calls `area_$f$obj` with positionals
-  mapped by name. `$` keys set special variables around the call
-  (`j$.withScope`).
+  mapped by name. A parameter whose default names itself (`function f(screw =
+  screw)`) is bound under a renamed identifier so the outer variable stays
+  readable as the fallback; the object wrapper destructures that renamed binding
+  from the original key, so a caller's `screw` value still wins. `$` keys set
+  special variables around the call (`j$.withScope`).
 - A variable is its value. A lazy variable (one that reads a `$` special
   variable, see `ctx.lazyVarNames`) is a getter, on `exports` and on `vars`,
   that evaluates it in the caller's current scope. Its thunk stays under

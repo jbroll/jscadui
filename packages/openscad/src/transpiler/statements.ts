@@ -1706,7 +1706,9 @@ export function transpileFunctionDeclaration(stmt: FunctionDeclarationStmt, ctx:
   const objectDestructureNames = uniqueArgs.map(arg => {
     const paramName = safeIdentifier(arg.name)
     const renamedParam = selfRefRenames.get(paramName)
-    return renamedParam ?? paramName
+    // A renamed self-ref param keeps its binding name but must read the original
+    // key from _opts, so alias it: `screw: screw$1`.
+    return renamedParam ? `${paramName}: ${renamedParam}` : paramName
   }).join(', ')
 
   // Build delegation call: _$f(a, b, c) using the (possibly renamed) param names

@@ -22,7 +22,6 @@ missing-font bullet under "Library bugs found by the sweep", `API15` and
 | API14 | Chat API help | Low | `apps/jscad-web/src/storage/session.js` |
 | API15 | Remaining issues | Low | `packages/agent-loop/src/context.js` |
 | FMT1 | Remaining issues | Low | `file-format/3mf-export/src/matrix2str.js` |
-| TRN1 | Parts catalog | Low | `packages/openscad/src/transpiler/statements.ts` |
 | TRN2 | Parts catalog | Low | `packages/openscad/src/transpiler/cleanExports.ts` |
 | LIB1 | Library bugs found by the sweep | Low | `packages/agent-loop/src/scadHandler.js` |
 | REF1 | Refactoring | High | breaking, out of scope |
@@ -503,14 +502,6 @@ batch (toggle, rocker, d_plug/d_socket, gear_motor).
   its seven cap screws, all at 10 mm. A record-level way to sweep a second
   axis (length, say) would catch a bug that only shows at a different
   length.
-- **`_$f$obj` destructures a renamed self-referencing parameter key.** A
-  function whose parameter shadows an outer name with the same default
-  (`function f(screw = screw, k = 1) = …`) renames the destructured binding
-  to avoid the collision but keeps the original key. A named call against
-  that key, `f({screw: 5})`, is read back under the old key and the argument
-  is silently ignored (`buildDestructurePattern` in
-  `packages/openscad/src/transpiler/statements.ts`). No catalog entry hits
-  it.
 - **`exports.$meta` default text keeps inline comments.** A default written
   as `h = 2 /* layer_height */` is reported in `$meta` with the comment still
   in its `default` text, since `defaultText` (`cleanExports.ts`) slices raw
