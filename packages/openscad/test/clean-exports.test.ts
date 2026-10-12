@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import jscad from '@jscad/modeling'
+import type { ModuleDeclarationStmt } from 'openscad-parser'
 import { parse } from '../src/parser/parse.js'
 import { transpile } from '../src/transpiler/transpile.js'
 import type { TranspiledFile } from '../src/transpiler/context.js'
-import type { MetaEntry } from '../src/transpiler/cleanExports.js'
+import { defaultText, type MetaEntry } from '../src/transpiler/cleanExports.js'
 import shared, { createJ$Instance } from '@jscadui/openscad-runtime'
 
 // Instances inherit from the shared runtime, whose init installs the geometry primitives.
@@ -168,5 +169,30 @@ describe('clean exports', () => {
   it('declares no stub for a name the export line mentions', () => {
     const { code } = transpile(parse(SRC).ast, { includeHeader: false })
     expect(code).not.toMatch(/var washer_\$m = \(\) =>/)
+  })
+})
+
+describe('$meta default text', () => {
+  it('strips block and line comments from a default, leaving string literals alone', () => {
+    const files = {
+      '/main.scad': `
+module plate(h = 2 /* layer_height */, url = "http://x", k = 3 // thickness
+) cube([h, k, 1]);
+`,
+    }
+    const { exports } = load(files)
+    expect(exports.$meta.find((e) => e.name === 'plate')?.params).toEqual([
+      { name: 'h', default: '2' },
+      { name: 'url', default: '"http://x"' },
+      { name: 'k', default: '3' },
+    ])
+  })
+
+  it('recovers the default from the declaration file when the equals token has none', () => {
+    const { ast } = parse('module m(h = 2);')
+    const stmt = ast.statements[0] as ModuleDeclarationStmt
+    const arg = stmt.definitionArgs[0]
+    ;(arg.tokens.equals!.span.start as { file: unknown }).file = null
+    expect(defaultText(arg, stmt.tokens.secondParen.span.start.char)).toBe('2')
   })
 })

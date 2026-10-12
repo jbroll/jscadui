@@ -5,12 +5,46 @@ import type { Declaration } from './managers/DeclarationTracker.js'
 export interface MetaParam { name: string; default?: string }
 export interface MetaEntry { name: string; kind: 'module' | 'function' | 'variable'; params?: MetaParam[]; lazy?: true }
 
+// Drop OpenSCAD comments from source text, leaving string literals untouched.
+const stripComments = (text: string): string => {
+  let out = ''
+  let i = 0
+  while (i < text.length) {
+    const ch = text[i]
+    if (ch === '"') {
+      out += ch
+      i++
+      while (i < text.length) {
+        const c = text[i]
+        out += c
+        i++
+        if (c === '\\' && i < text.length) out += text[i++]
+        else if (c === '"') break
+      }
+    } else if (ch === '/' && text[i + 1] === '/') {
+      i += 2
+      while (i < text.length && text[i] !== '\n') i++
+    } else if (ch === '/' && text[i + 1] === '*') {
+      i += 2
+      while (i < text.length && !(text[i] === '*' && text[i + 1] === '/')) i++
+      i += 2
+    } else {
+      out += ch
+      i++
+    }
+  }
+  return out.trim()
+}
+
 // value.span covers only the operator of a binary expression, so slice the source between tokens.
 export const defaultText = (arg: AssignmentNode, closeParenStart: number): string | undefined => {
   const eq = arg.tokens.equals
   if (!eq) return undefined
+  // A synthetic argument's equals token can lack its file; the node's own span still carries it.
+  const code = (eq.span.start.file ?? arg.span.start.file)?.code
+  if (!code) return undefined
   const to = arg.tokens.trailingCommas?.[0]?.span.start.char ?? closeParenStart
-  return eq.span.start.file?.code.slice(eq.span.end.char, to).trim()
+  return stripComments(code.slice(eq.span.end.char, to))
 }
 
 const paramsOf = (stmt: ModuleDeclarationStmt | FunctionDeclarationStmt): MetaParam[] => {

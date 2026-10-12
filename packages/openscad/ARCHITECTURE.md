@@ -170,7 +170,8 @@ under `$scad`.
 The third argument is `exports.$meta`, one entry per module, function and
 variable: `{ name, kind: 'module' | 'function' | 'variable', params?: [{ name,
 default? }], lazy?: true }`. `params[i].name` is the SCAD parameter name and
-`default` is the default expression's source text. The transpiler
+`default` is the default expression's source text, with `//` and `/* */`
+comments removed (string literals kept as written). The transpiler
 (`src/transpiler/cleanExports.ts`) writes literal entries for local and bundled
 `include` declarations, and spreads `_nsN.$meta` for each `include` that became
 a `require()`, so an including file re-exports the included names. A `use`

@@ -8,9 +8,8 @@ commit that completes it.
 Stable IDs for the open review findings below; the prose bullet each ID points
 at is the requirement text. Reserved for new findings: `SEC3+`, `PRJ5+`,
 `UI7+`, `API16+`, `REF19+`, `TRN3+`, `LIB2+`, `FMT2+`.
-`TRN1`/`TRN2` are the transpiler bullets under "Parts catalog", `LIB1` is the
-missing-font bullet under "Library bugs found by the sweep", `API15` and
-`FMT1` are the "Remaining issues" bullets.
+`LIB1` is the missing-font bullet under "Library bugs found by the sweep",
+`API15` and `FMT1` are the "Remaining issues" bullets.
 
 | ID | Section | Sev | Primary files |
 |---|---|---|---|
@@ -22,7 +21,6 @@ missing-font bullet under "Library bugs found by the sweep", `API15` and
 | API14 | Chat API help | Low | `apps/jscad-web/src/storage/session.js` |
 | API15 | Remaining issues | Low | `packages/agent-loop/src/context.js` |
 | FMT1 | Remaining issues | Low | `file-format/3mf-export/src/matrix2str.js` |
-| TRN2 | Parts catalog | Low | `packages/openscad/src/transpiler/cleanExports.ts` |
 | LIB1 | Library bugs found by the sweep | Low | `packages/agent-loop/src/scadHandler.js` |
 | REF1 | Refactoring | High | breaking, out of scope |
 | REF3 | Refactoring | Med | out of scope (`packages/worker`) |
@@ -502,12 +500,6 @@ batch (toggle, rocker, d_plug/d_socket, gear_motor).
   its seven cap screws, all at 10 mm. A record-level way to sweep a second
   axis (length, say) would catch a bug that only shows at a different
   length.
-- **`exports.$meta` default text keeps inline comments.** A default written
-  as `h = 2 /* layer_height */` is reported in `$meta` with the comment still
-  in its `default` text, since `defaultText` (`cleanExports.ts`) slices raw
-  source between tokens rather than stripping comments.
-- **`defaultText` returns `undefined` when a parameter's span has no file**
-  (`cleanExports.ts`), so `$meta` drops that default.
 - **The parts eval fixtures' probes are bounding-box relative.**
   `nema17-mount` checks for a centre hole at least 22 mm wide, not that it
   sits centred among the four screw holes.
