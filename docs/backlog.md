@@ -8,8 +8,6 @@ commit that completes it.
 Stable IDs for the open review findings below; the prose bullet each ID points
 at is the requirement text. Reserved for new findings: `SEC3+`, `PRJ6+`,
 `UI7+`, `API17+`, `REF19+`, `TRN3+`, `LIB2+`, `FMT2+`.
-`LIB1` is the missing-font bullet under "Library bugs found by the sweep",
-`API15` is a "Remaining issues" bullet.
 
 | ID | Section | Sev | Primary files |
 |---|---|---|---|
@@ -384,8 +382,8 @@ model with `display-check.js --engine jscad`.
   with reasoning on scored 27 of 39 but changed 16 verdicts at about 15
   times the latency. Until agreement is well above this, complex verdicts are
   not a measure.
-- Recency ordering for the project-files block is inert in the app. API15 gave
-  the block its own budget and trims it, but the app's stored transcript keeps
+- Recency ordering for the project-files block is inert in the app. The block
+  has its own budget and is trimmed, but the app's stored transcript keeps
   only user and assistant text (`reply()` in `apps/jscad-web/src/aiChat.js`),
   no assistant tool calls, so `buildMessages`' `mentionedPaths` is always empty
   and "oldest-mentioned first" falls back to alphabetical order in the live
@@ -512,8 +510,8 @@ from the 2026-10-01 review.
   `setGlobalFn` between in-process runs (`:665`, `:780`).
 - **Leftovers.** Review-tracker labels ("C6 fix", "M11 fix") remain in
   source files; remove them as each file is touched.
-- **Demo helpers still split from `jscad-web`.** REF18 moved the vue3-jscad
-  nine modules (`drawer`, `editor`, `engine`, `examples`, `exporter`, `menu`,
+- **Demo helpers still split from `jscad-web`.** The demo-helper move put the
+  vue3-jscad nine modules (`drawer`, `editor`, `engine`, `examples`, `exporter`, `menu`,
   `remote`, `themes`, `viewState`) into `packages/demo-utils/src/jscad/`, but
   `apps/jscad-web/src/` keeps its own diverged copies of the same modules,
   both with live consumers. The move could not merge them because
