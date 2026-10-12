@@ -27,6 +27,9 @@ DEV_LOG="/tmp/jscad-dev-$PORT.log"
 
 # shellcheck source=ci/lib/bootstrap.sh
 . "$WORKTREE/ci/lib/bootstrap.sh"
+# No sibling OpenJSCAD.org checkout on the CI host; the app's docs build is not
+# part of the render sweep, so skip it (build.js --skipDocs below too).
+export JSCAD_SKIP_DOCS=1
 # ALL.js grids are gitignored (the sweep probes text/ALL.js); a cached host
 # with current fetch-deps records skips organize-corpus, so grids regenerates
 # them. The web bundle resolves the @jscadui/* esm outputs the workspace build
