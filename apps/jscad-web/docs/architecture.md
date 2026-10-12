@@ -783,13 +783,15 @@ that throws, so one bad request cannot end the launcher. Neither relay forwards
 Each turn sends `buildMessages` (`packages/agent-loop/src/context.js`): the
 system prompt; prior turns, newest first, as whole user/assistant pairs until
 the next would pass `CONTEXT_BUDGET` (24,000 characters); one user message
-holding every text file of the current project under `### <path>` in a fenced
-block and then the project's last build report, outside the budget and
-omitted when both are empty; then the new message. Prior turns carry only the user text and
-the assistant's streamed text, so earlier tool calls are not replayed. The
-transcript also stores the reply's reasoning, which `forModel` in
-`src/aiChat.js` drops before `buildMessages` sees it. The
-project files come from the file cache the frame runs (`fileSystem.projectFiles`).
+holding the project's text files under `### <path>` in a fenced block and then
+the project's last build report, outside the budget and omitted when both are
+empty; then the new message. That files block has its own budget
+(`PROJECT_BUDGET`, 24,000 characters): binary files are skipped, and past it
+the oldest-mentioned are dropped first, ordered by the `toolCalls[].input.path`
+the transcript carries. `forModel` in `src/aiChat.js` passes an assistant
+reply's tool calls through so an earlier call can order the block, and drops
+the stored reasoning before `buildMessages` sees it. The project files come
+from the file cache the frame runs (`fileSystem.projectFiles`).
 The chat sends its per-project session id as `x-jscad-chat-id` when it goes
 through the relay, and not to a custom base URL. The eval builds its messages
 with the same function.
