@@ -35,7 +35,8 @@ export const startLocal = async ({ appDir, frameDir, modelDir, relayHandler, por
     } else {
       file = safeJoin(appDir, decodeURIComponent(path === '/' ? '/index.html' : path))
     }
-    // Errors carry CORS too, or the frame sees a NetworkError instead of the status.
+    // The frame reads the app's own assets cross-origin, errors included, and
+    // needs CORS to see the status; /models/ is app-only and carries none.
     const cors = path.startsWith('/models/') ? {} : { 'access-control-allow-origin': '*' }
     if (!file) { res.writeHead(403, cors); res.end('forbidden'); return }
     try {
