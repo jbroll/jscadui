@@ -29,7 +29,6 @@ at is the requirement text. Reserved for new findings: `SEC3+`, `PRJ5+`,
 | REF7 | Refactoring | Med | out of scope (`main.js`, `paramsUI.js`) |
 | REF9 | Refactoring | Med | out of scope (`src_frame`, `frameSetup.js`) |
 | REF10 | Refactoring | Med | out of scope (model runners) |
-| REF17 | Refactoring | Low | `packages/params-ui/src/ParamsTree.js` |
 | REF18 | Refactoring | Low | demo-app copies: `observeResize.js`, `testThree.js`, `esbuildUtil.js`, `apps/vue3-jscad/src/jscad/` |
 
 ## Deploy
@@ -549,10 +548,6 @@ from the 2026-10-01 review.
   `apps/vue3-jscad/src/jscad/` holds 12 older copies of jscad-web modules.
   Every copy has a live consumer, so dedupe them into one shared home per
   module rather than deleting them.
-- **`params-ui` size.** `createParamsTree`
-  (`packages/params-ui/src/ParamsTree.js:30-618`) is one closure of about
-  590 lines. `createClassInput` (`:338-545`) and `inputs.js` (996 lines) are
-  the seams.
 
 ## Remaining issues
 
