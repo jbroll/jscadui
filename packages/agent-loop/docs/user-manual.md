@@ -535,9 +535,9 @@ files judges it.
 | `EVAL_CRT` | absolute path of the crt binary; default: `crt` on `PATH` |
 | `CRT_HOME` | where crt keeps its rootfs dirs, passed to crt; when unset, the eval asks `crt home` for its resolved default (`/data/crt/home/$USER` if it exists, else `/home/crt`); must be outside `$HOME`, `/tmp` and the repo |
 | `EVAL_SANDBOX_ROOTFS` | crt rootfs the executor runs in, default `jscad-eval` |
-| `EVAL_SANDBOX_MEMORY` | executor memory limit in crt's grammar (`2G`, `1536M`, a bare number is bytes), at least 512M, default `2G`; V8's heap gets three quarters of it |
+| `EVAL_SANDBOX_MEMORY` | executor memory limit in crt's grammar (`2G`, `1536M`, a bare number is bytes), at least 512M, default `2G`; V8's heap gets three quarters of it. A requested limit the host cannot enforce refuses to start |
+| `EVAL_SANDBOX_CPUS` | executor cpu limit in crt's cpus grammar (a positive number, `2` or `1.5`), default `2` |
 | `EVAL_SANDBOX` | `crt` (default); anything else is refused by `run-eval` |
-| `EVAL_REQUIRE_MEMORY_LIMIT` | `1` refuses to start when crt cannot enforce the memory limit (`ci/eval` sets it); otherwise a loud warning |
 | `EVAL_PROCESSES` | run-eval processes sharing the host (`ci/eval` sets the model × API lane count), for the concurrency cap in [architecture.md](architecture.md#sandbox); default 1 |
 | `EVAL_RUN_TIMEOUT` | seconds a conversation may run before it is stopped and graded, default 1200 |
 | `GRADER_VALIDATION_DIR` | where `grader-validate` writes its file and renders, default `~/.local/state/jscad-chat/grader-validation` |

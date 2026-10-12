@@ -23,7 +23,6 @@ bootstrap sources install workspace || exit 1
 
 # Model code runs only in the crt sandbox (ci/README.md, host setup), and
 # the describer and chromium must be ready before any provider call.
-export EVAL_REQUIRE_MEMORY_LIMIT=1
 if ! scripts/eval-sandbox-setup.sh --check; then
   echo "ci/regrade-complex: the eval sandbox is not set up on this host; see ci/README.md (Live model eval, host setup)" >&2
   exit 1

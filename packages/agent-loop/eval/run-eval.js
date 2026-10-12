@@ -562,16 +562,13 @@ export const runTimeoutFrom = (env) => {
 // neither end the regrade nor forge a later run's grade.
 export const freshExecutorGrader = (start) => ({ gradeProject: (model, options) => gradeInFreshExecutor(start, model, options) })
 
-const LOUD = '!'.repeat(72)
-
 // Fails closed: model code runs only once the crt sandbox is known to start.
 export const requireSandbox = async (env) => {
   let sandbox
   let problem
-  const warnings = []
   try {
     sandbox = sandboxFrom(env)
-    problem = await sandboxProblem(sandbox, { onWarning: (text) => warnings.push(text) })
+    problem = await sandboxProblem(sandbox)
   } catch (error) {
     problem = error.message
   }
@@ -579,7 +576,6 @@ export const requireSandbox = async (env) => {
     console.error(`run-eval: the eval sandbox is not available: ${problem}`)
     process.exit(1)
   }
-  for (const text of warnings) console.error(`${LOUD}\nrun-eval: WARNING: ${text}\n${LOUD}`)
   process.on('exit', killExecutors)
   for (const [signal, code] of [
     ['SIGINT', 130],

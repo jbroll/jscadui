@@ -138,9 +138,9 @@ any other model × API lane.
 Model code from the models runs only in a crt container with no network, no
 home directory, no provider key and a 2G memory limit
 (`packages/agent-loop/docs/architecture.md`, Sandbox). The job runs
-`scripts/eval-sandbox-setup.sh --check` with `EVAL_REQUIRE_MEMORY_LIMIT=1`
-after the build and fails before any provider call when crt, the rootfs, its
-stored config or cgroup delegation is missing. The host uses the `/data/crt`
+`scripts/eval-sandbox-setup.sh --check` after the build and fails before any
+provider call when crt, the rootfs, its stored config or cgroup delegation is
+missing. The host uses the `/data/crt`
 layout: `/data/crt/bin/crt`, `/usr/local/bin/crt` symlinked to it, and a
 per-user home at `/data/crt/home/<user>`. Once, as root:
 
@@ -164,7 +164,7 @@ per-user home at `/data/crt/home/<user>`. Once, as root:
    `/data/crt/home/s-ci`, else `/home/crt`), so it needs no override on this
    layout:
    ```sh
-   EVAL_REQUIRE_MEMORY_LIMIT=1 scripts/eval-sandbox-setup.sh
+   scripts/eval-sandbox-setup.sh
    ```
 
 `scripts/eval-sandbox-setup.sh --check` repeats the check at any time; it
