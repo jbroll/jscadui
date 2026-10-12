@@ -185,11 +185,11 @@ including any edit you made in the editor meanwhile:
   Maps are the working copy and every write mirrors into object stores, so
   projects, versions and conversations survive a reload. A browser without
   `indexedDB` (private mode) falls back to in-memory `Map`s for the session.
-  Anonymous users are local-only. The app asks before a reload that could
-  drop local work — the sign-in redirect or closing the tab — whenever the
-  session wrote to the local backend (an untouched boot-created default alone
-  does not prompt); the confirm covers the redirect, so the native prompt is
-  reserved for tab close and manual reload.
+  Anonymous users are local-only. In that fallback the app asks before a
+  reload that could drop local work — the sign-in redirect or closing the
+  tab — whenever the session wrote to the local backend (an untouched
+  boot-created default alone does not prompt); the confirm covers the
+  redirect, so the native prompt is reserved for tab close and manual reload.
 - `rowboat` mode stores bytes as blobs through rowboat file routes, with
   projects, files, versions and conversations in rowboat tables compiled from
   `src/storage/schema.js`. Sign-in starts the interval sync loop with a

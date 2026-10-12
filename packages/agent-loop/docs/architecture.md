@@ -137,8 +137,8 @@ and `check` on what `main()` returned, rounded to 1e-4 mm. A `write` or
 (`writeReport`); when the build fails it adds `note: "main.js is saved; the
 build of main.js failed"`, since models read a bare `ok: false` as a lost
 write and rewrote the file from scratch. A `delete` answers the same report
-headed by `deleted` (`deleteReport`), the file removed; the app does not
-store a delete yet, so a reload brings the file back. A project with no
+headed by `deleted` (`deleteReport`), the file removed; the deletion is stored
+too, so a reload keeps the file deleted. A project with no
 entry file builds nothing and fails nothing: `{ ok: true, entry: null, note: "no entry yet
 (main.js, index.js or package.json main)" }` (`noEntryReport`), and the write
 that saved a helper first says `saved; no entry yet (…)`. A model error goes

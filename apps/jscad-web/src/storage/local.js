@@ -22,7 +22,8 @@ export function createLocalStorage(options = {}) {
       for (const row of projectRows) projects.set(row.id, row)
       for (const { projectId, rows } of versionRows) versions.set(projectId, rows)
       for (const { projectId, row } of conversationRows) conversations.set(projectId, row)
-    } catch {
+    } catch (err) {
+      console.warn('local storage: IndexedDB open failed; falling back to in-memory Maps for this session', err)
       persist = null
     }
   })()
@@ -113,6 +114,10 @@ export function createLocalStorage(options = {}) {
     await save('projects', id, next)
   }
 
+  // Whether a reload reads this session's work back. False in the fallback
+  // (no indexedDB, or a failed open), where the Maps are the only store.
+  const persists = () => persist !== null
+
   const listVersions = async (id) => {
     await ready
     return (versions.get(id) ?? []).map(({ versionId, created, message }) => ({ versionId, created, message }))
@@ -147,5 +152,5 @@ export function createLocalStorage(options = {}) {
     await Promise.all([drop('projects', id), drop('versions', id), drop('conversations', id)])
   }
 
-  return { listProjects, readProject, writeFiles, removeFiles, snapshot, listVersions, readVersion, readConversation, writeConversation, deleteProject, markClean, isDirty }
+  return { listProjects, readProject, writeFiles, removeFiles, snapshot, listVersions, readVersion, readConversation, writeConversation, deleteProject, markClean, isDirty, persists }
 }

@@ -180,6 +180,18 @@ describe('disk storage removal', () => {
     await new Promise((resolve) => setTimeout(resolve, 20))
     expect(calls).toEqual([])
   })
+
+  it('warns and leaves the file when the server refuses the DELETE, as /api/fs does', async () => {
+    const server = fakeServer({ 'main.js': 'm', 'lib.js': 'l' })
+    const storage = storageFor(server)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await storage.readProject('disk')
+    await storage.removeFiles('disk', ['lib.js'])
+    expect(warn).toHaveBeenCalled()
+    expect(server.files.has('lib.js')).toBe(true)
+    expect((await storage.readProject('disk')).files).toEqual({ 'main.js': 'm', 'lib.js': 'l' })
+    warn.mockRestore()
+  })
 })
 
 describe('disk storage watch', () => {

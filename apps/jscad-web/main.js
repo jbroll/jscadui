@@ -945,10 +945,11 @@ const aiDeps = {
 }
 
 if (byId('ai-account')) initAccount(byId('ai-account'), {
-  // The local backend is in-memory: a reload drops whatever this session
-  // wrote to it, in any project, open or not. `isDirty` stays false for a
-  // session that only booted the untouched default.
-  hasLocalWork: () => localStore.isDirty(),
+  // The local backend persists to IndexedDB when available, so a reload keeps
+  // this session's work; the unload warning applies only when it does not
+  // (private mode, the compute frame), where a reload drops it. `isDirty`
+  // stays false for a session that only booted the untouched default.
+  hasLocalWork: () => localStore.isDirty() && !localStore.persists(),
   onSignOut: async () => {
     syncHandle?.stop()
     syncHandle = null

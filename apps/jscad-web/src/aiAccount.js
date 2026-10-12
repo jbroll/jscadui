@@ -10,7 +10,8 @@ import { effortOptionsForModel } from './aiEffort.js'
 
 const SELECTION_KEY = 'jscad-ai.selection'
 
-// The local backend is in-memory, so a reload drops work that was never
+// The local backend persists to IndexedDB when available; only without it
+// (private mode, the compute frame) does a reload drop work that was never
 // synced. `hasLocalWork` is set per account panel; the browser's unload
 // prompt is the only warning that survives a full-page navigation.
 let warnOnUnload = () => false

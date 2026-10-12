@@ -40,7 +40,8 @@ const diskStorageOver = (server) => {
   return createDiskStorage({ fetch, EventSource: server.EventSource })
 }
 
-const fakeEditor = () => {  const editor = {
+const fakeEditor = () => {
+  const editor = {
     source: '',
     path: 'jscad.example.js',
     setSource: vi.fn((source, path) => { editor.source = source; editor.path = path }),

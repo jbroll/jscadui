@@ -63,8 +63,8 @@ params.radius = { type: 'slider', default: 5, min: 1, max: 20, step: 0.5 }
   output, the parameters and, when it builds, the geometry's parts, size,
   volume and whether it is watertight, manifold and self-intersecting.
   Every `delete` builds the project too and answers the same report headed by
-  `deleted`; the app does not store a delete yet, so a reload brings the file
-  back.
+  `deleted`; the deletion is stored, so a reload mid-turn keeps the file
+  deleted.
 - The build report on each write already verifies size, volume,
   watertightness, manifoldness and self-intersection. For details, such as
   sections, gaps between parts, each part's checks or printability, use

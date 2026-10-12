@@ -137,6 +137,14 @@ describe('local file removal', () => {
   })
 })
 
+describe('local persistence availability', () => {
+  it('reports IndexedDB persistence active, and inactive without it', () => {
+    const dbName = `jscad-web-persists-test-${crypto.randomUUID()}`
+    expect(createLocalStorage({ indexedDB: fakeIndexedDB, dbName }).persists()).toBe(true)
+    expect(createLocalStorage({ indexedDB: null }).persists()).toBe(false)
+  })
+})
+
 describe('local persistence (IndexedDB)', () => {
   it('a second store over the same database sees the first store’s projects, versions and conversations', async () => {
     const open = overIdb()
@@ -164,7 +172,7 @@ describe('local persistence (IndexedDB)', () => {
   })
 
   it('falls back to the in-memory Maps, and keeps the dirty flag, with no indexedDB', async () => {
-    const store = createLocalStorage({ indexedDB: undefined })
+    const store = createLocalStorage({ indexedDB: null })
     await store.writeFiles('p1', { 'main.js': MAIN }, { message: 'create', name: 'Gear', entry: 'main.js' })
     expect((await store.readProject('p1')).files).toEqual({ 'main.js': MAIN })
     expect(store.isDirty()).toBe(true)
