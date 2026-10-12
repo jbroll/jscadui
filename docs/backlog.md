@@ -7,7 +7,10 @@ commit that completes it.
 
 Stable IDs for the open review findings below; the prose bullet each ID points
 at is the requirement text. Reserved for new findings: `SEC3+`, `PRJ5+`,
-`UI7+`, `API15+`, `REF19+`.
+`UI7+`, `API16+`, `REF19+`, `TRN3+`, `LIB2+`, `FMT2+`.
+`TRN1`/`TRN2` are the transpiler bullets under "Parts catalog", `LIB1` is the
+missing-font bullet under "Library bugs found by the sweep", `API15` and
+`FMT1` are the "Remaining issues" bullets.
 
 | ID | Section | Sev | Primary files |
 |---|---|---|---|
@@ -17,6 +20,11 @@ at is the requirement text. Reserved for new findings: `SEC3+`, `PRJ5+`,
 | API12 | Chat API help | Low | `packages/agent-loop/eval/complex.js` |
 | API13 | Chat API help | Low | `apps/jscad-web/src/apiIndex.js` |
 | API14 | Chat API help | Low | `apps/jscad-web/src/storage/session.js` |
+| API15 | Remaining issues | Low | `packages/agent-loop/src/context.js` |
+| FMT1 | Remaining issues | Low | `file-format/3mf-export/src/matrix2str.js` |
+| TRN1 | Parts catalog | Low | `packages/openscad/src/transpiler/statements.ts` |
+| TRN2 | Parts catalog | Low | `packages/openscad/src/transpiler/cleanExports.ts` |
+| LIB1 | Library bugs found by the sweep | Low | `packages/agent-loop/src/scadHandler.js` |
 | REF1 | Refactoring | High | breaking, out of scope |
 | REF3 | Refactoring | Med | out of scope (`packages/worker`) |
 | REF4 | Refactoring | Low | out of scope (`packages/require`) |
