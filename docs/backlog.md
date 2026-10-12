@@ -9,7 +9,7 @@ Stable IDs for the open review findings below; the prose bullet each ID points
 at is the requirement text. Reserved for new findings: `SEC3+`, `PRJ6+`,
 `UI7+`, `API16+`, `REF19+`, `TRN3+`, `LIB2+`, `FMT2+`.
 `LIB1` is the missing-font bullet under "Library bugs found by the sweep",
-`API15` and `FMT1` are the "Remaining issues" bullets.
+`API15` is a "Remaining issues" bullet.
 
 | ID | Section | Sev | Primary files |
 |---|---|---|---|
@@ -18,7 +18,6 @@ at is the requirement text. Reserved for new findings: `SEC3+`, `PRJ6+`,
 | PRJ5 | Projects and storage | Low | `apps/jscad-web/scripts/local/fsApi.js` |
 | API13 | Chat API help | Low | `apps/jscad-web/src/apiIndex.js` |
 | API15 | Remaining issues | Low | `packages/agent-loop/src/context.js` |
-| FMT1 | Remaining issues | Low | `file-format/3mf-export/src/matrix2str.js` |
 | LIB1 | Library bugs found by the sweep | Low | `packages/agent-loop/src/scadHandler.js` |
 | REF1 | Refactoring | High | breaking, out of scope |
 | REF3 | Refactoring | Med | out of scope (`packages/worker`) |
@@ -661,17 +660,6 @@ from the 2026-10-01 review.
   json reporter; then seed the coverage baseline and retire `.git-hooks/`.
   The render sweep emits no lcov, so the tier-2 coverage ratchet needs e2e
   V8 coverage or an upstream knob for a regression-only e2e.
-- **3MF export workspace.** Nothing in this repo imports
-  `file-format/3mf-export`; the only consumer is the `manifold-3d` npm
-  package (`lib/export-3mf.js`), whose `@jscadui/3mf-export ^0.5.0`
-  dependency the workspace satisfies. The workspace is not the published
-  0.5.0: it carries the unpublished fast-xml-parser rewrite (#131), XML
-  escaping and input validation under the same version number. Its
-  `matrix2str` turns non-number entries into `0`, and manifold passes
-  transforms as `toFixed` strings, so under the workspace copy manifold's
-  component transforms serialize as all zeros; the registry 0.5.0 passes
-  them through. Publish the rewrite as 0.6.0 (with string transforms kept)
-  or drop the workspace and resolve 0.5.0 from the registry.
 - **Params memory follow-up.** Child-proxy eviction recreates the child with
   fresh per-proxy defaults; only matters if 500 distinct properties are
   probed on one proxy between a set and a read of the same child.

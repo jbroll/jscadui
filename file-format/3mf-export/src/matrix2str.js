@@ -21,12 +21,14 @@ export const matrix2str = m=>{
     for(let i=0; i<16; i++){
         if(i % 4 == 3) continue
         if(i>0) str += ' '
-        // Handle NaN and Infinity by replacing with 0
+        // manifold-3d passes transforms as toFixed strings; keep them verbatim
         const val = m[i]
-        if (typeof val !== 'number' || !Number.isFinite(val)) {
-            str += 0
-        } else {
+        if (typeof val === 'string') {
             str += val
+        } else if (typeof val === 'number' && Number.isFinite(val)) {
+            str += val
+        } else {
+            str += 0
         }
     }
     return str

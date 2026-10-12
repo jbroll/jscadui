@@ -15,6 +15,7 @@
     "cjs"
   ],
   "scripts": {
+    "test": "vitest run",
     "build": "esbuild index.js --outdir=esm --bundle --sourcemap --minify --loader:.js=jsx --format=esm",
     "build-cjs": "esbuild index.js --outdir=cjs --bundle --sourcemap --minify --loader:.js=jsx --format=cjs",
     "build-iife": "esbuild index.js --outdir=iife --bundle --sourcemap --minify --loader:.js=jsx --format=iife --global-name=juExport3mf",
