@@ -48,6 +48,7 @@ const tools = ({ project = fakeProject(), workerApi = {}, ...rest } = {}) => {
     },
     exportModel: vi.fn(async () => ({ ok: true, format: 'stla', size: 10 })),
     storeFile: vi.fn(async () => {}),
+    removeFile: vi.fn(async () => {}),
     snapshot: vi.fn(async () => {}),
     ...rest,
   }
@@ -162,6 +163,20 @@ describe('storage', () => {
     expect(storeFile.mock.invocationCallOrder[0]).toBeLessThan(deps.build.mock.invocationCallOrder[0])
     expect((await local.readProject('p1')).files).toEqual({ 'main.js': 'v1', 'lib.js': 'lib' })
     expect(await messages(local)).toEqual(['create'])
+  })
+
+  it('stores a delete before it builds, and the turn version omits the file', async () => {
+    const { local, session, storeFile, snapshot } = await stored()
+    await session.writeThrough('p1', 'helper.js', 'h', { message: 'chat', version: false })
+    const removeFile = vi.fn((projectId, path) => session.removeThrough(projectId, path))
+    const { deps, tools: t } = tools({ project: fakeProject({ 'main.js': 'v0', 'helper.js': 'h' }), storeFile, removeFile, snapshot })
+    await t.deleteFile({ path: 'helper.js' })
+    expect(removeFile).toHaveBeenCalledWith('p1', 'helper.js')
+    expect(removeFile.mock.invocationCallOrder[0]).toBeLessThan(deps.build.mock.invocationCallOrder[0])
+    expect((await local.readProject('p1')).files).toEqual({ 'main.js': 'v0' })
+    await t.endTurn()
+    const [latest] = await local.listVersions('p1')
+    expect((await local.readVersion('p1', latest.versionId)).files).toEqual({ 'main.js': 'v0' })
   })
 
   it('fails the write when storage fails, instead of answering a build', async () => {

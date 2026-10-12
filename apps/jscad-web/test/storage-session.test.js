@@ -45,6 +45,24 @@ describe('mode write-through', () => {
     expect((await local.readProject('p9')).files).toEqual({ 'main.js': 'v1' })
   })
 
+  it('removes a file through the tagged backend', async () => {
+    const local = createLocalStorage()
+    const rowboat = createLocalStorage()
+    await local.writeFiles('p1', { 'main.js': 'm', 'gone.js': 'g' }, { entry: 'main.js' })
+    const session = createSession({ local, rowboat, getBackend: () => 'local' })
+    await session.removeThrough('p1', 'gone.js')
+    expect((await local.readProject('p1')).files).toEqual({ 'main.js': 'm' })
+  })
+
+  it('removes through rowboat when the mode says so', async () => {
+    const local = createLocalStorage()
+    const rowboat = createLocalStorage()
+    await rowboat.writeFiles('p1', { 'main.js': 'm', 'gone.js': 'g' }, { entry: 'main.js' })
+    const session = createSession({ local, rowboat, getBackend: () => 'rowboat' })
+    await session.removeThrough('p1', 'gone.js')
+    expect((await rowboat.readProject('p1')).files).toEqual({ 'main.js': 'm' })
+  })
+
   it('falls back to a fresh project on a typed rowboat not-found', async () => {
     const local = createLocalStorage()
     const rowboat = {

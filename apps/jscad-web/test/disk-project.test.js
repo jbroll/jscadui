@@ -26,8 +26,21 @@ const memoryFileSystem = () => {
   }
 }
 
-const fakeEditor = () => {
-  const editor = {
+// The launcher's /api/fs as the disk store sees it. The fake server speaks
+// GET and PUT; DELETE is added here for the removal path.
+const diskStorageOver = (server) => {
+  const base = '/api/fs'
+  const fetch = async (url, init = {}) => {
+    if (init.method === 'DELETE') {
+      server.remove(url.slice(base.length + 1).split('/').map(decodeURIComponent).join('/'))
+      return new Response(null, { status: 204 })
+    }
+    return server.fetch(url, init)
+  }
+  return createDiskStorage({ fetch, EventSource: server.EventSource })
+}
+
+const fakeEditor = () => {  const editor = {
     source: '',
     path: 'jscad.example.js',
     setSource: vi.fn((source, path) => { editor.source = source; editor.path = path }),
@@ -40,7 +53,7 @@ const fakeEditor = () => {
 
 const setup = (seed = { 'main.js': MAIN, 'lib/part.js': 'p', 'part.stl': STL }) => {
   const server = fakeServer(seed)
-  const disk = createDiskStorage({ fetch: server.fetch, EventSource: server.EventSource })
+  const disk = diskStorageOver(server)
   const local = createLocalStorage()
   const manager = createProjectManager({ local, disk, getRowboat: () => null })
   const session = createSession({ local, disk, getBackend: (id) => manager.peekMode(id) })
@@ -142,13 +155,16 @@ const chatTools = (s) =>
   createProjectTools({
     getProjectFiles: () => s.fileSystem.projectFiles(),
     writeProjectFile: (path, content) => s.fileSystem.addToCacheWrapper(path, content),
+    removeProjectFile: (path) => s.fileSystem.removeFromCache(path),
     showFile: () => {},
+    showFiles: () => {},
     build: async () => ({ ok: true, entry: 'main.js' }),
     noGeometry: async () => null,
     workerApi: {},
     exportModel: createExport(async () => ({ data: [new Uint8Array([1, 2, 3]).buffer] }), { save: s.project.saveExport }),
     getProjectId: () => s.state.projectId,
     storeFile: (projectId, path, content) => s.session.writeThrough(projectId, path, content, { message: 'chat', version: false }),
+    removeFile: (projectId, path) => s.session.removeThrough(projectId, path),
     snapshot: (projectId) => s.session.snapshot(projectId, { message: 'chat' }),
   })
 
@@ -163,6 +179,18 @@ describe('chat in the directory', () => {
     expect(s.server.puts()).toEqual(['/api/fs/lib/part.js', '/api/fs/main.js'])
     expect(s.server.text('lib/part.js')).toBe('p2')
     expect(s.server.text('main.js')).toContain('part(2)')
+    await expect(tools.endTurn()).resolves.toBeUndefined()
+    expect(await s.local.listProjects()).toEqual([])
+  })
+
+  it('chat delete removes the file from the directory and the cache', async () => {
+    const s = setup()
+    await s.project.open('main.js')
+    s.server.clear()
+    const tools = chatTools(s)
+    await tools.deleteFile({ path: 'lib/part.js' })
+    expect(s.server.files.has('lib/part.js')).toBe(false)
+    expect((await s.fileSystem.projectFiles())['lib/part.js']).toBeUndefined()
     await expect(tools.endTurn()).resolves.toBeUndefined()
     expect(await s.local.listProjects()).toEqual([])
   })

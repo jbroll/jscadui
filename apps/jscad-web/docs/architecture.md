@@ -943,9 +943,10 @@ project and answers the build report. `delete` removes a file the same way:
 out of the cache, the frame's copy of the module and the editor's buffer
 (`applyDelete`, `removeFromCache`), then a build. A delete of a file that is
 not there answers `ok` and changes nothing, so a stale path from the project
-note never fails the model. The deletion is not stored: the storage layer
-has no per-file removal, so a reload mid-turn brings the file back
-(`docs/backlog.md`, "Chat API help"). The build is `buildProject` in
+note never fails the model. The deletion is stored too: `removeThrough` drops
+the path from the project's backend (`removeFiles` on local, rowboat and disk),
+so a reload mid-turn keeps it deleted, and the turn's snapshot records the
+project without the file. The build is `buildProject` in
 `main.js`: the entry, resolved by `projectEntry` (`src/projectBuild.js`), runs
 through `jscadScript`, the load path the editor and a project switch take, so
 a chat build draws, builds the params UI and shows its error like any other

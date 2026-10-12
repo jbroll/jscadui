@@ -7,13 +7,13 @@ import { sendScript } from './scriptRuns.js'
  * frame, read at each call so it follows project switches and the user's
  * edits. A write or edit is a save: it lands in the cache, in storage and in
  * the editor, then `build` runs the project the way the editor does and
- * answers its report. `delete` removes a file the same way, out of the cache
- * and the editor (the storage layer has no removal, so it is not stored; see
- * docs/backlog.md, "Chat API help"); a delete of a file that is not there
- * answers ok and changes nothing. `storeFile` writes with no version row;
- * `endTurn` snapshots each project the turn wrote to as one version. After
- * `startTurn`, a write, edit or delete is refused once another project is
- * open: the turn's context came from the project open when it started.
+ * answers its report. `delete` removes a file the same way, out of the cache,
+ * storage and the editor, so a reload mid-turn keeps it deleted; a delete of a
+ * file that is not there answers ok and changes nothing. `storeFile` writes
+ * with no version row; `endTurn` snapshots each project the turn wrote to,
+ * deletes included, as one version. After `startTurn`, a write, edit or delete
+ * is refused once another project is open: the turn's context came from the
+ * project open when it started.
  * @param {{
  *   getProjectFiles: () => Promise<Record<string, string|ArrayBuffer>>,
  *   writeProjectFile: (path:string, content:string) => Promise<void>,
@@ -26,6 +26,7 @@ import { sendScript } from './scriptRuns.js'
  *   exportModel: (args:object) => Promise<object>,
  *   getProjectId: () => string,
  *   storeFile: (projectId:string, path:string, content:string) => Promise<unknown>,
+ *   removeFile: (projectId:string, path:string) => Promise<unknown>,
  *   snapshot: (projectId:string) => Promise<unknown>,
  *   getApi?: () => string,
  *   loadIndex?: () => Promise<Array<object>|undefined>,
@@ -43,6 +44,7 @@ export const createProjectTools = ({
   exportModel,
   getProjectId,
   storeFile,
+  removeFile,
   snapshot,
   getApi = () => DEFAULT_API,
   loadIndex = async () => undefined,
@@ -72,6 +74,8 @@ export const createProjectTools = ({
       throw Object.assign(new Error('the user opened another project during this turn; nothing was deleted. Stop and tell the user.'), { name: 'ProjectSwitchedError' })
     }
     await removeProjectFile(removal.path)
+    await removeFile(projectId, removal.path)
+    written.add(projectId)
     showFiles(removal.files)
     return deleteReport(removal.path, await build())
   }

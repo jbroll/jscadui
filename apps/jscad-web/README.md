@@ -95,7 +95,7 @@ dismiss (×) and returns on the next error.
 
 ## AI Chat
 
-The app has an agent chat drawer (AI Chat in the menu) layered on the normal editor, viewer and examples. Describe a part, and the browser-local agent loop works on the open project the way a coding agent does, with tools that run in the browser: `list`, `read`, `write`, `edit`, `delete`, `run`, `measure`, `check`, `export` and `docs` (`packages/agent-loop/src/tools.js`). Every `write` and `edit` saves the file, shows it in the editor and builds the project the way the editor does, answering a build report; `delete` removes a file from the project and its editor buffer (the app does not store a delete yet, so a reload brings it back); `run` tries a snippet without saving it. Model code runs in the sandboxed compute frame below, the same one the editor uses. Provider HTTP goes through the relay at `https://jscad.rkroll.com`, overridable via `localStorage 'jscad-ai.relay'`.
+The app has an agent chat drawer (AI Chat in the menu) layered on the normal editor, viewer and examples. Describe a part, and the browser-local agent loop works on the open project the way a coding agent does, with tools that run in the browser: `list`, `read`, `write`, `edit`, `delete`, `run`, `measure`, `check`, `export` and `docs` (`packages/agent-loop/src/tools.js`). Every `write` and `edit` saves the file, shows it in the editor and builds the project the way the editor does, answering a build report; `delete` removes a file from the project and its editor buffer, and the deletion is saved, so a reload mid-turn keeps it deleted; `run` tries a snippet without saving it. Model code runs in the sandboxed compute frame below, the same one the editor uses. Provider HTTP goes through the relay at `https://jscad.rkroll.com`, overridable via `localStorage 'jscad-ai.relay'`.
 
 "API Help…" in the menu opens a panel that answers the same lookup as the `docs` tool — a function, class or namespace name, with its signature, options and example — in the API style chosen in the chat settings, with no account or turn (see the [user manual](docs/user-manual.md#api-help)).
 
@@ -175,10 +175,11 @@ carries.
 ## Storage
 
 Model files are local-first with per-project version history (`src/storage/`).
-Every editor compile, and every chat turn that wrote files, records a version
+Every editor compile, and every chat turn that changed files, records a version
 row plus file hashes, in both modes. The chat stores each file it writes at
-once, so a reload mid-turn keeps it, and the turn's version is the project as
-stored when the turn ends, including any edit you made in the editor meanwhile:
+once, and each delete removes it from the backend, so a reload mid-turn keeps
+the change; the turn's version is the project as stored when the turn ends,
+including any edit you made in the editor meanwhile:
 
 - `local` mode (default) is backed by IndexedDB (`src/storage/idb.js`): the
   Maps are the working copy and every write mirrors into object stores, so

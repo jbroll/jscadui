@@ -83,6 +83,28 @@ export function createDiskStorage(options = {}) {
     return { id: ID, entry, kind: kindFromEntry(entry) }
   }
 
+  // Delete a file from the directory. Only paths it read are removed, so a
+  // stale delete of something already gone is a no-op. Dropping the path from
+  // `known` and every watcher's `seen` keeps our own delete out of the change
+  // report. The launcher's `/api/fs` has no DELETE yet (PRJ5), so a refused
+  // delete warns and leaves the file rather than failing the chat's delete.
+  const removeFiles = async (_id, paths) => {
+    const present = paths.filter((path) => known.has(path))
+    const removed = []
+    for (const path of present) {
+      try {
+        await request('DELETE', urlFor(path), path)
+        removed.push(path)
+      } catch (err) {
+        console.warn('disk storage: delete failed', path, err)
+      }
+    }
+    for (const path of removed) {
+      known.delete(path)
+      for (const seen of watchers) seen.delete(path)
+    }
+  }
+
   const watch = (onChange, { onError = (err) => console.warn('disk storage: watch refresh failed', err) } = {}) => {
     const seen = new Map([...known].map(([path, stat]) => [path, { ...stat }]))
     watchers.add(seen)
@@ -121,6 +143,7 @@ export function createDiskStorage(options = {}) {
     listProjects: async () => [row()],
     readProject,
     writeFiles,
+    removeFiles,
     writeFile: (path, bytes) => put(path, bytes),
     snapshot: async () => {},
     listVersions: async () => [],

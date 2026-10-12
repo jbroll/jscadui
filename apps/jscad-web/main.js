@@ -926,6 +926,7 @@ const chatTools = createProjectTools({
   // silently running ahead of storage.
   storeFile: (projectId, path, content) =>
     storageSession.writeThrough(projectId, path, content, { message: 'chat', version: false }),
+  removeFile: (projectId, path) => storageSession.removeThrough(projectId, path),
   snapshot: (projectId) => storageSession.snapshot(projectId, { message: 'chat' }),
   getApi: getChatApi,
   loadIndex: loadApiIndex,

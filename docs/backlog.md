@@ -6,7 +6,7 @@ commit that completes it.
 ## Finding IDs
 
 Stable IDs for the open review findings below; the prose bullet each ID points
-at is the requirement text. Reserved for new findings: `SEC3+`, `PRJ5+`,
+at is the requirement text. Reserved for new findings: `SEC3+`, `PRJ6+`,
 `UI7+`, `API16+`, `REF19+`, `TRN3+`, `LIB2+`, `FMT2+`.
 `LIB1` is the missing-font bullet under "Library bugs found by the sweep",
 `API15` and `FMT1` are the "Remaining issues" bullets.
@@ -15,8 +15,8 @@ at is the requirement text. Reserved for new findings: `SEC3+`, `PRJ5+`,
 |---|---|---|---|
 | API4 | Chat API help | Low | `.deps-cache/jscad-fluent` (external) |
 | API11 | Chat API help | Low | `packages/agent-loop/eval/sandbox.js` |
+| PRJ5 | Projects and storage | Low | `apps/jscad-web/scripts/local/fsApi.js` |
 | API13 | Chat API help | Low | `apps/jscad-web/src/apiIndex.js` |
-| API14 | Chat API help | Low | `apps/jscad-web/src/storage/session.js` |
 | API15 | Remaining issues | Low | `packages/agent-loop/src/context.js` |
 | FMT1 | Remaining issues | Low | `file-format/3mf-export/src/matrix2str.js` |
 | LIB1 | Library bugs found by the sweep | Low | `packages/agent-loop/src/scadHandler.js` |
@@ -360,11 +360,6 @@ model with `display-check.js --engine jscad`.
   fluent `docs`: compact binary, `poly2`/`poly3`, the `geometries` functions
   with no same-named fluent method, and the internal `utils` helpers
   (`areAllShapesTheSameType`, `fnNumberSort`, `insertSorted`).
-- The chat's `delete` tool is not persisted: a deletion leaves the live project
-  (the file cache) but the storage layer has no per-file removal, so a reload
-  mid-turn brings the file back. `session.writeThrough` only merges a path;
-  give the storage backends a remove (or accept a delete sentinel) and have
-  `createProjectTools` store a deletion the way it stores a write.
 - CI eval run for the project environment (agent-loop). The file tools
   (`write`, `edit`, `run`) have passed the unit and e2e suites but no live
   run: run the 18-fixture suite on CI and compare with the regraded baseline.

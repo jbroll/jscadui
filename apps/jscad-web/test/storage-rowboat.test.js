@@ -101,4 +101,12 @@ describe('rowboat backend', () => {
     expect((await store.readConversation('p3')).messages).toEqual(messages)
     await store.close()
   })
+
+  it('removes a file row so it is not read back', async () => {
+    const store = transcriptStorage(vi.fn(async () => new Response('{}')))
+    await store.writeFiles('p6', { 'main.js': 'main', 'lib.js': 'lib-content' }, { message: 'create', name: 'P6', entry: 'main.js' })
+    await store.removeFiles('p6', ['lib.js'])
+    expect((await store.readProject('p6')).files).toEqual({ 'main.js': 'main' })
+    await store.close()
+  })
 })

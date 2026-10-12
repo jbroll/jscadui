@@ -98,6 +98,21 @@ export function createLocalStorage(options = {}) {
     await addVersion(id, row, message, now())
   }
 
+  // Remove files a delete dropped, so a reload does not bring them back. Not
+  // `dirty`: only a removal happened, so a reload loses no content.
+  const removeFiles = async (id, paths) => {
+    await ready
+    const row = projects.get(id)
+    if (!row) return
+    const files = { ...row.files }
+    let removed = false
+    for (const path of paths) if (Object.hasOwn(files, path)) { delete files[path]; removed = true }
+    if (!removed) return
+    const next = { ...row, files, updated: now() }
+    projects.set(id, next)
+    await save('projects', id, next)
+  }
+
   const listVersions = async (id) => {
     await ready
     return (versions.get(id) ?? []).map(({ versionId, created, message }) => ({ versionId, created, message }))
@@ -132,5 +147,5 @@ export function createLocalStorage(options = {}) {
     await Promise.all([drop('projects', id), drop('versions', id), drop('conversations', id)])
   }
 
-  return { listProjects, readProject, writeFiles, snapshot, listVersions, readVersion, readConversation, writeConversation, deleteProject, markClean, isDirty }
+  return { listProjects, readProject, writeFiles, removeFiles, snapshot, listVersions, readVersion, readConversation, writeConversation, deleteProject, markClean, isDirty }
 }

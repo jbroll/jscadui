@@ -141,6 +141,47 @@ describe('disk storage', () => {
   })
 })
 
+// The launcher's /api/fs route the disk store walks for deletion. The fake
+// server speaks GET and PUT; the store's own DELETE is added here so the
+// removal test does not depend on the launcher's server.
+const deletableStorage = (server) => {
+  const base = '/api/fs'
+  const deletes = []
+  const fetch = async (url, init = {}) => {
+    if (init.method === 'DELETE') {
+      deletes.push(url)
+      server.remove(url.slice(base.length + 1).split('/').map(decodeURIComponent).join('/'))
+      return new Response(null, { status: 204 })
+    }
+    return server.fetch(url, init)
+  }
+  return { storage: createDiskStorage({ fetch, EventSource: server.EventSource }), deletes }
+}
+
+describe('disk storage removal', () => {
+  it('DELETEs a removed file from the directory', async () => {
+    const server = fakeServer({ 'main.js': 'm', 'lib.js': 'l' })
+    const { storage, deletes } = deletableStorage(server)
+    await storage.readProject('disk')
+    await storage.removeFiles('disk', ['lib.js'])
+    expect(deletes).toEqual(['/api/fs/lib.js'])
+    expect(server.files.has('lib.js')).toBe(false)
+    expect((await storage.readProject('disk')).files).toEqual({ 'main.js': 'm' })
+  })
+
+  it('does not report its own delete through the watcher', async () => {
+    const server = fakeServer({ 'main.js': 'm', 'lib.js': 'l' })
+    const { storage } = deletableStorage(server)
+    await storage.readProject('disk')
+    const { onChange, calls } = nextChange()
+    storage.watch(onChange)
+    await storage.removeFiles('disk', ['lib.js'])
+    server.sources[0].emit(['lib.js'])
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(calls).toEqual([])
+  })
+})
+
 describe('disk storage watch', () => {
   it('opens the events stream and reports new, changed and removed files', async () => {
     const server = fakeServer({ 'main.js': 'm', 'lib.js': 'l', 'old.js': 'o' })

@@ -189,6 +189,14 @@ export function createRowboatStorage(options) {
     }
   }
 
+  // Drop the file rows for a delete; the blobs are content-addressed, so an
+  // orphan is harmless and the next write of the same content reuses it.
+  const removeFiles = async (id, paths) => {
+    const rows = await rowsFor('files', id)
+    const doomed = rows.filter((r) => paths.includes(r.path))
+    if (doomed.length > 0) await db.remove('files', doomed.map((r) => r.id))
+  }
+
   const deleteProject = async (id) => {
     const project = await db.table('projects').get(id)
     if (project && !project.__deleted) await db.remove('projects', id)
@@ -203,5 +211,5 @@ export function createRowboatStorage(options) {
     await globalThis.indexedDB?.deleteDatabase?.(dbName)
   }
 
-  return { sync, close, listProjects, readProject, writeFiles, snapshot, listVersions, readVersion, readConversation, writeConversation, deleteProject }
+  return { sync, close, listProjects, readProject, writeFiles, removeFiles, snapshot, listVersions, readVersion, readConversation, writeConversation, deleteProject }
 }

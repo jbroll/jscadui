@@ -28,11 +28,19 @@ export function createSession({ local, rowboat, getRowboat, getBackend, disk = n
     return store.writeFiles(projectId, files, options)
   }
 
+  // A delete drops the path from the project's backend, so a reload mid-turn
+  // does not bring it back. No version row: the turn's snapshot records the
+  // project as it stands at the end.
+  const removeThrough = async (projectId, path) => {
+    const store = backendFor(projectId, path)
+    await store.removeFiles(projectId, [path])
+  }
+
   // A version row of what the project's backend holds now.
   const snapshot = (projectId, options = {}) => backendFor(projectId).snapshot(projectId, options)
 
   const readConversation = (projectId) => backendFor(projectId).readConversation(projectId)
   const writeConversation = (projectId, messages) => backendFor(projectId).writeConversation(projectId, messages)
 
-  return { readThrough, writeThrough, snapshot, readConversation, writeConversation }
+  return { readThrough, writeThrough, removeThrough, snapshot, readConversation, writeConversation }
 }

@@ -99,15 +99,45 @@ describe('local work tracking', () => {
   })
 })
 
-describe('local persistence (IndexedDB)', () => {
-  // A fresh store over the same database is what a reload builds, so its reads
-  // must find what the last session stored. A per-test database name keeps the
-  // file's other stores (which get no indexedDB) isolated.
-  const overIdb = () => {
-    const dbName = `jscad-web-local-test-${crypto.randomUUID()}`
-    return (options = {}) => createLocalStorage({ indexedDB: fakeIndexedDB, dbName, ...options })
-  }
+// A fresh store over the same database is what a reload builds, so its reads
+// must find what the last session stored. A per-test database name keeps the
+// file's other stores (which get no indexedDB) isolated.
+const overIdb = () => {
+  const dbName = `jscad-web-local-test-${crypto.randomUUID()}`
+  return (options = {}) => createLocalStorage({ indexedDB: fakeIndexedDB, dbName, ...options })
+}
 
+describe('local file removal', () => {
+  it('drops a file with no version row and no dirt', async () => {
+    const store = createLocalStorage()
+    await store.writeFiles('p1', { 'main.js': 'm', 'lib.js': 'l' }, { message: 'create', name: 'P', entry: 'main.js' })
+    store.markClean()
+    await store.removeFiles('p1', ['lib.js'])
+    expect((await store.readProject('p1')).files).toEqual({ 'main.js': 'm' })
+    expect(await store.listVersions('p1')).toHaveLength(1)
+    expect(store.isDirty()).toBe(false)
+  })
+
+  it('is a no-op for an unknown project or a path it does not hold', async () => {
+    const store = createLocalStorage()
+    await store.removeFiles('missing', ['lib.js'])
+    await store.writeFiles('p1', { 'main.js': 'm' }, { name: 'P', entry: 'main.js' })
+    await store.removeFiles('p1', ['gone.js'])
+    expect((await store.readProject('p1')).files).toEqual({ 'main.js': 'm' })
+  })
+
+  it('persists a removal across a reload', async () => {
+    const open = overIdb()
+    const first = open()
+    await first.writeFiles('p1', { 'main.js': 'm', 'lib.js': 'l' }, { message: 'create', name: 'P', entry: 'main.js' })
+    await first.removeFiles('p1', ['lib.js'])
+
+    const second = open()
+    expect((await second.readProject('p1')).files).toEqual({ 'main.js': 'm' })
+  })
+})
+
+describe('local persistence (IndexedDB)', () => {
   it('a second store over the same database sees the first store’s projects, versions and conversations', async () => {
     const open = overIdb()
     const first = open()
