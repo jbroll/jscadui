@@ -4,10 +4,12 @@ import http from 'node:http'
 import { readFile, realpath } from 'node:fs/promises'
 import { serveFrame } from '../../serve.js'
 import { mimeOf, safeJoin } from '../static.js'
-import { createFsHandler, hiddenSegment, resolvesInside } from './fsApi.js'
+import { appHosts, createFsHandler, fromApp, hiddenSegment, resolvesInside } from './fsApi.js'
 
 export const startLocal = async ({ appDir, frameDir, modelDir, relayHandler, port }) => {
   let fsHandler = null
+  let appOrigin = ''
+  let hosts = new Set()
   const route = async (req, res) => {
     const path = (req.url ?? '/').split('?')[0]
     if (path.startsWith('/api/relay/')) {
@@ -18,22 +20,23 @@ export const startLocal = async ({ appDir, frameDir, modelDir, relayHandler, por
       if (await fsHandler(req, res)) return
       res.writeHead(404); res.end(); return
     }
-    // Errors carry CORS too, or the frame sees a NetworkError instead of the status.
-    const cors = { 'access-control-allow-origin': '*' }
     let file = null
     if (path.startsWith('/models/')) {
+      if (!fromApp(req, appOrigin, hosts)) { res.writeHead(403); res.end('untrusted origin'); return }
       const segments = decodeURIComponent(path.slice('/models/'.length)).split(/[/\\]/)
-      if (segments.some((s) => hiddenSegment(s) || s === '')) { res.writeHead(404, cors); res.end('not found'); return }
+      if (segments.some((s) => hiddenSegment(s) || s === '')) { res.writeHead(404); res.end('not found'); return }
       // modelDir may itself be reached through a symlink (macOS /var → /private/var);
       // resolvesInside compares realpaths, so resolve the root once and use it for
       // both the join and the containment check, like /api/fs's realRoot().
       const root = await realpath(modelDir)
       const joined = safeJoin(root, segments.join('/'))
-      if (!joined || !(await resolvesInside(root, joined))) { res.writeHead(404, cors); res.end('not found'); return }
+      if (!joined || !(await resolvesInside(root, joined))) { res.writeHead(404); res.end('not found'); return }
       file = joined
     } else {
       file = safeJoin(appDir, decodeURIComponent(path === '/' ? '/index.html' : path))
     }
+    // Errors carry CORS too, or the frame sees a NetworkError instead of the status.
+    const cors = path.startsWith('/models/') ? {} : { 'access-control-allow-origin': '*' }
     if (!file) { res.writeHead(403, cors); res.end('forbidden'); return }
     try {
       const content = await readFile(file)
@@ -52,8 +55,9 @@ export const startLocal = async ({ appDir, frameDir, modelDir, relayHandler, por
   })
   await new Promise((r) => server.listen(port, '127.0.0.1', r))
   const actual = server.address().port
-  const origin = `http://localhost:${actual}`
-  fsHandler = createFsHandler({ modelDir, appOrigin: origin })
-  const frameServer = serveFrame(actual + 1, origin, frameDir)
-  return { appServer: server, frameServer, url: origin }
+  appOrigin = `http://localhost:${actual}`
+  hosts = appHosts(appOrigin)
+  fsHandler = createFsHandler({ modelDir, appOrigin })
+  const frameServer = serveFrame(actual + 1, appOrigin, frameDir)
+  return { appServer: server, frameServer, url: appOrigin }
 }

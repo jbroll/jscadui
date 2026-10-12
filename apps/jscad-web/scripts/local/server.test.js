@@ -1,5 +1,6 @@
 // apps/jscad-web/scripts/local/server.test.js
 import { describe, expect, it } from 'vitest'
+import http from 'node:http'
 import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -20,8 +21,8 @@ describe('local server', () => {
     })
     try {
       expect((await fetch(`${url}/index.html`)).status).toBe(200)
-      expect((await fetch(`${url}/models/cube.js`)).status).toBe(200)
-      expect(await (await fetch(`${url}/models/cube.js`)).text()).toContain('module.exports')
+      expect((await fetch(`${url}/models/cube.js`, { headers: { origin: url } })).status).toBe(200)
+      expect(await (await fetch(`${url}/models/cube.js`, { headers: { origin: url } })).text()).toContain('module.exports')
       expect((await fetch(`${url}/..%2Findex.html`)).status).toBe(403)
       const bad = await fetch(`${url}/api/relay/nope/v1/x`, {
         method: 'POST', headers: { origin: 'https://evil.test', 'content-type': 'application/json' }, body: '{}',
@@ -53,7 +54,7 @@ describe('local server', () => {
       expect(await file.text()).toBe('model')
       const put = await fetch(`${url}/api/fs/lib/part.js`, { method: 'PUT', body: 'part', headers: { origin: url } })
       expect(put.status).toBe(204)
-      expect(await (await fetch(`${url}/models/lib/part.js`)).text()).toBe('part')
+      expect(await (await fetch(`${url}/models/lib/part.js`, { headers: { origin: url } })).text()).toBe('part')
       const framed = await fetch(`${url}/api/fs/main.js`, { headers: { origin: frameUrl } })
       expect(framed.status).toBe(403)
       expect(framed.headers.get('access-control-allow-origin')).toBeNull()
@@ -74,7 +75,6 @@ describe('local server', () => {
     const frameUrl = url.replace(/:(\d+)$/, (_, p) => `:${Number(p) + 1}`)
     try {
       for (const [target, status] of [
-        [`${url}/models/missing.scad`, 404],
         [`${url}/..%2Fsecret`, 403],
         [`${frameUrl}/missing.js`, 404],
       ]) {
@@ -82,6 +82,9 @@ describe('local server', () => {
         expect(res.status).toBe(status)
         expect(res.headers.get('access-control-allow-origin')).toBe('*')
       }
+      const models = await fetch(`${url}/models/missing.scad`, { headers: { origin: url } })
+      expect(models.status).toBe(404)
+      expect(models.headers.get('access-control-allow-origin')).toBeNull()
     } finally {
       appServer.close(); frameServer.close()
     }
@@ -107,7 +110,7 @@ describe('local server', () => {
         ['/bundle.js.map', 'application/json'],
         ['/models/part.scad', 'text/plain'],
       ]) {
-        expect((await fetch(`${url}${path}`)).headers.get('content-type')).toBe(type)
+        expect((await fetch(`${url}${path}`, { headers: { origin: url } })).headers.get('content-type')).toBe(type)
       }
     } finally {
       appServer.close(); frameServer.close()
@@ -125,7 +128,7 @@ describe('local server', () => {
     })
     try {
       expect((await fetch(`${url}/api/relay/x/y`, { method: 'POST' })).status).toBe(500)
-      expect((await fetch(`${url}/models/missing.scad`)).status).toBe(404)
+      expect((await fetch(`${url}/models/missing.scad`, { headers: { origin: url } })).status).toBe(404)
     } finally {
       appServer.close(); frameServer.close()
     }
@@ -145,7 +148,7 @@ describe('local server', () => {
       port: 0,
     })
     try {
-      expect((await fetch(`${url}/models/cube.js`)).status).toBe(200)
+      expect((await fetch(`${url}/models/cube.js`, { headers: { origin: url } })).status).toBe(200)
     } finally {
       appServer.close(); frameServer.close()
     }
@@ -165,9 +168,80 @@ describe('local server', () => {
       port: 0,
     })
     try {
-      expect((await fetch(`${url}/models/.env`)).status).toBe(404)
-      expect((await fetch(`${url}/models/.git/config`)).status).toBe(404)
-      expect((await fetch(`${url}/models/link.txt`)).status).toBe(404)
+      expect((await fetch(`${url}/models/.env`, { headers: { origin: url } })).status).toBe(404)
+      expect((await fetch(`${url}/models/.git/config`, { headers: { origin: url } })).status).toBe(404)
+      expect((await fetch(`${url}/models/link.txt`, { headers: { origin: url } })).status).toBe(404)
+    } finally {
+      appServer.close(); frameServer.close()
+    }
+  })
+
+  it('refuses foreign origins and unmarked requests to /models', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'jscad-local-'))
+    mkdirSync(join(root, 'frame'), { recursive: true })
+    mkdirSync(join(root, 'models'), { recursive: true })
+    writeFileSync(join(root, 'models', 'cube.js'), 'module.exports = {}')
+    const { appServer, frameServer, url } = await startLocal({
+      appDir: root, frameDir: join(root, 'frame'), modelDir: join(root, 'models'),
+      relayHandler: createRelayHandler({ allowlist: {}, trustedOrigins: [] }),
+      port: 0,
+    })
+    const frameUrl = url.replace(/:(\d+)$/, (_, p) => `:${Number(p) + 1}`)
+    try {
+      for (const headers of [
+        { origin: 'https://evil.test' },
+        { origin: frameUrl },
+        { 'sec-fetch-site': 'cross-site' },
+        {},
+      ]) {
+        const res = await fetch(`${url}/models/cube.js`, { headers })
+        expect(res.status, JSON.stringify(headers)).toBe(403)
+        expect(await res.text()).toBe('untrusted origin')
+        expect(res.headers.get('access-control-allow-origin')).toBeNull()
+      }
+    } finally {
+      appServer.close(); frameServer.close()
+    }
+  })
+
+  it('refuses a rebound host on /models even when the request looks same-origin', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'jscad-local-'))
+    mkdirSync(join(root, 'frame'), { recursive: true })
+    mkdirSync(join(root, 'models'), { recursive: true })
+    writeFileSync(join(root, 'models', 'cube.js'), 'module.exports = {}')
+    const { appServer, frameServer, url } = await startLocal({
+      appDir: root, frameDir: join(root, 'frame'), modelDir: join(root, 'models'),
+      relayHandler: createRelayHandler({ allowlist: {}, trustedOrigins: [] }),
+      port: 0,
+    })
+    const { port } = new URL(url)
+    try {
+      const status = await new Promise((resolve, reject) => {
+        http.get({ host: '127.0.0.1', port, path: '/models/cube.js', headers: { host: `evil.test:${port}`, 'sec-fetch-site': 'same-origin' } }, (res) => {
+          res.resume()
+          resolve(res.statusCode)
+        }).on('error', reject)
+      })
+      expect(status).toBe(403)
+    } finally {
+      appServer.close(); frameServer.close()
+    }
+  })
+
+  it('serves the static branch cross-origin', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'jscad-local-'))
+    mkdirSync(join(root, 'frame'), { recursive: true })
+    mkdirSync(join(root, 'models'), { recursive: true })
+    writeFileSync(join(root, 'index.html'), '<h1>app</h1>')
+    const { appServer, frameServer, url } = await startLocal({
+      appDir: root, frameDir: join(root, 'frame'), modelDir: join(root, 'models'),
+      relayHandler: createRelayHandler({ allowlist: {}, trustedOrigins: [] }),
+      port: 0,
+    })
+    try {
+      const res = await fetch(`${url}/index.html`, { headers: { origin: 'https://evil.test' } })
+      expect(res.status).toBe(200)
+      expect(res.headers.get('access-control-allow-origin')).toBe('*')
     } finally {
       appServer.close(); frameServer.close()
     }

@@ -86,12 +86,12 @@ const readBody = async (req, max) => {
 }
 
 // A DNS-rebound page is same-origin to itself, so its requests name a foreign Host.
-const appHosts = (appOrigin) => {
+export const appHosts = (appOrigin) => {
   const { port } = new URL(appOrigin)
   return new Set([`localhost:${port}`, `127.0.0.1:${port}`])
 }
 
-const fromApp = (req, appOrigin, hosts) => {
+export const fromApp = (req, appOrigin, hosts) => {
   if (!hosts.has(req.headers.host)) return false
   const origin = req.headers.origin
   if (origin === undefined) return req.headers['sec-fetch-site'] === 'same-origin'
