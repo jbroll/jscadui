@@ -13,6 +13,9 @@ APP="$WORKTREE/apps/jscad-web"
 
 # shellcheck source=ci/lib/bootstrap.sh
 . "$WORKTREE/ci/lib/bootstrap.sh"
+# No sibling OpenJSCAD.org checkout on the CI host, and its docs build is not
+# needed here; skip docs so the app's frame bundles still build.
+export JSCAD_SKIP_DOCS=1
 # ALL.js grids are gitignored; a cached host with current fetch-deps records
 # skips organize-corpus, so grids regenerates them. The suites import the
 # @jscadui/* esm outputs the workspace build writes.

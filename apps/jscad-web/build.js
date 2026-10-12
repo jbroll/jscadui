@@ -49,7 +49,10 @@ const htmlFilter = {
 }
 
 // *************** read parameters **********************
-const { dev, port = Number(process.env.JSCAD_WEB_PORT) || 5120, serve:serveBuild=false, skipDocs=false } = parseArgs()
+const { dev, port = Number(process.env.JSCAD_WEB_PORT) || 5120, serve:serveBuild=false, skipDocs:skipDocsArg=false } = parseArgs()
+// CI has no sibling OpenJSCAD.org checkout to generate docs from, so its build
+// sets JSCAD_SKIP_DOCS; --skipDocs stays the explicit flag (ci/render).
+const skipDocs = skipDocsArg || process.env.JSCAD_SKIP_DOCS === '1'
 
 // The frame is a second origin. Its page bakes both: __APP_ORIGIN__ is the only
 // sender it answers, __RUN_ORIGIN__ is its own name in the CSP ('self' matches
