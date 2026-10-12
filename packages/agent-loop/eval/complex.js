@@ -33,13 +33,25 @@ export const connectedGroups = (bodies, grow = GROW_MM) => {
   return new Set(bodies.map((_, i) => find(i))).size
 }
 
+// The probe's body list is sliced at `MAX_BODIES`; when it was cut,
+// `bodiesCapped` is set and `bodyCount` carries the true number.
+const bodyCountOf = (probe) => {
+  if (probe?.bodiesCapped === true && Number.isInteger(probe.bodyCount) && probe.bodyCount >= 0) return probe.bodyCount
+  return Array.isArray(probe?.bodies) ? probe.bodies.length : 0
+}
+
+// True when the probe's list was cut: the flag, or a count past the listed bodies.
+const bodiesCapped = (probe, listed) =>
+  listed !== null && (probe?.bodiesCapped === true || (Number.isInteger(probe?.bodyCount) && probe.bodyCount > listed.length))
+
 export const harnessGates = ({ measure, solid, probe }, pieces = 1) => {
   const builds = isRecord(measure)
-  const groups = builds && Array.isArray(probe?.bodies) ? connectedGroups(probe.bodies) : 0
+  const listed = builds && Array.isArray(probe?.bodies) ? probe.bodies : null
+  const groups = listed ? connectedGroups(listed) : 0
   return [
     { name: 'builds', pass: builds },
     { name: 'watertight', pass: builds && solid?.watertight === true },
-    { name: 'connected', pass: groups >= 1 && groups <= pieces, groups },
+    { name: 'connected', pass: !bodiesCapped(probe, listed) && groups >= 1 && groups <= pieces, groups },
   ]
 }
 
@@ -95,7 +107,7 @@ const finiteDimensions = (dimensions) => (Array.isArray(dimensions) && dimension
 
 export const renderFacts = (graded) => ({
   dimensions: finiteDimensions(graded.measure?.dimensions),
-  bodies: Array.isArray(graded.probe?.bodies) ? graded.probe.bodies.length : 0,
+  bodies: bodyCountOf(graded.probe),
 })
 
 export const renderRecord = (graded, views) => ({ meshSha256: meshSha256(graded.mesh.parts), facts: renderFacts(graded), views })

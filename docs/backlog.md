@@ -16,7 +16,6 @@ at is the requirement text. Reserved for new findings: `SEC3+`, `PRJ5+`,
 | PRJ4 | Projects and storage | High | `apps/jscad-web/src/storage/local.js` |
 | API4 | Chat API help | Low | `.deps-cache/jscad-fluent` (external) |
 | API11 | Chat API help | Low | `packages/agent-loop/eval/sandbox.js` |
-| API12 | Chat API help | Low | `packages/agent-loop/eval/complex.js` |
 | API13 | Chat API help | Low | `apps/jscad-web/src/apiIndex.js` |
 | API14 | Chat API help | Low | `apps/jscad-web/src/storage/session.js` |
 | API15 | Remaining issues | Low | `packages/agent-loop/src/context.js` |
@@ -401,12 +400,6 @@ model with `display-check.js --engine jscad`.
   missing or floating parts made it call broken models intact. No gate
   catches an open top either; a gate on the top cut, a ring where a closed
   object has a solid, would, for requests whose objects are closed.
-- The complex grader reads the `bodies` probe's truncated list. A probe with
-  more than 64 bodies reports `bodyCount` and `bodiesCapped`, but
-  `eval/complex.js` still reads `bodies.length` for the render facts' part
-  count and groups only the listed bodies, so such a model would grade as
-  fewer parts. Read `bodyCount` when `bodiesCapped` is set. No complex fixture
-  comes near the cap.
 - Calibrate the complex grader (agent-loop eval). Against the 39 reviewed
   runs in the evals repo (`calibration/2026-09-30T230517Z-labels.json`,
   labelled from renders, not yet reviewed by a person) the first grader agreed

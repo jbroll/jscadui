@@ -96,6 +96,25 @@ describe('harnessGates', () => {
   it('fails every gate for a project that did not build', () => {
     expect(harnessGates(NO_GRADE()).map((g) => g.pass)).toEqual([false, false, false])
   })
+
+  it('fails connected on a capped list that would pass on its listed bodies', () => {
+    const listed = Array.from({ length: 64 }, () => unit)
+    const probe = { bodies: listed, bodyCount: 70, bodiesCapped: true }
+    expect(harnessGates(built(listed)).at(-1)).toEqual({ name: 'connected', pass: true, groups: 1 })
+    expect(harnessGates({ ...built(listed), probe }).at(-1)).toEqual({ name: 'connected', pass: false, groups: 1 })
+  })
+
+  it('reads the cap from a body count past the listed bodies', () => {
+    const listed = [unit]
+    const probe = { bodies: listed, bodyCount: 70 }
+    expect(harnessGates({ ...built(listed), probe }).at(-1)).toEqual({ name: 'connected', pass: false, groups: 1 })
+  })
+
+  it('ignores a forged body count on a capped probe', () => {
+    const listed = [unit, box([5, 5, 5], [6, 6, 6])]
+    const probe = { bodies: listed, bodyCount: 'many', bodiesCapped: true }
+    expect(harnessGates({ ...built(listed), probe }).at(-1)).toEqual({ name: 'connected', pass: false, groups: 2 })
+  })
 })
 
 describe('complexGates', () => {
@@ -151,6 +170,16 @@ describe('scoring', () => {
 
   it('rounds the render facts', () => {
     expect(renderFacts(built([unit, unit]))).toEqual({ dimensions: [10, 21, 30], bodies: 2 })
+  })
+
+  it('reads the true body count when the probe list was capped', () => {
+    const capped = { measure: { dimensions: [10, 20, 30] }, probe: { bodies: [unit], bodyCount: 70, bodiesCapped: true } }
+    expect(renderFacts(capped)).toEqual({ dimensions: [10, 20, 30], bodies: 70 })
+  })
+
+  it('ignores a forged body count beside a capped list', () => {
+    const capped = { measure: { dimensions: [10, 20, 30] }, probe: { bodies: [unit], bodyCount: 'many', bodiesCapped: true } }
+    expect(renderFacts(capped)).toEqual({ dimensions: [10, 20, 30], bodies: 1 })
   })
 
   it('counts bodies only when the probe forged one is an array', () => {

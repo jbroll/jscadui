@@ -954,7 +954,10 @@ all. A complex fixture is graded with the `bodies` probe added to its own
   with at most `pieces` groups and reports `groups`. A roof lifted off its
   walls or wheels hanging below their axles make a second group. It tests for
   parts that float clear, not for contact: a part inside another's box joins
-  it without touching it.
+  it without touching it. When the probe capped the body list, the listed
+  bodies cannot show the whole model's grouping, so `connected` fails rather
+  than pass on the listed bodies alone; `groups` still counts only the listed
+  bodies, so it never claims more groups than they support.
 
 Geometry is 2 when the verdict is success and every gate passes, 1 when the
 verdict is success and a gate fails, and 0 when the verdict is failure or the
@@ -1104,8 +1107,9 @@ providers ([Provider keys](#provider-keys)):
 
 The user's messages are the run's `userMessages`. `{W} x {D} x {H}` comes from
 the run's `render.facts.dimensions`, rounded to whole mm; `{B}` from
-`render.facts.bodies` (the bodies-probe count, only when it is a positive
-integer); `{G}` from the `connected` gate's `groups`, which merges bodies
+`render.facts.bodies` (the bodies-probe count, the true `bodyCount` when the
+list was capped, only when it is a positive integer); `{G}` from the `connected`
+gate's `groups`, which merges bodies
 whose bounding boxes touch — a removable lid resting on a box is 2 bodies in
 1 group. Each clause is left out independently when its value is missing
 (the `in` before `{G}` goes with it), and the whole `Measured result` line
