@@ -51,7 +51,7 @@ describe('API index loading', () => {
 
   it('keeps the index out of the app entry bundle', async () => {
     const esbuild = await import('esbuild')
-    const { esbDef } = await import('../src_build/esbuildUtil.js')
+    const { esbDef } = await import('@jscadui/demo-utils/src/esbuildUtil.js')
     const { rawImportPlugin } = await import('../src_build/rawImport.js')
     const { metafile } = await esbuild.build({
       ...esbDef,

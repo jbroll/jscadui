@@ -1,6 +1,6 @@
 import { RenderRegl } from '@jscadui/render-regl'
 
-import { observeResize } from './observeResize.js'
+import { observeResize } from '@jscadui/demo-utils/src/observeResize.js'
 
 export const initTestRegl = (regl, el) => {
   const JscadReglViewer = RenderRegl(regl)

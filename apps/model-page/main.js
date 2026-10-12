@@ -5,7 +5,7 @@ import { makeAxes, makeGrid } from '@jscadui/scene'
 import * as themes from '@jscadui/themes'
 
 import { genParams } from '@jscadui/params'
-import { initTestThree } from './src/testThree.js'
+import { initTestThree } from '@jscadui/demo-utils/src/testThree.js'
 
 import './src/main.css'
 

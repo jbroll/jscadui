@@ -2,7 +2,7 @@ import * as THREE from '@jscadui/bundle-three'
 import { RenderThree } from '@jscadui/render-three'
 import { makeAxes, makeGrid } from '@jscadui/scene'
 import { light as theme } from '@jscadui/themes'
-import { observeResize } from './observeResize'
+import { observeResize } from '@jscadui/demo-utils/src/observeResize.js'
 import { Gizmo } from '@jscadui/html-gizmo'
 
 import _style from "./main.css";

@@ -1,7 +1,7 @@
 import { addScript } from "./addScript"
 import { initTestBabylon } from "./testBabylon"
 import { initTestRegl } from "./testRegl"
-import { initTestThree } from "./testThree"
+import { initTestThree } from "@jscadui/demo-utils/src/testThree.js"
 
 export const availableEngines = {
   three:{

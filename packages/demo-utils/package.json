@@ -1,0 +1,22 @@
+{
+  "name": "@jscadui/demo-utils",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared helpers for the JSCAD demo apps",
+  "main": "src/observeResize.js",
+  "files": [
+    "src"
+  ],
+  "dependencies": {
+    "@codemirror/commands": "^6.2.5",
+    "@codemirror/lang-javascript": "^6.2.1",
+    "@codemirror/view": "^6.18.1",
+    "@jscadui/render-threejs": "*",
+    "@jscadui/scene": "*",
+    "@jsx6/build": "0.2.0",
+    "codemirror": "^6.1.0",
+    "esbuild": "^0.27.2"
+  },
+  "license": "MIT"
+}

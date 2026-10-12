@@ -10,7 +10,7 @@ import { genExamplesManifest } from './src_build/genExamplesManifest.js'
 import { hashAssetGraph } from './src_build/hashAssets.js'
 import { relayOrigin } from './src_build/relayOrigin.js'
 
-import { buildBundle, buildOne } from './src_build/esbuildUtil.js'
+import { buildBundle, buildOne } from '@jscadui/demo-utils/src/esbuildUtil.js'
 import { rawImportPlugin } from './src_build/rawImport.js'
 
 // Read package.json for about page

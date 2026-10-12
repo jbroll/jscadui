@@ -5,7 +5,7 @@ import { makeAxes, makeGrid, downloadBlob } from '@jscadui/scene'
 import * as themes from '@jscadui/themes'
 
 import { genParams } from '../../packages/params-form/src/params'
-import { initTestThree } from './src/testThree'
+import { initTestThree } from '@jscadui/demo-utils/src/testThree.js'
 
 /** @typedef {import('@jscadui/worker').JscadWorker} JscadWorker*/
 

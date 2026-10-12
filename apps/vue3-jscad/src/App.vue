@@ -72,12 +72,12 @@ import { OrbitControl } from '@jscadui/orbit';
 import { genParams } from '@jscadui/params';
 import { messageProxy } from '@jscadui/postmessage';
 
-import * as editor from './jscad/editor.js'
-import * as engine from './jscad/engine.js'
-import * as exporter from './jscad/exporter.js'
-import * as menu from './jscad/menu.js'
-import * as remote from './jscad/remote.js'
-import { ViewState } from './jscad/viewState.js';
+import * as editor from '@jscadui/demo-utils/src/jscad/editor.js'
+import * as engine from '@jscadui/demo-utils/src/jscad/engine.js'
+import * as exporter from '@jscadui/demo-utils/src/jscad/exporter.js'
+import * as menu from '@jscadui/demo-utils/src/jscad/menu.js'
+import * as remote from '@jscadui/demo-utils/src/jscad/remote.js'
+import { ViewState } from '@jscadui/demo-utils/src/jscad/viewState.js';
 
 /** @typedef {import('@jscadui/worker').JscadWorker} JscadWorker*/
 

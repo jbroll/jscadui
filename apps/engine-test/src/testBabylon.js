@@ -1,6 +1,6 @@
 import { RenderBabylon } from '@jscadui/render-babylonjs'
 
-import { observeResize } from './observeResize.js'
+import { observeResize } from '@jscadui/demo-utils/src/observeResize.js'
 
 export const initTestBabylon = (BABYLON, el) => {
   const JscadBabylonViewer = RenderBabylon(BABYLON)

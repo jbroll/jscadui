@@ -2,7 +2,7 @@ import { copyTask, parseArgs } from '@jsx6/build'
 import { mkdirSync } from 'fs'
 import liveServer from 'live-server'
 
-import { buildBundle, buildOne } from './esbuildUtil.js'
+import { buildBundle, buildOne } from '@jscadui/demo-utils/src/esbuildUtil.js'
 import { serve } from './serve.js'
 
 // *************** read parameters **********************
@@ -19,11 +19,12 @@ mkdirSync(outDir, { recursive: true })
 copyTask('static', outDir, { include: [], exclude: [], watch, filters: [] })
 
 /**************************** BUILD JS that is static *************/
-await buildBundle(assetDir, 'bundle.threejs.js', { globalName: 'THREE' })
-await buildBundle(assetDir, 'bundle.jscad_modeling.js', { format: 'cjs' })
-await buildBundle(assetDir, 'bundle.jscad_io.js', { format: 'cjs' })
+await buildBundle(assetDir, 'bundle.threejs.js', { globalName: 'THREE', srcDir: 'src/bundle' })
+await buildBundle(assetDir, 'bundle.jscad_modeling.js', { format: 'cjs', srcDir: 'src/bundle' })
+await buildBundle(assetDir, 'bundle.jscad_io.js', { format: 'cjs', srcDir: 'src/bundle' })
 await buildBundle(assetDir, 'bundle.jscadui.transform-babel.js', {
   globalName: 'jscadui_transform_babel',
+  srcDir: 'src/bundle',
 })
 
 /**************************** BUILD JS THAT can change and watch if in dev mode *************/

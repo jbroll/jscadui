@@ -2,7 +2,7 @@ import { copyTask, parseArgs } from '@jsx6/build'
 import { mkdirSync } from 'fs'
 import liveServer from 'live-server'
 
-import { buildBundle, buildOne } from './src_build/esbuildUtil.js'
+import { buildBundle, buildOne } from '@jscadui/demo-utils/src/esbuildUtil.js'
 
 // *************** read parameters **********************
 const { dev, port = 5121 } = parseArgs()

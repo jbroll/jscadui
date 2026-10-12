@@ -25,7 +25,6 @@ at is the requirement text. Reserved for new findings: `SEC3+`, `PRJ6+`,
 | REF7 | Refactoring | Med | out of scope (`main.js`, `paramsUI.js`) |
 | REF9 | Refactoring | Med | out of scope (`src_frame`, `frameSetup.js`) |
 | REF10 | Refactoring | Med | out of scope (model runners) |
-| REF18 | Refactoring | Low | demo-app copies: `observeResize.js`, `testThree.js`, `esbuildUtil.js`, `apps/vue3-jscad/src/jscad/` |
 
 ## Deploy
 
@@ -515,11 +514,6 @@ from the 2026-10-01 review.
   `setGlobalFn` between in-process runs (`:665`, `:780`).
 - **Leftovers.** Review-tracker labels ("C6 fix", "M11 fix") remain in
   source files; remove them as each file is touched.
-- **Shared demo-app homes.** `observeResize.js` has 4 identical copies and
-  `testThree.js` 3, `esbuildUtil.js` has 4 drifted ones, and
-  `apps/vue3-jscad/src/jscad/` holds 12 older copies of jscad-web modules.
-  Every copy has a live consumer, so dedupe them into one shared home per
-  module rather than deleting them.
 
 ## Remaining issues
 

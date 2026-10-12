@@ -1,5 +1,7 @@
 import { RenderThreejs } from '@jscadui/render-threejs'
 
+import { observeResize } from '../observeResize.js'
+
 // import * as THREE from 'three'
 
 export const init = async () => {
@@ -11,17 +13,6 @@ export const init = async () => {
   observeResize(el, evt => viewer.resize(evt.contentRect))
 
   return viewer
-}
-
-const observeResize = (el, listener) => {
-  // ResizeObserver is better than window resize as it can be used on any element
-  // this is a short/compact/simple implementation that uses a new ResizeObserver each time.
-  // which is fine probably up-to 50 of them. There is a performance hit if too many are created.
-  // for an implementation that can handle more take a look at https://github.com/hrgdavor/jsx6/tree/main/libs/dom-observer
-  const resizeObserver = new ResizeObserver(entries => {
-    listener(entries[0])
-  })
-  resizeObserver.observe(el)
 }
 
 const addScript = async (source, module = false) => {

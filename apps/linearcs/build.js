@@ -4,7 +4,7 @@ import { existsSync as _existsSync, mkdirSync } from 'fs'
 import liveServer from 'live-server'
 import {serve} from './serve.js'
 
-import { buildBundle as _buildBundle, buildOne } from './src_build/esbuildUtil.js'
+import { buildBundle as _buildBundle, buildOne } from '@jscadui/demo-utils/src/esbuildUtil.js'
 
 // *************** read parameters **********************
 const { dev, port = 5131, serve:serveBuild=false} = parseArgs()
