@@ -3,7 +3,8 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["esm/**", "cjs/**", "build/**", "build_dev/**"]
+      "outputs": ["esm/**", "cjs/**", "build/**", "build_dev/**"],
+      "env": ["JSCAD_SKIP_DOCS"]
     },
     "test": {
       "dependsOn": ["^build"],
