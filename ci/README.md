@@ -55,6 +55,20 @@ ci/lib/bootstrap.sh [--root DIR] [--dry-run] STEP...
 The npm scripts call the helper rather than the other way round: callers need
 different subsets, which one npm script per subset would not express.
 
+Two host details carry the entries:
+
+- npm 12.2.0 (Void) ships `allow-remote` and `allow-git` defaulting to `none`,
+  so every install passes `--allow-remote=all --allow-git=all`: `bootstrap` for
+  its `install`/`ci` steps, and the entries that install directly — `ci/grader-validate`,
+  `ci/regrade`, `ci/eval-complex`, and the `ci/web` server install. The workspace
+  needs a registry transitive (`@jscad/modeling`) and `openscad-parser`, a
+  `git+https` dependency of `packages/openscad`.
+- `apps/jscad-web/build.js` generates API docs from a sibling `OpenJSCAD.org`
+  checkout, which the CI host lacks, so `ci/web` and `ci/render` set
+  `JSCAD_SKIP_DOCS=1` (turbo forwards it to the `build` task). `jscad-web` also
+  depends on the `rowboat` repo by `file:../../../rowboat/...`, linked as a
+  sibling through `CI_DEPS="rowboat"` in `ci/simple-ci.conf`.
+
 ## Parts catalog (`ci/parts`)
 
 `sci push jscadui/parts` checks every `packages/parts/catalog/` record against
