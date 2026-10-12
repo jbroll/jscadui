@@ -1243,10 +1243,16 @@ and an unlisted sibling resolves local-first then rowboat.
 never imports `schema.js`, whose zod types the root TS 4.9 gate cannot parse.
 
 The project manager (`src/storage/projects.js`) routes each project to its
-owner backend and keeps a mode map. On load the app opens the most recently
-updated project, skipping the launcher's `disk` row (which opens from its own
-`#/models` hash). Flipping a project's mode copies it to the other backend and
-deletes the source row, so it is listed once; `listAll` also dedupes by id.
+owner backend and keeps a mode map. On a plain load the app reopens the most
+recently updated project (`shouldRestoreBootProject` in
+`src/projectFiles.js`), skipping the launcher's `disk` row (which opens from
+its own `#/models` hash). A URL-driven load wins over the restore: a `#/...`
+route already loaded its own script, and a `#/models/<entry>` disk entry opens
+by its hash, so neither is replaced by a stored project. The boot-created
+`default` project seeds its two-cars `main.js` together with the sibling that
+example requires, so reopening it resolves the require as a project. Flipping
+a project's mode copies it to the other backend and deletes the source row, so
+it is listed once; `listAll` also dedupes by id.
 Delete removes the project, its versions and its conversation from the owner
 backend (the `disk` project cannot be deleted). Signing out stops the sync loop
 and closes the rowboat store. The drawer labels the modes This device, Synced

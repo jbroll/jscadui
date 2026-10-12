@@ -26,6 +26,7 @@ import { boundingBox } from '@jscadui/format-common'
 
 // Local modules
 import defaultCode from './examples/jscad/01-two-cars.example.js'
+import hierarchicalCarCode from './examples/jscad/02-hierarchical-car.example.js'
 import { addV1Shim } from './src/addV1Shim.js'
 import * as editor from './src/editor.js'
 import { confirm } from './src/ui/dialog.js'
@@ -56,7 +57,7 @@ import { createSession } from './src/storage/session.js'
 import { initProjects } from './src/projects.js'
 import { extractEntries, readAsText, readDir } from '@jscadui/fs-provider'
 import { createFrame, createJobTracker } from './src/frameSetup.js'
-import { createProjectSwitch, isRecordablePath, loadSource, pickBootProject, projectPathOf, toEditorFiles } from './src/projectFiles.js'
+import { createProjectSwitch, defaultProjectFiles, isRecordablePath, loadSource, pickBootProject, projectPathOf, shouldRestoreBootProject, toEditorFiles } from './src/projectFiles.js'
 import { createDiskProject, diskEntryFromHash, DISK_ID } from './src/diskProject.js'
 import { createScriptRuns, sendScript } from './src/scriptRuns.js'
 import { createStreamRuns } from './src/streamRuns.js'
@@ -1000,11 +1001,11 @@ byId('api-help-btn')?.addEventListener('click', () => {
 
 // ============== Project Panel ==============
 const bootProjects = await projectManager.listAll()
-if (bootProjects.length === 0) {
-  currentProjectId = (await projectManager.createProject('default', { entry: 'main.js', files: { 'main.js': defaultCode } })).id
-} else {
+if (shouldRestoreBootProject({ hasRemoteScript, diskEntry, projects: bootProjects })) {
   const bootId = pickBootProject(bootProjects)
   if (bootId) await switchProject(bootId).catch(setError)
+} else if (bootProjects.length === 0) {
+  currentProjectId = (await projectManager.createProject('default', { entry: 'main.js', files: defaultProjectFiles({ main: defaultCode, hierarchicalCar: hierarchicalCarCode }) })).id
 }
 // Boot is the baseline: everything the app itself created on load is not
 // "work", so the reload warning keys off writes that came after it.
@@ -1033,7 +1034,7 @@ projectPanel = initProjects({
         await switchProject(next).catch(setError)
         await projectPanel.select(next)
       } else {
-        const created = await projectManager.createProject('Untitled', { entry: 'main.js', files: { 'main.js': defaultCode } })
+        const created = await projectManager.createProject('Untitled', { entry: 'main.js', files: defaultProjectFiles({ main: defaultCode, hierarchicalCar: hierarchicalCarCode }) })
         await switchProject(created.id).catch(setError)
         await projectPanel.select(created.id)
       }

@@ -38,6 +38,29 @@ export const loadSource = ({ url, projectId }) =>
 export const pickBootProject = (projects) => projects.find((p) => p.mode !== 'disk')?.id ?? null
 
 /**
+ * Whether boot reopens the last-used stored project. A URL-driven load names
+ * its own content and must win: a `#/...` hash route loaded its script through
+ * `remote`, and a launcher `#/models` disk entry opens by its own hash. Only a
+ * plain load with a stored project to restore goes on to `pickBootProject`.
+ * @param {{hasRemoteScript?: boolean, diskEntry?: string | null, projects?: unknown[]}} state
+ */
+export const shouldRestoreBootProject = ({ hasRemoteScript = false, diskEntry = null, projects = [] } = {}) =>
+  !hasRemoteScript && diskEntry === null && projects.length > 0
+
+/**
+ * The files a seeded default project starts with. `main.js` is the two-cars
+ * example, which requires its sibling `./02-hierarchical-car.example.js`; the
+ * sibling travels with it so the stored project resolves the require and
+ * builds as a project, not only as the example URL whose directory has the
+ * file.
+ * @param {{main: string, hierarchicalCar: string}} sources
+ */
+export const defaultProjectFiles = ({ main, hierarchicalCar }) => ({
+  'main.js': main,
+  '02-hierarchical-car.example.js': hierarchicalCar,
+})
+
+/**
  * The frame's worker is on another origin, so the file service worker cannot
  * serve it: a service worker only sees fetches from clients it controls. The
  * project travels in the message instead.

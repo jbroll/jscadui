@@ -220,7 +220,9 @@ version history (restore appends a new row), a mode toggle labelled
 This device or Synced (rowboat needs sign-in; a launcher model directory shows
 Folder and cannot be toggled), and a Delete control (a folder-backed project
 cannot be deleted). The app opens the most recently updated project on load,
-and a failed rowboat sync shows a status line with a Retry. Dropping files onto
+unless a `#/...` route or a launcher `#/models` entry is opening: each loads
+its own content and wins over the stored project. A failed rowboat sync shows a
+status line with a Retry. Dropping files onto
 a project row merges them as a subfolder; dropping onto the page creates a
 project. The full-screen drop hint is pointer-transparent, so a drop over a
 project row still reaches the row's merge handler. Drawer tabs stack vertically

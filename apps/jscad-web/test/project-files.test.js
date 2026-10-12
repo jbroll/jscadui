@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
-import { collectProjectFiles, createProjectSwitch, isBinaryPath, isRecordablePath, loadSource, pickBootProject, projectPathOf, replaceProjectFiles, toEditorFiles } from '../src/projectFiles.js'
+import { readFileSync } from 'node:fs'
+import { collectProjectFiles, createProjectSwitch, defaultProjectFiles, isBinaryPath, isRecordablePath, loadSource, pickBootProject, projectPathOf, replaceProjectFiles, shouldRestoreBootProject, toEditorFiles } from '../src/projectFiles.js'
 
 // Mirrors what the real Cache API does: addToCache() calls cache.put(new
 // Request(path), ...) with a leading-slash, project-relative path, which
@@ -167,5 +168,48 @@ describe('pickBootProject', () => {
   it('is null with no projects or only the disk project', () => {
     expect(pickBootProject([])).toBeNull()
     expect(pickBootProject([{ id: 'disk', mode: 'disk' }])).toBeNull()
+  })
+})
+
+describe('shouldRestoreBootProject', () => {
+  const stored = [{ id: 'a', mode: 'local' }]
+
+  it('skips the restore when a hash route already loaded its own script', () => {
+    expect(shouldRestoreBootProject({ hasRemoteScript: true, diskEntry: null, projects: stored })).toBe(false)
+  })
+
+  it('skips the restore when a launcher disk entry is opening', () => {
+    expect(shouldRestoreBootProject({ hasRemoteScript: false, diskEntry: 'src/main.js', projects: stored })).toBe(false)
+  })
+
+  it('restores the most recent stored project when no URL drives the load', () => {
+    expect(shouldRestoreBootProject({ hasRemoteScript: false, diskEntry: null, projects: stored })).toBe(true)
+  })
+
+  it('restores nothing when there is no stored project', () => {
+    expect(shouldRestoreBootProject({ hasRemoteScript: false, diskEntry: null, projects: [] })).toBe(false)
+  })
+})
+
+describe('defaultProjectFiles', () => {
+  const read = (name) => readFileSync(new URL(`../examples/jscad/${name}`, import.meta.url), 'utf8')
+  const seed = () => defaultProjectFiles({ main: read('01-two-cars.example.js'), hierarchicalCar: read('02-hierarchical-car.example.js') })
+
+  it('seeds main.js with the default example and its required sibling under the spec it requires', () => {
+    const main = read('01-two-cars.example.js')
+    const files = seed()
+    const [, , spec] = main.match(/require\((['"])\.\/(.+?)\1\)/)
+    expect(files['main.js']).toBe(main)
+    expect(files[spec]).toBe(read('02-hierarchical-car.example.js'))
+  })
+
+  it('resolves every relative require in the seeded project so it builds off its own URL', () => {
+    const files = seed()
+    const relative = []
+    for (const source of Object.values(files)) {
+      for (const match of source.matchAll(/require\(\s*(['"])\.\/(.+?)\1\s*\)/g)) relative.push(match[2])
+    }
+    expect(relative.length).toBeGreaterThan(0)
+    for (const spec of relative) expect(Object.keys(files)).toContain(spec)
   })
 })
