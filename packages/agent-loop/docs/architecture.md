@@ -175,8 +175,11 @@ empty; no build yet.`), since without it models opened most runs with a
 `list` and guessed at files to read. It ends saying that every message
 carries it, so `list` is rarely needed (`PROJECT_NOTE`); the `list`
 description says the same, since Muse still listed a project the header had
-just called empty. The files and the report sit outside the 24,000-character history
-budget.
+just called empty. Both sit outside the 24,000-character history budget. The
+files have their own 24,000-character budget (`PROJECT_BUDGET`); past it the
+files mentioned longest ago go first, ordered by the `toolCalls[].input.path`
+their turns carry, so those the model touched most recently stay. Binary files
+are never listed.
 
 ## Model code in the eval
 

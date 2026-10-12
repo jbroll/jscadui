@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildMessages, CONTEXT_BUDGET, EMPTY_PROJECT, PROJECT_NOTE } from '../src/context.js'
+import { buildMessages, CONTEXT_BUDGET, EMPTY_PROJECT, PROJECT_BUDGET, PROJECT_NOTE } from '../src/context.js'
 
 const turn = (n, size) => [
   { role: 'user', content: `u${n}`.padEnd(size / 2, '.') },
@@ -87,5 +87,56 @@ describe('buildMessages', () => {
     const [, project] = buildMessages({ systemPrompt: 'S', files: { 'main.js': 'M' }, message: 'new' })
     expect(project.content).not.toContain('Last build')
     expect(project.content).toContain('The project has not been built yet.')
+  })
+})
+
+describe('project files budget', () => {
+  const mention = (path) => ({ role: 'assistant', content: '', toolCalls: [{ id: path, name: 'write', input: { path } }] })
+  const three = { 'a.js': 'A'.repeat(10), 'b.js': 'B'.repeat(10), 'c.js': 'C'.repeat(10) }
+  const mentioned = [mention('a.js'), mention('b.js'), mention('c.js')]
+
+  it('gives the project files block its own 24,000 character budget', () => {
+    expect(PROJECT_BUDGET).toBe(24_000)
+  })
+
+  it('drops the oldest-mentioned files first when the block is over its own budget', () => {
+    const [, project] = buildMessages({ systemPrompt: 'S', transcript: mentioned, files: three, message: 'new', projectBudget: 100 })
+    expect(project.content).toContain('### b.js')
+    expect(project.content).toContain('### c.js')
+    expect(project.content).not.toContain('### a.js')
+  })
+
+  it('keeps the project note when the files block is trimmed', () => {
+    const [, project] = buildMessages({ systemPrompt: 'S', transcript: mentioned, files: three, message: 'new', projectBudget: 100 })
+    expect(project.content.endsWith(`\n\n${PROJECT_NOTE}`)).toBe(true)
+  })
+
+  it('leaves every file in place when the block fits its budget', () => {
+    const [, project] = buildMessages({ systemPrompt: 'S', files: { 'a.js': 'A', 'b.js': 'B' }, message: 'new' })
+    expect(project.content).toContain('### a.js\n\n```js\nA\n```')
+    expect(project.content).toContain('### b.js\n\n```js\nB\n```')
+  })
+
+  it('skips binary files when trimming the block', () => {
+    const [, project] = buildMessages({ systemPrompt: 'S', files: { 'part.stl': new ArrayBuffer(4), 'main.js': 'M'.repeat(200) }, message: 'new', projectBudget: 40 })
+    expect(project.content).toContain('### main.js')
+    expect(project.content).not.toContain('### part.stl')
+  })
+
+  it('drops every file older than a mentioned one that does not fit', () => {
+    const files = { 'a.js': 'A', 'b.js': 'B'.repeat(100), 'c.js': 'C' }
+    const transcript = [mention('a.js'), mention('b.js'), mention('c.js')]
+    const project = buildMessages({ systemPrompt: 'S', transcript, files, message: 'new', projectBudget: 100 }).at(-2)
+    expect(project.content).toContain('### c.js')
+    expect(project.content).not.toContain('### a.js')
+  })
+
+  it('ranks never-mentioned files after mentioned ones and alphabetically among themselves', () => {
+    const files = { 'z.js': 'Z'.repeat(10), 'a.js': 'A'.repeat(10), 'm.js': 'M'.repeat(10) }
+    const transcript = [{ role: 'user', content: 'start' }, mention('z.js')]
+    const project = buildMessages({ systemPrompt: 'S', transcript, files, message: 'new', projectBudget: 90 }).at(-2)
+    expect(project.content).toContain('### z.js')
+    expect(project.content).toContain('### a.js')
+    expect(project.content).not.toContain('### m.js')
   })
 })

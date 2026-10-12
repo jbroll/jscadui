@@ -17,7 +17,6 @@ at is the requirement text. Reserved for new findings: `SEC3+`, `PRJ6+`,
 | API11 | Chat API help | Low | `packages/agent-loop/eval/sandbox.js` |
 | PRJ5 | Projects and storage | Low | `apps/jscad-web/scripts/local/fsApi.js` |
 | API13 | Chat API help | Low | `apps/jscad-web/src/apiIndex.js` |
-| API15 | Remaining issues | Low | `packages/agent-loop/src/context.js` |
 | REF1 | Refactoring | High | breaking, out of scope |
 | REF3 | Refactoring | Med | out of scope (`packages/worker`) |
 | REF4 | Refactoring | Low | out of scope (`packages/require`) |
@@ -576,10 +575,6 @@ from the 2026-10-01 review.
   static warnings beside the runtime ones. Static checks see only inline
   literals; the runtime wrapper still covers built or spread options.
   (`apps/jscad-web/src/editor.js`, `packages/agent-loop/api/index.json`)
-- **Trim project files in chat context (agent-loop).** `buildMessages` sends
-  every text file of the project outside the 24,000-character budget. Large
-  projects need trimming, most recently mentioned files first.
-  (`packages/agent-loop/src/context.js`)
 - **Production relay chat logging (jscad-web server).** Only the launcher
   relay logs conversations. Logging in `server/src/relay` needs the user's
   opt-in before anything is written.

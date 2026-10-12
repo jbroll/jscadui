@@ -25,9 +25,14 @@ const el = (tag, className, text) => {
 const STOPPED_NOTE = '[stopped by the user]'
 
 // A stopped reply may be empty, and providers refuse an empty assistant message.
-// Stored reasoning stays on the page: the model never gets it back.
-const forModel = (m) =>
-  m.stopped ? { role: 'assistant', content: m.content ? `${m.content}\n\n${STOPPED_NOTE}` : STOPPED_NOTE } : { role: m.role, content: m.content }
+// Stored reasoning stays on the page: the model never gets it back. A reply's
+// tool calls come through, since `buildMessages` reads their paths for recency.
+const forModel = (m) => {
+  const base = { role: m.role, content: m.content }
+  if (m.stopped) base.content = m.content ? `${m.content}\n\n${STOPPED_NOTE}` : STOPPED_NOTE
+  if (m.role === 'assistant' && m.toolCalls?.length > 0) base.toolCalls = m.toolCalls
+  return base
+}
 
 const thinkingLabel = (seconds) => `Thinking… ${seconds}s`
 const thoughtLabel = (seconds) => `Thought for ${seconds}s`

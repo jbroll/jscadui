@@ -788,6 +788,27 @@ describe('conversation context', () => {
     expect(messages.at(-1)).toEqual({ role: 'user', content: 'second' })
   })
 
+  it('keeps stored tool calls in the transcript so the context can rank project files', async () => {
+    const stored = [
+      { role: 'user', content: 'make a cube' },
+      { role: 'assistant', content: 'done', toolCalls: [{ id: 'c1', name: 'write', input: { path: 'cube.js' } }] },
+    ]
+    const runTurnFn = vi.fn(async () => ({ messages: [] }))
+    const { q, type } = openChat({
+      runTurnFn,
+      storage: { readConversation: async () => ({ messages: stored, updated: 1 }), writeConversation: vi.fn(async () => {}) },
+      projectId: 'p1',
+    })
+    await vi.waitFor(() => expect(q('.chat-msg.assistant')?.textContent).toBe('done'))
+    type('again')
+    await vi.waitFor(() => expect(runTurnFn).toHaveBeenCalledTimes(1))
+    expect(runTurnFn.mock.calls[0][0].conversation.messages[2]).toEqual({
+      role: 'assistant',
+      content: 'done',
+      toolCalls: [{ id: 'c1', name: 'write', input: { path: 'cube.js' } }],
+    })
+  })
+
   it("sends the project's last build report after its files", async () => {
     document.body.innerHTML = '<div id="chat"></div>'
     const container = document.getElementById('chat')
