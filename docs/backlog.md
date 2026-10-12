@@ -91,14 +91,6 @@ under `apps/jscad-web` unless given in full.
   bound, but the key itself is still spoofable. Fix: `trust proxy` `'loopback'`
   or key on `X-Real-IP`, and point better-auth's IP header at the same value.
   A deploy decision — `deploy.sh` is not in this repo.
-- **The launcher's `/models/` route skips the Host/Origin check.** The
-  dotfile and symlink-escape holes are closed (`scripts/local/server.js` now
-  reuses `fsApi.js`'s `hiddenSegment` and `resolvesInside`, and resolves the
-  model dir's realpath first), but every `/models/` response still carries
-  `Access-Control-Allow-Origin: *` with no Host or Origin gate, unlike
-  `/api/fs` (`fsApi.js:89-99`). While `jscad ~/repo` runs, any page that can
-  reach 127.0.0.1:7377 can read a model file. Unverified: whether Chrome's
-  Local Network Access prompt blocks the cross-site fetch.
 - **No CSP or COOP on the app origin.** The deploy's header block (deploy.sh
   `modules/apache/build.sh:229-248`) sets neither, and `static/index.html`
   has no CSP meta. Device-mode API keys sit in `localStorage` as plain JSON
