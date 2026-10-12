@@ -187,9 +187,11 @@ ahead of the `use` requires and top-level assignments, so text measured at
 load time already sees the font. `j$.useFont` registers the bytes with
 jscad-text under the font's family and `family:style=Style` names. Each loader's
 `require` returns a font file as a `Uint8Array`: `bin/run-jscad.js` reads it from
-disk, and the web frame reads it as binary through `apps/jscad-web/src_frame/importData.js`. An
-unresolvable font file is a `FILE_NOT_FOUND` error, the same as any other `use`
-file, and no `require` is emitted for it. A font `use` in an included file is
+disk, and the web frame reads it as binary through `apps/jscad-web/src_frame/importData.js`. The
+transpiler reports an unresolvable font file as `FILE_NOT_FOUND` and emits no
+`require` for it. The browser frame's `scadHandler` warns and renders with the
+fallback font, as `bin/run-jscad.js` and OpenSCAD do; a missing `.scad` include
+stays fatal. A font `use` in an included file is
 not carried into the including file.
 
 ### Tail recursion

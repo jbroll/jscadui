@@ -18,7 +18,6 @@ at is the requirement text. Reserved for new findings: `SEC3+`, `PRJ6+`,
 | PRJ5 | Projects and storage | Low | `apps/jscad-web/scripts/local/fsApi.js` |
 | API13 | Chat API help | Low | `apps/jscad-web/src/apiIndex.js` |
 | API15 | Remaining issues | Low | `packages/agent-loop/src/context.js` |
-| LIB1 | Library bugs found by the sweep | Low | `packages/agent-loop/src/scadHandler.js` |
 | REF1 | Refactoring | High | breaking, out of scope |
 | REF3 | Refactoring | Med | out of scope (`packages/worker`) |
 | REF4 | Refactoring | Low | out of scope (`packages/require`) |
@@ -186,9 +185,7 @@ disposes its two intermediate transforms per geometry.
 - **`!` root modifier is ignored.** OpenSCAD renders only the `!` subtree;
   we render the whole model. Needs `main()` to return that subtree with its
   ancestors' transforms, which the `%`/`#` overlay channel does not provide.
-- **`use <font.ttf>` gaps.** A missing font file fails the model in the
-  browser (`scadHandler` treats `FILE_NOT_FOUND` as fatal) where OpenSCAD and
-  `run-jscad.js` warn and fall back. A font `use` inside an included file does
+- **`use <font.ttf>` gaps.** A font `use` inside an included file does
   not reach the including file. A project font arrives as a new `ArrayBuffer`
   each run, so its model re-transpiles every time. `textmetrics()` and
   `fontmetrics()` are not implemented.

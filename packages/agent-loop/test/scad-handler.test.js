@@ -54,6 +54,33 @@ describe('failed include reads', () => {
   })
 })
 
+describe('missing font files', () => {
+  const readFile = () => { throw new Error('file not found') }
+  const entry = 'http://project.local/main.scad'
+  const warned = (warn) => warn.mock.calls.flat().join(' ')
+
+  it('warns and falls back instead of failing the model', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const scad = setup({ main: ['font.ttf'] })
+    expect(scad.handle('main', entry, readFile)).toBe('// main')
+    expect(warned(warn)).toContain('font.ttf')
+    warn.mockRestore()
+  })
+
+  it('treats a missing .otf the same way, whatever the case', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const scad = setup({ main: ['Fancy.OTF'] })
+    expect(scad.handle('main', entry, readFile)).toBe('// main')
+    expect(warned(warn)).toContain('Fancy.OTF')
+    warn.mockRestore()
+  })
+
+  it('still fails the model when a .scad include is missing', () => {
+    const scad = setup({ main: ['lib.scad'] })
+    expect(() => scad.handle('main', entry, readFile)).toThrow(/Cannot resolve file: lib\.scad/)
+  })
+})
+
 describe('include origins', () => {
   const reader = (files) => vi.fn((url) => {
     if (url in files) return files[url]

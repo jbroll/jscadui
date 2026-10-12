@@ -22,6 +22,12 @@ const absolute = (urlOrPath, origin) => {
   }
 }
 
+// OpenSCAD and run-jscad warn and render with a fallback font when a font file
+// is missing; only the browser frame failed the model. A missing .scad include
+// stays fatal.
+const FONT_FILE = /\.(ttf|otf)$/i
+const isMissingFont = (error) => FONT_FILE.test(error.message.trim())
+
 /**
  * The require handler for .scad files: transpile to JS, resolving use/include
  * through scadResolve.js, with a cache of transpiled files and of failed reads.
@@ -174,7 +180,7 @@ export const createScadHandler = ({ getOpenscad, getAppOrigin, now = Date.now })
 
     if (result.errors && result.errors.length > 0) {
       const criticalErrors = result.errors.filter(e =>
-        e.code === 'FILE_NOT_FOUND' || e.code === 'PARSE_ERROR'
+        e.code === 'PARSE_ERROR' || (e.code === 'FILE_NOT_FOUND' && !isMissingFont(e))
       )
       if (criticalErrors.length > 0) {
         const errorMessages = criticalErrors.map(e => e.message).join('; ')
