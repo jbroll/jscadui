@@ -1,9 +1,34 @@
+import { createIdbPersistence } from './idb.js'
+
 export const kindFromEntry = (entry) => (entry.toLowerCase().endsWith('.scad') ? 'openscad' : 'jscad')
 
-export function createLocalStorage() {
+export function createLocalStorage(options = {}) {
   const projects = new Map()
   const versions = new Map()
   const conversations = new Map()
+
+  // The working copy is the Maps; this mirrors it into IndexedDB so a reload
+  // reads it back. A browser without indexedDB (the compute frame, private
+  // mode) keeps the Maps alone, and a failed open falls back the same way.
+  let persist = createIdbPersistence(options)
+  const ready = (async () => {
+    if (!persist) return
+    try {
+      const [projectRows, versionRows, conversationRows] = await Promise.all([
+        persist.load('projects'),
+        persist.load('versions'),
+        persist.load('conversations'),
+      ])
+      for (const row of projectRows) projects.set(row.id, row)
+      for (const { projectId, rows } of versionRows) versions.set(projectId, rows)
+      for (const { projectId, row } of conversationRows) conversations.set(projectId, row)
+    } catch {
+      persist = null
+    }
+  })()
+
+  const save = (store, key, value) => (persist ? persist.save(store, key, value) : Promise.resolve())
+  const drop = (store, key) => (persist ? persist.drop(store, key) : Promise.resolve())
 
   // Whether the session has stored anything in this backend since the app's
   // boot baseline (`markClean`): the signal that a reload would drop work.
@@ -20,6 +45,7 @@ export function createLocalStorage() {
   }
 
   const listProjects = async () => {
+    await ready
     const rows = [...projects.values()]
     rows.sort((a, b) => b.updated - a.updated)
     return rows.map(({ id, name, entry, kind, mode, created, updated }) => ({
@@ -28,6 +54,7 @@ export function createLocalStorage() {
   }
 
   const readProject = async (id) => {
+    await ready
     const row = projects.get(id)
     if (!row) throw Object.assign(new Error(`projects: not found (${id})`), { name: 'NotFoundError' })
     return { ...row, files: { ...row.files } }
@@ -37,10 +64,12 @@ export function createLocalStorage() {
     const list = versions.get(id) ?? []
     list.unshift({ versionId: crypto.randomUUID(), created, message, files: { ...files }, entry })
     versions.set(id, list)
+    return save('versions', id, { projectId: id, rows: list })
   }
 
   // `version: false` stores the files with no version row; `snapshot` records one later.
   const writeFiles = async (id, files, options = {}) => {
+    await ready
     const { message = '', name, entry, mode = 'local', version = true } = options
     const existing = projects.get(id)
     const entryPath = entry ?? existing?.entry ?? 'main.js'
@@ -57,39 +86,50 @@ export function createLocalStorage() {
     }
     projects.set(id, row)
     dirty = true
-    if (version) addVersion(id, row, message, ts)
+    await save('projects', id, row)
+    if (version) await addVersion(id, row, message, ts)
     return { id, entry: entryPath, kind: row.kind }
   }
 
   const snapshot = async (id, { message = '' } = {}) => {
+    await ready
     const row = projects.get(id)
     if (!row) throw Object.assign(new Error(`projects: not found (${id})`), { name: 'NotFoundError' })
-    addVersion(id, row, message, now())
+    await addVersion(id, row, message, now())
   }
 
-  const listVersions = async (id) =>
-    (versions.get(id) ?? []).map(({ versionId, created, message }) => ({ versionId, created, message }))
+  const listVersions = async (id) => {
+    await ready
+    return (versions.get(id) ?? []).map(({ versionId, created, message }) => ({ versionId, created, message }))
+  }
 
   const readVersion = async (id, versionId) => {
+    await ready
     const row = (versions.get(id) ?? []).find((v) => v.versionId === versionId)
     if (!row) throw new Error(`version not found: ${versionId}`)
     return { files: { ...row.files }, entry: row.entry }
   }
 
   const readConversation = async (projectId) => {
+    await ready
     const row = conversations.get(projectId)
     return row ? { messages: row.messages, updated: row.updated } : null
   }
 
   const writeConversation = async (projectId, messages) => {
-    conversations.set(projectId, { messages, updated: now() })
+    await ready
+    const row = { messages, updated: now() }
+    conversations.set(projectId, row)
     dirty = true
+    await save('conversations', projectId, { projectId, row })
   }
 
   const deleteProject = async (id) => {
+    await ready
     projects.delete(id)
     versions.delete(id)
     conversations.delete(id)
+    await Promise.all([drop('projects', id), drop('versions', id), drop('conversations', id)])
   }
 
   return { listProjects, readProject, writeFiles, snapshot, listVersions, readVersion, readConversation, writeConversation, deleteProject, markClean, isDirty }

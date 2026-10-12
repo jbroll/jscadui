@@ -180,13 +180,15 @@ row plus file hashes, in both modes. The chat stores each file it writes at
 once, so a reload mid-turn keeps it, and the turn's version is the project as
 stored when the turn ends, including any edit you made in the editor meanwhile:
 
-- `local` mode (default) holds projects, versions and conversations in memory
-  for the session; reloading starts fresh. Anonymous users are local-only.
-  A reload that would drop this work — the sign-in redirect or closing the
-  tab — is confirmed first, and only when the session actually wrote to the
-  local backend (an untouched boot-created default alone does not prompt);
-  the confirm covers the redirect, so the native prompt is reserved for tab
-  close and manual reload.
+- `local` mode (default) is backed by IndexedDB (`src/storage/idb.js`): the
+  Maps are the working copy and every write mirrors into object stores, so
+  projects, versions and conversations survive a reload. A browser without
+  `indexedDB` (private mode) falls back to in-memory `Map`s for the session.
+  Anonymous users are local-only. The app asks before a reload that could
+  drop local work — the sign-in redirect or closing the tab — whenever the
+  session wrote to the local backend (an untouched boot-created default alone
+  does not prompt); the confirm covers the redirect, so the native prompt is
+  reserved for tab close and manual reload.
 - `rowboat` mode stores bytes as blobs through rowboat file routes, with
   projects, files, versions and conversations in rowboat tables compiled from
   `src/storage/schema.js`. Sign-in starts the interval sync loop with a

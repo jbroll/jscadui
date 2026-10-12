@@ -13,7 +13,6 @@ at is the requirement text. Reserved for new findings: `SEC3+`, `PRJ5+`,
 
 | ID | Section | Sev | Primary files |
 |---|---|---|---|
-| PRJ4 | Projects and storage | High | `apps/jscad-web/src/storage/local.js` |
 | API4 | Chat API help | Low | `.deps-cache/jscad-fluent` (external) |
 | API11 | Chat API help | Low | `packages/agent-loop/eval/sandbox.js` |
 | API13 | Chat API help | Low | `apps/jscad-web/src/apiIndex.js` |
@@ -114,17 +113,6 @@ under `apps/jscad-web` unless given in full.
   and a CSP: `script-src 'self'`, `frame-src` the run host, `connect-src`
   self, rowboat and the provider hosts. A deploy decision — `deploy.sh` is not
   in this repo.
-
-## Projects and storage
-
-From the same review, with the same path convention.
-
-- **The local backend keeps nothing across a reload.** `src/storage/local.js`
-  holds projects, versions and conversations in `Map`s, while
-  `README.md:156-170` and `docs/architecture.md:1111-1116` describe it as
-  persistent. Anonymous work is lost on reload and on the "Sign in to Sync"
-  full-page redirect. The app now warns before that redirect and on unload;
-  back the backend with IndexedDB so the work survives.
 
 ## Render sweep
 

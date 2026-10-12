@@ -1,5 +1,6 @@
 // Storage interface contract against the fake local backend: every mode
 // implements the same shape, so the editor and chat can swap backends.
+import { indexedDB as fakeIndexedDB } from 'fake-indexeddb'
 import { describe, expect, it } from 'vitest'
 import { createLocalStorage } from '../src/storage/local.js'
 
@@ -94,6 +95,48 @@ describe('local work tracking', () => {
     const store = createLocalStorage()
     store.markClean()
     await store.writeConversation('w3', [{ role: 'user', content: 'x' }])
+    expect(store.isDirty()).toBe(true)
+  })
+})
+
+describe('local persistence (IndexedDB)', () => {
+  // A fresh store over the same database is what a reload builds, so its reads
+  // must find what the last session stored. A per-test database name keeps the
+  // file's other stores (which get no indexedDB) isolated.
+  const overIdb = () => {
+    const dbName = `jscad-web-local-test-${crypto.randomUUID()}`
+    return (options = {}) => createLocalStorage({ indexedDB: fakeIndexedDB, dbName, ...options })
+  }
+
+  it('a second store over the same database sees the first store’s projects, versions and conversations', async () => {
+    const open = overIdb()
+    const first = open()
+    await first.writeFiles('p1', { 'main.js': MAIN }, { message: 'create', name: 'Gear', entry: 'main.js' })
+    await first.writeFiles('p1', { 'main.js': 'v2', 'lib.js': 'l' }, { message: 'chat', version: false })
+    await first.snapshot('p1', { message: 'chat' })
+    await first.writeConversation('p1', [{ role: 'user', content: 'make a gear' }])
+
+    const second = open()
+    expect((await second.readProject('p1')).files).toEqual({ 'main.js': 'v2', 'lib.js': 'l' })
+    expect((await second.listVersions('p1')).map((v) => v.message)).toEqual(['chat', 'create'])
+    expect((await second.readConversation('p1')).messages).toEqual([{ role: 'user', content: 'make a gear' }])
+  })
+
+  it('persists a project deletion', async () => {
+    const open = overIdb()
+    const first = open()
+    await first.writeFiles('p1', { 'main.js': MAIN }, { message: 'create', name: 'Gear', entry: 'main.js' })
+    await first.deleteProject('p1')
+
+    const second = open()
+    expect(await second.listProjects()).toEqual([])
+    await expect(second.readProject('p1')).rejects.toMatchObject({ name: 'NotFoundError' })
+  })
+
+  it('falls back to the in-memory Maps, and keeps the dirty flag, with no indexedDB', async () => {
+    const store = createLocalStorage({ indexedDB: undefined })
+    await store.writeFiles('p1', { 'main.js': MAIN }, { message: 'create', name: 'Gear', entry: 'main.js' })
+    expect((await store.readProject('p1')).files).toEqual({ 'main.js': MAIN })
     expect(store.isDirty()).toBe(true)
   })
 })

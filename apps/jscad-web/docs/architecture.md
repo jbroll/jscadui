@@ -1221,10 +1221,14 @@ read and written over the launcher's `/api/fs` and followed through its
 through the server is parked on the `park/github-app-storage` branch.
 A rowboat save re-uploads only files whose content hash differs from the file
 row's stored blob key, so unchanged files cost no upload.
-The `local` backend is in-memory, so a reload drops work that was never
-synced; until it is backed by IndexedDB the app asks before the sign-in
-redirect and on unload whenever the session wrote to it after boot (the
-boot-created default alone does not prompt). The redirect's confirm covers
+The `local` backend is backed by IndexedDB (`src/storage/idb.js`): the Maps
+are the working copy and every write mirrors into object stores, so a reload
+reads the work back. When `indexedDB` is absent (private mode, the compute
+frame) the store stays in memory for the session and a failed open falls back
+the same way. In that fallback a reload would drop unsynced work; the app
+asks before the sign-in redirect and on unload whenever the session wrote to
+the local backend after boot (the boot-created default alone does not
+prompt). The redirect's confirm covers
 its own reload, so the native unload prompt is suppressed for that
 navigation and reserved for tab close and manual reload.
 
