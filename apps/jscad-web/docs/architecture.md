@@ -1277,6 +1277,12 @@ That build sets `JSCAD_LOCAL_FS=1`, which `build.js` stamps as
 `/api/fs` (`scripts/local/fsApi.js`) lists, reads and writes the model
 directory and streams change events, and answers only the app page on a
 `localhost` or `127.0.0.1` host: the frame origin and any other page get 403.
+The read-only `/models/` mount (`scripts/local/server.js`) serves the same
+directory by URL under the same rule, reusing `fsApi.js`'s `appHosts` and
+`fromApp`, and sends no CORS on any response. Nothing cross-origin reads it:
+the frame gets a project's files from the map `jscadSetFiles` carried, so
+`/models/` is app-only and a foreign page that reaches the loopback port gets
+403 with no CORS header.
 A `#/models/<entry>` hash then opens the directory through the same project
 switch a stored project uses (`src/diskProject.js`, `createProjectSwitch` in
 `src/projectFiles.js`), so the file cache holds the whole directory, binary
