@@ -5,9 +5,10 @@ export const esbDef = {
   jsxFactory: 'h',
   jsxFragment: 'null',
   format: 'esm',
-  // .jsx is kept off the tsx loader: with both '.js' and '.jsx' mapped to tsx,
-  // esbuild 0.27 fails to resolve extensionless requires in bundled CJS
-  // dependencies (e.g. @jscad/regl-renderer, clipper-lib).
+  // esbuild 0.27 cannot resolve extensionless require()s in bundled CJS deps
+  // (e.g. @jscad/regl-renderer, clipper-lib) when both '.js' and '.jsx' map to
+  // a TypeScript loader. '.jsx' is unused here, so keep it on the default jsx
+  // loader and leave '.js' as tsx.
   loader: { '.js': 'tsx', '.jsx': 'jsx' },
   bundle: true,
   minify: true,

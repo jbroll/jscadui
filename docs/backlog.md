@@ -25,6 +25,7 @@ at is the requirement text. Reserved for new findings: `SEC3+`, `PRJ6+`,
 | REF7 | Refactoring | Med | out of scope (`main.js`, `paramsUI.js`) |
 | REF9 | Refactoring | Med | out of scope (`src_frame`, `frameSetup.js`) |
 | REF10 | Refactoring | Med | out of scope (model runners) |
+| REF21 | Refactoring | Low | `packages/demo-utils/src/jscad/`, `apps/jscad-web/src/` |
 
 ## Deploy
 
@@ -514,6 +515,13 @@ from the 2026-10-01 review.
   `setGlobalFn` between in-process runs (`:665`, `:780`).
 - **Leftovers.** Review-tracker labels ("C6 fix", "M11 fix") remain in
   source files; remove them as each file is touched.
+- **Demo helpers still split from `jscad-web`.** REF18 moved the vue3-jscad
+  nine modules (`drawer`, `editor`, `engine`, `examples`, `exporter`, `menu`,
+  `remote`, `themes`, `viewState`) into `packages/demo-utils/src/jscad/`, but
+  `apps/jscad-web/src/` keeps its own diverged copies of the same modules,
+  both with live consumers. The move could not merge them because
+  `apps/jscad-web/src` was outside its file set; a real merge needs those
+  sources and a per-module behaviour review.
 
 ## Remaining issues
 
