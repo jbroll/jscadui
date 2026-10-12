@@ -96,7 +96,7 @@ describe('refresh steps through the real bootstrap helper', () => {
     expect(r.status).toBe(0)
     expect(r.stdout.trim().split('\n')).toEqual([
       'bootstrap: node scripts/fetch-sources.js',
-      'bootstrap: npm ci',
+      'bootstrap: npm ci --allow-remote=all --allow-git=all',
       'bootstrap: node scripts/fetch-deps.js --if-missing',
       'bootstrap: node packages/openscad/bin/generate-all-files.js --no-rename',
       'bootstrap: (apps/jscad-web) npm run sync-examples',
