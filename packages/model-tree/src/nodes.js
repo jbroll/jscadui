@@ -257,11 +257,16 @@ export function createNamespace(engine, opts = {}) {
   }
   const colors = { ...(engine.colors || {}), colorize }
 
-  // text: always resolves to a literal node (real generation is async IO).
+  // text: the segment generators (vectorChar/vectorText) are synchronous pure
+  // data, which model code reads directly, so their result passes through as-is.
+  // Only a thenable result (async font IO) becomes a Promise<literal node>.
   const text = {}
   for (const [name, value] of Object.entries(engine.text || {})) {
     text[name] = typeof value === 'function'
-      ? (...args) => Promise.resolve().then(() => value(...args)).then((result) => literalNode(result))
+      ? (...args) => {
+        const result = value(...args)
+        return isThenable(result) ? result.then(literalNode) : result
+      }
       : value
   }
 
