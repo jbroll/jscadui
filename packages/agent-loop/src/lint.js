@@ -4,6 +4,15 @@ import { suggestOptions } from './optionChecks.js'
 
 export const MAX_DIAGNOSTICS = 20
 
+// Bare calls the model is expected to have without declaring them.
+const GLOBALS = new Set([
+  'Array', 'BigInt', 'Boolean', 'Date', 'Error', 'Function', 'Infinity', 'JSON',
+  'Map', 'Math', 'NaN', 'Number', 'Object', 'Promise', 'Proxy', 'Reflect',
+  'RegExp', 'Set', 'String', 'Symbol', 'TypeError', 'WeakMap', 'WeakSet',
+  'console', 'decodeURI', 'decodeURIComponent', 'encodeURI', 'encodeURIComponent',
+  'eval', 'globalThis', 'isFinite', 'isNaN', 'parseFloat', 'parseInt', 'require', 'undefined',
+])
+
 const tables = new WeakMap()
 
 // The names the model writes: a modeling function's last segment after a
@@ -78,6 +87,16 @@ export const lookupName = (index, name) => {
   return t.callables.get(name) ?? t.byName.get(name) ?? null
 }
 
+const collectDeclared = (tree, text) => {
+  const names = new Set()
+  const cursor = tree.cursor()
+  do {
+    if (cursor.name === 'VariableDefinition') names.add(text.slice(cursor.from, cursor.to))
+    else if (cursor.name === 'PropertyName' && cursor.node.parent?.type.name === 'PatternProperty') names.add(text.slice(cursor.from, cursor.to))
+  } while (cursor.next())
+  return names
+}
+
 const withLocation = (diagnostic, text) => {
   if (typeof text !== 'string') return diagnostic
   let line = 1
@@ -91,32 +110,39 @@ const withLocation = (diagnostic, text) => {
   return { ...diagnostic, line, column: diagnostic.from - lineStart + 1 }
 }
 
-const lintCall = (t, call, text, api, push) => {
+const lintCall = (t, call, text, declared, api, push) => {
   const callee = call.firstChild
   const argList = call.getChild('ArgList')
   if (!callee || !argList) return
   const first = firstArg(argList)
   const entry = resolveCallee(t, callee, text)
-  if (!entry) return
-  if (first?.type.name !== 'ObjectExpression') return
-  const options = optionsOf(t, entry)
-  if (!options?.length) return
-  const known = options.map((option) => option.name)
-  for (const key of objectKeys(first, text)) {
-    if (known.includes(key.name)) continue
-    const suggestions = suggestOptions(key.name, known)
-    const explained = explainWarning({ fn: entry.name, option: key.name, suggestions }, api)
-    push({
-      from: key.from,
-      to: key.to,
-      severity: 'warning',
-      source: 'jscad',
-      message: explained.hint ?? `unknown option ${key.name}`,
-      fn: entry.name,
-      option: key.name,
-      suggestions: explained.suggestions ?? suggestions,
-    })
+  if (entry) {
+    if (first?.type.name !== 'ObjectExpression') return
+    const options = optionsOf(t, entry)
+    if (!options?.length) return
+    const known = options.map((option) => option.name)
+    for (const key of objectKeys(first, text)) {
+      if (known.includes(key.name)) continue
+      const suggestions = suggestOptions(key.name, known)
+      const explained = explainWarning({ fn: entry.name, option: key.name, suggestions }, api)
+      push({
+        from: key.from,
+        to: key.to,
+        severity: 'warning',
+        source: 'jscad',
+        message: explained.hint ?? `unknown option ${key.name}`,
+        fn: entry.name,
+        option: key.name,
+        suggestions: explained.suggestions ?? suggestions,
+      })
+    }
+    return
   }
+  if (callee.type.name !== 'VariableName') return
+  const name = text.slice(callee.from, callee.to)
+  if (declared.has(name) || GLOBALS.has(name)) return
+  if (first?.type.name !== 'ObjectExpression') return
+  push({ from: callee.from, to: callee.to, severity: 'warning', source: 'jscad', message: `unknown function ${name}; it is not in the API index`, fn: name })
 }
 
 /**
@@ -126,13 +152,18 @@ const lintCall = (t, call, text, api, push) => {
  */
 export const lintTree = (index, tree, { api = DEFAULT_API, text = '' } = {}) => {
   const t = tablesFor(index)
+  const declared = collectDeclared(tree, text)
   const diagnostics = []
   const push = (diagnostic) => {
     if (diagnostics.length < MAX_DIAGNOSTICS) diagnostics.push(withLocation(diagnostic, text))
   }
   const cursor = tree.cursor()
   do {
-    if (cursor.name === 'CallExpression') lintCall(t, cursor.node, text, api, push)
+    if (cursor.type.isError) {
+      push({ from: cursor.from, to: Math.max(cursor.to, cursor.from + 1), severity: 'error', source: 'jscad', message: 'Syntax error' })
+    } else if (cursor.name === 'CallExpression') {
+      lintCall(t, cursor.node, text, declared, api, push)
+    }
   } while (cursor.next())
   return diagnostics
 }

@@ -41,3 +41,63 @@ describe('lintSource', () => {
     expect(d).toMatchObject({ option: 'heigth', line: 2, column: 12 })
   })
 })
+
+describe('unknown function names', () => {
+  it('flags an undeclared call whose first argument is an object', () => {
+    expect(lint(`frobnicate({ a: 1 })`)).toEqual([
+      expect.objectContaining({ severity: 'warning', fn: 'frobnicate' }),
+    ])
+  })
+
+  it('accepts a locally declared function', () => {
+    expect(lint(`function frobnicate(options) { return options }\nfrobnicate({ a: 1 })`)).toEqual([])
+  })
+
+  it('accepts an arrow assigned to a const', () => {
+    expect(lint(`const frobnicate = (options) => options\nfrobnicate({ a: 1 })`)).toEqual([])
+  })
+
+  it('accepts a destructured binding', () => {
+    expect(lint(`const { frobnicate } = require('./helper')\nfrobnicate({ a: 1 })`)).toEqual([])
+  })
+
+  it('accepts a global', () => {
+    expect(lint(`Math.max(1, 2)`)).toEqual([])
+  })
+
+  it('accepts a call whose first argument is not an object', () => {
+    expect(lint(`frobnicate(1)`)).toEqual([])
+  })
+})
+
+describe('syntax errors', () => {
+  it('flags an incomplete statement', () => {
+    expect(lint(`const x = `)).toContainEqual(expect.objectContaining({ severity: 'error', message: 'Syntax error' }))
+  })
+})
+
+describe('real fluent examples', () => {
+  it('raise no static warning', async () => {
+    const { existsSync, readdirSync, readFileSync } = await import('node:fs')
+    const { join, relative } = await import('node:path')
+    const { fileURLToPath } = await import('node:url')
+    const REPO = fileURLToPath(new URL('../../../', import.meta.url))
+    const FLUENT = /require\(\s*['"]@jbroll\/jscad-fluent['"]\s*\)/
+    const dirs = ['apps/jscad-web/examples', 'packages/agent-loop/prompt/examples']
+    const files = dirs.flatMap((dir) => {
+      const base = join(REPO, dir)
+      return existsSync(base) ? readdirSync(base, { recursive: true }).filter((f) => f.endsWith('.js')).map((f) => join(base, f)) : []
+    })
+    const warned = []
+    let ran = 0
+    for (const file of files) {
+      const source = readFileSync(file, 'utf8')
+      if (!FLUENT.test(source)) continue
+      ran += 1
+      const diagnostics = await lintSource(index, source)
+      if (diagnostics.length) warned.push({ name: relative(REPO, file), diagnostics })
+    }
+    expect(warned).toEqual([])
+    expect(ran).toBeGreaterThanOrEqual(5)
+  }, 60_000)
+})
