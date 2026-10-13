@@ -8,7 +8,10 @@
 # See docs/CLOUD_SESSION.md for the cloud equivalent (session-start.sh),
 # which installs from scratch because there is no parent checkout there.
 #
-# Usage: scripts/setup-worktree.sh [<worktree-path>]   (default: cwd)
+# Usage: scripts/setup-worktree.sh [--verbose] [<worktree-path>]   (default: cwd)
+#
+# Quiet by default: the generate pipeline's output goes to a log file, shown
+# only on failure. Pass --verbose to watch it stream by.
 #
 # This runs the repo's own generate pipeline inside the worktree so a fresh
 # checkout is complete: example corpora and test fixtures (fetch-deps),
@@ -16,6 +19,12 @@
 # (sync-examples). All three are gitignored, so `git worktree add` alone
 # leaves a tree whose unit tests and pre-commit gate fail.
 set -euo pipefail
+
+verbose=0
+if [ "${1:-}" = "--verbose" ] || [ "${1:-}" = "-v" ]; then
+  verbose=1
+  shift
+fi
 
 worktree="${1:-$PWD}"
 worktree="$(cd "$worktree" && pwd -P)"
@@ -155,6 +164,19 @@ fi
 # cache is the parent's, so fetch-deps clones nothing.
 # shellcheck source=ci/lib/bootstrap.sh
 . "$(dirname "${BASH_SOURCE[0]}")/../ci/lib/bootstrap.sh"
-bootstrap --root "$worktree" deps grids examples openscad workspace app
+if [ "$verbose" = 1 ]; then
+  bootstrap --root "$worktree" deps grids examples openscad workspace app
+else
+  log="$(mktemp /tmp/setup-worktree.XXXXXX.log)"
+  echo "running generate pipeline (log: $log)"
+  if bootstrap --root "$worktree" deps grids examples openscad workspace app >"$log" 2>&1; then
+    rm -f "$log"
+  else
+    status=$?
+    echo "error: generate pipeline failed; last 40 lines of $log:" >&2
+    tail -n 40 "$log" >&2
+    exit "$status"
+  fi
+fi
 
 echo "done."
