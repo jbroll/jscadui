@@ -9,7 +9,8 @@ export const loadBoundEvaluate = () => {
   if (!url) return undefined
   try {
     return require(url, null, readFileWeb)?.evaluate
-  } catch {
+  } catch (err) {
+    console.warn('modeling bundle could not be required for the tree evaluator:', err)
     return undefined
   }
 }

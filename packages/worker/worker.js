@@ -468,7 +468,7 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
         hook.emit(solids)
         if (ghosts.length) hook.emit(ghosts)
       }
-      if (rootGhostNodes.length && await hook.claim(`${modelParts.length}`)) {
+      if (rootGhostNodes.length && await hook.claim(`${parts.length}`)) {
         const { solids, ghosts } = await evaluateNodes(rootGhostNodes)
         hook.emit([...solids, ...ghosts])
       }
