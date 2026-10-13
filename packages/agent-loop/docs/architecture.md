@@ -114,6 +114,16 @@ own handlers and shares the routing, the report assembly (`assembleReport`),
 the error formatting (`reportError`), the loader's `createReadFile` and the
 transform rule (`@jscadui/worker/src/shouldTransform.js`).
 
+Before a call reaches a handler, `dispatchTool` checks its shape against the
+tool's `inputSchema` (required, types, `additionalProperties`; `anyOf` unions
+and `enum` membership stay with handlers, which own that domain knowledge).
+A violation answers `ValidationError` without running anything, so the model
+can retry. On the Anthropic wire a result that parses to `{ ok: false }`
+rides as `tool_result` with `is_error: true`, and consecutive results share
+one user message. When a turn fails mid-batch (abort, timeout), `runTurn`
+fills each unanswered `tool_use` with an error result carrying the failure,
+so the next provider call never sees an orphaned call.
+
 ## Project model
 
 The model works in a JavaScript project the way a coding agent does, with
