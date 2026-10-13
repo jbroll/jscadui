@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildMessages, CONTEXT_BUDGET, EMPTY_PROJECT, PROJECT_BUDGET, PROJECT_NOTE } from '../src/context.js'
+import { mentionedPaths } from '../index.js'
 
 const turn = (n, size) => [
   { role: 'user', content: `u${n}`.padEnd(size / 2, '.') },
@@ -138,5 +139,20 @@ describe('project files budget', () => {
     expect(project.content).toContain('### z.js')
     expect(project.content).toContain('### a.js')
     expect(project.content).not.toContain('### m.js')
+  })
+
+  it('ranks files by the mentions an assistant turn carries', () => {
+    const byPath = (path) => ({ role: 'assistant', content: '', mentions: [path] })
+    const transcript = [byPath('a.js'), byPath('b.js'), byPath('c.js')]
+    const [, project] = buildMessages({ systemPrompt: 'S', transcript, files: three, message: 'new', projectBudget: 100 })
+    expect(project.content).toContain('### b.js')
+    expect(project.content).toContain('### c.js')
+    expect(project.content).not.toContain('### a.js')
+  })
+})
+
+describe('mentionedPaths', () => {
+  it('is exported from the package entry', () => {
+    expect(mentionedPaths([{ role: 'assistant', mentions: ['a.js'] }])).toEqual(['a.js'])
   })
 })

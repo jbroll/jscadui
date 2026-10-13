@@ -24,9 +24,12 @@ const blockOf = (path, content) => {
 }
 
 // Paths the model touched, in order; the last mention of a file is the recent one.
-const mentionedPaths = (transcript) => {
+export const mentionedPaths = (transcript) => {
   const paths = []
   for (const m of transcript) {
+    for (const path of m.mentions ?? []) {
+      if (typeof path === 'string') paths.push(path)
+    }
     for (const call of m.toolCalls ?? []) {
       if (typeof call.input?.path === 'string') paths.push(call.input.path)
     }

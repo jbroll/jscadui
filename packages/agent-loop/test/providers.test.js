@@ -75,6 +75,24 @@ describe('providers', () => {
     expect(() => createProvider({ kind: 'other', apiKey: 'k', model: 'm' })).toThrow(/unknown kind/)
   })
 
+  it('never sends a message mentions field to a provider', async () => {
+    fetchMock.mockResolvedValue(new Response(sseBody('')))
+    const messages = [
+      { role: 'user', content: 'hi' },
+      { role: 'assistant', content: 'done', mentions: ['main.js'] },
+    ]
+    const posted = async (selection) => {
+      fetchMock.mockClear()
+      fetchMock.mockResolvedValue(new Response(sseBody('')))
+      const provider = createProvider(selection)
+      for await (const e of provider.send(messages, [])) void e
+      return JSON.stringify(JSON.parse(fetchMock.mock.calls.at(-1)[1].body))
+    }
+    expect(await posted({ kind: 'anthropic', apiKey: 'k', model: 'm', baseUrl: 'https://relay.test' })).not.toContain('mentions')
+    expect(await posted({ kind: 'openai', apiKey: 'k', model: 'm', baseUrl: 'https://relay.test' })).not.toContain('mentions')
+    expect(await posted({ kind: 'meta', apiKey: 'k', model: 'muse-spark-1.3' })).not.toContain('mentions')
+  })
+
   it('opencode-go resolves the Zen URL through the openai adapter', async () => {
     const body = `data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n` + `data: [DONE]\n\n`
     fetchMock.mockResolvedValue(new Response(sseBody(body)))
