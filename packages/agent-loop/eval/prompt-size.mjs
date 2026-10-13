@@ -1,5 +1,5 @@
-// Temporary spike: size the built system prompt per API to decide whether the
-// skills split (standard-tools.md #6) is needed. Delete once the verdict lands.
+// Retained helper: size the built system prompt per API. The skills-split
+// verdict is recorded in standard-tools.md #6; keep this to re-check on change.
 import { buildSystemPrompt } from '../src/prompt.js'
 import { estimateTokens } from '../api/sheet.js'
 
