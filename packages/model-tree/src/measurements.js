@@ -31,18 +31,27 @@ const geometryOf = async (operand, ctx) => {
   return geometry
 }
 
-const createMeasurement = (raw) => async (...args) => {
-  const ctx = globalThis.__jscadBuild
-  if (!ctx) throw new Error('measure* outside build context')
+const isDeferred = (value) => isTreeNode(value) || Boolean(value && typeof value.then === 'function')
+
+// Real geometry needs no evaluation, so the engine's own fn answers on the
+// caller's stack. model-tools measures evaluated solids through this namespace
+// (the frame's '@jscad/modeling' alias), and an async wrapper would put a
+// Promise in the result, which postMessage refuses to clone (DataCloneError).
+const createMeasurement = (raw) => (...args) => {
   const operands = flattenOperands(args)
-  const geometries = []
-  for (const operand of operands) geometries.push(await geometryOf(operand, ctx))
-  const value = raw(...geometries)
-  if (operands.length === 1) {
-    const entry = ctx.specials.get(operands[0])
-    if (entry) entry.value = value
-  }
-  return value
+  if (!operands.some(isDeferred)) return raw(...operands)
+  return (async () => {
+    const ctx = globalThis.__jscadBuild
+    if (!ctx) throw new Error('measure* outside build context')
+    const geometries = []
+    for (const operand of operands) geometries.push(await geometryOf(operand, ctx))
+    const value = raw(...geometries)
+    if (operands.length === 1) {
+      const entry = ctx.specials.get(operands[0])
+      if (entry) entry.value = value
+    }
+    return value
+  })()
 }
 
 export const createMeasurements = (engine) => {
