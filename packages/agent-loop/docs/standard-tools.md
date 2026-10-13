@@ -43,14 +43,15 @@ path, at most 60 per call with an overflow count, binary files skipped,
 regex or plain text, read-only. No glob; `list` already gives every path
 with its size each turn.
 
-### 2. User question / approval (`ask_user`)
+### 2. User question / approval (`ask_user`) — shipped
 
-Standard as `question` or per-tool `needsApproval`. We have the hooks
-(`beforeToolCall` deny/rewrite) but no tool that lets the model ask the
-user a clarifying question mid-turn. All our tools are low-risk
+Shipped as `ask_user(question, options?)`, read-only: the route hands the
+call to the app's `deps.askUser`, which shows the question mid-turn and
+returns the answer as the tool result. The app supplies the chat-bubble UI
+and the eval a canned stub; the package ships only the definition. Standard
+as `question` or per-tool `needsApproval`; all our tools are low-risk
 (project-only), so approval gates matter less than a way to resolve
-ambiguity without guessing dimensions or printers. Small protocol
-addition, needs chat-bubble UI.
+ambiguity without guessing dimensions or printers.
 
 ### 3. Todo / plan tracker
 
@@ -103,7 +104,7 @@ cover the need. No work planned.
 ## Suggested order
 
 1. Project `search` — shipped; glob only if `list` proves too narrow.
-2. `ask_user` for ambiguity, using the existing hook shape.
+2. `ask_user` for ambiguity, using the existing hook shape — shipped.
 3. Skills-style split only when prompt size forces it.
 4. Everything networked or recursive (fetch, subagents, MCP client)
    waits for a fixture that cannot pass without it.

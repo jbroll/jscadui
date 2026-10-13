@@ -5,9 +5,9 @@ import { buildTools, READ_ONLY, TOOLS } from '../src/tools.js'
 const docsDescription = (api) => buildTools(api).find((t) => t.name === 'docs').description
 
 describe('agent tools', () => {
-  it('exposes the eleven browser tools with input schemas', async () => {
+  it('exposes the twelve browser tools with input schemas', async () => {
     const names = TOOLS.map((t) => t.name)
-    expect(names).toEqual(['list', 'read', 'search', 'write', 'edit', 'delete', 'run', 'measure', 'check', 'export', 'docs'])
+    expect(names).toEqual(['list', 'read', 'search', 'write', 'edit', 'delete', 'run', 'measure', 'check', 'export', 'docs', 'ask_user'])
     for (const tool of TOOLS) {
       expect(typeof tool.description).toBe('string')
       expect(tool.inputSchema.type).toBe('object')
@@ -122,5 +122,11 @@ describe('agent tools', () => {
     const search = tools.find((t) => t.name === 'search')
     expect(search.inputSchema.required).toEqual(['pattern'])
     expect(READ_ONLY.has('search')).toBe(true)
+  })
+
+  it('defines read-only ask_user with question required', () => {
+    const tool = buildTools('fluent').find((t) => t.name === 'ask_user')
+    expect(tool.inputSchema.required).toEqual(['question'])
+    expect(READ_ONLY.has('ask_user')).toBe(true)
   })
 })

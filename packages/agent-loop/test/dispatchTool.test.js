@@ -108,4 +108,11 @@ describe('dispatchTool', () => {
     expect(await dispatchTool('edit', { path: 'main.js', oldString: 'a', newString: 'b' }, d)).toEqual({ ok: false, error: { name: 'EditError', message: 'oldString is not in main.js' } })
     expect(await dispatchTool('docs', { query: 'x' }, d)).toEqual({ ok: false, error: { name: 'Error', message: 'no index' } })
   })
+
+  it('routes ask_user to deps.askUser and surfaces denial-shaped errors as results', async () => {
+    const out = await dispatchTool('ask_user', { question: 'Which size?' }, { askUser: async (a) => `user picked for: ${a.question}` })
+    expect(out).toBe('user picked for: Which size?')
+    const bad = await dispatchTool('ask_user', {}, { askUser: async () => 'x' })
+    expect(bad).toMatchObject({ ok: false, error: { name: 'ValidationError' } })
+  })
 })

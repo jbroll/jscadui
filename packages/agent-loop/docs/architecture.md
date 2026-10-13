@@ -97,13 +97,15 @@ option through; nothing sets it yet.
 
 All model interaction is a tool call (`list`, `read`, `write`, `edit`,
 `delete`, `run`,
-`measure`, `check`, `export`, `docs`, and the app's `view`): `runTurn` streams
+`measure`, `check`, `export`, `docs`, `ask_user`, and the app's `view`):
+`runTurn` streams
 `text` events as chat prose and never parses them for code, so model source
 travels only in a `tool_use` input (`write.content`, `edit.newString`,
 `run.source`). No markdown-fence extractor exists anywhere in the app or the
 eval, and none is wanted — a model that wants to run code has to call a tool.
 One round's read-only calls (`list`, `read`, `measure`, `check`, `docs`,
-`run`, and the app's `view`) run concurrently and the saving calls after
+`run`, `ask_user`, and the app's `view`) run concurrently and the saving
+calls after
 them, serially; every result lands in the transcript in call order.
 
 The app and the eval route a call the same way, through `dispatchTool` over

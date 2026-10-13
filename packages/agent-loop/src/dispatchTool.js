@@ -52,6 +52,7 @@ const ROUTES = {
   export: (deps, args) => deps.exportModel(args),
   view: (deps, args) => deps.view(args),
   docs: (deps, args) => deps.docs(args.query),
+  ask_user: (deps, args) => deps.askUser(args),
 }
 
 /**
@@ -60,7 +61,7 @@ const ROUTES = {
  * hand back to the model.
  * @param {string} name
  * @param {object} [input]
- * @param {{list:Function,read:Function,write:Function,edit:Function,deleteFile:Function,run:Function,measure:Function,check:Function,exportModel:Function,view:Function,docs:Function}} deps
+ * @param {{list:Function,read:Function,search:Function,write:Function,edit:Function,deleteFile:Function,run:Function,measure:Function,check:Function,exportModel:Function,view:Function,docs:Function,askUser:Function}} deps
  */
 export const dispatchTool = async (name, input, deps) => {
   if (!Object.hasOwn(ROUTES, name)) return toolError('UnknownToolError', `unknown tool ${name}`)
