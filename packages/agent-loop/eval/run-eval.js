@@ -6,7 +6,7 @@ import { createHash } from 'node:crypto'
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { totalmem } from 'node:os'
 import { join } from 'node:path'
-import { buildMessages, buildSystemPrompt, createProvider, DEFAULT_API, runTurn } from '../index.js'
+import { buildMessages, buildSystemPrompt, createProvider, DEFAULT_API, mentionedPaths, runTurn } from '../index.js'
 import { checkApi } from '../src/api.js'
 import { evalResultsDir } from '../log/log-dir.js'
 import { isMainModule } from '../src/mainModule.js'
@@ -280,7 +280,8 @@ export async function runConversation(
     transcript = turn === 0 ? turnMessages : [...transcript, ...turnMessages.slice(messages.length - 2)]
     if (error || infraError) break
     const reply = replyText(turnMessages.slice(messages.length))
-    prior = [...prior, { role: 'user', content: message }, ...(reply ? [{ role: 'assistant', content: reply }] : [])]
+    const mentions = mentionedPaths(turnMessages.slice(messages.length))
+    prior = [...prior, { role: 'user', content: message }, ...(reply ? [{ role: 'assistant', content: reply, ...(mentions.length > 0 ? { mentions } : {}) }] : [])]
     files = gradedModel(fixture, transcript)?.files ?? files
   }
   if (!error && cappedProvider.emptyReplies() > 0) error = EMPTY_REPLY

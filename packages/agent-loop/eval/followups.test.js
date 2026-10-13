@@ -41,7 +41,7 @@ describe('follow-ups', () => {
     const second = provider.seen[2]
     expect(second.slice(1, 3)).toEqual([
       { role: 'user', content: 'a cube' },
-      { role: 'assistant', content: 'Here is a cube. Saved.' },
+      { role: 'assistant', content: 'Here is a cube. Saved.', mentions: ['main.js'] },
     ])
     expect(second.at(-2).content).toContain('jf.cube({ size: 20 })')
     expect(second.at(-2).content).toContain('Last build of the project')
