@@ -232,6 +232,12 @@ export const flatten = arr=>{
 // entity the model returned beside its solids.
 const isRootGhostNode = (node) => Boolean(node && (node.op === 'ghost' || node.previewOnly))
 
+// A root ghost streams under this trailing claim. Split part keys are digits
+// joined by '+' (model-tree splitter), so a word can never collide with one:
+// a count like `${parts.length}` can, once an anchor merge shrinks the part
+// count below a retained singleton's index.
+const ROOT_GHOST_KEY = 'ghost'
+
 /**
  * @param {InitOptions} options
  */
@@ -468,7 +474,7 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
         hook.emit(solids)
         if (ghosts.length) hook.emit(ghosts)
       }
-      if (rootGhostNodes.length && await hook.claim(`${parts.length}`)) {
+      if (rootGhostNodes.length && await hook.claim(ROOT_GHOST_KEY)) {
         const { solids, ghosts } = await evaluateNodes(rootGhostNodes)
         hook.emit([...solids, ...ghosts])
       }

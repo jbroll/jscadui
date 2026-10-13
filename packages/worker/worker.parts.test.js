@@ -33,6 +33,9 @@ const capture = () => {
 const claimsOf = (calls) => calls.filter(([message]) => message.method === 'jscadClaim')
 const cellsOf = (calls) => calls.filter(([message]) => message.method === 'jscadCells')
 
+const tri = () => ({ vertices: [[0, 0, 0], [1, 0, 0], [0, 1, 0]] })
+const identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
+
 describe('jscadMain parts', () => {
   beforeEach(() => {
     workerState.claims = true
@@ -89,6 +92,39 @@ describe('jscadMain parts', () => {
     capture()
 
     await expect(jscadMain({ params: {}, runId: 11 })).rejects.toThrow(/jscadMain failed/)
+  })
+
+  it('anchor-merged parts and a mid-list root ghost claim distinct keys', async () => {
+    const a = tree.primitives.cube({ size: 2 })
+    const b = tree.primitives.cube({ size: 2 })
+    const c = tree.primitives.cube({ size: 2 })
+    // Children 0 and 1 merge under the attach reference, so the retained part
+    // keys are '0+1' and '3'. A ghost claimed by `${parts.length}` (3) would
+    // reuse child 3's key; the frame refuses the duplicate and drops the ghost.
+    const placed = { op: 'attach', params: { child: b, childAnchor: { node: b, direction: [0, 0, -1] }, parent: a, parentAnchor: { node: a, direction: [0, 0, 1] }, overlap: 0, flip: true, spin: 0 }, children: [b, a], isTreeNode: true, dim: 3, overlay: null, anchors: null, color: null }
+    const ghost = { polygons: [tri()], transforms: identity, color: [1, 0.32, 0.32, 0.5], previewOnly: true }
+    workerState.main = () => [a, placed, ghost, c]
+
+    const won = new Set()
+    const keys = []
+    const calls = []
+    self.postMessage = vi.fn((message, transfer) => {
+      calls.push([message, transfer])
+      if (message.method === 'jscadClaim') {
+        const key = message.params[0].key
+        keys.push(key)
+        answerClaim({ id: message.id, won: !won.has(key) })
+        won.add(key)
+      }
+    })
+
+    const result = await jscadMain({ params: {}, runId: 12 })
+
+    expect(result.streamed).toBe(true)
+    expect(keys).toHaveLength(3)
+    expect(new Set(keys).size).toBe(3)
+    const cells = cellsOf(calls)
+    expect(cells.filter(([message]) => message.params[0].entities.some(e => e.color?.[3] === 0.5))).toHaveLength(1)
   })
 
   it('evaluates a build-time measurement through the bound evaluator', async () => {
