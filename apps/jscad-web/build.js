@@ -251,6 +251,45 @@ await buildBundle(frameBuildDir, 'bundle.jscad-fluent.js', {
 // v1 .jscad models require @jscad/csg, which resolves to this bundle.
 await buildBundle(frameBuildDir, 'bundle.V1_api.js', { format: 'cjs', watch: dev, loader: frameCjs })
 await buildBundle(frameBuildDir, 'bundle.params_core.js', { format: 'cjs', watch: dev, loader: frameCjs })
+// The tree bundles. '@jscad/modeling' resolves to the anchored tree, so the
+// jscad twins take their raw engine from '@jscad/modeling-for-manifold' (the
+// plain modeling bundle); keeping it external shares that one engine copy.
+// The manifold twins bundle @jscadui/manifold, whose own import of
+// '@jscad/modeling-for-manifold' stays external for the same reason.
+await buildBundle(frameBuildDir, 'bundle.model_tree_jscad.js', {
+  format: 'cjs',
+  watch: dev,
+  loader: frameCjs,
+  external: ['@jscad/modeling-for-manifold'],
+})
+await buildBundle(frameBuildDir, 'bundle.model_tree_anchored_jscad.js', {
+  format: 'cjs',
+  watch: dev,
+  loader: frameCjs,
+  external: ['@jscad/modeling', '@jscad/modeling-for-anchors', '@jbroll/jscad-anchors', '@jscad/modeling-for-manifold'],
+})
+await buildBundle(frameBuildDir, 'bundle.model_tree_manifold.js', {
+  format: 'cjs',
+  watch: dev,
+  loader: frameCjs,
+  external: ['module', '@jscad/modeling-for-manifold'],
+})
+await buildBundle(frameBuildDir, 'bundle.model_tree_anchored_manifold.js', {
+  format: 'cjs',
+  watch: dev,
+  loader: frameCjs,
+  external: ['module', '@jscad/modeling', '@jscad/modeling-for-anchors', '@jbroll/jscad-anchors', '@jscad/modeling-for-manifold'],
+})
+// The anchors package isn't a workspace dependency, so alias its bare specifier
+// to the pinned checkout esbuild cannot otherwise resolve. '@jscad/modeling'
+// stays external: anchors wraps the tree the alias maps in at runtime.
+await buildBundle(frameBuildDir, 'bundle.jscad-anchors.js', {
+  format: 'cjs',
+  watch: dev,
+  loader: frameCjs,
+  external: ['@jscad/modeling'],
+  alias: { '@jbroll/jscad-anchors': fileURLToPath(new URL('../../.deps-cache/jscad-anchors/src/index.js', import.meta.url)) },
+})
 await buildBundle(frameBuildDir, 'bundle.jscadui.transform-babel.js', { globalName: 'jscadui_transform_babel', watch: dev })
 await buildBundle(frameBuildDir, 'bundle.openscad.js', {
   globalName: 'jscadui_openscad',
