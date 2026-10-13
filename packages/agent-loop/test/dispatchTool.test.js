@@ -61,8 +61,8 @@ describe('dispatchTool', () => {
     expect(d.measure).toHaveBeenCalledWith({ parts: true })
     await dispatchTool('check', { bed: [200, 200] }, d)
     expect(d.check).toHaveBeenCalledWith({ bed: [200, 200] })
-    expect((await dispatchTool('export', { format: 'stlb' }, d)).size).toBe(684)
-    expect(d.exportModel).toHaveBeenCalledWith({ format: 'stlb' })
+    expect((await dispatchTool('export', { format: 'stl' }, d)).size).toBe(684)
+    expect(d.exportModel).toHaveBeenCalledWith({ format: 'stl' })
   })
 
   it('routes view with its arguments and docs with its query', async () => {
@@ -77,8 +77,19 @@ describe('dispatchTool', () => {
     expect(await dispatchTool(name, { source: 'x' }, deps())).toEqual(toolError('UnknownToolError', `unknown tool ${name}`))
   })
 
-  it('turns a dependency throw or rejection into an error result', async () => {
-    const d = deps({
+  it('rejects calls that violate the tool schema without calling the handler', async () => {
+    const d = deps()
+    expect(await dispatchTool('read', {}, d)).toEqual(expect.objectContaining({ ok: false, error: expect.objectContaining({ name: 'ValidationError' }) }))
+    expect(d.read).not.toHaveBeenCalled()
+    expect(await dispatchTool('export', { format: 5 }, d)).toEqual(expect.objectContaining({ ok: false, error: expect.objectContaining({ name: 'ValidationError' }) }))
+    expect(d.exportModel).not.toHaveBeenCalled()
+    expect(await dispatchTool('write', { path: 'a.js', content: 'x' }, d)).toBe(REPORT)
+    expect(d.write).toHaveBeenCalledWith({ path: 'a.js', content: 'x' })
+    expect(await dispatchTool('list', { extra: 1 }, d)).toEqual(expect.objectContaining({ ok: false, error: expect.objectContaining({ name: 'ValidationError' }) }))
+    expect(d.list).not.toHaveBeenCalled()
+  })
+
+  it('turns a dependency throw or rejection into an error result', async () => {    const d = deps({
       edit: async () => {
         throw Object.assign(new Error('oldString is not in main.js'), { name: 'EditError' })
       },
@@ -86,7 +97,7 @@ describe('dispatchTool', () => {
         throw 'no index'
       },
     })
-    expect(await dispatchTool('edit', {}, d)).toEqual({ ok: false, error: { name: 'EditError', message: 'oldString is not in main.js' } })
-    expect(await dispatchTool('docs', {}, d)).toEqual({ ok: false, error: { name: 'Error', message: 'no index' } })
+    expect(await dispatchTool('edit', { path: 'main.js', oldString: 'a', newString: 'b' }, d)).toEqual({ ok: false, error: { name: 'EditError', message: 'oldString is not in main.js' } })
+    expect(await dispatchTool('docs', { query: 'x' }, d)).toEqual({ ok: false, error: { name: 'Error', message: 'no index' } })
   })
 })

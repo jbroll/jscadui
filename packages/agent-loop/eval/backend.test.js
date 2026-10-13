@@ -423,7 +423,7 @@ describe('eval backend run', () => {
   })
 
   it('needs source', async () => {
-    expect((await call(createEvalBackend(), 'run', {})).error.message).toMatch(/source must be/)
+    expect((await call(createEvalBackend(), 'run', {})).error.message).toMatch(/missing required property 'source'/)
   })
 
   it('sets jscad-text up with the modeling it serves, so text2d needs no init', async () => {
