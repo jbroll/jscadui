@@ -113,6 +113,12 @@ cover the need. No work planned.
 4. Everything networked or recursive (fetch, subagents, MCP client)
    waits for a fixture that cannot pass without it.
 
+Deferred until a gate trips, one line each: webfetch only when a fixture
+requires an external catalog page and states its URL; subagents only when
+single-turn complex-fixture pass rate plateaus for two eval passes after
+search + ask_user ship; MCP client only when the tool count passes 20 or a
+shared external registry exists. Shell stays out: `run` covers it.
+
 ## Sources
 
 - Seekvana tool_use loop: `tool_use{id,name,input}` + `tool_result[id]`, loop on `stop_reason` — https://seekvana.com/library/agentic-ai/how-tool-calling-works
