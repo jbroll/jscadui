@@ -90,13 +90,15 @@ export const responsesProvider = (config) => {
   const url = `${config.baseUrl ?? PROVIDER_BASE_URLS[config.kind]}/v1/responses`
   const configKey = `${config.kind}|${url}|${config.model}`
   return {
-    async *send(messages, tools) {
+    async *send(messages, tools, { toolChoice } = {}) {
       const body = {
         model: config.model,
         stream: true,
         input: toResponsesInput(messages),
       }
       if (tools.length > 0) body.tools = tools.map(toResponsesTool)
+      if (toolChoice === 'none') body.tool_choice = 'none'
+      else if (toolChoice === 'any') body.tool_choice = 'required'
       const summary = Boolean(config.effort) && !refusedSummary.has(configKey)
       if (config.effort) body.reasoning = summary ? { effort: config.effort, summary: 'auto' } : { effort: config.effort }
       const headers = {

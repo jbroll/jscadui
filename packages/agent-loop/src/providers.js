@@ -253,7 +253,7 @@ export async function* parseAnthropicStream(body) {
 const anthropicProvider = (config) => {
   const sessionId = config.sessionId ?? crypto.randomUUID()
   return {
-    async *send(messages, tools) {
+    async *send(messages, tools, { toolChoice } = {}) {
       const system = messages.filter((m) => m.role === 'system').map((m) => m.content).join('\n\n')
       const body = {
         model: config.model,
@@ -263,6 +263,8 @@ const anthropicProvider = (config) => {
       }
       if (system) body.system = system
       if (tools.length > 0) body.tools = tools.map(toAnthropicTool)
+      if (toolChoice === 'none') body.tool_choice = { type: 'none' }
+      else if (toolChoice === 'any') body.tool_choice = { type: 'any' }
       if (config.effort) body.output_config = { effort: config.effort }
       const headers = {
         'content-type': 'application/json',
@@ -356,13 +358,15 @@ export async function* parseOpenAIStream(body) {
 const openaiProvider = (config) => {
   const sessionId = config.sessionId ?? crypto.randomUUID()
   return {
-    async *send(messages, tools) {
+    async *send(messages, tools, { toolChoice } = {}) {
       const body = {
         model: config.model,
         stream: true,
         messages: messages.map(toOpenAIMessage),
       }
       if (tools.length > 0) body.tools = tools.map(toOpenAITool)
+      if (toolChoice === 'none') body.tool_choice = 'none'
+      else if (toolChoice === 'any') body.tool_choice = 'required'
       if (config.effort) body.reasoning_effort = config.effort
       if (config.temperature !== undefined) body.temperature = config.temperature
       if (config.maxTokens !== undefined) body.max_tokens = config.maxTokens

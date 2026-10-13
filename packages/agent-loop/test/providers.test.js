@@ -93,6 +93,24 @@ describe('providers', () => {
     expect(await posted({ kind: 'meta', apiKey: 'k', model: 'muse-spark-1.3' })).not.toContain('mentions')
   })
 
+  it.each([
+    ['anthropic', { kind: 'anthropic', apiKey: 'k', model: 'm', baseUrl: 'https://relay.test' }, { none: { type: 'none' }, any: { type: 'any' } }],
+    ['openai', { kind: 'openai', apiKey: 'k', model: 'm', baseUrl: 'https://relay.test' }, { none: 'none', any: 'required' }],
+    ['responses', { kind: 'meta', apiKey: 'k', model: 'muse-spark-1.3' }, { none: 'none', any: 'required' }],
+  ])('%s: sends tool_choice only when the turn asks for it', async (_name, selection, expected) => {
+    const posted = async (opts) => {
+      fetchMock.mockClear()
+      fetchMock.mockResolvedValue(new Response(sseBody('')))
+      const provider = createProvider(selection)
+      for await (const e of provider.send([{ role: 'user', content: 'hi' }], TOOLS, opts)) void e
+      return JSON.parse(fetchMock.mock.calls.at(-1)[1].body)
+    }
+    expect(await posted()).not.toHaveProperty('tool_choice')
+    expect((await posted({ toolChoice: 'none' })).tool_choice).toEqual(expected.none)
+    expect((await posted({ toolChoice: 'any' })).tool_choice).toEqual(expected.any)
+    expect(await posted({ toolChoice: 'auto' })).not.toHaveProperty('tool_choice')
+  })
+
   it('opencode-go resolves the Zen URL through the openai adapter', async () => {
     const body = `data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n` + `data: [DONE]\n\n`
     fetchMock.mockResolvedValue(new Response(sseBody(body)))

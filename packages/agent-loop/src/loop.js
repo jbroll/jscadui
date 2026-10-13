@@ -147,7 +147,7 @@ export const toolDetail = (input) => {
  * `{phase: 'retry', attempt, maxAttempts}` when the provider is retried, and
  * `{phase: 'done'}` once the turn has ended, however it ended. `onText` and
  * `onReasoning` hear each streamed delta; reasoning never enters the messages.
- * @param {{conversation:{messages:Array<object>},provider:{send:Function},requestTool:Function,onText?:Function,onReasoning?:Function,onStatus?:Function,signal?:AbortSignal,toolTimeoutMs?:number,maxRounds?:number,api?:'fluent'|'modeling'}} options
+ * @param {{conversation:{messages:Array<object>},provider:{send:Function},requestTool:Function,onText?:Function,onReasoning?:Function,onStatus?:Function,signal?:AbortSignal,toolTimeoutMs?:number,maxRounds?:number,toolChoice?:'none'|'auto'|'any',api?:'fluent'|'modeling'}} options
  * @returns {Promise<{messages:Array<object>,rounds:number,stopped:string|undefined}>} a NEW conversation; the input is never mutated. `stopped` is `'max_rounds'` when the turn hit the round cap. A rejection carries the messages so far as `error.messages`.
  */
 export const runTurn = (options) => {
@@ -198,7 +198,7 @@ export const runTurn = (options) => {
           let stopReason
           let reasoningChars = 0
           report({ phase: 'thinking' })
-          iterator = provider.send(messages, tools)[Symbol.asyncIterator]()
+          iterator = provider.send(messages, tools, { toolChoice: options.toolChoice })[Symbol.asyncIterator]()
           try {
             for (;;) {
               const { done, value } = await nextOrAbort(iterator, signal)
