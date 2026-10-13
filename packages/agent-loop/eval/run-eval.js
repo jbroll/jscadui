@@ -106,8 +106,8 @@ const scoreGrade = (fixture, transcript, graded, maxTurns, providerError) => {
 
 const isContentEvent = (event) => event.type === 'text' || event.type === 'tool_use'
 
-// Caps the rounds in each user turn (`startTurn()` begins the next) and keeps the run's
-// rounds, usage, empty replies, stop reasons, provider failure and timing (docs/architecture.md).
+// Keeps the run's rounds, usage, empty replies, stop reasons, provider failure
+// and timing (docs/architecture.md). The per-turn round cap lives in runTurn.
 const withTurnCap = (provider, maxTurns, now = () => performance.now(), onRetry) => {
   let rounds = 0
   let turnRounds = 0
@@ -121,13 +121,9 @@ const withTurnCap = (provider, maxTurns, now = () => performance.now(), onRetry)
   const firstTokenSeconds = []
   let providerRetries = 0
   return {
-    async *send(messages, tools) {
+    async *send(messages, tools, opts) {
       rounds += 1
       turnRounds += 1
-      if (turnRounds > maxTurns) {
-        yield { type: 'done', stopReason: 'end_turn' }
-        return
-      }
       const startedAt = now()
       let firstContentAt = null
       let replied = false
@@ -135,7 +131,7 @@ const withTurnCap = (provider, maxTurns, now = () => performance.now(), onRetry)
       // the generator, without awaiting it, so bookkeeping can't wait for a trailing finally to
       // run; it finalizes on 'done' itself, before that event is yielded.
       try {
-        for await (const event of provider.send(messages, tools)) {
+        for await (const event of provider.send(messages, tools, opts)) {
           if (firstContentAt === null && isContentEvent(event)) firstContentAt = now()
           if (isContentEvent(event)) replied = true
           if (event.type === 'usage') {
@@ -254,6 +250,7 @@ export async function runConversation(
           conversation: { messages },
           provider: cappedProvider,
           api,
+          maxRounds: maxTurns,
           requestTool: async (name, input) => {
             onToolCall?.(name, input)
             const result = await backend.requestTool(name, input)
@@ -267,7 +264,7 @@ export async function runConversation(
         turnMessages = finished.messages
       } catch (err) {
         if (Array.isArray(err?.messages)) turnMessages = err.messages
-        // The cap's own closing round sends nothing back, which runTurn reads as an empty reply.
+        // A capped turn now resolves from runTurn; an empty reply here is the model's own.
         if (err?.name === 'EmptyReplyError') {
           if (!cappedProvider.capped()) error = EMPTY_REPLY
         } else {

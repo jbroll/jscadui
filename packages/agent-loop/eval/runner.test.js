@@ -621,7 +621,7 @@ describe('runSuite turn cap', () => {
   it('caps rounds at the fixture maxTurns and records it, without calling the cap an empty reply', async () => {
     const [result] = await runSuite([fixture], { provider: endless, backend: createEvalBackend() })
     expect(result.maxTurns).toBe(4)
-    expect(result.metrics.rounds).toBe(5)
+    expect(result.metrics.rounds).toBe(4)
     expect(result.error).toBeUndefined()
     expect(result).not.toHaveProperty('providerError')
     expect(result.stopReasons).toEqual(['tool_use', 'tool_use', 'tool_use', 'tool_use'])
@@ -637,6 +637,6 @@ describe('runSuite turn cap', () => {
   it('a maxTurns option overrides the fixture cap', async () => {
     const [result] = await runSuite([fixture], { provider: endless, backend: createEvalBackend(), maxTurns: 2 })
     expect(result.maxTurns).toBe(2)
-    expect(result.metrics.rounds).toBe(3)
+    expect(result.metrics.rounds).toBe(2)
   })
 })

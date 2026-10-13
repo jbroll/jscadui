@@ -9,6 +9,10 @@ import { buildTools } from './tools.js'
 
 const DEFAULT_TOOL_TIMEOUT_MS = 120_000
 
+// A turn that keeps calling tools without ever answering stops here, so a
+// looping model cannot spend the whole context or budget.
+export const DEFAULT_MAX_ROUNDS = 32
+
 // One tool result may fill at most the budget buildMessages keeps for history,
 // so a few oversized results cannot overflow the provider's context.
 export const TOOL_RESULT_CHARS = CONTEXT_BUDGET
@@ -143,14 +147,16 @@ export const toolDetail = (input) => {
  * `{phase: 'retry', attempt, maxAttempts}` when the provider is retried, and
  * `{phase: 'done'}` once the turn has ended, however it ended. `onText` and
  * `onReasoning` hear each streamed delta; reasoning never enters the messages.
- * @param {{conversation:{messages:Array<object>},provider:{send:Function},requestTool:Function,onText?:Function,onReasoning?:Function,onStatus?:Function,signal?:AbortSignal,toolTimeoutMs?:number,api?:'fluent'|'modeling'}} options
- * @returns {Promise<{messages:Array<object>}>} a NEW conversation; the input is never mutated. A rejection carries the messages so far as `error.messages`.
+ * @param {{conversation:{messages:Array<object>},provider:{send:Function},requestTool:Function,onText?:Function,onReasoning?:Function,onStatus?:Function,signal?:AbortSignal,toolTimeoutMs?:number,maxRounds?:number,api?:'fluent'|'modeling'}} options
+ * @returns {Promise<{messages:Array<object>,rounds:number,stopped:string|undefined}>} a NEW conversation; the input is never mutated. `stopped` is `'max_rounds'` when the turn hit the round cap. A rejection carries the messages so far as `error.messages`.
  */
 export const runTurn = (options) => {
   const { conversation, provider, requestTool, onText, onReasoning, signal } = options
   const toolTimeoutMs = options.toolTimeoutMs ?? DEFAULT_TOOL_TIMEOUT_MS
+  const maxRounds = options.maxRounds ?? DEFAULT_MAX_ROUNDS
   const tools = buildTools(options.api ?? DEFAULT_API)
   const messages = [...conversation.messages]
+  let rounds = 0
   let resultChars = 0
   let phase
   const report = (status) => {
@@ -179,6 +185,12 @@ export const runTurn = (options) => {
     void (async () => {
       try {
         for (;;) {
+          rounds += 1
+          if (rounds > maxRounds) {
+            report({ phase: 'done', stopped: 'max_rounds' })
+            resolve({ messages, rounds: maxRounds, stopped: 'max_rounds' })
+            return
+          }
           const text = []
           const toolCalls = []
           const badCalls = new Map()
@@ -247,7 +259,7 @@ export const runTurn = (options) => {
           }
         }
         report({ phase: 'done' })
-        resolve({ messages })
+        resolve({ messages, rounds, stopped: undefined })
       } catch (err) {
         if (err !== null && typeof err === 'object') err.messages ??= messages
         report({ phase: 'done' })

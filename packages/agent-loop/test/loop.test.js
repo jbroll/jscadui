@@ -309,4 +309,21 @@ describe('runTurn', () => {
     expect(error.name).toBe('ToolTimeoutError')
     expect(error.messages.map((m) => m.toolCallId ?? m.role)).toEqual(['user', 'assistant', 'tool_1', 'assistant'])
   })
+
+  it('stops after maxRounds provider rounds and reports it', async () => {
+    const toolRound = () => [
+      { type: 'tool_use', id: `t${Math.random()}`, name: 'check', input: {} },
+      { type: 'done', stopReason: 'tool_use' },
+    ]
+    const provider = roundsProvider([toolRound(), toolRound(), toolRound()])
+    const conversation = { messages: [{ role: 'user', content: 'hi' }] }
+    const result = await runTurn({ conversation, provider, requestTool: async () => '{"ok":true}', maxRounds: 2 })
+    expect(result.rounds).toBe(2)
+    expect(result.stopped).toBe('max_rounds')
+    expect(result.messages.filter((m) => m.role === 'assistant')).toHaveLength(2)
+  })
+
+  it('caps at 32 rounds by default', async () => {
+    expect((await import('../src/loop.js')).DEFAULT_MAX_ROUNDS).toBe(32)
+  })
 })
