@@ -54,11 +54,39 @@ export const startLocal = async ({ appDir, frameDir, modelDir, relayHandler, por
       if (!res.headersSent) { res.writeHead(500); res.end() } else res.destroy()
     })
   })
-  await new Promise((r) => server.listen(port, '127.0.0.1', r))
-  const actual = server.address().port
-  appOrigin = `http://localhost:${actual}`
+  let frameServer
+  // The frame must sit on appPort + 1 (the app derives its origin that way), but
+  // that port can be a concurrent server's in this process or another; a fresh
+  // ephemeral app port is retried until the pair is free, rather than letting an
+  // unhandled EADDRINUSE take the process down.
+  for (;;) {
+    await new Promise((resolve, reject) => {
+      const onError = (error) => reject(error)
+      server.once('error', onError)
+      server.listen(port, '127.0.0.1', () => {
+        server.off('error', onError)
+        resolve()
+      })
+    })
+    const actual = server.address().port
+    const origin = `http://localhost:${actual}`
+    try {
+      frameServer = await new Promise((resolve, reject) => {
+        const frame = serveFrame(actual + 1, origin, frameDir)
+        frame.once('error', reject)
+        frame.once('listening', () => {
+          frame.off('error', reject)
+          resolve(frame)
+        })
+      })
+      appOrigin = origin
+      break
+    } catch (error) {
+      await new Promise((resolve) => server.close(resolve))
+      if (error.code !== 'EADDRINUSE') throw error
+    }
+  }
   hosts = appHosts(appOrigin)
   fsHandler = createFsHandler({ modelDir, appOrigin })
-  const frameServer = serveFrame(actual + 1, appOrigin, frameDir)
   return { appServer: server, frameServer, url: appOrigin }
 }
