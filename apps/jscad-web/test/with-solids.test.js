@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
 import { createWithSolids } from '../src_frame/withSolids.js'
 
 describe('createWithSolids', () => {
@@ -110,5 +110,37 @@ describe('createWithSolids', () => {
     })
     await expect(withSolids((s) => s)).rejects.toThrow('boom')
     await expect(withSolids((s) => s)).resolves.toEqual(['solids-2'])
+  })
+
+  // A streamed parts run answers { entities: [], streamed: true, runId }: the
+  // app kept no solids, so measure, check and export re-run the model whole.
+  it('re-runs a streamed parts run so measure, check and export read the whole model', async () => {
+    const runs = []
+    let solids = []
+    const jscadMain = async (args) => {
+      runs.push(args)
+      solids = ['part-0', 'part-1']
+    }
+    const releaseSolids = vi.fn(() => { solids = [] })
+    const withSolids = createWithSolids({
+      lastRunStreamed: () => true,
+      postProgress: () => {},
+      releaseSolids,
+      currentParams: () => ({ foo: 'bar' }),
+      jscadMain,
+      currentSolids: () => solids,
+    })
+    const measured = await withSolids((all) => ['measure', ...all])
+    const checked = await withSolids((all) => ['check', ...all])
+
+    // Each read re-runs the model whole, never streamed.
+    expect(runs).toEqual([
+      { params: { foo: 'bar' }, stream: false, solidsOnly: true },
+      { params: { foo: 'bar' }, stream: false, solidsOnly: true },
+    ])
+    expect(measured).toEqual(['measure', 'part-0', 'part-1'])
+    expect(checked).toEqual(['check', 'part-0', 'part-1'])
+    expect(releaseSolids).toHaveBeenCalledTimes(2)
+    expect(globalThis.__jscadProgress).toBe(null)
   })
 })

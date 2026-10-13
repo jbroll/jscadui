@@ -257,4 +257,56 @@ describe('stream runs', () => {
     expect(runs.finish(1, []).lost).toBe(0)
     expect(onError).not.toHaveBeenCalled()
   })
+
+  describe('a parts run', () => {
+    // A multi-part model streams one batch per part under a single runId, and
+    // the app draws each batch as it arrives instead of waiting for the end.
+    const runId = 'parts-run'
+
+    it('draws each part batch as it arrives under one runId', () => {
+      const { runs, draw, onCells } = setup()
+      runs.begin(() => false, runId)
+
+      // Part 0 streams and draws on its own.
+      expect(runs.accept([cell(1, 6)], runId)).toBe(true)
+      expect(onCells).toHaveBeenLastCalledWith(1)
+      vi.advanceTimersByTime(250)
+      expect(draw).toHaveBeenCalledTimes(1)
+      expect(draw.mock.calls[0][0]).toHaveLength(1)
+
+      // Part 1 arrives later and draws too: finish is not what triggers a draw.
+      expect(runs.accept([cell(2, 6)], runId)).toBe(true)
+      expect(onCells).toHaveBeenLastCalledWith(2)
+      vi.advanceTimersByTime(250)
+      expect(draw).toHaveBeenCalledTimes(2)
+      expect(draw.mock.calls[1][0]).toHaveLength(2)
+
+      // The streamed answer's runId finishes the run and totals every part.
+      expect(runs.finish(runId)).toEqual({ cells: 2, vertices: 12, triangles: 0, lost: 0 })
+    })
+
+    it('keeps the parts in the order their batches arrive', () => {
+      const { runs, draw } = setup()
+      runs.begin(() => false, runId)
+      const partA = cell(1, 3)
+      const partB = cell(9, 3)
+      runs.accept([partA], runId)
+      runs.accept([partB], runId)
+      vi.advanceTimersByTime(250)
+      expect(draw.mock.calls[0][0]).toEqual([partA, partB])
+    })
+
+    it('draws nothing more once the streamed answer has finished the run', () => {
+      const { runs, draw } = setup()
+      runs.begin(() => false, runId)
+      expect(runs.accept([cell(1)], runId)).toBe(true)
+      runs.finish(runId)
+      const drawn = draw.mock.calls.length
+
+      // A late part of the finished run is dropped and not painted.
+      expect(runs.accept([cell(2)], runId)).toBe(false)
+      vi.runAllTimers()
+      expect(draw).toHaveBeenCalledTimes(drawn)
+    })
+  })
 })
