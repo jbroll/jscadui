@@ -37,13 +37,15 @@ describe('rowboat backend', () => {
   it('sends the bearer token on sync and records one version per write', async () => {
     // Recorded transcript shape from the rowboat client's own sync tests:
     // push answers cursors plus an echo map, pull answers an empty page.
+    // mergeRule 2 is rowboat-shared's MERGE_RULE; the client refuses a reply
+    // that names another rule.
     const fetchFn = vi.fn(async (url) => {
       if (String(url).endsWith('/sync')) {
         return new Response(
-          JSON.stringify({ ok: true, serverCursor: 1, prePushCursor: 0, echo: {}, rejected: [] }),
+          JSON.stringify({ ok: true, serverCursor: 1, prePushCursor: 0, echo: {}, rejected: [], mergeRule: 2 }),
         )
       }
-      return new Response(JSON.stringify({ changes: {}, timestamp: 1, hasMore: false, maxPurgedCursor: 0 }))
+      return new Response(JSON.stringify({ changes: {}, timestamp: 1, hasMore: false, maxPurgedCursor: 0, mergeRule: 2 }))
     })
     const store = transcriptStorage(fetchFn)
     await store.writeFiles('p2', { 'main.js': 'v1' }, { message: 'one', name: 'P2', entry: 'main.js' })
