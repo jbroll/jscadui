@@ -9,13 +9,13 @@ export const DEFAULT_TIMEOUT_MS = 30000
 
 const RESPONSE = '__RESPONSE__'
 
-// The manifold build layers on the plain modeling bundle, so only the name
-// model code requires switches; '@jscad/modeling-for-manifold' stays put.
+// '@jscad/modeling' resolves to the engine's anchored tree bundle;
+// '@jscad/modeling-for-manifold' stays the plain bundle that twin wraps.
 export const workerBundles = (bundleBase, engine) => ({
-  '@jscad/modeling': bundleBase + (engine === 'manifold' ? 'bundle.manifold_modeling.js' : 'bundle.jscad_modeling.js'),
-  '@jscad/modeling-for-anchors': bundleBase + (engine === 'manifold' ? 'bundle.manifold_modeling.js' : 'bundle.jscad_modeling.js'),
+  '@jscad/modeling': bundleBase + (engine === 'manifold' ? 'bundle.model_tree_anchored_manifold.js' : 'bundle.model_tree_anchored_jscad.js'),
+  '@jscad/modeling-for-anchors': bundleBase + (engine === 'manifold' ? 'bundle.model_tree_anchored_manifold.js' : 'bundle.model_tree_anchored_jscad.js'),
   '@jscad/modeling-for-manifold': bundleBase + 'bundle.jscad_modeling.js',
-  '@jbroll/jscad-anchors': 'https://cdn.jsdelivr.net/npm/@jbroll/jscad-anchors@0.1/dist/jscad-anchors.cjs',
+  '@jbroll/jscad-anchors': bundleBase + 'bundle.jscad-anchors.js',
   '@jscad/io': bundleBase + 'bundle.jscad_io.js',
   '@jscadui/model-tools': bundleBase + 'bundle.model-tools.js',
   '@jbroll/jscad-fluent': bundleBase + 'bundle.jscad-fluent.js',

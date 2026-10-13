@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { createFrameHost } from '../src_frame/frameHost.js'
+import { createFrameHost, workerBundles } from '../src_frame/frameHost.js'
 
 const APP = 'https://app.example'
 const BASE = 'https://run.example/assets/'
@@ -191,7 +191,21 @@ describe('worker creation failure', () => {
     blocked = false
     send({ method: 'jscadInit', id: 2, params: [{}] })
     expect(methodsOf(workers[1]).slice(0, 2)).toEqual(['jscadInit', 'jscadInit'])
-    expect(workers[1].postMessage.mock.calls[0][0].params[0].bundles['@jscad/modeling']).toBe(BASE + 'bundle.jscad_modeling.js')
+    expect(workers[1].postMessage.mock.calls[0][0].params[0].bundles['@jscad/modeling']).toBe(BASE + 'bundle.model_tree_anchored_jscad.js')
+  })
+})
+
+describe('worker bundle aliases', () => {
+  it('resolves modeling and the anchors alias to the anchored tree bundle per engine', () => {
+    const manifold = workerBundles('https://base/', 'manifold')
+    expect(manifold['@jscad/modeling']).toBe('https://base/bundle.model_tree_anchored_manifold.js')
+    expect(manifold['@jscad/modeling-for-anchors']).toBe('https://base/bundle.model_tree_anchored_manifold.js')
+    expect(manifold['@jscad/modeling-for-manifold']).toBe('https://base/bundle.jscad_modeling.js')
+    expect(manifold['@jbroll/jscad-anchors']).toBe('https://base/bundle.jscad-anchors.js')
+
+    const jscad = workerBundles('https://base/', 'jscad')
+    expect(jscad['@jscad/modeling']).toBe('https://base/bundle.model_tree_anchored_jscad.js')
+    expect(jscad['@jscad/modeling-for-anchors']).toBe('https://base/bundle.model_tree_anchored_jscad.js')
   })
 })
 
@@ -209,7 +223,7 @@ describe('jscadInit rewriting', () => {
     const { workers, send } = setup()
     init(send, { bundles: { '@jscad/modeling': 'https://evil.example/x.js' }, useParamsProxy: true })
     const [message] = workers[0].postMessage.mock.calls[0]
-    expect(message.params[0].bundles['@jscad/modeling']).toBe(BASE + 'bundle.jscad_modeling.js')
+    expect(message.params[0].bundles['@jscad/modeling']).toBe(BASE + 'bundle.model_tree_anchored_jscad.js')
     expect(message.params[0].appOrigin).toBe(APP)
     expect(message.params[0].useParamsProxy).toBe(true)
   })
@@ -219,7 +233,7 @@ describe('jscadInit rewriting', () => {
     init(send, { engine: 'manifold' }, 1)
     init(send, {}, 2)
     const [second] = workers[0].postMessage.mock.calls[1]
-    expect(second.params[0].bundles['@jscad/modeling']).toBe(BASE + 'bundle.manifold_modeling.js')
+    expect(second.params[0].bundles['@jscad/modeling']).toBe(BASE + 'bundle.model_tree_anchored_manifold.js')
   })
 
   it('rejects a malformed options param at once instead of arming a timeout', () => {
@@ -241,7 +255,7 @@ describe('jscadInit rewriting', () => {
     const { workers, send } = setup()
     send({ method: 'jscadInit', id: 1, params: [] })
     const [message] = workers[0].postMessage.mock.calls[0]
-    expect(message.params[0].bundles['@jscad/modeling']).toBe(BASE + 'bundle.jscad_modeling.js')
+    expect(message.params[0].bundles['@jscad/modeling']).toBe(BASE + 'bundle.model_tree_anchored_jscad.js')
   })
 })
 
@@ -500,7 +514,7 @@ describe('warm spare', () => {
     expect(workers).toHaveLength(2)
     expect(methodsOf(workers[1])).toEqual(['jscadInit', 'jscadSetFiles'])
     const [spareInit] = workers[1].postMessage.mock.calls[0]
-    expect(spareInit.params[0].bundles['@jscad/modeling']).toBe(BASE + 'bundle.manifold_modeling.js')
+    expect(spareInit.params[0].bundles['@jscad/modeling']).toBe(BASE + 'bundle.model_tree_anchored_manifold.js')
     expect(spareInit.params[0].appOrigin).toBe(APP)
     expect(workers[1].postMessage.mock.calls[1][0].params).toEqual([{ files: { 'main.js': 'x' } }])
     expect(posted.map((m) => m.id)).toEqual([1, 2, 3])
@@ -759,7 +773,7 @@ describe('trap retirement', () => {
     expect(fresh).not.toBe(workers[0])
     const inits = fresh.postMessage.mock.calls.map(([m]) => m).filter((m) => m.method === 'jscadInit')
     expect(inits).toHaveLength(1)
-    expect(inits[0].params[0].bundles['@jscad/modeling']).toBe(BASE + 'bundle.jscad_modeling.js')
+    expect(inits[0].params[0].bundles['@jscad/modeling']).toBe(BASE + 'bundle.model_tree_anchored_jscad.js')
   })
 
   it('holds later requests until the reload finishes and keeps their order', () => {
