@@ -26,6 +26,9 @@ const DEFERRED_OPS = {
     'rotate', 'rotateX', 'rotateY', 'rotateZ',
     'mirror', 'mirrorX', 'mirrorY', 'mirrorZ',
     'transform', 'align', 'center', 'centerX', 'centerY', 'centerZ',
+    // Factors need the child bbox, so resize carries no stored matrix and
+    // defers placement to the evaluator.
+    'resize',
   ],
   extrusions: ['extrudeLinear', 'extrudeRotate', 'extrudeHelical', 'extrudeRectangular', 'extrudeFromSlices', 'project'],
   expansions: ['expand', 'offset'],

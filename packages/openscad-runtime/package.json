@@ -13,9 +13,16 @@
   "files": [
     "src"
   ],
+  "scripts": {
+    "test": "vitest run"
+  },
   "dependencies": {
     "@jscad/modeling": "file:../../.deps-cache/OpenJSCAD.org/packages/modeling",
-    "@jscadui/jscad-text": "file:../jscad-text"
+    "@jscadui/jscad-text": "file:../jscad-text",
+    "@jscadui/model-tree": "file:../model-tree"
+  },
+  "devDependencies": {
+    "vitest": "^4.0.18"
   },
   "license": "MIT"
 }

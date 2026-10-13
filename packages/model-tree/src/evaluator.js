@@ -6,13 +6,30 @@
 // `memoFromSpecials`, so a subtree measured during the build is not evaluated
 // twice; anything this evaluator computes is stored back into the same map.
 
-import { IDENTITY, makeFrameMath, frameFromBBox, directionBasis, mergeGhosts, mulMat } from './tags.js'
+import { makeFrameMath, frameFromBBox, directionBasis, mergeGhosts, mulMat } from './tags.js'
+import { SPECIALS } from './context.js'
 
 const isTreeNode = (value) => Boolean(value && value.isTreeNode === true)
 const isThenable = (value) => Boolean(value && typeof value.then === 'function')
 const isFluentArray = (value) => Boolean(value && typeof value === 'object' && value.isFluentArray === true)
 
-const identityMatrix = () => [...IDENTITY]
+const mapSnapshot = (snapshot, matrix) => (matrix ? { ...snapshot, matrix: mulMat(matrix, snapshot.matrix) } : snapshot)
+
+const snapshotsOf = (node, ctx) => {
+  const entry = ctx.specials && ctx.specials.get(node)
+  return entry && Array.isArray(entry.snapshots) ? entry.snapshots : null
+}
+
+// Result nodes tagged by `attach` emit the snapshots their specials link holds.
+// A node whose overlay is `unmapped` was wrapped by a transform, so its ghosts
+// map through the matrix the caller resolved (or the node's stored one).
+const overlayGhosts = (node, ctx, matrixOverride) => {
+  if (!node.overlay || !Array.isArray(node.overlay.kinds) || node.overlay.kinds.length === 0) return []
+  const snapshots = snapshotsOf(node, ctx)
+  if (!snapshots) return []
+  const matrix = matrixOverride || (node.overlay.unmapped && node.matrix ? node.matrix : null)
+  return snapshots.map((snapshot) => mapSnapshot(snapshot, matrix))
+}
 
 const flattenSolids = (value) => {
   if (value === undefined || value === null) return []
@@ -67,7 +84,7 @@ export const createEvaluator = (engine) => {
     }
     if (!isTreeNode(value)) return { solids: value === undefined || value === null ? [] : [value], ghosts: [] }
     const memo = ctx.memo.get(value)
-    if (memo !== undefined) return { solids: flattenSolids(memo), ghosts: [] }
+    if (memo !== undefined) return { solids: flattenSolids(memo), ghosts: overlayGhosts(value, ctx) }
     return evalNode(value, ctx)
   }
 
@@ -82,10 +99,11 @@ export const createEvaluator = (engine) => {
     return { solids, ghosts }
   }
 
-  const finish = (node, ctx, solids, ghosts) => {
+  const finish = (node, ctx, solids, ghosts, matrixOverride) => {
     if (solids.length === 1) ctx.memo.set(node, solids[0])
     else if (solids.length > 1) ctx.memo.set(node, solids)
-    return { solids, ghosts }
+    const extra = overlayGhosts(node, ctx, matrixOverride)
+    return { solids, ghosts: extra.length ? [...ghosts, ...extra] : ghosts }
   }
 
   const evalColorize = async (node, ctx) => {
@@ -94,9 +112,24 @@ export const createEvaluator = (engine) => {
     return finish(node, ctx, flattenSolids(result), ghosts)
   }
 
-  const evalGhost = (node) => {
-    const { kind, snapshot, matrix } = node.params || {}
-    return { solids: [], ghosts: [{ kind, mesh: snapshot, matrix: matrix ? [...matrix] : identityMatrix() }] }
+  // A ghost marker's snapshot lives in the build specials keyed by the marker.
+  const evalGhost = (node, ctx) => {
+    const snapshots = snapshotsOf(node, ctx) || []
+    return { solids: [], ghosts: snapshots.map((snapshot) => mapSnapshot(snapshot, node.matrix || null)) }
+  }
+
+  // `transforms.resize` defers at build: its factors need the child's real bbox,
+  // computed here exactly like openscad-runtime's `resizeFactors`.
+  const evalResize = async (node, ctx) => {
+    const { solids, ghosts } = await evalChildren(node.children, ctx)
+    const geo = solids[0]
+    if (geo === undefined || geo === null) return finish(node, ctx, [], ghosts)
+    const bounds = engine.measurements.measureBoundingBox(geo)
+    const curSize = [0, 1, 2].map((i) => bounds[1][i] - bounds[0][i])
+    const factors = (node.params || []).map((s, i) => (s > 0 && curSize[i] > 0 ? s / curSize[i] : 1))
+    const scaled = engine.transforms.scale(factors, geo)
+    const matrix = [factors[0], 0, 0, 0, 0, factors[1], 0, 0, 0, 0, factors[2], 0, 0, 0, 0, 1]
+    return finish(node, ctx, flattenSolids(scaled), ghosts, matrix)
   }
 
   const resolveAnchor = async (ref, geom, fallbackNode, ctx) => {
@@ -130,7 +163,9 @@ export const createEvaluator = (engine) => {
       mat4.invert(mat4.create(), math.frameToMat4(C)),
     )
     const placed = engine.transforms.transform(M, childGeom)
-    const ghosts = [...childResult.ghosts, ...parentResult.ghosts].map((g) => ({ ...g, matrix: mulMat(M, g.matrix) }))
+    // The parent is not part of the result, so its ghosts are dropped; child
+    // ghosts follow the placed child, matching eager `withOverlays`.
+    const ghosts = childResult.ghosts.map((g) => ({ ...g, matrix: mulMat(M, g.matrix) }))
     return finish(node, ctx, flattenSolids(placed), ghosts)
   }
 
@@ -150,11 +185,12 @@ export const createEvaluator = (engine) => {
     })
     const placed = engine.transforms.translate(offset, childGeom)
     const matrix = mat4.fromTranslation(mat4.create(), offset)
-    const ghosts = [...childResult.ghosts, ...parentResult.ghosts].map((g) => ({ ...g, matrix: mulMat(matrix, g.matrix) }))
+    const ghosts = childResult.ghosts.map((g) => ({ ...g, matrix: mulMat(matrix, g.matrix) }))
     return finish(node, ctx, flattenSolids(placed), ghosts)
   }
 
   const evalDispatch = async (node, ctx) => {
+    if (node.op === 'transforms.resize') return evalResize(node, ctx)
     const fn = resolveOp(engine, node.op)
     if (typeof fn !== 'function') throw new Error(`evaluate: unsupported op "${node.op}"`)
     const { solids, ghosts } = await evalChildren(node.children, ctx)
@@ -166,7 +202,7 @@ export const createEvaluator = (engine) => {
   const evalNode = async (node, ctx) => {
     switch (node.op) {
       case 'literal': return finish(node, ctx, node.value === undefined ? [] : [node.value], [])
-      case 'ghost': return evalGhost(node)
+      case 'ghost': return evalGhost(node, ctx)
       case 'attach': return evalAttach(node, ctx)
       case 'alignTo': return evalAlignTo(node, ctx)
       case 'colorize': return evalColorize(node, ctx)
@@ -175,7 +211,8 @@ export const createEvaluator = (engine) => {
   }
 
   return async (node, memo = new Map()) => {
-    const result = await evalValue(node, { engine, memo, math })
+    const specials = (memo && memo[SPECIALS]) || globalThis.__jscadBuild?.specials || null
+    const result = await evalValue(node, { engine, memo, math, specials })
     return { solids: result.solids, ghosts: mergeGhosts(result.ghosts) }
   }
 }

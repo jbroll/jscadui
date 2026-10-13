@@ -31,6 +31,11 @@ export const eagerEvaluate = (node) => {
   return ctx.eager(node)
 }
 
+// Overlay snapshots stay in `specials`, so the memo a caller hands the
+// evaluator carries the store by reference: the build context is gone by the
+// time a streamed part is evaluated, but its snapshots must still resolve.
+export const SPECIALS = Symbol('buildSpecials')
+
 // The only specials -> memo path: geometries captured by eager reads during
 // the build, by node object identity. Overlay-link specials carry snapshots
 // rather than geometry and are skipped.
@@ -40,5 +45,6 @@ export const memoFromSpecials = (ctx) => {
     const entry = ctx.specials.get(node)
     if (entry && entry.geometry !== undefined) memo.set(node, geometry)
   }
+  memo[SPECIALS] = ctx.specials
   return memo
 }

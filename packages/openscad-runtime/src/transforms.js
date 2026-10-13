@@ -16,7 +16,7 @@ const filterGeo = (geo) => {
 }
 
 // JSCAD transforms - injected at init time
-let translate, rotateX, rotateY, rotateZ, scale, mirror, transform, rawTransform, measureBoundingBox
+let translate, rotateX, rotateY, rotateZ, scale, mirror, transform, rawTransform, measureBoundingBox, treeResize
 
 export const initTransforms = (jscad) => {
   translate = consuming(jscad.transforms.translate)
@@ -28,6 +28,9 @@ export const initTransforms = (jscad) => {
   rawTransform = jscad.transforms.transform
   transform = consuming(rawTransform)
   measureBoundingBox = jscad.measurements.measureBoundingBox
+  // A tree node defers resize: its factors need the child bbox, which only the
+  // evaluator has. The plain engine has no resize entry, so this stays undefined.
+  treeResize = jscad.transforms.resize
 }
 
 const toRad = d => d * Math.PI / 180
@@ -205,12 +208,16 @@ export const _rotate = affine(rotateMatrix, (params, geo) => {
 })
 
 // Resize helper - scales geometry to fit target dimensions
+// A node's factors need its evaluated bbox, so its overlay is left unmapped for
+// the evaluator rather than resolving a matrix from a tag.
 const resizeMatrix = (newsize, geo) => {
+  if (geo?.isTreeNode) return null
   const g = geo === NO_CHILD ? undefined : filterGeo(geo)
   return g == null ? IDENTITY : scaleMatrix(resizeFactors(newsize, g))
 }
 
 export const _resize = affine(resizeMatrix, (newsize, geo) => {
+  if (geo?.isTreeNode) return treeResize(newsize, geo)
   if (geo === NO_CHILD) return NO_CHILD
   const g = filterGeo(geo)
   if (g == null) return undefined

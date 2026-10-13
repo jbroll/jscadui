@@ -227,8 +227,8 @@ const _isAbsent = (p) => p === undefined || p === null || p === NO_CHILD
  */
 const _sameDimensionAsFirst = (parts) => {
   // `in`, not a read: on ManifoldGeom2 these are getters that convert the
-  // whole cross-section.
-  const is2D = (p) => p !== null && typeof p === 'object' && ('sides' in p || 'outlines' in p)
+  // whole cross-section. A tree node answers from its dim tag.
+  const is2D = (p) => p?.isTreeNode ? p.dim === 2 : p !== null && typeof p === 'object' && ('sides' in p || 'outlines' in p)
   const first2D = is2D(parts[0])
   return parts.every((p) => is2D(p) === first2D) ? parts : parts.filter((p) => is2D(p) === first2D)
 }
@@ -257,7 +257,8 @@ export const _safeUnion = (parts) => {
 
 // A 2D geometry: jscad geom2 ('sides') or ManifoldGeom2 ('outlines'). `in`, not
 // a read: on ManifoldGeom2 these are getters that convert the cross-section.
-export const _is2D = (p) => p !== null && typeof p === 'object' && ('sides' in p || 'outlines' in p)
+// A tree node answers from its dim tag instead.
+export const _is2D = (p) => p?.isTreeNode ? p.dim === 2 : p !== null && typeof p === 'object' && ('sides' in p || 'outlines' in p)
 
 // Children of linear_extrude/rotate_extrude: OpenSCAD extrudes the 2D ones and
 // ignores 3D ones ("Ignoring 3D child object for 2D operation") in any order.
@@ -475,6 +476,7 @@ export const _hull = gathering((...args) => {
  * convert the whole mesh to read it.
  */
 export const withoutDegeneratePolygons = (geometry) => {
+  if (geometry?.isTreeNode) return geometry
   if (!geometry || !Object.hasOwn(geometry, 'polygons') || !Array.isArray(geometry.polygons)) return geometry
   const polygons = geometry.polygons.filter(p => p?.vertices?.length >= 3)
   return polygons.length === geometry.polygons.length ? geometry : { ...geometry, polygons }

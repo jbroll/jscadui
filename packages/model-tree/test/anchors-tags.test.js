@@ -1,5 +1,5 @@
 import { test, expect } from 'vitest'
-import { createModelTree, makeFrameMath, frameFromBBox, directionBasis, ghostOf, mergeGhosts } from '../src/index.js'
+import { createModelTree, createBuildContext, memoFromSpecials, makeFrameMath, frameFromBBox, directionBasis, ghostOf, mergeGhosts } from '../src/index.js'
 import { createEvaluator } from '../src/evaluator.js'
 import modeling from '@jscad/modeling'
 
@@ -69,14 +69,20 @@ test('ghostOf: a snapshot becomes a previewOnly entity', () => {
   expect(entity.polygons).toHaveLength(1)
 })
 
-test('ghost markers evaluate to previewOnly entities', async () => {
-  const evaluate = createEvaluator(modeling)
+test('ghost markers resolve their snapshot from build specials', async () => {
   const mesh = { dim: 3, polygons: [[[0, 0, 0], [1, 0, 0], [0, 1, 0]]] }
-  const ghost = { op: 'ghost', params: { kind: 'background', snapshot: mesh, matrix: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1] }, children: [], isTreeNode: true, dim: 3, overlay: null, anchors: null, color: null }
-  const { solids, ghosts } = await evaluate(ghost, new Map())
+  const ghost = { op: 'ghost', params: { kind: 'background' }, children: [], isTreeNode: true, dim: 3, overlay: null, anchors: null, color: null }
+  const ctx = createBuildContext(modeling)
+  ctx.specials.set(ghost, { node: ghost, snapshots: [{ kind: 'background', mesh, matrix: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1] }] })
+  const { solids, ghosts } = await createEvaluator(modeling)(ghost, memoFromSpecials(ctx))
   expect(solids).toHaveLength(0)
   expect(ghosts).toHaveLength(1)
   expect(ghosts[0].previewOnly).toBe(true)
+})
+
+test('evaluate throws on an unsupported op', async () => {
+  const node = { op: 'nope', params: {}, children: [], isTreeNode: true, dim: 3, overlay: null, anchors: null, color: null }
+  await expect(createEvaluator(modeling)(node, new Map())).rejects.toThrow('unsupported op')
 })
 
 test('alignTo places the child against the parent face', async () => {

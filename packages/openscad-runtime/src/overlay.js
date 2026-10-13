@@ -4,8 +4,12 @@
  * as previewOnly entities, which every export drops.
  */
 import { NO_CHILD } from './sentinels.js'
+import { eagerEvaluate } from '@jscadui/model-tree'
 
 const COLORS = { background: [0.5, 0.5, 0.5, 0.3], highlight: [1, 0.32, 0.32, 0.5] }
+
+const isTreeNode = (x) => Boolean(x && x.isTreeNode === true)
+const isGhostMarker = (x) => isTreeNode(x) && x.op === 'ghost'
 
 export const IDENTITY = Object.freeze([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])
 
@@ -51,22 +55,56 @@ export class Ghosts {
 
 export const isGhosts = (x) => x instanceof Ghosts
 
-const hasGhosts = (x) => x instanceof Ghosts || (Array.isArray(x) && x.some(hasGhosts))
+const hasGhosts = (x) => x instanceof Ghosts || isGhostMarker(x) || (Array.isArray(x) && x.some(hasGhosts))
+
+const hasTreeNode = (x) => Array.isArray(x) ? x.some(hasTreeNode) : isTreeNode(x)
 
 const isThenable = (x) => x !== null && typeof x === 'object' && typeof x.then === 'function'
 
 const present = (g) => g !== undefined && g !== null && g !== NO_CHILD && !(g instanceof Ghosts)
 
+// Node overlays live in the per-run build specials: the WeakMap answers by node
+// identity what the geometry-keyed `table` answers for real geometry. Nodes are
+// immutable and rebuilt per worker, so no staleness check is needed.
+const buildSpecials = () => globalThis.__jscadBuild?.specials
+
+const nodeSnapshots = (node) => buildSpecials()?.get(node)?.snapshots ?? null
+
+const setSnapshots = (node, snapshots) => {
+  const specials = buildSpecials()
+  if (!specials) return
+  const prev = specials.get(node) || {}
+  specials.set(node, { ...prev, node, snapshots })
+}
+
+const ghostMarker = (kind, dim) => ({
+  op: 'ghost',
+  params: { kind },
+  children: [],
+  isTreeNode: true,
+  dim,
+  overlay: null,
+  anchors: null,
+  color: null,
+})
+
+// `{ kind }` entries are enough to propagate an overlay through ops; the mesh
+// and matrix come from the node's specials link when it has one.
+const kindEntries = (node) => node.overlay?.kinds?.map(kind => ({ kind })) ?? []
+
 export const overlaysOf = (x) => {
   if (x === null || typeof x !== 'object') return []
   if (Array.isArray(x)) return x.flatMap(overlaysOf)
   if (x instanceof Ghosts) return x.list
+  if (isTreeNode(x)) return nodeSnapshots(x) ?? kindEntries(x)
   return table.get(x) ?? []
 }
 
 export const strip = (x) => {
   if (x instanceof Ghosts) return x.empty ? undefined : NO_CHILD
-  if (Array.isArray(x)) return x.filter(g => !(g instanceof Ghosts)).map(strip)
+  if (Array.isArray(x)) return x.filter(g => !(g instanceof Ghosts) && !isGhostMarker(g)).map(strip)
+  if (isGhostMarker(x)) return undefined
+  if (isTreeNode(x) && x.overlay) return { ...x, overlay: null }
   return x
 }
 
@@ -76,9 +114,26 @@ const forget = (x) => {
   else table.delete(x)
 }
 
-export const attach = (result, list, empty = true) => {
+// `opts.tree` builds an overlay-only marker when an op's whole input was a node
+// ghost. `opts.matrix`/`opts.unmapped` defer the snapshot's placement to the
+// evaluator, which maps it through the transform node's stored matrix.
+export const attach = (result, list, empty = true, opts = {}) => {
+  const { tree = false, matrix = null, unmapped = false } = opts
   if (list.length === 0) return result === null || typeof result !== 'object' ? (empty ? undefined : NO_CHILD) : result
-  if (isThenable(result)) return result.then(r => attach(r, list, empty))
+  if (isThenable(result)) return result.then(r => attach(r, list, empty, opts))
+  if (isTreeNode(result)) {
+    const kinds = [...(result.overlay?.kinds ?? []), ...list.map(o => o.kind)]
+    const next = { ...result, overlay: { kinds, unmapped: Boolean(result.overlay?.unmapped || unmapped) } }
+    setSnapshots(next, list)
+    return next
+  }
+  if (tree && (result === null || result === undefined || result === NO_CHILD)) {
+    const marker = ghostMarker(list[0]?.kind)
+    if (matrix) marker.matrix = [...matrix]
+    if (matrix || unmapped) marker.overlay = { kinds: list.map(o => o.kind), unmapped: true }
+    setSnapshots(marker, list)
+    return marker
+  }
   if (Array.isArray(result)) {
     forget(result)
     return [...result, new Ghosts(list, false)]
@@ -91,10 +146,21 @@ export const attach = (result, list, empty = true) => {
 export const gathering = (op) => function (...args) {
   const list = overlaysOf(args)
   if (list.length === 0 && !hasGhosts(args)) return op.apply(this, args)
-  return attach(op.apply(this, args.map(strip)), list)
+  return attach(op.apply(this, args.map(strip)), list, true, { tree: hasTreeNode(args) })
 }
 
 export const affine = (matrixOf, op) => function (arg, geo) {
+  if (isThenable(geo)) return geo.then(g => affine(matrixOf, op).call(this, arg, g))
+  if (isTreeNode(geo)) {
+    const list = overlaysOf(geo)
+    if (list.length === 0 && !hasGhosts(geo)) return op.call(this, arg, geo)
+    const g = strip(geo)
+    const m = matrixOf(arg, g)
+    const opts = { tree: true, matrix: m, unmapped: true }
+    const result = op.call(this, arg, g)
+    if (isThenable(result)) return result.then(r => attach(r, list, true, opts))
+    return attach(result, list, true, opts)
+  }
   const list = overlaysOf(geo)
   if (list.length === 0 && !hasGhosts(geo)) return op.call(this, arg, geo)
   const g = strip(geo)
@@ -115,14 +181,30 @@ const snapshot = (g) => {
 const snapshots = (kind, child) =>
   [child].flat(Infinity).filter(present).map(g => ({ kind, mesh: snapshot(g), matrix: IDENTITY }))
 
+// `#` keeps the operand in the CSG result and adds one ghost snapshot per solid.
 export const highlight = (child) => {
   if (isThenable(child)) return child.then(highlight)
+  if (isTreeNode(child)) {
+    return eagerEvaluate(child).then((geo) => {
+      const fresh = [geo].flat(Infinity).filter(present).map(g => ({ kind: 'highlight', mesh: snapshot(g), matrix: IDENTITY }))
+      return attach(child, [...overlaysOf(child), ...fresh], true, { tree: true })
+    })
+  }
   const absent = child === NO_CHILD || (child instanceof Ghosts && !child.empty)
   return attach(child, [...overlaysOf(child), ...snapshots('highlight', strip(child))], !absent)
 }
 
+// `%` is overlay-only: the operand is dropped and every solid becomes a ghost.
 export const background = (child) => {
   if (isThenable(child)) return child.then(background)
+  if (isTreeNode(child)) {
+    return eagerEvaluate(child).then((geo) => {
+      const fresh = [geo].flat(Infinity).filter(present).map(g => ({ kind: 'background', mesh: snapshot(g), matrix: IDENTITY }))
+      const marker = ghostMarker('background', child.dim)
+      setSnapshots(marker, [...overlaysOf(child), ...fresh])
+      return marker
+    })
+  }
   // Even with nothing to draw: OpenSCAD skips the % child, so difference must not take it as its subject.
   return new Ghosts([...overlaysOf(child), ...snapshots('background', strip(child))], false)
 }
@@ -130,6 +212,7 @@ export const background = (child) => {
 // A module body whose only statement is `%x`: the module node exists, so it is empty.
 export const group = (child) => {
   if (isThenable(child)) return child.then(group)
+  if (isTreeNode(child)) return child
   return child instanceof Ghosts && !child.empty ? new Ghosts(child.list, true) : child
 }
 
@@ -151,6 +234,8 @@ const ghostOf =({ kind, mesh, matrix }) => {
 
 export const withOverlays = (result) => {
   if (isThenable(result)) return result.then(withOverlays)
+  // A node's ghosts are emitted by the evaluator from its specials link.
+  if (isTreeNode(result)) return result
   const list = overlaysOf(result)
   if (list.length === 0) return result
   const solids = [strip(result)].flat(Infinity).filter(present)
