@@ -1822,4 +1822,142 @@ describe('grid runs', () => {
     expect(answer.params.lost).toEqual([])
     expect(answer.params.proxyState.discovered.map((p) => p.path)).toEqual(['a.size', 'c.size', 'b.size'])
   })
+
+  it('reports a leaf a dead member was holding as lost, and the run goes on', () => {
+    const { workers, posted } = gridRun()
+    claimOn(workers[0], '0')
+    loadAll(workers[1])
+    loadAll(workers[2])
+    loadAll(workers[3])
+    claimOn(workers[1], '1', { url: './one.scad' })
+    workers[1].onerror({ message: 'gone' })
+    loadAll(workers[3])
+    answerLastOf(workers[0], 'jscadMain')
+    answerLastOf(workers[2], 'jscadMain')
+    answerLastOf(workers[3], 'jscadMain')
+    expect(posted.find((m) => m.id === 4).params.lost).toEqual([{ url: './one.scad', reason: 'WorkerError' }])
+  })
+})
+
+describe('model-parts runs', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+
+  const sent = (worker) => worker.postMessage.mock.calls.map(([m]) => m)
+
+  const loadAll = (worker) => {
+    for (const message of sent(worker)) {
+      if (message.id && ['jscadInit', 'jscadSetFiles', 'jscadScript'].includes(message.method)) {
+        worker.onmessage({ data: { method: RESPONSE, id: message.id, params: { def: [], params: {} } } })
+      }
+    }
+  }
+
+  let claims = 0
+  // A part claim carries no url: that alone is what makes the frame read the
+  // run as model-parts. The worker posts `url: undefined`, which structured
+  // clone keeps absent, so the frame sees null.
+  const claimPart = (worker, key, { runId = 7, heap = 0 } = {}) => {
+    const id = `part-${++claims}`
+    worker.onmessage({ data: { method: 'jscadClaim', id, params: [{ key, runId, heap }] } })
+    return sent(worker).find((m) => m.method === '__CLAIM__' && m.params[0].id === id)?.params[0].won
+  }
+
+  const lastOf = (worker, method) => sent(worker).findLast((m) => m.method === method)
+  const answerLastOf = (worker, method, params = { entities: [] }) =>
+    worker.onmessage({ data: { method: RESPONSE, id: lastOf(worker, method).id, params } })
+  const failLastOf = (worker, method, name = 'RuntimeError') =>
+    worker.onmessage({ data: { method: RESPONSE, id: lastOf(worker, method).id, error: { name, message: name } } })
+
+  // A tree model loaded, the spare set up, and app run 4 (runId 7) in flight on
+  // the active worker, ready to claim parts.
+  const partsRun = ({ poolSize = 2 } = {}) => {
+    const ctx = setup()
+    const { workers, send } = ctx
+    init(send, { poolSize }, 1)
+    answer(workers[0], 0)
+    send({ method: 'jscadSetFiles', id: 2, params: [{ files: { 'model.js': 'tree' } }] })
+    answer(workers[0], 1)
+    send({ method: 'jscadScript', id: 3, params: [{ script: 'tree', url: 'model.js', runMain: false }] })
+    answer(workers[0], 2, { def: [], params: {} })
+    loadAll(workers[1])
+    send({ method: 'jscadMain', id: 4, params: [{ params: {}, runId: 7 }] })
+    ctx.posted.length = 0
+    return ctx
+  }
+
+  it('fails a model-parts run on a lost part, with no partial result', () => {
+    const { workers, posted } = partsRun()
+    expect(claimPart(workers[0], '0')).toBe(true)
+    expect(claimPart(workers[1], '1')).toBe(true)
+    workers[1].onerror({ message: 'gone' })
+
+    // Closing the run refuses later claims and drops late cells.
+    expect(claimPart(workers[0], '2')).toBe(false)
+    workers[0].onmessage({ data: { method: 'jscadCells', params: [{ entities: [], runId: 7 }] } })
+    expect(posted.filter((m) => m.method === 'jscadCells')).toEqual([])
+
+    answerLastOf(workers[0], 'jscadMain', { entities: [], streamed: true, runId: 7 })
+
+    expect(posted.find((m) => m.id === 4)).toEqual({
+      method: RESPONSE,
+      id: 4,
+      error: { name: 'WorkerError', message: 'a part of the model did not finish' },
+    })
+    expect(posted.find((m) => m.id === 4).params).toBeUndefined()
+  })
+
+  it('fails a model-parts run on a trap without joining a replacement', () => {
+    const { workers, posted } = partsRun({ poolSize: 1 })
+    expect(claimPart(workers[0], '0')).toBe(true)
+    expect(workers).toHaveLength(2)
+    failLastOf(workers[0], 'jscadMain')
+
+    expect(workers[0].terminate).toHaveBeenCalled()
+    // No replacement: the spare never gets the run's script or main.
+    expect(lastOf(workers[1], 'jscadScript')).toBeUndefined()
+    expect(lastOf(workers[1], 'jscadMain')).toBeUndefined()
+    expect(posted.find((m) => m.id === 4)).toEqual({
+      method: RESPONSE,
+      id: 4,
+      error: { name: 'RuntimeError', message: 'RuntimeError' },
+    })
+  })
+
+  it('fails a model-parts run when a member recycles, without joining a replacement', () => {
+    const { workers, posted } = partsRun({ poolSize: 1 })
+    expect(claimPart(workers[0], '0')).toBe(true)
+    expect(claimPart(workers[0], '1', { heap: 2 ** 30 })).toBe(false)
+    answerLastOf(workers[0], 'jscadMain')
+
+    expect(workers[0].terminate).toHaveBeenCalled()
+    expect(lastOf(workers[1], 'jscadScript')).toBeUndefined()
+    expect(posted.find((m) => m.id === 4)).toEqual({
+      method: RESPONSE,
+      id: 4,
+      error: { name: 'AbortError', message: 'a part of the model did not finish' },
+    })
+  })
+
+  it('answers a completed model-parts run streamed, with no lost list', () => {
+    const { workers, posted } = partsRun()
+    expect(claimPart(workers[0], '0')).toBe(true)
+    loadAll(workers[1])
+    expect(claimPart(workers[1], '1')).toBe(true)
+    answerLastOf(workers[0], 'jscadMain', { entities: [], streamed: true, runId: 7 })
+    answerLastOf(workers[1], 'jscadMain')
+
+    expect(posted.find((m) => m.id === 4)).toEqual({
+      method: RESPONSE,
+      id: 4,
+      params: { entities: [], streamed: true, runId: 7 },
+    })
+  })
+
+  it('treats a part key as an opaque string, including the ghost sentinel', () => {
+    const { workers } = partsRun()
+    expect(claimPart(workers[0], 'ghost')).toBe(true)
+    expect(claimPart(workers[0], '0+1')).toBe(true)
+    expect(claimPart(workers[0], 'ghost')).toBe(false)
+  })
 })

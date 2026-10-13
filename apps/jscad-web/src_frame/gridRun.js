@@ -25,7 +25,8 @@ const newMember = () => ({ key: null, url: null, startedAt: Date.now(), wins: 0,
  * @typedef {{appId: unknown, method: string, options: object | undefined,
  *   message: {method: string, params: unknown[]}, runId: unknown, primary: Slot,
  *   members: Map<Slot, Member>, claimed: Set<string>, lost: {url: string | null, reason: string}[],
- *   answers: {data: any, primary: boolean, order: number | null}[], fanned: boolean, closed: boolean, answered: boolean,
+ *   answers: {data: any, primary: boolean, order: number | null}[], fanned: boolean,
+ *   modelParts: boolean | undefined, closed: boolean, answered: boolean,
  *   script: object | undefined, retried: Set<string>,
  *   pendingLost: {key: string, url: string | null, reason: string}[]}} Run
  */
@@ -67,6 +68,9 @@ export const createGridRuns = ({ state, pool, slotOps, post, answerError }) => {
       lost: [],
       answers: [],
       fanned: false,
+      // Set by the first won claim: a key with no url is a model part, a key
+      // with a leaf url is a grid leaf. Undefined until that first claim.
+      modelParts: undefined,
       closed: false,
       answered: false,
       script: entry.script,
@@ -103,6 +107,7 @@ export const createGridRuns = ({ state, pool, slotOps, post, answerError }) => {
     if (member && member.wins > 0 && slot.heap >= RECYCLE_HEAP_BYTES) member.recycle = true
     const won = !!member && !run.closed && !member.recycle && typeof key === 'string' && !run.claimed.has(key)
     if (won) {
+      if (run.modelParts === undefined) run.modelParts = typeof url !== 'string'
       if (member.order === null) member.order = run.claimed.size
       member.wins++
       run.claimed.add(key)
@@ -139,21 +144,9 @@ export const createGridRuns = ({ state, pool, slotOps, post, answerError }) => {
     return lines.list()
   }
 
-  const merged = (run) => {
-    const answers = [...run.answers]
-      .sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity) || Number(b.primary) - Number(a.primary))
-      .map((a) => a.data)
-    const failure = answers.find((data) => data.error && data.error.name !== 'RuntimeError')
-    const done = answers.filter((data) => !data.error)
-    if (failure || !done.length) {
-      const error = failure?.error ?? answers.find((data) => data.error)?.error ??
-        { name: 'AbortError', message: 'every worker running the grid stopped' }
-      return { method: RESPONSE, id: run.appId, error }
-    }
-    const lost = [...run.lost]
-    for (const { key, url, reason } of run.pendingLost) {
-      if (!run.claimed.has(key)) lost.push({ url, reason })
-    }
+  // A grid's streamed result carries the lost leaves; a model-parts result has
+  // none, so `lost` is passed only when there is one.
+  const streamedAnswer = (run, done, lost) => {
     const { trapped: _trapped, warnings: _warnings, console: _console, ...first } = done[0].params ?? {}
     const params = mergeProxyStates(done.map((data) => data.params), run.method === 'jscadScript')
     const warnings = mergedWarnings(done)
@@ -169,9 +162,46 @@ export const createGridRuns = ({ state, pool, slotOps, post, answerError }) => {
         entities: [],
         streamed: true,
         runId: run.runId,
-        lost,
+        ...(lost ? { lost } : {}),
       },
     }
+  }
+
+  // A model-parts run has no partial survivors: a trapped or failed part, or a
+  // part no worker finished, fails the whole run rather than streaming what
+  // arrived. There is no lost list; the app shows the error instead.
+  const mergedParts = (run, answers) => {
+    const done = answers.filter((data) => !data.error && !trapped(data))
+    const failure = answers.find((data) => data.error || trapped(data))
+    if (failure) {
+      const error = failure.error ?? { name: 'RuntimeError', message: 'the model trapped in WebAssembly' }
+      return { method: RESPONSE, id: run.appId, error }
+    }
+    const missing = run.lost[0] ?? run.pendingLost[0]
+    if (missing) return { method: RESPONSE, id: run.appId, error: { name: missing.reason, message: 'a part of the model did not finish' } }
+    if (!done.length) {
+      return { method: RESPONSE, id: run.appId, error: { name: 'AbortError', message: 'every worker running the model stopped' } }
+    }
+    return streamedAnswer(run, done, null)
+  }
+
+  const merged = (run) => {
+    const answers = [...run.answers]
+      .sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity) || Number(b.primary) - Number(a.primary))
+      .map((a) => a.data)
+    if (run.modelParts) return mergedParts(run, answers)
+    const failure = answers.find((data) => data.error && data.error.name !== 'RuntimeError')
+    const done = answers.filter((data) => !data.error)
+    if (failure || !done.length) {
+      const error = failure?.error ?? answers.find((data) => data.error)?.error ??
+        { name: 'AbortError', message: 'every worker running the grid stopped' }
+      return { method: RESPONSE, id: run.appId, error }
+    }
+    const lost = [...run.lost]
+    for (const { key, url, reason } of run.pendingLost) {
+      if (!run.claimed.has(key)) lost.push({ url, reason })
+    }
+    return streamedAnswer(run, done, lost)
   }
 
   const settle = (run) => {
@@ -206,7 +236,16 @@ export const createGridRuns = ({ state, pool, slotOps, post, answerError }) => {
       : member.recycle ? 'its WASM heap passed the budget' : null
     if (retiring) {
       pool.retire(slot, retiring)
-      if (!run.closed) join(run)
+      if (run.modelParts) {
+        // A part run never joins a replacement: the retired member's remaining
+        // parts would go unbuilt, so the run fails instead of streaming a
+        // partial model. A trap already carries the failure; a recycle is
+        // recorded as a lost part.
+        run.closed = true
+        if (!trapped(data)) run.lost.push({ url: null, reason: 'AbortError' })
+      } else if (!run.closed) {
+        join(run)
+      }
     }
     settle(run)
   }
@@ -222,9 +261,15 @@ export const createGridRuns = ({ state, pool, slotOps, post, answerError }) => {
         continue
       }
       if (member.key !== null) {
-        // Free the leaf for re-run so its cells and params are not lost with
-        // its member; the merge reports it when no replacement claims it.
-        if (!run.closed && !run.retried.has(member.key)) {
+        if (run.modelParts) {
+          // A part run has no single retry: a dead member's part is lost and
+          // the run fails at once, so later claims are refused and late cells
+          // are dropped by relaysCells.
+          run.lost.push({ url: member.url, reason: errorName ?? 'AbortError' })
+          run.closed = true
+        } else if (!run.closed && !run.retried.has(member.key)) {
+          // Free the leaf for re-run so its cells and params are not lost with
+          // its member; the merge reports it when no replacement claims it.
           run.retried.add(member.key)
           run.pendingLost.push({ key: member.key, url: member.url, reason: errorName ?? 'AbortError' })
           run.claimed.delete(member.key)
