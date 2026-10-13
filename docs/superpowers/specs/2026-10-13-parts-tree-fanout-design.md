@@ -151,7 +151,7 @@ Node shape:
 { op: 'cube', params: {...}, children: [],
   isTreeNode: true,
   dim: 3,            // 2 | 3 | undefined
-  overlay: null,     // 'background' | 'highlight' | null
+  overlay: null,     // null | { kinds: [], unmapped: bool } — snapshots live in build specials
   anchors: null,     // null | { frames, pending } — see "Anchors"
   color: null }
 ```
@@ -248,9 +248,9 @@ matrix-known transforms map frames via the node's stored matrix;
 `drop`-group ops (extrusions, hulls, minkowski) drop frames. Bbox-dependent
 placement (`center`/`align`/`resize` frame resolution) defers to the evaluator,
 which resolves it with the same bbox→placement helper that evaluates those
-nodes. `place.js` and `defaults.js` need no changes: they call the wrapped
-`measurements` (eager specials) and `transforms` (tree constructors), and
-`attach`'s matrix math is pure.
+nodes. `place.js` gains `resolveAnchor` plus deferred `attach`/`alignTo` emission (below);
+`defaults.js` is unchanged (direct `anchor()` calls stay eager — numbers contract).
+`place.attach`'s matrix math is pure and reused in both paths.
 
 **Names stay lazy; numbers force evaluation.** `attach` and `alignTo` with
 directional names become deferred composite nodes carrying anchor descriptors;
@@ -302,9 +302,17 @@ arrays. Eager path2 objects stay real (cheap, no CSG) and enter the tree as
   `@jscad/modeling` and `@jscad/modeling-for-anchors` to the engine's
   anchored-tree bundle; `@jscad/modeling-for-manifold` stays the plain bundle.
   One composition covers both, since anchored wrappers reduce to plain tree
-  constructors on anchorless nodes. `@jbroll/jscad-anchors` and
-  `@jbroll/jscad-fluent` (CDN) pick it up through their internal
-  `require('@jscad/modeling')` with no wiring of their own.
+  constructors on anchorless nodes. `@jbroll/jscad-anchors` loads from a local
+  `bundle.jscad-anchors.js` built out of the pinned checkout, not the
+  stale-pinned CDN dist (whose geometry-bound storage predates nodes), and
+  `@jbroll/jscad-fluent` from its local bundle the same way; both pick up the
+  tree through their internal `require('@jscad/modeling')`. Tag mechanics
+  (carry, map, merge, resolve) are implemented once in `@jscadui/model-tree`;
+  the anchors package holds only thin node branches delegating to those
+  helpers plus `resolveAnchor`/descriptor emission. Wrapping already-tagged
+  factory output a second time is a no-op by construction: node `basis` is the
+  constant `'tree'`, so the outer `carry`'s `inSync` check always passes on
+  tagged nodes.
 - **Protocol.** No new request type and no `parts` flag. `jscadMain` always builds
   the tree and splits root children. Multi-part runs drive the
   claim/evaluate/emit loop and return `{ streamed: true, runId }` with empty
