@@ -148,11 +148,13 @@ if ! node -e '
   exit 1
 fi
 
-# The generate pipeline (`npm run generate-all`) plus the openscad esm/ and
-# the web bundles that fluent-worker tests and the pre-commit gate need; the
+# The generate pipeline (`npm run generate-all`) plus the openscad esm/, the
+# per-package esm/ and cjs/ builds every unit test resolves (`workspace`,
+# the same step the ci/* entries run before testing), and the web bundles
+# that fluent-worker tests and the pre-commit gate need; the
 # cache is the parent's, so fetch-deps clones nothing.
 # shellcheck source=ci/lib/bootstrap.sh
 . "$(dirname "${BASH_SOURCE[0]}")/../ci/lib/bootstrap.sh"
-bootstrap --root "$worktree" deps grids examples openscad app
+bootstrap --root "$worktree" deps grids examples openscad workspace app
 
 echo "done."
