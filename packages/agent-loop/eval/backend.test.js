@@ -64,6 +64,13 @@ describe('eval backend builds', () => {
     expect(measured.volume).toBeCloseTo(8000, 0)
   })
 
+  it('adds the static warnings of the source to a write', async () => {
+    const backend = createEvalBackend()
+    const source = `const main = () => frobnicate({ a: 1 })\nmodule.exports = { main }`
+    const report = await writeMain(source, backend)
+    expect(report.warnings).toContainEqual(expect.objectContaining({ source: 'static', fn: 'frobnicate' }))
+  })
+
   it('runs an ES module that imports @jscad/modeling and reports its slider', async () => {
     const backend = createEvalBackend()
     const report = await writeMain(ESM_SPHERE, backend)

@@ -597,9 +597,9 @@ In `packages/agent-loop/eval/backend.test.js`, add a case near the write tests:
 ```js
   it('adds the static warnings of the source to a write', async () => {
     const backend = createEvalBackend()
-    const source = `const { cylinder } = require('@jscad/modeling').primitives\nconst main = () => cylinder({ heigth: 2 })\nmodule.exports = { main }`
+    const source = `const main = () => frobnicate({ a: 1 })\nmodule.exports = { main }`
     const report = await writeMain(source, backend)
-    expect(report.warnings).toContainEqual(expect.objectContaining({ source: 'static', option: 'heigth', suggestions: ['height'] }))
+    expect(report.warnings).toContainEqual(expect.objectContaining({ source: 'static', fn: 'frobnicate' }))
   })
 ```
 

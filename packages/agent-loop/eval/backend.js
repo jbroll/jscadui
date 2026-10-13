@@ -15,6 +15,7 @@ import { installConsoleCapture } from '../src/consoleCapture.js'
 import { createScadHandler } from '../src/scadHandler.js'
 import { shouldTransform } from '@jscadui/worker/src/shouldTransform.js'
 import { docsTool } from '../src/docs.js'
+import { lintSource } from '../src/lint.js'
 import { dispatchTool, toolError } from '../src/dispatchTool.js'
 import { reportError } from '../src/modelError.js'
 import { createWarningCollector, withOptionChecks, wrapFluentMethods } from '../src/optionChecks.js'
@@ -28,6 +29,18 @@ import { collectMesh, meshPage, meshPages } from './mesh.js'
 import { runProbe } from './probe.js'
 
 const API_INDEX = JSON.parse(readFileSync(new URL('../api/index.json', import.meta.url), 'utf8'))
+
+const staticWarnings = (diagnostics) => diagnostics.map(({ from: _from, to: _to, ...rest }) => ({ ...rest, source: 'static' }))
+
+// The runtime option checks and the static lint see the same mistake; keep the
+// runtime entry (it carries the hint) and add only what it did not report.
+const mergeStatic = (result, diagnostics) => {
+  if (!diagnostics.length) return result
+  const runtime = result.warnings ?? []
+  const covered = new Set(runtime.filter((warning) => warning.option).map((warning) => `${warning.fn}\u0000${warning.option}`))
+  const added = staticWarnings(diagnostics).filter((warning) => !(warning.option && covered.has(`${warning.fn}\u0000${warning.option}`)))
+  return added.length ? { ...result, warnings: [...runtime, ...added] } : result
+}
 
 export const CDN_BASE = 'https://cdn.jsdelivr.net/npm/'
 export { GRADE_TIMEOUT_MS }
@@ -273,7 +286,9 @@ export function createEvalBackend({ api = DEFAULT_API } = {}) {
   const saved = async (next) => {
     files = next.files
     const report = await build()
-    return report ? writeReport(next.path, report) : toolError('ResetError', 'the run was reset before the build finished')
+    if (!report) return toolError('ResetError', 'the run was reset before the build finished')
+    const diagnostics = await lintSource(API_INDEX, next.files[next.path] ?? '', { api })
+    return writeReport(next.path, mergeStatic(report, diagnostics))
   }
 
   // A delete of a file that is not there answers ok: nothing changed, nothing
@@ -289,9 +304,10 @@ export function createEvalBackend({ api = DEFAULT_API } = {}) {
     if (typeof source !== 'string') throw Object.assign(new Error('source must be the snippet text, a string'), { name: 'TypeError' })
     const loaded = await runModel({ ...files, [RUN_FILE]: source }, RUN_FILE, api, { wrapRequire: withProjectMains })
     const { warnings: warned, console: lines } = loaded
-    if (loaded.error) return { ok: false, error: modelError(loaded.error, api), warnings: warned, console: lines }
+    const diagnostics = await lintSource(API_INDEX, source, { api })
+    if (loaded.error) return mergeStatic({ ok: false, error: modelError(loaded.error, api), warnings: warned, console: lines }, diagnostics)
     const summary = summarizeRun({ hasMain: loaded.hasMain, value: loaded.hasMain ? loaded.value : loaded.exports }, measure, check)
-    return { ok: true, warnings: warned, console: lines, ...summary }
+    return mergeStatic({ ok: true, warnings: warned, console: lines, ...summary }, diagnostics)
   }
 
   const onBuild = (tool) => (args) => (current?.geometry ? tool(current.geometry, args) : noGeometryError(current?.report ?? null))
