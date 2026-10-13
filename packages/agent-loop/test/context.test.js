@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { buildMessages, CONTEXT_BUDGET, EMPTY_PROJECT, PROJECT_BUDGET, PROJECT_NOTE } from '../src/context.js'
+import { buildMessages, CONTEXT_BUDGET, EMPTY_PROJECT, partitionTranscript, PROJECT_BUDGET, PROJECT_NOTE } from '../src/context.js'
+import { SUMMARY_PREFIX } from '../src/summarize.js'
 import { mentionedPaths } from '../index.js'
 
 const turn = (n, size) => [
@@ -89,6 +90,20 @@ describe('buildMessages', () => {
     expect(project.content).not.toContain('Last build')
     expect(project.content).toContain('The project has not been built yet.')
   })
+
+  it('partitions evicted and kept whole turns', () => {
+    const { evicted, kept } = partitionTranscript(three, 200)
+    expect(heads(kept)).toEqual(['u2', 'a2', 'u3', 'a3'])
+    expect(heads(evicted)).toEqual(['u1', 'a1'])
+  })
+
+  it('inserts the summary after the system message', () => {
+    const messages = buildMessages({ systemPrompt: 'S', transcript: three, message: 'new', budget: 200, summary: 'did stuff' })
+    expect(messages[0]).toEqual({ role: 'system', content: 'S' })
+    expect(messages[1].role).toBe('user')
+    expect(messages[1].content).toBe(`${SUMMARY_PREFIX}did stuff`)
+    expect(heads(messages.slice(2))).toEqual(['u2', 'a2', 'u3', 'a3', 'Th', 'ne'])
+  })
 })
 
 describe('project files budget', () => {
@@ -154,5 +169,10 @@ describe('project files budget', () => {
 describe('mentionedPaths', () => {
   it('is exported from the package entry', () => {
     expect(mentionedPaths([{ role: 'assistant', mentions: ['a.js'] }])).toEqual(['a.js'])
+  })
+
+  it('ignores a summary message that carries no mentions or tool calls', () => {
+    const summary = { role: 'system', content: `${SUMMARY_PREFIX}did stuff`, text: 'did stuff', basis: 2 }
+    expect(mentionedPaths([summary, { role: 'user', content: 'x', mentions: ['a.js'] }])).toEqual(['a.js'])
   })
 })

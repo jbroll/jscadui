@@ -2,7 +2,7 @@
 // from the account panel, runs runTurn directly, executes each tool request
 // through requestTool, and renders streamed text. Provider HTTP targets the
 // relay, which proxies path-preserving to the provider and stores nothing.
-import { buildMessages, buildSystemPrompt, createProvider, DEFAULT_API, runTurn as defaultRunTurn, toolDetail } from '@jscadui/agent-loop'
+import { buildMessages, buildSystemPrompt, createProvider, DEFAULT_API, partitionTranscript, runTurn as defaultRunTurn, SUMMARY_PREFIX, summarizeTranscript, summarizeWithProvider, toolDetail, turnsOf } from '@jscadui/agent-loop'
 
 /* global __RELAY_ORIGIN__ */
 const RELAY_OVERRIDE_KEY = 'jscad-ai.relay'
@@ -33,6 +33,11 @@ const forModel = (m) => {
   if (m.role === 'assistant' && m.mentions?.length > 0) base.mentions = m.mentions
   return base
 }
+
+// A summary rides at the front of the transcript as a system message; `basis`
+// counts the leading model-coordinate messages already folded into it.
+const isSummaryMsg = (m) => m?.role === 'system' && typeof m?.basis === 'number'
+const stripSummary = (msgs) => msgs.filter((m) => !isSummaryMsg(m))
 
 const thinkingLabel = (seconds) => `Thinking… ${seconds}s`
 const thoughtLabel = (seconds) => `Thought for ${seconds}s`
@@ -69,9 +74,12 @@ const CHARS_PER_TOKEN = 4
  * `getBuild` answers the open project's last build report, whichever run made
  * it; `startTurn` runs before a turn reads the project for its context, and
  * `endTurn` once after every turn, when its writes are final.
- * @param {{container:HTMLElement,requestTool:Function,getProvider:Function,getApi?:()=>'fluent'|'modeling',runTurnFn?:Function,storage?:{readConversation:Function,writeConversation:Function},projectId?:string|(()=>string),getProjectFiles?:()=>Promise<Record<string,string|ArrayBuffer>>,getBuild?:()=>Promise<object|null>,startTurn?:()=>void,endTurn?:()=>Promise<void>}} options
+ * `getSummarizer` picks the model that summarizes evicted turns; it defaults
+ * to `getProvider`, so wiring a cheaper model is a selection swap, not a
+ * change here.
+ * @param {{container:HTMLElement,requestTool:Function,getProvider:Function,getSummarizer?:Function,getApi?:()=>'fluent'|'modeling',runTurnFn?:Function,storage?:{readConversation:Function,writeConversation:Function},projectId?:string|(()=>string),getProjectFiles?:()=>Promise<Record<string,string|ArrayBuffer>>,getBuild?:()=>Promise<object|null>,startTurn?:()=>void,endTurn?:()=>Promise<void>}} options
  */
-export const initChat = ({ container, requestTool, getProvider, getApi = () => DEFAULT_API, runTurnFn = defaultRunTurn, storage, projectId, getProjectFiles = async () => ({}), getBuild = async () => null, startTurn = () => {}, endTurn = async () => {} }) => {
+export const initChat = ({ container, requestTool, getProvider, getSummarizer = getProvider, getApi = () => DEFAULT_API, runTurnFn = defaultRunTurn, storage, projectId, getProjectFiles = async () => ({}), getBuild = async () => null, startTurn = () => {}, endTurn = async () => {} }) => {
   const header = el('div', 'chat-header')
   header.append(el('span', 'chat-title', 'AI Chat'))
   const newChatBtn = el('button', 'chat-new', 'New chat')
@@ -182,14 +190,14 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
   }
 
   const renderLoaded = (messages) => {
-    transcript = messages.filter((m) => m.role === 'user' || m.role === 'assistant')
+    transcript = messages.filter((m) => m.role === 'user' || m.role === 'assistant' || isSummaryMsg(m))
     messagesEl.innerHTML = ''
     assistantEl = null
     turnReasoning = []
     for (const m of transcript) {
       for (const step of m.reasoning ?? []) addReasoningBlock(thoughtLabel(step.seconds), step.text)
       if (m.role === 'user') addMessage(m.content, 'user')
-      else if (m.content) addMessage(m.content, 'assistant')
+      else if (m.role === 'assistant' && m.content) addMessage(m.content, 'assistant')
       if (m.stopped) addStopped()
     }
     messagesEl.scrollTop = messagesEl.scrollHeight
@@ -395,8 +403,31 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
       const files = await projectFiles()
       const build = await lastBuild()
       const api = getApi()
+      const model = stripSummary(local.slice(0, -1).map(forModel))
+      const { evicted } = partitionTranscript(model)
+      const prior = local.find(isSummaryMsg)
+      const freshTurns = turnsOf(evicted.slice(prior?.basis ?? 0))
+      if (freshTurns.length > 0) {
+        try {
+          const summarizerSelection = getSummarizer()
+          const summarizer = createProvider({
+            ...summarizerSelection,
+            baseUrl: summarizerSelection.baseUrl || relayBaseUrl(summarizerSelection.kind),
+          })
+          const text = await summarizeTranscript(
+            { turns: freshTurns, priorSummary: prior?.text ?? '' },
+            summarizeWithProvider(summarizer),
+          )
+          if (text) {
+            const summary = { role: 'system', content: `${SUMMARY_PREFIX}${text}`, text, basis: evicted.length }
+            commit([summary, ...stripSummary(local)])
+          }
+        } catch (err) {
+          console.warn('chat summarize failed:', err)
+        }
+      }
       await runTurnFn({
-        conversation: { messages: buildMessages({ systemPrompt: buildSystemPrompt(api), transcript: local.slice(0, -1).map(forModel), files, build, message }) },
+        conversation: { messages: buildMessages({ systemPrompt: buildSystemPrompt(api), transcript: local.slice(0, -1).map(forModel), files, build, message, summary: local.find(isSummaryMsg)?.text }) },
         provider,
         api,
         requestTool: handleTool,

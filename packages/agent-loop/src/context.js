@@ -1,3 +1,5 @@
+import { SUMMARY_PREFIX } from './summarize.js'
+
 export const CONTEXT_BUDGET = 24_000
 
 // The project files ride outside the history budget; this bounds them on their own.
@@ -5,7 +7,7 @@ export const PROJECT_BUDGET = 24_000
 
 const FILE_HEADER = 'Current project files:\n\n'
 
-const turnsOf = (transcript) => {
+export const turnsOf = (transcript) => {
   const turns = []
   for (const m of transcript) {
     if (m.role === 'user') turns.push([m])
@@ -78,15 +80,30 @@ export const projectMessage = (files = {}, build = null, mentioned = [], budget 
   return { role: 'user', content: sections.join('\n\n') }
 }
 
-export const buildMessages = ({ systemPrompt, transcript = [], files = {}, build = null, message, budget = CONTEXT_BUDGET, projectBudget = PROJECT_BUDGET }) => {
+// Whole turns that fit the history budget, newest first; the rest are evicted.
+export const partitionTranscript = (transcript, budget = CONTEXT_BUDGET) => {
+  const turns = turnsOf(transcript)
   const kept = []
   let used = 0
-  for (const turn of turnsOf(transcript).reverse()) {
+  for (const turn of [...turns].reverse()) {
     const size = sizeOf(turn)
     if (used + size > budget) break
     used += size
     kept.unshift(...turn)
   }
+  const keptSet = new Set(kept)
+  const evicted = transcript.filter((m) => !keptSet.has(m))
+  return { evicted, kept }
+}
+
+export const buildMessages = ({ systemPrompt, transcript = [], files = {}, build = null, message, budget = CONTEXT_BUDGET, projectBudget = PROJECT_BUDGET, summary = '' }) => {
+  const { kept } = partitionTranscript(transcript, budget)
   const project = projectMessage(files, build, mentionedPaths(transcript), projectBudget)
-  return [{ role: 'system', content: systemPrompt }, ...kept, project, { role: 'user', content: message }]
+  return [
+    { role: 'system', content: systemPrompt },
+    ...(summary ? [{ role: 'user', content: `${SUMMARY_PREFIX}${summary}` }] : []),
+    ...kept,
+    project,
+    { role: 'user', content: message },
+  ]
 }

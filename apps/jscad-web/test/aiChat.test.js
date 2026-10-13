@@ -1,7 +1,7 @@
 // apps/jscad-web/test/aiChat.test.js
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest'
-import { buildSystemPrompt } from '@jscadui/agent-loop'
+import { buildSystemPrompt, SUMMARY_PREFIX } from '@jscadui/agent-loop'
 import { initChat, relayBaseUrl } from '../src/aiChat.js'
 
 describe('browser chat turn', () => {
@@ -941,6 +941,40 @@ describe('conversation context', () => {
     const modeling = await run(() => 'modeling')
     expect(modeling.api).toBe('modeling')
     expect(modeling.conversation.messages[0].content).toBe(buildSystemPrompt('modeling'))
+  })
+
+  it('folds evicted turns into a persisted summary sent after the system message', async () => {
+    const fetchMock = vi.fn(async () => new Response('data: {"choices":[{"delta":{"content":"did stuff"}}]}\n\ndata: [DONE]\n\n'))
+    vi.stubGlobal('fetch', fetchMock)
+    try {
+      const big = 'x'.repeat(13_000)
+      const writeConversation = vi.fn(async () => {})
+      const stored = [
+        { role: 'user', content: `start ${big}` },
+        { role: 'assistant', content: big },
+      ]
+      const runTurnFn = vi.fn(async ({ onText }) => {
+        onText('reply')
+        return { messages: [] }
+      })
+      const { q, type } = openChat({
+        runTurnFn,
+        storage: { readConversation: async () => ({ messages: stored, updated: 1 }), writeConversation },
+        projectId: 'p1',
+        getSummarizer: () => ({ kind: 'openai', model: 'cheap', apiKey: 'k', baseUrl: 'https://relay.test' }),
+      })
+      await vi.waitFor(() => expect(q('.chat-msg.assistant')?.textContent).toBe(big))
+      type('go on')
+      await vi.waitFor(() => expect(runTurnFn).toHaveBeenCalledTimes(1))
+      await vi.waitFor(() => expect(q('.chat-send').textContent).toBe('Send'))
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      const persisted = writeConversation.mock.calls.at(-1)[1]
+      expect(persisted[0]).toMatchObject({ role: 'system', basis: 2, text: 'did stuff' })
+      expect(persisted[0].content).toBe(`${SUMMARY_PREFIX}did stuff`)
+      expect(runTurnFn.mock.calls[0][0].conversation.messages[1].content).toBe(`${SUMMARY_PREFIX}did stuff`)
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 
   it('sends x-jscad-chat-id through the relay but not to a custom base URL', async () => {
