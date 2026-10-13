@@ -25,11 +25,11 @@ serve before model code sees it
 ## Conversation context
 
 ```js
-buildMessages({ systemPrompt, transcript, files, build, message, budget = CONTEXT_BUDGET, projectBudget = PROJECT_BUDGET })
+buildMessages({ systemPrompt, transcript, files, build, message, budget = CONTEXT_BUDGET, projectBudget = PROJECT_BUDGET, summary = '' })
 ```
 
-Returns the system prompt, the newest whole prior turns that fit in `budget`
-characters (24,000 by default), a user message with the text files in
+Returns the system prompt, the summary of earlier turns when given, the
+newest whole prior turns that fit in `budget` characters (24,000 by default), a user message with the text files in
 `files` under `### <path>` followed by `build`, the project's last build
 report, under `Last build of the project:` (both outside the history budget),
 and the new message. The files have their own `projectBudget` (24,000 by
@@ -43,6 +43,22 @@ model needs no `list` to learn the project's state. Every header ends with
 `PROJECT_NOTE`: "Every message comes with this note on the project: its text
 files and its last build, so list is rarely needed." The app and the eval both
 use it.
+
+`partitionTranscript(transcript, budget)` splits the transcript into whole
+turns that fit the budget (`kept`) and the older ones (`evicted`); it is what
+`buildMessages` keeps on. `summary` is a user message,
+`Summary of earlier work in this chat:` followed by the summary text, sent
+directly after the system prompt. The chat builds it from the evicted turns
+with `summarize.js`: `buildSummaryPrompt(turns, priorSummary)` renders each
+turn as `User:`/`Assistant:` lines with its tool calls and the files its
+`mentions` touched (each message cut at `MAX_SUMMARY_CHARS`, 2,000
+characters), `summarizeTranscript({ turns, priorSummary }, callModel)` folds
+them into the running summary through an injected model call, and
+`summarizeWithProvider(provider)` adapts a provider to that call. The summary
+persists in the stored transcript as a `{ role: 'system', text, basis }`
+message (`basis` counts the leading messages already folded in), so a resumed
+chat keeps summarizing where it left off; a summarizer failure leaves the
+transcript to plain truncation, as before.
 
 `runTurn` caps each tool result it hands the provider at `TOOL_RESULT_CHARS`
 (the same 24,000 characters) and ends a longer one with `… [tool result
@@ -73,8 +89,14 @@ object: {"parts":…' } }`, which the transcript keeps.
 ## Turn status
 
 ```js
-runTurn({ conversation, provider, requestTool, onText, onReasoning, onStatus, signal, toolTimeoutMs, api })
+runTurn({ conversation, provider, requestTool, onText, onReasoning, onStatus, signal, toolTimeoutMs, maxRounds, toolChoice, api })
 ```
+
+`runTurn` makes one provider request per round and repeats while the reply
+carries tool calls. It stops after `maxRounds` requests (`DEFAULT_MAX_ROUNDS`,
+32, by default) and resolves `{ messages, rounds, stopped }`, with `stopped:
+'max_rounds'` on a capped turn so the caller can tell it from an answered
+one. The eval passes each fixture's `maxTurns` as `maxRounds`.
 
 `onText(delta)` hears each chunk of reply text and `onReasoning(delta)` each
 chunk of reasoning the provider streams, in the order they arrive. Reasoning
@@ -93,10 +115,15 @@ reasoning block on each of these.
 | `{ phase: 'text' }` | text starts streaming (once per run of text, not per chunk) |
 | `{ phase: 'tool', tool, detail? }` | before a tool runs; `detail` is its `path`, `query` or `format`, cut to 40 characters |
 | `{ phase: 'retry', attempt, maxAttempts }` | the provider is retried; `attempt` is the one about to start |
-| `{ phase: 'done' }` | the turn has ended, resolved or rejected |
+| `{ phase: 'done' }` | the turn has ended, resolved or rejected; a capped turn carries `stopped: 'max_rounds'` |
 
 A call whose arguments are not JSON reports no `tool` phase, since it does not
-run. An `onStatus` that throws does not end the turn. The app's chat draws its
+run. Read-only tools (`list`, `read`, `measure`, `check`, `docs`, `run`,
+`view`; `READ_ONLY` in `src/tools.js`) run concurrently and the saving tools
+(`write`, `edit`, `delete`, `export`) serially after them, so one round's
+`tool` phases all arrive before any of its results; every result is committed
+in the order the model called it. An `onStatus` that throws does not end the
+turn. The app's chat draws its
 status line and Stop button from it
 (`apps/jscad-web/docs/architecture.md`, Chat UI states); the eval leaves it
 out. Aborting `signal` rejects the turn with `AbortError`.

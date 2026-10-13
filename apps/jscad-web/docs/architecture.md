@@ -873,6 +873,17 @@ no `reasoning` key when there was none), so a resumed conversation shows
 each step's block, closed, above the reply text. Tool rows are not stored,
 so after a reload the blocks of a turn sit together above its text.
 
+A long chat folds its evicted turns into a summary it keeps as the
+transcript's first message, `{ role: 'system', text, basis }`, rendered as
+nothing; `renderLoaded` keeps it while showing only user and assistant rows,
+and `newChat` drops it with the rest. Before each turn the chat summarizes
+the turns the budget newly evicted (agent-loop's `summarizeTranscript`,
+prior summary first) and sends the running text after the system prompt, so
+the model keeps the project's history without its bulk. The summarizer is
+the chat's own provider selection unless `getSummarizer` names another; a
+cheap model drops in there when the settings panel offers one. A summarizer
+failure never fails the turn: the transcript falls back to plain truncation.
+
 Stop aborts the turn's `AbortController`, and `runTurn` rejects with
 `AbortError` at once, whether it was waiting on the provider or on a tool. The
 chat keeps the streamed text, adds a `Stopped` marker, and stores the reply as

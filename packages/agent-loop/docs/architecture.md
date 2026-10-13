@@ -4,8 +4,10 @@
 
 - `src/`: what the app ships, chiefly `loop.js` (`runTurn`), `providers.js` and
   `responses.js` (the provider adapters and their stream parsers), `tools.js`
-  (`buildTools(api)`), `prompt.js` (`buildSystemPrompt(api)`), `context.js`
-  (`buildMessages`), `project.js` (the file tools' operations and entry
+  (`buildTools(api)`, `READ_ONLY`), `prompt.js` (`buildSystemPrompt(api)`),
+  `context.js`
+  (`buildMessages`, `partitionTranscript`, `mentionedPaths`), `summarize.js`
+  (the summary prompt and the summarizer provider adapter), `project.js` (the file tools' operations and entry
   resolution), `projectUrl.js` (`PROJECT_BASE`, `RUN_FILE` and the loader's
   `createReadFile`), `dispatchTool.js` (tool routing), `buildReport.js` (the
   build report), `modelError.js` (`reportError`), `docs.js` (`docsTool`),
@@ -80,6 +82,13 @@ The chat-completions adapter also sends `temperature` and `max_tokens` when
 the config sets `temperature` and `maxTokens`. Only the eval's judge does; no
 chat or tested model's request carries them.
 
+All three adapters take an optional third `send` argument, `{ toolChoice }`:
+`'none'` sends Anthropic `tool_choice: { type: 'none' }` and OpenAI/Responses
+`tool_choice: 'none'`; `'any'` sends `{ type: 'any' }` and `'required'`
+respectively; `'auto'` and an unset choice send nothing, keeping the cached
+prefix identical to a plain call. `runTurn` passes its own `toolChoice`
+option through; nothing sets it yet.
+
 ## Tool protocol
 
 All model interaction is a tool call (`list`, `read`, `write`, `edit`,
@@ -89,6 +98,9 @@ All model interaction is a tool call (`list`, `read`, `write`, `edit`,
 travels only in a `tool_use` input (`write.content`, `edit.newString`,
 `run.source`). No markdown-fence extractor exists anywhere in the app or the
 eval, and none is wanted — a model that wants to run code has to call a tool.
+One round's read-only calls (`list`, `read`, `measure`, `check`, `docs`,
+`run`, and the app's `view`) run concurrently and the saving calls after
+them, serially; every result lands in the transcript in call order.
 
 The app and the eval route a call the same way, through `dispatchTool` over
 their own handlers: the app's run in the page and the compute frame, the
@@ -332,8 +344,12 @@ the sandbox caused (a backend error with `infrastructure`). Both leave the run
 out of the means. A complex fixture is graded by its gates, and a model that
 builds is drawn by the lane's renderer ([Complex grading](#complex-grading)).
 
-The provider wrapper (`withTurnCap`) caps the rounds in each user turn,
-tallies usage events, counts calls that sent neither text nor a tool call
+The provider wrapper (`withTurnCap`) keeps the run's rounds, usage, empty
+replies, stop reasons, provider failure and timing
+(docs/architecture.md). The per-turn round cap lives in `runTurn`: the
+conversation passes each fixture's `maxTurns` as `maxRounds`, and a turn that
+hits it resolves with `stopped: 'max_rounds'` instead of ending in an empty
+reply. It tallies usage events, counts calls that sent neither text nor a tool call
 (reasoning and usage alone are no reply), records each call's stop reason,
 notes whether the provider itself threw, and times each call against an
 injected clock, so the run's rounds, usage and speed are read once it ends.
