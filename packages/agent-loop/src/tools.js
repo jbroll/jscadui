@@ -30,6 +30,18 @@ export const buildTools = (api = DEFAULT_API) => [
     },
   },
   {
+    name: 'search',
+    description: 'Search project text files for a regex or plain text; answers path:line hits, at most 60, binary files skipped.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        pattern: { type: 'string', description: 'Regex or text to find, such as cube|box' },
+        paths: { type: 'array', items: { type: 'string' }, description: 'Files to search; defaults to all text files' },
+      },
+      required: ['pattern'],
+    },
+  },
+  {
     name: 'write',
     description: `Write a whole project file, creating or replacing it; the write is saved. Then ${BUILDS}`,
     inputSchema: {
@@ -142,4 +154,4 @@ export const TOOLS = buildTools()
 
 // Calls safe to run concurrently: they read state without saving.
 // write/edit/delete/export save or expose download state and stay serial.
-export const READ_ONLY = new Set(['list', 'read', 'measure', 'check', 'docs', 'run', 'view'])
+export const READ_ONLY = new Set(['list', 'read', 'search', 'measure', 'check', 'docs', 'run', 'view'])

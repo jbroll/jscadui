@@ -94,6 +94,36 @@ export const readFile = (files, { path, offset, limit } = {}) => {
   return end < lines.length ? `${body}\n… (${file}: lines ${start}-${end} of ${lines.length}; read on with offset ${end + 1})` : body
 }
 
+export const SEARCH_LIMIT = 60
+
+export const searchFiles = (files, { pattern, paths } = {}) => {
+  if (typeof pattern !== 'string' || pattern.trim() === '') {
+    throw named('SearchError', 'pattern must be a non-empty string such as cube')
+  }
+  let re
+  try {
+    re = new RegExp(pattern, 'g')
+  } catch {
+    throw named('SearchError', `pattern ${pattern} is not a valid regex; use plain text`)
+  }
+  const names = (Array.isArray(paths) && paths.length > 0 ? paths : Object.keys(files)).map((p) => projectPath(p)).sort()
+  const hits = []
+  for (const name of names) {
+    const text = files[name]
+    if (typeof text !== 'string') continue
+    const lines = text.split('\n')
+    lines.forEach((line, i) => {
+      re.lastIndex = 0
+      if (re.test(line)) hits.push(`${name}:${i + 1}: ${line.slice(0, 300)}`)
+    })
+  }
+  if (hits.length === 0) return `(no hits for ${pattern})`
+  const shown = hits.slice(0, SEARCH_LIMIT)
+  return hits.length > shown.length
+    ? `${shown.join('\n')}\n… (${hits.length - shown.length} more hits; narrow the pattern)`
+    : shown.join('\n')
+}
+
 export const applyWrite = (files, { path, content } = {}) => {
   const file = projectPath(path)
   if (typeof content !== 'string') throw named('TypeError', 'content must be the full file text, a string')

@@ -7,6 +7,7 @@ const REPORT = { ok: true, entry: 'main.js', warnings: [], console: [], params: 
 const deps = (overrides = {}) => ({
   list: vi.fn(async () => ({ ok: true, files: [{ path: 'main.js', size: 3 }] })),
   read: vi.fn(async () => '     1\tabc'),
+  search: vi.fn(async () => 'main.js:1: abc'),
   write: vi.fn(async () => REPORT),
   edit: vi.fn(async () => REPORT),
   deleteFile: vi.fn(async () => ({ deleted: 'main.js', ...REPORT })),
@@ -32,6 +33,13 @@ describe('dispatchTool', () => {
     expect((await dispatchTool('list', undefined, d)).files).toHaveLength(1)
     expect(await dispatchTool('read', { path: 'main.js', offset: 2 }, d)).toBe('     1\tabc')
     expect(d.read).toHaveBeenCalledWith({ path: 'main.js', offset: 2 })
+  })
+
+  it('routes search with its arguments', async () => {
+    const d = deps()
+    expect(await dispatchTool('search', { pattern: 'cube' }, d)).toBe('main.js:1: abc')
+    expect(d.search).toHaveBeenCalledWith({ pattern: 'cube' })
+    expect(await dispatchTool('search', {}, d)).toEqual(expect.objectContaining({ ok: false, error: expect.objectContaining({ name: 'ValidationError' }) }))
   })
 
   it('routes write and edit with their arguments and answers the build report', async () => {

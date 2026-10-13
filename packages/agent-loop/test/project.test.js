@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyDelete, applyEdit, applyWrite, listFiles, NO_ENTRY, pickEntry, projectPath, readFile, resolveEntry } from '../src/project.js'
+import { applyDelete, applyEdit, applyWrite, listFiles, NO_ENTRY, pickEntry, projectPath, readFile, resolveEntry, SEARCH_LIMIT, searchFiles } from '../src/project.js'
 
 const thrown = (fn) => {
   try {
@@ -199,5 +199,40 @@ describe('applyEdit', () => {
     expect(thrown(() => applyEdit(files, { path: 'main.js', oldString: '', newString: 'b' })).message).toMatch(/use write/)
     expect(thrown(() => applyEdit(files, { path: 'main.js', oldString: 'a', newString: 'a' })).name).toBe('EditError')
     expect(thrown(() => applyEdit(files, { path: 'main.js', oldString: 'a' })).name).toBe('EditError')
+  })
+})
+
+describe('searchFiles', () => {
+  it('finds hits with path:line numbering and caps overflow', () => {
+    const files = { 'main.js': 'cube\nbox\ncube box\n', 'lib.js': 'nothing\n' }
+    const out = searchFiles(files, { pattern: 'cube' })
+    expect(out).toContain('main.js:1: cube')
+    expect(out).toContain('main.js:3: cube box')
+    expect(out).not.toContain('lib.js')
+  })
+
+  it('sorts by path, searches only the named paths, and skips binary files', () => {
+    const files = { 'b.js': 'cube\n', 'a.js': 'cube\n', 'part.stl': new ArrayBuffer(4) }
+    expect(searchFiles(files, { pattern: 'cube' })).toBe('a.js:1: cube\nb.js:1: cube')
+    expect(searchFiles(files, { pattern: 'cube', paths: ['b.js'] })).toBe('b.js:1: cube')
+    expect(searchFiles(files, { pattern: 'nomatch' })).toBe('(no hits for nomatch)')
+  })
+
+  it('caps hits at SEARCH_LIMIT and says how many more', () => {
+    const text = Array.from({ length: SEARCH_LIMIT + 3 }, () => 'cube').join('\n')
+    const out = searchFiles({ 'main.js': text }, { pattern: 'cube' })
+    expect(out.split('\n')).toHaveLength(SEARCH_LIMIT + 1)
+    expect(out.endsWith(`… (3 more hits; narrow the pattern)`)).toBe(true)
+  })
+
+  it('treats the pattern as a regex and refuses an empty pattern or an invalid one', () => {
+    const files = { 'main.js': 'cube\nbox\n' }
+    expect(searchFiles(files, { pattern: 'cube|box' })).toBe('main.js:1: cube\nmain.js:2: box')
+    expect(thrown(() => searchFiles(files, { pattern: '' }))).toEqual({ name: 'SearchError', message: 'pattern must be a non-empty string such as cube' })
+    expect(thrown(() => searchFiles(files, { pattern: '[' })).message).toMatch(/not a valid regex/)
+  })
+
+  it('refuses a search path that leaves the project', () => {
+    expect(thrown(() => searchFiles({ 'main.js': 'cube' }, { pattern: 'cube', paths: ['../x.js'] })).name).toBe('PathError')
   })
 })

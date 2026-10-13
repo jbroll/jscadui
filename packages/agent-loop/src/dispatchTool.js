@@ -42,6 +42,7 @@ const validateInput = (name, input) => {
 const ROUTES = {
   list: (deps) => deps.list(),
   read: (deps, args) => deps.read(args),
+  search: (deps, args) => deps.search(args),
   write: (deps, args) => deps.write(args),
   edit: (deps, args) => deps.edit(args),
   delete: (deps, args) => deps.deleteFile(args),

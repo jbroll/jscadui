@@ -1,13 +1,13 @@
 // packages/agent-loop/test/tools.test.js
 import { describe, expect, it } from 'vitest'
-import { buildTools, TOOLS } from '../src/tools.js'
+import { buildTools, READ_ONLY, TOOLS } from '../src/tools.js'
 
 const docsDescription = (api) => buildTools(api).find((t) => t.name === 'docs').description
 
 describe('agent tools', () => {
-  it('exposes the ten browser tools with input schemas', async () => {
+  it('exposes the eleven browser tools with input schemas', async () => {
     const names = TOOLS.map((t) => t.name)
-    expect(names).toEqual(['list', 'read', 'write', 'edit', 'delete', 'run', 'measure', 'check', 'export', 'docs'])
+    expect(names).toEqual(['list', 'read', 'search', 'write', 'edit', 'delete', 'run', 'measure', 'check', 'export', 'docs'])
     for (const tool of TOOLS) {
       expect(typeof tool.description).toBe('string')
       expect(tool.inputSchema.type).toBe('object')
@@ -115,5 +115,12 @@ describe('agent tools', () => {
 
   it('refuses an unknown API', () => {
     expect(() => buildTools('scad')).toThrow(/unknown api scad/)
+  })
+
+  it('defines a read-only search tool with pattern required', () => {
+    const tools = buildTools('fluent')
+    const search = tools.find((t) => t.name === 'search')
+    expect(search.inputSchema.required).toEqual(['pattern'])
+    expect(READ_ONLY.has('search')).toBe(true)
   })
 })
