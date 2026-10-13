@@ -513,6 +513,54 @@ describe('stored conversation', () => {
     expect(persisted).toContainEqual({ role: 'assistant', content: 'hi' })
   })
 
+  it('records the paths a turn touched as mentions on the persisted reply', async () => {
+    document.body.innerHTML = '<div id="chat"></div>'
+    const container = document.getElementById('chat')
+    const writeConversation = vi.fn(async () => {})
+    initChat({
+      container,
+      requestTool: async () => ({ ok: true }),
+      getProvider: () => ({ kind: 'openai', model: 'm', apiKey: 'k', baseUrl: 'https://relay.test' }),
+      runTurnFn: async ({ requestTool, onText }) => {
+        await requestTool('write', { path: 'src/a.js', content: 'x' })
+        await requestTool('list', {})
+        onText('done')
+        return { messages: [] }
+      },
+      storage: { readConversation: async () => null, writeConversation },
+      projectId: 'p1',
+    })
+    container.querySelector('.chat-input').value = 'add a file'
+    container.querySelector('.chat-form').dispatchEvent(new Event('submit', { cancelable: true }))
+    await vi.waitFor(() => expect(writeConversation.mock.calls.at(-1)?.[1]).toContainEqual({
+      role: 'assistant',
+      content: 'done',
+      mentions: ['src/a.js'],
+    }))
+  })
+
+  it('keeps the mentions of a stopped turn', async () => {
+    const writeConversation = vi.fn(async () => {})
+    const storage = { readConversation: async () => null, writeConversation }
+    const runTurnFn = vi.fn((options) =>
+      new Promise((resolve, reject) => {
+        options.signal.addEventListener('abort', () => reject(abortError()), { once: true })
+        void (async () => {
+          await options.requestTool('write', { path: 'a.js', content: 'x' })
+          options.onText('Writing')
+        })()
+      }))
+    const { q, type } = openChat({ runTurnFn, requestTool: async () => ({ ok: true }), storage, projectId: 'p1' })
+    type('a cube')
+    await vi.waitFor(() => expect(q('.chat-msg.assistant')?.textContent).toBe('Writing'))
+    q('.chat-send').click()
+    await vi.waitFor(() => expect(q('.chat-send').textContent).toBe('Send'))
+    expect(writeConversation.mock.calls.at(-1)[1]).toEqual([
+      { role: 'user', content: 'a cube' },
+      { role: 'assistant', content: 'Writing', stopped: true, mentions: ['a.js'] },
+    ])
+  })
+
   it('New chat clears the view and persists an empty conversation for the open project', async () => {
     const store = { p1: [{ role: 'user', content: 'old' }] }
     const storage = {
@@ -788,10 +836,10 @@ describe('conversation context', () => {
     expect(messages.at(-1)).toEqual({ role: 'user', content: 'second' })
   })
 
-  it('keeps stored tool calls in the transcript so the context can rank project files', async () => {
+  it('keeps a stored mentions list so the context can rank project files', async () => {
     const stored = [
       { role: 'user', content: 'make a cube' },
-      { role: 'assistant', content: 'done', toolCalls: [{ id: 'c1', name: 'write', input: { path: 'cube.js' } }] },
+      { role: 'assistant', content: 'done', mentions: ['cube.js'] },
     ]
     const runTurnFn = vi.fn(async () => ({ messages: [] }))
     const { q, type } = openChat({
@@ -805,7 +853,7 @@ describe('conversation context', () => {
     expect(runTurnFn.mock.calls[0][0].conversation.messages[2]).toEqual({
       role: 'assistant',
       content: 'done',
-      toolCalls: [{ id: 'c1', name: 'write', input: { path: 'cube.js' } }],
+      mentions: ['cube.js'],
     })
   })
 

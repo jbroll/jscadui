@@ -26,11 +26,11 @@ const STOPPED_NOTE = '[stopped by the user]'
 
 // A stopped reply may be empty, and providers refuse an empty assistant message.
 // Stored reasoning stays on the page: the model never gets it back. A reply's
-// tool calls come through, since `buildMessages` reads their paths for recency.
+// mentions come through, since `buildMessages` reads their paths for recency.
 const forModel = (m) => {
   const base = { role: m.role, content: m.content }
   if (m.stopped) base.content = m.content ? `${m.content}\n\n${STOPPED_NOTE}` : STOPPED_NOTE
-  if (m.role === 'assistant' && m.toolCalls?.length > 0) base.toolCalls = m.toolCalls
+  if (m.role === 'assistant' && m.mentions?.length > 0) base.mentions = m.mentions
   return base
 }
 
@@ -104,6 +104,7 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
   // The step's open reasoning block, and the steps this turn has finished.
   let reasoning = null
   let turnReasoning = []
+  let turnMentions = []
   let transcript = []
   const pid = () => (typeof projectId === 'function' ? projectId() : projectId)
   // The running turn's project; set at turn start so module-scope helpers
@@ -337,6 +338,7 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
   // Never throws: a rejection becomes an {ok:false} result so the turn
   // always has content to feed back.
   const handleTool = async (name, input) => {
+    if (typeof input?.path === 'string') turnMentions.push(input.path)
     if (live()) { endReasoning(); assistantEl = null }
     const finish = live() ? addToolLine(name, input) : () => {}
     try {
@@ -379,7 +381,8 @@ export const initChat = ({ container, requestTool, getProvider, getApi = () => D
     let assistantText = ''
     let stopped = false
     turnReasoning = []
-    const reply = (fields) => ({ role: 'assistant', content: assistantText, ...fields, ...(turnReasoning.length > 0 ? { reasoning: turnReasoning } : {}) })
+    turnMentions = []
+    const reply = (fields) => ({ role: 'assistant', content: assistantText, ...fields, ...(turnMentions.length > 0 ? { mentions: [...turnMentions] } : {}), ...(turnReasoning.length > 0 ? { reasoning: turnReasoning } : {}) })
     try {
       const provider = createProvider({
         ...selection,
