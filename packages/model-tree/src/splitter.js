@@ -40,17 +40,24 @@ const scanNodes = (value, visit, seen) => {
 }
 
 // Record every reachable node object against the root child it belongs to.
-// Root children are seeded first so a shared node keeps its own index.
-const walkNodes = (node, index, map, seen) => {
+// The first root child to reach a node seeds its index; a later child that
+// reaches the same node is another owner, so the two indices union instead of
+// the second being dropped. Root children are seeded first so a shared node
+// keeps its own index.
+const walkNodes = (node, index, map, seen, uf) => {
   if (!isTreeNode(node)) return
-  if (seen.has(node)) return
-  seen.add(node)
+  const owner = seen.get(node)
+  if (owner !== undefined) {
+    if (owner !== index) uf.union(owner, index)
+    return
+  }
+  seen.set(node, index)
   if (!map.has(node)) map.set(node, index)
   if (node.children) {
-    for (const child of node.children) walkNodes(child, index, map, seen)
+    for (const child of node.children) walkNodes(child, index, map, seen, uf)
   }
   if (node.params) {
-    scanNodes(node.params, (ref) => walkNodes(ref, index, map, seen), new Set())
+    scanNodes(node.params, (ref) => walkNodes(ref, index, map, seen, uf), new Set())
   }
 }
 
@@ -80,10 +87,10 @@ export const splitParts = (root) => {
   const map = new Map()
   children.forEach((entry, index) => map.set(entry.node, index))
 
-  const seen = new Set()
-  children.forEach((entry, index) => walkNodes(entry.node, index, map, seen))
-
   const uf = unionFind(children.length)
+  const seen = new Map()
+  children.forEach((entry, index) => walkNodes(entry.node, index, map, seen, uf))
+
   for (const [node, index] of map) {
     const linked = (ref) => {
       const other = map.get(ref)

@@ -26,7 +26,42 @@ test('transitive edges merge three ways', () => {
   const b = tr.primitives.cube({})
   const c = tr.primitives.cube({})
   const mk = (child, parent) => ({ op: 'attach', params: { child, childAnchor: { node: child, direction: [0, 0, -1] }, parent, parentAnchor: { node: parent, direction: [0, 0, 1] }, overlap: 0, flip: true, spin: 0 }, children: [child, parent], isTreeNode: true, dim: 3, overlay: null, anchors: null, color: null })
-  expect(splitParts([a, mk(b, a), mk(c, b)])).toHaveLength(1)
+  const parts = splitParts([a, mk(b, a), mk(c, b)])
+  expect(parts).toHaveLength(1)
+  expect(parts[0].key).toBe('0+1+2')
+})
+
+test('reversed root order merges an attach reference into the nested owner', () => {
+  const tr = t()
+  const x = tr.primitives.cube({})
+  const parent = tr.primitives.cube({})
+  const partA = tr.booleans.union(x)
+  const placed = { op: 'attach', params: { child: x, childAnchor: { node: x, direction: [0, 0, -1] }, parent, parentAnchor: { node: parent, direction: [0, 0, 1] }, overlap: 0, flip: true, spin: 0 }, children: [x, parent], isTreeNode: true, dim: 3, overlay: null, anchors: null, color: null }
+  const parts = splitParts([placed, partA])
+  expect(parts).toHaveLength(1)
+  expect(parts[0].key).toBe('0+1')
+})
+
+test('alignTo edge merges two root children', () => {
+  const tr = t()
+  const x = tr.primitives.cube({})
+  const parent = tr.primitives.cube({})
+  const partA = tr.booleans.union(x)
+  const aligned = { op: 'alignTo', params: { child: x, parent, direction: [0, 0, 1], inset: 0, inside: false }, children: [x, parent], isTreeNode: true, dim: 3, overlay: null, anchors: null, color: null }
+  const parts = splitParts([aligned, partA])
+  expect(parts).toHaveLength(1)
+  expect(parts[0].key).toBe('0+1')
+})
+
+test('anchors.pending descriptor merges two root children', () => {
+  const tr = t()
+  const x = tr.primitives.cube({})
+  const owner = tr.transforms.translate([1, 0, 0], x)
+  const host = tr.primitives.cube({})
+  host.anchors = { frames: null, pending: [{ node: x, direction: [0, 0, 1] }] }
+  const parts = splitParts([host, owner])
+  expect(parts).toHaveLength(1)
+  expect(parts[0].key).toBe('0+1')
 })
 
 test('empty and single roots', () => {
