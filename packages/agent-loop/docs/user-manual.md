@@ -130,7 +130,8 @@ reasoning block on each of these.
 | `{ phase: 'done' }` | the turn has ended, resolved or rejected; a capped turn carries `stopped: 'max_rounds'`, a triple repeat `stopped: 'doom_loop'` |
 
 A call whose arguments are not JSON reports no `tool` phase, since it does not
-run. Read-only tools (`list`, `read`, `measure`, `check`, `docs`, `run`,
+run. Read-only tools (`list`, `read`, `search`, `measure`, `check`, `docs`, `run`,
+`ask_user`,
 `view`; `READ_ONLY` in `src/tools.js`) run concurrently and the saving tools
 (`write`, `edit`, `delete`, `export`) serially after them, so one round's
 `tool` phases all arrive before any of its results; every result is committed
@@ -301,14 +302,14 @@ The app and the eval answer tool calls through the same functions, each over
 its own way of running the model.
 
 ```js
-dispatchTool(name, input, { list, read, write, edit, deleteFile, run, measure, check, exportModel, view, docs })
+dispatchTool(name, input, { list, read, search, write, edit, deleteFile, run, measure, check, exportModel, view, docs, askUser })
 ```
 
 Calls the handler for `name` and returns what it answers: `list()`,
-`read(args)`, `write(args)`, `edit(args)`, `deleteFile(args)` for `delete`,
+`read(args)`, `search(args)`, `write(args)`, `edit(args)`, `deleteFile(args)` for `delete`,
 `run(args.source)`,
 `measure(args)`, `check(args)`, `exportModel(args)` for `export`,
-`view(args)` and `docs(args.query)`, with `input` defaulting to `{}`. A name
+`view(args)`, `docs(args.query)` and `askUser(args)` for `ask_user`, with `input` defaulting to `{}`. A name
 outside that list answers `toolError('UnknownToolError', 'unknown tool
 <name>')`; a handler that throws or rejects answers `toolError(error.name,
 error.message)` (`Error` and the thrown value's text for a non-error). It
