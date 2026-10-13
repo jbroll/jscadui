@@ -9,11 +9,22 @@ const { workerState } = await import('./src/state/workerState.js')
 const { JscadToCommon } = await import('@jscadui/format-jscad')
 const { meshHash } = await import('@jscadui/format-common')
 
+// Multi-part runs stream through claims; the lone test worker wins every one.
+// Claims are answered as they are posted, and `post` records/relays the rest.
+const autoClaims = (post) => {
+  self.postMessage = vi.fn((message, transfer) => {
+    if (message.method === 'jscadClaim') answerClaim({ id: message.id, won: true })
+    if (post) post(message, transfer)
+  })
+  return self.postMessage
+}
+
 describe('jscadMain streaming', () => {
   afterEach(() => {
-    self.postMessage.mockClear()
+    workerState.claims = false
     workerState.main = undefined
     workerState.useParamsProxy = undefined
+    self.postMessage = vi.fn()
   })
 
   it('streams a batch through self.postMessage and marks the result', async () => {
@@ -106,6 +117,8 @@ describe('jscadMain streaming', () => {
       { type: 'mesh', vertices: new Float32Array(9) },
     ]
     workerState.main = () => solids
+    workerState.claims = true
+    autoClaims()
 
     const result = await jscadMain({ params: {}, runId: 7 })
 
@@ -119,8 +132,9 @@ describe('jscadMain streaming', () => {
     expect(result.streamed).toBe(true)
     expect(result.runId).toBe(7)
     expect(result.entities).toEqual([])
-    expect(currentSolids()).toHaveLength(3)
-    expect(lastRunStreamed()).toBe(false)
+    // Every part streamed as it finished; an export re-runs the model whole.
+    expect(currentSolids()).toHaveLength(0)
+    expect(lastRunStreamed()).toBe(true)
   })
 
   it('keeps solids when a streamed part conversion throws mid-stream', async () => {
@@ -129,6 +143,8 @@ describe('jscadMain streaming', () => {
       { type: 'mesh', vertices: new Float32Array(9) },
       { type: 'mesh', vertices: new Float32Array(9) },
     ]
+    workerState.claims = true
+    autoClaims()
     const prepare = JscadToCommon.prepare
     let calls = 0
     JscadToCommon.prepare = (...args) => {
@@ -142,7 +158,8 @@ describe('jscadMain streaming', () => {
     }
     const posted = self.postMessage.mock.calls.filter(([message]) => message.method === 'jscadCells')
     expect(posted).toHaveLength(1)
-    expect(currentSolids()).toHaveLength(3)
+    // The first part emitted, the second was built but failed to convert.
+    expect(currentSolids()).toHaveLength(2)
   })
 
   it('returns the whole result for a multi-part model with no runId', async () => {
@@ -174,15 +191,13 @@ describe('jscadMain streaming', () => {
     const numTri = vi.fn(() => calls.push('numTri'))
     const manifoldSolid = { type: 'mesh', vertices: new Float32Array(9), isManifoldGeom3: true, manifold: { numTri } }
     workerState.main = () => [manifoldSolid, { type: 'mesh', vertices: new Float32Array(9) }]
-    const originalPost = self.postMessage
-    self.postMessage = vi.fn((message) => {
+    workerState.claims = true
+    autoClaims((message) => {
       if (message.method === 'jscadCells') calls.push('post')
-      originalPost(message)
     })
 
     await jscadMain({ params: {}, runId: 7 })
 
-    self.postMessage = originalPost
     expect(numTri).toHaveBeenCalled()
     expect(calls.indexOf('numTri')).toBeLessThan(calls.indexOf('post'))
   })
@@ -194,6 +209,7 @@ describe('jscadMain with held meshes', () => {
 
   afterEach(() => {
     self.postMessage = vi.fn()
+    workerState.claims = false
     workerState.main = undefined
     JscadToCommon.clearCache()
   })
@@ -203,6 +219,8 @@ describe('jscadMain with held meshes', () => {
     const hashOfPart2 = meshHash(convert(solids[1]))
     JscadToCommon.clearCache()
     workerState.main = () => solids
+    workerState.claims = true
+    autoClaims()
 
     await jscadMain({ params: {}, runId: 1, held: [hashOfPart2] })
 
@@ -246,6 +264,8 @@ describe('jscadMain with held meshes', () => {
 
   it('hashes no mesh for a run without held, streamed or whole', async () => {
     workerState.main = () => [triangle(0), triangle(1)]
+    workerState.claims = true
+    autoClaims()
     await jscadMain({ params: {}, runId: 1 })
     const cells = self.postMessage.mock.calls.filter(([message]) => message.method === 'jscadCells')
     expect(cells.map(([message]) => message.params[0].entities[0].hash)).toEqual([undefined, undefined])
@@ -264,13 +284,17 @@ describe('jscadMain with held meshes', () => {
   it('reconverts the same model on a second run after the first run transferred its buffers', async () => {
     const solids = [triangle(0), triangle(1)]
     const received = []
-    self.postMessage = vi.fn((message, transfer) => received.push(structuredClone(message, { transfer })))
+    workerState.claims = true
+    autoClaims((message, transfer) => received.push(structuredClone(message, { transfer })))
     workerState.main = () => solids
 
     await jscadMain({ params: {}, runId: 1 })
     await expect(jscadMain({ params: {}, runId: 2 })).resolves.toBeDefined()
 
-    const second = received.slice(2).map(message => message.params[0].entities[0])
+    const second = received
+      .filter((message) => message.method === 'jscadCells')
+      .slice(2)
+      .map((message) => message.params[0].entities[0])
     expect(second).toHaveLength(2)
     expect(second.every(entity => entity.vertices.length === 9)).toBe(true)
   })
@@ -282,11 +306,13 @@ describe('jscadMain streaming repeated geometry', () => {
 
   beforeEach(() => {
     received = []
-    self.postMessage = vi.fn((message, transfer) => received.push(structuredClone(message, { transfer })))
+    workerState.claims = true
+    autoClaims((message, transfer) => received.push(structuredClone(message, { transfer })))
   })
 
   afterEach(() => {
     self.postMessage = vi.fn()
+    workerState.claims = false
     workerState.main = undefined
   })
 
@@ -320,7 +346,7 @@ describe('jscadMain streaming repeated geometry', () => {
     expect(cells().every(entity => entity.vertices.length === 9 && entity.indices.length === 3)).toBe(true)
   })
 
-  it('leaves the arrays of the solids it keeps attached after streaming the parts', async () => {
+  it('keeps no solids after streaming the parts, so the next export re-runs the model', async () => {
     const solids = [
       { type: 'mesh', vertices: new Float32Array(9) },
       { type: 'mesh', vertices: new Float32Array(9) },
@@ -329,7 +355,7 @@ describe('jscadMain streaming repeated geometry', () => {
 
     await jscadMain({ params: {}, runId: 1 })
 
-    expect(currentSolids().map(solid => solid.vertices.byteLength)).toEqual([36, 36])
+    expect(currentSolids()).toEqual([])
   })
 
   it('sends copies in the whole result so the kept solids stay usable', async () => {

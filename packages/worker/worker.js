@@ -12,6 +12,8 @@ import { toRefs } from './src/meshRefs.js'
 import { createStreamHook, withCopies, withStreamHook } from './src/stream.js'
 import { createClaims } from './src/claims.js'
 import { shouldTransform } from './src/shouldTransform.js'
+import { bindEvaluator, createBuildContext, memoFromSpecials, splitParts, withBuildContext } from '@jscadui/model-tree'
+import { loadBoundEvaluate } from './src/treeApi.js'
 
 /**
 @typedef Alias
@@ -226,6 +228,10 @@ export const flatten = arr=>{
   return out
 }
 
+// A root-level ghost belongs to no part: a % overlay marker or a previewOnly
+// entity the model returned beside its solids.
+const isRootGhostNode = (node) => Boolean(node && (node.op === 'ghost' || node.previewOnly))
+
 /**
  * @param {InitOptions} options
  */
@@ -348,9 +354,13 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
   if (freshConsole) runConsole?.reset()
 
   try {
-    // Run main with either proxy or plain params
-    // For Manifold: this builds the lazy operation tree (fast)
-    // For JSCAD: this does all the actual CSG work (treeTime will be 0, work is immediate)
+    // Run main with either proxy or plain params, building the lazy model tree
+    // under a per-run build context the measurements read.
+    const ctx = createBuildContext()
+    const boundEvaluate = loadBoundEvaluate()
+    if (boundEvaluate) bindEvaluator(ctx, boundEvaluate)
+    const buildWith = (mainParams) => withBuildContext(ctx, () => runMain(mainParams))
+
     let out
     let proxyState = null
     if (workerState.useParamsProxy) {
@@ -368,43 +378,126 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
         // Inject legacy defs and seal the proxy
         injectLegacyDefs(proxyParams, workerState.legacyProxyDefs)
 
-        out = flatten(await runMain(proxyParams))
+        out = flatten(await buildWith(proxyParams))
       } else {
         // New hierarchical param system - shared state for nested parts
         proxyState = createProxyState(workerState.currentUiValues, workerState.userInteracted, { mode: 'hierarchical' })
         const proxyParams = createParamsProxy(proxyState)
 
-        out = flatten(await runMain(proxyParams))
+        out = flatten(await buildWith(proxyParams))
       }
     } else {
-      out = flatten(await runMain(params || {}))
+      out = flatten(await buildWith(params || {}))
     }
 
-    // % and # ghosts are drawn but never exported, so they stay out of solids
-    const ghosts = out.filter(g => g?.previewOnly)
-    workerState.solids = ghosts.length ? out.filter(g => !g?.previewOnly) : out
+    const root = out
+    const parts = splitParts(root)
+    const memo = memoFromSpecials(ctx)
+
+    // A root-level ghost belongs to no part, so it is not claimed on its own
+    // key with the parts; it streams under one trailing claim instead.
+    const rootGhostNodes = []
+    const modelParts = []
+    for (const part of parts) {
+      if (part.nodes.every(isRootGhostNode)) rootGhostNodes.push(...part.nodes)
+      else modelParts.push(part)
+    }
 
     assertFresh('after main')
 
     treeTime = performance.now() - time
 
+    const evaluateRootNode = (node) => boundEvaluate
+      ? boundEvaluate(node, memo)
+      : Promise.resolve({ solids: node === undefined || node === null ? [] : [node], ghosts: [] })
+    const evaluateNodes = async (nodes) => {
+      const solids = []
+      const ghosts = []
+      for (const node of nodes) {
+        const evaluated = await evaluateRootNode(node)
+        solids.push(...evaluated.solids)
+        ghosts.push(...evaluated.ghosts)
+      }
+      return { solids, ghosts }
+    }
+
+    const buildResult = (entities) => {
+      const result = { entities, treeTime, execTime, convTime }
+      if (globalThis.__allWasmTrap) result.trapped = true
+      const warnings = runWarnings?.list() ?? []
+      if (warnings.length) result.warnings = warnings
+      const consoleLines = runConsole?.list() ?? []
+      if (consoleLines.length) result.console = consoleLines
+
+      // Include proxy state info in result
+      if (proxyState) {
+        result.proxyState = {
+          discovered: proxyState.discovered,
+          types: Object.fromEntries(proxyState.types),
+          classes: Object.fromEntries(proxyState.classes),
+          tree: buildParamTree(proxyState.discovered, proxyState.types, proxyState.classes),
+        }
+
+        // I2 fix: Prune stale paths from userInteracted to prevent memory leak
+        // Only keep paths that exist in the current parameter structure
+        const discoveredSet = new Set(proxyState.discovered)
+        for (const path of workerState.userInteracted) {
+          if (!discoveredSet.has(path)) {
+            workerState.userInteracted.delete(path)
+          }
+        }
+      }
+
+      return result
+    }
+
     if (stream) workerState.lastRunStreamed = emitted()
+
+    // Multi-part runs stream through claims: the lone worker wins every claim
+    // and evaluates its parts sequentially. Each won part emits its solids
+    // batch and, when it has any, a following ghosts batch.
+    if (stream && hook && hook.claim && runId !== undefined && modelParts.length > 1) {
+      time = performance.now()
+      const claimed = []
+      for (const part of modelParts) {
+        if (!await hook.claim(part.key)) continue
+        const { solids, ghosts } = await evaluateNodes(part.nodes)
+        claimed.push(...solids)
+        // Kept while claiming so the catch below preserves the parts already built.
+        workerState.solids = claimed
+        hook.emit(solids)
+        if (ghosts.length) hook.emit(ghosts)
+      }
+      if (rootGhostNodes.length && await hook.claim(`${modelParts.length}`)) {
+        const { solids, ghosts } = await evaluateNodes(rootGhostNodes)
+        hook.emit([...solids, ...ghosts])
+      }
+      execTime = performance.now() - time
+
+      // Every part went out as it finished; a later export re-runs the model whole.
+      workerState.solids = []
+      if (stream) workerState.lastRunStreamed = emitted()
+      const result = buildResult([])
+      Object.assign(result, { streamed: true, runId })
+      return withTransferable(result, transferable)
+    }
+
+    // Empty, single-part and non-streaming runs produce the whole model as
+    // entities, as before; a directly streamed run already emitted its cells.
     let entities = []
-    const streamParts = Boolean(hook) && !emitted() && runId !== undefined && workerState.solids.length > 1
     if (emitted()) {
       // Each cell went out as it finished; keeping them would hold the whole grid again
       workerState.solids = []
-    } else if (streamParts) {
-      // main returned instead of streaming itself; send one part per solid so
-      // export still finds them all in workerState.solids without a re-run
-      time = performance.now()
-      for (const solid of workerState.solids) hook.emit([solid])
-      if (ghosts.length) hook.emit(ghosts)
-      execTime = performance.now() - time
     } else {
+      time = performance.now()
+      const { solids: evaluated, ghosts: evaluatedGhosts } = await evaluateNodes([...modelParts.flatMap((part) => part.nodes), ...rootGhostNodes])
+      // % and # ghosts are drawn but never exported, so they stay out of solids
+      const previewGhosts = evaluated.filter((g) => g?.previewOnly)
+      workerState.solids = evaluated.filter((g) => !g?.previewOnly)
+      const ghosts = [...evaluatedGhosts, ...previewGhosts]
+
       // Force evaluation of lazy Manifold geometries
       // This triggers actual CSG computation; result is cached for getMesh()
-      time = performance.now()
       for (const solid of workerState.solids) {
         if (solid && solid.isManifoldGeom3) {
           solid.manifold.numTri() // Forces evaluation, caches result
@@ -426,33 +519,8 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
       }
     }
 
-    const result = { entities, treeTime, execTime, convTime }
-    if (emitted() || streamParts) Object.assign(result, { streamed: true, runId })
-    if (globalThis.__allWasmTrap) result.trapped = true
-    const warnings = runWarnings?.list() ?? []
-    if (warnings.length) result.warnings = warnings
-    const consoleLines = runConsole?.list() ?? []
-    if (consoleLines.length) result.console = consoleLines
-
-    // Include proxy state info in result
-    if (proxyState) {
-      result.proxyState = {
-        discovered: proxyState.discovered,
-        types: Object.fromEntries(proxyState.types),
-        classes: Object.fromEntries(proxyState.classes),
-        tree: buildParamTree(proxyState.discovered, proxyState.types, proxyState.classes),
-      }
-
-      // I2 fix: Prune stale paths from userInteracted to prevent memory leak
-      // Only keep paths that exist in the current parameter structure
-      const discoveredSet = new Set(proxyState.discovered)
-      for (const path of workerState.userInteracted) {
-        if (!discoveredSet.has(path)) {
-          workerState.userInteracted.delete(path)
-        }
-      }
-    }
-
+    const result = buildResult(entities)
+    if (emitted()) Object.assign(result, { streamed: true, runId })
     return withTransferable(result, transferable)
   } catch (error) {
     if (myGeneration !== workerState.getGeneration()) throw error

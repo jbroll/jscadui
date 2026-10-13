@@ -4,8 +4,14 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 // exist before the dynamic import; Node has no self global by default.
 globalThis.self = { addEventListener() {}, postMessage: vi.fn() }
 
-const { jscadMain } = await import('./worker.js')
+const { jscadMain, answerClaim } = await import('./worker.js')
 const { workerState } = await import('./src/state/workerState.js')
+
+const autoClaims = () => {
+  self.postMessage = vi.fn((message) => {
+    if (message.method === 'jscadClaim') answerClaim({ id: message.id, won: true })
+  })
+}
 
 const tri = () => ({ vertices: [[0, 0, 0], [1, 0, 0], [0, 1, 0]] })
 const identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
@@ -14,6 +20,9 @@ describe('preview-only ghosts', () => {
   afterEach(() => {
     workerState.main = undefined
     workerState.useParamsProxy = undefined
+    workerState.claims = false
+    workerState.solids = []
+    self.postMessage = vi.fn()
   })
 
   it('draws ghosts without keeping them as solids', async () => {
@@ -32,7 +41,8 @@ describe('preview-only ghosts', () => {
     const solids = [{ polygons: [tri()], transforms: identity }, { polygons: [tri()], transforms: identity }]
     const ghost = { polygons: [tri()], transforms: identity, color: [1, 0.32, 0.32, 0.5], previewOnly: true }
     workerState.main = () => [...solids, ghost]
-    self.postMessage.mockClear()
+    workerState.claims = true
+    autoClaims()
 
     const result = await jscadMain({ params: {}, runId: 2 })
 
@@ -40,6 +50,7 @@ describe('preview-only ghosts', () => {
     expect(result.streamed).toBe(true)
     expect(cells).toHaveLength(3)
     expect(cells[2][0].params[0].entities.map(e => e.color?.[3])).toEqual([0.5])
-    expect(workerState.solids).toEqual(solids)
+    // A streamed run keeps no solids; the ghost never was one.
+    expect(workerState.solids).toEqual([])
   })
 })
