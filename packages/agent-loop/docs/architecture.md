@@ -177,8 +177,8 @@ carries it, so `list` is rarely needed (`PROJECT_NOTE`); the `list`
 description says the same, since Muse still listed a project the header had
 just called empty. Both sit outside the 24,000-character history budget. The
 files have their own 24,000-character budget (`PROJECT_BUDGET`); past it the
-files mentioned longest ago go first, ordered by the `toolCalls[].input.path`
-their turns carry, so those the model touched most recently stay. Binary files
+files mentioned longest ago go first, ordered by the `mentions` paths their
+turns carry, so those the model touched most recently stay. Binary files
 are never listed.
 
 ## Model code in the eval

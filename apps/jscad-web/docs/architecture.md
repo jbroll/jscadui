@@ -787,10 +787,11 @@ holding the project's text files under `### <path>` in a fenced block and then
 the project's last build report, outside the budget and omitted when both are
 empty; then the new message. That files block has its own budget
 (`PROJECT_BUDGET`, 24,000 characters): binary files are skipped, and past it
-the oldest-mentioned are dropped first, ordered by the `toolCalls[].input.path`
-the transcript carries. `forModel` in `src/aiChat.js` passes an assistant
-reply's tool calls through so an earlier call can order the block, and drops
-the stored reasoning before `buildMessages` sees it. The project files come
+the oldest-mentioned are dropped first, ordered by the `mentions` paths the
+transcript carries. `forModel` in `src/aiChat.js` passes an assistant reply's
+`mentions` — the project paths its tools touched — through so an earlier call
+can order the block, and drops the stored reasoning before `buildMessages`
+sees it. The project files come
 from the file cache the frame runs (`fileSystem.projectFiles`).
 The chat sends its per-project session id as `x-jscad-chat-id` when it goes
 through the relay, and not to a custom base URL. The eval builds its messages

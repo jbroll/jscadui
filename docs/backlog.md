@@ -13,7 +13,6 @@ at is the requirement text. Reserved for new findings: `SEC3+`, `PRJ6+`,
 |---|---|---|---|
 | API4 | Chat API help | Low | `.deps-cache/jscad-fluent` (external) |
 | PRJ5 | Projects and storage | Low | `apps/jscad-web/scripts/local/fsApi.js` |
-| API16 | Chat API help | Low | `apps/jscad-web/src/aiChat.js` |
 | REF1 | Refactoring | High | breaking, out of scope |
 | REF3 | Refactoring | Med | out of scope (`packages/worker`) |
 | REF4 | Refactoring | Low | out of scope (`packages/require`) |
@@ -374,15 +373,6 @@ model with `display-check.js --engine jscad`.
   with reasoning on scored 27 of 39 but changed 16 verdicts at about 15
   times the latency. Until agreement is well above this, complex verdicts are
   not a measure.
-- Recency ordering for the project-files block is inert in the app. The block
-  has its own budget and is trimmed, but the app's stored transcript keeps
-  only user and assistant text (`reply()` in `apps/jscad-web/src/aiChat.js`),
-  no assistant tool calls, so `buildMessages`' `mentionedPaths` is always empty
-  and "oldest-mentioned first" falls back to alphabetical order in the live
-  app. To deliver recency, persist the loop's assistant toolCall turns or pass
-  an explicit recency list from the tool handler (plan D2 option b).
-  (`packages/agent-loop/src/context.js`, `apps/jscad-web/src/aiChat.js`)
-
 ## Parts catalog
 
 The catalog covers 37 families (`packages/parts/README.md`): fasteners,

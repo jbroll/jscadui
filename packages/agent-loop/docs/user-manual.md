@@ -34,7 +34,8 @@ characters (24,000 by default), a user message with the text files in
 report, under `Last build of the project:` (both outside the history budget),
 and the new message. The files have their own `projectBudget` (24,000 by
 default); when they exceed it the oldest-mentioned go first, ranked by the
-paths in the transcript's `toolCalls`, and binary files are skipped. The
+paths in the transcript's `mentions` (or `toolCalls[].input.path`), and binary
+files are skipped. The
 project message is always sent: an empty project with no build is
 `The project is empty; no build yet.`, and a missing part says
 `The project has no files.` or `The project has not been built yet.`, so the
@@ -783,8 +784,9 @@ negative-volume (inside-out) solid.
 
 `followUps: [{ message }]` sends later user messages in order, each after the
 turn before it ends, whatever that turn built, through `buildMessages` as the
-app sends a later message: the earlier messages and the text of each reply
-(tool calls left out), then the project's files and its build, after the
+app sends a later message: the earlier messages and the text of each reply,
+each carrying the paths its tools touched as `mentions`, then the project's
+files and its build, after the
 backend is reset to the project as it stands and built. The turn cap applies
 to each message, and grading reads it that way: whether a run was capped or
 ended without a reply counts only the rounds after the last user message. An
