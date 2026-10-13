@@ -28,7 +28,11 @@ provider error code meaning overloaded or rate-limited (`service_overloaded`,
 `overloaded_error`, `rate_limit_exceeded`, and similar), or a network error
 (fetch rejecting), it retries up to 4 attempts total with backoff around 2s,
 5s, 12s (jittered +/-20%, capped at 30s), honoring a `Retry-After` header when
-present. A 4xx auth or invalid-request error never retries.
+present. A 4xx auth or invalid-request error never retries. A context-overflow
+body (`context_length_exceeded`, or a message naming context or tokens with
+too, exceed, maximum, large, long or limit) never retries at any status, so
+the caller can compact instead of burning retries on a request that cannot
+succeed unchanged.
 
 `streamWithRetry` wraps `fetchWithRetry` and the adapter's `parseXStream`, and
 also retries a body that fails mid-stream with a network error: undici's
@@ -349,7 +353,9 @@ replies, stop reasons, provider failure and timing
 (docs/architecture.md). The per-turn round cap lives in `runTurn`: the
 conversation passes each fixture's `maxTurns` as `maxRounds`, and a turn that
 hits it resolves with `stopped: 'max_rounds'` instead of ending in an empty
-reply. It tallies usage events, counts calls that sent neither text nor a tool call
+reply. The conversation passes `capFinalAnswer: false`, so `runTurn` sends
+nothing more at the cap: the harness counts every provider send as a round
+and grades capped transcripts, and a closing answer would skew both. It tallies usage events, counts calls that sent neither text nor a tool call
 (reasoning and usage alone are no reply), records each call's stop reason,
 notes whether the provider itself threw, and times each call against an
 injected clock, so the run's rounds, usage and speed are read once it ends.

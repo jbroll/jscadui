@@ -46,7 +46,10 @@ use it.
 
 `partitionTranscript(transcript, budget)` splits the transcript into whole
 turns that fit the budget (`kept`) and the older ones (`evicted`); it is what
-`buildMessages` keeps on. `summary` is a user message,
+`buildMessages` keeps on. Before a turn is evicted, the oldest tool results
+are pruned to `[Old tool result content cleared]` (their `tool_use` record
+stays), oldest first, keeping the newest three full; only then do whole turns
+go. Pruning copies the messages, never mutating the transcript. `summary` is a user message,
 `Summary of earlier work in this chat:` followed by the summary text, sent
 directly after the system prompt. The chat builds it from the evicted turns
 with `summarize.js`: `buildSummaryPrompt(turns, priorSummary)` renders each
@@ -89,18 +92,26 @@ object: {"parts":…' } }`, which the transcript keeps.
 ## Turn status
 
 ```js
-runTurn({ conversation, provider, requestTool, onText, onReasoning, onStatus, signal, toolTimeoutMs, maxRounds, toolChoice, api })
+runTurn({ conversation, provider, requestTool, onText, onReasoning, onUsage, onStatus, beforeToolCall, afterToolCall, signal, toolTimeoutMs, maxRounds, capFinalAnswer, toolChoice, api })
 ```
 
 `runTurn` makes one provider request per round and repeats while the reply
 carries tool calls. It stops after `maxRounds` requests (`DEFAULT_MAX_ROUNDS`,
 32, by default) and resolves `{ messages, rounds, stopped }`, with `stopped:
 'max_rounds'` on a capped turn so the caller can tell it from an answered
-one. The eval passes each fixture's `maxTurns` as `maxRounds`.
+one. At the cap it asks once more with tools off (`toolChoice: 'none'`) and
+keeps the answer as the turn's last message, so a capped turn still answers
+instead of stopping silent; an empty or failed answer resolves without one.
+`capFinalAnswer: false` skips that call (the eval does, since it counts every
+send as a round). A turn whose model repeats one (tool, arguments) a third
+time (`DOOM_LOOP_THRESHOLD`, 3) stops instead with `stopped: 'doom_loop'`: the
+repeat is answered `DoomLoopError` and never runs. The eval passes each
+fixture's `maxTurns` as `maxRounds`.
 
-`onText(delta)` hears each chunk of reply text and `onReasoning(delta)` each
-chunk of reasoning the provider streams, in the order they arrive. Reasoning
-never enters the returned messages, so it is never sent back to the model.
+`onText(delta)` hears each chunk of reply text, `onReasoning(delta)` each
+chunk of reasoning the provider streams, and `onUsage(usage)` each usage
+report (`inputTokens`, `outputTokens`, `reasoningTokens`), in the order they arrive. Reasoning
+and usage never enter the returned messages, so neither is sent back to the model.
 A step's reasoning ends when its text starts (`text` phase), its tool runs
 (`tool` phase), the next request starts (`thinking` with no
 `reasoningChars`), or the turn ends (`done`); the app's chat closes its
@@ -115,7 +126,8 @@ reasoning block on each of these.
 | `{ phase: 'text' }` | text starts streaming (once per run of text, not per chunk) |
 | `{ phase: 'tool', tool, detail? }` | before a tool runs; `detail` is its `path`, `query` or `format`, cut to 40 characters |
 | `{ phase: 'retry', attempt, maxAttempts }` | the provider is retried; `attempt` is the one about to start |
-| `{ phase: 'done' }` | the turn has ended, resolved or rejected; a capped turn carries `stopped: 'max_rounds'` |
+| `{ phase: 'usage', inputTokens, outputTokens, reasoningTokens }` | the provider reports use |
+| `{ phase: 'done' }` | the turn has ended, resolved or rejected; a capped turn carries `stopped: 'max_rounds'`, a triple repeat `stopped: 'doom_loop'` |
 
 A call whose arguments are not JSON reports no `tool` phase, since it does not
 run. Read-only tools (`list`, `read`, `measure`, `check`, `docs`, `run`,
@@ -123,7 +135,13 @@ run. Read-only tools (`list`, `read`, `measure`, `check`, `docs`, `run`,
 (`write`, `edit`, `delete`, `export`) serially after them, so one round's
 `tool` phases all arrive before any of its results; every result is committed
 in the order the model called it. An `onStatus` that throws does not end the
-turn. The app's chat draws its
+turn. `beforeToolCall(name, input)` runs before each call and may deny it
+(`{ decision: 'deny', reason? }`, answered `DeniedError`) or rewrite its
+arguments (`{ updatedInput }`); `afterToolCall(name, input, result)` runs
+after and may replace the result (`{ result }` or a string). A throwing hook
+becomes a tool error. Denials, rewrites and hook failures are results the
+model sees, never turn failures, so side-effecting calls can be gated without
+touching the loop. The app's chat draws its
 status line and Stop button from it
 (`apps/jscad-web/docs/architecture.md`, Chat UI states); the eval leaves it
 out. Aborting `signal` rejects the turn with `AbortError`.
