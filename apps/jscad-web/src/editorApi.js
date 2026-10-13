@@ -1,7 +1,8 @@
-import { docsTool, lintTree, lookupName } from '@jscadui/agent-loop'
+import { docsTool, hoverTarget, lintTree, lookupName } from '@jscadui/agent-loop'
 import { javascriptLanguage } from '@codemirror/lang-javascript'
 import { syntaxTree } from '@codemirror/language'
 import { linter } from '@codemirror/lint'
+import { hoverTooltip, EditorView } from '@codemirror/view'
 
 /**
  * The CodeMirror diagnostics of a document, from the API index.
@@ -94,6 +95,31 @@ export const completeApi = (index, context) => {
 }
 
 /**
+ * The hover tooltip over the API names and option keys.
+ * @param {() => Promise<Array<object>>} loadIndex
+ */
+export const apiHover = (loadIndex) => async (view, pos) => {
+  let index
+  try {
+    index = await loadIndex()
+  } catch {
+    return null
+  }
+  const target = index ? hoverTarget(index, syntaxTree(view.state), pos, view.state.doc.toString()) : null
+  if (!target) return null
+  return {
+    pos: target.from,
+    end: target.to,
+    create: () => {
+      const dom = document.createElement('pre')
+      dom.className = 'cm-jscad-doc'
+      dom.textContent = target.text
+      return { dom }
+    },
+  }
+}
+
+/**
  * The CodeMirror extensions the editor adds for API help.
  * @param {() => Promise<Array<object>>} loadIndex
  */
@@ -117,5 +143,9 @@ export const apiExtensions = (loadIndex) => [
       }
       return index ? completeApi(index, context) : null
     },
+  }),
+  hoverTooltip(apiHover(loadIndex)),
+  EditorView.baseTheme({
+    '.cm-jscad-doc': { margin: '0', maxWidth: '42em', whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '12px', lineHeight: '1.4' },
   }),
 ]

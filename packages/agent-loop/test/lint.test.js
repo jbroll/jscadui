@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { parser } from '@lezer/javascript'
 import index from '../api/index.json'
-import { lintSource, lintTree } from '../src/lint.js'
+import { hoverTarget, lintSource, lintTree } from '../src/lint.js'
 
 const lint = (source, api = 'modeling') => lintTree(index, parser.parse(source), { api, text: source })
 
@@ -100,4 +100,23 @@ describe('real fluent examples', () => {
     expect(warned).toEqual([])
     expect(ran).toBeGreaterThanOrEqual(5)
   }, 60_000)
+})
+
+describe('hoverTarget', () => {
+  const src = `const { cylinder } = require('@jscad/modeling').primitives\ncylinder({ radius: 1 })`
+
+  it('answers the docs entry for a name', () => {
+    const target = hoverTarget(index, parser.parse(src), src.indexOf('cylinder({') + 2, src)
+    expect(target.text).toContain('primitives.cylinder')
+    expect(target.text).toContain('Options:')
+  })
+
+  it('answers the option line for an option key', () => {
+    const target = hoverTarget(index, parser.parse(src), src.indexOf('radius') + 1, src)
+    expect(target.text).toBe('radius: Number = 1 - radius of cylinder (at both start and end)')
+  })
+
+  it('answers null away from any name', () => {
+    expect(hoverTarget(index, parser.parse(src), 0, src)).toBe(null)
+  })
 })

@@ -3,8 +3,9 @@ import { describe, expect, it } from 'vitest'
 import { EditorState } from '@codemirror/state'
 import { javascript } from '@codemirror/lang-javascript'
 import { CompletionContext } from '@codemirror/autocomplete'
+import { EditorView } from '@codemirror/view'
 import index from '@jscadui/agent-loop/api/index.json'
-import { apiDiagnostics, completeApi } from '../src/editorApi.js'
+import { apiDiagnostics, apiHover, completeApi } from '../src/editorApi.js'
 
 const stateFor = (doc) => EditorState.create({ doc, extensions: [javascript()] })
 
@@ -43,5 +44,16 @@ describe('editor autocomplete', () => {
   it('does not offer option keys outside an API call', () => {
     const doc = 'const x = {  }'
     expect(complete(doc, doc.indexOf('{ ') + 2)).toBe(null)
+  })
+})
+
+describe('editor hover', () => {
+  it('builds a tooltip for an API name', async () => {
+    const doc = `const { cylinder } = require('@jscad/modeling').primitives\ncylinder({ radius: 1 })`
+    const view = new EditorView({ state: stateFor(doc) })
+    const source = apiHover(async () => index)
+    const tooltip = await source(view, doc.indexOf('cylinder({') + 2)
+    expect(tooltip).not.toBe(null)
+    view.destroy()
   })
 })

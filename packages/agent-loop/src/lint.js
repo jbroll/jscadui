@@ -1,4 +1,5 @@
 import { DEFAULT_API } from './api.js'
+import { docsTool } from './docs.js'
 import { explainWarning } from './hints.js'
 import { suggestOptions } from './optionChecks.js'
 
@@ -177,4 +178,45 @@ export const lintSource = async (index, source, options = {}) => {
   const { parser } = await import('@lezer/javascript')
   const text = String(source ?? '')
   return lintTree(index, parser.parse(text), { ...options, text })
+}
+
+const optionLine = (option) =>
+  `${option.name}${option.type ? `: ${option.type}` : ''}${option.default != null ? ` = ${option.default}` : ''}${option.description ? ` - ${option.description}` : ''}`
+
+const dottedName = (node, text) => {
+  const member = node.parent
+  if (member?.type.name !== 'MemberExpression') return null
+  const object = member.firstChild
+  return object?.type.name === 'VariableName' ? `${text.slice(object.from, object.to)}.${text.slice(node.from, node.to)}` : null
+}
+
+const optionUnder = (t, node, text) => {
+  if (node.type.name !== 'PropertyDefinition') return null
+  const object = node.parent?.parent
+  if (object?.type.name !== 'ObjectExpression') return null
+  const argList = object.parent
+  const call = argList?.parent
+  if (argList?.type.name !== 'ArgList' || call?.type.name !== 'CallExpression') return null
+  const first = firstArg(argList)
+  if (!first || first.from !== object.from || first.to !== object.to) return null
+  const entry = resolveCallee(t, call.firstChild, text)
+  const options = entry ? optionsOf(t, entry) : null
+  return options?.find((option) => option.name === text.slice(node.from, node.to)) ?? null
+}
+
+/**
+ * The docs text for the name or option key at `pos`, or null.
+ * @param {Array<object>} index
+ * @param {import('@lezer/common').Tree} tree
+ * @param {number} pos
+ * @param {string} text the document source
+ */
+export const hoverTarget = (index, tree, pos, text) => {
+  const node = tree.resolveInner(pos, -1)
+  const name = node.type.name === 'PropertyName' ? dottedName(node, text) : node.type.name === 'VariableName' ? text.slice(node.from, node.to) : null
+  const entry = lookupName(index, name)
+  if (entry) return { from: node.from, to: node.to, text: docsTool(index, entry.name) }
+  const option = optionUnder(tablesFor(index), node, text)
+  if (option) return { from: node.from, to: node.to, text: optionLine(option) }
+  return null
 }
