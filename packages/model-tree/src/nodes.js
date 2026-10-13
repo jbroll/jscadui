@@ -14,7 +14,7 @@ const PRIMITIVE_DIM = {
   arc: 2, circle: 2, ellipse: 2, line: 2, polygon: 2, rectangle: 2,
   roundedRectangle: 2, square: 2, star: 2, triangle: 2,
   cube: 3, cuboid: 3, cylinder: 3, cylinderElliptic: 3, ellipsoid: 3,
-  geodesicSphere: 3, polyhedron: 3, roundedCuboid: 3, roundedCylinder: 3, torus: 3,
+  geodesicSphere: 3, polyhedron: 3, roundedCuboid: 3, roundedCylinder: 3, sphere: 3, torus: 3,
 }
 
 const DEFERRED_OPS = {
@@ -229,7 +229,7 @@ export function createNamespace(engine, opts = {}) {
   const booleanCfg = () => ({ lead: 0, dim: (p, children) => firstDim(children) })
   const transformCfg = (name) => (MATRIX_OPS.has(name)
     ? { lead: name === 'mirrorX' || name === 'mirrorY' || name === 'mirrorZ' ? 0 : 1, matrix: (params) => transformMatrixFor(name, params), dim: (p, children) => firstDim(children) }
-    : { lead: name.startsWith('center') ? 0 : 1, dim: (p, children) => firstDim(children) })
+    : { lead: name === 'centerX' || name === 'centerY' || name === 'centerZ' ? 0 : 1, dim: (p, children) => firstDim(children) })
   const extrusionCfg = (name) => ({
     lead: 1,
     dim: () => (name === 'project' ? 2 : EXTRUDE_3D.has(name) ? 3 : undefined),

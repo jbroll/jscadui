@@ -51,3 +51,17 @@ test('transform stores its matrix', () => {
   expect(n.matrix.slice(12, 15)).toEqual([5, 0, 0])
   expect(n.dim).toBe(3)
 })
+
+test('sphere primitive carries dim 3', () => {
+  const t = treeOf()
+  expect(t.primitives.sphere({ radius: 2 }).dim).toBe(3)
+})
+
+test('center is options-first: options become params, not a literal child', () => {
+  const t = treeOf()
+  const cube = t.primitives.cube({})
+  const options = { axes: [true, true, false] }
+  const n = t.transforms.center(options, cube)
+  expect(n.params).toBe(options)
+  expect(n.children).toEqual([cube])
+})
