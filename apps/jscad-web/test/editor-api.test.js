@@ -2,10 +2,13 @@
 import { describe, expect, it } from 'vitest'
 import { EditorState } from '@codemirror/state'
 import { javascript } from '@codemirror/lang-javascript'
+import { CompletionContext } from '@codemirror/autocomplete'
 import index from '@jscadui/agent-loop/api/index.json'
-import { apiDiagnostics } from '../src/editorApi.js'
+import { apiDiagnostics, completeApi } from '../src/editorApi.js'
 
 const stateFor = (doc) => EditorState.create({ doc, extensions: [javascript()] })
+
+const complete = (doc, pos) => completeApi(index, new CompletionContext(stateFor(doc), pos, false))
 
 describe('editor lint diagnostics', () => {
   it('flags an unknown option', () => {
@@ -21,5 +24,24 @@ describe('editor lint diagnostics', () => {
 
   it('is empty for clean code', () => {
     expect(apiDiagnostics(index, stateFor(`const { cylinder } = require('@jscad/modeling').primitives\ncylinder({ radius: 1 })`))).toEqual([])
+  })
+})
+
+describe('editor autocomplete', () => {
+  it('completes an API name by prefix', () => {
+    const doc = 'cyli'
+    const result = complete(doc, doc.length)
+    expect(result.options.map((o) => o.label)).toContain('cylinder')
+  })
+
+  it('completes option keys inside a call object', () => {
+    const doc = `const { cylinder } = require('@jscad/modeling').primitives\ncylinder({  })`
+    const result = complete(doc, doc.indexOf('cylinder({') + 'cylinder({'.length)
+    expect(result.options.map((o) => o.label)).toContain('height')
+  })
+
+  it('does not offer option keys outside an API call', () => {
+    const doc = 'const x = {  }'
+    expect(complete(doc, doc.indexOf('{ ') + 2)).toBe(null)
   })
 })

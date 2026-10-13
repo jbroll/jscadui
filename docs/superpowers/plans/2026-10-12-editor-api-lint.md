@@ -913,7 +913,7 @@ const optionEntry = (index, state, pos) => {
   if (call?.name !== 'CallExpression') return null
   for (let child = argList.firstChild; child; child = child.nextSibling) {
     if (child.name === '(' || child.name === ',') continue
-    if (child !== node) return null
+    if (child.from !== node.from || child.to !== node.to) return null
     break
   }
   return lookupName(index, calleeName(call.firstChild, state))
@@ -1072,7 +1072,7 @@ const optionUnder = (t, node, text) => {
   const argList = object.parent
   const call = argList?.parent
   if (argList?.type.name !== 'ArgList' || call?.type.name !== 'CallExpression') return null
-  if (firstArg(argList) !== object) return null
+  if (!firstArg(argList) || firstArg(argList).from !== object.from || firstArg(argList).to !== object.to) return null
   const entry = resolveCallee(t, call.firstChild, text)
   const options = entry ? optionsOf(t, entry) : null
   return options?.find((option) => option.name === text.slice(node.from, node.to)) ?? null
