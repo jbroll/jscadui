@@ -1,5 +1,5 @@
 export { APIS, DEFAULT_API } from './src/api.js'
-export { buildTools, TOOLS } from './src/tools.js'
+export { buildTools, READ_ONLY, TOOLS } from './src/tools.js'
 export { buildSystemPrompt } from './src/prompt.js'
 export { capToolResult, DEFAULT_MAX_ROUNDS, EmptyReplyError, RefusalError, runTurn, TOOL_RESULT_CHARS, TOOL_RESULTS_PER_TURN_CHARS, toolDetail, ToolTimeoutError } from './src/loop.js'
 export { createProvider } from './src/providers.js'

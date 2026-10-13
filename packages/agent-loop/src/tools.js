@@ -139,3 +139,7 @@ export const buildTools = (api = DEFAULT_API) => [
 ]
 
 export const TOOLS = buildTools()
+
+// Calls safe to run concurrently: they read state without saving.
+// write/edit/delete/export save or expose download state and stay serial.
+export const READ_ONLY = new Set(['list', 'read', 'measure', 'check', 'docs', 'run', 'view'])

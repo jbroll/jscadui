@@ -5,7 +5,7 @@
 import { DEFAULT_API } from './api.js'
 import { CONTEXT_BUDGET } from './context.js'
 import { argumentsError } from './toolArguments.js'
-import { buildTools } from './tools.js'
+import { buildTools, READ_ONLY } from './tools.js'
 
 const DEFAULT_TOOL_TIMEOUT_MS = 120_000
 
@@ -238,25 +238,45 @@ export const runTurn = (options) => {
             toolCalls,
           })
           if (toolCalls.length === 0) break
-          for (const call of toolCalls) {
-            if (!badCalls.has(call)) {
+          const contents = new Array(toolCalls.length)
+          const readOnly = []
+          const mutating = []
+          toolCalls.forEach((call, i) => {
+            if (badCalls.has(call)) contents[i] = argumentsError(badCalls.get(call), stopReason)
+            else if (READ_ONLY.has(call.name)) readOnly.push(i)
+            else mutating.push(i)
+          })
+          await Promise.all(
+            readOnly.map(async (i) => {
+              const call = toolCalls[i]
               const detail = toolDetail(call.input)
               report({ phase: 'tool', tool: call.name, ...(detail === undefined ? {} : { detail }) })
-            }
-            const content = badCalls.has(call)
-              ? argumentsError(badCalls.get(call), stopReason)
-              : await withTimeout(
-                  requestTool(call.name, call.input),
-                  toolTimeoutMs,
-                  signal,
-                  () => new ToolTimeoutError(call.id, call.name, toolTimeoutMs),
-                )
-            let capped = capToolResult(content)
+              contents[i] = await withTimeout(
+                requestTool(call.name, call.input),
+                toolTimeoutMs,
+                signal,
+                () => new ToolTimeoutError(call.id, call.name, toolTimeoutMs),
+              )
+            }),
+          )
+          for (const i of mutating) {
+            const call = toolCalls[i]
+            const detail = toolDetail(call.input)
+            report({ phase: 'tool', tool: call.name, ...(detail === undefined ? {} : { detail }) })
+            contents[i] = await withTimeout(
+              requestTool(call.name, call.input),
+              toolTimeoutMs,
+              signal,
+              () => new ToolTimeoutError(call.id, call.name, toolTimeoutMs),
+            )
+          }
+          toolCalls.forEach((call, i) => {
+            let capped = capToolResult(contents[i])
             const size = typeof capped === 'string' ? capped.length : 0
             if (resultChars + size > TOOL_RESULTS_PER_TURN_CHARS) capped = OVER_TURN_TOTAL
             else resultChars += size
             messages.push({ role: 'tool', toolCallId: call.id, content: capped })
-          }
+          })
         }
         report({ phase: 'done' })
         resolve({ messages, rounds, stopped: undefined })

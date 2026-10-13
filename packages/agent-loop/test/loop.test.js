@@ -211,8 +211,8 @@ describe('runTurn', () => {
       { phase: 'thinking', reasoningChars: 10 },
       { phase: 'thinking', reasoningChars: 15 },
       { phase: 'text' },
-      { phase: 'tool', tool: 'write', detail: 'main.js' },
       { phase: 'tool', tool: 'measure' },
+      { phase: 'tool', tool: 'write', detail: 'main.js' },
       { phase: 'thinking' },
       { phase: 'text' },
       { phase: 'done' },
@@ -325,5 +325,29 @@ describe('runTurn', () => {
 
   it('caps at 32 rounds by default', async () => {
     expect((await import('../src/loop.js')).DEFAULT_MAX_ROUNDS).toBe(32)
+  })
+
+  it('runs read-only tools concurrently and commits results in call order', async () => {
+    const provider = roundsProvider([
+      [
+        { type: 'tool_use', id: 'a', name: 'read', input: { path: 'a.js' } },
+        { type: 'tool_use', id: 'b', name: 'read', input: { path: 'b.js' } },
+        { type: 'tool_use', id: 'c', name: 'write', input: { path: 'c.js', content: 'x' } },
+        { type: 'done', stopReason: 'tool_use' },
+      ],
+      [{ type: 'text', text: 'done' }, { type: 'done', stopReason: 'end_turn' }],
+    ])
+    let active = 0
+    let peak = 0
+    const requestTool = async (name, input) => {
+      active += 1
+      peak = Math.max(peak, active)
+      await new Promise((r) => setTimeout(r, input.path === 'a.js' ? 30 : 5))
+      active -= 1
+      return `content-of-${input.path ?? name}`
+    }
+    const { messages } = await runTurn({ conversation: { messages: [{ role: 'user', content: 'hi' }] }, provider, requestTool })
+    expect(peak).toBeGreaterThan(1)
+    expect(messages.filter((m) => m.role === 'tool').map((m) => m.toolCallId)).toEqual(['a', 'b', 'c'])
   })
 })
