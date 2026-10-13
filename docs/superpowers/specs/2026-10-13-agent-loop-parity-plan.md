@@ -1,6 +1,6 @@
 # Agent loop parity plan
 
-Date: 2026-10-13. Status: planned, not started.
+Date: 2026-10-13. Status: implemented on this branch (T1-T5 with tests).
 Scope: `packages/agent-loop` loop vs opencode, pi, Muse, Claude Code.
 Branch: `feat/agent-loop-best-practice` (worktree wt5, synced to main `d1279c58`).
 

@@ -202,6 +202,9 @@ export async function runConversation(
     signal,
     runTimeoutMs,
     render,
+    // Off: the harness counts every provider send as a round and grades
+    // capped transcripts, so a closing answer would skew rounds and scripts.
+    capFinalAnswer = false,
     onToolCall,
     onToolResult,
     onText,
@@ -251,6 +254,7 @@ export async function runConversation(
           provider: cappedProvider,
           api,
           maxRounds: maxTurns,
+          capFinalAnswer,
           requestTool: async (name, input) => {
             onToolCall?.(name, input)
             const result = await backend.requestTool(name, input)

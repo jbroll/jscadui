@@ -612,7 +612,10 @@ describe('runSuite turn cap', () => {
   const endless = {
     async *send() {
       id += 1
-      yield { type: 'tool_use', id: `t${id}`, name: 'list', input: {} }
+      // Fresh arguments each round: identical repeats would trip the
+      // doom-loop guard before the round cap, which is not what these
+      // tests measure.
+      yield { type: 'tool_use', id: `t${id}`, name: 'list', input: { round: id } }
       yield { type: 'done', stopReason: 'tool_use' }
     },
   }

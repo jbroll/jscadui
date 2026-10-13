@@ -48,7 +48,24 @@ const parseErrorCode = (text) => {
   }
 }
 
+// A context-overflow failure must surface at once so the caller can compact,
+// never burn retries on a request that cannot succeed unchanged.
+const isContextOverflow = (text) => {
+  let message = text
+  let code = null
+  try {
+    const body = JSON.parse(text)
+    code = body?.error?.code ?? body?.error?.type ?? null
+    if (typeof body?.error?.message === 'string') message = body.error.message
+  } catch {
+    // Not JSON; match against the raw text below.
+  }
+  if (code === 'context_length_exceeded') return true
+  return /context|token/i.test(message) && /too|exceed|maximum|large|long|limit/i.test(message)
+}
+
 const isRetryableStatus = (status, text) => {
+  if (isContextOverflow(text)) return false
   if (status === 429) return true
   if (status >= 500 && status <= 599) return true
   const code = parseErrorCode(text)
@@ -204,6 +221,27 @@ const toAnthropicMessage = (message) => {
   return { role: message.role, content: message.content }
 }
 
+const toAnthropicMessages = (messages) => {
+  // Consecutive tool results ride in one user message, results before any
+  // text, or the model learns to avoid parallel tool calls.
+  const out = []
+  let batch = null
+  for (const message of messages) {
+    if (message.role === 'tool') {
+      const result = { type: 'tool_result', tool_use_id: message.toolCallId, content: message.content }
+      if (batch) batch.push(result)
+      else {
+        batch = [result]
+        out.push({ role: 'user', content: batch })
+      }
+    } else {
+      batch = null
+      out.push(toAnthropicMessage(message))
+    }
+  }
+  return out
+}
+
 const toAnthropicTool = (tool) => ({ name: tool.name, description: tool.description, input_schema: tool.inputSchema })
 
 export async function* parseAnthropicStream(body) {
@@ -259,7 +297,7 @@ const anthropicProvider = (config) => {
         model: config.model,
         max_tokens: 4096,
         stream: true,
-        messages: messages.filter((m) => m.role !== 'system').map(toAnthropicMessage),
+        messages: toAnthropicMessages(messages.filter((m) => m.role !== 'system')),
       }
       if (system) body.system = system
       if (tools.length > 0) body.tools = tools.map(toAnthropicTool)

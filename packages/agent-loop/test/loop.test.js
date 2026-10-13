@@ -167,8 +167,10 @@ describe('runTurn', () => {
 
   it('replaces tool results past the turn total with a short note and goes on', async () => {
     const calls = Math.ceil(TOOL_RESULTS_PER_TURN_CHARS / TOOL_RESULT_CHARS) + 2
+    const formats = ['stl', '3mf', 'obj', 'svg']
     const provider = roundsProvider([
-      ...Array.from({ length: calls }, (_, i) => [{ type: 'tool_use', id: `t${i}`, name: 'export', input: {} }, { type: 'done', stopReason: 'tool_use' }]),
+      // Distinct arguments each round: identical repeats would trip the doom-loop guard instead.
+      ...Array.from({ length: calls }, (_, i) => [{ type: 'tool_use', id: `t${i}`, name: 'export', input: { format: formats[i % formats.length], round: Math.floor(i / formats.length) } }, { type: 'done', stopReason: 'tool_use' }]),
       [{ type: 'text', text: 'done' }, { type: 'done', stopReason: 'end_turn' }],
     ])
     const { messages } = await runTurn({
@@ -262,6 +264,28 @@ describe('runTurn', () => {
     ])
   })
 
+  it('forwards provider usage to onUsage and onStatus without touching the messages', async () => {
+    const provider = roundsProvider([
+      [
+        { type: 'text', text: 'hi' },
+        { type: 'usage', inputTokens: 42, outputTokens: 7, reasoningTokens: null },
+        { type: 'done', stopReason: 'end_turn' },
+      ],
+    ])
+    const heard = []
+    const statuses = []
+    const { messages } = await runTurn({
+      conversation: { messages: [{ role: 'user', content: 'hi' }] },
+      provider,
+      requestTool: vi.fn(),
+      onUsage: (u) => heard.push(u),
+      onStatus: (s) => statuses.push(s),
+    })
+    expect(heard).toEqual([{ inputTokens: 42, outputTokens: 7, reasoningTokens: null }])
+    expect(statuses).toContainEqual({ phase: 'usage', inputTokens: 42, outputTokens: 7, reasoningTokens: null })
+    expect(JSON.stringify(messages)).not.toContain('42')
+  })
+
   it('shortens a long tool argument in the status and reports done on a failed turn too', async () => {
     const provider = roundsProvider([
       [{ type: 'tool_use', id: 't1', name: 'docs', input: { query: 'q'.repeat(60) } }, { type: 'done', stopReason: 'tool_use' }],
@@ -327,6 +351,97 @@ describe('runTurn', () => {
     expect((await import('../src/loop.js')).DEFAULT_MAX_ROUNDS).toBe(32)
   })
 
+  it('asks once more with tools off at the round cap and keeps the final answer', async () => {
+    const seen = []
+    const provider = {
+      async *send(_messages, tools, opts) {
+        seen.push({ tools, toolChoice: opts?.toolChoice })
+        if (seen.length <= 2) {
+          yield { type: 'tool_use', id: `t${seen.length}`, name: 'check', input: { n: seen.length } }
+          yield { type: 'done', stopReason: 'tool_use' }
+        } else {
+          yield { type: 'text', text: 'out of steps, here is what I have' }
+          yield { type: 'done', stopReason: 'end_turn' }
+        }
+      },
+    }
+    const texts = []
+    const result = await runTurn({
+      conversation: { messages: [{ role: 'user', content: 'hi' }] },
+      provider,
+      requestTool: async () => '{"ok":true}',
+      maxRounds: 2,
+      onText: (t) => texts.push(t),
+    })
+    expect(result.stopped).toBe('max_rounds')
+    expect(result.rounds).toBe(2)
+    expect(seen[2]).toEqual({ tools: [], toolChoice: 'none' })
+    expect(result.messages.at(-1)).toMatchObject({ role: 'assistant', content: 'out of steps, here is what I have' })
+    expect(texts).toContain('out of steps, here is what I have')
+  })
+
+  it('still reports max_rounds when the final answer comes back empty', async () => {
+    const provider = roundsProvider([
+      [{ type: 'tool_use', id: 't1', name: 'check', input: { n: 1 } }, { type: 'done', stopReason: 'tool_use' }],
+      [{ type: 'tool_use', id: 't2', name: 'check', input: { n: 2 } }, { type: 'done', stopReason: 'tool_use' }],
+      [{ type: 'done', stopReason: 'end_turn' }],
+    ])
+    const result = await runTurn({ conversation: { messages: [{ role: 'user', content: 'hi' }] }, provider, requestTool: async () => '{"ok":true}', maxRounds: 2 })
+    expect(result.stopped).toBe('max_rounds')
+    expect(result.messages.filter((m) => m.role === 'assistant')).toHaveLength(2)
+  })
+
+  it('sends nothing more at the cap when capFinalAnswer is off', async () => {
+    let sends = 0
+    const provider = {
+      async *send() {
+        sends += 1
+        yield { type: 'tool_use', id: `t${sends}`, name: 'check', input: { n: sends } }
+        yield { type: 'done', stopReason: 'tool_use' }
+      },
+    }
+    const result = await runTurn({ conversation: { messages: [{ role: 'user', content: 'hi' }] }, provider, requestTool: async () => '{"ok":true}', maxRounds: 2, capFinalAnswer: false })
+    expect(result.stopped).toBe('max_rounds')
+    expect(sends).toBe(2)
+  })
+
+  it('stops the turn when the model repeats the identical call a third time', async () => {
+    const call = (id) => ({ type: 'tool_use', id, name: 'measure', input: { target: 'part1' } })
+    const provider = roundsProvider([[call('t1'), { type: 'done', stopReason: 'tool_use' }], [call('t2'), { type: 'done', stopReason: 'tool_use' }], [call('t3'), { type: 'done', stopReason: 'tool_use' }]])
+    const requestTool = vi.fn(async () => '{"ok":true}')
+    const statuses = []
+    const result = await runTurn({ conversation: { messages: [{ role: 'user', content: 'hi' }] }, provider, requestTool, onStatus: (s) => statuses.push(s) })
+    expect(requestTool).toHaveBeenCalledTimes(2)
+    expect(result.stopped).toBe('doom_loop')
+    const results = result.messages.filter((m) => m.role === 'tool').map((m) => JSON.parse(m.content))
+    expect(results).toHaveLength(3)
+    expect(results[2]).toMatchObject({ ok: false, error: { name: 'DoomLoopError' } })
+    expect(statuses.at(-1)).toEqual({ phase: 'done', stopped: 'doom_loop' })
+  })
+
+  it('goes on when the third round calls a different tool or arguments', async () => {
+    const provider = roundsProvider([
+      [{ type: 'tool_use', id: 't1', name: 'measure', input: { target: 'a' } }, { type: 'done', stopReason: 'tool_use' }],
+      [{ type: 'tool_use', id: 't2', name: 'measure', input: { target: 'a' } }, { type: 'done', stopReason: 'tool_use' }],
+      [{ type: 'tool_use', id: 't3', name: 'measure', input: { target: 'b' } }, { type: 'done', stopReason: 'tool_use' }],
+      [{ type: 'text', text: 'done' }, { type: 'done', stopReason: 'end_turn' }],
+    ])
+    const requestTool = vi.fn(async () => '{"ok":true}')
+    const result = await runTurn({ conversation: { messages: [{ role: 'user', content: 'hi' }] }, provider, requestTool })
+    expect(requestTool).toHaveBeenCalledTimes(3)
+    expect(result.stopped).toBeUndefined()
+  })
+
+  it('hashes calls by argument value, not key order', async () => {
+    const provider = roundsProvider([
+      [{ type: 'tool_use', id: 't1', name: 'write', input: { path: 'm.js', content: 'x' } }, { type: 'done', stopReason: 'tool_use' }],
+      [{ type: 'tool_use', id: 't2', name: 'write', input: { content: 'x', path: 'm.js' } }, { type: 'done', stopReason: 'tool_use' }],
+      [{ type: 'tool_use', id: 't3', name: 'write', input: { path: 'm.js', content: 'x' } }, { type: 'done', stopReason: 'tool_use' }],
+    ])
+    const result = await runTurn({ conversation: { messages: [{ role: 'user', content: 'hi' }] }, provider, requestTool: async () => '{"ok":true}' })
+    expect(result.stopped).toBe('doom_loop')
+  })
+
   it('runs read-only tools concurrently and commits results in call order', async () => {
     const provider = roundsProvider([
       [
@@ -349,5 +464,72 @@ describe('runTurn', () => {
     const { messages } = await runTurn({ conversation: { messages: [{ role: 'user', content: 'hi' }] }, provider, requestTool })
     expect(peak).toBeGreaterThan(1)
     expect(messages.filter((m) => m.role === 'tool').map((m) => m.toolCallId)).toEqual(['a', 'b', 'c'])
+  })
+
+  it('blocks a denied tool call with a result and goes on without running it', async () => {
+    const provider = roundsProvider([
+      [{ type: 'tool_use', id: 't1', name: 'write', input: { path: 'm.js', content: 'x' } }, { type: 'done', stopReason: 'tool_use' }],
+      [{ type: 'text', text: 'fine, reading instead' }, { type: 'done', stopReason: 'end_turn' }],
+    ])
+    const requestTool = vi.fn(async () => '{"ok":true}')
+    const { messages } = await runTurn({
+      conversation: { messages: [{ role: 'user', content: 'hi' }] },
+      provider,
+      requestTool,
+      beforeToolCall: async (name) => (name === 'write' ? { decision: 'deny', reason: 'no writes here' } : undefined),
+    })
+    expect(requestTool).not.toHaveBeenCalled()
+    expect(messages.filter((m) => m.role === 'tool').map((m) => JSON.parse(m.content))).toEqual([
+      { ok: false, error: { name: 'DeniedError', message: 'no writes here' } },
+    ])
+    expect(messages.at(-1)).toMatchObject({ role: 'assistant', content: 'fine, reading instead' })
+  })
+
+  it('runs the tool with the hook-rewritten input', async () => {
+    const provider = roundsProvider([
+      [{ type: 'tool_use', id: 't1', name: 'read', input: { path: 'a.js' } }, { type: 'done', stopReason: 'tool_use' }],
+      [{ type: 'text', text: 'done' }, { type: 'done', stopReason: 'end_turn' }],
+    ])
+    const requestTool = vi.fn(async () => '{"ok":true}')
+    await runTurn({
+      conversation: { messages: [{ role: 'user', content: 'hi' }] },
+      provider,
+      requestTool,
+      beforeToolCall: async (_name, input) => ({ updatedInput: { ...input, path: 'b.js' } }),
+    })
+    expect(requestTool).toHaveBeenCalledWith('read', { path: 'b.js' })
+  })
+
+  it('turns a throwing hook into a tool error instead of failing the turn', async () => {
+    const provider = roundsProvider([
+      [{ type: 'tool_use', id: 't1', name: 'read', input: { path: 'a.js' } }, { type: 'done', stopReason: 'tool_use' }],
+      [{ type: 'text', text: 'done' }, { type: 'done', stopReason: 'end_turn' }],
+    ])
+    const requestTool = vi.fn(async () => '{"ok":true}')
+    const { messages } = await runTurn({
+      conversation: { messages: [{ role: 'user', content: 'hi' }] },
+      provider,
+      requestTool,
+      beforeToolCall: async () => {
+        throw new Error('hook broke')
+      },
+    })
+    expect(requestTool).not.toHaveBeenCalled()
+    expect(messages.filter((m) => m.role === 'tool').map((m) => JSON.parse(m.content))[0]).toMatchObject({ ok: false })
+    expect(messages.at(-1)).toMatchObject({ role: 'assistant', content: 'done' })
+  })
+
+  it('lets afterToolCall rewrite the result the model sees', async () => {
+    const provider = roundsProvider([
+      [{ type: 'tool_use', id: 't1', name: 'read', input: { path: 'a.js' } }, { type: 'done', stopReason: 'tool_use' }],
+      [{ type: 'text', text: 'done' }, { type: 'done', stopReason: 'end_turn' }],
+    ])
+    const { messages } = await runTurn({
+      conversation: { messages: [{ role: 'user', content: 'hi' }] },
+      provider,
+      requestTool: async () => '{"original":true}',
+      afterToolCall: async () => ({ result: '{"rewritten":true}' }),
+    })
+    expect(messages.filter((m) => m.role === 'tool').map((m) => m.content)).toEqual(['{"rewritten":true}'])
   })
 })

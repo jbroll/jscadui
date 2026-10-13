@@ -13,6 +13,30 @@ const DEFAULT_TOOL_TIMEOUT_MS = 120_000
 // looping model cannot spend the whole context or budget.
 export const DEFAULT_MAX_ROUNDS = 32
 
+// Last word when the round cap hits: tools off, answer with text only.
+export const MAX_STEPS_PROMPT = 'Maximum steps reached. Respond with text only: summarize what was done, what remains, and the next step.'
+
+// A model repeating the identical call is stuck, not working: the third
+// repeat of one (tool, arguments) ends the turn, the opencode/Muse rule.
+export const DOOM_LOOP_THRESHOLD = 3
+
+const stableStringify = (value) => {
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`
+  if (value !== null && typeof value === 'object') {
+    return `{${Object.keys(value).sort().map((k) => `${JSON.stringify(k)}:${stableStringify(value[k])}`).join(',')}}`
+  }
+  return JSON.stringify(value) ?? 'null'
+}
+
+const doomLoopError = (call) =>
+  JSON.stringify({
+    ok: false,
+    error: {
+      name: 'DoomLoopError',
+      message: `${call.name} was called ${DOOM_LOOP_THRESHOLD} times with identical arguments; it is stuck in a loop. Change the arguments or try a different approach: ${stableStringify(call.input)}`,
+    },
+  })
+
 // One tool result may fill at most the budget buildMessages keeps for history,
 // so a few oversized results cannot overflow the provider's context.
 export const TOOL_RESULT_CHARS = CONTEXT_BUDGET
@@ -144,20 +168,32 @@ export const toolDetail = (input) => {
  * `onStatus` hears where the turn is: `{phase: 'thinking', reasoningChars?}`
  * from each request until its first output, `{phase: 'text'}` when text
  * starts, `{phase: 'tool', tool, detail?}` before each tool runs,
- * `{phase: 'retry', attempt, maxAttempts}` when the provider is retried, and
+ * `{phase: 'retry', attempt, maxAttempts}` when the provider is retried,
+ * `{phase: 'usage', inputTokens, outputTokens, reasoningTokens}` when the
+ * provider reports use, and
  * `{phase: 'done'}` once the turn has ended, however it ended. `onText` and
  * `onReasoning` hear each streamed delta; reasoning never enters the messages.
- * @param {{conversation:{messages:Array<object>},provider:{send:Function},requestTool:Function,onText?:Function,onReasoning?:Function,onStatus?:Function,signal?:AbortSignal,toolTimeoutMs?:number,maxRounds?:number,toolChoice?:'none'|'auto'|'any',api?:'fluent'|'modeling'}} options
- * @returns {Promise<{messages:Array<object>,rounds:number,stopped:string|undefined}>} a NEW conversation; the input is never mutated. `stopped` is `'max_rounds'` when the turn hit the round cap. A rejection carries the messages so far as `error.messages`.
+ * `onUsage` hears each usage report; usage never enters the messages.
+ * `beforeToolCall(name, input)` may deny a call (`{decision:'deny', reason?}`)
+ * or rewrite its arguments (`{updatedInput}`); a throw blocks the call with
+ * a tool error. `afterToolCall(name, input, result)` may replace the result
+ * (`{result}` or a string); a throw becomes a tool error. Denials, rewrites
+ * and hook failures are results the model sees, never turn failures.
+ * @param {{conversation:{messages:Array<object>},provider:{send:Function},requestTool:Function,onText?:Function,onReasoning?:Function,onUsage?:Function,onStatus?:Function,beforeToolCall?:Function,afterToolCall?:Function,signal?:AbortSignal,toolTimeoutMs?:number,maxRounds?:number,capFinalAnswer?:boolean,toolChoice?:'none'|'auto'|'any',api?:'fluent'|'modeling'}} options
+ * @returns {Promise<{messages:Array<object>,rounds:number,stopped:string|undefined}>} a NEW conversation; the input is never mutated. `stopped` is `'max_rounds'` at the round cap or `'doom_loop'` on a triple repeat. A rejection carries the messages so far as `error.messages`.
  */
 export const runTurn = (options) => {
   const { conversation, provider, requestTool, onText, onReasoning, signal } = options
   const toolTimeoutMs = options.toolTimeoutMs ?? DEFAULT_TOOL_TIMEOUT_MS
   const maxRounds = options.maxRounds ?? DEFAULT_MAX_ROUNDS
+  // The eval harness counts every provider send as a round, so it opts out;
+  // the app leaves this on so a capped turn still answers.
+  const capFinalAnswer = options.capFinalAnswer ?? true
   const tools = buildTools(options.api ?? DEFAULT_API)
   const messages = [...conversation.messages]
   let rounds = 0
   let resultChars = 0
+  const repeats = new Map()
   let phase
   const report = (status) => {
     phase = status.phase
@@ -183,10 +219,37 @@ export const runTurn = (options) => {
     if (signal?.aborted) cancel()
 
     void (async () => {
+      // One last turn with tools off, so a capped turn still answers instead
+      // of stopping silent. Empty or failed answers resolve without one.
+      const finalAnswer = async () => {
+        const text = []
+        try {
+          report({ phase: 'thinking' })
+          const closing = provider.send([...messages, { role: 'user', content: MAX_STEPS_PROMPT }], [], { toolChoice: 'none' })[Symbol.asyncIterator]()
+          try {
+            for (;;) {
+              const { done, value } = await nextOrAbort(closing, signal)
+              if (done) break
+              if (value.type === 'text') {
+                if (phase !== 'text') report({ phase: 'text' })
+                text.push(value.text)
+                onText?.(value.text)
+              } else if (value.type === 'done') break
+            }
+          } finally {
+            closing.return?.(undefined).catch(() => {})
+          }
+        } catch {
+          return
+        }
+        if (cancelled || text.length === 0) return
+        messages.push({ role: 'assistant', content: text.join(''), toolCalls: [] })
+      }
       try {
         for (;;) {
           rounds += 1
           if (rounds > maxRounds) {
+            if (capFinalAnswer) await finalAnswer()
             report({ phase: 'done', stopped: 'max_rounds' })
             resolve({ messages, rounds: maxRounds, stopped: 'max_rounds' })
             return
@@ -215,6 +278,14 @@ export const runTurn = (options) => {
                 refusal.push(value.text)
               } else if (value.type === 'retry') {
                 report({ phase: 'retry', attempt: value.attempt + 1, maxAttempts: value.maxAttempts })
+              } else if (value.type === 'usage') {
+                const usage = { inputTokens: value.inputTokens ?? null, outputTokens: value.outputTokens ?? null, reasoningTokens: value.reasoningTokens ?? null }
+                try {
+                  options.onUsage?.(usage)
+                } catch {
+                  // A usage display that throws must not end the turn.
+                }
+                report({ phase: 'usage', ...usage })
               } else if (value.type === 'tool_use') {
                 const call = { id: value.id, name: value.name, input: value.input }
                 if (value.badArguments !== undefined) badCalls.set(call, value)
@@ -241,34 +312,58 @@ export const runTurn = (options) => {
           const contents = new Array(toolCalls.length)
           const readOnly = []
           const mutating = []
+          let doomLoop = false
           toolCalls.forEach((call, i) => {
             if (badCalls.has(call)) contents[i] = argumentsError(badCalls.get(call), stopReason)
             else if (READ_ONLY.has(call.name)) readOnly.push(i)
             else mutating.push(i)
           })
-          await Promise.all(
-            readOnly.map(async (i) => {
-              const call = toolCalls[i]
-              const detail = toolDetail(call.input)
-              report({ phase: 'tool', tool: call.name, ...(detail === undefined ? {} : { detail }) })
-              contents[i] = await withTimeout(
-                requestTool(call.name, call.input),
-                toolTimeoutMs,
-                signal,
-                () => new ToolTimeoutError(call.id, call.name, toolTimeoutMs),
-              )
-            }),
-          )
-          for (const i of mutating) {
+          // One call end to end: hook gate, repeat guard, run, hook rewrite.
+          // A hook or guard failure is a result, never a throw, so the turn
+          // always has content to feed back.
+          const runOneTool = async (i) => {
             const call = toolCalls[i]
-            const detail = toolDetail(call.input)
+            let input = call.input
+            try {
+              const pre = await options.beforeToolCall?.(call.name, input)
+              if (pre?.decision === 'deny') {
+                return JSON.stringify({ ok: false, error: { name: 'DeniedError', message: pre.reason ?? `${call.name} was denied` } })
+              }
+              if (pre?.updatedInput !== undefined) input = pre.updatedInput
+            } catch (err) {
+              return JSON.stringify({ ok: false, error: { name: err?.name ?? 'HookError', message: err?.message ?? String(err) } })
+            }
+            const key = `${call.name}\n${stableStringify(input)}`
+            const count = (repeats.get(key) ?? 0) + 1
+            repeats.set(key, count)
+            if (count >= DOOM_LOOP_THRESHOLD) {
+              doomLoop = true
+              return doomLoopError({ ...call, input })
+            }
+            const detail = toolDetail(input)
             report({ phase: 'tool', tool: call.name, ...(detail === undefined ? {} : { detail }) })
-            contents[i] = await withTimeout(
-              requestTool(call.name, call.input),
+            let result = await withTimeout(
+              requestTool(call.name, input),
               toolTimeoutMs,
               signal,
               () => new ToolTimeoutError(call.id, call.name, toolTimeoutMs),
             )
+            try {
+              const post = await options.afterToolCall?.(call.name, input, result)
+              if (typeof post === 'string') result = post
+              else if (post?.result !== undefined) result = post.result
+            } catch (err) {
+              return JSON.stringify({ ok: false, error: { name: err?.name ?? 'HookError', message: err?.message ?? String(err) } })
+            }
+            return result
+          }
+          await Promise.all(
+            readOnly.map(async (i) => {
+              contents[i] = await runOneTool(i)
+            }),
+          )
+          for (const i of mutating) {
+            contents[i] = await runOneTool(i)
           }
           toolCalls.forEach((call, i) => {
             let capped = capToolResult(contents[i])
@@ -277,6 +372,11 @@ export const runTurn = (options) => {
             else resultChars += size
             messages.push({ role: 'tool', toolCallId: call.id, content: capped })
           })
+          if (doomLoop) {
+            report({ phase: 'done', stopped: 'doom_loop' })
+            resolve({ messages, rounds, stopped: 'doom_loop' })
+            return
+          }
         }
         report({ phase: 'done' })
         resolve({ messages, rounds, stopped: undefined })

@@ -11,7 +11,7 @@ export const turnsOf = (transcript) => {
   const turns = []
   for (const m of transcript) {
     if (m.role === 'user') turns.push([m])
-    else if (m.role === 'assistant' && turns.length > 0) turns.at(-1).push(m)
+    else if ((m.role === 'assistant' || m.role === 'tool') && turns.length > 0) turns.at(-1).push(m)
   }
   return turns
 }
@@ -81,8 +81,30 @@ export const projectMessage = (files = {}, build = null, mentioned = [], budget 
 }
 
 // Whole turns that fit the history budget, newest first; the rest are evicted.
+// Before a turn is evicted, the oldest tool results are pruned to a
+// placeholder (their tool_use record stays), oldest first, keeping the newest
+// few full; only then do whole turns go. The input is never mutated.
+export const PRUNED_TOOL_RESULT = '[Old tool result content cleared]'
+
+const KEPT_FULL_TOOL_RESULTS = 3
+
+const pruneToolResults = (transcript, budget) => {
+  let size = transcript.reduce((n, m) => n + (m.content?.length ?? 0), 0)
+  if (size <= budget) return transcript
+  const pruned = [...transcript]
+  for (;;) {
+    const full = pruned.filter((m) => m.role === 'tool' && typeof m.content === 'string' && m.content !== PRUNED_TOOL_RESULT)
+    if (size <= budget || full.length <= KEPT_FULL_TOOL_RESULTS) return pruned
+    const oldest = full[0]
+    const at = pruned.indexOf(oldest)
+    size -= oldest.content.length - PRUNED_TOOL_RESULT.length
+    pruned[at] = { ...oldest, content: PRUNED_TOOL_RESULT }
+  }
+}
+
 export const partitionTranscript = (transcript, budget = CONTEXT_BUDGET) => {
-  const turns = turnsOf(transcript)
+  const pruned = pruneToolResults(transcript, budget)
+  const turns = turnsOf(pruned)
   const kept = []
   let used = 0
   for (const turn of [...turns].reverse()) {
@@ -92,7 +114,7 @@ export const partitionTranscript = (transcript, budget = CONTEXT_BUDGET) => {
     kept.unshift(...turn)
   }
   const keptSet = new Set(kept)
-  const evicted = transcript.filter((m) => !keptSet.has(m))
+  const evicted = pruned.filter((m) => !keptSet.has(m))
   return { evicted, kept }
 }
 

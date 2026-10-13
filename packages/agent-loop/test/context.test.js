@@ -97,6 +97,36 @@ describe('buildMessages', () => {
     expect(heads(evicted)).toEqual(['u1', 'a1'])
   })
 
+  it('prunes the oldest tool result instead of evicting a turn that fits without it', () => {
+    const tool = (id, size) => ({ role: 'tool', toolCallId: id, content: 'x'.repeat(size) })
+    const transcript = [
+      { role: 'user', content: 'u1' }, { role: 'assistant', content: 'a1' }, tool('t1', 100),
+      { role: 'user', content: 'u2' }, { role: 'assistant', content: 'a2' }, tool('t2', 100),
+      { role: 'user', content: 'u3' }, { role: 'assistant', content: 'a3' }, tool('t3', 100),
+      { role: 'user', content: 'u4' }, { role: 'assistant', content: 'a4' }, tool('t4', 100),
+    ]
+    const { kept } = partitionTranscript(transcript, 360)
+    expect(kept.map((m) => m.role)).toEqual(['user', 'assistant', 'tool', 'user', 'assistant', 'tool', 'user', 'assistant', 'tool', 'user', 'assistant', 'tool'])
+    expect(kept[2].content).toBe('[Old tool result content cleared]')
+    expect(kept[5].content).toHaveLength(100)
+    expect(kept[8].content).toHaveLength(100)
+    expect(kept[11].content).toHaveLength(100)
+    expect(transcript[2].content).toHaveLength(100)
+  })
+
+  it('evicts whole turns once only the newest tool results are left full', () => {
+    const tool = (id, size) => ({ role: 'tool', toolCallId: id, content: 'x'.repeat(size) })
+    const transcript = [
+      { role: 'user', content: 'u1' }, { role: 'assistant', content: 'a1' }, tool('t1', 100),
+      { role: 'user', content: 'u2' }, { role: 'assistant', content: 'a2' }, tool('t2', 100),
+      { role: 'user', content: 'u3' }, { role: 'assistant', content: 'a3' }, tool('t3', 100),
+      { role: 'user', content: 'u4' }, { role: 'assistant', content: 'a4' }, tool('t4', 100),
+    ]
+    const { evicted, kept } = partitionTranscript(transcript, 300)
+    expect(kept.map((m) => (m.role === 'tool' ? m.toolCallId : m.content))).toEqual(['u3', 'a3', 't3', 'u4', 'a4', 't4'])
+    expect(evicted.map((m) => (m.role === 'tool' ? m.toolCallId : m.content))).toEqual(['u1', 'a1', 't1', 'u2', 'a2', 't2'])
+  })
+
   it('inserts the summary after the system message', () => {
     const messages = buildMessages({ systemPrompt: 'S', transcript: three, message: 'new', budget: 200, summary: 'did stuff' })
     expect(messages[0]).toEqual({ role: 'system', content: 'S' })

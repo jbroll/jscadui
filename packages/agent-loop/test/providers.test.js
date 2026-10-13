@@ -93,6 +93,28 @@ describe('providers', () => {
     expect(await posted({ kind: 'meta', apiKey: 'k', model: 'muse-spark-1.3' })).not.toContain('mentions')
   })
 
+  it('anthropic: batches consecutive tool results into one user message', async () => {
+    fetchMock.mockResolvedValue(new Response(sseBody('')))
+    const messages = [
+      { role: 'user', content: 'hi' },
+      { role: 'assistant', content: null, toolCalls: [{ id: 't1', name: 'measure', input: { target: 'a' } }, { id: 't2', name: 'check', input: {} }] },
+      { role: 'tool', toolCallId: 't1', content: '{"ok":true}' },
+      { role: 'tool', toolCallId: 't2', content: '{"ok":true}' },
+    ]
+    const provider = createProvider({ kind: 'anthropic', apiKey: 'k', model: 'm', baseUrl: 'https://relay.test' })
+    for await (const e of provider.send(messages, [])) void e
+    const posted = JSON.parse(fetchMock.mock.calls.at(-1)[1].body)
+    const users = posted.messages.filter((m) => m.role === 'user')
+    expect(users).toHaveLength(2)
+    expect(users[1]).toEqual({
+      role: 'user',
+      content: [
+        { type: 'tool_result', tool_use_id: 't1', content: '{"ok":true}' },
+        { type: 'tool_result', tool_use_id: 't2', content: '{"ok":true}' },
+      ],
+    })
+  })
+
   it.each([
     ['anthropic', { kind: 'anthropic', apiKey: 'k', model: 'm', baseUrl: 'https://relay.test' }, { none: { type: 'none' }, any: { type: 'any' } }],
     ['openai', { kind: 'openai', apiKey: 'k', model: 'm', baseUrl: 'https://relay.test' }, { none: 'none', any: 'required' }],
@@ -352,6 +374,22 @@ describe('fetchWithRetry', () => {
     expect(res.ok).toBe(false)
     expect(res.status).toBe(401)
     expect(res.text).toContain('bad key')
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    expect(onRetry).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['anthropic code', 400, JSON.stringify({ error: { type: 'invalid_request_error', message: 'too many tokens' } })],
+    ['openai code', 400, JSON.stringify({ error: { code: 'context_length_exceeded', message: 'too many tokens' } })],
+    ['plain message', 400, JSON.stringify({ error: { message: 'maximum context length exceeded' } })],
+    ['overflow on a retryable 429', 429, JSON.stringify({ error: { code: 'context_length_exceeded', message: 'too many tokens' } })],
+    ['overflow on a retryable 529', 529, JSON.stringify({ error: { type: 'overloaded_error', message: 'input tokens exceed the maximum context window' } })],
+  ])('does not retry context overflow (%s)', async (_name, status, body) => {
+    const overflow = new Response(body, { status })
+    const fetchImpl = vi.fn().mockResolvedValue(overflow)
+    const onRetry = vi.fn()
+    const res = await fetchWithRetry(fetchImpl, 'https://x.test', {}, { onRetry })
+    expect(res.ok).toBe(false)
     expect(fetchImpl).toHaveBeenCalledTimes(1)
     expect(onRetry).not.toHaveBeenCalled()
   })

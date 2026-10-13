@@ -624,10 +624,3 @@ from the 2026-10-01 review.
 - **Params memory follow-up.** Child-proxy eviction recreates the child with
   fresh per-proxy defaults; only matters if 500 distinct properties are
   probed on one proxy between a set and a read of the same child.
-- **Doom-loop guard (agent-loop).** `runTurn` caps rounds but never notices a
-  model repeating the identical call: hash `(tool, args)` per turn and stop
-  after the third repeat with a model-facing error, the opencode/Muse rule.
-- **Tool permission hooks (agent-loop, jscad-web).** No allow/ask/deny layer
-  exists around `dispatchTool`: add `beforeToolCall`/`afterToolCall`
-  interception (pi `beforeToolCall`, Claude `PreToolUse`) so side-effecting
-  calls can be gated later without touching the loop.
