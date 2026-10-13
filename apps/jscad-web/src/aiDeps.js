@@ -1,6 +1,18 @@
-import { applyDelete, applyEdit, applyWrite, DEFAULT_API, deleteReport, listFiles, PROJECT_BASE, readFile, reportError, RUN_FILE, runTimeoutError, withUnits, writeReport } from '@jscadui/agent-loop'
+import { applyDelete, applyEdit, applyWrite, DEFAULT_API, deleteReport, lintSource, listFiles, PROJECT_BASE, readFile, reportError, RUN_FILE, runTimeoutError, withUnits, writeReport } from '@jscadui/agent-loop'
 import { indexFor } from './projectBuild.js'
 import { sendScript } from './scriptRuns.js'
+
+const staticWarnings = (diagnostics) => diagnostics.map(({ from: _from, to: _to, ...rest }) => ({ ...rest, source: 'static' }))
+
+// The runtime option checks and the static lint see the same mistake; keep the
+// runtime entry (it carries the hint) and add only what it did not report.
+const mergeStatic = (result, diagnostics) => {
+  if (!diagnostics.length) return result
+  const runtime = result.warnings ?? []
+  const covered = new Set(runtime.filter((warning) => warning.option).map((warning) => `${warning.fn}\u0000${warning.option}`))
+  const added = staticWarnings(diagnostics).filter((warning) => !(warning.option && covered.has(`${warning.fn}\u0000${warning.option}`)))
+  return added.length ? { ...result, warnings: [...runtime, ...added] } : result
+}
 
 /**
  * The chat's tools over the open project: the file cache every run sends the
@@ -53,6 +65,17 @@ export const createProjectTools = ({
   const written = new Set()
   let turnProject
 
+  const lint = async (content) => {
+    if (typeof content !== 'string') return []
+    const index = await indexFor(loadIndex)
+    if (!index) return []
+    try {
+      return await lintSource(index, content, { api: getApi() })
+    } catch {
+      return []
+    }
+  }
+
   const save = async ({ files, path }) => {
     const content = files[path]
     const projectId = getProjectId()
@@ -63,7 +86,7 @@ export const createProjectTools = ({
     await storeFile(projectId, path, content)
     written.add(projectId)
     showFile(path, content, files)
-    return writeReport(path, await build())
+    return mergeStatic(writeReport(path, await build()), await lint(content))
   }
 
   const remove = async (args) => {
@@ -94,13 +117,14 @@ export const createProjectTools = ({
       throw error
     }
     const out = { warnings: result.warnings ?? [], console: result.console ?? [] }
-    if (result.error) return { ok: false, error: reportError(result.error, { api, index: await indexFor(loadIndex) }), ...out }
-    return {
+    const diagnostics = await lint(source)
+    if (result.error) return mergeStatic({ ok: false, error: reportError(result.error, { api, index: await indexFor(loadIndex) }), ...out }, diagnostics)
+    return mergeStatic({
       ok: true,
       ...out,
       ...(result.geometry ? { geometry: result.geometry } : {}),
       ...(result.returned !== undefined ? { returned: result.returned } : {}),
-    }
+    }, diagnostics)
   }
 
   const onBuild = (tool) => async (args) => (await noGeometry()) ?? tool(args)

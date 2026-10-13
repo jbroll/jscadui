@@ -519,11 +519,17 @@ Expected: FAIL — `res.warnings` is `[]` (no static entries).
 In `apps/jscad-web/src/aiDeps.js`, add `lintSource` to the `@jscadui/agent-loop` import list (line 1). Above `createProjectTools`, add:
 
 ```js
-const staticWarnings = (diagnostics) =>
-  diagnostics.map(({ from, to, source, ...rest }) => ({ source: 'static', ...rest }))
+const staticWarnings = (diagnostics) => diagnostics.map(({ from: _from, to: _to, ...rest }) => ({ ...rest, source: 'static' }))
 
-const mergeStatic = (result, diagnostics) =>
-  diagnostics.length ? { ...result, warnings: [...(result.warnings ?? []), ...staticWarnings(diagnostics)] } : result
+// The runtime option checks and the static lint see the same mistake; keep the
+// runtime entry (it carries the hint) and add only what it did not report.
+const mergeStatic = (result, diagnostics) => {
+  if (!diagnostics.length) return result
+  const runtime = result.warnings ?? []
+  const covered = new Set(runtime.filter((warning) => warning.option).map((warning) => `${warning.fn}\u0000${warning.option}`))
+  const added = staticWarnings(diagnostics).filter((warning) => !(warning.option && covered.has(`${warning.fn}\u0000${warning.option}`)))
+  return added.length ? { ...result, warnings: [...runtime, ...added] } : result
+}
 ```
 
 Inside `createProjectTools`, before `save`, add:
@@ -613,11 +619,17 @@ import { lintSource } from '../src/lint.js'
 Add helpers near the other module-level helpers:
 
 ```js
-const staticWarnings = (diagnostics) =>
-  diagnostics.map(({ from, to, source, ...rest }) => ({ source: 'static', ...rest }))
+const staticWarnings = (diagnostics) => diagnostics.map(({ from: _from, to: _to, ...rest }) => ({ ...rest, source: 'static' }))
 
-const mergeStatic = (result, diagnostics) =>
-  diagnostics.length ? { ...result, warnings: [...(result.warnings ?? []), ...staticWarnings(diagnostics)] } : result
+// The runtime option checks and the static lint see the same mistake; keep the
+// runtime entry (it carries the hint) and add only what it did not report.
+const mergeStatic = (result, diagnostics) => {
+  if (!diagnostics.length) return result
+  const runtime = result.warnings ?? []
+  const covered = new Set(runtime.filter((warning) => warning.option).map((warning) => `${warning.fn}\u0000${warning.option}`))
+  const added = staticWarnings(diagnostics).filter((warning) => !(warning.option && covered.has(`${warning.fn}\u0000${warning.option}`)))
+  return added.length ? { ...result, warnings: [...runtime, ...added] } : result
+}
 ```
 
 Change `saved` (note `api` is the parameter of `createEvalBackend`, already in scope):

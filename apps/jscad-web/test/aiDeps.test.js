@@ -325,3 +325,24 @@ describe('measure, check and export', () => {
     expect(deps.exportModel).not.toHaveBeenCalled()
   })
 })
+
+describe('static lint warnings', () => {
+  it('write answers the static warnings of the saved source', async () => {
+    const { tools: t } = tools({ loadIndex: async () => index })
+    const source = `const { cylinder } = require('@jscad/modeling').primitives\ncylinder({ heigth: 2 })`
+    const res = await t.write({ path: 'main.js', content: source })
+    expect(res.warnings).toContainEqual(expect.objectContaining({ source: 'static', option: 'heigth', suggestions: ['height'] }))
+  })
+
+  it('run answers the static warnings of the snippet', async () => {
+    const { tools: t } = tools({ loadIndex: async () => index })
+    const res = await t.run(`cylindr({ radius: 1 })`)
+    expect(res.warnings).toContainEqual(expect.objectContaining({ source: 'static', fn: 'cylindr' }))
+  })
+
+  it('adds no static warnings for clean source', async () => {
+    const { tools: t } = tools({ loadIndex: async () => index })
+    const source = `const { cylinder } = require('@jscad/modeling').primitives\ncylinder({ radius: 1 })`
+    expect((await t.write({ path: 'main.js', content: source })).warnings).toEqual([])
+  })
+})
