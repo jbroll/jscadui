@@ -4,7 +4,9 @@ import { keymap } from '@codemirror/view'
 import { EditorView, basicSetup } from 'codemirror'
 import { readAsText } from '@jscadui/fs-provider'
 
+import { createIndexLoader } from './apiIndex.js'
 import * as drawer from './drawer.js'
+import { apiExtensions } from './editorApi.js'
 import { createEditorBuffer } from './editorBuffer.js'
 
 /** 
@@ -40,6 +42,7 @@ let getFileFn
 // file selector
 let currentFile = '/index.js'
 const buffer = createEditorBuffer()
+const loadApiIndex = createIndexLoader()
 let applying = false
 /** @type {HTMLElement} */
 let editorNav
@@ -103,6 +106,7 @@ export const init = (defaultCode, fn, _saveFn, _getFileFn, _confirm) => {
     extensions: [
       basicSetup,
       javascript(),
+      ...apiExtensions(loadApiIndex),
       EditorView.updateListener.of((update) => {
         if (update.docChanged && !applying) buffer.edit(currentFile, update.state.doc.toString())
       }),
