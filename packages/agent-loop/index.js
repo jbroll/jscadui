@@ -13,3 +13,4 @@ export { asGeometry, assembleReport, buildReport, errorLocation, geometrySummary
 export { exportConfig, exportedSize } from './src/exportFormat.js'
 export { applyDelete, applyEdit, applyWrite, deleteReport, listFiles, NO_ENTRY, PACKAGE_JSON, pickEntry, projectPath, readFile, resolveEntry } from './src/project.js'
 export { withUnits } from './src/units.js'
+export { lintSource, lintTree, lookupName, MAX_DIAGNOSTICS } from './src/lint.js'

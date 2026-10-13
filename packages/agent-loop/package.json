@@ -25,7 +25,8 @@
     "judge": "node --import ./text-loader.js eval/judge.js"
   },
   "dependencies": {
-    "@jscadui/format-common": "*"
+    "@jscadui/format-common": "*",
+    "@lezer/javascript": "^1.4.7"
   },
   "devDependencies": {
     "@jbroll/jscad-fluent": "file:../../.deps-cache/jscad-fluent",
