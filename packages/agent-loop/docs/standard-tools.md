@@ -86,6 +86,10 @@ notes, or anchor guides out of the base prompt. Cheap to prototype as
 markdown + the `docs` pattern, but needs a loader and eval proof that
 the base prompt is actually too big.
 
+Verdict 2026-10-13: no split; prompt at ~2.1k words (~4.5k tokens by
+`estimateTokens`) per style, under the 5,000-token sheet budget and well
+inside the 24k+24k context/project budgets. Budgets unchanged.
+
 ### 7. MCP client
 
 MCP won the transport war for external tools (JSON-RPC Tools /
