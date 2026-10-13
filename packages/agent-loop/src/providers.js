@@ -203,12 +203,23 @@ export async function* ssePayloads(body) {
   if (buffer.startsWith('data:')) yield buffer.slice(5).trim()
 }
 
+const isFailureContent = (content) => {
+  if (typeof content !== 'string') return false
+  try {
+    return JSON.parse(content)?.ok === false
+  } catch {
+    return false
+  }
+}
+
 const toAnthropicMessage = (message) => {
   if (message.role === 'tool') {
-    return {
+    const result = {
       role: 'user',
       content: [{ type: 'tool_result', tool_use_id: message.toolCallId, content: message.content }],
     }
+    if (isFailureContent(message.content)) result.content[0].is_error = true
+    return result
   }
   if (message.role === 'assistant') {
     const content = []
@@ -229,6 +240,7 @@ const toAnthropicMessages = (messages) => {
   for (const message of messages) {
     if (message.role === 'tool') {
       const result = { type: 'tool_result', tool_use_id: message.toolCallId, content: message.content }
+      if (isFailureContent(message.content)) result.is_error = true
       if (batch) batch.push(result)
       else {
         batch = [result]

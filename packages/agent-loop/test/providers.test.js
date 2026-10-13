@@ -115,6 +115,22 @@ describe('providers', () => {
     })
   })
 
+  it('anthropic: marks failure results with is_error', async () => {
+    fetchMock.mockResolvedValue(new Response(sseBody('')))
+    const messages = [
+      { role: 'user', content: 'hi' },
+      { role: 'assistant', content: null, toolCalls: [{ id: 't1', name: 'read', input: { path: 'a' } }, { id: 't2', name: 'read', input: { path: 'b' } }] },
+      { role: 'tool', toolCallId: 't1', content: JSON.stringify({ ok: false, error: { name: 'Error', message: 'no' } }) },
+      { role: 'tool', toolCallId: 't2', content: JSON.stringify({ ok: true }) },
+    ]
+    const provider = createProvider({ kind: 'anthropic', apiKey: 'k', model: 'm', baseUrl: 'https://relay.test' })
+    for await (const e of provider.send(messages, [])) void e
+    const posted = JSON.parse(fetchMock.mock.calls.at(-1)[1].body)
+    const batch = posted.messages.filter((m) => m.role === 'user').at(-1).content
+    expect(batch[0]).toMatchObject({ type: 'tool_result', tool_use_id: 't1', is_error: true })
+    expect(batch[1]).not.toHaveProperty('is_error')
+  })
+
   it.each([
     ['anthropic', { kind: 'anthropic', apiKey: 'k', model: 'm', baseUrl: 'https://relay.test' }, { none: { type: 'none' }, any: { type: 'any' } }],
     ['openai', { kind: 'openai', apiKey: 'k', model: 'm', baseUrl: 'https://relay.test' }, { none: 'none', any: 'required' }],
