@@ -381,6 +381,23 @@ export const runTurn = (options) => {
         report({ phase: 'done' })
         resolve({ messages, rounds, stopped: undefined })
       } catch (err) {
+        // Every tool_use needs a tool_result, or the next provider call is a
+        // protocol error: an abort or timeout mid-batch leaves orphaned calls,
+        // so synthesize an error result for each one the turn never answered.
+        const failed = err?.name ?? 'Error'
+        const failedMessage = err?.message ?? String(err)
+        const covered = new Set(messages.filter((m) => m.role === 'tool').map((m) => m.toolCallId))
+        for (let i = messages.length - 1; i >= 0; i -= 1) {
+          const m = messages[i]
+          if (m.role !== 'assistant' || !Array.isArray(m.toolCalls)) continue
+          for (const call of m.toolCalls) {
+            if (!covered.has(call.id)) {
+              covered.add(call.id)
+              messages.push({ role: 'tool', toolCallId: call.id, content: JSON.stringify({ ok: false, error: { name: failed, message: failedMessage } }) })
+            }
+          }
+          break
+        }
         if (err !== null && typeof err === 'object') err.messages ??= messages
         report({ phase: 'done' })
         reject(err)

@@ -331,7 +331,8 @@ describe('runTurn', () => {
       toolTimeoutMs: 25,
     }).catch((e) => e)
     expect(error.name).toBe('ToolTimeoutError')
-    expect(error.messages.map((m) => m.toolCallId ?? m.role)).toEqual(['user', 'assistant', 'tool_1', 'assistant'])
+    expect(error.messages.map((m) => m.toolCallId ?? m.role)).toEqual(['user', 'assistant', 'tool_1', 'assistant', 'tool_2'])
+    expect(JSON.parse(error.messages.at(-1).content)).toMatchObject({ ok: false, error: { name: 'ToolTimeoutError' } })
   })
 
   it('stops after maxRounds provider rounds and reports it', async () => {
@@ -531,5 +532,33 @@ describe('runTurn', () => {
       afterToolCall: async () => ({ result: '{"rewritten":true}' }),
     })
     expect(messages.filter((m) => m.role === 'tool').map((m) => m.content)).toEqual(['{"rewritten":true}'])
+  })
+
+  it('synthesizes missing tool results when the turn aborts mid-batch', async () => {
+    const provider = roundsProvider([
+      [
+        { type: 'tool_use', id: 't1', name: 'read', input: { path: 'a' } },
+        { type: 'tool_use', id: 't2', name: 'read', input: { path: 'b' } },
+        { type: 'done', stopReason: 'tool_use' },
+      ],
+    ])
+    const controller = new AbortController()
+    const requestTool = vi.fn(async () => {
+      controller.abort()
+      await new Promise((r) => setTimeout(r, 10))
+      return '{"ok":true}'
+    })
+    const error = await runTurn({
+      conversation: { messages: [{ role: 'user', content: 'hi' }] },
+      provider,
+      requestTool,
+      signal: controller.signal,
+    }).catch((e) => e)
+    expect(error.name).toBe('AbortError')
+    const ids = error.messages.filter((m) => m.role === 'tool').map((m) => m.toolCallId)
+    expect(ids).toEqual(['t1', 't2'])
+    for (const m of error.messages.filter((m) => m.role === 'tool')) {
+      expect(JSON.parse(m.content)).toMatchObject({ ok: false })
+    }
   })
 })
