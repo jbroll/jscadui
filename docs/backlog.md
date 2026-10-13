@@ -552,17 +552,6 @@ from the 2026-10-01 review.
   to the pinned sibling checkout (ba632c6, unreleased manifold anchor fixes)
   while the frame loads CDN `@jbroll/jscad-anchors@0.1` (`frameHost.js:18`),
   so eval results for anchor models may differ from the app.
-- **Editor lint, autocomplete and hover from the API index (jscad-web,
-  agent-loop).** Next spec after the docs tool. CodeMirror 6 plugins on the
-  Lezer tree `lang-javascript` already builds (no TypeScript, too heavy):
-  lint calls to known functions whose first argument is an object literal
-  for unknown option keys and unknown function names, plus Lezer's syntax
-  errors; autocomplete function and option names with defaults; hover shows
-  the `docs` entry. The lint rules are a pure function over a Lezer tree, so
-  `write`, `edit` and `run` run the same check on the source and return
-  static warnings beside the runtime ones. Static checks see only inline
-  literals; the runtime wrapper still covers built or spread options.
-  (`apps/jscad-web/src/editor.js`, `packages/agent-loop/api/index.json`)
 - **Production relay chat logging (jscad-web server).** Only the launcher
   relay logs conversations. Logging in `server/src/relay` needs the user's
   opt-in before anything is written.

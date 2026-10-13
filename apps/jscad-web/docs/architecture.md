@@ -933,6 +933,15 @@ that needs a hint, then keeps it; the API help panel (`src/apiHelp.js`) reads
 through the same loader. A failed load is retried on the next call; an error
 goes out without its hint meanwhile.
 
+The API index also drives the editor and the build tools. The pure core in
+`packages/agent-loop/src/lint.js` walks a Lezer tree and flags an unknown option
+key on a known API call, an unknown function name, and syntax errors; the
+editor runs it through CodeMirror's linter and offers API-name and option-key
+autocomplete and hover docs from the same index. `write`, `edit` and `run` run
+the identical check on the source and add `source: 'static'` entries to their
+`warnings`, beside the runtime option warnings (a mistake both report is kept
+once, as the runtime entry).
+
 The agent works on the open project's files: the file cache every run sends
 the frame (`fileSystem.projectFiles`), which `switchProject` refills and the
 editor's own run of a project file writes to. `src/aiDeps.js`
