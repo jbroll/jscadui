@@ -20,7 +20,9 @@ export {
 } from '@jscadui/model-tree'
 
 setWasmUrl(bundleFileUrl('./manifold.wasm', self))
-startInit()
+// Exported for the worker's WASM gate and the frame's fluent option checks,
+// which await the modeling bundle's `ready` before user code runs.
+export const ready = startInit()
 
 const tree = createModelTree(manifold)
 

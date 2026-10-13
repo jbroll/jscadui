@@ -25,3 +25,15 @@ test('every tree bundle exports the engine-bound evaluate the worker loads', () 
     expect(src, name).toMatch(/export const evaluate = createEvaluator\(/)
   }
 })
+
+// The worker's WASM gate (packages/worker/worker.js) and the frame's fluent
+// option checks (src_frame/optionWarnings.js) await the modeling bundle's
+// `ready` before user code runs. The manifold tree bundles start WASM init,
+// so they must export the promise; without it every manifold run races init
+// on a cold worker ("Manifold WASM not initialized").
+test('manifold tree bundles export the WASM ready promise', () => {
+  for (const name of ['bundle.model_tree_manifold.js', 'bundle.model_tree_anchored_manifold.js']) {
+    const src = read(`../src_bundle/${name}`)
+    expect(src, name).toMatch(/export const ready = startInit\(\)/)
+  }
+})
