@@ -624,3 +624,14 @@ from the 2026-10-01 review.
 - **Params memory follow-up.** Child-proxy eviction recreates the child with
   fresh per-proxy defaults; only matters if 500 distinct properties are
   probed on one proxy between a set and a read of the same child.
+- **Token-aware context budgets (agent-loop).** Budgets are characters
+  (`CONTEXT_BUDGET`, per-result and per-turn caps); usage tokens stream in
+  but never feed eviction. Count provider tokens toward `partitionTranscript`
+  and prune against them.
+- **Subagent/task delegation (agent-loop).** Single flat agent only; opencode,
+  pi-class harnesses and Claude Code fan read-only research into a child loop
+  whose summary alone returns to the parent. Needs the permission narrowing
+  and budget accounting those designs pair with it.
+- **Persisted tool trail (jscad-web chat).** The transcript stores user and
+  assistant text plus mentions and reasoning; tool calls and results live
+  only in the turn. A resumed conversation never shows what the tools did.
