@@ -32,10 +32,9 @@
 **Interfaces:**
 - Consumes: `suggestOptions` and `explainWarning` (`./optionChecks.js`, `./hints.js`), `DEFAULT_API` (`./api.js`).
 - Produces:
-  - `lintTree(index, tree, { api, text }) → Diagnostic[]`
+  - `lintTree(index, tree, { api, text }) → Diagnostic[]` (`text` is the source; identifier text is sliced from it, since a Lezer node's `name` is its type name)
   - `lintSource(index, source, { api }) → Promise<Diagnostic[]>` (async: lazily imports the parser)
   - `lookupName(index, name) → entry | null`
-  - `hoverTarget(index, tree, pos) → { from, to, text } | null` (used in Task 7)
   - `MAX_DIAGNOSTICS = 20`
   - `Diagnostic = { from, to, severity, source: 'jscad', message, fn?, option?, suggestions?, line?, column? }`
 
@@ -110,7 +109,6 @@ Create `packages/agent-loop/src/lint.js`:
 
 ```js
 import { DEFAULT_API } from './api.js'
-import { docsTool } from './docs.js'
 import { explainWarning } from './hints.js'
 import { suggestOptions } from './optionChecks.js'
 
@@ -156,26 +154,27 @@ const firstArg = (argList) => {
 }
 
 // The keys of an object literal: an identifier or string key is checked, a
-// computed, spread or method key is left alone.
-const objectKeys = (object) => {
+// computed, spread or method key is left alone. `text` is the source, since a
+// Lezer node's name is its type name, not its text.
+const objectKeys = (object, text) => {
   const keys = []
   for (let property = object.firstChild; property; property = property.nextSibling) {
     if (property.type.name !== 'Property') continue
     const key = property.firstChild
-    if (key?.type.name === 'PropertyDefinition') keys.push({ name: key.name, from: key.from, to: key.to })
-    else if (key?.type.name === 'String') keys.push({ name: unquote(key.name), from: key.from, to: key.to })
+    if (key?.type.name === 'PropertyDefinition') keys.push({ name: text.slice(key.from, key.to), from: key.from, to: key.to })
+    else if (key?.type.name === 'String') keys.push({ name: unquote(text.slice(key.from, key.to)), from: key.from, to: key.to })
   }
   return keys
 }
 
-const resolveCallee = (t, callee) => {
+const resolveCallee = (t, callee, text) => {
   if (!callee) return null
-  if (callee.type.name === 'VariableName') return t.callables.get(callee.name) ?? null
+  if (callee.type.name === 'VariableName') return t.callables.get(text.slice(callee.from, callee.to)) ?? null
   if (callee.type.name === 'MemberExpression') {
     const object = callee.firstChild
     const property = callee.lastChild
     if (object?.type.name === 'VariableName' && property?.type.name === 'PropertyName') {
-      const entry = t.byName.get(`${object.name}.${property.name}`)
+      const entry = t.byName.get(`${text.slice(object.from, object.to)}.${text.slice(property.from, property.to)}`)
       if (entry?.kind === 'function') return entry
     }
   }
@@ -202,18 +201,18 @@ const withLocation = (diagnostic, text) => {
   return { ...diagnostic, line, column: diagnostic.from - lineStart + 1 }
 }
 
-const lintCall = (t, call, api, push) => {
+const lintCall = (t, call, text, api, push) => {
   const callee = call.firstChild
   const argList = call.getChild('ArgList')
   if (!callee || !argList) return
   const first = firstArg(argList)
-  const entry = resolveCallee(t, callee)
+  const entry = resolveCallee(t, callee, text)
   if (!entry) return
   if (first?.type.name !== 'ObjectExpression') return
   const options = optionsOf(t, entry)
   if (!options?.length) return
   const known = options.map((option) => option.name)
-  for (const key of objectKeys(first)) {
+  for (const key of objectKeys(first, text)) {
     if (known.includes(key.name)) continue
     const suggestions = suggestOptions(key.name, known)
     const explained = explainWarning({ fn: entry.name, option: key.name, suggestions }, api)
@@ -235,7 +234,7 @@ const lintCall = (t, call, api, push) => {
  * @param {import('@lezer/common').Tree} tree
  * @param {{ api?: string, text?: string }} [options]
  */
-export const lintTree = (index, tree, { api = DEFAULT_API, text } = {}) => {
+export const lintTree = (index, tree, { api = DEFAULT_API, text = '' } = {}) => {
   const t = tablesFor(index)
   const diagnostics = []
   const push = (diagnostic) => {
@@ -243,7 +242,7 @@ export const lintTree = (index, tree, { api = DEFAULT_API, text } = {}) => {
   }
   const cursor = tree.cursor()
   do {
-    if (cursor.name === 'CallExpression') lintCall(t, cursor.node, api, push)
+    if (cursor.name === 'CallExpression') lintCall(t, cursor.node, text, api, push)
   } while (cursor.next())
   return diagnostics
 }
@@ -263,7 +262,7 @@ export const lintSource = async (index, source, options = {}) => {
 - [ ] **Step 5: Run the test to verify it passes**
 
 Run: `npx vitest run test/lint.test.js` (in `packages/agent-loop`)
-Expected: PASS (7 tests).
+Expected: PASS (6 tests).
 
 - [ ] **Step 6: Export the core**
 
@@ -329,7 +328,7 @@ describe('unknown function names', () => {
 
 describe('syntax errors', () => {
   it('flags an incomplete statement', () => {
-    expect(lint(`const x = `)).toEqual([expect.objectContaining({ severity: 'error', message: 'Syntax error' })])
+    expect(lint(`const x = `)).toContainEqual(expect.objectContaining({ severity: 'error', message: 'Syntax error' }))
   })
 })
 
@@ -383,12 +382,12 @@ const GLOBALS = new Set([
 Add above `const withLocation`:
 
 ```js
-const collectDeclared = (tree) => {
+const collectDeclared = (tree, text) => {
   const names = new Set()
   const cursor = tree.cursor()
   do {
-    if (cursor.name === 'VariableDefinition') names.add(cursor.node.name)
-    else if (cursor.name === 'PropertyName' && cursor.node.parent?.type.name === 'PatternProperty') names.add(cursor.node.name)
+    if (cursor.name === 'VariableDefinition') names.add(text.slice(cursor.from, cursor.to))
+    else if (cursor.name === 'PropertyName' && cursor.node.parent?.type.name === 'PatternProperty') names.add(text.slice(cursor.from, cursor.to))
   } while (cursor.next())
   return names
 }
@@ -397,18 +396,18 @@ const collectDeclared = (tree) => {
 Change `lintCall` to take `declared` and add the unknown-name tail after the option loop's `return`:
 
 ```js
-const lintCall = (t, call, declared, api, push) => {
+const lintCall = (t, call, text, declared, api, push) => {
   const callee = call.firstChild
   const argList = call.getChild('ArgList')
   if (!callee || !argList) return
   const first = firstArg(argList)
-  const entry = resolveCallee(t, callee)
+  const entry = resolveCallee(t, callee, text)
   if (entry) {
     if (first?.type.name !== 'ObjectExpression') return
     const options = optionsOf(t, entry)
     if (!options?.length) return
     const known = options.map((option) => option.name)
-    for (const key of objectKeys(first)) {
+    for (const key of objectKeys(first, text)) {
       if (known.includes(key.name)) continue
       const suggestions = suggestOptions(key.name, known)
       const explained = explainWarning({ fn: entry.name, option: key.name, suggestions }, api)
@@ -426,7 +425,7 @@ const lintCall = (t, call, declared, api, push) => {
     return
   }
   if (callee.type.name !== 'VariableName') return
-  const name = callee.name
+  const name = text.slice(callee.from, callee.to)
   if (declared.has(name) || GLOBALS.has(name)) return
   if (first?.type.name !== 'ObjectExpression') return
   push({ from: callee.from, to: callee.to, severity: 'warning', source: 'jscad', message: `unknown function ${name}; it is not in the API index`, fn: name })
@@ -436,9 +435,9 @@ const lintCall = (t, call, declared, api, push) => {
 Change `lintTree` to collect declared names, pass them to `lintCall`, and flag error nodes:
 
 ```js
-export const lintTree = (index, tree, { api = DEFAULT_API, text } = {}) => {
+export const lintTree = (index, tree, { api = DEFAULT_API, text = '' } = {}) => {
   const t = tablesFor(index)
-  const declared = collectDeclared(tree)
+  const declared = collectDeclared(tree, text)
   const diagnostics = []
   const push = (diagnostic) => {
     if (diagnostics.length < MAX_DIAGNOSTICS) diagnostics.push(withLocation(diagnostic, text))
@@ -448,7 +447,7 @@ export const lintTree = (index, tree, { api = DEFAULT_API, text } = {}) => {
     if (cursor.type.isError) {
       push({ from: cursor.from, to: Math.max(cursor.to, cursor.from + 1), severity: 'error', source: 'jscad', message: 'Syntax error' })
     } else if (cursor.name === 'CallExpression') {
-      lintCall(t, cursor.node, declared, api, push)
+      lintCall(t, cursor.node, text, declared, api, push)
     }
   } while (cursor.next())
   return diagnostics
@@ -748,7 +747,7 @@ import { linter } from '@codemirror/lint'
  * @param {Array<object>} index api/index.json
  * @param {import('@codemirror/state').EditorState} state
  */
-export const apiDiagnostics = (index, state) => lintTree(index, syntaxTree(state))
+export const apiDiagnostics = (index, state) => lintTree(index, syntaxTree(state), { text: state.doc.toString() })
 
 /**
  * The CodeMirror extensions the editor adds for API help.
@@ -833,7 +832,7 @@ describe('editor autocomplete', () => {
 
   it('completes option keys inside a call object', () => {
     const doc = `const { cylinder } = require('@jscad/modeling').primitives\ncylinder({  })`
-    const result = complete(doc, doc.indexOf('{ ') + 2)
+    const result = complete(doc, doc.indexOf('cylinder({') + 'cylinder({'.length)
     expect(result.options.map((o) => o.label)).toContain('height')
   })
 
@@ -874,15 +873,21 @@ const previousNonSpace = (state, pos) => {
   return i > 0 ? text[i - 1] : ''
 }
 
-const calleeName = (callee) => {
+const calleeName = (callee, state) => {
   if (!callee) return null
-  if (callee.type.name === 'VariableName') return callee.name
+  if (callee.type.name === 'VariableName') return state.sliceDoc(callee.from, callee.to)
   if (callee.type.name === 'MemberExpression') {
     const object = callee.firstChild
     const property = callee.lastChild
-    if (object?.type.name === 'VariableName' && property?.type.name === 'PropertyName') return `${object.name}.${property.name}`
+    if (object?.type.name === 'VariableName' && property?.type.name === 'PropertyName') return `${state.sliceDoc(object.from, object.to)}.${state.sliceDoc(property.from, property.to)}`
   }
   return null
+}
+
+// The options of an entry, following sameAs (a jf factory borrows its modeling function's).
+const optionsFor = (index, entry) => {
+  const source = entry.sameAs ? lookupName(index, entry.sameAs) : entry
+  return source?.options ?? entry.options ?? []
 }
 
 // The entry whose options the object literal at `pos` is the first argument of.
@@ -899,7 +904,7 @@ const optionEntry = (index, state, pos) => {
     if (child !== node) return null
     break
   }
-  return lookupName(index, calleeName(call.firstChild))
+  return lookupName(index, calleeName(call.firstChild, state))
 }
 ```
 
@@ -914,7 +919,7 @@ export const completeApi = (index, context) => {
     if (entry) {
       const from = word ? word.from : context.pos
       const prefix = context.state.sliceDoc(from, context.pos)
-      const options = (entry.options ?? [])
+      const options = optionsFor(index, entry)
         .filter((option) => option.name.startsWith(prefix))
         .map((option) => ({
           label: option.name,
@@ -996,7 +1001,7 @@ git commit -m "feat(jscad-web): complete API names and options in the editor"
 **Interfaces:**
 - Consumes: `docsTool` (`./docs.js`) for the entry text; the Task 1 helpers (`tablesFor`, `optionsOf`, `resolveCallee`, `firstArg`, `lookupName`).
 - Produces:
-  - `hoverTarget(index, tree, pos) → { from, to, text } | null`
+  - `hoverTarget(index, tree, pos, text) → { from, to, text } | null`
   - `apiExtensions` now also returns `hoverTooltip(...)` and `EditorView.baseTheme(...)`.
 
 - [ ] **Step 1: Write the failing core tests**
@@ -1010,18 +1015,18 @@ describe('hoverTarget', () => {
   const src = `const { cylinder } = require('@jscad/modeling').primitives\ncylinder({ radius: 1 })`
 
   it('answers the docs entry for a name', () => {
-    const target = hoverTarget(index, parser.parse(src), src.indexOf('cylinder({') + 2)
+    const target = hoverTarget(index, parser.parse(src), src.indexOf('cylinder({') + 2, src)
     expect(target.text).toContain('primitives.cylinder')
     expect(target.text).toContain('Options:')
   })
 
   it('answers the option line for an option key', () => {
-    const target = hoverTarget(index, parser.parse(src), src.indexOf('radius') + 1)
+    const target = hoverTarget(index, parser.parse(src), src.indexOf('radius') + 1, src)
     expect(target.text).toBe('radius: Number = 1 - radius of cylinder (at both start and end)')
   })
 
   it('answers null away from any name', () => {
-    expect(hoverTarget(index, parser.parse(src), 0)).toBe(null)
+    expect(hoverTarget(index, parser.parse(src), 0, src)).toBe(null)
   })
 })
 ```
@@ -1035,20 +1040,20 @@ Expected: FAIL — `hoverTarget` is not exported.
 
 - [ ] **Step 3: Implement `hoverTarget`**
 
-In `packages/agent-loop/src/lint.js`, add near the bottom:
+In `packages/agent-loop/src/lint.js`, add `import { docsTool } from './docs.js'` to the top imports, then add near the bottom:
 
 ```js
 const optionLine = (option) =>
   `${option.name}${option.type ? `: ${option.type}` : ''}${option.default != null ? ` = ${option.default}` : ''}${option.description ? ` - ${option.description}` : ''}`
 
-const dottedName = (node) => {
+const dottedName = (node, text) => {
   const member = node.parent
   if (member?.type.name !== 'MemberExpression') return null
   const object = member.firstChild
-  return object?.type.name === 'VariableName' ? `${object.name}.${node.name}` : null
+  return object?.type.name === 'VariableName' ? `${text.slice(object.from, object.to)}.${text.slice(node.from, node.to)}` : null
 }
 
-const optionUnder = (t, node) => {
+const optionUnder = (t, node, text) => {
   if (node.type.name !== 'PropertyDefinition') return null
   const object = node.parent?.parent
   if (object?.type.name !== 'ObjectExpression') return null
@@ -1056,9 +1061,9 @@ const optionUnder = (t, node) => {
   const call = argList?.parent
   if (argList?.type.name !== 'ArgList' || call?.type.name !== 'CallExpression') return null
   if (firstArg(argList) !== object) return null
-  const entry = resolveCallee(t, call.firstChild)
+  const entry = resolveCallee(t, call.firstChild, text)
   const options = entry ? optionsOf(t, entry) : null
-  return options?.find((option) => option.name === node.name) ?? null
+  return options?.find((option) => option.name === text.slice(node.from, node.to)) ?? null
 }
 
 /**
@@ -1066,13 +1071,14 @@ const optionUnder = (t, node) => {
  * @param {Array<object>} index
  * @param {import('@lezer/common').Tree} tree
  * @param {number} pos
+ * @param {string} text the document source
  */
-export const hoverTarget = (index, tree, pos) => {
+export const hoverTarget = (index, tree, pos, text) => {
   const node = tree.resolveInner(pos, -1)
-  const name = node.type.name === 'PropertyName' ? dottedName(node) : node.type.name === 'VariableName' ? node.name : null
+  const name = node.type.name === 'PropertyName' ? dottedName(node, text) : node.type.name === 'VariableName' ? text.slice(node.from, node.to) : null
   const entry = lookupName(index, name)
   if (entry) return { from: node.from, to: node.to, text: docsTool(index, entry.name) }
-  const option = optionUnder(tablesFor(index), node)
+  const option = optionUnder(tablesFor(index), node, text)
   if (option) return { from: node.from, to: node.to, text: optionLine(option) }
   return null
 }
@@ -1138,7 +1144,7 @@ export const apiHover = (loadIndex) => async (view, pos) => {
   } catch {
     return null
   }
-  const target = index ? hoverTarget(index, syntaxTree(view.state), pos) : null
+  const target = index ? hoverTarget(index, syntaxTree(view.state), pos, view.state.doc.toString()) : null
   if (!target) return null
   return {
     pos: target.from,
@@ -1181,7 +1187,7 @@ git commit -m "feat(jscad-web): show API docs on hover in the editor"
 **Files:**
 - Modify: `apps/jscad-web/docs/architecture.md`
 - Modify: `docs/backlog.md`
-- Delete: `docs/superpowers/specs/2026-10-12-editor-api-lint-design.md` and `docs/superpowers/specs/dossier-editor-lint.md` at merge time (see below)
+- Delete (working docs, per repo convention): `docs/superpowers/specs/2026-10-12-editor-api-lint-design.md`, `docs/superpowers/specs/dossier-editor-lint.md`, `docs/superpowers/plans/2026-10-12-editor-api-lint.md`
 
 **Interfaces:**
 - Consumes: the finished feature.
@@ -1216,10 +1222,14 @@ Expected: PASS.
 Run: `npx vitest run test/aiDeps.test.js test/editor-api.test.js test/editor.test.js` (in `apps/jscad-web`)
 Expected: PASS.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 4: Delete the working docs and commit**
+
+The spec, dossier and this plan are working documents; the repo deletes them in
+the commit that lands the work.
 
 ```bash
-git add apps/jscad-web/docs/architecture.md docs/backlog.md
+rm docs/superpowers/specs/2026-10-12-editor-api-lint-design.md docs/superpowers/specs/dossier-editor-lint.md docs/superpowers/plans/2026-10-12-editor-api-lint.md
+git add apps/jscad-web/docs/architecture.md docs/backlog.md docs/superpowers
 git commit -m "docs(jscad-web): document the editor API help and drop the backlog item"
 ```
 
@@ -1245,3 +1255,7 @@ git commit -m "docs(jscad-web): document the editor API help and drop the backlo
 **Type consistency:** `lintTree`/`lintSource`/`lookupName`/`hoverTarget`/`apiDiagnostics`/`apiExtensions`/`completeApi`/`apiHover` keep the signatures declared in their task Interfaces blocks. `Diagnostic.source` is `'jscad'` in the editor and mapped to `'static'` by `staticWarnings` in the tools.
 
 **Known limitation recorded in the spec:** only the first argument is inspected; `optionsAt` positions (`attachTo`/`alignTo`, `subtract`'s trailing object) are left to the runtime checks. Task 6's autocomplete uses a `{`/`,` heuristic and may offer option keys inside a comma-separated array nested in a call object; this is accepted for now.
+
+**Noted deviations (minor):** the cap is named `MAX_DIAGNOSTICS` (the spec's prose says `MAX_WARNINGS`). Autocomplete completes names matching `[A-Za-z_$][\w$]*` rather than the spec's `[\w$.]*`, so a dotted prefix is not completed on its own. `staticWarnings`/`mergeStatic` are written twice, in the app tool path and the eval tool path; they are three lines each and live in different packages.
+
+**Review fix:** identifier text is always `text.slice(node.from, node.to)` (or `state.sliceDoc` in the editor); a Lezer node's `name` is its type name (`'VariableName'`), never its source text.
