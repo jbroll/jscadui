@@ -521,6 +521,24 @@ the params UI keeps its shape between pooled runs instead of following answer
 arrival. The primary claims before the run fans out, so it stays first. A run
 nobody claims into behaves as a single request, as before.
 
+A single model's parts fan out the same way, without a grid. The worker builds
+the model's return value as a deferred tree (`packages/model-tree`: node
+constructors over the engine namespace, unevaluated at build) and splits it
+into parts (`splitParts`): one entry per root child, with anchor- or
+align-linked children co-located under a `+`-joined key. Each part is claimed
+under its key with no leaf url, which marks the run `modelParts` on its first
+claim (`src_frame/gridRun.js`); the winner evaluates its parts through the
+bound evaluator the active tree bundle exports and emits each part's solids as
+its own `jscadCells` batch. Root-level `%`/`#` ghosts stream under one
+trailing `ghost` claim. A model-parts run fails fast instead of going partial:
+any answer error, trap, or lost part answers the run with an error and closes
+it to later claims, and no replacement member joins. The frame always aliases
+`@jscad/modeling` at the anchored tree bundles (`src_frame/frameHost.js`), so
+model code keeps calling the same names while anchors and fluent compose over
+the tree: anchors read tag frames off nodes (`@jbroll/jscad-anchors`, served
+from the local `bundle.jscad-anchors.js` build), and fluent accepts dim-2/3
+nodes as its own shapes.
+
 Losing a member: a trap or a timeout stops only that member. The frame
 retires it and, while the run is open, adds a replacement that joins late. A
 trapped member always gets one, since it stops walking the grid after its

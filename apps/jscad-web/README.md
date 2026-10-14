@@ -53,7 +53,7 @@ For projects, drag&drop the folder. jscad.app runs the first of these it finds
 - FOLDER_NAME.ts
 - the first `.js` file by name, preferring the top level
 
-jscad.app does not read node_modules for now, but loads dependencies from jsdelivr, and some modules may be bundled with jscad.app to avoid going to jsdelivr. `@jscad/modeling` itself is loaded through the `@jbroll/jscad-anchors` CDN build, which wraps the engine's own modeling bundle (`@jscad/modeling-for-anchors`) and re-exports it plus `anchors`.
+jscad.app does not read node_modules for now, but loads dependencies from jsdelivr, and some modules may be bundled with jscad.app to avoid going to jsdelivr. `@jscad/modeling` itself is loaded through the local anchored tree bundles, which wrap the engine's own modeling bundle (`@jscad/modeling-for-anchors`) as deferred nodes and re-export it plus `anchors`.
 
 Change detection needs a Chromium-based browser: it is the only one that lets
 a page check a dropped file's contents for changes. Firefox keeps handing
@@ -68,8 +68,8 @@ covering `@jscad/modeling`, `@jscad/modeling-for-anchors`,
 `@jscadui/model-tools`, `@jbroll/jscad-fluent`, `@jscad/csg`,
 `@jscadui/params-core` and `@jscadui/jscad-text`. Fluent models
 (`require('@jbroll/jscad-fluent')`) resolve to the local `bundle.jscad-fluent.js`
-build, which re-exports the fluent API over the shared modeling bundle and the
-anchors CDN build; params work through the existing `@jscad-params` and
+build, which re-exports the fluent API over the shared anchored-tree modeling bundle and the
+local anchors bundle; params work through the existing `@jscad-params` and
 `getParameterDefinitions` paths.
 
 The engine defaults to `manifold`, which renders 780 of the 789 bundled

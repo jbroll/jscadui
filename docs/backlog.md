@@ -162,11 +162,6 @@ NopSCADlib `extrusion_brackets.scad` 3087 → 963 MB, `openscad/bosl2/ALL.js`
 after each cell, which by itself changed no Node peak, and `normalizeAndPlace`
 disposes its two intermediate transforms per geometry.
 
-- **`part()` boundaries for JSCAD and SCAD parts.** A single model's parts
-  could spread across the frame's pool the way a grid's leaves do now, using
-  the same claim mechanism: `jscadClaim`, a key per part, fan-out on the first
-  claim.
-
 ## Library bugs found by the sweep
 
 - **`!` root modifier is ignored.** OpenSCAD renders only the `!` subtree;
@@ -539,15 +534,16 @@ from the 2026-10-01 review.
   `packages/agent-loop/package.json` back at the npm version and remove the
   `sources.json` entry (also its `jscad-anchors` entry, if fluent no longer
   needs it). Until then, the eval resolves fluent's `@jbroll/jscad-anchors`
-  to the pinned sibling checkout (ba632c6, unreleased manifold anchor fixes)
-  while the frame loads CDN `@jbroll/jscad-anchors@0.1` (`frameHost.js:18`),
+  to the pinned sibling checkout (a2c4b6c, tree-node support plus the earlier
+  unreleased manifold anchor fixes) while the frame serves the local
+  `bundle.jscad-anchors.js` build of the same checkout (`frameHost.js:18`),
   so eval results for anchor models may differ from the app.
 - **Production relay chat logging (jscad-web server).** Only the launcher
   relay logs conversations. Logging in `server/src/relay` needs the user's
   opt-in before anything is written.
 - **Eval cannot load `@jbroll/jscad-anchors` (agent-loop).** It is not
   installed, so model code requiring it fails in `eval/backend.js` while the
-  frame serves it from the CDN.
+  frame serves its local `bundle.jscad-anchors.js` build.
 - **Image tool results for `view` (agent-loop, jscad-web).** Send renders as
   image blocks (Anthropic `tool_result` image content, Responses
   `input_image`; chat completions put the images in a `user` message after
