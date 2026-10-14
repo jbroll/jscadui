@@ -105,7 +105,10 @@ test('highlight ghost follows a compound Euler rotate', async () => {
   expect(solids).toHaveLength(1)
   expect(ghosts).toHaveLength(1)
   const solidBox = modeling.measurements.measureBoundingBox(solids[0])
-  const ghostXs = ghosts[0].polygons.flatMap((p) => p.vertices.map((v) => v[0]))
-  expect(Math.min(...ghostXs)).toBeCloseTo(solidBox[0][0], 1)
-  expect(Math.max(...ghostXs)).toBeCloseTo(solidBox[1][0], 1)
+  const verts = ghosts[0].polygons.flatMap((p) => p.vertices)
+  for (let i = 0; i < 3; i++) {
+    const xs = verts.map((v) => v[i])
+    expect(Math.min(...xs)).toBeCloseTo(solidBox[0][i], 1)
+    expect(Math.max(...xs)).toBeCloseTo(solidBox[1][i], 1)
+  }
 })
