@@ -1,7 +1,7 @@
 // The manifold tree: same deferred nodes over the Manifold engine.
 //
-// Mirrors bundle.manifold_modeling.js: point the WASM at the file copied next
-// to the bundle and start initialization. '@jscad/modeling-for-manifold' stays
+// Point the WASM at the file copied next to the bundle and start
+// initialization. '@jscad/modeling-for-manifold' stays
 // external because @jscadui/manifold imports it for maths/curves/text/utils;
 // at runtime it is the one shared plain modeling copy.
 import { setWasmUrl, startInit } from '@jscadui/manifold'

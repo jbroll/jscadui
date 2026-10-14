@@ -13,7 +13,7 @@
       "description": "@jbroll/jscad-anchors; jscad-fluent's file:../jscad-anchors sibling devDependency",
       "url": "https://github.com/jbroll/jscad-anchors.git",
       "ref": "local-packages",
-      "commit": "ba632c6e1ef4f6e93299ad942b3929e947fc8b67",
+      "commit": "a2c4b6c456e2ef232278eea720e46b4f8e9b0ac6",
       "build": ["npm ci", "npm run build"]
     },
     {
@@ -21,7 +21,7 @@
       "description": "@jbroll/jscad-fluent fork, pinned ahead of npm for @jscad/modeling parity",
       "url": "https://github.com/jbroll/jscad-fluent.git",
       "ref": "main",
-      "commit": "90bd6e79f1c8ecd576d186ffdef3f2377f3449da",
+      "commit": "3cc75e58a7b08d8b805df5bf4a900c522ec86fcd",
       "build": ["npm ci", "npm run build"]
     }
   ]

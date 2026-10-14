@@ -229,11 +229,6 @@ const frameCjs = { '.js': 'js', '.jsx': 'jsx' }
 // missing (Node), a branch these browser bundles never take.
 const nodeOnlyImportMeta = { 'empty-import-meta': 'silent' }
 await buildBundle(frameBuildDir, 'bundle.jscad_modeling.js', { format: 'cjs', watch: dev, loader: frameCjs })
-await buildOne('src_bundle', frameBuildDir, 'bundle.manifold_modeling.js', watch, {
-  format: 'cjs',
-  loader: frameCjs,
-  external: ['module', '@jscad/modeling-for-manifold'],
-})
 copyFileSync('../../node_modules/manifold-3d/manifold.wasm', frameBuildDir + '/manifold.wasm')
 await buildBundle(frameBuildDir, 'bundle.jscad_io.js', { format: 'cjs', watch: dev, loader: frameCjs })
 await buildBundle(frameBuildDir, 'bundle.model-tools.js', {
