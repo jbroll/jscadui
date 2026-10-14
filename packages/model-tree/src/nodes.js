@@ -5,6 +5,9 @@
 //   { op, params, children, isTreeNode: true, dim, overlay, anchors, color }
 // Transform nodes add `matrix`; literal leaves add `value`.
 
+import { eagerEvaluate } from './context.js'
+import { createSyncEvaluator, AsyncLeafError } from './evaluator.js'
+
 const isTreeNode = (value) => Boolean(value && value.isTreeNode === true)
 const isThenable = (value) => Boolean(value && typeof value.then === 'function')
 const isFluentArray = (value) => Boolean(value && typeof value === 'object' && value.isFluentArray === true)
@@ -270,12 +273,65 @@ export function createNamespace(engine, opts = {}) {
       : value
   }
 
-  // geometries: never claim a node as geometry; real constructors stay real.
+  // The geometry readers (geom2.toSides, geom3.toPolygons, path2.toPoints, ...)
+  // take a real geometry, but model code holds deferred nodes. Replay a node
+  // operand on the caller's stack through the build context's evaluator before
+  // calling the raw function, so the reader returns data, not a Promise
+  // (11-balloons: `geom2.toSides(circle(...))`). Only an async leaf cannot be
+  // replayed, so only `AsyncLeafError` falls back to the async eager path.
+  const syncEvaluate = createSyncEvaluator(engine)
+
+  const readGeometry = (value, ctx) => {
+    if (!isTreeNode(value)) return value
+    if (value.op === 'literal') return value.value
+    const cached = ctx.specials.get(value)
+    if (cached && cached.geometry !== undefined) return cached.geometry
+    const { solids } = syncEvaluate(value, ctx.memo)
+    const geometry = solids.length === 1 ? solids[0] : solids
+    ctx.specials.set(value, { node: value, geometry, value: undefined })
+    ctx.memo.set(value, geometry)
+    return geometry
+  }
+
+  const readGeometryAsync = async (value, ctx) => {
+    if (!isTreeNode(value)) return value
+    if (value.op === 'literal') return value.value
+    const cached = ctx.specials.get(value)
+    if (cached && cached.geometry !== undefined) return cached.geometry
+    const geometry = await eagerEvaluate(value)
+    ctx.specials.set(value, { node: value, geometry, value: undefined })
+    ctx.memo.set(value, geometry)
+    return geometry
+  }
+
+  const readWithNodes = (fn) => (...args) => {
+    if (!args.some(isTreeNode)) return fn(...args)
+    const ctx = globalThis.__jscadBuild
+    if (!ctx) return fn(...args)
+    try {
+      return fn(...args.map((arg) => readGeometry(arg, ctx)))
+    } catch (err) {
+      if (!(err instanceof AsyncLeafError)) throw err
+    }
+    return Promise.all(args.map((arg) => (isTreeNode(arg) ? readGeometryAsync(arg, ctx) : arg)))
+      .then((resolved) => fn(...resolved))
+  }
+
+  // geometries: never claim a node as geometry; readers replay node operands.
   const geometries = {}
   for (const [name, kind] of Object.entries(engine.geometries || {})) {
-    if (kind && typeof kind === 'object' && typeof kind.isA === 'function') {
-      const rawIsA = kind.isA
-      geometries[name] = { ...kind, isA: (value) => isTreeNode(value) ? false : rawIsA(value) }
+    if (kind && typeof kind === 'object') {
+      const namespace = {}
+      for (const [fnName, value] of Object.entries(kind)) {
+        if (fnName === 'isA' && typeof value === 'function') {
+          namespace.isA = (candidate) => isTreeNode(candidate) ? false : value(candidate)
+        } else if (typeof value === 'function') {
+          namespace[fnName] = readWithNodes(value)
+        } else {
+          namespace[fnName] = value
+        }
+      }
+      geometries[name] = namespace
     } else {
       geometries[name] = kind
     }

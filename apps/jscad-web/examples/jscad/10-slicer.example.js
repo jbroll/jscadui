@@ -7,6 +7,7 @@ const jscad = require('@jscad/modeling')
 const { colorize } = jscad.colors
 const { intersect } = jscad.booleans
 const { extrudeLinear, project } = jscad.extrusions
+const { geom3 } = jscad.geometries
 const { measureBoundingBox } = jscad.measurements
 const { cuboid, sphere } = jscad.primitives
 const { translate } = jscad.transforms
@@ -33,7 +34,7 @@ const main = ({ thicness }) => {
     const cut = intersect(obj, cutter)
 
     // project the cut into a 2D shape
-    if (cut.polygons.length === 0) continue // not needed in V3
+    if (geom3.toPolygons(cut).length === 0) continue // not needed in V3
     const projected = project({}, cut)
 
     // extrude back to 3D
