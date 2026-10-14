@@ -3,7 +3,7 @@ import modeling from '@jscad/modeling'
 import { createModelTree, createBuildContext, withBuildContext, createEvaluator, bindEvaluator, memoFromSpecials } from '@jscadui/model-tree'
 import { _is2D, withoutDegeneratePolygons, initPrimitives, _safeUnion } from '../src/primitives.js'
 import { overlaysOf, strip, initOverlays, highlight, background } from '../src/overlay.js'
-import { initTransforms, _resize, _translate } from '../src/transforms.js'
+import { initTransforms, _resize, _translate, _rotate } from '../src/transforms.js'
 
 const node2 = { op: 'x', params: {}, children: [], isTreeNode: true, dim: 2, overlay: null, anchors: null, color: null }
 const node3 = { ...node2, dim: 3 }
@@ -95,4 +95,17 @@ test('a highlight inside a translate maps the ghost through the node matrix', as
   expect(ghosts).toHaveLength(1)
   const xs = ghosts[0].polygons.flatMap((p) => p.vertices).map((v) => v[0])
   expect(Math.min(...xs)).toBeGreaterThan(8)
+})
+
+test('highlight ghost follows a compound Euler rotate', async () => {
+  const { t, ctx } = setup()
+  const rotated = await withBuildContext(ctx, async () =>
+    _rotate([45, 30, 15], await highlight(t.primitives.cube({ size: 2 }))))
+  const { solids, ghosts } = await createEvaluator(modeling)(rotated, memoFromSpecials(ctx))
+  expect(solids).toHaveLength(1)
+  expect(ghosts).toHaveLength(1)
+  const solidBox = modeling.measurements.measureBoundingBox(solids[0])
+  const ghostXs = ghosts[0].polygons.flatMap((p) => p.vertices.map((v) => v[0]))
+  expect(Math.min(...ghostXs)).toBeCloseTo(solidBox[0][0], 1)
+  expect(Math.max(...ghostXs)).toBeCloseTo(solidBox[1][0], 1)
 })

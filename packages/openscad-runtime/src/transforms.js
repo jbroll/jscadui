@@ -182,6 +182,7 @@ export const _rotate = affine(rotateMatrix, (params, geo) => {
     const a = params.a
     // If a is an array (Euler angles), handle like rotate([x, y, z])
     if (Array.isArray(a)) {
+      if (geo?.isTreeNode && a.filter((v) => v !== 0).length > 1) return transform(eulerMatrix(a), geo)
       let result = geo
       if (a[0] !== 0) result = rotateX(toRad(a[0]), result)
       if (a[1] !== 0) result = rotateY(toRad(a[1]), result)
@@ -200,6 +201,11 @@ export const _rotate = affine(rotateMatrix, (params, geo) => {
   // Handle Euler angles: rotate([x, y, z]) or rotate(z)
   if (!Array.isArray(params) && !isNum(params)) return geo
   const a = Array.isArray(params) ? params : [0, 0, params]
+  // One link carrying the full Euler product: a per-axis chain would tag the
+  // deferred overlay on the last link only, so the evaluator would map ghosts
+  // through that link's rotation instead of the whole product. Eager geometry
+  // keeps the chain, so render output is unchanged there.
+  if (geo?.isTreeNode && a.filter((v) => v !== 0).length > 1) return transform(eulerMatrix(a), geo)
   let result = geo
   if (a[0] !== 0) result = rotateX(toRad(a[0]), result)
   if (a[1] !== 0) result = rotateY(toRad(a[1]), result)
