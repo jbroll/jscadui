@@ -352,7 +352,7 @@ for (const engine of ['jscad', 'manifold']) {
     await gotoHost(page)
     const res = await load(page, MISSPELLED, { engine, timeoutMs: 60000 })
     expect(res.ok).toBe(true)
-    expect(res.result.warnings).toEqual([{ fn: 'primitives.roundedCuboid', option: 'radius', suggestions: ['roundRadius'] }])
+    expect(res.result.warnings).toEqual([{ fn: 'primitives.roundedCuboid', option: 'radius', suggestions: ['roundRadius'], file: 'main.js', line: 2 }])
   })
 
   test(`fluent's own modeling calls raise no warning on the ${engine} engine`, async ({ page }) => {
@@ -366,7 +366,7 @@ for (const engine of ['jscad', 'manifold']) {
     await gotoHost(page)
     const res = await load(page, FLUENT_MISSPELLED_EXTRUDE, { engine, timeoutMs: 60000 })
     expect(res.ok).toBe(true)
-    expect(res.result.warnings).toEqual([{ fn: 'FluentGeom2.extrudeLinear', option: 'hieght', suggestions: ['height'] }])
+    expect(res.result.warnings).toEqual([{ fn: 'FluentGeom2.extrudeLinear', option: 'hieght', suggestions: ['height'], file: 'main.js', line: 2 }])
   })
 }
 
