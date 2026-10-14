@@ -1,4 +1,4 @@
-import { eagerEvaluate } from './context.js'
+import { resolveGeometry, resolveGeometryAsync } from './resolve.js'
 import { createSyncEvaluator, AsyncLeafError } from './evaluator.js'
 
 export const MEASUREMENT_NAMES = [
@@ -9,6 +9,8 @@ export const MEASUREMENT_NAMES = [
 ]
 
 const isTreeNode = (value) => Boolean(value && value.isTreeNode === true)
+const isThenable = (value) => Boolean(value && typeof value.then === 'function')
+const isDeferred = (value) => isTreeNode(value) || isThenable(value)
 
 const flattenOperands = (values, out = []) => {
   for (const value of values) {
@@ -18,23 +20,6 @@ const flattenOperands = (values, out = []) => {
   return out
 }
 
-// A node forces evaluation; a `literal` leaf (or a real value passed straight
-// through) is already geometry. Evaluated geometry is cached by node identity
-// so repeated reads of the same node never re-enter the evaluator.
-const geometryOf = async (operand, ctx) => {
-  if (!isTreeNode(operand)) return operand
-  if (operand.op === 'literal') return operand.value
-  const cached = ctx.specials.get(operand)
-  if (cached && cached.geometry !== undefined) return cached.geometry
-  const geometry = await eagerEvaluate(operand)
-  ctx.specials.set(operand, { node: operand, geometry, value: undefined })
-  ctx.memo.set(operand, geometry)
-  return geometry
-}
-
-const isThenable = (value) => Boolean(value && typeof value.then === 'function')
-const isDeferred = (value) => isTreeNode(value) || isThenable(value)
-
 // A single measured node records the geometry and the value the same way the
 // async path does, so a later `memoFromSpecials` or repeated read is a hit.
 const record = (ctx, operands, value) => {
@@ -43,20 +28,6 @@ const record = (ctx, operands, value) => {
     if (entry) entry.value = value
   }
   return value
-}
-
-// The sync fast path's geometry resolver: same cache contract as `geometryOf`,
-// but replays the subtree on the caller's stack via `syncEvaluate`.
-const syncGeometryOf = (operand, ctx, syncEvaluate) => {
-  if (!isTreeNode(operand)) return operand
-  if (operand.op === 'literal') return operand.value
-  const cached = ctx.specials.get(operand)
-  if (cached && cached.geometry !== undefined) return cached.geometry
-  const { solids } = syncEvaluate(operand, ctx.memo)
-  const geometry = solids.length === 1 ? solids[0] : solids
-  ctx.specials.set(operand, { node: operand, geometry, value: undefined })
-  ctx.memo.set(operand, geometry)
-  return geometry
 }
 
 // Real geometry needs no evaluation, so the engine's own fn answers on the
@@ -77,7 +48,7 @@ const createMeasurement = (raw, syncEvaluate) => (...args) => {
   if (!ctx) return Promise.reject(new Error('measure* outside build context'))
   if (!operands.some(isThenable)) {
     try {
-      const geometries = operands.map((operand) => syncGeometryOf(operand, ctx, syncEvaluate))
+      const geometries = operands.map((operand) => resolveGeometry(operand, ctx, syncEvaluate))
       return record(ctx, operands, raw(...geometries))
     } catch (err) {
       if (!(err instanceof AsyncLeafError)) throw err
@@ -85,7 +56,7 @@ const createMeasurement = (raw, syncEvaluate) => (...args) => {
   }
   return (async () => {
     const geometries = []
-    for (const operand of operands) geometries.push(await geometryOf(operand, ctx))
+    for (const operand of operands) geometries.push(await resolveGeometryAsync(operand, ctx))
     return record(ctx, operands, raw(...geometries))
   })()
 }

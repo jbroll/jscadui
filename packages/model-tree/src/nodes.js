@@ -5,8 +5,8 @@
 //   { op, params, children, isTreeNode: true, dim, overlay, anchors, color }
 // Transform nodes add `matrix`; literal leaves add `value`.
 
-import { eagerEvaluate } from './context.js'
 import { createSyncEvaluator, AsyncLeafError } from './evaluator.js'
+import { resolveGeometry, resolveGeometryAsync } from './resolve.js'
 
 const isTreeNode = (value) => Boolean(value && value.isTreeNode === true)
 const isThenable = (value) => Boolean(value && typeof value.then === 'function')
@@ -281,28 +281,9 @@ export function createNamespace(engine, opts = {}) {
   // replayed, so only `AsyncLeafError` falls back to the async eager path.
   const syncEvaluate = createSyncEvaluator(engine)
 
-  const readGeometry = (value, ctx) => {
-    if (!isTreeNode(value)) return value
-    if (value.op === 'literal') return value.value
-    const cached = ctx.specials.get(value)
-    if (cached && cached.geometry !== undefined) return cached.geometry
-    const { solids } = syncEvaluate(value, ctx.memo)
-    const geometry = solids.length === 1 ? solids[0] : solids
-    ctx.specials.set(value, { node: value, geometry, value: undefined })
-    ctx.memo.set(value, geometry)
-    return geometry
-  }
+  const readGeometry = (value, ctx) => resolveGeometry(value, ctx, syncEvaluate)
 
-  const readGeometryAsync = async (value, ctx) => {
-    if (!isTreeNode(value)) return value
-    if (value.op === 'literal') return value.value
-    const cached = ctx.specials.get(value)
-    if (cached && cached.geometry !== undefined) return cached.geometry
-    const geometry = await eagerEvaluate(value)
-    ctx.specials.set(value, { node: value, geometry, value: undefined })
-    ctx.memo.set(value, geometry)
-    return geometry
-  }
+  const readGeometryAsync = (value, ctx) => resolveGeometryAsync(value, ctx)
 
   const readWithNodes = (fn) => (...args) => {
     if (!args.some(isTreeNode)) return fn(...args)
