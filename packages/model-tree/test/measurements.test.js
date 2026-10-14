@@ -4,17 +4,35 @@ import { createModelTree, createBuildContext, withBuildContext, bindEvaluator, c
 
 test('measurement evaluates once and caches in specials', async () => {
   let evals = 0
-  const fakeEngine = { measurements: { measureVolume: () => 42 } }
+  const fakeEngine = {
+    measurements: { measureVolume: () => 42 },
+    primitives: { cube: () => { evals++; return { fakeGeom: true } } },
+  }
   const t = createModelTree(fakeEngine)
   const cube = t.primitives.cube({})
   const ctx = createBuildContext(fakeEngine)
-  ctx.eager = async (_node) => { evals++; return { fakeGeom: true } }
   const v = await withBuildContext(ctx, async () => t.measurements.measureVolume(cube))
   expect(v).toBe(42)
   expect(evals).toBe(1)
   expect(ctx.specials.get(cube).value).toBe(42)
   await withBuildContext(ctx, async () => t.measurements.measureVolume(cube))
   expect(evals).toBe(1)
+})
+
+// Only an async leaf may fall back: any other sync failure is a real bug and
+// must propagate, not be re-run down the async path and hidden.
+test('a non-async-leaf sync failure propagates instead of falling back', async () => {
+  let eager = 0
+  const fakeEngine = {
+    measurements: { measureVolume: () => 42 },
+    primitives: { cube: () => { throw new Error('boom') } },
+  }
+  const t = createModelTree(fakeEngine)
+  const cube = t.primitives.cube({})
+  const ctx = createBuildContext(fakeEngine)
+  ctx.eager = async () => { eager++; return { fakeGeom: true } }
+  await expect(withBuildContext(ctx, () => t.measurements.measureVolume(cube))).rejects.toThrow('boom')
+  expect(eager).toBe(0)
 })
 
 // model-tools measures evaluated solids through this namespace (the frame's

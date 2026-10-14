@@ -217,17 +217,27 @@ export const createEvaluator = (engine) => {
   }
 }
 
+// Marks the one sync failure that is not a bug: a thenable in the subtree
+// cannot be replayed on the caller's stack. Callers fall back to the async
+// evaluator only for this error and let anything else propagate.
+export class AsyncLeafError extends Error {
+  constructor() {
+    super('evaluateSync: async leaf')
+    this.name = 'AsyncLeafError'
+  }
+}
+
 // Synchronous twin of `createEvaluator`. Same op semantics on the caller's
 // stack: measurements read a deferred subtree during the build and need the
 // value, not a Promise, so a sync replay avoids the async hop. A thenable
 // anywhere in the subtree (an async leaf) cannot be replayed without blocking,
-// so `evalValue` throws; `measurements` catches that and falls back to the
-// async evaluator. Op-for-op this mirrors `createEvaluator` above, minus the
-// awaits.
+// so `evalValue` throws `AsyncLeafError`; `measurements` falls back to the
+// async evaluator only for that. Op-for-op this mirrors `createEvaluator`
+// above, minus the awaits.
 export const createSyncEvaluator = (engine) => {
   const math = engine.maths ? makeFrameMath(engine) : null
   const { mat4 } = engine.maths || {}
-  const asyncLeaf = () => new Error('evaluateSync: async leaf')
+  const asyncLeaf = () => new AsyncLeafError()
 
   const evalValue = (value, ctx) => {
     if (isThenable(value)) throw asyncLeaf()

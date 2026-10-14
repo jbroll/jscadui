@@ -1,5 +1,5 @@
 import { eagerEvaluate } from './context.js'
-import { createSyncEvaluator } from './evaluator.js'
+import { createSyncEvaluator, AsyncLeafError } from './evaluator.js'
 
 export const MEASUREMENT_NAMES = [
   'measureArea', 'measureBoundingBox', 'measureBoundingSphere', 'measureCenter',
@@ -66,9 +66,10 @@ const syncGeometryOf = (operand, ctx, syncEvaluate) => {
 //
 // A deferred subtree with no async leaf replays synchronously too, so model
 // code that reads a measurement as data (10-slicer, 11-balloons) gets numbers
-// instead of a Promise. A thenable anywhere in the subtree, or any op the sync
-// evaluator cannot resolve, falls back to the async eager path, which is the
-// reference implementation and rethrows whatever is genuinely broken.
+// instead of a Promise. A thenable anywhere in the subtree is the one failure
+// the async eager path exists for, so only `AsyncLeafError` falls back; any
+// other error is a real bug and propagates rather than being hidden behind a
+// second evaluation.
 const createMeasurement = (raw, syncEvaluate) => (...args) => {
   const operands = flattenOperands(args)
   if (!operands.some(isDeferred)) return raw(...operands)
@@ -78,8 +79,8 @@ const createMeasurement = (raw, syncEvaluate) => (...args) => {
     try {
       const geometries = operands.map((operand) => syncGeometryOf(operand, ctx, syncEvaluate))
       return record(ctx, operands, raw(...geometries))
-    } catch {
-      // fall through to the async path
+    } catch (err) {
+      if (!(err instanceof AsyncLeafError)) throw err
     }
   }
   return (async () => {
