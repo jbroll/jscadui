@@ -1,6 +1,6 @@
 import { test, expect } from 'vitest'
 import modeling from '@jscad/modeling'
-import { createModelTree, createBuildContext, withBuildContext } from '../src/index.js'
+import { createModelTree, createBuildContext, withBuildContext, bindEvaluator, createEvaluator } from '../src/index.js'
 
 test('measurement evaluates once and caches in specials', async () => {
   let evals = 0
@@ -25,6 +25,59 @@ test('measuring real geometry returns the value synchronously', () => {
   const r = t.measurements.measureBoundingBox(modeling.primitives.cuboid({ size: [2, 3, 4] }))
   expect(r).not.toBeInstanceOf(Promise)
   expect(r).toEqual([[-1, -1.5, -2], [1, 1.5, 2]])
+})
+
+// A deferred subtree with no async leaf can be replayed synchronously inside
+// the build, so the measurement returns the number itself. Examples such as
+// 10-slicer and 11-balloons read box coordinates straight off the result.
+test('measuring a deferred subtree runs synchronously inside a build context', async () => {
+  const t = createModelTree(modeling)
+  const ctx = createBuildContext(modeling)
+  await withBuildContext(ctx, () => {
+    const cube = t.primitives.cube({ size: 4 })
+    const moved = t.transforms.translate([10, 0, 0], cube)
+    const tree = t.booleans.union(cube, moved)
+
+    const cubeVolume = t.measurements.measureVolume(cube)
+    expect(cubeVolume).not.toBeInstanceOf(Promise)
+    expect(cubeVolume).toBeCloseTo(64, 5)
+
+    const volume = t.measurements.measureVolume(tree)
+    expect(volume).not.toBeInstanceOf(Promise)
+    expect(volume).toBeCloseTo(128, 5)
+    expect(ctx.specials.get(tree).value).toBeCloseTo(128, 5)
+
+    const box = t.measurements.measureBoundingBox(tree)
+    expect(box).not.toBeInstanceOf(Promise)
+    expect(box).toEqual([[-2, -2, -2], [12, 2, 2]])
+    return undefined
+  })
+})
+
+// A subtree that reaches a thenable cannot be replayed synchronously, so the
+// measurement falls back to the async eager path and returns a Promise, as it
+// did before the fast path existed.
+test('a subtree with a Promise leaf still returns a Promise', async () => {
+  const t = createModelTree(modeling)
+  const ctx = createBuildContext(modeling)
+  bindEvaluator(ctx, createEvaluator(modeling))
+  const cube = t.primitives.cube({ size: 4 })
+  const node = {
+    op: 'transforms.translate',
+    params: [10, 0, 0],
+    children: [Promise.resolve(cube)],
+    isTreeNode: true,
+    dim: 3,
+    overlay: null,
+    anchors: null,
+    color: null,
+  }
+  const value = await withBuildContext(ctx, () => {
+    const pending = t.measurements.measureVolume(node)
+    expect(pending).toBeInstanceOf(Promise)
+    return pending
+  })
+  expect(value).toBeCloseTo(64, 5)
 })
 
 test('all twelve measurements exist', async () => {

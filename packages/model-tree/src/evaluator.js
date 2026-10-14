@@ -217,6 +217,164 @@ export const createEvaluator = (engine) => {
   }
 }
 
+// Synchronous twin of `createEvaluator`. Same op semantics on the caller's
+// stack: measurements read a deferred subtree during the build and need the
+// value, not a Promise, so a sync replay avoids the async hop. A thenable
+// anywhere in the subtree (an async leaf) cannot be replayed without blocking,
+// so `evalValue` throws; `measurements` catches that and falls back to the
+// async evaluator. Op-for-op this mirrors `createEvaluator` above, minus the
+// awaits.
+export const createSyncEvaluator = (engine) => {
+  const math = engine.maths ? makeFrameMath(engine) : null
+  const { mat4 } = engine.maths || {}
+  const asyncLeaf = () => new Error('evaluateSync: async leaf')
+
+  const evalValue = (value, ctx) => {
+    if (isThenable(value)) throw asyncLeaf()
+    if (Array.isArray(value) || isFluentArray(value)) {
+      const solids = []
+      const ghosts = []
+      for (const item of value) {
+        const result = evalValue(item, ctx)
+        solids.push(...result.solids)
+        ghosts.push(...result.ghosts)
+      }
+      return { solids, ghosts }
+    }
+    if (!isTreeNode(value)) return { solids: value === undefined || value === null ? [] : [value], ghosts: [] }
+    const memo = ctx.memo.get(value)
+    if (memo !== undefined) return { solids: flattenSolids(memo), ghosts: overlayGhosts(value, ctx) }
+    return evalNode(value, ctx)
+  }
+
+  const evalChildren = (children, ctx) => {
+    const solids = []
+    const ghosts = []
+    for (const child of children || []) {
+      const result = evalValue(child, ctx)
+      solids.push(...result.solids)
+      ghosts.push(...result.ghosts)
+    }
+    return { solids, ghosts }
+  }
+
+  const finish = (node, ctx, solids, ghosts, matrixOverride) => {
+    if (solids.length === 1) ctx.memo.set(node, solids[0])
+    else if (solids.length > 1) ctx.memo.set(node, solids)
+    const extra = overlayGhosts(node, ctx, matrixOverride)
+    return { solids, ghosts: extra.length ? [...ghosts, ...extra] : ghosts }
+  }
+
+  const evalColorize = (node, ctx) => {
+    const { solids, ghosts } = evalChildren(node.children, ctx)
+    const result = engine.colors.colorize(node.color ?? node.params, ...solids)
+    if (isThenable(result)) throw asyncLeaf()
+    return finish(node, ctx, flattenSolids(result), ghosts)
+  }
+
+  const evalGhost = (node, ctx) => {
+    const snapshots = snapshotsOf(node, ctx) || []
+    return { solids: [], ghosts: snapshots.map((snapshot) => mapSnapshot(snapshot, node.matrix || null)) }
+  }
+
+  const evalResize = (node, ctx) => {
+    const { solids, ghosts } = evalChildren(node.children, ctx)
+    const geo = solids[0]
+    if (geo === undefined || geo === null) return finish(node, ctx, [], ghosts)
+    const bounds = engine.measurements.measureBoundingBox(geo)
+    const curSize = [0, 1, 2].map((i) => bounds[1][i] - bounds[0][i])
+    const factors = (node.params || []).map((s, i) => (s > 0 && curSize[i] > 0 ? s / curSize[i] : 1))
+    const scaled = engine.transforms.scale(factors, geo)
+    const matrix = [factors[0], 0, 0, 0, 0, factors[1], 0, 0, 0, 0, factors[2], 0, 0, 0, 0, 1]
+    return finish(node, ctx, flattenSolids(scaled), ghosts, matrix)
+  }
+
+  const resolveAnchor = (ref, geom, fallbackNode, ctx) => {
+    if (!ref) return math.frame([0, 0, 0], [0, 0, 1], [1, 0, 0])
+    if (ref.frame) return ref.frame
+    let target = geom
+    if (ref.node && ref.node !== fallbackNode) {
+      const evaluated = evalValue(ref.node, ctx)
+      target = evaluated.solids[0]
+    }
+    const direction = parseDirection(ref.direction) || [0, 0, 0]
+    const basis = ref.basis && ref.basis.z ? ref.basis : directionBasis(math, direction)
+    const bbox = engine.measurements.measureBoundingBox(target)
+    return frameFromBBox(math, bbox, direction, basis)
+  }
+
+  const evalAttach = (node, ctx) => {
+    const { child, parent, childAnchor, parentAnchor, overlap = 0, flip = true, spin = 0 } = node.params
+    const childResult = evalValue(child, ctx)
+    const parentResult = evalValue(parent, ctx)
+    const childGeom = childResult.solids[0]
+    const parentGeom = parentResult.solids[0]
+    const C = resolveAnchor(childAnchor, childGeom, child, ctx)
+    const P = resolveAnchor(parentAnchor, parentGeom, parent, ctx)
+    const multiply = (...ms) => ms.reduce((a, b) => mat4.multiply(mat4.create(), a, b))
+    const M = multiply(
+      math.frameToMat4(P),
+      mat4.fromTranslation(mat4.create(), [0, 0, -overlap]),
+      flip ? mat4.fromYRotation(mat4.create(), Math.PI) : mat4.create(),
+      mat4.fromZRotation(mat4.create(), spin),
+      mat4.invert(mat4.create(), math.frameToMat4(C)),
+    )
+    const placed = engine.transforms.transform(M, childGeom)
+    const ghosts = childResult.ghosts.map((g) => ({ ...g, matrix: mulMat(M, g.matrix) }))
+    return finish(node, ctx, flattenSolids(placed), ghosts)
+  }
+
+  const evalAlignTo = (node, ctx) => {
+    const { child, parent, direction, inset = 0, inside = false } = node.params
+    const d = parseDirection(direction) || [0, 0, 0]
+    const childResult = evalValue(child, ctx)
+    const parentResult = evalValue(parent, ctx)
+    const childGeom = childResult.solids[0]
+    const parentGeom = parentResult.solids[0]
+    const [cmin, cmax] = engine.measurements.measureBoundingBox(childGeom)
+    const [pmin, pmax] = engine.measurements.measureBoundingBox(parentGeom)
+    const offset = [0, 1, 2].map((i) => {
+      if (d[i] === 0) return (pmin[i] + pmax[i]) / 2 - (cmin[i] + cmax[i]) / 2
+      if (d[i] > 0) return pmax[i] - inset - (inside ? cmax[i] : cmin[i])
+      return pmin[i] + inset - (inside ? cmin[i] : cmax[i])
+    })
+    const placed = engine.transforms.translate(offset, childGeom)
+    const matrix = mat4.fromTranslation(mat4.create(), offset)
+    const ghosts = childResult.ghosts.map((g) => ({ ...g, matrix: mulMat(matrix, g.matrix) }))
+    return finish(node, ctx, flattenSolids(placed), ghosts)
+  }
+
+  const evalDispatch = (node, ctx) => {
+    if (node.op === 'transforms.resize') return evalResize(node, ctx)
+    const fn = resolveOp(engine, node.op)
+    if (typeof fn !== 'function') throw new Error(`evaluate: unsupported op "${node.op}"`)
+    const { solids, ghosts } = evalChildren(node.children, ctx)
+    const result = node.params === undefined ? fn(...solids) : fn(node.params, ...solids)
+    if (isThenable(result)) throw asyncLeaf()
+    const mapped = node.matrix ? ghosts.map((g) => ({ ...g, matrix: mulMat(node.matrix, g.matrix) })) : ghosts
+    return finish(node, ctx, flattenSolids(result), mapped)
+  }
+
+  const evalNode = (node, ctx) => {
+    switch (node.op) {
+      case 'literal':
+        if (isThenable(node.value)) throw asyncLeaf()
+        return finish(node, ctx, node.value === undefined ? [] : [node.value], [])
+      case 'ghost': return evalGhost(node, ctx)
+      case 'attach': return evalAttach(node, ctx)
+      case 'alignTo': return evalAlignTo(node, ctx)
+      case 'colorize': return evalColorize(node, ctx)
+      default: return evalDispatch(node, ctx)
+    }
+  }
+
+  return (node, memo = new Map()) => {
+    const specials = (memo && memo[SPECIALS]) || globalThis.__jscadBuild?.specials || null
+    const result = evalValue(node, { engine, memo, math, specials })
+    return { solids: result.solids, ghosts: mergeGhosts(result.ghosts) }
+  }
+}
+
 // The `createBuildContext` `eager` seam: measurements call this and expect the
 // evaluated geometry itself, not `{ solids, ghosts }`. A single solid unwraps
 // to the geometry; several unwrap to an array for the raw measure* fn to spread.

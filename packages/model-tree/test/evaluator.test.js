@@ -1,9 +1,33 @@
 import { test, expect } from 'vitest'
-import { createModelTree, createBuildContext, withBuildContext, memoFromSpecials, bindEvaluator } from '../src/index.js'
+import { createModelTree, createBuildContext, withBuildContext, memoFromSpecials, bindEvaluator, createSyncEvaluator } from '../src/index.js'
 import { createEvaluator } from '../src/evaluator.js'
 import modeling from '@jscad/modeling'
 
 const evaluate = (node, memo) => createEvaluator(modeling)(node, memo)
+
+test('evaluateSync replays a subtree synchronously', () => {
+  const t = createModelTree(modeling)
+  const node = t.booleans.union(t.primitives.cube({ size: 4 }), t.transforms.translate([10, 0, 0], t.primitives.cube({ size: 4 })))
+  const { solids } = createSyncEvaluator(modeling)(node, new Map())
+  expect(solids).toHaveLength(1)
+  expect(modeling.measurements.measureVolume(solids[0])).toBeCloseTo(128, 5)
+})
+
+test('evaluateSync throws on an async leaf', () => {
+  const t = createModelTree(modeling)
+  const cube = t.primitives.cube({ size: 4 })
+  const node = {
+    op: 'transforms.translate',
+    params: [10, 0, 0],
+    children: [Promise.resolve(cube)],
+    isTreeNode: true,
+    dim: 3,
+    overlay: null,
+    anchors: null,
+    color: null,
+  }
+  expect(() => createSyncEvaluator(modeling)(node, new Map())).toThrow('evaluateSync: async leaf')
+})
 
 // Manifold engine equivalence needs WASM, so it is not unit-tested here. The
 // engine-agnostic volume check below runs on the plain jscad engine;

@@ -4,7 +4,7 @@ import { productionTagOps } from './tags.js'
 
 export { createBuildContext, withBuildContext, eagerEvaluate, memoFromSpecials } from './context.js'
 export { splitParts } from './splitter.js'
-export { createEvaluator, bindEvaluator } from './evaluator.js'
+export { createEvaluator, createSyncEvaluator, bindEvaluator } from './evaluator.js'
 export { productionTagOps, makeFrameMath, frameFromBBox, directionBasis, ghostOf, mergeGhosts } from './tags.js'
 
 // `{ anchors: true }` is the bundles' shorthand for the production tag ops:
