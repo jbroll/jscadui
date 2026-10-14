@@ -36,4 +36,13 @@ describe('frame option warnings', () => {
     new Geom2().extrudeLinear({ hieght: 1 })
     expect(collector.list()).toEqual([{ fn: 'FluentGeom2.extrudeLinear', option: 'hieght', suggestions: ['height'] }])
   })
+
+  it('fails a deferred modeling call fast on a NaN option', () => {
+    const { wrapper } = install()
+    const node = { op: 'primitives.cube', isTreeNode: true }
+    const cube = vi.fn(() => node)
+    const wrapped = wrapper('@jscad/modeling', { primitives: { cube } }).primitives.cube
+    expect(() => wrapped({ size: NaN })).toThrow('size is NaN: a parameter read back as NaN or an object')
+    expect(cube).toHaveBeenCalledTimes(1)
+  })
 })

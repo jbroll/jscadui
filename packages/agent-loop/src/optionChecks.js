@@ -261,6 +261,18 @@ const checked = (fnName, fn, spec, warn) => {
       annotate(error, [...hints, explainNaN(args[0], spec.types)])
       throw error
     }
+    // A deferred call cannot throw for a NaN option now; evaluation would
+    // fail later without naming it. Fail fast with the same hint a sync
+    // throw gets. Eager results are never tree nodes, so they keep their
+    // engine's own error.
+    if (result?.isTreeNode === true) {
+      const nanHint = explainNaN(args[0], spec.types)
+      if (nanHint) {
+        const error = new Error(`${fnName}: ${nanHint}`)
+        annotate(error, hints)
+        throw error
+      }
+    }
     try {
       if (spec.boolean && spec.boolean !== 'union' && isEmptyShape(result) && !isEmptyShape(operandsOf(spec, this, args)[0])) {
         report({ fn: fnName, empty: spec.boolean })

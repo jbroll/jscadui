@@ -191,6 +191,21 @@ describe('withOptionChecks: types, angles and thrown errors', () => {
     expect(() => wrapped({ size: [1, 2, 3] })).toThrow('size must be positive\nhint for size')
   })
 
+  it('fails a deferred call fast when a typed option is NaN', () => {
+    const node = { op: 'primitives.cube', isTreeNode: true }
+    const cube = vi.fn(() => node)
+    const wrapped = withOptionChecks({ primitives: { cube } }, typed, vi.fn()).primitives.cube
+    expect(() => wrapped({ size: NaN })).toThrow('size is NaN: a parameter read back as NaN or an object')
+    expect(cube).toHaveBeenCalledTimes(1)
+  })
+
+  it('leaves a deferred call with valid options alone', () => {
+    const node = { op: 'primitives.cube', isTreeNode: true }
+    const cube = vi.fn(() => node)
+    const wrapped = withOptionChecks({ primitives: { cube } }, typed, vi.fn()).primitives.cube
+    expect(wrapped({ size: 2 })).toBe(node)
+  })
+
   it('clamps a roundRadius past its limit before the call, and reports it', () => {
     const roundedCuboid = vi.fn(() => 'made')
     const warn = vi.fn()
