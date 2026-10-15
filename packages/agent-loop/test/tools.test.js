@@ -7,7 +7,7 @@ const docsDescription = (api) => buildTools(api).find((t) => t.name === 'docs').
 describe('agent tools', () => {
   it('exposes the thirteen browser tools with input schemas', async () => {
     const names = TOOLS.map((t) => t.name)
-    expect(names).toEqual(['glob', 'read', 'grep', 'write', 'edit', 'delete', 'run', 'measure', 'check', 'export', 'docs', 'question', 'web_search'])
+    expect(names).toEqual(['glob', 'read', 'grep', 'write', 'edit', 'delete', 'run', 'measure', 'check', 'export', 'docs', 'question', 'websearch'])
     expect(names).not.toContain('list')
     expect(names).not.toContain('search')
     for (const tool of TOOLS) {
@@ -167,12 +167,16 @@ describe('agent tools', () => {
     expect(READ_ONLY.has('ask_user')).toBe(false)
   })
 
-  it('defines read-only web_search with query required and no extra props', () => {
-    const tool = buildTools('fluent').find((t) => t.name === 'web_search')
+  it('defines read-only websearch with query required and no extra props', () => {
+    const tools = buildTools('fluent')
+    expect(tools.map((t) => t.name)).toContain('websearch')
+    expect(tools.map((t) => t.name)).not.toContain('web_search')
+    const tool = tools.find((t) => t.name === 'websearch')
     expect(tool.inputSchema.required).toEqual(['query'])
     expect(tool.inputSchema.properties.query.type).toBe('string')
     expect(tool.inputSchema.properties.count.type).toBe('integer')
     expect(tool.inputSchema.additionalProperties).toBe(false)
-    expect(READ_ONLY.has('web_search')).toBe(true)
+    expect(READ_ONLY.has('websearch')).toBe(true)
+    expect(READ_ONLY.has('web_search')).toBe(false)
   })
 })

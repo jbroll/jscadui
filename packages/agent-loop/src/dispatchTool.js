@@ -63,7 +63,7 @@ const ROUTES = {
   view: (deps, args) => deps.view(args),
   docs: (deps, args) => deps.docs(args.query),
   question: (deps, args) => deps.askUser(args),
-  web_search: (deps, args) => deps.websearch(args),
+  websearch: (deps, args) => deps.websearch(args),
 }
 
 /**

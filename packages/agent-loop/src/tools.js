@@ -172,7 +172,7 @@ export const buildTools = (api = DEFAULT_API) => [
     },
   },
   {
-    name: 'web_search',
+    name: 'websearch',
     description: 'Search the web for reference values (part numbers, material data, datasheets) the project does not carry; answers title, url and snippet hits tagged with the serving provider.',
     inputSchema: {
       type: 'object',
@@ -190,4 +190,4 @@ export const TOOLS = buildTools()
 
 // Calls safe to run concurrently: they read state without saving.
 // write/edit/delete/export save or expose download state and stay serial.
-export const READ_ONLY = new Set(['glob', 'read', 'grep', 'measure', 'check', 'docs', 'run', 'view', 'question', 'web_search'])
+export const READ_ONLY = new Set(['glob', 'read', 'grep', 'measure', 'check', 'docs', 'run', 'view', 'question', 'websearch'])

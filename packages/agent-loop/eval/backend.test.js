@@ -714,9 +714,9 @@ describe('eval backend websearch stub', () => {
     },
   ]
 
-  it('routes web_search and answers canned results keyed by query substring', async () => {
+  it('routes websearch and answers canned results keyed by query substring', async () => {
     const backend = createEvalBackend({ cannedSearch: CANNED })
-    const res = await call(backend, 'web_search', { query: 'what is the M8 clearance hole size' })
+    const res = await call(backend, 'websearch', { query: 'what is the M8 clearance hole size' })
     expect(res.ok).toBe(true)
     expect(res.results).toHaveLength(1)
     expect(res.results[0].snippet).toMatch(/9mm/)
@@ -724,17 +724,17 @@ describe('eval backend websearch stub', () => {
 
   it('fails closed with SearchUnavailableError when nothing canned matches', async () => {
     const backend = createEvalBackend({ cannedSearch: CANNED })
-    const res = await call(backend, 'web_search', { query: 'bearing 608 dimensions' })
+    const res = await call(backend, 'websearch', { query: 'bearing 608 dimensions' })
     expect(res).toMatchObject({ ok: false, error: { name: 'SearchUnavailableError' } })
   })
 
   it('fails closed with no canned data at all, and validates the schema', async () => {
     const backend = createEvalBackend()
-    expect(await call(backend, 'web_search', { query: 'anything' })).toMatchObject({
+    expect(await call(backend, 'websearch', { query: 'anything' })).toMatchObject({
       ok: false,
       error: { name: 'SearchUnavailableError' },
     })
-    const bad = await call(backend, 'web_search', { query: 'x', bogus: 1 })
+    const bad = await call(backend, 'websearch', { query: 'x', bogus: 1 })
     expect(bad).toMatchObject({ ok: false, error: { name: 'ValidationError' } })
   })
 })

@@ -140,13 +140,17 @@ describe('dispatchTool', () => {
     expect(await dispatchTool('ask_user', { question: 'Which size?' }, deps({ askUser: async () => 'x' }))).toEqual(toolError('UnknownToolError', 'unknown tool ask_user'))
   })
 
-  it('routes web_search to deps.websearch and rejects unknown props', async () => {
+  it('routes websearch to deps.websearch and rejects unknown props', async () => {
     const d = deps({ websearch: vi.fn(async (args) => ({ ok: true, results: [], query: args.query })) })
-    expect(await dispatchTool('web_search', { query: 'bearing 608' }, d)).toEqual({ ok: true, results: [], query: 'bearing 608' })
+    expect(await dispatchTool('websearch', { query: 'bearing 608' }, d)).toEqual({ ok: true, results: [], query: 'bearing 608' })
     expect(d.websearch).toHaveBeenCalledWith({ query: 'bearing 608' })
-    expect(await dispatchTool('web_search', { query: 'x', bogus: 1 }, d)).toMatchObject({
+    expect(await dispatchTool('websearch', { query: 'x', bogus: 1 }, d)).toMatchObject({
       ok: false,
       error: { name: 'ValidationError' },
     })
+  })
+
+  it('answers the old web_search name as an unknown tool', async () => {
+    expect(await dispatchTool('web_search', { query: 'x' }, deps())).toEqual(toolError('UnknownToolError', 'unknown tool web_search'))
   })
 })
