@@ -12,6 +12,15 @@ leaking server keys to the browser and without shipping a per-model
 training-terms table that rots. Cover ourselves with one honest,
 always-on data-use gate instead of per-model "free/contributor" warnings.
 
+## Scope (builder-check call)
+
+Phase 1 (production logging, opt-out, notice, `trust proxy`, limiter
+eviction, pull script) and Phase 2 (shared config, routes, meter, client
+option) have not landed — `server/src/relay/routes.ts` has only
+`/api/relay/:kind/*splat`, no shared routes, meter, or chat log. This plan
+builds Phase 1 + Phase 2 + the demo/TOS layer below as one job, reusing the
+2026-10-01 record format and route shapes unchanged.
+
 ## Goals
 
 - A `demo` provider choice in the gear dialog, integrated like every other
@@ -35,8 +44,21 @@ always-on data-use gate instead of per-model "free/contributor" warnings.
   and omits `x-jscad-chat-id` so the relay never logs (per Phase 1 rule).
 - Dynamic model catalog: the model list always comes from a live
   `GET /v1/models` with the active credential (user key, or demo's
-  `GET /api/relay/shared` list for demo). No static model allowlist in the
-  client; `modelPlaceholders` remain as empty-state hints only.
+  `GET /api/relay/shared` list for demo). Own keys go through the relay
+  (`relayBaseUrl(kind)` + per-kind auth headers, as `aiAccount.js:loadModels`
+  does today) — never direct browser → provider. No static model allowlist in the
+  client; `modelPlaceholders` remain as empty-state hints only. Demo has no
+  model dropdown: each shared option pins one fixed model, and the
+  "catalog" for demo is the option list itself.
+
+## Consent sync (builder-check call)
+
+`localStorage['jscad-ai.tos'] = { version, at, recordOwnChats }` is the
+source of truth. `localStorage['jscad-ai.log']` (`'off'` when opted out,
+absent means on, per Phase 1) is a derived mirror kept for backward
+compat: accepting the TOS writes both, toggling the gear-dialog checkbox
+rewrites both. On divergence the `.tos` record wins; fresh installs with
+neither key default `recordOwnChats` to true.
 
 ## Non-goals
 
@@ -81,7 +103,14 @@ always-on data-use gate instead of per-model "free/contributor" warnings.
 - Demo = shared-keys Phase 2 shipped as the user-visible "demo provider".
   `kind` stays the underlying protocol kind (`opencode-go`/`meta`);
   selection adds `shared: <id>` + `demo: true`. `relayBaseUrl` maps demo to
-  `/api/relay/shared/<id>`. Model-list GET skipped for demo; fixed model shown.
+  `/api/relay/shared/<id>`. The server accepts the client sentinel
+  `demo-limited-free` and the Phase 2 sentinel `shared` interchangeably
+  (ignores the value either way). There are no shipped `shared` selections
+  to migrate (Phase 2 unlanded); if one is found it is treated as demo.
+- Enforcement (builder-check call): the gate runs on Send, on every
+  transport including custom base URLs (which keep the code-execution +
+  provider-sharing acks, skip only the recording question). Decline blocks
+  that turn with the quota-style error line.
 - Generic training warning replaces the training flag (partner decision
   2026-10-15). Do not build the overlay.
 - Consent storage keys above are final; `recordOwnChats` boolean is the only
