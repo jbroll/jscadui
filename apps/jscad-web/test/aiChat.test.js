@@ -1,8 +1,16 @@
 // apps/jscad-web/test/aiChat.test.js
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildSystemPrompt, dispatchTool, SUMMARY_PREFIX } from '@jscadui/agent-loop'
+import { TOS_VERSION } from '../src/aiConsent.js'
 import { initChat, relayBaseUrl } from '../src/aiChat.js'
+
+// Every turn is gated on the accepted terms version, so each test here starts
+// past the gate; the gate itself is covered in aiConsent.test.js.
+beforeEach(() => {
+  localStorage.setItem('jscad-ai.tos', JSON.stringify({ version: TOS_VERSION, at: 0, recordOwnChats: true }))
+  localStorage.removeItem('jscad-ai.log')
+})
 
 describe('browser chat turn', () => {
   it('runs requestTool for a tool_use and appends streamed text', async () => {

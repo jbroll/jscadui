@@ -3,6 +3,7 @@
 // through requestTool, and renders streamed text. Provider HTTP targets the
 // relay, which proxies path-preserving to the provider and stores nothing.
 import { buildMessages, buildSystemPrompt, createProvider, DEFAULT_API, partitionTranscript, runTurn as defaultRunTurn, SUMMARY_PREFIX, summarizeTranscript, summarizeWithProvider, toolDetail, turnsOf } from '@jscadui/agent-loop'
+import { checkTurn, DEMO_NOTICE_MESSAGE, openConsentGate, TOS_REQUIRED_MESSAGE } from './aiConsent.js'
 
 /* global __RELAY_ORIGIN__ */
 const RELAY_OVERRIDE_KEY = 'jscad-ai.relay'
@@ -165,6 +166,9 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
   container.append(header, messagesEl, statusEl, form)
 
   let running = false
+  // A Send that is waiting on the consent gate; another Send in the meantime
+  // must not queue a second turn.
+  let gating = false
   let aborter = null
   let status = null
   let startedAt = 0
@@ -436,6 +440,24 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
     if (!selection) {
       addMessage('Set your model and API key in Chat settings first.', 'error')
       return
+    }
+    // Every turn is gated on the accepted terms version and, for demo, on the
+    // always-recorded notice. Declining blocks this turn with the usual error
+    // line and keeps the draft and the history readable.
+    const gate = checkTurn(selection)
+    if (!gate.ok) {
+      if (gating) return
+      gating = true
+      let allowed = false
+      try {
+        allowed = await openConsentGate(selection)
+      } finally {
+        gating = false
+      }
+      if (!allowed) {
+        addMessage(gate.reason === 'demo-notice' ? DEMO_NOTICE_MESSAGE : TOS_REQUIRED_MESSAGE, 'error')
+        return
+      }
     }
     input.value = ''
     turnProject = pid()

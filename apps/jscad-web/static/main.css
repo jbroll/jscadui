@@ -1442,3 +1442,26 @@ p {
 .confirm-title { margin: 0 0 8px; font-size: 1rem; }
 .confirm-message { margin: 0 0 16px; font-size: 0.9rem; }
 .confirm-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.tos-gate .confirm-box {
+  max-width: 460px;
+}
+.tos-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 16px;
+}
+.tos-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+.tos-row input {
+  margin: 2px 0 0;
+  flex: none;
+}
+.tos-link {
+  color: inherit;
+}
