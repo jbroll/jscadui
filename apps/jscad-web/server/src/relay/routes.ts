@@ -215,6 +215,12 @@ export function mountRelayRoutes(app: Express, options: RelayRouteOptions): void
       else inFlight.set(group, left)
     }
     res.on('close', release)
+    // Registered before any await below, so a client that leaves during DNS
+    // resolution is observed and no upstream request is sent on its behalf.
+    const abort = new AbortController()
+    res.on('close', () => {
+      if (!res.writableFinished) abort.abort()
+    })
 
     // The client key is whatever the sentinel was; it is dropped here and never
     // trusted. Only the operator's key goes upstream.
@@ -246,18 +252,29 @@ export function mountRelayRoutes(app: Express, options: RelayRouteOptions): void
       release()
       return
     }
+    // The client left while we were resolving: no request reached the provider,
+    // so nothing is charged, but the abandoned turn is still recorded.
+    if (abort.signal.aborted) {
+      tee.finish(499, { error: 'client closed', shared: option.id, costUsd: 0 })
+      release()
+      return
+    }
 
-    const abort = new AbortController()
-    res.on('close', () => {
-      if (!res.writableFinished) abort.abort()
-    })
     let upstreamRes: globalThis.Response
     try {
       upstreamRes = await fetchFn(upstream, { method: 'POST', headers, body: bodyText, signal: abort.signal })
     } catch {
-      res.status(502).json({ error: 'upstream unreachable' })
-      // Nothing was generated, so nothing is charged.
-      tee.finish(502, { response: 'upstream unreachable', shared: option.id, costUsd: 0 })
+      if (abort.signal.aborted) {
+        // The client left after the request went upstream, where the provider can
+        // still bill for the prompt it received, so charge the input estimate.
+        const cost = costUsd({ inputTokens: estimateTokens(Buffer.byteLength(bodyText)), outputTokens: 0 }, option)
+        meter.charge(ip, cost)
+        tee.finish(499, { error: 'client closed', shared: option.id, costUsd: cost })
+      } else {
+        // Never connected, so nothing was sent and nothing is charged.
+        res.status(502).json({ error: 'upstream unreachable' })
+        tee.finish(502, { response: 'upstream unreachable', shared: option.id, costUsd: 0 })
+      }
       release()
       return
     }

@@ -13,8 +13,11 @@ export const DEFAULT_PER_IP_DAILY_USD = 0.1
 /** @typedef {{ monthlyUsd: number, perIpDailyUsd: number, options: SharedOption[] }} SharedConfig */
 
 // Mirrors RESPONSES_MODELS / MESSAGES_MODELS in
-// packages/agent-loop/src/providers.js; shared.test.ts pins the copies equal,
-// so a routing change cannot silently drift the path a shared option may use.
+// packages/agent-loop/src/providers.js; shared.test.ts pins the copies equal, so
+// a routing change cannot silently drift the endpoint a shared option may use.
+// MESSAGES_MODELS is mirrored only to refuse those models: the shared relay
+// injects a bearer key and cannot serve the messages protocol (see
+// expectedPathFor).
 export const RESPONSES_MODELS = new Set([
   'grok-4.6',
   'gpt-5.6-luna',
@@ -33,21 +36,24 @@ export const MESSAGES_MODELS = new Set([
   'qwen3.6-plus',
 ])
 
-// Both take `authorization: Bearer`; a shared option's key is injected only for
-// these kinds, so nothing else may appear in the operator's file.
+// These kinds' chat-completions and responses endpoints take
+// `authorization: Bearer`, which is the only credential the relay injects; a
+// shared option's key is used nowhere else, so nothing else may appear in the
+// operator's file.
 export const SHARED_KINDS = new Set(['opencode-go', 'meta'])
 
 /**
  * The one endpoint a kind and model use in agent-loop, or null for a kind that
- * cannot serve a shared option.
+ * cannot serve a shared option and for the messages protocol, which needs
+ * `x-api-key` + `anthropic-version` and a body the relay does not rewrite.
  * @param {string} kind
  * @param {string} model
  * @returns {string | null}
  */
 export const expectedPathFor = (kind, model) => {
   if (!SHARED_KINDS.has(kind)) return null
+  if (MESSAGES_MODELS.has(model)) return null
   if (RESPONSES_MODELS.has(model)) return 'v1/responses'
-  if (MESSAGES_MODELS.has(model)) return 'v1/messages'
   return 'v1/chat/completions'
 }
 
@@ -122,6 +128,11 @@ const parseOption = (value, where, seen) => {
   const model = requireString(raw.model, 'model', where)
   const path = requireString(raw.path, 'path', where)
   const expected = expectedPathFor(kind, model)
+  // `kind` is already a shared kind, so a null expectation means the model needs
+  // the messages protocol, which a bearer key cannot serve.
+  if (expected === null) {
+    throw new Error(`relay: shared ${where} cannot serve model '${model}': the shared relay only injects keys for chat-completions and responses models`)
+  }
   if (path !== expected) {
     throw new Error(`relay: shared ${where} path '${path}' must be '${expected}' for kind '${kind}' and model '${model}'`)
   }

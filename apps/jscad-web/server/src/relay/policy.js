@@ -79,10 +79,12 @@ const isPrivateV4 = (octets) => {
 }
 
 /**
+ * The one IPv6 parser for the relay: address privacy checks and the spend
+ * meter's /64 grouping both read groups this way.
  * @param {string} s IPv6 text, already validated by isIP
  * @returns {number[]} eight 16-bit groups
  */
-const v6Groups = (s) => {
+export const v6Groups = (s) => {
   let text = s.toLowerCase()
   const tail = text.slice(text.lastIndexOf(':') + 1)
   if (tail.includes('.')) {

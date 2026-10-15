@@ -4,6 +4,7 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { isIP } from 'node:net'
 import { dirname } from 'node:path'
+import { v6Groups } from './policy.js'
 
 export interface MeterBudgets {
   monthlyUsd: number
@@ -76,21 +77,10 @@ export const parseUsage = (text: string): Usage | null => {
 export const costUsd = (usage: Usage, prices: { inputUsdPerMTok: number; outputUsdPerMTok: number }): number =>
   (usage.inputTokens * prices.inputUsdPerMTok + usage.outputTokens * prices.outputUsdPerMTok) / 1e6
 
-/** @param {string} s IPv6 text, already validated by isIP */
-const v6Groups = (s: string): number[] => {
-  let value = s.toLowerCase()
-  const tail = value.slice(value.lastIndexOf(':') + 1)
-  if (tail.includes('.')) {
-    const [a, b, c, d] = tail.split('.').map(Number)
-    value = `${value.slice(0, value.length - tail.length)}${((a << 8) | b).toString(16)}:${((c << 8) | d).toString(16)}`
-  }
-  const [head, rest] = value.split('::')
-  const left = head ? head.split(':') : []
-  const right = rest ? rest.split(':') : []
-  const zeros = rest === undefined ? [] : new Array(Math.max(0, 8 - left.length - right.length)).fill('0')
-  return [...left, ...zeros, ...right].map((g) => parseInt(g || '0', 16))
-}
-
+/**
+ * The IPv4 form of an IPv4-mapped address, so `::ffff:a.b.c.d` shares a bucket
+ * with the plain `a.b.c.d`; null for any other address.
+ */
 const mappedV4 = (host: string): string | null => {
   const match = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i.exec(host)
   return match ? match[1] : null

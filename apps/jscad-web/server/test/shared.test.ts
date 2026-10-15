@@ -48,7 +48,22 @@ const sse = (text: string) =>
 
 let fetchMock: ReturnType<typeof vi.fn>
 
-const buildApp = ({ config, logs = [], logDir, spend }: { config?: string; logs?: unknown[]; logDir?: string; spend?: unknown } = {}) => {
+const buildApp = ({
+  config,
+  logs = [],
+  logDir,
+  spend,
+  dnsLookup = async () => [{ address: '93.184.216.34' }],
+  onClose,
+}: {
+  config?: string
+  logs?: unknown[]
+  logDir?: string
+  spend?: unknown
+  dnsLookup?: (host: string) => Promise<Array<{ address: string }>>
+  /** Fires when the response closes, so a test can await the server seeing a client leave. */
+  onClose?: () => void
+} = {}) => {
   const dir = tmp()
   const allowlistPath = join(dir, 'providers.json')
   writeFileSync(allowlistPath, JSON.stringify({ 'opencode-go': 'https://upstream.test', meta: 'https://upstream.test' }))
@@ -59,6 +74,7 @@ const buildApp = ({ config, logs = [], logDir, spend }: { config?: string; logs?
   const app = express()
   // index.ts parses the body before mounting the relay.
   app.use(express.json())
+  if (onClose) app.use((_req, res, next) => { res.on('close', onClose); next() })
   mountRelayRoutes(app, {
     allowlistPath,
     sharedPath,
@@ -66,7 +82,7 @@ const buildApp = ({ config, logs = [], logDir, spend }: { config?: string; logs?
     trustedOrigins: ['https://app.test'],
     logger: (entry) => logs.push(entry),
     fetchFn: fetchMock,
-    dnsLookup: async () => [{ address: '93.184.216.34' }],
+    dnsLookup,
     now: () => NOW,
     // Every mount gets a temp log dir, even the cases that ignore the log, so a
     // served turn can never write into the repo's ./data.
@@ -103,6 +119,15 @@ describe('shared config', () => {
     expect(expectedPathFor('opencode-go', 'deepseek-v4.1-flash')).toBe('v1/chat/completions')
     expect(expectedPathFor('meta', 'muse-spark-1.3-contributor')).toBe('v1/responses')
     expect(expectedPathFor('openai', 'gpt')).toBeNull()
+    expect(expectedPathFor('opencode-go', 'minimax-m3')).toBeNull()
+  })
+
+  it('refuses a messages-protocol model, which a bearer key cannot serve', () => {
+    const messages = option({ model: 'minimax-m3', path: 'v1/messages' })
+    expect(() => parseSharedConfig(JSON.stringify({ options: [messages] }), 'shared.json')).toThrow(/minimax-m3/)
+    // Refused even when the operator tries to point it at a path we do rewrite.
+    const disguised = option({ model: 'minimax-m3', path: 'v1/chat/completions' })
+    expect(() => parseSharedConfig(JSON.stringify({ options: [disguised] }), 'shared.json')).toThrow(/minimax-m3/)
   })
 
   it('treats a missing file as no options, with the Phase 1 budget defaults', () => {
@@ -342,5 +367,68 @@ describe('POST /api/relay/shared/:id/*splat', () => {
     const [rec] = records(logDir)
     expect(rec).toMatchObject({ shared: 'deepseek', error: 'client closed' })
     expect(rec.costUsd).toBeGreaterThan(0)
+  })
+
+  it('charges the input estimate when the client leaves before the upstream responds', async () => {
+    // A real fetch rejects once its signal aborts; this one models that, so the
+    // handler takes its pre-headers failure path.
+    fetchMock.mockImplementation(
+      (_url: string, init: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          const signal = init.signal as AbortSignal
+          if (signal.aborted) reject(new Error('aborted'))
+          else signal.addEventListener('abort', () => reject(new Error('aborted')))
+        }),
+    )
+    const logDir = tmp()
+    const { app, spendPath } = buildApp({ config: sharedJson(), logDir })
+    const pendingReq = post(app, 'deepseek', 'v1/chat/completions').send({ messages: [{ role: 'user', content: 'hello there' }] })
+    const settled = pendingReq.then(
+      () => 'settled',
+      () => 'settled',
+    )
+
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled())
+    pendingReq.abort()
+    await settled
+    await vi.waitFor(() => expect(records(logDir)).toHaveLength(1))
+    const [rec] = records(logDir)
+    expect(rec).toMatchObject({ shared: 'deepseek', error: 'client closed' })
+    // The prompt had already gone upstream, so the estimated input is charged and
+    // the meter advances: a repeated abort cannot run the demo free.
+    const sentBytes = Buffer.byteLength(String(fetchMock.mock.calls[0][1].body))
+    const expected = (Math.ceil(sentBytes / 3) * 1) / 1e6
+    expect(expected).toBeGreaterThan(0)
+    expect(rec.costUsd).toBeCloseTo(expected, 12)
+    expect(JSON.parse(readFileSync(spendPath, 'utf8')).monthSpent).toBeCloseTo(expected, 12)
+  })
+
+  it('never calls upstream when the client leaves during DNS resolution', async () => {
+    let releaseDns: (() => void) | undefined
+    const dnsLookup = () =>
+      new Promise<Array<{ address: string }>>((resolve) => {
+        releaseDns = () => resolve([{ address: '93.184.216.34' }])
+      })
+    let sawClose: (() => void) | undefined
+    const closed = new Promise<void>((resolve) => {
+      sawClose = resolve
+    })
+    const logDir = tmp()
+    const { app } = buildApp({ config: sharedJson(), logDir, dnsLookup, onClose: () => sawClose?.() })
+    const pendingReq = post(app, 'deepseek', 'v1/chat/completions').send({ messages: [] })
+    const settled = pendingReq.then(
+      () => 'settled',
+      () => 'settled',
+    )
+
+    await vi.waitFor(() => expect(releaseDns).toBeDefined())
+    pendingReq.abort()
+    // The server's own close listener has run by the time its sibling fires.
+    await closed
+    releaseDns?.()
+    await settled
+    await vi.waitFor(() => expect(records(logDir)).toHaveLength(1))
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(records(logDir)[0]).toMatchObject({ shared: 'deepseek', error: 'client closed', costUsd: 0 })
   })
 })
