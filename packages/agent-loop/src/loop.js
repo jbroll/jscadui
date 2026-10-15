@@ -176,7 +176,8 @@ export const toolDetail = (input) => {
  * `onUsage` hears each usage report; usage never enters the messages.
  * `beforeToolCall(name, input)` may deny a call (`{decision:'deny', reason?}`)
  * or rewrite its arguments (`{updatedInput}`); a throw blocks the call with
- * a tool error. `afterToolCall(name, input, result)` may replace the result
+ * a tool error. `toolFilter(name)` hides tools from the offered set (a pinned
+ * `false` removes the tool from `buildTools` output). `afterToolCall(name, input, result)` may replace the result
  * (`{result}` or a string); a throw becomes a tool error. Denials, rewrites
  * and hook failures are results the model sees, never turn failures.
  * @param {{conversation:{messages:Array<object>},provider:{send:Function},requestTool:Function,onText?:Function,onReasoning?:Function,onUsage?:Function,onStatus?:Function,beforeToolCall?:Function,afterToolCall?:Function,signal?:AbortSignal,toolTimeoutMs?:number,maxRounds?:number,capFinalAnswer?:boolean,toolChoice?:'none'|'auto'|'any',api?:'fluent'|'modeling'}} options
@@ -189,7 +190,7 @@ export const runTurn = (options) => {
   // The eval harness counts every provider send as a round, so it opts out;
   // the app leaves this on so a capped turn still answers.
   const capFinalAnswer = options.capFinalAnswer ?? true
-  const tools = buildTools(options.api ?? DEFAULT_API)
+  const tools = typeof options.toolFilter === 'function' ? buildTools(options.api ?? DEFAULT_API).filter((tool) => options.toolFilter(tool.name)) : buildTools(options.api ?? DEFAULT_API)
   const messages = [...conversation.messages]
   let rounds = 0
   let resultChars = 0

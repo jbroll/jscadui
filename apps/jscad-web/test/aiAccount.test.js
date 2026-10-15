@@ -2,14 +2,22 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@jscadui/key-store', () => {
-  let mem = null
+  const byKey = new Map()
+  const memFor = (key) => ({
+    get: () => byKey.get(key) ?? null,
+    set: async (k) => {
+      byKey.set(key, k)
+    },
+    clear: () => {
+      byKey.set(key, null)
+    },
+    unlock: async () => {
+      byKey.set(key, 'k')
+      return 'k'
+    },
+  })
   return {
-    createKeyStore: () => ({
-      get: () => mem,
-      set: async (k) => { mem = k },
-      clear: () => { mem = null },
-      unlock: async () => { mem = 'k'; return mem },
-    }),
+    createKeyStore: (opts = {}) => memFor(opts.key ?? 'default'),
   }
 })
 
@@ -172,7 +180,47 @@ describe('account header', () => {
     document.body.innerHTML = '<div id="a"></div>'
     initAccount(document.getElementById('a'))
     const names = [...document.querySelectorAll('.ai-settings .ai-field-name')].map((n) => n.textContent)
-    expect(names).toEqual(['Provider', 'API key', 'Keep', 'Passphrase', 'Model', 'Custom model id', 'API style', 'Effort', 'Base URL'])
+    expect(names).toEqual(['Provider', 'API key', 'Keep', 'Passphrase', 'Model', 'Custom model id', 'API style', 'Effort', 'Base URL', 'Keep search keys', 'Search passphrase', 'Allow web search', 'Search provider'])
+  })
+
+  it('saves and clears search keys per provider with no search network traffic', async () => {
+    const { initAccount, searchStores } = await loadAccount()
+    for (const store of Object.values(searchStores)) store.clear()
+    const calls = []
+    globalThis.fetch = vi.fn(async (url, init) => {
+      calls.push([String(url), init])
+      return new Response(JSON.stringify({}), { status: 401 })
+    })
+    document.body.innerHTML = '<div id="a"></div>'
+    initAccount(document.getElementById('a'))
+    document.querySelector('.ai-gear').click()
+    const row = document.querySelector('[data-search-provider="tavily"]')
+    expect(row).toBeTruthy()
+    expect(row.querySelector('.ai-search-status').textContent).toMatch(/keyless/)
+    row.querySelector('.ai-search-key-input').value = 'tvly-x'
+    row.querySelector('.ai-search-save').click()
+    await vi.waitFor(() => expect(row.querySelector('.ai-search-status').textContent).toMatch(/key set/))
+    expect(searchStores.tavily.get()).toBe('tvly-x')
+    expect(searchStores.exa.get()).toBeNull()
+    expect(calls.filter(([url]) => /exa|parallel|firecrawl|tavily|tinyfish|mcp/i.test(url))).toEqual([])
+    row.querySelector('.ai-search-clear').click()
+    expect(searchStores.tavily.get()).toBeNull()
+    expect(row.querySelector('.ai-search-status').textContent).toMatch(/keyless/)
+  })
+
+  it('persists the websearch blanket toggle and notifies the live chat', async () => {
+    const { initAccount } = await loadAccount()
+    const granted = []
+    localStorage.removeItem('jscad-ai.selection')
+    document.body.innerHTML = '<div id="a"></div>'
+    initAccount(document.getElementById('a'), { onWebsearchGrant: (on) => granted.push(on) })
+    document.querySelector('.ai-gear').click()
+    const toggle = document.querySelector('.ai-websearch-allow')
+    expect(toggle.checked).toBe(false)
+    toggle.checked = true
+    toggle.dispatchEvent(new Event('change'))
+    expect(JSON.parse(localStorage.getItem('jscad-ai.selection')).websearch.allow).toBe(true)
+    expect(granted).toEqual([true])
   })
 
   it('sends the current URL, hash included, as the sign-in callback', async () => {

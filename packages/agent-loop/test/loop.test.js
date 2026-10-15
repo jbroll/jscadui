@@ -467,6 +467,21 @@ describe('runTurn', () => {
     expect(messages.filter((m) => m.role === 'tool').map((m) => m.toolCallId)).toEqual(['a', 'b', 'c'])
   })
 
+  it('hides filtered tools from the offered set', async () => {
+    const seen = []
+    const provider = {
+      async *send(_messages, tools) {
+        seen.push(tools)
+        yield { type: 'text', text: 'ok' }
+        yield { type: 'done', stopReason: 'end_turn' }
+      },
+    }
+    const conversation = { messages: [{ role: 'user', content: 'hi' }] }
+    await runTurn({ conversation, provider, requestTool: vi.fn(), toolFilter: (name) => name !== 'web_search' })
+    expect(seen[0].map((t) => t.name)).not.toContain('web_search')
+    expect(seen[0].map((t) => t.name)).toContain('write')
+  })
+
   it('blocks a denied tool call with a result and goes on without running it', async () => {
     const provider = roundsProvider([
       [{ type: 'tool_use', id: 't1', name: 'write', input: { path: 'm.js', content: 'x' } }, { type: 'done', stopReason: 'tool_use' }],

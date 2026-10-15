@@ -28,12 +28,32 @@ export const createWebSearchHandler = ({
   fetchFn = globalThis.fetch,
   stores = {},
   getKeys,
+  getPinned,
   projectId = '',
   relayUrl = '/api/search',
   version = '0.0.0',
 } = {}) => {
   const keysOf = () => ({ ...readStoreKeys(stores), ...(getKeys?.() ?? {}) })
-  const direct = createWebSearch({ fetchFn, getKeys: keysOf, context: 'browser', projectId, version })
+  // One direct pool per pin value, so per-provider cooldowns survive pin
+  // changes; a pinned keyed provider sorts first inside its pool.
+  const directFor = new Map()
+  const direct = (pin) => {
+    const key = pin ?? 'random'
+    if (!directFor.has(key)) {
+      directFor.set(
+        key,
+        createWebSearch({
+          fetchFn,
+          getKeys: keysOf,
+          context: 'browser',
+          projectId,
+          version,
+          pinned: key === 'random' || key === 'off' ? undefined : key,
+        }),
+      )
+    }
+    return directFor.get(key)
+  }
 
   const relaySearch = async ({ query, count }) => {
     const res = await fetchFn(relayUrl, {
@@ -47,15 +67,28 @@ export const createWebSearchHandler = ({
     return body.results.map((hit) => ({ ...hit, provider: 'tavily' }))
   }
 
+  const viaRelay = async (args) => {
+    const count = args?.count ?? 8
+    return { ok: true, results: await relaySearch({ query: args?.query, count }) }
+  }
+
   return async (args) => {
-    const out = await direct(args)
+    const pin = getPinned?.() ?? 'random'
+    // Pinned Tavily goes straight to the relay (browsers cannot reach Tavily
+    // directly); a relay failure falls through to the direct pool.
+    if (pin === 'tavily' && keysOf().tavily) {
+      try {
+        return await viaRelay(args)
+      } catch {
+        // Fall through to the direct pool below.
+      }
+    }
+    const out = await direct(pin)(args)
     if (out?.ok) return out
     if (out?.error?.name !== 'SearchUnavailableError') return out
     if (!keysOf().tavily) return out
     try {
-      const count = args?.count ?? 8
-      const results = await relaySearch({ query: args?.query, count })
-      return { ok: true, results }
+      return await viaRelay(args)
     } catch (error) {
       return toolError('SearchUnavailableError', `web_search: relay fallback failed (${error?.message ?? error})`)
     }

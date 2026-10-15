@@ -70,4 +70,21 @@ describe('page websearch handler', () => {
     expect(res).toMatchObject({ ok: false, error: { name: 'SearchUnavailableError' } })
     for (const [url] of fetchFn.mock.calls) expect(String(url)).not.toContain('/api/search')
   })
+
+  it('pinned Tavily goes straight to the relay without trying the direct pool', async () => {
+    const storage = memStorage()
+    const stores = createSearchStores(storage)
+    await stores.tavily.set('sk-tavily', 'session')
+    const fetchFn = vi.fn(async (url) => {
+      if (String(url).includes('/api/search')) {
+        return { ok: true, status: 200, headers: { get: () => null }, json: async () => ({ ok: true, results: [{ title: 't', url: 'https://example.com', snippet: 's', provider: 'tavily' }] }) }
+      }
+      return mcpFail()
+    })
+    const handler = createWebSearchHandler({ fetchFn, stores, projectId: 'p1', getPinned: () => 'tavily' })
+    const res = await handler({ query: 'bearing 608' })
+    expect(res.ok).toBe(true)
+    expect(fetchFn).toHaveBeenCalledTimes(1)
+    expect(String(fetchFn.mock.calls[0][0])).toContain('/api/search')
+  })
 })

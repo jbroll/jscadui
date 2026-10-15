@@ -69,6 +69,14 @@ breaks the no-network sandbox story the eval relies on. Would need
 size caps, same-origin or allowlist policy, and error-as-result
 handling. Not proposed until a concrete fixture needs it.
 
+Verdict 2026-10-15: `web_search` graduates from deferred under
+`docs/superpowers/specs/2026-10-15-websearch-design.md`, which trips the
+gate above: rotating keyless MCP providers (Exa, Parallel, Firecrawl)
+plus keyed TinyFish direct and Tavily via `POST /api/search`, blanket
+per-conversation permission, snippet caps with fence escaping, and the
+`catalog-search` eval fixture proving the tool path with an ignored
+injection. Page fetch (`web_fetch`) stays deferred under the relay spec.
+
 ### 5. Subagents / agent-as-tool
 
 Standard as `task` spawn or `AgentTool`: coordinator delegates to a

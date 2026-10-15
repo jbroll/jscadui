@@ -5,6 +5,7 @@
 // @jscadui/key-store and attaches per request.
 import { APIS, DEFAULT_API } from '@jscadui/agent-loop'
 import { createKeyStore } from '@jscadui/key-store'
+import { SEARCH_PROVIDERS, createSearchStores } from './aiSearch.js'
 import { relayBaseUrl } from './aiChat.js'
 import { effortOptionsForModel } from './aiEffort.js'
 
@@ -46,6 +47,17 @@ const textInput = (value = '', placeholder = '', type = 'text') => {
 }
 
 export const keyStore = createKeyStore()
+
+// One search-key store per provider (page memory + origin localStorage, never
+// posted to the compute frame, never logged). The dialog below owns the UI.
+export const searchStores = createSearchStores(globalThis.localStorage)
+
+// Signup origins derived from the probed MCP endpoints in the websearch spec.
+const SEARCH_SIGNUP = { exa: 'https://exa.ai', parallel: 'https://parallel.ai', firecrawl: 'https://firecrawl.dev', tavily: 'https://tavily.com', tinyfish: 'https://tinyfish.ai' }
+
+const DEFAULT_WEBSEARCH = { allow: false, provider: 'random' }
+
+export const getWebsearchSelection = () => ({ ...DEFAULT_WEBSEARCH, ...(getSelection().websearch ?? {}) })
 
 export const getSelection = () => {
   try {
@@ -103,10 +115,11 @@ const modelsUrl = (kind, baseUrl) =>
  * @param {HTMLElement} container
  * @param {{onSignOut?: Function, hasLocalWork?: () => boolean}} [options]
  */
-export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = () => false } = {}) => {
+export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = () => false, onWebsearchGrant = () => {} } = {}) => {
   warnOnUnload = hasLocalWork
   suppressUnloadPrompt = false
   const selection = getSelection()
+  const websearch = getWebsearchSelection()
   const state = {
     kind: selection.kind ?? 'anthropic',
     model: selection.model ?? '',
@@ -114,8 +127,18 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
     effort: selection.effort ?? '',
     api: APIS.includes(selection.api) ? selection.api : DEFAULT_API,
     capabilities: new Map(),
+    websearchAllow: websearch.allow,
+    websearchProvider: websearch.provider,
   }
-  const persistSelection = () => setSelection({ kind: state.kind, model: state.model, baseUrl: state.baseUrl, api: state.api, ...(state.effort ? { effort: state.effort } : {}) })
+  const persistSelection = () =>
+    setSelection({
+      kind: state.kind,
+      model: state.model,
+      baseUrl: state.baseUrl,
+      api: state.api,
+      ...(state.effort ? { effort: state.effort } : {}),
+      websearch: { allow: state.websearchAllow, provider: state.websearchProvider },
+    })
 
   // Header row: sign-in state on the left, gear on the right.
   const header = el('div', 'ai-header-row')
@@ -281,6 +304,70 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
   const footer = el('div', 'ai-dialog-footer')
   footer.append(closeBtn)
 
+  // Web search keys: one password row per provider sharing one custody mode,
+  // plus the blanket-grant toggle (global default for new conversations) and
+  // the provider pin. Revoking the grant never clears the stored keys.
+  const searchMode = el('select', 'ai-input ai-search-mode')
+  for (const value of ['session', 'device', 'synced']) searchMode.append(Object.assign(el('option'), { value, textContent: value }))
+  searchMode.value = 'session'
+  const searchPassphrase = textInput('', 'synced mode only', 'password')
+  searchPassphrase.classList.add('ai-search-passphrase')
+  const searchRows = el('div', 'ai-search-rows')
+  for (const id of SEARCH_PROVIDERS) {
+    const store = searchStores[id]
+    const row = el('div', 'ai-search-row')
+    row.dataset.searchProvider = id
+    const link = el('a', 'ai-search-link', id)
+    link.href = SEARCH_SIGNUP[id]
+    link.target = '_blank'
+    link.rel = 'noreferrer'
+    const input = textInput('', `${id} key`, 'password')
+    input.classList.add('ai-search-key-input')
+    input.autocomplete = 'off'
+    const status = el('span', 'ai-search-status', store.get() ? 'key set' : 'keyless')
+    const save = el('button', 'ai-button ai-search-save', 'Save')
+    save.type = 'button'
+    const clear = el('button', 'ai-button ai-search-clear', 'Clear')
+    clear.type = 'button'
+    save.addEventListener('click', async () => {
+      try {
+        if (!input.value) {
+          await store.unlock(searchPassphrase.value)
+        } else {
+          await store.set(input.value, searchMode.value, searchPassphrase.value || undefined)
+          input.value = ''
+        }
+        status.textContent = 'key set'
+      } catch (err) {
+        status.textContent = `key failed: ${err.message}`
+      }
+    })
+    clear.addEventListener('click', () => {
+      store.clear()
+      status.textContent = 'keyless'
+    })
+    row.append(link, input, save, clear, status)
+    searchRows.append(row)
+  }
+  const websearchAllow = el('input', 'ai-websearch-allow')
+  websearchAllow.type = 'checkbox'
+  websearchAllow.checked = state.websearchAllow === true
+  websearchAllow.addEventListener('change', () => {
+    state.websearchAllow = websearchAllow.checked
+    persistSelection()
+    onWebsearchGrant(websearchAllow.checked)
+  })
+  const websearchProvider = el('select', 'ai-input ai-websearch-provider')
+  for (const value of ['random', ...SEARCH_PROVIDERS, 'off']) {
+    websearchProvider.append(Object.assign(el('option'), { value, textContent: value }))
+  }
+  websearchProvider.value = ['random', ...SEARCH_PROVIDERS, 'off'].includes(state.websearchProvider) ? state.websearchProvider : 'random'
+  state.websearchProvider = websearchProvider.value
+  websearchProvider.addEventListener('change', () => {
+    state.websearchProvider = websearchProvider.value
+    persistSelection()
+  })
+
   dialog.append(
     el('h2', 'ai-dialog-title', 'Chat settings'),
     field('Provider', kind),
@@ -294,6 +381,12 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
     apiField,
     effortWrap,
     advanced,
+    el('h3', 'ai-dialog-subtitle', 'Web search'),
+    searchRows,
+    field('Keep search keys', searchMode),
+    field('Search passphrase', searchPassphrase),
+    field('Allow web search', websearchAllow),
+    field('Search provider', websearchProvider),
     footer,
   )
   container.append(dialog)

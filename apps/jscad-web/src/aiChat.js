@@ -24,6 +24,43 @@ const el = (tag, className, text) => {
 
 const STOPPED_NOTE = '[stopped by the user]'
 
+// Blanket web-search permission: granted once per conversation, not per call.
+// Ungranted web_search short-circuits to a grant request instead of searching
+// (never auto-searches); every granted call is logged so spend is auditable.
+export const WEBSEARCH_GRANT_REQUEST =
+  'web_search needs the user\'s permission once per conversation, which is not granted yet. ' +
+  'Ask the user with ask_user whether to allow web search for this conversation ' +
+  '(or tell them they can allow it in Chat settings), and only call web_search again after they agree.'
+
+export const createWebsearchGrant = ({ granted = false, log = () => {} } = {}) => {
+  let on = granted
+  return {
+    isGranted: () => on,
+    setGranted: (next) => {
+      on = next === true
+    },
+    beforeToolCall: async (name) => {
+      if (name === 'web_search' && !on) return { decision: 'deny', reason: WEBSEARCH_GRANT_REQUEST }
+      return undefined
+    },
+    afterToolCall: async (name, input, result) => {
+      if (name !== 'web_search' || !on) return undefined
+      let parsed = result
+      if (typeof parsed === 'string') {
+        try {
+          parsed = JSON.parse(parsed)
+        } catch {
+          return undefined
+        }
+      }
+      if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.results)) return undefined
+      const providers = [...new Set(parsed.results.map((hit) => hit?.provider).filter(Boolean))]
+      log({ query: input?.query, provider: providers.join('+') || 'unknown', count: parsed.results.length })
+      return undefined
+    },
+  }
+}
+
 // A stopped reply may be empty, and providers refuse an empty assistant message.
 // Stored reasoning stays on the page: the model never gets it back. A reply's
 // mentions come through, since `buildMessages` reads their paths for recency.
@@ -79,7 +116,7 @@ const CHARS_PER_TOKEN = 4
  * change here.
  * @param {{container:HTMLElement,requestTool:Function,getProvider:Function,getSummarizer?:Function,getApi?:()=>'fluent'|'modeling',runTurnFn?:Function,beforeToolCall?:Function,afterToolCall?:Function,storage?:{readConversation:Function,writeConversation:Function},projectId?:string|(()=>string),getProjectFiles?:()=>Promise<Record<string,string|ArrayBuffer>>,getBuild?:()=>Promise<object|null>,startTurn?:()=>void,endTurn?:()=>Promise<void>}} options
  */
-export const initChat = ({ container, requestTool, getProvider, getSummarizer = getProvider, getApi = () => DEFAULT_API, runTurnFn = defaultRunTurn, beforeToolCall, afterToolCall, storage, projectId, getProjectFiles = async () => ({}), getBuild = async () => null, startTurn = () => {}, endTurn = async () => {} }) => {
+export const initChat = ({ container, requestTool, getProvider, getSummarizer = getProvider, getApi = () => DEFAULT_API, runTurnFn = defaultRunTurn, beforeToolCall, afterToolCall, websearchGranted = false, websearchLog = () => {}, websearchProvider, storage, projectId, getProjectFiles = async () => ({}), getBuild = async () => null, startTurn = () => {}, endTurn = async () => {} }) => {
   const header = el('div', 'chat-header')
   header.append(el('span', 'chat-title', 'AI Chat'))
   const newChatBtn = el('button', 'chat-new', 'New chat')
@@ -115,6 +152,16 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
   let turnMentions = []
   let transcript = []
   const pid = () => (typeof projectId === 'function' ? projectId() : projectId)
+  // Blanket web-search grant for this chat panel: the gear dialog toggles the
+  // global default for new conversations, setWebsearchGranted flips this one.
+  // Revoking clears the grant, never the stored keys.
+  const websearchGrant = createWebsearchGrant({ granted: websearchGranted, log: websearchLog })
+  const gatedBeforeToolCall = async (name, input) =>
+    (await websearchGrant.beforeToolCall(name, input)) ?? (await beforeToolCall?.(name, input))
+  const gatedAfterToolCall = async (name, input, result) => {
+    await websearchGrant.afterToolCall(name, input, result)
+    return afterToolCall?.(name, input, result)
+  }
   // The running turn's project; set at turn start so module-scope helpers
   // (handleTool) can skip DOM writes once another project is open.
   let turnProject = null
@@ -431,8 +478,9 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
         provider,
         api,
         requestTool: handleTool,
-        beforeToolCall,
-        afterToolCall,
+        beforeToolCall: gatedBeforeToolCall,
+        afterToolCall: gatedAfterToolCall,
+        toolFilter: websearchProvider === false ? (name) => name !== 'web_search' : undefined,
         onText: (text) => {
           assistantText += text
           if (!live()) return
@@ -483,5 +531,5 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
 
   if (storage && pid()) switchTo(pid())
 
-  return { switchTo, newChat }
+  return { switchTo, newChat, setWebsearchGranted: websearchGrant.setGranted, isWebsearchGranted: websearchGrant.isGranted }
 }

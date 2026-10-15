@@ -28,6 +28,41 @@ describe('browser chat turn', () => {
     expect(container.querySelector('.chat-messages').textContent).toMatch(/volume 42/)
   })
 
+  it('denies web_search until the user grants it, then proceeds and logs the call', async () => {
+    document.body.innerHTML = '<div id="chat"></div>'
+    const container = document.getElementById('chat')
+    let captured
+    const runTurnFn = vi.fn(async (opts) => {
+      captured = opts
+      return { messages: [] }
+    })
+    const requestTool = vi.fn(async () => ({ ok: true, results: [{ title: 't', url: 'https://example.com/x', snippet: 's', provider: 'exa' }] }))
+    const logs = []
+    const chat = initChat({
+      container,
+      requestTool,
+      getProvider: () => ({ kind: 'openai', model: 'm', apiKey: 'k', baseUrl: 'https://relay.test' }),
+      runTurnFn,
+      websearchLog: (entry) => logs.push(entry),
+    })
+    container.querySelector('.chat-input').value = 'search the web'
+    container.querySelector('.chat-form').dispatchEvent(new Event('submit', { cancelable: true }))
+    await vi.waitFor(() => expect(runTurnFn).toHaveBeenCalledTimes(1))
+    const denied = await captured.beforeToolCall('web_search', { query: 'bearing' })
+    expect(denied).toMatchObject({ decision: 'deny' })
+    expect(String(denied.reason)).toMatch(/ask_user/)
+    expect(requestTool).not.toHaveBeenCalled()
+    chat.setWebsearchGranted(true)
+    expect(await captured.beforeToolCall('web_search', { query: 'bearing' })).toBeUndefined()
+    expect(await captured.beforeToolCall('measure', {})).toBeUndefined()
+    await captured.afterToolCall(
+      'web_search',
+      { query: 'bearing' },
+      JSON.stringify({ ok: true, results: [{ title: 't', url: 'https://example.com/x', snippet: 's', provider: 'exa' }] }),
+    )
+    expect(logs).toEqual([{ query: 'bearing', provider: 'exa', count: 1 }])
+  })
+
   it('renders a string tool result as-is, not JSON-quoted with literal \\n', async () => {
     document.body.innerHTML = '<div id="chat"></div>'
     const container = document.getElementById('chat')

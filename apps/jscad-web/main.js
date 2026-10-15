@@ -74,7 +74,7 @@ import { showApiHelp, apiHelpStyles } from './src/apiHelp.js'
 import { initChat } from './src/aiChat.js'
 import { createSearchStores, createWebSearchHandler } from './src/aiSearch.js'
 import { dispatchTool, NO_ENTRY } from '@jscadui/agent-loop'
-import { initAccount, getChatApi, getProviderConfig, getSession } from './src/aiAccount.js'
+import { initAccount, getChatApi, getProviderConfig, getSession, getWebsearchSelection } from './src/aiAccount.js'
 
 /**
  * @typedef {import('@jscadui/worker').JscadWorker} JscadWorker
@@ -945,7 +945,11 @@ const aiDeps = {
     return { ok: true, image, camera: viewState.viewer.getCamera() }
   },
   docs: createDocs(loadApiIndex, getChatApi),
-  websearch: createWebSearchHandler({ stores: createSearchStores(globalThis.localStorage), getProjectId: () => currentProjectId }),
+  websearch: createWebSearchHandler({
+    stores: createSearchStores(globalThis.localStorage),
+    getProjectId: () => currentProjectId,
+    getPinned: () => getWebsearchSelection().provider,
+  }),
 }
 
 if (byId('ai-account')) initAccount(byId('ai-account'), {
@@ -954,6 +958,9 @@ if (byId('ai-account')) initAccount(byId('ai-account'), {
   // (private mode, the compute frame), where a reload drops it. `isDirty`
   // stays false for a session that only booted the untouched default.
   hasLocalWork: () => localStore.isDirty() && !localStore.persists(),
+  // The blanket web-search grant covers the live conversation; revoking it
+  // clears the grant but never the stored search keys.
+  onWebsearchGrant: (on) => chatControls?.setWebsearchGranted(on),
   onSignOut: async () => {
     syncHandle?.stop()
     syncHandle = null
@@ -974,6 +981,11 @@ if (byId('ai-chat')) {
     requestTool: (name, input) => dispatchTool(name, input, aiDeps),
     getProvider: getProviderConfig,
     getApi: getChatApi,
+    // Blanket web-search permission: the dialog toggle sets the default for
+    // new conversations; each granted call is audit-logged to the console.
+    websearchGranted: getWebsearchSelection().allow === true,
+    websearchLog: (entry) => console.info('[web_search]', entry),
+    websearchProvider: () => getWebsearchSelection().provider,
     storage: chatStorage,
     projectId: () => currentProjectId,
     getProjectFiles: () => fileSystem.projectFiles(),
