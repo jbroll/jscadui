@@ -337,6 +337,27 @@ describe('send gate', () => {
   })
 })
 
+describe('consent link target', () => {
+  // GitHub's heading slugs: lower-case, punctuation dropped, spaces to hyphens.
+  const slug = (heading) => heading.trim().toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-')
+
+  it('points the privacy note at a heading that exists in docs/architecture.md', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const { TOS_LINK } = await import('../src/aiConsent.js')
+    // The link and the local doc must not drift: same file, same anchor.
+    expect(TOS_LINK.href).toMatch(/\/apps\/jscad-web\/docs\/architecture\.md#privacy$/)
+    const doc = readFileSync(join(import.meta.dirname, '..', 'docs', 'architecture.md'), 'utf8')
+    const slugs = new Set(
+      doc
+        .split('\n')
+        .filter((line) => /^#{1,6}\s/.test(line))
+        .map((line) => slug(line.replace(/^#{1,6}\s*/, ''))),
+    )
+    expect(slugs).toContain(new URL(TOS_LINK.href).hash.slice(1))
+  })
+})
+
 afterEach(() => {
   document.body.innerHTML = ''
 })

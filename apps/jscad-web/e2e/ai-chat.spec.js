@@ -5,7 +5,19 @@
 import { test, expect } from '@playwright/test'
 import http from 'node:http'
 import { createEvalBackend } from '../../../packages/agent-loop/eval/backend.js'
+import { TOS_VERSION } from '../src/aiConsent.js'
 import { dismissWelcome, waitForRender, assertNoError } from './helpers.js'
+
+// Every turn is gated on an accepted terms version, so a seeded relay must
+// carry an accepted `jscad-ai.tos` record too, or Send opens the gate instead
+// of the turn and the spec times out.
+const seedTos = (version = TOS_VERSION, recordOwnChats = true) => JSON.stringify({ version, at: 0, recordOwnChats })
+
+// The key-custody "Keep" select. Its label's accessible name also carries the
+// option texts, and the search panel has a "Keep search keys" field, so target
+// the field whose name span is exactly "Keep".
+const keepMode = (page) =>
+  page.locator('.ai-field', { has: page.locator('.ai-field-name', { hasText: /^Keep$/ }) }).locator('select')
 
 const chunk = (json) => `data: ${JSON.stringify(json)}\n\n`
 
@@ -105,15 +117,20 @@ const PARITY_ROUNDS = [
   { name: 'docs', args: { query: 'text' } },
 ]
 
+// The demo provider's option list, as `GET /api/relay/shared` returns it.
+const SHARED_OPTIONS = [{ id: 'deepseek', label: 'DeepSeek v4 flash', kind: 'opencode-go', model: 'deepseek-v4-flash', available: true }]
+
 // A round `{ text, hold: true }` streams its text and then keeps the reply open; `delayMs` holds back every reply's start.
 // A round with `reasoning` streams it first as `reasoning_content`, then waits `pauseMs`; one without `name` answers `text`.
-const startStubRelay = (rounds = ROUNDS, { delayMs = 0 } = {}) =>
+// `shared` is the demo option list the gear dialog reads; a demo turn answers on the shared route like the own-key one.
+const startStubRelay = (rounds = ROUNDS, { delayMs = 0, shared = SHARED_OPTIONS } = {}) =>
   new Promise((resolve) => {
     const requests = []
+    const paths = []
     const cors = {
       'access-control-allow-origin': '*',
-      'access-control-allow-headers': 'content-type, authorization, x-jscad-chat-id',
-      'access-control-allow-methods': 'POST, OPTIONS',
+      'access-control-allow-headers': 'content-type, authorization, x-jscad-chat-id, x-opencode-session',
+      'access-control-allow-methods': 'GET, POST, OPTIONS',
     }
     const server = http.createServer((req, res) => {
       if (req.method === 'OPTIONS') {
@@ -124,12 +141,20 @@ const startStubRelay = (rounds = ROUNDS, { delayMs = 0 } = {}) =>
       let body = ''
       req.on('data', (c) => (body += c))
       req.on('end', async () => {
-        if (req.url !== '/api/relay/openai/v1/chat/completions' || req.method !== 'POST') {
+        // The demo option list the gear dialog reads.
+        if (req.method === 'GET' && req.url === '/api/relay/shared') {
+          res.writeHead(200, { ...cors, 'content-type': 'application/json' })
+          res.end(JSON.stringify(shared))
+          return
+        }
+        const sharedTurn = /^\/api\/relay\/shared\/[^/]+\/v1\/chat\/completions$/.test(req.url)
+        if ((req.url !== '/api/relay/openai/v1/chat/completions' && !sharedTurn) || req.method !== 'POST') {
           res.writeHead(404)
           res.end()
           return
         }
         requests.push(JSON.parse(body))
+        paths.push(req.url)
         const round = rounds[requests.length - 1]
         await new Promise((r) => setTimeout(r, delayMs))
         res.writeHead(200, { ...cors, 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' })
@@ -153,7 +178,7 @@ const startStubRelay = (rounds = ROUNDS, { delayMs = 0 } = {}) =>
         res.end()
       })
     })
-    server.listen(0, '127.0.0.1', () => resolve({ server, port: server.address().port, requests }))
+    server.listen(0, '127.0.0.1', () => resolve({ server, port: server.address().port, requests, paths }))
   })
 
 test.describe('AI chat', () => {
@@ -175,15 +200,16 @@ test.describe('AI chat', () => {
     await page.locator('.ai-provider-select').selectOption('openai')
     await page.locator('.ai-model-input').fill('stub-model')
     await page.locator('.ai-model-input').dispatchEvent('change')
-    await page.getByLabel('Keep').selectOption('device')
+    await keepMode(page).selectOption('device')
     await page.locator('.ai-key-input').fill('sk-test')
     await page.locator('.ai-save-key').click()
     await expect(page.locator('.ai-settings')).toContainText('Key set.')
 
     const stub = await startStubRelay()
-    await page.addInitScript((port) => {
+    await page.addInitScript(({ port, tos }) => {
       window.localStorage.setItem('jscad-ai.relay', `http://127.0.0.1:${port}`)
-    }, stub.port)
+      window.localStorage.setItem('jscad-ai.tos', tos)
+    }, { port: stub.port, tos: seedTos() })
     await page.reload()
     await dismissWelcome(page)
     await waitForRender(page)
@@ -233,16 +259,17 @@ test.describe('AI chat', () => {
     await page.locator('.ai-provider-select').selectOption('openai')
     await page.locator('.ai-model-input').fill('stub-model')
     await page.locator('.ai-model-input').dispatchEvent('change')
-    await page.getByLabel('Keep').selectOption('device')
+    await keepMode(page).selectOption('device')
     await page.locator('.ai-key-input').fill('sk-test')
     await page.locator('.ai-save-key').click()
 
     const stub = await startStubRelay(PARITY_ROUNDS)
     // The eval models with @jscad/modeling, the jscad engine, not manifold.
-    await page.addInitScript((port) => {
+    await page.addInitScript(({ port, tos }) => {
       window.localStorage.setItem('jscad-ai.relay', `http://127.0.0.1:${port}`)
       window.localStorage.setItem('engine.modelingEngine', 'jscad')
-    }, stub.port)
+      window.localStorage.setItem('jscad-ai.tos', tos)
+    }, { port: stub.port, tos: seedTos() })
     await page.reload()
     await dismissWelcome(page)
     await waitForRender(page)
@@ -301,14 +328,15 @@ test.describe('AI chat', () => {
     await page.locator('.ai-provider-select').selectOption('openai')
     await page.locator('.ai-model-input').fill('stub-model')
     await page.locator('.ai-model-input').dispatchEvent('change')
-    await page.getByLabel('Keep').selectOption('device')
+    await keepMode(page).selectOption('device')
     await page.locator('.ai-key-input').fill('sk-test')
     await page.locator('.ai-save-key').click()
 
     const stub = await startStubRelay([{ text: 'Working on the cube', hold: true }], { delayMs: 1500 })
-    await page.addInitScript((port) => {
+    await page.addInitScript(({ port, tos }) => {
       window.localStorage.setItem('jscad-ai.relay', `http://127.0.0.1:${port}`)
-    }, stub.port)
+      window.localStorage.setItem('jscad-ai.tos', tos)
+    }, { port: stub.port, tos: seedTos() })
     await page.reload()
     await dismissWelcome(page)
     await waitForRender(page)
@@ -348,7 +376,7 @@ test.describe('AI chat', () => {
     await page.locator('.ai-provider-select').selectOption('openai')
     await page.locator('.ai-model-input').fill('stub-model')
     await page.locator('.ai-model-input').dispatchEvent('change')
-    await page.getByLabel('Keep').selectOption('device')
+    await keepMode(page).selectOption('device')
     await page.locator('.ai-key-input').fill('sk-test')
     await page.locator('.ai-save-key').click()
 
@@ -356,9 +384,10 @@ test.describe('AI chat', () => {
       { reasoning: 'Plan: write a 10mm cube.', pauseMs: 2500, name: 'write', args: { path: 'main.js', content: CUBE } },
       { reasoning: 'It built cleanly.', text: 'Wrote the cube.' },
     ])
-    await page.addInitScript((port) => {
+    await page.addInitScript(({ port, tos }) => {
       window.localStorage.setItem('jscad-ai.relay', `http://127.0.0.1:${port}`)
-    }, stub.port)
+      window.localStorage.setItem('jscad-ai.tos', tos)
+    }, { port: stub.port, tos: seedTos() })
     await page.reload()
     await dismissWelcome(page)
     await waitForRender(page)
@@ -406,5 +435,83 @@ test.describe('AI chat', () => {
     await page.locator('#error-bar').evaluate((bar) => { bar.style.visibility = 'hidden' })
     const after = await page.screenshot({ clip })
     expect(after.equals(before)).toBe(true)
+  })
+
+  test('shows the recording notice line in its three states', async ({ page }) => {
+    const openChat = async () => {
+      await page.locator('#menu-button').click()
+      await page.locator('#ai-chat-btn').click()
+      await expect(page.locator('#ai-chat')).toBeVisible()
+    }
+    const notice = page.locator('.chat-notice')
+    // The drawer reads the stored consent record, so each state is a reload
+    // with a different `jscad-ai.tos`.
+    const setTos = async (recordOwnChats) => {
+      await page.evaluate(
+        ({ version, record }) => localStorage.setItem('jscad-ai.tos', JSON.stringify({ version, at: 0, recordOwnChats: record })),
+        { version: TOS_VERSION, record: recordOwnChats },
+      )
+      await page.reload()
+      await dismissWelcome(page)
+      await waitForRender(page)
+    }
+
+    // Recording on: the saved line, with the link into Chat settings.
+    await setTos(true)
+    await openChat()
+    await expect(notice).toBeVisible()
+    await expect(notice).toHaveText('Chats are saved to improve the assistant. Turn this off in Chat settings.')
+    await expect(notice.locator('.chat-notice-settings')).toBeVisible()
+
+    // Opted out: no line at all.
+    await setTos(false)
+    await openChat()
+    await expect(notice).toBeHidden()
+
+    // Demo always records: the always-saved line, and no settings link.
+    const stub = await startStubRelay()
+    await page.addInitScript((port) => {
+      window.localStorage.setItem('jscad-ai.relay', `http://127.0.0.1:${port}`)
+    }, stub.port)
+    await setTos(true)
+    await openChat()
+    await page.locator('.ai-gear').click()
+    await expect(page.locator('.ai-provider-select option[value="demo:deepseek"]')).toHaveCount(1)
+    await page.locator('.ai-provider-select').selectOption('demo:deepseek')
+    await expect(notice).toBeVisible()
+    await expect(notice).toHaveText('Chats on shared keys are always saved to improve the assistant.')
+    await expect(notice.locator('.chat-notice-settings')).toBeHidden()
+    stub.server.close()
+  })
+
+  test('offers the demo provider and runs a turn on the shared relay', async ({ page }) => {
+    test.setTimeout(60_000)
+    const stub = await startStubRelay([{ text: 'Demo reply.' }])
+    await page.addInitScript(({ port, tos }) => {
+      window.localStorage.setItem('jscad-ai.relay', `http://127.0.0.1:${port}`)
+      window.localStorage.setItem('jscad-ai.tos', tos)
+    }, { port: stub.port, tos: seedTos() })
+    await page.reload()
+    await dismissWelcome(page)
+    await waitForRender(page)
+    await page.locator('#menu-button').click()
+    await page.locator('#ai-chat-btn').click()
+
+    await page.locator('.ai-gear').click()
+    await expect(page.locator('.ai-provider-select option[value="demo:deepseek"]')).toHaveCount(1)
+    await page.locator('.ai-provider-select').selectOption('demo:deepseek')
+    // The option pins the model and hides the key controls; the relay owns the key.
+    await expect(page.locator('.ai-demo-info')).toContainText('Demo: DeepSeek v4 flash')
+    await expect(page.locator('.ai-demo-info')).toContainText('deepseek-v4-flash')
+    await expect(page.locator('.ai-key-input')).toBeHidden()
+    await page.locator('.ai-dialog-footer button').click()
+
+    await page.locator('.chat-input').fill('model a cube')
+    await page.locator('.chat-send').click()
+    await expect(page.locator('.chat-messages')).toContainText('Demo reply.', { timeout: 30_000 })
+    expect(stub.paths).toEqual(['/api/relay/shared/deepseek/v1/chat/completions'])
+    expect(stub.requests).toHaveLength(1)
+    expect(stub.requests[0].model).toBe('deepseek-v4-flash')
+    stub.server.close()
   })
 })

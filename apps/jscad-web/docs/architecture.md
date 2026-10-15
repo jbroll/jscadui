@@ -1248,8 +1248,28 @@ examples are separate files in `prompt/examples/fluent/` and
 natively, jscad-web's build reads through `src_build/rawImport.js`, and Node
 reads through `text-loader.js`.
 
-Logging stays in the local launcher. The production relay forwards by
-allowlist, so it drops the chat id header and records nothing.
+Both relays log. The launcher relay and the production relay write each
+consented conversation to a per-day JSONL file and keep 90 days by default
+(`server/RELAY.md`). The production relay writes an own-key turn only when the
+request carries the chat id header, which the client omits when the user opts
+out, and always writes a demo turn.
+
+## Demo provider
+
+A visitor can try the chat before signing up or adding a key. The gear dialog
+lists the relay's shared options as `Demo: <label>` entries (`GET
+/api/relay/shared` returns `[{id, label, kind, model, available}]` — never keys
+or prices). Choosing one stores `{shared, demo: true}` in `jscad-ai.selection`,
+pins that option's model, and hides the key, custody, base URL and model
+controls, since the relay owns the credential. The client carries exactly one
+sentinel credential, `demo-limited-free`, for every demo option; the relay
+ignores its value and injects the operator's server-held key on `POST
+/api/relay/shared/<id>/*`, where the sub-path must be the option's own. A demo
+turn is always recorded (see Privacy) and is bounded by the meter's per-IP daily
+and monthly budgets; an exhausted budget answers `402 shared_quota_exhausted`,
+which the chat shows as a quota line pointing at adding a key. An unreadable
+shared list hides demo rather than offering a selection that cannot run. The
+operator's `shared.json` and the budgets are documented in `server/RELAY.md`.
 
 ## Key custody
 
@@ -1258,6 +1278,24 @@ in memory for the session, in `localStorage` on this origin, or as AES-GCM
 ciphertext under a PBKDF2 passphrase that never leaves the browser. The key
 rides the relay request to the provider and is never stored server-side, never
 logged, and never sent into the frame.
+
+## Privacy
+
+The chat sends the model's prompts, the project files in context and the tool
+outputs to the chosen inference provider, which may train on session data; that
+is one of the acknowledgements the first turn requires. We record our own chats
+only to improve jscad-web, and only with the user's consent: the first turn
+opens a versioned gate (`src/aiConsent.js`, `localStorage['jscad-ai.tos'] =
+{version, at, recordOwnChats}`), and the optional "Save my chats" box defaults on
+but can be turned off, which sets `localStorage['jscad-ai.log'] = 'off'` and
+omits the `x-jscad-chat-id` header so the relay never logs the turn. Demo turns
+are the exception: they always record and cannot be opted out, which the gate
+states plainly. Bumping `TOS_VERSION` re-prompts without deleting the prior
+choice, which the gate pre-checks. The launcher relay writes each logged turn to
+a JSONL file under its log directory; the production relay logs them too (see
+`server/RELAY.md`), keeping 90 days by default. A custom base URL calls the
+provider directly and is never recorded, so its turn keeps the code-execution
+and provider-sharing acknowledgements and skips the recording question.
 
 ## Storage
 

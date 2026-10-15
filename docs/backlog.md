@@ -538,9 +538,6 @@ from the 2026-10-01 review.
   unreleased manifold anchor fixes) while the frame serves the local
   `bundle.jscad-anchors.js` build of the same checkout (`frameHost.js:18`),
   so eval results for anchor models may differ from the app.
-- **Production relay chat logging (jscad-web server).** Only the launcher
-  relay logs conversations. Logging in `server/src/relay` needs the user's
-  opt-in before anything is written.
 - **Eval cannot load `@jbroll/jscad-anchors` (agent-loop).** It is not
   installed, so model code requiring it fails in `eval/backend.js` while the
   frame serves its local `bundle.jscad-anchors.js` build.
@@ -597,11 +594,9 @@ from the 2026-10-01 review.
   prompt before plan-then-build is measured on it, by rounds and `checkRate`.
   Gate: `--regrade` of the existing baselines moves no other fixture's total.
 
-- **Chat settings follow-ups (jscad-web).** `e2e/ai-chat.spec.js` was
-  updated for the gear dialog but not yet run through simple-ci. The model
-  list has not been seen with a real Meta key. Form controls stay light in
-  dark mode, and the drawer header wraps the gear onto its own line when the
-  sign-in copy is long.
+- **Chat settings follow-ups (jscad-web).** The model list has not been seen
+  with a real Meta key. Form controls stay light in dark mode, and the drawer
+  header wraps the gear onto its own line when the sign-in copy is long.
 
 - **Accessibility.** Input-level ARIA exists; still missing are tree and
   toolbar roles, keyboard navigation for the param and file trees, modal
