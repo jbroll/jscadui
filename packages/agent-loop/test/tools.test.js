@@ -60,6 +60,12 @@ describe('agent tools', () => {
     expect(between.description).toMatch(/"all" works only in parts/)
   })
 
+  it('points the measure section description at execute, not the old run name', () => {
+    const { section } = TOOLS.find((t) => t.name === 'measure').inputSchema.properties
+    expect(section.description).toMatch(/no slicing in execute is needed/)
+    expect(section.description).not.toMatch(/\brun\b/)
+  })
+
   it('offers an overlaps switch on measure for interference triage', () => {
     const { overlaps } = TOOLS.find((t) => t.name === 'measure').inputSchema.properties
     expect(overlaps.type).toBe('boolean')
@@ -174,6 +180,7 @@ describe('agent tools', () => {
     const execute = tools.find((t) => t.name === 'execute')
     expect(Object.keys(execute.inputSchema.properties)).toEqual(['source'])
     expect(execute.inputSchema.required).toEqual(['source'])
+    expect(execute.inputSchema.additionalProperties).toBe(false)
     expect(execute.inputSchema.properties.source.type).toBe('string')
     expect(execute.description).toMatch(/never saved/)
     expect(execute.description).toMatch(/parts, size, volume/)

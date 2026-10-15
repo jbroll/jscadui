@@ -68,11 +68,14 @@ describe('dispatchTool', () => {
     expect(d.deleteFile).toHaveBeenCalledWith({ path: 'helper.js' })
   })
 
-  it('routes execute to deps.run with its source', async () => {
+  it('routes execute to deps.run with its source, and rejects missing or unknown args', async () => {
     const d = deps()
     await dispatchTool('execute', { source: 'console.log(1)' }, d)
     expect(d.run).toHaveBeenCalledWith('console.log(1)')
+    d.run.mockClear()
     expect(await dispatchTool('execute', {}, d)).toEqual(expect.objectContaining({ ok: false, error: expect.objectContaining({ name: 'ValidationError' }) }))
+    expect(await dispatchTool('execute', { source: 'x', bogus: 1 }, d)).toEqual(expect.objectContaining({ ok: false, error: expect.objectContaining({ name: 'ValidationError' }) }))
+    expect(d.run).not.toHaveBeenCalled()
   })
 
   it('answers the old run name as an unknown tool', async () => {
