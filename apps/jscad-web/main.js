@@ -989,6 +989,8 @@ if (byId('ai-account')) initAccount(byId('ai-account'), {
   // The blanket web-search grant covers the live conversation; revoking it
   // clears the grant but never the stored search keys.
   onWebsearchGrant: (on) => chatControls?.setWebsearchGranted(on),
+  // Any provider/recording change rewrites the chat drawer's notice line.
+  onSelectionChange: () => chatControls?.refreshNotice(),
   onSignOut: async () => {
     syncHandle?.stop()
     syncHandle = null

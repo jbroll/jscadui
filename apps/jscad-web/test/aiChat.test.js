@@ -935,6 +935,14 @@ describe('relay base url', () => {
     expect(relayBaseUrl('openai')).toBe('http://127.0.0.1:9999/api/relay/openai')
     window.localStorage.removeItem('jscad-ai.relay')
   })
+
+  it('maps a demo selection to the shared route', async () => {
+    window.localStorage.removeItem('jscad-ai.relay')
+    expect(relayBaseUrl('opencode-go', 'deepseek')).toBe('https://jscad.rkroll.com/api/relay/shared/deepseek')
+    window.localStorage.setItem('jscad-ai.relay', 'http://127.0.0.1:9999')
+    expect(relayBaseUrl('meta', 'muse')).toBe('http://127.0.0.1:9999/api/relay/shared/muse')
+    window.localStorage.removeItem('jscad-ai.relay')
+  })
 })
 describe('conversation context', () => {
   const submit = async (container, text, calls, runTurnFn) => {
@@ -1131,5 +1139,125 @@ describe('conversation context', () => {
     expect(fetchMock.mock.calls[0][1].headers['x-jscad-chat-id']).toEqual(expect.any(String))
     expect(fetchMock.mock.calls[1][1].headers).not.toHaveProperty('x-jscad-chat-id')
     vi.unstubAllGlobals()
+  })
+})
+
+describe('recording consent in the chat drawer', () => {
+  const OWN_KEY = { kind: 'openai', model: 'm', apiKey: 'k', baseUrl: 'https://relay.test' }
+  const DEMO_KEY = { kind: 'opencode-go', model: 'deepseek-v4.1-flash', apiKey: 'demo-limited-free', shared: 'deepseek', demo: true }
+
+  const openChat = (getProvider) => {
+    document.body.innerHTML = '<div id="chat"></div>'
+    const container = document.getElementById('chat')
+    initChat({ container, requestTool: async () => '{}', getProvider, runTurnFn: async () => ({ messages: [] }) })
+    return container
+  }
+
+  it('shows the saved line while own-key chats are being recorded', async () => {
+    const container = openChat(() => OWN_KEY)
+    const notice = container.querySelector('.chat-notice')
+    expect(notice.style.display).toBe('')
+    expect(notice.textContent).toBe('Chats are saved to improve the assistant. Turn this off in Chat settings.')
+  })
+
+  it('hides the notice when the user opted out of recording', async () => {
+    localStorage.setItem('jscad-ai.tos', JSON.stringify({ version: TOS_VERSION, at: 0, recordOwnChats: false }))
+    const container = openChat(() => OWN_KEY)
+    expect(container.querySelector('.chat-notice').style.display).toBe('none')
+  })
+
+  it('shows the always-saved line for a demo selection even when opted out', async () => {
+    localStorage.setItem('jscad-ai.tos', JSON.stringify({ version: TOS_VERSION, at: 0, recordOwnChats: false }))
+    const container = openChat(() => DEMO_KEY)
+    const notice = container.querySelector('.chat-notice')
+    expect(notice.style.display).toBe('')
+    expect(notice.textContent).toBe('Chats on shared keys are always saved to improve the assistant.')
+  })
+
+  it('refreshes the notice when the selection changes', async () => {
+    document.body.innerHTML = '<div id="chat"></div>'
+    const container = document.getElementById('chat')
+    let selection = OWN_KEY
+    const chat = initChat({ container, requestTool: async () => '{}', getProvider: () => selection, runTurnFn: async () => ({ messages: [] }) })
+    expect(container.querySelector('.chat-notice').textContent).toMatch(/Chats are saved/)
+    selection = DEMO_KEY
+    chat.refreshNotice()
+    expect(container.querySelector('.chat-notice').textContent).toMatch(/always saved/)
+  })
+})
+
+describe('own-key recording opt-out', () => {
+  it('omits x-jscad-chat-id when recording is off', async () => {
+    localStorage.setItem('jscad-ai.tos', JSON.stringify({ version: TOS_VERSION, at: 0, recordOwnChats: false }))
+    const fetchMock = vi.fn(async () => new Response('data: [DONE]\n\n'))
+    vi.stubGlobal('fetch', fetchMock)
+    window.localStorage.removeItem('jscad-ai.relay')
+    document.body.innerHTML = '<div id="chat"></div>'
+    const container = document.getElementById('chat')
+    const runTurnFn = vi.fn(async ({ provider }) => {
+      for await (const e of provider.send([{ role: 'user', content: 'hi' }], [])) void e
+      return { messages: [] }
+    })
+    initChat({
+      container,
+      requestTool: async () => '{}',
+      getProvider: () => ({ kind: 'openai', model: 'm', apiKey: 'k' }),
+      runTurnFn,
+      projectId: 'p1',
+    })
+    container.querySelector('.chat-input').value = 'hi'
+    container.querySelector('.chat-form').dispatchEvent(new Event('submit', { cancelable: true }))
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    expect(fetchMock.mock.calls[0][1].headers).not.toHaveProperty('x-jscad-chat-id')
+    vi.unstubAllGlobals()
+  })
+})
+
+describe('demo turn routing', () => {
+  it('routes a demo turn to the shared relay path with the sentinel key', async () => {
+    const fetchMock = vi.fn(async () => new Response('data: [DONE]\n\n'))
+    vi.stubGlobal('fetch', fetchMock)
+    window.localStorage.removeItem('jscad-ai.relay')
+    document.body.innerHTML = '<div id="chat"></div>'
+    const container = document.getElementById('chat')
+    const runTurnFn = vi.fn(async ({ provider }) => {
+      for await (const e of provider.send([{ role: 'user', content: 'hi' }], [])) void e
+      return { messages: [] }
+    })
+    initChat({
+      container,
+      requestTool: async () => '{}',
+      getProvider: () => ({ kind: 'opencode-go', model: 'deepseek-v4.1-flash', apiKey: 'demo-limited-free', shared: 'deepseek', demo: true }),
+      runTurnFn,
+    })
+    container.querySelector('.chat-input').value = 'hi'
+    container.querySelector('.chat-form').dispatchEvent(new Event('submit', { cancelable: true }))
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    expect(fetchMock.mock.calls[0][0]).toBe('https://jscad.rkroll.com/api/relay/shared/deepseek/v1/chat/completions')
+    expect(fetchMock.mock.calls[0][1].headers.authorization).toBe('Bearer demo-limited-free')
+    vi.unstubAllGlobals()
+  })
+})
+
+describe('demo quota error', () => {
+  it('explains the shared quota and points at adding a key', async () => {
+    document.body.innerHTML = '<div id="chat"></div>'
+    const container = document.getElementById('chat')
+    const quota = Object.assign(
+      new Error('openai: {"error":{"code":"shared_quota_exhausted","scope":"month"}} (status 402)'),
+      { status: 402, body: '{"error":{"code":"shared_quota_exhausted"}}' },
+    )
+    initChat({
+      container,
+      requestTool: async () => '{}',
+      getProvider: () => ({ kind: 'opencode-go', model: 'deepseek-v4.1-flash', apiKey: 'demo-limited-free', shared: 'deepseek', demo: true }),
+      runTurnFn: async () => {
+        throw quota
+      },
+    })
+    container.querySelector('.chat-input').value = 'hello'
+    container.querySelector('.chat-form').dispatchEvent(new Event('submit', { cancelable: true }))
+    await vi.waitFor(() => expect(container.querySelector('.chat-msg.error')).toBeTruthy())
+    expect(container.querySelector('.chat-msg.error').textContent).toMatch(/Add your own key/)
   })
 })

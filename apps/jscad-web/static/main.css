@@ -1173,12 +1173,27 @@ p {
   justify-content: flex-end;
   margin-top: 14px;
 }
+.ai-field-note {
+  grid-column: 2;
+  color: #666;
+  font-size: 9pt;
+}
+.dark .ai-field-note {
+  color: #aaa;
+}
+.ai-demo-info {
+  margin: -2px 0 8px 8.5rem;
+  color: #666;
+}
+.dark .ai-demo-info {
+  color: #aaa;
+}
 @media (max-width: 480px) {
   .ai-settings .ai-field {
     grid-template-columns: 1fr;
     gap: 2px;
   }
-  .ai-actions, .ai-model-status {
+  .ai-actions, .ai-model-status, .ai-demo-info {
     margin-left: 0;
     padding-left: 0;
   }
@@ -1265,6 +1280,20 @@ p {
   margin-left: auto;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
+}
+.chat-notice {
+  padding: 0 10px 4px;
+  font-size: 9pt;
+  color: var(--chat-muted);
+}
+.chat-notice-settings {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--chat-focus);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
 }
 .chat-send.running,
 .chat-send.running:hover {

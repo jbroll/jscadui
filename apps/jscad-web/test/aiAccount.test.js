@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { TOS_VERSION } from '../src/aiConsent.js'
 
 vi.mock('@jscadui/key-store', () => {
   const byKey = new Map()
@@ -180,7 +181,7 @@ describe('account header', () => {
     document.body.innerHTML = '<div id="a"></div>'
     initAccount(document.getElementById('a'))
     const names = [...document.querySelectorAll('.ai-settings .ai-field-name')].map((n) => n.textContent)
-    expect(names).toEqual(['Provider', 'API key', 'Keep', 'Passphrase', 'Model', 'Custom model id', 'API style', 'Effort', 'Base URL', 'Keep search keys', 'Search passphrase', 'Allow web search', 'Search provider'])
+    expect(names).toEqual(['Provider', 'API key', 'Keep', 'Passphrase', 'Model', 'Custom model id', 'API style', 'Effort', 'Save chats', 'Base URL', 'Keep search keys', 'Search passphrase', 'Allow web search', 'Search provider'])
   })
 
   it('saves and clears search keys per provider with no search network traffic', async () => {
@@ -346,6 +347,149 @@ describe('account header', () => {
     expect(sessionCalls).toBe(before)
     releaseSignOut()
     await vi.waitFor(() => expect(sessionCalls).toBeGreaterThan(before))
+  })
+})
+
+describe('demo provider', () => {
+  // The relay's shared list: one usable option and one out of monthly budget.
+  const SHARED = [
+    { id: 'deepseek', label: 'DeepSeek v4 flash', kind: 'opencode-go', model: 'deepseek-v4.1-flash', available: true },
+    { id: 'muse', label: 'Muse Spark 1.3', kind: 'meta', model: 'muse-spark-1.3', available: false },
+  ]
+
+  const sharedFetch = (options, models = []) => vi.fn(async (url) => {
+    if (String(url).includes('/api/auth/')) return new Response(JSON.stringify({}), { status: 401 })
+    if (/\/api\/relay\/shared$/.test(String(url))) return new Response(JSON.stringify(options), { headers: { 'content-type': 'application/json' } })
+    if (String(url).includes('/v1/models')) return new Response(JSON.stringify({ data: models.map((id) => ({ id })) }), { headers: { 'content-type': 'application/json' } })
+    return new Response('{}', { status: 404 })
+  })
+
+  // Opens the gear dialog and waits for the shared list to land in the select.
+  const openGear = async (fetchImpl, { demo = true } = {}) => {
+    globalThis.fetch = fetchImpl
+    document.body.innerHTML = '<div id="a"></div>'
+    const account = await loadAccount()
+    account.initAccount(document.getElementById('a'))
+    document.querySelector('.ai-gear').click()
+    if (demo) {
+      await vi.waitFor(() => {
+        expect([...document.querySelectorAll('.ai-provider-select option')].some((o) => o.value.startsWith('demo:'))).toBe(true)
+      })
+    } else {
+      await new Promise((r) => setTimeout(r, 20))
+    }
+    return account
+  }
+
+  const selectDemo = async (id) => {
+    await vi.waitFor(() => expect([...document.querySelectorAll('.ai-provider-select option')].some((o) => o.value === `demo:${id}`)).toBe(true))
+    const select = document.querySelector('.ai-provider-select')
+    select.value = `demo:${id}`
+    select.dispatchEvent(new Event('change'))
+  }
+
+  beforeEach(() => {
+    localStorage.clear()
+    document.body.innerHTML = ''
+    globalThis.fetch = vi.fn(async () => new Response(JSON.stringify([]), { headers: { 'content-type': 'application/json' } }))
+  })
+
+  it('lists the shared relay options as Demo entries', async () => {
+    await openGear(sharedFetch(SHARED))
+    const labels = [...document.querySelectorAll('.ai-provider-select option')].map((o) => o.textContent)
+    expect(labels).toContain('Demo: DeepSeek v4 flash')
+    expect(labels.some((label) => label.startsWith('Demo: Muse Spark 1.3'))).toBe(true)
+  })
+
+  it('disables an exhausted demo option and names the reason', async () => {
+    await openGear(sharedFetch(SHARED))
+    const option = [...document.querySelectorAll('.ai-provider-select option')].find((o) => o.value === 'demo:muse')
+    expect(option.disabled).toBe(true)
+    expect(option.textContent).toBe('Demo: Muse Spark 1.3 (monthly limit reached)')
+  })
+
+  it('persists a demo selection and returns the sentinel-key config', async () => {
+    const { getProviderConfig } = await openGear(sharedFetch(SHARED))
+    await selectDemo('deepseek')
+    expect(JSON.parse(localStorage.getItem('jscad-ai.selection'))).toMatchObject({ kind: 'opencode-go', model: 'deepseek-v4.1-flash', shared: 'deepseek', demo: true })
+    expect(getProviderConfig()).toMatchObject({ kind: 'opencode-go', model: 'deepseek-v4.1-flash', apiKey: 'demo-limited-free', shared: 'deepseek', demo: true })
+  })
+
+  it('fails closed for a demo record with no model', async () => {
+    const { getProviderConfig } = await loadAccount()
+    localStorage.setItem('jscad-ai.selection', JSON.stringify({ kind: 'opencode-go', demo: true, shared: 'deepseek' }))
+    expect(getProviderConfig()).toBeNull()
+  })
+
+  it('hides the key, custody, base URL and model controls for demo', async () => {
+    await openGear(sharedFetch(SHARED))
+    await selectDemo('deepseek')
+    expect(document.querySelector('.ai-key-input').closest('.ai-field').style.display).toBe('none')
+    expect(document.querySelector('.ai-model-select').closest('.ai-field').style.display).toBe('none')
+    expect(document.querySelector('.ai-model-input').closest('.ai-field').style.display).toBe('none')
+    expect(document.querySelector('.ai-advanced').style.display).toBe('none')
+    const info = document.querySelector('.ai-demo-info')
+    expect(info.style.display).toBe('')
+    expect(info.textContent).toMatch(/Demo: DeepSeek v4 flash/)
+  })
+
+  it('does not request the model list for a demo selection', async () => {
+    const account = await loadAccount()
+    await account.keyStore.set('sk-x', 'session')
+    await openGear(sharedFetch(SHARED, ['gpt-x']))
+    await vi.waitFor(() => expect(globalThis.fetch.mock.calls.some(([u]) => String(u).includes('/v1/models'))).toBe(true))
+    const before = globalThis.fetch.mock.calls.filter(([u]) => String(u).includes('/v1/models')).length
+    await selectDemo('deepseek')
+    await new Promise((r) => setTimeout(r, 20))
+    expect(globalThis.fetch.mock.calls.filter(([u]) => String(u).includes('/v1/models'))).toHaveLength(before)
+  })
+
+  it('mirrors the recording choice into both storage keys', async () => {
+    localStorage.setItem('jscad-ai.tos', JSON.stringify({ version: TOS_VERSION, at: 1, recordOwnChats: true }))
+    await openGear(sharedFetch(SHARED))
+    const toggle = document.querySelector('.ai-record-toggle')
+    expect(toggle.checked).toBe(true)
+    toggle.checked = false
+    toggle.dispatchEvent(new Event('change'))
+    expect(localStorage.getItem('jscad-ai.log')).toBe('off')
+    expect(JSON.parse(localStorage.getItem('jscad-ai.tos')).recordOwnChats).toBe(false)
+    toggle.checked = true
+    toggle.dispatchEvent(new Event('change'))
+    expect(localStorage.getItem('jscad-ai.log')).toBeNull()
+    expect(JSON.parse(localStorage.getItem('jscad-ai.tos')).recordOwnChats).toBe(true)
+  })
+
+  it('shows the .tos recording choice when a divergent log mirror disagrees', async () => {
+    localStorage.setItem('jscad-ai.tos', JSON.stringify({ version: TOS_VERSION, at: 1, recordOwnChats: false }))
+    localStorage.removeItem('jscad-ai.log')
+    await openGear(sharedFetch(SHARED))
+    expect(document.querySelector('.ai-record-toggle').checked).toBe(false)
+  })
+
+  it('shows the .tos recording choice when the mirror opts out instead', async () => {
+    localStorage.setItem('jscad-ai.tos', JSON.stringify({ version: TOS_VERSION, at: 1, recordOwnChats: true }))
+    localStorage.setItem('jscad-ai.log', 'off')
+    await openGear(sharedFetch(SHARED))
+    expect(document.querySelector('.ai-record-toggle').checked).toBe(true)
+  })
+
+  it('locks the recording checkbox on and checked for demo', async () => {
+    await openGear(sharedFetch(SHARED))
+    await selectDemo('deepseek')
+    const toggle = document.querySelector('.ai-record-toggle')
+    expect(toggle.checked).toBe(true)
+    expect(toggle.disabled).toBe(true)
+  })
+
+  it('hides the demo entries when the shared list cannot be read', async () => {
+    const failing = vi.fn(async (url) => {
+      if (String(url).includes('/api/auth/')) return new Response(JSON.stringify({}), { status: 401 })
+      if (/\/api\/relay\/shared$/.test(String(url))) throw new Error('offline')
+      return new Response('{}', { status: 404 })
+    })
+    await openGear(failing, { demo: false })
+    await new Promise((r) => setTimeout(r, 20))
+    expect([...document.querySelectorAll('.ai-provider-select option')].some((o) => o.value.startsWith('demo:'))).toBe(false)
   })
 })
 

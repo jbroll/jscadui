@@ -6,10 +6,19 @@
 import { APIS, DEFAULT_API } from '@jscadui/agent-loop'
 import { createKeyStore } from '@jscadui/key-store'
 import { SEARCH_PROVIDERS, createSearchStores } from './aiSearch.js'
-import { relayBaseUrl } from './aiChat.js'
+import { relayBaseUrl, sharedListUrl } from './aiChat.js'
 import { effortOptionsForModel } from './aiEffort.js'
+import { getRecordOwnChats, isDemoSelection, RECORDING_TEXT, setRecordOwnChats } from './aiConsent.js'
 
 const SELECTION_KEY = 'jscad-ai.selection'
+
+// The one credential the demo provider carries; the relay ignores its value and
+// injects the operator's server-held key per shared option.
+export const DEMO_API_KEY = 'demo-limited-free'
+const DEMO_PREFIX = 'demo:'
+// The relay's `available` flag is month-only; an exhausted option stays listed
+// so its reason is visible, but cannot be chosen.
+const DEMO_LIMIT_REASON = 'monthly limit reached'
 
 // The local backend persists to IndexedDB when available; only without it
 // (private mode, the compute frame) does a reload drop work that was never
@@ -79,12 +88,31 @@ export const getChatApi = () => {
 }
 
 // The provider config the chat POSTs per turn, or null when incomplete.
-// Fail-closed: no key, no model, no turn.
+// Fail-closed: no key, no model, no turn. A demo selection carries the sentinel
+// credential instead of a user key and rides the shared relay route.
 export const getProviderConfig = () => {
-  const { kind = 'anthropic', model = '', baseUrl = '', effort = '' } = getSelection()
+  const selection = getSelection()
+  const { kind = 'anthropic', model = '', baseUrl = '', effort = '' } = selection
+  if (!model) return null
+  if (isDemoSelection(selection)) {
+    return { kind, model, ...(effort ? { effort } : {}), apiKey: DEMO_API_KEY, shared: selection.shared, demo: true }
+  }
   const apiKey = keyStore.get()
-  if (!apiKey || !model) return null
+  if (!apiKey) return null
   return { kind, model, ...(baseUrl ? { baseUrl } : {}), ...(effort ? { effort } : {}), apiKey }
+}
+
+// The demo options the relay offers, or [] when the list cannot be read. An
+// unreadable list hides demo rather than offering a selection that cannot run.
+export const loadSharedOptions = async () => {
+  try {
+    const res = await fetch(sharedListUrl(), { headers: { accept: 'application/json' } })
+    if (!res.ok) return []
+    const body = await res.json()
+    return Array.isArray(body) ? body.filter((opt) => opt && typeof opt.id === 'string') : []
+  } catch {
+    return []
+  }
 }
 
 const getSession = async () => {
@@ -100,7 +128,7 @@ const getSession = async () => {
 
 export { getSession }
 
-const modelPlaceholders = { anthropic: 'claude-sonnet-4-5', openai: 'gpt-4o', 'opencode-go': 'deepseek-v4-flash', meta: 'muse-spark-1.3' }
+const modelPlaceholders = { anthropic: 'claude-sonnet-4-5', openai: 'gpt-4o', 'opencode-go': 'deepseek-v4.1-flash', meta: 'muse-spark-1.3' }
 const KINDS = ['anthropic', 'openai', 'opencode-go', 'meta']
 
 const authHeaders = (kind, apiKey) =>
@@ -113,9 +141,9 @@ const modelsUrl = (kind, baseUrl) =>
 
 /**
  * @param {HTMLElement} container
- * @param {{onSignOut?: Function, hasLocalWork?: () => boolean}} [options]
+ * @param {{onSignOut?: Function, hasLocalWork?: () => boolean, onWebsearchGrant?: Function, onSelectionChange?: Function}} [options]
  */
-export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = () => false, onWebsearchGrant = () => {} } = {}) => {
+export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = () => false, onWebsearchGrant = () => {}, onSelectionChange = () => {} } = {}) => {
   warnOnUnload = hasLocalWork
   suppressUnloadPrompt = false
   const selection = getSelection()
@@ -125,20 +153,27 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
     model: selection.model ?? '',
     baseUrl: selection.baseUrl ?? '',
     effort: selection.effort ?? '',
+    demo: isDemoSelection(selection),
+    shared: typeof selection.shared === 'string' ? selection.shared : '',
     api: APIS.includes(selection.api) ? selection.api : DEFAULT_API,
     capabilities: new Map(),
     websearchAllow: websearch.allow,
     websearchProvider: websearch.provider,
   }
-  const persistSelection = () =>
+  // A demo selection stores `{shared, demo:true}` and never a base URL; switching
+  // back to an own-key provider drops both.
+  const persistSelection = () => {
     setSelection({
       kind: state.kind,
       model: state.model,
       baseUrl: state.baseUrl,
       api: state.api,
       ...(state.effort ? { effort: state.effort } : {}),
+      ...(demoActive() ? { shared: state.shared, demo: true } : {}),
       websearch: { allow: state.websearchAllow, provider: state.websearchProvider },
     })
+    onSelectionChange()
+  }
 
   // Header row: sign-in state on the left, gear on the right.
   const header = el('div', 'ai-header-row')
@@ -197,7 +232,18 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
   })
 
   const summary = el('div', 'ai-session ai-summary')
+
+  // A demo option pins one model on the relay; the dialog shows it as
+  // `Demo: <label>` and hides the key, custody, base URL and model controls.
+  let sharedOptions = []
+  const demoActive = () => state.demo === true && typeof state.shared === 'string' && state.shared !== ''
+  const demoOption = () => sharedOptions.find((opt) => opt.id === state.shared) ?? null
+
   const refreshSummary = () => {
+    if (demoActive()) {
+      summary.textContent = `Demo: ${demoOption()?.label ?? state.shared}`
+      return
+    }
     summary.textContent = state.model ? `${state.kind} · ${state.model}` : `${state.kind} · no model set`
   }
   container.append(summary)
@@ -206,12 +252,25 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
   dialog.className = 'ai-settings'
 
   const kind = el('select', 'ai-input ai-provider-select')
-  for (const value of KINDS) {
-    const option = el('option', '', value)
-    option.value = value
-    kind.append(option)
+  const demoInfo = el('div', 'ai-session ai-demo-info', '')
+  demoInfo.style.display = 'none'
+  const renderProviderOptions = () => {
+    kind.innerHTML = ''
+    for (const value of KINDS) {
+      const option = el('option', '', value)
+      option.value = value
+      kind.append(option)
+    }
+    for (const opt of sharedOptions) {
+      const option = el('option')
+      option.value = `${DEMO_PREFIX}${opt.id}`
+      option.disabled = opt.available === false
+      option.textContent = opt.available === false ? `Demo: ${opt.label} (${DEMO_LIMIT_REASON})` : `Demo: ${opt.label}`
+      kind.append(option)
+    }
+    kind.value = demoActive() ? `${DEMO_PREFIX}${state.shared}` : state.kind
+    if (!kind.value) kind.value = state.kind
   }
-  kind.value = state.kind
 
   const modelSelect = el('select', 'ai-input')
   modelSelect.classList.add('ai-model-select')
@@ -299,6 +358,43 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
   const keyLine = el('span', 'ai-session', keyStore.get() ? 'Key set.' : 'No key set.')
   const keyActions = el('div', 'ai-actions')
   keyActions.append(saveKey, clearKey, keyLine)
+
+  // The recording consent the Send gate also reads; toggling it rewrites both
+  // `jscad-ai.tos` and its `jscad-ai.log` mirror (the `.tos` record wins).
+  const recordToggle = el('input', 'ai-record-toggle')
+  recordToggle.type = 'checkbox'
+  recordToggle.checked = getRecordOwnChats()
+  const recordField = el('label', 'ai-field ai-record-field')
+  recordField.append(el('span', 'ai-field-name', 'Save chats'), recordToggle, el('span', 'ai-field-note', RECORDING_TEXT))
+  recordToggle.addEventListener('change', () => {
+    setRecordOwnChats(recordToggle.checked)
+    onSelectionChange()
+  })
+
+  const keyField = field('API key', key)
+  const keepField = field('Keep', mode)
+  const passphraseField = field('Passphrase', passphrase)
+  const modelField = field('Model', modelSelect)
+  const modelInputField = field('Custom model id', modelInput)
+
+  // Demo hides everything the relay owns for it: the key, its custody, the
+  // custom base URL and the model controls (the option pins one model). The
+  // recording box is checked and locked, since demo turns always record.
+  const applyDemoState = () => {
+    const demo = demoActive()
+    for (const node of [keyField, keepField, passphraseField, keyActions, modelField, modelInputField, advanced]) {
+      node.style.display = demo ? 'none' : ''
+    }
+    demoInfo.style.display = demo ? '' : 'none'
+    if (demo) {
+      demoInfo.textContent = `Demo: ${demoOption()?.label ?? state.shared} · ${state.model}`
+      modelStatus.textContent = ''
+    }
+    recordToggle.checked = demo ? true : getRecordOwnChats()
+    recordToggle.disabled = demo
+    refreshEffort()
+  }
+
   const closeBtn = el('button', 'ai-button', 'Close')
   closeBtn.type = 'button'
   const footer = el('div', 'ai-dialog-footer')
@@ -371,15 +467,17 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
   dialog.append(
     el('h2', 'ai-dialog-title', 'Chat settings'),
     field('Provider', kind),
-    field('API key', key),
-    field('Keep', mode),
-    field('Passphrase', passphrase),
+    demoInfo,
+    keyField,
+    keepField,
+    passphraseField,
     keyActions,
-    field('Model', modelSelect),
+    modelField,
     modelStatus,
-    field('Custom model id', modelInput),
+    modelInputField,
     apiField,
     effortWrap,
+    recordField,
     advanced,
     el('h3', 'ai-dialog-subtitle', 'Web search'),
     searchRows,
@@ -394,6 +492,12 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
   let modelsRequest = 0
   const loadModels = async () => {
     const request = ++modelsRequest
+    // Demo has no model dropdown: each shared option pins one model, and the
+    // "catalog" is the option list itself, so there is nothing to GET.
+    if (demoActive()) {
+      modelStatus.textContent = ''
+      return
+    }
     const apiKey = keyStore.get()
     if (!apiKey) {
       modelStatus.textContent = 'Save an API key to load the model list.'
@@ -428,10 +532,22 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
     if (typeof dialog.close === 'function') dialog.close()
     else dialog.removeAttribute('open')
   }
+  // The shared list is read on dialog open, like the model list; an unreadable
+  // list hides demo (no option to pick something that cannot run).
+  const refreshSharedOptions = async () => {
+    sharedOptions = await loadSharedOptions()
+    if (demoActive() && !demoOption()) {
+      state.demo = false
+      state.shared = ''
+    }
+    renderProviderOptions()
+    applyDemoState()
+  }
   gear.addEventListener('click', () => {
     if (typeof dialog.showModal === 'function') dialog.showModal()
     else dialog.setAttribute('open', '')
     loadModels()
+    refreshSharedOptions()
   })
   closeBtn.addEventListener('click', closeDialog)
   dialog.addEventListener('click', (event) => {
@@ -439,13 +555,27 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
   })
 
   kind.addEventListener('change', () => {
-    state.kind = kind.value
+    const option = kind.value.startsWith(DEMO_PREFIX) ? sharedOptions.find((o) => `${DEMO_PREFIX}${o.id}` === kind.value) : null
+    if (option && option.available !== false) {
+      state.demo = true
+      state.shared = option.id
+      state.kind = option.kind
+      state.model = option.model
+      state.baseUrl = ''
+      baseUrl.value = ''
+      state.capabilities = new Map()
+      applyDemoState()
+      return
+    }
+    state.demo = false
+    state.shared = ''
+    if (!kind.value.startsWith(DEMO_PREFIX)) state.kind = kind.value
     state.model = ''
     modelInput.value = ''
     modelInput.placeholder = modelPlaceholders[state.kind] ?? ''
     modelSelect.innerHTML = ''
     state.capabilities = new Map()
-    refreshEffort()
+    applyDemoState()
     loadModels()
   })
   modelSelect.addEventListener('change', () => {
@@ -488,6 +618,7 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
     keyLine.textContent = 'No key set.'
   })
 
-  refreshEffort()
+  renderProviderOptions()
+  applyDemoState()
   refreshSession()
 }

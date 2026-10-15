@@ -3,7 +3,7 @@
 // through requestTool, and renders streamed text. Provider HTTP targets the
 // relay, which proxies path-preserving to the provider and stores nothing.
 import { buildMessages, buildSystemPrompt, createProvider, DEFAULT_API, partitionTranscript, runTurn as defaultRunTurn, SUMMARY_PREFIX, summarizeTranscript, summarizeWithProvider, toolDetail, turnsOf } from '@jscadui/agent-loop'
-import { checkTurn, DEMO_NOTICE_MESSAGE, openConsentGate, TOS_REQUIRED_MESSAGE } from './aiConsent.js'
+import { checkTurn, DEMO_NOTICE_MESSAGE, getRecordOwnChats, isDemoSelection, openConsentGate, TOS_REQUIRED_MESSAGE } from './aiConsent.js'
 
 /* global __RELAY_ORIGIN__ */
 const RELAY_OVERRIDE_KEY = 'jscad-ai.relay'
@@ -11,10 +11,25 @@ const RELAY_OVERRIDE_KEY = 'jscad-ai.relay'
 // build.js stamps __RELAY_ORIGIN__; unit tests run unbundled without it.
 const relayDefault = () => (typeof __RELAY_ORIGIN__ === 'string' ? __RELAY_ORIGIN__ : 'https://jscad.rkroll.com')
 
-export const relayBaseUrl = (kind) => {
-  const root = globalThis.localStorage?.getItem(RELAY_OVERRIDE_KEY) || relayDefault()
-  return `${root.replace(/\/+$/, '')}/api/relay/${kind}`
-}
+const relayRoot = () => (globalThis.localStorage?.getItem(RELAY_OVERRIDE_KEY) || relayDefault()).replace(/\/+$/, '')
+
+// A demo (shared) selection rides `/api/relay/shared/<id>`, where the relay
+// injects the server-held key; own keys ride their kind's route.
+export const relayBaseUrl = (kind, shared) =>
+  shared ? `${relayRoot()}/api/relay/shared/${shared}` : `${relayRoot()}/api/relay/${kind}`
+
+// The demo option list lives on the relay beside the per-id routes.
+export const sharedListUrl = () => `${relayRoot()}/api/relay/shared`
+
+// One line above the input while our recording is on, and the always-saved
+// variant while a demo selection is active (demo cannot be opted out).
+export const CHAT_LOG_NOTICE = 'Chats are saved to improve the assistant. Turn this off in Chat settings.'
+export const CHAT_DEMO_NOTICE = 'Chats on shared keys are always saved to improve the assistant.'
+// The relay's 402 when a demo budget is spent; the turn never reached a model.
+export const SHARED_QUOTA_MESSAGE = 'This demo is out of budget right now. Add your own key in Chat settings to keep chatting.'
+
+const sharedQuotaError = (err) =>
+  err?.status === 402 && /shared_quota_exhausted/.test(`${err?.message ?? ''} ${err?.body ?? ''}`)
 
 const el = (tag, className, text) => {
   const node = document.createElement(tag)
@@ -163,7 +178,16 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
   const statusTime = el('span', 'chat-status-time')
   statusTime.setAttribute('aria-hidden', 'true')
   statusEl.append(statusPhase, statusTime)
-  container.append(header, messagesEl, statusEl, form)
+  // The recording notice sits directly above the input; the settings word is
+  // the link into the gear dialog, which owns the logging toggle.
+  const notice = el('div', 'chat-notice')
+  const noticeText = el('span', 'chat-notice-text')
+  const noticeSettings = el('button', 'chat-notice-settings', 'Chat settings')
+  const noticeTail = el('span', 'chat-notice-tail', '.')
+  noticeSettings.type = 'button'
+  noticeSettings.addEventListener('click', () => document.querySelector('.ai-gear')?.click())
+  notice.append(noticeText, noticeSettings, noticeTail)
+  container.append(header, messagesEl, notice, statusEl, form)
 
   let running = false
   // A Send that is waiting on the consent gate; another Send in the meantime
@@ -200,6 +224,27 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
     const key = pid() ?? ''
     if (!sessions.has(key)) sessions.set(key, crypto.randomUUID())
     return sessions.get(key)
+  }
+
+  // The drawer notice above the input: it reflects the live selection (which
+  // `getProvider` reads) and the recording consent, and is re-rendered whenever
+  // the gear dialog changes either. Demo is always saved.
+  const renderNotice = () => {
+    const demo = isDemoSelection(getProvider())
+    const show = demo || getRecordOwnChats()
+    notice.style.display = show ? '' : 'none'
+    if (!show) return
+    if (demo) {
+      noticeText.textContent = CHAT_DEMO_NOTICE
+      noticeSettings.textContent = ''
+      noticeSettings.style.display = 'none'
+      noticeTail.textContent = ''
+    } else {
+      noticeText.textContent = CHAT_LOG_NOTICE.split('Chat settings')[0]
+      noticeSettings.textContent = 'Chat settings'
+      noticeSettings.style.display = ''
+      noticeTail.textContent = '.'
+    }
   }
 
   const persistTranscript = async (id = pid(), messages = transcript) => {
@@ -461,6 +506,7 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
     }
     input.value = ''
     turnProject = pid()
+    renderNotice()
     let local = [...transcript, { role: 'user', content: message }]
     const persist = (messages) => {
       if (!storage || !turnProject) return
@@ -487,10 +533,11 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
     try {
       const provider = createProvider({
         ...selection,
-        baseUrl: selection.baseUrl || relayBaseUrl(selection.kind),
+        baseUrl: selection.baseUrl || relayBaseUrl(selection.kind, selection.shared),
         sessionId: sessionId(),
         // A custom base URL may be a provider called directly, whose CORS preflight would refuse this header.
-        ...(selection.baseUrl ? {} : { chatId: sessionId() }),
+        // An own-key opt-out must omit it, or the relay would log a turn the user refused.
+        ...(selection.baseUrl || !getRecordOwnChats() ? {} : { chatId: sessionId() }),
       })
       startTurn()
       const files = await projectFiles()
@@ -505,7 +552,7 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
           const summarizerSelection = getSummarizer()
           const summarizer = createProvider({
             ...summarizerSelection,
-            baseUrl: summarizerSelection.baseUrl || relayBaseUrl(summarizerSelection.kind),
+            baseUrl: summarizerSelection.baseUrl || relayBaseUrl(summarizerSelection.kind, summarizerSelection.shared),
           })
           const text = await summarizeTranscript(
             { turns: freshTurns, priorSummary: prior?.text ?? '' },
@@ -551,7 +598,7 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
       if (signal.aborted) stopped = true
       else {
         commit(local.slice(0, -1))
-        if (live()) addMessage(err.message, 'error')
+        if (live()) addMessage(sharedQuotaError(err) ? SHARED_QUOTA_MESSAGE : err.message, 'error')
       }
     } finally {
       if (stopped) {
@@ -581,6 +628,7 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
   })
 
   if (storage && pid()) switchTo(pid())
+  renderNotice()
 
-  return { switchTo, newChat, setWebsearchGranted: websearchGrant.setGranted, isWebsearchGranted: websearchGrant.isGranted }
+  return { switchTo, newChat, refreshNotice: renderNotice, setWebsearchGranted: websearchGrant.setGranted, isWebsearchGranted: websearchGrant.isGranted }
 }
