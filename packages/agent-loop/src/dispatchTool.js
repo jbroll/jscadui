@@ -39,10 +39,20 @@ const validateInput = (name, input) => {
   return null
 }
 
+// The canonical `grep` schema names the file list `include`; a legacy caller
+// may still pass the old `paths`. Defensive only — no `search` tool name.
+const normalizeGrepArgs = (args) => {
+  if (args && args.paths !== undefined && args.include === undefined) {
+    const { paths, ...rest } = args
+    return { ...rest, include: paths }
+  }
+  return args
+}
+
 const ROUTES = {
   list: (deps) => deps.list(),
   read: (deps, args) => deps.read(args),
-  search: (deps, args) => deps.search(args),
+  grep: (deps, args) => deps.search(normalizeGrepArgs(args)),
   write: (deps, args) => deps.write(args),
   edit: (deps, args) => deps.edit(args),
   delete: (deps, args) => deps.deleteFile(args),

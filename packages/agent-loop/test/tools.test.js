@@ -7,7 +7,8 @@ const docsDescription = (api) => buildTools(api).find((t) => t.name === 'docs').
 describe('agent tools', () => {
   it('exposes the thirteen browser tools with input schemas', async () => {
     const names = TOOLS.map((t) => t.name)
-    expect(names).toEqual(['list', 'read', 'search', 'write', 'edit', 'delete', 'run', 'measure', 'check', 'export', 'docs', 'ask_user', 'web_search'])
+    expect(names).toEqual(['list', 'read', 'grep', 'write', 'edit', 'delete', 'run', 'measure', 'check', 'export', 'docs', 'ask_user', 'web_search'])
+    expect(names).not.toContain('search')
     for (const tool of TOOLS) {
       expect(typeof tool.description).toBe('string')
       expect(tool.inputSchema.type).toBe('object')
@@ -117,11 +118,20 @@ describe('agent tools', () => {
     expect(() => buildTools('scad')).toThrow(/unknown api scad/)
   })
 
-  it('defines a read-only search tool with pattern required', () => {
+  it('defines a read-only grep tool with pattern required and strict extras', () => {
     const tools = buildTools('fluent')
-    const search = tools.find((t) => t.name === 'search')
-    expect(search.inputSchema.required).toEqual(['pattern'])
-    expect(READ_ONLY.has('search')).toBe(true)
+    expect(tools.map((t) => t.name)).toContain('grep')
+    expect(tools.map((t) => t.name)).not.toContain('search')
+    const grep = tools.find((t) => t.name === 'grep')
+    expect(Object.keys(grep.inputSchema.properties)).toEqual(['pattern', 'include', 'literal'])
+    expect(grep.inputSchema.required).toEqual(['pattern'])
+    expect(grep.inputSchema.properties.pattern.type).toBe('string')
+    expect(grep.inputSchema.properties.include.type).toBe('array')
+    expect(grep.inputSchema.properties.include.items).toEqual({ type: 'string' })
+    expect(grep.inputSchema.properties.literal.type).toBe('boolean')
+    expect(grep.inputSchema.additionalProperties).toBe(false)
+    expect(READ_ONLY.has('grep')).toBe(true)
+    expect(READ_ONLY.has('search')).toBe(false)
   })
 
   it('defines read-only ask_user with question required', () => {

@@ -35,11 +35,15 @@ describe('dispatchTool', () => {
     expect(d.read).toHaveBeenCalledWith({ path: 'main.js', offset: 2 })
   })
 
-  it('routes search with its arguments', async () => {
+  it('routes grep to deps.search with its arguments', async () => {
     const d = deps()
-    expect(await dispatchTool('search', { pattern: 'cube' }, d)).toBe('main.js:1: abc')
+    expect(await dispatchTool('grep', { pattern: 'cube' }, d)).toBe('main.js:1: abc')
     expect(d.search).toHaveBeenCalledWith({ pattern: 'cube' })
-    expect(await dispatchTool('search', {}, d)).toEqual(expect.objectContaining({ ok: false, error: expect.objectContaining({ name: 'ValidationError' }) }))
+    expect(await dispatchTool('grep', {}, d)).toEqual(expect.objectContaining({ ok: false, error: expect.objectContaining({ name: 'ValidationError' }) }))
+  })
+
+  it('answers the old search name as an unknown tool', async () => {
+    expect(await dispatchTool('search', { pattern: 'cube' }, deps())).toEqual(toolError('UnknownToolError', 'unknown tool search'))
   })
 
   it('routes write and edit with their arguments and answers the build report', async () => {
