@@ -89,8 +89,11 @@ const requireString = (value, name, where) => {
  * @returns {number}
  */
 const requirePrice = (value, name, where) => {
-  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
-    throw new Error(`relay: shared ${where} '${name}' must be a positive per-million-token price`)
+  // Zero is a real price: a free model charges nothing. Null, missing,
+  // negative and non-numeric stay refused, so an unfilled template cannot
+  // silently forward.
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+    throw new Error(`relay: shared ${where} '${name}' must be a non-negative per-million-token price`)
   }
   return value
 }
@@ -108,12 +111,17 @@ const requireMaxTokens = (value, where) => {
 }
 
 /**
+ * Parses one model entry inside a provider. The endpoint path is derived
+ * from kind and model via expectedPathFor, never taken from the file, so
+ * the operator cannot pin an endpoint the model does not use.
  * @param {unknown} value
  * @param {string} where
  * @param {Set<string>} seen
+ * @param {string} kind
+ * @param {string} key
  * @returns {SharedOption}
  */
-const parseOption = (value, where, seen) => {
+const parseModel = (value, where, seen, kind, key) => {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
     throw new Error(`relay: shared ${where} must be an object`)
   }
@@ -121,32 +129,48 @@ const parseOption = (value, where, seen) => {
   const id = requireString(raw.id, 'id', where)
   if (seen.has(id)) throw new Error(`relay: shared ${where} duplicate id '${id}'`)
   seen.add(id)
-  const kind = requireString(raw.kind, 'kind', where)
-  if (!SHARED_KINDS.has(kind)) {
-    throw new Error(`relay: shared ${where} kind '${kind}' must be one of ${[...SHARED_KINDS].join(', ')}`)
-  }
   const model = requireString(raw.model, 'model', where)
-  const path = requireString(raw.path, 'path', where)
   const expected = expectedPathFor(kind, model)
   // `kind` is already a shared kind, so a null expectation means the model needs
   // the messages protocol, which a bearer key cannot serve.
   if (expected === null) {
     throw new Error(`relay: shared ${where} cannot serve model '${model}': the shared relay only injects keys for chat-completions and responses models`)
   }
-  if (path !== expected) {
-    throw new Error(`relay: shared ${where} path '${path}' must be '${expected}' for kind '${kind}' and model '${model}'`)
-  }
   return {
     id,
     label: requireString(raw.label, 'label', where),
     kind,
-    path,
+    path: expected,
     model,
-    key: requireString(raw.key, 'key', where),
+    key,
     maxTokens: requireMaxTokens(raw.maxTokens, where),
     inputUsdPerMTok: requirePrice(raw.inputUsdPerMTok, 'inputUsdPerMTok', where),
     outputUsdPerMTok: requirePrice(raw.outputUsdPerMTok, 'outputUsdPerMTok', where),
   }
+}
+
+/**
+ * Parses one provider: one kind, one server-held key, and the models that
+ * key serves. Extra fields (e.g. a human `label`) are ignored.
+ * @param {unknown} value
+ * @param {string} where
+ * @param {Set<string>} seen ids across the whole file, so the same model
+ * under two providers keeps two distinct entries
+ * @returns {SharedOption[]}
+ */
+const parseProvider = (value, where, seen) => {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`relay: shared ${where} must be an object`)
+  }
+  const raw = /** @type {Record<string, unknown>} */ (value)
+  const kind = requireString(raw.kind, 'kind', where)
+  if (!SHARED_KINDS.has(kind)) {
+    throw new Error(`relay: shared ${where} kind '${kind}' must be one of ${[...SHARED_KINDS].join(', ')}`)
+  }
+  const key = requireString(raw.key, 'key', where)
+  const modelsRaw = raw.models ?? []
+  if (!Array.isArray(modelsRaw)) throw new Error(`relay: shared ${where} 'models' must be an array`)
+  return modelsRaw.map((m, i) => parseModel(m, `${where} model ${i}`, seen, kind, key))
 }
 
 /**
@@ -167,13 +191,13 @@ export const parseSharedConfig = (raw, label) => {
     throw new Error(`relay: shared config ${label} must be an object`)
   }
   const body = /** @type {Record<string, unknown>} */ (parsed)
-  const optionsRaw = body.options ?? []
-  if (!Array.isArray(optionsRaw)) throw new Error(`relay: shared config ${label} 'options' must be an array`)
+  const providersRaw = body.providers ?? []
+  if (!Array.isArray(providersRaw)) throw new Error(`relay: shared config ${label} 'providers' must be an array`)
   const seen = new Set()
   return {
     monthlyUsd: budget(label, body.monthlyUsd, 'monthlyUsd'),
     perIpDailyUsd: budget(label, body.perIpDailyUsd, 'perIpDailyUsd'),
-    options: optionsRaw.map((o, i) => parseOption(o, `${label} option ${i}`, seen)),
+    options: providersRaw.flatMap((p, i) => parseProvider(p, `${label} provider ${i}`, seen)),
   }
 }
 

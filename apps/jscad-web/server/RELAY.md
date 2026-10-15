@@ -52,7 +52,7 @@ failure is a `500`.
 ## Shared (demo) options
 
 The demo provider serves operator-owned keys to visitors with no account. JSON
-`{monthlyUsd, perIpDailyUsd, options}`, default `/etc/jscad-relay/shared.json`,
+`{monthlyUsd, perIpDailyUsd, providers}`, default `/etc/jscad-relay/shared.json`,
 override with `RELAY_SHARED`; keep it mode `0600`, owned by the service user,
 beside `providers.json`. Stage the real keys locally in
 `server/shared.local.json` (same schema, gitignored, never commit) and copy
@@ -65,30 +65,53 @@ file never silently forwards.
 {
   "monthlyUsd": 5,
   "perIpDailyUsd": 0.1,
-  "options": [
+  "providers": [
     {
-      "id": "deepseek-flash",
-      "label": "DeepSeek v4 flash",
       "kind": "opencode-go",
-      "path": "v1/chat/completions",
-      "model": "deepseek-v4-flash",
       "key": "sk-...",
-      "maxTokens": 8192,
-      "inputUsdPerMTok": 0.28,
-      "outputUsdPerMTok": 0.42
+      "models": [
+        {
+          "id": "deepseek-flash",
+          "label": "DeepSeek V4.1 Flash",
+          "model": "deepseek-v4.1-flash",
+          "maxTokens": 8192,
+          "inputUsdPerMTok": 0.30,
+          "outputUsdPerMTok": 1.20
+        }
+      ]
+    },
+    {
+      "kind": "meta",
+      "key": "...",
+      "models": [
+        {
+          "id": "muse",
+          "label": "Muse Spark 1.3",
+          "model": "muse-spark-1.3-contributor",
+          "maxTokens": 4096,
+          "inputUsdPerMTok": 1.25,
+          "outputUsdPerMTok": 4.25
+        }
+      ]
     }
   ]
 }
 ```
 
-Each option pins one kind, model and endpoint. Loading refuses a kind other
-than `opencode-go` or `meta` (both take `authorization: Bearer`), a model that
-needs the messages protocol (a bearer key cannot serve it), and a `path` other
-than the one endpoint that kind and model use in
-`packages/agent-loop/src/providers.js`; `id`s must be unique. Both prices are
-the provider's per-million-token pay-as-you-go rates, required and positive;
-they price the meter. `monthlyUsd` (default 5) and `perIpDailyUsd` (default
-0.1) default when absent.
+One provider entry holds one kind and one server key plus the models that
+key serves, so adding a model is one object, not a repeated key. The
+endpoint is derived from kind and model, never read from the file. Loading
+refuses a kind other than `opencode-go` or `meta` (both take
+`authorization: Bearer`) and a model that needs the messages protocol (a
+bearer key cannot serve it), both in
+`packages/agent-loop/src/providers.js`; `id`s must be unique across the
+whole file. Prices are the provider's per-million-token pay-as-you-go
+rates — use peak rates so the meter overcounts rather than under; zero is
+allowed for a free model, missing or negative is refused. `monthlyUsd`
+(default 5) and `perIpDailyUsd` (default 0.1) default when absent. Model
+ids are the providers' own: the live Go catalog is
+`https://opencode.ai/zen/go/v1/models` (37 models at last check, including
+`deepseek-v4.1-flash`, `deepseek-v4-pro` and both Muse Spark contributors).
 
 Routes (both pass the origin check and mount before `/api/relay/:kind/*splat`):
 

@@ -119,8 +119,8 @@ describe('shared 402 body', () => {
   const config = JSON.stringify({
     monthlyUsd: 5,
     perIpDailyUsd: 0.1,
-    options: [
-      { id: 'deepseek', label: 'D', kind: 'opencode-go', path: 'v1/chat/completions', model: 'deepseek-v4.1-flash', key: 'sk', maxTokens: 8, inputUsdPerMTok: 1, outputUsdPerMTok: 2 },
+    providers: [
+      { kind: 'opencode-go', key: 'sk', models: [{ id: 'deepseek', label: 'D', model: 'deepseek-v4.1-flash', maxTokens: 8, inputUsdPerMTok: 1, outputUsdPerMTok: 2 }] },
     ],
   })
 

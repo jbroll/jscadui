@@ -15,33 +15,39 @@ const MONTH = '2026-10'
 
 const tmp = () => mkdtempSync(join(tmpdir(), 'shared-'))
 
-const option = (over: Record<string, unknown> = {}) => ({
+const modelEntry = (over: Record<string, unknown> = {}) => ({
   id: 'deepseek',
-  label: 'DeepSeek v4 flash',
-  kind: 'opencode-go',
-  path: 'v1/chat/completions',
+  label: 'DeepSeek V4.1 Flash',
   model: 'deepseek-v4.1-flash',
-  key: 'sk-server-secret',
   maxTokens: 8192,
   inputUsdPerMTok: 1,
   outputUsdPerMTok: 2,
   ...over,
 })
 
-const museOption = {
+const museEntry = {
   id: 'muse',
   label: 'Muse Spark 1.3',
-  kind: 'meta',
-  path: 'v1/responses',
   model: 'muse-spark-1.3-contributor',
-  key: 'meta-server-secret',
   maxTokens: 4096,
   inputUsdPerMTok: 3,
   outputUsdPerMTok: 4,
 }
 
+const provider = (over: Record<string, unknown> = {}) => ({
+  kind: 'opencode-go',
+  key: 'sk-server-secret',
+  models: [modelEntry()],
+  ...over,
+})
+
 const sharedJson = (over: Record<string, unknown> = {}) =>
-  JSON.stringify({ monthlyUsd: 5, perIpDailyUsd: 0.1, options: [option(), museOption], ...over })
+  JSON.stringify({
+    monthlyUsd: 5,
+    perIpDailyUsd: 0.1,
+    providers: [provider(), { kind: 'meta', key: 'meta-server-secret', models: [museEntry] }],
+    ...over,
+  })
 
 const sse = (text: string) =>
   ({ ok: true, status: 200, headers: new Headers({ 'content-type': 'text/event-stream' }), body: new Response(text).body }) as unknown as Response
@@ -123,11 +129,9 @@ describe('shared config', () => {
   })
 
   it('refuses a messages-protocol model, which a bearer key cannot serve', () => {
-    const messages = option({ model: 'minimax-m3', path: 'v1/messages' })
-    expect(() => parseSharedConfig(JSON.stringify({ options: [messages] }), 'shared.json')).toThrow(/minimax-m3/)
-    // Refused even when the operator tries to point it at a path we do rewrite.
-    const disguised = option({ model: 'minimax-m3', path: 'v1/chat/completions' })
-    expect(() => parseSharedConfig(JSON.stringify({ options: [disguised] }), 'shared.json')).toThrow(/minimax-m3/)
+    const messages = { ...modelEntry(), model: 'minimax-m3' }
+    const config = { providers: [provider({ models: [messages] })] }
+    expect(() => parseSharedConfig(JSON.stringify(config), 'shared.json')).toThrow(/minimax-m3/)
   })
 
   it('treats a missing file as no options, with the Phase 1 budget defaults', () => {
@@ -137,23 +141,39 @@ describe('shared config', () => {
     expect(config.perIpDailyUsd).toBe(0.1)
   })
 
-  it('refuses a missing, null or zero price', () => {
-    for (const bad of [undefined, null, 0]) {
-      expect(() => parseSharedConfig(JSON.stringify({ options: [option({ inputUsdPerMTok: bad })] }), 'shared.json')).toThrow(/inputUsdPerMTok/)
-      expect(() => parseSharedConfig(JSON.stringify({ options: [option({ outputUsdPerMTok: bad })] }), 'shared.json')).toThrow(/outputUsdPerMTok/)
+  it('refuses a missing, null or negative price, and accepts a zero (free) price', () => {
+    for (const bad of [undefined, null, -1]) {
+      const config = { providers: [provider({ models: [modelEntry({ inputUsdPerMTok: bad })] })] }
+      expect(() => parseSharedConfig(JSON.stringify(config), 'shared.json')).toThrow(/inputUsdPerMTok/)
+      const configOut = { providers: [provider({ models: [modelEntry({ outputUsdPerMTok: bad })] })] }
+      expect(() => parseSharedConfig(JSON.stringify(configOut), 'shared.json')).toThrow(/outputUsdPerMTok/)
     }
+    const free = { providers: [provider({ models: [modelEntry({ inputUsdPerMTok: 0, outputUsdPerMTok: 0 })] })] }
+    expect(parseSharedConfig(JSON.stringify(free), 'shared.json').options[0]).toMatchObject({ inputUsdPerMTok: 0, outputUsdPerMTok: 0 })
   })
 
   it('refuses a kind other than opencode-go or meta', () => {
-    expect(() => parseSharedConfig(JSON.stringify({ options: [option({ kind: 'openai' })] }), 'shared.json')).toThrow(/kind/)
+    const config = { providers: [provider({ kind: 'openai' })] }
+    expect(() => parseSharedConfig(JSON.stringify(config), 'shared.json')).toThrow(/kind/)
   })
 
-  it('refuses a path the kind and model do not use', () => {
-    expect(() => parseSharedConfig(JSON.stringify({ options: [option({ path: 'v1/responses' })] }), 'shared.json')).toThrow(/path/)
+  it('derives the endpoint path from kind and model instead of reading it', () => {
+    const parsed = parseSharedConfig(sharedJson(), 'shared.json')
+    expect(parsed.options.map((o) => [o.id, o.path])).toEqual([
+      ['deepseek', 'v1/chat/completions'],
+      ['muse', 'v1/responses'],
+    ])
   })
 
-  it('refuses duplicate option ids', () => {
-    expect(() => parseSharedConfig(JSON.stringify({ options: [option(), option()] }), 'shared.json')).toThrow(/duplicate|id/)
+  it('refuses duplicate option ids, even across providers', () => {
+    const config = { providers: [provider(), provider({ kind: 'meta', key: 'other', models: [modelEntry()] })] }
+    expect(() => parseSharedConfig(JSON.stringify(config), 'shared.json')).toThrow(/duplicate|id/)
+  })
+
+  it('attaches one key to every model under its provider', () => {
+    const config = { providers: [provider({ models: [modelEntry(), { ...museEntry, id: 'muse-go', model: 'muse-spark-1.3-contributor' }] })] }
+    const options = parseSharedConfig(JSON.stringify(config), 'shared.json').options
+    expect(options.map((o) => o.key)).toEqual(['sk-server-secret', 'sk-server-secret'])
   })
 
   it('accepts the two demo options', () => {
@@ -174,7 +194,7 @@ describe('GET /api/relay/shared', () => {
     const res = await request(app).get('/api/relay/shared').set('Origin', 'https://app.test')
     expect(res.status).toBe(200)
     expect(res.body).toEqual([
-      { id: 'deepseek', label: 'DeepSeek v4 flash', kind: 'opencode-go', model: 'deepseek-v4.1-flash', available: true },
+      { id: 'deepseek', label: 'DeepSeek V4.1 Flash', kind: 'opencode-go', model: 'deepseek-v4.1-flash', available: true },
       { id: 'muse', label: 'Muse Spark 1.3', kind: 'meta', model: 'muse-spark-1.3-contributor', available: true },
     ])
     expect(JSON.stringify(res.body)).not.toMatch(/secret|UsdPerMTok/)
