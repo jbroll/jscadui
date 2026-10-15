@@ -351,7 +351,7 @@ describe('eval backend project', () => {
   it('lists and reads the project files', async () => {
     const backend = createEvalBackend()
     await backend.reset({ 'main.js': 'a\nb\n', 'lib/part.js': 'p' })
-    expect(await call(backend, 'list')).toEqual({ ok: true, files: [{ path: 'lib/part.js', size: 1 }, { path: 'main.js', size: 4 }] })
+    expect(await call(backend, 'glob')).toEqual({ ok: true, files: [{ path: 'lib/part.js', size: 1 }, { path: 'main.js', size: 4 }] })
     expect(await call(backend, 'read', { path: 'main.js' })).toBe('     1\ta\n     2\tb')
     expect((await call(backend, 'read', { path: 'gone.js' })).error.name).toBe('FileNotFoundError')
   })

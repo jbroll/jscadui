@@ -7,7 +7,8 @@ const docsDescription = (api) => buildTools(api).find((t) => t.name === 'docs').
 describe('agent tools', () => {
   it('exposes the thirteen browser tools with input schemas', async () => {
     const names = TOOLS.map((t) => t.name)
-    expect(names).toEqual(['list', 'read', 'grep', 'write', 'edit', 'delete', 'run', 'measure', 'check', 'export', 'docs', 'ask_user', 'web_search'])
+    expect(names).toEqual(['glob', 'read', 'grep', 'write', 'edit', 'delete', 'run', 'measure', 'check', 'export', 'docs', 'ask_user', 'web_search'])
+    expect(names).not.toContain('list')
     expect(names).not.toContain('search')
     for (const tool of TOOLS) {
       expect(typeof tool.description).toBe('string')
@@ -83,7 +84,7 @@ describe('agent tools', () => {
 
   it('takes the file tools\' arguments in the common coding-agent shapes', () => {
     const schema = (name) => TOOLS.find((t) => t.name === name).inputSchema
-    expect(Object.keys(schema('list').properties)).toEqual([])
+    expect(Object.keys(schema('glob').properties)).toEqual(['pattern', 'path'])
     expect(Object.keys(schema('read').properties)).toEqual(['path', 'offset', 'limit'])
     expect(schema('read').required).toEqual(['path'])
     expect(schema('write').required).toEqual(['path', 'content'])
@@ -109,13 +110,28 @@ describe('agent tools', () => {
     expect(description('run')).toMatch(/never saved/)
   })
 
-  it('says list is rarely needed, since every message carries the files and the last build', () => {
-    const list = TOOLS.find((t) => t.name === 'list').description
-    expect(list).toMatch(/Every message already comes with the project's text files and last build/)
+  it('says glob is rarely needed, since every message carries the files and the last build', () => {
+    const glob = TOOLS.find((t) => t.name === 'glob').description
+    expect(glob).toMatch(/Every message already carries text files \+ last build/)
+    expect(glob).toMatch(/pattern like \*\*\/\*\.js filters, omitted means all/)
   })
 
   it('refuses an unknown API', () => {
     expect(() => buildTools('scad')).toThrow(/unknown api scad/)
+  })
+
+  it('defines a read-only glob tool with optional pattern and path, no required args', () => {
+    const tools = buildTools('fluent')
+    expect(tools.map((t) => t.name)).toContain('glob')
+    expect(tools.map((t) => t.name)).not.toContain('list')
+    const glob = tools.find((t) => t.name === 'glob')
+    expect(Object.keys(glob.inputSchema.properties)).toEqual(['pattern', 'path'])
+    expect(glob.inputSchema.required ?? []).toEqual([])
+    expect(glob.inputSchema.properties.pattern.type).toBe('string')
+    expect(glob.inputSchema.properties.path.type).toBe('string')
+    expect(glob.inputSchema.additionalProperties).toBe(false)
+    expect(READ_ONLY.has('glob')).toBe(true)
+    expect(READ_ONLY.has('list')).toBe(false)
   })
 
   it('defines a read-only grep tool with pattern required and strict extras', () => {

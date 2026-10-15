@@ -12,9 +12,16 @@ const BUILDS =
 
 export const buildTools = (api = DEFAULT_API) => [
   {
-    name: 'list',
-    description: "List the project files with their sizes in bytes. Every message already comes with the project's text files and last build, so list only for sizes or a file that is not text.",
-    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    name: 'glob',
+    description: 'List project file paths (with sizes); pattern like **/*.js filters, omitted means all. Every message already carries text files + last build, so glob only for sizes or non-text.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        pattern: { type: 'string', description: 'A glob pattern filtering the paths, such as **/*.js' },
+        path: { type: 'string', description: 'A project directory to list, such as src' },
+      },
+      additionalProperties: false,
+    },
   },
   {
     name: 'read',
@@ -181,4 +188,4 @@ export const TOOLS = buildTools()
 
 // Calls safe to run concurrently: they read state without saving.
 // write/edit/delete/export save or expose download state and stay serial.
-export const READ_ONLY = new Set(['list', 'read', 'grep', 'measure', 'check', 'docs', 'run', 'view', 'ask_user', 'web_search'])
+export const READ_ONLY = new Set(['glob', 'read', 'grep', 'measure', 'check', 'docs', 'run', 'view', 'ask_user', 'web_search'])

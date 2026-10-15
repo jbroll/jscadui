@@ -28,11 +28,18 @@ describe('dispatchTool', () => {
     }
   })
 
-  it('routes list, and read with its arguments', async () => {
+  it('routes glob to deps.list, forwarding any pattern or path', async () => {
     const d = deps()
-    expect((await dispatchTool('list', undefined, d)).files).toHaveLength(1)
+    expect((await dispatchTool('glob', {}, d)).files).toHaveLength(1)
+    expect(d.list).toHaveBeenCalledWith({})
+    await dispatchTool('glob', { pattern: '**/*.js' }, d)
+    expect(d.list).toHaveBeenCalledWith({ pattern: '**/*.js' })
     expect(await dispatchTool('read', { path: 'main.js', offset: 2 }, d)).toBe('     1\tabc')
     expect(d.read).toHaveBeenCalledWith({ path: 'main.js', offset: 2 })
+  })
+
+  it('answers the old list name as an unknown tool', async () => {
+    expect(await dispatchTool('list', {}, deps())).toEqual(toolError('UnknownToolError', 'unknown tool list'))
   })
 
   it('routes grep to deps.search with its arguments', async () => {
@@ -97,7 +104,7 @@ describe('dispatchTool', () => {
     expect(d.exportModel).not.toHaveBeenCalled()
     expect(await dispatchTool('write', { path: 'a.js', content: 'x' }, d)).toBe(REPORT)
     expect(d.write).toHaveBeenCalledWith({ path: 'a.js', content: 'x' })
-    expect(await dispatchTool('list', { extra: 1 }, d)).toEqual(expect.objectContaining({ ok: false, error: expect.objectContaining({ name: 'ValidationError' }) }))
+    expect(await dispatchTool('glob', { extra: 1 }, d)).toEqual(expect.objectContaining({ ok: false, error: expect.objectContaining({ name: 'ValidationError' }) }))
     expect(d.list).not.toHaveBeenCalled()
   })
 

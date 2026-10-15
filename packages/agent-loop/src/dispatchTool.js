@@ -50,7 +50,7 @@ const normalizeGrepArgs = (args) => {
 }
 
 const ROUTES = {
-  list: (deps) => deps.list(),
+  glob: (deps, args) => deps.list(args),
   read: (deps, args) => deps.read(args),
   grep: (deps, args) => deps.search(normalizeGrepArgs(args)),
   write: (deps, args) => deps.write(args),

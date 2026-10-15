@@ -632,7 +632,7 @@ describe('runSuite turn cap', () => {
   })
 
   it('scores no recovery penalty for a failure in the capped last round', async () => {
-    const failing = scripted([toolRound('t1', 'list', {}), writeMain('t2', 'nope(')])
+    const failing = scripted([toolRound('t1', 'glob', {}), writeMain('t2', 'nope(')])
     const [result] = await runSuite([fixture], { provider: failing, backend: createEvalBackend(), maxTurns: 2 })
     expect(result.report.dimensions.recovery).toBe(2)
   })
