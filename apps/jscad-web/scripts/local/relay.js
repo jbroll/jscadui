@@ -14,7 +14,7 @@ import {
   pickForwardHeaders,
   resolveTarget,
 } from '../../server/src/relay/policy.js'
-import { toLogRequest } from './chatLog.js'
+import { teeRelayUpstream } from '../../server/src/relay/chatLog.js'
 
 // A reasoning model can stream nothing for minutes; undici's default gives up after 5.
 export const PROVIDER_BODY_TIMEOUT_MS = 15 * 60_000
@@ -64,17 +64,15 @@ export const createRelayHandler = ({ allowlist, trustedOrigins, allowPrivateUpst
     for await (const c of req) chunks.push(c)
     const logging = log !== null && req.method === 'POST'
     const chatId = req.headers['x-jscad-chat-id']
-    const record = (status, response, error) => log.write({
+    const tee = logging ? teeRelayUpstream({
+      log,
       ts,
-      chatId: typeof chatId === 'string' ? chatId : null,
       kind: m[1],
       path: sub,
-      status,
-      request: toLogRequest(Buffer.concat(chunks)),
-      response,
-      ms: Date.now() - started,
-      ...(error ? { error } : {}),
-    })
+      chatId: typeof chatId === 'string' ? chatId : null,
+      request: Buffer.concat(chunks),
+      started,
+    }) : null
     // A page that goes away mid-answer must not leave the provider streaming to nobody.
     const abort = new AbortController()
     res.on('close', () => { if (!res.writableFinished) abort.abort() })
@@ -84,7 +82,7 @@ export const createRelayHandler = ({ allowlist, trustedOrigins, allowPrivateUpst
     } catch {
       res.writeHead(502, { 'content-type': 'application/json' })
       res.end(JSON.stringify({ error: 'upstream unreachable' }))
-      if (logging) record(502, 'upstream unreachable')
+      if (tee) tee.finish(502, { response: 'upstream unreachable' })
       return true
     }
     res.writeHead(up.status, {
@@ -92,14 +90,12 @@ export const createRelayHandler = ({ allowlist, trustedOrigins, allowPrivateUpst
       'cache-control': 'no-cache',
       ...(origin ? { 'access-control-allow-origin': origin, vary: 'Origin' } : {}),
     })
-    const decoder = new TextDecoder()
-    let text = ''
     let failure = null
     try {
       if (up.body) {
         for await (const c of up.body) {
           res.write(c)
-          if (logging) text += decoder.decode(c, { stream: true })
+          if (tee) tee.chunk(c)
         }
       }
     } catch (err) {
@@ -108,7 +104,7 @@ export const createRelayHandler = ({ allowlist, trustedOrigins, allowPrivateUpst
     // Headers are already sent, so a failed stream can only be cut off.
     if (failure) res.destroy()
     else res.end()
-    if (logging) record(up.status, text + decoder.decode(), failure)
+    if (tee) tee.finish(up.status, failure ? { error: failure } : {})
     return true
   }
 }
