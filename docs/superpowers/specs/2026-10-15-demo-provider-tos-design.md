@@ -25,11 +25,18 @@ builds Phase 1 + Phase 2 + the demo/TOS layer below as one job, reusing the
 
 - A `demo` provider choice in the gear dialog, integrated like every other
   provider (`kind`, `model`, `effort`, summary line), usable with no signup
-  and no user key. Server-held keys pay; per-IP daily + monthly budgets bound
+  and no user key. The client carries exactly one sentinel credential,
+  `demo-limited-free`, for the whole demo provider (partner call 2026-10-15);
+  the server ignores its value and injects the operator's server-held keys
+  per shared option. Every demo turn is always recorded to improve
+  jscad-web. Per-IP daily + monthly budgets bound
   spend (reuse shared-keys Phase 2 meter).
 - First-turn TOS gate: no chat turn runs until the user accepts the current
   TOS version. Acceptance is versioned in
-  `localStorage['jscad-ai.tos'] = { version, at, recordOwnChats }`.
+  `localStorage['jscad-ai.tos'] = { version, at, recordOwnChats }`. A
+  `TOS_VERSION` bump clears acceptance and re-blocks turns until the user
+  re-accepts (partner call 2026-10-15); the prior `recordOwnChats` is shown
+  pre-checked as the default but requires an explicit accept.
 - Mandatory acknowledgements (must check/press to proceed):
   1. Agents run generated JavaScript in workers in this browser.
   2. Prompts, project files in context, and outputs are sent to the chosen
@@ -107,6 +114,8 @@ neither key default `recordOwnChats` to true.
   `demo-limited-free` and the Phase 2 sentinel `shared` interchangeably
   (ignores the value either way). There are no shipped `shared` selections
   to migrate (Phase 2 unlanded); if one is found it is treated as demo.
+- Ship vehicle (partner call 2026-10-15): single feature — Phase 1 + Phase 2
+  + demo/TOS land and deploy together, no phased rollout.
 - Enforcement (builder-check call): the gate runs on Send, on every
   transport including custom base URLs (which keep the code-execution +
   provider-sharing acks, skip only the recording question). Decline blocks
