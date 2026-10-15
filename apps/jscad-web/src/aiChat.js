@@ -230,8 +230,11 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
   // `getProvider` reads) and the recording consent, and is re-rendered whenever
   // the gear dialog changes either. Demo is always saved.
   const renderNotice = () => {
-    const demo = isDemoSelection(getProvider())
-    const show = demo || getRecordOwnChats()
+    const sel = getProvider()
+    // A custom base URL calls the provider directly and is never logged, so the
+    // recording line would be wrong there; demo always records regardless.
+    const demo = isDemoSelection(sel)
+    const show = demo || (getRecordOwnChats() && !sel?.baseUrl)
     notice.style.display = show ? '' : 'none'
     if (!show) return
     if (demo) {

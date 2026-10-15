@@ -1143,7 +1143,8 @@ describe('conversation context', () => {
 })
 
 describe('recording consent in the chat drawer', () => {
-  const OWN_KEY = { kind: 'openai', model: 'm', apiKey: 'k', baseUrl: 'https://relay.test' }
+  const OWN_KEY = { kind: 'openai', model: 'm', apiKey: 'k' }
+  const CUSTOM_KEY = { ...OWN_KEY, baseUrl: 'https://direct.test' }
   const DEMO_KEY = { kind: 'opencode-go', model: 'deepseek-v4.1-flash', apiKey: 'demo-limited-free', shared: 'deepseek', demo: true }
 
   const openChat = (getProvider) => {
@@ -1158,6 +1159,11 @@ describe('recording consent in the chat drawer', () => {
     const notice = container.querySelector('.chat-notice')
     expect(notice.style.display).toBe('')
     expect(notice.textContent).toBe('Chats are saved to improve the assistant. Turn this off in Chat settings.')
+  })
+
+  it('hides the notice for a custom base URL that the relay never logs', async () => {
+    const container = openChat(() => CUSTOM_KEY)
+    expect(container.querySelector('.chat-notice').style.display).toBe('none')
   })
 
   it('hides the notice when the user opted out of recording', async () => {
