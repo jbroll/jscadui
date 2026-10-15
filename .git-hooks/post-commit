@@ -1,0 +1,21 @@
+#!/bin/sh
+# Post-commit hook: submit the working tree to the GPU CI queue.
+# Fire-and-forget: never fails the commit. The pre-commit gate already ran
+# the fast suites locally; simple-ci runs the memory-intensive OpenSCAD
+# comparison suite on the GPU host (see ci/README.md).
+# --supersede kills this worktree's previous queued/running job for the same
+# script, so rapid commits don't pile up GPU jobs: each push tests a tree
+# that includes everything before it.
+
+if ! command -v sci >/dev/null 2>&1; then
+  echo "post-commit: sci not installed, skipping CI push"
+  exit 0
+fi
+
+TAG="commit-$(git rev-parse --short HEAD 2>/dev/null || echo manual)"
+if JOB=$(sci push jscadui/test -t "$TAG" --supersede 2>&1 | tail -1); then
+  echo "post-commit: CI job $JOB queued ($TAG); follow with: sci wait $TAG"
+else
+  echo "post-commit: CI push failed (commit unaffected)"
+fi
+exit 0
