@@ -178,7 +178,7 @@ const handleEntities = (result, { skipLog } = {}) => {
     document.documentElement.dataset.vertices = String(totals.vertices)
     if (!totals.lost) setError(undefined)
     updatePipelineStats(statsContent, { treeTime: result.treeTime, triangles: totals.triangles, vertices: totals.vertices })
-    if (!skipLog) console.log('streamed', totals.cells, 'cells, tree:', result.treeTime?.toFixed(2))
+    if (!skipLog) console.debug('streamed', totals.cells, 'cells, tree:', result.treeTime?.toFixed(2))
     return
   }
   streamRuns.discard()
@@ -207,7 +207,7 @@ const handleEntities = (result, { skipLog } = {}) => {
   }
 
   if (!skipLog) {
-    console.log('tree:', treeTime?.toFixed(2), ', exec:', execTime?.toFixed(2), ', conv:', convTime?.toFixed(2), ', render:', renderTime?.toFixed(2), entities)
+    console.debug('tree:', treeTime?.toFixed(2), ', exec:', execTime?.toFixed(2), ', conv:', convTime?.toFixed(2), ', render:', renderTime?.toFixed(2), entities)
   }
 
   // Read by the render sweep, which must tell an empty model from a render
