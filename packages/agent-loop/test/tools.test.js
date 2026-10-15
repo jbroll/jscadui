@@ -7,7 +7,7 @@ const docsDescription = (api) => buildTools(api).find((t) => t.name === 'docs').
 describe('agent tools', () => {
   it('exposes the thirteen browser tools with input schemas', async () => {
     const names = TOOLS.map((t) => t.name)
-    expect(names).toEqual(['glob', 'read', 'grep', 'write', 'edit', 'delete', 'run', 'measure', 'check', 'export', 'docs', 'ask_user', 'web_search'])
+    expect(names).toEqual(['glob', 'read', 'grep', 'write', 'edit', 'delete', 'run', 'measure', 'check', 'export', 'docs', 'question', 'web_search'])
     expect(names).not.toContain('list')
     expect(names).not.toContain('search')
     for (const tool of TOOLS) {
@@ -150,10 +150,21 @@ describe('agent tools', () => {
     expect(READ_ONLY.has('search')).toBe(false)
   })
 
-  it('defines read-only ask_user with question required', () => {
-    const tool = buildTools('fluent').find((t) => t.name === 'ask_user')
+  it('defines read-only question with question required and an optional header', () => {
+    const tools = buildTools('fluent')
+    expect(tools.map((t) => t.name)).toContain('question')
+    expect(tools.map((t) => t.name)).not.toContain('ask_user')
+    const tool = tools.find((t) => t.name === 'question')
     expect(tool.inputSchema.required).toEqual(['question'])
-    expect(READ_ONLY.has('ask_user')).toBe(true)
+    expect(Object.keys(tool.inputSchema.properties)).toEqual(['question', 'options', 'header'])
+    expect(tool.inputSchema.properties.question.type).toBe('string')
+    expect(tool.inputSchema.properties.options.type).toBe('array')
+    expect(tool.inputSchema.properties.options.items).toEqual({ type: 'string' })
+    expect(tool.inputSchema.properties.header.type).toBe('string')
+    expect(tool.inputSchema.properties.header.description).toMatch(/short label shown above the question/)
+    expect(tool.inputSchema.additionalProperties).toBe(false)
+    expect(READ_ONLY.has('question')).toBe(true)
+    expect(READ_ONLY.has('ask_user')).toBe(false)
   })
 
   it('defines read-only web_search with query required and no extra props', () => {

@@ -62,7 +62,7 @@ const ROUTES = {
   export: (deps, args) => deps.exportModel(args),
   view: (deps, args) => deps.view(args),
   docs: (deps, args) => deps.docs(args.query),
-  ask_user: (deps, args) => deps.askUser(args),
+  question: (deps, args) => deps.askUser(args),
   web_search: (deps, args) => deps.websearch(args),
 }
 

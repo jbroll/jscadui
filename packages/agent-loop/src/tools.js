@@ -158,15 +158,17 @@ export const buildTools = (api = DEFAULT_API) => [
     },
   },
   {
-    name: 'ask_user',
+    name: 'question',
     description: 'Ask the user a clarifying question mid-turn instead of guessing; use for ambiguous sizes, printers or intent. The answer comes back as the tool result.',
     inputSchema: {
       type: 'object',
       properties: {
         question: { type: 'string', description: 'The question to show the user' },
         options: { type: 'array', items: { type: 'string' }, description: 'Suggested answers, if any' },
+        header: { type: 'string', description: 'A short label shown above the question' },
       },
       required: ['question'],
+      additionalProperties: false,
     },
   },
   {
@@ -188,4 +190,4 @@ export const TOOLS = buildTools()
 
 // Calls safe to run concurrently: they read state without saving.
 // write/edit/delete/export save or expose download state and stay serial.
-export const READ_ONLY = new Set(['glob', 'read', 'grep', 'measure', 'check', 'docs', 'run', 'view', 'ask_user', 'web_search'])
+export const READ_ONLY = new Set(['glob', 'read', 'grep', 'measure', 'check', 'docs', 'run', 'view', 'question', 'web_search'])

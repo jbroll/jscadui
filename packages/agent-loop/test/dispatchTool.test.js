@@ -120,11 +120,24 @@ describe('dispatchTool', () => {
     expect(await dispatchTool('docs', { query: 'x' }, d)).toEqual({ ok: false, error: { name: 'Error', message: 'no index' } })
   })
 
-  it('routes ask_user to deps.askUser and surfaces denial-shaped errors as results', async () => {
-    const out = await dispatchTool('ask_user', { question: 'Which size?' }, { askUser: async (a) => `user picked for: ${a.question}` })
+  it('routes question to deps.askUser and surfaces denial-shaped errors as results', async () => {
+    const out = await dispatchTool('question', { question: 'Which size?' }, { askUser: async (a) => `user picked for: ${a.question}` })
     expect(out).toBe('user picked for: Which size?')
-    const bad = await dispatchTool('ask_user', {}, { askUser: async () => 'x' })
+    const bad = await dispatchTool('question', {}, { askUser: async () => 'x' })
     expect(bad).toMatchObject({ ok: false, error: { name: 'ValidationError' } })
+  })
+
+  it('rejects a question call with an unknown property without calling the handler', async () => {
+    const d = deps({ askUser: vi.fn(async () => 'x') })
+    expect(await dispatchTool('question', { question: 'x', bogus: 1 }, d)).toMatchObject({
+      ok: false,
+      error: { name: 'ValidationError' },
+    })
+    expect(d.askUser).not.toHaveBeenCalled()
+  })
+
+  it('answers the old ask_user name as an unknown tool', async () => {
+    expect(await dispatchTool('ask_user', { question: 'Which size?' }, deps({ askUser: async () => 'x' }))).toEqual(toolError('UnknownToolError', 'unknown tool ask_user'))
   })
 
   it('routes web_search to deps.websearch and rejects unknown props', async () => {
