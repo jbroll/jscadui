@@ -1391,6 +1391,19 @@ its own config file. Because a no-op stage leaves the previous build serving,
 which passes every other check, the smoke gate also compares the served build
 against the one just built.
 
+Deploy only from a standard-nesting checkout on `main`, after the branch
+lands — currently `jscadui-wt5` (`/home/john/src/jscadui-wt5`): sync it to
+`origin/main` first, then run `deploy-full.sh update` there. The build
+reaches its siblings by relative path (`../rowboat`, `../OpenJSCAD.org`,
+`../deploy.sh`), so a worktree nested anywhere else fails the build with
+missing files; do not shim those paths with symlinks and deploy from the
+worktree — the shims can mask real breakage, and the deploy source should
+be exactly what landed. 2026-10-15 precedent: deploying from an opencode
+worktree broke on all three sibling paths, and the same run exposed real
+drift — the `rowboat` sibling had added an `acorn` import that the server
+bundle did not declare, failing the API stage on every checkout until
+`acorn` was added to `apps/jscad-web/server/package.json`.
+
 ### Local servers and remote scripts
 
 Apache serves production. Locally, `serve.js` serves `build/` for
