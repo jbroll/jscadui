@@ -510,7 +510,7 @@ requires every grid file in the tree but transpiles only the leaf files it
 wins. A sub-grid whose grid file fails to load is claimed under its own key
 before it is marked, so only one worker draws its skull and logs the failure.
 A `stream: false` run, such as export's re-run, has no
-claim hook and runs every leaf itself, as does the chat's scratch `run`,
+claim hook and runs every leaf itself, as does the chat's scratch `execute`,
 which calls `main` without the stream hook.
 
 Every streaming `jscadMain` or `jscadScript` is a run. Its first won claim
@@ -945,7 +945,7 @@ equivalent or says it is not available. The menu's API Help… panel
 name they look up. The runtime does not change: model
 code may still require either package. Warnings and error hints name only the
 chosen API's form: every load, the editor's and the chat's builds alike, and
-the chat's `run` send it with the files (`jscadSetFiles({ files, api })`), so
+the chat's `execute` send it with the files (`jscadSetFiles({ files, api })`), so
 the mirrored and replayed `jscadSetFiles` always carries the current style,
 and the frame worker passes it to the run's warning collector (`setApi`).
 `createProjectBuilds` and `createProjectTools` take it too, for the error
@@ -954,19 +954,21 @@ eval sets the same value with `EVAL_API` and hands it to
 `createEvalBackend({ api })`, where the docs answer and the warnings for a run
 are built (`packages/agent-loop/docs/user-manual.md`). A shared case table,
 `packages/agent-loop/test/warningCases.js`, runs through the eval backend and
-through the app's `run` and build report over the frame's option-checked
+through the app's `execute` and build report over the frame's option-checked
 modules, so the two give the model the same warnings and hints.
 
 Tools and where they run:
 
 | Tool | Runs |
 |---|---|
-| `list`, `read` | page: the project's file cache, through agent-loop's `listFiles` and `readFile` |
+| `glob`, `read` | page: the project's file cache, through agent-loop's `listFiles` and `readFile` |
 | `write`, `edit` | page: the file cache and the editor (`applyWrite`, `applyEdit`), then a build of the project in the compute frame; answers the build report |
 | `delete` | page: the file cache, the frame's copy of the module and the editor (`applyDelete`), then a build of the project in the compute frame; answers the build report headed by `deleted` |
-| `run` | compute frame: a scratch run beside the project's files that leaves the project, its build and the drawn model alone |
+| `grep` | page: `searchFiles` over the project's text files, `path:line` hits |
+| `execute` | compute frame: a scratch run beside the project's files that leaves the project, its build and the drawn model alone |
 | `measure`, `check`, `export` | compute frame, on the current build |
 | `docs` | page: `docsTool` over `@jscadui/agent-loop/api/index.json` for the chat's API style, no frame round trip |
+| `question`, `websearch`, `webfetch` | page: user answer, rotating search providers, and the `/api/fetch` relay; no frame round trip |
 
 The index (about 260 KB) is not in the app entry: `build.js` bundles it as
 `build/bundle.api-index.js` (content-hashed like the other leaf bundles), and
@@ -979,7 +981,7 @@ The API index also drives the editor and the build tools. The pure core in
 `packages/agent-loop/src/lint.js` walks a Lezer tree and flags an unknown option
 key on a known API call, an unknown function name, and syntax errors; the
 editor runs it through CodeMirror's linter and offers API-name and option-key
-autocomplete and hover docs from the same index. `write`, `edit` and `run` run
+autocomplete and hover docs from the same index. `write`, `edit` and `execute` run
 the identical check on the source and add `source: 'static'` entries to their
 `warnings`, beside the runtime option warnings (a mistake both report is kept
 once, as the runtime entry).
@@ -1059,7 +1061,7 @@ Its dismiss hides the bar without changing the render state (the failed run
 stays an error until the next run). The shell's form controls and the project
 drawer lines restyle under `.dark`, same as the panels and dialogs.
 
-`run` sends its source as `__run__.js` (agent-loop's `RUN_FILE`) beside the project's files, with
+`execute` sends its source as `__run__.js` (agent-loop's `RUN_FILE`) beside the project's files, with
 `scratch: true` on its `jscadScript`. The worker runs it and its `main`
 (a project file's `main(values)` the snippet calls gets a build's params
 proxy with those values set), and answers the console, the warnings, an error, and `summarizeRun`'s `geometry`
@@ -1143,7 +1145,7 @@ during the require, keeps each `fn`+`option` once, holds at most 20, and
 `jscadMain` returns them as `warnings`.
 
 A grid run's answer merges every member's warnings the same way. The chat's
-build report and `run` result pass them on as `warnings`; the editor shows
+build report and `execute` result pass them on as `warnings`; the editor shows
 none of them.
 
 The same wrappers check more than option names (`packages/agent-loop/docs/user-manual.md`
@@ -1166,7 +1168,7 @@ parameter change resets it again before `main`, so its result carries only
 that run's lines. A grid run's
 answer concatenates every member's console lines in member order (no
 dedupe), capped at 50 lines and 4,000 characters total with a trailing
-`… (N more lines)` note. The chat's build report and `run` result carry it
+`… (N more lines)` note. The chat's build report and `execute` result carry it
 as `console`, a failed build's too.
 
 Fluent class methods that take an options object (`.extrudeLinear({...})`,
