@@ -79,7 +79,11 @@ with open(path) as f:
 start = '    # %s' % marker
 end = '    # end %s\n' % marker
 text = re.sub(re.escape(start) + '.*?' + re.escape(end), '', text, flags=re.S)
-text, count = re.subn(r'(</VirtualHost>)(?!.*</VirtualHost>)', block + r'\1', text, flags=re.S)
+# Splice with a function, not a replacement template: the block's own
+# backslashes (SetEnvIfExpr regexes) would die as bad escapes in one.
+def _insert(m):
+    return block + m.group(1)
+text, count = re.subn(r'(</VirtualHost>)(?!.*</VirtualHost>)', _insert, text, flags=re.S)
 if count != 1:
     sys.exit('expected exactly one VirtualHost close, found %d' % count)
 with open(path, 'w') as f:
