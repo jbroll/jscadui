@@ -114,7 +114,7 @@ export const createSandboxedBackend = ({
   const requestTool = async (name, input) => {
     track(name, input)
     if (!executor) return toolError('EvaluatorCrashed', `model code ended the evaluator ${crashes} times; it is not restarted again`)
-    const timeoutMs = name === 'run' ? Math.min(runToolTimeoutMs, callTimeoutMs) : callTimeoutMs
+    const timeoutMs = name === 'execute' ? Math.min(runToolTimeoutMs, callTimeoutMs) : callTimeoutMs
     try {
       return await executor.requestTool(name, input, { timeoutMs })
     } catch (error) {
@@ -127,7 +127,7 @@ export const createSandboxedBackend = ({
         return toolError('EvaluatorCrashed', `model code ended the evaluator (${reason}); it has now ended it ${crashes} times and is not restarted again`)
       }
       // A scratch run never touched the project, so its build comes back, as the app's frame reloads it.
-      const runTimedOut = name === 'run' && error.reason === `ran past ${timeoutMs / 1000} s`
+      const runTimedOut = name === 'execute' && error.reason === `ran past ${timeoutMs / 1000} s`
       const { next } = await launch(runTimedOut ? { build: true } : {})
       if (ended) {
         next.close()

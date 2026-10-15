@@ -88,7 +88,7 @@ export const buildTools = (api = DEFAULT_API) => [
     },
   },
   {
-    name: 'run',
+    name: 'execute',
     description:
       "Run a scratch JavaScript snippet beside the project files, to try an idea or log values. It is never saved and changes neither the project nor its build. A project file's main(values) runs with the other parameters at their defaults. Returns its console output, a summary of what its main() returns (parts, size, volume, and whether it is watertight, manifold and self-intersecting) or of module.exports without a main, and an error with its file, line and column.",
     inputSchema: {
@@ -190,4 +190,4 @@ export const TOOLS = buildTools()
 
 // Calls safe to run concurrently: they read state without saving.
 // write/edit/delete/export save or expose download state and stay serial.
-export const READ_ONLY = new Set(['glob', 'read', 'grep', 'measure', 'check', 'docs', 'run', 'view', 'question', 'websearch'])
+export const READ_ONLY = new Set(['glob', 'read', 'grep', 'measure', 'check', 'docs', 'execute', 'view', 'question', 'websearch'])

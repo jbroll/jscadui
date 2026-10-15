@@ -7,7 +7,7 @@ const docsDescription = (api) => buildTools(api).find((t) => t.name === 'docs').
 describe('agent tools', () => {
   it('exposes the thirteen browser tools with input schemas', async () => {
     const names = TOOLS.map((t) => t.name)
-    expect(names).toEqual(['glob', 'read', 'grep', 'write', 'edit', 'delete', 'run', 'measure', 'check', 'export', 'docs', 'question', 'websearch'])
+    expect(names).toEqual(['glob', 'read', 'grep', 'write', 'edit', 'delete', 'execute', 'measure', 'check', 'export', 'docs', 'question', 'websearch'])
     expect(names).not.toContain('list')
     expect(names).not.toContain('search')
     for (const tool of TOOLS) {
@@ -90,7 +90,7 @@ describe('agent tools', () => {
     expect(schema('write').required).toEqual(['path', 'content'])
     expect(Object.keys(schema('edit').properties)).toEqual(['path', 'oldString', 'newString', 'replaceAll'])
     expect(schema('edit').required).toEqual(['path', 'oldString', 'newString'])
-    expect(schema('run').required).toEqual(['source'])
+    expect(schema('execute').required).toEqual(['source'])
     expect(Object.keys(schema('delete').properties)).toEqual(['path'])
     expect(schema('delete').required).toEqual(['path'])
   })
@@ -103,11 +103,11 @@ describe('agent tools', () => {
     expect(description).not.toMatch(/the delete is saved/)
   })
 
-  it('says write and edit save and build, and run saves nothing', () => {
+  it('says write and edit save and build, and execute saves nothing', () => {
     const description = (name) => TOOLS.find((t) => t.name === name).description
     for (const name of ['write', 'edit']) expect(description(name)).toMatch(/builds the project and returns the build report/)
     expect(description('edit')).toMatch(/exactly once, unless replaceAll/)
-    expect(description('run')).toMatch(/never saved/)
+    expect(description('execute')).toMatch(/never saved/)
   })
 
   it('says glob is rarely needed, since every message carries the files and the last build', () => {
@@ -165,6 +165,20 @@ describe('agent tools', () => {
     expect(tool.inputSchema.additionalProperties).toBe(false)
     expect(READ_ONLY.has('question')).toBe(true)
     expect(READ_ONLY.has('ask_user')).toBe(false)
+  })
+
+  it('defines a read-only execute tool with source required and no run alias', () => {
+    const tools = buildTools('fluent')
+    expect(tools.map((t) => t.name)).toContain('execute')
+    expect(tools.map((t) => t.name)).not.toContain('run')
+    const execute = tools.find((t) => t.name === 'execute')
+    expect(Object.keys(execute.inputSchema.properties)).toEqual(['source'])
+    expect(execute.inputSchema.required).toEqual(['source'])
+    expect(execute.inputSchema.properties.source.type).toBe('string')
+    expect(execute.description).toMatch(/never saved/)
+    expect(execute.description).toMatch(/parts, size, volume/)
+    expect(READ_ONLY.has('execute')).toBe(true)
+    expect(READ_ONLY.has('run')).toBe(false)
   })
 
   it('defines read-only websearch with query required and no extra props', () => {

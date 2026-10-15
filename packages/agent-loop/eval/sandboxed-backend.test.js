@@ -198,7 +198,7 @@ describe('an executor that model code ends', () => {
   }, 30_000)
 
   it('in a run past its own time limit is replaced, the project built again, and the run answered with the limit', async () => {
-    const result = await run([write(CUBE), tool('run', { source: SPINS }), tool('measure', {}), done()], { runToolTimeoutMs: 500 })
+    const result = await run([write(CUBE), tool('execute', { source: SPINS }), tool('measure', {}), done()], { runToolTimeoutMs: 500 })
     const [, spun, measured] = toolResults(result)
     expect(spun).toEqual(runTimeoutError(500))
     expect(measured.volume).toBeCloseTo(8000, 0)
@@ -209,7 +209,7 @@ describe('an executor that model code ends', () => {
     const backend = createSandboxedBackend({ start: exitsOnCall(heapLog) })
     try {
       await backend.reset({})
-      const { error } = JSON.parse(await backend.requestTool('run', { source: 'x' }))
+      const { error } = JSON.parse(await backend.requestTool('execute', { source: 'x' }))
       expect(error).toEqual({ name: 'EvaluatorCrashed', message: 'model code ended the evaluator (out of memory); a new one holds the project as last written, with nothing built yet' })
     } finally {
       backend.close()
@@ -219,7 +219,7 @@ describe('an executor that model code ends', () => {
   it('while grading grades nothing, and the run still scores', async () => {
     const PRIMES = 'globalThis.loads = 1\n' + CUBE
     const FIRST_LOAD_EXITS = 'globalThis.loads = (globalThis.loads ?? 0) + 1\nif (globalThis.loads === 1) process.exit(3)\n' + CUBE
-    const result = await run([tool('run', { source: PRIMES }), write(FIRST_LOAD_EXITS), done()])
+    const result = await run([tool('execute', { source: PRIMES }), write(FIRST_LOAD_EXITS), done()])
     expect(toolResults(result).map((r) => r.ok)).toEqual([true, true])
     expect(result.report.checkRate).toBe(0)
     expect(result.transcript.filter((m) => m.role === 'tool')).toHaveLength(2)

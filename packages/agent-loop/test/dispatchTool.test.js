@@ -68,10 +68,15 @@ describe('dispatchTool', () => {
     expect(d.deleteFile).toHaveBeenCalledWith({ path: 'helper.js' })
   })
 
-  it('routes run with its source', async () => {
+  it('routes execute to deps.run with its source', async () => {
     const d = deps()
-    await dispatchTool('run', { source: 'console.log(1)' }, d)
+    await dispatchTool('execute', { source: 'console.log(1)' }, d)
     expect(d.run).toHaveBeenCalledWith('console.log(1)')
+    expect(await dispatchTool('execute', {}, d)).toEqual(expect.objectContaining({ ok: false, error: expect.objectContaining({ name: 'ValidationError' }) }))
+  })
+
+  it('answers the old run name as an unknown tool', async () => {
+    expect(await dispatchTool('run', { source: 'x' }, deps())).toEqual(toolError('UnknownToolError', 'unknown tool run'))
   })
 
   it('routes measure and check with their options, and export to exportModel', async () => {

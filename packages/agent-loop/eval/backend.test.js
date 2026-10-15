@@ -382,7 +382,7 @@ describe('eval backend run', () => {
   it('returns console output and leaves the project and its build alone', async () => {
     const backend = createEvalBackend()
     await writeMain(CUBE, backend)
-    const res = await call(backend, 'run', { source: "console.log('expected volume', 42)" })
+    const res = await call(backend, 'execute', { source: "console.log('expected volume', 42)" })
     expect(res).toEqual({ ok: true, warnings: [], console: ['expected volume 42'] })
     expect(backend.files()).toEqual({ 'main.js': CUBE })
     expect((await call(backend, 'measure')).volume).toBeCloseTo(8000, 0)
@@ -391,7 +391,7 @@ describe('eval backend run', () => {
   it('summarizes the geometry a snippet main() returns without touching the build', async () => {
     const backend = createEvalBackend()
     await writeMain(CUBE, backend)
-    const res = await call(backend, 'run', { source: CUBE.replace('size: 20', 'size: 4') })
+    const res = await call(backend, 'execute', { source: CUBE.replace('size: 20', 'size: 4') })
     expect(res.geometry).toMatchObject({ parts: 1, dimensions: [4, 4, 4], volume: 64 })
     expect((await call(backend, 'measure')).volume).toBeCloseTo(8000, 0)
   })
@@ -399,31 +399,31 @@ describe('eval backend run', () => {
   it('previews a value that is not geometry, and a snippet can require project files', async () => {
     const backend = createEvalBackend()
     await backend.reset({ 'helper.js': 'module.exports = { size: 20 }' })
-    expect(await call(backend, 'run', { source: "module.exports = require('./helper.js')" })).toMatchObject({ ok: true, returned: '{"size":20}' })
-    expect(await call(backend, 'run', { source: 'module.exports = { main: () => ({ a: 1 }) }' })).toMatchObject({ returned: '{"a":1}' })
+    expect(await call(backend, 'execute', { source: "module.exports = require('./helper.js')" })).toMatchObject({ ok: true, returned: '{"size":20}' })
+    expect(await call(backend, 'execute', { source: 'module.exports = { main: () => ({ a: 1 }) }' })).toMatchObject({ returned: '{"a":1}' })
   })
 
   it("says whether a run's geometry is watertight, manifold and self-intersecting, as a build report does", async () => {
-    const closed = await call(createEvalBackend(), 'run', { source: CUBE })
+    const closed = await call(createEvalBackend(), 'execute', { source: CUBE })
     expect(closed.geometry).toMatchObject({ parts: 1, watertight: true, manifold: true, selfIntersecting: false })
-    const open = await call(createEvalBackend(), 'run', {
+    const open = await call(createEvalBackend(), 'execute', {
       source: "const { geom3 } = require('@jscad/modeling').geometries\nmodule.exports = { main: () => geom3.fromPoints([[[0, 0, 0], [10, 0, 0], [0, 10, 0]]]) }",
     })
     expect(open.geometry).toMatchObject({ watertight: false })
   })
 
   it('says out of memory for a failed allocation, as the app does', async () => {
-    const res = await call(createEvalBackend(), 'run', { source: 'const big = new ArrayBuffer(1e15)' })
+    const res = await call(createEvalBackend(), 'execute', { source: 'const big = new ArrayBuffer(1e15)' })
     expect(res).toMatchObject({ ok: false, error: { name: 'RangeError', message: 'out of memory; try a smaller case', file: '__run__.js', line: 1 } })
   })
 
   it('reports an error with its line and column, and the console before it', async () => {
-    const res = await call(createEvalBackend(), 'run', { source: "console.log('before')\nconst x = 1\nx()" })
+    const res = await call(createEvalBackend(), 'execute', { source: "console.log('before')\nconst x = 1\nx()" })
     expect(res).toMatchObject({ ok: false, console: ['before'], error: { name: 'TypeError', file: '__run__.js', line: 3 } })
   })
 
   it('needs source', async () => {
-    expect((await call(createEvalBackend(), 'run', {})).error.message).toMatch(/missing required property 'source'/)
+    expect((await call(createEvalBackend(), 'execute', {})).error.message).toMatch(/missing required property 'source'/)
   })
 
   it('sets jscad-text up with the modeling it serves, so text2d needs no init', async () => {
@@ -431,7 +431,7 @@ describe('eval backend run', () => {
     const built = await writeMain(withoutInit)
     expect(built).toMatchObject({ ok: true, geometry: { parts: 1 } })
     expect(await writeMain(nameplate())).toEqual(built)
-    const ran = await call(createEvalBackend(), 'run', { source: "const jscadText = require('@jscadui/jscad-text')\nconsole.log(jscadText.text2d('A') !== null)" })
+    const ran = await call(createEvalBackend(), 'execute', { source: "const jscadText = require('@jscadui/jscad-text')\nconsole.log(jscadText.text2d('A') !== null)" })
     expect(ran).toMatchObject({ ok: true, console: ['true'] })
   })
 
@@ -439,7 +439,7 @@ describe('eval backend run', () => {
     const withoutInit = nameplate().replace("jscadText.init(require('@jscad/modeling'))\n", '')
     const fresh = await writeMain(withoutInit)
     const backend = createEvalBackend()
-    const ran = await call(backend, 'run', { source: "const jscadText = require('@jscadui/jscad-text')\njscadText.init(null)\njscadText.text2d('A')" })
+    const ran = await call(backend, 'execute', { source: "const jscadText = require('@jscadui/jscad-text')\njscadText.init(null)\njscadText.text2d('A')" })
     expect(ran).toMatchObject({ ok: false, error: { message: expect.stringContaining('call init(jscad) before using text2d()') } })
     expect(await writeMain(withoutInit, backend)).toEqual(fresh)
   })
@@ -455,16 +455,16 @@ module.exports = { main }`
   it("runs a project main() with the snippet's values over its defaults, as a build would", async () => {
     const backend = createEvalBackend()
     await writeMain(SLIDER_BOX, backend)
-    const given = await call(backend, 'run', { source: "const { main } = require('./main.js')\nmodule.exports = { main: () => main({ width: 30 }) }" })
+    const given = await call(backend, 'execute', { source: "const { main } = require('./main.js')\nmodule.exports = { main: () => main({ width: 30 }) }" })
     expect(given).toMatchObject({ ok: true, geometry: { dimensions: [30, 20, 5] } })
-    const none = await call(backend, 'run', { source: "const { main } = require('./main.js')\nmodule.exports = { main: () => main() }" })
+    const none = await call(backend, 'execute', { source: "const { main } = require('./main.js')\nmodule.exports = { main: () => main() }" })
     expect(none).toMatchObject({ ok: true, geometry: { dimensions: [60, 20, 5] } })
   })
 
   it('names the failing file and line with no loader suffix on the message', async () => {
     const backend = createEvalBackend()
     await writeMain("const main = (params) => { throw new RangeError('too big') }\nmodule.exports = { main }", backend)
-    const res = await call(backend, 'run', { source: "require('./main.js').main({})" })
+    const res = await call(backend, 'execute', { source: "require('./main.js').main({})" })
     expect(res).toMatchObject({ ok: false, error: { name: 'RangeError', file: 'main.js', line: 1 } })
     expect(res.error.message).not.toMatch(/failed loading module/)
   })
@@ -685,7 +685,7 @@ module.exports = { main: () => [
     const backend = createEvalBackend()
     const bad = `const { primitives } = require('@jscad/modeling')\nmodule.exports = { main: () => primitives.cube({ sise: 3 }) }`
     expect((await writeMain(bad, backend)).warnings).toHaveLength(1)
-    expect((await call(backend, 'run', { source: bad })).warnings).toHaveLength(1)
+    expect((await call(backend, 'execute', { source: bad })).warnings).toHaveLength(1)
     expect((await writeMain(CUBE, backend)).warnings).toEqual([])
   })
 })
