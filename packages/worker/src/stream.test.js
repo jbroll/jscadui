@@ -6,11 +6,11 @@ const mesh = () => ({ type: 'mesh', vertices: new Float32Array(9), normals: new 
 describe('stream hook', () => {
   afterEach(() => { delete globalThis.__jscadStream })
 
-  it('posts each batch as jscadCells with its buffers for transfer', () => {
+  it('posts each batch as jscadCells with its buffers for transfer', async () => {
     const post = vi.fn()
     const { hook, emitted } = createStreamHook({ post, userInstances: false })
     const a = mesh()
-    hook.emit([a])
+    await hook.emit([a])
     expect(emitted()).toBe(true)
     const [message, transfer] = post.mock.calls[0]
     expect(message.method).toBe('jscadCells')
@@ -20,11 +20,11 @@ describe('stream hook', () => {
     expect(new Set(transfer).size).toBe(transfer.length)
   })
 
-  it('posts copies of the arrays, one per distinct array, leaving the solid and cached entity intact', () => {
+  it('posts copies of the arrays, one per distinct array, leaving the solid and cached entity intact', async () => {
     const post = vi.fn()
     const a = mesh()
     const { hook } = createStreamHook({ post })
-    hook.emit([a, { ...a, transforms: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 5, 0, 0, 1] }])
+    await hook.emit([a, { ...a, transforms: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 5, 0, 0, 1] }])
     const [message, transfer] = post.mock.calls[0]
     const [first, second] = message.params[0].entities
     expect(first.vertices).not.toBe(a.vertices)
@@ -34,17 +34,32 @@ describe('stream hook', () => {
     expect(transfer).toHaveLength(2)
   })
 
-  it('tags each batch with the run it belongs to', () => {
+  it('tags each batch with the run it belongs to', async () => {
     const post = vi.fn()
-    createStreamHook({ post, runId: 7 }).hook.emit([mesh()])
+    await createStreamHook({ post, runId: 7 }).hook.emit([mesh()])
     expect(post.mock.calls[0][0].params[0].runId).toBe(7)
   })
 
-  it('forces manifold evaluation before converting', () => {
+  it('forces manifold evaluation before converting', async () => {
     const numTri = vi.fn()
     const solid = { ...mesh(), isManifoldGeom3: true, manifold: { numTri } }
-    createStreamHook({ post: vi.fn() }).hook.emit([solid])
+    await createStreamHook({ post: vi.fn() }).hook.emit([solid])
     expect(numTri).toHaveBeenCalled()
+  })
+
+  it('evaluates tree nodes through the injected evaluator before converting', async () => {
+    const post = vi.fn()
+    const node = { op: 'transforms.translate', params: [1, 2, 3], children: [], isTreeNode: true, dim: 3 }
+    const solid = mesh()
+    const evaluate = vi.fn(async (_nodes) => ({ solids: [solid], ghosts: [] }))
+    const { hook, emitted } = createStreamHook({ post, evaluate })
+    await hook.emit([node])
+    expect(evaluate).toHaveBeenCalledWith([node])
+    expect(emitted()).toBe(true)
+    const [message] = post.mock.calls[0]
+    const [entity] = message.params[0].entities
+    expect(entity.vertices).toEqual(solid.vertices)
+    expect(entity.type).not.toBe('unknown')
   })
 
   it('posts progress with no geometry', () => {

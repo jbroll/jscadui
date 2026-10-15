@@ -127,8 +127,24 @@ describe('jscadMain parts', () => {
     expect(cells.filter(([message]) => message.params[0].entities.some(e => e.color?.[3] === 0.5))).toHaveLength(1)
   })
 
-  it('evaluates a build-time measurement through the bound evaluator', async () => {
-    let volume
+  it('evaluates a tree node a streamed cell emits before converting', async () => {
+    const cube = tree.primitives.cube({ size: 2 })
+    workerState.main = async () => {
+      await globalThis.__jscadStream.emit([tree.transforms.translate([5, 0, 0], cube)])
+      return []
+    }
+    const calls = capture()
+
+    const result = await jscadMain({ params: {}, runId: 11 })
+
+    expect(result.streamed).toBe(true)
+    const cells = cellsOf(calls)
+    expect(cells).toHaveLength(1)
+    const [entity] = cells[0][0].params[0].entities
+    expect(entity.type).not.toBe('unknown')
+  })
+
+  it('evaluates a build-time measurement through the bound evaluator', async () => {    let volume
     workerState.main = async () => {
       const cube = tree.primitives.cube({ size: 2 })
       volume = await tree.measurements.measureVolume(cube)

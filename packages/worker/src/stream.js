@@ -26,15 +26,20 @@ export const withCopies = (entities) => {
  *   claim?: (key: string, url: string, runId: unknown) => Promise<boolean>}} options
  *   runId is echoed on every batch so the app can drop batches of a run it has moved past
  */
-export const createStreamHook = ({ post, userInstances, runId, held, claim }) => {
+export const createStreamHook = ({ post, userInstances, runId, held, claim, evaluate }) => {
   let emitted = false
   const hook = {
-    emit(geoms) {
-      const solids = [geoms].flat(Infinity)
-      for (const solid of solids) {
+    // Model code may hand over lazy model-tree nodes (e.g. grid-utils
+    // transforms on the anchored bundles); the injected evaluator resolves
+    // them first, the way jscadMain resolves its own return. Without one,
+    // geometry passes through untouched, as in Node/vitest.
+    async emit(geoms) {
+      const incoming = [geoms].flat(Infinity)
+      const { solids, ghosts } = evaluate ? await evaluate(incoming) : { solids: incoming, ghosts: [] }
+      for (const solid of [...solids, ...ghosts]) {
         if (solid?.isManifoldGeom3) solid.manifold.numTri()
       }
-      const { entities, transfer } = withCopies(toRefs(JscadToCommon.prepare(solids, undefined, userInstances).all, held, []))
+      const { entities, transfer } = withCopies(toRefs(JscadToCommon.prepare([...solids, ...ghosts], undefined, userInstances).all, held, []))
       JscadToCommon.clearCache()
       emitted = true
       post({ method: 'jscadCells', params: [{ entities, runId }] }, transfer)

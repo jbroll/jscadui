@@ -465,7 +465,11 @@ model.
 An `ALL.js` grid does not return its geometry. While the worker runs a model's
 `main`, for a load or a `jscadMain`, it sets `globalThis.__jscadStream`, and
 the grid emits each placed cell through it as a `jscadCells` notification
-(`{ entities, runId }`), then disposes the cell. The result is
+(`{ entities, runId }`), then disposes the cell. `emit` is async and the grid
+awaits it: the worker first evaluates any lazy model-tree nodes the cell
+carries (grid placement on the anchored bundles produces them) against the
+live build memo, then converts, so disposal never frees handles out from
+under the evaluation. The result is
 `{ entities: [], streamed: true, runId }`, where `runId` is the one the app
 sent in the request options.
 

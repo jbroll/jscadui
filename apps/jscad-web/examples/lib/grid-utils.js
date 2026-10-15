@@ -251,28 +251,30 @@ function gridModule(items, { spacing, cellSize }, req) {
     const generation = globalThis.__jscadScriptGeneration
     const claiming = typeof stream?.claim === 'function'
 
-    const send = (geoms) => {
+    const send = async (geoms) => {
       if (!stream) {
         all.push(...geoms)
         return
       }
       try {
-        stream.emit(geoms)
+        // The worker evaluates lazy tree nodes during emit, so the run must
+        // wait for it: disposing first would free the handles it reads.
+        await stream.emit(geoms)
       } finally {
         for (const g of geoms) if (typeof g?.dispose === 'function') g.dispose()
       }
     }
 
     // One bad model marks its own cell; the rest of the grid still renders
-    const fail = (url, x, y, err) => {
+    const fail = async (url, x, y, err) => {
       if (isWasmTrap(err)) globalThis.__allWasmTrap ??= url
       console.error(`ALL: FAILED ${url}: ${err.message}`)
       failed.push(url)
       try {
-        send(markerFor(x, y, cellSize, ctx))
+        await send(markerFor(x, y, cellSize, ctx))
       } catch (markerErr) {
         if (isWasmTrap(markerErr)) globalThis.__allWasmTrap ??= url
-        send([prebuiltSkull(x, y, cellSize, ctx)])
+        await send([prebuiltSkull(x, y, cellSize, ctx)])
       }
     }
 
@@ -289,7 +291,7 @@ function gridModule(items, { spacing, cellSize }, req) {
           mod = req(url)
         } catch (err) {
           // Every worker walks the sub-grid, so only the one that claims it draws the marker
-          if (!claiming || await stream.claim(key.join('/'), url)) fail(url, x, y, err)
+          if (!claiming || await stream.claim(key.join('/'), url)) await fail(url, x, y, err)
           continue
         }
         if (typeof mod?.runGrid === 'function') {
@@ -308,10 +310,10 @@ function gridModule(items, { spacing, cellSize }, req) {
         if (typeof fn === 'function') {
           const geoms = [].concat(await fn(params[name])).flat().filter(g => !g?.previewOnly)
           // emit evaluates the cell's CSG, so its failures belong to this cell too
-          send(toWorld(normalizeAndPlace(geoms, x, y, cellSize), ctx))
+          await send(toWorld(normalizeAndPlace(geoms, x, y, cellSize), ctx))
         }
       } catch (err) {
-        fail(url, x, y, err)
+        await fail(url, x, y, err)
       }
 
       if (!stream) globalThis.__jscadProgress?.()

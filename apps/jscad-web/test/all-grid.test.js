@@ -231,6 +231,25 @@ describe('streaming', () => {
     expect(lines[0]).toMatch(/^ALL: FAILED .*: numTri failed$/)
     expect(stream.batches).toHaveLength(11)
   })
+
+  it('awaits an async stream emit before settling the run', async () => {
+    let resolveEmit
+    const gate = new Promise(r => { resolveEmit = r })
+    const stream = globalThis.__jscadStream = { emit: vi.fn(() => gate), progress: vi.fn() }
+    let settled = false
+    const run = runGrid().then(() => { settled = true })
+    const start = Date.now()
+    while (stream.emit.mock.calls.length === 0 && Date.now() - start < 5000) {
+      await new Promise(r => setTimeout(r, 10))
+    }
+    expect(stream.emit).toHaveBeenCalled()
+    // An unawaited emit would let all 11 cells settle in milliseconds.
+    await new Promise(r => setTimeout(r, 100))
+    expect(settled).toBe(false)
+    resolveEmit()
+    await run
+    expect(settled).toBe(true)
+  })
 })
 
 describe('progress without streaming', () => {

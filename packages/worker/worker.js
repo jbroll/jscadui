@@ -345,6 +345,27 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
   let convTime = 0
 
   const heldSet = held === undefined ? undefined : new Set(held)
+  // Run main with either proxy or plain params, building the lazy model tree
+  // under a per-run build context the measurements read.
+  const ctx = createBuildContext()
+  const boundEvaluate = loadBoundEvaluate()
+  if (boundEvaluate) bindEvaluator(ctx, boundEvaluate)
+  // A streamed cell may carry lazy tree nodes (grid placement on the anchored
+  // bundles); evaluate them against the live build memo the way the eager
+  // measurement seam does, instead of the post-build snapshot below.
+  const evaluateStreamed = boundEvaluate
+    ? async (nodes) => {
+      const live = memoFromSpecials(ctx)
+      const solids = []
+      const ghosts = []
+      for (const node of nodes) {
+        const evaluated = await boundEvaluate(node, live)
+        solids.push(...evaluated.solids)
+        ghosts.push(...evaluated.ghosts)
+      }
+      return { solids, ghosts }
+    }
+    : undefined
   const { hook, emitted } = stream
     ? createStreamHook({
       post: (message, transfer) => self.postMessage(message, transfer),
@@ -352,6 +373,7 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
       runId,
       held: heldSet,
       claim: workerState.claims ? claims.claim : undefined,
+      evaluate: evaluateStreamed,
     })
     : { hook: null, emitted: () => false }
   const runMain = (mainParams) => withStreamHook(hook, () => workerState.main(mainParams))
@@ -360,11 +382,6 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
   if (freshConsole) runConsole?.reset()
 
   try {
-    // Run main with either proxy or plain params, building the lazy model tree
-    // under a per-run build context the measurements read.
-    const ctx = createBuildContext()
-    const boundEvaluate = loadBoundEvaluate()
-    if (boundEvaluate) bindEvaluator(ctx, boundEvaluate)
     const buildWith = (mainParams) => withBuildContext(ctx, () => runMain(mainParams))
 
     let out
@@ -471,12 +488,12 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
         claimed.push(...solids)
         // Kept while claiming so the catch below preserves the parts already built.
         workerState.solids = claimed
-        hook.emit(solids)
-        if (ghosts.length) hook.emit(ghosts)
+        await hook.emit(solids)
+        if (ghosts.length) await hook.emit(ghosts)
       }
       if (rootGhostNodes.length && await hook.claim(ROOT_GHOST_KEY)) {
         const { solids, ghosts } = await evaluateNodes(rootGhostNodes)
-        hook.emit([...solids, ...ghosts])
+        await hook.emit([...solids, ...ghosts])
       }
       execTime = performance.now() - time
 
