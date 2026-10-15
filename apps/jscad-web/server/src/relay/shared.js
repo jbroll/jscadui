@@ -1,0 +1,186 @@
+// Shared (demo) provider config: operator-owned options with server-held keys,
+// validated at load. Plain JS + JSDoc like policy.js, so production `node`
+// loads it and tsc (allowJs/checkJs) type-checks and emits it into dist/.
+import { readFileSync } from 'node:fs'
+
+export const DEFAULT_SHARED_PATH = '/etc/jscad-relay/shared.json'
+// Phase 1 defaults: $5 per calendar month across all shared keys, $0.10 per
+// day per IP group. The operator's file overrides both.
+export const DEFAULT_MONTHLY_USD = 5
+export const DEFAULT_PER_IP_DAILY_USD = 0.1
+
+/** @typedef {{ id: string, label: string, kind: string, path: string, model: string, key: string, maxTokens: number, inputUsdPerMTok: number, outputUsdPerMTok: number }} SharedOption */
+/** @typedef {{ monthlyUsd: number, perIpDailyUsd: number, options: SharedOption[] }} SharedConfig */
+
+// Mirrors RESPONSES_MODELS / MESSAGES_MODELS in
+// packages/agent-loop/src/providers.js; shared.test.ts pins the copies equal,
+// so a routing change cannot silently drift the path a shared option may use.
+export const RESPONSES_MODELS = new Set([
+  'grok-4.6',
+  'gpt-5.6-luna',
+  'muse-spark-1.3-contributor',
+  'muse-spark-1.2-contributor',
+  'muse-spark-1.3',
+])
+export const MESSAGES_MODELS = new Set([
+  'minimax-m3',
+  'minimax-m2.7',
+  'minimax-m2.5',
+  'qwen3.8-max',
+  'qwen3.8-flash',
+  'qwen3.7-max',
+  'qwen3.7-plus',
+  'qwen3.6-plus',
+])
+
+// Both take `authorization: Bearer`; a shared option's key is injected only for
+// these kinds, so nothing else may appear in the operator's file.
+export const SHARED_KINDS = new Set(['opencode-go', 'meta'])
+
+/**
+ * The one endpoint a kind and model use in agent-loop, or null for a kind that
+ * cannot serve a shared option.
+ * @param {string} kind
+ * @param {string} model
+ * @returns {string | null}
+ */
+export const expectedPathFor = (kind, model) => {
+  if (!SHARED_KINDS.has(kind)) return null
+  if (RESPONSES_MODELS.has(model)) return 'v1/responses'
+  if (MESSAGES_MODELS.has(model)) return 'v1/messages'
+  return 'v1/chat/completions'
+}
+
+/**
+ * @param {string} label names the file in errors
+ * @param {unknown} value
+ * @param {string} name
+ * @returns {number}
+ */
+const budget = (label, value, name) => {
+  if (value === undefined) return name === 'monthlyUsd' ? DEFAULT_MONTHLY_USD : DEFAULT_PER_IP_DAILY_USD
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+    throw new Error(`relay: shared config ${label} '${name}' must be a number >= 0`)
+  }
+  return value
+}
+
+/**
+ * @param {unknown} value
+ * @param {string} name
+ * @param {string} where
+ * @returns {string}
+ */
+const requireString = (value, name, where) => {
+  if (typeof value !== 'string' || value === '') throw new Error(`relay: shared ${where} '${name}' must be a non-empty string`)
+  return value
+}
+
+/**
+ * @param {unknown} value
+ * @param {string} name
+ * @param {string} where
+ * @returns {number}
+ */
+const requirePrice = (value, name, where) => {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+    throw new Error(`relay: shared ${where} '${name}' must be a positive per-million-token price`)
+  }
+  return value
+}
+
+/**
+ * @param {unknown} value
+ * @param {string} where
+ * @returns {number}
+ */
+const requireMaxTokens = (value, where) => {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
+    throw new Error(`relay: shared ${where} 'maxTokens' must be a positive integer`)
+  }
+  return value
+}
+
+/**
+ * @param {unknown} value
+ * @param {string} where
+ * @param {Set<string>} seen
+ * @returns {SharedOption}
+ */
+const parseOption = (value, where, seen) => {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`relay: shared ${where} must be an object`)
+  }
+  const raw = /** @type {Record<string, unknown>} */ (value)
+  const id = requireString(raw.id, 'id', where)
+  if (seen.has(id)) throw new Error(`relay: shared ${where} duplicate id '${id}'`)
+  seen.add(id)
+  const kind = requireString(raw.kind, 'kind', where)
+  if (!SHARED_KINDS.has(kind)) {
+    throw new Error(`relay: shared ${where} kind '${kind}' must be one of ${[...SHARED_KINDS].join(', ')}`)
+  }
+  const model = requireString(raw.model, 'model', where)
+  const path = requireString(raw.path, 'path', where)
+  const expected = expectedPathFor(kind, model)
+  if (path !== expected) {
+    throw new Error(`relay: shared ${where} path '${path}' must be '${expected}' for kind '${kind}' and model '${model}'`)
+  }
+  return {
+    id,
+    label: requireString(raw.label, 'label', where),
+    kind,
+    path,
+    model,
+    key: requireString(raw.key, 'key', where),
+    maxTokens: requireMaxTokens(raw.maxTokens, where),
+    inputUsdPerMTok: requirePrice(raw.inputUsdPerMTok, 'inputUsdPerMTok', where),
+    outputUsdPerMTok: requirePrice(raw.outputUsdPerMTok, 'outputUsdPerMTok', where),
+  }
+}
+
+/**
+ * Parses a shared config's text. Throws on anything the operator must fix; the
+ * route that reads it never forwards on an unparsable file.
+ * @param {string} raw
+ * @param {string} label
+ * @returns {SharedConfig}
+ */
+export const parseSharedConfig = (raw, label) => {
+  let parsed
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    throw new Error(`relay: shared config ${label} is not valid JSON`)
+  }
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error(`relay: shared config ${label} must be an object`)
+  }
+  const body = /** @type {Record<string, unknown>} */ (parsed)
+  const optionsRaw = body.options ?? []
+  if (!Array.isArray(optionsRaw)) throw new Error(`relay: shared config ${label} 'options' must be an array`)
+  const seen = new Set()
+  return {
+    monthlyUsd: budget(label, body.monthlyUsd, 'monthlyUsd'),
+    perIpDailyUsd: budget(label, body.perIpDailyUsd, 'perIpDailyUsd'),
+    options: optionsRaw.map((o, i) => parseOption(o, `${label} option ${i}`, seen)),
+  }
+}
+
+/**
+ * Reads the shared config. A missing file means no shared options; any other
+ * read or parse failure throws, since a bad file must not silently forward.
+ * @param {string} path
+ * @returns {SharedConfig}
+ */
+export const loadSharedFile = (path) => {
+  let raw
+  try {
+    raw = readFileSync(path, 'utf-8')
+  } catch (err) {
+    if ((/** @type {NodeJS.ErrnoException} */ (err)).code === 'ENOENT') {
+      return { monthlyUsd: DEFAULT_MONTHLY_USD, perIpDailyUsd: DEFAULT_PER_IP_DAILY_USD, options: [] }
+    }
+    throw new Error(`relay: cannot read shared config ${path}: ${(err instanceof Error && err.message) || String(err)}`)
+  }
+  return parseSharedConfig(raw, path)
+}
