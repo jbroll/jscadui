@@ -131,7 +131,7 @@ reasoning block on each of these.
 
 A call whose arguments are not JSON reports no `tool` phase, since it does not
 run. Read-only tools (`list`, `read`, `search`, `measure`, `check`, `docs`, `run`,
-`ask_user`,
+`ask_user`, `web_search`,
 `view`; `READ_ONLY` in `src/tools.js`) run concurrently and the saving tools
 (`write`, `edit`, `delete`, `export`) serially after them, so one round's
 `tool` phases all arrive before any of its results; every result is committed
@@ -140,7 +140,9 @@ turn. `beforeToolCall(name, input)` runs before each call and may deny it
 (`{ decision: 'deny', reason? }`, answered `DeniedError`) or rewrite its
 arguments (`{ updatedInput }`); `afterToolCall(name, input, result)` runs
 after and may replace the result (`{ result }` or a string). A throwing hook
-becomes a tool error. Denials, rewrites and hook failures are results the
+becomes a tool error. `toolFilter(name)`, when given, hides tools from the
+offered set before the turn starts (the app uses it to remove `web_search`
+when the user pins search off). Denials, rewrites and hook failures are results the
 model sees, never turn failures, so side-effecting calls can be gated without
 touching the loop. The app's chat draws its
 status line and Stop button from it
@@ -309,7 +311,7 @@ Calls the handler for `name` and returns what it answers: `list()`,
 `read(args)`, `search(args)`, `write(args)`, `edit(args)`, `deleteFile(args)` for `delete`,
 `run(args.source)`,
 `measure(args)`, `check(args)`, `exportModel(args)` for `export`,
-`view(args)`, `docs(args.query)` and `askUser(args)` for `ask_user`, with `input` defaulting to `{}`. A name
+`view(args)`, `docs(args.query)`, `askUser(args)` for `ask_user` and `websearch(args)` for `web_search`, with `input` defaulting to `{}`. A name
 outside that list answers `toolError('UnknownToolError', 'unknown tool
 <name>')`; a handler that throws or rejects answers `toolError(error.name,
 error.message)` (`Error` and the thrown value's text for a non-error). It
