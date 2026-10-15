@@ -106,9 +106,15 @@ describe('system prompt', () => {
 
   it.each(APIS)('%s: teaches the project tools, with no save step and no old tools', (api) => {
     const prompt = buildSystemPrompt(api)
-    for (const tool of ['edit', 'write', 'run', 'measure', 'check', 'docs']) expect(prompt).toContain(`\`${tool}\``)
+    for (const tool of ['edit', 'write', 'execute', 'measure', 'check', 'docs']) expect(prompt).toContain(`\`${tool}\``)
     expect(prompt).toMatch(/Every `write` and `edit` saves the file and builds the project/)
     expect(prompt).not.toMatch(/writeModel|notSaved|`eval`|[Ss]ave with|save often/)
+  })
+
+  it.each(APIS)('%s: names the read, search and question tools by their canonical names', (api) => {
+    const prompt = buildSystemPrompt(api)
+    for (const tool of ['read', 'glob', 'grep', 'question', 'websearch']) expect(prompt).toContain(`\`${tool}\``)
+    expect(prompt).not.toMatch(/`list`|`search`|`ask_user`|`web_search`|`run`/)
   })
 
   it.each(APIS)('%s: keeps the millimetre line', (api) => {

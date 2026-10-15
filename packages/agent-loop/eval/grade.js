@@ -19,7 +19,8 @@ const failed = (content) => parsed(content)?.ok === false
 // `writeModel` (a save of `source` to `entry`, main.js by default).
 const LEGACY_ENTRY = 'main.js'
 const SAVES = new Set(['write', 'edit', 'delete', 'writeModel'])
-const TRIALS = new Set(['eval', 'run'])
+// `run` is the pre-rename name of `execute`; old transcripts keep grading.
+const TRIALS = new Set(['eval', 'run', 'execute'])
 const BUILDS = new Set(['eval', 'write', 'edit'])
 
 // Failed results before the first successful build (or legacy eval).
@@ -107,7 +108,7 @@ const measuredSave = (call, result) => {
   return report?.ok === true && !report.error && report.geometry !== undefined && report.geometry !== null
 }
 
-// A measure or check call, a clean write or edit, or a run (legacy eval) that measures in code and logs it.
+// A measure or check call, a clean write or edit, or a scratch run/execute (legacy eval) that measures in code and logs it.
 const verifies = (call, resultOf) =>
   call.name === 'measure' || call.name === 'check' || measuredSave(call, resultOf.get(call.id)) || measuringRun(call, resultOf.get(call.id))
 
@@ -131,11 +132,13 @@ export function gradeTranscript(fixture, transcript, { maxTurns } = {}) {
   }
 
   // No failures means nothing to recover from: full marks, same as a recovered run.
-  // The capped last round had no turn left to recover in. A scratch `run`
-  // neither fails nor recovers the project, so only builds and the other tools count.
+  // The capped last round had no turn left to recover in. A scratch `run` or
+  // `execute` neither fails nor recovers the project, so only builds and the
+  // other tools count.
   const lastRound = hitCap(transcript, maxTurns) ? transcript.slice(transcript.findLastIndex((m) => m.role === 'assistant')) : []
   const nameOf = new Map(calls.map((c) => [c.id, c.name]))
-  const counted = results.filter((r) => nameOf.get(r.toolCallId) !== 'run')
+  const scratch = new Set(['run', 'execute'])
+  const counted = results.filter((r) => !scratch.has(nameOf.get(r.toolCallId)))
   let recovery = 2
   const failures = counted.filter((r) => failed(r.content) && !lastRound.includes(r))
   if (failures.length > 0) {
@@ -146,11 +149,12 @@ export function gradeTranscript(fixture, transcript, { maxTurns } = {}) {
     recovery = laterSuccess ? 2 : 0
   }
 
-  // Saving often and reading before editing are wanted: a write, edit, read or
-  // list counts only when it failed, and a legacy writeModel never does. The
-  // thresholds sit at half the old 12/24: with a maxTurns of 8 no run reached
-  // 12 counted calls, so full marks were free and conservation separated nothing.
-  const free = (c) => SAVES.has(c.name) || c.name === 'read' || c.name === 'list'
+  // Saving often and reading before editing are wanted: a write, edit, read,
+  // glob or legacy list counts only when it failed, and a legacy writeModel
+  // never does. The thresholds sit at half the old 12/24: with a maxTurns of 8
+  // no run reached 12 counted calls, so full marks were free and conservation
+  // separated nothing.
+  const free = (c) => SAVES.has(c.name) || c.name === 'read' || c.name === 'glob' || c.name === 'list'
   const spent = calls.filter((c) => (free(c) ? c.name !== 'writeModel' && failed(resultOf.get(c.id)?.content) : true)).length
   const conservation = spent <= 6 ? 2 : spent <= 12 ? 1 : 0
 

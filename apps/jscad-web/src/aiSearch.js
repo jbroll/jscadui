@@ -20,7 +20,7 @@ const readStoreKeys = (stores = {}) => {
 }
 
 /**
- * Page-side web_search: the browser-direct pool first, Tavily (relay-only)
+ * Page-side websearch: the browser-direct pool first, Tavily (relay-only)
  * via POST /api/search when the direct pool is exhausted and a Tavily key is
  * set. Keys live in the per-provider stores, memory only, never logged.
  */
@@ -75,7 +75,7 @@ export const createWebSearchHandler = ({
   return async (args) => {
     const pin = getPinned?.() ?? 'random'
     // Pinned off removes the tool; a direct call fails closed, never searches.
-    if (pin === 'off' || pin === false) return toolError('SearchUnavailableError', 'web_search: disabled in Chat settings')
+    if (pin === 'off' || pin === false) return toolError('SearchUnavailableError', 'websearch: disabled in Chat settings')
     // Pinned Tavily goes straight to the relay (browsers cannot reach Tavily
     // directly); a relay failure falls through to the direct pool.
     if (pin === 'tavily' && keysOf().tavily) {
@@ -92,7 +92,7 @@ export const createWebSearchHandler = ({
     try {
       return await viaRelay(args)
     } catch (error) {
-      return toolError('SearchUnavailableError', `web_search: relay fallback failed (${error?.message ?? error})`)
+      return toolError('SearchUnavailableError', `websearch: relay fallback failed (${error?.message ?? error})`)
     }
   }
 }

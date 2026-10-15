@@ -49,6 +49,18 @@ const normalizeGrepArgs = (args) => {
   return args
 }
 
+// Exposed tool name → `deps.*` handler key. The deps keys are the on-disk
+// protocol between the loop, the app and the eval; the exposed names are the
+// agent-visible ones. Only `glob`, `grep`, `delete`, `execute`, `export` and
+// `question` differ: `list`/`search`/`run` predate the rename, and
+// `deleteFile`/`exportModel` keep their suffix so the key is never the
+// reserved word. `deps` keys are otherwise stable.
+//
+//   glob → list            grep → search         delete → deleteFile
+//   execute → run(source)  export → exportModel  question → askUser
+//
+// `read`, `write`, `edit`, `measure`, `check`, `view`, `docs` and `websearch`
+// map to a key of the same name.
 const ROUTES = {
   glob: (deps, args) => deps.list(args),
   read: (deps, args) => deps.read(args),
@@ -73,6 +85,7 @@ const ROUTES = {
  * @param {string} name
  * @param {object} [input]
  * @param {{list:Function,read:Function,search:Function,write:Function,edit:Function,deleteFile:Function,run:Function,measure:Function,check:Function,exportModel:Function,view:Function,docs:Function,askUser:Function,websearch:Function}} deps
+ *   Handlers keyed by the stable on-disk names (see the table above `ROUTES`).
  */
 export const dispatchTool = async (name, input, deps) => {
   if (!Object.hasOwn(ROUTES, name)) return toolError('UnknownToolError', `unknown tool ${name}`)

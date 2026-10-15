@@ -477,8 +477,8 @@ describe('runTurn', () => {
       },
     }
     const conversation = { messages: [{ role: 'user', content: 'hi' }] }
-    await runTurn({ conversation, provider, requestTool: vi.fn(), toolFilter: (name) => name !== 'web_search' })
-    expect(seen[0].map((t) => t.name)).not.toContain('web_search')
+    await runTurn({ conversation, provider, requestTool: vi.fn(), toolFilter: (name) => name !== 'websearch' })
+    expect(seen[0].map((t) => t.name)).not.toContain('websearch')
     expect(seen[0].map((t) => t.name)).toContain('write')
   })
 

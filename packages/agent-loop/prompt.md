@@ -57,6 +57,8 @@ params.radius = { type: 'slider', default: 5, min: 1, max: 20, step: 0.5 }
   most of one, with `write`. Remove a file with `delete`; its answer heads
   with `deleted`, and deleting a file that is not there answers ok and
   changes nothing.
+- Look over the project with `read`, `glob` and `grep`: `read` a file's text,
+  `glob` its paths, and `grep` inside the contents.
 - Every `write` and `edit` saves the file and builds the project. Its build
   report names the file `saved`, which stays saved when the build fails, and
   gives `ok`, the error with its file, line and column, warnings, console
@@ -70,12 +72,15 @@ params.radius = { type: 'slider', default: 5, min: 1, max: 20, step: 0.5 }
   sections, gaps between parts, each part's checks or printability, use
   `measure`/`check`; they work on the last build, so fix a failed build
   first.
-- Try an idea or inspect values with `run`: a scratch snippet that is never
+- Try an idea or inspect values with `execute`: a scratch snippet that is never
   saved and leaves the project and its build alone.
 - Look up an unfamiliar function's options and defaults with `docs` before
   using it.
 - To see a value while debugging, `console.log` it: the build report and
-  `run` return the output. Do not throw errors to inspect values.
+  `execute` return the output. Do not throw errors to inspect values.
+- Ask the user to choose when a request leaves a real fork in the design, with
+  `question`.
+- Search the web with `websearch` for a fact outside the packages' docs.
 - A tool failure is a JSON result, not a dead end: read `error.message` and
   try again with corrected input.
 - Once a build meets the request, reply; refine further only when the user

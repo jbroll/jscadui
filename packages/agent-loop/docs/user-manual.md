@@ -39,9 +39,9 @@ files are skipped. The
 project message is always sent: an empty project with no build is
 `The project is empty; no build yet.`, and a missing part says
 `The project has no files.` or `The project has not been built yet.`, so the
-model needs no `list` to learn the project's state. Every header ends with
+model needs no `glob` to learn the project's state. Every header ends with
 `PROJECT_NOTE`: "Every message comes with this note on the project: its text
-files and its last build, so list is rarely needed." The app and the eval both
+files and its last build, so glob is rarely needed." The app and the eval both
 use it.
 
 `partitionTranscript(transcript, budget)` splits the transcript into whole
@@ -130,8 +130,8 @@ reasoning block on each of these.
 | `{ phase: 'done' }` | the turn has ended, resolved or rejected; a capped turn carries `stopped: 'max_rounds'`, a triple repeat `stopped: 'doom_loop'` |
 
 A call whose arguments are not JSON reports no `tool` phase, since it does not
-run. Read-only tools (`list`, `read`, `search`, `measure`, `check`, `docs`, `run`,
-`ask_user`, `web_search`,
+run. Read-only tools (`glob`, `read`, `grep`, `measure`, `check`, `docs`, `execute`,
+`question`, `websearch`,
 `view`; `READ_ONLY` in `src/tools.js`) run concurrently and the saving tools
 (`write`, `edit`, `delete`, `export`) serially after them, so one round's
 `tool` phases all arrive before any of its results; every result is committed
@@ -141,7 +141,7 @@ turn. `beforeToolCall(name, input)` runs before each call and may deny it
 arguments (`{ updatedInput }`); `afterToolCall(name, input, result)` runs
 after and may replace the result (`{ result }` or a string). A throwing hook
 becomes a tool error. `toolFilter(name)`, when given, hides tools from the
-offered set before the turn starts (the app uses it to remove `web_search`
+offered set before the turn starts (the app uses it to remove `websearch`
 when the user pins search off). Denials, rewrites and hook failures are results the
 model sees, never turn failures, so side-effecting calls can be gated without
 touching the loop. The app's chat draws its
@@ -307,11 +307,13 @@ its own way of running the model.
 dispatchTool(name, input, { list, read, search, write, edit, deleteFile, run, measure, check, exportModel, view, docs, askUser })
 ```
 
-Calls the handler for `name` and returns what it answers: `list()`,
-`read(args)`, `search(args)`, `write(args)`, `edit(args)`, `deleteFile(args)` for `delete`,
-`run(args.source)`,
-`measure(args)`, `check(args)`, `exportModel(args)` for `export`,
-`view(args)`, `docs(args.query)`, `askUser(args)` for `ask_user` and `websearch(args)` for `web_search`, with `input` defaulting to `{}`. A name
+Calls the handler for `name` and returns what it answers. Most exposed names
+are the handler's `deps` key too; these differ: `glob` uses `list`, `grep`
+uses `search`, `delete` uses `deleteFile`, `execute` uses `run` (called as
+`run(args.source)`), `export` uses `exportModel`, and `question` uses
+`askUser`. The rest call their own key: `read(args)`, `write(args)`,
+`edit(args)`, `measure(args)`, `check(args)`, `view(args)`, `docs(args.query)`
+and `websearch(args)`, with `input` defaulting to `{}`. A name
 outside that list answers `toolError('UnknownToolError', 'unknown tool
 <name>')`; a handler that throws or rejects answers `toolError(error.name,
 error.message)` (`Error` and the thrown value's text for a non-error). It
@@ -333,7 +335,7 @@ definitions.
 reportError(error, { api, index })
 ```
 
-A model error as a report or `run` result carries it:
+A model error as a report or `execute` result carries it:
 `{ name, message, file?, line?, column? }`, the name cut to 200 characters
 and the message to 4,000, without the frame worker's `jscadMain failed: `
 prefix or the loader's ` / failed loading module …` note, `out of memory;
@@ -343,7 +345,7 @@ with `PROJECT_BASE`, or from a Babel message whose first line names
 `<PROJECT_BASE><path>:` and ends with `(line:column)`.
 
 `PROJECT_BASE` (`http://project.local/`) is the URL base project files load
-under, and `RUN_FILE` (`__run__.js`) the file a `run` snippet runs as beside
+under, and `RUN_FILE` (`__run__.js`) the file an `execute` snippet runs as beside
 them. `createReadFile(files, fetchFile)` is the readFile `@jscadui/require`
 gets: a URL under `PROJECT_BASE` answers from `files`, or throws `file not
 found <url>`; a key of `files` answers as given; any other path goes to
@@ -369,7 +371,7 @@ npm run read-log -w @jscadui/agent-loop -- --json
 The summary prints one block per conversation, headed by its chat id, model
 and API style, then each user message, each tool call as `ok`, `FAILED` or
 `no result`, the error message and code of each failed call (a `write`'s path
-and content, an `edit`'s path and its `-`/`+` strings, a `run`'s source), and
+and content, an `edit`'s path and its `-`/`+` strings, an `execute`'s source), and
 the final assistant text. The style comes from the system prompt's own
 heading (`## jscad-fluent style` or `## @jscad/modeling style`, wherever the
 provider carries it — `request.system` for Anthropic, `request.instructions`
@@ -433,11 +435,11 @@ the eval's `SyntaxError` carries no location; `reportError` reads the file,
 line and column from the first parse error's message, as it does for the frame's. `measure`, `check` and `export`
 fail with `NoGeometryError` before the first build (`no geometry: write the
 model first`) and after a failed one (`no geometry: the last build failed
-(<message>); fix it first`). `run` answers
+(<message>); fix it first`). `execute` answers
 `{ ok, warnings, console, geometry? | returned? }`, or
 `{ ok: false, error, warnings, console }`; its `geometry` has the build
-report's fields, `watertight`, `manifold` and `selfIntersecting` included. A
-`run` stops after 30 s with `{ ok: false, error: { name: "TimeoutError",
+report's fields, `watertight`, `manifold` and `selfIntersecting` included. An
+`execute` stops after 30 s with `{ ok: false, error: { name: "TimeoutError",
 message: "run stopped after 30 s; try a smaller case" } }`, in the app and the
 live eval alike, and an allocation failure in a run or a build reads `out of
 memory; try a smaller case`.
@@ -454,7 +456,7 @@ fails with `BinaryFileError`.
 `view` fails with `UnavailableError`, and any other name, `eval`,
 `writeModel` and `params` included, with `UnknownToolError`.
 
-Build reports and `run` results carry
+Build reports and `execute` results carry
 `warnings: [{ fn, option, suggestions, hint, file, line }]` like the app's, worded for the
 backend's `api`, and `console: [lines]` with what the model run logged
 (`console.log/info/warn/error/debug`, formatted like Node's `util.format`,
@@ -467,7 +469,7 @@ lines)` note).
 descriptions say their sizes are millimetres. A `measure` with `section`
 gives each loop's outline as points in the section plane, holes marked
 (`@jscadui/model-tools`' README has the caps), since models otherwise sliced
-the model with thin slabs in `run` to see a profile.
+the model with thin slabs in `execute` to see a profile.
 
 `check` takes a `bed` only when the user names a printer: without one it
 reports watertight, manifold, inside out, self-intersecting and size, with no
@@ -660,25 +662,25 @@ file's successful `eval`), or before the end of the run if none succeeds.
 
 Grading reads result files from before the file tools too: there `eval` was a
 trial run and `writeModel` a save of `source` to `entry` (`main.js` by
-default), and each counts below where `run` and `write` do.
+default), and each counts below where `execute` and `write` do.
 
 Discipline asks whether the model checked its model. Verification is a
 `measure` or `check` call, a `write` or `edit` whose build report came back
 `ok` with `geometry` and no error (the report already carries the measured
-geometry), or a `run` whose source calls a `measure*`
+geometry), or an `execute` whose source calls a `measure*`
 function (`shape.measureDimensions()`, `measureVolume()`, as `fluent.md`
-teaches) and whose result carries console output. A run with a `run` gets 2
+teaches) and whose result carries console output. A run with an `execute` gets 2
 when the fixture has no `verifyBeforeWrite`, when it never writes, or when it
 verifies before or after its first save (`write`, `edit` or `delete`), else 1; a save builds the
-model, so measuring after it counts. A run with no `run` gets 2 when it
+model, so measuring after it counts. A run with no `execute` gets 2 when it
 verifies after a save, else 0. Recovery is 2 when no tool call failed
 or a success followed the last failure, else 0, counting every call but a
-scratch `run`, which neither breaks nor fixes the project (a failed `run`
+scratch `execute`, which neither breaks nor fixes the project (a failed `execute`
 still counts toward conservation); a run the turn cap ended
 (its last round's results got no reply) leaves that round's failures out,
 since it had no turn left to recover in. Conservation is 2 for at most 6
 counted calls, 1 for at most 12, else 0. It counts every call except a
-successful `write`, `edit`, `delete`, `read` or `list` (and an older file's
+successful `write`, `edit`, `delete`, `read` or `glob` (and an older file's
 `writeModel`), so failed builds and failed calls count, and saving often or
 reading before editing never costs a point.
 
@@ -686,7 +688,7 @@ Geometry grades the project's final state, since that is what the app's user
 keeps: the fixture's files with every `write`, `edit` and `delete` replayed
 (one the backend refused changes nothing), built through its entry in a fresh
 backend
-state after the run ends, so a scratch `run` changes nothing. A project with
+state after the run ends, so a scratch `execute` changes nothing. A project with
 no entry file, or whose final state does not build, gets geometry 0 (an older
 file with no entry file builds the file its last `writeModel` wrote). A
 model that has not finished after 120 s at grading time gets no geometry. A
@@ -728,7 +730,7 @@ tend to max out once a prompt clears the bar:
   the run, not just the ones before the first success. Transcript-derived, so
   `--regrade` recomputes them from the stored transcript.
 - `warnings`: unknown-option warnings returned on the run's tool results
-  (build reports and `run` results), summed. Transcript-derived.
+  (build reports and `execute` results), summed. Transcript-derived.
 - `docsCalls`: `docs` calls in the run. Transcript-derived.
 - `inputTokens` / `outputTokens`: summed over the run's provider calls from a
   `usage` stream event (Anthropic's `message_start`/`message_delta`, OpenAI's

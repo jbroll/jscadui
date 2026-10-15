@@ -23,11 +23,11 @@ abort/timeout, and provider retry in `src/providers.js`.
 
 | Standard category | Our tools | Notes |
 | --- | --- | --- |
-| Read files | `list`, `read`, `search` | Project-scoped, paths cannot leave project. Every turn already carries files + last build, so `list` is rarely needed. `search` finds `path:line` hits across the project, at most 60 per call. |
+| Read files | `glob`, `read`, `grep` | Project-scoped, paths cannot leave project. Every turn already carries files + last build, so `glob` is rarely needed. `grep` finds `path:line` hits across the project, at most 60 per call. |
 | Write files | `write`, `edit`, `delete` | Save + rebuild in one step, same `src/project.js` ops in app and eval. `edit` needs exact `oldString`. |
-| Run code | `run` | Scratch snippet beside the project, never saved. Closest browser-safe analog of a shell. |
+| Run code | `execute` | Scratch snippet beside the project, never saved. Closest browser-safe analog of a shell. |
 | Domain verbs | `measure`, `check`, `export`, `view` (app) | Geometry instead of tests/linter. `export` gives size; download stays in app. |
-| Docs lookup | `docs` | Generated API index over modeling/fluent/jscad-text. Our version of a search tool, scoped to APIs we serve. |
+| Docs lookup | `docs` | Generated API index over modeling/fluent/jscad-text. Our version of a lookup tool, scoped to APIs we serve. |
 | Context | `src/context.js`, `src/summarize.js` | 24k history + 24k project budgets, recency-pruned files, summary handoff. No live compaction block from provider. |
 | Status/usage | `onStatus`, `onText`, `onReasoning`, `onUsage` | Thinking/retry/usage stream alongside content. |
 
@@ -38,14 +38,14 @@ candidate with its cost noted.
 
 ### 1. Search inside the project (`grep`, `glob`) — shipped
 
-Shipped as `search(pattern, paths?)`: `path:line: text` hits sorted by
+Shipped as `grep(pattern, include?)`: `path:line: text` hits sorted by
 path, at most 60 per call with an overflow count, binary files skipped,
-regex or plain text, read-only. No glob; `list` already gives every path
-with its size each turn.
+regex or plain text, read-only. `glob` gives every path with its size each
+turn; `grep` is for the contents.
 
-### 2. User question / approval (`ask_user`) — shipped
+### 2. User question / approval (`question`) — shipped
 
-Shipped as `ask_user(question, options?)`, read-only: the route hands the
+Shipped as `question(question, options?)`, read-only: the route hands the
 call to the app's `deps.askUser`, which shows the question mid-turn and
 returns the answer as the tool result. The app supplies the chat-bubble UI
 and the eval a canned stub; the package ships only the definition. Standard
@@ -69,13 +69,13 @@ breaks the no-network sandbox story the eval relies on. Would need
 size caps, same-origin or allowlist policy, and error-as-result
 handling. Not proposed until a concrete fixture needs it.
 
-Verdict 2026-10-15: `web_search` graduates from deferred under
+Verdict 2026-10-15: `websearch` graduates from deferred under
 `docs/superpowers/specs/2026-10-15-websearch-design.md`, which trips the
 gate above: rotating keyless MCP providers (Exa, Parallel, Firecrawl)
 plus keyed TinyFish direct and Tavily via `POST /api/search`, blanket
 per-conversation permission, snippet caps with fence escaping, and the
 `catalog-search` eval fixture proving the tool path with an ignored
-injection. Page fetch (`web_fetch`) stays deferred under the relay spec.
+injection. Page fetch (`webfetch`) stays deferred under the relay spec.
 
 ### 5. Subagents / agent-as-tool
 
@@ -110,13 +110,45 @@ now.
 ### 8. Shell (`bash`)
 
 Standard elsewhere, explicitly out here. The browser has no shell and
-the eval sandbox forbids processes by design. `run` plus domain tools
+the eval sandbox forbids processes by design. `execute` plus domain tools
 cover the need. No work planned.
+
+## OpenCode tool names
+
+Our agent-visible names follow the OpenCode tool names, so a model that
+knows OpenCode already knows our surface. `read`, `write` and `edit` are
+unchanged; `glob`, `grep`, `question`, `websearch` and `execute` rename to
+the OpenCode name each replaces; the rest are domain verbs OpenCode has no
+tool for, kept as extensions.
+
+| Ours | OpenCode | Status |
+| --- | --- | --- |
+| `read` | `read` | identical |
+| `write` | `write` | identical |
+| `edit` | `edit` | identical |
+| `glob` | `glob` | renamed from `list` |
+| `grep` | `grep` | renamed from `search` |
+| `question` | `question` | renamed from `ask_user` |
+| `websearch` | `websearch` | renamed from `web_search` |
+| `execute` | `execute` | renamed from `run` |
+| `delete` | — | extension: OpenCode removes files with `bash rm` or `patch` |
+| `measure` | — | extension: CAD geometry, no OpenCode analog |
+| `check` | — | extension: CAD geometry, no OpenCode analog |
+| `export` | — | extension: writes a mesh for download, app-side |
+| `docs` | — | extension: OpenCode reaches docs through `webfetch`/`skill`; ours is a scoped index |
+| `view` | — | extension: app-only visual viewer |
+| `webfetch` | `webfetch` | deferred; `websearch` ships first, page fetch waits for its gate |
+
+OpenCode tools we deliberately leave out: `shell` (no shell in the browser
+or eval sandbox, `execute` covers scratch code), `patch` (our `edit` and
+`write` own file changes), `skill` and `subagent`/`task` (single-turn loop,
+no loader; deferred until a fixture proves the need).
 
 ## Suggested order
 
-1. Project `search` — shipped; glob only if `list` proves too narrow.
-2. `ask_user` for ambiguity, using the existing hook shape — shipped.
+1. Project `grep` — shipped; `glob` only if the per-turn file list proves
+   too narrow.
+2. `question` for ambiguity, using the existing hook shape — shipped.
 3. Skills-style split only when prompt size forces it.
 4. Everything networked or recursive (fetch, subagents, MCP client)
    waits for a fixture that cannot pass without it.
@@ -124,8 +156,8 @@ cover the need. No work planned.
 Deferred until a gate trips, one line each: webfetch only when a fixture
 requires an external catalog page and states its URL; subagents only when
 single-turn complex-fixture pass rate plateaus for two eval passes after
-search + ask_user ship; MCP client only when the tool count passes 20 or a
-shared external registry exists. Shell stays out: `run` covers it.
+grep + question ship; MCP client only when the tool count passes 20 or a
+shared external registry exists. Shell stays out: `execute` covers it.
 
 ## Sources
 

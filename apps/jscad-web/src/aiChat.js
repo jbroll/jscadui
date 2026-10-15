@@ -28,12 +28,12 @@ const STOPPED_NOTE = '[stopped by the user]'
 const websearchOff = (provider) => provider === false || provider === 'off'
 
 // Blanket web-search permission: granted once per conversation, not per call.
-// Ungranted web_search short-circuits to a grant request instead of searching
+// Ungranted websearch short-circuits to a grant request instead of searching
 // (never auto-searches); every granted call is logged so spend is auditable.
 export const WEBSEARCH_GRANT_REQUEST =
-  'web_search needs the user\'s permission once per conversation, which is not granted yet. ' +
-  'Ask the user with ask_user whether to allow web search for this conversation ' +
-  '(or tell them they can allow it in Chat settings), and only call web_search again after they agree.'
+  'websearch needs the user\'s permission once per conversation, which is not granted yet. ' +
+  'Ask the user with question whether to allow web search for this conversation ' +
+  '(or tell them they can allow it in Chat settings), and only call websearch again after they agree.'
 
 export const createWebsearchGrant = ({ granted = false, log = () => {} } = {}) => {
   let on = granted
@@ -43,11 +43,11 @@ export const createWebsearchGrant = ({ granted = false, log = () => {} } = {}) =
       on = next === true
     },
     beforeToolCall: async (name) => {
-      if (name === 'web_search' && !on) return { decision: 'deny', reason: WEBSEARCH_GRANT_REQUEST }
+      if (name === 'websearch' && !on) return { decision: 'deny', reason: WEBSEARCH_GRANT_REQUEST }
       return undefined
     },
     afterToolCall: async (name, input, result) => {
-      if (name !== 'web_search' || !on) return undefined
+      if (name !== 'websearch' || !on) return undefined
       let parsed = result
       if (typeof parsed === 'string') {
         try {
@@ -490,9 +490,9 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
         afterToolCall: gatedAfterToolCall,
         toolFilter:
           typeof websearchProvider === 'function'
-            ? (name) => (websearchOff(websearchProvider()) ? name !== 'web_search' : true)
+            ? (name) => (websearchOff(websearchProvider()) ? name !== 'websearch' : true)
             : websearchOff(websearchProvider)
-              ? (name) => name !== 'web_search'
+              ? (name) => name !== 'websearch'
               : undefined,
         onText: (text) => {
           assistantText += text

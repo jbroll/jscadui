@@ -54,10 +54,10 @@ describe('buildMessages', () => {
     expect(messages[2]).toEqual({ role: 'user', content: 'new' })
   })
 
-  it('says an empty project is empty, so the model need not list it', () => {
+  it('says an empty project is empty, so the model need not glob it', () => {
     const [, project] = buildMessages({ systemPrompt: 'S', message: 'new' })
     expect(project).toEqual({ role: 'user', content: `The project is empty; no build yet.\n\n${PROJECT_NOTE}` })
-    expect(PROJECT_NOTE).toBe('Every message comes with this note on the project: its text files and its last build, so list is rarely needed.')
+    expect(PROJECT_NOTE).toBe('Every message comes with this note on the project: its text files and its last build, so glob is rarely needed.')
   })
 
   it('ends every project note saying it comes with every message', () => {
@@ -69,7 +69,7 @@ describe('buildMessages', () => {
 
   it('skips binary files and says when no text file is left', () => {
     const [, project] = buildMessages({ systemPrompt: 'S', files: { 'part.stl': new ArrayBuffer(4) }, message: 'new' })
-    expect(project.content).toBe(`The project has no text files; list shows every file.\n\nThe project has not been built yet.\n\n${PROJECT_NOTE}`)
+    expect(project.content).toBe(`The project has no text files; glob shows every file.\n\nThe project has not been built yet.\n\n${PROJECT_NOTE}`)
   })
 
   it('fences a file containing backticks with a longer fence', () => {

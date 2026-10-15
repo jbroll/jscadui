@@ -312,7 +312,7 @@ export function createEvalBackend({ api = DEFAULT_API, cannedSearch = [] } = {})
 
   const onBuild = (tool) => (args) => (current?.geometry ? tool(current.geometry, args) : noGeometryError(current?.report ?? null))
 
-  // Offline web_search: scripted fixtures are consent by construction, so the
+  // Offline websearch: scripted fixtures are consent by construction, so the
   // grant gate does not apply here. Canned results keyed by query substring;
   // anything unscripted fails closed — live network never runs in eval.
   const searchCanned = (args) => {
@@ -320,7 +320,7 @@ export function createEvalBackend({ api = DEFAULT_API, cannedSearch = [] } = {})
     const entry = cannedSearch.find(
       (canned) => typeof canned?.match === 'string' && query.toLowerCase().includes(canned.match.toLowerCase()),
     )
-    if (!entry) return toolError('SearchUnavailableError', 'web_search: no canned result matches in the eval harness')
+    if (!entry) return toolError('SearchUnavailableError', 'websearch: no canned result matches in the eval harness')
     return { ok: true, results: entry.results.map((hit) => ({ ...hit })) }
   }
 

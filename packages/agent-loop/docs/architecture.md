@@ -95,16 +95,16 @@ option through; nothing sets it yet.
 
 ## Tool protocol
 
-All model interaction is a tool call (`list`, `read`, `search`, `write`, `edit`,
-`delete`, `run`,
-`measure`, `check`, `export`, `docs`, `ask_user`, `web_search`, and the app's `view`):
+All model interaction is a tool call (`glob`, `read`, `grep`, `write`, `edit`,
+`delete`, `execute`,
+`measure`, `check`, `export`, `docs`, `question`, `websearch`, and the app's `view`):
 `runTurn` streams
 `text` events as chat prose and never parses them for code, so model source
 travels only in a `tool_use` input (`write.content`, `edit.newString`,
-`run.source`). No markdown-fence extractor exists anywhere in the app or the
+`execute.source`). No markdown-fence extractor exists anywhere in the app or the
 eval, and none is wanted — a model that wants to run code has to call a tool.
-One round's read-only calls (`list`, `read`, `search`, `measure`, `check`, `docs`,
-`run`, `ask_user`, `web_search`, and the app's `view`) run concurrently and the saving
+One round's read-only calls (`glob`, `read`, `grep`, `measure`, `check`, `docs`,
+`execute`, `question`, `websearch`, and the app's `view`) run concurrently and the saving
 calls after
 them, serially; every result lands in the transcript in call order.
 
@@ -130,7 +130,7 @@ so the next provider call never sees an orphaned call.
 
 The model works in a JavaScript project the way a coding agent does, with
 tools named and shaped like the common coding-agent ones, so models use them
-without teaching. `list` gives the paths and byte sizes, `read` a file
+without teaching. `glob` gives the paths and byte sizes, `read` a file
 numbered like `cat -n` (`offset`, `limit` in lines), `write` a whole file,
 `edit` one exact replacement (`oldString` must occur once unless
 `replaceAll`; a missing or repeated one fails with `EditError` and changes
@@ -180,7 +180,7 @@ whose `loc` a wrapper dropped, or the
 first `<base><path>:<line>:<column>` frame of a stack. `measure`, `check` and
 `export` work on the last build and fail with `NoGeometryError`
 (`noGeometryError`) when it failed.
-`run` is a scratch runner: the snippet runs beside the project's files as
+`execute` is a scratch runner: the snippet runs beside the project's files as
 `__run__.js` (`RUN_FILE`) and is never saved, and neither the project nor its build
 changes. A project module the snippet requires hands back its `main` wrapped
 (params-core `withProjectMains`), so `main({ width: 30 })` runs as a build
@@ -193,15 +193,15 @@ test a fix for open edges, or a `returned` preview of `module.exports`
 (`summarizeRun`), and an error with its location, without the loader's
 ` / failed loading module …` note (`withoutLoaderNote`), which builds drop
 too. The app's frame worker
-answers `run` through the same `summarizeRun` and the same messages.
+answers `execute` through the same `summarizeRun` and the same messages.
 
 The per-turn header (`buildMessages`) sends the project files and then the
 project's last build report, so each turn starts knowing whether the project
 builds and what it produces, including breakage from the user's own editor
 changes. It is sent every turn, an empty project included (`The project is
 empty; no build yet.`), since without it models opened most runs with a
-`list` and guessed at files to read. It ends saying that every message
-carries it, so `list` is rarely needed (`PROJECT_NOTE`); the `list`
+`glob` and guessed at files to read. It ends saying that every message
+carries it, so `glob` is rarely needed (`PROJECT_NOTE`); the `glob`
 description says the same, since Muse still listed a project the header had
 just called empty. Both sit outside the 24,000-character history budget. The
 files have their own 24,000-character budget (`PROJECT_BUDGET`); past it the
@@ -228,7 +228,7 @@ any name `isBuiltin` accepts) fail the same way, since the browser has none.
 `@jscadui/jscad-text`, ESM-only, which Node's `require` cannot resolve, is
 imported by `eval/backend.js` and handed over as a plain copy of its exports,
 as the frame's `bundle.jscad_text.js` hands them. It is one module for every
-run, so each build and each `run` starts with its `reset()`, as each frame
+run, so each build and each `execute` starts with its `reset()`, as each frame
 load does: an `init` a snippet made never reaches a later build. Model code's
 first require of it in a run then initialises it with Node's own
 `@jscad/modeling` (not the option-checked copy, whose warnings would name
@@ -244,11 +244,11 @@ URL outside the map fails, since the eval has no network.
 
 The CDN stub hands model code a copy of `@jscad/modeling` and
 `@jbroll/jscad-fluent` with the option checks (`src/optionChecks.js`,
-`api/optionTable.js`), so build reports and `run` results carry the same
+`api/optionTable.js`), so build reports and `execute` results carry the same
 warnings as the app's. Node's modeling module object is never changed:
 fluent and model-tools require the same one.
 
-Builds and `run` capture the model run's console calls with
+Builds and `execute` capture the model run's console calls with
 `src/consoleCapture.js`. The frame worker captures the same way for the app
 (`apps/jscad-web/src_frame/consoleCapture.js`), always forwarding to the real
 console too so the editor's own runs still log to devtools; a grid run
@@ -351,7 +351,7 @@ admitted catalog entries; both are empty until an entry is admitted.
 state seeded with the fixture's files, whose build report joins the files in
 the first message, the prompt, then each of the fixture's `followUps` in
 order, then a grade of the project's final state, built again in a fresh state
-so no scratch `run` leaks into the grade. A follow-up goes through
+so no scratch `execute` leaks into the grade. A follow-up goes through
 `buildMessages` as the app sends one: the earlier turns as text, then the
 project as it stands, built. An error lands on the result, never thrown, and
 ends the conversation. `providerError` marks one the provider caused, judged
@@ -499,8 +499,8 @@ a part that moves or comes off (`eval/judge.js`, `judgePrompt`).
 The conversation loop and the provider calls run in the `run-eval` process,
 which holds the key. Model code runs in executor processes
 (`eval/executor-child.js`, started by `eval/sandbox.js` `startExecutor`) that
-never receive the key or the parent's environment: every tool call (`list`,
-`read`, `write`, `edit`, `run`, `measure`, `check`, `export`, `docs`), the
+never receive the key or the parent's environment: every tool call (`glob`,
+`read`, `write`, `edit`, `execute`, `measure`, `check`, `export`, `docs`), the
 first reset that builds the fixture's files for the header, and every grade
 goes to one as a request and comes back as a reply
 (`eval/executor-protocol.js`), in length-prefixed JSON frames (`eval/frames.js`)
@@ -558,7 +558,7 @@ the call counts as a failed call. Its message names the exit (`code 3`,
 `ran past 110 s`), or `out of memory` for a V8 heap exit, whose heap log
 tells the model nothing (`memoryMessage` in `src/buildReport.js`, which also
 rewords an in-process allocation failure in the eval and the app alike). A
-`run` gets 30 s (`RUN_TOOL_TIMEOUT_MS`, the frame's limit for a scratch run
+`execute` gets 30 s (`RUN_TOOL_TIMEOUT_MS`, the frame's limit for a scratch run
 too); past it the executor is replaced the same way, but the project is
 built again, since the snippet never touched it and the app's frame reloads
 the model, and the run answers `run stopped after 30 s; try a smaller case`.

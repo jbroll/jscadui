@@ -142,7 +142,7 @@ const authHeaders = (provider, key, version) => {
 }
 
 /**
- * Page/Node web_search handler factory. Keys from `getKeys()` (or `keys`,
+ * Page/Node websearch handler factory. Keys from `getKeys()` (or `keys`,
  * or `JSCADUI_<PROVIDER>_API_KEY` env at construction); `relaySearch` serves
  * relay-only traffic in browser wiring (Task 5).
  */
@@ -192,12 +192,12 @@ export const createWebSearch = ({
   return async (args) => {
     const query = args?.query
     if (typeof query !== 'string' || !query.trim()) {
-      return toolError('ValidationError', "web_search: missing required property 'query'")
+      return toolError('ValidationError', "websearch: missing required property 'query'")
     }
     const count = args?.count ?? DEFAULT_COUNT
-    if (!Number.isInteger(count)) return toolError('ValidationError', "web_search: property 'count' should be integer")
+    if (!Number.isInteger(count)) return toolError('ValidationError', "websearch: property 'count' should be integer")
     const pool = buildPool({ keys: resolvedKeys, context, pinned })
-    if (!pool.length) return toolError('SearchUnavailableError', 'web_search: no usable search provider')
+    if (!pool.length) return toolError('SearchUnavailableError', 'websearch: no usable search provider')
     const start = hashId(String(projectId ?? sessionId ?? '')) % pool.length
     const now = Date.now()
     for (let step = 0; step < pool.length; step++) {
@@ -211,6 +211,6 @@ export const createWebSearch = ({
       }
       if (attempt.retryable) cooldowns.set(provider.id, Date.now() + retryAfterMs(attempt.headers))
     }
-    return toolError('SearchUnavailableError', 'web_search: every provider failed or is cooling down')
+    return toolError('SearchUnavailableError', 'websearch: every provider failed or is cooling down')
   }
 }

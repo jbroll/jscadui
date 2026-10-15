@@ -90,6 +90,28 @@ describe('grader on project-tool transcripts', () => {
     expect(run(0, 13)).toBe(0)
   })
 
+  it('never costs conservation for a successful glob either, and a failed one counts', () => {
+    const run = (globs, badGlobs) => {
+      const transcript = [{ role: 'user', content: 'make it' }, toolMsg('w', 'write', {}), resultMsg('w', built())]
+      for (let i = 0; i < globs; i += 1) transcript.push(toolMsg(`g${i}`, 'glob', {}), resultMsg(`g${i}`, JSON.stringify({ ok: true })))
+      for (let i = 0; i < badGlobs; i += 1) transcript.push(toolMsg(`x${i}`, 'glob', {}), resultMsg(`x${i}`, JSON.stringify({ ok: false, error: { message: 'boom' } })))
+      return gradeFixture(fixture, transcript, { volume: 6400 }).dimensions.conservation
+    }
+    expect(run(40, 0)).toBe(2)
+    expect(run(0, 6)).toBe(2)
+    expect(run(0, 7)).toBe(1)
+  })
+
+  it('credits a measuring execute as a trial, like the legacy run name', () => {
+    const measuring = "const s = jf.cube({ size: 10 })\nconsole.log(s.measureDimensions())"
+    const w = [toolMsg('t1', 'write', { path: 'main.js', content: 'x' }), resultMsg('t1', built())]
+    const withExecute = [toolMsg('r1', 'execute', { source: measuring }), resultMsg('r1', JSON.stringify({ ok: true, console: ['[10,10,10]'] })), ...w]
+    expect(gradeFixture(fixture, withExecute, { volume: 6400 }).dimensions.discipline).toBe(2)
+    const unmeasured = [toolMsg('r1', 'execute', { source: 'console.log(1)' }), resultMsg('r1', JSON.stringify({ ok: true, console: ['1'] })), ...w]
+    expect(gradeFixture(fixture, unmeasured, { volume: 6400 }).dimensions.discipline).toBe(1)
+    expect(gradeFixture({ ...fixture, verifyBeforeWrite: false }, unmeasured, { volume: 6400 }).dimensions.discipline).toBe(2)
+  })
+
   it('counts failures before the first successful build', () => {
     const transcript = [
       toolMsg('t1', 'edit', {}), resultMsg('t1', JSON.stringify({ ok: false, error: { name: 'EditError', message: 'oldString is not in main.js' } })),
@@ -187,24 +209,26 @@ describe('grader', () => {
     expect(gradeFixture(fixture, earlier, { volume: 6400 }, {}, { maxTurns: 2 }).dimensions.recovery).toBe(0)
   })
 
-  it('judges recovery on builds and project tools, never on a failed scratch run', () => {
+  it('judges recovery on builds and project tools, never on a failed scratch run or execute', () => {
     const geometry = { parts: 1, dimensions: [10, 10, 10], volume: 1000 }
-    const transcript = [
-      { role: 'user', content: 'make it' },
-      toolMsg('t1', 'write', { path: 'main.js', content: 'x' }),
-      resultMsg('t1', built({ geometry })),
-      toolMsg('t2', 'run', { source: "require('./main.js').main({})" }),
-      resultMsg('t2', JSON.stringify({ ok: false, error: { message: 'boom' } })),
-    ]
-    expect(gradeFixture(fixture, transcript, { volume: 6400 }).dimensions.recovery).toBe(2)
-    const brokenThenRun = [
-      { role: 'user', content: 'make it' },
-      toolMsg('t1', 'write', { path: 'main.js', content: 'x' }),
-      resultMsg('t1', brokenBuild),
-      toolMsg('t2', 'run', { source: 'console.log(1)' }),
-      resultMsg('t2', JSON.stringify({ ok: true, console: ['1'] })),
-    ]
-    expect(gradeFixture(fixture, brokenThenRun, null).dimensions.recovery).toBe(0)
+    for (const name of ['run', 'execute']) {
+      const transcript = [
+        { role: 'user', content: 'make it' },
+        toolMsg('t1', 'write', { path: 'main.js', content: 'x' }),
+        resultMsg('t1', built({ geometry })),
+        toolMsg('t2', name, { source: "require('./main.js').main({})" }),
+        resultMsg('t2', JSON.stringify({ ok: false, error: { message: 'boom' } })),
+      ]
+      expect(gradeFixture(fixture, transcript, { volume: 6400 }).dimensions.recovery, name).toBe(2)
+      const brokenThenRun = [
+        { role: 'user', content: 'make it' },
+        toolMsg('t1', 'write', { path: 'main.js', content: 'x' }),
+        resultMsg('t1', brokenBuild),
+        toolMsg('t2', name, { source: 'console.log(1)' }),
+        resultMsg('t2', JSON.stringify({ ok: true, console: ['1'] })),
+      ]
+      expect(gradeFixture(fixture, brokenThenRun, null).dimensions.recovery, name).toBe(0)
+    }
   })
 
   it('rewards recovery and punishes abandonment', () => {

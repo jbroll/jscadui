@@ -1,7 +1,7 @@
 // apps/jscad-web/test/aiChat.test.js
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest'
-import { buildSystemPrompt, SUMMARY_PREFIX } from '@jscadui/agent-loop'
+import { buildSystemPrompt, dispatchTool, SUMMARY_PREFIX } from '@jscadui/agent-loop'
 import { initChat, relayBaseUrl } from '../src/aiChat.js'
 
 describe('browser chat turn', () => {
@@ -28,7 +28,7 @@ describe('browser chat turn', () => {
     expect(container.querySelector('.chat-messages').textContent).toMatch(/volume 42/)
   })
 
-  it('denies web_search until the user grants it, then proceeds and logs the call', async () => {
+  it('denies websearch until the user grants it, then proceeds and logs the call', async () => {
     document.body.innerHTML = '<div id="chat"></div>'
     const container = document.getElementById('chat')
     let captured
@@ -48,19 +48,37 @@ describe('browser chat turn', () => {
     container.querySelector('.chat-input').value = 'search the web'
     container.querySelector('.chat-form').dispatchEvent(new Event('submit', { cancelable: true }))
     await vi.waitFor(() => expect(runTurnFn).toHaveBeenCalledTimes(1))
-    const denied = await captured.beforeToolCall('web_search', { query: 'bearing' })
+    const denied = await captured.beforeToolCall('websearch', { query: 'bearing' })
     expect(denied).toMatchObject({ decision: 'deny' })
-    expect(String(denied.reason)).toMatch(/ask_user/)
+    expect(String(denied.reason)).toMatch(/question/)
+    expect(String(denied.reason)).toMatch(/websearch/)
+    // The grant gate is for websearch alone; another read-only tool passes through.
+    expect(await captured.beforeToolCall('question', { question: 'which size?' })).toBeUndefined()
+    expect(await captured.beforeToolCall('measure', {})).toBeUndefined()
     expect(requestTool).not.toHaveBeenCalled()
     chat.setWebsearchGranted(true)
-    expect(await captured.beforeToolCall('web_search', { query: 'bearing' })).toBeUndefined()
-    expect(await captured.beforeToolCall('measure', {})).toBeUndefined()
+    expect(await captured.beforeToolCall('websearch', { query: 'bearing' })).toBeUndefined()
     await captured.afterToolCall(
-      'web_search',
+      'websearch',
       { query: 'bearing' },
       JSON.stringify({ ok: true, results: [{ title: 't', url: 'https://example.com/x', snippet: 's', provider: 'exa' }] }),
     )
     expect(logs).toEqual([{ query: 'bearing', provider: 'exa', count: 1 }])
+  })
+
+  it('answers the pre-rename tool names as unknown, never as a served call', async () => {
+    const deps = {
+      list: async () => ({ ok: true }),
+      search: async () => ({ ok: true }),
+      askUser: async () => '',
+      run: async () => ({ ok: true }),
+      websearch: async () => ({ ok: true }),
+    }
+    const old = [['list', {}], ['search', { pattern: 'x' }], ['ask_user', { question: 'x' }], ['run', { source: 'x' }], ['web_search', { query: 'x' }]]
+    for (const [name, input] of old) {
+      expect(await dispatchTool(name, input, deps), name).toEqual({ ok: false, error: { name: 'UnknownToolError', message: `unknown tool ${name}` } })
+    }
+    expect(await dispatchTool('websearch', { query: 'x' }, deps)).toEqual({ ok: true })
   })
 
   it('resolves a websearchProvider function per turn and keeps logging when the log throws', async () => {
@@ -90,15 +108,15 @@ describe('browser chat turn', () => {
     }
     submit()
     await vi.waitFor(() => expect(runTurnFn).toHaveBeenCalledTimes(1))
-    expect(seenFilters[0]?.('web_search')).toBe(true)
+    expect(seenFilters[0]?.('websearch')).toBe(true)
     pin = 'off'
     submit()
     await vi.waitFor(() => expect(runTurnFn).toHaveBeenCalledTimes(2))
-    expect(seenFilters[1]?.('web_search')).toBe(false)
+    expect(seenFilters[1]?.('websearch')).toBe(false)
     expect(seenFilters[1]?.('write')).toBe(true)
     const calls = runTurnFn.mock.calls
     await expect(
-      calls[1][0].afterToolCall('web_search', { query: 'x' }, JSON.stringify({ ok: true, results: [] })),
+      calls[1][0].afterToolCall('websearch', { query: 'x' }, JSON.stringify({ ok: true, results: [] })),
     ).resolves.toBeUndefined()
   })
 
@@ -597,7 +615,7 @@ describe('stored conversation', () => {
       getProvider: () => ({ kind: 'openai', model: 'm', apiKey: 'k', baseUrl: 'https://relay.test' }),
       runTurnFn: async ({ requestTool, onText }) => {
         await requestTool('write', { path: 'src/a.js', content: 'x' })
-        await requestTool('list', {})
+        await requestTool('glob', {})
         onText('done')
         return { messages: [] }
       },

@@ -1010,7 +1010,7 @@ if (byId('ai-chat')) {
     // Blanket web-search permission: the dialog toggle sets the default for
     // new conversations; each granted call is audit-logged to the console.
     websearchGranted: getWebsearchSelection().allow === true,
-    websearchLog: (entry) => console.info('[web_search]', entry),
+    websearchLog: (entry) => console.info('[websearch]', entry),
     websearchProvider: () => getWebsearchSelection().provider,
     storage: chatStorage,
     projectId: () => currentProjectId,
