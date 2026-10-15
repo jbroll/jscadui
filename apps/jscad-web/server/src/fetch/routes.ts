@@ -98,6 +98,39 @@ const isHttpUrl = (value: string): boolean => {
   }
 };
 
+// Reads a body of at most MAX_BODY_BYTES, aborting the stream the instant the
+// cap is passed: a huge (or Content-Length-lying) upstream is never buffered
+// whole. The Content-Length fast path in the route catches the honest case.
+const readCapped = async (
+  res: globalThis.Response,
+): Promise<{ tooLarge: true } | { tooLarge: false; text: string }> => {
+  if (!res.body || typeof res.body.getReader !== 'function') {
+    const text = await res.text();
+    return Buffer.byteLength(text) > MAX_BODY_BYTES ? { tooLarge: true } : { tooLarge: false, text };
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let bytes = 0;
+  let text = '';
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      bytes += value.byteLength;
+      if (bytes > MAX_BODY_BYTES) {
+        await reader.cancel().catch(() => {});
+        return { tooLarge: true };
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+    text += decoder.decode();
+    return { tooLarge: false, text };
+  } finally {
+    reader.releaseLock?.();
+  }
+};
+
 export function mountFetchRoutes(app: Express, options: FetchRouteOptions): void {
   const logger = options.logger ?? ((entry) => console.log(JSON.stringify(entry)));
   const fetchFn = options.fetchFn ?? fetch;
@@ -214,18 +247,19 @@ export function mountFetchRoutes(app: Express, options: FetchRouteOptions): void
         res.status(413).json({ error: 'fetch: response too large', name: 'TooLargeError' });
         return;
       }
-      let body: string;
+      let read: { tooLarge: true } | { tooLarge: false; text: string };
       try {
-        body = await upstreamRes.text();
+        read = await readCapped(upstreamRes);
       } catch {
         res.status(502).json({ error: 'fetch: upstream body unreadable', name: 'FetchError' });
         return;
       }
-      const bytes = Buffer.byteLength(body);
-      if (bytes > MAX_BODY_BYTES) {
+      if (read.tooLarge) {
         res.status(413).json({ error: 'fetch: response too large', name: 'TooLargeError' });
         return;
       }
+      const body = read.text;
+      const bytes = Buffer.byteLength(body);
       const escaped = escapeFences(toText(body));
       const content = escaped.slice(0, MAX_CONTENT_CHARS);
       logger({ fetch: 'upstream', status: upstreamRes.status, bytes });

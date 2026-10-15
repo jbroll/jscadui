@@ -26,11 +26,55 @@ const fetchApp = (logs: unknown[], options: Record<string, unknown> = {}) => {
   return app
 }
 
+const streamOf = (parts: string[]) => {
+  const chunks = parts.map((part) => new TextEncoder().encode(part));
+  let at = 0;
+  return {
+    getReader: () => ({
+      read: async () => (at < chunks.length ? { done: false, value: chunks[at++] } : { done: true, value: undefined }),
+      cancel: async () => {},
+      releaseLock: () => {},
+    }),
+  };
+};
+
+// A body that lies about its size: no Content-Length, an endless stream of
+// chunks. Only an early abort keeps this from running forever, so the reader's
+// read/cancel state is the assertion.
+const endlessStream = () => {
+  const state = { reads: 0, cancelled: false };
+  const chunk = new Uint8Array(500_000);
+  return {
+    state,
+    response: {
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'content-type': 'text/html' }),
+      body: {
+        getReader: () => ({
+          read: async () => {
+            state.reads += 1;
+            return { done: false, value: chunk };
+          },
+          cancel: async () => {
+            state.cancelled = true;
+          },
+          releaseLock: () => {},
+        }),
+      },
+      text: async () => {
+        throw new Error('the route must stream, not buffer the whole body');
+      },
+    } as unknown as Response,
+  };
+};
+
 const htmlResponse = (body: string, status = 200, headers: Record<string, string> = {}) =>
   ({
     ok: status >= 200 && status < 300,
     status,
     headers: new Headers({ 'content-type': 'text/html; charset=utf-8', ...headers }),
+    body: streamOf([body]),
     text: async () => body,
   }) as unknown as Response
 
@@ -164,6 +208,18 @@ describe('fetch routes', () => {
     const res = await post(fetchApp([]), { url: 'https://example.com/huge' })
     expect(res.status).toBe(413)
     expect(res.body.name).toBe('TooLargeError')
+  })
+
+  it('streams an endless, Content-Length-less body and aborts once past the cap', async () => {
+    const { state, response } = endlessStream()
+    fetchMock.mockImplementation(async () => response)
+    const res = await post(fetchApp([]), { url: 'https://example.com/endless' })
+    expect(res.status).toBe(413)
+    expect(res.body.name).toBe('TooLargeError')
+    // The reader was cancelled mid-stream, not drained to the end.
+    expect(state.cancelled).toBe(true)
+    // 2,000,000 / 500,000 = 4 chunks fit; the 5th crosses the cap and cancels.
+    expect(state.reads).toBeLessThanOrEqual(5)
   })
 
   it('times out a hanging upstream and answers FetchError', async () => {

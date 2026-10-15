@@ -69,7 +69,9 @@ export const createWebsearchGrant = ({ granted = false, log = () => {} } = {}) =
       // Audit logging must never corrupt a good result.
       try {
         if (name === 'webfetch') {
-          log({ url: input?.url, bytes: typeof parsed.content === 'string' ? parsed.content.length : 0 })
+          if (parsed.ok === true) {
+            log({ url: input?.url, bytes: typeof parsed.content === 'string' ? parsed.content.length : 0 })
+          }
           return undefined
         }
         if (!Array.isArray(parsed.results)) return undefined

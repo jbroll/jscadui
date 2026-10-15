@@ -48,6 +48,20 @@ describe('page webfetch handler', () => {
     expect(res).toMatchObject({ ok: false, error: { name: 'FetchError', message: 'upstream unreachable' } })
   })
 
+  it('never throws on a 200 whose body is not JSON, answering FetchError', async () => {
+    const fetchFn = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => {
+        throw new Error('unexpected token < in JSON')
+      },
+    }))
+    const res = await createWebFetchHandler({ fetchFn })({ url: 'https://e/x' })
+    expect(res).toMatchObject({ ok: false, error: { name: 'FetchError' } })
+    expect(res.error.message).toMatch(/without JSON/)
+  })
+
   it('escapes fence tokens and caps the content at the 8000-char limit', async () => {
     const long = '```\n' + 'x'.repeat(9000)
     const fetchFn = vi.fn(async () => relay({ ok: true, title: '', finalUrl: 'https://e/x', content: long, truncated: false }))

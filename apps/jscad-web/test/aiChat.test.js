@@ -66,6 +66,40 @@ describe('browser chat turn', () => {
     expect(logs).toEqual([{ query: 'bearing', provider: 'exa', count: 1 }])
   })
 
+  it('gates webfetch behind the same blanket grant and logs a granted fetch', async () => {
+    document.body.innerHTML = '<div id="chat"></div>'
+    const container = document.getElementById('chat')
+    let captured
+    const runTurnFn = vi.fn(async (opts) => {
+      captured = opts
+      return { messages: [] }
+    })
+    const logs = []
+    const chat = initChat({
+      container,
+      requestTool: vi.fn(async () => ({ ok: true })),
+      getProvider: () => ({ kind: 'openai', model: 'm', apiKey: 'k', baseUrl: 'https://relay.test' }),
+      runTurnFn,
+      websearchLog: (entry) => logs.push(entry),
+    })
+    container.querySelector('.chat-input').value = 'fetch that page'
+    container.querySelector('.chat-form').dispatchEvent(new Event('submit', { cancelable: true }))
+    await vi.waitFor(() => expect(runTurnFn).toHaveBeenCalledTimes(1))
+    const denied = await captured.beforeToolCall('webfetch', { url: 'https://example.com/a' })
+    expect(denied).toMatchObject({ decision: 'deny' })
+    expect(String(denied.reason)).toMatch(/question/)
+    expect(String(denied.reason)).toMatch(/webfetch/)
+    // An ungranted call is not audited as a fetch.
+    await captured.afterToolCall('webfetch', { url: 'https://example.com/a' }, { ok: true, content: 'hello' })
+    expect(logs).toEqual([])
+    chat.setWebsearchGranted(true)
+    expect(await captured.beforeToolCall('webfetch', { url: 'https://example.com/a' })).toBeUndefined()
+    await captured.afterToolCall('webfetch', { url: 'https://example.com/a' }, JSON.stringify({ ok: true, content: 'hello' }))
+    // A failed fetch is not audited as a fetch; only a page that came back is.
+    await captured.afterToolCall('webfetch', { url: 'https://example.com/b' }, { ok: false, error: { name: 'FetchError' } })
+    expect(logs).toEqual([{ url: 'https://example.com/a', bytes: 5 }])
+  })
+
   it('answers the pre-rename tool names as unknown, never as a served call', async () => {
     const deps = {
       list: async () => ({ ok: true }),

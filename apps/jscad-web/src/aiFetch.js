@@ -45,12 +45,14 @@ export const createWebFetchHandler = ({ fetchFn = globalThis.fetch, relayUrl = '
     const message = typeof body?.error === 'string' ? body.error : `webfetch: relay failed with ${res.status}`
     return toolError(name, message)
   }
-  const escaped = escapeFences(body.content ?? '')
+  // A 200 with an unparseable body is a broken relay, not an empty page.
+  if (!body) return toolError('FetchError', 'webfetch: relay answered without JSON')
+  const escaped = escapeFences(body?.content ?? '')
   return {
     ok: true,
-    title: String(body.title ?? ''),
-    finalUrl: String(body.finalUrl ?? url),
+    title: String(body?.title ?? ''),
+    finalUrl: String(body?.finalUrl ?? url),
     content: escaped.slice(0, FETCH_CONTENT_CHARS),
-    truncated: body.truncated === true || escaped.length > FETCH_CONTENT_CHARS,
+    truncated: body?.truncated === true || escaped.length > FETCH_CONTENT_CHARS,
   }
 }
