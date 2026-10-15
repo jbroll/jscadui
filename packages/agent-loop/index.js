@@ -8,6 +8,7 @@ export { buildSummaryPrompt, MAX_SUMMARY_CHARS, SUMMARY_PREFIX, summarizeTranscr
 export { docsTool, lookupDocs } from './src/docs.js'
 export { withErrorHint } from './src/hints.js'
 export { dispatchTool, toolError } from './src/dispatchTool.js'
+export { createWebSearch } from './src/websearch.js'
 export { reportError } from './src/modelError.js'
 export { createReadFile, PROJECT_BASE, RUN_FILE } from './src/projectUrl.js'
 export { asGeometry, assembleReport, buildReport, errorLocation, geometrySummary, memoryMessage, OUT_OF_MEMORY, previewValue, noGeometryError, noMainError, notGeometryError, NO_ENTRY_NOTE, noEntryReport, reportParams, RUN_TOOL_TIMEOUT_MS, runTimeoutError, summarizeRun, withoutLoaderNote, writeReport } from './src/buildReport.js'

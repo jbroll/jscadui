@@ -115,4 +115,14 @@ describe('dispatchTool', () => {
     const bad = await dispatchTool('ask_user', {}, { askUser: async () => 'x' })
     expect(bad).toMatchObject({ ok: false, error: { name: 'ValidationError' } })
   })
+
+  it('routes web_search to deps.websearch and rejects unknown props', async () => {
+    const d = deps({ websearch: vi.fn(async (args) => ({ ok: true, results: [], query: args.query })) })
+    expect(await dispatchTool('web_search', { query: 'bearing 608' }, d)).toEqual({ ok: true, results: [], query: 'bearing 608' })
+    expect(d.websearch).toHaveBeenCalledWith({ query: 'bearing 608' })
+    expect(await dispatchTool('web_search', { query: 'x', bogus: 1 }, d)).toMatchObject({
+      ok: false,
+      error: { name: 'ValidationError' },
+    })
+  })
 })

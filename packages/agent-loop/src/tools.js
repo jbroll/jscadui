@@ -160,10 +160,23 @@ export const buildTools = (api = DEFAULT_API) => [
       required: ['question'],
     },
   },
+  {
+    name: 'web_search',
+    description: 'Search the web for reference values (part numbers, material data, datasheets) the project does not carry; answers title, url and snippet hits tagged with the serving provider.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'The search query, such as 608 bearing dimensions' },
+        count: { type: 'integer', description: 'How many hits to return; defaults to 8' },
+      },
+      required: ['query'],
+      additionalProperties: false,
+    },
+  },
 ]
 
 export const TOOLS = buildTools()
 
 // Calls safe to run concurrently: they read state without saving.
 // write/edit/delete/export save or expose download state and stay serial.
-export const READ_ONLY = new Set(['list', 'read', 'search', 'measure', 'check', 'docs', 'run', 'view', 'ask_user'])
+export const READ_ONLY = new Set(['list', 'read', 'search', 'measure', 'check', 'docs', 'run', 'view', 'ask_user', 'web_search'])
