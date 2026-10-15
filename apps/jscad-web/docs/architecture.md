@@ -505,8 +505,12 @@ it arrived as one normalized cell. Failure markers take the same transform.
 With `claims: true` in `jscadInit` (the frame always sets it), the stream hook
 gains `claim(key, url)`. A leaf's key is its index path (`"2/14"`); item lists
 are static, so every worker in a run computes the same keys. The grid claims
-each leaf before running it and skips one it loses without requiring it; a
-sub-grid is walked by every worker regardless of claims, so every worker
+each leaf before running it and skips one it loses without requiring it, in
+breadth-first order: leaves are collected depth-first (so keys, params names
+and cell positions never change) but executed round-robin across sibling
+sub-grids, so a run of heavy models in one library no longer parks every
+worker at once; a sub-grid
+is walked by every worker regardless of claims, so every worker
 requires every grid file in the tree but transpiles only the leaf files it
 wins. A sub-grid whose grid file fails to load is claimed under its own key
 before it is marked, so only one worker draws its skull and logs the failure.

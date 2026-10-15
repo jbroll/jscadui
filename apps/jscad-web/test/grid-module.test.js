@@ -194,3 +194,44 @@ describe('claims', () => {
     expect(hook.keys).toEqual(['0/0'])
   })
 })
+
+describe('build order', () => {
+  const three = (tag) => [`./${tag}a.scad`, `./${tag}b.scad`, `./${tag}c.scad`]
+
+  it('claims leaves round-robin across sibling sub-grids', async () => {
+    const hook = globalThis.__jscadStream = claimingHook()
+    const sub1 = grid(three('1'), leaves(three('1')))
+    const sub2 = grid(three('2'), leaves(three('2')))
+    await grid(['./s1/ALL.js', './s2/ALL.js'], { './s1/ALL.js': sub1, './s2/ALL.js': sub2 }).main({})
+    expect(hook.keys).toEqual(['0/0', '1/0', '0/1', '1/1', '0/2', '1/2'])
+    expect(hook.batches).toHaveLength(6)
+  })
+
+  it('spreads nested sub-grids breadth-first', async () => {
+    const hook = globalThis.__jscadStream = claimingHook()
+    const a1 = grid(['./x.scad', './y.scad'], leaves(['./x.scad', './y.scad']))
+    const a2 = grid(['./z.scad', './w.scad'], leaves(['./z.scad', './w.scad']))
+    const subA = grid(['./a1/ALL.js', './a2/ALL.js'], { './a1/ALL.js': a1, './a2/ALL.js': a2 })
+    await grid(['./subA/ALL.js', './b.scad'], { './subA/ALL.js': subA, './b.scad': model() }).main({})
+    expect(hook.keys).toEqual(['0/0/0', '1', '0/1/0', '0/0/1', '0/1/1'])
+    expect(hook.batches).toHaveLength(5)
+  })
+
+  it('returns leaves in depth-first order without streaming', async () => {
+    const sub1 = grid(three('1'), leaves(three('1')))
+    const sub2 = grid(three('2'), leaves(three('2')))
+    const geoms = await grid(['./s1/ALL.js', './s2/ALL.js'], { './s1/ALL.js': sub1, './s2/ALL.js': sub2 }).main({})
+    expect(geoms).toHaveLength(6)
+    // sub1 owns the first parent cell (negative x), sub2 the second
+    expect(geoms.slice(0, 3).map((g) => box([g]).x).every((x) => x < 0)).toBe(true)
+    expect(geoms.slice(3).map((g) => box([g]).x).every((x) => x > 0)).toBe(true)
+  })
+
+  it('runs a sub-grid module without collect inline', async () => {
+    const { collect: _collect, ...legacy } = grid(['./a.scad'], leaves(['./a.scad']))
+    const hook = globalThis.__jscadStream = claimingHook()
+    await grid(['./sub/ALL.js', './y.scad'], { './sub/ALL.js': legacy, './y.scad': model() }).main({})
+    expect(hook.keys).toEqual(['0/0', '1'])
+    expect(hook.batches).toHaveLength(2)
+  })
+})

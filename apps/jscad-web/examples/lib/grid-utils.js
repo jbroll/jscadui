@@ -226,6 +226,18 @@ function uniqueName(name, seen) {
   return seen[name] === 1 ? name : `${name}_${seen[name]}`
 }
 
+// Round-robin across sibling lists, so consecutive tasks land in different
+// sub-grids instead of walking one category to completion. Applied
+// recursively, the whole tree builds breadth-first: a run of heavy models
+// in one library no longer parks every worker at once.
+function interleave(lists) {
+  const out = []
+  for (let i = 0; lists.some((l) => i < l.length); i++) {
+    for (const l of lists) if (i < l.length) out.push(l[i])
+  }
+  return out
+}
+
 /**
  * An ALL.js grid. Each item runs under its own params namespace in one cell.
  * An item that is itself a grid runs its own leaves, scaled into its parent's
@@ -239,21 +251,63 @@ function uniqueName(name, seen) {
 function gridModule(items, { spacing, cellSize }, req) {
   const extent = gridExtent(items.length, spacing, cellSize)
 
+  // Structural walk: every task's key, params name path and placement, plus
+  // a loader holding this grid's own require. Names and positions match the
+  // historical depth-first walk; only execution order changes. Appends to
+  // `out` in depth-first order and returns this subtree breadth-first.
+  const collect = (ctx, path, namePath, out) => {
+    const nameSeen = {}
+    const groups = items.map((url, i) => {
+      const [x, y] = gridPosition(i, items.length, spacing)
+      const name = uniqueName(urlToPartName(url), nameSeen)
+      const key = [...path, i]
+      if (isGridUrl(url)) {
+        let mod
+        try {
+          mod = req(url)
+        } catch (err) {
+          const task = { kind: 'failed-grid', key, url, x, y, ctx, err }
+          out.push(task)
+          return [task]
+        }
+        if (mod && typeof mod.collect === 'function') {
+          const subExtent = mod.extent ?? [cellSize, cellSize]
+          return mod.collect(subGridContext(ctx, x, y, cellSize, subExtent), key, [...namePath, name], out)
+        }
+        const task = { kind: 'legacy-grid', key, url, mod, x, y, ctx, namePath: [...namePath, name] }
+        out.push(task)
+        return [task]
+      }
+      const task = { kind: 'leaf', key, url, x, y, ctx, namePath: [...namePath, name], load: () => req(url) }
+      out.push(task)
+      return [task]
+    })
+    return interleave(groups)
+  }
+
   /**
    * @param {object} [params]
    * @param {{ctx?: number[], path?: number[], stream?: object | null}} [where]
    * @returns {Promise<Array>} the leaves in world coordinates, or nothing when streaming
    */
   const runGrid = async (params = {}, { ctx = IDENTITY, path = [], stream = null } = {}) => {
-    const all = []
-    const nameSeen = {}
+    const ordered = []
+    const tasks = collect(ctx, path, [], ordered)
+    ordered.forEach((task, dfs) => { task.dfs = dfs })
+    const results = new Map()
     const failed = []
     const generation = globalThis.__jscadScriptGeneration
     const claiming = typeof stream?.claim === 'function'
 
-    const send = async (geoms) => {
+    const scoped = (namePath) => {
+      let p = params
+      for (const n of namePath) p = p?.[n]
+      return p
+    }
+
+    const send = async (geoms, dfs) => {
       if (!stream) {
-        all.push(...geoms)
+        results.set(dfs, geoms)
         return
       }
       try {
@@ -266,54 +320,50 @@ function gridModule(items, { spacing, cellSize }, req) {
     }
 
     // One bad model marks its own cell; the rest of the grid still renders
-    const fail = async (url, x, y, err) => {
+    const fail = async (task, err) => {
+      const { url, x, y, ctx: taskCtx } = task
       if (isWasmTrap(err)) globalThis.__allWasmTrap ??= url
       console.error(`ALL: FAILED ${url}: ${err.message}`)
       failed.push(url)
       try {
-        await send(markerFor(x, y, cellSize, ctx))
+        await send(markerFor(x, y, cellSize, taskCtx), task.dfs)
       } catch (markerErr) {
         if (isWasmTrap(markerErr)) globalThis.__allWasmTrap ??= url
-        await send([prebuiltSkull(x, y, cellSize, ctx)])
+        await send([prebuiltSkull(x, y, cellSize, taskCtx)], task.dfs)
       }
     }
 
-    for (const [i, url] of items.entries()) {
+    for (const task of tasks) {
       // A trapped worker stops claiming and leaves its unclaimed leaves to the others
       if (claiming && globalThis.__allWasmTrap) break
-      const [x, y] = gridPosition(i, items.length, spacing)
-      const name = uniqueName(urlToPartName(url), nameSeen)
-      const key = [...path, i]
+      const { key, url } = task
 
-      let mod
-      if (isGridUrl(url)) {
-        try {
-          mod = req(url)
-        } catch (err) {
-          // Every worker walks the sub-grid, so only the one that claims it draws the marker
-          if (!claiming || await stream.claim(key.join('/'), url)) await fail(url, x, y, err)
-          continue
-        }
-        if (typeof mod?.runGrid === 'function') {
-          const subExtent = mod.extent ?? [cellSize, cellSize]
-          all.push(...await mod.runGrid(params[name], { ctx: subGridContext(ctx, x, y, cellSize, subExtent), path: key, stream }))
-          continue
-        }
+      if (task.kind === 'failed-grid') {
+        // Every worker walks the sub-grid, so only the one that claims it draws the marker
+        if (!claiming || await stream.claim(key.join('/'), url)) await fail(task, task.err)
+        continue
+      }
+
+      if (task.kind === 'legacy-grid') {
+        const subExtent = task.mod?.extent ?? [cellSize, cellSize]
+        const geoms = await task.mod.runGrid(scoped(task.namePath), { ctx: subGridContext(task.ctx, task.x, task.y, cellSize, subExtent), path: key, stream })
+        if (!stream) results.set(task.dfs, geoms)
+        continue
       }
 
       if (claiming && !(await stream.claim(key.join('/'), url))) continue
       try {
         // A trapped wasm instance stays broken, so no later cell's result can be trusted
         if (globalThis.__allWasmTrap) throw new Error(`not run: wasm trapped in ${globalThis.__allWasmTrap}`)
-        mod ??= req(url)
+        const mod = task.load()
         const fn = (mod && mod.main) || (typeof mod === 'function' ? mod : null)
         if (typeof fn === 'function') {
-          const geoms = [].concat(await fn(params[name])).flat().filter(g => !g?.previewOnly)
+          const geoms = [].concat(await fn(scoped(task.namePath))).flat().filter(g => !g?.previewOnly)
           // emit evaluates the cell's CSG, so its failures belong to this cell too
-          await send(toWorld(normalizeAndPlace(geoms, x, y, cellSize), ctx))
+          await send(toWorld(normalizeAndPlace(geoms, task.x, task.y, cellSize), task.ctx), task.dfs)
         }
       } catch (err) {
-        await fail(url, x, y, err)
+        await fail(task, err)
       }
 
       if (!stream) globalThis.__jscadProgress?.()
@@ -326,7 +376,7 @@ function gridModule(items, { spacing, cellSize }, req) {
     if (failed.length) {
       console.error(`ALL: ${failed.length}/${items.length} models failed: ${failed.join(' ')}`)
     }
-    return all
+    return [...results.entries()].sort((a, b) => a[0] - b[0]).flatMap(([, geoms]) => geoms)
   }
 
   // Leaf code sees neither streaming nor claiming; the grid hands the hook down itself
@@ -340,7 +390,7 @@ function gridModule(items, { spacing, cellSize }, req) {
     }
   }
 
-  return { main, runGrid, extent }
+  return { main, runGrid, extent, collect }
 }
 
 module.exports = {
