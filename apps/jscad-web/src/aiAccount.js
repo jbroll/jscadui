@@ -163,7 +163,7 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
       signOut.style.display = ''
     } else {
       signIn.style.display = ''
-      sessionLine.textContent = 'Sync is off — chat works with your key.'
+      sessionLine.textContent = ''
       signOut.style.display = 'none'
     }
   }
