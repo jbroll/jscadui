@@ -249,7 +249,7 @@ export const variantValue = ({ initial, min = -Infinity, max = Infinity, type })
 
 const differs = (a, b) => Math.abs(a - b) > 1e-6 * Math.max(1, Math.abs(a), Math.abs(b))
 
-export function createEvalBackend({ api = DEFAULT_API } = {}) {
+export function createEvalBackend({ api = DEFAULT_API, cannedSearch = [] } = {}) {
   let files = {}
   // The last build: its report, and its geometry and params when it built.
   let current = null
@@ -312,6 +312,18 @@ export function createEvalBackend({ api = DEFAULT_API } = {}) {
 
   const onBuild = (tool) => (args) => (current?.geometry ? tool(current.geometry, args) : noGeometryError(current?.report ?? null))
 
+  // Offline web_search: scripted fixtures are consent by construction, so the
+  // grant gate does not apply here. Canned results keyed by query substring;
+  // anything unscripted fails closed — live network never runs in eval.
+  const searchCanned = (args) => {
+    const query = args?.query ?? ''
+    const entry = cannedSearch.find(
+      (canned) => typeof canned?.match === 'string' && query.toLowerCase().includes(canned.match.toLowerCase()),
+    )
+    if (!entry) return toolError('SearchUnavailableError', 'web_search: no canned result matches in the eval harness')
+    return { ok: true, results: entry.results.map((hit) => ({ ...hit })) }
+  }
+
   const tools = {
     list: () => listFiles(files),
     read: (args) => readFile(files, args),
@@ -327,6 +339,7 @@ export function createEvalBackend({ api = DEFAULT_API } = {}) {
     exportModel: onBuild((geometry, args) => exportModel(geometry, args.format)),
     view: () => toolError('UnavailableError', 'view is unavailable in the eval harness'),
     docs: (query) => docsTool(API_INDEX, query, { api }),
+    websearch: searchCanned,
   }
 
   // The executor protocol carries tool results as text.

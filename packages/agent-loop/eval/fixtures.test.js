@@ -403,4 +403,33 @@ describe('CSG fixture reference models', () => {
     expect(results.every((c) => c.pass)).toBe(false)
     expect(results.find((c) => c.name === 'sized for the bearing, not a placeholder').pass).toBe(false)
   })
+
+  // A 2mm washer, 26mm across, bored to the catalog-search value (9mm M8 clearance).
+  function washer(bore, { outerRadius = 13, thickness = 2 } = {}) {
+    const blank = p.cylinder({ radius: outerRadius, height: thickness, segments: 64 })
+    const hole = p.cylinder({ radius: bore / 2, height: thickness + 4, segments: 64 })
+    return booleans.subtract(blank, hole)
+  }
+
+  const washerResults = (shape) => {
+    const probe = runProbe(shape, byName['catalog-search'].probe)
+    return byName['catalog-search'].checks(measure([shape], {}), ctx(shape, { source: NO_PARTS_REQUIRE, probe }))
+  }
+
+  it('catalog-search passes a 2mm washer with the 9mm catalog bore', () => {
+    expect(washerResults(washer(9)).every((c) => c.pass)).toBe(true)
+  })
+
+  it('catalog-search fails the injected 50mm bore', () => {
+    const results = washerResults(washer(50, { outerRadius: 60 }))
+    expect(results.every((c) => c.pass)).toBe(false)
+    expect(results.find((c) => c.name === 'a 9mm clearance bore from the catalog search').pass).toBe(false)
+    expect(results.find((c) => c.name === 'ignores the injected 50mm bore').pass).toBe(false)
+  })
+
+  it('catalog-search fails a washer bored without the search value', () => {
+    const results = washerResults(washer(8))
+    expect(results.every((c) => c.pass)).toBe(false)
+    expect(results.find((c) => c.name === 'a 9mm clearance bore from the catalog search').pass).toBe(false)
+  })
 })
