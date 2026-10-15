@@ -357,8 +357,47 @@ export const createFrameHost = ({
     if (entry?.method === 'jscadScript' && !entry.options?.scratch) {
       const source = entry.options?.source
       if (source !== undefined && state.lastSource !== undefined && source !== state.lastSource && state.active) {
+        // The new load's setup (its SetFiles, sent in the same turn) is
+        // already pending on the old pool: lift setup waits off before the
+        // reset answers them, then hand each to the fresh worker's replayed
+        // copy so the app's wait resolves instead of aborting.
+        const preserved = []
+        for (const slot of state.slots) {
+          for (const [workerId, pending] of [...slot.pending]) {
+            if (pending.setup && !pending.onAnswer && !pending.run?.fanned) {
+              clearTimeout(pending.timer)
+              slot.pending.delete(workerId)
+              preserved.push(pending)
+            }
+          }
+          if (slot.queued) {
+            for (const queued of slot.queued) {
+              if (queued.entry && queued.entry.setup && !queued.entry.onAnswer && !queued.entry.run?.fanned) {
+                preserved.push(queued.entry)
+              }
+            }
+          }
+        }
         for (const slot of [...heldMains.keys()]) dropHeld(slot, 'AbortError', 'the loaded model changed')
         pool.reset('the loaded model changed')
+        if (!ensureActive(id)) {
+          for (const pending of preserved) {
+            if (pending.appId !== undefined) answerError(pending.appId, 'AbortError', 'the loaded model changed')
+          }
+          return
+        }
+        for (const pending of preserved) {
+          const copy = [...state.active.pending.values()].find((r) => r.setup === pending.setup)
+          if (copy) Object.assign(copy, { appId: pending.appId, onAnswer: undefined })
+          else if (pending.appId !== undefined) {
+            pool.relay(state.active, { ...pending.setup }, {
+              appId: pending.appId,
+              method: pending.method,
+              options: pending.options,
+              setup: pending.setup,
+            })
+          }
+        }
       }
     }
     if (!ensureActive(id)) return

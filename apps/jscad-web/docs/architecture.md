@@ -236,6 +236,14 @@ run. The retired worker's other requests are answered `AbortError` and an idle
 worker is promoted the same way. If no replacement worker can start, the old
 worker keeps serving instead of leaving the frame with no active worker.
 
+A sourced `jscadScript` from a different source (`loadSource`: one
+`project:<id>` per project, the URL itself for examples) ends the whole pool
+instead of promoting a spare, so model code from one source never observes
+another's files or scripts. The new load's setup (`jscadSetFiles`, sent in the
+same turn as the script) is lifted off the old pool before the reset and
+handed to the fresh worker's replayed copy, so it resolves instead of
+aborting; older non-setup requests the pool held are answered `AbortError`.
+
 The Stop button sends `jscadAbort`. The frame parks every open run first: a
 fanned run's app request is answered `AbortError` and the run is closed, so no
 surviving member is recruited back into it or answers it again. It then removes

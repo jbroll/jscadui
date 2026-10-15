@@ -601,6 +601,25 @@ describe('source isolation', () => {
     const ids = posted.map((m) => m.id)
     expect(new Set(ids).size).toBe(ids.length)
   })
+
+  it('keeps the new load\u2019s SetFiles across a source change instead of aborting it', () => {
+    const { workers, send, posted } = setup()
+    send({ method: 'jscadScript', id: 1, params: [{ script: 'a', url: 'http://project.local/main.js', source: 'project:a' }] })
+    answer(workers[0], 0, {})
+    const before = posted.length
+    // sendScript issues both in the same turn: the files first, then the script.
+    send({ method: 'jscadSetFiles', id: 2, params: [{ files: { 'main.js': 'y' } }] })
+    send({ method: 'jscadScript', id: 3, params: [{ script: 'b', url: 'https://example.com/a.js', source: 'https://example.com/a.js' }] })
+    expect(posted.slice(before)).toEqual([])
+    const fresh = workers.at(-1)
+    expect(fresh.postMessage.mock.calls.map(([m]) => m.method)).toEqual(['jscadSetFiles', 'jscadScript'])
+    answer(fresh, 0, {})
+    expect(posted.at(-1)).toMatchObject({ id: 2 })
+    expect(posted.at(-1).error).toBeUndefined()
+    answer(fresh, 1, { def: [], params: {} })
+    expect(posted.at(-1)).toMatchObject({ id: 3 })
+    expect(posted.at(-1).error).toBeUndefined()
+  })
 })
 
 describe('trap retirement', () => {
