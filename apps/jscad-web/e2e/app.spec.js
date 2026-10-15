@@ -77,6 +77,14 @@ test.describe('Menu', () => {
     await expect(page.locator('#menu-content')).toContainText('Browse Demos')
   })
 
+  test('Options line carries the build version slot', async ({ page }) => {
+    await page.goto('/')
+    await dismissWelcome(page)
+    await page.locator('#menu-button').click()
+    await expect(page.locator('#menu-content h2').first()).toContainText('Options')
+    await expect(page.locator('#build-version')).toBeAttached()
+  })
+
   test('the render sweep can set the model timeout', async ({ page, context }) => {
     // The sweep raises it, so correctness is not graded on speed. Proved here
     // from the other end: a budget no model can meet must kill the model.

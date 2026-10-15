@@ -33,6 +33,7 @@ import { confirm } from './src/ui/dialog.js'
 import * as engine from './src/engine.js'
 import * as exporter from './src/exporter.js'
 import * as menu from './src/menu.js'
+import { currentBuildHash, watchBuildHash } from './src/buildVersion.js'
 import * as remote from './src/remote.js'
 import { setError } from './src/error.js'
 import { ViewState } from './src/viewState.js'
@@ -120,6 +121,31 @@ menu.init({
 })
 welcome.init()
 about.init()
+
+// Build hash in the Options line, and a reload affordance when a deploy lands
+// mid-session: entry documents are no-cache, but long-lived tabs keep
+// running the frame they booted with.
+{
+  const versionEl = byId('build-version')
+  const bootHash = await currentBuildHash().catch(() => null)
+  if (bootHash) {
+    console.log('build', bootHash)
+    if (versionEl) {
+      versionEl.textContent = bootHash
+      versionEl.title = `this page runs build ${bootHash}`
+    }
+    watchBuildHash({
+      current: bootHash,
+      onNewVersion: (latest) => {
+        if (!versionEl) return
+        versionEl.textContent = 'New version'
+        versionEl.title = `build ${latest} is served: click to reload`
+        versionEl.classList.add('update-available')
+        versionEl.onclick = () => location.reload()
+      },
+    })
+  }
+}
 
 // Trusted Sources dialog
 const trustedSourcesBtn = byId('trusted-sources-btn')
