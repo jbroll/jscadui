@@ -54,7 +54,9 @@ failure is a `500`.
 The demo provider serves operator-owned keys to visitors with no account. JSON
 `{monthlyUsd, perIpDailyUsd, options}`, default `/etc/jscad-relay/shared.json`,
 override with `RELAY_SHARED`; keep it mode `0600`, owned by the service user,
-beside `providers.json`. Re-read on the same 5s cache, so an edit applies
+beside `providers.json`. Stage the real keys locally in
+`server/shared.local.json` (same schema, gitignored, never commit) and copy
+that file to the host path. Re-read on the same 5s cache, so an edit applies
 without a restart. A missing file means no demo options; any other read or
 parse failure hides demo (the list answers `[]`, a turn is a `500`), so a bad
 file never silently forwards.
