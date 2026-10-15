@@ -30,6 +30,7 @@ export class ViewState {
   showGrid
   modelingEngine
   renderEngine
+  workerCount
 
   themeName
 
@@ -42,6 +43,7 @@ export class ViewState {
   zoomToFitInput = /** @type {HTMLInputElement} */ (byId('zoom-to-fit'))
   modelingEngineInput = /** @type {HTMLSelectElement} */ (byId('modeling-engine'))
   renderEngineInput = /** @type {HTMLSelectElement} */ (byId('render-engine'))
+  workerCountInput = /** @type {HTMLSelectElement} */ (byId('worker-count'))
 
   constructor() {
     this.themeName = localStorage.getItem('engine.theme') || 'light'
@@ -64,6 +66,12 @@ export class ViewState {
     this.modelingEngineInput.value = this.modelingEngine
     this.renderEngine = localStorage.getItem('engine.renderEngine') || 'threejs'
     this.renderEngineInput.value = this.renderEngine
+    // Frame default is max(1, min(hardwareConcurrency - 1, 2)): 2 on a
+    // typical desktop. Clamp a stored sweep value (e.g. --pool-size 4) to
+    // the 1-8 select range.
+    const storedPool = Number(localStorage.getItem('engine.poolSize'))
+    this.workerCount = Number.isInteger(storedPool) && storedPool >= 1 && storedPool <= 8 ? storedPool : 2
+    this.workerCountInput.value = String(this.workerCount)
     const defaultCamera = { position: [180, -180, 220] }
     const cameraLocation = localStorage.getItem('camera.location')
     if (cameraLocation) {
@@ -103,6 +111,9 @@ export class ViewState {
     })
     this.renderEngineInput.addEventListener('change', () => {
       this.setRenderEngine(this.renderEngineInput.value)
+    })
+    this.workerCountInput.addEventListener('change', () => {
+      this.setWorkerCount(Number(this.workerCountInput.value))
     })
   }
 
@@ -160,6 +171,17 @@ export class ViewState {
     this.renderEngine = engine
     this.saveState()
     this.onRenderEngineChange(engine)
+  }
+
+  /**
+   * @param {number} count - frame workers, 1-8
+   */
+  setWorkerCount(count) {
+    const n = Number.isInteger(count) && count >= 1 && count <= 8 ? count : 2
+    this.workerCount = n
+    this.workerCountInput.value = String(n)
+    this.saveState()
+    this.onWorkerCountChange(n)
   }
 
   /**
@@ -239,6 +261,7 @@ export class ViewState {
     localStorage.setItem('engine.zoomToFit', String(this.zoomToFit))
     localStorage.setItem('engine.modelingEngine', this.modelingEngine)
     localStorage.setItem('engine.renderEngine', this.renderEngine)
+    localStorage.setItem('engine.poolSize', String(this.workerCount))
   }
 
   onZoomToFit() { }
@@ -248,4 +271,7 @@ export class ViewState {
 
   /** @param {string} _engine */
   onRenderEngineChange(_engine) { }
+
+  /** @param {number} _count */
+  onWorkerCountChange(_count) { }
 }

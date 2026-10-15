@@ -203,7 +203,8 @@ minute and `sierpinski_pyramid.scad` hit the 120s budget. At two workers the
 same grid drew all 835 cells in 610s, with available memory staying above
 2 GB. `jscadInit`'s `poolSize` overrides it and the frame strips it, as it does
 `timeoutMs`. The app sends it from the `engine.poolSize` localStorage key when
-one is set. Each worker holds its own bundles, WASM instances and file map,
+one is set, which the Options menu's Number of Workers select (1-8) persists;
+changing it re-inits the frame and re-runs the model. Each worker holds its own bundles, WASM instances and file map,
 which is what bounds the pool's size. Members leave the pool when their run
 ends: once a grid run settles, the frame ends every idle worker but one,
 without telling the app. The one kept has a WASM heap under the recycle budget

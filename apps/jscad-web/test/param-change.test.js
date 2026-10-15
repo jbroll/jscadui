@@ -161,7 +161,7 @@ describe('runParamChange and runModelUpdate together', () => {
 
 describe('view state toggles', () => {
   const dom = () => {
-    document.body.innerHTML = ['dark-mode', 'show-axis', 'show-grid', 'smooth-render', 'zoom-to-fit', 'modeling-engine', 'render-engine']
+    document.body.innerHTML = ['dark-mode', 'show-axis', 'show-grid', 'smooth-render', 'zoom-to-fit', 'modeling-engine', 'render-engine', 'worker-count']
       .map((id) => `<input id="${id}">`)
       .join('')
   }
@@ -182,17 +182,39 @@ describe('view state toggles', () => {
     const engine = viewer()
     view.setEngine(engine)
     view.setModel([{ id: 'solid' }])
-    const hooks = { onZoomToFit: vi.fn(), onModelingEngineChange: vi.fn(), onRenderEngineChange: vi.fn() }
+    const hooks = { onZoomToFit: vi.fn(), onModelingEngineChange: vi.fn(), onRenderEngineChange: vi.fn(), onWorkerCountChange: vi.fn() }
     Object.assign(view, hooks)
 
     view.setSmoothRender(true)
 
     expect(engine.setScene).toHaveBeenCalledWith(expect.anything(), { smooth: true })
-    // A toggle must fire no model-requesting hook: viewState's only hooks are
-    // the zoom fit and the two engine changes, and none may run a model.
+    // A toggle must fire no model-requesting hook: viewState's hooks are
+    // the zoom fit, the two engine changes and the worker count change,
+    // and none may run a model.
     expect(hooks.onZoomToFit).not.toHaveBeenCalled()
     expect(hooks.onModelingEngineChange).not.toHaveBeenCalled()
     expect(hooks.onRenderEngineChange).not.toHaveBeenCalled()
+    expect(hooks.onWorkerCountChange).not.toHaveBeenCalled()
+  })
+
+  it('worker count defaults to 2, reads a stored pool size, and clamps to 1-8', () => {
+    expect(new ViewState().workerCount).toBe(2)
+    localStorage.setItem('engine.poolSize', '6')
+    expect(new ViewState().workerCount).toBe(6)
+    localStorage.setItem('engine.poolSize', '99')
+    expect(new ViewState().workerCount).toBe(2)
+  })
+
+  it('setting the worker count persists engine.poolSize and fires the hook', () => {
+    const view = new ViewState()
+    const onWorkerCountChange = vi.fn()
+    view.onWorkerCountChange = onWorkerCountChange
+
+    view.setWorkerCount(4)
+
+    expect(view.workerCount).toBe(4)
+    expect(localStorage.getItem('engine.poolSize')).toBe('4')
+    expect(onWorkerCountChange).toHaveBeenCalledWith(4)
   })
 
   it('zoom to fit moves the camera instead of re-running the model', () => {
@@ -201,14 +223,17 @@ describe('view state toggles', () => {
     const onZoomToFit = vi.fn()
     const onModelingEngineChange = vi.fn()
     const onRenderEngineChange = vi.fn()
+    const onWorkerCountChange = vi.fn()
     view.onZoomToFit = onZoomToFit
     view.onModelingEngineChange = onModelingEngineChange
     view.onRenderEngineChange = onRenderEngineChange
+    view.onWorkerCountChange = onWorkerCountChange
 
     view.setZoomToFit(true)
 
     expect(onZoomToFit).toHaveBeenCalledOnce()
     expect(onModelingEngineChange).not.toHaveBeenCalled()
     expect(onRenderEngineChange).not.toHaveBeenCalled()
+    expect(onWorkerCountChange).not.toHaveBeenCalled()
   })
 })

@@ -328,7 +328,7 @@ const EDITOR_TIMEOUT_MS = (() => {
 })()
 
 // The render sweep pins the frame's worker count to compare a pooled grid with one worker.
-const POOL_SIZE = (() => {
+const readPoolSize = () => {
   try {
     const stored = Number(localStorage.getItem('engine.poolSize'))
     return Number.isInteger(stored) && stored > 0 ? stored : undefined
@@ -336,7 +336,7 @@ const POOL_SIZE = (() => {
     console.warn('could not read engine.poolSize:', err)
     return undefined
   }
-})()
+}
 
 // The api index loads on the first docs call or error hint that needs it.
 const loadApiIndex = createIndexLoader()
@@ -353,7 +353,7 @@ const projectBuilds = createProjectBuilds({
 // The frame names its own bundles; the app names only the engine.
 const initFrame = () =>
   workerApi
-    .jscadInit({ engine: viewState.modelingEngine, useParamsProxy, timeoutMs: EDITOR_TIMEOUT_MS, poolSize: POOL_SIZE })
+    .jscadInit({ engine: viewState.modelingEngine, useParamsProxy, timeoutMs: EDITOR_TIMEOUT_MS, poolSize: readPoolSize() })
     .catch(setError)
 
 // A project's files travel to the frame in a map keyed by bare path, so a
@@ -749,6 +749,15 @@ viewState.onModelingEngineChange = async (newEngine) => {
   await initFrame()
 
   // Re-run script
+  editor.runScript()
+}
+
+viewState.onWorkerCountChange = async (count) => {
+  console.log('Switching worker count to:', count)
+
+  await initFrame()
+
+  // Re-run script so the new pool picks up the grid
   editor.runScript()
 }
 
