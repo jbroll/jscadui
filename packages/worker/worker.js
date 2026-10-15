@@ -260,7 +260,7 @@ export const jscadInit = options => {
   alias.forEach(({ name, path }) => {
     requireCache.alias[name] = path
   })
-  console.log('init alias', alias, 'bundles',bundles)
+  console.debug('init alias', alias, 'bundles',bundles)
   workerState.userInstances = options.userInstances
   workerState.useParamsProxy = options.useParamsProxy
   workerState.claims = options.claims === true
@@ -593,7 +593,7 @@ export const jscadScript = async ({ script, url='jscad.js', base=workerState.glo
       throw new SupersededError('Script execution superseded by newer script')
     }
 
-    console.log('run script with base:', base, workerState.useParamsProxy ? '(proxy mode)' : '')
+    console.debug('run script with base:', base, workerState.useParamsProxy ? '(proxy mode)' : '')
 
     // A scratch run restores all of this instead of running with the
     // current model's param and solid state wiped out from under it.

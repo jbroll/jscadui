@@ -451,6 +451,32 @@ describe('jscadMain claims', () => {
     await jscadMain({ params: {} })
     expect(claim).toBeUndefined()
   })
+
+  it('logs init aliases and bundles at debug instead of log', () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {})
+    try {
+      jscadInit({ claims: true })
+      expect(logSpy).not.toHaveBeenCalledWith('init alias', expect.anything(), expect.anything(), expect.anything())
+      expect(debugSpy).toHaveBeenCalledWith('init alias', expect.anything(), 'bundles', expect.anything())
+    } finally {
+      logSpy.mockRestore()
+      debugSpy.mockRestore()
+    }
+  })
+
+  it('logs the script base at debug instead of log', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {})
+    try {
+      await jscadScript({ script: 'module.exports = { main: () => [] }', url: 'http://project.local/grid.js', runId: 5 })
+      expect(logSpy).not.toHaveBeenCalledWith('run script with base:', expect.anything(), expect.anything())
+      expect(debugSpy).toHaveBeenCalledWith('run script with base:', expect.anything(), expect.anything())
+    } finally {
+      logSpy.mockRestore()
+      debugSpy.mockRestore()
+    }
+  })
 })
 
 describe('jscadMain solidsOnly re-run', () => {
