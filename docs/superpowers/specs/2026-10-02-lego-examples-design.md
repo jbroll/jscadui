@@ -45,7 +45,7 @@ fails to render goes in `skip.txt`, not deleted.
 
 ## 3. JSCAD side
 
-One file per variant in `examples/jscad/`, each requiring the fetched `lego.js`
+One file per variant in `examples/jscad/lego/`, each requiring the fetched `lego.js`
 and calling `block()` with fixed args: standard brick (2x4), plate (2x4,
 height 1/3), tile (2x3), baseplate (8x8), hollow-stud brick,
 Technic-hole brick, axle-hole plate. Each file exports
@@ -60,8 +60,8 @@ port lands.
 
 No hand-written grid code. `npm run generate-all` from the root (passes
 `--no-rename`; never run the generator without it) regenerates `ALL.js` at
-every level: the `lego` sub-grid under `openscad/ALL.js`, new cells under
-`jscad/ALL.js`. `ALL.js` files are never hand-edited.
+every level: the `lego` sub-grid under `openscad/ALL.js`, the `lego/ALL.js`
+sub-grid under `jscad/ALL.js`. `ALL.js` files are never hand-edited.
 
 Verification: `npm run test:examples` (every example loads, `main` runs,
 params validate), a single-file transpile check of one wrapper, and the new
