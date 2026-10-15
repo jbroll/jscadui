@@ -49,6 +49,11 @@ elif [[ "$APP_NAME" == "jscad-web" ]]; then
     <LocationMatch "^/(examples|libs)/">
         Header always set Access-Control-Allow-Origin "*"
     </LocationMatch>
+    # OpenSCAD sources are plain text, but stock Apache has no .scad mapping
+    # and serves them with no Content-Type, which makes Firefox XML-sniff
+    # every dependency fetch into a console error. Match the dev servers
+    # (scripts/static.js), which already map .scad to text/plain.
+    AddType text/plain .scad
     # end jscad-web example CORS headers
 EOF
 )
