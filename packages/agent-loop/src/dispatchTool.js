@@ -59,8 +59,8 @@ const normalizeGrepArgs = (args) => {
 //   glob → list            grep → search         delete → deleteFile
 //   execute → run(source)  export → exportModel  question → askUser
 //
-// `read`, `write`, `edit`, `measure`, `check`, `view`, `docs` and `websearch`
-// map to a key of the same name.
+// `read`, `write`, `edit`, `measure`, `check`, `view`, `docs`, `websearch` and
+// `webfetch` map to a key of the same name.
 const ROUTES = {
   glob: (deps, args) => deps.list(args),
   read: (deps, args) => deps.read(args),
@@ -76,6 +76,7 @@ const ROUTES = {
   docs: (deps, args) => deps.docs(args.query),
   question: (deps, args) => deps.askUser(args),
   websearch: (deps, args) => deps.websearch(args),
+  webfetch: (deps, args) => deps.webfetch(args),
 }
 
 /**
@@ -84,7 +85,7 @@ const ROUTES = {
  * hand back to the model.
  * @param {string} name
  * @param {object} [input]
- * @param {{list:Function,read:Function,search:Function,write:Function,edit:Function,deleteFile:Function,run:Function,measure:Function,check:Function,exportModel:Function,view:Function,docs:Function,askUser:Function,websearch:Function}} deps
+ * @param {{list:Function,read:Function,search:Function,write:Function,edit:Function,deleteFile:Function,run:Function,measure:Function,check:Function,exportModel:Function,view:Function,docs:Function,askUser:Function,websearch:Function,webfetch:Function}} deps
  *   Handlers keyed by the stable on-disk names (see the table above `ROUTES`).
  */
 export const dispatchTool = async (name, input, deps) => {

@@ -5,9 +5,9 @@ import { buildTools, READ_ONLY, TOOLS } from '../src/tools.js'
 const docsDescription = (api) => buildTools(api).find((t) => t.name === 'docs').description
 
 describe('agent tools', () => {
-  it('exposes the thirteen browser tools with input schemas', async () => {
+  it('exposes the fourteen browser tools with input schemas', async () => {
     const names = TOOLS.map((t) => t.name)
-    expect(names).toEqual(['glob', 'read', 'grep', 'write', 'edit', 'delete', 'execute', 'measure', 'check', 'export', 'docs', 'question', 'websearch'])
+    expect(names).toEqual(['glob', 'read', 'grep', 'write', 'edit', 'delete', 'execute', 'measure', 'check', 'export', 'docs', 'question', 'websearch', 'webfetch'])
     expect(names).not.toContain('list')
     expect(names).not.toContain('search')
     for (const tool of TOOLS) {
@@ -199,5 +199,20 @@ describe('agent tools', () => {
     expect(tool.inputSchema.additionalProperties).toBe(false)
     expect(READ_ONLY.has('websearch')).toBe(true)
     expect(READ_ONLY.has('web_search')).toBe(false)
+  })
+
+  it('defines read-only webfetch with url required, a markdown/text format, and no extra props', () => {
+    const tools = buildTools('fluent')
+    expect(tools.map((t) => t.name)).toContain('webfetch')
+    const tool = tools.find((t) => t.name === 'webfetch')
+    expect(tool.inputSchema.required).toEqual(['url'])
+    expect(Object.keys(tool.inputSchema.properties)).toEqual(['url', 'format'])
+    expect(tool.inputSchema.properties.url.type).toBe('string')
+    expect(tool.inputSchema.properties.format.type).toBe('string')
+    expect(tool.inputSchema.properties.format.enum).toEqual(['markdown', 'text'])
+    expect(tool.inputSchema.additionalProperties).toBe(false)
+    expect(tool.description).toMatch(/capped/)
+    expect(tool.description).toMatch(/never construct URLs/i)
+    expect(READ_ONLY.has('webfetch')).toBe(true)
   })
 })

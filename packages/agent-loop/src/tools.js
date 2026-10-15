@@ -185,10 +185,23 @@ export const buildTools = (api = DEFAULT_API) => [
       additionalProperties: false,
     },
   },
+  {
+    name: 'webfetch',
+    description: 'Fetch a URL already in the conversation through the relay and answer its capped text (markdown by default), with title, finalUrl and whether it was truncated. Use URLs the user or a tool already gave you; never construct URLs yourself.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        url: { type: 'string', description: 'The http(s) URL to fetch, already given to you' },
+        format: { type: 'string', enum: ['markdown', 'text'], description: 'The answer format; markdown by default' },
+      },
+      required: ['url'],
+      additionalProperties: false,
+    },
+  },
 ]
 
 export const TOOLS = buildTools()
 
 // Calls safe to run concurrently: they read state without saving.
 // write/edit/delete/export save or expose download state and stay serial.
-export const READ_ONLY = new Set(['glob', 'read', 'grep', 'measure', 'check', 'docs', 'execute', 'view', 'question', 'websearch'])
+export const READ_ONLY = new Set(['glob', 'read', 'grep', 'measure', 'check', 'docs', 'execute', 'view', 'question', 'websearch', 'webfetch'])

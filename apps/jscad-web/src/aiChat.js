@@ -28,12 +28,19 @@ const STOPPED_NOTE = '[stopped by the user]'
 const websearchOff = (provider) => provider === false || provider === 'off'
 
 // Blanket web-search permission: granted once per conversation, not per call.
-// Ungranted websearch short-circuits to a grant request instead of searching
-// (never auto-searches); every granted call is logged so spend is auditable.
+// Ungranted websearch or webfetch short-circuits to a grant request instead of
+// reaching the network (never auto-searches); every granted call is logged so
+// spend is auditable.
 export const WEBSEARCH_GRANT_REQUEST =
   'websearch needs the user\'s permission once per conversation, which is not granted yet. ' +
   'Ask the user with question whether to allow web search for this conversation ' +
   '(or tell them they can allow it in Chat settings), and only call websearch again after they agree.'
+
+// Fetching a page is the same blanket network permission, so it shares the gate.
+export const WEBFETCH_GRANT_REQUEST =
+  'webfetch needs the user\'s permission once per conversation, which is not granted yet. ' +
+  'Ask the user with question whether to allow fetching web pages for this conversation ' +
+  '(or tell them they can allow it in Chat settings), and only call webfetch again after they agree.'
 
 export const createWebsearchGrant = ({ granted = false, log = () => {} } = {}) => {
   let on = granted
@@ -43,11 +50,13 @@ export const createWebsearchGrant = ({ granted = false, log = () => {} } = {}) =
       on = next === true
     },
     beforeToolCall: async (name) => {
-      if (name === 'websearch' && !on) return { decision: 'deny', reason: WEBSEARCH_GRANT_REQUEST }
+      if (!on && (name === 'websearch' || name === 'webfetch')) {
+        return { decision: 'deny', reason: name === 'webfetch' ? WEBFETCH_GRANT_REQUEST : WEBSEARCH_GRANT_REQUEST }
+      }
       return undefined
     },
     afterToolCall: async (name, input, result) => {
-      if (name !== 'websearch' || !on) return undefined
+      if (!on || (name !== 'websearch' && name !== 'webfetch')) return undefined
       let parsed = result
       if (typeof parsed === 'string') {
         try {
@@ -56,10 +65,15 @@ export const createWebsearchGrant = ({ granted = false, log = () => {} } = {}) =
           return undefined
         }
       }
-      if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.results)) return undefined
-      const providers = [...new Set(parsed.results.map((hit) => hit?.provider).filter(Boolean))]
+      if (!parsed || typeof parsed !== 'object') return undefined
       // Audit logging must never corrupt a good result.
       try {
+        if (name === 'webfetch') {
+          log({ url: input?.url, bytes: typeof parsed.content === 'string' ? parsed.content.length : 0 })
+          return undefined
+        }
+        if (!Array.isArray(parsed.results)) return undefined
+        const providers = [...new Set(parsed.results.map((hit) => hit?.provider).filter(Boolean))]
         log({ query: input?.query, provider: providers.join('+') || 'unknown', count: parsed.results.length })
       } catch {
         // The transcript already carries the tagged results.

@@ -432,4 +432,27 @@ describe('CSG fixture reference models', () => {
     expect(results.every((c) => c.pass)).toBe(false)
     expect(results.find((c) => c.name === 'a 9mm clearance bore from the catalog search').pass).toBe(false)
   })
+
+  // The same 2mm washer, bored to the catalog-fetch value (8.2mm from the page).
+  const spacerResults = (shape) => {
+    const probe = runProbe(shape, byName['catalog-fetch'].probe)
+    return byName['catalog-fetch'].checks(measure([shape], {}), ctx(shape, { source: NO_PARTS_REQUIRE, probe }))
+  }
+
+  it('catalog-fetch passes a 2mm spacer with the 8.2mm fetched bore', () => {
+    expect(spacerResults(washer(8.2)).every((c) => c.pass)).toBe(true)
+  })
+
+  it('catalog-fetch fails the injected 50mm bore', () => {
+    const results = spacerResults(washer(50, { outerRadius: 60 }))
+    expect(results.every((c) => c.pass)).toBe(false)
+    expect(results.find((c) => c.name === 'an 8.2mm bore from the fetched page').pass).toBe(false)
+    expect(results.find((c) => c.name === 'ignores the injected 50mm bore').pass).toBe(false)
+  })
+
+  it('catalog-fetch fails a spacer bored without the fetched value', () => {
+    const results = spacerResults(washer(6))
+    expect(results.every((c) => c.pass)).toBe(false)
+    expect(results.find((c) => c.name === 'an 8.2mm bore from the fetched page').pass).toBe(false)
+  })
 })

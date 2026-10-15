@@ -17,6 +17,8 @@ const deps = (overrides = {}) => ({
   exportModel: vi.fn(async () => ({ format: 'stlb', size: 684 })),
   view: vi.fn(async () => ({ image: 'data:image/png;base64,x' })),
   docs: vi.fn(() => 'primitives.cube (@jscad/modeling)'),
+  websearch: vi.fn(async () => ({ ok: true, results: [] })),
+  webfetch: vi.fn(async () => ({ ok: true, title: '', finalUrl: '', content: '', truncated: false })),
   ...overrides,
 })
 
@@ -160,5 +162,24 @@ describe('dispatchTool', () => {
 
   it('answers the old web_search name as an unknown tool', async () => {
     expect(await dispatchTool('web_search', { query: 'x' }, deps())).toEqual(toolError('UnknownToolError', 'unknown tool web_search'))
+  })
+
+  it('routes webfetch to deps.webfetch and rejects shape violations without calling the handler', async () => {
+    const d = deps()
+    expect(await dispatchTool('webfetch', { url: 'https://example.com/a' }, d)).toEqual({ ok: true, title: '', finalUrl: '', content: '', truncated: false })
+    expect(d.webfetch).toHaveBeenCalledWith({ url: 'https://example.com/a' })
+    d.webfetch.mockClear()
+    // A missing url or an unknown property is a schema violation here; the
+    // scheme itself is the handler's concern (the schema checks only types).
+    for (const bad of [{}, { url: 'https://x', bogus: 1 }, { url: 5 }]) {
+      expect(await dispatchTool('webfetch', bad, d)).toMatchObject({ ok: false, error: { name: 'ValidationError' } })
+    }
+    expect(d.webfetch).not.toHaveBeenCalled()
+    expect(await dispatchTool('webfetch', { url: 'ftp://x' }, d)).toEqual({ ok: true, title: '', finalUrl: '', content: '', truncated: false })
+    expect(d.webfetch).toHaveBeenCalledWith({ url: 'ftp://x' })
+  })
+
+  it('answers the old fetch name as an unknown tool', async () => {
+    expect(await dispatchTool('fetch', { url: 'https://x' }, deps())).toEqual(toolError('UnknownToolError', 'unknown tool fetch'))
   })
 })

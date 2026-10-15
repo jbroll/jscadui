@@ -249,7 +249,7 @@ export const variantValue = ({ initial, min = -Infinity, max = Infinity, type })
 
 const differs = (a, b) => Math.abs(a - b) > 1e-6 * Math.max(1, Math.abs(a), Math.abs(b))
 
-export function createEvalBackend({ api = DEFAULT_API, cannedSearch = [] } = {}) {
+export function createEvalBackend({ api = DEFAULT_API, cannedSearch = [], cannedFetch = [] } = {}) {
   let files = {}
   // The last build: its report, and its geometry and params when it built.
   let current = null
@@ -324,6 +324,24 @@ export function createEvalBackend({ api = DEFAULT_API, cannedSearch = [] } = {})
     return { ok: true, results: entry.results.map((hit) => ({ ...hit })) }
   }
 
+  // Offline webfetch: canned pages keyed by URL substring, as websearch is by
+  // query. Scripted fixtures are consent by construction, so no grant gate;
+  // anything unscripted fails closed — live network never runs in eval.
+  const fetchCanned = (args) => {
+    const url = args?.url ?? ''
+    const entry = cannedFetch.find(
+      (canned) => typeof canned?.match === 'string' && url.toLowerCase().includes(canned.match.toLowerCase()),
+    )
+    if (!entry) return toolError('FetchUnavailableError', 'webfetch: no canned page matches in the eval harness')
+    return {
+      ok: true,
+      title: entry.title ?? '',
+      finalUrl: entry.finalUrl ?? url,
+      content: entry.content ?? '',
+      truncated: entry.truncated === true,
+    }
+  }
+
   const tools = {
     list: () => listFiles(files),
     read: (args) => readFile(files, args),
@@ -340,6 +358,7 @@ export function createEvalBackend({ api = DEFAULT_API, cannedSearch = [] } = {})
     view: () => toolError('UnavailableError', 'view is unavailable in the eval harness'),
     docs: (query) => docsTool(API_INDEX, query, { api }),
     websearch: searchCanned,
+    webfetch: fetchCanned,
   }
 
   // The executor protocol carries tool results as text.

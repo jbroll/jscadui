@@ -74,6 +74,7 @@ import { createDocs, createIndexLoader } from './src/apiIndex.js'
 import { showApiHelp, apiHelpStyles } from './src/apiHelp.js'
 import { initChat } from './src/aiChat.js'
 import { createSearchStores, createWebSearchHandler } from './src/aiSearch.js'
+import { createWebFetchHandler } from './src/aiFetch.js'
 import { dispatchTool, NO_ENTRY } from '@jscadui/agent-loop'
 import { initAccount, getChatApi, getProviderConfig, getSession, getWebsearchSelection } from './src/aiAccount.js'
 
@@ -976,6 +977,7 @@ const aiDeps = {
     getProjectId: () => currentProjectId,
     getPinned: () => getWebsearchSelection().provider,
   }),
+  webfetch: createWebFetchHandler({}),
 }
 
 if (byId('ai-account')) initAccount(byId('ai-account'), {

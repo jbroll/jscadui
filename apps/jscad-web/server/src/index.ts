@@ -7,6 +7,7 @@ import Database from 'better-sqlite3';
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 import { mountRelayRoutes } from './relay/routes.js';
 import { mountSearchRoutes } from './search/routes.js';
+import { mountFetchRoutes } from './fetch/routes.js';
 import { configFromEnv, type ServerConfig } from './config.js';
 
 export type { ServerConfig } from './config.js';
@@ -106,6 +107,11 @@ export async function createServer(config: ServerConfig): Promise<AppServer> {
   // The operator key is optional: without it the route answers 503 and the
   // page falls back to the keyless direct pool.
   mountSearchRoutes(app, { tavilyKey: process.env.JSCADUI_TAVILY_API_KEY, trustedOrigins: config.trustedOrigins });
+
+  // The browser cannot read an arbitrary cross-origin page, so a URL already in
+  // the conversation reaches it only through this relay: http(s) only, a bounded
+  // redirect chain re-checked per hop, a bounded body and a capped answer.
+  mountFetchRoutes(app, { trustedOrigins: config.trustedOrigins });
 
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });

@@ -75,7 +75,12 @@ gate above: rotating keyless MCP providers (Exa, Parallel, Firecrawl)
 plus keyed TinyFish direct and Tavily via `POST /api/search`, blanket
 per-conversation permission, snippet caps with fence escaping, and the
 `catalog-search` eval fixture proving the tool path with an ignored
-injection. Page fetch (`webfetch`) stays deferred under the relay spec.
+injection. Page fetch (`webfetch`) follows the same gate under the relay
+spec: `POST /api/fetch` reaches arbitrary public pages with an http(s)
+check, a five-hop redirect cap re-checked per hop for private addresses,
+a 15s timeout, an 8k extracted-text cap with fence escaping, and the
+`catalog-fetch` eval fixture proving the tool path with an ignored
+injection.
 
 ### 5. Subagents / agent-as-tool
 
