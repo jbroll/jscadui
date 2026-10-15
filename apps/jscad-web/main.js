@@ -72,6 +72,7 @@ import { missingSaveHandleMessage, saveRoute } from './src/saveFile.js'
 import { createDocs, createIndexLoader } from './src/apiIndex.js'
 import { showApiHelp, apiHelpStyles } from './src/apiHelp.js'
 import { initChat } from './src/aiChat.js'
+import { createSearchStores, createWebSearchHandler } from './src/aiSearch.js'
 import { dispatchTool, NO_ENTRY } from '@jscadui/agent-loop'
 import { initAccount, getChatApi, getProviderConfig, getSession } from './src/aiAccount.js'
 
@@ -944,6 +945,7 @@ const aiDeps = {
     return { ok: true, image, camera: viewState.viewer.getCamera() }
   },
   docs: createDocs(loadApiIndex, getChatApi),
+  websearch: createWebSearchHandler({ stores: createSearchStores(globalThis.localStorage), getProjectId: () => currentProjectId }),
 }
 
 if (byId('ai-account')) initAccount(byId('ai-account'), {
