@@ -653,8 +653,39 @@ describe('initMessaging', () => {
   })
 
   describe('edge cases', () => {
-    it('should ignore response for unknown ID', () => {
-      messaging = initMessaging(mockSelf, {})
+    it('logs a superseded handler rejection at debug instead of error', async () => {
+      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {})
+      const handlers = {
+        run: () => { throw Object.assign(new Error('superseded by a newer run'), { name: 'SupersededError' }) },
+      }
+      messaging = initMessaging(mockSelf, handlers)
+
+      await messaging.listener({ data: { method: 'run', params: [], id: 7 } })
+
+      expect(errSpy).not.toHaveBeenCalled()
+      expect(debugSpy).toHaveBeenCalled()
+      errSpy.mockRestore()
+      debugSpy.mockRestore()
+    })
+
+    it('logs an aborted handler rejection at debug instead of error', async () => {
+      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {})
+      const handlers = {
+        run: () => { throw Object.assign(new Error('stopped by the user'), { name: 'AbortError' }) },
+      }
+      messaging = initMessaging(mockSelf, handlers)
+
+      await messaging.listener({ data: { method: 'run', params: [], id: 7 } })
+
+      expect(errSpy).not.toHaveBeenCalled()
+      expect(debugSpy).toHaveBeenCalled()
+      errSpy.mockRestore()
+      debugSpy.mockRestore()
+    })
+
+    it('should ignore response for unknown ID', () => {      messaging = initMessaging(mockSelf, {})
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
       mockSelf.simulateMessage({

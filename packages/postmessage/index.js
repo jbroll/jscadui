@@ -160,7 +160,14 @@ export const initMessaging = (_self, handlers, { onJobCount, debug, allowedOrigi
         sendResponse(out, id)
       }
     } catch (error) {
-      console.error(`error executing command ${method}`, params, error)
+      // Supersedes and aborts are routine control flow (a newer run, a stop,
+      // a retired worker), not faults: keep them at debug so the console
+      // reflects real issues.
+      if (error?.name === 'SupersededError' || error?.name === 'AbortError') {
+        console.debug(`dropped ${method} (${error.name})`, params, error)
+      } else {
+        console.error(`error executing command ${method}`, params, error)
+      }
       sendError(error, id)
     }
   }
