@@ -228,9 +228,15 @@ export const openConsentGate = (selection) => {
       openGate = null
       resolve(value)
     }
+    // A locked demo box and an absent custom-base-URL box are not the user's
+    // answer: accepting keeps the stored recording choice instead of letting
+    // the locked checked box overwrite a prior opt-out. Demo turns are recorded
+    // server-side regardless, so only an interactive box writes what it shows.
+    const recordingRow = rows.find((row) => row.key === 'recordOwnChats')
     accept.addEventListener('click', () => {
       const recording = inputs.get('recordOwnChats')
-      acceptTos(recording ? recording.checked : getRecordOwnChats())
+      const answered = recording && !recordingRow.locked
+      acceptTos(answered ? recording.checked : getRecordOwnChats())
       done(true)
     })
     decline.addEventListener('click', () => done(false))

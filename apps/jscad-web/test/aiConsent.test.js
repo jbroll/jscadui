@@ -216,6 +216,25 @@ describe('gate dialog', () => {
     expect(getRecordOwnChats()).toBe(true)
   })
 
+  it('keeps a prior opt-out when the demo notice is accepted', async () => {
+    acceptTos(false)
+    const pending = openConsentGate({ kind: 'opencode-go', model: 'm', demo: true, shared: 's1' })
+    const recording = box('recordOwnChats').querySelector('input')
+    expect(recording.checked).toBe(true)
+    expect(recording.disabled).toBe(true)
+    tick('code-execution')
+    tick('provider-sharing')
+    tick('demo-recorded')
+    gate().querySelector('.confirm-ok').click()
+    expect(await pending).toBe(true)
+    // The locked demo box is not the user's answer, so the stored opt-out
+    // survives accepting the notice; demo logging is enforced server-side.
+    expect(getRecordOwnChats()).toBe(false)
+    expect(localStorage.getItem('jscad-ai.log')).toBe('off')
+    // Demo turns stay gated on the notice rather than being silently allowed.
+    expect(checkTurn({ kind: 'opencode-go', model: 'm', demo: true, shared: 's1' })).toEqual({ ok: false, reason: 'demo-notice' })
+  })
+
   it('keeps the prior opt-out when the recording question is skipped for a custom base URL', async () => {
     localStorage.setItem('jscad-ai.log', 'off')
     const pending = openConsentGate({ kind: 'openai', model: 'm', baseUrl: 'https://direct.test' })
@@ -334,6 +353,32 @@ describe('send gate', () => {
     await vi.waitFor(() => expect(q('.chat-msg.error')).not.toBeNull())
     expect(q('.chat-msg.error').textContent).toBe(DEMO_NOTICE_MESSAGE)
     expect(runTurnFn).not.toHaveBeenCalled()
+  })
+
+  it('runs the demo turn after the notice is accepted, keeping the opt-out for the next send', async () => {
+    acceptTos(false)
+    const runTurnFn = vi.fn(async ({ onText }) => {
+      onText('demo reply')
+      return { messages: [] }
+    })
+    const demo = { kind: 'opencode-go', model: 'm', apiKey: 'demo-limited-free', shared: 's1', demo: true }
+    const { q, type } = openChat({ getProvider: () => demo, runTurnFn, projectId: 'p1' })
+    type('a cube')
+    const gate = document.querySelector('.tos-gate')
+    for (const input of gate.querySelectorAll('.tos-ack')) {
+      input.checked = true
+      input.dispatchEvent(new Event('change'))
+    }
+    gate.querySelector('.confirm-ok').click()
+    await vi.waitFor(() => expect(q('.chat-msg.assistant')?.textContent).toBe('demo reply'))
+    await vi.waitFor(() => expect(q('.chat-send').textContent).toBe('Send'))
+    expect(runTurnFn).toHaveBeenCalledTimes(1)
+    // Accepting the notice does not clear the stored opt-out, so the next demo
+    // send is gated again (the relay records demo turns regardless).
+    expect(getRecordOwnChats()).toBe(false)
+    type('a second cube')
+    await vi.waitFor(() => expect(document.querySelector('.tos-gate')).not.toBeNull())
+    expect(runTurnFn).toHaveBeenCalledTimes(1)
   })
 })
 
