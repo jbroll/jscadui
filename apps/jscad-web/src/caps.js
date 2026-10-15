@@ -15,7 +15,10 @@ export const DEFAULT_CAPS = {
 // A streamed grid is checked batch by batch against DEFAULT_CAPS and in total
 // against these; its batches never exist in one message.
 export const STREAM_CAPS = {
-  bytes: 1.5 * 1024 * 1024 * 1024,
+  // 4GB fits the top-level ALL.js (~2.9GB for all cells); desktop Chrome's
+  // per-tab heap. Mobile tabs hold far less, so a full-grid run there can
+  // still OOM past this guard.
+  bytes: 4 * 1024 * 1024 * 1024,
   entities: 20_000,
 }
 

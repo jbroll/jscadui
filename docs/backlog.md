@@ -132,7 +132,7 @@ worker pool: each worker claims leaves by key and streams each placed cell to
 the app as it finishes, so no worker holds the whole grid's geometry. The
 model budget (120s, `main.js`; 290s in the sweep) restarts on each cell, so it
 bounds one leaf rather than the grid. The app draws cells as they arrive,
-capped at 1.5 GB and 20,000 entities per grid
+capped at 4 GB and 20,000 entities per grid
 (`apps/jscad-web/docs/architecture.md`, Streamed runs). 46 grids; the largest
 are dotSCAD's 64-cell examples grid, about 36 per BOSL2 part and NopSCADlib's
 32-cell electronics grid, one of six category grids that replaced its

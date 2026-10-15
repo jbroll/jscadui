@@ -416,7 +416,7 @@ Manifold meshes arrive indexed without normals: about 18 bytes a triangle for
 a typical mesh (about half a vertex, 12 bytes, plus 12 bytes of indices), so
 the 256 MB cap covers about 15M triangles. A streamed run, a grid or a
 multi-part model sent with a `runId`, is capped per batch at `DEFAULT_CAPS`
-(256 MB, 2,000 entities) and in total at `STREAM_CAPS` (1.5 GB, 20,000
+(256 MB, 2,000 entities) and in total at `STREAM_CAPS` (4 GB, 20,000
 entities); see Streamed runs. A load the caps refuse is a failed build, so
 the chat's build report cannot say a model built when nothing was drawn.
 
@@ -645,7 +645,7 @@ so a batch is untrusted: a `vertices`, `indices`, `normals` or `colors` field
 that is not a typed array is a model error, since the byte cap counts only
 typed arrays and a fake `length` would stall the counting and bounding-box
 loops. Each batch is then checked against the per-batch caps (256 MB, 2,000
-entities) and the run's total against 1.5 GB and 20,000 entities. Any failure,
+entities) and the run's total against 4 GB and 20,000 entities. Any failure,
 including a throw while counting, ends the run with the error before the batch
 is added and leaves the drawn cells in place, as a kill does.
 

@@ -156,7 +156,7 @@ instead, every `ALL.js` plus the per-category `ALL.<category>.js` grids beside
 the NopSCADlib tests (`--dir . --grids --pool-size 4`, 320s hang guard,
 concurrency 4, writing `e2e/render-grids-report.json`). The worker streams a
 grid cell by cell and frees each cell's geometry once sent, but the page keeps
-every cell it has drawn, up to 1.5 GB of buffers per run, so a grid is still
+every cell it has drawn, up to 4 GB of buffers per run, so a grid is still
 much heavier than one model. `sci` takes the script name as the job name,
 which is why this is a separate file rather than a flag on `ci/render`.
 

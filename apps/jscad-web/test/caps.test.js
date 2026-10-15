@@ -51,8 +51,8 @@ describe('the default buffer cap', () => {
 })
 
 describe('stream caps', () => {
-  it('allows a streamed run 1.5 GB and 20,000 entities', () => {
-    expect(STREAM_CAPS).toEqual({ bytes: 1.5 * 1024 * 1024 * 1024, entities: 20_000 })
+  it('allows a streamed run 4 GB and 20,000 entities', () => {
+    expect(STREAM_CAPS).toEqual({ bytes: 4 * 1024 * 1024 * 1024, entities: 20_000 })
   })
   it('sums typed-array bytes across entities', () => {
     expect(geometryBytes([{ vertices: new Float32Array(3) }, { indices: new Uint32Array(2) }])).toBe(20)

@@ -10,7 +10,7 @@
 # apps/jscad-web/e2e/RENDER-TESTING.md.
 #
 # A grid streams cell by cell and the worker frees each cell once sent, but the
-# page keeps everything drawn so far, up to 1.5 GB per run, so a grid is still
+# page keeps everything drawn so far, up to 4 GB per run, so a grid is still
 # far heavier than one model: it gets less concurrency than the per-model sweep,
 # and the aggregate grids (every item another grid) run afterwards, one at a
 # time. The hang guard restarts on each cell, so 320s is a per-cell budget; the
