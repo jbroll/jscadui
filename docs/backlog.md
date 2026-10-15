@@ -85,10 +85,10 @@ under `apps/jscad-web` unless given in full.
   sets `trust proxy` to `true`, so `req.ip` is the leftmost `X-Forwarded-For`
   entry, which the Apache proxy block (deploy.sh `modules/apache/build.sh:116-124`)
   passes through from the client. A curl client with a forged `Origin` bypasses
-  the 60/min limit. The merge that landed here added idle-bucket eviction
-  (`createLimiter`, `relay/policy.js`), so the map no longer grows without
-  bound, but the key itself is still spoofable. Fix: `trust proxy` `'loopback'`
-  or key on `X-Real-IP`, and point better-auth's IP header at the same value.
+  the 60/min limit. Landed: `trust proxy` `'loopback'` plus idle-bucket
+  eviction (`createLimiter`, `relay/policy.js`), so the relay keys on the
+  address Apache appended and the map no longer grows without bound.
+  Remaining: point better-auth's IP header at the same value.
   A deploy decision — `deploy.sh` is not in this repo.
 - **No CSP or COOP on the app origin.** The deploy's header block (deploy.sh
   `modules/apache/build.sh:229-248`) sets neither, and `static/index.html`
@@ -98,6 +98,53 @@ under `apps/jscad-web` unless given in full.
   and a CSP: `script-src 'self'`, `frame-src` the run host, `connect-src`
   self, rowboat and the provider hosts. A deploy decision — `deploy.sh` is not
   in this repo.
+
+## Demo provider + TOS follow-ups
+
+Deferred from the demo-provider/TOS branch reviews (`feat/demo-tos-wt5`,
+2026-10-15). Paths under `apps/jscad-web` unless given in full.
+
+- **e2e parity test is `fixme`d.** `e2e/ai-chat.spec.js` `answers each tool
+  call as the eval backend does` fails on `main` too: `PARITY_ROUNDS` (36)
+  exceeds the loop's `DEFAULT_MAX_ROUNDS` (32), and the app's default project
+  adds a file the eval backend lacks. Follow-up owns the coverage decision
+  (trim `PARITY_ROUNDS`, raise the cap, or seed the eval project).
+- **Retention filename coupling is untested.** `server/src/relay/routes.ts`
+  hard-codes `/^\d{4}-\d{2}-\d{2}\.jsonl$/` while the writer's convention
+  lives in `server/src/relay/chatLog.js`; if the layout ever changes,
+  pruning silently stops matching. Add a cross test or share a
+  `logFileName(ts)` helper.
+- **Clamp `CHAT_LOG_RETAIN_DAYS`.** A negative value prunes everything
+  including today; a huge value throws `RangeError` at boot
+  (`server/src/relay/routes.ts`).
+- **Client abort during connect logs a misleading 502.** A demo close
+  before the fetch settles is recorded as `upstream unreachable` with no
+  `error` field; distinguish `client closed` for the `chat-review` loop.
+- **Drain-wait hang (pre-existing).** If the client closes exactly when
+  `res.write` returned false, `forward` never returns and the turn escapes
+  logging (`server/src/relay/routes.ts`).
+- **Demo drawer summary shows the raw option id** until the gear dialog is
+  opened (the shared list is fetched only on open). Fetch at init or persist
+  the label (`src/aiAccount.js`).
+- **Weak shared-option validation.** Filter on more than `id` so a
+  label-less/model-less option cannot render `Demo: undefined`
+  (`src/aiAccount.js`).
+- **Meter hardening.** Reject non-numeric `ipSpend` values on state load
+  (a string bucket never trips); pin the non-2xx estimate-charge path with
+  a test; handle hex-form IPv4-mapped addresses in `ipGroup`
+  (`server/src/relay/meter.ts`).
+- **Corrupt spend file stops the whole server**, including auth/sync.
+  Consider failing closed on the shared routes only
+  (`server/src/relay/routes.ts`).
+- **No global in-flight cap on the shared route**; a client holding several
+  IPv6 /64s multiplies the overshoot bound. Operator-visible ceiling only.
+- **`available` reflects the month budget only**; daily-capped users learn
+  on POST. UX polish.
+- **Unknown model ids fall through to `v1/chat/completions`**; a typo'd
+  responses model 4xxs and burns estimate. Note in `server/RELAY.md`.
+- **Pre-upstream failures (allowlist/dns) write no log record** on the
+  shared route; add `tee.finish` with `costUsd: 0` if the loop should see
+  them.
 
 ## Render sweep
 

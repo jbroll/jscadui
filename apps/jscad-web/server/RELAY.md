@@ -92,7 +92,7 @@ Routes (both pass the origin check and mount before `/api/relay/:kind/*splat`):
 
 - `GET /api/relay/shared` returns `[{id, label, kind, model, available}]`,
   never keys or prices. `available` is false once the month's budget is spent,
-  and the client hides demo then.
+  and the client lists it disabled with `(monthly limit reached)`.
 - `POST /api/relay/shared/:id/*splat` serves one option. The sub-path must be
   the option's own (`404` otherwise). The budgets are checked (`402` with
   `{error: {code: 'shared_quota_exhausted', scope, message}}`, `scope` of

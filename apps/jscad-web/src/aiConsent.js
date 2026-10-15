@@ -235,8 +235,8 @@ export const openConsentGate = (selection) => {
     const recordingRow = rows.find((row) => row.key === 'recordOwnChats')
     accept.addEventListener('click', () => {
       const recording = inputs.get('recordOwnChats')
-      const answered = recording && !recordingRow.locked
-      acceptTos(answered ? recording.checked : getRecordOwnChats())
+      const writesChoice = recording && !recordingRow.locked
+      acceptTos(writesChoice ? recording.checked : getRecordOwnChats())
       done(true)
     })
     decline.addEventListener('click', () => done(false))

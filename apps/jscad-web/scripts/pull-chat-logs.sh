@@ -13,7 +13,7 @@
 # Source: the host and remote user come from server/deploy.conf. The remote
 # directory is the server's CHAT_LOG_DIR, which defaults to ./data/chat-logs
 # relative to the service's working directory (<EXPRESS_APP_BASE_PATH>/<APP_NAME>,
-# per the deploy.sh node_app module). Set REMOTE_CHAT_LOG_DIR when the host
+# per the deploy.sh express_app module). Set REMOTE_CHAT_LOG_DIR when the host
 # overrides CHAT_LOG_DIR in its secrets env.
 #
 # Usage:

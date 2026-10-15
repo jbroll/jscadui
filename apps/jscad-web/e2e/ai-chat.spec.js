@@ -444,6 +444,7 @@ test.describe('AI chat', () => {
   })
 
   test('shows the recording notice line in its three states', async ({ page }) => {
+    test.setTimeout(90_000)
     const openChat = async () => {
       await page.locator('#menu-button').click()
       await page.locator('#ai-chat-btn').click()

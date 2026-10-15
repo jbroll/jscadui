@@ -1248,11 +1248,11 @@ examples are separate files in `prompt/examples/fluent/` and
 natively, jscad-web's build reads through `src_build/rawImport.js`, and Node
 reads through `text-loader.js`.
 
-Both relays log. The launcher relay and the production relay write each
-consented conversation to a per-day JSONL file and keep 90 days by default
-(`server/RELAY.md`). The production relay writes an own-key turn only when the
-request carries the chat id header, which the client omits when the user opts
-out, and always writes a demo turn.
+Both relays log. The launcher relay appends every relayed POST to a per-day
+JSONL file on the operator's disk. The production relay writes an own-key
+turn only when the request carries the chat id header, which the client
+omits when the user opts out, always writes a demo turn, and prunes files
+older than `CHAT_LOG_RETAIN_DAYS` (90 by default, `server/RELAY.md`).
 
 ## Demo provider
 
