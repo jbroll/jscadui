@@ -54,6 +54,13 @@ elif [[ "$APP_NAME" == "jscad-web" ]]; then
     # every dependency fetch into a console error. Match the dev servers
     # (scripts/static.js), which already map .scad to text/plain.
     AddType text/plain .scad
+    # The SPA rewrite serves index.html for a missing path, and the rewritten
+    # URI no longer matches the LocationMatch above, so a first-candidate
+    # include miss comes back without CORS headers: the worker logs a
+    # Cross-Origin block instead of moving on to the next candidate. Key off
+    # the original request line, which rewrites do not change.
+    SetEnvIf Request_URI "^/(examples|libs)/" NEED_EXAMPLE_CORS
+    Header always set Access-Control-Allow-Origin "*" env=NEED_EXAMPLE_CORS
     # end jscad-web example CORS headers
 EOF
 )
