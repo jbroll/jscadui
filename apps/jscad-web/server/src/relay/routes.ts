@@ -1,5 +1,8 @@
 import type { Express, Request, Response } from 'express'
+import { readdirSync, unlinkSync } from 'node:fs'
+import { join } from 'node:path'
 import { loadAllowlistFile } from './allowlist.js'
+import { createChatLog, teeRelayUpstream } from './chatLog.js'
 import { RATE_PER_MIN, RelayRefusal, createLimiter, isTrustedRequest, pickForwardHeaders, resolveTarget } from './policy.js'
 
 export interface RelayRouteOptions {
@@ -9,6 +12,45 @@ export interface RelayRouteOptions {
   fetchFn?: typeof fetch
   /** DNS seam: defaults to `node:dns` lookup; tests inject fakes. */
   dnsLookup?: (host: string) => Promise<Array<{ address: string }>>
+  /** Where the chat log goes: `CHAT_LOG_DIR`, then `./data/chat-logs`. `0` turns logging off. */
+  chatLogDir?: string
+  /** Days of chat log to keep: `CHAT_LOG_RETAIN_DAYS`, then 90. */
+  chatLogRetainDays?: number
+}
+
+const DEFAULT_CHAT_LOG_DIR = './data/chat-logs'
+const DEFAULT_CHAT_LOG_RETAIN_DAYS = 90
+const DAY_MS = 24 * 60 * 60 * 1000
+// One file per UTC day, named after that day, so retention reads the names.
+const LOG_FILE_NAME = /^\d{4}-\d{2}-\d{2}\.jsonl$/
+
+const resolveRetainDays = (override?: number) => {
+  if (override !== undefined) return override
+  const fromEnv = Number(process.env.CHAT_LOG_RETAIN_DAYS)
+  return Number.isFinite(fromEnv) ? fromEnv : DEFAULT_CHAT_LOG_RETAIN_DAYS
+}
+
+/**
+ * Deletes the day files older than the retention window. Only our own file
+ * names go, so an operator's stray file in the directory survives, and a
+ * directory that was never written is simply left alone.
+ */
+const pruneChatLogs = (dir: string, days: number, now = Date.now()) => {
+  const oldest = new Date(now - days * DAY_MS).toISOString().slice(0, 10)
+  let names: string[]
+  try {
+    names = readdirSync(dir)
+  } catch {
+    return
+  }
+  for (const name of names) {
+    if (!LOG_FILE_NAME.test(name) || name.slice(0, 10) >= oldest) continue
+    try {
+      unlinkSync(join(dir, name))
+    } catch {
+      // A file that vanished between readdir and unlink is already pruned.
+    }
+  }
 }
 
 let cached: { at: number; path: string; table: Record<string, string> } | null = null
@@ -28,6 +70,14 @@ export function mountRelayRoutes(app: Express, options: RelayRouteOptions): void
   // Many browsers share this relay, so a client gets a small burst.
   const limiter = createLimiter({ ratePerMin: RATE_PER_MIN, burst: 10 })
   const allowed = new Set(options.trustedOrigins)
+  const chatLogDir = options.chatLogDir ?? process.env.CHAT_LOG_DIR ?? DEFAULT_CHAT_LOG_DIR
+  const log = chatLogDir === '0' ? null : createChatLog(chatLogDir)
+  if (log) {
+    // At startup, and then once a day for a server that stays up for months.
+    const keepDays = resolveRetainDays(options.chatLogRetainDays)
+    pruneChatLogs(chatLogDir, keepDays)
+    setInterval(() => pruneChatLogs(chatLogDir, keepDays), DAY_MS).unref()
+  }
 
   const corsFor = (req: Request, res: Response): boolean => {
     if (!isTrustedRequest(req.headers, allowed)) return false
@@ -51,6 +101,8 @@ export function mountRelayRoutes(app: Express, options: RelayRouteOptions): void
   })
 
   const forward = async (req: Request, res: Response, method: 'GET' | 'POST') => {
+    const ts = new Date().toISOString()
+    const started = Date.now()
     if (!corsFor(req, res)) {
       res.status(403).json({ error: 'untrusted origin' })
       return
@@ -81,14 +133,39 @@ export function mountRelayRoutes(app: Express, options: RelayRouteOptions): void
       return
     }
     let upstreamRes: globalThis.Response
+    // The chat id travels only as far as this process: logging is the one place
+    // that reads it, and the header is not in FORWARD_HEADERS.
+    const chatIdHeader = req.headers['x-jscad-chat-id']
+    const chatId = typeof chatIdHeader === 'string' && chatIdHeader !== '' ? chatIdHeader : null
+    const body = method === 'GET' ? undefined : JSON.stringify(req.body ?? {})
+    const tee =
+      log && method === 'POST' && chatId
+        ? teeRelayUpstream({
+            log,
+            ts,
+            kind,
+            path: subPath,
+            request: Buffer.from(body ?? ''),
+            chatId,
+            started,
+          })
+        : null
+    // A page that goes away mid-answer must not leave the provider streaming to
+    // nobody, which Phase 2 would pay for.
+    const abort = new AbortController()
+    res.on('close', () => {
+      if (!res.writableFinished) abort.abort()
+    })
     try {
       upstreamRes = await fetchFn(upstream, {
         method,
         headers: pickForwardHeaders(req.headers),
-        ...(method === 'GET' ? {} : { body: JSON.stringify(req.body ?? {}) }),
+        signal: abort.signal,
+        ...(body === undefined ? {} : { body }),
       })
     } catch {
       res.status(502).json({ error: 'upstream unreachable' })
+      tee?.finish(502, { response: 'upstream unreachable' })
       return
     }
     res.status(upstreamRes.status)
@@ -105,14 +182,20 @@ export function mountRelayRoutes(app: Express, options: RelayRouteOptions): void
           const { done, value } = await reader.read()
           if (done) break
           bytes += value.byteLength
+          tee?.chunk(value)
           if (!res.write(value)) await new Promise<void>((r) => res.once('drain', r))
         }
         res.end()
       }
-    } catch {
+    } catch (err) {
+      // Headers are already sent, so a failed stream can only be cut off.
+      tee?.finish(upstreamRes.status, {
+        error: abort.signal.aborted ? 'client closed' : `upstream stream failed: ${(err as Error).message}`,
+      })
       res.destroy()
       return
     }
+    tee?.finish(upstreamRes.status)
     logger({ relay: kind, status: upstreamRes.status, bytes })
   }
 

@@ -1,7 +1,7 @@
 import express from 'express'
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import request from 'supertest'
-import { writeFileSync, mkdirSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { mountRelayRoutes } from '../src/relay/routes.js'
@@ -23,20 +23,37 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-const relayApp = (logs: unknown[]) => {
+const relayApp = (logs: unknown[], chatLog: { chatLogDir?: string; chatLogRetainDays?: number } = {}) => {
   const app = express()
+  // index.ts parses the body before mounting the relay; the log keeps that body.
+  app.use(express.json())
   mountRelayRoutes(app, {
     allowlistPath,
     trustedOrigins: ['https://app.test'],
     logger: (entry) => logs.push(entry),
     fetchFn: fetchMock,
     dnsLookup: async () => [{ address: '93.184.216.34' }],
+    ...chatLog,
   })
   return app
 }
 
 const sseResponse = (text: string) =>
   ({ ok: true, status: 200, headers: new Headers({ 'content-type': 'text/event-stream' }), body: new Response(text).body }) as unknown as Response
+
+const tmpLogDir = () => mkdtempSync(join(tmpdir(), 'relay-chatlog-'))
+
+/** Every record in `dir`'s JSONL files, in file order. */
+const logRecords = (dir: string): Record<string, unknown>[] =>
+  readdirSync(dir)
+    .filter((name) => name.endsWith('.jsonl'))
+    .flatMap((name) =>
+      readFileSync(join(dir, name), 'utf8')
+        .trim()
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => JSON.parse(line) as Record<string, unknown>),
+    )
 
 describe('relay routes', () => {
   it('answers preflight for a trusted origin', async () => {
@@ -190,5 +207,167 @@ describe('relay routes', () => {
     const res = await request(app).get('/api/relay/meta/v1/models').set('Origin', 'https://app.test')
     expect(res.status).toBe(200)
     expect(fetchMock).toHaveBeenCalledWith('https://api.meta.ai/v1/models', expect.objectContaining({ method: 'GET' }))
+  })
+})
+
+describe('chat logging', () => {
+  it('writes one record for a POST carrying x-jscad-chat-id, and never forwards that header', async () => {
+    fetchMock.mockImplementation(async () => sseResponse('data: hello\n\n'))
+    const logDir = tmpLogDir()
+    const res = await request(relayApp([], { chatLogDir: logDir }))
+      .post('/api/relay/openai/v1/chat/completions')
+      .set('Origin', 'https://app.test')
+      .set('Authorization', 'Bearer sk-secret')
+      .set('x-jscad-chat-id', 'chat-1')
+      .send({ model: 'm', messages: [{ role: 'user', content: 'hi' }], tools: [{ name: 'eval' }] })
+
+    expect(res.status).toBe(200)
+    const records = logRecords(logDir)
+    expect(records).toHaveLength(1)
+    expect(records[0]).toMatchObject({ chatId: 'chat-1', kind: 'openai', path: 'v1/chat/completions', status: 200 })
+    expect(records[0].response).toContain('data: hello')
+    expect(records[0].request).toEqual({ model: 'm', messages: [{ role: 'user', content: 'hi' }] })
+    const headers = fetchMock.mock.calls[0][1].headers as Record<string, string>
+    expect(Object.keys(headers)).not.toContain('x-jscad-chat-id')
+  })
+
+  it('writes nothing for a POST without a chat id', async () => {
+    fetchMock.mockImplementation(async () => sseResponse('data: hello\n\n'))
+    const logDir = tmpLogDir()
+    const res = await request(relayApp([], { chatLogDir: logDir }))
+      .post('/api/relay/openai/v1/chat/completions')
+      .set('Origin', 'https://app.test')
+      .send({ model: 'm' })
+
+    expect(res.status).toBe(200)
+    expect(logRecords(logDir)).toEqual([])
+  })
+
+  it('writes nothing for a GET, with or without a chat id', async () => {
+    fetchMock.mockImplementation(async () => sseResponse('{"data":[]}'))
+    const logDir = tmpLogDir()
+    const res = await request(relayApp([], { chatLogDir: logDir }))
+      .get('/api/relay/openai/v1/models')
+      .set('Origin', 'https://app.test')
+      .set('x-jscad-chat-id', 'chat-get')
+
+    expect(res.status).toBe(200)
+    expect(logRecords(logDir)).toEqual([])
+  })
+
+  it('records the body but no request header value', async () => {
+    fetchMock.mockImplementation(async () => sseResponse('data: ok\n\n'))
+    const logDir = tmpLogDir()
+    await request(relayApp([], { chatLogDir: logDir }))
+      .post('/api/relay/openai/v1/messages')
+      .set('Origin', 'https://app.test')
+      .set('Authorization', 'Bearer sk-secret')
+      .set('x-api-key', 'sk-ant')
+      .set('Cookie', 'better-auth.session_token=cookie-secret')
+      .set('X-Forwarded-For', '203.0.113.9')
+      .set('x-jscad-chat-id', 'chat-2')
+      .send({ model: 'm' })
+
+    const [record] = logRecords(logDir)
+    // Exactly the record shape: no headers, and no field a header could hide in.
+    expect(Object.keys(record).sort()).toEqual(['chatId', 'kind', 'ms', 'path', 'request', 'response', 'status', 'ts'])
+    expect(JSON.stringify(record)).not.toMatch(/sk-secret|sk-ant|cookie-secret|203\.0\.113\.9/)
+  })
+
+  it('turns logging off when CHAT_LOG_DIR is 0', async () => {
+    fetchMock.mockImplementation(async () => sseResponse('data: ok\n\n'))
+    const had = process.env.CHAT_LOG_DIR
+    process.env.CHAT_LOG_DIR = '0'
+    try {
+      const res = await request(relayApp([]))
+        .post('/api/relay/openai/v1/chat/completions')
+        .set('Origin', 'https://app.test')
+        .set('x-jscad-chat-id', 'chat-3')
+        .send({ model: 'm' })
+      expect(res.status).toBe(200)
+    } finally {
+      if (had === undefined) delete process.env.CHAT_LOG_DIR
+      else process.env.CHAT_LOG_DIR = had
+    }
+    // `0` is the off switch, not a directory to write into.
+    expect(existsSync(join(process.cwd(), '0'))).toBe(false)
+  })
+
+  it('prunes log files older than the retention window, keeping newer files and other names', () => {
+    const logDir = tmpLogDir()
+    const day = (daysAgo: number) => new Date(Date.now() - daysAgo * 86_400_000).toISOString().slice(0, 10)
+    writeFileSync(join(logDir, `${day(200)}.jsonl`), '{}\n')
+    writeFileSync(join(logDir, `${day(91)}.jsonl`), '{}\n')
+    writeFileSync(join(logDir, `${day(89)}.jsonl`), '{}\n')
+    writeFileSync(join(logDir, `${day(0)}.jsonl`), '{}\n')
+    writeFileSync(join(logDir, 'notes.txt'), 'not a log\n')
+
+    relayApp([], { chatLogDir: logDir, chatLogRetainDays: 90 })
+
+    expect(readdirSync(logDir).sort()).toEqual([`${day(0)}.jsonl`, `${day(89)}.jsonl`, 'notes.txt'].sort())
+  })
+
+  it('aborts the upstream request when the page closes the connection', async () => {
+    let signal: AbortSignal | undefined
+    fetchMock.mockImplementation(async (_url: string, init: RequestInit) => {
+      signal = init.signal as AbortSignal
+      const body = new ReadableStream({
+        start(controller) {
+          signal?.addEventListener('abort', () => controller.error(new Error('aborted')))
+        },
+      })
+      return { ok: true, status: 200, headers: new Headers({ 'content-type': 'text/event-stream' }), body } as unknown as Response
+    })
+    const pending = request(relayApp([], { chatLogDir: tmpLogDir() }))
+      .post('/api/relay/openai/v1/chat/completions')
+      .set('Origin', 'https://app.test')
+      .set('x-jscad-chat-id', 'chat-4')
+      .send({ model: 'm' })
+    const settled = pending.then(
+      () => 'settled',
+      () => 'settled',
+    )
+
+    await vi.waitFor(() => expect(signal).toBeDefined())
+    pending.abort()
+    await vi.waitFor(() => expect(signal?.aborted).toBe(true))
+    await settled
+  })
+})
+
+describe('client address', () => {
+  it('keys the limiter on the address the loopback proxy appended, not the client-forged entry', async () => {
+    fetchMock.mockImplementation(async () => sseResponse('data: ok\n\n'))
+    const app = express()
+    // Mirrors src/index.ts. With `true` Express would trust the leftmost
+    // X-Forwarded-For entry, which is whatever the client sent.
+    app.set('trust proxy', 'loopback')
+    mountRelayRoutes(app, {
+      allowlistPath,
+      trustedOrigins: ['https://app.test'],
+      logger: () => {},
+      fetchFn: fetchMock,
+      dnsLookup: async () => [{ address: '93.184.216.34' }],
+    })
+
+    // A different forged leftmost entry each time, one real client all along.
+    const statuses: number[] = []
+    for (let i = 0; i < 11; i++) {
+      const res = await request(app)
+        .post('/api/relay/openai/v1/chat/completions')
+        .set('Origin', 'https://app.test')
+        .set('X-Forwarded-For', `203.0.113.${i}, 198.51.100.7`)
+        .send({})
+      statuses.push(res.status)
+    }
+    expect(statuses).toEqual([...Array(10).fill(200), 429])
+  })
+
+  it('pins the production trust-proxy setting to the loopback hop', () => {
+    // createServer cannot be built in this suite (the better-sqlite3 native
+    // binding fails to self-register), so read the setting itself: `true` here
+    // would hand the rate-limit key to the client.
+    const source = readFileSync(new URL('../src/index.ts', import.meta.url), 'utf8')
+    expect(source).toMatch(/app\.set\(\s*['"]trust proxy['"]\s*,\s*['"]loopback['"]\s*\)/)
   })
 })

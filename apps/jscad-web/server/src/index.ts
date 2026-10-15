@@ -68,7 +68,9 @@ export async function createServer(config: ServerConfig): Promise<AppServer> {
   await identity.registerIdentityTables();
 
   const app = express();
-  app.set('trust proxy', true);
+  // Apache is the only hop in front of this app. Express then takes the address
+  // Apache appended, not the leftmost X-Forwarded-For entry a client can forge.
+  app.set('trust proxy', 'loopback');
   app.use(corsMiddleware(config.trustedOrigins));
 
   // Group reads/writes go to hosted rowboat, authenticated AS THE ACTING USER. The app does not
