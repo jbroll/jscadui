@@ -15,6 +15,13 @@ const libraryDir = (contextFile) => {
   return match ? match[1] : null
 }
 
+// Demo files live under an examples/ or experimental/ subtree of their library
+// and include library paths, never siblings of the demo: resolving those
+// against the demo directory is a guaranteed miss, so the library root goes
+// first for them. Anything else keeps file-relative first.
+const DEMO_SUBTREE = /^\/(examples|experimental)\//
+const isBareRelative = (filename) => !/^(?:[a-z][a-z\d+.-]*:|\/)/i.test(filename)
+
 /**
  * Absolute URLs to try for `filename` included from `fromFile`, in order.
  * @param {string} filename
@@ -42,12 +49,19 @@ export const includeCandidates = (filename, fromFile, entryUrl, fallbackOrigin) 
 
   const candidates = [new URL(filename, baseUrl).toString()]
   const libDir = libraryDir(context)
+  let libUrl
   if (libDir) {
     const libRoot = new URL(`${libDir}/`, origin).toString()
-    const libUrl = new URL(filename, libRoot).toString()
+    const candidate = new URL(filename, libRoot).toString()
     // A filename with enough ../ resolves above the library it names, which
     // is not a path this fallback is entitled to reach.
-    if (libUrl.startsWith(libRoot) && libUrl !== candidates[0]) candidates.push(libUrl)
+    if (candidate.startsWith(libRoot) && candidate !== candidates[0]) {
+      libUrl = candidate
+      candidates.push(candidate)
+    }
+  }
+  if (libUrl && DEMO_SUBTREE.test(context.slice(libDir.length)) && isBareRelative(filename)) {
+    candidates.reverse()
   }
 
   if (fallbackOrigin && fallbackOrigin !== 'null') {

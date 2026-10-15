@@ -89,6 +89,24 @@ describe('includeCandidates', () => {
     const from = 'http://localhost:5121/libs/NopSCADlib/vitamins/nuts.scad'
     expect(includeCandidates('nut.scad', from, 'http://project.local/main.scad', 'http://localhost:5121')[0]).toBe('http://localhost:5121/libs/NopSCADlib/vitamins/nut.scad')
   })
+
+  it('tries the library root first for an include from an examples subtree', () => {
+    const entry = 'http://localhost:5121/examples/openscad/dotscad/examples/voronoi/voronoi_vase.scad'
+    const fromFile = '/examples/openscad/dotscad/examples/voronoi/voronoi_vase.scad'
+    expect(includeCandidates('voronoi/vrn3_from.scad', fromFile, entry)).toEqual([
+      'http://localhost:5121/examples/openscad/dotscad/voronoi/vrn3_from.scad',
+      'http://localhost:5121/examples/openscad/dotscad/examples/voronoi/voronoi/vrn3_from.scad',
+    ])
+  })
+
+  it('tries the library root first for an include from an experimental subtree', () => {
+    const entry = 'http://localhost:5121/examples/openscad/dotscad/experimental/worley_sphere.scad'
+    const fromFile = '/examples/openscad/dotscad/experimental/worley_sphere.scad'
+    expect(includeCandidates('polyhedra/geom_icosahedron.scad', fromFile, entry)).toEqual([
+      'http://localhost:5121/examples/openscad/dotscad/polyhedra/geom_icosahedron.scad',
+      'http://localhost:5121/examples/openscad/dotscad/experimental/polyhedra/geom_icosahedron.scad',
+    ])
+  })
 })
 
 describe('isSpaFallback', () => {
