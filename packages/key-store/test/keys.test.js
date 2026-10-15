@@ -78,6 +78,28 @@ describe('keyStore', () => {
     expect(storage.__keys()).toEqual([])
   })
 
+  it('per-provider stores isolate each other by storage key', async () => {
+    const storage = memStorage()
+    const exa = createKeyStore({ storage, key: 'jscad-studio.search.exa' })
+    const tavily = createKeyStore({ storage, key: 'jscad-studio.search.tavily' })
+    await exa.set('sk-exa', 'device')
+    expect(tavily.get()).toBeNull()
+    await tavily.set('sk-tavily', 'device')
+    expect(exa.get()).toBe('sk-exa')
+    expect(tavily.get()).toBe('sk-tavily')
+    expect(storage.__keys().sort()).toEqual(['jscad-studio.search.exa', 'jscad-studio.search.tavily'])
+    exa.clear()
+    expect(tavily.get()).toBe('sk-tavily')
+  })
+
+  it('the default store still uses the single model key', async () => {
+    const storage = memStorage()
+    const keys = createKeyStore({ storage })
+    await keys.set('sk-model', 'device')
+    expect(storage.__keys()).toEqual(['jscad-studio.key'])
+    expect(keys.get()).toBe('sk-model')
+  })
+
   it('the frame wire never carries the key', async () => {
     const storage = memStorage()
     const keys = createKeyStore({ storage })

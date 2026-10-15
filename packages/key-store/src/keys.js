@@ -39,6 +39,7 @@ export async function decryptKey(sealed, passphrase) {
 
 export function createKeyStore(options = {}) {
   const storage = options.storage ?? globalThis.localStorage
+  const storeKey = options.key ?? STORE_KEY
   let memoryKey = null
 
   const store = {
@@ -46,7 +47,7 @@ export function createKeyStore(options = {}) {
     // lazily, synced-mode keys wait for unlock with the passphrase.
     get: () => {
       if (memoryKey !== null) return memoryKey
-      const raw = storage.getItem(STORE_KEY)
+      const raw = storage.getItem(storeKey)
       const stored = raw ? JSON.parse(raw) : null
       if (stored?.mode === 'device' && typeof stored.key === 'string') memoryKey = stored.key
       return memoryKey
@@ -57,11 +58,11 @@ export function createKeyStore(options = {}) {
       if (mode === 'session') {
         memoryKey = key
       } else if (mode === 'device') {
-        storage.setItem(STORE_KEY, JSON.stringify({ mode, key }))
+        storage.setItem(storeKey, JSON.stringify({ mode, key }))
         memoryKey = key
       } else if (mode === 'synced') {
         if (!passphrase) throw new Error('key custody: synced mode needs a passphrase')
-        storage.setItem(STORE_KEY, JSON.stringify({ mode, sealed: await encryptKey(key, passphrase) }))
+        storage.setItem(storeKey, JSON.stringify({ mode, sealed: await encryptKey(key, passphrase) }))
         memoryKey = key
       } else {
         throw new Error(`key custody: unknown mode (${mode})`)
@@ -69,7 +70,7 @@ export function createKeyStore(options = {}) {
     },
 
     unlock: async (passphrase) => {
-      const raw = storage.getItem(STORE_KEY)
+      const raw = storage.getItem(storeKey)
       const stored = raw ? JSON.parse(raw) : null
       if (!stored || stored.mode !== 'synced' || !stored.sealed) {
         throw new Error('key custody: nothing to unlock')
@@ -80,7 +81,7 @@ export function createKeyStore(options = {}) {
 
     clear: () => {
       memoryKey = null
-      storage.removeItem(STORE_KEY)
+      storage.removeItem(storeKey)
     },
   }
   return store
