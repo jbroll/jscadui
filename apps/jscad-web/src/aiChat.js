@@ -24,6 +24,9 @@ const el = (tag, className, text) => {
 
 const STOPPED_NOTE = '[stopped by the user]'
 
+// The selection stores 'off'; callers may also pass false. Both remove the tool.
+const websearchOff = (provider) => provider === false || provider === 'off'
+
 // Blanket web-search permission: granted once per conversation, not per call.
 // Ungranted web_search short-circuits to a grant request instead of searching
 // (never auto-searches); every granted call is logged so spend is auditable.
@@ -55,7 +58,12 @@ export const createWebsearchGrant = ({ granted = false, log = () => {} } = {}) =
       }
       if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.results)) return undefined
       const providers = [...new Set(parsed.results.map((hit) => hit?.provider).filter(Boolean))]
-      log({ query: input?.query, provider: providers.join('+') || 'unknown', count: parsed.results.length })
+      // Audit logging must never corrupt a good result.
+      try {
+        log({ query: input?.query, provider: providers.join('+') || 'unknown', count: parsed.results.length })
+      } catch {
+        // The transcript already carries the tagged results.
+      }
       return undefined
     },
   }
@@ -480,7 +488,12 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
         requestTool: handleTool,
         beforeToolCall: gatedBeforeToolCall,
         afterToolCall: gatedAfterToolCall,
-        toolFilter: websearchProvider === false ? (name) => name !== 'web_search' : undefined,
+        toolFilter:
+          typeof websearchProvider === 'function'
+            ? (name) => (websearchOff(websearchProvider()) ? name !== 'web_search' : true)
+            : websearchOff(websearchProvider)
+              ? (name) => name !== 'web_search'
+              : undefined,
         onText: (text) => {
           assistantText += text
           if (!live()) return

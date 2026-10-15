@@ -74,6 +74,8 @@ export const createWebSearchHandler = ({
 
   return async (args) => {
     const pin = getPinned?.() ?? 'random'
+    // Pinned off removes the tool; a direct call fails closed, never searches.
+    if (pin === 'off' || pin === false) return toolError('SearchUnavailableError', 'web_search: disabled in Chat settings')
     // Pinned Tavily goes straight to the relay (browsers cannot reach Tavily
     // directly); a relay failure falls through to the direct pool.
     if (pin === 'tavily' && keysOf().tavily) {

@@ -87,4 +87,12 @@ describe('page websearch handler', () => {
     expect(fetchFn).toHaveBeenCalledTimes(1)
     expect(String(fetchFn.mock.calls[0][0])).toContain('/api/search')
   })
+
+  it("pinned off fails closed without touching the network", async () => {
+    const fetchFn = vi.fn(async () => mcpOk([{ title: 't', url: 'https://example.com', snippet: 's' }]))
+    const handler = createWebSearchHandler({ fetchFn, stores: createSearchStores(memStorage()), projectId: 'p1', getPinned: () => 'off' })
+    const res = await handler({ query: 'bearing 608' })
+    expect(res).toMatchObject({ ok: false, error: { name: 'SearchUnavailableError' } })
+    expect(fetchFn).not.toHaveBeenCalled()
+  })
 })

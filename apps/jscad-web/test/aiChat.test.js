@@ -63,6 +63,45 @@ describe('browser chat turn', () => {
     expect(logs).toEqual([{ query: 'bearing', provider: 'exa', count: 1 }])
   })
 
+  it('resolves a websearchProvider function per turn and keeps logging when the log throws', async () => {
+    document.body.innerHTML = '<div id="chat"></div>'
+    const container = document.getElementById('chat')
+    const seenFilters = []
+    const runTurnFn = vi.fn(async (opts) => {
+      seenFilters.push(opts.toolFilter)
+      return { messages: [] }
+    })
+    let pin = 'random'
+    const chat = initChat({
+      container,
+      requestTool: vi.fn(async () => ({ ok: true })),
+      getProvider: () => ({ kind: 'openai', model: 'm', apiKey: 'k', baseUrl: 'https://relay.test' }),
+      runTurnFn,
+      websearchGranted: true,
+      websearchLog: () => {
+        throw new Error('log down')
+      },
+      websearchProvider: () => pin,
+    })
+    expect(chat.isWebsearchGranted()).toBe(true)
+    const submit = () => {
+      container.querySelector('.chat-input').value = 'hi'
+      container.querySelector('.chat-form').dispatchEvent(new Event('submit', { cancelable: true }))
+    }
+    submit()
+    await vi.waitFor(() => expect(runTurnFn).toHaveBeenCalledTimes(1))
+    expect(seenFilters[0]?.('web_search')).toBe(true)
+    pin = 'off'
+    submit()
+    await vi.waitFor(() => expect(runTurnFn).toHaveBeenCalledTimes(2))
+    expect(seenFilters[1]?.('web_search')).toBe(false)
+    expect(seenFilters[1]?.('write')).toBe(true)
+    const calls = runTurnFn.mock.calls
+    await expect(
+      calls[1][0].afterToolCall('web_search', { query: 'x' }, JSON.stringify({ ok: true, results: [] })),
+    ).resolves.toBeUndefined()
+  })
+
   it('renders a string tool result as-is, not JSON-quoted with literal \\n', async () => {
     document.body.innerHTML = '<div id="chat"></div>'
     const container = document.getElementById('chat')
