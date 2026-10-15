@@ -111,7 +111,7 @@ allowed for a free model, missing or negative is refused. `monthlyUsd`
 (default 5) and `perIpDailyUsd` (default 0.1) default when absent. Model
 ids are the providers' own: the live Go catalog is
 `https://opencode.ai/zen/go/v1/models` (37 models at last check, including
-`deepseek-v4.1-flash`, `deepseek-v4-pro` and both Muse Spark contributors).
+`deepseek-v4.1-flash` and both Muse Spark contributors).
 
 Routes (both pass the origin check and mount before `/api/relay/:kind/*splat`):
 
