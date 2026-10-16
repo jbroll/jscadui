@@ -1,7 +1,7 @@
 # Relay operator notes
 
-The relay (`src/relay/`) forwards user-keyed provider requests and streams
-responses back. It stores nothing: no DB rows, no logs with secrets.
+The relay (`src/relay/`) forwards provider requests and streams responses back.
+It stores nothing: no DB rows, no logs with secrets.
 
 The access rules below live in `src/relay/policy.js`, plain JS with JSDoc and
 only `node:` imports. `tsc` type-checks it (`allowJs`, `checkJs`) and emits it
@@ -9,6 +9,25 @@ into `dist/relay/`, and the `jscad-chat` launcher's relay
 (`../scripts/local/relay.js`) imports the same file under plain `node`, so the
 two relays cannot drift. `routes.ts` (Express wiring) and `allowlist.ts` (file
 read, missing-file fallback) are the server's adapter.
+
+## One endpoint, one hook per kind
+
+There is one relay endpoint family, `POST|GET /api/relay/:kind/*`, for every
+provider. `routes.ts` reads the wire `kind` from the path and dispatches to the
+hook for that kind (the hook table lives in `src/relay/providers/`, plain JS
+with JSDoc like `policy.js`). There is no second route family: the free
+jscad-web provider rides this one, dispatched by `kind` like every other.
+
+| hook | kind | behaviour |
+| --- | --- | --- |
+| `providers/default.js` | every kind but `jscad-web` | passthrough: forward the caller's own key, log a `POST` only when it carries `x-jscad-chat-id` |
+| `providers/jscad.js` | `jscad-web` | free specialization: ignore the client's `jscad-web-free` sentinel, serve the catalog `GET`, drop the client key and inject the option's, pin the model and endpoint, meter the turn, always log |
+
+`getHook(kind)` in `providers/index.js` returns the jscad-web hook for the
+`jscad-web` wire kind and the default hook otherwise. A free option's underlying
+protocol (`opencode-go`, `meta`) is not the hook key: the client routes a free
+turn through `jscad-web` and keeps the underlying kind on its own selection for
+agent-loop's routing and effort.
 
 ## Allowlist file
 
@@ -27,39 +46,47 @@ failure is a `500`.
 
 ## Access rules
 
+The rules below are the default hook's. The jscad-web hook applies the same
+origin, limiter and private-address checks, but resolves the option's own kind
+and drops the caller's key (see Free jscad-web models).
+
 - Browser `Origin` must be in the server's trusted origins; else `403`. A
   request with no `Origin` passes only with `Sec-Fetch-Site: same-origin`,
   which is how a browser sends a GET from the app's own origin.
-- `POST` and `GET` are forwarded; `GET` carries the model-list fetch.
+- `POST` and `GET` are forwarded by the default hook; a `GET` carries its
+  model-list fetch. The jscad-web hook serves its own catalog `GET`.
 - Per-IP token bucket, 60 req/min, burst 10; over limit is `429` with
   `Retry-After`. The launcher uses the same limiter with a burst of 60, since
   its one user's agent loop can send steps back to back.
-- The provider name must be an own key of the allowlist (`constructor` is a
-  `404`). The sub-path is joined to the base and refused (`400`) when the
-  resulting URL leaves the base path, which catches `..`, `%2e%2e` and
-  backslash forms.
+- For the default hook the wire kind must be an own key of the allowlist
+  (`constructor` is a `404`); the jscad-web hook resolves the option's own
+  underlying kind instead. The sub-path is joined to the base and refused
+  (`400`) when the resulting URL leaves the base path, which catches `..`,
+  `%2e%2e` and backslash forms.
 - The upstream host is resolved at forward time, and any loopback, private,
   link-local, CGNAT or unspecified address (`0/8`, `10/8`, `100.64/10`,
   `127/8`, `169.254/16`, `172.16/12`, `192.168/16`, `::`, `::1`, `fc00::/7`,
   `fe80::/10`, and IPv4-mapped or NAT64 forms of the IPv4 ranges) is a `400`.
   A name that does not resolve is a `502`.
-- No session required; the caller's provider key rides the request through.
+- No session required; on the default hook the caller's provider key rides the
+  request through (the jscad-web hook drops it and injects the option's key).
 - Only `content-type`, `accept`, `authorization`, `x-api-key`,
   `anthropic-version`, `anthropic-beta` and `x-opencode-session` go upstream.
   The app shares the relay's origin, so the session cookie, `origin`,
   `referer` and forwarding headers must stay behind.
 
-## Shared (demo) options
+## Free jscad-web models
 
-The demo provider serves operator-owned keys to visitors with no account. JSON
-`{monthlyUsd, perIpDailyUsd, providers}`, default `/etc/jscad-relay/shared.json`,
-override with `RELAY_SHARED`; keep it mode `0600`, owned by the service user,
-beside `providers.json`. Stage the real keys locally in
-`server/shared.local.json` (same schema, gitignored, never commit) and copy
-that file to the host path. Re-read on the same 5s cache, so an edit applies
-without a restart. A missing file means no demo options; any other read or
-parse failure hides demo (the list answers `[]`, a turn is a `500`), so a bad
-file never silently forwards.
+The jscad-web hook serves operator-owned keys to visitors with no account. Its
+config is JSON `{monthlyUsd, perIpDailyUsd, providers}`, default
+`/etc/jscad-relay/jscad-inference.json`, override with `RELAY_INFERENCE` (the
+old `RELAY_SHARED` still works but is deprecated); keep it mode `0600`, owned by
+the service user, beside `providers.json`. Stage the real keys locally in
+`server/jscad-inference.local.json` (same schema, gitignored, never commit) and
+copy that file to the host path. Re-read on the same 5s cache, so an edit
+applies without a restart. A missing file means no free options; any other read
+or parse failure hides free (the catalog answers `[]`, a turn is a `500`), so a
+bad file never silently forwards.
 
 ```json
 {
@@ -113,20 +140,27 @@ ids are the providers' own: the live Go catalog is
 `https://opencode.ai/zen/go/v1/models` (37 models at last check, including
 `deepseek-v4.1-flash` and both Muse Spark contributors).
 
-Routes (both pass the origin check and mount before `/api/relay/:kind/*splat`):
+### Catalog and turns
 
-- `GET /api/relay/shared` returns `[{id, label, kind, model, available}]`,
-  never keys or prices. `available` is false once the month's budget is spent,
-  and the client lists it disabled with `(monthly limit reached)`.
-- `POST /api/relay/shared/:id/*splat` serves one option. The sub-path must be
-  the option's own (`404` otherwise). The budgets are checked (`402` with
-  `{error: {code: 'shared_quota_exhausted', scope, message}}`, `scope` of
+The hook owns both routes; it never proxies the catalog and never returns keys
+or prices.
+
+- `GET /api/relay/jscad-web/v1/models` returns
+  `[{id, label, kind, model, available}]`. `available` is false once the month's
+  budget is spent, and the client lists it disabled with
+  `(monthly limit reached)`.
+- `POST /api/relay/jscad-web/<id>/<path>` serves one option: `<id>` is the first
+  path segment and the remainder must equal the option's derived `path` exactly
+  (`404` otherwise, with no upstream request, so the injected key is never sent
+  to find out). The budgets are checked (`402` with
+  `{error: {code: 'inference_quota_exhausted', scope, message}}`, `scope` of
   `month` or `day`), and a third request in flight from one IP group is `429`
-  with `Retry-After: 2`. The body is rewritten: `model` is pinned, `stream` is
-  `true`, `max_tokens` (chat completions) or `max_output_tokens` (responses) is
-  the smaller of the client's and `maxTokens`, and chat completions ask for
-  `stream_options.include_usage`. The client's `authorization`/`x-api-key` are
-  dropped and the option's key goes upstream as `authorization: Bearer <key>`.
+  with `Retry-After: 2`. The body is rewritten: `model` is pinned to the
+  option's, `stream` is `true`, `max_tokens` (chat completions) or
+  `max_output_tokens` (responses) is the smaller of the client's and `maxTokens`,
+  and chat completions ask for `stream_options.include_usage`. The client's
+  `authorization`/`x-api-key` are dropped and the option's key goes upstream as
+  `authorization: Bearer <key>`.
 
 ### Meter
 
@@ -143,18 +177,19 @@ memory.
 ## Chat logs
 
 Both relays log conversations to a per-day JSONL file, one record per relayed
-POST: `{ts, chatId, kind, path, status, request, response, ms}`, plus `shared`
-and `costUsd` for a demo turn. The request body drops `tools` (large and
-re-derivable). The production relay's directory is `CHAT_LOG_DIR`, default
-`./data/chat-logs`; `0` turns logging off. It keeps `CHAT_LOG_RETAIN_DAYS`
-(default 90) day files and prunes the rest. An own-key turn is written only
-when the request carries `x-jscad-chat-id`, which the client omits when the
-user opts out; a demo turn is always written. A failed write warns and never
-fails the request it describes.
+POST: `{ts, chatId, kind, path, status, request, response, ms}`, plus
+`inference` (the free option's id) and `costUsd` for a free turn. The request
+body drops `tools` (large and re-derivable). The production relay's directory is
+`CHAT_LOG_DIR`, default `./data/chat-logs`; `0` turns logging off. It keeps
+`CHAT_LOG_RETAIN_DAYS` (default 90) day files and prunes the rest. An own-key
+turn is written only when the request carries `x-jscad-chat-id`, which the
+client omits when the user opts out; a free turn is always written. A failed
+write warns and never fails the request it describes.
 
 ## Logs and smoke
 
-Each forwarded turn logs one JSON line: `{relay, status, bytes}`, and a shared
-config that cannot be read logs `{relay: 'shared-config-error', message}`.
-Deploy smoke (`e2e/smoke-deploy.mjs`) POSTs from a fake origin and expects
-`403`.
+Each forwarded turn logs one JSON line: `{relay, status, bytes}`, where `relay`
+is the wire kind for the default hook and `inference:<id>` for a free turn. An
+inference config that cannot be read logs
+`{relay: 'inference-config-error', message}`. Deploy smoke
+(`e2e/smoke-deploy.mjs`) POSTs from a fake origin and expects `403`.

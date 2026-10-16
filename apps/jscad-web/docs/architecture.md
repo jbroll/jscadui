@@ -1256,25 +1256,26 @@ reads through `text-loader.js`.
 Both relays log. The launcher relay appends every relayed POST to a per-day
 JSONL file on the operator's disk. The production relay writes an own-key
 turn only when the request carries the chat id header, which the client
-omits when the user opts out, always writes a demo turn, and prunes files
+omits when the user opts out, always writes a free turn, and prunes files
 older than `CHAT_LOG_RETAIN_DAYS` (90 by default, `server/RELAY.md`).
 
-## Demo provider
+## Free jscad-web models
 
 A visitor can try the chat before signing up or adding a key. The gear dialog
-lists the relay's shared options as `Demo: <label>` entries (`GET
-/api/relay/shared` returns `[{id, label, kind, model, available}]` — never keys
-or prices). Choosing one stores `{shared, demo: true}` in `jscad-ai.selection`,
-pins that option's model, and hides the key, custody, base URL and model
-controls, since the relay owns the credential. The client carries exactly one
-sentinel credential, `demo-limited-free`, for every demo option; the relay
+lists the relay's free options as `jscad-web · <label>` entries (`GET
+/api/relay/jscad-web/v1/models` returns `[{id, label, kind, model, available}]`
+— never keys or prices). Choosing one stores `{inference, free: true}` in
+`jscad-ai.selection`, pins that option's model, and hides the key, base URL and
+model controls, since the relay holds the credential. The client carries exactly
+one sentinel credential, `jscad-web-free`, for every free option; the relay
 ignores its value and injects the operator's server-held key on `POST
-/api/relay/shared/<id>/*`, where the sub-path must be the option's own. A demo
-turn is always recorded (see Privacy) and is bounded by the meter's per-IP daily
-and monthly budgets; an exhausted budget answers `402 shared_quota_exhausted`,
-which the chat shows as a quota line pointing at adding a key. An unreadable
-shared list hides demo rather than offering a selection that cannot run. The
-operator's `shared.json` and the budgets are documented in `server/RELAY.md`.
+/api/relay/jscad-web/<id>/<path>`, where `<id>` names the option and the
+remainder must equal the option's own path. A free turn is always recorded (see
+Privacy) and is bounded by the meter's per-IP daily and monthly budgets; an
+exhausted budget answers `402 inference_quota_exhausted`, which the chat shows
+as a quota line pointing at adding a key. An unreadable catalog hides free
+rather than offering a selection that cannot run. The operator's
+`jscad-inference.json` and the budgets are documented in `server/RELAY.md`.
 
 ## Key custody
 
@@ -1293,9 +1294,9 @@ only to improve jscad-web, and only with the user's consent: the first turn
 opens a versioned gate (`src/aiConsent.js`, `localStorage['jscad-ai.tos'] =
 {version, at, recordOwnChats}`), and the optional "Save my chats" box defaults on
 but can be turned off, which sets `localStorage['jscad-ai.log'] = 'off'` and
-omits the `x-jscad-chat-id` header so the relay never logs the turn. Demo turns
-are the exception: they always record and cannot be opted out, which the gate
-states plainly. Bumping `TOS_VERSION` re-prompts without deleting the prior
+omits the `x-jscad-chat-id` header so the relay never logs the turn. Free
+jscad-web turns are the exception: they always record and cannot be opted out,
+which the gate states plainly. Bumping `TOS_VERSION` re-prompts without deleting the prior
 choice, which the gate pre-checks. The launcher relay writes each logged turn to
 a JSONL file under its log directory; the production relay logs them too (see
 `server/RELAY.md`), keeping 90 days by default. A custom base URL calls the

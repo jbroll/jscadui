@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Pull the production chat logs into the private jscad-chat-evals clone so the
-# chat-review loop can read real sessions (see
-# docs/superpowers/specs/2026-10-01-chat-logging-and-shared-keys-design.md,
-# "Pulling logs").
+# chat-review loop can read real sessions. The record shape (including the
+# `inference` and `costUsd` fields on a free jscad-web turn) is in
+# server/RELAY.md, "Chat logs".
 #
 #   apps/jscad-web/scripts/pull-chat-logs.sh
 #
