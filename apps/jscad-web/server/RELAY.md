@@ -180,6 +180,15 @@ written atomically (temp file + rename). A corrupt or unreadable file stops the
 relay rather than resetting the meter; a failed write warns and keeps spend in
 memory.
 
+## Body limit
+
+JSON bodies are parsed with a `1mb` limit (`RELAY_JSON_LIMIT` in
+`src/relay/body.js`, shared by the server and its tests). A turn resends
+system + files + history + build every time, so the 100KB express default
+413d real turns as an HTML page. Past the limit the relay answers `413`
+`{error: 'payload too large'}` as JSON, so the agent loop surfaces the
+error instead of HTML.
+
 ## Chat logs
 
 Both relays log conversations to a per-day JSONL file, one record per relayed

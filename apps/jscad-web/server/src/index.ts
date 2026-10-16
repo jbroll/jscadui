@@ -6,6 +6,7 @@ import { createIdentity, type Identity } from '@jbroll/rowboat-auth-betterauth';
 import Database from 'better-sqlite3';
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 import { mountRelayRoutes } from './relay/routes.js';
+import { relayJson, relayJsonError } from './relay/body.js';
 import { mountSearchRoutes } from './search/routes.js';
 import { mountFetchRoutes } from './fetch/routes.js';
 import { configFromEnv, type ServerConfig } from './config.js';
@@ -84,7 +85,8 @@ export async function createServer(config: ServerConfig): Promise<AppServer> {
   // mounts the account delete + merge routes; merge's group link/grant ride this same groupBackend.
   identity.mountAuthRoutes(app, { groupBackend });
 
-  app.use(express.json());
+  app.use(relayJson());
+  app.use(relayJsonError());
 
   // Short-lived data-plane JWT for browser rowboat sync. Same token shape as
   // the group backend's: the rowboat audience in config binds it to one tenant.

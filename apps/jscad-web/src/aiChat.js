@@ -2,7 +2,7 @@
 // from the account panel, runs runTurn directly, executes each tool request
 // through requestTool, and renders streamed text. Provider HTTP targets the
 // relay, which proxies path-preserving to the provider and stores nothing.
-import { buildMessages, buildSystemPrompt, createProvider, DEFAULT_API, partitionTranscript, runTurn as defaultRunTurn, SUMMARY_PREFIX, summarizeTranscript, summarizeWithProvider, toolDetail, turnsOf } from '@jscadui/agent-loop'
+import { buildMessages, buildSystemPrompt, createProvider, DEFAULT_API, effectiveHistoryBudget, partitionTranscript, runTurn as defaultRunTurn, SUMMARY_PREFIX, summarizeTranscript, summarizeWithProvider, toolDetail, turnsOf } from '@jscadui/agent-loop'
 import { checkTurn, FREE_NOTICE_MESSAGE, getRecordOwnChats, isFreeSelection, openConsentGate, TOS_REQUIRED_MESSAGE } from './aiConsent.js'
 
 /* global __RELAY_ORIGIN__ */
@@ -551,8 +551,18 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
       const build = await lastBuild()
       const api = getApi()
       const model = stripSummary(local.slice(0, -1).map(forModel))
-      const { evicted } = partitionTranscript(model)
       const prior = local.find(isSummaryMsg)
+      // Evict by the same total budget buildMessages sends under, so every
+      // trimmed turn lands in the summary instead of vanishing silently.
+      const historyBudget = effectiveHistoryBudget({
+        systemPrompt: buildSystemPrompt(api),
+        transcript: model,
+        files,
+        build,
+        message,
+        summary: prior?.text ?? '',
+      })
+      const { evicted } = partitionTranscript(model, historyBudget)
       const freshTurns = turnsOf(evicted.slice(prior?.basis ?? 0))
       if (freshTurns.length > 0) {
         try {

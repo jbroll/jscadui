@@ -817,13 +817,19 @@ that throws, so one bad request cannot end the launcher. Neither relay forwards
 
 Each turn sends `buildMessages` (`packages/agent-loop/src/context.js`): the
 system prompt; prior turns, newest first, as whole user/assistant pairs until
-the next would pass `CONTEXT_BUDGET` (24,000 characters); one user message
+the next would pass the effective history budget; one user message
 holding the project's text files under `### <path>` in a fenced block and then
-the project's last build report, outside the budget and omitted when both are
-empty; then the new message. That files block has its own budget
+the project's last build report (capped at `BUILD_BUDGET`, 4,000 characters,
+with a truncation note); then the new message. That files block has its own budget
 (`PROJECT_BUDGET`, 24,000 characters): binary files are skipped, and past it
 the oldest-mentioned are dropped first, ordered by the `mentions` paths the
-transcript carries. `forModel` in `src/aiChat.js` passes an assistant reply's
+transcript carries — dropped files are still listed by name with their size
+(`Other project files (names only, read via read tool)`) so the model can
+fetch them. History and files share a total cap (`TOTAL_BUDGET`, 55,000
+characters): when system + files + build already fill it, the oldest history
+turns are evicted first, and the chat summarizes by that same effective
+budget (`effectiveHistoryBudget`), so every trimmed turn lands in the summary
+instead of vanishing. `forModel` in `src/aiChat.js` passes an assistant reply's
 `mentions` — the project paths its tools touched — through so an earlier call
 can order the block, and drops the stored reasoning before `buildMessages`
 sees it. The project files come
