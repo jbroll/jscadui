@@ -25,7 +25,7 @@ npm run validate
 The jscadui project has three main test categories:
 
 1. **Unit Tests**: 32 packages with vitest tests (~1,000+ tests)
-2. **JSCAD Examples**: 27 example files tested for execution (100% pass)
+2. **JSCAD Examples**: 94 example files tested for execution, both engines (100% pass)
 3. **OpenSCAD Examples**: 784 .scad files tested against OpenSCAD (98% pass)
 
 ---
@@ -75,7 +75,9 @@ npm run coverage
 
 **What**: Execute all JSCAD example files to ensure they load and run without errors.
 
-**Coverage**: 27 JSCAD example files in `apps/jscad-web/examples/jscad/`
+**Coverage**: 94 example files in `apps/jscad-web/examples/jscad/` — hand-written
+`.example.js` plus fetched native suites (`z3dev-designs`, `tspspi`, `gilboonet`,
+`jscad-hardware`), each run on both the `@jscad/modeling` and manifold engines.
 
 **Test file**: `apps/jscad-web/examples.test.js`
 
@@ -85,6 +87,10 @@ npm run coverage
 - ✅ Parameter definitions work correctly
 - ✅ Hierarchical and legacy parameter modes
 - ✅ Relative requires work
+- ✅ V1 `.jscad` files load through the app's CSG-compat path (`addV1Shim`,
+  `include()` inlining), same transform the demo browser and worker apply
+- ✅ Per-suite `skip.txt` files exclude known-broken models (same pattern-file
+  semantics as the OpenSCAD suites and the `ALL.js` grids)
 
 **Run**:
 ```bash
@@ -201,7 +207,9 @@ npm run fetch-deps
        ├─ Clone/update upstream repos into .deps-cache/
        ├─ Copy files per scripts/deps/manifest.json mappings
        │    to packages/openscad/test/corpus/
-       ├─ Apply text-replace patches (fix include paths)
+       ├─ Resolve upstream include roots (`BOSL2/`, `BOSL/`, `MCAD/`,
+       │    `list-comprehension-demos/`) into the fetched tree, so fetched
+       │    files stay byte-identical upstream (no include-rewriting patches)
        └─ Run packages/openscad/bin/organize-corpus.js
             └─ Copy batched files to apps/jscad-web/examples/openscad/
 ```
@@ -255,9 +263,15 @@ Each entry in `deps[]` describes one upstream source:
 | `mappings[].srcDir` | Subdirectory inside cloned repo to copy from |
 | `mappings[].destDir` | Destination under the jscadui repo root |
 | `mappings[].include` | Glob patterns to include (e.g. `["*.scad"]`) |
-| `patches[]` | Text-replace patches applied after copy |
+| `mappings[].asExample` | Rename `foo.js`/`foo.jscad` → `foo.example.js` on copy, for suites whose models are runnable V2 examples |
+| `license` | Upstream license, recorded as-found |
+| `patches[]` | Text-replace patches applied after copy (exact match, `--fuzz=0`) |
 
-Patches fix include paths, e.g. `"BOSL2/"` → `"lib/"` so examples can find the library files that were copied into `lib/`.
+Patches are a last resort (e.g. seeding unseeded RNG for determinism). Upstream
+include paths are NOT rewritten anymore: `include <PREFIX/...>` roots resolve
+into the fetched tree at load time — `packages/openscad/bin/libraryPrefixes.js`
+for our transpiler, and an `OPENSCADPATH` shim dir of prefix symlinks
+(`packages/openscad/bin/openscadLibPath.js`) for reference OpenSCAD.
 
 #### organize-corpus.js
 
@@ -296,6 +310,32 @@ node bin/organize-corpus.js --force                # Overwrite existing dirs
 - **BOSL2/BOSL1 inline examples**: Add a `// Example:` block to the library source, then re-run the extract script and `npm run fetch-deps`.
 - **Snippet (real-world) examples**: Drop the `.scad` file into `packages/openscad/test/corpus/snippet/`, re-run `npm run fetch-deps`.
 - **Skip a failing file**: A model that does not render goes in the category's `skip.txt`, which removes it from the comparison, the browser sweeps, the demo browser and the `ALL.js` grids. A model that renders but that the comparison cannot grade (unseeded `rands()`, a bad reference STL, a missing font) goes in `compare-skip.txt`, which only `test-harness.js` reads. A model whose geometry matches but whose `echo()` output cannot (yet) goes in `echo-skip.txt`, also read only by `test-harness.js`, so its geometry stays graded. All are committed and survive regeneration.
+
+### JSCAD Native Suites
+
+Community `.jscad`/`.js` models live in `apps/jscad-web/examples/jscad/<suite>/`
+(`z3dev-designs`, `tspspi`, `gilboonet`, `jscad-hardware`), fetched the same way
+by `scripts/deps/manifest.json` entries. Fetched trees are gitignored; only
+control files are tracked (`skip.txt`, `exclude.txt`, `config.json`,
+`categories.json`).
+
+- **V1 vs V2**: `.jscad` files run through the app's CSG-compat path
+  (`addV1Shim` + `include()` inlining, `packages/worker/src/inlineIncludes.js`);
+  V2 models are renamed to `.example.js` on fetch (`asExample`) so the harness,
+  grids, and demo browser pick them up.
+- **Demo browser groups**: directories group automatically; a suite with
+  `categories.json` (`{ category: [model base names] }`) additionally gets
+  virtual sub-groups with per-category `ALL.<category>.js` grids (regenerate
+  with `npm run generate-all`). Skipped/excluded files stay hidden everywhere.
+- **Normalize-then-verify loop**: fetch → run `npx vitest run examples.test.js`
+  in `apps/jscad-web` → triage failures into the suite's `skip.txt` with a
+  reason → regenerate grids.
+
+Fast CI check without STL comparison, browser, or renders:
+
+```sh
+sci push jscadui/jscad-examples
+```
 
 ---
 

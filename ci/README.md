@@ -241,6 +241,17 @@ anything and prints `describer: ready` or what is missing: the venv, a pin,
 CUDA in torch, the weights, `nvidia-smi`. If pip picks a torch without CUDA,
 install the CUDA build into the venv by hand.
 
+## JSCAD examples (`ci/jscad-examples`)
+
+`sci push jscadui/jscad-examples` runs the native JSCAD corpus check without
+STL comparison, browser, or renders: the lib-root prefix unit tests, the
+`include()` inlining tests, then `examples.test.js` (every `.example.js` and
+V1 `.jscad`, minus `skip.txt`, on both engines). The fetched suites regenerate
+on the host from `scripts/deps/manifest.json`; their `skip.txt` control files
+transfer via explicit `ci/simple-ci.conf` includes (rsync first-match beats
+gitignore negations). Keep `CI_RSYNC_ARGS` flags-only: `#` comments inside the
+quotes become rsync source args and break the push.
+
 ## Grader validation (`ci/grader-validate`)
 
 `sci push jscadui/grader-validate` runs `npm run grader-validate` on the CI
