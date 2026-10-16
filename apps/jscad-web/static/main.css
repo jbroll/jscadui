@@ -1181,11 +1181,11 @@ p {
 .dark .ai-field-note {
   color: #aaa;
 }
-.ai-demo-info {
+.ai-free-info {
   margin: -2px 0 8px 8.5rem;
   color: #666;
 }
-.dark .ai-demo-info {
+.dark .ai-free-info {
   color: #aaa;
 }
 @media (max-width: 480px) {
@@ -1193,7 +1193,7 @@ p {
     grid-template-columns: 1fr;
     gap: 2px;
   }
-  .ai-actions, .ai-model-status, .ai-demo-info {
+  .ai-actions, .ai-model-status, .ai-free-info {
     margin-left: 0;
     padding-left: 0;
   }

@@ -3,7 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   ACKS,
-  DEMO_NOTICE_MESSAGE,
+  FREE_NOTICE_MESSAGE,
   TOS_REQUIRED_MESSAGE,
   TOS_VERSION,
   acceptTos,
@@ -105,24 +105,24 @@ describe('version bump', () => {
   })
 })
 
-describe('demo notice', () => {
-  it('allows a demo turn when the accepted terms already record chats', () => {
+describe('free notice', () => {
+  it('allows a free turn when the accepted terms already record chats', () => {
     acceptTos(true)
-    expect(checkTurn({ kind: 'opencode-go', model: 'm', demo: true, shared: 's1' })).toEqual({ ok: true })
+    expect(checkTurn({ kind: 'opencode-go', model: 'm', inference: 's1', free: true })).toEqual({ ok: true })
   })
 
-  it('re-blocks a demo turn for a user who opted out of recording', () => {
+  it('re-blocks a free turn for a user who opted out of recording', () => {
     acceptTos(false)
-    expect(checkTurn({ kind: 'opencode-go', model: 'm', demo: true, shared: 's1' })).toEqual({ ok: false, reason: 'demo-notice' })
+    expect(checkTurn({ kind: 'opencode-go', model: 'm', inference: 's1', free: true })).toEqual({ ok: false, reason: 'free-notice' })
   })
 
-  it('treats a leftover shared selection as demo', () => {
+  it('treats a legacy shared selection as free', () => {
     acceptTos(false)
-    expect(checkTurn({ kind: 'meta', model: 'm', shared: 's2' })).toEqual({ ok: false, reason: 'demo-notice' })
+    expect(checkTurn({ kind: 'meta', model: 'm', shared: 's2' })).toEqual({ ok: false, reason: 'free-notice' })
   })
 
-  it('checks the terms before the demo notice', () => {
-    expect(checkTurn({ kind: 'opencode-go', model: 'm', demo: true })).toEqual({ ok: false, reason: 'tos' })
+  it('checks the terms before the free notice', () => {
+    expect(checkTurn({ kind: 'opencode-go', model: 'm', inference: 's1', free: true })).toEqual({ ok: false, reason: 'tos' })
   })
 })
 
@@ -132,9 +132,9 @@ describe('gate rows', () => {
     expect(consentRows(ownKey()).filter((row) => row.kind === 'ack').every((row) => row.required)).toBe(true)
   })
 
-  it('adds the always-recorded notice for demo, with recording checked and locked', () => {
-    const rows = consentRows({ kind: 'opencode-go', model: 'm', demo: true, shared: 's1' })
-    expect(rows.map((row) => row.key)).toEqual(['code-execution', 'provider-sharing', 'demo-recorded', 'recordOwnChats'])
+  it('adds the always-recorded notice for free, with recording checked and locked', () => {
+    const rows = consentRows({ kind: 'opencode-go', model: 'm', inference: 's1', free: true })
+    expect(rows.map((row) => row.key)).toEqual(['code-execution', 'provider-sharing', 'free-recorded', 'recordOwnChats'])
     expect(rows.find((row) => row.key === 'recordOwnChats')).toMatchObject({ checked: true, locked: true })
   })
 
@@ -148,8 +148,8 @@ describe('gate rows', () => {
     expect(byKey['code-execution']).toMatch(/JavaScript in workers in this browser/i)
     expect(byKey['provider-sharing']).toMatch(/inference provider/i)
     expect(byKey['provider-sharing']).toMatch(/train on session data/i)
-    expect(byKey['demo-recorded']).toMatch(/always recorded/i)
-    expect(byKey['demo-recorded']).toMatch(/cannot be opted out/i)
+    expect(byKey['free-recorded']).toMatch(/share conversations/i)
+    expect(byKey['free-recorded']).toMatch(/cannot be opted out/i)
     for (const ack of ACKS) expect((ack.text.match(/\./g) ?? []).length).toBeLessThanOrEqual(2)
   })
 })
@@ -202,37 +202,37 @@ describe('gate dialog', () => {
     expect(localStorage.getItem('jscad-ai.log')).toBeNull()
   })
 
-  it('locks the recording checkbox on for demo', async () => {
-    const pending = openConsentGate({ kind: 'opencode-go', model: 'm', demo: true, shared: 's1' })
+  it('locks the recording checkbox on for free', async () => {
+    const pending = openConsentGate({ kind: 'opencode-go', model: 'm', inference: 's1', free: true })
     const recording = box('recordOwnChats').querySelector('input')
     expect(recording.checked).toBe(true)
     expect(recording.disabled).toBe(true)
-    expect(box('demo-recorded')).not.toBeNull()
+    expect(box('free-recorded')).not.toBeNull()
     tick('code-execution')
     tick('provider-sharing')
-    tick('demo-recorded')
+    tick('free-recorded')
     gate().querySelector('.confirm-ok').click()
     expect(await pending).toBe(true)
     expect(getRecordOwnChats()).toBe(true)
   })
 
-  it('keeps a prior opt-out when the demo notice is accepted', async () => {
+  it('keeps a prior opt-out when the free notice is accepted', async () => {
     acceptTos(false)
-    const pending = openConsentGate({ kind: 'opencode-go', model: 'm', demo: true, shared: 's1' })
+    const pending = openConsentGate({ kind: 'opencode-go', model: 'm', inference: 's1', free: true })
     const recording = box('recordOwnChats').querySelector('input')
     expect(recording.checked).toBe(true)
     expect(recording.disabled).toBe(true)
     tick('code-execution')
     tick('provider-sharing')
-    tick('demo-recorded')
+    tick('free-recorded')
     gate().querySelector('.confirm-ok').click()
     expect(await pending).toBe(true)
-    // The locked demo box is not the user's answer, so the stored opt-out
-    // survives accepting the notice; demo logging is enforced server-side.
+    // The locked free box is not the user's answer, so the stored opt-out
+    // survives accepting the notice; free-model logging is enforced server-side.
     expect(getRecordOwnChats()).toBe(false)
     expect(localStorage.getItem('jscad-ai.log')).toBe('off')
-    // Demo turns stay gated on the notice rather than being silently allowed.
-    expect(checkTurn({ kind: 'opencode-go', model: 'm', demo: true, shared: 's1' })).toEqual({ ok: false, reason: 'demo-notice' })
+    // Free turns stay gated on the notice rather than being silently allowed.
+    expect(checkTurn({ kind: 'opencode-go', model: 'm', inference: 's1', free: true })).toEqual({ ok: false, reason: 'free-notice' })
   })
 
   it('keeps the prior opt-out when the recording question is skipped for a custom base URL', async () => {
@@ -339,30 +339,30 @@ describe('send gate', () => {
     expect(q('.chat-messages').querySelectorAll('.chat-msg.user')).toHaveLength(1)
   })
 
-  it('asks for the demo notice when a recording opt-out meets the demo provider', async () => {
+  it('asks for the free notice when a recording opt-out meets the free provider', async () => {
     acceptTos(false)
     const runTurnFn = vi.fn(async () => ({ messages: [] }))
-    const demo = { kind: 'opencode-go', model: 'm', apiKey: 'demo-limited-free', shared: 's1', demo: true }
-    const { q, type } = openChat({ getProvider: () => demo, runTurnFn, projectId: 'p1' })
+    const free = { kind: 'opencode-go', model: 'm', apiKey: 'jscad-web-free', inference: 's1', free: true }
+    const { q, type } = openChat({ getProvider: () => free, runTurnFn, projectId: 'p1' })
     type('a cube')
     const gate = document.querySelector('.tos-gate')
     expect(gate).not.toBeNull()
-    expect(gate.querySelector('[data-tos="demo-recorded"]')).not.toBeNull()
+    expect(gate.querySelector('[data-tos="free-recorded"]')).not.toBeNull()
     expect(gate.querySelector('[data-tos="recordOwnChats"] input').disabled).toBe(true)
     gate.querySelector('.confirm-cancel').click()
     await vi.waitFor(() => expect(q('.chat-msg.error')).not.toBeNull())
-    expect(q('.chat-msg.error').textContent).toBe(DEMO_NOTICE_MESSAGE)
+    expect(q('.chat-msg.error').textContent).toBe(FREE_NOTICE_MESSAGE)
     expect(runTurnFn).not.toHaveBeenCalled()
   })
 
-  it('runs the demo turn after the notice is accepted, keeping the opt-out for the next send', async () => {
+  it('runs the free turn after the notice is accepted, keeping the opt-out for the next send', async () => {
     acceptTos(false)
     const runTurnFn = vi.fn(async ({ onText }) => {
-      onText('demo reply')
+      onText('free reply')
       return { messages: [] }
     })
-    const demo = { kind: 'opencode-go', model: 'm', apiKey: 'demo-limited-free', shared: 's1', demo: true }
-    const { q, type } = openChat({ getProvider: () => demo, runTurnFn, projectId: 'p1' })
+    const free = { kind: 'opencode-go', model: 'm', apiKey: 'jscad-web-free', inference: 's1', free: true }
+    const { q, type } = openChat({ getProvider: () => free, runTurnFn, projectId: 'p1' })
     type('a cube')
     const gate = document.querySelector('.tos-gate')
     for (const input of gate.querySelectorAll('.tos-ack')) {
@@ -370,11 +370,11 @@ describe('send gate', () => {
       input.dispatchEvent(new Event('change'))
     }
     gate.querySelector('.confirm-ok').click()
-    await vi.waitFor(() => expect(q('.chat-msg.assistant')?.textContent).toBe('demo reply'))
+    await vi.waitFor(() => expect(q('.chat-msg.assistant')?.textContent).toBe('free reply'))
     await vi.waitFor(() => expect(q('.chat-send').textContent).toBe('Send'))
     expect(runTurnFn).toHaveBeenCalledTimes(1)
-    // Accepting the notice does not clear the stored opt-out, so the next demo
-    // send is gated again (the relay records demo turns regardless).
+    // Accepting the notice does not clear the stored opt-out, so the next free
+    // send is gated again (the relay records free turns regardless).
     expect(getRecordOwnChats()).toBe(false)
     type('a second cube')
     await vi.waitFor(() => expect(document.querySelector('.tos-gate')).not.toBeNull())

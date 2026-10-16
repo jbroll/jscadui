@@ -916,15 +916,15 @@ describe('effort passthrough', () => {
 describe('relay base url', () => {
   it('builds per-kind relay paths under the default root', async () => {
     window.localStorage.removeItem('jscad-ai.relay')
-    expect(relayBaseUrl('anthropic')).toBe('https://jscad.rkroll.com/api/relay/anthropic')
-    expect(relayBaseUrl('openai')).toBe('https://jscad.rkroll.com/api/relay/openai')
+    expect(relayBaseUrl({ kind: 'anthropic' })).toBe('https://jscad.rkroll.com/api/relay/anthropic')
+    expect(relayBaseUrl({ kind: 'openai' })).toBe('https://jscad.rkroll.com/api/relay/openai')
   })
 
   it('uses the relay origin stamped in at build time', async () => {
     window.localStorage.removeItem('jscad-ai.relay')
     globalThis.__RELAY_ORIGIN__ = 'http://localhost:7377'
     try {
-      expect(relayBaseUrl('meta')).toBe('http://localhost:7377/api/relay/meta')
+      expect(relayBaseUrl({ kind: 'meta' })).toBe('http://localhost:7377/api/relay/meta')
     } finally {
       delete globalThis.__RELAY_ORIGIN__
     }
@@ -932,16 +932,21 @@ describe('relay base url', () => {
 
   it('honors the localStorage root override', async () => {
     window.localStorage.setItem('jscad-ai.relay', 'http://127.0.0.1:9999')
-    expect(relayBaseUrl('openai')).toBe('http://127.0.0.1:9999/api/relay/openai')
+    expect(relayBaseUrl({ kind: 'openai' })).toBe('http://127.0.0.1:9999/api/relay/openai')
     window.localStorage.removeItem('jscad-ai.relay')
   })
 
-  it('maps a demo selection to the shared route', async () => {
+  it('maps a free selection to the jscad-web route', async () => {
     window.localStorage.removeItem('jscad-ai.relay')
-    expect(relayBaseUrl('opencode-go', 'deepseek')).toBe('https://jscad.rkroll.com/api/relay/shared/deepseek')
+    expect(relayBaseUrl({ kind: 'opencode-go', inference: 'deepseek', free: true })).toBe('https://jscad.rkroll.com/api/relay/jscad-web/deepseek')
     window.localStorage.setItem('jscad-ai.relay', 'http://127.0.0.1:9999')
-    expect(relayBaseUrl('meta', 'muse')).toBe('http://127.0.0.1:9999/api/relay/shared/muse')
+    expect(relayBaseUrl({ kind: 'meta', inference: 'muse', free: true })).toBe('http://127.0.0.1:9999/api/relay/jscad-web/muse')
     window.localStorage.removeItem('jscad-ai.relay')
+  })
+
+  it('maps a legacy shared selection to the jscad-web route', async () => {
+    window.localStorage.removeItem('jscad-ai.relay')
+    expect(relayBaseUrl({ kind: 'opencode-go', shared: 'deepseek', demo: true })).toBe('https://jscad.rkroll.com/api/relay/jscad-web/deepseek')
   })
 })
 describe('conversation context', () => {
@@ -1145,7 +1150,7 @@ describe('conversation context', () => {
 describe('recording consent in the chat drawer', () => {
   const OWN_KEY = { kind: 'openai', model: 'm', apiKey: 'k' }
   const CUSTOM_KEY = { ...OWN_KEY, baseUrl: 'https://direct.test' }
-  const DEMO_KEY = { kind: 'opencode-go', model: 'deepseek-v4.1-flash', apiKey: 'demo-limited-free', shared: 'deepseek', demo: true }
+  const FREE_KEY = { kind: 'opencode-go', model: 'deepseek-v4.1-flash', apiKey: 'jscad-web-free', inference: 'deepseek', free: true }
 
   const openChat = (getProvider) => {
     document.body.innerHTML = '<div id="chat"></div>'
@@ -1172,12 +1177,12 @@ describe('recording consent in the chat drawer', () => {
     expect(container.querySelector('.chat-notice').style.display).toBe('none')
   })
 
-  it('shows the always-saved line for a demo selection even when opted out', async () => {
+  it('shows the free-models line for a free selection even when opted out', async () => {
     localStorage.setItem('jscad-ai.tos', JSON.stringify({ version: TOS_VERSION, at: 0, recordOwnChats: false }))
-    const container = openChat(() => DEMO_KEY)
+    const container = openChat(() => FREE_KEY)
     const notice = container.querySelector('.chat-notice')
     expect(notice.style.display).toBe('')
-    expect(notice.textContent).toBe('Chats on shared keys are always saved to improve the assistant.')
+    expect(notice.textContent).toBe('Free jscad-web models share conversations to improve the assistant.')
   })
 
   it('refreshes the notice when the selection changes', async () => {
@@ -1186,9 +1191,9 @@ describe('recording consent in the chat drawer', () => {
     let selection = OWN_KEY
     const chat = initChat({ container, requestTool: async () => '{}', getProvider: () => selection, runTurnFn: async () => ({ messages: [] }) })
     expect(container.querySelector('.chat-notice').textContent).toMatch(/Chats are saved/)
-    selection = DEMO_KEY
+    selection = FREE_KEY
     chat.refreshNotice()
-    expect(container.querySelector('.chat-notice').textContent).toMatch(/always saved/)
+    expect(container.querySelector('.chat-notice').textContent).toMatch(/Free jscad-web models share conversations/)
   })
 })
 
@@ -1219,8 +1224,8 @@ describe('own-key recording opt-out', () => {
   })
 })
 
-describe('demo turn routing', () => {
-  it('routes a demo turn to the shared relay path with the sentinel key', async () => {
+describe('free turn routing', () => {
+  it('routes a free turn to the jscad-web path with the sentinel key', async () => {
     const fetchMock = vi.fn(async () => new Response('data: [DONE]\n\n'))
     vi.stubGlobal('fetch', fetchMock)
     window.localStorage.removeItem('jscad-ai.relay')
@@ -1233,30 +1238,30 @@ describe('demo turn routing', () => {
     initChat({
       container,
       requestTool: async () => '{}',
-      getProvider: () => ({ kind: 'opencode-go', model: 'deepseek-v4.1-flash', apiKey: 'demo-limited-free', shared: 'deepseek', demo: true }),
+      getProvider: () => ({ kind: 'opencode-go', model: 'deepseek-v4.1-flash', apiKey: 'jscad-web-free', inference: 'deepseek', free: true }),
       runTurnFn,
     })
     container.querySelector('.chat-input').value = 'hi'
     container.querySelector('.chat-form').dispatchEvent(new Event('submit', { cancelable: true }))
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
-    expect(fetchMock.mock.calls[0][0]).toBe('https://jscad.rkroll.com/api/relay/shared/deepseek/v1/chat/completions')
-    expect(fetchMock.mock.calls[0][1].headers.authorization).toBe('Bearer demo-limited-free')
+    expect(fetchMock.mock.calls[0][0]).toBe('https://jscad.rkroll.com/api/relay/jscad-web/deepseek/v1/chat/completions')
+    expect(fetchMock.mock.calls[0][1].headers.authorization).toBe('Bearer jscad-web-free')
     vi.unstubAllGlobals()
   })
 })
 
-describe('demo quota error', () => {
-  it('explains the shared quota and points at adding a key', async () => {
+describe('free quota error', () => {
+  it('explains the free-model quota and points at adding a key', async () => {
     document.body.innerHTML = '<div id="chat"></div>'
     const container = document.getElementById('chat')
     const quota = Object.assign(
-      new Error('openai: {"error":{"code":"shared_quota_exhausted","scope":"month"}} (status 402)'),
-      { status: 402, body: '{"error":{"code":"shared_quota_exhausted"}}' },
+      new Error('openai: {"error":{"code":"inference_quota_exhausted","scope":"month"}} (status 402)'),
+      { status: 402, body: '{"error":{"code":"inference_quota_exhausted"}}' },
     )
     initChat({
       container,
       requestTool: async () => '{}',
-      getProvider: () => ({ kind: 'opencode-go', model: 'deepseek-v4.1-flash', apiKey: 'demo-limited-free', shared: 'deepseek', demo: true }),
+      getProvider: () => ({ kind: 'opencode-go', model: 'deepseek-v4.1-flash', apiKey: 'jscad-web-free', inference: 'deepseek', free: true }),
       runTurnFn: async () => {
         throw quota
       },

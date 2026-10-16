@@ -3,7 +3,7 @@
 // through requestTool, and renders streamed text. Provider HTTP targets the
 // relay, which proxies path-preserving to the provider and stores nothing.
 import { buildMessages, buildSystemPrompt, createProvider, DEFAULT_API, partitionTranscript, runTurn as defaultRunTurn, SUMMARY_PREFIX, summarizeTranscript, summarizeWithProvider, toolDetail, turnsOf } from '@jscadui/agent-loop'
-import { checkTurn, DEMO_NOTICE_MESSAGE, getRecordOwnChats, isDemoSelection, openConsentGate, TOS_REQUIRED_MESSAGE } from './aiConsent.js'
+import { checkTurn, FREE_NOTICE_MESSAGE, getRecordOwnChats, isFreeSelection, openConsentGate, TOS_REQUIRED_MESSAGE } from './aiConsent.js'
 
 /* global __RELAY_ORIGIN__ */
 const RELAY_OVERRIDE_KEY = 'jscad-ai.relay'
@@ -13,23 +13,27 @@ const relayDefault = () => (typeof __RELAY_ORIGIN__ === 'string' ? __RELAY_ORIGI
 
 const relayRoot = () => (globalThis.localStorage?.getItem(RELAY_OVERRIDE_KEY) || relayDefault()).replace(/\/+$/, '')
 
-// A demo (shared) selection rides `/api/relay/shared/<id>`, where the relay
-// injects the server-held key; own keys ride their kind's route.
-export const relayBaseUrl = (kind, shared) =>
-  shared ? `${relayRoot()}/api/relay/shared/${shared}` : `${relayRoot()}/api/relay/${kind}`
+// A free (jscad-web) selection rides the one relay endpoint family at
+// `<root>/api/relay/jscad-web/<id>`, where the relay injects the server-held
+// key; own keys ride their kind's route.
+export const relayBaseUrl = (selection) => {
+  const sel = selection ?? {}
+  if (isFreeSelection(sel)) return `${relayRoot()}/api/relay/jscad-web/${sel.inference ?? sel.shared}`
+  return `${relayRoot()}/api/relay/${sel.kind}`
+}
 
-// The demo option list lives on the relay beside the per-id routes.
-export const sharedListUrl = () => `${relayRoot()}/api/relay/shared`
+// The free option catalog the relay serves beside the per-id turn routes.
+export const inferenceListUrl = () => `${relayRoot()}/api/relay/jscad-web/v1/models`
 
-// One line above the input while our recording is on, and the always-saved
-// variant while a demo selection is active (demo cannot be opted out).
+// One line above the input while our recording is on, and the free-model
+// variant while a free selection is active (free turns cannot be opted out).
 export const CHAT_LOG_NOTICE = 'Chats are saved to improve the assistant. Turn this off in Chat settings.'
-export const CHAT_DEMO_NOTICE = 'Chats on shared keys are always saved to improve the assistant.'
-// The relay's 402 when a demo budget is spent; the turn never reached a model.
-export const SHARED_QUOTA_MESSAGE = 'This demo is out of budget right now. Add your own key in Chat settings to keep chatting.'
+export const CHAT_FREE_NOTICE = 'Free jscad-web models share conversations to improve the assistant.'
+// The relay's 402 when a free-model budget is spent; the turn never reached a model.
+export const INFERENCE_QUOTA_MESSAGE = 'This free model is out of budget right now. Add your own key in Chat settings to keep chatting.'
 
-const sharedQuotaError = (err) =>
-  err?.status === 402 && /shared_quota_exhausted/.test(`${err?.message ?? ''} ${err?.body ?? ''}`)
+const inferenceQuotaError = (err) =>
+  err?.status === 402 && /inference_quota_exhausted/.test(`${err?.message ?? ''} ${err?.body ?? ''}`)
 
 const el = (tag, className, text) => {
   const node = document.createElement(tag)
@@ -228,17 +232,17 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
 
   // The drawer notice above the input: it reflects the live selection (which
   // `getProvider` reads) and the recording consent, and is re-rendered whenever
-  // the gear dialog changes either. Demo is always saved.
+  // the gear dialog changes either. Free turns are always saved.
   const renderNotice = () => {
     const sel = getProvider()
     // A custom base URL calls the provider directly and is never logged, so the
-    // recording line would be wrong there; demo always records regardless.
-    const demo = isDemoSelection(sel)
-    const show = demo || (getRecordOwnChats() && !sel?.baseUrl)
+    // recording line would be wrong there; free turns always record regardless.
+    const free = isFreeSelection(sel)
+    const show = free || (getRecordOwnChats() && !sel?.baseUrl)
     notice.style.display = show ? '' : 'none'
     if (!show) return
-    if (demo) {
-      noticeText.textContent = CHAT_DEMO_NOTICE
+    if (free) {
+      noticeText.textContent = CHAT_FREE_NOTICE
       noticeSettings.textContent = ''
       noticeSettings.style.display = 'none'
       noticeTail.textContent = ''
@@ -489,9 +493,9 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
       addMessage('Set your model and API key in Chat settings first.', 'error')
       return
     }
-    // Every turn is gated on the accepted terms version and, for demo, on the
-    // always-recorded notice. Declining blocks this turn with the usual error
-    // line and keeps the draft and the history readable.
+    // Every turn is gated on the accepted terms version and, for a free
+    // selection, on the always-recorded notice. Declining blocks this turn with
+    // the usual error line and keeps the draft and the history readable.
     const gate = checkTurn(selection)
     if (!gate.ok) {
       if (gating) return
@@ -503,7 +507,7 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
         gating = false
       }
       if (!allowed) {
-        addMessage(gate.reason === 'demo-notice' ? DEMO_NOTICE_MESSAGE : TOS_REQUIRED_MESSAGE, 'error')
+        addMessage(gate.reason === 'free-notice' ? FREE_NOTICE_MESSAGE : TOS_REQUIRED_MESSAGE, 'error')
         return
       }
     }
@@ -536,7 +540,7 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
     try {
       const provider = createProvider({
         ...selection,
-        baseUrl: selection.baseUrl || relayBaseUrl(selection.kind, selection.shared),
+        baseUrl: selection.baseUrl || relayBaseUrl(selection),
         sessionId: sessionId(),
         // A custom base URL may be a provider called directly, whose CORS preflight would refuse this header.
         // An own-key opt-out must omit it, or the relay would log a turn the user refused.
@@ -555,7 +559,7 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
           const summarizerSelection = getSummarizer()
           const summarizer = createProvider({
             ...summarizerSelection,
-            baseUrl: summarizerSelection.baseUrl || relayBaseUrl(summarizerSelection.kind, summarizerSelection.shared),
+            baseUrl: summarizerSelection.baseUrl || relayBaseUrl(summarizerSelection),
           })
           const text = await summarizeTranscript(
             { turns: freshTurns, priorSummary: prior?.text ?? '' },
@@ -601,7 +605,7 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
       if (signal.aborted) stopped = true
       else {
         commit(local.slice(0, -1))
-        if (live()) addMessage(sharedQuotaError(err) ? SHARED_QUOTA_MESSAGE : err.message, 'error')
+        if (live()) addMessage(inferenceQuotaError(err) ? INFERENCE_QUOTA_MESSAGE : err.message, 'error')
       }
     } finally {
       if (stopped) {

@@ -6,19 +6,19 @@
 import { APIS, DEFAULT_API } from '@jscadui/agent-loop'
 import { createKeyStore } from '@jscadui/key-store'
 import { SEARCH_PROVIDERS, createSearchStores } from './aiSearch.js'
-import { relayBaseUrl, sharedListUrl } from './aiChat.js'
+import { relayBaseUrl, inferenceListUrl } from './aiChat.js'
 import { effortOptionsForModel } from './aiEffort.js'
-import { getRecordOwnChats, isDemoSelection, RECORDING_TEXT, setRecordOwnChats } from './aiConsent.js'
+import { getRecordOwnChats, isFreeSelection, RECORDING_TEXT, setRecordOwnChats } from './aiConsent.js'
 
 const SELECTION_KEY = 'jscad-ai.selection'
 
-// The one credential the demo provider carries; the relay ignores its value and
-// injects the operator's server-held key per shared option.
-export const DEMO_API_KEY = 'demo-limited-free'
-const DEMO_PREFIX = 'demo:'
+// The one credential the free provider carries; the relay ignores its value and
+// injects the operator's server-held key per free option.
+export const FREE_API_KEY = 'jscad-web-free'
+const FREE_PREFIX = 'jscad-web:'
 // The relay's `available` flag is month-only; an exhausted option stays listed
 // so its reason is visible, but cannot be chosen.
-const DEMO_LIMIT_REASON = 'monthly limit reached'
+const FREE_LIMIT_REASON = 'monthly limit reached'
 
 // The local backend persists to IndexedDB when available; only without it
 // (private mode, the compute frame) does a reload drop work that was never
@@ -88,25 +88,27 @@ export const getChatApi = () => {
 }
 
 // The provider config the chat POSTs per turn, or null when incomplete.
-// Fail-closed: no key, no model, no turn. A demo selection carries the sentinel
-// credential instead of a user key and rides the shared relay route.
+// Fail-closed: no key, no model, no turn. A free selection carries the sentinel
+// credential instead of a user key and rides the jscad-web relay route.
 export const getProviderConfig = () => {
   const selection = getSelection()
   const { kind = 'anthropic', model = '', baseUrl = '', effort = '' } = selection
   if (!model) return null
-  if (isDemoSelection(selection)) {
-    return { kind, model, ...(effort ? { effort } : {}), apiKey: DEMO_API_KEY, shared: selection.shared, demo: true }
+  if (isFreeSelection(selection)) {
+    const inference = selection.inference ?? selection.shared ?? ''
+    if (!inference) return null
+    return { kind, model, ...(effort ? { effort } : {}), apiKey: FREE_API_KEY, inference, free: true }
   }
   const apiKey = keyStore.get()
   if (!apiKey) return null
   return { kind, model, ...(baseUrl ? { baseUrl } : {}), ...(effort ? { effort } : {}), apiKey }
 }
 
-// The demo options the relay offers, or [] when the list cannot be read. An
-// unreadable list hides demo rather than offering a selection that cannot run.
-export const loadSharedOptions = async () => {
+// The free options the relay offers, or [] when the catalog cannot be read. An
+// unreadable catalog hides free rather than offering a selection that cannot run.
+export const loadInferenceOptions = async () => {
   try {
-    const res = await fetch(sharedListUrl(), { headers: { accept: 'application/json' } })
+    const res = await fetch(inferenceListUrl(), { headers: { accept: 'application/json' } })
     if (!res.ok) return []
     const body = await res.json()
     return Array.isArray(body) ? body.filter((opt) => opt && typeof opt.id === 'string') : []
@@ -137,7 +139,7 @@ const authHeaders = (kind, apiKey) =>
     : { authorization: `Bearer ${apiKey}` }
 
 const modelsUrl = (kind, baseUrl) =>
-  baseUrl ? `${baseUrl.replace(/\/+$/, '')}/v1/models` : `${relayBaseUrl(kind)}/v1/models`
+  baseUrl ? `${baseUrl.replace(/\/+$/, '')}/v1/models` : `${relayBaseUrl({ kind })}/v1/models`
 
 /**
  * @param {HTMLElement} container
@@ -153,15 +155,15 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
     model: selection.model ?? '',
     baseUrl: selection.baseUrl ?? '',
     effort: selection.effort ?? '',
-    demo: isDemoSelection(selection),
-    shared: typeof selection.shared === 'string' ? selection.shared : '',
+    free: isFreeSelection(selection),
+    inference: typeof selection.inference === 'string' ? selection.inference : typeof selection.shared === 'string' ? selection.shared : '',
     api: APIS.includes(selection.api) ? selection.api : DEFAULT_API,
     capabilities: new Map(),
     websearchAllow: websearch.allow,
     websearchProvider: websearch.provider,
   }
-  // A demo selection stores `{shared, demo:true}` and never a base URL; switching
-  // back to an own-key provider drops both.
+  // A free selection stores `{inference, free:true}` and never a base URL;
+  // switching back to an own-key provider drops both.
   const persistSelection = () => {
     setSelection({
       kind: state.kind,
@@ -169,7 +171,7 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
       baseUrl: state.baseUrl,
       api: state.api,
       ...(state.effort ? { effort: state.effort } : {}),
-      ...(demoActive() ? { shared: state.shared, demo: true } : {}),
+      ...(freeActive() ? { inference: state.inference, free: true } : {}),
       websearch: { allow: state.websearchAllow, provider: state.websearchProvider },
     })
     onSelectionChange()
@@ -233,15 +235,15 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
 
   const summary = el('div', 'ai-session ai-summary')
 
-  // A demo option pins one model on the relay; the dialog shows it as
-  // `Demo: <label>` and hides the key, custody, base URL and model controls.
-  let sharedOptions = []
-  const demoActive = () => state.demo === true && typeof state.shared === 'string' && state.shared !== ''
-  const demoOption = () => sharedOptions.find((opt) => opt.id === state.shared) ?? null
+  // A free option pins one model on the relay; the dialog shows it as
+  // `jscad-web · <label>` and hides the key, custody, base URL and model controls.
+  let inferenceOptions = []
+  const freeActive = () => state.free === true && state.inference !== ''
+  const freeOption = () => inferenceOptions.find((opt) => opt.id === state.inference) ?? null
 
   const refreshSummary = () => {
-    if (demoActive()) {
-      summary.textContent = `Demo: ${demoOption()?.label ?? state.shared}`
+    if (freeActive()) {
+      summary.textContent = `jscad-web · ${freeOption()?.label ?? state.inference}`
       return
     }
     summary.textContent = state.model ? `${state.kind} · ${state.model}` : `${state.kind} · no model set`
@@ -252,8 +254,8 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
   dialog.className = 'ai-settings'
 
   const kind = el('select', 'ai-input ai-provider-select')
-  const demoInfo = el('div', 'ai-session ai-demo-info', '')
-  demoInfo.style.display = 'none'
+  const freeInfo = el('div', 'ai-session ai-free-info', '')
+  freeInfo.style.display = 'none'
   const renderProviderOptions = () => {
     kind.innerHTML = ''
     for (const value of KINDS) {
@@ -261,14 +263,14 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
       option.value = value
       kind.append(option)
     }
-    for (const opt of sharedOptions) {
+    for (const opt of inferenceOptions) {
       const option = el('option')
-      option.value = `${DEMO_PREFIX}${opt.id}`
+      option.value = `${FREE_PREFIX}${opt.id}`
       option.disabled = opt.available === false
-      option.textContent = opt.available === false ? `Demo: ${opt.label} (${DEMO_LIMIT_REASON})` : `Demo: ${opt.label}`
+      option.textContent = opt.available === false ? `jscad-web · ${opt.label} (${FREE_LIMIT_REASON})` : `jscad-web · ${opt.label}`
       kind.append(option)
     }
-    kind.value = demoActive() ? `${DEMO_PREFIX}${state.shared}` : state.kind
+    kind.value = freeActive() ? `${FREE_PREFIX}${state.inference}` : state.kind
     if (!kind.value) kind.value = state.kind
   }
 
@@ -377,21 +379,21 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
   const modelField = field('Model', modelSelect)
   const modelInputField = field('Custom model id', modelInput)
 
-  // Demo hides everything the relay owns for it: the key, its custody, the
+  // Free hides everything the relay owns for it: the key, its custody, the
   // custom base URL and the model controls (the option pins one model). The
-  // recording box is checked and locked, since demo turns always record.
-  const applyDemoState = () => {
-    const demo = demoActive()
+  // recording box is checked and locked, since free turns always record.
+  const applyFreeState = () => {
+    const free = freeActive()
     for (const node of [keyField, keepField, passphraseField, keyActions, modelField, modelInputField, advanced]) {
-      node.style.display = demo ? 'none' : ''
+      node.style.display = free ? 'none' : ''
     }
-    demoInfo.style.display = demo ? '' : 'none'
-    if (demo) {
-      demoInfo.textContent = `Demo: ${demoOption()?.label ?? state.shared} · ${state.model}`
+    freeInfo.style.display = free ? '' : 'none'
+    if (free) {
+      freeInfo.textContent = `jscad-web · ${freeOption()?.label ?? state.inference} · ${state.model}`
       modelStatus.textContent = ''
     }
-    recordToggle.checked = demo ? true : getRecordOwnChats()
-    recordToggle.disabled = demo
+    recordToggle.checked = free ? true : getRecordOwnChats()
+    recordToggle.disabled = free
     refreshEffort()
   }
 
@@ -467,7 +469,7 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
   dialog.append(
     el('h2', 'ai-dialog-title', 'Chat settings'),
     field('Provider', kind),
-    demoInfo,
+    freeInfo,
     keyField,
     keepField,
     passphraseField,
@@ -492,9 +494,9 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
   let modelsRequest = 0
   const loadModels = async () => {
     const request = ++modelsRequest
-    // Demo has no model dropdown: each shared option pins one model, and the
+    // Free has no model dropdown: each free option pins one model, and the
     // "catalog" is the option list itself, so there is nothing to GET.
-    if (demoActive()) {
+    if (freeActive()) {
       modelStatus.textContent = ''
       return
     }
@@ -532,22 +534,22 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
     if (typeof dialog.close === 'function') dialog.close()
     else dialog.removeAttribute('open')
   }
-  // The shared list is read on dialog open, like the model list; an unreadable
-  // list hides demo (no option to pick something that cannot run).
-  const refreshSharedOptions = async () => {
-    sharedOptions = await loadSharedOptions()
-    if (demoActive() && !demoOption()) {
-      state.demo = false
-      state.shared = ''
+  // The free catalog is read on dialog open, like the model list; an unreadable
+  // catalog hides free (no option to pick something that cannot run).
+  const refreshFreeOptions = async () => {
+    inferenceOptions = await loadInferenceOptions()
+    if (freeActive() && !freeOption()) {
+      state.free = false
+      state.inference = ''
     }
     renderProviderOptions()
-    applyDemoState()
+    applyFreeState()
   }
   gear.addEventListener('click', () => {
     if (typeof dialog.showModal === 'function') dialog.showModal()
     else dialog.setAttribute('open', '')
     loadModels()
-    refreshSharedOptions()
+    refreshFreeOptions()
   })
   closeBtn.addEventListener('click', closeDialog)
   dialog.addEventListener('click', (event) => {
@@ -555,27 +557,27 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
   })
 
   kind.addEventListener('change', () => {
-    const option = kind.value.startsWith(DEMO_PREFIX) ? sharedOptions.find((o) => `${DEMO_PREFIX}${o.id}` === kind.value) : null
+    const option = kind.value.startsWith(FREE_PREFIX) ? inferenceOptions.find((o) => `${FREE_PREFIX}${o.id}` === kind.value) : null
     if (option && option.available !== false) {
-      state.demo = true
-      state.shared = option.id
+      state.free = true
+      state.inference = option.id
       state.kind = option.kind
       state.model = option.model
       state.baseUrl = ''
       baseUrl.value = ''
       state.capabilities = new Map()
-      applyDemoState()
+      applyFreeState()
       return
     }
-    state.demo = false
-    state.shared = ''
-    if (!kind.value.startsWith(DEMO_PREFIX)) state.kind = kind.value
+    state.free = false
+    state.inference = ''
+    if (!kind.value.startsWith(FREE_PREFIX)) state.kind = kind.value
     state.model = ''
     modelInput.value = ''
     modelInput.placeholder = modelPlaceholders[state.kind] ?? ''
     modelSelect.innerHTML = ''
     state.capabilities = new Map()
-    applyDemoState()
+    applyFreeState()
     loadModels()
   })
   modelSelect.addEventListener('change', () => {
@@ -619,6 +621,6 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
   })
 
   renderProviderOptions()
-  applyDemoState()
+  applyFreeState()
   refreshSession()
 }

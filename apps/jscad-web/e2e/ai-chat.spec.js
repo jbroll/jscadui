@@ -117,13 +117,13 @@ const PARITY_ROUNDS = [
   { name: 'docs', args: { query: 'text' } },
 ]
 
-// The demo provider's option list, as `GET /api/relay/shared` returns it.
-const SHARED_OPTIONS = [{ id: 'deepseek', label: 'DeepSeek v4 flash', kind: 'opencode-go', model: 'deepseek-v4-flash', available: true }]
+// The jscad-web free provider's catalog, as `GET /api/relay/jscad-web/v1/models` returns it.
+const INFERENCE_OPTIONS = [{ id: 'deepseek', label: 'DeepSeek v4 flash', kind: 'opencode-go', model: 'deepseek-v4-flash', available: true }]
 
 // A round `{ text, hold: true }` streams its text and then keeps the reply open; `delayMs` holds back every reply's start.
 // A round with `reasoning` streams it first as `reasoning_content`, then waits `pauseMs`; one without `name` answers `text`.
-// `shared` is the demo option list the gear dialog reads; a demo turn answers on the shared route like the own-key one.
-const startStubRelay = (rounds = ROUNDS, { delayMs = 0, shared = SHARED_OPTIONS } = {}) =>
+// `catalog` is the free option list the gear dialog reads; a free turn answers on the jscad-web route like the own-key one.
+const startStubRelay = (rounds = ROUNDS, { delayMs = 0, catalog = INFERENCE_OPTIONS } = {}) =>
   new Promise((resolve) => {
     const requests = []
     const paths = []
@@ -141,14 +141,14 @@ const startStubRelay = (rounds = ROUNDS, { delayMs = 0, shared = SHARED_OPTIONS 
       let body = ''
       req.on('data', (c) => (body += c))
       req.on('end', async () => {
-        // The demo option list the gear dialog reads.
-        if (req.method === 'GET' && req.url === '/api/relay/shared') {
+        // The free catalog the gear dialog reads.
+        if (req.method === 'GET' && req.url === '/api/relay/jscad-web/v1/models') {
           res.writeHead(200, { ...cors, 'content-type': 'application/json' })
-          res.end(JSON.stringify(shared))
+          res.end(JSON.stringify(catalog))
           return
         }
-        const sharedTurn = /^\/api\/relay\/shared\/[^/]+\/v1\/chat\/completions$/.test(req.url)
-        if ((req.url !== '/api/relay/openai/v1/chat/completions' && !sharedTurn) || req.method !== 'POST') {
+        const freeTurn = /^\/api\/relay\/jscad-web\/[^/]+\/v1\/chat\/completions$/.test(req.url)
+        if ((req.url !== '/api/relay/openai/v1/chat/completions' && !freeTurn) || req.method !== 'POST') {
           res.writeHead(404)
           res.end()
           return
@@ -475,7 +475,7 @@ test.describe('AI chat', () => {
     await openChat()
     await expect(notice).toBeHidden()
 
-    // Demo always records: the always-saved line, and no settings link.
+    // Free always records: the free-models line, and no settings link.
     const stub = await startStubRelay()
     await page.addInitScript((port) => {
       window.localStorage.setItem('jscad-ai.relay', `http://127.0.0.1:${port}`)
@@ -483,17 +483,17 @@ test.describe('AI chat', () => {
     await setTos(true)
     await openChat()
     await page.locator('.ai-gear').click()
-    await expect(page.locator('.ai-provider-select option[value="demo:deepseek"]')).toHaveCount(1)
-    await page.locator('.ai-provider-select').selectOption('demo:deepseek')
+    await expect(page.locator('.ai-provider-select option[value="jscad-web:deepseek"]')).toHaveCount(1)
+    await page.locator('.ai-provider-select').selectOption('jscad-web:deepseek')
     await expect(notice).toBeVisible()
-    await expect(notice).toHaveText('Chats on shared keys are always saved to improve the assistant.')
+    await expect(notice).toHaveText('Free jscad-web models share conversations to improve the assistant.')
     await expect(notice.locator('.chat-notice-settings')).toBeHidden()
     stub.server.close()
   })
 
-  test('offers the demo provider and runs a turn on the shared relay', async ({ page }) => {
+  test('offers the free jscad-web provider and runs a turn on the relay', async ({ page }) => {
     test.setTimeout(60_000)
-    const stub = await startStubRelay([{ text: 'Demo reply.' }])
+    const stub = await startStubRelay([{ text: 'Free reply.' }])
     await page.addInitScript(({ port, tos }) => {
       window.localStorage.setItem('jscad-ai.relay', `http://127.0.0.1:${port}`)
       window.localStorage.setItem('jscad-ai.tos', tos)
@@ -505,18 +505,18 @@ test.describe('AI chat', () => {
     await page.locator('#ai-chat-btn').click()
 
     await page.locator('.ai-gear').click()
-    await expect(page.locator('.ai-provider-select option[value="demo:deepseek"]')).toHaveCount(1)
-    await page.locator('.ai-provider-select').selectOption('demo:deepseek')
+    await expect(page.locator('.ai-provider-select option[value="jscad-web:deepseek"]')).toHaveCount(1)
+    await page.locator('.ai-provider-select').selectOption('jscad-web:deepseek')
     // The option pins the model and hides the key controls; the relay owns the key.
-    await expect(page.locator('.ai-demo-info')).toContainText('Demo: DeepSeek v4 flash')
-    await expect(page.locator('.ai-demo-info')).toContainText('deepseek-v4-flash')
+    await expect(page.locator('.ai-free-info')).toContainText('jscad-web · DeepSeek v4 flash')
+    await expect(page.locator('.ai-free-info')).toContainText('deepseek-v4-flash')
     await expect(page.locator('.ai-key-input')).toBeHidden()
     await page.locator('.ai-dialog-footer button').click()
 
     await page.locator('.chat-input').fill('model a cube')
     await page.locator('.chat-send').click()
-    await expect(page.locator('.chat-messages')).toContainText('Demo reply.', { timeout: 30_000 })
-    expect(stub.paths).toEqual(['/api/relay/shared/deepseek/v1/chat/completions'])
+    await expect(page.locator('.chat-messages')).toContainText('Free reply.', { timeout: 30_000 })
+    expect(stub.paths).toEqual(['/api/relay/jscad-web/deepseek/v1/chat/completions'])
     expect(stub.requests).toHaveLength(1)
     expect(stub.requests[0].model).toBe('deepseek-v4-flash')
     stub.server.close()

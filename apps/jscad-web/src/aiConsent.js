@@ -18,7 +18,7 @@ export const TOS_TITLE = 'Before you chat'
 export const TOS_INTRO = 'One acceptance covers every turn until this notice changes. See the privacy note in docs/architecture.md.'
 export const TOS_LINK = { href: 'https://github.com/jbroll/jscadui/blob/main/apps/jscad-web/docs/architecture.md#privacy', text: 'privacy note' }
 export const TOS_REQUIRED_MESSAGE = 'Accept the terms to send a message.'
-export const DEMO_NOTICE_MESSAGE = 'Demo sessions are always recorded. Accept the demo notice to send a message.'
+export const FREE_NOTICE_MESSAGE = 'Free model sessions share conversations. Accept the free-model notice to send a message.'
 
 // Mandatory acknowledgements, in the order the gate renders them.
 export const ACKS = [
@@ -28,9 +28,9 @@ export const ACKS = [
     text: 'Prompts, project files in context, and outputs are sent to the chosen inference provider. That provider might train on session data.',
   },
   {
-    key: 'demo-recorded',
-    demo: true,
-    text: 'Demo sessions are always recorded to improve jscad-web and cannot be opted out.',
+    key: 'free-recorded',
+    free: true,
+    text: 'Free model sessions share conversations to improve jscad-web and cannot be opted out.',
   },
 ]
 
@@ -112,34 +112,35 @@ export const acceptTos = (recordOwnChats) => {
   return getTos()
 }
 
-// Phase 2 shipped `shared` selections; the demo provider is the same thing with
-// a `demo` flag, so a leftover `shared` selection is treated as demo.
-export const isDemoSelection = (selection) => selection?.demo === true || typeof selection?.shared === 'string'
+// Phase 2 shipped `shared` selections; the earlier free provider is the same
+// thing behind a `demo` flag, so a leftover `shared`/`demo` selection is still
+// the free jscad-web provider.
+export const isFreeSelection = (selection) => selection?.free === true || selection?.demo === true || typeof selection?.shared === 'string'
 
 /**
  * Whether a turn may run for this selection, and if not why the gate must be
- * answered first: `'tos'` (the version is unaccepted) or `'demo-notice'` (the
- * user opted out of recording, and demo turns always record).
- * @param {{demo?:boolean, shared?:string, baseUrl?:string}|null} [selection]
- * @returns {{ok:true}|{ok:false, reason:'tos'|'demo-notice'}}
+ * answered first: `'tos'` (the version is unaccepted) or `'free-notice'` (the
+ * user opted out of recording, and free-model turns always record).
+ * @param {{free?:boolean, demo?:boolean, shared?:string, baseUrl?:string}|null} [selection]
+ * @returns {{ok:true}|{ok:false, reason:'tos'|'free-notice'}}
  */
 export const checkTurn = (selection) => {
   if (needsTos()) return { ok: false, reason: 'tos' }
-  if (isDemoSelection(selection) && getRecordOwnChats() === false) return { ok: false, reason: 'demo-notice' }
+  if (isFreeSelection(selection) && getRecordOwnChats() === false) return { ok: false, reason: 'free-notice' }
   return { ok: true }
 }
 
 /**
  * The gate rows for a selection, in dialog order: code-execution → sharing +
- * trains-generic → demo-always-recorded (demo only) → our-recording opt-in. A
+ * trains-generic → free-always-recorded (free only) → our-recording opt-in. A
  * custom base URL calls the provider directly, so its turn is never recorded
  * and the recording question is skipped.
- * @param {{demo?:boolean, shared?:string, baseUrl?:string}|null} [selection]
+ * @param {{free?:boolean, demo?:boolean, shared?:string, baseUrl?:string}|null} [selection]
  * @returns {Array<{key:string, kind:'ack'|'recording', text:string, required:boolean, checked:boolean, locked:boolean}>}
  */
 export const consentRows = (selection) => {
-  const demo = isDemoSelection(selection)
-  const rows = ACKS.filter((ack) => !ack.demo || demo).map((ack) => ({
+  const free = isFreeSelection(selection)
+  const rows = ACKS.filter((ack) => !ack.free || free).map((ack) => ({
     key: ack.key,
     kind: 'ack',
     text: ack.text,
@@ -153,10 +154,10 @@ export const consentRows = (selection) => {
       kind: 'recording',
       text: RECORDING_TEXT,
       required: false,
-      // Demo always records, so the box is checked and locked; otherwise the
+      // Free always records, so the box is checked and locked; otherwise the
       // last choice (fresh installs record) is shown pre-checked.
-      checked: demo || getRecordOwnChats(),
-      locked: demo,
+      checked: free || getRecordOwnChats(),
+      locked: free,
     })
   }
   return rows
@@ -175,7 +176,7 @@ let openGate = null
 /**
  * Opens the gate for a selection and resolves true once the user accepts (which
  * writes the consent record) or false when they decline or click the backdrop.
- * @param {{demo?:boolean, shared?:string, baseUrl?:string}|null} [selection]
+ * @param {{free?:boolean, demo?:boolean, shared?:string, baseUrl?:string}|null} [selection]
  * @returns {Promise<boolean>}
  */
 export const openConsentGate = (selection) => {
@@ -228,9 +229,9 @@ export const openConsentGate = (selection) => {
       openGate = null
       resolve(value)
     }
-    // A locked demo box and an absent custom-base-URL box are not the user's
+    // A locked free box and an absent custom-base-URL box are not the user's
     // answer: accepting keeps the stored recording choice instead of letting
-    // the locked checked box overwrite a prior opt-out. Demo turns are recorded
+    // the locked checked box overwrite a prior opt-out. Free turns are recorded
     // server-side regardless, so only an interactive box writes what it shows.
     const recordingRow = rows.find((row) => row.key === 'recordOwnChats')
     accept.addEventListener('click', () => {

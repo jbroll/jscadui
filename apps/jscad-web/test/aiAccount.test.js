@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createProvider } from '@jscadui/agent-loop'
 import { TOS_VERSION } from '../src/aiConsent.js'
+import { relayBaseUrl } from '../src/aiChat.js'
 
 vi.mock('@jscadui/key-store', () => {
   const byKey = new Map()
@@ -350,30 +352,31 @@ describe('account header', () => {
   })
 })
 
-describe('demo provider', () => {
-  // The relay's shared list: one usable option and one out of monthly budget.
-  const SHARED = [
+describe('free provider', () => {
+  // The relay's jscad-web catalog: one usable option and one out of monthly budget.
+  const INFERENCE = [
     { id: 'deepseek', label: 'DeepSeek v4 flash', kind: 'opencode-go', model: 'deepseek-v4.1-flash', available: true },
     { id: 'muse', label: 'Muse Spark 1.3', kind: 'meta', model: 'muse-spark-1.3', available: false },
   ]
+  const CATALOG_URL = '/api/relay/jscad-web/v1/models'
 
-  const sharedFetch = (options, models = []) => vi.fn(async (url) => {
+  const inferenceFetch = (options, models = []) => vi.fn(async (url) => {
     if (String(url).includes('/api/auth/')) return new Response(JSON.stringify({}), { status: 401 })
-    if (/\/api\/relay\/shared$/.test(String(url))) return new Response(JSON.stringify(options), { headers: { 'content-type': 'application/json' } })
+    if (String(url).includes(CATALOG_URL)) return new Response(JSON.stringify(options), { headers: { 'content-type': 'application/json' } })
     if (String(url).includes('/v1/models')) return new Response(JSON.stringify({ data: models.map((id) => ({ id })) }), { headers: { 'content-type': 'application/json' } })
     return new Response('{}', { status: 404 })
   })
 
-  // Opens the gear dialog and waits for the shared list to land in the select.
-  const openGear = async (fetchImpl, { demo = true } = {}) => {
+  // Opens the gear dialog and waits for the catalog to land in the select.
+  const openGear = async (fetchImpl, { free = true } = {}) => {
     globalThis.fetch = fetchImpl
     document.body.innerHTML = '<div id="a"></div>'
     const account = await loadAccount()
     account.initAccount(document.getElementById('a'))
     document.querySelector('.ai-gear').click()
-    if (demo) {
+    if (free) {
       await vi.waitFor(() => {
-        expect([...document.querySelectorAll('.ai-provider-select option')].some((o) => o.value.startsWith('demo:'))).toBe(true)
+        expect([...document.querySelectorAll('.ai-provider-select option')].some((o) => o.value.startsWith('jscad-web:'))).toBe(true)
       })
     } else {
       await new Promise((r) => setTimeout(r, 20))
@@ -381,10 +384,10 @@ describe('demo provider', () => {
     return account
   }
 
-  const selectDemo = async (id) => {
-    await vi.waitFor(() => expect([...document.querySelectorAll('.ai-provider-select option')].some((o) => o.value === `demo:${id}`)).toBe(true))
+  const selectFree = async (id) => {
+    await vi.waitFor(() => expect([...document.querySelectorAll('.ai-provider-select option')].some((o) => o.value === `jscad-web:${id}`)).toBe(true))
     const select = document.querySelector('.ai-provider-select')
-    select.value = `demo:${id}`
+    select.value = `jscad-web:${id}`
     select.dispatchEvent(new Event('change'))
   }
 
@@ -394,59 +397,82 @@ describe('demo provider', () => {
     globalThis.fetch = vi.fn(async () => new Response(JSON.stringify([]), { headers: { 'content-type': 'application/json' } }))
   })
 
-  it('lists the shared relay options as Demo entries', async () => {
-    await openGear(sharedFetch(SHARED))
+  it('lists the jscad-web catalog options as free entries', async () => {
+    await openGear(inferenceFetch(INFERENCE))
     const labels = [...document.querySelectorAll('.ai-provider-select option')].map((o) => o.textContent)
-    expect(labels).toContain('Demo: DeepSeek v4 flash')
-    expect(labels.some((label) => label.startsWith('Demo: Muse Spark 1.3'))).toBe(true)
+    expect(labels).toContain('jscad-web · DeepSeek v4 flash')
+    expect(labels.some((label) => label.startsWith('jscad-web · Muse Spark 1.3'))).toBe(true)
   })
 
-  it('disables an exhausted demo option and names the reason', async () => {
-    await openGear(sharedFetch(SHARED))
-    const option = [...document.querySelectorAll('.ai-provider-select option')].find((o) => o.value === 'demo:muse')
+  it('disables an exhausted free option and names the reason', async () => {
+    await openGear(inferenceFetch(INFERENCE))
+    const option = [...document.querySelectorAll('.ai-provider-select option')].find((o) => o.value === 'jscad-web:muse')
     expect(option.disabled).toBe(true)
-    expect(option.textContent).toBe('Demo: Muse Spark 1.3 (monthly limit reached)')
+    expect(option.textContent).toBe('jscad-web · Muse Spark 1.3 (monthly limit reached)')
   })
 
-  it('persists a demo selection and returns the sentinel-key config', async () => {
-    const { getProviderConfig } = await openGear(sharedFetch(SHARED))
-    await selectDemo('deepseek')
-    expect(JSON.parse(localStorage.getItem('jscad-ai.selection'))).toMatchObject({ kind: 'opencode-go', model: 'deepseek-v4.1-flash', shared: 'deepseek', demo: true })
-    expect(getProviderConfig()).toMatchObject({ kind: 'opencode-go', model: 'deepseek-v4.1-flash', apiKey: 'demo-limited-free', shared: 'deepseek', demo: true })
+  it('persists a free selection and returns the sentinel-key config', async () => {
+    const { getProviderConfig } = await openGear(inferenceFetch(INFERENCE))
+    await selectFree('deepseek')
+    expect(JSON.parse(localStorage.getItem('jscad-ai.selection'))).toMatchObject({ kind: 'opencode-go', model: 'deepseek-v4.1-flash', inference: 'deepseek', free: true })
+    expect(getProviderConfig()).toMatchObject({ kind: 'opencode-go', model: 'deepseek-v4.1-flash', apiKey: 'jscad-web-free', inference: 'deepseek', free: true })
   })
 
-  it('fails closed for a demo record with no model', async () => {
+  it('migrates a legacy shared/demo selection to a working free config', async () => {
+    const { getProviderConfig } = await loadAccount()
+    localStorage.setItem('jscad-ai.selection', JSON.stringify({ kind: 'opencode-go', model: 'deepseek-v4.1-flash', shared: 'deepseek', demo: true }))
+    expect(getProviderConfig()).toMatchObject({ kind: 'opencode-go', model: 'deepseek-v4.1-flash', apiKey: 'jscad-web-free', inference: 'deepseek', free: true })
+  })
+
+  it('routes a free turn to the jscad-web free base with the sentinel key', async () => {
+    const { getProviderConfig } = await openGear(inferenceFetch(INFERENCE))
+    await selectFree('deepseek')
+    const fetchMock = vi.fn(async () => new Response('data: [DONE]\n\n'))
+    vi.stubGlobal('fetch', fetchMock)
+    try {
+      window.localStorage.removeItem('jscad-ai.relay')
+      const config = getProviderConfig()
+      const provider = createProvider({ ...config, baseUrl: relayBaseUrl(config) })
+      for await (const e of provider.send([{ role: 'user', content: 'hi' }], [])) void e
+      expect(fetchMock.mock.calls[0][0]).toBe('https://jscad.rkroll.com/api/relay/jscad-web/deepseek/v1/chat/completions')
+      expect(fetchMock.mock.calls[0][1].headers.authorization).toBe('Bearer jscad-web-free')
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('fails closed for a free record with no model', async () => {
     const { getProviderConfig } = await loadAccount()
     localStorage.setItem('jscad-ai.selection', JSON.stringify({ kind: 'opencode-go', demo: true, shared: 'deepseek' }))
     expect(getProviderConfig()).toBeNull()
   })
 
-  it('hides the key, custody, base URL and model controls for demo', async () => {
-    await openGear(sharedFetch(SHARED))
-    await selectDemo('deepseek')
+  it('hides the key, custody, base URL and model controls for free', async () => {
+    await openGear(inferenceFetch(INFERENCE))
+    await selectFree('deepseek')
     expect(document.querySelector('.ai-key-input').closest('.ai-field').style.display).toBe('none')
     expect(document.querySelector('.ai-model-select').closest('.ai-field').style.display).toBe('none')
     expect(document.querySelector('.ai-model-input').closest('.ai-field').style.display).toBe('none')
     expect(document.querySelector('.ai-advanced').style.display).toBe('none')
-    const info = document.querySelector('.ai-demo-info')
+    const info = document.querySelector('.ai-free-info')
     expect(info.style.display).toBe('')
-    expect(info.textContent).toMatch(/Demo: DeepSeek v4 flash/)
+    expect(info.textContent).toMatch(/jscad-web · DeepSeek v4 flash/)
   })
 
-  it('does not request the model list for a demo selection', async () => {
+  it('does not request the model list for a free selection', async () => {
     const account = await loadAccount()
     await account.keyStore.set('sk-x', 'session')
-    await openGear(sharedFetch(SHARED, ['gpt-x']))
+    await openGear(inferenceFetch(INFERENCE, ['gpt-x']))
     await vi.waitFor(() => expect(globalThis.fetch.mock.calls.some(([u]) => String(u).includes('/v1/models'))).toBe(true))
     const before = globalThis.fetch.mock.calls.filter(([u]) => String(u).includes('/v1/models')).length
-    await selectDemo('deepseek')
+    await selectFree('deepseek')
     await new Promise((r) => setTimeout(r, 20))
     expect(globalThis.fetch.mock.calls.filter(([u]) => String(u).includes('/v1/models'))).toHaveLength(before)
   })
 
   it('mirrors the recording choice into both storage keys', async () => {
     localStorage.setItem('jscad-ai.tos', JSON.stringify({ version: TOS_VERSION, at: 1, recordOwnChats: true }))
-    await openGear(sharedFetch(SHARED))
+    await openGear(inferenceFetch(INFERENCE))
     const toggle = document.querySelector('.ai-record-toggle')
     expect(toggle.checked).toBe(true)
     toggle.checked = false
@@ -462,34 +488,34 @@ describe('demo provider', () => {
   it('shows the .tos recording choice when a divergent log mirror disagrees', async () => {
     localStorage.setItem('jscad-ai.tos', JSON.stringify({ version: TOS_VERSION, at: 1, recordOwnChats: false }))
     localStorage.removeItem('jscad-ai.log')
-    await openGear(sharedFetch(SHARED))
+    await openGear(inferenceFetch(INFERENCE))
     expect(document.querySelector('.ai-record-toggle').checked).toBe(false)
   })
 
   it('shows the .tos recording choice when the mirror opts out instead', async () => {
     localStorage.setItem('jscad-ai.tos', JSON.stringify({ version: TOS_VERSION, at: 1, recordOwnChats: true }))
     localStorage.setItem('jscad-ai.log', 'off')
-    await openGear(sharedFetch(SHARED))
+    await openGear(inferenceFetch(INFERENCE))
     expect(document.querySelector('.ai-record-toggle').checked).toBe(true)
   })
 
-  it('locks the recording checkbox on and checked for demo', async () => {
-    await openGear(sharedFetch(SHARED))
-    await selectDemo('deepseek')
+  it('locks the recording checkbox on and checked for free', async () => {
+    await openGear(inferenceFetch(INFERENCE))
+    await selectFree('deepseek')
     const toggle = document.querySelector('.ai-record-toggle')
     expect(toggle.checked).toBe(true)
     expect(toggle.disabled).toBe(true)
   })
 
-  it('hides the demo entries when the shared list cannot be read', async () => {
+  it('hides the free entries when the catalog cannot be read', async () => {
     const failing = vi.fn(async (url) => {
       if (String(url).includes('/api/auth/')) return new Response(JSON.stringify({}), { status: 401 })
-      if (/\/api\/relay\/shared$/.test(String(url))) throw new Error('offline')
+      if (String(url).includes(CATALOG_URL)) throw new Error('offline')
       return new Response('{}', { status: 404 })
     })
-    await openGear(failing, { demo: false })
+    await openGear(failing, { free: false })
     await new Promise((r) => setTimeout(r, 20))
-    expect([...document.querySelectorAll('.ai-provider-select option')].some((o) => o.value.startsWith('demo:'))).toBe(false)
+    expect([...document.querySelectorAll('.ai-provider-select option')].some((o) => o.value.startsWith('jscad-web:'))).toBe(false)
   })
 })
 
