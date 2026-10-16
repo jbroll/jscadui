@@ -14,8 +14,8 @@
 #   the landed tree is gated too.
 #
 # Resolves the branch HEAD's CI tag (commit-<sha>, pushed by the post-commit
-# hook), waits for it, lands via `land`, and pushes only on pass.
-# Anything else refuses, leaving the branch in place.
+# hook) to one job ID and waits for it, lands via `land`, and pushes only on
+# pass. Anything else refuses, leaving the branch in place.
 set -eu
 
 usage() {
@@ -61,14 +61,40 @@ if ! command -v "$LAND_BIN" >/dev/null 2>&1; then
   exit 1
 fi
 
+# A tag names one tree but many jobs: re-pushes re-use it, and a bare
+# `sci wait TAG` does not resolve then. Wait by job ID instead: a passed run
+# for the tag gates immediately, else the newest job for the tag.
+resolve_job() {
+  sci stat -n 100 2>/dev/null | awk -v t="$1" '
+    $7 == t && $2 == "pass" { print $1; done=1; exit }
+    $7 == t && newest == "" { newest=$1 }
+    END { if (!done && newest != "") print newest }'
+}
+
+ensure_green() {
+  ship_job_id=$(resolve_job "$TAG")
+  if [ -n "$ship_job_id" ]; then
+    sci wait "$ship_job_id"
+    case "$?" in
+      0) return 0 ;;
+      1) echo "ship: CI $ship_job_id ($TAG) is red; merge refused" >&2; return 1 ;;
+    esac
+    echo "ship: job $ship_job_id inconclusive; re-pushing $TAG..."
+  else
+    echo "ship: no CI job for $TAG; pushing tree..."
+  fi
+  ship_job_id=$(sci push jscadui/test -t "$TAG" --supersede | tail -1)
+  echo "ship: waiting for CI job $ship_job_id ($TAG)..."
+  sci wait "$ship_job_id" || { echo "ship: CI red or missing for $TAG; merge refused" >&2; return 1; }
+}
+
 if [ "$DRY_RUN" = "1" ]; then
   echo "ship: would wait for CI $TAG (branch $BRANCH, $AHEAD commit(s)), then land it"
   exit 0
 fi
 
 echo "ship: waiting for CI $TAG (branch $BRANCH)..."
-if ! sci wait "$TAG"; then
-  echo "ship: CI red or missing for $TAG; push the tree first ('sci push jscadui/test -t $TAG --supersede'), then re-run"
+if ! ensure_green; then
   exit 1
 fi
 "$LAND_BIN" "$BRANCH"
