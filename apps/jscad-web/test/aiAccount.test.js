@@ -479,6 +479,22 @@ describe('free provider', () => {
     expect(document.querySelector('.ai-free-info')).toBeNull()
   })
 
+  it('shows the fixed sentinel in the key box for free and restores the draft after', async () => {
+    await openGear(inferenceFetch(INFERENCE))
+    const provider = document.querySelector('.ai-provider-select')
+    provider.value = 'openai'
+    provider.dispatchEvent(new Event('change'))
+    document.querySelector('.ai-key-input').value = 'sk-draft'
+    await selectFree()
+    const box = document.querySelector('.ai-key-input')
+    expect(box.value).toBe('jscad-web-free')
+    expect(box.type).toBe('text')
+    provider.value = 'openai'
+    provider.dispatchEvent(new Event('change'))
+    expect(box.value).toBe('sk-draft')
+    expect(box.type).toBe('password')
+  })
+
   it('re-enables the relay-owned controls on switching back to an own-key provider', async () => {
     await openGear(inferenceFetch(INFERENCE))
     await selectFree()

@@ -334,6 +334,8 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
   const key = textInput('', 'sk-...', 'password')
   key.classList.add('ai-key-input')
   key.autocomplete = 'off'
+  // A typed-but-unsaved key draft, held while free shows the fixed sentinel.
+  let keyDraft = ''
   const mode = el('select', 'ai-input')
   for (const value of ['session', 'device', 'synced']) mode.append(Object.assign(el('option'), { value, textContent: value }))
   mode.value = 'session'
@@ -396,7 +398,18 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
   const applyFreeState = () => {
     const free = freeActive()
     for (const control of relayOwnedControls) control.disabled = free
-    keyLine.textContent = free ? `Fixed key (${FREE_API_KEY}).` : keyStore.get() ? 'Key set.' : 'No key set.'
+    if (free) {
+      // The fixed sentinel reads in the key box itself, as plain text: it is
+      // public (docs, bundle source) and the relay ignores its value anyway.
+      if (key.value !== FREE_API_KEY) keyDraft = key.value
+      key.value = FREE_API_KEY
+      key.type = 'text'
+      keyLine.textContent = 'Relay-provided key.'
+    } else {
+      key.type = 'password'
+      if (key.value === FREE_API_KEY) key.value = keyDraft
+      keyLine.textContent = keyStore.get() ? 'Key set.' : 'No key set.'
+    }
     recordToggle.checked = free ? true : getRecordOwnChats()
     recordToggle.disabled = free
     refreshEffort()
