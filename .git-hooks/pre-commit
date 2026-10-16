@@ -7,6 +7,15 @@ set -e
 
 echo "Running pre-commit checks..."
 
+# main takes only gated merges: develop on a branch and merge with
+# scripts/ship.sh, which fast-forwards main solely on green simple-ci.
+BRANCH=$(git branch --show-current 2>/dev/null || true)
+if [ "$BRANCH" = "main" ] && [ "${JSCADUI_ALLOW_MAIN:-0}" != "1" ]; then
+  echo "Direct commits to main are blocked: develop on a branch and merge with scripts/ship.sh (CI-gated)."
+  echo "Bypass with JSCADUI_ALLOW_MAIN=1 (emergencies only)."
+  exit 1
+fi
+
 # Build the openscad package (ensures transpiler JS is up to date)
 echo "Building..."
 npm run build --workspace=@jscadui/openscad

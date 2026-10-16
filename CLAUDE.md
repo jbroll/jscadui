@@ -56,13 +56,16 @@ Skip files auto-discovered from `skip.txt` in each example directory.
 
 ## Merge Workflow
 
-Develop on a branch, fast-forward it into `main`, push:
+Develop on a branch. Every commit auto-pushes the tree to simple-ci
+(post-commit hook, tag `commit-<sha>`, superseding the previous job).
+Merge only on green:
 
 ```bash
-git checkout main
-git merge --ff-only <branch>
-git push
+scripts/ship.sh   # waits for the branch HEAD's CI job, then ff-merges to main and pushes
 ```
+
+Direct commits to `main` are blocked by the pre-commit hook
+(bypass with `JSCADUI_ALLOW_MAIN=1`, emergencies only).
 
 `--ff-only` is the point: `main` stays linear. If the merge is refused, rebase
 the branch on `main` and try again. Everything the branch needs verified must be
