@@ -9,7 +9,22 @@ unmodified — and the same mechanism deletes the SCAD include-rewriting patches
 
 ---
 
-## Phase 1 — Per-lib-root resolution (1a DONE, 1b SUPERSEDED)
+## Phase 1 — Per-lib-root resolution (DONE 2026-10-16)
+
+- 1a DONE (prefix map + bosl2 proof). Follow-up same pattern, all committed:
+  deleted `bosl-lib-`, `mcad-`, `list-comprehension-demos-` patches; all
+  suites re-fetched pristine; singles pass (mcad linear_bearing, bosl spot).
+- Harness companion (same branch): `openscadLibPath.js` builds a
+  `~/.cache/jscadui/openscad-libs/` prefix-symlink dir (NOT /tmp: reference
+  OpenSCAD is a Flatpak that sees home but not /tmp); `test-harness.js` sets
+  it on OPENSCADPATH ahead of the suite lib dir. Cache `FAILURE_EPOCH`
+  bumped v3→v4 (designed invalidation for fixed harness failures).
+- Local caveats (environmental, identical patched-vs-pristine, CI arbitrates):
+  `boolean_geometry` FAIL 0.9729 (text() triangulation here),
+  `spiral-2d` compare "Not manifold" (scad-utils `len()` quirk in this
+  nightly), `lsystems` NOT GRADED (2D top level, reference-side).
+- 1b (`setLibraryPrefixes` in frame) SUPERSEDED: no consumer.
+- 1c (collapse dual lego mapping): dropped, low value.
 
 - 1b (`setLibraryPrefixes` in the frame worker, mirroring `backend.js:128`)
   SUPERSEDED 2026-10-16: no consumer — backend already has it, and V1
